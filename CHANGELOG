@@ -1,6 +1,16 @@
 ChangeLog :
 ===========
 
+2003/09/21 : 1.1.24
+  - if a client sent a full request then shut its write connection down, then
+    the request was aborted. This case was detected only when using haproxy
+    both as health-check client and as a server.
+  - if 'option httpchk' is used in a 'health' mode server, then responses will
+    change from 'OK' to 'HTTP/1.0 200 OK'.
+  - fixed a Linux-only bug in case of HTTP server health-checks, where a single
+    server response followed by a close could be ignored, and the server seen
+    as failed.
+
 2003/09/19 : 1.1.23
   - fixed a stupid bug introduced in 1.1.22 which caused second and subsequent
     'default' sections to keep previous parameters, and not initialize logs

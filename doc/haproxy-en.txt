@@ -1,9 +1,9 @@
 
          		     H A - P r o x y
          		     ---------------
-         		      version 1.1.23
+         		      version 1.1.24
 			      willy tarreau
-			       2003/09/20
+			       2003/09/21
 
 ============
 | Abstract |
@@ -332,13 +332,21 @@ Health-checking mode
 This mode provides a way for external components to check the proxy's health.
 It is meant to be used with intelligent load-balancers which can use send/expect
 scripts to check for all of their servers' availability. This one simply accepts
-the connection, returns the word 'OK' and closes it. To enable it, simply
+the connection, returns the word 'OK' and closes it. If the 'option httpchk' is
+set, then the reply will be 'HTTP/1.0 200 OK' with no data, so that it can be
+tested from a tool which supports HTTP health-checks. To enable it, simply
 specify 'health' as the working mode :
 
 Example :
 ---------
+    # simple response : 'OK'
     listen health_check 0.0.0.0:60000
 	mode health
+
+    # HTTP response : 'HTTP/1.0 200 OK'
+    listen http_health_check 0.0.0.0:60001
+	mode health
+	option httpchk
 
 
 2.3) Limiting the number of simultaneous connections
@@ -640,8 +648,8 @@ Examples :
 	server srv2 192.168.1.2:+1000
 
 
-3.1) Servers monitoring
------------------------
+3.1) Server monitoring
+----------------------
 
 It is possible to check the servers status by trying to establish TCP
 connections or even sending HTTP requests to them. A server which fails to
@@ -850,45 +858,39 @@ Example :
 4.2) Event logging
 ------------------
 
+TCP and HTTP connections can be logged with informations such as date, time,
+source IP address, destination address, connection duration, response times,
+HTTP request, the HTTP return code, number of bytes transmitted, the conditions
+in which the session ended, and even exchanged cookies values, to track a
+particular user's problems for example. All messages are sent to up to two
+syslog servers. Consult section 1.1 for more info about log facilities. The
+syntax follows :
 
-- 8< - - - 8< - - - 8< - - - 8< - - - 8< - - - 8< - - -
-
-
-
-Les connexions TCP et HTTP peuvent donner lieu à une journalisation sommaire ou
-détaillée indiquant, pour chaque connexion, la date, l'heure, l'adresse IP
-source, le serveur destination, la durée de la connexion, les temps de réponse,
-la requête HTTP, le code de retour, la quantité de données transmises, et même
-dans certains cas, la valeur d'un cookie permettant de suivre les sessions.
-Tous les messages sont envoyés en syslog vers un ou deux serveurs. Se référer à
-la section 1.1 pour plus d'information sur les catégories de logs.  La syntaxe
-est la suivante :
-
-    log <adresse_ip_1> <catégorie_1> [niveau_max_1]
-    log <adresse_ip_2> <catégorie_2> [niveau_max_2]
-ou
+    log <address_1> <facility_1> [max_level_1]
+    log <address_2> <facility_2> [max_level_2]
+or
     log global
 
-Remarque :
-----------
-La syntaxe spécifique 'log global' indique que l'on souhaite utiliser les
-paramètres de journalisation définis dans la section 'global'.
+Note :
+------
+The particular syntax 'log global' means that the same log configuration as the
+'global' section will be used.
 
-Exemple :
+Example :
 ---------
     listen http_proxy 0.0.0.0:80
 	mode http
 	log 192.168.2.200 local3
 	log 192.168.2.201 local4
 
-Par défaut, les informations contenues dans les logs se situent au niveau TCP
-uniquement. Il faut préciser l'option 'httplog' pour obtenir les détails du
-protocole HTTP. Dans les cas où un mécanisme de surveillance effectuant des
-connexions et déconnexions fréquentes, polluerait les logs, il suffit d'ajouter
-l'option 'dontlognull', pour ne plus obtenir une ligne de log pour les sessions
-n'ayant pas donné lieu à un échange de données (requête ou réponse).
+By default, only TCP information is logged. It is necessary to set the 'httplog'
+option to obtain more detailed information about HTTP contents. In the event
+where an external component would establish frequent connections to check the
+service, logs may be full of useless lines. So it is possible not to log any
+session which didn't transfer any data, by the setting of the 'dontlognull'
+option. This only has effect on sessions which are established then closed.
 
-Exemple :
+Example :
 ---------
     listen http_proxy 0.0.0.0:80
 	mode http
@@ -896,88 +898,81 @@ Exemple :
 	option dontlognull
 	log 192.168.2.200 local3
 
-Depuis la version 1.1.18, un indicateur de complétude de la session a été ajouté
-dans les logs HTTP. C'est un champ de 4 caractères précédant la requête HTTP,
-indiquant :
-  - sur le premier caractère, un code précisant le premier événement qui a causé
-    la terminaison de la session :
+Since version 1.1.18, a session completion indicator has been added to HTTP
+logs. It's a 4-characters field preceeding the HTTP request, and indicating :
+  - On the first character, a code reporting the first event which caused the
+    session to terminate :
 
-        C : fermeture de la session TCP de la part du client
-	S : fermeture de la session TCP de la part du serveur, ou refus de connexion
-	P : terminaison prématurée des sessions par le proxy, pour cas d'erreur
-	    interne ou de configuration (ex: filtre d'URL)
-	c : expiration du délai d'attente côté client : clitimeout
-	s : expiration du délai d'attente côté serveur: srvtimeout et contimeout
-	- : terminaison normale.
+        C : the TCP session was aborted by the client.
+	S : the TCP session was aborted by the server, or the server refused it.
+	P : the session was abordted prematurely by the proxy, either because of
+	    an internal error, or because a DENY filter was matched.
+	c : the client time-out expired first.
+	s : the server time-out expired first.
+	- : normal session completion.
 
-  - sur le second caractère, l'état d'avancement de la session HTTP lors de la
-    fermeture :
+  - on the second character, the HTTP session state when it was closed :
 
-        R : terminaison en attendant la réception totale de la requête du client
-	C : terminaison en attendant la connexion vers le serveur
-	H : terminaison en attendant la réception totale des entêtes du serveur
-	D : terminaison durant le transfert des données du serveur vers le client
-	L : terminaison durant le transfert des dernières données du proxy vers
-	    le client, alors que le serveur a déjà fini.
-	- : terminaison normale, après fin de transfert des données
+        R : waiting for complete REQUEST from the client
+	C : waiting for CONNECTION to establish on the server
+	H : waiting for complete HEADERS from the server
+	D : the session was in the DATA phase
+	L : the proxy was still transmitting LAST data to the client while the
+	    server had already finished.
+	- : normal session completion after end of data transfer.
 
-  - le troisième caractère indique l'éventuelle identification d'un cookie de
-    persistence :
+  - the third character tells whether the persistence cookie was provided by
+    the client :
 
-        N : aucun cookie de persistence n'a été présenté.
-	I : le client a présenté un cookie ne correspondant à aucun serveur
-	    connu.
-	D : le client a présenté un cookie correspondant à un serveur hors
-	    d'usage. Suivant l'option 'persist', il a été renvoyé vers un
-	    autre serveur ou a tout de même tenté de se connecter sur celui
-	    correspondant au cookie.
-	V : le client a présenté un cookie valide et a pu se connecter au
-	    serveur correspondant.
-	- : non appliquable
+        N : the client provided NO cookie.
+	I : the client provided an INVALID cookie matching no known server.
+	D : the client provided a cookie designating a server which was DOWN,
+	    so either the 'persist' option was used and the client was sent to
+	    this server, or it was not set and the client was redispatched to
+	    another server.
+	V : the client provided a valid cookie, and was sent to the associated
+	    server.
+	- : does not apply (no cookie set in configuration).
 
-  - le dernier caractère indique l'éventuel traitement effectué sur un cookie de
-    persistence retrourné par le serveur :
+  - the last character reports what operations were performed on the persistence
+    cookie returned by the server :
 
-        N : aucun cookie de persistence n'a été fourni par le serveur.
-        P : un cookie cookie de persistence n'a été fourni par le serveur.
-	I : aucun cookie n'a été fourni par le serveur, il a été inséré par le
+        N : NO cookie was provided by the server.
+        P : a cookie was PROVIDED by the server and transmitted as-is.
+	I : no cookie was provided by the server, and one was INSERTED by the
 	    proxy.
-	D : le cookie présenté par le serveur a été supprimé par le proxy pour
-	    ne pas être retourné au client.
-	R : le cookie retourné par le serveur a été modifié par le proxy.
-	- : non appliquable
+	D : the cookie provided by the server was DELETED by the proxy.
+	R : the cookie provided by the server was REWRITTEN by the proxy.
+	- : does not apply (no cookie set in configuration).
 
-Le mot clé "capture" permet d'ajouter dans des logs HTTP des informations
-capturées dans les échanges. La version 1.1.17 supporte uniquement une capture
-de cookies client et serveur, ce qui permet dans bien des cas, de reconstituer
-la session d'un utilisateur. La syntaxe est la suivante :
+The 'capture' keyword allows to capture and log informations exchanged between
+clients and servers. As of version 1.1.23, only cookies can be captured, which
+makes it easy to track a complete user session. The syntax is :
 
-    capture cookie <préfixe_cookie> len <longueur_capture>
+    capture cookie <cookie_prefix> len <capture_length>
 
-Le premier cookie dont le nom commencera par <préfixe_cookie> sera capturé, et
-transmis sous la forme "NOM=valeur", sans toutefois, excéder <longueur_capture>
-caractères (64 au maximum). Lorsque le nom du cookie est fixe et connu, on peut
-le suffixer du signe "=" pour s'assurer qu'aucun autre cookie ne prendra sa
-place dans les logs.
+The FIRST cookie whose name starts with <cookie_prefix> will be captured, and
+logged as 'NAME=value', without exceeding <capture_length> characters (64 max).
+When the cookie name is fixed and known, it's preferable to suffix '=' to it to
+ensure that no other cookie will be logged.
 
-Exemples :
+Examples :
 ----------
-    # capture du premier cookie dont le nom commence par "ASPSESSION"
+    # capture the first cookie whose name starts with "ASPSESSION"
     capture cookie ASPSESSION len 32
 
-    # capture du premier cookie dont le nom est exactement "vgnvisitor"
+    # capture the first cookie whose name is exactly "vgnvisitor"
     capture cookie vgnvisitor= len 32
 
-Dans les logs, le champ précédant l'indicateur de complétude contient le cookie
-positionné par le serveur, précédé du cookie positionné par le client. Chacun de
-ces champs est remplacé par le signe "-" lorsqu'aucun cookie n'est fourni par le
-client ou le serveur.
+In the logs, the field preceeding the completion indicator contains the cookie
+value as sent by the server, preceeded by the cookie value as sent by the
+client. Each of these field is replaced with '-' when no cookie was seen.
 
-Enfin, l'option 'forwardfor' ajoute l'adresse IP du client dans un champ
-'X-Forwarded-For' de la requête, ce qui permet à un serveur web final de
-connaître l'adresse IP du client initial.
+Last, the 'forwardfor' option creates an HTTP 'X-Forwarded-For' header which
+contains the client's IP address. This is useful to let the final web server
+know what the client address was (eg for statistics on domains).
 
-Exemple :
+Example :
 ---------
     listen http_proxy 0.0.0.0:80
 	mode http
@@ -988,99 +983,134 @@ Exemple :
 	capture cookie userid= len 20
 
 
-4.3) Modification des entêtes HTTP
-----------------------------------
-En mode HTTP uniquement, il est possible de remplacer certains en-têtes dans la
-requête et/ou la réponse à partir d'expressions régulières. Il est également
-possible de bloquer certaines requêtes en fonction du contenu des en-têtes ou de
-la requête. Une limitation cependant : les en-têtes fournis au milieu de
-connexions persistentes (keep-alive) ne sont pas vus car ils sont considérés
-comme faisant partie des échanges de données consécutifs à la première requête.
-Les données ne sont pas affectées, ceci ne s'applique qu'aux en-têtes. 
+4.3) HTTP header manipulation
+-----------------------------
+In HTTP mode, it is possible to rewrite, add or delete some of the request and
+response headers based on regular expressions. It is also possible to block a
+request or a response if a particular header matches a regular expression,
+which is enough to stops most elementary protocol attacks, and to protect
+against information leak from the internal network. But there is a limitation
+to this : since haproxy's HTTP engine knows nothing about keep-alive, only
+headers passed during the first request of a TCP session will be seen. All
+subsequent headers will be considered data only and not analyzed. Furthermore,
+haproxy doesn't touch data contents, it stops at the end of headers.
 
-La syntaxe est :
-   reqadd    <string>             pour ajouter un en-tête dans la requête
-   reqrep    <search> <replace>   pour modifier la requête
-   reqirep   <search> <replace>   idem sans distinction majuscules/minuscules
-   reqdel    <search>             pour supprimer un en-tête dans la requête
-   reqidel   <search>             idem sans distinction majuscules/minuscules
-   reqallow  <search>             autoriser la requête si un entête valide <search>
-   reqiallow <search>             idem sans distinction majuscules/minuscules
-   reqdeny   <search>             interdire la requête si un entête valide <search>
-   reqideny  <search>             idem sans distinction majuscules/minuscules
-   reqpass   <search>             inhibe ces actions sur les entêtes validant <search>
-   reqipass  <search>             idem sans distinction majuscules/minuscules
+The syntax is :
+   reqadd    <string>             to add a header to the request
+   reqrep    <search> <replace>   to modify the request
+   reqirep   <search> <replace>   same, but ignoring the case
+   reqdel    <search>             to delete a header in the request
+   reqidel   <search>             same, but ignoring the case
+   reqallow  <search>             definitely allow a request if a header matches <search>
+   reqiallow <search>             same, but ignoring the case
+   reqdeny   <search>             denies a request if a header matches <search>
+   reqideny  <search>             same, but ignoring the case
+   reqpass   <search>             ignore a header matching <search>
+   reqipass  <search>             same, but ignoring the case
 
-   rspadd   <string>              pour ajouter un en-tête dans la réponse
-   rsprep   <search> <replace>    pour modifier la réponse
-   rspirep  <search> <replace>    idem sans distinction majuscules/minuscules
-   rspdel   <search>              pour supprimer un en-tête dans la réponse
-   rspidel  <search>              idem sans distinction majuscules/minuscules
-
-
-<search> est une expression régulière compatible POSIX regexp supportant le
-groupage par parenthèses (sans les '\'). Les espaces et autres séparateurs
-doivent êtres précédés d'un '\' pour ne pas être confondus avec la fin de la
-chaîne. De plus, certains caractères spéciaux peuvent être précédés d'un
-backslach ('\') :
-
-  \t   pour une tabulation
-  \r   pour un retour charriot
-  \n   pour un saut de ligne
-  \    pour différencier un espace d'un séparateur
-  \#   pour différencier un dièse d'un commentaire
-  \\   pour utiliser un backslash dans la regex
-  \\\\ pour utiliser un backslash dans le texte
-  \xXX pour un caractère spécifique XX (comme en C)
+   rspadd   <string>              to add a header to the response
+   rsprep   <search> <replace>    to modify the response
+   rspirep  <search> <replace>    same, but ignoring the case
+   rspdel   <search>              to delete the response
+   rspidel  <search>              same, but ignoring the case
 
 
-<replace> contient la chaîne remplaçant la portion vérifiée par l'expression.
-Elle peut inclure les caractères spéciaux ci-dessus, faire référence à un
-groupe délimité par des parenthèses dans l'expression régulière, par sa
-position numérale. Les positions vont de 1 à 9, et sont codées par un '\'
-suivi du chiffre désiré. Il est également possible d'insérer un caractère non
-imprimable (utile pour le saut de ligne) inscrivant '\x' suivi du code
-hexadécimal de ce caractère (comme en C).
+<search> is a POSIX regular expression (regex) which supports grouping through
+parenthesis (without the backslash). Spaces and other delimiters must be
+prefixed with a backslash ('\') to avoid confusion with a field delimiter.
+Other characters may be prefixed with a backslash to change their meaning :
 
-<string> représente une chaîne qui sera ajoutée systématiquement après la
-dernière ligne d'en-tête.
+  \t   for a tab
+  \r   for a carriage return (CR)
+  \n   for a new line (LF)
+  \    to mark a space and differentiate it from a delimiter
+  \#   to mark a sharp and differentiate it from a comment
+  \\   to use a backslash in a regex
+  \\\\ to use a backslash in the text (*2 for regex, *2 for haproxy)
+  \xXX to write the ASCII hex code XX as in the C language
 
-Remarques :
----------
-  - la première ligne de la requête et celle de la réponse sont traitées comme
-    des en-têtes, ce qui permet de réécrire des URL et des codes d'erreur.
-  - 'reqrep' est l'équivalent de 'cliexp' en version 1.0, et 'rsprep' celui de
-    'srvexp'. Ces noms sont toujours supportés mais déconseillés.
-  - pour des raisons de performances, le nombre total de caractères ajoutés sur
-    une requête ou une réponse est limité à 4096 depuis la version 1.1.5 (cette
-    limite était à 256 auparavant). Cette valeur est modifiable dans le code.
-    Pour un usage temporaire, on peut gagner de la place en supprimant quelques
-    entêtes inutiles avant les ajouts.
 
-Exemples :
---------
-	reqrep	^(GET.*)(.free.fr)(.*) \1.online.fr\3
-	reqrep	^(POST.*)(.free.fr)(.*) \1.online.fr\3
+<replace> containst the string to be used to replace the largest portion of text
+matching the regex. It can make use of the special characters above, and can
+reference a substring delimited by parenthesis in the regex, by the group
+numerical order from 1 to 9. In this case, you would write a backslah ('\')
+immediately followed by one digit indicating the group position.
+
+<string> represents the string which will systematically be added after the last
+header line. It can also use special characters above.
+
+Notes :
+-------
+  - the first line is considered as a header, which makes it possible to rewrite
+    or filter HTTP requests URIs or response codes.
+  - 'reqrep' is the equivalent of 'cliexp' in version 1.0, and 'rsprep' is the
+    equivalent of 'srvexp' in 1.0. Those names are still supported but
+    deprecated.
+  - for performances reasons, the number of characters added to a request or to
+    a response is limited to 4096 since version 1.1.5 (it was 256 before). This
+    value is easy to modify in the code if needed (#define). If it is too short
+    on occasional uses, it is possible to gain some space by removing some
+    useless headers before adding new ones.
+
+Examples :
+----------
+	###### a few examples ######
+
+	# rewrite 'online.fr' instead of 'free.fr' for GET and POST requests
+	reqrep	^(GET\ .*)(.free.fr)(.*) \1.online.fr\3
+	reqrep	^(POST\ .*)(.free.fr)(.*) \1.online.fr\3
+
+	# force proxy connections to close
 	reqirep	^Proxy-Connection:.*	Proxy-Connection:\ close
-	rspirep	^Server:.* Server:\ Tux-2.0
+	# rewrite locations
 	rspirep	^(Location:\ )([^:]*://[^/]*)(.*) \1\3
-	rspidel  ^Connection:
-	rspadd	Connection:\ close
+
+	###### A full configuration being used on production ######
+
+        # Every header should end with a colon followed by one space.
+        reqideny        ^[^:\ ]*[\ ]*$
+
+        # block Apache chunk exploit
+        reqideny        ^Transfer-Encoding:[\ ]*chunked
+        reqideny        ^Host:\ apache-
+
+        # block annoying worms that fill the logs...
+        reqideny        ^[^:\ ]*\ .*(\.|%2e)(\.|%2e)(%2f|%5c|/|\\\\)
+        reqideny        ^[^:\ ]*\ ([^\ ]*\ [^\ ]*\ |.*%00)
+        reqideny        ^[^:\ ]*\ .*<script
+        reqideny        ^[^:\ ]*\ .*/(root\.exe\?|cmd\.exe\?|default\.ida\?)
+
+        # allow other syntactically valid requests, and block any other method
+        reqipass        ^(GET|POST|HEAD|OPTIONS)\ /.*\ HTTP/1\.[01]$
+        reqipass        ^OPTIONS\ \\*\ HTTP/1\.[01]$
+        reqideny        ^[^:\ ]*\ 
+
+        # force connection:close, thus disabling HTTP keep-alive
+        reqidel         ^Connection:
+        rspidel         ^Connection:
+        reqadd          Connection:\ close
+        rspadd          Connection:\ close
+
+	# change the server name
+        rspidel         ^Server:\ 
+        rspadd          Server:\ Formilux/0.1.8
 
 
-4.4) Répartition avec persistence
----------------------------------
+- 8< - - - 8< - - - 8< - - - 8< - - - 8< - - - 8< - - -
 
-La combinaison de l'insertion de cookie avec la répartition de charge interne
-permet d'assurer une persistence dans les sessions HTTP d'une manière
-pratiquement transparente pour les applications. Le principe est simple :
-  - attribuer une valeur d'un cookie à chaque serveur
-  - effectuer une répartition interne
-  - insérer un cookie dans les réponses issues d'une répartition uniquement,
-    et faire en sorte que des caches ne mémorisent pas ce cookie.
-  - cacher ce cookie à l'application lors des requêtes ultérieures.
+4.4) Load balancing with persistence
+------------------------------------
 
-Exemple :
+Combining cookie insertion with internal load balancing allows to transparently
+bring persistence to applications. The principle is quite simple :
+  - assign a cookie value to each server
+  - enable the load balancing between servers
+  - insert a cookie into responses resulting from the balancing algorithm
+    (indirect accesses), end ensure that no upstream proxy will cache it.
+  - remove the cookie in the request headers so that the application never sees
+    it.
+
+Example :
 ---------
     listen application 0.0.0.0:80
 	mode http
@@ -1089,31 +1119,32 @@ Exemple :
 	server 192.168.1.1:80 cookie server01 check
 	server 192.168.1.2:80 cookie server02 check
 
-4.5) Personalisation des erreurs
---------------------------------
+4.5) Customizing errors
+-----------------------
 
-Certaines situations conduisent à retourner une erreur HTTP au client :
-  - requête invalide ou trop longue => code HTTP 400
-  - requête mettant trop de temps à venir => code HTTP 408
-  - requête interdite (bloquée par un reqideny) => code HTTP 403
-  - erreur interne du proxy => code HTTP 500
-  - le serveur a retourné une réponse incomplète ou invalide => code HTTP 502
-  - aucun serveur disponible pour cette requête => code HTTP 503
-  - le serveur n'a pas répondu dans le temps imparti => code HTTP 504
+Some situations can make haproxy return an HTTP error code to the client :
+  - invalid or too long request => HTTP 400
+  - request not completely sent in time => HTTP 408
+  - forbidden request (matches a deny filter) => HTTP 403
+  - internal error in haproxy => HTTP 500
+  - the server returned an invalid or incomplete response => HTTP 502
+  - no server was available to handle the request => HTTP 503
+  - the server failed to reply in time => HTTP 504
 
-Un message d'erreur succint tiré de la RFC accompagne ces codes de retour.
-Cependant, en fonction du type de clientèle, on peut préférer retourner des
-pages personnalisées. Ceci est possible par le biais de la commande "errorloc" :
+A succint error message taken from the RFC accompanies these return codes.
+But depending on the clients knowledge, it may be better to return custom, user
+friendly, error pages. This is made possible through the use of the 'errorloc'
+command :
 
-    errorloc <code_HTTP> <location>
+    errorloc <HTTP_code> <location>
 
-Au lieu de générer une erreur HTTP <code_HTTP> parmi les codes cités ci-dessus,
-le proxy génèrera un code de redirection temporaire (HTTP 302) vers l'adresse
-d'une page précisée dans <location>. Cette adresse peut être relative au site,
-ou absolue. Comme cette réponse est traîtée par le navigateur du client
-lui-même, il est indispensable que l'adresse fournie lui soit accessible.
+Instead of generating an HTTP error <HTTP_code> among those above, the proxy
+will return a temporary redirection code (HTTP 302) towards the address
+specified in <location>. This address may be either relative to the site or
+absolute. Since this request will be handled by the client's browser, it's
+mandatory that the returned address be reachable from the outside.
 
-Exemple :
+Example :
 ---------
     listen application 0.0.0.0:80
         errorloc 400 /badrequest.html
@@ -1124,30 +1155,28 @@ Exemple :
         errorloc 503 http://192.168.114.58/error50x.html
         errorloc 504 http://192.168.114.58/error50x.html
 
-4.6) Changement des valeurs par défaut
---------------------------------------
+4.6) Modifying default values
+-----------------------------
 
-Dans la version 1.1.22 est apparue la notion de valeurs par défaut, ce qui évite
-de répéter des paramètres communs à toutes les instances, tels que les timeouts,
-adresses de log, modes de fonctionnement, etc.
+Version 1.1.22 introduced the notion of default values, which eliminates the
+pain of often repeating common parameters between many instances, such as
+logs, timeouts, modes, etc...
 
-Les valeurs par défaut sont positionnées dans la dernière section 'defaults'
-précédent l'instance qui les utilisera. On peut donc mettre autant de sections
-'defaults' que l'on veut. Il faut juste se rappeler que la présence d'une telle
-section implique une annulation de tous les paramètres par défaut positionnés
-précédemment, dans le but de les remplacer.
+Default values are set in a 'defaults' section. Each of these section clears
+all previously set default parameters, so there may be as many default
+parameters as needed. Only the last one before a 'listen' section will be
+used for this section. The 'defaults' section uses the same syntax as the
+'listen' section, for the supported parameters. The 'defaults' keyword ignores
+everything on its command line, so that fake instance names can be specified
+there for better clarity.
 
-La section 'defaults' utilise la même syntaxe que la section 'listen', aux
-paramètres près qui ne sont pas supportés. Le mot clé 'defaults' peut accepter
-un commentaire en guise paramètre.
-
-Dans la version 1.1.22, seuls les paramètres suivants peuvent être positionnés
-dans une section 'defaults' :
-  - log (le premier et le second)
+In version 1.1.23, only those parameters can be preset in the 'default'
+section :
+  - log (the first and second one)
   - mode { tcp, http, health }
   - balance { roundrobin }
-  - disabled (pour désactiver toutes les instances qui suivent)
-  - enabled (pour faire l'opération inverse, mais c'est le cas par défaut)
+  - disabled (to disable every further instances)
+  - enabled (to enable every further instances, this is the default)
   - contimeout, clitimeout, srvtimeout, grace, retries, maxconn
   - option { redispatch, transparent, keepalive, forwardfor, httplog,
              dontlognull, persist, httpchk }
@@ -1155,18 +1184,16 @@ dans une section 'defaults' :
   - cookie, capture
   - errorloc
 
-Ne sont pas supportés dans cette version, les adresses de dispatch et les
-configurations de serveurs, ainsi que tous les filtres basés sur les
-expressions régulières :
+As of 1.1.24, it is not possible to put certain parameters in a 'defaults'
+section, mainly regular expressions and server configurations :
   - dispatch, server,
-  - req*, rsp*, 
+  - req*, rsp*
 
-Enfin, il n'y a pas le moyen, pour le moment, d'invalider un paramètre booléen
-positionné par défaut. Donc si une option est spécifiée dans les paramètres par
-défaut, le seul moyen de la désactiver pour une instance, c'est de changer les
-paramètres par défaut avant la déclaration de l'instance.
+Last, there's no way yet to change a boolean option from its assigned default
+value. So if an 'option' statement is set in a 'defaults' section, the only
+way to flush it is to redefine a new 'defaults' section without this 'option'.
 
-Exemples :
+Examples :
 ----------
     defaults applications TCP
 	log global
@@ -1205,14 +1232,14 @@ Exemples :
 	server srv1 192.168.1.2:+8000 cookie srv2 check port 8080 inter 1000
 
     defaults
-	# section vide qui annule tous les paramètes par défaut.
+	# this empty section voids all default parameters
 
-=======================
-| Paramétrage système |
-=======================
+=========================
+| System-specific setup |
+=========================
 
-Sous Linux 2.4
-==============
+Linux 2.4
+=========
 
 -- cut here --
 #!/bin/sh
@@ -1254,4 +1281,17 @@ echo 16384 349520 699040 > /proc/sys/net/ipv4/tcp_wmem
 
 -- cut here --
 
--- fin --
+
+FreeBSD
+=======
+
+A FreeBSD port of HA-Proxy is now available and maintained, thanks to
+Clement Laforet <sheepkiller@cultdeadsheep.org>.
+
+For more information :
+http://www.freebsd.org/cgi/url.cgi?ports/net/haproxy/pkg-descr
+http://www.freebsd.org/cgi/cvsweb.cgi/ports/net/haproxy/
+http://www.freshports.org/net/haproxy
+
+
+-- end --

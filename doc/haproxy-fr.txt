@@ -1,9 +1,9 @@
 
          		     H A - P r o x y
          		     ---------------
-         		      version 1.1.23
+         		      version 1.1.24
 			      willy tarreau
-			       2003/09/20
+			       2003/09/21
 
 ================
 | Introduction |
@@ -347,13 +347,21 @@ Mode supervision
 Il s'agit d'un mode offrant à un composant externe une visibilité de l'état de
 santé du service. Il se contente de retourner "OK" à tout client se connectant
 sur son port. Il peut être utilisé avec des répartiteurs de charge évolués pour
-déterminer quels sont les services utilisables. Pour activer ce mode, préciser
+déterminer quels sont les services utilisables. Si l'option 'httpchk' est
+activée, alors la réponse changera en 'HTTP/1.0 200 OK' pour satisfaire les
+attentes de composants sachant tester en HTTP. Pour activer ce mode, préciser
 le mode HEALTH sous la déclaration du relais.
 
 Exemple :
 ---------
+    # réponse simple : 'OK'
     listen health_check 0.0.0.0:60000
 	mode health
+
+    # réponse HTTP : 'HTTP/1.0 200 OK'
+    listen http_health_check 0.0.0.0:60001
+	mode health
+	option httpchk
 
 
 2.3) Limitation du nombre de connexions simultanées
@@ -951,7 +959,8 @@ indiquant :
     persistence retrourné par le serveur :
 
         N : aucun cookie de persistence n'a été fourni par le serveur.
-        P : un cookie cookie de persistence n'a été fourni par le serveur.
+        P : un cookie de persistence a été fourni par le serveur et transmis
+	    tel quel.
 	I : aucun cookie n'a été fourni par le serveur, il a été inséré par le
 	    proxy.
 	D : le cookie présenté par le serveur a été supprimé par le proxy pour
@@ -1058,7 +1067,7 @@ hexadécimal de ce caractère (comme en C).
 dernière ligne d'en-tête.
 
 Remarques :
----------
+-----------
   - la première ligne de la requête et celle de la réponse sont traitées comme
     des en-têtes, ce qui permet de réécrire des URL et des codes d'erreur.
   - 'reqrep' est l'équivalent de 'cliexp' en version 1.0, et 'rsprep' celui de
@@ -1070,14 +1079,47 @@ Remarques :
     entêtes inutiles avant les ajouts.
 
 Exemples :
---------
-	reqrep	^(GET.*)(.free.fr)(.*) \1.online.fr\3
-	reqrep	^(POST.*)(.free.fr)(.*) \1.online.fr\3
+----------
+	###### a few examples ######
+
+	# rewrite 'online.fr' instead of 'free.fr' for GET and POST requests
+	reqrep	^(GET\ .*)(.free.fr)(.*) \1.online.fr\3
+	reqrep	^(POST\ .*)(.free.fr)(.*) \1.online.fr\3
+
+	# force proxy connections to close
 	reqirep	^Proxy-Connection:.*	Proxy-Connection:\ close
-	rspirep	^Server:.* Server:\ Tux-2.0
+	# rewrite locations
 	rspirep	^(Location:\ )([^:]*://[^/]*)(.*) \1\3
-	rspidel  ^Connection:
-	rspadd	Connection:\ close
+
+	###### A full configuration being used on production ######
+
+        # Every header should end with a colon followed by one space.
+        reqideny        ^[^:\ ]*[\ ]*$
+
+        # block Apache chunk exploit
+        reqideny        ^Transfer-Encoding:[\ ]*chunked
+        reqideny        ^Host:\ apache-
+
+        # block annoying worms that fill the logs...
+        reqideny        ^[^:\ ]*\ .*(\.|%2e)(\.|%2e)(%2f|%5c|/|\\\\)
+        reqideny        ^[^:\ ]*\ ([^\ ]*\ [^\ ]*\ |.*%00)
+        reqideny        ^[^:\ ]*\ .*<script
+        reqideny        ^[^:\ ]*\ .*/(root\.exe\?|cmd\.exe\?|default\.ida\?)
+
+        # allow other syntactically valid requests, and block any other method
+        reqipass        ^(GET|POST|HEAD|OPTIONS)\ /.*\ HTTP/1\.[01]$
+        reqipass        ^OPTIONS\ \\*\ HTTP/1\.[01]$
+        reqideny        ^[^:\ ]*\ 
+
+        # force connection:close, thus disabling HTTP keep-alive
+        reqidel         ^Connection:
+        rspidel         ^Connection:
+        reqadd          Connection:\ close
+        rspadd          Connection:\ close
+
+	# change the server name
+        rspidel         ^Server:\ 
+        rspadd          Server:\ Formilux/0.1.8
 
 
 4.4) Répartition avec persistence
@@ -1153,7 +1195,7 @@ La section 'defaults' utilise la même syntaxe que la section 'listen', aux
 paramètres près qui ne sont pas supportés. Le mot clé 'defaults' peut accepter
 un commentaire en guise paramètre.
 
-Dans la version 1.1.22, seuls les paramètres suivants peuvent être positionnés
+Dans la version 1.1.23, seuls les paramètres suivants peuvent être positionnés
 dans une section 'defaults' :
   - log (le premier et le second)
   - mode { tcp, http, health }
@@ -1171,7 +1213,7 @@ Ne sont pas supportés dans cette version, les adresses de dispatch et les
 configurations de serveurs, ainsi que tous les filtres basés sur les
 expressions régulières :
   - dispatch, server,
-  - req*, rsp*, 
+  - req*, rsp*
 
 Enfin, il n'y a pas le moyen, pour le moment, d'invalider un paramètre booléen
 positionné par défaut. Donc si une option est spécifiée dans les paramètres par
@@ -1265,5 +1307,17 @@ echo 16384 65536 524288 > /proc/sys/net/ipv4/tcp_rmem
 echo 16384 349520 699040 > /proc/sys/net/ipv4/tcp_wmem
 
 -- cut here --
+
+Sous FreeBSD
+============
+
+Un port de HA-Proxy sous FreeBSD est désormais disponible, grâce à
+Clement Laforet <sheepkiller@cultdeadsheep.org>.
+
+Pour plus d'informations :
+http://www.freebsd.org/cgi/url.cgi?ports/net/haproxy/pkg-descr
+http://www.freebsd.org/cgi/cvsweb.cgi/ports/net/haproxy/
+http://www.freshports.org/net/haproxy
+
 
 -- fin --

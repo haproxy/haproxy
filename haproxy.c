@@ -53,8 +53,8 @@
 #include <linux/netfilter_ipv4.h>
 #endif
 
-#define HAPROXY_VERSION "1.1.23"
-#define HAPROXY_DATE	"2003/09/20"
+#define HAPROXY_VERSION "1.1.24"
+#define HAPROXY_DATE	"2003/09/21"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -2167,7 +2167,10 @@ int event_accept(int fd) {
 	fdtab[cfd].state = FD_STREADY;
 
 	if (p->mode == PR_MODE_HEALTH) {  /* health check mode, no client reading */
-	    client_retnclose(s, 3, "OK\n"); /* forge an "OK" response */
+	    if (p->options & PR_O_HTTP_CHK) /* "option httpchk" will make it speak HTTP */
+		client_retnclose(s, 19, "HTTP/1.0 200 OK\r\n\r\n"); /* forge a 200 response */
+	    else
+		client_retnclose(s, 3, "OK\n"); /* forge an "OK" response */
 	}
 	else {
 	    FD_SET(cfd, StaticReadEvent);
@@ -2215,6 +2218,7 @@ int event_srv_chk_w(int fd) {
     int skerr, lskerr;
     lskerr = sizeof(skerr);
     getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
+    /* in case of TCP only, this tells us if the connection succeeded */
     if (skerr)
 	s->result = -1;
     else {
@@ -2260,19 +2264,23 @@ int event_srv_chk_r(int fd) {
 
     int skerr, lskerr;
     lskerr = sizeof(skerr);
-    getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
-    s->result = -1;
-    if (!skerr) {
+
+    s->result = len = -1;
 #ifndef MSG_NOSIGNAL
+    getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
+    if (!skerr)
 	len = recv(fd, reply, sizeof(reply), 0);
 #else
-	len = recv(fd, reply, sizeof(reply), MSG_NOSIGNAL);
+    /* Warning! Linux returns EAGAIN on SO_ERROR if data are still available
+     * but the connection was closed on the remote end. Fortunately, recv still
+     * works correctly and we don't need to do the getsockopt() on linux.
+     */
+    len = recv(fd, reply, sizeof(reply), MSG_NOSIGNAL);
 #endif
-	if ((len >= sizeof("HTTP/1.0 000")) &&
-	    !memcmp(reply, "HTTP/1.", 7) &&
-	    (reply[9] == '2' || reply[9] == '3')) /* 2xx or 3xx */
-		s->result = 1;
-    }
+    if ((len >= sizeof("HTTP/1.0 000")) &&
+	!memcmp(reply, "HTTP/1.", 7) &&
+	(reply[9] == '2' || reply[9] == '3')) /* 2xx or 3xx */
+	s->result = 1;
 
     FD_CLR(fd, StaticReadEvent);
     task_wakeup(&rq, t);
@@ -2455,7 +2463,14 @@ int process_cli(struct session *t) {
 		 * better to release the maximum of system buffers instead ? */
 		//FD_CLR(t->cli_fd, StaticReadEvent);
 		//tv_eternity(&t->crexpire);
-		break;
+
+		/* FIXME: if we break here (as up to 1.1.23), having the client
+		 * shutdown its connection can lead to an abort further.
+		 * it's better to either return 1 or even jump directly to the
+		 * data state which will save one schedule.
+		 */
+		//break;
+		goto process_data;
 	    }
 
 	    /* to get a complete header line, we need the ending \r\n, \n\r, \r or \n too */
@@ -2777,6 +2792,7 @@ int process_cli(struct session *t) {
 	return t->cli_state != CL_STHEADERS;
     }
     else if (c == CL_STDATA) {
+    process_data:
 	/* read or write error */
 	if (t->res_cw == RES_ERROR || t->res_cr == RES_ERROR) {
 	    tv_eternity(&t->crexpire);
@@ -3985,11 +4001,11 @@ void select_loop() {
 //	    
 //	}
 
-      status=select(maxfd,
-		    readnotnull ? ReadEvent : NULL,
-		    writenotnull ? WriteEvent : NULL,
-		    NULL,
-		    (next_time >= 0) ? &delta : NULL);
+      status = select(maxfd,
+		      readnotnull ? ReadEvent : NULL,
+		      writenotnull ? WriteEvent : NULL,
+		      NULL,
+		      (next_time >= 0) ? &delta : NULL);
       
       /* this is an experiment on the separation of the select work */
       // status  = (readnotnull  ? select(maxfd, ReadEvent, NULL, NULL, (next_time >= 0) ? &delta : NULL) : 0);
