@@ -9,6 +9,7 @@
  *
  * ChangeLog :
  *
+ * 2001/12/19 : release of version 1.0.1 : no MSG_NOSIGNAL on solaris
  * 2001/12/16 : release of version 1.0.0.
  * 2001/12/16 : added syslog capability for each accepted connection.
  * 2001/11/19 : corrected premature end of files and occasional SIGPIPE.
@@ -48,8 +49,8 @@
 #include <regex.h>
 #include <syslog.h>
 
-#define HAPROXY_VERSION "1.0.0"
-#define HAPROXY_DATE	"2001/12/16"
+#define HAPROXY_VERSION "1.0.1"
+#define HAPROXY_DATE	"2001/12/19"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -516,9 +517,13 @@ void send_syslog(struct sockaddr_in *sa,
 	memcpy(p, message, len);
 	p += len;
     }
-
+#ifndef MSG_NOSIGNAL
+    sendto(logfd, logmsg, p - logmsg, MSG_DONTWAIT,
+	   (struct sockaddr *)sa, sizeof(*sa));
+#else
     sendto(logfd, logmsg, p - logmsg, MSG_DONTWAIT | MSG_NOSIGNAL,
 	   (struct sockaddr *)sa, sizeof(*sa));
+#endif
 }
 
 
@@ -925,7 +930,6 @@ int event_cli_read(int fd) {
     struct task *s = fdtab[fd].owner;
     struct buffer *b = s->req;
     int ret, max;
-    //20011216//int skerr, lskerr;
 
     //    fprintf(stderr,"event_cli_read : fd=%d, s=%p\n", fd, s);
 
@@ -949,12 +953,18 @@ int event_cli_read(int fd) {
 	return 0;
     }
 
-    //20011216//lskerr=sizeof(skerr);
-    //20011216//getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
-    //20011216//if (skerr == 0 && fdtab[fd].state != FD_STERROR) {
     if (fdtab[fd].state != FD_STERROR) {
-	//20011216//ret=read(fd, b->r, max);
+#ifndef MSG_NOSIGNAL
+	int skerr, lskerr;
+	lskerr=sizeof(skerr);
+	getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
+	if (skerr)
+		ret = -1;
+	else
+		ret = recv(fd, b->r, max, 0);
+#else
 	ret = recv(fd, b->r, max, MSG_NOSIGNAL);
+#endif
 
 	if (ret > 0) {
 	    b->r += ret;
@@ -997,7 +1007,6 @@ int event_srv_read(int fd) {
     struct task *s = fdtab[fd].owner;
     struct buffer *b = s->rep;
     int ret, max;
-    //20011216//int skerr, lskerr;
 
     //    fprintf(stderr,"event_srv_read : fd=%d, s=%p\n", fd, s);
 
@@ -1021,13 +1030,18 @@ int event_srv_read(int fd) {
 	return 0;
     }
 
-    //20011216//lskerr=sizeof(skerr);
-    //20011216//getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
-    //20011216//if (skerr == 0 && fdtab[fd].state != FD_STERROR) {
     if (fdtab[fd].state != FD_STERROR) {
-	//20011216//ret=read(fd, b->r, max);
+#ifndef MSG_NOSIGNAL
+	int skerr, lskerr;
+	lskerr=sizeof(skerr);
+	getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
+	if (skerr)
+		ret = -1;
+	else
+		ret = recv(fd, b->r, max, 0);
+#else
 	ret = recv(fd, b->r, max, MSG_NOSIGNAL);
-
+#endif
 	if (ret > 0) {
 	    b->r += ret;
 	    b->l += ret;
@@ -1069,7 +1083,6 @@ int event_cli_write(int fd) {
     struct task *s = fdtab[fd].owner;
     struct buffer *b = s->rep;
     int ret, max;
-    //20011216//int skerr, lskerr;
 
     //    fprintf(stderr,"event_cli_write : fd=%d, s=%p\n", fd, s);
 
@@ -1092,18 +1105,26 @@ int event_cli_write(int fd) {
 	return 0;
     }
 
-    //20011216//lskerr=sizeof(skerr);
-    //20011216//getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
-    //20011216//if (skerr == 0 && fdtab[fd].state != FD_STERROR) {
     if (fdtab[fd].state != FD_STERROR) {
+#ifndef MSG_NOSIGNAL
+	int skerr, lskerr;
+#endif
 	if (max == 0) { /* nothing to write, just make as if we were never called */
 		s->res_cw = RES_NULL;
 		task_wakeup(s->proxy, s);
 		return 0;
 	}
 
-	//20011216//ret=write(fd, b->w, max);
+#ifndef MSG_NOSIGNAL
+	lskerr=sizeof(skerr);
+	getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
+	if (skerr)
+		ret = -1;
+	else
+		ret = send(fd, b->w, max, MSG_DONTWAIT);
+#else
 	ret = send(fd, b->w, max, MSG_DONTWAIT | MSG_NOSIGNAL);
+#endif
 
 	if (ret > 0) {
 	    b->l -= ret;
@@ -1150,7 +1171,6 @@ int event_srv_write(int fd) {
     struct task *s = fdtab[fd].owner;
     struct buffer *b = s->req;
     int ret, max;
-    //20011216//int skerr, lskerr;
 
     //fprintf(stderr,"event_srv_write : fd=%d, s=%p\n", fd, s);
 
@@ -1173,10 +1193,10 @@ int event_srv_write(int fd) {
 	return 0;
     }
 
-    //20011216//lskerr=sizeof(skerr);
-    //20011216//getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
-    //20011216//if (skerr == 0 && fdtab[fd].state != FD_STERROR) {
     if (fdtab[fd].state != FD_STERROR) {
+#ifndef MSG_NOSIGNAL
+	int skerr, lskerr;
+#endif
 	fdtab[fd].state = FD_STREADY;
 	if (max == 0) { /* nothing to write, just make as if we were never called, except to finish a connect() */
 	    s->res_sw = RES_NULL;
@@ -1184,9 +1204,16 @@ int event_srv_write(int fd) {
 	    return 0;
 	}
 
-	//20011216//ret=write(fd, b->w, max);
+#ifndef MSG_NOSIGNAL
+	lskerr=sizeof(skerr);
+	getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
+	if (skerr)
+		ret = -1;
+	else
+		ret = send(fd, b->w, max, MSG_DONTWAIT);
+#else
 	ret = send(fd, b->w, max, MSG_DONTWAIT | MSG_NOSIGNAL);
-
+#endif
 	if (ret > 0) {
 	    b->l -= ret;
 	    b->w += ret;
@@ -2988,7 +3015,9 @@ int main(int argc, char **argv) {
     /* on very high loads, a sigpipe sometimes happen just between the
      * getsockopt() which tells "it's OK to write", and the following write :-(
      */
-    //20011216//signal(SIGPIPE, SIG_IGN);
+#ifndef MSG_NOSIGNAL
+    signal(SIGPIPE, SIG_IGN);
+#endif
 
     if (start_proxies() < 0)
 	exit(1);
