@@ -53,8 +53,8 @@
 #include <linux/netfilter_ipv4.h>
 #endif
 
-#define HAPROXY_VERSION "1.1.21"
-#define HAPROXY_DATE	"2003/05/06"
+#define HAPROXY_VERSION "1.1.22"
+#define HAPROXY_DATE	"2003/09/11"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -295,8 +295,9 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define	MODE_QUIET	16
 
 /* server flags */
-#define SRV_RUNNING	1
-#define SRV_BACKUP	2
+#define SRV_RUNNING	1	/* the server is UP */
+#define SRV_BACKUP	2	/* this server is a backup server */
+#define	SRV_MAPPORTS	4	/* this server uses mapped ports */
 
 /* what to do when a header matches a regex */
 #define ACT_ALLOW	0	/* allow the request */
@@ -349,6 +350,7 @@ struct server {
     char *cookie;			/* the id set in the cookie */
     char *id;				/* just for identification */
     struct sockaddr_in addr;		/* the address to connect to */
+    short check_port;			/* the port to use for the health checks */
     int health;				/* 0->rise-1 = bad; rise->rise+fall-1 = good */
     int rise, fall;			/* time in iterations */
     int inter;				/* time in milliseconds */
@@ -406,10 +408,16 @@ struct session {
     unsigned int uniq_id;		/* unique ID used for the traces */
 };
 
+struct listener {
+    int fd;			/* the listen socket */
+    struct sockaddr_in addr;	/* the address we listen to */
+    struct listener *next;	/* next address or NULL */
+};
+    
+    
 struct proxy {
-    int listen_fd;			/* the listen socket */
+    struct listener *listen;		/* the listen addresses and sockets */
     int state;				/* proxy state */
-    struct sockaddr_in listen_addr;	/* the address we listen to */
     struct sockaddr_in dispatch_addr;	/* the default address to connect to */
     struct server *srv, *cursrv;	/* known servers, current server */
     int nbservers;			/* # of servers */
@@ -522,6 +530,7 @@ static int maxfd = 0;		/* # of the highest fd + 1 */
 static int listeners = 0;	/* # of listeners */
 static int stopping = 0;	/* non zero means stopping in progress */
 static struct timeval now = {0,0};	/* the current date at any moment */
+static struct proxy defproxy;		/* fake proxy used to assign default values on all instances */
 
 static regmatch_t pmatch[MAX_MATCH];  /* rm_so, rm_eo for regular expressions */
 /* this is used to drain data, and as a temporary buffer for sprintf()... */
@@ -785,6 +794,79 @@ struct sockaddr_in *str2sa(char *str) {
 
     free(str);
     return &sa;
+}
+
+
+/*
+ * converts <str> to a list of listeners which are dynamically allocated.
+ * The format is "{addr|'*'}:port[-end][,{addr|'*'}:port[-end]]*", where :
+ *  - <addr> can be empty or "*" to indicate INADDR_ANY ;
+ *  - <port> is a numerical port from 1 to 65535 ;
+ *  - <end> indicates to use the range from <port> to <end> instead (inclusive).
+ * This can be repeated as many times as necessary, separated by a coma.
+ * The <tail> argument is a pointer to a current list which should be appended
+ * to the tail of the new list. The pointer to the new list is returned.
+ */
+struct listener *str2listener(char *str, struct listener *tail) {
+    struct listener *l;
+    char *c, *next, *range, *dupstr;
+    int port, end;
+
+    next = dupstr = strdup(str);
+    
+    while (next && *next) {
+	str = next;
+	/* 1) look for the end of the first address */
+	if ((next = strrchr(str, ',')) != NULL) {
+	    *next++ = 0;
+	}
+
+	/* 2) look for the addr/port delimiter */
+	if ((range = strrchr(str, ':')) != NULL) {
+	    *range++ = 0;
+	}
+	else {
+		Alert("Missing port number: '%s'\n", str);
+	}	    
+
+	/* 3) look for the port-end delimiter */
+	if ((c = strchr(range, '-')) != NULL) {
+	    *c++ = 0;
+	    end = atol(c);
+	}
+	else {
+	    end = atol(range);
+	}
+
+	for (port = atol(range); port <= end; port++) {
+	    l = (struct listener *)calloc(1, sizeof(struct listener));
+	    l->next = tail;
+	    tail = l;
+
+	    if (*str == '*' || *str == '\0') { /* INADDR_ANY */
+		l->addr.sin_addr.s_addr = INADDR_ANY;
+	    }
+	    else if (
+#ifndef SOLARIS
+		     !inet_aton(str, &l->addr.sin_addr)
+#else
+		     !inet_pton(AF_INET, str, &l->addr.sin_addr)
+#endif
+		     ) {
+		struct hostent *he;
+		
+		if ((he = gethostbyname(str)) == NULL) {
+		    Alert("Invalid server name: '%s'\n", str);
+		}
+		else
+		    l->addr.sin_addr = *(struct in_addr *) *(he->h_addr_list);
+	    }
+	    l->addr.sin_port=htons(port);
+	    l->addr.sin_family=AF_INET;
+	} /* end for(port) */
+    } /* end while(next) */
+    free(dupstr);
+    return tail;
 }
 
 
@@ -1389,6 +1471,18 @@ int connect_server(struct session *s) {
 	    qfprintf(stderr, "Cannot get original server address.\n");
 	    return -1;
 	}
+    }
+
+    /* if this server remaps proxied ports, we'll use
+     * the port the client connected to with an offset. */
+    if (s->srv->state & SRV_MAPPORTS) {
+	struct sockaddr_in sockname;
+	int namelen;
+
+	namelen = sizeof(sockname);
+	if (get_original_dst(s->cli_fd, (struct sockaddr_in *)&sockname, &namelen) == -1)
+	    getsockname(s->cli_fd, (struct sockaddr *)&sockname, &namelen);
+	s->srv_addr.sin_port = htons(ntohs(s->srv_addr.sin_port) + ntohs(sockname.sin_port));
     }
 
     if ((fd = s->srv_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {
@@ -3395,7 +3489,15 @@ int process_srv(struct session *t) {
 	    shutdown(t->srv_fd, SHUT_RD);
 	    t->srv_state = SV_STSHUTR;
 	    return 1;
-	}	
+	}
+	/* end of client read and no more data to send */
+	else if ((c == CL_STSHUTR || c == CL_STCLOSE) && (req->l == 0)) {
+	    FD_CLR(t->srv_fd, StaticWriteEvent);
+	    tv_eternity(&t->swexpire);
+	    shutdown(t->srv_fd, SHUT_WR);
+	    t->srv_state = SV_STSHUTW;
+	    return 1;
+	}
 	/* read timeout */
 	else if (tv_cmp2_ms(&t->srexpire, &now) <= 0) {
 	    FD_CLR(t->srv_fd, StaticReadEvent);
@@ -3640,6 +3742,7 @@ int process_session(struct task *t) {
  */
 int process_chk(struct task *t) {
     struct server *s = t->context;
+    struct sockaddr_in sa;
     int fd = s->curfd;
     int one = 1;
 
@@ -3660,6 +3763,10 @@ int process_chk(struct task *t) {
 		(setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *) &one, sizeof(one)) != -1)) {
 		//fprintf(stderr, "process_chk: 3\n");
 
+		/* we'll connect to the check port on the server */
+		sa = s->addr;
+		sa.sin_port = htons(s->check_port);
+
 		/* allow specific binding */
 		if (s->proxy->options & PR_O_BIND_SRC &&
 		    bind(fd, (struct sockaddr *)&s->proxy->source_addr, sizeof(s->proxy->source_addr)) == -1) {
@@ -3667,7 +3774,7 @@ int process_chk(struct task *t) {
 		    close(fd);
 		    s->result = -1;
 		}
-		else if ((connect(fd, (struct sockaddr *)&s->addr, sizeof(s->addr)) != -1) || (errno == EINPROGRESS)) {
+		else if ((connect(fd, (struct sockaddr *)&sa, sizeof(sa)) != -1) || (errno == EINPROGRESS)) {
 		    /* OK, connection in progress or established */
 
 		    //fprintf(stderr, "process_chk: 4\n");
@@ -3967,6 +4074,7 @@ int stats(void) {
  */
 static int maintain_proxies(void) {
     struct proxy *p;
+    struct listener *l;
     int tleft; /* time left */
 
     p = proxy;
@@ -3977,13 +4085,17 @@ static int maintain_proxies(void) {
 	while (p) {
 	    if (p->nbconn < p->maxconn) {
 		if (p->state == PR_STIDLE) {
-		    FD_SET(p->listen_fd, StaticReadEvent);
+		    for (l = p->listen; l != NULL; l = l->next) {
+			FD_SET(l->fd, StaticReadEvent);
+		    }
 		    p->state = PR_STRUN;
 		}
 	    }
 	    else {
 		if (p->state == PR_STRUN) {
-		    FD_CLR(p->listen_fd, StaticReadEvent);
+		    for (l = p->listen; l != NULL; l = l->next) {
+			FD_CLR(l->fd, StaticReadEvent);
+		    }
 		    p->state = PR_STIDLE;
 		}
 	    }
@@ -3993,7 +4105,9 @@ static int maintain_proxies(void) {
     else {  /* block all proxies */
 	while (p) {
 	    if (p->state == PR_STRUN) {
-		FD_CLR(p->listen_fd, StaticReadEvent);
+		for (l = p->listen; l != NULL; l = l->next) {
+		    FD_CLR(l->fd, StaticReadEvent);
+		}
 		p->state = PR_STIDLE;
 	    }
 	    p = p->next;
@@ -4010,9 +4124,11 @@ static int maintain_proxies(void) {
 		    Warning("Proxy %s stopped.\n", p->id);
 		    send_log(p, LOG_WARNING, "Proxy %s stopped.\n", p->id);
 
-		    fd_delete(p->listen_fd);
+		    for (l = p->listen; l != NULL; l = l->next) {
+			fd_delete(l->fd);
+			listeners--;
+		    }
 		    p->state = PR_STDISABLED;
-		    listeners--;
 		}
 		else {
 		    tleft = MINTIME(t, tleft);
@@ -4250,6 +4366,15 @@ int cfg_parse_global(char *file, int linenum, char **args) {
 }
 
 
+void init_default_instance() {
+    memset(&defproxy, 0, sizeof(defproxy));
+    defproxy.mode = PR_MODE_TCP;
+    defproxy.state = PR_STNEW;
+    defproxy.maxconn = cfg_maxpconn;
+    defproxy.conn_retries = CONN_RETRIES;
+    defproxy.logfac1 = defproxy.logfac2 = -1; /* log disabled */
+}
+
 /*
  * parse a line in a <listen> section. Returns 0 if OK, -1 if error.
  */
@@ -4258,8 +4383,9 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
     struct server *newsrv = NULL;
 
     if (!strcmp(args[0], "listen")) {  /* new proxy */
-	if (strchr(args[2], ':') == NULL) {
-	    Alert("parsing [%s:%d] : '%s' expects <id> and <addr:port> as arguments.\n",
+	if (!*args[1]) {
+	    Alert("parsing [%s:%d] : '%s' expects an <id> argument and\n"
+		  "  optionnally supports [addr1]:port1[-end1]{,[addr]:port[-end]}...\n",
 		  file, linenum, args[0]);
 	    return -1;
 	}
@@ -4271,24 +4397,53 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	curproxy->next = proxy;
 	proxy = curproxy;
 	curproxy->id = strdup(args[1]);
-	curproxy->listen_addr = *str2sa(args[2]);
-	curproxy->state = PR_STNEW;
+	if (strchr(args[2], ':') != NULL)
+	    curproxy->listen = str2listener(args[2], curproxy->listen);
+
 	/* set default values */
-	curproxy->maxconn = cfg_maxpconn;
-	curproxy->conn_retries = CONN_RETRIES;
-	curproxy->options = 0;
-	curproxy->clitimeout = curproxy->contimeout = curproxy->srvtimeout = 0;
-	curproxy->mode = PR_MODE_TCP;
-	curproxy->logfac1 = curproxy->logfac2 = -1; /* log disabled */
-	curproxy->to_log = 0;
+	curproxy->state = defproxy.state;
+	curproxy->maxconn = defproxy.maxconn;
+	curproxy->conn_retries = defproxy.conn_retries;
+	curproxy->options = defproxy.options;
+	curproxy->clitimeout = defproxy.clitimeout;
+	curproxy->contimeout = defproxy.contimeout;
+	curproxy->srvtimeout = defproxy.srvtimeout;
+	curproxy->mode = defproxy.mode;
+	curproxy->logfac1 = defproxy.logfac1;
+	curproxy->logsrv1 = defproxy.logsrv1;
+	curproxy->loglev1 = defproxy.loglev1;
+	curproxy->logfac2 = defproxy.logfac2;
+	curproxy->logsrv2 = defproxy.logsrv2;
+	curproxy->loglev2 = defproxy.loglev2;
+	curproxy->to_log = defproxy.to_log;
+	curproxy->grace  = defproxy.grace;
+	curproxy->source_addr = defproxy.source_addr;
+	return 0;
+    }
+    else if (!strcmp(args[0], "defaults")) {  /* use this one to assign default values */
+	curproxy = &defproxy;
 	return 0;
     }
     else if (curproxy == NULL) {
-	Alert("parsing [%s:%d] : 'listen' expected.\n", file, linenum);
+	Alert("parsing [%s:%d] : 'listen' or 'defaults' expected.\n", file, linenum);
 	return -1;
     }
     
-    if (!strcmp(args[0], "mode")) {  /* sets the proxy mode */
+    if (!strcmp(args[0], "bind")) {  /* new listen addresses */
+	if (curproxy == &defproxy) {
+	    Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+	    return -1;
+	}
+
+	if (strchr(args[1], ':') == NULL) {
+	    Alert("parsing [%s:%d] : '%s' expects [addr1]:port1[-end1]{,[addr]:port[-end]}... as arguments.\n",
+		  file, linenum, args[0]);
+	    return -1;
+	}
+	curproxy->listen = str2listener(args[1], curproxy->listen);
+	return 0;
+    }
+    else if (!strcmp(args[0], "mode")) {  /* sets the proxy mode */
 	if (!strcmp(args[1], "http")) curproxy->mode = PR_MODE_HTTP;
 	else if (!strcmp(args[1], "tcp")) curproxy->mode = PR_MODE_TCP;
 	else if (!strcmp(args[1], "health")) curproxy->mode = PR_MODE_HEALTH;
@@ -4300,8 +4455,16 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
     else if (!strcmp(args[0], "disabled")) {  /* disables this proxy */
 	curproxy->state = PR_STDISABLED;
     }
+    else if (!strcmp(args[0], "enabled")) {  /* enables this proxy (used to revert a disabled default) */
+	curproxy->state = PR_STNEW;
+    }
     else if (!strcmp(args[0], "cookie")) {  /* cookie name */
 	int cur_arg;
+	if (curproxy == &defproxy) {
+	    Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+	    return -1;
+	}
+
 	if (curproxy->cookie_name != NULL) {
 	    Alert("parsing [%s:%d] : cookie name already specified. Continuing.\n",
 		  file, linenum);
@@ -4341,12 +4504,17 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	    cur_arg++;
 	}
 	if ((curproxy->options & (PR_O_COOK_RW|PR_O_COOK_IND)) == (PR_O_COOK_RW|PR_O_COOK_IND)) {
-	    Alert("parsing [%s:%d] : cookie 'rewrite' and 'indirect' mode are incompatibles.\n",
+	    Alert("parsing [%s:%d] : cookie 'rewrite' and 'indirect' mode are incompatible.\n",
 		  file, linenum);
 	    return -1;
 	}
     }
     else if (!strcmp(args[0], "capture")) {  /* name of a cookie to capture */
+	if (curproxy == &defproxy) {
+	    Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+	    return -1;
+	}
+
 	if (curproxy->capture_name != NULL) {
 	    Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n",
 		  file, linenum, args[0]);
@@ -4368,7 +4536,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	}
     }
     else if (!strcmp(args[0], "contimeout")) {  /* connect timeout */
-	if (curproxy->contimeout != 0) {
+	if (curproxy->contimeout != defproxy.contimeout) {
 	    Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
 	    return 0;
 	}
@@ -4380,7 +4548,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	curproxy->contimeout = atol(args[1]);
     }
     else if (!strcmp(args[0], "clitimeout")) {  /*  client timeout */
-	if (curproxy->clitimeout != 0) {
+	if (curproxy->clitimeout != defproxy.clitimeout) {
 	    Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n",
 		  file, linenum, args[0]);
 	    return 0;
@@ -4393,7 +4561,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	curproxy->clitimeout = atol(args[1]);
     }
     else if (!strcmp(args[0], "srvtimeout")) {  /*  server timeout */
-	if (curproxy->srvtimeout != 0) {
+	if (curproxy->srvtimeout != defproxy.srvtimeout) {
 	    Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
 	    return 0;
 	}
@@ -4487,6 +4655,10 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	curproxy->grace = atol(args[1]);
     }
     else if (!strcmp(args[0], "dispatch")) {  /* dispatch address */
+	if (curproxy == &defproxy) {
+	    Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+	    return -1;
+	}
 	if (strchr(args[1], ':') == NULL) {
 	    Alert("parsing [%s:%d] : '%s' expects <addr:port> as argument.\n", file, linenum, args[0]);
 	    return -1;
@@ -4508,9 +4680,18 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
     }
     else if (!strcmp(args[0], "server")) {  /* server address */
 	int cur_arg;
+	char *rport;
+	char *raddr;
+	short realport;
+	int do_check;
 
-	if (strchr(args[2], ':') == NULL) {
-	    Alert("parsing [%s:%d] : '%s' expects <name> and <addr:port> as arguments.\n",
+	if (curproxy == &defproxy) {
+	    Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+	    return -1;
+	}
+
+	if (!*args[2]) {
+	    Alert("parsing [%s:%d] : '%s' expects <name> and <addr>[:<port>] as arguments.\n",
 		  file, linenum, args[0]);
 	    return -1;
 	}
@@ -4521,9 +4702,34 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	newsrv->next = curproxy->srv;
 	curproxy->srv = newsrv;
 	newsrv->proxy = curproxy;
-	newsrv->id = strdup(args[1]);
-	newsrv->addr = *str2sa(args[2]);
+
+	do_check = 0;
 	newsrv->state = SRV_RUNNING; /* early server setup */
+	newsrv->id = strdup(args[1]);
+
+	/* several ways to check the port component :
+	 *  - IP    => port=+0, relative
+	 *  - IP:   => port=+0, relative
+	 *  - IP:N  => port=N, absolute
+	 *  - IP:+N => port=+N, relative
+	 *  - IP:-N => port=-N, relative
+	 */
+	raddr = strdup(args[2]);
+	rport = strchr(raddr, ':');
+	if (rport) {
+	    *rport++ = 0;
+	    realport = atol(rport);
+	    if (!isdigit((int)*rport))
+		newsrv->state |= SRV_MAPPORTS;
+	} else {
+	    realport = 0;
+	    newsrv->state |= SRV_MAPPORTS;
+	}	    
+
+	newsrv->addr = *str2sa(raddr);
+	newsrv->addr.sin_port = htons(realport);
+	free(raddr);
+
 	newsrv->curfd = -1; /* no health-check in progress */
 	newsrv->inter = DEF_CHKINTR;
 	newsrv->rise = DEF_RISETIME;
@@ -4549,38 +4755,54 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 		newsrv->inter = atol(args[cur_arg + 1]);
 		cur_arg += 2;
 	    }
+	    else if (!strcmp(args[cur_arg], "port")) {
+		newsrv->check_port = atol(args[cur_arg + 1]);
+		cur_arg += 2;
+	    }
 	    else if (!strcmp(args[cur_arg], "backup")) {
 		newsrv->state |= SRV_BACKUP;
 		cur_arg ++;
 	    }
 	    else if (!strcmp(args[cur_arg], "check")) {
-		struct task *t;
-		
-		if ((t = pool_alloc(task)) == NULL) { /* disable this proxy for a while */
-		    Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
-		    return -1;
-		}
-		
-		t->next = t->prev = t->rqnext = NULL; /* task not in run queue yet */
-		t->wq = LIST_HEAD(wait_queue); /* but already has a wait queue assigned */
-		t->state = TASK_IDLE;
-		t->process = process_chk;
-		t->context = newsrv;
-		
-		if (curproxy->state != PR_STDISABLED) {
-		    tv_delayfrom(&t->expire, &now, newsrv->inter); /* check this every ms */
-		    task_queue(t);
-		    task_wakeup(&rq, t);
-		}
-		
+		do_check = 1;
 		cur_arg += 1;
 	    }
 	    else {
-		Alert("parsing [%s:%d] : server %s only supports options 'cookie', 'check', 'inter', 'rise' and 'fall'.\n",
+		Alert("parsing [%s:%d] : server %s only supports options 'backup', 'cookie', 'check', 'inter', 'rise' and 'fall'.\n",
 		      file, linenum, newsrv->id);
 		return -1;
 	    }
 	}
+
+	if (do_check) {
+	    struct task *t;
+
+	    if (!newsrv->check_port && !(newsrv->state & SRV_MAPPORTS))
+		newsrv->check_port = realport; /* by default */
+	    if (!newsrv->check_port) {
+		Alert("parsing [%s:%d] : server %s has neither service port nor check port. Check has been disabled.\n",
+		      file, linenum, newsrv->id);
+		return -1;
+	    }
+
+	    if ((t = pool_alloc(task)) == NULL) {
+		Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+		return -1;
+	    }
+		
+	    t->next = t->prev = t->rqnext = NULL; /* task not in run queue yet */
+	    t->wq = LIST_HEAD(wait_queue); /* but already has a wait queue assigned */
+	    t->state = TASK_IDLE;
+	    t->process = process_chk;
+	    t->context = newsrv;
+		
+	    if (curproxy->state != PR_STDISABLED) {
+		tv_delayfrom(&t->expire, &now, newsrv->inter); /* check this every ms */
+		task_queue(t);
+		task_wakeup(&rq, t);
+	    }
+	}
+
 	curproxy->nbservers++;
     }
     else if (!strcmp(args[0], "log")) {  /* syslog server address */
@@ -4643,8 +4865,8 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	}
     }
     else if (!strcmp(args[0], "source")) {  /* address to which we bind when connecting */
-	if (strchr(args[1], ':') == NULL) {
-	    Alert("parsing [%s:%d] : '%s' expects <addr:port> as argument.\n",
+	if (!*args[1]) {
+	    Alert("parsing [%s:%d] : '%s' expects <addr>[:<port>] as argument.\n",
 		  file, linenum, "source");
 	    return -1;
 	}
@@ -4654,6 +4876,10 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
     }
     else if (!strcmp(args[0], "cliexp") || !strcmp(args[0], "reqrep")) {  /* replace request header from a regex */
 	regex_t *preg;
+	if (curproxy == &defproxy) {
+	    Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+	    return -1;
+	}
 	
 	if (*(args[1]) == 0 || *(args[2]) == 0) {
 	    Alert("parsing [%s:%d] : '%s' expects <search> and <replace> as arguments.\n",
@@ -4671,6 +4897,10 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
     }
     else if (!strcmp(args[0], "reqdel")) {  /* delete request header from a regex */
 	regex_t *preg;
+	if (curproxy == &defproxy) {
+	    Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+	    return -1;
+	}
 	
 	if (*(args[1]) == 0) {
 	    Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
@@ -4687,6 +4917,10 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
     }
     else if (!strcmp(args[0], "reqdeny")) {  /* deny a request if a header matches this regex */
 	regex_t *preg;
+	if (curproxy == &defproxy) {
+	    Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+	    return -1;
+	}
 	
 	if (*(args[1]) == 0) {
 	    Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
@@ -4703,6 +4937,10 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
     }
     else if (!strcmp(args[0], "reqpass")) {  /* pass this header without allowing or denying the request */
 	regex_t *preg;
+	if (curproxy == &defproxy) {
+	    Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+	    return -1;
+	}
 	
 	if (*(args[1]) == 0) {
 	    Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
@@ -4719,6 +4957,10 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
     }
     else if (!strcmp(args[0], "reqallow")) {  /* allow a request if a header matches this regex */
 	regex_t *preg;
+	if (curproxy == &defproxy) {
+	    Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+	    return -1;
+	}
 	
 	if (*(args[1]) == 0) {
 	    Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
@@ -4735,6 +4977,10 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
     }
     else if (!strcmp(args[0], "reqirep")) {  /* replace request header from a regex, ignoring case */
 	regex_t *preg;
+	if (curproxy == &defproxy) {
+	    Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+	    return -1;
+	}
 	
 	if (*(args[1]) == 0 || *(args[2]) == 0) {
 	    Alert("parsing [%s:%d] : '%s' expects <search> and <replace> as arguments.\n",
@@ -4752,6 +4998,10 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
     }
     else if (!strcmp(args[0], "reqidel")) {  /* delete request header from a regex ignoring case */
 	regex_t *preg;
+	if (curproxy == &defproxy) {
+	    Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+	    return -1;
+	}
 	
 	if (*(args[1]) == 0) {
 	    Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
@@ -4768,6 +5018,10 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
     }
     else if (!strcmp(args[0], "reqideny")) {  /* deny a request if a header matches this regex ignoring case */
 	regex_t *preg;
+	if (curproxy == &defproxy) {
+	    Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+	    return -1;
+	}
 	
 	if (*(args[1]) == 0) {
 	    Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
@@ -4784,6 +5038,10 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
     }
     else if (!strcmp(args[0], "reqipass")) {  /* pass this header without allowing or denying the request */
 	regex_t *preg;
+	if (curproxy == &defproxy) {
+	    Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+	    return -1;
+	}
 	
 	if (*(args[1]) == 0) {
 	    Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
@@ -4800,6 +5058,10 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
     }
     else if (!strcmp(args[0], "reqiallow")) {  /* allow a request if a header matches this regex ignoring case */
 	regex_t *preg;
+	if (curproxy == &defproxy) {
+	    Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+	    return -1;
+	}
 	
 	if (*(args[1]) == 0) {
 	    Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
@@ -4815,6 +5077,11 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	chain_regex(&curproxy->req_exp, preg, ACT_ALLOW, NULL);
     }
     else if (!strcmp(args[0], "reqadd")) {  /* add request header */
+	if (curproxy == &defproxy) {
+	    Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+	    return -1;
+	}
+
 	if (curproxy->nb_reqadd >= MAX_NEWHDR) {
 	    Alert("parsing [%s:%d] : too many '%s'. Continuing.\n", file, linenum, args[0]);
 	    return 0;
@@ -4846,6 +5113,10 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	}
     else if (!strcmp(args[0], "rspdel")) {  /* delete response header from a regex */
 	regex_t *preg;
+	if (curproxy == &defproxy) {
+	    Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+	    return -1;
+	}
 	
 	if (*(args[1]) == 0) {
 	    Alert("parsing [%s:%d] : '%s' expects <search> as an argument.\n", file, linenum, args[0]);
@@ -4861,24 +5132,32 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	chain_regex(&curproxy->rsp_exp, preg, ACT_REMOVE, strdup(args[2]));
     }
     else if (!strcmp(args[0], "rspirep")) {  /* replace response header from a regex ignoring case */
-	    regex_t *preg;
-
-	    if (*(args[1]) == 0 || *(args[2]) == 0) {
-		Alert("parsing [%s:%d] : '%s' expects <search> and <replace> as arguments.\n",
-		      file, linenum, args[0]);
-		return -1;
-	    }
-
-	    preg = calloc(1, sizeof(regex_t));
-	    if (regcomp(preg, args[1], REG_EXTENDED | REG_ICASE) != 0) {
-		Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
-		return -1;
-	    }
-	    
-	    chain_regex(&curproxy->rsp_exp, preg, ACT_REPLACE, strdup(args[2]));
+	regex_t *preg;
+	if (curproxy == &defproxy) {
+	    Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+	    return -1;
 	}
+
+	if (*(args[1]) == 0 || *(args[2]) == 0) {
+	    Alert("parsing [%s:%d] : '%s' expects <search> and <replace> as arguments.\n",
+		  file, linenum, args[0]);
+	    return -1;
+	}
+
+	preg = calloc(1, sizeof(regex_t));
+	if (regcomp(preg, args[1], REG_EXTENDED | REG_ICASE) != 0) {
+	    Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
+	    return -1;
+	}
+	    
+	chain_regex(&curproxy->rsp_exp, preg, ACT_REPLACE, strdup(args[2]));
+    }
     else if (!strcmp(args[0], "rspidel")) {  /* delete response header from a regex ignoring case */
 	regex_t *preg;
+	if (curproxy == &defproxy) {
+	    Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+	    return -1;
+	}
 	
 	if (*(args[1]) == 0) {
 	    Alert("parsing [%s:%d] : '%s' expects <search> as an argument.\n", file, linenum, args[0]);
@@ -4894,6 +5173,11 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	chain_regex(&curproxy->rsp_exp, preg, ACT_REMOVE, strdup(args[2]));
     }
     else if (!strcmp(args[0], "rspadd")) {  /* add response header */
+	if (curproxy == &defproxy) {
+	    Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+	    return -1;
+	}
+
 	if (curproxy->nb_rspadd >= MAX_NEWHDR) {
 	    Alert("parsing [%s:%d] : too many '%s'. Continuing.\n", file, linenum, args[0]);
 	    return 0;
@@ -4909,6 +5193,11 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
     else if (!strcmp(args[0], "errorloc")) { /* error location */
 	int errnum;
 	char *err;
+
+	if (curproxy == &defproxy) {
+	    Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+	    return -1;
+	}
 
 	if (*(args[2]) == 0) {
 	    Alert("parsing [%s:%d] : <errorloc> expects <error> and <url> as arguments.\n", file, linenum);
@@ -5083,7 +5372,7 @@ int readcfgfile(char *file) {
 	    args[arg] = line;
 	}
 
-	if (!strcmp(args[0], "listen"))  /* new proxy */
+	if (!strcmp(args[0], "listen") || !strcmp(args[0], "defaults"))  /* new proxy */
 	    confsect = CFG_LISTEN;
 	else if (!strcmp(args[0], "global"))  /* global config */
 	    confsect = CFG_GLOBAL;
@@ -5342,70 +5631,70 @@ void init(int argc, char **argv) {
  */
 int start_proxies() {
     struct proxy *curproxy;
+    struct listener *listener;
     int one = 1;
     int fd;
 
     for (curproxy = proxy; curproxy != NULL; curproxy = curproxy->next) {
-
 	if (curproxy->state == PR_STDISABLED)
 	    continue;
 
-	if ((fd = curproxy->listen_fd =
-	     socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {
-	    Alert("cannot create listening socket for proxy %s. Aborting.\n",
-		  curproxy->id);
-	    return -1;
-	}
+	for (listener = curproxy->listen; listener != NULL; listener = listener->next) {
+	    if ((fd = listener->fd =
+		 socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {
+		Alert("cannot create listening socket for proxy %s. Aborting.\n",
+		      curproxy->id);
+		return -1;
+	    }
 	
-	if (fd >= global.maxsock) {
-	    Alert("socket(): not enough free sockets for proxy %s. Raise -n argument. Aborting.\n",
-		  curproxy->id);
-	    close(fd);
-	    return -1;
-	}
+	    if (fd >= global.maxsock) {
+		Alert("socket(): not enough free sockets for proxy %s. Raise -n argument. Aborting.\n",
+		      curproxy->id);
+		close(fd);
+		return -1;
+	    }
 
-	if ((fcntl(fd, F_SETFL, O_NONBLOCK) == -1) ||
-	    (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY,
-			(char *) &one, sizeof(one)) == -1)) {
-	    Alert("cannot make socket non-blocking for proxy %s. Aborting.\n",
-		  curproxy->id);
-	    close(fd);
-	    return -1;
-	}
+	    if ((fcntl(fd, F_SETFL, O_NONBLOCK) == -1) ||
+		(setsockopt(fd, IPPROTO_TCP, TCP_NODELAY,
+			    (char *) &one, sizeof(one)) == -1)) {
+		Alert("cannot make socket non-blocking for proxy %s. Aborting.\n",
+		      curproxy->id);
+		close(fd);
+		return -1;
+	    }
 
-	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(one)) == -1) {
-	    Alert("cannot do so_reuseaddr for proxy %s. Continuing.\n",
-		  curproxy->id);
-	}
+	    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(one)) == -1) {
+		Alert("cannot do so_reuseaddr for proxy %s. Continuing.\n",
+		      curproxy->id);
+	    }
 	
-	if (bind(fd,
-		 (struct sockaddr *)&curproxy->listen_addr,
-		 sizeof(curproxy->listen_addr)) == -1) {
-	    Alert("cannot bind socket for proxy %s. Aborting.\n",
-		  curproxy->id);
-	    close(fd);
-	    return -1;
-	}
+	    if (bind(fd,
+		     (struct sockaddr *)&listener->addr,
+		     sizeof(listener->addr)) == -1) {
+		Alert("cannot bind socket for proxy %s. Aborting.\n",
+		      curproxy->id);
+		close(fd);
+		return -1;
+	    }
 	
-	if (listen(fd, curproxy->maxconn) == -1) {
-	    Alert("cannot listen to socket for proxy %s. Aborting.\n",
-		  curproxy->id);
-	    close(fd);
-	    return -1;
-	}
+	    if (listen(fd, curproxy->maxconn) == -1) {
+		Alert("cannot listen to socket for proxy %s. Aborting.\n",
+		      curproxy->id);
+		close(fd);
+		return -1;
+	    }
 	
-	/* the function for the accept() event */
-	fdtab[fd].read  = &event_accept;
-	fdtab[fd].write = NULL; /* never called */
-	fdtab[fd].owner = (struct task *)curproxy; /* reference the proxy instead of a task */
-	curproxy->state = PR_STRUN;
-	fdtab[fd].state = FD_STLISTEN;
-	FD_SET(fd, StaticReadEvent);
-	fd_insert(fd);
-	listeners++;
-
+	    /* the function for the accept() event */
+	    fdtab[fd].read  = &event_accept;
+	    fdtab[fd].write = NULL; /* never called */
+	    fdtab[fd].owner = (struct task *)curproxy; /* reference the proxy instead of a task */
+	    curproxy->state = PR_STRUN;
+	    fdtab[fd].state = FD_STLISTEN;
+	    FD_SET(fd, StaticReadEvent);
+	    fd_insert(fd);
+	    listeners++;
+	}
 	send_log(curproxy, LOG_NOTICE, "Proxy %s started.\n", curproxy->id);
-	
     }
     return 0;
 }

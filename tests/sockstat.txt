@@ -1,0 +1,7 @@
+willy@pcw:haproxy-1.1.17-pre3$ cat /proc/net/sockstat 
+sockets: used 117
+TCP: inuse 82 orphan 15 tw 561836 alloc 88 mem 75
+UDP: inuse 13
+RAW: inuse 0
+FRAG: inuse 0 memory 0
+

@@ -31,7 +31,7 @@ COPTS.solaris = -O2 -fomit-frame-pointer -DSOLARIS
 LIBS.solaris = -lnsl -lsocket
 
 # This is for Solaris 8 on UltraSparc2 processor
-COPTS.solarisv9 = -O6 -mcpu=v9 -fomit-frame-pointer -DSOLARIS
+COPTS.solarisv9 = -O6 -mcpu=v9 -mtune=ultrasparc -fomit-frame-pointer -DSOLARIS
 LIBS.solarisv9 = -lnsl -lsocket
 
 # This is for OpenBSD 3.0

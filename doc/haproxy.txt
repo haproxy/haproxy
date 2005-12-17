@@ -1,9 +1,9 @@
 
          		     H A - P r o x y
          		     ---------------
-         		      version 1.1.21
+         		      version 1.1.22
 			      willy tarreau
-			       2003/05/06
+			       2003/09/11
 
 ================
 | Introduction |
@@ -73,6 +73,7 @@ tels que :
 
   - 'global'
   - 'listen'
+  - 'defaults'
 
 Tous les paramètres font référence à la section définie par le dernier mot clé
 reconnu.
@@ -245,27 +246,54 @@ Exemple :
 
 Les sections de service débutent par le mot clé "listen" :
 
-    listen <nom_instance> <adresse_IP>:<port>
+    listen <nom_instance> [ <adresse_IP>:<plage_ports>[,...] ]
 
 - <nom_instance> est le nom de l'instance décrite. Ce nom sera envoyé dans les
   logs, donc il est souhaitable d'utiliser un nom relatif au service relayé. Aucun
   test n'est effectué concernant l'unicité de ce nom, qui n'est pas obligatoire,
-  mais fortement recommandée. 
+  mais fortement recommandée.
 
-- <adresse_IP> est l'adresse IP sur laquelle le relais attend ses
-  connexions. L'adresse 0.0.0.0 signifie que les connexions pourront s'effectuer
-  sur toutes les adresses de la machine.
+- <adresse_IP> est l'adresse IP sur laquelle le relais attend ses connexions.
+  L'absence d'adresse ainsi que l'adresse 0.0.0.0 signifient que les connexions
+  pourront s'effectuer sur toutes les adresses de la machine.
 
-- <port> est le numéro de port TCP sur lequel le relais attend ses
-  connexions. Le couple <adresse_IP>:<port> doit être unique pour toutes les
-  instances d'une même machine. L'attachement à un port inférieur à 1024
-  nécessite un niveau de privilège particulier lors du lancement du programme
-  (indépendamment du paramètre 'uid' de la section 'global').
+- <plage_ports> correspond soit à un port, soit à une plage de ports sur
+  lesquels le relais acceptera des connexions pour l'adresse IP spécifiée.
+  Cette plage peut être :
+    - soit un port numérique (ex: '80')
+    - soit une plage constituée de deux valeurs séparées par un tiret
+      (ex: '2000-2100') représentant les extrémités incluses dans la
+      plage.
+  Il faut faire attention à l'usage des plages, car chaque combinaison
+  <adresse_IP>:<port> consomme une socket, donc un descripteur de fichier.
+  Le couple <adresse_IP>:<port> doit être unique pour toutes les  instances
+  d'une même machine. L'attachement à un port inférieur à 1024 nécessite un
+  niveau de privilège particulier lors du lancement du programme (indépendamment
+  du paramètre 'uid' de la section 'global').
 
-Exemple :
+- le couple <adresse_IP>:<plage_ports> peut être répété indéfiniment pour
+  demander au relais d'écouter également sur d'autres adresses et/ou d'autres
+  plages de ports. Pour cela, il suffit de séparer les couples par une virgule.
+
+Exemples :
 ---------
-    listen http_proxy 127.0.0.1:80
+    listen http_proxy :80
+    listen x11_proxy 127.0.0.1:6000-6009
+    listen smtp_proxy 127.0.0.1:25,127.0.0.1:587
+    listen ldap_proxy :389,:663
 
+Si toutes les adresses ne tiennent pas sur une ligne, il est possible d'en
+rajouter à l'aide du mot clé 'bind'. Dans ce cas, il n'est même pas nécessaire
+de spécifier la première adresse sur la ligne listen, ce qui facilite parfois
+l'écriture de configurations :
+
+    bind [ <adresse_IP>:<plage_ports>[,...] ]
+
+Exemples :
+----------
+    listen http_proxy
+        bind :80,:443
+	bind 10.0.0.1:10080,10.0.0.1:10443
 
 2.1) Inhibition d'un service
 ----------------------------
@@ -417,7 +445,9 @@ Le serveur vers lequel sont redirigées les nouvelles connexions est défini par
 le paramètre "dispatch" sous la forme <adresse_ip>:<port>. Il correspond à un
 serveur d'assignation de cookie dans le cas où le service consiste à assurer
 uniquement une persistence HTTP, ou bien simplement au serveur destination dans
-le cas de relayage TCP simple.
+le cas de relayage TCP simple. Cet ancien mode ne permet pas de tester l'état
+du serveur distant, et il est maintenant recommandé d'utiliser de préférence
+le mode 'balance'.
 
 Exemple :
 ---------
@@ -432,24 +462,24 @@ Ce paramètre n'a pas d'utilité pour un serveur en mode 'health', ni en mode
 
 2.8) Adresse de sortie
 ----------------------
-Il est possible de forcer l'adresse utilisée pour établir les connexions
-vers les serveurs à l'aide du paramètre "source". Il est même possible de
-forcer le port, bien que cette fonctionnalité se limite à des usages très
-spécifiques. C'est particulièrement utile en cas d'adressage multiple, et
-plus généralement pour permettre aux serveurs de trouver le chemin de
-retour dans des contextes de routage difficiles. Si l'adresse est 0.0.0.0,
-elle sera choisie librement par le systeme. Si le port est 0, il
-sera choisi librement par le système. Il est à noter que depuis la version
-1.1.18, les tests de bon foncitonnement des serveurs seront aussi effectués à
-partir de la source spécifiée par ce paramètre.
+Il est possible de forcer l'adresse utilisée pour établir les connexions vers
+les serveurs à l'aide du paramètre "source". Il est même possible de forcer le
+port, bien que cette fonctionnalité se limite à des usages très spécifiques.
+C'est particulièrement utile en cas d'adressage multiple, et plus généralement
+pour permettre aux serveurs de trouver le chemin de retour dans des contextes de
+routage difficiles. Si l'adresse est '0.0.0.0' ou '*' ou vide, elle sera choisie
+librement par le systeme. Si le port est '0' ou vide, il sera choisi librement
+par le système. Il est à noter que depuis la version 1.1.18, les tests de bon
+foncitonnement des serveurs seront aussi effectués à partir de la source
+spécifiée par ce paramètre.
 
 Exemples :
 ----------
-    listen http_proxy 0.0.0.0:80
+    listen http_proxy *:80
    	# toutes les connexions prennent l'adresse 192.168.1.200
 	source 192.168.1.200:0
 
-    listen rlogin_proxy 0.0.0.0:513
+    listen rlogin_proxy *:513
    	# utiliser l'adresse 192.168.1.200 et le port réservé 900
 	source 192.168.1.200:900
 
@@ -462,7 +492,7 @@ par le paramètre "cookie".
 
 Exemple :
 ---------
-    listen http_proxy 0.0.0.0:80
+    listen http_proxy :80
 	mode http
 	cookie SERVERID
 
@@ -538,7 +568,7 @@ par le paramètre 'server'. La syntaxe est :
 
 Exemple : le cookie SERVERID peut contenir server01 ou server02
 ---------
-    listen http_proxy 0.0.0.0:80
+    listen http_proxy :80
 	mode http
 	cookie SERVERID
 	dispatch 192.168.1.100:80
@@ -548,7 +578,7 @@ Exemple : le cookie SERVERID peut contenir server01 ou server02
 Attention : la syntaxe a changé depuis la version 1.0.
 -----------
 
-3) Répartiteur de charge interne
+3) Répartiteur de charge autonome
 =================================
 
 Le relais peut effectuer lui-même la répartition de charge entre les différents
@@ -562,12 +592,62 @@ spécifier d'adresse de dispatch, et qu'il faudra au moins un serveur.
 Exemple : même que précédemment en répartition interne
 ---------
 
-    listen http_proxy 0.0.0.0:80
+    listen http_proxy :80
 	mode http
 	cookie SERVERID
 	balance roundrobin
 	server web1 192.168.1.1:80 cookie server01
 	server web2 192.168.1.2:80 cookie server02
+
+Depuis la version 1.1.22, il est possible de déterminer automatiquement le port
+du serveur vers lequel sera envoyée la connexion, en fonction du port d'écoute
+sur lequel le client s'est connecté. En effet, il y a 4 possibilités pour le
+champ <port> de l'adresse serveur :
+
+  - non spécifié ou nul :
+    la connexion sera envoyée au serveur sur le même port que celui sur
+    lequel le relais a reçu la connexion.
+
+  - valeur numérique (seul cas supporté pour les versions antérieures) :
+    le serveur recevra la connexion sur le port désigné.
+
+  - valeur numérique précédée d'un signe '+' :
+    la connexion sera envoyée au serveur sur le même port que celui sur
+    lequel le relais a reçu la connexion, auquel on ajoute la valeur désignée.
+    
+  - valeur numérique précédée d'un signe '-' :
+    la connexion sera envoyée au serveur sur le même port que celui sur
+    lequel le relais a reçu la connexion, duquel on soustrait la valeur
+    désignée.
+    
+Exemples :
+----------
+
+# même que précédemment
+
+    listen http_proxy :80
+	mode http
+	cookie SERVERID
+	balance roundrobin
+	server web1 192.168.1.1 cookie server01
+	server web2 192.168.1.2 cookie server02
+
+# relayage simultané des ports 80 et 81 et 8080-8089
+
+    listen http_proxy :80,:81,:8080-8089
+	mode http
+	cookie SERVERID
+	balance roundrobin
+	server web1 192.168.1.1 cookie server01
+	server web2 192.168.1.2 cookie server02
+
+# relayage TCP des ports 25, 389 et 663 vers les ports 1025, 1389 et 1663
+
+    listen http_proxy :25,:389,:663
+	mode tcp
+	balance roundrobin
+	server srv1 192.168.1.1:+1000
+	server srv2 192.168.1.2:+1000
 
 
 3.1) Surveillance des serveurs
@@ -583,6 +663,7 @@ paramètres non précisés prennent les valeurs suivantes par défaut :
  - inter : 2000
  - rise  : 2
  - fall  : 3
+ - port  : port de connexion du serveur
 
 Le mode par défaut consiste à établir des connexions TCP uniquement. Dans
 certains cas de pannes, des serveurs peuvent continuer à accepter les connexions
@@ -613,6 +694,12 @@ rencontrent n'y soient pas affectés définitivement. Le fait de ne pas mettre
 de cookie envoie un cookie vide, ce qui a pour effet de supprimer un éventuel
 cookie affecté précédemment.
 
+Depuis la version 1.1.22, il est possible d'envoyer les tests de fonctionnement
+vers un port différent de celui de service. C'est nécessaire principalement
+pour les configurations où le serveur n'a pas de port prédéfini, par exemple
+lorsqu'il est déduit du port d'acceptation de la connexion. Pour cela, utiliser
+le paramètre 'port' suivi du numéro de port devant répondre aux requêtes.
+
 Enfin, depuis la version 1.1.17, il est possible de visualiser rapidement l'état
 courant de tous les serveurs. Pour cela, il suffit d'envoyer un signal SIGHUP au
 processus proxy. L'état de tous les serveurs de tous les proxies est envoyé dans
@@ -622,7 +709,7 @@ niveau notice.
 
 Exemples :
 ----------
-# même que précédemment avec surveillance TCP
+# conf du paragraphe 3) avec surveillance TCP
     listen http_proxy 0.0.0.0:80
 	mode http
 	cookie SERVERID
@@ -667,6 +754,14 @@ Exemples :
 	server web2 192.168.1.2:80 cookie server02 check
 	server web-backup 192.168.1.3:80 cookie server03 check backup
 	server web-excuse 192.168.1.4:80 check backup
+
+# relayage SMTP+TLS avec test du serveur et serveur de backup
+
+    listen http_proxy :25,:587
+	mode tcp
+	balance roundrobin
+	server srv1 192.168.1.1 check port 25 inter 30000 rise 1 fall 2
+	server srv2 192.168.1.2 backup
 
 
 3.2) Reconnexion vers un répartiteur en cas d'échec direct
@@ -730,6 +825,22 @@ Exemple :
 
     # iptables -t nat -A PREROUTING -i eth0 -p tcp -d 192.168.1.100 \
       --dport 80 -j REDIRECT --to-ports 65000
+
+Remarque :
+----------
+Si le port n'est pas spécifié sur le serveur, c'est le port auquel s'est adressé
+le client qui sera utilisé. Cela permet de relayer tous les ports TCP d'une même
+adresse avec une même instance et sans utiliser directement le mode transparent.
+
+Exemple :
+---------
+    listen http_proxy 0.0.0.0:65000
+	mode tcp
+	server server01 192.168.1.1 check port 60000
+	server server02 192.168.1.2 check port 60000
+
+    # iptables -t nat -A PREROUTING -i eth0 -p tcp -d 192.168.1.100 \
+      -j REDIRECT --to-ports 65000
 
 
 4.2) Journalisation des connexions
@@ -1003,6 +1114,88 @@ Exemple :
         errorloc 503 http://192.168.114.58/error50x.html
         errorloc 504 http://192.168.114.58/error50x.html
 
+4.6) Changement des valeurs par défaut
+--------------------------------------
+
+Dans la version 1.1.22 est apparue la notion de valeurs par défaut, ce qui évite
+de répéter des paramètres communs à toutes les instances, tels que les timeouts,
+adresses de log, modes de fonctionnement, etc.
+
+Les valeurs par défaut sont positionnées dans la dernière section 'defaults'
+précédent l'instance qui les utilisera. On peut donc mettre autant de sections
+'defaults' que l'on veut. Il faut juste se rappeler que la présence d'une telle
+section implique une annulation de tous les paramètres par défaut positionnés
+précédemment, dans le but de les remplacer.
+
+La section 'defaults' utilise la même syntaxe que la section 'listen', aux
+paramètres près qui ne sont pas supportés. Le mot clé 'defaults' peut accepter
+un commentaire en guise paramètre.
+
+Dans la version 1.1.22, seuls les paramètres suivants peuvent être positionnés
+dans une section 'defaults' :
+  - log (le premier et le second)
+  - mode { tcp, http, health }
+  - balance { roundrobin }
+  - disabled (pour désactiver toutes les instances qui suivent)
+  - enabled (pour faire l'opération inverse, mais c'est le cas par défaut)
+  - contimeout, clitimeout, srvtimeout, grace, retries, maxconn
+  - option { redispatch, transparent, keepalive, forwardfor, httplog,
+             dontlognull, persist }
+  - redispatch, redisp, transparent, source { addr:port }
+
+Ne sont pas supportés dans cette version, d'une manière générale, tous les
+paramètres qui nécessitent de mémoriser autre chose que des adresses IP uniques
+et valeurs numériques simples :
+  - dispatch, server,
+  - cookie, capture
+  - errorloc
+  - req*, rsp*, 
+
+Enfin, il n'y a pas le moyen, pour le moment, d'invalider un paramètre booléen
+positionné par défaut. Donc si une option est spécifiée dans les paramètres par
+défaut, le seul moyen de la désactiver pour une instance, c'est de changer les
+paramètres par défaut avant la déclaration de l'instance.
+
+Exemples :
+----------
+    defaults applications TCP
+	log global
+	mode tcp
+	balance roundrobin
+	clitimeout 180000
+	srvtimeout 180000
+	contimeout 4000
+	retries 3
+	redispatch
+
+    listen app_tcp1 10.0.0.1:6000-6063
+	server srv1 192.168.1.1 check port 6000 inter 10000
+	server srv2 192.168.1.2 backup
+
+    listen app_tcp2 10.0.0.2:6000-6063
+	server srv1 192.168.2.1 check port 6000 inter 10000
+	server srv2 192.168.2.2 backup
+    
+    defaults applications HTTP
+	log global
+	mode http
+	option httplog
+	option forwardfor
+	option dontlognull
+	balance roundrobin
+	clitimeout 20000
+	srvtimeout 20000
+	contimeout 4000
+	retries 3
+
+    listen app_http1 10.0.0.1:80-81
+	cookie SERVERID postonly insert indirect
+	capture cookie userid= len 10
+	server srv1 192.168.1.1:+8000 cookie srv1 check port 8080 inter 1000
+	server srv1 192.168.1.2:+8000 cookie srv2 check port 8080 inter 1000
+
+    defaults
+	# section vide qui annule tous les paramètes par défaut.
 
 =======================
 | Paramétrage système |

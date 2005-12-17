@@ -1,6 +1,26 @@
 ChangeLog :
 ===========
 
+2003/09/10 :
+  - 'listen' now supports optionnal address:port-range lists
+  - 'bind' introduced to add new listen addresses
+  - fixed a bug which caused a session to be kept established on a server till
+    it timed out if the client closed during the DATA phase.
+  - the port part of each server address can now be empty to make the proxy
+    connect to the server on the same port it was connected to, be an absolute
+    unsigned number to reflect a single port (as in older versions), or an
+    explicitly signed number (+N/-N) to indicate that this offset must be
+    applied to the port the proxy was connected to, when connecting to the
+    server.
+  - the 'port' server option allows the user to specify a different
+    health-check port than the service one. It is mandatory when only relative
+    ports have been specified and check is required. By default, the checks are
+    sent to the service port.
+  - new 'defaults' section which is rather similar to 'listen' except that all
+    values are only used as default values for future 'listen' sections, until
+    a new 'defaults' resets them. At the moment, server options, regexes,
+    cookie names and captures cannot be set in the 'defaults' section.
+
 2003/05/06 : 1.1.21
   - changed the debug output format so that it now includes the session unique
     ID followed by the instance name at the beginning of each line.

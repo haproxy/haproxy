@@ -27,3 +27,76 @@
 - support environment variables in config file
 - support keep-alive
 - support SSL
+
+===================== demandes ==========================
+ok> 1) écoute sur une plage de ports :
+ok>   listen XXX 1.2.3.4:21000-21060
+ok> 
+ok> 2) écoutes multiples :
+ok>   listen XXX 1.2.3.4:21000
+ok>   bind 2.3.4.5:21001
+ok>   bind 2.3.4.5:21000-21060
+ok> 
+ok> => on en arrive à ceci :
+ok> 
+ok> listen XXX [ address:port ]
+ok>    bind addr:plage-port[,[addr:]plage-port]*
+ok>    bind ...
+ok>    ...
+ok> 
+ok>    => proxy->listen_fd et proxy->listen_addr doivent être
+ok> 	  mis dans des listes
+ok>    => OK pour listen, implémenter le BIND.
+ok> 
+ok> 3) reconnexion sur le même port sur le serveur :
+ok> 
+ok>    server XXX 1.2.3.4[:port]
+ok>    si <port> n'est pas spécifié, on utilise le même port que celui qui a reçu
+ok>    la connexion. Dans ce cas, il faut pouvoir forcer le port du health-check
+ok>    par un nouveau parametre "port".
+ok> 
+ok> => ça permet les forwardings de plages :
+ok> 
+ok> listen XXX
+ok>    bind 1.2.3.4:10000-11000
+ok>    server 1.2.3.5
+ok> 
+4) paramètres par défaut :
+   créer une section "defaults" qui précise les paramètres par défaut pour les
+   sections suivantes, concernant les paramètres suivants :
+     ok- les logs
+     ok- les modes (tcp/http)
+     ok- le balancing (round-robin/source)
+     ok- les time-outs
+     ok- maxconn
+     ok- redisp
+     ok- les options
+     ok- le retry
+     ok- les checks
+       - les options des serveurs ?
+       - les filtres et regex ?
+       - les cookies/captures
+
+5) implémenter "balance source" pour faire un hash sur la source.
+
+6) possibilité d'un process séparé par listen :
+   listen XXX
+      fork [ group_id ]
+
+le fait de spécifier group_id fera que toutes les instances utilisant le même
+identifiant de groupe seront gérées par un même processus.
+
+7) gérer un chroot/uid/gid différents par process :
+   listen XXX
+      chroot /truc
+      uid 123
+      gid 456
+
+8) beaucoup de paramètres pourraient être spécifiques aux serveurs et non
+   aux instances. Exemples :
+   - adresse IP source pour atteindre le serveur
+   - méthode de health-check (proto, port, ...)
+   - poids
+   - alerte en cas de disparition
+   - le nombre max de sessions à lui envoyer
+
