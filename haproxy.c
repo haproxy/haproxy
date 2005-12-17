@@ -13,6 +13,10 @@
  *
  * ChangeLog :
  *
+ * 2002/03/22
+ *   - released 1.1.3
+ *   - fixed a bug : cr_expire and cw_expire were inverted in CL_STSHUT[WR]
+ *     which could lead to loops.
  * 2002/03/21
  *   - released 1.1.2
  *   - fixed a bug in buffer management where we could have a loop
@@ -95,7 +99,7 @@
 #include <linux/netfilter_ipv4.h>
 #endif
 
-#define HAPROXY_VERSION "1.1.2"
+#define HAPROXY_VERSION "1.1.3"
 #define HAPROXY_DATE	"2002/03/22"
 
 /* this is for libc5 for example */
@@ -2078,7 +2082,7 @@ int process_cli(struct session *t) {
     else if (c == CL_STSHUTR) {
 	if ((t->res_cw == RES_ERROR) ||
 	    ((s == SV_STSHUTR || s == SV_STCLOSE) && (rep->l == 0))
-	    || (tv_cmp2_ms(&t->crexpire, &now) <= 0)) {
+	    || (tv_cmp2_ms(&t->cwexpire, &now) <= 0)) {
 	    tv_eternity(&t->cwexpire);
 	    fd_delete(t->cli_fd);
 	    t->cli_state = CL_STCLOSE;
@@ -2104,7 +2108,7 @@ int process_cli(struct session *t) {
     }
     else if (c == CL_STSHUTW) {
 	if (t->res_cr == RES_ERROR || t->res_cr == RES_NULL || s == SV_STSHUTW ||
-	    s == SV_STCLOSE || tv_cmp2_ms(&t->cwexpire, &now) <= 0) {
+	    s == SV_STCLOSE || tv_cmp2_ms(&t->crexpire, &now) <= 0) {
 	    tv_eternity(&t->crexpire);
 	    fd_delete(t->cli_fd);
 	    t->cli_state = CL_STCLOSE;
