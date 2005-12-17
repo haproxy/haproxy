@@ -18,6 +18,9 @@
  *
  * ChangeLog :
  *
+ * 2002/08/07 : 1.1.15
+ *   - replaced setpgid()/setpgrp() with setsid() for better portability, because
+ *     setpgrp() doesn't have the same meaning under Solaris, Linux, and OpenBSD.
  * 2002/07/20 : 1.1.14
  *   - added "postonly" cookie mode
  * 2002/07/15 : 1.1.13
@@ -173,8 +176,8 @@
 #include <linux/netfilter_ipv4.h>
 #endif
 
-#define HAPROXY_VERSION "1.1.14"
-#define HAPROXY_DATE	"2002/07/20"
+#define HAPROXY_VERSION "1.1.15"
+#define HAPROXY_DATE	"2002/08/07"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -4852,8 +4855,7 @@ int main(int argc, char **argv) {
     	    global.mode |= MODE_QUIET; /* ensure that we won't say anything from now */
 	}
 	pid = getpid(); /* update child's pid */
-	setpgid(1, 0);
-	setpgrp();
+	setsid();
     }
 
     select_loop();
