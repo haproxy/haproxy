@@ -1,9 +1,9 @@
 
          		     H A - P r o x y
          		     ---------------
-         		      version 1.1.8
+         		      version 1.1.9
 			      willy tarreau
-			       2002/04/16
+			       2002/05/02
 
 ================
 | Introduction |
@@ -11,8 +11,8 @@
 
 HA-Proxy est un relais TCP/HTTP offrant des facilités d'intégration en
 environnement hautement disponible. En effet, il est capable de :
-  - assurer un aiguillage statique défini par des cookies ;
-  - assurer une répartition de charge avec création de cookies pour assurer la
+  - effectuer un aiguillage statique défini par des cookies ;
+  - effectuer une répartition de charge avec création de cookies pour assurer la
     persistence de session ; 
   - fournir une visibilité externe de son état de santé ;
   - s'arrêter en douceur sans perte brutale de service.
@@ -43,20 +43,28 @@ pour les proxies pour lesquels ce paramètre n'est pas précisé dans le fichier de
 configuration. Il s'agit du paramètre 'maxconn' dans les sections 'listen'.
 
 Le nombre maximal total de connexions simultanées limite le nombre de connexions
-TCP utilisables à un instant par le processus, tous proxies confondus. Ce
+TCP utilisables à un instant donné par le processus, tous proxies confondus. Ce
 paramètre remplace le paramètre 'maxconn' de la section 'global'.
+
+Le mode debug correspond à l'option 'debug' de la section 'global'. Dans ce
+mode, toutes les connexions, déconnexions, et tous les échanges d'entêtes HTTP
+sont affichés.
+
+Les statistiques ne sont disponibles que si le programme a été compilé avec
+l'option "STATTIME". Il s'agit principalement de données brutes n'ayant
+d'utilité que lors de benchmarks par exemple.
 
 
 ============================
 | Fichier de configuration |
 ============================
 
-Commentaires
-============
+Structure
+=========
 
 L'analyseur du fichier de configuration ignore des lignes vides, les espaces,
 les tabulations, et tout ce qui est compris entre le symbole '#' (s'il n'est pas
-précédé d'un '\'), et la fin de la ligne. 
+précédé d'un '\'), et la fin de la ligne, ce qui constitue un commentaire.
 
 Le fichier de configuration est découpé en sections répérées par des mots clés
 tels que :
@@ -68,8 +76,8 @@ Tous les paramètres font référence à la section définie par le dernier mot clé
 reconnu.
 
 
-1) Paramètres généraux
-======================
+1) Paramètres globaux
+=====================
 
 Il s'agit des paramètres agissant sur le processus, ou bien sur l'ensemble des
 proxies. Ils sont tous spécifiés dans la section 'global'. Les paramètres
@@ -96,7 +104,7 @@ syslog vers un ou deux serveurs. La syntaxe est la suivante :
 Les connexions sont envoyées en niveau "info". Les démarrages de service et de
 serveurs seront envoyés en "notice", les signaux d'arrêts en "warning" et les
 arrêts définitifs de services et de serveurs en "alert". Ceci est valable aussi
-bien pour les proxies que pour les serveurs testés au sein des proxies.
+bien pour les proxies que pour les serveurs testés par les proxies.
 
 Les catégories possibles sont :
     kern, user, mail, daemon, auth, syslog, lpr, news,
@@ -121,56 +129,142 @@ de sockets nécessaires, il faut prendre en compte ces paramètres :
   - 1 socket par connexion sortante
   - 1 socket par proxy
   - 1 socket pour chaque serveur en cours de health-check
-  - 1 socket pour les logs
+  - 1 socket pour les logs (tous serveurs confondus)
 
 Positionner la limite du nombre de descripteurs de fichiers (ulimit -n) à
-2 * maxconn + nbproxy + nbserveurs + 1.
+2 * maxconn + nbproxy + nbserveurs + 1. Dans une future version, haproxy sera
+capable de positionner lui-même cette limite.
 
-1.3) Changement d'uid et de gid
--------------------------------
+1.3) Diminution des privilèges
+------------------------------
+Afin de réduire les risques d'attaques dans le cas où une faille non identifiée
+serait exploitée, il est possible de diminuer les privilèges du processus, et
+de le cloisonner.
+
+Dans la section 'global', le paramètre 'uid' permet de spécifier un identifiant
+numérique d'utilisateur. La valeur 0, correspondant normalement au super-
+utilisateur, possède ici une signification particulière car elle indique que
+l'on ne souhaite pas changer cet identifiant et conserver la valeur courante.
+C'est la valeur par défaut. De la même manière, le paramètre 'gid' correspond à
+un identifiant de groupe, et utilise par défaut la valeur 0 pour ne rien
+changer. Il est particulièrement déconseillé d'utiliser des comptes génériques
+tels que 'nobody' car cette pratique revient à utiliser 'root' si d'autres
+processus utilisent les mêmes identifiants.
+
+Le paramètre 'chroot' autorise à changer la racine du processus une fois le
+programme lancé, de sorte que ni le processus, ni l'un de ses descendants ne
+puisse remonter de nouveau à la racine. Ce type de cloisonnement (chroot) est
+parfois contournable sur certains OS (Linux 2.2, Solaris), mais visiblement
+fiable sur d'autres (Linux 2.4). Aussi, il est important d'utiliser un
+répertoire spécifique au service pour cet usage, et de ne pas mutualiser un même
+répertoire pour plusieurs services de nature différente.
+
+Remarque: dans le cas où une telle faille serait mise en évidence, il est fort
+probable que les premières tentatives de son exploitation provoquent un arrêt du
+programme, à cause d'un signal de type 'Segmentation Fault', 'Bus Error' ou
+encore 'Illegal Instruction'. Même s'il est vrai que faire tourner le serveur en
+environnement limité réduit les risques d'intrusion, il est parfois bien utile
+dans ces circonstances de connaître les conditions d'apparition du problème, via
+l'obtention d'un fichier 'core'. La plupart des systèmes, pour des raisons de
+sécurité, désactivent la génération du fichier 'core' après un changement
+d'identifiant pour le processus. Il faudra donc soit lancer le processus à
+partir d'un compte utilisateur aux droits réduits (mais ne pouvant pas effectuer
+le chroot), ou bien le faire en root sans réduction des droits (uid 0). Dans ce
+cas, le fichier se trouvera soit dans le répertoire de lancement, soit dans le
+répertoire spécifié après l'option 'chroot'. Ne pas oublier la commande suivante
+pour autoriser la génération du fichier avant de lancer le programme :
+
+# ulimit -c unlimited
+
+Exemple :
+---------
+
+    global
+	uid	30000
+	gid	30000
+	chroot  /var/chroot/haproxy
+
+1.4) modes de fonctionnement
+----------------------------
+Le service peut fonctionner dans plusieurs modes :
+  - avant- / arrière-plan
+  - silencieux / normal / debug
+
+Le mode par défaut est normal, avant-plan, c'est à dire que le programme ne rend
+pas la main une fois lancé. Il ne faut surtout pas le lancer comme ceci dans un
+script de démarrage du système, sinon le système ne finirait pas son
+initialisation. Il faut le mettre en arrière-plan, de sorte qu'il rende la main
+au processus appelant. C'est ce que fait l'option 'daemon' de la section
+'global', et qui est l'équivalent du paramètre '-D' de la ligne de commande.
+
+Par ailleurs, certains messages d'alerte sont toujours envoyés sur la sortie
+standard, même en mode 'daemon'. Pour ne plus les voir ailleurs que dans les
+logs, il suffit de passer en mode silencieux par l'ajout de l'option 'quiet'.
+Cette option n'a pas d'équivalent en ligne de commande.
+
+Enfin, le mode 'debug' permet de diagnostiquer les origines de certains
+problèmes en affichant les connexions, déconnexions et échanges d'en-têtes HTTP
+entre les clients et les serveurs. Ce mode est incompatible avec les options
+'daemon' et 'quiet' pour des raisons de bon sens.
+
+1.5) accroissement de la capacité de traitement
+-----------------------------------------------
+Sur des machines multi-processeurs, il peut sembler gâché de n'utiliser qu'un
+processeur pour effectuer les tâches de relayage, même si les charges
+nécessaires à saturer un processeur actuel sont bien au-delà des ordres de
+grandeur couramment rencontrés. Cependant, pour des besoins particuliers, le
+programme sait démarrer plusieurs processus se répartissant la charge de
+travail. Ce nombre de processus est spécifié par le paramètre 'nbproc' de la
+section 'global'. Sa valeur par défaut est naturellement 1. Ceci ne fonctionne
+qu'en mode 'daemon'.
+
+Exemple :
+---------
+
+    global
+	daemon
+	quiet
+	nbproc	2
 
 
+2) Définition d'un service en écoute
+====================================
 
-Serveur
-=======
-
-Le fichier de configuration contient des sections repérées par le mot
-clé "listen" :
+Les sections de service débutent par le mot clé "listen" :
 
     listen <nom_instance> <adresse_IP>:<port>
 
-<nom_instance> est le nom de l'instance décrite. Ce nom sera envoyé
-dans les logs, donc il est souhaitable d'utiliser un nom relatif au
-service relayé. Aucun test n'est effectué concernant l'unicité de ce
-nom, qui n'est pas obligatoire, mais fortement recommandée.
+- <nom_instance> est le nom de l'instance décrite. Ce nom sera envoyé dans les
+  logs, donc il est souhaitable d'utiliser un nom relatif au service relayé. Aucun
+  test n'est effectué concernant l'unicité de ce nom, qui n'est pas obligatoire,
+  mais fortement recommandée. 
 
-<adresse_IP> est l'adresse IP sur laquelle le relais attend ses
-connexions. L'adresse 0.0.0.0 signifie que les connexions pourront
-s'effectuer sur toutes les adresses de la machine.
+- <adresse_IP> est l'adresse IP sur laquelle le relais attend ses
+  connexions. L'adresse 0.0.0.0 signifie que les connexions pourront s'effectuer
+  sur toutes les adresses de la machine.
 
-<port> est le numéro de port TCP sur lequel le relais attend ses
-connexions. Le couple <adresse_IP>:<port> doit être unique pour toutes
-les instances d'une même machine. L'attachement à un port inférieur à
-1024 nécessite un niveau de privilège particulier.
+- <port> est le numéro de port TCP sur lequel le relais attend ses
+  connexions. Le couple <adresse_IP>:<port> doit être unique pour toutes les
+  instances d'une même machine. L'attachement à un port inférieur à 1024
+  nécessite un niveau de privilège particulier lors du lancement du programme
+  (indépendamment du paramètre 'uid' de la section 'global').
 
 Exemple :
 ---------
     listen http_proxy 127.0.0.1:80
 
 
-Inhibition
-==========
-
-Un serveur peut être désactivé pour des besoins de maintenance, sans
-avoir à commenter toute une partie du fichier. Il suffit de
-positionner le mot clé "disabled" dans sa section :
+2.1) Inhibition d'un service
+----------------------------
+Un serveur peut être désactivé pour des besoins de maintenance, sans avoir à
+commenter toute une partie du fichier. Il suffit de positionner le mot clé
+"disabled" dans sa section :
 
     listen smtp_proxy 0.0.0.0:25
 	disabled
 
-Mode
-====
-
+2.2) Mode de fonctionnement
+---------------------------
 Un serveur peut fonctionner dans trois modes différents :
   - TCP
   - HTTP
@@ -178,86 +272,89 @@ Un serveur peut fonctionner dans trois modes différents :
 
 Mode TCP
 --------
-Dans ce mode, le service relaye, dès leur établissement, les
-connexions TCP vers un ou plusieurs serveurs. Aucun traitement n'est
-effectué sur le flux. Il s'agit simplement d'une association
-<adresse_source:port_source> <adresse_destination:port_destination>.
-Pour l'utiliser, préciser le mode TCP sous la déclaration du relais :
+Dans ce mode, le service relaye, dès leur établissement, les connexions TCP vers
+un ou plusieurs serveurs. Aucun traitement n'est effectué sur le flux. Il s'agit
+simplement d'une association source<adresse:port> -> destination<adresse:port>.
+Pour l'utiliser, préciser le mode TCP sous la déclaration du relais.
 
+Exemple :
+---------
     listen smtp_proxy 0.0.0.0:25
 	mode tcp
 
 Mode HTTP
 ---------
-Dans ce mode, le service relaye les connexions TCP vers un ou
-plusieurs serveurs, une fois qu'il dispose d'assez d'informations pour
-en prendre la décision. Les entêtes HTTP sont analysés pour y trouver
-un éventuel cookie, et certains d'entre-eux peuvent être modifiés par
-le biais d'expressions régulières. Pour activer ce mode, préciser le
-mode HTTP sous la déclaration du relais :
+Dans ce mode, le service relaye les connexions TCP vers un ou plusieurs
+serveurs, une fois qu'il dispose d'assez d'informations pour en prendre la
+décision. Les entêtes HTTP sont analysés pour y trouver un éventuel cookie, et
+certains d'entre-eux peuvent être modifiés par le biais d'expressions
+régulières. Pour activer ce mode, préciser le mode HTTP sous la déclaration du
+relais.
 
+Exemple :
+---------
     listen http_proxy 0.0.0.0:80
 	mode http
 
 Mode supervision
 ----------------
-Il s'agit d'un mode offrant à un composant externe une visibilité de
-l'état de santé du service. Il se contente de retourner "OK" à tout
-client se connectant sur son port. Il peut être utilisé avec des
-répartiteurs de charge évolués pour déterminer quels sont les services
-utilisables. Pour activer ce mode, préciser le mode HEALTH sous la
-déclaration du relais :
+Il s'agit d'un mode offrant à un composant externe une visibilité de l'état de
+santé du service. Il se contente de retourner "OK" à tout client se connectant
+sur son port. Il peut être utilisé avec des répartiteurs de charge évolués pour
+déterminer quels sont les services utilisables. Pour activer ce mode, préciser
+le mode HEALTH sous la déclaration du relais.
 
+Exemple :
+---------
     listen health_check 0.0.0.0:60000
 	mode health
 
 
-Limitation du nombre de connexions simultanées
-==============================================
-
-Le paramètre "maxconn" permet de fixer la limite acceptable en nombre
-de connexions simultanées par proxy. Chaque proxy qui atteint cette
-valeur cesse d'écouter jusqu'à libération d'une connexion. Voir plus
-loin concernant les limitations liées au système. Exemple:
-
-     maxconn 16000
-
-
-Arrêt en douceur
-================
-
-Il est possible d'arrêter les services en douceur en envoyant un
-signal SIG_USR1 au processus relais. Tous les services seront alors
-mis en phase d'arrêt, mais pourront continuer d'accepter des connexions
-pendant un temps défini par le paramètre "grace" (en millisecondes).
-Cela permet par exemple, de faire savoir rapidement à un répartiteur
-de charge qu'il ne doit plus utiliser un relais, tout en continuant
-d'assurer le service le temps qu'il s'en rende compte. Remarque : les
-connexions actives ne sont jamais cassées. Dans le pire des cas, il
-faudra attendre en plus leur expiration avant l'arrêt total du
-processus. La valeur par défaut est 0 (pas de grâce).
+2.3) Limitation du nombre de connexions simultanées
+---------------------------------------------------
+Le paramètre "maxconn" permet de fixer la limite acceptable en nombre de
+connexions simultanées par proxy. Chaque proxy qui atteint cette valeur cesse
+d'écouter jusqu'à libération d'une connexion. Voir plus loin concernant les
+limitations liées au système.
 
 Exemple :
 ---------
+    listen tiny_server 0.0.0.0:80
+        maxconn 10
 
+
+2.4) Arrêt en douceur
+---------------------
+Il est possible d'arrêter les services en douceur en envoyant un signal SIG_USR1
+au processus relais. Tous les services seront alors mis en phase d'arrêt, mais
+pourront continuer d'accepter des connexions pendant un temps défini par le
+paramètre 'grace' (en millisecondes). Cela permet par exemple, de faire savoir
+rapidement à un répartiteur de charge qu'il ne doit plus utiliser un relais,
+tout en continuant d'assurer le service le temps qu'il s'en rende compte.
+Remarque : les connexions actives ne sont jamais cassées. Dans le pire des cas,
+il faudra attendre en plus leur expiration avant l'arrêt total du processus. La
+valeur par défaut est 0 (pas de grâce, arrêt immédiat de l'écoute).
+
+Exemple :
+---------
+    # arrêter en douceur par 'killall -USR1 haproxy'
     # le service tournera encore 10 secondes après la demande d'arrêt
     listen http_proxy 0.0.0.0:80
 	mode http
 	grace 10000
 
+    # ce port n'est testé que par un répartiteur de charge.
     listen health_check 0.0.0.0:60000
 	mode health
 	grace 0
 
 
-Temps d'expiration des connexions
-=================================
-
-Il est possible de paramétrer certaines durées d'expiration au niveau
-des connexions TCP. Trois temps indépendants sont configurables et
-acceptent des valeurs en millisecondes. Si l'une de ces trois
-temporisations est dépassée, la session est terminée à chaque
-extrémité.
+2.5) Temps d'expiration des connexions
+--------------------------------------
+Il est possible de paramétrer certaines durées d'expiration au niveau des
+connexions TCP. Trois temps indépendants sont configurables et acceptent des
+valeurs en millisecondes. Si l'une de ces trois temporisations est dépassée, la
+session est terminée à chaque extrémité.
 
   - temps d'attente d'une donnée de la part du client, ou de la
     possibilité de lui envoyer des données : "clitimeout" :
@@ -268,91 +365,117 @@ extrémité.
   - temps d'attente d'une donnée de la part du serveur, ou de la
     possibilité de lui envoyer des données : "srvtimeout" :
 
-	# time-out client à 30s.
+	# time-out serveur à 30s.
 	srvtimeout	30000
 
   - temps d'attente de l'établissement d'une connexion vers un serveur
     "contimeout" :
 
-        # on abandonne si la connexion n'est pas établie après 3 secondes
-	contimeout	3000
+        # on abandonne si la connexion n'est pas établie après 4 secondes
+	contimeout	4000
 
-Remarque: "contimeout" et "srvtimeout" n'ont pas d'utilité dans le cas
-du serveur de type "health".
+Remarques :
+-----------
+  - "contimeout" et "srvtimeout" n'ont pas d'utilité dans le cas du serveur de
+    type "health".
+  - sous de fortes charges, ou sur un réseau saturé ou défectueux, il est
+    possible de perdre des paquets. Du fait que la première retransmission TCP
+    n'ait lieu qu'au bout de 3 secoudes, fixer un timeout de connexion inférieur
+    à 3 secondes ne permet pas de se rattraper sur la perte de paquets car la
+    session aura été abandonnée avant la première retransmission. Une valeur de
+    4 secondes réduira considérablement le nombre d'échecs de connexion.
 
-Tentatives de reconnexion
-=========================
-
+2.6) Tentatives de reconnexion
+------------------------------
 Lors d'un échec de connexion vers un serveur, il est possible de
 retenter (potentiellement vers un autre serveur, en cas de répartition
 de charge). Le nombre de nouvelles tentatives infructueuses avant
-abandon est fourni par le paramètre "retries" :
+abandon est fourni par le paramètre "retries".
 
+Exemple :
+---------
 	# on essaie encore trois fois maxi
 	retries 3
 
-Adresse du serveur
-==================
 
-Le serveur vers lequel sont redirigées les connexions est défini par
-le paramètre "dispatch" sous la forme <adresse_ip>:<port> :
+2.7) Adresse du serveur
+-----------------------
+Le serveur vers lequel sont redirigées les nouvelles connexions est défini par
+le paramètre "dispatch" sous la forme <adresse_ip>:<port>. Il correspond à un
+serveur d'assignation de cookie dans le cas où le service consiste à assurer
+uniquement une persistence HTTP, ou bien simplement au serveur destination dans
+le cas de relayage TCP simple.
 
+Exemple :
+---------
    	# on envoie toutes les nouvelles connexions ici
 	dispatch 192.168.1.2:80
 
-Remarque: ce paramètre n'a pas d'utilité pour un serveur en mode "health".
+Remarque :
+----------
+Ce paramètre n'a pas d'utilité pour un serveur en mode 'health', ni en mode
+'balance'.
 
-Définition du nom du cookie
-===========================
 
-En mode HTTP, il est possible de rechercher la valeur d'un cookie pour
-savoir vers quel serveur aiguiller la requête utilisateur. Le nom du
-cookie est donné par le paramètre "cookie" :
+2.8) Définition du nom du cookie
+--------------------------------
+En mode HTTP, il est possible de rechercher la valeur d'un cookie pour savoir
+vers quel serveur aiguiller la requête utilisateur. Le nom du cookie est donné
+par le paramètre "cookie".
 
+Exemple :
+---------
     listen http_proxy 0.0.0.0:80
 	mode http
 	cookie SERVERID
 
-On peut modifier l'utilisation du cookie pour la rendre plus
-intelligente vis-à-vis des applications relayées. Il est possible,notamment
-de supprimer ou réécrire un cookie retourné par un serveur accédé en direct,
-et d'insérer un cookie dans une réponse HTTP orientée vers un serveur
-sélectionné en répartition de charge.
+On peut modifier l'utilisation du cookie pour la rendre plus intelligente
+vis-à-vis des applications relayées. Il est possible, notamment de supprimer ou
+réécrire un cookie retourné par un serveur accédé en direct, et d'insérer un
+cookie dans une réponse HTTP adressée à un serveur sélectionné en répartition
+de charge.
+
+Exemples :
+----------
 
 Pour ne conserver le cookie qu'en accès indirect, donc à travers le
-dispatcheur, et le supprimer lors des accès directs :
+dispatcheur, et supprimer toutes ses éventuelles occurences lors des accès
+directs :
 
 	cookie SERVERID indirect
 
-Pour réécrire le nom du serveur dans un cookie lors d'un accès direct :
+Pour remplacer la valeur d'un cookie existant par celle attribuée à un serveur,
+lors d'un accès direct :
 
 	cookie SERVERID rewrite
 
-Pour créer un cookie comportant le nom du serveur lors d'un accès en
-répartition de charge interne. Dans ce cas, il est indispensable que tous les
-serveurs aient un cookie renseigné.
+Pour créer un cookie comportant la valeur attribuée à un serveur lors d'un accès
+en répartition de charge interne. Dans ce cas, il est indispensable que tous les
+serveurs aient un cookie renseigné :
 
 	cookie SERVERID insert
 
-Remarque: Il est possible de combiner 'insert' avec 'indirect' ou 'rewrite'
-pour s'adapter à des applications générant déjà le cookie, avec un contenu
-invalide. Il suffit pour cela de les spécifier sur la même ligne.
+Remarque :
+----------
+Il est possible de combiner 'insert' avec 'indirect' ou 'rewrite' pour s'adapter
+à des applications générant déjà le cookie, avec un contenu invalide. Il suffit
+pour cela de les spécifier sur la même ligne.
 
-Assignation d'un serveur à une valeur de cookie
-===============================================
 
+2.9) Assignation d'un serveur à une valeur de cookie
+----------------------------------------------------
 En mode HTTP, il est possible d'associer des serveurs à des valeurs de
-cookie par le paramètre "server". La syntaxe est :
+cookie par le paramètre 'server'. La syntaxe est :
 
     server <identifiant> <adresse_ip>:<port> cookie <valeur>
 
-<identifiant> est un nom quelconque de serveur utilisé pour
-l'identifier dans la configuration (erreurs...).
-<adresse_ip>:<port> le couple adresse-port sur lequel le serveur écoute.
-<valeur> est la valeur trouvée dans le cookie,
+- <identifiant> est un nom quelconque de serveur utilisé pour l'identifier dans la
+  configuration et les logs.
+- <adresse_ip>:<port> est le couple adresse-port sur lequel le serveur écoute.
+- <valeur> est la valeur à reconnaître ou positionner dans le cookie.
 
 Exemple : le cookie SERVERID peut contenir server01 ou server02
--------
+---------
     listen http_proxy 0.0.0.0:80
 	mode http
 	cookie SERVERID
@@ -361,22 +484,21 @@ Exemple : le cookie SERVERID peut contenir server01 ou server02
 	server web2 192.168.1.2:80 cookie server02
 
 Attention : la syntaxe a changé depuis la version 1.0.
----------
+-----------
 
-Répartiteur de charge interne
-=============================
+3) Répartiteur de charge interne
+=================================
 
-Le relais peut effectuer lui-même la répartition de charge entre les
-différents serveurs décrits pour un service donné, en mode TCP comme
-en mode HTTP. Pour cela, on précise le mot clé 'balance' dans la
-définition du service, éventuellement suivi du nom d'un algorithme de
-répartition. En version 1.1.0, seul 'roundrobin' est géré, et c'est
-aussi la valeur implicite par défaut. Il est évident qu'en cas
-d'utilisation du répartiteur interne, il ne faudra pas spécifier
-d'adresse de dispatch, et qu'il faudra au moins un serveur.
+Le relais peut effectuer lui-même la répartition de charge entre les différents
+serveurs définis pour un service donné, en mode TCP comme en mode HTTP. Pour
+cela, on précise le mot clé 'balance' dans la définition du service,
+éventuellement suivi du nom d'un algorithme de répartition. En version 1.1.9,
+seul 'roundrobin' est géré, et c'est aussi la valeur implicite par défaut. Il
+est évident qu'en cas d'utilisation du répartiteur interne, il ne faudra pas
+spécifier d'adresse de dispatch, et qu'il faudra au moins un serveur.
 
 Exemple : même que précédemment en répartition interne
--------
+---------
 
     listen http_proxy 0.0.0.0:80
 	mode http
@@ -386,46 +508,50 @@ Exemple : même que précédemment en répartition interne
 	server web2 192.168.1.2:80 cookie server02
 
 
-Surveillance des serveurs
-=========================
-
-A cette date, l'état des serveurs n'est testé que par établissement
-de connexion TCP toutes les 2 secondes, avec 3 essais pour déclarer
-un serveur en panne, 2 pour le déclarer utilisable. Un serveur hors
-d'usage ne sera pas utilisé dans le processus de répartition de charge
-interne. Pour activer la surveillance, ajouter le mot clé 'check' à la
-fin de la déclaration du serveur. Il est possible de spécifier
-l'intervalle (en millisecondes) séparant deux tests du serveur par le
-paramètre "inter", le nombre d'échecs acceptés par le paramètre "fall",
-et le nombre de succès avant reprise par le paramètre "rise".
-Les paramètres non précisés prennent les valeurs suivantes par défaut :
+3.1) Surveillance des serveurs
+------------------------------
+A cette date, l'état des serveurs n'est testé que par établissement de connexion
+TCP toutes les 2 secondes, avec 3 essais pour déclarer un serveur en panne, 2
+pour le déclarer utilisable. Un serveur hors d'usage ne sera pas utilisé dans le
+processus de répartition de charge interne. Pour activer la surveillance,
+ajouter le mot clé 'check' à la fin de la déclaration du serveur. Il est
+possible de spécifier l'intervalle (en millisecondes) séparant deux tests du
+serveur par le paramètre "inter", le nombre d'échecs acceptés par le paramètre
+"fall", et le nombre de succès avant reprise par le paramètre "rise". Les
+paramètres non précisés prennent les valeurs suivantes par défaut :
  - inter : 2000
  - rise  : 2
  - fall  : 3
 
-Exemple : même que précédemment avec surveillance
--------
-
+Exemples :
+----------
+# même que précédemment avec surveillance
     listen http_proxy 0.0.0.0:80
 	mode http
 	cookie SERVERID
 	balance roundrobin
 	server web1 192.168.1.1:80 cookie server01 check
+	server web2 192.168.1.2:80 cookie server02 check inter 500 rise 1 fall 2
+
+# insertion automatique de cookie dans la réponse du serveur
+    listen web_appl 0.0.0.0:80
+	mode http
+	cookie SERVERID insert indirect
+	balance roundrobin
+	server web1 192.168.1.1:80 cookie server01 check
 	server web2 192.168.1.2:80 cookie server02 check
 
 
-Reconnexion vers un répartiteur en cas d'échec direct
-=====================================================
-
-En mode HTTP, si un serveur défini par un cookie ne répond plus, les
-clients seront définitivement aiguillés dessus à cause de leur cookie,
-et de ce fait, définitivement privés de service. La spécification du
-paramètre "redispatch" autorise dans ce cas à renvoyer les connexions
-échouées vers le répartiteur (externe ou interne) afin d'assigner un
-nouveau serveur à ces clients.
+3.2) Reconnexion vers un répartiteur en cas d'échec direct
+----------------------------------------------------------
+En mode HTTP, si un serveur défini par un cookie ne répond plus, les clients
+seront définitivement aiguillés dessus à cause de leur cookie, et de ce fait,
+définitivement privés de service. La spécification du paramètre 'redispatch'
+autorise dans ce cas à renvoyer les connexions échouées vers le répartiteur
+(externe ou interne) afin d'assigner un nouveau serveur à ces clients.
 
 Exemple :
--------
+---------
     listen http_proxy 0.0.0.0:80
 	mode http
 	cookie SERVERID
@@ -434,18 +560,24 @@ Exemple :
 	server web2 192.168.1.2:80 cookie server02
 	redispatch # renvoyer vers dispatch si serveur HS.
 
-Fonctionnement en mode transparent
-==================================
 
-En mode HTTP, le mot clé "transparent" permet d'intercepter des
-sessions routées à travers la machine hébergeant le proxy. Dans
-ce mode, on ne précise pas l'adresse de répartition "dispatch",
-car celle-ci est tirée de l'adresse destination de la session
-détournée. Le système doit permettre de rediriger les paquets
-vers un processus local.
+4) Fonctionnalités additionnelles
+=================================
+
+D'autres fonctionnalités d'usage moins courant sont disponibles. Il s'agit
+principalement du mode transparent, de la journalisation des connexions, et de
+la réécriture des entêtes.
+
+4.1) Fonctionnement en mode transparent
+---------------------------------------
+En mode HTTP, le mot clé 'transparent' permet d'intercepter des sessions routées
+à travers la machine hébergeant le proxy. Dans ce mode, on ne précise pas
+l'adresse de répartition 'dispatch', car celle-ci est tirée de l'adresse
+destination de la session détournée. Le système doit permettre de rediriger les
+paquets vers un processus local.
 
 Exemple :
--------
+---------
     listen http_proxy 0.0.0.0:65000
 	mode http
 	transparent
@@ -456,17 +588,25 @@ Exemple :
     # iptables -t nat -A PREROUTING -i eth0 -p tcp -d 192.168.1.100 \
       --dport 80 -j REDIRECT --to-ports 65000
 
-Journalisation des connexions
-=============================
 
-Les connexions TCP et HTTP peuvent donner lieu à une journalisation
-sommaire indiquant, pour chaque connexion, la date, l'heure, les adresses
-IP source et destination, et les ports source et destination qui la
-caractérisent. Ultérieurement, les URLs seront loguées en mode HTTP,
-tout comme les arrêts de service. Tous les messages sont envoyés en
-syslog vers un ou deux serveurs. La syntaxe est la suivante :
+4.2) Journalisation des connexions
+----------------------------------
+Les connexions TCP et HTTP peuvent donner lieu à une journalisation sommaire ou
+détaillée indiquant, pour chaque connexion, la date, l'heure, l'adresse IP
+source, le serveur destination, la durée de la connexion, les temps de réponse,
+la requête HTTP, le code de retour, la quantité de données transmise.
+Tous les messages sont envoyés en syslog vers un ou deux serveurs. La syntaxe
+est la suivante :
 
     log <adresse_ip> <facility>
+    log <adresse_ip> <facility>
+ou
+    log global
+
+Remarque :
+----------
+La syntaxe spécifique 'log global' indique que l'on souhaite utiliser les
+paramètres de journalisation définis dans la section 'global'.
 
 Exemple :
 ---------
@@ -475,34 +615,62 @@ Exemple :
 	log 192.168.2.200 local3
 	log 192.168.2.201 local4
 
-Les connexions sont envoyées en niveau "info". Les démarrages de
-service seront envoyés en "notice", les signaux d'arrêts en "warning"
-et les arrêts définitifs en "alert". Ceci est valable aussi bien
-pour les proxies que pour les serveurs testés au sein des proxies.
+Les connexions sont envoyées en niveau "info". Les démarrages de service seront
+envoyés en "notice", les signaux d'arrêts en "warning" et les arrêts définitifs
+en "alert". Ceci est valable aussi bien pour les proxies que pour les serveurs
+testés au sein des proxies. Les catégories possibles sont :
 
-Les catégories possibles sont :
     kern, user, mail, daemon, auth, syslog, lpr, news,
     uucp, cron, auth2, ftp, ntp, audit, alert, cron2,
     local0, local1, local2, local3, local4, local5, local6, local7
 
+Par défaut, les informations contenues dans les logs se situent au niveau TCP
+uniquement. Il faut préciser l'option 'httplog' pour obtenir les détails du
+protocole HTTP. Dans les cas où un mécanisme de surveillance effectuant des
+connexions et déconnexions fréquentes, polluerait les logs, il suffit d'ajouter
+l'option 'dontlognull', pour ne plus obtenir une ligne de log pour les sessions
+n'ayant pas donné lieu à un échange de données (requête ou réponse).
 
-Modification des entêtes HTTP
-=============================
+Enfin, l'option 'forwardfor' ajoute l'adresse IP du client dans un champ
+'X-Forwarded-For' de la requête, ce qui permet à un serveur web final de
+connaître l'adresse IP du client initial.
 
-En mode HTTP uniquement, il est possible de remplacer certains entêtes
-dans la requête et/ou la réponse à partir d'expressions régulières. Une
-limitation cependant : les entêtes fournis au milieu de connexions
-persistentes (keep-alive) ne sont pas vus. Les données ne sont pas
-affectées, ceci ne s'applique qu'aux entêtes.
+Exemple :
+---------
+    listen http_proxy 0.0.0.0:80
+	mode http
+	log  global
+	option httplog
+	option dontlognull
+	option forwardfor
+
+
+4.3) Modification des entêtes HTTP
+----------------------------------
+En mode HTTP uniquement, il est possible de remplacer certains en-têtes dans la
+requête et/ou la réponse à partir d'expressions régulières. Il est également
+possible de bloquer certaines requêtes en fonction du contenu des en-têtes ou de
+la requête. Une limitation cependant : les en-têtes fournis au milieu de
+connexions persistentes (keep-alive) ne sont pas vus car ils sont considérés
+comme faisant partie des échanges de données consécutifs à la première requête.
+Les données ne sont pas affectées, ceci ne s'applique qu'aux en-têtes. 
 
 La syntaxe est :
-   reqadd <string>             pour ajouter un entête dans la requête
-   reqrep <search> <replace>   pour modifier la requête
-   reqrep <search>             pour supprimer un entête dans la requête
+   reqadd    <string>             pour ajouter un en-tête dans la requête
+   reqrep    <search> <replace>   pour modifier la requête
+   reqirep   <search> <replace>   idem sans distinction majuscules/minuscules
+   reqdel    <search>             pour supprimer un en-tête dans la requête
+   reqidel   <search>             idem sans distinction majuscules/minuscules
+   reqallow  <search>             autoriser une requête qui valide <search>
+   reqiallow <search>             idem sans distinction majuscules/minuscules
+   reqdeny   <search>             interdire une requête qui valide <search>
+   reqdeny   <search>             idem sans distinction majuscules/minuscules
 
-   rspadd <string>             pour ajouter un entête dans la réponse
-   rsprep <search> <replace>   pour modifier la réponse
-   rsprep <search>             pour supprimer un entête dans la réponse
+   rspadd   <string>             pour ajouter un en-tête dans la réponse
+   rsprep   <search> <replace>   pour modifier la réponse
+   rspirep  <search> <replace>   idem sans distinction majuscules/minuscules
+   rspdel   <search>             pour supprimer un en-tête dans la réponse
+   rspidel  <search>             idem sans distinction majuscules/minuscules
 
 
 <search> est une expression régulière compatible GNU regexp supportant
@@ -529,12 +697,12 @@ imprimable (utile pour le saut de ligne) inscrivant '\x' suivi du code
 hexadécimal de ce caractère (comme en C).
 
 <string> représente une chaîne qui sera ajoutée systématiquement après la
-dernière ligne d'entête.
+dernière ligne d'en-tête.
 
 Remarques :
 ---------
   - la première ligne de la requête et celle de la réponse sont traitées comme
-    des entêtes, ce qui permet de réécrire des URL et des codes d'erreur.
+    des en-têtes, ce qui permet de réécrire des URL et des codes d'erreur.
   - 'reqrep' est l'équivalent de 'cliexp' en version 1.0, et 'rsprep' celui de
     'srvexp'. Ces noms sont toujours supportés mais déconseillés.
   - pour des raisons de performances, le nombre total de caractères ajoutés sur
@@ -547,15 +715,15 @@ Exemples :
 --------
 	reqrep	^(GET.*)(.free.fr)(.*) \1.online.fr\3
 	reqrep	^(POST.*)(.free.fr)(.*) \1.online.fr\3
-	reqrep	^Proxy-Connection:.*	Proxy-Connection:\ close
-	rsprep	^Server:.* Server:\ Tux-2.0
-	rsprep	^(Location:\ )([^:]*://[^/]*)(.*) \1\3
-	rspdel  ^Connection:.*
+	reqirep	^Proxy-Connection:.*	Proxy-Connection:\ close
+	rspirep	^Server:.* Server:\ Tux-2.0
+	rspirep	^(Location:\ )([^:]*://[^/]*)(.*) \1\3
+	rspidel  ^Connection:
 	rspadd	Connection:\ close
 
 
-Répartition avec persistence
-============================
+4.4) Répartition avec persistence
+---------------------------------
 
 La combinaison de l'insertion de cookie avec la répartition de charge interne
 permet d'assurer une persistence dans les sessions HTTP d'une manière
@@ -563,6 +731,7 @@ pratiquement transparente pour les applications. Le principe est simple :
   - assigner un cookie à chaque serveur
   - effectuer une répartition interne
   - insérer un cookie dans les réponses issues d'une répartition
+  - cacher ce cookie à l'application
 
 Exemple :
 -------
@@ -572,6 +741,7 @@ Exemple :
 	balance roundrobin
 	server 192.168.1.1:80 cookie server01 check
 	server 192.168.1.2:80 cookie server02 check
+	reqidel ^Cookie:\ SERVERID=
 
 =======================
 | Paramétrage système |

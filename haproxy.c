@@ -10,12 +10,19 @@
  * Pending bugs :
  *   - solaris only : sometimes, an HTTP proxy with only a dispatch address causes
  *     the proxy to terminate (no core) if the client breaks the connection during
- *     the response. Seen on 1.1.8pre4, but never reproduced.
+ *     the response. Seen on 1.1.8pre4, but never reproduced. May not be related to
+ *     the snprintf() bug since requests we simple (GET / HTTP/1.0).
  *   - cookie in insert+indirect mode sometimes segfaults !
  *   - a proxy with an invalid config will prevent the startup even if disabled.
  *
  * ChangeLog :
  *
+ * 2002/04/19 : 1.1.9
+ *   - don't use snprintf()'s return value as an end of message since it may
+ *     be larger. This caused bus errors and segfaults in internal libc's
+ *     getenv() during localtime() in send_log().
+ *   - removed dead insecure send_syslog() function and all references to it.
+ *   - fixed warnings on Solaris due to buggy implementation of isXXXX().
  * 2002/04/18 : 1.1.8
  *   - option "dontlognull"
  *   - fixed "double space" bug in config parser
@@ -134,8 +141,8 @@
 #include <linux/netfilter_ipv4.h>
 #endif
 
-#define HAPROXY_VERSION "1.1.8"
-#define HAPROXY_DATE	"2002/04/18"
+#define HAPROXY_VERSION "1.1.9"
+#define HAPROXY_DATE	"2002/04/19"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -748,78 +755,12 @@ struct sockaddr_in *str2sa(char *str) {
     return &sa;
 }
 
-/*
- * This function tries to send a syslog message to the syslog server at
- * address <sa>. It doesn't care about errors nor does it report them.
- * WARNING! no check is made on the prog+hostname+date length, so the
- * local hostname + the prog name must be shorter than MAX_SYSLOG_LEN-19.
- * the message will be truncated to fit the maximum length.
- */
-void send_syslog(struct sockaddr_in *sa,
-		 int facility, int level, char *message)
-{
-
-    static int logfd = -1;	/* syslog UDP socket */
-    struct timeval tv;
-    struct tm *tm;
-    static char logmsg[MAX_SYSLOG_LEN];
-    char *p;
-
-    if (logfd < 0) {
-	if ((logfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
-	    return;
-    }
-    
-    if (facility < 0 || level < 0
-	|| sa == NULL || progname == NULL || message == NULL)
-	return;
-
-    gettimeofday(&tv, NULL);
-    tm = localtime(&tv.tv_sec);
-
-    p = logmsg;
-    //p += sprintf(p, "<%d>%s %2d %02d:%02d:%02d %s %s[%d]: ",
-    //		   facility * 8 + level,
-    //		   monthname[tm->tm_mon],
-    //		   tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec,
-    //		   hostname, progname, pid);
-    /* 20011216/WT : other progs don't set the hostname, and syslogd
-     * systematically repeats it which is contrary to RFC3164.
-     */
-    /*
-     * warning: buffer overflow possible on progname.
-     */
-    p += sprintf(p, "<%d>%s %2d %02d:%02d:%02d %s[%d]: ",
-		 facility * 8 + level,
-		 monthname[tm->tm_mon],
-		 tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec,
-		 progname, pid);
-
-    if (((char *)&logmsg - p + MAX_SYSLOG_LEN) > 0) {
-	int len = strlen(message);
-	if (len > ((char *)&logmsg + MAX_SYSLOG_LEN - p))
-	    len = ((char *)&logmsg + MAX_SYSLOG_LEN - p);
-	memcpy(p, message, len);
-	p += len;
-    }
-#ifndef MSG_NOSIGNAL
-    sendto(logfd, logmsg, p - logmsg, MSG_DONTWAIT,
-	   (struct sockaddr *)sa, sizeof(*sa));
-#else
-    sendto(logfd, logmsg, p - logmsg, MSG_DONTWAIT | MSG_NOSIGNAL,
-	   (struct sockaddr *)sa, sizeof(*sa));
-#endif
-}
-
 
 /*
  * This function sends a syslog message to both log servers of a proxy,
  * or to global log servers if the proxy is NULL.
  * It also tries not to waste too much time computing the message header.
  * It doesn't care about errors nor does it report them.
- * WARNING! no check is made on the prog+hostname+date length, so the
- * local hostname + the prog name must be shorter than MAX_SYSLOG_LEN-19.
- * the message will be truncated to fit the maximum length.
  */
 void send_log(struct proxy *p, int level, char *message, ...) {
     static int logfd = -1;	/* syslog UDP socket */
@@ -844,25 +785,32 @@ void send_log(struct proxy *p, int level, char *message, ...) {
 	return;
 
     gettimeofday(&tv, NULL);
-    if (tv.tv_sec != tvsec) {
+    if (tv.tv_sec != tvsec || dataptr == NULL) {
 	/* this string is rebuild only once a second */
 	struct tm *tm = localtime(&tv.tv_sec);
 	tvsec = tv.tv_sec;
 
-	/*
-	 * warning: buffer overflow possible on progname.
+	hdr_len = snprintf(logmsg, sizeof(logmsg),
+			   "<<<<>%s %2d %02d:%02d:%02d %s[%d]: ",
+			   monthname[tm->tm_mon],
+			   tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec,
+			   progname, pid);
+	/* WARNING: depending upon implementations, snprintf may return
+	 * either -1 or the number of bytes that would be needed to store
+	 * the total message. In both cases, we must adjust it.
 	 */
-	dataptr = logmsg + snprintf(logmsg, sizeof(logmsg),
-				   "<<<<>%s %2d %02d:%02d:%02d %s[%d]: ",
-				   monthname[tm->tm_mon],
-				   tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec,
-				   progname, pid);
+	if (hdr_len < 0 || hdr_len > sizeof(logmsg))
+	    hdr_len = sizeof(logmsg);
+
+	dataptr = logmsg + hdr_len;
     }
 
     va_start(argp, message);
     data_len = vsnprintf(dataptr, logmsg + sizeof(logmsg) - dataptr, message, argp);
-    dataptr[data_len - 1] = '\n'; /* force a break on ultra-long lines */
+    if (data_len < 0 || data_len > (logmsg + sizeof(logmsg) - dataptr))
+	data_len = logmsg + sizeof(logmsg) - dataptr;
     va_end(argp);
+    dataptr[data_len - 1] = '\n'; /* force a break on ultra-long lines */
 
     if (p == NULL) {
 	if (global.logfac1 >= 0) {
@@ -889,7 +837,13 @@ void send_log(struct proxy *p, int level, char *message, ...) {
     }
 
     while (nbloggers-- > 0) {
-	/* do this for each log target */
+	/* For each target, we may have a different facility.
+	 * We can also have a different log level for each message.
+	 * This induces variations in the message header length.
+	 * Since we don't want to recompute it each time, nor copy it every
+	 * time, we only change the facility in the pre-computed header,
+	 * and we change the pointer to the header accordingly.
+	 */
 	fac_level = (facilities[nbloggers] << 3) + level;
 	log_ptr = logmsg + 3; /* last digit of the log level */
 	do {
@@ -898,15 +852,14 @@ void send_log(struct proxy *p, int level, char *message, ...) {
 	    log_ptr--;
 	} while (fac_level && log_ptr > logmsg);
 	*log_ptr = '<';
-	hdr_len = dataptr - log_ptr;
 	
-	/* the total syslog message now starts at p, for hdr_len+data_len */
+	/* the total syslog message now starts at logptr, for dataptr+data_len-logptr */
 
 #ifndef MSG_NOSIGNAL
-	sendto(logfd, log_ptr, hdr_len + data_len, MSG_DONTWAIT,
+	sendto(logfd, log_ptr, dataptr + data_len - log_ptr, MSG_DONTWAIT,
 	       (struct sockaddr *)sa[nbloggers], sizeof(**sa));
 #else
-	sendto(logfd, log_ptr, hdr_len + data_len, MSG_DONTWAIT | MSG_NOSIGNAL,
+	sendto(logfd, log_ptr, dataptr + data_len - log_ptr, MSG_DONTWAIT | MSG_NOSIGNAL,
 	       (struct sockaddr *)sa[nbloggers], sizeof(**sa));
 #endif
     }
@@ -2096,7 +2049,7 @@ int exp_replace(char *dst, char *src, char *str, regmatch_t *matches) {
     while (*str) {
 	if (*str == '\\') {
 	    str++;
-	    if (isdigit(*str)) {
+	    if (isdigit((int)*str)) {
 		int len, num;
 
 		num = *str - '0';
@@ -2298,7 +2251,7 @@ int process_cli(struct session *t) {
 		p1 = req->h + 8; /* first char after 'Cookie: ' */
 		
 		while (p1 < ptr) {
-		    while (p1 < ptr && (isspace(*p1) || *p1 == ';'))
+		    while (p1 < ptr && (isspace((int)*p1) || *p1 == ';'))
 			p1++;
 		    
 		    if (p1 == ptr)
@@ -2326,7 +2279,7 @@ int process_cli(struct session *t) {
 			break;
 		    
 		    p4=p3;
-		    while (p4 < ptr && !isspace(*p4) && *p4 != ';')
+		    while (p4 < ptr && !isspace((int)*p4) && *p4 != ';')
 			p4++;
 		    
 		    /* here, we have the cookie name between p1 and p2,
@@ -2776,7 +2729,7 @@ int process_srv(struct session *t) {
 		p1 = rep->h + 12; /* first char after 'Set-Cookie: ' */
 		
 		while (p1 < ptr) { /* in fact, we'll break after the first cookie */
-		    while (p1 < ptr && (isspace(*p1)))
+		    while (p1 < ptr && (isspace((int)*p1)))
 			p1++;
 		    
 		    if (p1 == ptr || *p1 == ';') /* end of cookie */
@@ -2796,7 +2749,7 @@ int process_srv(struct session *t) {
 			break;
 		    
 		    p4 = p3;
-		    while (p4 < ptr && !isspace(*p4) && *p4 != ';')
+		    while (p4 < ptr && !isspace((int)*p4) && *p4 != ';')
 			p4++;
 		    
 		    /* here, we have the cookie name between p1 and p2,
@@ -3167,13 +3120,6 @@ int process_chk(struct task *t) {
 		if (!(global.mode & MODE_QUIET))
 		    Warning("server %s DOWN.\n", s->id);
 
-//		  sprintf(trash, "Server %s/%s is DOWN.\n",
-//			  s->proxy->id, s->id);
-//		  
-//		  if (s->proxy->logfac1 >= 0)
-//		      send_syslog(&s->proxy->logsrv1, s->proxy->logfac1, LOG_ALERT, trash);
-//		  if (s->proxy->logfac2 >= 0)
-//		      send_syslog(&s->proxy->logsrv2, s->proxy->logfac2, LOG_ALERT, trash);
 		send_log(s->proxy, LOG_ALERT, "Server %s/%s is DOWN.\n", s->proxy->id, s->id);
 	    }
 
@@ -3195,12 +3141,6 @@ int process_chk(struct task *t) {
 		if (s->health == s->rise) {
 		    if (!(global.mode & MODE_QUIET))
 			Warning("server %s UP.\n", s->id);
-//		        sprintf(trash, "Server %s/%s is UP.\n", s->proxy->id, s->id);
-		    
-//		      if (s->proxy->logfac1 >= 0)
-//			  send_syslog(&s->proxy->logsrv1, s->proxy->logfac1, LOG_NOTICE, trash);
-//		      if (s->proxy->logfac2 >= 0)
-//			  send_syslog(&s->proxy->logsrv2, s->proxy->logfac2, LOG_NOTICE, trash);
 		    send_log(s->proxy, LOG_NOTICE, "Server %s/%s is UP.\n", s->proxy->id, s->id);
 		}
 
@@ -3221,13 +3161,6 @@ int process_chk(struct task *t) {
 		if (s->health == s->rise) {
 		    if (!(global.mode & MODE_QUIET))
 			Warning("server %s DOWN.\n", s->id);
-//		      sprintf(trash, "Server %s/%s is DOWN.\n",
-//			      s->proxy->id, s->id);
-//		  
-//		      if (s->proxy->logfac1 >= 0)
-//			  send_syslog(&s->proxy->logsrv1, s->proxy->logfac1, LOG_ALERT, trash);
-//		      if (s->proxy->logfac2 >= 0)
-//			  send_syslog(&s->proxy->logsrv2, s->proxy->logfac2, LOG_ALERT, trash);
 
 		    send_log(s->proxy, LOG_ALERT, "Server %s/%s is DOWN.\n", s->proxy->id, s->id);
 		}
@@ -3488,12 +3421,6 @@ static int maintain_proxies(void) {
 		t = tv_remain(&now, &p->stop_time);
 		if (t == 0) {
 		    Warning("Proxy %s stopped.\n", p->id);
-//		    sprintf(trash, "Proxy %s stopped.\n", p->id);
-		
-//		      if (p->logfac1 >= 0)
-//			  send_syslog(&p->logsrv1, p->logfac1, LOG_WARNING, trash);
-//		      if (p->logfac2 >= 0)
-//			  send_syslog(&p->logsrv2, p->logfac2, LOG_WARNING, trash);
 		    send_log(p, LOG_WARNING, "Proxy %s stopped.\n", p->id);
 
 		    fd_delete(p->listen_fd);
@@ -3523,13 +3450,6 @@ static void soft_stop(void) {
     while (p) {
 	if (p->state != PR_STDISABLED) {
 	    Warning("Stopping proxy %s in %d ms.\n", p->id, p->grace);
-//	    sprintf(trash, "Stopping proxy %s in %d ms.\n", p->id, p->grace);
-	    
-//	      if (p->logfac1 >= 0)
-//		  send_syslog(&p->logsrv1, p->logfac1, LOG_WARNING, trash);
-//	      if (p->logfac2 >= 0)
-//		  send_syslog(&p->logsrv2, p->logfac2, LOG_WARNING, trash);
-
 	    send_log(p, LOG_WARNING, "Stopping proxy %s in %d ms.\n", p->id, p->grace);
 	    tv_delayfrom(&p->stop_time, &now, p->grace);
 	}
@@ -4298,7 +4218,7 @@ int readcfgfile(char *file) {
 	end = line + strlen(line);
 
 	/* skip leading spaces */
-	while (isspace(*line))
+	while (isspace((int)*line))
 	    line++;
 	
 	arg = 0;
@@ -4345,10 +4265,10 @@ int readcfgfile(char *file) {
 		*line = 0;
 		break;
 	    }
-	    else if (isspace(*line)) {
+	    else if (isspace((int)*line)) {
 		/* a non-escaped space is an argument separator */
 		*line++ = 0;
-		while (isspace(*line))
+		while (isspace((int)*line))
 		    line++;
 		args[++arg] = line;
 	    }
@@ -4658,14 +4578,6 @@ int start_proxies() {
 	FD_SET(fd, StaticReadEvent);
 	fd_insert(fd);
 	listeners++;
-//	fprintf(stderr,"Proxy %s : socket bound.\n", curproxy->id);
-
-//	  sprintf(trash, "Proxy %s started.\n", curproxy->id);
-//	  
-//	  if (curproxy->logfac1 >= 0)
-//	      send_syslog(&curproxy->logsrv1, curproxy->logfac1, LOG_INFO, trash);
-//	  if (curproxy->logfac2 >= 0)
-//	      send_syslog(&curproxy->logsrv2, curproxy->logfac2, LOG_INFO, trash);
 
 	send_log(curproxy, LOG_NOTICE, "Proxy %s started.\n", curproxy->id);
 	

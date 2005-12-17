@@ -45,5 +45,5 @@ haproxy: haproxy.o
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
-	rm -vf *.[oas] *~ core haproxy test nohup.out gmon.out
+	rm -f *.[oas] *~ core haproxy test nohup.out gmon.out
 
