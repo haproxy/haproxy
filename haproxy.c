@@ -7,7 +7,10 @@
  * as published by the Free Software Foundation; either version
  * 2 of the License, or (at your option) any later version.
  *
- * Pending bugs (may be not fixed because not reproduced) :
+ * Please refer to RFC2068 or RFC2616 for informations about HTTP protocol, and
+ * RFC2965 for informations about cookies usage.
+ *
+ * Pending bugs (may be not fixed because never reproduced) :
  *   - solaris only : sometimes, an HTTP proxy with only a dispatch address causes
  *     the proxy to terminate (no core) if the client breaks the connection during
  *     the response. Seen on 1.1.8pre4, but never reproduced. May not be related to
@@ -20,6 +23,9 @@
  * TODO:
  *   - handle properly intermediate incomplete server headers. Done ?
  *   - handle hot-reconfiguration
+ *   - fix client/server state transition when server is in connect or headers state
+ *     and client suddenly disconnects. The server *should* switch to SHUT_WR, but
+ *     still handle HTTP headers.
  *
  */
 
@@ -47,8 +53,8 @@
 #include <linux/netfilter_ipv4.h>
 #endif
 
-#define HAPROXY_VERSION "1.1.18"
-#define HAPROXY_DATE	"2003/04/02"
+#define HAPROXY_VERSION "1.1.19"
+#define HAPROXY_DATE	"2003/04/16"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -2444,7 +2450,7 @@ int process_cli(struct session *t) {
 	     */
 	    if (!delete_header && (t->proxy->cookie_name != NULL || t->proxy->capture_name != NULL)
 		&& !(t->flags & SN_CLDENY) && (ptr >= req->h + 8)
-		&& (memcmp(req->h, "Cookie: ", 8) == 0)) {
+		&& (strncasecmp(req->h, "Cookie: ", 8) == 0)) {
 		char *p1, *p2, *p3, *p4;
 		char *del_colon, *del_cookie, *colon;
 		int app_cookies;
@@ -3119,7 +3125,7 @@ int process_srv(struct session *t) {
 	    if (!delete_header /*&& (t->proxy->options & PR_O_COOK_ANY)*/
 		&& (t->proxy->cookie_name != NULL || t->proxy->capture_name != NULL)
 		&& (ptr >= rep->h + 12)
-		&& (memcmp(rep->h, "Set-Cookie: ", 12) == 0)) {
+		&& (strncasecmp(rep->h, "Set-Cookie: ", 12) == 0)) {
 		char *p1, *p2, *p3, *p4;
 		
 		p1 = rep->h + 12; /* first char after 'Set-Cookie: ' */

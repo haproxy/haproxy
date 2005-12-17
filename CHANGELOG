@@ -1,6 +1,12 @@
 ChangeLog :
 ===========
 
+2003/04/16 : 1.1.19
+  - haproxy was NOT RFC compliant because it was case-sensitive on HTTP
+    "Cookie:" and "Set-Cookie:" headers. This caused JVM 1.4 to fail on
+    cookie persistence because it uses "cookie:". Two memcmp() have been
+    replaced with strncasecmp().
+
 2003/04/02 : 1.1.18
   - Haproxy can be compiled with PCRE regex instead of libc regex, by setting
     REGEX=pcre on the make command line.
@@ -64,7 +70,7 @@ ChangeLog :
 2002/06/04 : 1.1.11
   - fixed multi-cookie handling in client request to allow clean deletion
     in insert+indirect mode. Now, only the server cookie is deleted and not
-    all the header. Should now be compliant to RFC2109.
+    all the header. Should now be compliant to RFC2965.
   - added a "nocache" option to "cookie" to specify that we explicitly want
     to add a "cache-control" header when we add a cookie.
     It is also possible to add an "Expires: <old-date>" to keep compatibility

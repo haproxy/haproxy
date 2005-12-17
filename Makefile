@@ -15,7 +15,7 @@ REGEX=libc
 #REGEX=pcre
 
 # This is the directory hosting include/pcre.h and lib/libpcre.* when REGEX=pcre
-PCREDIR	:= $(shell pcre-config --prefix)
+PCREDIR	:= $(shell pcre-config --prefix 2>/dev/null)
 #PCREDIR=/usr/local
 
 # This is for Linux 2.4 with netfilter

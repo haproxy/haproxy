@@ -1,0 +1,3 @@
+#!/bin/sh
+#(echo '<html><body>'; sed -e 's,\(ASPSESSIONID[^; ]*\),<font color=red>\1</font>,g' -e 's,\(^srvhdr.*\)$,<font color=blue>\1</font>,' -e 's,\(^clihdr.*\)$,<font color=green>\1</font>,' -e 's,\(^.*\)$,<tt>\1</tt>,' -e 's/$/<br>/' ; echo '</body></html>')
+(echo '<html><body>'; tr -d '\015' | sed -e 's,\(: Cookie:.*$\),<font color="#e000c0">\1</font>,gi' -e 's,\(: Set-Cookie:.*$\),<font color="#e0a000">\1</font>,gi' -e 's,\(^srvhdr.*\)$,<font color="#00a000">\1</font>,i' -e 's,\(^clihdr.*\)$,<font color="#0000c0">\1</font>,i' -e 's,\(^.*\)$,<tt>\1</tt>,' -e 's/$/<br>/' ; echo '</body></html>')
