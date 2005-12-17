@@ -1,0 +1,13 @@
+1.1.5 -> 1.1.6
+  * added reqdeny / reqallow rules
+  * added HTTP 400 and 403 responses
+  * chain regex in a list
+  * reply 502 when no server is available
+1.1.6 -> 1.1.7
+  - implement global logging
+  - have a single log function
+  - handle parametrable HTTP health-checks replies
+  - differentiate http headers and http uris
+  - log http requests on demand, and destination server IP
+  - add x-forwarded-for
+

@@ -13,21 +13,23 @@
  *
  * ChangeLog :
  *
- * 2002/04/03
- *   - released 1.1.5
+ * 2002/04/08 : 1.1.6
+ *   - regex are now chained and not limited anymore.
+ *   - unavailable server now returns HTTP/502.
+ *   - increased per-line args limit to 40
+ *   - added reqallow/reqdeny to block some request on matches
+ *   - added HTTP 400/403 responses
+ * 2002/04/03 : 1.1.5
  *   - connection logging displayed incorrect source address.
  *   - added proxy start/stop and server up/down log events.
  *   - replaced log message short buffers with larger trash.
  *   - enlarged buffer to 8 kB and replace buffer to 4 kB.
- * 2002/03/25
- *   - released 1.1.4
+ * 2002/03/25 : 1.1.4
  *   - made rise/fall/interval time configurable
- * 2002/03/22
- *   - released 1.1.3
+ * 2002/03/22 : 1.1.3
  *   - fixed a bug : cr_expire and cw_expire were inverted in CL_STSHUT[WR]
  *     which could lead to loops.
- * 2002/03/21
- *   - released 1.1.2
+ * 2002/03/21 : 1.1.2
  *   - fixed a bug in buffer management where we could have a loop
  *     between event_read() and process_{cli|srv} if R==BUFSIZE-MAXREWRITE.
  *     => implemented an adjustable buffer limit.
@@ -35,12 +37,10 @@
  *     and running tasks are skipped.
  *   - added some debug lines for accept events.
  *   - send warnings for servers up/down.
- * 2002/03/12
- *   - released 1.1.1
+ * 2002/03/12 : 1.1.1
  *   - fixed a bug in total failure handling
  *   - fixed a bug in timestamp comparison within same second (tv_cmp_ms)
- * 2002/03/10
- *   - released 1.1.0
+ * 2002/03/10 : 1.1.0
  *   - fixed a few timeout bugs
  *   - rearranged the task scheduler subsystem to improve performance,
  *     add new tasks, and make it easier to later port to librt ;
@@ -108,8 +108,8 @@
 #include <linux/netfilter_ipv4.h>
 #endif
 
-#define HAPROXY_VERSION "1.1.5"
-#define HAPROXY_DATE	"2002/04/03"
+#define HAPROXY_VERSION "1.1.6pre4"
+#define HAPROXY_DATE	"2002/04/07"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -130,10 +130,10 @@
 #define	MAXREWRITE	4096
 
 // max # args on a configuration line
-#define MAX_LINE_ARGS	10
+#define MAX_LINE_ARGS	40
 
-// max # of regexps per proxy
-#define	MAX_REGEXP	10
+// max # of added headers per request
+#define MAX_NEWHDR	10
 
 // max # of matches per regexp
 #define	MAX_MATCH	10
@@ -271,8 +271,12 @@ int strlcpy(char *dst, const char *src, int size) {
 #define PR_O_BALANCE_RR	32	/* balance in round-robin mode */
 #define PR_O_BALANCE	(PR_O_BALANCE_RR)
 
-/* various task flags */
-#define TF_DIRECT	1	/* connection made on the server matching the client cookie */
+/* various session flags */
+#define SN_DIRECT	1	/* connection made on the server matching the client cookie */
+#define SN_CLDENY	2	/* a client header matches a deny regex */
+#define SN_CLALLOW	4	/* a client header matches an allow regex */
+#define SN_SVDENY	8	/* a server header matches a deny regex */
+#define SN_SVALLOW	16	/* a server header matches an allow regex */
 
 /* different possible states for the client side */
 #define CL_STHEADERS	0
@@ -306,6 +310,12 @@ int strlcpy(char *dst, const char *src, int size) {
 /* server flags */
 #define SRV_RUNNING	1
 
+/* what to do when a header matches a regex */
+#define ACT_ALLOW	0	/* allow the request */
+#define ACT_REPLACE	1	/* replace the matching header */
+#define ACT_REMOVE	2	/* remove the matching header */
+#define ACT_DENY	3	/* deny the request */
+
 /*********************************************************************/
 
 #define LIST_HEAD(a)	((void *)(&(a)))
@@ -313,8 +323,10 @@ int strlcpy(char *dst, const char *src, int size) {
 /*********************************************************************/
 
 struct hdr_exp {
-    regex_t *preg;	/* expression to look for */
-    char *replace;	/* expression to set instead */
+    struct hdr_exp *next;
+    regex_t *preg;			/* expression to look for */
+    int action;				/* ACT_ALLOW, ACT_REPLACE, ACT_REMOVE, ACT_DENY */
+    char *replace;			/* expression to set instead */
 };
 
 struct buffer {
@@ -395,10 +407,10 @@ struct proxy {
     struct sockaddr_in logsrv1, logsrv2; /* 2 syslog servers */
     char logfac1, logfac2;		/* log facility for both servers. -1 = disabled */
     struct timeval stop_time;		/* date to stop listening, when stopping != 0 */
-    int nb_reqexp, nb_rspexp, nb_reqadd, nb_rspadd;
-    struct hdr_exp req_exp[MAX_REGEXP];	/* regular expressions for request headers */
-    struct hdr_exp rsp_exp[MAX_REGEXP];	/* regular expressions for response headers */
-    char *req_add[MAX_REGEXP], *rsp_add[MAX_REGEXP]; /* headers to be added */
+    int nb_reqadd, nb_rspadd;
+    struct hdr_exp *req_exp;		/* regular expressions for request headers */
+    struct hdr_exp *rsp_exp;		/* regular expressions for response headers */
+    char *req_add[MAX_NEWHDR], *rsp_add[MAX_NEWHDR]; /* headers to be added */
     int grace;				/* grace time after stop request */
 };
 
@@ -478,6 +490,27 @@ const char *monthname[12] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
 			     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
 #define MAX_HOSTNAME_LEN	32
 static char hostname[MAX_HOSTNAME_LEN] = "";
+
+const char *HTTP_403 =
+	"HTTP/1.0 403 Forbidden\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"\r\n"
+	"403 Forbidden : Request forbidden by administrative rules.\r\n";
+
+const char *HTTP_400 =
+	"HTTP/1.0 400 Bad request\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"\r\n"
+	"400 Bad request : Your browser sent an invalid request.\r\n";
+
+const char *HTTP_502 =
+	"HTTP/1.0 502 Proxy Error\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"\r\n"
+	"502 Proxy Error : No server is available to handle this request.\r\n";
 
 /*********************************************************************/
 /*  statistics  ******************************************************/
@@ -1075,7 +1108,7 @@ int connect_server(struct session *s) {
 
     //    fprintf(stderr,"connect_server : s=%p\n",s);
 
-    if (s->flags & TF_DIRECT) { /* srv cannot be null */
+    if (s->flags & SN_DIRECT) { /* srv cannot be null */
 	s->srv_addr = s->srv->addr;
     }
     else if (s->proxy->options & PR_O_BALANCE) {
@@ -1511,6 +1544,38 @@ int event_srv_write(int fd) {
 
 
 /*
+ * returns a message to the client ; the connection is shut down for read,
+ * and the request is cleared so that no server connection can be initiated.
+ * The client must be in a valid state for this (HEADER, DATA ...).
+ * Nothing is performed on the server side.
+ * The reply buffer must be empty before this.
+ */
+void client_retnclose(struct session *s, int len, const char *msg) {
+    FD_CLR(s->cli_fd, StaticReadEvent);
+    FD_SET(s->cli_fd, StaticWriteEvent);
+    tv_eternity(&s->crexpire);
+    shutdown(s->cli_fd, SHUT_RD);
+    s->cli_state = CL_STSHUTR;
+    strcpy(s->rep->data, msg);
+    s->rep->l = len;
+    s->rep->r += len;
+    s->req->l = 0;
+}
+
+
+/*
+ * returns a message into the rep buffer, and flushes the req buffer.
+ * The reply buffer must be empty before this.
+ */
+void client_return(struct session *s, int len, const char *msg) {
+    strcpy(s->rep->data, msg);
+    s->rep->l = len;
+    s->rep->r += len;
+    s->req->l = 0;
+}
+
+
+/*
  * this function is called on a read event from a listen socket, corresponding
  * to an accept. It tries to accept as many connections as possible.
  * It returns 0.
@@ -1638,15 +1703,7 @@ int event_accept(int fd) {
 	fdtab[cfd].state = FD_STREADY;
 
 	if (p->mode == PR_MODE_HEALTH) {  /* health check mode, no client reading */
-	    FD_CLR(cfd, StaticReadEvent);
-	    FD_SET(cfd, StaticWriteEvent);
-	    tv_eternity(&s->crexpire);
-	    shutdown(s->cli_fd, SHUT_RD);
-	    s->cli_state = CL_STSHUTR;
-
-	    strcpy(s->rep->data, "OK\n"); /* forge an "OK" response */
-	    s->rep->l = 3;
-	    s->rep->r += 3;
+	    client_retnclose(s, 3, "OK\n"); /* forge an "OK" response */
 	}
 	else {
 	    FD_SET(cfd, StaticReadEvent);
@@ -1835,6 +1892,12 @@ int process_cli(struct session *t) {
 		/* we can only get here after an end of headers */
 		/* we'll have something else to do here : add new headers ... */
 
+		if (t->flags & SN_CLDENY) {
+		    /* no need to go further */
+		    client_retnclose(t, strlen(HTTP_403), HTTP_403);
+		    return 1;
+		}
+
 		for (line = 0; line < t->proxy->nb_reqadd; line++) {
 		    len = sprintf(newhdr, "%s\r\n", t->proxy->req_add[line]);
 		    buffer_replace2(req, req->h, req->h, newhdr, len);
@@ -1888,25 +1951,38 @@ int process_cli(struct session *t) {
 	    }
 
 	    /* try headers regexps */
-	    if (t->proxy->nb_reqexp) {
-		struct proxy *p = t->proxy;
-		int exp;
+	    if (t->proxy->req_exp != NULL && !(t->flags & SN_CLDENY)) {
+		struct hdr_exp *exp;
 		char term;
 		
 		term = *ptr;
 		*ptr = '\0';
-		for (exp=0; exp < p->nb_reqexp; exp++) {
-		    if (regexec(p->req_exp[exp].preg, req->h, MAX_MATCH, pmatch, 0) == 0) {
-			if (p->req_exp[exp].replace != NULL) {
-			    int len = exp_replace(trash, req->h, p->req_exp[exp].replace, pmatch);
-			    ptr += buffer_replace2(req, req->h, ptr, trash, len);
-			}
-			else {
-			    delete_header = 1;
+		exp = t->proxy->req_exp;
+		do {
+		    if (regexec(exp->preg, req->h, MAX_MATCH, pmatch, 0) == 0) {
+			switch (exp->action) {
+			case ACT_ALLOW:
+			    if (!(t->flags & SN_CLDENY))
+				t->flags |= SN_CLALLOW;
+			    break;
+			case ACT_REPLACE:
+			    if (!(t->flags & SN_CLDENY)) {
+				int len = exp_replace(trash, req->h, exp->replace, pmatch);
+				ptr += buffer_replace2(req, req->h, ptr, trash, len);
+			    }
+			    break;
+			case ACT_REMOVE:
+			    if (!(t->flags & SN_CLDENY))
+				delete_header = 1;
+			    break;
+			case ACT_DENY:
+			    if (!(t->flags & SN_CLALLOW))
+				t->flags |= SN_CLDENY;
+			    break;
 			}
 			break;
 		    }
-		}
+		} while ((exp = exp->next) != NULL);
 		*ptr = term; /* restore the string terminator */
 	    }
 	    
@@ -1965,7 +2041,7 @@ int process_cli(struct session *t) {
 			}
 
 			if (srv) { /* we found the server */
-			    t->flags |= TF_DIRECT;
+			    t->flags |= SN_DIRECT;
 			    t->srv = srv;
 			}
 
@@ -1984,14 +2060,13 @@ int process_cli(struct session *t) {
 	    } /* end of cookie processing */
 
 	    /* let's look if we have to delete this header */
-	    if (delete_header) {
+	    if (delete_header && !(t->flags & SN_CLDENY)) {
 		buffer_replace2(req, req->h, req->lr, "", 0);
 	    }
 	    req->h = req->lr;
 	} /* while (req->lr < req->r) */
 
 	/* end of header processing (even if incomplete) */
-
 
 	if ((req->l < req->rlim - req->data) && ! FD_ISSET(t->cli_fd, StaticReadEvent)) {
 	    /* fd in StaticReadEvent was disabled, perhaps because of a previous buffer
@@ -2005,12 +2080,20 @@ int process_cli(struct session *t) {
 		tv_eternity(&t->crexpire);
 	}
 
-	/* read timeout, read error, or last read : give up.
-	 * since we are in header mode, if there's no space left for headers, we
+	/* Since we are in header mode, if there's no space left for headers, we
 	 * won't be able to free more later, so the session will never terminate.
 	 */
-	if (t->res_cr == RES_ERROR || t->res_cr == RES_NULL
-	    || req->l >= req->rlim - req->data || tv_cmp2_ms(&t->crexpire, &now) <= 0) {
+	if (req->l >= req->rlim - req->data) {
+	    client_retnclose(t, strlen(HTTP_400), HTTP_400);
+	    return 1;
+	}
+	else if (t->res_cr == RES_ERROR || t->res_cr == RES_NULL
+	         || tv_cmp2_ms(&t->crexpire, &now) <= 0) {
+
+	    /* read timeout, read error, or last read : give up.
+	     * since we are in header mode, if there's no space left for headers, we
+	     * won't be able to free more later, so the session will never terminate.
+	     */
 	    tv_eternity(&t->crexpire);
 	    fd_delete(t->cli_fd);
 	    t->cli_state = CL_STCLOSE;
@@ -2186,7 +2269,7 @@ int process_srv(struct session *t) {
 	    else { /* try again */
 		while (t->conn_retries-- > 0) {
 		    if ((t->proxy->options & PR_O_REDISP) && (t->conn_retries == 0)) {
-			t->flags &= ~TF_DIRECT; /* ignore cookie and force to use the dispatcher */
+			t->flags &= ~SN_DIRECT; /* ignore cookie and force to use the dispatcher */
 			t->srv = NULL; /* it's left to the dispatcher to choose a server */
 		    }
 
@@ -2199,6 +2282,7 @@ int process_srv(struct session *t) {
 		    /* if conn_retries < 0 or other error, let's abort */
 		    tv_eternity(&t->cnexpire);
 		    t->srv_state = SV_STCLOSE;
+		    client_return(t, strlen(HTTP_502), HTTP_502);
 		}
 	    }
 	    return 1;
@@ -2218,7 +2302,7 @@ int process_srv(struct session *t) {
 	    t->conn_retries--;
 	    if (t->conn_retries >= 0) {
 		    if ((t->proxy->options & PR_O_REDISP) && (t->conn_retries == 0)) {
-			t->flags &= ~TF_DIRECT; /* ignore cookie and force to use the dispatcher */
+			t->flags &= ~SN_DIRECT; /* ignore cookie and force to use the dispatcher */
 			t->srv = NULL; /* it's left to the dispatcher to choose a server */
 		    }
 		    if (connect_server(t) == 0)
@@ -2274,7 +2358,7 @@ int process_srv(struct session *t) {
 		/* we can only get here after an end of headers */
 		/* we'll have something else to do here : add new headers ... */
 
-		if ((t->srv) && !(t->flags & TF_DIRECT) && (t->proxy->options & PR_O_COOK_INS)) {
+		if ((t->srv) && !(t->flags & SN_DIRECT) && (t->proxy->options & PR_O_COOK_INS)) {
 		    /* the server is known, it's not the one the client requested, we have to
 		     * insert a set-cookie here.
 		     */
@@ -2334,25 +2418,38 @@ int process_srv(struct session *t) {
 	    }
 
 	    /* try headers regexps */
-	    if (t->proxy->nb_rspexp) {
-		struct proxy *p = t->proxy;
-		int exp;
+	    if (t->proxy->rsp_exp != NULL && !(t->flags & SN_SVDENY)) {
+		struct hdr_exp *exp;
 		char term;
 		
 		term = *ptr;
 		*ptr = '\0';
-		for (exp=0; exp < p->nb_rspexp; exp++) {
-		    if (regexec(p->rsp_exp[exp].preg, rep->h, MAX_MATCH, pmatch, 0) == 0) {
-			if (p->rsp_exp[exp].replace != NULL) {
-			    int len = exp_replace(trash, rep->h, p->rsp_exp[exp].replace, pmatch);
-			    ptr += buffer_replace2(rep, rep->h, ptr, trash, len);
-			}
-			else {
-			    delete_header = 1;
+		exp = t->proxy->rsp_exp;
+		do {
+		    if (regexec(exp->preg, rep->h, MAX_MATCH, pmatch, 0) == 0) {
+			switch (exp->action) {
+			case ACT_ALLOW:
+			    if (!(t->flags & SN_SVDENY))
+				t->flags |= SN_SVALLOW;
+			    break;
+			case ACT_REPLACE:
+			    if (!(t->flags & SN_SVDENY)) {
+				int len = exp_replace(trash, rep->h, exp->replace, pmatch);
+				ptr += buffer_replace2(rep, rep->h, ptr, trash, len);
+			    }
+			    break;
+			case ACT_REMOVE:
+			    if (!(t->flags & SN_SVDENY))
+				delete_header = 1;
+			    break;
+			case ACT_DENY:
+			    if (!(t->flags & SN_SVALLOW))
+				t->flags |= SN_SVDENY;
+			    break;
 			}
 			break;
 		    }
-		}
+		} while ((exp = exp->next) != NULL);
 		*ptr = term; /* restore the string terminator */
 	    }
 	    
@@ -2401,7 +2498,7 @@ int process_srv(struct session *t) {
 			 * We'll delete it too if the "indirect" option is set and we're in
 			 * a direct access. */
 			if (((t->srv) && (t->proxy->options & PR_O_COOK_INS)) ||
-			    ((t->flags & TF_DIRECT) && (t->proxy->options & PR_O_COOK_IND))) {
+			    ((t->flags & SN_DIRECT) && (t->proxy->options & PR_O_COOK_IND))) {
 			    /* this header must be deleted */
 			    delete_header = 1;
 			}
@@ -2425,9 +2522,9 @@ int process_srv(struct session *t) {
 	    } /* end of cookie processing */
 
 	    /* let's look if we have to delete this header */
-	    if (delete_header) {
+	    if (delete_header && !(t->flags & SN_SVDENY))
 		buffer_replace2(rep, rep->h, rep->lr, "", 0);
-	    }
+
 	    rep->h = rep->lr;
 	} /* while (rep->lr < rep->r) */
 
@@ -3142,6 +3239,20 @@ void dump(int sig) {
     }
 }
 
+void chain_regex(struct hdr_exp **head, regex_t *preg, int action, char *replace) {
+    struct hdr_exp *exp;
+
+    while (*head != NULL)
+	head = &(*head)->next;
+
+    exp = calloc(1, sizeof(struct hdr_exp));
+
+    exp->preg = preg;
+    exp->replace = replace;
+    exp->action = action;
+    *head = exp;
+}
+
 /*
  * This function reads and parses the configuration file given in the argument.
  * returns 0 if OK, -1 if error.
@@ -3525,11 +3636,6 @@ int readcfgfile(char *file) {
 	}
 	else if (!strcmp(args[0], "cliexp") || !strcmp(args[0], "reqrep")) {  /* replace request header from a regex */
 	    regex_t *preg;
-	    if (curproxy->nb_reqexp >= MAX_REGEXP) {
-		Alert("parsing [%s:%d] : too many request expressions. Continuing.\n",
-		      file, linenum);
-		continue;
-	    }
 
 	    if (*(args[1]) == 0 || *(args[2]) == 0) {
 		Alert("parsing [%s:%d] : <reqrep> expects <search> and <replace> as arguments.\n",
@@ -3542,20 +3648,14 @@ int readcfgfile(char *file) {
 		Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
 		return -1;
 	    }
-	    curproxy->req_exp[curproxy->nb_reqexp].preg = preg;
-	    curproxy->req_exp[curproxy->nb_reqexp].replace = strdup(args[2]);
-	    curproxy->nb_reqexp++;
+
+	    chain_regex(&curproxy->req_exp, preg, ACT_REPLACE, strdup(args[2]));
 	}
 	else if (!strcmp(args[0], "reqdel")) {  /* delete request header from a regex */
 	    regex_t *preg;
-	    if (curproxy->nb_reqexp >= MAX_REGEXP) {
-		Alert("parsing [%s:%d] : too many request expressions. Continuing.\n",
-		      file, linenum);
-		continue;
-	    }
 
 	    if (*(args[1]) == 0) {
-		Alert("parsing [%s:%d] : <reqdel> expects <search> as an argument.\n",
+		Alert("parsing [%s:%d] : <reqdel> expects <regex> as an argument.\n",
 		      file, linenum);
 		return -1;
 	    }
@@ -3565,13 +3665,46 @@ int readcfgfile(char *file) {
 		Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
 		return -1;
 	    }
-	    curproxy->req_exp[curproxy->nb_reqexp].preg = preg;
-	    curproxy->req_exp[curproxy->nb_reqexp].replace = NULL; /* means it must be deleted */
-	    curproxy->nb_reqexp++;
+
+	    chain_regex(&curproxy->req_exp, preg, ACT_REMOVE, NULL);
+	}
+	else if (!strcmp(args[0], "reqdeny")) {  /* deny a request if a header matches this regex */
+	    regex_t *preg;
+
+	    if (*(args[1]) == 0) {
+		Alert("parsing [%s:%d] : <reqdeny> expects <regex> as an argument.\n",
+		      file, linenum);
+		return -1;
+	    }
+
+	    preg = calloc(1, sizeof(regex_t));
+	    if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
+		Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
+		return -1;
+	    }
+
+	    chain_regex(&curproxy->req_exp, preg, ACT_DENY, NULL);
+	}
+	else if (!strcmp(args[0], "reqallow")) {  /* allow a request if a header matches this regex */
+	    regex_t *preg;
+
+	    if (*(args[1]) == 0) {
+		Alert("parsing [%s:%d] : <reqallow> expects <regex> as an argument.\n",
+		      file, linenum);
+		return -1;
+	    }
+
+	    preg = calloc(1, sizeof(regex_t));
+	    if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
+		Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
+		return -1;
+	    }
+
+	    chain_regex(&curproxy->req_exp, preg, ACT_ALLOW, NULL);
 	}
 	else if (!strcmp(args[0], "reqadd")) {  /* add request header */
-	    if (curproxy->nb_reqadd >= MAX_REGEXP) {
-		Alert("parsing [%s:%d] : too many client expressions. Continuing.\n",
+	    if (curproxy->nb_reqadd >= MAX_NEWHDR) {
+		Alert("parsing [%s:%d] : too many `reqadd'. Continuing.\n",
 		      file, linenum);
 		continue;
 	    }
@@ -3586,11 +3719,6 @@ int readcfgfile(char *file) {
 	}
 	else if (!strcmp(args[0], "srvexp") || !strcmp(args[0], "rsprep")) {  /* replace response header from a regex */
 	    regex_t *preg;
-	    if (curproxy->nb_rspexp >= MAX_REGEXP) {
-		Alert("parsing [%s:%d] : too many server expressions. Continuing.\n",
-		      file, linenum);
-		continue;
-	    }
 
 	    if (*(args[1]) == 0 || *(args[2]) == 0) {
 		Alert("parsing [%s:%d] : <rsprep> expects <search> and <replace> as arguments.\n",
@@ -3603,18 +3731,11 @@ int readcfgfile(char *file) {
 		Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
 		return -1;
 	    }
-	    //	    fprintf(stderr,"before=<%s> after=<%s>\n", args[1], args[2]);
-	    curproxy->rsp_exp[curproxy->nb_rspexp].preg = preg;
-	    curproxy->rsp_exp[curproxy->nb_rspexp].replace = strdup(args[2]);
-	    curproxy->nb_rspexp++;
+
+	    chain_regex(&curproxy->rsp_exp, preg, ACT_REPLACE, strdup(args[2]));
 	}
 	else if (!strcmp(args[0], "rspdel")) {  /* delete response header from a regex */
 	    regex_t *preg;
-	    if (curproxy->nb_rspexp >= MAX_REGEXP) {
-		Alert("parsing [%s:%d] : too many server expressions. Continuing.\n",
-		      file, linenum);
-		continue;
-	    }
 
 	    if (*(args[1]) == 0) {
 		Alert("parsing [%s:%d] : <rspdel> expects <search> as an argument.\n",
@@ -3627,14 +3748,12 @@ int readcfgfile(char *file) {
 		Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
 		return -1;
 	    }
-	    //	    fprintf(stderr,"before=<%s> after=<%s>\n", args[1], args[2]);
-	    curproxy->rsp_exp[curproxy->nb_rspexp].preg = preg;
-	    curproxy->rsp_exp[curproxy->nb_rspexp].replace = NULL; /* means it must be deleted */
-	    curproxy->nb_rspexp++;
+
+	    chain_regex(&curproxy->rsp_exp, preg, ACT_REMOVE, strdup(args[2]));
 	}
 	else if (!strcmp(args[0], "rspadd")) {  /* add response header */
-	    if (curproxy->nb_rspadd >= MAX_REGEXP) {
-		Alert("parsing [%s:%d] : too many server expressions. Continuing.\n",
+	    if (curproxy->nb_rspadd >= MAX_NEWHDR) {
+		Alert("parsing [%s:%d] : too many `rspadd'. Continuing.\n",
 		      file, linenum);
 		continue;
 	    }
@@ -3701,11 +3820,11 @@ int readcfgfile(char *file) {
 		Warning("parsing %s : servers will be ignored for listener %s.\n",
 			file, curproxy->id);
 	    }
-	    if (curproxy->nb_rspexp) {
+	    if (curproxy->rsp_exp != NULL) {
 		Warning("parsing %s : server regular expressions will be ignored for listener %s.\n",
 			file, curproxy->id);
 	    }
-	    if (curproxy->nb_reqexp) {
+	    if (curproxy->req_exp != NULL) {
 		Warning("parsing %s : client regular expressions will be ignored for listener %s.\n",
 			file, curproxy->id);
 	    }

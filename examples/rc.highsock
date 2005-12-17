@@ -8,12 +8,12 @@ if [ -e /proc/sys/net/ipv4/ip_conntrack_max ]; then
 	echo 65536 > /proc/sys/net/ipv4/ip_conntrack_max
 fi
 
-if [ -e /proc/sys/net/ipv4/netfilter/ip_ct_tcp_timeout_fin_wait ]; then
+if [ -e /proc/sys/net/ipv4/netfilter/ip_conntrack_tcp_timeout_fin_wait ]; then
 	# 30 seconds for fin, 15 for time wait
-	echo 3000 > /proc/sys/net/ipv4/netfilter/ip_ct_tcp_timeout_fin_wait
-	echo 1500 > /proc/sys/net/ipv4/netfilter/ip_ct_tcp_timeout_time_wait
-	echo 0 > /proc/sys/net/ipv4/netfilter/ip_ct_tcp_log_invalid_scale
-	echo 0 > /proc/sys/net/ipv4/netfilter/ip_ct_tcp_log_out_of_window
+	echo 3000 > /proc/sys/net/ipv4/netfilter/ip_conntrack_tcp_timeout_fin_wait
+	echo 1500 > /proc/sys/net/ipv4/netfilter/ip_conntrack_tcp_timeout_time_wait
+	echo 0 > /proc/sys/net/ipv4/netfilter/ip_conntrack_tcp_log_invalid_scale
+	echo 0 > /proc/sys/net/ipv4/netfilter/ip_conntrack_tcp_log_out_of_window
 fi
 
 echo 1024 60999 > /proc/sys/net/ipv4/ip_local_port_range
