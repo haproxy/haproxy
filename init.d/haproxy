@@ -31,7 +31,7 @@ ulimit -n $maxfd
 # ulimit -c unlimited
 
 # soft stop
-function dostop {
+function do_stop {
    pids=`pidof -o $$ -- $PNAME`
    if [ ! -z "$pids" ]; then
       echo "Asking $PNAME to terminate gracefully..."

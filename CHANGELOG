@@ -1,0 +1,130 @@
+ * ChangeLog :
+ *
+ * 2002/09/01 : 1.1.16
+ *   - implement HTTP health checks when option "httpchk" is specified.
+ * 2002/08/07 : 1.1.15
+ *   - replaced setpgid()/setpgrp() with setsid() for better portability, because
+ *     setpgrp() doesn't have the same meaning under Solaris, Linux, and OpenBSD.
+ * 2002/07/20 : 1.1.14
+ *   - added "postonly" cookie mode
+ * 2002/07/15 : 1.1.13
+ *   - tv_diff used inverted parameters which led to negative times !
+ * 2002/07/13 : 1.1.12
+ *   - fixed stats monitoring, and optimized some tv_* for most common cases.
+ *   - replaced temporary 'newhdr' with 'trash' to reduce stack size
+ *   - made HTTP errors more HTML-fiendly.
+ *   - renamed strlcpy() to strlcpy2() because of a slightly difference between
+ *     their behaviour (return value), to avoid confusion.
+ *   - restricted HTTP messages to HTTP proxies only
+ *   - added a 502 message when the connection has been refused by the server,
+ *     to prevent clients from believing this is a zero-byte HTTP 0.9 reply.
+ *   - changed 'Cache-control:' from 'no-cache="set-cookie"' to 'private' when
+ *     inserting a cookie, because some caches (apache) don't understand it.
+ *   - fixed processing of server headers when client is in SHUTR state
+ * 2002/07/04 :
+ *   - automatically close fd's 0,1 and 2 when going daemon ; setpgrp() after
+ *     setpgid()
+ * 2002/06/04 : 1.1.11
+ *   - fixed multi-cookie handling in client request to allow clean deletion
+ *     in insert+indirect mode. Now, only the server cookie is deleted and not
+ *     all the header. Should now be compliant to RFC2109.
+ *   - added a "nocache" option to "cookie" to specify that we explicitly want
+ *     to add a "cache-control" header when we add a cookie.
+ *     It is also possible to add an "Expires: <old-date>" to keep compatibility
+ *     with old/broken caches.
+ * 2002/05/10 : 1.1.10
+ *   - if a cookie is used in insert+indirect mode, it's desirable that the
+ *     the servers don't see it. It was not possible to remove it correctly
+ *     with regexps, so now it's removed automatically.
+ * 2002/04/19 : 1.1.9
+ *   - don't use snprintf()'s return value as an end of message since it may
+ *     be larger. This caused bus errors and segfaults in internal libc's
+ *     getenv() during localtime() in send_log().
+ *   - removed dead insecure send_syslog() function and all references to it.
+ *   - fixed warnings on Solaris due to buggy implementation of isXXXX().
+ * 2002/04/18 : 1.1.8
+ *   - option "dontlognull"
+ *   - fixed "double space" bug in config parser
+ *   - fixed an uninitialized server field in case of dispatch
+ *     with no existing server which could cause a segfault during
+ *     logging.
+ *   - the pid logged was always the father's, which was wrong for daemons.
+ *   - fixed wrong level "LOG_INFO" for message "proxy started".
+ * 2002/04/13 :
+ *   - http logging is now complete :
+ *     - ip:port, date, proxy, server
+ *     - req_time, conn_time, hdr_time, tot_time
+ *     - status, size, request
+ *   - source address
+ * 2002/04/12 : 1.1.7
+ *   - added option forwardfor
+ *   - added reqirep, reqidel, reqiallow, reqideny, rspirep, rspidel
+ *   - added "log global" in "listen" section.
+ * 2002/04/09 :
+ *   - added a new "global" section :
+ *     - logs
+ *     - debug, quiet, daemon modes
+ *     - uid, gid, chroot, nbproc, maxconn
+ * 2002/04/08 : 1.1.6
+ *   - regex are now chained and not limited anymore.
+ *   - unavailable server now returns HTTP/502.
+ *   - increased per-line args limit to 40
+ *   - added reqallow/reqdeny to block some request on matches
+ *   - added HTTP 400/403 responses
+ * 2002/04/03 : 1.1.5
+ *   - connection logging displayed incorrect source address.
+ *   - added proxy start/stop and server up/down log events.
+ *   - replaced log message short buffers with larger trash.
+ *   - enlarged buffer to 8 kB and replace buffer to 4 kB.
+ * 2002/03/25 : 1.1.4
+ *   - made rise/fall/interval time configurable
+ * 2002/03/22 : 1.1.3
+ *   - fixed a bug : cr_expire and cw_expire were inverted in CL_STSHUT[WR]
+ *     which could lead to loops.
+ * 2002/03/21 : 1.1.2
+ *   - fixed a bug in buffer management where we could have a loop
+ *     between event_read() and process_{cli|srv} if R==BUFSIZE-MAXREWRITE.
+ *     => implemented an adjustable buffer limit.
+ *   - fixed a bug : expiration of tasks in wait queue timeout is used again,
+ *     and running tasks are skipped.
+ *   - added some debug lines for accept events.
+ *   - send warnings for servers up/down.
+ * 2002/03/12 : 1.1.1
+ *   - fixed a bug in total failure handling
+ *   - fixed a bug in timestamp comparison within same second (tv_cmp_ms)
+ * 2002/03/10 : 1.1.0
+ *   - fixed a few timeout bugs
+ *   - rearranged the task scheduler subsystem to improve performance,
+ *     add new tasks, and make it easier to later port to librt ;
+ *   - allow multiple accept() for one select() wake up ;
+ *   - implemented internal load balancing with basic health-check ;
+ *   - cookie insertion and header add/replace/delete, with better strings
+ *     support.
+ * 2002/03/08
+ *   - reworked buffer handling to fix a few rewrite bugs, and
+ *     improve overall performance.
+ *   - implement the "purge" option to delete server cookies in direct mode.
+ * 2002/03/07
+ *   - fixed some error cases where the maxfd was not decreased.
+ * 2002/02/26
+ *   - now supports transparent proxying, at least on linux 2.4.
+ * 2002/02/12
+ *   - soft stop works again (fixed select timeout computation).
+ *   - it seems that TCP proxies sometimes cannot timeout.
+ *   - added a "quiet" mode.
+ *   - enforce file descriptor limitation on socket() and accept().
+ * 2001/12/30 : release of version 1.0.2 : fixed a bug in header processing
+ * 2001/12/19 : release of version 1.0.1 : no MSG_NOSIGNAL on solaris
+ * 2001/12/16 : release of version 1.0.0.
+ * 2001/12/16 : added syslog capability for each accepted connection.
+ * 2001/11/19 : corrected premature end of files and occasional SIGPIPE.
+ * 2001/10/31 : added health-check type servers (mode health) which replies OK then closes.
+ * 2001/10/30 : added the ability to support standard TCP proxies and HTTP proxies
+ * 		with or without cookies (use keyword http for this).
+ * 2001/09/01 : added client/server header replacing with regexps.
+ * 		eg:
+ *			cliexp ^(Host:\ [^:]*).* Host:\ \1:80
+ *			srvexp ^Server:\ .* Server:\ Apache
+ * 2000/11/29 : first fully working release with complete FSMs and timeouts.
+ * 2000/11/28 : major rewrite
+ * 2000/11/26 : first write

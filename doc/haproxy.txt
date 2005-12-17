@@ -1,9 +1,9 @@
 
          		     H A - P r o x y
          		     ---------------
-         		      version 1.1.14
+         		      version 1.1.16
 			      willy tarreau
-			       2002/07/20
+			       2002/09/01
 
 ================
 | Introduction |
@@ -556,10 +556,9 @@ Exemple : même que précédemment en répartition interne
 
 3.1) Surveillance des serveurs
 ------------------------------
-A cette date, l'état des serveurs n'est testé que par établissement de connexion
-TCP toutes les 2 secondes, avec 3 essais pour déclarer un serveur en panne, 2
-pour le déclarer utilisable. Un serveur hors d'usage ne sera pas utilisé dans le
-processus de répartition de charge interne. Pour activer la surveillance,
+Il est possible de tester l'état des serveurs par établissement de connexion TCP
+ou par envoi d'une requête HTTP. Un serveur hors d'usage ne sera pas utilisé
+dans leprocessus de répartition de charge interne. Pour activer la surveillance,
 ajouter le mot clé 'check' à la fin de la déclaration du serveur. Il est
 possible de spécifier l'intervalle (en millisecondes) séparant deux tests du
 serveur par le paramètre "inter", le nombre d'échecs acceptés par le paramètre
@@ -569,13 +568,32 @@ paramètres non précisés prennent les valeurs suivantes par défaut :
  - rise  : 2
  - fall  : 3
 
+Le mode par défaut consiste à établir des connexions TCP uniquement. Dans
+certains cas de pannes, des serveurs peuvent continuer à accepter les connexions
+sans les traiter. Depuis la version 1.1.16, haproxy est en mesure d'envoyer des
+requêtes HTTP courtes et très peu coûteuses : "OPTIONS / HTTP/1.0". Elles
+présentent l'avantage d'être facilement extractibles des logs, et de ne pas
+induire d'accès aux fichiers côté serveur. Seules les réponses 2xx et 3xx sont
+considérées valides, les autres (y compris non-réponses) aboutissent à un échec.
+Le temps maximal imparti pour une réponse est égal à l'intervalle entre deux
+tests (paramètre "inter"). Pour activer ce mode, spécifier l'option "httpchk".
+
 Exemples :
 ----------
-# même que précédemment avec surveillance
+# même que précédemment avec surveillance TCP
     listen http_proxy 0.0.0.0:80
 	mode http
 	cookie SERVERID
 	balance roundrobin
+	server web1 192.168.1.1:80 cookie server01 check
+	server web2 192.168.1.2:80 cookie server02 check inter 500 rise 1 fall 2
+
+# même que précédemment avec surveillance HTTP
+    listen http_proxy 0.0.0.0:80
+	mode http
+	cookie SERVERID
+	balance roundrobin
+	option httpchk
 	server web1 192.168.1.1:80 cookie server01 check
 	server web2 192.168.1.2:80 cookie server02 check inter 500 rise 1 fall 2
 

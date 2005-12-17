@@ -18,6 +18,8 @@
  *
  * ChangeLog :
  *
+ * 2002/09/01 : 1.1.16
+ *   - implement HTTP health checks when option "httpchk" is specified.
  * 2002/08/07 : 1.1.15
  *   - replaced setpgid()/setpgrp() with setsid() for better portability, because
  *     setpgrp() doesn't have the same meaning under Solaris, Linux, and OpenBSD.
@@ -147,7 +149,6 @@
  *
  * TODO:
  *   - handle properly intermediate incomplete server headers. Done ?
- *   - log proxies start/stop
  *   - handle hot-reconfiguration
  *
  */
@@ -176,8 +177,8 @@
 #include <linux/netfilter_ipv4.h>
 #endif
 
-#define HAPROXY_VERSION "1.1.15"
-#define HAPROXY_DATE	"2002/08/07"
+#define HAPROXY_VERSION "1.1.16"
+#define HAPROXY_DATE	"2002/09/01"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -342,6 +343,7 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define PR_O_NULLNOLOG	512	/* a connect without request will not be logged */
 #define PR_O_COOK_NOC	1024	/* add a 'Cache-control' header with the cookie */
 #define PR_O_COOK_POST	2048	/* don't insert cookies for requests other than a POST */
+#define PR_O_HTTP_CHK	4096	/* use HTTP 'OPTIONS' method to check server health */
 
 
 /* various session flags */
@@ -2061,10 +2063,11 @@ int event_accept(int fd) {
 
 /*
  * This function is used only for server health-checks. It handles
- * the connection acknowledgement and returns 1 if the socket is OK,
+ * the connection acknowledgement. If the proxy requires HTTP health-checks,
+ * it sends the request. In other cases, it returns 1 if the socket is OK,
  * or -1 if an error occured.
  */
-int event_srv_hck(int fd) {
+int event_srv_chk_w(int fd) {
     struct task *t = fdtab[fd].owner;
     struct server *s = t->context;
 
@@ -2073,9 +2076,64 @@ int event_srv_hck(int fd) {
     getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
     if (skerr)
 	s->result = -1;
-    else
-	s->result = 1;
+    else {
+	if (s->proxy->options & PR_O_HTTP_CHK) {
+	    int ret;
+	    /* we want to check if this host replies to "OPTIONS / HTTP/1.0"
+	     * so we'll send the request, and won't wake the checker up now.
+	     */
+#ifndef MSG_NOSIGNAL
+	    ret = send(fd, "OPTIONS / HTTP/1.0\r\n\r\n", 22, MSG_DONTWAIT);
+#else
+	    ret = send(fd, "OPTIONS / HTTP/1.0\r\n\r\n", 22, MSG_DONTWAIT | MSG_NOSIGNAL);
+#endif
+	    if (ret == 22) {
+		FD_SET(fd, StaticReadEvent);   /* prepare for reading reply */
+		FD_CLR(fd, StaticWriteEvent);  /* nothing more to write */
+		return 0;
+	    }
+	    else
+		s->result = -1;
+	}
+	else {
+	    /* good TCP connection is enough */
+	    s->result = 1;
+	}
+    }
 
+    task_wakeup(&rq, t);
+    return 0;
+}
+
+
+/*
+ * This function is used only for server health-checks. It handles
+ * the server's reply to an HTTP request. It returns 1 if the server replies
+ * 2xx or 3xx (valid responses), or -1 in other cases.
+ */
+int event_srv_chk_r(int fd) {
+    char reply[64];
+    int len;
+    struct task *t = fdtab[fd].owner;
+    struct server *s = t->context;
+
+    int skerr, lskerr;
+    lskerr = sizeof(skerr);
+    getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
+    s->result = -1;
+    if (!skerr) {
+#ifndef MSG_NOSIGNAL
+	len = recv(fd, reply, sizeof(reply), 0);
+#else
+	len = recv(fd, reply, sizeof(reply), MSG_NOSIGNAL);
+#endif
+	if ((len >= sizeof("HTTP/1.0 000")) &&
+	    !memcmp(reply, "HTTP/1.", 7) &&
+	    (reply[9] == '2' || reply[9] == '3')) /* 2xx or 3xx */
+		s->result = 1;
+    }
+
+    FD_CLR(fd, StaticReadEvent);
     task_wakeup(&rq, t);
     return 0;
 }
@@ -3277,8 +3335,8 @@ int process_chk(struct task *t) {
 
 		    s->curfd = fd; /* that's how we know a test is in progress ;-) */
 		    fdtab[fd].owner = t;
-		    fdtab[fd].read  = NULL;
-		    fdtab[fd].write = &event_srv_hck;
+		    fdtab[fd].read  = &event_srv_chk_r;
+		    fdtab[fd].write = &event_srv_chk_w;
 		    fdtab[fd].state = FD_STCONN; /* connection in progress */
 		    FD_SET(fd, StaticWriteEvent);  /* for connect status */
 		    fd_insert(fd);
@@ -3980,6 +4038,10 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	else if (!strcmp(args[1], "dontlognull")) {
 	    /* don't log empty requests */
 	    curproxy->options |= PR_O_NULLNOLOG;
+	}
+	else if (!strcmp(args[1], "httpchk")) {
+	    /* use HTTP request to check servers' health */
+	    curproxy->options |= PR_O_HTTP_CHK;
 	}
 	else {
 	    Alert("parsing [%s:%d] : unknown option <%s>.\n", file, linenum, args[1]);

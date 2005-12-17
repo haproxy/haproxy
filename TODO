@@ -22,7 +22,7 @@
   matchée dans la "session" pour accélérer les regex.
 - gestion keep-alive
 
-- handle parametrable HTTP health-checks replies
++ handle parametrable HTTP health-checks replies
 - differentiate http headers and http uris
 - support environment variables in config file
 - support keep-alive
