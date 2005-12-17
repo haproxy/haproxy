@@ -4,7 +4,7 @@
 
 option	config		standard_option	/etc/haproxy/haproxy.cfg
 option	bin		reserved_option	/usr/sbin/haproxy
-option	cmdline		reserved_option	'$bin -q -D -f ${opt_config}'
+option	cmdline		reserved_option	'$bin -f ${opt_config} -p ${pidfile} -D -q'
 
 function do_help {
     echo "Usage: ${0##*/} <status|start|stop|help>"
@@ -15,6 +15,10 @@ function do_help {
     exit 1 
 }
 
+# assign default values to options and variables before parsing the cfg file
+function fct_begin_section {
+    pidfile="/var/run/haproxy${2:+-$2}.pid"
+}
 
 load_config
 

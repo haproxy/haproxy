@@ -1,3 +1,6 @@
-service haproxy
-	config /etc/haproxy/haproxy.cfg
+service haproxy ext
+	config /etc/haproxy/haproxy-ext.cfg
+
+service haproxy int
+	config /etc/haproxy/haproxy-int.cfg
 

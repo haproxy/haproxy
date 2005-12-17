@@ -1,9 +1,9 @@
 
          		     H A - P r o x y
          		     ---------------
-         		      version 1.1.25
+         		      version 1.1.27
 			      willy tarreau
-			       2003/10/15
+			       2003/10/27
 
 ================
 | Introduction |
@@ -37,6 +37,8 @@ Les options de lancement sont peu nombreuses :
     -N <nombre maximal de connexions simultanées par proxy>
     -d active le mode debug
     -D passe en daemon
+    -p <fichier> indique au processus père qu'il doit écrire les PIDs de ses
+       fils dans ce fichier en mode démon.
     -s affiche les statistiques (si option compilée)
     -l ajoute des informations aux statistiques
 
@@ -95,6 +97,7 @@ supportés sont :
   - daemon
   - debug
   - quiet
+  - pidfile <fichier>
 
 1.1) Journalisation des événements
 ----------------------------------
@@ -199,7 +202,7 @@ Exemple :
 	gid	30000
 	chroot  /var/chroot/haproxy
 
-1.4) modes de fonctionnement
+1.4) Modes de fonctionnement
 ----------------------------
 Le service peut fonctionner dans plusieurs modes :
   - avant- / arrière-plan
@@ -222,7 +225,7 @@ problèmes en affichant les connexions, déconnexions et échanges d'en-têtes HTTP
 entre les clients et les serveurs. Ce mode est incompatible avec les options
 'daemon' et 'quiet' pour des raisons de bon sens.
 
-1.5) accroissement de la capacité de traitement
+1.5) Accroissement de la capacité de traitement
 -----------------------------------------------
 Sur des machines multi-processeurs, il peut sembler gâché de n'utiliser qu'un
 processeur pour effectuer les tâches de relayage, même si les charges
@@ -240,6 +243,29 @@ Exemple :
 	daemon
 	quiet
 	nbproc	2
+
+1.6) Simplification de la gestion des processus
+-----------------------------------------------
+Haproxy supporte dorénavant la notion de fichiers de pid (-> pidfiles). Si le
+paramètre '-p' de ligne de commande, ou l'option globale 'pidfile' sont suivis
+d'un nom de fichier, alors ce fichier sera supprimé puis recréé et contiendra
+le numéro de PID des processus fils, à raison d'un par ligne (valable
+uniquement en mode démon). Ce fichier n'est PAS relatif au cloisonnement chroot
+afin de rester compatible avec un répertoire protégé en lecture seule. Il
+appartiendra à l'utilisateur ayant lancé le processus, et disposera des droits
+0644.
+
+Exemple :
+---------
+
+    global
+        daemon
+        quiet
+        nbproc 2
+        pidfile /var/run/haproxy-private.pid
+
+    # pour stopper seulement ces processus parmi d'autres :
+    # kill $(</var/run/haproxy-private.pid)
 
 
 2) Définition d'un service en écoute

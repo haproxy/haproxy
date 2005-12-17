@@ -1,9 +1,9 @@
 
          		     H A - P r o x y
          		     ---------------
-         		      version 1.1.25
+         		      version 1.1.27
 			      willy tarreau
-			       2003/10/15
+			       2003/10/27
 
 ============
 | Abstract |
@@ -35,6 +35,8 @@ There are only a few command line options :
     -N <high limit for the per-proxy number of simultaneous connections>
     -d starts in foregreound with debugging mode enabled
     -D starts in daemon mode
+    -p <pidfile> asks the process to write down each of its children's
+       pids to this file in daemon mode.
     -s shows statistics (only if compiled in)
     -l shows even more statistics (implies '-s')
 
@@ -92,6 +94,7 @@ the following ones :
   - daemon
   - debug
   - quiet
+  - pidfile <file>
 
 1.1) Event logging
 ------------------
@@ -229,6 +232,28 @@ Example :
 	daemon
 	quiet
 	nbproc	2
+
+
+1.6) Helping process management
+-------------------------------
+Haproxy now supports the notion of pidfile. If the '-p' command line argument,
+or the 'pidfile' global option is followed with a file name, this file will be
+removed, then filled with all children's pids, one per line (only in daemon
+mode). This file is NOT within the chroot, which allows to work with a readonly
+ chroot. It will be owned by the user starting the process, and will have
+permissions 0644.
+
+Example :
+---------
+
+    global
+        daemon
+        quiet
+        nbproc 2
+        pidfile /var/run/haproxy-private.pid
+
+    # to stop only those processes among others :
+    # kill $(</var/run/haproxy-private.pid)
 
 
 2) Declaration of a listening service

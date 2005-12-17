@@ -53,8 +53,8 @@
 #include <linux/netfilter_ipv4.h>
 #endif
 
-#define HAPROXY_VERSION "1.1.26"
-#define HAPROXY_DATE	"2003/10/22"
+#define HAPROXY_VERSION "1.1.27"
+#define HAPROXY_DATE	"2003/10/27"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -491,6 +491,7 @@ static struct {
     int maxsock;		/* max # of sockets */
     int mode;
     char *chroot;
+    char *pidfile;
     int logfac1, logfac2;
     int loglev1, loglev2;
     struct sockaddr_in logsrv1, logsrv2;
@@ -677,7 +678,7 @@ void usage(char *name) {
 #if STATTIME > 0
 	    "sl"
 #endif
-	    "D ] [ -n <maxconn> ] [ -N <maxpconn> ]\n"
+	    "D ] [ -n <maxconn> ] [ -N <maxpconn> ] [ -p <pidfile> ]\n"
 	    "        -v displays version\n"
 	    "        -d enters debug mode\n"
 #if STATTIME > 0
@@ -687,7 +688,8 @@ void usage(char *name) {
 	    "        -D goes daemon ; implies -q\n"
 	    "        -q quiet mode : don't display messages\n"
 	    "        -n sets the maximum total # of connections (%d)\n"
-	    "        -N sets the default, per-proxy maximum # of connections (%d)\n\n",
+	    "        -N sets the default, per-proxy maximum # of connections (%d)\n"
+	    "        -p writes pids of all children to this file\n\n",
 	    name, DEFAULT_MAXCONN, cfg_maxpconn);
     exit(1);
 }
@@ -2226,7 +2228,7 @@ int event_srv_chk_w(int fd) {
 #else
 	    ret = send(fd, s->proxy->check_req, s->proxy->check_len, MSG_DONTWAIT | MSG_NOSIGNAL);
 #endif
-	    if (ret == 22) {
+	    if (ret == s->proxy->check_len) {
 		FD_SET(fd, StaticReadEvent);   /* prepare for reading reply */
 		FD_CLR(fd, StaticWriteEvent);  /* nothing more to write */
 		return 0;
@@ -4337,6 +4339,17 @@ int cfg_parse_global(char *file, int linenum, char **args) {
 	}
 	global.chroot = strdup(args[1]);
     }
+    else if (!strcmp(args[0], "pidfile")) {
+	if (global.pidfile != NULL) {
+	    Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
+	    return 0;
+	}
+	if (*(args[1]) == 0) {
+	    Alert("parsing [%s:%d] : '%s' expects a file name as an argument.\n", file, linenum, args[0]);
+	    return -1;
+	}
+	global.pidfile = strdup(args[1]);
+    }
     else if (!strcmp(args[0], "log")) {  /* syslog server address */
 	struct sockaddr_in *sa;
 	int facility, level;
@@ -5614,6 +5627,7 @@ void init(int argc, char **argv) {
     int arg_mode = 0;	/* MODE_DEBUG, ... */
     char *old_argv = *argv;
     char *tmp;
+    char *cfg_pidfile = NULL;
     int cfg_maxconn = 0;	/* # of simultaneous connections, (-n) */
 
     if (1<<INTBITS != sizeof(int)*8) {
@@ -5661,6 +5675,7 @@ void init(int argc, char **argv) {
 		case 'n' : cfg_maxconn = atol(*argv); break;
 		case 'N' : cfg_maxpconn = atol(*argv); break;
 		case 'f' : cfg_cfgfile = *argv; break;
+		case 'p' : cfg_pidfile = *argv; break;
 		default: usage(old_argv);
 		}
 	    }
@@ -5682,6 +5697,12 @@ void init(int argc, char **argv) {
 
     if (cfg_maxconn > 0)
 	global.maxconn = cfg_maxconn;
+
+    if (cfg_pidfile) {
+	if (global.pidfile)
+	    free(global.pidfile);
+	global.pidfile = strdup(cfg_pidfile);
+    }
 
     if (global.maxconn == 0)
 	global.maxconn = DEFAULT_MAXCONN;
@@ -5802,6 +5823,7 @@ int start_proxies() {
 
 
 int main(int argc, char **argv) {
+    FILE *pidfile = NULL;
     init(argc, argv);
 
     if (global.mode & MODE_QUIET) {
@@ -5824,7 +5846,17 @@ int main(int argc, char **argv) {
     if (start_proxies() < 0)
 	exit(1);
 
-    /* open log files */
+    /* open log & pid files before the chroot */
+    if (global.mode & MODE_DAEMON && global.pidfile != NULL) {
+	int pidfd;
+	unlink(global.pidfile);
+	pidfd = open(global.pidfile, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+	if (pidfd < 0) {
+	    Alert("[%s.main()] Cannot create pidfile %s\n", argv[0], global.pidfile);
+	    exit(1);
+	}
+	pidfile = fdopen(pidfd, "w");
+    }
 
     /* chroot if needed */
     if (global.chroot != NULL) {
@@ -5859,7 +5891,16 @@ int main(int argc, char **argv) {
 	    }
 	    else if (ret == 0) /* child breaks here */
 		break;
+	    if (pidfile != NULL) {
+		fprintf(pidfile, "%d\n", ret);
+		fflush(pidfile);
+	    }
 	}
+	/* close the pidfile both in children and father */
+	if (pidfile != NULL)
+	    fclose(pidfile);
+	free(global.pidfile);
+
 	if (proc == global.nbproc)
 	    exit(0); /* parent must leave */
 

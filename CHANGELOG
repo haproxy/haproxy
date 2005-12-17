@@ -1,6 +1,12 @@
 ChangeLog :
 ===========
 
+2003/10/27 : 1.1.27
+  - the configurable HTTP health check introduced in 1.1.23 revealed a shameful
+    bug : the code still assumed that HTTP requests were the same size as the
+    original ones (22 bytes), and failed if they were not.
+  - added support for pidfiles.
+
 2003/10/22 : 1.1.26
   - the fix introduced in 1.1.25 for client timeouts while waiting for servers
     broke almost all compatibility with POST requests, because the proxy
