@@ -1,6 +1,9 @@
 ChangeLog :
 ===========
 
+2003/11/09 : 1.2.0
+  - the same as 1.1.27 + IPv6 support on the client side
+
 2003/10/27 : 1.1.27
   - the configurable HTTP health check introduced in 1.1.23 revealed a shameful
     bug : the code still assumed that HTTP requests were the same size as the

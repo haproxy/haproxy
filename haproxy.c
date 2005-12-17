@@ -53,8 +53,8 @@
 #include <linux/netfilter_ipv4.h>
 #endif
 
-#define HAPROXY_VERSION "1.1.27"
-#define HAPROXY_DATE	"2003/10/27"
+#define HAPROXY_VERSION "1.1.27-ipv6"
+#define HAPROXY_DATE	"2003/11/09"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -389,7 +389,7 @@ struct session {
     int flags;				/* some flags describing the session */
     struct buffer *req;			/* request buffer */
     struct buffer *rep;			/* response buffer */
-    struct sockaddr_in cli_addr;	/* the client address */
+    struct sockaddr_storage cli_addr;	/* the client address */
     struct sockaddr_in srv_addr;	/* the address to connect to */
     struct server *srv;			/* the server being used */
     struct {
@@ -409,9 +409,9 @@ struct session {
 };
 
 struct listener {
-    int fd;			/* the listen socket */
-    struct sockaddr_in addr;	/* the address we listen to */
-    struct listener *next;	/* next address or NULL */
+    int fd;				/* the listen socket */
+    struct sockaddr_storage addr;	/* the address we listen to */
+    struct listener *next;		/* next address or NULL */
 };
     
     
@@ -776,13 +776,7 @@ struct sockaddr_in *str2sa(char *str) {
     if (*str == '*' || *str == '\0') { /* INADDR_ANY */
 	sa.sin_addr.s_addr = INADDR_ANY;
     }
-    else if (
-#ifndef SOLARIS
-	!inet_aton(str, &sa.sin_addr)
-#else
-	!inet_pton(AF_INET, str, &sa.sin_addr)
-#endif
-	) {
+    else if (!inet_pton(AF_INET, str, &sa.sin_addr)) {
 	struct hostent *he;
 
 	if ((he = gethostbyname(str)) == NULL) {
@@ -815,21 +809,49 @@ struct listener *str2listener(char *str, struct listener *tail) {
     int port, end;
 
     next = dupstr = strdup(str);
-    
     while (next && *next) {
+	struct sockaddr_storage ss;
+
 	str = next;
 	/* 1) look for the end of the first address */
 	if ((next = strrchr(str, ',')) != NULL) {
 	    *next++ = 0;
 	}
 
-	/* 2) look for the addr/port delimiter */
-	if ((range = strrchr(str, ':')) != NULL) {
-	    *range++ = 0;
+	/* 2) look for the addr/port delimiter, it's the last colon. */
+	if ((range = strrchr(str, ':')) == NULL) {
+	    Alert("Missing port number: '%s'\n", str);
+	}	    
+
+	*range++ = 0;
+
+	if (strrchr(str, ':') != NULL) {
+	    /* IPv6 address contains ':' */
+	    memset(&ss, 0, sizeof(ss));
+	    ss.ss_family = AF_INET6;
+
+	    if (!inet_pton(ss.ss_family, str, &((struct sockaddr_in6 *)&ss)->sin6_addr)) {
+		Alert("Invalid server address: '%s'\n", str);
+	    }
 	}
 	else {
-		Alert("Missing port number: '%s'\n", str);
-	}	    
+	    memset(&ss, 0, sizeof(ss));
+	    ss.ss_family = AF_INET;
+
+	    if (*str == '*' || *str == '\0') { /* INADDR_ANY */
+		((struct sockaddr_in *)&ss)->sin_addr.s_addr = INADDR_ANY;
+	    }
+	    else if (!inet_pton(ss.ss_family, str, &((struct sockaddr_in *)&ss)->sin_addr)) {
+		struct hostent *he;
+		
+		if ((he = gethostbyname(str)) == NULL) {
+		    Alert("Invalid server name: '%s'\n", str);
+		}
+		else
+		    ((struct sockaddr_in *)&ss)->sin_addr =
+			*(struct in_addr *) *(he->h_addr_list);
+	    }
+	}
 
 	/* 3) look for the port-end delimiter */
 	if ((c = strchr(range, '-')) != NULL) {
@@ -845,26 +867,12 @@ struct listener *str2listener(char *str, struct listener *tail) {
 	    l->next = tail;
 	    tail = l;
 
-	    if (*str == '*' || *str == '\0') { /* INADDR_ANY */
-		l->addr.sin_addr.s_addr = INADDR_ANY;
-	    }
-	    else if (
-#ifndef SOLARIS
-		     !inet_aton(str, &l->addr.sin_addr)
-#else
-		     !inet_pton(AF_INET, str, &l->addr.sin_addr)
-#endif
-		     ) {
-		struct hostent *he;
-		
-		if ((he = gethostbyname(str)) == NULL) {
-		    Alert("Invalid server name: '%s'\n", str);
-		}
-		else
-		    l->addr.sin_addr = *(struct in_addr *) *(he->h_addr_list);
-	    }
-	    l->addr.sin_port=htons(port);
-	    l->addr.sin_family=AF_INET;
+	    l->addr = ss;
+	    if (ss.ss_family == AF_INET6)
+		((struct sockaddr_in6 *)(&l->addr))->sin6_port = htons(port);
+	    else
+		((struct sockaddr_in *)(&l->addr))->sin_port = htons(port);
+
 	} /* end for(port) */
     } /* end while(next) */
     free(dupstr);
@@ -1943,7 +1951,7 @@ void client_return(struct session *s, int len, const char *msg) {
  * send a log for the session when we have enough info about it
  */
 void sess_log(struct session *s) {
-    unsigned char *pn;
+    char pn[INET6_ADDRSTRLEN + strlen(":65535")];
     struct proxy *p = s->proxy;
     int log;
     char *uri;
@@ -1959,9 +1967,14 @@ void sess_log(struct session *s) {
 
     log = p->to_log & ~s->logs.logwait;
 
-    pn = (log & LW_CLIP) ?
-	 (unsigned char *)&s->cli_addr.sin_addr :
-	 (unsigned char *)"\0\0\0\0";
+    if (s->cli_addr.ss_family == AF_INET)
+	inet_ntop(AF_INET,
+		  (const void *)&((struct sockaddr_in *)&s->cli_addr)->sin_addr,
+		  pn, sizeof(pn));
+    else
+	inet_ntop(AF_INET6,
+		  (const void *)&((struct sockaddr_in6 *)(&s->cli_addr))->sin6_addr,
+		  pn, sizeof(pn));
 
     uri = (log & LW_REQ) ? s->logs.uri ? s->logs.uri : "<BADREQ>" : "";
     pxid = p->id;
@@ -1969,8 +1982,11 @@ void sess_log(struct session *s) {
 
     tm = localtime(&s->logs.tv_accept.tv_sec);
     if (p->to_log & LW_REQ) {
-	send_log(p, LOG_INFO, "%d.%d.%d.%d:%d [%02d/%s/%04d:%02d:%02d:%02d] %s %s %d/%d/%d/%d %d %lld %s %s %c%c%c%c \"%s\"\n",
-		 pn[0], pn[1], pn[2], pn[3], ntohs(s->cli_addr.sin_port),
+	send_log(p, LOG_INFO, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d] %s %s %d/%d/%d/%d %d %lld %s %s %c%c%c%c \"%s\"\n",
+		 pn,
+		 (s->cli_addr.ss_family == AF_INET) ?
+		   ntohs(((struct sockaddr_in *)&s->cli_addr)->sin_port) :
+		   ntohs(((struct sockaddr_in6 *)&s->cli_addr)->sin6_port),
 		 tm->tm_mday, monthname[tm->tm_mon], tm->tm_year+1900,
 		 tm->tm_hour, tm->tm_min, tm->tm_sec,
 		 pxid, srv,
@@ -1988,8 +2004,11 @@ void sess_log(struct session *s) {
 		 uri);
     }
     else {
-	send_log(p, LOG_INFO, "%d.%d.%d.%d:%d [%02d/%s/%04d:%02d:%02d:%02d] %s %s %d/%d %lld %c%c\n",
-		 pn[0], pn[1], pn[2], pn[3], ntohs(s->cli_addr.sin_port),
+	send_log(p, LOG_INFO, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d] %s %s %d/%d %lld %c%c\n",
+		 pn,
+		 (s->cli_addr.ss_family == AF_INET) ?
+		   ntohs(((struct sockaddr_in *)&s->cli_addr)->sin_port) :
+		   ntohs(((struct sockaddr_in6 *)&s->cli_addr)->sin6_port),
 		 tm->tm_mday, monthname[tm->tm_mon], tm->tm_year+1900,
 		 tm->tm_hour, tm->tm_min, tm->tm_sec,
 		 pxid, srv,
@@ -2017,7 +2036,7 @@ int event_accept(int fd) {
     int one = 1;
 
     while (p->nbconn < p->maxconn) {
-	struct sockaddr_in addr;
+	struct sockaddr_storage addr;
 	int laddr = sizeof(addr);
 	if ((cfd = accept(fd, (struct sockaddr *)&addr, &laddr)) == -1)
 	    return 0;	    /* nothing more to accept */
@@ -2092,15 +2111,13 @@ int event_accept(int fd) {
 
 	if ((p->mode == PR_MODE_TCP || p->mode == PR_MODE_HTTP)
 	    && (p->logfac1 >= 0 || p->logfac2 >= 0)) {
-	    struct sockaddr_in sockname;
-	    unsigned char *pn, *sn;
+	    struct sockaddr_storage sockname;
 	    int namelen;
 
 	    namelen = sizeof(sockname);
-	    if (get_original_dst(cfd, (struct sockaddr_in *)&sockname, &namelen) == -1)
+	    if (addr.ss_family != AF_INET ||
+		get_original_dst(cfd, (struct sockaddr_in *)&sockname, &namelen) == -1)
 		getsockname(cfd, (struct sockaddr *)&sockname, &namelen);
-	    sn = (unsigned char *)&sockname.sin_addr;
-	    pn = (unsigned char *)&s->cli_addr.sin_addr;
 
 	    if (p->to_log) {
 		/* we have the client ip */
@@ -2108,28 +2125,62 @@ int event_accept(int fd) {
 		    if (!(s->logs.logwait &= ~LW_CLIP))
 			sess_log(s);
 	    }
-	    else
-		send_log(p, LOG_INFO, "Connect from %d.%d.%d.%d:%d to %d.%d.%d.%d:%d (%s/%s)\n",
-			 pn[0], pn[1], pn[2], pn[3], ntohs(s->cli_addr.sin_port),
-			 sn[0], sn[1], sn[2], sn[3], ntohs(sockname.sin_port),
-			 p->id, (p->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
+	    else if (s->cli_addr.ss_family == AF_INET) {
+		char pn[INET_ADDRSTRLEN], sn[INET_ADDRSTRLEN];
+		if (inet_ntop(AF_INET, (const void *)&((struct sockaddr_in *)&sockname)->sin_addr,
+			      sn, sizeof(sn)) &&
+		    inet_ntop(AF_INET, (const void *)&((struct sockaddr_in *)&s->cli_addr)->sin_addr,
+			      pn, sizeof(pn))) {
+		    send_log(p, LOG_INFO, "Connect from %s:%d to %s:%d (%s/%s)\n",
+			     pn, ntohs(((struct sockaddr_in *)&s->cli_addr)->sin_port),
+			     sn, ntohs(((struct sockaddr_in *)&sockname)->sin_port),
+			     p->id, (p->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
+		}
+	    }
+	    else {
+		char pn[INET6_ADDRSTRLEN], sn[INET6_ADDRSTRLEN];
+		if (inet_ntop(AF_INET6, (const void *)&((struct sockaddr_in6 *)&sockname)->sin6_addr,
+			      sn, sizeof(sn)) &&
+		    inet_ntop(AF_INET6, (const void *)&((struct sockaddr_in6 *)&s->cli_addr)->sin6_addr,
+			      pn, sizeof(pn))) {
+		    send_log(p, LOG_INFO, "Connect from %s:%d to %s:%d (%s/%s)\n",
+			     pn, ntohs(((struct sockaddr_in6 *)&s->cli_addr)->sin6_port),
+			     sn, ntohs(((struct sockaddr_in6 *)&sockname)->sin6_port),
+			     p->id, (p->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
+		}
+	    }
 	}
 
 	if ((global.mode & MODE_DEBUG) && !(global.mode & MODE_QUIET)) {
 	    struct sockaddr_in sockname;
-	    unsigned char *pn, *sn;
 	    int namelen;
 	    int len;
-
 	    namelen = sizeof(sockname);
-	    if (get_original_dst(cfd, (struct sockaddr_in *)&sockname, &namelen) == -1)
+	    if (addr.ss_family != AF_INET ||
+		get_original_dst(cfd, (struct sockaddr_in *)&sockname, &namelen) == -1)
 		getsockname(cfd, (struct sockaddr *)&sockname, &namelen);
-	    sn = (unsigned char *)&sockname.sin_addr;
-	    pn = (unsigned char *)&s->cli_addr.sin_addr;
 
-	    len = sprintf(trash, "%08x:%s.accept(%04x)=%04x from [%d.%d.%d.%d:%d]\n",
-			  s->uniq_id, p->id, (unsigned short)fd, (unsigned short)cfd,
-			  pn[0], pn[1], pn[2], pn[3], ntohs(s->cli_addr.sin_port));
+	    if (s->cli_addr.ss_family == AF_INET) {
+		char pn[INET_ADDRSTRLEN];
+		inet_ntop(AF_INET,
+			  (const void *)&((struct sockaddr_in *)&s->cli_addr)->sin_addr,
+			  pn, sizeof(pn));
+
+		len = sprintf(trash, "%08x:%s.accept(%04x)=%04x from [%s:%d]\n",
+			      s->uniq_id, p->id, (unsigned short)fd, (unsigned short)cfd,
+			      pn, ntohs(((struct sockaddr_in *)&s->cli_addr)->sin_port));
+	    }
+	    else {
+		char pn[INET6_ADDRSTRLEN];
+		inet_ntop(AF_INET6,
+			  (const void *)&((struct sockaddr_in6 *)(&s->cli_addr))->sin6_addr,
+			  pn, sizeof(pn));
+
+		len = sprintf(trash, "%08x:%s.accept(%04x)=%04x from [%s:%d]\n",
+			      s->uniq_id, p->id, (unsigned short)fd, (unsigned short)cfd,
+			      pn, ntohs(((struct sockaddr_in6 *)(&s->cli_addr))->sin6_port));
+	    }
+
 	    write(1, trash, len);
 	}
 
@@ -2359,7 +2410,7 @@ int exp_replace(char *dst, char *src, char *str, regmatch_t *matches) {
 		num = *str - '0';
 		str++;
 
-		if (matches[num].rm_so > -1) {
+		if (matches[num].rm_eo > -1 && matches[num].rm_so > -1) {
 		    len = matches[num].rm_eo - matches[num].rm_so;
 		    memcpy(dst, src + matches[num].rm_so, len);
 		    dst += len;
@@ -2439,12 +2490,21 @@ int process_cli(struct session *t) {
 		}
 
 		if (t->proxy->options & PR_O_FWDFOR) {
-		    /* insert an X-Forwarded-For header */
-		    unsigned char *pn;
-		    pn = (unsigned char *)&t->cli_addr.sin_addr;
-		    len = sprintf(trash, "X-Forwarded-For: %d.%d.%d.%d\r\n",
-				  pn[0], pn[1], pn[2], pn[3]);
-		    buffer_replace2(req, req->h, req->h, trash, len);
+		    if (t->cli_addr.ss_family == AF_INET) {
+			unsigned char *pn;
+			pn = (unsigned char *)&((struct sockaddr_in *)&t->cli_addr)->sin_addr;
+			len = sprintf(trash, "X-Forwarded-For: %d.%d.%d.%d\r\n",
+				      pn[0], pn[1], pn[2], pn[3]);
+			buffer_replace2(req, req->h, req->h, trash, len);
+		    }
+		    else if (t->cli_addr.ss_family == AF_INET6) {
+			char pn[INET6_ADDRSTRLEN];
+			inet_ntop(AF_INET6,
+				  (const void *)&((struct sockaddr_in6 *)(&t->cli_addr))->sin6_addr,
+				  pn, sizeof(pn));
+			len = sprintf(trash, "X-Forwarded-For: %s\r\n", pn);
+			buffer_replace2(req, req->h, req->h, trash, len);
+		    }
 		}
 
 		if (!memcmp(req->data, "POST ", 5))
@@ -5763,7 +5823,7 @@ int start_proxies() {
 
 	for (listener = curproxy->listen; listener != NULL; listener = listener->next) {
 	    if ((fd = listener->fd =
-		 socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {
+		 socket(listener->addr.ss_family, SOCK_STREAM, IPPROTO_TCP)) == -1) {
 		Alert("cannot create listening socket for proxy %s. Aborting.\n",
 		      curproxy->id);
 		return -1;
@@ -5792,7 +5852,9 @@ int start_proxies() {
 	
 	    if (bind(fd,
 		     (struct sockaddr *)&listener->addr,
-		     sizeof(listener->addr)) == -1) {
+		     listener->addr.ss_family == AF_INET6 ?
+		     sizeof(struct sockaddr_in6) :
+		     sizeof(struct sockaddr_in)) == -1) {
 		Alert("cannot bind socket for proxy %s. Aborting.\n",
 		      curproxy->id);
 		close(fd);
