@@ -1,0 +1,372 @@
+
+         		     H A - P r o x y
+         		     ---------------
+         		      version 1.0.0
+			      willy tarreau
+			       2001/12/16
+
+==============
+|Introduction|
+==============
+
+HA-Proxy est un relais TCP/HTTP offrant des facilités d'intégration en
+environnement hautement disponible. En effet, il est capable de :
+  - assurer un aiguillage statique défini par des cookies ;
+  - fournir une visibilité externe de son état de santé ;
+  - s'arrêter en douceur sans perte brutale de service.
+
+Il requiert peu de ressources, et son architecture événementielle
+mono-processus lui permet facilement de gérer plusieurs milliers de
+connexions simultanées sur plusieurs relais sans effondrer le système.
+
+===========================
+| Paramètres de lancement |
+===========================
+
+Les options de lancement sont peu nombreuses :
+
+    -f <fichier de configuration>
+    -n <nombre maximal total de connexions simultanées>
+    -N <nombre maximal de connexions simultanées par proxy>
+    -d active le mode debug
+    -D passe en daemon
+    -s affiche les statistiques (si option compilée)
+    -l ajoute des informations aux statistiques
+
+Le nombre maximal de connexion simultanées par proxy est le paramètre
+par défaut pour les proxies pour lesquels ce paramètre n'est pas
+précisé dans le fichier de configuration.
+
+Le nombre maximal total de connexions simultanées limite le nombre de
+connexions TCP utilisables à un instant par le processus, tous proxies
+confondus.
+
+============================
+| Fichier de configuration |
+============================
+
+
+Commentaires
+============
+
+L'analyseur du fichier de configuration ignore des lignes vides, les
+espaces, les tabulations, et tout ce qui est compris entre le symbole
+'#' et la fin de la ligne.
+
+
+Serveur
+=======
+
+Le fichier de configuration contient des sections repérées par le mot
+clé "listen" :
+
+    listen <nom_instance> <adresse_IP>:<port>
+
+<nom_instance> est le nom de l'instance décrite. Ce nom sera envoyé
+dans les logs, donc il est souhaitable d'utiliser un nom relatif au
+service relayé. Aucun test n'est effectué concernant l'unicité de ce
+nom, qui n'est pas obligatoire, mais fortement recommandée.
+
+<adresse_IP> est l'adresse IP sur laquelle le relais attend ses
+connexions. L'adresse 0.0.0.0 signifie que les connexions pourront
+s'effectuer sur toutes les adresses de la machine.
+
+<port> est le numéro de port TCP sur lequel le relais attend ses
+connexions. Le couple <adresse_IP>:<port> doit être unique pour toutes
+les instances d'une même machine. L'attachement à un port inférieur à
+1024 nécessite un niveau de privilège particulier.
+
+Exemple :
+---------
+    listen http_proxy 127.0.0.1:80
+
+
+Inhibition
+==========
+
+Un serveur peut être désactivé pour des besoins de maintenance, sans
+avoir à commenter toute une partie du fichier. Il suffit de
+positionner le mot clé "disabled" dans sa section :
+
+    listen smtp_proxy 0.0.0.0:25
+	disabled
+
+Mode
+====
+
+Un serveur peut fonctionner dans trois modes différents :
+  - TCP
+  - HTTP
+  - supervision
+
+Mode TCP
+--------
+Dans ce mode, le service relaye, dès leur établissement, les
+connexions TCP vers un unique serveur distant. Aucun traitement n'est
+effectué sur le flux. Il s'agit simplement d'une association
+<adresse_source:port_source> <adresse_destination:port_destination>.
+Pour l'utiliser, préciser le mode TCP sous la déclaration du relais :
+
+    listen smtp_proxy 0.0.0.0:25
+	mode tcp
+
+Mode HTTP
+---------
+Dans ce mode, le service relaye les connexions TCP vers un ou
+plusieurs serveurs, une fois qu'il dispose d'assez d'informations pour
+en prendre la décision. Les entêtes HTTP sont analysés pour y trouver
+un éventuel cookie, et certains d'entre-eux peuvent être modifiés par
+le biais d'expressions régulières. Pour activer ce mode, préciser le
+mode HTTP sous la déclaration du relais :
+
+    listen http_proxy 0.0.0.0:80
+	mode http
+
+Mode supervision
+----------------
+Il s'agit d'un mode offrant à un composant externe une visibilité de
+l'état de santé du service. Il se contente de retourner "OK" à tout
+client se connectant sur son port. Il peut être utilisé avec des
+répartiteurs de charge évolués pour déterminer quels sont les services
+utilisables. Pour activer ce mode, préciser le mode HEALTH sous la
+déclaration du relais :
+
+    listen health_check 0.0.0.0:60000
+	mode health
+
+
+Limitation du nombre de connexions simultanées
+==============================================
+
+Le paramètre "maxconn" permet de fixer la limite acceptable en nombre
+de connexions simultanées par proxy. Chaque proxy qui atteint cette
+valeur cesse d'écouter jusqu'à libération d'une connexion. Voir plus
+loin concernant les limitations liées au système. Exemple:
+
+     maxconn 16000
+
+
+Arrêt en douceur
+================
+
+Il est possible d'arrêter les services en douceur en envoyant un
+signal SIG_USR1 au processus relais. Tous les services seront alors
+mis en phase d'arrêt, mais pourront continuer d'accepter des connexions
+pendant un temps défini par le paramètre "grace" (en millisecondes).
+Cela permet par exemple, de faire savoir rapidement à un répartiteur
+de charge qu'il ne doit plus utiliser un relais, tout en continuant
+d'assurer le service le temps qu'il s'en rende compte. Remarque : les
+connexions actives ne sont jamais cassées. Dans le pire des cas, il
+faudra attendre en plus leur expiration avant l'arrêt total du
+processus. La valeur par défaut est 0 (pas de grâce).
+
+Exemple :
+---------
+
+    # le service tournera encore 10 secondes après la demande d'arrêt
+    listen http_proxy 0.0.0.0:80
+	mode http
+	grace 10000
+
+    listen health_check 0.0.0.0:60000
+	mode health
+	grace 0
+
+
+Temps d'expiration des connexions
+=================================
+
+Il est possible de paramétrer certaines durées d'expiration au niveau
+des connexions TCP. Trois temps indépendants sont configurables et
+acceptent des valeurs en millisecondes. Si l'une de ces trois
+temporisations est dépassée, la session est terminée à chaque
+extrémité.
+
+  - temps d'attente d'une donnée de la part du client, ou de la
+    possibilité de lui envoyer des données : "clitimeout" :
+
+	# time-out client à 2mn30.
+	clitimeout	150000
+
+  - temps d'attente d'une donnée de la part du serveur, ou de la
+    possibilité de lui envoyer des données : "srvtimeout" :
+
+	# time-out client à 30s.
+	srvtimeout	30000
+
+  - temps d'attente de l'établissement d'une connexion vers un serveur
+    "contimeout" :
+
+        # on abandonne si la connexion n'est pas établie après 3 secondes
+	contimeout	3000
+
+Remarque: "contimeout" et "srvtimeout" n'ont pas d'utilité dans le cas
+du serveur de type "health".
+
+Tentatives de reconnexion
+=========================
+
+Lors d'un échec de connexion vers un serveur, il est possible de
+retenter (potentiellement vers un autre serveur, en cas de répartition
+de charge). Le nombre de nouvelles tentatives infructueuses avant
+abandon est fourni par le paramètre "retries" :
+
+	# on essaie encore trois fois maxi
+	retries 3
+
+Adresse du serveur
+==================
+
+Le serveur vers lequel sont redirigées les connexions est défini par
+le paramètre "dispatch" sous la forme <adresse_ip>:<port> :
+
+   	# on envoie toutes les nouvelles connexions ici
+	dispatch 192.168.1.2:80
+
+Remarque: ce paramètre n'a pas d'utilité pour un serveur en mode "health".
+
+Définition du nom du cookie
+===========================
+
+En mode HTTP, il est possible de rechercher la valeur d'un cookie pour
+savoir vers quel serveur aiguiller la requête utilisateur. Le nom du
+cookie est donné par le paramètre "cookie" :
+
+    listen http_proxy 0.0.0.0:80
+	mode http
+	cookie SERVERID
+
+
+Assignation d'un serveur à une valeur de cookie
+===============================================
+
+En mode HTTP, il est possible d'associer des serveurs à des valeurs de
+cookie par le paramètre "server". La syntaxe est :
+
+    server <valeur> <adresse_ip>:<port>
+
+<valeur> est la valeur trouvée dans le cookie,
+<adresse_ip>:<port> le couple adresse-port sur lequel le serveur écoute.
+
+Exemple : le cookie SERVERID peut contenir server01 ou server02
+-------
+    listen http_proxy 0.0.0.0:80
+	mode http
+	cookie SERVERID
+	dispatch 192.168.1.100:80
+	server server01 192.168.1.1:80
+	server server02 192.168.1.2:80
+
+
+Reconnexion vers le répartiteur
+===============================
+
+En mode HTTP, si un serveur défini par un cookie ne répond plus, les
+clients seront définitivement aiguillés dessus à cause de leur cookie,
+et de ce fait, définitivement privés de service. La spécification du
+paramètre "redisp" autorise dans ce cas à renvoyer les connexions
+échouées vers l'adresse de répartition (dispatch) afin d'assigner un
+nouveau serveur à ces clients.
+
+Exemple :
+-------
+    listen http_proxy 0.0.0.0:80
+	mode http
+	cookie SERVERID
+	dispatch 192.168.1.100:80
+	server server01 192.168.1.1:80
+	server server02 192.168.1.2:80
+	redisp # renvoyer vers dispatch si serveur HS.
+
+Journalisation des connexions
+=============================
+
+Les connexions TCP et HTTP peuvent donner lieu à une journalisation
+sommaire indiquant, pour chaque connexion, la date, l'heure, les adresses
+IP source et destination, et les ports source et destination qui la
+caractérisent. Ultérieurement, les URLs seront loguées en mode HTTP,
+tout comme les arrêts de service. Tous les messages sont envoyés en
+syslog vers un ou deux serveurs. La syntaxe est la suivante :
+
+    log <adresse_ip> <facility>
+
+Exemple :
+---------
+    listen http_proxy 0.0.0.0:80
+	mode http
+	log 192.168.2.200 local3
+	log 192.168.2.201 local4
+
+Les connexions sont envoyées en niveau "info". Les démarrages de
+service seront envoyés en "notice", les signaux d'arrêts en "warning"
+et les arrêts définitifs en "alert".
+
+Les catégories possibles sont :
+    kern, user, mail, daemon, auth, syslog, lpr, news,
+    uucp, cron, auth2, ftp, ntp, audit, alert, cron2,
+    local0, local1, local2, local3, local4, local5, local6, local7
+
+
+Remplacement d'entêtes par expressions régulières
+=================================================
+
+En mode HTTP uniquement, il est possible de remplacer certains entêtes
+client et/ou serveur à partir d'expressions régulières. Deux
+limitations cependant :
+  - il n'est pas encore possible de supprimer un entête ni d'en
+    ajouter un ; On peut en général s'en sortir avec des
+    modifications.
+  - les entêtes fournis au milieu de connexions persistentes
+    (keep-alive) ne sont pas vus.
+
+La syntaxe est :
+   cliexp <search> <replace>   pour les entêtes client
+   srvexp <search> <replace>   pour les entêtes serveur
+
+<search> est une expression régulière compatible GNU regexp supportant
+le groupage par parenthèses (sans les '\'). Les espaces et autres
+séparateurs doivent êtres précédés d'un '\' pour ne pas être confondus
+avec la fin de la chaîne.
+
+<replace> contient la chaîne remplaçant la portion vérifiée par
+l'expression. Elle peut inclure des espaces et tabulations précédés
+par un '\', faire référence à un groupe délimité par des parenthèses
+dans l'expression régulière, par sa position numérale. Les positions
+vont de 1 à 9, et sont codées par un '\' suivi du chiffre désiré. Il
+est également possible d'insérer un caractère non imprimable (utile
+pour le saut de ligne) inscrivant '\x' suivi du code hexadécimal de ce
+caractère (comme en C).
+
+Remarque : la première ligne de la requête et celle de la réponse sont
+traitées comme des entêtes, ce qui permet de réécrire des URL et des
+codes d'erreur.
+
+Exemples :
+----------
+	cliexp	^(GET.*)(.free.fr)(.*) \1.online.fr\3
+	cliexp	^(POST.*)(.free.fr)(.*) \1.online.fr\3
+	cliexp	^Proxy-Connection:.*	Proxy-Connection:\ close
+	srvexp	^Proxy-Connection:.*	Proxy-Connection:\ close
+	srvexp	^(Location:\ )([^:]*://[^/]*)(.*) \1\3
+
+
+=====================
+|Paramétrage système|
+=====================
+
+Sous Linux 2.4
+==============
+
+echo 131072 > /proc/sys/fs/file-max
+echo 65536 > /proc/sys/net/ipv4/ip_conntrack_max
+echo 1024 60999 > /proc/sys/net/ipv4/ip_local_port_range
+echo 16384 > /proc/sys/net/ipv4/ip_queue_maxlen
+echo 60 > /proc/sys/net/ipv4/tcp_fin_timeout
+echo 4096 > /proc/sys/net/ipv4/tcp_max_orphans
+echo 16384 > /proc/sys/net/ipv4/tcp_max_syn_backlog
+echo 262144 > /proc/sys/net/ipv4/tcp_max_tw_buckets
+echo 1 > /proc/sys/net/ipv4/tcp_tw_recycle
+echo 0 > /proc/sys/net/ipv4/tcp_timestamps
+ulimit -n 65536
+
+-- fin --

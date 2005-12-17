@@ -1,0 +1,39 @@
+listen proxy1 0.0.0.0:3128
+	mode	http
+        cookie SERVERID
+	dispatch 192.168.12.1:80
+ 	server srv1 192.168.12.2:8080
+ 	server srv2 192.168.12.3:8080
+	contimeout	3000
+	clitimeout	150000
+	srvtimeout	150000
+	maxconn 60000
+	redisp
+	retries	3
+	grace 3000
+
+listen proxy2 0.0.0.0:3129
+	mode	http
+	dispatch 127.0.0.1:80
+	contimeout	3000
+	clitimeout	150000
+	srvtimeout	150000
+	maxconn 60000
+	retries	3
+	grace 3000
+
+#	log	10.101.11.1 local1
+#	log	10.101.11.1 local2
+
+#	cliexp	^(.*ASPSESSIONID.*=)(.*) \1FENICGGCBECLFFEEOAEAIFGF
+#	cliexp	^(GET.*)(.free.fr)(.*) \1.online.fr\3
+#	cliexp	^(POST.*)(.free.fr)(.*) \1.online.fr\3
+#	cliexp	^Proxy-Connection:.*	Proxy-Connection:\ close
+#	srvexp	^(Location:\ )([^:]*://[^/]*)(.*) \1\3
+
+listen health 0.0.0.0:3130
+	mode	health
+	clitimeout	1500
+	srvtimeout	1500
+	maxconn 4
+	grace 0
