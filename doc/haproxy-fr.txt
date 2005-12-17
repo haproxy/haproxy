@@ -1,9 +1,9 @@
 
          		     H A - P r o x y
          		     ---------------
-         		      version 1.1.27
+         		      version 1.2.1
 			      willy tarreau
-			       2003/10/27
+			       2004/06/06
 
 ================
 | Introduction |
@@ -37,6 +37,12 @@ Les options de lancement sont peu nombreuses :
     -N <nombre maximal de connexions simultanées par proxy>
     -d active le mode debug
     -D passe en daemon
+    -q désactive l'affichage de messages sur la sortie standard.
+    -V affiche les messages sur la sortie standard, même si -q ou 'quiet' sont
+       spécifiés.
+    -c vérifie le fichier de configuration puis quitte avec un code de retour 0
+       si aucune erreur n'a été trouvée, ou 1 si une erreur de syntaxe a été
+       détectée.
     -p <fichier> indique au processus père qu'il doit écrire les PIDs de ses
        fils dans ce fichier en mode démon.
     -s affiche les statistiques (si option compilée)
@@ -754,6 +760,10 @@ les logs en niveau "notice", ainsi que sur la sortie d'erreurs si elle est
 active. C'est une bonne raison pour avoir au moins un serveur de logs local en
 niveau notice.
 
+Depuis la version 1.1.18 (et 1.2.1), un message d'urgence est envoyé dans les
+logs en niveau 'emerg' si tous les serveurs d'une même instance sont tombés,
+afin de notifier l'administrateur qu'il faut prendre une action immédiate.
+
 Exemples :
 ----------
 # conf du paragraphe 3) avec surveillance TCP
@@ -937,6 +947,15 @@ la connexion ne sera journalisée qu'en fin de session, ajoutant des précisions
 sur son état lors de la déconnexion, ainsi que le temps de connexion et la
 durée totale de la session.
 
+Exemple :
+---------
+    listen relais-tcp 0.0.0.0:8000
+	mode tcp
+	option tcplog
+	log 192.168.2.200 local3
+
+>>> haproxy[18989]: 127.0.0.1:34550 [15/Oct/2003:15:24:28] relais-tcp Srv1 0/5007 0 --
+
 Une autre option, 'httplog', fournit plus de détails sur le protocole HTTP,
 notamment la requête et l'état des cookies. Dans les cas où un mécanisme de
 surveillance effectuant des connexions et déconnexions fréquentes, polluerait
@@ -951,6 +970,35 @@ Exemple :
 	option httplog
 	option dontlognull
 	log 192.168.2.200 local3
+
+>>> haproxy[674]: 127.0.0.1:33319 [15/Oct/2003:08:31:57] relais-http Srv1 9/7/147/723 200 243 - - ---- "HEAD / HTTP/1.0"
+
+Le problème de loguer uniquement en fin de session, c'est qu'il est impossible
+de savoir ce qui se passe durant de gros transferts ou des sessions longues.
+Pour pallier à ce problème, une nouvelle option 'logasap' a été introduite dans
+la version 1.1.28 (1.2.1). Lorsqu'elle est activée, le proxy loguera le plus tôt
+possible, c'est à dire juste avant que ne débutent les transferts de données.
+Cela signifie, dans le cas du TCP, qu'il loguera toujours le résultat de la
+connexion vers le serveur, et dans le cas HTTP, qu'il loguera en fin de
+traitement des entêtes de la réponse du serveur, auquel cas le nombre d'octets
+représentera la taille des entêtes retournés au client.
+
+Afin d'éviter toute confusion avec les logs normaux, le temps total de transfert
+et le nombre d'octets transférés sont préfixés d'un signe '+' rappeleant que les
+valeurs réelles sont certainement plus élevées.
+
+Exemple :
+---------
+
+    listen http_proxy 0.0.0.0:80
+	mode http
+	option httplog
+	option dontlognull
+	option logasap
+	log 192.168.2.200 local3
+
+>>> haproxy[674]: 127.0.0.1:33320 [15/Oct/2003:08:32:17] relais-http Srv1 9/7/14/+30 200 +243 - - ---- "GET /image.iso HTTP/1.0"
+
 
 4.2.3) Chronométrage des événements
 -----------------------------------
@@ -980,8 +1028,11 @@ la forme Tq/Tc/Tr/Tt :
 
   - Tt: durée de vie totale de la session, entre le moment où la demande de
     connexion du client a été acquittée et le moment où la connexion a été
-    refermée aux deux extrémités (client et serveur). On peut donc en déduire
-    Td, le temps de transfert des données, en excluant les autres temps :
+    refermée aux deux extrémités (client et serveur). La signification change
+    un peu si l'option 'logasap' est présente. Dans ce cas, le temps correspond
+    uniquement à (Tq + Tc + Tr), et se trouve préfixé d'un signe '+'. On peut
+    donc déduire Td, le temps de transfert des données, en excluant les autres
+    temps :
 
         Td = Tt - (Tq + Tc + Tr)
 
@@ -1032,7 +1083,9 @@ C'est un champ de 4 caractères (2 en TCP) précédant la requête HTTP, indiquant :
         C : fermeture de la session TCP de la part du client
 	S : fermeture de la session TCP de la part du serveur, ou refus de connexion
 	P : terminaison prématurée des sessions par le proxy, pour cas d'erreur
-	    interne ou de configuration (ex: filtre d'URL)
+	    interne, de configuration (ex: filtre d'URL), ou parce qu'un
+	    contrôle de sécurité a détecté une anomalie dans la réponse du
+	    serveur.
 	c : expiration du délai d'attente côté client : clitimeout
 	s : expiration du délai d'attente côté serveur: srvtimeout et contimeout
 	- : terminaison normale.
@@ -1042,7 +1095,7 @@ C'est un champ de 4 caractères (2 en TCP) précédant la requête HTTP, indiquant :
 
         R : terminaison en attendant la réception totale de la requête du client
 	C : terminaison en attendant la connexion vers le serveur
-	H : terminaison en attendant la réception totale des entêtes du serveur
+	H : terminaison en traitant les entêtes du serveur
 	D : terminaison durant le transfert des données du serveur vers le client
 	L : terminaison durant le transfert des dernières données du proxy vers
 	    le client, alors que le serveur a déjà fini.
@@ -1107,6 +1160,18 @@ client ou le serveur.
   => requête longue (6.5s) saisie à la main avec un client telnet. Le serveur a
      répondu en 147 ms et la session s'est terminée normalement ('----')
 
+- haproxy[674]: 127.0.0.1:33320 [15/Oct/2003:08:32:17] relais-http Srv1 9/7/14/+30 200 +243 - - ---- "GET /image.iso HTTP/1.0"
+  => requête pour un long transfert. L'option 'logasap' était spécifiée donc le
+     log a été généré juste avant le transfert de données. Le serveur a répondu
+     en 14 ms, 243 octets d'entêtes ont été transférés au client, et le temps
+     total entre l'accept() et le premier octet de donnée est de 30 ms.
+
+- haproxy[674]: 127.0.0.1:33320 [15/Oct/2003:08:32:17] relais-http Srv1 9/7/14/30 502 243 - - PH-- "GET /cgi-bin/bug.cgi? HTTP/1.0"
+  => le proxy a bloqué une réponse du serveur soit à cause d'un filtre 'rspdeny'
+     ou 'rspideny', soit parce qu'il a détecté un risque de fuite sensible
+     d'informations risquant d'être cachées. Dans ce cas, la réponse est
+     remplacée par '502 bad gateway'.
+
 - haproxy[18113]: 127.0.0.1:34548 [15/Oct/2003:15:18:55] relais-http <NOSRV> -1/-1/-1/8490 -1 0 - - CR-- "" 
   => Le client n'a pas envoyé sa requête et a refermé la connexion lui-même
      ('C---') au bout de 8.5s, alors que le relais attendait l'entête ('-R--').
@@ -1155,6 +1220,9 @@ La syntaxe est :
    rspirep  <search> <replace>    idem sans distinction majuscules/minuscules
    rspdel   <search>              pour supprimer un en-tête dans la réponse
    rspidel  <search>              idem sans distinction majuscules/minuscules
+   rspdeny  <search>              remplace la réponse par un HTTP 502 si un
+				  entête valide <search>
+   rspideny <search>              idem sans distinction majuscules/minuscules
 
 
 <search> est une expression régulière compatible POSIX regexp supportant le
@@ -1195,6 +1263,8 @@ Remarques :
     limite était à 256 auparavant). Cette valeur est modifiable dans le code.
     Pour un usage temporaire, on peut gagner de la place en supprimant quelques
     entêtes inutiles avant les ajouts.
+  - une requête bloquée produira une réponse "HTTP 403 forbidden" tandis qu'une
+    réponse bloquée produira une réponse "HTTP 502 Bad gateway".
 
 Exemples :
 ----------
@@ -1230,19 +1300,21 @@ Exemples :
         reqideny        ^[^:\ ]*\ 
 
         # force connection:close, thus disabling HTTP keep-alive
-        reqidel         ^Connection:
-        rspidel         ^Connection:
-        reqadd          Connection:\ close
-        rspadd          Connection:\ close
+	option		httpclos
 
 	# change the server name
         rspidel         ^Server:\ 
         rspadd          Server:\ Formilux/0.1.8
 
 
-Enfin, l'option 'forwardfor' ajoute l'adresse IP du client dans un champ
+De plus, l'option 'forwardfor' ajoute l'adresse IP du client dans un champ
 'X-Forwarded-For' de la requête, ce qui permet à un serveur web final de
 connaître l'adresse IP du client initial.
+
+Enfin, l'option 'httpclose' apparue dans la version 1.1.28/1.2.1 supprime tout
+entête de type 'Connection:' et ajoute 'Connection: close' dans les deux sens.
+Ceci simplifie la désactivation du keep-alive HTTP par rapport à l'ancienne
+méthode impliquant 4 règles.
 
 Exemple :
 ---------
@@ -1252,10 +1324,10 @@ Exemple :
 	option httplog
 	option dontlognull
 	option forwardfor
+	option httpclose
 
 4.4) Répartition avec persistence
 ---------------------------------
-
 La combinaison de l'insertion de cookie avec la répartition de charge interne
 permet d'assurer une persistence dans les sessions HTTP d'une manière
 pratiquement transparente pour les applications. Le principe est simple :
@@ -1274,9 +1346,37 @@ Exemple :
 	server 192.168.1.1:80 cookie server01 check
 	server 192.168.1.2:80 cookie server02 check
 
-4.5) Personalisation des erreurs
---------------------------------
+4.5) Protection contre les fuites d'informations du serveur
+-----------------------------------------------------------
+Dans les versions 1.1.28 et 1.2.1, une nouvelle option 'checkcache' a été créée.
+Elle sert à inspecter minutieusement les entêtes 'Cache-control', 'Pragma', et
+'Set-cookie' dans les réponses serveur pour déterminer s'il y a un risque de
+cacher un cookie sur un proxy côté client. Quand cette option est activée, les
+seules réponses qui peuvent être retournées au client sont :
+  - toutes celles qui n'ont pas d'entête 'Set-cookie' ;
+  - toutes celles qui ont un code de retour autre que 200, 203, 206, 300, 301, 
+    410, sauf si le server a positionné un entête 'Cache-control: public' ;
+  - celles qui font suite à une requête POST, sauf si le serveur a positionné
+    un entête 'Cache-control: public' ;
+  - celles qui ont un entête 'Pragma: no-cache' ;
+  - celles qui ont un entête 'Cache-control: private' ; 
+  - celles qui ont un entête 'Cache-control: no-store' ; 
+  - celles qui ont un entête 'Cache-control: max-age=0' ;
+  - celles qui ont un entête 'Cache-control: s-maxage=0' ;
+  - celles qui ont un entête 'Cache-control: no-cache' ;
+  - celles qui ont un entête 'Cache-control: no-cache="set-cookie"' ;
+  - celles qui ont un entête 'Cache-control: no-cache="set-cookie,'
+    (autorisant d'autres champs après set-cookie).
 
+Si une réponse ne respecte pas ces pré-requis, alors elle sera bloquée de la
+même manière que s'il s'agissait d'un filtre 'rspdeny', avec en retour un
+message "HTTP 502 bad gateway". L'état de session montre "PH--" ce qui veut
+dire que c'est le proxy qui a bloqué la réponse durant le traitement des
+entêtes. De plus, un message d'alerte sera envoyé dans les logs de sorte que
+l'administrateur sache qu'il y a une action correctrice à entreprendre.
+
+4.6) Personalisation des erreurs
+--------------------------------
 Certaines situations conduisent à retourner une erreur HTTP au client :
   - requête invalide ou trop longue => code HTTP 400
   - requête mettant trop de temps à venir => code HTTP 408
@@ -1309,9 +1409,8 @@ Exemple :
         errorloc 503 http://192.168.114.58/error50x.html
         errorloc 504 http://192.168.114.58/error50x.html
 
-4.6) Changement des valeurs par défaut
+4.7) Changement des valeurs par défaut
 --------------------------------------
-
 Dans la version 1.1.22 est apparue la notion de valeurs par défaut, ce qui évite
 de répéter des paramètres communs à toutes les instances, tels que les timeouts,
 adresses de log, modes de fonctionnement, etc.
@@ -1326,16 +1425,16 @@ La section 'defaults' utilise la même syntaxe que la section 'listen', aux
 paramètres près qui ne sont pas supportés. Le mot clé 'defaults' peut accepter
 un commentaire en guise paramètre.
 
-Dans la version 1.1.23, seuls les paramètres suivants peuvent être positionnés
-dans une section 'defaults' :
+Dans la version 1.1.28/1.2.1, seuls les paramètres suivants peuvent être
+positionnés dans une section 'defaults' :
   - log (le premier et le second)
   - mode { tcp, http, health }
   - balance { roundrobin }
   - disabled (pour désactiver toutes les instances qui suivent)
   - enabled (pour faire l'opération inverse, mais c'est le cas par défaut)
   - contimeout, clitimeout, srvtimeout, grace, retries, maxconn
-  - option { redispatch, transparent, keepalive, forwardfor, httplog,
-             dontlognull, persist, httpchk }
+  - option { redispatch, transparent, keepalive, forwardfor, logasap, httpclose,
+             checkcache, httplog, tcplog, dontlognull, persist, httpchk }
   - redispatch, redisp, transparent, source { addr:port }
   - cookie, capture
   - errorloc

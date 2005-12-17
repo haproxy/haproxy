@@ -8,7 +8,10 @@
  * 2 of the License, or (at your option) any later version.
  *
  * Please refer to RFC2068 or RFC2616 for informations about HTTP protocol, and
- * RFC2965 for informations about cookies usage.
+ * RFC2965 for informations about cookies usage. More generally, the IETF HTTP
+ * Working Group's web site should be consulted for protocol related changes :
+ *
+ *     http://ftp.ics.uci.edu/pub/ietf/http/
  *
  * Pending bugs (may be not fixed because never reproduced) :
  *   - solaris only : sometimes, an HTTP proxy with only a dispatch address causes
@@ -54,7 +57,7 @@
 #endif
 
 #define HAPROXY_VERSION "1.2.1"
-#define HAPROXY_DATE	"2004/06/05"
+#define HAPROXY_DATE	"2004/06/06"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -300,6 +303,7 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define	MODE_DAEMON	8
 #define	MODE_QUIET	16
 #define	MODE_CHECK	32
+#define	MODE_VERBOSE	64
 
 /* server flags */
 #define SRV_RUNNING	1	/* the server is UP */
@@ -684,13 +688,14 @@ void display_version() {
 void usage(char *name) {
     display_version();
     fprintf(stderr,
-	    "Usage : %s -f <cfgfile> [ -vd"
+	    "Usage : %s -f <cfgfile> [ -vdV"
 #if STATTIME > 0
 	    "sl"
 #endif
 	    "D ] [ -n <maxconn> ] [ -N <maxpconn> ] [ -p <pidfile> ]\n"
 	    "        -v displays version\n"
 	    "        -d enters debug mode\n"
+	    "        -V enters verbose mode (disables quiet mode)\n"
 #if STATTIME > 0
 	    "        -s enables statistics output\n"
 	    "        -l enables long statistics format\n"
@@ -714,7 +719,7 @@ void Alert(char *fmt, ...) {
     struct timeval tv;
     struct tm *tm;
 
-    if (!(global.mode & MODE_QUIET)) {
+    if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) {
 	va_start(argp, fmt);
 
 	gettimeofday(&tv, NULL);
@@ -736,7 +741,7 @@ void Warning(char *fmt, ...) {
     struct timeval tv;
     struct tm *tm;
 
-    if (!(global.mode & MODE_QUIET)) {
+    if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) {
 	va_start(argp, fmt);
 
 	gettimeofday(&tv, NULL);
@@ -755,7 +760,7 @@ void Warning(char *fmt, ...) {
 void qfprintf(FILE *out, char *fmt, ...) {
     va_list argp;
 
-    if (!(global.mode & MODE_QUIET)) {
+    if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) {
 	va_start(argp, fmt);
 	vfprintf(out, fmt, argp);
 	fflush(out);
@@ -2100,9 +2105,6 @@ int event_accept(int fd) {
 	s->req = s->rep = NULL; /* will be allocated later */
 	s->flags = 0;
 
-	if (p->options & PR_O_CHK_CACHE)
-	    s->flags |= SN_CACHEABLE | SN_CACHE_COOK;
-
 	s->res_cr = s->res_cw = s->res_sr = s->res_sw = RES_SILENT;
 	s->cli_fd = cfd;
 	s->srv_fd = -1;
@@ -2165,7 +2167,7 @@ int event_accept(int fd) {
 	    }
 	}
 
-	if ((global.mode & MODE_DEBUG) && !(global.mode & MODE_QUIET)) {
+	if ((global.mode & MODE_DEBUG) && (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))) {
 	    struct sockaddr_in sockname;
 	    int namelen;
 	    int len;
@@ -2525,8 +2527,10 @@ int process_cli(struct session *t) {
 		if (t->proxy->options & PR_O_HTTP_CLOSE)
 		    buffer_replace2(req, req->h, req->h, "Connection: close\r\n", 19);
 
-		if (!memcmp(req->data, "POST ", 5))
-		    t->flags |= SN_POST; /* this is a POST request */
+		if (!memcmp(req->data, "POST ", 5)) {
+		    /* this is a POST request, which is not cacheable by default */
+		    t->flags |= SN_POST;
+		}
 		    
 		t->cli_state = CL_STDATA;
 		req->rlim = req->data + BUFSIZE; /* no more rewrite needed */
@@ -2608,7 +2612,7 @@ int process_cli(struct session *t) {
 
 	    delete_header = 0;
 
-	    if ((global.mode & MODE_DEBUG) && !(global.mode & MODE_QUIET)) {
+	    if ((global.mode & MODE_DEBUG) && (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))) {
 		int len, max;
 		len = sprintf(trash, "%08x:%s.clihdr[%04x:%04x]: ", t->uniq_id, t->proxy->id, (unsigned  short)t->cli_fd, (unsigned short)t->srv_fd);
 		max = ptr - req->h;
@@ -3085,7 +3089,7 @@ int process_cli(struct session *t) {
 	return 0;
     }
     else { /* CL_STCLOSE: nothing to do */
-	if ((global.mode & MODE_DEBUG) && !(global.mode & MODE_QUIET)) {
+	if ((global.mode & MODE_DEBUG) && (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))) {
 	    int len;
 	    len = sprintf(trash, "%08x:%s.clicls[%04x:%04x]\n", t->uniq_id, t->proxy->id, (unsigned short)t->cli_fd, (unsigned short)t->srv_fd);
 	    write(1, trash, len);
@@ -3288,6 +3292,21 @@ int process_srv(struct session *t) {
 		    }
 		}
 
+		/* next, we'll block if an 'rspideny' or 'rspdeny' filter matched */
+		if (t->flags & SN_SVDENY) {
+		    tv_eternity(&t->srexpire);
+		    tv_eternity(&t->swexpire);
+		    fd_delete(t->srv_fd);
+		    t->srv_state = SV_STCLOSE;
+		    t->logs.status = 502;
+		    client_return(t, t->proxy->errmsg.len502, t->proxy->errmsg.msg502);
+		    if (!(t->flags & SN_ERR_MASK))
+			t->flags |= SN_ERR_PRXCOND;
+		    if (!(t->flags & SN_FINST_MASK))
+			t->flags |= SN_FINST_H;
+		    return 1;
+		}
+
 		/* we'll have something else to do here : add new headers ... */
 
 		if ((t->srv) && !(t->flags & SN_DIRECT) && (t->proxy->options & PR_O_COOK_INS) &&
@@ -3366,14 +3385,38 @@ int process_srv(struct session *t) {
 	     */
 
 
-	    if (t->logs.logwait & LW_RESP) {
+	    if (t->logs.status == -1) {
 		t->logs.logwait &= ~LW_RESP;
 		t->logs.status = atoi(rep->h + 9);
+		switch (t->logs.status) {
+		    case 200:
+		    case 203:
+		    case 206:
+		    case 300:
+		    case 301:
+		    case 410:
+			/* RFC2616 @13.4:
+			 *   "A response received with a status code of
+			 *    200, 203, 206, 300, 301 or 410 MAY be stored
+			 *    by a cache (...) unless a cache-control
+			 *    directive prohibits caching."
+			 *   
+			 * RFC2616 @9.5: POST method :
+			 *   "Responses to this method are not cacheable,
+			 *    unless the response includes appropriate
+			 *    Cache-Control or Expires header fields."
+			 */
+			if ((!t->flags & SN_POST) && (t->proxy->options & PR_O_CHK_CACHE))
+				t->flags |= SN_CACHEABLE | SN_CACHE_COOK;
+			break;
+		    default:
+			break;
+		}
 	    }
 
 	    delete_header = 0;
 
-	    if ((global.mode & MODE_DEBUG) && !(global.mode & MODE_QUIET)) {
+	    if ((global.mode & MODE_DEBUG) && (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))) {
 		int len, max;
 		len = sprintf(trash, "%08x:%s.srvhdr[%04x:%04x]: ", t->uniq_id, t->proxy->id, (unsigned  short)t->cli_fd, (unsigned short)t->srv_fd);
 		max = ptr - rep->h;
@@ -3434,21 +3477,27 @@ int process_srv(struct session *t) {
 		    t->flags &= ~SN_CACHEABLE & ~SN_CACHE_COOK;
 		else if (strncasecmp(rep->h, "Cache-control: ", 15) == 0) {
 		    if (strncasecmp(rep->h + 15, "no-cache", 8) == 0) {
-			if (rep->h + 23 == ptr || rep->h[23] == ';')
+			if (rep->h + 23 == ptr || rep->h[23] == ',')
 			    t->flags &= ~SN_CACHEABLE & ~SN_CACHE_COOK;
 			else {
 			    if (strncasecmp(rep->h + 23, "=\"set-cookie", 12) == 0
-				&& (rep->h[35] == '"' || rep->h[35] == ';'))
+				&& (rep->h[35] == '"' || rep->h[35] == ','))
 				t->flags &= ~SN_CACHE_COOK;
 			}
 		    } else if ((strncasecmp(rep->h + 15, "private", 7) == 0 &&
-				(rep->h + 22 == ptr || rep->h[22] == ';'))
+				(rep->h + 22 == ptr || rep->h[22] == ','))
 			       || (strncasecmp(rep->h + 15, "no-store", 8) == 0 &&
-				   (rep->h + 23 == ptr || rep->h[23] == ';'))) {
+				   (rep->h + 23 == ptr || rep->h[23] == ','))) {
 			t->flags &= ~SN_CACHEABLE & ~SN_CACHE_COOK;
 		    } else if (strncasecmp(rep->h + 15, "max-age=0", 9) == 0 &&
-			       (rep->h + 24 == ptr || rep->h[24] == ';')) {
+			       (rep->h + 24 == ptr || rep->h[24] == ',')) {
 			t->flags &= ~SN_CACHEABLE & ~SN_CACHE_COOK;
+		    } else if (strncasecmp(rep->h + 15, "s-maxage=0", 10) == 0 &&
+			       (rep->h + 25 == ptr || rep->h[25] == ',')) {
+			t->flags &= ~SN_CACHEABLE & ~SN_CACHE_COOK;
+		    } else if (strncasecmp(rep->h + 15, "public", 6) == 0 &&
+			       (rep->h + 21 == ptr || rep->h[21] == ',')) {
+			t->flags |= SN_CACHEABLE | SN_CACHE_COOK;
 		    }
 		}
 	    }
@@ -3869,7 +3918,7 @@ int process_srv(struct session *t) {
 	return 0;
     }
     else { /* SV_STCLOSE : nothing to do */
-	if ((global.mode & MODE_DEBUG) && !(global.mode & MODE_QUIET)) {
+	if ((global.mode & MODE_DEBUG) && (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))) {
 	    int len;
 	    len = sprintf(trash, "%08x:%s.srvcls[%04x:%04x]\n", t->uniq_id, t->proxy->id, (unsigned short)t->cli_fd, (unsigned short)t->srv_fd);
 	    write(1, trash, len);
@@ -3916,7 +3965,7 @@ int process_session(struct task *t) {
     s->proxy->nbconn--;
     actconn--;
     
-    if ((global.mode & MODE_DEBUG) && !(global.mode & MODE_QUIET)) {
+    if ((global.mode & MODE_DEBUG) && (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))) {
 	int len;
 	len = sprintf(trash, "%08x:%s.closed[%04x:%04x]\n", s->uniq_id, s->proxy->id, (unsigned short)s->cli_fd, (unsigned short)s->srv_fd);
 	write(1, trash, len);
@@ -5436,6 +5485,26 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	
 	chain_regex(&curproxy->rsp_exp, preg, ACT_REMOVE, strdup(args[2]));
     }
+    else if (!strcmp(args[0], "rspdeny")) {  /* block response header from a regex */
+	regex_t *preg;
+	if (curproxy == &defproxy) {
+	    Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+	    return -1;
+	}
+	
+	if (*(args[1]) == 0) {
+	    Alert("parsing [%s:%d] : '%s' expects <search> as an argument.\n", file, linenum, args[0]);
+	    return -1;
+	}
+
+	preg = calloc(1, sizeof(regex_t));
+	if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
+	    Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
+	    return -1;
+	}
+	
+	chain_regex(&curproxy->rsp_exp, preg, ACT_DENY, strdup(args[2]));
+    }
     else if (!strcmp(args[0], "rspirep")) {  /* replace response header from a regex ignoring case */
 	regex_t *preg;
 	if (curproxy == &defproxy) {
@@ -5476,6 +5545,26 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	}
 	
 	chain_regex(&curproxy->rsp_exp, preg, ACT_REMOVE, strdup(args[2]));
+    }
+    else if (!strcmp(args[0], "rspideny")) {  /* block response header from a regex ignoring case */
+	regex_t *preg;
+	if (curproxy == &defproxy) {
+	    Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+	    return -1;
+	}
+	
+	if (*(args[1]) == 0) {
+	    Alert("parsing [%s:%d] : '%s' expects <search> as an argument.\n", file, linenum, args[0]);
+	    return -1;
+	}
+
+	preg = calloc(1, sizeof(regex_t));
+	if (regcomp(preg, args[1], REG_EXTENDED | REG_ICASE) != 0) {
+	    Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
+	    return -1;
+	}
+	
+	chain_regex(&curproxy->rsp_exp, preg, ACT_DENY, strdup(args[2]));
     }
     else if (!strcmp(args[0], "rspadd")) {  /* add response header */
 	if (curproxy == &defproxy) {
@@ -5830,7 +5919,7 @@ void init(int argc, char **argv) {
     if (1<<INTBITS != sizeof(int)*8) {
 	fprintf(stderr,
 		"Error: wrong architecture. Recompile so that sizeof(int)=%d\n",
-		sizeof(int)*8);
+		(int)(sizeof(int)*8));
 	exit(1);
     }
 
@@ -5851,6 +5940,8 @@ void init(int argc, char **argv) {
 		display_version();
 		exit(0);
 	    }
+	    else if (*flag == 'V')
+		arg_mode |= MODE_VERBOSE;
 	    else if (*flag == 'd')
 		arg_mode |= MODE_DEBUG;
 	    else if (*flag == 'c')
@@ -5884,7 +5975,7 @@ void init(int argc, char **argv) {
 	    argv++; argc--;
     }
 
-    global.mode = (arg_mode & (MODE_DAEMON | MODE_QUIET | MODE_DEBUG));
+    global.mode = (arg_mode & (MODE_DAEMON | MODE_VERBOSE | MODE_QUIET | MODE_CHECK | MODE_DEBUG));
 
     if (!cfg_cfgfile)
 	usage(old_argv);
@@ -5896,7 +5987,7 @@ void init(int argc, char **argv) {
 	exit(1);
     }
 
-    if (arg_mode & MODE_CHECK) {
+    if (global.mode & MODE_CHECK) {
 	qfprintf(stdout, "Configuration file is valid : %s\n", cfg_cfgfile);
 	exit(0);
     }
@@ -5919,7 +6010,8 @@ void init(int argc, char **argv) {
 	/* command line debug mode inhibits configuration mode */
 	global.mode &= ~(MODE_DAEMON | MODE_QUIET);
     }
-    global.mode |= (arg_mode & (MODE_DAEMON | MODE_QUIET | MODE_DEBUG | MODE_STATS | MODE_LOG));
+    global.mode |= (arg_mode & (MODE_DAEMON | MODE_QUIET | MODE_VERBOSE
+                                | MODE_DEBUG | MODE_STATS | MODE_LOG));
 
     if ((global.mode & MODE_DEBUG) && (global.mode & (MODE_DAEMON | MODE_QUIET))) {
 	Warning("<debug> mode incompatible with <quiet> and <daemon>. Keeping <debug> only.\n");

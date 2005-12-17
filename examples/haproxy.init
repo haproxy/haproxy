@@ -1,0 +1,114 @@
+#!/bin/sh
+#
+# chkconfig: - 85 15
+# description: HA-Proxy is a TCP/HTTP reverse proxy which is particularly suited \
+#              for high availability environments.
+# processname: haproxy
+# config: /etc/haproxy/haproxy.cfg
+# pidfile: /var/run/haproxy.pid
+
+# Script Author: Simon Matter <simon.matter@invoca.ch>
+# Version: 2004060600
+
+# Source function library.
+if [ -f /etc/init.d/functions ]; then
+  . /etc/init.d/functions
+elif [ -f /etc/rc.d/init.d/functions ] ; then
+  . /etc/rc.d/init.d/functions
+else
+  exit 0
+fi
+
+# Source networking configuration.
+. /etc/sysconfig/network
+
+# Check that networking is up.
+[ ${NETWORKING} = "no" ] && exit 0
+
+# This is our service name
+BASENAME=`basename $0`
+if [ -L $0 ]; then
+  BASENAME=`find $0 -name $BASENAME -printf %l`
+  BASENAME=`basename $BASENAME`
+fi
+
+[ -f /etc/$BASENAME/$BASENAME.cfg ] || exit 1
+
+RETVAL=0
+
+start() {
+  /usr/sbin/$BASENAME -c -q -f /etc/$BASENAME/$BASENAME.cfg
+  if [ $? -ne 0 ]; then
+    echo "Errors found in configuration file, check it with '$BASENAME check'."
+    return 1
+  fi
+
+  echo -n "Starting $BASENAME: "
+  daemon /usr/sbin/$BASENAME -D -f /etc/$BASENAME/$BASENAME.cfg -p /var/run/$BASENAME.pid
+  RETVAL=$?
+  echo
+  [ $RETVAL -eq 0 ] && touch /var/lock/subsys/$BASENAME
+  return $RETVAL
+}
+
+stop() {
+  echo -n "Shutting down $BASENAME: "
+  killproc $BASENAME -USR1
+  RETVAL=$?
+  echo
+  [ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/$BASENAME
+  [ $RETVAL -eq 0 ] && rm -f /var/run/$BASENAME.pid
+  return $RETVAL
+}
+
+restart() {
+  /usr/sbin/$BASENAME -c -q -f /etc/$BASENAME/$BASENAME.cfg
+  if [ $? -ne 0 ]; then
+    echo "Errors found in configuration file, check it with '$BASENAME check'."
+    return 1
+  fi
+  stop
+  start
+}
+
+check() {
+  /usr/sbin/$BASENAME -c -q -V -f /etc/$BASENAME/$BASENAME.cfg
+}
+
+rhstatus() {
+  status $BASENAME
+}
+
+condrestart() {
+  [ -e /var/lock/subsys/$BASENAME ] && restart || :
+}
+
+# See how we were called.
+case "$1" in
+  start)
+    start
+    ;;
+  stop)
+    stop
+    ;;
+  restart)
+    restart
+    ;;
+  reload)
+    restart
+    ;;
+  condrestart)
+    condrestart
+    ;;
+  status)
+    rhstatus
+    ;;
+  check)
+    check
+    ;;
+  *)
+    echo $"Usage: $BASENAME {start|stop|restart|reload|condrestart|status|check}"
+    RETVAL=1
+esac
+ 
+exit $RETVAL

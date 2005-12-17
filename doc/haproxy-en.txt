@@ -1,9 +1,9 @@
 
          		     H A - P r o x y
          		     ---------------
-         		      version 1.1.27
+         		      version 1.2.1
 			      willy tarreau
-			       2003/10/27
+			       2004/06/06
 
 ============
 | Abstract |
@@ -35,6 +35,10 @@ There are only a few command line options :
     -N <high limit for the per-proxy number of simultaneous connections>
     -d starts in foregreound with debugging mode enabled
     -D starts in daemon mode
+    -q disable messages on output
+    -V displays messages on output even when -q or 'quiet' are specified.
+    -c only checks config file and exits with code 0 if no error was found, or
+       exits with code 1 if a syntax error was found.
     -p <pidfile> asks the process to write down each of its children's
        pids to this file in daemon mode.
     -s shows statistics (only if compiled in)
@@ -219,7 +223,7 @@ reasons.
 1.5) Increasing the overall processing power
 --------------------------------------------
 On multi-processor systems, it may seem to be a shame to use only one processor,
-eventhough the load needed to saturate a recent processor are far above common
+eventhough the load needed to saturate a recent processor is far above common
 usage. Anyway, for very specific needs, the proxy can start several processes
 between which the operating system will spread the incoming connections. The
 number of processes is controlled by the 'nbproc' parameter in the 'global'
@@ -379,7 +383,7 @@ Example :
 The 'maxconn' parameter allows a proxy to refuse connections above a certain
 amount of simultaneous ones. When the limit is reached, it simply stops
 listening, but the system may still be accepting them because of the back log
-queue. These connections will be processed further when other ones have freed
+queue. These connections will be processed later when other ones have freed
 some slots. This provides a serialization effect which helps very fragile
 servers resist to high loads. Se further for system limitations.
 
@@ -733,6 +737,11 @@ The servers status will be dumped into the logs at the 'notice' level, as well
 as on <stderr> if not closed. For this reason, it's always a good idea to have
 one local log server at the 'notice' level.
 
+Since version 1.1.28 and 1.2.1, if an instance loses all its servers, an
+emergency mesasge will be sent in the logs to inform the administator that an
+immediate action must be taken.
+
+
 Examples :
 ----------
 # same setup as in  paragraph 3) with TCP monitoring
@@ -917,6 +926,15 @@ the proxy will wait until the session ends to generate an enhanced log
 containing more information such as session duration and its state during the
 disconnection.
 
+Example :
+---------
+    listen relais-tcp 0.0.0.0:8000
+	mode tcp
+	option tcplog
+	log 192.168.2.200 local3
+
+>>> haproxy[18989]: 127.0.0.1:34550 [15/Oct/2003:15:24:28] relais-tcp Srv1 0/5007 0 --
+
 Another option, 'httplog', provides more detailed information about HTTP
 contents, such as the request and some cookies. In the event where an external
 component would establish frequent connections to check the service, logs may be
@@ -931,6 +949,34 @@ Example :
 	option httplog
 	option dontlognull
 	log 192.168.2.200 local3
+
+>>> haproxy[674]: 127.0.0.1:33319 [15/Oct/2003:08:31:57] relais-http Srv1 9/7/147/723 200 243 - - ---- "HEAD / HTTP/1.0"
+
+The problem when logging at end of connection is that you have no clue about
+what is happening during very long sessions. To workaround this problem, a
+new option 'logasap' has been introduced in 1.1.28/1.2.1. When specified, the
+proxy will log as soon as possible, just before data transfer begins. This means
+that in case of TCP, it will still log the connection status to the server, and
+in case of HTTP, it will log just after processing the server headers. In this
+case, the number of bytes reported is the number of header bytes sent to the
+client.
+
+In order to avoid confusion with normal logs, the total time field and the
+number of bytes are prefixed with a '+' sign which mean that real numbers are
+certainly bigger.
+
+Example :
+---------
+
+    listen http_proxy 0.0.0.0:80
+	mode http
+	option httplog
+	option dontlognull
+	option logasap
+	log 192.168.2.200 local3
+
+>>> haproxy[674]: 127.0.0.1:33320 [15/Oct/2003:08:32:17] relais-http Srv1 9/7/14/+30 200 +243 - - ---- "GET /image.iso HTTP/1.0"
+
 
 4.2.3) Timing events
 --------------------
@@ -956,8 +1002,10 @@ reported under the form 'Tq/Tc/Tr/Tt' :
     means that the last the response header (empty line) was never seen.
 
   - Tt: total session duration time, between the moment the proxy accepted it
-    and the moment both ends were closed. From this one, we can deduce Td,
-    the data transmission time, by substracting other timers when valid :
+    and the moment both ends were closed. The exception is when the 'logasap'
+    option is specified. In this case, it only equals (Tq+Tc+Tr), and is
+    prefixed with a '+' sign. From this field, we can deduce Td, the data
+    transmission time, by substracting other timers when valid :
 
         Td = Tt - (Tq + Tc + Tr)
 
@@ -1005,7 +1053,9 @@ TCP and HTTP logs provide a session completion indicator. It's a 4-characters
         C : the TCP session was aborted by the client.
 	S : the TCP session was aborted by the server, or the server refused it.
 	P : the session was abordted prematurely by the proxy, either because of
-	    an internal error, or because a DENY filter was matched.
+	    an internal error, because a DENY filter was matched, or because of
+	    a security check which detected a dangerous error in server
+	    response.
 	c : the client time-out expired first.
 	s : the server time-out expired first.
 	- : normal session completion.
@@ -1014,7 +1064,7 @@ TCP and HTTP logs provide a session completion indicator. It's a 4-characters
 
         R : waiting for complete REQUEST from the client
 	C : waiting for CONNECTION to establish on the server
-	H : waiting for complete HEADERS from the server
+	H : processing server HEADERS
 	D : the session was in the DATA phase
 	L : the proxy was still transmitting LAST data to the client while the
 	    server had already finished.
@@ -1073,6 +1123,18 @@ client. Each of these field is replaced with '-' when no cookie was seen.
   => long request (6.5s) entered by hand through 'telnet'. The server replied
      in 147 ms, and the session ended normally ('----')
 
+- haproxy[674]: 127.0.0.1:33320 [15/Oct/2003:08:32:17] relais-http Srv1 9/7/14/+30 200 +243 - - ---- "GET /image.iso HTTP/1.0"
+  => request for a long data transfer. The 'logasap' option was specified, so
+     the log was produced just before transfering data. The server replied in
+     14 ms, 243 bytes of headers were sent to the client, and total time from
+     accept to first data byte is 30 ms.
+
+- haproxy[674]: 127.0.0.1:33320 [15/Oct/2003:08:32:17] relais-http Srv1 9/7/14/30 502 243 - - PH-- "GET /cgi-bin/bug.cgi? HTTP/1.0"
+  => the proxy blocked a server response either because of an 'rspdeny' or
+     'rspideny' filter, or because it blocked sensible information which risked
+     being cached. In this case, the response is replaced with a '502 bad
+     gateway'.
+
 - haproxy[18113]: 127.0.0.1:34548 [15/Oct/2003:15:18:55] relais-http <NOSRV> -1/-1/-1/8490 -1 0 - - CR-- "" 
   => the client never completed its request and aborted itself ('C---') after
      8.5s, while the proxy was waiting for the request headers ('-R--').
@@ -1122,6 +1184,8 @@ The syntax is :
    rspirep  <search> <replace>    same, but ignoring the case
    rspdel   <search>              to delete the response
    rspidel  <search>              same, but ignoring the case
+   rspdeny  <search>              replaces a response with a HTTP 502 if a header matches <search>
+   rspideny <search>              same, but ignoring the case
 
 
 <search> is a POSIX regular expression (regex) which supports grouping through
@@ -1160,6 +1224,9 @@ Notes :
     value is easy to modify in the code if needed (#define). If it is too short
     on occasional uses, it is possible to gain some space by removing some
     useless headers before adding new ones.
+  - a denied request will generate an "HTTP 403 forbidden" response, while a
+    denied response will generate an "HTTP 502 Bad gateway" response.
+    
 
 Examples :
 ----------
@@ -1195,19 +1262,20 @@ Examples :
         reqideny        ^[^:\ ]*\ 
 
         # force connection:close, thus disabling HTTP keep-alive
-        reqidel         ^Connection:
-        rspidel         ^Connection:
-        reqadd          Connection:\ close
-        rspadd          Connection:\ close
+	option		httpclose
 
 	# change the server name
         rspidel         ^Server:\ 
         rspadd          Server:\ Formilux/0.1.8
 
 
-Last, the 'forwardfor' option creates an HTTP 'X-Forwarded-For' header which
+Also, the 'forwardfor' option creates an HTTP 'X-Forwarded-For' header which
 contains the client's IP address. This is useful to let the final web server
 know what the client address was (eg for statistics on domains).
+
+Last, the 'httpclose' option removes any 'Connection' header both ways, and
+adds a 'Connection: close' header in each direction. This makes it easier to
+disable HTTP keep-alive than the previous 4-rules block..
 
 Example :
 ---------
@@ -1217,10 +1285,10 @@ Example :
 	option httplog
 	option dontlognull
 	option forwardfor
+	option httpclose
 
 4.4) Load balancing with persistence
 ------------------------------------
-
 Combining cookie insertion with internal load balancing allows to transparently
 bring persistence to applications. The principle is quite simple :
   - assign a cookie value to each server
@@ -1239,9 +1307,35 @@ Example :
 	server 192.168.1.1:80 cookie server01 check
 	server 192.168.1.2:80 cookie server02 check
 
-4.5) Customizing errors
------------------------
+4.5) Protection against information leak from the servers
+---------------------------------------------------------
+In versions 1.1.28/1.2.1, a new option 'checkcache' was created. It carefully
+checks 'Cache-control', 'Pragma' and 'Set-cookie' headers in server response
+to check if there's a risk of caching a cookie on a client-side proxy. When this
+option is enabled, the only responses which can be delivered to the client are :
+  - all those without 'Set-Cookie' header ;
+  - all those with a return code other than 200, 203, 206, 300, 301, 410,
+    provided that the server has not set a 'Cache-control: public' header ;
+  - all those that come from a POST request, provided that the server has not
+    set a 'Cache-Control: public' header ;
+  - those with a 'Pragma: no-cache' header
+  - those with a 'Cache-control: private' header
+  - those with a 'Cache-control: no-store' header
+  - those with a 'Cache-control: max-age=0' header
+  - those with a 'Cache-control: s-maxage=0' header
+  - those with a 'Cache-control: no-cache' header
+  - those with a 'Cache-control: no-cache="set-cookie"' header
+  - those with a 'Cache-control: no-cache="set-cookie,' header
+    (allowing other fields after set-cookie)
 
+If a response doesn't respect these requirements, then it will be blocked just
+as if it was from an 'rspdeny' filter, with an "HTTP 502 bad gateway". The
+session state shows "PH--" meaning that the proxy blocked the response during
+headers processing. Additionnaly, an alert will be sent in the logs so that
+admins are told that there's something to be done.
+
+4.6) Customizing errors
+-----------------------
 Some situations can make haproxy return an HTTP error code to the client :
   - invalid or too long request => HTTP 400
   - request not completely sent in time => HTTP 408
@@ -1275,9 +1369,8 @@ Example :
         errorloc 503 http://192.168.114.58/error50x.html
         errorloc 504 http://192.168.114.58/error50x.html
 
-4.6) Modifying default values
+4.7) Modifying default values
 -----------------------------
-
 Version 1.1.22 introduced the notion of default values, which eliminates the
 pain of often repeating common parameters between many instances, such as
 logs, timeouts, modes, etc...
@@ -1290,7 +1383,7 @@ used for this section. The 'defaults' section uses the same syntax as the
 everything on its command line, so that fake instance names can be specified
 there for better clarity.
 
-In version 1.1.23, only those parameters can be preset in the 'default'
+In version 1.1.28/1.2.1, only those parameters can be preset in the 'default'
 section :
   - log (the first and second one)
   - mode { tcp, http, health }
@@ -1298,8 +1391,8 @@ section :
   - disabled (to disable every further instances)
   - enabled (to enable every further instances, this is the default)
   - contimeout, clitimeout, srvtimeout, grace, retries, maxconn
-  - option { redispatch, transparent, keepalive, forwardfor, httplog,
-             dontlognull, persist, httpchk }
+  - option { redispatch, transparent, keepalive, forwardfor, logasap, httpclose,
+             checkcache, httplog, tcplog, dontlognull, persist, httpchk }
   - redispatch, redisp, transparent, source { addr:port }
   - cookie, capture
   - errorloc

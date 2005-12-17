@@ -1,13 +1,19 @@
 ChangeLog :
 ===========
+2004/06/06 : 1.2.1 (1.1.28)
+  - added the '-V' command line option to verbosely report errors even though
+    the -q or 'quiet' options are specified. This is useful with '-c'.
+  - added a Red Hat init script and a .spec from Simon Matter <simon.matter@invoca.ch>
 
-2004/06/05 : 1.2.1 (1.1.28)
-  - added the "logasap" option which produces a log without waiting for
-    the data to be transferred from the server to the client.
-  - added the "httpclose" option which removes any "connection:" header
-    and adds "Connection: close" in both direction.
+2004/06/05 :
+  - added the "logasap" option which produces a log without waiting for the data
+    to be transferred from the server to the client.
+  - added the "httpclose" option which removes any "connection:" header and adds
+    "Connection: close" in both direction.
   - added the 'checkcache' option which blocks cacheable responses containing
     dangerous headers, such as 'set-cookie'.
+  - added 'rspdeny' and 'rspideny' to block certain responses to avoid sensible
+    information leak from servers.
 
 2004/04/18 :
   - send an EMERG log when no server is available for a given proxy
