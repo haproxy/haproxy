@@ -17,6 +17,10 @@
  *
  * ChangeLog :
  *
+ * 2002/05/10 : 1.1.10
+ *   - if a cookie is used in insert+indirect mode, it's desirable that the
+ *     the servers don't see it. It was not possible to remove it correctly
+ *     with regexps, so now it's removed automatically.
  * 2002/04/19 : 1.1.9
  *   - don't use snprintf()'s return value as an end of message since it may
  *     be larger. This caused bus errors and segfaults in internal libc's
@@ -2300,6 +2304,11 @@ int process_cli(struct session *t) {
 			if (srv) { /* we found the server */
 			    t->flags |= SN_DIRECT;
 			    t->srv = srv;
+			    /* if this cookie was set in insert+indirect mode, then it's better that the
+			     * server never sees it.
+			     */
+			    if ((t->proxy->options & (PR_O_COOK_INS | PR_O_COOK_IND)) == (PR_O_COOK_INS | PR_O_COOK_IND))
+				delete_header = 1;
 			}
 
 			break;

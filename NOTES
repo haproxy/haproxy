@@ -16,12 +16,6 @@
   - differentiate http headers and http uris
   - support environment variables in config file
   - support keep-alive
-
---- Notes about cookie usage ---
-
-Cookie insertion is done at the end of server response.
-Cookie matching is done after header replacement, but before
-header deletion. This means that it's perfectly possible to
-delete an inserted cookie once it has been matched, so that
-the server never knows about it.
+1.1.9 -> 1.1.10
+  - automatically remove client cookie in insert+indirect mode
 

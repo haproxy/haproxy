@@ -1,9 +1,9 @@
 
          		     H A - P r o x y
          		     ---------------
-         		      version 1.1.9
+         		      version 1.1.10
 			      willy tarreau
-			       2002/05/02
+			       2002/05/10
 
 ================
 | Introduction |
@@ -455,12 +455,14 @@ serveurs aient un cookie renseigné :
 
 	cookie SERVERID insert
 
-Remarque :
-----------
-Il est possible de combiner 'insert' avec 'indirect' ou 'rewrite' pour s'adapter
-à des applications générant déjà le cookie, avec un contenu invalide. Il suffit
-pour cela de les spécifier sur la même ligne.
-
+Remarques :
+-----------
+- Il est possible de combiner 'insert' avec 'indirect' ou 'rewrite' pour s'adapter
+  à des applications générant déjà le cookie, avec un contenu invalide. Il suffit
+  pour cela de les spécifier sur la même ligne.
+- dans le cas où 'insert' et 'indirect' sont spécifiés, le cookie n'est jamais
+  transmis au serveur vu qu'il n'en a pas connaissance et ne pourrait pas le
+  comprendre.
 
 2.9) Assignation d'un serveur à une valeur de cookie
 ----------------------------------------------------
@@ -533,7 +535,8 @@ Exemples :
 	server web1 192.168.1.1:80 cookie server01 check
 	server web2 192.168.1.2:80 cookie server02 check inter 500 rise 1 fall 2
 
-# insertion automatique de cookie dans la réponse du serveur
+# Insertion automatique de cookie dans la réponse du serveur, et suppression
+# automatique dans la requête.
     listen web_appl 0.0.0.0:80
 	mode http
 	cookie SERVERID insert indirect
@@ -728,9 +731,9 @@ Exemples :
 La combinaison de l'insertion de cookie avec la répartition de charge interne
 permet d'assurer une persistence dans les sessions HTTP d'une manière
 pratiquement transparente pour les applications. Le principe est simple :
-  - assigner un cookie à chaque serveur
+  - attribuer une valeur d'un cookie à chaque serveur
   - effectuer une répartition interne
-  - insérer un cookie dans les réponses issues d'une répartition
+  - insérer un cookie dans les réponses issues d'une répartition uniquement
   - cacher ce cookie à l'application
 
 Exemple :
@@ -741,7 +744,6 @@ Exemple :
 	balance roundrobin
 	server 192.168.1.1:80 cookie server01 check
 	server 192.168.1.2:80 cookie server02 check
-	reqidel ^Cookie:\ SERVERID=
 
 =======================
 | Paramétrage système |

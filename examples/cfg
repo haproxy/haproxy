@@ -62,7 +62,7 @@ listen proxy1 0.0.0.0:8000
 	option httplog
 	option dontlognull
 #	reqirep ^(Test:\ ) \0_toto_\1_toto
-#	reqidel ^Cookie:\ SERVERID=
+#	reqidel ^X-Forwarded-for:
 #	reqirep ^(GET|POST)\ .* \0
 #	reqirep ^(Host:|Connection:|User-agent:|Cookie:)\ .* \0
 #	reqideny ^
