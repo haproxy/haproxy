@@ -14,12 +14,15 @@
  *     the snprintf() bug since requests we simple (GET / HTTP/1.0).
  *   - cookie in insert+indirect mode sometimes segfaults !
  *   - a proxy with an invalid config will prevent the startup even if disabled.
+ *   - it may be nice to return HTTP 502 when a server returns no header nor data.
  *
  * ChangeLog :
  *
+ * 2002/07/20 : 1.1.14
+ *   - added "postonly" cookie mode
  * 2002/07/15 : 1.1.13
  *   - tv_diff used inverted parameters which led to negative times !
-  * 2002/07/13 : 1.1.12
+ * 2002/07/13 : 1.1.12
  *   - fixed stats monitoring, and optimized some tv_* for most common cases.
  *   - replaced temporary 'newhdr' with 'trash' to reduce stack size
  *   - made HTTP errors more HTML-fiendly.
@@ -170,8 +173,8 @@
 #include <linux/netfilter_ipv4.h>
 #endif
 
-#define HAPROXY_VERSION "1.1.13"
-#define HAPROXY_DATE	"2002/07/15"
+#define HAPROXY_VERSION "1.1.14"
+#define HAPROXY_DATE	"2002/07/20"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -335,6 +338,7 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define	PR_O_BIND_SRC	256	/* bind to a specific source address when connect()ing */
 #define PR_O_NULLNOLOG	512	/* a connect without request will not be logged */
 #define PR_O_COOK_NOC	1024	/* add a 'Cache-control' header with the cookie */
+#define PR_O_COOK_POST	2048	/* don't insert cookies for requests other than a POST */
 
 
 /* various session flags */
@@ -343,6 +347,7 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define SN_CLALLOW	4	/* a client header matches an allow regex */
 #define SN_SVDENY	8	/* a server header matches a deny regex */
 #define SN_SVALLOW	16	/* a server header matches an allow regex */
+#define	SN_POST		32	/* the request was an HTTP POST */
 
 /* different possible states for the client side */
 #define CL_STHEADERS	0
@@ -2233,6 +2238,9 @@ int process_cli(struct session *t) {
 		    buffer_replace2(req, req->h, req->h, trash, len);
 		}
 
+		if (!memcmp(req->data, "POST ", 5))
+		    t->flags |= SN_POST; /* this is a POST request */
+		    
 		t->cli_state = CL_STDATA;
 		req->rlim = req->data + BUFSIZE; /* no more rewrite needed */
 
@@ -2779,9 +2787,11 @@ int process_srv(struct session *t) {
 		/* we can only get here after an end of headers */
 		/* we'll have something else to do here : add new headers ... */
 
-		if ((t->srv) && !(t->flags & SN_DIRECT) && (t->proxy->options & PR_O_COOK_INS)) {
+		if ((t->srv) && !(t->flags & SN_DIRECT) && (t->proxy->options & PR_O_COOK_INS) &&
+		    (!(t->proxy->options & PR_O_COOK_POST) || (t->flags & SN_POST))) {
 		    /* the server is known, it's not the one the client requested, we have to
-		     * insert a set-cookie here.
+		     * insert a set-cookie here, except if we want to insert only on POST
+		     * requests and this one isn't.
 		     */
 		    len = sprintf(trash, "Set-Cookie: %s=%s; path=/\r\n",
 				  t->proxy->cookie_name, t->srv->cookie);
@@ -2794,7 +2804,7 @@ int process_srv(struct session *t) {
 		    if (t->proxy->options & PR_O_COOK_NOC)
 			//len += sprintf(newhdr + len, "Cache-control: no-cache=\"set-cookie\"\r\n");
 			len += sprintf(trash + len, "Cache-control: private\r\n");
-
+		    
 		    buffer_replace2(rep, rep->h, rep->h, trash, len);
 		}
 
@@ -2987,6 +2997,8 @@ int process_srv(struct session *t) {
 	    tv_eternity(&t->swexpire);
 	    fd_delete(t->srv_fd);
 	    t->srv_state = SV_STCLOSE;
+	    t->logs.status = 502;
+	    client_return(t, strlen(HTTP_502), HTTP_502);
 	    return 1;
 	}
 	/* read timeout, last read, or end of client write
@@ -3878,8 +3890,11 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	    else if (!strcmp(args[cur_arg], "nocache")) {
 		curproxy->options |= PR_O_COOK_NOC;
 	    }
+	    else if (!strcmp(args[cur_arg], "postonly")) {
+		curproxy->options |= PR_O_COOK_POST;
+	    }
 	    else {
-		Alert("parsing [%s:%d] : <cookie> supports 'rewrite', 'insert' and 'indirect' options.\n",
+		Alert("parsing [%s:%d] : <cookie> supports 'rewrite', 'insert', 'indirect', 'nocache' and 'postonly' options.\n",
 		      file, linenum);
 		return -1;
 	    }

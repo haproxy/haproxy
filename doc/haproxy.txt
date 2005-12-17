@@ -1,9 +1,9 @@
 
          		     H A - P r o x y
          		     ---------------
-         		      version 1.1.11
+         		      version 1.1.14
 			      willy tarreau
-			       2002/06/11
+			       2002/07/20
 
 ================
 | Introduction |
@@ -483,6 +483,11 @@ ajouter le mot clé 'nocache' après 'insert' :
 
 	cookie SERVERID insert nocache
 
+Pour insérer un cookie seulement suite aux requêtes de type POST, ajouter le mot
+clé 'postonly' après 'insert' :
+
+	cookie SERVERID insert postonly
+
 
 Remarques :
 -----------
@@ -497,6 +502,11 @@ Remarques :
   le cas contraire, un cache HTTP 1.0 pourrait cacher la réponse, incluant le
   cookie de persistence inséré, donc provoquer des changements de serveurs pour
   des clients partageant le même cache.
+- lorsque l'application est bien connue, et que les parties nécessitant de la
+  persistence sont systématiquement accédées par un formulaire en mode POST,
+  il est plus efficace encore de combiner le mot clé "postonly" avec "insert"
+  et "indirect", car la page d'accueil reste cachable, et c'est l'application
+  qui gère le 'cache-control'.
 
 2.10) Assignation d'un serveur à une valeur de cookie
 ----------------------------------------------------
