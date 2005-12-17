@@ -1,0 +1,21 @@
+#!/bin/sh
+
+function do_compile {
+    $FLXMAKE COPTS="-march=$arch -mcpu=$cpu -Os -mpreferred-stack-boundary=2 -momit-leaf-frame-pointer -malign-jumps=0 -DNETFILTER -DTRANSPARENT"
+}
+
+function do_prepack {
+    mkdir -p $ROOTDIR/sbin/init.d ; cp init.d/haproxy $ROOTDIR/sbin/init.d
+    mkdir -p $ROOTDIR/usr/sbin ; cp haproxy $ROOTDIR/usr/sbin
+    mkdir -p $ROOTDIR/usr/share/examples/$PKGRADIX/$PKGRADIX-$PKGVER/etc
+    cp examples/haproxy.cfg $ROOTDIR/usr/share/examples/$PKGRADIX/$PKGRADIX-$PKGVER/etc/haproxy.cfg
+    cp examples/rc.highsock $ROOTDIR/usr/share/examples/$PKGRADIX/$PKGRADIX-$PKGVER/etc/rc.highsock
+    cp examples/config.rc.haproxy $ROOTDIR/usr/share/examples/$PKGRADIX/$PKGRADIX-$PKGVER/etc/config.rc.haproxy
+    mkdir -p $ROOTDIR/usr/share/$PKGRADIX/$PKGRADIX-$PKGVER
+    cp doc/haproxy.txt $ROOTDIR/usr/share/$PKGRADIX/$PKGRADIX-$PKGVER
+    ln -s ../../examples/$PKGRADIX/$PKGRADIX-$PKGVER $ROOTDIR/usr/share/$PKGRADIX/$PKGRADIX-$PKGVER/examples
+    cp examples/debug2ansi examples/debug2html examples/debugfind $ROOTDIR/usr/share/$PKGRADIX/$PKGRADIX-$PKGVER/
+
+    make clean
+}
+

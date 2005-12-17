@@ -1,9 +1,9 @@
 
          		     H A - P r o x y
          		     ---------------
-         		      version 1.1.18
+         		      version 1.1.21
 			      willy tarreau
-			       2003/04/06
+			       2003/05/06
 
 ================
 | Introduction |
@@ -588,14 +588,18 @@ Le mode par défaut consiste à établir des connexions TCP uniquement. Dans
 certains cas de pannes, des serveurs peuvent continuer à accepter les connexions
 sans les traiter. Depuis la version 1.1.16, haproxy est en mesure d'envoyer des
 requêtes HTTP courtes et très peu coûteuses. Les versions 1.1.16 et 1.1.17
-utilisent "OPTIONS / HTTP/1.0". Depuis la version 1.1.18, les requêtes ont été
-changées en "OPTIONS * HTTP/1.0" pour des raisons de contrôle d'accès aux
-ressources. Elles présentent l'avantage d'être facilement extractibles des logs,
-et de ne pas induire d'accès aux fichiers côté serveur. Seules les réponses 2xx
-et 3xx sont considérées valides, les autres (y compris non-réponses) aboutissent
-à un échec. Le temps maximal imparti pour une réponse est égal à l'intervalle
-entre deux tests (paramètre "inter"). Pour activer ce mode, spécifier l'option
-"httpchk".
+utilisent "OPTIONS / HTTP/1.0". Dans les versions 1.1.18 à 1.1.20, les requêtes
+ont été changées en "OPTIONS * HTTP/1.0" pour des raisons de contrôle d'accès aux
+ressources. Cependant, cette requête documentée dans la RFC2068 n'est pas
+comprise par tous les serveurs. Donc à partir de la version 1.1.21, la requête
+par défaut est revenue à "OPTIONS / HTTP/1.0", mais il est possible de
+paramétrer la partie URI. Les requêtes OPTIONS présentent l'avantage d'être
+facilement extractibles des logs, et de ne pas induire d'accès aux fichiers côté
+serveur. Seules les réponses 2xx et 3xx sont considérées valides, les autres (y
+compris non-réponses) aboutissent à un échec. Le temps maximal imparti pour une
+réponse est égal à l'intervalle entre deux tests (paramètre "inter"). Pour
+activer ce mode, spécifier l'option "httpchk", éventuellement suivie d'une
+URI. Voir les exemples ci-après.	
 
 Depuis la version 1.1.17, il est possible de définir des serveurs de secours,
 utilisés uniquement lorsqu'aucun des autres serveurs ne fonctionne. Pour cela,
@@ -626,12 +630,21 @@ Exemples :
 	server web1 192.168.1.1:80 cookie server01 check
 	server web2 192.168.1.2:80 cookie server02 check inter 500 rise 1 fall 2
 
-# même que précédemment avec surveillance HTTP
+# même que précédemment avec surveillance HTTP par 'OPTIONS / HTTP/1.0'
     listen http_proxy 0.0.0.0:80
 	mode http
 	cookie SERVERID
 	balance roundrobin
 	option httpchk
+	server web1 192.168.1.1:80 cookie server01 check
+	server web2 192.168.1.2:80 cookie server02 check inter 500 rise 1 fall 2
+
+# même que précédemment avec surveillance HTTP par 'OPTIONS /index.html HTTP/1.0'
+    listen http_proxy 0.0.0.0:80
+	mode http
+	cookie SERVERID
+	balance roundrobin
+	option httpchk /index.html
 	server web1 192.168.1.1:80 cookie server01 check
 	server web2 192.168.1.2:80 cookie server02 check inter 500 rise 1 fall 2
 

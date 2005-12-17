@@ -1,0 +1,8 @@
+#!/bin/bash
+if [ $# -lt 2 ]; then
+	echo "Usage: $0 regex debug_file > extracted_file"
+	exit 1
+fi
+word=$1
+file=$2
+exec grep $(for i in $(grep $word $file |cut -f1 -d: | sort -u ) ; do echo -n '\('$i':\)\|'; done; echo '^$') $file

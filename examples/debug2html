@@ -1,0 +1,2 @@
+#!/bin/sh
+(echo '<html><body><pre>'; tr -d '\015' | sed -e 's,\(: Cookie:.*$\),<font color="#e000c0">\1</font>,gi' -e 's,\(: Set-Cookie:.*$\),<font color="#e0a000">\1</font>,gi' -e 's,\(^[^:]*:[^:]*srvhdr.*\)$,<font color="#00a000">\1</font>,i' -e 's,\(^[^:]*:[^:]*clihdr.*\)$,<font color="#0000c0">\1</font>,i' -e 's,\(^.*\)$,<tt>\1</tt>,' ; echo '</pre></body></html>')

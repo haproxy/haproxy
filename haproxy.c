@@ -53,8 +53,8 @@
 #include <linux/netfilter_ipv4.h>
 #endif
 
-#define HAPROXY_VERSION "1.1.20"
-#define HAPROXY_DATE	"2003/04/21"
+#define HAPROXY_VERSION "1.1.21"
+#define HAPROXY_DATE	"2003/05/06"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -94,6 +94,7 @@
 #define	DEF_CHKINTR	2000
 #define DEF_FALLTIME	3
 #define DEF_RISETIME	2
+#define DEF_CHECK_REQ	"OPTIONS / HTTP/1.0\r\n\r\n"
 
 /* default connections limit */
 #define DEFAULT_MAXCONN	2000
@@ -402,6 +403,7 @@ struct session {
 	int status;			/* HTTP status from the server, negative if from proxy */
 	long long bytes;		/* number of bytes transferred from the server */
     } logs;
+    unsigned int uniq_id;		/* unique ID used for the traces */
 };
 
 struct proxy {
@@ -437,6 +439,8 @@ struct proxy {
     struct hdr_exp *rsp_exp;		/* regular expressions for response headers */
     char *req_add[MAX_NEWHDR], *rsp_add[MAX_NEWHDR]; /* headers to be added */
     int grace;				/* grace time after stop request */
+    char *check_req;			/* HTTP request to use if PR_O_HTTP_CHK is set, else NULL */
+    int check_len;			/* Length of the HTTP request */
     struct {
 	char *msg400;			/* message for error 400 */
 	int len400;			/* message length for error 400 */
@@ -1994,6 +1998,8 @@ int event_accept(int fd) {
 	s->logs.status = -1;
 	s->logs.bytes = 0;
 
+	s->uniq_id = totalconn;
+
 	if ((p->mode == PR_MODE_TCP || p->mode == PR_MODE_HTTP)
 	    && (p->logfac1 >= 0 || p->logfac2 >= 0)) {
 	    struct sockaddr_in sockname;
@@ -2020,8 +2026,20 @@ int event_accept(int fd) {
 	}
 
 	if ((global.mode & MODE_DEBUG) && !(global.mode & MODE_QUIET)) {
+	    struct sockaddr_in sockname;
+	    unsigned char *pn, *sn;
+	    int namelen;
 	    int len;
-	    len = sprintf(trash, "accept(%04x)=%04x\n", (unsigned short)fd, (unsigned short)cfd);
+
+	    namelen = sizeof(sockname);
+	    if (get_original_dst(cfd, (struct sockaddr_in *)&sockname, &namelen) == -1)
+		getsockname(cfd, (struct sockaddr *)&sockname, &namelen);
+	    sn = (unsigned char *)&sockname.sin_addr;
+	    pn = (unsigned char *)&s->cli_addr.sin_addr;
+
+	    len = sprintf(trash, "%08x:%s.accept(%04x)=%04x from [%d.%d.%d.%d:%d]\n",
+			  s->uniq_id, p->id, (unsigned short)fd, (unsigned short)cfd,
+			  pn[0], pn[1], pn[2], pn[3], ntohs(s->cli_addr.sin_port));
 	    write(1, trash, len);
 	}
 
@@ -2108,13 +2126,13 @@ int event_srv_chk_w(int fd) {
     else {
 	if (s->proxy->options & PR_O_HTTP_CHK) {
 	    int ret;
-	    /* we want to check if this host replies to "OPTIONS * HTTP/1.0"
+	    /* we want to check if this host replies to "OPTIONS / HTTP/1.0"
 	     * so we'll send the request, and won't wake the checker up now.
 	     */
 #ifndef MSG_NOSIGNAL
-	    ret = send(fd, "OPTIONS * HTTP/1.0\r\n\r\n", 22, MSG_DONTWAIT);
+	    ret = send(fd, s->proxy->check_req, s->proxy->check_len, MSG_DONTWAIT);
 #else
-	    ret = send(fd, "OPTIONS * HTTP/1.0\r\n\r\n", 22, MSG_DONTWAIT | MSG_NOSIGNAL);
+	    ret = send(fd, s->proxy->check_req, s->proxy->check_len, MSG_DONTWAIT | MSG_NOSIGNAL);
 #endif
 	    if (ret == 22) {
 		FD_SET(fd, StaticReadEvent);   /* prepare for reading reply */
@@ -2399,7 +2417,7 @@ int process_cli(struct session *t) {
 
 	    if ((global.mode & MODE_DEBUG) && !(global.mode & MODE_QUIET)) {
 		int len, max;
-		len = sprintf(trash, "clihdr[%04x:%04x]: ", (unsigned  short)t->cli_fd, (unsigned short)t->srv_fd);
+		len = sprintf(trash, "%08x:%s.clihdr[%04x:%04x]: ", t->uniq_id, t->proxy->id, (unsigned  short)t->cli_fd, (unsigned short)t->srv_fd);
 		max = ptr - req->h;
 		UBOUND(max, sizeof(trash) - len - 1);
 		len += strlcpy2(trash + len, req->h, max + 1);
@@ -2860,7 +2878,7 @@ int process_cli(struct session *t) {
     else { /* CL_STCLOSE: nothing to do */
 	if ((global.mode & MODE_DEBUG) && !(global.mode & MODE_QUIET)) {
 	    int len;
-	    len = sprintf(trash, "clicls[%04x:%04x]\n", (unsigned short)t->cli_fd, (unsigned short)t->srv_fd);
+	    len = sprintf(trash, "%08x:%s.clicls[%04x:%04x]\n", t->uniq_id, t->proxy->id, (unsigned short)t->cli_fd, (unsigned short)t->srv_fd);
 	    write(1, trash, len);
 	}
 	return 0;
@@ -3100,7 +3118,7 @@ int process_srv(struct session *t) {
 
 	    if ((global.mode & MODE_DEBUG) && !(global.mode & MODE_QUIET)) {
 		int len, max;
-		len = sprintf(trash, "srvhdr[%04x:%04x]: ", (unsigned  short)t->cli_fd, (unsigned short)t->srv_fd);
+		len = sprintf(trash, "%08x:%s.srvhdr[%04x:%04x]: ", t->uniq_id, t->proxy->id, (unsigned  short)t->cli_fd, (unsigned short)t->srv_fd);
 		max = ptr - rep->h;
 		UBOUND(max, sizeof(trash) - len - 1);
 		len += strlcpy2(trash + len, rep->h, max + 1);
@@ -3548,7 +3566,7 @@ int process_srv(struct session *t) {
     else { /* SV_STCLOSE : nothing to do */
 	if ((global.mode & MODE_DEBUG) && !(global.mode & MODE_QUIET)) {
 	    int len;
-	    len = sprintf(trash, "srvcls[%04x:%04x]\n", (unsigned short)t->cli_fd, (unsigned short)t->srv_fd);
+	    len = sprintf(trash, "%08x:%s.srvcls[%04x:%04x]\n", t->uniq_id, t->proxy->id, (unsigned short)t->cli_fd, (unsigned short)t->srv_fd);
 	    write(1, trash, len);
 	}
 	return 0;
@@ -3595,7 +3613,7 @@ int process_session(struct task *t) {
     
     if ((global.mode & MODE_DEBUG) && !(global.mode & MODE_QUIET)) {
 	int len;
-	len = sprintf(trash, "closed[%04x:%04x]\n", (unsigned short)s->cli_fd, (unsigned short)s->srv_fd);
+	len = sprintf(trash, "%08x:%s.closed[%04x:%04x]\n", s->uniq_id, s->proxy->id, (unsigned short)s->cli_fd, (unsigned short)s->srv_fd);
 	write(1, trash, len);
     }
 
@@ -4424,6 +4442,15 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	else if (!strcmp(args[1], "httpchk")) {
 	    /* use HTTP request to check servers' health */
 	    curproxy->options |= PR_O_HTTP_CHK;
+	    if (*args[2]) {
+		int reqlen = strlen(args[2]) + strlen("OPTIONS / HTTP/1.0\r\n\r\n");
+		curproxy->check_req = (char *)malloc(reqlen);
+		curproxy->check_len = snprintf(curproxy->check_req, reqlen,
+			 "OPTIONS %s HTTP/1.0\r\n\r\n", args[2]); /* URI to use */
+	    } else {
+		curproxy->check_req = strdup(DEF_CHECK_REQ); /* default request */
+		curproxy->check_len = strlen(DEF_CHECK_REQ);
+	    }
 	}
 	else if (!strcmp(args[1], "persist")) {
 	    /* persist on using the server specified by the cookie, even when it's down */

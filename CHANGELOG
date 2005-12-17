@@ -1,6 +1,16 @@
 ChangeLog :
 ===========
 
+2003/05/06 : 1.1.21
+  - changed the debug output format so that it now includes the session unique
+    ID followed by the instance name at the beginning of each line.
+  - in debug mode, accept now shows the client's IP and port.
+  - added one 3 small debugging scripts to search and pretty print debug output
+  - changed the default health check request to "OPTIONS /" instead of
+    "OPTIONS *" since not all servers implement the later one.
+  - "option httpchk" now accepts an optional parameter allowing the user to
+    specify and URI other than '/' during health-checks.
+
 2003/04/21 : 1.1.20
   - fixed two problems with time-outs, one where a server would be logged as
     timed out during transfer that take longer to complete than the fixed
