@@ -7,8 +7,21 @@
  * as published by the Free Software Foundation; either version
  * 2 of the License, or (at your option) any later version.
  *
+ * Pending bugs :
+ *   - cookie in insert+indirect mode sometimes segfaults !
+ *   - a proxy with an invalid config will prevent the startup even if disabled.
+ *
  * ChangeLog :
  *
+ * 2002/03/21
+ *   - released 1.1.2
+ *   - fixed a bug in buffer management where we could have a loop
+ *     between event_read() and process_{cli|srv} if R==BUFSIZE-MAXREWRITE.
+ *     => implemented an adjustable buffer limit.
+ *   - fixed a bug : expiration of tasks in wait queue timeout is used again,
+ *     and running tasks are skipped.
+ *   - added some debug lines for accept events.
+ *   - send warnings for servers up/down.
  * 2002/03/12
  *   - released 1.1.1
  *   - fixed a bug in total failure handling
@@ -82,8 +95,8 @@
 #include <linux/netfilter_ipv4.h>
 #endif
 
-#define HAPROXY_VERSION "1.1.1"
-#define HAPROXY_DATE	"2002/03/13"
+#define HAPROXY_VERSION "1.1.2"
+#define HAPROXY_DATE	"2002/03/22"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -294,6 +307,7 @@ struct hdr_exp {
 struct buffer {
     unsigned int l;			/* data length */
     char *r, *w, *h, *lr;     		/* read ptr, write ptr, last header ptr, last read */
+    char *rlim;				/* read limit, used for header rewriting */
     char data[BUFSIZE];
 };
 
@@ -595,7 +609,7 @@ struct sockaddr_in *str2sa(char *str) {
 	struct hostent *he;
 
 	if ((he = gethostbyname(str)) == NULL) {
-	    Alert("Invalid server name: <%s>\n",str);
+	    Alert("Invalid server name: <%s>\n", str);
 	}
 	else
 	    sa.sin_addr = *(struct in_addr *) *(he->h_addr_list);
@@ -714,19 +728,19 @@ unsigned long tv_delta(struct timeval *tv1, struct timeval *tv2) {
     unsigned long ret;
   
 
-    cmp=tv_cmp(tv1, tv2);
+    cmp = tv_cmp(tv1, tv2);
     if (!cmp)
 	return 0; /* same dates, null diff */
     else if (cmp<0) {
-	struct timeval *tmp=tv1;
-	tv1=tv2;
-	tv2=tmp;
+	struct timeval *tmp = tv1;
+	tv1 = tv2;
+	tv2 = tmp;
     }
-    ret=(tv1->tv_sec - tv2->tv_sec)*1000;
+    ret = (tv1->tv_sec - tv2->tv_sec) * 1000;
     if (tv1->tv_usec > tv2->tv_usec)
-	ret+=(tv1->tv_usec - tv2->tv_usec)/1000;
+	ret += (tv1->tv_usec - tv2->tv_usec) / 1000;
     else
-	ret-=(tv2->tv_usec - tv1->tv_usec)/1000;
+	ret -= (tv2->tv_usec - tv1->tv_usec) / 1000;
     return (unsigned long) ret;
 }
 
@@ -735,18 +749,18 @@ unsigned long tv_delta(struct timeval *tv1, struct timeval *tv2) {
  */
 static inline int tv_cmp_ms(struct timeval *tv1, struct timeval *tv2) {
     if (tv1->tv_sec == tv2->tv_sec) {
-	if (tv1->tv_usec >= tv2->tv_usec + 1000)
+	if (tv1->tv_usec > tv2->tv_usec + 1000)
 	    return 1;
-	else if (tv2->tv_usec >= tv1->tv_usec + 1000)
+	else if (tv2->tv_usec > tv1->tv_usec + 1000)
 	    return -1;
 	else
 	    return 0;
     }
     else if ((tv1->tv_sec > tv2->tv_sec + 1) ||
-	((tv1->tv_sec == tv2->tv_sec + 1) && (tv1->tv_usec + 1000000 >= tv2->tv_usec + 1000)))
+	((tv1->tv_sec == tv2->tv_sec + 1) && (tv1->tv_usec + 1000000 > tv2->tv_usec + 1000)))
 	return 1;
     else if ((tv2->tv_sec > tv1->tv_sec + 1) ||
-	     ((tv2->tv_sec == tv1->tv_sec + 1) && (tv2->tv_usec + 1000000 >= tv1->tv_usec + 1000)))
+	     ((tv2->tv_sec == tv1->tv_sec + 1) && (tv2->tv_usec + 1000000 > tv1->tv_usec + 1000)))
 	return -1;
     else
 	return 0;
@@ -759,15 +773,14 @@ static inline int tv_cmp_ms(struct timeval *tv1, struct timeval *tv2) {
 static inline unsigned long tv_remain(struct timeval *tv1, struct timeval *tv2) {
     unsigned long ret;
   
-
     if (tv_cmp_ms(tv1, tv2) >= 0)
 	return 0; /* event elapsed */
 
-    ret=(tv2->tv_sec - tv1->tv_sec)*1000;
+    ret = (tv2->tv_sec - tv1->tv_sec) * 1000;
     if (tv2->tv_usec > tv1->tv_usec)
-	ret+=(tv2->tv_usec - tv1->tv_usec)/1000;
+	ret += (tv2->tv_usec - tv1->tv_usec) / 1000;
     else
-	ret-=(tv1->tv_usec - tv2->tv_usec)/1000;
+	ret -= (tv1->tv_usec - tv2->tv_usec) / 1000;
     return (unsigned long) ret;
 }
 
@@ -830,18 +843,18 @@ static inline int tv_cmp2_ms(struct timeval *tv1, struct timeval *tv2) {
 	return -1; /* tv2 later than tv1 */
     
     if (tv1->tv_sec == tv2->tv_sec) {
-	if (tv1->tv_usec >= tv2->tv_usec + 1000)
+	if (tv1->tv_usec > tv2->tv_usec + 1000)
 	    return 1;
-	else if (tv2->tv_usec >= tv1->tv_usec + 1000)
+	else if (tv2->tv_usec > tv1->tv_usec + 1000)
 	    return -1;
 	else
 	    return 0;
     }
     else if ((tv1->tv_sec > tv2->tv_sec + 1) ||
-	((tv1->tv_sec == tv2->tv_sec + 1) && (tv1->tv_usec + 1000000 >= tv2->tv_usec + 1000)))
+	     ((tv1->tv_sec == tv2->tv_sec + 1) && (tv1->tv_usec + 1000000 > tv2->tv_usec + 1000)))
 	return 1;
     else if ((tv2->tv_sec > tv1->tv_sec + 1) ||
-	     ((tv2->tv_sec == tv1->tv_sec + 1) && (tv2->tv_usec + 1000000 >= tv1->tv_usec + 1000)))
+	     ((tv2->tv_sec == tv1->tv_sec + 1) && (tv2->tv_usec + 1000000 > tv1->tv_usec + 1000)))
 	return -1;
     else
 	return 0;
@@ -1146,20 +1159,24 @@ int event_cli_read(int fd) {
 	while (1) {
 	    if (b->l == 0) { /* let's realign the buffer to optimize I/O */
 		b->r = b->w = b->h = b->lr  = b->data;
-		max = BUFSIZE - MAXREWRITE;
+		max = b->rlim - b->data;
 	    }
 	    else if (b->r > b->w) {
-		max = b->data + BUFSIZE - MAXREWRITE - b->r;
+		max = b->rlim - b->r;
 	    }
 	    else {
 		max = b->w - b->r;
-		if (max > BUFSIZE - MAXREWRITE)
-		    max = BUFSIZE - MAXREWRITE;
+		/* FIXME: theorically, if w>0, we shouldn't have rlim < data+size anymore
+		 * since it means that the rewrite protection has been removed. This
+		 * implies that the if statement can be removed.
+		 */
+		if (max > b->rlim - b->data)
+		    max = b->rlim - b->data;
 	    }
 	    
 	    if (max == 0) {  /* not anymore room to store data */
 		FD_CLR(fd, StaticReadEvent);
-		break;;
+		break;
 	    }
 	    
 #ifndef MSG_NOSIGNAL
@@ -1235,15 +1252,19 @@ int event_srv_read(int fd) {
 	while (1) {
 	    if (b->l == 0) { /* let's realign the buffer to optimize I/O */
 		b->r = b->w = b->h = b->lr  = b->data;
-		max = BUFSIZE - MAXREWRITE;
+		max = b->rlim - b->data;
 	    }
 	    else if (b->r > b->w) {
-		max = b->data + BUFSIZE - MAXREWRITE - b->r;
+		max = b->rlim - b->r;
 	    }
 	    else {
 		max = b->w - b->r;
-		if (max > BUFSIZE - MAXREWRITE)
-		    max = BUFSIZE - MAXREWRITE;
+		/* FIXME: theorically, if w>0, we shouldn't have rlim < data+size anymore
+		 * since it means that the rewrite protection has been removed. This
+		 * implies that the if statement can be removed.
+		 */
+		if (max > b->rlim - b->data)
+		    max = b->rlim - b->data;
 	    }
 	    
 	    if (max == 0) {  /* not anymore room to store data */
@@ -1330,23 +1351,15 @@ int event_cli_write(int fd) {
     else
 	max = b->data + BUFSIZE - b->w;
     
-    if (max == 0) {
-	// FD_CLR(fd, StaticWriteEvent); // useless
-	//fprintf(stderr, "cli_write(%d) : max=%d, d=%p, r=%p, w=%p, l=%d\n",
-	//fd, max, b->data, b->r, b->w, b->l);
-	s->res_cw = RES_NULL;
-	task_wakeup(&rq, t);
-	return 0;
-    }
-
     if (fdtab[fd].state != FD_STERROR) {
 #ifndef MSG_NOSIGNAL
 	int skerr, lskerr;
 #endif
-	if (max == 0) { /* nothing to write, just make as if we were never called */
-		s->res_cw = RES_NULL;
-		task_wakeup(&rq, t);
-		return 0;
+
+	if (max == 0) {
+	    s->res_cw = RES_NULL;
+	    task_wakeup(&rq, t);
+	    return 0;
 	}
 
 #ifndef MSG_NOSIGNAL
@@ -1420,27 +1433,18 @@ int event_srv_write(int fd) {
     else
 	max = b->data + BUFSIZE - b->w;
     
-    if (max == 0) {
-	/* may be we have received a connection acknowledgement in TCP mode without data */
-	// FD_CLR(fd, StaticWriteEvent); // useless ?
-	//fprintf(stderr, "srv_write(%d) : max=%d, d=%p, r=%p, w=%p, l=%d\n",
-	//fd, max, b->data, b->r, b->w, b->l);
-	s->res_sw = RES_NULL;
-	task_wakeup(&rq, t);
-	return 0;
-    }
-
     if (fdtab[fd].state != FD_STERROR) {
 #ifndef MSG_NOSIGNAL
 	int skerr, lskerr;
 #endif
-	fdtab[fd].state = FD_STREADY;
-	if (max == 0) { /* nothing to write, just make as if we were never called, except to finish a connect() */
-	    //FD_CLR(fd, StaticWriteEvent); // useless ?
+	if (max == 0) {
+	    /* may be we have received a connection acknowledgement in TCP mode without data */
 	    s->res_sw = RES_NULL;
 	    task_wakeup(&rq, t);
+	    fdtab[fd].state = FD_STREADY;
 	    return 0;
 	}
+
 
 #ifndef MSG_NOSIGNAL
 	lskerr=sizeof(skerr);
@@ -1452,6 +1456,7 @@ int event_srv_write(int fd) {
 #else
 	ret = send(fd, b->w, max, MSG_DONTWAIT | MSG_NOSIGNAL);
 #endif
+	fdtab[fd].state = FD_STREADY;
 	if (ret > 0) {
 	    b->l -= ret;
 	    b->w += ret;
@@ -1500,7 +1505,6 @@ int event_accept(int fd) {
     struct task *t;
     int cfd;
     int one = 1;
-
 
     while (p->nbconn < p->maxconn) {
 	struct sockaddr_in addr;
@@ -1572,6 +1576,11 @@ int event_accept(int fd) {
 		send_syslog(&p->logsrv2, p->logfac2, LOG_INFO, message);
 	}
 
+	if ((mode & MODE_DEBUG) && !(mode & MODE_QUIET)) {
+	    int len;
+	    len = sprintf(trash, "accept(%04x)=%04x\n", (unsigned short)fd, (unsigned short)cfd);
+	    write(1, trash, len);
+	}
 
 	t->next = t->prev = t->rqnext = NULL; /* task not in run queue yet */
 	t->wq = LIST_HEAD(wait_queue); /* but already has a wait queue assigned */
@@ -1597,7 +1606,10 @@ int event_accept(int fd) {
 	    return 0;
 	}
 	s->req->l = 0;
-	s->req->h = s->req->r = s->req->lr = s->req->w = s->req->data;		/* r and w will be reset further */
+	s->req->h = s->req->r = s->req->lr = s->req->w = s->req->data;	/* r and w will be reset further */
+	s->req->rlim = s->req->data + BUFSIZE;
+	if (s->cli_state == CL_STHEADERS) /* reserver some space for header rewriting */
+	    s->req->rlim -= MAXREWRITE;
 
 	if ((s->rep = pool_alloc(buffer)) == NULL) { /* no memory */
 	    pool_free(buffer, s->req);
@@ -1607,7 +1619,7 @@ int event_accept(int fd) {
 	    return 0;
 	}
 	s->rep->l = 0;
-	s->rep->h = s->rep->r = s->rep->lr = s->rep->w = s->rep->data;
+	s->rep->h = s->rep->r = s->rep->lr = s->rep->w = s->rep->rlim = s->rep->data;
 
 	fdtab[cfd].read  = &event_cli_read;
 	fdtab[cfd].write = &event_cli_write;
@@ -1616,6 +1628,7 @@ int event_accept(int fd) {
 
 	if (p->mode == PR_MODE_HEALTH) {  /* health check mode, no client reading */
 	    FD_CLR(cfd, StaticReadEvent);
+	    FD_SET(cfd, StaticWriteEvent);
 	    tv_eternity(&s->crexpire);
 	    shutdown(s->cli_fd, SHUT_RD);
 	    s->cli_state = CL_STSHUTR;
@@ -1643,7 +1656,9 @@ int event_accept(int fd) {
 	t->expire = s->crexpire;
 
 	task_queue(t);
-	task_wakeup(&rq, t);
+
+	if (p->mode != PR_MODE_HEALTH)
+	    task_wakeup(&rq, t);
 
 	p->nbconn++;
 	actconn++;
@@ -1665,7 +1680,7 @@ int event_srv_hck(int fd) {
     struct server *s = t->context;
 
     int skerr, lskerr;
-    lskerr=sizeof(skerr);
+    lskerr = sizeof(skerr);
     getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
     if (skerr)
 	s->result = -1;
@@ -1815,12 +1830,13 @@ int process_cli(struct session *t) {
 		}
 
 		t->cli_state = CL_STDATA;
+		req->rlim = req->data + BUFSIZE; /* no more rewrite needed */
 
 		/* FIXME: we'll set the client in a wait state while we try to
 		 * connect to the server. Is this really needed ? wouldn't it be
 		 * better to release the maximum of system buffers instead ? */
-		FD_CLR(t->cli_fd, StaticReadEvent);
-		tv_eternity(&t->crexpire);
+		//FD_CLR(t->cli_fd, StaticReadEvent);
+		//tv_eternity(&t->crexpire);
 		break;
 	    }
 
@@ -1965,7 +1981,12 @@ int process_cli(struct session *t) {
 
 	/* end of header processing (even if incomplete) */
 
-	if ((req->l < BUFSIZE - MAXREWRITE) && ! FD_ISSET(t->cli_fd, StaticReadEvent)) {
+
+	if ((req->l < req->rlim - req->data) && ! FD_ISSET(t->cli_fd, StaticReadEvent)) {
+	    /* fd in StaticReadEvent was disabled, perhaps because of a previous buffer
+	     * full. We cannot loop here since event_cli_read will disable it only if
+	     * req->l == rlim-data
+	     */
 	    FD_SET(t->cli_fd, StaticReadEvent);
 	    if (t->proxy->clitimeout)
 		tv_delayfrom(&t->crexpire, &now, t->proxy->clitimeout);
@@ -1973,25 +1994,16 @@ int process_cli(struct session *t) {
 		tv_eternity(&t->crexpire);
 	}
 
-	/* read timeout, read error, or last read : give up */
-	if (t->res_cr == RES_ERROR || t->res_cr == RES_NULL ||
-	    tv_cmp2_ms(&t->crexpire, &now) <= 0) {
-	    //FD_CLR(t->cli_fd, StaticReadEvent);
-	    //FD_CLR(t->cli_fd, StaticWriteEvent);
+	/* read timeout, read error, or last read : give up.
+	 * since we are in header mode, if there's no space left for headers, we
+	 * won't be able to free more later, so the session will never terminate.
+	 */
+	if (t->res_cr == RES_ERROR || t->res_cr == RES_NULL
+	    || req->l >= req->rlim - req->data || tv_cmp2_ms(&t->crexpire, &now) <= 0) {
 	    tv_eternity(&t->crexpire);
 	    fd_delete(t->cli_fd);
-	    //close(t->cli_fd);
 	    t->cli_state = CL_STCLOSE;
 	    return 1;
-	}
-//	  else if (t->res_cr == RES_SILENT) {
-//	      return 0;
-//	  }
-
-	if (req->l >= BUFSIZE - MAXREWRITE) {
-	    /* buffer full : stop reading till we free some space */
-	    FD_CLR(t->cli_fd, StaticReadEvent);
-	    tv_eternity(&t->crexpire);
 	}
 
 	return t->cli_state != CL_STHEADERS;
@@ -2002,9 +2014,6 @@ int process_cli(struct session *t) {
 	    tv_eternity(&t->crexpire);
 	    tv_eternity(&t->cwexpire);
 	    fd_delete(t->cli_fd);
-	    //FD_CLR(t->cli_fd, StaticReadEvent);
-	    //FD_CLR(t->cli_fd, StaticWriteEvent);
-	    //close(t->cli_fd);
 	    t->cli_state = CL_STCLOSE;
 	    return 1;
 	}
@@ -2022,7 +2031,6 @@ int process_cli(struct session *t) {
 	/* write timeout, or last server read and buffer empty */
 	else if (((s == SV_STSHUTR || s == SV_STCLOSE) && (rep->l == 0))
 		 ||(tv_cmp2_ms(&t->cwexpire, &now) <= 0)) {
-
 	    FD_CLR(t->cli_fd, StaticWriteEvent);
 	    tv_eternity(&t->cwexpire);
 	    shutdown(t->cli_fd, SHUT_WR);
@@ -2030,13 +2038,16 @@ int process_cli(struct session *t) {
 	    return 1;
 	}
 
-	if (req->l >= BUFSIZE - MAXREWRITE) { /* no room to read more data */
+	if (req->l >= req->rlim - req->data) {
+	    /* no room to read more data */
 	    if (FD_ISSET(t->cli_fd, StaticReadEvent)) {
+		/* stop reading until we get some space */
 		FD_CLR(t->cli_fd, StaticReadEvent);
 		tv_eternity(&t->crexpire);
 	    }
 	}
 	else {
+	    /* there's still some space in the buffer */
 	    if (! FD_ISSET(t->cli_fd, StaticReadEvent)) {
 		FD_SET(t->cli_fd, StaticReadEvent);
 		if (t->proxy->clitimeout)
@@ -2068,10 +2079,8 @@ int process_cli(struct session *t) {
 	if ((t->res_cw == RES_ERROR) ||
 	    ((s == SV_STSHUTR || s == SV_STCLOSE) && (rep->l == 0))
 	    || (tv_cmp2_ms(&t->crexpire, &now) <= 0)) {
-	    //FD_CLR(t->cli_fd, StaticWriteEvent);
 	    tv_eternity(&t->cwexpire);
 	    fd_delete(t->cli_fd);
-	    //close(t->cli_fd);
 	    t->cli_state = CL_STCLOSE;
 	    return 1;
 	}
@@ -2096,20 +2105,21 @@ int process_cli(struct session *t) {
     else if (c == CL_STSHUTW) {
 	if (t->res_cr == RES_ERROR || t->res_cr == RES_NULL || s == SV_STSHUTW ||
 	    s == SV_STCLOSE || tv_cmp2_ms(&t->cwexpire, &now) <= 0) {
-	    //FD_CLR(t->cli_fd, StaticReadEvent);
 	    tv_eternity(&t->crexpire);
 	    fd_delete(t->cli_fd);
-	    //close(t->cli_fd);
 	    t->cli_state = CL_STCLOSE;
 	    return 1;
 	}
-	else if (req->l >= BUFSIZE - MAXREWRITE) { /* no room to read more data */
+	else if (req->l >= req->rlim - req->data) {
+	    /* no room to read more data */
 	    if (FD_ISSET(t->cli_fd, StaticReadEvent)) {
+		/* stop reading until we get some space */
 		FD_CLR(t->cli_fd, StaticReadEvent);
 		tv_eternity(&t->crexpire);
 	    }
 	}
 	else {
+	    /* there's still some space in the buffer */
 	    if (! FD_ISSET(t->cli_fd, StaticReadEvent)) {
 		FD_SET(t->cli_fd, StaticReadEvent);
 		if (t->proxy->clitimeout)
@@ -2223,9 +2233,12 @@ int process_srv(struct session *t) {
 		    tv_eternity(&t->srexpire);
 		
 		t->srv_state = SV_STDATA;
+		rep->rlim = rep->data + BUFSIZE; /* no rewrite needed */
 	    }
-	    else
+	    else {
 		t->srv_state = SV_STHEADERS;
+		rep->rlim = rep->data + BUFSIZE - MAXREWRITE; /* rewrite needed */
+	    }
 	    tv_eternity(&t->cnexpire);
 	    return 1;
 	}
@@ -2266,6 +2279,7 @@ int process_srv(struct session *t) {
 		}
 
 		t->srv_state = SV_STDATA;
+		rep->rlim = rep->data + BUFSIZE; /* no more rewrite needed */
 		break;
 	    }
 
@@ -2408,7 +2422,11 @@ int process_srv(struct session *t) {
 
 	/* end of header processing (even if incomplete) */
 
-	if ((rep->l < BUFSIZE - MAXREWRITE) && ! FD_ISSET(t->srv_fd, StaticReadEvent)) {
+	if ((rep->l < rep->rlim - rep->data) && ! FD_ISSET(t->srv_fd, StaticReadEvent)) {
+	    /* fd in StaticReadEvent was disabled, perhaps because of a previous buffer
+	     * full. We cannot loop here since event_srv_read will disable it only if
+	     * rep->l == rlim-data
+	     */
 	    FD_SET(t->srv_fd, StaticReadEvent);
 	    if (t->proxy->srvtimeout)
 		tv_delayfrom(&t->srexpire, &now, t->proxy->srvtimeout);
@@ -2420,16 +2438,16 @@ int process_srv(struct session *t) {
 	if (t->res_sw == RES_ERROR || t->res_sr == RES_ERROR) {
 	    tv_eternity(&t->srexpire);
 	    tv_eternity(&t->swexpire);
-	    //FD_CLR(t->srv_fd, StaticReadEvent);
-	    //FD_CLR(t->srv_fd, StaticWriteEvent);
-	    //close(t->srv_fd);
 	    fd_delete(t->srv_fd);
 	    t->srv_state = SV_STCLOSE;
 	    return 1;
 	}
-	/* read timeout, last read, or end of client write */
-	else if (t->res_sr == RES_NULL || c == CL_STSHUTW || c == CL_STCLOSE ||
-		 tv_cmp2_ms(&t->srexpire, &now) <= 0) {
+	/* read timeout, last read, or end of client write
+	 * since we are in header mode, if there's no space left for headers, we
+	 * won't be able to free more later, so the session will never terminate.
+	 */
+	else if (t->res_sr == RES_NULL || c == CL_STSHUTW || c == CL_STCLOSE
+		 || rep->l >= rep->rlim - rep->data || tv_cmp2_ms(&t->srexpire, &now) <= 0) {
 	    FD_CLR(t->srv_fd, StaticReadEvent);
 	    tv_eternity(&t->srexpire);
 	    shutdown(t->srv_fd, SHUT_RD);
@@ -2463,13 +2481,6 @@ int process_srv(struct session *t) {
 	    }
 	}
 
-	if (rep->l >= BUFSIZE - MAXREWRITE) { /* no room to read more data */
-	    if (FD_ISSET(t->srv_fd, StaticReadEvent)) {
-		FD_CLR(t->srv_fd, StaticReadEvent);
-		tv_eternity(&t->srexpire);
-	    }
-	}
-
 	/* be nice with the client side which would like to send a complete header
 	 * FIXME: COMPLETELY BUGGY !!! not all headers may be processed because the client
 	 * would read all remaining data at once ! The client should not write past rep->lr
@@ -2483,17 +2494,13 @@ int process_srv(struct session *t) {
 	if (t->res_sw == RES_ERROR || t->res_sr == RES_ERROR) {
 	    tv_eternity(&t->srexpire);
 	    tv_eternity(&t->swexpire);
-	    //FD_CLR(t->srv_fd, StaticReadEvent);
-	    //FD_CLR(t->srv_fd, StaticWriteEvent);
-	    //close(t->srv_fd);
 	    fd_delete(t->srv_fd);
 	    t->srv_state = SV_STCLOSE;
 	    return 1;
 	}
 	/* read timeout, last read, or end of client write */
-	else if (t->res_sr == RES_NULL || c == CL_STSHUTW || c == CL_STCLOSE ||
-		 tv_cmp2_ms(&t->srexpire, &now) <= 0) {
-
+	else if (t->res_sr == RES_NULL || c == CL_STSHUTW || c == CL_STCLOSE
+		 || tv_cmp2_ms(&t->srexpire, &now) <= 0) {
 	    FD_CLR(t->srv_fd, StaticReadEvent);
 	    tv_eternity(&t->srexpire);
 	    shutdown(t->srv_fd, SHUT_RD);
@@ -2502,8 +2509,8 @@ int process_srv(struct session *t) {
 	    
 	}	
 	/* write timeout, or last client read and buffer empty */
-	else if (((c == CL_STSHUTR || c == CL_STCLOSE) && (req->l == 0)) ||
-		 (tv_cmp2_ms(&t->swexpire, &now) <= 0)) {
+	else if (((c == CL_STSHUTR || c == CL_STCLOSE) && (req->l == 0))
+		 || (tv_cmp2_ms(&t->swexpire, &now) <= 0)) {
 	    FD_CLR(t->srv_fd, StaticWriteEvent);
 	    tv_eternity(&t->swexpire);
 	    shutdown(t->srv_fd, SHUT_WR);
@@ -2672,7 +2679,7 @@ int process_chk(struct task *t) {
     int fd = s->curfd;
     int one = 1;
 
-    //fprintf(stderr, "process_chk: 1\n");
+    //fprintf(stderr, "process_chk: task=%p\n", t);
 
     if (fd < 0) {   /* no check currently running */
 	//fprintf(stderr, "process_chk: 2\n");
@@ -2724,6 +2731,9 @@ int process_chk(struct task *t) {
 	if (s->health > FALLTIME)
 	    s->health--; /* still good */
 	else {
+	    if (s->health == FALLTIME && !(mode & MODE_QUIET))
+		Warning("server %s DOWN.\n", s->id);
+
 	    s->health = 0; /* failure */
 	    s->state &= ~SRV_RUNNING;
 	}
@@ -2738,11 +2748,14 @@ int process_chk(struct task *t) {
 	    //fprintf(stderr, "process_chk: 9\n");
 	    s->health++; /* was bad, stays for a while */
 	    if (s->health >= FALLTIME) {
+		if (s->health == FALLTIME && !(mode & MODE_QUIET))
+		    Warning("server %s UP.\n", s->id);
+
 		s->health = FALLTIME + RISETIME -1; /* OK now */
 		s->state |= SRV_RUNNING;
 	    }
-	    s->curfd = -1;
-	    FD_CLR(fd, StaticWriteEvent);
+	    s->curfd = -1; /* no check running anymore */
+	    //FD_CLR(fd, StaticWriteEvent);
 	    fd_delete(fd);
 	    tv_delayfrom(&t->expire, &now, CHK_INTERVAL);
 	}
@@ -2752,11 +2765,14 @@ int process_chk(struct task *t) {
 	    if (s->health > FALLTIME)
 		s->health--; /* still good */
 	    else {
+		if (s->health == FALLTIME && !(mode & MODE_QUIET))
+		    Warning("server %s DOWN.\n", s->id);
+
 		s->health = 0; /* failure */
 		s->state &= ~SRV_RUNNING;
 	    }
 	    s->curfd = -1;
-	    FD_CLR(fd, StaticWriteEvent);
+	    //FD_CLR(fd, StaticWriteEvent);
 	    fd_delete(fd);
 	    tv_delayfrom(&t->expire, &now, CHK_INTERVAL);
 	}
@@ -2797,14 +2813,22 @@ void select_loop() {
       tnext = ((struct task *)LIST_HEAD(wait_queue))->next;
       while ((t = tnext) != LIST_HEAD(wait_queue)) { /* we haven't looped ? */
 	  tnext = t->next;
+	  if (t->state & TASK_RUNNING)
+	      continue;
 
 	  /* wakeup expired entries. It doesn't matter if they are
 	   * already running because of a previous event
 	   */
 	  if (tv_cmp2_ms(&t->expire, &now) <= 0) {
+	      //fprintf(stderr,"task_wakeup(%p, %p)\n", &rq, t);
 	      task_wakeup(&rq, t);
 	  }
 	  else {
+	      /* first non-runnable task. Use its expiration date as an upper bound */
+	      int temp_time = tv_remain(&now, &t->expire);
+	      if (temp_time)
+		  next_time = temp_time;
+	      //fprintf(stderr,"no_task_wakeup(%p, %p) : expire in %d ms\n", &rq, t, temp_time);
 	      break;
 	  }
       }
@@ -2818,11 +2842,13 @@ void select_loop() {
 	  
 	  tnext = t->rqnext;
 	  task_sleep(&rq, t);
-	  
+	  //fprintf(stderr,"task %p\n",t);	  
 	  temp_time = t->process(t);
 	  next_time = MINTIME(temp_time, next_time);
+	  //fprintf(stderr,"process(%p)=%d -> next_time=%d)\n", t, temp_time, next_time);
       }
 
+      //fprintf(stderr,"---end of run---\n");
 
       /* maintain all proxies in a consistent state. This should quickly become a task */
       time2 = maintain_proxies();
@@ -2897,9 +2923,6 @@ void select_loop() {
 		      
 		      if (FD_ISSET(fd, ReadEvent))
 			  fdtab[fd].read(fd);
-
-		      if (fdtab[fd].state == FD_STCLOSE)
-			  continue;
 
 		      if (FD_ISSET(fd, WriteEvent))
 			  fdtab[fd].write(fd);
@@ -3569,6 +3592,10 @@ int readcfgfile(char *file) {
     }
 
     while (curproxy != NULL) {
+	if (curproxy->state == PR_STDISABLED) {
+	    curproxy = curproxy->next;
+	    continue;
+	}
 	if ((curproxy->mode != PR_MODE_HEALTH) &&
 	    !(curproxy->options & (PR_O_TRANSP | PR_O_BALANCE)) &&
 	    (*(int *)&curproxy->dispatch_addr == 0)) {

@@ -7,11 +7,12 @@ listen proxy1 0.0.0.0:8000
 	#dispatch 127.0.0.1:31300
 	#dispatch 127.0.0.1:80
 	#dispatch 127.0.0.1:22
-	server tuxlocal 127.0.0.1:80 cookie cookie1 check
-	server tuxceleron 10.101.0.1:80 cookie cookie2 check
+	#server tuxlocal 127.0.0.1:80 cookie cookie1 check
+	#server tuxceleron 10.101.0.1:80 cookie cookie2 check
 	#server telnet 127.0.0.1:23
 	#server ssh 127.0.0.1:22
 	server local 127.0.0.1:3130 cookie cookie3 check
+	#server local 127.0.0.1:8001 cookie cookie3 check
 	#server local 127.0.0.1:3130
 	#server celeron 10.101.0.1:80 cookie srv1
 	#server celeron 10.101.0.1:31300
@@ -28,10 +29,39 @@ listen proxy1 0.0.0.0:8000
 	#rspadd Set-Cookie:\ mycookie=0;\ path=/
 	#rsprep ^(Date:\ )([^,]*)(,\ )(.*) LaDate\ est:\ \4\ (\2)
 	
-listen proxy1 0.0.0.0:3128
+listen proxy1 0.0.0.0:8001
 	mode	http
-        cookie SERVERID indirect
-	dispatch 127.0.0.1:8080
+	#mode	tcp
+	dispatch 127.0.0.1:80
+	#dispatch 127.0.0.1:31300
+	#dispatch 127.0.0.1:80
+	#dispatch 127.0.0.1:22
+	#server tuxlocal 127.0.0.1:80 cookie cookie1 check
+	#server tuxceleron 10.101.0.1:80 cookie cookie2 check
+	#server telnet 127.0.0.1:23
+	#server ssh 127.0.0.1:22
+	#server local 127.0.0.1:3130 cookie cookie3 check
+	#server local 127.0.0.1:3130
+	#server celeron 10.101.0.1:80 cookie srv1
+	#server celeron 10.101.0.1:31300
+	#server local 10.101.23.9:31300
+	contimeout	3000
+	clitimeout	150000
+	srvtimeout	150000
+	maxconn 60000
+	redispatch
+	retries	3
+	grace 3000
+	#rsprep	^Server.* Server:\ IIS
+	#rspdel	^Server.*
+	rspadd Set-Cookie:\ SERVERID=12345678;\ path=/
+	#rsprep ^(Date:\ )([^,]*)(,\ )(.*) LaDate\ est:\ \4\ (\2)
+	
+listen proxy1 0.0.0.0:3128
+	disabled
+	mode	http
+        cookie SERVERID insert indirect
+	#dispatch 127.0.0.1:8080
 	server srv1 127.0.0.1:8080
  	#server srv2 192.168.12.3:8080
 	contimeout	3000
@@ -41,9 +71,11 @@ listen proxy1 0.0.0.0:3128
 	redispatch
 	retries	3
 	grace 3000
+	rspdel ^Via:.*
 	
 
 listen proxy2 0.0.0.0:3129
+	disabled
 	mode	http
 	transparent
 #	dispatch 127.0.0.1:80
