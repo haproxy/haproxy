@@ -11,13 +11,27 @@
  *   - solaris only : sometimes, an HTTP proxy with only a dispatch address causes
  *     the proxy to terminate (no core) if the client breaks the connection during
  *     the response. Seen on 1.1.8pre4, but never reproduced. May not be related to
- *     the snprintf() bug since requests we simple (GET / HTTP/1.0).
- *   - cookie in insert+indirect mode sometimes segfaults !
+ *     the snprintf() bug since requests were simple (GET / HTTP/1.0), but may be
+ *     related to missing setsid() (fixed in 1.1.15)
  *   - a proxy with an invalid config will prevent the startup even if disabled.
- *   - it may be nice to return HTTP 502 when a server returns no header nor data.
  *
  * ChangeLog :
  *
+ * 2002/10/18 : 1.1.17
+ *   - add the notion of "backup" servers, which are used only when all other
+ *     servers are down.
+ *   - make Set-Cookie return "" instead of "(null)" when the server has no
+ *     cookie assigned (useful for backup servers).
+ *   - "log" now supports an optionnal level name (info, notice, err ...) above
+ *     which nothing is sent.
+ *   - replaced some strncmp() with memcmp() for better efficiency.
+ *   - added "capture cookie" option which logs client and/or server cookies
+ *   - cleaned up/down messages and dump servers states upon SIGHUP
+ *   - added a redirection feature for errors : "errorloc <errnum> <url>"
+ *   - now we won't insist on connecting to a dead server, even with a cookie,
+ *     unless option "persist" is specified.
+ *   - added HTTP/408 response for client request time-out and HTTP/50[234] for
+ *     server reply time-out or errors.
  * 2002/09/01 : 1.1.16
  *   - implement HTTP health checks when option "httpchk" is specified.
  * 2002/08/07 : 1.1.15
@@ -177,8 +191,8 @@
 #include <linux/netfilter_ipv4.h>
 #endif
 
-#define HAPROXY_VERSION "1.1.16"
-#define HAPROXY_DATE	"2002/09/01"
+#define HAPROXY_VERSION "1.1.17"
+#define HAPROXY_DATE	"2002/10/18"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -198,6 +212,7 @@
 // reserved buffer space for header rewriting
 #define	MAXREWRITE	4096
 #define REQURI_LEN	1024
+#define CAPTURE_LEN	64
 
 // max # args on a configuration line
 #define MAX_LINE_ARGS	40
@@ -305,6 +320,7 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define sizeof_buffer	sizeof(struct buffer)
 #define sizeof_fdtab	sizeof(struct fdtab)
 #define sizeof_requri	REQURI_LEN
+#define sizeof_capture	CAPTURE_LEN
 
 /* different possible states for the sockets */
 #define FD_STCLOSE	0
@@ -344,6 +360,7 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define PR_O_COOK_NOC	1024	/* add a 'Cache-control' header with the cookie */
 #define PR_O_COOK_POST	2048	/* don't insert cookies for requests other than a POST */
 #define PR_O_HTTP_CHK	4096	/* use HTTP 'OPTIONS' method to check server health */
+#define PR_O_PERSIST	8192	/* server persistence stays effective even when server is down */
 
 
 /* various session flags */
@@ -385,6 +402,7 @@ int strlcpy2(char *dst, const char *src, int size) {
 
 /* server flags */
 #define SRV_RUNNING	1
+#define SRV_BACKUP	2
 
 /* what to do when a header matches a regex */
 #define ACT_ALLOW	0	/* allow the request */
@@ -485,6 +503,8 @@ struct session {
 	long  t_data;			/* delay before the first data byte from the server ... */
 	unsigned long  t_close;		/* total session duration */
 	char *uri;			/* first line if log needed, NULL otherwise */
+	char *cli_cookie;		/* cookie presented by the client, in capture mode */
+	char *srv_cookie;		/* cookie presented by the server, in capture mode */
 	int status;			/* HTTP status from the server, negative if from proxy */
 	long long bytes;		/* number of bytes transferred from the server */
     } logs;
@@ -498,6 +518,10 @@ struct proxy {
     struct server *srv, *cursrv;	/* known servers, current server */
     int nbservers;			/* # of servers */
     char *cookie_name;			/* name of the cookie to look for */
+    int  cookie_len;			/* strlen(cookie_len), computed only once */
+    char *capture_name;			/* beginning of the name of the cookie to capture */
+    int  capture_namelen;		/* length of the cookie name to match */
+    int  capture_len;			/* length of the string to be captured */
     int clitimeout;			/* client I/O timeout (in milliseconds) */
     int srvtimeout;			/* server I/O timeout (in milliseconds) */
     int contimeout;			/* connect timeout (in milliseconds) */
@@ -511,6 +535,7 @@ struct proxy {
     struct proxy *next;
     struct sockaddr_in logsrv1, logsrv2; /* 2 syslog servers */
     char logfac1, logfac2;		/* log facility for both servers. -1 = disabled */
+    int loglev1, loglev2;		/* log level for each server, 7 by default */
     int to_log;				/* things to be logged (LW_*) */
     struct timeval stop_time;		/* date to stop listening, when stopping != 0 */
     int nb_reqadd, nb_rspadd;
@@ -518,6 +543,22 @@ struct proxy {
     struct hdr_exp *rsp_exp;		/* regular expressions for response headers */
     char *req_add[MAX_NEWHDR], *rsp_add[MAX_NEWHDR]; /* headers to be added */
     int grace;				/* grace time after stop request */
+    struct {
+	char *msg400;			/* message for error 400 */
+	int len400;			/* message length for error 400 */
+	char *msg403;			/* message for error 403 */
+	int len403;			/* message length for error 403 */
+	char *msg408;			/* message for error 408 */
+	int len408;			/* message length for error 408 */
+	char *msg500;			/* message for error 500 */
+	int len500;			/* message length for error 500 */
+	char *msg502;			/* message for error 502 */
+	int len502;			/* message length for error 502 */
+	char *msg503;			/* message for error 503 */
+	int len503;			/* message length for error 503 */
+	char *msg504;			/* message for error 504 */
+	int len504;			/* message length for error 504 */
+    } errmsg;
 };
 
 /* info about one given fd */
@@ -545,10 +586,13 @@ static struct {
     int mode;
     char *chroot;
     int logfac1, logfac2;
+    int loglev1, loglev2;
     struct sockaddr_in logsrv1, logsrv2;
 } global = {
     logfac1 : -1,
     logfac2 : -1,
+    loglev1 : 7, /* max syslog level : debug */
+    loglev2 : 7,
     /* others NULL OK */
 };
 
@@ -563,7 +607,8 @@ void **pool_session = NULL,
     **pool_buffer   = NULL,
     **pool_fdtab    = NULL,
     **pool_requri   = NULL,
-    **pool_task	    = NULL;
+    **pool_task	    = NULL,
+    **pool_capture  = NULL;
 
 struct proxy *proxy  = NULL;	/* list of all existing proxies */
 struct fdtab *fdtab = NULL;	/* array of all the file descriptors */
@@ -613,6 +658,12 @@ const char *monthname[12] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
 #define MAX_HOSTNAME_LEN	32
 static char hostname[MAX_HOSTNAME_LEN] = "";
 
+const char *HTTP_302 =
+	"HTTP/1.0 302 Found\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Location: "; /* not terminated since it will be concatenated with the URL */
+
 const char *HTTP_400 =
 	"HTTP/1.0 400 Bad request\r\n"
 	"Cache-Control: no-cache\r\n"
@@ -627,6 +678,13 @@ const char *HTTP_403 =
 	"\r\n"
 	"<html><body><h1>403 Forbidden</h1>\nRequest forbidden by administrative rules.\n</body></html>\n";
 
+const char *HTTP_408 =
+	"HTTP/1.0 408 Request Time-out\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"\r\n"
+	"<html><body><h1>408 Request Time-out</h1>\nYour browser didn't send a complete request in time.\n</body></html>\n";
+
 const char *HTTP_500 =
 	"HTTP/1.0 500 Server Error\r\n"
 	"Cache-Control: no-cache\r\n"
@@ -635,11 +693,25 @@ const char *HTTP_500 =
 	"<html><body><h1>500 Server Error</h1>\nAn internal server error occured.\n</body></html>\n";
 
 const char *HTTP_502 =
-	"HTTP/1.0 502 Proxy Error\r\n"
+	"HTTP/1.0 502 Bad Gateway\r\n"
 	"Cache-Control: no-cache\r\n"
 	"Connection: close\r\n"
 	"\r\n"
-	"<html><body><h1>502 Proxy Error</h1>\nNo server is available to handle this request.\n</body></html>\n";
+	"<html><body><h1>502 Bad Gateway</h1>\nThe server returned an invalid or incomplete response.\n</body></html>\n";
+
+const char *HTTP_503 =
+	"HTTP/1.0 503 Service Unavailable\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"\r\n"
+	"<html><body><h1>503 Service Unavailable</h1>\nNo server is available to handle this request.\n</body></html>\n";
+
+const char *HTTP_504 =
+	"HTTP/1.0 504 Gateway Time-out\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"\r\n"
+	"<html><body><h1>504 Gateway Time-out</h1>\nThe server didn't respond in time.\n</body></html>\n";
 
 /*********************************************************************/
 /*  statistics  ******************************************************/
@@ -826,7 +898,7 @@ void send_log(struct proxy *p, int level, char *message, ...) {
     int fac_level;
     int hdr_len, data_len;
     struct sockaddr_in *sa[2];
-    int facilities[2];
+    int facilities[2], loglevel[2];
     int nbloggers = 0;
     char *log_ptr;
 
@@ -870,27 +942,35 @@ void send_log(struct proxy *p, int level, char *message, ...) {
 	if (global.logfac1 >= 0) {
 	    sa[nbloggers] = &global.logsrv1;
 	    facilities[nbloggers] = global.logfac1;
+	    loglevel[nbloggers] = global.loglev1;
 	    nbloggers++;
 	}
 	if (global.logfac2 >= 0) {
 	    sa[nbloggers] = &global.logsrv2;
 	    facilities[nbloggers] = global.logfac2;
+	    loglevel[nbloggers] = global.loglev2;
 	    nbloggers++;
 	}
     } else {
 	if (p->logfac1 >= 0) {
 	    sa[nbloggers] = &p->logsrv1;
 	    facilities[nbloggers] = p->logfac1;
+	    loglevel[nbloggers] = p->loglev1;
 	    nbloggers++;
 	}
 	if (p->logfac2 >= 0) {
 	    sa[nbloggers] = &p->logsrv2;
 	    facilities[nbloggers] = p->logfac2;
+	    loglevel[nbloggers] = p->loglev2;
 	    nbloggers++;
 	}
     }
 
     while (nbloggers-- > 0) {
+	/* we can filter the level of the messages that are sent to each logger */
+	if (level > loglevel[nbloggers])
+	    continue;
+	
 	/* For each target, we may have a different facility.
 	 * We can also have a different log level for each message.
 	 * This induces variations in the message header length.
@@ -1330,10 +1410,37 @@ static inline void session_free(struct session *s) {
 	pool_free(buffer, s->rep);
     if (s->logs.uri)
 	pool_free(requri, s->logs.uri);
+    if (s->logs.cli_cookie)
+	pool_free(capture, s->logs.cli_cookie);
+    if (s->logs.srv_cookie)
+	pool_free(capture, s->logs.srv_cookie);
 
     pool_free(session, s);
 }
 
+
+/*
+ * This function tries to find a running server for the proxy <px>. A first
+ * pass looks for active servers, and if none is found, a second pass also
+ * looks for backup servers.
+ * If no valid server is found, NULL is returned and px->cursrv is left undefined.
+ */
+static inline struct server *find_server(struct proxy *px) {
+    struct server *srv = px->cursrv;
+    int ignore_backup = 1;
+
+    do {
+	do  {
+	    if (srv == NULL)
+		srv = px->srv;
+	    if (srv->state & SRV_RUNNING
+		&& !((srv->state & SRV_BACKUP) && ignore_backup))
+		return srv;
+	    srv = srv->next;
+	} while (srv != px->cursrv);
+    } while (ignore_backup--);
+    return NULL;
+}
 
 /*
  * This function initiates a connection to the current server (s->srv) if (s->direct)
@@ -1351,22 +1458,16 @@ int connect_server(struct session *s) {
     }
     else if (s->proxy->options & PR_O_BALANCE) {
 	if (s->proxy->options & PR_O_BALANCE_RR) {
-	    int retry = s->proxy->nbservers;
-	    while (retry) {
-		if (s->proxy->cursrv == NULL)
-		    s->proxy->cursrv = s->proxy->srv;
-		if (s->proxy->cursrv->state & SRV_RUNNING)
-		    break;
-		s->proxy->cursrv = s->proxy->cursrv->next;
-		retry--;
-	    }
+	    struct server *srv;
 
-	    if (retry == 0) /* no server left */
+	    srv = find_server(s->proxy);
+
+	    if (srv == NULL) /* no server left */
 		return -1;
 
-	    s->srv = s->proxy->cursrv;
-	    s->srv_addr = s->srv->addr;
-	    s->proxy->cursrv = s->proxy->cursrv->next;
+	    s->srv_addr = srv->addr;
+	    s->srv = srv;
+	    s->proxy->cursrv = srv->next;
 	}
 	else /* unknown balancing algorithm */
 	    return -1;
@@ -1798,7 +1899,7 @@ int event_srv_write(int fd) {
  * and the request is cleared so that no server connection can be initiated.
  * The client must be in a valid state for this (HEADER, DATA ...).
  * Nothing is performed on the server side.
- * The reply buffer must be empty before this.
+ * The reply buffer doesn't need to be empty before this.
  */
 void client_retnclose(struct session *s, int len, const char *msg) {
     FD_CLR(s->cli_fd, StaticReadEvent);
@@ -1808,6 +1909,7 @@ void client_retnclose(struct session *s, int len, const char *msg) {
     s->cli_state = CL_STSHUTR;
     strcpy(s->rep->data, msg);
     s->rep->l = len;
+    s->rep->r = s->rep->h = s->rep->lr = s->rep->w = s->rep->data;
     s->rep->r += len;
     s->req->l = 0;
 }
@@ -1815,11 +1917,12 @@ void client_retnclose(struct session *s, int len, const char *msg) {
 
 /*
  * returns a message into the rep buffer, and flushes the req buffer.
- * The reply buffer must be empty before this.
+ * The reply buffer doesn't need to be empty before this.
  */
 void client_return(struct session *s, int len, const char *msg) {
     strcpy(s->rep->data, msg);
     s->rep->l = len;
+    s->rep->r = s->rep->h = s->rep->lr = s->rep->w = s->rep->data;
     s->rep->r += len;
     s->req->l = 0;
 }
@@ -1855,7 +1958,7 @@ void sess_log(struct session *s) {
     if (p->to_log & LW_DATE) {
 	struct tm *tm = localtime(&s->logs.tv_accept.tv_sec);
 
-	send_log(p, LOG_INFO, "%d.%d.%d.%d:%d [%02d/%s/%04d:%02d:%02d:%02d] %s %s %d/%d/%d/%d %d %lld \"%s\"\n",
+	send_log(p, LOG_INFO, "%d.%d.%d.%d:%d [%02d/%s/%04d:%02d:%02d:%02d] %s %s %d/%d/%d/%d %d %lld %s %s \"%s\"\n",
 		 pn[0], pn[1], pn[2], pn[3], ntohs(s->cli_addr.sin_port),
 		 tm->tm_mday, monthname[tm->tm_mon], tm->tm_year+1900,
 		 tm->tm_hour, tm->tm_min, tm->tm_sec,
@@ -1865,10 +1968,12 @@ void sess_log(struct session *s) {
 		 (s->logs.t_data >= 0) ? s->logs.t_data - s->logs.t_connect : -1,
 		 s->logs.t_close,
 		 s->logs.status, s->logs.bytes,
+		 s->logs.cli_cookie ? s->logs.cli_cookie : "-",
+		 s->logs.srv_cookie ? s->logs.srv_cookie : "-",
 		 uri);
     }
     else {
-	send_log(p, LOG_INFO, "%d.%d.%d.%d:%d %s %s %d/%d/%d/%d %d %lld \"%s\"\n",
+	send_log(p, LOG_INFO, "%d.%d.%d.%d:%d %s %s %d/%d/%d/%d %d %lld %s %s \"%s\"\n",
 		 pn[0], pn[1], pn[2], pn[3], ntohs(s->cli_addr.sin_port),
 		 pxid, srv,
 		 s->logs.t_request,
@@ -1876,6 +1981,8 @@ void sess_log(struct session *s) {
 		 (s->logs.t_data >= 0) ? s->logs.t_data - s->logs.t_connect : -1,
 		 s->logs.t_close,
 		 s->logs.status, s->logs.bytes,
+		 s->logs.cli_cookie ? s->logs.cli_cookie : "-",
+		 s->logs.srv_cookie ? s->logs.srv_cookie : "-",
 		 uri);
     }
 
@@ -1962,6 +2069,8 @@ int event_accept(int fd) {
 	s->logs.t_data = -1;
 	s->logs.t_close = 0;
 	s->logs.uri = NULL;
+	s->logs.cli_cookie = NULL;
+	s->logs.srv_cookie = NULL;
 	s->logs.status = -1;
 	s->logs.bytes = 0;
 
@@ -2173,7 +2282,7 @@ int buffer_replace(struct buffer *b, char *pos, char *end, char *str) {
     return delta;
 }
 
-/* same except that the string len is given, which allows str to be NULL if
+/* same except that the string length is given, which allows str to be NULL if
  * len is 0.
  */
 int buffer_replace2(struct buffer *b, char *pos, char *end, char *str, int len) {
@@ -2280,8 +2389,7 @@ int process_cli(struct session *t) {
 		if (t->flags & SN_CLDENY) {
 		    /* no need to go further */
 		    t->logs.status = 403;
-		    if (t->proxy->mode == PR_MODE_HTTP)
-			client_retnclose(t, strlen(HTTP_403), HTTP_403);
+		    client_retnclose(t, t->proxy->errmsg.len403, t->proxy->errmsg.msg403);
 		    return 1;
 		}
 
@@ -2338,16 +2446,14 @@ int process_cli(struct session *t) {
 	     *   req->r  = end of data (not used at this stage)
 	     */
 
-	    if (t->logs.logwait & LW_REQ &&
-		t->proxy->mode & PR_MODE_HTTP) {
+	    if (t->logs.logwait & LW_REQ) {
 		/* we have a complete HTTP request that we must log */
 		int urilen;
 
 		if ((t->logs.uri = pool_alloc(requri)) == NULL) {
 		    Alert("HTTP logging : out of memory.\n");
 		    t->logs.status = 500;
-		    if (t->proxy->mode == PR_MODE_HTTP)
-			client_retnclose(t, strlen(HTTP_500), HTTP_500);
+		    client_retnclose(t, t->proxy->errmsg.len500, t->proxy->errmsg.msg500);
 		    return 1;
 		}
 		
@@ -2422,9 +2528,9 @@ int process_cli(struct session *t) {
 	     * remove it. If no application cookie persists in the header, we
 	     * *MUST* delete it
 	     */
-	    if (!delete_header && (t->proxy->cookie_name != NULL)
+	    if (!delete_header && (t->proxy->cookie_name != NULL || t->proxy->capture_name != NULL)
 		&& !(t->flags & SN_CLDENY) && (ptr >= req->h + 8)
-		&& (strncmp(req->h, "Cookie: ", 8) == 0)) {
+		&& (memcmp(req->h, "Cookie: ", 8) == 0)) {
 		char *p1, *p2, *p3, *p4;
 		char *del_colon, *del_cookie, *colon;
 		int app_cookies;
@@ -2472,42 +2578,63 @@ int process_cli(struct session *t) {
 		    if (*p1 == '$') {
 			/* skip this one */
 		    }
-		    else if ((p2 - p1 == strlen(t->proxy->cookie_name)) &&
-			(memcmp(p1, t->proxy->cookie_name, p2 - p1) == 0)) {
-			/* Cool... it's the right one */
-			struct server *srv = t->proxy->srv;
+		    else {
+			/* first, let's see if we want to capture it */
+			if (t->proxy->capture_name != NULL &&
+			    t->logs.cli_cookie == NULL &&
+			    (p4 - p1 >= t->proxy->capture_namelen) &&
+			    memcmp(p1, t->proxy->capture_name, t->proxy->capture_namelen) == 0) {
+			    int log_len = p4 - p1;
 
-			while (srv &&
-			       ((srv->cklen != p4 - p3) || memcmp(p3, srv->cookie, p4 - p3))) {
-			    srv = srv->next;
+			    if ((t->logs.cli_cookie = pool_alloc(capture)) == NULL) {
+				Alert("HTTP logging : out of memory.\n");
+			    }
+
+			    if (log_len > t->proxy->capture_len)
+				log_len = t->proxy->capture_len;
+			    memcpy(t->logs.cli_cookie, p1, log_len);
+			    t->logs.cli_cookie[log_len] = 0;
 			}
 
-			if (srv) { /* we found the server */
-			    t->flags |= SN_DIRECT;
-			    t->srv = srv;
-			}
-			/* if this cookie was set in insert+indirect mode, then it's better that the
-			 * server never sees it.
-			 */
-			if (del_cookie == NULL &&
-			    (t->proxy->options & (PR_O_COOK_INS | PR_O_COOK_IND)) == (PR_O_COOK_INS | PR_O_COOK_IND)) {
+			if ((p2 - p1 == t->proxy->cookie_len) && (t->proxy->cookie_name != NULL) &&
+			    (memcmp(p1, t->proxy->cookie_name, p2 - p1) == 0)) {
+			    /* Cool... it's the right one */
+			    struct server *srv = t->proxy->srv;
+
+			    while (srv &&
+				   ((srv->cklen != p4 - p3) || memcmp(p3, srv->cookie, p4 - p3))) {
+				srv = srv->next;
+			    }
+
+			    if (srv &&
+				(srv->state & SRV_RUNNING || t->proxy->options & PR_O_PERSIST)) {
+				/* we found the server and it's usable */
+				t->flags |= SN_DIRECT;
+				t->srv = srv;
+			    }
+			    /* if this cookie was set in insert+indirect mode, then it's better that the
+			     * server never sees it.
+			     */
+			    if (del_cookie == NULL &&
+				(t->proxy->options & (PR_O_COOK_INS | PR_O_COOK_IND)) == (PR_O_COOK_INS | PR_O_COOK_IND)) {
 				del_cookie = p1;
 				del_colon = colon;
+			    }
 			}
-		    }
-		    else {
-			/* now we know that we must keep this cookie since it's
-			 * not ours. But if we wanted to delete our cookie
-			 * earlier, we cannot remove the complete header, but we
-			 * can remove the previous block itself.
-			 */
-			app_cookies++;
-
-			if (del_cookie != NULL) {
-			    buffer_replace2(req, del_cookie, p1, NULL, 0);
-			    p4  -= (p1 - del_cookie);
-			    ptr -= (p1 - del_cookie);
-			    del_cookie = del_colon = NULL;
+			else {
+			    /* now we know that we must keep this cookie since it's
+			     * not ours. But if we wanted to delete our cookie
+			     * earlier, we cannot remove the complete header, but we
+			     * can remove the previous block itself.
+			     */
+			    app_cookies++;
+			    
+			    if (del_cookie != NULL) {
+				buffer_replace2(req, del_cookie, p1, NULL, 0);
+				p4  -= (p1 - del_cookie);
+				ptr -= (p1 - del_cookie);
+				del_cookie = del_colon = NULL;
+			    }
 			}
 		    }
 
@@ -2565,20 +2692,25 @@ int process_cli(struct session *t) {
 	 */
 	if (req->l >= req->rlim - req->data) {
 	    t->logs.status = 400;
-	    if (t->proxy->mode == PR_MODE_HTTP)
-		client_retnclose(t, strlen(HTTP_400), HTTP_400);
+	    client_retnclose(t, t->proxy->errmsg.len400, t->proxy->errmsg.msg400);
 	    return 1;
 	}
-	else if (t->res_cr == RES_ERROR || t->res_cr == RES_NULL
-	         || tv_cmp2_ms(&t->crexpire, &now) <= 0) {
-
-	    /* read timeout, read error, or last read : give up.
+	else if (t->res_cr == RES_ERROR || t->res_cr == RES_NULL) {
+	    /* read error, or last read : give up.
 	     * since we are in header mode, if there's no space left for headers, we
 	     * won't be able to free more later, so the session will never terminate.
 	     */
 	    tv_eternity(&t->crexpire);
 	    fd_delete(t->cli_fd);
 	    t->cli_state = CL_STCLOSE;
+	    return 1;
+	}
+	else if (tv_cmp2_ms(&t->crexpire, &now) <= 0) {
+
+	    /* read timeout : give up with an error message.
+	     */
+	    t->logs.status = 408;
+	    client_retnclose(t, t->proxy->errmsg.len408, t->proxy->errmsg.msg408);
 	    return 1;
 	}
 
@@ -2766,9 +2898,9 @@ int process_srv(struct session *t) {
 		    /* if conn_retries < 0 or other error, let's abort */
 		    tv_eternity(&t->cnexpire);
 		    t->srv_state = SV_STCLOSE;
-		    t->logs.status = 502;
+		    t->logs.status = 503;
 		    if (t->proxy->mode == PR_MODE_HTTP)
-			client_return(t, strlen(HTTP_502), HTTP_502);
+			client_return(t, t->proxy->errmsg.len503, t->proxy->errmsg.msg503);
 		}
 	    }
 	    return 1;
@@ -2797,9 +2929,9 @@ int process_srv(struct session *t) {
 	    /* if conn_retries < 0 or other error, let's abort */
 	    tv_eternity(&t->cnexpire);
 	    t->srv_state = SV_STCLOSE;
-	    t->logs.status = 502;
+	    t->logs.status = 503;
 	    if (t->proxy->mode == PR_MODE_HTTP)
-		client_return(t, strlen(HTTP_502), HTTP_502);
+		client_return(t, t->proxy->errmsg.len503, t->proxy->errmsg.msg503);
 	    return 1;
 	}
 	else { /* no error or write 0 */
@@ -2855,7 +2987,8 @@ int process_srv(struct session *t) {
 		     * requests and this one isn't.
 		     */
 		    len = sprintf(trash, "Set-Cookie: %s=%s; path=/\r\n",
-				  t->proxy->cookie_name, t->srv->cookie);
+				  t->proxy->cookie_name,
+				  t->srv->cookie ? t->srv->cookie : "");
 
 		    /* Here, we will tell an eventual cache on the client side that we don't
 		     * want it to cache this reply because HTTP/1.0 caches also cache cookies !
@@ -2963,9 +3096,10 @@ int process_srv(struct session *t) {
 	    }
 	    
 	    /* check for server cookies */
-	    if (!delete_header && (t->proxy->options & PR_O_COOK_ANY)
-		&& (t->proxy->cookie_name != NULL) && (ptr >= rep->h + 12)
-		&& (strncmp(rep->h, "Set-Cookie: ", 12) == 0)) {
+	    if (!delete_header /*&& (t->proxy->options & PR_O_COOK_ANY)*/
+		&& (t->proxy->cookie_name != NULL || t->proxy->capture_name != NULL)
+		&& (ptr >= rep->h + 12)
+		&& (memcmp(rep->h, "Set-Cookie: ", 12) == 0)) {
 		char *p1, *p2, *p3, *p4;
 		
 		p1 = rep->h + 12; /* first char after 'Set-Cookie: ' */
@@ -2998,9 +3132,26 @@ int process_srv(struct session *t) {
 		     * and its value between p3 and p4.
 		     * we can process it.
 		     */
-		    
-		    if ((p2 - p1 == strlen(t->proxy->cookie_name)) &&
-			(strncmp(p1, t->proxy->cookie_name, p2 - p1) == 0)) {
+
+		    /* first, let's see if we want to capture it */
+		    if (t->proxy->capture_name != NULL &&
+			t->logs.srv_cookie == NULL &&
+			(p4 - p1 >= t->proxy->capture_namelen) &&
+			memcmp(p1, t->proxy->capture_name, t->proxy->capture_namelen) == 0) {
+			int log_len = p4 - p1;
+
+			if ((t->logs.srv_cookie = pool_alloc(capture)) == NULL) {
+			    Alert("HTTP logging : out of memory.\n");
+			}
+
+			if (log_len > t->proxy->capture_len)
+			    log_len = t->proxy->capture_len;
+			memcpy(t->logs.srv_cookie, p1, log_len);
+			t->logs.srv_cookie[log_len] = 0;
+		    }
+
+		    if ((p2 - p1 == t->proxy->cookie_len) && (t->proxy->cookie_name != NULL) &&
+			(memcmp(p1, t->proxy->cookie_name, p2 - p1) == 0)) {
 			/* Cool... it's the right one */
 			
 			/* If the cookie is in insert mode on a known server, we'll delete
@@ -3052,26 +3203,36 @@ int process_srv(struct session *t) {
 		tv_eternity(&t->srexpire);
 	}
 
-	/* read or write error */
+	/* read error, write error */
 	if (t->res_sw == RES_ERROR || t->res_sr == RES_ERROR) {
 	    tv_eternity(&t->srexpire);
 	    tv_eternity(&t->swexpire);
 	    fd_delete(t->srv_fd);
 	    t->srv_state = SV_STCLOSE;
 	    t->logs.status = 502;
-	    client_return(t, strlen(HTTP_502), HTTP_502);
+	    client_return(t, t->proxy->errmsg.len502, t->proxy->errmsg.msg502);
 	    return 1;
 	}
-	/* read timeout, last read, or end of client write
+	/* end of client write or end of server read.
 	 * since we are in header mode, if there's no space left for headers, we
 	 * won't be able to free more later, so the session will never terminate.
 	 */
-	else if (t->res_sr == RES_NULL || c == CL_STSHUTW || c == CL_STCLOSE
-		 || rep->l >= rep->rlim - rep->data || tv_cmp2_ms(&t->srexpire, &now) <= 0) {
+	else if (t->res_sr == RES_NULL || c == CL_STSHUTW || c == CL_STCLOSE || rep->l >= rep->rlim - rep->data) {
 	    FD_CLR(t->srv_fd, StaticReadEvent);
 	    tv_eternity(&t->srexpire);
 	    shutdown(t->srv_fd, SHUT_RD);
 	    t->srv_state = SV_STSHUTR;
+	    return 1;
+	}	
+	/* read timeout : return a 504 to the client.
+	 */
+	else if (FD_ISSET(t->srv_fd, StaticReadEvent) && tv_cmp2_ms(&t->srexpire, &now) <= 0) {
+	    tv_eternity(&t->srexpire);
+	    tv_eternity(&t->swexpire);
+	    fd_delete(t->srv_fd);
+	    t->srv_state = SV_STCLOSE;
+	    t->logs.status = 504;
+	    client_return(t, t->proxy->errmsg.len504, t->proxy->errmsg.msg504);
 	    return 1;
 	    
 	}	
@@ -3081,7 +3242,7 @@ int process_srv(struct session *t) {
 	 * some work to do on the headers.
 	 */
 	else if (((/*c == CL_STSHUTR ||*/ c == CL_STCLOSE) && (req->l == 0)) ||
-		 (tv_cmp2_ms(&t->swexpire, &now) <= 0)) {
+		 (FD_ISSET(t->srv_fd, StaticWriteEvent) && tv_cmp2_ms(&t->swexpire, &now) <= 0)) {
 	    FD_CLR(t->srv_fd, StaticWriteEvent);
 	    tv_eternity(&t->swexpire);
 	    shutdown(t->srv_fd, SHUT_WR);
@@ -3366,7 +3527,7 @@ int process_chk(struct task *t) {
 	else {
 	    if (s->health == s->rise) {
 		if (!(global.mode & MODE_QUIET))
-		    Warning("server %s DOWN.\n", s->id);
+		    Warning("server %s/%s DOWN.\n", s->proxy->id, s->id);
 
 		send_log(s->proxy, LOG_ALERT, "Server %s/%s is DOWN.\n", s->proxy->id, s->id);
 	    }
@@ -3388,7 +3549,7 @@ int process_chk(struct task *t) {
 	    if (s->health >= s->rise) {
 		if (s->health == s->rise) {
 		    if (!(global.mode & MODE_QUIET))
-			Warning("server %s UP.\n", s->id);
+			Warning("server %s/%s UP.\n", s->proxy->id, s->id);
 		    send_log(s->proxy, LOG_NOTICE, "Server %s/%s is UP.\n", s->proxy->id, s->id);
 		}
 
@@ -3408,7 +3569,7 @@ int process_chk(struct task *t) {
 	    else {
 		if (s->health == s->rise) {
 		    if (!(global.mode & MODE_QUIET))
-			Warning("server %s DOWN.\n", s->id);
+			Warning("server %s/%s DOWN.\n", s->proxy->id, s->id);
 
 		    send_log(s->proxy, LOG_ALERT, "Server %s/%s is DOWN.\n", s->proxy->id, s->id);
 		}
@@ -3714,6 +3875,33 @@ void sig_soft_stop(int sig) {
 }
 
 
+/*
+ * this function dumps every server's state when the process receives SIGHUP.
+ */
+void sig_dump_state(int sig) {
+    struct proxy *p = proxy;
+
+    Warning("SIGHUP received, dumping servers states.\n");
+    while (p) {
+	struct server *s = p->srv;
+
+	send_log(p, LOG_NOTICE, "SIGUP received, dumping servers states.\n");
+	while (s) {
+	    if (s->state & SRV_RUNNING) {
+		Warning("SIGHUP: server %s/%s is UP.\n", p->id, s->id);
+		send_log(p, LOG_NOTICE, "SIGUP: server %s/%s is UP.\n", p->id, s->id);
+	    }
+	    else {
+		Warning("SIGHUP: server %s/%s is DOWN.\n", p->id, s->id);
+		send_log(p, LOG_NOTICE, "SIGHUP: server %s/%s is DOWN.\n", p->id, s->id);
+	    }
+	    s = s->next;
+	}
+	p = p->next;
+    }
+    signal(sig, sig_dump_state);
+}
+
 void dump(int sig) {
     struct task *t, *tnext;
     struct session *s;
@@ -3830,7 +4018,7 @@ int cfg_parse_global(char *file, int linenum, char **args) {
     }
     else if (!strcmp(args[0], "log")) {  /* syslog server address */
 	struct sockaddr_in *sa;
-	int facility;
+	int facility, level;
 	
 	if (*(args[1]) == 0 || *(args[2]) == 0) {
 	    Alert("parsing [%s:%d] : <log> expects <address> and <facility> as arguments.\n", file, linenum);
@@ -3845,7 +4033,17 @@ int cfg_parse_global(char *file, int linenum, char **args) {
 	    Alert("parsing [%s:%d] : unknown log facility <%s>\n", file, linenum, args[2]);
 	    exit(1);
 	}
-	
+
+	level = 7; /* max syslog level = debug */
+	if (*(args[3])) {
+	    while (level >= 0 && strcmp(log_levels[level], args[3]))
+		level--;
+	    if (level < 0) {
+		Alert("parsing [%s:%d] : unknown optionnal log level <%s>\n", file, linenum, args[3]);
+		exit(1);
+	    }
+	}
+
 	sa = str2sa(args[1]);
 	if (!sa->sin_port)
 	    sa->sin_port = htons(SYSLOG_PORT);
@@ -3853,10 +4051,12 @@ int cfg_parse_global(char *file, int linenum, char **args) {
 	if (global.logfac1 == -1) {
 	    global.logsrv1 = *sa;
 	    global.logfac1 = facility;
+	    global.loglev1 = level;
 	}
 	else if (global.logfac2 == -1) {
 	    global.logsrv2 = *sa;
 	    global.logfac2 = facility;
+	    global.loglev2 = level;
 	}
 	else {
 	    Alert("parsing [%s:%d] : too many syslog servers\n", file, linenum);
@@ -3936,6 +4136,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	    return -1;
 	}
 	curproxy->cookie_name = strdup(args[1]);
+	curproxy->cookie_len = strlen(curproxy->cookie_name);
 	
 	cur_arg = 2;
 	while (*(args[cur_arg])) {
@@ -3965,6 +4166,27 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	    Alert("parsing [%s:%d] : <cookie> 'rewrite' and 'indirect' mode are incompatibles.\n",
 		  file, linenum);
 	    return -1;
+	}
+    }
+    else if (!strcmp(args[0], "capture")) {  /* name of a cookie to capture */
+	if (curproxy->capture_name != NULL) {
+	    Alert("parsing [%s:%d] : capture already specified. Continuing.\n",
+		  file, linenum);
+	    return 0;
+	}
+	
+	if (*(args[4]) == 0) {
+	    Alert("parsing [%s:%d] : <capture> expects 'cookie' <cookie_name> 'len' <len>.\n",
+		  file, linenum);
+	    return -1;
+	}
+	curproxy->capture_name = strdup(args[2]);
+	curproxy->capture_namelen = strlen(curproxy->capture_name);
+	curproxy->capture_len = atol(args[4]);
+	if (curproxy->capture_len >= CAPTURE_LEN) {
+	    Warning("parsing [%s:%d] : truncating capture length to %d bytes.\n",
+		    file, linenum, CAPTURE_LEN - 1);
+	    curproxy->capture_len = CAPTURE_LEN - 1;
 	}
     }
     else if (!strcmp(args[0], "contimeout")) {  /* connect timeout */
@@ -4042,6 +4264,10 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	else if (!strcmp(args[1], "httpchk")) {
 	    /* use HTTP request to check servers' health */
 	    curproxy->options |= PR_O_HTTP_CHK;
+	}
+	else if (!strcmp(args[1], "persist")) {
+	    /* persist on using the server specified by the cookie, even when it's down */
+	    curproxy->options |= PR_O_PERSIST;
 	}
 	else {
 	    Alert("parsing [%s:%d] : unknown option <%s>.\n", file, linenum, args[1]);
@@ -4136,6 +4362,10 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 		newsrv->inter = atol(args[cur_arg + 1]);
 		cur_arg += 2;
 	    }
+	    else if (!strcmp(args[cur_arg], "backup")) {
+		newsrv->state |= SRV_BACKUP;
+		cur_arg ++;
+	    }
 	    else if (!strcmp(args[cur_arg], "check")) {
 		struct task *t;
 		
@@ -4173,10 +4403,14 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	if (*(args[1]) && *(args[2]) == 0 && !strcmp(args[1], "global")) {
 	    curproxy->logfac1 = global.logfac1;
 	    curproxy->logsrv1 = global.logsrv1;
+	    curproxy->loglev1 = global.loglev1;
 	    curproxy->logfac2 = global.logfac2;
 	    curproxy->logsrv2 = global.logsrv2;
+	    curproxy->loglev2 = global.loglev2;
 	}
 	else if (*(args[1]) && *(args[2])) {
+	    int level;
+
 	    for (facility = 0; facility < NB_LOG_FACILITIES; facility++)
 		if (!strcmp(log_facilities[facility], args[2]))
 		    break;
@@ -4186,6 +4420,16 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 		exit(1);
 	    }
 	    
+	    level = 7; /* max syslog level = debug */
+	    if (*(args[3])) {
+		while (level >= 0 && strcmp(log_levels[level], args[3]))
+		     level--;
+		if (level < 0) {
+		    Alert("parsing [%s:%d] : unknown optionnal log level <%s>\n", file, linenum, args[3]);
+		    exit(1);
+		}
+	    }
+
 	    sa = str2sa(args[1]);
 	    if (!sa->sin_port)
 		sa->sin_port = htons(SYSLOG_PORT);
@@ -4193,10 +4437,12 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	    if (curproxy->logfac1 == -1) {
 		curproxy->logsrv1 = *sa;
 		curproxy->logfac1 = facility;
+		curproxy->loglev1 = level;
 	    }
 	    else if (curproxy->logfac2 == -1) {
 		curproxy->logsrv2 = *sa;
 		curproxy->logfac2 = facility;
+		curproxy->loglev2 = level;
 	    }
 	    else {
 		Alert("parsing [%s:%d] : too many syslog servers\n", file, linenum);
@@ -4441,6 +4687,80 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	
 	curproxy->rsp_add[curproxy->nb_rspadd++] = strdup(args[1]);
     }
+    else if (!strcmp(args[0], "errorloc")) { /* error location */
+	int errnum;
+	char *err;
+
+	if (*(args[2]) == 0) {
+	    Alert("parsing [%s:%d] : <errorloc> expects <error> and <url> as arguments.\n", file, linenum);
+	    return -1;
+	}
+
+	errnum = atol(args[1]);
+	err = malloc(strlen(HTTP_302) + strlen(args[2]) + 5);
+	sprintf(err, "%s%s\r\n\r\n", HTTP_302, args[2]);
+
+	if (errnum == 400) {
+	    if (curproxy->errmsg.msg400) {
+		Warning("parsing [%s:%d] : error %d already defined.\n", file, linenum, errnum);
+		free(curproxy->errmsg.msg400);
+	    }
+	    curproxy->errmsg.msg400 = err;
+	    curproxy->errmsg.len400 = strlen(err);
+	}
+	else if (errnum == 403) {
+	    if (curproxy->errmsg.msg403) {
+		Warning("parsing [%s:%d] : error %d already defined.\n", file, linenum, errnum);
+		free(curproxy->errmsg.msg403);
+	    }
+	    curproxy->errmsg.msg403 = err;
+	    curproxy->errmsg.len403 = strlen(err);
+	}
+	else if (errnum == 408) {
+	    if (curproxy->errmsg.msg408) {
+		Warning("parsing [%s:%d] : error %d already defined.\n", file, linenum, errnum);
+		free(curproxy->errmsg.msg408);
+	    }
+	    curproxy->errmsg.msg408 = err;
+	    curproxy->errmsg.len408 = strlen(err);
+	}
+	else if (errnum == 500) {
+	    if (curproxy->errmsg.msg500) {
+		Warning("parsing [%s:%d] : error %d already defined.\n", file, linenum, errnum);
+		free(curproxy->errmsg.msg500);
+	    }
+	    curproxy->errmsg.msg500 = err;
+	    curproxy->errmsg.len500 = strlen(err);
+	}
+	else if (errnum == 502) {
+	    if (curproxy->errmsg.msg502) {
+		Warning("parsing [%s:%d] : error %d already defined.\n", file, linenum, errnum);
+		free(curproxy->errmsg.msg502);
+	    }
+	    curproxy->errmsg.msg502 = err;
+	    curproxy->errmsg.len502 = strlen(err);
+	}
+	else if (errnum == 503) {
+	    if (curproxy->errmsg.msg503) {
+		Warning("parsing [%s:%d] : error %d already defined.\n", file, linenum, errnum);
+		free(curproxy->errmsg.msg503);
+	    }
+	    curproxy->errmsg.msg503 = err;
+	    curproxy->errmsg.len503 = strlen(err);
+	}
+	else if (errnum == 504) {
+	    if (curproxy->errmsg.msg504) {
+		Warning("parsing [%s:%d] : error %d already defined.\n", file, linenum, errnum);
+		free(curproxy->errmsg.msg504);
+	    }
+	    curproxy->errmsg.msg504 = err;
+	    curproxy->errmsg.len504 = strlen(err);
+	}
+	else {
+	    Warning("parsing [%s:%d] : error %d relocation will be ignored.\n", file, linenum, errnum);
+	    free(err);
+	}
+    }
     else {
 	Alert("parsing [%s:%d] : unknown keyword <%s> in <listen> section\n", file, linenum, args[0]);
 	return -1;
@@ -4636,6 +4956,34 @@ int readcfgfile(char *file) {
 		    newsrv = newsrv->next;
 		}
 	    }
+	}
+	if (curproxy->errmsg.msg400 == NULL) {
+	    curproxy->errmsg.msg400 = (char *)HTTP_400;
+	    curproxy->errmsg.len400 = strlen(HTTP_400);
+	}
+	if (curproxy->errmsg.msg403 == NULL) {
+	    curproxy->errmsg.msg403 = (char *)HTTP_403;
+	    curproxy->errmsg.len403 = strlen(HTTP_403);
+	}
+	if (curproxy->errmsg.msg408 == NULL) {
+	    curproxy->errmsg.msg408 = (char *)HTTP_408;
+	    curproxy->errmsg.len408 = strlen(HTTP_408);
+	}
+	if (curproxy->errmsg.msg500 == NULL) {
+	    curproxy->errmsg.msg500 = (char *)HTTP_500;
+	    curproxy->errmsg.len500 = strlen(HTTP_500);
+	}
+	if (curproxy->errmsg.msg502 == NULL) {
+	    curproxy->errmsg.msg502 = (char *)HTTP_502;
+	    curproxy->errmsg.len502 = strlen(HTTP_502);
+	}
+	if (curproxy->errmsg.msg503 == NULL) {
+	    curproxy->errmsg.msg503 = (char *)HTTP_503;
+	    curproxy->errmsg.len503 = strlen(HTTP_503);
+	}
+	if (curproxy->errmsg.msg504 == NULL) {
+	    curproxy->errmsg.msg504 = (char *)HTTP_504;
+	    curproxy->errmsg.len504 = strlen(HTTP_504);
 	}
 	curproxy = curproxy->next;
     }
@@ -4855,6 +5203,7 @@ int main(int argc, char **argv) {
 
     signal(SIGQUIT, dump);
     signal(SIGUSR1, sig_soft_stop);
+    signal(SIGHUP, sig_dump_state);
 
     /* on very high loads, a sigpipe sometimes happen just between the
      * getsockopt() which tells "it's OK to write", and the following write :-(

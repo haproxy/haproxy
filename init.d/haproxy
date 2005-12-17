@@ -36,6 +36,18 @@ function do_stop {
    if [ ! -z "$pids" ]; then
       echo "Asking $PNAME to terminate gracefully..."
       kill -USR1 $pids
+      echo "(use kill $pids to stop immediately)."
+   fi
+}
+
+# dump status
+function do_status {
+   pids=`pidof -o $$ -- $PNAME`
+   if [ ! -z "$pids" ]; then
+      echo "Dumping $PNAME status in logs."
+      kill -HUP $pids
+   else
+      echo "Process $PNAME is not running."
    fi
 }
 

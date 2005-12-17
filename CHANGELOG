@@ -1,5 +1,20 @@
- * ChangeLog :
+* ChangeLog :
  *
+ * 2002/10/18 : 1.1.17
+ *   - add the notion of "backup" servers, which are used only when all other
+ *     servers are down.
+ *   - make Set-Cookie return "" instead of "(null)" when the server has no
+ *     cookie assigned (useful for backup servers).
+ *   - "log" now supports an optionnal level name (info, notice, err ...) above
+ *     which nothing is sent.
+ *   - replaced some strncmp() with memcmp() for better efficiency.
+ *   - added "capture cookie" option which logs client and/or server cookies
+ *   - cleaned up/down messages and dump servers states upon SIGHUP
+ *   - added a redirection feature for errors : "errorloc <errnum> <url>"
+ *   - now we won't insist on connecting to a dead server, even with a cookie,
+ *     unless option "persist" is specified.
+ *   - added HTTP/408 response for client request time-out and HTTP/50[234] for
+ *     server reply time-out or errors.
  * 2002/09/01 : 1.1.16
  *   - implement HTTP health checks when option "httpchk" is specified.
  * 2002/08/07 : 1.1.15

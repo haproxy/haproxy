@@ -1,9 +1,9 @@
 
          		     H A - P r o x y
          		     ---------------
-         		      version 1.1.16
+         		      version 1.1.17
 			      willy tarreau
-			       2002/09/01
+			       2002/10/25
 
 ================
 | Introduction |
@@ -15,9 +15,11 @@ environnement hautement disponible. En effet, il est capable de :
   - effectuer une répartition de charge avec création de cookies pour assurer la
     persistence de session ; 
   - fournir une visibilité externe de son état de santé ;
-  - s'arrêter en douceur sans perte brutale de service.
-  - modifier/ajouter/supprimer des entêtes dans la requête et la réponse.
-  - interdire des requêtes qui vérifient certaines conditions.
+  - s'arrêter en douceur sans perte brutale de service ;
+  - modifier/ajouter/supprimer des entêtes dans la requête et la réponse ;
+  - interdire des requêtes qui vérifient certaines conditions ;
+  - utiliser des serveurs de secours lorsque les serveurs principaux sont hors
+    d'usage.
 
 Il requiert peu de ressources, et son architecture événementielle mono-processus
 lui permet facilement de gérer plusieurs milliers de connexions simultanées sur
@@ -83,7 +85,7 @@ Il s'agit des paramètres agissant sur le processus, ou bien sur l'ensemble des
 proxies. Ils sont tous spécifiés dans la section 'global'. Les paramètres
 supportés sont :
 
-  - log <adresse> <catégorie>
+  - log <adresse> <catégorie> [niveau_max]
   - maxconn <nombre>
   - uid <identifiant>
   - gid <identifiant>
@@ -99,12 +101,18 @@ La plupart des événements sont journalisés : démarrages, arrêts, disparition et
 apparition de serveurs, connexions, erreurs. Tous les messages sont envoyés en
 syslog vers un ou deux serveurs. La syntaxe est la suivante :
 
-    log <adresse_ip> <facility>
+    log <adresse_ip> <catégorie> [niveau_max]
 
 Les connexions sont envoyées en niveau "info". Les démarrages de service et de
 serveurs seront envoyés en "notice", les signaux d'arrêts en "warning" et les
 arrêts définitifs de services et de serveurs en "alert". Ceci est valable aussi
-bien pour les proxies que pour les serveurs testés par les proxies.
+bien pour les proxies que pour les serveurs testés par les proxies. Le paramètre
+optionnel <niveau_max> définit le niveau maximal de traces émises parmi les 8
+valeurs suivantes  :
+    emerg, alert, crit, err, warning, notice, info, debug
+
+Par compatibilité avec les versions 1.1.16 et antérieures, La valeur par défaut
+est "debug" si l'option n'est pas précisée.
 
 Les catégories possibles sont :
     kern, user, mail, daemon, auth, syslog, lpr, news,
@@ -115,7 +123,7 @@ Exemple :
 ---------
     global
 	log 192.168.2.200 local3
-	log 192.168.2.201 local4
+	log 127.0.0.1     local4 notice
 
 1.2) limitation du nombre de connexions
 ---------------------------------------
@@ -139,7 +147,7 @@ capable de positionner lui-même cette limite.
 ------------------------------
 Afin de réduire les risques d'attaques dans le cas où une faille non identifiée
 serait exploitée, il est possible de diminuer les privilèges du processus, et
-de le cloisonner.
+de l'isoler dans un répertoire sans risque.
 
 Dans la section 'global', le paramètre 'uid' permet de spécifier un identifiant
 numérique d'utilisateur. La valeur 0, correspondant normalement au super-
@@ -153,11 +161,14 @@ processus utilisent les mêmes identifiants.
 
 Le paramètre 'chroot' autorise à changer la racine du processus une fois le
 programme lancé, de sorte que ni le processus, ni l'un de ses descendants ne
-puisse remonter de nouveau à la racine. Ce type de cloisonnement (chroot) est
+puissent remonter de nouveau à la racine. Ce type de cloisonnement (chroot) est
 parfois contournable sur certains OS (Linux 2.2, Solaris), mais visiblement
 fiable sur d'autres (Linux 2.4). Aussi, il est important d'utiliser un
 répertoire spécifique au service pour cet usage, et de ne pas mutualiser un même
-répertoire pour plusieurs services de nature différente.
+répertoire pour plusieurs services de nature différente. Pour rendre l'isolement
+plus robuste, il est conseillé d'utiliser un répertoire vide, sans aucun droit,
+et de changer l'uid du processus de sorte qu'il ne puisse rien faire dans ledit
+répertoire.
 
 Remarque: dans le cas où une telle faille serait mise en évidence, il est fort
 probable que les premières tentatives de son exploitation provoquent un arrêt du
@@ -473,8 +484,9 @@ lors d'un accès direct :
 	cookie SERVERID rewrite
 
 Pour créer un cookie comportant la valeur attribuée à un serveur lors d'un accès
-en répartition de charge interne. Dans ce cas, il est indispensable que tous les
-serveurs aient un cookie renseigné :
+en répartition de charge interne. Dans ce cas, il est souhaitable que tous les
+serveurs aient un cookie renseigné. Un serveur non assigné d'un cookie
+retournera un cookie vide (cookie de suppression) :
 
 	cookie SERVERID insert
 
@@ -510,8 +522,8 @@ Remarques :
 
 2.10) Assignation d'un serveur à une valeur de cookie
 ----------------------------------------------------
-En mode HTTP, il est possible d'associer des serveurs à des valeurs de
-cookie par le paramètre 'server'. La syntaxe est :
+En mode HTTP, il est possible d'associer des valeurs de cookie à des serveurs
+par le paramètre 'server'. La syntaxe est :
 
     server <identifiant> <adresse_ip>:<port> cookie <valeur>
 
@@ -558,7 +570,7 @@ Exemple : même que précédemment en répartition interne
 ------------------------------
 Il est possible de tester l'état des serveurs par établissement de connexion TCP
 ou par envoi d'une requête HTTP. Un serveur hors d'usage ne sera pas utilisé
-dans leprocessus de répartition de charge interne. Pour activer la surveillance,
+dans le processus de répartition de charge interne. Pour activer la surveillance,
 ajouter le mot clé 'check' à la fin de la déclaration du serveur. Il est
 possible de spécifier l'intervalle (en millisecondes) séparant deux tests du
 serveur par le paramètre "inter", le nombre d'échecs acceptés par le paramètre
@@ -577,6 +589,25 @@ induire d'accès aux fichiers côté serveur. Seules les réponses 2xx et 3xx sont
 considérées valides, les autres (y compris non-réponses) aboutissent à un échec.
 Le temps maximal imparti pour une réponse est égal à l'intervalle entre deux
 tests (paramètre "inter"). Pour activer ce mode, spécifier l'option "httpchk".
+
+Depuis la version 1.1.17, il est possible de définir des serveurs de secours,
+utilisés uniquement lorsqu'aucun des autres serveurs ne fonctionne. Pour cela,
+ajouter le mot clé "backup" sur la ligne de définition du serveur. Un serveur
+de secours n'est appelé que lorsque tous les serveurs normaux, ainsi que tous
+les serveurs de secours qui le précèdent sont hors d'usage. Il n'y a donc pas
+de répartition de charge entre des serveurs de secours. Ce type de serveurs
+peut servir à retourner des pages d'indisponibilité de service. Dans ce cas,
+il est préférable de ne pas affecter de cookie, afin que les clients qui le
+rencontrent n'y soient pas affectés définitivement. Le fait de ne pas mettre
+de cookie envoie un cookie vide, ce qui a pour effet de supprimer un éventuel
+cookie affecté précédemment.
+
+Enfin, depuis la version 1.1.17, il est possible de visualiser rapidement l'état
+courant de tous les serveurs. Pour cela, il suffit d'envoyer un signal SIGHUP au
+processus proxy. L'état de tous les serveurs de tous les proxies est envoyé dans
+les logs en niveau "notice", ainsi que sur la sortie d'erreurs si elle est
+active. C'est une bonne raison pour avoir au moins un serveur de logs local en
+niveau notice.
 
 Exemples :
 ----------
@@ -607,6 +638,16 @@ Exemples :
 	server web1 192.168.1.1:80 cookie server01 check
 	server web2 192.168.1.2:80 cookie server02 check
 
+# idem avec serveur applicatif de secours, et serveur de pages d'erreurs
+    listen web_appl 0.0.0.0:80
+	mode http
+	cookie SERVERID insert nocache indirect
+	balance roundrobin
+	server web1 192.168.1.1:80 cookie server01 check
+	server web2 192.168.1.2:80 cookie server02 check
+	server web-backup 192.168.1.3:80 cookie server03 check backup
+	server web-excuse 192.168.1.4:80 check backup
+
 
 3.2) Reconnexion vers un répartiteur en cas d'échec direct
 ----------------------------------------------------------
@@ -620,6 +661,22 @@ Exemple :
 ---------
     listen http_proxy 0.0.0.0:80
 	mode http
+	cookie SERVERID
+	dispatch 192.168.1.100:80
+	server web1 192.168.1.1:80 cookie server01
+	server web2 192.168.1.2:80 cookie server02
+	redispatch # renvoyer vers dispatch si refus de connexion.
+
+Par défaut (et dans les versions 1.1.16 et antérieures), le paramètre redispatch
+ne s'applique qu'aux échecs de connexion au serveur. Depuis la version 1.1.17,
+il s'applique aussi aux connexions destinées à des serveurs identifiés comme
+hors d'usage par la surveillance. Si l'on souhaite malgré tout qu'un client
+disposant d'un cookie correspondant à un serveur défectueux tente de s'y
+connecter, il faut préciser l'option "persist" :
+
+    listen http_proxy 0.0.0.0:80
+	mode http
+	option persist
 	cookie SERVERID
 	dispatch 192.168.1.100:80
 	server web1 192.168.1.1:80 cookie server01
@@ -660,12 +717,14 @@ Exemple :
 Les connexions TCP et HTTP peuvent donner lieu à une journalisation sommaire ou
 détaillée indiquant, pour chaque connexion, la date, l'heure, l'adresse IP
 source, le serveur destination, la durée de la connexion, les temps de réponse,
-la requête HTTP, le code de retour, la quantité de données transmise.
-Tous les messages sont envoyés en syslog vers un ou deux serveurs. La syntaxe
+la requête HTTP, le code de retour, la quantité de données transmises, et même
+dans certains cas, la valeur d'un cookie permettant de suivre les sessions.
+Tous les messages sont envoyés en syslog vers un ou deux serveurs. Se référer à
+la section 1.1 pour plus d'information sur les catégories de logs.  La syntaxe
 est la suivante :
 
-    log <adresse_ip> <facility>
-    log <adresse_ip> <facility>
+    log <adresse_ip_1> <catégorie_1> [niveau_max_1]
+    log <adresse_ip_2> <catégorie_2> [niveau_max_2]
 ou
     log global
 
@@ -681,21 +740,38 @@ Exemple :
 	log 192.168.2.200 local3
 	log 192.168.2.201 local4
 
-Les connexions sont envoyées en niveau "info". Les démarrages de service seront
-envoyés en "notice", les signaux d'arrêts en "warning" et les arrêts définitifs
-en "alert". Ceci est valable aussi bien pour les proxies que pour les serveurs
-testés au sein des proxies. Les catégories possibles sont :
-
-    kern, user, mail, daemon, auth, syslog, lpr, news,
-    uucp, cron, auth2, ftp, ntp, audit, alert, cron2,
-    local0, local1, local2, local3, local4, local5, local6, local7
-
 Par défaut, les informations contenues dans les logs se situent au niveau TCP
 uniquement. Il faut préciser l'option 'httplog' pour obtenir les détails du
 protocole HTTP. Dans les cas où un mécanisme de surveillance effectuant des
 connexions et déconnexions fréquentes, polluerait les logs, il suffit d'ajouter
 l'option 'dontlognull', pour ne plus obtenir une ligne de log pour les sessions
 n'ayant pas donné lieu à un échange de données (requête ou réponse).
+
+Le mot clé "capture" permet d'ajouter dans des logs HTTP des informations
+capturées dans les échanges. La version 1.1.17 supporte uniquement une capture
+de cookies client et serveur, ce qui permet dans bien des cas, de reconstituer
+la session d'un utilisateur. La syntaxe est la suivante :
+
+    capture cookie <préfixe_cookie> len <longueur_capture>
+
+Le premier cookie dont le nom commencera par <préfixe_cookie> sera capturé, et
+transmis sous la forme "NOM=valeur", sans toutefois, excéder <longueur_capture>
+caractères (64 au maximum). Lorsque le nom du cookie est fixe et connu, on peut
+le suffixer du signe "=" pour s'assurer qu'aucun autre cookie ne prendra sa
+place dans les logs.
+
+Exemples :
+----------
+    # capture du premier cookie dont le nom commence par "ASPSESSION"
+    capture cookie ASPSESSION len 32
+
+    # capture du premier cookie dont le nom est exactement "vgnvisitor"
+    capture cookie vgnvisitor= len 32
+
+Dans les logs, le champ précédant la requête HTTP est le cookie positionné par
+le serveur, précédé du cookie positionné par le client. Chacun de ces champs est
+remplacé par le signe "-" lorsqu'aucun cookie n'est fourni par le client ou le
+serveur.
 
 Enfin, l'option 'forwardfor' ajoute l'adresse IP du client dans un champ
 'X-Forwarded-For' de la requête, ce qui permet à un serveur web final de
@@ -709,6 +785,7 @@ Exemple :
 	option httplog
 	option dontlognull
 	option forwardfor
+	capture cookie userid= len 20
 
 
 4.3) Modification des entêtes HTTP
@@ -801,13 +878,49 @@ pratiquement transparente pour les applications. Le principe est simple :
   - cacher ce cookie à l'application lors des requêtes ultérieures.
 
 Exemple :
--------
+---------
     listen application 0.0.0.0:80
 	mode http
 	cookie SERVERID insert nocache indirect
 	balance roundrobin
 	server 192.168.1.1:80 cookie server01 check
 	server 192.168.1.2:80 cookie server02 check
+
+4.5) Personalisation des erreurs
+--------------------------------
+
+Certaines situations conduisent à retourner une erreur HTTP au client :
+  - requête invalide ou trop longue => code HTTP 400
+  - requête mettant trop de temps à venir => code HTTP 408
+  - requête interdite (bloquée par un reqideny) => code HTTP 403
+  - erreur interne du proxy => code HTTP 500
+  - le serveur a retourné une réponse incomplète ou invalide => code HTTP 502
+  - aucun serveur disponible pour cette requête => code HTTP 503
+  - le serveur n'a pas répondu dans le temps imparti => code HTTP 504
+
+Un message d'erreur succint tiré de la RFC accompagne ces codes de retour.
+Cependant, en fonction du type de clientèle, on peut préférer retourner des
+pages personnalisées. Ceci est possible par le biais de la commande "errorloc" :
+
+    errorloc <code_HTTP> <location>
+
+Au lieu de générer une erreur HTTP <code_HTTP> parmi les codes cités ci-dessus,
+le proxy génèrera un code de redirection temporaire (HTTP 302) vers l'adresse
+d'une page précisée dans <location>. Cette adresse peut être relative au site,
+ou absolue. Comme cette réponse est traîtée par le navigateur du client
+lui-même, il est indispensable que l'adresse fournie lui soit accessible.
+
+Exemple :
+---------
+    listen application 0.0.0.0:80
+        errorloc 400 /badrequest.html
+        errorloc 403 /forbidden.html
+        errorloc 408 /toolong.html
+	errorloc 500 http://haproxy.domain.net/bugreport.html
+        errorloc 502 http://192.168.114.58/error50x.html
+        errorloc 503 http://192.168.114.58/error50x.html
+        errorloc 504 http://192.168.114.58/error50x.html
+
 
 =======================
 | Paramétrage système |
