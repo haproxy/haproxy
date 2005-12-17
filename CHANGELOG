@@ -1,7 +1,13 @@
 ChangeLog :
 ===========
 
-2004/04/18 : 1.2.1 (1.1.28)
+2004/06/05 : 1.2.1 (1.1.28)
+  - add the "logasap" option which produces a log without waiting for the data
+    to be transferred from the server to the client.
+  - add the "httpclose" option which removes any "connection:" header and adds
+    "Connection: close" in both direction.
+
+2004/04/18 :
   - send an EMERG log when no server is available for a given proxy
   - added the '-c' command line option to syntactically check the
     configuration file without starting the service.

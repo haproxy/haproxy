@@ -54,7 +54,7 @@
 #endif
 
 #define HAPROXY_VERSION "1.2.1"
-#define HAPROXY_DATE	"2004/04/18"
+#define HAPROXY_DATE	"2004/06/05"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -224,7 +224,8 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define PR_O_COOK_POST	2048	/* don't insert cookies for requests other than a POST */
 #define PR_O_HTTP_CHK	4096	/* use HTTP 'OPTIONS' method to check server health */
 #define PR_O_PERSIST	8192	/* server persistence stays effective even when server is down */
-
+#define PR_O_LOGASAP	16384	/* log as soon as possible, without waiting for the session to complete */
+#define PR_O_HTTP_CLOSE	32768	/* force 'connection: close' in both directions */
 
 /* various session flags */
 #define SN_DIRECT	0x00000001	/* connection made on the server matching the client cookie */
@@ -1986,7 +1987,7 @@ void sess_log(struct session *s) {
 
     tm = localtime(&s->logs.tv_accept.tv_sec);
     if (p->to_log & LW_REQ) {
-	send_log(p, LOG_INFO, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d] %s %s %d/%d/%d/%d %d %lld %s %s %c%c%c%c \"%s\"\n",
+	send_log(p, LOG_INFO, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d] %s %s %d/%d/%d/%s%d %d %s%lld %s %s %c%c%c%c \"%s\"\n",
 		 pn,
 		 (s->cli_addr.ss_family == AF_INET) ?
 		   ntohs(((struct sockaddr_in *)&s->cli_addr)->sin_port) :
@@ -1997,8 +1998,9 @@ void sess_log(struct session *s) {
 		 s->logs.t_request,
 		 (s->logs.t_connect >= 0) ? s->logs.t_connect - s->logs.t_request : -1,
 		 (s->logs.t_data >= 0) ? s->logs.t_data - s->logs.t_connect : -1,
-		 s->logs.t_close,
-		 s->logs.status, s->logs.bytes,
+		 (p->to_log & LW_BYTES) ? "" : "+", s->logs.t_close,
+		 s->logs.status,
+		 (p->to_log & LW_BYTES) ? "" : "+", s->logs.bytes,
 		 s->logs.cli_cookie ? s->logs.cli_cookie : "-",
 		 s->logs.srv_cookie ? s->logs.srv_cookie : "-",
 		 sess_term_cond[(s->flags & SN_ERR_MASK) >> SN_ERR_SHIFT],
@@ -2008,7 +2010,7 @@ void sess_log(struct session *s) {
 		 uri);
     }
     else {
-	send_log(p, LOG_INFO, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d] %s %s %d/%d %lld %c%c\n",
+	send_log(p, LOG_INFO, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d] %s %s %d/%s%d %s%lld %c%c\n",
 		 pn,
 		 (s->cli_addr.ss_family == AF_INET) ?
 		   ntohs(((struct sockaddr_in *)&s->cli_addr)->sin_port) :
@@ -2017,8 +2019,8 @@ void sess_log(struct session *s) {
 		 tm->tm_hour, tm->tm_min, tm->tm_sec,
 		 pxid, srv,
 		 (s->logs.t_connect >= 0) ? s->logs.t_connect : -1,
-		 s->logs.t_close,
-		 s->logs.bytes,
+		 (p->to_log & LW_BYTES) ? "" : "+", s->logs.t_close,
+		 (p->to_log & LW_BYTES) ? "" : "+", s->logs.bytes,
 		 sess_term_cond[(s->flags & SN_ERR_MASK) >> SN_ERR_SHIFT],
 		 sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT]);
     }
@@ -2510,6 +2512,10 @@ int process_cli(struct session *t) {
 		    }
 		}
 
+		/* add a "connection: close" line if needed */
+		if (t->proxy->options & PR_O_HTTP_CLOSE)
+		    buffer_replace2(req, req->h, req->h, "Connection: close\r\n", 19);
+
 		if (!memcmp(req->data, "POST ", 5))
 		    t->flags |= SN_POST; /* this is a POST request */
 		    
@@ -2603,8 +2609,16 @@ int process_cli(struct session *t) {
 		write(1, trash, len);
 	    }
 
+
+	    /* remove "connection: " if needed */
+	    if (!delete_header && (t->proxy->options & PR_O_HTTP_CLOSE)
+		&& (strncasecmp(req->h, "Connection: ", 12) == 0)) {
+		delete_header = 1;
+	    }
+
 	    /* try headers regexps */
-	    if (t->proxy->req_exp != NULL && !(t->flags & SN_CLDENY)) {
+	    if (!delete_header && t->proxy->req_exp != NULL
+		&& !(t->flags & SN_CLDENY)) {
 		struct hdr_exp *exp;
 		char term;
 		
@@ -3204,6 +3218,13 @@ int process_srv(struct session *t) {
 		
 		t->srv_state = SV_STDATA;
 		rep->rlim = rep->data + BUFSIZE; /* no rewrite needed */
+
+		/* if the user wants to log as soon as possible, without counting
+		   bytes from the server, then this is the right moment. */
+		if (!(t->logs.logwait & LW_BYTES)) {
+		    t->logs.t_close = t->logs.t_connect; /* to get a valid end date */
+		    sess_log(t);
+		}
 	    }
 	    else {
 		t->srv_state = SV_STHEADERS;
@@ -3261,9 +3282,21 @@ int process_srv(struct session *t) {
 		    buffer_replace2(rep, rep->h, rep->h, trash, len);
 		}
 
+		/* add a "connection: close" line if needed */
+		if (t->proxy->options & PR_O_HTTP_CLOSE)
+		    buffer_replace2(rep, rep->h, rep->h, "Connection: close\r\n", 19);
+
 		t->srv_state = SV_STDATA;
 		rep->rlim = rep->data + BUFSIZE; /* no more rewrite needed */
 		t->logs.t_data = tv_diff(&t->logs.tv_accept, &now);
+
+		/* if the user wants to log as soon as possible, without counting
+		   bytes from the server, then this is the right moment. */
+		if (!(t->logs.logwait & LW_BYTES)) {
+		    t->logs.t_close = t->logs.t_data; /* to get a valid end date */
+		    t->logs.bytes = rep->h - rep->data;
+		    sess_log(t);
+		}
 		break;
 	    }
 
@@ -3312,8 +3345,15 @@ int process_srv(struct session *t) {
 		write(1, trash, len);
 	    }
 
+	    /* remove "connection: " if needed */
+	    if (!delete_header && (t->proxy->options & PR_O_HTTP_CLOSE)
+		&& (strncasecmp(rep->h, "Connection: ", 12) == 0)) {
+		delete_header = 1;
+	    }
+
 	    /* try headers regexps */
-	    if (t->proxy->rsp_exp != NULL && !(t->flags & SN_SVDENY)) {
+	    if (!delete_header && t->proxy->rsp_exp != NULL
+		&& !(t->flags & SN_SVDENY)) {
 		struct hdr_exp *exp;
 		char term;
 		
@@ -4769,12 +4809,18 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	else if (!strcmp(args[1], "forwardfor"))
 	    /* insert x-forwarded-for field */
 	    curproxy->options |= PR_O_FWDFOR;
+	else if (!strcmp(args[1], "logasap"))
+	    /* log as soon as possible, without waiting for the session to complete */
+	    curproxy->options |= PR_O_LOGASAP;
+	else if (!strcmp(args[1], "httpclose"))
+	    /* force connection: close in both directions in HTTP mode */
+	    curproxy->options |= PR_O_HTTP_CLOSE;
 	else if (!strcmp(args[1], "httplog"))
 	    /* generate a complete HTTP log */
-	    curproxy->to_log |= LW_DATE | LW_CLIP | LW_SVID | LW_REQ | LW_PXID | LW_RESP;
+	    curproxy->to_log |= LW_DATE | LW_CLIP | LW_SVID | LW_REQ | LW_PXID | LW_RESP | LW_BYTES;
 	else if (!strcmp(args[1], "tcplog"))
 	    /* generate a detailed TCP log */
-	    curproxy->to_log |= LW_DATE | LW_CLIP | LW_SVID | LW_PXID;
+	    curproxy->to_log |= LW_DATE | LW_CLIP | LW_SVID | LW_PXID | LW_BYTES;
 	else if (!strcmp(args[1], "dontlognull")) {
 	    /* don't log empty requests */
 	    curproxy->options |= PR_O_NULLNOLOG;
@@ -5652,6 +5698,10 @@ int readcfgfile(char *file) {
 		}
 	    }
 	}
+
+	if (curproxy->options & PR_O_LOGASAP)
+	    curproxy->to_log &= ~LW_BYTES;
+
 	if (curproxy->errmsg.msg400 == NULL) {
 	    curproxy->errmsg.msg400 = (char *)HTTP_400;
 	    curproxy->errmsg.len400 = strlen(HTTP_400);
