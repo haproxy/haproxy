@@ -1,20 +1,21 @@
 global
-	log	127.0.0.1 local0
+#	log	127.0.0.1 local0
 #	log	127.0.0.1 local1
 	maxconn	4000
 	uid	0
 	gid	0
 #	chroot	/tmp
-#	nbproc	4
+#	nbproc	2
 #	daemon
 #	debug
 #	quiet
 
 listen proxy1 0.0.0.0:8000
 	mode	http
+#	source	127.0.0.2:0
 #	log	127.0.0.1 local0
 #	log	127.0.0.1 local1
-	log global
+#	log global
 	#mode	tcp
         cookie SERVERID insert indirect
 	balance roundrobin
@@ -22,8 +23,13 @@ listen proxy1 0.0.0.0:8000
 	#dispatch 127.0.0.1:31300
 	#dispatch 127.0.0.1:80
 	#dispatch 127.0.0.1:22
-	#server nc 127.0.0.1:8080 cookie cookie1 check
-	server tuxlocal 127.0.0.1:80 cookie cookie1 check
+	server nc 127.0.0.1:8080 cookie cookie1 check
+#	server tuxlocal0 10.101.23.9:80 cookie cookie1 check
+#	server tuxlocal1 127.0.0.1:80 cookie cookie1 check
+#	server tuxlocal2 127.0.0.1:80 cookie cookie2 check
+#	server tuxlocal3 127.0.0.1:80 cookie cookie3 check
+#	server tuxlocal4 127.0.0.1:80 cookie cookie4 check
+#	server vax 10.101.14.1:80 cookie cookie1 check
 	#server tuxceleron 10.101.0.1:80 cookie cookie2 check
 	#server telnet 127.0.0.1:23
 	#server ssh 127.0.0.1:22
@@ -47,13 +53,19 @@ listen proxy1 0.0.0.0:8000
 	#rsprep ^(Date:\ )([^,]*)(,\ )(.*) LaDate\ est:\ \4\ (\2)
 	# force connection:close
 	#reqidel ^Connection:
-	#rspidel	^Connection:
+	#rspidel ^Connection:
 	#reqadd	Connection:\ close
 	#rspadd	Connection:\ close
 	# processing options
 	#option	keepalive
 	option	forwardfor
 	option httplog
+	option dontlognull
+#	reqirep ^(Test:\ ) \0_toto_\1_toto
+#	reqidel ^Cookie:\ SERVERID=
+#	reqirep ^(GET|POST)\ .* \0
+#	reqirep ^(Host:|Connection:|User-agent:|Cookie:)\ .* \0
+#	reqideny ^
 	
 listen proxy1 0.0.0.0:8001
 	mode	http

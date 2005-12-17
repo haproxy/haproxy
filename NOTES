@@ -9,7 +9,19 @@
   * add x-forwarded-for
   * log http requests on demand, and destination server name
 1.1.7 -> 1.1.8
-  - log destination server IP
+  * full HTTP log with destination server ID, req and resp time.
+  * source address of outgoing connections
+1.1.8 -> 1.1.9
   - handle parametrable HTTP health-checks replies
   - differentiate http headers and http uris
+  - support environment variables in config file
   - support keep-alive
+
+--- Notes about cookie usage ---
+
+Cookie insertion is done at the end of server response.
+Cookie matching is done after header replacement, but before
+header deletion. This means that it's perfectly possible to
+delete an inserted cookie once it has been matched, so that
+the server never knows about it.
+

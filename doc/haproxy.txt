@@ -1,9 +1,9 @@
 
          		     H A - P r o x y
          		     ---------------
-         		      version 1.1.5
+         		      version 1.1.8
 			      willy tarreau
-			       2002/04/03
+			       2002/04/16
 
 ================
 | Introduction |
@@ -12,15 +12,17 @@
 HA-Proxy est un relais TCP/HTTP offrant des facilités d'intégration en
 environnement hautement disponible. En effet, il est capable de :
   - assurer un aiguillage statique défini par des cookies ;
-  - assurer une répartition de charge avec création de cookies pour
-    assurer la persistence de session ;
+  - assurer une répartition de charge avec création de cookies pour assurer la
+    persistence de session ; 
   - fournir une visibilité externe de son état de santé ;
   - s'arrêter en douceur sans perte brutale de service.
   - modifier/ajouter/supprimer des entêtes dans la requête et la réponse.
+  - interdire des requêtes qui vérifient certaines conditions.
 
-Il requiert peu de ressources, et son architecture événementielle
-mono-processus lui permet facilement de gérer plusieurs milliers de
-connexions simultanées sur plusieurs relais sans effondrer le système.
+Il requiert peu de ressources, et son architecture événementielle mono-processus
+lui permet facilement de gérer plusieurs milliers de connexions simultanées sur
+plusieurs relais sans effondrer le système.
+
 
 ===========================
 | Paramètres de lancement |
@@ -36,25 +38,97 @@ Les options de lancement sont peu nombreuses :
     -s affiche les statistiques (si option compilée)
     -l ajoute des informations aux statistiques
 
-Le nombre maximal de connexion simultanées par proxy est le paramètre
-par défaut pour les proxies pour lesquels ce paramètre n'est pas
-précisé dans le fichier de configuration.
+Le nombre maximal de connexion simultanées par proxy est le paramètre par défaut
+pour les proxies pour lesquels ce paramètre n'est pas précisé dans le fichier de
+configuration. Il s'agit du paramètre 'maxconn' dans les sections 'listen'.
 
-Le nombre maximal total de connexions simultanées limite le nombre de
-connexions TCP utilisables à un instant par le processus, tous proxies
-confondus.
+Le nombre maximal total de connexions simultanées limite le nombre de connexions
+TCP utilisables à un instant par le processus, tous proxies confondus. Ce
+paramètre remplace le paramètre 'maxconn' de la section 'global'.
+
 
 ============================
 | Fichier de configuration |
 ============================
 
-
 Commentaires
 ============
 
-L'analyseur du fichier de configuration ignore des lignes vides, les
-espaces, les tabulations, et tout ce qui est compris entre le symbole
-'#' (s'il n'est pas précédé d'un '\'), et la fin de la ligne.
+L'analyseur du fichier de configuration ignore des lignes vides, les espaces,
+les tabulations, et tout ce qui est compris entre le symbole '#' (s'il n'est pas
+précédé d'un '\'), et la fin de la ligne. 
+
+Le fichier de configuration est découpé en sections répérées par des mots clés
+tels que :
+
+  - 'global'
+  - 'listen'
+
+Tous les paramètres font référence à la section définie par le dernier mot clé
+reconnu.
+
+
+1) Paramètres généraux
+======================
+
+Il s'agit des paramètres agissant sur le processus, ou bien sur l'ensemble des
+proxies. Ils sont tous spécifiés dans la section 'global'. Les paramètres
+supportés sont :
+
+  - log <adresse> <catégorie>
+  - maxconn <nombre>
+  - uid <identifiant>
+  - gid <identifiant>
+  - chroot <répertoire>
+  - nbproc <nombre>
+  - daemon
+  - debug
+  - quiet
+
+1.1) Journalisation des événements
+----------------------------------
+La plupart des événements sont journalisés : démarrages, arrêts, disparition et
+apparition de serveurs, connexions, erreurs. Tous les messages sont envoyés en
+syslog vers un ou deux serveurs. La syntaxe est la suivante :
+
+    log <adresse_ip> <facility>
+
+Les connexions sont envoyées en niveau "info". Les démarrages de service et de
+serveurs seront envoyés en "notice", les signaux d'arrêts en "warning" et les
+arrêts définitifs de services et de serveurs en "alert". Ceci est valable aussi
+bien pour les proxies que pour les serveurs testés au sein des proxies.
+
+Les catégories possibles sont :
+    kern, user, mail, daemon, auth, syslog, lpr, news,
+    uucp, cron, auth2, ftp, ntp, audit, alert, cron2,
+    local0, local1, local2, local3, local4, local5, local6, local7
+
+Exemple :
+---------
+    global
+	log 192.168.2.200 local3
+	log 192.168.2.201 local4
+
+1.2) limitation du nombre de connexions
+---------------------------------------
+Il est possible et conseillé de limiter le nombre global de connexions par
+processus. Les connexions sont comprises au sens 'acceptation de connexion',
+donc il faut s'attendre en règle général à avoir un peu plus du double de
+sessions TCP que le maximum de connexions fixé. C'est important pour fixer le
+paramètre 'ulimit -n' avant de lancer le proxy. Pour comptabiliser le nombre
+de sockets nécessaires, il faut prendre en compte ces paramètres :
+  - 1 socket par connexion entrante
+  - 1 socket par connexion sortante
+  - 1 socket par proxy
+  - 1 socket pour chaque serveur en cours de health-check
+  - 1 socket pour les logs
+
+Positionner la limite du nombre de descripteurs de fichiers (ulimit -n) à
+2 * maxconn + nbproxy + nbserveurs + 1.
+
+1.3) Changement d'uid et de gid
+-------------------------------
+
 
 
 Serveur

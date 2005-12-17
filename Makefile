@@ -32,8 +32,8 @@ LIBS=$(LIBS.$(TARGET))
 
 # - use -DSTATTIME=0 to disable statistics, else specify an interval in
 #   milliseconds.
-# - use -DTRANSPARENT to compile with transparent proxy support.
-CFLAGS = -Wall $(COPTS) $(DEBUG) -DSTATTIME=0 -DTRANSPARENT
+# - use -DTPROXY to compile with transparent proxy support.
+CFLAGS = -Wall $(COPTS) $(DEBUG) -DSTATTIME=0 -DTPROXY
 LDFLAGS = -g
 
 all: haproxy

@@ -2,20 +2,21 @@
 * implémenter l'option "log global" au niveau proxy pour utiliser les logs
   globaux.
 * matching case-insensitive
+* implémenter outgoing addr
+* loguer t_cnx, t_data, t_total
 + factoriser la fonction de log (send_log = send_syslog+warning+alert)
 + désactivation du keep-alive (suppression des ^Connection: et ajout des Connection: close)
   -> 4 lignes (2 del, 2 add) suffisent.
-
-- loguer t_cnx, t_data, t_total
++ ne pas loguer certaines adresses IP sources
+  -> pour les health-checks uniquement -> pas de log pour les requêtes
+     vides (option dontlognull)
 - mesurer le tps consommé entre deux select, et fournir la conso CPU :
   %cpu = 100 * (tpreselect(n+1)-tpostselect(n)) / (tpreselect(n+1)-tpreselect(n))
 - implémenter limitation fd dans la conf : setrlimit(RLIMIT_NOFILE, ...)
 - implémenter core/no-core dans la conf : setrlimit(RLIMIT_CORE, ...)
-- implémenter outgoing addr
 - optimiser les regex pour accélérer les matches :
   - compter les matches
   - si match(n) & ([n].cpt > [n-1].cpt) & ([n].action == [n-1].action), swap(n,n-1)
   - régulièrement, diviser tous les compteurs (lors d'un dépassement par exemple)
 - filtrage sur l'adresse IP source
-- ne pas loguer certaines adresses IP sources
 - gestion keep-alive

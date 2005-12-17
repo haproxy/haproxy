@@ -8,11 +8,28 @@
  * 2 of the License, or (at your option) any later version.
  *
  * Pending bugs :
+ *   - solaris only : sometimes, an HTTP proxy with only a dispatch address causes
+ *     the proxy to terminate (no core) if the client breaks the connection during
+ *     the response. Seen on 1.1.8pre4, but never reproduced.
  *   - cookie in insert+indirect mode sometimes segfaults !
  *   - a proxy with an invalid config will prevent the startup even if disabled.
  *
  * ChangeLog :
  *
+ * 2002/04/18 : 1.1.8
+ *   - option "dontlognull"
+ *   - fixed "double space" bug in config parser
+ *   - fixed an uninitialized server field in case of dispatch
+ *     with no existing server which could cause a segfault during
+ *     logging.
+ *   - the pid logged was always the father's, which was wrong for daemons.
+ *   - fixed wrong level "LOG_INFO" for message "proxy started".
+ * 2002/04/13 :
+ *   - http logging is now complete :
+ *     - ip:port, date, proxy, server
+ *     - req_time, conn_time, hdr_time, tot_time
+ *     - status, size, request
+ *   - source address
  * 2002/04/12 : 1.1.7
  *   - added option forwardfor
  *   - added reqirep, reqidel, reqiallow, reqideny, rspirep, rspidel
@@ -113,12 +130,12 @@
 #include <time.h>
 #include <regex.h>
 #include <syslog.h>
-#if defined(TRANSPARENT) && defined(NETFILTER)
+#if defined(TPROXY) && defined(NETFILTER)
 #include <linux/netfilter_ipv4.h>
 #endif
 
-#define HAPROXY_VERSION "1.1.7"
-#define HAPROXY_DATE	"2002/04/12"
+#define HAPROXY_VERSION "1.1.8"
+#define HAPROXY_DATE	"2002/04/18"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -283,7 +300,8 @@ int strlcpy(char *dst, const char *src, int size) {
 #define PR_O_BALANCE	(PR_O_BALANCE_RR)
 #define	PR_O_KEEPALIVE	64	/* follow keep-alive sessions */
 #define	PR_O_FWDFOR	128	/* insert x-forwarded-for with client address */
-#define PR_O_LOGHTTP	256	/* generate a full HTTP log */
+#define	PR_O_BIND_SRC	256	/* bind to a specific source address when connect()ing */
+#define PR_O_NULLNOLOG	512	/* a connect without request will not be logged */
 
 
 /* various session flags */
@@ -336,7 +354,7 @@ int strlcpy(char *dst, const char *src, int size) {
 #define CFG_GLOBAL	1
 #define CFG_LISTEN	2
 
-/* fields that need to be logged. They appear as flags in session->logwait */
+/* fields that need to be logged. They appear as flags in session->logs.logwait */
 #define LW_DATE		1	/* date */
 #define LW_CLIP		2	/* CLient IP */
 #define LW_SVIP		4	/* SerVer IP */
@@ -345,6 +363,7 @@ int strlcpy(char *dst, const char *src, int size) {
 #define LW_RESP		32	/* http RESPonse */
 #define LW_PXIP		64	/* proxy IP */
 #define LW_PXID		128	/* proxy ID */
+#define LW_BYTES	256	/* bytes read from server */
 
 /*********************************************************************/
 
@@ -363,6 +382,7 @@ struct buffer {
     unsigned int l;			/* data length */
     char *r, *w, *h, *lr;     		/* read ptr, write ptr, last header ptr, last read */
     char *rlim;				/* read limit, used for header rewriting */
+    unsigned long long total;		/* total data read */
     char data[BUFSIZE];
 };
 
@@ -409,13 +429,22 @@ struct session {
     int srv_state;			/* state of the server side */
     int conn_retries;			/* number of connect retries left */
     int flags;				/* some flags describing the session */
-    int logwait;			/* log things waiting to be collected : LW_* */
     struct buffer *req;			/* request buffer */
     struct buffer *rep;			/* response buffer */
     struct sockaddr_in cli_addr;	/* the client address */
     struct sockaddr_in srv_addr;	/* the address to connect to */
     struct server *srv;			/* the server being used */
-    char *requri;			/* first line if log needed, NULL otherwise */
+    struct {
+	int logwait;			/* log fields waiting to be collected : LW_* */
+	struct timeval tv_accept;	/* date of the accept() (beginning of the session) */
+	long  t_request;		/* delay before the end of the request arrives, -1 if never occurs */
+	long  t_connect;		/* delay before the connect() to the server succeeds, -1 if never occurs */
+	long  t_data;			/* delay before the first data byte from the server ... */
+	unsigned long  t_close;		/* total session duration */
+	char *uri;			/* first line if log needed, NULL otherwise */
+	int status;			/* HTTP status from the server, negative if from proxy */
+	long long bytes;		/* number of bytes transferred from the server */
+    } logs;
 };
 
 struct proxy {
@@ -435,6 +464,7 @@ struct proxy {
     int conn_retries;			/* maximum number of connect retries */
     int options;			/* PR_O_REDISP, PR_O_TRANSP */
     int mode;				/* mode = PR_MODE_TCP, PR_MODE_HTTP or PR_MODE_HEALTH */
+    struct sockaddr_in source_addr;	/* the address to which we want to bind for connect() */
     struct proxy *next;
     struct sockaddr_in logsrv1, logsrv2; /* 2 syslog servers */
     char logfac1, logfac2;		/* log facility for both servers. -1 = disabled */
@@ -539,19 +569,19 @@ const char *monthname[12] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
 #define MAX_HOSTNAME_LEN	32
 static char hostname[MAX_HOSTNAME_LEN] = "";
 
-const char *HTTP_403 =
-	"HTTP/1.0 403 Forbidden\r\n"
-	"Cache-Control: no-cache\r\n"
-	"Connection: close\r\n"
-	"\r\n"
-	"403 Forbidden : Request forbidden by administrative rules.\r\n";
-
 const char *HTTP_400 =
 	"HTTP/1.0 400 Bad request\r\n"
 	"Cache-Control: no-cache\r\n"
 	"Connection: close\r\n"
 	"\r\n"
 	"400 Bad request : Your browser sent an invalid request.\r\n";
+
+const char *HTTP_403 =
+	"HTTP/1.0 403 Forbidden\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"\r\n"
+	"403 Forbidden : Request forbidden by administrative rules.\r\n";
 
 const char *HTTP_502 =
 	"HTTP/1.0 502 Proxy Error\r\n"
@@ -629,7 +659,7 @@ void Alert(char *fmt, ...) {
 	gettimeofday(&tv, NULL);
 	tm=localtime(&tv.tv_sec);
 	fprintf(stderr, "[ALERT] %03d/%02d%02d%02d (%d) : ",
-		tm->tm_yday, tm->tm_hour, tm->tm_min, tm->tm_sec, getpid());
+		tm->tm_yday, tm->tm_hour, tm->tm_min, tm->tm_sec, (int)getpid());
 	vfprintf(stderr, fmt, argp);
 	fflush(stderr);
 	va_end(argp);
@@ -651,7 +681,7 @@ void Warning(char *fmt, ...) {
 	gettimeofday(&tv, NULL);
 	tm=localtime(&tv.tv_sec);
 	fprintf(stderr, "[WARNING] %03d/%02d%02d%02d (%d) : ",
-		tm->tm_yday, tm->tm_hour, tm->tm_min, tm->tm_sec, getpid());
+		tm->tm_yday, tm->tm_hour, tm->tm_min, tm->tm_sec, (int)getpid());
 	vfprintf(stderr, fmt, argp);
 	fflush(stderr);
 	va_end(argp);
@@ -683,7 +713,7 @@ struct sockaddr_in *str2sa(char *str) {
     char *c;
     int port;
 
-    bzero(&sa, sizeof(sa));
+    memset(&sa, 0, sizeof(sa));
     str=strdup(str);
 
     if ((c=strrchr(str,':')) != NULL) {
@@ -1226,10 +1256,10 @@ static int maintain_proxies(void);
  * inspired from Patrick Schaaf's example of nf_getsockname() implementation.
  */
 static int get_original_dst(int fd, struct sockaddr_in *sa, int *salen) {
-#if defined(TRANSPARENT) && defined(SO_ORIGINAL_DST)
+#if defined(TPROXY) && defined(SO_ORIGINAL_DST)
     return getsockopt(fd, SOL_IP, SO_ORIGINAL_DST, (void *)sa, salen);
 #else
-#if defined(TRANSPARENT) && defined(USE_GETSOCKNAME)
+#if defined(TPROXY) && defined(USE_GETSOCKNAME)
     return getsockname(fd, (struct sockaddr *)sa, salen);
 #else
     return -1;
@@ -1245,8 +1275,8 @@ static inline void session_free(struct session *s) {
 	pool_free(buffer, s->req);
     if (s->rep)
 	pool_free(buffer, s->rep);
-    if (s->requri)
-	pool_free(requri, s->requri);
+    if (s->logs.uri)
+	pool_free(requri, s->logs.uri);
 
     pool_free(session, s);
 }
@@ -1288,7 +1318,7 @@ int connect_server(struct session *s) {
 	else /* unknown balancing algorithm */
 	    return -1;
     }
-    else if (*(int *)&s->proxy->dispatch_addr) {
+    else if (*(int *)&s->proxy->dispatch_addr.sin_addr) {
 	/* connect to the defined dispatch addr */
 	s->srv_addr = s->proxy->dispatch_addr;
     }
@@ -1319,6 +1349,14 @@ int connect_server(struct session *s) {
 	return -1;
     }
 
+    /* allow specific binding */
+    if (s->proxy->options & PR_O_BIND_SRC &&
+	bind(fd, (struct sockaddr *)&s->proxy->source_addr, sizeof(s->proxy->source_addr)) == -1) {
+	Alert("Cannot bind to source address before connect() for proxy %s. Aborting.\n", s->proxy->id);
+	close(fd);
+	return -1;
+    }
+	
     if ((connect(fd, (struct sockaddr *)&s->srv_addr, sizeof(s->srv_addr)) == -1) && (errno != EINPROGRESS)) {
 	if (errno == EAGAIN) { /* no free ports left, try again later */
 	    qfprintf(stderr,"Cannot connect, no free ports.\n");
@@ -1405,6 +1443,8 @@ int event_cli_read(int fd) {
 		if (b->r == b->data + BUFSIZE) {
 		    b->r = b->data; /* wrap around the buffer */
 		}
+
+		b->total += ret;
 		/* we hope to read more data or to get a close on next round */
 		continue;
 	    }
@@ -1498,6 +1538,8 @@ int event_srv_read(int fd) {
 		if (b->r == b->data + BUFSIZE) {
 		    b->r = b->data; /* wrap around the buffer */
 		}
+
+		b->total += ret;
 		/* we hope to read more data or to get a close on next round */
 		continue;
 	    }
@@ -1746,21 +1788,45 @@ void sess_log(struct session *s) {
      * computed.
      */
 
-    log = p->to_log & ~s->logwait;
+    log = p->to_log & ~s->logs.logwait;
 
     pn = (log & LW_CLIP) ?
 	 (unsigned char *)&s->cli_addr.sin_addr :
 	 (unsigned char *)"\0\0\0\0";
 
-    uri = (log & LW_REQ) ? s->requri : "<requri>";
+    uri = (log & LW_REQ) ? s->logs.uri : "<BADREQ>";
     pxid = p->id;
     //srv = (log & LW_SVID) ? s->srv->id : "<svid>";
-    srv = ((p->to_log & LW_SVID) && s->srv != NULL) ? s->srv->id : "<svid>";
-	
-    send_log(p, LOG_INFO, "%d.%d.%d.%d:%d %s %s \"%s\"\n",
-	     pn[0], pn[1], pn[2], pn[3], ntohs(s->cli_addr.sin_port),
-	     pxid, srv, uri);
-    s->logwait = 0;
+    srv = ((p->to_log & LW_SVID) && s->srv != NULL) ? s->srv->id : "<NOSRV>";
+
+    if (p->to_log & LW_DATE) {
+	struct tm *tm = localtime(&s->logs.tv_accept.tv_sec);
+
+	send_log(p, LOG_INFO, "%d.%d.%d.%d:%d [%02d/%s/%04d:%02d:%02d:%02d] %s %s %d/%d/%d/%d %d %lld \"%s\"\n",
+		 pn[0], pn[1], pn[2], pn[3], ntohs(s->cli_addr.sin_port),
+		 tm->tm_mday, monthname[tm->tm_mon], tm->tm_year+1900,
+		 tm->tm_hour, tm->tm_min, tm->tm_sec,
+		 pxid, srv,
+		 s->logs.t_request,
+		 (s->logs.t_connect >= 0) ? s->logs.t_connect - s->logs.t_request : -1,
+		 (s->logs.t_data >= 0) ? s->logs.t_data - s->logs.t_connect : -1,
+		 s->logs.t_close,
+		 s->logs.status, s->logs.bytes,
+		 uri);
+    }
+    else {
+	send_log(p, LOG_INFO, "%d.%d.%d.%d:%d %s %s %d/%d/%d/%d %d %lld \"%s\"\n",
+		 pn[0], pn[1], pn[2], pn[3], ntohs(s->cli_addr.sin_port),
+		 pxid, srv,
+		 s->logs.t_request,
+		 (s->logs.t_connect >= 0) ? s->logs.t_connect - s->logs.t_request : -1,
+		 (s->logs.t_data >= 0) ? s->logs.t_data - s->logs.t_connect : -1,
+		 s->logs.t_close,
+		 s->logs.status, s->logs.bytes,
+		 uri);
+    }
+
+    s->logs.logwait = 0;
 }
 
 
@@ -1833,9 +1899,18 @@ int event_accept(int fd) {
 	s->res_cr = s->res_cw = s->res_sr = s->res_sw = RES_SILENT;
 	s->cli_fd = cfd;
 	s->srv_fd = -1;
+	s->srv = NULL;
 	s->conn_retries = p->conn_retries;
-	s->requri = NULL;
-	s->logwait = p->to_log;
+
+	s->logs.logwait = p->to_log;
+	s->logs.tv_accept = now;
+	s->logs.t_request = -1;
+	s->logs.t_connect = -1;
+	s->logs.t_data = -1;
+	s->logs.t_close = 0;
+	s->logs.uri = NULL;
+	s->logs.status = -1;
+	s->logs.bytes = 0;
 
 	if ((p->mode == PR_MODE_TCP || p->mode == PR_MODE_HTTP)
 	    && (p->logfac1 >= 0 || p->logfac2 >= 0)) {
@@ -1851,8 +1926,8 @@ int event_accept(int fd) {
 
 	    if (p->to_log) {
 		/* we have the client ip */
-		if (s->logwait & LW_CLIP)
-		    if (!(s->logwait &= ~LW_CLIP))
+		if (s->logs.logwait & LW_CLIP)
+		    if (!(s->logs.logwait &= ~LW_CLIP))
 			sess_log(s);
 	    }
 	    else
@@ -1875,6 +1950,7 @@ int event_accept(int fd) {
 	    return 0;
 	}
 	s->req->l = 0;
+	s->req->total = 0;
 	s->req->h = s->req->r = s->req->lr = s->req->w = s->req->data;	/* r and w will be reset further */
 	s->req->rlim = s->req->data + BUFSIZE;
 	if (s->cli_state == CL_STHEADERS) /* reserver some space for header rewriting */
@@ -1888,6 +1964,7 @@ int event_accept(int fd) {
 	    return 0;
 	}
 	s->rep->l = 0;
+	s->rep->total = 0;
 	s->rep->h = s->rep->r = s->rep->lr = s->rep->w = s->rep->rlim = s->rep->data;
 
 	fdtab[cfd].read  = &event_cli_read;
@@ -2088,6 +2165,7 @@ int process_cli(struct session *t) {
 
 		if (t->flags & SN_CLDENY) {
 		    /* no need to go further */
+		    t->logs.status = 403;
 		    client_retnclose(t, strlen(HTTP_403), HTTP_403);
 		    return 1;
 		}
@@ -2109,6 +2187,7 @@ int process_cli(struct session *t) {
 		t->cli_state = CL_STDATA;
 		req->rlim = req->data + BUFSIZE; /* no more rewrite needed */
 
+		t->logs.t_request = tv_delta(&t->logs.tv_accept, &now);
 		/* FIXME: we'll set the client in a wait state while we try to
 		 * connect to the server. Is this really needed ? wouldn't it be
 		 * better to release the maximum of system buffers instead ? */
@@ -2141,25 +2220,25 @@ int process_cli(struct session *t) {
 	     *   req->r  = end of data (not used at this stage)
 	     */
 
-	    if (t->logwait & LW_REQ &&
-		t->proxy->mode & PR_MODE_HTTP &&
-		t->proxy->options & PR_O_LOGHTTP) {
+	    if (t->logs.logwait & LW_REQ &&
+		t->proxy->mode & PR_MODE_HTTP) {
 		/* we have a complete HTTP request that we must log */
 		int urilen;
 
-		if ((t->requri = pool_alloc(requri)) == NULL) {
+		if ((t->logs.uri = pool_alloc(requri)) == NULL) {
 		    Alert("HTTP logging : out of memory.\n");
-		    client_retnclose(t, strlen(HTTP_403), HTTP_403);
+		    t->logs.status = 502;
+		    client_retnclose(t, strlen(HTTP_502), HTTP_502);
 		    return 1;
 		}
 		
 		urilen = ptr - req->h;
 		if (urilen >= REQURI_LEN)
 		    urilen = REQURI_LEN - 1;
-		memcpy(t->requri, req->h, urilen);
-		t->requri[urilen] = 0;
+		memcpy(t->logs.uri, req->h, urilen);
+		t->logs.uri[urilen] = 0;
 
-		if (!(t->logwait &= ~LW_REQ))
+		if (!(t->logs.logwait &= ~LW_REQ))
 		    sess_log(t);
 	    }
 
@@ -2309,6 +2388,7 @@ int process_cli(struct session *t) {
 	 * won't be able to free more later, so the session will never terminate.
 	 */
 	if (req->l >= req->rlim - req->data) {
+	    t->logs.status = 400;
 	    client_retnclose(t, strlen(HTTP_400), HTTP_400);
 	    return 1;
 	}
@@ -2507,6 +2587,7 @@ int process_srv(struct session *t) {
 		    /* if conn_retries < 0 or other error, let's abort */
 		    tv_eternity(&t->cnexpire);
 		    t->srv_state = SV_STCLOSE;
+		    t->logs.status = 502;
 		    client_return(t, strlen(HTTP_502), HTTP_502);
 		}
 	    }
@@ -2539,6 +2620,8 @@ int process_srv(struct session *t) {
 	    return 1;
 	}
 	else { /* no error or write 0 */
+	    t->logs.t_connect = tv_delta(&t->logs.tv_accept, &now);
+
 	    //fprintf(stderr,"3: c=%d, s=%d\n", c, s);
 	    if (req->l == 0) /* nothing to write */
 		FD_CLR(t->srv_fd, StaticWriteEvent);
@@ -2600,6 +2683,7 @@ int process_srv(struct session *t) {
 
 		t->srv_state = SV_STDATA;
 		rep->rlim = rep->data + BUFSIZE; /* no more rewrite needed */
+		t->logs.t_data = tv_delta(&t->logs.tv_accept, &now);
 		break;
 	    }
 
@@ -2629,6 +2713,12 @@ int process_srv(struct session *t) {
 	     *   rep->lr = beginning of next line (next rep->h)
 	     *   rep->r  = end of data (not used at this stage)
 	     */
+
+
+	    if (t->logs.logwait & LW_RESP) {
+		t->logs.logwait &= ~LW_RESP;
+		t->logs.status = atoi(rep->h + 9);
+	    }
 
 	    delete_header = 0;
 
@@ -2994,8 +3084,12 @@ int process_session(struct task *t) {
 	write(1, trash, len);
     }
 
+    s->logs.t_close = tv_delta(&s->logs.tv_accept, &now);
+    if (s->rep != NULL)
+	s->logs.bytes = s->rep->total;
+
     /* let's do a final log if we need it */
-    if (s->logwait)
+    if (s->logs.logwait && (!(s->proxy->options & PR_O_NULLNOLOG) || s->req->total))
 	sess_log(s);
 
     /* the task MUST not be in the run queue anymore */
@@ -3752,7 +3846,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	if (!strcmp(args[1], "redispatch"))
 	    /* enable reconnections to dispatch */
 	    curproxy->options |= PR_O_REDISP;
-#ifdef TRANSPARENT
+#ifdef TPROXY
 	else if (!strcmp(args[1], "transparent"))
 	    /* enable transparent proxy connections */
 	    curproxy->options |= PR_O_TRANSP;
@@ -3765,8 +3859,11 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	    curproxy->options |= PR_O_FWDFOR;
 	else if (!strcmp(args[1], "httplog")) {
 	    /* generate a complete HTTP log */
-	    curproxy->options |= PR_O_LOGHTTP;
-	    curproxy->to_log |= LW_DATE | LW_CLIP | LW_SVID | LW_REQ | LW_PXID;
+	    curproxy->to_log |= LW_DATE | LW_CLIP | LW_SVID | LW_REQ | LW_PXID | LW_RESP;
+	}
+	else if (!strcmp(args[1], "dontlognull")) {
+	    /* don't log empty requests */
+	    curproxy->options |= PR_O_NULLNOLOG;
 	}
 	else {
 	    Alert("parsing [%s:%d] : unknown option <%s>.\n", file, linenum, args[1]);
@@ -3778,7 +3875,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	/* enable reconnections to dispatch */
 	curproxy->options |= PR_O_REDISP;
     }
-#ifdef TRANSPARENT
+#ifdef TPROXY
     else if (!strcmp(args[0], "transparent")) {
 	/* enable transparent proxy connections */
 	curproxy->options |= PR_O_TRANSP;
@@ -3933,6 +4030,16 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 		  file, linenum);
 	    return -1;
 	}
+    }
+    else if (!strcmp(args[0], "source")) {  /* address to which we bind when connecting */
+	if (strchr(args[1], ':') == NULL) {
+	    Alert("parsing [%s:%d] : <source> expects <addr:port> as argument.\n",
+		  file, linenum);
+	    return -1;
+	}
+	
+	curproxy->source_addr = *str2sa(args[1]);
+	curproxy->options |= PR_O_BIND_SRC;
     }
     else if (!strcmp(args[0], "cliexp") || !strcmp(args[0], "reqrep")) {  /* replace request header from a regex */
 	regex_t *preg;
@@ -4233,19 +4340,20 @@ int readcfgfile(char *file) {
 		}
 		line++;
 	    }
-	    else {
-		if (*line == '#' || *line == '\n' || *line == '\r')
-		    *line = 0; /* end of string, end of loop */
-		else
-		    line++;
-		
+	    else if (*line == '#' || *line == '\n' || *line == '\r') {
+		/* end of string, end of loop */
+		*line = 0;
+		break;
+	    }
+	    else if (isspace(*line)) {
 		/* a non-escaped space is an argument separator */
-		if (isspace(*line)) {
-		    *line++ = 0;
-		    while (isspace(*line))
-			line++;
-		    args[++arg] = line;
-		}
+		*line++ = 0;
+		while (isspace(*line))
+		    line++;
+		args[++arg] = line;
+	    }
+	    else {
+		line++;
 	    }
 	}
 
@@ -4299,7 +4407,7 @@ int readcfgfile(char *file) {
 	}
 	if ((curproxy->mode != PR_MODE_HEALTH) &&
 	    !(curproxy->options & (PR_O_TRANSP | PR_O_BALANCE)) &&
-	    (*(int *)&curproxy->dispatch_addr == 0)) {
+	    (*(int *)&curproxy->dispatch_addr.sin_addr == 0)) {
 	    Alert("parsing %s : listener %s has no dispatch address and is not in transparent or balance mode.\n",
 		    file, curproxy->id);
 	    cfgerr++;
@@ -4315,7 +4423,7 @@ int readcfgfile(char *file) {
 		      file, curproxy->id);
 		cfgerr++;
 	    }
-	    else if (*(int *)&curproxy->dispatch_addr != 0) {
+	    else if (*(int *)&curproxy->dispatch_addr.sin_addr != 0) {
 		Warning("parsing %s : dispatch address of listener %s will be ignored in balance mode.\n",
 			file, curproxy->id);
 	    }
@@ -4559,7 +4667,7 @@ int start_proxies() {
 //	  if (curproxy->logfac2 >= 0)
 //	      send_syslog(&curproxy->logsrv2, curproxy->logfac2, LOG_INFO, trash);
 
-	send_log(curproxy, LOG_INFO, "Proxy %s started.\n", curproxy->id);
+	send_log(curproxy, LOG_NOTICE, "Proxy %s started.\n", curproxy->id);
 	
     }
     return 0;
@@ -4627,6 +4735,7 @@ int main(int argc, char **argv) {
 	if (proc == global.nbproc)
 	    exit(0); /* parent must leave */
 
+	pid = getpid(); /* update child's pid */
 	setpgid(1, 0);
     }
 
@@ -4634,3 +4743,4 @@ int main(int argc, char **argv) {
 
     exit(0);
 }
+
