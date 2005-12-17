@@ -53,8 +53,8 @@
 #include <linux/netfilter_ipv4.h>
 #endif
 
-#define HAPROXY_VERSION "1.1.22"
-#define HAPROXY_DATE	"2003/09/11"
+#define HAPROXY_VERSION "1.1.23"
+#define HAPROXY_DATE	"2003/09/20"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -1475,7 +1475,7 @@ int connect_server(struct session *s) {
 
     /* if this server remaps proxied ports, we'll use
      * the port the client connected to with an offset. */
-    if (s->srv->state & SRV_MAPPORTS) {
+    if (s->srv != NULL && s->srv->state & SRV_MAPPORTS) {
 	struct sockaddr_in sockname;
 	int namelen;
 
@@ -4405,6 +4405,48 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	curproxy->maxconn = defproxy.maxconn;
 	curproxy->conn_retries = defproxy.conn_retries;
 	curproxy->options = defproxy.options;
+
+	if (defproxy.check_req)
+	    curproxy->check_req = strdup(defproxy.check_req);
+	curproxy->check_len = defproxy.check_len;
+
+	if (defproxy.cookie_name)
+	    curproxy->cookie_name = strdup(defproxy.cookie_name);
+	curproxy->cookie_len = defproxy.cookie_len;
+
+	if (defproxy.capture_name)
+	    curproxy->capture_name = strdup(defproxy.capture_name);
+	curproxy->capture_namelen = defproxy.capture_namelen;
+	curproxy->capture_len = defproxy.capture_len;
+
+	if (defproxy.errmsg.msg400)
+	    curproxy->errmsg.msg400 = strdup(defproxy.errmsg.msg400);
+	curproxy->errmsg.len400 = defproxy.errmsg.len400;
+
+	if (defproxy.errmsg.msg403)
+	    curproxy->errmsg.msg403 = strdup(defproxy.errmsg.msg403);
+	curproxy->errmsg.len403 = defproxy.errmsg.len403;
+
+	if (defproxy.errmsg.msg408)
+	    curproxy->errmsg.msg408 = strdup(defproxy.errmsg.msg408);
+	curproxy->errmsg.len408 = defproxy.errmsg.len408;
+
+	if (defproxy.errmsg.msg500)
+	    curproxy->errmsg.msg500 = strdup(defproxy.errmsg.msg500);
+	curproxy->errmsg.len500 = defproxy.errmsg.len500;
+
+	if (defproxy.errmsg.msg502)
+	    curproxy->errmsg.msg502 = strdup(defproxy.errmsg.msg502);
+	curproxy->errmsg.len502 = defproxy.errmsg.len502;
+
+	if (defproxy.errmsg.msg503)
+	    curproxy->errmsg.msg503 = strdup(defproxy.errmsg.msg503);
+	curproxy->errmsg.len503 = defproxy.errmsg.len503;
+
+	if (defproxy.errmsg.msg504)
+	    curproxy->errmsg.msg504 = strdup(defproxy.errmsg.msg504);
+	curproxy->errmsg.len504 = defproxy.errmsg.len504;
+
 	curproxy->clitimeout = defproxy.clitimeout;
 	curproxy->contimeout = defproxy.contimeout;
 	curproxy->srvtimeout = defproxy.srvtimeout;
@@ -4421,6 +4463,19 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	return 0;
     }
     else if (!strcmp(args[0], "defaults")) {  /* use this one to assign default values */
+	/* some variables may have already been initialized earlier */
+	if (defproxy.check_req)     free(defproxy.check_req);
+	if (defproxy.cookie_name)   free(defproxy.cookie_name);
+	if (defproxy.capture_name)  free(defproxy.capture_name);
+	if (defproxy.errmsg.msg400) free(defproxy.errmsg.msg400);
+	if (defproxy.errmsg.msg403) free(defproxy.errmsg.msg403);
+	if (defproxy.errmsg.msg408) free(defproxy.errmsg.msg408);
+	if (defproxy.errmsg.msg500) free(defproxy.errmsg.msg500);
+	if (defproxy.errmsg.msg502) free(defproxy.errmsg.msg502);
+	if (defproxy.errmsg.msg503) free(defproxy.errmsg.msg503);
+	if (defproxy.errmsg.msg504) free(defproxy.errmsg.msg504);
+
+	init_default_instance();
 	curproxy = &defproxy;
 	return 0;
     }
@@ -4460,15 +4515,16 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
     }
     else if (!strcmp(args[0], "cookie")) {  /* cookie name */
 	int cur_arg;
-	if (curproxy == &defproxy) {
-	    Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-	    return -1;
-	}
+//	  if (curproxy == &defproxy) {
+//	      Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+//	      return -1;
+//	  }
 
 	if (curproxy->cookie_name != NULL) {
-	    Alert("parsing [%s:%d] : cookie name already specified. Continuing.\n",
-		  file, linenum);
-	    return 0;
+//	      Alert("parsing [%s:%d] : cookie name already specified. Continuing.\n",
+//		    file, linenum);
+//	      return 0;
+	    free(curproxy->cookie_name);
 	}
 	
 	if (*(args[1]) == 0) {
@@ -4510,15 +4566,16 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	}
     }
     else if (!strcmp(args[0], "capture")) {  /* name of a cookie to capture */
-	if (curproxy == &defproxy) {
-	    Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-	    return -1;
-	}
+//	  if (curproxy == &defproxy) {
+//	      Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+//	      return -1;
+//	  }
 
 	if (curproxy->capture_name != NULL) {
-	    Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n",
-		  file, linenum, args[0]);
-	    return 0;
+//	      Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n",
+//		    file, linenum, args[0]);
+//	      return 0;
+	    free(curproxy->capture_name);
 	}
 	
 	if (*(args[4]) == 0) {
@@ -4609,15 +4666,28 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	}
 	else if (!strcmp(args[1], "httpchk")) {
 	    /* use HTTP request to check servers' health */
+	    if (curproxy->check_req != NULL) {
+		free(curproxy->check_req);
+	    }
 	    curproxy->options |= PR_O_HTTP_CHK;
-	    if (*args[2]) {
+	    if (!*args[2]) { /* no argument */
+		curproxy->check_req = strdup(DEF_CHECK_REQ); /* default request */
+		curproxy->check_len = strlen(DEF_CHECK_REQ);
+	    } else if (!*args[3]) { /* one argument : URI */
 		int reqlen = strlen(args[2]) + strlen("OPTIONS / HTTP/1.0\r\n\r\n");
 		curproxy->check_req = (char *)malloc(reqlen);
 		curproxy->check_len = snprintf(curproxy->check_req, reqlen,
 			 "OPTIONS %s HTTP/1.0\r\n\r\n", args[2]); /* URI to use */
-	    } else {
-		curproxy->check_req = strdup(DEF_CHECK_REQ); /* default request */
-		curproxy->check_len = strlen(DEF_CHECK_REQ);
+	    } else { /* more arguments : METHOD URI [HTTP_VER] */
+		int reqlen = strlen(args[2]) + strlen(args[3]) + 3 + strlen("\r\n\r\n");
+		if (*args[4])
+		    reqlen += strlen(args[4]);
+		else
+		    reqlen += strlen("HTTP/1.0");
+		    
+		curproxy->check_req = (char *)malloc(reqlen);
+		curproxy->check_len = snprintf(curproxy->check_req, reqlen,
+			 "%s %s %s\r\n\r\n", args[2], args[3], *args[4]?args[4]:"HTTP/1.0");
 	    }
 	}
 	else if (!strcmp(args[1], "persist")) {
@@ -5194,10 +5264,10 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	int errnum;
 	char *err;
 
-	if (curproxy == &defproxy) {
-	    Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-	    return -1;
-	}
+	// if (curproxy == &defproxy) {
+	//     Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+	//     return -1;
+	// }
 
 	if (*(args[2]) == 0) {
 	    Alert("parsing [%s:%d] : <errorloc> expects <error> and <url> as arguments.\n", file, linenum);
@@ -5210,7 +5280,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 
 	if (errnum == 400) {
 	    if (curproxy->errmsg.msg400) {
-		Warning("parsing [%s:%d] : error %d already defined.\n", file, linenum, errnum);
+		//Warning("parsing [%s:%d] : error %d already defined.\n", file, linenum, errnum);
 		free(curproxy->errmsg.msg400);
 	    }
 	    curproxy->errmsg.msg400 = err;
@@ -5218,7 +5288,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	}
 	else if (errnum == 403) {
 	    if (curproxy->errmsg.msg403) {
-		Warning("parsing [%s:%d] : error %d already defined.\n", file, linenum, errnum);
+		//Warning("parsing [%s:%d] : error %d already defined.\n", file, linenum, errnum);
 		free(curproxy->errmsg.msg403);
 	    }
 	    curproxy->errmsg.msg403 = err;
@@ -5226,7 +5296,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	}
 	else if (errnum == 408) {
 	    if (curproxy->errmsg.msg408) {
-		Warning("parsing [%s:%d] : error %d already defined.\n", file, linenum, errnum);
+		//Warning("parsing [%s:%d] : error %d already defined.\n", file, linenum, errnum);
 		free(curproxy->errmsg.msg408);
 	    }
 	    curproxy->errmsg.msg408 = err;
@@ -5234,7 +5304,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	}
 	else if (errnum == 500) {
 	    if (curproxy->errmsg.msg500) {
-		Warning("parsing [%s:%d] : error %d already defined.\n", file, linenum, errnum);
+		//Warning("parsing [%s:%d] : error %d already defined.\n", file, linenum, errnum);
 		free(curproxy->errmsg.msg500);
 	    }
 	    curproxy->errmsg.msg500 = err;
@@ -5242,7 +5312,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	}
 	else if (errnum == 502) {
 	    if (curproxy->errmsg.msg502) {
-		Warning("parsing [%s:%d] : error %d already defined.\n", file, linenum, errnum);
+		//Warning("parsing [%s:%d] : error %d already defined.\n", file, linenum, errnum);
 		free(curproxy->errmsg.msg502);
 	    }
 	    curproxy->errmsg.msg502 = err;
@@ -5250,7 +5320,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	}
 	else if (errnum == 503) {
 	    if (curproxy->errmsg.msg503) {
-		Warning("parsing [%s:%d] : error %d already defined.\n", file, linenum, errnum);
+		//Warning("parsing [%s:%d] : error %d already defined.\n", file, linenum, errnum);
 		free(curproxy->errmsg.msg503);
 	    }
 	    curproxy->errmsg.msg503 = err;
@@ -5258,7 +5328,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	}
 	else if (errnum == 504) {
 	    if (curproxy->errmsg.msg504) {
-		Warning("parsing [%s:%d] : error %d already defined.\n", file, linenum, errnum);
+		//Warning("parsing [%s:%d] : error %d already defined.\n", file, linenum, errnum);
 		free(curproxy->errmsg.msg504);
 	    }
 	    curproxy->errmsg.msg504 = err;
@@ -5297,6 +5367,8 @@ int readcfgfile(char *file) {
 
     if ((f=fopen(file,"r")) == NULL)
 	return -1;
+
+    init_default_instance();
 
     while (fgets(line = thisline, sizeof(thisline), f) != NULL) {
 	linenum++;

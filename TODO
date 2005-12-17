@@ -73,11 +73,14 @@ ok>
      ok- les options
      ok- le retry
      ok- les checks
+     ok- les cookies/captures
        - les options des serveurs ?
        - les filtres et regex ?
-       - les cookies/captures
 
 5) implémenter "balance source" pour faire un hash sur la source.
+   permettre de spécifier un masque sur lequel s'applique le hachage,
+   ainsi qu'une option pour hacher en fonction de l'adresse dans le
+   champ "x-forwarded-for".
 
 6) possibilité d'un process séparé par listen :
    listen XXX
@@ -85,6 +88,9 @@ ok>
 
 le fait de spécifier group_id fera que toutes les instances utilisant le même
 identifiant de groupe seront gérées par un même processus.
+
+   -> plus souple et plus compréhensible de faire des sections par processus,
+      ce qui résoud également le cas ci-dessous
 
 7) gérer un chroot/uid/gid différents par process :
    listen XXX
@@ -100,3 +106,8 @@ identifiant de groupe seront gérées par un même processus.
    - alerte en cas de disparition
    - le nombre max de sessions à lui envoyer
 
+ok> 9) ajouter des paramètres optionnels à l'option "httpchk" permettant
+ok>    de forcer la méthode, la version HTTP et des headers.
+ok>    ex: option httpchk        -> OPTIONS / HTTP/1.0
+ok> 	   option httpchk /test  -> OPTIONS /test HTTP/1.0
+ok> 	   option httpchk HEAD / HTTP/1.0\nHost:\ www   -> tel quel

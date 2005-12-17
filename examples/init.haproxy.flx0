@@ -1,0 +1,20 @@
+#!/bin/bash
+
+. `dirname $0`/functions
+
+option	config		standard_option	/etc/haproxy/haproxy.cfg
+option	bin		reserved_option	/usr/sbin/haproxy
+option	cmdline		reserved_option	'$bin -q -D -f ${opt_config}'
+
+function do_help {
+    echo "Usage: ${0##*/} <status|start|stop|help>"
+    echo "List of config.rc options (name, type, default value, current value) :"
+    echo
+    echo "   - config ; def=/etc/haproxy/haproxy.cfg ; cur=$opt_confdir"
+    echo
+    exit 1 
+}
+
+
+load_config
+

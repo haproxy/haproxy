@@ -1,0 +1,1257 @@
+
+         		     H A - P r o x y
+         		     ---------------
+         		      version 1.1.23
+			      willy tarreau
+			       2003/09/20
+
+============
+| Abstract |
+============
+
+HA-Proxy is a TCP/HTTP reverse proxy which is particularly suited for high
+availability environments. Indeed, it can :
+  - route HTTP requests depending on statically assigned cookies ;
+  - spread the load among several servers while assuring server persistence
+    through the use of HTTP cookies ;
+  - switch to backup servers in the event a main one fails ;
+  - accept connections to special ports dedicated to service monitoring ;
+  - stop accepting connections without breaking existing ones ;
+  - add/modify/delete HTTP headers both ways ;
+  - block requests matching a particular pattern ;
+
+It needs very little resource. Its event-driven architecture allows it to easily
+handle thousands of simultaneous connections on hundreds of instances without
+risking the system's stability.
+
+====================
+| Start parameters |
+====================
+
+There are only a few command line options :
+
+    -f <configuration file>
+    -n <high limit for the total number of simultaneous connections>
+    -N <high limit for the per-proxy number of simultaneous connections>
+    -d starts in foregreound with debugging mode enabled
+    -D starts in daemon mode
+    -s shows statistics (only if compiled in)
+    -l shows even more statistics (implies '-s')
+
+
+The maximal number of connections per proxy is used as the default parameter for
+each instance for which the 'maxconn' paramter is not set in the 'listen' section.
+
+The maximal number of total connections limits the number of connections used by
+the whole process if the 'maxconn' parameter is not set in the 'global' section.
+
+The debugging mode has the same effect as the 'debug' option in the 'global'
+section. When the proxy runs in this mode, it dumps every connections,
+disconnections, timestamps, and HTTP headers to stdout. This should NEVER
+be used in an init script since it will prevent the system from starting up.
+
+Statistics are only available if compiled in with the 'STATTIME' option. It's
+only used during code optimization phases.
+
+======================
+| Configuration file |
+======================
+
+Structure
+=========
+
+The configuration file parser ignores empty lines, spaces, tabs. Anything
+between a sharp ('#') not following a backslash ('\'), and the end of a line
+constitutes a comment and is ignored too.
+
+The configuration file is segmented in sections. A section begins whenever
+one of these 3 keywords are encountered :
+
+  - 'global'
+  - 'listen'
+  - 'defaults'
+
+Every parameter refer to the section beginning at the last one of these 3
+keywords.
+
+
+1) Global parameters
+====================
+
+Global parameters affect the whole process behaviour. They are all set in the
+'global' section. There may be several 'global' sections if needed, but their
+parameters will only be merged. Allowed parameters in 'global' section include
+the following ones :
+
+  - log <address> <facility> [max_level]
+  - maxconn <number>
+  - uid <user id>
+  - gid <group id>
+  - chroot <directory>
+  - nbproc <number>
+  - daemon
+  - debug
+  - quiet
+
+1.1) Event logging
+------------------
+Most events are logged : start, stop, servers going up and down, connections and
+errors. Each event generates a syslog message which can be sent to up to 2
+servers. The syntax is :
+
+    log <ip_address> <facility> [max_level]
+
+Connections are logged at level "info". Services initialization and servers
+going up are logged at level "notice", termination signals are logged at
+"warning", and definitive service termination, as well as loss of servers are
+logged at level "alert". The optional parameter <max_level> specifies above
+what level messages should be sent. Level can take one of these 8 values :
+
+    emerg, alert, crit, err, warning, notice, info, debug
+
+For backwards compatibility with versions 1.1.16 and earlier, the default level
+value is "debug" if not specified.
+
+Permitted facilities are :
+    kern, user, mail, daemon, auth, syslog, lpr, news,
+    uucp, cron, auth2, ftp, ntp, audit, alert, cron2,
+    local0, local1, local2, local3, local4, local5, local6, local7
+
+According to RFC3164, messages are truncated to 1024 bytes before being emitted.
+
+Example :
+---------
+    global
+	log 192.168.2.200 local3
+	log 127.0.0.1     local4 notice
+
+1.2) limiting the number of connections
+---------------------------------------
+It is possible and recommended to limit the global number of per-process
+connections. Since one connection includes both a client and a server, it
+means that the max number of TCP sessions will be about the double of this
+number. It's important to understand this when trying to find best values
+for 'ulimit -n' before starting the proxy. To anticipate the number of
+sockets needed, all these parameters must be counted :
+
+  - 1 socket per incoming connection
+  - 1 socket per outgoing connection
+  - 1 socket per address/port/proxy tuple.
+  - 1 socket per server being health-checked
+  - 1 socket for all logs
+
+In simple configurations where each proxy only listens one one address/port,
+set the limit of file descriptors (ulimit -n) to 
+(2 * maxconn + nbproxies + nbservers + 1). In a future release, haproxy may
+be able to set this value itself.
+
+1.3) Drop of priviledges
+------------------------
+In order to reduce the risk and consequences of attacks, in the event where a
+yet non-identified vulnerability would be successfully exploited, it's possible
+to lower the process priviledges and even isolate it in a riskless directory.
+
+In the 'global' section, the 'uid' parameter sets a numerical user identifier
+which the process will switch to after binding its listening sockets. The value
+'0', which normally represents the super-user, here indicates that the UID must
+not change during startup. It's the default behaviour. The 'gid' parameter does
+the same for the group identifier. It's particularly advised against use of
+generic accounts such as 'nobody' because it has the same consequences as using
+'root' if other services use them.
+
+The 'chroot' parameter makes the process isolate itself in an empty directory
+just before switching its UID. This type of isolation (chroot) can sometimes
+be worked around on certain OS (Linux, Solaris), provided that the attacker
+has gained 'root' priviledges and has the ability to use or create a directory.
+For this reason, it's capital to use a dedicated directory and not to share one
+between several services of different nature. To make isolation more resistant,
+it's recommended to use an empty directory without any right, and to change the
+UID of the process so that it cannot do anything there.
+
+Note: in the event where such a vulnerability would be exploited, it's most
+likely that first attempts would kill the process due to 'Segmentation Fault',
+'Bus Error' or 'Illegal Instruction' signals. Eventhough it's true that
+isolating the server reduces the risks of intrusion, it's sometimes useful to
+find why a process dies, via the analysis of a 'core' file, although very rare
+(the last bug of this sort was fixed in 1.1.9). For security reasons, most
+systems disable the generation of core file when a process changes its UID. So
+the two workarounds are either to start the process from a restricted user
+account, which will not be able to chroot itself, or start it as root and not
+change the UID. In both cases the core will be either in the start or the chroot
+directories. Do not forget to allow core dumps prior to start the process :
+
+# ulimit -c unlimited
+
+Example :
+---------
+
+    global
+	uid	30000
+	gid	30000
+	chroot  /var/chroot/haproxy
+
+1.4) Startup modes
+------------------
+The service can start in several different :
+  - foreground / background
+  - quiet / normal / debug
+
+The default mode is normal, foreground, which means that the program doesn't
+return once started. NEVER EVER use this mode in a system startup script, or
+the system won't boot. It needs to be started in background, so that it
+returns immediately after forking. That's accomplished by the 'daemon' option
+in the 'global' section, which is the equivalent of the '-D' command line
+argument.
+
+Moreover, certain alert messages are still sent to the standard output even
+in 'daemon' mode. To make them disappear, simply add the 'quiet' option in the
+'global' section. This option has no command-line equivalent.
+
+Last, the 'debug' mode, enabled with the 'debug' option in the 'global' section,
+and which is equivalent of the '-d' option, allows deep TCP/HTTP analysis, with
+timestamped display of each connection, disconnection, and HTTP headers for both
+ways. This mode is incompatible with 'daemon' and 'quiet' modes for obvious
+reasons.
+
+1.5) Increasing the overall processing power
+--------------------------------------------
+On multi-processor systems, it may seem to be a shame to use only one processor,
+eventhough the load needed to saturate a recent processor are far above common
+usage. Anyway, for very specific needs, the proxy can start several processes
+between which the operating system will spread the incoming connections. The
+number of processes is controlled by the 'nbproc' parameter in the 'global'
+section. It defaults to 1, and obviously works only in 'daemon' mode.
+
+Example :
+---------
+
+    global
+	daemon
+	quiet
+	nbproc	2
+
+
+2) Declaration of a listening service
+=====================================
+
+Service sections start with the 'listen' keyword :
+
+    listen <instance_name> [ <IP_address>:<port_range>[,...] ]
+
+- <instance_name> is the name of the instance. This name will be reported in
+  logs, so it is good to have it reflect the proxied service. No unicity test
+  is done on this name, and it's not mandatory for it to be unique, but highly
+  recommended.
+
+- <IP_address> is the IP address the proxy binds to. Empty address, '*' and
+  '0.0.0.0' all mean that the proxy listens to all valid addresses on the
+  system.
+
+- <port_range> is either a unique port, or a port range for which the proxy will
+  accept connections for the IP address specified above. This range can be :
+    - a numerical port (ex: '80')
+    - a dash-delimited ports range explicitly stating the lower and upper bounds
+      (ex: '2000-2100') which are included in the range.
+
+  Particular care must be taken against port ranges, because every <addr:port>
+  couple consumes one socket (=a file descriptor), so it's easy to eat lots of
+  descriptors with a simple range. The <addr:port> couple must be used only once
+  among all instances running on a same system. Please note that attaching to
+  ports lower than 1024 need particular priviledges to start the program, which
+  are independant of the 'uid' parameter.
+
+- the <IP_address>:<port_range> couple may be repeated indefinitely to require
+  the proxy to listen to other addresses and/or ports. To achieve this, simply
+  separate them with a coma.
+
+Examples :
+---------
+    listen http_proxy :80
+    listen x11_proxy 127.0.0.1:6000-6009
+    listen smtp_proxy 127.0.0.1:25,127.0.0.1:587
+    listen ldap_proxy :389,:663
+
+In the event that all addresses do not fit line width, it's preferable to
+detach secondary addresses on other lines with the 'bind' keyword. If this
+keyword is used, it's not even necessary to specify the first address on the
+'listen' line, which sometimes makes multiple configuration handling easier :
+
+    bind [ <IP_address>:<port_range>[,...] ]
+
+Examples :
+----------
+    listen http_proxy
+        bind :80,:443
+	bind 10.0.0.1:10080,10.0.0.1:10443
+
+2.1) Inhibiting a service
+-------------------------
+A service may be disabled for maintenance reasons, without needing to comment
+out the whole section, simply by specifying the 'disabled' keyword in the
+section to be disabled :
+
+    listen smtp_proxy 0.0.0.0:25
+	disabled
+
+Note: the 'enabled' keyword allows to enable a service which has been disabled
+      previously by a default configuration.
+
+2.2) Modes of operation
+-----------------------
+A service can work in 3 different distinct modes :
+  - TCP
+  - HTTP
+  - monitoring
+
+TCP mode
+--------
+In this mode, the service relays TCP connections as soon as they're established,
+towards one or several servers. No processing is done on the stream. It's only
+an association of source(addr:port) -> destination(addr:port). To use this mode,
+you must specify 'mode tcp' in the 'listen' section. This is the default mode.
+
+Example :
+---------
+    listen smtp_proxy 0.0.0.0:25
+	mode tcp
+
+HTTP mode
+---------
+In this mode, the service relays TCP connections towards one or several servers,
+when it has enough informations to decide, which normally means that all HTTP
+headers have been read. Some of them may be scanned for a cookie or a pattern
+matching a regex. To use this mode, specify 'mode http' in the 'listen' section.
+
+Example :
+---------
+    listen http_proxy 0.0.0.0:80
+	mode http
+
+Health-checking mode
+--------------------
+This mode provides a way for external components to check the proxy's health.
+It is meant to be used with intelligent load-balancers which can use send/expect
+scripts to check for all of their servers' availability. This one simply accepts
+the connection, returns the word 'OK' and closes it. To enable it, simply
+specify 'health' as the working mode :
+
+Example :
+---------
+    listen health_check 0.0.0.0:60000
+	mode health
+
+
+2.3) Limiting the number of simultaneous connections
+----------------------------------------------------
+The 'maxconn' parameter allows a proxy to refuse connections above a certain
+amount of simultaneous ones. When the limit is reached, it simply stops
+listening, but the system may still be accepting them because of the back log
+queue. These connections will be processed further when other ones have freed
+some slots. This provides a serialization effect which helps very fragile
+servers resist to high loads. Se further for system limitations.
+
+Example :
+---------
+    listen tiny_server 0.0.0.0:80
+        maxconn 10
+
+
+2.4) Soft stop
+--------------
+It is possible to stop services without breaking existing connections by the
+sending of the SIG_USR1 signal to the process. All services are then put into
+soft-stop state, which means that they will refuse to accept new connections,
+except for those which have a non-zero value in the 'grace' parameter, in which
+case they will still accept connections for the specified amount of time, in
+milliseconds. This allows to tell a load-balancer that the service is failing,
+while still doing the job during the time it needs to detect it.
+
+Note: active connections are never killed. In the worst case, the user will have
+to wait for all of them to close or to time-out, or simply kill the process
+normally (SIG_TERM). The default 'grace' value is '0'.
+
+Example :
+---------
+    # enter soft stop after 'killall -USR1 haproxy'
+    # the service will still run 10 seconds after the signal
+    listen http_proxy 0.0.0.0:80
+	mode http
+	grace 10000
+
+    # this port is dedicated to a load-balancer, and must fail immediately
+    listen health_check 0.0.0.0:60000
+	mode health
+	grace 0
+
+
+2.5) Connections expiration time
+--------------------------------
+It is possible (and recommended) to configure several time-outs on TCP
+connections. Three independant timers are adjustable with values specified
+in milliseconds. A session will be terminated if either one of these timers
+expire.
+
+  - the time we accept to wait for data from the client, or for the client to
+    accept data : 'clitimeout' :
+
+	# client time-out set to 2mn30.
+	clitimeout	150000
+
+  - the time we accept to wait for data from the server, or for the server to
+    accept data : 'srvtimeout' :
+
+	# server time-out set to 30s.
+	srvtimeout	30000
+
+  - the time we accept to wait for a connection to establish on a server :
+    'contimeout' :
+
+        # we give up if the connection does not complete within 4 seconds
+	contimeout	4000
+
+Notes :
+-------
+  - 'contimeout' and 'srvtimeout' have no sense on 'health' mode servers ;
+  - under high loads, or with a saturated or defective network, it's possible
+    that some packets get lost. Since the first TCP retransmit only happens
+    after 3 seconds, a time-out equal to, or lower than 3 seconds cannot
+    compensate for a packet loss. A 4 seconds time-out seems a reasonable
+    minimum which will considerably reduce connection failures.
+
+2.6) Attempts to reconnect
+--------------------------
+After a connection failure to a server, it is possible to retry, potentially
+on another server. This is useful if health-checks are too rare and you don't
+want the clients to see the failures. The number of attempts to reconnect is
+set by the 'retries' paramter.
+
+Example :
+---------
+	# we can retry 3 times max after a failure
+	retries 3
+
+
+2.7) Address of the dispatch server (deprecated)
+------------------------------------------------
+The server which will be sent all new connections is defined by the 'dispatch'
+parameter, in the form <address>:<port>. It generally is dedicated to unknown
+connections and will assign them a cookie, in case of HTTP persistence mode,
+or simply is a single server in case of generic TCP proxy. This old mode is only
+provided for backwards compatibility, but doesn't allow to check remote servers
+state, and has a rather limited usage. All new setups should switch to 'balance'
+mode. The principle of the dispatcher is to be able to perform the load
+balancing itself, but work only on new clients so that the server doesn't need
+to be a big machine.
+
+Example :
+---------
+   	# all new connections go there
+	dispatch 192.168.1.2:80
+
+Note :
+------
+This parameter has no sense for 'health' servers, and is incompatible with
+'balance' mode.
+
+
+2.8) Outgoing source address
+----------------------------
+It is often necessary to bind to a particular address when connecting to some
+remote hosts. This is done via the 'source' parameter which is a per-proxy
+parameter. A newer version may allow to fix different sources to reach different
+servers. The syntax is 'source <address>[:<port>]', where <address> is a valid
+local address (or '0.0.0.0' or '*' or empty to let the system choose), and
+<port> is an optional parameter allowing the user to force the source port for
+very specific needs. If the port is not specified or is '0', the system will
+choose a free port. Note that as of version 1.1.18, the servers health checks
+are also performed from the same source.
+
+Examples :
+----------
+    listen http_proxy *:80
+   	# all connections take 192.168.1.200 as source address
+	source 192.168.1.200:0
+
+    listen rlogin_proxy *:513
+   	# use address 192.168.1.200 and the reserved port 900 (needs to be root)
+	source 192.168.1.200:900
+
+
+2.9) Setting the cookie name
+----------------------------
+In HTTP mode, it is possible to look for a particular cookie which will contain
+a server identifier which should handle the connection. The cookie name is set
+via the 'cookie' parameter.
+
+Example :
+---------
+    listen http_proxy :80
+	mode http
+	cookie SERVERID
+
+It is possible to change the cookie behaviour to get a smarter persistence,
+depending on applications. It is notably possible to delete or modify a cookie
+emitted by a server, insert a cookie identifying the server in an HTTP response
+and even add a header to tell upstream caches not to cache this response.
+
+Examples :
+----------
+
+To remove the cookie for direct accesses (ie when the server matches the one
+which was specified in the client cookie) :
+
+	cookie SERVERID indirect
+
+To replace the cookie value with the one assigned to the server if any (no
+cookie will be created if the server does not provide one, nor if the
+configuration does not provide one). This lets the application put the cookie
+exactly on certain pages (eg: successful authentication) :
+
+	cookie SERVERID rewrite
+
+To create a new cookie and assign the server identifier to it (in this case, all
+servers should be associated with a valid cookie, since no cookie will simply
+delete the cookie from the client's browser) :
+
+	cookie SERVERID insert
+
+To insert a cookie and ensure that no upstream cache will store it, add the
+'nocache' option :
+
+	cookie SERVERID insert nocache
+
+To insert a cookie only after a POST request, add 'postonly' after 'insert'.
+This has the advantage that there's no risk of caching, and that all pages
+seen before the POST one can still be cached :
+
+	cookie SERVERID insert postonly
+
+Notes :
+-----------
+- it is possible to combine 'insert' with 'indirect' or 'rewrite' to adapt to
+  applications which already generate the cookie with an invalid content.
+
+- in the case where 'insert' and 'indirect' are both specified, the cookie is
+  never transmitted to the server, since it wouldn't understand it. This is
+  the most application-transparent mode.
+
+- it is particularly recommended to use 'nocache' in 'insert' mode if any
+  upstream HTTP/1.0 cache is susceptible to cache the result, because this may
+  lead to many clients going to the same server, or even worse, some clients
+  having their server changed while retrieving a page from the cache.
+
+- when the application is well known and controlled, the best method is to
+  only add the persistence cookie on a POST form because it's up to the
+  application to select which page it wants the upstream servers to cache.
+  In this case, you would use 'insert postonly indirect'.
+
+2.10) Associating a cookie value with a server
+----------------------------------------------
+In HTTP mode, it's possible to associate a cookie value to each server. This
+was initially used in combination with 'dispatch' mode to handle direct accesses
+but it is now the standard way of doing the load balancing. The syntax is :
+
+    server <identifier> <address>:<port> cookie <value>
+
+- <identifier> is any name which can be used to identify the server in the logs.
+- <address>:<port> specifies where the server is bound.
+- <value> is the value to put in or to read from the cookie.
+
+Example : the 'SERVERID' cookie can be either 'server01' or 'server02'
+---------
+    listen http_proxy :80
+	mode http
+	cookie SERVERID
+	dispatch 192.168.1.100:80
+	server web1 192.168.1.1:80 cookie server01
+	server web2 192.168.1.2:80 cookie server02
+
+Warning : the syntax has changed since version 1.0 !
+---------
+
+3) Autonomous load balancer
+===========================
+
+The proxy can perform the load-balancing itself, both in TCP and in HTTP modes.
+This is the most interesting mode which obsoletes the old 'dispatch' mode
+described above. It has advantages such as server health monitoring, multiple
+port binding and port mapping. To use this mode, the 'balance' keyword is used,
+followed by the selected algorithm. As of version 1.1.23, only 'roundrobin' is
+available, which is also the default value if unspecified. In this mode, there
+will be no dispatch address, but the proxy needs at least one server.
+
+Example : same as the last one, with internal load balancer
+---------
+
+    listen http_proxy :80
+	mode http
+	cookie SERVERID
+	balance roundrobin
+	server web1 192.168.1.1:80 cookie server01
+	server web2 192.168.1.2:80 cookie server02
+
+
+Since version 1.1.22, it is possible to automatically determine on which port
+the server will get the connection, depending on the port the client connected
+to. Indeed, there now are 4 possible combinations for the server's <port> field:
+
+  - unspecified or '0' :
+    the connection will be sent to the same port as the one on which the proxy
+    received the client connection itself.
+
+  - numerical value (the only one supported in versions earlier than 1.1.22) :
+    the connection will always be sent to the specified port.
+
+  - '+' followed by a numerical value :
+    the connection will be sent to the same port as the one on which the proxy
+    received the connection, plus this value.
+
+  - '-' followed by a numerical value :
+    the connection will be sent to the same port as the one on which the proxy
+    received the connection, minus this value.
+    
+Examples :
+----------
+
+# same as previous example
+
+    listen http_proxy :80
+	mode http
+	cookie SERVERID
+	balance roundrobin
+	server web1 192.168.1.1 cookie server01
+	server web2 192.168.1.2 cookie server02
+
+# simultaneous relaying of ports 80, 81 and 8080-8089
+
+    listen http_proxy :80,:81,:8080-8089
+	mode http
+	cookie SERVERID
+	balance roundrobin
+	server web1 192.168.1.1 cookie server01
+	server web2 192.168.1.2 cookie server02
+
+# relaying of TCP ports 25, 389 and 663 to ports 1025, 1389 and 1663
+
+    listen http_proxy :25,:389,:663
+	mode tcp
+	balance roundrobin
+	server srv1 192.168.1.1:+1000
+	server srv2 192.168.1.2:+1000
+
+
+3.1) Servers monitoring
+-----------------------
+
+It is possible to check the servers status by trying to establish TCP
+connections or even sending HTTP requests to them. A server which fails to
+reply to health checks as expected will not be used by the load balancing
+algorithms. To enable monitoring, add the 'check' keyword on a server line.
+It is possible to specify the interval between tests (in milliseconds) with
+the 'inter' parameter, the number of failures supported before declaring that
+the server has fallen down with the 'fall' parameter, and the number of valid
+checks needed for the server to fully get up with the 'rise' parameter. Since
+version 1.1.22, it is also possible to send checks to a different port
+(mandatory when none is specified) with the 'port' parameter. The default
+values are the following ones :
+
+  - inter : 2000
+  - rise  : 2
+  - fall  : 3
+  - port  : default server port
+
+The default mode consists in establishing TCP connections only. But in certain
+types of application failures, it is often that the server continues to accept
+connections because the system does it itself while the application is running
+an endless loop, or is completely stuck. So in version 1.1.16 were introduced
+HTTP health checks which only performed simple lightweight requests and analysed
+the response. Now, as of version 1.1.23, it is possible to change the HTTP
+method, the URI, and the HTTP version string (which even allows to send headers
+with a dirty trick). To enable HTTP health-checks, use 'option httpchk'.
+
+By default, requests use the 'OPTIONS' method because it's very light and easy
+to filter from logs, and does it on '/'. Only HTTP responses 2xx and 3xx are
+considered valid ones, and only if they come before the time to send a new
+request is reached ('inter' parameter). If some servers block this type of
+request, 3 other forms help to forge a request :
+
+  - option httpchk               -> OPTIONS / HTTP/1.0
+  - option httpchk URI           -> OPTIONS <URI> HTTP/1.0
+  - option httpchk METH URI      -> <METH> <URI> HTTP/1.0
+  - option httpchk METH URI VER  -> <METH> <URI> <VER>
+
+See examples below.
+
+Since version 1.1.17, it is possible to specify backup servers. These servers
+are only sollicited when no other server is available. This may only be useful
+to serve a maintenance page, or define one active and one backup server (seldom
+used in TCP mode). To make a server a backup one, simply add the 'backup' option
+on its line. These servers also support cookies, so if a cookie is specified for
+a backup server, clients assigned to this server will stick to it even when the
+other ones come back. Conversely, if no cookie is assigned to such a server,
+the clients will get their cookies removed (empty cookie = removal), and will
+be balanced against other servers once they come back. Please note that there
+is no load-balancing among backup servers. If there are several backup servers,
+the second one will only be used when the first one dies, and so on.
+
+Since version 1.1.17, it is also possible to visually check the status of all
+servers at once. For this, you just have to send a SIGHUP signal to the proxy.
+The servers status will be dumped into the logs at the 'notice' level, as well
+as on <stderr> if not closed. For this reason, it's always a good idea to have
+one local log server at the 'notice' level.
+
+Examples :
+----------
+# same setup as in  paragraph 3) with TCP monitoring
+    listen http_proxy 0.0.0.0:80
+	mode http
+	cookie SERVERID
+	balance roundrobin
+	server web1 192.168.1.1:80 cookie server01 check
+	server web2 192.168.1.2:80 cookie server02 check inter 500 rise 1 fall 2
+
+# same with HTTP monitoring via 'OPTIONS / HTTP/1.0'
+    listen http_proxy 0.0.0.0:80
+	mode http
+	cookie SERVERID
+	balance roundrobin
+	option httpchk
+	server web1 192.168.1.1:80 cookie server01 check
+	server web2 192.168.1.2:80 cookie server02 check inter 500 rise 1 fall 2
+
+# same with HTTP monitoring via 'OPTIONS /index.html HTTP/1.0'
+    listen http_proxy 0.0.0.0:80
+	mode http
+	cookie SERVERID
+	balance roundrobin
+	option httpchk /index.html
+	server web1 192.168.1.1:80 cookie server01 check
+	server web2 192.168.1.2:80 cookie server02 check inter 500 rise 1 fall 2
+
+# same with HTTP monitoring via 'HEAD /index.jsp? HTTP/1.1\r\nHost: www'
+    listen http_proxy 0.0.0.0:80
+	mode http
+	cookie SERVERID
+	balance roundrobin
+	option httpchk HEAD /index.jsp? HTTP/1.1\r\nHost:\ www
+	server web1 192.168.1.1:80 cookie server01 check
+	server web2 192.168.1.2:80 cookie server02 check inter 500 rise 1 fall 2
+
+# automatic insertion of a cookie in the server's response, and automatic
+# deletion of the cookie in the client request, while asking upstream caches
+# not to cache replies.
+    listen web_appl 0.0.0.0:80
+	mode http
+	cookie SERVERID insert nocache indirect
+	balance roundrobin
+	server web1 192.168.1.1:80 cookie server01 check
+	server web2 192.168.1.2:80 cookie server02 check
+
+# same with off-site application backup and local error pages server
+    listen web_appl 0.0.0.0:80
+	mode http
+	cookie SERVERID insert nocache indirect
+	balance roundrobin
+	server web1 192.168.1.1:80 cookie server01 check
+	server web2 192.168.1.2:80 cookie server02 check
+	server web-backup 192.168.2.1:80 cookie server03 check backup
+	server web-excuse 192.168.3.1:80 check backup
+
+# SMTP+TLS relaying with heakth-checks and backup servers
+
+    listen http_proxy :25,:587
+	mode tcp
+	balance roundrobin
+	server srv1 192.168.1.1 check port 25 inter 30000 rise 1 fall 2
+	server srv2 192.168.1.2 backup
+
+
+3.2) Redistribute connections in case of failure
+------------------------------------------------
+In HTTP mode, if a server designated by a cookie does not respond, the clients
+may definitely stick to it because they cannot flush the cookie, so they will
+not be able to access the service anymore. Specifying 'redispatch' will allow
+the proxy to break their persistence and redistribute them to working servers.
+
+Example :
+---------
+    listen http_proxy 0.0.0.0:80
+	mode http
+	cookie SERVERID
+	dispatch 192.168.1.100:80
+	server web1 192.168.1.1:80 cookie server01
+	server web2 192.168.1.2:80 cookie server02
+	redispatch # send back to dispatch in case of connection failure
+
+Up to, and including version 1.1.16, this parameter only applied to connection
+failures. Since version 1.1.17, it also applies to servers which have been
+detected as failed by the health check mechanism. Indeed, a server may be broken
+but still accepting connections, which would not solve every case. But it is
+possible to conserve the old behaviour, that is, make a client insist on trying
+to connect to a server even if it is said to be down, by setting the 'persist'
+option :
+
+    listen http_proxy 0.0.0.0:80
+	mode http
+	option persist
+	cookie SERVERID
+	dispatch 192.168.1.100:80
+	server web1 192.168.1.1:80 cookie server01
+	server web2 192.168.1.2:80 cookie server02
+	redispatch # send back to dispatch in case of connection failure
+
+
+4) Additionnal features
+=======================
+
+Other features are available. They are transparent mode, event logging and
+header rewriting/filtering.
+
+4.1) Transparent mode
+---------------------
+In HTTP mode, the 'transparent' keyword allows to intercept sessions which are
+routed through the system hosting the proxy. This mode was implemented as a
+replacement for the 'dispatch' mode, since connections without cookie will be
+sent to the original address while known cookies will be sent to the servers.
+This mode implies that the system can redirect sessions to a local port.
+
+Example :
+---------
+    listen http_proxy 0.0.0.0:65000
+	mode http
+	transparent
+	cookie SERVERID
+	server server01 192.168.1.1:80
+	server server02 192.168.1.2:80
+
+    # iptables -t nat -A PREROUTING -i eth0 -p tcp -d 192.168.1.100 \
+      --dport 80 -j REDIRECT --to-ports 65000
+
+Note :
+------
+If the port is left unspecified on the server, the port the client connected to
+will be used. This allows to relay a full port range without using transparent
+mode nor thousands of file descriptors, provided that the system can redirect
+sessions to local ports.
+
+Example :
+---------
+    # redirect all ports to local port 65000, then forward to the server on the
+    # original port.
+    listen http_proxy 0.0.0.0:65000
+	mode tcp
+	server server01 192.168.1.1 check port 60000
+	server server02 192.168.1.2 check port 60000
+
+    # iptables -t nat -A PREROUTING -i eth0 -p tcp -d 192.168.1.100 \
+      -j REDIRECT --to-ports 65000
+
+
+4.2) Event logging
+------------------
+
+
+- 8< - - - 8< - - - 8< - - - 8< - - - 8< - - - 8< - - -
+
+
+
+Les connexions TCP et HTTP peuvent donner lieu à une journalisation sommaire ou
+détaillée indiquant, pour chaque connexion, la date, l'heure, l'adresse IP
+source, le serveur destination, la durée de la connexion, les temps de réponse,
+la requête HTTP, le code de retour, la quantité de données transmises, et même
+dans certains cas, la valeur d'un cookie permettant de suivre les sessions.
+Tous les messages sont envoyés en syslog vers un ou deux serveurs. Se référer à
+la section 1.1 pour plus d'information sur les catégories de logs.  La syntaxe
+est la suivante :
+
+    log <adresse_ip_1> <catégorie_1> [niveau_max_1]
+    log <adresse_ip_2> <catégorie_2> [niveau_max_2]
+ou
+    log global
+
+Remarque :
+----------
+La syntaxe spécifique 'log global' indique que l'on souhaite utiliser les
+paramètres de journalisation définis dans la section 'global'.
+
+Exemple :
+---------
+    listen http_proxy 0.0.0.0:80
+	mode http
+	log 192.168.2.200 local3
+	log 192.168.2.201 local4
+
+Par défaut, les informations contenues dans les logs se situent au niveau TCP
+uniquement. Il faut préciser l'option 'httplog' pour obtenir les détails du
+protocole HTTP. Dans les cas où un mécanisme de surveillance effectuant des
+connexions et déconnexions fréquentes, polluerait les logs, il suffit d'ajouter
+l'option 'dontlognull', pour ne plus obtenir une ligne de log pour les sessions
+n'ayant pas donné lieu à un échange de données (requête ou réponse).
+
+Exemple :
+---------
+    listen http_proxy 0.0.0.0:80
+	mode http
+	option httplog
+	option dontlognull
+	log 192.168.2.200 local3
+
+Depuis la version 1.1.18, un indicateur de complétude de la session a été ajouté
+dans les logs HTTP. C'est un champ de 4 caractères précédant la requête HTTP,
+indiquant :
+  - sur le premier caractère, un code précisant le premier événement qui a causé
+    la terminaison de la session :
+
+        C : fermeture de la session TCP de la part du client
+	S : fermeture de la session TCP de la part du serveur, ou refus de connexion
+	P : terminaison prématurée des sessions par le proxy, pour cas d'erreur
+	    interne ou de configuration (ex: filtre d'URL)
+	c : expiration du délai d'attente côté client : clitimeout
+	s : expiration du délai d'attente côté serveur: srvtimeout et contimeout
+	- : terminaison normale.
+
+  - sur le second caractère, l'état d'avancement de la session HTTP lors de la
+    fermeture :
+
+        R : terminaison en attendant la réception totale de la requête du client
+	C : terminaison en attendant la connexion vers le serveur
+	H : terminaison en attendant la réception totale des entêtes du serveur
+	D : terminaison durant le transfert des données du serveur vers le client
+	L : terminaison durant le transfert des dernières données du proxy vers
+	    le client, alors que le serveur a déjà fini.
+	- : terminaison normale, après fin de transfert des données
+
+  - le troisième caractère indique l'éventuelle identification d'un cookie de
+    persistence :
+
+        N : aucun cookie de persistence n'a été présenté.
+	I : le client a présenté un cookie ne correspondant à aucun serveur
+	    connu.
+	D : le client a présenté un cookie correspondant à un serveur hors
+	    d'usage. Suivant l'option 'persist', il a été renvoyé vers un
+	    autre serveur ou a tout de même tenté de se connecter sur celui
+	    correspondant au cookie.
+	V : le client a présenté un cookie valide et a pu se connecter au
+	    serveur correspondant.
+	- : non appliquable
+
+  - le dernier caractère indique l'éventuel traitement effectué sur un cookie de
+    persistence retrourné par le serveur :
+
+        N : aucun cookie de persistence n'a été fourni par le serveur.
+        P : un cookie cookie de persistence n'a été fourni par le serveur.
+	I : aucun cookie n'a été fourni par le serveur, il a été inséré par le
+	    proxy.
+	D : le cookie présenté par le serveur a été supprimé par le proxy pour
+	    ne pas être retourné au client.
+	R : le cookie retourné par le serveur a été modifié par le proxy.
+	- : non appliquable
+
+Le mot clé "capture" permet d'ajouter dans des logs HTTP des informations
+capturées dans les échanges. La version 1.1.17 supporte uniquement une capture
+de cookies client et serveur, ce qui permet dans bien des cas, de reconstituer
+la session d'un utilisateur. La syntaxe est la suivante :
+
+    capture cookie <préfixe_cookie> len <longueur_capture>
+
+Le premier cookie dont le nom commencera par <préfixe_cookie> sera capturé, et
+transmis sous la forme "NOM=valeur", sans toutefois, excéder <longueur_capture>
+caractères (64 au maximum). Lorsque le nom du cookie est fixe et connu, on peut
+le suffixer du signe "=" pour s'assurer qu'aucun autre cookie ne prendra sa
+place dans les logs.
+
+Exemples :
+----------
+    # capture du premier cookie dont le nom commence par "ASPSESSION"
+    capture cookie ASPSESSION len 32
+
+    # capture du premier cookie dont le nom est exactement "vgnvisitor"
+    capture cookie vgnvisitor= len 32
+
+Dans les logs, le champ précédant l'indicateur de complétude contient le cookie
+positionné par le serveur, précédé du cookie positionné par le client. Chacun de
+ces champs est remplacé par le signe "-" lorsqu'aucun cookie n'est fourni par le
+client ou le serveur.
+
+Enfin, l'option 'forwardfor' ajoute l'adresse IP du client dans un champ
+'X-Forwarded-For' de la requête, ce qui permet à un serveur web final de
+connaître l'adresse IP du client initial.
+
+Exemple :
+---------
+    listen http_proxy 0.0.0.0:80
+	mode http
+	log  global
+	option httplog
+	option dontlognull
+	option forwardfor
+	capture cookie userid= len 20
+
+
+4.3) Modification des entêtes HTTP
+----------------------------------
+En mode HTTP uniquement, il est possible de remplacer certains en-têtes dans la
+requête et/ou la réponse à partir d'expressions régulières. Il est également
+possible de bloquer certaines requêtes en fonction du contenu des en-têtes ou de
+la requête. Une limitation cependant : les en-têtes fournis au milieu de
+connexions persistentes (keep-alive) ne sont pas vus car ils sont considérés
+comme faisant partie des échanges de données consécutifs à la première requête.
+Les données ne sont pas affectées, ceci ne s'applique qu'aux en-têtes. 
+
+La syntaxe est :
+   reqadd    <string>             pour ajouter un en-tête dans la requête
+   reqrep    <search> <replace>   pour modifier la requête
+   reqirep   <search> <replace>   idem sans distinction majuscules/minuscules
+   reqdel    <search>             pour supprimer un en-tête dans la requête
+   reqidel   <search>             idem sans distinction majuscules/minuscules
+   reqallow  <search>             autoriser la requête si un entête valide <search>
+   reqiallow <search>             idem sans distinction majuscules/minuscules
+   reqdeny   <search>             interdire la requête si un entête valide <search>
+   reqideny  <search>             idem sans distinction majuscules/minuscules
+   reqpass   <search>             inhibe ces actions sur les entêtes validant <search>
+   reqipass  <search>             idem sans distinction majuscules/minuscules
+
+   rspadd   <string>              pour ajouter un en-tête dans la réponse
+   rsprep   <search> <replace>    pour modifier la réponse
+   rspirep  <search> <replace>    idem sans distinction majuscules/minuscules
+   rspdel   <search>              pour supprimer un en-tête dans la réponse
+   rspidel  <search>              idem sans distinction majuscules/minuscules
+
+
+<search> est une expression régulière compatible POSIX regexp supportant le
+groupage par parenthèses (sans les '\'). Les espaces et autres séparateurs
+doivent êtres précédés d'un '\' pour ne pas être confondus avec la fin de la
+chaîne. De plus, certains caractères spéciaux peuvent être précédés d'un
+backslach ('\') :
+
+  \t   pour une tabulation
+  \r   pour un retour charriot
+  \n   pour un saut de ligne
+  \    pour différencier un espace d'un séparateur
+  \#   pour différencier un dièse d'un commentaire
+  \\   pour utiliser un backslash dans la regex
+  \\\\ pour utiliser un backslash dans le texte
+  \xXX pour un caractère spécifique XX (comme en C)
+
+
+<replace> contient la chaîne remplaçant la portion vérifiée par l'expression.
+Elle peut inclure les caractères spéciaux ci-dessus, faire référence à un
+groupe délimité par des parenthèses dans l'expression régulière, par sa
+position numérale. Les positions vont de 1 à 9, et sont codées par un '\'
+suivi du chiffre désiré. Il est également possible d'insérer un caractère non
+imprimable (utile pour le saut de ligne) inscrivant '\x' suivi du code
+hexadécimal de ce caractère (comme en C).
+
+<string> représente une chaîne qui sera ajoutée systématiquement après la
+dernière ligne d'en-tête.
+
+Remarques :
+---------
+  - la première ligne de la requête et celle de la réponse sont traitées comme
+    des en-têtes, ce qui permet de réécrire des URL et des codes d'erreur.
+  - 'reqrep' est l'équivalent de 'cliexp' en version 1.0, et 'rsprep' celui de
+    'srvexp'. Ces noms sont toujours supportés mais déconseillés.
+  - pour des raisons de performances, le nombre total de caractères ajoutés sur
+    une requête ou une réponse est limité à 4096 depuis la version 1.1.5 (cette
+    limite était à 256 auparavant). Cette valeur est modifiable dans le code.
+    Pour un usage temporaire, on peut gagner de la place en supprimant quelques
+    entêtes inutiles avant les ajouts.
+
+Exemples :
+--------
+	reqrep	^(GET.*)(.free.fr)(.*) \1.online.fr\3
+	reqrep	^(POST.*)(.free.fr)(.*) \1.online.fr\3
+	reqirep	^Proxy-Connection:.*	Proxy-Connection:\ close
+	rspirep	^Server:.* Server:\ Tux-2.0
+	rspirep	^(Location:\ )([^:]*://[^/]*)(.*) \1\3
+	rspidel  ^Connection:
+	rspadd	Connection:\ close
+
+
+4.4) Répartition avec persistence
+---------------------------------
+
+La combinaison de l'insertion de cookie avec la répartition de charge interne
+permet d'assurer une persistence dans les sessions HTTP d'une manière
+pratiquement transparente pour les applications. Le principe est simple :
+  - attribuer une valeur d'un cookie à chaque serveur
+  - effectuer une répartition interne
+  - insérer un cookie dans les réponses issues d'une répartition uniquement,
+    et faire en sorte que des caches ne mémorisent pas ce cookie.
+  - cacher ce cookie à l'application lors des requêtes ultérieures.
+
+Exemple :
+---------
+    listen application 0.0.0.0:80
+	mode http
+	cookie SERVERID insert nocache indirect
+	balance roundrobin
+	server 192.168.1.1:80 cookie server01 check
+	server 192.168.1.2:80 cookie server02 check
+
+4.5) Personalisation des erreurs
+--------------------------------
+
+Certaines situations conduisent à retourner une erreur HTTP au client :
+  - requête invalide ou trop longue => code HTTP 400
+  - requête mettant trop de temps à venir => code HTTP 408
+  - requête interdite (bloquée par un reqideny) => code HTTP 403
+  - erreur interne du proxy => code HTTP 500
+  - le serveur a retourné une réponse incomplète ou invalide => code HTTP 502
+  - aucun serveur disponible pour cette requête => code HTTP 503
+  - le serveur n'a pas répondu dans le temps imparti => code HTTP 504
+
+Un message d'erreur succint tiré de la RFC accompagne ces codes de retour.
+Cependant, en fonction du type de clientèle, on peut préférer retourner des
+pages personnalisées. Ceci est possible par le biais de la commande "errorloc" :
+
+    errorloc <code_HTTP> <location>
+
+Au lieu de générer une erreur HTTP <code_HTTP> parmi les codes cités ci-dessus,
+le proxy génèrera un code de redirection temporaire (HTTP 302) vers l'adresse
+d'une page précisée dans <location>. Cette adresse peut être relative au site,
+ou absolue. Comme cette réponse est traîtée par le navigateur du client
+lui-même, il est indispensable que l'adresse fournie lui soit accessible.
+
+Exemple :
+---------
+    listen application 0.0.0.0:80
+        errorloc 400 /badrequest.html
+        errorloc 403 /forbidden.html
+        errorloc 408 /toolong.html
+	errorloc 500 http://haproxy.domain.net/bugreport.html
+        errorloc 502 http://192.168.114.58/error50x.html
+        errorloc 503 http://192.168.114.58/error50x.html
+        errorloc 504 http://192.168.114.58/error50x.html
+
+4.6) Changement des valeurs par défaut
+--------------------------------------
+
+Dans la version 1.1.22 est apparue la notion de valeurs par défaut, ce qui évite
+de répéter des paramètres communs à toutes les instances, tels que les timeouts,
+adresses de log, modes de fonctionnement, etc.
+
+Les valeurs par défaut sont positionnées dans la dernière section 'defaults'
+précédent l'instance qui les utilisera. On peut donc mettre autant de sections
+'defaults' que l'on veut. Il faut juste se rappeler que la présence d'une telle
+section implique une annulation de tous les paramètres par défaut positionnés
+précédemment, dans le but de les remplacer.
+
+La section 'defaults' utilise la même syntaxe que la section 'listen', aux
+paramètres près qui ne sont pas supportés. Le mot clé 'defaults' peut accepter
+un commentaire en guise paramètre.
+
+Dans la version 1.1.22, seuls les paramètres suivants peuvent être positionnés
+dans une section 'defaults' :
+  - log (le premier et le second)
+  - mode { tcp, http, health }
+  - balance { roundrobin }
+  - disabled (pour désactiver toutes les instances qui suivent)
+  - enabled (pour faire l'opération inverse, mais c'est le cas par défaut)
+  - contimeout, clitimeout, srvtimeout, grace, retries, maxconn
+  - option { redispatch, transparent, keepalive, forwardfor, httplog,
+             dontlognull, persist, httpchk }
+  - redispatch, redisp, transparent, source { addr:port }
+  - cookie, capture
+  - errorloc
+
+Ne sont pas supportés dans cette version, les adresses de dispatch et les
+configurations de serveurs, ainsi que tous les filtres basés sur les
+expressions régulières :
+  - dispatch, server,
+  - req*, rsp*, 
+
+Enfin, il n'y a pas le moyen, pour le moment, d'invalider un paramètre booléen
+positionné par défaut. Donc si une option est spécifiée dans les paramètres par
+défaut, le seul moyen de la désactiver pour une instance, c'est de changer les
+paramètres par défaut avant la déclaration de l'instance.
+
+Exemples :
+----------
+    defaults applications TCP
+	log global
+	mode tcp
+	balance roundrobin
+	clitimeout 180000
+	srvtimeout 180000
+	contimeout 4000
+	retries 3
+	redispatch
+
+    listen app_tcp1 10.0.0.1:6000-6063
+	server srv1 192.168.1.1 check port 6000 inter 10000
+	server srv2 192.168.1.2 backup
+
+    listen app_tcp2 10.0.0.2:6000-6063
+	server srv1 192.168.2.1 check port 6000 inter 10000
+	server srv2 192.168.2.2 backup
+    
+    defaults applications HTTP
+	log global
+	mode http
+	option httplog
+	option forwardfor
+	option dontlognull
+	balance roundrobin
+	clitimeout 20000
+	srvtimeout 20000
+	contimeout 4000
+	retries 3
+
+    listen app_http1 10.0.0.1:80-81
+	cookie SERVERID postonly insert indirect
+	capture cookie userid= len 10
+	server srv1 192.168.1.1:+8000 cookie srv1 check port 8080 inter 1000
+	server srv1 192.168.1.2:+8000 cookie srv2 check port 8080 inter 1000
+
+    defaults
+	# section vide qui annule tous les paramètes par défaut.
+
+=======================
+| Paramétrage système |
+=======================
+
+Sous Linux 2.4
+==============
+
+-- cut here --
+#!/bin/sh
+# set this to about 256/4M (16384 for 256M machine)
+MAXFILES=16384
+echo $MAXFILES > /proc/sys/fs/file-max
+ulimit -n $MAXFILES
+
+if [ -e /proc/sys/net/ipv4/ip_conntrack_max ]; then
+	echo 65536 > /proc/sys/net/ipv4/ip_conntrack_max
+fi
+
+if [ -e /proc/sys/net/ipv4/netfilter/ip_ct_tcp_timeout_fin_wait ]; then
+	# 30 seconds for fin, 15 for time wait
+	echo 3000 > /proc/sys/net/ipv4/netfilter/ip_ct_tcp_timeout_fin_wait
+	echo 1500 > /proc/sys/net/ipv4/netfilter/ip_ct_tcp_timeout_time_wait
+	echo 0 > /proc/sys/net/ipv4/netfilter/ip_ct_tcp_log_invalid_scale
+	echo 0 > /proc/sys/net/ipv4/netfilter/ip_ct_tcp_log_out_of_window
+fi
+
+echo 1024 60999 > /proc/sys/net/ipv4/ip_local_port_range
+echo 30 > /proc/sys/net/ipv4/tcp_fin_timeout
+echo 4096 > /proc/sys/net/ipv4/tcp_max_syn_backlog
+echo 262144 > /proc/sys/net/ipv4/tcp_max_tw_buckets
+echo 262144 > /proc/sys/net/ipv4/tcp_max_orphans
+echo 300 > /proc/sys/net/ipv4/tcp_keepalive_time
+echo 1 > /proc/sys/net/ipv4/tcp_tw_recycle
+echo 0 > /proc/sys/net/ipv4/tcp_timestamps
+echo 0 > /proc/sys/net/ipv4/tcp_ecn
+echo 0 > /proc/sys/net/ipv4/tcp_sack
+echo 0 > /proc/sys/net/ipv4/tcp_dsack
+
+# auto-tuned on 2.4
+#echo 262143 > /proc/sys/net/core/rmem_max
+#echo 262143 > /proc/sys/net/core/rmem_default
+
+echo 16384 65536 524288 > /proc/sys/net/ipv4/tcp_rmem
+echo 16384 349520 699040 > /proc/sys/net/ipv4/tcp_wmem
+
+-- cut here --
+
+-- fin --

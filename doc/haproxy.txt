@@ -1,9 +1,9 @@
 
          		     H A - P r o x y
          		     ---------------
-         		      version 1.1.22
+         		      version 1.1.23
 			      willy tarreau
-			       2003/09/11
+			       2003/09/20
 
 ================
 | Introduction |
@@ -112,7 +112,7 @@ optionnel <niveau_max> définit le niveau maximal de traces émises parmi les 8
 valeurs suivantes  :
     emerg, alert, crit, err, warning, notice, info, debug
 
-Par compatibilité avec les versions 1.1.16 et antérieures, La valeur par défaut
+Par compatibilité avec les versions 1.1.16 et antérieures, la valeur par défaut
 est "debug" si l'option n'est pas précisée.
 
 Les catégories possibles sont :
@@ -138,12 +138,13 @@ paramètre 'ulimit -n' avant de lancer le proxy. Pour comptabiliser le nombre
 de sockets nécessaires, il faut prendre en compte ces paramètres :
   - 1 socket par connexion entrante
   - 1 socket par connexion sortante
-  - 1 socket par proxy
+  - 1 socket par couple adresse/port d'écoute par proxy
   - 1 socket pour chaque serveur en cours de health-check
   - 1 socket pour les logs (tous serveurs confondus)
 
-Positionner la limite du nombre de descripteurs de fichiers (ulimit -n) à
-2 * maxconn + nbproxy + nbserveurs + 1. Dans une future version, haproxy sera
+Dans le cas où chaque proxy n'écoute que sur un couple adresse/port, positionner
+la limite du nombre de descripteurs de fichiers (ulimit -n) à 
+(2 * maxconn + nbproxy + nbserveurs + 1). Dans une future version, haproxy sera
 capable de positionner lui-même cette limite.
 
 1.3) Diminution des privilèges
@@ -165,13 +166,13 @@ processus utilisent les mêmes identifiants.
 Le paramètre 'chroot' autorise à changer la racine du processus une fois le
 programme lancé, de sorte que ni le processus, ni l'un de ses descendants ne
 puissent remonter de nouveau à la racine. Ce type de cloisonnement (chroot) est
-parfois contournable sur certains OS (Linux 2.2, Solaris), mais visiblement
-fiable sur d'autres (Linux 2.4). Aussi, il est important d'utiliser un
-répertoire spécifique au service pour cet usage, et de ne pas mutualiser un même
-répertoire pour plusieurs services de nature différente. Pour rendre l'isolement
-plus robuste, il est conseillé d'utiliser un répertoire vide, sans aucun droit,
-et de changer l'uid du processus de sorte qu'il ne puisse rien faire dans ledit
-répertoire.
+généralement contournable sur certains OS (Linux, Solaris) pour peu que
+l'attaquant possède des droits 'root' et soit en mesure d'utiliser ou de créer
+un répertoire. Aussi, il est important d'utiliser un répertoire spécifique au
+service pour cet usage, et de ne pas mutualiser un même répertoire pour
+plusieurs services de nature différente. Pour rendre l'isolement plus robuste,
+il est conseillé d'utiliser un répertoire vide, sans aucun droit, et de changer
+l'uid du processus de sorte qu'il ne puisse rien faire dans ledit répertoire.
 
 Remarque: dans le cas où une telle faille serait mise en évidence, il est fort
 probable que les premières tentatives de son exploitation provoquent un arrêt du
@@ -297,16 +298,20 @@ Exemples :
 
 2.1) Inhibition d'un service
 ----------------------------
-Un serveur peut être désactivé pour des besoins de maintenance, sans avoir à
+Un service peut être désactivé pour des besoins de maintenance, sans avoir à
 commenter toute une partie du fichier. Il suffit de positionner le mot clé
 "disabled" dans sa section :
 
     listen smtp_proxy 0.0.0.0:25
 	disabled
 
+Remarque: le mot clé 'enabled' permet de réactiver un service préalablement
+	  désactivé par le mot clé 'disabled', par exemple à cause d'une
+	  configuration par défaut.
+
 2.2) Mode de fonctionnement
 ---------------------------
-Un serveur peut fonctionner dans trois modes différents :
+Un service peut fonctionner dans trois modes différents :
   - TCP
   - HTTP
   - supervision
@@ -470,7 +475,7 @@ pour permettre aux serveurs de trouver le chemin de retour dans des contextes de
 routage difficiles. Si l'adresse est '0.0.0.0' ou '*' ou vide, elle sera choisie
 librement par le systeme. Si le port est '0' ou vide, il sera choisi librement
 par le système. Il est à noter que depuis la version 1.1.18, les tests de bon
-foncitonnement des serveurs seront aussi effectués à partir de la source
+fonctionnement des serveurs seront aussi effectués à partir de la source
 spécifiée par ce paramètre.
 
 Exemples :
@@ -540,14 +545,17 @@ Remarques :
 - Il est possible de combiner 'insert' avec 'indirect' ou 'rewrite' pour s'adapter
   à des applications générant déjà le cookie, avec un contenu invalide. Il suffit
   pour cela de les spécifier sur la même ligne.
+
 - dans le cas où 'insert' et 'indirect' sont spécifiés, le cookie n'est jamais
   transmis au serveur vu qu'il n'en a pas connaissance et ne pourrait pas le
   comprendre.
+
 - il est particulièrement recommandé d'utiliser 'nocache' en mode insertion si
   des caches peuvent se trouver entre les clients et l'instance du proxy. Dans
   le cas contraire, un cache HTTP 1.0 pourrait cacher la réponse, incluant le
   cookie de persistence inséré, donc provoquer des changements de serveurs pour
   des clients partageant le même cache.
+
 - lorsque l'application est bien connue, et que les parties nécessitant de la
   persistence sont systématiquement accédées par un formulaire en mode POST,
   il est plus efficace encore de combiner le mot clé "postonly" avec "insert"
@@ -680,7 +688,12 @@ serveur. Seules les réponses 2xx et 3xx sont considérées valides, les autres (y
 compris non-réponses) aboutissent à un échec. Le temps maximal imparti pour une
 réponse est égal à l'intervalle entre deux tests (paramètre "inter"). Pour
 activer ce mode, spécifier l'option "httpchk", éventuellement suivie d'une
-URI. Voir les exemples ci-après.	
+méthode et d'une URI. L'option "httpchk" accepte donc 4 formes :
+  - option httpchk               -> OPTIONS / HTTP/1.0
+  - option httpchk URI           -> OPTIONS <URI> HTTP/1.0
+  - option httpchk METH URI      -> <METH> <URI> HTTP/1.0
+  - option httpchk METH URI VER  -> <METH> <URI> <VER>
+Voir les exemples ci-après.	
 
 Depuis la version 1.1.17, il est possible de définir des serveurs de secours,
 utilisés uniquement lorsqu'aucun des autres serveurs ne fonctionne. Pour cela,
@@ -735,6 +748,15 @@ Exemples :
 	server web1 192.168.1.1:80 cookie server01 check
 	server web2 192.168.1.2:80 cookie server02 check inter 500 rise 1 fall 2
 
+# idem avec surveillance HTTP par 'HEAD /index.jsp? HTTP/1.1\r\nHost: www'
+    listen http_proxy 0.0.0.0:80
+	mode http
+	cookie SERVERID
+	balance roundrobin
+	option httpchk HEAD /index.jsp? HTTP/1.1\r\nHost:\ www
+	server web1 192.168.1.1:80 cookie server01 check
+	server web2 192.168.1.2:80 cookie server02 check inter 500 rise 1 fall 2
+
 # Insertion automatique de cookie dans la réponse du serveur, et suppression
 # automatique dans la requête, tout en indiquant aux caches de ne pas garder
 # ce cookie.
@@ -745,15 +767,15 @@ Exemples :
 	server web1 192.168.1.1:80 cookie server01 check
 	server web2 192.168.1.2:80 cookie server02 check
 
-# idem avec serveur applicatif de secours, et serveur de pages d'erreurs
+# idem avec serveur applicatif de secours sur autre site, et serveur de pages d'erreurs
     listen web_appl 0.0.0.0:80
 	mode http
 	cookie SERVERID insert nocache indirect
 	balance roundrobin
 	server web1 192.168.1.1:80 cookie server01 check
 	server web2 192.168.1.2:80 cookie server02 check
-	server web-backup 192.168.1.3:80 cookie server03 check backup
-	server web-excuse 192.168.1.4:80 check backup
+	server web-backup 192.168.2.1:80 cookie server03 check backup
+	server web-excuse 192.168.3.1:80 check backup
 
 # relayage SMTP+TLS avec test du serveur et serveur de backup
 
@@ -1140,15 +1162,15 @@ dans une section 'defaults' :
   - enabled (pour faire l'opération inverse, mais c'est le cas par défaut)
   - contimeout, clitimeout, srvtimeout, grace, retries, maxconn
   - option { redispatch, transparent, keepalive, forwardfor, httplog,
-             dontlognull, persist }
+             dontlognull, persist, httpchk }
   - redispatch, redisp, transparent, source { addr:port }
-
-Ne sont pas supportés dans cette version, d'une manière générale, tous les
-paramètres qui nécessitent de mémoriser autre chose que des adresses IP uniques
-et valeurs numériques simples :
-  - dispatch, server,
   - cookie, capture
   - errorloc
+
+Ne sont pas supportés dans cette version, les adresses de dispatch et les
+configurations de serveurs, ainsi que tous les filtres basés sur les
+expressions régulières :
+  - dispatch, server,
   - req*, rsp*, 
 
 Enfin, il n'y a pas le moyen, pour le moment, d'invalider un paramètre booléen

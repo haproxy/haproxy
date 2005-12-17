@@ -1,4 +1,3 @@
 service haproxy
 	config /etc/haproxy/haproxy.cfg
-	maxconn 1024
 

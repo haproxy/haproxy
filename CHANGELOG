@@ -1,7 +1,17 @@
 ChangeLog :
 ===========
 
-2003/09/10 :
+2003/09/19 : 1.1.23
+  - fixed a stupid bug introduced in 1.1.22 which caused second and subsequent
+    'default' sections to keep previous parameters, and not initialize logs
+    correctly.
+  - fixed a second stupid bug introduced in 1.1.22 which caused configurations
+    relying on 'dispatch' mode to segfault at the first connection.
+  - 'option httpchk' now supports method, HTTP version and a few headers.
+  - now, 'option httpchk', 'cookie' and 'capture' can be specified in
+    'defaults' section
+
+2003/09/10 : 1.1.22
   - 'listen' now supports optionnal address:port-range lists
   - 'bind' introduced to add new listen addresses
   - fixed a bug which caused a session to be kept established on a server till
