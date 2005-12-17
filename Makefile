@@ -1,14 +1,26 @@
 CC = gcc
 LD = gcc
 
-COPTS = -O2 -g -DSTATTIME=0
-LIBS =
+# This is for Linux 2.4
+COPTS.linux = -O2
+LIBS.linux =
 
-# to compile under solaris, uncomment these two lines
-#COPTS = -O2 -fomit-frame-pointer -DSOLARIS
-#LIBS = -lnsl -lsocket
+# This is for solaris 8
+COPTS.solaris = -O2 -fomit-frame-pointer -DSOLARIS -DHAVE_STRLCPY
+LIBS.solaris = -lnsl -lsocket
 
-CFLAGS = -Wall $(COPTS)
+# Select target OS. TARGET must match a system for which COPTS and LIBS are
+# correctly defined above.
+TARGET = linux
+#TARGET = solaris
+
+DEBUG =
+#DEBUG = -g
+
+COPTS=$(COPTS.$(TARGET))
+LIBS=$(LIBS.$(TARGET))
+
+CFLAGS = -Wall $(COPTS) -DSTATTIME=0
 LDFLAGS = -g
 
 all: haproxy

@@ -9,6 +9,7 @@
  *
  * ChangeLog :
  *
+ * 2001/12/30 : release of version 1.0.2 : no fixed a bug in header processing
  * 2001/12/19 : release of version 1.0.1 : no MSG_NOSIGNAL on solaris
  * 2001/12/16 : release of version 1.0.0.
  * 2001/12/16 : added syslog capability for each accepted connection.
@@ -49,8 +50,8 @@
 #include <regex.h>
 #include <syslog.h>
 
-#define HAPROXY_VERSION "1.0.1"
-#define HAPROXY_DATE	"2001/12/19"
+#define HAPROXY_VERSION "1.0.2"
+#define HAPROXY_DATE	"2001/12/30"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -91,6 +92,35 @@
 #define MINTIME(old, new)	(((new)<0)?(old):(((old)<0||(new)<(old))?(new):(old)))
 #define SETNOW(a)		(*a=now)
 
+/****** string-specific macros and functions ******/
+/* if a > max, then bound <a> to <max>. The macro returns the new <a> */
+#define UBOUND(a, max)	({ typeof(a) b = (max); if ((a) > b) (a) = b; (a); })
+
+/* if a < min, then bound <a> to <min>. The macro returns the new <a> */
+#define LBOUND(a, min)	({ typeof(a) b = (min); if ((a) < b) (a) = b; (a); })
+
+
+#ifndef HAVE_STRLCPY
+/*
+ * copies at most <size-1> chars from <src> to <dst>. Last char is always
+ * set to 0, unless <size> is 0. The number of chars copied is returned
+ * (excluding the terminating zero).
+ * This code has been optimized for size and speed : on x86, it's 45 bytes
+ * long, uses only registers, and consumes only 4 cycles per char.
+ */
+int strlcpy(char *dst, const char *src, int size) {
+    char *orig = dst;
+    if (size) {
+	while (--size && (*dst = *src)) {
+	    src++; dst++;
+	}
+	*dst = 0;
+    }
+    return dst - orig;
+}
+#endif
+
+
 #define MEM_OPTIM
 #ifdef	MEM_OPTIM
 /*
@@ -113,7 +143,7 @@
  * Puts a memory area back to the corresponding pool.
  * Items are chained directly through a pointer that
  * is written in the beginning of the memory area, so
- * there's no need for any carrier cells. This implies
+ * there's no need for any carrier cell. This implies
  * that each memory area is at least as big as one
  * pointer.
  */
@@ -934,7 +964,7 @@ int event_cli_read(int fd) {
     //    fprintf(stderr,"event_cli_read : fd=%d, s=%p\n", fd, s);
 
     if (b->l == 0) { /* let's realign the buffer to optimize I/O */
-	b->r = b->w = b->data;
+	b->r = b->w = b->h = b->lr  = b->data;
 	max = BUFSIZE - MAXREWRITE;
     }
     else if (b->r > b->w) {
@@ -1011,7 +1041,7 @@ int event_srv_read(int fd) {
     //    fprintf(stderr,"event_srv_read : fd=%d, s=%p\n", fd, s);
 
     if (b->l == 0) { /* let's realign the buffer to optimize I/O */
-	b->r = b->w = b->data;
+	b->r = b->w = b->h = b->lr  = b->data;
 	max = BUFSIZE - MAXREWRITE;
     }
     else if (b->r > b->w) {
@@ -1087,7 +1117,7 @@ int event_cli_write(int fd) {
     //    fprintf(stderr,"event_cli_write : fd=%d, s=%p\n", fd, s);
 
     if (b->l == 0) { /* let's realign the buffer to optimize I/O */
-	b->r = b->w = b->data;
+	b->r = b->w = b->h = b->lr  = b->data;
 	//	max = BUFSIZE;		BUG !!!!
 	max = 0;
     }
@@ -1175,7 +1205,7 @@ int event_srv_write(int fd) {
     //fprintf(stderr,"event_srv_write : fd=%d, s=%p\n", fd, s);
 
     if (b->l == 0) { /* let's realign the buffer to optimize I/O */
-	b->r = b->w = b->data;
+	b->r = b->w = b->h = b->lr = b->data;
 	//	max = BUFSIZE;		BUG !!!!
 	max = 0;
     }
@@ -1543,14 +1573,9 @@ int process_cli(struct task *t) {
 			int len, max;
 			len = sprintf(trash, "clihdr[%04x:%04x]: ", (unsigned  short)t->cli_fd, (unsigned short)t->srv_fd);
 			max = ptr - req->h;
-			if (max > sizeof(trash) - len - 2)
-			    max = sizeof(trash) - len - 2;
-			strncat(trash+len, req->h, max); len += max;
+			UBOUND(max, sizeof(trash) - len - 1);
+			len += strlcpy(trash + len, req->h, max + 1);
 			trash[len++] = '\n';
-			trash[len] = '\0';
-			//    write(1,"Client Header found: ",21);
-		    	//    write(1, req->h, ptr - req->h);
-		    	//    write(1, "\n", 1);
 			write(1, trash, len);
 		    }
 
@@ -1603,8 +1628,7 @@ int process_cli(struct task *t) {
 				int l;
 				l = (p4 - p3) < SERVERID_LEN ?
 				    (p4 - p3) : SERVERID_LEN;
-				strncpy(t->cookie_val, p3, l);
-				t->cookie_val[l] = 0;
+				strlcpy(t->cookie_val, p3, l + 1);
 				break;
 			    }
 			    else {
@@ -1808,10 +1832,10 @@ int process_srv(struct task *t) {
     struct buffer *req = t->req;
     struct buffer *rep = t->rep;
 
-    //fprintf(stderr,"process_srv: c=%d, s=%d, cr=%d, cw=%d, sr=%d, sw=%d\n", c, s,
-    //FD_ISSET(t->cli_fd, StaticReadEvent), FD_ISSET(t->cli_fd, StaticWriteEvent),
-    //FD_ISSET(t->srv_fd, StaticReadEvent), FD_ISSET(t->srv_fd, StaticWriteEvent)
-    //);
+	    //fprintf(stderr,"process_srv: c=%d, s=%d, cr=%d, cw=%d, sr=%d, sw=%d\n", c, s,
+	    //FD_ISSET(t->cli_fd, StaticReadEvent), FD_ISSET(t->cli_fd, StaticWriteEvent),
+	    // FD_ISSET(t->srv_fd, StaticReadEvent), FD_ISSET(t->srv_fd, StaticWriteEvent)
+	    //);
     if (s == SV_STIDLE) {
 	if (c == CL_STHEADERS)
 	    return 0;	/* stay in idle, waiting for data to reach the client side */
@@ -1970,15 +1994,10 @@ int process_srv(struct task *t) {
 			int len, max;
 			len = sprintf(trash, "srvhdr[%04x:%04x]: ", (unsigned  short)t->cli_fd, (unsigned short)t->srv_fd);
 			max = ptr - rep->h;
-			if (max > sizeof(trash) - len - 2)
-			    max = sizeof(trash) - len - 2;
-			strncat(trash+len, rep->h, max); len += max;
+			UBOUND(max, sizeof(trash) - len - 1);
+			len += strlcpy(trash + len, rep->h, max + 1);
 			trash[len++] = '\n';
-			trash[len] = '\0';
 			write(1, trash, len);
-			//    write(1,"Server Header found: ",21);
-		    	//    write(1, rep->h, ptr-rep->h);
-		    	//    write(1, "\n", 1);
 		    }
 
 		    if (t->proxy->nb_srvexp) { /* try headers regexps */
