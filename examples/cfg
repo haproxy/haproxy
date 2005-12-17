@@ -1,20 +1,52 @@
-listen proxy1 0.0.0.0:3128
+listen proxy1 0.0.0.0:8000
 	mode	http
-        cookie SERVERID
-	dispatch 192.168.12.1:80
- 	server srv1 192.168.12.2:8080
- 	server srv2 192.168.12.3:8080
+	#mode	tcp
+        cookie SERVERID insert indirect
+	balance roundrobin
+	#dispatch 127.0.0.1:3130
+	#dispatch 127.0.0.1:31300
+	#dispatch 127.0.0.1:80
+	#dispatch 127.0.0.1:22
+	server tuxlocal 127.0.0.1:80 cookie cookie1 check
+	server tuxceleron 10.101.0.1:80 cookie cookie2 check
+	#server telnet 127.0.0.1:23
+	#server ssh 127.0.0.1:22
+	server local 127.0.0.1:3130 cookie cookie3 check
+	#server local 127.0.0.1:3130
+	#server celeron 10.101.0.1:80 cookie srv1
+	#server celeron 10.101.0.1:31300
+	#server local 10.101.23.9:31300
 	contimeout	3000
 	clitimeout	150000
 	srvtimeout	150000
 	maxconn 60000
-	redisp
+	redispatch
 	retries	3
 	grace 3000
+	#rsprep	^Server.* Server:\ IIS
+	#rspdel	^Server.*
+	#rspadd Set-Cookie:\ mycookie=0;\ path=/
+	#rsprep ^(Date:\ )([^,]*)(,\ )(.*) LaDate\ est:\ \4\ (\2)
+	
+listen proxy1 0.0.0.0:3128
+	mode	http
+        cookie SERVERID indirect
+	dispatch 127.0.0.1:8080
+	server srv1 127.0.0.1:8080
+ 	#server srv2 192.168.12.3:8080
+	contimeout	3000
+	clitimeout	450000
+	srvtimeout	450000
+	maxconn 60000
+	redispatch
+	retries	3
+	grace 3000
+	
 
 listen proxy2 0.0.0.0:3129
 	mode	http
-	dispatch 127.0.0.1:80
+	transparent
+#	dispatch 127.0.0.1:80
 	contimeout	3000
 	clitimeout	150000
 	srvtimeout	150000
@@ -35,5 +67,13 @@ listen health 0.0.0.0:3130
 	mode	health
 	clitimeout	1500
 	srvtimeout	1500
-	maxconn 4
+	maxconn 6000
+	grace 0
+
+
+listen health 0.0.0.0:31300
+	mode	health
+	clitimeout	1500
+	srvtimeout	1500
+	maxconn 6000
 	grace 0

@@ -1,0 +1,18 @@
+#!/bin/sh
+
+bin=/usr/sbin/haproxy
+cmdline='$bin -D -f /etc/haproxy/haproxy.cfg'
+
+. $ROOT/sbin/init.d/default 
+
+# arret en douceur
+function dostop {
+   pids=`pidof -o $$ -- $PNAME`
+   if [ ! -z "$pids" ]; then
+      echo "Asking $PNAME to terminate asap..."
+      kill -USR1 $pids
+   fi
+}
+
+main $*
+

@@ -1,9 +1,9 @@
 
          		     H A - P r o x y
          		     ---------------
-         		      version 1.0.0
+         		      version 1.1.0
 			      willy tarreau
-			       2001/12/16
+			       2002/03/10
 
 ==============
 |Introduction|
@@ -12,8 +12,11 @@
 HA-Proxy est un relais TCP/HTTP offrant des facilités d'intégration en
 environnement hautement disponible. En effet, il est capable de :
   - assurer un aiguillage statique défini par des cookies ;
+  - assurer une répartition de charge avec création de cookies pour
+    assurer la persistence de session ;
   - fournir une visibilité externe de son état de santé ;
   - s'arrêter en douceur sans perte brutale de service.
+  - modifier/ajouter/supprimer des entêtes dans la requête et la réponse.
 
 Il requiert peu de ressources, et son architecture événementielle
 mono-processus lui permet facilement de gérer plusieurs milliers de
@@ -51,7 +54,7 @@ Commentaires
 
 L'analyseur du fichier de configuration ignore des lignes vides, les
 espaces, les tabulations, et tout ce qui est compris entre le symbole
-'#' et la fin de la ligne.
+'#' (s'il n'est pas précédé d'un '\'), et la fin de la ligne.
 
 
 Serveur
@@ -102,7 +105,7 @@ Un serveur peut fonctionner dans trois modes différents :
 Mode TCP
 --------
 Dans ce mode, le service relaye, dès leur établissement, les
-connexions TCP vers un unique serveur distant. Aucun traitement n'est
+connexions TCP vers un ou plusieurs serveurs. Aucun traitement n'est
 effectué sur le flux. Il s'agit simplement d'une association
 <adresse_source:port_source> <adresse_destination:port_destination>.
 Pour l'utiliser, préciser le mode TCP sous la déclaration du relais :
@@ -236,6 +239,30 @@ cookie est donné par le paramètre "cookie" :
 	mode http
 	cookie SERVERID
 
+On peut modifier l'utilisation du cookie pour la rendre plus
+intelligente vis-à-vis des applications relayées. Il est possible,notamment
+de supprimer ou réécrire un cookie retourné par un serveur accédé en direct,
+et d'insérer un cookie dans une réponse HTTP orientée vers un serveur
+sélectionné en répartition de charge.
+
+Pour ne conserver le cookie qu'en accès indirect, donc à travers le
+dispatcheur, et le supprimer lors des accès directs :
+
+	cookie SERVERID indirect
+
+Pour réécrire le nom du serveur dans un cookie lors d'un accès direct :
+
+	cookie SERVERID rewrite
+
+Pour créer un cookie comportant le nom du serveur lors d'un accès en
+répartition de charge interne. Dans ce cas, il est indispensable que tous les
+serveurs aient un cookie renseigné.
+
+	cookie SERVERID insert
+
+Remarque: Il est possible de combiner 'insert' avec 'indirect' ou 'rewrite'
+pour s'adapter à des applications générant déjà le cookie, avec un contenu
+invalide. Il suffit pour cela de les spécifier sur la même ligne.
 
 Assignation d'un serveur à une valeur de cookie
 ===============================================
@@ -243,10 +270,12 @@ Assignation d'un serveur à une valeur de cookie
 En mode HTTP, il est possible d'associer des serveurs à des valeurs de
 cookie par le paramètre "server". La syntaxe est :
 
-    server <valeur> <adresse_ip>:<port>
+    server <identifiant> <adresse_ip>:<port> cookie <valeur>
 
-<valeur> est la valeur trouvée dans le cookie,
+<identifiant> est un nom quelconque de serveur utilisé pour
+l'identifier dans la configuration (erreurs...).
 <adresse_ip>:<port> le couple adresse-port sur lequel le serveur écoute.
+<valeur> est la valeur trouvée dans le cookie,
 
 Exemple : le cookie SERVERID peut contenir server01 ou server02
 -------
@@ -254,18 +283,64 @@ Exemple : le cookie SERVERID peut contenir server01 ou server02
 	mode http
 	cookie SERVERID
 	dispatch 192.168.1.100:80
-	server server01 192.168.1.1:80
-	server server02 192.168.1.2:80
+	server web1 192.168.1.1:80 cookie server01
+	server web2 192.168.1.2:80 cookie server02
+
+Attention : la syntaxe a changé depuis la version 1.0.
+---------
+
+Répartiteur de charge interne
+=============================
+
+Le relais peut effectuer lui-même la répartition de charge entre les
+différents serveurs décrits pour un service donné, en mode TCP comme
+en mode HTTP. Pour cela, on précise le mot clé 'balance' dans la
+définition du service, éventuellement suivi du nom d'un algorithme de
+répartition. En version 1.1.0, seul 'roundrobin' est géré, et c'est
+aussi la valeur implicite par défaut. Il est évident qu'en cas
+d'utilisation du répartiteur interne, il ne faudra pas spécifier
+d'adresse de dispatch, et qu'il faudra au moins un serveur.
+
+Exemple : même que précédemment en répartition interne
+-------
+
+    listen http_proxy 0.0.0.0:80
+	mode http
+	cookie SERVERID
+	balance roundrobin
+	server web1 192.168.1.1:80 cookie server01
+	server web2 192.168.1.2:80 cookie server02
 
 
-Reconnexion vers le répartiteur
-===============================
+Surveillance des serveurs
+=========================
+
+A cette date, l'état des serveurs n'est testé que par établissement
+de connexion TCP toutes les 2 secondes, avec 3 essais pour déclarer
+un serveur en panne, 2 pour le déclarer utilisable. Un serveur hors
+d'usage ne sera pas utilisé dans le processus de répartition de charge
+interne. Pour activer la surveillance, ajouter le mot clé 'check' à la
+fin de la déclaration du serveur.
+
+Exemple : même que précédemment avec surveillance
+-------
+
+    listen http_proxy 0.0.0.0:80
+	mode http
+	cookie SERVERID
+	balance roundrobin
+	server web1 192.168.1.1:80 cookie server01 check
+	server web2 192.168.1.2:80 cookie server02 check
+
+
+Reconnexion vers un répartiteur en cas d'échec direct
+=====================================================
 
 En mode HTTP, si un serveur défini par un cookie ne répond plus, les
 clients seront définitivement aiguillés dessus à cause de leur cookie,
 et de ce fait, définitivement privés de service. La spécification du
-paramètre "redisp" autorise dans ce cas à renvoyer les connexions
-échouées vers l'adresse de répartition (dispatch) afin d'assigner un
+paramètre "redispatch" autorise dans ce cas à renvoyer les connexions
+échouées vers le répartiteur (externe ou interne) afin d'assigner un
 nouveau serveur à ces clients.
 
 Exemple :
@@ -274,9 +349,31 @@ Exemple :
 	mode http
 	cookie SERVERID
 	dispatch 192.168.1.100:80
+	server web1 192.168.1.1:80 cookie server01
+	server web2 192.168.1.2:80 cookie server02
+	redispatch # renvoyer vers dispatch si serveur HS.
+
+Fonctionnement en mode transparent
+==================================
+
+En mode HTTP, le mot clé "transparent" permet d'intercepter des
+sessions routées à travers la machine hébergeant le proxy. Dans
+ce mode, on ne précise pas l'adresse de répartition "dispatch",
+car celle-ci est tirée de l'adresse destination de la session
+détournée. Le système doit permettre de rediriger les paquets
+vers un processus local.
+
+Exemple :
+-------
+    listen http_proxy 0.0.0.0:65000
+	mode http
+	transparent
+	cookie SERVERID
 	server server01 192.168.1.1:80
 	server server02 192.168.1.2:80
-	redisp # renvoyer vers dispatch si serveur HS.
+
+    # iptables -t nat -A PREROUTING -i eth0 -p tcp -d 192.168.1.100 \
+      --dport 80 -j REDIRECT --to-ports 65000
 
 Journalisation des connexions
 =============================
@@ -307,48 +404,91 @@ Les catégories possibles sont :
     local0, local1, local2, local3, local4, local5, local6, local7
 
 
-Remplacement d'entêtes par expressions régulières
-=================================================
+Modification des entêtes HTTP
+=============================
 
 En mode HTTP uniquement, il est possible de remplacer certains entêtes
-client et/ou serveur à partir d'expressions régulières. Deux
-limitations cependant :
-  - il n'est pas encore possible de supprimer un entête ni d'en
-    ajouter un ; On peut en général s'en sortir avec des
-    modifications.
-  - les entêtes fournis au milieu de connexions persistentes
-    (keep-alive) ne sont pas vus.
+dans la requête et/ou la réponse à partir d'expressions régulières. Une
+limitation cependant : les entêtes fournis au milieu de connexions
+persistentes (keep-alive) ne sont pas vus. Les données ne sont pas
+affectées, ceci ne s'applique qu'aux entêtes.
 
 La syntaxe est :
-   cliexp <search> <replace>   pour les entêtes client
-   srvexp <search> <replace>   pour les entêtes serveur
+   reqadd <string>             pour ajouter un entête dans la requête
+   reqrep <search> <replace>   pour modifier la requête
+   reqrep <search>             pour supprimer un entête dans la requête
+
+   rspadd <string>             pour ajouter un entête dans la réponse
+   rsprep <search> <replace>   pour modifier la réponse
+   rsprep <search>             pour supprimer un entête dans la réponse
+
 
 <search> est une expression régulière compatible GNU regexp supportant
 le groupage par parenthèses (sans les '\'). Les espaces et autres
 séparateurs doivent êtres précédés d'un '\' pour ne pas être confondus
-avec la fin de la chaîne.
+avec la fin de la chaîne. De plus, certains caractères spéciaux peuvent
+être précédés d'un backslach ('\') :
 
-<replace> contient la chaîne remplaçant la portion vérifiée par
-l'expression. Elle peut inclure des espaces et tabulations précédés
-par un '\', faire référence à un groupe délimité par des parenthèses
-dans l'expression régulière, par sa position numérale. Les positions
-vont de 1 à 9, et sont codées par un '\' suivi du chiffre désiré. Il
-est également possible d'insérer un caractère non imprimable (utile
-pour le saut de ligne) inscrivant '\x' suivi du code hexadécimal de ce
-caractère (comme en C).
+  \t   pour une tabulation
+  \r   pour un retour charriot
+  \n   pour un saut de ligne
+  \    pour différencier un espace d'un séparateur
+  \#   pour différencier un dièse d'un commentaire
+  \\   pour un backslash
+  \xXX pour un caractère spécifique XX (comme en C)
 
-Remarque : la première ligne de la requête et celle de la réponse sont
-traitées comme des entêtes, ce qui permet de réécrire des URL et des
-codes d'erreur.
+
+<replace> contient la chaîne remplaçant la portion vérifiée par l'expression.
+Elle peut inclure les caractères spéciaux ci-dessus, faire référence à un
+groupe délimité par des parenthèses dans l'expression régulière, par sa
+position numérale. Les positions vont de 1 à 9, et sont codées par un '\'
+suivi du chiffre désiré. Il est également possible d'insérer un caractère non
+imprimable (utile pour le saut de ligne) inscrivant '\x' suivi du code
+hexadécimal de ce caractère (comme en C).
+
+<string> représente une chaîne qui sera ajoutée systématiquement après la
+dernière ligne d'entête.
+
+Remarques :
+---------
+  - la première ligne de la requête et celle de la réponse sont traitées comme
+    des entêtes, ce qui permet de réécrire des URL et des codes d'erreur.
+  - 'reqrep' est l'équivalent de 'cliexp' en version 1.0, et 'rsprep' celui de
+    'srvexp'. Ces noms sont toujours supportés mais déconseillés.
+  - pour des raisons de performances, le nombre total de caractères ajoutés sur
+    une requête ou une réponse est limité à 256. Cette valeur est modifiable dans
+    le code. Pour un usage temporaire, on peut gagner de la place en supprimant
+    quelques entêtes inutiles avant les ajouts.
 
 Exemples :
-----------
-	cliexp	^(GET.*)(.free.fr)(.*) \1.online.fr\3
-	cliexp	^(POST.*)(.free.fr)(.*) \1.online.fr\3
-	cliexp	^Proxy-Connection:.*	Proxy-Connection:\ close
-	srvexp	^Proxy-Connection:.*	Proxy-Connection:\ close
-	srvexp	^(Location:\ )([^:]*://[^/]*)(.*) \1\3
+--------
+	reqrep	^(GET.*)(.free.fr)(.*) \1.online.fr\3
+	reqrep	^(POST.*)(.free.fr)(.*) \1.online.fr\3
+	reqrep	^Proxy-Connection:.*	Proxy-Connection:\ close
+	rsprep	^Server:.* Server:\ Tux-2.0
+	rsprep	^(Location:\ )([^:]*://[^/]*)(.*) \1\3
+	rspdel  ^Connection:.*
+	rspadd	Connection:\ close
 
+
+Répartition avec persistence
+============================
+
+La combinaison de l'insertion de cookie avec la répartition de charge interne
+permet d'assurer une persistence dans les sessions HTTP d'une manière
+pratiquement transparente pour les applications. Le principe est simple :
+  - assigner un cookie à chaque serveur
+  - effectuer une répartition interne
+  - insérer un cookie dans les réponses issues d'une répartition
+
+Exemple :
+-------
+    listen application 0.0.0.0:80
+	mode http
+	cookie SERVERID insert indirect
+	balance roundrobin
+	server 192.168.1.1:80 cookie server01 check
+	server 192.168.1.2:80 cookie server02 check
 
 =====================
 |Paramétrage système|
@@ -360,13 +500,15 @@ Sous Linux 2.4
 echo 131072 > /proc/sys/fs/file-max
 echo 65536 > /proc/sys/net/ipv4/ip_conntrack_max
 echo 1024 60999 > /proc/sys/net/ipv4/ip_local_port_range
-echo 16384 > /proc/sys/net/ipv4/ip_queue_maxlen
+echo 32768 > /proc/sys/net/ipv4/ip_queue_maxlen
 echo 60 > /proc/sys/net/ipv4/tcp_fin_timeout
-echo 4096 > /proc/sys/net/ipv4/tcp_max_orphans
+echo 262144 > /proc/sys/net/ipv4/tcp_max_orphans
 echo 16384 > /proc/sys/net/ipv4/tcp_max_syn_backlog
 echo 262144 > /proc/sys/net/ipv4/tcp_max_tw_buckets
 echo 1 > /proc/sys/net/ipv4/tcp_tw_recycle
 echo 0 > /proc/sys/net/ipv4/tcp_timestamps
-ulimit -n 65536
+echo 0 > /proc/sys/net/ipv4/tcp_sack
+echo 0 > /proc/sys/net/ipv4/tcp_ecn
+ulimit -n 131072
 
 -- fin --

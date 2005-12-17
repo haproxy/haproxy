@@ -1,6 +1,6 @@
 /*
- * HA-Proxy : High Availability-enabled HTTP/TCP proxy - Willy Tarreau
- * willy AT meta-x DOT org.
+ * HA-Proxy : High Availability-enabled HTTP/TCP proxy
+ * 2000-2002 - Willy Tarreau - willy AT meta-x DOT org.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -9,7 +9,29 @@
  *
  * ChangeLog :
  *
- * 2001/12/30 : release of version 1.0.2 : no fixed a bug in header processing
+ * 2002/03/10
+ *   - released 1.1.0
+ *   - fixed a few timeout bugs
+ *   - rearranged the task scheduler subsystem to improve performance,
+ *     add new tasks, and make it easier to later port to librt ;
+ *   - allow multiple accept() for one select() wake up ;
+ *   - implemented internal load balancing with basic health-check ;
+ *   - cookie insertion and header add/replace/delete, with better strings
+ *     support.
+ * 2002/03/08
+ *   - reworked buffer handling to fix a few rewrite bugs, and
+ *     improve overall performance.
+ *   - implement the "purge" option to delete server cookies in direct mode.
+ * 2002/03/07
+ *   - fixed some error cases where the maxfd was not decreased.
+ * 2002/02/26
+ *   - now supports transparent proxying, at least on linux 2.4.
+ * 2002/02/12
+ *   - soft stop works again (fixed select timeout computation).
+ *   - it seems that TCP proxies sometimes cannot timeout.
+ *   - added a "quiet" mode.
+ *   - enforce file descriptor limitation on socket() and accept().
+ * 2001/12/30 : release of version 1.0.2 : fixed a bug in header processing
  * 2001/12/19 : release of version 1.0.1 : no MSG_NOSIGNAL on solaris
  * 2001/12/16 : release of version 1.0.0.
  * 2001/12/16 : added syslog capability for each accepted connection.
@@ -25,7 +47,10 @@
  * 2000/11/28 : major rewrite
  * 2000/11/26 : first write
  *
- * TODO: handle properly intermediate incomplete server headers.
+ * TODO:
+ *   - handle properly intermediate incomplete server headers. Done ?
+ *   - log proxies start/stop
+ *   - handle hot-reconfiguration
  *
  */
 
@@ -49,9 +74,12 @@
 #include <time.h>
 #include <regex.h>
 #include <syslog.h>
+#if defined(TRANSPARENT) && defined(NETFILTER)
+#include <linux/netfilter_ipv4.h>
+#endif
 
-#define HAPROXY_VERSION "1.0.2"
-#define HAPROXY_DATE	"2001/12/30"
+#define HAPROXY_VERSION "1.1.0"
+#define HAPROXY_DATE	"2002/03/10"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -71,15 +99,25 @@
 // reserved buffer space for header rewriting
 #define	MAXREWRITE	256
 
+// max # args on a configuration line
+#define MAX_LINE_ARGS	10
+
 // max # of regexps per proxy
 #define	MAX_REGEXP	10
 
 // max # of matches per regexp
 #define	MAX_MATCH	10
 
+/* FIXME: serverid_len and cookiename_len are no longer checked in configuration file */
 #define COOKIENAME_LEN	16
 #define SERVERID_LEN	16
 #define CONN_RETRIES	3
+
+/* FIXME: this should be user-configurable */
+#define	CHK_CONNTIME	2000
+#define	CHK_INTERVAL	2000
+#define FALLTIME	3
+#define RISETIME	2
 
 /* how many bits are needed to code the size of an int (eg: 32bits -> 5) */
 #define	INTBITS		5
@@ -88,6 +126,13 @@
 #ifndef STATTIME
 #define STATTIME	2000
 #endif
+
+/* this reduces the number of calls to select() by choosing appropriate
+ * sheduler precision in milliseconds. It should be near the minimum
+ * time that is needed by select() to collect all events. All timeouts
+ * are rounded up by adding this value prior to pass it to select().
+ */
+#define SCHEDULER_RESOLUTION	9
 
 #define MINTIME(old, new)	(((new)<0)?(old):(((old)<0||(new)<(old))?(new):(old)))
 #define SETNOW(a)		(*a=now)
@@ -157,39 +202,56 @@ int strlcpy(char *dst, const char *src, int size) {
 #define pool_free(type, ptr) (free(ptr));
 #endif	/* MEM_OPTIM */
 
-#define sizeof_session	sizeof(struct task)
+#define sizeof_task	sizeof(struct task)
+#define sizeof_session	sizeof(struct session)
 #define sizeof_buffer	sizeof(struct buffer)
 #define sizeof_fdtab	sizeof(struct fdtab)
 #define sizeof_str256	256
 
 
-/*
- * different possible states for the sockets
- */
+/* different possible states for the sockets */
 #define FD_STCLOSE	0
 #define FD_STLISTEN	1
 #define FD_STCONN	2
 #define FD_STREADY	3
 #define FD_STERROR	4
 
+/* values for task->state */
 #define TASK_IDLE	0
 #define TASK_RUNNING	1
 
+/* values for proxy->state */
 #define PR_STNEW	0
 #define PR_STIDLE	1
 #define PR_STRUN	2
 #define PR_STDISABLED	3
 
+/* values for proxy->mode */
 #define PR_MODE_TCP	0
 #define PR_MODE_HTTP	1
 #define PR_MODE_HEALTH	2
 
+/* bits for proxy->options */
+#define PR_O_REDISP	1	/* allow reconnection to dispatch in case of errors */
+#define PR_O_TRANSP	2	/* transparent mode : use original DEST as dispatch */
+#define PR_O_COOK_RW	4	/* rewrite all direct cookies with the right serverid */
+#define PR_O_COOK_IND	8	/* keep only indirect cookies */
+#define PR_O_COOK_INS	16	/* insert cookies when not accessing a server directly */
+#define PR_O_COOK_ANY	(PR_O_COOK_RW | PR_O_COOK_IND | PR_O_COOK_INS)
+#define PR_O_BALANCE_RR	32	/* balance in round-robin mode */
+#define PR_O_BALANCE	(PR_O_BALANCE_RR)
+
+/* various task flags */
+#define TF_DIRECT	1	/* connection made on the server matching the client cookie */
+
+/* different possible states for the client side */
 #define CL_STHEADERS	0
 #define CL_STDATA	1
 #define CL_STSHUTR	2
 #define CL_STSHUTW	3
 #define CL_STCLOSE	4
 
+/* different possible states for the server side */
 #define SV_STIDLE	0
 #define SV_STCONN	1
 #define SV_STHEADERS	2
@@ -204,11 +266,15 @@ int strlcpy(char *dst, const char *src, int size) {
 #define	RES_NULL	2	/* result is 0 (read == 0), or connect without need for writing */
 #define RES_ERROR	3	/* result -1 or error on the socket (eg: connect()) */
 
-/* modes of operation */
+/* modes of operation (global variable "mode") */
 #define	MODE_DEBUG	1
 #define	MODE_STATS	2
 #define	MODE_LOG	4
 #define	MODE_DAEMON	8
+#define	MODE_QUIET	16
+
+/* server flags */
+#define SRV_RUNNING	1
 
 /*********************************************************************/
 
@@ -229,15 +295,30 @@ struct buffer {
 
 struct server {
     struct server *next;
-    char *id;				/* the id found in the cookie */
+    int state;				/* server state (SRV_*) */
+    int  cklen;				/* the len of the cookie, to speed up checks */
+    char *cookie;			/* the id set in the cookie */
+    char *id;				/* just for identification */
     struct sockaddr_in addr;		/* the address to connect to */
+    int health;				/* 0->rise-1 = bad; rise->rise+fall-1 = good */
+    int result;				/* 0 = connect OK, -1 = connect KO */
+    int curfd;				/* file desc used for current test, or -1 if not in test */
 };
 
+/* The base for all tasks */
 struct task {
     struct task *next, *prev;		/* chaining ... */
     struct task *rqnext;		/* chaining in run queue ... */
+    struct task *wq;			/* the wait queue this task is in */
     int state;				/* task state : IDLE or RUNNING */
     struct timeval expire;		/* next expiration time for this task, use only for fast sorting */
+    int (*process)(struct task *t);	/* the function which processes the task */
+    void *context;			/* the task's context */
+};
+
+/* WARNING: if new fields are added, they must be initialized in event_accept() */
+struct session {
+    struct task *task;			/* the task associated with this session */
     /* application specific below */
     struct timeval crexpire;		/* expiration date for a client read  */
     struct timeval cwexpire;		/* expiration date for a client write */
@@ -251,12 +332,12 @@ struct task {
     int cli_state;			/* state of the client side */
     int srv_state;			/* state of the server side */
     int conn_retries;			/* number of connect retries left */
-    int conn_redisp;			/* allow reconnection to dispatch in case of errors */
+    int flags;				/* some flags describing the session */
     struct buffer *req;			/* request buffer */
     struct buffer *rep;			/* response buffer */
     struct sockaddr_in cli_addr;	/* the client address */
     struct sockaddr_in srv_addr;	/* the address to connect to */
-    char cookie_val[SERVERID_LEN+1];	/* the cookie value, if present */
+    struct server *srv;			/* the server being used */
 };
 
 struct proxy {
@@ -264,7 +345,8 @@ struct proxy {
     int state;				/* proxy state */
     struct sockaddr_in listen_addr;	/* the address we listen to */
     struct sockaddr_in dispatch_addr;	/* the default address to connect to */
-    struct server *srv;			/* known servers */
+    struct server *srv, *cursrv;	/* known servers, current server */
+    int nbservers;			/* # of servers */
     char *cookie_name;			/* name of the cookie to look for */
     int clitimeout;			/* client I/O timeout (in milliseconds) */
     int srvtimeout;			/* server I/O timeout (in milliseconds) */
@@ -272,18 +354,17 @@ struct proxy {
     char *id;				/* proxy id */
     int nbconn;				/* # of active sessions */
     int maxconn;			/* max # of active sessions */
-    int conn_retries;			/* number of connect retries left */
-    int conn_redisp;			/* allow to reconnect to dispatch in case of errors */
-    int mode;				/* mode = PR_MODE_TCP or PR_MODE_HTTP */
-    struct task task;			/* active sessions (bi-dir chaining) */
-    struct task *rq;			/* sessions in the run queue (unidir chaining) */
+    int conn_retries;			/* maximum number of connect retries */
+    int options;			/* PR_O_REDISP, PR_O_TRANSP */
+    int mode;				/* mode = PR_MODE_TCP, PR_MODE_HTTP or PR_MODE_HEALTH */
     struct proxy *next;
     struct sockaddr_in logsrv1, logsrv2; /* 2 syslog servers */
     char logfac1, logfac2;		/* log facility for both servers. -1 = disabled */
     struct timeval stop_time;		/* date to stop listening, when stopping != 0 */
-    int nb_cliexp, nb_srvexp;
-    struct hdr_exp cli_exp[MAX_REGEXP];	/* regular expressions for client headers */
-    struct hdr_exp srv_exp[MAX_REGEXP];	/* regular expressions for server headers */
+    int nb_reqexp, nb_rspexp, nb_reqadd, nb_rspadd;
+    struct hdr_exp req_exp[MAX_REGEXP];	/* regular expressions for request headers */
+    struct hdr_exp rsp_exp[MAX_REGEXP];	/* regular expressions for response headers */
+    char *req_add[MAX_REGEXP], *rsp_add[MAX_REGEXP]; /* headers to be added */
     int grace;				/* grace time after stop request */
 };
 
@@ -313,10 +394,16 @@ fd_set	*ReadEvent,
 void **pool_session = NULL,
     **pool_buffer   = NULL,
     **pool_fdtab    = NULL,
-    **pool_str256   = NULL;
+    **pool_str256   = NULL,
+    **pool_task	    = NULL;
 
 struct proxy *proxy  = NULL;	/* list of all existing proxies */
 struct fdtab *fdtab = NULL;	/* array of all the file descriptors */
+struct task *rq = NULL;		/* global run queue */
+struct task wait_queue = {	/* global wait queue */
+    prev:LIST_HEAD(wait_queue),
+    next:LIST_HEAD(wait_queue)
+};
 
 static int mode = 0;		/* MODE_DEBUG, ... */
 static int totalconn = 0;	/* total # of terminated sessions */
@@ -376,6 +463,7 @@ int event_cli_read(int fd);
 int event_cli_write(int fd);
 int event_srv_read(int fd);
 int event_srv_write(int fd);
+int process_session(struct task *t);
 
 /*********************************************************************/
 /*  general purpose functions  ***************************************/
@@ -383,7 +471,7 @@ int event_srv_write(int fd);
 
 void display_version() {
     printf("HA-Proxy version " HAPROXY_VERSION " " HAPROXY_DATE"\n");
-    printf("Copyright 2000-2001 Willy Tarreau <willy AT meta-x DOT org>\n\n");
+    printf("Copyright 2000-2002 Willy Tarreau <willy AT meta-x DOT org>\n\n");
 }
 
 /*
@@ -403,7 +491,8 @@ void usage(char *name) {
 	    "        -s enables statistics output\n"
 	    "        -l enables long statistics format\n"
 #endif
-	    "        -D goes daemon\n"
+	    "        -D goes daemon ; implies -q\n"
+	    "        -q quiet mode : don't display messages\n"
 	    "        -n sets the maximum total # of connections (%d)\n"
 	    "        -N sets the default, per-proxy maximum # of connections (%d)\n\n",
 	    name, cfg_maxconn, cfg_maxpconn);
@@ -419,15 +508,17 @@ void Alert(char *fmt, ...) {
     struct timeval tv;
     struct tm *tm;
 
-    va_start(argp, fmt);
+    if (!(mode & MODE_QUIET)) {
+	va_start(argp, fmt);
 
-    gettimeofday(&tv, NULL);
-    tm=localtime(&tv.tv_sec);
-    fprintf(stderr, "[ALERT] %03d/%02d%02d%02d (%d) : ",
-	    tm->tm_yday, tm->tm_hour, tm->tm_min, tm->tm_sec, getpid());
-    vfprintf(stderr, fmt, argp);
-    fflush(stderr);
-    va_end(argp);
+	gettimeofday(&tv, NULL);
+	tm=localtime(&tv.tv_sec);
+	fprintf(stderr, "[ALERT] %03d/%02d%02d%02d (%d) : ",
+		tm->tm_yday, tm->tm_hour, tm->tm_min, tm->tm_sec, getpid());
+	vfprintf(stderr, fmt, argp);
+	fflush(stderr);
+	va_end(argp);
+    }
 }
 
 
@@ -439,15 +530,31 @@ void Warning(char *fmt, ...) {
     struct timeval tv;
     struct tm *tm;
 
-    va_start(argp, fmt);
+    if (!(mode & MODE_QUIET)) {
+	va_start(argp, fmt);
 
-    gettimeofday(&tv, NULL);
-    tm=localtime(&tv.tv_sec);
-    fprintf(stderr, "[WARNING] %03d/%02d%02d%02d (%d) : ",
-	    tm->tm_yday, tm->tm_hour, tm->tm_min, tm->tm_sec, getpid());
-    vfprintf(stderr, fmt, argp);
-    fflush(stderr);
-    va_end(argp);
+	gettimeofday(&tv, NULL);
+	tm=localtime(&tv.tv_sec);
+	fprintf(stderr, "[WARNING] %03d/%02d%02d%02d (%d) : ",
+		tm->tm_yday, tm->tm_hour, tm->tm_min, tm->tm_sec, getpid());
+	vfprintf(stderr, fmt, argp);
+	fflush(stderr);
+	va_end(argp);
+    }
+}
+
+/*
+ * Displays the message on <out> only if quiet mode is not set.
+ */
+void qfprintf(FILE *out, char *fmt, ...) {
+    va_list argp;
+
+    if (!(mode & MODE_QUIET)) {
+	va_start(argp, fmt);
+	vfprintf(out, fmt, argp);
+	fflush(out);
+	va_end(argp);
+    }
 }
 
 
@@ -743,11 +850,14 @@ static inline struct timeval *tv_min(struct timeval *tvmin,
 
 
 
-/* deletes an FD from the fdsets, and recomputes the maxfd limit */
+/* Deletes an FD from the fdsets, and recomputes the maxfd limit.
+ * The file descriptor is also closed.
+ */
 static inline void fd_delete(int fd) {
-    fdtab[fd].state = FD_STCLOSE;
     FD_CLR(fd, StaticReadEvent);
     FD_CLR(fd, StaticWriteEvent);
+    close(fd);
+    fdtab[fd].state = FD_STCLOSE;
 
     while ((maxfd-1 >= 0) && (fdtab[maxfd-1].state == FD_STCLOSE))
 	    maxfd--;
@@ -763,58 +873,52 @@ static inline void fd_insert(int fd) {
 /*   task management   ***************************************/
 /*************************************************************/
 
-/* puts the task <s> in <p>'s run queue, and returns <s> */
-static inline struct task *task_wakeup(struct proxy *p, struct task *s) {
-    //    fprintf(stderr,"task_wakeup: proxy %p, task %p\n", p, s);
-
-    if (s->state == TASK_RUNNING)
-	return s;
+/* puts the task <t> in run queue <q>, and returns <t> */
+static inline struct task *task_wakeup(struct task **q, struct task *t) {
+    if (t->state == TASK_RUNNING)
+	return t;
     else {
-	s->rqnext = p->rq;
-	s->state = TASK_RUNNING;
-	return p->rq = s;
+	t->rqnext = *q;
+	t->state = TASK_RUNNING;
+	return *q = t;
     }
 }
 
-/* removes the task <s> from <p>'s run queue.
- * <s> MUST be <p>'s first task in the queue.
+/* removes the task <t> from the queue <q>
+ * <s> MUST be <q>'s first task.
  * set the run queue to point to the next one, and return it
  */
-static inline struct task *task_sleep(struct proxy *p, struct task *s) {
-    if (s->state == TASK_RUNNING) {
-	p->rq = s->rqnext;
-	s->state = TASK_IDLE; /* tell that s has left the run queue */
+static inline struct task *task_sleep(struct task **q, struct task *t) {
+    if (t->state == TASK_RUNNING) {
+	*q = t->rqnext;
+	t->state = TASK_IDLE; /* tell that s has left the run queue */
     }
-    return p->rq; /* return next running task */
+    return *q; /* return next running task */
 }
 
 /*
- * removes the task <s> from its wait queue. It must have already been removed
+ * removes the task <t> from its wait queue. It must have already been removed
  * from the run queue. A pointer to the task itself is returned.
  */
-static inline struct task *task_delete(struct task *s) {
-    s->prev->next = s->next;
-    s->next->prev = s->prev;
-    return s;
+static inline struct task *task_delete(struct task *t) {
+    t->prev->next = t->next;
+    t->next->prev = t->prev;
+    return t;
 }
 
 /*
- * frees  the context associated to a task. It must have been removed first.
+ * frees a task. Its context must have been freed since it will be lost.
  */
 static inline void task_free(struct task *t) {
-    if (t->req)
-	pool_free(buffer, t->req);
-    if (t->rep)
-	pool_free(buffer, t->rep);
-    pool_free(session, t);
+    pool_free(task, t);
 }
 
-/* inserts <task> into the list <list>, where it may already be. In this case, it
+/* inserts <task> into its assigned wait queue, where it may already be. In this case, it
  * may be only moved or left where it was, depending on its timing requirements.
  * <task> is returned.
  */
-
-struct task *task_queue(struct task *list, struct task *task) {
+struct task *task_queue(struct task *task) {
+    struct task *list = task->wq;
     struct task *start_from;
 
     /* first, test if the task was already in a list */
@@ -884,49 +988,102 @@ struct task *task_queue(struct task *list, struct task *task) {
 /* some prototypes */
 static int maintain_proxies(void);
 
+/* this either returns the sockname or the original destination address. Code
+ * inspired from Patrick Schaaf's example of nf_getsockname() implementation.
+ */
+static int get_original_dst(int fd, struct sockaddr_in *sa, int *salen) {
+#if defined(TRANSPARENT) && defined(SO_ORIGINAL_DST)
+    return getsockopt(fd, SOL_IP, SO_ORIGINAL_DST, (void *)sa, salen);
+#else
+#if defined(TRANSPARENT) && defined(USE_GETSOCKNAME)
+    return getsockname(fd, (struct sockaddr *)sa, salen);
+#else
+    return -1;
+#endif
+#endif
+}
 
 /*
- * This function initiates a connection to the server whose name is in <s->proxy->src->id>,
- * or the dispatch server if <id> not found. It returns 0 if
+ * frees  the context associated to a session. It must have been removed first.
+ */
+static inline void session_free(struct session *s) {
+    if (s->req)
+	pool_free(buffer, s->req);
+    if (s->rep)
+	pool_free(buffer, s->rep);
+    pool_free(session, s);
+}
+
+
+/*
+ * This function initiates a connection to the current server (s->srv) if (s->direct)
+ * is set, or to the dispatch server if (s->direct) is 0. It returns 0 if
  * it's OK, -1 if it's impossible.
  */
-int connect_server(struct task *s, int usecookie) {
-    struct server *srv = s->proxy->srv;
-    char *sn = s->cookie_val;
+int connect_server(struct session *s) {
     int one = 1;
     int fd;
 
     //    fprintf(stderr,"connect_server : s=%p\n",s);
 
-    if (usecookie) {
-	while (*sn && srv && strcmp(sn, srv->id)) {
-	    srv = srv->next;
+    if (s->flags & TF_DIRECT) { /* srv cannot be null */
+	s->srv_addr = s->srv->addr;
+    }
+    else if (s->proxy->options & PR_O_BALANCE) {
+	if (s->proxy->options & PR_O_BALANCE_RR) {
+	    int retry = s->proxy->nbservers;
+	    do {
+		if (s->proxy->cursrv == NULL)
+		    s->proxy->cursrv = s->proxy->srv;
+		if (s->proxy->cursrv->state & SRV_RUNNING)
+		    break;
+		s->proxy->cursrv = s->proxy->cursrv->next;
+	    } while (retry--);
+
+	    if (retry == 0) /* no server left */
+		return -1;
+
+	    s->srv = s->proxy->cursrv;
+	    s->srv_addr = s->srv->addr;
+	    s->proxy->cursrv = s->proxy->cursrv->next;
 	}
-	if (!srv || !*sn) { /* server not found, let's use the dispatcher */
-	    s->srv_addr = s->proxy->dispatch_addr;
-	}
-	else {
-	    s->srv_addr = srv->addr;
+	else /* unknown balancing algorithm */
+	    return -1;
+    }
+    else if (*(int *)&s->proxy->dispatch_addr) {
+	/* connect to the defined dispatch addr */
+	s->srv_addr = s->proxy->dispatch_addr;
+    }
+    else if (s->proxy->options & PR_O_TRANSP) {
+	/* in transparent mode, use the original dest addr if no dispatch specified */
+	int salen = sizeof(struct sockaddr_in);
+	if (get_original_dst(s->cli_fd, &s->srv_addr, &salen) == -1) {
+	    qfprintf(stderr, "Cannot get original server address.\n");
+	    return -1;
 	}
     }
-    else
-	s->srv_addr = s->proxy->dispatch_addr;
 
     if ((fd = s->srv_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {
-	fprintf(stderr,"Cannot get a server socket.\n");
+	qfprintf(stderr, "Cannot get a server socket.\n");
 	return -1;
     }
 	
+    if (fd >= cfg_maxsock) {
+	Alert("socket(): not enough free sockets. Raise -n argument. Giving up.\n");
+	close(fd);
+	return -1;
+    }
+
     if ((fcntl(fd, F_SETFL, O_NONBLOCK)==-1) ||
 	(setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *) &one, sizeof(one)) == -1)) {
-	fprintf(stderr,"Cannot set client socket to non blocking mode.\n");
+	qfprintf(stderr,"Cannot set client socket to non blocking mode.\n");
 	close(fd);
 	return -1;
     }
 
     if ((connect(fd, (struct sockaddr *)&s->srv_addr, sizeof(s->srv_addr)) == -1) && (errno != EINPROGRESS)) {
 	if (errno == EAGAIN) { /* no free ports left, try again later */
-	    fprintf(stderr,"Cannot connect, no free ports.\n");
+	    qfprintf(stderr,"Cannot connect, no free ports.\n");
 	    close(fd);
 	    return -1;
 	}
@@ -936,7 +1093,7 @@ int connect_server(struct task *s, int usecookie) {
 	}
     }
 
-    fdtab[fd].owner = s;
+    fdtab[fd].owner = s->task;
     fdtab[fd].read  = &event_srv_read;
     fdtab[fd].write = &event_srv_write;
     fdtab[fd].state = FD_STCONN; /* connection in progress */
@@ -957,74 +1114,86 @@ int connect_server(struct task *s, int usecookie) {
  * It returns 0.
  */
 int event_cli_read(int fd) {
-    struct task *s = fdtab[fd].owner;
+    struct task *t = fdtab[fd].owner;
+    struct session *s = t->context;
     struct buffer *b = s->req;
     int ret, max;
 
     //    fprintf(stderr,"event_cli_read : fd=%d, s=%p\n", fd, s);
 
-    if (b->l == 0) { /* let's realign the buffer to optimize I/O */
-	b->r = b->w = b->h = b->lr  = b->data;
-	max = BUFSIZE - MAXREWRITE;
-    }
-    else if (b->r > b->w) {
-	max = b->data + BUFSIZE - MAXREWRITE - b->r;
-    }
-    else {
-	max = b->w - b->r;
-	if (max > BUFSIZE - MAXREWRITE)
-	    max = BUFSIZE - MAXREWRITE;
-    }
-
-    if (max == 0) {
-	FD_CLR(fd, StaticReadEvent);
-	//fprintf(stderr, "cli_read(%d) : max=%d, d=%p, r=%p, w=%p, l=%d\n",
-	//fd, max, b->data, b->r, b->w, b->l);
-	return 0;
-    }
-
     if (fdtab[fd].state != FD_STERROR) {
-#ifndef MSG_NOSIGNAL
-	int skerr, lskerr;
-	lskerr=sizeof(skerr);
-	getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
-	if (skerr)
-		ret = -1;
-	else
-		ret = recv(fd, b->r, max, 0);
-#else
-	ret = recv(fd, b->r, max, MSG_NOSIGNAL);
-#endif
-
-	if (ret > 0) {
-	    b->r += ret;
-	    b->l += ret;
-	    s->res_cr = RES_DATA;
-	    
-	    if (b->r == b->data + BUFSIZE) {
-		b->r = b->data; /* wrap around the buffer */
+	while (1) {
+	    if (b->l == 0) { /* let's realign the buffer to optimize I/O */
+		b->r = b->w = b->h = b->lr  = b->data;
+		max = BUFSIZE - MAXREWRITE;
 	    }
-	}
-	else if (ret == 0)
-	    s->res_cr = RES_NULL;
-	else if (errno == EAGAIN) /* ignore EAGAIN */
-	    return 0;
-	else {
-	    s->res_cr = RES_ERROR;
-	    fdtab[fd].state = FD_STERROR;
-	}
+	    else if (b->r > b->w) {
+		max = b->data + BUFSIZE - MAXREWRITE - b->r;
+	    }
+	    else {
+		max = b->w - b->r;
+		if (max > BUFSIZE - MAXREWRITE)
+		    max = BUFSIZE - MAXREWRITE;
+	    }
+	    
+	    if (max == 0) {  /* not anymore room to store data */
+		FD_CLR(fd, StaticReadEvent);
+		break;;
+	    }
+	    
+#ifndef MSG_NOSIGNAL
+	    {
+		int skerr, lskerr;
+		
+		lskerr = sizeof(skerr);
+		getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
+		if (skerr)
+		    ret = -1;
+		else
+		    ret = recv(fd, b->r, max, 0);
+	    }
+#else
+	    ret = recv(fd, b->r, max, MSG_NOSIGNAL);
+#endif
+	    if (ret > 0) {
+		b->r += ret;
+		b->l += ret;
+		s->res_cr = RES_DATA;
+		
+		if (b->r == b->data + BUFSIZE) {
+		    b->r = b->data; /* wrap around the buffer */
+		}
+		/* we hope to read more data or to get a close on next round */
+		continue;
+	    }
+	    else if (ret == 0) {
+		s->res_cr = RES_NULL;
+		break;
+	    }
+	    else if (errno == EAGAIN) {/* ignore EAGAIN */
+		break;
+	    }
+	    else {
+		s->res_cr = RES_ERROR;
+		fdtab[fd].state = FD_STERROR;
+		break;
+	    }
+	} /* while(1) */
     }
     else {
 	s->res_cr = RES_ERROR;
 	fdtab[fd].state = FD_STERROR;
     }
 
-    if (s->proxy->clitimeout)
-	tv_delayfrom(&s->crexpire, &now, s->proxy->clitimeout);
-    else
-	tv_eternity(&s->crexpire);
+    if (s->res_cr != RES_SILENT) {
+	if (s->proxy->clitimeout)
+	    tv_delayfrom(&s->crexpire, &now, s->proxy->clitimeout);
+	else
+	    tv_eternity(&s->crexpire);
+	
+	task_wakeup(&rq, t);
+    }
 
-    task_wakeup(s->proxy, s);
     return 0;
 }
 
@@ -1034,74 +1203,86 @@ int event_cli_read(int fd) {
  * It returns 0.
  */
 int event_srv_read(int fd) {
-    struct task *s = fdtab[fd].owner;
+    struct task *t = fdtab[fd].owner;
+    struct session *s = t->context;
     struct buffer *b = s->rep;
     int ret, max;
 
     //    fprintf(stderr,"event_srv_read : fd=%d, s=%p\n", fd, s);
 
-    if (b->l == 0) { /* let's realign the buffer to optimize I/O */
-	b->r = b->w = b->h = b->lr  = b->data;
-	max = BUFSIZE - MAXREWRITE;
-    }
-    else if (b->r > b->w) {
-	max = b->data + BUFSIZE - MAXREWRITE - b->r;
-    }
-    else {
-	max = b->w - b->r;
-    	if (max > BUFSIZE - MAXREWRITE)
-	    max = BUFSIZE - MAXREWRITE;
-    }
-
-    if (max == 0) {
-	FD_CLR(fd, StaticReadEvent);
-	//fprintf(stderr, "srv_read(%d) : max=%d, d=%p, r=%p, w=%p, l=%d\n",
-	//fd, max, b->data, b->r, b->w, b->l);
-	return 0;
-    }
-
     if (fdtab[fd].state != FD_STERROR) {
-#ifndef MSG_NOSIGNAL
-	int skerr, lskerr;
-	lskerr=sizeof(skerr);
-	getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
-	if (skerr)
-		ret = -1;
-	else
-		ret = recv(fd, b->r, max, 0);
-#else
-	ret = recv(fd, b->r, max, MSG_NOSIGNAL);
-#endif
-	if (ret > 0) {
-	    b->r += ret;
-	    b->l += ret;
-	    s->res_sr = RES_DATA;
-	    
-	    if (b->r == b->data + BUFSIZE) {
-		b->r = b->data; /* wrap around the buffer */
+	while (1) {
+	    if (b->l == 0) { /* let's realign the buffer to optimize I/O */
+		b->r = b->w = b->h = b->lr  = b->data;
+		max = BUFSIZE - MAXREWRITE;
 	    }
-	}
-	else if (ret == 0)
-	    s->res_sr = RES_NULL;
-	else if (errno != EAGAIN) /* ignore EAGAIN */
-	    return 0;
-	else {
-	    s->res_sr = RES_ERROR;
-	    fdtab[fd].state = FD_STERROR;
-	}
+	    else if (b->r > b->w) {
+		max = b->data + BUFSIZE - MAXREWRITE - b->r;
+	    }
+	    else {
+		max = b->w - b->r;
+		if (max > BUFSIZE - MAXREWRITE)
+		    max = BUFSIZE - MAXREWRITE;
+	    }
+	    
+	    if (max == 0) {  /* not anymore room to store data */
+		FD_CLR(fd, StaticReadEvent);
+		break;
+	    }
+
+#ifndef MSG_NOSIGNAL
+	    {
+		int skerr, lskerr;
+
+		lskerr = sizeof(skerr);
+		getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
+		if (skerr)
+		    ret = -1;
+		else
+		    ret = recv(fd, b->r, max, 0);
+	    }
+#else
+	    ret = recv(fd, b->r, max, MSG_NOSIGNAL);
+#endif
+	    if (ret > 0) {
+		b->r += ret;
+		b->l += ret;
+		s->res_sr = RES_DATA;
+	    
+		if (b->r == b->data + BUFSIZE) {
+		    b->r = b->data; /* wrap around the buffer */
+		}
+		/* we hope to read more data or to get a close on next round */
+		continue;
+	    }
+	    else if (ret == 0) {
+		s->res_sr = RES_NULL;
+		break;
+	    }
+	    else if (errno == EAGAIN) {/* ignore EAGAIN */
+		break;
+	    }
+	    else {
+		s->res_sr = RES_ERROR;
+		fdtab[fd].state = FD_STERROR;
+		break;
+	    }
+	} /* while(1) */
     }
     else {
 	s->res_sr = RES_ERROR;
 	fdtab[fd].state = FD_STERROR;
     }
 
+    if (s->res_sr != RES_SILENT) {
+	if (s->proxy->srvtimeout)
+	    tv_delayfrom(&s->srexpire, &now, s->proxy->srvtimeout);
+	else
+	    tv_eternity(&s->srexpire);
+	
+	task_wakeup(&rq, t);
+    }
 
-    if (s->proxy->srvtimeout)
-	tv_delayfrom(&s->srexpire, &now, s->proxy->srvtimeout);
-    else
-	tv_eternity(&s->srexpire);
-
-    task_wakeup(s->proxy, s);
     return 0;
 }
 
@@ -1110,7 +1291,8 @@ int event_srv_read(int fd) {
  * It returns 0.
  */
 int event_cli_write(int fd) {
-    struct task *s = fdtab[fd].owner;
+    struct task *t = fdtab[fd].owner;
+    struct session *s = t->context;
     struct buffer *b = s->rep;
     int ret, max;
 
@@ -1128,10 +1310,11 @@ int event_cli_write(int fd) {
 	max = b->data + BUFSIZE - b->w;
     
     if (max == 0) {
-	FD_CLR(fd, StaticWriteEvent);
+	// FD_CLR(fd, StaticWriteEvent); // useless
 	//fprintf(stderr, "cli_write(%d) : max=%d, d=%p, r=%p, w=%p, l=%d\n",
 	//fd, max, b->data, b->r, b->w, b->l);
 	s->res_cw = RES_NULL;
+	task_wakeup(&rq, t);
 	return 0;
     }
 
@@ -1141,7 +1324,7 @@ int event_cli_write(int fd) {
 #endif
 	if (max == 0) { /* nothing to write, just make as if we were never called */
 		s->res_cw = RES_NULL;
-		task_wakeup(s->proxy, s);
+		task_wakeup(&rq, t);
 		return 0;
 	}
 
@@ -1188,7 +1371,7 @@ int event_cli_write(int fd) {
     else
 	tv_eternity(&s->cwexpire);
 
-    task_wakeup(s->proxy, s);
+    task_wakeup(&rq, t);
     return 0;
 }
 
@@ -1198,7 +1381,8 @@ int event_cli_write(int fd) {
  * It returns 0.
  */
 int event_srv_write(int fd) {
-    struct task *s = fdtab[fd].owner;
+    struct task *t = fdtab[fd].owner;
+    struct session *s = t->context;
     struct buffer *b = s->req;
     int ret, max;
 
@@ -1216,10 +1400,12 @@ int event_srv_write(int fd) {
 	max = b->data + BUFSIZE - b->w;
     
     if (max == 0) {
-	FD_CLR(fd, StaticWriteEvent);
+	/* may be we have received a connection acknowledgement in TCP mode without data */
+	// FD_CLR(fd, StaticWriteEvent); // useless ?
 	//fprintf(stderr, "srv_write(%d) : max=%d, d=%p, r=%p, w=%p, l=%d\n",
 	//fd, max, b->data, b->r, b->w, b->l);
 	s->res_sw = RES_NULL;
+	task_wakeup(&rq, t);
 	return 0;
     }
 
@@ -1229,8 +1415,9 @@ int event_srv_write(int fd) {
 #endif
 	fdtab[fd].state = FD_STREADY;
 	if (max == 0) { /* nothing to write, just make as if we were never called, except to finish a connect() */
+	    //FD_CLR(fd, StaticWriteEvent); // useless ?
 	    s->res_sw = RES_NULL;
-	    task_wakeup(s->proxy, s);
+	    task_wakeup(&rq, t);
 	    return 0;
 	}
 
@@ -1276,142 +1463,195 @@ int event_srv_write(int fd) {
     else
 	tv_eternity(&s->swexpire);
 
-    task_wakeup(s->proxy, s);
+    task_wakeup(&rq, t);
     return 0;
 }
 
 
 /*
  * this function is called on a read event from a listen socket, corresponding
- * to an accept. It returns 0.
+ * to an accept. It tries to accept as many connections as possible.
+ * It returns 0.
  */
 int event_accept(int fd) {
     struct proxy *p = (struct proxy *)fdtab[fd].owner;
-    struct task *s;
-    int laddr;
+    struct session *s;
+    struct task *t;
     int cfd;
     int one = 1;
 
-    if ((s = pool_alloc(session)) == NULL) { /* disable this proxy for a while */
-	Alert("out of memory in event_accept().\n");
-	FD_CLR(fd, StaticReadEvent);
-	p->state = PR_STIDLE;
-	return 0;
-    }
 
-    laddr = sizeof(s->cli_addr);
-    if ((cfd = accept(fd, (struct sockaddr *)&s->cli_addr, &laddr)) == -1) {
-	pool_free(session, s);
-	return 0;
-    }
+    while (p->nbconn < p->maxconn) {
+	struct sockaddr_in addr;
+	int laddr = sizeof(addr);
+	if ((cfd = accept(fd, (struct sockaddr *)&addr, &laddr)) == -1)
+	    return 0;	    /* nothing more to accept */
 
-    if ((fcntl(cfd, F_SETFL, O_NONBLOCK) == -1) ||
-	(setsockopt(cfd, IPPROTO_TCP, TCP_NODELAY,
-		    (char *) &one, sizeof(one)) == -1)) {
-	Alert("accept(): cannot set the socket in non blocking mode. Giving up\n");
-	close(cfd);
-	pool_free(session, s);
-	return 0;
-    }
+	if ((s = pool_alloc(session)) == NULL) { /* disable this proxy for a while */
+	    Alert("out of memory in event_accept().\n");
+	    FD_CLR(fd, StaticReadEvent);
+	    p->state = PR_STIDLE;
+	    close(cfd);
+	    return 0;
+	}
 
-    if ((p->mode == PR_MODE_TCP || p->mode == PR_MODE_HTTP)
-	&& (p->logfac1 >= 0 || p->logfac2 >= 0)) {
-	struct sockaddr_in peername, sockname;
-	unsigned char *pn, *sn;
-	int namelen;
-	char message[256];
+	if ((t = pool_alloc(task)) == NULL) { /* disable this proxy for a while */
+	    Alert("out of memory in event_accept().\n");
+	    FD_CLR(fd, StaticReadEvent);
+	    p->state = PR_STIDLE;
+	    close(cfd);
+	    pool_free(session, s);
+	    return 0;
+	}
 
-	namelen = sizeof(peername);
-	getpeername(cfd, (struct sockaddr *)&peername, &namelen);
-	pn = (unsigned char *)&peername.sin_addr;
+	s->cli_addr = addr;
+	if (cfd >= cfg_maxsock) {
+	    Alert("accept(): not enough free sockets. Raise -n argument. Giving up.\n");
+	    close(cfd);
+	    pool_free(task, t);
+	    pool_free(session, s);
+	    return 0;
+	}
 
-	namelen = sizeof(sockname);
-	getsockname(cfd, (struct sockaddr *)&sockname, &namelen);
-	sn = (unsigned char *)&sockname.sin_addr;
+	if ((fcntl(cfd, F_SETFL, O_NONBLOCK) == -1) ||
+	    (setsockopt(cfd, IPPROTO_TCP, TCP_NODELAY,
+			(char *) &one, sizeof(one)) == -1)) {
+	    Alert("accept(): cannot set the socket in non blocking mode. Giving up\n");
+	    close(cfd);
+	    pool_free(task, t);
+	    pool_free(session, s);
+	    return 0;
+	}
 
-	sprintf(message, "Connect from %d.%d.%d.%d:%d to %d.%d.%d.%d:%d (%s/%s)\n",
-		pn[0], pn[1], pn[2], pn[3], ntohs(peername.sin_port),
-		sn[0], sn[1], sn[2], sn[3], ntohs(sockname.sin_port),
-		p->id, (p->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
+	if ((p->mode == PR_MODE_TCP || p->mode == PR_MODE_HTTP)
+	    && (p->logfac1 >= 0 || p->logfac2 >= 0)) {
+	    struct sockaddr_in peername, sockname;
+	    unsigned char *pn, *sn;
+	    int namelen;
+	    char message[256];
 
-	if (p->logfac1 >= 0)
-	    send_syslog(&p->logsrv1, p->logfac1, LOG_INFO, message);
-	if (p->logfac2 >= 0)
-	    send_syslog(&p->logsrv2, p->logfac2, LOG_INFO, message);
-    }
+	    //namelen = sizeof(peername);
+	    //getpeername(cfd, (struct sockaddr *)&peername, &namelen);
+	    //pn = (unsigned char *)&peername.sin_addr;
+	    pn = (unsigned char *)&s->cli_addr;
 
-    s->proxy = p;
-    s->state = TASK_IDLE;
-    s->cli_state = (p->mode == PR_MODE_HTTP) ?  CL_STHEADERS : CL_STDATA; /* no HTTP headers for non-HTTP proxies */
-    s->srv_state = SV_STIDLE;
-    s->req = s->rep = NULL; /* will be allocated later */
-    s->cookie_val[0] = 0;
-    s->res_cr = s->res_cw = s->res_sr = s->res_sw = RES_SILENT;
-    s->rqnext = NULL; /* task not in run queue */
-    s->next = s->prev = NULL;
-    s->cli_fd = cfd;
-    s->conn_retries = p->conn_retries;
-    s->conn_redisp  = p->conn_redisp;
+	    namelen = sizeof(sockname);
+	    if (get_original_dst(cfd, (struct sockaddr_in *)&sockname, &namelen) == -1)
+		getsockname(cfd, (struct sockaddr *)&sockname, &namelen);
+	    sn = (unsigned char *)&sockname.sin_addr;
 
-    if ((s->req = pool_alloc(buffer)) == NULL) { /* no memory */
-	close(cfd); /* nothing can be done for this fd without memory */
-	pool_free(session, s);
-	return 0;
-    }
-    s->req->l = 0;
-    s->req->h = s->req->r = s->req->lr = s->req->w = s->req->data;		/* r and w will be reset further */
+	    sprintf(message, "Connect from %d.%d.%d.%d:%d to %d.%d.%d.%d:%d (%s/%s)\n",
+		    pn[0], pn[1], pn[2], pn[3], ntohs(peername.sin_port),
+		    sn[0], sn[1], sn[2], sn[3], ntohs(sockname.sin_port),
+		    p->id, (p->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
 
-    if ((s->rep = pool_alloc(buffer)) == NULL) { /* no memory */
-	pool_free(buffer, s->req);
-	close(cfd); /* nothing can be done for this fd without memory */
-	pool_free(session, s);
-	return 0;
-    }
-    s->rep->l = 0;
-    s->rep->h = s->rep->r = s->rep->lr = s->rep->w = s->rep->data;
+	    if (p->logfac1 >= 0)
+		send_syslog(&p->logsrv1, p->logfac1, LOG_INFO, message);
+	    if (p->logfac2 >= 0)
+		send_syslog(&p->logsrv2, p->logfac2, LOG_INFO, message);
+	}
 
-    fdtab[cfd].read  = &event_cli_read;
-    fdtab[cfd].write = &event_cli_write;
-    fdtab[cfd].owner = s;
-    fdtab[cfd].state = FD_STREADY;
 
-    if (p->mode == PR_MODE_HEALTH) {  /* health check mode, no client reading */
-	FD_CLR(cfd, StaticReadEvent);
-	tv_eternity(&s->crexpire);
-	shutdown(s->cli_fd, SHUT_RD);
-	s->cli_state = CL_STSHUTR;
+	t->next = t->prev = t->rqnext = NULL; /* task not in run queue yet */
+	t->wq = LIST_HEAD(wait_queue); /* but already has a wait queue assigned */
+	t->state = TASK_IDLE;
+	t->process = process_session;
+	t->context = s;
 
-	strcpy(s->rep->data, "OK\n"); /* forge an "OK" response */
-	s->rep->l = 3;
-	s->rep->r += 3;
-    }
-    else {
-	FD_SET(cfd, StaticReadEvent);
-    }
+	s->task = t;
+	s->proxy = p;
+	s->cli_state = (p->mode == PR_MODE_HTTP) ?  CL_STHEADERS : CL_STDATA; /* no HTTP headers for non-HTTP proxies */
+	s->srv_state = SV_STIDLE;
+	s->req = s->rep = NULL; /* will be allocated later */
+	s->flags = 0;
+	s->res_cr = s->res_cw = s->res_sr = s->res_sw = RES_SILENT;
+	s->cli_fd = cfd;
+	s->srv_fd = -1;
+	s->conn_retries = p->conn_retries;
 
-    fd_insert(cfd);
+	if ((s->req = pool_alloc(buffer)) == NULL) { /* no memory */
+	    close(cfd); /* nothing can be done for this fd without memory */
+	    pool_free(task, t);
+	    pool_free(session, s);
+	    return 0;
+	}
+	s->req->l = 0;
+	s->req->h = s->req->r = s->req->lr = s->req->w = s->req->data;		/* r and w will be reset further */
 
-    tv_eternity(&s->cnexpire);
-    tv_eternity(&s->srexpire);
-    tv_eternity(&s->swexpire);
-    tv_eternity(&s->cwexpire);
+	if ((s->rep = pool_alloc(buffer)) == NULL) { /* no memory */
+	    pool_free(buffer, s->req);
+	    close(cfd); /* nothing can be done for this fd without memory */
+	    pool_free(task, t);
+	    pool_free(session, s);
+	    return 0;
+	}
+	s->rep->l = 0;
+	s->rep->h = s->rep->r = s->rep->lr = s->rep->w = s->rep->data;
 
-    if (s->proxy->clitimeout)
-	tv_delayfrom(&s->crexpire, &now, s->proxy->clitimeout);
+	fdtab[cfd].read  = &event_cli_read;
+	fdtab[cfd].write = &event_cli_write;
+	fdtab[cfd].owner = t;
+	fdtab[cfd].state = FD_STREADY;
+
+	if (p->mode == PR_MODE_HEALTH) {  /* health check mode, no client reading */
+	    FD_CLR(cfd, StaticReadEvent);
+	    tv_eternity(&s->crexpire);
+	    shutdown(s->cli_fd, SHUT_RD);
+	    s->cli_state = CL_STSHUTR;
+
+	    strcpy(s->rep->data, "OK\n"); /* forge an "OK" response */
+	    s->rep->l = 3;
+	    s->rep->r += 3;
+	}
+	else {
+	    FD_SET(cfd, StaticReadEvent);
+	}
+
+	fd_insert(cfd);
+
+	tv_eternity(&s->cnexpire);
+	tv_eternity(&s->srexpire);
+	tv_eternity(&s->swexpire);
+	tv_eternity(&s->cwexpire);
+
+	if (s->proxy->clitimeout)
+	    tv_delayfrom(&s->crexpire, &now, s->proxy->clitimeout);
+	else
+	    tv_eternity(&s->crexpire);
+
+	t->expire = s->crexpire;
+
+	task_queue(t);
+	task_wakeup(&rq, t);
+
+	p->nbconn++;
+	actconn++;
+	totalconn++;
+
+	// fprintf(stderr, "accepting from %p => %d conn, %d total\n", p, actconn, totalconn);
+    } /* end of while (p->nbconn < p->maxconn) */
+    return 0;
+}
+
+
+/*
+ * This function is used only for server health-checks. It handles
+ * the connection acknowledgement and returns 1 if the socket is OK,
+ * or -1 if an error occured.
+ */
+int event_srv_hck(int fd) {
+    struct task *t = fdtab[fd].owner;
+    struct server *s = t->context;
+
+    int skerr, lskerr;
+    lskerr=sizeof(skerr);
+    getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
+    if (skerr)
+	s->result = -1;
     else
-	tv_eternity(&s->crexpire);
+	s->result = 1;
 
-    s->expire = s->crexpire;
-
-    task_queue(LIST_HEAD(p->task), s);
-    task_wakeup(p, s);
-
-    p->nbconn++;
-    actconn++;
-    totalconn++;
-
-    // fprintf(stderr, "accepting from %p => %d conn, %d total\n", p, actconn, totalconn);
-
+    task_wakeup(&rq, t);
     return 0;
 }
 
@@ -1424,7 +1664,7 @@ int event_accept(int fd) {
  * If there's no space left, the move is not done.
  *
  */
-int buffer_replace(struct buffer *b, char *pos, char *str, char *end) {
+int buffer_replace(struct buffer *b, char *pos, char *end, char *str) {
     int delta;
     int len;
 
@@ -1440,17 +1680,18 @@ int buffer_replace(struct buffer *b, char *pos, char *str, char *end) {
     /* now, copy str over pos */
     memcpy(pos, str,len);
 
-    if (b->r >= end) b->r += delta;
-    if (b->w >= end) b->w += delta;
-    if (b->h >= end) b->h += delta;
-    if (b->lr >= end) b->lr += delta;
+    /* we only move data after the displaced zone */
+    if (b->r  > pos) b->r  += delta;
+    if (b->w  > pos) b->w  += delta;
+    if (b->h  > pos) b->h  += delta;
+    if (b->lr > pos) b->lr += delta;
     b->l += delta;
 
     return delta;
 }
 
 /* same except that the string len is given */
-int buffer_replace2(struct buffer *b, char *pos, char *str, int len, char *end) {
+int buffer_replace2(struct buffer *b, char *pos, char *end, char *str, int len) {
     int delta;
 
     delta = len - (end - pos);
@@ -1464,10 +1705,11 @@ int buffer_replace2(struct buffer *b, char *pos, char *str, int len, char *end) 
     /* now, copy str over pos */
     memcpy(pos, str,len);
 
-    if (b->r >= end) b->r += delta;
-    if (b->w >= end) b->w += delta;
-    if (b->h >= end) b->h += delta;
-    if (b->lr >= end) b->lr += delta;
+    /* we only move data after the displaced zone */
+    if (b->r  > pos) b->r  += delta;
+    if (b->w  > pos) b->w  += delta;
+    if (b->h  > pos) b->h  += delta;
+    if (b->lr > pos) b->lr += delta;
     b->l += delta;
 
     return delta;
@@ -1518,7 +1760,7 @@ int exp_replace(char *dst, char *src, char *str, regmatch_t *matches) {
  * cookie. It returns 1 if a state has changed (and a resync may be needed),
  * 0 else.
  */
-int process_cli(struct task *t) {
+int process_cli(struct session *t) {
     int s = t->srv_state;
     int c = t->cli_state;
     struct buffer *req = t->req;
@@ -1529,23 +1771,201 @@ int process_cli(struct task *t) {
     //FD_ISSET(t->srv_fd, StaticReadEvent), FD_ISSET(t->srv_fd, StaticWriteEvent)
     //);
     if (c == CL_STHEADERS) {
-	char *ptr;
+	/* now parse the partial (or complete) headers */
+	while (req->lr < req->r) { /* this loop only sees one header at each iteration */
+	    char *ptr;
+	    int delete_header;
 	
+	    ptr = req->lr;
+
+	    /* look for the end of the current header */
+	    while (ptr < req->r && *ptr != '\n' && *ptr != '\r')
+		ptr++;
+	    
+	    if (ptr == req->h) { /* empty line, end of headers */
+		char newhdr[MAXREWRITE + 1];
+		int line, len;
+		/* we can only get here after an end of headers */
+		/* we'll have something else to do here : add new headers ... */
+
+		for (line = 0; line < t->proxy->nb_reqadd; line++) {
+		    len = sprintf(newhdr, "%s\r\n", t->proxy->req_add[line]);
+		    buffer_replace2(req, req->h, req->h, newhdr, len);
+		}
+
+		t->cli_state = CL_STDATA;
+
+		/* FIXME: we'll set the client in a wait state while we try to
+		 * connect to the server. Is this really needed ? wouldn't it be
+		 * better to release the maximum of system buffers instead ? */
+		FD_CLR(t->cli_fd, StaticReadEvent);
+		tv_eternity(&t->crexpire);
+		break;
+	    }
+
+	    /* to get a complete header line, we need the ending \r\n, \n\r, \r or \n too */
+	    if (ptr > req->r - 2) {
+		/* this is a partial header, let's wait for more to come */
+		req->lr = ptr;
+		break;
+	    }
+
+	    /* now we know that *ptr is either \r or \n,
+	     * and that there are at least 1 char after it.
+	     */
+	    if ((ptr[0] == ptr[1]) || (ptr[1] != '\r' && ptr[1] != '\n'))
+		req->lr = ptr + 1; /* \r\r, \n\n, \r[^\n], \n[^\r] */
+	    else
+		req->lr = ptr + 2; /* \r\n or \n\r */
+
+	    /*
+	     * now we know that we have a full header ; we can do whatever
+	     * we want with these pointers :
+	     *   req->h  = beginning of header
+	     *   ptr     = end of header (first \r or \n)
+	     *   req->lr = beginning of next line (next rep->h)
+	     *   req->r  = end of data (not used at this stage)
+	     */
+
+	    delete_header = 0;
+
+	    if ((mode & MODE_DEBUG) && !(mode & MODE_QUIET)) {
+		int len, max;
+		len = sprintf(trash, "clihdr[%04x:%04x]: ", (unsigned  short)t->cli_fd, (unsigned short)t->srv_fd);
+		max = ptr - req->h;
+		UBOUND(max, sizeof(trash) - len - 1);
+		len += strlcpy(trash + len, req->h, max + 1);
+		trash[len++] = '\n';
+		write(1, trash, len);
+	    }
+
+	    /* try headers regexps */
+	    if (t->proxy->nb_reqexp) {
+		struct proxy *p = t->proxy;
+		int exp;
+		char term;
+		
+		term = *ptr;
+		*ptr = '\0';
+		for (exp=0; exp < p->nb_reqexp; exp++) {
+		    if (regexec(p->req_exp[exp].preg, req->h, MAX_MATCH, pmatch, 0) == 0) {
+			if (p->req_exp[exp].replace != NULL) {
+			    int len = exp_replace(trash, req->h, p->req_exp[exp].replace, pmatch);
+			    ptr += buffer_replace2(req, req->h, ptr, trash, len);
+			}
+			else {
+			    delete_header = 1;
+			}
+			break;
+		    }
+		}
+		*ptr = term; /* restore the string terminator */
+	    }
+	    
+	    /* now look for cookies */
+	    if (!delete_header && (req->r >= req->h + 8) && (t->proxy->cookie_name != NULL)
+		&& (strncmp(req->h, "Cookie: ", 8) == 0)) {
+		char *p1, *p2, *p3, *p4;
+		
+		p1 = req->h + 8; /* first char after 'Cookie: ' */
+		
+		while (p1 < ptr) {
+		    while (p1 < ptr && (isspace(*p1) || *p1 == ';'))
+			p1++;
+		    
+		    if (p1 == ptr)
+			break;
+		    else if (*p1 == ';') { /* next cookie */
+			++p1;
+			continue;
+		    }
+		    
+		    /* p1 is at the beginning of the cookie name */
+		    p2 = p1;
+		    
+		    while (p2 < ptr && *p2 != '=' && *p2 != ';')
+			p2++;
+		    
+		    if (p2 == ptr)
+			break;
+		    else if (*p2 == ';') { /* next cookie */
+			p1=++p2;
+			continue;
+		    }
+
+		    p3 = p2 + 1; /* skips the '=' sign */
+		    if (p3 == ptr)
+			break;
+		    
+		    p4=p3;
+		    while (p4 < ptr && !isspace(*p4) && *p4 != ';')
+			p4++;
+		    
+		    /* here, we have the cookie name between p1 and p2,
+		     * and its value between p3 and p4.
+		     * we can process it.
+		     */
+		    
+		    if ((p2 - p1 == strlen(t->proxy->cookie_name)) &&
+			(strncmp(p1, t->proxy->cookie_name, p2 - p1) == 0)) {
+			/* Cool... it's the right one */
+			struct server *srv = t->proxy->srv;
+
+			while (srv &&
+			       ((srv->cklen != p4 - p3) || memcmp(p3, srv->cookie, p4 - p3))) {
+			    srv = srv->next;
+			}
+
+			if (srv) { /* we found the server */
+			    t->flags |= TF_DIRECT;
+			    t->srv = srv;
+			}
+
+			break;
+		    }
+		    else {
+			// fprintf(stderr,"Ignoring unknown cookie : ");
+			// write(2, p1, p2-p1);
+			// fprintf(stderr," = ");
+			// write(2, p3, p4-p3);
+			// fprintf(stderr,"\n");
+		    }
+		    /* we'll have to look for another cookie ... */
+		    p1 = p4;
+		} /* while (p1 < ptr) */
+	    } /* end of cookie processing */
+
+	    /* let's look if we have to delete this header */
+	    if (delete_header) {
+		buffer_replace2(req, req->h, req->lr, "", 0);
+	    }
+	    req->h = req->lr;
+	} /* while (req->lr < req->r) */
+
+	/* end of header processing (even if incomplete) */
+
+	if ((req->l < BUFSIZE - MAXREWRITE) && ! FD_ISSET(t->cli_fd, StaticReadEvent)) {
+	    FD_SET(t->cli_fd, StaticReadEvent);
+	    if (t->proxy->clitimeout)
+		tv_delayfrom(&t->crexpire, &now, t->proxy->clitimeout);
+	    else
+		tv_eternity(&t->crexpire);
+	}
+
 	/* read timeout, read error, or last read : give up */
 	if (t->res_cr == RES_ERROR || t->res_cr == RES_NULL ||
 	    tv_cmp2_ms(&t->crexpire, &now) <= 0) {
-	    FD_CLR(t->cli_fd, StaticReadEvent);
-	    FD_CLR(t->cli_fd, StaticWriteEvent);
-	    fd_delete(t->cli_fd);
-	    close(t->cli_fd);
+	    //FD_CLR(t->cli_fd, StaticReadEvent);
+	    //FD_CLR(t->cli_fd, StaticWriteEvent);
 	    tv_eternity(&t->crexpire);
+	    fd_delete(t->cli_fd);
+	    //close(t->cli_fd);
 	    t->cli_state = CL_STCLOSE;
 	    return 1;
 	}
-	else if (t->res_cr == RES_SILENT) {
-	    return 0;
-	}
-	/* now we know that there are headers to process */
+//	  else if (t->res_cr == RES_SILENT) {
+//	      return 0;
+//	  }
 
 	if (req->l >= BUFSIZE - MAXREWRITE) {
 	    /* buffer full : stop reading till we free some space */
@@ -1553,153 +1973,23 @@ int process_cli(struct task *t) {
 	    tv_eternity(&t->crexpire);
 	}
 
-	ptr = req->lr;
-	req->lr = req->r; /* tell that bytes up to <lr> have been read and processes */
-	while (ptr < req->r) {
-	    /* look for the end of the current header */
-	    while (ptr < req->r && *ptr != '\n' && *ptr != '\r')
-		ptr++;
-	    
-	    if (ptr < req->r) {
-		/* now we have one complete client header between req->h and ptr */
-		if (ptr == req->h) { /* empty line, end of headers */
-		    t->cli_state = CL_STDATA;
-		    //req->lr = ptr; /* tell that bytes up to <lr> have been read and processes */
-		    return 1;
-		}
-		else {
-		    /* we have one standard header */
-		    if (mode & MODE_DEBUG) {
-			int len, max;
-			len = sprintf(trash, "clihdr[%04x:%04x]: ", (unsigned  short)t->cli_fd, (unsigned short)t->srv_fd);
-			max = ptr - req->h;
-			UBOUND(max, sizeof(trash) - len - 1);
-			len += strlcpy(trash + len, req->h, max + 1);
-			trash[len++] = '\n';
-			write(1, trash, len);
-		    }
-
-		    if ((req->r >= req->h + 8) && (t->proxy->cookie_name != NULL)
-			&& (strncmp(req->h, "Cookie: ", 8) == 0)) {
-			char *p1, *p2, *p3, *p4;
-
-			p1 = req->h + 8; /* first char after 'Cookie: ' */
-
-			while (p1 < ptr) {
-			    while (p1 < ptr && (isspace(*p1) || *p1 == ';'))
-				p1++;
-
-			    if (p1 == ptr)
-				break;
-			    else if (*p1 == ';') { /* next cookie */
-				++p1;
-				continue;
-			    }
-
-			    /* p1 is at the beginning of the cookie name */
-			    p2 = p1;
-
-			    while (p2 < ptr && *p2 != '=' && *p2 != ';')
-				p2++;
-
-			    if (p2 == ptr)
-				break;
-			    else if (*p2 == ';') { /* next cookie */
-				p1=++p2;
-				continue;
-			    }
-
-			    p3 = p2 + 1; /* skips the '=' sign */
-			    if (p3 == ptr)
-				break;
-
-			    p4=p3;
-			    while (p4 < ptr && !isspace(*p4) && *p4 != ';')
-				p4++;
-
-			    /* here, we have the cookie name between p1 and p2,
-			     * and its value between p3 and p4.
-			     * we can process it.
-			     */
-
-			    if ((p2-p1 == strlen(t->proxy->cookie_name)) &&
-				(strncmp(p1, t->proxy->cookie_name, p2-p1) == 0)) {
-				/* Cool... it's the right one */
-				int l;
-				l = (p4 - p3) < SERVERID_LEN ?
-				    (p4 - p3) : SERVERID_LEN;
-				strlcpy(t->cookie_val, p3, l + 1);
-				break;
-			    }
-			    else {
-//				fprintf(stderr,"Ignoring unknown cookie : ");
-//				write(2, p1, p2-p1);
-//				fprintf(stderr," = ");
-//				write(2, p3, p4-p3);
-//				fprintf(stderr,"\n");
-			    }
-			    /* we'll have to look for another cookie ... */
-			    p1 = p4;
-			}
-			/* FIXME */
-//			fprintf(stderr,"Cookie is now: <%s>\n", s->cookie_val);
-		    }
-		    else if (t->proxy->nb_cliexp) { /* try headers regexps */
-			struct proxy *p = t->proxy;
-			int exp;
-			char term;
-
-			term = *ptr;
-			*ptr = '\0';
-			for (exp=0; exp < p->nb_cliexp; exp++) {
-			    if (regexec(p->cli_exp[exp].preg, req->h, MAX_MATCH, pmatch, 0) == 0) {
-				int len = exp_replace(trash, req->h, p->cli_exp[exp].replace, pmatch);
-				ptr += buffer_replace2(req, req->h, trash, len, ptr);
-				break;
-			    }
-			}
-			*ptr = term; /* restore the string terminator */
-		    }
-		    
-		    /* look for the beginning of the next header */
-		    if (ptr < req->r) {
-			if (*ptr == '\n') {
-			    if ((++ptr < req->r) && (*ptr == '\r'))
-				ptr++;
-			}
-			else if (*ptr == '\r') {
-			    if ((++ptr < req->r) && (*ptr == '\n'))
-				ptr++;
-			}
-			req->h = ptr;
-		    }
-		}
-	    }
-	    else if (ptr >= req->data + BUFSIZE - MAXREWRITE) { /* no more headers */
-		t->cli_state = CL_STDATA;
-		FD_CLR(t->cli_fd, StaticReadEvent);
-		tv_eternity(&t->crexpire);
-		//req->lr = ptr; /* tell that bytes up to <lr> have been read and processes */
-		return 1;
-	    }
-	}
-	//req->lr = ptr; /* tell that bytes up to <lr> have been read and processes */
+	return t->cli_state != CL_STHEADERS;
     }
     else if (c == CL_STDATA) {
 	/* read or write error */
 	if (t->res_cw == RES_ERROR || t->res_cr == RES_ERROR) {
-	    FD_CLR(t->cli_fd, StaticReadEvent);
-	    FD_CLR(t->cli_fd, StaticWriteEvent);
 	    tv_eternity(&t->crexpire);
 	    tv_eternity(&t->cwexpire);
-	    close(t->cli_fd);
+	    fd_delete(t->cli_fd);
+	    //FD_CLR(t->cli_fd, StaticReadEvent);
+	    //FD_CLR(t->cli_fd, StaticWriteEvent);
+	    //close(t->cli_fd);
 	    t->cli_state = CL_STCLOSE;
 	    return 1;
 	}
 	/* read timeout, last read, or end of server write */
 	else if (t->res_cr == RES_NULL || s == SV_STSHUTW || s == SV_STCLOSE
 		 || tv_cmp2_ms(&t->crexpire, &now) <= 0) {
-
 	    FD_CLR(t->cli_fd, StaticReadEvent);
 	    //	    if (req->l == 0) /* nothing to write on the server side */
 	    //		FD_CLR(t->srv_fd, StaticWriteEvent);
@@ -1736,7 +2026,7 @@ int process_cli(struct task *t) {
 	}
 
 	if ((rep->l == 0) ||
-	    ((s == SV_STHEADERS) && (rep->w == rep->h))) {
+	    ((s == SV_STHEADERS) /* FIXME: this may be optimized && (rep->w == rep->h)*/)) {
 	    if (FD_ISSET(t->cli_fd, StaticWriteEvent)) {
 		FD_CLR(t->cli_fd, StaticWriteEvent); /* stop writing */
 		tv_eternity(&t->cwexpire);
@@ -1757,16 +2047,15 @@ int process_cli(struct task *t) {
 	if ((t->res_cw == RES_ERROR) ||
 	    ((s == SV_STSHUTR || s == SV_STCLOSE) && (rep->l == 0))
 	    || (tv_cmp2_ms(&t->crexpire, &now) <= 0)) {
-	    
-	    FD_CLR(t->cli_fd, StaticWriteEvent);
+	    //FD_CLR(t->cli_fd, StaticWriteEvent);
 	    tv_eternity(&t->cwexpire);
 	    fd_delete(t->cli_fd);
-	    close(t->cli_fd);
+	    //close(t->cli_fd);
 	    t->cli_state = CL_STCLOSE;
 	    return 1;
 	}
 	else if ((rep->l == 0) ||
-	    ((s == SV_STHEADERS) && (rep->w == rep->h))) {
+		 ((s == SV_STHEADERS) /* FIXME: this may be optimized && (rep->w == rep->h)*/)) {
 	    if (FD_ISSET(t->cli_fd, StaticWriteEvent)) {
 		FD_CLR(t->cli_fd, StaticWriteEvent); /* stop writing */
 		tv_eternity(&t->cwexpire);
@@ -1786,10 +2075,10 @@ int process_cli(struct task *t) {
     else if (c == CL_STSHUTW) {
 	if (t->res_cr == RES_ERROR || t->res_cr == RES_NULL || s == SV_STSHUTW ||
 	    s == SV_STCLOSE || tv_cmp2_ms(&t->cwexpire, &now) <= 0) {
-	    FD_CLR(t->cli_fd, StaticReadEvent);
+	    //FD_CLR(t->cli_fd, StaticReadEvent);
 	    tv_eternity(&t->crexpire);
 	    fd_delete(t->cli_fd);
-	    close(t->cli_fd);
+	    //close(t->cli_fd);
 	    t->cli_state = CL_STCLOSE;
 	    return 1;
 	}
@@ -1811,9 +2100,9 @@ int process_cli(struct task *t) {
 	return 0;
     }
     else { /* CL_STCLOSE: nothing to do */
-	if (mode & MODE_DEBUG) {
+	if ((mode & MODE_DEBUG) && !(mode & MODE_QUIET)) {
 	    int len;
-	    len = sprintf(trash, "clicls[%04x:%04x]\n", t->cli_fd, t->srv_fd);
+	    len = sprintf(trash, "clicls[%04x:%04x]\n", (unsigned short)t->cli_fd, (unsigned short)t->srv_fd);
 	    write(1, trash, len);
 	}
 	return 0;
@@ -1826,16 +2115,17 @@ int process_cli(struct task *t) {
  * manages the server FSM and its socket. It returns 1 if a state has changed
  * (and a resync may be needed), 0 else.
  */
-int process_srv(struct task *t) {
+int process_srv(struct session *t) {
     int s = t->srv_state;
     int c = t->cli_state;
     struct buffer *req = t->req;
     struct buffer *rep = t->rep;
 
-	    //fprintf(stderr,"process_srv: c=%d, s=%d, cr=%d, cw=%d, sr=%d, sw=%d\n", c, s,
-	    //FD_ISSET(t->cli_fd, StaticReadEvent), FD_ISSET(t->cli_fd, StaticWriteEvent),
-	    // FD_ISSET(t->srv_fd, StaticReadEvent), FD_ISSET(t->srv_fd, StaticWriteEvent)
-	    //);
+    //fprintf(stderr,"process_srv: c=%d, s=%d\n", c, s);
+    //fprintf(stderr,"process_srv: c=%d, s=%d, cr=%d, cw=%d, sr=%d, sw=%d\n", c, s,
+    //FD_ISSET(t->cli_fd, StaticReadEvent), FD_ISSET(t->cli_fd, StaticWriteEvent),
+    //FD_ISSET(t->srv_fd, StaticReadEvent), FD_ISSET(t->srv_fd, StaticWriteEvent)
+    //);
     if (s == SV_STIDLE) {
 	if (c == CL_STHEADERS)
 	    return 0;	/* stay in idle, waiting for data to reach the client side */
@@ -1847,13 +2137,18 @@ int process_srv(struct task *t) {
 	    return 1;
 	}
 	else { /* go to SV_STCONN */
-	    if (connect_server(t, 1) == 0) { /* initiate a connection to the server */
+	    if (connect_server(t) == 0) { /* initiate a connection to the server */
 		//fprintf(stderr,"0: c=%d, s=%d\n", c, s);
 		t->srv_state = SV_STCONN;
 	    }
 	    else { /* try again */
 		while (t->conn_retries-- > 0) {
-		    if (connect_server(t, !t->conn_redisp || (t->conn_retries > 0)) == 0) {
+		    if ((t->proxy->options & PR_O_REDISP) && (t->conn_retries == 0)) {
+			t->flags &= ~TF_DIRECT; /* ignore cookie and force to use the dispatcher */
+			t->srv = NULL; /* it's left to the dispatcher to choose a server */
+		    }
+
+		    if (connect_server(t) == 0) {
 			t->srv_state = SV_STCONN;
 			break;
 		    }
@@ -1875,13 +2170,17 @@ int process_srv(struct task *t) {
 	else if (t->res_sw == RES_SILENT || t->res_sw == RES_ERROR) {
 	    //fprintf(stderr,"2: c=%d, s=%d\n", c, s);
 	    /* timeout,  connect error or first write error */
-	    FD_CLR(t->srv_fd, StaticWriteEvent);
+	    //FD_CLR(t->srv_fd, StaticWriteEvent);
 	    fd_delete(t->srv_fd);
-	    close(t->srv_fd);
+	    //close(t->srv_fd);
 	    t->conn_retries--;
-	    if (t->conn_retries >= 0 &&
-		connect_server(t, !t->conn_redisp || (t->conn_retries > 0)) == 0) {
-		return 0; /* no state changed */
+	    if (t->conn_retries >= 0) {
+		    if ((t->proxy->options & PR_O_REDISP) && (t->conn_retries == 0)) {
+			t->flags &= ~TF_DIRECT; /* ignore cookie and force to use the dispatcher */
+			t->srv = NULL; /* it's left to the dispatcher to choose a server */
+		    }
+		    if (connect_server(t) == 0)
+			return 0; /* no state changed */
 	    }
 	    /* if conn_retries < 0 or other error, let's abort */
 	    tv_eternity(&t->cnexpire);
@@ -1906,20 +2205,204 @@ int process_srv(struct task *t) {
 	    }
 	    else
 		t->srv_state = SV_STHEADERS;
+	    tv_eternity(&t->cnexpire);
 	    return 1;
 	}
     }
     else if (s == SV_STHEADERS) { /* receiving server headers */
-	char *ptr;
-	int header_processed = 0;
+
+	/* now parse the partial (or complete) headers */
+	while (rep->lr < rep->r) { /* this loop only sees one header at each iteration */
+	    char *ptr;
+	    int delete_header;
+
+	    ptr = rep->lr;
+
+	    /* look for the end of the current header */
+	    while (ptr < rep->r && *ptr != '\n' && *ptr != '\r')
+		ptr++;
+	    
+	    if (ptr == rep->h) {
+		char newhdr[MAXREWRITE + 1];
+		int line, len;
+
+		/* we can only get here after an end of headers */
+		/* we'll have something else to do here : add new headers ... */
+
+		if ((t->srv) && !(t->flags & TF_DIRECT) && (t->proxy->options & PR_O_COOK_INS)) {
+		    /* the server is known, it's not the one the client requested, we have to
+		     * insert a set-cookie here.
+		     */
+		    len = sprintf(newhdr, "Set-Cookie: %s=%s; path=/\r\n",
+				  t->proxy->cookie_name, t->srv->cookie);
+		    buffer_replace2(rep, rep->h, rep->h, newhdr, len);
+		}
+
+		/* headers to be added */
+		for (line = 0; line < t->proxy->nb_rspadd; line++) {
+		    len = sprintf(newhdr, "%s\r\n", t->proxy->rsp_add[line]);
+		    buffer_replace2(rep, rep->h, rep->h, newhdr, len);
+		}
+
+		t->srv_state = SV_STDATA;
+		break;
+	    }
+
+	    /* to get a complete header line, we need the ending \r\n, \n\r, \r or \n too */
+	    if (ptr > rep->r - 2) {
+		/* this is a partial header, let's wait for more to come */
+		rep->lr = ptr;
+		break;
+	    }
+
+	    //	    fprintf(stderr,"h=%p, ptr=%p, lr=%p, r=%p, *h=", rep->h, ptr, rep->lr, rep->r);
+	    //	    write(2, rep->h, ptr - rep->h);   fprintf(stderr,"\n");
+
+	    /* now we know that *ptr is either \r or \n,
+	     * and that there are at least 1 char after it.
+	     */
+	    if ((ptr[0] == ptr[1]) || (ptr[1] != '\r' && ptr[1] != '\n'))
+		rep->lr = ptr + 1; /* \r\r, \n\n, \r[^\n], \n[^\r] */
+	    else
+		rep->lr = ptr + 2; /* \r\n or \n\r */
+
+	    /*
+	     * now we know that we have a full header ; we can do whatever
+	     * we want with these pointers :
+	     *   rep->h  = beginning of header
+	     *   ptr     = end of header (first \r or \n)
+	     *   rep->lr = beginning of next line (next rep->h)
+	     *   rep->r  = end of data (not used at this stage)
+	     */
+
+	    delete_header = 0;
+
+	    if ((mode & MODE_DEBUG) && !(mode & MODE_QUIET)) {
+		int len, max;
+		len = sprintf(trash, "srvhdr[%04x:%04x]: ", (unsigned  short)t->cli_fd, (unsigned short)t->srv_fd);
+		max = ptr - rep->h;
+		UBOUND(max, sizeof(trash) - len - 1);
+		len += strlcpy(trash + len, rep->h, max + 1);
+		trash[len++] = '\n';
+		write(1, trash, len);
+	    }
+
+	    /* try headers regexps */
+	    if (t->proxy->nb_rspexp) {
+		struct proxy *p = t->proxy;
+		int exp;
+		char term;
+		
+		term = *ptr;
+		*ptr = '\0';
+		for (exp=0; exp < p->nb_rspexp; exp++) {
+		    if (regexec(p->rsp_exp[exp].preg, rep->h, MAX_MATCH, pmatch, 0) == 0) {
+			if (p->rsp_exp[exp].replace != NULL) {
+			    int len = exp_replace(trash, rep->h, p->rsp_exp[exp].replace, pmatch);
+			    ptr += buffer_replace2(rep, rep->h, ptr, trash, len);
+			}
+			else {
+			    delete_header = 1;
+			}
+			break;
+		    }
+		}
+		*ptr = term; /* restore the string terminator */
+	    }
+	    
+	    /* check for server cookies */
+	    if (!delete_header && (t->proxy->options & PR_O_COOK_ANY) && (rep->r >= rep->h + 12) &&
+		(t->proxy->cookie_name != NULL)	&& (strncmp(rep->h, "Set-Cookie: ", 12) == 0)) {
+		char *p1, *p2, *p3, *p4;
+		
+		p1 = rep->h + 12; /* first char after 'Set-Cookie: ' */
+		
+		while (p1 < ptr) { /* in fact, we'll break after the first cookie */
+		    while (p1 < ptr && (isspace(*p1)))
+			p1++;
+		    
+		    if (p1 == ptr || *p1 == ';') /* end of cookie */
+			break;
+		    
+		    /* p1 is at the beginning of the cookie name */
+		    p2 = p1;
+		    
+		    while (p2 < ptr && *p2 != '=' && *p2 != ';')
+			p2++;
+		    
+		    if (p2 == ptr || *p2 == ';') /* next cookie */
+			break;
+		    
+		    p3 = p2 + 1; /* skips the '=' sign */
+		    if (p3 == ptr)
+			break;
+		    
+		    p4 = p3;
+		    while (p4 < ptr && !isspace(*p4) && *p4 != ';')
+			p4++;
+		    
+		    /* here, we have the cookie name between p1 and p2,
+		     * and its value between p3 and p4.
+		     * we can process it.
+		     */
+		    
+		    if ((p2 - p1 == strlen(t->proxy->cookie_name)) &&
+			(strncmp(p1, t->proxy->cookie_name, p2 - p1) == 0)) {
+			/* Cool... it's the right one */
+			
+			/* If the cookie is in insert mode on a known server, we'll delete
+			 * this occurrence because we'll insert another one later.
+			 * We'll delete it too if the "indirect" option is set and we're in
+			 * a direct access. */
+			if (((t->srv) && (t->proxy->options & PR_O_COOK_INS)) ||
+			    ((t->flags & TF_DIRECT) && (t->proxy->options & PR_O_COOK_IND))) {
+			    /* this header must be deleted */
+			    delete_header = 1;
+			}
+			else if ((t->srv) && (t->proxy->options & PR_O_COOK_RW)) {
+			    /* replace bytes p3->p4 with the cookie name associated
+			     * with this server since we know it.
+			     */
+			    buffer_replace2(rep, p3, p4, t->srv->cookie, t->srv->cklen);
+			}
+			break;
+		    }
+		    else {
+			//	fprintf(stderr,"Ignoring unknown cookie : ");
+			//	write(2, p1, p2-p1);
+			//	fprintf(stderr," = ");
+			//	write(2, p3, p4-p3);
+			//	fprintf(stderr,"\n");
+		    }
+		    break; /* we don't want to loop again since there cannot be another cookie on the same line */
+		} /* we're now at the end of the cookie value */
+	    } /* end of cookie processing */
+
+	    /* let's look if we have to delete this header */
+	    if (delete_header) {
+		buffer_replace2(rep, rep->h, rep->lr, "", 0);
+	    }
+	    rep->h = rep->lr;
+	} /* while (rep->lr < rep->r) */
+
+	/* end of header processing (even if incomplete) */
+
+	if ((rep->l < BUFSIZE - MAXREWRITE) && ! FD_ISSET(t->srv_fd, StaticReadEvent)) {
+	    FD_SET(t->srv_fd, StaticReadEvent);
+	    if (t->proxy->srvtimeout)
+		tv_delayfrom(&t->srexpire, &now, t->proxy->srvtimeout);
+	    else
+		tv_eternity(&t->srexpire);
+	}
 
 	/* read or write error */
 	if (t->res_sw == RES_ERROR || t->res_sr == RES_ERROR) {
-	    FD_CLR(t->srv_fd, StaticReadEvent);
-	    FD_CLR(t->srv_fd, StaticWriteEvent);
 	    tv_eternity(&t->srexpire);
 	    tv_eternity(&t->swexpire);
-	    close(t->srv_fd);
+	    //FD_CLR(t->srv_fd, StaticReadEvent);
+	    //FD_CLR(t->srv_fd, StaticWriteEvent);
+	    //close(t->srv_fd);
+	    fd_delete(t->srv_fd);
 	    t->srv_state = SV_STCLOSE;
 	    return 1;
 	}
@@ -1966,95 +2449,23 @@ int process_srv(struct task *t) {
 	    }
 	}
 
-	/* now parse the partial (or complete) headers */
-
-	//fprintf(stderr,"rep->data=%p, rep->lr=%p, rep->r=%p, rep->l=%d\n", rep->data, rep->lr, rep->r, rep->l);
-	ptr = rep->lr;
-	rep->lr = rep->r;
-
-	//write(1,"rep=",4); write(1, ptr, 4); write(1,"\n",1);
-	//write(1,"hdr=",4); write(1, rep->h, 4); write(1,"\n",1);
-	while (ptr < rep->r) {
-	    /* look for the end of the current header */
-	    while (ptr < rep->r && *ptr != '\n' && *ptr != '\r')
-		ptr++;
-	    
-	    if (ptr < rep->r) {
-		//write(1,"ptr=",4); write(1, ptr, 4); write(1,"\n",1);
-		/* now we have one complete header between rep->h and ptr */
-		header_processed = 1;
-		if (ptr == rep->h) { /* empty line, end of headers */
-		    t->srv_state = SV_STDATA;
-		    //rep->lr = ptr; /* tell that bytes up to <lr> have been read and processes */
-		    return 1;
-		}
-		else {
-		    /* we have one standard header */
-		    if (mode & MODE_DEBUG) {
-			int len, max;
-			len = sprintf(trash, "srvhdr[%04x:%04x]: ", (unsigned  short)t->cli_fd, (unsigned short)t->srv_fd);
-			max = ptr - rep->h;
-			UBOUND(max, sizeof(trash) - len - 1);
-			len += strlcpy(trash + len, rep->h, max + 1);
-			trash[len++] = '\n';
-			write(1, trash, len);
-		    }
-
-		    if (t->proxy->nb_srvexp) { /* try headers regexps */
-			struct proxy *p = t->proxy;
-			int exp;
-			char term;
-
-			term = *ptr;
-			*ptr = '\0';
-			for (exp=0; exp < p->nb_srvexp; exp++) {
-			    if (regexec(p->srv_exp[exp].preg, rep->h, MAX_MATCH, pmatch, 0) == 0) {
-				int len = exp_replace(trash, rep->h, p->srv_exp[exp].replace, pmatch);
-				ptr += buffer_replace2(rep, rep->h, trash, len, ptr);
-				break;
-			    }
-			}
-			*ptr = term; /* restore the string terminator */
-		    }
-
-		    /* look for the beginning of the next header */
-		    if (ptr < rep->r) {
-			if (*ptr == '\n') {
-			    if ((++ptr < rep->r) && (*ptr == '\r'))
-				ptr++;
-			}
-			else if (*ptr == '\r') {
-			    if ((++ptr < rep->r) && (*ptr == '\n'))
-				ptr++;
-			}
-			rep->h = ptr;
-		    }
-		}
-		//// rep->lr = ptr;
-		//rep->lr = rep->h;
-	    }
-	}
-
-	if ((rep->l < BUFSIZE - MAXREWRITE) && ! FD_ISSET(t->srv_fd, StaticReadEvent)) {
-	    FD_SET(t->srv_fd, StaticReadEvent);
-	    if (t->proxy->srvtimeout)
-		tv_delayfrom(&t->srexpire, &now, t->proxy->srvtimeout);
-	    else
-		tv_eternity(&t->srexpire);
-	}
-
-	/* be nice with the client side which would like to send a complete header */
-	return header_processed;
-	//return 0;
+	/* be nice with the client side which would like to send a complete header
+	 * FIXME: COMPLETELY BUGGY !!! not all headers may be processed because the client
+	 * would read all remaining data at once ! The client should not write past rep->lr
+	 * when the server is in header state.
+	 */
+	//return header_processed;
+	return t->srv_state != SV_STHEADERS;
     }
     else if (s == SV_STDATA) {
 	/* read or write error */
 	if (t->res_sw == RES_ERROR || t->res_sr == RES_ERROR) {
-	    FD_CLR(t->srv_fd, StaticReadEvent);
-	    FD_CLR(t->srv_fd, StaticWriteEvent);
 	    tv_eternity(&t->srexpire);
 	    tv_eternity(&t->swexpire);
-	    close(t->srv_fd);
+	    //FD_CLR(t->srv_fd, StaticReadEvent);
+	    //FD_CLR(t->srv_fd, StaticWriteEvent);
+	    //close(t->srv_fd);
+	    fd_delete(t->srv_fd);
 	    t->srv_state = SV_STCLOSE;
 	    return 1;
 	}
@@ -2116,11 +2527,10 @@ int process_srv(struct task *t) {
 	if ((t->res_sw == RES_ERROR) ||
 	    ((c == CL_STSHUTR || c == CL_STCLOSE) && (req->l == 0)) ||
 	    (tv_cmp2_ms(&t->swexpire, &now) <= 0)) {
-
-	    FD_CLR(t->srv_fd, StaticWriteEvent);
+	    //FD_CLR(t->srv_fd, StaticWriteEvent);
 	    tv_eternity(&t->swexpire);
 	    fd_delete(t->srv_fd);
-	    close(t->srv_fd);
+	    //close(t->srv_fd);
 	    t->srv_state = SV_STCLOSE;
 	    return 1;
 	}
@@ -2145,11 +2555,10 @@ int process_srv(struct task *t) {
 	if (t->res_sr == RES_ERROR || t->res_sr == RES_NULL ||
 	    c == CL_STSHUTW || c == CL_STCLOSE ||
 	    tv_cmp2_ms(&t->srexpire, &now) <= 0) {
-
-	    FD_CLR(t->srv_fd, StaticReadEvent);
+	    //FD_CLR(t->srv_fd, StaticReadEvent);
 	    tv_eternity(&t->srexpire);
 	    fd_delete(t->srv_fd);
-	    close(t->srv_fd);
+	    //close(t->srv_fd);
 	    t->srv_state = SV_STCLOSE;
 	    return 1;
 	}
@@ -2171,9 +2580,9 @@ int process_srv(struct task *t) {
 	return 0;
     }
     else { /* SV_STCLOSE : nothing to do */
-	if (mode & MODE_DEBUG) {
+	if ((mode & MODE_DEBUG) && !(mode & MODE_QUIET)) {
 	    int len;
-	    len = sprintf(trash, "srvcls[%04x:%04x]\n", t->cli_fd, t->srv_fd);
+	    len = sprintf(trash, "srvcls[%04x:%04x]\n", (unsigned short)t->cli_fd, (unsigned short)t->srv_fd);
 	    write(1, trash, len);
 	}
 	return 0;
@@ -2182,40 +2591,162 @@ int process_srv(struct task *t) {
 }
 
 
-/*
- * puts a task back to the wait queue in a clean state, or
- * cleans up its resources if it must be deleted.
+/* Processes the client and server jobs of a session task, then
+ * puts it back to the wait queue in a clean state, or
+ * cleans up its resources if it must be deleted. Returns
+ * the time the task accepts to wait, or -1 for infinity
  */
-void process_task(struct task *t) {
+int process_session(struct task *t) {
+    struct session *s = t->context;
+    int fsm_resync = 0;
 
-    if (t->cli_state != CL_STCLOSE || t->srv_state != SV_STCLOSE) {
+    do {
+	fsm_resync = 0;
+	//fprintf(stderr,"before_cli:cli=%d, srv=%d\n", t->cli_state, t->srv_state);
+	fsm_resync |= process_cli(s);
+	//fprintf(stderr,"cli/srv:cli=%d, srv=%d\n", t->cli_state, t->srv_state);
+	fsm_resync |= process_srv(s);
+	//fprintf(stderr,"after_srv:cli=%d, srv=%d\n", t->cli_state, t->srv_state);
+    } while (fsm_resync);
+
+    if (s->cli_state != CL_STCLOSE || s->srv_state != SV_STCLOSE) {
 	struct timeval min1, min2;
-	t->res_cw = t->res_cr = t->res_sw = t->res_sr = RES_SILENT;
+	s->res_cw = s->res_cr = s->res_sw = s->res_sr = RES_SILENT;
 
-	tv_min(&min1, &t->crexpire, &t->cwexpire);
-	tv_min(&min2, &t->srexpire, &t->swexpire);
-	tv_min(&min1, &min1, &t->cnexpire);
+	tv_min(&min1, &s->crexpire, &s->cwexpire);
+	tv_min(&min2, &s->srexpire, &s->swexpire);
+	tv_min(&min1, &min1, &s->cnexpire);
 	tv_min(&t->expire, &min1, &min2);
 
 	/* restore t to its place in the task list */
-	task_queue(LIST_HEAD(t->proxy->task), t);
+	task_queue(t);
 
-	return; /* nothing more to do */
+	return tv_remain(&now, &t->expire); /* nothing more to do */
     }
 
-    t->proxy->nbconn--;
+    s->proxy->nbconn--;
     actconn--;
     
-    if (mode & MODE_DEBUG) {
+    if ((mode & MODE_DEBUG) && !(mode & MODE_QUIET)) {
 	int len;
-	len = sprintf(trash, "closed[%04x:%04x]\n", t->cli_fd, t->srv_fd);
+	len = sprintf(trash, "closed[%04x:%04x]\n", (unsigned short)s->cli_fd, (unsigned short)s->srv_fd);
 	write(1, trash, len);
     }
 
     /* the task MUST not be in the run queue anymore */
     task_delete(t);
+    session_free(s);
     task_free(t);
+    return -1; /* rest in peace for eternity */
 }
+
+
+
+/*
+ * manages a server health-check. Returns
+ * the time the task accepts to wait, or -1 for infinity.
+ */
+int process_chk(struct task *t) {
+    struct server *s = t->context;
+    int fd = s->curfd;
+    int one = 1;
+
+    //fprintf(stderr, "process_chk: 1\n");
+
+    if (fd < 0) {   /* no check currently running */
+	//fprintf(stderr, "process_chk: 2\n");
+	if (tv_cmp2_ms(&t->expire, &now) > 0) { /* not good time yet */
+	    task_queue(t);	/* restore t to its place in the task list */
+	    return tv_remain(&now, &t->expire);
+	}
+	
+	/* we'll initiate a new check */
+	s->result = 0; /* no result yet */
+	if ((fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) != -1) {
+	    if ((fd < cfg_maxsock) &&
+		(fcntl(fd, F_SETFL, O_NONBLOCK) != -1) &&
+		(setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *) &one, sizeof(one)) != -1)) {
+		//fprintf(stderr, "process_chk: 3\n");
+
+		if ((connect(fd, (struct sockaddr *)&s->addr, sizeof(s->addr)) != -1) || (errno == EINPROGRESS)) {
+		    /* OK, connection in progress or established */
+
+		    //fprintf(stderr, "process_chk: 4\n");
+
+		    s->curfd = fd; /* that's how we know a test is in progress ;-) */
+		    fdtab[fd].owner = t;
+		    fdtab[fd].read  = NULL;
+		    fdtab[fd].write = &event_srv_hck;
+		    fdtab[fd].state = FD_STCONN; /* connection in progress */
+		    FD_SET(fd, StaticWriteEvent);  /* for connect status */
+		    fd_insert(fd);
+		    tv_delayfrom(&t->expire, &now, CHK_CONNTIME);
+		    task_queue(t);	/* restore t to its place in the task list */
+		    return tv_remain(&now, &t->expire);
+		}
+		else if (errno != EALREADY && errno != EISCONN && errno != EAGAIN) {
+		    s->result = -1;    /* a real error */
+		}
+	    }
+	    //fprintf(stderr, "process_chk: 5\n");
+	    close(fd);
+	}
+
+	if (!s->result) { /* nothing done */
+	    //fprintf(stderr, "process_chk: 6\n");
+	    tv_delayfrom(&t->expire, &now, CHK_INTERVAL);
+	    task_queue(t);	/* restore t to its place in the task list */
+	    return tv_remain(&now, &t->expire);
+	}
+
+	/* here, we have seen a failure */
+	if (s->health > FALLTIME)
+	    s->health--; /* still good */
+	else {
+	    s->health = 0; /* failure */
+	    s->state &= ~SRV_RUNNING;
+	}
+
+	//fprintf(stderr, "process_chk: 7\n");
+	tv_delayfrom(&t->expire, &now, CHK_CONNTIME);
+    }
+    else {
+	//fprintf(stderr, "process_chk: 8\n");
+	/* there was a test running */
+	if (s->result > 0) { /* good server detected */
+	    //fprintf(stderr, "process_chk: 9\n");
+	    s->health++; /* was bad, stays for a while */
+	    if (s->health >= FALLTIME) {
+		s->health = FALLTIME + RISETIME -1; /* OK now */
+		s->state |= SRV_RUNNING;
+	    }
+	    s->curfd = -1;
+	    FD_CLR(fd, StaticWriteEvent);
+	    fd_delete(fd);
+	    tv_delayfrom(&t->expire, &now, CHK_INTERVAL);
+	}
+	else if (s->result < 0 || tv_cmp2_ms(&t->expire, &now) <= 0) {
+	    //fprintf(stderr, "process_chk: 10\n");
+	    /* failure or timeout detected */
+	    if (s->health > FALLTIME)
+		s->health--; /* still good */
+	    else {
+		s->health = 0; /* failure */
+		s->state &= ~SRV_RUNNING;
+	    }
+	    s->curfd = -1;
+	    FD_CLR(fd, StaticWriteEvent);
+	    fd_delete(fd);
+	    tv_delayfrom(&t->expire, &now, CHK_INTERVAL);
+	}
+	/* if result is 0 and there's no timeout, we have to wait again */
+    }
+    //fprintf(stderr, "process_chk: 11\n");
+    s->result = 0;
+    task_queue(t);	/* restore t to its place in the task list */
+    return tv_remain(&now, &t->expire);
+}
+
 
 
 #if STATTIME > 0
@@ -2228,21 +2759,58 @@ int stats(void);
 
 void select_loop() {
   int next_time;
-#if STATTIME > 0
   int time2;
-#endif
   int status;
   int fd,i;
   struct timeval delta;
   int readnotnull, writenotnull;
-  struct proxy *p;
+  struct task *t, *tnext;
 
-  /* stop when there's no connection left and we don't allow them anymore */
-  while (actconn || listeners > 0) {
-      next_time = -1;
-      tv_now(&now);
+  tv_now(&now);
 
-      maintain_proxies();
+  while (1) {
+      next_time = -1; /* set the timer to wait eternally first */
+
+      /* look for expired tasks and add them to the run queue.
+       */
+      tnext = ((struct task *)LIST_HEAD(wait_queue))->next;
+      while ((t = tnext) != LIST_HEAD(wait_queue)) { /* we haven't looped ? */
+	  tnext = t->next;
+
+	  /* wakeup expired entries. It doesn't matter if they are
+	   * already running because of a previous event
+	   */
+	  if (tv_cmp2_ms(&t->expire, &now) <= 0) {
+	      task_wakeup(&rq, t);
+	  }
+	  else {
+	      break;
+	  }
+      }
+
+      /* process each task in the run queue now. Each task may be deleted
+       * since we only use tnext.
+       */
+      tnext = rq;
+      while ((t = tnext) != NULL) {
+	  int temp_time;
+	  
+	  tnext = t->rqnext;
+	  task_sleep(&rq, t);
+	  
+	  temp_time = t->process(t);
+	  next_time = MINTIME(temp_time, next_time);
+      }
+
+
+      /* maintain all proxies in a consistent state. This should quickly become a task */
+      time2 = maintain_proxies();
+      next_time = MINTIME(time2, next_time);
+
+      /* stop when there's no connection left and we don't allow them anymore */
+      if (!actconn && listeners == 0)
+	  break;
+
 	  
 #if STATTIME > 0
       time2 = stats();
@@ -2250,17 +2818,22 @@ void select_loop() {
       next_time = MINTIME(time2, next_time);
 #endif
 
-      if (next_time >= 0) {
+      if (next_time > 0) {  /* FIXME */
 	  /* Convert to timeval */
-	  delta.tv_sec=next_time/1000; 
-	  delta.tv_usec=(next_time%1000)*1000;
+	  /* to avoid eventual select loops due to timer precision */
+	  next_time += SCHEDULER_RESOLUTION;
+	  delta.tv_sec  = next_time / 1000; 
+	  delta.tv_usec = (next_time % 1000) * 1000;
+      }
+      else if (next_time == 0) { /* allow select to return immediately when needed */
+	  delta.tv_sec = delta.tv_usec = 0;
       }
 
 
       /* let's restore fdset state */
 
       readnotnull = 0; writenotnull = 0;
-      for (i = 0; i < (cfg_maxsock + 3 + FD_SETSIZE - 1)/(8*sizeof(int)); i++) {
+      for (i = 0; i < (cfg_maxsock + FD_SETSIZE - 1)/(8*sizeof(int)); i++) {
 	  readnotnull |= (*(((int*)ReadEvent)+i) = *(((int*)StaticReadEvent)+i)) != 0;
 	  writenotnull |= (*(((int*)WriteEvent)+i) = *(((int*)StaticWriteEvent)+i)) != 0;
       }
@@ -2280,7 +2853,12 @@ void select_loop() {
 		    NULL,
 		    (next_time >= 0) ? &delta : NULL);
       
+      /* this is an experiment on the separation of the select work */
+      // status  = (readnotnull  ? select(maxfd, ReadEvent, NULL, NULL, (next_time >= 0) ? &delta : NULL) : 0);
+      // status |= (writenotnull ? select(maxfd, NULL, WriteEvent, NULL, (next_time >= 0) ? &delta : NULL) : 0);
+      
       tv_now(&now);
+
       if (status > 0) { /* must proceed with events */
 
 	  int fds;
@@ -2290,62 +2868,24 @@ void select_loop() {
 	      if ((((int *)(ReadEvent))[fds] | ((int *)(WriteEvent))[fds]) != 0)
 		  for (count = 1<<INTBITS, fd = fds << INTBITS; count && fd < maxfd; count--, fd++) {
 		      
+		      /* if we specify read first, the accepts and zero reads will be
+		       * seen first. Moreover, system buffers will be flushed faster.
+		       */
+		      if (fdtab[fd].state == FD_STCLOSE)
+			  continue;
+		      
+		      if (FD_ISSET(fd, ReadEvent))
+			  fdtab[fd].read(fd);
+
 		      if (fdtab[fd].state == FD_STCLOSE)
 			  continue;
 
 		      if (FD_ISSET(fd, WriteEvent))
 			  fdtab[fd].write(fd);
-		      
-		      if (FD_ISSET(fd, ReadEvent))
-			  fdtab[fd].read(fd);
 		  }
       }
       else {
 	  //	  fprintf(stderr,"select returned %d, maxfd=%d\n", status, maxfd);
-      }
-
-      for (p = proxy; p; p = p->next) {
-	  struct task *t, *tnext;
-	  tnext = ((struct task *)LIST_HEAD(p->task))->next;
-	  while ((t = tnext) != LIST_HEAD(p->task)) { /* we haven't looped ? */
-	      tnext = t->next;
-
-	      /* wakeup expired entries. It doesn't matter if they are
-	       * already running because of a previous event
-	       */
-	      if (tv_cmp2_ms(&t->expire, &now) <= 0) {
-		  //		  fprintf(stderr,"WQ: expiring task %p : rq=%p\n", t, p->rq);
-		  task_wakeup(p, t);
-	      }
-	      else {
-		  //		  fprintf(stderr,"WQ: ignoring task %p : rq=%p\n", t, p->rq);
-		  break;
-	      }
-	  }
-
-	  /* process each task in the run queue now. Each task may be deleted
-	   * since we only use tnext.
-	   */
-	  tnext = p->rq;
-	  while ((t = tnext) != NULL) {
-	      int fsm_resync = 0;
-
-	      tnext = t->rqnext;
-	      task_sleep(p, t);
-
-	      do {
-		  fsm_resync = 0;
-		  //fprintf(stderr,"before_cli:cli=%d, srv=%d\n", t->cli_state, t->srv_state);
-		  fsm_resync |= process_cli(t);
-		  //fprintf(stderr,"cli/srv:cli=%d, srv=%d\n", t->cli_state, t->srv_state);
-		  fsm_resync |= process_srv(t);
-		  //fprintf(stderr,"after_srv:cli=%d, srv=%d\n", t->cli_state, t->srv_state);
-	      } while (fsm_resync);
-
-	      // task_queue(LIST_HEAD(p->task), t);  /* restore t to its place in the task list */
-	      // it has been moved to process_task which was more logical.
-	      process_task(t);
-	  }
       }
   }
 }
@@ -2370,10 +2910,10 @@ int stats(void) {
 	
 	if (mode & MODE_STATS) {	
 		if ((lines++ % 16 == 0) && !(mode & MODE_LOG))
-		    fprintf(stderr,
+		    qfprintf(stderr,
 			    "\n active   total  tsknew tskgood tskleft tskrght tsknsch tsklsch tskrsch\n");
 		if (lines>1) {
-			fprintf(stderr,"%07d %07d %07d %07d %07d %07d %07d %07d %07d\n",
+			qfprintf(stderr,"%07d %07d %07d %07d %07d %07d %07d %07d %07d\n",
 				actconn, totalconn,
 				stats_tsk_new, stats_tsk_good,
 				stats_tsk_left, stats_tsk_right,
@@ -2394,27 +2934,15 @@ int stats(void) {
 /*
  * this function enables proxies when there are enough free sessions,
  * or stops them when the table is full. It is designed to be called from the
- * select_loop().
+ * select_loop(). It returns the time left before next expiration event
+ * during stop time, -1 otherwise.
  */
 static int maintain_proxies(void) {
     struct proxy *p;
+    int tleft; /* time left */
 
     p = proxy;
-
-    if (stopping) {
-	while (p) {
-	    if (p->state != PR_STDISABLED) {
-		if (stopping && (tv_remain(&now, &p->stop_time) == 0)) {
-		    FD_CLR(p->listen_fd, StaticReadEvent);
-		    close(p->listen_fd);
-		    p->state = PR_STDISABLED;
-		    listeners--;
-		}
-	    }
-	    p = p->next;
-	}
-	return -1;
-    }
+    tleft = -1; /* infinite time */
 
     /* if there are enough free sessions, we'll activate proxies */
     if (actconn < cfg_maxconn) {
@@ -2444,7 +2972,27 @@ static int maintain_proxies(void) {
 	}
     }
 
-    return -1;
+    if (stopping) {
+	p = proxy;
+	while (p) {
+	    if (p->state != PR_STDISABLED) {
+		int t;
+		t = tv_remain(&now, &p->stop_time);
+		if (t == 0) {
+		    //FD_CLR(p->listen_fd, StaticReadEvent);
+		    //close(p->listen_fd);
+		    fd_delete(p->listen_fd);
+		    p->state = PR_STDISABLED;
+		    listeners--;
+		}
+		else {
+		    tleft = MINTIME(t, tleft);
+		}
+	    }
+	    p = p->next;
+	}
+    }
+    return tleft;
 }
 
 /*
@@ -2456,6 +3004,7 @@ static void soft_stop(void) {
 
     stopping = 1;
     p = proxy;
+    tv_now(&now); /* else, the old time before select will be used */
     while (p) {
 	if (p->state != PR_STDISABLED)
 	    tv_delayfrom(&p->stop_time, &now, p->grace);
@@ -2473,26 +3022,25 @@ void sig_soft_stop(int sig) {
 
 
 void dump(int sig) {
-    struct proxy *p;
+    struct task *t, *tnext;
+    struct session *s;
 
-    for (p = proxy; p; p = p->next) {
-	struct task *t, *tnext;
-	tnext = ((struct task *)LIST_HEAD(p->task))->next;
-	while ((t = tnext) != LIST_HEAD(p->task)) { /* we haven't looped ? */
-	    tnext = t->next;
-	    fprintf(stderr,"[dump] wq: task %p, still %ld ms, "
-		    "cli=%d, srv=%d, cr=%d, cw=%d, sr=%d, sw=%d, "
-		    "req=%d, rep=%d, clifd=%d\n",
-		    t, tv_remain(&now, &t->expire),
-		    t->cli_state,
-		    t->srv_state,
-		    FD_ISSET(t->cli_fd, StaticReadEvent),
-		    FD_ISSET(t->cli_fd, StaticWriteEvent),
-		    FD_ISSET(t->srv_fd, StaticReadEvent),
-		    FD_ISSET(t->srv_fd, StaticWriteEvent),
-		    t->req->l, t->rep?t->rep->l:0, t->cli_fd
-		    );
-	}
+    tnext = ((struct task *)LIST_HEAD(wait_queue))->next;
+    while ((t = tnext) != LIST_HEAD(wait_queue)) { /* we haven't looped ? */
+	tnext = t->next;
+	s = t->context;
+	qfprintf(stderr,"[dump] wq: task %p, still %ld ms, "
+		 "cli=%d, srv=%d, cr=%d, cw=%d, sr=%d, sw=%d, "
+		 "req=%d, rep=%d, clifd=%d\n",
+		 s, tv_remain(&now, &t->expire),
+		 s->cli_state,
+		 s->srv_state,
+		 FD_ISSET(s->cli_fd, StaticReadEvent),
+		 FD_ISSET(s->cli_fd, StaticWriteEvent),
+		 FD_ISSET(s->srv_fd, StaticReadEvent),
+		 FD_ISSET(s->srv_fd, StaticWriteEvent),
+		 s->req->l, s->rep?s->rep->l:0, s->cli_fd
+		 );
     }
 }
 
@@ -2505,8 +3053,8 @@ int readcfgfile(char *file) {
     char *line;
     FILE *f;
     int linenum = 0;
-    char *cmd;
-    char *args[10];
+    char *end;
+    char *args[MAX_LINE_ARGS];
     int arg;
     int cfgerr = 0;
 
@@ -2518,42 +3066,75 @@ int readcfgfile(char *file) {
 
     while (fgets(line = thisline, sizeof(thisline), f) != NULL) {
 	linenum++;
-	/* skips leading spaces */
+
+	end = line + strlen(line);
+
+	/* skip leading spaces */
 	while (isspace(*line))
 	    line++;
-
-	/* cleans up line contents */
-	cmd = line;
-	while (*cmd) {
-	    if (*cmd == '#' || *cmd == ';' || *cmd == '\n' || *cmd == '\r')
-		*cmd = 0; /* end of string, end of loop */
-	    else
-		cmd++;
-	}
-
-	if (*line == 0)
-	    continue;
 	
-	/* fills args[0..9] with the line contents */
-	for (arg=0; arg<9; arg++) {
-	    int escaped = 0;
+	arg = 0;
+	args[arg] = line;
 
-	    args[arg] = line;
-	    while (*line && (escaped || !isspace(*line))) {
-	        if (!escaped) {
-		    if (*line == '\\')
-			escaped = 1; 
+	while (*line && arg < MAX_LINE_ARGS) {
+	    /* first, we'll replace \\, \<space>, \#, \r, \n, \t, \xXX with their
+	     * C equivalent value. Other combinations left unchanged (eg: \1).
+	     */
+	    if (*line == '\\') {
+		int skip = 0;
+		if (line[1] == ' ' || line[1] == '\\' || line[1] == '#') {
+		    *line = line[1];
+		    skip = 1;
 		}
-		else
-		    escaped = 0;
+		else if (line[1] == 'r') {
+		    *line = '\r';
+		    skip = 1;
+		} 
+		else if (line[1] == 'n') {
+		    *line = '\n';
+		    skip = 1;
+		}
+		else if (line[1] == 't') {
+		    *line = '\t';
+		    skip = 1;
+		}
+		else if (line[1] == 'x' && (line + 3 < end )) {
+		    unsigned char hex1, hex2;
+		    hex1 = toupper(line[2]) - '0'; hex2 = toupper(line[3]) - '0';
+		    if (hex1 > 9) hex1 -= 'A' - '9' - 1;
+		    if (hex2 > 9) hex2 -= 'A' - '9' - 1;
+		    *line = (hex1<<4) + hex2;
+		    skip = 3;
+		} 
+		if (skip) {
+		    memmove(line + 1, line + 1 + skip, end - (line + skip + 1));
+		    end -= skip;
+		}
 		line++;
 	    }
-
-	    if (*line) {
-		*(line++) = 0;
-		while (isspace(*line))
+	    else {
+		if (*line == '#' || *line == '\n' || *line == '\r')
+		    *line = 0; /* end of string, end of loop */
+		else
 		    line++;
+		
+		/* a non-escaped space is an argument separator */
+		if (isspace(*line)) {
+		    *line++ = 0;
+		    while (isspace(*line))
+			line++;
+		    args[++arg] = line;
+		}
 	    }
+	}
+
+	/* empty line */
+	if (!**args)
+	    continue;
+
+	/* zero out remaining args */
+	while (++arg < MAX_LINE_ARGS) {
+	    args[arg] = line;
 	}
 
 	if (!strcmp(args[0], "listen")) {  /* new proxy */
@@ -2573,12 +3154,10 @@ int readcfgfile(char *file) {
 	    curproxy->id = strdup(args[1]);
 	    curproxy->listen_addr = *str2sa(args[2]);
 	    curproxy->state = PR_STNEW;
-	    curproxy->task.prev = curproxy->task.next = LIST_HEAD(curproxy->task);
-	    curproxy->rq = NULL;
 	    /* set default values */
 	    curproxy->maxconn = cfg_maxpconn;
 	    curproxy->conn_retries = CONN_RETRIES;
-	    curproxy->conn_redisp = 0;
+	    curproxy->options = 0;
 	    curproxy->clitimeout = curproxy->contimeout = curproxy->srvtimeout = 0;
 	    curproxy->mode = PR_MODE_TCP;
 	    curproxy->logfac1 = curproxy->logfac2 = -1; /* log disabled */
@@ -2603,6 +3182,7 @@ int readcfgfile(char *file) {
 	    curproxy->state = PR_STDISABLED;
 	}
 	else if (!strcmp(args[0], "cookie")) {  /* cookie name */
+	    int cur_arg;
 	    if (curproxy->cookie_name != NULL) {
 		Alert("parsing [%s:%d] : cookie name already specified. Continuing.\n",
 		      file, linenum);
@@ -2615,6 +3195,30 @@ int readcfgfile(char *file) {
 		return -1;
 	    }
 	    curproxy->cookie_name = strdup(args[1]);
+
+	    cur_arg = 2;
+	    while (*(args[cur_arg])) {
+		if (!strcmp(args[cur_arg], "rewrite")) {
+		    curproxy->options |= PR_O_COOK_RW;
+		}
+		else if (!strcmp(args[cur_arg], "indirect")) {
+		    curproxy->options |= PR_O_COOK_IND;
+		}
+		else if (!strcmp(args[cur_arg], "insert")) {
+		    curproxy->options |= PR_O_COOK_INS;
+		}
+		else {
+		    Alert("parsing [%s:%d] : <cookie> supports 'rewrite', 'insert' and 'indirect' options.\n",
+			  file, linenum);
+		    return -1;
+		}
+		cur_arg++;
+	    }
+	    if ((curproxy->options & (PR_O_COOK_RW|PR_O_COOK_IND)) == (PR_O_COOK_RW|PR_O_COOK_IND)) {
+		Alert("parsing [%s:%d] : <cookie> 'rewrite' and 'indirect' mode are incompatibles.\n",
+		      file, linenum);
+		return -1;
+	    }
 	}
 	else if (!strcmp(args[0], "contimeout")) {  /* connect timeout */
 	    if (curproxy->contimeout != 0) {
@@ -2663,9 +3267,16 @@ int readcfgfile(char *file) {
 	    }
 	    curproxy->conn_retries = atol(args[1]);
 	}
-	else if (!strcmp(args[0], "redisp")) {  /* enable reconnections to dispatch */
-	    curproxy->conn_redisp = 1;
+	else if (!strcmp(args[0], "redispatch") || !strcmp(args[0], "redisp")) {
+	    /* enable reconnections to dispatch */
+	    curproxy->options |= PR_O_REDISP;
 	}
+#ifdef TRANSPARENT
+	else if (!strcmp(args[0], "transparent")) {
+	    /* enable transparent proxy connections */
+	    curproxy->options |= PR_O_TRANSP;
+	}
+#endif
 	else if (!strcmp(args[0], "maxconn")) {  /* maxconn */
 	    if (*(args[1]) == 0) {
 		Alert("parsing [%s:%d] : <maxconn> expects an integer argument.\n",
@@ -2690,21 +3301,73 @@ int readcfgfile(char *file) {
 	    }
 	    curproxy->dispatch_addr = *str2sa(args[1]);
 	}
+	else if (!strcmp(args[0], "balance")) {  /* set balancing with optionnal algorithm */
+	    if (*(args[1])) {
+		if (!strcmp(args[1], "roundrobin")) {
+		    curproxy->options |= PR_O_BALANCE_RR;
+		}
+		else {
+		    Alert("parsing [%s:%d] : <balance> supports 'roundrobin' options.\n",
+			  file, linenum);
+		    return -1;
+		}
+	    }
+	    else /* if no option is set, use round-robin by default */
+		curproxy->options |= PR_O_BALANCE_RR;
+	}
 	else if (!strcmp(args[0], "server")) {  /* server address */
+	    int cur_arg;
+
 	    if (strchr(args[2], ':') == NULL) {
 		Alert("parsing [%s:%d] : <server> expects <name> and <addr:port> as arguments.\n",
 		      file, linenum);
 		return -1;
 	    }
-	    if ((newsrv = (struct server *)calloc(1, sizeof(struct server)))
-		== NULL) {
-		Alert("parsing [%s:%d] : out of memory\n", file, linenum);
+	    if ((newsrv = (struct server *)calloc(1, sizeof(struct server))) == NULL) {
+		Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 		exit(1);
 	    }
 	    newsrv->next = curproxy->srv;
 	    curproxy->srv = newsrv;
 	    newsrv->id = strdup(args[1]);
 	    newsrv->addr = *str2sa(args[2]);
+	    newsrv->state = SRV_RUNNING; /* early server setup */
+	    newsrv->health = FALLTIME; /* up, but will fall down at first failure */
+	    newsrv->curfd = -1; /* no health-check in progress */
+	    cur_arg = 3;
+	    while (*args[cur_arg]) {
+		if (!strcmp(args[cur_arg], "cookie")) {
+		    newsrv->cookie = strdup(args[cur_arg + 1]);
+		    newsrv->cklen = strlen(args[cur_arg + 1]);
+		    cur_arg += 2;
+		}
+		else if (!strcmp(args[cur_arg], "check")) {
+		    struct task *t;
+
+		    if ((t = pool_alloc(task)) == NULL) { /* disable this proxy for a while */
+			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			return -1;
+		    }
+
+		    t->next = t->prev = t->rqnext = NULL; /* task not in run queue yet */
+		    t->wq = LIST_HEAD(wait_queue); /* but already has a wait queue assigned */
+		    t->state = TASK_IDLE;
+		    t->process = process_chk;
+		    t->context = newsrv;
+
+		    tv_delayfrom(&t->expire, &now, CHK_INTERVAL); /* check this every ms */
+		    task_queue(t);
+		    task_wakeup(&rq, t);
+
+		    cur_arg += 1;
+		}
+		else {
+		    Alert("parsing [%s:%d] : server %s only supports options 'cookie' and 'check'.\n",
+			  file, linenum, newsrv->id);
+		    return -1;
+		}
+	    }
+	    curproxy->nbservers++;
 	}
 	else if (!strcmp(args[0], "log")) {  /* syslog server address */
 	    struct sockaddr_in *sa;
@@ -2743,16 +3406,16 @@ int readcfgfile(char *file) {
 	    }
 
 	}
-	else if (!strcmp(args[0], "cliexp")) {  /* client regex */
+	else if (!strcmp(args[0], "cliexp") || !strcmp(args[0], "reqrep")) {  /* replace request header from a regex */
 	    regex_t *preg;
-	    if (curproxy->nb_cliexp >= MAX_REGEXP) {
-		Alert("parsing [%s:%d] : too many client expressions. Continuing.\n",
+	    if (curproxy->nb_reqexp >= MAX_REGEXP) {
+		Alert("parsing [%s:%d] : too many request expressions. Continuing.\n",
 		      file, linenum);
 		continue;
 	    }
 
 	    if (*(args[1]) == 0 || *(args[2]) == 0) {
-		Alert("parsing [%s:%d] : <cliexp> expects <search> and <replace> as arguments.\n",
+		Alert("parsing [%s:%d] : <reqrep> expects <search> and <replace> as arguments.\n",
 		      file, linenum);
 		return -1;
 	    }
@@ -2762,20 +3425,58 @@ int readcfgfile(char *file) {
 		Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
 		return -1;
 	    }
-	    curproxy->cli_exp[curproxy->nb_cliexp].preg = preg;
-	    curproxy->cli_exp[curproxy->nb_cliexp].replace = strdup(args[2]);
-	    curproxy->nb_cliexp++;
+	    curproxy->req_exp[curproxy->nb_reqexp].preg = preg;
+	    curproxy->req_exp[curproxy->nb_reqexp].replace = strdup(args[2]);
+	    curproxy->nb_reqexp++;
 	}
-	else if (!strcmp(args[0], "srvexp")) {  /* server regex */
+	else if (!strcmp(args[0], "reqdel")) {  /* delete request header from a regex */
 	    regex_t *preg;
-	    if (curproxy->nb_srvexp >= MAX_REGEXP) {
+	    if (curproxy->nb_reqexp >= MAX_REGEXP) {
+		Alert("parsing [%s:%d] : too many request expressions. Continuing.\n",
+		      file, linenum);
+		continue;
+	    }
+
+	    if (*(args[1]) == 0) {
+		Alert("parsing [%s:%d] : <reqdel> expects <search> as an argument.\n",
+		      file, linenum);
+		return -1;
+	    }
+
+	    preg = calloc(1, sizeof(regex_t));
+	    if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
+		Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
+		return -1;
+	    }
+	    curproxy->req_exp[curproxy->nb_reqexp].preg = preg;
+	    curproxy->req_exp[curproxy->nb_reqexp].replace = NULL; /* means it must be deleted */
+	    curproxy->nb_reqexp++;
+	}
+	else if (!strcmp(args[0], "reqadd")) {  /* add request header */
+	    if (curproxy->nb_reqadd >= MAX_REGEXP) {
+		Alert("parsing [%s:%d] : too many client expressions. Continuing.\n",
+		      file, linenum);
+		continue;
+	    }
+
+	    if (*(args[1]) == 0) {
+		Alert("parsing [%s:%d] : <reqadd> expects <header> as an argument.\n",
+		      file, linenum);
+		return -1;
+	    }
+
+	    curproxy->req_add[curproxy->nb_reqadd++] = strdup(args[1]);
+	}
+	else if (!strcmp(args[0], "srvexp") || !strcmp(args[0], "rsprep")) {  /* replace response header from a regex */
+	    regex_t *preg;
+	    if (curproxy->nb_rspexp >= MAX_REGEXP) {
 		Alert("parsing [%s:%d] : too many server expressions. Continuing.\n",
 		      file, linenum);
 		continue;
 	    }
 
 	    if (*(args[1]) == 0 || *(args[2]) == 0) {
-		Alert("parsing [%s:%d] : <srvexp> expects <search> and <replace> as arguments.\n",
+		Alert("parsing [%s:%d] : <rsprep> expects <search> and <replace> as arguments.\n",
 		      file, linenum);
 		return -1;
 	    }
@@ -2786,9 +3487,48 @@ int readcfgfile(char *file) {
 		return -1;
 	    }
 	    //	    fprintf(stderr,"before=<%s> after=<%s>\n", args[1], args[2]);
-	    curproxy->srv_exp[curproxy->nb_srvexp].preg = preg;
-	    curproxy->srv_exp[curproxy->nb_srvexp].replace = strdup(args[2]);
-	    curproxy->nb_srvexp++;
+	    curproxy->rsp_exp[curproxy->nb_rspexp].preg = preg;
+	    curproxy->rsp_exp[curproxy->nb_rspexp].replace = strdup(args[2]);
+	    curproxy->nb_rspexp++;
+	}
+	else if (!strcmp(args[0], "rspdel")) {  /* delete response header from a regex */
+	    regex_t *preg;
+	    if (curproxy->nb_rspexp >= MAX_REGEXP) {
+		Alert("parsing [%s:%d] : too many server expressions. Continuing.\n",
+		      file, linenum);
+		continue;
+	    }
+
+	    if (*(args[1]) == 0) {
+		Alert("parsing [%s:%d] : <rspdel> expects <search> as an argument.\n",
+		      file, linenum);
+		return -1;
+	    }
+
+	    preg = calloc(1, sizeof(regex_t));
+	    if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
+		Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
+		return -1;
+	    }
+	    //	    fprintf(stderr,"before=<%s> after=<%s>\n", args[1], args[2]);
+	    curproxy->rsp_exp[curproxy->nb_rspexp].preg = preg;
+	    curproxy->rsp_exp[curproxy->nb_rspexp].replace = NULL; /* means it must be deleted */
+	    curproxy->nb_rspexp++;
+	}
+	else if (!strcmp(args[0], "rspadd")) {  /* add response header */
+	    if (curproxy->nb_rspadd >= MAX_REGEXP) {
+		Alert("parsing [%s:%d] : too many server expressions. Continuing.\n",
+		      file, linenum);
+		continue;
+	    }
+
+	    if (*(args[1]) == 0) {
+		Alert("parsing [%s:%d] : <rspadd> expects <header> as an argument.\n",
+		      file, linenum);
+		return -1;
+	    }
+
+	    curproxy->rsp_add[curproxy->nb_rspadd++] = strdup(args[1]);
 	}
 	else {
 	    Alert("parsing [%s:%d] : unknown keyword <%s>\n", file, linenum, args[0]);
@@ -2808,7 +3548,30 @@ int readcfgfile(char *file) {
     }
 
     while (curproxy != NULL) {
-	if (curproxy->mode == PR_MODE_TCP || curproxy->mode == PR_MODE_HEALTH) { /* TCP PROXY or HEALTH CHECK */
+	if ((curproxy->mode != PR_MODE_HEALTH) &&
+	    !(curproxy->options & (PR_O_TRANSP | PR_O_BALANCE)) &&
+	    (*(int *)&curproxy->dispatch_addr == 0)) {
+	    Alert("parsing %s : listener %s has no dispatch address and is not in transparent or balance mode.\n",
+		    file, curproxy->id);
+	    cfgerr++;
+	}
+	else if ((curproxy->mode != PR_MODE_HEALTH) && (curproxy->options & PR_O_BALANCE)) {
+	    if (curproxy->options & PR_O_TRANSP) {
+		Alert("parsing %s : listener %s cannot use both transparent and balance mode.\n",
+		      file, curproxy->id);
+		cfgerr++;
+	    }
+	    else if (curproxy->srv == NULL) {
+		Alert("parsing %s : listener %s needs at least 1 server in balance mode.\n",
+		      file, curproxy->id);
+		cfgerr++;
+	    }
+	    else if (*(int *)&curproxy->dispatch_addr != 0) {
+		Warning("parsing %s : dispatch address of listener %s will be ignored in balance mode.\n",
+			file, curproxy->id);
+	    }
+	}
+	else if (curproxy->mode == PR_MODE_TCP || curproxy->mode == PR_MODE_HEALTH) { /* TCP PROXY or HEALTH CHECK */
 	    if (curproxy->cookie_name != NULL) {
 		Warning("parsing %s : cookie will be ignored for listener %s.\n",
 			file, curproxy->id);
@@ -2817,11 +3580,11 @@ int readcfgfile(char *file) {
 		Warning("parsing %s : servers will be ignored for listener %s.\n",
 			file, curproxy->id);
 	    }
-	    if (curproxy->nb_srvexp) {
+	    if (curproxy->nb_rspexp) {
 		Warning("parsing %s : server regular expressions will be ignored for listener %s.\n",
 			file, curproxy->id);
 	    }
-	    if (curproxy->nb_cliexp) {
+	    if (curproxy->nb_reqexp) {
 		Warning("parsing %s : client regular expressions will be ignored for listener %s.\n",
 			file, curproxy->id);
 	    }
@@ -2860,7 +3623,7 @@ void init(int argc, char **argv) {
     char *tmp;
 
     if (1<<INTBITS != sizeof(int)*8) {
-	fprintf(stderr,
+	qfprintf(stderr,
 		"Error: wrong architecture. Recompile so that sizeof(int)=%d\n",
 		sizeof(int)*8);
 	exit(1);
@@ -2886,7 +3649,9 @@ void init(int argc, char **argv) {
 	    else if (*flag == 'd')
 		mode |= MODE_DEBUG;
 	    else if (*flag == 'D')
-		mode |= MODE_DAEMON;
+		mode |= MODE_DAEMON | MODE_QUIET;
+	    else if (*flag == 'q')
+		mode |= MODE_QUIET;
 #if STATTIME > 0
 	    else if (*flag == 's')
 		mode |= MODE_STATS;
@@ -2925,20 +3690,20 @@ void init(int argc, char **argv) {
 
     ReadEvent = (fd_set *)calloc(1,
 		sizeof(fd_set) *
-		(cfg_maxsock + 3 + FD_SETSIZE - 1) / FD_SETSIZE);
+		(cfg_maxsock + FD_SETSIZE - 1) / FD_SETSIZE);
     WriteEvent = (fd_set *)calloc(1,
 		sizeof(fd_set) *
-		(cfg_maxsock + 3 + FD_SETSIZE - 1) / FD_SETSIZE);
+		(cfg_maxsock + FD_SETSIZE - 1) / FD_SETSIZE);
     StaticReadEvent = (fd_set *)calloc(1,
 		sizeof(fd_set) *
-		(cfg_maxsock + 3 + FD_SETSIZE - 1) / FD_SETSIZE);
+		(cfg_maxsock + FD_SETSIZE - 1) / FD_SETSIZE);
     StaticWriteEvent = (fd_set *)calloc(1,
 		sizeof(fd_set) *
-		(cfg_maxsock + 3 + FD_SETSIZE - 1) / FD_SETSIZE);
+		(cfg_maxsock + FD_SETSIZE - 1) / FD_SETSIZE);
 
     fdtab = (struct fdtab *)calloc(1,
-		sizeof(struct fdtab) * (cfg_maxsock + 3));
-    for (i = 0; i < cfg_maxsock + 3; i++) {
+		sizeof(struct fdtab) * (cfg_maxsock));
+    for (i = 0; i < cfg_maxsock; i++) {
 	fdtab[i].state = FD_STCLOSE;
     }
 }
@@ -2963,6 +3728,13 @@ int start_proxies() {
 	    return -1;
 	}
 	
+	if (fd >= cfg_maxsock) {
+	    Alert("socket(): not enough free sockets for proxy %s. Raise -n argument. Aborting.\n",
+		  curproxy->id);
+	    close(fd);
+	    return -1;
+	}
+
 	if ((fcntl(fd, F_SETFL, O_NONBLOCK) == -1) ||
 	    (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY,
 			(char *) &one, sizeof(one)) == -1)) {
@@ -2996,7 +3768,7 @@ int start_proxies() {
 	/* the function for the accept() event */
 	fdtab[fd].read  = &event_accept;
 	fdtab[fd].write = NULL; /* never called */
-	fdtab[fd].owner = (struct task *)curproxy; /* reference the proxy */
+	fdtab[fd].owner = (struct task *)curproxy; /* reference the proxy instead of a task */
 	curproxy->state = PR_STRUN;
 	fdtab[fd].state = FD_STLISTEN;
 	FD_SET(fd, StaticReadEvent);
@@ -3022,10 +3794,13 @@ int main(int argc, char **argv) {
 	    Alert("[%s.main()] Cannot fork\n", argv[0]);
 	    exit(1); /* there has been an error */
 	}
-
-	/* detach from the tty */
-	close(0); close(1); close(2);
 	setpgid(1, 0);
+    }
+
+    if (mode & MODE_QUIET) {
+	/* detach from the tty */
+	fclose(stdin); fclose(stdout); fclose(stderr);
+	close(0); close(1); close(2);
     }
 
     signal(SIGQUIT, dump);
