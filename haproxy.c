@@ -17,7 +17,9 @@
  *
  * ChangeLog :
  *
- * 2002/07/13 : 1.1.12
+ * 2002/07/15 : 1.1.13
+ *   - tv_diff used inverted parameters which led to negative times !
+  * 2002/07/13 : 1.1.12
  *   - fixed stats monitoring, and optimized some tv_* for most common cases.
  *   - replaced temporary 'newhdr' with 'trash' to reduce stack size
  *   - made HTTP errors more HTML-fiendly.
@@ -168,8 +170,8 @@
 #include <linux/netfilter_ipv4.h>
 #endif
 
-#define HAPROXY_VERSION "1.1.12"
-#define HAPROXY_DATE	"2002/07/13"
+#define HAPROXY_VERSION "1.1.13"
+#define HAPROXY_DATE	"2002/07/15"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -976,11 +978,11 @@ unsigned long tv_delta(struct timeval *tv1, struct timeval *tv2) {
 static inline unsigned long tv_diff(struct timeval *tv1, struct timeval *tv2) {
     unsigned long ret;
   
-    ret = (tv1->tv_sec - tv2->tv_sec) * 1000;
-    if (tv1->tv_usec > tv2->tv_usec)
-	ret += (tv1->tv_usec - tv2->tv_usec) / 1000;
+    ret = (tv2->tv_sec - tv1->tv_sec) * 1000;
+    if (tv2->tv_usec > tv1->tv_usec)
+	ret += (tv2->tv_usec - tv1->tv_usec) / 1000;
     else
-	ret -= (tv2->tv_usec - tv1->tv_usec) / 1000;
+	ret -= (tv1->tv_usec - tv2->tv_usec) / 1000;
     return (unsigned long) ret;
 }
 
@@ -3519,8 +3521,8 @@ int stats(void) {
     int ret;
 
     if (tv_cmp(&now, &nextevt) > 0) {
-	deltatime = (tv_diff(&now, &lastevt)?:1);
-	totaltime = (tv_diff(&now, &starttime)?:1);
+	deltatime = (tv_diff(&lastevt, &now)?:1);
+	totaltime = (tv_diff(&starttime, &now)?:1);
 	
 	if (global.mode & MODE_STATS) {	
 		if ((lines++ % 16 == 0) && !(global.mode & MODE_LOG))
