@@ -13,6 +13,12 @@
  *
  * ChangeLog :
  *
+ * 2002/04/03
+ *   - released 1.1.5
+ *   - connection logging displayed incorrect source address.
+ *   - added proxy start/stop and server up/down log events.
+ *   - replaced log message short buffers with larger trash.
+ *   - enlarged buffer to 8 kB and replace buffer to 4 kB.
  * 2002/03/25
  *   - released 1.1.4
  *   - made rise/fall/interval time configurable
@@ -102,8 +108,8 @@
 #include <linux/netfilter_ipv4.h>
 #endif
 
-#define HAPROXY_VERSION "1.1.4"
-#define HAPROXY_DATE	"2002/03/25"
+#define HAPROXY_VERSION "1.1.5"
+#define HAPROXY_DATE	"2002/04/03"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -118,10 +124,10 @@
 #define SHUT_WR		1
 #endif
 
-#define BUFSIZE		4096
+#define BUFSIZE		8192
 
 // reserved buffer space for header rewriting
-#define	MAXREWRITE	256
+#define	MAXREWRITE	4096
 
 // max # args on a configuration line
 #define MAX_LINE_ARGS	10
@@ -330,6 +336,7 @@ struct server {
     int inter;				/* time in milliseconds */
     int result;				/* 0 = connect OK, -1 = connect KO */
     int curfd;				/* file desc used for current test, or -1 if not in test */
+    struct proxy *proxy;		/* the proxy this server belongs to */
 };
 
 /* The base for all tasks */
@@ -1559,30 +1566,25 @@ int event_accept(int fd) {
 
 	if ((p->mode == PR_MODE_TCP || p->mode == PR_MODE_HTTP)
 	    && (p->logfac1 >= 0 || p->logfac2 >= 0)) {
-	    struct sockaddr_in peername, sockname;
+	    struct sockaddr_in sockname;
 	    unsigned char *pn, *sn;
 	    int namelen;
-	    char message[256];
-
-	    //namelen = sizeof(peername);
-	    //getpeername(cfd, (struct sockaddr *)&peername, &namelen);
-	    //pn = (unsigned char *)&peername.sin_addr;
-	    pn = (unsigned char *)&s->cli_addr;
 
 	    namelen = sizeof(sockname);
 	    if (get_original_dst(cfd, (struct sockaddr_in *)&sockname, &namelen) == -1)
 		getsockname(cfd, (struct sockaddr *)&sockname, &namelen);
 	    sn = (unsigned char *)&sockname.sin_addr;
+	    pn = (unsigned char *)&s->cli_addr.sin_addr;
 
-	    sprintf(message, "Connect from %d.%d.%d.%d:%d to %d.%d.%d.%d:%d (%s/%s)\n",
-		    pn[0], pn[1], pn[2], pn[3], ntohs(peername.sin_port),
+	    sprintf(trash, "Connect from %d.%d.%d.%d:%d to %d.%d.%d.%d:%d (%s/%s)\n",
+		    pn[0], pn[1], pn[2], pn[3], ntohs(s->cli_addr.sin_port),
 		    sn[0], sn[1], sn[2], sn[3], ntohs(sockname.sin_port),
 		    p->id, (p->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
 
 	    if (p->logfac1 >= 0)
-		send_syslog(&p->logsrv1, p->logfac1, LOG_INFO, message);
+		send_syslog(&p->logsrv1, p->logfac1, LOG_INFO, trash);
 	    if (p->logfac2 >= 0)
-		send_syslog(&p->logsrv2, p->logfac2, LOG_INFO, message);
+		send_syslog(&p->logsrv2, p->logfac2, LOG_INFO, trash);
 	}
 
 	if ((mode & MODE_DEBUG) && !(mode & MODE_QUIET)) {
@@ -2741,8 +2743,18 @@ int process_chk(struct task *t) {
 	if (s->health > s->rise)
 	    s->health--; /* still good */
 	else {
-	    if (s->health == s->rise && !(mode & MODE_QUIET))
-		Warning("server %s DOWN.\n", s->id);
+	    if (s->health == s->rise) {
+		if (!(mode & MODE_QUIET))
+		    Warning("server %s DOWN.\n", s->id);
+
+		sprintf(trash, "Server %s/%s is DOWN.\n",
+			s->proxy->id, s->id);
+		
+		if (s->proxy->logfac1 >= 0)
+		    send_syslog(&s->proxy->logsrv1, s->proxy->logfac1, LOG_ALERT, trash);
+		if (s->proxy->logfac2 >= 0)
+		    send_syslog(&s->proxy->logsrv2, s->proxy->logfac2, LOG_ALERT, trash);
+	    }
 
 	    s->health = 0; /* failure */
 	    s->state &= ~SRV_RUNNING;
@@ -2759,8 +2771,16 @@ int process_chk(struct task *t) {
 	    //fprintf(stderr, "process_chk: 9\n");
 	    s->health++; /* was bad, stays for a while */
 	    if (s->health >= s->rise) {
-		if (s->health == s->rise && !(mode & MODE_QUIET))
-		    Warning("server %s UP.\n", s->id);
+		if (s->health == s->rise) {
+		    if (!(mode & MODE_QUIET))
+			Warning("server %s UP.\n", s->id);
+		    sprintf(trash, "Server %s/%s is UP.\n", s->proxy->id, s->id);
+		    
+		    if (s->proxy->logfac1 >= 0)
+			send_syslog(&s->proxy->logsrv1, s->proxy->logfac1, LOG_NOTICE, trash);
+		    if (s->proxy->logfac2 >= 0)
+			send_syslog(&s->proxy->logsrv2, s->proxy->logfac2, LOG_NOTICE, trash);
+		}
 
 		s->health = s->rise + s->fall - 1; /* OK now */
 		s->state |= SRV_RUNNING;
@@ -2776,8 +2796,17 @@ int process_chk(struct task *t) {
 	    if (s->health > s->rise)
 		s->health--; /* still good */
 	    else {
-		if (s->health == s->rise && !(mode & MODE_QUIET))
-		    Warning("server %s DOWN.\n", s->id);
+		if (s->health == s->rise) {
+		    if (!(mode & MODE_QUIET))
+			Warning("server %s DOWN.\n", s->id);
+		    sprintf(trash, "Server %s/%s is DOWN.\n",
+			    s->proxy->id, s->id);
+		
+		    if (s->proxy->logfac1 >= 0)
+			send_syslog(&s->proxy->logsrv1, s->proxy->logfac1, LOG_ALERT, trash);
+		    if (s->proxy->logfac2 >= 0)
+			send_syslog(&s->proxy->logsrv2, s->proxy->logfac2, LOG_ALERT, trash);
+		}
 
 		s->health = 0; /* failure */
 		s->state &= ~SRV_RUNNING;
@@ -3034,8 +3063,14 @@ static int maintain_proxies(void) {
 		int t;
 		t = tv_remain(&now, &p->stop_time);
 		if (t == 0) {
-		    //FD_CLR(p->listen_fd, StaticReadEvent);
-		    //close(p->listen_fd);
+		    Warning("Proxy %s stopped.\n", p->id);
+		    sprintf(trash, "Proxy %s stopped.\n", p->id);
+		
+		    if (p->logfac1 >= 0)
+			send_syslog(&p->logsrv1, p->logfac1, LOG_WARNING, trash);
+		    if (p->logfac2 >= 0)
+			send_syslog(&p->logsrv2, p->logfac2, LOG_WARNING, trash);
+
 		    fd_delete(p->listen_fd);
 		    p->state = PR_STDISABLED;
 		    listeners--;
@@ -3061,8 +3096,16 @@ static void soft_stop(void) {
     p = proxy;
     tv_now(&now); /* else, the old time before select will be used */
     while (p) {
-	if (p->state != PR_STDISABLED)
+	if (p->state != PR_STDISABLED) {
+	    Warning("Stopping proxy %s in %d ms.\n", p->id, p->grace);
+	    sprintf(trash, "Stopping proxy %s in %d ms.\n", p->id, p->grace);
+	    
+	    if (p->logfac1 >= 0)
+		send_syslog(&p->logsrv1, p->logfac1, LOG_WARNING, trash);
+	    if (p->logfac2 >= 0)
+		send_syslog(&p->logsrv2, p->logfac2, LOG_WARNING, trash);
 	    tv_delayfrom(&p->stop_time, &now, p->grace);
+	}
 	p = p->next;
     }
 }
@@ -3384,6 +3427,7 @@ int readcfgfile(char *file) {
 	    }
 	    newsrv->next = curproxy->srv;
 	    curproxy->srv = newsrv;
+	    newsrv->proxy = curproxy;
 	    newsrv->id = strdup(args[1]);
 	    newsrv->addr = *str2sa(args[2]);
 	    newsrv->state = SRV_RUNNING; /* early server setup */
@@ -3852,6 +3896,14 @@ int start_proxies() {
 	fd_insert(fd);
 	listeners++;
 //	fprintf(stderr,"Proxy %s : socket bound.\n", curproxy->id);
+
+	sprintf(trash, "Proxy %s started.\n", curproxy->id);
+	
+	if (curproxy->logfac1 >= 0)
+	    send_syslog(&curproxy->logsrv1, curproxy->logfac1, LOG_INFO, trash);
+	if (curproxy->logfac2 >= 0)
+	    send_syslog(&curproxy->logsrv2, curproxy->logfac2, LOG_INFO, trash);
+	
     }
     return 0;
 }

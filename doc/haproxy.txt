@@ -1,9 +1,9 @@
 
          		     H A - P r o x y
          		     ---------------
-         		      version 1.1.4
+         		      version 1.1.5
 			      willy tarreau
-			       2002/03/25
+			       2002/04/03
 
 ================
 | Introduction |
@@ -403,7 +403,8 @@ Exemple :
 
 Les connexions sont envoyées en niveau "info". Les démarrages de
 service seront envoyés en "notice", les signaux d'arrêts en "warning"
-et les arrêts définitifs en "alert".
+et les arrêts définitifs en "alert". Ceci est valable aussi bien
+pour les proxies que pour les serveurs testés au sein des proxies.
 
 Les catégories possibles sont :
     kern, user, mail, daemon, auth, syslog, lpr, news,
@@ -463,9 +464,10 @@ Remarques :
   - 'reqrep' est l'équivalent de 'cliexp' en version 1.0, et 'rsprep' celui de
     'srvexp'. Ces noms sont toujours supportés mais déconseillés.
   - pour des raisons de performances, le nombre total de caractères ajoutés sur
-    une requête ou une réponse est limité à 256. Cette valeur est modifiable dans
-    le code. Pour un usage temporaire, on peut gagner de la place en supprimant
-    quelques entêtes inutiles avant les ajouts.
+    une requête ou une réponse est limité à 4096 depuis la version 1.1.5 (cette
+    limite était à 256 auparavant). Cette valeur est modifiable dans le code.
+    Pour un usage temporaire, on peut gagner de la place en supprimant quelques
+    entêtes inutiles avant les ajouts.
 
 Exemples :
 --------

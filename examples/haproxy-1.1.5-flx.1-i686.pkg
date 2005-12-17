@@ -1,0 +1,16 @@
+#!/bin/sh
+
+function do_compile {
+    make COPTS="-march=i586 -mcpu=i686 -O2 -mpreferred-stack-boundary=2 -malign-loops=0 -malign-jumps=0 -DNETFILTER -DTRANSPARENT"
+}
+
+function do_prepack {
+    mkdir -p $ROOTDIR/sbin/init.d ; cp init.d/haproxy $ROOTDIR/sbin/init.d
+    mkdir -p $ROOTDIR/usr/sbin ; cp haproxy $ROOTDIR/usr/sbin
+    mkdir -p $ROOTDIR/usr/share/sample/etc/haproxy ; cp examples/cfg $ROOTDIR/usr/share/sample/etc/haproxy/haproxy.cfg
+    cp examples/rc.highsock $ROOTDIR/usr/share/sample/etc/haproxy/rc.highsock
+    cp examples/config.rc.haproxy $ROOTDIR/usr/share/sample/etc/config.rc.haproxy
+    mkdir -p $ROOTDIR/usr/share/haproxy ; cp doc/haproxy.txt $ROOTDIR/usr/share/haproxy
+    make clean
+}
+
