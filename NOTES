@@ -4,10 +4,12 @@
   * chain regex in a list
   * reply 502 when no server is available
 1.1.6 -> 1.1.7
-  - implement global logging
-  - have a single log function
+  * implement global logging
+  * have a single log function
+  * add x-forwarded-for
+  * log http requests on demand, and destination server name
+1.1.7 -> 1.1.8
+  - log destination server IP
   - handle parametrable HTTP health-checks replies
   - differentiate http headers and http uris
-  - log http requests on demand, and destination server IP
-  - add x-forwarded-for
-
+  - support keep-alive

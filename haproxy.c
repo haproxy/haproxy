@@ -13,6 +13,15 @@
  *
  * ChangeLog :
  *
+ * 2002/04/12 : 1.1.7
+ *   - added option forwardfor
+ *   - added reqirep, reqidel, reqiallow, reqideny, rspirep, rspidel
+ *   - added "log global" in "listen" section.
+ * 2002/04/09 :
+ *   - added a new "global" section :
+ *     - logs
+ *     - debug, quiet, daemon modes
+ *     - uid, gid, chroot, nbproc, maxconn
  * 2002/04/08 : 1.1.6
  *   - regex are now chained and not limited anymore.
  *   - unavailable server now returns HTTP/502.
@@ -108,8 +117,8 @@
 #include <linux/netfilter_ipv4.h>
 #endif
 
-#define HAPROXY_VERSION "1.1.6pre4"
-#define HAPROXY_DATE	"2002/04/07"
+#define HAPROXY_VERSION "1.1.7"
+#define HAPROXY_DATE	"2002/04/12"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -128,6 +137,7 @@
 
 // reserved buffer space for header rewriting
 #define	MAXREWRITE	4096
+#define REQURI_LEN	1024
 
 // max # args on a configuration line
 #define MAX_LINE_ARGS	40
@@ -143,11 +153,13 @@
 #define SERVERID_LEN	16
 #define CONN_RETRIES	3
 
-/* FIXME: this should be user-configurable */
 #define	CHK_CONNTIME	2000
 #define	DEF_CHKINTR	2000
 #define DEF_FALLTIME	3
 #define DEF_RISETIME	2
+
+/* default connections limit */
+#define DEFAULT_MAXCONN	2000
 
 /* how many bits are needed to code the size of an int (eg: 32bits -> 5) */
 #define	INTBITS		5
@@ -236,8 +248,7 @@ int strlcpy(char *dst, const char *src, int size) {
 #define sizeof_session	sizeof(struct session)
 #define sizeof_buffer	sizeof(struct buffer)
 #define sizeof_fdtab	sizeof(struct fdtab)
-#define sizeof_str256	256
-
+#define sizeof_requri	REQURI_LEN
 
 /* different possible states for the sockets */
 #define FD_STCLOSE	0
@@ -270,6 +281,10 @@ int strlcpy(char *dst, const char *src, int size) {
 #define PR_O_COOK_ANY	(PR_O_COOK_RW | PR_O_COOK_IND | PR_O_COOK_INS)
 #define PR_O_BALANCE_RR	32	/* balance in round-robin mode */
 #define PR_O_BALANCE	(PR_O_BALANCE_RR)
+#define	PR_O_KEEPALIVE	64	/* follow keep-alive sessions */
+#define	PR_O_FWDFOR	128	/* insert x-forwarded-for with client address */
+#define PR_O_LOGHTTP	256	/* generate a full HTTP log */
+
 
 /* various session flags */
 #define SN_DIRECT	1	/* connection made on the server matching the client cookie */
@@ -300,7 +315,7 @@ int strlcpy(char *dst, const char *src, int size) {
 #define	RES_NULL	2	/* result is 0 (read == 0), or connect without need for writing */
 #define RES_ERROR	3	/* result -1 or error on the socket (eg: connect()) */
 
-/* modes of operation (global variable "mode") */
+/* modes of operation (global.mode) */
 #define	MODE_DEBUG	1
 #define	MODE_STATS	2
 #define	MODE_LOG	4
@@ -315,6 +330,21 @@ int strlcpy(char *dst, const char *src, int size) {
 #define ACT_REPLACE	1	/* replace the matching header */
 #define ACT_REMOVE	2	/* remove the matching header */
 #define ACT_DENY	3	/* deny the request */
+
+/* configuration sections */
+#define CFG_NONE	0
+#define CFG_GLOBAL	1
+#define CFG_LISTEN	2
+
+/* fields that need to be logged. They appear as flags in session->logwait */
+#define LW_DATE		1	/* date */
+#define LW_CLIP		2	/* CLient IP */
+#define LW_SVIP		4	/* SerVer IP */
+#define LW_SVID		8	/* server ID */
+#define	LW_REQ		16	/* http REQuest */
+#define LW_RESP		32	/* http RESPonse */
+#define LW_PXIP		64	/* proxy IP */
+#define LW_PXID		128	/* proxy ID */
 
 /*********************************************************************/
 
@@ -379,11 +409,13 @@ struct session {
     int srv_state;			/* state of the server side */
     int conn_retries;			/* number of connect retries left */
     int flags;				/* some flags describing the session */
+    int logwait;			/* log things waiting to be collected : LW_* */
     struct buffer *req;			/* request buffer */
     struct buffer *rep;			/* response buffer */
     struct sockaddr_in cli_addr;	/* the client address */
     struct sockaddr_in srv_addr;	/* the address to connect to */
     struct server *srv;			/* the server being used */
+    char *requri;			/* first line if log needed, NULL otherwise */
 };
 
 struct proxy {
@@ -406,6 +438,7 @@ struct proxy {
     struct proxy *next;
     struct sockaddr_in logsrv1, logsrv2; /* 2 syslog servers */
     char logfac1, logfac2;		/* log facility for both servers. -1 = disabled */
+    int to_log;				/* things to be logged (LW_*) */
     struct timeval stop_time;		/* date to stop listening, when stopping != 0 */
     int nb_reqadd, nb_rspadd;
     struct hdr_exp *req_exp;		/* regular expressions for request headers */
@@ -424,12 +457,28 @@ struct fdtab {
 
 /*********************************************************************/
 
-int cfg_maxconn = 2000;		/* # of simultaneous connections, (-n) */
 int cfg_maxpconn = 2000;	/* # of simultaneous connections per proxy (-N) */
-int cfg_maxsock = 0;		/* max # of sockets */
 char *cfg_cfgfile = NULL;	/* configuration file */
 char *progname = NULL;		/* program name */
 int  pid;			/* current process id */
+
+/* global options */
+static struct {
+    int uid;
+    int gid;
+    int nbproc;
+    int maxconn;
+    int maxsock;		/* max # of sockets */
+    int mode;
+    char *chroot;
+    int logfac1, logfac2;
+    struct sockaddr_in logsrv1, logsrv2;
+} global = {
+    logfac1 : -1,
+    logfac2 : -1,
+    /* others NULL OK */
+};
+
 /*********************************************************************/
 
 fd_set	*ReadEvent,
@@ -440,7 +489,7 @@ fd_set	*ReadEvent,
 void **pool_session = NULL,
     **pool_buffer   = NULL,
     **pool_fdtab    = NULL,
-    **pool_str256   = NULL,
+    **pool_requri   = NULL,
     **pool_task	    = NULL;
 
 struct proxy *proxy  = NULL;	/* list of all existing proxies */
@@ -451,7 +500,6 @@ struct task wait_queue = {	/* global wait queue */
     next:LIST_HEAD(wait_queue)
 };
 
-static int mode = 0;		/* MODE_DEBUG, ... */
 static int totalconn = 0;	/* total # of terminated sessions */
 static int actconn = 0;		/* # of active sessions */
 static int maxfd = 0;		/* # of the highest fd + 1 */
@@ -562,7 +610,7 @@ void usage(char *name) {
 	    "        -q quiet mode : don't display messages\n"
 	    "        -n sets the maximum total # of connections (%d)\n"
 	    "        -N sets the default, per-proxy maximum # of connections (%d)\n\n",
-	    name, cfg_maxconn, cfg_maxpconn);
+	    name, DEFAULT_MAXCONN, cfg_maxpconn);
     exit(1);
 }
 
@@ -575,7 +623,7 @@ void Alert(char *fmt, ...) {
     struct timeval tv;
     struct tm *tm;
 
-    if (!(mode & MODE_QUIET)) {
+    if (!(global.mode & MODE_QUIET)) {
 	va_start(argp, fmt);
 
 	gettimeofday(&tv, NULL);
@@ -597,7 +645,7 @@ void Warning(char *fmt, ...) {
     struct timeval tv;
     struct tm *tm;
 
-    if (!(mode & MODE_QUIET)) {
+    if (!(global.mode & MODE_QUIET)) {
 	va_start(argp, fmt);
 
 	gettimeofday(&tv, NULL);
@@ -616,7 +664,7 @@ void Warning(char *fmt, ...) {
 void qfprintf(FILE *out, char *fmt, ...) {
     va_list argp;
 
-    if (!(mode & MODE_QUIET)) {
+    if (!(global.mode & MODE_QUIET)) {
 	va_start(argp, fmt);
 	vfprintf(out, fmt, argp);
 	fflush(out);
@@ -708,6 +756,9 @@ void send_syslog(struct sockaddr_in *sa,
     /* 20011216/WT : other progs don't set the hostname, and syslogd
      * systematically repeats it which is contrary to RFC3164.
      */
+    /*
+     * warning: buffer overflow possible on progname.
+     */
     p += sprintf(p, "<%d>%s %2d %02d:%02d:%02d %s[%d]: ",
 		 facility * 8 + level,
 		 monthname[tm->tm_mon],
@@ -728,6 +779,107 @@ void send_syslog(struct sockaddr_in *sa,
     sendto(logfd, logmsg, p - logmsg, MSG_DONTWAIT | MSG_NOSIGNAL,
 	   (struct sockaddr *)sa, sizeof(*sa));
 #endif
+}
+
+
+/*
+ * This function sends a syslog message to both log servers of a proxy,
+ * or to global log servers if the proxy is NULL.
+ * It also tries not to waste too much time computing the message header.
+ * It doesn't care about errors nor does it report them.
+ * WARNING! no check is made on the prog+hostname+date length, so the
+ * local hostname + the prog name must be shorter than MAX_SYSLOG_LEN-19.
+ * the message will be truncated to fit the maximum length.
+ */
+void send_log(struct proxy *p, int level, char *message, ...) {
+    static int logfd = -1;	/* syslog UDP socket */
+    static long tvsec = -1;	/* to force the string to be initialized */
+    struct timeval tv;
+    va_list argp;
+    static char logmsg[MAX_SYSLOG_LEN];
+    static char *dataptr = NULL;
+    int fac_level;
+    int hdr_len, data_len;
+    struct sockaddr_in *sa[2];
+    int facilities[2];
+    int nbloggers = 0;
+    char *log_ptr;
+
+    if (logfd < 0) {
+	if ((logfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
+	    return;
+    }
+    
+    if (level < 0 || progname == NULL || message == NULL)
+	return;
+
+    gettimeofday(&tv, NULL);
+    if (tv.tv_sec != tvsec) {
+	/* this string is rebuild only once a second */
+	struct tm *tm = localtime(&tv.tv_sec);
+	tvsec = tv.tv_sec;
+
+	/*
+	 * warning: buffer overflow possible on progname.
+	 */
+	dataptr = logmsg + snprintf(logmsg, sizeof(logmsg),
+				   "<<<<>%s %2d %02d:%02d:%02d %s[%d]: ",
+				   monthname[tm->tm_mon],
+				   tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec,
+				   progname, pid);
+    }
+
+    va_start(argp, message);
+    data_len = vsnprintf(dataptr, logmsg + sizeof(logmsg) - dataptr, message, argp);
+    dataptr[data_len - 1] = '\n'; /* force a break on ultra-long lines */
+    va_end(argp);
+
+    if (p == NULL) {
+	if (global.logfac1 >= 0) {
+	    sa[nbloggers] = &global.logsrv1;
+	    facilities[nbloggers] = global.logfac1;
+	    nbloggers++;
+	}
+	if (global.logfac2 >= 0) {
+	    sa[nbloggers] = &global.logsrv2;
+	    facilities[nbloggers] = global.logfac2;
+	    nbloggers++;
+	}
+    } else {
+	if (p->logfac1 >= 0) {
+	    sa[nbloggers] = &p->logsrv1;
+	    facilities[nbloggers] = p->logfac1;
+	    nbloggers++;
+	}
+	if (p->logfac2 >= 0) {
+	    sa[nbloggers] = &p->logsrv2;
+	    facilities[nbloggers] = p->logfac2;
+	    nbloggers++;
+	}
+    }
+
+    while (nbloggers-- > 0) {
+	/* do this for each log target */
+	fac_level = (facilities[nbloggers] << 3) + level;
+	log_ptr = logmsg + 3; /* last digit of the log level */
+	do {
+	    *log_ptr = '0' + fac_level % 10;
+	    fac_level /= 10;
+	    log_ptr--;
+	} while (fac_level && log_ptr > logmsg);
+	*log_ptr = '<';
+	hdr_len = dataptr - log_ptr;
+	
+	/* the total syslog message now starts at p, for hdr_len+data_len */
+
+#ifndef MSG_NOSIGNAL
+	sendto(logfd, log_ptr, hdr_len + data_len, MSG_DONTWAIT,
+	       (struct sockaddr *)sa[nbloggers], sizeof(**sa));
+#else
+	sendto(logfd, log_ptr, hdr_len + data_len, MSG_DONTWAIT | MSG_NOSIGNAL,
+	       (struct sockaddr *)sa[nbloggers], sizeof(**sa));
+#endif
+    }
 }
 
 
@@ -1093,6 +1245,9 @@ static inline void session_free(struct session *s) {
 	pool_free(buffer, s->req);
     if (s->rep)
 	pool_free(buffer, s->rep);
+    if (s->requri)
+	pool_free(requri, s->requri);
+
     pool_free(session, s);
 }
 
@@ -1151,7 +1306,7 @@ int connect_server(struct session *s) {
 	return -1;
     }
 	
-    if (fd >= cfg_maxsock) {
+    if (fd >= global.maxsock) {
 	Alert("socket(): not enough free sockets. Raise -n argument. Giving up.\n");
 	close(fd);
 	return -1;
@@ -1574,6 +1729,40 @@ void client_return(struct session *s, int len, const char *msg) {
     s->req->l = 0;
 }
 
+/*
+ * send a log for the session when we have enough info about it
+ */
+void sess_log(struct session *s) {
+    unsigned char *pn;
+    struct proxy *p = s->proxy;
+    int log;
+    char *uri;
+    char *pxid;
+    char *srv;
+
+    /* This is a first attempt at a better logging system.
+     * For now, we rely on send_log() to provide the date, although it obviously
+     * is the date of the log and not of the request, and most fields are not
+     * computed.
+     */
+
+    log = p->to_log & ~s->logwait;
+
+    pn = (log & LW_CLIP) ?
+	 (unsigned char *)&s->cli_addr.sin_addr :
+	 (unsigned char *)"\0\0\0\0";
+
+    uri = (log & LW_REQ) ? s->requri : "<requri>";
+    pxid = p->id;
+    //srv = (log & LW_SVID) ? s->srv->id : "<svid>";
+    srv = ((p->to_log & LW_SVID) && s->srv != NULL) ? s->srv->id : "<svid>";
+	
+    send_log(p, LOG_INFO, "%d.%d.%d.%d:%d %s %s \"%s\"\n",
+	     pn[0], pn[1], pn[2], pn[3], ntohs(s->cli_addr.sin_port),
+	     pxid, srv, uri);
+    s->logwait = 0;
+}
+
 
 /*
  * this function is called on a read event from a listen socket, corresponding
@@ -1611,7 +1800,7 @@ int event_accept(int fd) {
 	}
 
 	s->cli_addr = addr;
-	if (cfd >= cfg_maxsock) {
+	if (cfd >= global.maxsock) {
 	    Alert("accept(): not enough free sockets. Raise -n argument. Giving up.\n");
 	    close(cfd);
 	    pool_free(task, t);
@@ -1627,35 +1816,6 @@ int event_accept(int fd) {
 	    pool_free(task, t);
 	    pool_free(session, s);
 	    return 0;
-	}
-
-	if ((p->mode == PR_MODE_TCP || p->mode == PR_MODE_HTTP)
-	    && (p->logfac1 >= 0 || p->logfac2 >= 0)) {
-	    struct sockaddr_in sockname;
-	    unsigned char *pn, *sn;
-	    int namelen;
-
-	    namelen = sizeof(sockname);
-	    if (get_original_dst(cfd, (struct sockaddr_in *)&sockname, &namelen) == -1)
-		getsockname(cfd, (struct sockaddr *)&sockname, &namelen);
-	    sn = (unsigned char *)&sockname.sin_addr;
-	    pn = (unsigned char *)&s->cli_addr.sin_addr;
-
-	    sprintf(trash, "Connect from %d.%d.%d.%d:%d to %d.%d.%d.%d:%d (%s/%s)\n",
-		    pn[0], pn[1], pn[2], pn[3], ntohs(s->cli_addr.sin_port),
-		    sn[0], sn[1], sn[2], sn[3], ntohs(sockname.sin_port),
-		    p->id, (p->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
-
-	    if (p->logfac1 >= 0)
-		send_syslog(&p->logsrv1, p->logfac1, LOG_INFO, trash);
-	    if (p->logfac2 >= 0)
-		send_syslog(&p->logsrv2, p->logfac2, LOG_INFO, trash);
-	}
-
-	if ((mode & MODE_DEBUG) && !(mode & MODE_QUIET)) {
-	    int len;
-	    len = sprintf(trash, "accept(%04x)=%04x\n", (unsigned short)fd, (unsigned short)cfd);
-	    write(1, trash, len);
 	}
 
 	t->next = t->prev = t->rqnext = NULL; /* task not in run queue yet */
@@ -1674,6 +1834,39 @@ int event_accept(int fd) {
 	s->cli_fd = cfd;
 	s->srv_fd = -1;
 	s->conn_retries = p->conn_retries;
+	s->requri = NULL;
+	s->logwait = p->to_log;
+
+	if ((p->mode == PR_MODE_TCP || p->mode == PR_MODE_HTTP)
+	    && (p->logfac1 >= 0 || p->logfac2 >= 0)) {
+	    struct sockaddr_in sockname;
+	    unsigned char *pn, *sn;
+	    int namelen;
+
+	    namelen = sizeof(sockname);
+	    if (get_original_dst(cfd, (struct sockaddr_in *)&sockname, &namelen) == -1)
+		getsockname(cfd, (struct sockaddr *)&sockname, &namelen);
+	    sn = (unsigned char *)&sockname.sin_addr;
+	    pn = (unsigned char *)&s->cli_addr.sin_addr;
+
+	    if (p->to_log) {
+		/* we have the client ip */
+		if (s->logwait & LW_CLIP)
+		    if (!(s->logwait &= ~LW_CLIP))
+			sess_log(s);
+	    }
+	    else
+		send_log(p, LOG_INFO, "Connect from %d.%d.%d.%d:%d to %d.%d.%d.%d:%d (%s/%s)\n",
+			 pn[0], pn[1], pn[2], pn[3], ntohs(s->cli_addr.sin_port),
+			 sn[0], sn[1], sn[2], sn[3], ntohs(sockname.sin_port),
+			 p->id, (p->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
+	}
+
+	if ((global.mode & MODE_DEBUG) && !(global.mode & MODE_QUIET)) {
+	    int len;
+	    len = sprintf(trash, "accept(%04x)=%04x\n", (unsigned short)fd, (unsigned short)cfd);
+	    write(1, trash, len);
+	}
 
 	if ((s->req = pool_alloc(buffer)) == NULL) { /* no memory */
 	    close(cfd); /* nothing can be done for this fd without memory */
@@ -1859,6 +2052,7 @@ int exp_replace(char *dst, char *src, char *str, regmatch_t *matches) {
     return dst - old_dst;
 }
 
+
 /*
  * manages the client FSM and its socket. BTW, it also tries to handle the
  * cookie. It returns 1 if a state has changed (and a resync may be needed),
@@ -1903,6 +2097,15 @@ int process_cli(struct session *t) {
 		    buffer_replace2(req, req->h, req->h, newhdr, len);
 		}
 
+		if (t->proxy->options & PR_O_FWDFOR) {
+		    /* insert an X-Forwarded-For header */
+		    unsigned char *pn;
+		    pn = (unsigned char *)&t->cli_addr.sin_addr;
+		    len = sprintf(newhdr, "X-Forwarded-For: %d.%d.%d.%d\r\n",
+				  pn[0], pn[1], pn[2], pn[3]);
+		    buffer_replace2(req, req->h, req->h, newhdr, len);
+		}
+
 		t->cli_state = CL_STDATA;
 		req->rlim = req->data + BUFSIZE; /* no more rewrite needed */
 
@@ -1938,9 +2141,31 @@ int process_cli(struct session *t) {
 	     *   req->r  = end of data (not used at this stage)
 	     */
 
+	    if (t->logwait & LW_REQ &&
+		t->proxy->mode & PR_MODE_HTTP &&
+		t->proxy->options & PR_O_LOGHTTP) {
+		/* we have a complete HTTP request that we must log */
+		int urilen;
+
+		if ((t->requri = pool_alloc(requri)) == NULL) {
+		    Alert("HTTP logging : out of memory.\n");
+		    client_retnclose(t, strlen(HTTP_403), HTTP_403);
+		    return 1;
+		}
+		
+		urilen = ptr - req->h;
+		if (urilen >= REQURI_LEN)
+		    urilen = REQURI_LEN - 1;
+		memcpy(t->requri, req->h, urilen);
+		t->requri[urilen] = 0;
+
+		if (!(t->logwait &= ~LW_REQ))
+		    sess_log(t);
+	    }
+
 	    delete_header = 0;
 
-	    if ((mode & MODE_DEBUG) && !(mode & MODE_QUIET)) {
+	    if ((global.mode & MODE_DEBUG) && !(global.mode & MODE_QUIET)) {
 		int len, max;
 		len = sprintf(trash, "clihdr[%04x:%04x]: ", (unsigned  short)t->cli_fd, (unsigned short)t->srv_fd);
 		max = ptr - req->h;
@@ -2225,7 +2450,7 @@ int process_cli(struct session *t) {
 	return 0;
     }
     else { /* CL_STCLOSE: nothing to do */
-	if ((mode & MODE_DEBUG) && !(mode & MODE_QUIET)) {
+	if ((global.mode & MODE_DEBUG) && !(global.mode & MODE_QUIET)) {
 	    int len;
 	    len = sprintf(trash, "clicls[%04x:%04x]\n", (unsigned short)t->cli_fd, (unsigned short)t->srv_fd);
 	    write(1, trash, len);
@@ -2407,7 +2632,7 @@ int process_srv(struct session *t) {
 
 	    delete_header = 0;
 
-	    if ((mode & MODE_DEBUG) && !(mode & MODE_QUIET)) {
+	    if ((global.mode & MODE_DEBUG) && !(global.mode & MODE_QUIET)) {
 		int len, max;
 		len = sprintf(trash, "srvhdr[%04x:%04x]: ", (unsigned  short)t->cli_fd, (unsigned short)t->srv_fd);
 		max = ptr - rep->h;
@@ -2716,7 +2941,7 @@ int process_srv(struct session *t) {
 	return 0;
     }
     else { /* SV_STCLOSE : nothing to do */
-	if ((mode & MODE_DEBUG) && !(mode & MODE_QUIET)) {
+	if ((global.mode & MODE_DEBUG) && !(global.mode & MODE_QUIET)) {
 	    int len;
 	    len = sprintf(trash, "srvcls[%04x:%04x]\n", (unsigned short)t->cli_fd, (unsigned short)t->srv_fd);
 	    write(1, trash, len);
@@ -2763,11 +2988,15 @@ int process_session(struct task *t) {
     s->proxy->nbconn--;
     actconn--;
     
-    if ((mode & MODE_DEBUG) && !(mode & MODE_QUIET)) {
+    if ((global.mode & MODE_DEBUG) && !(global.mode & MODE_QUIET)) {
 	int len;
 	len = sprintf(trash, "closed[%04x:%04x]\n", (unsigned short)s->cli_fd, (unsigned short)s->srv_fd);
 	write(1, trash, len);
     }
+
+    /* let's do a final log if we need it */
+    if (s->logwait)
+	sess_log(s);
 
     /* the task MUST not be in the run queue anymore */
     task_delete(t);
@@ -2799,7 +3028,7 @@ int process_chk(struct task *t) {
 	/* we'll initiate a new check */
 	s->result = 0; /* no result yet */
 	if ((fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) != -1) {
-	    if ((fd < cfg_maxsock) &&
+	    if ((fd < global.maxsock) &&
 		(fcntl(fd, F_SETFL, O_NONBLOCK) != -1) &&
 		(setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *) &one, sizeof(one)) != -1)) {
 		//fprintf(stderr, "process_chk: 3\n");
@@ -2841,16 +3070,17 @@ int process_chk(struct task *t) {
 	    s->health--; /* still good */
 	else {
 	    if (s->health == s->rise) {
-		if (!(mode & MODE_QUIET))
+		if (!(global.mode & MODE_QUIET))
 		    Warning("server %s DOWN.\n", s->id);
 
-		sprintf(trash, "Server %s/%s is DOWN.\n",
-			s->proxy->id, s->id);
-		
-		if (s->proxy->logfac1 >= 0)
-		    send_syslog(&s->proxy->logsrv1, s->proxy->logfac1, LOG_ALERT, trash);
-		if (s->proxy->logfac2 >= 0)
-		    send_syslog(&s->proxy->logsrv2, s->proxy->logfac2, LOG_ALERT, trash);
+//		  sprintf(trash, "Server %s/%s is DOWN.\n",
+//			  s->proxy->id, s->id);
+//		  
+//		  if (s->proxy->logfac1 >= 0)
+//		      send_syslog(&s->proxy->logsrv1, s->proxy->logfac1, LOG_ALERT, trash);
+//		  if (s->proxy->logfac2 >= 0)
+//		      send_syslog(&s->proxy->logsrv2, s->proxy->logfac2, LOG_ALERT, trash);
+		send_log(s->proxy, LOG_ALERT, "Server %s/%s is DOWN.\n", s->proxy->id, s->id);
 	    }
 
 	    s->health = 0; /* failure */
@@ -2869,14 +3099,15 @@ int process_chk(struct task *t) {
 	    s->health++; /* was bad, stays for a while */
 	    if (s->health >= s->rise) {
 		if (s->health == s->rise) {
-		    if (!(mode & MODE_QUIET))
+		    if (!(global.mode & MODE_QUIET))
 			Warning("server %s UP.\n", s->id);
-		    sprintf(trash, "Server %s/%s is UP.\n", s->proxy->id, s->id);
+//		        sprintf(trash, "Server %s/%s is UP.\n", s->proxy->id, s->id);
 		    
-		    if (s->proxy->logfac1 >= 0)
-			send_syslog(&s->proxy->logsrv1, s->proxy->logfac1, LOG_NOTICE, trash);
-		    if (s->proxy->logfac2 >= 0)
-			send_syslog(&s->proxy->logsrv2, s->proxy->logfac2, LOG_NOTICE, trash);
+//		      if (s->proxy->logfac1 >= 0)
+//			  send_syslog(&s->proxy->logsrv1, s->proxy->logfac1, LOG_NOTICE, trash);
+//		      if (s->proxy->logfac2 >= 0)
+//			  send_syslog(&s->proxy->logsrv2, s->proxy->logfac2, LOG_NOTICE, trash);
+		    send_log(s->proxy, LOG_NOTICE, "Server %s/%s is UP.\n", s->proxy->id, s->id);
 		}
 
 		s->health = s->rise + s->fall - 1; /* OK now */
@@ -2894,15 +3125,17 @@ int process_chk(struct task *t) {
 		s->health--; /* still good */
 	    else {
 		if (s->health == s->rise) {
-		    if (!(mode & MODE_QUIET))
+		    if (!(global.mode & MODE_QUIET))
 			Warning("server %s DOWN.\n", s->id);
-		    sprintf(trash, "Server %s/%s is DOWN.\n",
-			    s->proxy->id, s->id);
-		
-		    if (s->proxy->logfac1 >= 0)
-			send_syslog(&s->proxy->logsrv1, s->proxy->logfac1, LOG_ALERT, trash);
-		    if (s->proxy->logfac2 >= 0)
-			send_syslog(&s->proxy->logsrv2, s->proxy->logfac2, LOG_ALERT, trash);
+//		      sprintf(trash, "Server %s/%s is DOWN.\n",
+//			      s->proxy->id, s->id);
+//		  
+//		      if (s->proxy->logfac1 >= 0)
+//			  send_syslog(&s->proxy->logsrv1, s->proxy->logfac1, LOG_ALERT, trash);
+//		      if (s->proxy->logfac2 >= 0)
+//			  send_syslog(&s->proxy->logsrv2, s->proxy->logfac2, LOG_ALERT, trash);
+
+		    send_log(s->proxy, LOG_ALERT, "Server %s/%s is DOWN.\n", s->proxy->id, s->id);
 		}
 
 		s->health = 0; /* failure */
@@ -3017,7 +3250,7 @@ void select_loop() {
       /* let's restore fdset state */
 
       readnotnull = 0; writenotnull = 0;
-      for (i = 0; i < (cfg_maxsock + FD_SETSIZE - 1)/(8*sizeof(int)); i++) {
+      for (i = 0; i < (global.maxsock + FD_SETSIZE - 1)/(8*sizeof(int)); i++) {
 	  readnotnull |= (*(((int*)ReadEvent)+i) = *(((int*)StaticReadEvent)+i)) != 0;
 	  writenotnull |= (*(((int*)WriteEvent)+i) = *(((int*)StaticWriteEvent)+i)) != 0;
       }
@@ -3089,8 +3322,8 @@ int stats(void) {
 	deltatime = (tv_delta(&now, &lastevt)?:1);
 	totaltime = (tv_delta(&now, &starttime)?:1);
 	
-	if (mode & MODE_STATS) {	
-		if ((lines++ % 16 == 0) && !(mode & MODE_LOG))
+	if (global.mode & MODE_STATS) {	
+		if ((lines++ % 16 == 0) && !(global.mode & MODE_LOG))
 		    qfprintf(stderr,
 			    "\n active   total  tsknew tskgood tskleft tskrght tsknsch tsklsch tskrsch\n");
 		if (lines>1) {
@@ -3126,7 +3359,7 @@ static int maintain_proxies(void) {
     tleft = -1; /* infinite time */
 
     /* if there are enough free sessions, we'll activate proxies */
-    if (actconn < cfg_maxconn) {
+    if (actconn < global.maxconn) {
 	while (p) {
 	    if (p->nbconn < p->maxconn) {
 		if (p->state == PR_STIDLE) {
@@ -3161,12 +3394,13 @@ static int maintain_proxies(void) {
 		t = tv_remain(&now, &p->stop_time);
 		if (t == 0) {
 		    Warning("Proxy %s stopped.\n", p->id);
-		    sprintf(trash, "Proxy %s stopped.\n", p->id);
+//		    sprintf(trash, "Proxy %s stopped.\n", p->id);
 		
-		    if (p->logfac1 >= 0)
-			send_syslog(&p->logsrv1, p->logfac1, LOG_WARNING, trash);
-		    if (p->logfac2 >= 0)
-			send_syslog(&p->logsrv2, p->logfac2, LOG_WARNING, trash);
+//		      if (p->logfac1 >= 0)
+//			  send_syslog(&p->logsrv1, p->logfac1, LOG_WARNING, trash);
+//		      if (p->logfac2 >= 0)
+//			  send_syslog(&p->logsrv2, p->logfac2, LOG_WARNING, trash);
+		    send_log(p, LOG_WARNING, "Proxy %s stopped.\n", p->id);
 
 		    fd_delete(p->listen_fd);
 		    p->state = PR_STDISABLED;
@@ -3195,12 +3429,14 @@ static void soft_stop(void) {
     while (p) {
 	if (p->state != PR_STDISABLED) {
 	    Warning("Stopping proxy %s in %d ms.\n", p->id, p->grace);
-	    sprintf(trash, "Stopping proxy %s in %d ms.\n", p->id, p->grace);
+//	    sprintf(trash, "Stopping proxy %s in %d ms.\n", p->id, p->grace);
 	    
-	    if (p->logfac1 >= 0)
-		send_syslog(&p->logsrv1, p->logfac1, LOG_WARNING, trash);
-	    if (p->logfac2 >= 0)
-		send_syslog(&p->logsrv2, p->logfac2, LOG_WARNING, trash);
+//	      if (p->logfac1 >= 0)
+//		  send_syslog(&p->logsrv1, p->logfac1, LOG_WARNING, trash);
+//	      if (p->logfac2 >= 0)
+//		  send_syslog(&p->logsrv2, p->logfac2, LOG_WARNING, trash);
+
+	    send_log(p, LOG_WARNING, "Stopping proxy %s in %d ms.\n", p->id, p->grace);
 	    tv_delayfrom(&p->stop_time, &now, p->grace);
 	}
 	p = p->next;
@@ -3253,6 +3489,681 @@ void chain_regex(struct hdr_exp **head, regex_t *preg, int action, char *replace
     *head = exp;
 }
 
+
+/*
+ * parse a line in a <global> section. Returns 0 if OK, -1 if error.
+ */
+int cfg_parse_global(char *file, int linenum, char **args) {
+
+    if (!strcmp(args[0], "global")) {  /* new section */
+	/* no option, nothing special to do */
+	return 0;
+    }
+    else if (!strcmp(args[0], "daemon")) {
+	global.mode |= MODE_DAEMON;
+    }
+    else if (!strcmp(args[0], "debug")) {
+	global.mode |= MODE_DEBUG;
+    }
+    else if (!strcmp(args[0], "quiet")) {
+	global.mode |= MODE_QUIET;
+    }
+    else if (!strcmp(args[0], "stats")) {
+	global.mode |= MODE_STATS;
+    }
+    else if (!strcmp(args[0], "uid")) {
+	if (global.uid != 0) {
+	    Alert("parsing [%s:%d] : <uid> already specified. Continuing.\n", file, linenum);
+	    return 0;
+	}
+	if (*(args[1]) == 0) {
+	    Alert("parsing [%s:%d] : <uid> expects an integer argument.\n", file, linenum);
+	    return -1;
+	}
+	global.uid = atol(args[1]);
+    }
+    else if (!strcmp(args[0], "gid")) {
+	if (global.gid != 0) {
+	    Alert("parsing [%s:%d] : <gid> already specified. Continuing.\n", file, linenum);
+	    return 0;
+	}
+	if (*(args[1]) == 0) {
+	    Alert("parsing [%s:%d] : <gid> expects an integer argument.\n", file, linenum);
+	    return -1;
+	}
+	global.gid = atol(args[1]);
+    }
+    else if (!strcmp(args[0], "nbproc")) {
+	if (global.nbproc != 0) {
+	    Alert("parsing [%s:%d] : <nbproc> already specified. Continuing.\n", file, linenum);
+	    return 0;
+	}
+	if (*(args[1]) == 0) {
+	    Alert("parsing [%s:%d] : <gid> expects an integer argument.\n", file, linenum);
+	    return -1;
+	}
+	global.nbproc = atol(args[1]);
+    }
+    else if (!strcmp(args[0], "maxconn")) {
+	if (global.maxconn != 0) {
+	    Alert("parsing [%s:%d] : <maxconn> already specified. Continuing.\n", file, linenum);
+	    return 0;
+	}
+	if (*(args[1]) == 0) {
+	    Alert("parsing [%s:%d] : <maxconn> expects an integer argument.\n", file, linenum);
+	    return -1;
+	}
+	global.maxconn = atol(args[1]);
+    }
+    else if (!strcmp(args[0], "chroot")) {
+	if (global.chroot != NULL) {
+	    Alert("parsing [%s:%d] : <chroot> already specified. Continuing.\n", file, linenum);
+	    return 0;
+	}
+	if (*(args[1]) == 0) {
+	    Alert("parsing [%s:%d] : <chroot> expects a directory as an argument.\n", file, linenum);
+	    return -1;
+	}
+	global.chroot = strdup(args[1]);
+    }
+    else if (!strcmp(args[0], "log")) {  /* syslog server address */
+	struct sockaddr_in *sa;
+	int facility;
+	
+	if (*(args[1]) == 0 || *(args[2]) == 0) {
+	    Alert("parsing [%s:%d] : <log> expects <address> and <facility> as arguments.\n", file, linenum);
+	    return -1;
+	}
+	
+	for (facility = 0; facility < NB_LOG_FACILITIES; facility++)
+	    if (!strcmp(log_facilities[facility], args[2]))
+		break;
+	
+	if (facility >= NB_LOG_FACILITIES) {
+	    Alert("parsing [%s:%d] : unknown log facility <%s>\n", file, linenum, args[2]);
+	    exit(1);
+	}
+	
+	sa = str2sa(args[1]);
+	if (!sa->sin_port)
+	    sa->sin_port = htons(SYSLOG_PORT);
+
+	if (global.logfac1 == -1) {
+	    global.logsrv1 = *sa;
+	    global.logfac1 = facility;
+	}
+	else if (global.logfac2 == -1) {
+	    global.logsrv2 = *sa;
+	    global.logfac2 = facility;
+	}
+	else {
+	    Alert("parsing [%s:%d] : too many syslog servers\n", file, linenum);
+	    return -1;
+	}
+	
+    }
+    else {
+	Alert("parsing [%s:%d] : unknown keyword <%s> in <global> section\n", file, linenum, args[0]);
+	return -1;
+    }
+    return 0;
+}
+
+
+/*
+ * parse a line in a <listen> section. Returns 0 if OK, -1 if error.
+ */
+int cfg_parse_listen(char *file, int linenum, char **args) {
+    static struct proxy *curproxy = NULL;
+    struct server *newsrv = NULL;
+
+    if (!strcmp(args[0], "listen")) {  /* new proxy */
+	if (strchr(args[2], ':') == NULL) {
+	    Alert("parsing [%s:%d] : <listen> expects <id> and <addr:port> as arguments.\n",
+		  file, linenum);
+	    return -1;
+	}
+	
+	if ((curproxy = (struct proxy *)calloc(1, sizeof(struct proxy))) == NULL) {
+	    Alert("parsing [%s:%d] : out of memory\n", file, linenum);
+	    return -1;
+	}
+	curproxy->next = proxy;
+	proxy = curproxy;
+	curproxy->id = strdup(args[1]);
+	curproxy->listen_addr = *str2sa(args[2]);
+	curproxy->state = PR_STNEW;
+	/* set default values */
+	curproxy->maxconn = cfg_maxpconn;
+	curproxy->conn_retries = CONN_RETRIES;
+	curproxy->options = 0;
+	curproxy->clitimeout = curproxy->contimeout = curproxy->srvtimeout = 0;
+	curproxy->mode = PR_MODE_TCP;
+	curproxy->logfac1 = curproxy->logfac2 = -1; /* log disabled */
+	curproxy->to_log = 0;
+	return 0;
+    }
+    else if (curproxy == NULL) {
+	Alert("parsing [%s:%d] : <listen> expected.\n", file, linenum);
+	return -1;
+    }
+    
+    if (!strcmp(args[0], "mode")) {  /* sets the proxy mode */
+	if (!strcmp(args[1], "http")) curproxy->mode = PR_MODE_HTTP;
+	else if (!strcmp(args[1], "tcp")) curproxy->mode = PR_MODE_TCP;
+	else if (!strcmp(args[1], "health")) curproxy->mode = PR_MODE_HEALTH;
+	else {
+	    Alert("parsing [%s:%d] : unknown proxy mode <%s>.\n", file, linenum, args[1]);
+	    return -1;
+	}
+    }
+    else if (!strcmp(args[0], "disabled")) {  /* disables this proxy */
+	curproxy->state = PR_STDISABLED;
+    }
+    else if (!strcmp(args[0], "cookie")) {  /* cookie name */
+	int cur_arg;
+	if (curproxy->cookie_name != NULL) {
+	    Alert("parsing [%s:%d] : cookie name already specified. Continuing.\n",
+		  file, linenum);
+	    return 0;
+	}
+	
+	if (*(args[1]) == 0) {
+	    Alert("parsing [%s:%d] : <cookie> expects <cookie_name> as argument.\n",
+		  file, linenum);
+	    return -1;
+	}
+	curproxy->cookie_name = strdup(args[1]);
+	
+	cur_arg = 2;
+	while (*(args[cur_arg])) {
+	    if (!strcmp(args[cur_arg], "rewrite")) {
+		curproxy->options |= PR_O_COOK_RW;
+	    }
+	    else if (!strcmp(args[cur_arg], "indirect")) {
+		curproxy->options |= PR_O_COOK_IND;
+	    }
+	    else if (!strcmp(args[cur_arg], "insert")) {
+		curproxy->options |= PR_O_COOK_INS;
+	    }
+	    else {
+		Alert("parsing [%s:%d] : <cookie> supports 'rewrite', 'insert' and 'indirect' options.\n",
+		      file, linenum);
+		return -1;
+	    }
+	    cur_arg++;
+	}
+	if ((curproxy->options & (PR_O_COOK_RW|PR_O_COOK_IND)) == (PR_O_COOK_RW|PR_O_COOK_IND)) {
+	    Alert("parsing [%s:%d] : <cookie> 'rewrite' and 'indirect' mode are incompatibles.\n",
+		  file, linenum);
+	    return -1;
+	}
+    }
+    else if (!strcmp(args[0], "contimeout")) {  /* connect timeout */
+	if (curproxy->contimeout != 0) {
+	    Alert("parsing [%s:%d] : contimeout already specified. Continuing.\n", file, linenum);
+	    return 0;
+	}
+	if (*(args[1]) == 0) {
+	    Alert("parsing [%s:%d] : <contimeout> expects an integer <time_in_ms> as argument.\n",
+		  file, linenum);
+	    return -1;
+	}
+	curproxy->contimeout = atol(args[1]);
+    }
+    else if (!strcmp(args[0], "clitimeout")) {  /*  client timeout */
+	if (curproxy->clitimeout != 0) {
+	    Alert("parsing [%s:%d] : clitimeout already specified. Continuing.\n",
+		  file, linenum);
+	    return 0;
+	}
+	if (*(args[1]) == 0) {
+	    Alert("parsing [%s:%d] : <clitimeout> expects an integer <time_in_ms> as argument.\n",
+		  file, linenum);
+	    return -1;
+	}
+	curproxy->clitimeout = atol(args[1]);
+    }
+    else if (!strcmp(args[0], "srvtimeout")) {  /*  server timeout */
+	if (curproxy->srvtimeout != 0) {
+	    Alert("parsing [%s:%d] : srvtimeout already specified. Continuing.\n", file, linenum);
+	    return 0;
+	}
+	if (*(args[1]) == 0) {
+		Alert("parsing [%s:%d] : <srvtimeout> expects an integer <time_in_ms> as argument.\n",
+		      file, linenum);
+		return -1;
+	}
+	curproxy->srvtimeout = atol(args[1]);
+    }
+    else if (!strcmp(args[0], "retries")) {  /* connection retries */
+	if (*(args[1]) == 0) {
+	    Alert("parsing [%s:%d] : <retries> expects an integer argument (dispatch counts for one).\n",
+		  file, linenum);
+	    return -1;
+	}
+	curproxy->conn_retries = atol(args[1]);
+    }
+    else if (!strcmp(args[0], "option")) {
+	if (*(args[1]) == 0) {
+	    Alert("parsing [%s:%d] : <option> expects an option name.\n", file, linenum);
+	    return -1;
+	}
+	if (!strcmp(args[1], "redispatch"))
+	    /* enable reconnections to dispatch */
+	    curproxy->options |= PR_O_REDISP;
+#ifdef TRANSPARENT
+	else if (!strcmp(args[1], "transparent"))
+	    /* enable transparent proxy connections */
+	    curproxy->options |= PR_O_TRANSP;
+#endif
+	else if (!strcmp(args[1], "keepalive"))
+	    /* enable keep-alive */
+	    curproxy->options |= PR_O_KEEPALIVE;
+	else if (!strcmp(args[1], "forwardfor"))
+	    /* insert x-forwarded-for field */
+	    curproxy->options |= PR_O_FWDFOR;
+	else if (!strcmp(args[1], "httplog")) {
+	    /* generate a complete HTTP log */
+	    curproxy->options |= PR_O_LOGHTTP;
+	    curproxy->to_log |= LW_DATE | LW_CLIP | LW_SVID | LW_REQ | LW_PXID;
+	}
+	else {
+	    Alert("parsing [%s:%d] : unknown option <%s>.\n", file, linenum, args[1]);
+	    return -1;
+	}
+	return 0;
+    }
+    else if (!strcmp(args[0], "redispatch") || !strcmp(args[0], "redisp")) {
+	/* enable reconnections to dispatch */
+	curproxy->options |= PR_O_REDISP;
+    }
+#ifdef TRANSPARENT
+    else if (!strcmp(args[0], "transparent")) {
+	/* enable transparent proxy connections */
+	curproxy->options |= PR_O_TRANSP;
+    }
+#endif
+    else if (!strcmp(args[0], "maxconn")) {  /* maxconn */
+	if (*(args[1]) == 0) {
+	    Alert("parsing [%s:%d] : <maxconn> expects an integer argument.\n", file, linenum);
+	    return -1;
+	}
+	curproxy->maxconn = atol(args[1]);
+    }
+    else if (!strcmp(args[0], "grace")) {  /* grace time (ms) */
+	if (*(args[1]) == 0) {
+	    Alert("parsing [%s:%d] : <grace> expects a time in milliseconds.\n", file, linenum);
+	    return -1;
+	}
+	curproxy->grace = atol(args[1]);
+    }
+    else if (!strcmp(args[0], "dispatch")) {  /* dispatch address */
+	if (strchr(args[1], ':') == NULL) {
+	    Alert("parsing [%s:%d] : <dispatch> expects <addr:port> as argument.\n", file, linenum);
+	    return -1;
+	}
+	curproxy->dispatch_addr = *str2sa(args[1]);
+    }
+    else if (!strcmp(args[0], "balance")) {  /* set balancing with optionnal algorithm */
+	if (*(args[1])) {
+	    if (!strcmp(args[1], "roundrobin")) {
+		curproxy->options |= PR_O_BALANCE_RR;
+	    }
+	    else {
+		Alert("parsing [%s:%d] : <balance> supports 'roundrobin' options.\n", file, linenum);
+		return -1;
+	    }
+	}
+	else /* if no option is set, use round-robin by default */
+	    curproxy->options |= PR_O_BALANCE_RR;
+    }
+    else if (!strcmp(args[0], "server")) {  /* server address */
+	int cur_arg;
+
+	if (strchr(args[2], ':') == NULL) {
+	    Alert("parsing [%s:%d] : <server> expects <name> and <addr:port> as arguments.\n",
+		  file, linenum);
+	    return -1;
+	}
+	if ((newsrv = (struct server *)calloc(1, sizeof(struct server))) == NULL) {
+	    Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+	    return -1;
+	}
+	newsrv->next = curproxy->srv;
+	curproxy->srv = newsrv;
+	newsrv->proxy = curproxy;
+	newsrv->id = strdup(args[1]);
+	newsrv->addr = *str2sa(args[2]);
+	newsrv->state = SRV_RUNNING; /* early server setup */
+	newsrv->curfd = -1; /* no health-check in progress */
+	newsrv->inter = DEF_CHKINTR;
+	newsrv->rise = DEF_RISETIME;
+	newsrv->fall = DEF_FALLTIME;
+	newsrv->health = newsrv->rise; /* up, but will fall down at first failure */
+	cur_arg = 3;
+	while (*args[cur_arg]) {
+	    if (!strcmp(args[cur_arg], "cookie")) {
+		newsrv->cookie = strdup(args[cur_arg + 1]);
+		newsrv->cklen = strlen(args[cur_arg + 1]);
+		cur_arg += 2;
+	    }
+	    else if (!strcmp(args[cur_arg], "rise")) {
+		newsrv->rise = atol(args[cur_arg + 1]);
+		newsrv->health = newsrv->rise;
+		cur_arg += 2;
+	    }
+	    else if (!strcmp(args[cur_arg], "fall")) {
+		newsrv->fall = atol(args[cur_arg + 1]);
+		cur_arg += 2;
+	    }
+	    else if (!strcmp(args[cur_arg], "inter")) {
+		newsrv->inter = atol(args[cur_arg + 1]);
+		cur_arg += 2;
+	    }
+	    else if (!strcmp(args[cur_arg], "check")) {
+		struct task *t;
+		
+		if ((t = pool_alloc(task)) == NULL) { /* disable this proxy for a while */
+		    Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+		    return -1;
+		}
+		
+		t->next = t->prev = t->rqnext = NULL; /* task not in run queue yet */
+		t->wq = LIST_HEAD(wait_queue); /* but already has a wait queue assigned */
+		t->state = TASK_IDLE;
+		t->process = process_chk;
+		t->context = newsrv;
+		
+		if (curproxy->state != PR_STDISABLED) {
+		    tv_delayfrom(&t->expire, &now, newsrv->inter); /* check this every ms */
+		    task_queue(t);
+		    task_wakeup(&rq, t);
+		}
+		
+		cur_arg += 1;
+	    }
+	    else {
+		Alert("parsing [%s:%d] : server %s only supports options 'cookie' and 'check'.\n",
+		      file, linenum, newsrv->id);
+		return -1;
+	    }
+	}
+	curproxy->nbservers++;
+    }
+    else if (!strcmp(args[0], "log")) {  /* syslog server address */
+	struct sockaddr_in *sa;
+	int facility;
+	
+	if (*(args[1]) && *(args[2]) == 0 && !strcmp(args[1], "global")) {
+	    curproxy->logfac1 = global.logfac1;
+	    curproxy->logsrv1 = global.logsrv1;
+	    curproxy->logfac2 = global.logfac2;
+	    curproxy->logsrv2 = global.logsrv2;
+	}
+	else if (*(args[1]) && *(args[2])) {
+	    for (facility = 0; facility < NB_LOG_FACILITIES; facility++)
+		if (!strcmp(log_facilities[facility], args[2]))
+		    break;
+	
+	    if (facility >= NB_LOG_FACILITIES) {
+		Alert("parsing [%s:%d] : unknown log facility <%s>\n", file, linenum, args[2]);
+		exit(1);
+	    }
+	    
+	    sa = str2sa(args[1]);
+	    if (!sa->sin_port)
+		sa->sin_port = htons(SYSLOG_PORT);
+	    
+	    if (curproxy->logfac1 == -1) {
+		curproxy->logsrv1 = *sa;
+		curproxy->logfac1 = facility;
+	    }
+	    else if (curproxy->logfac2 == -1) {
+		curproxy->logsrv2 = *sa;
+		curproxy->logfac2 = facility;
+	    }
+	    else {
+		Alert("parsing [%s:%d] : too many syslog servers\n", file, linenum);
+		return -1;
+	    }
+	}
+	else {
+	    Alert("parsing [%s:%d] : <log> expects either <address[:port]> and <facility> or 'global' as arguments.\n",
+		  file, linenum);
+	    return -1;
+	}
+    }
+    else if (!strcmp(args[0], "cliexp") || !strcmp(args[0], "reqrep")) {  /* replace request header from a regex */
+	regex_t *preg;
+	
+	if (*(args[1]) == 0 || *(args[2]) == 0) {
+	    Alert("parsing [%s:%d] : <reqrep> expects <search> and <replace> as arguments.\n",
+		  file, linenum);
+	    return -1;
+	}
+	
+	preg = calloc(1, sizeof(regex_t));
+	if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
+	    Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
+	    return -1;
+	}
+	
+	chain_regex(&curproxy->req_exp, preg, ACT_REPLACE, strdup(args[2]));
+    }
+    else if (!strcmp(args[0], "reqdel")) {  /* delete request header from a regex */
+	regex_t *preg;
+	
+	if (*(args[1]) == 0) {
+	    Alert("parsing [%s:%d] : <reqdel> expects <regex> as an argument.\n", file, linenum);
+	    return -1;
+	}
+	
+	preg = calloc(1, sizeof(regex_t));
+	if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
+	    Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
+	    return -1;
+	}
+	
+	chain_regex(&curproxy->req_exp, preg, ACT_REMOVE, NULL);
+    }
+    else if (!strcmp(args[0], "reqdeny")) {  /* deny a request if a header matches this regex */
+	regex_t *preg;
+	
+	if (*(args[1]) == 0) {
+	    Alert("parsing [%s:%d] : <reqdeny> expects <regex> as an argument.\n", file, linenum);
+	    return -1;
+	}
+	
+	preg = calloc(1, sizeof(regex_t));
+	if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
+	    Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
+	    return -1;
+	}
+	
+	chain_regex(&curproxy->req_exp, preg, ACT_DENY, NULL);
+    }
+    else if (!strcmp(args[0], "reqallow")) {  /* allow a request if a header matches this regex */
+	regex_t *preg;
+	
+	if (*(args[1]) == 0) {
+	    Alert("parsing [%s:%d] : <reqallow> expects <regex> as an argument.\n", file, linenum);
+	    return -1;
+	}
+	
+	preg = calloc(1, sizeof(regex_t));
+	if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
+	    Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
+	    return -1;
+	}
+	
+	chain_regex(&curproxy->req_exp, preg, ACT_ALLOW, NULL);
+    }
+    else if (!strcmp(args[0], "reqirep")) {  /* replace request header from a regex, ignoring case */
+	regex_t *preg;
+	
+	if (*(args[1]) == 0 || *(args[2]) == 0) {
+	    Alert("parsing [%s:%d] : <reqirep> expects <search> and <replace> as arguments.\n",
+		  file, linenum);
+	    return -1;
+	}
+	
+	preg = calloc(1, sizeof(regex_t));
+	if (regcomp(preg, args[1], REG_EXTENDED | REG_ICASE) != 0) {
+	    Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
+	    return -1;
+	}
+	
+	chain_regex(&curproxy->req_exp, preg, ACT_REPLACE, strdup(args[2]));
+    }
+    else if (!strcmp(args[0], "reqidel")) {  /* delete request header from a regex ignoring case */
+	regex_t *preg;
+	
+	if (*(args[1]) == 0) {
+	    Alert("parsing [%s:%d] : <reqidel> expects <regex> as an argument.\n", file, linenum);
+	    return -1;
+	}
+	
+	preg = calloc(1, sizeof(regex_t));
+	if (regcomp(preg, args[1], REG_EXTENDED | REG_ICASE) != 0) {
+	    Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
+	    return -1;
+	}
+	
+	chain_regex(&curproxy->req_exp, preg, ACT_REMOVE, NULL);
+    }
+    else if (!strcmp(args[0], "reqideny")) {  /* deny a request if a header matches this regex ignoring case */
+	regex_t *preg;
+	
+	if (*(args[1]) == 0) {
+	    Alert("parsing [%s:%d] : <reqideny> expects <regex> as an argument.\n", file, linenum);
+	    return -1;
+	}
+	
+	preg = calloc(1, sizeof(regex_t));
+	if (regcomp(preg, args[1], REG_EXTENDED | REG_ICASE) != 0) {
+	    Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
+	    return -1;
+	}
+	
+	chain_regex(&curproxy->req_exp, preg, ACT_DENY, NULL);
+    }
+    else if (!strcmp(args[0], "reqiallow")) {  /* allow a request if a header matches this regex ignoring case */
+	regex_t *preg;
+	
+	if (*(args[1]) == 0) {
+	    Alert("parsing [%s:%d] : <reqiallow> expects <regex> as an argument.\n", file, linenum);
+	    return -1;
+	}
+	
+	preg = calloc(1, sizeof(regex_t));
+	if (regcomp(preg, args[1], REG_EXTENDED | REG_ICASE) != 0) {
+	    Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
+	    return -1;
+	}
+	
+	chain_regex(&curproxy->req_exp, preg, ACT_ALLOW, NULL);
+    }
+    else if (!strcmp(args[0], "reqadd")) {  /* add request header */
+	if (curproxy->nb_reqadd >= MAX_NEWHDR) {
+	    Alert("parsing [%s:%d] : too many `reqadd'. Continuing.\n", file, linenum);
+	    return 0;
+	}
+	
+	if (*(args[1]) == 0) {
+	    Alert("parsing [%s:%d] : <reqadd> expects <header> as an argument.\n", file, linenum);
+	    return -1;
+	}
+	
+	    curproxy->req_add[curproxy->nb_reqadd++] = strdup(args[1]);
+	}
+	else if (!strcmp(args[0], "srvexp") || !strcmp(args[0], "rsprep")) {  /* replace response header from a regex */
+	    regex_t *preg;
+
+	    if (*(args[1]) == 0 || *(args[2]) == 0) {
+		Alert("parsing [%s:%d] : <rsprep> expects <search> and <replace> as arguments.\n",
+		      file, linenum);
+		return -1;
+	    }
+
+	    preg = calloc(1, sizeof(regex_t));
+	    if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
+		Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
+		return -1;
+	    }
+	    
+	    chain_regex(&curproxy->rsp_exp, preg, ACT_REPLACE, strdup(args[2]));
+	}
+    else if (!strcmp(args[0], "rspdel")) {  /* delete response header from a regex */
+	regex_t *preg;
+	
+	if (*(args[1]) == 0) {
+	    Alert("parsing [%s:%d] : <rspdel> expects <search> as an argument.\n", file, linenum);
+	    return -1;
+	}
+
+	preg = calloc(1, sizeof(regex_t));
+	if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
+	    Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
+	    return -1;
+	}
+	
+	chain_regex(&curproxy->rsp_exp, preg, ACT_REMOVE, strdup(args[2]));
+    }
+    else if (!strcmp(args[0], "rspirep")) {  /* replace response header from a regex ignoring case */
+	    regex_t *preg;
+
+	    if (*(args[1]) == 0 || *(args[2]) == 0) {
+		Alert("parsing [%s:%d] : <rspirep> expects <search> and <replace> as arguments.\n",
+		      file, linenum);
+		return -1;
+	    }
+
+	    preg = calloc(1, sizeof(regex_t));
+	    if (regcomp(preg, args[1], REG_EXTENDED | REG_ICASE) != 0) {
+		Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
+		return -1;
+	    }
+	    
+	    chain_regex(&curproxy->rsp_exp, preg, ACT_REPLACE, strdup(args[2]));
+	}
+    else if (!strcmp(args[0], "rspidel")) {  /* delete response header from a regex ignoring case */
+	regex_t *preg;
+	
+	if (*(args[1]) == 0) {
+	    Alert("parsing [%s:%d] : <rspidel> expects <search> as an argument.\n", file, linenum);
+	    return -1;
+	}
+
+	preg = calloc(1, sizeof(regex_t));
+	if (regcomp(preg, args[1], REG_EXTENDED | REG_ICASE) != 0) {
+	    Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
+	    return -1;
+	}
+	
+	chain_regex(&curproxy->rsp_exp, preg, ACT_REMOVE, strdup(args[2]));
+    }
+    else if (!strcmp(args[0], "rspadd")) {  /* add response header */
+	if (curproxy->nb_rspadd >= MAX_NEWHDR) {
+	    Alert("parsing [%s:%d] : too many `rspadd'. Continuing.\n", file, linenum);
+	    return 0;
+	}
+	
+	if (*(args[1]) == 0) {
+	    Alert("parsing [%s:%d] : <rspadd> expects <header> as an argument.\n", file, linenum);
+	    return -1;
+	}
+	
+	curproxy->rsp_add[curproxy->nb_rspadd++] = strdup(args[1]);
+    }
+    else {
+	Alert("parsing [%s:%d] : unknown keyword <%s> in <listen> section\n", file, linenum, args[0]);
+	return -1;
+    }
+    return 0;
+}
+
+
 /*
  * This function reads and parses the configuration file given in the argument.
  * returns 0 if OK, -1 if error.
@@ -3266,6 +4177,7 @@ int readcfgfile(char *file) {
     char *args[MAX_LINE_ARGS];
     int arg;
     int cfgerr = 0;
+    int confsect = CFG_NONE;
 
     struct proxy *curproxy = NULL;
     struct server *newsrv = NULL;
@@ -3346,430 +4258,27 @@ int readcfgfile(char *file) {
 	    args[arg] = line;
 	}
 
-	if (!strcmp(args[0], "listen")) {  /* new proxy */
-	    if (strchr(args[2], ':') == NULL) {
-		Alert("parsing [%s:%d] : <listen> expects <id> and <addr:port> as arguments.\n",
-		      file, linenum);
-		return -1;
-	    }
+	if (!strcmp(args[0], "listen"))  /* new proxy */
+	    confsect = CFG_LISTEN;
+	else if (!strcmp(args[0], "global"))  /* global config */
+	    confsect = CFG_GLOBAL;
+	/* else it's a section keyword */
 
-	    if ((curproxy = (struct proxy *)calloc(1, sizeof(struct proxy)))
-		== NULL) {
-		Alert("parsing [%s:%d] : out of memory\n", file, linenum);
-		exit(1);
-	    }
-	    curproxy->next = proxy;
-	    proxy = curproxy;
-	    curproxy->id = strdup(args[1]);
-	    curproxy->listen_addr = *str2sa(args[2]);
-	    curproxy->state = PR_STNEW;
-	    /* set default values */
-	    curproxy->maxconn = cfg_maxpconn;
-	    curproxy->conn_retries = CONN_RETRIES;
-	    curproxy->options = 0;
-	    curproxy->clitimeout = curproxy->contimeout = curproxy->srvtimeout = 0;
-	    curproxy->mode = PR_MODE_TCP;
-	    curproxy->logfac1 = curproxy->logfac2 = -1; /* log disabled */
-	    continue;
-	}
-	else if (curproxy == NULL) {
-	    Alert("parsing [%s:%d] : <listen> expected.\n",
-		  file, linenum);
+	switch (confsect) {
+	case CFG_LISTEN:
+	    if (cfg_parse_listen(file, linenum, args) < 0)
+		return -1;
+	    break;
+	case CFG_GLOBAL:
+	    if (cfg_parse_global(file, linenum, args) < 0)
+		return -1;
+	    break;
+	default:
+	    Alert("parsing [%s:%d] : unknown keyword <%s> out of section.\n", file, linenum, args[0]);
 	    return -1;
 	}
-    
-	if (!strcmp(args[0], "mode")) {  /* sets the proxy mode */
-	    if (!strcmp(args[1], "http")) curproxy->mode = PR_MODE_HTTP;
-	    else if (!strcmp(args[1], "tcp")) curproxy->mode = PR_MODE_TCP;
-	    else if (!strcmp(args[1], "health")) curproxy->mode = PR_MODE_HEALTH;
-	    else {
-		Alert("parsing [%s:%d] : unknown proxy mode <%s>.\n", file, linenum, args[1]);
-		return -1;
-	    }
-	}
-	else if (!strcmp(args[0], "disabled")) {  /* disables this proxy */
-	    curproxy->state = PR_STDISABLED;
-	}
-	else if (!strcmp(args[0], "cookie")) {  /* cookie name */
-	    int cur_arg;
-	    if (curproxy->cookie_name != NULL) {
-		Alert("parsing [%s:%d] : cookie name already specified. Continuing.\n",
-		      file, linenum);
-		continue;
-	    }
-
-	    if (*(args[1]) == 0) {
-		Alert("parsing [%s:%d] : <cookie> expects <cookie_name> as argument.\n",
-		      file, linenum);
-		return -1;
-	    }
-	    curproxy->cookie_name = strdup(args[1]);
-
-	    cur_arg = 2;
-	    while (*(args[cur_arg])) {
-		if (!strcmp(args[cur_arg], "rewrite")) {
-		    curproxy->options |= PR_O_COOK_RW;
-		}
-		else if (!strcmp(args[cur_arg], "indirect")) {
-		    curproxy->options |= PR_O_COOK_IND;
-		}
-		else if (!strcmp(args[cur_arg], "insert")) {
-		    curproxy->options |= PR_O_COOK_INS;
-		}
-		else {
-		    Alert("parsing [%s:%d] : <cookie> supports 'rewrite', 'insert' and 'indirect' options.\n",
-			  file, linenum);
-		    return -1;
-		}
-		cur_arg++;
-	    }
-	    if ((curproxy->options & (PR_O_COOK_RW|PR_O_COOK_IND)) == (PR_O_COOK_RW|PR_O_COOK_IND)) {
-		Alert("parsing [%s:%d] : <cookie> 'rewrite' and 'indirect' mode are incompatibles.\n",
-		      file, linenum);
-		return -1;
-	    }
-	}
-	else if (!strcmp(args[0], "contimeout")) {  /* connect timeout */
-	    if (curproxy->contimeout != 0) {
-		Alert("parsing [%s:%d] : contimeout already specified. Continuing.\n",
-		      file, linenum);
-		continue;
-	    }
-	    if (*(args[1]) == 0) {
-		Alert("parsing [%s:%d] : <contimeout> expects an integer <time_in_ms> as argument.\n",
-		      file, linenum);
-		return -1;
-	    }
-	    curproxy->contimeout = atol(args[1]);
-	}
-	else if (!strcmp(args[0], "clitimeout")) {  /*  client timeout */
-	    if (curproxy->clitimeout != 0) {
-		Alert("parsing [%s:%d] : clitimeout already specified. Continuing.\n",
-		      file, linenum);
-		continue;
-	    }
-	    if (*(args[1]) == 0) {
-		Alert("parsing [%s:%d] : <clitimeout> expects an integer <time_in_ms> as argument.\n",
-		      file, linenum);
-		return -1;
-	    }
-	    curproxy->clitimeout = atol(args[1]);
-	}
-	else if (!strcmp(args[0], "srvtimeout")) {  /*  server timeout */
-	    if (curproxy->srvtimeout != 0) {
-		Alert("parsing [%s:%d] : srvtimeout already specified. Continuing.\n",
-		      file, linenum);
-		continue;
-	    }
-	    if (*(args[1]) == 0) {
-		Alert("parsing [%s:%d] : <srvtimeout> expects an integer <time_in_ms> as argument.\n",
-		      file, linenum);
-		return -1;
-	    }
-	    curproxy->srvtimeout = atol(args[1]);
-	}
-	else if (!strcmp(args[0], "retries")) {  /* connection retries */
-	    if (*(args[1]) == 0) {
-		Alert("parsing [%s:%d] : <retries> expects an integer argument (dispatch counts for one).\n",
-		      file, linenum);
-		return -1;
-	    }
-	    curproxy->conn_retries = atol(args[1]);
-	}
-	else if (!strcmp(args[0], "redispatch") || !strcmp(args[0], "redisp")) {
-	    /* enable reconnections to dispatch */
-	    curproxy->options |= PR_O_REDISP;
-	}
-#ifdef TRANSPARENT
-	else if (!strcmp(args[0], "transparent")) {
-	    /* enable transparent proxy connections */
-	    curproxy->options |= PR_O_TRANSP;
-	}
-#endif
-	else if (!strcmp(args[0], "maxconn")) {  /* maxconn */
-	    if (*(args[1]) == 0) {
-		Alert("parsing [%s:%d] : <maxconn> expects an integer argument.\n",
-		      file, linenum);
-		return -1;
-	    }
-	    curproxy->maxconn = atol(args[1]);
-	}
-	else if (!strcmp(args[0], "grace")) {  /* grace time (ms) */
-	    if (*(args[1]) == 0) {
-		Alert("parsing [%s:%d] : <grace> expects a time in milliseconds.\n",
-		      file, linenum);
-		return -1;
-	    }
-	    curproxy->grace = atol(args[1]);
-	}
-	else if (!strcmp(args[0], "dispatch")) {  /* dispatch address */
-	    if (strchr(args[1], ':') == NULL) {
-		Alert("parsing [%s:%d] : <dispatch> expects <addr:port> as argument.\n",
-		      file, linenum);
-		return -1;
-	    }
-	    curproxy->dispatch_addr = *str2sa(args[1]);
-	}
-	else if (!strcmp(args[0], "balance")) {  /* set balancing with optionnal algorithm */
-	    if (*(args[1])) {
-		if (!strcmp(args[1], "roundrobin")) {
-		    curproxy->options |= PR_O_BALANCE_RR;
-		}
-		else {
-		    Alert("parsing [%s:%d] : <balance> supports 'roundrobin' options.\n",
-			  file, linenum);
-		    return -1;
-		}
-	    }
-	    else /* if no option is set, use round-robin by default */
-		curproxy->options |= PR_O_BALANCE_RR;
-	}
-	else if (!strcmp(args[0], "server")) {  /* server address */
-	    int cur_arg;
-
-	    if (strchr(args[2], ':') == NULL) {
-		Alert("parsing [%s:%d] : <server> expects <name> and <addr:port> as arguments.\n",
-		      file, linenum);
-		return -1;
-	    }
-	    if ((newsrv = (struct server *)calloc(1, sizeof(struct server))) == NULL) {
-		Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
-		exit(1);
-	    }
-	    newsrv->next = curproxy->srv;
-	    curproxy->srv = newsrv;
-	    newsrv->proxy = curproxy;
-	    newsrv->id = strdup(args[1]);
-	    newsrv->addr = *str2sa(args[2]);
-	    newsrv->state = SRV_RUNNING; /* early server setup */
-	    newsrv->curfd = -1; /* no health-check in progress */
-	    newsrv->inter = DEF_CHKINTR;
-	    newsrv->rise = DEF_RISETIME;
-	    newsrv->fall = DEF_FALLTIME;
-	    newsrv->health = newsrv->rise; /* up, but will fall down at first failure */
-	    cur_arg = 3;
-	    while (*args[cur_arg]) {
-		if (!strcmp(args[cur_arg], "cookie")) {
-		    newsrv->cookie = strdup(args[cur_arg + 1]);
-		    newsrv->cklen = strlen(args[cur_arg + 1]);
-		    cur_arg += 2;
-		}
-		else if (!strcmp(args[cur_arg], "rise")) {
-		    newsrv->rise = atol(args[cur_arg + 1]);
-		    newsrv->health = newsrv->rise;
-		    cur_arg += 2;
-		}
-		else if (!strcmp(args[cur_arg], "fall")) {
-		    newsrv->fall = atol(args[cur_arg + 1]);
-		    cur_arg += 2;
-		}
-		else if (!strcmp(args[cur_arg], "inter")) {
-		    newsrv->inter = atol(args[cur_arg + 1]);
-		    cur_arg += 2;
-		}
-		else if (!strcmp(args[cur_arg], "check")) {
-		    struct task *t;
-
-		    if ((t = pool_alloc(task)) == NULL) { /* disable this proxy for a while */
-			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
-			return -1;
-		    }
-
-		    t->next = t->prev = t->rqnext = NULL; /* task not in run queue yet */
-		    t->wq = LIST_HEAD(wait_queue); /* but already has a wait queue assigned */
-		    t->state = TASK_IDLE;
-		    t->process = process_chk;
-		    t->context = newsrv;
-
-		    if (curproxy->state != PR_STDISABLED) {
-			tv_delayfrom(&t->expire, &now, newsrv->inter); /* check this every ms */
-			task_queue(t);
-			task_wakeup(&rq, t);
-		    }
-
-		    cur_arg += 1;
-		}
-		else {
-		    Alert("parsing [%s:%d] : server %s only supports options 'cookie' and 'check'.\n",
-			  file, linenum, newsrv->id);
-		    return -1;
-		}
-	    }
-	    curproxy->nbservers++;
-	}
-	else if (!strcmp(args[0], "log")) {  /* syslog server address */
-	    struct sockaddr_in *sa;
-	    int facility;
-
-	    if (*(args[1]) == 0 || *(args[2]) == 0) {
-		Alert("parsing [%s:%d] : <log> expects <address> and <facility> as arguments.\n",
-		      file, linenum);
-		return -1;
-	    }
-
-	    for (facility = 0; facility < NB_LOG_FACILITIES; facility++)
-		if (!strcmp(log_facilities[facility], args[2]))
-		    break;
-
-	    if (facility >= NB_LOG_FACILITIES) {
-		Alert("parsing [%s:%d] : unknown log facility <%s>\n", file, linenum, args[2]);
-		exit(1);
-	    }
-
-	    sa = str2sa(args[1]);
-	    if (!sa->sin_port)
-		sa->sin_port = htons(SYSLOG_PORT);
-
-	    if (curproxy->logfac1 == -1) {
-		curproxy->logsrv1 = *sa;
-		curproxy->logfac1 = facility;
-	    }
-	    else if (curproxy->logfac2 == -1) {
-		curproxy->logsrv2 = *sa;
-		curproxy->logfac2 = facility;
-	    }
-	    else {
-		Alert("parsing [%s:%d] : too many syslog servers\n", file, linenum);
-		exit(1);
-	    }
-
-	}
-	else if (!strcmp(args[0], "cliexp") || !strcmp(args[0], "reqrep")) {  /* replace request header from a regex */
-	    regex_t *preg;
-
-	    if (*(args[1]) == 0 || *(args[2]) == 0) {
-		Alert("parsing [%s:%d] : <reqrep> expects <search> and <replace> as arguments.\n",
-		      file, linenum);
-		return -1;
-	    }
-
-	    preg = calloc(1, sizeof(regex_t));
-	    if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
-		Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
-		return -1;
-	    }
-
-	    chain_regex(&curproxy->req_exp, preg, ACT_REPLACE, strdup(args[2]));
-	}
-	else if (!strcmp(args[0], "reqdel")) {  /* delete request header from a regex */
-	    regex_t *preg;
-
-	    if (*(args[1]) == 0) {
-		Alert("parsing [%s:%d] : <reqdel> expects <regex> as an argument.\n",
-		      file, linenum);
-		return -1;
-	    }
-
-	    preg = calloc(1, sizeof(regex_t));
-	    if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
-		Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
-		return -1;
-	    }
-
-	    chain_regex(&curproxy->req_exp, preg, ACT_REMOVE, NULL);
-	}
-	else if (!strcmp(args[0], "reqdeny")) {  /* deny a request if a header matches this regex */
-	    regex_t *preg;
-
-	    if (*(args[1]) == 0) {
-		Alert("parsing [%s:%d] : <reqdeny> expects <regex> as an argument.\n",
-		      file, linenum);
-		return -1;
-	    }
-
-	    preg = calloc(1, sizeof(regex_t));
-	    if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
-		Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
-		return -1;
-	    }
-
-	    chain_regex(&curproxy->req_exp, preg, ACT_DENY, NULL);
-	}
-	else if (!strcmp(args[0], "reqallow")) {  /* allow a request if a header matches this regex */
-	    regex_t *preg;
-
-	    if (*(args[1]) == 0) {
-		Alert("parsing [%s:%d] : <reqallow> expects <regex> as an argument.\n",
-		      file, linenum);
-		return -1;
-	    }
-
-	    preg = calloc(1, sizeof(regex_t));
-	    if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
-		Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
-		return -1;
-	    }
-
-	    chain_regex(&curproxy->req_exp, preg, ACT_ALLOW, NULL);
-	}
-	else if (!strcmp(args[0], "reqadd")) {  /* add request header */
-	    if (curproxy->nb_reqadd >= MAX_NEWHDR) {
-		Alert("parsing [%s:%d] : too many `reqadd'. Continuing.\n",
-		      file, linenum);
-		continue;
-	    }
-
-	    if (*(args[1]) == 0) {
-		Alert("parsing [%s:%d] : <reqadd> expects <header> as an argument.\n",
-		      file, linenum);
-		return -1;
-	    }
-
-	    curproxy->req_add[curproxy->nb_reqadd++] = strdup(args[1]);
-	}
-	else if (!strcmp(args[0], "srvexp") || !strcmp(args[0], "rsprep")) {  /* replace response header from a regex */
-	    regex_t *preg;
-
-	    if (*(args[1]) == 0 || *(args[2]) == 0) {
-		Alert("parsing [%s:%d] : <rsprep> expects <search> and <replace> as arguments.\n",
-		      file, linenum);
-		return -1;
-	    }
-
-	    preg = calloc(1, sizeof(regex_t));
-	    if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
-		Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
-		return -1;
-	    }
-
-	    chain_regex(&curproxy->rsp_exp, preg, ACT_REPLACE, strdup(args[2]));
-	}
-	else if (!strcmp(args[0], "rspdel")) {  /* delete response header from a regex */
-	    regex_t *preg;
-
-	    if (*(args[1]) == 0) {
-		Alert("parsing [%s:%d] : <rspdel> expects <search> as an argument.\n",
-		      file, linenum);
-		return -1;
-	    }
-
-	    preg = calloc(1, sizeof(regex_t));
-	    if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
-		Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
-		return -1;
-	    }
-
-	    chain_regex(&curproxy->rsp_exp, preg, ACT_REMOVE, strdup(args[2]));
-	}
-	else if (!strcmp(args[0], "rspadd")) {  /* add response header */
-	    if (curproxy->nb_rspadd >= MAX_NEWHDR) {
-		Alert("parsing [%s:%d] : too many `rspadd'. Continuing.\n",
-		      file, linenum);
-		continue;
-	    }
-
-	    if (*(args[1]) == 0) {
-		Alert("parsing [%s:%d] : <rspadd> expects <header> as an argument.\n",
-		      file, linenum);
-		return -1;
-	    }
-
-	    curproxy->rsp_add[curproxy->nb_rspadd++] = strdup(args[1]);
-	}
-	else {
-	    Alert("parsing [%s:%d] : unknown keyword <%s>\n", file, linenum, args[0]);
-	    exit(1);
-	}
+	    
+	    
     }
     fclose(f);
 
@@ -3859,8 +4368,10 @@ int readcfgfile(char *file) {
  */
 void init(int argc, char **argv) {
     int i;
+    int arg_mode = 0;	/* MODE_DEBUG, ... */
     char *old_argv = *argv;
     char *tmp;
+    int cfg_maxconn = 0;	/* # of simultaneous connections, (-n) */
 
     if (1<<INTBITS != sizeof(int)*8) {
 	qfprintf(stderr,
@@ -3887,16 +4398,16 @@ void init(int argc, char **argv) {
 		exit(0);
 	    }
 	    else if (*flag == 'd')
-		mode |= MODE_DEBUG;
+		arg_mode |= MODE_DEBUG;
 	    else if (*flag == 'D')
-		mode |= MODE_DAEMON | MODE_QUIET;
+		arg_mode |= MODE_DAEMON | MODE_QUIET;
 	    else if (*flag == 'q')
-		mode |= MODE_QUIET;
+		arg_mode |= MODE_QUIET;
 #if STATTIME > 0
 	    else if (*flag == 's')
-		mode |= MODE_STATS;
+		arg_mode |= MODE_STATS;
 	    else if (*flag == 'l')
-		mode |= MODE_LOG;
+		arg_mode |= MODE_LOG;
 #endif
 	    else { /* >=2 args */
 		argv++; argc--;
@@ -3916,8 +4427,6 @@ void init(int argc, char **argv) {
 	    argv++; argc--;
     }
 
-    cfg_maxsock = cfg_maxconn * 2; /* each connection needs two sockets */
-
     if (!cfg_cfgfile)
 	usage(old_argv);
 
@@ -3928,22 +4437,49 @@ void init(int argc, char **argv) {
 	exit(1);
     }
 
+    if (cfg_maxconn > 0)
+	global.maxconn = cfg_maxconn;
+
+    if (global.maxconn == 0)
+	global.maxconn = DEFAULT_MAXCONN;
+
+    global.maxsock = global.maxconn * 2; /* each connection needs two sockets */
+
+    if (arg_mode & MODE_DEBUG) {
+	/* command line debug mode inhibits configuration mode */
+	global.mode &= ~(MODE_DAEMON | MODE_QUIET);
+    }
+    global.mode |= (arg_mode & (MODE_DAEMON | MODE_QUIET | MODE_DEBUG));
+
+    if ((global.mode & MODE_DEBUG) && (global.mode & (MODE_DAEMON | MODE_QUIET))) {
+	Warning("<debug> mode incompatible with <quiet> and <daemon>. Keeping <debug> only.\n");
+	global.mode &= ~(MODE_DAEMON | MODE_QUIET);
+    }
+
+    if ((global.nbproc > 1) && !(global.mode & MODE_DAEMON)) {
+	Warning("<nbproc> is only meaningful in daemon mode. Setting limit to 1 process.\n");
+	global.nbproc = 1;
+    }
+
+    if (global.nbproc < 1)
+	global.nbproc = 1;
+
     ReadEvent = (fd_set *)calloc(1,
 		sizeof(fd_set) *
-		(cfg_maxsock + FD_SETSIZE - 1) / FD_SETSIZE);
+		(global.maxsock + FD_SETSIZE - 1) / FD_SETSIZE);
     WriteEvent = (fd_set *)calloc(1,
 		sizeof(fd_set) *
-		(cfg_maxsock + FD_SETSIZE - 1) / FD_SETSIZE);
+		(global.maxsock + FD_SETSIZE - 1) / FD_SETSIZE);
     StaticReadEvent = (fd_set *)calloc(1,
 		sizeof(fd_set) *
-		(cfg_maxsock + FD_SETSIZE - 1) / FD_SETSIZE);
+		(global.maxsock + FD_SETSIZE - 1) / FD_SETSIZE);
     StaticWriteEvent = (fd_set *)calloc(1,
 		sizeof(fd_set) *
-		(cfg_maxsock + FD_SETSIZE - 1) / FD_SETSIZE);
+		(global.maxsock + FD_SETSIZE - 1) / FD_SETSIZE);
 
     fdtab = (struct fdtab *)calloc(1,
-		sizeof(struct fdtab) * (cfg_maxsock));
-    for (i = 0; i < cfg_maxsock; i++) {
+		sizeof(struct fdtab) * (global.maxsock));
+    for (i = 0; i < global.maxsock; i++) {
 	fdtab[i].state = FD_STCLOSE;
     }
 }
@@ -3968,7 +4504,7 @@ int start_proxies() {
 	    return -1;
 	}
 	
-	if (fd >= cfg_maxsock) {
+	if (fd >= global.maxsock) {
 	    Alert("socket(): not enough free sockets for proxy %s. Raise -n argument. Aborting.\n",
 		  curproxy->id);
 	    close(fd);
@@ -4016,12 +4552,14 @@ int start_proxies() {
 	listeners++;
 //	fprintf(stderr,"Proxy %s : socket bound.\n", curproxy->id);
 
-	sprintf(trash, "Proxy %s started.\n", curproxy->id);
-	
-	if (curproxy->logfac1 >= 0)
-	    send_syslog(&curproxy->logsrv1, curproxy->logfac1, LOG_INFO, trash);
-	if (curproxy->logfac2 >= 0)
-	    send_syslog(&curproxy->logsrv2, curproxy->logfac2, LOG_INFO, trash);
+//	  sprintf(trash, "Proxy %s started.\n", curproxy->id);
+//	  
+//	  if (curproxy->logfac1 >= 0)
+//	      send_syslog(&curproxy->logsrv1, curproxy->logfac1, LOG_INFO, trash);
+//	  if (curproxy->logfac2 >= 0)
+//	      send_syslog(&curproxy->logsrv2, curproxy->logfac2, LOG_INFO, trash);
+
+	send_log(curproxy, LOG_INFO, "Proxy %s started.\n", curproxy->id);
 	
     }
     return 0;
@@ -4031,21 +4569,7 @@ int start_proxies() {
 int main(int argc, char **argv) {
     init(argc, argv);
 
-    if (mode & MODE_DAEMON) {
-	int ret;
-
-	ret = fork();
-
-	if (ret > 0)
-	    exit(0); /* parent must leave */
-	else if (ret < 0) {
-	    Alert("[%s.main()] Cannot fork\n", argv[0]);
-	    exit(1); /* there has been an error */
-	}
-	setpgid(1, 0);
-    }
-
-    if (mode & MODE_QUIET) {
+    if (global.mode & MODE_QUIET) {
 	/* detach from the tty */
 	fclose(stdin); fclose(stdout); fclose(stderr);
 	close(0); close(1); close(2);
@@ -4063,6 +4587,48 @@ int main(int argc, char **argv) {
 
     if (start_proxies() < 0)
 	exit(1);
+
+    /* open log files */
+
+    /* chroot if needed */
+    if (global.chroot != NULL) {
+	if (chroot(global.chroot) == -1) {
+	    Alert("[%s.main()] Cannot chroot(%s).\n", argv[0], global.chroot);
+	    exit(1);
+	}
+	chdir("/");
+    }
+
+    /* setgid / setuid */
+    if (global.gid && setregid(global.gid, global.gid) == -1) {
+	Alert("[%s.main()] Cannot set gid %d.\n", argv[0], global.gid);
+	exit(1);
+    }
+
+    if (global.uid && setreuid(global.uid, global.uid) == -1) {
+	Alert("[%s.main()] Cannot set uid %d.\n", argv[0], global.uid);
+	exit(1);
+    }
+
+    if (global.mode & MODE_DAEMON) {
+	int ret = 0;
+	int proc;
+
+	/* the father launches the required number of processes */
+	for (proc = 0; proc < global.nbproc; proc++) {
+	    ret = fork();
+	    if (ret < 0) {
+		Alert("[%s.main()] Cannot fork.\n", argv[0]);
+		exit(1); /* there has been an error */
+	    }
+	    else if (ret == 0) /* child breaks here */
+		break;
+	}
+	if (proc == global.nbproc)
+	    exit(0); /* parent must leave */
+
+	setpgid(1, 0);
+    }
 
     select_loop();
 

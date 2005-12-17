@@ -1,5 +1,20 @@
+global
+	log	127.0.0.1 local0
+#	log	127.0.0.1 local1
+	maxconn	4000
+	uid	0
+	gid	0
+#	chroot	/tmp
+#	nbproc	4
+#	daemon
+#	debug
+#	quiet
+
 listen proxy1 0.0.0.0:8000
 	mode	http
+#	log	127.0.0.1 local0
+#	log	127.0.0.1 local1
+	log global
 	#mode	tcp
         cookie SERVERID insert indirect
 	balance roundrobin
@@ -7,11 +22,13 @@ listen proxy1 0.0.0.0:8000
 	#dispatch 127.0.0.1:31300
 	#dispatch 127.0.0.1:80
 	#dispatch 127.0.0.1:22
-	#server tuxlocal 127.0.0.1:80 cookie cookie1 check
+	#server nc 127.0.0.1:8080 cookie cookie1 check
+	server tuxlocal 127.0.0.1:80 cookie cookie1 check
 	#server tuxceleron 10.101.0.1:80 cookie cookie2 check
 	#server telnet 127.0.0.1:23
 	#server ssh 127.0.0.1:22
-	server local 127.0.0.1:3130 cookie cookie3 check
+	#server local 127.0.0.1:3130 cookie cookie3 check
+	#server ko 127.0.0.1:0 cookie cookie3 check
 	#server local 127.0.0.1:8001 cookie cookie3 check
 	#server local 127.0.0.1:3130
 	#server celeron 10.101.0.1:80 cookie srv1
@@ -28,6 +45,15 @@ listen proxy1 0.0.0.0:8000
 	#rspdel	^Server.*
 	#rspadd Set-Cookie:\ mycookie=0;\ path=/
 	#rsprep ^(Date:\ )([^,]*)(,\ )(.*) LaDate\ est:\ \4\ (\2)
+	# force connection:close
+	#reqidel ^Connection:
+	#rspidel	^Connection:
+	#reqadd	Connection:\ close
+	#rspadd	Connection:\ close
+	# processing options
+	#option	keepalive
+	option	forwardfor
+	option httplog
 	
 listen proxy1 0.0.0.0:8001
 	mode	http
