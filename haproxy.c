@@ -1,6 +1,6 @@
 /*
  * HA-Proxy : High Availability-enabled HTTP/TCP proxy
- * 2000-2002 - Willy Tarreau - willy AT meta-x DOT org.
+ * 2000-2003 - Willy Tarreau - willy AT meta-x DOT org.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,151 +15,7 @@
  *     related to missing setsid() (fixed in 1.1.15)
  *   - a proxy with an invalid config will prevent the startup even if disabled.
  *
- * ChangeLog :
- *
- * 2002/10/18 : 1.1.17
- *   - add the notion of "backup" servers, which are used only when all other
- *     servers are down.
- *   - make Set-Cookie return "" instead of "(null)" when the server has no
- *     cookie assigned (useful for backup servers).
- *   - "log" now supports an optionnal level name (info, notice, err ...) above
- *     which nothing is sent.
- *   - replaced some strncmp() with memcmp() for better efficiency.
- *   - added "capture cookie" option which logs client and/or server cookies
- *   - cleaned up/down messages and dump servers states upon SIGHUP
- *   - added a redirection feature for errors : "errorloc <errnum> <url>"
- *   - now we won't insist on connecting to a dead server, even with a cookie,
- *     unless option "persist" is specified.
- *   - added HTTP/408 response for client request time-out and HTTP/50[234] for
- *     server reply time-out or errors.
- * 2002/09/01 : 1.1.16
- *   - implement HTTP health checks when option "httpchk" is specified.
- * 2002/08/07 : 1.1.15
- *   - replaced setpgid()/setpgrp() with setsid() for better portability, because
- *     setpgrp() doesn't have the same meaning under Solaris, Linux, and OpenBSD.
- * 2002/07/20 : 1.1.14
- *   - added "postonly" cookie mode
- * 2002/07/15 : 1.1.13
- *   - tv_diff used inverted parameters which led to negative times !
- * 2002/07/13 : 1.1.12
- *   - fixed stats monitoring, and optimized some tv_* for most common cases.
- *   - replaced temporary 'newhdr' with 'trash' to reduce stack size
- *   - made HTTP errors more HTML-fiendly.
- *   - renamed strlcpy() to strlcpy2() because of a slightly difference between
- *     their behaviour (return value), to avoid confusion.
- *   - restricted HTTP messages to HTTP proxies only
- *   - added a 502 message when the connection has been refused by the server,
- *     to prevent clients from believing this is a zero-byte HTTP 0.9 reply.
- *   - changed 'Cache-control:' from 'no-cache="set-cookie"' to 'private' when
- *     inserting a cookie, because some caches (apache) don't understand it.
- *   - fixed processing of server headers when client is in SHUTR state
- * 2002/07/04 :
- *   - automatically close fd's 0,1 and 2 when going daemon ; setpgrp() after
- *     setpgid()
- * 2002/06/04 : 1.1.11
- *   - fixed multi-cookie handling in client request to allow clean deletion
- *     in insert+indirect mode. Now, only the server cookie is deleted and not
- *     all the header. Should now be compliant to RFC2109.
- *   - added a "nocache" option to "cookie" to specify that we explicitly want
- *     to add a "cache-control" header when we add a cookie.
- *     It is also possible to add an "Expires: <old-date>" to keep compatibility
- *     with old/broken caches.
- * 2002/05/10 : 1.1.10
- *   - if a cookie is used in insert+indirect mode, it's desirable that the
- *     the servers don't see it. It was not possible to remove it correctly
- *     with regexps, so now it's removed automatically.
- * 2002/04/19 : 1.1.9
- *   - don't use snprintf()'s return value as an end of message since it may
- *     be larger. This caused bus errors and segfaults in internal libc's
- *     getenv() during localtime() in send_log().
- *   - removed dead insecure send_syslog() function and all references to it.
- *   - fixed warnings on Solaris due to buggy implementation of isXXXX().
- * 2002/04/18 : 1.1.8
- *   - option "dontlognull"
- *   - fixed "double space" bug in config parser
- *   - fixed an uninitialized server field in case of dispatch
- *     with no existing server which could cause a segfault during
- *     logging.
- *   - the pid logged was always the father's, which was wrong for daemons.
- *   - fixed wrong level "LOG_INFO" for message "proxy started".
- * 2002/04/13 :
- *   - http logging is now complete :
- *     - ip:port, date, proxy, server
- *     - req_time, conn_time, hdr_time, tot_time
- *     - status, size, request
- *   - source address
- * 2002/04/12 : 1.1.7
- *   - added option forwardfor
- *   - added reqirep, reqidel, reqiallow, reqideny, rspirep, rspidel
- *   - added "log global" in "listen" section.
- * 2002/04/09 :
- *   - added a new "global" section :
- *     - logs
- *     - debug, quiet, daemon modes
- *     - uid, gid, chroot, nbproc, maxconn
- * 2002/04/08 : 1.1.6
- *   - regex are now chained and not limited anymore.
- *   - unavailable server now returns HTTP/502.
- *   - increased per-line args limit to 40
- *   - added reqallow/reqdeny to block some request on matches
- *   - added HTTP 400/403 responses
- * 2002/04/03 : 1.1.5
- *   - connection logging displayed incorrect source address.
- *   - added proxy start/stop and server up/down log events.
- *   - replaced log message short buffers with larger trash.
- *   - enlarged buffer to 8 kB and replace buffer to 4 kB.
- * 2002/03/25 : 1.1.4
- *   - made rise/fall/interval time configurable
- * 2002/03/22 : 1.1.3
- *   - fixed a bug : cr_expire and cw_expire were inverted in CL_STSHUT[WR]
- *     which could lead to loops.
- * 2002/03/21 : 1.1.2
- *   - fixed a bug in buffer management where we could have a loop
- *     between event_read() and process_{cli|srv} if R==BUFSIZE-MAXREWRITE.
- *     => implemented an adjustable buffer limit.
- *   - fixed a bug : expiration of tasks in wait queue timeout is used again,
- *     and running tasks are skipped.
- *   - added some debug lines for accept events.
- *   - send warnings for servers up/down.
- * 2002/03/12 : 1.1.1
- *   - fixed a bug in total failure handling
- *   - fixed a bug in timestamp comparison within same second (tv_cmp_ms)
- * 2002/03/10 : 1.1.0
- *   - fixed a few timeout bugs
- *   - rearranged the task scheduler subsystem to improve performance,
- *     add new tasks, and make it easier to later port to librt ;
- *   - allow multiple accept() for one select() wake up ;
- *   - implemented internal load balancing with basic health-check ;
- *   - cookie insertion and header add/replace/delete, with better strings
- *     support.
- * 2002/03/08
- *   - reworked buffer handling to fix a few rewrite bugs, and
- *     improve overall performance.
- *   - implement the "purge" option to delete server cookies in direct mode.
- * 2002/03/07
- *   - fixed some error cases where the maxfd was not decreased.
- * 2002/02/26
- *   - now supports transparent proxying, at least on linux 2.4.
- * 2002/02/12
- *   - soft stop works again (fixed select timeout computation).
- *   - it seems that TCP proxies sometimes cannot timeout.
- *   - added a "quiet" mode.
- *   - enforce file descriptor limitation on socket() and accept().
- * 2001/12/30 : release of version 1.0.2 : fixed a bug in header processing
- * 2001/12/19 : release of version 1.0.1 : no MSG_NOSIGNAL on solaris
- * 2001/12/16 : release of version 1.0.0.
- * 2001/12/16 : added syslog capability for each accepted connection.
- * 2001/11/19 : corrected premature end of files and occasional SIGPIPE.
- * 2001/10/31 : added health-check type servers (mode health) which replies OK then closes.
- * 2001/10/30 : added the ability to support standard TCP proxies and HTTP proxies
- * 		with or without cookies (use keyword http for this).
- * 2001/09/01 : added client/server header replacing with regexps.
- * 		eg:
- *			cliexp ^(Host:\ [^:]*).* Host:\ \1:80
- *			srvexp ^Server:\ .* Server:\ Apache
- * 2000/11/29 : first fully working release with complete FSMs and timeouts.
- * 2000/11/28 : major rewrite
- * 2000/11/26 : first write
+ * ChangeLog has moved to the CHANGELOG file.
  *
  * TODO:
  *   - handle properly intermediate incomplete server headers. Done ?
@@ -191,8 +47,8 @@
 #include <linux/netfilter_ipv4.h>
 #endif
 
-#define HAPROXY_VERSION "1.1.17"
-#define HAPROXY_DATE	"2002/10/18"
+#define HAPROXY_VERSION "1.1.18"
+#define HAPROXY_DATE	"2003/04/02"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -364,12 +220,43 @@ int strlcpy2(char *dst, const char *src, int size) {
 
 
 /* various session flags */
-#define SN_DIRECT	1	/* connection made on the server matching the client cookie */
-#define SN_CLDENY	2	/* a client header matches a deny regex */
-#define SN_CLALLOW	4	/* a client header matches an allow regex */
-#define SN_SVDENY	8	/* a server header matches a deny regex */
-#define SN_SVALLOW	16	/* a server header matches an allow regex */
-#define	SN_POST		32	/* the request was an HTTP POST */
+#define SN_DIRECT	0x00000001	/* connection made on the server matching the client cookie */
+#define SN_CLDENY	0x00000002	/* a client header matches a deny regex */
+#define SN_CLALLOW	0x00000004	/* a client header matches an allow regex */
+#define SN_SVDENY	0x00000008	/* a server header matches a deny regex */
+#define SN_SVALLOW	0x00000010	/* a server header matches an allow regex */
+#define	SN_POST		0x00000020	/* the request was an HTTP POST */
+
+#define	SN_CK_NONE	0x00000000	/* this session had no cookie */
+#define	SN_CK_INVALID	0x00000040	/* this session had a cookie which matches no server */
+#define	SN_CK_DOWN	0x00000080	/* this session had cookie matching a down server */
+#define	SN_CK_VALID	0x000000C0	/* this session had cookie matching a valid server */
+#define	SN_CK_MASK	0x000000C0	/* mask to get this session's cookie flags */
+#define SN_CK_SHIFT	6		/* bit shift */
+
+#define SN_ERR_CLITO	0x00000100	/* client time-out */
+#define SN_ERR_CLICL	0x00000200	/* client closed (read/write error) */
+#define SN_ERR_SRVTO	0x00000300	/* server time-out, connect time-out */
+#define SN_ERR_SRVCL	0x00000400	/* server closed (connect/read/write error) */
+#define SN_ERR_PRXCOND	0x00000500	/* the proxy decided to close (deny...) */
+#define SN_ERR_MASK	0x00000700	/* mask to get only session error flags */
+#define SN_ERR_SHIFT	8		/* bit shift */
+
+#define SN_FINST_R	0x00001000	/* session ended during client request */
+#define SN_FINST_C	0x00002000	/* session ended during server connect */
+#define SN_FINST_H	0x00003000	/* session ended during server headers */
+#define SN_FINST_D	0x00004000	/* session ended during data phase */
+#define SN_FINST_L	0x00005000	/* session ended while pushing last data to client */
+#define SN_FINST_MASK	0x00007000	/* mask to get only final session state flags */
+#define	SN_FINST_SHIFT	12		/* bit shift */
+
+#define	SN_SCK_NONE	0x00000000	/* no set-cookie seen for the server cookie */
+#define	SN_SCK_DELETED	0x00010000	/* existing set-cookie deleted or changed */
+#define	SN_SCK_INSERTED	0x00020000	/* new set-cookie inserted or changed existing one */
+#define	SN_SCK_SEEN	0x00040000	/* set-cookie seen for the server cookie */
+#define	SN_SCK_MASK	0x00070000	/* mask to get the set-cookie field */
+#define	SN_SCK_SHIFT	16		/* bit shift */
+
 
 /* different possible states for the client side */
 #define CL_STHEADERS	0
@@ -409,6 +296,7 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define ACT_REPLACE	1	/* replace the matching header */
 #define ACT_REMOVE	2	/* remove the matching header */
 #define ACT_DENY	3	/* deny the request */
+#define ACT_PASS	4	/* pass this header without allowing or denying the request */
 
 /* configuration sections */
 #define CFG_NONE	0
@@ -630,7 +518,7 @@ static regmatch_t pmatch[MAX_MATCH];  /* rm_so, rm_eo for regular expressions */
 static char trash[BUFSIZE];
 
 /*
- * Syslog facilities and levels
+ * Syslog facilities and levels. Conforming to RFC3164.
  */
 
 #define MAX_SYSLOG_LEN		1024
@@ -655,6 +543,14 @@ const char *log_levels[NB_LOG_LEVELS] = {
 
 const char *monthname[12] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
 			     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+
+const char sess_term_cond[8]  = "-cCsSP67";	/* normal, CliTo, CliErr, SrvTo, SrvErr, PxErr, unknown */
+const char sess_fin_state[8]  = "-RCHDL67";	/* cliRequest, srvConnect, srvHeader, Data, Last, unknown */
+const char sess_cookie[4]     = "NIDV";		/* No cookie, Invalid cookie, cookie for a Down server, Valid cookie */
+const char sess_set_cookie[8] = "N1I3PD5R";	/* No set-cookie, unknown, Set-Cookie Inserted, unknown,
+					    	   Set-cookie seen and left unchanged (passive), Set-cookie Deleted,
+						   unknown, Set-cookie Rewritten */
+
 #define MAX_HOSTNAME_LEN	32
 static char hostname[MAX_HOSTNAME_LEN] = "";
 
@@ -869,7 +765,7 @@ struct sockaddr_in *str2sa(char *str) {
 	struct hostent *he;
 
 	if ((he = gethostbyname(str)) == NULL) {
-	    Alert("Invalid server name: <%s>\n", str);
+	    Alert("Invalid server name: '%s'\n", str);
 	}
 	else
 	    sa.sin_addr = *(struct in_addr *) *(he->h_addr_list);
@@ -1958,7 +1854,7 @@ void sess_log(struct session *s) {
     if (p->to_log & LW_DATE) {
 	struct tm *tm = localtime(&s->logs.tv_accept.tv_sec);
 
-	send_log(p, LOG_INFO, "%d.%d.%d.%d:%d [%02d/%s/%04d:%02d:%02d:%02d] %s %s %d/%d/%d/%d %d %lld %s %s \"%s\"\n",
+	send_log(p, LOG_INFO, "%d.%d.%d.%d:%d [%02d/%s/%04d:%02d:%02d:%02d] %s %s %d/%d/%d/%d %d %lld %s %s %c%c%c%c \"%s\"\n",
 		 pn[0], pn[1], pn[2], pn[3], ntohs(s->cli_addr.sin_port),
 		 tm->tm_mday, monthname[tm->tm_mon], tm->tm_year+1900,
 		 tm->tm_hour, tm->tm_min, tm->tm_sec,
@@ -1970,10 +1866,14 @@ void sess_log(struct session *s) {
 		 s->logs.status, s->logs.bytes,
 		 s->logs.cli_cookie ? s->logs.cli_cookie : "-",
 		 s->logs.srv_cookie ? s->logs.srv_cookie : "-",
+		 sess_term_cond[(s->flags & SN_ERR_MASK) >> SN_ERR_SHIFT],
+		 sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT],
+		 (p->options & PR_O_COOK_ANY) ? sess_cookie[(s->flags & SN_CK_MASK) >> SN_CK_SHIFT] : '-',
+		 (p->options & PR_O_COOK_ANY) ? sess_set_cookie[(s->flags & SN_SCK_MASK) >> SN_SCK_SHIFT] : '-',
 		 uri);
     }
     else {
-	send_log(p, LOG_INFO, "%d.%d.%d.%d:%d %s %s %d/%d/%d/%d %d %lld %s %s \"%s\"\n",
+	send_log(p, LOG_INFO, "%d.%d.%d.%d:%d %s %s %d/%d/%d/%d %d %lld %s %s %c%c%c%c \"%s\"\n",
 		 pn[0], pn[1], pn[2], pn[3], ntohs(s->cli_addr.sin_port),
 		 pxid, srv,
 		 s->logs.t_request,
@@ -1983,6 +1883,10 @@ void sess_log(struct session *s) {
 		 s->logs.status, s->logs.bytes,
 		 s->logs.cli_cookie ? s->logs.cli_cookie : "-",
 		 s->logs.srv_cookie ? s->logs.srv_cookie : "-",
+		 sess_term_cond[(s->flags & SN_ERR_MASK) >> SN_ERR_SHIFT],
+		 sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT],
+		 (p->options & PR_O_COOK_ANY) ? sess_cookie[(s->flags & SN_CK_MASK) >> SN_CK_SHIFT] : '-',
+		 (p->options & PR_O_COOK_ANY) ? sess_set_cookie[(s->flags & SN_SCK_MASK) >> SN_SCK_SHIFT] : '-',
 		 uri);
     }
 
@@ -2188,13 +2092,13 @@ int event_srv_chk_w(int fd) {
     else {
 	if (s->proxy->options & PR_O_HTTP_CHK) {
 	    int ret;
-	    /* we want to check if this host replies to "OPTIONS / HTTP/1.0"
+	    /* we want to check if this host replies to "OPTIONS * HTTP/1.0"
 	     * so we'll send the request, and won't wake the checker up now.
 	     */
 #ifndef MSG_NOSIGNAL
-	    ret = send(fd, "OPTIONS / HTTP/1.0\r\n\r\n", 22, MSG_DONTWAIT);
+	    ret = send(fd, "OPTIONS * HTTP/1.0\r\n\r\n", 22, MSG_DONTWAIT);
 #else
-	    ret = send(fd, "OPTIONS / HTTP/1.0\r\n\r\n", 22, MSG_DONTWAIT | MSG_NOSIGNAL);
+	    ret = send(fd, "OPTIONS * HTTP/1.0\r\n\r\n", 22, MSG_DONTWAIT | MSG_NOSIGNAL);
 #endif
 	    if (ret == 22) {
 		FD_SET(fd, StaticReadEvent);   /* prepare for reading reply */
@@ -2390,6 +2294,10 @@ int process_cli(struct session *t) {
 		    /* no need to go further */
 		    t->logs.status = 403;
 		    client_retnclose(t, t->proxy->errmsg.len403, t->proxy->errmsg.msg403);
+		    if (!(t->flags & SN_ERR_MASK))
+			t->flags |= SN_ERR_PRXCOND;
+		    if (!(t->flags & SN_FINST_MASK))
+			t->flags |= SN_FINST_R;
 		    return 1;
 		}
 
@@ -2454,6 +2362,10 @@ int process_cli(struct session *t) {
 		    Alert("HTTP logging : out of memory.\n");
 		    t->logs.status = 500;
 		    client_retnclose(t, t->proxy->errmsg.len500, t->proxy->errmsg.msg500);
+		    if (!(t->flags & SN_ERR_MASK))
+			t->flags |= SN_ERR_PRXCOND;
+		    if (!(t->flags & SN_FINST_MASK))
+			t->flags |= SN_FINST_R;
 		    return 1;
 		}
 		
@@ -2507,6 +2419,8 @@ int process_cli(struct session *t) {
 			case ACT_DENY:
 			    if (!(t->flags & SN_CLALLOW))
 				t->flags |= SN_CLDENY;
+			    break;
+			case ACT_PASS: /* we simply don't deny this one */
 			    break;
 			}
 			break;
@@ -2606,12 +2520,21 @@ int process_cli(struct session *t) {
 				srv = srv->next;
 			    }
 
-			    if (srv &&
-				(srv->state & SRV_RUNNING || t->proxy->options & PR_O_PERSIST)) {
+			    if (!srv) {
+				t->flags &= ~SN_CK_MASK;
+				t->flags |= SN_CK_INVALID;
+			    }
+			    else if (srv->state & SRV_RUNNING || t->proxy->options & PR_O_PERSIST) {
 				/* we found the server and it's usable */
-				t->flags |= SN_DIRECT;
+				t->flags &= ~SN_CK_MASK;
+				t->flags |= SN_CK_VALID | SN_DIRECT;
 				t->srv = srv;
 			    }
+			    else {
+				t->flags &= ~SN_CK_MASK;
+				t->flags |= SN_CK_DOWN;
+			    }
+
 			    /* if this cookie was set in insert+indirect mode, then it's better that the
 			     * server never sees it.
 			     */
@@ -2693,16 +2616,21 @@ int process_cli(struct session *t) {
 	if (req->l >= req->rlim - req->data) {
 	    t->logs.status = 400;
 	    client_retnclose(t, t->proxy->errmsg.len400, t->proxy->errmsg.msg400);
+	    if (!(t->flags & SN_ERR_MASK))
+		t->flags |= SN_ERR_PRXCOND;
+	    if (!(t->flags & SN_FINST_MASK))
+		t->flags |= SN_FINST_R;
 	    return 1;
 	}
 	else if (t->res_cr == RES_ERROR || t->res_cr == RES_NULL) {
-	    /* read error, or last read : give up.
-	     * since we are in header mode, if there's no space left for headers, we
-	     * won't be able to free more later, so the session will never terminate.
-	     */
+	    /* read error, or last read : give up.  */
 	    tv_eternity(&t->crexpire);
 	    fd_delete(t->cli_fd);
 	    t->cli_state = CL_STCLOSE;
+	    if (!(t->flags & SN_ERR_MASK))
+		t->flags |= SN_ERR_CLICL;
+	    if (!(t->flags & SN_FINST_MASK))
+		t->flags |= SN_FINST_R;
 	    return 1;
 	}
 	else if (tv_cmp2_ms(&t->crexpire, &now) <= 0) {
@@ -2711,6 +2639,10 @@ int process_cli(struct session *t) {
 	     */
 	    t->logs.status = 408;
 	    client_retnclose(t, t->proxy->errmsg.len408, t->proxy->errmsg.msg408);
+	    if (!(t->flags & SN_ERR_MASK))
+		t->flags |= SN_ERR_CLITO;
+	    if (!(t->flags & SN_FINST_MASK))
+		t->flags |= SN_FINST_R;
 	    return 1;
 	}
 
@@ -2723,11 +2655,14 @@ int process_cli(struct session *t) {
 	    tv_eternity(&t->cwexpire);
 	    fd_delete(t->cli_fd);
 	    t->cli_state = CL_STCLOSE;
+	    if (!(t->flags & SN_ERR_MASK))
+		t->flags |= SN_ERR_CLICL;
+	    if (!(t->flags & SN_FINST_MASK))
+		t->flags |= SN_FINST_D;
 	    return 1;
 	}
-	/* read timeout, last read, or end of server write */
-	else if (t->res_cr == RES_NULL || s == SV_STSHUTW || s == SV_STCLOSE
-		 || tv_cmp2_ms(&t->crexpire, &now) <= 0) {
+	/* last read, or end of server write */
+	else if (t->res_cr == RES_NULL || s == SV_STSHUTW || s == SV_STCLOSE) {
 	    FD_CLR(t->cli_fd, StaticReadEvent);
 	    //	    if (req->l == 0) /* nothing to write on the server side */
 	    //		FD_CLR(t->srv_fd, StaticWriteEvent);
@@ -2736,13 +2671,38 @@ int process_cli(struct session *t) {
 	    t->cli_state = CL_STSHUTR;
 	    return 1;
 	}	
-	/* write timeout, or last server read and buffer empty */
-	else if (((s == SV_STSHUTR || s == SV_STCLOSE) && (rep->l == 0))
-		 ||(tv_cmp2_ms(&t->cwexpire, &now) <= 0)) {
+	/* last server read and buffer empty */
+	else if ((s == SV_STSHUTR || s == SV_STCLOSE) && (rep->l == 0)) {
 	    FD_CLR(t->cli_fd, StaticWriteEvent);
 	    tv_eternity(&t->cwexpire);
 	    shutdown(t->cli_fd, SHUT_WR);
 	    t->cli_state = CL_STSHUTW;
+	    return 1;
+	}
+	/* read timeout */
+	else if (tv_cmp2_ms(&t->crexpire, &now) <= 0) {
+	    FD_CLR(t->cli_fd, StaticReadEvent);
+	    //	    if (req->l == 0) /* nothing to write on the server side */
+	    //		FD_CLR(t->srv_fd, StaticWriteEvent);
+	    tv_eternity(&t->crexpire);
+	    shutdown(t->cli_fd, SHUT_RD);
+	    t->cli_state = CL_STSHUTR;
+	    if (!(t->flags & SN_ERR_MASK))
+		t->flags |= SN_ERR_CLITO;
+	    if (!(t->flags & SN_FINST_MASK))
+		t->flags |= SN_FINST_D;
+	    return 1;
+	}	
+	/* write timeout */
+	else if (tv_cmp2_ms(&t->cwexpire, &now) <= 0) {
+	    FD_CLR(t->cli_fd, StaticWriteEvent);
+	    tv_eternity(&t->cwexpire);
+	    shutdown(t->cli_fd, SHUT_WR);
+	    t->cli_state = CL_STSHUTW;
+	    if (!(t->flags & SN_ERR_MASK))
+		t->flags |= SN_ERR_CLICL;
+	    if (!(t->flags & SN_FINST_MASK))
+		t->flags |= SN_FINST_D;
 	    return 1;
 	}
 
@@ -2784,12 +2744,30 @@ int process_cli(struct session *t) {
 	return 0; /* other cases change nothing */
     }
     else if (c == CL_STSHUTR) {
-	if ((t->res_cw == RES_ERROR) ||
-	    ((s == SV_STSHUTR || s == SV_STCLOSE) && (rep->l == 0))
-	    || (tv_cmp2_ms(&t->cwexpire, &now) <= 0)) {
+	if (t->res_cw == RES_ERROR) {
 	    tv_eternity(&t->cwexpire);
 	    fd_delete(t->cli_fd);
 	    t->cli_state = CL_STCLOSE;
+	    if (!(t->flags & SN_ERR_MASK))
+		t->flags |= SN_ERR_CLICL;
+	    if (!(t->flags & SN_FINST_MASK))
+		t->flags |= SN_FINST_D;
+	    return 1;
+	}
+	else if ((s == SV_STSHUTR || s == SV_STCLOSE) && (rep->l == 0)) {
+	    tv_eternity(&t->cwexpire);
+	    fd_delete(t->cli_fd);
+	    t->cli_state = CL_STCLOSE;
+	    return 1;
+	}
+	else if (tv_cmp2_ms(&t->cwexpire, &now) <= 0) {
+	    tv_eternity(&t->cwexpire);
+	    fd_delete(t->cli_fd);
+	    t->cli_state = CL_STCLOSE;
+	    if (!(t->flags & SN_ERR_MASK))
+		t->flags |= SN_ERR_CLITO;
+	    if (!(t->flags & SN_FINST_MASK))
+		t->flags |= SN_FINST_D;
 	    return 1;
 	}
 	else if ((rep->l == 0) ||
@@ -2811,11 +2789,30 @@ int process_cli(struct session *t) {
 	return 0;
     }
     else if (c == CL_STSHUTW) {
-	if (t->res_cr == RES_ERROR || t->res_cr == RES_NULL || s == SV_STSHUTW ||
-	    s == SV_STCLOSE || tv_cmp2_ms(&t->crexpire, &now) <= 0) {
+	if (t->res_cr == RES_ERROR) {
 	    tv_eternity(&t->crexpire);
 	    fd_delete(t->cli_fd);
 	    t->cli_state = CL_STCLOSE;
+	    if (!(t->flags & SN_ERR_MASK))
+		t->flags |= SN_ERR_CLICL;
+	    if (!(t->flags & SN_FINST_MASK))
+		t->flags |= SN_FINST_D;
+	    return 1;
+	}
+	else if (t->res_cr == RES_NULL || s == SV_STSHUTW || s == SV_STCLOSE) {
+	    tv_eternity(&t->crexpire);
+	    fd_delete(t->cli_fd);
+	    t->cli_state = CL_STCLOSE;
+	    return 1;
+	}
+	else if (tv_cmp2_ms(&t->crexpire, &now) <= 0) {
+	    tv_eternity(&t->crexpire);
+	    fd_delete(t->cli_fd);
+	    t->cli_state = CL_STCLOSE;
+	    if (!(t->flags & SN_ERR_MASK))
+		t->flags |= SN_ERR_CLITO;
+	    if (!(t->flags & SN_FINST_MASK))
+		t->flags |= SN_FINST_D;
 	    return 1;
 	}
 	else if (req->l >= req->rlim - req->data) {
@@ -2875,6 +2872,10 @@ int process_srv(struct session *t) {
 		 (c == CL_STSHUTR && t->req->l == 0)) { /* give up */
 	    tv_eternity(&t->cnexpire);
 	    t->srv_state = SV_STCLOSE;
+	    if (!(t->flags & SN_ERR_MASK))
+		t->flags |= SN_ERR_CLICL;
+	    if (!(t->flags & SN_FINST_MASK))
+		t->flags |= SN_FINST_C;
 	    return 1;
 	}
 	else { /* go to SV_STCONN */
@@ -2887,6 +2888,10 @@ int process_srv(struct session *t) {
 		    if ((t->proxy->options & PR_O_REDISP) && (t->conn_retries == 0)) {
 			t->flags &= ~SN_DIRECT; /* ignore cookie and force to use the dispatcher */
 			t->srv = NULL; /* it's left to the dispatcher to choose a server */
+			if ((t->flags & SN_CK_MASK) == SN_CK_VALID) {
+			    t->flags &= ~SN_CK_MASK;
+			    t->flags |= SN_CK_DOWN;
+			}
 		    }
 
 		    if (connect_server(t) == 0) {
@@ -2901,6 +2906,10 @@ int process_srv(struct session *t) {
 		    t->logs.status = 503;
 		    if (t->proxy->mode == PR_MODE_HTTP)
 			client_return(t, t->proxy->errmsg.len503, t->proxy->errmsg.msg503);
+		    if (!(t->flags & SN_ERR_MASK))
+			t->flags |= SN_ERR_SRVCL;
+		    if (!(t->flags & SN_FINST_MASK))
+			t->flags |= SN_FINST_C;
 		}
 	    }
 	    return 1;
@@ -2922,6 +2931,10 @@ int process_srv(struct session *t) {
 		    if ((t->proxy->options & PR_O_REDISP) && (t->conn_retries == 0)) {
 			t->flags &= ~SN_DIRECT; /* ignore cookie and force to use the dispatcher */
 			t->srv = NULL; /* it's left to the dispatcher to choose a server */
+			if ((t->flags & SN_CK_MASK) == SN_CK_VALID) {
+			    t->flags &= ~SN_CK_MASK;
+			    t->flags |= SN_CK_DOWN;
+			}
 		    }
 		    if (connect_server(t) == 0)
 			return 0; /* no state changed */
@@ -2932,6 +2945,10 @@ int process_srv(struct session *t) {
 	    t->logs.status = 503;
 	    if (t->proxy->mode == PR_MODE_HTTP)
 		client_return(t, t->proxy->errmsg.len503, t->proxy->errmsg.msg503);
+	    if (!(t->flags & SN_ERR_MASK))
+		t->flags |= SN_ERR_SRVCL;
+	    if (!(t->flags & SN_FINST_MASK))
+		t->flags |= SN_FINST_C;
 	    return 1;
 	}
 	else { /* no error or write 0 */
@@ -2962,7 +2979,6 @@ int process_srv(struct session *t) {
 	}
     }
     else if (s == SV_STHEADERS) { /* receiving server headers */
-
 	/* now parse the partial (or complete) headers */
 	while (rep->lr < rep->r) { /* this loop only sees one header at each iteration */
 	    char *ptr;
@@ -2989,6 +3005,8 @@ int process_srv(struct session *t) {
 		    len = sprintf(trash, "Set-Cookie: %s=%s; path=/\r\n",
 				  t->proxy->cookie_name,
 				  t->srv->cookie ? t->srv->cookie : "");
+
+		    t->flags |= SN_SCK_INSERTED;
 
 		    /* Here, we will tell an eventual cache on the client side that we don't
 		     * want it to cache this reply because HTTP/1.0 caches also cache cookies !
@@ -3088,6 +3106,8 @@ int process_srv(struct session *t) {
 			    if (!(t->flags & SN_SVALLOW))
 				t->flags |= SN_SVDENY;
 			    break;
+			case ACT_PASS: /* we simply don't deny this one */
+			    break;
 			}
 			break;
 		    }
@@ -3153,6 +3173,7 @@ int process_srv(struct session *t) {
 		    if ((p2 - p1 == t->proxy->cookie_len) && (t->proxy->cookie_name != NULL) &&
 			(memcmp(p1, t->proxy->cookie_name, p2 - p1) == 0)) {
 			/* Cool... it's the right one */
+			t->flags |= SN_SCK_SEEN;
 			
 			/* If the cookie is in insert mode on a known server, we'll delete
 			 * this occurrence because we'll insert another one later.
@@ -3162,12 +3183,14 @@ int process_srv(struct session *t) {
 			    ((t->flags & SN_DIRECT) && (t->proxy->options & PR_O_COOK_IND))) {
 			    /* this header must be deleted */
 			    delete_header = 1;
+			    t->flags |= SN_SCK_DELETED;
 			}
 			else if ((t->srv) && (t->proxy->options & PR_O_COOK_RW)) {
 			    /* replace bytes p3->p4 with the cookie name associated
 			     * with this server since we know it.
 			     */
 			    buffer_replace2(rep, p3, p4, t->srv->cookie, t->srv->cklen);
+			    t->flags |= SN_SCK_INSERTED | SN_SCK_DELETED;
 			}
 			break;
 		    }
@@ -3211,6 +3234,10 @@ int process_srv(struct session *t) {
 	    t->srv_state = SV_STCLOSE;
 	    t->logs.status = 502;
 	    client_return(t, t->proxy->errmsg.len502, t->proxy->errmsg.msg502);
+	    if (!(t->flags & SN_ERR_MASK))
+		t->flags |= SN_ERR_SRVCL;
+	    if (!(t->flags & SN_FINST_MASK))
+		t->flags |= SN_FINST_H;
 	    return 1;
 	}
 	/* end of client write or end of server read.
@@ -3233,20 +3260,42 @@ int process_srv(struct session *t) {
 	    t->srv_state = SV_STCLOSE;
 	    t->logs.status = 504;
 	    client_return(t, t->proxy->errmsg.len504, t->proxy->errmsg.msg504);
+	    if (!(t->flags & SN_ERR_MASK))
+		t->flags |= SN_ERR_SRVTO;
+	    if (!(t->flags & SN_FINST_MASK))
+		t->flags |= SN_FINST_H;
 	    return 1;
 	    
 	}	
-	/* write timeout, or last client read and buffer empty */
+	/* last client read and buffer empty */
 	/* FIXME!!! here, we don't want to switch to SHUTW if the
 	 * client shuts read too early, because we may still have
 	 * some work to do on the headers.
+	 * The side-effect is that if the client completely closes its
+	 * connection during SV_STHEADER, the connection to the server
+	 * is kept until a response comes back or the timeout is reached.
 	 */
-	else if (((/*c == CL_STSHUTR ||*/ c == CL_STCLOSE) && (req->l == 0)) ||
-		 (FD_ISSET(t->srv_fd, StaticWriteEvent) && tv_cmp2_ms(&t->swexpire, &now) <= 0)) {
+	else if ((/*c == CL_STSHUTR ||*/ c == CL_STCLOSE) && (req->l == 0)) {
 	    FD_CLR(t->srv_fd, StaticWriteEvent);
 	    tv_eternity(&t->swexpire);
 	    shutdown(t->srv_fd, SHUT_WR);
 	    t->srv_state = SV_STSHUTW;
+	    return 1;
+	}
+	/* write timeout */
+	/* FIXME!!! here, we don't want to switch to SHUTW if the
+	 * client shuts read too early, because we may still have
+	 * some work to do on the headers.
+	 */
+	else if (FD_ISSET(t->srv_fd, StaticWriteEvent) && tv_cmp2_ms(&t->swexpire, &now) <= 0) {
+	    FD_CLR(t->srv_fd, StaticWriteEvent);
+	    tv_eternity(&t->swexpire);
+	    shutdown(t->srv_fd, SHUT_WR);
+	    t->srv_state = SV_STSHUTW;
+	    if (!(t->flags & SN_ERR_MASK))
+		t->flags |= SN_ERR_SRVTO;
+	    if (!(t->flags & SN_FINST_MASK))
+		t->flags |= SN_FINST_H;
 	    return 1;
 	}
 
@@ -3281,25 +3330,42 @@ int process_srv(struct session *t) {
 	    tv_eternity(&t->swexpire);
 	    fd_delete(t->srv_fd);
 	    t->srv_state = SV_STCLOSE;
+	    if (!(t->flags & SN_ERR_MASK))
+		t->flags |= SN_ERR_SRVCL;
+	    if (!(t->flags & SN_FINST_MASK))
+		t->flags |= SN_FINST_D;
 	    return 1;
 	}
-	/* read timeout, last read, or end of client write */
-	else if (t->res_sr == RES_NULL || c == CL_STSHUTW || c == CL_STCLOSE
-		 || tv_cmp2_ms(&t->srexpire, &now) <= 0) {
+	/* last read, or end of client write */
+	else if (t->res_sr == RES_NULL || c == CL_STSHUTW || c == CL_STCLOSE) {
 	    FD_CLR(t->srv_fd, StaticReadEvent);
 	    tv_eternity(&t->srexpire);
 	    shutdown(t->srv_fd, SHUT_RD);
 	    t->srv_state = SV_STSHUTR;
 	    return 1;
-	    
 	}	
-	/* write timeout, or last client read and buffer empty */
-	else if (((c == CL_STSHUTR || c == CL_STCLOSE) && (req->l == 0))
-		 || (tv_cmp2_ms(&t->swexpire, &now) <= 0)) {
+	/* read timeout */
+	else if (tv_cmp2_ms(&t->srexpire, &now) <= 0) {
+	    FD_CLR(t->srv_fd, StaticReadEvent);
+	    tv_eternity(&t->srexpire);
+	    shutdown(t->srv_fd, SHUT_RD);
+	    t->srv_state = SV_STSHUTR;
+	    if (!(t->flags & SN_ERR_MASK))
+		t->flags |= SN_ERR_SRVTO;
+	    if (!(t->flags & SN_FINST_MASK))
+		t->flags |= SN_FINST_D;
+	    return 1;
+	}	
+	/* write timeout */
+	else if (tv_cmp2_ms(&t->swexpire, &now) <= 0) {
 	    FD_CLR(t->srv_fd, StaticWriteEvent);
 	    tv_eternity(&t->swexpire);
 	    shutdown(t->srv_fd, SHUT_WR);
 	    t->srv_state = SV_STSHUTW;
+	    if (!(t->flags & SN_ERR_MASK))
+		t->flags |= SN_ERR_SRVTO;
+	    if (!(t->flags & SN_FINST_MASK))
+		t->flags |= SN_FINST_D;
 	    return 1;
 	}
 	else if (req->l == 0) {
@@ -3337,14 +3403,36 @@ int process_srv(struct session *t) {
 	return 0; /* other cases change nothing */
     }
     else if (s == SV_STSHUTR) {
-	if ((t->res_sw == RES_ERROR) ||
-	    ((c == CL_STSHUTR || c == CL_STCLOSE) && (req->l == 0)) ||
-	    (tv_cmp2_ms(&t->swexpire, &now) <= 0)) {
+	if (t->res_sw == RES_ERROR) {
 	    //FD_CLR(t->srv_fd, StaticWriteEvent);
 	    tv_eternity(&t->swexpire);
 	    fd_delete(t->srv_fd);
 	    //close(t->srv_fd);
 	    t->srv_state = SV_STCLOSE;
+	    if (!(t->flags & SN_ERR_MASK))
+		t->flags |= SN_ERR_SRVCL;
+	    if (!(t->flags & SN_FINST_MASK))
+		t->flags |= SN_FINST_D;
+	    return 1;
+	}
+	else if ((c == CL_STSHUTR || c == CL_STCLOSE) && (req->l == 0)) {
+	    //FD_CLR(t->srv_fd, StaticWriteEvent);
+	    tv_eternity(&t->swexpire);
+	    fd_delete(t->srv_fd);
+	    //close(t->srv_fd);
+	    t->srv_state = SV_STCLOSE;
+	    return 1;
+	}
+	else if (tv_cmp2_ms(&t->swexpire, &now) <= 0) {
+	    //FD_CLR(t->srv_fd, StaticWriteEvent);
+	    tv_eternity(&t->swexpire);
+	    fd_delete(t->srv_fd);
+	    //close(t->srv_fd);
+	    t->srv_state = SV_STCLOSE;
+	    if (!(t->flags & SN_ERR_MASK))
+		t->flags |= SN_ERR_SRVTO;
+	    if (!(t->flags & SN_FINST_MASK))
+		t->flags |= SN_FINST_D;
 	    return 1;
 	}
 	else if (req->l == 0) {
@@ -3365,14 +3453,36 @@ int process_srv(struct session *t) {
 	return 0;
     }
     else if (s == SV_STSHUTW) {
-	if (t->res_sr == RES_ERROR || t->res_sr == RES_NULL ||
-	    c == CL_STSHUTW || c == CL_STCLOSE ||
-	    tv_cmp2_ms(&t->srexpire, &now) <= 0) {
+	if (t->res_sr == RES_ERROR) {
 	    //FD_CLR(t->srv_fd, StaticReadEvent);
 	    tv_eternity(&t->srexpire);
 	    fd_delete(t->srv_fd);
 	    //close(t->srv_fd);
 	    t->srv_state = SV_STCLOSE;
+	    if (!(t->flags & SN_ERR_MASK))
+		t->flags |= SN_ERR_SRVCL;
+	    if (!(t->flags & SN_FINST_MASK))
+		t->flags |= SN_FINST_D;
+	    return 1;
+	}
+	else if (t->res_sr == RES_NULL || c == CL_STSHUTW || c == CL_STCLOSE) {
+	    //FD_CLR(t->srv_fd, StaticReadEvent);
+	    tv_eternity(&t->srexpire);
+	    fd_delete(t->srv_fd);
+	    //close(t->srv_fd);
+	    t->srv_state = SV_STCLOSE;
+	    return 1;
+	}
+	else if (tv_cmp2_ms(&t->srexpire, &now) <= 0) {
+	    //FD_CLR(t->srv_fd, StaticReadEvent);
+	    tv_eternity(&t->srexpire);
+	    fd_delete(t->srv_fd);
+	    //close(t->srv_fd);
+	    t->srv_state = SV_STCLOSE;
+	    if (!(t->flags & SN_ERR_MASK))
+		t->flags |= SN_ERR_SRVTO;
+	    if (!(t->flags & SN_FINST_MASK))
+		t->flags |= SN_FINST_D;
 	    return 1;
 	}
 	else if (rep->l == BUFSIZE) { /* no room to read more data */
@@ -3489,7 +3599,14 @@ int process_chk(struct task *t) {
 		(setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *) &one, sizeof(one)) != -1)) {
 		//fprintf(stderr, "process_chk: 3\n");
 
-		if ((connect(fd, (struct sockaddr *)&s->addr, sizeof(s->addr)) != -1) || (errno == EINPROGRESS)) {
+		/* allow specific binding */
+		if (s->proxy->options & PR_O_BIND_SRC &&
+		    bind(fd, (struct sockaddr *)&s->proxy->source_addr, sizeof(s->proxy->source_addr)) == -1) {
+		    Alert("Cannot bind to source address before connect() for proxy %s. Aborting.\n", s->proxy->id);
+		    close(fd);
+		    s->result = -1;
+		}
+		else if ((connect(fd, (struct sockaddr *)&s->addr, sizeof(s->addr)) != -1) || (errno == EINPROGRESS)) {
 		    /* OK, connection in progress or established */
 
 		    //fprintf(stderr, "process_chk: 4\n");
@@ -3963,55 +4080,55 @@ int cfg_parse_global(char *file, int linenum, char **args) {
     }
     else if (!strcmp(args[0], "uid")) {
 	if (global.uid != 0) {
-	    Alert("parsing [%s:%d] : <uid> already specified. Continuing.\n", file, linenum);
+	    Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
 	    return 0;
 	}
 	if (*(args[1]) == 0) {
-	    Alert("parsing [%s:%d] : <uid> expects an integer argument.\n", file, linenum);
+	    Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
 	    return -1;
 	}
 	global.uid = atol(args[1]);
     }
     else if (!strcmp(args[0], "gid")) {
 	if (global.gid != 0) {
-	    Alert("parsing [%s:%d] : <gid> already specified. Continuing.\n", file, linenum);
+	    Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
 	    return 0;
 	}
 	if (*(args[1]) == 0) {
-	    Alert("parsing [%s:%d] : <gid> expects an integer argument.\n", file, linenum);
+	    Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
 	    return -1;
 	}
 	global.gid = atol(args[1]);
     }
     else if (!strcmp(args[0], "nbproc")) {
 	if (global.nbproc != 0) {
-	    Alert("parsing [%s:%d] : <nbproc> already specified. Continuing.\n", file, linenum);
+	    Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
 	    return 0;
 	}
 	if (*(args[1]) == 0) {
-	    Alert("parsing [%s:%d] : <gid> expects an integer argument.\n", file, linenum);
+	    Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
 	    return -1;
 	}
 	global.nbproc = atol(args[1]);
     }
     else if (!strcmp(args[0], "maxconn")) {
 	if (global.maxconn != 0) {
-	    Alert("parsing [%s:%d] : <maxconn> already specified. Continuing.\n", file, linenum);
+	    Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
 	    return 0;
 	}
 	if (*(args[1]) == 0) {
-	    Alert("parsing [%s:%d] : <maxconn> expects an integer argument.\n", file, linenum);
+	    Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
 	    return -1;
 	}
 	global.maxconn = atol(args[1]);
     }
     else if (!strcmp(args[0], "chroot")) {
 	if (global.chroot != NULL) {
-	    Alert("parsing [%s:%d] : <chroot> already specified. Continuing.\n", file, linenum);
+	    Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
 	    return 0;
 	}
 	if (*(args[1]) == 0) {
-	    Alert("parsing [%s:%d] : <chroot> expects a directory as an argument.\n", file, linenum);
+	    Alert("parsing [%s:%d] : '%s' expects a directory as an argument.\n", file, linenum, args[0]);
 	    return -1;
 	}
 	global.chroot = strdup(args[1]);
@@ -4021,7 +4138,7 @@ int cfg_parse_global(char *file, int linenum, char **args) {
 	int facility, level;
 	
 	if (*(args[1]) == 0 || *(args[2]) == 0) {
-	    Alert("parsing [%s:%d] : <log> expects <address> and <facility> as arguments.\n", file, linenum);
+	    Alert("parsing [%s:%d] : '%s' expects <address> and <facility> as arguments.\n", file, linenum, args[0]);
 	    return -1;
 	}
 	
@@ -4030,7 +4147,7 @@ int cfg_parse_global(char *file, int linenum, char **args) {
 		break;
 	
 	if (facility >= NB_LOG_FACILITIES) {
-	    Alert("parsing [%s:%d] : unknown log facility <%s>\n", file, linenum, args[2]);
+	    Alert("parsing [%s:%d] : unknown log facility '%s'\n", file, linenum, args[2]);
 	    exit(1);
 	}
 
@@ -4039,7 +4156,7 @@ int cfg_parse_global(char *file, int linenum, char **args) {
 	    while (level >= 0 && strcmp(log_levels[level], args[3]))
 		level--;
 	    if (level < 0) {
-		Alert("parsing [%s:%d] : unknown optionnal log level <%s>\n", file, linenum, args[3]);
+		Alert("parsing [%s:%d] : unknown optional log level '%s'\n", file, linenum, args[3]);
 		exit(1);
 	    }
 	}
@@ -4065,7 +4182,7 @@ int cfg_parse_global(char *file, int linenum, char **args) {
 	
     }
     else {
-	Alert("parsing [%s:%d] : unknown keyword <%s> in <global> section\n", file, linenum, args[0]);
+	Alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section\n", file, linenum, args[0], "global");
 	return -1;
     }
     return 0;
@@ -4081,13 +4198,13 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 
     if (!strcmp(args[0], "listen")) {  /* new proxy */
 	if (strchr(args[2], ':') == NULL) {
-	    Alert("parsing [%s:%d] : <listen> expects <id> and <addr:port> as arguments.\n",
-		  file, linenum);
+	    Alert("parsing [%s:%d] : '%s' expects <id> and <addr:port> as arguments.\n",
+		  file, linenum, args[0]);
 	    return -1;
 	}
 	
 	if ((curproxy = (struct proxy *)calloc(1, sizeof(struct proxy))) == NULL) {
-	    Alert("parsing [%s:%d] : out of memory\n", file, linenum);
+	    Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 	    return -1;
 	}
 	curproxy->next = proxy;
@@ -4106,7 +4223,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	return 0;
     }
     else if (curproxy == NULL) {
-	Alert("parsing [%s:%d] : <listen> expected.\n", file, linenum);
+	Alert("parsing [%s:%d] : 'listen' expected.\n", file, linenum);
 	return -1;
     }
     
@@ -4115,7 +4232,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	else if (!strcmp(args[1], "tcp")) curproxy->mode = PR_MODE_TCP;
 	else if (!strcmp(args[1], "health")) curproxy->mode = PR_MODE_HEALTH;
 	else {
-	    Alert("parsing [%s:%d] : unknown proxy mode <%s>.\n", file, linenum, args[1]);
+	    Alert("parsing [%s:%d] : unknown proxy mode '%s'.\n", file, linenum, args[1]);
 	    return -1;
 	}
     }
@@ -4131,8 +4248,8 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	}
 	
 	if (*(args[1]) == 0) {
-	    Alert("parsing [%s:%d] : <cookie> expects <cookie_name> as argument.\n",
-		  file, linenum);
+	    Alert("parsing [%s:%d] : '%s' expects <cookie_name> as argument.\n",
+		  file, linenum, args[0]);
 	    return -1;
 	}
 	curproxy->cookie_name = strdup(args[1]);
@@ -4156,28 +4273,28 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 		curproxy->options |= PR_O_COOK_POST;
 	    }
 	    else {
-		Alert("parsing [%s:%d] : <cookie> supports 'rewrite', 'insert', 'indirect', 'nocache' and 'postonly' options.\n",
-		      file, linenum);
+		Alert("parsing [%s:%d] : '%s' supports 'rewrite', 'insert', 'indirect', 'nocache' and 'postonly' options.\n",
+		      file, linenum, args[0]);
 		return -1;
 	    }
 	    cur_arg++;
 	}
 	if ((curproxy->options & (PR_O_COOK_RW|PR_O_COOK_IND)) == (PR_O_COOK_RW|PR_O_COOK_IND)) {
-	    Alert("parsing [%s:%d] : <cookie> 'rewrite' and 'indirect' mode are incompatibles.\n",
+	    Alert("parsing [%s:%d] : cookie 'rewrite' and 'indirect' mode are incompatibles.\n",
 		  file, linenum);
 	    return -1;
 	}
     }
     else if (!strcmp(args[0], "capture")) {  /* name of a cookie to capture */
 	if (curproxy->capture_name != NULL) {
-	    Alert("parsing [%s:%d] : capture already specified. Continuing.\n",
-		  file, linenum);
+	    Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n",
+		  file, linenum, args[0]);
 	    return 0;
 	}
 	
 	if (*(args[4]) == 0) {
-	    Alert("parsing [%s:%d] : <capture> expects 'cookie' <cookie_name> 'len' <len>.\n",
-		  file, linenum);
+	    Alert("parsing [%s:%d] : '%s' expects 'cookie' <cookie_name> 'len' <len>.\n",
+		  file, linenum, args[0]);
 	    return -1;
 	}
 	curproxy->capture_name = strdup(args[2]);
@@ -4191,52 +4308,52 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
     }
     else if (!strcmp(args[0], "contimeout")) {  /* connect timeout */
 	if (curproxy->contimeout != 0) {
-	    Alert("parsing [%s:%d] : contimeout already specified. Continuing.\n", file, linenum);
+	    Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
 	    return 0;
 	}
 	if (*(args[1]) == 0) {
-	    Alert("parsing [%s:%d] : <contimeout> expects an integer <time_in_ms> as argument.\n",
-		  file, linenum);
+	    Alert("parsing [%s:%d] : '%s' expects an integer <time_in_ms> as argument.\n",
+		  file, linenum, args[0]);
 	    return -1;
 	}
 	curproxy->contimeout = atol(args[1]);
     }
     else if (!strcmp(args[0], "clitimeout")) {  /*  client timeout */
 	if (curproxy->clitimeout != 0) {
-	    Alert("parsing [%s:%d] : clitimeout already specified. Continuing.\n",
-		  file, linenum);
+	    Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n",
+		  file, linenum, args[0]);
 	    return 0;
 	}
 	if (*(args[1]) == 0) {
-	    Alert("parsing [%s:%d] : <clitimeout> expects an integer <time_in_ms> as argument.\n",
-		  file, linenum);
+	    Alert("parsing [%s:%d] : '%s' expects an integer <time_in_ms> as argument.\n",
+		  file, linenum, args[0]);
 	    return -1;
 	}
 	curproxy->clitimeout = atol(args[1]);
     }
     else if (!strcmp(args[0], "srvtimeout")) {  /*  server timeout */
 	if (curproxy->srvtimeout != 0) {
-	    Alert("parsing [%s:%d] : srvtimeout already specified. Continuing.\n", file, linenum);
+	    Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
 	    return 0;
 	}
 	if (*(args[1]) == 0) {
-		Alert("parsing [%s:%d] : <srvtimeout> expects an integer <time_in_ms> as argument.\n",
-		      file, linenum);
+		Alert("parsing [%s:%d] : '%s' expects an integer <time_in_ms> as argument.\n",
+		      file, linenum, args[0]);
 		return -1;
 	}
 	curproxy->srvtimeout = atol(args[1]);
     }
     else if (!strcmp(args[0], "retries")) {  /* connection retries */
 	if (*(args[1]) == 0) {
-	    Alert("parsing [%s:%d] : <retries> expects an integer argument (dispatch counts for one).\n",
-		  file, linenum);
+	    Alert("parsing [%s:%d] : '%s' expects an integer argument (dispatch counts for one).\n",
+		  file, linenum, args[0]);
 	    return -1;
 	}
 	curproxy->conn_retries = atol(args[1]);
     }
     else if (!strcmp(args[0], "option")) {
 	if (*(args[1]) == 0) {
-	    Alert("parsing [%s:%d] : <option> expects an option name.\n", file, linenum);
+	    Alert("parsing [%s:%d] : '%s' expects an option name.\n", file, linenum, args[0]);
 	    return -1;
 	}
 	if (!strcmp(args[1], "redispatch"))
@@ -4270,7 +4387,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	    curproxy->options |= PR_O_PERSIST;
 	}
 	else {
-	    Alert("parsing [%s:%d] : unknown option <%s>.\n", file, linenum, args[1]);
+	    Alert("parsing [%s:%d] : unknown option '%s'.\n", file, linenum, args[1]);
 	    return -1;
 	}
 	return 0;
@@ -4287,32 +4404,32 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 #endif
     else if (!strcmp(args[0], "maxconn")) {  /* maxconn */
 	if (*(args[1]) == 0) {
-	    Alert("parsing [%s:%d] : <maxconn> expects an integer argument.\n", file, linenum);
+	    Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
 	    return -1;
 	}
 	curproxy->maxconn = atol(args[1]);
     }
     else if (!strcmp(args[0], "grace")) {  /* grace time (ms) */
 	if (*(args[1]) == 0) {
-	    Alert("parsing [%s:%d] : <grace> expects a time in milliseconds.\n", file, linenum);
+	    Alert("parsing [%s:%d] : '%s' expects a time in milliseconds.\n", file, linenum, args[0]);
 	    return -1;
 	}
 	curproxy->grace = atol(args[1]);
     }
     else if (!strcmp(args[0], "dispatch")) {  /* dispatch address */
 	if (strchr(args[1], ':') == NULL) {
-	    Alert("parsing [%s:%d] : <dispatch> expects <addr:port> as argument.\n", file, linenum);
+	    Alert("parsing [%s:%d] : '%s' expects <addr:port> as argument.\n", file, linenum, args[0]);
 	    return -1;
 	}
 	curproxy->dispatch_addr = *str2sa(args[1]);
     }
-    else if (!strcmp(args[0], "balance")) {  /* set balancing with optionnal algorithm */
+    else if (!strcmp(args[0], "balance")) {  /* set balancing with optional algorithm */
 	if (*(args[1])) {
 	    if (!strcmp(args[1], "roundrobin")) {
 		curproxy->options |= PR_O_BALANCE_RR;
 	    }
 	    else {
-		Alert("parsing [%s:%d] : <balance> supports 'roundrobin' options.\n", file, linenum);
+		Alert("parsing [%s:%d] : '%s' only supports 'roundrobin' option.\n", file, linenum, args[0]);
 		return -1;
 	    }
 	}
@@ -4323,8 +4440,8 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	int cur_arg;
 
 	if (strchr(args[2], ':') == NULL) {
-	    Alert("parsing [%s:%d] : <server> expects <name> and <addr:port> as arguments.\n",
-		  file, linenum);
+	    Alert("parsing [%s:%d] : '%s' expects <name> and <addr:port> as arguments.\n",
+		  file, linenum, args[0]);
 	    return -1;
 	}
 	if ((newsrv = (struct server *)calloc(1, sizeof(struct server))) == NULL) {
@@ -4389,7 +4506,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 		cur_arg += 1;
 	    }
 	    else {
-		Alert("parsing [%s:%d] : server %s only supports options 'cookie' and 'check'.\n",
+		Alert("parsing [%s:%d] : server %s only supports options 'cookie', 'check', 'inter', 'rise' and 'fall'.\n",
 		      file, linenum, newsrv->id);
 		return -1;
 	    }
@@ -4416,7 +4533,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 		    break;
 	
 	    if (facility >= NB_LOG_FACILITIES) {
-		Alert("parsing [%s:%d] : unknown log facility <%s>\n", file, linenum, args[2]);
+		Alert("parsing [%s:%d] : unknown log facility '%s'\n", file, linenum, args[2]);
 		exit(1);
 	    }
 	    
@@ -4425,7 +4542,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 		while (level >= 0 && strcmp(log_levels[level], args[3]))
 		     level--;
 		if (level < 0) {
-		    Alert("parsing [%s:%d] : unknown optionnal log level <%s>\n", file, linenum, args[3]);
+		    Alert("parsing [%s:%d] : unknown optional log level '%s'\n", file, linenum, args[3]);
 		    exit(1);
 		}
 	    }
@@ -4450,15 +4567,15 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	    }
 	}
 	else {
-	    Alert("parsing [%s:%d] : <log> expects either <address[:port]> and <facility> or 'global' as arguments.\n",
+	    Alert("parsing [%s:%d] : 'log' expects either <address[:port]> and <facility> or 'global' as arguments.\n",
 		  file, linenum);
 	    return -1;
 	}
     }
     else if (!strcmp(args[0], "source")) {  /* address to which we bind when connecting */
 	if (strchr(args[1], ':') == NULL) {
-	    Alert("parsing [%s:%d] : <source> expects <addr:port> as argument.\n",
-		  file, linenum);
+	    Alert("parsing [%s:%d] : '%s' expects <addr:port> as argument.\n",
+		  file, linenum, "source");
 	    return -1;
 	}
 	
@@ -4469,14 +4586,14 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	regex_t *preg;
 	
 	if (*(args[1]) == 0 || *(args[2]) == 0) {
-	    Alert("parsing [%s:%d] : <reqrep> expects <search> and <replace> as arguments.\n",
-		  file, linenum);
+	    Alert("parsing [%s:%d] : '%s' expects <search> and <replace> as arguments.\n",
+		  file, linenum, args[0]);
 	    return -1;
 	}
 	
 	preg = calloc(1, sizeof(regex_t));
 	if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
-	    Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
+	    Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
 	    return -1;
 	}
 	
@@ -4486,13 +4603,13 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	regex_t *preg;
 	
 	if (*(args[1]) == 0) {
-	    Alert("parsing [%s:%d] : <reqdel> expects <regex> as an argument.\n", file, linenum);
+	    Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
 	    return -1;
 	}
 	
 	preg = calloc(1, sizeof(regex_t));
 	if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
-	    Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
+	    Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
 	    return -1;
 	}
 	
@@ -4502,29 +4619,45 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	regex_t *preg;
 	
 	if (*(args[1]) == 0) {
-	    Alert("parsing [%s:%d] : <reqdeny> expects <regex> as an argument.\n", file, linenum);
+	    Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
 	    return -1;
 	}
 	
 	preg = calloc(1, sizeof(regex_t));
 	if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
-	    Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
+	    Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
 	    return -1;
 	}
 	
 	chain_regex(&curproxy->req_exp, preg, ACT_DENY, NULL);
     }
-    else if (!strcmp(args[0], "reqallow")) {  /* allow a request if a header matches this regex */
+    else if (!strcmp(args[0], "reqpass")) {  /* pass this header without allowing or denying the request */
 	regex_t *preg;
 	
 	if (*(args[1]) == 0) {
-	    Alert("parsing [%s:%d] : <reqallow> expects <regex> as an argument.\n", file, linenum);
+	    Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
 	    return -1;
 	}
 	
 	preg = calloc(1, sizeof(regex_t));
 	if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
-	    Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
+	    Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
+	    return -1;
+	}
+	
+	chain_regex(&curproxy->req_exp, preg, ACT_PASS, NULL);
+    }
+    else if (!strcmp(args[0], "reqallow")) {  /* allow a request if a header matches this regex */
+	regex_t *preg;
+	
+	if (*(args[1]) == 0) {
+	    Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
+	    return -1;
+	}
+	
+	preg = calloc(1, sizeof(regex_t));
+	if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
+	    Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
 	    return -1;
 	}
 	
@@ -4534,14 +4667,14 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	regex_t *preg;
 	
 	if (*(args[1]) == 0 || *(args[2]) == 0) {
-	    Alert("parsing [%s:%d] : <reqirep> expects <search> and <replace> as arguments.\n",
-		  file, linenum);
+	    Alert("parsing [%s:%d] : '%s' expects <search> and <replace> as arguments.\n",
+		  file, linenum, args[0]);
 	    return -1;
 	}
 	
 	preg = calloc(1, sizeof(regex_t));
 	if (regcomp(preg, args[1], REG_EXTENDED | REG_ICASE) != 0) {
-	    Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
+	    Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
 	    return -1;
 	}
 	
@@ -4551,13 +4684,13 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	regex_t *preg;
 	
 	if (*(args[1]) == 0) {
-	    Alert("parsing [%s:%d] : <reqidel> expects <regex> as an argument.\n", file, linenum);
+	    Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
 	    return -1;
 	}
 	
 	preg = calloc(1, sizeof(regex_t));
 	if (regcomp(preg, args[1], REG_EXTENDED | REG_ICASE) != 0) {
-	    Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
+	    Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
 	    return -1;
 	}
 	
@@ -4567,29 +4700,45 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	regex_t *preg;
 	
 	if (*(args[1]) == 0) {
-	    Alert("parsing [%s:%d] : <reqideny> expects <regex> as an argument.\n", file, linenum);
+	    Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
 	    return -1;
 	}
 	
 	preg = calloc(1, sizeof(regex_t));
 	if (regcomp(preg, args[1], REG_EXTENDED | REG_ICASE) != 0) {
-	    Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
+	    Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
 	    return -1;
 	}
 	
 	chain_regex(&curproxy->req_exp, preg, ACT_DENY, NULL);
     }
-    else if (!strcmp(args[0], "reqiallow")) {  /* allow a request if a header matches this regex ignoring case */
+    else if (!strcmp(args[0], "reqipass")) {  /* pass this header without allowing or denying the request */
 	regex_t *preg;
 	
 	if (*(args[1]) == 0) {
-	    Alert("parsing [%s:%d] : <reqiallow> expects <regex> as an argument.\n", file, linenum);
+	    Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
 	    return -1;
 	}
 	
 	preg = calloc(1, sizeof(regex_t));
 	if (regcomp(preg, args[1], REG_EXTENDED | REG_ICASE) != 0) {
-	    Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
+	    Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
+	    return -1;
+	}
+	
+	chain_regex(&curproxy->req_exp, preg, ACT_PASS, NULL);
+    }
+    else if (!strcmp(args[0], "reqiallow")) {  /* allow a request if a header matches this regex ignoring case */
+	regex_t *preg;
+	
+	if (*(args[1]) == 0) {
+	    Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
+	    return -1;
+	}
+	
+	preg = calloc(1, sizeof(regex_t));
+	if (regcomp(preg, args[1], REG_EXTENDED | REG_ICASE) != 0) {
+	    Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
 	    return -1;
 	}
 	
@@ -4597,12 +4746,12 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
     }
     else if (!strcmp(args[0], "reqadd")) {  /* add request header */
 	if (curproxy->nb_reqadd >= MAX_NEWHDR) {
-	    Alert("parsing [%s:%d] : too many `reqadd'. Continuing.\n", file, linenum);
+	    Alert("parsing [%s:%d] : too many '%s'. Continuing.\n", file, linenum, args[0]);
 	    return 0;
 	}
 	
 	if (*(args[1]) == 0) {
-	    Alert("parsing [%s:%d] : <reqadd> expects <header> as an argument.\n", file, linenum);
+	    Alert("parsing [%s:%d] : '%s' expects <header> as an argument.\n", file, linenum, args[0]);
 	    return -1;
 	}
 	
@@ -4612,14 +4761,14 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	    regex_t *preg;
 
 	    if (*(args[1]) == 0 || *(args[2]) == 0) {
-		Alert("parsing [%s:%d] : <rsprep> expects <search> and <replace> as arguments.\n",
-		      file, linenum);
+		Alert("parsing [%s:%d] : '%s' expects <search> and <replace> as arguments.\n",
+		      file, linenum, args[0]);
 		return -1;
 	    }
 
 	    preg = calloc(1, sizeof(regex_t));
 	    if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
-		Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
+		Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
 		return -1;
 	    }
 	    
@@ -4629,13 +4778,13 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	regex_t *preg;
 	
 	if (*(args[1]) == 0) {
-	    Alert("parsing [%s:%d] : <rspdel> expects <search> as an argument.\n", file, linenum);
+	    Alert("parsing [%s:%d] : '%s' expects <search> as an argument.\n", file, linenum, args[0]);
 	    return -1;
 	}
 
 	preg = calloc(1, sizeof(regex_t));
 	if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
-	    Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
+	    Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
 	    return -1;
 	}
 	
@@ -4645,14 +4794,14 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	    regex_t *preg;
 
 	    if (*(args[1]) == 0 || *(args[2]) == 0) {
-		Alert("parsing [%s:%d] : <rspirep> expects <search> and <replace> as arguments.\n",
-		      file, linenum);
+		Alert("parsing [%s:%d] : '%s' expects <search> and <replace> as arguments.\n",
+		      file, linenum, args[0]);
 		return -1;
 	    }
 
 	    preg = calloc(1, sizeof(regex_t));
 	    if (regcomp(preg, args[1], REG_EXTENDED | REG_ICASE) != 0) {
-		Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
+		Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
 		return -1;
 	    }
 	    
@@ -4662,13 +4811,13 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	regex_t *preg;
 	
 	if (*(args[1]) == 0) {
-	    Alert("parsing [%s:%d] : <rspidel> expects <search> as an argument.\n", file, linenum);
+	    Alert("parsing [%s:%d] : '%s' expects <search> as an argument.\n", file, linenum, args[0]);
 	    return -1;
 	}
 
 	preg = calloc(1, sizeof(regex_t));
 	if (regcomp(preg, args[1], REG_EXTENDED | REG_ICASE) != 0) {
-	    Alert("parsing [%s:%d] : bad regular expression <%s>.\n", file, linenum, args[1]);
+	    Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
 	    return -1;
 	}
 	
@@ -4676,12 +4825,12 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
     }
     else if (!strcmp(args[0], "rspadd")) {  /* add response header */
 	if (curproxy->nb_rspadd >= MAX_NEWHDR) {
-	    Alert("parsing [%s:%d] : too many `rspadd'. Continuing.\n", file, linenum);
+	    Alert("parsing [%s:%d] : too many '%s'. Continuing.\n", file, linenum, args[0]);
 	    return 0;
 	}
 	
 	if (*(args[1]) == 0) {
-	    Alert("parsing [%s:%d] : <rspadd> expects <header> as an argument.\n", file, linenum);
+	    Alert("parsing [%s:%d] : '%s' expects <header> as an argument.\n", file, linenum, args[0]);
 	    return -1;
 	}
 	
@@ -4762,7 +4911,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	}
     }
     else {
-	Alert("parsing [%s:%d] : unknown keyword <%s> in <listen> section\n", file, linenum, args[0]);
+	Alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section\n", file, linenum, args[0], "listen");
 	return -1;
     }
     return 0;
@@ -4880,7 +5029,7 @@ int readcfgfile(char *file) {
 		return -1;
 	    break;
 	default:
-	    Alert("parsing [%s:%d] : unknown keyword <%s> out of section.\n", file, linenum, args[0]);
+	    Alert("parsing [%s:%d] : unknown keyword '%s' out of section.\n", file, linenum, args[0]);
 	    return -1;
 	}
 	    
@@ -5227,12 +5376,12 @@ int main(int argc, char **argv) {
     }
 
     /* setgid / setuid */
-    if (global.gid && setregid(global.gid, global.gid) == -1) {
+    if (global.gid && setgid(global.gid) == -1) {
 	Alert("[%s.main()] Cannot set gid %d.\n", argv[0], global.gid);
 	exit(1);
     }
 
-    if (global.uid && setreuid(global.uid, global.uid) == -1) {
+    if (global.uid && setuid(global.uid) == -1) {
 	Alert("[%s.main()] Cannot set uid %d.\n", argv[0], global.uid);
 	exit(1);
     }
@@ -5273,4 +5422,3 @@ int main(int argc, char **argv) {
 
     exit(0);
 }
-

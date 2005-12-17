@@ -10,6 +10,14 @@ TARGET = linux24
 CC = gcc
 LD = gcc
 
+# By default, we use libc's regex.
+REGEX=libc
+#REGEX=pcre
+
+# This is the directory hosting include/pcre.h and lib/libpcre.* when REGEX=pcre
+PCREDIR	:= $(shell pcre-config --prefix)
+#PCREDIR=/usr/local
+
 # This is for Linux 2.4 with netfilter
 COPTS.linux24 = -O2 -DNETFILTER
 LIBS.linux24 =
@@ -30,11 +38,17 @@ LIBS.solarisv9 = -lnsl -lsocket
 COPTS.openbsd = -O2
 LIBS.openbsd =
 
+COPTS.libc=
+LIBS.libs=
+
+COPTS.pcre=-DUSE_PCRE -I$(PCREDIR)/include
+LIBS.pcre=-L$(PCREDIR)/lib -lpcreposix -lpcre
+
 #DEBUG =
 DEBUG = -g
 
-COPTS=$(COPTS.$(TARGET))
-LIBS=$(LIBS.$(TARGET))
+COPTS=$(COPTS.$(TARGET)) $(COPTS.$(REGEX))
+LIBS=$(LIBS.$(TARGET)) $(LIBS.$(REGEX))
 
 # - use -DSTATTIME=0 to disable statistics, else specify an interval in
 #   milliseconds.

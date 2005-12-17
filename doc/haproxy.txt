@@ -1,9 +1,9 @@
 
          		     H A - P r o x y
          		     ---------------
-         		      version 1.1.17
+         		      version 1.1.18
 			      willy tarreau
-			       2002/10/25
+			       2003/04/06
 
 ================
 | Introduction |
@@ -118,6 +118,8 @@ Les catégories possibles sont :
     kern, user, mail, daemon, auth, syslog, lpr, news,
     uucp, cron, auth2, ftp, ntp, audit, alert, cron2,
     local0, local1, local2, local3, local4, local5, local6, local7
+
+Conformément à la RFC3164, les messages émis sont limités à 1024 caractères.
 
 Exemple :
 ---------
@@ -437,7 +439,9 @@ spécifiques. C'est particulièrement utile en cas d'adressage multiple, et
 plus généralement pour permettre aux serveurs de trouver le chemin de
 retour dans des contextes de routage difficiles. Si l'adresse est 0.0.0.0,
 elle sera choisie librement par le systeme. Si le port est 0, il
-sera choisi librement par le système.
+sera choisi librement par le système. Il est à noter que depuis la version
+1.1.18, les tests de bon foncitonnement des serveurs seront aussi effectués à
+partir de la source spécifiée par ce paramètre.
 
 Exemples :
 ----------
@@ -583,12 +587,15 @@ paramètres non précisés prennent les valeurs suivantes par défaut :
 Le mode par défaut consiste à établir des connexions TCP uniquement. Dans
 certains cas de pannes, des serveurs peuvent continuer à accepter les connexions
 sans les traiter. Depuis la version 1.1.16, haproxy est en mesure d'envoyer des
-requêtes HTTP courtes et très peu coûteuses : "OPTIONS / HTTP/1.0". Elles
-présentent l'avantage d'être facilement extractibles des logs, et de ne pas
-induire d'accès aux fichiers côté serveur. Seules les réponses 2xx et 3xx sont
-considérées valides, les autres (y compris non-réponses) aboutissent à un échec.
-Le temps maximal imparti pour une réponse est égal à l'intervalle entre deux
-tests (paramètre "inter"). Pour activer ce mode, spécifier l'option "httpchk".
+requêtes HTTP courtes et très peu coûteuses. Les versions 1.1.16 et 1.1.17
+utilisent "OPTIONS / HTTP/1.0". Depuis la version 1.1.18, les requêtes ont été
+changées en "OPTIONS * HTTP/1.0" pour des raisons de contrôle d'accès aux
+ressources. Elles présentent l'avantage d'être facilement extractibles des logs,
+et de ne pas induire d'accès aux fichiers côté serveur. Seules les réponses 2xx
+et 3xx sont considérées valides, les autres (y compris non-réponses) aboutissent
+à un échec. Le temps maximal imparti pour une réponse est égal à l'intervalle
+entre deux tests (paramètre "inter"). Pour activer ce mode, spécifier l'option
+"httpchk".
 
 Depuis la version 1.1.17, il est possible de définir des serveurs de secours,
 utilisés uniquement lorsqu'aucun des autres serveurs ne fonctionne. Pour cela,
@@ -747,6 +754,65 @@ connexions et déconnexions fréquentes, polluerait les logs, il suffit d'ajouter
 l'option 'dontlognull', pour ne plus obtenir une ligne de log pour les sessions
 n'ayant pas donné lieu à un échange de données (requête ou réponse).
 
+Exemple :
+---------
+    listen http_proxy 0.0.0.0:80
+	mode http
+	option httplog
+	option dontlognull
+	log 192.168.2.200 local3
+
+Depuis la version 1.1.18, un indicateur de complétude de la session a été ajouté
+dans les logs HTTP. C'est un champ de 4 caractères précédant la requête HTTP,
+indiquant :
+  - sur le premier caractère, un code précisant le premier événement qui a causé
+    la terminaison de la session :
+
+        C : fermeture de la session TCP de la part du client
+	S : fermeture de la session TCP de la part du serveur, ou refus de connexion
+	P : terminaison prématurée des sessions par le proxy, pour cas d'erreur
+	    interne ou de configuration (ex: filtre d'URL)
+	c : expiration du délai d'attente côté client : clitimeout
+	s : expiration du délai d'attente côté serveur: srvtimeout et contimeout
+	- : terminaison normale.
+
+  - sur le second caractère, l'état d'avancement de la session HTTP lors de la
+    fermeture :
+
+        R : terminaison en attendant la réception totale de la requête du client
+	C : terminaison en attendant la connexion vers le serveur
+	H : terminaison en attendant la réception totale des entêtes du serveur
+	D : terminaison durant le transfert des données du serveur vers le client
+	L : terminaison durant le transfert des dernières données du proxy vers
+	    le client, alors que le serveur a déjà fini.
+	- : terminaison normale, après fin de transfert des données
+
+  - le troisième caractère indique l'éventuelle identification d'un cookie de
+    persistence :
+
+        N : aucun cookie de persistence n'a été présenté.
+	I : le client a présenté un cookie ne correspondant à aucun serveur
+	    connu.
+	D : le client a présenté un cookie correspondant à un serveur hors
+	    d'usage. Suivant l'option 'persist', il a été renvoyé vers un
+	    autre serveur ou a tout de même tenté de se connecter sur celui
+	    correspondant au cookie.
+	V : le client a présenté un cookie valide et a pu se connecter au
+	    serveur correspondant.
+	- : non appliquable
+
+  - le dernier caractère indique l'éventuel traitement effectué sur un cookie de
+    persistence retrourné par le serveur :
+
+        N : aucun cookie de persistence n'a été fourni par le serveur.
+        P : un cookie cookie de persistence n'a été fourni par le serveur.
+	I : aucun cookie n'a été fourni par le serveur, il a été inséré par le
+	    proxy.
+	D : le cookie présenté par le serveur a été supprimé par le proxy pour
+	    ne pas être retourné au client.
+	R : le cookie retourné par le serveur a été modifié par le proxy.
+	- : non appliquable
+
 Le mot clé "capture" permet d'ajouter dans des logs HTTP des informations
 capturées dans les échanges. La version 1.1.17 supporte uniquement une capture
 de cookies client et serveur, ce qui permet dans bien des cas, de reconstituer
@@ -768,10 +834,10 @@ Exemples :
     # capture du premier cookie dont le nom est exactement "vgnvisitor"
     capture cookie vgnvisitor= len 32
 
-Dans les logs, le champ précédant la requête HTTP est le cookie positionné par
-le serveur, précédé du cookie positionné par le client. Chacun de ces champs est
-remplacé par le signe "-" lorsqu'aucun cookie n'est fourni par le client ou le
-serveur.
+Dans les logs, le champ précédant l'indicateur de complétude contient le cookie
+positionné par le serveur, précédé du cookie positionné par le client. Chacun de
+ces champs est remplacé par le signe "-" lorsqu'aucun cookie n'est fourni par le
+client ou le serveur.
 
 Enfin, l'option 'forwardfor' ajoute l'adresse IP du client dans un champ
 'X-Forwarded-For' de la requête, ce qui permet à un serveur web final de
@@ -804,30 +870,33 @@ La syntaxe est :
    reqirep   <search> <replace>   idem sans distinction majuscules/minuscules
    reqdel    <search>             pour supprimer un en-tête dans la requête
    reqidel   <search>             idem sans distinction majuscules/minuscules
-   reqallow  <search>             autoriser une requête qui valide <search>
+   reqallow  <search>             autoriser la requête si un entête valide <search>
    reqiallow <search>             idem sans distinction majuscules/minuscules
-   reqdeny   <search>             interdire une requête qui valide <search>
+   reqdeny   <search>             interdire la requête si un entête valide <search>
    reqideny  <search>             idem sans distinction majuscules/minuscules
+   reqpass   <search>             inhibe ces actions sur les entêtes validant <search>
+   reqipass  <search>             idem sans distinction majuscules/minuscules
 
-   rspadd   <string>             pour ajouter un en-tête dans la réponse
-   rsprep   <search> <replace>   pour modifier la réponse
-   rspirep  <search> <replace>   idem sans distinction majuscules/minuscules
-   rspdel   <search>             pour supprimer un en-tête dans la réponse
-   rspidel  <search>             idem sans distinction majuscules/minuscules
+   rspadd   <string>              pour ajouter un en-tête dans la réponse
+   rsprep   <search> <replace>    pour modifier la réponse
+   rspirep  <search> <replace>    idem sans distinction majuscules/minuscules
+   rspdel   <search>              pour supprimer un en-tête dans la réponse
+   rspidel  <search>              idem sans distinction majuscules/minuscules
 
 
-<search> est une expression régulière compatible GNU regexp supportant
-le groupage par parenthèses (sans les '\'). Les espaces et autres
-séparateurs doivent êtres précédés d'un '\' pour ne pas être confondus
-avec la fin de la chaîne. De plus, certains caractères spéciaux peuvent
-être précédés d'un backslach ('\') :
+<search> est une expression régulière compatible POSIX regexp supportant le
+groupage par parenthèses (sans les '\'). Les espaces et autres séparateurs
+doivent êtres précédés d'un '\' pour ne pas être confondus avec la fin de la
+chaîne. De plus, certains caractères spéciaux peuvent être précédés d'un
+backslach ('\') :
 
   \t   pour une tabulation
   \r   pour un retour charriot
   \n   pour un saut de ligne
   \    pour différencier un espace d'un séparateur
   \#   pour différencier un dièse d'un commentaire
-  \\   pour un backslash
+  \\   pour utiliser un backslash dans la regex
+  \\\\ pour utiliser un backslash dans le texte
   \xXX pour un caractère spécifique XX (comme en C)
 
 
