@@ -1,9 +1,9 @@
 
          		     H A - P r o x y
          		     ---------------
-         		      version 1.1.0
+         		      version 1.1.1
 			      willy tarreau
-			       2002/03/10
+			       2002/03/13
 
 ==============
 |Introduction|

@@ -46,3 +46,4 @@ haproxy: haproxy.o
 
 clean:
 	rm -vf *.[oas] *~ core haproxy test nohup.out gmon.out
+

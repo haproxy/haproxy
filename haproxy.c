@@ -9,6 +9,10 @@
  *
  * ChangeLog :
  *
+ * 2002/03/12
+ *   - released 1.1.1
+ *   - fixed a bug in total failure handling
+ *   - fixed a bug in timestamp comparison within same second (tv_cmp_ms)
  * 2002/03/10
  *   - released 1.1.0
  *   - fixed a few timeout bugs
@@ -78,8 +82,8 @@
 #include <linux/netfilter_ipv4.h>
 #endif
 
-#define HAPROXY_VERSION "1.1.0"
-#define HAPROXY_DATE	"2002/03/10"
+#define HAPROXY_VERSION "1.1.1"
+#define HAPROXY_DATE	"2002/03/13"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -730,7 +734,15 @@ unsigned long tv_delta(struct timeval *tv1, struct timeval *tv2) {
  * compares <tv1> and <tv2> modulo 1ms: returns 0 if equal, -1 if tv1 < tv2, 1 if tv1 > tv2
  */
 static inline int tv_cmp_ms(struct timeval *tv1, struct timeval *tv2) {
-    if ((tv1->tv_sec > tv2->tv_sec + 1) ||
+    if (tv1->tv_sec == tv2->tv_sec) {
+	if (tv1->tv_usec >= tv2->tv_usec + 1000)
+	    return 1;
+	else if (tv2->tv_usec >= tv1->tv_usec + 1000)
+	    return -1;
+	else
+	    return 0;
+    }
+    else if ((tv1->tv_sec > tv2->tv_sec + 1) ||
 	((tv1->tv_sec == tv2->tv_sec + 1) && (tv1->tv_usec + 1000000 >= tv2->tv_usec + 1000)))
 	return 1;
     else if ((tv2->tv_sec > tv1->tv_sec + 1) ||
@@ -817,7 +829,15 @@ static inline int tv_cmp2_ms(struct timeval *tv1, struct timeval *tv2) {
     else if (tv_iseternity(tv2))
 	return -1; /* tv2 later than tv1 */
     
-    if ((tv1->tv_sec > tv2->tv_sec + 1) ||
+    if (tv1->tv_sec == tv2->tv_sec) {
+	if (tv1->tv_usec >= tv2->tv_usec + 1000)
+	    return 1;
+	else if (tv2->tv_usec >= tv1->tv_usec + 1000)
+	    return -1;
+	else
+	    return 0;
+    }
+    else if ((tv1->tv_sec > tv2->tv_sec + 1) ||
 	((tv1->tv_sec == tv2->tv_sec + 1) && (tv1->tv_usec + 1000000 >= tv2->tv_usec + 1000)))
 	return 1;
     else if ((tv2->tv_sec > tv1->tv_sec + 1) ||
@@ -1032,13 +1052,14 @@ int connect_server(struct session *s) {
     else if (s->proxy->options & PR_O_BALANCE) {
 	if (s->proxy->options & PR_O_BALANCE_RR) {
 	    int retry = s->proxy->nbservers;
-	    do {
+	    while (retry) {
 		if (s->proxy->cursrv == NULL)
 		    s->proxy->cursrv = s->proxy->srv;
 		if (s->proxy->cursrv->state & SRV_RUNNING)
 		    break;
 		s->proxy->cursrv = s->proxy->cursrv->next;
-	    } while (retry--);
+		retry--;
+	    }
 
 	    if (retry == 0) /* no server left */
 		return -1;
