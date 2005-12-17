@@ -7,7 +7,7 @@
  * as published by the Free Software Foundation; either version
  * 2 of the License, or (at your option) any later version.
  *
- * Pending bugs :
+ * Pending bugs (may be not fixed because not reproduced) :
  *   - solaris only : sometimes, an HTTP proxy with only a dispatch address causes
  *     the proxy to terminate (no core) if the client breaks the connection during
  *     the response. Seen on 1.1.8pre4, but never reproduced. May not be related to
@@ -17,6 +17,21 @@
  *
  * ChangeLog :
  *
+ * 2002/07/13 : 1.1.12
+ *   - fixed stats monitoring, and optimized some tv_* for most common cases.
+ *   - replaced temporary 'newhdr' with 'trash' to reduce stack size
+ *   - made HTTP errors more HTML-fiendly.
+ *   - renamed strlcpy() to strlcpy2() because of a slightly difference between
+ *     their behaviour (return value), to avoid confusion.
+ *   - restricted HTTP messages to HTTP proxies only
+ *   - added a 502 message when the connection has been refused by the server,
+ *     to prevent clients from believing this is a zero-byte HTTP 0.9 reply.
+ *   - changed 'Cache-control:' from 'no-cache="set-cookie"' to 'private' when
+ *     inserting a cookie, because some caches (apache) don't understand it.
+ *   - fixed processing of server headers when client is in SHUTR state
+ * 2002/07/04 :
+ *   - automatically close fd's 0,1 and 2 when going daemon ; setpgrp() after
+ *     setpgid()
  * 2002/06/04 : 1.1.11
  *   - fixed multi-cookie handling in client request to allow clean deletion
  *     in insert+indirect mode. Now, only the server cookie is deleted and not
@@ -153,8 +168,8 @@
 #include <linux/netfilter_ipv4.h>
 #endif
 
-#define HAPROXY_VERSION "1.1.11"
-#define HAPROXY_DATE	"2002/06/04"
+#define HAPROXY_VERSION "1.1.12"
+#define HAPROXY_DATE	"2002/07/13"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -222,8 +237,6 @@
 /* if a < min, then bound <a> to <min>. The macro returns the new <a> */
 #define LBOUND(a, min)	({ typeof(a) b = (min); if ((a) < b) (a) = b; (a); })
 
-
-#ifndef HAVE_STRLCPY
 /*
  * copies at most <size-1> chars from <src> to <dst>. Last char is always
  * set to 0, unless <size> is 0. The number of chars copied is returned
@@ -231,7 +244,7 @@
  * This code has been optimized for size and speed : on x86, it's 45 bytes
  * long, uses only registers, and consumes only 4 cycles per char.
  */
-int strlcpy(char *dst, const char *src, int size) {
+int strlcpy2(char *dst, const char *src, int size) {
     char *orig = dst;
     if (size) {
 	while (--size && (*dst = *src)) {
@@ -241,8 +254,6 @@ int strlcpy(char *dst, const char *src, int size) {
     }
     return dst - orig;
 }
-#endif
-
 
 #define MEM_OPTIM
 #ifdef	MEM_OPTIM
@@ -558,6 +569,7 @@ static int stopping = 0;	/* non zero means stopping in progress */
 static struct timeval now = {0,0};	/* the current date at any moment */
 
 static regmatch_t pmatch[MAX_MATCH];  /* rm_so, rm_eo for regular expressions */
+/* this is used to drain data, and as a temporary buffer for sprintf()... */
 static char trash[BUFSIZE];
 
 /*
@@ -594,30 +606,47 @@ const char *HTTP_400 =
 	"Cache-Control: no-cache\r\n"
 	"Connection: close\r\n"
 	"\r\n"
-	"400 Bad request : Your browser sent an invalid request.\r\n";
+	"<html><body><h1>400 Bad request</h1>\nYour browser sent an invalid request.\n</body></html>\n";
 
 const char *HTTP_403 =
 	"HTTP/1.0 403 Forbidden\r\n"
 	"Cache-Control: no-cache\r\n"
 	"Connection: close\r\n"
 	"\r\n"
-	"403 Forbidden : Request forbidden by administrative rules.\r\n";
+	"<html><body><h1>403 Forbidden</h1>\nRequest forbidden by administrative rules.\n</body></html>\n";
+
+const char *HTTP_500 =
+	"HTTP/1.0 500 Server Error\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"\r\n"
+	"<html><body><h1>500 Server Error</h1>\nAn internal server error occured.\n</body></html>\n";
 
 const char *HTTP_502 =
 	"HTTP/1.0 502 Proxy Error\r\n"
 	"Cache-Control: no-cache\r\n"
 	"Connection: close\r\n"
 	"\r\n"
-	"502 Proxy Error : No server is available to handle this request.\r\n";
+	"<html><body><h1>502 Proxy Error</h1>\nNo server is available to handle this request.\n</body></html>\n";
 
 /*********************************************************************/
 /*  statistics  ******************************************************/
 /*********************************************************************/
 
+#if STATTIME > 0
 static int stats_tsk_lsrch, stats_tsk_rsrch,
     stats_tsk_good, stats_tsk_right, stats_tsk_left,
     stats_tsk_new, stats_tsk_nsrch;
+#endif
 
+
+/*********************************************************************/
+/*  debugging  *******************************************************/
+/*********************************************************************/
+#ifdef DEBUG_FULL
+static char *cli_stnames[5] = {"HDR", "DAT", "SHR", "SHW", "CLS" };
+static char *srv_stnames[7] = {"IDL", "CON", "HDR", "DAT", "SHR", "SHW", "CLS" };
+#endif
 
 /*********************************************************************/
 /*  function prototypes  *********************************************/
@@ -905,14 +934,14 @@ static inline struct timeval *tv_delayfrom(struct timeval *tv, struct timeval *f
  * compares <tv1> and <tv2> : returns 0 if equal, -1 if tv1 < tv2, 1 if tv1 > tv2
  */
 static inline int tv_cmp(struct timeval *tv1, struct timeval *tv2) {
-    if (tv1->tv_sec > tv2->tv_sec)
-	return 1;
-    else if (tv1->tv_sec < tv2->tv_sec)
+    if (tv1->tv_sec < tv2->tv_sec)
 	return -1;
-    else if (tv1->tv_usec > tv2->tv_usec)
+    else if (tv1->tv_sec > tv2->tv_sec)
 	return 1;
     else if (tv1->tv_usec < tv2->tv_usec)
 	return -1;
+    else if (tv1->tv_usec > tv2->tv_usec)
+	return 1;
     else
 	return 0;
 }
@@ -928,7 +957,7 @@ unsigned long tv_delta(struct timeval *tv1, struct timeval *tv2) {
     cmp = tv_cmp(tv1, tv2);
     if (!cmp)
 	return 0; /* same dates, null diff */
-    else if (cmp<0) {
+    else if (cmp < 0) {
 	struct timeval *tmp = tv1;
 	tv1 = tv2;
 	tv2 = tmp;
@@ -942,23 +971,37 @@ unsigned long tv_delta(struct timeval *tv1, struct timeval *tv2) {
 }
 
 /*
+ * returns the difference, in ms, between tv1 and tv2
+ */
+static inline unsigned long tv_diff(struct timeval *tv1, struct timeval *tv2) {
+    unsigned long ret;
+  
+    ret = (tv1->tv_sec - tv2->tv_sec) * 1000;
+    if (tv1->tv_usec > tv2->tv_usec)
+	ret += (tv1->tv_usec - tv2->tv_usec) / 1000;
+    else
+	ret -= (tv2->tv_usec - tv1->tv_usec) / 1000;
+    return (unsigned long) ret;
+}
+
+/*
  * compares <tv1> and <tv2> modulo 1ms: returns 0 if equal, -1 if tv1 < tv2, 1 if tv1 > tv2
  */
 static inline int tv_cmp_ms(struct timeval *tv1, struct timeval *tv2) {
     if (tv1->tv_sec == tv2->tv_sec) {
-	if (tv1->tv_usec > tv2->tv_usec + 1000)
-	    return 1;
-	else if (tv2->tv_usec > tv1->tv_usec + 1000)
+	if (tv2->tv_usec > tv1->tv_usec + 1000)
 	    return -1;
+	else if (tv1->tv_usec > tv2->tv_usec + 1000)
+	    return 1;
 	else
 	    return 0;
     }
-    else if ((tv1->tv_sec > tv2->tv_sec + 1) ||
-	((tv1->tv_sec == tv2->tv_sec + 1) && (tv1->tv_usec + 1000000 > tv2->tv_usec + 1000)))
-	return 1;
     else if ((tv2->tv_sec > tv1->tv_sec + 1) ||
 	     ((tv2->tv_sec == tv1->tv_sec + 1) && (tv2->tv_usec + 1000000 > tv1->tv_usec + 1000)))
 	return -1;
+    else if ((tv1->tv_sec > tv2->tv_sec + 1) ||
+	     ((tv1->tv_sec == tv2->tv_sec + 1) && (tv1->tv_usec + 1000000 > tv2->tv_usec + 1000)))
+	return 1;
     else
 	return 0;
 }
@@ -1155,12 +1198,15 @@ struct task *task_queue(struct task *task) {
     if (task->prev == NULL) {
 	//	start_from = list;
 	start_from = list->prev;
+#if STATTIME > 0
 	stats_tsk_new++;
-
+#endif
 	/* insert the unlinked <task> into the list, searching back from the last entry */
 	while (start_from != list && tv_cmp2(&task->expire, &start_from->expire) < 0) {
 	    start_from = start_from->prev;
+#if STATTIME > 0
 	    stats_tsk_nsrch++;
+#endif
 	}
 	
 	//	  while (start_from->next != list && tv_cmp2(&task->expire, &start_from->next->expire) > 0) {
@@ -1172,32 +1218,61 @@ struct task *task_queue(struct task *task) {
 	     tv_cmp2(&task->expire, &task->prev->expire) >= 0) { /* walk right */
 	start_from = task->next;
 	if (start_from == list || tv_cmp2(&task->expire, &start_from->expire) <= 0) {
+#if STATTIME > 0
 	    stats_tsk_good++;
+#endif
 	    return task; /* it's already in the right place */
 	}
 
+#if STATTIME > 0
 	stats_tsk_right++;
+#endif
+
+	/* if the task is not at the right place, there's little chance that
+	 * it has only shifted a bit, and it will nearly always be queued
+	 * at the end of the list because of constant timeouts
+	 * (observed in real case).
+	 */
+#ifndef WE_REALLY_THINK_THAT_THIS_TASK_MAY_HAVE_SHIFTED
+	start_from = list->prev; /* assume we'll queue to the end of the list */
+	while (start_from != list && tv_cmp2(&task->expire, &start_from->expire) < 0) {
+	    start_from = start_from->prev;
+#if STATTIME > 0
+	    stats_tsk_lsrch++;
+#endif
+	}
+#else /* WE_REALLY_... */
 	/* insert the unlinked <task> into the list, searching after position <start_from> */
 	while (start_from->next != list && tv_cmp2(&task->expire, &start_from->next->expire) > 0) {
 	    start_from = start_from->next;
+#if STATTIME > 0
 	    stats_tsk_rsrch++;
+#endif
 	}
+#endif /* WE_REALLY_... */
+
 	/* we need to unlink it now */
 	task_delete(task);
     }
     else { /* walk left. */
+#if STATTIME > 0
 	stats_tsk_left++;
+#endif
 #ifdef LEFT_TO_TOP	/* not very good */
 	start_from = list;
 	while (start_from->next != list && tv_cmp2(&task->expire, &start_from->next->expire) > 0) {
 	    start_from = start_from->next;
+#if STATTIME > 0
 	    stats_tsk_lsrch++;
+#endif
 	}
 #else
 	start_from = task->prev->prev; /* valid because of the previous test above */
 	while (start_from != list && tv_cmp2(&task->expire, &start_from->expire) < 0) {
 	    start_from = start_from->prev;
+#if STATTIME > 0
 	    stats_tsk_lsrch++;
+#endif
 	}
 #endif
 	/* we need to unlink it now */
@@ -2110,6 +2185,9 @@ int process_cli(struct session *t) {
     struct buffer *req = t->req;
     struct buffer *rep = t->rep;
 
+#ifdef DEBUG_FULL
+    fprintf(stderr,"process_cli: c=%s, s=%s\n", cli_stnames[c], srv_stnames[s]);
+#endif
     //fprintf(stderr,"process_cli: c=%d, s=%d, cr=%d, cw=%d, sr=%d, sw=%d\n", c, s,
     //FD_ISSET(t->cli_fd, StaticReadEvent), FD_ISSET(t->cli_fd, StaticWriteEvent),
     //FD_ISSET(t->srv_fd, StaticReadEvent), FD_ISSET(t->srv_fd, StaticWriteEvent)
@@ -2127,7 +2205,6 @@ int process_cli(struct session *t) {
 		ptr++;
 	    
 	    if (ptr == req->h) { /* empty line, end of headers */
-		char newhdr[MAXREWRITE + 1];
 		int line, len;
 		/* we can only get here after an end of headers */
 		/* we'll have something else to do here : add new headers ... */
@@ -2135,28 +2212,29 @@ int process_cli(struct session *t) {
 		if (t->flags & SN_CLDENY) {
 		    /* no need to go further */
 		    t->logs.status = 403;
-		    client_retnclose(t, strlen(HTTP_403), HTTP_403);
+		    if (t->proxy->mode == PR_MODE_HTTP)
+			client_retnclose(t, strlen(HTTP_403), HTTP_403);
 		    return 1;
 		}
 
 		for (line = 0; line < t->proxy->nb_reqadd; line++) {
-		    len = sprintf(newhdr, "%s\r\n", t->proxy->req_add[line]);
-		    buffer_replace2(req, req->h, req->h, newhdr, len);
+		    len = sprintf(trash, "%s\r\n", t->proxy->req_add[line]);
+		    buffer_replace2(req, req->h, req->h, trash, len);
 		}
 
 		if (t->proxy->options & PR_O_FWDFOR) {
 		    /* insert an X-Forwarded-For header */
 		    unsigned char *pn;
 		    pn = (unsigned char *)&t->cli_addr.sin_addr;
-		    len = sprintf(newhdr, "X-Forwarded-For: %d.%d.%d.%d\r\n",
+		    len = sprintf(trash, "X-Forwarded-For: %d.%d.%d.%d\r\n",
 				  pn[0], pn[1], pn[2], pn[3]);
-		    buffer_replace2(req, req->h, req->h, newhdr, len);
+		    buffer_replace2(req, req->h, req->h, trash, len);
 		}
 
 		t->cli_state = CL_STDATA;
 		req->rlim = req->data + BUFSIZE; /* no more rewrite needed */
 
-		t->logs.t_request = tv_delta(&t->logs.tv_accept, &now);
+		t->logs.t_request = tv_diff(&t->logs.tv_accept, &now);
 		/* FIXME: we'll set the client in a wait state while we try to
 		 * connect to the server. Is this really needed ? wouldn't it be
 		 * better to release the maximum of system buffers instead ? */
@@ -2196,8 +2274,9 @@ int process_cli(struct session *t) {
 
 		if ((t->logs.uri = pool_alloc(requri)) == NULL) {
 		    Alert("HTTP logging : out of memory.\n");
-		    t->logs.status = 502;
-		    client_retnclose(t, strlen(HTTP_502), HTTP_502);
+		    t->logs.status = 500;
+		    if (t->proxy->mode == PR_MODE_HTTP)
+			client_retnclose(t, strlen(HTTP_500), HTTP_500);
 		    return 1;
 		}
 		
@@ -2218,7 +2297,7 @@ int process_cli(struct session *t) {
 		len = sprintf(trash, "clihdr[%04x:%04x]: ", (unsigned  short)t->cli_fd, (unsigned short)t->srv_fd);
 		max = ptr - req->h;
 		UBOUND(max, sizeof(trash) - len - 1);
-		len += strlcpy(trash + len, req->h, max + 1);
+		len += strlcpy2(trash + len, req->h, max + 1);
 		trash[len++] = '\n';
 		write(1, trash, len);
 	    }
@@ -2415,7 +2494,8 @@ int process_cli(struct session *t) {
 	 */
 	if (req->l >= req->rlim - req->data) {
 	    t->logs.status = 400;
-	    client_retnclose(t, strlen(HTTP_400), HTTP_400);
+	    if (t->proxy->mode == PR_MODE_HTTP)
+		client_retnclose(t, strlen(HTTP_400), HTTP_400);
 	    return 1;
 	}
 	else if (t->res_cr == RES_ERROR || t->res_cr == RES_NULL
@@ -2577,7 +2657,9 @@ int process_srv(struct session *t) {
     struct buffer *req = t->req;
     struct buffer *rep = t->rep;
 
-    //fprintf(stderr,"process_srv: c=%d, s=%d\n", c, s);
+#ifdef DEBUG_FULL
+    fprintf(stderr,"process_srv: c=%s, s=%s\n", cli_stnames[c], srv_stnames[s]);
+#endif
     //fprintf(stderr,"process_srv: c=%d, s=%d, cr=%d, cw=%d, sr=%d, sw=%d\n", c, s,
     //FD_ISSET(t->cli_fd, StaticReadEvent), FD_ISSET(t->cli_fd, StaticWriteEvent),
     //FD_ISSET(t->srv_fd, StaticReadEvent), FD_ISSET(t->srv_fd, StaticWriteEvent)
@@ -2614,7 +2696,8 @@ int process_srv(struct session *t) {
 		    tv_eternity(&t->cnexpire);
 		    t->srv_state = SV_STCLOSE;
 		    t->logs.status = 502;
-		    client_return(t, strlen(HTTP_502), HTTP_502);
+		    if (t->proxy->mode == PR_MODE_HTTP)
+			client_return(t, strlen(HTTP_502), HTTP_502);
 		}
 	    }
 	    return 1;
@@ -2643,10 +2726,13 @@ int process_srv(struct session *t) {
 	    /* if conn_retries < 0 or other error, let's abort */
 	    tv_eternity(&t->cnexpire);
 	    t->srv_state = SV_STCLOSE;
+	    t->logs.status = 502;
+	    if (t->proxy->mode == PR_MODE_HTTP)
+		client_return(t, strlen(HTTP_502), HTTP_502);
 	    return 1;
 	}
 	else { /* no error or write 0 */
-	    t->logs.t_connect = tv_delta(&t->logs.tv_accept, &now);
+	    t->logs.t_connect = tv_diff(&t->logs.tv_accept, &now);
 
 	    //fprintf(stderr,"3: c=%d, s=%d\n", c, s);
 	    if (req->l == 0) /* nothing to write */
@@ -2686,7 +2772,6 @@ int process_srv(struct session *t) {
 		ptr++;
 	    
 	    if (ptr == rep->h) {
-		char newhdr[MAXREWRITE + 1];
 		int line, len;
 
 		/* we can only get here after an end of headers */
@@ -2696,23 +2781,30 @@ int process_srv(struct session *t) {
 		    /* the server is known, it's not the one the client requested, we have to
 		     * insert a set-cookie here.
 		     */
-		    len = sprintf(newhdr, "Set-Cookie: %s=%s; path=/\r\n",
+		    len = sprintf(trash, "Set-Cookie: %s=%s; path=/\r\n",
 				  t->proxy->cookie_name, t->srv->cookie);
-		    if (t->proxy->options & PR_O_COOK_NOC)
-			len += sprintf(newhdr + len, "Cache-control: no-cache=\"set-cookie\"\r\n");
 
-		    buffer_replace2(rep, rep->h, rep->h, newhdr, len);
+		    /* Here, we will tell an eventual cache on the client side that we don't
+		     * want it to cache this reply because HTTP/1.0 caches also cache cookies !
+		     * Some caches understand the correct form: 'no-cache="set-cookie"', but
+		     * others don't (eg: apache <= 1.3.26). So we use 'private' instead.
+		     */
+		    if (t->proxy->options & PR_O_COOK_NOC)
+			//len += sprintf(newhdr + len, "Cache-control: no-cache=\"set-cookie\"\r\n");
+			len += sprintf(trash + len, "Cache-control: private\r\n");
+
+		    buffer_replace2(rep, rep->h, rep->h, trash, len);
 		}
 
 		/* headers to be added */
 		for (line = 0; line < t->proxy->nb_rspadd; line++) {
-		    len = sprintf(newhdr, "%s\r\n", t->proxy->rsp_add[line]);
-		    buffer_replace2(rep, rep->h, rep->h, newhdr, len);
+		    len = sprintf(trash, "%s\r\n", t->proxy->rsp_add[line]);
+		    buffer_replace2(rep, rep->h, rep->h, trash, len);
 		}
 
 		t->srv_state = SV_STDATA;
 		rep->rlim = rep->data + BUFSIZE; /* no more rewrite needed */
-		t->logs.t_data = tv_delta(&t->logs.tv_accept, &now);
+		t->logs.t_data = tv_diff(&t->logs.tv_accept, &now);
 		break;
 	    }
 
@@ -2756,7 +2848,7 @@ int process_srv(struct session *t) {
 		len = sprintf(trash, "srvhdr[%04x:%04x]: ", (unsigned  short)t->cli_fd, (unsigned short)t->srv_fd);
 		max = ptr - rep->h;
 		UBOUND(max, sizeof(trash) - len - 1);
-		len += strlcpy(trash + len, rep->h, max + 1);
+		len += strlcpy2(trash + len, rep->h, max + 1);
 		trash[len++] = '\n';
 		write(1, trash, len);
 	    }
@@ -2909,7 +3001,11 @@ int process_srv(struct session *t) {
 	    
 	}	
 	/* write timeout, or last client read and buffer empty */
-	else if (((c == CL_STSHUTR || c == CL_STCLOSE) && (req->l == 0)) ||
+	/* FIXME!!! here, we don't want to switch to SHUTW if the
+	 * client shuts read too early, because we may still have
+	 * some work to do on the headers.
+	 */
+	else if (((/*c == CL_STSHUTR ||*/ c == CL_STCLOSE) && (req->l == 0)) ||
 		 (tv_cmp2_ms(&t->swexpire, &now) <= 0)) {
 	    FD_CLR(t->srv_fd, StaticWriteEvent);
 	    tv_eternity(&t->swexpire);
@@ -3114,7 +3210,7 @@ int process_session(struct task *t) {
 	write(1, trash, len);
     }
 
-    s->logs.t_close = tv_delta(&s->logs.tv_accept, &now);
+    s->logs.t_close = tv_diff(&s->logs.tv_accept, &now);
     if (s->rep != NULL)
 	s->logs.bytes = s->rep->total;
 
@@ -3422,9 +3518,9 @@ int stats(void) {
     unsigned long totaltime, deltatime;
     int ret;
 
-    if (tv_remain(&now, &nextevt) == 0) {
-	deltatime = (tv_delta(&now, &lastevt)?:1);
-	totaltime = (tv_delta(&now, &starttime)?:1);
+    if (tv_cmp(&now, &nextevt) > 0) {
+	deltatime = (tv_diff(&now, &lastevt)?:1);
+	totaltime = (tv_diff(&now, &starttime)?:1);
 	
 	if (global.mode & MODE_STATS) {	
 		if ((lines++ % 16 == 0) && !(global.mode & MODE_LOG))
@@ -4557,7 +4653,7 @@ void init(int argc, char **argv) {
 	/* command line debug mode inhibits configuration mode */
 	global.mode &= ~(MODE_DAEMON | MODE_QUIET);
     }
-    global.mode |= (arg_mode & (MODE_DAEMON | MODE_QUIET | MODE_DEBUG));
+    global.mode |= (arg_mode & (MODE_DAEMON | MODE_QUIET | MODE_DEBUG | MODE_STATS | MODE_LOG));
 
     if ((global.mode & MODE_DEBUG) && (global.mode & (MODE_DAEMON | MODE_QUIET))) {
 	Warning("<debug> mode incompatible with <quiet> and <daemon>. Keeping <debug> only.\n");
@@ -4727,8 +4823,20 @@ int main(int argc, char **argv) {
 	if (proc == global.nbproc)
 	    exit(0); /* parent must leave */
 
+	/* if we're NOT in QUIET mode, we should now close the 3 first FDs to ensure
+	 * that we can detach from the TTY. We MUST NOT do it in other cases since
+	 * it would have already be done, and 0-2 would have been affected to listening
+	 * sockets
+	 */
+    	if (!(global.mode & MODE_QUIET)) {
+	    /* detach from the tty */
+	    fclose(stdin); fclose(stdout); fclose(stderr);
+	    close(0); close(1); close(2); /* close all fd's */
+    	    global.mode |= MODE_QUIET; /* ensure that we won't say anything from now */
+	}
 	pid = getpid(); /* update child's pid */
 	setpgid(1, 0);
+	setpgrp();
     }
 
     select_loop();

@@ -1,3 +1,12 @@
+# Select target OS. TARGET must match a system for which COPTS and LIBS are
+# correctly defined below.
+# You can set it on make's command line. eg: make TARGET=solaris
+TARGET = linux24
+#TARGET = linux22
+#TARGET = solaris
+#TARGET = solarisv9
+#TARGET = openbsd
+
 CC = gcc
 LD = gcc
 
@@ -10,19 +19,16 @@ COPTS.linux22 = -O2 -DUSE_GETSOCKNAME
 LIBS.linux22 =
 
 # This is for Solaris 8
-COPTS.solaris = -O2 -fomit-frame-pointer -DSOLARIS -DHAVE_STRLCPY
+COPTS.solaris = -O2 -fomit-frame-pointer -DSOLARIS
 LIBS.solaris = -lnsl -lsocket
 
-# This is for OpenBSD 3.0
-COPTS.openbsd = -O2 -DHAVE_STRLCPY
-LIBS.openbsd =
+# This is for Solaris 8 on UltraSparc2 processor
+COPTS.solarisv9 = -O6 -mcpu=v9 -fomit-frame-pointer -DSOLARIS
+LIBS.solarisv9 = -lnsl -lsocket
 
-# Select target OS. TARGET must match a system for which COPTS and LIBS are
-# correctly defined above.
-TARGET = linux24
-#TARGET = linux22
-#TARGET = solaris
-#TARGET = openbsd
+# This is for OpenBSD 3.0
+COPTS.openbsd = -O2
+LIBS.openbsd =
 
 #DEBUG =
 DEBUG = -g
