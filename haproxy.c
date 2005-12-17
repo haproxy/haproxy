@@ -53,8 +53,8 @@
 #include <linux/netfilter_ipv4.h>
 #endif
 
-#define HAPROXY_VERSION "1.1.25"
-#define HAPROXY_DATE	"2003/10/15"
+#define HAPROXY_VERSION "1.1.26"
+#define HAPROXY_DATE	"2003/10/22"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -2464,6 +2464,16 @@ int process_cli(struct session *t) {
 		 * data state which will save one schedule.
 		 */
 		//break;
+
+		if (!t->proxy->clitimeout ||
+		    (t->srv_state < SV_STDATA && t->proxy->srvtimeout))
+		    /* If the client has no timeout, or if the server is not ready yet,
+		     * and we know for sure that it can expire, then it's cleaner to
+		     * disable the timeout on the client side so that too low values
+		     * cannot make the sessions abort too early.
+		     */
+		    tv_eternity(&t->crexpire);
+
 		goto process_data;
 	    }
 
@@ -2845,8 +2855,8 @@ int process_cli(struct session *t) {
 	    return 1;
 	}
 
-	if (req->l >= req->rlim - req->data || t->srv_state < SV_STDATA) {
-	    /* no room to read more data, or server not ready yet */
+	if (req->l >= req->rlim - req->data) {
+	    /* no room to read more data */
 	    if (FD_ISSET(t->cli_fd, StaticReadEvent)) {
 		/* stop reading until we get some space */
 		FD_CLR(t->cli_fd, StaticReadEvent);
@@ -2857,10 +2867,16 @@ int process_cli(struct session *t) {
 	    /* there's still some space in the buffer */
 	    if (! FD_ISSET(t->cli_fd, StaticReadEvent)) {
 		FD_SET(t->cli_fd, StaticReadEvent);
-		if (t->proxy->clitimeout)
-		    tv_delayfrom(&t->crexpire, &now, t->proxy->clitimeout);
-		else
+		if (!t->proxy->clitimeout ||
+		    (t->srv_state < SV_STDATA && t->proxy->srvtimeout))
+		    /* If the client has no timeout, or if the server not ready yet, and we
+		     * know for sure that it can expire, then it's cleaner to disable the
+		     * timeout on the client side so that too low values cannot make the
+		     * sessions abort too early.
+		     */
 		    tv_eternity(&t->crexpire);
+		else
+		    tv_delayfrom(&t->crexpire, &now, t->proxy->clitimeout);
 	    }
 	}
 
