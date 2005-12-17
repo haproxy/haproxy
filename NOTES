@@ -12,10 +12,8 @@
   * full HTTP log with destination server ID, req and resp time.
   * source address of outgoing connections
 1.1.8 -> 1.1.9
-  - handle parametrable HTTP health-checks replies
-  - differentiate http headers and http uris
-  - support environment variables in config file
-  - support keep-alive
 1.1.9 -> 1.1.10
-  - automatically remove client cookie in insert+indirect mode
-
+  * automatically remove client cookie in insert+indirect mode
+1.1.10 -> 1.1.11
+  * support multi-cookie as described in RFC2109
+  * added "nocache" option to prevent caches from storing cookies.

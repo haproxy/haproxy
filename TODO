@@ -18,5 +18,12 @@
   - compter les matches
   - si match(n) & ([n].cpt > [n-1].cpt) & ([n].action == [n-1].action), swap(n,n-1)
   - régulièrement, diviser tous les compteurs (lors d'un dépassement par exemple)
-- filtrage sur l'adresse IP source
+- filtrage sur l'adresse IP source, et stocker le pointeur sur la dernière regex
+  matchée dans la "session" pour accélérer les regex.
 - gestion keep-alive
+
+- handle parametrable HTTP health-checks replies
+- differentiate http headers and http uris
+- support environment variables in config file
+- support keep-alive
+

@@ -17,6 +17,14 @@
  *
  * ChangeLog :
  *
+ * 2002/06/04 : 1.1.11
+ *   - fixed multi-cookie handling in client request to allow clean deletion
+ *     in insert+indirect mode. Now, only the server cookie is deleted and not
+ *     all the header. Should now be compliant to RFC2109.
+ *   - added a "nocache" option to "cookie" to specify that we explicitly want
+ *     to add a "cache-control" header when we add a cookie.
+ *     It is also possible to add an "Expires: <old-date>" to keep compatibility
+ *     with old/broken caches.
  * 2002/05/10 : 1.1.10
  *   - if a cookie is used in insert+indirect mode, it's desirable that the
  *     the servers don't see it. It was not possible to remove it correctly
@@ -145,8 +153,8 @@
 #include <linux/netfilter_ipv4.h>
 #endif
 
-#define HAPROXY_VERSION "1.1.9"
-#define HAPROXY_DATE	"2002/04/19"
+#define HAPROXY_VERSION "1.1.11"
+#define HAPROXY_DATE	"2002/06/04"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -313,6 +321,7 @@ int strlcpy(char *dst, const char *src, int size) {
 #define	PR_O_FWDFOR	128	/* insert x-forwarded-for with client address */
 #define	PR_O_BIND_SRC	256	/* bind to a specific source address when connect()ing */
 #define PR_O_NULLNOLOG	512	/* a connect without request will not be logged */
+#define PR_O_COOK_NOC	1024	/* add a 'Cache-control' header with the cookie */
 
 
 /* various session flags */
@@ -2021,7 +2030,9 @@ int buffer_replace(struct buffer *b, char *pos, char *end, char *str) {
     return delta;
 }
 
-/* same except that the string len is given */
+/* same except that the string len is given, which allows str to be NULL if
+ * len is 0.
+ */
 int buffer_replace2(struct buffer *b, char *pos, char *end, char *str, int len) {
     int delta;
 
@@ -2034,7 +2045,8 @@ int buffer_replace2(struct buffer *b, char *pos, char *end, char *str, int len) 
     memmove(end + delta, end, b->data + b->l - end);
 
     /* now, copy str over pos */
-    memcpy(pos, str,len);
+    if (len)
+	memcpy(pos, str, len);
 
     /* we only move data after the displaced zone */
     if (b->r  > pos) b->r  += delta;
@@ -2247,43 +2259,59 @@ int process_cli(struct session *t) {
 		*ptr = term; /* restore the string terminator */
 	    }
 	    
-	    /* now look for cookies */
-	    if (!delete_header && (req->r >= req->h + 8) && (t->proxy->cookie_name != NULL)
+	    /* Now look for cookies. Conforming to RFC2109, we have to support
+	     * attributes whose name begin with a '$', and associate them with
+	     * the right cookie, if we want to delete this cookie.
+	     * So there are 3 cases for each cookie read :
+	     * 1) it's a special attribute, beginning with a '$' : ignore it.
+	     * 2) it's a server id cookie that we *MAY* want to delete : save
+	     *    some pointers on it (last semi-colon, beginning of cookie...)
+	     * 3) it's an application cookie : we *MAY* have to delete a previous
+	     *    "special" cookie.
+	     * At the end of loop, if a "special" cookie remains, we may have to
+	     * remove it. If no application cookie persists in the header, we
+	     * *MUST* delete it
+	     */
+	    if (!delete_header && (t->proxy->cookie_name != NULL)
+		&& !(t->flags & SN_CLDENY) && (ptr >= req->h + 8)
 		&& (strncmp(req->h, "Cookie: ", 8) == 0)) {
 		char *p1, *p2, *p3, *p4;
-		
+		char *del_colon, *del_cookie, *colon;
+		int app_cookies;
+
 		p1 = req->h + 8; /* first char after 'Cookie: ' */
+		colon = p1;
+		/* del_cookie == NULL => nothing to be deleted */
+		del_colon = del_cookie = NULL;
+		app_cookies = 0;
 		
 		while (p1 < ptr) {
-		    while (p1 < ptr && (isspace((int)*p1) || *p1 == ';'))
+		    /* skip spaces and colons, but keep an eye on these ones */
+		    while (p1 < ptr) {
+			if (*p1 == ';' || *p1 == ',')
+			    colon = p1;
+			else if (!isspace((int)*p1))
+			    break;
 			p1++;
+		    }
 		    
 		    if (p1 == ptr)
 			break;
-		    else if (*p1 == ';') { /* next cookie */
-			++p1;
-			continue;
-		    }
 		    
 		    /* p1 is at the beginning of the cookie name */
 		    p2 = p1;
-		    
-		    while (p2 < ptr && *p2 != '=' && *p2 != ';')
+		    while (p2 < ptr && *p2 != '=')
 			p2++;
 		    
 		    if (p2 == ptr)
 			break;
-		    else if (*p2 == ';') { /* next cookie */
-			p1=++p2;
-			continue;
-		    }
 
 		    p3 = p2 + 1; /* skips the '=' sign */
 		    if (p3 == ptr)
 			break;
 		    
-		    p4=p3;
-		    while (p4 < ptr && !isspace((int)*p4) && *p4 != ';')
+		    p4 = p3;
+		    while (p4 < ptr && !isspace((int)*p4) && *p4 != ';' && *p4 != ',')
 			p4++;
 		    
 		    /* here, we have the cookie name between p1 and p2,
@@ -2291,8 +2319,11 @@ int process_cli(struct session *t) {
 		     * we can process it.
 		     */
 		    
-		    if ((p2 - p1 == strlen(t->proxy->cookie_name)) &&
-			(strncmp(p1, t->proxy->cookie_name, p2 - p1) == 0)) {
+		    if (*p1 == '$') {
+			/* skip this one */
+		    }
+		    else if ((p2 - p1 == strlen(t->proxy->cookie_name)) &&
+			(memcmp(p1, t->proxy->cookie_name, p2 - p1) == 0)) {
 			/* Cool... it's the right one */
 			struct server *srv = t->proxy->srv;
 
@@ -2304,31 +2335,64 @@ int process_cli(struct session *t) {
 			if (srv) { /* we found the server */
 			    t->flags |= SN_DIRECT;
 			    t->srv = srv;
-			    /* if this cookie was set in insert+indirect mode, then it's better that the
-			     * server never sees it.
-			     */
-			    if ((t->proxy->options & (PR_O_COOK_INS | PR_O_COOK_IND)) == (PR_O_COOK_INS | PR_O_COOK_IND))
-				delete_header = 1;
 			}
-
-			break;
+			/* if this cookie was set in insert+indirect mode, then it's better that the
+			 * server never sees it.
+			 */
+			if (del_cookie == NULL &&
+			    (t->proxy->options & (PR_O_COOK_INS | PR_O_COOK_IND)) == (PR_O_COOK_INS | PR_O_COOK_IND)) {
+				del_cookie = p1;
+				del_colon = colon;
+			}
 		    }
 		    else {
-			// fprintf(stderr,"Ignoring unknown cookie : ");
-			// write(2, p1, p2-p1);
-			// fprintf(stderr," = ");
-			// write(2, p3, p4-p3);
-			// fprintf(stderr,"\n");
+			/* now we know that we must keep this cookie since it's
+			 * not ours. But if we wanted to delete our cookie
+			 * earlier, we cannot remove the complete header, but we
+			 * can remove the previous block itself.
+			 */
+			app_cookies++;
+
+			if (del_cookie != NULL) {
+			    buffer_replace2(req, del_cookie, p1, NULL, 0);
+			    p4  -= (p1 - del_cookie);
+			    ptr -= (p1 - del_cookie);
+			    del_cookie = del_colon = NULL;
+			}
 		    }
+
 		    /* we'll have to look for another cookie ... */
 		    p1 = p4;
 		} /* while (p1 < ptr) */
-	    } /* end of cookie processing */
+
+		/* There's no more cookie on this line.
+		 * We may have marked the last one(s) for deletion.
+		 * We must do this now in two ways :
+		 *  - if there is no app cookie, we simply delete the header ;
+		 *  - if there are app cookies, we must delete the end of the
+		 *    string properly, including the colon/semi-colon before
+		 *    the cookie name.
+		 */
+		if (del_cookie != NULL) {
+		    if (app_cookies) {
+			buffer_replace2(req, del_colon, ptr, NULL, 0);
+			/* WARNING! <ptr> becomes invalid for now. If some code
+			 * below needs to rely on it before the end of the global
+			 * header loop, we need to correct it with this code :
+			 * ptr = del_colon;
+			 */
+		    }
+		    else
+			delete_header = 1;
+		}
+	    } /* end of cookie processing on this header */
 
 	    /* let's look if we have to delete this header */
 	    if (delete_header && !(t->flags & SN_CLDENY)) {
-		buffer_replace2(req, req->h, req->lr, "", 0);
+		buffer_replace2(req, req->h, req->lr, NULL, 0);
 	    }
+	    /* WARNING: ptr is not valid anymore, since the header may have been deleted or truncated ! */
+
 	    req->h = req->lr;
 	} /* while (req->lr < req->r) */
 
@@ -2634,6 +2698,9 @@ int process_srv(struct session *t) {
 		     */
 		    len = sprintf(newhdr, "Set-Cookie: %s=%s; path=/\r\n",
 				  t->proxy->cookie_name, t->srv->cookie);
+		    if (t->proxy->options & PR_O_COOK_NOC)
+			len += sprintf(newhdr + len, "Cache-control: no-cache=\"set-cookie\"\r\n");
+
 		    buffer_replace2(rep, rep->h, rep->h, newhdr, len);
 		}
 
@@ -2731,8 +2798,9 @@ int process_srv(struct session *t) {
 	    }
 	    
 	    /* check for server cookies */
-	    if (!delete_header && (t->proxy->options & PR_O_COOK_ANY) && (rep->r >= rep->h + 12) &&
-		(t->proxy->cookie_name != NULL)	&& (strncmp(rep->h, "Set-Cookie: ", 12) == 0)) {
+	    if (!delete_header && (t->proxy->options & PR_O_COOK_ANY)
+		&& (t->proxy->cookie_name != NULL) && (ptr >= rep->h + 12)
+		&& (strncmp(rep->h, "Set-Cookie: ", 12) == 0)) {
 		char *p1, *p2, *p3, *p4;
 		
 		p1 = rep->h + 12; /* first char after 'Set-Cookie: ' */
@@ -3708,6 +3776,9 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	    }
 	    else if (!strcmp(args[cur_arg], "insert")) {
 		curproxy->options |= PR_O_COOK_INS;
+	    }
+	    else if (!strcmp(args[cur_arg], "nocache")) {
+		curproxy->options |= PR_O_COOK_NOC;
 	    }
 	    else {
 		Alert("parsing [%s:%d] : <cookie> supports 'rewrite', 'insert' and 'indirect' options.\n",
