@@ -1,6 +1,15 @@
 ChangeLog :
 ===========
 
+2003/04/21 : 1.1.20
+  - fixed two problems with time-outs, one where a server would be logged as
+    timed out during transfer that take longer to complete than the fixed
+    time-out, and one where clients were logged as timed-out during the data
+    phase because they didn't have anything to send. This sometimes caused
+    slow client connections to close too early while in fact there was no
+    problem. The proper fix would be to have a per-fd time-out with
+    conditions depending on the state of the HTTP FSM.
+
 2003/04/16 : 1.1.19
   - haproxy was NOT RFC compliant because it was case-sensitive on HTTP
     "Cookie:" and "Set-Cookie:" headers. This caused JVM 1.4 to fail on

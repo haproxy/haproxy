@@ -53,8 +53,8 @@
 #include <linux/netfilter_ipv4.h>
 #endif
 
-#define HAPROXY_VERSION "1.1.19"
-#define HAPROXY_DATE	"2003/04/16"
+#define HAPROXY_VERSION "1.1.20"
+#define HAPROXY_DATE	"2003/04/21"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -1524,7 +1524,7 @@ int event_cli_read(int fd) {
     }
 
     if (s->res_cr != RES_SILENT) {
-	if (s->proxy->clitimeout)
+	if (s->proxy->clitimeout && FD_ISSET(fd, StaticReadEvent))
 	    tv_delayfrom(&s->crexpire, &now, s->proxy->clitimeout);
 	else
 	    tv_eternity(&s->crexpire);
@@ -1619,7 +1619,7 @@ int event_srv_read(int fd) {
     }
 
     if (s->res_sr != RES_SILENT) {
-	if (s->proxy->srvtimeout)
+	if (s->proxy->srvtimeout && FD_ISSET(fd, StaticReadEvent))
 	    tv_delayfrom(&s->srexpire, &now, s->proxy->srvtimeout);
 	else
 	    tv_eternity(&s->srexpire);
@@ -1661,6 +1661,8 @@ int event_cli_write(int fd) {
 	if (max == 0) {
 	    s->res_cw = RES_NULL;
 	    task_wakeup(&rq, t);
+	    tv_eternity(&s->cwexpire);
+	    FD_CLR(fd, StaticWriteEvent);
 	    return 0;
 	}
 
@@ -1702,8 +1704,11 @@ int event_cli_write(int fd) {
 	fdtab[fd].state = FD_STERROR;
     }
 
-    if (s->proxy->clitimeout)
+    if (s->proxy->clitimeout) {
 	tv_delayfrom(&s->cwexpire, &now, s->proxy->clitimeout);
+	/* FIXME: to avoid the client to read-time-out during writes, we refresh it */
+	s->crexpire = s->cwexpire;
+    }
     else
 	tv_eternity(&s->cwexpire);
 
@@ -1744,6 +1749,8 @@ int event_srv_write(int fd) {
 	    s->res_sw = RES_NULL;
 	    task_wakeup(&rq, t);
 	    fdtab[fd].state = FD_STREADY;
+	    tv_eternity(&s->swexpire);
+	    FD_CLR(fd, StaticWriteEvent);
 	    return 0;
 	}
 
@@ -1786,8 +1793,11 @@ int event_srv_write(int fd) {
 	fdtab[fd].state = FD_STERROR;
     }
 
-    if (s->proxy->srvtimeout)
+    if (s->proxy->srvtimeout) {
 	tv_delayfrom(&s->swexpire, &now, s->proxy->srvtimeout);
+	/* FIXME: to avoid the server to read-time-out during writes, we refresh it */
+	s->srexpire = s->swexpire;
+    }
     else
 	tv_eternity(&s->swexpire);
 
@@ -2025,7 +2035,7 @@ int event_accept(int fd) {
 	s->req->total = 0;
 	s->req->h = s->req->r = s->req->lr = s->req->w = s->req->data;	/* r and w will be reset further */
 	s->req->rlim = s->req->data + BUFSIZE;
-	if (s->cli_state == CL_STHEADERS) /* reserver some space for header rewriting */
+	if (s->cli_state == CL_STHEADERS) /* reserve some space for header rewriting */
 	    s->req->rlim -= MAXREWRITE;
 
 	if ((s->rep = pool_alloc(buffer)) == NULL) { /* no memory */
@@ -2706,7 +2716,7 @@ int process_cli(struct session *t) {
 	    shutdown(t->cli_fd, SHUT_WR);
 	    t->cli_state = CL_STSHUTW;
 	    if (!(t->flags & SN_ERR_MASK))
-		t->flags |= SN_ERR_CLICL;
+		t->flags |= SN_ERR_CLITO;
 	    if (!(t->flags & SN_FINST_MASK))
 		t->flags |= SN_FINST_D;
 	    return 1;
@@ -2741,8 +2751,11 @@ int process_cli(struct session *t) {
 	else { /* buffer not empty */
 	    if (! FD_ISSET(t->cli_fd, StaticWriteEvent)) {
 		FD_SET(t->cli_fd, StaticWriteEvent); /* restart writing */
-		if (t->proxy->clitimeout)
+		if (t->proxy->clitimeout) {
 		    tv_delayfrom(&t->cwexpire, &now, t->proxy->clitimeout);
+		    /* FIXME: to avoid the client to read-time-out during writes, we refresh it */
+		    t->crexpire = t->cwexpire;
+		}
 		else
 		    tv_eternity(&t->cwexpire);
 	    }
@@ -2786,8 +2799,11 @@ int process_cli(struct session *t) {
 	else { /* buffer not empty */
 	    if (! FD_ISSET(t->cli_fd, StaticWriteEvent)) {
 		FD_SET(t->cli_fd, StaticWriteEvent); /* restart writing */
-		if (t->proxy->clitimeout)
+		if (t->proxy->clitimeout) {
 		    tv_delayfrom(&t->cwexpire, &now, t->proxy->clitimeout);
+		    /* FIXME: to avoid the client to read-time-out during writes, we refresh it */
+		    t->crexpire = t->cwexpire;
+		}
 		else
 		    tv_eternity(&t->cwexpire);
 	    }
@@ -2961,10 +2977,19 @@ int process_srv(struct session *t) {
 	    t->logs.t_connect = tv_diff(&t->logs.tv_accept, &now);
 
 	    //fprintf(stderr,"3: c=%d, s=%d\n", c, s);
-	    if (req->l == 0) /* nothing to write */
+	    if (req->l == 0) /* nothing to write */ {
 		FD_CLR(t->srv_fd, StaticWriteEvent);
-	    else  /* need the right to write */
+		tv_eternity(&t->swexpire);
+	    } else  /* need the right to write */ {
 		FD_SET(t->srv_fd, StaticWriteEvent);
+		if (t->proxy->srvtimeout) {
+		    tv_delayfrom(&t->swexpire, &now, t->proxy->srvtimeout);
+		    /* FIXME: to avoid the server to read-time-out during writes, we refresh it */
+		    t->srexpire = t->swexpire;
+		}
+		else
+		    tv_eternity(&t->swexpire);
+	    }
 
 	    if (t->proxy->mode == PR_MODE_TCP) { /* let's allow immediate data connection in this case */
 		FD_SET(t->srv_fd, StaticReadEvent);
@@ -3314,8 +3339,11 @@ int process_srv(struct session *t) {
 	else { /* client buffer not empty */
 	    if (! FD_ISSET(t->srv_fd, StaticWriteEvent)) {
 		FD_SET(t->srv_fd, StaticWriteEvent); /* restart writing */
-		if (t->proxy->srvtimeout)
+		if (t->proxy->srvtimeout) {
 		    tv_delayfrom(&t->swexpire, &now, t->proxy->srvtimeout);
+		    /* FIXME: to avoid the server to read-time-out during writes, we refresh it */
+		    t->srexpire = t->swexpire;
+		}
 		else
 		    tv_eternity(&t->swexpire);
 	    }
@@ -3374,22 +3402,28 @@ int process_srv(struct session *t) {
 		t->flags |= SN_FINST_D;
 	    return 1;
 	}
-	else if (req->l == 0) {
+
+	/* recompute request time-outs */
+	if (req->l == 0) {
 	    if (FD_ISSET(t->srv_fd, StaticWriteEvent)) {
 		FD_CLR(t->srv_fd, StaticWriteEvent); /* stop writing */
 		tv_eternity(&t->swexpire);
 	    }
 	}
-	else { /* buffer not empty */
+	else { /* buffer not empty, there are still data to be transferred */
 	    if (! FD_ISSET(t->srv_fd, StaticWriteEvent)) {
 		FD_SET(t->srv_fd, StaticWriteEvent); /* restart writing */
-		if (t->proxy->srvtimeout)
+		if (t->proxy->srvtimeout) {
 		    tv_delayfrom(&t->swexpire, &now, t->proxy->srvtimeout);
+		    /* FIXME: to avoid the server to read-time-out during writes, we refresh it */
+		    t->srexpire = t->swexpire;
+		}
 		else
 		    tv_eternity(&t->swexpire);
 	    }
 	}
 
+	/* recompute response time-outs */
 	if (rep->l == BUFSIZE) { /* no room to read more data */
 	    if (FD_ISSET(t->srv_fd, StaticReadEvent)) {
 		FD_CLR(t->srv_fd, StaticReadEvent);
@@ -3450,8 +3484,11 @@ int process_srv(struct session *t) {
 	else { /* buffer not empty */
 	    if (! FD_ISSET(t->srv_fd, StaticWriteEvent)) {
 		FD_SET(t->srv_fd, StaticWriteEvent); /* restart writing */
-		if (t->proxy->srvtimeout)
+		if (t->proxy->srvtimeout) {
 		    tv_delayfrom(&t->swexpire, &now, t->proxy->srvtimeout);
+		    /* FIXME: to avoid the server to read-time-out during writes, we refresh it */
+		    t->srexpire = t->swexpire;
+		}
 		else
 		    tv_eternity(&t->swexpire);
 	    }
