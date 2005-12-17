@@ -80,17 +80,25 @@ ok>
 5) implémenter "balance source" pour faire un hash sur la source.
    permettre de spécifier un masque sur lequel s'applique le hachage,
    ainsi qu'une option pour hacher en fonction de l'adresse dans le
-   champ "x-forwarded-for".
+   champ "x-forwarded-for". Problème pour le support des pannes: ce
+   type de hash est utile là où la persistence par cookie ne peut pas
+   s'appliquer, donc comment faire pour assurer un maximum de persistence
+   en cas de panne ?
 
 6) possibilité d'un process séparé par listen :
    listen XXX
       fork [ group_id ]
 
-le fait de spécifier group_id fera que toutes les instances utilisant le même
-identifiant de groupe seront gérées par un même processus.
+   le fait de spécifier group_id fera que toutes les instances utilisant le
+   même identifiant de groupe seront gérées par un même processus.
 
    -> plus souple et plus compréhensible de faire des sections par processus,
-      ce qui résoud également le cas ci-dessous
+      ce qui résoud également le cas ci-dessous. Ex:
+   process_group X
+      nbproc X
+      uid X
+      chroot X
+      listen ...
 
 7) gérer un chroot/uid/gid différents par process :
    listen XXX
@@ -111,3 +119,23 @@ ok>    de forcer la méthode, la version HTTP et des headers.
 ok>    ex: option httpchk        -> OPTIONS / HTTP/1.0
 ok> 	   option httpchk /test  -> OPTIONS /test HTTP/1.0
 ok> 	   option httpchk HEAD / HTTP/1.0\nHost:\ www   -> tel quel
+
+Todo for 1.1
+============
+* "no more server" alert
+* config check
+- anti-flapping
+
+Todo for 1.2
+============
+- direct <server> <regex> <match>
+- new config syntax allowing braces to be able to shorten lines
+- insert/learn/check/log unique request ID, and add the ability
+  to block bad responses.
+- IPv6 :
+* listen [ip4.ip4.ip4.ip4]:port[-port]
+* listen [ip6::...ip6]/port[-port]
+- server xxx ipv4 | ipv4: | ipv4:port[-port] | ipv6/ | ipv6/port[-port]
+
+- weighted round robin
+

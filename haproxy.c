@@ -1,6 +1,6 @@
 /*
  * HA-Proxy : High Availability-enabled HTTP/TCP proxy
- * 2000-2003 - Willy Tarreau - willy AT meta-x DOT org.
+ * 2000-2004 - Willy Tarreau - willy AT meta-x DOT org.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -53,8 +53,8 @@
 #include <linux/netfilter_ipv4.h>
 #endif
 
-#define HAPROXY_VERSION "1.1.27-ipv6"
-#define HAPROXY_DATE	"2003/11/09"
+#define HAPROXY_VERSION "1.2.1"
+#define HAPROXY_DATE	"2004/04/18"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -293,6 +293,7 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define	MODE_LOG	4
 #define	MODE_DAEMON	8
 #define	MODE_QUIET	16
+#define	MODE_CHECK	32
 
 /* server flags */
 #define SRV_RUNNING	1	/* the server is UP */
@@ -537,6 +538,9 @@ static regmatch_t pmatch[MAX_MATCH];  /* rm_so, rm_eo for regular expressions */
 /* this is used to drain data, and as a temporary buffer for sprintf()... */
 static char trash[BUFSIZE];
 
+const int zero = 0;
+const int one = 1;
+
 /*
  * Syslog facilities and levels. Conforming to RFC3164.
  */
@@ -665,7 +669,7 @@ int process_session(struct task *t);
 
 void display_version() {
     printf("HA-Proxy version " HAPROXY_VERSION " " HAPROXY_DATE"\n");
-    printf("Copyright 2000-2003 Willy Tarreau <willy AT meta-x DOT org>\n\n");
+    printf("Copyright 2000-2004 Willy Tarreau <w@w.ods.org>\n\n");
 }
 
 /*
@@ -687,6 +691,7 @@ void usage(char *name) {
 #endif
 	    "        -D goes daemon ; implies -q\n"
 	    "        -q quiet mode : don't display messages\n"
+	    "        -c check mode : only check config file and exit\n"
 	    "        -n sets the maximum total # of connections (%d)\n"
 	    "        -N sets the default, per-proxy maximum # of connections (%d)\n"
 	    "        -p writes pids of all children to this file\n\n",
@@ -1446,7 +1451,6 @@ static inline struct server *find_server(struct proxy *px) {
  * it's OK, -1 if it's impossible.
  */
 int connect_server(struct session *s) {
-    int one = 1;
     int fd;
 
     //    fprintf(stderr,"connect_server : s=%p\n",s);
@@ -2033,7 +2037,6 @@ int event_accept(int fd) {
     struct session *s;
     struct task *t;
     int cfd;
-    int one = 1;
 
     while (p->nbconn < p->maxconn) {
 	struct sockaddr_storage addr;
@@ -3833,7 +3836,6 @@ int process_chk(struct task *t) {
     struct server *s = t->context;
     struct sockaddr_in sa;
     int fd = s->curfd;
-    int one = 1;
 
     //fprintf(stderr, "process_chk: task=%p\n", t);
 
@@ -3899,15 +3901,17 @@ int process_chk(struct task *t) {
 	if (s->health > s->rise)
 	    s->health--; /* still good */
 	else {
-	    if (s->health == s->rise) {
-		if (!(global.mode & MODE_QUIET))
-		    Warning("server %s/%s DOWN.\n", s->proxy->id, s->id);
-
-		send_log(s->proxy, LOG_ALERT, "Server %s/%s is DOWN.\n", s->proxy->id, s->id);
-	    }
-
-	    s->health = 0; /* failure */
 	    s->state &= ~SRV_RUNNING;
+	    if (s->health == s->rise) {
+		Warning("Server %s/%s DOWN.\n", s->proxy->id, s->id);
+		send_log(s->proxy, LOG_ALERT, "Server %s/%s is DOWN.\n", s->proxy->id, s->id);
+
+		if (find_server(s->proxy) == NULL) {
+		    Alert("Proxy %s has no server available !\n", s->proxy->id);
+		    send_log(s->proxy, LOG_EMERG, "Proxy %s has no server available !\n", s->proxy->id);
+		}
+	    }
+	    s->health = 0; /* failure */
 	}
 
 	//fprintf(stderr, "process_chk: 7\n");
@@ -3922,8 +3926,7 @@ int process_chk(struct task *t) {
 	    s->health++; /* was bad, stays for a while */
 	    if (s->health >= s->rise) {
 		if (s->health == s->rise) {
-		    if (!(global.mode & MODE_QUIET))
-			Warning("server %s/%s UP.\n", s->proxy->id, s->id);
+		    Warning("server %s/%s UP.\n", s->proxy->id, s->id);
 		    send_log(s->proxy, LOG_NOTICE, "Server %s/%s is UP.\n", s->proxy->id, s->id);
 		}
 
@@ -3941,15 +3944,19 @@ int process_chk(struct task *t) {
 	    if (s->health > s->rise)
 		s->health--; /* still good */
 	    else {
-		if (s->health == s->rise) {
-		    if (!(global.mode & MODE_QUIET))
-			Warning("server %s/%s DOWN.\n", s->proxy->id, s->id);
+		s->state &= ~SRV_RUNNING;
 
+		if (s->health == s->rise) {
+		    Warning("Server %s/%s DOWN.\n", s->proxy->id, s->id);
 		    send_log(s->proxy, LOG_ALERT, "Server %s/%s is DOWN.\n", s->proxy->id, s->id);
+
+		    if (find_server(s->proxy) == NULL) {
+			Alert("Proxy %s has no server available !\n", s->proxy->id);
+			send_log(s->proxy, LOG_EMERG, "Proxy %s has no server available !\n", s->proxy->id);
+		    }
 		}
 
 		s->health = 0; /* failure */
-		s->state &= ~SRV_RUNNING;
 	    }
 	    s->curfd = -1;
 	    //FD_CLR(fd, StaticWriteEvent);
@@ -4280,6 +4287,12 @@ void sig_dump_state(int sig) {
 	    }
 	    s = s->next;
 	}
+
+	if (find_server(p) == NULL) {
+	    Warning("SIGHUP: proxy %s has no server available !\n", p);
+	    send_log(p, LOG_NOTICE, "SIGHUP: proxy %s has no server available !\n", p);
+	}
+
 	p = p->next;
     }
     signal(sig, sig_dump_state);
@@ -5691,7 +5704,7 @@ void init(int argc, char **argv) {
     int cfg_maxconn = 0;	/* # of simultaneous connections, (-n) */
 
     if (1<<INTBITS != sizeof(int)*8) {
-	qfprintf(stderr,
+	fprintf(stderr,
 		"Error: wrong architecture. Recompile so that sizeof(int)=%d\n",
 		sizeof(int)*8);
 	exit(1);
@@ -5716,6 +5729,8 @@ void init(int argc, char **argv) {
 	    }
 	    else if (*flag == 'd')
 		arg_mode |= MODE_DEBUG;
+	    else if (*flag == 'c')
+		arg_mode |= MODE_CHECK;
 	    else if (*flag == 'D')
 		arg_mode |= MODE_DAEMON | MODE_QUIET;
 	    else if (*flag == 'q')
@@ -5745,6 +5760,8 @@ void init(int argc, char **argv) {
 	    argv++; argc--;
     }
 
+    global.mode = (arg_mode & (MODE_DAEMON | MODE_QUIET | MODE_DEBUG));
+
     if (!cfg_cfgfile)
 	usage(old_argv);
 
@@ -5753,6 +5770,11 @@ void init(int argc, char **argv) {
     if (readcfgfile(cfg_cfgfile) < 0) {
 	Alert("Error reading configuration file : %s\n", cfg_cfgfile);
 	exit(1);
+    }
+
+    if (arg_mode & MODE_CHECK) {
+	qfprintf(stdout, "Configuration file is valid : %s\n", cfg_cfgfile);
+	exit(0);
     }
 
     if (cfg_maxconn > 0)
@@ -5814,7 +5836,6 @@ void init(int argc, char **argv) {
 int start_proxies() {
     struct proxy *curproxy;
     struct listener *listener;
-    int one = 1;
     int fd;
 
     for (curproxy = proxy; curproxy != NULL; curproxy = curproxy->next) {

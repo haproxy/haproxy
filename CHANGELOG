@@ -1,6 +1,11 @@
 ChangeLog :
 ===========
 
+2004/04/18 : 1.2.1 (1.1.28)
+  - send an EMERG log when no server is available for a given proxy
+  - added the '-c' command line option to syntactically check the
+    configuration file without starting the service.
+
 2003/11/09 : 1.2.0
   - the same as 1.1.27 + IPv6 support on the client side
 
