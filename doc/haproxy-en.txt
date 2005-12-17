@@ -1,9 +1,9 @@
 
          		     H A - P r o x y
          		     ---------------
-         		      version 1.1.24
+         		      version 1.1.25
 			      willy tarreau
-			       2003/09/21
+			       2003/10/15
 
 ============
 | Abstract |
@@ -857,7 +857,8 @@ Example :
 
 4.2) Event logging
 ------------------
-
+4.2.1) Log levels
+-----------------
 TCP and HTTP connections can be logged with informations such as date, time,
 source IP address, destination address, connection duration, response times,
 HTTP request, the HTTP return code, number of bytes transmitted, the conditions
@@ -883,12 +884,20 @@ Example :
 	log 192.168.2.200 local3
 	log 192.168.2.201 local4
 
-By default, only TCP information is logged. It is necessary to set the 'httplog'
-option to obtain more detailed information about HTTP contents. In the event
-where an external component would establish frequent connections to check the
-service, logs may be full of useless lines. So it is possible not to log any
-session which didn't transfer any data, by the setting of the 'dontlognull'
-option. This only has effect on sessions which are established then closed.
+4.2.2) Log format
+-----------------
+By default, connections are logged at the TCP level, as soon as the session
+establishes between the client and the proxy. By enabling the 'tcplog' option,
+the proxy will wait until the session ends to generate an enhanced log
+containing more information such as session duration and its state during the
+disconnection.
+
+Another option, 'httplog', provides more detailed information about HTTP
+contents, such as the request and some cookies. In the event where an external
+component would establish frequent connections to check the service, logs may be
+full of useless lines. So it is possible not to log any session which didn't
+transfer any data, by the setting of the 'dontlognull' option. This only has
+effect on sessions which are established then closed.
 
 Example :
 ---------
@@ -898,8 +907,73 @@ Example :
 	option dontlognull
 	log 192.168.2.200 local3
 
-Since version 1.1.18, a session completion indicator has been added to HTTP
-logs. It's a 4-characters field preceeding the HTTP request, and indicating :
+4.2.3) Timing events
+--------------------
+Timers provide a great help in trouble shooting network problems. All values
+are reported in milliseconds (ms). In HTTP mode, four control points are
+reported under the form 'Tq/Tc/Tr/Tt' :
+
+  - Tq: total time to get the client request.
+    It's the time elapsed between the moment the client connection was accepted
+    and the moment the proxy received the last HTTP header. The value '-1'
+    indicates that the end of headers (empty line) has never been seen.
+
+  - Tc: total time to establish the TCP connection to the server.
+    It's the time elapsed between the moment the proxy sent the connection
+    request, and the moment it was acknowledged, or between the TCP SYN packet
+    and the matching SYN/ACK in return. The value '-1' means that the
+    connection never established.
+
+  - Tr: server response time. It's the time elapsed between the moment the
+    TCP connection was established to the server and the moment it send its
+    complete response header. It purely shows its request processing time,
+    without the network overhead due to the data transmission. The value '-1'
+    means that the last the response header (empty line) was never seen.
+
+  - Tt: total session duration time, between the moment the proxy accepted it
+    and the moment both ends were closed. From this one, we can deduce Td,
+    the data transmission time, by substracting other timers when valid :
+
+        Td = Tt - (Tq + Tc + Tr)
+
+    Timers with '-1' values have to be excluded from this equation.
+
+In TCP mode ('option tcplog'), only Tc and Tt are reported.
+
+These timers provide precious indications on trouble causes. Since the TCP
+protocol defines retransmit delays of 3, 6, 12... seconds, we know for sure
+that timers close to multiples of 3s are nearly always related to packets lost
+due to network problems (wires or negociation). Moreover, if <Tt> is close to
+a timeout value specified in the configuration, it often means that a session
+has been aborted on time-out.
+
+Most common cases :
+
+  - If Tq is close to 3000, a packet has probably been lost between the client
+    and the proxy.
+  - If Tc is close to 3000, a packet has probably been lost between the server
+    and the proxy during the server connection phase. This one should always be
+    very low (less than a few tens).
+  - If Tr is nearly always lower than 3000 except some rare values which seem to
+    be the average majored by 3000, there are probably some packets lost between
+    the proxy and the server.
+  - If Tt is often slightly higher than a time-out, it's often because the
+    client and the server use HTTP keep-alive and the session is maintained
+    after the response ends. Se further for how to disable HTTP keep-alive.
+
+Other cases ('xx' means any value to be ignored) :
+  -1/xx/xx/Tt : the client was not able to send its complete request in time,
+	        or that it aborted it too early.
+  Tq/-1/xx/Tt : the connection could not establish on the server. Either it
+		refused it or it timed out after Tt-Tq ms.
+  Tq/Tc/-1/Tt : the server has accepted the connection but did not return a
+		complete response in time, or it closed its connexion
+		unexpectedly, after Tt-(Tq+Tc) ms.
+
+4.2.4) Session state at disconnection
+-------------------------------------
+TCP and HTTP logs provide a session completion indicator. It's a 4-characters
+(2 in TCP) field preceeding the HTTP request, and indicating :
   - On the first character, a code reporting the first event which caused the
     session to terminate :
 
@@ -922,7 +996,7 @@ logs. It's a 4-characters field preceeding the HTTP request, and indicating :
 	- : normal session completion after end of data transfer.
 
   - the third character tells whether the persistence cookie was provided by
-    the client :
+    the client (only in HTTP mode) :
 
         N : the client provided NO cookie.
 	I : the client provided an INVALID cookie matching no known server.
@@ -935,7 +1009,7 @@ logs. It's a 4-characters field preceeding the HTTP request, and indicating :
 	- : does not apply (no cookie set in configuration).
 
   - the last character reports what operations were performed on the persistence
-    cookie returned by the server :
+    cookie returned by the server (only in HTTP mode) :
 
         N : NO cookie was provided by the server.
         P : a cookie was PROVIDED by the server and transmitted as-is.
@@ -968,20 +1042,30 @@ In the logs, the field preceeding the completion indicator contains the cookie
 value as sent by the server, preceeded by the cookie value as sent by the
 client. Each of these field is replaced with '-' when no cookie was seen.
 
-Last, the 'forwardfor' option creates an HTTP 'X-Forwarded-For' header which
-contains the client's IP address. This is useful to let the final web server
-know what the client address was (eg for statistics on domains).
+4.2.5) Examples of logs
+-----------------------
+- haproxy[674]: 127.0.0.1:33319 [15/Oct/2003:08:31:57] relais-http Srv1 6559/7/147/6723 200 243 - - ---- "HEAD / HTTP/1.0"
+  => long request (6.5s) entered by hand through 'telnet'. The server replied
+     in 147 ms, and the session ended normally ('----')
 
-Example :
----------
-    listen http_proxy 0.0.0.0:80
-	mode http
-	log  global
-	option httplog
-	option dontlognull
-	option forwardfor
-	capture cookie userid= len 20
+- haproxy[18113]: 127.0.0.1:34548 [15/Oct/2003:15:18:55] relais-http <NOSRV> -1/-1/-1/8490 -1 0 - - CR-- "" 
+  => the client never completed its request and aborted itself ('C---') after
+     8.5s, while the proxy was waiting for the request headers ('-R--').
+     Nothing was sent to the server.
 
+- haproxy[18113]: 127.0.0.1:34549 [15/Oct/2003:15:19:06] relais-http <NOSRV> -1/-1/-1/50001 408 0 - - cR-- "" 
+  => The client never completed its request, which was aborted by the time-out
+     ('c---') after 50s, while the proxy was waiting for the request headers ('-R--').
+     Nothing was sent to the server, but the proxy could send a 408 return code
+     to the client.
+
+- haproxy[18989]: 127.0.0.1:34550 [15/Oct/2003:15:24:28] relais-tcp Srv1 0/5007 0 cD 
+  => This is a 'tcplog' entry. Client-side time-out ('c----') occured after 5s.
+
+- haproxy[18989]: 10.0.0.1:34552 [15/Oct/2003:15:26:31] relais-http Srv1 3183/-1/-1/11215 503 0 - - SC-- "HEAD / HTTP/1.0" 
+  => The request took 3s to complete (probably a network problem), and the
+     connection to the server failed ('SC--') after 4 attemps of 2 seconds
+     (config says 'retries 3'), then a 503 error code was sent to the client.
 
 4.3) HTTP header manipulation
 -----------------------------
@@ -1096,7 +1180,18 @@ Examples :
         rspadd          Server:\ Formilux/0.1.8
 
 
-- 8< - - - 8< - - - 8< - - - 8< - - - 8< - - - 8< - - -
+Last, the 'forwardfor' option creates an HTTP 'X-Forwarded-For' header which
+contains the client's IP address. This is useful to let the final web server
+know what the client address was (eg for statistics on domains).
+
+Example :
+---------
+    listen http_proxy 0.0.0.0:80
+	mode http
+	log  global
+	option httplog
+	option dontlognull
+	option forwardfor
 
 4.4) Load balancing with persistence
 ------------------------------------

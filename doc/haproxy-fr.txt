@@ -1,9 +1,9 @@
 
          		     H A - P r o x y
          		     ---------------
-         		      version 1.1.24
+         		      version 1.1.25
 			      willy tarreau
-			       2003/09/21
+			       2003/10/15
 
 ================
 | Introduction |
@@ -875,6 +875,8 @@ Exemple :
 
 4.2) Journalisation des connexions
 ----------------------------------
+4.2.1) Niveaux de log
+---------------------
 Les connexions TCP et HTTP peuvent donner lieu à une journalisation sommaire ou
 détaillée indiquant, pour chaque connexion, la date, l'heure, l'adresse IP
 source, le serveur destination, la durée de la connexion, les temps de réponse,
@@ -901,12 +903,20 @@ Exemple :
 	log 192.168.2.200 local3
 	log 192.168.2.201 local4
 
-Par défaut, les informations contenues dans les logs se situent au niveau TCP
-uniquement. Il faut préciser l'option 'httplog' pour obtenir les détails du
-protocole HTTP. Dans les cas où un mécanisme de surveillance effectuant des
-connexions et déconnexions fréquentes, polluerait les logs, il suffit d'ajouter
-l'option 'dontlognull', pour ne plus obtenir une ligne de log pour les sessions
-n'ayant pas donné lieu à un échange de données (requête ou réponse).
+4.2.2) Format des logs
+----------------------
+Par défaut, les connexions sont journalisées au niveau TCP dès l'établissement
+de la session entre le client et le relais. En précisant l'option 'tcplog',
+la connexion ne sera journalisée qu'en fin de session, ajoutant des précisions
+sur son état lors de la déconnexion, ainsi que le temps de connexion et la
+durée totale de la session.
+
+Une autre option, 'httplog', fournit plus de détails sur le protocole HTTP,
+notamment la requête et l'état des cookies. Dans les cas où un mécanisme de
+surveillance effectuant des connexions et déconnexions fréquentes, polluerait
+les logs, il suffit d'ajouter l'option 'dontlognull', pour ne plus obtenir une
+ligne de log pour les sessions n'ayant pas donné lieu à un échange de données
+(requête ou réponse).
 
 Exemple :
 ---------
@@ -916,9 +926,80 @@ Exemple :
 	option dontlognull
 	log 192.168.2.200 local3
 
-Depuis la version 1.1.18, un indicateur de complétude de la session a été ajouté
-dans les logs HTTP. C'est un champ de 4 caractères précédant la requête HTTP,
-indiquant :
+4.2.3) Chronométrage des événements
+-----------------------------------
+Pour déceler des problèmes réseau, les mesures du temps écoulé entre certains
+événements sont d'une très grande utilité. Tous les temps sont mesurés en
+millisecondes (ms). En mode HTTP, quatre points de mesure sont rapportés sous
+la forme Tq/Tc/Tr/Tt :
+
+  - Tq: temps total de réception de la requête HTTP de la part du client.
+    C'est le temps qui s'est écoulé entre le moment où le client a établi
+    sa connexion vers le relais, et le moment où ce dernier a reçu le dernier
+    en-tête HTTP validant la fin de la requête. Une valeur '-1' ici indique
+    que la requête complète n'a jamais été reçue.
+
+  - Tc: temps d'établissement de la connexion TCP du relais vers le serveur.
+    C'est le temps écoulé entre le moment ou le relais a initié la demande de
+    connexion vers le serveur, et le moment où ce dernier l'a acquittée, c'est
+    à dire le temps entre l'envoi du paquet TCP SYN la réception du SYN/ACK.
+    Une valeur '-1' ici indique que la connexion n'a jamais pu être établie
+    vers le serveur.
+
+  - Tr: temps de réponse du serveur. C'est le temps que le serveur a mis pour
+    renvoyer la totalité des entêtes HTTP à partir du moment où il a acquitté
+    la connexion. Ca représente exactement le temps de traitement de la
+    transaction sans le transfert des données associées. Une valeur '-1'
+    indique que le serveur n'a pas envoyé la totalité de l'entête HTTP.
+
+  - Tt: durée de vie totale de la session, entre le moment où la demande de
+    connexion du client a été acquittée et le moment où la connexion a été
+    refermée aux deux extrémités (client et serveur). On peut donc en déduire
+    Td, le temps de transfert des données, en excluant les autres temps :
+
+        Td = Tt - (Tq + Tc + Tr)
+
+    Les temps rapportés à '-1' sont simplement à éliminer de cette équation.
+
+En mode TCP ('option tcplog'), seuls les deux indicateurs Tc et Tt sont
+rapportés.
+
+Ces temps fournissent de précieux renseignement sur des causes probables de
+problèmes. Du fait que le protocole TCP définisse des temps de retransmission
+de 3 secondes, puis 6, 12, etc..., l'observation de temps proches de multiples
+de 3 secondes indique pratiquement toujours des pertes de paquets liés à un
+problème réseau (câble ou négociation). De plus, si <Tt> est proche d'une
+valeur de time-out dans la configuration, c'est souvent qu'une session a été
+abandonnée sur expiration d'un time-out.
+
+Cas les plus fréquents :
+
+  - Si Tq est proche de 3000, un paquet a très certainement été perdu entre
+    le client et le relais.
+  - Si Tc est proche de 3000, un paquet a très certainement été perdu entre
+    le relais et le serveur durant la phase de connexion. Cet indicateur
+    devrait normalement toujours être très bas (moins de quelques dizaines).
+  - Si Tr est presque toujours inférieur à 3000, et que certaines valeurs
+    semblent proches de la valeur moyenne majorée de 3000, il y a peut-être
+    de pertes entre le relais et le serveur.
+  - Si Tt est légèrement supérieur au time-out, c'est souvent parce que le
+    client et le serveur utilisent du keep-alive HTTP entre eux et que la
+    session est maintenue après la fin des échanges. Voir plus loin pour
+    savoir comment désactiver le keep-alive HTTP.
+
+Autres cas ('xx' représentant une valeur quelconque à ignorer) :
+    -1/xx/xx/Tt : le client n'a pas envoyé sa requête dans le temps imparti ou
+		  a refermé sa connexion sans compléter la requête.
+    Tq/-1/xx/Tt : la connexion n'a pas pu s'établir vers le serveur (refus ou
+                  time-out au bout de Tt-Tq ms).
+    Tq/Tc/-1/Tt : le serveur a accepté la connexion mais n'a pas répondu dans
+		  les temps ou bien a refermé sa connexion trop tôt, au bout
+		  de Tt-(Tq+Tc) ms.
+     
+4.2.4) Conditions de déconnexion
+--------------------------------
+Les logs TCP et HTTP fournissent un indicateur de complétude de la session.
+C'est un champ de 4 caractères (2 en TCP) précédant la requête HTTP, indiquant :
   - sur le premier caractère, un code précisant le premier événement qui a causé
     la terminaison de la session :
 
@@ -942,7 +1023,7 @@ indiquant :
 	- : terminaison normale, après fin de transfert des données
 
   - le troisième caractère indique l'éventuelle identification d'un cookie de
-    persistence :
+    persistence (uniquement en mode HTTP) :
 
         N : aucun cookie de persistence n'a été présenté.
 	I : le client a présenté un cookie ne correspondant à aucun serveur
@@ -956,7 +1037,7 @@ indiquant :
 	- : non appliquable
 
   - le dernier caractère indique l'éventuel traitement effectué sur un cookie de
-    persistence retrourné par le serveur :
+    persistence retrourné par le serveur (uniquement en mode HTTP) :
 
         N : aucun cookie de persistence n'a été fourni par le serveur.
         P : un cookie de persistence a été fourni par le serveur et transmis
@@ -994,20 +1075,31 @@ positionné par le serveur, précédé du cookie positionné par le client. Chacun de
 ces champs est remplacé par le signe "-" lorsqu'aucun cookie n'est fourni par le
 client ou le serveur.
 
-Enfin, l'option 'forwardfor' ajoute l'adresse IP du client dans un champ
-'X-Forwarded-For' de la requête, ce qui permet à un serveur web final de
-connaître l'adresse IP du client initial.
+4.2.5) Exemples de logs
+-----------------------
+- haproxy[674]: 127.0.0.1:33319 [15/Oct/2003:08:31:57] relais-http Srv1 6559/7/147/6723 200 243 - - ---- "HEAD / HTTP/1.0"
+  => requête longue (6.5s) saisie à la main avec un client telnet. Le serveur a
+     répondu en 147 ms et la session s'est terminée normalement ('----')
 
-Exemple :
----------
-    listen http_proxy 0.0.0.0:80
-	mode http
-	log  global
-	option httplog
-	option dontlognull
-	option forwardfor
-	capture cookie userid= len 20
+- haproxy[18113]: 127.0.0.1:34548 [15/Oct/2003:15:18:55] relais-http <NOSRV> -1/-1/-1/8490 -1 0 - - CR-- "" 
+  => Le client n'a pas envoyé sa requête et a refermé la connexion lui-même
+     ('C---') au bout de 8.5s, alors que le relais attendait l'entête ('-R--').
+     Aucune connexion n'a été envoyée vers le serveur.
 
+- haproxy[18113]: 127.0.0.1:34549 [15/Oct/2003:15:19:06] relais-http <NOSRV> -1/-1/-1/50001 408 0 - - cR-- "" 
+  => Le client n'a pas envoyé sa requête et son time-out a expiré ('c---') au
+     bout de 50s, alors que le relais attendait l'entête ('-R--'). Aucune
+     connexion n'a été envoyée vers le serveur, mais le relais a tout de même
+     pu renvoyer un message 408 au client.
+
+- haproxy[18989]: 127.0.0.1:34550 [15/Oct/2003:15:24:28] relais-tcp Srv1 0/5007 0 cD 
+  => log en mode 'tcplog'. Expiration du time-out côté client ('c----') au bout
+     de 5s.
+
+- haproxy[18989]: 10.0.0.1:34552 [15/Oct/2003:15:26:31] relais-http Srv1 3183/-1/-1/11215 503 0 - - SC-- "HEAD / HTTP/1.0" 
+  => La requête client met 3s à entrer (peut-être un problème réseau), et la
+     connexion ('SC--') vers le serveur échoue au bout de 4 tentatives de 2
+     secondes (retries 3 dans la conf), puis un code 503 est retourné au client.
 
 4.3) Modification des entêtes HTTP
 ----------------------------------
@@ -1121,6 +1213,19 @@ Exemples :
         rspidel         ^Server:\ 
         rspadd          Server:\ Formilux/0.1.8
 
+
+Enfin, l'option 'forwardfor' ajoute l'adresse IP du client dans un champ
+'X-Forwarded-For' de la requête, ce qui permet à un serveur web final de
+connaître l'adresse IP du client initial.
+
+Exemple :
+---------
+    listen http_proxy 0.0.0.0:80
+	mode http
+	log  global
+	option httplog
+	option dontlognull
+	option forwardfor
 
 4.4) Répartition avec persistence
 ---------------------------------

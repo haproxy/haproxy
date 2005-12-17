@@ -1,6 +1,13 @@
 ChangeLog :
 ===========
 
+2003/10/15 : 1.1.25
+  - added the 'tcplog' option, which provides enhanced, HTTP-like logs for
+    generic TCP proxies, or lighter logs for HTTP proxies.
+  - fixed a time-out condition wrongly reported as client time-out in data
+    phase if the client timeout was lower than the connect timeout times the
+    number of retries.
+
 2003/09/21 : 1.1.24
   - if a client sent a full request then shut its write connection down, then
     the request was aborted. This case was detected only when using haproxy

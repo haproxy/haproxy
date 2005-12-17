@@ -53,8 +53,8 @@
 #include <linux/netfilter_ipv4.h>
 #endif
 
-#define HAPROXY_VERSION "1.1.24"
-#define HAPROXY_DATE	"2003/09/21"
+#define HAPROXY_VERSION "1.1.25"
+#define HAPROXY_DATE	"2003/10/15"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -664,7 +664,7 @@ int process_session(struct task *t);
 
 void display_version() {
     printf("HA-Proxy version " HAPROXY_VERSION " " HAPROXY_DATE"\n");
-    printf("Copyright 2000-2002 Willy Tarreau <willy AT meta-x DOT org>\n\n");
+    printf("Copyright 2000-2003 Willy Tarreau <willy AT meta-x DOT org>\n\n");
 }
 
 /*
@@ -1947,6 +1947,7 @@ void sess_log(struct session *s) {
     char *uri;
     char *pxid;
     char *srv;
+    struct tm *tm;
 
     /* This is a first attempt at a better logging system.
      * For now, we rely on send_log() to provide the date, although it obviously
@@ -1960,14 +1961,12 @@ void sess_log(struct session *s) {
 	 (unsigned char *)&s->cli_addr.sin_addr :
 	 (unsigned char *)"\0\0\0\0";
 
-    uri = (log & LW_REQ) ? s->logs.uri : "<BADREQ>";
+    uri = (log & LW_REQ) ? s->logs.uri ? s->logs.uri : "<BADREQ>" : "";
     pxid = p->id;
-    //srv = (log & LW_SVID) ? s->srv->id : "<svid>";
-    srv = ((p->to_log & LW_SVID) && s->srv != NULL) ? s->srv->id : "<NOSRV>";
+    srv = (p->to_log & LW_SVID) ? (s->srv != NULL) ? s->srv->id : "<NOSRV>" : "-";
 
-    if (p->to_log & LW_DATE) {
-	struct tm *tm = localtime(&s->logs.tv_accept.tv_sec);
-
+    tm = localtime(&s->logs.tv_accept.tv_sec);
+    if (p->to_log & LW_REQ) {
 	send_log(p, LOG_INFO, "%d.%d.%d.%d:%d [%02d/%s/%04d:%02d:%02d:%02d] %s %s %d/%d/%d/%d %d %lld %s %s %c%c%c%c \"%s\"\n",
 		 pn[0], pn[1], pn[2], pn[3], ntohs(s->cli_addr.sin_port),
 		 tm->tm_mday, monthname[tm->tm_mon], tm->tm_year+1900,
@@ -1987,21 +1986,16 @@ void sess_log(struct session *s) {
 		 uri);
     }
     else {
-	send_log(p, LOG_INFO, "%d.%d.%d.%d:%d %s %s %d/%d/%d/%d %d %lld %s %s %c%c%c%c \"%s\"\n",
+	send_log(p, LOG_INFO, "%d.%d.%d.%d:%d [%02d/%s/%04d:%02d:%02d:%02d] %s %s %d/%d %lld %c%c\n",
 		 pn[0], pn[1], pn[2], pn[3], ntohs(s->cli_addr.sin_port),
+		 tm->tm_mday, monthname[tm->tm_mon], tm->tm_year+1900,
+		 tm->tm_hour, tm->tm_min, tm->tm_sec,
 		 pxid, srv,
-		 s->logs.t_request,
-		 (s->logs.t_connect >= 0) ? s->logs.t_connect - s->logs.t_request : -1,
-		 (s->logs.t_data >= 0) ? s->logs.t_data - s->logs.t_connect : -1,
+		 (s->logs.t_connect >= 0) ? s->logs.t_connect : -1,
 		 s->logs.t_close,
-		 s->logs.status, s->logs.bytes,
-		 s->logs.cli_cookie ? s->logs.cli_cookie : "-",
-		 s->logs.srv_cookie ? s->logs.srv_cookie : "-",
+		 s->logs.bytes,
 		 sess_term_cond[(s->flags & SN_ERR_MASK) >> SN_ERR_SHIFT],
-		 sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT],
-		 (p->options & PR_O_COOK_ANY) ? sess_cookie[(s->flags & SN_CK_MASK) >> SN_CK_SHIFT] : '-',
-		 (p->options & PR_O_COOK_ANY) ? sess_set_cookie[(s->flags & SN_SCK_MASK) >> SN_SCK_SHIFT] : '-',
-		 uri);
+		 sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT]);
     }
 
     s->logs.logwait = 0;
@@ -2793,6 +2787,11 @@ int process_cli(struct session *t) {
     }
     else if (c == CL_STDATA) {
     process_data:
+	/* FIXME: this error handling is partly buggy because we always report
+	 * a 'DATA' phase while we don't know if the server was in IDLE, CONN
+	 * or HEADER phase. BTW, it's not logical to expire the client while
+	 * we're waiting for the server to connect.
+	 */
 	/* read or write error */
 	if (t->res_cw == RES_ERROR || t->res_cr == RES_ERROR) {
 	    tv_eternity(&t->crexpire);
@@ -2808,8 +2807,6 @@ int process_cli(struct session *t) {
 	/* last read, or end of server write */
 	else if (t->res_cr == RES_NULL || s == SV_STSHUTW || s == SV_STCLOSE) {
 	    FD_CLR(t->cli_fd, StaticReadEvent);
-	    //	    if (req->l == 0) /* nothing to write on the server side */
-	    //		FD_CLR(t->srv_fd, StaticWriteEvent);
 	    tv_eternity(&t->crexpire);
 	    shutdown(t->cli_fd, SHUT_RD);
 	    t->cli_state = CL_STSHUTR;
@@ -2826,8 +2823,6 @@ int process_cli(struct session *t) {
 	/* read timeout */
 	else if (tv_cmp2_ms(&t->crexpire, &now) <= 0) {
 	    FD_CLR(t->cli_fd, StaticReadEvent);
-	    //	    if (req->l == 0) /* nothing to write on the server side */
-	    //		FD_CLR(t->srv_fd, StaticWriteEvent);
 	    tv_eternity(&t->crexpire);
 	    shutdown(t->cli_fd, SHUT_RD);
 	    t->cli_state = CL_STSHUTR;
@@ -2850,8 +2845,8 @@ int process_cli(struct session *t) {
 	    return 1;
 	}
 
-	if (req->l >= req->rlim - req->data) {
-	    /* no room to read more data */
+	if (req->l >= req->rlim - req->data || t->srv_state < SV_STDATA) {
+	    /* no room to read more data, or server not ready yet */
 	    if (FD_ISSET(t->cli_fd, StaticReadEvent)) {
 		/* stop reading until we get some space */
 		FD_CLR(t->cli_fd, StaticReadEvent);
@@ -2870,7 +2865,7 @@ int process_cli(struct session *t) {
 	}
 
 	if ((rep->l == 0) ||
-	    ((s == SV_STHEADERS) /* FIXME: this may be optimized && (rep->w == rep->h)*/)) {
+	    ((s < SV_STDATA) /* FIXME: this may be optimized && (rep->w == rep->h)*/)) {
 	    if (FD_ISSET(t->cli_fd, StaticWriteEvent)) {
 		FD_CLR(t->cli_fd, StaticWriteEvent); /* stop writing */
 		tv_eternity(&t->cwexpire);
@@ -4672,10 +4667,12 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	else if (!strcmp(args[1], "forwardfor"))
 	    /* insert x-forwarded-for field */
 	    curproxy->options |= PR_O_FWDFOR;
-	else if (!strcmp(args[1], "httplog")) {
+	else if (!strcmp(args[1], "httplog"))
 	    /* generate a complete HTTP log */
 	    curproxy->to_log |= LW_DATE | LW_CLIP | LW_SVID | LW_REQ | LW_PXID | LW_RESP;
-	}
+	else if (!strcmp(args[1], "tcplog"))
+	    /* generate a detailed TCP log */
+	    curproxy->to_log |= LW_DATE | LW_CLIP | LW_SVID | LW_PXID;
 	else if (!strcmp(args[1], "dontlognull")) {
 	    /* don't log empty requests */
 	    curproxy->options |= PR_O_NULLNOLOG;
