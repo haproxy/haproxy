@@ -226,6 +226,7 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define PR_O_PERSIST	8192	/* server persistence stays effective even when server is down */
 #define PR_O_LOGASAP	16384	/* log as soon as possible, without waiting for the session to complete */
 #define PR_O_HTTP_CLOSE	32768	/* force 'connection: close' in both directions */
+#define PR_O_CHK_CACHE	65536	/* require examination of cacheability of the 'set-cookie' field */
 
 /* various session flags */
 #define SN_DIRECT	0x00000001	/* connection made on the server matching the client cookie */
@@ -263,8 +264,12 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define	SN_SCK_INSERTED	0x00020000	/* new set-cookie inserted or changed existing one */
 #define	SN_SCK_SEEN	0x00040000	/* set-cookie seen for the server cookie */
 #define	SN_SCK_MASK	0x00070000	/* mask to get the set-cookie field */
+#define	SN_SCK_ANY	0x00080000	/* at least one set-cookie seen (not to be counted) */
 #define	SN_SCK_SHIFT	16		/* bit shift */
 
+#define	SN_CACHEABLE	0x00100000	/* at least part of the response is cacheable */
+#define	SN_CACHE_COOK	0x00200000	/* a cookie in the response is cacheable */
+#define	SN_CACHE_SHIFT	20		/* bit shift */
 
 /* different possible states for the client side */
 #define CL_STHEADERS	0
@@ -2094,6 +2099,10 @@ int event_accept(int fd) {
 	s->srv_state = SV_STIDLE;
 	s->req = s->rep = NULL; /* will be allocated later */
 	s->flags = 0;
+
+	if (p->options & PR_O_CHK_CACHE)
+	    s->flags |= SN_CACHEABLE | SN_CACHE_COOK;
+
 	s->res_cr = s->res_cw = s->res_sr = s->res_sw = RES_SILENT;
 	s->cli_fd = cfd;
 	s->srv_fd = -1;
@@ -3250,6 +3259,35 @@ int process_srv(struct session *t) {
 		int line, len;
 
 		/* we can only get here after an end of headers */
+
+		/* first, we'll block if security checks have caught nasty things */
+		if (t->flags & SN_CACHEABLE) {
+		    if ((t->flags & SN_CACHE_COOK) &&
+			(t->flags & SN_SCK_ANY) &&
+			(t->proxy->options & PR_O_CHK_CACHE)) {
+
+			/* we're in presence of a cacheable response containing
+			 * a set-cookie header. We'll block it as requested by
+			 * the 'checkcache' option, and send an alert.
+			 */
+			tv_eternity(&t->srexpire);
+			tv_eternity(&t->swexpire);
+			fd_delete(t->srv_fd);
+			t->srv_state = SV_STCLOSE;
+			t->logs.status = 502;
+			client_return(t, t->proxy->errmsg.len502, t->proxy->errmsg.msg502);
+			if (!(t->flags & SN_ERR_MASK))
+			    t->flags |= SN_ERR_PRXCOND;
+			if (!(t->flags & SN_FINST_MASK))
+			    t->flags |= SN_FINST_H;
+
+			Alert("Blocking cacheable cookie in response from instance %s, server %s.\n", t->proxy->id, t->srv->id);
+			send_log(t->proxy, LOG_ALERT, "Blocking cacheable cookie in response from instance %s, server %s.\n", t->proxy->id, t->srv->id);
+
+			return 1;
+		    }
+		}
+
 		/* we'll have something else to do here : add new headers ... */
 
 		if ((t->srv) && !(t->flags & SN_DIRECT) && (t->proxy->options & PR_O_COOK_INS) &&
@@ -3390,13 +3428,39 @@ int process_srv(struct session *t) {
 		*ptr = term; /* restore the string terminator */
 	    }
 	    
+	    /* check for cache-control: or pragma: headers */
+	    if (!delete_header && (t->flags & SN_CACHEABLE)) {
+		if (strncasecmp(rep->h, "Pragma: no-cache", 16) == 0)
+		    t->flags &= ~SN_CACHEABLE & ~SN_CACHE_COOK;
+		else if (strncasecmp(rep->h, "Cache-control: ", 15) == 0) {
+		    if (strncasecmp(rep->h + 15, "no-cache", 8) == 0) {
+			if (rep->h + 23 == ptr || rep->h[23] == ';')
+			    t->flags &= ~SN_CACHEABLE & ~SN_CACHE_COOK;
+			else {
+			    if (strncasecmp(rep->h + 23, "=\"set-cookie", 12) == 0
+				&& (rep->h[35] == '"' || rep->h[35] == ';'))
+				t->flags &= ~SN_CACHE_COOK;
+			}
+		    } else if ((strncasecmp(rep->h + 15, "private", 7) == 0 &&
+				(rep->h + 22 == ptr || rep->h[22] == ';'))
+			       || (strncasecmp(rep->h + 15, "no-store", 8) == 0 &&
+				   (rep->h + 23 == ptr || rep->h[23] == ';'))) {
+			t->flags &= ~SN_CACHEABLE & ~SN_CACHE_COOK;
+		    } else if (strncasecmp(rep->h + 15, "max-age=0", 9) == 0 &&
+			       (rep->h + 24 == ptr || rep->h[24] == ';')) {
+			t->flags &= ~SN_CACHEABLE & ~SN_CACHE_COOK;
+		    }
+		}
+	    }
+
 	    /* check for server cookies */
 	    if (!delete_header /*&& (t->proxy->options & PR_O_COOK_ANY)*/
 		&& (t->proxy->cookie_name != NULL || t->proxy->capture_name != NULL)
-		&& (ptr >= rep->h + 12)
 		&& (strncasecmp(rep->h, "Set-Cookie: ", 12) == 0)) {
 		char *p1, *p2, *p3, *p4;
 		
+		t->flags |= SN_SCK_ANY;
+
 		p1 = rep->h + 12; /* first char after 'Set-Cookie: ' */
 		
 		while (p1 < ptr) { /* in fact, we'll break after the first cookie */
@@ -3479,6 +3543,13 @@ int process_srv(struct session *t) {
 		    break; /* we don't want to loop again since there cannot be another cookie on the same line */
 		} /* we're now at the end of the cookie value */
 	    } /* end of cookie processing */
+
+	    /* check for any set-cookie in case we check for cacheability */
+	    if (!delete_header && !(t->flags & SN_SCK_ANY) &&
+		(t->proxy->options & PR_O_CHK_CACHE) &&
+		(strncasecmp(rep->h, "Set-Cookie: ", 12) == 0)) {
+		t->flags |= SN_SCK_ANY;
+	    }
 
 	    /* let's look if we have to delete this header */
 	    if (delete_header && !(t->flags & SN_SVDENY))
@@ -4815,6 +4886,9 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	else if (!strcmp(args[1], "httpclose"))
 	    /* force connection: close in both directions in HTTP mode */
 	    curproxy->options |= PR_O_HTTP_CLOSE;
+	else if (!strcmp(args[1], "checkcache"))
+	    /* require examination of cacheability of the 'set-cookie' field */
+	    curproxy->options |= PR_O_CHK_CACHE;
 	else if (!strcmp(args[1], "httplog"))
 	    /* generate a complete HTTP log */
 	    curproxy->to_log |= LW_DATE | LW_CLIP | LW_SVID | LW_REQ | LW_PXID | LW_RESP | LW_BYTES;

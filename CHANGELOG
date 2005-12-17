@@ -2,10 +2,12 @@ ChangeLog :
 ===========
 
 2004/06/05 : 1.2.1 (1.1.28)
-  - add the "logasap" option which produces a log without waiting for the data
-    to be transferred from the server to the client.
-  - add the "httpclose" option which removes any "connection:" header and adds
-    "Connection: close" in both direction.
+  - added the "logasap" option which produces a log without waiting for
+    the data to be transferred from the server to the client.
+  - added the "httpclose" option which removes any "connection:" header
+    and adds "Connection: close" in both direction.
+  - added the 'checkcache' option which blocks cacheable responses containing
+    dangerous headers, such as 'set-cookie'.
 
 2004/04/18 :
   - send an EMERG log when no server is available for a given proxy
