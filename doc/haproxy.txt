@@ -1,9 +1,9 @@
 
          		     H A - P r o x y
          		     ---------------
-         		      version 1.1.1
+         		      version 1.1.4
 			      willy tarreau
-			       2002/03/13
+			       2002/03/25
 
 ================
 | Introduction |
@@ -320,7 +320,14 @@ de connexion TCP toutes les 2 secondes, avec 3 essais pour déclarer
 un serveur en panne, 2 pour le déclarer utilisable. Un serveur hors
 d'usage ne sera pas utilisé dans le processus de répartition de charge
 interne. Pour activer la surveillance, ajouter le mot clé 'check' à la
-fin de la déclaration du serveur.
+fin de la déclaration du serveur. Il est possible de spécifier
+l'intervalle (en millisecondes) séparant deux tests du serveur par le
+paramètre "inter", le nombre d'échecs acceptés par le paramètre "fall",
+et le nombre de succès avant reprise par le paramètre "rise".
+Les paramètres non précisés prennent les valeurs suivantes par défaut :
+ - inter : 2000
+ - rise  : 2
+ - fall  : 3
 
 Exemple : même que précédemment avec surveillance
 -------

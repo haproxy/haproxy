@@ -13,6 +13,9 @@
  *
  * ChangeLog :
  *
+ * 2002/03/25
+ *   - released 1.1.4
+ *   - made rise/fall/interval time configurable
  * 2002/03/22
  *   - released 1.1.3
  *   - fixed a bug : cr_expire and cw_expire were inverted in CL_STSHUT[WR]
@@ -99,8 +102,8 @@
 #include <linux/netfilter_ipv4.h>
 #endif
 
-#define HAPROXY_VERSION "1.1.3"
-#define HAPROXY_DATE	"2002/03/22"
+#define HAPROXY_VERSION "1.1.4"
+#define HAPROXY_DATE	"2002/03/25"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -136,9 +139,9 @@
 
 /* FIXME: this should be user-configurable */
 #define	CHK_CONNTIME	2000
-#define	CHK_INTERVAL	2000
-#define FALLTIME	3
-#define RISETIME	2
+#define	DEF_CHKINTR	2000
+#define DEF_FALLTIME	3
+#define DEF_RISETIME	2
 
 /* how many bits are needed to code the size of an int (eg: 32bits -> 5) */
 #define	INTBITS		5
@@ -323,6 +326,8 @@ struct server {
     char *id;				/* just for identification */
     struct sockaddr_in addr;		/* the address to connect to */
     int health;				/* 0->rise-1 = bad; rise->rise+fall-1 = good */
+    int rise, fall;			/* time in iterations */
+    int inter;				/* time in milliseconds */
     int result;				/* 0 = connect OK, -1 = connect KO */
     int curfd;				/* file desc used for current test, or -1 if not in test */
 };
@@ -2712,7 +2717,8 @@ int process_chk(struct task *t) {
 		    fdtab[fd].state = FD_STCONN; /* connection in progress */
 		    FD_SET(fd, StaticWriteEvent);  /* for connect status */
 		    fd_insert(fd);
-		    tv_delayfrom(&t->expire, &now, CHK_CONNTIME);
+		    /* FIXME: we allow up to <inter> for a connection to establish, but we should use another parameter */
+		    tv_delayfrom(&t->expire, &now, s->inter);
 		    task_queue(t);	/* restore t to its place in the task list */
 		    return tv_remain(&now, &t->expire);
 		}
@@ -2726,16 +2732,16 @@ int process_chk(struct task *t) {
 
 	if (!s->result) { /* nothing done */
 	    //fprintf(stderr, "process_chk: 6\n");
-	    tv_delayfrom(&t->expire, &now, CHK_INTERVAL);
+	    tv_delayfrom(&t->expire, &now, s->inter);
 	    task_queue(t);	/* restore t to its place in the task list */
 	    return tv_remain(&now, &t->expire);
 	}
 
 	/* here, we have seen a failure */
-	if (s->health > FALLTIME)
+	if (s->health > s->rise)
 	    s->health--; /* still good */
 	else {
-	    if (s->health == FALLTIME && !(mode & MODE_QUIET))
+	    if (s->health == s->rise && !(mode & MODE_QUIET))
 		Warning("server %s DOWN.\n", s->id);
 
 	    s->health = 0; /* failure */
@@ -2743,7 +2749,8 @@ int process_chk(struct task *t) {
 	}
 
 	//fprintf(stderr, "process_chk: 7\n");
-	tv_delayfrom(&t->expire, &now, CHK_CONNTIME);
+	/* FIXME: we allow up to <inter> for a connection to establish, but we should use another parameter */
+	tv_delayfrom(&t->expire, &now, s->inter);
     }
     else {
 	//fprintf(stderr, "process_chk: 8\n");
@@ -2751,25 +2758,25 @@ int process_chk(struct task *t) {
 	if (s->result > 0) { /* good server detected */
 	    //fprintf(stderr, "process_chk: 9\n");
 	    s->health++; /* was bad, stays for a while */
-	    if (s->health >= FALLTIME) {
-		if (s->health == FALLTIME && !(mode & MODE_QUIET))
+	    if (s->health >= s->rise) {
+		if (s->health == s->rise && !(mode & MODE_QUIET))
 		    Warning("server %s UP.\n", s->id);
 
-		s->health = FALLTIME + RISETIME -1; /* OK now */
+		s->health = s->rise + s->fall - 1; /* OK now */
 		s->state |= SRV_RUNNING;
 	    }
 	    s->curfd = -1; /* no check running anymore */
 	    //FD_CLR(fd, StaticWriteEvent);
 	    fd_delete(fd);
-	    tv_delayfrom(&t->expire, &now, CHK_INTERVAL);
+	    tv_delayfrom(&t->expire, &now, s->inter);
 	}
 	else if (s->result < 0 || tv_cmp2_ms(&t->expire, &now) <= 0) {
 	    //fprintf(stderr, "process_chk: 10\n");
 	    /* failure or timeout detected */
-	    if (s->health > FALLTIME)
+	    if (s->health > s->rise)
 		s->health--; /* still good */
 	    else {
-		if (s->health == FALLTIME && !(mode & MODE_QUIET))
+		if (s->health == s->rise && !(mode & MODE_QUIET))
 		    Warning("server %s DOWN.\n", s->id);
 
 		s->health = 0; /* failure */
@@ -2778,7 +2785,7 @@ int process_chk(struct task *t) {
 	    s->curfd = -1;
 	    //FD_CLR(fd, StaticWriteEvent);
 	    fd_delete(fd);
-	    tv_delayfrom(&t->expire, &now, CHK_INTERVAL);
+	    tv_delayfrom(&t->expire, &now, s->inter);
 	}
 	/* if result is 0 and there's no timeout, we have to wait again */
     }
@@ -3380,13 +3387,29 @@ int readcfgfile(char *file) {
 	    newsrv->id = strdup(args[1]);
 	    newsrv->addr = *str2sa(args[2]);
 	    newsrv->state = SRV_RUNNING; /* early server setup */
-	    newsrv->health = FALLTIME; /* up, but will fall down at first failure */
 	    newsrv->curfd = -1; /* no health-check in progress */
+	    newsrv->inter = DEF_CHKINTR;
+	    newsrv->rise = DEF_RISETIME;
+	    newsrv->fall = DEF_FALLTIME;
+	    newsrv->health = newsrv->rise; /* up, but will fall down at first failure */
 	    cur_arg = 3;
 	    while (*args[cur_arg]) {
 		if (!strcmp(args[cur_arg], "cookie")) {
 		    newsrv->cookie = strdup(args[cur_arg + 1]);
 		    newsrv->cklen = strlen(args[cur_arg + 1]);
+		    cur_arg += 2;
+		}
+		else if (!strcmp(args[cur_arg], "rise")) {
+		    newsrv->rise = atol(args[cur_arg + 1]);
+		    newsrv->health = newsrv->rise;
+		    cur_arg += 2;
+		}
+		else if (!strcmp(args[cur_arg], "fall")) {
+		    newsrv->fall = atol(args[cur_arg + 1]);
+		    cur_arg += 2;
+		}
+		else if (!strcmp(args[cur_arg], "inter")) {
+		    newsrv->inter = atol(args[cur_arg + 1]);
 		    cur_arg += 2;
 		}
 		else if (!strcmp(args[cur_arg], "check")) {
@@ -3403,9 +3426,11 @@ int readcfgfile(char *file) {
 		    t->process = process_chk;
 		    t->context = newsrv;
 
-		    tv_delayfrom(&t->expire, &now, CHK_INTERVAL); /* check this every ms */
-		    task_queue(t);
-		    task_wakeup(&rq, t);
+		    if (curproxy->state != PR_STDISABLED) {
+			tv_delayfrom(&t->expire, &now, newsrv->inter); /* check this every ms */
+			task_queue(t);
+			task_wakeup(&rq, t);
+		    }
 
 		    cur_arg += 1;
 		}
