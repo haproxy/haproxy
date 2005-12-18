@@ -2849,7 +2849,8 @@ int event_srv_chk_w(int fd) {
     /* in case of TCP only, this tells us if the connection succeeded */
     if (skerr)
 	s->result = -1;
-    else {
+    else if (s->result != -1) {
+	/* we don't want to mark 'UP' a server on which we detected an error earlier */
 	if (s->proxy->options & PR_O_HTTP_CHK) {
 	    int ret;
 	    /* we want to check if this host replies to "OPTIONS / HTTP/1.0"
@@ -2886,11 +2887,11 @@ int event_srv_chk_w(int fd) {
  */
 int event_srv_chk_r(int fd) {
     char reply[64];
-    int len;
+    int len, result;
     struct task *t = fdtab[fd].owner;
     struct server *s = t->context;
 
-    s->result = len = -1;
+    result = len = -1;
 #ifndef MSG_NOSIGNAL
     {
 	int skerr;
@@ -2910,7 +2911,10 @@ int event_srv_chk_r(int fd) {
     if ((len >= sizeof("HTTP/1.0 000")) &&
 	!memcmp(reply, "HTTP/1.", 7) &&
 	(reply[9] == '2' || reply[9] == '3')) /* 2xx or 3xx */
-	s->result = 1;
+	result = 1;
+
+    if (s->result != -1)
+	s->result = result;
 
     FD_CLR(fd, StaticReadEvent);
     task_wakeup(&rq, t);
