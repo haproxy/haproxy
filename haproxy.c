@@ -402,6 +402,7 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define	MODE_QUIET	16
 #define	MODE_CHECK	32
 #define	MODE_VERBOSE	64
+#define	MODE_STARTING	128
 
 /* server flags */
 #define SRV_RUNNING	1	/* the server is UP */
@@ -866,14 +867,15 @@ void usage(char *name) {
 
 
 /*
- * Displays the message on stderr with the date and pid.
+ * Displays the message on stderr with the date and pid. Overrides the quiet
+ * mode during startup.
  */
 void Alert(char *fmt, ...) {
     va_list argp;
     struct timeval tv;
     struct tm *tm;
 
-    if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) {
+    if (!(global.mode & MODE_QUIET) || (global.mode & (MODE_VERBOSE | MODE_STARTING))) {
 	va_start(argp, fmt);
 
 	gettimeofday(&tv, NULL);
@@ -1040,6 +1042,7 @@ struct listener *str2listener(char *str, struct listener *tail) {
 	/* 2) look for the addr/port delimiter, it's the last colon. */
 	if ((range = strrchr(str, ':')) == NULL) {
 	    Alert("Missing port number: '%s'\n", str);
+	    goto fail;
 	}	    
 
 	*range++ = 0;
@@ -1051,6 +1054,7 @@ struct listener *str2listener(char *str, struct listener *tail) {
 
 	    if (!inet_pton(ss.ss_family, str, &((struct sockaddr_in6 *)&ss)->sin6_addr)) {
 		Alert("Invalid server address: '%s'\n", str);
+		goto fail;
 	    }
 	}
 	else {
@@ -1065,6 +1069,7 @@ struct listener *str2listener(char *str, struct listener *tail) {
 		
 		if ((he = gethostbyname(str)) == NULL) {
 		    Alert("Invalid server name: '%s'\n", str);
+		    goto fail;
 		}
 		else
 		    ((struct sockaddr_in *)&ss)->sin_addr =
@@ -1081,7 +1086,19 @@ struct listener *str2listener(char *str, struct listener *tail) {
 	    end = atol(range);
 	}
 
-	for (port = atol(range); port <= end; port++) {
+	port = atol(range);
+
+	if (port < 1 || port > 65535) {
+	    Alert("Invalid port '%d' specified for address '%s'.\n", port, str);
+	    goto fail;
+	}
+
+	if (end < 1 || end > 65535) {
+	    Alert("Invalid port '%d' specified for address '%s'.\n", end, str);
+	    goto fail;
+	}
+
+	for (; port <= end; port++) {
 	    l = (struct listener *)calloc(1, sizeof(struct listener));
 	    l->next = tail;
 	    tail = l;
@@ -1096,6 +1113,9 @@ struct listener *str2listener(char *str, struct listener *tail) {
     } /* end while(next) */
     free(dupstr);
     return tail;
+ fail:
+    free(dupstr);
+    return NULL;
 }
 
 
@@ -6029,8 +6049,13 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	curproxy->next = proxy;
 	proxy = curproxy;
 	curproxy->id = strdup(args[1]);
-	if (strchr(args[2], ':') != NULL)
+
+	/* parse the listener address if any */
+	if (*args[2]) {
 	    curproxy->listen = str2listener(args[2], curproxy->listen);
+	    if (!curproxy->listen)
+		return -1;
+	}
 
 	/* set default values */
 	curproxy->state = defproxy.state;
@@ -6130,6 +6155,8 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	    return -1;
 	}
 	curproxy->listen = str2listener(args[1], curproxy->listen);
+	if (!curproxy->listen)
+	    return -1;
 	return 0;
     }
     else if (!strcmp(args[0], "monitor-net")) {  /* set the range of IPs to ignore */
@@ -7352,7 +7379,12 @@ int readcfgfile(char *file) {
 	    curproxy = curproxy->next;
 	    continue;
 	}
-	if ((curproxy->mode != PR_MODE_HEALTH) &&
+
+	if (curproxy->listen == NULL) {
+	    Alert("parsing %s : listener %s has no listen address. Please either specify a valid address on the <listen> line, or use the <bind> keyword.\n", file, curproxy->id);
+	    cfgerr++;
+	}
+	else if ((curproxy->mode != PR_MODE_HEALTH) &&
 	    !(curproxy->options & (PR_O_TRANSP | PR_O_BALANCE)) &&
 	    (*(int *)&curproxy->dispatch_addr.sin_addr == 0)) {
 	    Alert("parsing %s : listener %s has no dispatch address and is not in transparent or balance mode.\n",
@@ -7564,7 +7596,8 @@ void init(int argc, char **argv) {
 	    argv++; argc--;
     }
 
-    global.mode = (arg_mode & (MODE_DAEMON | MODE_VERBOSE | MODE_QUIET | MODE_CHECK | MODE_DEBUG));
+    global.mode = MODE_STARTING | /* during startup, we want most of the alerts */
+		  (arg_mode & (MODE_DAEMON | MODE_VERBOSE | MODE_QUIET | MODE_CHECK | MODE_DEBUG));
 
     if (!cfg_cfgfile)
 	usage(old_argv);
@@ -7858,12 +7891,6 @@ int main(int argc, char **argv) {
     FILE *pidfile = NULL;
     init(argc, argv);
 
-    if (global.mode & MODE_QUIET) {
-	/* detach from the tty */
-	fclose(stdin); fclose(stdout); fclose(stderr);
-	close(0); close(1); close(2);
-    }
-
     signal(SIGQUIT, dump);
     signal(SIGUSR1, sig_soft_stop);
     signal(SIGHUP, sig_dump_state);
@@ -7879,8 +7906,23 @@ int main(int argc, char **argv) {
     signal(SIGPIPE, SIG_IGN);
 #endif
 
+    /* start_proxies() sends an alert when it fails. */
     if (start_proxies() < 0)
 	exit(1);
+
+    if (listeners == 0) {
+	Alert("[%s.main()] No enabled listener found (check the <listen> keywords) ! Exiting.\n", argv[0]);
+	exit(1);
+    }
+
+    /* MODE_QUIET can inhibit alerts and warnings below this line */
+
+    global.mode &= ~MODE_STARTING;
+    if (global.mode & MODE_QUIET) {
+	/* detach from the tty */
+	fclose(stdin); fclose(stdout); fclose(stderr);
+	close(0); close(1); close(2);
+    }
 
     /* open log & pid files before the chroot */
     if (global.mode & MODE_DAEMON && global.pidfile != NULL) {
