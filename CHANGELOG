@@ -1,6 +1,35 @@
 ChangeLog :
 ===========
 
+2005/07/06 : 1.2.6 (1.1.32)
+  - the time-out fix introduced in 1.1.25 caused a corner case where it was
+    possible for a client to keep a connection maintained regardless of the
+    timeout if the server closed the connection during the HEADER phase,
+    while the client ignored the close request while doing nothing in the
+    other direction. This has been fixed now by ensuring that read timeouts
+    are re-armed when switching to any SHUTW state.
+
+2005/07/05 : 1.2.6-pre3 (1.1.32-pre3)
+  - enhanced error reporting in the logs. Now the proxy will precisely detect
+    various error conditions related to the system and/or process limits, and
+    generate LOG_EMERG logs indicating that a resource has been exhausted.
+  - logs will contain two new characters for the error cause : 'R' indicates
+    a resource exhausted, and 'I' indicates an internal error, though this
+    one should never happen.
+  - server connection timeouts can now be reported in the logs (sC), as well
+    as connections refused because of maxconn limitations (PC).
+
+2005/07/05 : 1.2.6-pre2 (1.1.32-pre2)
+  - new global configuration keyword "ulimit-n" may be used to raise the FD
+    limit to usable values.
+  - a warning is now displayed on startup if the FD limit is lower than the
+    configured maximum number of sockets.
+
+2005/07/05 : 1.2.6-pre1 (1.1.32-pre1)
+  - new configuration keyword "monitor-net" makes it possible to be monitored
+    by external devices which connect to the proxy without being logged nor
+    forwarded to any server. Particularly useful on generic TCPv4 relays.
+
 2005/06/21 : 1.2.5.2
   - fixed build on PPC where chars are unsigned by default
 
