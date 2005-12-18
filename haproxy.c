@@ -61,45 +61,7 @@
 #include <strings.h>
 #endif
 
-#define TBLSIZ 10
-#define TBLCHKINT 5000 /* The time between two calls of appsession_refresh in ms */
-
-/*
-  These Parts are copied from
-  
-  http://www.oreilly.com/catalog/masteralgoc/index.html
-  Mastering Algorithms with C
-  By Kyle Loudon
-  ISBN: 1-56592-453-3
-  Publishd by O'Reilly
-
-  We have added our own struct to these function.
- */
-
-#include <include/list.h>
-#include <include/chtbl.h>
-#include <include/hashpjw.h>
-/* end of copied parts */
-
-struct app_pool {
-    void **sessid;
-    void **serverid;
-    int ses_waste, ses_use, ses_msize;
-    int ser_waste, ser_use, ser_msize;
-};
-
-struct app_pool apools;
-int have_appsession;
-
-/* Callback for hash_lookup */
-int match_str(const void *key1, const void *key2);
-
-/* Callback for destroy */
-void destroy(void *data);
-
-#if defined(DEBUG_HASH)
-static void print_table(const CHTbl *htbl);
-#endif
+#include "include/appsession.h"
 
 #define HAPROXY_VERSION "1.2.4"
 #define HAPROXY_DATE	"2005/01/22"
@@ -2956,12 +2918,11 @@ int process_cli(struct session *t) {
 		        srv = srv->next;
 		    }/* end while(srv) */
 		}/* end else of if (asession_temp->serverid == NULL) */
-		
-		method_checked = 1;
 	      }/* end if(strncasecmp(request_line,t->proxy->appsession_name,apssesion_name_len) == 0) */
 	      else {
 		//fprintf(stderr,">>>>>>>>>>>>>>>>>>>>>>NO SESSION\n");
 	      }
+	      method_checked = 1;
 	    }/* end if(!method_checked ...) */
 	    else{
 	      //printf("No Methode-Header with Session-String\n");
@@ -3311,7 +3272,6 @@ int process_cli(struct session *t) {
 			    }/* end else if server == NULL */
 			    
 			    tv_delayfrom(&asession_temp->expire, &now, t->proxy->appsession_timeout);
-			    break;
 			}/* end if ((t->proxy->appsession_name != NULL) ... */
 		    }
 

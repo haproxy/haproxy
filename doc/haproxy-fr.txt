@@ -1497,8 +1497,8 @@ Exemple :
 	mode http
 	cookie SERVERID insert nocache indirect
 	balance roundrobin
-	server 192.168.1.1:80 cookie server01 check
-	server 192.168.1.2:80 cookie server02 check
+	server srv1 192.168.1.1:80 cookie server01 check
+	server srv2 192.168.1.2:80 cookie server02 check
 
 L'autre solution apportée par les versions 1.1.30 et 1.2.3 est de réutiliser un
 cookie en provenance du serveur et de lui préfixer l'identifiant du serveur.
@@ -1510,8 +1510,8 @@ puisse corriger le nom du cookie dans toutes les futures requêtes.
        mode http
        cookie JSESSIONID prefix
        balance roundrobin
-       server 192.168.1.1:80 cookie srv1 check
-       server 192.168.1.2:80 cookie srv2 check
+       server srv1 192.168.1.1:80 cookie srv1 check
+       server srv2 192.168.1.2:80 cookie srv2 check
        option httpclose
 
 

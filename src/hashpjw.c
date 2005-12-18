@@ -28,7 +28,7 @@ int hashpjw(const void *key) {
 
   const char         *ptr;
   unsigned int        val;
-  AppSess *appsession_temp;
+  appsess *appsession_temp;
 
   /*****************************************************************************
    *                                                                            *
@@ -37,7 +37,7 @@ int hashpjw(const void *key) {
    *****************************************************************************/
 
   val = 0;
-  appsession_temp = (AppSess *)key;
+  appsession_temp = (appsess *)key;
   ptr = appsession_temp->sessid;
 
   while (*ptr != '\0') {

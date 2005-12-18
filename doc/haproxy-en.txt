@@ -100,6 +100,7 @@ the following ones :
   - debug
   - quiet
   - pidfile <file>
+  - stats
 
 1.1) Event logging
 ------------------
@@ -622,6 +623,33 @@ Example : the 'SERVERID' cookie can be either 'server01' or 'server02'
 
 Warning : the syntax has changed since version 1.0 !
 ---------
+
+2.11) Application Cookies
+-------------------------
+Since 1.2.4 it is possible to catch the cookie that comes from an
+application server in order to apply "application session stickyness".
+The server's response is searched for 'appsession' cookie, the first
+'len' bytes are used for matching and it is stored for a period of
+'timeout'.
+The syntax is:
+
+    appsession <SESSIONCOOKIE> len <MATCHLENGTH> timeout <HOLDTIME>
+
+- <SESSIONCOOKIE> is the cookie, the server uses for it's session-handling
+- <MATCHLENGTH> how many bytes/characters should be used for matching equal
+                sessions 
+- <HOLDTIME> after this inactivaty time, in ms, the cookie will be deleted 
+             from the sessionstore
+
+The appsession is only per 'listen' section possible.
+
+Example :
+---------
+    listen http_proxy :80
+	mode http
+        appsession JSESSIONID len 52 timeout 300000
+        .
+        .
 
 3) Autonomous load balancer
 ===========================
@@ -1448,8 +1476,8 @@ Example :
 	mode http
 	cookie SERVERID insert nocache indirect
 	balance roundrobin
-	server 192.168.1.1:80 cookie server01 check
-	server 192.168.1.2:80 cookie server02 check
+	server srv1 192.168.1.1:80 cookie server01 check
+	server srv2 192.168.1.2:80 cookie server02 check
 
 The other solution brought by versions 1.1.30 and 1.2.3 is to reuse a cookie
 from the server, and prefix the server's name to it. In this case, don't forget
@@ -1460,8 +1488,8 @@ request will have its cookie fixed.
 	mode http
 	cookie JSESSIONID prefix
 	balance roundrobin
-	server 192.168.1.1:80 cookie srv1 check
-	server 192.168.1.2:80 cookie srv2 check
+	server srv1 192.168.1.1:80 cookie srv1 check
+	server srv2 192.168.1.2:80 cookie srv2 check
 	option httpclose
 
 
