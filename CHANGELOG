@@ -1,6 +1,12 @@
 ChangeLog :
 ===========
 
+2005/05/02 : 1.2.5.1
+  - dirty hack to fix a bug introduced with epoll : if we close an FD and
+    immediately reassign it to another session through a connect(), the
+    Prev{Read,Write}Events are not updated, which causes trouble detecting
+    changes, thus leading to many timeouts at high loads.
+
 2005/04/30 : 1.2.5 (1.1.31)
   - changed the runtime argument to disable epoll() to '-de'
   - changed the runtime argument to disable poll() to '-dp'

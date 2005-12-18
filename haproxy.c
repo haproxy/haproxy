@@ -653,6 +653,16 @@ static int stopping = 0;	/* non zero means stopping in progress */
 static struct timeval now = {0,0};	/* the current date at any moment */
 static struct proxy defproxy;		/* fake proxy used to assign default values on all instances */
 
+#if defined(ENABLE_EPOLL)
+/* FIXME: this is dirty, but at the moment, there's no other solution to remove
+ * the old FDs from outside the loop. Perhaps we should export a global 'poll'
+ * structure with pointers to functions such as init_fd() and close_fd(), plus
+ * a private structure with several pointers to places such as below.
+ */
+
+static fd_set *PrevReadEvent = NULL, *PrevWriteEvent = NULL;
+#endif
+
 static regmatch_t pmatch[MAX_MATCH];  /* rm_so, rm_eo for regular expressions */
 /* this is used to drain data, and as a temporary buffer for sprintf()... */
 static char trash[BUFSIZE];
@@ -1413,6 +1423,13 @@ static inline struct timeval *tv_min(struct timeval *tvmin,
 static inline void fd_delete(int fd) {
     FD_CLR(fd, StaticReadEvent);
     FD_CLR(fd, StaticWriteEvent);
+#if defined(ENABLE_EPOLL)
+    if (PrevReadEvent) {
+	FD_CLR(fd, PrevReadEvent);
+	FD_CLR(fd, PrevWriteEvent);
+    }
+#endif
+
     close(fd);
     fdtab[fd].state = FD_STCLOSE;
 
@@ -4695,8 +4712,7 @@ int process_chk(struct task *t) {
 		    }
 		}
 	    }
-	    //fprintf(stderr, "process_chk: 5\n");
-	    close(fd);
+	    close(fd); /* socket creation error */
 	}
 
 	if (!s->result) { /* nothing done */
@@ -4870,8 +4886,6 @@ int epoll_loop(int action) {
   struct epoll_event ev;
 
   /* private data */
-  static int last_maxfd = 0;
-  static fd_set *PrevReadEvent = NULL, *PrevWriteEvent = NULL;
   static struct epoll_event *epoll_events = NULL;
   static int epoll_fd;
 
@@ -4894,7 +4908,6 @@ int epoll_loop(int action) {
       if (PrevReadEvent)  free(PrevReadEvent);
       if (epoll_events)   free(epoll_events);
       close(epoll_fd);
-      last_maxfd = 0;
       epoll_fd = 0;
       return 1;
   }
@@ -4917,20 +4930,6 @@ int epoll_loop(int action) {
 	  next_time = MINTIME(time2, next_time);
       }
 #endif
-
-
-      /*
-       * We'll first check if some fds have been closed recently, in which case
-       * we'll have to remove them from the previous epoll set. It's
-       * unnecessary to call epoll_ctl(DEL) because close() automatically
-       * removes the fds from the epoll set.
-       */
-      for (fd = maxfd; fd < last_maxfd; fd++) {
-	  ev.data.fd = fd;
-	  FD_CLR(fd, PrevReadEvent);
-	  FD_CLR(fd, PrevWriteEvent);
-      }
-      last_maxfd = maxfd;
 
       for (fds = 0; (fds << INTBITS) < maxfd; fds++) {
 	  
