@@ -29,6 +29,7 @@
  *   - fix client/server state transition when server is in connect or headers state
  *     and client suddenly disconnects. The server *should* switch to SHUT_WR, but
  *     still handle HTTP headers.
+ *   - remove MAX_NEWHDR
  *
  */
 
@@ -56,8 +57,8 @@
 #include <linux/netfilter_ipv4.h>
 #endif
 
-#define HAPROXY_VERSION "1.2.1"
-#define HAPROXY_DATE	"2004/06/06"
+#define HAPROXY_VERSION "1.2.2"
+#define HAPROXY_DATE	"2004/10/18"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -145,6 +146,35 @@ int strlcpy2(char *dst, const char *src, int size) {
     return dst - orig;
 }
 
+/*
+ * Returns a pointer to an area of <__len> bytes taken from the pool <pool> or
+ * dynamically allocated. In the first case, <__pool> is updated to point to
+ * the next element in the list.
+ */
+#define pool_alloc_from(__pool, __len) ({                                      \
+    void *__p;                                                                 \
+    if ((__p = (__pool)) == NULL)                                              \
+	__p = malloc(((__len) >= sizeof (void *)) ? (__len) : sizeof(void *)); \
+    else {                                                                     \
+	__pool = *(void **)(__pool);                                           \
+    }                                                                          \
+    __p;                                                                       \
+})
+
+/*
+ * Puts a memory area back to the corresponding pool.
+ * Items are chained directly through a pointer that
+ * is written in the beginning of the memory area, so
+ * there's no need for any carrier cell. This implies
+ * that each memory area is at least as big as one
+ * pointer.
+ */
+#define pool_free_to(__pool, __ptr) ({          \
+    *(void **)(__ptr) = (void *)(__pool);       \
+    __pool = (void *)(__ptr);                   \
+})
+
+
 #define MEM_OPTIM
 #ifdef	MEM_OPTIM
 /*
@@ -154,13 +184,13 @@ int strlcpy2(char *dst, const char *src, int size) {
  * next element in the list.
  */
 #define pool_alloc(type) ({			\
-    void *p;					\
-    if ((p = pool_##type) == NULL)		\
-	p = malloc(sizeof_##type);		\
+    void *__p;					\
+    if ((__p = pool_##type) == NULL)		\
+	__p = malloc(sizeof_##type);		\
     else {					\
 	pool_##type = *(void **)pool_##type;	\
     }						\
-    p;						\
+    __p;					\
 })
 
 /*
@@ -332,12 +362,24 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define LW_PXIP		64	/* proxy IP */
 #define LW_PXID		128	/* proxy ID */
 #define LW_BYTES	256	/* bytes read from server */
+#define LW_COOKIE	512	/* captured cookie */
+#define LW_REQHDR	1024	/* request header(s) */
+#define LW_RSPHDR	2048	/* response header(s) */
 
 /*********************************************************************/
 
 #define LIST_HEAD(a)	((void *)(&(a)))
 
 /*********************************************************************/
+
+struct cap_hdr {
+    struct cap_hdr *next;
+    char *name;				/* header name, case insensitive */
+    int namelen;			/* length of the header name, to speed-up lookups */
+    int len;				/* capture length, not including terminal zero */
+    int index;				/* index in the output array */
+    void *pool;				/* pool of pre-allocated memory area of (len+1) bytes */
+};
 
 struct hdr_exp {
     struct hdr_exp *next;
@@ -403,6 +445,8 @@ struct session {
     struct sockaddr_storage cli_addr;	/* the client address */
     struct sockaddr_in srv_addr;	/* the address to connect to */
     struct server *srv;			/* the server being used */
+    char **req_cap;			/* array of captured request headers (may be NULL) */
+    char **rsp_cap;			/* array of captured response headers (may be NULL) */
     struct {
 	int logwait;			/* log fields waiting to be collected : LW_* */
 	struct timeval tv_accept;	/* date of the accept() (beginning of the session) */
@@ -456,6 +500,10 @@ struct proxy {
     int nb_reqadd, nb_rspadd;
     struct hdr_exp *req_exp;		/* regular expressions for request headers */
     struct hdr_exp *rsp_exp;		/* regular expressions for response headers */
+    int nb_req_cap, nb_rsp_cap;		/* # of headers to be captured */
+    struct cap_hdr *req_cap;		/* chained list of request headers to be captured */
+    struct cap_hdr *rsp_cap;		/* chained list of response headers to be captured */
+    void *req_cap_pool, *rsp_cap_pool;	/* pools of pre-allocated char ** used to build the sessions */
     char *req_add[MAX_NEWHDR], *rsp_add[MAX_NEWHDR]; /* headers to be added */
     int grace;				/* grace time after stop request */
     char *check_req;			/* HTTP request to use if PR_O_HTTP_CHK is set, else NULL */
@@ -825,6 +873,7 @@ struct listener *str2listener(char *str, struct listener *tail) {
     int port, end;
 
     next = dupstr = strdup(str);
+    
     while (next && *next) {
 	struct sockaddr_storage ss;
 
@@ -895,6 +944,56 @@ struct listener *str2listener(char *str, struct listener *tail) {
     return tail;
 }
 
+
+#define FD_SETS_ARE_BITFIELDS
+#ifdef FD_SETS_ARE_BITFIELDS
+/*
+ * This map is used with all the FD_* macros to check whether a particular bit
+ * is set or not. Each bit represents an ACSII code. FD_SET() sets those bytes
+ * which should be encoded. When FD_ISSET() returns non-zero, it means that the
+ * byte should be encoded. Be careful to always pass bytes from 0 to 255
+ * exclusively to the macros.
+ */
+fd_set hdr_encode_map[(sizeof(fd_set) > (256/8)) ? 1 : ((256/8) / sizeof(fd_set))];
+fd_set url_encode_map[(sizeof(fd_set) > (256/8)) ? 1 : ((256/8) / sizeof(fd_set))];
+
+#else
+#error "Check if your OS uses bitfields for fd_sets"
+#endif
+
+/* will try to encode the string <string> replacing all characters tagged in
+ * <map> with the hexadecimal representation of their ASCII-code (2 digits)
+ * prefixed by <escape>, and will store the result between <start> (included
+ *) and <stop> (excluded), and will always terminate the string with a '\0'
+ * before <stop>. The position of the '\0' is returned if the conversion
+ * completes. If bytes are missing between <start> and <stop>, then the
+ * conversion will be incomplete and truncated. If <stop> <= <start>, the '\0'
+ * cannot even be stored so we return <start> without writing the 0.
+ * The input string must also be zero-terminated.
+ */
+char hextab[16] = "0123456789ABCDEF";
+char *encode_string(char *start, char *stop,
+		    const char escape, const fd_set *map,
+		    const char *string)
+{
+    if (start < stop) {
+	stop--; /* reserve one byte for the final '\0' */
+	while (start < stop && *string != 0) {
+	    if (!FD_ISSET((unsigned char)(*string), map))
+		*start++ = *string;
+	    else {
+		if (start + 3 >= stop)
+		    break;
+		*start++ = escape;
+		*start++ = hextab[(*string >> 4) & 15];
+		*start++ = hextab[*string & 15];
+	    }
+	    string++;
+	}
+	*start = '\0';
+    }
+    return start;
+}
 
 /*
  * This function sends a syslog message to both log servers of a proxy,
@@ -1422,6 +1521,24 @@ static inline void session_free(struct session *s) {
 	pool_free(buffer, s->req);
     if (s->rep)
 	pool_free(buffer, s->rep);
+
+    if (s->rsp_cap != NULL) {
+	struct cap_hdr *h;
+	for (h = s->proxy->rsp_cap; h; h = h->next) {
+	    if (s->rsp_cap[h->index] != NULL)
+		pool_free_to(h->pool, s->rsp_cap[h->index]);
+	}
+	pool_free_to(s->proxy->rsp_cap_pool, s->rsp_cap);
+    }
+    if (s->req_cap != NULL) {
+	struct cap_hdr *h;
+	for (h = s->proxy->req_cap; h; h = h->next) {
+	    if (s->req_cap[h->index] != NULL)
+		pool_free_to(h->pool, s->req_cap[h->index]);
+	}
+	pool_free_to(s->proxy->req_cap_pool, s->req_cap);
+    }
+
     if (s->logs.uri)
 	pool_free(requri, s->logs.uri);
     if (s->logs.cli_cookie)
@@ -1997,7 +2114,43 @@ void sess_log(struct session *s) {
 
     tm = localtime(&s->logs.tv_accept.tv_sec);
     if (p->to_log & LW_REQ) {
-	send_log(p, LOG_INFO, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d] %s %s %d/%d/%d/%s%d %d %s%lld %s %s %c%c%c%c \"%s\"\n",
+	char tmpline[MAX_SYSLOG_LEN], *h;
+	int hdr;
+	
+	h = tmpline;
+	if (p->to_log & LW_REQHDR && (h < tmpline + sizeof(tmpline) - 10)) {
+	    *(h++) = ' ';
+	    *(h++) = '{';
+	    for (hdr = 0; hdr < p->nb_req_cap; hdr++) {
+		if (hdr)
+		    *(h++) = '|';
+		if (s->req_cap[hdr] != NULL)
+		    h = encode_string(h, tmpline + sizeof(tmpline) - 7, '#', hdr_encode_map, s->req_cap[hdr]);
+	    }
+	    *(h++) = '}';
+	}
+
+	if (p->to_log & LW_RSPHDR && (h < tmpline + sizeof(tmpline) - 7)) {
+	    *(h++) = ' ';
+	    *(h++) = '{';
+	    for (hdr = 0; hdr < p->nb_rsp_cap; hdr++) {
+		if (hdr)
+		    *(h++) = '|';
+		if (s->rsp_cap[hdr] != NULL)
+		    h = encode_string(h, tmpline + sizeof(tmpline) - 4, '#', hdr_encode_map, s->rsp_cap[hdr]);
+	    }
+	    *(h++) = '}';
+	}
+
+	if (h < tmpline + sizeof(tmpline) - 4) {
+	    *(h++) = ' ';
+	    *(h++) = '"';
+	    h = encode_string(h, tmpline + sizeof(tmpline) - 1, '#', url_encode_map, uri);
+	    *(h++) = '"';
+	}
+	*h = '\0';
+
+	send_log(p, LOG_INFO, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d] %s %s %d/%d/%d/%s%d %d %s%lld %s %s %c%c%c%c%s\n",
 		 pn,
 		 (s->cli_addr.ss_family == AF_INET) ?
 		   ntohs(((struct sockaddr_in *)&s->cli_addr)->sin_port) :
@@ -2017,7 +2170,7 @@ void sess_log(struct session *s) {
 		 sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT],
 		 (p->options & PR_O_COOK_ANY) ? sess_cookie[(s->flags & SN_CK_MASK) >> SN_CK_SHIFT] : '-',
 		 (p->options & PR_O_COOK_ANY) ? sess_set_cookie[(s->flags & SN_SCK_MASK) >> SN_SCK_SHIFT] : '-',
-		 uri);
+		 tmpline);
     }
     else {
 	send_log(p, LOG_INFO, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d] %s %s %d/%s%d %s%lld %c%c\n",
@@ -2125,6 +2278,36 @@ int event_accept(int fd) {
 
 	s->uniq_id = totalconn;
 
+	if (p->nb_req_cap > 0) {
+	    if ((s->req_cap =
+		 pool_alloc_from(p->req_cap_pool, p->nb_req_cap*sizeof(char *)))
+		== NULL) { /* no memory */
+		close(cfd); /* nothing can be done for this fd without memory */
+		pool_free(task, t);
+		pool_free(session, s);
+		return 0;
+	    }
+	    memset(s->req_cap, 0, p->nb_req_cap*sizeof(char *));
+	}
+	else
+	    s->req_cap = NULL;
+
+	if (p->nb_rsp_cap > 0) {
+	    if ((s->rsp_cap =
+		 pool_alloc_from(p->rsp_cap_pool, p->nb_rsp_cap*sizeof(char *)))
+		== NULL) { /* no memory */
+		if (s->req_cap != NULL)
+		    pool_free_to(p->req_cap_pool, s->req_cap);
+		close(cfd); /* nothing can be done for this fd without memory */
+		pool_free(task, t);
+		pool_free(session, s);
+		return 0;
+	    }
+	    memset(s->rsp_cap, 0, p->nb_rsp_cap*sizeof(char *));
+	}
+	else
+	    s->rsp_cap = NULL;
+
 	if ((p->mode == PR_MODE_TCP || p->mode == PR_MODE_HTTP)
 	    && (p->logfac1 >= 0 || p->logfac2 >= 0)) {
 	    struct sockaddr_storage sockname;
@@ -2201,11 +2384,16 @@ int event_accept(int fd) {
 	}
 
 	if ((s->req = pool_alloc(buffer)) == NULL) { /* no memory */
+	    if (s->rsp_cap != NULL)
+		pool_free_to(p->rsp_cap_pool, s->rsp_cap);
+	    if (s->req_cap != NULL)
+		pool_free_to(p->req_cap_pool, s->req_cap);
 	    close(cfd); /* nothing can be done for this fd without memory */
 	    pool_free(task, t);
 	    pool_free(session, s);
 	    return 0;
 	}
+
 	s->req->l = 0;
 	s->req->total = 0;
 	s->req->h = s->req->r = s->req->lr = s->req->w = s->req->data;	/* r and w will be reset further */
@@ -2215,6 +2403,10 @@ int event_accept(int fd) {
 
 	if ((s->rep = pool_alloc(buffer)) == NULL) { /* no memory */
 	    pool_free(buffer, s->req);
+	    if (s->rsp_cap != NULL)
+		pool_free_to(p->rsp_cap_pool, s->rsp_cap);
+	    if (s->req_cap != NULL)
+		pool_free_to(p->req_cap_pool, s->req_cap);
 	    close(cfd); /* nothing can be done for this fd without memory */
 	    pool_free(task, t);
 	    pool_free(session, s);
@@ -2608,6 +2800,27 @@ int process_cli(struct session *t) {
 
 		if (!(t->logs.logwait &= ~LW_REQ))
 		    sess_log(t);
+	    }
+	    else if (t->logs.logwait & LW_REQHDR) {
+		struct cap_hdr *h;
+		int len;
+		for (h = t->proxy->req_cap; h; h = h->next) {
+		    if ((h->namelen + 2 <= ptr - req->h) &&
+			(req->h[h->namelen] == ':') &&
+			(strncasecmp(req->h, h->name, h->namelen) == 0)) {
+
+			if (t->req_cap[h->index] == NULL)
+			    t->req_cap[h->index] = pool_alloc_from(h->pool, h->len + 1);
+
+			len = ptr - (req->h + h->namelen + 2);
+			if (len > h->len)
+			    len = h->len;
+
+			memcpy(t->req_cap[h->index], req->h + h->namelen + 2, len);
+			t->req_cap[h->index][len]=0;
+		    }
+		}
+		
 	    }
 
 	    delete_header = 0;
@@ -3234,7 +3447,7 @@ int process_srv(struct session *t) {
 
 		/* if the user wants to log as soon as possible, without counting
 		   bytes from the server, then this is the right moment. */
-		if (!(t->logs.logwait & LW_BYTES)) {
+		if (t->proxy->to_log && !(t->logs.logwait & LW_BYTES)) {
 		    t->logs.t_close = t->logs.t_connect; /* to get a valid end date */
 		    sess_log(t);
 		}
@@ -3349,7 +3562,7 @@ int process_srv(struct session *t) {
 
 		/* if the user wants to log as soon as possible, without counting
 		   bytes from the server, then this is the right moment. */
-		if (!(t->logs.logwait & LW_BYTES)) {
+		if (t->proxy->to_log && !(t->logs.logwait & LW_BYTES)) {
 		    t->logs.t_close = t->logs.t_data; /* to get a valid end date */
 		    t->logs.bytes = rep->h - rep->data;
 		    sess_log(t);
@@ -3412,6 +3625,27 @@ int process_srv(struct session *t) {
 		    default:
 			break;
 		}
+	    }
+	    else if (t->logs.logwait & LW_RSPHDR) {
+		struct cap_hdr *h;
+		int len;
+		for (h = t->proxy->rsp_cap; h; h = h->next) {
+		    if ((h->namelen + 2 <= ptr - rep->h) &&
+			(rep->h[h->namelen] == ':') &&
+			(strncasecmp(rep->h, h->name, h->namelen) == 0)) {
+
+			if (t->rsp_cap[h->index] == NULL)
+			    t->rsp_cap[h->index] = pool_alloc_from(h->pool, h->len + 1);
+
+			len = ptr - (rep->h + h->namelen + 2);
+			if (len > h->len)
+			    len = h->len;
+
+			memcpy(t->rsp_cap[h->index], rep->h + h->namelen + 2, len);
+			t->rsp_cap[h->index][len]=0;
+		    }
+		}
+		
 	    }
 
 	    delete_header = 0;
@@ -4730,7 +4964,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	curproxy->logfac2 = defproxy.logfac2;
 	curproxy->logsrv2 = defproxy.logsrv2;
 	curproxy->loglev2 = defproxy.loglev2;
-	curproxy->to_log = defproxy.to_log;
+	curproxy->to_log = defproxy.to_log & ~LW_COOKIE & ~LW_REQHDR & ~ LW_RSPHDR;
 	curproxy->grace  = defproxy.grace;
 	curproxy->source_addr = defproxy.source_addr;
 	return 0;
@@ -4838,31 +5072,84 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	    return -1;
 	}
     }
-    else if (!strcmp(args[0], "capture")) {  /* name of a cookie to capture */
-//	  if (curproxy == &defproxy) {
-//	      Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-//	      return -1;
-//	  }
+    else if (!strcmp(args[0], "capture")) {
+	if (!strcmp(args[1], "cookie")) {  /* name of a cookie to capture */
+	    //	  if (curproxy == &defproxy) {
+	    //	      Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+	    //	      return -1;
+	    //	  }
 
-	if (curproxy->capture_name != NULL) {
-//	      Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n",
-//		    file, linenum, args[0]);
-//	      return 0;
-	    free(curproxy->capture_name);
-	}
+	    if (curproxy->capture_name != NULL) {
+		//     Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n",
+		//           file, linenum, args[0]);
+		//     return 0;
+		free(curproxy->capture_name);
+	    }
 	
-	if (*(args[4]) == 0) {
-	    Alert("parsing [%s:%d] : '%s' expects 'cookie' <cookie_name> 'len' <len>.\n",
+	    if (*(args[4]) == 0) {
+		Alert("parsing [%s:%d] : '%s' expects 'cookie' <cookie_name> 'len' <len>.\n",
+		      file, linenum, args[0]);
+		return -1;
+	    }
+	    curproxy->capture_name = strdup(args[2]);
+	    curproxy->capture_namelen = strlen(curproxy->capture_name);
+	    curproxy->capture_len = atol(args[4]);
+	    if (curproxy->capture_len >= CAPTURE_LEN) {
+		Warning("parsing [%s:%d] : truncating capture length to %d bytes.\n",
+			file, linenum, CAPTURE_LEN - 1);
+		curproxy->capture_len = CAPTURE_LEN - 1;
+	    }
+	    curproxy->to_log |= LW_COOKIE;
+	}
+	else if (!strcmp(args[1], "request") && !strcmp(args[2], "header")) {
+	    struct cap_hdr *hdr;
+
+	    if (curproxy == &defproxy) {
+		Alert("parsing [%s:%d] : '%s %s' not allowed in 'defaults' section.\n", file, linenum, args[0], args[1]);
+		return -1;
+	    }
+
+	    if (*(args[3]) == 0 || strcmp(args[4], "len") != 0 || *(args[5]) == 0) {
+		Alert("parsing [%s:%d] : '%s %s' expects 'header' <header_name> 'len' <len>.\n",
+		      file, linenum, args[0], args[1]);
+		return -1;
+	    }
+
+	    hdr = calloc(sizeof(struct cap_hdr), 1);
+	    hdr->next = curproxy->req_cap;
+	    hdr->name = strdup(args[3]);
+	    hdr->namelen = strlen(args[3]);
+	    hdr->len = atol(args[5]);
+	    hdr->index = curproxy->nb_req_cap++;
+	    curproxy->req_cap = hdr;
+	    curproxy->to_log |= LW_REQHDR;
+	}
+	else if (!strcmp(args[1], "response") && !strcmp(args[2], "header")) {
+	    struct cap_hdr *hdr;
+
+	    if (curproxy == &defproxy) {
+		Alert("parsing [%s:%d] : '%s %s' not allowed in 'defaults' section.\n", file, linenum, args[0], args[1]);
+		return -1;
+	    }
+
+	    if (*(args[3]) == 0 || strcmp(args[4], "len") != 0 || *(args[5]) == 0) {
+		Alert("parsing [%s:%d] : '%s %s' expects 'header' <header_name> 'len' <len>.\n",
+		      file, linenum, args[0], args[1]);
+		return -1;
+	    }
+	    hdr = calloc(sizeof(struct cap_hdr), 1);
+	    hdr->next = curproxy->rsp_cap;
+	    hdr->name = strdup(args[3]);
+	    hdr->namelen = strlen(args[3]);
+	    hdr->len = atol(args[5]);
+	    hdr->index = curproxy->nb_rsp_cap++;
+	    curproxy->rsp_cap = hdr;
+	    curproxy->to_log |= LW_RSPHDR;
+	}
+	else {
+	    Alert("parsing [%s:%d] : '%s' expects 'cookie' or 'request header' or 'response header'.\n",
 		  file, linenum, args[0]);
 	    return -1;
-	}
-	curproxy->capture_name = strdup(args[2]);
-	curproxy->capture_namelen = strlen(curproxy->capture_name);
-	curproxy->capture_len = atol(args[4]);
-	if (curproxy->capture_len >= CAPTURE_LEN) {
-	    Warning("parsing [%s:%d] : truncating capture length to %d bytes.\n",
-		    file, linenum, CAPTURE_LEN - 1);
-	    curproxy->capture_len = CAPTURE_LEN - 1;
 	}
     }
     else if (!strcmp(args[0], "contimeout")) {  /* connect timeout */
@@ -5446,25 +5733,25 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	    return -1;
 	}
 	
-	    curproxy->req_add[curproxy->nb_reqadd++] = strdup(args[1]);
+	curproxy->req_add[curproxy->nb_reqadd++] = strdup(args[1]);
+    }
+    else if (!strcmp(args[0], "srvexp") || !strcmp(args[0], "rsprep")) {  /* replace response header from a regex */
+	regex_t *preg;
+	
+	if (*(args[1]) == 0 || *(args[2]) == 0) {
+	    Alert("parsing [%s:%d] : '%s' expects <search> and <replace> as arguments.\n",
+		  file, linenum, args[0]);
+	    return -1;
 	}
-	else if (!strcmp(args[0], "srvexp") || !strcmp(args[0], "rsprep")) {  /* replace response header from a regex */
-	    regex_t *preg;
-
-	    if (*(args[1]) == 0 || *(args[2]) == 0) {
-		Alert("parsing [%s:%d] : '%s' expects <search> and <replace> as arguments.\n",
-		      file, linenum, args[0]);
-		return -1;
-	    }
-
-	    preg = calloc(1, sizeof(regex_t));
-	    if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
-		Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
-		return -1;
-	    }
-	    
-	    chain_regex(&curproxy->rsp_exp, preg, ACT_REPLACE, strdup(args[2]));
+	
+	preg = calloc(1, sizeof(regex_t));
+	if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
+	    Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
+	    return -1;
 	}
+	
+	chain_regex(&curproxy->rsp_exp, preg, ACT_REPLACE, strdup(args[2]));
+    }
     else if (!strcmp(args[0], "rspdel")) {  /* delete response header from a regex */
 	regex_t *preg;
 	if (curproxy == &defproxy) {
@@ -5921,6 +6208,34 @@ void init(int argc, char **argv) {
 		"Error: wrong architecture. Recompile so that sizeof(int)=%d\n",
 		(int)(sizeof(int)*8));
 	exit(1);
+    }
+
+    /* initialize the log header encoding map : '{|}"#' should be encoded with
+     * '#' as prefix, as well as non-printable characters ( <32 or >= 127 ).
+     * URL encoding only requires '"', '#' to be encoded as well as non-
+     * printable characters above.
+     */
+    memset(hdr_encode_map, 0, sizeof(hdr_encode_map));
+    memset(url_encode_map, 0, sizeof(url_encode_map));
+    for (i = 0; i < 32; i++) {
+	FD_SET(i, hdr_encode_map);
+	FD_SET(i, url_encode_map);
+    }
+    for (i = 127; i < 256; i++) {
+	FD_SET(i, hdr_encode_map);
+	FD_SET(i, url_encode_map);
+    }
+
+    tmp = "\"#{|}";
+    while (*tmp) {
+	FD_SET(*tmp, hdr_encode_map);
+	tmp++;
+    }
+
+    tmp = "\"#";
+    while (*tmp) {
+	FD_SET(*tmp, url_encode_map);
+	tmp++;
     }
 
     pid = getpid();

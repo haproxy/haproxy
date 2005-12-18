@@ -1,5 +1,17 @@
 ChangeLog :
 ===========
+
+2004/10/18 : 1.2.2 (1.1.29)
+  - fixed a bug where a TCP connection would be logged twice if the 'logasap'
+    option was enabled without the 'tcplog' option.
+  - encode_string() would use hdr_encode_map instead of the map argument.
+
+2004/08/10 : (1.1.29-pre2)
+  - the logged request is now encoded with '#XX' for unprintable characters
+  - new keywords 'capture request header' and 'capture response header' enable
+    logging of arbitrary HTTP headers in requests and responses
+  - removed "-DSOLARIS" after replacing the last inet_aton() with inet_pton()
+
 2004/06/06 : 1.2.1 (1.1.28)
   - added the '-V' command line option to verbosely report errors even though
     the -q or 'quiet' options are specified. This is useful with '-c'.

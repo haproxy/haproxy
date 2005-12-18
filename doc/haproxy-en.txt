@@ -1,9 +1,9 @@
 
          		     H A - P r o x y
          		     ---------------
-         		      version 1.2.1
+         		      version 1.2.2
 			      willy tarreau
-			       2004/06/06
+			       2004/10/18
 
 ============
 | Abstract |
@@ -227,7 +227,9 @@ eventhough the load needed to saturate a recent processor is far above common
 usage. Anyway, for very specific needs, the proxy can start several processes
 between which the operating system will spread the incoming connections. The
 number of processes is controlled by the 'nbproc' parameter in the 'global'
-section. It defaults to 1, and obviously works only in 'daemon' mode.
+section. It defaults to 1, and obviously works only in 'daemon' mode. One
+typical usage of this parameter has been to workaround the default per-process
+file-descriptor limit that Solaris imposes to user processes.
 
 Example :
 ---------
@@ -1153,6 +1155,67 @@ client. Each of these field is replaced with '-' when no cookie was seen.
   => The request took 3s to complete (probably a network problem), and the
      connection to the server failed ('SC--') after 4 attemps of 2 seconds
      (config says 'retries 3'), then a 503 error code was sent to the client.
+
+4.2.6) Non-printable characters
+-------------------------------
+As of version 1.1.29, non-printable characters are not sent as-is into log
+files, but are converted to their two-digits hexadecimal representation,
+prefixed by the character '#'. The only characters that can now be logged
+without being escaped are between 32 and 126 (inclusive). Obviously, the
+escape character '#' is also encoded to avoid any ambiguity. It is the same for
+the character '"', as well as '{', '|' and '}' when logging headers.
+
+4.2.7) Logging HTTP headers
+---------------------------
+As of version 1.1.29, it is now possible to log HTTP headers extracts. It is
+both possible to include request headers and response headers. It is
+particularly useful to know what virtual server the client requested, to know
+the content length during a POST request, or a unique request ID set on a
+previous proxy. In the response, one can search for information about the
+response length, how the server asked the cache to behave, or an object location
+during a redirection. The syntax is :
+
+    capture request  header <name> len <max length>
+    capture response header <name> len <max length>
+
+Note: Header names are not case-sensitive.
+
+Examples:
+---------
+    # keep the name of the virtual server
+    capture request  header Host len 20
+    # keep the amount of data uploaded during a POST
+    capture request  header Content-Length len 10
+
+    # note the expected cache behaviour on the response
+    capture response header Cache-Control len 8
+    # note the URL location during a redirection
+    capture response header Location len 20
+
+Non-existant headers are logged as empty strings, and if one header appears more
+than once, only its last occurence will be kept. Request headers are grouped
+within braces '{' and '}' in the same order as they were declared, and delimited
+with a vertical bar '|' without any space. Response headers follow the same
+representation, but are displayed after a space following the request headers
+block. These blocks are displayed just before the HTTP request in the logs.
+Example :
+
+Config:
+
+     capture request  header Host len 20
+     capture request  header Content-Length len 10
+     capture request  header Referer len 20
+     capture response header Server len 20
+     capture response header Content-Length len 10
+     capture response header Cache-Control len 8
+     capture response header Via len 20
+     capture response header Location len 20
+
+Log :
+
+Aug  9 20:26:09 localhost haproxy[2022]: 127.0.0.1:34014 [09/Aug/2004:20:26:09] relais-http netcache 0/0/162/+162 200 +350 - - ---- {fr.adserver.yahoo.co||http://fr.f416.mail.} {|864|private||} "GET http://fr.adserver.yahoo.com/"
+Aug  9 20:30:46 localhost haproxy[2022]: 127.0.0.1:34020 [09/Aug/2004:20:30:46] relais-http netcache 0/0/182/+182 200 +279 - - ---- {w.ods.org||} {Formilux/0.1.8|3495|||} "GET http://w.ods.org/sytadin.html HTTP/1.1" 
+Aug  9 20:30:46 localhost haproxy[2022]: 127.0.0.1:34028 [09/Aug/2004:20:30:46] relais-http netcache 0/2/126/+128 200 +223 - - ---- {www.infotrafic.com||http://w.ods.org/syt} {Apache/2.0.40 (Red H|9068|||} "GET http://www.infotrafic.com/images/live/cartesidf/grandes/idf_ne.png HTTP/1.1" 
 
 4.3) HTTP header manipulation
 -----------------------------

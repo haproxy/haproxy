@@ -1,6 +1,6 @@
 Summary: HA-Proxy is a TCP/HTTP reverse proxy for high availability environments
 Name: haproxy
-Version: 1.2.1
+Version: 1.2.3
 Release: 1
 License: GPL
 Group: System Environment/Daemons
@@ -9,8 +9,6 @@ Packager: Simon Matter <simon.matter@invoca.ch>
 Vendor: Invoca Systems
 Distribution: Invoca Linux Server
 Source0: http://w.ods.org/tools/%{name}/%{name}-%{version}.tar.gz
-Source1: %{name}.cfg
-Source2: %{name}.init
 BuildRoot: %{_tmppath}/%{name}-%{version}-root
 BuildRequires: pcre-devel
 Prereq: /sbin/chkconfig
@@ -35,20 +33,18 @@ risking the system's stability.
 %setup -q
 
 %build
-%{__make} REGEX=pcre DEBUG=""
+%{__make} REGEX=pcre DEBUG="" LIBS.pcre="-L\$(PCREDIR)/lib -Wl,-Bstatic -lpcreposix -lpcre -Wl,-Bdynamic"
 
 %install
 [ "%{buildroot}" != "/" ] && %{__rm} -rf %{buildroot}
  
 %{__install} -d %{buildroot}%{_sbindir}
 %{__install} -d %{buildroot}%{_sysconfdir}/rc.d/init.d
-%{__install} -d %{buildroot}%{_sysconfdir}/logrotate.d
 %{__install} -d %{buildroot}%{_sysconfdir}/%{name}
-%{__install} -d %{buildroot}%{_datadir}/%{name}
 
 %{__install} -s %{name} %{buildroot}%{_sbindir}/
-%{__install} -c -m 644 %{SOURCE1} %{buildroot}%{_sysconfdir}/%{name}/
-%{__install} -c -m 755 %{SOURCE2} %{buildroot}%{_sysconfdir}/rc.d/init.d/%{name}
+%{__install} -c -m 644 examples/%{name}.cfg %{buildroot}%{_sysconfdir}/%{name}/
+%{__install} -c -m 755 examples/%{name}.init %{buildroot}%{_sysconfdir}/rc.d/init.d/%{name}
  
 %clean
 [ "%{buildroot}" != "/" ] && %{__rm} -rf %{buildroot}
@@ -69,14 +65,21 @@ fi
 
 %files
 %defattr(-,root,root)
-%doc CHANGELOG TODO examples
+%doc CHANGELOG TODO examples doc/haproxy-en.txt doc/haproxy-fr.txt doc/architecture.txt
 %attr(0755,root,root) %{_sbindir}/%{name}
 %dir %{_sysconfdir}/%{name}
 %attr(0644,root,root) %config(noreplace) %{_sysconfdir}/%{name}/%{name}.cfg
 %attr(0755,root,root) %config %{_sysconfdir}/rc.d/init.d/%{name}
-%dir %{_datadir}/%{name}
 
 %changelog
+* Sat Jan 22 2005 Willy Tarreau <willy@w.ods.org>
+- updated to 1.2.3 (1.1.30)
+
+* Sun Nov 14 2004 Willy Tarreau <w@w.ods.org>
+- updated to 1.1.29
+- fixed path to config and init files
+- statically linked PCRE to increase portability to non-pcre systems
+
 * Sun Jun  6 2004 Willy Tarreau <willy@w.ods.org>
 - updated to 1.1.28
 - added config check support to the init script

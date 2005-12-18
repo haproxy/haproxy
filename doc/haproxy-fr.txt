@@ -1,9 +1,9 @@
 
          		     H A - P r o x y
          		     ---------------
-         		      version 1.2.1
+         		      version 1.2.2
 			      willy tarreau
-			       2004/06/06
+			       2004/10/18
 
 ================
 | Introduction |
@@ -240,7 +240,9 @@ grandeur couramment rencontrés. Cependant, pour des besoins particuliers, le
 programme sait démarrer plusieurs processus se répartissant la charge de
 travail. Ce nombre de processus est spécifié par le paramètre 'nbproc' de la
 section 'global'. Sa valeur par défaut est naturellement 1. Ceci ne fonctionne
-qu'en mode 'daemon'.
+qu'en mode 'daemon'. Un usage déjà rencontré pour ce paramètre fut de dépasser
+la limite de nombre de descripteurs de fichiers allouée par processus sous
+Solaris.
 
 Exemple :
 ---------
@@ -1191,6 +1193,69 @@ client ou le serveur.
   => La requête client met 3s à entrer (peut-être un problème réseau), et la
      connexion ('SC--') vers le serveur échoue au bout de 4 tentatives de 2
      secondes (retries 3 dans la conf), puis un code 503 est retourné au client.
+
+4.2.6) Caractères non-imprimables
+---------------------------------
+Depuis la version 1.1.29, les caractères non-imprimables ne sont plus envoyés
+tels quels dans les lignes de logs, mais inscrits sous la forme de deux chiffres
+hexadécimaux, préfixés du caractère d'échappement '#'. Les seuls caractères
+dorénavant logués tels quels sont compris entre 32 et 126. Bien évidemment, le
+caractère d'échappement '#' est lui-même encodé afin de lever l'ambiguité. Il en
+est de même pour le caractère '"', ainsi que les caractères '{', '|' et '}' pour
+les en-têtes.
+
+4.2.7) Journalisation d'en-têtes
+--------------------------------
+Depuis la version 1.1.29, il est désormais possible de conserver des extraits
+d'en-têtes HTTP dans les logs. On peut aussi bien extraire des en-têtes de la
+requête que de la réponse. C'est particulièrement pratique pour savoir à quel
+serveur virtuel une requête s'adressait, pour connaitre la longueur des données
+émises lors d'un POST, ou encore loguer un identifiant unique de requête
+positionné en amont. Dans la réponse, on peut chercher également à conserver des
+informations relatives à la taille annoncée de la réponse, le fonctionnement
+attendu du cache, ou encore la localisation d'un objet en cas de redirection.
+La syntaxe est la suivante :
+
+    capture request  header <nom> len <longueur max>
+    capture response header <nom> len <longueur max>
+
+Note: Les noms d'en-têtes ne sont pas sensibles à la casse.
+
+Exemples:
+---------
+    # conserver le nom du serveur virtuel accédé par le client
+    capture request  header Host len 20
+    # noter la longueur des données envoyées dans un POST
+    capture request  header Content-Length len 10
+
+    # noter le fonctionnement attendu du cache par le serveur
+    capture response header Cache-Control len 8
+    # noter l'URL de redirection
+    capture response header Location len 20
+
+Les en-têtes non trouvés sont logués à vide, et si un en-tête apparait plusieurs
+fois, seule la dernière occurence sera conservée. Les en-têtes de requête sont
+regroupés entre deux accolades '{' et '}' dans l'ordre de leur déclaration, et
+chacun séparés par une barre verticale '|', sans aucun espace. Les en-têtes de
+réponse sont présentés de la même manière, mais après un espace suivant le bloc
+d'en-tête de requête. Le tout précède la requête HTTP. Exemple :
+
+Config:
+
+     capture request  header Host len 20
+     capture request  header Content-Length len 10
+     capture request  header Referer len 20
+     capture response header Server len 20
+     capture response header Content-Length len 10
+     capture response header Cache-Control len 8
+     capture response header Via len 20
+     capture response header Location len 20
+
+Log :
+
+Aug  9 20:26:09 localhost haproxy[2022]: 127.0.0.1:34014 [09/Aug/2004:20:26:09] relais-http netcache 0/0/162/+162 200 +350 - - ---- {fr.adserver.yahoo.co||http://fr.f416.mail.} {|864|private||} "GET http://fr.adserver.yahoo.com/"
+Aug  9 20:30:46 localhost haproxy[2022]: 127.0.0.1:34020 [09/Aug/2004:20:30:46] relais-http netcache 0/0/182/+182 200 +279 - - ---- {w.ods.org||} {Formilux/0.1.8|3495|||} "GET http://w.ods.org/sytadin.html HTTP/1.1" 
+Aug  9 20:30:46 localhost haproxy[2022]: 127.0.0.1:34028 [09/Aug/2004:20:30:46] relais-http netcache 0/2/126/+128 200 +223 - - ---- {www.infotrafic.com||http://w.ods.org/syt} {Apache/2.0.40 (Red H|9068|||} "GET http://www.infotrafic.com/images/live/cartesidf/grandes/idf_ne.png HTTP/1.1" 
 
 4.3) Modification des entêtes HTTP
 ----------------------------------
