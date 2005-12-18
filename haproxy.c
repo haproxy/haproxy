@@ -30,6 +30,7 @@
  *     and client suddenly disconnects. The server *should* switch to SHUT_WR, but
  *     still handle HTTP headers.
  *   - remove MAX_NEWHDR
+ *   - cut this huge file into several ones
  *
  */
 
@@ -63,8 +64,8 @@
 
 #include "include/appsession.h"
 
-#define HAPROXY_VERSION "1.2.4"
-#define HAPROXY_DATE	"2005/01/22"
+#define HAPROXY_VERSION "1.2.5"
+#define HAPROXY_DATE	"2005/04/24"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -676,6 +677,13 @@ static char hostname[MAX_HOSTNAME_LEN] = "";
 
 const char *HTTP_302 =
 	"HTTP/1.0 302 Found\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Location: "; /* not terminated since it will be concatenated with the URL */
+
+/* same as 302 except that the browser MUST retry with the GET method */
+const char *HTTP_303 =
+	"HTTP/1.0 303 See Other\r\n"
 	"Cache-Control: no-cache\r\n"
 	"Connection: close\r\n"
 	"Location: "; /* not terminated since it will be concatenated with the URL */
@@ -2695,7 +2703,8 @@ int exp_replace(char *dst, char *src, char *str, regmatch_t *matches) {
 		unsigned char hex1, hex2;
 		str++;
 
-		hex1=toupper(*str++) - '0'; hex2=toupper(*str++) - '0';
+		hex1 = toupper(*str++) - '0';
+		hex2 = toupper(*str++) - '0';
 
 		if (hex1 > 9) hex1 -= 'A' - '9' - 1;
 		if (hex2 > 9) hex2 -= 'A' - '9' - 1;
@@ -2710,6 +2719,43 @@ int exp_replace(char *dst, char *src, char *str, regmatch_t *matches) {
     *dst = 0;
     return dst - old_dst;
 }
+
+static int ishex(char s)
+{
+    return (s >= '0' && s <= '9') || (s >= 'A' && s <= 'F') || (s >= 'a' && s <= 'f');
+}
+
+/* returns NULL if the replacement string <str> is valid, or the pointer to the first error */
+char *check_replace_string(char *str)
+{
+    char *err = NULL;
+    while (*str) {
+	if (*str == '\\') {
+	    err = str; /* in case of a backslash, we return the pointer to it */
+	    str++;
+	    if (!*str)
+		return err;
+	    else if (isdigit((int)*str))
+		err = NULL;
+	    else if (*str == 'x') {
+		str++;
+		if (!ishex(*str))
+		    return err;
+		str++;
+		if (!ishex(*str))
+		    return err;
+		err = NULL;
+	    }
+	    else {
+		Warning("'\\%c' : deprecated use of a backslash before something not '\\','x' or a digit.\n", *str);
+		err = NULL;
+	    }
+	}
+	str++;
+    }
+    return err;
+}
+
 
 
 /*
@@ -4801,7 +4847,7 @@ void select_loop() {
       /* let's restore fdset state */
 
       readnotnull = 0; writenotnull = 0;
-      for (i = 0; i < (global.maxsock + FD_SETSIZE - 1)/(8*sizeof(int)); i++) {
+      for (i = 0; i < (maxfd + FD_SETSIZE - 1)/(8*sizeof(int)); i++) {
 	  readnotnull |= (*(((int*)ReadEvent)+i) = *(((int*)StaticReadEvent)+i)) != 0;
 	  writenotnull |= (*(((int*)WriteEvent)+i) = *(((int*)StaticWriteEvent)+i)) != 0;
       }
@@ -5088,8 +5134,16 @@ void sig_term(int sig) {
     signal(sig, SIG_DFL);
 }
 
-void chain_regex(struct hdr_exp **head, regex_t *preg, int action, char *replace) {
+/* returns the pointer to an error in the replacement string, or NULL if OK */
+char *chain_regex(struct hdr_exp **head, regex_t *preg, int action, char *replace) {
     struct hdr_exp *exp;
+
+    if (replace != NULL) {
+	char *err;
+	err = check_replace_string(replace);
+	if (err)
+	    return err;
+    }
 
     while (*head != NULL)
 	head = &(*head)->next;
@@ -5100,6 +5154,8 @@ void chain_regex(struct hdr_exp **head, regex_t *preg, int action, char *replace
     exp->replace = replace;
     exp->action = action;
     *head = exp;
+
+    return NULL;
 }
 
 
@@ -5261,6 +5317,7 @@ void init_default_instance() {
 int cfg_parse_listen(char *file, int linenum, char **args) {
     static struct proxy *curproxy = NULL;
     struct server *newsrv = NULL;
+    char *err;
     int rc;
 
     if (!strcmp(args[0], "listen")) {  /* new proxy */
@@ -5962,7 +6019,12 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	    return -1;
 	}
 	
-	chain_regex(&curproxy->req_exp, preg, ACT_REPLACE, strdup(args[2]));
+	err = chain_regex(&curproxy->req_exp, preg, ACT_REPLACE, strdup(args[2]));
+	if (err) {
+	    Alert("parsing [%s:%d] : invalid character or unterminated sequence in replacement string near '%c'.\n",
+		  file, linenum, *err);
+	    return -1;
+	}
     }
     else if (!strcmp(args[0], "reqdel")) {  /* delete request header from a regex */
 	regex_t *preg;
@@ -6063,7 +6125,12 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	    return -1;
 	}
 	
-	chain_regex(&curproxy->req_exp, preg, ACT_REPLACE, strdup(args[2]));
+	err = chain_regex(&curproxy->req_exp, preg, ACT_REPLACE, strdup(args[2]));
+	if (err) {
+	    Alert("parsing [%s:%d] : invalid character or unterminated sequence in replacement string near '%c'.\n",
+		  file, linenum, *err);
+	    return -1;
+	}
     }
     else if (!strcmp(args[0], "reqidel")) {  /* delete request header from a regex ignoring case */
 	regex_t *preg;
@@ -6178,7 +6245,12 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	    return -1;
 	}
 	
-	chain_regex(&curproxy->rsp_exp, preg, ACT_REPLACE, strdup(args[2]));
+	err = chain_regex(&curproxy->rsp_exp, preg, ACT_REPLACE, strdup(args[2]));
+	if (err) {
+	    Alert("parsing [%s:%d] : invalid character or unterminated sequence in replacement string near '%c'.\n",
+		  file, linenum, *err);
+	    return -1;
+	}
     }
     else if (!strcmp(args[0], "rspdel")) {  /* delete response header from a regex */
 	regex_t *preg;
@@ -6198,7 +6270,12 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	    return -1;
 	}
 	
-	chain_regex(&curproxy->rsp_exp, preg, ACT_REMOVE, strdup(args[2]));
+	err = chain_regex(&curproxy->rsp_exp, preg, ACT_REMOVE, strdup(args[2]));
+	if (err) {
+	    Alert("parsing [%s:%d] : invalid character or unterminated sequence in replacement string near '%c'.\n",
+		  file, linenum, *err);
+	    return -1;
+	}
     }
     else if (!strcmp(args[0], "rspdeny")) {  /* block response header from a regex */
 	regex_t *preg;
@@ -6218,7 +6295,12 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	    return -1;
 	}
 	
-	chain_regex(&curproxy->rsp_exp, preg, ACT_DENY, strdup(args[2]));
+	err = chain_regex(&curproxy->rsp_exp, preg, ACT_DENY, strdup(args[2]));
+	if (err) {
+	    Alert("parsing [%s:%d] : invalid character or unterminated sequence in replacement string near '%c'.\n",
+		  file, linenum, *err);
+	    return -1;
+	}
     }
     else if (!strcmp(args[0], "rspirep")) {  /* replace response header from a regex ignoring case */
 	regex_t *preg;
@@ -6239,7 +6321,12 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	    return -1;
 	}
 	    
-	chain_regex(&curproxy->rsp_exp, preg, ACT_REPLACE, strdup(args[2]));
+	err = chain_regex(&curproxy->rsp_exp, preg, ACT_REPLACE, strdup(args[2]));
+	if (err) {
+	    Alert("parsing [%s:%d] : invalid character or unterminated sequence in replacement string near '%c'.\n",
+		  file, linenum, *err);
+	    return -1;
+	}
     }
     else if (!strcmp(args[0], "rspidel")) {  /* delete response header from a regex ignoring case */
 	regex_t *preg;
@@ -6259,7 +6346,12 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	    return -1;
 	}
 	
-	chain_regex(&curproxy->rsp_exp, preg, ACT_REMOVE, strdup(args[2]));
+	err = chain_regex(&curproxy->rsp_exp, preg, ACT_REMOVE, strdup(args[2]));
+	if (err) {
+	    Alert("parsing [%s:%d] : invalid character or unterminated sequence in replacement string near '%c'.\n",
+		  file, linenum, *err);
+	    return -1;
+	}
     }
     else if (!strcmp(args[0], "rspideny")) {  /* block response header from a regex ignoring case */
 	regex_t *preg;
@@ -6279,7 +6371,12 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	    return -1;
 	}
 	
-	chain_regex(&curproxy->rsp_exp, preg, ACT_DENY, strdup(args[2]));
+	err = chain_regex(&curproxy->rsp_exp, preg, ACT_DENY, strdup(args[2]));
+	if (err) {
+	    Alert("parsing [%s:%d] : invalid character or unterminated sequence in replacement string near '%c'.\n",
+		  file, linenum, *err);
+	    return -1;
+	}
     }
     else if (!strcmp(args[0], "rspadd")) {  /* add response header */
 	if (curproxy == &defproxy) {
@@ -6299,8 +6396,10 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	
 	curproxy->rsp_add[curproxy->nb_rspadd++] = strdup(args[1]);
     }
-    else if (!strcmp(args[0], "errorloc")) { /* error location */
-	int errnum;
+    else if (!strcmp(args[0], "errorloc") ||
+	     !strcmp(args[0], "errorloc302") ||
+	     !strcmp(args[0], "errorloc303")) { /* error location */
+	int errnum, errlen;
 	char *err;
 
 	// if (curproxy == &defproxy) {
@@ -6314,8 +6413,13 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	}
 
 	errnum = atol(args[1]);
-	err = malloc(strlen(HTTP_302) + strlen(args[2]) + 5);
-	sprintf(err, "%s%s\r\n\r\n", HTTP_302, args[2]);
+	if (!strcmp(args[0], "errorloc303")) {
+	    err = malloc(strlen(HTTP_303) + strlen(args[2]) + 5);
+	    errlen = sprintf(err, "%s%s\r\n\r\n", HTTP_303, args[2]);
+	} else {
+	    err = malloc(strlen(HTTP_302) + strlen(args[2]) + 5);
+	    errlen = sprintf(err, "%s%s\r\n\r\n", HTTP_302, args[2]);
+	}
 
 	if (errnum == 400) {
 	    if (curproxy->errmsg.msg400) {
@@ -6323,7 +6427,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 		free(curproxy->errmsg.msg400);
 	    }
 	    curproxy->errmsg.msg400 = err;
-	    curproxy->errmsg.len400 = strlen(err);
+	    curproxy->errmsg.len400 = errlen;
 	}
 	else if (errnum == 403) {
 	    if (curproxy->errmsg.msg403) {
@@ -6331,7 +6435,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 		free(curproxy->errmsg.msg403);
 	    }
 	    curproxy->errmsg.msg403 = err;
-	    curproxy->errmsg.len403 = strlen(err);
+	    curproxy->errmsg.len403 = errlen;
 	}
 	else if (errnum == 408) {
 	    if (curproxy->errmsg.msg408) {
@@ -6339,7 +6443,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 		free(curproxy->errmsg.msg408);
 	    }
 	    curproxy->errmsg.msg408 = err;
-	    curproxy->errmsg.len408 = strlen(err);
+	    curproxy->errmsg.len408 = errlen;
 	}
 	else if (errnum == 500) {
 	    if (curproxy->errmsg.msg500) {
@@ -6347,7 +6451,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 		free(curproxy->errmsg.msg500);
 	    }
 	    curproxy->errmsg.msg500 = err;
-	    curproxy->errmsg.len500 = strlen(err);
+	    curproxy->errmsg.len500 = errlen;
 	}
 	else if (errnum == 502) {
 	    if (curproxy->errmsg.msg502) {
@@ -6355,7 +6459,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 		free(curproxy->errmsg.msg502);
 	    }
 	    curproxy->errmsg.msg502 = err;
-	    curproxy->errmsg.len502 = strlen(err);
+	    curproxy->errmsg.len502 = errlen;
 	}
 	else if (errnum == 503) {
 	    if (curproxy->errmsg.msg503) {
@@ -6363,7 +6467,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 		free(curproxy->errmsg.msg503);
 	    }
 	    curproxy->errmsg.msg503 = err;
-	    curproxy->errmsg.len503 = strlen(err);
+	    curproxy->errmsg.len503 = errlen;
 	}
 	else if (errnum == 504) {
 	    if (curproxy->errmsg.msg504) {
@@ -6371,7 +6475,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 		free(curproxy->errmsg.msg504);
 	    }
 	    curproxy->errmsg.msg504 = err;
-	    curproxy->errmsg.len504 = strlen(err);
+	    curproxy->errmsg.len504 = errlen;
 	}
 	else {
 	    Warning("parsing [%s:%d] : error %d relocation will be ignored.\n", file, linenum, errnum);
@@ -6443,14 +6547,21 @@ int readcfgfile(char *file) {
 		    *line = '\t';
 		    skip = 1;
 		}
-		else if (line[1] == 'x' && (line + 3 < end )) {
-		    unsigned char hex1, hex2;
-		    hex1 = toupper(line[2]) - '0'; hex2 = toupper(line[3]) - '0';
-		    if (hex1 > 9) hex1 -= 'A' - '9' - 1;
-		    if (hex2 > 9) hex2 -= 'A' - '9' - 1;
-		    *line = (hex1<<4) + hex2;
-		    skip = 3;
-		} 
+		else if (line[1] == 'x') {
+		    if ((line + 3 < end ) && ishex(line[2]) && ishex(line[3])) {
+			unsigned char hex1, hex2;
+			hex1 = toupper(line[2]) - '0';
+			hex2 = toupper(line[3]) - '0';
+			if (hex1 > 9) hex1 -= 'A' - '9' - 1;
+			if (hex2 > 9) hex2 -= 'A' - '9' - 1;
+			*line = (hex1<<4) + hex2;
+			skip = 3;
+		    }
+		    else {
+			Alert("parsing [%s:%d] : invalid or incomplete '\\x' sequence in '%s'.\n", file, linenum, args[0]);
+			return -1;
+		    }
+		}
 		if (skip) {
 		    memmove(line + 1, line + 1 + skip, end - (line + skip + 1));
 		    end -= skip;

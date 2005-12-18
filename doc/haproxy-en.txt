@@ -2,9 +2,9 @@
                              H A - P r o x y
                             Reference  Manual
                            -------------------
-         		      version 1.2.3
+         		      version 1.2.5
 			      willy tarreau
-			        2005/01/22
+			        2005/04/24
 
 ============
 | Abstract |
@@ -1554,6 +1554,18 @@ Example :
         errorloc 502 http://192.168.114.58/error50x.html
         errorloc 503 http://192.168.114.58/error50x.html
         errorloc 504 http://192.168.114.58/error50x.html
+
+Note: RFC2616 says that a client must reuse the same method to fetch the
+Location returned by a 302, which causes problems with the POST method.
+The return code 303 was designed explicitly to force the client to fetch the
+Location URL with the GET method, but there are some browsers pre-dating
+HTTP/1.1 which don't support it. Anyway, most browsers still behave with 302 as
+if it was a 303. In order to allow the user to chose, version 1.2.5 brings two
+new keywords to replace 'errorloc' : 'errorloc302' and 'errorloc303'.
+
+They are preffered over errorloc (which still does 302). Consider using
+errorloc303 everytime you know that your clients support HTTP 303 responses..
+
 
 4.7) Modifying default values
 -----------------------------

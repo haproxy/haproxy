@@ -2,9 +2,9 @@
                              H A - P r o x y
                            Manuel de référence
                            -------------------
-         		      version 1.2.3
+         		      version 1.2.5
 			      willy tarreau
-			        2005/01/22
+			        2005/04/24
 
 ================
 | Introduction |
@@ -1577,6 +1577,21 @@ Exemple :
         errorloc 502 http://192.168.114.58/error50x.html
         errorloc 503 http://192.168.114.58/error50x.html
         errorloc 504 http://192.168.114.58/error50x.html
+
+Note: la RFC2616 stipule qu'un client doit réutiliser la même méthode pour
+accéder à l'URL de redirection que celle qui l'a retournée, ce qui pose des
+problèmes avec les requêtes POST. Le code de retour 303 a été créé exprès pour
+régler ce problème, indiquant au client qu'il doit accéder à l'URL retournée
+dans le champ Location avec la méthode GET uniquement. Seulement, certains
+navigateurs antérieurs à HTTP/1.1 ne connaissent pas ce code de retour. De
+plus, la plupart des navigateurs se comportent déjà avec le code 302 comme ils
+devraient le faire avec le 303. Donc, dans le but de laisser le choix à
+l'utilisateur, la version 1.2.5 apporte deux nouvelles commandes visant à
+remplacer 'errorloc' : 'errorloc302' et 'errorloc303'.
+
+Leur usage non ambigü est recommandé à la place de la commande 'errorloc' (qui
+utilise toujours 302). Dans le doute, préférez l'utilisation de 'errorloc303'
+dès que vous savez que vos clients supportent le code de retour HTTP 303.
 
 4.7) Changement des valeurs par défaut
 --------------------------------------

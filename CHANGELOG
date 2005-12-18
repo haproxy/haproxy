@@ -1,6 +1,20 @@
 ChangeLog :
 ===========
 
+2005/04/24
+  - implemented the HTTP 303 code for error redirection. This forces the
+    browser to fetch the given URI with a GET request. The new keyword for
+    this is 'errorloc303', and a new 'errorloc302' keyword has been created
+    to make them easily distinguishable.
+  - added more controls in the parser for valid use of '\x' sequence.
+  - few fixes from Alex & Klaus
+
+2005/02/17
+  - fixed a few errors in the documentation
+
+2005/02/13
+  - do not pre-initialize unused file-descriptors before select() anymore.
+
 2005/01/22 : 1.2.4
   - merged Alexander Lazic's and Klaus Wagner's work on application
     cookie-based persistence. Since this is the first merge, this version is
