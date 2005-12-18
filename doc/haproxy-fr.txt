@@ -1,9 +1,10 @@
-
-         		     H A - P r o x y
-         		     ---------------
-         		      version 1.2.2
+                           -------------------
+                             H A - P r o x y
+                           Manuel de référence
+                           -------------------
+         		      version 1.2.3
 			      willy tarreau
-			       2004/10/18
+			        2005/01/22
 
 ================
 | Introduction |
@@ -571,6 +572,14 @@ retournera un cookie vide (cookie de suppression) :
 
 	cookie SERVERID insert
 
+Pour réutiliser un cookie applicatif et lui préfixer l'identifiant du serveur,
+puis le supprimer dans les requêtes suivantes, utiliser l'option 'prefix'. Elle
+permet d'insérer une instance de haproxy devant une application sans risquer
+d'incompatibilités dûes à des clients qui ne supporteraient pas d'apprendre
+plus d'un cookie :
+
+       cookie JSESSIONID prefix
+
 Pour insérer un cookie, en s'assurant qu'un cache en amont ne le stockera pas,
 ajouter le mot clé 'nocache' après 'insert' :
 
@@ -597,6 +606,14 @@ Remarques :
   le cas contraire, un cache HTTP 1.0 pourrait cacher la réponse, incluant le
   cookie de persistence inséré, donc provoquer des changements de serveurs pour
   des clients partageant le même cache.
+
+- le mode 'prefix' ne nécessite pas d'utiliser 'indirect', 'nocache', ni
+  'postonly', car tout comme le mode 'rewrite', il s'appuie sur un cookie
+  présenté par l'application qui est censée savoir à quel moment il peut
+  être émis sans risque. Toutefois, comme il nécessite de rectifier le cookie
+  présenté par le client dans chaque requête ultérieure, il est indispensable
+  de s'assurer que le client et le serveur communiqueront sans "keep-alive
+  HTTP". Dans le doute, il est recommandé d'utiliser l'option "httpclose".
 
 - lorsque l'application est bien connue, et que les parties nécessitant de la
   persistence sont systématiquement accédées par un formulaire en mode POST,
@@ -766,6 +783,17 @@ Depuis la version 1.1.18 (et 1.2.1), un message d'urgence est envoyé dans les
 logs en niveau 'emerg' si tous les serveurs d'une même instance sont tombés,
 afin de notifier l'administrateur qu'il faut prendre une action immédiate.
 
+Depuis les versions 1.1.30 et 1.2.3, plusieurs serveurs peuvent partager la
+même valeur de cookie. C'est particulièrement utile en mode backup, pour
+sélectionner des chemins alternatifs pour un serveur donné, pour mettre en
+oeuvre l'arrêt en douceur d'un serveur, ou pour diriger les clients
+temporairement vers une page d'erreur en attendant le redémarrage d'une
+application. Le principe est que lorsqu'un serveur est détecté comme inopérant,
+le proxy cherchera le prochain serveur possédant la même valeur de cookie pour
+chaque client qui le demandera. S'il ne trouve pas de serveur normal, alors il
+le cherchera parmi les serveurs de backup. Consulter le guide d'architecture
+pour plus d'informations.
+
 Exemples :
 ----------
 # conf du paragraphe 3) avec surveillance TCP
@@ -802,6 +830,18 @@ Exemples :
 	option httpchk HEAD /index.jsp? HTTP/1.1\r\nHost:\ www
 	server web1 192.168.1.1:80 cookie server01 check
 	server web2 192.168.1.2:80 cookie server02 check inter 500 rise 1 fall 2
+
+# répartition avec persistence basée sur le préfixe de cookie, et arrêt en
+# douceur utilisant un second port (81) juste pour les health-checks.
+    listen http_proxy 0.0.0.0:80
+       mode http
+       cookie JSESSIONID prefix
+       balance roundrobin
+       option httpchk HEAD /index.jsp? HTTP/1.1\r\nHost:\ www
+       server web1-norm 192.168.1.1:80 cookie s1 check port 81
+       server web2-norm 192.168.1.2:80 cookie s2 check port 81
+       server web1-stop 192.168.1.1:80 cookie s1 check port 80 backup
+       server web2-stop 192.168.1.2:80 cookie s2 check port 80 backup
 
 # Insertion automatique de cookie dans la réponse du serveur, et suppression
 # automatique dans la requête, tout en indiquant aux caches de ne pas garder
@@ -874,7 +914,9 @@ D'autres fonctionnalités d'usage moins courant sont disponibles. Il s'agit
 principalement du mode transparent, de la journalisation des connexions, et de
 la réécriture des entêtes.
 
-4.1) Fonctionnement en mode transparent
+4.1) Fonctionnalités réseau
+---------------------------
+4.1.1) Fonctionnement en mode transparent
 ---------------------------------------
 En mode HTTP, le mot clé 'transparent' permet d'intercepter des sessions routées
 à travers la machine hébergeant le proxy. Dans ce mode, on ne précise pas
@@ -909,6 +951,53 @@ Exemple :
 
     # iptables -t nat -A PREROUTING -i eth0 -p tcp -d 192.168.1.100 \
       -j REDIRECT --to-ports 65000
+
+
+4.1.2) Choix d'une adresse source par serveur
+---------------------------------------------------
+Avec les versions 1.1.30 et 1.2.3, il devient possible de spécifier une adresse
+IP source pour joindre chaque serveur. C'est utile pour joindre des serveurs de
+backup à partir d'un LAN différent, ou pour utiliser des chemins alternatifs
+pour joindre le même serveur. C'est également utilisable pour faciliter une
+répartition de charge selon l'adresse IP source pour des connexions sortantes.
+Bien entendu, la même adresse est utilisée pour les health-checks.
+
+Exemple :
+---------
+    # utiliser une adresse particulière pour joindre les 2 serveur
+    listen http_proxy 0.0.0.0:65000
+       mode http
+       balance roundrobin
+       server server01 192.168.1.1:80 source 192.168.2.13
+       server server02 192.168.1.2:80 source 192.168.2.13
+
+Exemple :
+---------
+    # utiliser une adresse particulière pour joindre chaque serveur
+    listen http_proxy 0.0.0.0:65000
+       mode http
+       balance roundrobin
+       server server01 192.168.1.1:80 source 192.168.1.1
+       server server02 192.168.2.1:80 source 192.168.2.1
+
+Exemple :
+---------
+    # faire une répartition d'adresse sources pour joindre le même proxy à
+    # travers deux liens WAN 
+    listen http_proxy 0.0.0.0:65000
+       mode http
+       balance roundrobin
+       server remote-proxy-way1 192.168.1.1:3128 source 192.168.2.1
+       server remote-proxy-way2 192.168.1.1:3128 source 192.168.3.1
+
+Exemple :
+---------
+    # forcer une connexion TCP à s'attacher à un port particulier
+    listen http_proxy 0.0.0.0:2000
+       mode tcp
+       balance roundrobin
+       server srv1 192.168.1.1:80 source 192.168.2.1:20
+       server srv2 192.168.1.2:80 source 192.168.2.1:20
 
 
 4.2) Journalisation des connexions
@@ -1410,6 +1499,21 @@ Exemple :
 	balance roundrobin
 	server 192.168.1.1:80 cookie server01 check
 	server 192.168.1.2:80 cookie server02 check
+
+L'autre solution apportée par les versions 1.1.30 et 1.2.3 est de réutiliser un
+cookie en provenance du serveur et de lui préfixer l'identifiant du serveur.
+Dans ce cas, ne pas oublier de forcer le mode "httpclose" pour empêcher le
+client et le serveur de travailler en mode "keep-alive" afin que le proxy
+puisse corriger le nom du cookie dans toutes les futures requêtes.
+
+    listen application 0.0.0.0:80
+       mode http
+       cookie JSESSIONID prefix
+       balance roundrobin
+       server 192.168.1.1:80 cookie srv1 check
+       server 192.168.1.2:80 cookie srv2 check
+       option httpclose
+
 
 4.5) Protection contre les fuites d'informations du serveur
 -----------------------------------------------------------

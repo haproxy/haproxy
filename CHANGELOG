@@ -1,6 +1,26 @@
 ChangeLog :
 ===========
 
+2005/01/22 : 1.2.3 (1.1.30)
+  - add an architecture guide to the documentation
+  - released without any changes
+
+2004/12/26 : 1.2.3-pre1 (1.1.30-pre1)
+  - increased default BUFSIZE to 16 kB to accept max headers of 8 kB which is
+    compatible with Apache. This limit can be configured in the makefile now.
+    Thanks to Eric Fehr for the checks.
+  - added a per-server "source" option which now makes it possible to bind to
+    a different source for each (potentially identical) server.
+  - changed cookie-based server selection slightly to allow several servers to
+    share a same cookie, thus making it possible to associate backup servers to
+    live servers and ease soft-stop for maintenance periods. (Alexander Lazic)
+  - added the cookie 'prefix' mode which makes it possible to use persistence
+    with thin clients which support only one cookie. The server name is prefixed
+    before the application cookie, and restore back.
+  - fixed the order of servers within an instance to match documentation. Now
+    the servers are *really* used in the order of their declaration. This is
+    particularly important when multiple backup servers are in use.
+
 2004/10/18 : 1.2.2 (1.1.29)
   - fixed a bug where a TCP connection would be logged twice if the 'logasap'
     option was enabled without the 'tcplog' option.

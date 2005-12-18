@@ -1,9 +1,10 @@
-
-         		     H A - P r o x y
-         		     ---------------
-         		      version 1.2.2
+                           -------------------
+                             H A - P r o x y
+                            Reference  Manual
+                           -------------------
+         		      version 1.2.3
 			      willy tarreau
-			       2004/10/18
+			        2005/01/22
 
 ============
 | Abstract |
@@ -554,6 +555,13 @@ delete the cookie from the client's browser) :
 
 	cookie SERVERID insert
 
+To reuse an existing application cookie and prefix it with the server's
+identifier, and remove it in the request, use the 'prefix' option. This allows
+to insert a haproxy in front of an application without risking to break clients
+which does not support more than one cookie :
+
+	cookie JSESSIONID prefix
+
 To insert a cookie and ensure that no upstream cache will store it, add the
 'nocache' option :
 
@@ -571,18 +579,25 @@ Notes :
   applications which already generate the cookie with an invalid content.
 
 - in the case where 'insert' and 'indirect' are both specified, the cookie is
-  never transmitted to the server, since it wouldn't understand it. This is
-  the most application-transparent mode.
+  never transmitted to the server, since it wouldn't understand it. This is the
+  most application-transparent mode.
 
 - it is particularly recommended to use 'nocache' in 'insert' mode if any
   upstream HTTP/1.0 cache is susceptible to cache the result, because this may
   lead to many clients going to the same server, or even worse, some clients
   having their server changed while retrieving a page from the cache.
 
+- the 'prefix' mode normally does not need 'indirect', 'nocache', nor
+  'postonly', because just as in the 'rewrite' mode, it relies on the
+  application to know when a cookie can be emitted. However, since it has to
+  fix the cookie name in every subsequent requests, you must ensure that the
+  proxy will be used without any "HTTP keep-alive". Use option "httpclose" if
+  unsure.
+
 - when the application is well known and controlled, the best method is to
   only add the persistence cookie on a POST form because it's up to the
-  application to select which page it wants the upstream servers to cache.
-  In this case, you would use 'insert postonly indirect'.
+  application to select which page it wants the upstream servers to cache. In
+  this case, you would use 'insert postonly indirect'.
 
 2.10) Associating a cookie value with a server
 ----------------------------------------------
@@ -740,9 +755,17 @@ as on <stderr> if not closed. For this reason, it's always a good idea to have
 one local log server at the 'notice' level.
 
 Since version 1.1.28 and 1.2.1, if an instance loses all its servers, an
-emergency mesasge will be sent in the logs to inform the administator that an
+emergency message will be sent in the logs to inform the administator that an
 immediate action must be taken.
 
+Since version 1.1.30 and 1.2.3, several servers can share the same cookie
+value. This is particularly useful in backup mode, to select alternate paths
+for a given server for example, to provide soft-stop, or to direct the clients
+to a temporary page during an application restart. The principle is that when
+a server is dead, the proxy will first look for another server which shares the
+same cookie value for every client which presents the cookie. If there is no
+standard server for this cookie, it will then look for a backup server which
+shares the same name. Please consult the architecture guide for more information.
 
 Examples :
 ----------
@@ -780,6 +803,18 @@ Examples :
 	option httpchk HEAD /index.jsp? HTTP/1.1\r\nHost:\ www
 	server web1 192.168.1.1:80 cookie server01 check
 	server web2 192.168.1.2:80 cookie server02 check inter 500 rise 1 fall 2
+
+# Load-balancing with 'prefixed cookie' persistence, and soft-stop using an
+# alternate port 81 on the server for health-checks.
+    listen http_proxy 0.0.0.0:80
+	mode http
+	cookie JSESSIONID prefix
+	balance roundrobin
+	option httpchk HEAD /index.jsp? HTTP/1.1\r\nHost:\ www
+	server web1-norm 192.168.1.1:80 cookie s1 check port 81
+	server web2-norm 192.168.1.2:80 cookie s2 check port 81
+	server web1-stop 192.168.1.1:80 cookie s1 check port 80 backup
+	server web2-stop 192.168.1.2:80 cookie s2 check port 80 backup
 
 # automatic insertion of a cookie in the server's response, and automatic
 # deletion of the cookie in the client request, while asking upstream caches
@@ -851,8 +886,10 @@ option :
 Other features are available. They are transparent mode, event logging and
 header rewriting/filtering.
 
-4.1) Transparent mode
+4.1) Network features
 ---------------------
+4.1.1) Transparent mode
+-----------------------
 In HTTP mode, the 'transparent' keyword allows to intercept sessions which are
 routed through the system hosting the proxy. This mode was implemented as a
 replacement for the 'dispatch' mode, since connections without cookie will be
@@ -889,6 +926,50 @@ Example :
 
     # iptables -t nat -A PREROUTING -i eth0 -p tcp -d 192.168.1.100 \
       -j REDIRECT --to-ports 65000
+
+4.1.2) Per-server source address binding
+----------------------------------------
+As of versions 1.1.30 and 1.2.3, it is possible to specify a particular source
+to reach each server. This is useful when reaching backup servers from a
+different LAN, or to use an alternate path to reach the same server. It is also
+usable to provide source load-balancing for outgoing connections. Obviously,
+the same source address is used to send health-checks.
+
+Example :
+---------
+    # use a particular source to reach both servers
+    listen http_proxy 0.0.0.0:65000
+	mode http
+	balance roundrobin
+	server server01 192.168.1.1:80 source 192.168.2.13
+	server server02 192.168.1.2:80 source 192.168.2.13
+
+Example :
+---------
+    # use a particular source to reach each servers
+    listen http_proxy 0.0.0.0:65000
+	mode http
+	balance roundrobin
+	server server01 192.168.1.1:80 source 192.168.1.1
+	server server02 192.168.2.1:80 source 192.168.2.1
+
+Example :
+---------
+    # provide source load-balancing to reach the same proxy through 2 WAN links
+    listen http_proxy 0.0.0.0:65000
+	mode http
+	balance roundrobin
+	server remote-proxy-way1 192.168.1.1:3128 source 192.168.2.1
+	server remote-proxy-way2 192.168.1.1:3128 source 192.168.3.1
+
+Example :
+---------
+    # force a TCP connection to bind to a specific port
+    listen http_proxy 0.0.0.0:2000
+	mode tcp
+	balance roundrobin
+	server srv1 192.168.1.1:80 source 192.168.2.1:20
+	server srv2 192.168.1.2:80 source 192.168.2.1:20
 
 
 4.2) Event logging
@@ -1369,6 +1450,20 @@ Example :
 	balance roundrobin
 	server 192.168.1.1:80 cookie server01 check
 	server 192.168.1.2:80 cookie server02 check
+
+The other solution brought by versions 1.1.30 and 1.2.3 is to reuse a cookie
+from the server, and prefix the server's name to it. In this case, don't forget
+to force "httpclose" mode so that you can be assured that every subsequent
+request will have its cookie fixed.
+
+    listen application 0.0.0.0:80
+	mode http
+	cookie JSESSIONID prefix
+	balance roundrobin
+	server 192.168.1.1:80 cookie srv1 check
+	server 192.168.1.2:80 cookie srv2 check
+	option httpclose
+
 
 4.5) Protection against information leak from the servers
 ---------------------------------------------------------

@@ -61,12 +61,19 @@ LIBS.pcre=-L$(PCREDIR)/lib -lpcreposix -lpcre
 #DEBUG =
 DEBUG = -g
 
+# if small memory footprint is required, you can reduce the buffer size. There
+# are 2 buffers per concurrent session, so 16 kB buffers will eat 32 MB memory
+# with 1000 concurrent sessions.
+#SMALL_OPTS = -DBUFSIZE=8192 -DMAXREWRITE=1024
+SMALL_OPTS =
+
+
 # global options
 TARGET_OPTS=$(COPTS.$(TARGET))
 REGEX_OPTS=$(COPTS.$(REGEX))
 CPU_OPTS=$(COPTS.$(CPU))
 
-COPTS=$(CPU_OPTS) $(TARGET_OPTS) $(REGEX_OPTS)
+COPTS=$(CPU_OPTS) $(TARGET_OPTS) $(REGEX_OPTS) $(SMALL_OPTS)
 LIBS=$(LIBS.$(TARGET)) $(LIBS.$(REGEX))
 
 # - use -DSTATTIME=0 to disable statistics, else specify an interval in

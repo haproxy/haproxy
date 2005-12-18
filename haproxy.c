@@ -1,6 +1,6 @@
 /*
  * HA-Proxy : High Availability-enabled HTTP/TCP proxy
- * 2000-2004 - Willy Tarreau - willy AT meta-x DOT org.
+ * 2000-2005 - Willy Tarreau - willy AT meta-x DOT org.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -57,8 +57,8 @@
 #include <linux/netfilter_ipv4.h>
 #endif
 
-#define HAPROXY_VERSION "1.2.2"
-#define HAPROXY_DATE	"2004/10/18"
+#define HAPROXY_VERSION "1.2.3"
+#define HAPROXY_DATE	"2005/01/22"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -73,10 +73,24 @@
 #define SHUT_WR		1
 #endif
 
-#define BUFSIZE		8192
+/*
+ * BUFSIZE defines the size of a read and write buffer. It is the maximum
+ * amount of bytes which can be stored by the proxy for each session. However,
+ * when reading HTTP headers, the proxy needs some spare space to add or rewrite
+ * headers if needed. The size of this spare is defined with MAXREWRITE. So it
+ * is not possible to process headers longer than BUFSIZE-MAXREWRITE bytes. By
+ * default, BUFSIZE=16384 bytes and MAXREWRITE=BUFSIZE/2, so the maximum length
+ * of headers accepted is 8192 bytes, which is in line with Apache's limits.
+ */
+#ifndef BUFSIZE
+#define BUFSIZE		16384
+#endif
 
 // reserved buffer space for header rewriting
-#define	MAXREWRITE	4096
+#ifndef MAXREWRITE
+#define MAXREWRITE	(BUFSIZE / 2)
+#endif
+
 #define REQURI_LEN	1024
 #define CAPTURE_LEN	64
 
@@ -89,9 +103,13 @@
 // max # of matches per regexp
 #define	MAX_MATCH	10
 
-/* FIXME: serverid_len and cookiename_len are no longer checked in configuration file */
-#define COOKIENAME_LEN	16
-#define SERVERID_LEN	16
+// cookie delimitor in "prefix" mode. This character is inserted between the
+// persistence cookie and the original value. The '~' is allowed by RFC2965,
+// and should not be too common in server names.
+#ifndef COOKIE_DELIM
+#define COOKIE_DELIM	'~'
+#endif
+
 #define CONN_RETRIES	3
 
 #define	CHK_CONNTIME	2000
@@ -128,6 +146,9 @@
 /* if a < min, then bound <a> to <min>. The macro returns the new <a> */
 #define LBOUND(a, min)	({ typeof(a) b = (min); if ((a) < b) (a) = b; (a); })
 
+/* returns 1 only if only zero or one bit is set in X, which means that X is a
+ * power of 2, and 0 otherwise */
+#define POWEROF2(x) (((x) & ((x)-1)) == 0)
 /*
  * copies at most <size-1> chars from <src> to <dst>. Last char is always
  * set to 0, unless <size> is 0. The number of chars copied is returned
@@ -241,25 +262,26 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define PR_MODE_HEALTH	2
 
 /* bits for proxy->options */
-#define PR_O_REDISP	1	/* allow reconnection to dispatch in case of errors */
-#define PR_O_TRANSP	2	/* transparent mode : use original DEST as dispatch */
-#define PR_O_COOK_RW	4	/* rewrite all direct cookies with the right serverid */
-#define PR_O_COOK_IND	8	/* keep only indirect cookies */
-#define PR_O_COOK_INS	16	/* insert cookies when not accessing a server directly */
-#define PR_O_COOK_ANY	(PR_O_COOK_RW | PR_O_COOK_IND | PR_O_COOK_INS)
-#define PR_O_BALANCE_RR	32	/* balance in round-robin mode */
+#define PR_O_REDISP	0x00000001	/* allow reconnection to dispatch in case of errors */
+#define PR_O_TRANSP	0x00000002	/* transparent mode : use original DEST as dispatch */
+#define PR_O_COOK_RW	0x00000004	/* rewrite all direct cookies with the right serverid */
+#define PR_O_COOK_IND	0x00000008	/* keep only indirect cookies */
+#define PR_O_COOK_INS	0x00000010	/* insert cookies when not accessing a server directly */
+#define PR_O_COOK_PFX	0x00000020	/* rewrite all cookies by prefixing the right serverid */
+#define PR_O_COOK_ANY	(PR_O_COOK_RW | PR_O_COOK_IND | PR_O_COOK_INS | PR_O_COOK_PFX)
+#define PR_O_BALANCE_RR	0x00000040	/* balance in round-robin mode */
 #define PR_O_BALANCE	(PR_O_BALANCE_RR)
-#define	PR_O_KEEPALIVE	64	/* follow keep-alive sessions */
-#define	PR_O_FWDFOR	128	/* insert x-forwarded-for with client address */
-#define	PR_O_BIND_SRC	256	/* bind to a specific source address when connect()ing */
-#define PR_O_NULLNOLOG	512	/* a connect without request will not be logged */
-#define PR_O_COOK_NOC	1024	/* add a 'Cache-control' header with the cookie */
-#define PR_O_COOK_POST	2048	/* don't insert cookies for requests other than a POST */
-#define PR_O_HTTP_CHK	4096	/* use HTTP 'OPTIONS' method to check server health */
-#define PR_O_PERSIST	8192	/* server persistence stays effective even when server is down */
-#define PR_O_LOGASAP	16384	/* log as soon as possible, without waiting for the session to complete */
-#define PR_O_HTTP_CLOSE	32768	/* force 'connection: close' in both directions */
-#define PR_O_CHK_CACHE	65536	/* require examination of cacheability of the 'set-cookie' field */
+#define	PR_O_KEEPALIVE	0x00000080	/* follow keep-alive sessions */
+#define	PR_O_FWDFOR	0x00000100	/* insert x-forwarded-for with client address */
+#define	PR_O_BIND_SRC	0x00000200	/* bind to a specific source address when connect()ing */
+#define PR_O_NULLNOLOG	0x00000400	/* a connect without request will not be logged */
+#define PR_O_COOK_NOC	0x00000800	/* add a 'Cache-control' header with the cookie */
+#define PR_O_COOK_POST	0x00001000	/* don't insert cookies for requests other than a POST */
+#define PR_O_HTTP_CHK	0x00002000	/* use HTTP 'OPTIONS' method to check server health */
+#define PR_O_PERSIST	0x00004000	/* server persistence stays effective even when server is down */
+#define PR_O_LOGASAP	0x00008000	/* log as soon as possible, without waiting for the session to complete */
+#define PR_O_HTTP_CLOSE	0x00010000	/* force 'connection: close' in both directions */
+#define PR_O_CHK_CACHE	0x00020000	/* require examination of cacheability of the 'set-cookie' field */
 
 /* various session flags */
 #define SN_DIRECT	0x00000001	/* connection made on the server matching the client cookie */
@@ -339,6 +361,7 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define SRV_RUNNING	1	/* the server is UP */
 #define SRV_BACKUP	2	/* this server is a backup server */
 #define	SRV_MAPPORTS	4	/* this server uses mapped ports */
+#define	SRV_BIND_SRC	8	/* this server uses a specific source address */
 
 /* what to do when a header matches a regex */
 #define ACT_ALLOW	0	/* allow the request */
@@ -403,6 +426,7 @@ struct server {
     char *cookie;			/* the id set in the cookie */
     char *id;				/* just for identification */
     struct sockaddr_in addr;		/* the address to connect to */
+    struct sockaddr_in source_addr;	/* the address to which we want to bind for connect() */
     short check_port;			/* the port to use for the health checks */
     int health;				/* 0->rise-1 = bad; rise->rise+fall-1 = good */
     int rise, fall;			/* time in iterations */
@@ -727,7 +751,7 @@ int process_session(struct task *t);
 
 void display_version() {
     printf("HA-Proxy version " HAPROXY_VERSION " " HAPROXY_DATE"\n");
-    printf("Copyright 2000-2004 Willy Tarreau <w@w.ods.org>\n\n");
+    printf("Copyright 2000-2005 Willy Tarreau <w@w.ods.org>\n\n");
 }
 
 /*
@@ -1645,12 +1669,26 @@ int connect_server(struct session *s) {
 	return -1;
     }
 
-    /* allow specific binding */
-    if (s->proxy->options & PR_O_BIND_SRC &&
-	bind(fd, (struct sockaddr *)&s->proxy->source_addr, sizeof(s->proxy->source_addr)) == -1) {
-	Alert("Cannot bind to source address before connect() for proxy %s. Aborting.\n", s->proxy->id);
-	close(fd);
-	return -1;
+    /* allow specific binding :
+     * - server-specific at first
+     * - proxy-specific next
+     */
+    if (s->srv != NULL && s->srv->state & SRV_BIND_SRC) {
+	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(one));
+	if (bind(fd, (struct sockaddr *)&s->srv->source_addr, sizeof(s->srv->source_addr)) == -1) {
+	    Alert("Cannot bind to source address before connect() for server %s/%s. Aborting.\n",
+		  s->proxy->id, s->srv->id);
+	    close(fd);
+	    return -1;
+	}
+    }
+    else if (s->proxy->options & PR_O_BIND_SRC) {
+	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(one));
+	if (bind(fd, (struct sockaddr *)&s->proxy->source_addr, sizeof(s->proxy->source_addr)) == -1) {
+	    Alert("Cannot bind to source address before connect() for proxy %s. Aborting.\n", s->proxy->id);
+	    close(fd);
+	    return -1;
+	}
     }
 	
     if ((connect(fd, (struct sockaddr *)&s->srv_addr, sizeof(s->srv_addr)) == -1) && (errno != EINPROGRESS)) {
@@ -2938,7 +2976,16 @@ int process_cli(struct session *t) {
 		    
 		    /* here, we have the cookie name between p1 and p2,
 		     * and its value between p3 and p4.
-		     * we can process it.
+		     * we can process it :
+		     *
+		     * Cookie: NAME=VALUE;
+		     * |      ||   ||    |
+		     * |      ||   ||    +--> p4
+		     * |      ||   |+-------> p3
+		     * |      ||   +--------> p2
+		     * |      |+------------> p1
+		     * |      +-------------> colon
+		     * +--------------------> req->h
 		     */
 		    
 		    if (*p1 == '$') {
@@ -2966,31 +3013,75 @@ int process_cli(struct session *t) {
 			    (memcmp(p1, t->proxy->cookie_name, p2 - p1) == 0)) {
 			    /* Cool... it's the right one */
 			    struct server *srv = t->proxy->srv;
+			    char *delim;
 
-			    while (srv &&
-				   ((srv->cklen != p4 - p3) || memcmp(p3, srv->cookie, p4 - p3))) {
+			    /* if we're in cookie prefix mode, we'll search the delimitor so that we
+			     * have the server ID betweek p3 and delim, and the original cookie between
+			     * delim+1 and p4. Otherwise, delim==p4 :
+			     *
+			     * Cookie: NAME=SRV~VALUE;
+			     * |      ||   ||  |     |
+			     * |      ||   ||  |     +--> p4
+			     * |      ||   ||  +--------> delim
+			     * |      ||   |+-----------> p3
+			     * |      ||   +------------> p2
+			     * |      |+----------------> p1
+			     * |      +-----------------> colon
+			     * +------------------------> req->h
+			     */
+
+			    if (t->proxy->options & PR_O_COOK_PFX) {
+				for (delim = p3; delim < p4; delim++)
+				    if (*delim == COOKIE_DELIM)
+					break;
+			    }
+			    else
+				delim = p4;
+
+
+			    /* Here, we'll look for the first running server which supports the cookie.
+			     * This allows to share a same cookie between several servers, for example
+			     * to dedicate backup servers to specific servers only.
+			     */
+			    while (srv) {
+				if ((srv->cklen == delim - p3) && !memcmp(p3, srv->cookie, delim - p3)) {
+				    if (srv->state & SRV_RUNNING || t->proxy->options & PR_O_PERSIST) {
+					/* we found the server and it's usable */
+					t->flags &= ~SN_CK_MASK;
+					t->flags |= SN_CK_VALID | SN_DIRECT;
+					t->srv = srv;
+					break;
+				    }
+				    else {
+					/* we found a server, but it's down */
+					t->flags &= ~SN_CK_MASK;
+					t->flags |= SN_CK_DOWN;
+				    }
+				}
 				srv = srv->next;
 			    }
 
-			    if (!srv) {
+			    if (!srv && !(t->flags & SN_CK_DOWN)) {
+				/* no server matched this cookie */
 				t->flags &= ~SN_CK_MASK;
 				t->flags |= SN_CK_INVALID;
 			    }
-			    else if (srv->state & SRV_RUNNING || t->proxy->options & PR_O_PERSIST) {
-				/* we found the server and it's usable */
-				t->flags &= ~SN_CK_MASK;
-				t->flags |= SN_CK_VALID | SN_DIRECT;
-				t->srv = srv;
-			    }
-			    else {
-				t->flags &= ~SN_CK_MASK;
-				t->flags |= SN_CK_DOWN;
-			    }
 
-			    /* if this cookie was set in insert+indirect mode, then it's better that the
-			     * server never sees it.
+			    /* depending on the cookie mode, we may have to either :
+			     * - delete the complete cookie if we're in insert+indirect mode, so that
+			     *   the server never sees it ;
+			     * - remove the server id from the cookie value, and tag the cookie as an
+			     *   application cookie so that it does not get accidentely removed later,
+			     *   if we're in cookie prefix mode
 			     */
-			    if (del_cookie == NULL &&
+			    if ((t->proxy->options & PR_O_COOK_PFX) && (delim != p4)) {
+				buffer_replace2(req, p3, delim + 1, NULL, 0);
+				p4  -= (delim + 1 - p3);
+				ptr -= (delim + 1 - p3);
+				del_cookie = del_colon = NULL;
+				app_cookies++;	/* protect the header from deletion */
+			    }
+			    else if (del_cookie == NULL &&
 				(t->proxy->options & (PR_O_COOK_INS | PR_O_COOK_IND)) == (PR_O_COOK_INS | PR_O_COOK_IND)) {
 				del_cookie = p1;
 				del_colon = colon;
@@ -3814,6 +3905,14 @@ int process_srv(struct session *t) {
 			    buffer_replace2(rep, p3, p4, t->srv->cookie, t->srv->cklen);
 			    t->flags |= SN_SCK_INSERTED | SN_SCK_DELETED;
 			}
+			else if ((t->srv) && (t->proxy->options & PR_O_COOK_PFX)) {
+			    /* insert the cookie name associated with this server
+			     * before existing cookie, and insert a delimitor between them..
+			     */
+			    buffer_replace2(rep, p3, p3, t->srv->cookie, t->srv->cklen + 1);
+			    p3[t->srv->cklen] = COOKIE_DELIM;
+			    t->flags |= SN_SCK_INSERTED | SN_SCK_DELETED;
+			}
 			break;
 		    }
 		    else {
@@ -4252,32 +4351,48 @@ int process_chk(struct task *t) {
 		sa = s->addr;
 		sa.sin_port = htons(s->check_port);
 
-		/* allow specific binding */
-		if (s->proxy->options & PR_O_BIND_SRC &&
-		    bind(fd, (struct sockaddr *)&s->proxy->source_addr, sizeof(s->proxy->source_addr)) == -1) {
-		    Alert("Cannot bind to source address before connect() for proxy %s. Aborting.\n", s->proxy->id);
-		    close(fd);
-		    s->result = -1;
+		/* allow specific binding :
+		 * - server-specific at first
+		 * - proxy-specific next
+		 */
+		if (s->state & SRV_BIND_SRC) {
+		    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(one));
+		    if (bind(fd, (struct sockaddr *)&s->source_addr, sizeof(s->source_addr)) == -1) {
+			Alert("Cannot bind to source address before connect() for server %s/%s. Aborting.\n",
+			      s->proxy->id, s->id);
+			s->result = -1;
+		    }
 		}
-		else if ((connect(fd, (struct sockaddr *)&sa, sizeof(sa)) != -1) || (errno == EINPROGRESS)) {
-		    /* OK, connection in progress or established */
-
-		    //fprintf(stderr, "process_chk: 4\n");
-
-		    s->curfd = fd; /* that's how we know a test is in progress ;-) */
-		    fdtab[fd].owner = t;
-		    fdtab[fd].read  = &event_srv_chk_r;
-		    fdtab[fd].write = &event_srv_chk_w;
-		    fdtab[fd].state = FD_STCONN; /* connection in progress */
-		    FD_SET(fd, StaticWriteEvent);  /* for connect status */
-		    fd_insert(fd);
-		    /* FIXME: we allow up to <inter> for a connection to establish, but we should use another parameter */
-		    tv_delayfrom(&t->expire, &now, s->inter);
-		    task_queue(t);	/* restore t to its place in the task list */
-		    return tv_remain(&now, &t->expire);
+		else if (s->proxy->options & PR_O_BIND_SRC) {
+		    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(one));
+		    if (bind(fd, (struct sockaddr *)&s->proxy->source_addr, sizeof(s->proxy->source_addr)) == -1) {
+			Alert("Cannot bind to source address before connect() for proxy %s. Aborting.\n",
+			      s->proxy->id);
+			s->result = -1;
+		    }
 		}
-		else if (errno != EALREADY && errno != EISCONN && errno != EAGAIN) {
-		    s->result = -1;    /* a real error */
+
+		if (!s->result) {
+		    if ((connect(fd, (struct sockaddr *)&sa, sizeof(sa)) != -1) || (errno == EINPROGRESS)) {
+			/* OK, connection in progress or established */
+			
+			//fprintf(stderr, "process_chk: 4\n");
+			
+			s->curfd = fd; /* that's how we know a test is in progress ;-) */
+			fdtab[fd].owner = t;
+			fdtab[fd].read  = &event_srv_chk_r;
+			fdtab[fd].write = &event_srv_chk_w;
+			fdtab[fd].state = FD_STCONN; /* connection in progress */
+			FD_SET(fd, StaticWriteEvent);  /* for connect status */
+			fd_insert(fd);
+			/* FIXME: we allow up to <inter> for a connection to establish, but we should use another parameter */
+			tv_delayfrom(&t->expire, &now, s->inter);
+			task_queue(t);	/* restore t to its place in the task list */
+			return tv_remain(&now, &t->expire);
+		    }
+		    else if (errno != EALREADY && errno != EISCONN && errno != EAGAIN) {
+			s->result = -1;    /* a real error */
+		    }
 		}
 	    }
 	    //fprintf(stderr, "process_chk: 5\n");
@@ -5059,15 +5174,24 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	    else if (!strcmp(args[cur_arg], "postonly")) {
 		curproxy->options |= PR_O_COOK_POST;
 	    }
+	    else if (!strcmp(args[cur_arg], "prefix")) {
+		curproxy->options |= PR_O_COOK_PFX;
+	    }
 	    else {
-		Alert("parsing [%s:%d] : '%s' supports 'rewrite', 'insert', 'indirect', 'nocache' and 'postonly' options.\n",
+		Alert("parsing [%s:%d] : '%s' supports 'rewrite', 'insert', 'prefix', 'indirect', 'nocache' and 'postonly' options.\n",
 		      file, linenum, args[0]);
 		return -1;
 	    }
 	    cur_arg++;
 	}
-	if ((curproxy->options & (PR_O_COOK_RW|PR_O_COOK_IND)) == (PR_O_COOK_RW|PR_O_COOK_IND)) {
-	    Alert("parsing [%s:%d] : cookie 'rewrite' and 'indirect' mode are incompatible.\n",
+	if (!POWEROF2(curproxy->options & (PR_O_COOK_RW|PR_O_COOK_IND))) {
+	    Alert("parsing [%s:%d] : cookie 'rewrite' and 'indirect' modes are incompatible.\n",
+		  file, linenum);
+	    return -1;
+	}
+
+	if (!POWEROF2(curproxy->options & (PR_O_COOK_RW|PR_O_COOK_INS|PR_O_COOK_PFX))) {
+	    Alert("parsing [%s:%d] : cookie 'rewrite', 'insert' and 'prefix' modes are incompatible.\n",
 		  file, linenum);
 	    return -1;
 	}
@@ -5340,8 +5464,14 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	    Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 	    return -1;
 	}
-	newsrv->next = curproxy->srv;
-	curproxy->srv = newsrv;
+
+	if (curproxy->srv == NULL)
+	    curproxy->srv = newsrv;
+	else
+	    curproxy->cursrv->next = newsrv;
+	curproxy->cursrv = newsrv;
+
+	newsrv->next = NULL;
 	newsrv->proxy = curproxy;
 
 	do_check = 0;
@@ -5408,8 +5538,18 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 		do_check = 1;
 		cur_arg += 1;
 	    }
+	    else if (!strcmp(args[cur_arg], "source")) {  /* address to which we bind when connecting */
+		if (!*args[cur_arg + 1]) {
+		    Alert("parsing [%s:%d] : '%s' expects <addr>[:<port>] as argument.\n",
+			  file, linenum, "source");
+		    return -1;
+		}
+		newsrv->state |= SRV_BIND_SRC;
+		newsrv->source_addr = *str2sa(args[cur_arg + 1]);
+		cur_arg += 2;
+	    }
 	    else {
-		Alert("parsing [%s:%d] : server %s only supports options 'backup', 'cookie', 'check', 'inter', 'rise' and 'fall'.\n",
+		Alert("parsing [%s:%d] : server %s only supports options 'backup', 'cookie', 'check', 'inter', 'rise', 'fall', 'port' and 'source'.\n",
 		      file, linenum, newsrv->id);
 		return -1;
 	    }
@@ -6090,6 +6230,7 @@ int readcfgfile(char *file) {
     }
 
     while (curproxy != NULL) {
+	curproxy->cursrv = NULL;
 	if (curproxy->state == PR_STDISABLED) {
 	    curproxy = curproxy->next;
 	    continue;
