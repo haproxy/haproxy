@@ -1,0 +1,70 @@
+                           -------------------
+                             H A - P r o x y
+                             How to build it
+                           -------------------
+                              version 1.2.7
+                              willy tarreau
+                                2005/10/25
+
+
+To build haproxy, you will need :
+  - GNU make. Neither Solaris nor OpenBSD's make work with this makefile.
+  - GCC between 2.91 and 3.4. Others may work, but not tested.
+  - GNU ld
+
+Also, you might want to build with libpcre support, which will provide a very
+efficient regex implementation and will also fix some badness on Solaris's one.
+
+To build haproxy, you have to choose your target OS amongst the following ones
+and assign it to the TARGET variable :
+
+  - linux24  for Linux 2.4 and above (default)
+  - linux24e for Linux 2.4 with support for epoll
+  - linux26  for Linux 2.6 and above
+  - linux22  for Linux 2.2
+  - solaris  for Solaris 8 or 10 (others untested)
+  - openbsd  for OpenBSD 3.1 to 3.7 (others untested)
+  - generic  for any other OS.
+
+You may also choose your CPU to benefit from some optimizations. This is
+particularly important on UltraSparc machines. For this, you can assign
+one of the following choices to the CPU variable :
+
+  - i686 for intel PentiumPro, Pentium 2 and above, AMD Athlon
+  - i586 for intel Pentium, AMD K6, VIA C3.
+  - ultrasparc : Sun UltraSparc I/II/III/IV processor
+  - generic : any other processor or no specific optimization. (default)
+
+If your system supports PCRE (Perl Compatible Regular Expressions), then you
+really should build with libpcre which is between 2 and 10 times faster than
+other libc implementations. Regex are used for header processing (deletion,
+rewriting, allow, deny). The only inconvenient of libpcre is that it is not
+yet widely spread, so if you build for other systems, you might get into
+trouble if they don't have the dynamic library. In this situation, you should
+statically link libpcre into haproxy so that it will not be necessary to
+install it on target systems. Available options for the REGEX variable are :
+
+  - libc to use your OS libc's standard regex implemntation (default).
+    Warning! group references on Solaris seem broken. Use static-pcre whenever
+    possible.
+
+  - pcre to use libpcre, in whatever form it is available on your system
+    (shared or static)
+
+  - static-pcre to use a static version of libpcre even if the dynamic one is
+    available. This will enhance portability.
+
+By default, the DEBUG variable is set to '-g' to enable debug symbols. It is
+not wise to disable it on uncommon systems, because it's often the only way to
+get a complete core when you need one. Otherwise, you can set DEBUG to '-s' to
+strip the binary.
+
+For example, I use this to build for Solaris 8 :
+
+    $ make TARGET=solaris CPU=ultrasparc REGEX=static-pcre
+
+If you need to pass other defines, includes, libraries, etc... then please
+check the Makefile to see which ones will be available in your case, and
+use the ADDINC, ADDLIB, and DEFINE variables for this.
+
+-- end
