@@ -1,6 +1,27 @@
 ChangeLog :
 ===========
 
+2005/04/26 : 1.2.5-pre4
+  - made epoll() support a compile-time option : ENABLE_EPOLL
+  - provided a very little libc replacement for a possibly missing epoll()
+    implementation which can be enabled by -DUSE_MY_EPOLL
+  - implemented the poll() poller, which can be enabled with -DENABLE_POLL.
+    The equivalent runtime argument becomes '-P'. A few tests show that it
+    performs like select() with many fds, but slightly slower (certainly
+    because of the higher amount of memory involved).
+  - separated the 3 polling methods and the tasks scheduler into 4 distinct
+    functions which makes the code a lot more modular.
+  - moved some event tables to private static declarations inside the poller
+    functions.
+  - the poller functions can now initialize themselves, run, and cleanup.
+  - changed the runtime argument to enable epoll() to '-E'.
+  - removed buggy epoll_ctl() code in the client_retnclose() function. This
+    function was never meant to remove anything.
+  - fixed a typo which caused glibc to yell about a double free on exit.
+  - removed error checking after epoll_ctl(DEL) because we can never know if
+    the fd is still active or already closed.
+  - added a few entries in the makefile
+
 2005/04/25 : 1.2.5-pre3
   - experimental epoll() support (use temporary '-e' argument)
 

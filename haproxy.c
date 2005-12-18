@@ -62,7 +62,17 @@
 #include <strings.h>
 #endif
 
+#if defined(ENABLE_POLL)
+#include <sys/poll.h>
+#endif
+
+#if defined(ENABLE_EPOLL)
+#if !defined(USE_MY_EPOLL)
 #include <sys/epoll.h>
+#else
+#include "include/epoll.h"
+#endif
+#endif
 
 #include "include/appsession.h"
 
@@ -271,6 +281,11 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define PR_MODE_TCP	0
 #define PR_MODE_HTTP	1
 #define PR_MODE_HEALTH	2
+
+/* possible actions for the *poll() loops */
+#define POLL_LOOP_ACTION_INIT	0
+#define POLL_LOOP_ACTION_RUN	1
+#define POLL_LOOP_ACTION_CLEAN	2
 
 /* bits for proxy->options */
 #define PR_O_REDISP	0x00000001	/* allow reconnection to dispatch in case of errors */
@@ -577,7 +592,6 @@ struct fdtab {
 /*********************************************************************/
 
 int cfg_maxpconn = 2000;	/* # of simultaneous connections per proxy (-N) */
-int cfg_use_epoll = 0;          /* use epoll() instead of select() ? */
 char *cfg_cfgfile = NULL;	/* configuration file */
 char *progname = NULL;		/* program name */
 int  pid;			/* current process id */
@@ -605,15 +619,11 @@ static struct {
 
 /*********************************************************************/
 
-fd_set	*ReadEvent,
-	*WriteEvent,
-	*StaticReadEvent,
+fd_set	*StaticReadEvent,
     	*StaticWriteEvent;
 
-/* used by the epoll() emulation of select() */
-fd_set	*PrevReadEvent, *PrevWriteEvent;
-struct epoll_event *epoll_events;
-int epoll_fd;
+int cfg_use_epoll = 0;          /* use epoll() instead of select() ? */
+int cfg_use_poll = 0;           /* use poll() instead of select() ? */
 
 void **pool_session = NULL,
     **pool_buffer   = NULL,
@@ -812,7 +822,12 @@ void usage(char *name) {
 	    "        -n sets the maximum total # of connections (%d)\n"
 	    "        -N sets the default, per-proxy maximum # of connections (%d)\n"
 	    "        -p writes pids of all children to this file\n"
-	    "        -e tries to use epoll() instead of select()\n"
+#if defined(ENABLE_EPOLL)
+	    "        -E tries to use epoll() instead of select()\n"
+#endif
+#if defined(ENABLE_POLL)
+	    "        -P tries to use poll() instead of select()\n"
+#endif
 	    "\n",
 	    name, DEFAULT_MAXCONN, cfg_maxpconn);
     exit(1);
@@ -1394,20 +1409,6 @@ static inline struct timeval *tv_min(struct timeval *tvmin,
 static inline void fd_delete(int fd) {
     FD_CLR(fd, StaticReadEvent);
     FD_CLR(fd, StaticWriteEvent);
-    if (cfg_use_epoll) {
-	struct epoll_event ev;
-
-	ev.data.fd = fd;
-	if (epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, &ev) < 0) {
-	    // it's impossible to tell whether it has already
-	    // been done.
-	    //perror("epoll_ctl(DEL)");
-	    //exit(1);
-	}
-
-	FD_CLR(fd, PrevReadEvent);
-	FD_CLR(fd, PrevWriteEvent);
-    }
     close(fd);
     fdtab[fd].state = FD_STCLOSE;
 
@@ -2154,20 +2155,6 @@ int event_srv_write(int fd) {
 void client_retnclose(struct session *s, int len, const char *msg) {
     FD_CLR(s->cli_fd, StaticReadEvent);
     FD_SET(s->cli_fd, StaticWriteEvent);
-    if (cfg_use_epoll) {
-	struct epoll_event ev;
-
-	ev.data.fd = s->cli_fd;
-	if (epoll_ctl(epoll_fd, EPOLL_CTL_DEL, s->cli_fd, &ev) < 0) {
-	    // it's impossible to tell whether it has already
-	    // been done.
-	    //perror("epoll_ctl(DEL)");
-	    //exit(1);
-	}
-
-	FD_CLR(s->cli_fd, PrevReadEvent);
-	FD_CLR(s->cli_fd, PrevWriteEvent);
-    }
     tv_eternity(&s->crexpire);
     shutdown(s->cli_fd, SHUT_RD);
     s->cli_state = CL_STSHUTR;
@@ -4796,308 +4783,483 @@ int stats(void);
 #endif
 
 /*
- * Main select() loop.
+ * This does 4 things :
+ *   - wake up all expired tasks
+ *   - call all runnable tasks
+ *   - call maintain_proxies() to enable/disable the listeners
+ *   - return the delay till next event in ms, -1 = wait indefinitely
+ * Note: this part should be rewritten with the O(ln(n)) scheduler.
+ *
  */
 
-void select_loop() {
+int process_runnable_tasks() {
   int next_time;
   int time2;
-  int status;
-  int fd,i;
-  struct timeval delta;
-  int readnotnull, writenotnull;
   struct task *t, *tnext;
+
+  next_time = -1; /* set the timer to wait eternally first */
+
+  /* look for expired tasks and add them to the run queue.
+   */
+  tnext = ((struct task *)LIST_HEAD(wait_queue))->next;
+  while ((t = tnext) != LIST_HEAD(wait_queue)) { /* we haven't looped ? */
+      tnext = t->next;
+      if (t->state & TASK_RUNNING)
+	  continue;
+      
+      /* wakeup expired entries. It doesn't matter if they are
+       * already running because of a previous event
+       */
+      if (tv_cmp2_ms(&t->expire, &now) <= 0) {
+	  task_wakeup(&rq, t);
+      }
+      else {
+	  /* first non-runnable task. Use its expiration date as an upper bound */
+	  int temp_time = tv_remain(&now, &t->expire);
+	  if (temp_time)
+	      next_time = temp_time;
+	  break;
+      }
+  }
+
+  /* process each task in the run queue now. Each task may be deleted
+   * since we only use tnext.
+   */
+  tnext = rq;
+  while ((t = tnext) != NULL) {
+      int temp_time;
+      
+      tnext = t->rqnext;
+      task_sleep(&rq, t);
+      temp_time = t->process(t);
+      next_time = MINTIME(temp_time, next_time);
+  }
+  
+  /* maintain all proxies in a consistent state. This should quickly become a task */
+  time2 = maintain_proxies();
+  return MINTIME(time2, next_time);
+}
+
+
+#if defined(ENABLE_EPOLL)
+
+/*
+ * Main epoll() loop.
+ */
+
+/* does 3 actions :
+ * 0 (POLL_LOOP_ACTION_INIT)  : initializes necessary private structures
+ * 1 (POLL_LOOP_ACTION_RUN)   : runs the loop
+ * 2 (POLL_LOOP_ACTION_CLEAN) : cleans up
+ *
+ * returns 0 if initialization failed, !0 otherwise.
+ */
+
+int epoll_loop(int action) {
+  int next_time;
+  int status;
+  int fd;
+
+  int fds, count;
+  int pr, pw, sr, sw;
+  unsigned rn, ro, wn, wo; /* read new, read old, write new, write old */
+  struct epoll_event ev;
+
+  /* private data */
+  static int last_maxfd = 0;
+  static fd_set *PrevReadEvent = NULL, *PrevWriteEvent = NULL;
+  static struct epoll_event *epoll_events = NULL;
+  static int epoll_fd;
+
+  if (action == POLL_LOOP_ACTION_INIT) {
+      epoll_fd = epoll_create(global.maxsock + 1);
+      if (epoll_fd < 0)
+	  return 0;
+      else {
+	  epoll_events = (struct epoll_event*)
+	      calloc(1, sizeof(struct epoll_event) * global.maxsock);
+	  PrevReadEvent = (fd_set *)
+	      calloc(1, sizeof(fd_set) * (global.maxsock + FD_SETSIZE - 1) / FD_SETSIZE);
+	  PrevWriteEvent = (fd_set *)
+	      calloc(1, sizeof(fd_set) * (global.maxsock + FD_SETSIZE - 1) / FD_SETSIZE);
+      }
+      return 1;
+  }
+  else if (action == POLL_LOOP_ACTION_CLEAN) {
+      if (PrevWriteEvent) free(PrevWriteEvent);
+      if (PrevReadEvent)  free(PrevReadEvent);
+      if (epoll_events)   free(epoll_events);
+      close(epoll_fd);
+      last_maxfd = 0;
+      epoll_fd = 0;
+      return 1;
+  }
+
+  /* OK, it's POLL_LOOP_ACTION_RUN */
 
   tv_now(&now);
 
   while (1) {
-      next_time = -1; /* set the timer to wait eternally first */
-
-      /* look for expired tasks and add them to the run queue.
-       */
-      tnext = ((struct task *)LIST_HEAD(wait_queue))->next;
-      while ((t = tnext) != LIST_HEAD(wait_queue)) { /* we haven't looped ? */
-	  tnext = t->next;
-	  if (t->state & TASK_RUNNING)
-	      continue;
-
-	  /* wakeup expired entries. It doesn't matter if they are
-	   * already running because of a previous event
-	   */
-	  if (tv_cmp2_ms(&t->expire, &now) <= 0) {
-	      //fprintf(stderr,"task_wakeup(%p, %p)\n", &rq, t);
-	      task_wakeup(&rq, t);
-	  }
-	  else {
-	      /* first non-runnable task. Use its expiration date as an upper bound */
-	      int temp_time = tv_remain(&now, &t->expire);
-	      if (temp_time)
-		  next_time = temp_time;
-	      //fprintf(stderr,"no_task_wakeup(%p, %p) : expire in %d ms\n", &rq, t, temp_time);
-	      break;
-	  }
-      }
-
-      /* process each task in the run queue now. Each task may be deleted
-       * since we only use tnext.
-       */
-      tnext = rq;
-      while ((t = tnext) != NULL) {
-	  int temp_time;
-	  
-	  tnext = t->rqnext;
-	  task_sleep(&rq, t);
-	  //fprintf(stderr,"task %p\n",t);	  
-	  temp_time = t->process(t);
-	  next_time = MINTIME(temp_time, next_time);
-	  //fprintf(stderr,"process(%p)=%d -> next_time=%d)\n", t, temp_time, next_time);
-      }
-
-      //fprintf(stderr,"---end of run---\n");
-
-      /* maintain all proxies in a consistent state. This should quickly become a task */
-      time2 = maintain_proxies();
-      next_time = MINTIME(time2, next_time);
+      next_time = process_runnable_tasks();
 
       /* stop when there's no connection left and we don't allow them anymore */
       if (!actconn && listeners == 0)
 	  break;
 
-	  
 #if STATTIME > 0
-      time2 = stats();
-      //      fprintf(stderr,"                stats = %d\n", time2);
-      next_time = MINTIME(time2, next_time);
+      {
+	  int time2;
+	  time2 = stats();
+	  next_time = MINTIME(time2, next_time);
+      }
 #endif
 
 
-      if (cfg_use_epoll) {
-	  /* use epoll() */
-	  int fds, count;
-	  int pr, pw, sr, sw;
-	  unsigned rn, ro, wn, wo; /* read new, read old, write new, write old */
-	  struct epoll_event ev;
+      /*
+       * We'll first check if some fds have been closed recently, in which case
+       * we'll have to remove them from the previous epoll set. It's
+       * unnecessary to call epoll_ctl(DEL) because close() automatically
+       * removes the fds from the epoll set.
+       */
+      for (fd = maxfd; fd < last_maxfd; fd++) {
+	  ev.data.fd = fd;
+	  FD_CLR(fd, PrevReadEvent);
+	  FD_CLR(fd, PrevWriteEvent);
+      }
+      last_maxfd = maxfd;
 
-	  for (fds = 0; (fds << INTBITS) < maxfd; fds++) {
-
-	      rn = ((int*)StaticReadEvent)[fds];  ro = ((int*)PrevReadEvent)[fds];
-	      wn = ((int*)StaticWriteEvent)[fds]; wo = ((int*)PrevWriteEvent)[fds];
-
-	      if ((ro^rn) | (wo^wn)) {
-		  for (count = 1<<INTBITS, fd = fds << INTBITS; count && fd < maxfd; count--, fd++) {
-
-#define WE_KNOW_HOW_FDSET_WORKS
-#ifdef WE_KNOW_HOW_FDSET_WORKS
+      for (fds = 0; (fds << INTBITS) < maxfd; fds++) {
+	  
+	  rn = ((int*)StaticReadEvent)[fds];  ro = ((int*)PrevReadEvent)[fds];
+	  wn = ((int*)StaticWriteEvent)[fds]; wo = ((int*)PrevWriteEvent)[fds];
+	  
+	  if ((ro^rn) | (wo^wn)) {
+	      for (count = 0, fd = fds << INTBITS; count < (1<<INTBITS) && fd < maxfd; count++, fd++) {
+#define FDSETS_ARE_INT_ALIGNED
+#ifdef FDSETS_ARE_INT_ALIGNED
 
 #define WE_REALLY_NOW_THAT_FDSETS_ARE_INTS
 #ifdef WE_REALLY_NOW_THAT_FDSETS_ARE_INTS
-		      pr = (ro >> ((1<<INTBITS)-count)) & 1;
-		      pw = (wo >> ((1<<INTBITS)-count)) & 1;
-		      sr = (rn >> ((1<<INTBITS)-count)) & 1;
-		      sw = (wn >> ((1<<INTBITS)-count)) & 1;
+		  pr = (ro >> count) & 1;
+		  pw = (wo >> count) & 1;
+		  sr = (rn >> count) & 1;
+		  sw = (wn >> count) & 1;
 #else
-		      pr = FD_ISSET(fd&((1<<INTBITS)-1), (typeof(fd_set*))&ro);
-		      pw = FD_ISSET(fd&((1<<INTBITS)-1), (typeof(fd_set*))&wo);
-		      sr = FD_ISSET(fd&((1<<INTBITS)-1), (typeof(fd_set*))&rn);
-		      sw = FD_ISSET(fd&((1<<INTBITS)-1), (typeof(fd_set*))&wn);
+		  pr = FD_ISSET(fd&((1<<INTBITS)-1), (typeof(fd_set*))&ro);
+		  pw = FD_ISSET(fd&((1<<INTBITS)-1), (typeof(fd_set*))&wo);
+		  sr = FD_ISSET(fd&((1<<INTBITS)-1), (typeof(fd_set*))&rn);
+		  sw = FD_ISSET(fd&((1<<INTBITS)-1), (typeof(fd_set*))&wn);
 #endif
 #else
-		      pr = FD_ISSET(fd, PrevReadEvent);
-		      pw = FD_ISSET(fd, PrevWriteEvent);
-		      sr = FD_ISSET(fd, StaticReadEvent);
-		      sw = FD_ISSET(fd, StaticWriteEvent);
+		  pr = FD_ISSET(fd, PrevReadEvent);
+		  pw = FD_ISSET(fd, PrevWriteEvent);
+		  sr = FD_ISSET(fd, StaticReadEvent);
+		  sw = FD_ISSET(fd, StaticWriteEvent);
 #endif
-		      if (!((sr^pr) | (sw^pw)))
-			  continue;
+		  if (!((sr^pr) | (sw^pw)))
+		      continue;
 
-		      ev.events = (sr ? EPOLLIN : 0) | (sw ? EPOLLOUT : 0);
-		      ev.data.fd = fd;
+		  ev.events = (sr ? EPOLLIN : 0) | (sw ? EPOLLOUT : 0);
+		  ev.data.fd = fd;
 
-		      if ((pr | pw)) {
-			  /* the file-descriptor already exists... */
-			  if ((sr | sw)) {
-			      /* ...and it will still exist */
-			      if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &ev) < 0) {
-				  perror("epoll_ctl(MOD)");
-				  exit(1);
-			      }
-			  } else {
-			      /* ...and it will be removed */
-			      if (epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, &ev) < 0) {
-				  perror("epoll_ctl(DEL)");
-				  exit(1);
-			      }
+		  if ((pr | pw)) {
+		      /* the file-descriptor already exists... */
+		      if ((sr | sw)) {
+			  /* ...and it will still exist */
+			  if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &ev) < 0) {
+			      // perror("epoll_ctl(MOD)");
+			      // exit(1);
 			  }
 		      } else {
-			  /* the file-descriptor did not exist, let's add it */
-			  if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &ev) < 0) {
-			      perror("epoll_ctl(ADD)");
-			      exit(1);
+			  /* ...and it will be removed */
+			  if (fdtab[fd].state != FD_STCLOSE &&
+			      epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, &ev) < 0) {
+			      // perror("epoll_ctl(DEL)");
+			      // exit(1);
 			  }
 		      }
-		  }
-		  ((int*)PrevReadEvent)[fds] = rn;
-		  ((int*)PrevWriteEvent)[fds] = wn;
-	      }		  
-
-#if useless_optimization
-	      unsigned a, d, m;  /* add mask, del mask, mod mask */
-
-	      a = (rn|wn) & ~(ro|wo);   /* fds to add */
-	      d = (ro|wo) & ~(rn|wn);   /* fds to remove, normally none */
-	      m = (ro^rn) | (wo^wn);    /* fds which change */
-
-	      if (m) {
-		  struct epoll_event ev;
-		  m &= ~(a|d); /* keep only changes, not add/del */
-
-		  if (m) { /* fds which only change */
-		      for (count = 1<<INTBITS, fd = fds << INTBITS; count && fd < maxfd; count--, fd++) {
-			  ev.data.fd = fd;
-			  ev.events = 0;
-
-			  if ((FD_ISSET(fd, PrevReadEvent) || FD_ISSET(fd, PrevWriteEvent)) &&
-			      (FD_ISSET(fd, StaticReadEvent) || FD_ISSET(fd, StaticWriteEvent))) {
-			      if (FD_ISSET(fd, StaticReadEvent))
-				  ev.events |= EPOLLIN;
-			      if (FD_ISSET(fd, StaticWriteEvent))
-				  ev.events |= EPOLLOUT;
-			      if (ev.events && epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &ev) < 0) {
-				  perror("epoll_ctl(MOD)");
-				  exit(1);
-			      }
-			  }
+		  } else {
+		      /* the file-descriptor did not exist, let's add it */
+		      if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &ev) < 0) {
+			  // perror("epoll_ctl(ADD)");
+			  //  exit(1);
 		      }
 		  }
-
-		  if (a) { /* fds to add */
-		      // printf("a=%08x\n", a);
-		      for (count = 1<<INTBITS, fd = fds << INTBITS; count && fd < maxfd; count--, fd++) {
-			  ev.data.fd = fd;
-			  ev.events = 0;
-			  if (!FD_ISSET(fd, PrevReadEvent) && !FD_ISSET(fd, PrevWriteEvent)) {
-			      if (FD_ISSET(fd, StaticReadEvent))
-				  ev.events |= EPOLLIN;
-			      if (FD_ISSET(fd, StaticWriteEvent))
-				  ev.events |= EPOLLOUT;
-			      if (ev.events && epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &ev) < 0) {
-				  perror("epoll_ctl(ADD)");
-				  exit(1);
-			      }
-			  }
-		      }
-		  }
-
-		  if (d) { /* fds to delete */
-		      for (count = 1<<INTBITS, fd = fds << INTBITS; count && fd < maxfd; count--, fd++) {
-			  ev.data.fd = fd;
-			  ev.events = 0;
-			  if (FD_ISSET(fd, StaticReadEvent) || FD_ISSET(fd, StaticWriteEvent))
-			      continue;
-			  if (!FD_ISSET(fd, PrevReadEvent) && !FD_ISSET(fd, PrevWriteEvent))
-			      continue;
-			  if (epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, &ev) < 0) {
-			      perror("epoll_ctl(DEL)");
-			      exit(1);
-			  }
-		      }
-		  }
-		  ((int*)PrevReadEvent)[fds] = rn;
-		  ((int*)PrevWriteEvent)[fds] = wn;
 	      }
-#endif
-	  }
-
-	  /* now let's wait for events */
-	  status = epoll_wait(epoll_fd, epoll_events, maxfd, next_time);
-	  tv_now(&now);
-
-	  for (count = 0; count < status; count++) {
-	      fd = epoll_events[count].data.fd;
-	      
-	      if (fdtab[fd].state == FD_STCLOSE)
-		  continue;
-	      
-	      if (epoll_events[count].events & ( EPOLLIN | EPOLLERR | EPOLLHUP ))
-		  fdtab[fd].read(fd);
-	      
-	      if (fdtab[fd].state == FD_STCLOSE)
-		  continue;
-	      
-	      if (epoll_events[count].events & ( EPOLLOUT | EPOLLERR | EPOLLHUP ))
-		      fdtab[fd].write(fd);
-	  }
-      } else {
-	  /* use select() */
-
-	  if (next_time > 0) {  /* FIXME */
-	      /* Convert to timeval */
-	      /* to avoid eventual select loops due to timer precision */
-	      next_time += SCHEDULER_RESOLUTION;
-	      delta.tv_sec  = next_time / 1000; 
-	      delta.tv_usec = (next_time % 1000) * 1000;
-	  }
-	  else if (next_time == 0) { /* allow select to return immediately when needed */
-	      delta.tv_sec = delta.tv_usec = 0;
-	  }
-
-
-	  /* let's restore fdset state */
-
-	  readnotnull = 0; writenotnull = 0;
-	  for (i = 0; i < (maxfd + FD_SETSIZE - 1)/(8*sizeof(int)); i++) {
-	      readnotnull |= (*(((int*)ReadEvent)+i) = *(((int*)StaticReadEvent)+i)) != 0;
-	      writenotnull |= (*(((int*)WriteEvent)+i) = *(((int*)StaticWriteEvent)+i)) != 0;
-	  }
-
-	  //	/* just a verification code, needs to be removed for performance */
-	  //	for (i=0; i<maxfd; i++) {
-	  //	    if (FD_ISSET(i, ReadEvent) != FD_ISSET(i, StaticReadEvent))
-	  //		abort();
-	  //	    if (FD_ISSET(i, WriteEvent) != FD_ISSET(i, StaticWriteEvent))
-	  //		abort();
-	  //	    
-	  //	}
-
-	  status = select(maxfd,
-			  readnotnull ? ReadEvent : NULL,
-			  writenotnull ? WriteEvent : NULL,
-			  NULL,
-			  (next_time >= 0) ? &delta : NULL);
+	      ((int*)PrevReadEvent)[fds] = rn;
+	      ((int*)PrevWriteEvent)[fds] = wn;
+	  }		  
+      }
       
-	  /* this is an experiment on the separation of the select work */
-	  // status  = (readnotnull  ? select(maxfd, ReadEvent, NULL, NULL, (next_time >= 0) ? &delta : NULL) : 0);
-	  // status |= (writenotnull ? select(maxfd, NULL, WriteEvent, NULL, (next_time >= 0) ? &delta : NULL) : 0);
+      /* now let's wait for events */
+      status = epoll_wait(epoll_fd, epoll_events, maxfd, next_time);
+      tv_now(&now);
 
-	  tv_now(&now);
-
-	  if (status > 0) { /* must proceed with events */
-
-	      int fds;
-	      char count;
+      for (count = 0; count < status; count++) {
+	  fd = epoll_events[count].data.fd;
 	  
-	      for (fds = 0; (fds << INTBITS) < maxfd; fds++)
-		  if ((((int *)(ReadEvent))[fds] | ((int *)(WriteEvent))[fds]) != 0)
-		      for (count = 1<<INTBITS, fd = fds << INTBITS; count && fd < maxfd; count--, fd++) {
-			  
-			  /* if we specify read first, the accepts and zero reads will be
-			   * seen first. Moreover, system buffers will be flushed faster.
-			   */
-			  if (fdtab[fd].state == FD_STCLOSE)
-			      continue;
-			  
-			  if (FD_ISSET(fd, ReadEvent))
-			      fdtab[fd].read(fd);
-			  
-			  if (FD_ISSET(fd, WriteEvent))
-			      fdtab[fd].write(fd);
-		      }
-	  }
-	  else {
-	      //	  fprintf(stderr,"select returned %d, maxfd=%d\n", status, maxfd);
-	  }
+	  if (fdtab[fd].state == FD_STCLOSE)
+	      continue;
+	  
+	  if (epoll_events[count].events & ( EPOLLIN | EPOLLERR | EPOLLHUP ))
+	      fdtab[fd].read(fd);
+	  
+	  if (fdtab[fd].state == FD_STCLOSE)
+	      continue;
+	  
+	  if (epoll_events[count].events & ( EPOLLOUT | EPOLLERR | EPOLLHUP ))
+	      fdtab[fd].write(fd);
       }
   }
+  return 1;
+}
+#endif
+
+
+
+#if defined(ENABLE_POLL)
+
+/*
+ * Main poll() loop.
+ */
+
+/* does 3 actions :
+ * 0 (POLL_LOOP_ACTION_INIT)  : initializes necessary private structures
+ * 1 (POLL_LOOP_ACTION_RUN)   : runs the loop
+ * 2 (POLL_LOOP_ACTION_CLEAN) : cleans up
+ *
+ * returns 0 if initialization failed, !0 otherwise.
+ */
+
+int poll_loop(int action) {
+  int next_time;
+  int status;
+  int fd, nbfd;
+
+  int fds, count;
+  int sr, sw;
+  unsigned rn, wn; /* read new, write new */
+
+  /* private data */
+  static struct pollfd *poll_events = NULL;
+
+  if (action == POLL_LOOP_ACTION_INIT) {
+      poll_events = (struct pollfd*)
+	  calloc(1, sizeof(struct pollfd) * global.maxsock);
+      return 1;
+  }
+  else if (action == POLL_LOOP_ACTION_CLEAN) {
+      if (poll_events)
+	  free(poll_events);
+      return 1;
+  }
+
+  /* OK, it's POLL_LOOP_ACTION_RUN */
+
+  tv_now(&now);
+
+  while (1) {
+      next_time = process_runnable_tasks();
+
+      /* stop when there's no connection left and we don't allow them anymore */
+      if (!actconn && listeners == 0)
+	  break;
+
+#if STATTIME > 0
+      {
+	  int time2;
+	  time2 = stats();
+	  next_time = MINTIME(time2, next_time);
+      }
+#endif
+
+
+      nbfd = 0;
+      for (fds = 0; (fds << INTBITS) < maxfd; fds++) {
+	  
+	  rn = ((int*)StaticReadEvent)[fds];
+	  wn = ((int*)StaticWriteEvent)[fds];
+	  
+	  if ((rn|wn)) {
+	      for (count = 0, fd = fds << INTBITS; count < (1<<INTBITS) && fd < maxfd; count++, fd++) {
+#define FDSETS_ARE_INT_ALIGNED
+#ifdef FDSETS_ARE_INT_ALIGNED
+
+#define WE_REALLY_NOW_THAT_FDSETS_ARE_INTS
+#ifdef WE_REALLY_NOW_THAT_FDSETS_ARE_INTS
+		  sr = (rn >> count) & 1;
+		  sw = (wn >> count) & 1;
+#else
+		  sr = FD_ISSET(fd&((1<<INTBITS)-1), (typeof(fd_set*))&rn);
+		  sw = FD_ISSET(fd&((1<<INTBITS)-1), (typeof(fd_set*))&wn);
+#endif
+#else
+		  sr = FD_ISSET(fd, StaticReadEvent);
+		  sw = FD_ISSET(fd, StaticWriteEvent);
+#endif
+		  if ((sr|sw)) {
+		      poll_events[nbfd].fd = fd;
+		      poll_events[nbfd].events = (sr ? POLLIN : 0) | (sw ? POLLOUT : 0);
+		      nbfd++;
+		  }
+	      }
+	  }		  
+      }
+      
+      /* now let's wait for events */
+      status = poll(poll_events, nbfd, next_time);
+      tv_now(&now);
+
+      for (count = 0; status > 0 && count < nbfd; count++) {
+	  fd = poll_events[count].fd;
+	  
+	  if (!poll_events[count].revents & ( POLLOUT | POLLIN | POLLERR | POLLHUP ))
+	      continue;
+
+	  /* ok, we found one active fd */
+	  status--;
+
+	  if (fdtab[fd].state == FD_STCLOSE)
+	      continue;
+	  
+	  if (poll_events[count].revents & ( POLLIN | POLLERR | POLLHUP ))
+	      fdtab[fd].read(fd);
+	  
+	  if (fdtab[fd].state == FD_STCLOSE)
+	      continue;
+	  
+	  if (poll_events[count].revents & ( POLLOUT | POLLERR | POLLHUP ))
+	      fdtab[fd].write(fd);
+      }
+  }
+  return 1;
+}
+#endif
+
+
+
+/*
+ * Main select() loop.
+ */
+
+/* does 3 actions :
+ * 0 (POLL_LOOP_ACTION_INIT)  : initializes necessary private structures
+ * 1 (POLL_LOOP_ACTION_RUN)   : runs the loop
+ * 2 (POLL_LOOP_ACTION_CLEAN) : cleans up
+ *
+ * returns 0 if initialization failed, !0 otherwise.
+ */
+
+
+int select_loop(int action) {
+  int next_time;
+  int status;
+  int fd,i;
+  struct timeval delta;
+  int readnotnull, writenotnull;
+  static fd_set	*ReadEvent = NULL, *WriteEvent = NULL;
+
+  if (action == POLL_LOOP_ACTION_INIT) {
+      ReadEvent = (fd_set *)
+	  calloc(1, sizeof(fd_set) * (global.maxsock + FD_SETSIZE - 1) / FD_SETSIZE);
+      WriteEvent = (fd_set *)
+	  calloc(1, sizeof(fd_set) * (global.maxsock + FD_SETSIZE - 1) / FD_SETSIZE);
+      return 1;
+  }
+  else if (action == POLL_LOOP_ACTION_CLEAN) {
+      if (WriteEvent)       free(WriteEvent);
+      if (ReadEvent)        free(ReadEvent);
+      return 1;
+  }
+
+  /* OK, it's POLL_LOOP_ACTION_RUN */
+
+  tv_now(&now);
+
+  while (1) {
+      next_time = process_runnable_tasks();
+
+      /* stop when there's no connection left and we don't allow them anymore */
+      if (!actconn && listeners == 0)
+	  break;
+
+#if STATTIME > 0
+      {
+	  int time2;
+	  time2 = stats();
+	  next_time = MINTIME(time2, next_time);
+      }
+#endif
+
+
+      if (next_time > 0) {  /* FIXME */
+	  /* Convert to timeval */
+	  /* to avoid eventual select loops due to timer precision */
+	  next_time += SCHEDULER_RESOLUTION;
+	  delta.tv_sec  = next_time / 1000; 
+	  delta.tv_usec = (next_time % 1000) * 1000;
+      }
+      else if (next_time == 0) { /* allow select to return immediately when needed */
+	  delta.tv_sec = delta.tv_usec = 0;
+      }
+
+
+      /* let's restore fdset state */
+
+      readnotnull = 0; writenotnull = 0;
+      for (i = 0; i < (maxfd + FD_SETSIZE - 1)/(8*sizeof(int)); i++) {
+	  readnotnull |= (*(((int*)ReadEvent)+i) = *(((int*)StaticReadEvent)+i)) != 0;
+	  writenotnull |= (*(((int*)WriteEvent)+i) = *(((int*)StaticWriteEvent)+i)) != 0;
+      }
+
+      //	/* just a verification code, needs to be removed for performance */
+      //	for (i=0; i<maxfd; i++) {
+      //	    if (FD_ISSET(i, ReadEvent) != FD_ISSET(i, StaticReadEvent))
+      //		abort();
+      //	    if (FD_ISSET(i, WriteEvent) != FD_ISSET(i, StaticWriteEvent))
+      //		abort();
+      //	    
+      //	}
+
+      status = select(maxfd,
+		      readnotnull ? ReadEvent : NULL,
+		      writenotnull ? WriteEvent : NULL,
+		      NULL,
+		      (next_time >= 0) ? &delta : NULL);
+      
+      /* this is an experiment on the separation of the select work */
+      // status  = (readnotnull  ? select(maxfd, ReadEvent, NULL, NULL, (next_time >= 0) ? &delta : NULL) : 0);
+      // status |= (writenotnull ? select(maxfd, NULL, WriteEvent, NULL, (next_time >= 0) ? &delta : NULL) : 0);
+      
+      tv_now(&now);
+
+      if (status > 0) { /* must proceed with events */
+
+	  int fds;
+	  char count;
+	  
+	  for (fds = 0; (fds << INTBITS) < maxfd; fds++)
+	      if ((((int *)(ReadEvent))[fds] | ((int *)(WriteEvent))[fds]) != 0)
+		  for (count = 1<<INTBITS, fd = fds << INTBITS; count && fd < maxfd; count--, fd++) {
+		      
+		      /* if we specify read first, the accepts and zero reads will be
+		       * seen first. Moreover, system buffers will be flushed faster.
+		       */
+		      if (fdtab[fd].state == FD_STCLOSE)
+			  continue;
+			  
+		      if (FD_ISSET(fd, ReadEvent))
+			  fdtab[fd].read(fd);
+			  
+		      if (FD_ISSET(fd, WriteEvent))
+			  fdtab[fd].write(fd);
+		  }
+      }
+      else {
+	  //	  fprintf(stderr,"select returned %d, maxfd=%d\n", status, maxfd);
+      }
+  }
+  return 1;
 }
 
 
@@ -6994,8 +7156,14 @@ void init(int argc, char **argv) {
 		display_version();
 		exit(0);
 	    }
-	    else if (*flag == 'e')
+#if defined(ENABLE_EPOLL)
+	    else if (*flag == 'E')
 		cfg_use_epoll = 1;
+#endif
+#if defined(ENABLE_POLL)
+	    else if (*flag == 'P')
+		cfg_use_poll = 1;
+#endif
 	    else if (*flag == 'V')
 		arg_mode |= MODE_VERBOSE;
 	    else if (*flag == 'd')
@@ -7085,34 +7253,12 @@ void init(int argc, char **argv) {
     if (global.nbproc < 1)
 	global.nbproc = 1;
 
-    ReadEvent = (fd_set *)calloc(1,
-		sizeof(fd_set) *
-		(global.maxsock + FD_SETSIZE - 1) / FD_SETSIZE);
-    WriteEvent = (fd_set *)calloc(1,
-		sizeof(fd_set) *
-		(global.maxsock + FD_SETSIZE - 1) / FD_SETSIZE);
     StaticReadEvent = (fd_set *)calloc(1,
 		sizeof(fd_set) *
 		(global.maxsock + FD_SETSIZE - 1) / FD_SETSIZE);
     StaticWriteEvent = (fd_set *)calloc(1,
 		sizeof(fd_set) *
 		(global.maxsock + FD_SETSIZE - 1) / FD_SETSIZE);
-
-    if (cfg_use_epoll) {
-	epoll_fd = epoll_create(global.maxsock + 1);
-	if (epoll_fd < 0) {
-	    Warning("epoll() is not available. Using select() instead.\n");
-	    cfg_use_epoll = 0;
-	} else {
-	    epoll_events = (struct epoll_event*) calloc(1, sizeof(struct epoll_event) * global.maxsock);
-	    PrevReadEvent = (fd_set *)calloc(1,
-					     sizeof(fd_set) *
-					     (global.maxsock + FD_SETSIZE - 1) / FD_SETSIZE);
-	    PrevWriteEvent = (fd_set *)calloc(1,
-					      sizeof(fd_set) *
-					      (global.maxsock + FD_SETSIZE - 1) / FD_SETSIZE);
-	}
-    }
 
     fdtab = (struct fdtab *)calloc(1,
 		sizeof(struct fdtab) * (global.maxsock));
@@ -7324,10 +7470,6 @@ void deinit(void){
     if (global.chroot)    free(global.chroot);
     if (global.pidfile)   free(global.pidfile);
     
-    if (ReadEvent)        free(ReadEvent);
-    if (WriteEvent)       free(WriteEvent);
-    if (PrevReadEvent)    free(ReadEvent);
-    if (PrevWriteEvent)   free(WriteEvent);
     if (StaticReadEvent)  free(StaticReadEvent);
     if (StaticWriteEvent) free(StaticWriteEvent);
     if (fdtab)            free(fdtab);
@@ -7445,7 +7587,38 @@ int main(int argc, char **argv) {
 	setsid();
     }
 
-    select_loop();
+#if defined(ENABLE_EPOLL)
+    if (cfg_use_epoll) {
+	if (epoll_loop(POLL_LOOP_ACTION_INIT)) {
+	    epoll_loop(POLL_LOOP_ACTION_RUN);
+	    epoll_loop(POLL_LOOP_ACTION_CLEAN);
+	}
+	else {
+	    Warning("epoll() is not available. Trying poll() or select() instead.\n");
+	    cfg_use_epoll = 0;
+	}
+    }
+#endif
+
+#if defined(ENABLE_POLL)
+    if (cfg_use_poll) {
+	if (poll_loop(POLL_LOOP_ACTION_INIT)) {
+	    poll_loop(POLL_LOOP_ACTION_RUN);
+	    poll_loop(POLL_LOOP_ACTION_CLEAN);
+	}
+	else {
+	    Warning("poll() is not available. Using select() instead.\n");
+	    cfg_use_poll = 0;
+	}
+    }
+#endif
+    if (!cfg_use_epoll && !cfg_use_poll) {
+	if (select_loop(POLL_LOOP_ACTION_INIT)) {
+	    select_loop(POLL_LOOP_ACTION_RUN);
+	    select_loop(POLL_LOOP_ACTION_CLEAN);
+	}
+    }
+
 
     /* Free all Hash Keys and all Hash elements */
     appsession_cleanup();

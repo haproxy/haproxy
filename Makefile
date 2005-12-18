@@ -4,6 +4,7 @@
 
 # Select target OS. TARGET must match a system for which COPTS and LIBS are
 # correctly defined below.
+#TARGET = linux26
 TARGET = linux24
 #TARGET = linux22
 #TARGET = solaris
@@ -27,20 +28,24 @@ LD = gcc
 PCREDIR	:= $(shell pcre-config --prefix 2>/dev/null || :)
 #PCREDIR=/usr/local
 
+# This is for Linux 2.6 with netfilter and EPOLL
+COPTS.linux26 = -DNETFILTER -DENABLE_POLL -DENABLE_EPOLL
+LIBS.linux26 =
+
 # This is for Linux 2.4 with netfilter
-COPTS.linux24 = -DNETFILTER
+COPTS.linux24 = -DNETFILTER -DENABLE_POLL
 LIBS.linux24 =
 
 # This is for Linux 2.2
-COPTS.linux22 = -DUSE_GETSOCKNAME
+COPTS.linux22 = -DUSE_GETSOCKNAME -DENABLE_POLL
 LIBS.linux22 =
 
 # This is for Solaris 8
-COPTS.solaris = -fomit-frame-pointer -DSOLARIS
+COPTS.solaris = -fomit-frame-pointer -DSOLARIS -DENABLE_POLL
 LIBS.solaris = -lnsl -lsocket
 
 # This is for OpenBSD 3.0
-COPTS.openbsd =
+COPTS.openbsd = -DENABLE_POLL
 LIBS.openbsd =
 
 # CPU dependant optimizations
@@ -67,13 +72,20 @@ DEBUG = -g
 #SMALL_OPTS = -DBUFSIZE=8192 -DMAXREWRITE=1024
 SMALL_OPTS =
 
+# redefine this if you want to add some special PATH to include/libs
+ADDINC =
+ADDLIB =
+
+# set some defines when needed.
+# Known ones are -DENABLE_POLL, -DENABLE_EPOLL, and -DUSE_MY_EPOLL
+DEFINE =
 
 # global options
 TARGET_OPTS=$(COPTS.$(TARGET))
 REGEX_OPTS=$(COPTS.$(REGEX))
 CPU_OPTS=$(COPTS.$(CPU))
 
-COPTS=-I. $(ADDINC) $(CPU_OPTS) $(TARGET_OPTS) $(REGEX_OPTS) $(SMALL_OPTS)
+COPTS=-I. $(ADDINC) $(CPU_OPTS) $(TARGET_OPTS) $(REGEX_OPTS) $(SMALL_OPTS) $(DEFINE)
 LIBS=$(LIBS.$(TARGET)) $(LIBS.$(REGEX)) $(ADDLIB)
 
 # - use -DSTATTIME=0 to disable statistics, else specify an interval in
