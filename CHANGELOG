@@ -9,6 +9,7 @@ ChangeLog :
     be displayed even in quiet mode.
   - display an alert when a listener has no address, invalid or no port, or when
     there are no enabled listeners upon startup.
+  - added "static-pcre" to the list of supported regex options in the Makefile.
 
 2005/10/09 : 1.2.7rc (1.1.33rc)
   - second batch of socklen_t changes.

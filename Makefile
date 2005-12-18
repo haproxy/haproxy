@@ -17,9 +17,11 @@ CPU = generic
 #CPU = i686
 #CPU = ultrasparc
 
-# By default, we use libc's regex.
+# By default, we use libc's regex. WARNING! On Solaris 8/Sparc, group
+# references seem broken using libc ! Use pcre instead.
 REGEX=libc
 #REGEX=pcre
+#REGEX=static-pcre
 
 # tools options
 CC = gcc
@@ -69,6 +71,10 @@ LIBS.libc=
 # options for libpcre
 COPTS.pcre=-DUSE_PCRE -I$(PCREDIR)/include
 LIBS.pcre=-L$(PCREDIR)/lib -lpcreposix -lpcre
+
+# options for static libpcre
+COPTS.static-pcre=-DUSE_PCRE -I$(PCREDIR)/include
+LIBS.static-pcre=-L$(PCREDIR)/lib -Wl,-Bstatic -lpcreposix -lpcre -Wl,-Bdynamic
 
 # you can enable debug arguments with "DEBUG=-g" or disable them with "DEBUG="
 #DEBUG = -g -DDEBUG_MEMORY
