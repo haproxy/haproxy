@@ -52,8 +52,15 @@
 #include <stdarg.h>
 #include <sys/resource.h>
 #include <time.h>
-#include <regex.h>
 #include <syslog.h>
+
+#ifdef USE_PCRE
+#include <pcre.h>
+#include <pcreposix.h>
+#else
+#include <regex.h>
+#endif
+
 #if defined(TPROXY) && defined(NETFILTER)
 #include <linux/netfilter_ipv4.h>
 #endif
