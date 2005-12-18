@@ -57,7 +57,51 @@
 #include <linux/netfilter_ipv4.h>
 #endif
 
-#define HAPROXY_VERSION "1.2.3"
+#if defined(__dietlibc__)
+#include <strings.h>
+#endif
+
+#define TBLSIZ 10
+#define TBLCHKINT 5000 /* The time between two calls of appsession_refresh in ms */
+
+/*
+  These Parts are copied from
+  
+  http://www.oreilly.com/catalog/masteralgoc/index.html
+  Mastering Algorithms with C
+  By Kyle Loudon
+  ISBN: 1-56592-453-3
+  Publishd by O'Reilly
+
+  We have added our own struct to these function.
+ */
+
+#include <include/list.h>
+#include <include/chtbl.h>
+#include <include/hashpjw.h>
+/* end of copied parts */
+
+struct app_pool {
+    void **sessid;
+    void **serverid;
+    int ses_waste, ses_use, ses_msize;
+    int ser_waste, ser_use, ser_msize;
+};
+
+struct app_pool apools;
+int have_appsession;
+
+/* Callback for hash_lookup */
+int match_str(const void *key1, const void *key2);
+
+/* Callback for destroy */
+void destroy(void *data);
+
+#if defined(DEBUG_HASH)
+static void print_table(const CHTbl *htbl);
+#endif
+
+#define HAPROXY_VERSION "1.2.4"
 #define HAPROXY_DATE	"2005/01/22"
 
 /* this is for libc5 for example */
@@ -236,8 +280,10 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define sizeof_session	sizeof(struct session)
 #define sizeof_buffer	sizeof(struct buffer)
 #define sizeof_fdtab	sizeof(struct fdtab)
+#define sizeof_curappsession	CAPTURE_LEN	/* current_session pool */
 #define sizeof_requri	REQURI_LEN
 #define sizeof_capture	CAPTURE_LEN
+#define sizeof_appsess	sizeof(struct appsessions)
 
 /* different possible states for the sockets */
 #define FD_STCLOSE	0
@@ -501,7 +547,12 @@ struct proxy {
     struct server *srv, *cursrv;	/* known servers, current server */
     int nbservers;			/* # of servers */
     char *cookie_name;			/* name of the cookie to look for */
-    int  cookie_len;			/* strlen(cookie_len), computed only once */
+    int  cookie_len;			/* strlen(cookie_name), computed only once */
+    char *appsession_name;		/* name of the cookie to look for */
+    int  appsession_name_len;		/* strlen(appsession_name), computed only once */
+    int  appsession_len;		/* length of the appsession cookie value to be used */
+    int  appsession_timeout;
+    CHTbl htbl_proxy;			/* Per Proxy hashtable */
     char *capture_name;			/* beginning of the name of the cookie to capture */
     int  capture_namelen;		/* length of the cookie name to match */
     int  capture_len;			/* length of the string to be captured */
@@ -598,7 +649,8 @@ void **pool_session = NULL,
     **pool_fdtab    = NULL,
     **pool_requri   = NULL,
     **pool_task	    = NULL,
-    **pool_capture  = NULL;
+    **pool_capture  = NULL,
+    **pool_appsess  = NULL;
 
 struct proxy *proxy  = NULL;	/* list of all existing proxies */
 struct fdtab *fdtab = NULL;	/* array of all the file descriptors */
@@ -744,6 +796,10 @@ int event_cli_write(int fd);
 int event_srv_read(int fd);
 int event_srv_write(int fd);
 int process_session(struct task *t);
+
+static int appsession_task_init(void);
+static int appsession_init(void);
+static int appsession_refresh(struct task *t);
 
 /*********************************************************************/
 /*  general purpose functions  ***************************************/
@@ -1605,7 +1661,9 @@ static inline struct server *find_server(struct proxy *px) {
 int connect_server(struct session *s) {
     int fd;
 
-    //    fprintf(stderr,"connect_server : s=%p\n",s);
+#ifdef DEBUG_FULL
+    fprintf(stderr,"connect_server : s=%p\n",s);
+#endif
 
     if (s->flags & SN_DIRECT) { /* srv cannot be null */
 	s->srv_addr = s->srv->addr;
@@ -1729,7 +1787,9 @@ int event_cli_read(int fd) {
     struct buffer *b = s->req;
     int ret, max;
 
-    //    fprintf(stderr,"event_cli_read : fd=%d, s=%p\n", fd, s);
+#ifdef DEBUG_FULL
+    fprintf(stderr,"event_cli_read : fd=%d, s=%p\n", fd, s);
+#endif
 
     if (fdtab[fd].state != FD_STERROR) {
 	while (1) {
@@ -1824,7 +1884,9 @@ int event_srv_read(int fd) {
     struct buffer *b = s->rep;
     int ret, max;
 
-    //    fprintf(stderr,"event_srv_read : fd=%d, s=%p\n", fd, s);
+#ifdef DEBUG_FULL
+    fprintf(stderr,"event_srv_read : fd=%d, s=%p\n", fd, s);
+#endif
 
     if (fdtab[fd].state != FD_STERROR) {
 	while (1) {
@@ -1918,7 +1980,9 @@ int event_cli_write(int fd) {
     struct buffer *b = s->rep;
     int ret, max;
 
-    //    fprintf(stderr,"event_cli_write : fd=%d, s=%p\n", fd, s);
+#ifdef DEBUG_FULL
+    fprintf(stderr,"event_cli_write : fd=%d, s=%p\n", fd, s);
+#endif
 
     if (b->l == 0) { /* let's realign the buffer to optimize I/O */
 	b->r = b->w = b->h = b->lr  = b->data;
@@ -2005,7 +2069,9 @@ int event_srv_write(int fd) {
     struct buffer *b = s->req;
     int ret, max;
 
-    //fprintf(stderr,"event_srv_write : fd=%d, s=%p\n", fd, s);
+#ifdef DEBUG_FULL
+    fprintf(stderr,"event_srv_write : fd=%d, s=%p\n", fd, s);
+#endif
 
     if (b->l == 0) { /* let's realign the buffer to optimize I/O */
 	b->r = b->w = b->h = b->lr = b->data;
@@ -2694,6 +2760,9 @@ int process_cli(struct session *t) {
     int c = t->cli_state;
     struct buffer *req = t->req;
     struct buffer *rep = t->rep;
+    int method_checked = 0;
+    appsess *asession_temp = NULL;
+    appsess local_asession;
 
 #ifdef DEBUG_FULL
     fprintf(stderr,"process_cli: c=%s, s=%s\n", cli_stnames[c], srv_stnames[s]);
@@ -2707,6 +2776,7 @@ int process_cli(struct session *t) {
 	while (req->lr < req->r) { /* this loop only sees one header at each iteration */
 	    char *ptr;
 	    int delete_header;
+	    char *request_line = NULL;
 	
 	    ptr = req->lr;
 
@@ -2815,6 +2885,88 @@ int process_cli(struct session *t) {
 	     *   req->r  = end of data (not used at this stage)
 	     */
 
+	    if (!method_checked && (t->proxy->appsession_name != NULL) &&
+		((memcmp(req->h, "GET ", 4) == 0) || (memcmp(req->h, "POST ", 4) == 0)) &&
+		((request_line = memchr(req->h, ';', req->lr - req->h)) != NULL)) {
+
+	      /* skip ; */
+	      request_line++;
+
+	      /* look if we have a jsessionid */
+
+	      if (strncasecmp(request_line, t->proxy->appsession_name, t->proxy->appsession_name_len) == 0) {
+
+		/* skip jsessionid= */
+		request_line += t->proxy->appsession_name_len + 1;
+		
+		/* First try if we allready have an appsession */
+		asession_temp = &local_asession;
+		
+		if ((asession_temp->sessid = pool_alloc_from(apools.sessid, apools.ses_msize)) == NULL) {
+		  Alert("Not enough memory process_cli():asession_temp->sessid:calloc().\n");
+		  send_log(t->proxy, LOG_ALERT, "Not enough Memory process_cli():asession_temp->sessid:calloc().\n");
+		  return 0;
+		}
+
+		/* Copy the sessionid */
+		memcpy(asession_temp->sessid, request_line, t->proxy->appsession_len);
+		asession_temp->sessid[t->proxy->appsession_len] = 0;
+		asession_temp->serverid = NULL;
+
+		/* only do insert, if lookup fails */
+		if (chtbl_lookup(&(t->proxy->htbl_proxy), (void *)&asession_temp)) {
+		  if ((asession_temp = pool_alloc(appsess)) == NULL) {
+		    Alert("Not enough memory process_cli():asession:calloc().\n");
+		    send_log(t->proxy, LOG_ALERT, "Not enough memory process_cli():asession:calloc().\n");
+		    return 0;
+		  }
+		  asession_temp->sessid = local_asession.sessid;
+		  asession_temp->serverid = local_asession.serverid;
+		  chtbl_insert(&(t->proxy->htbl_proxy), (void *) asession_temp);
+		} /* end if(chtbl_lookup()) */
+		else{
+		  /*free wasted memory;*/
+		  pool_free_to(apools.sessid, local_asession.sessid);
+		}
+
+		tv_delayfrom(&asession_temp->expire, &now, t->proxy->appsession_timeout);
+		asession_temp->request_count++;
+		
+#if defined(DEBUG_HASH)
+		print_table(&(t->proxy->htbl_proxy));
+#endif
+
+		if (asession_temp->serverid == NULL) {
+		    Alert("Found Application Session without matching server.\n");
+		} else {
+		    struct server *srv = t->proxy->srv;
+		    while (srv) {
+		        if (strcmp(srv->id, asession_temp->serverid) == 0) {
+		            if (srv->state & SRV_RUNNING || t->proxy->options & PR_O_PERSIST) {
+		                /* we found the server and it's usable */
+			        t->flags &= ~SN_CK_MASK;
+			        t->flags |= SN_CK_VALID | SN_DIRECT;
+			        t->srv = srv;
+				break;
+		            }else {
+			        t->flags &= ~SN_CK_MASK;
+			        t->flags |= SN_CK_DOWN;
+			    }
+		        }/* end if(strcmp()) */
+		        srv = srv->next;
+		    }/* end while(srv) */
+		}/* end else of if (asession_temp->serverid == NULL) */
+		
+		method_checked = 1;
+	      }/* end if(strncasecmp(request_line,t->proxy->appsession_name,apssesion_name_len) == 0) */
+	      else {
+		//fprintf(stderr,">>>>>>>>>>>>>>>>>>>>>>NO SESSION\n");
+	      }
+	    }/* end if(!method_checked ...) */
+	    else{
+	      //printf("No Methode-Header with Session-String\n");
+	    }
+	    
 	    if (t->logs.logwait & LW_REQ) {
 		/* we have a complete HTTP request that we must log */
 		int urilen;
@@ -2932,7 +3084,8 @@ int process_cli(struct session *t) {
 	     * remove it. If no application cookie persists in the header, we
 	     * *MUST* delete it
 	     */
-	    if (!delete_header && (t->proxy->cookie_name != NULL || t->proxy->capture_name != NULL)
+	    if (!delete_header &&
+		(t->proxy->cookie_name != NULL || t->proxy->capture_name != NULL || t->proxy->appsession_name !=NULL)
 		&& !(t->flags & SN_CLDENY) && (ptr >= req->h + 8)
 		&& (strncasecmp(req->h, "Cookie: ", 8) == 0)) {
 		char *p1, *p2, *p3, *p4;
@@ -3001,12 +3154,12 @@ int process_cli(struct session *t) {
 
 			    if ((t->logs.cli_cookie = pool_alloc(capture)) == NULL) {
 				Alert("HTTP logging : out of memory.\n");
+			    } else {
+				if (log_len > t->proxy->capture_len)
+				    log_len = t->proxy->capture_len;
+				memcpy(t->logs.cli_cookie, p1, log_len);
+				t->logs.cli_cookie[log_len] = 0;
 			    }
-
-			    if (log_len > t->proxy->capture_len)
-				log_len = t->proxy->capture_len;
-			    memcpy(t->logs.cli_cookie, p1, log_len);
-			    t->logs.cli_cookie[log_len] = 0;
 			}
 
 			if ((p2 - p1 == t->proxy->cookie_len) && (t->proxy->cookie_name != NULL) &&
@@ -3051,8 +3204,7 @@ int process_cli(struct session *t) {
 					t->flags |= SN_CK_VALID | SN_DIRECT;
 					t->srv = srv;
 					break;
-				    }
-				    else {
+				    } else {
 					/* we found a server, but it's down */
 					t->flags &= ~SN_CK_MASK;
 					t->flags |= SN_CK_DOWN;
@@ -3086,8 +3238,7 @@ int process_cli(struct session *t) {
 				del_cookie = p1;
 				del_colon = colon;
 			    }
-			}
-			else {
+			} else {
 			    /* now we know that we must keep this cookie since it's
 			     * not ours. But if we wanted to delete our cookie
 			     * earlier, we cannot remove the complete header, but we
@@ -3102,6 +3253,66 @@ int process_cli(struct session *t) {
 				del_cookie = del_colon = NULL;
 			    }
 			}
+			
+			if ((t->proxy->appsession_name != NULL) &&
+				  (memcmp(p1, t->proxy->appsession_name, p2 - p1) == 0)) {
+			    /* first, let's see if the cookie is our appcookie*/
+			    
+			    /* Cool... it's the right one */
+
+			    asession_temp = &local_asession;
+			  
+			    if ((asession_temp->sessid = pool_alloc_from(apools.sessid, apools.ses_msize)) == NULL) {
+				Alert("Not enough memory process_cli():asession->sessid:malloc().\n");
+				send_log(t->proxy, LOG_ALERT, "Not enough memory process_cli():asession->sessid:malloc().\n");
+				return 0;
+			    }
+			  
+			    memcpy(asession_temp->sessid, p3, t->proxy->appsession_len);
+			    asession_temp->sessid[t->proxy->appsession_len] = 0;
+			    asession_temp->serverid = NULL;
+			    
+			    /* only do insert, if lookup fails */
+			    if (chtbl_lookup(&(t->proxy->htbl_proxy), (void *) &asession_temp) != 0) {
+				if ((asession_temp = pool_alloc(appsess)) == NULL) {
+				    Alert("Not enough memory process_cli():asession:calloc().\n");
+				    send_log(t->proxy, LOG_ALERT, "Not enough memory process_cli():asession:calloc().\n");
+				    return 0;
+				}
+				
+				asession_temp->sessid = local_asession.sessid;
+				asession_temp->serverid = local_asession.serverid;
+				chtbl_insert(&(t->proxy->htbl_proxy), (void *) asession_temp);
+			    }
+			    else{
+				/* free wasted memory */
+				pool_free_to(apools.sessid, local_asession.sessid);
+			    }
+			    
+			    if (asession_temp->serverid == NULL) {
+				Alert("Found Application Session without matching server.\n");
+			    } else {
+				struct server *srv = t->proxy->srv;
+				while (srv) {
+				    if(strcmp(srv->id, asession_temp->serverid) == 0) {
+					if (srv->state & SRV_RUNNING || t->proxy->options & PR_O_PERSIST) {
+					    /* we found the server and it's usable */
+					    t->flags &= ~SN_CK_MASK;
+					    t->flags |= SN_CK_VALID | SN_DIRECT;
+					    t->srv = srv;
+					    break;
+					} else {
+					    t->flags &= ~SN_CK_MASK;
+					    t->flags |= SN_CK_DOWN;
+					}
+				    }
+				    srv = srv->next;
+				}/* end while(srv) */
+			    }/* end else if server == NULL */
+			    
+			    tv_delayfrom(&asession_temp->expire, &now, t->proxy->appsession_timeout);
+			    break;
+			}/* end if ((t->proxy->appsession_name != NULL) ... */
 		    }
 
 		    /* we'll have to look for another cookie ... */
@@ -3413,6 +3624,8 @@ int process_srv(struct session *t) {
     int c = t->cli_state;
     struct buffer *req = t->req;
     struct buffer *rep = t->rep;
+    appsess *asession_temp = NULL;
+    appsess local_asession;
 
 #ifdef DEBUG_FULL
     fprintf(stderr,"process_srv: c=%s, s=%s\n", cli_stnames[c], srv_stnames[s]);
@@ -3829,7 +4042,7 @@ int process_srv(struct session *t) {
 
 	    /* check for server cookies */
 	    if (!delete_header /*&& (t->proxy->options & PR_O_COOK_ANY)*/
-		&& (t->proxy->cookie_name != NULL || t->proxy->capture_name != NULL)
+		&& (t->proxy->cookie_name != NULL || t->proxy->capture_name != NULL || t->proxy->appsession_name !=NULL)
 		&& (strncasecmp(rep->h, "Set-Cookie: ", 12) == 0)) {
 		char *p1, *p2, *p3, *p4;
 		
@@ -3915,6 +4128,58 @@ int process_srv(struct session *t) {
 			}
 			break;
 		    }
+
+		    /* first, let's see if the cookie is our appcookie*/
+		    if ((t->proxy->appsession_name != NULL) &&
+			(memcmp(p1, t->proxy->appsession_name, p2 - p1) == 0)) {
+
+		      /* Cool... it's the right one */
+
+		      size_t server_id_len = strlen(t->srv->id)+1;
+		      asession_temp = &local_asession;
+		      
+		      if((asession_temp->sessid = pool_alloc_from(apools.sessid, apools.ses_msize)) == NULL){
+			Alert("Not enought Memory process_srv():asession->sessid:malloc().\n");
+			send_log(t->proxy, LOG_ALERT, "Not enought Memory process_srv():asession->sessid:malloc().\n");
+		      }
+		      memcpy(asession_temp->sessid, p3, t->proxy->appsession_len);
+		      asession_temp->sessid[t->proxy->appsession_len] = 0;
+		      asession_temp->serverid = NULL;
+
+		      /* only do insert, if lookup fails */
+		      if (chtbl_lookup(&(t->proxy->htbl_proxy), (void *) &asession_temp) != 0) {
+	                  if ((asession_temp = pool_alloc(appsess)) == NULL) {
+		              Alert("Not enought Memory process_srv():asession:calloc().\n");
+		              send_log(t->proxy, LOG_ALERT, "Not enought Memory process_srv():asession:calloc().\n");
+            	              return 0;
+                          }
+			  asession_temp->sessid = local_asession.sessid;
+			  asession_temp->serverid = local_asession.serverid;
+			  chtbl_insert(&(t->proxy->htbl_proxy), (void *) asession_temp);
+		      }/* end if(chtbl_lookup()) */
+		      else
+		      {
+		      	/* free wasted memory */
+		      	pool_free_to(apools.sessid, local_asession.sessid);
+		      } /* end else from if(chtbl_lookup()) */
+		      
+		      if(asession_temp->serverid == NULL){
+		        if((asession_temp->serverid = pool_alloc_from(apools.serverid, apools.ser_msize)) == NULL){
+			  Alert("Not enought Memory process_srv():asession->sessid:malloc().\n");
+			  send_log(t->proxy, LOG_ALERT, "Not enought Memory process_srv():asession->sessid:malloc().\n");
+		        }
+			asession_temp->serverid[0] = '\0';
+		      }
+		      
+		      if(asession_temp->serverid[0] == '\0') memcpy(asession_temp->serverid,t->srv->id,server_id_len);
+		      
+		      tv_delayfrom(&asession_temp->expire, &now, t->proxy->appsession_timeout);
+
+#if defined(DEBUG_HASH)
+		      print_table(&(t->proxy->htbl_proxy));
+#endif
+		      break;
+		    }/* end if ((t->proxy->appsession_name != NULL) ... */
 		    else {
 			//	fprintf(stderr,"Ignoring unknown cookie : ");
 			//	write(2, p1, p2-p1);
@@ -4830,6 +5095,39 @@ void dump(int sig) {
     }
 }
 
+static void fast_stop(void)
+{
+    struct proxy *p;
+    p = proxy;
+    while (p) {
+        p->grace = 0;
+	p = p->next;
+    }
+    soft_stop();
+}
+
+void sig_int(int sig) {
+    /* This would normally be a hard stop,
+       but we want to be sure about deallocation,
+       and so on, so we do a soft stop with
+       0 GRACE time
+    */
+    fast_stop();
+    /* If we are killed twice, we decide to die*/
+    signal(sig, SIG_DFL);
+}
+
+void sig_term(int sig) {
+    /* This would normally be a hard stop,
+       but we want to be sure about deallocation,
+       and so on, so we do a soft stop with
+       0 GRACE time
+    */
+    fast_stop();
+    /* If we are killed twice, we decide to die*/
+    signal(sig, SIG_DFL);
+}
+
 void chain_regex(struct hdr_exp **head, regex_t *preg, int action, char *replace) {
     struct hdr_exp *exp;
 
@@ -5003,6 +5301,7 @@ void init_default_instance() {
 int cfg_parse_listen(char *file, int linenum, char **args) {
     static struct proxy *curproxy = NULL;
     struct server *newsrv = NULL;
+    int rc;
 
     if (!strcmp(args[0], "listen")) {  /* new proxy */
 	if (!*args[1]) {
@@ -5195,7 +5494,36 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 		  file, linenum);
 	    return -1;
 	}
-    }
+    }/* end else if (!strcmp(args[0], "cookie"))  */
+    else if (!strcmp(args[0], "appsession")) {  /* cookie name */
+//	  if (curproxy == &defproxy) {
+//	      Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+//	      return -1;
+//	  }
+
+	if (curproxy->appsession_name != NULL) {
+//	      Alert("parsing [%s:%d] : cookie name already specified. Continuing.\n",
+//		    file, linenum);
+//	      return 0;
+	    free(curproxy->appsession_name);
+	}
+	
+	if (*(args[5]) == 0) {
+	  Alert("parsing [%s:%d] : '%s' expects 'appsession' <cookie_name> 'len' <len> 'timeout' <timeout>.\n",
+		file, linenum, args[0]);
+	  return -1;
+	}
+	have_appsession = 1;
+	curproxy->appsession_name = strdup(args[1]);
+	curproxy->appsession_name_len = strlen(curproxy->appsession_name);
+	curproxy->appsession_len = atoi(args[3]);
+	curproxy->appsession_timeout = atoi(args[5]);
+	rc = chtbl_init(&(curproxy->htbl_proxy), TBLSIZ, hashpjw, match_str, destroy);
+	if (rc) {
+	    Alert("Error Init Appsession Hashtable.\n");
+	    return -1;
+	}
+    } /* Url App Session */
     else if (!strcmp(args[0], "capture")) {
 	if (!strcmp(args[1], "cookie")) {  /* name of a cookie to capture */
 	    //	  if (curproxy == &defproxy) {
@@ -6438,10 +6766,13 @@ void init(int argc, char **argv) {
 
     gethostname(hostname, MAX_HOSTNAME_LEN);
 
+    have_appsession = 0;
     if (readcfgfile(cfg_cfgfile) < 0) {
 	Alert("Error reading configuration file : %s\n", cfg_cfgfile);
 	exit(1);
     }
+    if (have_appsession)
+	appsession_init();
 
     if (global.mode & MODE_CHECK) {
 	qfprintf(stdout, "Configuration file is valid : %s\n", cfg_cfgfile);
@@ -6576,6 +6907,154 @@ int start_proxies() {
     return 0;
 }
 
+int match_str(const void *key1, const void *key2){
+
+    appsess *temp1,*temp2;
+    temp1 = (appsess *)key1;
+    temp2 = (appsess *)key2;
+
+    //fprintf(stdout,">>>>>>>>>>>>>>temp1->sessid :%s:\n",temp1->sessid);
+    //fprintf(stdout,">>>>>>>>>>>>>>temp2->sessid :%s:\n",temp2->sessid);
+  
+    return (strcmp(temp1->sessid,temp2->sessid) == 0);
+}/* end match_str */
+
+void destroy(void *data){
+    appsess *temp1;
+
+    //printf("destroy called\n");
+    temp1 = (appsess *)data;
+
+    if (temp1->sessid)
+	pool_free_to(apools.sessid, temp1->sessid);
+
+    if (temp1->serverid)
+	pool_free_to(apools.serverid, temp1->serverid);
+
+    pool_free(appsess, temp1);
+} /* end destroy */
+
+void appsession_cleanup( void )
+{
+    struct proxy *p = proxy;
+  
+    while(p) {
+	chtbl_destroy(&(p->htbl_proxy));
+	p = p->next;
+    }
+}/* end appsession_cleanup() */
+
+void pool_destroy(void **pool)
+{
+    void *temp, *next;
+    next = pool;
+    while (next) {
+	temp = next;
+	next = *(void **)temp;
+	free(temp);
+    }
+}/* end pool_destroy() */
+
+void deinit(void){
+    struct proxy *p = proxy;
+    struct cap_hdr *h,*h_next;
+    struct server *s,*s_next;
+    struct listener *l,*l_next;
+  
+    while (p) {
+	if (p->id)
+	    free(p->id);
+
+	if (p->check_req)
+	    free(p->check_req);
+
+	if (p->cookie_name)
+	    free(p->cookie_name);
+
+	if (p->capture_name)
+	    free(p->capture_name);
+
+	/* only strup if the user have set in config.
+	   When should we free it?!
+	   if(p->errmsg.msg400) free(p->errmsg.msg400);
+	   if(p->errmsg.msg403) free(p->errmsg.msg403);
+	   if(p->errmsg.msg408) free(p->errmsg.msg408);
+	   if(p->errmsg.msg500) free(p->errmsg.msg500);
+	   if(p->errmsg.msg502) free(p->errmsg.msg502);
+	   if(p->errmsg.msg503) free(p->errmsg.msg503);
+	   if(p->errmsg.msg504) free(p->errmsg.msg504);
+	*/
+	if (p->appsession_name)
+	    free(p->appsession_name);
+
+	h = p->req_cap;
+	while (h) {
+	    h_next = h->next;
+	    if (h->name)
+		free(h->name);
+	    pool_destroy(h->pool);
+	    free(h);
+	    h = h_next;
+	}/* end while(h) */
+
+	h = p->rsp_cap;
+	while (h) {
+	    h_next = h->next;
+	    if (h->name)
+		free(h->name);
+	    
+	    pool_destroy(h->pool);
+	    free(h);
+	    h = h_next;
+	}/* end while(h) */
+	
+	s = p->srv;
+	while (s) {
+	    s_next = s->next;
+	    if(s->id)
+		free(s->id);
+	    
+	    if(s->cookie)
+		free(s->cookie);
+	    
+	    free(s);
+	    s = s_next;
+	}/* end while(s) */
+	
+	l = p->listen;
+	while (l) {
+	    l_next = l->next;
+	    free(l);
+	    l = l_next;
+	}/* end while(l) */
+	
+	pool_destroy((void **) p->req_cap_pool);
+	pool_destroy((void **) p->rsp_cap_pool);
+	p = p->next;
+    }/* end while(p) */
+    
+    if (global.chroot)    free(global.chroot);
+    if (global.pidfile)   free(global.pidfile);
+    
+    if (ReadEvent)        free(ReadEvent);
+    if (WriteEvent)       free(WriteEvent);
+    if (StaticReadEvent)  free(StaticReadEvent);
+    if (StaticWriteEvent) free(StaticWriteEvent);
+    if (fdtab)            free(fdtab);
+    
+    pool_destroy(pool_session);
+    pool_destroy(pool_buffer);
+    pool_destroy(pool_fdtab);
+    pool_destroy(pool_requri);
+    pool_destroy(pool_task);
+    pool_destroy(pool_capture);
+    pool_destroy(pool_appsess);
+    
+    if (have_appsession) {
+        pool_destroy(apools.serverid);
+        pool_destroy(apools.sessid);
+    }
+} /* end deinit() */
 
 int main(int argc, char **argv) {
     FILE *pidfile = NULL;
@@ -6590,6 +7069,8 @@ int main(int argc, char **argv) {
     signal(SIGQUIT, dump);
     signal(SIGUSR1, sig_soft_stop);
     signal(SIGHUP, sig_dump_state);
+    signal(SIGINT, sig_int);
+    signal(SIGTERM, sig_term);
 
     /* on very high loads, a sigpipe sometimes happen just between the
      * getsockopt() which tells "it's OK to write", and the following write :-(
@@ -6676,5 +7157,152 @@ int main(int argc, char **argv) {
 
     select_loop();
 
+    /* Free all Hash Keys and all Hash elements */
+    appsession_cleanup();
+    /* Do some cleanup */ 
+    deinit();
+    
     exit(0);
 }
+
+#if defined(DEBUG_HASH)
+static void print_table(const CHTbl *htbl) {
+
+    ListElmt           *element;
+    int                i;
+    appsess *asession;
+
+    /*****************************************************************************
+     *                                                                            *
+     *  Display the chained hash table.                                           *
+     *                                                                            *
+     *****************************************************************************/
+    
+    fprintf(stdout, "Table size is %d\n", chtbl_size(htbl));
+    
+    for (i = 0; i < TBLSIZ; i++) {
+	fprintf(stdout, "Bucket[%03d]\n", i);
+	
+	for (element = list_head(&htbl->table[i]); element != NULL; element = list_next(element)) {
+	    //fprintf(stdout, "%c", *(char *)list_data(element));
+	    asession = (appsess *)list_data(element);
+	    fprintf(stdout, "ELEM :%s:", asession->sessid);
+	    fprintf(stdout, " Server :%s: \n", asession->serverid);
+	    //fprintf(stdout, " Server request_count :%li:\n",asession->request_count);
+	}
+	
+	fprintf(stdout, "\n");
+    }
+    return;
+} /* end print_table */
+#endif
+
+static int appsession_init(void)
+{
+    static int          initialized = 0;
+    int                 idlen;
+    struct server       *s;
+    struct proxy        *p = proxy;
+    
+    if (!initialized) {
+	if (!appsession_task_init()) {
+	    apools.sessid = NULL;
+	    apools.serverid = NULL;
+	    apools.ser_waste = 0;
+	    apools.ser_use = 0;
+	    apools.ser_msize = sizeof(void *);
+	    apools.ses_waste = 0;
+	    apools.ses_use = 0;
+	    apools.ses_msize = sizeof(void *);
+	    while (p) {
+		s = p->srv;
+		if (apools.ses_msize < p->appsession_len)
+		    apools.ses_msize = p->appsession_len;
+		while (s) {
+		    idlen = strlen(s->id);
+		    if (apools.ser_msize < idlen)
+			apools.ser_msize = idlen;
+		    s = s->next;
+		}
+		p = p->next;
+	    }
+	    apools.ser_msize ++; /* we use strings, so reserve space for '\0' */
+	    apools.ses_msize ++;
+	}
+	else {
+	    fprintf(stderr, "appsession_task_init failed\n");
+	    return -1;
+	}
+	initialized ++;
+    }
+    return 0;
+}
+
+static int appsession_task_init(void)
+{
+    static int initialized = 0;
+    struct task *t;
+    if (!initialized) {
+	if ((t = pool_alloc(task)) == NULL)
+	    return -1;
+	t->next = t->prev = t->rqnext = NULL;
+	t->wq = LIST_HEAD(wait_queue);
+	t->state = TASK_IDLE;
+	t->context = NULL;
+	tv_delayfrom(&t->expire, &now, TBLCHKINT);
+	task_queue(t);
+	t->process = appsession_refresh;
+	initialized ++;
+    }
+    return 0;
+}
+
+static int appsession_refresh(struct task *t) {
+    struct proxy       *p = proxy;
+    CHTbl              *htbl;
+    ListElmt           *element, *last;
+    int                i;
+    appsess            *asession;
+    void               *data;
+
+    while (p) {
+        if (p->appsession_name != NULL) {
+            htbl = &p->htbl_proxy;
+            /* if we ever give up the use of TBLSIZ, we need to change this */
+            for (i = 0; i < TBLSIZ; i++) {
+	        last = NULL;
+                for (element = list_head(&htbl->table[i]); element != NULL; element = list_next(element)) {
+                    asession = (appsess *)list_data(element);
+                    if (tv_cmp2_ms(&asession->expire, &now) <= 0) {
+                        if ((global.mode & MODE_DEBUG) && (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))) {
+                            int len;
+			    /*
+			      on Linux NULL pointers are catched by sprintf, on solaris -> segfault 
+			    */
+                            len = sprintf(trash, "appsession_refresh: cleaning up expired Session '%s' on Server %s\n", 
+			                  asession->sessid,  asession->serverid?asession->serverid:"(null)");
+                            write(1, trash, len);
+                        }
+			/* delete the expired element from within the hash table */
+                        if ((list_rem_next(&htbl->table[i], last, (void **)&data) == 0) 
+			    && (htbl->table[i].destroy != NULL)) {
+			    htbl->table[i].destroy(data);
+			}
+			if (last == NULL) {/* patient lost his head, get a new one */
+			    element = list_head(&htbl->table[i]);
+			    if (element == NULL) break; /* no heads left, go to next patient */
+			}
+			else
+			    element = last;
+                    }/* end if (tv_cmp2_ms(&asession->expire, &now) <= 0) */
+                    else
+			last = element;
+                }/* end  for (element = list_head(&htbl->table[i]); element != NULL; element = list_next(element)) */
+            }
+	}
+        p = p->next;
+    }
+    tv_delayfrom(&t->expire, &now, TBLCHKINT); /* check expiration every 5 seconds */
+    return TBLCHKINT;
+} /* end appsession_refresh */
+

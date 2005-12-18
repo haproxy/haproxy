@@ -136,7 +136,7 @@ Todo for 1.2
 * listen [ip4.ip4.ip4.ip4]:port[-port]
 * listen [ip6::...ip6]/port[-port]
 - server xxx ipv4 | ipv4: | ipv4:port[-port] | ipv6/ | ipv6/port[-port]
-- appcookie
+* appcookie
 - weighted round robin
 - option to shutdown(listen_sock) when max connections reached
 

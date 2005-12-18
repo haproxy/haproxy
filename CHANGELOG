@@ -1,6 +1,12 @@
 ChangeLog :
 ===========
 
+2005/01/22 : 1.2.4
+  - merged Alexander Lazic's and Klaus Wagner's work on application
+    cookie-based persistence. Since this is the first merge, this version is
+    not intended for general use and reports are more than welcome. Some
+    documentation is really needed though.
+
 2005/01/22 : 1.2.3 (1.1.30)
   - add an architecture guide to the documentation
   - released without any changes

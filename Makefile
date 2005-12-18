@@ -73,7 +73,7 @@ TARGET_OPTS=$(COPTS.$(TARGET))
 REGEX_OPTS=$(COPTS.$(REGEX))
 CPU_OPTS=$(COPTS.$(CPU))
 
-COPTS=$(CPU_OPTS) $(TARGET_OPTS) $(REGEX_OPTS) $(SMALL_OPTS)
+COPTS=-I. $(CPU_OPTS) $(TARGET_OPTS) $(REGEX_OPTS) $(SMALL_OPTS)
 LIBS=$(LIBS.$(TARGET)) $(LIBS.$(REGEX))
 
 # - use -DSTATTIME=0 to disable statistics, else specify an interval in
@@ -84,12 +84,12 @@ LDFLAGS = -g
 
 all: haproxy
 
-haproxy: haproxy.o
+haproxy: src/list.o src/chtbl.o src/hashpjw.o haproxy.o
 	$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
 
 %.o:	%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
-	rm -f *.[oas] *~ *.rej core haproxy test nohup.out gmon.out
+	rm -f *.[oas] *~ *.rej core haproxy test nohup.out gmon.out src/*.[oas]
 
