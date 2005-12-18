@@ -83,8 +83,8 @@
 
 #include "include/appsession.h"
 
-#define HAPROXY_VERSION "1.2.7"
-#define HAPROXY_DATE	"2005/11/13"
+#define HAPROXY_VERSION "1.2.7.1"
+#define HAPROXY_DATE	"2005/12/04"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
