@@ -2281,6 +2281,20 @@ int event_srv_write(int fd) {
     if (fdtab[fd].state != FD_STERROR) {
 	if (max == 0) {
 	    /* may be we have received a connection acknowledgement in TCP mode without data */
+	    if (s->srv_state == SV_STCONN) {
+		int skerr;
+		socklen_t lskerr = sizeof(skerr);
+		getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
+		if (skerr) {
+		    s->res_sw = RES_ERROR;
+		    fdtab[fd].state = FD_STERROR;
+		    task_wakeup(&rq, t);
+		    tv_eternity(&s->swexpire);
+		    FD_CLR(fd, StaticWriteEvent);
+		    return 0;
+		}
+	    }
+
 	    s->res_sw = RES_NULL;
 	    task_wakeup(&rq, t);
 	    fdtab[fd].state = FD_STREADY;
