@@ -1,7 +1,7 @@
 ChangeLog :
 ===========
 
-2005/10/25
+2005/11/13 : 1.2.7
   - building with -DUSE_PCRE should include PCRE headers and not regex.h. At
     least on Solaris, this caused the libc's regex primitives to be used instead
     of PCRE, which caused trouble on group references. This is now fixed.
