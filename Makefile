@@ -6,6 +6,7 @@
 # correctly defined below.
 #TARGET = linux26
 TARGET = linux24
+#TARGET = linux24e
 #TARGET = linux22
 #TARGET = solaris
 #TARGET = openbsd
@@ -28,11 +29,15 @@ LD = gcc
 PCREDIR	:= $(shell pcre-config --prefix 2>/dev/null || :)
 #PCREDIR=/usr/local
 
-# This is for Linux 2.6 with netfilter and EPOLL
+# This is for standard Linux 2.6 with netfilter and epoll()
 COPTS.linux26 = -DNETFILTER -DENABLE_POLL -DENABLE_EPOLL
 LIBS.linux26 =
 
-# This is for Linux 2.4 with netfilter
+# This is for enhanced Linux 2.4 with netfilter and epoll() patch
+COPTS.linux24e = -DNETFILTER -DENABLE_POLL -DENABLE_EPOLL -DUSE_MY_EPOLL
+LIBS.linux24e =
+
+# This is for standard Linux 2.4 with netfilter but without epoll()
 COPTS.linux24 = -DNETFILTER -DENABLE_POLL
 LIBS.linux24 =
 
@@ -41,7 +46,7 @@ COPTS.linux22 = -DUSE_GETSOCKNAME -DENABLE_POLL
 LIBS.linux22 =
 
 # This is for Solaris 8
-COPTS.solaris = -fomit-frame-pointer -DSOLARIS -DENABLE_POLL
+COPTS.solaris = -fomit-frame-pointer -DENABLE_POLL -DFD_SETSIZE=65536
 LIBS.solaris = -lnsl -lsocket
 
 # This is for OpenBSD 3.0
@@ -63,13 +68,14 @@ COPTS.pcre=-DUSE_PCRE -I$(PCREDIR)/include
 LIBS.pcre=-L$(PCREDIR)/lib -lpcreposix -lpcre
 
 # you can enable debug arguments with "DEBUG=-g" or disable them with "DEBUG="
-#DEBUG =
+#DEBUG = -g -DDEBUG_MEMORY
 DEBUG = -g
 
 # if small memory footprint is required, you can reduce the buffer size. There
 # are 2 buffers per concurrent session, so 16 kB buffers will eat 32 MB memory
-# with 1000 concurrent sessions.
-#SMALL_OPTS = -DBUFSIZE=8192 -DMAXREWRITE=1024
+# with 1000 concurrent sessions. Putting it slightly lower than a page size
+# will avoid the additionnal paramters to overflow a page.
+#SMALL_OPTS = -DBUFSIZE=8100 -DMAXREWRITE=1000
 SMALL_OPTS =
 
 # redefine this if you want to add some special PATH to include/libs

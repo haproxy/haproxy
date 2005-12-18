@@ -77,7 +77,7 @@
 #include "include/appsession.h"
 
 #define HAPROXY_VERSION "1.2.5"
-#define HAPROXY_DATE	"2005/04/24"
+#define HAPROXY_DATE	"2005/04/30"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -255,9 +255,9 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define sizeof_session	sizeof(struct session)
 #define sizeof_buffer	sizeof(struct buffer)
 #define sizeof_fdtab	sizeof(struct fdtab)
-#define sizeof_curappsession	CAPTURE_LEN	/* current_session pool */
 #define sizeof_requri	REQURI_LEN
 #define sizeof_capture	CAPTURE_LEN
+#define sizeof_curappsession	CAPTURE_LEN	/* current_session pool */
 #define sizeof_appsess	sizeof(struct appsessions)
 
 /* different possible states for the sockets */
@@ -286,6 +286,11 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define POLL_LOOP_ACTION_INIT	0
 #define POLL_LOOP_ACTION_RUN	1
 #define POLL_LOOP_ACTION_CLEAN	2
+
+/* poll mechanisms available */
+#define POLL_USE_SELECT         (1<<0)
+#define POLL_USE_POLL           (1<<1)
+#define POLL_USE_EPOLL          (1<<2)
 
 /* bits for proxy->options */
 #define PR_O_REDISP	0x00000001	/* allow reconnection to dispatch in case of errors */
@@ -622,8 +627,7 @@ static struct {
 fd_set	*StaticReadEvent,
     	*StaticWriteEvent;
 
-int cfg_use_epoll = 0;          /* use epoll() instead of select() ? */
-int cfg_use_poll = 0;           /* use poll() instead of select() ? */
+int cfg_polling_mechanism = 0;     /* POLL_USE_{SELECT|POLL|EPOLL} */
 
 void **pool_session = NULL,
     **pool_buffer   = NULL,
@@ -823,10 +827,10 @@ void usage(char *name) {
 	    "        -N sets the default, per-proxy maximum # of connections (%d)\n"
 	    "        -p writes pids of all children to this file\n"
 #if defined(ENABLE_EPOLL)
-	    "        -E tries to use epoll() instead of select()\n"
+	    "        -de disables epoll() usage even when available\n"
 #endif
 #if defined(ENABLE_POLL)
-	    "        -P tries to use poll() instead of select()\n"
+	    "        -dp disables poll() usage even when available\n"
 #endif
 	    "\n",
 	    name, DEFAULT_MAXCONN, cfg_maxpconn);
@@ -5191,7 +5195,6 @@ int select_loop(int action) {
       }
 #endif
 
-
       if (next_time > 0) {  /* FIXME */
 	  /* Convert to timeval */
 	  /* to avoid eventual select loops due to timer precision */
@@ -5247,10 +5250,10 @@ int select_loop(int action) {
 		       */
 		      if (fdtab[fd].state == FD_STCLOSE)
 			  continue;
-			  
+		      
 		      if (FD_ISSET(fd, ReadEvent))
 			  fdtab[fd].read(fd);
-			  
+
 		      if (FD_ISSET(fd, WriteEvent))
 			  fdtab[fd].write(fd);
 		  }
@@ -5462,6 +5465,7 @@ void dump(int sig) {
     }
 }
 
+#ifdef DEBUG_MEMORY
 static void fast_stop(void)
 {
     struct proxy *p;
@@ -5494,6 +5498,7 @@ void sig_term(int sig) {
     /* If we are killed twice, we decide to die*/
     signal(sig, SIG_DFL);
 }
+#endif
 
 /* returns the pointer to an error in the replacement string, or NULL if OK */
 char *chain_regex(struct hdr_exp **head, regex_t *preg, int action, char *replace) {
@@ -5534,6 +5539,12 @@ int cfg_parse_global(char *file, int linenum, char **args) {
     }
     else if (!strcmp(args[0], "debug")) {
 	global.mode |= MODE_DEBUG;
+    }
+    else if (!strcmp(args[0], "noepoll")) {
+	cfg_polling_mechanism &= ~POLL_USE_EPOLL;
+    }
+    else if (!strcmp(args[0], "nopoll")) {
+	cfg_polling_mechanism &= ~POLL_USE_POLL;
     }
     else if (!strcmp(args[0], "quiet")) {
 	global.mode |= MODE_QUIET;
@@ -7139,6 +7150,14 @@ void init(int argc, char **argv) {
 	tmp++;
     }
 
+    cfg_polling_mechanism = POLL_USE_SELECT;  /* select() is always available */
+#if defined(ENABLE_POLL)
+    cfg_polling_mechanism |= POLL_USE_POLL;
+#endif
+#if defined(ENABLE_EPOLL)
+    cfg_polling_mechanism |= POLL_USE_EPOLL;
+#endif
+
     pid = getpid();
     progname = *argv;
     while ((tmp = strchr(progname, '/')) != NULL)
@@ -7157,12 +7176,12 @@ void init(int argc, char **argv) {
 		exit(0);
 	    }
 #if defined(ENABLE_EPOLL)
-	    else if (*flag == 'E')
-		cfg_use_epoll = 1;
+	    else if (*flag == 'd' && flag[1] == 'e')
+		cfg_polling_mechanism &= ~POLL_USE_EPOLL;
 #endif
 #if defined(ENABLE_POLL)
-	    else if (*flag == 'P')
-		cfg_use_poll = 1;
+	    else if (*flag == 'd' && flag[1] == 'p')
+		cfg_polling_mechanism &= ~POLL_USE_POLL;
 #endif
 	    else if (*flag == 'V')
 		arg_mode |= MODE_VERBOSE;
@@ -7501,8 +7520,10 @@ int main(int argc, char **argv) {
     signal(SIGQUIT, dump);
     signal(SIGUSR1, sig_soft_stop);
     signal(SIGHUP, sig_dump_state);
+#ifdef DEBUG_MEMORY
     signal(SIGINT, sig_int);
     signal(SIGTERM, sig_term);
+#endif
 
     /* on very high loads, a sigpipe sometimes happen just between the
      * getsockopt() which tells "it's OK to write", and the following write :-(
@@ -7588,34 +7609,37 @@ int main(int argc, char **argv) {
     }
 
 #if defined(ENABLE_EPOLL)
-    if (cfg_use_epoll) {
+    if (cfg_polling_mechanism & POLL_USE_EPOLL) {
 	if (epoll_loop(POLL_LOOP_ACTION_INIT)) {
 	    epoll_loop(POLL_LOOP_ACTION_RUN);
 	    epoll_loop(POLL_LOOP_ACTION_CLEAN);
+	    cfg_polling_mechanism &= POLL_USE_EPOLL;
 	}
 	else {
-	    Warning("epoll() is not available. Trying poll() or select() instead.\n");
-	    cfg_use_epoll = 0;
+	    Warning("epoll() is not available. Using poll()/select() instead.\n");
+	    cfg_polling_mechanism &= ~POLL_USE_EPOLL;
 	}
     }
 #endif
 
 #if defined(ENABLE_POLL)
-    if (cfg_use_poll) {
+    if (cfg_polling_mechanism & POLL_USE_POLL) {
 	if (poll_loop(POLL_LOOP_ACTION_INIT)) {
 	    poll_loop(POLL_LOOP_ACTION_RUN);
 	    poll_loop(POLL_LOOP_ACTION_CLEAN);
+	    cfg_polling_mechanism &= POLL_USE_POLL;
 	}
 	else {
 	    Warning("poll() is not available. Using select() instead.\n");
-	    cfg_use_poll = 0;
+	    cfg_polling_mechanism &= ~POLL_USE_POLL;
 	}
     }
 #endif
-    if (!cfg_use_epoll && !cfg_use_poll) {
+    if (cfg_polling_mechanism & POLL_USE_SELECT) {
 	if (select_loop(POLL_LOOP_ACTION_INIT)) {
 	    select_loop(POLL_LOOP_ACTION_RUN);
 	    select_loop(POLL_LOOP_ACTION_CLEAN);
+	    cfg_polling_mechanism &= POLL_USE_SELECT;
 	}
     }
 

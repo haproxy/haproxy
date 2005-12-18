@@ -4,7 +4,7 @@
                            -------------------
          		      version 1.2.5
 			      willy tarreau
-			        2005/04/24
+			        2005/04/30
 
 ============
 | Abstract |
@@ -44,6 +44,8 @@ There are only a few command line options :
        pids to this file in daemon mode.
     -s shows statistics (only if compiled in)
     -l shows even more statistics (implies '-s')
+    -de disables use of epoll()
+    -dp disables use of poll()
 
 
 The maximal number of connections per proxy is used as the default parameter for
@@ -98,6 +100,8 @@ the following ones :
   - nbproc <number>
   - daemon
   - debug
+  - noepoll
+  - nopoll
   - quiet
   - pidfile <file>
   - stats
@@ -262,6 +266,43 @@ Example :
 
     # to stop only those processes among others :
     # kill $(</var/run/haproxy-private.pid)
+
+
+1.7) Polling mechanisms
+-----------------------
+Starting from version 1.2.5, haproxy supports the poll() and epoll() polling
+mechanisms. On systems where select() is limited by FD_SETSIZE (like Solaris),
+poll() can be an interesting alternative. Performance tests show that Solaris'
+poll() performance does not decay as fast as the numbers of sockets increase,
+making it a safe solution for high loads. However, Solaris already uses poll()
+to emulate select(), so as long as the number of sockets has no reason to go
+higher than FD_SETSIZE, poll() should not provide any better performance. On
+Linux systems with the epoll() patch (or any 2.6 version), haproxy will use
+epoll() which is extremely fast and non dependant on the number of sockets.
+Tests have shown constant performance from 1 to 20000 simultaneous sessions.
+
+Haproxy will use epoll() when available, and will fall back to poll(), then to
+select(). However, if for any reason you need to disable epoll() or poll() (eg.
+because of a bug or just to compare performance), two new global options have
+been created for this matter : 'noepoll' and 'nopoll'.
+
+Example :
+---------
+
+    global
+        # use only select()
+        noepoll
+        nopoll
+
+Note :
+------
+For the sake of configuration file portability, these options are accepted but
+ignored if the poll() or epoll() mechanisms have not been enabled at compile
+time.
+
+To make debugging easier, the '-de' runtime argument disables epoll support and
+the '-dp' argument disables poll support. They are respectively equivalent to
+'noepoll' and 'nopoll'.
 
 
 2) Declaration of a listening service

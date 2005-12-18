@@ -1,6 +1,16 @@
 ChangeLog :
 ===========
 
+2005/04/30 : 1.2.5 (1.1.31)
+  - changed the runtime argument to disable epoll() to '-de'
+  - changed the runtime argument to disable poll() to '-dp'
+  - added global options 'nopoll' and 'noepoll' to do the same at the
+    configuration level.
+  - added a 'linux24e' target to the Makefile for Linux 2.4 systems patched to
+    support epoll().
+  - changed default FD_SETSIZE to 65536 on Solaris (default=1024)
+  - conditionned signals redirection to #ifdef DEBUG_MEMORY
+
 2005/04/26 : 1.2.5-pre4
   - made epoll() support a compile-time option : ENABLE_EPOLL
   - provided a very little libc replacement for a possibly missing epoll()
