@@ -73,8 +73,8 @@ TARGET_OPTS=$(COPTS.$(TARGET))
 REGEX_OPTS=$(COPTS.$(REGEX))
 CPU_OPTS=$(COPTS.$(CPU))
 
-COPTS=-I. $(CPU_OPTS) $(TARGET_OPTS) $(REGEX_OPTS) $(SMALL_OPTS)
-LIBS=$(LIBS.$(TARGET)) $(LIBS.$(REGEX))
+COPTS=-I. $(ADDINC) $(CPU_OPTS) $(TARGET_OPTS) $(REGEX_OPTS) $(SMALL_OPTS)
+LIBS=$(LIBS.$(TARGET)) $(LIBS.$(REGEX)) $(ADDLIB)
 
 # - use -DSTATTIME=0 to disable statistics, else specify an interval in
 #   milliseconds.

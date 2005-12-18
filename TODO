@@ -139,4 +139,5 @@ Todo for 1.2
 * appcookie
 - weighted round robin
 - option to shutdown(listen_sock) when max connections reached
-
+* epoll
+- replace the event scheduler with an O(log(N)) one

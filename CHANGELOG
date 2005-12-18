@@ -1,7 +1,10 @@
 ChangeLog :
 ===========
 
-2005/04/24
+2005/04/25 : 1.2.5-pre3
+  - experimental epoll() support (use temporary '-e' argument)
+
+2005/04/24 : 1.2.5-pre2
   - implemented the HTTP 303 code for error redirection. This forces the
     browser to fetch the given URI with a GET request. The new keyword for
     this is 'errorloc303', and a new 'errorloc302' keyword has been created
@@ -9,7 +12,7 @@ ChangeLog :
   - added more controls in the parser for valid use of '\x' sequence.
   - few fixes from Alex & Klaus
 
-2005/02/17
+2005/02/17 : 1.2.5-pre1
   - fixed a few errors in the documentation
 
 2005/02/13
