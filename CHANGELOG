@@ -1,6 +1,9 @@
 ChangeLog :
 ===========
 
+2005/06/21 : 1.2.5.2
+  - fixed build on PPC where chars are unsigned by default
+
 2005/05/02 : 1.2.5.1
   - dirty hack to fix a bug introduced with epoll : if we close an FD and
     immediately reassign it to another session through a connect(), the

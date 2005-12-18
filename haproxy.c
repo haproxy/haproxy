@@ -76,8 +76,8 @@
 
 #include "include/appsession.h"
 
-#define HAPROXY_VERSION "1.2.5"
-#define HAPROXY_DATE	"2005/04/30"
+#define HAPROXY_VERSION "1.2.5.2"
+#define HAPROXY_DATE	"2005/06/21"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -553,7 +553,7 @@ struct proxy {
     struct sockaddr_in source_addr;	/* the address to which we want to bind for connect() */
     struct proxy *next;
     struct sockaddr_in logsrv1, logsrv2; /* 2 syslog servers */
-    char logfac1, logfac2;		/* log facility for both servers. -1 = disabled */
+    signed char logfac1, logfac2;	/* log facility for both servers. -1 = disabled */
     int loglev1, loglev2;		/* log level for each server, 7 by default */
     int to_log;				/* things to be logged (LW_*) */
     struct timeval stop_time;		/* date to stop listening, when stopping != 0 */
@@ -1808,7 +1808,12 @@ int event_cli_read(int fd) {
 #endif
 
     if (fdtab[fd].state != FD_STERROR) {
-	while (1) {
+#ifdef FILL_BUFFERS
+	while (1)
+#else
+	do
+#endif
+	{
 	    if (b->l == 0) { /* let's realign the buffer to optimize I/O */
 		b->r = b->w = b->h = b->lr  = b->data;
 		max = b->rlim - b->data;
@@ -1871,6 +1876,9 @@ int event_cli_read(int fd) {
 		break;
 	    }
 	} /* while(1) */
+#ifndef FILL_BUFFERS
+	while (0);
+#endif
     }
     else {
 	s->res_cr = RES_ERROR;
@@ -1905,7 +1913,12 @@ int event_srv_read(int fd) {
 #endif
 
     if (fdtab[fd].state != FD_STERROR) {
-	while (1) {
+#ifdef FILL_BUFFERS
+	while (1)
+#else
+	do
+#endif
+	{
 	    if (b->l == 0) { /* let's realign the buffer to optimize I/O */
 		b->r = b->w = b->h = b->lr  = b->data;
 		max = b->rlim - b->data;
@@ -1968,6 +1981,9 @@ int event_srv_read(int fd) {
 		break;
 	    }
 	} /* while(1) */
+#ifndef FILL_BUFFERS
+	while (0);
+#endif
     }
     else {
 	s->res_sr = RES_ERROR;
