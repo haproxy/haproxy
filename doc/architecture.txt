@@ -2,9 +2,9 @@
                              H A - P r o x y
                            Architecture  Guide
                            -------------------
-                             version 1.1.30
+                             version 1.1.32
                               willy tarreau
-                               2004/11/28
+                               2005/07/17
 
 
 This document provides real world examples with working configurations.
@@ -50,7 +50,7 @@ load across the new boxes.
 Config on haproxy (LB1) :
 -------------------------
        
-    listen 192.168.1.1:80
+    listen webfarm 192.168.1.1:80
        mode http
        balance roundrobin
        cookie SERVERID insert indirect
@@ -143,7 +143,7 @@ Now you don't want to add more cookies, but rather use existing ones. The
 application already generates a "JSESSIONID" cookie which is enough to track
 sessions, so we'll prefix this cookie with the server name when we see it.
 Since the load-balancer becomes critical, it will be backed up with a second
-one in VRRP mode using keepalived.
+one in VRRP mode using keepalived under Linux.
 
 Download the latest version of keepalived from this site and install it
 on each load-balancer LB1 and LB2 :
@@ -152,7 +152,7 @@ on each load-balancer LB1 and LB2 :
 
 You then have a shared IP between the two load-balancers (we will still use the
 original IP). It is active only on one of them at any moment. To allow the
-proxy to bind to the shared IP, you must enable it in /proc :
+proxy to bind to the shared IP on Linux 2.4, you must enable it in /proc :
 
 # echo 1 >/proc/sys/net/ipv4/ip_nonlocal_bind
 
@@ -171,7 +171,7 @@ proxy to bind to the shared IP, you must enable it in /proc :
 Config on both proxies (LB1 and LB2) :
 --------------------------------------       
 
-    listen 192.168.1.1:80
+    listen webfarm 192.168.1.1:80
        mode http
        balance roundrobin
        cookie JSESSIONID prefix
@@ -188,7 +188,8 @@ Notes: the proxy will modify EVERY cookie sent by the client and the server,
 so it is important that it can access to ALL cookies in ALL requests for
 each session. This implies that there is no keep-alive (HTTP/1.1), thus the
 "httpclose" option. Only if you know for sure that the client(s) will never
-use keep-alive, you can remove this option.
+use keep-alive (eg: Apache 1.3 in reverse-proxy mode), you can remove this
+option.
 
 
 Description :
@@ -266,7 +267,7 @@ which will also check that the services run fine on both proxies :
 Config on both proxies (LB1 and LB2) :
 --------------------------------------
        
-    listen 0.0.0.0:80
+    listen webfarm 0.0.0.0:80
        mode http
        balance roundrobin
        cookie JSESSIONID prefix
@@ -287,25 +288,108 @@ logged.
 Config on the Alteon :
 ----------------------
 
-/c/slb/real  11
-       ena
-       name "LB1"
-       rip 192.168.1.3
-/c/slb/real  12
-       ena
-       name "LB2"
-       rip 192.168.1.4
-/c/slb/group 10
-       name "LB1-2"
-       metric roundrobin
-       health tcp
-       add 11
-       add 12
-/c/slb/virt 10
-       ena
-       vip 192.168.1.1
-/c/slb/virt 10/service http
-       group 10
+    /c/slb/real  11
+           ena
+           name "LB1"
+           rip 192.168.1.3
+    /c/slb/real  12
+           ena
+           name "LB2"
+           rip 192.168.1.4
+    /c/slb/group 10
+           name "LB1-2"
+           metric roundrobin
+           health tcp
+           add 11
+           add 12
+    /c/slb/virt 10
+           ena
+           vip 192.168.1.1
+    /c/slb/virt 10/service http
+           group 10
+
+
+Note: the health-check on the Alteon is set to "tcp" to prevent the proxy from
+forwarding the connections. It can also be set to "http", but for this the
+proxy must specify a "monitor-net" with the Alteons' addresses, so that the
+Alteon can really check that the proxies can talk HTTP but without forwarding
+the connections to the end servers. Check next section for an example on how to
+use monitor-net.
+
+
+============================================================
+2.2 Generic TCP relaying and external layer 4 load-balancers
+============================================================
+
+Sometimes it's useful to be able to relay generic TCP protocols (SMTP, TSE,
+VNC, etc...), for example to interconnect private networks. The problem comes
+when you use external load-balancers which need to send periodic health-checks
+to the proxies, because these health-checks get forwarded to the end servers.
+The solution is to specify a network which will be dedicated to monitoring
+systems and must not lead to a forwarding connection nor to any log, using the
+"monitor-net" keyword. Note: this feature expects a version of haproxy greater
+than or equal to 1.1.32 or 1.2.6.
+
+
+                |  VIP=172.16.1.1   |
+           +----+----+         +----+----+
+           | Alteon1 |         | Alteon2 |
+           +----+----+         +----+----+
+ 192.168.1.252  |  GW=192.168.1.254 |  192.168.1.253
+                |                   |
+          ------+---+------------+--+-----------------> TSE farm : 192.168.1.10
+       192.168.1.1  |            | 192.168.1.2
+                 +--+--+      +--+--+
+                 | LB1 |      | LB2 |
+                 +-----+      +-----+
+                 haproxy      haproxy
+
+
+Config on both proxies (LB1 and LB2) :
+--------------------------------------
+       
+    listen tse-proxy
+       bind :3389,:1494,:5900  # TSE, ICA and VNC at once.
+       mode tcp
+       balance roundrobin
+       server tse-farm 192.168.1.10
+       monitor-net 192.168.1.252/31
+
+The "monitor-net" option instructs the proxies that any connection coming from
+192.168.1.252 or 192.168.1.253 will not be logged nor forwarded and will be
+closed immediately. The Alteon load-balancers will then see the proxies alive
+without perturbating the service.
+
+Config on the Alteon :
+----------------------
+
+    /c/l3/if 1
+           ena
+           addr 192.168.1.252
+           mask 255.255.255.0
+    /c/slb/real  11
+           ena
+           name "LB1"
+           rip 192.168.1.1
+    /c/slb/real  12
+           ena
+           name "LB2"
+           rip 192.168.1.2
+    /c/slb/group 10
+           name "LB1-2"
+           metric roundrobin
+           health tcp
+           add 11
+           add 12
+    /c/slb/virt 10
+           ena
+           vip 172.16.1.1
+    /c/slb/virt 10/service 1494
+           group 10
+    /c/slb/virt 10/service 3389
+           group 10
+    /c/slb/virt 10/service 5900
+           group 10
 
 
 =========================================================
@@ -422,7 +506,7 @@ When an application is spread across several severs, the time to update all
 instances increases, so the application seems jerky for a longer period.
 
 HAproxy offers several solutions for this. Although it cannot be reconfigured
-without being stopped, not does it offer any external command, there are other
+without being stopped, nor does it offer any external command, there are other
 working solutions.
 
 
@@ -588,13 +672,13 @@ To soft-stop the service :
 
   # kill $(</var/run/haproxy-checks.pid)
 
-The port 81 will stop to respond and the load-balancer will notice the failure.
+The port 81 will stop responding and the load-balancer will notice the failure.
 
 
 4.2.2 Centralizing the server management
 ----------------------------------------
 
-If one find it preferable to manage the servers from the load-balancer itself,
+If one finds it preferable to manage the servers from the load-balancer itself,
 the port redirector can be installed on the load-balancer itself. See the
 example with iptables below.
 
@@ -621,8 +705,8 @@ which is available for download here :
 
   - health-checks will be sent twice as often, once for each standard server,
     and once for reach backup server. All this will be multiplicated by the
-    number of processes if you use multi-process mode. You will have to check
-    that all the checks sent to the server do not load it.
+    number of processes if you use multi-process mode. You will have to ensure
+    that all the checks sent to the server do not overload it.
 
 
 ==================================================

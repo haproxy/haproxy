@@ -1,7 +1,10 @@
 ChangeLog :
 ===========
 
-2005/07/06 : 1.2.6 (1.1.32)
+2005/08/07 : 1.2.6
+  - clean-up patch from Alexander Lazic fixes build on Debian 3.1 (socklen_t).
+
+2005/07/06 : 1.2.6-pre5 (1.1.32)
   - added the number of active sessions (proxy/process) in the logs
 
 2005/07/06 : 1.2.6-pre4 (1.1.32-pre4)
