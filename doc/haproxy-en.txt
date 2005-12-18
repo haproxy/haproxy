@@ -2,9 +2,9 @@
                              H A - P r o x y
                             Reference  Manual
                            -------------------
-                              version 1.2.6
+                              version 1.2.7
                               willy tarreau
-                                2005/08/07
+                                2005/10/09
 
 ============
 | Abstract |
@@ -1092,6 +1092,20 @@ Example :
         balance roundrobin
         server srv1 192.168.1.1:80 source 192.168.2.1:20
         server srv2 192.168.1.2:80 source 192.168.2.1:20
+
+4.1.3) TCP keep-alive
+---------------------
+With version 1.2.7, it becomes possible to enable TCP keep-alives on both the
+client and server sides. This makes it possible to prevent long sessions from
+expiring on external layer 4 components such as firewalls and load-balancers.
+It also allows the system to terminate dead sessions when no timeout has been
+set (not recommanded). The proxy cannot set the keep-alive probes intervals nor
+maximal count, consult your operating system manual for this. There are 3
+options to enable TCP keep-alive :
+
+	option tcpka	# enables keep-alive both on client and server side
+	option clitcpka	# enables keep-alive only on client side
+	option srvtcpka	# enables keep-alive only on server side
 
 
 4.2) Event logging

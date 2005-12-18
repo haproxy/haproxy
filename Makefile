@@ -33,7 +33,10 @@ PCREDIR	:= $(shell pcre-config --prefix 2>/dev/null || :)
 COPTS.linux26 = -DNETFILTER -DENABLE_POLL -DENABLE_EPOLL
 LIBS.linux26 =
 
-# This is for enhanced Linux 2.4 with netfilter and epoll() patch
+# This is for enhanced Linux 2.4 with netfilter and epoll() patch.
+# Warning! If kernel is 2.4 with epoll-lt <= 0.21, then you must add
+# -DEPOLL_CTL_MOD_WORKAROUND to workaround a very rare bug.
+#COPTS.linux24e = -DNETFILTER -DENABLE_POLL -DENABLE_EPOLL -DUSE_MY_EPOLL -DEPOLL_CTL_MOD_WORKAROUND
 COPTS.linux24e = -DNETFILTER -DENABLE_POLL -DENABLE_EPOLL -DUSE_MY_EPOLL
 LIBS.linux24e =
 

@@ -1,6 +1,19 @@
 ChangeLog :
 ===========
 
+2005/10/09 : 1.2.7rc (1.1.33rc)
+  - second batch of socklen_t changes.
+  - clean-ups from Cameron Simpson.
+  - because tv_remain() does not know about eternity, using no timeout can
+    make select() spin around a null time-out. Bug reported by Cameron Simpson.
+  - client read timeout was not properly set to eternity initialized after an
+    accept() if it was not set in the config. It remained undetected so long
+    because eternity is 0 and newly allocated pages are zeroed by the system.
+  - do not call get_original_dst() when not in transparent mode.
+  - implemented a workaround for a bug in certain epoll() implementations on
+    linux-2.4 kernels (epoll-lt <= 0.21).
+  - implemented TCP keepalive with new options : tcpka, clitcpka, srvtcpka.
+
 2005/08/07 : 1.2.6
   - clean-up patch from Alexander Lazic fixes build on Debian 3.1 (socklen_t).
 

@@ -76,8 +76,8 @@
 
 #include "include/appsession.h"
 
-#define HAPROXY_VERSION "1.2.6"
-#define HAPROXY_DATE	"2005/08/07"
+#define HAPROXY_VERSION "1.2.7rc"
+#define HAPROXY_DATE	"2005/10/09"
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
@@ -155,6 +155,8 @@
  */
 #define SCHEDULER_RESOLUTION	9
 
+#define TIME_ETERNITY		-1
+/* returns the lowest delay amongst <old> and <new>, and respects TIME_ETERNITY */
 #define MINTIME(old, new)	(((new)<0)?(old):(((old)<0||(new)<(old))?(new):(old)))
 #define SETNOW(a)		(*a=now)
 
@@ -313,6 +315,8 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define PR_O_LOGASAP	0x00008000	/* log as soon as possible, without waiting for the session to complete */
 #define PR_O_HTTP_CLOSE	0x00010000	/* force 'connection: close' in both directions */
 #define PR_O_CHK_CACHE	0x00020000	/* require examination of cacheability of the 'set-cookie' field */
+#define PR_O_TCP_CLI_KA	0x00040000	/* enable TCP keep-alive on client-side sessions */
+#define PR_O_TCP_SRV_KA	0x00080000	/* enable TCP keep-alive on server-side sessions */
 
 /* various session flags */
 #define SN_DIRECT	0x00000001	/* connection made on the server matching the client cookie */
@@ -553,7 +557,7 @@ struct proxy {
     int nbconn;				/* # of active sessions */
     int maxconn;			/* max # of active sessions */
     int conn_retries;			/* maximum number of connect retries */
-    int options;			/* PR_O_REDISP, PR_O_TRANSP */
+    int options;			/* PR_O_REDISP, PR_O_TRANSP, ... */
     int mode;				/* mode = PR_MODE_TCP, PR_MODE_HTTP or PR_MODE_HEALTH */
     struct sockaddr_in source_addr;	/* the address to which we want to bind for connect() */
     struct proxy *next;
@@ -601,7 +605,7 @@ struct fdtab {
 
 /*********************************************************************/
 
-int cfg_maxpconn = 2000;	/* # of simultaneous connections per proxy (-N) */
+int cfg_maxpconn = DEFAULT_MAXCONN;	/* # of simultaneous connections per proxy (-N) */
 char *cfg_cfgfile = NULL;	/* configuration file */
 char *progname = NULL;		/* program name */
 int  pid;			/* current process id */
@@ -1280,6 +1284,7 @@ static inline struct timeval *tv_delayfrom(struct timeval *tv, struct timeval *f
 
 /*
  * compares <tv1> and <tv2> : returns 0 if equal, -1 if tv1 < tv2, 1 if tv1 > tv2
+ * Must not be used when either argument is eternity. Use tv_cmp2() for that.
  */
 static inline int tv_cmp(struct timeval *tv1, struct timeval *tv2) {
     if (tv1->tv_sec < tv2->tv_sec)
@@ -1296,6 +1301,7 @@ static inline int tv_cmp(struct timeval *tv1, struct timeval *tv2) {
 
 /*
  * returns the absolute difference, in ms, between tv1 and tv2
+ * Must not be used when either argument is eternity.
  */
 unsigned long tv_delta(struct timeval *tv1, struct timeval *tv2) {
     int cmp;
@@ -1320,6 +1326,7 @@ unsigned long tv_delta(struct timeval *tv1, struct timeval *tv2) {
 
 /*
  * returns the difference, in ms, between tv1 and tv2
+ * Must not be used when either argument is eternity.
  */
 static inline unsigned long tv_diff(struct timeval *tv1, struct timeval *tv2) {
     unsigned long ret;
@@ -1334,6 +1341,7 @@ static inline unsigned long tv_diff(struct timeval *tv1, struct timeval *tv2) {
 
 /*
  * compares <tv1> and <tv2> modulo 1ms: returns 0 if equal, -1 if tv1 < tv2, 1 if tv1 > tv2
+ * Must not be used when either argument is eternity. Use tv_cmp2_ms() for that.
  */
 static inline int tv_cmp_ms(struct timeval *tv1, struct timeval *tv2) {
     if (tv1->tv_sec == tv2->tv_sec) {
@@ -1357,6 +1365,7 @@ static inline int tv_cmp_ms(struct timeval *tv1, struct timeval *tv2) {
 /*
  * returns the remaining time between tv1=now and event=tv2
  * if tv2 is passed, 0 is returned.
+ * Must not be used when either argument is eternity.
  */
 static inline unsigned long tv_remain(struct timeval *tv1, struct timeval *tv2) {
     unsigned long ret;
@@ -1446,6 +1455,28 @@ static inline int tv_cmp2_ms(struct timeval *tv1, struct timeval *tv2) {
 	return -1;
     else
 	return 0;
+}
+
+/*
+ * returns the remaining time between tv1=now and event=tv2
+ * if tv2 is passed, 0 is returned.
+ * Returns TIME_ETERNITY if tv2 is eternity.
+ */
+static inline unsigned long tv_remain2(struct timeval *tv1, struct timeval *tv2) {
+    unsigned long ret;
+
+    if (tv_iseternity(tv2))
+	return TIME_ETERNITY;
+
+    if (tv_cmp_ms(tv1, tv2) >= 0)
+	return 0; /* event elapsed */
+
+    ret = (tv2->tv_sec - tv1->tv_sec) * 1000;
+    if (tv2->tv_usec > tv1->tv_usec)
+	ret += (tv2->tv_usec - tv1->tv_usec) / 1000;
+    else
+	ret -= (tv1->tv_usec - tv2->tv_usec) / 1000;
+    return (unsigned long) ret;
 }
 
 /*
@@ -1648,7 +1679,7 @@ struct task *task_queue(struct task *task) {
 /* some prototypes */
 static int maintain_proxies(void);
 
-/* this either returns the sockname or the original destination address. Code
+/* This either returns the sockname or the original destination address. Code
  * inspired from Patrick Schaaf's example of nf_getsockname() implementation.
  */
 static int get_original_dst(int fd, struct sockaddr_in *sa, socklen_t *salen) {
@@ -1767,7 +1798,8 @@ int connect_server(struct session *s) {
     }
     else if (s->proxy->options & PR_O_TRANSP) {
 	/* in transparent mode, use the original dest addr if no dispatch specified */
-	socklen_t salen = sizeof(struct sockaddr_in);
+	socklen_t salen = sizeof(s->srv_addr);
+
 	if (get_original_dst(s->cli_fd, &s->srv_addr, &salen) == -1) {
 	    qfprintf(stderr, "Cannot get original server address.\n");
 	    return SN_ERR_INTERNAL;
@@ -1778,10 +1810,10 @@ int connect_server(struct session *s) {
      * the port the client connected to with an offset. */
     if (s->srv != NULL && s->srv->state & SRV_MAPPORTS) {
 	struct sockaddr_in sockname;
-	socklen_t namelen;
+	socklen_t namelen = sizeof(sockname);
 
-	namelen = sizeof(sockname);
-	if (get_original_dst(s->cli_fd, (struct sockaddr_in *)&sockname, &namelen) == -1)
+	if (!(s->proxy->options & PR_O_TRANSP) ||
+	    get_original_dst(s->cli_fd, (struct sockaddr_in *)&sockname, &namelen) == -1)
 	    getsockname(s->cli_fd, (struct sockaddr *)&sockname, &namelen);
 	s->srv_addr.sin_port = htons(ntohs(s->srv_addr.sin_port) + ntohs(sockname.sin_port));
     }
@@ -1820,6 +1852,9 @@ int connect_server(struct session *s) {
 	close(fd);
 	return SN_ERR_INTERNAL;
     }
+
+    if (s->proxy->options & PR_O_TCP_SRV_KA)
+	setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, (char *) &one, sizeof(one));
 
     /* allow specific binding :
      * - server-specific at first
@@ -1866,10 +1901,12 @@ int connect_server(struct session *s) {
 		     s->proxy->id, s->srv->id, msg);
 	    return SN_ERR_RESOURCE;
 	} else if (errno == ETIMEDOUT) {
+	    //qfprintf(stderr,"Connect(): ETIMEDOUT");
 	    close(fd);
 	    return SN_ERR_SRVTO;
 	} else {
 	    // (errno == ECONNREFUSED || errno == ENETUNREACH || errno == EACCES || errno == EPERM)
+	    //qfprintf(stderr,"Connect(): %d", errno);
 	    close(fd);
 	    return SN_ERR_SRVCL;
 	}
@@ -1936,9 +1973,9 @@ int event_cli_read(int fd) {
 	    
 #ifndef MSG_NOSIGNAL
 	    {
-		int skerr, lskerr;
+		int skerr;
+		socklen_t lskerr = sizeof(skerr);
 		
-		lskerr = sizeof(skerr);
 		getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
 		if (skerr)
 		    ret = -1;
@@ -2041,9 +2078,9 @@ int event_srv_read(int fd) {
 
 #ifndef MSG_NOSIGNAL
 	    {
-		int skerr, lskerr;
+		int skerr;
+		socklen_t lskerr = sizeof(skerr);
 
-		lskerr = sizeof(skerr);
 		getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
 		if (skerr)
 		    ret = -1;
@@ -2126,10 +2163,6 @@ int event_cli_write(int fd) {
 	max = b->data + BUFSIZE - b->w;
     
     if (fdtab[fd].state != FD_STERROR) {
-#ifndef MSG_NOSIGNAL
-	int skerr, lskerr;
-#endif
-
 	if (max == 0) {
 	    s->res_cw = RES_NULL;
 	    task_wakeup(&rq, t);
@@ -2139,12 +2172,16 @@ int event_cli_write(int fd) {
 	}
 
 #ifndef MSG_NOSIGNAL
-	lskerr=sizeof(skerr);
-	getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
-	if (skerr)
+	{
+	    int skerr;
+	    socklen_t lskerr = sizeof(skerr);
+
+	    getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
+	    if (skerr)
 		ret = -1;
-	else
+	    else
 		ret = send(fd, b->w, max, MSG_DONTWAIT);
+	}
 #else
 	ret = send(fd, b->w, max, MSG_DONTWAIT | MSG_NOSIGNAL);
 #endif
@@ -2215,9 +2252,6 @@ int event_srv_write(int fd) {
 	max = b->data + BUFSIZE - b->w;
     
     if (fdtab[fd].state != FD_STERROR) {
-#ifndef MSG_NOSIGNAL
-	int skerr, lskerr;
-#endif
 	if (max == 0) {
 	    /* may be we have received a connection acknowledgement in TCP mode without data */
 	    s->res_sw = RES_NULL;
@@ -2228,14 +2262,16 @@ int event_srv_write(int fd) {
 	    return 0;
 	}
 
-
 #ifndef MSG_NOSIGNAL
-	lskerr=sizeof(skerr);
-	getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
-	if (skerr)
+	{
+	    int skerr;
+	    socklen_t lskerr = sizeof(skerr);
+	    getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
+	    if (skerr)
 		ret = -1;
-	else
+	    else
 		ret = send(fd, b->w, max, MSG_DONTWAIT);
+	}
 #else
 	ret = send(fd, b->w, max, MSG_DONTWAIT | MSG_NOSIGNAL);
 #endif
@@ -2442,6 +2478,7 @@ int event_accept(int fd) {
     while (p->nbconn < p->maxconn) {
 	struct sockaddr_storage addr;
 	socklen_t laddr = sizeof(addr);
+
 	if ((cfd = accept(fd, (struct sockaddr *)&addr, &laddr)) == -1) {
 	    switch (errno) {
 	    case EAGAIN:
@@ -2520,6 +2557,9 @@ int event_accept(int fd) {
 	    return 0;
 	}
 
+	if (p->options & PR_O_TCP_CLI_KA)
+	    setsockopt(cfd, SOL_SOCKET, SO_KEEPALIVE, (char *) &one, sizeof(one));
+
 	t->next = t->prev = t->rqnext = NULL; /* task not in run queue yet */
 	t->wq = LIST_HEAD(wait_queue); /* but already has a wait queue assigned */
 	t->state = TASK_IDLE;
@@ -2589,10 +2629,10 @@ int event_accept(int fd) {
 	if ((p->mode == PR_MODE_TCP || p->mode == PR_MODE_HTTP)
 	    && (p->logfac1 >= 0 || p->logfac2 >= 0)) {
 	    struct sockaddr_storage sockname;
-	    socklen_t namelen;
+	    socklen_t namelen = sizeof(sockname);
 
-	    namelen = sizeof(sockname);
 	    if (addr.ss_family != AF_INET ||
+		!(s->proxy->options & PR_O_TRANSP) ||
 		get_original_dst(cfd, (struct sockaddr_in *)&sockname, &namelen) == -1)
 		getsockname(cfd, (struct sockaddr *)&sockname, &namelen);
 
@@ -2630,10 +2670,10 @@ int event_accept(int fd) {
 
 	if ((global.mode & MODE_DEBUG) && (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))) {
 	    struct sockaddr_in sockname;
-	    socklen_t namelen;
+	    socklen_t namelen = sizeof(sockname);
 	    int len;
-	    namelen = sizeof(sockname);
 	    if (addr.ss_family != AF_INET ||
+		!(s->proxy->options & PR_O_TRANSP) ||
 		get_original_dst(cfd, (struct sockaddr_in *)&sockname, &namelen) == -1)
 		getsockname(cfd, (struct sockaddr *)&sockname, &namelen);
 
@@ -2713,11 +2753,18 @@ int event_accept(int fd) {
 	    FD_SET(cfd, StaticReadEvent);
 	}
 
+#if defined(DEBUG_FULL) && defined(ENABLE_EPOLL)
+	if (PrevReadEvent) {
+	    assert(!(FD_ISSET(cfd, PrevReadEvent)));
+	    assert(!(FD_ISSET(cfd, PrevWriteEvent)));
+	}
+#endif
 	fd_insert(cfd);
 
 	tv_eternity(&s->cnexpire);
 	tv_eternity(&s->srexpire);
 	tv_eternity(&s->swexpire);
+	tv_eternity(&s->crexpire);
 	tv_eternity(&s->cwexpire);
 
 	if (s->proxy->clitimeout) {
@@ -2738,7 +2785,7 @@ int event_accept(int fd) {
 	actconn++;
 	totalconn++;
 
-	// fprintf(stderr, "accepting from %p => %d conn, %d total\n", p, actconn, totalconn);
+	// fprintf(stderr, "accepting from %p => %d conn, %d total, task=%p\n", p, actconn, totalconn, t);
     } /* end of while (p->nbconn < p->maxconn) */
     return 0;
 }
@@ -2755,8 +2802,8 @@ int event_srv_chk_w(int fd) {
     struct server *s = t->context;
 
     int skerr;
-    socklen_t lskerr;
-    lskerr = sizeof(skerr);
+    socklen_t lskerr = sizeof(skerr);
+
     getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
     /* in case of TCP only, this tells us if the connection succeeded */
     if (skerr)
@@ -2802,14 +2849,16 @@ int event_srv_chk_r(int fd) {
     struct task *t = fdtab[fd].owner;
     struct server *s = t->context;
 
-    int skerr, lskerr;
-    lskerr = sizeof(skerr);
-
     s->result = len = -1;
 #ifndef MSG_NOSIGNAL
-    getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
-    if (!skerr)
-	len = recv(fd, reply, sizeof(reply), 0);
+    {
+	int skerr;
+	socklen_t lskerr = sizeof(skerr);
+
+	getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
+	if (!skerr)
+	    len = recv(fd, reply, sizeof(reply), 0);
+    }
 #else
     /* Warning! Linux returns EAGAIN on SO_ERROR if data are still available
      * but the connection was closed on the remote end. Fortunately, recv still
@@ -3150,8 +3199,8 @@ int process_cli(struct session *t) {
 		  asession_temp->sessid = local_asession.sessid;
 		  asession_temp->serverid = local_asession.serverid;
 		  chtbl_insert(&(t->proxy->htbl_proxy), (void *) asession_temp);
-		} /* end if(chtbl_lookup()) */
-		else{
+		} /* end if (chtbl_lookup()) */
+		else {
 		  /*free wasted memory;*/
 		  pool_free_to(apools.sessid, local_asession.sessid);
 		}
@@ -3175,20 +3224,20 @@ int process_cli(struct session *t) {
 			        t->flags |= SN_CK_VALID | SN_DIRECT;
 			        t->srv = srv;
 				break;
-		            }else {
+		            } else {
 			        t->flags &= ~SN_CK_MASK;
 			        t->flags |= SN_CK_DOWN;
 			    }
-		        }/* end if(strcmp()) */
+		        } /* end if (strcmp()) */
 		        srv = srv->next;
 		    }/* end while(srv) */
 		}/* end else of if (asession_temp->serverid == NULL) */
-	      }/* end if(strncasecmp(request_line,t->proxy->appsession_name,apssesion_name_len) == 0) */
+	      }/* end if (strncasecmp(request_line,t->proxy->appsession_name,apssesion_name_len) == 0) */
 	      else {
 		//fprintf(stderr,">>>>>>>>>>>>>>>>>>>>>>NO SESSION\n");
 	      }
 	      method_checked = 1;
-	    }/* end if(!method_checked ...) */
+	    } /* end if (!method_checked ...) */
 	    else{
 	      //printf("No Methode-Header with Session-String\n");
 	    }
@@ -3520,7 +3569,7 @@ int process_cli(struct session *t) {
 			    } else {
 				struct server *srv = t->proxy->srv;
 				while (srv) {
-				    if(strcmp(srv->id, asession_temp->serverid) == 0) {
+				    if (strcmp(srv->id, asession_temp->serverid) == 0) {
 					if (srv->state & SRV_RUNNING || t->proxy->options & PR_O_PERSIST) {
 					    /* we found the server and it's usable */
 					    t->flags &= ~SN_CK_MASK;
@@ -3665,6 +3714,7 @@ int process_cli(struct session *t) {
 	    if (t->proxy->clitimeout)
 		tv_delayfrom(&t->crexpire, &now, t->proxy->clitimeout);
 	    t->cli_state = CL_STSHUTW;
+	    //fprintf(stderr,"%p:%s(%d), c=%d, s=%d\n", t, __FUNCTION__, __LINE__, t->cli_state, t->cli_state);
 	    return 1;
 	}
 	/* read timeout */
@@ -3830,6 +3880,7 @@ int process_cli(struct session *t) {
 		/* stop reading until we get some space */
 		FD_CLR(t->cli_fd, StaticReadEvent);
 		tv_eternity(&t->crexpire);
+		//fprintf(stderr,"%p:%s(%d), c=%d, s=%d\n", t, __FUNCTION__, __LINE__, t->cli_state, t->cli_state);
 	    }
 	}
 	else {
@@ -3840,6 +3891,7 @@ int process_cli(struct session *t) {
 		    tv_delayfrom(&t->crexpire, &now, t->proxy->clitimeout);
 		else
 		    tv_eternity(&t->crexpire);
+		//fprintf(stderr,"%p:%s(%d), c=%d, s=%d\n", t, __FUNCTION__, __LINE__, t->cli_state, t->cli_state);
 	    }
 	}
 	return 0;
@@ -4386,10 +4438,10 @@ int process_srv(struct session *t) {
 
 		      /* Cool... it's the right one */
 
-		      size_t server_id_len = strlen(t->srv->id)+1;
+		      size_t server_id_len = strlen(t->srv->id) + 1;
 		      asession_temp = &local_asession;
 		      
-		      if((asession_temp->sessid = pool_alloc_from(apools.sessid, apools.ses_msize)) == NULL){
+		      if ((asession_temp->sessid = pool_alloc_from(apools.sessid, apools.ses_msize)) == NULL) {
 			Alert("Not enought Memory process_srv():asession->sessid:malloc().\n");
 			send_log(t->proxy, LOG_ALERT, "Not enought Memory process_srv():asession->sessid:malloc().\n");
 		      }
@@ -4407,22 +4459,22 @@ int process_srv(struct session *t) {
 			  asession_temp->sessid = local_asession.sessid;
 			  asession_temp->serverid = local_asession.serverid;
 			  chtbl_insert(&(t->proxy->htbl_proxy), (void *) asession_temp);
-		      }/* end if(chtbl_lookup()) */
-		      else
-		      {
+		      }/* end if (chtbl_lookup()) */
+		      else {
 		      	/* free wasted memory */
 		      	pool_free_to(apools.sessid, local_asession.sessid);
-		      } /* end else from if(chtbl_lookup()) */
+		      } /* end else from if (chtbl_lookup()) */
 		      
-		      if(asession_temp->serverid == NULL){
-		        if((asession_temp->serverid = pool_alloc_from(apools.serverid, apools.ser_msize)) == NULL){
+		      if (asession_temp->serverid == NULL) {
+		        if ((asession_temp->serverid = pool_alloc_from(apools.serverid, apools.ser_msize)) == NULL) {
 			  Alert("Not enought Memory process_srv():asession->sessid:malloc().\n");
 			  send_log(t->proxy, LOG_ALERT, "Not enought Memory process_srv():asession->sessid:malloc().\n");
 		        }
 			asession_temp->serverid[0] = '\0';
 		      }
 		      
-		      if(asession_temp->serverid[0] == '\0') memcpy(asession_temp->serverid,t->srv->id,server_id_len);
+		      if (asession_temp->serverid[0] == '\0')
+			  memcpy(asession_temp->serverid,t->srv->id,server_id_len);
 		      
 		      tv_delayfrom(&asession_temp->expire, &now, t->proxy->appsession_timeout);
 
@@ -4493,6 +4545,7 @@ int process_srv(struct session *t) {
 	    tv_eternity(&t->srexpire);
 	    shutdown(t->srv_fd, SHUT_RD);
 	    t->srv_state = SV_STSHUTR;
+	    //fprintf(stderr,"%p:%s(%d), c=%d, s=%d\n", t, __FUNCTION__, __LINE__, t->cli_state, t->cli_state);
 	    return 1;
 	}	
 	/* read timeout : return a 504 to the client.
@@ -4608,6 +4661,7 @@ int process_srv(struct session *t) {
 	    tv_eternity(&t->srexpire);
 	    shutdown(t->srv_fd, SHUT_RD);
 	    t->srv_state = SV_STSHUTR;
+	    //fprintf(stderr,"%p:%s(%d), c=%d, s=%d\n", t, __FUNCTION__, __LINE__, t->cli_state, t->cli_state);
 	    return 1;
 	}
 	/* end of client read and no more data to send */
@@ -4811,7 +4865,8 @@ int process_srv(struct session *t) {
 /* Processes the client and server jobs of a session task, then
  * puts it back to the wait queue in a clean state, or
  * cleans up its resources if it must be deleted. Returns
- * the time the task accepts to wait, or -1 for infinity
+ * the time the task accepts to wait, or TIME_ETERNITY for
+ * infinity.
  */
 int process_session(struct task *t) {
     struct session *s = t->context;
@@ -4838,7 +4893,7 @@ int process_session(struct task *t) {
 	/* restore t to its place in the task list */
 	task_queue(t);
 
-	return tv_remain(&now, &t->expire); /* nothing more to do */
+	return tv_remain2(&now, &t->expire); /* nothing more to do */
     }
 
     s->proxy->nbconn--;
@@ -4862,14 +4917,14 @@ int process_session(struct task *t) {
     task_delete(t);
     session_free(s);
     task_free(t);
-    return -1; /* rest in peace for eternity */
+    return TIME_ETERNITY; /* rest in peace for eternity */
 }
 
 
 
 /*
  * manages a server health-check. Returns
- * the time the task accepts to wait, or -1 for infinity.
+ * the time the task accepts to wait, or TIME_ETERNITY for infinity.
  */
 int process_chk(struct task *t) {
     struct server *s = t->context;
@@ -4882,7 +4937,7 @@ int process_chk(struct task *t) {
 	//fprintf(stderr, "process_chk: 2\n");
 	if (tv_cmp2_ms(&t->expire, &now) > 0) { /* not good time yet */
 	    task_queue(t);	/* restore t to its place in the task list */
-	    return tv_remain(&now, &t->expire);
+	    return tv_remain2(&now, &t->expire);
 	}
 	
 	/* we'll initiate a new check */
@@ -5022,7 +5077,7 @@ int process_chk(struct task *t) {
     //fprintf(stderr, "process_chk: 11\n");
     s->result = 0;
     task_queue(t);	/* restore t to its place in the task list */
-    return tv_remain(&now, &t->expire);
+    return tv_remain2(&now, &t->expire);
 }
 
 
@@ -5046,7 +5101,7 @@ int process_runnable_tasks() {
   int time2;
   struct task *t, *tnext;
 
-  next_time = -1; /* set the timer to wait eternally first */
+  next_time = TIME_ETERNITY; /* set the timer to wait eternally first */
 
   /* look for expired tasks and add them to the run queue.
    */
@@ -5056,10 +5111,13 @@ int process_runnable_tasks() {
       if (t->state & TASK_RUNNING)
 	  continue;
       
+      if (tv_iseternity(&t->expire))
+	  continue;
+
       /* wakeup expired entries. It doesn't matter if they are
        * already running because of a previous event
        */
-      if (tv_cmp2_ms(&t->expire, &now) <= 0) {
+      if (tv_cmp_ms(&t->expire, &now) <= 0) {
 	  task_wakeup(&rq, t);
       }
       else {
@@ -5194,6 +5252,23 @@ int epoll_loop(int action) {
 		  ev.events = (sr ? EPOLLIN : 0) | (sw ? EPOLLOUT : 0);
 		  ev.data.fd = fd;
 
+#ifdef EPOLL_CTL_MOD_WORKAROUND
+		  /* I encountered a rarely reproducible problem with
+		   * EPOLL_CTL_MOD where a modified FD (systematically
+		   * the one in epoll_events[0], fd#7) would sometimes
+		   * be set EPOLL_OUT while asked for a read ! This is
+		   * with the 2.4 epoll patch. The workaround is to
+		   * delete then recreate in case of modification.
+		   * This is in 2.4 up to epoll-lt-0.21 but not in 2.6
+		   * nor RHEL kernels.
+		   */
+
+		  if ((pr | pw) && fdtab[fd].state != FD_STCLOSE)
+		      epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, &ev);
+
+		  if ((sr | sw))
+		      epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &ev);
+#else
 		  if ((pr | pw)) {
 		      /* the file-descriptor already exists... */
 		      if ((sr | sw)) {
@@ -5217,6 +5292,7 @@ int epoll_loop(int action) {
 			  //  exit(1);
 		      }
 		  }
+#endif // EPOLL_CTL_MOD_WORKAROUND
 	      }
 	      ((int*)PrevReadEvent)[fds] = rn;
 	      ((int*)PrevWriteEvent)[fds] = wn;
@@ -5538,7 +5614,7 @@ int stats(void) {
  * this function enables proxies when there are enough free sessions,
  * or stops them when the table is full. It is designed to be called from the
  * select_loop(). It returns the time left before next expiration event
- * during stop time, -1 otherwise.
+ * during stop time, TIME_ETERNITY otherwise.
  */
 static int maintain_proxies(void) {
     struct proxy *p;
@@ -5546,7 +5622,7 @@ static int maintain_proxies(void) {
     int tleft; /* time left */
 
     p = proxy;
-    tleft = -1; /* infinite time */
+    tleft = TIME_ETERNITY; /* infinite time */
 
     /* if there are enough free sessions, we'll activate proxies */
     if (actconn < global.maxconn) {
@@ -5587,7 +5663,7 @@ static int maintain_proxies(void) {
 	while (p) {
 	    if (p->state != PR_STDISABLED) {
 		int t;
-		t = tv_remain(&now, &p->stop_time);
+		t = tv_remain2(&now, &p->stop_time);
 		if (t == 0) {
 		    Warning("Proxy %s stopped.\n", p->id);
 		    send_log(p, LOG_WARNING, "Proxy %s stopped.\n", p->id);
@@ -6326,6 +6402,18 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	else if (!strcmp(args[1], "dontlognull")) {
 	    /* don't log empty requests */
 	    curproxy->options |= PR_O_NULLNOLOG;
+	}
+	else if (!strcmp(args[1], "tcpka")) {
+	    /* enable TCP keep-alives on client and server sessions */
+	    curproxy->options |= PR_O_TCP_CLI_KA | PR_O_TCP_SRV_KA;
+	}
+	else if (!strcmp(args[1], "clitcpka")) {
+	    /* enable TCP keep-alives on client sessions */
+	    curproxy->options |= PR_O_TCP_CLI_KA;
+	}
+	else if (!strcmp(args[1], "srvtcpka")) {
+	    /* enable TCP keep-alives on server sessions */
+	    curproxy->options |= PR_O_TCP_SRV_KA;
 	}
 	else if (!strcmp(args[1], "httpchk")) {
 	    /* use HTTP request to check servers' health */
@@ -7611,7 +7699,7 @@ int start_proxies() {
     return 0;
 }
 
-int match_str(const void *key1, const void *key2){
+int match_str(const void *key1, const void *key2) {
 
     appsess *temp1,*temp2;
     temp1 = (appsess *)key1;
@@ -7623,7 +7711,7 @@ int match_str(const void *key1, const void *key2){
     return (strcmp(temp1->sessid,temp2->sessid) == 0);
 }/* end match_str */
 
-void destroy(void *data){
+void destroy(void *data) {
     appsess *temp1;
 
     //printf("destroy called\n");
@@ -7659,7 +7747,7 @@ void pool_destroy(void **pool)
     }
 }/* end pool_destroy() */
 
-void deinit(void){
+void deinit(void) {
     struct proxy *p = proxy;
     struct cap_hdr *h,*h_next;
     struct server *s,*s_next;
@@ -7680,13 +7768,13 @@ void deinit(void){
 
 	/* only strup if the user have set in config.
 	   When should we free it?!
-	   if(p->errmsg.msg400) free(p->errmsg.msg400);
-	   if(p->errmsg.msg403) free(p->errmsg.msg403);
-	   if(p->errmsg.msg408) free(p->errmsg.msg408);
-	   if(p->errmsg.msg500) free(p->errmsg.msg500);
-	   if(p->errmsg.msg502) free(p->errmsg.msg502);
-	   if(p->errmsg.msg503) free(p->errmsg.msg503);
-	   if(p->errmsg.msg504) free(p->errmsg.msg504);
+	   if (p->errmsg.msg400) free(p->errmsg.msg400);
+	   if (p->errmsg.msg403) free(p->errmsg.msg403);
+	   if (p->errmsg.msg408) free(p->errmsg.msg408);
+	   if (p->errmsg.msg500) free(p->errmsg.msg500);
+	   if (p->errmsg.msg502) free(p->errmsg.msg502);
+	   if (p->errmsg.msg503) free(p->errmsg.msg503);
+	   if (p->errmsg.msg504) free(p->errmsg.msg504);
 	*/
 	if (p->appsession_name)
 	    free(p->appsession_name);
@@ -7715,10 +7803,10 @@ void deinit(void){
 	s = p->srv;
 	while (s) {
 	    s_next = s->next;
-	    if(s->id)
+	    if (s->id)
 		free(s->id);
 	    
-	    if(s->cookie)
+	    if (s->cookie)
 		free(s->cookie);
 	    
 	    free(s);

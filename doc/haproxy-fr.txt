@@ -2,9 +2,9 @@
                              H A - P r o x y
                            Manuel de référence
                            -------------------
-                               version 1.2.6
+                               version 1.2.7
                               willy tarreau
-                                2005/08/07
+                                2005/10/09
 
 ================
 | Introduction |
@@ -1101,6 +1101,22 @@ Exemple :
        balance roundrobin
        server srv1 192.168.1.1:80 source 192.168.2.1:20
        server srv2 192.168.1.2:80 source 192.168.2.1:20
+
+4.1.3) Maintien de session TCP (keep-alive)
+-------------------------------------------
+Avec la version 1.2.7, il devient possible d'activer le maintien de session
+TCP (TCP keep-alive) à la fois côté client et côté serveur. Cela permet
+d'empêcher des sessions longues d'expirer sur des équipements de niveau 4
+externes tels que des firewalls ou des répartiteurs de charge. Cela permet
+aussi au système de détecter et terminer des sessions figées lorsqu'aucun
+time-out n'a été positionné (fortement déconseillé). Le proxy ne peut pas
+positionner l'intervalle entre les annonces ni le nombre maximal, veuillez
+vous référer au manuel du système d'exploitation pour cela. Il existe 3 options
+pour activer le maintien de session TCP :
+
+	option tcpka	# active le keep-alive côté client et côté serveur
+	option clitcpka	# active le keep-alive côté client
+	option srvtcpka	# active le keep-alive côté serveur
 
 
 4.2) Journalisation des connexions
