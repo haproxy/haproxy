@@ -2967,6 +2967,10 @@ int buffer_replace2(struct buffer *b, char *pos, char *end, char *str, int len) 
     if (delta + b->r >= b->data + BUFSIZE)
 	return 0;  /* no space left */
 
+    if (b->data + b->l < end)
+	/* The data has been stolen, we could have crashed. Maybe we should abort() ? */
+	return 0;
+
     /* first, protect the end of the buffer */
     memmove(end + delta, end, b->data + b->l - end);
 
@@ -4194,7 +4198,10 @@ int process_srv(struct session *t) {
 		    if (t->proxy->options & PR_O_COOK_NOC)
 			//len += sprintf(newhdr + len, "Cache-control: no-cache=\"set-cookie\"\r\n");
 			len += sprintf(trash + len, "Cache-control: private\r\n");
-		    
+
+		    if (rep->data + rep->l < rep->h)
+			/* The data has been stolen, we will crash cleanly instead of corrupting memory */
+			*(int *)0 = 0;
 		    buffer_replace2(rep, rep->h, rep->h, trash, len);
 		}
 
@@ -5354,14 +5361,18 @@ int epoll_loop(int action) {
 	  if (fdtab[fd].state == FD_STCLOSE)
 	      continue;
 	  
-	  if (epoll_events[count].events & ( EPOLLIN | EPOLLERR | EPOLLHUP ))
-	      fdtab[fd].read(fd);
+	  if (epoll_events[count].events & ( EPOLLIN | EPOLLERR | EPOLLHUP )) {
+	      if (FD_ISSET(fd, StaticReadEvent))
+		  fdtab[fd].read(fd);
+	  }
 	  
 	  if (fdtab[fd].state == FD_STCLOSE)
 	      continue;
 	  
-	  if (epoll_events[count].events & ( EPOLLOUT | EPOLLERR | EPOLLHUP ))
-	      fdtab[fd].write(fd);
+	  if (epoll_events[count].events & ( EPOLLOUT | EPOLLERR | EPOLLHUP )) {
+	      if (FD_ISSET(fd, StaticWriteEvent))
+		  fdtab[fd].write(fd);
+	  }
       }
   }
   return 1;
@@ -5475,14 +5486,18 @@ int poll_loop(int action) {
 	  if (fdtab[fd].state == FD_STCLOSE)
 	      continue;
 	  
-	  if (poll_events[count].revents & ( POLLIN | POLLERR | POLLHUP ))
-	      fdtab[fd].read(fd);
+	  if (poll_events[count].revents & ( POLLIN | POLLERR | POLLHUP )) {
+	      if (FD_ISSET(fd, StaticReadEvent))
+		  fdtab[fd].read(fd);
+	  }
 	  
 	  if (fdtab[fd].state == FD_STCLOSE)
 	      continue;
 	  
-	  if (poll_events[count].revents & ( POLLOUT | POLLERR | POLLHUP ))
-	      fdtab[fd].write(fd);
+	  if (poll_events[count].revents & ( POLLOUT | POLLERR | POLLHUP )) {
+	      if (FD_ISSET(fd, StaticWriteEvent))
+		  fdtab[fd].write(fd);
+	  }
       }
   }
   return 1;
