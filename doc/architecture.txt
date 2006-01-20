@@ -502,7 +502,7 @@ Flows :
 4. Soft-stop for application maintenance
 ========================================
 
-When an application is spread across several severs, the time to update all
+When an application is spread across several servers, the time to update all
 instances increases, so the application seems jerky for a longer period.
 
 HAproxy offers several solutions for this. Although it cannot be reconfigured
@@ -704,9 +704,72 @@ which is available for download here :
     runs. You must really forward the check port to the real application.
 
   - health-checks will be sent twice as often, once for each standard server,
-    and once for reach backup server. All this will be multiplicated by the
+    and once for each backup server. All this will be multiplicated by the
     number of processes if you use multi-process mode. You will have to ensure
     that all the checks sent to the server do not overload it.
+
+=======================
+4.3 Hot reconfiguration
+=======================
+
+There are two types of haproxy users :
+  - those who can never do anything in production out of maintenance periods ;
+  - those who can do anything at any time provided that the consequences are
+    limited.
+
+The first ones have no problem stopping the server to change configuration
+because they got some maintenance periods during which they can break anything.
+So they will even prefer doing a clean stop/start sequence to ensure everything
+will work fine upon next reload. Since those have represented the majority of
+haproxy uses, there has been little effort trying to improve this.
+
+However, the second category is a bit different. They like to be able to fix an
+error in a configuration file without anyone noticing. This can sometimes also
+be the case for the first category because humans are not failsafe.
+
+For this reason, a new hot reconfiguration mechanism has been introduced in
+version 1.1.34. Its usage is very simple and works even in chrooted
+environments with lowered privileges. The principle is very simple : upon
+reception of a SIGTTOU signal, the proxy will stop listening to all the ports.
+This will release the ports so that a new instance can be started. Existing
+connections will not be broken at all. If the new instance fails to start,
+then sending a SIGTTIN signal back to the original processes will restore
+the listening ports. This is possible without any special privileges because
+the sockets will not have been closed, so the bind() is still valid. Otherwise,
+if the new process starts successfully, then sending a SIGUSR1 signal to the
+old one ensures that it will exit as soon as its last session ends.
+
+A hot reconfiguration script would look like this :
+
+  # save previous state
+  mv /etc/haproxy/config /etc/haproxy/config.old
+  mv /var/run/haproxy.pid /var/run/haproxy.pid.old
+
+  mv /etc/haproxy/config.new /etc/haproxy/config
+  kill -TTOU $(cat /var/run/haproxy.pid.old)
+  if haproxy -p /var/run/haproxy.pid -f /etc/haproxy/config; then
+    echo "New instance successfully loaded, stopping previous one."
+    kill -USR1 $(cat /var/run/haproxy.pid.old)
+    rm -f /var/run/haproxy.pid.old
+    exit 1
+  else
+    echo "New instance failed to start, resuming previous one."
+    kill -TTIN $(cat /var/run/haproxy.pid.old)
+    rm -f /var/run/haproxy.pid
+    mv /var/run/haproxy.pid.old /var/run/haproxy.pid
+    mv /etc/haproxy/config /etc/haproxy/config.new
+    mv /etc/haproxy/config.old /etc/haproxy/config
+    exit 0
+  fi
+
+After this, you can still force old connections to end by sending
+a SIGTERM to the old process if it still exists :
+
+    kill $(cat /var/run/haproxy.pid.old)
+    rm -f /var/run/haproxy.pid.old
+
+Be careful with this as in multi-process mode, some pids might already
+have been reallocated to completely different processes.
 
 
 ==================================================

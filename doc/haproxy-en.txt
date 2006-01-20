@@ -490,16 +490,16 @@ Example :
 2.4) Soft stop
 --------------
 It is possible to stop services without breaking existing connections by the
-sending of the SIG_USR1 signal to the process. All services are then put into
+sending of the SIGUSR1 signal to the process. All services are then put into
 soft-stop state, which means that they will refuse to accept new connections,
 except for those which have a non-zero value in the 'grace' parameter, in which
 case they will still accept connections for the specified amount of time, in
-milliseconds. This allows to tell a load-balancer that the service is failing,
-while still doing the job during the time it needs to detect it.
+milliseconds. This makes it possible to tell a load-balancer that the service
+is failing, while still doing the job during the time it needs to detect it.
 
 Note: active connections are never killed. In the worst case, the user will have
 to wait for all of them to close or to time-out, or simply kill the process
-normally (SIG_TERM). The default 'grace' value is '0'.
+normally (SIGTERM). The default 'grace' value is '0'.
 
 Example :
 ---------
@@ -513,6 +513,20 @@ Example :
     listen health_check 0.0.0.0:60000
         mode health
         grace 0
+
+
+As of version 1.1.34, a new soft-reconfiguration mechanism has been introduced.
+It is now possible to "pause" all the proxies by sending a SIGTTOU signal to
+the processes. This will disable the listening socket without breaking existing
+connections. After that, sending a SIGTTIN signal to those processes enables
+the listening sockets again. This is very useful to try to load a new
+configuration or even a new version of haproxy without breaking existing
+connections. If the load succeeds, then simply send a SIGUSR1 which will make
+the previous proxies exit immediately once their sessions are closed ; and if
+the load fails, then simply send a SIGTTIN to restore the service immediately.
+Please note that the 'grace' parameter is ignored for SIGTTOU, as well as for
+SIGUSR1 when the process was in the pause mode. Please also note that it would
+be useful to save the pidfile before starting a new instance.
 
 
 2.5) Connections expiration time
