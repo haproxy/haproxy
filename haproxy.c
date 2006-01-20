@@ -5747,7 +5747,8 @@ static int maintain_proxies(void) {
 
 /*
  * this function disables health-check servers so that the process will quickly be ignored
- * by load balancers.
+ * by load balancers. Note that if a proxy was already in the PAUSED state, then its grace
+ * time will not be used since it would already not listen anymore to the socket.
  */
 static void soft_stop(void) {
     struct proxy *p;
@@ -5756,7 +5757,7 @@ static void soft_stop(void) {
     p = proxy;
     tv_now(&now); /* else, the old time before select will be used */
     while (p) {
-	if (p->state != PR_STSTOPPED) {
+	if (p->state != PR_STSTOPPED && p->state != PR_STPAUSED) {
 	    Warning("Stopping proxy %s in %d ms.\n", p->id, p->grace);
 	    send_log(p, LOG_WARNING, "Stopping proxy %s in %d ms.\n", p->id, p->grace);
 	    tv_delayfrom(&p->stop_time, &now, p->grace);
@@ -5777,7 +5778,7 @@ static void pause_proxy(struct proxy *p) {
 /*
  * This function temporarily disables listening so that another new instance
  * can start listening. It is designed to be called upon reception of a
- * SIGTTOU, after which either a SIG_USR1 can be sent to completely stop
+ * SIGTTOU, after which either a SIGUSR1 can be sent to completely stop
  * the proxy, or a SIGTTIN can be sent to listen again.
  */
 static void pause_proxies(void) {
