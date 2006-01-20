@@ -284,7 +284,8 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define PR_STNEW	0
 #define PR_STIDLE	1
 #define PR_STRUN	2
-#define PR_STDISABLED	3
+#define PR_STSTOPPED	3
+#define PR_STPAUSED	4
 
 /* values for proxy->mode */
 #define PR_MODE_TCP	0
@@ -5721,7 +5722,7 @@ static int maintain_proxies(void) {
     if (stopping) {
 	p = proxy;
 	while (p) {
-	    if (p->state != PR_STDISABLED) {
+	    if (p->state != PR_STSTOPPED) {
 		int t;
 		t = tv_remain2(&now, &p->stop_time);
 		if (t == 0) {
@@ -5732,7 +5733,7 @@ static int maintain_proxies(void) {
 			fd_delete(l->fd);
 			listeners--;
 		    }
-		    p->state = PR_STDISABLED;
+		    p->state = PR_STSTOPPED;
 		}
 		else {
 		    tleft = MINTIME(t, tleft);
@@ -5755,7 +5756,7 @@ static void soft_stop(void) {
     p = proxy;
     tv_now(&now); /* else, the old time before select will be used */
     while (p) {
-	if (p->state != PR_STDISABLED) {
+	if (p->state != PR_STSTOPPED) {
 	    Warning("Stopping proxy %s in %d ms.\n", p->id, p->grace);
 	    send_log(p, LOG_WARNING, "Stopping proxy %s in %d ms.\n", p->id, p->grace);
 	    tv_delayfrom(&p->stop_time, &now, p->grace);
@@ -5763,6 +5764,77 @@ static void soft_stop(void) {
 	p = p->next;
     }
 }
+
+static void pause_proxy(struct proxy *p) {
+    struct listener *l;
+    for (l = p->listen; l != NULL; l = l->next) {
+	shutdown(l->fd, SHUT_RD);
+	FD_CLR(l->fd, StaticReadEvent);
+	p->state = PR_STPAUSED;
+    }
+}
+
+/*
+ * This function temporarily disables listening so that another new instance
+ * can start listening. It is designed to be called upon reception of a
+ * SIGTTOU, after which either a SIG_USR1 can be sent to completely stop
+ * the proxy, or a SIGTTIN can be sent to listen again.
+ */
+static void pause_proxies(void) {
+    struct proxy *p;
+
+    p = proxy;
+    tv_now(&now); /* else, the old time before select will be used */
+    while (p) {
+	if (p->state != PR_STSTOPPED && p->state != PR_STPAUSED) {
+	    Warning("Pausing proxy %s.\n", p->id);
+	    send_log(p, LOG_WARNING, "Pausing proxy %s.\n", p->id);
+	    pause_proxy(p);
+	}
+	p = p->next;
+    }
+}
+
+
+/*
+ * This function reactivates listening. This can be used after a call to
+ * sig_pause(), for example when a new instance has failed starting up.
+ * It is designed to be called upon reception of a SIGTTIN.
+ */
+static void listen_proxies(void) {
+    struct proxy *p;
+    struct listener *l;
+
+    p = proxy;
+    tv_now(&now); /* else, the old time before select will be used */
+    while (p) {
+	if (p->state == PR_STPAUSED) {
+	    Warning("Enabling proxy %s.\n", p->id);
+	    send_log(p, LOG_WARNING, "Enabling proxy %s.\n", p->id);
+
+	    for (l = p->listen; l != NULL; l = l->next) {
+		if (listen(l->fd, p->maxconn) == 0) {
+		    if (actconn < global.maxconn && p->nbconn < p->maxconn) {
+			FD_SET(l->fd, StaticReadEvent);
+			p->state = PR_STRUN;
+		    }
+		    else
+			p->state = PR_STIDLE;
+		} else {
+		    Warning("Port %d busy while trying to enable proxy %s.\n",
+			    ntohs(l->addr.sin_port), p->id);
+		    send_log(p, LOG_WARNING, "Port %d busy while trying to enable proxy %s.\n",
+			     ntohs(l->addr.sin_port), p->id);
+		    /* Another port might have been enabled. Let's stop everything. */
+		    pause_proxy(p);
+		    break;
+		}
+	    }
+	}
+	p = p->next;
+    }
+}
+
 
 /*
  * upon SIGUSR1, let's have a soft stop.
@@ -5772,6 +5844,21 @@ void sig_soft_stop(int sig) {
     signal(sig, SIG_IGN);
 }
 
+/*
+ * upon SIGTTOU, we pause everything
+ */
+void sig_pause(int sig) {
+    pause_proxies();
+    signal(sig, sig_pause);
+}
+
+/*
+ * upon SIGTTIN, let's have a soft stop.
+ */
+void sig_listen(int sig) {
+    listen_proxies();
+    signal(sig, sig_listen);
+}
 
 /*
  * this function dumps every server's state when the process receives SIGHUP.
@@ -6212,7 +6299,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	}
     }
     else if (!strcmp(args[0], "disabled")) {  /* disables this proxy */
-	curproxy->state = PR_STDISABLED;
+	curproxy->state = PR_STSTOPPED;
     }
     else if (!strcmp(args[0], "enabled")) {  /* enables this proxy (used to revert a disabled default) */
 	curproxy->state = PR_STNEW;
@@ -6700,7 +6787,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	    t->process = process_chk;
 	    t->context = newsrv;
 		
-	    if (curproxy->state != PR_STDISABLED) {
+	    if (curproxy->state != PR_STSTOPPED) {
 		tv_delayfrom(&t->expire, &now, newsrv->inter); /* check this every ms */
 		task_queue(t);
 		task_wakeup(&rq, t);
@@ -7408,7 +7495,7 @@ int readcfgfile(char *file) {
 
     while (curproxy != NULL) {
 	curproxy->cursrv = NULL;
-	if (curproxy->state == PR_STDISABLED) {
+	if (curproxy->state == PR_STSTOPPED) {
 	    curproxy = curproxy->next;
 	    continue;
 	}
@@ -7707,7 +7794,7 @@ int start_proxies() {
     int fd;
 
     for (curproxy = proxy; curproxy != NULL; curproxy = curproxy->next) {
-	if (curproxy->state == PR_STDISABLED)
+	if (curproxy->state == PR_STSTOPPED)
 	    continue;
 
 	for (listener = curproxy->listen; listener != NULL; listener = listener->next) {
@@ -7947,6 +8034,10 @@ int main(int argc, char **argv) {
 	Alert("[%s.main()] No enabled listener found (check the <listen> keywords) ! Exiting.\n", argv[0]);
 	exit(1);
     }
+
+    /* prepare pause/play signals */
+    signal(SIGTTOU, sig_pause);
+    signal(SIGTTIN, sig_listen);
 
     /* MODE_QUIET can inhibit alerts and warnings below this line */
 
