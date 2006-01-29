@@ -2,9 +2,9 @@
                              H A - P r o x y
                             Reference  Manual
                            -------------------
-                              version 1.2.7
+                              version 1.2.8
                               willy tarreau
-                                2005/10/09
+                                2006/01/29
 
 ============
 | Abstract |

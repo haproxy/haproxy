@@ -2,9 +2,9 @@
                              H A - P r o x y
                            Architecture  Guide
                            -------------------
-                             version 1.1.32
+                             version 1.1.34
                               willy tarreau
-                               2005/07/17
+                               2006/01/29
 
 
 This document provides real world examples with working configurations.
