@@ -111,6 +111,10 @@ LDFLAGS = -g
 
 all: haproxy
 
+# on OpenBSD, you have to do it this way :
+haproxy.bsd: src/list.o src/chtbl.o src/hashpjw.o haproxy.o
+	$(LD) $(LDFLAGS) -o $@ $> $(LIBS)
+
 haproxy: src/list.o src/chtbl.o src/hashpjw.o haproxy.o
 	$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
 
