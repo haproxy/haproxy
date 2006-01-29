@@ -5822,10 +5822,17 @@ static void listen_proxies(void) {
 		    else
 			p->state = PR_STIDLE;
 		} else {
+		    int port;
+
+		    if (l->addr.ss_family == AF_INET6)
+			port = ntohs(((struct sockaddr_in6 *)(&l->addr))->sin6_port);
+		    else
+ 			port = ntohs(((struct sockaddr_in *)(&l->addr))->sin_port);
+
 		    Warning("Port %d busy while trying to enable proxy %s.\n",
-			    ntohs(l->addr.sin_port), p->id);
+			    port, p->id);
 		    send_log(p, LOG_WARNING, "Port %d busy while trying to enable proxy %s.\n",
-			     ntohs(l->addr.sin_port), p->id);
+			     port, p->id);
 		    /* Another port might have been enabled. Let's stop everything. */
 		    pause_proxy(p);
 		    break;
