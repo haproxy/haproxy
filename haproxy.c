@@ -2345,13 +2345,18 @@ int event_srv_write(int fd) {
 	fdtab[fd].state = FD_STERROR;
     }
 
-    if (s->proxy->srvtimeout) {
-	tv_delayfrom(&s->swexpire, &now, s->proxy->srvtimeout);
-	/* FIXME: to avoid the server to read-time-out during writes, we refresh it */
-	s->srexpire = s->swexpire;
+    /* We don't want to re-arm read/write timeouts if we're trying to connect,
+     * otherwise it could loop indefinitely !
+     */
+    if (s->srv_state != SV_STCONN) {
+	if (s->proxy->srvtimeout) {
+	    tv_delayfrom(&s->swexpire, &now, s->proxy->srvtimeout);
+	    /* FIXME: to avoid the server to read-time-out during writes, we refresh it */
+	    s->srexpire = s->swexpire;
+	}
+	else
+	    tv_eternity(&s->swexpire);
     }
-    else
-	tv_eternity(&s->swexpire);
 
     task_wakeup(&rq, t);
     return 0;
@@ -4945,6 +4950,14 @@ int process_session(struct task *t) {
 
 	/* restore t to its place in the task list */
 	task_queue(t);
+
+#ifdef DEBUG_FULL
+	/* DEBUG code : this should never ever happen, otherwise it indicates
+	 * that a task still has something to do and will provoke a quick loop.
+	 */
+	if (tv_remain2(&now, &t->expire) <= 0)
+	    exit(100);
+#endif
 
 	return tv_remain2(&now, &t->expire); /* nothing more to do */
     }
