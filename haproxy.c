@@ -7628,6 +7628,12 @@ void init(int argc, char **argv) {
 	exit(1);
     }
 
+    /* initialize the libc's localtime structures once for all so that we
+     * won't be missing memory if we want to send alerts under OOM conditions.
+     */
+    tv_now(&now);
+    localtime(&now.tv_sec);
+
     /* initialize the log header encoding map : '{|}"#' should be encoded with
      * '#' as prefix, as well as non-printable characters ( <32 or >= 127 ).
      * URL encoding only requires '"', '#' to be encoded as well as non-
