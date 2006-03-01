@@ -1757,7 +1757,7 @@ know what the client address was (eg for statistics on domains).
 
 Last, the 'httpclose' option removes any 'Connection' header both ways, and
 adds a 'Connection: close' header in each direction. This makes it easier to
-disable HTTP keep-alive than the previous 4-rules block..
+disable HTTP keep-alive than the previous 4-rules block.
 
 Example :
 ---------
@@ -1768,6 +1768,26 @@ Example :
         option dontlognull
         option forwardfor
         option httpclose
+
+Note that some HTTP servers do not necessarily close the connections when they
+receive the 'Connection: close', and if the client does not close either, then
+the connection will be maintained up to the time-out. This translates into high
+number of simultaneous sessions and high global session times in the logs. To
+workaround this, a new option 'forceclose' appeared in version 1.2.9 to enforce
+the closing of the outgoing server channel as soon as the server begins to
+reply and only if the request buffer is empty. Note that this should NOT be
+used if CONNECT requests are expected between the client and the server. The
+'forceclose' option implies the 'httpclose' option.
+
+Example :
+---------
+    listen http_proxy 0.0.0.0:80
+        mode http
+        log  global
+        option httplog
+        option dontlognull
+        option forwardfor
+        option forceclose
 
 
 4.4) Load balancing with persistence

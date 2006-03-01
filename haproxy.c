@@ -326,6 +326,7 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define PR_O_TCP_CLI_KA	0x00040000	/* enable TCP keep-alive on client-side sessions */
 #define PR_O_TCP_SRV_KA	0x00080000	/* enable TCP keep-alive on server-side sessions */
 #define PR_O_USE_ALL_BK	0x00100000	/* load-balance between backup servers */
+#define PR_O_FORCE_CLO	0x00200000	/* enforce the connection close immediately after server response */
 
 /* various session flags */
 #define SN_DIRECT	0x00000001	/* connection made on the server matching the client cookie */
@@ -4234,6 +4235,24 @@ int process_srv(struct session *t) {
 		rep->rlim = rep->data + BUFSIZE; /* no more rewrite needed */
 		t->logs.t_data = tv_diff(&t->logs.tv_accept, &now);
 
+		/* client connection already closed or option 'httpclose' required :
+		 * we close the server's outgoing connection right now.
+		 */
+		if ((req->l == 0) &&
+		    (c == CL_STSHUTR || c == CL_STCLOSE || t->proxy->options & PR_O_FORCE_CLO)) {
+		    FD_CLR(t->srv_fd, StaticWriteEvent);
+		    tv_eternity(&t->swexpire);
+
+		    /* We must ensure that the read part is still alive when switching
+		     * to shutw */
+		    FD_SET(t->srv_fd, StaticReadEvent);
+		    if (t->proxy->srvtimeout)
+			tv_delayfrom(&t->srexpire, &now, t->proxy->srvtimeout);
+
+		    shutdown(t->srv_fd, SHUT_WR);
+		    t->srv_state = SV_STSHUTW;
+		}
+
 		/* if the user wants to log as soon as possible, without counting
 		   bytes from the server, then this is the right moment. */
 		if (t->proxy->to_log && !(t->logs.logwait & LW_BYTES)) {
@@ -6574,6 +6593,9 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	else if (!strcmp(args[1], "httpclose"))
 	    /* force connection: close in both directions in HTTP mode */
 	    curproxy->options |= PR_O_HTTP_CLOSE;
+	else if (!strcmp(args[1], "forceclose"))
+	    /* force connection: close in both directions in HTTP mode and enforce end of session */
+	    curproxy->options |= PR_O_FORCE_CLO | PR_O_HTTP_CLOSE;
 	else if (!strcmp(args[1], "checkcache"))
 	    /* require examination of cacheability of the 'set-cookie' field */
 	    curproxy->options |= PR_O_CHK_CACHE;

@@ -1819,6 +1819,27 @@ Exemple :
         option forwardfor
         option httpclose
 
+Notons que certains serveurs HTTP ne referment pas nécessairement la session
+TCP en fin de traitement lorsqu'ils reçoivent un entête 'Connection: close',
+ce qui se traduit par des grands nombres de sessions établies et des temps
+globaux très longs sur les requêtes. Pour contourner ce problème, la version
+1.2.9 apporte une nouvelle option 'forceclose' qui referme la connexion sortant
+vers le serveur dès qu'il commence à répondre et seulement si le tampon de
+requête est vide. Attention toutefois à ne PAS utiliser cette option si des
+méthodes CONNECT sont attendues entre le client et le serveur. L'option
+'forceclose' implique l'option 'httpclose'.
+
+Exemple :
+---------
+    listen http_proxy 0.0.0.0:80
+        mode http
+        log  global
+        option httplog
+        option dontlognull
+        option forwardfor
+        option forceclose
+
+
 4.4) Répartition avec persistence
 ---------------------------------
 La combinaison de l'insertion de cookie avec la répartition de charge interne
