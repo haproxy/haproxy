@@ -8047,10 +8047,15 @@ int main(int argc, char **argv) {
     signal(SIGTTOU, sig_pause);
     signal(SIGTTIN, sig_listen);
 
+    if (global.mode & MODE_DAEMON) {
+	global.mode &= ~MODE_VERBOSE;
+	global.mode |= MODE_QUIET;
+    }
+
     /* MODE_QUIET can inhibit alerts and warnings below this line */
 
     global.mode &= ~MODE_STARTING;
-    if (global.mode & MODE_QUIET) {
+    if ((global.mode & MODE_QUIET) && !(global.mode & MODE_VERBOSE)) {
 	/* detach from the tty */
 	fclose(stdin); fclose(stdout); fclose(stderr);
 	close(0); close(1); close(2);
