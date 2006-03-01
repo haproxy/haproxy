@@ -1373,18 +1373,18 @@ static inline unsigned long tv_diff(struct timeval *tv1, struct timeval *tv2) {
  */
 static inline int tv_cmp_ms(struct timeval *tv1, struct timeval *tv2) {
     if (tv1->tv_sec == tv2->tv_sec) {
-	if (tv2->tv_usec > tv1->tv_usec + 1000)
+	if (tv2->tv_usec >= tv1->tv_usec + 1000)
 	    return -1;
-	else if (tv1->tv_usec > tv2->tv_usec + 1000)
+	else if (tv1->tv_usec >= tv2->tv_usec + 1000)
 	    return 1;
 	else
 	    return 0;
     }
     else if ((tv2->tv_sec > tv1->tv_sec + 1) ||
-	     ((tv2->tv_sec == tv1->tv_sec + 1) && (tv2->tv_usec + 1000000 > tv1->tv_usec + 1000)))
+	     ((tv2->tv_sec == tv1->tv_sec + 1) && (tv2->tv_usec + 1000000 >= tv1->tv_usec + 1000)))
 	return -1;
     else if ((tv1->tv_sec > tv2->tv_sec + 1) ||
-	     ((tv1->tv_sec == tv2->tv_sec + 1) && (tv1->tv_usec + 1000000 > tv2->tv_usec + 1000)))
+	     ((tv1->tv_sec == tv2->tv_sec + 1) && (tv1->tv_usec + 1000000 >= tv2->tv_usec + 1000)))
 	return 1;
     else
 	return 0;
@@ -1468,18 +1468,18 @@ static inline int tv_cmp2_ms(struct timeval *tv1, struct timeval *tv2) {
 	return -1; /* tv2 later than tv1 */
     
     if (tv1->tv_sec == tv2->tv_sec) {
-	if (tv1->tv_usec > tv2->tv_usec + 1000)
+	if (tv1->tv_usec >= tv2->tv_usec + 1000)
 	    return 1;
-	else if (tv2->tv_usec > tv1->tv_usec + 1000)
+	else if (tv2->tv_usec >= tv1->tv_usec + 1000)
 	    return -1;
 	else
 	    return 0;
     }
     else if ((tv1->tv_sec > tv2->tv_sec + 1) ||
-	     ((tv1->tv_sec == tv2->tv_sec + 1) && (tv1->tv_usec + 1000000 > tv2->tv_usec + 1000)))
+	     ((tv1->tv_sec == tv2->tv_sec + 1) && (tv1->tv_usec + 1000000 >= tv2->tv_usec + 1000)))
 	return 1;
     else if ((tv2->tv_sec > tv1->tv_sec + 1) ||
-	     ((tv2->tv_sec == tv1->tv_sec + 1) && (tv2->tv_usec + 1000000 > tv1->tv_usec + 1000)))
+	     ((tv2->tv_sec == tv1->tv_sec + 1) && (tv2->tv_usec + 1000000 >= tv1->tv_usec + 1000)))
 	return -1;
     else
 	return 0;
