@@ -412,6 +412,7 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define SRV_BACKUP	2	/* this server is a backup server */
 #define	SRV_MAPPORTS	4	/* this server uses mapped ports */
 #define	SRV_BIND_SRC	8	/* this server uses a specific source address */
+#define	SRV_CHECKED	16	/* this server needs to be checked */
 
 /* what to do when a header matches a regex */
 #define ACT_ALLOW	0	/* allow the request */
@@ -5033,7 +5034,16 @@ int process_chk(struct task *t) {
 	    task_queue(t);	/* restore t to its place in the task list */
 	    return tv_remain2(&now, &t->expire);
 	}
-	
+
+	/* we don't send any health-checks when the proxy is stopped or when
+	 * the server should not be checked.
+	 */
+	if (!(s->state & SRV_CHECKED) || s->proxy->state == PR_STSTOPPED) {
+	    tv_delayfrom(&t->expire, &now, s->inter);
+	    task_queue(t);	/* restore t to its place in the task list */
+	    return tv_remain2(&now, &t->expire);
+	}
+
 	/* we'll initiate a new check */
 	s->result = 0; /* no result yet */
 	if ((fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) != -1) {
@@ -6822,8 +6832,6 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	}
 
 	if (do_check) {
-	    struct task *t;
-
 	    if (!newsrv->check_port && !(newsrv->state & SRV_MAPPORTS))
 		newsrv->check_port = realport; /* by default */
 	    if (!newsrv->check_port) {
@@ -6831,23 +6839,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 		      file, linenum, newsrv->id);
 		return -1;
 	    }
-
-	    if ((t = pool_alloc(task)) == NULL) {
-		Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
-		return -1;
-	    }
-		
-	    t->next = t->prev = t->rqnext = NULL; /* task not in run queue yet */
-	    t->wq = LIST_HEAD(wait_queue); /* but already has a wait queue assigned */
-	    t->state = TASK_IDLE;
-	    t->process = process_chk;
-	    t->context = newsrv;
-		
-	    if (curproxy->state != PR_STSTOPPED) {
-		tv_delayfrom(&t->expire, &now, newsrv->inter); /* check this every ms */
-		task_queue(t);
-		task_wakeup(&rq, t);
-	    }
+	    newsrv->state |= SRV_CHECKED;
 	}
 
 	curproxy->nbservers++;
@@ -7424,6 +7416,7 @@ int readcfgfile(char *file) {
     char *args[MAX_LINE_ARGS];
     int arg;
     int cfgerr = 0;
+    int nbchk, mininter;
     int confsect = CFG_NONE;
 
     struct proxy *curproxy = NULL;
@@ -7543,6 +7536,9 @@ int readcfgfile(char *file) {
      * Now, check for the integrity of all that we have collected.
      */
 
+    /* will be needed further to delay some tasks */
+    tv_now(&now);
+
     if ((curproxy = proxy) == NULL) {
 	Alert("parsing %s : no <listen> line. Nothing to do !\n",
 	      file);
@@ -7646,6 +7642,57 @@ int readcfgfile(char *file) {
 	    curproxy->errmsg.msg504 = (char *)HTTP_504;
 	    curproxy->errmsg.len504 = strlen(HTTP_504);
 	}
+
+	/* now we'll start this proxy's health checks if any */
+	/* 1- count the checkers to run simultaneously */
+	nbchk = 0;
+	mininter = 0;
+	newsrv = curproxy->srv;
+	while (newsrv != NULL) {
+	    if (newsrv->state & SRV_CHECKED) {
+		if (!mininter || mininter > newsrv->inter)
+		    mininter = newsrv->inter;
+		nbchk++;
+	    }
+	    newsrv = newsrv->next;
+	}
+
+	/* 2- start them as far as possible from each others while respecting
+	 * their own intervals. For this, we will start them after their own
+	 * interval added to the min interval divided by the number of servers,
+	 * weighted by the server's position in the list.
+	 */
+	if (nbchk > 0) {
+	    struct task *t;
+	    int srvpos;
+
+	    newsrv = curproxy->srv;
+	    srvpos = 0;
+	    while (newsrv != NULL) {
+		/* should this server be checked ? */
+		if (newsrv->state & SRV_CHECKED) {
+		    if ((t = pool_alloc(task)) == NULL) {
+			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			return -1;
+		    }
+		
+		    t->next = t->prev = t->rqnext = NULL; /* task not in run queue yet */
+		    t->wq = LIST_HEAD(wait_queue); /* but already has a wait queue assigned */
+		    t->state = TASK_IDLE;
+		    t->process = process_chk;
+		    t->context = newsrv;
+		
+		    /* check this every ms */
+		    tv_delayfrom(&t->expire, &now,
+				 newsrv->inter + mininter * srvpos / nbchk);
+		    task_queue(t);
+		    //task_wakeup(&rq, t);
+		    srvpos++;
+		}
+		newsrv = newsrv->next;
+	    }
+	}
+
 	curproxy = curproxy->next;
     }
     if (cfgerr > 0) {
