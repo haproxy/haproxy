@@ -2,9 +2,9 @@
                              H A - P r o x y
                            Manuel de référence
                            -------------------
-                              version 1.2.8
+                              version 1.2.9
                               willy tarreau
-                                2006/01/29
+                                2006/03/01
 
 ================
 | Introduction |
@@ -877,12 +877,13 @@ utilisés uniquement lorsqu'aucun des autres serveurs ne fonctionne. Pour cela,
 ajouter le mot clé "backup" sur la ligne de définition du serveur. Un serveur
 de secours n'est appelé que lorsque tous les serveurs normaux, ainsi que tous
 les serveurs de secours qui le précèdent sont hors d'usage. Il n'y a donc pas
-de répartition de charge entre des serveurs de secours. Ce type de serveurs
-peut servir à retourner des pages d'indisponibilité de service. Dans ce cas,
-il est préférable de ne pas affecter de cookie, afin que les clients qui le
-rencontrent n'y soient pas affectés définitivement. Le fait de ne pas mettre
-de cookie envoie un cookie vide, ce qui a pour effet de supprimer un éventuel
-cookie affecté précédemment.
+de répartition de charge entre des serveurs de secours par défaut. A partir
+de la version 1.2.9, il est possible de les utiliser simultanément grâce à
+l'option 'allbackups'. Ce type de serveurs peut servir à retourner des pages
+d'indisponibilité de service. Dans ce cas, il est préférable de ne pas affecter
+de cookie, afin que les clients qui le rencontrent n'y soient pas affectés
+définitivement. Le fait de ne pas mettre de cookie envoie un cookie vide, ce
+qui a pour effet de supprimer un éventuel cookie affecté précédemment.
 
 Depuis la version 1.1.22, il est possible d'envoyer les tests de fonctionnement
 vers un port différent de celui de service. C'est nécessaire principalement
@@ -988,6 +989,18 @@ Exemples :
         balance roundrobin
         server srv1 192.168.1.1 check port 25 inter 30000 rise 1 fall 2
         server srv2 192.168.1.2 backup
+
+# Utilisation d'un groupe de serveurs pour le backup (nécessite haproxy 1.2.9)
+    listen http_proxy 0.0.0.0:80
+        mode http
+        balance roundrobin
+        option httpchk
+        server inst1 192.168.1.1:80 cookie s1 check
+        server inst2 192.168.1.2:80 cookie s2 check
+        server inst3 192.168.1.3:80 cookie s3 check
+        server back1 192.168.1.10:80 check backup
+        server back2 192.168.1.11:80 check backup
+        option allbackups  # all backups will be used
 
 
 3.2) Reconnexion vers un répartiteur en cas d'échec direct

@@ -325,6 +325,7 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define PR_O_CHK_CACHE	0x00020000	/* require examination of cacheability of the 'set-cookie' field */
 #define PR_O_TCP_CLI_KA	0x00040000	/* enable TCP keep-alive on client-side sessions */
 #define PR_O_TCP_SRV_KA	0x00080000	/* enable TCP keep-alive on server-side sessions */
+#define PR_O_USE_ALL_BK	0x00100000	/* load-balance between backup servers */
 
 /* various session flags */
 #define SN_DIRECT	0x00000001	/* connection made on the server matching the client cookie */
@@ -1778,6 +1779,14 @@ static inline struct server *find_server(struct proxy *px) {
 		return srv;
 	    srv = srv->next;
 	} while (srv != px->cursrv);
+
+	/* By default, we look for the first backup server if all others are
+	 * DOWN. But in some cases, it may be desirable to load-balance across
+	 * all backup servers.
+	 */
+	if (!(px->options & PR_O_USE_ALL_BK))
+	    srv = px->srv;
+
     } while (ignore_backup--);
     return NULL;
 }
@@ -6589,6 +6598,10 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	else if (!strcmp(args[1], "srvtcpka")) {
 	    /* enable TCP keep-alives on server sessions */
 	    curproxy->options |= PR_O_TCP_SRV_KA;
+	}
+	else if (!strcmp(args[1], "allbackups")) {
+	    /* Use all backup servers simultaneously */
+	    curproxy->options |= PR_O_USE_ALL_BK;
 	}
 	else if (!strcmp(args[1], "httpchk")) {
 	    /* use HTTP request to check servers' health */

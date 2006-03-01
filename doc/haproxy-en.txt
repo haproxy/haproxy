@@ -2,9 +2,9 @@
                              H A - P r o x y
                             Reference  Manual
                            -------------------
-                              version 1.2.8
+                              version 1.2.9
                               willy tarreau
-                                2006/01/29
+                                2006/03/01
 
 ============
 | Abstract |
@@ -880,8 +880,10 @@ a backup server, clients assigned to this server will stick to it even when the
 other ones come back. Conversely, if no cookie is assigned to such a server,
 the clients will get their cookies removed (empty cookie = removal), and will
 be balanced against other servers once they come back. Please note that there
-is no load-balancing among backup servers. If there are several backup servers,
-the second one will only be used when the first one dies, and so on.
+is no load-balancing among backup servers by default. If there are several
+backup servers, the second one will only be used when the first one dies, and
+so on. To force load-balancing between backup servers, specify the 'allbackups'
+option.
 
 Since version 1.1.17, it is also possible to visually check the status of all
 servers at once. For this, you just have to send a SIGHUP signal to the proxy.
@@ -978,6 +980,18 @@ Examples :
         balance roundrobin
         server srv1 192.168.1.1 check port 25 inter 30000 rise 1 fall 2
         server srv2 192.168.1.2 backup
+
+# Load-balancing using a backup pool (requires haproxy 1.2.9)
+    listen http_proxy 0.0.0.0:80
+        mode http
+        balance roundrobin
+        option httpchk
+        server inst1 192.168.1.1:80 cookie s1 check
+        server inst2 192.168.1.2:80 cookie s2 check
+        server inst3 192.168.1.3:80 cookie s3 check
+        server back1 192.168.1.10:80 check backup
+        server back2 192.168.1.11:80 check backup
+        option allbackups  # all backups will be used
 
 
 3.2) Redistribute connections in case of failure
