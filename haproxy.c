@@ -4039,7 +4039,7 @@ int process_srv(struct session *t) {
     }
     else if (s == SV_STCONN) { /* connection in progress */
 	if (t->res_sw == RES_SILENT && tv_cmp2_ms(&t->cnexpire, &now) > 0) {
-	    //fprintf(stderr,"1: c=%d, s=%d\n", c, s);
+	    //fprintf(stderr,"1: c=%d, s=%d, now=%d.%06d, exp=%d.%06d\n", c, s, now.tv_sec, now.tv_usec, t->cnexpire.tv_sec, t->cnexpire.tv_usec);
 	    return 0; /* nothing changed */
 	}
 	else if (t->res_sw == RES_SILENT || t->res_sw == RES_ERROR) {
@@ -4932,11 +4932,11 @@ int process_session(struct task *t) {
 
     do {
 	fsm_resync = 0;
-	//fprintf(stderr,"before_cli:cli=%d, srv=%d\n", t->cli_state, t->srv_state);
+	//fprintf(stderr,"before_cli:cli=%d, srv=%d\n", s->cli_state, s->srv_state);
 	fsm_resync |= process_cli(s);
-	//fprintf(stderr,"cli/srv:cli=%d, srv=%d\n", t->cli_state, t->srv_state);
+	//fprintf(stderr,"cli/srv:cli=%d, srv=%d\n", s->cli_state, s->srv_state);
 	fsm_resync |= process_srv(s);
-	//fprintf(stderr,"after_srv:cli=%d, srv=%d\n", t->cli_state, t->srv_state);
+	//fprintf(stderr,"after_srv:cli=%d, srv=%d\n", s->cli_state, s->srv_state);
     } while (fsm_resync);
 
     if (s->cli_state != CL_STCLOSE || s->srv_state != SV_STCLOSE) {
