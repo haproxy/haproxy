@@ -6253,6 +6253,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	    curproxy->listen = str2listener(args[2], curproxy->listen);
 	    if (!curproxy->listen)
 		return -1;
+	    global.maxsock++;
 	}
 
 	/* set default values */
@@ -6355,6 +6356,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	curproxy->listen = str2listener(args[1], curproxy->listen);
 	if (!curproxy->listen)
 	    return -1;
+	global.maxsock++;
 	return 0;
     }
     else if (!strcmp(args[0], "monitor-net")) {  /* set the range of IPs to ignore */
@@ -6830,6 +6832,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 		cur_arg ++;
 	    }
 	    else if (!strcmp(args[cur_arg], "check")) {
+		global.maxsock++;
 		do_check = 1;
 		cur_arg += 1;
 	    }
@@ -7852,6 +7855,7 @@ void init(int argc, char **argv) {
     gethostname(hostname, MAX_HOSTNAME_LEN);
 
     have_appsession = 0;
+    global.maxsock = 10; /* reserve 10 fds ; will be incremented by socket eaters */
     if (readcfgfile(cfg_cfgfile) < 0) {
 	Alert("Error reading configuration file : %s\n", cfg_cfgfile);
 	exit(1);
@@ -7876,7 +7880,7 @@ void init(int argc, char **argv) {
     if (global.maxconn == 0)
 	global.maxconn = DEFAULT_MAXCONN;
 
-    global.maxsock = global.maxconn * 2; /* each connection needs two sockets */
+    global.maxsock += global.maxconn * 2; /* each connection needs two sockets */
 
     if (arg_mode & MODE_DEBUG) {
 	/* command line debug mode inhibits configuration mode */
