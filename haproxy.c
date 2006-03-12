@@ -8206,6 +8206,9 @@ int main(int argc, char **argv) {
     }
 
     /* ulimits */
+    if (!global.rlimit_nofile)
+	global.rlimit_nofile = global.maxsock;
+
     if (global.rlimit_nofile) {
 	limit.rlim_cur = limit.rlim_max = global.rlimit_nofile;
 	if (setrlimit(RLIMIT_NOFILE, &limit) == -1) {
