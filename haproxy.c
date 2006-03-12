@@ -144,8 +144,20 @@
 #define DEF_RISETIME	2
 #define DEF_CHECK_REQ	"OPTIONS / HTTP/1.0\r\n\r\n"
 
-/* default connections limit */
+/* Default connections limit.
+ *
+ * A system limit can be enforced at build time in order to avoid using haproxy
+ * beyond reasonable system limits. For this, just define SYSTEM_MAXCONN to the
+ * absolute limit accepted by the system. If the configuration specifies a
+ * higher value, it will be capped to SYSTEM_MAXCONN and a warning will be
+ * emitted. The only way to override this limit will be to set it via the
+ * command-line '-n' argument.
+ */
+#ifndef SYSTEM_MAXCONN
 #define DEFAULT_MAXCONN	2000
+#else
+#define DEFAULT_MAXCONN	SYSTEM_MAXCONN
+#endif
 
 /* how many bits are needed to code the size of an int (eg: 32bits -> 5) */
 #define	INTBITS		5
@@ -618,6 +630,7 @@ struct fdtab {
 /*********************************************************************/
 
 int cfg_maxpconn = DEFAULT_MAXCONN;	/* # of simultaneous connections per proxy (-N) */
+int cfg_maxconn = 0;		/* # of simultaneous connections, (-n) */
 char *cfg_cfgfile = NULL;	/* configuration file */
 char *progname = NULL;		/* program name */
 int  pid;			/* current process id */
@@ -3203,10 +3216,8 @@ int process_cli(struct session *t) {
 		goto process_data;
 	    }
 
-	    /* To get a complete header line, we need the ending \r\n, \n\r,
-	     * \r or \n, possibly followed by a white space or tab indicating
-	     * that the header goes on next line. */
-	    if (ptr > req->r - 3) {
+	    /* to get a complete header line, we need the ending \r\n, \n\r, \r or \n too */
+	    if (ptr > req->r - 2) {
 		/* this is a partial header, let's wait for more to come */
 		req->lr = ptr;
 		break;
@@ -3219,29 +3230,6 @@ int process_cli(struct session *t) {
 		req->lr = ptr + 1; /* \r\r, \n\n, \r[^\n], \n[^\r] */
 	    else
 		req->lr = ptr + 2; /* \r\n or \n\r */
-
-	    /* Now, try to detect multi-line headers. From RFC 2616 :
-	     * HTTP/1.1 header field values can be folded onto multiple lines if the
-	     * continuation line begins with a space or horizontal tab. All linear
-	     * white space, including folding, has the same semantics as SP. A
-	     * recipient MAY replace any linear white space with a single SP before
-	     * interpreting the field value or forwarding the message downstream.
-	     *
-	     *     LWS            = [CRLF] 1*( SP | HT )
-	     */
-	    if (req->lr < req->r &&
-		(*req->lr == ' ' || *req->lr == '\t')) {
-		/* we are allowed to replace the \r\n with spaces */
-		while (ptr < req->lr)
-		    *ptr++ = ' ';
-		/* now look for end of LWS */
-		do {
-		    req->lr++;
-		} while (req->lr < req->r && (*req->lr == ' ' || *req->lr == '\t'));
-
-		/* continue processing on the same header */
-		continue;
-	    }
 
 	    /*
 	     * now we know that we have a full header ; we can do whatever
@@ -6130,6 +6118,12 @@ int cfg_parse_global(char *file, int linenum, char **args) {
 	    return -1;
 	}
 	global.maxconn = atol(args[1]);
+#ifdef SYSTEM_MAXCONN
+	if (global.maxconn > DEFAULT_MAXCONN && cfg_maxconn <= DEFAULT_MAXCONN) {
+	    Alert("parsing [%s:%d] : maxconn value %d too high for this system.\nLimiting to %d. Please use '-n' to force the value.\n", file, linenum, global.maxconn, DEFAULT_MAXCONN);
+	    global.maxconn = DEFAULT_MAXCONN;
+	}
+#endif /* SYSTEM_MAXCONN */
     }
     else if (!strcmp(args[0], "ulimit-n")) {
 	if (global.rlimit_nofile != 0) {
@@ -7739,7 +7733,6 @@ void init(int argc, char **argv) {
     char *old_argv = *argv;
     char *tmp;
     char *cfg_pidfile = NULL;
-    int cfg_maxconn = 0;	/* # of simultaneous connections, (-n) */
 
     if (1<<INTBITS != sizeof(int)*8) {
 	fprintf(stderr,

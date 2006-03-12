@@ -84,7 +84,7 @@ DEBUG = -g
 # are 2 buffers per concurrent session, so 16 kB buffers will eat 32 MB memory
 # with 1000 concurrent sessions. Putting it slightly lower than a page size
 # will avoid the additionnal paramters to overflow a page.
-#SMALL_OPTS = -DBUFSIZE=8100 -DMAXREWRITE=1000
+#SMALL_OPTS = -DBUFSIZE=8100 -DMAXREWRITE=1000 -DSYSTEM_MAXCONN=1024
 SMALL_OPTS =
 
 # redefine this if you want to add some special PATH to include/libs
