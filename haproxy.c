@@ -5821,7 +5821,7 @@ static void soft_stop(void) {
     p = proxy;
     tv_now(&now); /* else, the old time before select will be used */
     while (p) {
-	if (p->state != PR_STSTOPPED && p->state != PR_STPAUSED) {
+	if (p->state != PR_STSTOPPED) {
 	    Warning("Stopping proxy %s in %d ms.\n", p->id, p->grace);
 	    send_log(p, LOG_WARNING, "Stopping proxy %s in %d ms.\n", p->id, p->grace);
 	    tv_delayfrom(&p->stop_time, &now, p->grace);
