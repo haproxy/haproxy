@@ -1,6 +1,44 @@
 ChangeLog :
 ===========
 
+2006/03/15 : 1.2.9
+  - haproxy could not be stopped after being paused, it had to be woken up
+    first. This has been fixed.
+  - the 'ulimit-n' parameter is now optional and by default computed from
+    maxconn + the number of listeners + the number of health-checks.
+  - it is now possible to specify a maximum number of connections at build
+    time with the SYSTEM_MAXCONN define. The value set in the configuration
+    file will then be limited to this value, and only the command-line '-n'
+    option will be able to bypass it. It will prevent against accidental
+    high memory usage on small systems.
+  - RFC2616 expects that any HTTP agent accepts multi-line headers. Earlier
+    versions did not detect a line beginning with a space as the continuation
+    of previous header. It is now correct.
+  - health checks sent to servers configured with identical intervals were
+    sent in perfect synchronisation because the initial time was the same
+    for all. This could induce high load peaks when fragile servers were
+    hosting tens of instances for the same application.  Now the load is
+    spread evenly across the smallest interval amongst a listener.
+  - a new 'forceclose' option was added to make the proxy close the outgoing
+    channel to the server once it has sent all its headers and the server
+    starts responding. This helps some servers which don't close upon the
+    'Connection: close' header. It implies 'option httpclose'.
+  - there was a bug in the way the backup servers were handled. They were
+    erroneously load-balanced while the doc said the opposite. Since
+    load-balanced backup servers is one of the features some people have
+    been asking for, the problem was fixed to reflect the documented
+    behaviour and a new option 'allbackups' was introduced to provide the
+    feature to those who need it.
+  - a never ending connect() could lead to a fast select() loop if its
+    timeout times the number of retransmits exceeded the server read or write
+    timeout, because the later was used to compute select()'s timeout while
+    the connection timeout was not reached.
+  - now we initialize the libc's localtime structures very early so that even
+    under OOM conditions, we can still send dated error messages without
+    segfaulting.
+  - the 'daemon' mode implies 'quiet' and disables 'verbose' because file
+    descriptors are closed.
+
 2006/01/29 : 1.2.8
   - fixed a nasty bug affecting poll/epoll which could return unmodified data
     from the server to the client, and sometimes lead to memory corruption
