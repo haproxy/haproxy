@@ -1,0 +1,138 @@
+diff -urN linux-2.4.21-40.EL/arch/i386/config.in linux-2.4.21-40.EL-epoll/arch/i386/config.in
+--- linux-2.4.21-40.EL/arch/i386/config.in	2006-03-17 09:34:24.000000000 +0100
++++ linux-2.4.21-40.EL-epoll/arch/i386/config.in	2006-03-17 09:34:42.000000000 +0100
+@@ -380,6 +380,7 @@
+ tristate 'Kernel support for MISC binaries' CONFIG_BINFMT_MISC
+ 
+ bool 'Kernel .config support' CONFIG_IKCONFIG
++bool 'Support for epoll' CONFIG_EPOLL
+ 
+ tristate 'System call auditing' CONFIG_AUDIT
+ 
+diff -urN linux-2.4.21-40.EL/arch/i386/kernel/entry.S linux-2.4.21-40.EL-epoll/arch/i386/kernel/entry.S
+--- linux-2.4.21-40.EL/arch/i386/kernel/entry.S	2006-03-17 09:34:24.000000000 +0100
++++ linux-2.4.21-40.EL-epoll/arch/i386/kernel/entry.S	2006-03-17 09:34:42.000000000 +0100
+@@ -816,9 +816,15 @@
+ 	.long SYMBOL_NAME(sys_ni_syscall)	/* sys_free_hugepages */
+ 	.long SYMBOL_NAME(sys_exit_group)
+ 	.long SYMBOL_NAME(sys_lookup_dcookie)
++#ifdef CONFIG_EPOLL
++	.long SYMBOL_NAME(sys_epoll_create)
++	.long SYMBOL_NAME(sys_epoll_ctl)	/* 255 */
++	.long SYMBOL_NAME(sys_epoll_wait)
++#else
+ 	.long SYMBOL_NAME(sys_ni_syscall)	/* sys_epoll_create */
+ 	.long SYMBOL_NAME(sys_ni_syscall)	/* sys_epoll_ctl 255 */
+ 	.long SYMBOL_NAME(sys_ni_syscall)	/* sys_epoll_wait */
++#endif /* CONFIG_EPOLL */
+  	.long sys_remap_file_pages
+  	.long SYMBOL_NAME(sys_set_tid_address)
+  	.long SYMBOL_NAME(sys_ni_syscall)	/* sys_timer_create */
+diff -urN linux-2.4.21-40.EL/configs/kernel-2.4.21-athlon.config linux-2.4.21-40.EL-epoll/configs/kernel-2.4.21-athlon.config
+--- linux-2.4.21-40.EL/configs/kernel-2.4.21-athlon.config	2006-03-17 09:34:24.000000000 +0100
++++ linux-2.4.21-40.EL-epoll/configs/kernel-2.4.21-athlon.config	2006-03-17 09:34:42.000000000 +0100
+@@ -1575,7 +1575,7 @@
+ CONFIG_QUOTA=y
+ # CONFIG_QFMT_V1 is not set
+ CONFIG_QFMT_V2=y
+-# CONFIG_EPOLL is not set
++CONFIG_EPOLL=y
+ 
+ # CONFIG_QIFACE_COMPAT is not set
+ CONFIG_AFS_FS=m
+diff -urN linux-2.4.21-40.EL/configs/kernel-2.4.21-athlon-smp.config linux-2.4.21-40.EL-epoll/configs/kernel-2.4.21-athlon-smp.config
+--- linux-2.4.21-40.EL/configs/kernel-2.4.21-athlon-smp.config	2006-03-17 09:34:24.000000000 +0100
++++ linux-2.4.21-40.EL-epoll/configs/kernel-2.4.21-athlon-smp.config	2006-03-17 09:34:42.000000000 +0100
+@@ -1575,7 +1575,7 @@
+ CONFIG_QUOTA=y
+ # CONFIG_QFMT_V1 is not set
+ CONFIG_QFMT_V2=y
+-# CONFIG_EPOLL is not set
++CONFIG_EPOLL=y
+ 
+ # CONFIG_QIFACE_COMPAT is not set
+ CONFIG_AFS_FS=m
+diff -urN linux-2.4.21-40.EL/configs/kernel-2.4.21-i386.config linux-2.4.21-40.EL-epoll/configs/kernel-2.4.21-i386.config
+--- linux-2.4.21-40.EL/configs/kernel-2.4.21-i386.config	2006-03-17 09:34:24.000000000 +0100
++++ linux-2.4.21-40.EL-epoll/configs/kernel-2.4.21-i386.config	2006-03-17 09:34:42.000000000 +0100
+@@ -1575,7 +1575,7 @@
+ CONFIG_QUOTA=y
+ # CONFIG_QFMT_V1 is not set
+ CONFIG_QFMT_V2=y
+-# CONFIG_EPOLL is not set
++CONFIG_EPOLL=y
+ 
+ # CONFIG_QIFACE_COMPAT is not set
+ # CONFIG_AFS_FS is not set
+diff -urN linux-2.4.21-40.EL/configs/kernel-2.4.21-i586.config linux-2.4.21-40.EL-epoll/configs/kernel-2.4.21-i586.config
+--- linux-2.4.21-40.EL/configs/kernel-2.4.21-i586.config	2006-03-17 09:34:24.000000000 +0100
++++ linux-2.4.21-40.EL-epoll/configs/kernel-2.4.21-i586.config	2006-03-17 09:34:42.000000000 +0100
+@@ -1575,7 +1575,7 @@
+ CONFIG_QUOTA=y
+ # CONFIG_QFMT_V1 is not set
+ CONFIG_QFMT_V2=y
+-# CONFIG_EPOLL is not set
++CONFIG_EPOLL=y
+ 
+ # CONFIG_QIFACE_COMPAT is not set
+ CONFIG_AFS_FS=m
+diff -urN linux-2.4.21-40.EL/configs/kernel-2.4.21-i586-smp.config linux-2.4.21-40.EL-epoll/configs/kernel-2.4.21-i586-smp.config
+--- linux-2.4.21-40.EL/configs/kernel-2.4.21-i586-smp.config	2006-03-17 09:34:24.000000000 +0100
++++ linux-2.4.21-40.EL-epoll/configs/kernel-2.4.21-i586-smp.config	2006-03-17 09:34:42.000000000 +0100
+@@ -1575,7 +1575,7 @@
+ CONFIG_QUOTA=y
+ # CONFIG_QFMT_V1 is not set
+ CONFIG_QFMT_V2=y
+-# CONFIG_EPOLL is not set
++CONFIG_EPOLL=y
+ 
+ # CONFIG_QIFACE_COMPAT is not set
+ CONFIG_AFS_FS=m
+diff -urN linux-2.4.21-40.EL/configs/kernel-2.4.21-i686.config linux-2.4.21-40.EL-epoll/configs/kernel-2.4.21-i686.config
+--- linux-2.4.21-40.EL/configs/kernel-2.4.21-i686.config	2006-03-17 09:34:24.000000000 +0100
++++ linux-2.4.21-40.EL-epoll/configs/kernel-2.4.21-i686.config	2006-03-17 09:34:42.000000000 +0100
+@@ -1575,7 +1575,7 @@
+ CONFIG_QUOTA=y
+ # CONFIG_QFMT_V1 is not set
+ CONFIG_QFMT_V2=y
+-# CONFIG_EPOLL is not set
++CONFIG_EPOLL=y
+ 
+ # CONFIG_QIFACE_COMPAT is not set
+ CONFIG_AFS_FS=m
+diff -urN linux-2.4.21-40.EL/configs/kernel-2.4.21-i686-hugemem.config linux-2.4.21-40.EL-epoll/configs/kernel-2.4.21-i686-hugemem.config
+--- linux-2.4.21-40.EL/configs/kernel-2.4.21-i686-hugemem.config	2006-03-17 09:34:24.000000000 +0100
++++ linux-2.4.21-40.EL-epoll/configs/kernel-2.4.21-i686-hugemem.config	2006-03-17 09:34:42.000000000 +0100
+@@ -1575,7 +1575,7 @@
+ CONFIG_QUOTA=y
+ # CONFIG_QFMT_V1 is not set
+ CONFIG_QFMT_V2=y
+-# CONFIG_EPOLL is not set
++CONFIG_EPOLL=y
+ 
+ # CONFIG_QIFACE_COMPAT is not set
+ CONFIG_AFS_FS=m
+diff -urN linux-2.4.21-40.EL/configs/kernel-2.4.21-i686-smp.config linux-2.4.21-40.EL-epoll/configs/kernel-2.4.21-i686-smp.config
+--- linux-2.4.21-40.EL/configs/kernel-2.4.21-i686-smp.config	2006-03-17 09:34:24.000000000 +0100
++++ linux-2.4.21-40.EL-epoll/configs/kernel-2.4.21-i686-smp.config	2006-03-17 09:34:42.000000000 +0100
+@@ -1575,7 +1575,7 @@
+ CONFIG_QUOTA=y
+ # CONFIG_QFMT_V1 is not set
+ CONFIG_QFMT_V2=y
+-# CONFIG_EPOLL is not set
++CONFIG_EPOLL=y
+ 
+ # CONFIG_QIFACE_COMPAT is not set
+ CONFIG_AFS_FS=m
+diff -urN linux-2.4.21-40.EL/Makefile linux-2.4.21-40.EL-epoll/Makefile
+--- linux-2.4.21-40.EL/Makefile	2006-03-17 09:34:24.000000000 +0100
++++ linux-2.4.21-40.EL-epoll/Makefile	2006-03-17 09:34:55.000000000 +0100
+@@ -1,7 +1,7 @@
+ VERSION = 2
+ PATCHLEVEL = 4
+ SUBLEVEL = 21
+-EXTRAVERSION = -40.ELcustom
++EXTRAVERSION = -40.EL-epoll
+ 
+ KERNELRELEASE=$(VERSION).$(PATCHLEVEL).$(SUBLEVEL)$(EXTRAVERSION)
+ 
