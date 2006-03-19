@@ -63,6 +63,10 @@ For example, I use this to build for Solaris 8 :
 
     $ make TARGET=solaris CPU=ultrasparc REGEX=static-pcre
 
+And I build it this way on OpenBSD :
+
+    $ make -f Makefile.bsd REGEX=pcre DEBUG= COPTS.generic="-Os -fomit-frame-pointer -mgnu"
+
 If you need to pass other defines, includes, libraries, etc... then please
 check the Makefile to see which ones will be available in your case, and
 use the ADDINC, ADDLIB, and DEFINE variables for this.

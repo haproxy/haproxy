@@ -1,14 +1,8 @@
-# This makefile supports different OS and CPU setups.
-# You should use it this way :
-#   make TARGET=os CPU=cpu
+# This makefile is dedicated to OpenBSD (and possibly other BSDs)
 
 # Select target OS. TARGET must match a system for which COPTS and LIBS are
 # correctly defined below.
-#TARGET = linux26
-TARGET = linux24
-#TARGET = linux24e
-#TARGET = linux22
-#TARGET = solaris
+TARGET = openbsd
 
 # pass CPU=<cpu_name> to make to optimize for a particular CPU
 CPU = generic
@@ -26,32 +20,11 @@ REGEX=libc
 CC = gcc
 LD = gcc
 
-# This is the directory hosting include/pcre.h and lib/libpcre.* when REGEX=pcre
-PCREDIR	:= $(shell pcre-config --prefix 2>/dev/null || :)
-#PCREDIR=/usr/local
+PCREDIR=/usr/local
 
-# This is for standard Linux 2.6 with netfilter and epoll()
-COPTS.linux26 = -DNETFILTER -DENABLE_POLL -DENABLE_EPOLL
-LIBS.linux26 =
-
-# This is for enhanced Linux 2.4 with netfilter and epoll() patch.
-# Warning! If kernel is 2.4 with epoll-lt <= 0.21, then you must add
-# -DEPOLL_CTL_MOD_WORKAROUND to workaround a very rare bug.
-#COPTS.linux24e = -DNETFILTER -DENABLE_POLL -DENABLE_EPOLL -DUSE_MY_EPOLL -DEPOLL_CTL_MOD_WORKAROUND
-COPTS.linux24e = -DNETFILTER -DENABLE_POLL -DENABLE_EPOLL -DUSE_MY_EPOLL
-LIBS.linux24e =
-
-# This is for standard Linux 2.4 with netfilter but without epoll()
-COPTS.linux24 = -DNETFILTER -DENABLE_POLL
-LIBS.linux24 =
-
-# This is for Linux 2.2
-COPTS.linux22 = -DUSE_GETSOCKNAME -DENABLE_POLL
-LIBS.linux22 =
-
-# This is for Solaris 8
-COPTS.solaris = -fomit-frame-pointer -DENABLE_POLL -DFD_SETSIZE=65536
-LIBS.solaris = -lnsl -lsocket
+# This is for OpenBSD 3.0
+COPTS.openbsd = -DENABLE_POLL
+LIBS.openbsd =
 
 # CPU dependant optimizations
 COPTS.generic = -O2
@@ -80,8 +53,8 @@ DEBUG = -g
 # with 1000 concurrent sessions. Putting it slightly lower than a page size
 # will avoid the additionnal paramters to overflow a page. 8030 bytes is
 # exactly 5.5 TCP segments of 1460 bytes.
-#SMALL_OPTS = -DBUFSIZE=8030 -DMAXREWRITE=1030 -DSYSTEM_MAXCONN=1024
-SMALL_OPTS =
+#SMALL_OPTS =
+SMALL_OPTS = -DBUFSIZE=8030 -DMAXREWRITE=1030 -DSYSTEM_MAXCONN=1024
 
 # redefine this if you want to add some special PATH to include/libs
 ADDINC =
@@ -108,9 +81,18 @@ LDFLAGS = -g
 all: haproxy
 
 haproxy: src/list.o src/chtbl.o src/hashpjw.o haproxy.o
-	$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
+	$(LD) $(LDFLAGS) -o $@ $> $(LIBS)
 
-%.o:	%.c
+src/list.o:	src/list.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+src/chtbl.o:	src/chtbl.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+src/hashpjw.o:	src/hashpjw.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+haproxy.o:	haproxy.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
