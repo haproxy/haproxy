@@ -1974,6 +1974,12 @@ int connect_server(struct session *s) {
     fdtab[fd].state = FD_STCONN; /* connection in progress */
     
     FD_SET(fd, StaticWriteEvent);  /* for connect status */
+#if defined(DEBUG_FULL) && defined(ENABLE_EPOLL)
+    if (PrevReadEvent) {
+	    assert(!(FD_ISSET(fd, PrevReadEvent)));
+	    assert(!(FD_ISSET(fd, PrevWriteEvent)));
+    }
+#endif
     
     fd_insert(fd);
 
@@ -2875,14 +2881,17 @@ int event_accept(int fd) {
 int event_srv_chk_w(int fd) {
     struct task *t = fdtab[fd].owner;
     struct server *s = t->context;
-
     int skerr;
     socklen_t lskerr = sizeof(skerr);
 
-    getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
-    /* in case of TCP only, this tells us if the connection succeeded */
-    if (skerr)
+    skerr = 1;
+    if ((getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr) == -1)
+	|| (skerr != 0)) {
+        /* in case of TCP only, this tells us if the connection failed */
 	s->result = -1;
+	fdtab[fd].state = FD_STERROR;
+	FD_CLR(fd, StaticWriteEvent);
+    }
     else if (s->result != -1) {
 	/* we don't want to mark 'UP' a server on which we detected an error earlier */
 	if (s->proxy->options & PR_O_HTTP_CHK) {
@@ -2900,8 +2909,10 @@ int event_srv_chk_w(int fd) {
 		FD_CLR(fd, StaticWriteEvent);  /* nothing more to write */
 		return 0;
 	    }
-	    else
+	    else {
 		s->result = -1;
+		FD_CLR(fd, StaticWriteEvent);
+	    }
 	}
 	else {
 	    /* good TCP connection is enough */
@@ -2924,28 +2935,31 @@ int event_srv_chk_r(int fd) {
     int len, result;
     struct task *t = fdtab[fd].owner;
     struct server *s = t->context;
+    int skerr;
+    socklen_t lskerr = sizeof(skerr);
 
     result = len = -1;
-#ifndef MSG_NOSIGNAL
-    {
-	int skerr;
-	socklen_t lskerr = sizeof(skerr);
 
-	getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
-	if (!skerr)
+    getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
+    if (!skerr) {
+#ifndef MSG_NOSIGNAL
 	    len = recv(fd, reply, sizeof(reply), 0);
-    }
 #else
-    /* Warning! Linux returns EAGAIN on SO_ERROR if data are still available
-     * but the connection was closed on the remote end. Fortunately, recv still
-     * works correctly and we don't need to do the getsockopt() on linux.
-     */
-    len = recv(fd, reply, sizeof(reply), MSG_NOSIGNAL);
+	    /* Warning! Linux returns EAGAIN on SO_ERROR if data are still available
+	     * but the connection was closed on the remote end. Fortunately, recv still
+	     * works correctly and we don't need to do the getsockopt() on linux.
+	     */
+	    len = recv(fd, reply, sizeof(reply), MSG_NOSIGNAL);
 #endif
-    if ((len >= sizeof("HTTP/1.0 000")) &&
-	!memcmp(reply, "HTTP/1.", 7) &&
-	(reply[9] == '2' || reply[9] == '3')) /* 2xx or 3xx */
-	result = 1;
+
+	    if ((len >= sizeof("HTTP/1.0 000")) &&
+		!memcmp(reply, "HTTP/1.", 7) &&
+		(reply[9] == '2' || reply[9] == '3')) /* 2xx or 3xx */
+		    result = 1;
+    }
+
+    if (result == -1)
+	    fdtab[fd].state = FD_STERROR;
 
     if (s->result != -1)
 	s->result = result;
@@ -5106,6 +5120,9 @@ int process_chk(struct task *t) {
 			fdtab[fd].write = &event_srv_chk_w;
 			fdtab[fd].state = FD_STCONN; /* connection in progress */
 			FD_SET(fd, StaticWriteEvent);  /* for connect status */
+#ifdef DEBUG_FULL
+			assert (!FD_ISSET(fd, StaticReadEvent));
+#endif
 			fd_insert(fd);
 			/* FIXME: we allow up to <inter> for a connection to establish, but we should use another parameter */
 			tv_delayfrom(&t->expire, &now, s->inter);
@@ -5426,21 +5443,19 @@ int epoll_loop(int action) {
 
       for (count = 0; count < status; count++) {
 	  fd = epoll_events[count].data.fd;
-	  
-	  if (fdtab[fd].state == FD_STCLOSE)
-	      continue;
-	  
-	  if (epoll_events[count].events & ( EPOLLIN | EPOLLERR | EPOLLHUP )) {
-	      if (FD_ISSET(fd, StaticReadEvent))
-		  fdtab[fd].read(fd);
+
+	  if (FD_ISSET(fd, StaticReadEvent)) {
+		  if (fdtab[fd].state == FD_STCLOSE)
+			  continue;
+		  if (epoll_events[count].events & ( EPOLLIN | EPOLLERR | EPOLLHUP ))
+			  fdtab[fd].read(fd);
 	  }
-	  
-	  if (fdtab[fd].state == FD_STCLOSE)
-	      continue;
-	  
-	  if (epoll_events[count].events & ( EPOLLOUT | EPOLLERR | EPOLLHUP )) {
-	      if (FD_ISSET(fd, StaticWriteEvent))
-		  fdtab[fd].write(fd);
+
+	  if (FD_ISSET(fd, StaticWriteEvent)) {
+		  if (fdtab[fd].state == FD_STCLOSE)
+			  continue;
+		  if (epoll_events[count].events & ( EPOLLOUT | EPOLLERR | EPOLLHUP ))
+			  fdtab[fd].write(fd);
 	  }
       }
   }
@@ -5552,20 +5567,18 @@ int poll_loop(int action) {
 	  /* ok, we found one active fd */
 	  status--;
 
-	  if (fdtab[fd].state == FD_STCLOSE)
-	      continue;
-	  
-	  if (poll_events[count].revents & ( POLLIN | POLLERR | POLLHUP )) {
-	      if (FD_ISSET(fd, StaticReadEvent))
-		  fdtab[fd].read(fd);
+	  if (FD_ISSET(fd, StaticReadEvent)) {
+		  if (fdtab[fd].state == FD_STCLOSE)
+			  continue;
+		  if (poll_events[count].revents & ( POLLIN | POLLERR | POLLHUP ))
+			  fdtab[fd].read(fd);
 	  }
 	  
-	  if (fdtab[fd].state == FD_STCLOSE)
-	      continue;
-	  
-	  if (poll_events[count].revents & ( POLLOUT | POLLERR | POLLHUP )) {
-	      if (FD_ISSET(fd, StaticWriteEvent))
-		  fdtab[fd].write(fd);
+	  if (FD_ISSET(fd, StaticWriteEvent)) {
+		  if (fdtab[fd].state == FD_STCLOSE)
+			  continue;
+		  if (poll_events[count].revents & ( POLLOUT | POLLERR | POLLHUP ))
+			  fdtab[fd].write(fd);
 	  }
       }
   }
@@ -5681,14 +5694,17 @@ int select_loop(int action) {
 		      /* if we specify read first, the accepts and zero reads will be
 		       * seen first. Moreover, system buffers will be flushed faster.
 		       */
-		      if (fdtab[fd].state == FD_STCLOSE)
-			  continue;
-		      
-		      if (FD_ISSET(fd, ReadEvent))
-			  fdtab[fd].read(fd);
+			  if (FD_ISSET(fd, ReadEvent)) {
+				  if (fdtab[fd].state == FD_STCLOSE)
+					  continue;
+				  fdtab[fd].read(fd);
+			  }
 
-		      if (FD_ISSET(fd, WriteEvent))
-			  fdtab[fd].write(fd);
+			  if (FD_ISSET(fd, WriteEvent)) {
+				  if (fdtab[fd].state == FD_STCLOSE)
+					  continue;
+				  fdtab[fd].write(fd);
+			  }
 		  }
       }
       else {
