@@ -1,6 +1,20 @@
 ChangeLog :
 ===========
 
+2006/03/19 : 1.2.10
+  - assert.h is needed when DEBUG is defined.
+  - ENORMOUS long standing bug affecting the epoll polling system :
+    event_data is a union, not a structure !
+  - Make fd management more robust and easier to debug. Also some
+    micro-optimisations.
+  - Limit the number of consecutive accept() in multi-process mode.
+    This produces a more evenly distributed load across the processes and
+    slightly improves performance by reducing bottlenecks.
+  - Make health-checks be more regular, and faster to retry after a timeout.
+  - Fixed some messages to ease parsing of alerts.
+  - provided a patch to enable epoll on RHEL3 kernels.
+  - Separated OpenBSD build from the main Makefile into a new one.
+
 2006/03/15 : 1.2.9
   - haproxy could not be stopped after being paused, it had to be woken up
     first. This has been fixed.
