@@ -2555,8 +2555,14 @@ int event_accept(int fd) {
     struct session *s;
     struct task *t;
     int cfd;
+    int max_accept;
 
-    while (p->nbconn < p->maxconn) {
+    if (global.nbproc > 1)
+	    max_accept = 8; /* let other processes catch some connections too */
+    else
+	    max_accept = -1;
+
+    while (p->nbconn < p->maxconn && max_accept--) {
 	struct sockaddr_storage addr;
 	socklen_t laddr = sizeof(addr);
 
