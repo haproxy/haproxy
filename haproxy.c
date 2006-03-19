@@ -81,6 +81,10 @@
 #endif
 #endif
 
+#ifdef DEBUG_FULL
+#include <assert.h>
+#endif
+
 #include "include/appsession.h"
 
 #define HAPROXY_VERSION "1.2.9"
