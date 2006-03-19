@@ -2,6 +2,8 @@
 # You should use it this way :
 #   make TARGET=os CPU=cpu
 
+VERSION := 1.2.10
+
 # Select target OS. TARGET must match a system for which COPTS and LIBS are
 # correctly defined below.
 #TARGET = linux26
@@ -115,4 +117,10 @@ haproxy: src/list.o src/chtbl.o src/hashpjw.o haproxy.o
 
 clean:
 	rm -f *.[oas] *~ *.rej core haproxy test nohup.out gmon.out src/*.[oas]
+
+tar:
+	rm -f haproxy-$(VERSION)
+	ln -s . haproxy-$(VERSION)
+	tar --exclude=haproxy-$(VERSION)/.git --exclude=haproxy-$(VERSION)/haproxy-$(VERSION) -cf - haproxy-$(VERSION)/* | gzip -c9 >haproxy-$(VERSION).tar.gz
+	rm -f haproxy-$(VERSION)
 
