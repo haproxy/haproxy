@@ -23,7 +23,7 @@
 
 struct epoll_event {
     uint32_t events;
-    struct {
+    union {
 	void *ptr;
 	int fd;
 	uint32_t u32;
