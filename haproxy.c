@@ -5061,10 +5061,12 @@ int process_session(struct task *t) {
 int process_chk(struct task *t) {
     struct server *s = t->context;
     struct sockaddr_in sa;
-    int fd = s->curfd;
+    int fd;
 
     //fprintf(stderr, "process_chk: task=%p\n", t);
 
+ new_chk:
+    fd = s->curfd;
     if (fd < 0) {   /* no check currently running */
 	//fprintf(stderr, "process_chk: 2\n");
 	if (tv_cmp2_ms(&t->expire, &now) > 0) { /* not good time yet */
@@ -5076,7 +5078,8 @@ int process_chk(struct task *t) {
 	 * the server should not be checked.
 	 */
 	if (!(s->state & SRV_CHECKED) || s->proxy->state == PR_STSTOPPED) {
-	    tv_delayfrom(&t->expire, &now, s->inter);
+	    while (tv_cmp2_ms(&t->expire, &now) <= 0)
+		tv_delayfrom(&t->expire, &t->expire, s->inter);
 	    task_queue(t);	/* restore t to its place in the task list */
 	    return tv_remain2(&now, &t->expire);
 	}
@@ -5145,9 +5148,9 @@ int process_chk(struct task *t) {
 
 	if (!s->result) { /* nothing done */
 	    //fprintf(stderr, "process_chk: 6\n");
-	    tv_delayfrom(&t->expire, &now, s->inter);
-	    task_queue(t);	/* restore t to its place in the task list */
-	    return tv_remain(&now, &t->expire);
+	    while (tv_cmp2_ms(&t->expire, &now) <= 0)
+		tv_delayfrom(&t->expire, &t->expire, s->inter);
+	    goto new_chk; /* may be we should initialize a new check */
 	}
 
 	/* here, we have seen a failure */
@@ -5169,7 +5172,9 @@ int process_chk(struct task *t) {
 
 	//fprintf(stderr, "process_chk: 7\n");
 	/* FIXME: we allow up to <inter> for a connection to establish, but we should use another parameter */
-	tv_delayfrom(&t->expire, &now, s->inter);
+	while (tv_cmp2_ms(&t->expire, &now) <= 0)
+	    tv_delayfrom(&t->expire, &t->expire, s->inter);
+	goto new_chk;
     }
     else {
 	//fprintf(stderr, "process_chk: 8\n");
@@ -5189,7 +5194,9 @@ int process_chk(struct task *t) {
 	    s->curfd = -1; /* no check running anymore */
 	    //FD_CLR(fd, StaticWriteEvent);
 	    fd_delete(fd);
-	    tv_delayfrom(&t->expire, &now, s->inter);
+	    while (tv_cmp2_ms(&t->expire, &now) <= 0)
+	        tv_delayfrom(&t->expire, &t->expire, s->inter);
+	    goto new_chk;
 	}
 	else if (s->result < 0 || tv_cmp2_ms(&t->expire, &now) <= 0) {
 	    //fprintf(stderr, "process_chk: 10\n");
@@ -5214,7 +5221,9 @@ int process_chk(struct task *t) {
 	    s->curfd = -1;
 	    //FD_CLR(fd, StaticWriteEvent);
 	    fd_delete(fd);
-	    tv_delayfrom(&t->expire, &now, s->inter);
+	    while (tv_cmp2_ms(&t->expire, &now) <= 0)
+	        tv_delayfrom(&t->expire, &t->expire, s->inter);
+	    goto new_chk;
 	}
 	/* if result is 0 and there's no timeout, we have to wait again */
     }
