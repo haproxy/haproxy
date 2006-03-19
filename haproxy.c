@@ -5184,7 +5184,7 @@ int process_chk(struct task *t) {
 	    s->health++; /* was bad, stays for a while */
 	    if (s->health >= s->rise) {
 		if (s->health == s->rise) {
-		    Warning("server %s/%s UP.\n", s->proxy->id, s->id);
+		    Warning("Server %s/%s UP.\n", s->proxy->id, s->id);
 		    send_log(s->proxy, LOG_NOTICE, "Server %s/%s is UP.\n", s->proxy->id, s->id);
 		}
 
@@ -5980,19 +5980,19 @@ void sig_dump_state(int sig) {
 	send_log(p, LOG_NOTICE, "SIGUP received, dumping servers states.\n");
 	while (s) {
 	    if (s->state & SRV_RUNNING) {
-		Warning("SIGHUP: server %s/%s is UP.\n", p->id, s->id);
-		send_log(p, LOG_NOTICE, "SIGUP: server %s/%s is UP.\n", p->id, s->id);
+		Warning("SIGHUP: Server %s/%s is UP.\n", p->id, s->id);
+		send_log(p, LOG_NOTICE, "SIGUP: Server %s/%s is UP.\n", p->id, s->id);
 	    }
 	    else {
-		Warning("SIGHUP: server %s/%s is DOWN.\n", p->id, s->id);
-		send_log(p, LOG_NOTICE, "SIGHUP: server %s/%s is DOWN.\n", p->id, s->id);
+		Warning("SIGHUP: Server %s/%s is DOWN.\n", p->id, s->id);
+		send_log(p, LOG_NOTICE, "SIGHUP: Server %s/%s is DOWN.\n", p->id, s->id);
 	    }
 	    s = s->next;
 	}
 
 	if (find_server(p) == NULL) {
-	    Warning("SIGHUP: proxy %s has no server available !\n", p);
-	    send_log(p, LOG_NOTICE, "SIGHUP: proxy %s has no server available !\n", p);
+	    Warning("SIGHUP: Proxy %s has no server available !\n", p);
+	    send_log(p, LOG_NOTICE, "SIGHUP: Proxy %s has no server available !\n", p);
 	}
 
 	p = p->next;
