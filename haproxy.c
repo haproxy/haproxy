@@ -1787,17 +1787,21 @@ static inline void session_free(struct session *s) {
  */
 static inline struct server *find_server(struct proxy *px) {
     struct server *srv = px->cursrv;
+    struct server *end;
     int ignore_backup = 1;
 
     do {
+	if (srv == NULL)
+	    srv = px->srv;
+        end = srv;
 	do  {
-	    if (srv == NULL)
-		srv = px->srv;
 	    if (srv->state & SRV_RUNNING
 		&& !((srv->state & SRV_BACKUP) && ignore_backup))
 		return srv;
 	    srv = srv->next;
-	} while (srv != px->cursrv);
+	    if (srv == NULL)
+		srv = px->srv;
+	} while (srv != end);
 
 	/* By default, we look for the first backup server if all others are
 	 * DOWN. But in some cases, it may be desirable to load-balance across
