@@ -5991,8 +5991,8 @@ void sig_dump_state(int sig) {
 	}
 
 	if (find_server(p) == NULL) {
-	    Warning("SIGHUP: Proxy %s has no server available !\n", p);
-	    send_log(p, LOG_NOTICE, "SIGHUP: Proxy %s has no server available !\n", p);
+	    Warning("SIGHUP: Proxy %s has no server available !\n", p->id);
+	    send_log(p, LOG_NOTICE, "SIGHUP: Proxy %s has no server available !\n", p->id);
 	}
 
 	p = p->next;
