@@ -1,6 +1,11 @@
 ChangeLog :
 ===========
 
+2006/03/23 : 1.2.10.1
+  - while fixing the backup server round-robin "feature", a new bug was
+    introduced which could miss some backup servers.
+  - the displayed proxy name was wrong when dumping upon SIGHUP.
+
 2006/03/19 : 1.2.10
   - assert.h is needed when DEBUG is defined.
   - ENORMOUS long standing bug affecting the epoll polling system :
