@@ -332,7 +332,6 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define PR_O_COOK_PFX	0x00000020	/* rewrite all cookies by prefixing the right serverid */
 #define PR_O_COOK_ANY	(PR_O_COOK_RW | PR_O_COOK_IND | PR_O_COOK_INS | PR_O_COOK_PFX)
 #define PR_O_BALANCE_RR	0x00000040	/* balance in round-robin mode */
-#define PR_O_BALANCE	(PR_O_BALANCE_RR)
 #define	PR_O_KEEPALIVE	0x00000080	/* follow keep-alive sessions */
 #define	PR_O_FWDFOR	0x00000100	/* insert x-forwarded-for with client address */
 #define	PR_O_BIND_SRC	0x00000200	/* bind to a specific source address when connect()ing */
@@ -348,6 +347,8 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define PR_O_TCP_SRV_KA	0x00080000	/* enable TCP keep-alive on server-side sessions */
 #define PR_O_USE_ALL_BK	0x00100000	/* load-balance between backup servers */
 #define PR_O_FORCE_CLO	0x00200000	/* enforce the connection close immediately after server response */
+#define PR_O_BALANCE_SH	0x00400000	/* balance on source IP hash */
+#define PR_O_BALANCE	(PR_O_BALANCE_RR | PR_O_BALANCE_SH)
 
 /* various session flags */
 #define SN_DIRECT	0x00000001	/* connection made on the server matching the client cookie */
@@ -1862,6 +1863,69 @@ static inline struct server *get_server_rr(struct proxy *px) {
 
 
 /*
+ * This function tries to find a running server for the proxy <px> following
+ * the source hash method. Depending on the number of active/backup servers,
+ * it will either look for active servers, or for backup servers.
+ * If any server is found, it will be returned. If no valid server is found,
+ * NULL is returned.
+ */
+static inline struct server *get_server_sh(struct proxy *px, char *addr, int len) {
+    struct server *srv;
+
+    if (px->srv_act) {
+        unsigned int h, l;
+
+        l = h = 0;
+        if (px->srv_act > 1) {
+            while ((l + sizeof (int)) <= len) {
+                h ^= ntohl(*(unsigned int *)(&addr[l]));
+                l += sizeof (int);
+            }
+            h %= px->srv_act;
+        }
+
+        for (srv = px->srv; srv; srv = srv->next) {
+	    if ((srv->state & (SRV_RUNNING | SRV_BACKUP)) == SRV_RUNNING) {
+                if (!h)
+                    return srv;
+                h--;
+            }
+	}
+        /* note that theorically we should not get there */
+    }
+
+    if (px->srv_bck) {
+        unsigned int h, l;
+
+	/* By default, we look for the first backup server if all others are
+	 * DOWN. But in some cases, it may be desirable to load-balance across
+	 * all backup servers.
+	 */
+        l = h = 0;
+        if (px->srv_bck > 1 && px->options & PR_O_USE_ALL_BK) {
+            while ((l + sizeof (int)) <= len) {
+                h ^= ntohl(*(unsigned int *)(&addr[l]));
+                l += sizeof (int);
+            }
+            h %= px->srv_bck;
+        }
+
+        for (srv = px->srv; srv; srv = srv->next) {
+	    if (srv->state & SRV_RUNNING) {
+                if (!h)
+                    return srv;
+                h--;
+            }
+	}
+        /* note that theorically we should not get there */
+    }
+
+    /* if we get there, it means there are no available servers at all */
+    return NULL;
+}
+
+
+/*
  * This function initiates a connection to the current server (s->srv) if (s->direct)
  * is set, or to the dispatch server if (s->direct) is 0.
  * It can return one of :
@@ -1884,6 +1948,7 @@ int connect_server(struct session *s) {
 	s->srv_addr = s->srv->addr;
     }
     else if (s->proxy->options & PR_O_BALANCE) {
+        /* Ensure that srv will not be NULL */
         if (!s->proxy->srv_act && !s->proxy->srv_bck)
             return SN_ERR_SRVTO;
 
@@ -1891,7 +1956,23 @@ int connect_server(struct session *s) {
 	    struct server *srv;
 
 	    srv = get_server_rr(s->proxy);
-            /* srv cannot be NULL */
+	    s->srv_addr = srv->addr;
+	    s->srv = srv;
+	}
+	else if (s->proxy->options & PR_O_BALANCE_SH) {
+	    struct server *srv;
+            int len;
+
+            if (s->cli_addr.ss_family == AF_INET)
+                len = 4;
+            else if (s->cli_addr.ss_family == AF_INET6)
+                len = 16;
+            else /* unknown IP family */
+                return SN_ERR_INTERNAL;
+
+            srv = get_server_sh(s->proxy,
+                                (void *)&((struct sockaddr_in *)&s->cli_addr)->sin_addr,
+                                len);
 	    s->srv_addr = srv->addr;
 	    s->srv = srv;
 	}
@@ -6846,8 +6927,11 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	    if (!strcmp(args[1], "roundrobin")) {
 		curproxy->options |= PR_O_BALANCE_RR;
 	    }
+	    else if (!strcmp(args[1], "source")) {
+		curproxy->options |= PR_O_BALANCE_SH;
+	    }
 	    else {
-		Alert("parsing [%s:%d] : '%s' only supports 'roundrobin' option.\n", file, linenum, args[0]);
+		Alert("parsing [%s:%d] : '%s' only supports 'roundrobin' and 'source' options.\n", file, linenum, args[0]);
 		return -1;
 	    }
 	}
