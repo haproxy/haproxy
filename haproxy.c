@@ -572,7 +572,7 @@ struct proxy {
     int state;				/* proxy state */
     struct sockaddr_in dispatch_addr;	/* the default address to connect to */
     struct server *srv, *cursrv;	/* known servers, current server */
-    int nbservers;			/* # of servers */
+    int srv_act, srv_bck;		/* # of servers */
     char *cookie_name;			/* name of the cookie to look for */
     int  cookie_len;			/* strlen(cookie_name), computed only once */
     char *appsession_name;		/* name of the cookie to look for */
@@ -1817,6 +1817,24 @@ static inline struct server *find_server(struct proxy *px) {
 
     } while (ignore_backup--);
     return NULL;
+}
+
+/*
+ * This function recounts the number of usable active and backup servers for
+ * proxy <p>. These numbers are returned into the p->srv_act and p->srv_bck.
+ */
+static inline void recount_servers(struct proxy *px) {
+    struct server *srv;
+
+    px->srv_act = 0; px->srv_bck = 0;
+    for (srv = px->srv; srv != NULL; srv = srv->next) {
+        if (srv->state & SRV_RUNNING) {
+            if (srv->state & SRV_BACKUP)
+                px->srv_bck++;
+            else
+                px->srv_act++;
+        }
+    }
 }
 
 /*
@@ -5168,10 +5186,18 @@ int process_chk(struct task *t) {
 	else {
 	    s->state &= ~SRV_RUNNING;
 	    if (s->health == s->rise) {
-		Warning("Server %s/%s DOWN.\n", s->proxy->id, s->id);
-		send_log(s->proxy, LOG_ALERT, "Server %s/%s is DOWN.\n", s->proxy->id, s->id);
+                recount_servers(s->proxy);
+		Warning("%sServer %s/%s DOWN. %d active and %d backup servers left.%s\n",
+                        s->state & SRV_BACKUP ? "Backup " : "",
+                        s->proxy->id, s->id, s->proxy->srv_act, s->proxy->srv_bck,
+                        (s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "");
+		send_log(s->proxy, LOG_ALERT,
+                         "%sServer %s/%s is DOWN. %d active and %d backup servers left.%s\n",
+                         s->state & SRV_BACKUP ? "Backup " : "",
+                         s->proxy->id, s->id, s->proxy->srv_act, s->proxy->srv_bck,
+                         (s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "");
 
-		if (find_server(s->proxy) == NULL) {
+		if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
 		    Alert("Proxy %s has no server available !\n", s->proxy->id);
 		    send_log(s->proxy, LOG_EMERG, "Proxy %s has no server available !\n", s->proxy->id);
 		}
@@ -5193,8 +5219,16 @@ int process_chk(struct task *t) {
 	    s->health++; /* was bad, stays for a while */
 	    if (s->health >= s->rise) {
 		if (s->health == s->rise) {
-		    Warning("Server %s/%s UP.\n", s->proxy->id, s->id);
-		    send_log(s->proxy, LOG_NOTICE, "Server %s/%s is UP.\n", s->proxy->id, s->id);
+                    recount_servers(s->proxy);
+		    Warning("%sServer %s/%s UP. %d active and %d backup servers online.%s\n",
+                            s->state & SRV_BACKUP ? "Backup " : "",
+                            s->proxy->id, s->id, s->proxy->srv_act, s->proxy->srv_bck,
+                            (s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "");
+		    send_log(s->proxy, LOG_NOTICE,
+                             "%sServer %s/%s is UP. %d active and %d backup servers online.%s\n",
+                             s->state & SRV_BACKUP ? "Backup " : "",
+                             s->proxy->id, s->id, s->proxy->srv_act, s->proxy->srv_bck,
+                             (s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "");
 		}
 
 		s->health = s->rise + s->fall - 1; /* OK now */
@@ -5215,15 +5249,23 @@ int process_chk(struct task *t) {
 	    else {
 		s->state &= ~SRV_RUNNING;
 
-		if (s->health == s->rise) {
-		    Warning("Server %s/%s DOWN.\n", s->proxy->id, s->id);
-		    send_log(s->proxy, LOG_ALERT, "Server %s/%s is DOWN.\n", s->proxy->id, s->id);
-
-		    if (find_server(s->proxy) == NULL) {
-			Alert("Proxy %s has no server available !\n", s->proxy->id);
-			send_log(s->proxy, LOG_EMERG, "Proxy %s has no server available !\n", s->proxy->id);
-		    }
-		}
+                if (s->health == s->rise) {
+                    recount_servers(s->proxy);
+                    Warning("%sServer %s/%s DOWN. %d active and %d backup servers left.%s\n",
+                            s->state & SRV_BACKUP ? "Backup " : "",
+                            s->proxy->id, s->id, s->proxy->srv_act, s->proxy->srv_bck,
+                            (s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "");
+                    send_log(s->proxy, LOG_ALERT,
+                             "%sServer %s/%s is DOWN. %d active and %d backup servers left.%s\n",
+                             s->state & SRV_BACKUP ? "Backup " : "",
+                             s->proxy->id, s->id, s->proxy->srv_act, s->proxy->srv_bck,
+                             (s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "");
+                    
+                    if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
+                        Alert("Proxy %s has no server available !\n", s->proxy->id);
+                        send_log(s->proxy, LOG_EMERG, "Proxy %s has no server available !\n", s->proxy->id);
+                    }
+                }
 
 		s->health = 0; /* failure */
 	    }
@@ -5999,10 +6041,15 @@ void sig_dump_state(int sig) {
 	    s = s->next;
 	}
 
-	if (find_server(p) == NULL) {
-	    Warning("SIGHUP: Proxy %s has no server available !\n", p->id);
-	    send_log(p, LOG_NOTICE, "SIGHUP: Proxy %s has no server available !\n", p->id);
-	}
+	if (p->srv_act == 0) {
+            if (p->srv_bck) {
+                Warning("SIGHUP: Proxy %s is running on backup servers !\n", p->id);
+                send_log(p, LOG_NOTICE, "SIGHUP: Proxy %s is running on backup servers !\n", p->id);
+            } else {
+                Warning("SIGHUP: Proxy %s has no server available !\n", p->id);
+                send_log(p, LOG_NOTICE, "SIGHUP: Proxy %s has no server available !\n", p->id);
+            }
+        }
 
 	p = p->next;
     }
@@ -6908,7 +6955,10 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	    newsrv->state |= SRV_CHECKED;
 	}
 
-	curproxy->nbservers++;
+	if (newsrv->state & SRV_BACKUP)
+	    curproxy->srv_bck++;
+	else
+	    curproxy->srv_act++;
     }
     else if (!strcmp(args[0], "log")) {  /* syslog server address */
 	struct sockaddr_in *sa;
