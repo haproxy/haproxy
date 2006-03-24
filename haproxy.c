@@ -1785,41 +1785,6 @@ static inline void session_free(struct session *s) {
 
 
 /*
- * This function tries to find a running server for the proxy <px>. A first
- * pass looks for active servers, and if none is found, a second pass also
- * looks for backup servers.
- * If no valid server is found, NULL is returned and px->cursrv is left undefined.
- */
-static inline struct server *find_server(struct proxy *px) {
-    struct server *srv = px->cursrv;
-    struct server *end;
-    int ignore_backup = 1;
-
-    do {
-	if (srv == NULL)
-	    srv = px->srv;
-        end = srv;
-	do  {
-	    if (srv->state & SRV_RUNNING
-		&& !((srv->state & SRV_BACKUP) && ignore_backup))
-		return srv;
-	    srv = srv->next;
-	    if (srv == NULL)
-		srv = px->srv;
-	} while (srv != end);
-
-	/* By default, we look for the first backup server if all others are
-	 * DOWN. But in some cases, it may be desirable to load-balance across
-	 * all backup servers.
-	 */
-	if (!(px->options & PR_O_USE_ALL_BK))
-	    srv = px->srv;
-
-    } while (ignore_backup--);
-    return NULL;
-}
-
-/*
  * This function recounts the number of usable active and backup servers for
  * proxy <p>. These numbers are returned into the p->srv_act and p->srv_bck.
  */
@@ -1836,6 +1801,65 @@ static inline void recount_servers(struct proxy *px) {
         }
     }
 }
+
+/*
+ * This function tries to find a running server for the proxy <px> following
+ * the round-robin method. Depending on the number of active/backup servers,
+ * it will either look for active servers, or for backup servers.
+ * If any server is found, it will be returned and px->cursrv will be updated
+ * to point to the next server. If no valid server is found, NULL is returned.
+ */
+static inline struct server *get_server_rr(struct proxy *px) {
+    struct server *srv;
+    struct server *end;
+
+    if (px->srv_act) {
+        srv = px->cursrv;
+	if (srv == NULL)
+	    srv = px->srv;
+        end = srv;
+	do  {
+	    if ((srv->state & (SRV_RUNNING | SRV_BACKUP)) == SRV_RUNNING) {
+                px->cursrv = srv->next;
+		return srv;
+            }
+
+	    srv = srv->next;
+	    if (srv == NULL)
+		srv = px->srv;
+	} while (srv != end);
+        /* note that theorically we should not get there */
+    }
+
+    if (px->srv_bck) {
+	/* By default, we look for the first backup server if all others are
+	 * DOWN. But in some cases, it may be desirable to load-balance across
+	 * all backup servers.
+	 */
+        if (px->options & PR_O_USE_ALL_BK)
+            srv = px->cursrv;
+        else
+            srv = px->srv;
+
+	if (srv == NULL)
+	    srv = px->srv;
+        end = srv;
+	do  {
+	    if (srv->state & SRV_RUNNING) {
+                px->cursrv = srv->next;
+		return srv;
+            }
+	    srv = srv->next;
+	    if (srv == NULL)
+		srv = px->srv;
+	} while (srv != end);
+        /* note that theorically we should not get there */
+    }
+
+    /* if we get there, it means there are no available servers at all */
+    return NULL;
+}
+
 
 /*
  * This function initiates a connection to the current server (s->srv) if (s->direct)
@@ -1860,17 +1884,16 @@ int connect_server(struct session *s) {
 	s->srv_addr = s->srv->addr;
     }
     else if (s->proxy->options & PR_O_BALANCE) {
+        if (!s->proxy->srv_act && !s->proxy->srv_bck)
+            return SN_ERR_SRVTO;
+
 	if (s->proxy->options & PR_O_BALANCE_RR) {
 	    struct server *srv;
 
-	    srv = find_server(s->proxy);
-
-	    if (srv == NULL) /* no server left */
-		return SN_ERR_SRVTO;
-
+	    srv = get_server_rr(s->proxy);
+            /* srv cannot be NULL */
 	    s->srv_addr = srv->addr;
 	    s->srv = srv;
-	    s->proxy->cursrv = srv->next;
 	}
 	else /* unknown balancing algorithm */
 	    return SN_ERR_INTERNAL;
