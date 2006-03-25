@@ -462,6 +462,10 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define LW_REQHDR	1024	/* request header(s) */
 #define LW_RSPHDR	2048	/* response header(s) */
 
+#define ERR_NONE	0	/* no error */
+#define ERR_RETRYABLE	1	/* retryable error, may be cumulated */
+#define ERR_FATAL	2	/* fatal error, may be cumulated */
+
 /*********************************************************************/
 
 #define LIST_HEAD(a)	((void *)(&(a)))
@@ -698,6 +702,14 @@ static int listeners = 0;	/* # of listeners */
 static int stopping = 0;	/* non zero means stopping in progress */
 static struct timeval now = {0,0};	/* the current date at any moment */
 static struct proxy defproxy;		/* fake proxy used to assign default values on all instances */
+
+/* Here we store informations about the pids of the processes we
+ * may pause or kill.
+ */
+#define MAX_START_RETRIES	100
+static int nb_oldpids = 0;
+static int *oldpids = NULL;
+static int oldpids_sig; /* use USR1 or TERM */
 
 #if defined(ENABLE_EPOLL)
 /* FIXME: this is dirty, but at the moment, there's no other solution to remove
@@ -1133,6 +1145,7 @@ struct listener *str2listener(char *str, struct listener *tail) {
 	    l->next = tail;
 	    tail = l;
 
+	    l->fd = -1;
 	    l->addr = ss;
 	    if (ss.ss_family == AF_INET6)
 		((struct sockaddr_in6 *)(&l->addr))->sin6_port = htons(port);
@@ -8126,30 +8139,41 @@ void init(int argc, char **argv) {
 }
 
 /*
- * this function starts all the proxies. It returns 0 if OK, -1 if not.
+ * this function starts all the proxies. Its return value is composed from
+ * ERR_NONE, ERR_RETRYABLE and ERR_FATAL. Retryable errors will only be printed
+ * if <verbose> is not zero.
  */
-int start_proxies() {
+int start_proxies(int verbose) {
     struct proxy *curproxy;
     struct listener *listener;
-    int fd;
+    int err = ERR_NONE;
+    int fd, pxerr;
 
     for (curproxy = proxy; curproxy != NULL; curproxy = curproxy->next) {
-	if (curproxy->state == PR_STSTOPPED)
-	    continue;
+        if (curproxy->state != PR_STNEW)
+	    continue; /* already initialized */
 
+	pxerr = 0;
 	for (listener = curproxy->listen; listener != NULL; listener = listener->next) {
-	    if ((fd = listener->fd =
-		 socket(listener->addr.ss_family, SOCK_STREAM, IPPROTO_TCP)) == -1) {
-		Alert("cannot create listening socket for proxy %s. Aborting.\n",
-		      curproxy->id);
-		return -1;
+	    if (listener->fd != -1)
+		continue; /* already initialized */
+
+	    if ((fd = socket(listener->addr.ss_family, SOCK_STREAM, IPPROTO_TCP)) == -1) {
+		if (verbose)
+		    Alert("cannot create listening socket for proxy %s. Aborting.\n",
+			  curproxy->id);
+		err |= ERR_RETRYABLE;
+		pxerr |= 1;
+	        continue;
 	    }
 	
 	    if (fd >= global.maxsock) {
 		Alert("socket(): not enough free sockets for proxy %s. Raise -n argument. Aborting.\n",
 		      curproxy->id);
 		close(fd);
-		return -1;
+		err |= ERR_FATAL;
+		pxerr |= 1;
+		break;
 	    }
 
 	    if ((fcntl(fd, F_SETFL, O_NONBLOCK) == -1) ||
@@ -8158,7 +8182,9 @@ int start_proxies() {
 		Alert("cannot make socket non-blocking for proxy %s. Aborting.\n",
 		      curproxy->id);
 		close(fd);
-		return -1;
+		err |= ERR_FATAL;
+		pxerr |= 1;
+		break;
 	    }
 
 	    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(one)) == -1) {
@@ -8171,32 +8197,45 @@ int start_proxies() {
 		     listener->addr.ss_family == AF_INET6 ?
 		     sizeof(struct sockaddr_in6) :
 		     sizeof(struct sockaddr_in)) == -1) {
-		Alert("cannot bind socket for proxy %s. Aborting.\n",
-		      curproxy->id);
+		if (verbose)
+		    Alert("cannot bind socket for proxy %s. Aborting.\n",
+			  curproxy->id);
 		close(fd);
-		return -1;
+		err |= ERR_RETRYABLE;
+		pxerr |= 1;
+		continue;
 	    }
 	
 	    if (listen(fd, curproxy->maxconn) == -1) {
-		Alert("cannot listen to socket for proxy %s. Aborting.\n",
-		      curproxy->id);
+		if (verbose)
+		    Alert("cannot listen to socket for proxy %s. Aborting.\n",
+			  curproxy->id);
 		close(fd);
-		return -1;
+		err |= ERR_RETRYABLE;
+		pxerr |= 1;
+		continue;
 	    }
 	
+	    /* the socket is ready */
+	    listener->fd = fd;
+
 	    /* the function for the accept() event */
 	    fdtab[fd].read  = &event_accept;
 	    fdtab[fd].write = NULL; /* never called */
 	    fdtab[fd].owner = (struct task *)curproxy; /* reference the proxy instead of a task */
-	    curproxy->state = PR_STRUN;
 	    fdtab[fd].state = FD_STLISTEN;
 	    FD_SET(fd, StaticReadEvent);
 	    fd_insert(fd);
 	    listeners++;
 	}
-	send_log(curproxy, LOG_NOTICE, "Proxy %s started.\n", curproxy->id);
+
+	if (!pxerr) {
+	    curproxy->state = PR_STRUN;
+	    send_log(curproxy, LOG_NOTICE, "Proxy %s started.\n", curproxy->id);
+	}
     }
-    return 0;
+
+    return err;
 }
 
 int match_str(const void *key1, const void *key2) {
@@ -8346,7 +8385,15 @@ void deinit(void) {
     }
 } /* end deinit() */
 
+/* sends the signal <sig> to all pids found in <oldpids> */
+static void tell_old_pids(int sig) {
+    int p;
+    for (p = 0; p < nb_oldpids; p++)
+	kill(oldpids[p], sig);
+}
+
 int main(int argc, char **argv) {
+    int err, retry;
     struct rlimit limit;
     FILE *pidfile = NULL;
     init(argc, argv);
@@ -8366,12 +8413,39 @@ int main(int argc, char **argv) {
     signal(SIGPIPE, SIG_IGN);
 #endif
 
-    /* start_proxies() sends an alert when it fails. */
-    if (start_proxies() < 0)
+    /* We will loop at most 100 times with 10 ms delay each time.
+     * That's at most 1 second. We only send a signal to old pids
+     * if we cannot grab at least one port.
+     */
+    retry = MAX_START_RETRIES;
+    err = ERR_NONE;
+    while (retry >= 0) {
+	struct timeval w;
+	err = start_proxies(retry == 0 || nb_oldpids == 0);
+	if (err != ERR_RETRYABLE)
+	    break;
+	if (nb_oldpids == 0)
+	    break;
+
+	tell_old_pids(SIGTTOU);
+	/* give some time to old processes to stop listening */
+	w.tv_sec = 0;
+	w.tv_usec = 10*1000;
+	select(0, NULL, NULL, NULL, &w);
+	retry--;
+    }
+
+    /* Note: start_proxies() sends an alert when it fails. */
+    if (err != ERR_NONE) {
+	if (retry != MAX_START_RETRIES && nb_oldpids)
+	    tell_old_pids(SIGTTIN);
 	exit(1);
+    }
 
     if (listeners == 0) {
 	Alert("[%s.main()] No enabled listener found (check the <listen> keywords) ! Exiting.\n", argv[0]);
+	/* Note: we don't have to send anything to the old pids because we
+	 * never stopped them. */
 	exit(1);
     }
 
@@ -8400,6 +8474,8 @@ int main(int argc, char **argv) {
 	pidfd = open(global.pidfile, O_CREAT | O_WRONLY | O_TRUNC, 0644);
 	if (pidfd < 0) {
 	    Alert("[%s.main()] Cannot create pidfile %s\n", argv[0], global.pidfile);
+	    if (nb_oldpids)
+		tell_old_pids(SIGTTIN);
 	    exit(1);
 	}
 	pidfile = fdopen(pidfd, "w");
@@ -8409,7 +8485,8 @@ int main(int argc, char **argv) {
     if (global.chroot != NULL) {
 	if (chroot(global.chroot) == -1) {
 	    Alert("[%s.main()] Cannot chroot(%s).\n", argv[0], global.chroot);
-	    exit(1);
+	    if (nb_oldpids)
+		tell_old_pids(SIGTTIN);
 	}
 	chdir("/");
     }
@@ -8441,6 +8518,13 @@ int main(int argc, char **argv) {
 #endif
     }
 
+    if (nb_oldpids)
+	tell_old_pids(oldpids_sig);
+
+    /* Note that any error at this stage will be fatal because we will not
+     * be able to restart the old pids.
+     */
+
     /* setgid / setuid */
     if (global.gid && setgid(global.gid) == -1) {
 	Alert("[%s.main()] Cannot set gid %d.\n", argv[0], global.gid);
@@ -8469,6 +8553,7 @@ int main(int argc, char **argv) {
 	    ret = fork();
 	    if (ret < 0) {
 		Alert("[%s.main()] Cannot fork.\n", argv[0]);
+		if (nb_oldpids)
 		exit(1); /* there has been an error */
 	    }
 	    else if (ret == 0) /* child breaks here */
