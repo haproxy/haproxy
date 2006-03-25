@@ -653,6 +653,7 @@ static struct {
     int maxconn;
     int maxsock;		/* max # of sockets */
     int rlimit_nofile;		/* default ulimit-n value : 0=unset */
+    int rlimit_memmax;		/* default ulimit-d in megs value : 0=unset */
     int mode;
     char *chroot;
     char *pidfile;
@@ -867,7 +868,8 @@ void usage(char *name) {
 #if STATTIME > 0
 	    "sl"
 #endif
-	    "D ] [ -n <maxconn> ] [ -N <maxpconn> ] [ -p <pidfile> ]\n"
+	    "D ] [ -n <maxconn> ] [ -N <maxpconn> ]\n"
+	    "        [ -p <pidfile> ] [ -m <max megs> ]\n"
 	    "        -v displays version\n"
 	    "        -d enters debug mode\n"
 	    "        -V enters verbose mode (disables quiet mode)\n"
@@ -879,6 +881,7 @@ void usage(char *name) {
 	    "        -q quiet mode : don't display messages\n"
 	    "        -c check mode : only check config file and exit\n"
 	    "        -n sets the maximum total # of connections (%d)\n"
+	    "        -m limits the usable amount of memory (in MB)\n"
 	    "        -N sets the default, per-proxy maximum # of connections (%d)\n"
 	    "        -p writes pids of all children to this file\n"
 #if defined(ENABLE_EPOLL)
@@ -7945,6 +7948,10 @@ void init(int argc, char **argv) {
 	exit(1);
     }
 
+#ifdef HAPROXY_MEMMAX
+    global.rlimit_memmax = HAPROXY_MEMMAX;
+#endif
+
     /* initialize the libc's localtime structures once for all so that we
      * won't be missing memory if we want to send alerts under OOM conditions.
      */
@@ -8035,6 +8042,7 @@ void init(int argc, char **argv) {
 
 		switch (*flag) {
 		case 'n' : cfg_maxconn = atol(*argv); break;
+		case 'm' : global.rlimit_memmax = atol(*argv); break;
 		case 'N' : cfg_maxpconn = atol(*argv); break;
 		case 'f' : cfg_cfgfile = *argv; break;
 		case 'p' : cfg_pidfile = *argv; break;
@@ -8415,6 +8423,22 @@ int main(int argc, char **argv) {
 	if (setrlimit(RLIMIT_NOFILE, &limit) == -1) {
 	    Warning("[%s.main()] Cannot raise FD limit to %d.\n", argv[0], global.rlimit_nofile);
 	}
+    }
+
+    if (global.rlimit_memmax) {
+	limit.rlim_cur = limit.rlim_max =
+		global.rlimit_memmax * 1048576 / global.nbproc;
+#ifdef RLIMIT_AS
+	if (setrlimit(RLIMIT_AS, &limit) == -1) {
+	    Warning("[%s.main()] Cannot fix MEM limit to %d megs.\n",
+		    argv[0], global.rlimit_memmax);
+	}
+#else
+	if (setrlimit(RLIMIT_DATA, &limit) == -1) {
+	    Warning("[%s.main()] Cannot fix MEM limit to %d megs.\n",
+		    argv[0], global.rlimit_memmax);
+	}
+#endif
     }
 
     /* setgid / setuid */
