@@ -1,6 +1,21 @@
 ChangeLog :
 ===========
 
+2006/03/25 : 1.2.11
+   - added the '-db' command-line option to disable backgrounding.
+   - added the -sf/-st command-line arguments which are used to specify
+     a list of pids to send a FINISH or TERMINATE signal upon startup.
+     They will also be asked to release their port if a bind fails.
+   - reworked the startup mechanism to allow the sending of a signal to a list
+     of old pids if a socket cannot be bound, with a retry for a limited amount
+     of time (1 second by default).
+   - added the ability to enforce limits on memory usage.
+   - added the 'source' load-balancing algorithm which uses the source IP(v4|v6)
+   - re-architectured the server round-robin mechanism to ease integration of
+     other algorithms. It now relies on the number of active and backup servers.
+   - added a counter for the number of active and backup servers, and report
+     these numbers upon SIGHUP or state change.
+
 2006/03/23 : 1.2.10.1
   - while fixing the backup server round-robin "feature", a new bug was
     introduced which could miss some backup servers.

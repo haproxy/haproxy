@@ -88,11 +88,11 @@
 #include "include/appsession.h"
 
 #ifndef HAPROXY_VERSION
-#define HAPROXY_VERSION "1.2.10.1"
+#define HAPROXY_VERSION "1.2.11"
 #endif
 
 #ifndef HAPROXY_DATE
-#define HAPROXY_DATE	"2006/03/23"
+#define HAPROXY_DATE	"2006/03/25"
 #endif
 
 /* this is for libc5 for example */
