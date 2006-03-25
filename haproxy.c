@@ -703,10 +703,11 @@ static int stopping = 0;	/* non zero means stopping in progress */
 static struct timeval now = {0,0};	/* the current date at any moment */
 static struct proxy defproxy;		/* fake proxy used to assign default values on all instances */
 
-/* Here we store informations about the pids of the processes we
- * may pause or kill.
+/* Here we store informations about the pids of the processes we may pause
+ * or kill. We will send them a signal every 10 ms until we can bind to all
+ * our ports. With 200 retries, that's about 2 seconds.
  */
-#define MAX_START_RETRIES	100
+#define MAX_START_RETRIES	200
 static int nb_oldpids = 0;
 static int *oldpids = NULL;
 static int oldpids_sig; /* use USR1 or TERM */
@@ -902,6 +903,7 @@ void usage(char *name) {
 #if defined(ENABLE_POLL)
 	    "        -dp disables poll() usage even when available\n"
 #endif
+	    "        -sf/-st [pid ]* finishes/terminates old pids. Must be last arguments.\n"
 	    "\n",
 	    name, DEFAULT_MAXCONN, cfg_maxpconn);
     exit(1);
@@ -8048,6 +8050,26 @@ void init(int argc, char **argv) {
 	    else if (*flag == 'l')
 		arg_mode |= MODE_LOG;
 #endif
+	    else if (*flag == 's' && (flag[1] == 'f' || flag[1] == 't')) {
+		/* list of pids to finish ('f') or terminate ('t') */
+
+		if (flag[1] == 'f')
+		    oldpids_sig = SIGUSR1; /* finish then exit */
+		else
+		    oldpids_sig = SIGTERM; /* terminate immediately */
+		argv++; argc--;
+
+		if (argc > 0) {
+		    oldpids = calloc(argc, sizeof(int));
+		    while (argc > 0) {
+			oldpids[nb_oldpids] = atol(*argv);
+			if (oldpids[nb_oldpids] <= 0)
+			    usage(old_argv);
+			argc--; argv++;
+			nb_oldpids++;
+		    }
+		}
+	    }
 	    else { /* >=2 args */
 		argv++; argc--;
 		if (argc == 0)
@@ -8065,7 +8087,7 @@ void init(int argc, char **argv) {
 	}
 	else
 	    usage(old_argv);
-	    argv++; argc--;
+	argv++; argc--;
     }
 
     global.mode = MODE_STARTING | /* during startup, we want most of the alerts */
