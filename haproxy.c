@@ -428,6 +428,7 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define	MODE_CHECK	32
 #define	MODE_VERBOSE	64
 #define	MODE_STARTING	128
+#define	MODE_FOREGROUND	256
 
 /* server flags */
 #define SRV_RUNNING	1	/* the server is UP */
@@ -884,7 +885,7 @@ void usage(char *name) {
 	    "D ] [ -n <maxconn> ] [ -N <maxpconn> ]\n"
 	    "        [ -p <pidfile> ] [ -m <max megs> ]\n"
 	    "        -v displays version\n"
-	    "        -d enters debug mode\n"
+	    "        -d enters debug mode ; -db only disables background mode.\n"
 	    "        -V enters verbose mode (disables quiet mode)\n"
 #if STATTIME > 0
 	    "        -s enables statistics output\n"
@@ -8036,6 +8037,8 @@ void init(int argc, char **argv) {
 #endif
 	    else if (*flag == 'V')
 		arg_mode |= MODE_VERBOSE;
+	    else if (*flag == 'd' && flag[1] == 'b')
+		arg_mode |= MODE_FOREGROUND;
 	    else if (*flag == 'd')
 		arg_mode |= MODE_DEBUG;
 	    else if (*flag == 'c')
@@ -8091,7 +8094,8 @@ void init(int argc, char **argv) {
     }
 
     global.mode = MODE_STARTING | /* during startup, we want most of the alerts */
-		  (arg_mode & (MODE_DAEMON | MODE_VERBOSE | MODE_QUIET | MODE_CHECK | MODE_DEBUG));
+		  (arg_mode & (MODE_DAEMON | MODE_FOREGROUND | MODE_VERBOSE
+			       | MODE_QUIET | MODE_CHECK | MODE_DEBUG));
 
     if (!cfg_cfgfile)
 	usage(old_argv);
@@ -8126,12 +8130,12 @@ void init(int argc, char **argv) {
 
     global.maxsock += global.maxconn * 2; /* each connection needs two sockets */
 
-    if (arg_mode & MODE_DEBUG) {
+    if (arg_mode & (MODE_DEBUG | MODE_FOREGROUND)) {
 	/* command line debug mode inhibits configuration mode */
 	global.mode &= ~(MODE_DAEMON | MODE_QUIET);
     }
-    global.mode |= (arg_mode & (MODE_DAEMON | MODE_QUIET | MODE_VERBOSE
-                                | MODE_DEBUG | MODE_STATS | MODE_LOG));
+    global.mode |= (arg_mode & (MODE_DAEMON | MODE_FOREGROUND | MODE_QUIET |
+				MODE_VERBOSE | MODE_DEBUG | MODE_STATS | MODE_LOG));
 
     if ((global.mode & MODE_DEBUG) && (global.mode & (MODE_DAEMON | MODE_QUIET))) {
 	Warning("<debug> mode incompatible with <quiet> and <daemon>. Keeping <debug> only.\n");
@@ -8139,7 +8143,8 @@ void init(int argc, char **argv) {
     }
 
     if ((global.nbproc > 1) && !(global.mode & MODE_DAEMON)) {
-	Warning("<nbproc> is only meaningful in daemon mode. Setting limit to 1 process.\n");
+	if (!(global.mode & (MODE_FOREGROUND | MODE_DEBUG)))
+	    Warning("<nbproc> is only meaningful in daemon mode. Setting limit to 1 process.\n");
 	global.nbproc = 1;
     }
 
