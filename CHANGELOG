@@ -1,6 +1,12 @@
 ChangeLog :
 ===========
 
+2006/03/30 : 1.2.11.1
+   - under some conditions, it might have been possible that when the
+     last dead server became available, it would not have been used
+     till another one would have changed state. Could not be reproduced
+     at all, however seems possible from the code.
+
 2006/03/25 : 1.2.11
    - added the '-db' command-line option to disable backgrounding.
    - added the -sf/-st command-line arguments which are used to specify
