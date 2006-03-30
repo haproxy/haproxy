@@ -5341,6 +5341,8 @@ int process_chk(struct task *t) {
 	    //fprintf(stderr, "process_chk: 9\n");
 	    s->health++; /* was bad, stays for a while */
 	    if (s->health >= s->rise) {
+		s->state |= SRV_RUNNING;
+
 		if (s->health == s->rise) {
                     recount_servers(s->proxy);
 		    Warning("%sServer %s/%s UP. %d active and %d backup servers online.%s\n",
@@ -5355,7 +5357,6 @@ int process_chk(struct task *t) {
 		}
 
 		s->health = s->rise + s->fall - 1; /* OK now */
-		s->state |= SRV_RUNNING;
 	    }
 	    s->curfd = -1; /* no check running anymore */
 	    //FD_CLR(fd, StaticWriteEvent);
