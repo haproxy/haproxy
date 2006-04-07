@@ -511,6 +511,8 @@ struct server {
     int inter;				/* time in milliseconds */
     int result;				/* 0 = connect OK, -1 = connect KO */
     int curfd;				/* file desc used for current test, or -1 if not in test */
+    int cur_sess;			/* number of currently active sessions (including syn_sent) */
+    unsigned int cum_sess;		/* cumulated number of sessions really sent to this server */
     struct proxy *proxy;		/* the proxy this server belongs to */
 };
 
@@ -2132,6 +2134,7 @@ int connect_server(struct session *s) {
 #endif
     
     fd_insert(fd);
+    s->srv->cur_sess++;
 
     if (s->proxy->contimeout)
 	tv_delayfrom(&s->cnexpire, &now, s->proxy->contimeout);
@@ -2652,7 +2655,7 @@ void sess_log(struct session *s) {
 	}
 	*h = '\0';
 
-	send_log(p, LOG_INFO, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d] %s %s %d/%d/%d/%s%d %d %s%lld %s %s %c%c%c%c %d/%d%s\n",
+	send_log(p, LOG_INFO, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d] %s %s %d/%d/%d/%s%d %d %s%lld %s %s %c%c%c%c %d/%d/%d%s\n",
 		 pn,
 		 (s->cli_addr.ss_family == AF_INET) ?
 		   ntohs(((struct sockaddr_in *)&s->cli_addr)->sin_port) :
@@ -2672,10 +2675,10 @@ void sess_log(struct session *s) {
 		 sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT],
 		 (p->options & PR_O_COOK_ANY) ? sess_cookie[(s->flags & SN_CK_MASK) >> SN_CK_SHIFT] : '-',
 		 (p->options & PR_O_COOK_ANY) ? sess_set_cookie[(s->flags & SN_SCK_MASK) >> SN_SCK_SHIFT] : '-',
-		 p->nbconn, actconn, tmpline);
+		 s->srv ? s->srv->cur_sess : 0, p->nbconn, actconn, tmpline);
     }
     else {
-	send_log(p, LOG_INFO, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d] %s %s %d/%s%d %s%lld %c%c %d/%d\n",
+	send_log(p, LOG_INFO, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d] %s %s %d/%s%d %s%lld %c%c %d/%d/%d\n",
 		 pn,
 		 (s->cli_addr.ss_family == AF_INET) ?
 		   ntohs(((struct sockaddr_in *)&s->cli_addr)->sin_port) :
@@ -2688,7 +2691,7 @@ void sess_log(struct session *s) {
 		 (p->to_log & LW_BYTES) ? "" : "+", s->logs.bytes,
 		 sess_term_cond[(s->flags & SN_ERR_MASK) >> SN_ERR_SHIFT],
 		 sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT],
-		 p->nbconn, actconn);
+		 s->srv ? s->srv->cur_sess : 0, p->nbconn, actconn);
     }
 
     s->logs.logwait = 0;
@@ -4245,6 +4248,7 @@ int process_srv(struct session *t) {
 	    /* timeout,  connect error or first write error */
 	    //FD_CLR(t->srv_fd, StaticWriteEvent);
 	    fd_delete(t->srv_fd);
+	    t->srv->cur_sess--;
 	    //close(t->srv_fd);
 	    t->conn_retries--;
 	    if (t->conn_retries >= 0) {
@@ -4350,6 +4354,7 @@ int process_srv(struct session *t) {
 			tv_eternity(&t->srexpire);
 			tv_eternity(&t->swexpire);
 			fd_delete(t->srv_fd);
+			t->srv->cur_sess--;
 			t->srv_state = SV_STCLOSE;
 			t->logs.status = 502;
 			client_return(t, t->proxy->errmsg.len502, t->proxy->errmsg.msg502);
@@ -4370,6 +4375,7 @@ int process_srv(struct session *t) {
 		    tv_eternity(&t->srexpire);
 		    tv_eternity(&t->swexpire);
 		    fd_delete(t->srv_fd);
+		    t->srv->cur_sess--;
 		    t->srv_state = SV_STCLOSE;
 		    t->logs.status = 502;
 		    client_return(t, t->proxy->errmsg.len502, t->proxy->errmsg.msg502);
@@ -4801,6 +4807,7 @@ int process_srv(struct session *t) {
 	    tv_eternity(&t->srexpire);
 	    tv_eternity(&t->swexpire);
 	    fd_delete(t->srv_fd);
+	    t->srv->cur_sess--;
 	    t->srv_state = SV_STCLOSE;
 	    t->logs.status = 502;
 	    client_return(t, t->proxy->errmsg.len502, t->proxy->errmsg.msg502);
@@ -4828,6 +4835,7 @@ int process_srv(struct session *t) {
 	    tv_eternity(&t->srexpire);
 	    tv_eternity(&t->swexpire);
 	    fd_delete(t->srv_fd);
+	    t->srv->cur_sess--;
 	    t->srv_state = SV_STCLOSE;
 	    t->logs.status = 504;
 	    client_return(t, t->proxy->errmsg.len504, t->proxy->errmsg.msg504);
@@ -4922,6 +4930,7 @@ int process_srv(struct session *t) {
 	    tv_eternity(&t->srexpire);
 	    tv_eternity(&t->swexpire);
 	    fd_delete(t->srv_fd);
+	    t->srv->cur_sess--;
 	    t->srv_state = SV_STCLOSE;
 	    if (!(t->flags & SN_ERR_MASK))
 		t->flags |= SN_ERR_SRVCL;
@@ -5026,6 +5035,7 @@ int process_srv(struct session *t) {
 	    //FD_CLR(t->srv_fd, StaticWriteEvent);
 	    tv_eternity(&t->swexpire);
 	    fd_delete(t->srv_fd);
+	    t->srv->cur_sess--;
 	    //close(t->srv_fd);
 	    t->srv_state = SV_STCLOSE;
 	    if (!(t->flags & SN_ERR_MASK))
@@ -5038,6 +5048,7 @@ int process_srv(struct session *t) {
 	    //FD_CLR(t->srv_fd, StaticWriteEvent);
 	    tv_eternity(&t->swexpire);
 	    fd_delete(t->srv_fd);
+	    t->srv->cur_sess--;
 	    //close(t->srv_fd);
 	    t->srv_state = SV_STCLOSE;
 	    return 1;
@@ -5046,6 +5057,7 @@ int process_srv(struct session *t) {
 	    //FD_CLR(t->srv_fd, StaticWriteEvent);
 	    tv_eternity(&t->swexpire);
 	    fd_delete(t->srv_fd);
+	    t->srv->cur_sess--;
 	    //close(t->srv_fd);
 	    t->srv_state = SV_STCLOSE;
 	    if (!(t->flags & SN_ERR_MASK))
@@ -5079,6 +5091,7 @@ int process_srv(struct session *t) {
 	    //FD_CLR(t->srv_fd, StaticReadEvent);
 	    tv_eternity(&t->srexpire);
 	    fd_delete(t->srv_fd);
+	    t->srv->cur_sess--;
 	    //close(t->srv_fd);
 	    t->srv_state = SV_STCLOSE;
 	    if (!(t->flags & SN_ERR_MASK))
@@ -5091,6 +5104,7 @@ int process_srv(struct session *t) {
 	    //FD_CLR(t->srv_fd, StaticReadEvent);
 	    tv_eternity(&t->srexpire);
 	    fd_delete(t->srv_fd);
+	    t->srv->cur_sess--;
 	    //close(t->srv_fd);
 	    t->srv_state = SV_STCLOSE;
 	    return 1;
@@ -5099,6 +5113,7 @@ int process_srv(struct session *t) {
 	    //FD_CLR(t->srv_fd, StaticReadEvent);
 	    tv_eternity(&t->srexpire);
 	    fd_delete(t->srv_fd);
+	    t->srv->cur_sess--;
 	    //close(t->srv_fd);
 	    t->srv_state = SV_STCLOSE;
 	    if (!(t->flags & SN_ERR_MASK))
