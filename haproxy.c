@@ -602,6 +602,7 @@ struct proxy {
     int contimeout;			/* connect timeout (in milliseconds) */
     char *id;				/* proxy id */
     int nbconn;				/* # of active sessions */
+    unsigned int cum_conn;		/* cumulated number of processed sessions */
     int maxconn;			/* max # of active sessions */
     int conn_retries;			/* maximum number of connect retries */
     int options;			/* PR_O_REDISP, PR_O_TRANSP, ... */
@@ -2827,6 +2828,7 @@ int event_accept(int fd) {
 	s->logs.bytes = 0;
 
 	s->uniq_id = totalconn;
+	p->cum_conn++;
 
 	if (p->nb_req_cap > 0) {
 	    if ((s->req_cap =
@@ -4326,6 +4328,7 @@ int process_srv(struct session *t) {
 		    tv_eternity(&t->srexpire);
 		
 		t->srv_state = SV_STDATA;
+		t->srv->cum_sess++;
 		rep->rlim = rep->data + BUFSIZE; /* no rewrite needed */
 
 		/* if the user wants to log as soon as possible, without counting
@@ -4337,6 +4340,7 @@ int process_srv(struct session *t) {
 	    }
 	    else {
 		t->srv_state = SV_STHEADERS;
+		t->srv->cum_sess++;
 		rep->rlim = rep->data + BUFSIZE - MAXREWRITE; /* rewrite needed */
 	    }
 	    tv_eternity(&t->cnexpire);
@@ -6202,25 +6206,36 @@ void sig_dump_state(int sig) {
 	send_log(p, LOG_NOTICE, "SIGUP received, dumping servers states.\n");
 	while (s) {
 	    if (s->state & SRV_RUNNING) {
-		Warning("SIGHUP: Server %s/%s is UP.\n", p->id, s->id);
-		send_log(p, LOG_NOTICE, "SIGUP: Server %s/%s is UP.\n", p->id, s->id);
+		snprintf(trash, sizeof(trash),
+			 "SIGHUP: Server %s/%s is UP. Conn: %d act, %d tot.",
+			 p->id, s->id, s->cur_sess, s->cum_sess);
+	    } else {
+		snprintf(trash, sizeof(trash),
+			 "SIGHUP: Server %s/%s is DOWN. Conn: %d act, %d tot.",
+			 p->id, s->id, s->cur_sess, s->cum_sess);
 	    }
-	    else {
-		Warning("SIGHUP: Server %s/%s is DOWN.\n", p->id, s->id);
-		send_log(p, LOG_NOTICE, "SIGHUP: Server %s/%s is DOWN.\n", p->id, s->id);
-	    }
+	    Warning("%s\n", trash);
+	    send_log(p, LOG_NOTICE, "%s\n", trash);
 	    s = s->next;
 	}
 
 	if (p->srv_act == 0) {
             if (p->srv_bck) {
-                Warning("SIGHUP: Proxy %s is running on backup servers !\n", p->id);
-                send_log(p, LOG_NOTICE, "SIGHUP: Proxy %s is running on backup servers !\n", p->id);
-            } else {
-                Warning("SIGHUP: Proxy %s has no server available !\n", p->id);
-                send_log(p, LOG_NOTICE, "SIGHUP: Proxy %s has no server available !\n", p->id);
-            }
-        }
+		snprintf(trash, sizeof(trash),
+			 "SIGHUP: Proxy %s is running on backup servers ! Conn: %d act, %d tot.",
+			 p->id, p->nbconn, p->cum_conn);
+	    } else {
+		snprintf(trash, sizeof(trash),
+			 "SIGHUP: Proxy %s has no server availble ! Conn: %d act, %d tot.",
+			 p->id, p->nbconn, p->cum_conn);
+	    }
+        } else {
+	    snprintf(trash, sizeof(trash),
+		     "SIGHUP: Proxy %s has %d active servers and %d backup servers availble. Conn: %d act, %d tot.",
+		     p->id, p->srv_act, p->srv_bck, p->nbconn, p->cum_conn);
+	}
+	Warning("%s\n", trash);
+	send_log(p, LOG_NOTICE, "%s\n", trash);
 
 	p = p->next;
     }
