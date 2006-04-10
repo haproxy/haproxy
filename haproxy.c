@@ -3308,6 +3308,32 @@ int process_cli(struct session *t) {
 	    
 	    if (ptr == req->h) { /* empty line, end of headers */
 		int line, len;
+
+		/*
+		 * first, let's check that it's not a leading empty line, in
+		 * which case we'll ignore and remove it (according to RFC2616).
+		 */
+		if (req->h == req->data) {
+		    /* to get a complete header line, we need the ending \r\n, \n\r, \r or \n too */
+		    if (ptr > req->r - 2) {
+			/* this is a partial header, let's wait for more to come */
+			req->lr = ptr;
+			break;
+		    }
+
+		    /* now we know that *ptr is either \r or \n,
+		     * and that there are at least 1 char after it.
+		     */
+		    if ((ptr[0] == ptr[1]) || (ptr[1] != '\r' && ptr[1] != '\n'))
+			req->lr = ptr + 1; /* \r\r, \n\n, \r[^\n], \n[^\r] */
+		    else
+			req->lr = ptr + 2; /* \r\n or \n\r */
+		    /* ignore empty leading lines */
+		    buffer_replace2(req, req->h, req->lr, NULL, 0);
+		    req->h = req->lr;
+		    continue;
+		}
+
 		/* we can only get here after an end of headers */
 		/* we'll have something else to do here : add new headers ... */
 
