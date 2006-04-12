@@ -1973,9 +1973,39 @@ static void recalc_server_map(struct proxy *px) {
 }
 
 /*
+ * This function tries to find a running server with free connection slots for
+ * the proxy <px> following the round-robin method.
+ * If any server is found, it will be returned and px->srv_rr_idx will be updated
+ * to point to the next server. If no valid server is found, NULL is returned.
+ */
+static inline struct server *get_server_rr_with_conns(struct proxy *px) {
+    int newidx;
+    struct server *srv;
+
+    if (px->srv_map_sz == 0)
+	return NULL;
+
+    if (px->srv_rr_idx < 0 || px->srv_rr_idx >= px->srv_map_sz)
+	px->srv_rr_idx = 0;
+    newidx = px->srv_rr_idx;
+
+    do {
+	srv = px->srv_map[newidx++];
+	if (!srv->maxconn || srv->cur_sess < srv->maxconn) {
+	    px->srv_rr_idx = newidx;
+	    return srv;
+	}
+	if (newidx == px->srv_map_sz)
+	    newidx = 0;
+    } while (newidx != px->srv_rr_idx);
+
+    return NULL;
+}
+
+
+/*
  * This function tries to find a running server for the proxy <px> following
- * the round-robin method. Depending on the number of active/backup servers,
- * it will either look for active servers, or for backup servers.
+ * the round-robin method.
  * If any server is found, it will be returned and px->srv_rr_idx will be updated
  * to point to the next server. If no valid server is found, NULL is returned.
  */
@@ -2044,7 +2074,9 @@ int connect_server(struct session *s) {
 	if (s->proxy->options & PR_O_BALANCE_RR) {
 	    struct server *srv;
 
-	    srv = get_server_rr(s->proxy);
+	    srv = get_server_rr_with_conns(s->proxy);
+	    if (!srv)
+		srv = get_server_rr(s->proxy);
 	    s->srv_addr = srv->addr;
 	    s->srv = srv;
 	}
