@@ -86,6 +86,7 @@
 #endif
 
 #include "include/appsession.h"
+#include "include/mini-clist.h"
 
 #ifndef HAPROXY_VERSION
 #define HAPROXY_VERSION "1.2.12"
@@ -283,6 +284,7 @@ int strlcpy2(char *dst, const char *src, int size) {
 
 #define sizeof_task	sizeof(struct task)
 #define sizeof_session	sizeof(struct session)
+#define sizeof_pendconn	sizeof(struct pendconn)
 #define sizeof_buffer	sizeof(struct buffer)
 #define sizeof_fdtab	sizeof(struct fdtab)
 #define sizeof_requri	REQURI_LEN
@@ -406,12 +408,13 @@ int strlcpy2(char *dst, const char *src, int size) {
 
 /* different possible states for the server side */
 #define SV_STIDLE	0
-#define SV_STCONN	1
-#define SV_STHEADERS	2
-#define SV_STDATA	3
-#define SV_STSHUTR	4
-#define SV_STSHUTW	5
-#define SV_STCLOSE	6
+#define SV_STCPEND	1
+#define SV_STCONN	2
+#define SV_STHEADERS	3
+#define SV_STDATA	4
+#define SV_STSHUTR	5
+#define SV_STSHUTW	6
+#define SV_STCLOSE	7
 
 /* result of an I/O event */
 #define	RES_SILENT	0	/* didn't happen */
@@ -497,12 +500,20 @@ struct buffer {
     char data[BUFSIZE];
 };
 
+struct pendconn {
+    struct list list;			/* chaining ... */
+    struct session *sess;		/* the session waiting for a connection */
+    struct server *srv;			/* the server we are waiting for */
+};
+
 struct server {
     struct server *next;
     int state;				/* server state (SRV_*) */
     int  cklen;				/* the len of the cookie, to speed up checks */
     char *cookie;			/* the id set in the cookie */
     char *id;				/* just for identification */
+    struct list pendconns;		/* pending connections */
+    int nbpend;				/* number of pending connections */
     struct sockaddr_in addr;		/* the address to connect to */
     struct sockaddr_in source_addr;	/* the address to which we want to bind for connect() */
     short check_port;			/* the port to use for the health checks */
@@ -515,6 +526,7 @@ struct server {
     unsigned int wscore;		/* weight score, used during srv map computation */
     int cur_sess;			/* number of currently active sessions (including syn_sent) */
     unsigned int cum_sess;		/* cumulated number of sessions really sent to this server */
+    unsigned int maxconn;		/* max # of active sessions. 0 = unlimited. */
     struct proxy *proxy;		/* the proxy this server belongs to */
 };
 
@@ -551,6 +563,7 @@ struct session {
     struct sockaddr_storage cli_addr;	/* the client address */
     struct sockaddr_in srv_addr;	/* the address to connect to */
     struct server *srv;			/* the server being used */
+    struct pendconn *pend_pos;		/* if not NULL, points to the position in the pending queue */
     char **req_cap;			/* array of captured request headers (may be NULL) */
     char **rsp_cap;			/* array of captured response headers (may be NULL) */
     struct {
@@ -690,6 +703,7 @@ fd_set	*StaticReadEvent,
 int cfg_polling_mechanism = 0;     /* POLL_USE_{SELECT|POLL|EPOLL} */
 
 void **pool_session = NULL,
+    **pool_pendconn = NULL,
     **pool_buffer   = NULL,
     **pool_fdtab    = NULL,
     **pool_requri   = NULL,
@@ -854,7 +868,7 @@ static int stats_tsk_lsrch, stats_tsk_rsrch,
 /*********************************************************************/
 #ifdef DEBUG_FULL
 static char *cli_stnames[5] = {"HDR", "DAT", "SHR", "SHW", "CLS" };
-static char *srv_stnames[7] = {"IDL", "CON", "HDR", "DAT", "SHR", "SHW", "CLS" };
+static char *srv_stnames[8] = {"IDL", "PND", "CON", "HDR", "DAT", "SHR", "SHW", "CLS" };
 #endif
 
 /*********************************************************************/
@@ -1755,6 +1769,65 @@ struct task *task_queue(struct task *task) {
 
 
 /*********************************************************************/
+/*   pending connections queues **************************************/
+/*********************************************************************/
+
+/*
+ * returns the first pending connection of server <s> or NULL if none.
+ */
+static inline struct pendconn *pendconn_peek(struct server *s) {
+    if (!s->nbpend)
+	return NULL;
+
+    return LIST_ELEM(s->pendconns.n, struct pendconn *, list);
+}
+
+/*
+ * Detaches pending connection <p>, decreases the pending count, and frees
+ * the pending connection.
+ */
+static inline void pendconn_free(struct pendconn *p) {
+    LIST_DEL(&p->list);
+    p->sess->pend_pos = NULL;
+    p->srv->nbpend--;
+    pool_free(pendconn, p);
+}
+
+/* detaches the first pending connection for server <s> and returns its
+ * associated session. If no pending connection is found, NULL is returned.
+ */
+static inline struct session *pendconn_get(struct server *s) {
+    struct pendconn *p;
+    struct session *sess;
+
+    p = pendconn_peek(s);
+    if (!p)
+	return NULL;
+    sess = p->sess;
+    pendconn_free(p);
+    return sess;
+}
+
+/* adds the session <sess> to the pending connection list of server <srv>.
+ * All counters and back pointers are updated accordingly. Returns NULL if
+ * no memory is available, otherwise the pendconn itself.
+ */
+static struct pendconn *pendconn_add(struct server *srv, struct session *sess) {
+    struct pendconn *p;
+
+    p = pool_alloc(pendconn);
+    if (!p)
+	return NULL;
+
+    LIST_ADDQ(&srv->pendconns, &p->list);
+    p->sess = sess;
+    p->srv  = srv;
+    sess->pend_pos = p;
+    srv->nbpend++;
+    return p;
+}
+
+/*********************************************************************/
 /*   more specific functions   ***************************************/
 /*********************************************************************/
 
@@ -1780,6 +1853,8 @@ static int get_original_dst(int fd, struct sockaddr_in *sa, socklen_t *salen) {
  * frees  the context associated to a session. It must have been removed first.
  */
 static inline void session_free(struct session *s) {
+    if (s->pend_pos)
+	pendconn_free(s->pend_pos);
     if (s->req)
 	pool_free(buffer, s->req);
     if (s->rep)
@@ -7047,6 +7122,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	curproxy->srv = newsrv;
 	newsrv->proxy = curproxy;
 
+	LIST_INIT(&newsrv->pendconns);
 	do_check = 0;
 	newsrv->state = SRV_RUNNING; /* early server setup */
 	newsrv->id = strdup(args[1]);
@@ -7116,6 +7192,10 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 		    return -1;
 		}
 		newsrv->uweight = w - 1;
+		cur_arg += 2;
+	    }
+	    else if (!strcmp(args[cur_arg], "maxconn")) {
+		newsrv->maxconn = atol(args[cur_arg + 1]);
 		cur_arg += 2;
 	    }
 	    else if (!strcmp(args[cur_arg], "check")) {
@@ -8914,3 +8994,10 @@ static int appsession_refresh(struct task *t) {
     return TBLCHKINT;
 } /* end appsession_refresh */
 
+
+/*
+ * Local variables:
+ *  c-indent-level: 4
+ *  c-basic-offset: 4
+ * End:
+ */
