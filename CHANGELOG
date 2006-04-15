@@ -1,6 +1,14 @@
 ChangeLog :
 ===========
 
+2006/04/15 : 1.2.12
+   Very few changes preparing for more important changes to support per-server
+   session limitations and queueing :
+   - ignore leading empty lines in HTTP requests as suggested by RFC2616.
+   - added the 'weight' parameter to the servers, limited to 1..256. It applies
+     to roundrobin and source hash.
+   - the optional '-s' option could clobber '-st' and '-sf' if compiled in.
+
 2006/03/30 : 1.2.11.1
    - under some conditions, it might have been possible that when the
      last dead server became available, it would not have been used
