@@ -8122,12 +8122,6 @@ void init(int argc, char **argv) {
 		arg_mode |= MODE_DAEMON | MODE_QUIET;
 	    else if (*flag == 'q')
 		arg_mode |= MODE_QUIET;
-#if STATTIME > 0
-	    else if (*flag == 's')
-		arg_mode |= MODE_STATS;
-	    else if (*flag == 'l')
-		arg_mode |= MODE_LOG;
-#endif
 	    else if (*flag == 's' && (flag[1] == 'f' || flag[1] == 't')) {
 		/* list of pids to finish ('f') or terminate ('t') */
 
@@ -8148,6 +8142,12 @@ void init(int argc, char **argv) {
 		    }
 		}
 	    }
+#if STATTIME > 0
+	    else if (*flag == 's')
+		arg_mode |= MODE_STATS;
+	    else if (*flag == 'l')
+		arg_mode |= MODE_LOG;
+#endif
 	    else { /* >=2 args */
 		argv++; argc--;
 		if (argc == 0)
