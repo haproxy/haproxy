@@ -2,9 +2,9 @@
                              H A - P r o x y
                            Manuel de référence
                            -------------------
-                              version 1.2.9
+                              version 1.2.12
                               willy tarreau
-                                2006/03/01
+                                2006/04/15
 
 ================
 | Introduction |
@@ -46,10 +46,14 @@ Les options de lancement sont peu nombreuses :
        détectée.
     -p <fichier> indique au processus père qu'il doit écrire les PIDs de ses
        fils dans ce fichier en mode démon.
+    -sf specifie une liste de PIDs auxquels envoyer un signal FINISH
+    -st specifie une liste de PIDs auxquels envoyer un signal TERMINATE
     -s affiche les statistiques (si option compilée)
     -l ajoute des informations aux statistiques
     -de désactive l'utilisation de epoll()
     -dp désactive l'utilisation de poll()
+    -db désactive la mise en arrière-plan (utile pour débugger)
+    -m <megs> applique une limitation de <megs> Mo d'utilisation mémoire
 
 Le nombre maximal de connexion simultanées par proxy est le paramètre par
 défaut pour les proxies pour lesquels ce paramètre n'est pas précisé dans le
@@ -64,10 +68,27 @@ Le mode debug correspond à l'option 'debug' de la section 'global'. Dans ce
 mode, toutes les connexions, déconnexions, et tous les échanges d'en-têtes HTTP
 sont affichés.
 
+Pour debugger, l'option '-db' est très pratique car elle désactive
+temporairement le mode daemon et le mode multi-processus. Le service peut alors
+être arrêté par un simple appui sur Ctrl-C, sans avoir à modifier la
+configuration ni à activer le mode debug complet.
+
 Les statistiques ne sont disponibles que si le programme a été compilé avec
 l'option "STATTIME". Il s'agit principalement de données brutes n'ayant
 d'utilité que lors de benchmarks par exemple.
 
+Les paramètres '-st' et '-sf' sont utilisés pour informer des processus
+existants que la configuration va être rechargée. Ils recevront le signal
+SIGTTOU, leur demandant de libérer les ports en écoute afin que le nouveau
+processus puisse les prendre. Si quoi que ce soit se passe mal, le nouveau
+processus leur enverra un signal SIGTTIN pour leur indiquer qu'ils peuvent
+se remettre en écoute et continuer leur travail. En revanche, si la
+configuration se charge correctement, alors ils recevront un signal de demande
+de fin de travail en douceur (-sf), ou de terminaison immédiate (-st) qui
+coupera les sessions en cours. Un usage typique tel que celui-ci permet de
+recharger une configuration sans interruption de service :
+
+ # haproxy -p /var/run/haproxy.pid -sf $(cat /var/run/haproxy.pid)
 
 ============================
 | Fichier de configuration |
@@ -247,6 +268,9 @@ initialisation. Il faut le mettre en arrière-plan, de sorte qu'il rende la main
 au processus appelant. C'est ce que fait l'option 'daemon' de la section
 'global', et qui est l'équivalent du paramètre '-D' de la ligne de commande.
 
+Le paramètre de ligne de commande '-db' inhibe les options globales 'daemon'
+et 'nbproc' pour faire fonctionner le processus en mode normal, avant-plan.
+
 Par ailleurs, certains messages d'alerte sont toujours envoyés sur la sortie
 standard, même en mode 'daemon'. Pour ne plus les voir ailleurs que dans les
 logs, il suffit de passer en mode silencieux par l'ajout de l'option 'quiet'.
@@ -301,6 +325,9 @@ Exemple :
     # pour stopper seulement ces processus parmi d'autres :
     # kill $(</var/run/haproxy-private.pid)
 
+    # pour recharger une configuration avec un impact minimal sur le service,
+    # et sans casser les sessions existantes :
+    # haproxy -f haproxy.cfg -p $(</var/run/haproxy-private.pid) -st $(</var/run/haproxy-private.pid)
 
 1.7) Mécanismes de traitements des événements
 ---------------------------------------------
@@ -553,6 +580,8 @@ noter que le paramètre 'grace' est ignoré pour le signal SIGTTOU ainsi que le
 signal SIGUSR1 une fois le processus en pause. Aussi, il peut s'avérer très
 utile de sauver le fichier de pid avant de démarrer une nouvelle instance.
 
+Ce mécanisme est pleinement exploité à partir de la version 1.2.11 avec les
+options '-st' et '-sf' (voir plus haut).
 
 2.5) Temps d'expiration des connexions
 --------------------------------------
@@ -602,6 +631,9 @@ Exemple :
 ---------
         # on essaie encore trois fois maxi
         retries 3
+
+Il est à noter que la tentative de reconnexion peut amener à utiliser un autre
+serveur si le premier a disparu entre deux tentatives de connexion.
 
 
 2.7) Adresse du serveur
@@ -768,9 +800,10 @@ Attention : la syntaxe a changé depuis la version 1.0.
 Le relais peut effectuer lui-même la répartition de charge entre les différents
 serveurs définis pour un service donné, en mode TCP comme en mode HTTP. Pour
 cela, on précise le mot clé 'balance' dans la définition du service,
-éventuellement suivi du nom d'un algorithme de répartition. En version 1.1.9,
-seul 'roundrobin' est géré, et c'est aussi la valeur implicite par défaut. Il
-est évident qu'en cas d'utilisation du répartiteur interne, il ne faudra pas
+éventuellement suivi du nom d'un algorithme de répartition. Jusqu'à la version
+1.2.11, seul 'roundrobin' était géré, et c'est aussi la valeur implicite par
+défaut. Avec la version 1.2.12, le nouveau mot clé 'source' est apparu. Il est
+évident qu'en cas d'utilisation du répartiteur interne, il ne faudra pas
 spécifier d'adresse de dispatch, et qu'il faudra au moins un serveur.
 
 Exemple : même que précédemment en répartition interne
@@ -833,6 +866,44 @@ Exemples :
         server srv1 192.168.1.1:+1000
         server srv2 192.168.1.2:+1000
 
+Comme indiqué précédemment, la version 1.2.12 apporta le nouveau mot clé
+'source'. Lorsque celui-ci est utilisé, l'adresse IP du client est hachée et
+distribuée de manière homogène parmi les serveurs disponibles, de sorte qu'une
+même adresse IP aille toujours sur le même serveur tant qu'il n'y a aucun
+changement dans le nombre de serveurs disponibles. Ceci peut être utilisé par
+exemple pour attacher le HTTP et le HTTPS sur un même serveur pour un même
+client. Cela peut également être utilisé pour améliorer la persistance
+lorsqu'une partie de la population des clients n'accepte pas les cookies. Dans
+ce cas, seuls ces derniers seront perturbés par la perte d'un serveur.
+
+NOTE: il est important de prendre en compte le fait que beaucoup d'internautes
+      naviguent à travers des fermes de proxies qui assignent des adresses IP
+      différentes à chaque requête. D'autres internautes utilisent des liens à
+      la demande et obtiennent une adresse IP différente à chaque connexion. De
+      ce fait, le paramètre 'source' doit être utilisé avec une extrème
+      précaution.
+
+Exemples :
+----------
+
+# assurer qu'une même adresse IP ira sur le même serveur pour tout service
+
+    listen http_proxy
+        bind :80,:443
+        mode http
+        balance source
+        server web1 192.168.1.1
+        server web2 192.168.1.2
+
+# améliorer la persistance par l'utilisation de la source en plus du cookie :
+
+    listen http_proxy :80
+        mode http
+        cookie SERVERID
+        balance source
+        server web1 192.168.1.1 cookie server01
+        server web2 192.168.1.2 cookie server02
+
 
 3.1) Surveillance des serveurs
 ------------------------------
@@ -844,6 +915,7 @@ Il est possible de spécifier l'intervalle (en millisecondes) séparant deux
 tests du serveur par le paramètre "inter", le nombre d'échecs acceptés par le
 paramètre "fall", et le nombre de succès avant reprise par le paramètre "rise".
 Les paramètres non précisés prennent les valeurs suivantes par défaut :
+
  - inter : 2000
  - rise  : 2
  - fall  : 3
@@ -866,10 +938,12 @@ considérées valides, les autres (y compris non-réponses) aboutissent à un
 deux tests (paramètre "inter"). Pour activer ce mode, spécifier l'option
 "httpchk", éventuellement suivie d'une méthode et d'une URI. L'option "httpchk"
 accepte donc 4 formes :
+
   - option httpchk               -> OPTIONS / HTTP/1.0
   - option httpchk URI           -> OPTIONS <URI> HTTP/1.0
   - option httpchk METH URI      -> <METH> <URI> HTTP/1.0
   - option httpchk METH URI VER  -> <METH> <URI> <VER>
+
 Voir les exemples ci-après.        
 
 Depuis la version 1.1.17, il est possible de définir des serveurs de secours,
@@ -1036,6 +1110,59 @@ tente de s'y connecter, il faut préciser l'option "persist" :
         server web1 192.168.1.1:80 cookie server01
         server web2 192.168.1.2:80 cookie server02
         redispatch # renvoyer vers dispatch si serveur HS.
+
+
+3.3) Assignation de poids différents à des serveurs
+---------------------------------------------------
+Parfois il arrive d'ajouter de nouveaux serveurs pour accroître la capacité
+d'une ferme de serveur, mais le nouveau serveur est soit beaucoup plus petit
+que les autres (dans le cas d'un ajout d'urgence de matériel de récupération),
+soit plus puissant (lors d'un investissement dans du matériel neuf). Pour cette
+raison, il semble parfois judicieux de pouvoir envoyer plus de clients vers les
+plus gros serveurs. Jusqu'à la version 1.2.11, il était nécessaire de répliquer
+plusieurs fois les définitions des serveurs pour augmenter leur poids. Depuis
+la version 1.2.12, l'option 'weight' est disponible. HAProxy construit alors
+une vue des serveurs disponibles la plus homogène possible en se basant sur
+leur poids de sorte que la charge se distribue de la manière la plus lisse
+possible. Le poids compris entre 1 et 256 doit refléter la capacité d'un
+serveur par rapport aux autres. De cette manière, si un serveur disparait, les
+capacités restantes sont toujours respectées.
+
+
+Exemple :
+---------
+# distribution équitable sur 2 opteron and un ancien pentium3
+
+    listen web_appl 0.0.0.0:80
+        mode http
+        cookie SERVERID insert nocache indirect
+        balance roundrobin
+        server pentium3-800 192.168.1.1:80 cookie server01 weight  8 check
+        server opteron-2.0G 192.168.1.2:80 cookie server02 weight 20 check
+        server opteron-2.4G 192.168.1.3:80 cookie server03 weight 24 check
+        server web-backup1 192.168.2.1:80 cookie server04 check backup
+        server web-excuse 192.168.3.1:80 check backup
+
+Notes :
+-------
+  - lorsque le poids n'est pas spécifié, la valeur par défaut est à 1
+
+  - le poids n'impacte pas les tests de fonctionnement (health checks), donc il
+    est plus propre d'utiliser les poids que de répliquer le même serveur
+    plusieurs fois.
+
+  - les poids s'appliquent également aux serveurs de backup si l'option
+    'allbackups' est positionnée.
+
+  - le poids s'applique aussi à la répartition selon la source
+    ('balance source').
+
+  - quels que soient les poids, le premier serveur sera toujours assigné en
+    premier. Cette règle facilite les diagnostics.
+
+  - pour les puristes, l'algorithme de calculation de la vue des serveurs donne
+    une priorité aux premiers serveurs, donc la vue est la plus uniforme si les
+    serveurs sont déclarés dans l'ordre croissant de leurs poids.
 
 
 4) Fonctionnalités additionnelles

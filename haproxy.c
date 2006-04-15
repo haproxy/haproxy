@@ -88,11 +88,11 @@
 #include "include/appsession.h"
 
 #ifndef HAPROXY_VERSION
-#define HAPROXY_VERSION "1.2.11.1"
+#define HAPROXY_VERSION "1.2.12"
 #endif
 
 #ifndef HAPROXY_DATE
-#define HAPROXY_DATE	"2006/03/30"
+#define HAPROXY_DATE	"2006/04/15"
 #endif
 
 /* this is for libc5 for example */
@@ -511,6 +511,8 @@ struct server {
     int inter;				/* time in milliseconds */
     int result;				/* 0 = connect OK, -1 = connect KO */
     int curfd;				/* file desc used for current test, or -1 if not in test */
+    unsigned char uweight, eweight;	/* user-specified weight-1, and effective weight-1 */
+    unsigned int wscore;		/* weight score, used during srv map computation */
     struct proxy *proxy;		/* the proxy this server belongs to */
 };
 
@@ -577,8 +579,12 @@ struct proxy {
     struct in_addr mon_net, mon_mask;	/* don't forward connections from this net (network order) FIXME: should support IPv6 */
     int state;				/* proxy state */
     struct sockaddr_in dispatch_addr;	/* the default address to connect to */
-    struct server *srv, *cursrv;	/* known servers, current server */
-    int srv_act, srv_bck;		/* # of servers */
+    struct server *srv;			/* known servers */
+    int srv_act, srv_bck;		/* # of running servers */
+    int tot_wact, tot_wbck;		/* total weights of active and backup servers */
+    struct server **srv_map;		/* the server map used to apply weights */
+    int srv_map_sz;			/* the size of the effective server map */
+    int srv_rr_idx;			/* next server to be elected in round robin mode */
     char *cookie_name;			/* name of the cookie to look for */
     int  cookie_len;			/* strlen(cookie_name), computed only once */
     char *appsession_name;		/* name of the cookie to look for */
@@ -1807,77 +1813,101 @@ static inline void session_free(struct session *s) {
 /*
  * This function recounts the number of usable active and backup servers for
  * proxy <p>. These numbers are returned into the p->srv_act and p->srv_bck.
+ * This function also recomputes the total active and backup weights.
  */
-static inline void recount_servers(struct proxy *px) {
+static void recount_servers(struct proxy *px) {
     struct server *srv;
 
-    px->srv_act = 0; px->srv_bck = 0;
+    px->srv_act = 0; px->srv_bck = px->tot_wact = px->tot_wbck = 0;
     for (srv = px->srv; srv != NULL; srv = srv->next) {
         if (srv->state & SRV_RUNNING) {
-            if (srv->state & SRV_BACKUP)
+            if (srv->state & SRV_BACKUP) {
                 px->srv_bck++;
-            else
+                px->tot_wbck += srv->eweight + 1;
+            } else {
                 px->srv_act++;
+                px->tot_wact += srv->eweight + 1;
+            }
         }
     }
+}
+
+/* This function recomputes the server map for proxy px. It
+ * relies on px->tot_wact and px->tot_wbck, so it must be
+ * called after recount_servers(). It also expects px->srv_map
+ * to be initialized to the largest value needed.
+ */
+static void recalc_server_map(struct proxy *px) {
+    int o, tot, flag;
+    struct server *cur, *best;
+
+    if (px->srv_act) {
+	flag = SRV_RUNNING;
+	tot  = px->tot_wact;
+    } else if (px->srv_bck) {
+	flag = SRV_RUNNING | SRV_BACKUP;
+	if (px->options & PR_O_USE_ALL_BK)
+	    tot = px->tot_wbck;
+	else
+	    tot = 1; /* the first server is enough */
+    } else {
+	px->srv_map_sz = 0;
+	return;
+    }
+
+    /* this algorithm gives priority to the first server, which means that
+     * it will respect the declaration order for equivalent weights, and
+     * that whatever the weights, the first server called will always be
+     * the first declard. This is an important asumption for the backup
+     * case, where we want the first server only.
+     */
+    for (cur = px->srv; cur; cur = cur->next)
+	cur->wscore = 0;
+
+    for (o = 0; o < tot; o++) {
+	int max = 0;
+	best = NULL;
+	for (cur = px->srv; cur; cur = cur->next) {
+	    if ((cur->state & (SRV_RUNNING | SRV_BACKUP)) == flag) {
+		int v;
+
+		/* If we are forced to return only one server, we don't want to
+		 * go further, because we would return the wrong one due to
+		 * divide overflow.
+		 */
+		if (tot == 1) {
+		    best = cur;
+		    break;
+		}
+
+		cur->wscore += cur->eweight + 1;
+		v = (cur->wscore + tot) / tot; /* result between 0 and 3 */
+		if (best == NULL || v > max) {
+		    max = v;
+		    best = cur;
+		}
+	    }
+	}
+	px->srv_map[o] = best;
+	best->wscore -= tot;
+    }
+    px->srv_map_sz = tot;
 }
 
 /*
  * This function tries to find a running server for the proxy <px> following
  * the round-robin method. Depending on the number of active/backup servers,
  * it will either look for active servers, or for backup servers.
- * If any server is found, it will be returned and px->cursrv will be updated
+ * If any server is found, it will be returned and px->srv_rr_idx will be updated
  * to point to the next server. If no valid server is found, NULL is returned.
  */
 static inline struct server *get_server_rr(struct proxy *px) {
-    struct server *srv;
-    struct server *end;
+    if (px->srv_map_sz == 0)
+	return NULL;
 
-    if (px->srv_act) {
-        srv = px->cursrv;
-	if (srv == NULL)
-	    srv = px->srv;
-        end = srv;
-	do  {
-	    if ((srv->state & (SRV_RUNNING | SRV_BACKUP)) == SRV_RUNNING) {
-                px->cursrv = srv->next;
-		return srv;
-            }
-
-	    srv = srv->next;
-	    if (srv == NULL)
-		srv = px->srv;
-	} while (srv != end);
-        /* note that theorically we should not get there */
-    }
-
-    if (px->srv_bck) {
-	/* By default, we look for the first backup server if all others are
-	 * DOWN. But in some cases, it may be desirable to load-balance across
-	 * all backup servers.
-	 */
-        if (px->options & PR_O_USE_ALL_BK)
-            srv = px->cursrv;
-        else
-            srv = px->srv;
-
-	if (srv == NULL)
-	    srv = px->srv;
-        end = srv;
-	do  {
-	    if (srv->state & SRV_RUNNING) {
-                px->cursrv = srv->next;
-		return srv;
-            }
-	    srv = srv->next;
-	    if (srv == NULL)
-		srv = px->srv;
-	} while (srv != end);
-        /* note that theorically we should not get there */
-    }
-
-    /* if we get there, it means there are no available servers at all */
-    return NULL;
+    if (px->srv_rr_idx < 0 || px->srv_rr_idx >= px->srv_map_sz)
+	px->srv_rr_idx = 0;
+    return px->srv_map[px->srv_rr_idx++];
 }
 
 
@@ -1889,58 +1919,20 @@ static inline struct server *get_server_rr(struct proxy *px) {
  * NULL is returned.
  */
 static inline struct server *get_server_sh(struct proxy *px, char *addr, int len) {
-    struct server *srv;
+    unsigned int h, l;
 
-    if (px->srv_act) {
-        unsigned int h, l;
+    if (px->srv_map_sz == 0)
+	return NULL;
 
-        l = h = 0;
-        if (px->srv_act > 1) {
-            while ((l + sizeof (int)) <= len) {
-                h ^= ntohl(*(unsigned int *)(&addr[l]));
-                l += sizeof (int);
-            }
-            h %= px->srv_act;
-        }
-
-        for (srv = px->srv; srv; srv = srv->next) {
-	    if ((srv->state & (SRV_RUNNING | SRV_BACKUP)) == SRV_RUNNING) {
-                if (!h)
-                    return srv;
-                h--;
-            }
+    l = h = 0;
+    if (px->srv_act > 1) {
+	while ((l + sizeof (int)) <= len) {
+	    h ^= ntohl(*(unsigned int *)(&addr[l]));
+	    l += sizeof (int);
 	}
-        /* note that theorically we should not get there */
+	h %= px->srv_map_sz;
     }
-
-    if (px->srv_bck) {
-        unsigned int h, l;
-
-	/* By default, we look for the first backup server if all others are
-	 * DOWN. But in some cases, it may be desirable to load-balance across
-	 * all backup servers.
-	 */
-        l = h = 0;
-        if (px->srv_bck > 1 && px->options & PR_O_USE_ALL_BK) {
-            while ((l + sizeof (int)) <= len) {
-                h ^= ntohl(*(unsigned int *)(&addr[l]));
-                l += sizeof (int);
-            }
-            h %= px->srv_bck;
-        }
-
-        for (srv = px->srv; srv; srv = srv->next) {
-	    if (srv->state & SRV_RUNNING) {
-                if (!h)
-                    return srv;
-                h--;
-            }
-	}
-        /* note that theorically we should not get there */
-    }
-
-    /* if we get there, it means there are no available servers at all */
-    return NULL;
+    return px->srv_map[h];
 }
 
 
@@ -3311,6 +3303,32 @@ int process_cli(struct session *t) {
 	    
 	    if (ptr == req->h) { /* empty line, end of headers */
 		int line, len;
+
+		/*
+		 * first, let's check that it's not a leading empty line, in
+		 * which case we'll ignore and remove it (according to RFC2616).
+		 */
+		if (req->h == req->data) {
+		    /* to get a complete header line, we need the ending \r\n, \n\r, \r or \n too */
+		    if (ptr > req->r - 2) {
+			/* this is a partial header, let's wait for more to come */
+			req->lr = ptr;
+			break;
+		    }
+
+		    /* now we know that *ptr is either \r or \n,
+		     * and that there are at least 1 char after it.
+		     */
+		    if ((ptr[0] == ptr[1]) || (ptr[1] != '\r' && ptr[1] != '\n'))
+			req->lr = ptr + 1; /* \r\r, \n\n, \r[^\n], \n[^\r] */
+		    else
+			req->lr = ptr + 2; /* \r\n or \n\r */
+		    /* ignore empty leading lines */
+		    buffer_replace2(req, req->h, req->lr, NULL, 0);
+		    req->h = req->lr;
+		    continue;
+		}
+
 		/* we can only get here after an end of headers */
 		/* we'll have something else to do here : add new headers ... */
 
@@ -5310,6 +5328,7 @@ int process_chk(struct task *t) {
 	    s->state &= ~SRV_RUNNING;
 	    if (s->health == s->rise) {
                 recount_servers(s->proxy);
+		recalc_server_map(s->proxy);
 		Warning("%sServer %s/%s DOWN. %d active and %d backup servers left.%s\n",
                         s->state & SRV_BACKUP ? "Backup " : "",
                         s->proxy->id, s->id, s->proxy->srv_act, s->proxy->srv_bck,
@@ -5345,6 +5364,7 @@ int process_chk(struct task *t) {
 
 		if (s->health == s->rise) {
                     recount_servers(s->proxy);
+		    recalc_server_map(s->proxy);
 		    Warning("%sServer %s/%s UP. %d active and %d backup servers online.%s\n",
                             s->state & SRV_BACKUP ? "Backup " : "",
                             s->proxy->id, s->id, s->proxy->srv_act, s->proxy->srv_bck,
@@ -5375,6 +5395,7 @@ int process_chk(struct task *t) {
 
                 if (s->health == s->rise) {
                     recount_servers(s->proxy);
+		    recalc_server_map(s->proxy);
                     Warning("%sServer %s/%s DOWN. %d active and %d backup servers left.%s\n",
                             s->state & SRV_BACKUP ? "Backup " : "",
                             s->proxy->id, s->id, s->proxy->srv_act, s->proxy->srv_bck,
@@ -6980,13 +7001,9 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	    return -1;
 	}
 
-	if (curproxy->srv == NULL)
-	    curproxy->srv = newsrv;
-	else
-	    curproxy->cursrv->next = newsrv;
-	curproxy->cursrv = newsrv;
-
-	newsrv->next = NULL;
+	/* the servers are linked backwards first */
+	newsrv->next = curproxy->srv;
+	curproxy->srv = newsrv;
 	newsrv->proxy = curproxy;
 
 	do_check = 0;
@@ -7049,6 +7066,17 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 		newsrv->state |= SRV_BACKUP;
 		cur_arg ++;
 	    }
+	    else if (!strcmp(args[cur_arg], "weight")) {
+		int w;
+		w = atol(args[cur_arg + 1]);
+		if (w < 1 || w > 256) {
+		    Alert("parsing [%s:%d] : weight of server %s is not within 1 and 256 (%d).\n",
+			  file, linenum, newsrv->id, w);
+		    return -1;
+		}
+		newsrv->uweight = w - 1;
+		cur_arg += 2;
+	    }
 	    else if (!strcmp(args[cur_arg], "check")) {
 		global.maxsock++;
 		do_check = 1;
@@ -7065,7 +7093,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 		cur_arg += 2;
 	    }
 	    else {
-		Alert("parsing [%s:%d] : server %s only supports options 'backup', 'cookie', 'check', 'inter', 'rise', 'fall', 'port' and 'source'.\n",
+		Alert("parsing [%s:%d] : server %s only supports options 'backup', 'cookie', 'check', 'inter', 'rise', 'fall', 'port', 'source', and 'weight'.\n",
 		      file, linenum, newsrv->id);
 		return -1;
 	    }
@@ -7789,7 +7817,6 @@ int readcfgfile(char *file) {
     }
 
     while (curproxy != NULL) {
-	curproxy->cursrv = NULL;
 	if (curproxy->state == PR_STSTOPPED) {
 	    curproxy = curproxy->next;
 	    continue;
@@ -7846,12 +7873,59 @@ int readcfgfile(char *file) {
 		      file, curproxy->id);
 		cfgerr++;
 	    }
-	    else {
-		while (newsrv != NULL) {
-		    /* nothing to check for now */
-		    newsrv = newsrv->next;
-		}
+	}
+
+	/* first, we will invert the servers list order */
+	newsrv = NULL;
+	while (curproxy->srv) {
+	    struct server *next;
+
+	    next = curproxy->srv->next;
+	    curproxy->srv->next = newsrv;
+	    newsrv = curproxy->srv;
+	    if (!next)
+		break;
+	    curproxy->srv = next;
+	}
+
+	/* now, newsrv == curproxy->srv */
+	if (newsrv) {
+	    struct server *srv;
+	    int pgcd;
+	    int act, bck;
+
+	    /* We will factor the weights to reduce the table,
+	     * using Euclide's largest common divisor algorithm
+	     */
+	    pgcd = newsrv->uweight + 1;
+	    for (srv = newsrv->next; srv && pgcd > 1; srv = srv->next) {
+		int t, w;
+		
+		w = srv->uweight + 1;
+		while (w) {
+		    t = pgcd % w;
+		    pgcd = w;
+		    w = t;
+			}
 	    }
+
+	    act = bck = 0;
+	    for (srv = newsrv; srv; srv = srv->next) {
+		srv->eweight = ((srv->uweight + 1) / pgcd) - 1;
+		if (srv->state & SRV_BACKUP)
+		    bck += srv->eweight + 1;
+		else
+		    act += srv->eweight + 1;
+	    }
+
+	    /* this is the largest map we will ever need for this servers list */
+	    if (act < bck)
+		act = bck;
+
+	    curproxy->srv_map = (struct server **)calloc(act, sizeof(struct server *));
+	    /* recounts servers and their weights */
+	    recount_servers(curproxy);
+	    recalc_server_map(curproxy);
 	}
 
 	if (curproxy->options & PR_O_LOGASAP)
@@ -8048,12 +8122,6 @@ void init(int argc, char **argv) {
 		arg_mode |= MODE_DAEMON | MODE_QUIET;
 	    else if (*flag == 'q')
 		arg_mode |= MODE_QUIET;
-#if STATTIME > 0
-	    else if (*flag == 's')
-		arg_mode |= MODE_STATS;
-	    else if (*flag == 'l')
-		arg_mode |= MODE_LOG;
-#endif
 	    else if (*flag == 's' && (flag[1] == 'f' || flag[1] == 't')) {
 		/* list of pids to finish ('f') or terminate ('t') */
 
@@ -8074,6 +8142,12 @@ void init(int argc, char **argv) {
 		    }
 		}
 	    }
+#if STATTIME > 0
+	    else if (*flag == 's')
+		arg_mode |= MODE_STATS;
+	    else if (*flag == 'l')
+		arg_mode |= MODE_LOG;
+#endif
 	    else { /* >=2 args */
 		argv++; argc--;
 		if (argc == 0)

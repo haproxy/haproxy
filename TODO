@@ -77,7 +77,7 @@ ok>
        - les options des serveurs ?
        - les filtres et regex ?
 
-5) implémenter "balance source" pour faire un hash sur la source.
+*  implémenter "balance source" pour faire un hash sur la source.
    permettre de spécifier un masque sur lequel s'applique le hachage,
    ainsi qu'une option pour hacher en fonction de l'adresse dans le
    champ "x-forwarded-for". Problème pour le support des pannes: ce
@@ -138,7 +138,7 @@ Todo for 1.2
 * listen [ip6::...ip6]/port[-port]
 - server xxx ipv4 | ipv4: | ipv4:port[-port] | ipv6/ | ipv6/port[-port]
 * appcookie
-- weighted round robin
+* weighted round robin
 - option to shutdown(listen_sock) when max connections reached
 * epoll
 - replace the event scheduler with an O(log(N)) one
@@ -149,4 +149,5 @@ Todo for 1.2
   activity on the buffer's pointers from touching the buffer page itself.
 - make buffer size configurable in global options
 * monitor number of simultaneous sessions in logs (per srv/inst/global)
+* ignore leading empty lines in HTTP requests
 

@@ -30,9 +30,7 @@ risking the system's stability.
 %setup -q
 
 %build
-%{__make} REGEX="pcre" "COPTS.pcre=-DUSE_PCRE $(pcre-config --cflags)" DEBUG="" TARGET=linux24e
-#%{__make} REGEX=pcre DEBUG="" LIBS.pcre="-L\$(PCREDIR)/lib -Wl,-Bstatic -lpcreposix -lpcre -Wl,-Bdynamic"
-
+%{__make} REGEX="pcre" "COPTS.pcre=-DUSE_PCRE $(pcre-config --cflags)" DEBUG="" TARGET=linux24e SMALL_OPTS="-DBUFSIZE=8030 -DMAXREWRITE=1030 -DSYSTEM_MAXCONN=1024" DEBUG="" LIBS.pcre="-L\$(PCREDIR)/lib -Wl,-Bstatic -lpcreposix -lpcre -Wl,-Bdynamic"
 
 %install
 [ "%{buildroot}" != "/" ] && %{__rm} -rf %{buildroot}
