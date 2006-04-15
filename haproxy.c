@@ -513,8 +513,6 @@ struct server {
     int curfd;				/* file desc used for current test, or -1 if not in test */
     int cur_sess;			/* number of currently active sessions (including syn_sent) */
     unsigned int cum_sess;		/* cumulated number of sessions really sent to this server */
-    unsigned char uweight, eweight;	/* user-specified weight-1, and effective weight-1 */
-    unsigned short wsquare;		/* eweight*eweight, to speed up map computation */
     struct proxy *proxy;		/* the proxy this server belongs to */
 };
 
@@ -7092,17 +7090,6 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 		newsrv->state |= SRV_BACKUP;
 		cur_arg ++;
 	    }
-	    else if (!strcmp(args[cur_arg], "weight")) {
-		int w;
-		w = atol(args[cur_arg + 1]);
-		if (w < 1 || w > 256) {
-		    Alert("parsing [%s:%d] : weight of server %s is not within 1 and 256 (%d).\n",
-			  file, linenum, newsrv->id, w);
-		    return -1;
-		}
-		newsrv->uweight = w - 1;
-		cur_arg += 2;
-	    }
 	    else if (!strcmp(args[cur_arg], "check")) {
 		global.maxsock++;
 		do_check = 1;
@@ -7119,7 +7106,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 		cur_arg += 2;
 	    }
 	    else {
-		Alert("parsing [%s:%d] : server %s only supports options 'backup', 'cookie', 'check', 'inter', 'rise', 'fall', 'port', 'source', and 'weight'.\n",
+		Alert("parsing [%s:%d] : server %s only supports options 'backup', 'cookie', 'check', 'inter', 'rise', 'fall', 'port' and 'source'.\n",
 		      file, linenum, newsrv->id);
 		return -1;
 	    }
@@ -7901,26 +7888,9 @@ int readcfgfile(char *file) {
 		cfgerr++;
 	    }
 	    else {
-		struct server *srv;
-		int pgcd;
-
-		if (newsrv) {
-		    /* We will factor the weights to reduce the table,
-		     * using Euclide's largest common divisor algorithm
-		     */
-		    pgcd = newsrv->uweight + 1;
-		    for (srv = newsrv->next; srv && pgcd > 1; srv = srv->next) {
-			int t, w;
-
-			w = srv->uweight + 1;
-			while (w) {
-			    t = pgcd % w;
-			    pgcd = w;
-			    w = t;
-			}
-		    }
-		    for (srv = newsrv; srv; srv = srv->next)
-			srv->eweight = ((srv->uweight + 1) / pgcd) - 1;
+		while (newsrv != NULL) {
+		    /* nothing to check for now */
+		    newsrv = newsrv->next;
 		}
 	    }
 	}
