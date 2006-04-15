@@ -4279,7 +4279,6 @@ int process_srv(struct session *t) {
 		t->flags |= conn_err;
 	    if (!(t->flags & SN_FINST_MASK))
 		t->flags |= SN_FINST_C;
-	    /* TODO : check if there are pending connections on this server */
 	    return 1;
 	}
 	else { /* no error or write 0 */
@@ -4367,7 +4366,6 @@ int process_srv(struct session *t) {
 			Alert("Blocking cacheable cookie in response from instance %s, server %s.\n", t->proxy->id, t->srv->id);
 			send_log(t->proxy, LOG_ALERT, "Blocking cacheable cookie in response from instance %s, server %s.\n", t->proxy->id, t->srv->id);
 
-			/* TODO : check if there are pending connections on this server */
 			return 1;
 		    }
 		}
@@ -4385,7 +4383,6 @@ int process_srv(struct session *t) {
 			t->flags |= SN_ERR_PRXCOND;
 		    if (!(t->flags & SN_FINST_MASK))
 			t->flags |= SN_FINST_H;
-		    /* TODO : check if there are pending connections on this server */
 		    return 1;
 		}
 
@@ -4818,7 +4815,6 @@ int process_srv(struct session *t) {
 		t->flags |= SN_ERR_SRVCL;
 	    if (!(t->flags & SN_FINST_MASK))
 		t->flags |= SN_FINST_H;
-	    /* TODO : check if there are pending connections on this server */
 	    return 1;
 	}
 	/* end of client write or end of server read.
@@ -4847,8 +4843,8 @@ int process_srv(struct session *t) {
 		t->flags |= SN_ERR_SRVTO;
 	    if (!(t->flags & SN_FINST_MASK))
 		t->flags |= SN_FINST_H;
-	    /* TODO : check if there are pending connections on this server */
 	    return 1;
+	    
 	}	
 	/* last client read and buffer empty */
 	/* FIXME!!! here, we don't want to switch to SHUTW if the
@@ -4940,7 +4936,6 @@ int process_srv(struct session *t) {
 		t->flags |= SN_ERR_SRVCL;
 	    if (!(t->flags & SN_FINST_MASK))
 		t->flags |= SN_FINST_D;
-	    /* TODO : check if there are pending connections on this server */
 	    return 1;
 	}
 	/* last read, or end of client write */
@@ -5047,7 +5042,6 @@ int process_srv(struct session *t) {
 		t->flags |= SN_ERR_SRVCL;
 	    if (!(t->flags & SN_FINST_MASK))
 		t->flags |= SN_FINST_D;
-	    /* TODO : check if there are pending connections on this server */
 	    return 1;
 	}
 	else if ((c == CL_STSHUTR || c == CL_STCLOSE) && (req->l == 0)) {
@@ -5057,7 +5051,6 @@ int process_srv(struct session *t) {
 	    t->srv->cur_sess--;
 	    //close(t->srv_fd);
 	    t->srv_state = SV_STCLOSE;
-	    /* TODO : check if there are pending connections on this server */
 	    return 1;
 	}
 	else if (tv_cmp2_ms(&t->swexpire, &now) <= 0) {
@@ -5071,7 +5064,6 @@ int process_srv(struct session *t) {
 		t->flags |= SN_ERR_SRVTO;
 	    if (!(t->flags & SN_FINST_MASK))
 		t->flags |= SN_FINST_D;
-	    /* TODO : check if there are pending connections on this server */
 	    return 1;
 	}
 	else if (req->l == 0) {
@@ -5106,7 +5098,6 @@ int process_srv(struct session *t) {
 		t->flags |= SN_ERR_SRVCL;
 	    if (!(t->flags & SN_FINST_MASK))
 		t->flags |= SN_FINST_D;
-	    /* TODO : check if there are pending connections on this server */
 	    return 1;
 	}
 	else if (t->res_sr == RES_NULL || c == CL_STSHUTW || c == CL_STCLOSE) {
@@ -5116,7 +5107,6 @@ int process_srv(struct session *t) {
 	    t->srv->cur_sess--;
 	    //close(t->srv_fd);
 	    t->srv_state = SV_STCLOSE;
-	    /* TODO : check if there are pending connections on this server */
 	    return 1;
 	}
 	else if (tv_cmp2_ms(&t->srexpire, &now) <= 0) {
@@ -5130,7 +5120,6 @@ int process_srv(struct session *t) {
 		t->flags |= SN_ERR_SRVTO;
 	    if (!(t->flags & SN_FINST_MASK))
 		t->flags |= SN_FINST_D;
-	    /* TODO : check if there are pending connections on this server */
 	    return 1;
 	}
 	else if (rep->l == BUFSIZE) { /* no room to read more data */
