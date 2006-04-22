@@ -5616,13 +5616,13 @@ int process_runnable_tasks() {
   }
 
   /* process each task in the run queue now. Each task may be deleted
-   * since we only use tnext.
+   * since we only use the run queue's head. Note that any task can be
+   * woken up by any other task and it will be processed immediately
+   * after as it will be queued on the run queue's head.
    */
-  tnext = rq;
-  while ((t = tnext) != NULL) {
+  while ((t = rq) != NULL) {
       int temp_time;
-      
-      tnext = t->rqnext;
+
       task_sleep(&rq, t);
       temp_time = t->process(t);
       next_time = MINTIME(temp_time, next_time);
