@@ -2530,7 +2530,10 @@ int event_cli_write(int fd) {
 
     if (s->proxy->clitimeout) {
 	tv_delayfrom(&s->cwexpire, &now, s->proxy->clitimeout);
-	/* FIXME: to avoid the client to read-time-out during writes, we refresh it */
+	/* FIXME: to prevent the client from expiring read timeouts during writes,
+	 * we refresh it. A solution would be to merge read+write timeouts into a
+	 * unique one, although that needs some study particularly on full-duplex
+	 * TCP connections. */
 	s->crexpire = s->cwexpire;
     }
     else
@@ -2638,7 +2641,11 @@ int event_srv_write(int fd) {
     if (s->srv_state != SV_STCONN) {
 	if (s->proxy->srvtimeout) {
 	    tv_delayfrom(&s->swexpire, &now, s->proxy->srvtimeout);
-	    /* FIXME: to avoid the server to read-time-out during writes, we refresh it */
+	    /* FIXME: to prevent the server from expiring read timeouts during writes,
+	     * we refresh it. A solution would be to merge read+write+connect timeouts
+	     * into a unique one since we don't mind expiring on read or write, and none
+	     * of them is enabled while waiting for connect(), although that needs some
+	     * study particularly on full-duplex TCP connections. */
 	    s->srexpire = s->swexpire;
 	}
 	else
@@ -3493,7 +3500,11 @@ int process_cli(struct session *t) {
 		t->logs.t_request = tv_diff(&t->logs.tv_accept, &now);
 		/* FIXME: we'll set the client in a wait state while we try to
 		 * connect to the server. Is this really needed ? wouldn't it be
-		 * better to release the maximum of system buffers instead ? */
+		 * better to release the maximum of system buffers instead ?
+		 * The solution is to enable the FD but set its time-out to
+		 * eternity as long as the server-side does not enable data xfer.
+		 * CL_STDATA also has to take care of this, which is done below.
+		 */
 		//FD_CLR(t->cli_fd, StaticReadEvent);
 		//tv_eternity(&t->crexpire);
 
@@ -4168,7 +4179,8 @@ int process_cli(struct session *t) {
 		FD_SET(t->cli_fd, StaticWriteEvent); /* restart writing */
 		if (t->proxy->clitimeout) {
 		    tv_delayfrom(&t->cwexpire, &now, t->proxy->clitimeout);
-		    /* FIXME: to avoid the client to read-time-out during writes, we refresh it */
+		    /* FIXME: to prevent the client from expiring read timeouts during writes,
+		     * we refresh it. */
 		    t->crexpire = t->cwexpire;
 		}
 		else
@@ -4216,7 +4228,8 @@ int process_cli(struct session *t) {
 		FD_SET(t->cli_fd, StaticWriteEvent); /* restart writing */
 		if (t->proxy->clitimeout) {
 		    tv_delayfrom(&t->cwexpire, &now, t->proxy->clitimeout);
-		    /* FIXME: to avoid the client to read-time-out during writes, we refresh it */
+		    /* FIXME: to prevent the client from expiring read timeouts during writes,
+		     * we refresh it. */
 		    t->crexpire = t->cwexpire;
 		}
 		else
@@ -4420,7 +4433,8 @@ int process_srv(struct session *t) {
 		FD_SET(t->srv_fd, StaticWriteEvent);
 		if (t->proxy->srvtimeout) {
 		    tv_delayfrom(&t->swexpire, &now, t->proxy->srvtimeout);
-		    /* FIXME: to avoid the server to read-time-out during writes, we refresh it */
+		    /* FIXME: to prevent the server from expiring read timeouts during writes,
+		     * we refresh it. */
 		    t->srexpire = t->swexpire;
 		}
 		else
@@ -5041,7 +5055,8 @@ int process_srv(struct session *t) {
 		FD_SET(t->srv_fd, StaticWriteEvent); /* restart writing */
 		if (t->proxy->srvtimeout) {
 		    tv_delayfrom(&t->swexpire, &now, t->proxy->srvtimeout);
-		    /* FIXME: to avoid the server to read-time-out during writes, we refresh it */
+		    /* FIXME: to prevent the server from expiring read timeouts during writes,
+		     * we refresh it. */
 		    t->srexpire = t->swexpire;
 		}
 		else
@@ -5137,7 +5152,8 @@ int process_srv(struct session *t) {
 		FD_SET(t->srv_fd, StaticWriteEvent); /* restart writing */
 		if (t->proxy->srvtimeout) {
 		    tv_delayfrom(&t->swexpire, &now, t->proxy->srvtimeout);
-		    /* FIXME: to avoid the server to read-time-out during writes, we refresh it */
+		    /* FIXME: to prevent the server from expiring read timeouts during writes,
+		     * we refresh it. */
 		    t->srexpire = t->swexpire;
 		}
 		else
@@ -5214,7 +5230,8 @@ int process_srv(struct session *t) {
 		FD_SET(t->srv_fd, StaticWriteEvent); /* restart writing */
 		if (t->proxy->srvtimeout) {
 		    tv_delayfrom(&t->swexpire, &now, t->proxy->srvtimeout);
-		    /* FIXME: to avoid the server to read-time-out during writes, we refresh it */
+		    /* FIXME: to prevent the server from expiring read timeouts during writes,
+		     * we refresh it. */
 		    t->srexpire = t->swexpire;
 		}
 		else
