@@ -352,15 +352,15 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define PR_O_BALANCE_SH	0x00400000	/* balance on source IP hash */
 #define PR_O_BALANCE	(PR_O_BALANCE_RR | PR_O_BALANCE_SH)
 
-/* various session flags */
+/* various session flags, bits values 0x01 to 0x20 (shift 0) */
 #define SN_DIRECT	0x00000001	/* connection made on the server matching the client cookie */
 #define SN_CLDENY	0x00000002	/* a client header matches a deny regex */
 #define SN_CLALLOW	0x00000004	/* a client header matches an allow regex */
 #define SN_SVDENY	0x00000008	/* a server header matches a deny regex */
 #define SN_SVALLOW	0x00000010	/* a server header matches an allow regex */
 #define	SN_POST		0x00000020	/* the request was an HTTP POST */
-#define SN_MONITOR	0x00000040	/* this session comes from a monitoring system */
 
+/* session flags dedicated to cookies : bits values 0x40, 0x80 (0-3 shift 6) */
 #define	SN_CK_NONE	0x00000000	/* this session had no cookie */
 #define	SN_CK_INVALID	0x00000040	/* this session had a cookie which matches no server */
 #define	SN_CK_DOWN	0x00000080	/* this session had cookie matching a down server */
@@ -368,6 +368,7 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define	SN_CK_MASK	0x000000C0	/* mask to get this session's cookie flags */
 #define SN_CK_SHIFT	6		/* bit shift */
 
+/* session termination conditions, bits values 0x100 to 0x700 (0-7 shift 8) */
 #define SN_ERR_NONE     0x00000000
 #define SN_ERR_CLITO	0x00000100	/* client time-out */
 #define SN_ERR_CLICL	0x00000200	/* client closed (read/write error) */
@@ -379,6 +380,7 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define SN_ERR_MASK	0x00000700	/* mask to get only session error flags */
 #define SN_ERR_SHIFT	8		/* bit shift */
 
+/* session state at termination, bits values 0x1000 to 0x7000 (0-7 shift 12) */
 #define SN_FINST_R	0x00001000	/* session ended during client request */
 #define SN_FINST_C	0x00002000	/* session ended during server connect */
 #define SN_FINST_H	0x00003000	/* session ended during server headers */
@@ -387,6 +389,7 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define SN_FINST_MASK	0x00007000	/* mask to get only final session state flags */
 #define	SN_FINST_SHIFT	12		/* bit shift */
 
+/* cookie information, bits values 0x10000 to 0x80000 (0-8 shift 16) */
 #define	SN_SCK_NONE	0x00000000	/* no set-cookie seen for the server cookie */
 #define	SN_SCK_DELETED	0x00010000	/* existing set-cookie deleted or changed */
 #define	SN_SCK_INSERTED	0x00020000	/* new set-cookie inserted or changed existing one */
@@ -395,9 +398,14 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define	SN_SCK_ANY	0x00080000	/* at least one set-cookie seen (not to be counted) */
 #define	SN_SCK_SHIFT	16		/* bit shift */
 
+/* cacheability management, bits values 0x100000 to 0x300000 (0-3 shift 20) */
 #define	SN_CACHEABLE	0x00100000	/* at least part of the response is cacheable */
 #define	SN_CACHE_COOK	0x00200000	/* a cookie in the response is cacheable */
 #define	SN_CACHE_SHIFT	20		/* bit shift */
+
+/* various other session flags, bits values 0x400000 and above */
+#define SN_MONITOR	0x00400000	/* this session comes from a monitoring system */
+
 
 /* different possible states for the client side */
 #define CL_STHEADERS	0
