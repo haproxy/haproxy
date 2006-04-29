@@ -2041,7 +2041,7 @@ static inline struct server *get_server_sh(struct proxy *px, char *addr, int len
 	return NULL;
 
     l = h = 0;
-    if (px->srv_act > 1) {
+    if (px->srv_act > 1 || (px->srv_act == 0 && px->srv_bck > 1)) {
 	while ((l + sizeof (int)) <= len) {
 	    h ^= ntohl(*(unsigned int *)(&addr[l]));
 	    l += sizeof (int);
