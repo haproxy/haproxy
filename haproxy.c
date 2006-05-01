@@ -6348,7 +6348,7 @@ void sig_dump_state(int sig) {
     while (p) {
 	struct server *s = p->srv;
 
-	send_log(p, LOG_NOTICE, "SIGUP received, dumping servers states.\n");
+	send_log(p, LOG_NOTICE, "SIGUP received, dumping servers states for proxy %s.\n", p->id);
 	while (s) {
 	    if (s->state & SRV_RUNNING) {
 		snprintf(trash, sizeof(trash),
