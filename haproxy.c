@@ -2242,7 +2242,8 @@ int connect_server(struct session *s) {
 #endif
     
     fd_insert(fd);
-    s->srv->cur_sess++;
+    if (s->srv)
+	s->srv->cur_sess++;
 
     if (s->proxy->contimeout)
 	tv_delayfrom(&s->cnexpire, &now, s->proxy->contimeout);
@@ -4396,7 +4397,8 @@ int process_srv(struct session *t) {
 	    /* timeout,  connect error or first write error */
 	    //FD_CLR(t->srv_fd, StaticWriteEvent);
 	    fd_delete(t->srv_fd);
-	    t->srv->cur_sess--;
+	    if (t->srv)
+		t->srv->cur_sess--;
 	    //close(t->srv_fd);
 	    t->conn_retries--;
 	    if (t->conn_retries >= 0) {
@@ -4506,7 +4508,8 @@ int process_srv(struct session *t) {
 			tv_eternity(&t->srexpire);
 			tv_eternity(&t->swexpire);
 			fd_delete(t->srv_fd);
-			t->srv->cur_sess--;
+			if (t->srv)
+			    t->srv->cur_sess--;
 			t->srv_state = SV_STCLOSE;
 			t->logs.status = 502;
 			client_return(t, t->proxy->errmsg.len502, t->proxy->errmsg.msg502);
@@ -4528,7 +4531,8 @@ int process_srv(struct session *t) {
 		    tv_eternity(&t->srexpire);
 		    tv_eternity(&t->swexpire);
 		    fd_delete(t->srv_fd);
-		    t->srv->cur_sess--;
+		    if (t->srv)
+			t->srv->cur_sess--;
 		    t->srv_state = SV_STCLOSE;
 		    t->logs.status = 502;
 		    client_return(t, t->proxy->errmsg.len502, t->proxy->errmsg.msg502);
@@ -4961,7 +4965,8 @@ int process_srv(struct session *t) {
 	    tv_eternity(&t->srexpire);
 	    tv_eternity(&t->swexpire);
 	    fd_delete(t->srv_fd);
-	    t->srv->cur_sess--;
+	    if (t->srv)
+		t->srv->cur_sess--;
 	    t->srv_state = SV_STCLOSE;
 	    t->logs.status = 502;
 	    client_return(t, t->proxy->errmsg.len502, t->proxy->errmsg.msg502);
@@ -4990,7 +4995,8 @@ int process_srv(struct session *t) {
 	    tv_eternity(&t->srexpire);
 	    tv_eternity(&t->swexpire);
 	    fd_delete(t->srv_fd);
-	    t->srv->cur_sess--;
+	    if (t->srv)
+		t->srv->cur_sess--;
 	    t->srv_state = SV_STCLOSE;
 	    t->logs.status = 504;
 	    client_return(t, t->proxy->errmsg.len504, t->proxy->errmsg.msg504);
@@ -5086,7 +5092,8 @@ int process_srv(struct session *t) {
 	    tv_eternity(&t->srexpire);
 	    tv_eternity(&t->swexpire);
 	    fd_delete(t->srv_fd);
-	    t->srv->cur_sess--;
+	    if (t->srv)
+		t->srv->cur_sess--;
 	    t->srv_state = SV_STCLOSE;
 	    if (!(t->flags & SN_ERR_MASK))
 		t->flags |= SN_ERR_SRVCL;
@@ -5193,7 +5200,8 @@ int process_srv(struct session *t) {
 	    //FD_CLR(t->srv_fd, StaticWriteEvent);
 	    tv_eternity(&t->swexpire);
 	    fd_delete(t->srv_fd);
-	    t->srv->cur_sess--;
+	    if (t->srv)
+		t->srv->cur_sess--;
 	    //close(t->srv_fd);
 	    t->srv_state = SV_STCLOSE;
 	    if (!(t->flags & SN_ERR_MASK))
@@ -5207,7 +5215,8 @@ int process_srv(struct session *t) {
 	    //FD_CLR(t->srv_fd, StaticWriteEvent);
 	    tv_eternity(&t->swexpire);
 	    fd_delete(t->srv_fd);
-	    t->srv->cur_sess--;
+	    if (t->srv)
+		t->srv->cur_sess--;
 	    //close(t->srv_fd);
 	    t->srv_state = SV_STCLOSE;
 	    /* TODO : check if there are pending connections on this server */
@@ -5217,7 +5226,8 @@ int process_srv(struct session *t) {
 	    //FD_CLR(t->srv_fd, StaticWriteEvent);
 	    tv_eternity(&t->swexpire);
 	    fd_delete(t->srv_fd);
-	    t->srv->cur_sess--;
+	    if (t->srv)
+		t->srv->cur_sess--;
 	    //close(t->srv_fd);
 	    t->srv_state = SV_STCLOSE;
 	    if (!(t->flags & SN_ERR_MASK))
@@ -5253,7 +5263,8 @@ int process_srv(struct session *t) {
 	    //FD_CLR(t->srv_fd, StaticReadEvent);
 	    tv_eternity(&t->srexpire);
 	    fd_delete(t->srv_fd);
-	    t->srv->cur_sess--;
+	    if (t->srv)
+		t->srv->cur_sess--;
 	    //close(t->srv_fd);
 	    t->srv_state = SV_STCLOSE;
 	    if (!(t->flags & SN_ERR_MASK))
@@ -5267,7 +5278,8 @@ int process_srv(struct session *t) {
 	    //FD_CLR(t->srv_fd, StaticReadEvent);
 	    tv_eternity(&t->srexpire);
 	    fd_delete(t->srv_fd);
-	    t->srv->cur_sess--;
+	    if (t->srv)
+		t->srv->cur_sess--;
 	    //close(t->srv_fd);
 	    t->srv_state = SV_STCLOSE;
 	    /* TODO : check if there are pending connections on this server */
@@ -5277,7 +5289,8 @@ int process_srv(struct session *t) {
 	    //FD_CLR(t->srv_fd, StaticReadEvent);
 	    tv_eternity(&t->srexpire);
 	    fd_delete(t->srv_fd);
-	    t->srv->cur_sess--;
+	    if (t->srv)
+		t->srv->cur_sess--;
 	    //close(t->srv_fd);
 	    t->srv_state = SV_STCLOSE;
 	    if (!(t->flags & SN_ERR_MASK))
