@@ -141,7 +141,9 @@ Todo for 1.2
 * weighted round robin
 - option to shutdown(listen_sock) when max connections reached
 * epoll
-- replace the event scheduler with an O(log(N)) one
+- replace the event scheduler with an O(log(N)) one. The timer queue will
+  need a tree with a known end (to speed up queueing of latest events), and
+  no entry for eternity.
 - refine memory management so that the request buffer is only allocated in
   cli_read() and response buffer during srv_read(). This would protect against
   attacks with thousands connections : 20000 connections consume 340 MB RSS and
@@ -150,4 +152,11 @@ Todo for 1.2
 - make buffer size configurable in global options
 * monitor number of simultaneous sessions in logs (per srv/inst/global)
 * ignore leading empty lines in HTTP requests
++ limit the per-server number of sessions and queue incoming connections
+  => still needs refinement (actions at servers UP/DOWN, timeouts)
+- new 'timeout' keyword to set all timeouts (including the queue)
+- ability to intercept an URI to report statistics
+- ability to intercept an URI to return 404
+- embedded error pages loaded in memory at startup time (eg: for expired time
+  in connection queue)
 
