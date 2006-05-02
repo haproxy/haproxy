@@ -6735,36 +6735,30 @@ void sig_dump_state(int sig) {
     while (p) {
 	struct server *s = p->srv;
 
-	send_log(p, LOG_NOTICE, "SIGUP received, dumping servers states for proxy %s.\n", p->id);
+	send_log(p, LOG_NOTICE, "SIGHUP received, dumping servers states for proxy %s.\n", p->id);
 	while (s) {
-	    if (s->state & SRV_RUNNING) {
-		snprintf(trash, sizeof(trash),
-			 "SIGHUP: Server %s/%s is UP. Conn: %d act, %d tot.",
-			 p->id, s->id, s->cur_sess, s->cum_sess);
-	    } else {
-		snprintf(trash, sizeof(trash),
-			 "SIGHUP: Server %s/%s is DOWN. Conn: %d act, %d tot.",
-			 p->id, s->id, s->cur_sess, s->cum_sess);
-	    }
+	    snprintf(trash, sizeof(trash),
+		     "SIGHUP: Server %s/%s is %s. Conn: %d act, %d pend, %d tot.",
+		     p->id, s->id,
+		     (s->state & SRV_RUNNING) ? "UP" : "DOWN",
+		     s->cur_sess, s->nbpend, s->cum_sess);
 	    Warning("%s\n", trash);
 	    send_log(p, LOG_NOTICE, "%s\n", trash);
 	    s = s->next;
 	}
 
 	if (p->srv_act == 0) {
-            if (p->srv_bck) {
-		snprintf(trash, sizeof(trash),
-			 "SIGHUP: Proxy %s is running on backup servers ! Conn: %d act, %d tot.",
-			 p->id, p->nbconn, p->cum_conn);
-	    } else {
-		snprintf(trash, sizeof(trash),
-			 "SIGHUP: Proxy %s has no server availble ! Conn: %d act, %d tot.",
-			 p->id, p->nbconn, p->cum_conn);
-	    }
+	    snprintf(trash, sizeof(trash),
+		     "SIGHUP: Proxy %s %s ! Conn: %d act, %d pend (%d unass), %d tot.",
+		     p->id,
+		     (p->srv_bck) ? "is running on backup servers" : "has no server available",
+		     p->nbconn, p->totpend, p->nbpend,  p->cum_conn);
         } else {
 	    snprintf(trash, sizeof(trash),
-		     "SIGHUP: Proxy %s has %d active servers and %d backup servers availble. Conn: %d act, %d tot.",
-		     p->id, p->srv_act, p->srv_bck, p->nbconn, p->cum_conn);
+		     "SIGHUP: Proxy %s has %d active servers and %d backup servers available."
+		     " Conn: %d act, %d pend (%d unass), %d tot.",
+		     p->id, p->srv_act, p->srv_bck,
+		     p->nbconn, p->totpend, p->nbpend,  p->cum_conn);
 	}
 	Warning("%s\n", trash);
 	send_log(p, LOG_NOTICE, "%s\n", trash);
