@@ -587,9 +587,11 @@ struct session {
 	int logwait;			/* log fields waiting to be collected : LW_* */
 	struct timeval tv_accept;	/* date of the accept() (beginning of the session) */
 	long  t_request;		/* delay before the end of the request arrives, -1 if never occurs */
+	long  t_queue;			/* delay before the session gets out of the connect queue, -1 if never occurs */
 	long  t_connect;		/* delay before the connect() to the server succeeds, -1 if never occurs */
 	long  t_data;			/* delay before the first data byte from the server ... */
 	unsigned long  t_close;		/* total session duration */
+	unsigned long queue_size;	/* overall number of sessions waiting for a connect slot on this instance at accept() time */
 	char *uri;			/* first line if log needed, NULL otherwise */
 	char *cli_cookie;		/* cookie presented by the client, in capture mode */
 	char *srv_cookie;		/* cookie presented by the server, in capture mode */
@@ -604,8 +606,7 @@ struct listener {
     struct sockaddr_storage addr;	/* the address we listen to */
     struct listener *next;		/* next address or NULL */
 };
-    
-    
+
 struct proxy {
     struct listener *listen;		/* the listen addresses and sockets */
     struct in_addr mon_net, mon_mask;	/* don't forward connections from this net (network order) FIXME: should support IPv6 */
@@ -633,6 +634,7 @@ struct proxy {
     char *id;				/* proxy id */
     struct list pendconns;		/* pending connections with no server assigned yet */
     int nbpend;				/* number of pending connections with no server assigned yet */
+    int totpend;			/* total number of pending connections on this instance (for stats) */
     int nbconn;				/* # of active sessions */
     unsigned int cum_conn;		/* cumulated number of processed sessions */
     int maxconn;			/* max # of active sessions */
@@ -1833,6 +1835,7 @@ static void pendconn_free(struct pendconn *p) {
 	p->srv->nbpend--;
     else
 	p->sess->proxy->nbpend--;
+    p->sess->proxy->totpend--;
     pool_free(pendconn, p);
 }
 
@@ -1910,6 +1913,7 @@ static struct pendconn *pendconn_add(struct session *sess) {
 	LIST_ADDQ(&sess->proxy->pendconns, &p->list);
 	sess->proxy->nbpend++;
     }
+    sess->proxy->totpend++;
     return p;
 }
 
@@ -2969,7 +2973,7 @@ void sess_log(struct session *s) {
 	}
 	*h = '\0';
 
-	send_log(p, LOG_INFO, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d] %s %s %d/%d/%d/%s%d %d %s%lld %s %s %c%c%c%c %d/%d/%d%s\n",
+	send_log(p, LOG_INFO, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d] %s %s %d/%d/%d/%d/%s%d %d %s%lld %s %s %c%c%c%c %d/%d/%d/%d%s\n",
 		 pn,
 		 (s->cli_addr.ss_family == AF_INET) ?
 		   ntohs(((struct sockaddr_in *)&s->cli_addr)->sin_port) :
@@ -2978,7 +2982,8 @@ void sess_log(struct session *s) {
 		 tm->tm_hour, tm->tm_min, tm->tm_sec,
 		 pxid, srv,
 		 s->logs.t_request,
-		 (s->logs.t_connect >= 0) ? s->logs.t_connect - s->logs.t_request : -1,
+		 (s->logs.t_queue >= 0) ? s->logs.t_queue - s->logs.t_request : -1,
+		 (s->logs.t_connect >= 0) ? s->logs.t_connect - s->logs.t_queue : -1,
 		 (s->logs.t_data >= 0) ? s->logs.t_data - s->logs.t_connect : -1,
 		 (p->to_log & LW_BYTES) ? "" : "+", s->logs.t_close,
 		 s->logs.status,
@@ -2989,10 +2994,11 @@ void sess_log(struct session *s) {
 		 sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT],
 		 (p->options & PR_O_COOK_ANY) ? sess_cookie[(s->flags & SN_CK_MASK) >> SN_CK_SHIFT] : '-',
 		 (p->options & PR_O_COOK_ANY) ? sess_set_cookie[(s->flags & SN_SCK_MASK) >> SN_SCK_SHIFT] : '-',
-		 s->srv ? s->srv->cur_sess : 0, p->nbconn, actconn, tmpline);
+		 s->srv ? s->srv->cur_sess : 0, s->logs.queue_size,
+		 p->nbconn, actconn, tmpline);
     }
     else {
-	send_log(p, LOG_INFO, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d] %s %s %d/%s%d %s%lld %c%c %d/%d/%d\n",
+	send_log(p, LOG_INFO, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d] %s %s %d/%s%d %s%lld %c%c %d/%d/%d/%d\n",
 		 pn,
 		 (s->cli_addr.ss_family == AF_INET) ?
 		   ntohs(((struct sockaddr_in *)&s->cli_addr)->sin_port) :
@@ -3005,7 +3011,8 @@ void sess_log(struct session *s) {
 		 (p->to_log & LW_BYTES) ? "" : "+", s->logs.bytes,
 		 sess_term_cond[(s->flags & SN_ERR_MASK) >> SN_ERR_SHIFT],
 		 sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT],
-		 s->srv ? s->srv->cur_sess : 0, p->nbconn, actconn);
+		 s->srv ? s->srv->cur_sess : 0, s->logs.queue_size,
+		 p->nbconn, actconn);
     }
 
     s->logs.logwait = 0;
@@ -3139,6 +3146,7 @@ int event_accept(int fd) {
 
 	s->logs.tv_accept = now;
 	s->logs.t_request = -1;
+	s->logs.t_queue = -1;
 	s->logs.t_connect = -1;
 	s->logs.t_data = -1;
 	s->logs.t_close = 0;
@@ -3147,6 +3155,7 @@ int event_accept(int fd) {
 	s->logs.srv_cookie = NULL;
 	s->logs.status = -1;
 	s->logs.bytes = 0;
+	s->logs.queue_size = p->totpend;  /* we get the number of pending conns before us */
 
 	s->uniq_id = totalconn;
 	p->cum_conn++;
@@ -4709,8 +4718,10 @@ int process_srv(struct session *t) {
 		/* try to (re-)connect to the server, and fail if we expire the
 		 * number of retries.
 		 */
-		if (srv_retryable_connect(t))
+		if (srv_retryable_connect(t)) {
+		    t->logs.t_queue = tv_diff(&t->logs.tv_accept, &now);
 		    return t->srv_state != SV_STIDLE;
+		}
 
 	    } while (1);
 	}
@@ -4743,8 +4754,10 @@ int process_srv(struct session *t) {
 		 * because all servers are saturated, then we will go back to
 		 * the SV_STIDLE state.
 		 */
-		if (srv_retryable_connect(t))
+		if (srv_retryable_connect(t)) {
+		    t->logs.t_queue = tv_diff(&t->logs.tv_accept, &now);
 		    return t->srv_state != SV_STCONN;
+		}
 
 		/* we need to redispatch the connection to another server */
 		if (srv_redispatch_connect(t))
