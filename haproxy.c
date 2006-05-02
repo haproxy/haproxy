@@ -733,9 +733,15 @@ void **pool_session = NULL,
 struct proxy *proxy  = NULL;	/* list of all existing proxies */
 struct fdtab *fdtab = NULL;	/* array of all the file descriptors */
 struct task *rq = NULL;		/* global run queue */
-struct task wait_queue = {	/* global wait queue */
-    prev:LIST_HEAD(wait_queue),
-    next:LIST_HEAD(wait_queue)
+struct task wait_queue[2] = {	/* global wait queue */
+    {
+	prev:LIST_HEAD(wait_queue[0]),  /* expirable tasks */
+	next:LIST_HEAD(wait_queue[0]),
+    },
+    {
+	prev:LIST_HEAD(wait_queue[1]),  /* non-expirable tasks */
+	next:LIST_HEAD(wait_queue[1]),
+    },
 };
 
 static int totalconn = 0;	/* total # of terminated sessions */
@@ -1695,7 +1701,31 @@ struct task *task_queue(struct task *task) {
     struct task *list = task->wq;
     struct task *start_from;
 
-    /* first, test if the task was already in a list */
+    /* This is a very dirty hack to queue non-expirable tasks in another queue
+     * in order to avoid pulluting the tail of the standard queue. This will go
+     * away with the new O(log(n)) scheduler anyway.
+     */
+    if (tv_iseternity(&task->expire)) {
+	/* if the task was queued in the standard wait queue, we must dequeue it */
+	if (task->prev) {
+	    if (task->wq == LIST_HEAD(wait_queue[1]))
+		return task;
+	    else {
+		task_delete(task);
+		task->prev = NULL;
+	    }
+	}
+	list = task->wq = LIST_HEAD(wait_queue[1]);
+    } else {
+	/* if the task was queued in the eternity queue, we must dequeue it */
+	if (task->prev && (task->wq == LIST_HEAD(wait_queue[1]))) {
+	    task_delete(task);
+	    task->prev = NULL;
+	    list = task->wq = LIST_HEAD(wait_queue[0]);
+	}
+    }
+
+    /* next, test if the task was already in a list */
     if (task->prev == NULL) {
 	//	start_from = list;
 	start_from = list->prev;
@@ -3085,7 +3115,7 @@ int event_accept(int fd) {
 	    setsockopt(cfd, SOL_SOCKET, SO_KEEPALIVE, (char *) &one, sizeof(one));
 
 	t->next = t->prev = t->rqnext = NULL; /* task not in run queue yet */
-	t->wq = LIST_HEAD(wait_queue); /* but already has a wait queue assigned */
+	t->wq = LIST_HEAD(wait_queue[0]); /* but already has a wait queue assigned */
 	t->state = TASK_IDLE;
 	t->process = process_session;
 	t->context = s;
@@ -5973,8 +6003,8 @@ int process_runnable_tasks() {
 
   /* look for expired tasks and add them to the run queue.
    */
-  tnext = ((struct task *)LIST_HEAD(wait_queue))->next;
-  while ((t = tnext) != LIST_HEAD(wait_queue)) { /* we haven't looped ? */
+  tnext = ((struct task *)LIST_HEAD(wait_queue[0]))->next;
+  while ((t = tnext) != LIST_HEAD(wait_queue[0])) { /* we haven't looped ? */
       tnext = t->next;
       if (t->state & TASK_RUNNING)
 	  continue;
@@ -6735,8 +6765,8 @@ void dump(int sig) {
     struct task *t, *tnext;
     struct session *s;
 
-    tnext = ((struct task *)LIST_HEAD(wait_queue))->next;
-    while ((t = tnext) != LIST_HEAD(wait_queue)) { /* we haven't looped ? */
+    tnext = ((struct task *)LIST_HEAD(wait_queue[0]))->next;
+    while ((t = tnext) != LIST_HEAD(wait_queue[0])) { /* we haven't looped ? */
 	tnext = t->next;
 	s = t->context;
 	qfprintf(stderr,"[dump] wq: task %p, still %ld ms, "
@@ -8532,7 +8562,7 @@ int readcfgfile(char *file) {
 		    }
 		
 		    t->next = t->prev = t->rqnext = NULL; /* task not in run queue yet */
-		    t->wq = LIST_HEAD(wait_queue); /* but already has a wait queue assigned */
+		    t->wq = LIST_HEAD(wait_queue[0]); /* but already has a wait queue assigned */
 		    t->state = TASK_IDLE;
 		    t->process = process_chk;
 		    t->context = newsrv;
@@ -9351,7 +9381,7 @@ static int appsession_task_init(void)
 	if ((t = pool_alloc(task)) == NULL)
 	    return -1;
 	t->next = t->prev = t->rqnext = NULL;
-	t->wq = LIST_HEAD(wait_queue);
+	t->wq = LIST_HEAD(wait_queue[0]);
 	t->state = TASK_IDLE;
 	t->context = NULL;
 	tv_delayfrom(&t->expire, &now, TBLCHKINT);
