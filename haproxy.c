@@ -4642,6 +4642,11 @@ int srv_redispatch_connect(struct session *t) {
 	return 1;
 
     case SRV_STATUS_QUEUED:
+	/* FIXME-20060503 : we should use the queue timeout instead */
+	if (t->proxy->contimeout)
+	    tv_delayfrom(&t->cnexpire, &now, t->proxy->contimeout);
+	else
+	    tv_eternity(&t->cnexpire);
 	t->srv_state = SV_STIDLE;
 	/* do nothing else and do not wake any other session up */
 	return 1;
@@ -4707,8 +4712,17 @@ int process_srv(struct session *t) {
 	     * which case we will not do anything till it's pending. It's up
 	     * to any other session to release it and wake us up again.
 	     */
-	    if (t->pend_pos)
-		return 0;
+	    if (t->pend_pos) {
+		if (tv_cmp2_ms(&t->cnexpire, &now) > 0)
+		    return 0;
+		else {
+		    /* we've been waiting too long here */
+		    tv_eternity(&t->cnexpire);
+		    srv_close_with_err(t, SN_ERR_SRVTO, SN_FINST_C,
+				       503, t->proxy->errmsg.len503, t->proxy->errmsg.msg503);
+		    return 1;
+		}
+	    }
 
 	    do {
 		/* first, get a connection */
