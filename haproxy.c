@@ -1859,36 +1859,38 @@ static inline struct pendconn *pendconn_from_px(struct proxy *px) {
     return LIST_ELEM(px->pendconns.n, struct pendconn *, list);
 }
 
-/* Detaches the next pending connection for either current session's server or
- * current session's proxy, and returns its associated session. If no pending
- * connection is found, NULL is returned. Note that cur->srv cannot be NULL.
+/* Detaches the next pending connection from either a server or a proxy, and
+ * returns its associated session. If no pending connection is found, NULL is
+ * returned. Note that neither <srv> nor <px> can be NULL.
  */
-static struct session *pendconn_get_next_sess(struct session *cur) {
+static struct session *pendconn_get_next_sess(struct server *srv, struct proxy *px) {
     struct pendconn *p;
     struct session *sess;
 
-    p = pendconn_from_srv(cur->srv);
+    p = pendconn_from_srv(srv);
     if (!p) {
-	p = pendconn_from_px(cur->proxy);
+	p = pendconn_from_px(px);
 	if (!p)
 	    return NULL;
-	p->sess->srv = cur->srv;
+	p->sess->srv = srv;
     }
     sess = p->sess;
     pendconn_free(p);
     return sess;
 }
 
-/* Checks if other sessions are waiting for the same server, and wakes the
- * first one up. Note that cur->srv cannot be NULL.
+/* Checks if other sessions are waiting for a known server, and wakes the
+ * first one up. Note that neither <srv> nor <px> can be NULL. Returns 1
+ * if a session has been assigned, 0 if nothing has been done.
  */
-void offer_connection_slot(struct session *cur) {
+static int offer_connection_slot(struct server *srv, struct proxy *px) {
     struct session *sess;
 
-    sess = pendconn_get_next_sess(cur);
+    sess = pendconn_get_next_sess(srv, px);
     if (sess == NULL)
-	return;
+	return 0;
     task_wakeup(&rq, sess->task);
+    return 1;
 }
 
 /* Adds the session <sess> to the pending connection list of server <sess>->srv
@@ -4555,7 +4557,7 @@ int srv_count_retry_down(struct session *t, int conn_err) {
 	 * we have to pass it on to another session.
 	 */
 	if (t->srv)
-	    offer_connection_slot(t);
+	    offer_connection_slot(t->srv, t->proxy);
 	return 1;
     }
     return 0;
@@ -4589,7 +4591,7 @@ int srv_retryable_connect(struct session *t) {
 			       500, t->proxy->errmsg.len500, t->proxy->errmsg.msg500);
 	    /* release other sessions waiting for this server */
 	    if (t->srv)
-		offer_connection_slot(t);
+		offer_connection_slot(t->srv, t->proxy);
 	    return 1;
 	}
 	/* ensure that we have enough retries left */
@@ -4638,7 +4640,7 @@ int srv_redispatch_connect(struct session *t) {
 	 */
 	/* release other sessions waiting for this server */
 	if (t->srv)
-	    offer_connection_slot(t);
+	    offer_connection_slot(t->srv, t->proxy);
 	return 1;
 
     case SRV_STATUS_QUEUED:
@@ -4659,7 +4661,7 @@ int srv_redispatch_connect(struct session *t) {
 			   500, t->proxy->errmsg.len500, t->proxy->errmsg.msg500);
 	/* release other sessions waiting for this server */
 	if (t->srv)
-	    offer_connection_slot(t);
+	    offer_connection_slot(t->srv, t->proxy);
 	return 1;
     }
     /* if we get here, it's because we got SRV_STATUS_OK, which also
@@ -4703,7 +4705,7 @@ int process_srv(struct session *t) {
 	     * we have to pass it on to another session.
 	     */
 	    if (t->srv)
-		offer_connection_slot(t);
+		offer_connection_slot(t->srv, t->proxy);
 	    return 1;
 	}
 	else {
@@ -4871,7 +4873,7 @@ int process_srv(struct session *t) {
 			 * we have to pass it on to another session.
 			 */
 			if (t->srv)
-			    offer_connection_slot(t);
+			    offer_connection_slot(t->srv, t->proxy);
 
 			return 1;
 		    }
@@ -4895,7 +4897,7 @@ int process_srv(struct session *t) {
 		     * we have to pass it on to another session.
 		     */
 		    if (t->srv)
-			offer_connection_slot(t);
+			offer_connection_slot(t->srv, t->proxy);
 
 		    return 1;
 		}
@@ -5334,7 +5336,7 @@ int process_srv(struct session *t) {
 	     * we have to pass it on to another session.
 	     */
 	    if (t->srv)
-		offer_connection_slot(t);
+		offer_connection_slot(t->srv, t->proxy);
 
 	    return 1;
 	}
@@ -5369,7 +5371,7 @@ int process_srv(struct session *t) {
 	     * we have to pass it on to another session.
 	     */
 	    if (t->srv)
-		offer_connection_slot(t);
+		offer_connection_slot(t->srv, t->proxy);
 
 	    return 1;
 	}	
@@ -5469,7 +5471,7 @@ int process_srv(struct session *t) {
 	     * we have to pass it on to another session.
 	     */
 	    if (t->srv)
-		offer_connection_slot(t);
+		offer_connection_slot(t->srv, t->proxy);
 
 	    return 1;
 	}
@@ -5583,7 +5585,7 @@ int process_srv(struct session *t) {
 	     * we have to pass it on to another session.
 	     */
 	    if (t->srv)
-		offer_connection_slot(t);
+		offer_connection_slot(t->srv, t->proxy);
 
 	    return 1;
 	}
@@ -5599,7 +5601,7 @@ int process_srv(struct session *t) {
 	     * we have to pass it on to another session.
 	     */
 	    if (t->srv)
-		offer_connection_slot(t);
+		offer_connection_slot(t->srv, t->proxy);
 
 	    return 1;
 	}
@@ -5619,7 +5621,7 @@ int process_srv(struct session *t) {
 	     * we have to pass it on to another session.
 	     */
 	    if (t->srv)
-		offer_connection_slot(t);
+		offer_connection_slot(t->srv, t->proxy);
 
 	    return 1;
 	}
@@ -5661,7 +5663,7 @@ int process_srv(struct session *t) {
 	     * we have to pass it on to another session.
 	     */
 	    if (t->srv)
-		offer_connection_slot(t);
+		offer_connection_slot(t->srv, t->proxy);
 
 	    return 1;
 	}
@@ -5677,7 +5679,7 @@ int process_srv(struct session *t) {
 	     * we have to pass it on to another session.
 	     */
 	    if (t->srv)
-		offer_connection_slot(t);
+		offer_connection_slot(t->srv, t->proxy);
 
 	    return 1;
 	}
@@ -5697,7 +5699,7 @@ int process_srv(struct session *t) {
 	     * we have to pass it on to another session.
 	     */
 	    if (t->srv)
-		offer_connection_slot(t);
+		offer_connection_slot(t->srv, t->proxy);
 
 	    return 1;
 	}
@@ -5842,8 +5844,8 @@ void set_server_down(struct server *s) {
 		(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
 		s->cur_sess, xferred, s->nbpend);
 
-	Warning(trash);
-	send_log(s->proxy, LOG_ALERT, trash);
+	Warning("%s", trash);
+	send_log(s->proxy, LOG_ALERT, "%s", trash);
 	
 	if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
 	    Alert("Proxy %s has no server available !\n", s->proxy->id);
@@ -5976,17 +5978,37 @@ int process_chk(struct task *t) {
 		s->state |= SRV_RUNNING;
 
 		if (s->health == s->rise) {
+		    int xferred;
+
                     recount_servers(s->proxy);
 		    recalc_server_map(s->proxy);
-		    Warning("%sServer %s/%s UP. %d active and %d backup servers online.%s\n",
-                            s->state & SRV_BACKUP ? "Backup " : "",
-                            s->proxy->id, s->id, s->proxy->srv_act, s->proxy->srv_bck,
-                            (s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "");
-		    send_log(s->proxy, LOG_NOTICE,
-                             "%sServer %s/%s is UP. %d active and %d backup servers online.%s\n",
-                             s->state & SRV_BACKUP ? "Backup " : "",
-                             s->proxy->id, s->id, s->proxy->srv_act, s->proxy->srv_bck,
-                             (s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "");
+
+		    /* check if we can handle some connections queued at the proxy. We
+		     * will take as many as we can handle.
+		     */
+		    for (xferred = 0; !s->maxconn || xferred < s->maxconn; xferred++) {
+			struct session *sess;
+			struct pendconn *p;
+
+			p = pendconn_from_px(s->proxy);
+			if (!p)
+			    break;
+			p->sess->srv = s;
+			sess = p->sess;
+			pendconn_free(p);
+			task_wakeup(&rq, sess->task);
+		    }
+
+		    sprintf(trash,
+			    "%sServer %s/%s is UP. %d active and %d backup servers online.%s"
+			    " %d sessions requeued, %d total in queue.\n",
+			    s->state & SRV_BACKUP ? "Backup " : "",
+			    s->proxy->id, s->id, s->proxy->srv_act, s->proxy->srv_bck,
+			    (s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
+			    xferred, s->nbpend);
+
+		    Warning("%s", trash);
+		    send_log(s->proxy, LOG_NOTICE, "%s", trash);
 		}
 
 		s->health = s->rise + s->fall - 1; /* OK now */
