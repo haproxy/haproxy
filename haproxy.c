@@ -5797,6 +5797,63 @@ int process_session(struct task *t) {
 }
 
 
+/* Sets server <s> down, notifies by all available means, recounts the
+ * remaining servers on the proxy and transfers queued sessions whenever
+ * possible to other servers.
+ */
+void set_server_down(struct server *s) {
+    struct pendconn *pc, *pc_bck, *pc_end;
+    struct session *sess;
+    int xferred;
+
+    s->state &= ~SRV_RUNNING;
+
+    if (s->health == s->rise) {
+	recount_servers(s->proxy);
+	recalc_server_map(s->proxy);
+
+	/* we might have sessions queued on this server and waiting for
+	 * a connection. Those which are redispatchable will be queued
+	 * to another server or to the proxy itself.
+	 */
+	xferred = 0;
+	FOREACH_ITEM_SAFE(pc, pc_bck, &s->pendconns, pc_end, struct pendconn *, list) {
+	    sess = pc->sess;
+	    if ((sess->proxy->options & PR_O_REDISP)) {
+		/* The REDISP option was specified. We will ignore
+		 * cookie and force to balance or use the dispatcher.
+		 */
+		sess->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
+		sess->srv = NULL; /* it's left to the dispatcher to choose a server */
+		if ((sess->flags & SN_CK_MASK) == SN_CK_VALID) {
+		    sess->flags &= ~SN_CK_MASK;
+		    sess->flags |= SN_CK_DOWN;
+		}
+		pendconn_free(pc);
+		task_wakeup(&rq, sess->task);
+		xferred++;
+	    }
+	}
+
+	sprintf(trash, "%sServer %s/%s is DOWN. %d active and %d backup servers left.%s"
+		" %d sessions active, %d requeued, %d remaining in queue.\n",
+		s->state & SRV_BACKUP ? "Backup " : "",
+		s->proxy->id, s->id, s->proxy->srv_act, s->proxy->srv_bck,
+		(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
+		s->cur_sess, xferred, s->nbpend);
+
+	Warning(trash);
+	send_log(s->proxy, LOG_ALERT, trash);
+	
+	if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
+	    Alert("Proxy %s has no server available !\n", s->proxy->id);
+	    send_log(s->proxy, LOG_EMERG, "Proxy %s has no server available !\n", s->proxy->id);
+	}
+    }
+    s->health = 0; /* failure */
+}
+
+
 
 /*
  * manages a server health-check. Returns
@@ -5900,28 +5957,8 @@ int process_chk(struct task *t) {
 	/* here, we have seen a failure */
 	if (s->health > s->rise)
 	    s->health--; /* still good */
-	else {
-	    s->state &= ~SRV_RUNNING;
-	    if (s->health == s->rise) {
-                recount_servers(s->proxy);
-		recalc_server_map(s->proxy);
-		Warning("%sServer %s/%s DOWN. %d active and %d backup servers left.%s\n",
-                        s->state & SRV_BACKUP ? "Backup " : "",
-                        s->proxy->id, s->id, s->proxy->srv_act, s->proxy->srv_bck,
-                        (s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "");
-		send_log(s->proxy, LOG_ALERT,
-                         "%sServer %s/%s is DOWN. %d active and %d backup servers left.%s\n",
-                         s->state & SRV_BACKUP ? "Backup " : "",
-                         s->proxy->id, s->id, s->proxy->srv_act, s->proxy->srv_bck,
-                         (s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "");
-
-		if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
-		    Alert("Proxy %s has no server available !\n", s->proxy->id);
-		    send_log(s->proxy, LOG_EMERG, "Proxy %s has no server available !\n", s->proxy->id);
-		}
-	    }
-	    s->health = 0; /* failure */
-	}
+	else
+	    set_server_down(s);
 
 	//fprintf(stderr, "process_chk: 7\n");
 	/* FIXME: we allow up to <inter> for a connection to establish, but we should use another parameter */
@@ -5966,30 +6003,8 @@ int process_chk(struct task *t) {
 	    /* failure or timeout detected */
 	    if (s->health > s->rise)
 		s->health--; /* still good */
-	    else {
-		s->state &= ~SRV_RUNNING;
-
-                if (s->health == s->rise) {
-                    recount_servers(s->proxy);
-		    recalc_server_map(s->proxy);
-                    Warning("%sServer %s/%s DOWN. %d active and %d backup servers left.%s\n",
-                            s->state & SRV_BACKUP ? "Backup " : "",
-                            s->proxy->id, s->id, s->proxy->srv_act, s->proxy->srv_bck,
-                            (s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "");
-                    send_log(s->proxy, LOG_ALERT,
-                             "%sServer %s/%s is DOWN. %d active and %d backup servers left.%s\n",
-                             s->state & SRV_BACKUP ? "Backup " : "",
-                             s->proxy->id, s->id, s->proxy->srv_act, s->proxy->srv_bck,
-                             (s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "");
-                    
-                    if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
-                        Alert("Proxy %s has no server available !\n", s->proxy->id);
-                        send_log(s->proxy, LOG_EMERG, "Proxy %s has no server available !\n", s->proxy->id);
-                    }
-                }
-
-		s->health = 0; /* failure */
-	    }
+	    else
+		set_server_down(s);
 	    s->curfd = -1;
 	    //FD_CLR(fd, StaticWriteEvent);
 	    fd_delete(fd);
