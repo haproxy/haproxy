@@ -1393,7 +1393,7 @@ static inline struct timeval *tv_now(struct timeval *tv) {
 /*
  * adds <ms> ms to <from>, set the result to <tv> and returns a pointer <tv>
  */
-static inline struct timeval *tv_delayfrom(struct timeval *tv, struct timeval *from, int ms) {
+static struct timeval *tv_delayfrom(struct timeval *tv, struct timeval *from, int ms) {
     if (!tv || !from)
 	return NULL;
     tv->tv_usec = from->tv_usec + (ms%1000)*1000;
@@ -1466,7 +1466,7 @@ static inline unsigned long tv_diff(struct timeval *tv1, struct timeval *tv2) {
  * compares <tv1> and <tv2> modulo 1ms: returns 0 if equal, -1 if tv1 < tv2, 1 if tv1 > tv2
  * Must not be used when either argument is eternity. Use tv_cmp2_ms() for that.
  */
-static inline int tv_cmp_ms(struct timeval *tv1, struct timeval *tv2) {
+static int tv_cmp_ms(struct timeval *tv1, struct timeval *tv2) {
     if (tv1->tv_sec == tv2->tv_sec) {
 	if (tv2->tv_usec >= tv1->tv_usec + 1000)
 	    return -1;
@@ -1528,7 +1528,7 @@ static inline int tv_iseternity(struct timeval *tv) {
  * compares <tv1> and <tv2> : returns 0 if equal, -1 if tv1 < tv2, 1 if tv1 > tv2,
  * considering that 0 is the eternity.
  */
-static inline int tv_cmp2(struct timeval *tv1, struct timeval *tv2) {
+static int tv_cmp2(struct timeval *tv1, struct timeval *tv2) {
     if (tv_iseternity(tv1))
 	if (tv_iseternity(tv2))
 	    return 0; /* same */
@@ -1553,7 +1553,7 @@ static inline int tv_cmp2(struct timeval *tv1, struct timeval *tv2) {
  * compares <tv1> and <tv2> modulo 1 ms: returns 0 if equal, -1 if tv1 < tv2, 1 if tv1 > tv2,
  * considering that 0 is the eternity.
  */
-static inline int tv_cmp2_ms(struct timeval *tv1, struct timeval *tv2) {
+static int tv_cmp2_ms(struct timeval *tv1, struct timeval *tv2) {
     if (tv_iseternity(tv1))
 	if (tv_iseternity(tv2))
 	    return 0; /* same */
@@ -1585,7 +1585,7 @@ static inline int tv_cmp2_ms(struct timeval *tv1, struct timeval *tv2) {
  * if tv2 is passed, 0 is returned.
  * Returns TIME_ETERNITY if tv2 is eternity.
  */
-static inline unsigned long tv_remain2(struct timeval *tv1, struct timeval *tv2) {
+static unsigned long tv_remain2(struct timeval *tv1, struct timeval *tv2) {
     unsigned long ret;
 
     if (tv_iseternity(tv2))
@@ -1628,7 +1628,7 @@ static inline struct timeval *tv_min(struct timeval *tvmin,
 /* Deletes an FD from the fdsets, and recomputes the maxfd limit.
  * The file descriptor is also closed.
  */
-static inline void fd_delete(int fd) {
+static void fd_delete(int fd) {
     FD_CLR(fd, StaticReadEvent);
     FD_CLR(fd, StaticWriteEvent);
 #if defined(ENABLE_EPOLL)
