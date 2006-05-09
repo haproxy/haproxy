@@ -2142,9 +2142,9 @@ static inline struct server *get_server_sh(struct proxy *px, char *addr, int len
  * nothing if the session had already been assigned a server.
  *
  * It may return :
- *   SRV_STATUS_OK       if everything is OK.
- *   SRV_STATUS_NOSRV    if no server is available
- *   SRV_STATUS_FULL     if all servers are saturated
+ *   SRV_STATUS_OK       if everything is OK. s->srv will be valid.
+ *   SRV_STATUS_NOSRV    if no server is available. s->srv = NULL.
+ *   SRV_STATUS_FULL     if all servers are saturated. s->srv = NULL.
  *   SRV_STATUS_INTERNAL for other unrecoverable errors.
  *
  * Upon successful return, the session flag SN_ASSIGNED to indicate that it does
@@ -2255,7 +2255,7 @@ int assign_server_address(struct session *s) {
  * Returns :
  *
  *   SRV_STATUS_OK       if everything is OK.
- *   SRV_STATUS_NOSRV    if no server is available
+ *   SRV_STATUS_NOSRV    if no server is available. s->srv = NULL.
  *   SRV_STATUS_QUEUED   if the connection has been queued.
  *   SRV_STATUS_FULL     if the server(s) is/are saturated and the
  *                       connection could not be queued.
@@ -4602,12 +4602,14 @@ int srv_retryable_connect(struct session *t) {
 	}
 	/* ensure that we have enough retries left */
 	if (srv_count_retry_down(t, conn_err))
+	    /* FIXME-20060509: should not we try to offer this slot to anybody ? */
 	    return 1;
     } while (t->srv == NULL || t->conn_retries > 0 || !(t->proxy->options & PR_O_REDISP));
 
     /* We're on our last chance, and the REDISP option was specified.
      * We will ignore cookie and force to balance or use the dispatcher.
      */
+    /* FIXME-20060509: should not we try to offer this slot to anybody ? */
     t->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
     t->srv = NULL; /* it's left to the dispatcher to choose a server */
     if ((t->flags & SN_CK_MASK) == SN_CK_VALID) {
@@ -4643,6 +4645,7 @@ int srv_redispatch_connect(struct session *t) {
 
 	/* FIXME-20060501: we should not need this once we flush every session
 	 * when the last server goes down.
+	 * FIXME-20060509: this will never execute because it is guaranteed that t->srv == NULL here.
 	 */
 	/* release other sessions waiting for this server */
 	if (t->srv)
