@@ -4908,11 +4908,12 @@ int process_srv(struct session *t) {
 		    (!(t->proxy->options & PR_O_COOK_POST) || (t->flags & SN_POST))) {
 		    /* the server is known, it's not the one the client requested, we have to
 		     * insert a set-cookie here, except if we want to insert only on POST
-		     * requests and this one isn't.
+		     * requests and this one isn't. Note that servers which don't have cookies
+		     * (eg: some backup servers) will return a full cookie removal request.
 		     */
 		    len = sprintf(trash, "Set-Cookie: %s=%s; path=/\r\n",
 				  t->proxy->cookie_name,
-				  t->srv->cookie ? t->srv->cookie : "");
+				  t->srv->cookie ? t->srv->cookie : "; Expires=Thu, 01-Jan-1970 00:00:01 GMT");
 
 		    t->flags |= SN_SCK_INSERTED;
 
