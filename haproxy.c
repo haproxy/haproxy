@@ -4082,7 +4082,13 @@ int process_cli(struct session *t) {
 			    /* Here, we'll look for the first running server which supports the cookie.
 			     * This allows to share a same cookie between several servers, for example
 			     * to dedicate backup servers to specific servers only.
+			     * However, to prevent clients from sticking to cookie-less backup server
+			     * when they have incidentely learned an empty cookie, we simply ignore
+			     * empty cookies and mark them as invalid.
 			     */
+			    if (delim == p3)
+				srv = NULL;
+
 			    while (srv) {
 				if ((srv->cklen == delim - p3) && !memcmp(p3, srv->cookie, delim - p3)) {
 				    if (srv->state & SRV_RUNNING || t->proxy->options & PR_O_PERSIST) {
