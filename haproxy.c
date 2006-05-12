@@ -418,13 +418,12 @@ int strlcpy2(char *dst, const char *src, int size) {
 
 /* different possible states for the server side */
 #define SV_STIDLE	0
-#define SV_STCPEND	1
-#define SV_STCONN	2
-#define SV_STHEADERS	3
-#define SV_STDATA	4
-#define SV_STSHUTR	5
-#define SV_STSHUTW	6
-#define SV_STCLOSE	7
+#define SV_STCONN	1
+#define SV_STHEADERS	2
+#define SV_STDATA	3
+#define SV_STSHUTR	4
+#define SV_STSHUTW	5
+#define SV_STCLOSE	6
 
 /* result of an I/O event */
 #define	RES_SILENT	0	/* didn't happen */
