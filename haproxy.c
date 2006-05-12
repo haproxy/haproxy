@@ -591,7 +591,8 @@ struct session {
 	long  t_connect;		/* delay before the connect() to the server succeeds, -1 if never occurs */
 	long  t_data;			/* delay before the first data byte from the server ... */
 	unsigned long  t_close;		/* total session duration */
-	unsigned long queue_size;	/* overall number of sessions waiting for a connect slot on this instance at accept() time */
+	unsigned long srv_queue_size;	/* number of sessions waiting for a connect slot on this server at accept() time (in direct assignment) */
+	unsigned long prx_queue_size;	/* overall number of sessions waiting for a connect slot on this instance at accept() time */
 	char *uri;			/* first line if log needed, NULL otherwise */
 	char *cli_cookie;		/* cookie presented by the client, in capture mode */
 	char *srv_cookie;		/* cookie presented by the server, in capture mode */
@@ -1896,9 +1897,11 @@ static struct pendconn *pendconn_add(struct session *sess) {
     p->srv  = sess->srv;
     if (sess->srv) {
 	LIST_ADDQ(&sess->srv->pendconns, &p->list);
+	sess->logs.srv_queue_size += sess->srv->nbpend;
 	sess->srv->nbpend++;
     } else {
 	LIST_ADDQ(&sess->proxy->pendconns, &p->list);
+	sess->logs.prx_queue_size += sess->proxy->nbpend;
 	sess->proxy->nbpend++;
     }
     sess->proxy->totpend++;
@@ -2971,7 +2974,7 @@ void sess_log(struct session *s) {
 	}
 	*h = '\0';
 
-	send_log(p, LOG_INFO, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d] %s %s %d/%d/%d/%d/%s%d %d %s%lld %s %s %c%c%c%c %d/%d/%d/%d%s\n",
+	send_log(p, LOG_INFO, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d] %s %s %d/%d/%d/%d/%s%d %d %s%lld %s %s %c%c%c%c %d/%d/%d %d/%d%s\n",
 		 pn,
 		 (s->cli_addr.ss_family == AF_INET) ?
 		   ntohs(((struct sockaddr_in *)&s->cli_addr)->sin_port) :
@@ -2992,11 +2995,11 @@ void sess_log(struct session *s) {
 		 sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT],
 		 (p->options & PR_O_COOK_ANY) ? sess_cookie[(s->flags & SN_CK_MASK) >> SN_CK_SHIFT] : '-',
 		 (p->options & PR_O_COOK_ANY) ? sess_set_cookie[(s->flags & SN_SCK_MASK) >> SN_SCK_SHIFT] : '-',
-		 s->logs.queue_size, s->srv ? s->srv->cur_sess : 0,
-		 p->nbconn, actconn, tmpline);
+		 s->srv ? s->srv->cur_sess : 0, p->nbconn, actconn,
+		 s->logs.srv_queue_size, s->logs.prx_queue_size, tmpline);
     }
     else {
-	send_log(p, LOG_INFO, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d] %s %s %d/%s%d %s%lld %c%c %d/%d/%d/%d\n",
+	send_log(p, LOG_INFO, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d] %s %s %d/%s%d %s%lld %c%c %d/%d/%d %d/%d\n",
 		 pn,
 		 (s->cli_addr.ss_family == AF_INET) ?
 		   ntohs(((struct sockaddr_in *)&s->cli_addr)->sin_port) :
@@ -3009,8 +3012,8 @@ void sess_log(struct session *s) {
 		 (p->to_log & LW_BYTES) ? "" : "+", s->logs.bytes,
 		 sess_term_cond[(s->flags & SN_ERR_MASK) >> SN_ERR_SHIFT],
 		 sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT],
-		 s->logs.queue_size, s->srv ? s->srv->cur_sess : 0,
-		 p->nbconn, actconn);
+		 s->srv ? s->srv->cur_sess : 0, p->nbconn, actconn,
+		 s->logs.srv_queue_size, s->logs.prx_queue_size);
     }
 
     s->logs.logwait = 0;
@@ -3153,7 +3156,8 @@ int event_accept(int fd) {
 	s->logs.srv_cookie = NULL;
 	s->logs.status = -1;
 	s->logs.bytes = 0;
-	s->logs.queue_size = p->totpend;  /* we get the number of pending conns before us */
+	s->logs.prx_queue_size = 0;  /* we get the number of pending conns before us */
+	s->logs.srv_queue_size = 0; /* we will get this number soon */
 
 	s->uniq_id = totalconn;
 	p->cum_conn++;
