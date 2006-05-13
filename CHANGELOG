@@ -1,6 +1,19 @@
 ChangeLog :
 ===========
 
+2006/05/13 : 1.2.13
+   - 'maxconn' server parameter to do per-server session limitation
+   - queueing to support non-blocking session limitation
+   - fixed removal of cookies for cookie-less servers such as backup servers
+   - two separate wait queues for expirable and non-expirable tasks provide
+     better performance with lots of sessions.
+   - some code cleanups and performance improvements
+   - made state dumps a bit more verbose
+   - fixed missing checks for NULL srv in dispatch mode
+   - load balancing on backup servers was not possible in source hash mode.
+   - two session flags shared the same bit, but fortunately they were not
+     compatible.
+
 2006/04/15 : 1.2.12
    Very few changes preparing for more important changes to support per-server
    session limitations and queueing :
