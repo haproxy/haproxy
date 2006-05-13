@@ -3000,7 +3000,7 @@ void sess_log(struct session *s) {
 		 s->logs.srv_queue_size, s->logs.prx_queue_size, tmpline);
     }
     else {
-	send_log(p, LOG_INFO, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d] %s %s %d/%s%d %s%lld %c%c %d/%d/%d %d/%d\n",
+	send_log(p, LOG_INFO, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d] %s %s %d/%d/%s%d %s%lld %c%c %d/%d/%d %d/%d\n",
 		 pn,
 		 (s->cli_addr.ss_family == AF_INET) ?
 		   ntohs(((struct sockaddr_in *)&s->cli_addr)->sin_port) :
@@ -3008,7 +3008,8 @@ void sess_log(struct session *s) {
 		 tm->tm_mday, monthname[tm->tm_mon], tm->tm_year+1900,
 		 tm->tm_hour, tm->tm_min, tm->tm_sec,
 		 pxid, srv,
-		 (s->logs.t_connect >= 0) ? s->logs.t_connect : -1,
+		 (s->logs.t_queue >= 0) ? s->logs.t_queue : -1,
+		 (s->logs.t_connect >= 0) ? s->logs.t_connect - s->logs.t_queue : -1,
 		 (p->to_log & LW_BYTES) ? "" : "+", s->logs.t_close,
 		 (p->to_log & LW_BYTES) ? "" : "+", s->logs.bytes,
 		 sess_term_cond[(s->flags & SN_ERR_MASK) >> SN_ERR_SHIFT],
