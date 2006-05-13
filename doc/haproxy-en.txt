@@ -2,9 +2,9 @@
                              H A - P r o x y
                             Reference  Manual
                            -------------------
-                              version 1.2.12
+                              version 1.2.13
                               willy tarreau
-                                2006/04/15
+                                2006/05/13
 
 ============
 | Abstract |
@@ -20,6 +20,8 @@ availability environments. Indeed, it can :
   - stop accepting connections without breaking existing ones ;
   - add/modify/delete HTTP headers both ways ;
   - block requests matching a particular pattern ;
+  - hold clients to the right application server depending on application
+    cookies
 
 It needs very little resource. Its event-driven architecture allows it to easily
 handle thousands of simultaneous connections on hundreds of instances without
@@ -33,7 +35,9 @@ There are only a few command line options :
 
     -f <configuration file>
     -n <high limit for the total number of simultaneous connections>
-    -N <high limit for the per-proxy number of simultaneous connections>
+       = 'maxconn' in 'global' section
+    -N <high limit for the per-listener number of simultaneous connections>
+       = 'maxconn' in 'listen' or 'default' sections
     -d starts in foregreound with debugging mode enabled
     -D starts in daemon mode
     -q disable messages on output
@@ -51,8 +55,9 @@ There are only a few command line options :
     -db disables background mode (stays in foreground, useful for debugging)
     -m <megs> enforces a memory usage limit to a maximum of <megs> megabytes.
 
-The maximal number of connections per proxy is used as the default parameter for
-each instance for which the 'maxconn' paramter is not set in the 'listen' section.
+The maximal number of connections per proxy instance is used as the default
+parameter for each instance for which the 'maxconn' paramter is not set in the
+'listen' section.
 
 The maximal number of total connections limits the number of connections used by
 the whole process if the 'maxconn' parameter is not set in the 'global' section.
@@ -69,16 +74,7 @@ pressing Ctrl-C, without having to edit the config nor run full debug.
 Statistics are only available if compiled in with the 'STATTIME' option. It's
 only used during code optimization phases.
 
-The '-st' and '-sf' options are used to inform previously running processes
-that a configuration is being reloaded. They will receive the SIGTTOU signal to
-ask them to temporarily stop listening to the ports so that the new process
-can grab them. If anything wrong happens, the new process will send them a
-SIGTTIN to tell them to re-listen to the ports and continue their normal
-work. Otherwise, it will either ask them to finish (-sf) their work then softly
-exit, or immediately terminate (-st), breaking existing sessions. A typical use
-of this allows a configuration reload without service interruption :
-
- # haproxy -p /var/run/haproxy.pid -sf $(cat /var/run/haproxy.pid)
+The '-st' and '-sf' options are used for hot reconfiguration (see below).
 
 ======================
 | Configuration file |
@@ -416,7 +412,7 @@ Note: the 'enabled' keyword allows to enable a service which has been disabled
 A service can work in 3 different distinct modes :
   - TCP
   - HTTP
-  - monitoring
+  - health
 
 TCP mode
 --------
@@ -463,8 +459,8 @@ Example :
         mode health
         option httpchk
 
-Monitoring
-----------
+2.2.1 Monitoring
+----------------
 Versions 1.1.32 and 1.2.6 provide a new solution to check the proxy's
 availability without perturbating the service. The 'monitor-net' keyword was
 created to specify a network of equipments which CANNOT use the service for
@@ -553,7 +549,21 @@ SIGUSR1 when the process was in the pause mode. Please also note that it would
 be useful to save the pidfile before starting a new instance.
 
 This mechanism fully exploited since 1.2.11 with the '-st' and '-sf' options
-(see above).
+(see below).
+
+2.4.1) Hot reconfiguration
+--------------------------
+The '-st' and '-sf' command line options are used to inform previously running
+processes that a configuration is being reloaded. They will receive the SIGTTOU
+signal to ask them to temporarily stop listening to the ports so that the new
+process can grab them. If anything wrong happens, the new process will send
+them a SIGTTIN to tell them to re-listen to the ports and continue their normal
+work. Otherwise, it will either ask them to finish (-sf) their work then softly
+exit, or immediately terminate (-st), breaking existing sessions. A typical use
+of this allows a configuration reload without service interruption :
+
+ # haproxy -p /var/run/haproxy.pid -sf $(cat /var/run/haproxy.pid)
+
 
 2.5) Connections expiration time
 --------------------------------
@@ -769,23 +779,32 @@ The server's response is searched for 'appsession' cookie, the first
 'timeout'.
 The syntax is:
 
-    appsession <SESSIONCOOKIE> len <MATCHLENGTH> timeout <HOLDTIME>
+    appsession <session_cookie> len <match_length> timeout <holdtime>
 
-- <SESSIONCOOKIE> is the cookie, the server uses for it's session-handling
-- <MATCHLENGTH> how many bytes/characters should be used for matching equal
+- <session_cookie> is the cookie, the server uses for it's session-handling
+- <match_length> how many bytes/characters should be used for matching equal
                 sessions 
-- <HOLDTIME> after this inactivaty time, in ms, the cookie will be deleted 
+- <holdtime> after this inactivaty time, in ms, the cookie will be deleted 
              from the sessionstore
 
 The appsession is only per 'listen' section possible.
 
 Example :
 ---------
-    listen http_proxy :80
-        mode http
-        appsession JSESSIONID len 52 timeout 300000
-        .
-        .
+    listen http_lb1 192.168.3.4:80
+       mode    http
+       capture request  header Cookie len 200
+       # Havind a ServerID cookie on the client allows him to reach
+       # the right server even after expiration of the appsession.
+       cookie ServerID insert nocache indirect
+       # Will memorize 52 bytes of the cookie 'JSESSIONID' and keep them
+       # for 3 hours. It will match it in the cookie and the URL field.
+       appsession JSESSIONID len 52 timeout 10800000
+       server first1 10.3.9.2:10805 check inter 3000 cookie first
+       server secon1 10.3.9.3:10805 check inter 3000 cookie secon
+       server first1 10.3.9.4:10805 check inter 3000 cookie first
+       server secon2 10.3.9.5:10805 check inter 3000 cookie secon
+       option httpchk GET /test.jsp
 
 
 3) Autonomous load balancer
@@ -1104,10 +1123,10 @@ might be wise to be able to send more clients to biggest servers. Till version
 1.2.11, it was necessary to replicate the same server multiple times in the
 configuration. Starting with 1.2.12, the 'weight' option is available. HAProxy
 then computes the most homogenous possible map of servers based on their
-weights so that the load gets distributed as smoothly as possible among
-them. The weight, between 1 and 256, should reflect one server's capacity
-relative to others. This way, if a server fails, the remaining capacities are
-still respected.
+weights so that the load gets distributed as smoothly as possible among them.
+The weight, between 1 and 256, should reflect one server's capacity relative to
+others. Weight 1 represents the lowest frequency and 256 the highest. This way,
+if a server fails, the remaining capacities are still respected.
 
 Example :
 ---------
@@ -1141,6 +1160,71 @@ Notes :
   - for the purists, the map calculation algorithm gives precedence to first
     server, so the map is the most uniform when servers are declared in
     ascending order relative to their weights.
+
+The load distribution will follow exactly this sequence :
+
+        Request|                   1 1 1 1
+        number | 1 2 3 4 5 6 7 8 9 0 1 2 3
+       --------+---------------------------
+        p3-800 | X . . . . . . X . . . . .
+        opt-20 | . X . X . X . . . X . X .
+        opt-24 | . . X . X . X . X . X . X
+
+
+3.4) Limiting the number of concurrent sessions on each server
+--------------------------------------------------------------
+Some pre-forked servers such as Apache suffer from too many concurrent
+sessions, because it's very expensive to run hundreds or thousands of
+processes on one system. One solution is to increase the number of servers
+and load-balance between them, but it is a problem when the only goal is
+to resist to short surges.
+
+To solve this problem, a new feature was implemented in HAProxy 1.2.13.
+It's a per-server 'maxconn', associated with a per-server and a per-proxy
+queue. This transforms haproxy into a request buffer between the thousands of
+clients and the few servers. On many circumstances, lowering the maxconn value
+will increase the server's performance and decrease the overall response times
+because the servers will be less congested.
+
+When a request tries to reach any server, the first non-saturated server is
+used, respective to the load balancing algorithm. If all servers are saturated,
+then the request gets queued into the instance's global queue. It will be
+dequeued once a server will have freed a session and all previously queued
+requests have been processed.
+
+If a request references a particular server (eg: source hashing, or persistence
+cookie), and if this server is full, then the request will be queued into the
+server's dedicated queue. This queue has higher priority than the global queue,
+so it's easier for already registered users to enter the site than for new
+users.
+
+For this, the logs have been enhanced to show the number of sessions per
+server, the request's position in the queue and the time spent in the queue.
+This helps doing capacity planning. See the 'logs' section below for more info.
+
+Example :
+---------
+    # be nice with P3 which only has 256 MB of RAM.
+    listen web_appl 0.0.0.0:80
+        maxconn 10000
+        mode http
+        cookie SERVERID insert nocache indirect
+        balance roundrobin
+        server pentium3-800 192.168.1.1:80 cookie s1 weight  8 maxconn 100 check
+        server opteron-2.0G 192.168.1.2:80 cookie s2 weight 20 maxconn 300 check
+        server opteron-2.4G 192.168.1.3:80 cookie s3 weight 24 maxconn 300 check
+        server web-backup1 192.168.2.1:80 cookie s4 check maxconn 200 backup
+        server web-excuse 192.168.3.1:80 check backup
+
+Notes :
+-------
+  - The requests will not stay indefinitely in the queue, they follow the
+    'contimeout' parameter, and if a request cannot be dequeued within this
+    timeout because the server is saturated or because the queue is filled,
+    the session will expire with a 503 error.
+
+  - setting too low values for maxconn might improve performance but might also
+    allow slow users to block access to the server for other users.
 
 
 4) Additionnal features
@@ -1311,7 +1395,8 @@ By default, connections are logged at the TCP level, as soon as the session
 establishes between the client and the proxy. By enabling the 'tcplog' option,
 the proxy will wait until the session ends to generate an enhanced log
 containing more information such as session duration and its state during the
-disconnection.
+disconnection. The number of remaining session after disconnection is also
+indicated (for the server, the listener, and the process).
 
 Example of TCP logging :
 ------------------------
@@ -1320,19 +1405,20 @@ Example of TCP logging :
         option tcplog
         log 192.168.2.200 local3
 
->>> haproxy[18989]: 127.0.0.1:34550 [15/Oct/2003:15:24:28] relais-tcp Srv1 0/5007 0 -- 1/1
+>>> haproxy[18989]: 127.0.0.1:34550 [15/Oct/2003:15:24:28] relais-tcp Srv1 0/0/5007 0 -- 1/1/1 0/0
   
-    Field  Format                                Example
-      
-        1  process_name '[' pid ']:'             haproxy[18989]:
-        2  client_ip ':' client_port             127.0.0.1:34550
-        3  '[' date ']'                          [15/Oct/2003:15:24:28]
-        4  listener_name                         relais-tcp
-        5  server_name                           Srv1
-        6  connect_time '/' total_time           0/5007
-        7  bytes_read                            0
-        8  termination_state                     --
-        9  listener_conns '/' process_conns      1/1
+    Field  Format                                        Example
+
+        1  process_name '[' pid ']:'                     haproxy[18989]:
+        2  client_ip ':' client_port                     127.0.0.1:34550
+        3  '[' date ']'                                  [15/Oct/2003:15:24:28]
+        4  listener_name                                 relais-tcp
+        5  server_name                                   Srv1
+        6  queue_time '/' connect_time '/' total_time    0/0/5007
+        7  bytes_read                                    0
+        8  termination_state                             --
+        9  srv_conn '/' listener_conn '/' process_conn   1/1/1
+       10  position in srv_queue / listener_queue        0/0
 
 
 Another option, 'httplog', provides more detailed information about HTTP
@@ -1350,28 +1436,29 @@ Example of HTTP logging :
         option dontlognull
         log 192.168.2.200 local3
 
->>> haproxy[674]: 127.0.0.1:33319 [15/Oct/2003:08:31:57] relais-http Srv1 9/7/147/723 200 243 - - ---- 3/3 "HEAD / HTTP/1.0"
+>>> haproxy[674]: 127.0.0.1:33319 [15/Oct/2003:08:31:57] relais-http Srv1 9/0/7/147/723 200 243 - - ---- 2/3/3 0/0 "HEAD / HTTP/1.0"
 
 More complete example
-    haproxy[18989]: 10.0.0.1:34552 [15/Oct/2003:15:26:31] relais-http Srv1 3183/-1/-1/11215 503 0 - - SC-- 202/205 {w.ods.org|Mozilla} {} "HEAD / HTTP/1.0" 
+    haproxy[18989]: 10.0.0.1:34552 [15/Oct/2003:15:26:31] relais-http Srv1 3183/-1/-1/-1/11215 503 0 - - SC-- 137/202/205 0/0 {w.ods.org|Mozilla} {} "HEAD / HTTP/1.0" 
 
-    Field  Format                                Example
+    Field  Format                                        Example
   
-        1  process_name  '[' pid ']:'            haproxy[18989]:
-        2  client_ip ':' client_port             10.0.0.1:34552
-        3  '[' date ']'                          [15/Oct/2003:15:26:31]
-        4  listener_name                         relais-http
-        5  server_name                           Srv1
-        6  Tq '/' Tc '/' Tr '/' Tt               3183/-1/-1/11215
-        7  HTTP_return_code                      503
-        8  bytes_read                            0
-        9  captured_request_cookie               -
-       10  captured_response_cookie              -
-       11  termination_state                     SC--
-       12  listener_conns '/' process_conns      202/205
-       13  '{' captured_request_headers '}'      {w.ods.org|Mozilla}
-       14  '{' captured_response_headers '}'     {}
-       15  '"' HTTP_request '"'                  "HEAD / HTTP/1.0"
+        1  process_name  '[' pid ']:'                    haproxy[18989]:
+        2  client_ip ':' client_port                     10.0.0.1:34552
+        3  '[' date ']'                                  [15/Oct/2003:15:26:31]
+        4  listener_name                                 relais-http
+        5  server_name                                   Srv1
+        6  Tq '/' Tw '/' Tc '/' Tr '/' Tt                3183/-1/-1/-1/11215
+        7  HTTP_return_code                              503
+        8  bytes_read                                    0
+        9  captured_request_cookie                       -
+       10  captured_response_cookie                      -
+       11  termination_state                             SC--
+       12  srv_conn '/' listener_conn '/' process_conn   137/202/205
+       13  position in srv_queue / listener_queue        0/0
+       14  '{' captured_request_headers '}'              {w.ods.org|Mozilla}
+       15  '{' captured_response_headers '}'             {}
+       16  '"' HTTP_request '"'                          "HEAD / HTTP/1.0"
   
 Note for log parsers: the URI is ALWAYS the end of the line starting with the
                       first double quote '"'.
@@ -1399,18 +1486,24 @@ Example :
         option logasap
         log 192.168.2.200 local3
 
->>> haproxy[674]: 127.0.0.1:33320 [15/Oct/2003:08:32:17] relais-http Srv1 9/7/14/+30 200 +243 - - ---- 3/3 "GET /image.iso HTTP/1.0"
+>>> haproxy[674]: 127.0.0.1:33320 [15/Oct/2003:08:32:17] relais-http Srv1 9/10/7/14/+30 200 +243 - - ---- 1/1/3 1/0 "GET /image.iso HTTP/1.0"
 
 4.2.3) Timing events
 --------------------
 Timers provide a great help in trouble shooting network problems. All values
 are reported in milliseconds (ms). In HTTP mode, four control points are
-reported under the form 'Tq/Tc/Tr/Tt' :
+reported under the form 'Tq/Tw/Tc/Tr/Tt' :
 
   - Tq: total time to get the client request.
     It's the time elapsed between the moment the client connection was accepted
     and the moment the proxy received the last HTTP header. The value '-1'
     indicates that the end of headers (empty line) has never been seen.
+
+  - Tw: total time spent in the queues waiting for a connection slot. It
+    accounts for listener's queue as well as the server's queue, and depends
+    on the queue size, and the time needed for the server to complete previous
+    sessions. The value '-1' means that the request was killed before reaching
+    the queue.
 
   - Tc: total time to establish the TCP connection to the server.
     It's the time elapsed between the moment the proxy sent the connection
@@ -1426,15 +1519,15 @@ reported under the form 'Tq/Tc/Tr/Tt' :
 
   - Tt: total session duration time, between the moment the proxy accepted it
     and the moment both ends were closed. The exception is when the 'logasap'
-    option is specified. In this case, it only equals (Tq+Tc+Tr), and is
+    option is specified. In this case, it only equals (Tq+Tw+Tc+Tr), and is
     prefixed with a '+' sign. From this field, we can deduce Td, the data
     transmission time, by substracting other timers when valid :
 
-        Td = Tt - (Tq + Tc + Tr)
+        Td = Tt - (Tq + Tw + Tc + Tr)
 
     Timers with '-1' values have to be excluded from this equation.
 
-In TCP mode ('option tcplog'), only Tc and Tt are reported.
+In TCP mode ('option tcplog'), only Tw, Tc and Tt are reported.
 
 These timers provide precious indications on trouble causes. Since the TCP
 protocol defines retransmit delays of 3, 6, 12... seconds, we know for sure
@@ -1458,13 +1551,15 @@ Most common cases :
     after the response ends. Se further for how to disable HTTP keep-alive.
 
 Other cases ('xx' means any value to be ignored) :
-  -1/xx/xx/Tt : the client was not able to send its complete request in time,
-                or that it aborted it too early.
-  Tq/-1/xx/Tt : the connection could not establish on the server. Either it
-                refused it or it timed out after Tt-Tq ms.
-  Tq/Tc/-1/Tt : the server has accepted the connection but did not return a
-                complete response in time, or it closed its connexion
-                unexpectedly, after Tt-(Tq+Tc) ms.
+  -1/xx/xx/xx/Tt: the client was not able to send its complete request in time,
+                  or that it aborted it too early.
+  Tq/-1/xx/xx/Tt: it was not possible to process the request, maybe because
+                  servers were out of order.
+  Tq/Tw/-1/xx/Tt: the connection could not establish on the server. Either it
+                  refused it or it timed out after Tt-(Tq+Tw) ms.
+  Tq/Tw/Tc/-1/Tt: the server has accepted the connection but did not return a
+                  complete response in time, or it closed its connexion
+                  unexpectedly, after Tt-(Tq+Tw+Tc) ms.
 
 4.2.4) Session state at disconnection
 -------------------------------------
@@ -1505,6 +1600,10 @@ HTTP, each of which has a special meaning :
 
         R : waiting for complete REQUEST from the client (HTTP only). Nothing
             was sent to any server.
+
+        Q : waiting in the QUEUE for a connection slot. This can only happen on
+            servers which have a 'maxconn' parameter set. No connection attempt
+            was made to any server.
 
         C : waiting for CONNECTION to establish on the server. The server might
             at most have noticed a connection attempt.
@@ -1715,50 +1814,54 @@ Example :
 
   Log :
 
-    Aug  9 20:26:09 localhost haproxy[2022]: 127.0.0.1:34014 [09/Aug/2004:20:26:09] relais-http netcache 0/0/162/+162 200 +350 - - ---- {fr.adserver.yahoo.co||http://fr.f416.mail.} {|864|private||} "GET http://fr.adserver.yahoo.com/"
-    Aug  9 20:30:46 localhost haproxy[2022]: 127.0.0.1:34020 [09/Aug/2004:20:30:46] relais-http netcache 0/0/182/+182 200 +279 - - ---- {w.ods.org||} {Formilux/0.1.8|3495|||} "GET http://w.ods.org/sytadin.html HTTP/1.1" 
-    Aug  9 20:30:46 localhost haproxy[2022]: 127.0.0.1:34028 [09/Aug/2004:20:30:46] relais-http netcache 0/2/126/+128 200 +223 - - ---- {www.infotrafic.com||http://w.ods.org/syt} {Apache/2.0.40 (Red H|9068|||} "GET http://www.infotrafic.com/images/live/cartesidf/grandes/idf_ne.png HTTP/1.1" 
+    Aug  9 20:26:09 localhost haproxy[2022]: 127.0.0.1:34014 [09/Aug/2004:20:26:09] relais-http netcache 0/0/0/162/+162 200 +350 - - ---- 0/0/0 0/0 {fr.adserver.yahoo.co||http://fr.f416.mail.} {|864|private||} "GET http://fr.adserver.yahoo.com/"
+    Aug  9 20:30:46 localhost haproxy[2022]: 127.0.0.1:34020 [09/Aug/2004:20:30:46] relais-http netcache 0/0/0/182/+182 200 +279 - - ---- 0/0/0 0/0 {w.ods.org||} {Formilux/0.1.8|3495|||} "GET http://w.ods.org/sytadin.html HTTP/1.1" 
+    Aug  9 20:30:46 localhost haproxy[2022]: 127.0.0.1:34028 [09/Aug/2004:20:30:46] relais-http netcache 0/0/2/126/+128 200 +223 - - ---- 0/0/0 0/0 {www.infotrafic.com||http://w.ods.org/syt} {Apache/2.0.40 (Red H|9068|||} "GET http://www.infotrafic.com/images/live/cartesidf/grandes/idf_ne.png HTTP/1.1" 
 
 
 4.2.7) Examples of logs
 -----------------------
-- haproxy[674]: 127.0.0.1:33319 [15/Oct/2003:08:31:57] relais-http Srv1 6559/7/147/6723 200 243 - - ---- 3/5 "HEAD / HTTP/1.0"
+- haproxy[674]: 127.0.0.1:33319 [15/Oct/2003:08:31:57] relais-http Srv1 6559/0/7/147/6723 200 243 - - ---- 1/3/5 0/0 "HEAD / HTTP/1.0"
   => long request (6.5s) entered by hand through 'telnet'. The server replied
      in 147 ms, and the session ended normally ('----')
 
-- haproxy[674]: 127.0.0.1:33320 [15/Oct/2003:08:32:17] relais-http Srv1 9/7/14/+30 200 +243 - - ---- 3/3 "GET /image.iso HTTP/1.0"
+- haproxy[674]: 127.0.0.1:33319 [15/Oct/2003:08:31:57] relais-http Srv1 6559/1230/7/147/6870 200 243 - - ---- 99/239/324 0/9 "HEAD / HTTP/1.0"
+  => Idem, but the request was queued in the global queue behind 9 other
+     requests, and waited there for 1230 ms.
+
+- haproxy[674]: 127.0.0.1:33320 [15/Oct/2003:08:32:17] relais-http Srv1 9/0/7/14/+30 200 +243 - - ---- 1/3/3 0/0 "GET /image.iso HTTP/1.0"
   => request for a long data transfer. The 'logasap' option was specified, so
      the log was produced just before transfering data. The server replied in
      14 ms, 243 bytes of headers were sent to the client, and total time from
      accept to first data byte is 30 ms.
 
-- haproxy[674]: 127.0.0.1:33320 [15/Oct/2003:08:32:17] relais-http Srv1 9/7/14/30 502 243 - - PH-- 2/3 "GET /cgi-bin/bug.cgi? HTTP/1.0"
+- haproxy[674]: 127.0.0.1:33320 [15/Oct/2003:08:32:17] relais-http Srv1 9/0/7/14/30 502 243 - - PH-- 0/2/3 0/0 "GET /cgi-bin/bug.cgi? HTTP/1.0"
   => the proxy blocked a server response either because of an 'rspdeny' or
      'rspideny' filter, or because it blocked sensible information which risked
      being cached. In this case, the response is replaced with a '502 bad
      gateway'.
 
-- haproxy[18113]: 127.0.0.1:34548 [15/Oct/2003:15:18:55] relais-http <NOSRV> -1/-1/-1/8490 -1 0 - - CR-- 2/2 "" 
+- haproxy[18113]: 127.0.0.1:34548 [15/Oct/2003:15:18:55] relais-http <NOSRV> -1/-1/-1/-1/8490 -1 0 - - CR-- 0/2/2 0/0 "" 
   => the client never completed its request and aborted itself ('C---') after
      8.5s, while the proxy was waiting for the request headers ('-R--').
      Nothing was sent to the server.
 
-- haproxy[18113]: 127.0.0.1:34549 [15/Oct/2003:15:19:06] relais-http <NOSRV> -1/-1/-1/50001 408 0 - - cR-- 2/2 "" 
+- haproxy[18113]: 127.0.0.1:34549 [15/Oct/2003:15:19:06] relais-http <NOSRV> -1/-1/-1/-1/50001 408 0 - - cR-- 2/2 0/0 "" 
   => The client never completed its request, which was aborted by the time-out
      ('c---') after 50s, while the proxy was waiting for the request headers ('-R--').
      Nothing was sent to the server, but the proxy could send a 408 return code
      to the client.
 
-- haproxy[18989]: 127.0.0.1:34550 [15/Oct/2003:15:24:28] relais-tcp Srv1 0/5007 0 cD 
+- haproxy[18989]: 127.0.0.1:34550 [15/Oct/2003:15:24:28] relais-tcp Srv1 0/0/5007 0 cD 0/0/0 0/0
   => This is a 'tcplog' entry. Client-side time-out ('c----') occured after 5s.
 
-- haproxy[18989]: 10.0.0.1:34552 [15/Oct/2003:15:26:31] relais-http Srv1 3183/-1/-1/11215 503 0 - - SC-- 202/205 "HEAD / HTTP/1.0" 
+- haproxy[18989]: 10.0.0.1:34552 [15/Oct/2003:15:26:31] relais-http Srv1 3183/-1/-1/-1/11215 503 0 - - SC-- 115/202/205 0/0 "HEAD / HTTP/1.0" 
   => The request took 3s to complete (probably a network problem), and the
      connection to the server failed ('SC--') after 4 attemps of 2 seconds
      (config says 'retries 3'), then a 503 error code was sent to the client.
-     There were 202 connections on this proxy, and 205 on the global process.
-     It is possible that the server refused the connection because of too many
-     already established.
+     There were 115 connections on this server, 202 connections on this proxy,
+     and 205 on the global process. It is possible that the server refused the
+     connection because of too many already established.
 
 
 4.3) HTTP header manipulation
