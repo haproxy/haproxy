@@ -1,0 +1,45 @@
+'+' = done, '-' = todo
+
+1.2.12 :
+ + weighted RR/SH
+
+1.2.13 :
+ + maxconn
+ + queueing
+
+1.2.14 :
+ - HTML status page
+
+ - separate timeout controls
+
+ - option 'abortonclose' : if the session is queued or being connecting
+   to the server, and the client sends a shutdown(), then decide to abort
+   the session early because in most situations, this will be caused by
+   a client hitting the 'Stop' button, so there's no reason to overload
+   the servers with unservable requests. However, this is not HTTP compliant
+   and might cause little trouble to some very specific clients used to
+   close immediately after sending the request (no support for KA, which ones?)
+
+ - minconn : makes the server's maxconn dynamic, which will be computed as a
+   ratio of the proxy's sessions :
+     srv->effective_maxconn =
+          max(srv->maxconn * px->nbsess / px->maxconn, srv->minconn)
+
+1.3 :
+ - handle half-closed connections better (cli/srv would not distinguish
+   DATA/SHUTR/SHUTW, it would be a session flag which would tell shutr/shutw).
+   Check how it got changed in httpterm.
+
+ - 3 memory models : failsafe (prealloc), normal (current), optimal (alloc on
+   demand)
+
+ - wait queues replaced for priority-based trees
+
+ - ability to assign a prio based on L7 matching
+
+ - prio-based O(1) scheduler
+
+ - maxconn reserve for VIP/admins
+
+ - verify if it would be worth implementing an epoll_ctl_batch() for Linux
+
