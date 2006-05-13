@@ -1642,6 +1642,20 @@ Les combinaisons d'indicateurs les plus fréquentes sont énumérées ici.
           pour des réseaux PPPoE sur ADSL qui ne peuvent pas transporter des
           paquets entiers.
 
+      CH  Le client a abandonné alors qu'il attendait un début de réponse de la
+          part du serveur. Cela peut être causé par le serveur qui mettait trop
+          de temps à répondre, ou par un client cliquant précipitamment sur le
+          bouton 'Stop'.
+
+      CQ  Le client a abandonné alors que sa session était mise en file
+          d'attente pour obtenir un serveur avec suffisamment de connexions
+          libres pour l'accepter. Cela signifie soit que l'ensemble des
+          serveurs étaient saturés, soit que le serveur assigné a mis trop de
+          temps à répondre.
+
+      sQ  La session a attendu trop longtemps en file d'attente et a été
+          expirée.
+
       SH  Le serveur a aborté brutalement alors qu'il devait envoyer ses
           en-têtes. En général, cela indique qu'il a crashé.
 

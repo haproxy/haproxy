@@ -1589,6 +1589,17 @@ The most common termination flags combinations are indicated here.
           by too large TCP MSS values for PPPoE networks which cannot transport
           full-sized packets.
 
+      CH  The client aborted while waiting for the server to start responding.
+          It might be the server taking too long to respond or the client
+          clicking the 'Stop' button too fast.
+
+      CQ  The client aborted while its session was queued, waiting for a server
+          with enough empty slots to accept it. It might be that either all the
+          servers were saturated or the assigned server taking too long to
+          respond.
+
+      sQ  The session spent too much time in queue and has been expired.
+
       SH  The server aborted before sending its full headers, or it crashed.
 
       sH  The server failed to reply during the srvtimeout delay, which

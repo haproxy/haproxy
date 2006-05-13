@@ -386,6 +386,7 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define SN_FINST_H	0x00003000	/* session ended during server headers */
 #define SN_FINST_D	0x00004000	/* session ended during data phase */
 #define SN_FINST_L	0x00005000	/* session ended while pushing last data to client */
+#define SN_FINST_Q	0x00006000	/* session ended while waiting in queue for a server slot */
 #define SN_FINST_MASK	0x00007000	/* mask to get only final session state flags */
 #define	SN_FINST_SHIFT	12		/* bit shift */
 
@@ -809,7 +810,7 @@ const char *monthname[12] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
 			     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
 
 const char sess_term_cond[8]  = "-cCsSPRI";	/* normal, CliTo, CliErr, SrvTo, SrvErr, PxErr, Resource, Internal */
-const char sess_fin_state[8]  = "-RCHDL67";	/* cliRequest, srvConnect, srvHeader, Data, Last, unknown */
+const char sess_fin_state[8]  = "-RCHDLQ7";	/* cliRequest, srvConnect, srvHeader, Data, Last, Queue, unknown */
 const char sess_cookie[4]     = "NIDV";		/* No cookie, Invalid cookie, cookie for a Down server, Valid cookie */
 const char sess_set_cookie[8] = "N1I3PD5R";	/* No set-cookie, unknown, Set-Cookie Inserted, unknown,
 					    	   Set-cookie seen and left unchanged (passive), Set-cookie Deleted,
@@ -4309,8 +4310,14 @@ int process_cli(struct session *t) {
 	    t->cli_state = CL_STCLOSE;
 	    if (!(t->flags & SN_ERR_MASK))
 		t->flags |= SN_ERR_CLICL;
-	    if (!(t->flags & SN_FINST_MASK))
-		t->flags |= SN_FINST_D;
+	    if (!(t->flags & SN_FINST_MASK)) {
+		if (t->pend_pos)
+		    t->flags |= SN_FINST_Q;
+		else if (s == SV_STCONN)
+		    t->flags |= SN_FINST_C;
+		else
+		    t->flags |= SN_FINST_D;
+	    }
 	    return 1;
 	}
 	/* last read, or end of server write */
@@ -4343,8 +4350,14 @@ int process_cli(struct session *t) {
 	    t->cli_state = CL_STSHUTR;
 	    if (!(t->flags & SN_ERR_MASK))
 		t->flags |= SN_ERR_CLITO;
-	    if (!(t->flags & SN_FINST_MASK))
-		t->flags |= SN_FINST_D;
+	    if (!(t->flags & SN_FINST_MASK)) {
+		if (t->pend_pos)
+		    t->flags |= SN_FINST_Q;
+		else if (s == SV_STCONN)
+		    t->flags |= SN_FINST_C;
+		else
+		    t->flags |= SN_FINST_D;
+	    }
 	    return 1;
 	}	
 	/* write timeout */
@@ -4361,8 +4374,14 @@ int process_cli(struct session *t) {
 	    t->cli_state = CL_STSHUTW;
 	    if (!(t->flags & SN_ERR_MASK))
 		t->flags |= SN_ERR_CLITO;
-	    if (!(t->flags & SN_FINST_MASK))
-		t->flags |= SN_FINST_D;
+	    if (!(t->flags & SN_FINST_MASK)) {
+		if (t->pend_pos)
+		    t->flags |= SN_FINST_Q;
+		else if (s == SV_STCONN)
+		    t->flags |= SN_FINST_C;
+		else
+		    t->flags |= SN_FINST_D;
+	    }
 	    return 1;
 	}
 
@@ -4420,8 +4439,14 @@ int process_cli(struct session *t) {
 	    t->cli_state = CL_STCLOSE;
 	    if (!(t->flags & SN_ERR_MASK))
 		t->flags |= SN_ERR_CLICL;
-	    if (!(t->flags & SN_FINST_MASK))
-		t->flags |= SN_FINST_D;
+	    if (!(t->flags & SN_FINST_MASK)) {
+		if (t->pend_pos)
+		    t->flags |= SN_FINST_Q;
+		else if (s == SV_STCONN)
+		    t->flags |= SN_FINST_C;
+		else
+		    t->flags |= SN_FINST_D;
+	    }
 	    return 1;
 	}
 	else if ((s == SV_STSHUTR || s == SV_STCLOSE) && (rep->l == 0)) {
@@ -4436,8 +4461,14 @@ int process_cli(struct session *t) {
 	    t->cli_state = CL_STCLOSE;
 	    if (!(t->flags & SN_ERR_MASK))
 		t->flags |= SN_ERR_CLITO;
-	    if (!(t->flags & SN_FINST_MASK))
-		t->flags |= SN_FINST_D;
+	    if (!(t->flags & SN_FINST_MASK)) {
+		if (t->pend_pos)
+		    t->flags |= SN_FINST_Q;
+		else if (s == SV_STCONN)
+		    t->flags |= SN_FINST_C;
+		else
+		    t->flags |= SN_FINST_D;
+	    }
 	    return 1;
 	}
 	else if ((rep->l == 0) ||
@@ -4469,8 +4500,14 @@ int process_cli(struct session *t) {
 	    t->cli_state = CL_STCLOSE;
 	    if (!(t->flags & SN_ERR_MASK))
 		t->flags |= SN_ERR_CLICL;
-	    if (!(t->flags & SN_FINST_MASK))
-		t->flags |= SN_FINST_D;
+	    if (!(t->flags & SN_FINST_MASK)) {
+		if (t->pend_pos)
+		    t->flags |= SN_FINST_Q;
+		else if (s == SV_STCONN)
+		    t->flags |= SN_FINST_C;
+		else
+		    t->flags |= SN_FINST_D;
+	    }
 	    return 1;
 	}
 	else if (t->res_cr == RES_NULL || s == SV_STSHUTW || s == SV_STCLOSE) {
@@ -4485,8 +4522,14 @@ int process_cli(struct session *t) {
 	    t->cli_state = CL_STCLOSE;
 	    if (!(t->flags & SN_ERR_MASK))
 		t->flags |= SN_ERR_CLITO;
-	    if (!(t->flags & SN_FINST_MASK))
-		t->flags |= SN_FINST_D;
+	    if (!(t->flags & SN_FINST_MASK)) {
+		if (t->pend_pos)
+		    t->flags |= SN_FINST_Q;
+		else if (s == SV_STCONN)
+		    t->flags |= SN_FINST_C;
+		else
+		    t->flags |= SN_FINST_D;
+	    }
 	    return 1;
 	}
 	else if (req->l >= req->rlim - req->data) {
@@ -4706,7 +4749,8 @@ int process_srv(struct session *t) {
 		 c == CL_STSHUTW ||
 		 (c == CL_STSHUTR && t->req->l == 0)) { /* give up */
 	    tv_eternity(&t->cnexpire);
-	    srv_close_with_err(t, SN_ERR_CLICL, SN_FINST_C, 0, 0, NULL);
+	    t->logs.t_queue = tv_diff(&t->logs.tv_accept, &now);
+	    srv_close_with_err(t, SN_ERR_CLICL, t->pend_pos ? SN_FINST_Q : SN_FINST_C, 0, 0, NULL);
 
 	    return 1;
 	}
@@ -4722,7 +4766,8 @@ int process_srv(struct session *t) {
 		else {
 		    /* we've been waiting too long here */
 		    tv_eternity(&t->cnexpire);
-		    srv_close_with_err(t, SN_ERR_SRVTO, SN_FINST_C,
+		    t->logs.t_queue = tv_diff(&t->logs.tv_accept, &now);
+		    srv_close_with_err(t, SN_ERR_SRVTO, SN_FINST_Q,
 				       503, t->proxy->errmsg.len503, t->proxy->errmsg.msg503);
 		    return 1;
 		}
