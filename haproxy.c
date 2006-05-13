@@ -4749,7 +4749,8 @@ int process_srv(struct session *t) {
 		 c == CL_STSHUTW ||
 		 (c == CL_STSHUTR && t->req->l == 0)) { /* give up */
 	    tv_eternity(&t->cnexpire);
-	    t->logs.t_queue = tv_diff(&t->logs.tv_accept, &now);
+	    if (t->pend_pos)
+		t->logs.t_queue = tv_diff(&t->logs.tv_accept, &now);
 	    srv_close_with_err(t, SN_ERR_CLICL, t->pend_pos ? SN_FINST_Q : SN_FINST_C, 0, 0, NULL);
 
 	    return 1;
