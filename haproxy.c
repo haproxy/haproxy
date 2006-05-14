@@ -85,6 +85,8 @@
 #include <assert.h>
 #endif
 
+#include <include/base64.h>
+#include <include/uri_auth.h>
 #include "include/appsession.h"
 #include "include/mini-clist.h"
 
@@ -493,6 +495,12 @@ int strlcpy2(char *dst, const char *src, int size) {
 
 /*********************************************************************/
 
+/* describes a chunk of string */
+struct chunk {
+    char *str;	/* beginning of the string itself. Might not be 0-terminated */
+    int len;	/* size of the string from first to last char. <0 = uninit. */
+};
+
 struct cap_hdr {
     struct cap_hdr *next;
     char *name;				/* header name, case insensitive */
@@ -584,6 +592,8 @@ struct session {
     struct pendconn *pend_pos;		/* if not NULL, points to the position in the pending queue */
     char **req_cap;			/* array of captured request headers (may be NULL) */
     char **rsp_cap;			/* array of captured response headers (may be NULL) */
+    struct chunk req_line;		/* points to first line */
+    struct chunk auth_hdr;		/* points to 'Authorization:' header */
     struct {
 	int logwait;			/* log fields waiting to be collected : LW_* */
 	struct timeval tv_accept;	/* date of the accept() (beginning of the session) */
@@ -630,6 +640,7 @@ struct proxy {
     char *capture_name;			/* beginning of the name of the cookie to capture */
     int  capture_namelen;		/* length of the cookie name to match */
     int  capture_len;			/* length of the string to be captured */
+    struct uri_auth *uri_auth;		/* if non-NULL, the (list of) per-URI authentications */
     int clitimeout;			/* client I/O timeout (in milliseconds) */
     int srvtimeout;			/* server I/O timeout (in milliseconds) */
     int contimeout;			/* connect timeout (in milliseconds) */
@@ -838,6 +849,15 @@ const char *HTTP_400 =
 	"Connection: close\r\n"
 	"\r\n"
 	"<html><body><h1>400 Bad request</h1>\nYour browser sent an invalid request.\n</body></html>\n";
+
+/* Warning: this one is an sprintf() fmt string, with <realm> as its only argument */
+const char *HTTP_401_fmt =
+	"HTTP/1.0 401 Unauthorized\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"WWW-Authenticate: Basic realm=\"%s\"\r\n"
+	"\r\n"
+	"<html><body><h1>401 Unauthorized</h1>\nYou need a valid user and password to access this content.\n</body></html>\n";
 
 const char *HTTP_403 =
 	"HTTP/1.0 403 Forbidden\r\n"
@@ -3139,6 +3159,8 @@ int event_accept(int fd) {
 	s->res_cr = s->res_cw = s->res_sr = s->res_sw = RES_SILENT;
 	s->cli_fd = cfd;
 	s->srv_fd = -1;
+	s->req_line.len = -1;
+	s->auth_hdr.len = -1;
 	s->srv = NULL;
 	s->pend_pos = NULL;
 	s->conn_retries = p->conn_retries;
@@ -3682,6 +3704,71 @@ int process_cli(struct session *t) {
 			t->flags |= SN_FINST_R;
 		    return 1;
 		}
+
+		/* Right now, we know that we have processed the entire headers
+		 * and that unwanted requests have been filtered out. We can do
+		 * whatever we want.
+		 */
+
+		/* FIXME debugging code !!! */
+		if (t->req_line.len >= 0) {
+		    write(2, t->req_line.str, t->req_line.len);
+		}
+
+		if (t->proxy->uri_auth != NULL
+		    && t->req_line.len >= t->proxy->uri_auth->uri_len + 4) {   /* +4 for "GET /" */
+		    if (!memcmp(t->req_line.str + 4,
+				t->proxy->uri_auth->uri_prefix, t->proxy->uri_auth->uri_len)
+			&& !memcmp(t->req_line.str, "GET ", 4)) {
+			struct user_auth *user;
+			int authenticated;
+
+			/* we are in front of a interceptable URI. Let's check
+			 * if there's an authentication and if it's valid.
+			 */
+			user = t->proxy->uri_auth->users;
+			if (!user) {
+			    /* no user auth required, it's OK */
+			    authenticated = 1;
+			} else {
+			    authenticated = 0;
+
+			    /* a user list is defined, we have to check.
+			     * skip 21 chars for "Authorization: Basic ".
+			     */
+			    if (t->auth_hdr.len < 21 || memcmp(t->auth_hdr.str + 14, " Basic ", 7))
+				user = NULL;
+
+			    while (user) {
+				if ((t->auth_hdr.len == user->user_len + 21)
+				    && !memcmp(t->auth_hdr.str+21, user->user_pwd, user->user_len)) {
+				    authenticated = 1;
+				    break;
+				}
+				user = user->next;
+				write(2, t->auth_hdr.str, t->auth_hdr.len);
+			    }
+			}
+
+			if (!authenticated) {
+			    int msglen;
+
+			    /* no need to go further */
+
+			    msglen = sprintf(trash, HTTP_401_fmt, t->proxy->uri_auth->auth_realm);
+			    t->logs.status = 401;
+			    client_retnclose(t, msglen, trash);
+			    if (!(t->flags & SN_ERR_MASK))
+				t->flags |= SN_ERR_PRXCOND;
+			    if (!(t->flags & SN_FINST_MASK))
+				t->flags |= SN_FINST_R;
+			    return 1;
+			}
+
+			/* Hey, we have passed the authentication ! */
+		    }
+		}
+
 
 		for (line = 0; line < t->proxy->nb_reqadd; line++) {
 		    len = sprintf(trash, "%s\r\n", t->proxy->req_add[line]);
@@ -4228,8 +4315,8 @@ int process_cli(struct session *t) {
 			/* WARNING! <ptr> becomes invalid for now. If some code
 			 * below needs to rely on it before the end of the global
 			 * header loop, we need to correct it with this code :
-			 * ptr = del_colon;
 			 */
+			ptr = del_colon;
 		    }
 		    else
 			delete_header = 1;
@@ -4239,8 +4326,24 @@ int process_cli(struct session *t) {
 	    /* let's look if we have to delete this header */
 	    if (delete_header && !(t->flags & SN_CLDENY)) {
 		buffer_replace2(req, req->h, req->lr, NULL, 0);
+		/* WARNING: ptr is not valid anymore, since the header may have
+		 * been deleted or truncated ! */
+	    } else {
+		/* try to catch the first line as the request */
+		if (t->req_line.len < 0) {
+		    t->req_line.str = req->h;
+		    t->req_line.len = ptr - req->h;
+		}
+
+		/* We might also need the 'Authorization: ' header */
+		if (t->auth_hdr.len < 0 &&
+		    t->proxy->uri_auth != NULL &&
+		    ptr > req->h + 15 &&
+		    !strncasecmp("Authorization: ", req->h, 15)) {
+		    t->auth_hdr.str = req->h;
+		    t->auth_hdr.len = ptr - req->h;
+		}
 	    }
-	    /* WARNING: ptr is not valid anymore, since the header may have been deleted or truncated ! */
 
 	    req->h = req->lr;
 	} /* while (req->lr < req->r) */
@@ -7544,6 +7647,45 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	    return -1;
 	}
 	curproxy->conn_retries = atol(args[1]);
+    }
+    else if (!strcmp(args[0], "stats")) {
+	if (*(args[1]) == 0) {
+	    Alert("parsing [%s:%d] : '%s' expects 'uri', 'realm', 'auth' or 'enable'.\n", file, linenum, args[0]);
+	    return -1;
+	} else if (!strcmp(args[1], "uri")) {
+	    if (*(args[2]) == 0) {
+		Alert("parsing [%s:%d] : 'uri' needs an URI prefix.\n", file, linenum);
+		return -1;
+	    } else if (!stats_set_uri(&curproxy->uri_auth, args[2])) {
+		Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+		return -1;
+	    }
+	} else if (!strcmp(args[1], "realm")) {
+	    if (*(args[2]) == 0) {
+		Alert("parsing [%s:%d] : 'realm' needs an realm name.\n", file, linenum);
+		return -1;
+	    } else if (!stats_set_realm(&curproxy->uri_auth, args[2])) {
+		Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+		return -1;
+	    }
+	} else if (!strcmp(args[1], "auth")) {
+	    if (*(args[2]) == 0) {
+		Alert("parsing [%s:%d] : 'auth' needs a user:password account.\n", file, linenum);
+		return -1;
+	    } else if (!stats_add_auth(&curproxy->uri_auth, args[2])) {
+		Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+		return -1;
+	    }
+	} else if (!strcmp(args[1], "enable")) {
+	    if (!stats_check_init_uri_auth(&curproxy->uri_auth)) {
+		Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+		return -1;
+	    }
+	} else {
+	    Alert("parsing [%s:%d] : unknown stats parameter '%s' (expects 'uri', 'realm', 'auth' or 'enable').\n",
+		  file, linenum, args[0]);
+	    return -1;
+	}
     }
     else if (!strcmp(args[0], "option")) {
 	if (*(args[1]) == 0) {
