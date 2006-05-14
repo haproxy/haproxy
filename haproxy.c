@@ -4856,6 +4856,9 @@ int process_srv(struct session *t) {
 	    tv_eternity(&t->cnexpire);
 	    if (t->pend_pos)
 		t->logs.t_queue = tv_diff(&t->logs.tv_accept, &now);
+	    /* note that this must not return any error because it would be able to
+	     * overwrite the client_retnclose() output.
+	     */
 	    srv_close_with_err(t, SN_ERR_CLICL, t->pend_pos ? SN_FINST_Q : SN_FINST_C, 0, 0, NULL);
 
 	    return 1;
