@@ -3140,6 +3140,7 @@ int event_accept(int fd) {
 	s->cli_fd = cfd;
 	s->srv_fd = -1;
 	s->srv = NULL;
+	s->pend_pos = NULL;
 	s->conn_retries = p->conn_retries;
 
 	if (s->flags & SN_MONITOR)
