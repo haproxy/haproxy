@@ -1,6 +1,12 @@
 ChangeLog :
 ===========
 
+2006/05/14 : 1.2.13.1
+   - an uninitialized field in the struct session could cause a crash when
+     the session was freed. This has been encountered on Solaris only.
+   - Solaris and OpenBSD no not support shutdown() on listening socket. Let's
+     be nice to them by performing a soft stop if pause fails.
+
 2006/05/13 : 1.2.13
    - 'maxconn' server parameter to do per-server session limitation
    - queueing to support non-blocking session limitation
