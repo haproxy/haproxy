@@ -6753,9 +6753,10 @@ static void soft_stop(void) {
 static void pause_proxy(struct proxy *p) {
     struct listener *l;
     for (l = p->listen; l != NULL; l = l->next) {
-	shutdown(l->fd, SHUT_RD);
-	FD_CLR(l->fd, StaticReadEvent);
-	p->state = PR_STPAUSED;
+	if (shutdown(l->fd, SHUT_RD) == 0) {
+	    FD_CLR(l->fd, StaticReadEvent);
+	    p->state = PR_STPAUSED;
+	}
     }
 }
 
@@ -6766,8 +6767,10 @@ static void pause_proxy(struct proxy *p) {
  * the proxy, or a SIGTTIN can be sent to listen again.
  */
 static void pause_proxies(void) {
+    int err;
     struct proxy *p;
 
+    err = 0;
     p = proxy;
     tv_now(&now); /* else, the old time before select will be used */
     while (p) {
@@ -6775,8 +6778,18 @@ static void pause_proxies(void) {
 	    Warning("Pausing proxy %s.\n", p->id);
 	    send_log(p, LOG_WARNING, "Pausing proxy %s.\n", p->id);
 	    pause_proxy(p);
+	    if (p->state != PR_STPAUSED) {
+		err |= 1;
+		Warning("Proxy %s failed to enter pause mode.\n", p->id);
+		send_log(p, LOG_WARNING, "Proxy %s failed to enter pause mode.\n", p->id);
+	    }
 	}
 	p = p->next;
+    }
+    if (err) {
+	Warning("Some proxies refused to pause, performing soft stop now.\n");
+	send_log(p, LOG_WARNING, "Some proxies refused to pause, performing soft stop now.\n");
+	soft_stop();
     }
 }
 
@@ -9259,6 +9272,10 @@ int main(int argc, char **argv) {
 	if (nb_oldpids == 0)
 	    break;
 
+	/* FIXME-20060514: Solaris and OpenBSD do not support shutdown() on
+	 * listening sockets. So on those platforms, it would be wiser to
+	 * simply send SIGUSR1, which will not be undoable.
+	 */
 	tell_old_pids(SIGTTOU);
 	/* give some time to old processes to stop listening */
 	w.tv_sec = 0;
