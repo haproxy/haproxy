@@ -917,7 +917,7 @@ static int stats_tsk_lsrch, stats_tsk_rsrch,
 /*********************************************************************/
 #ifdef DEBUG_FULL
 static char *cli_stnames[5] = {"HDR", "DAT", "SHR", "SHW", "CLS" };
-static char *srv_stnames[8] = {"IDL", "PND", "CON", "HDR", "DAT", "SHR", "SHW", "CLS" };
+static char *srv_stnames[7] = {"IDL", "CON", "HDR", "DAT", "SHR", "SHW", "CLS" };
 #endif
 
 /*********************************************************************/
