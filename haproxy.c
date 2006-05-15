@@ -171,6 +171,12 @@
 #define DEFAULT_MAXCONN	SYSTEM_MAXCONN
 #endif
 
+#ifdef CONFIG_PRODUCT_NAME
+#define PRODUCT_NAME CONFIG_PRODUCT_NAME
+#else
+#define PRODUCT_NAME "HAProxy"
+#endif
+
 /* how many bits are needed to code the size of an int (eg: 32bits -> 5) */
 #define	INTBITS		5
 
@@ -410,7 +416,11 @@ int strlcpy2(char *dst, const char *src, int size) {
 #define SN_MONITOR	0x00400000	/* this session comes from a monitoring system */
 #define SN_ASSIGNED	0x00800000	/* no need to assign a server to this session */
 #define SN_ADDR_SET	0x01000000	/* this session's server address has been set */
+#define SN_SELF_GEN	0x02000000	/* the proxy generates data for the client (eg: stats) */
 
+/* various data sources for the responses */
+#define DATA_SRC_NONE	0
+#define DATA_SRC_STATS	1
 
 /* different possible states for the client side */
 #define CL_STHEADERS	0
@@ -610,6 +620,13 @@ struct session {
 	int status;			/* HTTP status from the server, negative if from proxy */
 	long long bytes;		/* number of bytes transferred from the server */
     } logs;
+    int data_source;			/* where to get the data we generate ourselves */
+    union {
+	struct {
+	    struct proxy *px;
+	    struct server *sv;
+	} stats;
+    } data_ctx;
     unsigned int uniq_id;		/* unique ID used for the traces */
 };
 
@@ -765,6 +782,7 @@ static int maxfd = 0;		/* # of the highest fd + 1 */
 static int listeners = 0;	/* # of listeners */
 static int stopping = 0;	/* non zero means stopping in progress */
 static struct timeval now = {0,0};	/* the current date at any moment */
+static struct timeval start_date;	/* the process's start date */
 static struct proxy defproxy;		/* fake proxy used to assign default values on all instances */
 
 /* Here we store informations about the pids of the processes we may pause
@@ -2890,6 +2908,69 @@ int event_srv_write(int fd) {
 }
 
 
+/* returns 1 if the buffer is empty, 0 otherwise */
+static inline int buffer_isempty(struct buffer *buf) {
+    return buf->l == 0;
+}
+
+
+/* returns 1 if the buffer is full, 0 otherwise */
+static inline int buffer_isfull(struct buffer *buf) {
+    return buf->l == BUFSIZE;
+}
+
+
+/* flushes any content from buffer <buf> */
+void buffer_flush(struct buffer *buf) {
+    buf->r = buf->h = buf->lr = buf->w = buf->data;
+    buf->l = 0;
+}
+
+
+/* returns the maximum number of bytes writable at once in this buffer */
+int buffer_max(struct buffer *buf) {
+    if (buf->l == 0)
+	return BUFSIZE;
+    else if (buf->r > buf->w)
+	return buf->data + BUFSIZE - buf->r;
+    else
+	return buf->w - buf->r;
+}
+
+
+/*
+ * Tries to realign the given buffer, and returns how many bytes can be written
+ * there at once without overwriting anything.
+ */
+int buffer_realign(struct buffer *buf) {
+    if (buf->l == 0) {
+	/* let's realign the buffer to optimize I/O */
+	buf->r = buf->w = buf->h = buf->lr  = buf->data;
+    }
+    return buffer_max(buf);
+}
+
+
+/* writes <len> bytes from message <msg> to buffer <buf>. Returns 0 in case of
+ * success, or the number of bytes available otherwise.
+ */
+int buffer_write(struct buffer *buf, const char *msg, int len) {
+    int max;
+
+    max = buffer_max(buf);
+
+    if (len > max)
+	return max;
+
+    memcpy(buf->r, msg, len);
+    buf->l += len;
+    buf->r += len;
+    if (buf->r == buf->data + BUFSIZE)
+	buf->r = buf->data + BUFSIZE;
+    return 0;
+}
+
+
 /*
  * returns a message to the client ; the connection is shut down for read,
  * and the request is cleared so that no server connection can be initiated.
@@ -2904,10 +2985,8 @@ void client_retnclose(struct session *s, int len, const char *msg) {
     tv_delayfrom(&s->cwexpire, &now, s->proxy->clitimeout);
     shutdown(s->cli_fd, SHUT_RD);
     s->cli_state = CL_STSHUTR;
-    strcpy(s->rep->data, msg);
-    s->rep->l = len;
-    s->rep->r = s->rep->h = s->rep->lr = s->rep->w = s->rep->data;
-    s->rep->r += len;
+    buffer_flush(s->rep);
+    buffer_write(s->rep, msg, len);
     s->req->l = 0;
 }
 
@@ -2917,12 +2996,199 @@ void client_retnclose(struct session *s, int len, const char *msg) {
  * The reply buffer doesn't need to be empty before this.
  */
 void client_return(struct session *s, int len, const char *msg) {
-    strcpy(s->rep->data, msg);
-    s->rep->l = len;
-    s->rep->r = s->rep->h = s->rep->lr = s->rep->w = s->rep->data;
-    s->rep->r += len;
+    buffer_flush(s->rep);
+    buffer_write(s->rep, msg, len);
     s->req->l = 0;
 }
+
+/*
+ * Produces data for the session <s> depending on its source. Expects to be
+ * called with s->cli_state == CL_STSHUTR. Right now, only statistics can be
+ * produced. It stops by itself by unsetting the SN_SELF_GEN flag from the
+ * session, which it uses to keep on being called when there is free space in
+ * the buffer, of simply by letting an empty buffer upon return. It returns 1
+ * if it changes the session state from CL_STSHUTR, otherwise 0.
+ */
+int produce_content(struct session *s) {
+    struct buffer *rep = s->rep;
+    struct proxy *px;
+    struct server *sv;
+    int max, msglen;
+    unsigned int up;
+
+    if (s->data_source == DATA_SRC_NONE) {
+	s->flags &= ~SN_SELF_GEN;
+	return 1;
+    }
+    else if (s->data_source == DATA_SRC_STATS) {
+	if (s->data_ctx.stats.px == NULL) {
+	    /* the proxy was not known, the function had not been called yet */
+	    
+	    s->flags |= SN_SELF_GEN;  // more data will follow
+	    msglen = sprintf(trash,
+			     "HTTP/1.0 200 OK\r\n"
+			     "Cache-Control: no-cache\r\n"
+			     "Connection: close\r\n"
+			     "\r\n\r\n");
+	    
+	    s->logs.status = 200;
+	    client_retnclose(s, msglen, trash); // send the start of the response.
+	    if (!(s->flags & SN_ERR_MASK))  // this is not really an error but it is
+		    s->flags |= SN_ERR_PRXCOND; // to mark that it comes from the proxy
+	    if (!(s->flags & SN_FINST_MASK))
+		s->flags |= SN_FINST_R;
+
+	    /* WARNING! This must fit in the first buffer !!! */	    
+	    msglen = snprintf(trash, sizeof(trash),
+			     "<html><head><title>Statistics Report for " PRODUCT_NAME "</title>\n"
+			     "<meta http-equiv=\"content-type\" content=\"text/html; charset=iso-8859-1\">\n"
+			     "<style type=\"text/css\"><!--\n"
+			     "body {"
+			     "  font-family: helvetica, arial;"
+			     "  font-size: 12px;"
+			     "  font-weight: normal;"
+			     "  color: black;"
+			     "  background: white;"
+			     "}\n"
+			     "td {"
+			     "  font-size: 12px;"
+			     "}\n"
+			     "h1 {"
+			     "  font-size: xx-large;"
+			     "  margin-bottom: 0.5em;"
+			     "}\n"
+			     "h2 {"
+			     "	font-family: helvetica, arial;"
+			     "	font-size: x-large;"
+			     "	font-weight: bold;"
+			     "  font-style: italic;"
+			     "	color: #6020a0;"
+			     "  margin-top: 0em;"
+			     "  margin-bottom: 0em;"
+			     "}\n"
+			     "h3 {"
+			     "	font-family: helvetica, arial;"
+			     "	font-size: 16px;"
+			     "	font-weight: bold;"
+			     "	color: #b00040;"
+			     "  background: #e8e8d0;"
+			     "  margin-top: 0em;"
+			     "  margin-bottom: 0em;"
+			     "}\n"
+			     "li {"
+			     "  margin-top: 0.25em;"
+			     "  margin-right: 2em;"
+			     "}\n"
+			     ".hr {"
+			     "  margin-top: 0.25em;"
+			     "  border-color: black;"
+			     "  border-bottom-style: solid;"
+			     "}"
+			     "-->"
+			     "</style></head>");
+
+	    buffer_write(rep, trash, msglen);
+
+	    up = (now.tv_sec - start_date.tv_sec);
+
+	    /* WARNING! this has to fit the first packet too */
+	    msglen = snprintf(trash, sizeof(trash),
+			      "<body><h1>" PRODUCT_NAME "</h1>\n"
+			      "<h2>Statistics Report for pid %d</h2>\n"
+			      "<hr width=\"100%%\" class=\"hr\">\n"
+			      "<h3>&gt; General process informations</h3>\n"
+			      "<p><b>pid = </b> %d (nbproc = %d)<br>\n"
+			      "<b>uptime = </b> %dd %dh%02dm%02ds<br>\n"
+			      "<b>system limits :</b> memmax = %d Megs ; ulimit-n = %d<br>\n"
+			      "<b>maxsock = </b> %d<br>\n"
+			      "<b>maxconn = </b> %d (current conns = %d)<br>\n"
+			      "",
+			      pid, pid, global.nbproc,
+			      up / 86400, (up % 86400) / 3600,
+			      (up % 3600) / 60, (up % 60),
+			      global.rlimit_memmax,
+			      global.rlimit_nofile,
+			      global.maxsock,
+			      global.maxconn,
+			      actconn
+			      );
+
+	    buffer_write(rep, trash, msglen);
+	    px = s->data_ctx.stats.px = proxy;
+	}
+
+	while (s->data_ctx.stats.px) {
+	    /* if sv == NULL, this is because we are on a new proxy */
+	    while (s->data_ctx.stats.sv == NULL) {
+		px = s->data_ctx.stats.px;
+		msglen = snprintf(trash, sizeof(trash),
+				  "<h3>&gt; Proxy instance %s : "
+				  "%d conns (maxconn=%d), %d queued (%d unassigned), %d total conns</h3>\n"
+				  "",
+				  px->id,
+				  px->nbconn, px->maxconn, px->totpend, px->nbpend, px->cum_conn);
+		
+		msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+				   "<table cols=8 border=1 cellpadding=1 cellspacing=0><tr>"
+				   "<th>Server</th><th>Health</th><th>Sessions</th><th>Queue</th>"
+				   "<th>Total Sess</th><th>Weight</th><th>Active</th><th>Backup</th></tr>\n");
+		
+		if (buffer_write(rep, trash, msglen) != 0)
+		    return 0;
+		s->data_ctx.stats.sv = px->srv;
+	    }
+
+	    while (s->data_ctx.stats.sv != NULL) {
+		px = s->data_ctx.stats.px;
+		sv = s->data_ctx.stats.sv;
+		
+		msglen = snprintf(trash, sizeof(trash),
+				  "<tr><td>%s</td><td>%s %d/%d</td><td>%d</td><td>%d</th>"
+				  "<td>%d</td><td>%d</td><td>%s</td><td>%s</td></tr>\n",
+				  sv->id,
+				  (sv->state & SRV_RUNNING) ? "UP" : "DOWN", 
+				  (sv->state & SRV_RUNNING) ? (sv->fall - sv->health + sv->rise) : (sv->fall - sv->health),
+				  (sv->state & SRV_RUNNING) ? (sv->fall) : (sv->rise),
+				  sv->cur_sess, sv->nbpend, sv->cum_sess, sv->uweight+1,
+				  (sv->state & SRV_BACKUP) ? "-" : "Y",
+				  (sv->state & SRV_BACKUP) ? "Y" : "-");
+		
+		sv = sv->next;
+		if (!sv) {
+		    /* write a summary for the proxy */
+		    msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+				       "<tr><td>dispatcher</td><td>-</td><td>%d</td><td>%d</th>"
+				       "<td>%d</td><td>-</td><td>%d</td><td>%d</td></tr></table><p>\n",
+				       px->nbconn, px->nbpend, px->cum_conn,
+				       px->srv_act, px->srv_bck);
+		    
+		    px = px->next;
+		    /* the server loop will automaticall detect the NULL */
+		}
+		
+		if (buffer_write(rep, trash, msglen) != 0)
+		    return 0;
+		s->data_ctx.stats.sv = sv;
+		s->data_ctx.stats.px = px;
+	    }
+	}
+	/* here, we just have reached the sv == NULL and px == NULL */
+	s->flags &= ~SN_SELF_GEN;
+	return 1;
+    }
+    else {
+	/* unknown data source */
+	s->logs.status = 500;
+	client_retnclose(s, s->proxy->errmsg.len500, s->proxy->errmsg.msg500);
+	if (!(s->flags & SN_ERR_MASK))
+	    s->flags |= SN_ERR_PRXCOND;
+	if (!(s->flags & SN_FINST_MASK))
+	    s->flags |= SN_FINST_R;
+	s->flags &= SN_SELF_GEN;
+	return 1;
+    }
+}
+
 
 /*
  * send a log for the session when we have enough info about it
@@ -3183,6 +3449,9 @@ int event_accept(int fd) {
 	s->logs.bytes = 0;
 	s->logs.prx_queue_size = 0;  /* we get the number of pending conns before us */
 	s->logs.srv_queue_size = 0; /* we will get this number soon */
+
+	s->data_source = DATA_SRC_NONE;
+	memset(&s->data_ctx, 0, sizeof(s->data_ctx));
 
 	s->uniq_id = totalconn;
 	p->cum_conn++;
@@ -3623,8 +3892,6 @@ char *check_replace_string(char *str)
     return err;
 }
 
-
-
 /*
  * manages the client FSM and its socket. BTW, it also tries to handle the
  * cookie. It returns 1 if a state has changed (and a resync may be needed),
@@ -3710,11 +3977,6 @@ int process_cli(struct session *t) {
 		 * whatever we want.
 		 */
 
-		/* FIXME debugging code !!! */
-		if (t->req_line.len >= 0) {
-		    write(2, t->req_line.str, t->req_line.len);
-		}
-
 		if (t->proxy->uri_auth != NULL
 		    && t->req_line.len >= t->proxy->uri_auth->uri_len + 4) {   /* +4 for "GET /" */
 		    if (!memcmp(t->req_line.str + 4,
@@ -3765,7 +4027,10 @@ int process_cli(struct session *t) {
 			    return 1;
 			}
 
-			/* Hey, we have passed the authentication ! */
+			t->cli_state = CL_STSHUTR;
+			t->data_source = DATA_SRC_STATS;
+			produce_content(t);
+			return 1;
 		    }
 		}
 
@@ -4554,7 +4819,8 @@ int process_cli(struct session *t) {
 	    }
 	    return 1;
 	}
-	else if ((s == SV_STSHUTR || s == SV_STCLOSE) && (rep->l == 0)) {
+	else if ((s == SV_STSHUTR || s == SV_STCLOSE) && (rep->l == 0)
+		 && !(t->flags & SN_SELF_GEN)) {
 	    tv_eternity(&t->cwexpire);
 	    fd_delete(t->cli_fd);
 	    t->cli_state = CL_STCLOSE;
@@ -4576,8 +4842,19 @@ int process_cli(struct session *t) {
 	    }
 	    return 1;
 	}
-	else if ((rep->l == 0) ||
-		 ((s == SV_STHEADERS) /* FIXME: this may be optimized && (rep->w == rep->h)*/)) {
+
+	if (t->flags & SN_SELF_GEN) {
+	    produce_content(t);
+	    if (rep->l == 0) {
+		tv_eternity(&t->cwexpire);
+		fd_delete(t->cli_fd);
+		t->cli_state = CL_STCLOSE;
+		return 1;
+	    }
+	}
+
+	if ((rep->l == 0)
+		 || ((s == SV_STHEADERS) /* FIXME: this may be optimized && (rep->w == rep->h)*/)) {
 	    if (FD_ISSET(t->cli_fd, StaticWriteEvent)) {
 		FD_CLR(t->cli_fd, StaticWriteEvent); /* stop writing */
 		tv_eternity(&t->cwexpire);
@@ -8936,6 +9213,7 @@ void init(int argc, char **argv) {
      */
     tv_now(&now);
     localtime(&now.tv_sec);
+    start_date = now;
 
     /* initialize the log header encoding map : '{|}"#' should be encoded with
      * '#' as prefix, as well as non-printable characters ( <32 or >= 127 ).
