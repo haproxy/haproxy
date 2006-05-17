@@ -226,6 +226,25 @@ int strlcpy2(char *dst, const char *src, int size) {
 }
 
 /*
+ * This function simply returns a statically allocated string containing
+ * the ascii representation for number 'n' in decimal.
+ */
+char *ultoa(unsigned long n) {
+    /* enough to store 2^63=18446744073709551615 */
+    static char itoa_str[21];
+    char *pos;
+
+    pos = itoa_str + sizeof(itoa_str) - 1;
+    *pos-- = '\0';
+
+    do {
+	*pos-- = '0' + n % 10;
+	n /= 10;
+    } while (n && pos >= itoa_str);
+    return pos + 1;
+}
+
+/*
  * Returns a pointer to an area of <__len> bytes taken from the pool <pool> or
  * dynamically allocated. In the first case, <__pool> is updated to point to
  * the next element in the list.
@@ -548,7 +567,7 @@ struct server {
     char *cookie;			/* the id set in the cookie */
     char *id;				/* just for identification */
     struct list pendconns;		/* pending connections */
-    int nbpend;				/* number of pending connections */
+    int nbpend, nbpend_max;		/* number of pending connections */
     struct task *queue_mgt;		/* the task associated to the queue processing */
     struct sockaddr_in addr;		/* the address to connect to */
     struct sockaddr_in source_addr;	/* the address to which we want to bind for connect() */
@@ -560,9 +579,10 @@ struct server {
     int curfd;				/* file desc used for current test, or -1 if not in test */
     unsigned char uweight, eweight;	/* user-specified weight-1, and effective weight-1 */
     unsigned int wscore;		/* weight score, used during srv map computation */
-    int cur_sess;			/* number of currently active sessions (including syn_sent) */
+    int cur_sess, cur_sess_max;		/* number of currently active sessions (including syn_sent) */
     unsigned int cum_sess;		/* cumulated number of sessions really sent to this server */
     unsigned int maxconn;		/* max # of active sessions. 0 = unlimited. */
+    unsigned failed_checks, down_trans;	/* failed checks and up-down transitions */
     struct proxy *proxy;		/* the proxy this server belongs to */
 };
 
@@ -663,9 +683,9 @@ struct proxy {
     int contimeout;			/* connect timeout (in milliseconds) */
     char *id;				/* proxy id */
     struct list pendconns;		/* pending connections with no server assigned yet */
-    int nbpend;				/* number of pending connections with no server assigned yet */
+    int nbpend, nbpend_max;		/* number of pending connections with no server assigned yet */
     int totpend;			/* total number of pending connections on this instance (for stats) */
-    int nbconn;				/* # of active sessions */
+    int nbconn, nbconn_max;		/* # of active sessions */
     unsigned int cum_conn;		/* cumulated number of processed sessions */
     int maxconn;			/* max # of active sessions */
     int conn_retries;			/* maximum number of connect retries */
@@ -1938,10 +1958,14 @@ static struct pendconn *pendconn_add(struct session *sess) {
 	LIST_ADDQ(&sess->srv->pendconns, &p->list);
 	sess->logs.srv_queue_size += sess->srv->nbpend;
 	sess->srv->nbpend++;
+	if (sess->srv->nbpend > sess->srv->nbpend_max)
+	    sess->srv->nbpend_max = sess->srv->nbpend;
     } else {
 	LIST_ADDQ(&sess->proxy->pendconns, &p->list);
 	sess->logs.prx_queue_size += sess->proxy->nbpend;
 	sess->proxy->nbpend++;
+	if (sess->proxy->nbpend > sess->proxy->nbpend_max)
+	    sess->proxy->nbpend_max = sess->proxy->nbpend;
     }
     sess->proxy->totpend++;
     return p;
@@ -2484,8 +2508,11 @@ int connect_server(struct session *s) {
 #endif
     
     fd_insert(fd);
-    if (s->srv)
+    if (s->srv) {
 	s->srv->cur_sess++;
+	if (s->srv->cur_sess > s->srv->cur_sess_max)
+	     s->srv->cur_sess_max = s->srv->cur_sess;
+    }
 
     if (s->proxy->contimeout)
 	tv_delayfrom(&s->cnexpire, &now, s->proxy->contimeout);
@@ -2929,9 +2956,9 @@ void buffer_flush(struct buffer *buf) {
 
 /* returns the maximum number of bytes writable at once in this buffer */
 int buffer_max(struct buffer *buf) {
-    if (buf->l == 0)
-	return BUFSIZE;
-    else if (buf->r > buf->w)
+    if (buf->l == BUFSIZE)
+	return 0;
+    else if (buf->r >= buf->w)
 	return buf->data + BUFSIZE - buf->r;
     else
 	return buf->w - buf->r;
@@ -2945,7 +2972,7 @@ int buffer_max(struct buffer *buf) {
 int buffer_realign(struct buffer *buf) {
     if (buf->l == 0) {
 	/* let's realign the buffer to optimize I/O */
-	buf->r = buf->w = buf->h = buf->lr  = buf->data;
+	buf->r = buf->w = buf->h = buf->lr = buf->data;
     }
     return buffer_max(buf);
 }
@@ -2957,7 +2984,7 @@ int buffer_realign(struct buffer *buf) {
 int buffer_write(struct buffer *buf, const char *msg, int len) {
     int max;
 
-    max = buffer_max(buf);
+    max = buffer_realign(buf);
 
     if (len > max)
 	return max;
@@ -2966,7 +2993,7 @@ int buffer_write(struct buffer *buf, const char *msg, int len) {
     buf->l += len;
     buf->r += len;
     if (buf->r == buf->data + BUFSIZE)
-	buf->r = buf->data + BUFSIZE;
+	buf->r = buf->data;
     return 0;
 }
 
@@ -3013,15 +3040,16 @@ int produce_content(struct session *s) {
     struct buffer *rep = s->rep;
     struct proxy *px;
     struct server *sv;
-    int max, msglen;
+    int msglen;
     unsigned int up;
+    int failed_checks, down_trans;
 
     if (s->data_source == DATA_SRC_NONE) {
 	s->flags &= ~SN_SELF_GEN;
 	return 1;
     }
     else if (s->data_source == DATA_SRC_STATS) {
-	if (s->data_ctx.stats.px == NULL) {
+	if (s->data_ctx.stats.px == NULL) { /* initialized to NULL at session creation */
 	    /* the proxy was not known, the function had not been called yet */
 	    
 	    s->flags |= SN_SELF_GEN;  // more data will follow
@@ -3052,6 +3080,7 @@ int produce_content(struct session *s) {
 			     "}\n"
 			     "td {"
 			     "  font-size: 12px;"
+			     "  align: center;"
 			     "}\n"
 			     "h1 {"
 			     "  font-size: xx-large;"
@@ -3083,11 +3112,17 @@ int produce_content(struct session *s) {
 			     "  margin-top: 0.25em;"
 			     "  border-color: black;"
 			     "  border-bottom-style: solid;"
-			     "}"
+			     "}\n"
+			     "table.tbl { border-collapse: collapse; border-width: 1px; border-style: solid; border-color: gray;}\n"
+			     "table.tbl td { border-width: 1px 1px 1px 1px; border-style: solid solid solid solid; border-color: gray; }\n"
+			     "table.tbl th { border-width: 1px; border-style: solid solid solid solid; border-color: gray; }\n"
+			     "table.lgd { border-collapse: collapse; border-width: 1px; border-style: none none none solid; border-color: black;}\n"
+			     "table.lgd td { border-width: 1px; border-style: solid solid solid solid; border-color: gray; padding: 2px;}\n"
 			     "-->"
 			     "</style></head>");
 
-	    buffer_write(rep, trash, msglen);
+	    if (buffer_write(rep, trash, msglen) != 0)
+		return 0;
 
 	    up = (now.tv_sec - start_date.tv_sec);
 
@@ -3097,11 +3132,25 @@ int produce_content(struct session *s) {
 			      "<h2>Statistics Report for pid %d</h2>\n"
 			      "<hr width=\"100%%\" class=\"hr\">\n"
 			      "<h3>&gt; General process informations</h3>\n"
+			      "<table border=0><tr><td align=\"left\">\n"
 			      "<p><b>pid = </b> %d (nbproc = %d)<br>\n"
 			      "<b>uptime = </b> %dd %dh%02dm%02ds<br>\n"
 			      "<b>system limits :</b> memmax = %d Megs ; ulimit-n = %d<br>\n"
 			      "<b>maxsock = </b> %d<br>\n"
 			      "<b>maxconn = </b> %d (current conns = %d)<br>\n"
+			      "</td><td width=\"10%%\">\n"
+			      "</td><td align=\"right\">\n"
+			      "<table class=\"lgd\">"
+			      "<tr><td bgcolor=\"#C0FFC0\">&nbsp;</td><td style=\"border-style: none;\">active UP </td>"
+			      "<td bgcolor=\"#B0D0FF\">&nbsp;</td><td style=\"border-style: none;\">backup UP </td></tr>"
+			      "<tr><td bgcolor=\"#FFFFA0\"></td><td style=\"border-style: none;\">active UP, going down </td>"
+			      "<td bgcolor=\"#C060FF\"></td><td style=\"border-style: none;\">backup UP, going down </td></tr>"
+			      "<tr><td bgcolor=\"#FFD020\"></td><td style=\"border-style: none;\">active DOWN, going up </td>"
+			      "<td bgcolor=\"#FF80FF\"></td><td style=\"border-style: none;\">backup DOWN, going up </td></tr>"
+			      "<tr><td bgcolor=\"#FF9090\"></td><td style=\"border-style: none;\">active or backup DOWN &nbsp;</td>"
+			      "<td bgcolor=\"#E0E0E0\"></td><td style=\"border-style: none;\">not checked </td></tr>"
+			      "</table>\n"
+			      "</tr></table>\n"
 			      "",
 			      pid, pid, global.nbproc,
 			      up / 86400, (up % 86400) / 3600,
@@ -3112,13 +3161,18 @@ int produce_content(struct session *s) {
 			      global.maxconn,
 			      actconn
 			      );
-
-	    buffer_write(rep, trash, msglen);
+	    
+	    if (buffer_write(rep, trash, msglen) != 0)
+		return 0;
 	    px = s->data_ctx.stats.px = proxy;
 	}
 
 	while (s->data_ctx.stats.px) {
-	    /* if sv == NULL, this is because we are on a new proxy */
+	    int dispatch_sess, dispatch_cum;
+
+	    /* if sv == NULL, this is because we are on a new proxy :
+	     * initialized to NULL at session creation
+	     */
 	    while (s->data_ctx.stats.sv == NULL) {
 		px = s->data_ctx.stats.px;
 		msglen = snprintf(trash, sizeof(trash),
@@ -3129,49 +3183,149 @@ int produce_content(struct session *s) {
 				  px->nbconn, px->maxconn, px->totpend, px->nbpend, px->cum_conn);
 		
 		msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
-				   "<table cols=8 border=1 cellpadding=1 cellspacing=0><tr>"
-				   "<th>Server</th><th>Health</th><th>Sessions</th><th>Queue</th>"
-				   "<th>Total Sess</th><th>Weight</th><th>Active</th><th>Backup</th></tr>\n");
+				   "<table cols=\"13\" class=\"tbl\">\n"
+				   "<tr align=\"center\" bgcolor=\"#20C0C0\">"
+				   "<th colspan=5>Server</th>"
+				   "<th colspan=2>Queue</th>"
+				   "<th colspan=4>Sessions</th>"
+				   "<th colspan=2>Checks</th></tr>\n"
+				   "<tr align=\"center\" bgcolor=\"#20C0C0\">"
+				   "<th>Name</th><th>Weight</th><th>Status</th><th>Act.</th><th>Bck.</th>"
+				   "<th>Curr.</th><th>Max.</th>"
+				   "<th>Curr.</th><th>Max.</th><th>Limit</th><th>Cumul.</th>"
+				   "<th>Failed</th><th>Fatal</th></tr>\n");
 		
 		if (buffer_write(rep, trash, msglen) != 0)
 		    return 0;
 		s->data_ctx.stats.sv = px->srv;
 	    }
 
+	    px = s->data_ctx.stats.px;
+
+	    dispatch_sess = px->nbconn;
+	    dispatch_cum = px->cum_conn;
+	    failed_checks = down_trans = 0;
 	    while (s->data_ctx.stats.sv != NULL) {
+		static char *act_tab_bg[5] = { /*down*/"#FF9090", /*rising*/"#FFD020", /*failing*/"#FFFFA0", /*up*/"#C0FFC0", /*unchecked*/"#E0E0E0" };
+		static char *bck_tab_bg[5] = { /*down*/"#FF9090", /*rising*/"#FF80ff", /*failing*/"#C060FF", /*up*/"#B0D0FF", /*unchecked*/"#E0E0E0" };
+		static char *srv_hlt_st[5] = { "DOWN", "DN %d/%d &uarr;", "UP %d/%d &darr;", "UP", "<i>no check</i>" };
+		int sv_state; /* 0=DOWN, 1=going up, 2=going down, 3=UP */
+
 		px = s->data_ctx.stats.px;
 		sv = s->data_ctx.stats.sv;
-		
+
+		dispatch_sess -= sv->cur_sess;
+		dispatch_cum -= sv->cum_sess;
+
+		failed_checks += sv->failed_checks;
+		down_trans += sv->down_trans;
+
+		/* FIXME: produce some small strings for "UP/DOWN x/y &#xxxx;" */
+		if (!(sv->state & SRV_CHECKED))
+		    sv_state = 4;
+		else if (sv->state & SRV_RUNNING)
+		    if (sv->health == sv->rise + sv->fall - 1)
+			sv_state = 3; /* UP */
+		    else
+			sv_state = 2; /* going down */
+		else
+		    if (sv->health)
+			sv_state = 1; /* going up */
+		    else
+			sv_state = 0; /* DOWN */
+
+		/* name, weight */
 		msglen = snprintf(trash, sizeof(trash),
-				  "<tr><td>%s</td><td>%s %d/%d</td><td>%d</td><td>%d</th>"
-				  "<td>%d</td><td>%d</td><td>%s</td><td>%s</td></tr>\n",
-				  sv->id,
-				  (sv->state & SRV_RUNNING) ? "UP" : "DOWN", 
-				  (sv->state & SRV_RUNNING) ? (sv->fall - sv->health + sv->rise) : (sv->fall - sv->health),
-				  (sv->state & SRV_RUNNING) ? (sv->fall) : (sv->rise),
-				  sv->cur_sess, sv->nbpend, sv->cum_sess, sv->uweight+1,
+				  "<tr align=center bgcolor=\"%s\"><td>%s</td><td>%d</td><td>",
+				  (sv->state & SRV_BACKUP) ? bck_tab_bg[sv_state] : act_tab_bg[sv_state],
+				  sv->id, sv->uweight+1);
+		/* status */
+		msglen += snprintf(trash + msglen, sizeof(trash) - msglen, srv_hlt_st[sv_state],
+				  (sv->state & SRV_RUNNING) ? (sv->health - sv->rise + 1) : (sv->health),
+				   (sv->state & SRV_RUNNING) ? (sv->fall) : (sv->rise));
+
+		/* act, bck */
+		msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+				  "</td><td>%s</td><td>%s</td>",
 				  (sv->state & SRV_BACKUP) ? "-" : "Y",
 				  (sv->state & SRV_BACKUP) ? "Y" : "-");
-		
+
+		/* queue : current, max */
+		msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+				   "<td align=right>%d</td><td align=right>%d</td>",
+				   sv->nbpend, sv->nbpend_max);
+
+		/* sessions : current, max, limit, cumul */
+		msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+				   "<td align=right>%d</td><td align=right>%d</td><td align=right>%s</td><td align=right>%d</td>",
+				   sv->cur_sess, sv->cur_sess_max, sv->maxconn ? ultoa(sv->maxconn) : "-", sv->cum_sess);
+
+		/* failures : unique, fatal */
+		msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+				  "<td align=right>%d</td><td align=right>%d</td></tr>\n",
+				   sv->failed_checks, sv->down_trans);
+
 		sv = sv->next;
 		if (!sv) {
-		    /* write a summary for the proxy */
+		    /* first, write informations about the dispatcher */
+		    /* name, weight, status, act, bck */
+		    msglen += snprintf(trash + msglen, sizeof(trash),
+				      "<tr align=center bgcolor=\"#e8e8d0\">"
+				      "<td>Dispatcher</td><td>-</td>"
+				      "<td>%s</td><td>-</td><td>-</td>",
+				      px->state == PR_STRUN ? "UP" : "DOWN");
+
+		    /* queue : current, max */
 		    msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
-				       "<tr><td>dispatcher</td><td>-</td><td>%d</td><td>%d</th>"
-				       "<td>%d</td><td>-</td><td>%d</td><td>%d</td></tr></table><p>\n",
-				       px->nbconn, px->nbpend, px->cum_conn,
-				       px->srv_act, px->srv_bck);
-		    
+				       "<td align=right>%d</td><td align=right>%d</td>",
+				       px->nbpend, px->nbpend_max);
+
+		    /* sessions : current, max, limit, cumul */
+		    msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+				       "<td align=right>%d</td><td align=right>%d</td><td align=right>%d</td><td align=right>%d</td>",
+				       dispatch_sess, px->nbconn_max, px->maxconn, dispatch_cum);
+
+		    /* failures : unique, fatal */
+		    msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+				       "<td align=right>-</td><td align=right>-</td></tr>\n");
+
+
+		    /* now the summary for the proxy */
+		    /* name, weight, status, act, bck */
+		    msglen += snprintf(trash + msglen, sizeof(trash),
+				      "<tr align=center style=\"color: #ffff80;  background: #20C0C0;\">"
+				      "<td><b>Total</b></td><td>-</td>"
+				      "<td><b>%s</b></td><td><b>%d</b></td><td><b>%d</b></td>",
+				      (px->state == PR_STRUN && (px->srv_act || px->srv_bck)) ? "UP" : "DOWN",
+				      px->srv_act, px->srv_bck);
+
+		    /* queue : current, max */
+		    msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+				       "<td align=right><b>%d</b></td><td align=right><b>%d</b></td>",
+				       px->totpend, px->nbpend_max);
+
+		    /* sessions : current, max, limit, cumul */
+		    msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+				       "<td align=right><b>%d</b></td><td align=right><b>%d</b></td><td align=right><b>%d</b></td><td align=right><b>%d</b></td>",
+				       px->nbconn, px->nbconn_max, px->maxconn, px->cum_conn);
+
+		    /* failures : unique, fatal */
+		    msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+				       "<td align=right>%d</td><td align=right>%d</td></tr>\n",
+				       failed_checks, down_trans);
+
+		    msglen += snprintf(trash + msglen, sizeof(trash) - msglen, "</table><p>\n");
+
 		    px = px->next;
-		    /* the server loop will automaticall detect the NULL */
+		    /* the server loop will automatically detect the NULL */
 		}
 		
 		if (buffer_write(rep, trash, msglen) != 0)
 		    return 0;
 		s->data_ctx.stats.sv = sv;
 		s->data_ctx.stats.px = px;
-	    }
-	}
+	    } /* server loop */
+	} /* proxy loop */
 	/* here, we just have reached the sv == NULL and px == NULL */
 	s->flags &= ~SN_SELF_GEN;
 	return 1;
@@ -3642,6 +3796,8 @@ int event_accept(int fd) {
 	    task_wakeup(&rq, t);
 
 	p->nbconn++;
+	if (p->nbconn > p->nbconn_max)
+	    p->nbconn_max = p->nbconn;
 	actconn++;
 	totalconn++;
 
@@ -4008,7 +4164,6 @@ int process_cli(struct session *t) {
 				    break;
 				}
 				user = user->next;
-				write(2, t->auth_hdr.str, t->auth_hdr.len);
 			    }
 			}
 
@@ -6285,6 +6440,7 @@ void set_server_down(struct server *s) {
 	    Alert("Proxy %s has no server available !\n", s->proxy->id);
 	    send_log(s->proxy, LOG_EMERG, "Proxy %s has no server available !\n", s->proxy->id);
 	}
+	s->down_trans++;
     }
     s->health = 0; /* failure */
 }
@@ -6391,8 +6547,10 @@ int process_chk(struct task *t) {
 	}
 
 	/* here, we have seen a failure */
-	if (s->health > s->rise)
+	if (s->health > s->rise) {
 	    s->health--; /* still good */
+	    s->failed_checks++;
+	}
 	else
 	    set_server_down(s);
 
@@ -6457,8 +6615,10 @@ int process_chk(struct task *t) {
 	else if (s->result < 0 || tv_cmp2_ms(&t->expire, &now) <= 0) {
 	    //fprintf(stderr, "process_chk: 10\n");
 	    /* failure or timeout detected */
-	    if (s->health > s->rise)
+	    if (s->health > s->rise) {
 		s->health--; /* still good */
+		s->failed_checks++;
+	    }
 	    else
 		set_server_down(s);
 	    s->curfd = -1;
