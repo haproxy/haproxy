@@ -4120,6 +4120,7 @@ int process_cli(struct session *t) {
 		if (t->flags & SN_CLDENY) {
 		    /* no need to go further */
 		    t->logs.status = 403;
+		    t->logs.t_request = tv_diff(&t->logs.tv_accept, &now); /* let's log the request time */
 		    client_retnclose(t, t->proxy->errmsg.len403, t->proxy->errmsg.msg403);
 		    if (!(t->flags & SN_ERR_MASK))
 			t->flags |= SN_ERR_PRXCOND;
