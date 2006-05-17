@@ -80,8 +80,14 @@ LDFLAGS = -g
 
 all: haproxy
 
-haproxy: src/list.o src/chtbl.o src/hashpjw.o haproxy.o
+haproxy: src/list.o src/chtbl.o src/hashpjw.o haproxy.o src/base64.o src/uri_auth.o
 	$(LD) $(LDFLAGS) -o $@ $> $(LIBS)
+
+src/base64.o:	src/base64.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+src/uri_auth.o:	src/uri_auth.c
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 src/list.o:	src/list.c
 	$(CC) $(CFLAGS) -c -o $@ $<
