@@ -4183,6 +4183,8 @@ int process_cli(struct session *t) {
 			}
 
 			t->cli_state = CL_STSHUTR;
+			req->rlim = req->data + BUFSIZE; /* no more rewrite needed */
+			t->logs.t_request = tv_diff(&t->logs.tv_accept, &now);
 			t->data_source = DATA_SRC_STATS;
 			produce_content(t);
 			return 1;
