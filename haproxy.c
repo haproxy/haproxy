@@ -5739,7 +5739,7 @@ int process_srv(struct session *t) {
 			 *    unless the response includes appropriate
 			 *    Cache-Control or Expires header fields."
 			 */
-			if (!t->flags & SN_POST && (t->proxy->options & PR_O_CHK_CACHE))
+			if (!(t->flags & SN_POST) && (t->proxy->options & PR_O_CHK_CACHE))
 				t->flags |= SN_CACHEABLE | SN_CACHE_COOK;
 			break;
 		    default:
