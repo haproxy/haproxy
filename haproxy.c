@@ -7148,7 +7148,7 @@ int poll_loop(int action) {
       for (count = 0; status > 0 && count < nbfd; count++) {
 	  fd = poll_events[count].fd;
 	  
-	  if (!poll_events[count].revents & ( POLLOUT | POLLIN | POLLERR | POLLHUP ))
+	  if (!(poll_events[count].revents & ( POLLOUT | POLLIN | POLLERR | POLLHUP )))
 	      continue;
 
 	  /* ok, we found one active fd */
