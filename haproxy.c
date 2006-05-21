@@ -587,7 +587,7 @@ struct server {
     unsigned int wscore;		/* weight score, used during srv map computation */
     int cur_sess, cur_sess_max;		/* number of currently active sessions (including syn_sent) */
     unsigned int cum_sess;		/* cumulated number of sessions really sent to this server */
-    unsigned int maxconn;		/* max # of active sessions. 0 = unlimited. */
+    unsigned int maxconn, minconn;	/* max # of active sessions (0 = unlimited), min# for dynamic limit. */
     unsigned failed_checks, down_trans;	/* failed checks and up-down transitions */
     unsigned failed_conns, failed_resp;	/* failed connect() and responses */
     unsigned failed_secu;		/* blocked responses because of security concerns */
@@ -695,9 +695,9 @@ struct proxy {
     struct list pendconns;		/* pending connections with no server assigned yet */
     int nbpend, nbpend_max;		/* number of pending connections with no server assigned yet */
     int totpend;			/* total number of pending connections on this instance (for stats) */
-    int nbconn, nbconn_max;		/* # of active sessions */
+    unsigned int nbconn, nbconn_max;	/* # of active sessions */
     unsigned int cum_conn;		/* cumulated number of processed sessions */
-    int maxconn;			/* max # of active sessions */
+    unsigned int maxconn;		/* max # of active sessions */
     unsigned failed_conns, failed_resp;	/* failed connect() and responses */
     unsigned failed_secu;		/* blocked responses because of security concerns */
     int conn_retries;			/* maximum number of connect retries */
@@ -1983,12 +1983,22 @@ static struct pendconn *pendconn_add(struct session *sess) {
     return p;
 }
 
+/* returns the effective dynamic maxconn for a server, considering the minconn
+ * and the proxy's usage relative to its saturation.
+ */
+static unsigned int srv_dynamic_maxconn(struct server *s) {
+    return s->minconn ? 
+	((s->maxconn * s->proxy->nbconn / s->proxy->maxconn) < s->minconn) ? s->minconn :
+	(s->maxconn * s->proxy->nbconn / s->proxy->maxconn) : s->maxconn;
+}
+
 /* returns 0 if nothing has to be done for server <s> regarding queued connections,
  * and non-zero otherwise. Suited for and if/else usage.
  */
 static inline int may_dequeue_tasks(struct server *s, struct proxy *p) {
     return (s && (s->nbpend || p->nbpend) &&
-	    s->maxconn && s->cur_sess < s->maxconn && s->queue_mgt);
+	    (!s->maxconn || s->cur_sess < srv_dynamic_maxconn(s)) &&
+	    s->queue_mgt);
 }
 
 
@@ -2157,7 +2167,7 @@ static inline struct server *get_server_rr_with_conns(struct proxy *px) {
 
     do {
 	srv = px->srv_map[newidx++];
-	if (!srv->maxconn || srv->cur_sess < srv->maxconn) {
+	if (!srv->maxconn || srv->cur_sess < srv_dynamic_maxconn(srv)) {
 	    px->srv_rr_idx = newidx;
 	    return srv;
 	}
@@ -2349,7 +2359,7 @@ int assign_server_and_queue(struct session *s) {
 	 * is not needed.
 	 */
 	if (s->srv &&
-	    s->srv->maxconn && s->srv->cur_sess >= s->srv->maxconn) {
+	    s->srv->maxconn && s->srv->cur_sess >= srv_dynamic_maxconn(s->srv)) {
 	    p = pendconn_add(s);
 	    if (p)
 		return SRV_STATUS_QUEUED;
@@ -2364,8 +2374,8 @@ int assign_server_and_queue(struct session *s) {
     switch (err) {
     case SRV_STATUS_OK:
 	/* in balance mode, we might have servers with connection limits */
-	if (s->srv != NULL &&
-	    s->srv->maxconn && s->srv->cur_sess >= s->srv->maxconn) {
+	if (s->srv &&
+	    s->srv->maxconn && s->srv->cur_sess >= srv_dynamic_maxconn(s->srv)) {
 	    p = pendconn_add(s);
 	    if (p)
 		return SRV_STATUS_QUEUED;
@@ -6737,7 +6747,7 @@ int process_chk(struct task *t) {
 		    /* check if we can handle some connections queued at the proxy. We
 		     * will take as many as we can handle.
 		     */
-		    for (xferred = 0; !s->maxconn || xferred < s->maxconn; xferred++) {
+		    for (xferred = 0; !s->maxconn || xferred < srv_dynamic_maxconn(s); xferred++) {
 			struct session *sess;
 			struct pendconn *p;
 
@@ -6810,7 +6820,7 @@ int process_srv_queue(struct task *t) {
     /* First, check if we can handle some connections queued at the proxy. We
      * will take as many as we can handle.
      */
-    for (xferred = 0; s->cur_sess + xferred < s->maxconn; xferred++) {
+    for (xferred = 0; s->cur_sess + xferred < srv_dynamic_maxconn(s); xferred++) {
 	struct session *sess;
 
 	sess = pendconn_get_next_sess(s, p);
@@ -8556,6 +8566,10 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 		newsrv->uweight = w - 1;
 		cur_arg += 2;
 	    }
+	    else if (!strcmp(args[cur_arg], "minconn")) {
+		newsrv->minconn = atol(args[cur_arg + 1]);
+		cur_arg += 2;
+	    }
 	    else if (!strcmp(args[cur_arg], "maxconn")) {
 		newsrv->maxconn = atol(args[cur_arg + 1]);
 		cur_arg += 2;
@@ -8576,7 +8590,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 		cur_arg += 2;
 	    }
 	    else {
-		Alert("parsing [%s:%d] : server %s only supports options 'backup', 'cookie', 'check', 'inter', 'rise', 'fall', 'port', 'source', and 'weight'.\n",
+		Alert("parsing [%s:%d] : server %s only supports options 'backup', 'cookie', 'check', 'inter', 'rise', 'fall', 'port', 'source', 'minconn', 'maxconn' and 'weight'.\n",
 		      file, linenum, newsrv->id);
 		return -1;
 	    }
@@ -9451,6 +9465,12 @@ int readcfgfile(char *file) {
 	 */
 	newsrv = curproxy->srv;
 	while (newsrv != NULL) {
+	    if (newsrv->minconn && !newsrv->maxconn) {
+		/* only 'minconn' was specified. Let's turn this into maxconn */
+		newsrv->maxconn = newsrv->minconn;
+		newsrv->minconn = 0;
+	    }
+
 	    if (newsrv->maxconn > 0) {
 		struct task *t;
 

@@ -30,7 +30,7 @@
    and might cause little trouble to some very specific clients used to
    close immediately after sending the request (no support for KA, which ones?)
 
- - minconn : makes the server's maxconn dynamic, which will be computed as a
+ + minconn : makes the server's maxconn dynamic, which will be computed as a
    ratio of the proxy's sessions :
      srv->effective_maxconn =
           max(srv->maxconn * px->nbsess / px->maxconn, srv->minconn)
