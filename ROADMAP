@@ -22,7 +22,7 @@
 
  - separate timeout controls
 
- - option 'abortonclose' : if the session is queued or being connecting
+ + option 'abortonclose' : if the session is queued or being connecting
    to the server, and the client sends a shutdown(), then decide to abort
    the session early because in most situations, this will be caused by
    a client hitting the 'Stop' button, so there's no reason to overload
@@ -30,7 +30,7 @@
    and might cause little trouble to some very specific clients used to
    close immediately after sending the request (no support for KA, which ones?)
 
- - minconn : makes the server's maxconn dynamic, which will be computed as a
+ + minconn : makes the server's maxconn dynamic, which will be computed as a
    ratio of the proxy's sessions :
      srv->effective_maxconn =
           max(srv->maxconn * px->nbsess / px->maxconn, srv->minconn)
