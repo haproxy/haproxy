@@ -3482,7 +3482,9 @@ void sess_log(struct session *s) {
 
     uri = (log & LW_REQ) ? s->logs.uri ? s->logs.uri : "<BADREQ>" : "";
     pxid = p->id;
-    srv = (p->to_log & LW_SVID) ? (s->srv != NULL) ? s->srv->id : "<NOSRV>" : "-";
+    srv = (p->to_log & LW_SVID) ?
+	(s->data_source != DATA_SRC_STATS) ?
+	(s->srv != NULL) ? s->srv->id : "<NOSRV>" : "<STATS>" : "-";
 
     tm = localtime(&s->logs.tv_accept.tv_sec);
     if (p->to_log & LW_REQ) {
