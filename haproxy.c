@@ -5398,7 +5398,8 @@ int process_srv(struct session *t) {
 		    tv_eternity(&t->srexpire);
 		
 		t->srv_state = SV_STDATA;
-		t->srv->cum_sess++;
+		if (t->srv)
+		    t->srv->cum_sess++;
 		rep->rlim = rep->data + BUFSIZE; /* no rewrite needed */
 
 		/* if the user wants to log as soon as possible, without counting
@@ -5410,7 +5411,8 @@ int process_srv(struct session *t) {
 	    }
 	    else {
 		t->srv_state = SV_STHEADERS;
-		t->srv->cum_sess++;
+		if (t->srv)
+		    t->srv->cum_sess++;
 		rep->rlim = rep->data + BUFSIZE - MAXREWRITE; /* rewrite needed */
 	    }
 	    tv_eternity(&t->cnexpire);
