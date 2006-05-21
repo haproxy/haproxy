@@ -442,6 +442,10 @@ char *ultoa(unsigned long n) {
 #define DATA_SRC_NONE	0
 #define DATA_SRC_STATS	1
 
+/* data transmission states for the responses */
+#define DATA_ST_INIT	0
+#define DATA_ST_DATA	1
+
 /* different possible states for the client side */
 #define CL_STHEADERS	0
 #define CL_STDATA	1
@@ -641,11 +645,13 @@ struct session {
 	int status;			/* HTTP status from the server, negative if from proxy */
 	long long bytes;		/* number of bytes transferred from the server */
     } logs;
-    int data_source;			/* where to get the data we generate ourselves */
+    short int data_source;		/* where to get the data we generate ourselves */
+    short int data_state;		/* where to get the data we generate ourselves */
     union {
 	struct {
 	    struct proxy *px;
 	    struct server *sv;
+	    short px_st, sv_st;		/* DATA_ST_INIT or DATA_ST_DATA */
 	} stats;
     } data_ctx;
     unsigned int uniq_id;		/* unique ID used for the traces */
@@ -2981,6 +2987,7 @@ int buffer_realign(struct buffer *buf) {
 
 /* writes <len> bytes from message <msg> to buffer <buf>. Returns 0 in case of
  * success, or the number of bytes available otherwise.
+ * FIXME-20060521: handle unaligned data.
  */
 int buffer_write(struct buffer *buf, const char *msg, int len) {
     int max;
@@ -3042,19 +3049,21 @@ int produce_content(struct session *s) {
     struct proxy *px;
     struct server *sv;
     int msglen;
-    unsigned int up;
-    int failed_checks, down_trans;
 
     if (s->data_source == DATA_SRC_NONE) {
 	s->flags &= ~SN_SELF_GEN;
 	return 1;
     }
     else if (s->data_source == DATA_SRC_STATS) {
-	if (s->data_ctx.stats.px == NULL) { /* initialized to NULL at session creation */
-	    /* the proxy was not known, the function had not been called yet */
-	    
+	msglen = 0;
+
+	if (s->data_state == DATA_ST_INIT) { /* the function had not been called yet */
+	    unsigned int up;
+
 	    s->flags |= SN_SELF_GEN;  // more data will follow
-	    msglen = sprintf(trash,
+
+	    /* send the start of the HTTP response */
+	    msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
 			     "HTTP/1.0 200 OK\r\n"
 			     "Cache-Control: no-cache\r\n"
 			     "Connection: close\r\n"
@@ -3062,13 +3071,15 @@ int produce_content(struct session *s) {
 	    
 	    s->logs.status = 200;
 	    client_retnclose(s, msglen, trash); // send the start of the response.
+	    msglen = 0;
+
 	    if (!(s->flags & SN_ERR_MASK))  // this is not really an error but it is
 		    s->flags |= SN_ERR_PRXCOND; // to mark that it comes from the proxy
 	    if (!(s->flags & SN_FINST_MASK))
 		s->flags |= SN_FINST_R;
 
 	    /* WARNING! This must fit in the first buffer !!! */	    
-	    msglen = snprintf(trash, sizeof(trash),
+	    msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
 			     "<html><head><title>Statistics Report for " PRODUCT_NAME "</title>\n"
 			     "<meta http-equiv=\"content-type\" content=\"text/html; charset=iso-8859-1\">\n"
 			     "<style type=\"text/css\"><!--\n"
@@ -3124,11 +3135,12 @@ int produce_content(struct session *s) {
 
 	    if (buffer_write(rep, trash, msglen) != 0)
 		return 0;
+	    msglen = 0;
 
 	    up = (now.tv_sec - start_date.tv_sec);
 
 	    /* WARNING! this has to fit the first packet too */
-	    msglen = snprintf(trash, sizeof(trash),
+	    msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
 			      "<body><h1>" PRODUCT_NAME "</h1>\n"
 			      "<h2>Statistics Report for pid %d</h2>\n"
 			      "<hr width=\"100%%\" class=\"hr\">\n"
@@ -3166,18 +3178,52 @@ int produce_content(struct session *s) {
 	    
 	    if (buffer_write(rep, trash, msglen) != 0)
 		return 0;
+	    msglen = 0;
+
+	    s->data_state = DATA_ST_DATA;
+	    memset(&s->data_ctx, 0, sizeof(s->data_ctx));
+
 	    px = s->data_ctx.stats.px = proxy;
+	    s->data_ctx.stats.px_st = DATA_ST_INIT;
 	}
 
 	while (s->data_ctx.stats.px) {
 	    int dispatch_sess, dispatch_cum;
+	    int failed_checks, down_trans;
 
-	    /* if sv == NULL, this is because we are on a new proxy :
-	     * initialized to NULL at session creation
-	     */
-	    while (s->data_ctx.stats.sv == NULL) {
+	    if (s->data_ctx.stats.px_st == DATA_ST_INIT) {
+		/* we are on a new proxy */
 		px = s->data_ctx.stats.px;
-		msglen = snprintf(trash, sizeof(trash),
+
+		/* skip the disabled proxies */
+		if (px->state == PR_STSTOPPED)
+		    goto next_proxy;
+
+		if (s->proxy->uri_auth && s->proxy->uri_auth->scope) {
+		    /* we have a limited scope, we have to check the proxy name */
+		    struct stat_scope *scope;
+		    int len;
+
+		    len = strlen(px->id);
+		    scope = s->proxy->uri_auth->scope;
+
+		    while (scope) {
+			/* match exact proxy name */
+			if (scope->px_len == len && !memcmp(px->id, scope->px_id, len))
+			    break;
+
+			/* match '.' which means 'self' proxy */
+			if (!strcmp(scope->px_id, ".") && px == s->proxy)
+			    break;
+			scope = scope->next;
+		    }
+
+		    /* proxy name not found */
+		    if (scope == NULL)
+			goto next_proxy;
+		}
+
+		msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
 				  "<h3>&gt; Proxy instance %s : "
 				  "%d conns (maxconn=%d), %d queued (%d unassigned), %d total conns</h3>\n"
 				  "",
@@ -3199,28 +3245,22 @@ int produce_content(struct session *s) {
 		
 		if (buffer_write(rep, trash, msglen) != 0)
 		    return 0;
+		msglen = 0;
+
 		s->data_ctx.stats.sv = px->srv;
+		s->data_ctx.stats.px_st = DATA_ST_DATA;
 	    }
 
 	    px = s->data_ctx.stats.px;
 
-	    dispatch_sess = px->nbconn;
-	    dispatch_cum = px->cum_conn;
-	    failed_checks = down_trans = 0;
+	    /* stats.sv has been initialized above */
 	    while (s->data_ctx.stats.sv != NULL) {
 		static char *act_tab_bg[5] = { /*down*/"#FF9090", /*rising*/"#FFD020", /*failing*/"#FFFFA0", /*up*/"#C0FFC0", /*unchecked*/"#E0E0E0" };
 		static char *bck_tab_bg[5] = { /*down*/"#FF9090", /*rising*/"#FF80ff", /*failing*/"#C060FF", /*up*/"#B0D0FF", /*unchecked*/"#E0E0E0" };
 		static char *srv_hlt_st[5] = { "DOWN", "DN %d/%d &uarr;", "UP %d/%d &darr;", "UP", "<i>no check</i>" };
 		int sv_state; /* 0=DOWN, 1=going up, 2=going down, 3=UP */
 
-		px = s->data_ctx.stats.px;
 		sv = s->data_ctx.stats.sv;
-
-		dispatch_sess -= sv->cur_sess;
-		dispatch_cum -= sv->cum_sess;
-
-		failed_checks += sv->failed_checks;
-		down_trans += sv->down_trans;
 
 		/* FIXME: produce some small strings for "UP/DOWN x/y &#xxxx;" */
 		if (!(sv->state & SRV_CHECKED))
@@ -3237,7 +3277,7 @@ int produce_content(struct session *s) {
 			sv_state = 0; /* DOWN */
 
 		/* name, weight */
-		msglen = snprintf(trash, sizeof(trash),
+		msglen += snprintf(trash, sizeof(trash),
 				  "<tr align=center bgcolor=\"%s\"><td>%s</td><td>%d</td><td>",
 				  (sv->state & SRV_BACKUP) ? bck_tab_bg[sv_state] : act_tab_bg[sv_state],
 				  sv->id, sv->uweight+1);
@@ -3271,66 +3311,88 @@ int produce_content(struct session *s) {
 		    msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
 				       "<td align=right>-</td><td align=right>-</td></tr>\n");
 
-		sv = sv->next;
-		if (!sv) {
-		    /* first, write informations about the dispatcher */
-		    /* name, weight, status, act, bck */
-		    msglen += snprintf(trash + msglen, sizeof(trash),
-				      "<tr align=center bgcolor=\"#e8e8d0\">"
-				      "<td>Dispatcher</td><td>-</td>"
-				      "<td>%s</td><td>-</td><td>-</td>",
-				      px->state == PR_STRUN ? "UP" : "DOWN");
-
-		    /* queue : current, max */
-		    msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
-				       "<td align=right>%d</td><td align=right>%d</td>",
-				       px->nbpend, px->nbpend_max);
-
-		    /* sessions : current, max, limit, cumul */
-		    msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
-				       "<td align=right>%d</td><td align=right>%d</td><td align=right>%d</td><td align=right>%d</td>",
-				       dispatch_sess, px->nbconn_max, px->maxconn, dispatch_cum);
-
-		    /* failures : unique, fatal */
-		    msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
-				       "<td align=right>-</td><td align=right>-</td></tr>\n");
-
-
-		    /* now the summary for the proxy */
-		    /* name, weight, status, act, bck */
-		    msglen += snprintf(trash + msglen, sizeof(trash),
-				      "<tr align=center style=\"color: #ffff80;  background: #20C0C0;\">"
-				      "<td><b>Total</b></td><td>-</td>"
-				      "<td><b>%s</b></td><td><b>%d</b></td><td><b>%d</b></td>",
-				      (px->state == PR_STRUN && (px->srv_act || px->srv_bck)) ? "UP" : "DOWN",
-				      px->srv_act, px->srv_bck);
-
-		    /* queue : current, max */
-		    msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
-				       "<td align=right><b>%d</b></td><td align=right><b>%d</b></td>",
-				       px->totpend, px->nbpend_max);
-
-		    /* sessions : current, max, limit, cumul */
-		    msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
-				       "<td align=right><b>%d</b></td><td align=right><b>%d</b></td><td align=right><b>%d</b></td><td align=right><b>%d</b></td>",
-				       px->nbconn, px->nbconn_max, px->maxconn, px->cum_conn);
-
-		    /* failures : unique, fatal */
-		    msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
-				       "<td align=right>%d</td><td align=right>%d</td></tr>\n",
-				       failed_checks, down_trans);
-
-		    msglen += snprintf(trash + msglen, sizeof(trash) - msglen, "</table><p>\n");
-
-		    px = px->next;
-		    /* the server loop will automatically detect the NULL */
-		}
-		
 		if (buffer_write(rep, trash, msglen) != 0)
 		    return 0;
-		s->data_ctx.stats.sv = sv;
-		s->data_ctx.stats.px = px;
-	    } /* server loop */
+		msglen = 0;
+
+		s->data_ctx.stats.sv = sv->next;
+	    } /* while sv */
+
+	    /* now we are past the last server, we'll dump information about the dispatcher */
+
+	    /* We have to count down from the proxy to the servers to tell how
+	     * many sessions are on the dispatcher, and how many checks have
+	     * failed. We cannot count this during the servers dump because it
+	     * might be interrupted multiple times.
+	     */
+	    dispatch_sess = px->nbconn;
+	    dispatch_cum = px->cum_conn;
+	    failed_checks = down_trans = 0;
+
+	    sv = px->srv;
+	    while (sv) {
+		dispatch_sess -= sv->cur_sess;
+		dispatch_cum  -= sv->cum_sess;
+		failed_checks += sv->failed_checks;
+		down_trans    += sv->down_trans;
+		sv = sv->next;
+	    }
+
+	    /* name, weight, status, act, bck */
+	    msglen += snprintf(trash + msglen, sizeof(trash),
+			       "<tr align=center bgcolor=\"#e8e8d0\">"
+			       "<td>Dispatcher</td><td>-</td>"
+			       "<td>%s</td><td>-</td><td>-</td>",
+			       px->state == PR_STRUN ? "UP" : "DOWN");
+
+	    /* queue : current, max */
+	    msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+			       "<td align=right>%d</td><td align=right>%d</td>",
+			       px->nbpend, px->nbpend_max);
+
+	    /* sessions : current, max, limit, cumul. */
+	    msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+			       "<td align=right>%d</td><td align=right>%d</td><td align=right>%d</td><td align=right>%d</td>",
+			       dispatch_sess, px->nbconn_max, px->maxconn, dispatch_cum);
+
+	    /* failures : unique, fatal */
+	    msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+			       "<td align=right>-</td><td align=right>-</td></tr>\n");
+
+
+	    /* now the summary for the whole proxy */
+	    /* name, weight, status, act, bck */
+	    msglen += snprintf(trash + msglen, sizeof(trash),
+			       "<tr align=center style=\"color: #ffff80;  background: #20C0C0;\">"
+			       "<td><b>Total</b></td><td>-</td>"
+			       "<td><b>%s</b></td><td><b>%d</b></td><td><b>%d</b></td>",
+			       (px->state == PR_STRUN && ((px->srv == NULL) || px->srv_act || px->srv_bck)) ? "UP" : "DOWN",
+			       px->srv_act, px->srv_bck);
+
+	    /* queue : current, max */
+	    msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+			       "<td align=right><b>%d</b></td><td align=right><b>%d</b></td>",
+			       px->totpend, px->nbpend_max);
+
+	    /* sessions : current, max, limit, cumul */
+	    msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+			       "<td align=right><b>%d</b></td><td align=right><b>%d</b></td><td align=right><b>%d</b></td><td align=right><b>%d</b></td>",
+			       px->nbconn, px->nbconn_max, px->maxconn, px->cum_conn);
+
+	    /* failures : unique, fatal */
+	    msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+			       "<td align=right>%d</td><td align=right>%d</td></tr>\n",
+			       failed_checks, down_trans);
+
+	    msglen += snprintf(trash + msglen, sizeof(trash) - msglen, "</table><p>\n");
+
+	    if (buffer_write(rep, trash, msglen) != 0)
+		return 0;
+	    msglen = 0;
+	    
+	    s->data_ctx.stats.px_st = DATA_ST_INIT;
+	next_proxy:
+	    s->data_ctx.stats.px = px->next;
 	} /* proxy loop */
 	/* here, we just have reached the sv == NULL and px == NULL */
 	s->flags &= ~SN_SELF_GEN;
@@ -3611,7 +3673,6 @@ int event_accept(int fd) {
 	s->logs.srv_queue_size = 0; /* we will get this number soon */
 
 	s->data_source = DATA_SRC_NONE;
-	memset(&s->data_ctx, 0, sizeof(s->data_ctx));
 
 	s->uniq_id = totalconn;
 	p->cum_conn++;
@@ -4193,6 +4254,7 @@ int process_cli(struct session *t) {
 			req->rlim = req->data + BUFSIZE; /* no more rewrite needed */
 			t->logs.t_request = tv_diff(&t->logs.tv_accept, &now);
 			t->data_source = DATA_SRC_STATS;
+			t->data_state  = DATA_ST_INIT;
 			produce_content(t);
 			return 1;
 		    }
@@ -7827,6 +7889,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	curproxy->loglev2 = defproxy.loglev2;
 	curproxy->to_log = defproxy.to_log & ~LW_COOKIE & ~LW_REQHDR & ~ LW_RSPHDR;
 	curproxy->grace  = defproxy.grace;
+	curproxy->uri_auth  = defproxy.uri_auth;
 	curproxy->source_addr = defproxy.source_addr;
 	curproxy->mon_net = defproxy.mon_net;
 	curproxy->mon_mask = defproxy.mon_mask;
@@ -7844,7 +7907,7 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	if (defproxy.errmsg.msg502) free(defproxy.errmsg.msg502);
 	if (defproxy.errmsg.msg503) free(defproxy.errmsg.msg503);
 	if (defproxy.errmsg.msg504) free(defproxy.errmsg.msg504);
-
+	/* we cannot free uri_auth because it might already be used */
 	init_default_instance();
 	curproxy = &defproxy;
 	return 0;
@@ -8112,8 +8175,11 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	curproxy->conn_retries = atol(args[1]);
     }
     else if (!strcmp(args[0], "stats")) {
+	if (curproxy != &defproxy && curproxy->uri_auth == defproxy.uri_auth)
+	    curproxy->uri_auth = NULL; /* we must detach from the default config */
+
 	if (*(args[1]) == 0) {
-	    Alert("parsing [%s:%d] : '%s' expects 'uri', 'realm', 'auth' or 'enable'.\n", file, linenum, args[0]);
+	    Alert("parsing [%s:%d] : '%s' expects 'uri', 'realm', 'auth', 'scope' or 'enable'.\n", file, linenum, args[0]);
 	    return -1;
 	} else if (!strcmp(args[1], "uri")) {
 	    if (*(args[2]) == 0) {
@@ -8136,6 +8202,14 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 		Alert("parsing [%s:%d] : 'auth' needs a user:password account.\n", file, linenum);
 		return -1;
 	    } else if (!stats_add_auth(&curproxy->uri_auth, args[2])) {
+		Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+		return -1;
+	    }
+	} else if (!strcmp(args[1], "scope")) {
+	    if (*(args[2]) == 0) {
+		Alert("parsing [%s:%d] : 'scope' needs a proxy name.\n", file, linenum);
+		return -1;
+	    } else if (!stats_add_scope(&curproxy->uri_auth, args[2])) {
 		Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 		return -1;
 	    }

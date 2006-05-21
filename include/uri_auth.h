@@ -19,12 +19,22 @@ struct user_auth {
 	char *user_pwd;			/* auth as base64("user":"passwd") (see RFC2617) */
 };
 
+/* This is a list of proxies we are allowed to see. Later, it should go in the
+ * user list, but before this we need to support de/re-authentication.
+ */
+struct stat_scope {
+	struct stat_scope *next;	/* next entry, NULL if none */
+	int px_len;			/* proxy name length */
+	char *px_id;			/* proxy id */
+};
+
 /* later we may link them to support multiple URI matching */
 struct uri_auth {
 	int uri_len;			/* the prefix length */
 	char *uri_prefix;		/* the prefix we want to match */
 	char *auth_realm;		/* the realm reported to the client */
 	struct user_auth *users;	/* linked list of valid user:passwd couples */
+	struct stat_scope *scope;	/* linked list of authorized proxies */
 };
 
 /* This is the default statistics URI */
@@ -53,5 +63,6 @@ struct uri_auth *stats_check_init_uri_auth(struct uri_auth **root);
 struct uri_auth *stats_set_uri(struct uri_auth **root, char *uri);
 struct uri_auth *stats_set_realm(struct uri_auth **root, char *realm);
 struct uri_auth *stats_add_auth(struct uri_auth **root, char *user);
+struct uri_auth *stats_add_scope(struct uri_auth **root, char *scope);
 
 #endif /* URI_AUTH_H */
