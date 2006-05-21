@@ -9233,11 +9233,13 @@ int readcfgfile(char *file) {
 		      file, curproxy->id);
 		cfgerr++;
 	    }
+#ifdef WE_DONT_SUPPORT_SERVERLESS_LISTENERS
 	    else if (curproxy->srv == NULL) {
 		Alert("parsing %s : listener %s needs at least 1 server in balance mode.\n",
 		      file, curproxy->id);
 		cfgerr++;
 	    }
+#endif
 	    else if (*(int *)&curproxy->dispatch_addr.sin_addr != 0) {
 		Warning("parsing %s : dispatch address of listener %s will be ignored in balance mode.\n",
 			file, curproxy->id);

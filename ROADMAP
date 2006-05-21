@@ -18,6 +18,8 @@
         stats auth user3:pass3
         stats scope <px_id> | '.'
 
+ + allow server-less proxies (for stats)
+
  - separate timeout controls
 
  - option 'abortonclose' : if the session is queued or being connecting
@@ -32,8 +34,6 @@
    ratio of the proxy's sessions :
      srv->effective_maxconn =
           max(srv->maxconn * px->nbsess / px->maxconn, srv->minconn)
-
- - allow server-less proxies (for stats)
 
 1.3 :
  - handle half-closed connections better (cli/srv would not distinguish
