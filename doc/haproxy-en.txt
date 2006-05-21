@@ -2347,33 +2347,35 @@ Example :
     # simple application with authenticated embedded status report
     listen app1 192.168.1.100:80
         mode http
+        option httpclose
         balance roundrobin
         cookie SERVERID postonly insert indirect
         server srv1 192.168.1.1:8080 cookie srv1 check inter 1000
         server srv1 192.168.1.2:8080 cookie srv2 check inter 1000
         stats uri /my_stats
-	stats realm Statistics\ for\ MyApp1-2
-	stats auth guest:guest
-	stats auth admin:AdMiN123
-	stats scope .
-	stats scope app2
+        stats realm Statistics\ for\ MyApp1-2
+        stats auth guest:guest
+        stats auth admin:AdMiN123
+        stats scope .
+        stats scope app2
 
     # simple application with anonymous embedded status report
     listen app2 192.168.2.100:80
         mode http
+        option httpclose
         balance roundrobin
         cookie SERVERID postonly insert indirect
         server srv1 192.168.2.1:8080 cookie srv1 check inter 1000
         server srv1 192.168.2.2:8080 cookie srv2 check inter 1000
         stats uri /my_stats
-	stats realm Statistics\ for\ MyApp2
-	stats scope .
+        stats realm Statistics\ for\ MyApp2
+        stats scope .
 
     listen admin_page :8080
         mode http
         stats uri /my_stats
-	stats realm Global\ statistics
-	stats auth admin:AdMiN123
+        stats realm Global\ statistics
+        stats auth admin:AdMiN123
 
 Notes :
 -------
@@ -2387,6 +2389,11 @@ Notes :
     sensible password should be used, and be aware that there is no way to
     remove it from the browser so it will be sent to the whole application
     upon further accesses.
+
+  - It is very important that the 'option httpclose' is specified, otherwise
+    the proxy will not be able to detect the URI within keep-alive sessions
+    maintained between the browser and the servers, so the stats URI will be
+    forwarded unmodified to the server as if the option was not set.
 
 
 =========================
