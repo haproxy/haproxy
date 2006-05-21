@@ -9465,8 +9465,11 @@ int readcfgfile(char *file) {
 	 */
 	newsrv = curproxy->srv;
 	while (newsrv != NULL) {
-	    if (newsrv->minconn && !newsrv->maxconn) {
-		/* only 'minconn' was specified. Let's turn this into maxconn */
+	    if (newsrv->minconn >= newsrv->maxconn) {
+		/* Only 'minconn' was specified, or it was higher than or equal
+		 * to 'maxconn'. Let's turn this into maxconn and clean it, as
+		 * this will avoid further useless expensive computations.
+		 */
 		newsrv->maxconn = newsrv->minconn;
 		newsrv->minconn = 0;
 	    }
