@@ -336,6 +336,7 @@ char *ultoa(unsigned long n) {
 #define PR_STRUN	2
 #define PR_STSTOPPED	3
 #define PR_STPAUSED	4
+#define PR_STERROR	5
 
 /* values for proxy->mode */
 #define PR_MODE_TCP	0
@@ -7303,13 +7304,25 @@ static void soft_stop(void) {
     }
 }
 
+/*
+ * Linux unbinds the listen socket after a SHUT_RD, and ignores SHUT_WR.
+ * Solaris refuses either shutdown().
+ * OpenBSD ignores SHUT_RD but closes upon SHUT_WR and refuses to rebind.
+ * So a common validation path involves SHUT_WR && listen && SHUT_RD.
+ * If disabling at least one listener returns an error, then the proxy
+ * state is set to PR_STERROR because we don't know how to resume from this.
+ */
 static void pause_proxy(struct proxy *p) {
     struct listener *l;
     for (l = p->listen; l != NULL; l = l->next) {
-	if (shutdown(l->fd, SHUT_RD) == 0) {
+	if (shutdown(l->fd, SHUT_WR) == 0 && listen(l->fd, p->maxconn) == 0 &&
+	    shutdown(l->fd, SHUT_RD) == 0) {
 	    FD_CLR(l->fd, StaticReadEvent);
-	    p->state = PR_STPAUSED;
+	    if (p->state != PR_STERROR)
+		p->state = PR_STPAUSED;
 	}
+	else
+	    p->state = PR_STERROR;
     }
 }
 
@@ -7327,7 +7340,7 @@ static void pause_proxies(void) {
     p = proxy;
     tv_now(&now); /* else, the old time before select will be used */
     while (p) {
-	if (p->state != PR_STSTOPPED && p->state != PR_STPAUSED) {
+	if (p->state != PR_STERROR && p->state != PR_STSTOPPED && p->state != PR_STPAUSED) {
 	    Warning("Pausing proxy %s.\n", p->id);
 	    send_log(p, LOG_WARNING, "Pausing proxy %s.\n", p->id);
 	    pause_proxy(p);
@@ -9630,6 +9643,12 @@ int start_proxies(int verbose) {
 		      curproxy->id);
 	    }
 	
+#ifdef SO_REUSEPORT
+	    /* OpenBSD supports this. As it's present in old libc versions of Linux,
+	     * it might return an error that we will silently ignore.
+	     */
+	    setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, (char *) &one, sizeof(one));
+#endif
 	    if (bind(fd,
 		     (struct sockaddr *)&listener->addr,
 		     listener->addr.ss_family == AF_INET6 ?
