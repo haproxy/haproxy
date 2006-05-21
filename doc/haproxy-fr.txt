@@ -23,6 +23,8 @@ environnement hautement disponible. En effet, il est capable de :
     d'usage.
   - maintenir des clients sur le bon serveur serveur d'application en fonction
     de cookies applicatifs.
+  - fournir des rapports d'état en HTML à des utilisateurs authentifiés, à
+    travers des URI de l'application interceptées.
 
 Il requiert peu de ressources, et son architecture événementielle mono-
 processus lui permet facilement de gérer plusieurs milliers de connexions
@@ -79,7 +81,7 @@ configuration ni à activer le mode debug complet.
 
 Les statistiques ne sont disponibles que si le programme a été compilé avec
 l'option "STATTIME". Il s'agit principalement de données brutes n'ayant
-d'utilité que lors de benchmarks par exemple.
+d'utilité que lors de benchmarks par exemple, et sont amenées à disparaitre.
 
 Les paramètres '-st' et '-sf' sont utilisés pour la reconfiguration à chaud.
 Voir la section à ce sujet.
@@ -1237,6 +1239,42 @@ Exemple :
         server web-backup1 192.168.2.1:80 cookie s4 check maxconn 200 backup
         server web-excuse 192.168.3.1:80 check backup
 
+Cette option se montra si efficace pour réduire les temps de réponse des
+serveurs que certains utilisateurs voulaient utiliser des valeurs trop basses
+pour améliorer les performances de leurs serveurs. Seulement, ils n'étaient
+alors plus en mesure de supporter de très fortes charges parce qu'il n'était
+plus possible de les saturer. Pour cette raison, la version 1.2.14 a apporté la
+limitation dynamique de connexions avec l'addition du paramètre "minconn".
+Lorsque ce paramètre est associé à "maxconn", il active la limitation dynamique
+basée sur la charge de l'instance. Le nombre maximal de sessions concurrentes
+sur un serveur devient alors proportionnel au nombre de sessions de l'instance
+par rapport à son 'maxconn'. Un minimum de <minconn> sessions sera toujours
+permis quelle que soit la charge. Ceci assurera que les serveurs travailleront
+au meilleur de leurs performances sous des charges normales, et qu'ils seront
+tout de même capables de supporter de fortes pointes lorsque nécessaire. La
+limite dynamique est calculée comme ceci :
+
+    srv.dyn_limit = max(srv.minconn, srv.maxconn * inst.sess / inst.maxconn)
+
+Exemple :
+---------
+    # Prendre soin du P3 qui n'a que 256 Mo de RAM.
+    listen web_appl 0.0.0.0:80
+        maxconn 10000
+        mode http
+        cookie SERVERID insert nocache indirect
+        balance roundrobin
+        server pentium3-800 192.168.1.1:80 cookie s1 weight  8 minconn 10 maxconn 100 check
+        server opteron-2.0G 192.168.1.2:80 cookie s2 weight 20 minconn 30 maxconn 300 check
+        server opteron-2.4G 192.168.1.3:80 cookie s3 weight 24 minconn 30 maxconn 300 check
+        server web-backup1 192.168.2.1:80 cookie s4 check maxconn 200 backup
+        server web-excuse 192.168.3.1:80 check backup
+
+Dans l'exemple ci-dessus, le serveur "pentium3-800' recevra au plus 100
+connexions simultanées lorsque l'instance du proxy en atteindra 10000, et
+recevra seulement 10 connexions simultanées tant que le proxy sera sous les 1000
+sessions.
+
 Notes :
 -------
   - la requête ne restera pas indéfiniment en file d'attente, elle est
@@ -1245,17 +1283,66 @@ Notes :
     saturé, soit parce qu'il y a trop de requêtes en file d'attente,
     alors elle expirera avec une erreur 503.
 
+  - si seul <minconn> est spécifié, il a le même effet que <maxconn>
+
   - positionner des valeurs trop basses pour 'maxconn' peut améliorer les
     performances mais aussi permettre à des utilisateurs trop lents de bloquer
     un serveur pour les autres utilisateurs.
+
+
+3.5) Abandon des requêtes abortées
+----------------------------------
+En présence de très fortes charges, les serveurs mettront un certain temps à
+répondre. La file d'attente du proxy se remplira, et les temps de réponse
+suivront une croissance proportionnelle à la taille de file d'attente fois
+le temps moyen de réponse par session. Lorsque les clients attendront plus de
+quelques secondes, ils cliqueront souvent sur le bouton 'STOP' de leur
+navigateur, laissant des requêtes inutiles en file d'attente et ralentissant
+donc les autres utilisateurs.
+
+Comme il n'y a aucun moyen de distinguer un vrai clic sur STOP d'une simple
+fermeture du canal de sortie sur le client (shutdown(SHUT_WR)), les agents HTTP
+doivent être conservateurs et considérer que le client n'a probablement fermé
+que le canal de sortie en attendant la réponse. Toutefois, ceci introduit des
+risques de congestion lorsque beaucoup d'utilisateurs font de même, et s'avère
+aujourd'hui complètement inutile car probablement aucun client ne referme la
+session en attendant la réponse. Certains agents HTTP supportent ceci (Squid,
+Apache, HAProxy), et d'autres ne le supportent pas (TUX, et la plupart des
+répartiteurs de charge matériels). Donc la probabilité pour qu'une notification
+de fermeture d'un canal d'entrée côté client représente un utilisateur cliquant
+sur 'STOP' est proche de 100%, et il est vraiment tentant d'abandonner la
+requête prématurément sans polluer les serveurs.
+
+Pour cette raison, une nouvelle option "abortonclose" a été introduite en
+version 1.2.14. Par défaut (sans l'option), le comportement reste conforme à
+HTTP. Mais lorsque l'option est spécifiée, une session dont le canal entrant
+est fermé sera abortée si cela est possible, c'est à dire que la requête est
+soit en file d'attente, soit en tentative de connexion. Ceci réduit
+considérablement la longueur des files d'attentes et la charge sur les serveurs
+saturés lorsque les utilisateurs sont tentés de cliquer sur 'STOP', ce qui à
+son tour, réduit les temps de réponse pour les autres utilisateurs.
+
+Exemple :
+---------
+    listen web_appl 0.0.0.0:80
+        maxconn 10000
+        mode http
+        cookie SERVERID insert nocache indirect
+        balance roundrobin
+        server web1 192.168.1.1:80 cookie s1 weight 10 maxconn 100 check
+        server web2 192.168.1.2:80 cookie s2 weight 10 maxconn 100 check
+        server web3 192.168.1.3:80 cookie s3 weight 10 maxconn 100 check
+        server bck1 192.168.2.1:80 cookie s4 check maxconn 200 backup
+        option abortonclose
 
 
 4) Fonctionnalités additionnelles
 =================================
 
 D'autres fonctionnalités d'usage moins courant sont disponibles. Il s'agit
-principalement du mode transparent, de la journalisation des connexions, et de
-la réécriture des en-têtes.
+principalement du mode transparent, de la journalisation des connexions, de la
+réécriture des en-têtes, et du statut sous forme de page HTML.
+
 
 4.1) Fonctionnalités réseau
 ---------------------------
@@ -2282,6 +2369,126 @@ Exemples :
 
     defaults
         # section vide qui annule tous les paramètes par défaut.
+
+
+4.8) Rapport d'état sous forme de page HTML
+-------------------------------------------
+Avec la version 1.2.14, il devient possible pour haproxy d'interceptre des
+requêtes pour une URI particulière et de retourner un rapport complet d'état de
+l'activité du proxy, et des statistiques sur les serveurs. Ceci est disponible
+via le mot clé "stats" associé à n'importe laquelle de ces options :
+
+   - stats enable
+   - stats uri <uri prefix>
+   - stats realm <authentication realm>
+   - stats auth <user:password>
+   - stats scope <proxy_id> | '.'
+
+
+Par défaut, le rapport est désactivé. Le fait de spécifier une des combinaision
+ci-dessus active le rapport pour l'instance de proxy qui le référence. La
+solution la plus simple est d'utiliser "stats enable" qui activera le rapport
+avec les paramètres par défaut suivant :
+
+   - default URI   : "/haproxy?stats"        (CONFIG_STATS_DEFAULT_URI)
+   - default auth  : non spécifié (pas d'authentication)
+   - default realm : "HAProxy Statistics"    (CONFIG_STATS_DEFAULT_REALM)
+   - default scope : non specifié (accès à toutes les instances)
+
+L'option "stats uri <uri_prefix>" permet d'intercepter un autre préfixe d'URI
+que celui par défaut. Noter que n'importe quelle URI qui COMMENCE avec cette
+chaîne sera validée. Par exemple, une instance pourrait être dédiée à la page
+d'état seulement et répondre à toute URI.
+
+Example :
+---------
+    # intercepte n'importe quelle URI et retourne la page d'état.
+    listen stats :8080
+        mode http
+        stats uri /
+
+
+L'option "stats auth <user:password>" active l'authentification "Basic" et
+ajoute un couple "user:password" valide à la liste des comptes autorisés.
+L'utilisateur <user> et le mot de passe <password> doivent être précisés
+en clair dans le fichier de configuration, et comme ceci est de
+l'authentification HTTP "Basic", il faut être conscient qu'ils transitent en
+clair sur le réseau, donc il ne faut pas utiliser de compte sensible. La liste
+est illimitée dans le but de pouvoir fournir des accès facilement à des
+développeurs ou à des clients.
+
+L'option "stats realm <realm>" définit le "domaine" ("realm") de validité du
+mot de passe qui sera présenté dans la boîte de dialogue du navigateur
+lorsqu'il demandera un compte utilisateur et un mot de passe. Il est important
+de s'assurer que celui-ci soit différent de ceux utilisés par l'application,
+autrement le navigateur tentera d'en utiliser un caché depuis l'application.
+Noter que les espaces dans le nom de "realm" doivent être protégés par un
+backslash ('\').
+
+L'option "stats scope <proxy_id>" limite la portée du rapport d'état. Par
+défaut, toutes les instances proxy sont listées. Mais dans certaines
+circonstances, il serait préférable de ne lister que certains proxies ou
+simplement le proxy courant. C'est ce que fait cette option. Le nom spécial "."
+(un simple point) référence le proxy courant. Cette option peut être répétée
+autant de fois que nécessaire pour autoriser d'autres proxies, même pour des
+noms référencés plus loin dans la configuration ou bien des noms qui n'existent
+pas encore. Le nom précisé est celui qui apparait après le mot clé "listen".
+
+Exemple :
+---------
+    # simple application embarquant la page d'état authentifiée
+    listen app1 192.168.1.100:80
+        mode http
+        option httpclose
+        balance roundrobin
+        cookie SERVERID postonly insert indirect
+        server srv1 192.168.1.1:8080 cookie srv1 check inter 1000
+        server srv1 192.168.1.2:8080 cookie srv2 check inter 1000
+        stats uri /my_stats
+        stats realm Statistics\ for\ MyApp1-2
+        stats auth guest:guest
+        stats auth admin:AdMiN123
+        stats scope .
+        stats scope app2
+
+    # simple application embarquant la page d'état sans authentification
+    listen app2 192.168.2.100:80
+        mode http
+        option httpclose
+        balance roundrobin
+        cookie SERVERID postonly insert indirect
+        server srv1 192.168.2.1:8080 cookie srv1 check inter 1000
+        server srv1 192.168.2.2:8080 cookie srv2 check inter 1000
+        stats uri /my_stats
+        stats realm Statistics\ for\ MyApp2
+        stats scope .
+
+    listen admin_page :8080
+        mode http
+        stats uri /my_stats
+        stats realm Global\ statistics
+        stats auth admin:AdMiN123
+
+Notes :
+-------
+  - les options "stats" peuvent aussi être spécifiées dans une section
+    "defaults", auquel cas la même configuration exactement sera fournie à
+    toutes les instances suivantes, d'où l'utilité du scope ".". Toutefois, si
+    une instance redéfinit n'importe quel paramètre "stats", alors les défauts
+    ne lui seront pas appliqués.
+
+  - l'authentification "Basic" est très simpliste et non sécurisée contre la
+    capture réseau. Aucun mot de passe sensible ne doit être utilisé, et il
+    est bon de savoir qu'il n'existe pas de moyen de le supprimer du navigateur
+    après usage, donc il sera envoyé tel quel à l'application au cours des
+    accès successifs.
+
+  - Il est très important de préciser l'option "httpclose", sinon le proxy ne
+    sera pas en mesure de détecter les URI dans les sessions keep-alive
+    maintenues entre le navigateur et les serveurs, donc les URI de stats
+    seront transmises telles quelles aux serveurs comme si l'option n'était
+    pas précisée.
+
 
 =======================
 | Paramétrage système |
