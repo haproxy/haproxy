@@ -379,6 +379,7 @@ char *ultoa(unsigned long n) {
 #define PR_O_FORCE_CLO	0x00200000	/* enforce the connection close immediately after server response */
 #define PR_O_BALANCE_SH	0x00400000	/* balance on source IP hash */
 #define PR_O_BALANCE	(PR_O_BALANCE_RR | PR_O_BALANCE_SH)
+#define PR_O_ABRT_CLOSE	0x00800000	/* immediately abort request when client closes */
 
 /* various session flags, bits values 0x01 to 0x20 (shift 0) */
 #define SN_DIRECT	0x00000001	/* connection made on the server matching the client cookie */
@@ -5399,9 +5400,9 @@ int process_srv(struct session *t) {
     if (s == SV_STIDLE) {
 	if (c == CL_STHEADERS)
 	    return 0;	/* stay in idle, waiting for data to reach the client side */
-	else if (c == CL_STCLOSE ||
-		 c == CL_STSHUTW ||
-		 (c == CL_STSHUTR && t->req->l == 0)) { /* give up */
+	else if (c == CL_STCLOSE || c == CL_STSHUTW ||
+		 (c == CL_STSHUTR &&
+		  (t->req->l == 0 || t->proxy->options & PR_O_ABRT_CLOSE))) { /* give up */
 	    tv_eternity(&t->cnexpire);
 	    if (t->pend_pos)
 		t->logs.t_queue = tv_diff(&t->logs.tv_accept, &now);
@@ -5451,6 +5452,20 @@ int process_srv(struct session *t) {
 	}
     }
     else if (s == SV_STCONN) { /* connection in progress */
+	if (c == CL_STCLOSE || c == CL_STSHUTW ||
+	    (c == CL_STSHUTR &&
+	     (t->req->l == 0 || t->proxy->options & PR_O_ABRT_CLOSE))) { /* give up */
+	    tv_eternity(&t->cnexpire);
+	    fd_delete(t->srv_fd);
+	    if (t->srv)
+		t->srv->cur_sess--;
+
+	    /* note that this must not return any error because it would be able to
+	     * overwrite the client_retnclose() output.
+	     */
+	    srv_close_with_err(t, SN_ERR_CLICL, SN_FINST_C, 0, 0, NULL);
+	    return 1;
+	}
 	if (t->res_sw == RES_SILENT && tv_cmp2_ms(&t->cnexpire, &now) > 0) {
 	    //fprintf(stderr,"1: c=%d, s=%d, now=%d.%06d, exp=%d.%06d\n", c, s, now.tv_sec, now.tv_usec, t->cnexpire.tv_sec, t->cnexpire.tv_usec);
 	    return 0; /* nothing changed */
@@ -8317,6 +8332,9 @@ int cfg_parse_listen(char *file, int linenum, char **args) {
 	else if (!strcmp(args[1], "logasap"))
 	    /* log as soon as possible, without waiting for the session to complete */
 	    curproxy->options |= PR_O_LOGASAP;
+	else if (!strcmp(args[1], "abortonclose"))
+	    /* abort connection if client closes during queue or connect() */
+	    curproxy->options |= PR_O_ABRT_CLOSE;
 	else if (!strcmp(args[1], "httpclose"))
 	    /* force connection: close in both directions in HTTP mode */
 	    curproxy->options |= PR_O_HTTP_CLOSE;
