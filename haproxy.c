@@ -3131,11 +3131,11 @@ int produce_content(struct session *s) {
 			      "<body><h1>" PRODUCT_NAME "</h1>\n"
 			      "<h2>Statistics Report for pid %d</h2>\n"
 			      "<hr width=\"100%%\" class=\"hr\">\n"
-			      "<h3>&gt; General process informations</h3>\n"
+			      "<h3>&gt; General process information</h3>\n"
 			      "<table border=0><tr><td align=\"left\">\n"
 			      "<p><b>pid = </b> %d (nbproc = %d)<br>\n"
 			      "<b>uptime = </b> %dd %dh%02dm%02ds<br>\n"
-			      "<b>system limits :</b> memmax = %d Megs ; ulimit-n = %d<br>\n"
+			      "<b>system limits :</b> memmax = %s%s ; ulimit-n = %d<br>\n"
 			      "<b>maxsock = </b> %d<br>\n"
 			      "<b>maxconn = </b> %d (current conns = %d)<br>\n"
 			      "</td><td width=\"10%%\">\n"
@@ -3155,7 +3155,8 @@ int produce_content(struct session *s) {
 			      pid, pid, global.nbproc,
 			      up / 86400, (up % 86400) / 3600,
 			      (up % 3600) / 60, (up % 60),
-			      global.rlimit_memmax,
+			      global.rlimit_memmax ? ultoa(global.rlimit_memmax) : "unlimited",
+			      global.rlimit_memmax ? " MB" : "",
 			      global.rlimit_nofile,
 			      global.maxsock,
 			      global.maxconn,
@@ -3261,9 +3262,13 @@ int produce_content(struct session *s) {
 				   sv->cur_sess, sv->cur_sess_max, sv->maxconn ? ultoa(sv->maxconn) : "-", sv->cum_sess);
 
 		/* failures : unique, fatal */
-		msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
-				  "<td align=right>%d</td><td align=right>%d</td></tr>\n",
-				   sv->failed_checks, sv->down_trans);
+		if (sv->state & SRV_CHECKED)
+		    msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+				       "<td align=right>%d</td><td align=right>%d</td></tr>\n",
+				       sv->failed_checks, sv->down_trans);
+		else
+		    msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+				       "<td align=right>-</td><td align=right>-</td></tr>\n");
 
 		sv = sv->next;
 		if (!sv) {
