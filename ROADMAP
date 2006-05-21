@@ -8,7 +8,7 @@
  + queueing
 
 1.2.14 :
- * HTML status page
+ + HTML status page
 
         stats enable
         stats uri /?stats  

@@ -22,6 +22,8 @@ availability environments. Indeed, it can :
   - block requests matching a particular pattern ;
   - hold clients to the right application server depending on application
     cookies
+  - report detailed status as HTML pages to authenticated users from an URI
+    intercepted from the application.
 
 It needs very little resource. Its event-driven architecture allows it to easily
 handle thousands of simultaneous connections on hundreds of instances without
@@ -72,7 +74,7 @@ daemon mode and multi-process mode. The service can then be stopped by simply
 pressing Ctrl-C, without having to edit the config nor run full debug.
 
 Statistics are only available if compiled in with the 'STATTIME' option. It's
-only used during code optimization phases.
+only used during code optimization phases, and will soon disappear.
 
 The '-st' and '-sf' options are used for hot reconfiguration (see below).
 
@@ -1230,8 +1232,8 @@ Notes :
 4) Additionnal features
 =======================
 
-Other features are available. They are transparent mode, event logging and
-header rewriting/filtering.
+Other features are available. They are transparent mode, event logging, header
+rewriting/filtering, and the status as an HTML page.
 
 
 4.1) Network features
@@ -2204,6 +2206,109 @@ Examples :
 
     defaults
         # this empty section voids all default parameters
+
+
+4.8) Status report in HTML page
+-------------------------------
+Starting with 1.2.14, it is possible for HAProxy to intercept requests for a
+particular URI and return a full report of the proxy's activity and servers
+statistics. This is available through the 'stats' keyword, associated to any
+such options :
+
+   - stats enable
+   - stats uri <uri prefix>
+   - stats realm <authentication realm>
+   - stats auth <user:password>
+   - stats scope <proxy_id> | '.'
+
+By default, the status report is disabled. Specifying any combination above
+enables it for the proxy instance referencing it. The easiest solution is to
+use "stats enable" which will enable the report with default parameters :
+
+   - default URI   : "/haproxy?stats"        (CONFIG_STATS_DEFAULT_URI)
+   - default auth  : unspecified (no authentication)
+   - default realm : "HAProxy Statistics"    (CONFIG_STATS_DEFAULT_REALM)
+   - default scope : unspecified (access to all instances)
+
+The "stats uri <uri_prefix>" option allows one to intercept another URI prefix.
+Note that any URI that BEGINS with this string will match. For instance, one
+proxy instance might be dedicated to status page only and would reply to any
+URI.
+
+Example :
+---------
+    # catches any URI and returns the status page.
+    listen stats :8080
+        mode http
+        stats uri /
+
+The "stats auth <user:password>" option enables Basic authentication and adds a
+valid user:password combination to the list of authorized accounts. The user
+and password are passed in the configuration file as clear text, and since this
+is HTTP Basic authentication, you should be aware that it transits as clear
+text on the network, so you must not use any sensible account. The list is
+unlimited in order to provide easy accesses to developpers or customers.
+
+The "stats realm <realm>" option defines the "realm" name which is displayed
+in the popup box when the browser asks for a password. It's important to ensure
+that this one is not used by the application, otherwise the browser will try to
+use a cached one from the application. Note that any space in the realm name
+should be escaped with a backslash ('\').
+
+The "stats scope <proxy_id>" option limits the scope of the status report. By
+default, all proxy instances are listed. But under some circumstances, it would
+be better to limit the listing to some proxies or only to the current one. This
+is what this option does. The special proxy name "." (a single dot) references
+the current proxy. The proxy name can be repeated multiple times, even for
+proxies defined later in the configuration or some which do not exist. The name
+is the one which appears after the 'listen' keyword.
+
+Example :
+---------
+    # simple application with authenticated embedded status report
+    listen app1 192.168.1.100:80
+        mode http
+        balance roundrobin
+        cookie SERVERID postonly insert indirect
+        server srv1 192.168.1.1:8080 cookie srv1 check inter 1000
+        server srv1 192.168.1.2:8080 cookie srv2 check inter 1000
+        stats uri /my_stats
+	stats realm Statistics\ for\ MyApp1-2
+	stats auth guest:guest
+	stats auth admin:AdMiN123
+	stats scope .
+	stats scope app2
+
+    # simple application with anonymous embedded status report
+    listen app2 192.168.2.100:80
+        mode http
+        balance roundrobin
+        cookie SERVERID postonly insert indirect
+        server srv1 192.168.2.1:8080 cookie srv1 check inter 1000
+        server srv1 192.168.2.2:8080 cookie srv2 check inter 1000
+        stats uri /my_stats
+	stats realm Statistics\ for\ MyApp2
+	stats scope .
+
+    listen admin_page :8080
+        mode http
+        stats uri /my_stats
+	stats realm Global\ statistics
+	stats auth admin:AdMiN123
+
+Notes :
+-------
+  - The 'stats' options can also be specified in the 'defaults' section, in
+    which case it will provide the exact same configuration to all further
+    instances (hence the usefulness of the scope "."). However, if an instance
+    redefines any 'stats' parameter, defaults will not be used for this
+    instance.
+
+  - HTTP Basic authentication is very basic and unsecure from snooping. No
+    sensible password should be used, and be aware that there is no way to
+    remove it from the browser so it will be sent to the whole application
+    upon further accesses.
+
 
 =========================
 | System-specific setup |
