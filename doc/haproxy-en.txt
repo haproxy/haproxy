@@ -1227,6 +1227,48 @@ Notes :
     allow slow users to block access to the server for other users.
 
 
+3.5) Dropping aborted requests
+------------------------------
+In presence of very high loads, the servers will take some time to respond. The
+per-proxy's connection queue will inflate, and the response time will increase
+respective to the size of the queue times the average per-session response
+time. When clients will wait for more than a few seconds, they will often hit
+the 'STOP' button on their browser, leaving a useless request in the queue, and
+slowing down other users.
+
+As there is no way to distinguish between a full STOP and a simple
+shutdown(SHUT_WR) on the client side, HTTP agents should be conservative and
+consider that the client might only have closed its output channel while
+waiting for the response. However, this introduces risks of congestion when
+lots of users do the same, and is completely useless nowadays because probably
+no client at all will close the session while waiting for the response. Some
+HTTP agents support this (Squid, Apache, HAProxy), and others do not (TUX, most
+hardware-based load balancers). So the probability for a closed input channel
+to represent a user hitting the 'STOP' button is close to 100%, and it is very
+tempting to be able to abort the session early without polluting the servers.
+
+For this reason, a new option "abortonclose" was introduced in version 1.2.14.
+By default (without the option) the behaviour is HTTP-compliant. But when the
+option is specified, a session with an incoming channel closed will be aborted
+if it's still possible, which means that it's either waiting for a connect() to
+establish or it is queued waiting for a connection slot. This considerably
+reduces the queue size and the load on saturated servers when users are tempted
+to click on STOP, which in turn reduces the response time for other users.
+
+Example :
+---------
+    listen web_appl 0.0.0.0:80
+        maxconn 10000
+        mode http
+        cookie SERVERID insert nocache indirect
+        balance roundrobin
+        server web1 192.168.1.1:80 cookie s1 weight 10 maxconn 100 check
+        server web2 192.168.1.2:80 cookie s2 weight 10 maxconn 100 check
+        server web3 192.168.1.3:80 cookie s3 weight 10 maxconn 100 check
+        server bck1 192.168.2.1:80 cookie s4 check maxconn 200 backup
+        option abortonclose
+
+
 4) Additionnal features
 =======================
 

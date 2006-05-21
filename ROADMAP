@@ -22,7 +22,7 @@
 
  - separate timeout controls
 
- - option 'abortonclose' : if the session is queued or being connecting
+ + option 'abortonclose' : if the session is queued or being connecting
    to the server, and the client sends a shutdown(), then decide to abort
    the session early because in most situations, this will be caused by
    a client hitting the 'Stop' button, so there's no reason to overload
