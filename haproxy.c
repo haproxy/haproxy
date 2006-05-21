@@ -588,6 +588,8 @@ struct server {
     unsigned int cum_sess;		/* cumulated number of sessions really sent to this server */
     unsigned int maxconn;		/* max # of active sessions. 0 = unlimited. */
     unsigned failed_checks, down_trans;	/* failed checks and up-down transitions */
+    unsigned failed_conns, failed_resp;	/* failed connect() and responses */
+    unsigned failed_secu;		/* blocked responses because of security concerns */
     struct proxy *proxy;		/* the proxy this server belongs to */
 };
 
@@ -695,6 +697,8 @@ struct proxy {
     int nbconn, nbconn_max;		/* # of active sessions */
     unsigned int cum_conn;		/* cumulated number of processed sessions */
     int maxconn;			/* max # of active sessions */
+    unsigned failed_conns, failed_resp;	/* failed connect() and responses */
+    unsigned failed_secu;		/* blocked responses because of security concerns */
     int conn_retries;			/* maximum number of connect retries */
     int options;			/* PR_O_REDISP, PR_O_TRANSP, ... */
     int mode;				/* mode = PR_MODE_TCP, PR_MODE_HTTP or PR_MODE_HEALTH */
@@ -3190,6 +3194,7 @@ int produce_content(struct session *s) {
 	while (s->data_ctx.stats.px) {
 	    int dispatch_sess, dispatch_cum;
 	    int failed_checks, down_trans;
+	    int failed_secu, failed_conns, failed_resp;
 
 	    if (s->data_ctx.stats.px_st == DATA_ST_INIT) {
 		/* we are on a new proxy */
@@ -3231,17 +3236,17 @@ int produce_content(struct session *s) {
 				  px->nbconn, px->maxconn, px->totpend, px->nbpend, px->cum_conn);
 		
 		msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
-				   "<table cols=\"13\" class=\"tbl\">\n"
+				   "<table cols=\"16\" class=\"tbl\">\n"
 				   "<tr align=\"center\" bgcolor=\"#20C0C0\">"
 				   "<th colspan=5>Server</th>"
 				   "<th colspan=2>Queue</th>"
 				   "<th colspan=4>Sessions</th>"
-				   "<th colspan=2>Checks</th></tr>\n"
+				   "<th colspan=5>Errors</th></tr>\n"
 				   "<tr align=\"center\" bgcolor=\"#20C0C0\">"
 				   "<th>Name</th><th>Weight</th><th>Status</th><th>Act.</th><th>Bck.</th>"
 				   "<th>Curr.</th><th>Max.</th>"
 				   "<th>Curr.</th><th>Max.</th><th>Limit</th><th>Cumul.</th>"
-				   "<th>Failed</th><th>Fatal</th></tr>\n");
+				   "<th>Conn.</th><th>Resp.</th><th>Sec.</th><th>Check</th><th>Down</th></tr>\n");
 		
 		if (buffer_write(rep, trash, msglen) != 0)
 		    return 0;
@@ -3302,7 +3307,12 @@ int produce_content(struct session *s) {
 				   "<td align=right>%d</td><td align=right>%d</td><td align=right>%s</td><td align=right>%d</td>",
 				   sv->cur_sess, sv->cur_sess_max, sv->maxconn ? ultoa(sv->maxconn) : "-", sv->cum_sess);
 
-		/* failures : unique, fatal */
+		/* errors : connect, response, security */
+		msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+				   "<td align=right>%d</td><td align=right>%d</td><td align=right>%d</td>\n",
+				   sv->failed_conns, sv->failed_resp, sv->failed_secu);
+
+		/* check failures : unique, fatal */
 		if (sv->state & SRV_CHECKED)
 		    msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
 				       "<td align=right>%d</td><td align=right>%d</td></tr>\n",
@@ -3326,15 +3336,23 @@ int produce_content(struct session *s) {
 	     * might be interrupted multiple times.
 	     */
 	    dispatch_sess = px->nbconn;
-	    dispatch_cum = px->cum_conn;
+	    dispatch_cum  = px->cum_conn;
+	    failed_secu   = px->failed_secu;
+	    failed_conns  = px->failed_conns;
+	    failed_resp   = px->failed_resp;
 	    failed_checks = down_trans = 0;
 
 	    sv = px->srv;
 	    while (sv) {
 		dispatch_sess -= sv->cur_sess;
 		dispatch_cum  -= sv->cum_sess;
-		failed_checks += sv->failed_checks;
-		down_trans    += sv->down_trans;
+		failed_conns  -= sv->failed_conns;
+		failed_resp   -= sv->failed_resp;
+		failed_secu   -= sv->failed_secu;
+		if (sv->state & SRV_CHECKED) {
+		    failed_checks += sv->failed_checks;
+		    down_trans    += sv->down_trans;
+		}
 		sv = sv->next;
 	    }
 
@@ -3355,7 +3373,12 @@ int produce_content(struct session *s) {
 			       "<td align=right>%d</td><td align=right>%d</td><td align=right>%d</td><td align=right>%d</td>",
 			       dispatch_sess, px->nbconn_max, px->maxconn, dispatch_cum);
 
-	    /* failures : unique, fatal */
+	    /* errors : connect, response, security */
+	    msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+			       "<td align=right>%d</td><td align=right>%d</td><td align=right>%d</td>\n",
+			       failed_conns, failed_resp, failed_secu);
+
+	    /* check failures : unique, fatal */
 	    msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
 			       "<td align=right>-</td><td align=right>-</td></tr>\n");
 
@@ -3379,7 +3402,12 @@ int produce_content(struct session *s) {
 			       "<td align=right><b>%d</b></td><td align=right><b>%d</b></td><td align=right><b>%d</b></td><td align=right><b>%d</b></td>",
 			       px->nbconn, px->nbconn_max, px->maxconn, px->cum_conn);
 
-	    /* failures : unique, fatal */
+	    /* errors : connect, response, security */
+	    msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+			       "<td align=right>%d</td><td align=right>%d</td><td align=right>%d</td>\n",
+			       px->failed_conns, px->failed_resp, px->failed_secu);
+
+	    /* check failures : unique, fatal */
 	    msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
 			       "<td align=right>%d</td><td align=right>%d</td></tr>\n",
 			       failed_checks, down_trans);
@@ -5209,7 +5237,10 @@ int srv_count_retry_down(struct session *t, int conn_err) {
 	tv_eternity(&t->cnexpire);
 	srv_close_with_err(t, conn_err, SN_FINST_C,
 			   503, t->proxy->errmsg.len503, t->proxy->errmsg.msg503);
-	    
+	if (t->srv)
+	    t->srv->failed_conns++;
+	t->proxy->failed_conns++;
+
 	/* We used to have a free connection slot. Since we'll never use it,
 	 * we have to inform the server that it may be used by another session.
 	 */
@@ -5246,6 +5277,9 @@ int srv_retryable_connect(struct session *t) {
 	    tv_eternity(&t->cnexpire);
 	    srv_close_with_err(t, SN_ERR_INTERNAL, SN_FINST_C,
 			       500, t->proxy->errmsg.len500, t->proxy->errmsg.msg500);
+	    if (t->srv)
+		t->srv->failed_conns++;
+	    t->proxy->failed_conns++;
 	    /* release other sessions waiting for this server */
 	    if (may_dequeue_tasks(t->srv, t->proxy))
 		task_wakeup(&rq, t->srv->queue_mgt);
@@ -5266,6 +5300,10 @@ int srv_retryable_connect(struct session *t) {
     /* let's try to offer this slot to anybody */
     if (may_dequeue_tasks(t->srv, t->proxy))
 	task_wakeup(&rq, t->srv->queue_mgt);
+
+    if (t->srv)
+	t->srv->failed_conns++;
+    t->proxy->failed_conns++;
 
     t->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
     t->srv = NULL; /* it's left to the dispatcher to choose a server */
@@ -5300,6 +5338,10 @@ int srv_redispatch_connect(struct session *t) {
 	tv_eternity(&t->cnexpire);
 	srv_close_with_err(t, SN_ERR_SRVTO, SN_FINST_C,
 			   503, t->proxy->errmsg.len503, t->proxy->errmsg.msg503);
+	if (t->srv)
+	    t->srv->failed_conns++;
+	t->proxy->failed_conns++;
+
 	return 1;
 
     case SRV_STATUS_QUEUED:
@@ -5318,6 +5360,10 @@ int srv_redispatch_connect(struct session *t) {
 	tv_eternity(&t->cnexpire);
 	srv_close_with_err(t, SN_ERR_INTERNAL, SN_FINST_C,
 			   500, t->proxy->errmsg.len500, t->proxy->errmsg.msg500);
+	if (t->srv)
+	    t->srv->failed_conns++;
+	t->proxy->failed_conns++;
+
 	/* release other sessions waiting for this server */
 	if (may_dequeue_tasks(t->srv, t->proxy))
 	    task_wakeup(&rq, t->srv->queue_mgt);
@@ -5381,6 +5427,9 @@ int process_srv(struct session *t) {
 		    t->logs.t_queue = tv_diff(&t->logs.tv_accept, &now);
 		    srv_close_with_err(t, SN_ERR_SRVTO, SN_FINST_Q,
 				       503, t->proxy->errmsg.len503, t->proxy->errmsg.msg503);
+		    if (t->srv)
+			t->srv->failed_conns++;
+		    t->proxy->failed_conns++;
 		    return 1;
 		}
 	    }
@@ -5517,8 +5566,11 @@ int process_srv(struct session *t) {
 			tv_eternity(&t->srexpire);
 			tv_eternity(&t->swexpire);
 			fd_delete(t->srv_fd);
-			if (t->srv)
+			if (t->srv) {
 			    t->srv->cur_sess--;
+			    t->srv->failed_secu++;
+			}
+			t->proxy->failed_secu++;
 			t->srv_state = SV_STCLOSE;
 			t->logs.status = 502;
 			client_return(t, t->proxy->errmsg.len502, t->proxy->errmsg.msg502);
@@ -5545,8 +5597,11 @@ int process_srv(struct session *t) {
 		    tv_eternity(&t->srexpire);
 		    tv_eternity(&t->swexpire);
 		    fd_delete(t->srv_fd);
-		    if (t->srv)
+		    if (t->srv) {
 			t->srv->cur_sess--;
+			t->srv->failed_secu++;
+		    }
+		    t->proxy->failed_secu++;
 		    t->srv_state = SV_STCLOSE;
 		    t->logs.status = 502;
 		    client_return(t, t->proxy->errmsg.len502, t->proxy->errmsg.msg502);
@@ -5684,7 +5739,7 @@ int process_srv(struct session *t) {
 			 *    unless the response includes appropriate
 			 *    Cache-Control or Expires header fields."
 			 */
-			if ((!t->flags & SN_POST) && (t->proxy->options & PR_O_CHK_CACHE))
+			if (!t->flags & SN_POST && (t->proxy->options & PR_O_CHK_CACHE))
 				t->flags |= SN_CACHEABLE | SN_CACHE_COOK;
 			break;
 		    default:
@@ -5985,8 +6040,12 @@ int process_srv(struct session *t) {
 	    tv_eternity(&t->srexpire);
 	    tv_eternity(&t->swexpire);
 	    fd_delete(t->srv_fd);
-	    if (t->srv)
+	    if (t->srv) {
 		t->srv->cur_sess--;
+		t->srv->failed_resp++;
+	    }
+	    t->proxy->failed_resp++;
+
 	    t->srv_state = SV_STCLOSE;
 	    t->logs.status = 502;
 	    client_return(t, t->proxy->errmsg.len502, t->proxy->errmsg.msg502);
@@ -6020,8 +6079,11 @@ int process_srv(struct session *t) {
 	    tv_eternity(&t->srexpire);
 	    tv_eternity(&t->swexpire);
 	    fd_delete(t->srv_fd);
-	    if (t->srv)
+	    if (t->srv) {
 		t->srv->cur_sess--;
+		t->srv->failed_resp++;
+	    }
+	    t->proxy->failed_resp++;
 	    t->srv_state = SV_STCLOSE;
 	    t->logs.status = 504;
 	    client_return(t, t->proxy->errmsg.len504, t->proxy->errmsg.msg504);
@@ -6122,8 +6184,11 @@ int process_srv(struct session *t) {
 	    tv_eternity(&t->srexpire);
 	    tv_eternity(&t->swexpire);
 	    fd_delete(t->srv_fd);
-	    if (t->srv)
+	    if (t->srv) {
 		t->srv->cur_sess--;
+		t->srv->failed_resp++;
+	    }
+	    t->proxy->failed_resp++;
 	    t->srv_state = SV_STCLOSE;
 	    if (!(t->flags & SN_ERR_MASK))
 		t->flags |= SN_ERR_SRVCL;
@@ -6235,8 +6300,11 @@ int process_srv(struct session *t) {
 	    //FD_CLR(t->srv_fd, StaticWriteEvent);
 	    tv_eternity(&t->swexpire);
 	    fd_delete(t->srv_fd);
-	    if (t->srv)
+	    if (t->srv) {
 		t->srv->cur_sess--;
+		t->srv->failed_resp++;
+	    }
+	    t->proxy->failed_resp++;
 	    //close(t->srv_fd);
 	    t->srv_state = SV_STCLOSE;
 	    if (!(t->flags & SN_ERR_MASK))
@@ -6313,8 +6381,11 @@ int process_srv(struct session *t) {
 	    //FD_CLR(t->srv_fd, StaticReadEvent);
 	    tv_eternity(&t->srexpire);
 	    fd_delete(t->srv_fd);
-	    if (t->srv)
+	    if (t->srv) {
 		t->srv->cur_sess--;
+		t->srv->failed_resp++;
+	    }
+	    t->proxy->failed_resp++;
 	    //close(t->srv_fd);
 	    t->srv_state = SV_STCLOSE;
 	    if (!(t->flags & SN_ERR_MASK))
