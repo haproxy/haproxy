@@ -2,9 +2,9 @@
                              H A - P r o x y
                            Manuel de référence
                            -------------------
-                              version 1.2.13
+                              version 1.2.14
                               willy tarreau
-                                2006/05/13
+                                2006/05/21
 
 ================
 | Introduction |

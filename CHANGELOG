@@ -1,6 +1,18 @@
 ChangeLog :
 ===========
 
+2006/05/21 : 1.2.14
+   - new HTML status report with the 'stats' keyword.
+   - added the 'abortonclose' option to better resist traffic surges
+   - implemented dynamic traffic regulation with the 'minconn' option
+   - show request time on denied requests
+   - definitely fixed hot reconf on OpenBSD by the use of SO_REUSEPORT
+   - now a proxy instance is allowed to run without servers, which is
+     useful to dedicate one instance to stats
+   - added lots of error counters
+   - a missing parenthesis preventd matching of cacheable cookies
+   - a missing parenthesis in poll_loop() might have caused missed events.
+
 2006/05/14 : 1.2.13.1
    - an uninitialized field in the struct session could cause a crash when
      the session was freed. This has been encountered on Solaris only.
