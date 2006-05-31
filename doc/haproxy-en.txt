@@ -1,5 +1,5 @@
                            -------------------
-                             H A - P r o x y
+                                 HAProxy
                             Reference  Manual
                            -------------------
                               version 1.2.14
@@ -10,7 +10,7 @@
 | Abstract |
 ============
 
-HA-Proxy is a TCP/HTTP reverse proxy which is particularly suited for high
+HAProxy is a TCP/HTTP reverse proxy which is particularly suited for high
 availability environments. Indeed, it can :
   - route HTTP requests depending on statically assigned cookies ;
   - spread the load among several servers while assuring server persistence

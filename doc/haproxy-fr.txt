@@ -1,5 +1,5 @@
                            -------------------
-                             H A - P r o x y
+                                 HAProxy
                            Manuel de référence
                            -------------------
                               version 1.2.14
@@ -10,7 +10,7 @@
 | Introduction |
 ================
 
-HA-Proxy est un relais TCP/HTTP offrant des facilités d'intégration en
+HAProxy est un relais TCP/HTTP offrant des facilités d'intégration en
 environnement hautement disponible. En effet, il est capable de :
   - effectuer un aiguillage statique défini par des cookies ;
   - effectuer une répartition de charge avec création de cookies pour assurer

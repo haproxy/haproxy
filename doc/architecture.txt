@@ -1,5 +1,5 @@
                            -------------------
-                             H A - P r o x y
+                                 HAProxy
                            Architecture  Guide
                            -------------------
                              version 1.1.34
