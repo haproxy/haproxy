@@ -3032,7 +3032,10 @@ void client_retnclose(struct session *s, int len, const char *msg) {
     FD_CLR(s->cli_fd, StaticReadEvent);
     FD_SET(s->cli_fd, StaticWriteEvent);
     tv_eternity(&s->crexpire);
-    tv_delayfrom(&s->cwexpire, &now, s->proxy->clitimeout);
+    if (s->proxy->clitimeout)
+	tv_delayfrom(&s->cwexpire, &now, s->proxy->clitimeout);
+    else
+	tv_eternity(&s->cwexpire);
     shutdown(s->cli_fd, SHUT_RD);
     s->cli_state = CL_STSHUTR;
     buffer_flush(s->rep);
