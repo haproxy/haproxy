@@ -1,0 +1,32 @@
+HAPROXY's license - 2006/06/15
+
+Historically, haproxy has been covered by GPL version 2. However, an issue
+appeared in GPL which will prevent external non-GPL code from being built
+using the headers provided with haproxy. My long-term goal is to build a core
+system able to load external modules to support specific application protocols.
+
+Since some protocols are found in rare environments (finance, industry, ...),
+some of them might be accessible only after signing an NDA. Enforcing GPL on
+such modules would only prevent them from ever being implemented, while not
+providing anything useful to ordinary users.
+
+For this reason, I *want* to be able to support binary only external modules
+when needed, with a GPL core and GPL modules for standard protocols, so that
+people fixing bugs don't keep them secretly to try to stay over competition.
+
+The solution was then to apply the LGPL license to the exportable include
+files, while keeping the GPL for all the rest. This way, it still is mandatory
+to redistribute modified code under customer request, but at the same time, it
+is expressly permitted to write, compile, link and load non-GPL code using the
+LGPL header files and not to distribute them if it causes a legal problem.
+
+Of course, users are strongly encouraged to continue the work under GPL as long
+as possible, since this license has allowed useful enhancements, contributions
+and fixes from talented people around the world.
+
+The text of the licenses lies in the "doc" directory. All the files provided in
+this package are covered by the GPL unless expressly stated otherwise in them.
+Every patch or contribution provided by external people will by default comply
+with the license of the files it affects, or be rejected.
+
+Willy Tarreau - w@1wt.eu
