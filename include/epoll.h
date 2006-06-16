@@ -6,13 +6,17 @@
  */
 
 #include <linux/unistd.h>
+#include <stdint.h>
 
 /* epoll_ctl() commands */
+#ifndef EPOLL_CTL_ADD
 #define EPOLL_CTL_ADD 1
 #define EPOLL_CTL_DEL 2
 #define EPOLL_CTL_MOD 3
+#endif
 
 /* events types (bit fields) */
+#ifndef EPOLLIN
 #define EPOLLIN 1
 #define EPOLLPRI 2
 #define EPOLLOUT 4
@@ -20,6 +24,7 @@
 #define EPOLLHUP 16
 #define EPOLLONESHOT (1 << 30)
 #define EPOLLET (1 << 31)
+#endif
 
 struct epoll_event {
     uint32_t events;
@@ -45,9 +50,9 @@ struct epoll_event {
 #define __NR_epoll_ctl    214
 #define __NR_epoll_wait   215
 #elif defined(__alpha__)
-#define __NR_sys_epoll_create 407
-#define __NR_sys_epoll_ctl    408
-#define __NR_sys_epoll_wait   409
+#define __NR_epoll_create 407
+#define __NR_epoll_ctl    408
+#define __NR_epoll_wait   409
 #elif defined (__i386__)
 #define __NR_epoll_create 254
 #define __NR_epoll_ctl    255
