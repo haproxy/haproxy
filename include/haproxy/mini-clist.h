@@ -1,11 +1,11 @@
 /*
  * list.h : list manipulation macros and structures.
- * (C) 2002-2006 - Willy Tarreau - willy@ant-computing.com
+ * Copyright 2002-2006 Willy Tarreau <w@1wt.eu>
  *
  */
 
-#ifndef __MINI_CLIST_H__
-#define __MINI_CLIST_H__
+#ifndef _HAPROXY_MINI_CLIST_H
+#define _HAPROXY_MINI_CLIST_H
 
 /* these are circular or bidirectionnal lists only. Each list pointer points to
  * another list pointer in a structure, and not the structure itself. The
@@ -16,6 +16,8 @@ struct list {
     struct list *n;	/* next */
     struct list *p;	/* prev */
 };
+
+#define LIST_HEAD(a)	((void *)(&(a)))
 
 #define LIST_INIT(l) ((l)->n = (l)->p = (l))
 
@@ -89,4 +91,4 @@ struct list {
 	for ( ; (iterator) != (end_item); (iterator) = (backup),   \
 		backup = LIST_ELEM((iterator)->struct_member.n, struct_type, struct_member))
 
-#endif /* __MINI_CLIST_H__ */
+#endif /* _HAPROXY_MINI_CLIST_H */

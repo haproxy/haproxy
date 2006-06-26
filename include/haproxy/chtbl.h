@@ -15,8 +15,8 @@
 *                                                                            *
 *****************************************************************************/
 
-#ifndef CHTBL_H
-#define CHTBL_H
+#ifndef _HAPROXY_CHTBL_H
+#define _HAPROXY_CHTBL_H
 
 #include <stdlib.h>
 
@@ -59,4 +59,5 @@ int chtbl_lookup(const CHTbl *htbl, void **data);
 
 #define chtbl_size(htbl) ((htbl)->size)
 
-#endif
+#endif /* _HAPROXY_CHTBL_H */
+

@@ -1,9 +1,33 @@
 /*
+  include/haproxy/epoll.h
+  epoll definitions for older libc.
+
+  Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
+  
+  This library is free software; you can redistribute it and/or
+  modify it under the terms of the GNU Lesser General Public
+  License as published by the Free Software Foundation, version 2.1
+  exclusively.
+
+  This library is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  Lesser General Public License for more details.
+
+  You should have received a copy of the GNU Lesser General Public
+  License along with this library; if not, write to the Free Software
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+*/
+
+/*
  * Those constants were found both in glibc and in the Linux kernel.
  * They are provided here because the epoll() syscall is featured in
  * some kernels but in not often included in the glibc, so it needs
  * just a basic definition.
  */
+
+#ifndef _HAPROXY_EPOLL_H
+#define _HAPROXY_EPOLL_H
 
 #include <linux/unistd.h>
 #include <stdint.h>
@@ -27,13 +51,13 @@
 #endif
 
 struct epoll_event {
-    uint32_t events;
-    union {
-	void *ptr;
-	int fd;
-	uint32_t u32;
-	uint64_t u64;
-    } data;
+	uint32_t events;
+	union {
+		void *ptr;
+		int fd;
+		uint32_t u32;
+		uint64_t u64;
+	} data;
 };
 
 
@@ -64,6 +88,16 @@ struct epoll_event {
 #define __NR_epoll_wait   256
 #endif
 
-_syscall1 (int, epoll_create, int, size);
-_syscall4 (int, epoll_ctl, int, epfd, int, op, int, fd, struct epoll_event *, event);
-_syscall4 (int, epoll_wait, int, epfd, struct epoll_event *, events, int, maxevents, int, timeout);
+extern int epoll_create(int size);
+extern int epoll_ctl(int epfd, int op, int fd, struct epoll_event * event);
+extern int epoll_wait(int epfd, struct epoll_event * events, int maxevents, int timeout);
+
+#endif /* _HAPROXY_EPOLL_H */
+
+
+/*
+ * Local variables:
+ *  c-indent-level: 8
+ *  c-basic-offset: 8
+ * End:
+ */

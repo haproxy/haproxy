@@ -15,8 +15,8 @@
 *                                                                            *
 *****************************************************************************/
 
-#ifndef LIST_H
-#define LIST_H
+#ifndef _HAPROXY_LIST_H
+#define _HAPROXY_LIST_H
 
 #include <stdlib.h>
 
@@ -27,9 +27,8 @@
  *****************************************************************************/
 
 typedef struct ListElmt_ {
-
-  void               *data;
-  struct ListElmt_   *next;
+	void               *data;
+	struct ListElmt_   *next;
 } ListElmt;
 
 /*****************************************************************************
@@ -39,12 +38,12 @@ typedef struct ListElmt_ {
  *****************************************************************************/
 
 typedef struct List_ {
-  int                size;
-  int                (*match)(const void *key1, const void *key2);
-  void               (*destroy)(void *data);
+	int                size;
+	int                (*match)(const void *key1, const void *key2);
+	void               (*destroy)(void *data);
   
-  ListElmt           *head;
-  ListElmt           *tail;
+	ListElmt           *head;
+	ListElmt           *tail;
 } List;
 
 /*****************************************************************************
@@ -75,4 +74,11 @@ int list_rem_next(List *list, ListElmt *element, void **data);
 
 #define list_next(element) ((element)->next)
 
-#endif
+#endif /* _HAPROXY_LIST_H */
+
+/*
+ * Local variables:
+ *  c-indent-level: 8
+ *  c-basic-offset: 8
+ * End:
+ */

@@ -1,7 +1,7 @@
 /*
  * URI-based user authentication using the HTTP basic method.
  *
- * Copyright 2006 Willy Tarreau <willy@w.ods.org>
+ * Copyright 2006 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -10,8 +10,8 @@
  *
  */
 
-#ifndef URI_AUTH_H
-#define URI_AUTH_H
+#ifndef _HAPROXY_URI_AUTH_H
+#define _HAPROXY_URI_AUTH_H
 /* here we find a very basic list of base64-encoded 'user:passwd' strings */
 struct user_auth {
 	struct user_auth *next;		/* next entry, NULL if none */
@@ -65,4 +65,4 @@ struct uri_auth *stats_set_realm(struct uri_auth **root, char *realm);
 struct uri_auth *stats_add_auth(struct uri_auth **root, char *user);
 struct uri_auth *stats_add_scope(struct uri_auth **root, char *scope);
 
-#endif /* URI_AUTH_H */
+#endif /* _HAPROXY_URI_AUTH_H */

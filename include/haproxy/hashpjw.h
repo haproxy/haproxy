@@ -16,17 +16,8 @@
 *                                                                            *
 *****************************************************************************/
 
-#ifndef HASHPJW_H
-#define HASHPJW_H
-
-#include <sys/time.h>
-
-typedef struct appsessions {
-    char *sessid;
-    char *serverid;
-    struct timeval expire;		/* next expiration time for this application session */
-    unsigned long int request_count;
-} appsess; /* end struct appsessions */
+#ifndef _HAPROXY_HASHPJW_H
+#define _HAPROXY_HASHPJW_H
 
 /*****************************************************************************
 *                                                                            *
@@ -44,4 +35,4 @@ typedef struct appsessions {
 
 int hashpjw(const void *key);
 
-#endif
+#endif /* _HAPROXY_HASHPJW_H */

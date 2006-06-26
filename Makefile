@@ -2,7 +2,7 @@
 # You should use it this way :
 #   make TARGET=os CPU=cpu
 
-VERSION := 1.2.14
+VERSION := 1.3.0
 
 # Select target OS. TARGET must match a system for which COPTS and LIBS are
 # correctly defined below.
@@ -91,17 +91,15 @@ ADDLIB =
 
 # set some defines when needed.
 # Known ones are -DENABLE_POLL, -DENABLE_EPOLL, and -DUSE_MY_EPOLL
-# - use -DSTATTIME=0 to disable statistics, else specify an interval in
-#   milliseconds.
 # - use -DTPROXY to compile with transparent proxy support.
-DEFINE = -DSTATTIME=0 -DTPROXY
+DEFINE = -DTPROXY
 
 # global options
 TARGET_OPTS=$(COPTS.$(TARGET))
 REGEX_OPTS=$(COPTS.$(REGEX))
 CPU_OPTS=$(COPTS.$(CPU))
 
-COPTS=-I. $(ADDINC) $(CPU_OPTS) $(TARGET_OPTS) $(REGEX_OPTS) $(SMALL_OPTS) $(DEFINE)
+COPTS=-Iinclude $(ADDINC) $(CPU_OPTS) $(TARGET_OPTS) $(REGEX_OPTS) $(SMALL_OPTS) $(DEFINE)
 LIBS=$(LIBS.$(TARGET)) $(LIBS.$(REGEX)) $(ADDLIB)
 
 CFLAGS = -Wall $(COPTS) $(DEBUG)
@@ -109,18 +107,31 @@ LDFLAGS = -g
 
 all: haproxy
 
-haproxy: src/list.o src/chtbl.o src/hashpjw.o haproxy.o src/base64.o src/uri_auth.o
+OBJS = src/haproxy.o src/list.o src/chtbl.o src/hashpjw.o src/base64.o \
+       src/uri_auth.o src/standard.o src/buffers.o src/log.o src/task.o \
+       src/time.o src/fd.o src/regex.o src/cfgparse.o src/server.o \
+       src/checks.o src/queue.o src/capture.o src/client.o src/proxy.o \
+       src/proto_http.o src/stream_sock.o src/appsession.o src/backend.o \
+       src/session.o
+
+haproxy: $(OBJS)
 	$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
+
+objsize: haproxy
+	@objdump -t $^|grep ' g '|grep -F '.text'|awk '{print $$5 FS $$6}'|sort
 
 %.o:	%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
-	rm -f {.,src}/*.[oas] {.,src,include,doc}/*{~,.rej} core haproxy test nohup.out gmon.out
-	rm -f haproxy-$(VERSION).tar.gz haproxy-$(VERSION)
+	rm -f {.,src}/*.[oas] {.,src,include/*,doc}/*{~,.rej} core haproxy test
+	rm -f haproxy-$(VERSION).tar.gz haproxy-$(VERSION) nohup.out gmon.out
 
 tar:	clean
 	ln -s . haproxy-$(VERSION)
-	tar --exclude=haproxy-$(VERSION)/.git --exclude=haproxy-$(VERSION)/haproxy-$(VERSION) -cf - haproxy-$(VERSION)/* | gzip -c9 >haproxy-$(VERSION).tar.gz
+	tar --exclude=haproxy-$(VERSION)/.git \
+	    --exclude=haproxy-$(VERSION)/haproxy-$(VERSION) \
+	    --exclude=haproxy-$(VERSION)/haproxy-$(VERSION).tar.gz \
+	    -cf - haproxy-$(VERSION)/* | gzip -c9 >haproxy-$(VERSION).tar.gz
 	rm -f haproxy-$(VERSION)
 

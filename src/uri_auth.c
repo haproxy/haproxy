@@ -1,7 +1,7 @@
 /*
  * URI-based user authentication using the HTTP basic method.
  *
- * Copyright 2006 Willy Tarreau <willy@w.ods.org>
+ * Copyright 2006 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -12,8 +12,9 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <include/uri_auth.h>
-#include <include/base64.h>
+
+#include <haproxy/base64.h>
+#include <haproxy/uri_auth.h>
 
 
 /*

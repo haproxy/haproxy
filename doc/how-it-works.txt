@@ -1,0 +1,60 @@
+How it works ?  (unfinished and inexact)
+
+For TCP and HTTP :
+
+- listeners create listening sockets with a READ callback pointing to the
+  protocol-specific accept() function. 
+
+- the protocol-specific accept() function then accept()'s the connection and
+  instantiates a "server TCP socket" (which is dedicated to the client side),
+  and configures it (non_block, get_original_dst, ...).
+
+For TCP :
+- in case of pure TCP, a request buffer is created, as well as a "client TCP
+  socket", which tries to connect to the server.
+
+- once the connection is established, the response buffer is allocated and
+  connected to both ends.
+
+- both sockets are set to "autonomous mode" so that they only wake up their
+  supervising session when they encounter a special condition (error or close).
+
+
+For HTTP :
+- in case of HTTP, a request buffer is created with the "HOLD" flag set and
+  a read limit to support header rewriting (may be this one will be removed
+  eventually because it's better to limit only to the buffer size and report
+  an error when rewritten data overflows)
+
+- a "flow analyzer" is attached to the buffer (or possibly multiple flow
+  analyzers). For the request, the flow analyzer is "http_lb_req". The flow
+  analyzer is a function which gets called when new data is present and
+  blocked. It has a timeout (request timeout). It can also be bypassed on
+  demand.
+
+- when the "http_lb_req" has received the whole request, it creates a client
+  socket with all the parameters needed to try to connect to the server. When
+  the connection establishes, the response buffer is allocated on the fly,
+  put to HOLD mode, and a an "http_lb_resp" flow analyzer is attached to the
+  buffer.
+
+
+For client-side HTTPS :
+
+- the accept() function must completely instantiate a TCP socket + an SSL
+  reader. It is when the SSL session is complete that we call the
+  protocol-specific accept(), and create its buffer.
+
+
+
+
+Conclusions
+-----------
+
+- we need a generic TCP accept() function with a lot of flags set by the
+  listener, to tell it what info we need to get at the accept() time, and
+  what flags will have to be set on the socket.
+
+- once the TCP accept() function ends, it wakes up the protocol supervisor
+  which is in charge of creating the buffers, etc, switch states, etc...
+

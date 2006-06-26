@@ -1,6 +1,7 @@
 /*
- * Ascii to Base64 conversion as described in RFC1421.
- * Copyright 2006 Willy Tarreau <willy@w.ods.org>
+ * Capture variables and functions.
+ *
+ * Copyright 2000-2006 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -9,9 +10,15 @@
  *
  */
 
-#ifndef BASE64_H
-#define BASE64_H
+#include <stdlib.h>
+#include <types/capture.h>
 
-int a2base64(char *in, int ilen, char *out, int olen);
+void **pool_capture  = NULL;
 
-#endif /* BASE64_H */
+
+/*
+ * Local variables:
+ *  c-indent-level: 8
+ *  c-basic-offset: 8
+ * End:
+ */

@@ -36,6 +36,46 @@
           max(srv->maxconn * px->nbsess / px->maxconn, srv->minconn)
 
 1.3 :
+ - remove unused STATTIME
+
+ - reference all the include files that must be created, possibly under subdirs :
+
+   - acl.h      => more general ACL work
+   - appcook.h  => appsession-related cookies
+   - backend.h  => back-end part of the PR_O_* + backend definitions
+   - buffers.h  => buffer management relying on memory.h
+   - capture.h  => header and cookie capture
+   - cfgparse.h => configuration parser
+   - checks.h   => health checks
+   - clireq.h   => the client side "request" part of the current sessions.
+   - compat.h   => compatibility with other OSes (TCP_NODELAY, ...)
+   - config.h   => config parameters, renamed CONFIG_HAP_*, includes defaults.h
+   - controls.h => SN_CACHEABLE, ...
+   - cookies.h  => definitions related to cookie management + SN_SCK_*
+   - defaults.h => many default values, might disappear soon after cleanup
+   - frontend.h => front-end part of the PR_O_* + client definitions + listeners
+   - global.h   => shared global variables
+   - http.h     => HTTP state definitions and transitions
+   - httperr.{hc} => HTTP return codes
+   - libtask.h  => task scheduler
+   - libtime.h  => time-related definitions
+   - loadbal.h  => load balancing algorithms
+   - log.h      => log definitions
+   - memory.h   => pools
+   - polling.h  => definitions of select(), poll(), INTBITS, ...
+   - queue.h    => queue management
+   - regex.h    => filtering
+   - servers.h  => servers definitions (SRV_*, states, ...)
+   - fd.h       => FD_ST* (add FD_DGRAM), RES_*, socket states, etc...
+   - srvreq.h   => the server side "request" part of the current sessions.
+   - standard.h => general purpose macros and defines (eg: MIN/MAX, ...)
+   - startup.h  => MODE_*
+   - tuning.h   => platform-specific tuning parameters
+
+
+ - clarify licence by adding a 'MODULE_LICENCE("GPL")' or something equivalent.
+
+
  - handle half-closed connections better (cli/srv would not distinguish
    DATA/SHUTR/SHUTW, it would be a session flag which would tell shutr/shutw).
    Check how it got changed in httpterm.
