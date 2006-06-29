@@ -22,8 +22,8 @@
 #ifndef _PROTO_QUEUE_H
 #define _PROTO_QUEUE_H
 
-#include <haproxy/memory.h>
-#include <haproxy/mini-clist.h>
+#include <common/memory.h>
+#include <common/mini-clist.h>
 
 #include <types/proxy.h>
 #include <types/queue.h>

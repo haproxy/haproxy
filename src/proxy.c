@@ -16,9 +16,9 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 
-#include <haproxy/defaults.h>
-#include <haproxy/compat.h>
-#include <haproxy/time.h>
+#include <common/defaults.h>
+#include <common/compat.h>
+#include <common/time.h>
 
 #include <types/global.h>
 #include <types/polling.h>

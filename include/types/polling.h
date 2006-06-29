@@ -27,7 +27,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include <haproxy/config.h>
+#include <common/config.h>
 
 /* for POLL_* */
 #if defined(ENABLE_POLL)
@@ -39,7 +39,7 @@
 #if !defined(USE_MY_EPOLL)
 #include <sys/epoll.h>
 #else
-#include <haproxy/epoll.h>
+#include <common/epoll.h>
 #endif
 #endif
 

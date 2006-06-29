@@ -1,5 +1,5 @@
 /*
-  include/haproxy/standard.h
+  include/common/standard.h
   This files contains some general purpose functions and macros.
 
   Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
@@ -19,12 +19,12 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#ifndef _HAPROXY_STANDARD_H
-#define _HAPROXY_STANDARD_H
+#ifndef _COMMON_STANDARD_H
+#define _COMMON_STANDARD_H
 
 #include <netinet/in.h>
-#include <haproxy/defaults.h>
-#include <haproxy/compat.h>
+#include <common/defaults.h>
+#include <common/compat.h>
 
 
 /****** string-specific macros and functions ******/
@@ -89,4 +89,4 @@ char *encode_string(char *start, char *stop,
 		    const char escape, const fd_set *map,
 		    const char *string);
 
-#endif /* _HAPROXY_STANDARD_H */
+#endif /* _COMMON_STANDARD_H */

@@ -29,9 +29,9 @@
 #include <sys/time.h>
 #include <sys/types.h>
 
-#include <haproxy/compat.h>
-#include <haproxy/config.h>
-#include <haproxy/time.h>
+#include <common/compat.h>
+#include <common/config.h>
+#include <common/time.h>
 
 #include <types/fd.h>
 #include <types/global.h>
@@ -64,6 +64,8 @@ int cfg_polling_mechanism = 0;  /* POLL_USE_{SELECT|POLL|EPOLL} */
 fd_set *PrevReadEvent = NULL, *PrevWriteEvent = NULL;
 
 #if defined(USE_MY_EPOLL)
+#include <errno.h>
+#include <sys/syscall.h>
 _syscall1 (int, epoll_create, int, size);
 _syscall4 (int, epoll_ctl, int, epfd, int, op, int, fd, struct epoll_event *, event);
 _syscall4 (int, epoll_wait, int, epfd, struct epoll_event *, events, int, maxevents, int, timeout);

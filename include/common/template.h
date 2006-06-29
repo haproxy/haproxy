@@ -1,6 +1,6 @@
 /*
-  include/haproxy/config.h
-  This files contains most of the user-configurable settings.
+  include/common/template.h
+  This file serves as a template for future include files.
 
   Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
   
@@ -19,16 +19,15 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#ifndef _HAPROXY_CONFIG_H
-#define _HAPROXY_CONFIG_H
+#ifndef _COMMON_TEMPLATE_H
+#define _COMMON_TEMPLATE_H
 
-#include <haproxy/defaults.h>
 
-/* this reduces the number of calls to select() by choosing appropriate
- * sheduler precision in milliseconds. It should be near the minimum
- * time that is needed by select() to collect all events. All timeouts
- * are rounded up by adding this value prior to pass it to select().
+#endif /* _COMMON_TEMPLATE_H */
+
+/*
+ * Local variables:
+ *  c-indent-level: 8
+ *  c-basic-offset: 8
+ * End:
  */
-#define SCHEDULER_RESOLUTION    9
-
-#endif /* _HAPROXY_CONFIG_H */

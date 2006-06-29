@@ -22,7 +22,7 @@
 #ifndef _PROTO_BUFFERS_H
 #define _PROTO_BUFFERS_H
 
-#include <haproxy/defaults.h>
+#include <common/defaults.h>
 #include <types/buffers.h>
 
 /* returns 1 if the buffer is empty, 0 otherwise */

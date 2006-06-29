@@ -11,7 +11,7 @@
  */
 
 #include <stdlib.h>
-#include <haproxy/memory.h>
+#include <common/memory.h>
 
 #include <types/backend.h>
 #include <types/capture.h>

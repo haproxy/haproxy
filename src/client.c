@@ -14,13 +14,14 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include <haproxy/compat.h>
-#include <haproxy/time.h>
+#include <common/compat.h>
+#include <common/time.h>
 
 #include <types/backend.h>
 #include <types/buffers.h>

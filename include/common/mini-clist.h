@@ -4,8 +4,8 @@
  *
  */
 
-#ifndef _HAPROXY_MINI_CLIST_H
-#define _HAPROXY_MINI_CLIST_H
+#ifndef _COMMON_MINI_CLIST_H
+#define _COMMON_MINI_CLIST_H
 
 /* these are circular or bidirectionnal lists only. Each list pointer points to
  * another list pointer in a structure, and not the structure itself. The
@@ -91,4 +91,4 @@ struct list {
 	for ( ; (iterator) != (end_item); (iterator) = (backup),   \
 		backup = LIST_ELEM((iterator)->struct_member.n, struct_type, struct_member))
 
-#endif /* _HAPROXY_MINI_CLIST_H */
+#endif /* _COMMON_MINI_CLIST_H */

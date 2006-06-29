@@ -11,7 +11,7 @@
  */
 
 #include <sys/time.h>
-#include <haproxy/time.h>
+#include <common/time.h>
 
 struct timeval now;             /* the current date at any moment */
 struct timeval start_date;      /* the process's start date */

@@ -26,8 +26,8 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
-#include <haproxy/defaults.h>
-#include <haproxy/config.h>
+#include <common/defaults.h>
+#include <common/config.h>
 
 
 /* FIXME: merge those ones together */

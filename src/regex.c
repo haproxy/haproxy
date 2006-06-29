@@ -14,8 +14,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <haproxy/regex.h>
-#include <haproxy/standard.h>
+#include <common/regex.h>
+#include <common/standard.h>
 #include <proto/log.h>
 
 /* regex trash buffer used by various regex tests */

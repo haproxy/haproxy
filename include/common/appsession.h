@@ -1,14 +1,14 @@
-#ifndef _HAPROXY_APPSESS_H
-#define _HAPROXY_APPSESS_H
+#ifndef _COMMON_APPSESS_H
+#define _COMMON_APPSESS_H
 
 #define TBLSIZ 10
 #define TBLCHKINT 5000 /* The time between two calls of appsession_refresh in ms */
 
 #include <sys/time.h>
 
-#include <haproxy/chtbl.h>
-#include <haproxy/hashpjw.h>
-#include <haproxy/list.h>
+#include <common/chtbl.h>
+#include <common/hashpjw.h>
+#include <common/list.h>
 
 #include <types/task.h>
 
@@ -48,7 +48,7 @@ int appsession_task_init(void);
 int appsession_init(void);
 void appsession_cleanup(void);
 
-#endif /* _HAPROXY_APPSESS_H */
+#endif /* _COMMON_APPSESS_H */
 
 /*
  * Local variables:

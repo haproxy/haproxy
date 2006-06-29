@@ -25,7 +25,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include <haproxy/mini-clist.h>
+#include <common/mini-clist.h>
 
 #include <types/buffers.h>
 #include <types/proxy.h>

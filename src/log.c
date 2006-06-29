@@ -20,7 +20,7 @@
 
 #include <sys/time.h>
 
-#include <haproxy/standard.h>
+#include <common/standard.h>
 
 #include <types/backend.h>
 #include <types/global.h>

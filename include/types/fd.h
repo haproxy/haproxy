@@ -26,7 +26,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include <haproxy/config.h>
+#include <common/config.h>
 #include <types/task.h>
 
 /* different possible states for the fd */

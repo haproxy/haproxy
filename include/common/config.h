@@ -1,6 +1,6 @@
 /*
-  include/haproxy/cfgparse.h
-  Configuration parsing functions.
+  include/common/config.h
+  This files contains most of the user-configurable settings.
 
   Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
   
@@ -19,27 +19,16 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#ifndef _HAPROXY_CFGPARSE_H
-#define _HAPROXY_CFGPARSE_H
+#ifndef _COMMON_CONFIG_H
+#define _COMMON_CONFIG_H
 
-/* configuration sections */
-#define CFG_NONE	0
-#define CFG_GLOBAL	1
-#define CFG_LISTEN	2
+#include <common/defaults.h>
 
-extern int cfg_maxpconn;
-extern int cfg_maxconn;
-
-int cfg_parse_global(char *file, int linenum, char **args);
-int cfg_parse_listen(char *file, int linenum, char **args);
-int readcfgfile(char *file);
-
-
-#endif /* _HAPROXY_CFGPARSE_H */
-
-/*
- * Local variables:
- *  c-indent-level: 8
- *  c-basic-offset: 8
- * End:
+/* this reduces the number of calls to select() by choosing appropriate
+ * sheduler precision in milliseconds. It should be near the minimum
+ * time that is needed by select() to collect all events. All timeouts
+ * are rounded up by adding this value prior to pass it to select().
  */
+#define SCHEDULER_RESOLUTION    9
+
+#endif /* _COMMON_CONFIG_H */

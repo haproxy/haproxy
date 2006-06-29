@@ -19,8 +19,8 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include <haproxy/compat.h>
-#include <haproxy/time.h>
+#include <common/compat.h>
+#include <common/time.h>
 
 #include <types/backend.h>
 #include <types/buffers.h>

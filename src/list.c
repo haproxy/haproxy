@@ -18,7 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <haproxy/list.h>
+#include <common/list.h>
 
 /*****************************************************************************
 *                                                                            *

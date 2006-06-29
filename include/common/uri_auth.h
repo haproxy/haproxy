@@ -10,8 +10,8 @@
  *
  */
 
-#ifndef _HAPROXY_URI_AUTH_H
-#define _HAPROXY_URI_AUTH_H
+#ifndef _COMMON_URI_AUTH_H
+#define _COMMON_URI_AUTH_H
 /* here we find a very basic list of base64-encoded 'user:passwd' strings */
 struct user_auth {
 	struct user_auth *next;		/* next entry, NULL if none */
@@ -65,4 +65,4 @@ struct uri_auth *stats_set_realm(struct uri_auth **root, char *realm);
 struct uri_auth *stats_add_auth(struct uri_auth **root, char *user);
 struct uri_auth *stats_add_scope(struct uri_auth **root, char *scope);
 
-#endif /* _HAPROXY_URI_AUTH_H */
+#endif /* _COMMON_URI_AUTH_H */

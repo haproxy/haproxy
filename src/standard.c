@@ -16,7 +16,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include <haproxy/standard.h>
+#include <common/standard.h>
 #include <proto/log.h>
 
 /* enough to store 2^63=18446744073709551615 */

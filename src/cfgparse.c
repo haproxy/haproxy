@@ -16,12 +16,12 @@
 #include <netdb.h>
 #include <ctype.h>
 
-#include <haproxy/cfgparse.h>
-#include <haproxy/config.h>
-#include <haproxy/memory.h>
-#include <haproxy/standard.h>
-#include <haproxy/time.h>
-#include <haproxy/uri_auth.h>
+#include <common/cfgparse.h>
+#include <common/config.h>
+#include <common/memory.h>
+#include <common/standard.h>
+#include <common/time.h>
+#include <common/uri_auth.h>
 
 #include <types/capture.h>
 #include <types/global.h>

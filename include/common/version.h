@@ -1,5 +1,5 @@
 /*
-  include/haproxy/template.h
+  include/common/version.h
   This file serves as a template for future include files.
 
   Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
@@ -19,15 +19,21 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#ifndef _HAPROXY_TEMPLATE_H
-#define _HAPROXY_TEMPLATE_H
+#ifndef _COMMON_VERSION_H
+#define _COMMON_VERSION_H
 
+#ifdef  CONFIG_PRODUCT_NAME
+#define PRODUCT_NAME CONFIG_PRODUCT_NAME
+#else
+#define PRODUCT_NAME "HAProxy"
+#endif
 
-#endif /* _HAPROXY_TEMPLATE_H */
+#ifndef HAPROXY_VERSION
+#define HAPROXY_VERSION "1.3.0"
+#endif
 
-/*
- * Local variables:
- *  c-indent-level: 8
- *  c-basic-offset: 8
- * End:
- */
+#ifndef HAPROXY_DATE
+#define HAPROXY_DATE    "2006/06/26"
+#endif
+
+#endif /* _COMMON_VERSION_H */

@@ -26,10 +26,10 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 
-#include <haproxy/appsession.h>
-#include <haproxy/chtbl.h>
-#include <haproxy/mini-clist.h>
-#include <haproxy/regex.h>
+#include <common/appsession.h>
+#include <common/chtbl.h>
+#include <common/mini-clist.h>
+#include <common/regex.h>
 
 #include <types/buffers.h>
 #include <types/session.h>

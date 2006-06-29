@@ -18,8 +18,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <haproxy/list.h>
-#include <haproxy/chtbl.h>
+#include <common/list.h>
+#include <common/chtbl.h>
 
 /*****************************************************************************
  *                                                                            *

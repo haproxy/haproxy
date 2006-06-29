@@ -16,8 +16,8 @@
 *                                                                            *
 *****************************************************************************/
 
-#ifndef _HAPROXY_HASHPJW_H
-#define _HAPROXY_HASHPJW_H
+#ifndef _COMMON_HASHPJW_H
+#define _COMMON_HASHPJW_H
 
 /*****************************************************************************
 *                                                                            *
@@ -35,4 +35,4 @@
 
 int hashpjw(const void *key);
 
-#endif /* _HAPROXY_HASHPJW_H */
+#endif /* _COMMON_HASHPJW_H */

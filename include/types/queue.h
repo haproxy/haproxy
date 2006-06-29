@@ -22,7 +22,7 @@
 #ifndef _TYPES_QUEUE_H
 #define _TYPES_QUEUE_H
 
-#include <haproxy/mini-clist.h>
+#include <common/mini-clist.h>
 
 #include <types/server.h>
 #include <types/session.h>

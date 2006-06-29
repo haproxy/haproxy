@@ -1,6 +1,6 @@
 /*
-  include/haproxy/version.h
-  This file serves as a template for future include files.
+  include/common/cfgparse.h
+  Configuration parsing functions.
 
   Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
   
@@ -19,21 +19,27 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#ifndef _HAPROXY_VERSION_H
-#define _HAPROXY_VERSION_H
+#ifndef _COMMON_CFGPARSE_H
+#define _COMMON_CFGPARSE_H
 
-#ifdef  CONFIG_PRODUCT_NAME
-#define PRODUCT_NAME CONFIG_PRODUCT_NAME
-#else
-#define PRODUCT_NAME "HAProxy"
-#endif
+/* configuration sections */
+#define CFG_NONE	0
+#define CFG_GLOBAL	1
+#define CFG_LISTEN	2
 
-#ifndef HAPROXY_VERSION
-#define HAPROXY_VERSION "1.3.0"
-#endif
+extern int cfg_maxpconn;
+extern int cfg_maxconn;
 
-#ifndef HAPROXY_DATE
-#define HAPROXY_DATE    "2006/06/26"
-#endif
+int cfg_parse_global(char *file, int linenum, char **args);
+int cfg_parse_listen(char *file, int linenum, char **args);
+int readcfgfile(char *file);
 
-#endif /* _HAPROXY_VERSION_H */
+
+#endif /* _COMMON_CFGPARSE_H */
+
+/*
+ * Local variables:
+ *  c-indent-level: 8
+ *  c-basic-offset: 8
+ * End:
+ */

@@ -10,9 +10,9 @@
  *
  */
 
-#include <haproxy/config.h>
-#include <haproxy/mini-clist.h>
-#include <haproxy/time.h>
+#include <common/config.h>
+#include <common/mini-clist.h>
+#include <common/time.h>
 
 #include <proto/task.h>
 

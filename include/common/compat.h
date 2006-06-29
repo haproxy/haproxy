@@ -1,5 +1,5 @@
 /*
-  include/haproxy/compat.h
+  include/common/compat.h
   Operating system compatibility interface.
 
   Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
@@ -19,8 +19,8 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#ifndef _HAPROXY_COMPAT_H
-#define _HAPROXY_COMPAT_H
+#ifndef _COMMON_COMPAT_H
+#define _COMMON_COMPAT_H
 
 /* This is needed on Linux for Netfilter includes */
 #include <sys/socket.h>
@@ -52,7 +52,7 @@
 #include <strings.h>
 #endif
 
-#endif /* _HAPROXY_COMPAT_H */
+#endif /* _COMMON_COMPAT_H */
 
 /*
  * Local variables:

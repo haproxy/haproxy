@@ -1,5 +1,5 @@
 /*
- * include/haproxy/base64.h
+ * include/common/base64.h
  * Ascii to Base64 conversion as described in RFC1421.
  *
  * Copyright 2006 Willy Tarreau <w@1wt.eu>
@@ -11,10 +11,10 @@
  *
  */
 
-#ifndef _HAPROXY_BASE64_H
-#define _HAPROXY_BASE64_H
+#ifndef _COMMON_BASE64_H
+#define _COMMON_BASE64_H
 
 int a2base64(char *in, int ilen, char *out, int olen);
 extern const char base64tab[];
 
-#endif /* _HAPROXY_BASE64_H */
+#endif /* _COMMON_BASE64_H */

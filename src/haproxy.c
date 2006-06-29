@@ -58,19 +58,19 @@
 #include <assert.h>
 #endif
 
-#include <haproxy/appsession.h>
-#include <haproxy/base64.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/compat.h>
-#include <haproxy/config.h>
-#include <haproxy/defaults.h>
-#include <haproxy/memory.h>
-#include <haproxy/mini-clist.h>
-#include <haproxy/regex.h>
-#include <haproxy/standard.h>
-#include <haproxy/time.h>
-#include <haproxy/uri_auth.h>
-#include <haproxy/version.h>
+#include <common/appsession.h>
+#include <common/base64.h>
+#include <common/cfgparse.h>
+#include <common/compat.h>
+#include <common/config.h>
+#include <common/defaults.h>
+#include <common/memory.h>
+#include <common/mini-clist.h>
+#include <common/regex.h>
+#include <common/standard.h>
+#include <common/time.h>
+#include <common/uri_auth.h>
+#include <common/version.h>
 
 #include <types/capture.h>
 #include <types/global.h>

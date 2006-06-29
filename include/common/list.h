@@ -15,8 +15,8 @@
 *                                                                            *
 *****************************************************************************/
 
-#ifndef _HAPROXY_LIST_H
-#define _HAPROXY_LIST_H
+#ifndef _COMMON_LIST_H
+#define _COMMON_LIST_H
 
 #include <stdlib.h>
 
@@ -74,7 +74,7 @@ int list_rem_next(List *list, ListElmt *element, void **data);
 
 #define list_next(element) ((element)->next)
 
-#endif /* _HAPROXY_LIST_H */
+#endif /* _COMMON_LIST_H */
 
 /*
  * Local variables:

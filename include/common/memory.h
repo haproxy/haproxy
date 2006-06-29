@@ -1,5 +1,5 @@
 /*
-  include/haproxy/memory.h
+  include/common/memory.h
   Memory management definitions..
 
   Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
@@ -19,12 +19,12 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#ifndef _HAPROXY_MEMORY_H
-#define _HAPROXY_MEMORY_H
+#ifndef _COMMON_MEMORY_H
+#define _COMMON_MEMORY_H
 
 #include <stdlib.h>
 
-#include <haproxy/config.h>
+#include <common/config.h>
 
 #define sizeof_requri   REQURI_LEN
 #define sizeof_capture  CAPTURE_LEN
@@ -112,7 +112,7 @@ static inline void pool_destroy(void **pool)
 	}
 }
 
-#endif /* _HAPROXY_MEMORY_H */
+#endif /* _COMMON_MEMORY_H */
 
 /*
  * Local variables:

@@ -10,7 +10,7 @@
  *
  */
 
-#include <haproxy/time.h>
+#include <common/time.h>
 
 #include <types/proxy.h>
 #include <types/session.h>

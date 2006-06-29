@@ -1,5 +1,5 @@
 /*
-  include/haproxy/defaults.h
+  include/common/defaults.h
   Miscellaneous default values.
 
   Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
@@ -19,8 +19,8 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#ifndef _HAPROXY_DEFAULTS_H
-#define _HAPROXY_DEFAULTS_H
+#ifndef _COMMON_DEFAULTS_H
+#define _COMMON_DEFAULTS_H
 
 
 /* CONFIG_HAP_MEM_OPTIM
@@ -91,4 +91,4 @@
 #define DEFAULT_MAXCONN SYSTEM_MAXCONN
 #endif
 
-#endif /* _HAPROXY_DEFAULTS_H */
+#endif /* _COMMON_DEFAULTS_H */

@@ -16,8 +16,8 @@
 #include <stdlib.h>
 #include <syslog.h>
 
-#include <haproxy/compat.h>
-#include <haproxy/time.h>
+#include <common/compat.h>
+#include <common/time.h>
 
 #include <types/buffers.h>
 #include <types/global.h>

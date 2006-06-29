@@ -11,11 +11,12 @@
  */
 
 #include <stdio.h>
+#include <string.h>
 
-#include <haproxy/appsession.h>
-#include <haproxy/chtbl.h>
-#include <haproxy/list.h>
-#include <haproxy/time.h>
+#include <common/appsession.h>
+#include <common/chtbl.h>
+#include <common/list.h>
+#include <common/time.h>
 
 #include <types/buffers.h>
 #include <types/global.h>

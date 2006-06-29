@@ -22,8 +22,8 @@
 #ifndef _TYPES_BUFFERS_H
 #define _TYPES_BUFFERS_H
 
-#include <haproxy/defaults.h>
-#include <haproxy/memory.h>
+#include <common/defaults.h>
+#include <common/memory.h>
 
 /* describes a chunk of string */
 struct chunk {

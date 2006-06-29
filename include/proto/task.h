@@ -25,7 +25,7 @@
 
 #include <sys/time.h>
 #include <types/task.h>
-#include <haproxy/memory.h>
+#include <common/memory.h>
 
 
 /* puts the task <t> in run queue <q>, and returns <t> */

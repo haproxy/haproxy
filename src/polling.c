@@ -14,9 +14,9 @@
 #include <sys/time.h>
 #include <sys/types.h>
 
-#include <haproxy/compat.h>
-#include <haproxy/config.h>
-#include <haproxy/time.h>
+#include <common/compat.h>
+#include <common/config.h>
+#include <common/time.h>
 
 #include <types/fd.h>
 #include <types/global.h>

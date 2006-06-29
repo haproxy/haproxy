@@ -1,5 +1,5 @@
 /*
-  include/haproxy/time.h
+  include/common/time.h
   Time calculation functions and macros.
 
   Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
@@ -19,8 +19,8 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#ifndef _HAPROXY_TIME_H
-#define _HAPROXY_TIME_H
+#ifndef _COMMON_TIME_H
+#define _COMMON_TIME_H
 
 #include <stdlib.h>
 #include <sys/time.h>
@@ -166,7 +166,7 @@ static inline struct timeval *tv_min(struct timeval *tvmin,
 }
 
 
-#endif /* _HAPROXY_TIME_H */
+#endif /* _COMMON_TIME_H */
 
 /*
  * Local variables:

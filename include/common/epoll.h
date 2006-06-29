@@ -1,5 +1,5 @@
 /*
-  include/haproxy/epoll.h
+  include/common/epoll.h
   epoll definitions for older libc.
 
   Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
@@ -26,8 +26,8 @@
  * just a basic definition.
  */
 
-#ifndef _HAPROXY_EPOLL_H
-#define _HAPROXY_EPOLL_H
+#ifndef _COMMON_EPOLL_H
+#define _COMMON_EPOLL_H
 
 #include <linux/unistd.h>
 #include <stdint.h>
@@ -92,7 +92,7 @@ extern int epoll_create(int size);
 extern int epoll_ctl(int epfd, int op, int fd, struct epoll_event * event);
 extern int epoll_wait(int epfd, struct epoll_event * events, int maxevents, int timeout);
 
-#endif /* _HAPROXY_EPOLL_H */
+#endif /* _COMMON_EPOLL_H */
 
 
 /*

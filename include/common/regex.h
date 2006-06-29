@@ -1,5 +1,5 @@
 /*
-  include/haproxy/regex.h
+  include/common/regex.h
   This file defines everything related to regular expressions.
 
   Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
@@ -19,10 +19,10 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#ifndef _HAPROXY_REGEX_H
-#define _HAPROXY_REGEX_H
+#ifndef _COMMON_REGEX_H
+#define _COMMON_REGEX_H
 
-#include <haproxy/defaults.h>
+#include <common/defaults.h>
 
 #ifdef USE_PCRE
 #include <pcre.h>
@@ -51,7 +51,7 @@ int exp_replace(char *dst, char *src, char *str, regmatch_t *matches);
 char *check_replace_string(char *str);
 char *chain_regex(struct hdr_exp **head, regex_t *preg, int action, char *replace);
 
-#endif /* _HAPROXY_REGEX_H */
+#endif /* _COMMON_REGEX_H */
 
 /*
  * Local variables:

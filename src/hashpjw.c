@@ -16,8 +16,8 @@
 *                                                                            *
 *****************************************************************************/
 
-#include <haproxy/hashpjw.h>
-#include <haproxy/appsession.h>
+#include <common/hashpjw.h>
+#include <common/appsession.h>
 
 /*****************************************************************************
 *                                                                            *
