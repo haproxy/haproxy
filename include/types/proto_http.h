@@ -22,6 +22,7 @@
 #ifndef _TYPES_PROTO_HTTP_H
 #define _TYPES_PROTO_HTTP_H
 
+#include <common/config.h>
 
 /*
  * FIXME: break this into HTTP state and TCP socket state.

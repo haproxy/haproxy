@@ -26,6 +26,7 @@
 #include <stdio.h>
 #include <syslog.h>
 
+#include <common/config.h>
 #include <types/log.h>
 #include <types/proxy.h>
 #include <types/session.h>

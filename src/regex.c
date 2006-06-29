@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <common/config.h>
 #include <common/regex.h>
 #include <common/standard.h>
 #include <proto/log.h>

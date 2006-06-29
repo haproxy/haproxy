@@ -22,6 +22,7 @@
 #ifndef _PROTO_POLLING_H
 #define _PROTO_POLLING_H
 
+#include <common/config.h>
 #include <types/polling.h>
 
 /*

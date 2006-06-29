@@ -22,6 +22,8 @@
 #ifndef _TYPES_CLIENT_H
 #define _TYPES_CLIENT_H
 
+#include <common/config.h>
+
 /*
  * FIXME: break this into HTTP state and TCP socket state.
  * See server.h for the other end.

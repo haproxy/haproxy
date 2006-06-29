@@ -22,9 +22,9 @@
 #ifndef _TYPES_TASK_H
 #define _TYPES_TASK_H
 
-
 #include <sys/time.h>
 
+#include <common/config.h>
 
 /* values for task->state */
 #define TASK_IDLE	0

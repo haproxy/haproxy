@@ -10,6 +10,7 @@
  *
  */
 
+#include <common/config.h>
 #include <types/backend.h>
 #include <types/proxy.h>
 #include <types/server.h>

@@ -22,6 +22,7 @@
 #ifndef _PROTO_PROTO_HTTP_H
 #define _PROTO_PROTO_HTTP_H
 
+#include <common/config.h>
 #include <types/proto_http.h>
 #include <types/session.h>
 #include <types/task.h>

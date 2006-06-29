@@ -22,6 +22,7 @@
 #ifndef _PROTO_BACKEND_H
 #define _PROTO_BACKEND_H
 
+#include <common/config.h>
 
 #include <types/backend.h>
 #include <types/session.h>

@@ -20,6 +20,7 @@
 #include <sys/types.h>
 
 #include <common/compat.h>
+#include <common/config.h>
 #include <common/time.h>
 
 #include <types/backend.h>

@@ -24,6 +24,7 @@
 
 #include <netinet/in.h>
 
+#include <common/config.h>
 #include <types/task.h>
 
 /* modes of operation (global.mode) */

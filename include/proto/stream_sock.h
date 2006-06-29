@@ -26,7 +26,6 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
-#include <common/defaults.h>
 #include <common/config.h>
 
 

@@ -11,6 +11,8 @@
  */
 
 #include <string.h>
+
+#include <common/config.h>
 #include <proto/buffers.h>
 
 void **pool_buffer   = NULL;

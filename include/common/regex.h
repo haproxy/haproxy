@@ -22,7 +22,7 @@
 #ifndef _COMMON_REGEX_H
 #define _COMMON_REGEX_H
 
-#include <common/defaults.h>
+#include <common/config.h>
 
 #ifdef USE_PCRE
 #include <pcre.h>

@@ -10,6 +10,7 @@
  *
  */
 
+#include <common/config.h>
 #include <common/time.h>
 
 #include <types/proxy.h>

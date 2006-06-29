@@ -12,6 +12,9 @@
 
 #ifndef _COMMON_URI_AUTH_H
 #define _COMMON_URI_AUTH_H
+
+#include <common/config.h>
+
 /* here we find a very basic list of base64-encoded 'user:passwd' strings */
 struct user_auth {
 	struct user_auth *next;		/* next entry, NULL if none */

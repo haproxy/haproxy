@@ -11,6 +11,7 @@
  */
 
 #include <common/base64.h>
+#include <common/config.h>
 
 const char base64tab[64]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 

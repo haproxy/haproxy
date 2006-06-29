@@ -22,6 +22,8 @@
 #ifndef _COMMON_CFGPARSE_H
 #define _COMMON_CFGPARSE_H
 
+#include <common/config.h>
+
 /* configuration sections */
 #define CFG_NONE	0
 #define CFG_GLOBAL	1

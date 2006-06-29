@@ -23,6 +23,7 @@
 #define _PROTO_CHECKS_H
 
 #include <types/task.h>
+#include <common/config.h>
 
 int process_chk(struct task *t);
 

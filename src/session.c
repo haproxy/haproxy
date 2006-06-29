@@ -11,6 +11,8 @@
  */
 
 #include <stdlib.h>
+
+#include <common/config.h>
 #include <common/memory.h>
 
 #include <types/backend.h>

@@ -31,4 +31,13 @@
  */
 #define SCHEDULER_RESOLUTION    9
 
+/* CONFIG_HAP_MEM_OPTIM
+ * This enables use of memory pools instead of malloc()/free(). There
+ * is no reason to disable it, except perhaps for rare debugging.
+ */
+#ifndef   CONFIG_HAP_NO_MEM_OPTIM
+#  define CONFIG_HAP_MEM_OPTIM
+#endif /* CONFIG_HAP_NO_MEM_OPTIM */
+
+
 #endif /* _COMMON_CONFIG_H */

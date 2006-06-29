@@ -29,8 +29,10 @@
 #ifndef _COMMON_EPOLL_H
 #define _COMMON_EPOLL_H
 
-#include <linux/unistd.h>
 #include <stdint.h>
+#include <linux/unistd.h>
+
+#include <common/config.h>
 
 /* epoll_ctl() commands */
 #ifndef EPOLL_CTL_ADD

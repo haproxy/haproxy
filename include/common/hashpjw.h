@@ -19,6 +19,8 @@
 #ifndef _COMMON_HASHPJW_H
 #define _COMMON_HASHPJW_H
 
+#include <common/config.h>
+
 /*****************************************************************************
 *                                                                            *
 *  Define a table size for demonstration purposes only.                      *

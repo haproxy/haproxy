@@ -11,6 +11,8 @@
  */
 
 #include <stdlib.h>
+
+#include <common/config.h>
 #include <types/capture.h>
 
 void **pool_capture  = NULL;

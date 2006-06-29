@@ -22,15 +22,6 @@
 #ifndef _COMMON_DEFAULTS_H
 #define _COMMON_DEFAULTS_H
 
-
-/* CONFIG_HAP_MEM_OPTIM
- * This enables use of memory pools instead of malloc()/free(). There
- * is no reason to disable it, except perhaps for rare debugging.
- */
-#ifndef   CONFIG_HAP_NO_MEM_OPTIM
-#  define CONFIG_HAP_MEM_OPTIM
-#endif /* CONFIG_HAP_NO_MEM_OPTIM */
-
 /*
  * BUFSIZE defines the size of a read and write buffer. It is the maximum
  * amount of bytes which can be stored by the proxy for each session. However,

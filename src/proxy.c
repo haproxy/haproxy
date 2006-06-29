@@ -18,6 +18,7 @@
 
 #include <common/defaults.h>
 #include <common/compat.h>
+#include <common/config.h>
 #include <common/time.h>
 
 #include <types/global.h>

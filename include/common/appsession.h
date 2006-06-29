@@ -7,6 +7,7 @@
 #include <sys/time.h>
 
 #include <common/chtbl.h>
+#include <common/config.h>
 #include <common/hashpjw.h>
 #include <common/list.h>
 

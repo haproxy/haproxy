@@ -22,6 +22,8 @@
 #ifndef _TYPES_HTTPERR_H
 #define _TYPES_HTTPERR_H
 
+#include <common/config.h>
+
 /* various data sources for the responses */
 #define DATA_SRC_NONE	0
 #define DATA_SRC_STATS	1

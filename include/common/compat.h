@@ -24,6 +24,7 @@
 
 /* This is needed on Linux for Netfilter includes */
 #include <sys/socket.h>
+#include <common/config.h>
 
 /* INTBITS
  * how many bits are needed to code the size of an int on the target platform.

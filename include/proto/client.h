@@ -22,8 +22,8 @@
 #ifndef _PROTO_CLIENT_H
 #define _PROTO_CLIENT_H
 
+#include <common/config.h>
 #include <types/client.h>
-
 
 int event_accept(int fd);
 

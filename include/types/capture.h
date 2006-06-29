@@ -22,6 +22,8 @@
 #ifndef _TYPES_CAPTURE_H
 #define _TYPES_CAPTURE_H
 
+#include <common/config.h>
+
 struct cap_hdr {
     struct cap_hdr *next;
     char *name;				/* header name, case insensitive */

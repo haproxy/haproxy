@@ -22,6 +22,8 @@
 #ifndef _TYPES_BACKEND_H
 #define _TYPES_BACKEND_H
 
+#include <common/config.h>
+
 /* bits for proxy->options */
 #define PR_O_REDISP     0x00000001      /* allow reconnection to dispatch in case of errors */
 #define PR_O_TRANSP     0x00000002      /* transparent mode : use original DEST as dispatch */

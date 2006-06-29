@@ -26,6 +26,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <common/config.h>
 #include <types/fd.h>
 
 /* Deletes an FD from the fdsets, and recomputes the maxfd limit.

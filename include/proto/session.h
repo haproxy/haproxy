@@ -22,7 +22,7 @@
 #ifndef _PROTO_SESSION_H
 #define _PROTO_SESSION_H
 
-
+#include <common/config.h>
 #include <types/session.h>
 
 void session_free(struct session *s);

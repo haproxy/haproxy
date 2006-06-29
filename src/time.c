@@ -11,6 +11,8 @@
  */
 
 #include <sys/time.h>
+
+#include <common/config.h>
 #include <common/time.h>
 
 struct timeval now;             /* the current date at any moment */

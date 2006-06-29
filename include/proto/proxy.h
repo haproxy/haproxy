@@ -22,7 +22,7 @@
 #ifndef _PROTO_PROXY_H
 #define _PROTO_PROXY_H
 
-
+#include <common/config.h>
 #include <types/proxy.h>
 
 int start_proxies(int verbose);

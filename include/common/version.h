@@ -22,17 +22,23 @@
 #ifndef _COMMON_VERSION_H
 #define _COMMON_VERSION_H
 
+#include <common/config.h>
+
 #ifdef  CONFIG_PRODUCT_NAME
-#define PRODUCT_NAME CONFIG_PRODUCT_NAME
+#define PRODUCT_NAME    CONFIG_PRODUCT_NAME
 #else
-#define PRODUCT_NAME "HAProxy"
+#define PRODUCT_NAME    "HAProxy"
 #endif
 
-#ifndef HAPROXY_VERSION
+#ifdef CONFIG_HAPROXY_VERSION
+#define HAPROXY_VERSION CONFIG_HAPROXY_VERSION
+#else
 #define HAPROXY_VERSION "1.3.0"
 #endif
 
-#ifndef HAPROXY_DATE
+#ifdef CONFIG_HAPROXY_DATE
+#define HAPROXY_DATE    CONFIG_HAPROXY_DATE
+#else
 #define HAPROXY_DATE    "2006/06/26"
 #endif
 

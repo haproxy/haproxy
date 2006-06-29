@@ -24,8 +24,10 @@
 
 
 #include <sys/time.h>
-#include <types/task.h>
+
+#include <common/config.h>
 #include <common/memory.h>
+#include <types/task.h>
 
 
 /* puts the task <t> in run queue <q>, and returns <t> */

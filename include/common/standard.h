@@ -23,9 +23,7 @@
 #define _COMMON_STANDARD_H
 
 #include <netinet/in.h>
-#include <common/defaults.h>
-#include <common/compat.h>
-
+#include <common/config.h>
 
 /****** string-specific macros and functions ******/
 /* if a > max, then bound <a> to <max>. The macro returns the new <a> */

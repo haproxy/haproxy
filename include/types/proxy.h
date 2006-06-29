@@ -28,6 +28,7 @@
 
 #include <common/appsession.h>
 #include <common/chtbl.h>
+#include <common/config.h>
 #include <common/mini-clist.h>
 #include <common/regex.h>
 

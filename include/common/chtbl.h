@@ -20,7 +20,8 @@
 
 #include <stdlib.h>
 
-#include "list.h"
+#include <common/config.h>
+#include <common/list.h>
 
 /*****************************************************************************
 *                                                                            *

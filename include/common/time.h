@@ -24,6 +24,7 @@
 
 #include <stdlib.h>
 #include <sys/time.h>
+#include <common/config.h>
 
 #define TIME_ETERNITY		-1
 

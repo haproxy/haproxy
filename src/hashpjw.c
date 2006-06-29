@@ -16,6 +16,7 @@
 *                                                                            *
 *****************************************************************************/
 
+#include <common/config.h>
 #include <common/hashpjw.h>
 #include <common/appsession.h>
 

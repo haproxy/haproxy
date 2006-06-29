@@ -22,6 +22,7 @@
 #ifndef _TYPES_LOG_H
 #define _TYPES_LOG_H
 
+#include <common/config.h>
 
 #define MAX_SYSLOG_LEN          1024
 #define NB_LOG_FACILITIES       24

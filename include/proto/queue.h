@@ -22,6 +22,7 @@
 #ifndef _PROTO_QUEUE_H
 #define _PROTO_QUEUE_H
 
+#include <common/config.h>
 #include <common/memory.h>
 #include <common/mini-clist.h>
 

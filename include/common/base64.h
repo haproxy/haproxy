@@ -14,6 +14,8 @@
 #ifndef _COMMON_BASE64_H
 #define _COMMON_BASE64_H
 
+#include <common/config.h>
+
 int a2base64(char *in, int ilen, char *out, int olen);
 extern const char base64tab[];
 

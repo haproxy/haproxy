@@ -1,5 +1,5 @@
 /*
-  include/fd.h
+  include/types/fd.h
   File descriptors states.
 
   Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu

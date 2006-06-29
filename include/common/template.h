@@ -22,6 +22,7 @@
 #ifndef _COMMON_TEMPLATE_H
 #define _COMMON_TEMPLATE_H
 
+#include <common/config.h>
 
 #endif /* _COMMON_TEMPLATE_H */
 

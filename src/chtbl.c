@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <common/config.h>
 #include <common/list.h>
 #include <common/chtbl.h>
 

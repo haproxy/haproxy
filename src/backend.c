@@ -17,6 +17,7 @@
 #include <syslog.h>
 
 #include <common/compat.h>
+#include <common/config.h>
 #include <common/time.h>
 
 #include <types/buffers.h>

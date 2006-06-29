@@ -22,6 +22,7 @@
 #ifndef _TYPES_TEMPLATE_H
 #define _TYPES_TEMPLATE_H
 
+#include <common/config.h>
 
 #endif /* _TYPES_TEMPLATE_H */
 

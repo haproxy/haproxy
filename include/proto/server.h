@@ -24,6 +24,7 @@
 
 #include <unistd.h>
 
+#include <common/config.h>
 #include <types/proxy.h>
 #include <types/queue.h>
 #include <types/server.h>

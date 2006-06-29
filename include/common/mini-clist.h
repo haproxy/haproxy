@@ -7,6 +7,8 @@
 #ifndef _COMMON_MINI_CLIST_H
 #define _COMMON_MINI_CLIST_H
 
+#include <common/config.h>
+
 /* these are circular or bidirectionnal lists only. Each list pointer points to
  * another list pointer in a structure, and not the structure itself. The
  * pointer to the next element MUST be the first one so that the list is easily

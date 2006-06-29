@@ -19,6 +19,7 @@
 #define _COMMON_LIST_H
 
 #include <stdlib.h>
+#include <common/config.h>
 
 /*****************************************************************************
  *                                                                            *

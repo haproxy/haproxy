@@ -16,6 +16,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <common/config.h>
 #include <common/standard.h>
 #include <proto/log.h>
 

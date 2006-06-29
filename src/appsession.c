@@ -15,6 +15,7 @@
 
 #include <common/appsession.h>
 #include <common/chtbl.h>
+#include <common/config.h>
 #include <common/list.h>
 #include <common/time.h>
 

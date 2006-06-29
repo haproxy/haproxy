@@ -22,7 +22,7 @@
 #ifndef _TYPES_BUFFERS_H
 #define _TYPES_BUFFERS_H
 
-#include <common/defaults.h>
+#include <common/config.h>
 #include <common/memory.h>
 
 /* describes a chunk of string */
