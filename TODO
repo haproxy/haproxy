@@ -164,7 +164,5 @@ Todo for 1.2
 TODO for 1.3
 ============
   - check all copyrights
-  - put haproxy/config.h in every include file. This one will automatically
-    include version.h, defaults.h and compat.h.
   - fix Makefile.bsd
   - separate inline functions to put them in files covered by GPL

@@ -1,6 +1,10 @@
 ChangeLog :
 ===========
 
+2006/06/29 : 1.3.0
+   - exploded the whole file into multiple .c and .h. No functionnal
+     behaviour is expected at all.
+
 2006/05/21 : 1.2.14
    - new HTML status report with the 'stats' keyword.
    - added the 'abortonclose' option to better resist traffic surges
