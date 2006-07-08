@@ -1873,6 +1873,15 @@ int readcfgfile(char *file)
 			}
 		}
 
+		if ((curproxy->mode == PR_MODE_TCP || curproxy->mode == PR_MODE_HTTP) &&
+		    (!curproxy->clitimeout || !curproxy->contimeout || !curproxy->srvtimeout)) {
+			Warning("parsing %s : missing timeouts for listener '%s'.\n"
+				"   | While not properly invalid, you will certainly encounter various problems\n"
+				"   | with such a configuration. To fix this, please ensure that all following\n"
+				"   | values are set to a non-zero value: clitimeout, contimeout, srvtimeout.\n",
+				file, curproxy->id);
+		}
+		
 		/* first, we will invert the servers list order */
 		newsrv = NULL;
 		while (curproxy->srv) {
