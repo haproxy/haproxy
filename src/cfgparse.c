@@ -53,6 +53,7 @@ const char *HTTP_400 =
 	"HTTP/1.0 400 Bad request\r\n"
 	"Cache-Control: no-cache\r\n"
 	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
 	"\r\n"
 	"<html><body><h1>400 Bad request</h1>\nYour browser sent an invalid request.\n</body></html>\n";
 
@@ -60,6 +61,7 @@ const char *HTTP_403 =
 	"HTTP/1.0 403 Forbidden\r\n"
 	"Cache-Control: no-cache\r\n"
 	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
 	"\r\n"
 	"<html><body><h1>403 Forbidden</h1>\nRequest forbidden by administrative rules.\n</body></html>\n";
 
@@ -67,6 +69,7 @@ const char *HTTP_408 =
 	"HTTP/1.0 408 Request Time-out\r\n"
 	"Cache-Control: no-cache\r\n"
 	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
 	"\r\n"
 	"<html><body><h1>408 Request Time-out</h1>\nYour browser didn't send a complete request in time.\n</body></html>\n";
 
@@ -74,6 +77,7 @@ const char *HTTP_500 =
 	"HTTP/1.0 500 Server Error\r\n"
 	"Cache-Control: no-cache\r\n"
 	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
 	"\r\n"
 	"<html><body><h1>500 Server Error</h1>\nAn internal server error occured.\n</body></html>\n";
 
@@ -81,6 +85,7 @@ const char *HTTP_502 =
 	"HTTP/1.0 502 Bad Gateway\r\n"
 	"Cache-Control: no-cache\r\n"
 	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
 	"\r\n"
 	"<html><body><h1>502 Bad Gateway</h1>\nThe server returned an invalid or incomplete response.\n</body></html>\n";
 
@@ -88,6 +93,7 @@ const char *HTTP_503 =
 	"HTTP/1.0 503 Service Unavailable\r\n"
 	"Cache-Control: no-cache\r\n"
 	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
 	"\r\n"
 	"<html><body><h1>503 Service Unavailable</h1>\nNo server is available to handle this request.\n</body></html>\n";
 
@@ -95,6 +101,7 @@ const char *HTTP_504 =
 	"HTTP/1.0 504 Gateway Time-out\r\n"
 	"Cache-Control: no-cache\r\n"
 	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
 	"\r\n"
 	"<html><body><h1>504 Gateway Time-out</h1>\nThe server didn't respond in time.\n</body></html>\n";
 

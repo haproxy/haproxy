@@ -55,6 +55,7 @@ const char *HTTP_401_fmt =
 	"HTTP/1.0 401 Unauthorized\r\n"
 	"Cache-Control: no-cache\r\n"
 	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
 	"WWW-Authenticate: Basic realm=\"%s\"\r\n"
 	"\r\n"
 	"<html><body><h1>401 Unauthorized</h1>\nYou need a valid user and password to access this content.\n</body></html>\n";
@@ -2392,6 +2393,7 @@ int produce_content(struct session *s)
 					   "HTTP/1.0 200 OK\r\n"
 					   "Cache-Control: no-cache\r\n"
 					   "Connection: close\r\n"
+					   "Content-Type: text/html\r\n"
 					   "\r\n\r\n");
 	    
 			s->logs.status = 200;
