@@ -62,7 +62,7 @@ fi
 
 %files
 %defattr(-,root,root)
-%doc CHANGELOG TODO examples doc/haproxy-en.txt doc/haproxy-fr.txt doc/architecture.txt
+%doc CHANGELOG TODO examples doc/haproxy-en.txt doc/haproxy-fr.txt doc/architecture.txt examples/url-switching.cfg
 %attr(0755,root,root) %{_sbindir}/%{name}
 %dir %{_sysconfdir}/%{name}
 %attr(0644,root,root) %config(noreplace) %{_sysconfdir}/%{name}/%{name}.cfg
