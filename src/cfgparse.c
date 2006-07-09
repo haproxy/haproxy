@@ -521,6 +521,11 @@ int cfg_parse_listen(char *file, int linenum, char **args)
 		curproxy->source_addr = defproxy.source_addr;
 		curproxy->mon_net = defproxy.mon_net;
 		curproxy->mon_mask = defproxy.mon_mask;
+
+		if (defproxy.monitor_uri)
+			curproxy->monitor_uri = strdup(defproxy.monitor_uri);
+		curproxy->monitor_uri_len = defproxy.monitor_uri_len;
+
 		return 0;
 	}
 	else if (!strcmp(args[0], "defaults")) {  /* use this one to assign default values */
@@ -535,6 +540,7 @@ int cfg_parse_listen(char *file, int linenum, char **args)
 		if (defproxy.errmsg.msg502) free(defproxy.errmsg.msg502);
 		if (defproxy.errmsg.msg503) free(defproxy.errmsg.msg503);
 		if (defproxy.errmsg.msg504) free(defproxy.errmsg.msg504);
+		if (defproxy.monitor_uri)   free(defproxy.monitor_uri);
 		/* we cannot free uri_auth because it might already be used */
 		init_default_instance();
 		curproxy = &defproxy;
@@ -570,6 +576,24 @@ int cfg_parse_listen(char *file, int linenum, char **args)
 		}
 		/* flush useless bits */
 		curproxy->mon_net.s_addr &= curproxy->mon_mask.s_addr;
+		return 0;
+	}
+	else if (!strcmp(args[0], "monitor-uri")) {  /* set the URI to intercept */
+		if (!*args[1]) {
+			Alert("parsing [%s:%d] : '%s' expects an URI.\n",
+			      file, linenum, args[0]);
+			return -1;
+		}
+
+		if (curproxy->monitor_uri != NULL)
+			free(curproxy->monitor_uri);
+
+		curproxy->monitor_uri_len = strlen(args[1]) + 2; /* include leading and trailing spaces */
+		curproxy->monitor_uri = (char *)calloc(1, curproxy->monitor_uri_len + 1);
+		memcpy(curproxy->monitor_uri + 1, args[1], curproxy->monitor_uri_len - 2);
+		curproxy->monitor_uri[curproxy->monitor_uri_len-1] = curproxy->monitor_uri[0] = ' ';
+		curproxy->monitor_uri[curproxy->monitor_uri_len] = '\0';
+
 		return 0;
 	}
 	else if (!strcmp(args[0], "mode")) {  /* sets the proxy mode */
@@ -1901,6 +1925,10 @@ int readcfgfile(char *file)
 			}
 			if (curproxy->req_exp != NULL) {
 				Warning("parsing %s : client regular expressions will be ignored for listener %s.\n",
+					file, curproxy->id);
+			}
+			if (curproxy->monitor_uri != NULL) {
+				Warning("parsing %s : monitor-uri will be ignored for listener %s.\n",
 					file, curproxy->id);
 			}
 		}

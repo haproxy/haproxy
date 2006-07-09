@@ -67,42 +67,44 @@ struct proxy {
 	int state;				/* proxy state */
 	struct sockaddr_in dispatch_addr;	/* the default address to connect to */
 	struct server *srv;			/* known servers */
-	int srv_act, srv_bck;		/* # of running servers */
-	int tot_wact, tot_wbck;		/* total weights of active and backup servers */
+	int srv_act, srv_bck;			/* # of running servers */
+	int tot_wact, tot_wbck;			/* total weights of active and backup servers */
 	struct server **srv_map;		/* the server map used to apply weights */
-	int srv_map_sz;			/* the size of the effective server map */
-	int srv_rr_idx;			/* next server to be elected in round robin mode */
+	int srv_map_sz;				/* the size of the effective server map */
+	int srv_rr_idx;				/* next server to be elected in round robin mode */
 	char *cookie_name;			/* name of the cookie to look for */
 	int  cookie_len;			/* strlen(cookie_name), computed only once */
-	char *appsession_name;		/* name of the cookie to look for */
+	char *appsession_name;			/* name of the cookie to look for */
 	int  appsession_name_len;		/* strlen(appsession_name), computed only once */
-	int  appsession_len;		/* length of the appsession cookie value to be used */
+	int  appsession_len;			/* length of the appsession cookie value to be used */
 	int  appsession_timeout;
 	CHTbl htbl_proxy;			/* Per Proxy hashtable */
 	char *capture_name;			/* beginning of the name of the cookie to capture */
-	int  capture_namelen;		/* length of the cookie name to match */
+	int  capture_namelen;			/* length of the cookie name to match */
 	int  capture_len;			/* length of the string to be captured */
 	struct uri_auth *uri_auth;		/* if non-NULL, the (list of) per-URI authentications */
-	int clitimeout;			/* client I/O timeout (in milliseconds) */
-	int srvtimeout;			/* server I/O timeout (in milliseconds) */
-	int contimeout;			/* connect timeout (in milliseconds) */
+	char *monitor_uri;			/* a special URI to which we respond with HTTP/200 OK */
+	int monitor_uri_len;			/* length of the string above. 0 if unused */
+	int clitimeout;				/* client I/O timeout (in milliseconds) */
+	int srvtimeout;				/* server I/O timeout (in milliseconds) */
+	int contimeout;				/* connect timeout (in milliseconds) */
 	char *id;				/* proxy id */
-	struct list pendconns;		/* pending connections with no server assigned yet */
-	int nbpend, nbpend_max;		/* number of pending connections with no server assigned yet */
-	int totpend;			/* total number of pending connections on this instance (for stats) */
+	struct list pendconns;			/* pending connections with no server assigned yet */
+	int nbpend, nbpend_max;			/* number of pending connections with no server assigned yet */
+	int totpend;				/* total number of pending connections on this instance (for stats) */
 	unsigned int nbconn, nbconn_max;	/* # of active sessions */
-	unsigned int cum_conn;		/* cumulated number of processed sessions */
-	unsigned int maxconn;		/* max # of active sessions */
+	unsigned int cum_conn;			/* cumulated number of processed sessions */
+	unsigned int maxconn;			/* max # of active sessions */
 	unsigned failed_conns, failed_resp;	/* failed connect() and responses */
-	unsigned failed_secu;		/* blocked responses because of security concerns */
+	unsigned failed_secu;			/* blocked responses because of security concerns */
 	int conn_retries;			/* maximum number of connect retries */
-	int options;			/* PR_O_REDISP, PR_O_TRANSP, ... */
+	int options;				/* PR_O_REDISP, PR_O_TRANSP, ... */
 	int mode;				/* mode = PR_MODE_TCP, PR_MODE_HTTP or PR_MODE_HEALTH */
-	struct sockaddr_in source_addr;	/* the address to which we want to bind for connect() */
+	struct sockaddr_in source_addr;		/* the address to which we want to bind for connect() */
 	struct proxy *next;
-	struct sockaddr_in logsrv1, logsrv2; /* 2 syslog servers */
-	signed char logfac1, logfac2;	/* log facility for both servers. -1 = disabled */
-	int loglev1, loglev2;		/* log level for each server, 7 by default */
+	struct sockaddr_in logsrv1, logsrv2;	/* 2 syslog servers */
+	signed char logfac1, logfac2;		/* log facility for both servers. -1 = disabled */
+	int loglev1, loglev2;			/* log level for each server, 7 by default */
 	int to_log;				/* things to be logged (LW_*) */
 	struct timeval stop_time;		/* date to stop listening, when stopping != 0 */
 	int nb_reqadd, nb_rspadd;

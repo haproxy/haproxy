@@ -494,6 +494,27 @@ Example :
        monitor-net 192.168.1.252/31   # L4 load-balancers on .252 and .253
 
 
+When the system executing the checks is located behind a proxy, the monitor-net
+keyword cannot be used because haproxy will always see the proxy's address. To
+overcome this limitation, version 1.2.15 brought the 'monitor-uri' keyword. It
+defines an URI which will not be forwarded nor logged, but for which haproxy
+will immediately send an "HTTP/1.0 200 OK" response. This makes it possible to
+check the validity of the reverse-proxy->haproxy chain with one request. It can
+be used in HTTPS checks in front of an stunnel -> haproxy combination for
+instance. Obviously, this keyword is only valid in HTTP mode, otherwise there
+is no notion of URI. Note that the method and HTTP versions are simply ignored.
+
+Example :
+---------
+
+    listen stunnel_backend :8080
+       mode http
+       balance roundrobin
+       server web1 192.168.1.10:80 check
+       server web2 192.168.1.11:80 check
+       monitor-uri /haproxy_test
+
+
 2.3) Limiting the number of simultaneous connections
 ----------------------------------------------------
 The 'maxconn' parameter allows a proxy to refuse connections above a certain
