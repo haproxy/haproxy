@@ -119,11 +119,19 @@ int event_srv_chk_w(int fd)
 	}
 	else if (s->result != -1) {
 		/* we don't want to mark 'UP' a server on which we detected an error earlier */
-		if (s->proxy->options & PR_O_HTTP_CHK) {
+		if ((s->proxy->options & PR_O_HTTP_CHK) ||
+		    (s->proxy->options & PR_O_SSL3_CHK)) {
 			int ret;
-			/* we want to check if this host replies to "OPTIONS / HTTP/1.0"
+			/* we want to check if this host replies to HTTP or SSLv3 requests
 			 * so we'll send the request, and won't wake the checker up now.
 			 */
+
+			if (s->proxy->options & PR_O_SSL3_CHK) {
+				/* SSL requires that we put Unix time in the request */
+				int gmt_time = htonl(now.tv_sec);
+				memcpy(s->proxy->check_req + 11, &gmt_time, 4);
+			}
+
 #ifndef MSG_NOSIGNAL
 			ret = send(fd, s->proxy->check_req, s->proxy->check_len, MSG_DONTWAIT);
 #else
@@ -151,9 +159,12 @@ int event_srv_chk_w(int fd)
 
 
 /*
- * This function is used only for server health-checks. It handles
- * the server's reply to an HTTP request. It returns 1 if the server replies
- * 2xx or 3xx (valid responses), or -1 in other cases.
+ * This function is used only for server health-checks. It handles the server's
+ * reply to an HTTP request or SSL HELLO. It returns 1 in s->result if the
+ * server replies HTTP 2xx or 3xx (valid responses), or if it returns at least
+ * 5 bytes in response to SSL HELLO. The principle is that this is enough to
+ * distinguish between an SSL server and a pure TCP relay. All other cases will
+ * return -1. The function returns 0.
  */
 int event_srv_chk_r(int fd)
 {
@@ -177,10 +188,12 @@ int event_srv_chk_r(int fd)
 		 */
 		len = recv(fd, reply, sizeof(reply), MSG_NOSIGNAL);
 #endif
-
-		if ((len >= sizeof("HTTP/1.0 000")) &&
+		if (((s->proxy->options & PR_O_HTTP_CHK) &&
+		     (len >= sizeof("HTTP/1.0 000")) &&
 		    !memcmp(reply, "HTTP/1.", 7) &&
 		    (reply[9] == '2' || reply[9] == '3')) /* 2xx or 3xx */
+		    || ((s->proxy->options & PR_O_SSL3_CHK) && (len >= 5) &&
+			(reply[0] == 0x15 || reply[0] == 0x16))) /* alert or handshake */
 			result = 1;
 	}
 

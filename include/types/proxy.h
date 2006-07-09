@@ -114,8 +114,8 @@ struct proxy {
 	void *req_cap_pool, *rsp_cap_pool;	/* pools of pre-allocated char ** used to build the sessions */
 	char *req_add[MAX_NEWHDR], *rsp_add[MAX_NEWHDR]; /* headers to be added */
 	int grace;				/* grace time after stop request */
-	char *check_req;			/* HTTP request to use if PR_O_HTTP_CHK is set, else NULL */
-	int check_len;			/* Length of the HTTP request */
+	char *check_req;			/* HTTP or SSL request to use for PR_O_HTTP_CHK|PR_O_SSL3_CHK */
+	int check_len;				/* Length of the HTTP or SSL3 request */
 	struct {
 		char *msg400;			/* message for error 400 */
 		int len400;			/* message length for error 400 */

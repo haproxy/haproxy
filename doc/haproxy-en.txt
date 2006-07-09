@@ -956,6 +956,21 @@ request, 3 other forms help to forge a request :
   - option httpchk METH URI      -> <METH> <URI> HTTP/1.0
   - option httpchk METH URI VER  -> <METH> <URI> <VER>
 
+Some people are using HAProxy to relay various TCP-based protocols such as
+HTTPS, SMTP or LDAP, with the most common one being HTTPS. One problem commonly
+encountered in data centers is the need to forward the traffic to far remote
+servers while providing server fail-over. Often, TCP-only checks are not enough
+because intermediate firewalls, load balancers or proxies might acknowledge the
+connection before it reaches the real server. The only solution to this problem
+is to send application-level health checks. Since the demand for HTTPS checks
+is high, it has been implemented in 1.2.15 based on SSLv3 Client Hello packets.
+To enable it, use 'option ssl-hello-chk'. It will send SSL CLIENT HELLO packets
+to the servers, announcing support for most common cipher suites. If the server
+responds what looks like a SERVER HELLO or an ALERT (refuses the ciphers) then
+the response is considered as valid. Note that Apache does not generate a log
+when it receives only an HELLO message, which makes this type of message
+perfectly suit this need.
+
 See examples below.
 
 Since version 1.1.17, it is possible to specify backup servers. These servers
@@ -1066,6 +1081,15 @@ Examples :
         mode tcp
         balance roundrobin
         server srv1 192.168.1.1 check port 25 inter 30000 rise 1 fall 2
+        server srv2 192.168.1.2 backup
+
+# HTTPS relaying with health-checks and backup servers
+
+    listen http_proxy :443
+        mode tcp
+	option ssl-hello-chk
+        balance roundrobin
+        server srv1 192.168.1.1 check inter 30000 rise 1 fall 2
         server srv2 192.168.1.2 backup
 
 # Load-balancing using a backup pool (requires haproxy 1.2.9)

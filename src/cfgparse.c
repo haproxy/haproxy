@@ -105,6 +105,36 @@ const char *HTTP_504 =
 	"\r\n"
 	"<html><body><h1>504 Gateway Time-out</h1>\nThe server didn't respond in time.\n</body></html>\n";
 
+/* This is the SSLv3 CLIENT HELLO packet used in conjunction with the
+ * ssl-hello-chk option to ensure that the remote server speaks SSL.
+ *
+ * Check RFC 2246 (TLSv1.0) sections A.3 and A.4 for details.
+ */
+const char sslv3_client_hello_pkt[] = {
+	"\x16"                /* ContentType         : 0x16 = Hanshake           */
+	"\x03\x00"            /* ProtocolVersion     : 0x0300 = SSLv3            */
+	"\x00\x79"            /* ContentLength       : 0x79 bytes after this one */
+	"\x01"                /* HanshakeType        : 0x01 = CLIENT HELLO       */
+	"\x00\x00\x75"        /* HandshakeLength     : 0x75 bytes after this one */
+	"\x03\x00"            /* Hello Version       : 0x0300 = v3               */
+	"\x00\x00\x00\x00"    /* Unix GMT Time (s)   : filled with <now> (@0x0B) */
+	"HAPROXYSSLCHK\nHAPROXYSSLCHK\n" /* Random   : must be exactly 28 bytes  */
+	"\x00"                /* Session ID length   : empty (no session ID)     */
+	"\x00\x4E"            /* Cipher Suite Length : 78 bytes after this one   */
+	"\x00\x01" "\x00\x02" "\x00\x03" "\x00\x04" /* 39 most common ciphers :  */
+	"\x00\x05" "\x00\x06" "\x00\x07" "\x00\x08" /* 0x01...0x1B, 0x2F...0x3A  */
+	"\x00\x09" "\x00\x0A" "\x00\x0B" "\x00\x0C" /* This covers RSA/DH,       */
+	"\x00\x0D" "\x00\x0E" "\x00\x0F" "\x00\x10" /* various bit lengths,      */
+	"\x00\x11" "\x00\x12" "\x00\x13" "\x00\x14" /* SHA1/MD5, DES/3DES/AES... */
+	"\x00\x15" "\x00\x16" "\x00\x17" "\x00\x18"
+	"\x00\x19" "\x00\x1A" "\x00\x1B" "\x00\x2F"
+	"\x00\x30" "\x00\x31" "\x00\x32" "\x00\x33"
+	"\x00\x34" "\x00\x35" "\x00\x36" "\x00\x37"
+	"\x00\x38" "\x00\x39" "\x00\x3A"
+	"\x01"                /* Compression Length  : 0x01 = 1 byte for types   */
+	"\x00"                /* Compression Type    : 0x00 = NULL compression   */
+};
+
 
 static struct proxy defproxy;		/* fake proxy used to assign default values on all instances */
 int cfg_maxpconn = DEFAULT_MAXCONN;	/* # of simultaneous connections per proxy (-N) */
@@ -888,6 +918,7 @@ int cfg_parse_listen(char *file, int linenum, char **args)
 				free(curproxy->check_req);
 			}
 			curproxy->options |= PR_O_HTTP_CHK;
+			curproxy->options &= ~PR_O_SSL3_CHK;
 			if (!*args[2]) { /* no argument */
 				curproxy->check_req = strdup(DEF_CHECK_REQ); /* default request */
 				curproxy->check_len = strlen(DEF_CHECK_REQ);
@@ -907,6 +938,14 @@ int cfg_parse_listen(char *file, int linenum, char **args)
 				curproxy->check_len = snprintf(curproxy->check_req, reqlen,
 							       "%s %s %s\r\n\r\n", args[2], args[3], *args[4]?args[4]:"HTTP/1.0");
 			}
+		}
+		else if (!strcmp(args[1], "ssl-hello-chk")) {
+			/* use SSLv3 CLIENT HELLO to check servers' health */
+			if (curproxy->check_req != NULL) {
+				free(curproxy->check_req);
+			}
+			curproxy->options &= ~PR_O_HTTP_CHK;
+			curproxy->options |= PR_O_SSL3_CHK;
 		}
 		else if (!strcmp(args[1], "persist")) {
 			/* persist on using the server specified by the cookie, even when it's down */
@@ -1881,7 +1920,13 @@ int readcfgfile(char *file)
 				"   | values are set to a non-zero value: clitimeout, contimeout, srvtimeout.\n",
 				file, curproxy->id);
 		}
-		
+
+		if (curproxy->options & PR_O_SSL3_CHK) {
+			curproxy->check_len = sizeof(sslv3_client_hello_pkt);
+			curproxy->check_req = (char *)malloc(sizeof(sslv3_client_hello_pkt));
+			memcpy(curproxy->check_req, sslv3_client_hello_pkt, sizeof(sslv3_client_hello_pkt));
+		}
+
 		/* first, we will invert the servers list order */
 		newsrv = NULL;
 		while (curproxy->srv) {

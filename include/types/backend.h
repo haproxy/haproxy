@@ -51,6 +51,7 @@
 #define PR_O_BALANCE_SH 0x00400000      /* balance on source IP hash */
 #define PR_O_BALANCE    (PR_O_BALANCE_RR | PR_O_BALANCE_SH)
 #define PR_O_ABRT_CLOSE 0x00800000      /* immediately abort request when client closes */
+#define PR_O_SSL3_CHK   0x01000000      /* use SSLv3 CLIENT_HELLO packets for server health */
 
 #endif /* _TYPES_BACKEND_H */
 

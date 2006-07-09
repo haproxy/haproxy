@@ -958,6 +958,24 @@ accepte donc 4 formes :
   - option httpchk METH URI      -> <METH> <URI> HTTP/1.0
   - option httpchk METH URI VER  -> <METH> <URI> <VER>
 
+HAProxy est souvent utilisé pour relayer divers protocoles reposant sur TCP,
+tels que HTTPS, SMTP ou LDAP, le plus commun étant HTTPS. Un problème assez
+couramment rencontré dans les data centers est le besoin de relayer du trafic
+vers des serveurs lointains tout en maintenant la possibilité de basculer sur
+un serveur de secours. Les tests purement TCP ne suffisent pas toujours dans
+ces situations car l'on trouve souvent, dans la chaîne, des proxies, firewalls
+ou répartiteurs de charge qui peuvent acquitter la connexion avant qu'elle
+n'atteigne le serveur. La seule solution à ce problème est d'envoyer des tests
+applicatifs. Comme la demande pour les tests HTTPS est élevée, ce test a été
+implémenté en version 1.2.15 sur la base de messages SSLv3 CLIENT HELLO. Pour
+l'activer, utiliser "option ssl-hello-chk". Ceci enverra des messages SSLv3
+CLIENT HELLO aux serveurs, en annonçant un support pour la majorité des
+algorithmes de chiffrement. Si en retour, le serveur envoie ce qui ressemble à
+une réponse SSLv3 SERVER HELLO ou ALERT (refus des algorithmes), alors la
+réponse sera considérée comme valide. Noter qu'Apache ne produit pas de log
+lorsqu'il reçoit des messages HELLO, ce qui en fait un type de message
+parfaitement adapté à ce besoin.
+
 Voir les exemples ci-après.        
 
 Depuis la version 1.1.17, il est possible de définir des serveurs de secours,
@@ -1076,6 +1094,15 @@ Exemples :
         mode tcp
         balance roundrobin
         server srv1 192.168.1.1 check port 25 inter 30000 rise 1 fall 2
+        server srv2 192.168.1.2 backup
+
+# relayage HTTPS avec test du serveur et serveur de backup
+
+    listen http_proxy :443
+        mode tcp
+	option ssl-hello-chk
+        balance roundrobin
+        server srv1 192.168.1.1 check inter 30000 rise 1 fall 2
         server srv2 192.168.1.2 backup
 
 # Utilisation d'un groupe de serveurs pour le backup (nécessite haproxy 1.2.9)
