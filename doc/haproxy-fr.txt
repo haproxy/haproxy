@@ -2,9 +2,9 @@
                                  HAProxy
                            Manuel de référence
                            -------------------
-                              version 1.2.14
+                              version 1.3.1
                               willy tarreau
-                                2006/05/21
+                                2006/07/09
 
 ================
 | Introduction |
