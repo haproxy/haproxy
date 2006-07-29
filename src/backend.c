@@ -429,7 +429,7 @@ int connect_server(struct session *s)
 	fdtab[fd].state = FD_STCONN; /* connection in progress */
 	fdtab[fd].cb[DIR_RD].f = &stream_sock_read;
 	fdtab[fd].cb[DIR_RD].b = s->rep;
-	fdtab[fd].cb[DIR_WR].f = &event_srv_write;
+	fdtab[fd].cb[DIR_WR].f = &stream_sock_write;
 	fdtab[fd].cb[DIR_WR].b = s->req;
     
 	FD_SET(fd, StaticWriteEvent);  /* for connect status */

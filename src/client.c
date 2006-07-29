@@ -340,7 +340,7 @@ int event_accept(int fd) {
 		fdtab[cfd].state = FD_STREADY;
 		fdtab[cfd].cb[DIR_RD].f = &stream_sock_read;
 		fdtab[cfd].cb[DIR_RD].b = s->req;
-		fdtab[cfd].cb[DIR_WR].f = &event_cli_write;
+		fdtab[cfd].cb[DIR_WR].f = &stream_sock_write;
 		fdtab[cfd].cb[DIR_WR].b = s->rep;
 
 		if ((p->mode == PR_MODE_HTTP && (s->flags & SN_MONITOR)) ||

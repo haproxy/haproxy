@@ -15,12 +15,6 @@
  * - we still use 'listeners' to check whether we want to stop or not.
  * - the various pollers should be moved to other external files, possibly
  *   dynamic libs.
- * - stream_sock_read() : It may be called from event_accept().
- * - extract the connect code from event_srv_write()
- *   => event_tcp_connect(). It must then call event_write().
- * - merge the remaining event_cli_write() and event_srv_write()
- *   => single event_tcp_write(). Check buffer, fd_state, res*, and timeouts.
- *
  */
 
 #include <unistd.h>

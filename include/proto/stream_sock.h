@@ -29,11 +29,9 @@
 #include <common/config.h>
 
 
+/* main event functions used to move data between sockets and buffers */
 int stream_sock_read(int fd);
-
-/* FIXME: merge those ones together */
-int event_cli_write(int fd);
-int event_srv_write(int fd);
+int stream_sock_write(int fd);
 
 
 /* This either returns the sockname or the original destination address. Code
