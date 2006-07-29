@@ -106,7 +106,6 @@ struct session {
 	struct timeval srexpire;		/* expiration date for a server read  */
 	struct timeval swexpire;		/* expiration date for a server write */
 	struct timeval cnexpire;		/* expiration date for a connect */
-	char res_cr, res_cw, res_sr, res_sw;    /* results of some events */
 	struct proxy *proxy;			/* the proxy this socket belongs to */
 	int cli_fd;				/* the client side fd */
 	int srv_fd;				/* the server side fd */

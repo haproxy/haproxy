@@ -161,7 +161,6 @@ int event_accept(int fd) {
 		s->srv_state = SV_STIDLE;
 		s->req = s->rep = NULL; /* will be allocated later */
 
-		s->res_cr = s->res_cw = s->res_sr = s->res_sw = RES_SILENT;
 		s->cli_fd = cfd;
 		s->srv_fd = -1;
 		s->req_line.len = -1;

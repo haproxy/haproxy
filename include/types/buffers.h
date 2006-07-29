@@ -34,12 +34,20 @@
 #define BF_SHUTR_DONE           2
 #define BF_SHUTW_PENDING        4
 #define BF_SHUTW_DONE           8
+
 #define BF_PARTIAL_READ        16
 #define BF_COMPLETE_READ       32
 #define BF_READ_ERROR          64
-#define BF_PARTIAL_WRITE      128
-#define BF_COMPLETE_WRITE     256
-#define BF_WRITE_ERROR        512
+#define BF_READ_NULL          128
+#define BF_READ_STATUS        (BF_PARTIAL_READ|BF_COMPLETE_READ|BF_READ_ERROR|BF_READ_NULL)
+#define BF_CLEAR_READ         (~BF_READ_STATUS)
+
+#define BF_PARTIAL_WRITE      256
+#define BF_COMPLETE_WRITE     512
+#define BF_WRITE_ERROR        1024
+#define BF_WRITE_NULL         2048
+#define BF_WRITE_STATUS       (BF_PARTIAL_WRITE|BF_COMPLETE_WRITE|BF_WRITE_ERROR|BF_WRITE_NULL)
+#define BF_CLEAR_WRITE        (~BF_WRITE_STATUS)
 
 
 
@@ -50,7 +58,7 @@ struct chunk {
 };
 
 struct buffer {
-	u_int32_t flags;
+	u_int32_t flags;                /* BF_* */
 	unsigned int l;                 /* data length */
 	char *r, *w, *h, *lr;           /* read ptr, write ptr, last header ptr, last read */
 	char *rlim;                     /* read limit, used for header rewriting */

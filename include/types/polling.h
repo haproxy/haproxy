@@ -53,12 +53,6 @@
 #define POLL_USE_POLL           (1<<1)
 #define POLL_USE_EPOLL          (1<<2)
 
-/* result of an I/O event */
-#define	RES_SILENT	0	/* didn't happen */
-#define RES_DATA	1	/* data were sent or received */
-#define	RES_NULL	2	/* result is 0 (read == 0), or connect without need for writing */
-#define RES_ERROR	3	/* result -1 or error on the socket (eg: connect()) */
-
 /* fd states */
 extern fd_set *StaticReadEvent, *StaticWriteEvent;
 extern int cfg_polling_mechanism;       /* POLL_USE_{SELECT|POLL|EPOLL} */

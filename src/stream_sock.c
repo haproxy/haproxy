@@ -100,7 +100,7 @@ int event_cli_read(int fd) {
 			if (ret > 0) {
 				b->r += ret;
 				b->l += ret;
-				s->res_cr = RES_DATA;
+				b->flags |= BF_PARTIAL_READ;
 	
 				if (b->r == b->data + BUFSIZE) {
 					b->r = b->data; /* wrap around the buffer */
@@ -111,14 +111,14 @@ int event_cli_read(int fd) {
 				continue;
 			}
 			else if (ret == 0) {
-				s->res_cr = RES_NULL;
+				b->flags |= BF_READ_NULL;
 				break;
 			}
 			else if (errno == EAGAIN) {/* ignore EAGAIN */
 				break;
 			}
 			else {
-				s->res_cr = RES_ERROR;
+				b->flags |= BF_READ_ERROR;
 				fdtab[fd].state = FD_STERROR;
 				break;
 			}
@@ -128,11 +128,11 @@ int event_cli_read(int fd) {
 #endif
 	}
 	else {
-		s->res_cr = RES_ERROR;
+		b->flags |= BF_READ_ERROR;
 		fdtab[fd].state = FD_STERROR;
 	}
 
-	if (s->res_cr != RES_SILENT) {
+	if (b->flags & BF_READ_STATUS) {
 		if (s->proxy->clitimeout && FD_ISSET(fd, StaticReadEvent))
 			tv_delayfrom(&s->crexpire, &now, s->proxy->clitimeout);
 		else
@@ -172,7 +172,7 @@ int event_cli_write(int fd) {
     
 	if (fdtab[fd].state != FD_STERROR) {
 		if (max == 0) {
-			s->res_cw = RES_NULL;
+			b->flags |= BF_WRITE_NULL;
 			task_wakeup(&rq, t);
 			tv_eternity(&s->cwexpire);
 			FD_CLR(fd, StaticWriteEvent);
@@ -198,7 +198,7 @@ int event_cli_write(int fd) {
 			b->l -= ret;
 			b->w += ret;
 	    
-			s->res_cw = RES_DATA;
+			b->flags |= BF_PARTIAL_WRITE;
 	    
 			if (b->w == b->data + BUFSIZE) {
 				b->w = b->data; /* wrap around the buffer */
@@ -206,18 +206,18 @@ int event_cli_write(int fd) {
 		}
 		else if (ret == 0) {
 			/* nothing written, just make as if we were never called */
-			//	    s->res_cw = RES_NULL;
+			// b->flags |= BF_WRITE_NULL;
 			return 0;
 		}
 		else if (errno == EAGAIN) /* ignore EAGAIN */
 			return 0;
 		else {
-			s->res_cw = RES_ERROR;
+			b->flags |= BF_WRITE_ERROR;
 			fdtab[fd].state = FD_STERROR;
 		}
 	}
 	else {
-		s->res_cw = RES_ERROR;
+		b->flags |= BF_WRITE_ERROR;
 		fdtab[fd].state = FD_STERROR;
 	}
 
@@ -297,7 +297,7 @@ int event_srv_read(int fd) {
 	    if (ret > 0) {
 		b->r += ret;
 		b->l += ret;
-		s->res_sr = RES_DATA;
+		b->flags |= BF_PARTIAL_READ;
 	    
 		if (b->r == b->data + BUFSIZE) {
 		    b->r = b->data; /* wrap around the buffer */
@@ -308,14 +308,14 @@ int event_srv_read(int fd) {
 		continue;
 	    }
 	    else if (ret == 0) {
-		s->res_sr = RES_NULL;
+		b->flags |= BF_READ_NULL;
 		break;
 	    }
 	    else if (errno == EAGAIN) {/* ignore EAGAIN */
 		break;
 	    }
 	    else {
-		s->res_sr = RES_ERROR;
+		b->flags |= BF_READ_ERROR;
 		fdtab[fd].state = FD_STERROR;
 		break;
 	    }
@@ -325,11 +325,11 @@ int event_srv_read(int fd) {
 #endif
     }
     else {
-	s->res_sr = RES_ERROR;
+	b->flags |= BF_READ_ERROR;
 	fdtab[fd].state = FD_STERROR;
     }
 
-    if (s->res_sr != RES_SILENT) {
+    if (b->flags & BF_READ_STATUS) {
 	if (s->proxy->srvtimeout && FD_ISSET(fd, StaticReadEvent))
 	    tv_delayfrom(&s->srexpire, &now, s->proxy->srvtimeout);
 	else
@@ -375,7 +375,7 @@ int event_srv_write(int fd) {
 		socklen_t lskerr = sizeof(skerr);
 		getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
 		if (skerr) {
-		    s->res_sw = RES_ERROR;
+		    b->flags |= BF_WRITE_ERROR;
 		    fdtab[fd].state = FD_STERROR;
 		    task_wakeup(&rq, t);
 		    tv_eternity(&s->swexpire);
@@ -384,7 +384,7 @@ int event_srv_write(int fd) {
 		}
 	    }
 
-	    s->res_sw = RES_NULL;
+	    b->flags |= BF_WRITE_NULL;
 	    task_wakeup(&rq, t);
 	    fdtab[fd].state = FD_STREADY;
 	    tv_eternity(&s->swexpire);
@@ -410,7 +410,7 @@ int event_srv_write(int fd) {
 	    b->l -= ret;
 	    b->w += ret;
 	    
-	    s->res_sw = RES_DATA;
+	    b->flags |= BF_PARTIAL_WRITE;
 	    
 	    if (b->w == b->data + BUFSIZE) {
 		b->w = b->data; /* wrap around the buffer */
@@ -418,18 +418,18 @@ int event_srv_write(int fd) {
 	}
 	else if (ret == 0) {
 	    /* nothing written, just make as if we were never called */
-	    // s->res_sw = RES_NULL;
+	    // b->flags |= BF_WRITE_NULL;
 	    return 0;
 	}
 	else if (errno == EAGAIN) /* ignore EAGAIN */
 	    return 0;
 	else {
-	    s->res_sw = RES_ERROR;
+	    b->flags |= BF_WRITE_ERROR;
 	    fdtab[fd].state = FD_STERROR;
 	}
     }
     else {
-	s->res_sw = RES_ERROR;
+        b->flags |= BF_WRITE_ERROR;
 	fdtab[fd].state = FD_STERROR;
     }
 

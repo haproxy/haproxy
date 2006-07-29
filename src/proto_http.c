@@ -154,7 +154,8 @@ int process_session(struct task *t)
 
 	if (s->cli_state != CL_STCLOSE || s->srv_state != SV_STCLOSE) {
 		struct timeval min1, min2;
-		s->res_cw = s->res_cr = s->res_sw = s->res_sr = RES_SILENT;
+		s->req->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE;
+		s->rep->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE;
 
 		tv_min(&min1, &s->crexpire, &s->cwexpire);
 		tv_min(&min2, &s->srexpire, &s->swexpire);
@@ -987,7 +988,7 @@ int process_cli(struct session *t)
 				t->flags |= SN_FINST_R;
 			return 1;
 		}
-		else if (t->res_cr == RES_ERROR || t->res_cr == RES_NULL) {
+		else if (req->flags & (BF_READ_ERROR | BF_READ_NULL)) {
 			/* read error, or last read : give up.  */
 			tv_eternity(&t->crexpire);
 			fd_delete(t->cli_fd);
@@ -1021,7 +1022,7 @@ int process_cli(struct session *t)
 		 * we're waiting for the server to connect.
 		 */
 		/* read or write error */
-		if (t->res_cw == RES_ERROR || t->res_cr == RES_ERROR) {
+		if (rep->flags & BF_WRITE_ERROR || req->flags & BF_READ_ERROR) {
 			tv_eternity(&t->crexpire);
 			tv_eternity(&t->cwexpire);
 			fd_delete(t->cli_fd);
@@ -1039,7 +1040,7 @@ int process_cli(struct session *t)
 			return 1;
 		}
 		/* last read, or end of server write */
-		else if (t->res_cr == RES_NULL || s == SV_STSHUTW || s == SV_STCLOSE) {
+		else if (req->flags & BF_READ_NULL || s == SV_STSHUTW || s == SV_STCLOSE) {
 			FD_CLR(t->cli_fd, StaticReadEvent);
 			tv_eternity(&t->crexpire);
 			shutdown(t->cli_fd, SHUT_RD);
@@ -1150,7 +1151,7 @@ int process_cli(struct session *t)
 		return 0; /* other cases change nothing */
 	}
 	else if (c == CL_STSHUTR) {
-		if (t->res_cw == RES_ERROR) {
+		if (rep->flags & BF_WRITE_ERROR) {
 			tv_eternity(&t->cwexpire);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
@@ -1223,7 +1224,7 @@ int process_cli(struct session *t)
 		return 0;
 	}
 	else if (c == CL_STSHUTW) {
-		if (t->res_cr == RES_ERROR) {
+		if (req->flags & BF_READ_ERROR) {
 			tv_eternity(&t->crexpire);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
@@ -1239,7 +1240,7 @@ int process_cli(struct session *t)
 			}
 			return 1;
 		}
-		else if (t->res_cr == RES_NULL || s == SV_STSHUTW || s == SV_STCLOSE) {
+		else if (req->flags & BF_READ_NULL || s == SV_STSHUTW || s == SV_STCLOSE) {
 			tv_eternity(&t->crexpire);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
@@ -1389,11 +1390,11 @@ int process_srv(struct session *t)
 			srv_close_with_err(t, SN_ERR_CLICL, SN_FINST_C, 0, 0, NULL);
 			return 1;
 		}
-		if (t->res_sw == RES_SILENT && tv_cmp2_ms(&t->cnexpire, &now) > 0) {
+		if (!(req->flags & BF_WRITE_STATUS) && tv_cmp2_ms(&t->cnexpire, &now) > 0) {
 			//fprintf(stderr,"1: c=%d, s=%d, now=%d.%06d, exp=%d.%06d\n", c, s, now.tv_sec, now.tv_usec, t->cnexpire.tv_sec, t->cnexpire.tv_usec);
 			return 0; /* nothing changed */
 		}
-		else if (t->res_sw == RES_SILENT || t->res_sw == RES_ERROR) {
+		else if (!(req->flags & BF_WRITE_STATUS) || (req->flags & BF_WRITE_ERROR)) {
 			/* timeout, asynchronous connect error or first write error */
 			//fprintf(stderr,"2: c=%d, s=%d\n", c, s);
 
@@ -1401,7 +1402,7 @@ int process_srv(struct session *t)
 			if (t->srv)
 				t->srv->cur_sess--;
 
-			if (t->res_sw == RES_SILENT)
+			if (!(req->flags & BF_WRITE_STATUS))
 				conn_err = SN_ERR_SRVTO; // it was a connect timeout.
 			else
 				conn_err = SN_ERR_SRVCL; // it was an asynchronous connect error.
@@ -1974,7 +1975,7 @@ int process_srv(struct session *t)
 		}
 
 		/* read error, write error */
-		if (t->res_sw == RES_ERROR || t->res_sr == RES_ERROR) {
+		if (req->flags & BF_WRITE_ERROR || rep->flags & BF_READ_ERROR) {
 			tv_eternity(&t->srexpire);
 			tv_eternity(&t->swexpire);
 			fd_delete(t->srv_fd);
@@ -2003,7 +2004,7 @@ int process_srv(struct session *t)
 		 * since we are in header mode, if there's no space left for headers, we
 		 * won't be able to free more later, so the session will never terminate.
 		 */
-		else if (t->res_sr == RES_NULL || c == CL_STSHUTW || c == CL_STCLOSE || rep->l >= rep->rlim - rep->data) {
+		else if (rep->flags & BF_READ_NULL || c == CL_STSHUTW || c == CL_STCLOSE || rep->l >= rep->rlim - rep->data) {
 			FD_CLR(t->srv_fd, StaticReadEvent);
 			tv_eternity(&t->srexpire);
 			shutdown(t->srv_fd, SHUT_RD);
@@ -2118,7 +2119,7 @@ int process_srv(struct session *t)
 	}
 	else if (s == SV_STDATA) {
 		/* read or write error */
-		if (t->res_sw == RES_ERROR || t->res_sr == RES_ERROR) {
+		if (req->flags & BF_WRITE_ERROR || rep->flags & BF_READ_ERROR) {
 			tv_eternity(&t->srexpire);
 			tv_eternity(&t->swexpire);
 			fd_delete(t->srv_fd);
@@ -2141,7 +2142,7 @@ int process_srv(struct session *t)
 			return 1;
 		}
 		/* last read, or end of client write */
-		else if (t->res_sr == RES_NULL || c == CL_STSHUTW || c == CL_STCLOSE) {
+		else if (rep->flags & BF_READ_NULL || c == CL_STSHUTW || c == CL_STCLOSE) {
 			FD_CLR(t->srv_fd, StaticReadEvent);
 			tv_eternity(&t->srexpire);
 			shutdown(t->srv_fd, SHUT_RD);
@@ -2234,7 +2235,7 @@ int process_srv(struct session *t)
 		return 0; /* other cases change nothing */
 	}
 	else if (s == SV_STSHUTR) {
-		if (t->res_sw == RES_ERROR) {
+		if (req->flags & BF_WRITE_ERROR) {
 			//FD_CLR(t->srv_fd, StaticWriteEvent);
 			tv_eternity(&t->swexpire);
 			fd_delete(t->srv_fd);
@@ -2315,7 +2316,7 @@ int process_srv(struct session *t)
 		return 0;
 	}
 	else if (s == SV_STSHUTW) {
-		if (t->res_sr == RES_ERROR) {
+		if (rep->flags & BF_READ_ERROR) {
 			//FD_CLR(t->srv_fd, StaticReadEvent);
 			tv_eternity(&t->srexpire);
 			fd_delete(t->srv_fd);
@@ -2338,7 +2339,7 @@ int process_srv(struct session *t)
 
 			return 1;
 		}
-		else if (t->res_sr == RES_NULL || c == CL_STSHUTW || c == CL_STCLOSE) {
+		else if (rep->flags & BF_READ_NULL || c == CL_STSHUTW || c == CL_STCLOSE) {
 			//FD_CLR(t->srv_fd, StaticReadEvent);
 			tv_eternity(&t->srexpire);
 			fd_delete(t->srv_fd);
