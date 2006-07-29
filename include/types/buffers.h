@@ -59,6 +59,12 @@ struct chunk {
 
 struct buffer {
 	u_int32_t flags;                /* BF_* */
+	struct timeval rex;             /* expiration date for a read  */
+	struct timeval wex;             /* expiration date for a write */
+	struct timeval cex;             /* expiration date for a connect */
+	int rto;                        /* read timeout */
+	int wto;                        /* write timeout */
+	int cto;                        /* connect timeout */
 	unsigned int l;                 /* data length */
 	char *r, *w, *h, *lr;           /* read ptr, write ptr, last header ptr, last read */
 	char *rlim;                     /* read limit, used for header rewriting */

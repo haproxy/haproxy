@@ -29,10 +29,10 @@
 #include <common/config.h>
 
 
+int stream_sock_read(int fd);
+
 /* FIXME: merge those ones together */
-int event_cli_read(int fd);
 int event_cli_write(int fd);
-int event_srv_read(int fd);
 int event_srv_write(int fd);
 
 

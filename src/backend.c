@@ -427,7 +427,7 @@ int connect_server(struct session *s)
 
 	fdtab[fd].owner = s->task;
 	fdtab[fd].state = FD_STCONN; /* connection in progress */
-	fdtab[fd].cb[DIR_RD].f = &event_srv_read;
+	fdtab[fd].cb[DIR_RD].f = &stream_sock_read;
 	fdtab[fd].cb[DIR_RD].b = s->rep;
 	fdtab[fd].cb[DIR_WR].f = &event_srv_write;
 	fdtab[fd].cb[DIR_WR].b = s->req;
@@ -448,9 +448,9 @@ int connect_server(struct session *s)
 	}
 
 	if (s->proxy->contimeout)
-		tv_delayfrom(&s->cnexpire, &now, s->proxy->contimeout);
+		tv_delayfrom(&s->req->cex, &now, s->proxy->contimeout);
 	else
-		tv_eternity(&s->cnexpire);
+		tv_eternity(&s->req->cex);
 	return SN_ERR_NONE;  /* connection is OK */
 }
 
@@ -467,7 +467,7 @@ int srv_count_retry_down(struct session *t, int conn_err)
 	t->conn_retries--;
 	if (t->conn_retries < 0) {
 		/* if not retryable anymore, let's abort */
-		tv_eternity(&t->cnexpire);
+		tv_eternity(&t->req->cex);
 		srv_close_with_err(t, conn_err, SN_FINST_C,
 				   503, t->proxy->errmsg.len503, t->proxy->errmsg.msg503);
 		if (t->srv)
@@ -509,7 +509,7 @@ int srv_retryable_connect(struct session *t)
 			return 1;
 	    
 		case SN_ERR_INTERNAL:
-			tv_eternity(&t->cnexpire);
+			tv_eternity(&t->req->cex);
 			srv_close_with_err(t, SN_ERR_INTERNAL, SN_FINST_C,
 					   500, t->proxy->errmsg.len500, t->proxy->errmsg.msg500);
 			if (t->srv)
@@ -572,7 +572,7 @@ int srv_redispatch_connect(struct session *t)
 
 	case SRV_STATUS_NOSRV:
 		/* note: it is guaranteed that t->srv == NULL here */
-		tv_eternity(&t->cnexpire);
+		tv_eternity(&t->req->cex);
 		srv_close_with_err(t, SN_ERR_SRVTO, SN_FINST_C,
 				   503, t->proxy->errmsg.len503, t->proxy->errmsg.msg503);
 		if (t->srv)
@@ -584,9 +584,9 @@ int srv_redispatch_connect(struct session *t)
 	case SRV_STATUS_QUEUED:
 		/* FIXME-20060503 : we should use the queue timeout instead */
 		if (t->proxy->contimeout)
-			tv_delayfrom(&t->cnexpire, &now, t->proxy->contimeout);
+			tv_delayfrom(&t->req->cex, &now, t->proxy->contimeout);
 		else
-			tv_eternity(&t->cnexpire);
+			tv_eternity(&t->req->cex);
 		t->srv_state = SV_STIDLE;
 		/* do nothing else and do not wake any other session up */
 		return 1;
@@ -594,7 +594,7 @@ int srv_redispatch_connect(struct session *t)
 	case SRV_STATUS_FULL:
 	case SRV_STATUS_INTERNAL:
 	default:
-		tv_eternity(&t->cnexpire);
+		tv_eternity(&t->req->cex);
 		srv_close_with_err(t, SN_ERR_INTERNAL, SN_FINST_C,
 				   500, t->proxy->errmsg.len500, t->proxy->errmsg.msg500);
 		if (t->srv)

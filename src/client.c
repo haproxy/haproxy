@@ -314,6 +314,10 @@ int event_accept(int fd) {
 		if (s->cli_state == CL_STHEADERS) /* reserve some space for header rewriting */
 			s->req->rlim -= MAXREWRITE;
 
+		s->req->rto = s->proxy->clitimeout;
+		s->req->wto = s->proxy->srvtimeout;
+		s->req->cto = s->proxy->srvtimeout;
+
 		if ((s->rep = pool_alloc(buffer)) == NULL) { /* no memory */
 			pool_free(buffer, s->req);
 			if (s->rsp_cap != NULL)
@@ -328,9 +332,13 @@ int event_accept(int fd) {
 
 		buffer_init(s->rep);
 
+		s->rep->rto = s->proxy->srvtimeout;
+		s->rep->wto = s->proxy->clitimeout;
+		s->rep->cto = 0;
+
 		fdtab[cfd].owner = t;
 		fdtab[cfd].state = FD_STREADY;
-		fdtab[cfd].cb[DIR_RD].f = &event_cli_read;
+		fdtab[cfd].cb[DIR_RD].f = &stream_sock_read;
 		fdtab[cfd].cb[DIR_RD].b = s->req;
 		fdtab[cfd].cb[DIR_WR].f = &event_cli_write;
 		fdtab[cfd].cb[DIR_WR].b = s->rep;
@@ -357,20 +365,20 @@ int event_accept(int fd) {
 #endif
 		fd_insert(cfd);
 
-		tv_eternity(&s->cnexpire);
-		tv_eternity(&s->srexpire);
-		tv_eternity(&s->swexpire);
-		tv_eternity(&s->crexpire);
-		tv_eternity(&s->cwexpire);
+		tv_eternity(&s->req->rex);
+		tv_eternity(&s->req->wex);
+		tv_eternity(&s->req->cex);
+		tv_eternity(&s->rep->rex);
+		tv_eternity(&s->rep->wex);
 
 		if (s->proxy->clitimeout) {
 			if (FD_ISSET(cfd, StaticReadEvent))
-				tv_delayfrom(&s->crexpire, &now, s->proxy->clitimeout);
+				tv_delayfrom(&s->req->rex, &now, s->proxy->clitimeout);
 			if (FD_ISSET(cfd, StaticWriteEvent))
-				tv_delayfrom(&s->cwexpire, &now, s->proxy->clitimeout);
+				tv_delayfrom(&s->rep->wex, &now, s->proxy->clitimeout);
 		}
 
-		tv_min(&t->expire, &s->crexpire, &s->cwexpire);
+		tv_min(&t->expire, &s->req->rex, &s->rep->wex);
 
 		task_queue(t);
 

@@ -41,17 +41,15 @@
 
 
 /*
- * this function is called on a read event from a client socket.
+ * this function is called on a read event from a stream socket.
  * It returns 0.
  */
-int event_cli_read(int fd) {
-	struct task *t = fdtab[fd].owner;
+int stream_sock_read(int fd) {
 	struct buffer *b = fdtab[fd].cb[DIR_RD].b;
-	struct session *s = t->context;
 	int ret, max;
 
 #ifdef DEBUG_FULL
-	fprintf(stderr,"event_cli_read : fd=%d, s=%p\n", fd, s);
+	fprintf(stderr,"stream_sock_read : fd=%d, owner=%p\n", fd, fdtab[fd].owner);
 #endif
 
 	if (fdtab[fd].state != FD_STERROR) {
@@ -133,12 +131,12 @@ int event_cli_read(int fd) {
 	}
 
 	if (b->flags & BF_READ_STATUS) {
-		if (s->proxy->clitimeout && FD_ISSET(fd, StaticReadEvent))
-			tv_delayfrom(&s->crexpire, &now, s->proxy->clitimeout);
+		if (b->rto && FD_ISSET(fd, StaticReadEvent))
+			tv_delayfrom(&b->rex, &now, b->rto);
 		else
-			tv_eternity(&s->crexpire);
+			tv_eternity(&b->rex);
 	
-		task_wakeup(&rq, t);
+		task_wakeup(&rq, fdtab[fd].owner);
 	}
 
 	return 0;
@@ -152,11 +150,10 @@ int event_cli_read(int fd) {
 int event_cli_write(int fd) {
 	struct task *t = fdtab[fd].owner;
 	struct buffer *b = fdtab[fd].cb[DIR_WR].b;
-	struct session *s = t->context;
 	int ret, max;
 
 #ifdef DEBUG_FULL
-	fprintf(stderr,"event_cli_write : fd=%d, s=%p\n", fd, s);
+	fprintf(stderr,"event_cli_write : fd=%d, owner=%p\n", fd, fdtab[fd].owner);
 #endif
 
 	if (b->l == 0) { /* let's realign the buffer to optimize I/O */
@@ -174,7 +171,7 @@ int event_cli_write(int fd) {
 		if (max == 0) {
 			b->flags |= BF_WRITE_NULL;
 			task_wakeup(&rq, t);
-			tv_eternity(&s->cwexpire);
+			tv_eternity(&b->wex);
 			FD_CLR(fd, StaticWriteEvent);
 			return 0;
 		}
@@ -221,125 +218,22 @@ int event_cli_write(int fd) {
 		fdtab[fd].state = FD_STERROR;
 	}
 
-	if (s->proxy->clitimeout) {
-		tv_delayfrom(&s->cwexpire, &now, s->proxy->clitimeout);
+	if (b->wto) {
+		tv_delayfrom(&b->wex, &now, b->wto);
 		/* FIXME: to prevent the client from expiring read timeouts during writes,
 		 * we refresh it. A solution would be to merge read+write timeouts into a
 		 * unique one, although that needs some study particularly on full-duplex
 		 * TCP connections. */
-		s->crexpire = s->cwexpire;
+		b->rex = b->wex;
 	}
 	else
-		tv_eternity(&s->cwexpire);
+		tv_eternity(&b->wex);
 
 	task_wakeup(&rq, t);
 	return 0;
 }
 
 
-/*
- * this function is called on a read event from a server socket.
- * It returns 0.
- */
-int event_srv_read(int fd) {
-    struct task *t = fdtab[fd].owner;
-    struct buffer *b = fdtab[fd].cb[DIR_RD].b;
-    struct session *s = t->context;
-    int ret, max;
-
-#ifdef DEBUG_FULL
-    fprintf(stderr,"event_srv_read : fd=%d, s=%p\n", fd, s);
-#endif
-
-    if (fdtab[fd].state != FD_STERROR) {
-#ifdef FILL_BUFFERS
-	while (1)
-#else
-	do
-#endif
-	{
-	    if (b->l == 0) { /* let's realign the buffer to optimize I/O */
-		b->r = b->w = b->h = b->lr  = b->data;
-		max = b->rlim - b->data;
-	    }
-	    else if (b->r > b->w) {
-		max = b->rlim - b->r;
-	    }
-	    else {
-		max = b->w - b->r;
-		/* FIXME: theorically, if w>0, we shouldn't have rlim < data+size anymore
-		 * since it means that the rewrite protection has been removed. This
-		 * implies that the if statement can be removed.
-		 */
-		if (max > b->rlim - b->data)
-		    max = b->rlim - b->data;
-	    }
-	    
-	    if (max == 0) {  /* not anymore room to store data */
-		FD_CLR(fd, StaticReadEvent);
-		break;
-	    }
-
-#ifndef MSG_NOSIGNAL
-	    {
-		int skerr;
-		socklen_t lskerr = sizeof(skerr);
-
-		getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
-		if (skerr)
-		    ret = -1;
-		else
-		    ret = recv(fd, b->r, max, 0);
-	    }
-#else
-	    ret = recv(fd, b->r, max, MSG_NOSIGNAL);
-#endif
-	    if (ret > 0) {
-		b->r += ret;
-		b->l += ret;
-		b->flags |= BF_PARTIAL_READ;
-	    
-		if (b->r == b->data + BUFSIZE) {
-		    b->r = b->data; /* wrap around the buffer */
-		}
-
-		b->total += ret;
-		/* we hope to read more data or to get a close on next round */
-		continue;
-	    }
-	    else if (ret == 0) {
-		b->flags |= BF_READ_NULL;
-		break;
-	    }
-	    else if (errno == EAGAIN) {/* ignore EAGAIN */
-		break;
-	    }
-	    else {
-		b->flags |= BF_READ_ERROR;
-		fdtab[fd].state = FD_STERROR;
-		break;
-	    }
-	} /* while(1) */
-#ifndef FILL_BUFFERS
-	while (0);
-#endif
-    }
-    else {
-	b->flags |= BF_READ_ERROR;
-	fdtab[fd].state = FD_STERROR;
-    }
-
-    if (b->flags & BF_READ_STATUS) {
-	if (s->proxy->srvtimeout && FD_ISSET(fd, StaticReadEvent))
-	    tv_delayfrom(&s->srexpire, &now, s->proxy->srvtimeout);
-	else
-	    tv_eternity(&s->srexpire);
-	
-	task_wakeup(&rq, t);
-    }
-
-    return 0;
-}
 
 
 /*
@@ -378,7 +272,7 @@ int event_srv_write(int fd) {
 		    b->flags |= BF_WRITE_ERROR;
 		    fdtab[fd].state = FD_STERROR;
 		    task_wakeup(&rq, t);
-		    tv_eternity(&s->swexpire);
+		    tv_eternity(&b->wex);
 		    FD_CLR(fd, StaticWriteEvent);
 		    return 0;
 		}
@@ -387,7 +281,7 @@ int event_srv_write(int fd) {
 	    b->flags |= BF_WRITE_NULL;
 	    task_wakeup(&rq, t);
 	    fdtab[fd].state = FD_STREADY;
-	    tv_eternity(&s->swexpire);
+	    tv_eternity(&b->wex);
 	    FD_CLR(fd, StaticWriteEvent);
 	    return 0;
 	}
@@ -437,17 +331,16 @@ int event_srv_write(int fd) {
      * otherwise it could loop indefinitely !
      */
     if (s->srv_state != SV_STCONN) {
-	if (s->proxy->srvtimeout) {
-	    tv_delayfrom(&s->swexpire, &now, s->proxy->srvtimeout);
-	    /* FIXME: to prevent the server from expiring read timeouts during writes,
-	     * we refresh it. A solution would be to merge read+write+connect timeouts
-	     * into a unique one since we don't mind expiring on read or write, and none
-	     * of them is enabled while waiting for connect(), although that needs some
-	     * study particularly on full-duplex TCP connections. */
-	    s->srexpire = s->swexpire;
+	if (b->wto) {
+		tv_delayfrom(&b->wex, &now, b->wto);
+		/* FIXME: to prevent the client from expiring read timeouts during writes,
+		 * we refresh it. A solution would be to merge read+write timeouts into a
+		 * unique one, although that needs some study particularly on full-duplex
+		 * TCP connections. */
+		b->rex = b->wex;
 	}
 	else
-	    tv_eternity(&s->swexpire);
+		tv_eternity(&b->wex);
     }
 
     task_wakeup(&rq, t);

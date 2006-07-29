@@ -15,9 +15,7 @@
  * - we still use 'listeners' to check whether we want to stop or not.
  * - the various pollers should be moved to other external files, possibly
  *   dynamic libs.
- * - merge event_cli_read() and event_srv_read(). The difference is res_*,
- *   buffer (at the beginning) and timeouts (at the end).
- *   => event_tcp_read(). It may be called from event_accept().
+ * - stream_sock_read() : It may be called from event_accept().
  * - extract the connect code from event_srv_write()
  *   => event_tcp_connect(). It must then call event_write().
  * - merge the remaining event_cli_write() and event_srv_write()

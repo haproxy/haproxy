@@ -101,11 +101,6 @@
 struct session {
 	struct task *task;			/* the task associated with this session */
 	/* application specific below */
-	struct timeval crexpire;		/* expiration date for a client read  */
-	struct timeval cwexpire;		/* expiration date for a client write */
-	struct timeval srexpire;		/* expiration date for a server read  */
-	struct timeval swexpire;		/* expiration date for a server write */
-	struct timeval cnexpire;		/* expiration date for a connect */
 	struct proxy *proxy;			/* the proxy this socket belongs to */
 	int cli_fd;				/* the client side fd */
 	int srv_fd;				/* the server side fd */
