@@ -426,9 +426,11 @@ int connect_server(struct session *s)
 	}
 
 	fdtab[fd].owner = s->task;
-	fdtab[fd].read  = &event_srv_read;
-	fdtab[fd].write = &event_srv_write;
 	fdtab[fd].state = FD_STCONN; /* connection in progress */
+	fdtab[fd].cb[DIR_RD].f = &event_srv_read;
+	fdtab[fd].cb[DIR_RD].b = s->rep;
+	fdtab[fd].cb[DIR_WR].f = &event_srv_write;
+	fdtab[fd].cb[DIR_WR].b = s->req;
     
 	FD_SET(fd, StaticWriteEvent);  /* for connect status */
 #if defined(DEBUG_FULL) && defined(ENABLE_EPOLL)

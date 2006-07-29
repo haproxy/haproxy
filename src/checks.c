@@ -280,8 +280,10 @@ int process_chk(struct task *t)
 			
 						s->curfd = fd; /* that's how we know a test is in progress ;-) */
 						fdtab[fd].owner = t;
-						fdtab[fd].read  = &event_srv_chk_r;
-						fdtab[fd].write = &event_srv_chk_w;
+						fdtab[fd].cb[DIR_RD].f = &event_srv_chk_r;
+						fdtab[fd].cb[DIR_RD].b = NULL;
+						fdtab[fd].cb[DIR_WR].f = &event_srv_chk_w;
+						fdtab[fd].cb[DIR_WR].b = NULL;
 						fdtab[fd].state = FD_STCONN; /* connection in progress */
 						FD_SET(fd, StaticWriteEvent);  /* for connect status */
 #ifdef DEBUG_FULL

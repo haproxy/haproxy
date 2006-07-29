@@ -25,6 +25,16 @@
 #include <common/config.h>
 #include <types/buffers.h>
 
+/* Initializes all fields in the buffer. The ->rlim field is initialized last
+ * so that the compiler can optimize it away if changed immediately after the
+ * call to this function.
+ */
+static inline void buffer_init(struct buffer *buf)
+{
+	buf->l = buf->total = buf->flags = 0;
+	buf->rlim = buf->h = buf->r = buf->lr = buf->w = buf->data;
+}
+
 /* returns 1 if the buffer is empty, 0 otherwise */
 static inline int buffer_isempty(struct buffer *buf)
 {

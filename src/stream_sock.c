@@ -46,8 +46,8 @@
  */
 int event_cli_read(int fd) {
 	struct task *t = fdtab[fd].owner;
+	struct buffer *b = fdtab[fd].cb[DIR_RD].b;
 	struct session *s = t->context;
-	struct buffer *b = s->req;
 	int ret, max;
 
 #ifdef DEBUG_FULL
@@ -151,8 +151,8 @@ int event_cli_read(int fd) {
  */
 int event_cli_write(int fd) {
 	struct task *t = fdtab[fd].owner;
+	struct buffer *b = fdtab[fd].cb[DIR_WR].b;
 	struct session *s = t->context;
-	struct buffer *b = s->rep;
 	int ret, max;
 
 #ifdef DEBUG_FULL
@@ -243,8 +243,8 @@ int event_cli_write(int fd) {
  */
 int event_srv_read(int fd) {
     struct task *t = fdtab[fd].owner;
+    struct buffer *b = fdtab[fd].cb[DIR_RD].b;
     struct session *s = t->context;
-    struct buffer *b = s->rep;
     int ret, max;
 
 #ifdef DEBUG_FULL
@@ -348,8 +348,8 @@ int event_srv_read(int fd) {
  */
 int event_srv_write(int fd) {
     struct task *t = fdtab[fd].owner;
+    struct buffer *b = fdtab[fd].cb[DIR_WR].b;
     struct session *s = t->context;
-    struct buffer *b = s->req;
     int ret, max;
 
 #ifdef DEBUG_FULL

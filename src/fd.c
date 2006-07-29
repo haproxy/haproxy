@@ -222,14 +222,14 @@ int epoll_loop(int action)
 				if (fdtab[fd].state == FD_STCLOSE)
 					continue;
 				if (epoll_events[count].events & ( EPOLLIN | EPOLLERR | EPOLLHUP ))
-					fdtab[fd].read(fd);
+					fdtab[fd].cb[DIR_RD].f(fd);
 			}
 
 			if (FD_ISSET(fd, StaticWriteEvent)) {
 				if (fdtab[fd].state == FD_STCLOSE)
 					continue;
 				if (epoll_events[count].events & ( EPOLLOUT | EPOLLERR | EPOLLHUP ))
-					fdtab[fd].write(fd);
+					fdtab[fd].cb[DIR_WR].f(fd);
 			}
 		}
 	}
@@ -334,14 +334,14 @@ int poll_loop(int action)
 				if (fdtab[fd].state == FD_STCLOSE)
 					continue;
 				if (poll_events[count].revents & ( POLLIN | POLLERR | POLLHUP ))
-					fdtab[fd].read(fd);
+					fdtab[fd].cb[DIR_RD].f(fd);
 			}
 	  
 			if (FD_ISSET(fd, StaticWriteEvent)) {
 				if (fdtab[fd].state == FD_STCLOSE)
 					continue;
 				if (poll_events[count].revents & ( POLLOUT | POLLERR | POLLHUP ))
-					fdtab[fd].write(fd);
+					fdtab[fd].cb[DIR_WR].f(fd);
 			}
 		}
 	}
@@ -451,13 +451,13 @@ int select_loop(int action)
 						if (FD_ISSET(fd, ReadEvent)) {
 							if (fdtab[fd].state == FD_STCLOSE)
 								continue;
-							fdtab[fd].read(fd);
+							fdtab[fd].cb[DIR_RD].f(fd);
 						}
 
 						if (FD_ISSET(fd, WriteEvent)) {
 							if (fdtab[fd].state == FD_STCLOSE)
 								continue;
-							fdtab[fd].write(fd);
+							fdtab[fd].cb[DIR_WR].f(fd);
 						}
 					}
 		}

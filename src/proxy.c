@@ -123,8 +123,9 @@ int start_proxies(int verbose)
 			listener->fd = fd;
 
 			/* the function for the accept() event */
-			fdtab[fd].read  = &event_accept;
-			fdtab[fd].write = NULL; /* never called */
+			fdtab[fd].cb[DIR_RD].f  = &event_accept;
+			fdtab[fd].cb[DIR_WR].f = NULL; /* never called */
+			fdtab[fd].cb[DIR_RD].b = fdtab[fd].cb[DIR_WR].b = NULL;
 			fdtab[fd].owner = (struct task *)curproxy; /* reference the proxy instead of a task */
 			fdtab[fd].state = FD_STLISTEN;
 			FD_SET(fd, StaticReadEvent);

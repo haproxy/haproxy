@@ -33,6 +33,7 @@
 #include <types/server.h>
 #include <types/session.h>
 
+#include <proto/buffers.h>
 #include <proto/client.h>
 #include <proto/fd.h>
 #include <proto/log.h>
@@ -309,10 +310,8 @@ int event_accept(int fd) {
 			return 0;
 		}
 
-		s->req->l = 0;
-		s->req->total = 0;
-		s->req->h = s->req->r = s->req->lr = s->req->w = s->req->data;	/* r and w will be reset further */
-		s->req->rlim = s->req->data + BUFSIZE;
+		buffer_init(s->req);
+		s->req->rlim += BUFSIZE;
 		if (s->cli_state == CL_STHEADERS) /* reserve some space for header rewriting */
 			s->req->rlim -= MAXREWRITE;
 
@@ -327,14 +326,15 @@ int event_accept(int fd) {
 			pool_free(session, s);
 			return 0;
 		}
-		s->rep->l = 0;
-		s->rep->total = 0;
-		s->rep->h = s->rep->r = s->rep->lr = s->rep->w = s->rep->rlim = s->rep->data;
 
-		fdtab[cfd].read  = &event_cli_read;
-		fdtab[cfd].write = &event_cli_write;
+		buffer_init(s->rep);
+
 		fdtab[cfd].owner = t;
 		fdtab[cfd].state = FD_STREADY;
+		fdtab[cfd].cb[DIR_RD].f = &event_cli_read;
+		fdtab[cfd].cb[DIR_RD].b = s->req;
+		fdtab[cfd].cb[DIR_WR].f = &event_cli_write;
+		fdtab[cfd].cb[DIR_WR].b = s->rep;
 
 		if ((p->mode == PR_MODE_HTTP && (s->flags & SN_MONITOR)) ||
 		    (p->mode == PR_MODE_HEALTH && (p->options & PR_O_HTTP_CHK)))

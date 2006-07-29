@@ -25,6 +25,24 @@
 #include <common/config.h>
 #include <common/memory.h>
 
+#include <stdint.h>
+
+/* The BF_* macros designate Buffer Flags, which may be ORed in the bit field
+ * member 'flags' in struct buffer.
+ */
+#define BF_SHUTR_PENDING        1
+#define BF_SHUTR_DONE           2
+#define BF_SHUTW_PENDING        4
+#define BF_SHUTW_DONE           8
+#define BF_PARTIAL_READ        16
+#define BF_COMPLETE_READ       32
+#define BF_READ_ERROR          64
+#define BF_PARTIAL_WRITE      128
+#define BF_COMPLETE_WRITE     256
+#define BF_WRITE_ERROR        512
+
+
+
 /* describes a chunk of string */
 struct chunk {
 	char *str;	/* beginning of the string itself. Might not be 0-terminated */
@@ -32,6 +50,7 @@ struct chunk {
 };
 
 struct buffer {
+	u_int32_t flags;
 	unsigned int l;                 /* data length */
 	char *r, *w, *h, *lr;           /* read ptr, write ptr, last header ptr, last read */
 	char *rlim;                     /* read limit, used for header rewriting */

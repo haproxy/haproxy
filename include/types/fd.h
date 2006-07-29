@@ -28,6 +28,7 @@
 
 #include <common/config.h>
 #include <types/task.h>
+#include <types/buffers.h>
 
 /* different possible states for the fd */
 #define FD_STCLOSE	0
@@ -36,13 +37,20 @@
 #define FD_STREADY	3
 #define FD_STERROR	4
 
+enum {
+	DIR_RD=0,
+	DIR_WR=1,
+	DIR_SIZE
+};
 
 /* info about one given fd */
 struct fdtab {
-    int (*read)(int fd);	/* read function */
-    int (*write)(int fd);	/* write function */
-    struct task *owner;		/* the session (or proxy) associated with this fd */
-    int state;			/* the state of this fd */
+	struct {
+		int (*f)(int fd);            /* read/write function */
+		struct buffer *b;            /* read/write buffer */
+	} cb[DIR_SIZE];
+	struct task *owner;             /* the session (or proxy) associated with this fd */
+	int state;                      /* the state of this fd */
 };
 
 extern struct fdtab *fdtab;             /* array of all the file descriptors */
