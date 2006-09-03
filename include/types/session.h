@@ -73,6 +73,7 @@
 #define SN_FINST_D	0x00004000	/* session ended during data phase */
 #define SN_FINST_L	0x00005000	/* session ended while pushing last data to client */
 #define SN_FINST_Q	0x00006000	/* session ended while waiting in queue for a server slot */
+#define SN_FINST_T	0x00007000	/* session ended tarpitted */
 #define SN_FINST_MASK	0x00007000	/* mask to get only final session state flags */
 #define	SN_FINST_SHIFT	12		/* bit shift */
 
@@ -95,6 +96,7 @@
 #define SN_ASSIGNED	0x00800000	/* no need to assign a server to this session */
 #define SN_ADDR_SET	0x01000000	/* this session's server address has been set */
 #define SN_SELF_GEN	0x02000000	/* the proxy generates data for the client (eg: stats) */
+#define SN_CLTARPIT	0x04000000	/* the session is tarpitted (anti-dos) */
 
 
 /* WARNING: if new fields are added, they must be initialized in event_accept() */

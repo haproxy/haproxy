@@ -451,6 +451,17 @@ int process_cli(struct session *t)
 					 */
 					tv_eternity(&req->rex);
 
+
+				/* When a connection is tarpitted, we use the queue timeout for the
+				 * tarpit delay, which currently happens to be the server's connect
+				 * timeout. If unset, then set it to zero because we really want it
+				 * to expire at one moment.
+				 */
+				if (t->flags & SN_CLTARPIT) {
+					tv_delayfrom(&req->cex, &now,
+						     t->proxy->contimeout ? t->proxy->contimeout : 0);
+				}
+
 				goto process_data;
 			}
 
@@ -637,22 +648,26 @@ int process_cli(struct session *t)
 					if (regexec(exp->preg, req->h, MAX_MATCH, pmatch, 0) == 0) {
 						switch (exp->action) {
 						case ACT_ALLOW:
-							if (!(t->flags & SN_CLDENY))
+							if (!(t->flags & (SN_CLDENY | SN_CLTARPIT)))
 								t->flags |= SN_CLALLOW;
 							break;
 						case ACT_REPLACE:
-							if (!(t->flags & SN_CLDENY)) {
+							if (!(t->flags & (SN_CLDENY | SN_CLTARPIT))) {
 								int len = exp_replace(trash, req->h, exp->replace, pmatch);
 								ptr += buffer_replace2(req, req->h, ptr, trash, len);
 							}
 							break;
 						case ACT_REMOVE:
-							if (!(t->flags & SN_CLDENY))
+							if (!(t->flags & (SN_CLDENY | SN_CLTARPIT)))
 								delete_header = 1;
 							break;
 						case ACT_DENY:
-							if (!(t->flags & SN_CLALLOW))
+							if (!(t->flags & (SN_CLALLOW | SN_CLTARPIT)))
 								t->flags |= SN_CLDENY;
+							break;
+						case ACT_TARPIT:
+							if (!(t->flags & (SN_CLALLOW | SN_CLDENY)))
+								t->flags |= SN_CLTARPIT;
 							break;
 						case ACT_PASS: /* we simply don't deny this one */
 							break;
@@ -678,7 +693,7 @@ int process_cli(struct session *t)
 			 */
 			if (!delete_header &&
 			    (t->proxy->cookie_name != NULL || t->proxy->capture_name != NULL || t->proxy->appsession_name !=NULL)
-			    && !(t->flags & SN_CLDENY) && (ptr >= req->h + 8)
+			    && !(t->flags & (SN_CLDENY|SN_CLTARPIT)) && (ptr >= req->h + 8)
 			    && (strncasecmp(req->h, "Cookie: ", 8) == 0)) {
 				char *p1, *p2, *p3, *p4;
 				char *del_colon, *del_cookie, *colon;
@@ -938,7 +953,7 @@ int process_cli(struct session *t)
 			} /* end of cookie processing on this header */
 
 			/* let's look if we have to delete this header */
-			if (delete_header && !(t->flags & SN_CLDENY)) {
+			if (delete_header && !(t->flags & (SN_CLDENY|SN_CLTARPIT))) {
 				buffer_replace2(req, req->h, req->lr, NULL, 0);
 				/* WARNING: ptr is not valid anymore, since the header may have
 				 * been deleted or truncated ! */
@@ -1338,6 +1353,27 @@ int process_srv(struct session *t)
 			return 1;
 		}
 		else {
+			if (t->flags & SN_CLTARPIT) {
+				/* This connection is being tarpitted. The CLIENT side has
+				 * already set the connect expiration date to the right
+				 * timeout. We just have to check that it has not expired.
+				 */
+				if (tv_cmp2_ms(&req->cex, &now) > 0)
+					return 0;
+
+				/* We will set the queue timer to the time spent, just for
+				 * logging purposes. We fake a 500 server error, so that the
+				 * attacker will not suspect his connection has been tarpitted.
+				 * It will not cause trouble to the logs because we can exclude
+				 * the tarpitted connections by filtering on the 'PT' status flags.
+				 */
+				tv_eternity(&req->cex);
+				t->logs.t_queue = tv_diff(&t->logs.tv_accept, &now);
+				srv_close_with_err(t, SN_ERR_PRXCOND, SN_FINST_T,
+						   500, t->proxy->errmsg.len500, t->proxy->errmsg.msg500);
+				return 1;
+			}
+
 			/* Right now, we will need to create a connection to the server.
 			 * We might already have tried, and got a connection pending, in
 			 * which case we will not do anything till it's pending. It's up

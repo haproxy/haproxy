@@ -1348,6 +1348,26 @@ int cfg_parse_listen(char *file, int linenum, char **args)
 	
 		chain_regex(&curproxy->req_exp, preg, ACT_ALLOW, NULL);
 	}
+	else if (!strcmp(args[0], "reqtarpit")) {  /* tarpit a request if a header matches this regex */
+		regex_t *preg;
+		if (curproxy == &defproxy) {
+			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+			return -1;
+		}
+	
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
+			return -1;
+		}
+	
+		preg = calloc(1, sizeof(regex_t));
+		if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
+			Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
+			return -1;
+		}
+	
+		chain_regex(&curproxy->req_exp, preg, ACT_TARPIT, NULL);
+	}
 	else if (!strcmp(args[0], "reqirep")) {  /* replace request header from a regex, ignoring case */
 		regex_t *preg;
 		if (curproxy == &defproxy) {
@@ -1453,6 +1473,26 @@ int cfg_parse_listen(char *file, int linenum, char **args)
 		}
 	
 		chain_regex(&curproxy->req_exp, preg, ACT_ALLOW, NULL);
+	}
+	else if (!strcmp(args[0], "reqitarpit")) {  /* tarpit a request if a header matches this regex ignoring case */
+		regex_t *preg;
+		if (curproxy == &defproxy) {
+			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+			return -1;
+		}
+	
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
+			return -1;
+		}
+	
+		preg = calloc(1, sizeof(regex_t));
+		if (regcomp(preg, args[1], REG_EXTENDED | REG_ICASE) != 0) {
+			Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
+			return -1;
+		}
+	
+		chain_regex(&curproxy->req_exp, preg, ACT_TARPIT, NULL);
 	}
 	else if (!strcmp(args[0], "reqadd")) {  /* add request header */
 		if (curproxy == &defproxy) {
