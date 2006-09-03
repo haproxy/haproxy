@@ -2,9 +2,9 @@
                                  HAProxy
                            Manuel de référence
                            -------------------
-                              version 1.3.1
+                              version 1.3.2
                               willy tarreau
-                                2006/07/09
+                                2006/09/03
 
 ================
 | Introduction |
@@ -1797,6 +1797,9 @@ une signification précise :
         L : transfert des dernières ("LAST") données du proxy vers le client,
             alors que le serveur a déjà fini.
 
+        T : requête bloquée en mode "tarpit" par le proxy. Elle a été maintenue
+            ouverte vers le client pendant toute la durée du contimeout.
+
         - : terminaison normale, après fin de transfert des données.
 
   - le troisième caractère indique l'éventuelle identification d'un cookie de
@@ -1913,6 +1916,10 @@ Les combinaisons d'indicateurs les plus fréquentes sont énumérées ici.
           incomplète, dangereuse ('cache control'), ou parce qu'elle validait
           un filtre de sécurité. Dans tous les cas, une erreur HTTP 502 est
           renvoyée au client.
+
+      PT  Le proxy a bloqué une requête du client et a maintenu sa connection
+          ouverte avant de lui retourner une erreur "500 server error". Rien
+          n'a été envoyé au serveur.
 
       cD  Le client n'a pas lu de données pendant le temps qui lui était
           imparti. Ceci est souvent causé par des problèmes réseau côté client.
@@ -2091,6 +2098,8 @@ La syntaxe est :
    reqideny  <search>             idem sans distinction majuscules/minuscules
    reqpass   <search>             inhibe ces actions sur les en-têtes validant <search>
    reqipass  <search>             idem sans distinction majuscules/minuscules
+   reqtarpit <search>             bloquer et maintenir une request validant <search>
+   reqitarpit <search>            idem sans distinction majuscules/minuscules
 
    rspadd   <string>              pour ajouter un en-tête dans la réponse
    rsprep   <search> <replace>    pour modifier la réponse
@@ -2121,10 +2130,10 @@ backslach ('\') :
 <replace> contient la chaîne remplaçant la portion vérifiée par l'expression.
 Elle peut inclure les caractères spéciaux ci-dessus, faire référence à un
 groupe délimité par des parenthèses dans l'expression régulière, par sa
-position numérale. Les positions vont de 1 à 9, et sont codées par un '\'
-suivi du chiffre désiré. Il est également possible d'insérer un caractère non
-imprimable (utile pour le saut de ligne) inscrivant '\x' suivi du code
-hexadécimal de ce caractère (comme en C).
+position numérale. Les positions vont de 0 à 9, et sont codées par un '\'
+suivi du chiffre désiré (0 désignant la ligne complète). Il est également
+possible d'insérer un caractère non imprimable (utile pour le saut de ligne)
+inscrivant '\x' suivi du code hexadécimal de ce caractère (comme en C).
 
 <string> représente une chaîne qui sera ajoutée systématiquement après la
 dernière ligne d'en-tête.
@@ -2142,6 +2151,12 @@ Remarques :
     en-têtes inutiles avant les ajouts.
   - une requête bloquée produira une réponse "HTTP 403 forbidden" tandis qu'une
     réponse bloquée produira une réponse "HTTP 502 Bad gateway".
+  - une requête bloquée par 'reqtarpit' sera maintenue pendant une durée égale
+    au paramètre 'contimeout'. Rien ne sera envoyé au serveur. Lorsque le temps
+    alloué expire, le proxy répondra avec une réponse "500 server error" de
+    sorte que l'attaquant ne suspecte pas qu'il ait été bloqué. Les logs
+    rapporteront aussi ce code 500, mais les flags de terminaison indiqueront
+    "PT".
 
 Exemples :
 ----------
@@ -2170,6 +2185,9 @@ Exemples :
         reqideny        ^[^:\ ]*\ ([^\ ]*\ [^\ ]*\ |.*%00)
         reqideny        ^[^:\ ]*\ .*<script
         reqideny        ^[^:\ ]*\ .*/(root\.exe\?|cmd\.exe\?|default\.ida\?)
+
+	# tarpit attacks on the login page.
+        reqtarpit     ^[^:\ ]*\ .*\.php?login=[^0-9]
 
         # allow other syntactically valid requests, and block any other method
         reqipass        ^(GET|POST|HEAD|OPTIONS)\ /.*\ HTTP/1\.[01]$

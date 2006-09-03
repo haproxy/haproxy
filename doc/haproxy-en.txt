@@ -2,9 +2,9 @@
                                  HAProxy
                             Reference  Manual
                            -------------------
-                              version 1.3.1
+                              version 1.3.2
                               willy tarreau
-                                2006/07/09
+                                2006/09/03
 
 ============
 | Abstract |
@@ -1741,6 +1741,9 @@ HTTP, each of which has a special meaning :
         L : the proxy was still transmitting LAST data to the client while the
             server had already finished.
 
+        T : the request was tarpitted. It has been held open on with the client
+            during the whole contimeout duration.
+
         - : normal session completion after end of data transfer.
 
   - the third character tells whether the persistence cookie was provided by
@@ -1841,6 +1844,10 @@ The most common termination flags combinations are indicated here.
       PH  The proxy blocked the server's response, because it was invalid,
           incomplete, dangerous (cache control), or matched a security filter.
           In any case, an HTTP 502 error is sent to the client.
+
+      PT  The proxy blocked the client's request and has tarpitted its
+          connection before returning it a 500 server error. Nothing was sent
+          to the server.
 
       cD  The client did not read any data for as long as the clitimeout delay.
           This is often caused by network failures on the client side.
@@ -2014,6 +2021,8 @@ The syntax is :
    reqideny  <search>             same, but ignoring the case
    reqpass   <search>             ignore a header matching <search>
    reqipass  <search>             same, but ignoring the case
+   reqtarpit <search>             tarpit a request matching <search>
+   reqitarpit <search>            same, but ignoring the case
 
    rspadd   <string>              to add a header to the response
    rsprep   <search> <replace>    to modify the response
@@ -2039,11 +2048,12 @@ Other characters may be prefixed with a backslash to change their meaning :
   \xXX to write the ASCII hex code XX as in the C language
 
 
-<replace> containst the string to be used to replace the largest portion of text
+<replace> contains the string to be used to replace the largest portion of text
 matching the regex. It can make use of the special characters above, and can
 reference a substring delimited by parenthesis in the regex, by the group
-numerical order from 1 to 9. In this case, you would write a backslah ('\')
-immediately followed by one digit indicating the group position.
+numerical order from 0 to 9 (0 being the entire line). In this case, you would
+write a backslash ('\') immediately followed by one digit indicating the group
+position.
 
 <string> represents the string which will systematically be added after the last
 header line. It can also use special characters above.
@@ -2062,7 +2072,12 @@ Notes :
     useless headers before adding new ones.
   - a denied request will generate an "HTTP 403 forbidden" response, while a
     denied response will generate an "HTTP 502 Bad gateway" response.
-    
+  - a tarpitted request will be held open on the client side for a duration
+    defined in the contimeout parameter. Nothing will be sent to any server.
+    When the timeout is reached, the proxy will reply with a 500 server error
+    response so that the attacker does not suspect it has been tarpitted. The
+    logs will report the 500, but the termination flags will indicate 'PT'.
+
 
 Examples :
 ----------
@@ -2091,6 +2106,9 @@ Examples :
         reqideny      ^[^:\ ]*\ ([^\ ]*\ [^\ ]*\ |.*%00)
         reqideny      ^[^:\ ]*\ .*<script
         reqideny      ^[^:\ ]*\ .*/(root\.exe\?|cmd\.exe\?|default\.ida\?)
+
+	# tarpit attacks on the login page.
+        reqtarpit     ^[^:\ ]*\ .*\.php?login=[^0-9]
 
         # allow other syntactically valid requests, and block any other method
         reqipass      ^(GET|POST|HEAD|OPTIONS)\ /.*\ HTTP/1\.[01]$
