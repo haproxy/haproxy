@@ -1742,7 +1742,7 @@ HTTP, each of which has a special meaning :
             server had already finished.
 
         T : the request was tarpitted. It has been held open on with the client
-            during the whole contimeout duration.
+            during the whole contimeout duration or untill the client closed.
 
         - : normal session completion after end of data transfer.
 
@@ -1825,6 +1825,8 @@ The most common termination flags combinations are indicated here.
           with enough empty slots to accept it. It might be that either all the
           servers were saturated or the assigned server taking too long to
           respond.
+
+      CT  The client aborted while its session was tarpitted.
 
       sQ  The session spent too much time in queue and has been expired.
 
@@ -2073,10 +2075,11 @@ Notes :
   - a denied request will generate an "HTTP 403 forbidden" response, while a
     denied response will generate an "HTTP 502 Bad gateway" response.
   - a tarpitted request will be held open on the client side for a duration
-    defined in the contimeout parameter. Nothing will be sent to any server.
-    When the timeout is reached, the proxy will reply with a 500 server error
-    response so that the attacker does not suspect it has been tarpitted. The
-    logs will report the 500, but the termination flags will indicate 'PT'.
+    defined in the contimeout parameter, or untill the client aborts. Nothing
+    will be sent to any server. When the timeout is reached, the proxy will
+    reply with a 500 server error response so that the attacker does not
+    suspect it has been tarpitted. The logs may report the 500, but the
+    termination flags will indicate 'PT' in this case.
 
 
 Examples :

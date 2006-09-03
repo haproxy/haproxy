@@ -1798,7 +1798,8 @@ une signification précise :
             alors que le serveur a déjà fini.
 
         T : requête bloquée en mode "tarpit" par le proxy. Elle a été maintenue
-            ouverte vers le client pendant toute la durée du contimeout.
+            ouverte vers le client pendant toute la durée du contimeout ou
+            jusqu'à l'abandon de la part du client.
 
         - : terminaison normale, après fin de transfert des données.
 
@@ -1893,6 +1894,9 @@ Les combinaisons d'indicateurs les plus fréquentes sont énumérées ici.
           libres pour l'accepter. Cela signifie soit que l'ensemble des
           serveurs étaient saturés, soit que le serveur assigné a mis trop de
           temps à répondre.
+
+      CT  Le client a abandonné alors que sa session était bloquée en mode
+          tarpit.
 
       sQ  La session a attendu trop longtemps en file d'attente et a été
           expirée.
@@ -2152,11 +2156,11 @@ Remarques :
   - une requête bloquée produira une réponse "HTTP 403 forbidden" tandis qu'une
     réponse bloquée produira une réponse "HTTP 502 Bad gateway".
   - une requête bloquée par 'reqtarpit' sera maintenue pendant une durée égale
-    au paramètre 'contimeout'. Rien ne sera envoyé au serveur. Lorsque le temps
-    alloué expire, le proxy répondra avec une réponse "500 server error" de
-    sorte que l'attaquant ne suspecte pas qu'il ait été bloqué. Les logs
-    rapporteront aussi ce code 500, mais les flags de terminaison indiqueront
-    "PT".
+    au paramètre 'contimeout', ou jusqu'à l'abandon du client. Rien ne sera
+    envoyé au serveur. Lorsque le temps alloué expire, le proxy répondra avec
+    une réponse "500 server error" de sorte que l'attaquant ne suspecte pas
+    qu'il ait été bloqué. Les logs rapporteront aussi ce code 500, mais les
+    flags de terminaison indiqueront "PT".
 
 Exemples :
 ----------

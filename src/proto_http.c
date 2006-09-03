@@ -458,6 +458,10 @@ int process_cli(struct session *t)
 				 * to expire at one moment.
 				 */
 				if (t->flags & SN_CLTARPIT) {
+					t->req->l = 0;
+					/* flush the request so that we can drop the connection early
+					 * if the client closes first.
+					 */
 					tv_delayfrom(&req->cex, &now,
 						     t->proxy->contimeout ? t->proxy->contimeout : 0);
 				}
@@ -1348,7 +1352,10 @@ int process_srv(struct session *t)
 			/* note that this must not return any error because it would be able to
 			 * overwrite the client_retnclose() output.
 			 */
-			srv_close_with_err(t, SN_ERR_CLICL, t->pend_pos ? SN_FINST_Q : SN_FINST_C, 0, 0, NULL);
+			if (t->flags & SN_CLTARPIT)
+				srv_close_with_err(t, SN_ERR_CLICL, SN_FINST_T, 0, 0, NULL);
+			else
+				srv_close_with_err(t, SN_ERR_CLICL, t->pend_pos ? SN_FINST_Q : SN_FINST_C, 0, 0, NULL);
 
 			return 1;
 		}
