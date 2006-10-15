@@ -522,9 +522,6 @@ int srv_retryable_connect(struct session *t)
 		}
 		/* ensure that we have enough retries left */
 		if (srv_count_retry_down(t, conn_err)) {
-			/* let's try to offer this slot to anybody */
-			if (may_dequeue_tasks(t->srv, t->proxy))
-				task_wakeup(&rq, t->srv->queue_mgt);
 			return 1;
 		}
 	} while (t->srv == NULL || t->conn_retries > 0 || !(t->proxy->options & PR_O_REDISP));
