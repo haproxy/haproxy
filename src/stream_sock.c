@@ -86,8 +86,8 @@ int stream_sock_read(int fd) {
 				int skerr;
 				socklen_t lskerr = sizeof(skerr);
 	
-				getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
-				if (skerr)
+				ret = getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
+				if (ret == -1 || skerr)
 					ret = -1;
 				else
 					ret = recv(fd, b->r, max, 0);
@@ -171,8 +171,8 @@ int stream_sock_write(int fd) {
 			if (fdtab[fd].state == FD_STCONN) {
 				int skerr;
 				socklen_t lskerr = sizeof(skerr);
-				getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
-				if (skerr) {
+				ret = getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
+				if (ret == -1 || skerr) {
 					b->flags |= BF_WRITE_ERROR;
 					fdtab[fd].state = FD_STERROR;
 					task_wakeup(&rq, fdtab[fd].owner);
@@ -195,8 +195,8 @@ int stream_sock_write(int fd) {
 			int skerr;
 			socklen_t lskerr = sizeof(skerr);
 
-			getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
-			if (skerr)
+			ret = getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
+			if (ret == -1 || skerr)
 				ret = -1;
 			else
 				ret = send(fd, b->w, max, MSG_DONTWAIT);

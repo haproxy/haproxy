@@ -176,9 +176,7 @@ int event_srv_chk_r(int fd)
 	socklen_t lskerr = sizeof(skerr);
 
 	result = len = -1;
-
-	getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
-	if (!skerr) {
+	if (!getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr) && !skerr) {
 #ifndef MSG_NOSIGNAL
 		len = recv(fd, reply, sizeof(reply), 0);
 #else

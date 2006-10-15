@@ -96,6 +96,8 @@ struct sockaddr_in *str2sa(char *str)
 
 	memset(&sa, 0, sizeof(sa));
 	str = strdup(str);
+	if (str == NULL)
+		goto out_nofree;
 
 	if ((c = strrchr(str,':')) != NULL) {
 		*c++ = '\0';
@@ -120,6 +122,7 @@ struct sockaddr_in *str2sa(char *str)
 	sa.sin_family = AF_INET;
 
 	free(str);
+ out_nofree:
 	return &sa;
 }
 
@@ -137,6 +140,8 @@ int str2net(char *str, struct in_addr *addr, struct in_addr *mask)
 	memset(mask, 0, sizeof(*mask));
 	memset(addr, 0, sizeof(*addr));
 	str = strdup(str);
+	if (str == NULL)
+		return 0;
 
 	if ((c = strrchr(str, '/')) != NULL) {
 		*c++ = '\0';
