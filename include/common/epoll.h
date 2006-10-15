@@ -29,7 +29,7 @@
 #ifndef _COMMON_EPOLL_H
 #define _COMMON_EPOLL_H
 
-#include <stdint.h>
+#include <sys/types.h>
 #include <linux/unistd.h>
 
 #include <common/config.h>

@@ -25,7 +25,8 @@
 #include <common/config.h>
 #include <common/memory.h>
 
-#include <stdint.h>
+#include <sys/time.h>
+#include <sys/types.h>
 
 /* The BF_* macros designate Buffer Flags, which may be ORed in the bit field
  * member 'flags' in struct buffer.
