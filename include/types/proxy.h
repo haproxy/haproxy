@@ -22,9 +22,10 @@
 #ifndef _TYPES_PROXY_H
 #define _TYPES_PROXY_H
 
+#include <sys/types.h>
+#include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <sys/socket.h>
 
 #include <common/appsession.h>
 #include <common/chtbl.h>
