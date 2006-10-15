@@ -59,7 +59,7 @@ struct chunk {
 };
 
 struct buffer {
-	u_int32_t flags;                /* BF_* */
+	unsigned int flags;             /* BF_* */
 	struct timeval rex;             /* expiration date for a read  */
 	struct timeval wex;             /* expiration date for a write */
 	struct timeval cex;             /* expiration date for a connect */
