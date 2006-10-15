@@ -135,3 +135,7 @@ tar:	clean
 	    -cf - haproxy-$(VERSION)/* | gzip -c9 >haproxy-$(VERSION).tar.gz
 	rm -f haproxy-$(VERSION)
 
+git-tar: clean
+	ref=$(shell git-describe --tags); ver=$${ref#v};\
+	comms=$(shell git-log $$ref..|grep -c ^commit); \
+	git-tar-tree HEAD haproxy-$(VERSION) | gzip -9 > haproxy-$$ver-$$comms.tar.gz
