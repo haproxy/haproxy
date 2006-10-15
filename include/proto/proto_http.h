@@ -36,7 +36,7 @@ int process_srv(struct session *t);
 void client_retnclose(struct session *s, int len, const char *msg);
 void client_return(struct session *s, int len, const char *msg);
 void srv_close_with_err(struct session *t, int err, int finst,
-			int status, int msglen, char *msg);
+			int status, int msglen, const char *msg);
 
 int produce_content(struct session *s);
 

@@ -117,7 +117,7 @@ void client_return(struct session *s, int len, const char *msg)
  * returned.
  */
 void srv_close_with_err(struct session *t, int err, int finst,
-			int status, int msglen, char *msg)
+			int status, int msglen, const char *msg)
 {
 	t->srv_state = SV_STCLOSE;
 	if (status > 0) {

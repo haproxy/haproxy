@@ -36,13 +36,13 @@ static inline void buffer_init(struct buffer *buf)
 }
 
 /* returns 1 if the buffer is empty, 0 otherwise */
-static inline int buffer_isempty(struct buffer *buf)
+static inline int buffer_isempty(const struct buffer *buf)
 {
 	return buf->l == 0;
 }
 
 /* returns 1 if the buffer is full, 0 otherwise */
-static inline int buffer_isfull(struct buffer *buf) {
+static inline int buffer_isfull(const struct buffer *buf) {
 	return buf->l == BUFSIZE;
 }
 
@@ -55,7 +55,7 @@ static inline void buffer_flush(struct buffer *buf)
 
 
 /* returns the maximum number of bytes writable at once in this buffer */
-static inline int buffer_max(struct buffer *buf)
+static inline int buffer_max(const struct buffer *buf)
 {
 	if (buf->l == BUFSIZE)
 		return 0;

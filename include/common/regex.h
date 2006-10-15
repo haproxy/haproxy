@@ -41,16 +41,17 @@
 
 struct hdr_exp {
     struct hdr_exp *next;
-    regex_t *preg;			/* expression to look for */
+    const regex_t *preg;		/* expression to look for */
     int action;				/* ACT_ALLOW, ACT_REPLACE, ACT_REMOVE, ACT_DENY */
-    char *replace;			/* expression to set instead */
+    const char *replace;		/* expression to set instead */
 };
 
 extern regmatch_t pmatch[MAX_MATCH];
 
-int exp_replace(char *dst, char *src, char *str, regmatch_t *matches);
-char *check_replace_string(char *str);
-char *chain_regex(struct hdr_exp **head, regex_t *preg, int action, char *replace);
+int exp_replace(char *dst, char *src, const char *str,	const regmatch_t *matches);
+const char *check_replace_string(const char *str);
+const char *chain_regex(struct hdr_exp **head, const regex_t *preg,
+			int action, const char *replace);
 
 #endif /* _COMMON_REGEX_H */
 

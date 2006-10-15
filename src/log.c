@@ -64,7 +64,7 @@ void **pool_requri = NULL;
  * Displays the message on stderr with the date and pid. Overrides the quiet
  * mode during startup.
  */
-void Alert(char *fmt, ...)
+void Alert(const char *fmt, ...)
 {
 	va_list argp;
 	struct timeval tv;
@@ -87,7 +87,7 @@ void Alert(char *fmt, ...)
 /*
  * Displays the message on stderr with the date and pid.
  */
-void Warning(char *fmt, ...)
+void Warning(const char *fmt, ...)
 {
 	va_list argp;
 	struct timeval tv;
@@ -109,7 +109,7 @@ void Warning(char *fmt, ...)
 /*
  * Displays the message on <out> only if quiet mode is not set.
  */
-void qfprintf(FILE *out, char *fmt, ...)
+void qfprintf(FILE *out, const char *fmt, ...)
 {
 	va_list argp;
 
@@ -173,7 +173,7 @@ fd_set url_encode_map[(sizeof(fd_set) > (256/8)) ? 1 : ((256/8) / sizeof(fd_set)
  * It also tries not to waste too much time computing the message header.
  * It doesn't care about errors nor does it report them.
  */
-void send_log(struct proxy *p, int level, char *message, ...)
+void send_log(struct proxy *p, int level, const char *message, ...)
 {
 	static int logfd = -1;	/* syslog UDP socket */
 	static long tvsec = -1;	/* to force the string to be initialized */

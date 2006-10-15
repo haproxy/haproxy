@@ -32,9 +32,9 @@
 extern int cfg_maxpconn;
 extern int cfg_maxconn;
 
-int cfg_parse_global(char *file, int linenum, char **args);
-int cfg_parse_listen(char *file, int linenum, char **args);
-int readcfgfile(char *file);
+int cfg_parse_global(const char *file, int linenum, char **args);
+int cfg_parse_listen(const char *file, int linenum, char **args);
+int readcfgfile(const char *file);
 
 
 #endif /* _COMMON_CFGPARSE_H */

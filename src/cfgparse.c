@@ -251,7 +251,7 @@ static struct listener *str2listener(char *str, struct listener *tail)
 /*
  * parse a line in a <global> section. Returns 0 if OK, -1 if error.
  */
-int cfg_parse_global(char *file, int linenum, char **args)
+int cfg_parse_global(const char *file, int linenum, char **args)
 {
 
 	if (!strcmp(args[0], "global")) {  /* new section */
@@ -424,11 +424,11 @@ static void init_default_instance()
 /*
  * parse a line in a <listen> section. Returns 0 if OK, -1 if error.
  */
-int cfg_parse_listen(char *file, int linenum, char **args)
+int cfg_parse_listen(const char *file, int linenum, char **args)
 {
 	static struct proxy *curproxy = NULL;
 	struct server *newsrv = NULL;
-	char *err;
+	const char *err;
 	int rc;
 
 	if (!strcmp(args[0], "listen")) {  /* new proxy */
@@ -1776,7 +1776,7 @@ int cfg_parse_listen(char *file, int linenum, char **args)
  * This function reads and parses the configuration file given in the argument.
  * returns 0 if OK, -1 if error.
  */
-int readcfgfile(char *file)
+int readcfgfile(const char *file)
 {
 	char thisline[256];
 	char *line;

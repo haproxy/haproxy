@@ -36,14 +36,14 @@ struct session *pendconn_get_next_sess(struct server *srv, struct proxy *px);
 struct pendconn *pendconn_add(struct session *sess);
 void pendconn_free(struct pendconn *p);
 int process_srv_queue(struct task *t);
-unsigned int srv_dynamic_maxconn(struct server *s);
+unsigned int srv_dynamic_maxconn(const struct server *s);
 
 
 
 /* Returns the first pending connection for server <s>, which may be NULL if
  * nothing is pending.
  */
-static inline struct pendconn *pendconn_from_srv(struct server *s) {
+static inline struct pendconn *pendconn_from_srv(const struct server *s) {
 	if (!s->nbpend)
 		return NULL;
 
@@ -53,7 +53,7 @@ static inline struct pendconn *pendconn_from_srv(struct server *s) {
 /* Returns the first pending connection for proxy <px>, which may be NULL if
  * nothing is pending.
  */
-static inline struct pendconn *pendconn_from_px(struct proxy *px) {
+static inline struct pendconn *pendconn_from_px(const struct proxy *px) {
 	if (!px->nbpend)
 		return NULL;
 
@@ -63,7 +63,7 @@ static inline struct pendconn *pendconn_from_px(struct proxy *px) {
 /* returns 0 if nothing has to be done for server <s> regarding queued connections,
  * and non-zero otherwise. Suited for and if/else usage.
  */
-static inline int may_dequeue_tasks(struct server *s, struct proxy *p) {
+static inline int may_dequeue_tasks(const struct server *s, const struct proxy *p) {
 	return (s && (s->nbpend || p->nbpend) &&
 		(!s->maxconn || s->cur_sess < srv_dynamic_maxconn(s)) &&
 		s->queue_mgt);

@@ -97,7 +97,8 @@ static inline struct server *get_server_rr(struct proxy *px)
  * If any server is found, it will be returned. If no valid server is found,
  * NULL is returned.
  */
-static inline struct server *get_server_sh(struct proxy *px, char *addr, int len)
+static inline struct server *get_server_sh(const struct proxy *px,
+					   const char *addr, int len)
 {
 	unsigned int h, l;
 

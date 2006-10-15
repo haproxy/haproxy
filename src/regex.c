@@ -24,7 +24,7 @@ regmatch_t pmatch[MAX_MATCH];  /* rm_so, rm_eo for regular expressions */
 
 
 
-int exp_replace(char *dst, char *src, char *str, regmatch_t *matches)
+int exp_replace(char *dst, char *src, const char *str, const regmatch_t *matches)
 {
 	char *old_dst = dst;
 
@@ -65,9 +65,9 @@ int exp_replace(char *dst, char *src, char *str, regmatch_t *matches)
 }
 
 /* returns NULL if the replacement string <str> is valid, or the pointer to the first error */
-char *check_replace_string(char *str)
+const char *check_replace_string(const char *str)
 {
-	char *err = NULL;
+	const char *err = NULL;
 	while (*str) {
 		if (*str == '\\') {
 			err = str; /* in case of a backslash, we return the pointer to it */
@@ -97,12 +97,13 @@ char *check_replace_string(char *str)
 
 
 /* returns the pointer to an error in the replacement string, or NULL if OK */
-char *chain_regex(struct hdr_exp **head, regex_t *preg, int action, char *replace)
+const char *chain_regex(struct hdr_exp **head, const regex_t *preg,
+			int action, const char *replace)
 {
 	struct hdr_exp *exp;
 
 	if (replace != NULL) {
-		char *err;
+		const char *err;
 		err = check_replace_string(replace);
 		if (err)
 			return err;

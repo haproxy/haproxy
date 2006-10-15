@@ -26,7 +26,7 @@ void **pool_pendconn = NULL;
 /* returns the effective dynamic maxconn for a server, considering the minconn
  * and the proxy's usage relative to its saturation.
  */
-unsigned int srv_dynamic_maxconn(struct server *s)
+unsigned int srv_dynamic_maxconn(const struct server *s)
 {
 	return s->minconn ? 
 		((s->maxconn * s->proxy->nbconn / s->proxy->maxconn) < s->minconn) ? s->minconn :
