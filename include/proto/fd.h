@@ -35,6 +35,30 @@
 void fd_delete(int fd);
 
 
+/*
+ * Benchmarks performed on a Pentium-M notebook show that using functions
+ * instead of the usual macros improve the FD_* performance by about 80%,
+ * and that marking them regparm(2) adds another 20%.
+ */
+#if defined(CONFIG_HAP_INLINE_FD_SET)
+
+# define MY_FD_SET   FD_SET
+# define MY_FD_CLR   FD_CLR
+# define MY_FD_ISSET FD_ISSET
+
+#else
+
+# define MY_FD_SET   my_fd_set
+# define MY_FD_CLR   my_fd_clr
+# define MY_FD_ISSET my_fd_isset
+
+void __attribute__((regparm(2))) my_fd_set(const int fd, fd_set *ev);
+void __attribute__((regparm(2))) my_fd_clr(const int fd, fd_set *ev);
+int __attribute__((regparm(2))) my_fd_isset(const int fd, const fd_set *ev);
+
+#endif
+
+
 /* recomputes the maxfd limit from the fd */
 static inline void fd_insert(int fd)
 {

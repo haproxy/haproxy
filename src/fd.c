@@ -28,6 +28,7 @@
 #include <types/fd.h>
 #include <types/global.h>
 
+#include <proto/fd.h>
 #include <proto/polling.h>
 #include <proto/task.h>
 
@@ -43,6 +44,29 @@ int cfg_polling_mechanism = 0;  /* POLL_USE_{SELECT|POLL|EPOLL} */
 /******************************
  * pollers
  ******************************/
+
+
+#if !defined(CONFIG_HAP_INLINE_FD_SET)
+/*
+ * Benchmarks performed on a Pentium-M notebook show that using functions
+ * instead of the usual macros improve the FD_* performance by about 80%,
+ * and that marking them regparm(2) adds another 20%.
+ */
+void __attribute__((regparm(2))) my_fd_set(const int fd, fd_set *ev)
+{
+	FD_SET(fd, ev);
+}
+
+void __attribute__((regparm(2))) my_fd_clr(const int fd, fd_set *ev)
+{
+	FD_CLR(fd, ev);
+}
+
+int __attribute__((regparm(2))) my_fd_isset(const int fd, const fd_set *ev)
+{
+	return FD_ISSET(fd, ev);
+}
+#endif
 
 
 /*
@@ -139,16 +163,16 @@ int epoll_loop(int action)
 					sr = (rn >> count) & 1;
 					sw = (wn >> count) & 1;
 #else
-					pr = FD_ISSET(fd&((1<<INTBITS)-1), (typeof(fd_set*))&ro);
-					pw = FD_ISSET(fd&((1<<INTBITS)-1), (typeof(fd_set*))&wo);
-					sr = FD_ISSET(fd&((1<<INTBITS)-1), (typeof(fd_set*))&rn);
-					sw = FD_ISSET(fd&((1<<INTBITS)-1), (typeof(fd_set*))&wn);
+					pr = MY_FD_ISSET(fd&((1<<INTBITS)-1), (typeof(fd_set*))&ro);
+					pw = MY_FD_ISSET(fd&((1<<INTBITS)-1), (typeof(fd_set*))&wo);
+					sr = MY_FD_ISSET(fd&((1<<INTBITS)-1), (typeof(fd_set*))&rn);
+					sw = MY_FD_ISSET(fd&((1<<INTBITS)-1), (typeof(fd_set*))&wn);
 #endif
 #else
-					pr = FD_ISSET(fd, PrevReadEvent);
-					pw = FD_ISSET(fd, PrevWriteEvent);
-					sr = FD_ISSET(fd, StaticReadEvent);
-					sw = FD_ISSET(fd, StaticWriteEvent);
+					pr = MY_FD_ISSET(fd, PrevReadEvent);
+					pw = MY_FD_ISSET(fd, PrevWriteEvent);
+					sr = MY_FD_ISSET(fd, StaticReadEvent);
+					sw = MY_FD_ISSET(fd, StaticWriteEvent);
 #endif
 					if (!((sr^pr) | (sw^pw)))
 						continue;
@@ -210,14 +234,14 @@ int epoll_loop(int action)
 		for (count = 0; count < status; count++) {
 			fd = epoll_events[count].data.fd;
 
-			if (FD_ISSET(fd, StaticReadEvent)) {
+			if (MY_FD_ISSET(fd, StaticReadEvent)) {
 				if (fdtab[fd].state == FD_STCLOSE)
 					continue;
 				if (epoll_events[count].events & ( EPOLLIN | EPOLLERR | EPOLLHUP ))
 					fdtab[fd].cb[DIR_RD].f(fd);
 			}
 
-			if (FD_ISSET(fd, StaticWriteEvent)) {
+			if (MY_FD_ISSET(fd, StaticWriteEvent)) {
 				if (fdtab[fd].state == FD_STCLOSE)
 					continue;
 				if (epoll_events[count].events & ( EPOLLOUT | EPOLLERR | EPOLLHUP ))
@@ -293,12 +317,12 @@ int poll_loop(int action)
 					sr = (rn >> count) & 1;
 					sw = (wn >> count) & 1;
 #else
-					sr = FD_ISSET(fd&((1<<INTBITS)-1), (typeof(fd_set*))&rn);
-					sw = FD_ISSET(fd&((1<<INTBITS)-1), (typeof(fd_set*))&wn);
+					sr = MY_FD_ISSET(fd&((1<<INTBITS)-1), (typeof(fd_set*))&rn);
+					sw = MY_FD_ISSET(fd&((1<<INTBITS)-1), (typeof(fd_set*))&wn);
 #endif
 #else
-					sr = FD_ISSET(fd, StaticReadEvent);
-					sw = FD_ISSET(fd, StaticWriteEvent);
+					sr = MY_FD_ISSET(fd, StaticReadEvent);
+					sw = MY_FD_ISSET(fd, StaticWriteEvent);
 #endif
 					if ((sr|sw)) {
 						poll_events[nbfd].fd = fd;
@@ -322,14 +346,14 @@ int poll_loop(int action)
 			/* ok, we found one active fd */
 			status--;
 
-			if (FD_ISSET(fd, StaticReadEvent)) {
+			if (MY_FD_ISSET(fd, StaticReadEvent)) {
 				if (fdtab[fd].state == FD_STCLOSE)
 					continue;
 				if (poll_events[count].revents & ( POLLIN | POLLERR | POLLHUP ))
 					fdtab[fd].cb[DIR_RD].f(fd);
 			}
 	  
-			if (FD_ISSET(fd, StaticWriteEvent)) {
+			if (MY_FD_ISSET(fd, StaticWriteEvent)) {
 				if (fdtab[fd].state == FD_STCLOSE)
 					continue;
 				if (poll_events[count].revents & ( POLLOUT | POLLERR | POLLHUP ))
@@ -409,9 +433,9 @@ int select_loop(int action)
 
 		//	/* just a verification code, needs to be removed for performance */
 		//	for (i=0; i<maxfd; i++) {
-		//	    if (FD_ISSET(i, ReadEvent) != FD_ISSET(i, StaticReadEvent))
+		//	    if (MY_FD_ISSET(i, ReadEvent) != MY_FD_ISSET(i, StaticReadEvent))
 		//		abort();
-		//	    if (FD_ISSET(i, WriteEvent) != FD_ISSET(i, StaticWriteEvent))
+		//	    if (MY_FD_ISSET(i, WriteEvent) != MY_FD_ISSET(i, StaticWriteEvent))
 		//		abort();
 		//	    
 		//	}
@@ -440,13 +464,13 @@ int select_loop(int action)
 						/* if we specify read first, the accepts and zero reads will be
 						 * seen first. Moreover, system buffers will be flushed faster.
 						 */
-						if (FD_ISSET(fd, ReadEvent)) {
+						if (MY_FD_ISSET(fd, ReadEvent)) {
 							if (fdtab[fd].state == FD_STCLOSE)
 								continue;
 							fdtab[fd].cb[DIR_RD].f(fd);
 						}
 
-						if (FD_ISSET(fd, WriteEvent)) {
+						if (MY_FD_ISSET(fd, WriteEvent)) {
 							if (fdtab[fd].state == FD_STCLOSE)
 								continue;
 							fdtab[fd].cb[DIR_WR].f(fd);
@@ -472,12 +496,12 @@ int select_loop(int action)
  */
 void fd_delete(int fd)
 {
-	FD_CLR(fd, StaticReadEvent);
-	FD_CLR(fd, StaticWriteEvent);
+	MY_FD_CLR(fd, StaticReadEvent);
+	MY_FD_CLR(fd, StaticWriteEvent);
 #if defined(ENABLE_EPOLL)
 	if (PrevReadEvent) {
-		FD_CLR(fd, PrevReadEvent);
-		FD_CLR(fd, PrevWriteEvent);
+		MY_FD_CLR(fd, PrevReadEvent);
+		MY_FD_CLR(fd, PrevWriteEvent);
 	}
 #endif
 

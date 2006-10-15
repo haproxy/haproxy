@@ -77,7 +77,7 @@ int stream_sock_read(int fd) {
 			}
 	    
 			if (max == 0) {  /* not anymore room to store data */
-				FD_CLR(fd, StaticReadEvent);
+				MY_FD_CLR(fd, StaticReadEvent);
 				break;
 			}
 
@@ -131,7 +131,7 @@ int stream_sock_read(int fd) {
 	}
 
 	if (b->flags & BF_READ_STATUS) {
-		if (b->rto && FD_ISSET(fd, StaticReadEvent))
+		if (b->rto && MY_FD_ISSET(fd, StaticReadEvent))
 			tv_delayfrom(&b->rex, &now, b->rto);
 		else
 			tv_eternity(&b->rex);
@@ -177,7 +177,7 @@ int stream_sock_write(int fd) {
 					fdtab[fd].state = FD_STERROR;
 					task_wakeup(&rq, fdtab[fd].owner);
 					tv_eternity(&b->wex);
-					FD_CLR(fd, StaticWriteEvent);
+					MY_FD_CLR(fd, StaticWriteEvent);
 					return 0;
 				}
 			}
@@ -186,7 +186,7 @@ int stream_sock_write(int fd) {
 			task_wakeup(&rq, fdtab[fd].owner);
 			fdtab[fd].state = FD_STREADY;
 			tv_eternity(&b->wex);
-			FD_CLR(fd, StaticWriteEvent);
+			MY_FD_CLR(fd, StaticWriteEvent);
 			return 0;
 		}
 

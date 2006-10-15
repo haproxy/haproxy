@@ -40,4 +40,12 @@
 #endif /* CONFIG_HAP_NO_MEM_OPTIM */
 
 
+/* CONFIG_HAP_INLINE_FD_SET
+ * This makes use of inline FD_* macros instead of calling equivalent
+ * functions. Benchmarks on a Pentium-M show that using functions is
+ * generally twice as fast. So it's better to keep this option unset.
+ */
+//#undef  CONFIG_HAP_INLINE_FD_SET
+
+
 #endif /* _COMMON_CONFIG_H */
