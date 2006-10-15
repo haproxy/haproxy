@@ -52,17 +52,17 @@ int cfg_polling_mechanism = 0;  /* POLL_USE_{SELECT|POLL|EPOLL} */
  * instead of the usual macros improve the FD_* performance by about 80%,
  * and that marking them regparm(2) adds another 20%.
  */
-void __attribute__((regparm(2))) my_fd_set(const int fd, fd_set *ev)
+REGPRM2 void my_fd_set(const int fd, fd_set *ev)
 {
 	FD_SET(fd, ev);
 }
 
-void __attribute__((regparm(2))) my_fd_clr(const int fd, fd_set *ev)
+REGPRM2 void my_fd_clr(const int fd, fd_set *ev)
 {
 	FD_CLR(fd, ev);
 }
 
-int __attribute__((regparm(2))) my_fd_isset(const int fd, const fd_set *ev)
+REGPRM2 int my_fd_isset(const int fd, const fd_set *ev)
 {
 	return FD_ISSET(fd, ev);
 }
