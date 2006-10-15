@@ -47,5 +47,18 @@
  */
 //#undef  CONFIG_HAP_INLINE_FD_SET
 
+/* CONFIG_HAP_DISABLE_REGPARM
+ * This disables the use of register parameters for some functions which
+ * use it by default to increase performance.
+ */
+#ifdef CONFIG_HAP_DISABLE_REGPARM
+#define REGPRM1
+#define REGPRM2
+#define REGPRM3
+#else
+#define REGPRM1 __attribute__((regparm(1)))
+#define REGPRM2 __attribute__((regparm(2)))
+#define REGPRM3 __attribute__((regparm(3)))
+#endif
 
 #endif /* _COMMON_CONFIG_H */

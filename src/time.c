@@ -21,7 +21,7 @@ struct timeval start_date;      /* the process's start date */
 /*
  * adds <ms> ms to <from>, set the result to <tv> and returns a pointer <tv>
  */
-struct timeval *tv_delayfrom(struct timeval *tv, const struct timeval *from, int ms)
+REGPRM3 struct timeval *tv_delayfrom(struct timeval *tv, const struct timeval *from, int ms)
 {
 	if (!tv || !from)
 		return NULL;
@@ -38,7 +38,7 @@ struct timeval *tv_delayfrom(struct timeval *tv, const struct timeval *from, int
  * compares <tv1> and <tv2> modulo 1ms: returns 0 if equal, -1 if tv1 < tv2, 1 if tv1 > tv2
  * Must not be used when either argument is eternity. Use tv_cmp2_ms() for that.
  */
-int tv_cmp_ms(const struct timeval *tv1, const struct timeval *tv2)
+REGPRM2 int tv_cmp_ms(const struct timeval *tv1, const struct timeval *tv2)
 {
 	if (tv1->tv_sec == tv2->tv_sec) {
 		if (tv2->tv_usec >= tv1->tv_usec + 1000)
@@ -62,7 +62,7 @@ int tv_cmp_ms(const struct timeval *tv1, const struct timeval *tv2)
  * compares <tv1> and <tv2> : returns 0 if equal, -1 if tv1 < tv2, 1 if tv1 > tv2,
  * considering that 0 is the eternity.
  */
-int tv_cmp2(const struct timeval *tv1, const struct timeval *tv2)
+REGPRM2 int tv_cmp2(const struct timeval *tv1, const struct timeval *tv2)
 {
 	if (tv_iseternity(tv1))
 		if (tv_iseternity(tv2))
@@ -88,7 +88,7 @@ int tv_cmp2(const struct timeval *tv1, const struct timeval *tv2)
  * compares <tv1> and <tv2> modulo 1 ms: returns 0 if equal, -1 if tv1 < tv2, 1 if tv1 > tv2,
  * considering that 0 is the eternity.
  */
-int tv_cmp2_ms(const struct timeval *tv1, const struct timeval *tv2)
+REGPRM2 int tv_cmp2_ms(const struct timeval *tv1, const struct timeval *tv2)
 {
 	if (tv_iseternity(tv1))
 		if (tv_iseternity(tv2))
@@ -121,7 +121,7 @@ int tv_cmp2_ms(const struct timeval *tv1, const struct timeval *tv2)
  * if tv2 is passed, 0 is returned.
  * Returns TIME_ETERNITY if tv2 is eternity.
  */
-unsigned long tv_remain2(const struct timeval *tv1, const struct timeval *tv2)
+REGPRM2 unsigned long tv_remain2(const struct timeval *tv1, const struct timeval *tv2)
 {
 	unsigned long ret;
 
@@ -144,7 +144,7 @@ unsigned long tv_remain2(const struct timeval *tv1, const struct timeval *tv2)
  * returns the absolute difference, in ms, between tv1 and tv2
  * Must not be used when either argument is eternity.
  */
-unsigned long tv_delta(const struct timeval *tv1, const struct timeval *tv2)
+REGPRM2 unsigned long tv_delta(const struct timeval *tv1, const struct timeval *tv2)
 {
 	int cmp;
 	unsigned long ret;

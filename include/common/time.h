@@ -39,35 +39,35 @@ extern struct timeval start_date;       /* the process's start date */
 /*
  * adds <ms> ms to <from>, set the result to <tv> and returns a pointer <tv>
  */
-struct timeval *tv_delayfrom(struct timeval *tv, const struct timeval *from, int ms);
+REGPRM3 struct timeval *tv_delayfrom(struct timeval *tv, const struct timeval *from, int ms);
 
 /*
  * compares <tv1> and <tv2> modulo 1ms: returns 0 if equal, -1 if tv1 < tv2, 1 if tv1 > tv2
  * Must not be used when either argument is eternity. Use tv_cmp2_ms() for that.
  */
-int tv_cmp_ms(const struct timeval *tv1, const struct timeval *tv2);
+REGPRM2 int tv_cmp_ms(const struct timeval *tv1, const struct timeval *tv2);
 
 /*
  * compares <tv1> and <tv2> : returns 0 if equal, -1 if tv1 < tv2, 1 if tv1 > tv2,
  * considering that 0 is the eternity.
  */
-int tv_cmp2(const struct timeval *tv1, const struct timeval *tv2);
+REGPRM2 int tv_cmp2(const struct timeval *tv1, const struct timeval *tv2);
 /*
  * compares <tv1> and <tv2> modulo 1 ms: returns 0 if equal, -1 if tv1 < tv2, 1 if tv1 > tv2,
  * considering that 0 is the eternity.
  */
-int tv_cmp2_ms(const struct timeval *tv1, const struct timeval *tv2);
+REGPRM2 int tv_cmp2_ms(const struct timeval *tv1, const struct timeval *tv2);
 
 /*
  * returns the remaining time between tv1=now and event=tv2
  * if tv2 is passed, 0 is returned.
  * Returns TIME_ETERNITY if tv2 is eternity.
  */
-unsigned long tv_remain2(const struct timeval *tv1, const struct timeval *tv2);
+REGPRM2 unsigned long tv_remain2(const struct timeval *tv1, const struct timeval *tv2);
 
 
 /* sets <tv> to the current time */
-static inline struct timeval *tv_now(struct timeval *tv)
+REGPRM1 static inline struct timeval *tv_now(struct timeval *tv)
 {
 	if (tv)
 		gettimeofday(tv, NULL);
@@ -78,7 +78,7 @@ static inline struct timeval *tv_now(struct timeval *tv)
  * compares <tv1> and <tv2> : returns 0 if equal, -1 if tv1 < tv2, 1 if tv1 > tv2
  * Must not be used when either argument is eternity. Use tv_cmp2() for that.
  */
-static inline int tv_cmp(const struct timeval *tv1, const struct timeval *tv2)
+REGPRM2 static inline int tv_cmp(const struct timeval *tv1, const struct timeval *tv2)
 {
 	if (tv1->tv_sec < tv2->tv_sec)
 		return -1;
@@ -96,7 +96,7 @@ static inline int tv_cmp(const struct timeval *tv1, const struct timeval *tv2)
  * returns the difference, in ms, between tv1 and tv2
  * Must not be used when either argument is eternity.
  */
-static inline unsigned long tv_diff(const struct timeval *tv1, const struct timeval *tv2)
+REGPRM2 static inline unsigned long tv_diff(const struct timeval *tv1, const struct timeval *tv2)
 {
 	unsigned long ret;
   
@@ -113,7 +113,7 @@ static inline unsigned long tv_diff(const struct timeval *tv1, const struct time
  * if tv2 is passed, 0 is returned.
  * Must not be used when either argument is eternity.
  */
-static inline unsigned long tv_remain(const struct timeval *tv1, const struct timeval *tv2)
+REGPRM2 static inline unsigned long tv_remain(const struct timeval *tv1, const struct timeval *tv2)
 {
 	unsigned long ret;
   
@@ -133,7 +133,7 @@ static inline unsigned long tv_remain(const struct timeval *tv1, const struct ti
  * zeroes a struct timeval
  */
 
-static inline struct timeval *tv_eternity(struct timeval *tv)
+REGPRM1 static inline struct timeval *tv_eternity(struct timeval *tv)
 {
 	tv->tv_sec = tv->tv_usec = 0;
 	return tv;
@@ -142,7 +142,7 @@ static inline struct timeval *tv_eternity(struct timeval *tv)
 /*
  * returns 1 if tv is null, else 0
  */
-static inline int tv_iseternity(const struct timeval *tv)
+REGPRM1 static inline int tv_iseternity(const struct timeval *tv)
 {
 	if (tv->tv_sec == 0 && tv->tv_usec == 0)
 		return 1;
@@ -154,7 +154,7 @@ static inline int tv_iseternity(const struct timeval *tv)
  * returns the first event between tv1 and tv2 into tvmin.
  * a zero tv is ignored. tvmin is returned.
  */
-static inline const struct timeval *tv_min(struct timeval *tvmin,
+REGPRM3 static inline const struct timeval *tv_min(struct timeval *tvmin,
 				     const struct timeval *tv1,
 				     const struct timeval *tv2)
 {

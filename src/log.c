@@ -22,6 +22,7 @@
 
 #include <common/config.h>
 #include <common/standard.h>
+#include <common/time.h>
 
 #include <types/backend.h>
 #include <types/global.h>
