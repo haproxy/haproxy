@@ -349,7 +349,7 @@ void init(int argc, char **argv)
 	 * Also, the Alert() and Warning() functions need <now> to be initialized.
 	 */
 	tv_now(&now);
-	localtime(&now.tv_sec);
+	localtime((time_t *)&now.tv_sec);
 	start_date = now;
 
 	init_log();

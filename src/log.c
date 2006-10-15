@@ -73,7 +73,7 @@ void Alert(const char *fmt, ...)
 	if (!(global.mode & MODE_QUIET) || (global.mode & (MODE_VERBOSE | MODE_STARTING))) {
 		va_start(argp, fmt);
 
-		tm = localtime(&now.tv_sec);
+		tm = localtime((time_t *)&now.tv_sec);
 		fprintf(stderr, "[ALERT] %03d/%02d%02d%02d (%d) : ",
 			tm->tm_yday, tm->tm_hour, tm->tm_min, tm->tm_sec, (int)getpid());
 		vfprintf(stderr, fmt, argp);
@@ -94,7 +94,7 @@ void Warning(const char *fmt, ...)
 	if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) {
 		va_start(argp, fmt);
 
-		tm = localtime(&now.tv_sec);
+		tm = localtime((time_t *)&now.tv_sec);
 		fprintf(stderr, "[WARNING] %03d/%02d%02d%02d (%d) : ",
 			tm->tm_yday, tm->tm_hour, tm->tm_min, tm->tm_sec, (int)getpid());
 		vfprintf(stderr, fmt, argp);
@@ -194,7 +194,7 @@ void send_log(struct proxy *p, int level, const char *message, ...)
 
 	if (now.tv_sec != tvsec || dataptr == NULL) {
 		/* this string is rebuild only once a second */
-		struct tm *tm = localtime(&now.tv_sec);
+		struct tm *tm = localtime((time_t *)&now.tv_sec);
 		tvsec = now.tv_sec;
 
 		hdr_len = snprintf(logmsg, sizeof(logmsg),
@@ -317,7 +317,7 @@ void sess_log(struct session *s)
 		(s->data_source != DATA_SRC_STATS) ?
 		(s->srv != NULL) ? s->srv->id : "<NOSRV>" : "<STATS>" : "-";
 
-	tm = localtime(&s->logs.tv_accept.tv_sec);
+	tm = localtime((time_t *)&s->logs.tv_accept.tv_sec);
 	if (p->to_log & LW_REQ) {
 		char tmpline[MAX_SYSLOG_LEN], *h;
 		int hdr;
