@@ -1,6 +1,14 @@
 ChangeLog :
 ===========
 
+2006/10/15 : 1.3.3
+    - fix broken redispatch option in case the connection has already
+      been marked "in progress" (ie: nearly always).
+    - support regparm on x86 to speed up some often called functions
+    - removed a few useless calls to gettimeofday() in log functions.
+    - lots of 'const char*' cleanups
+    - turn every FD_* into functions which are faster on recent CPUs
+
 2006/09/03 : 1.3.2
     - started the changes towards I/O completion callbacks. stream_sock* have
       replaced event_*.
