@@ -57,8 +57,8 @@ LIBS.solaris = -lnsl -lsocket
 
 # CPU dependant optimizations
 COPTS.generic = -O2
-COPTS.i586 = -O2 -march=i586
-COPTS.i686 = -O2 -march=i686
+COPTS.i586 = -O2 -march=i586 -DCONFIG_HAP_USE_REGPARM
+COPTS.i686 = -O2 -march=i686 -DCONFIG_HAP_USE_REGPARM
 COPTS.ultrasparc = -O6 -mcpu=v9 -mtune=ultrasparc
 
 # options for standard regex library
