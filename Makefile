@@ -124,7 +124,8 @@ objsize: haproxy
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
-	rm -f {.,src}/*.[oas] {.,src,include/*,doc}/*{~,.rej} core haproxy test
+	rm -f *.[oas] src/*.[oas] core haproxy test
+	for dir in . src include/* doc; do rm -f $$dir/*~ $$dir/*.rej;done
 	rm -f haproxy-$(VERSION).tar.gz haproxy-$(VERSION) nohup.out gmon.out
 
 tar:	clean
