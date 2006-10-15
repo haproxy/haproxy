@@ -52,9 +52,9 @@ void fd_delete(int fd);
 # define MY_FD_CLR   my_fd_clr
 # define MY_FD_ISSET my_fd_isset
 
-void __attribute__((regparm(2))) my_fd_set(const int fd, fd_set *ev);
-void __attribute__((regparm(2))) my_fd_clr(const int fd, fd_set *ev);
-int __attribute__((regparm(2))) my_fd_isset(const int fd, const fd_set *ev);
+REGPRM2 void my_fd_set(const int fd, fd_set *ev);
+REGPRM2 void my_fd_clr(const int fd, fd_set *ev);
+REGPRM2 int my_fd_isset(const int fd, const fd_set *ev);
 
 #endif
 
