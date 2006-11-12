@@ -35,6 +35,9 @@
 #include <proto/stream_sock.h>
 #include <proto/task.h>
 
+#ifdef CONFIG_HAP_CTTPROXY
+#include <import/ip_tproxy.h>
+#endif
 
 /*
  * This function recounts the number of usable active and backup servers for
@@ -384,6 +387,42 @@ int connect_server(struct session *s)
 				 s->proxy->id, s->srv->id);
 			return SN_ERR_RESOURCE;
 		}
+#ifdef CONFIG_HAP_CTTPROXY
+		if (s->srv->state & SRV_TPROXY_MASK) {
+			struct in_tproxy itp1, itp2;
+			memset(&itp1, 0, sizeof(itp1));
+
+			itp1.op = TPROXY_ASSIGN;
+			switch (s->srv->state & SRV_TPROXY_MASK) {
+			case SRV_TPROXY_ADDR:
+				itp1.v.addr.faddr = s->srv->tproxy_addr.sin_addr;
+				itp1.v.addr.fport = s->srv->tproxy_addr.sin_port;
+				break;
+			case SRV_TPROXY_CLI:
+				itp1.v.addr.fport = ((struct sockaddr_in *)&s->cli_addr)->sin_port;
+				/* fall through */
+			case SRV_TPROXY_CIP:
+				/* FIXME: what can we do if the client connects in IPv6 ? */
+				itp1.v.addr.faddr = ((struct sockaddr_in *)&s->cli_addr)->sin_addr;
+				break;
+			}
+
+			/* set connect flag on socket */
+			itp2.op = TPROXY_FLAGS;
+			itp2.v.flags = ITP_CONNECT | ITP_ONCE;
+
+			if (setsockopt(fd, SOL_IP, IP_TPROXY, &itp1, sizeof(itp1)) == -1 ||
+			    setsockopt(fd, SOL_IP, IP_TPROXY, &itp2, sizeof(itp2)) == -1) {
+				Alert("Cannot bind to tproxy source address before connect() for server %s/%s. Aborting.\n",
+				      s->proxy->id, s->srv->id);
+				close(fd);
+				send_log(s->proxy, LOG_EMERG,
+					 "Cannot bind to tproxy source address before connect() for server %s/%s.\n",
+					 s->proxy->id, s->srv->id);
+				return SN_ERR_RESOURCE;
+			}
+		}
+#endif
 	}
 	else if (s->proxy->options & PR_O_BIND_SRC) {
 		setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(one));
@@ -395,6 +434,42 @@ int connect_server(struct session *s)
 				 s->proxy->id, s->srv->id);
 			return SN_ERR_RESOURCE;
 		}
+#ifdef CONFIG_HAP_CTTPROXY
+		if (s->proxy->options & PR_O_TPXY_MASK) {
+			struct in_tproxy itp1, itp2;
+			memset(&itp1, 0, sizeof(itp1));
+
+			itp1.op = TPROXY_ASSIGN;
+			switch (s->proxy->options & PR_O_TPXY_MASK) {
+			case PR_O_TPXY_ADDR:
+				itp1.v.addr.faddr = s->srv->tproxy_addr.sin_addr;
+				itp1.v.addr.fport = s->srv->tproxy_addr.sin_port;
+				break;
+			case PR_O_TPXY_CLI:
+				itp1.v.addr.fport = ((struct sockaddr_in *)&s->cli_addr)->sin_port;
+				/* fall through */
+			case PR_O_TPXY_CIP:
+				/* FIXME: what can we do if the client connects in IPv6 ? */
+				itp1.v.addr.faddr = ((struct sockaddr_in *)&s->cli_addr)->sin_addr;
+				break;
+			}
+
+			/* set connect flag on socket */
+			itp2.op = TPROXY_FLAGS;
+			itp2.v.flags = ITP_CONNECT | ITP_ONCE;
+
+			if (setsockopt(fd, SOL_IP, IP_TPROXY, &itp1, sizeof(itp1)) == -1 ||
+			    setsockopt(fd, SOL_IP, IP_TPROXY, &itp2, sizeof(itp2)) == -1) {
+				Alert("Cannot bind to tproxy source address before connect() for proxy %s. Aborting.\n",
+				      s->proxy->id);
+				close(fd);
+				send_log(s->proxy, LOG_EMERG,
+					 "Cannot bind to tproxy source address before connect() for server %s/%s.\n",
+					 s->proxy->id, s->srv->id);
+				return SN_ERR_RESOURCE;
+			}
+		}
+#endif
 	}
 	
 	if ((connect(fd, (struct sockaddr *)&s->srv_addr, sizeof(s->srv_addr)) == -1) &&

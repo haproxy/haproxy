@@ -102,6 +102,9 @@ struct proxy {
 	int options;				/* PR_O_REDISP, PR_O_TRANSP, ... */
 	int mode;				/* mode = PR_MODE_TCP, PR_MODE_HTTP or PR_MODE_HEALTH */
 	struct sockaddr_in source_addr;		/* the address to which we want to bind for connect() */
+#ifdef CONFIG_HAP_CTTPROXY
+	struct sockaddr_in tproxy_addr;		/* non-local address we want to bind to for connect() */
+#endif
 	struct proxy *next;
 	struct sockaddr_in logsrv1, logsrv2;	/* 2 syslog servers */
 	signed char logfac1, logfac2;		/* log facility for both servers. -1 = disabled */

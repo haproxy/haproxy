@@ -35,11 +35,16 @@
 
 
 /* server flags */
-#define SRV_RUNNING	1	/* the server is UP */
-#define SRV_BACKUP	2	/* this server is a backup server */
-#define	SRV_MAPPORTS	4	/* this server uses mapped ports */
-#define	SRV_BIND_SRC	8	/* this server uses a specific source address */
-#define	SRV_CHECKED	16	/* this server needs to be checked */
+#define SRV_RUNNING	0x0001	/* the server is UP */
+#define SRV_BACKUP	0x0002	/* this server is a backup server */
+#define SRV_MAPPORTS	0x0004	/* this server uses mapped ports */
+#define SRV_BIND_SRC	0x0008	/* this server uses a specific source address */
+#define SRV_CHECKED	0x0010	/* this server needs to be checked */
+
+#define SRV_TPROXY_ADDR	0x0020	/* bind to this non-local address to reach this server */
+#define SRV_TPROXY_CIP	0x0040	/* bind to the client's IP address to reach this server */
+#define SRV_TPROXY_CLI	0x0060	/* bind to the client's IP+port to reach this server */
+#define SRV_TPROXY_MASK	0x0060	/* bind to a non-local address to reach this server */
 
 /* function which act on servers need to return various errors */
 #define SRV_STATUS_OK       0   /* everything is OK. */
@@ -60,6 +65,9 @@ struct server {
 	struct task *queue_mgt;		/* the task associated to the queue processing */
 	struct sockaddr_in addr;		/* the address to connect to */
 	struct sockaddr_in source_addr;	/* the address to which we want to bind for connect() */
+#ifdef CONFIG_HAP_CTTPROXY
+	struct sockaddr_in tproxy_addr;	/* non-local address we want to bind to for connect() */
+#endif
 	short check_port;			/* the port to use for the health checks */
 	int health;				/* 0->rise-1 = bad; rise->rise+fall-1 = good */
 	int rise, fall;			/* time in iterations */

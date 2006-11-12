@@ -1153,6 +1153,30 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 				newsrv->state |= SRV_BIND_SRC;
 				newsrv->source_addr = *str2sa(args[cur_arg + 1]);
 				cur_arg += 2;
+#ifdef CONFIG_HAP_CTTPROXY
+				if (!strcmp(args[cur_arg], "usesrc")) {  /* address to use outside */
+					if (newsrv->source_addr.sin_addr.s_addr == INADDR_ANY) {
+						Alert("parsing [%s:%d] : '%s' requires an explicit 'source' address.\n",
+						      file, linenum, "usesrc");
+						return -1;
+					}
+					if (!*args[cur_arg + 1]) {
+						Alert("parsing [%s:%d] : '%s' expects <addr>[:<port>], 'client', or 'clientip' as argument.\n",
+						      file, linenum, "usesrc");
+						return -1;
+					}
+					if (!strcmp(args[cur_arg + 1], "client")) {
+						newsrv->state |= SRV_TPROXY_CLI;
+					} else if (!strcmp(args[cur_arg + 1], "clientip")) {
+						newsrv->state |= SRV_TPROXY_CIP;
+					} else {
+						newsrv->state |= SRV_TPROXY_ADDR;
+						newsrv->tproxy_addr = *str2sa(args[cur_arg + 1]);
+					}
+					global.last_checks |= LSTCHK_CTTPROXY | LSTCHK_NETADM;
+					cur_arg += 2;
+				}
+#endif
 			}
 			else {
 				Alert("parsing [%s:%d] : server %s only supports options 'backup', 'cookie', 'check', 'inter', 'rise', 'fall', 'port', 'source', 'minconn', 'maxconn' and 'weight'.\n",
@@ -1241,6 +1265,30 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 	
 		curproxy->source_addr = *str2sa(args[1]);
 		curproxy->options |= PR_O_BIND_SRC;
+#ifdef CONFIG_HAP_CTTPROXY
+		if (!strcmp(args[2], "usesrc")) {  /* address to use outside */
+			if (curproxy->source_addr.sin_addr.s_addr == INADDR_ANY) {
+				Alert("parsing [%s:%d] : '%s' requires an explicit 'source' address.\n",
+				      file, linenum, "usesrc");
+				return -1;
+			}
+			if (!*args[3]) {
+				Alert("parsing [%s:%d] : '%s' expects <addr>[:<port>], 'client', or 'clientip' as argument.\n",
+				      file, linenum, "usesrc");
+				return -1;
+			}
+
+			if (!strcmp(args[3], "client")) {
+				curproxy->options |= PR_O_TPXY_CLI;
+			} else if (!strcmp(args[3], "clientip")) {
+				curproxy->options |= PR_O_TPXY_CIP;
+			} else {
+				curproxy->options |= PR_O_TPXY_ADDR;
+				curproxy->tproxy_addr = *str2sa(args[3]);
+			}
+			global.last_checks |= LSTCHK_CTTPROXY | LSTCHK_NETADM;
+		}
+#endif
 	}
 	else if (!strcmp(args[0], "cliexp") || !strcmp(args[0], "reqrep")) {  /* replace request header from a regex */
 		regex_t *preg;

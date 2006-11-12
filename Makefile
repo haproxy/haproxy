@@ -92,14 +92,60 @@ ADDLIB =
 # set some defines when needed.
 # Known ones are -DENABLE_POLL, -DENABLE_EPOLL, and -DUSE_MY_EPOLL
 # - use -DTPROXY to compile with transparent proxy support.
+# - use -DCONFIG_HAP_CTTPROXY to enable full transparent proxy support
 DEFINE = -DTPROXY
+
+
+#### build options
+
+# do not change this one, enable USE_* variables instead.
+OPTIONS =
+
+ifneq ($(USE_CTTPROXY),)
+OPTIONS += -DCONFIG_HAP_CTTPROXY
+endif
+
+ifneq ($(USE_TPROXY),)
+OPTIONS += -DTPROXY
+endif
+
+ifneq ($(USE_POLL),)
+OPTIONS += -DENABLE_POLL
+endif
+
+ifneq ($(USE_EPOLL),)
+OPTIONS += -DENABLE_EPOLL
+endif
+
+ifneq ($(USE_MY_EPOLL),)
+OPTIONS += -DUSE_MY_EPOLL
+endif
+
+ifneq ($(USE_NETFILTER),)
+OPTIONS += -DNETFILTER
+endif
+
+ifneq ($(USE_EPOLL_WORKAROUND),)
+OPTIONS += -DEPOLL_CTL_MOD_WORKAROUND
+endif
+
+ifneq ($(USE_GETSOCKNAME),)
+OPTIONS += -DUSE_GETSOCKNAME
+endif
+
+ifneq ($(USE_REGPARM),)
+OPTIONS += -DCONFIG_HAP_USE_REGPARM
+endif
+
+#### end of build options
+
 
 # global options
 TARGET_OPTS=$(COPTS.$(TARGET))
 REGEX_OPTS=$(COPTS.$(REGEX))
 CPU_OPTS=$(COPTS.$(CPU))
 
-COPTS=-Iinclude $(ADDINC) $(CPU_OPTS) $(TARGET_OPTS) $(REGEX_OPTS) $(SMALL_OPTS) $(DEFINE)
+COPTS=-Iinclude $(ADDINC) $(CPU_OPTS) $(TARGET_OPTS) $(REGEX_OPTS) $(SMALL_OPTS) $(DEFINE) $(OPTIONS)
 LIBS=$(LIBS.$(TARGET)) $(LIBS.$(REGEX)) $(ADDLIB)
 
 CFLAGS = -Wall $(COPTS) $(DEBUG)

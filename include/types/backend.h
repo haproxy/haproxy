@@ -53,6 +53,12 @@
 #define PR_O_ABRT_CLOSE 0x00800000      /* immediately abort request when client closes */
 #define PR_O_SSL3_CHK   0x01000000      /* use SSLv3 CLIENT_HELLO packets for server health */
 
+#define	PR_O_TPXY_ADDR  0x02000000	/* bind to this non-local address when connect()ing */
+#define	PR_O_TPXY_CIP	0x04000000	/* bind to the client's IP address when connect()ing */
+#define	PR_O_TPXY_CLI	0x06000000	/* bind to the client's IP+port when connect()ing */
+#define	PR_O_TPXY_MASK	0x06000000	/* bind to a non-local address when connect()ing */
+
+
 #endif /* _TYPES_BACKEND_H */
 
 /*

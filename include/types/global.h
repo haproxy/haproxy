@@ -38,22 +38,27 @@
 #define	MODE_STARTING	128
 #define	MODE_FOREGROUND	256
 
+/* list of last checks to perform, depending on config options */
+#define LSTCHK_CAP_BIND	0x00000001	/* check that we can bind to any port */
+#define LSTCHK_CTTPROXY	0x00000002	/* check that tproxy is enabled */
+#define LSTCHK_NETADM	0x00000004	/* check that we have CAP_NET_ADMIN */
 
 /* FIXME : this will have to be redefined correctly */
 struct global {
-    int uid;
-    int gid;
-    int nbproc;
-    int maxconn;
-    int maxsock;		/* max # of sockets */
-    int rlimit_nofile;		/* default ulimit-n value : 0=unset */
-    int rlimit_memmax;		/* default ulimit-d in megs value : 0=unset */
-    int mode;
-    char *chroot;
-    char *pidfile;
-    int logfac1, logfac2;
-    int loglev1, loglev2;
-    struct sockaddr_in logsrv1, logsrv2;
+	int uid;
+	int gid;
+	int nbproc;
+	int maxconn;
+	int maxsock;		/* max # of sockets */
+	int rlimit_nofile;	/* default ulimit-n value : 0=unset */
+	int rlimit_memmax;	/* default ulimit-d in megs value : 0=unset */
+	int mode;
+	int last_checks;
+	char *chroot;
+	char *pidfile;
+	int logfac1, logfac2;
+	int loglev1, loglev2;
+	struct sockaddr_in logsrv1, logsrv2;
 };
 
 extern struct global global;
