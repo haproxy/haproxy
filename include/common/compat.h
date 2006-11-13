@@ -49,6 +49,19 @@
 #include <linux/netfilter_ipv4.h>
 #endif
 
+/* We'll try to enable SO_REUSEPORT on Linux 2.4 and 2.6 if not defined.
+ * There are two families of values depending on the architecture. Those
+ * are at least valid on Linux 2.4 and 2.6, reason why we'll rely on the
+ * NETFILTER define.
+ */
+#if !defined(SO_REUSEPORT) && defined(NETFILTER)
+#if    (SO_REUSEADDR == 2)
+#define SO_REUSEPORT 15
+#elif  (SO_REUSEADDR == 0x0004)
+#define SO_REUSEPORT 0x0200
+#endif /* SO_REUSEADDR */
+#endif /* SO_REUSEPORT */
+
 #if defined(__dietlibc__)
 #include <strings.h>
 #endif
