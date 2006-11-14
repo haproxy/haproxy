@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <syslog.h>
+#include <string.h>
 
 #include <common/compat.h>
 #include <common/config.h>
