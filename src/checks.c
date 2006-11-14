@@ -36,6 +36,10 @@
 #include <proto/server.h>
 #include <proto/task.h>
 
+#ifdef CONFIG_HAP_CTTPROXY
+#include <import/ip_tproxy.h>
+#endif
+
 
 /* Sets server <s> down, notifies by all available means, recounts the
  * remaining servers on the proxy and transfers queued sessions whenever
@@ -260,6 +264,27 @@ int process_chk(struct task *t)
 						      s->proxy->id, s->id);
 						s->result = -1;
 					}
+#ifdef CONFIG_HAP_CTTPROXY
+					if ((s->state & SRV_TPROXY_MASK) == SRV_TPROXY_ADDR) {
+						struct in_tproxy itp1, itp2;
+						memset(&itp1, 0, sizeof(itp1));
+						
+						itp1.op = TPROXY_ASSIGN;
+						itp1.v.addr.faddr = s->tproxy_addr.sin_addr;
+						itp1.v.addr.fport = s->tproxy_addr.sin_port;
+
+						/* set connect flag on socket */
+						itp2.op = TPROXY_FLAGS;
+						itp2.v.flags = ITP_CONNECT | ITP_ONCE;
+
+						if (setsockopt(fd, SOL_IP, IP_TPROXY, &itp1, sizeof(itp1)) == -1 ||
+						    setsockopt(fd, SOL_IP, IP_TPROXY, &itp2, sizeof(itp2)) == -1) {
+							Alert("Cannot bind to tproxy source address before connect() for server %s/%s. Aborting.\n",
+							      s->proxy->id, s->id);
+							s->result = -1;
+						}
+					}
+#endif
 				}
 				else if (s->proxy->options & PR_O_BIND_SRC) {
 					setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(one));
@@ -268,6 +293,27 @@ int process_chk(struct task *t)
 						      s->proxy->id);
 						s->result = -1;
 					}
+#ifdef CONFIG_HAP_CTTPROXY
+					if ((s->proxy->options & PR_O_TPXY_MASK) == PR_O_TPXY_ADDR) {
+						struct in_tproxy itp1, itp2;
+						memset(&itp1, 0, sizeof(itp1));
+						
+						itp1.op = TPROXY_ASSIGN;
+						itp1.v.addr.faddr = s->tproxy_addr.sin_addr;
+						itp1.v.addr.fport = s->tproxy_addr.sin_port;
+						
+						/* set connect flag on socket */
+						itp2.op = TPROXY_FLAGS;
+						itp2.v.flags = ITP_CONNECT | ITP_ONCE;
+						
+						if (setsockopt(fd, SOL_IP, IP_TPROXY, &itp1, sizeof(itp1)) == -1 ||
+						    setsockopt(fd, SOL_IP, IP_TPROXY, &itp2, sizeof(itp2)) == -1) {
+							Alert("Cannot bind to tproxy source address before connect() for proxy %s. Aborting.\n",
+							      s->proxy->id);
+							s->result = -1;
+						}
+					}
+#endif
 				}
 
 				if (!s->result) {
