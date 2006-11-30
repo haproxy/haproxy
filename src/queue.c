@@ -104,13 +104,13 @@ struct pendconn *pendconn_add(struct session *sess)
 		if (sess->srv->nbpend > sess->srv->nbpend_max)
 			sess->srv->nbpend_max = sess->srv->nbpend;
 	} else {
-		LIST_ADDQ(&sess->proxy->pendconns, &p->list);
-		sess->logs.prx_queue_size += sess->proxy->nbpend;
-		sess->proxy->nbpend++;
-		if (sess->proxy->nbpend > sess->proxy->nbpend_max)
-			sess->proxy->nbpend_max = sess->proxy->nbpend;
+		LIST_ADDQ(&sess->be->pendconns, &p->list);
+		sess->logs.prx_queue_size += sess->be->nbpend;
+		sess->be->nbpend++;
+		if (sess->be->nbpend > sess->be->nbpend_max)
+			sess->be->nbpend_max = sess->be->nbpend;
 	}
-	sess->proxy->totpend++;
+	sess->be->totpend++;
 	return p;
 }
 
@@ -126,8 +126,8 @@ void pendconn_free(struct pendconn *p)
 	if (p->srv)
 		p->srv->nbpend--;
 	else
-		p->sess->proxy->nbpend--;
-	p->sess->proxy->totpend--;
+		p->sess->be->nbpend--;
+	p->sess->be->totpend--;
 	pool_free(pendconn, p);
 }
 

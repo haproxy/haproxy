@@ -156,7 +156,11 @@ int event_accept(int fd) {
 		t->context = s;
 
 		s->task = t;
+#ifdef BUILD_WITH_PROXY
 		s->proxy = p;
+#endif
+		s->be = s->fe = s->fi = p;
+
 		s->cli_state = (p->mode == PR_MODE_HTTP) ?  CL_STHEADERS : CL_STDATA; /* no HTTP headers for non-HTTP proxies */
 		s->srv_state = SV_STIDLE;
 		s->req = s->rep = NULL; /* will be allocated later */
@@ -229,7 +233,7 @@ int event_accept(int fd) {
 			socklen_t namelen = sizeof(sockname);
 
 			if (addr.ss_family != AF_INET ||
-			    !(s->proxy->options & PR_O_TRANSP) ||
+			    !(s->fe->options & PR_O_TRANSP) ||
 			    get_original_dst(cfd, (struct sockaddr_in *)&sockname, &namelen) == -1)
 				getsockname(cfd, (struct sockaddr *)&sockname, &namelen);
 
@@ -270,7 +274,7 @@ int event_accept(int fd) {
 			socklen_t namelen = sizeof(sockname);
 			int len;
 			if (addr.ss_family != AF_INET ||
-			    !(s->proxy->options & PR_O_TRANSP) ||
+			    !(s->fe->options & PR_O_TRANSP) ||
 			    get_original_dst(cfd, (struct sockaddr_in *)&sockname, &namelen) == -1)
 				getsockname(cfd, (struct sockaddr *)&sockname, &namelen);
 
@@ -314,9 +318,9 @@ int event_accept(int fd) {
 		if (s->cli_state == CL_STHEADERS) /* reserve some space for header rewriting */
 			s->req->rlim -= MAXREWRITE;
 
-		s->req->rto = s->proxy->clitimeout;
-		s->req->wto = s->proxy->srvtimeout;
-		s->req->cto = s->proxy->srvtimeout;
+		s->req->rto = s->fe->clitimeout;
+		s->req->wto = s->be->srvtimeout;
+		s->req->cto = s->be->srvtimeout;
 
 		if ((s->rep = pool_alloc(buffer)) == NULL) { /* no memory */
 			pool_free(buffer, s->req);
@@ -332,8 +336,8 @@ int event_accept(int fd) {
 
 		buffer_init(s->rep);
 
-		s->rep->rto = s->proxy->srvtimeout;
-		s->rep->wto = s->proxy->clitimeout;
+		s->rep->rto = s->be->srvtimeout;
+		s->rep->wto = s->be->clitimeout;
 		s->rep->cto = 0;
 
 		fdtab[cfd].owner = t;
@@ -371,11 +375,11 @@ int event_accept(int fd) {
 		tv_eternity(&s->rep->rex);
 		tv_eternity(&s->rep->wex);
 
-		if (s->proxy->clitimeout) {
+		if (s->fe->clitimeout) {
 			if (MY_FD_ISSET(cfd, StaticReadEvent))
-				tv_delayfrom(&s->req->rex, &now, s->proxy->clitimeout);
+				tv_delayfrom(&s->req->rex, &now, s->fe->clitimeout);
 			if (MY_FD_ISSET(cfd, StaticWriteEvent))
-				tv_delayfrom(&s->rep->wex, &now, s->proxy->clitimeout);
+				tv_delayfrom(&s->rep->wex, &now, s->fe->clitimeout);
 		}
 
 		tv_min(&t->expire, &s->req->rex, &s->rep->wex);

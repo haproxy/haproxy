@@ -103,7 +103,9 @@
 struct session {
 	struct task *task;			/* the task associated with this session */
 	/* application specific below */
-	struct proxy *proxy;			/* the proxy this socket belongs to */
+	struct proxy *fe;			/* the proxy this session depends on for the client side */
+	struct proxy *fi;			/* the proxy this session depends on for the filtering rules */
+	struct proxy *be;			/* the proxy this session depends on for the server side */
 	int cli_fd;				/* the client side fd */
 	int srv_fd;				/* the server side fd */
 	int cli_state;				/* state of the client side */
@@ -144,7 +146,7 @@ struct session {
 			struct server *sv;
 			short px_st, sv_st;	/* DATA_ST_INIT or DATA_ST_DATA */
 		} stats;
-	} data_ctx;
+	} data_ctx;				/* used by produce_content to dump the stats right now */
 	unsigned int uniq_id;			/* unique ID used for the traces */
 };
 

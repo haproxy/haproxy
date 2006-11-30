@@ -155,16 +155,16 @@ int assign_server(struct session *s)
 		return SRV_STATUS_INTERNAL;
 
 	if (!(s->flags & SN_ASSIGNED)) {
-		if ((s->proxy->options & PR_O_BALANCE) && !(s->flags & SN_DIRECT)) {
-			if (!s->proxy->srv_act && !s->proxy->srv_bck)
+		if ((s->be->options & PR_O_BALANCE) && !(s->flags & SN_DIRECT)) {
+			if (!s->be->srv_act && !s->be->srv_bck)
 				return SRV_STATUS_NOSRV;
 
-			if (s->proxy->options & PR_O_BALANCE_RR) {
-				s->srv = get_server_rr_with_conns(s->proxy);
+			if (s->be->options & PR_O_BALANCE_RR) {
+				s->srv = get_server_rr_with_conns(s->be);
 				if (!s->srv)
 					return SRV_STATUS_FULL;
 			}
-			else if (s->proxy->options & PR_O_BALANCE_SH) {
+			else if (s->be->options & PR_O_BALANCE_SH) {
 				int len;
 		
 				if (s->cli_addr.ss_family == AF_INET)
@@ -174,7 +174,7 @@ int assign_server(struct session *s)
 				else /* unknown IP family */
 					return SRV_STATUS_INTERNAL;
 		
-				s->srv = get_server_sh(s->proxy,
+				s->srv = get_server_sh(s->be,
 						       (void *)&((struct sockaddr_in *)&s->cli_addr)->sin_addr,
 						       len);
 			}
@@ -206,7 +206,7 @@ int assign_server_address(struct session *s)
 	fprintf(stderr,"assign_server_address : s=%p\n",s);
 #endif
 
-	if (s->flags & SN_DIRECT || s->proxy->options & PR_O_BALANCE) {
+	if (s->flags & SN_DIRECT || s->be->options & PR_O_BALANCE) {
 		/* A server is necessarily known for this session */
 		if (!(s->flags & SN_ASSIGNED))
 			return SRV_STATUS_INTERNAL;
@@ -219,17 +219,17 @@ int assign_server_address(struct session *s)
 			struct sockaddr_in sockname;
 			socklen_t namelen = sizeof(sockname);
 
-			if (!(s->proxy->options & PR_O_TRANSP) ||
+			if (!(s->fe->options & PR_O_TRANSP) ||
 			    get_original_dst(s->cli_fd, (struct sockaddr_in *)&sockname, &namelen) == -1)
 				getsockname(s->cli_fd, (struct sockaddr *)&sockname, &namelen);
 			s->srv_addr.sin_port = htons(ntohs(s->srv_addr.sin_port) + ntohs(sockname.sin_port));
 		}
 	}
-	else if (*(int *)&s->proxy->dispatch_addr.sin_addr) {
+	else if (*(int *)&s->be->dispatch_addr.sin_addr) {
 		/* connect to the defined dispatch addr */
-		s->srv_addr = s->proxy->dispatch_addr;
+		s->srv_addr = s->be->dispatch_addr;
 	}
-	else if (s->proxy->options & PR_O_TRANSP) {
+	else if (s->fe->options & PR_O_TRANSP) {
 		/* in transparent mode, use the original dest addr if no dispatch specified */
 		socklen_t salen = sizeof(s->srv_addr);
 
@@ -339,17 +339,17 @@ int connect_server(struct session *s)
 		qfprintf(stderr, "Cannot get a server socket.\n");
 
 		if (errno == ENFILE)
-			send_log(s->proxy, LOG_EMERG,
+			send_log(s->be, LOG_EMERG,
 				 "Proxy %s reached system FD limit at %d. Please check system tunables.\n",
-				 s->proxy->id, maxfd);
+				 s->be->id, maxfd);
 		else if (errno == EMFILE)
-			send_log(s->proxy, LOG_EMERG,
+			send_log(s->be, LOG_EMERG,
 				 "Proxy %s reached process FD limit at %d. Please check 'ulimit-n' and restart.\n",
-				 s->proxy->id, maxfd);
+				 s->be->id, maxfd);
 		else if (errno == ENOBUFS || errno == ENOMEM)
-			send_log(s->proxy, LOG_EMERG,
+			send_log(s->be, LOG_EMERG,
 				 "Proxy %s reached system memory limit at %d sockets. Please check system tunables.\n",
-				 s->proxy->id, maxfd);
+				 s->be->id, maxfd);
 		/* this is a resource error */
 		return SN_ERR_RESOURCE;
 	}
@@ -370,7 +370,7 @@ int connect_server(struct session *s)
 		return SN_ERR_INTERNAL;
 	}
 
-	if (s->proxy->options & PR_O_TCP_SRV_KA)
+	if (s->be->options & PR_O_TCP_SRV_KA)
 		setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, (char *) &one, sizeof(one));
 
 	/* allow specific binding :
@@ -381,11 +381,11 @@ int connect_server(struct session *s)
 		setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(one));
 		if (bind(fd, (struct sockaddr *)&s->srv->source_addr, sizeof(s->srv->source_addr)) == -1) {
 			Alert("Cannot bind to source address before connect() for server %s/%s. Aborting.\n",
-			      s->proxy->id, s->srv->id);
+			      s->be->id, s->srv->id);
 			close(fd);
-			send_log(s->proxy, LOG_EMERG,
+			send_log(s->be, LOG_EMERG,
 				 "Cannot bind to source address before connect() for server %s/%s.\n",
-				 s->proxy->id, s->srv->id);
+				 s->be->id, s->srv->id);
 			return SN_ERR_RESOURCE;
 		}
 #ifdef CONFIG_HAP_CTTPROXY
@@ -415,33 +415,33 @@ int connect_server(struct session *s)
 			if (setsockopt(fd, SOL_IP, IP_TPROXY, &itp1, sizeof(itp1)) == -1 ||
 			    setsockopt(fd, SOL_IP, IP_TPROXY, &itp2, sizeof(itp2)) == -1) {
 				Alert("Cannot bind to tproxy source address before connect() for server %s/%s. Aborting.\n",
-				      s->proxy->id, s->srv->id);
+				      s->be->id, s->srv->id);
 				close(fd);
-				send_log(s->proxy, LOG_EMERG,
+				send_log(s->be, LOG_EMERG,
 					 "Cannot bind to tproxy source address before connect() for server %s/%s.\n",
-					 s->proxy->id, s->srv->id);
+					 s->be->id, s->srv->id);
 				return SN_ERR_RESOURCE;
 			}
 		}
 #endif
 	}
-	else if (s->proxy->options & PR_O_BIND_SRC) {
+	else if (s->be->options & PR_O_BIND_SRC) {
 		setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(one));
-		if (bind(fd, (struct sockaddr *)&s->proxy->source_addr, sizeof(s->proxy->source_addr)) == -1) {
-			Alert("Cannot bind to source address before connect() for proxy %s. Aborting.\n", s->proxy->id);
+		if (bind(fd, (struct sockaddr *)&s->be->source_addr, sizeof(s->be->source_addr)) == -1) {
+			Alert("Cannot bind to source address before connect() for proxy %s. Aborting.\n", s->be->id);
 			close(fd);
-			send_log(s->proxy, LOG_EMERG,
+			send_log(s->be, LOG_EMERG,
 				 "Cannot bind to source address before connect() for server %s/%s.\n",
-				 s->proxy->id, s->srv->id);
+				 s->be->id, s->srv->id);
 			return SN_ERR_RESOURCE;
 		}
 #ifdef CONFIG_HAP_CTTPROXY
-		if (s->proxy->options & PR_O_TPXY_MASK) {
+		if (s->be->options & PR_O_TPXY_MASK) {
 			struct in_tproxy itp1, itp2;
 			memset(&itp1, 0, sizeof(itp1));
 
 			itp1.op = TPROXY_ASSIGN;
-			switch (s->proxy->options & PR_O_TPXY_MASK) {
+			switch (s->be->options & PR_O_TPXY_MASK) {
 			case PR_O_TPXY_ADDR:
 				itp1.v.addr.faddr = s->srv->tproxy_addr.sin_addr;
 				itp1.v.addr.fport = s->srv->tproxy_addr.sin_port;
@@ -462,11 +462,11 @@ int connect_server(struct session *s)
 			if (setsockopt(fd, SOL_IP, IP_TPROXY, &itp1, sizeof(itp1)) == -1 ||
 			    setsockopt(fd, SOL_IP, IP_TPROXY, &itp2, sizeof(itp2)) == -1) {
 				Alert("Cannot bind to tproxy source address before connect() for proxy %s. Aborting.\n",
-				      s->proxy->id);
+				      s->be->id);
 				close(fd);
-				send_log(s->proxy, LOG_EMERG,
+				send_log(s->be, LOG_EMERG,
 					 "Cannot bind to tproxy source address before connect() for server %s/%s.\n",
-					 s->proxy->id, s->srv->id);
+					 s->be->id, s->srv->id);
 				return SN_ERR_RESOURCE;
 			}
 		}
@@ -485,9 +485,9 @@ int connect_server(struct session *s)
 
 			qfprintf(stderr,"Cannot connect: %s.\n",msg);
 			close(fd);
-			send_log(s->proxy, LOG_EMERG,
+			send_log(s->be, LOG_EMERG,
 				 "Connect() failed for server %s/%s: %s.\n",
-				 s->proxy->id, s->srv->id, msg);
+				 s->be->id, s->srv->id, msg);
 			return SN_ERR_RESOURCE;
 		} else if (errno == ETIMEDOUT) {
 			//qfprintf(stderr,"Connect(): ETIMEDOUT");
@@ -523,8 +523,8 @@ int connect_server(struct session *s)
 			s->srv->cur_sess_max = s->srv->cur_sess;
 	}
 
-	if (s->proxy->contimeout)
-		tv_delayfrom(&s->req->cex, &now, s->proxy->contimeout);
+	if (s->be->contimeout)
+		tv_delayfrom(&s->req->cex, &now, s->be->contimeout);
 	else
 		tv_eternity(&s->req->cex);
 	return SN_ERR_NONE;  /* connection is OK */
@@ -545,15 +545,15 @@ int srv_count_retry_down(struct session *t, int conn_err)
 		/* if not retryable anymore, let's abort */
 		tv_eternity(&t->req->cex);
 		srv_close_with_err(t, conn_err, SN_FINST_C,
-				   503, t->proxy->errmsg.len503, t->proxy->errmsg.msg503);
+				   503, t->fe->errmsg.len503, t->fe->errmsg.msg503);
 		if (t->srv)
 			t->srv->failed_conns++;
-		t->proxy->failed_conns++;
+		t->be->failed_conns++;
 
 		/* We used to have a free connection slot. Since we'll never use it,
 		 * we have to inform the server that it may be used by another session.
 		 */
-		if (may_dequeue_tasks(t->srv, t->proxy))
+		if (may_dequeue_tasks(t->srv, t->be))
 			task_wakeup(&rq, t->srv->queue_mgt);
 		return 1;
 	}
@@ -587,12 +587,12 @@ int srv_retryable_connect(struct session *t)
 		case SN_ERR_INTERNAL:
 			tv_eternity(&t->req->cex);
 			srv_close_with_err(t, SN_ERR_INTERNAL, SN_FINST_C,
-					   500, t->proxy->errmsg.len500, t->proxy->errmsg.msg500);
+					   500, t->fe->errmsg.len500, t->fe->errmsg.msg500);
 			if (t->srv)
 				t->srv->failed_conns++;
-			t->proxy->failed_conns++;
+			t->be->failed_conns++;
 			/* release other sessions waiting for this server */
-			if (may_dequeue_tasks(t->srv, t->proxy))
+			if (may_dequeue_tasks(t->srv, t->be))
 				task_wakeup(&rq, t->srv->queue_mgt);
 			return 1;
 		}
@@ -600,18 +600,18 @@ int srv_retryable_connect(struct session *t)
 		if (srv_count_retry_down(t, conn_err)) {
 			return 1;
 		}
-	} while (t->srv == NULL || t->conn_retries > 0 || !(t->proxy->options & PR_O_REDISP));
+	} while (t->srv == NULL || t->conn_retries > 0 || !(t->be->options & PR_O_REDISP));
 
 	/* We're on our last chance, and the REDISP option was specified.
 	 * We will ignore cookie and force to balance or use the dispatcher.
 	 */
 	/* let's try to offer this slot to anybody */
-	if (may_dequeue_tasks(t->srv, t->proxy))
+	if (may_dequeue_tasks(t->srv, t->be))
 		task_wakeup(&rq, t->srv->queue_mgt);
 
 	if (t->srv)
 		t->srv->failed_conns++;
-	t->proxy->failed_conns++;
+	t->be->failed_conns++;
 
 	t->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
 	t->srv = NULL; /* it's left to the dispatcher to choose a server */
@@ -647,17 +647,17 @@ int srv_redispatch_connect(struct session *t)
 		/* note: it is guaranteed that t->srv == NULL here */
 		tv_eternity(&t->req->cex);
 		srv_close_with_err(t, SN_ERR_SRVTO, SN_FINST_C,
-				   503, t->proxy->errmsg.len503, t->proxy->errmsg.msg503);
+				   503, t->fe->errmsg.len503, t->fe->errmsg.msg503);
 		if (t->srv)
 			t->srv->failed_conns++;
-		t->proxy->failed_conns++;
+		t->be->failed_conns++;
 
 		return 1;
 
 	case SRV_STATUS_QUEUED:
 		/* FIXME-20060503 : we should use the queue timeout instead */
-		if (t->proxy->contimeout)
-			tv_delayfrom(&t->req->cex, &now, t->proxy->contimeout);
+		if (t->be->contimeout)
+			tv_delayfrom(&t->req->cex, &now, t->be->contimeout);
 		else
 			tv_eternity(&t->req->cex);
 		t->srv_state = SV_STIDLE;
@@ -669,13 +669,13 @@ int srv_redispatch_connect(struct session *t)
 	default:
 		tv_eternity(&t->req->cex);
 		srv_close_with_err(t, SN_ERR_INTERNAL, SN_FINST_C,
-				   500, t->proxy->errmsg.len500, t->proxy->errmsg.msg500);
+				   500, t->fe->errmsg.len500, t->fe->errmsg.msg500);
 		if (t->srv)
 			t->srv->failed_conns++;
-		t->proxy->failed_conns++;
+		t->be->failed_conns++;
 
 		/* release other sessions waiting for this server */
-		if (may_dequeue_tasks(t->srv, t->proxy))
+		if (may_dequeue_tasks(t->srv, t->be))
 			task_wakeup(&rq, t->srv->queue_mgt);
 		return 1;
 	}

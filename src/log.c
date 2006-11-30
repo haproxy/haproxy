@@ -287,7 +287,11 @@ void send_log(struct proxy *p, int level, const char *message, ...)
 void sess_log(struct session *s)
 {
 	char pn[INET6_ADDRSTRLEN + strlen(":65535")];
-	struct proxy *p = s->proxy;
+#if 1  /* FIXME: this should disappear */
+	struct proxy *p = s->fe;
+#endif
+	struct proxy *fe = s->fe;
+	struct proxy *be = s->be;
 	int log;
 	char *uri;
 	char *pxid;
@@ -300,7 +304,7 @@ void sess_log(struct session *s)
 	 * computed.
 	 */
 
-	log = p->to_log & ~s->logs.logwait;
+	log = fe->to_log & ~s->logs.logwait;
 
 	if (s->cli_addr.ss_family == AF_INET)
 		inet_ntop(AF_INET,
@@ -312,8 +316,8 @@ void sess_log(struct session *s)
 			  pn, sizeof(pn));
 
 	uri = (log & LW_REQ) ? s->logs.uri ? s->logs.uri : "<BADREQ>" : "";
-	pxid = p->id;
-	srv = (p->to_log & LW_SVID) ?
+	pxid = be->id;
+	srv = (be->to_log & LW_SVID) ?
 		(s->data_source != DATA_SRC_STATS) ?
 		(s->srv != NULL) ? s->srv->id : "<NOSRV>" : "<STATS>" : "-";
 
