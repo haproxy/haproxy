@@ -469,8 +469,10 @@ int process_cli(struct session *t)
 				goto process_data;
 			}
 
-			/* to get a complete header line, we need the ending \r\n, \n\r, \r or \n too */
-			if (ptr > req->r - 2) {
+			/* To get a complete header line, we need the ending \r\n, \n\r,
+			 * \r or \n, possibly followed by a white space or tab indicating
+			 * that the header goes on next line. */
+			if (ptr > req->r - 3) {
 				/* this is a partial header, let's wait for more to come */
 				req->lr = ptr;
 				break;
@@ -483,6 +485,29 @@ int process_cli(struct session *t)
 				req->lr = ptr + 1; /* \r\r, \n\n, \r[^\n], \n[^\r] */
 			else
 				req->lr = ptr + 2; /* \r\n or \n\r */
+
+			/* Now, try to detect multi-line headers. From RFC 2616 :
+			 * HTTP/1.1 header field values can be folded onto multiple lines if the
+			 * continuation line begins with a space or horizontal tab. All linear
+			 * white space, including folding, has the same semantics as SP. A
+			 * recipient MAY replace any linear white space with a single SP before
+			 * interpreting the field value or forwarding the message downstream.
+			 *
+			 *     LWS            = [CRLF] 1*( SP | HT )
+			 */
+			if (req->lr < req->r &&
+			    (*req->lr == ' ' || *req->lr == '\t')) {
+				/* we are allowed to replace the \r\n with spaces */
+				while (ptr < req->lr)
+					*ptr++ = ' ';
+				/* now look for end of LWS */
+				do {
+					req->lr++;
+				} while (req->lr < req->r && (*req->lr == ' ' || *req->lr == '\t'));
+				
+				/* continue processing on the same header */
+				continue;
+			}
 
 			/*
 			 * now we know that we have a full header ; we can do whatever
