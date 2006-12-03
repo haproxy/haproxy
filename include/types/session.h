@@ -36,6 +36,7 @@
 #include <types/queue.h>
 #include <types/server.h>
 #include <types/task.h>
+#include <types/hdr_idx.h>
 
 
 /* various session flags, bits values 0x01 to 0x20 (shift 0) */
@@ -120,6 +121,7 @@ struct session {
 	struct pendconn *pend_pos;		/* if not NULL, points to the position in the pending queue */
 	char **req_cap;				/* array of captured request headers (may be NULL) */
 	char **rsp_cap;				/* array of captured response headers (may be NULL) */
+	struct hdr_idx hdr_idx;                 /* array of header indexes (max: MAX_HTTP_HDR) */
 	struct chunk req_line;			/* points to first line */
 	struct chunk auth_hdr;			/* points to 'Authorization:' header */
 	struct {

@@ -37,6 +37,7 @@
 #include <proto/client.h>
 #include <proto/fd.h>
 #include <proto/log.h>
+#include <proto/hdr_idx.h>
 #include <proto/proto_http.h>
 #include <proto/stream_sock.h>
 #include <proto/task.h>
@@ -156,9 +157,6 @@ int event_accept(int fd) {
 		t->context = s;
 
 		s->task = t;
-#ifdef BUILD_WITH_PROXY
-		s->proxy = p;
-#endif
 		s->be = s->fe = s->fi = p;
 
 		s->cli_state = (p->mode == PR_MODE_HTTP) ?  CL_STHEADERS : CL_STDATA; /* no HTTP headers for non-HTTP proxies */
@@ -226,6 +224,27 @@ int event_accept(int fd) {
 		}
 		else
 			s->rsp_cap = NULL;
+
+		if (p->mode == PR_MODE_HTTP) {
+			s->hdr_idx.size = MAX_HTTP_HDR;
+			if ((s->hdr_idx.v =
+			     pool_alloc_from(p->hdr_idx_pool, s->hdr_idx.size*sizeof(*s->hdr_idx.v)))
+			    == NULL) { /* no memory */
+				if (s->rsp_cap != NULL)
+					pool_free_to(p->rsp_cap_pool, s->rsp_cap);
+				if (s->req_cap != NULL)
+					pool_free_to(p->req_cap_pool, s->req_cap);
+				close(cfd); /* nothing can be done for this fd without memory */
+				pool_free(task, t);
+				pool_free(session, s);
+				return 0;
+			}
+			hdr_idx_init(&s->hdr_idx);
+		}
+		else {
+			s->hdr_idx.size = s->hdr_idx.used = 0;
+			s->hdr_idx.v = NULL;
+		}
 
 		if ((p->mode == PR_MODE_TCP || p->mode == PR_MODE_HTTP)
 		    && (p->logfac1 >= 0 || p->logfac2 >= 0)) {
@@ -303,6 +322,8 @@ int event_accept(int fd) {
 		}
 
 		if ((s->req = pool_alloc(buffer)) == NULL) { /* no memory */
+			if (s->hdr_idx.v != NULL)
+				pool_free_to(p->hdr_idx_pool, s->hdr_idx.v);
 			if (s->rsp_cap != NULL)
 				pool_free_to(p->rsp_cap_pool, s->rsp_cap);
 			if (s->req_cap != NULL)

@@ -52,6 +52,12 @@
 // max # of matches per regexp
 #define	MAX_MATCH       10
 
+// max # of headers in one HTTP request or response
+// By default, about 100 headers per 8 kB.
+#ifndef MAX_HTTP_HDR
+#define MAX_HTTP_HDR    ((BUFSIZE+79)/80)
+#endif
+
 // cookie delimitor in "prefix" mode. This character is inserted between the
 // persistence cookie and the original value. The '~' is allowed by RFC2965,
 // and should not be too common in server names.
