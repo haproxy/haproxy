@@ -367,13 +367,6 @@ int process_cli(struct session *t)
 				    (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))
 					debug_hdr("clireq", t, req->h, ptr);
 
-
-				/* 1: save a pointer to the first line as the request */
-				if (t->req_line.len < 0) {
-					t->req_line.str = req->h;
-					t->req_line.len = ptr - req->h;
-				}
-
 				/* 2: maybe we have to copy the original REQURI for the logs ? */
 				if (t->logs.logwait & LW_REQ) {
 					/* we have a complete HTTP request that we must log */
@@ -545,17 +538,6 @@ int process_cli(struct session *t)
 				    && (strncasecmp(req->h, "Connection:", 11) == 0)) {
 					delete_header = 1;
 				}
-
-
-				/* 4: we might also need the 'Authorization:' header */
-				if (!delete_header &&
-				    t->auth_hdr.len < 0 && t->fi->uri_auth != NULL &&
-				    ptr > req->h + 14 && !strncasecmp("Authorization:", req->h, 14)) {
-					t->auth_hdr.str = req->h;
-					t->auth_hdr.len = ptr - req->h;
-				}
-
-
 
 
 				/* OK, that's enough processing for the first step.
@@ -768,20 +750,281 @@ int process_cli(struct session *t)
 		 */
 
 
-		/* try headers regexps */
+		/* try headers filters */
 		if (t->fi->req_exp != NULL)
 			apply_filters_to_session(t, req, t->fi->req_exp);
 
-		/*
-		 * 3: Now we can work with the cookies.
+		/* has the request been denied ? */
+		if (t->flags & SN_CLDENY) {
+			/* no need to go further */
+			t->logs.status = 403;
+			t->logs.t_request = tv_diff(&t->logs.tv_accept, &now); /* let's log the request time */
+			client_retnclose(t, t->fe->errmsg.len403, t->fe->errmsg.msg403);
+			if (!(t->flags & SN_ERR_MASK))
+				t->flags |= SN_ERR_PRXCOND;
+			if (!(t->flags & SN_FINST_MASK))
+				t->flags |= SN_FINST_R;
+			return 1;
+		}
+		
+
+		/* Right now, we know that we have processed the entire headers
+		 * and that unwanted requests have been filtered out. We can do
+		 * whatever we want with the remaining request.
 		 */
 
+
+		/*
+		 * 3: save a pointer to the first line as the request, and
+		 * check the method (needed for cookies).
+		 */
+		req->h = req->data + t->hdr_idx.v[0].len;            /* start of the REQURI */
+		ptr = req->h + t->hdr_idx.v[t->hdr_idx.v[0].next].len; /* end of the REQURI */
+
+		t->req_line.str = req->h;
+		t->req_line.len = ptr - req->h;
+
+		if (!memcmp(req->h, "POST ", 5)) {
+			/* this is a POST request, which is not cacheable by default */
+			t->flags |= SN_POST;
+		}
+		    
+
+		/*
+		 * 4: Now we can work with the cookies.
+		 * Note that doing so might move headers in the request, but
+		 * the fields will stay coherent and the URI will not move.
+		 */
 		if (!(t->flags & (SN_CLDENY|SN_CLTARPIT)))
 			manage_client_side_cookies(t, req);
 
 
+		/*
+		 * FIXME:
+		 * we could run the whole list of headers right here to extract
+		 * commonly used headers, as well as re-detect their real end.
+		 */
 
-#if TEST
+
+		/*
+		 * 5: check if the URI matches the monitor_uri. To speed-up the
+		 * test, we include the leading and trailing spaces in the
+		 * comparison.
+		 */
+		if ((t->be->monitor_uri_len != 0) &&
+		    (t->req_line.len >= t->be->monitor_uri_len)) {
+			char *p = t->req_line.str;
+			int idx = 0;
+
+			/* skip the method so that we accept any method */
+			while (idx < t->req_line.len && p[idx] != ' ')
+				idx++;
+			p += idx;
+			
+			if (t->req_line.len - idx >= t->be->monitor_uri_len &&
+			    !memcmp(p, t->be->monitor_uri, t->be->monitor_uri_len)) {
+				/*
+				 * We have found the monitor URI
+				 */
+				t->flags |= SN_MONITOR;
+				t->logs.status = 200;
+				client_retnclose(t, strlen(HTTP_200), HTTP_200);
+				if (!(t->flags & SN_ERR_MASK))
+					t->flags |= SN_ERR_PRXCOND;
+				if (!(t->flags & SN_FINST_MASK))
+					t->flags |= SN_FINST_R;
+				return 1;
+			}
+		}
+
+
+		/*
+		 * 6: check if the user tries to access a protected URI.
+		 */
+		if (t->fi->uri_auth != NULL
+		    && t->req_line.len >= t->fi->uri_auth->uri_len + 4) {   /* +4 for "GET /" */
+			if (!memcmp(t->req_line.str + 4,
+				    t->fi->uri_auth->uri_prefix, t->fi->uri_auth->uri_len)
+			    && !memcmp(t->req_line.str, "GET ", 4)) {
+				struct user_auth *user;
+				int authenticated;
+				char *h;
+
+				/* we are in front of a interceptable URI. Let's check
+				 * if there's an authentication and if it's valid.
+				 */
+				user = t->fi->uri_auth->users;
+				if (!user) {
+					/* no user auth required, it's OK */
+					authenticated = 1;
+				} else {
+					authenticated = 0;
+
+					/* a user list is defined, we have to check.
+					 * skip 21 chars for "Authorization: Basic ".
+					 */
+
+					/* FIXME: this should move to an earlier place */
+					cur_idx = 0;
+					h = req->data + t->hdr_idx.v[0].len;
+					while ((cur_idx = t->hdr_idx.v[cur_idx].next)) {
+						int len = t->hdr_idx.v[cur_idx].len;
+						if (len > 14 &&
+						    !strncasecmp("Authorization:", h, 14)) {
+							t->auth_hdr.str = h;
+							t->auth_hdr.len = len;
+							break;
+						}
+						h += len + t->hdr_idx.v[cur_idx].cr + 1;
+					}
+
+
+					if (t->auth_hdr.len < 21 || memcmp(t->auth_hdr.str + 14, " Basic ", 7))
+						user = NULL;
+					
+					while (user) {
+						if ((t->auth_hdr.len == user->user_len + 21)
+						    && !memcmp(t->auth_hdr.str+21, user->user_pwd, user->user_len)) {
+							authenticated = 1;
+							break;
+						}
+						user = user->next;
+					}
+				}
+
+				if (!authenticated) {
+					int msglen;
+
+					/* no need to go further */
+
+					msglen = sprintf(trash, HTTP_401_fmt, t->fi->uri_auth->auth_realm);
+					t->logs.status = 401;
+					client_retnclose(t, msglen, trash);
+					if (!(t->flags & SN_ERR_MASK))
+						t->flags |= SN_ERR_PRXCOND;
+					if (!(t->flags & SN_FINST_MASK))
+						t->flags |= SN_FINST_R;
+					return 1;
+				}
+
+				t->cli_state = CL_STSHUTR;
+				req->rlim = req->data + BUFSIZE; /* no more rewrite needed */
+				t->logs.t_request = tv_diff(&t->logs.tv_accept, &now);
+				t->data_source = DATA_SRC_STATS;
+				t->data_state  = DATA_ST_INIT;
+				produce_content(t);
+				return 1;
+			}
+		}
+
+
+		/*
+		 * We will now have some data to append after the end of the
+		 * request. Right now we do not have the end of request pointer
+		 * anymore, so we have to look for it.
+		 */
+
+#if READABLE_PARSER_VERSION
+		for (req->h = req->data + t->hdr_idx.v[cur_idx=0].len;
+		     (cur_idx = t->hdr_idx.v[cur_idx].next);
+		     req->h  += t->hdr_idx.v[cur_idx].len + t->hdr_idx.v[cur_idx]cr + 1);
+#else
+		req->h = req->data;
+		cur_idx = 0;
+
+		while ((req->h += t->hdr_idx.v[cur_idx].len,
+			cur_idx = t->hdr_idx.v[cur_idx].next))
+			req->h  += t->hdr_idx.v[cur_idx].cr + 1;
+#endif
+
+		/* now req->h points to the last LF/CRLF */
+
+		/*
+		 * 7: add request headers
+		 * FIXME: this should move to a separate function.
+		 */
+		for (cur_hdr = 0; cur_hdr < t->fi->nb_reqadd; cur_hdr++) {
+			int len = sprintf(trash, "%s\r\n", t->fi->req_add[cur_hdr]);
+			buffer_replace2(req, req->h, req->h, trash, len);
+		}
+
+
+		/*
+		 * 8: add X-Forwarded-For
+		 */
+		if (t->be->options & PR_O_FWDFOR) {
+			if (t->cli_addr.ss_family == AF_INET) {
+				int len;
+				unsigned char *pn;
+				pn = (unsigned char *)&((struct sockaddr_in *)&t->cli_addr)->sin_addr;
+				len = sprintf(trash, "X-Forwarded-For: %d.%d.%d.%d\r\n",
+					      pn[0], pn[1], pn[2], pn[3]);
+				buffer_replace2(req, req->h, req->h, trash, len);
+			}
+			else if (t->cli_addr.ss_family == AF_INET6) {
+				int len;
+				char pn[INET6_ADDRSTRLEN];
+				inet_ntop(AF_INET6,
+					  (const void *)&((struct sockaddr_in6 *)(&t->cli_addr))->sin6_addr,
+					  pn, sizeof(pn));
+				len = sprintf(trash, "X-Forwarded-For: %s\r\n", pn);
+				buffer_replace2(req, req->h, req->h, trash, len);
+			}
+		}
+
+
+		/*
+		 * 9: add "Connection:"
+		 */
+
+		/* add a "connection: close" line if needed */
+		if (t->fe->options & PR_O_HTTP_CLOSE)
+			buffer_replace2(req, req->h, req->h, "Connection: close\r\n", 19);
+
+
+		/*************************************************************
+		 * OK, that's finished for the headers. We have done what we *
+		 * could. Let's switch to the DATA state.                    *
+		 ************************************************************/
+
+		t->cli_state = CL_STDATA;
+		req->rlim = req->data + BUFSIZE; /* no more rewrite needed */
+
+		t->logs.t_request = tv_diff(&t->logs.tv_accept, &now);
+
+
+		if (!t->fe->clitimeout ||
+		    (t->srv_state < SV_STDATA && t->be->srvtimeout)) {
+			/* If the client has no timeout, or if the server is not ready yet,
+			 * and we know for sure that it can expire, then it's cleaner to
+			 * disable the timeout on the client side so that too low values
+			 * cannot make the sessions abort too early.
+			 *
+			 * FIXME-20050705: the server needs a way to re-enable this time-out
+			 * when it switches its state, otherwise a client can stay connected
+			 * indefinitely. This now seems to be OK.
+			 */
+			tv_eternity(&req->rex);
+		}
+
+
+		/* When a connection is tarpitted, we use the queue timeout for the
+		 * tarpit delay, which currently happens to be the server's connect
+		 * timeout. If unset, then set it to zero because we really want it
+		 * to expire at one moment.
+		 */
+		if (t->flags & SN_CLTARPIT) {
+			t->req->l = 0;
+			/* flush the request so that we can drop the connection early
+			 * if the client closes first.
+			 */
+			tv_delayfrom(&req->cex, &now,
+				     t->be->contimeout ? t->be->contimeout : 0);
+		}
+		
+		goto process_data;
+
+#if DEBUG_HTTP_PARSER
 		/* example: dump each line */
 
 		fprintf(stderr, "t->flags=0x%08x\n", t->flags & (SN_CLALLOW|SN_CLDENY|SN_CLTARPIT));
@@ -809,240 +1052,6 @@ int process_cli(struct session *t)
 			cur_hdr++;
 		}
 #endif
-
-
-
-		/**************** debugging ***************/
-		t->logs.status = 400;
-		client_retnclose(t, t->fe->errmsg.len400, t->fe->errmsg.msg400);
-		if (!(t->flags & SN_ERR_MASK))
-			t->flags |= SN_ERR_PRXCOND;
-		if (!(t->flags & SN_FINST_MASK))
-			t->flags |= SN_FINST_R;
-		return 1;
-
-
-
-
-
-#if 0
-
-
-
-			char *ptr;
-			char *request_line = NULL;
-	
-			if (ptr == req->h) { /* empty line, end of headers */
-				int line, len;
-
-				/* we can only get here after an end of headers */
-				/* we'll have something else to do here : add new headers ... */
-
-				if (t->flags & SN_CLDENY) {
-					/* no need to go further */
-					t->logs.status = 403;
-					t->logs.t_request = tv_diff(&t->logs.tv_accept, &now); /* let's log the request time */
-					client_retnclose(t, t->fe->errmsg.len403, t->fe->errmsg.msg403);
-					if (!(t->flags & SN_ERR_MASK))
-						t->flags |= SN_ERR_PRXCOND;
-					if (!(t->flags & SN_FINST_MASK))
-						t->flags |= SN_FINST_R;
-					return 1;
-				}
-
-				/* Right now, we know that we have processed the entire headers
-				 * and that unwanted requests have been filtered out. We can do
-				 * whatever we want.
-				 */
-
-
-				/* check if the URI matches the monitor_uri. To speed-up the
-				 * test, we include the leading and trailing spaces in the
-				 * comparison.
-				 */
-				if ((t->be->monitor_uri_len != 0) &&
-				    (t->req_line.len >= t->be->monitor_uri_len)) {
-					char *p = t->req_line.str;
-					int idx = 0;
-
-					/* skip the method so that we accept any method */
-					while (idx < t->req_line.len && p[idx] != ' ')
-						idx++;
-					p += idx;
-
-					if (t->req_line.len - idx >= t->be->monitor_uri_len &&
-					    !memcmp(p, t->be->monitor_uri, t->be->monitor_uri_len)) {
-						/*
-						 * We have found the monitor URI
-						 */
-						t->flags |= SN_MONITOR;
-						t->logs.status = 200;
-						client_retnclose(t, strlen(HTTP_200), HTTP_200);
-						if (!(t->flags & SN_ERR_MASK))
-							t->flags |= SN_ERR_PRXCOND;
-						if (!(t->flags & SN_FINST_MASK))
-							t->flags |= SN_FINST_R;
-						return 1;
-					}
-				}
-
-				if (t->fi->uri_auth != NULL
-				    && t->req_line.len >= t->fi->uri_auth->uri_len + 4) {   /* +4 for "GET /" */
-					if (!memcmp(t->req_line.str + 4,
-						    t->fi->uri_auth->uri_prefix, t->fi->uri_auth->uri_len)
-					    && !memcmp(t->req_line.str, "GET ", 4)) {
-						struct user_auth *user;
-						int authenticated;
-
-						/* we are in front of a interceptable URI. Let's check
-						 * if there's an authentication and if it's valid.
-						 */
-						user = t->fi->uri_auth->users;
-						if (!user) {
-							/* no user auth required, it's OK */
-							authenticated = 1;
-						} else {
-							authenticated = 0;
-
-							/* a user list is defined, we have to check.
-							 * skip 21 chars for "Authorization: Basic ".
-							 */
-							if (t->auth_hdr.len < 21 || memcmp(t->auth_hdr.str + 14, " Basic ", 7))
-								user = NULL;
-
-							while (user) {
-								if ((t->auth_hdr.len == user->user_len + 21)
-								    && !memcmp(t->auth_hdr.str+21, user->user_pwd, user->user_len)) {
-									authenticated = 1;
-									break;
-								}
-								user = user->next;
-							}
-						}
-
-						if (!authenticated) {
-							int msglen;
-
-							/* no need to go further */
-
-							msglen = sprintf(trash, HTTP_401_fmt, t->fi->uri_auth->auth_realm);
-							t->logs.status = 401;
-							client_retnclose(t, msglen, trash);
-							if (!(t->flags & SN_ERR_MASK))
-								t->flags |= SN_ERR_PRXCOND;
-							if (!(t->flags & SN_FINST_MASK))
-								t->flags |= SN_FINST_R;
-							return 1;
-						}
-
-						t->cli_state = CL_STSHUTR;
-						req->rlim = req->data + BUFSIZE; /* no more rewrite needed */
-						t->logs.t_request = tv_diff(&t->logs.tv_accept, &now);
-						t->data_source = DATA_SRC_STATS;
-						t->data_state  = DATA_ST_INIT;
-						produce_content(t);
-						return 1;
-					}
-				}
-
-
-				for (line = 0; line < t->fi->nb_reqadd; line++) {
-					len = sprintf(trash, "%s\r\n", t->fi->req_add[line]);
-					buffer_replace2(req, req->h, req->h, trash, len);
-				}
-
-				if (t->be->options & PR_O_FWDFOR) {
-					if (t->cli_addr.ss_family == AF_INET) {
-						unsigned char *pn;
-						pn = (unsigned char *)&((struct sockaddr_in *)&t->cli_addr)->sin_addr;
-						len = sprintf(trash, "X-Forwarded-For: %d.%d.%d.%d\r\n",
-							      pn[0], pn[1], pn[2], pn[3]);
-						buffer_replace2(req, req->h, req->h, trash, len);
-					}
-					else if (t->cli_addr.ss_family == AF_INET6) {
-						char pn[INET6_ADDRSTRLEN];
-						inet_ntop(AF_INET6,
-							  (const void *)&((struct sockaddr_in6 *)(&t->cli_addr))->sin6_addr,
-							  pn, sizeof(pn));
-						len = sprintf(trash, "X-Forwarded-For: %s\r\n", pn);
-						buffer_replace2(req, req->h, req->h, trash, len);
-					}
-				}
-
-				/* add a "connection: close" line if needed */
-				if (t->fe->options & PR_O_HTTP_CLOSE)
-					buffer_replace2(req, req->h, req->h, "Connection: close\r\n", 19);
-
-				if (!memcmp(req->data, "POST ", 5)) {
-					/* this is a POST request, which is not cacheable by default */
-					t->flags |= SN_POST;
-				}
-		    
-				t->cli_state = CL_STDATA;
-				req->rlim = req->data + BUFSIZE; /* no more rewrite needed */
-
-				t->logs.t_request = tv_diff(&t->logs.tv_accept, &now);
-				/* FIXME: we'll set the client in a wait state while we try to
-				 * connect to the server. Is this really needed ? wouldn't it be
-				 * better to release the maximum of system buffers instead ?
-				 * The solution is to enable the FD but set its time-out to
-				 * eternity as long as the server-side does not enable data xfer.
-				 * CL_STDATA also has to take care of this, which is done below.
-				 */
-				//MY_FD_CLR(t->cli_fd, StaticReadEvent);
-				//tv_eternity(&req->rex);
-
-				/* FIXME: if we break here (as up to 1.1.23), having the client
-				 * shutdown its connection can lead to an abort further.
-				 * it's better to either return 1 or even jump directly to the
-				 * data state which will save one schedule.
-				 */
-				//break;
-
-				if (!t->fe->clitimeout ||
-				    (t->srv_state < SV_STDATA && t->be->srvtimeout))
-					/* If the client has no timeout, or if the server is not ready yet,
-					 * and we know for sure that it can expire, then it's cleaner to
-					 * disable the timeout on the client side so that too low values
-					 * cannot make the sessions abort too early.
-					 *
-					 * FIXME-20050705: the server needs a way to re-enable this time-out
-					 * when it switches its state, otherwise a client can stay connected
-					 * indefinitely. This now seems to be OK.
-					 */
-					tv_eternity(&req->rex);
-
-
-				/* When a connection is tarpitted, we use the queue timeout for the
-				 * tarpit delay, which currently happens to be the server's connect
-				 * timeout. If unset, then set it to zero because we really want it
-				 * to expire at one moment.
-				 */
-				if (t->flags & SN_CLTARPIT) {
-					t->req->l = 0;
-					/* flush the request so that we can drop the connection early
-					 * if the client closes first.
-					 */
-					tv_delayfrom(&req->cex, &now,
-						     t->be->contimeout ? t->be->contimeout : 0);
-				}
-
-				goto process_data;
-			}
-
-
-			/*******************************************/
-
-
-
-#endif
-
-
-
-
-		/****************************************************************/
-
-
 
 	}
 	else if (c == CL_STDATA) {
@@ -3011,7 +3020,7 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 
 
 
-	/* Iterate through the headers in the inner loop.
+	/* Iterate through the headers.
 	 * we start with the start line.
 	 */
 	old_idx = cur_idx = 0;
