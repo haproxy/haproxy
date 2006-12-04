@@ -166,3 +166,5 @@ TODO for 1.3
   - check all copyrights
   - fix Makefile.bsd
   - separate inline functions to put them in files covered by GPL
+  - implement HTTP status 414 - request URI too long
+

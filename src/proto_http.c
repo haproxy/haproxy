@@ -44,11 +44,15 @@
 #include <proto/buffers.h>
 #include <proto/fd.h>
 #include <proto/log.h>
+#include <proto/hdr_idx.h>
 #include <proto/proto_http.h>
 #include <proto/queue.h>
 #include <proto/session.h>
 #include <proto/task.h>
 
+
+#define DEBUG_PARSE_NO_SPEEDUP
+#undef DEBUG_PARSE_NO_SPEEDUP
 
 /* This is used by remote monitoring */
 const char *HTTP_200 =
@@ -218,9 +222,10 @@ int process_cli(struct session *t)
 	int c = t->cli_state;
 	struct buffer *req = t->req;
 	struct buffer *rep = t->rep;
-	int method_checked = 0;
-	appsess *asession_temp = NULL;
-	appsess local_asession;
+	int delete_header = 0;
+
+	int cur_hdr, cur_idx;
+	char *ptr;
 
 #ifdef DEBUG_FULL
 	fprintf(stderr,"process_cli: c=%s s=%s set(r,w)=%d,%d exp(r,w)=%d.%d,%d.%d\n",
@@ -234,45 +239,601 @@ int process_cli(struct session *t)
 	//MY_FD_ISSET(t->srv_fd, StaticReadEvent), MY_FD_ISSET(t->srv_fd, StaticWriteEvent)
 	//);
 	if (c == CL_STHEADERS) {
-		/* now parse the partial (or complete) headers */
-		while (req->lr < req->r) { /* this loop only sees one header at each iteration */
+		/*
+		 * Now parse the partial (or complete) lines.
+		 * We will check the request syntax, and also join multi-line
+		 * headers. An index of all the lines will be elaborated while
+		 * parsing.
+		 *
+		 * For the parsing, we use a 10 states FSM.
+		 *
+		 * RFC2616 requires that both LF and CRLF are recognized as
+		 * line breaks, but that any other combination is an error.
+		 * To avoid duplicating all the states above to check for CR,
+		 * we use a special bit HTTP_PA_LF_EXP that we 'OR' with the
+		 * state we will switch to if the LF is seen, so that we know
+		 * whether there's a pending CR or not. We can check it
+		 * globally since all CR followed by anything but LF are
+		 * errors. Each state is entered with the first character is
+		 * has to process at req->lr. We also have HTTP_PA_CR_SKIP
+		 * indicating that a CR has been seen on current line and
+		 * skipped.
+		 *
+		 * Here is the information we currently have :
+		 *   req->h  = beginning of current line or header
+		 *   req->lr = first non-visited byte
+		 *   req->r  = end of data
+		 */
+
+		while (req->lr < req->r) {
 			char *ptr;
-			int delete_header;
-			char *request_line = NULL;
-	
-			ptr = req->lr;
+			int parse;
 
-			/* look for the end of the current header */
-			while (ptr < req->r && *ptr != '\n' && *ptr != '\r')
-				ptr++;
-	    
-			if (ptr == req->h) { /* empty line, end of headers */
-				int line, len;
+#ifdef DEBUG_FULL
+			fprintf(stderr, "WHL: hdr_st=0x%02x, hdr_used=%d hdr_tail=%d hdr_last=%d, h=%p, lr=%p, r=%p\n",
+				t->hdr_state, t->hdr_idx.used, t->hdr_idx.tail, t->hdr_idx.last, req->h, req->lr, req->r);
+#endif
 
-				/*
-				 * first, let's check that it's not a leading empty line, in
-				 * which case we'll ignore and remove it (according to RFC2616).
-				 */
-				if (req->h == req->data) {
-					/* to get a complete header line, we need the ending \r\n, \n\r, \r or \n too */
-					if (ptr > req->r - 2) {
-						/* this is a partial header, let's wait for more to come */
-						req->lr = ptr;
-						break;
-					}
+			if (t->hdr_state & HTTP_PA_LF_EXP) {
+				if (*req->lr != '\n') {
+					t->hdr_state = HTTP_PA_ERROR;
+					break;
+				}
+				t->hdr_state &= ~HTTP_PA_LF_EXP;
+			}
 
-					/* now we know that *ptr is either \r or \n,
-					 * and that there are at least 1 char after it.
-					 */
-					if ((ptr[0] == ptr[1]) || (ptr[1] != '\r' && ptr[1] != '\n'))
-						req->lr = ptr + 1; /* \r\r, \n\n, \r[^\n], \n[^\r] */
-					else
-						req->lr = ptr + 2; /* \r\n or \n\r */
-					/* ignore empty leading lines */
-					buffer_replace2(req, req->h, req->lr, NULL, 0);
-					req->h = req->lr;
+			parse = t->hdr_state & ~HTTP_PA_CR_SKIP;;
+
+			if (parse == HTTP_PA_EMPTY) {
+				/* leading empty lines */
+
+				if (*req->lr == '\n') {
+					req->lr ++;
+					t->hdr_state = HTTP_PA_EMPTY;
 					continue;
 				}
+				else if (*req->lr == '\r') {
+					req->lr ++;
+					t->hdr_state = HTTP_PA_EMPTY | HTTP_PA_CR_SKIP | HTTP_PA_LF_EXP;
+					continue;
+				}				
+
+#if PARSE_PRESERVE_EMPTY_LINES
+				/* only skip empty leading lines, don't remove them */
+				t->hdr_idx.v[0].len = req->lr - req->h;
+#else
+				/* remove empty leading lines, as recommended by
+				 * RFC2616. This takes a lot of time because we
+				 * must move all the buffer backwards, but this
+				 * is rarely needed. The method above will be
+				 * cleaner when we'll be able to start sending
+				 * the request from any place in the buffer.
+				 */
+				buffer_replace2(req, req->h, req->lr, NULL, 0);
+#endif
+				req->h = req->lr;
+
+				t->hdr_state = HTTP_PA_START;
+#ifndef DEBUG_PARSE_NO_SPEEDUP
+				/* we know that we still have one char available */
+				goto parse_start;
+#else
+				continue;
+#endif
+
+			} else if (parse == HTTP_PA_START) {
+			parse_start:
+				/* Start line */
+				while (req->lr < req->r && !IS_CTL(*req->lr))
+					req->lr++;
+				if (req->lr == req->r)
+					break;
+				/* we have a CTL char */
+				if (*req->lr == '\r') {
+					req->lr++;
+					t->hdr_state = HTTP_PA_STRT_LF | HTTP_PA_CR_SKIP | HTTP_PA_LF_EXP;
+					continue;
+				}
+				else if (*req->lr == '\n') {
+					t->hdr_state = HTTP_PA_STRT_LF;
+#ifndef DEBUG_PARSE_NO_SPEEDUP
+					/* we know that we still have one char available */
+					goto parse_strt_lf;
+#else
+					continue;
+#endif
+				}
+				t->hdr_state = HTTP_PA_ERROR;
+				break;
+
+			} else if (parse == HTTP_PA_STRT_LF) {
+			parse_strt_lf:
+				/* The LF validating the request line */
+
+				ptr = req->lr;
+				if (t->hdr_state & HTTP_PA_CR_SKIP)
+					ptr--; /* Get back to the CR */
+
+				/* We have the complete start line between
+				 * req->h and ptr (excluded). lr points to
+				 * the LF.
+				 */
+
+				/* FIXME: insert a REQUESTURI hook here. */
+
+
+				/* 1: we might have to print this header */
+				if ((global.mode & MODE_DEBUG) &&
+				    (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))
+					debug_hdr("clireq", t, req->h, ptr);
+
+
+				/* 1: save a pointer to the first line as the request */
+				if (t->req_line.len < 0) {
+					t->req_line.str = req->h;
+					t->req_line.len = ptr - req->h;
+				}
+
+				/* 2: maybe we have to copy the original REQURI for the logs ? */
+				if (t->logs.logwait & LW_REQ) {
+					/* we have a complete HTTP request that we must log */
+					if ((t->logs.uri = pool_alloc(requri)) != NULL) {
+						int urilen = ptr - req->h;
+
+						if (urilen >= REQURI_LEN)
+							urilen = REQURI_LEN - 1;
+						memcpy(t->logs.uri, req->h, urilen);
+						t->logs.uri[urilen] = 0;
+
+						if (!(t->logs.logwait &= ~LW_REQ))
+							sess_log(t);
+					} else {
+						Alert("HTTP logging : out of memory.\n");
+					}
+				}
+
+				/* 3: reference this line as the start line */
+				if (hdr_idx_add(ptr - req->h, req->lr - ptr,
+						&t->hdr_idx, t->hdr_idx.tail) < 0) {
+					t->hdr_state = HTTP_PA_ERROR;
+					break;
+				}
+
+				req->lr++;
+				req->h = req->lr;
+				/* in fact, a state is missing here, we should
+				 * be able to distinguish between an empty line
+				 * and a header.
+				 */
+				t->hdr_state = HTTP_PA_HEADER;
+				continue;
+
+			} else if (parse == HTTP_PA_HEADER) {
+			parse_inside_hdr:
+				/* Inside a non-empty header */
+
+				delete_header = 0;
+				while (req->lr < req->r && !IS_CTL(*req->lr))
+					req->lr++;
+				if (req->lr == req->r)
+					break;
+
+				/* we have a CTL char */
+				if (*req->lr == '\r') {
+					t->hdr_state = HTTP_PA_HDR_LF | HTTP_PA_CR_SKIP | HTTP_PA_LF_EXP;
+					req->lr++;
+					continue;
+				}
+				else if (*req->lr == '\n') {
+					t->hdr_state = HTTP_PA_HDR_LF;
+#ifndef DEBUG_PARSE_NO_SPEEDUP
+					goto parse_hdr_lf;
+#else
+					continue;
+#endif
+				}
+				t->hdr_state = HTTP_PA_ERROR;
+				break;
+
+			} else if (parse == HTTP_PA_HDR_LF) {
+			parse_hdr_lf:
+				/* The LF validating last header, but it
+				 * may also be an LWS, in which case we will
+				 * need more data to know if we can close this
+				 * header or not. However, we must check right
+				 * now if this LF/CRLF closes an empty line, in
+				 * which case it means the end of the request.
+				 */
+				ptr = req->lr;
+				if (t->hdr_state & HTTP_PA_CR_SKIP)
+					ptr--; /* Get back to the CR */
+
+				if (ptr == req->h) {
+					/* We have found the end of the headers.
+					 * req->h points to the ending LF/CRLF,
+					 * and req->lr points to the first byte
+					 * after the LF, so it is easy to append
+					 * anything there.
+					 */
+					t->hdr_state = HTTP_PA_LFLF;
+#ifndef DEBUG_PARSE_NO_SPEEDUP
+					goto parse_lflf;
+#else
+					continue;
+#endif
+					//req->lr++;
+					//break;
+				}
+
+				if (req->lr + 1 >= req->r) /* LF, ?? */
+					break;
+				req->lr++;
+
+				/* Right now, we *know* that there is one char
+				 * available at req->lr.
+				 */
+
+				if (*req->lr == ' ' || *req->lr == '\t') {
+					/* We have an LWS, we will replace the
+					 * CR and LF with spaces as RFC2616
+					 * allows it. <lr> now points to the
+					 * first space char of the LWS part.
+					 */
+					for (;ptr < req->lr; ptr++)
+						*ptr = ' ';
+
+					t->hdr_state = HTTP_PA_HDR_LWS;
+#ifndef DEBUG_PARSE_NO_SPEEDUP
+					goto parse_hdr_lws;
+#else
+					continue;
+#endif
+				}
+
+				/**********************************************
+				 * We now have one complete header between    *
+				 * req->h and ptr, with a possible CR at ptr, *
+				 * everything ending before req->lr. Some very*
+				 * early processing can be applied.           *
+				 **********************************************/
+
+				/*
+				 * FIXME: insert a REQHEADER hook here.
+				 * For instance, we could check the header's
+				 * syntax such as forbidding the leading space
+				 * in the first header (Apache also has the same problem)
+				 */
+
+
+				/* 1: we might have to print this header */
+				if ((global.mode & MODE_DEBUG) &&
+				    (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))
+					debug_hdr("clihdr", t, req->h, ptr);
+
+
+				/* 2: maybe we have to copy this header for the logs ? */
+				if (t->logs.logwait & LW_REQHDR) {
+					/* FIXME: we must *search* the value after the ':' and not
+					 * consider that it's necessary after one single space.*/
+					struct cap_hdr *h;
+					int len;
+					for (h = t->fi->req_cap; h; h = h->next) {
+						if ((h->namelen + 2 <= ptr - req->h) &&
+						    (req->h[h->namelen] == ':') &&
+						    (strncasecmp(req->h, h->name, h->namelen) == 0)) {
+							if (t->req_cap[h->index] == NULL)
+								t->req_cap[h->index] = pool_alloc_from(h->pool, h->len + 1);
+
+							if (t->req_cap[h->index] == NULL) {
+								Alert("HTTP capture : out of memory.\n");
+								continue;
+							}
+							
+							len = ptr - (req->h + h->namelen + 2);
+							if (len > h->len)
+								len = h->len;
+							
+							memcpy(t->req_cap[h->index], req->h + h->namelen + 2, len);
+							t->req_cap[h->index][len]=0;
+						}
+					}
+				}
+
+
+				/* 3: We might need to remove "connection:" */
+				if (!delete_header && (t->fe->options & PR_O_HTTP_CLOSE)
+				    && (strncasecmp(req->h, "Connection:", 11) == 0)) {
+					delete_header = 1;
+				}
+
+
+				/* 4: we might also need the 'Authorization:' header */
+				if (!delete_header &&
+				    t->auth_hdr.len < 0 && t->fi->uri_auth != NULL &&
+				    ptr > req->h + 14 && !strncasecmp("Authorization:", req->h, 14)) {
+					t->auth_hdr.str = req->h;
+					t->auth_hdr.len = ptr - req->h;
+				}
+
+
+
+
+				/* OK, that's enough processing for the first step.
+				 * Now either we index this header or we remove it.
+				 */
+
+				if (!delete_header) {
+					/* we insert it into the index */
+					if (hdr_idx_add(ptr - req->h, req->lr - ptr - 1,
+							&t->hdr_idx, t->hdr_idx.tail) < 0) {
+						t->hdr_state = HTTP_PA_ERROR;
+						break;
+					}
+				} else {
+					/* we remove it */
+					delete_header = 0;
+					buffer_replace2(req, req->h, req->lr, NULL, 0);
+					/* WARNING: ptr is not valid anymore, since the
+					 * header may have been deleted or truncated ! */
+				}
+				
+				/* In any case, we set the next header pointer
+				 * to the next line.
+				 */
+				req->h = req->lr;
+
+#ifndef DEBUG_PARSE_NO_SPEEDUP
+				/*
+				 * We know that at least one character remains.
+				 * It is interesting to directly branch to the
+				 * matching state.
+				 */
+				ptr = req->lr;
+				if (IS_CTL(*req->lr)) {
+					if (*ptr == '\r') {
+						req->lr++;
+						t->hdr_state = HTTP_PA_LFLF | HTTP_PA_LF_EXP;
+						continue;
+					}
+					else if (*ptr == '\n') {
+						t->hdr_state = HTTP_PA_LFLF;
+						goto parse_lflf;
+					}
+					else {
+						t->hdr_state = HTTP_PA_ERROR;
+						break;
+					}
+				}
+				t->hdr_state = HTTP_PA_HEADER;
+				goto parse_inside_hdr;
+#else
+				t->hdr_state = HTTP_PA_HEADER;
+				continue;
+#endif
+
+			} else if (parse == HTTP_PA_HDR_LWS) {
+			parse_hdr_lws:
+				/* Inside an LWS. We just replace tabs with
+				 * spaces and fall back to the HEADER state
+				 * at the first non-space character
+				 */
+
+				while (req->lr < req->r) {
+					if (*req->lr == '\t')
+						*req->lr = ' ';
+					else if (*req->lr != ' ') {
+						t->hdr_state = HTTP_PA_HEADER;
+#ifndef DEBUG_PARSE_NO_SPEEDUP
+						goto parse_inside_hdr;
+#else
+						break;
+#endif
+					}
+					req->lr++;
+				}
+				continue;
+
+			} else if (parse == HTTP_PA_LFLF) {
+			parse_lflf:
+				req->lr ++;
+				/* req->h points to either CR or CRLF, and
+				 * req->lr points to 1 char after LF.
+				 */
+
+				/*
+				 * FIXME: insert a hook here for the end of the headers
+				 */
+				break;
+			} else if (parse == HTTP_PA_ERROR) {
+				break;
+			}
+
+		} /* end of the "while(req->lr < req->r)" loop */
+
+#ifdef DEBUG_FULL
+		fprintf(stderr, "END: hdr_st=0x%02x, hdr_used=%d hdr_tail=%d hdr_last=%d, h=%p, lr=%p, r=%p\n",
+			t->hdr_state, t->hdr_idx.used, t->hdr_idx.tail, t->hdr_idx.last, req->h, req->lr, req->r);
+#endif
+
+		/*
+		 * Now, let's catch bad requests.
+		 */
+
+		if (t->hdr_state == HTTP_PA_ERROR) {
+			t->logs.status = 400;
+			client_retnclose(t, t->fe->errmsg.len400, t->fe->errmsg.msg400);
+			if (!(t->flags & SN_ERR_MASK))
+				t->flags |= SN_ERR_PRXCOND;
+			if (!(t->flags & SN_FINST_MASK))
+				t->flags |= SN_FINST_R;
+			return 1;
+		}
+
+
+
+		/*
+		 * Now we quickly check if we have found a full request.
+		 * If not so, we check the FD and buffer states before leaving.
+		 * A full request is indicated by the fact that we have seen
+		 * the double LF/CRLF, so the state is HTTP_PA_LFLF.
+		 *
+		 */
+
+		if (t->hdr_state != HTTP_PA_LFLF) {	/* Request not complete yet */
+
+			/* 1: Since we are in header mode, if there's no space
+			 *    left for headers, we won't be able to free more
+			 *    later, so the session will never terminate. We
+			 *    must terminate it now.
+			 */
+			if (req->l >= req->rlim - req->data) {
+				/* FIXME: check if hdr_state & mask < HTTP_PA_HEADER,
+				 * and return Status 414 Request URI too long instead.
+				 */
+				t->logs.status = 400;
+				client_retnclose(t, t->fe->errmsg.len400, t->fe->errmsg.msg400);
+				if (!(t->flags & SN_ERR_MASK))
+					t->flags |= SN_ERR_PRXCOND;
+				if (!(t->flags & SN_FINST_MASK))
+					t->flags |= SN_FINST_R;
+				return 1;
+			}
+
+			/* 2: have we encountered a read error or a close ? */
+			else if (req->flags & (BF_READ_ERROR | BF_READ_NULL)) {
+				/* read error, or last read : give up.  */
+				tv_eternity(&req->rex);
+				fd_delete(t->cli_fd);
+				t->cli_state = CL_STCLOSE;
+				if (!(t->flags & SN_ERR_MASK))
+					t->flags |= SN_ERR_CLICL;
+				if (!(t->flags & SN_FINST_MASK))
+					t->flags |= SN_FINST_R;
+				return 1;
+			}
+
+			/* 3: has the read timeout expired ? */
+			else if (tv_cmp2_ms(&req->rex, &now) <= 0) {
+				/* read timeout : give up with an error message. */
+				t->logs.status = 408;
+				client_retnclose(t, t->fe->errmsg.len408, t->fe->errmsg.msg408);
+				if (!(t->flags & SN_ERR_MASK))
+					t->flags |= SN_ERR_CLITO;
+				if (!(t->flags & SN_FINST_MASK))
+					t->flags |= SN_FINST_R;
+				return 1;
+			}
+
+			/* 4: do we need to re-enable the read socket ? */
+			else if (! MY_FD_ISSET(t->cli_fd, StaticReadEvent)) {
+				/* fd in StaticReadEvent was disabled, perhaps because of a previous buffer
+				 * full. We cannot loop here since stream_sock_read will disable it only if
+				 * req->l == rlim-data
+				 */
+				MY_FD_SET(t->cli_fd, StaticReadEvent);
+				if (t->fe->clitimeout)
+					tv_delayfrom(&req->rex, &now, t->fe->clitimeout);
+				else
+					tv_eternity(&req->rex);
+			}
+			return t->cli_state != CL_STHEADERS;
+		}
+
+
+		/****************************************************************
+		 * More interesting part now : we know that we have a complete  *
+		 * request which at least looks like HTTP. We have an indicator *
+		 * of each header's length, so we can parse them quickly.       *
+		 ****************************************************************/
+
+
+		/*
+		 * 1: the appsession cookie was looked up very early in 1.2,
+		 * so let's do the same now.
+		 */
+
+		/* It needs to look into the URI */
+		if (t->be->appsession_name) {
+			req->h = req->data + t->hdr_idx.v[0].len;            /* start of the URI */
+			ptr = req->h + t->hdr_idx.v[t->hdr_idx.v[0].next].len; /* end of the URI */
+			get_srv_from_appsession(t, req->h, ptr);
+		}
+
+
+		/*
+		 * 2: we will have to evaluate the filters.
+		 * As opposed to version 1.2, now they will be evaluated in the
+		 * filters order and not in the header order. This means that
+		 * each filter has to be validated among all headers.
+		 */
+
+
+		/* try headers regexps */
+		if (t->fi->req_exp != NULL)
+			apply_filters_to_session(t, req, t->fi->req_exp);
+
+		/*
+		 * 3: Now we can work with the cookies.
+		 */
+
+		if (!(t->flags & (SN_CLDENY|SN_CLTARPIT)))
+			manage_client_side_cookies(t, req);
+
+
+
+#if TEST
+		/* example: dump each line */
+
+		fprintf(stderr, "t->flags=0x%08x\n", t->flags & (SN_CLALLOW|SN_CLDENY|SN_CLTARPIT));
+
+		fprintf(stderr, "req->h=%d\n", req->h - req->data);
+		req->h = req->data + t->hdr_idx.v[0].len;
+		cur_hdr = 0;
+
+		cur_idx = t->hdr_idx.v[0].next;
+		cur_hdr = 1;
+
+		while (cur_hdr < t->hdr_idx.used) {
+			ptr = req->h + t->hdr_idx.v[cur_idx].len + t->hdr_idx.v[cur_idx].cr + 1;
+			fprintf(stderr, "lr=%d r=%d hdr=%d idx=%d adr=%d..%d len=%d cr=%d data:\n",
+				req->lr - req->data, req->r - req->data,
+				cur_hdr, cur_idx,
+				req->h - req->data,
+				req->h - req->data + t->hdr_idx.v[cur_idx].len + t->hdr_idx.v[cur_idx].cr,
+				t->hdr_idx.v[cur_idx].len,
+				t->hdr_idx.v[cur_idx].cr);
+			write(2, req->h, ptr - req->h);
+
+			req->h = ptr;
+			cur_idx = t->hdr_idx.v[cur_idx].next;
+			cur_hdr++;
+		}
+#endif
+
+
+
+		/**************** debugging ***************/
+		t->logs.status = 400;
+		client_retnclose(t, t->fe->errmsg.len400, t->fe->errmsg.msg400);
+		if (!(t->flags & SN_ERR_MASK))
+			t->flags |= SN_ERR_PRXCOND;
+		if (!(t->flags & SN_FINST_MASK))
+			t->flags |= SN_FINST_R;
+		return 1;
+
+
+
+
+
+#if 0
+
+
+
+			char *ptr;
+			char *request_line = NULL;
+	
+			if (ptr == req->h) { /* empty line, end of headers */
+				int line, len;
 
 				/* we can only get here after an end of headers */
 				/* we'll have something else to do here : add new headers ... */
@@ -469,594 +1030,20 @@ int process_cli(struct session *t)
 				goto process_data;
 			}
 
-			/* To get a complete header line, we need the ending \r\n, \n\r,
-			 * \r or \n, possibly followed by a white space or tab indicating
-			 * that the header goes on next line. */
-			if (ptr > req->r - 3) {
-				/* this is a partial header, let's wait for more to come */
-				req->lr = ptr;
-				break;
-			}
 
-			/* now we know that *ptr is either \r or \n,
-			 * and that there are at least 1 char after it.
-			 */
-			if ((ptr[0] == ptr[1]) || (ptr[1] != '\r' && ptr[1] != '\n'))
-				req->lr = ptr + 1; /* \r\r, \n\n, \r[^\n], \n[^\r] */
-			else
-				req->lr = ptr + 2; /* \r\n or \n\r */
+			/*******************************************/
 
-			/* Now, try to detect multi-line headers. From RFC 2616 :
-			 * HTTP/1.1 header field values can be folded onto multiple lines if the
-			 * continuation line begins with a space or horizontal tab. All linear
-			 * white space, including folding, has the same semantics as SP. A
-			 * recipient MAY replace any linear white space with a single SP before
-			 * interpreting the field value or forwarding the message downstream.
-			 *
-			 *     LWS            = [CRLF] 1*( SP | HT )
-			 */
-			if (req->lr < req->r &&
-			    (*req->lr == ' ' || *req->lr == '\t')) {
-				/* we are allowed to replace the \r\n with spaces */
-				while (ptr < req->lr)
-					*ptr++ = ' ';
-				/* now look for end of LWS */
-				do {
-					req->lr++;
-				} while (req->lr < req->r && (*req->lr == ' ' || *req->lr == '\t'));
-				
-				/* continue processing on the same header */
-				continue;
-			}
 
-			/*
-			 * now we know that we have a full header ; we can do whatever
-			 * we want with these pointers :
-			 *   req->h  = beginning of header
-			 *   ptr     = end of header (first \r or \n)
-			 *   req->lr = beginning of next line (next rep->h)
-			 *   req->r  = end of data (not used at this stage)
-			 */
 
-			if (!method_checked && (t->be->appsession_name != NULL) &&
-			    ((memcmp(req->h, "GET ", 4) == 0) || (memcmp(req->h, "POST ", 4) == 0)) &&
-			    ((request_line = memchr(req->h, ';', req->lr - req->h)) != NULL)) {
-
-				/* skip ; */
-				request_line++;
-
-				/* look if we have a jsessionid */
-
-				if (strncasecmp(request_line, t->be->appsession_name, t->be->appsession_name_len) == 0) {
-
-					/* skip jsessionid= */
-					request_line += t->be->appsession_name_len + 1;
-		
-					/* First try if we allready have an appsession */
-					asession_temp = &local_asession;
-		
-					if ((asession_temp->sessid = pool_alloc_from(apools.sessid, apools.ses_msize)) == NULL) {
-						Alert("Not enough memory process_cli():asession_temp->sessid:calloc().\n");
-						send_log(t->be, LOG_ALERT, "Not enough Memory process_cli():asession_temp->sessid:calloc().\n");
-						return 0;
-					}
-
-					/* Copy the sessionid */
-					memcpy(asession_temp->sessid, request_line, t->be->appsession_len);
-					asession_temp->sessid[t->be->appsession_len] = 0;
-					asession_temp->serverid = NULL;
-
-					/* only do insert, if lookup fails */
-					if (chtbl_lookup(&(t->be->htbl_proxy), (void *)&asession_temp)) {
-						if ((asession_temp = pool_alloc(appsess)) == NULL) {
-							Alert("Not enough memory process_cli():asession:calloc().\n");
-							send_log(t->be, LOG_ALERT, "Not enough memory process_cli():asession:calloc().\n");
-							return 0;
-						}
-						asession_temp->sessid = local_asession.sessid;
-						asession_temp->serverid = local_asession.serverid;
-						chtbl_insert(&(t->be->htbl_proxy), (void *) asession_temp);
-					} /* end if (chtbl_lookup()) */
-					else {
-						/*free wasted memory;*/
-						pool_free_to(apools.sessid, local_asession.sessid);
-					}
-
-					tv_delayfrom(&asession_temp->expire, &now, t->be->appsession_timeout);
-					asession_temp->request_count++;
-		
-#if defined(DEBUG_HASH)
-					print_table(&(t->proxy->htbl_proxy));
 #endif
 
-					if (asession_temp->serverid == NULL) {
-						Alert("Found Application Session without matching server.\n");
-					} else {
-						struct server *srv = t->be->srv;
-						while (srv) {
-							if (strcmp(srv->id, asession_temp->serverid) == 0) {
-								if (srv->state & SRV_RUNNING || t->be->options & PR_O_PERSIST) {
-		                /* we found the server and it's usable */
-									t->flags &= ~SN_CK_MASK;
-									t->flags |= SN_CK_VALID | SN_DIRECT | SN_ASSIGNED;
-									t->srv = srv;
-									break;
-								} else {
-									t->flags &= ~SN_CK_MASK;
-									t->flags |= SN_CK_DOWN;
-								}
-							} /* end if (strcmp()) */
-							srv = srv->next;
-						}/* end while(srv) */
-					}/* end else of if (asession_temp->serverid == NULL) */
-				}/* end if (strncasecmp(request_line,t->proxy->appsession_name,apssesion_name_len) == 0) */
-				else {
-					//fprintf(stderr,">>>>>>>>>>>>>>>>>>>>>>NO SESSION\n");
-				}
-				method_checked = 1;
-			} /* end if (!method_checked ...) */
-			else{
-				//printf("No Methode-Header with Session-String\n");
-			}
-	    
-			if (t->logs.logwait & LW_REQ) {
-				/* we have a complete HTTP request that we must log */
-				int urilen;
-
-				if ((t->logs.uri = pool_alloc(requri)) == NULL) {
-					Alert("HTTP logging : out of memory.\n");
-					t->logs.status = 500;
-					client_retnclose(t, t->fe->errmsg.len500, t->fe->errmsg.msg500);
-					if (!(t->flags & SN_ERR_MASK))
-						t->flags |= SN_ERR_PRXCOND;
-					if (!(t->flags & SN_FINST_MASK))
-						t->flags |= SN_FINST_R;
-					return 1;
-				}
-		
-				urilen = ptr - req->h;
-				if (urilen >= REQURI_LEN)
-					urilen = REQURI_LEN - 1;
-				memcpy(t->logs.uri, req->h, urilen);
-				t->logs.uri[urilen] = 0;
-
-				if (!(t->logs.logwait &= ~LW_REQ))
-					sess_log(t);
-			}
-			else if (t->logs.logwait & LW_REQHDR) {
-				struct cap_hdr *h;
-				int len;
-				for (h = t->fi->req_cap; h; h = h->next) {
-					if ((h->namelen + 2 <= ptr - req->h) &&
-					    (req->h[h->namelen] == ':') &&
-					    (strncasecmp(req->h, h->name, h->namelen) == 0)) {
-
-						if (t->req_cap[h->index] == NULL)
-							t->req_cap[h->index] = pool_alloc_from(h->pool, h->len + 1);
-
-						len = ptr - (req->h + h->namelen + 2);
-						if (len > h->len)
-							len = h->len;
-
-						memcpy(t->req_cap[h->index], req->h + h->namelen + 2, len);
-						t->req_cap[h->index][len]=0;
-					}
-				}
-		
-			}
-
-			delete_header = 0;
-
-			if ((global.mode & MODE_DEBUG) && (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))) {
-				int len, max;
-				len = sprintf(trash, "%08x:%s.clihdr[%04x:%04x]: ", t->uniq_id, t->be->id, (unsigned  short)t->cli_fd, (unsigned short)t->srv_fd);
-				max = ptr - req->h;
-				UBOUND(max, sizeof(trash) - len - 1);
-				len += strlcpy2(trash + len, req->h, max + 1);
-				trash[len++] = '\n';
-				write(1, trash, len);
-			}
 
 
-			/* remove "connection: " if needed */
-			if (!delete_header && (t->fe->options & PR_O_HTTP_CLOSE)
-			    && (strncasecmp(req->h, "Connection: ", 12) == 0)) {
-				delete_header = 1;
-			}
 
-			/* try headers regexps */
-			if (!delete_header && t->fi->req_exp != NULL
-			    && !(t->flags & SN_CLDENY)) {
-				struct hdr_exp *exp;
-				char term;
-		
-				term = *ptr;
-				*ptr = '\0';
-				exp = t->fi->req_exp;
-				do {
-					if (regexec(exp->preg, req->h, MAX_MATCH, pmatch, 0) == 0) {
-						switch (exp->action) {
-						case ACT_ALLOW:
-							if (!(t->flags & (SN_CLDENY | SN_CLTARPIT)))
-								t->flags |= SN_CLALLOW;
-							break;
-						case ACT_REPLACE:
-							if (!(t->flags & (SN_CLDENY | SN_CLTARPIT))) {
-								int len = exp_replace(trash, req->h, exp->replace, pmatch);
-								ptr += buffer_replace2(req, req->h, ptr, trash, len);
-							}
-							break;
-						case ACT_REMOVE:
-							if (!(t->flags & (SN_CLDENY | SN_CLTARPIT)))
-								delete_header = 1;
-							break;
-						case ACT_DENY:
-							if (!(t->flags & (SN_CLALLOW | SN_CLTARPIT)))
-								t->flags |= SN_CLDENY;
-							break;
-						case ACT_TARPIT:
-							if (!(t->flags & (SN_CLALLOW | SN_CLDENY)))
-								t->flags |= SN_CLTARPIT;
-							break;
-						case ACT_PASS: /* we simply don't deny this one */
-							break;
-						}
-						break;
-					}
-				} while ((exp = exp->next) != NULL);
-				*ptr = term; /* restore the string terminator */
-			}
-	    
-			/* Now look for cookies. Conforming to RFC2109, we have to support
-			 * attributes whose name begin with a '$', and associate them with
-			 * the right cookie, if we want to delete this cookie.
-			 * So there are 3 cases for each cookie read :
-			 * 1) it's a special attribute, beginning with a '$' : ignore it.
-			 * 2) it's a server id cookie that we *MAY* want to delete : save
-			 *    some pointers on it (last semi-colon, beginning of cookie...)
-			 * 3) it's an application cookie : we *MAY* have to delete a previous
-			 *    "special" cookie.
-			 * At the end of loop, if a "special" cookie remains, we may have to
-			 * remove it. If no application cookie persists in the header, we
-			 * *MUST* delete it
-			 */
-			if (!delete_header &&
-			    (t->be->cookie_name != NULL || t->be->appsession_name !=NULL || t->fi->capture_name != NULL)
-			    && !(t->flags & (SN_CLDENY|SN_CLTARPIT)) && (ptr >= req->h + 8)
-			    && (strncasecmp(req->h, "Cookie: ", 8) == 0)) {
-				char *p1, *p2, *p3, *p4;
-				char *del_colon, *del_cookie, *colon;
-				int app_cookies;
-
-				p1 = req->h + 8; /* first char after 'Cookie: ' */
-				colon = p1;
-				/* del_cookie == NULL => nothing to be deleted */
-				del_colon = del_cookie = NULL;
-				app_cookies = 0;
-		
-				while (p1 < ptr) {
-					/* skip spaces and colons, but keep an eye on these ones */
-					while (p1 < ptr) {
-						if (*p1 == ';' || *p1 == ',')
-							colon = p1;
-						else if (!isspace((int)*p1))
-							break;
-						p1++;
-					}
-		    
-					if (p1 == ptr)
-						break;
-		    
-					/* p1 is at the beginning of the cookie name */
-					p2 = p1;
-					while (p2 < ptr && *p2 != '=')
-						p2++;
-		    
-					if (p2 == ptr)
-						break;
-
-					p3 = p2 + 1; /* skips the '=' sign */
-					if (p3 == ptr)
-						break;
-		    
-					p4 = p3;
-					while (p4 < ptr && !isspace((int)*p4) && *p4 != ';' && *p4 != ',')
-						p4++;
-		    
-					/* here, we have the cookie name between p1 and p2,
-					 * and its value between p3 and p4.
-					 * we can process it :
-					 *
-					 * Cookie: NAME=VALUE;
-					 * |      ||   ||    |
-					 * |      ||   ||    +--> p4
-					 * |      ||   |+-------> p3
-					 * |      ||   +--------> p2
-					 * |      |+------------> p1
-					 * |      +-------------> colon
-					 * +--------------------> req->h
-					 */
-		    
-					if (*p1 == '$') {
-						/* skip this one */
-					}
-					else {
-						/* first, let's see if we want to capture it */
-						if (t->fi->capture_name != NULL &&
-						    t->logs.cli_cookie == NULL &&
-						    (p4 - p1 >= t->fi->capture_namelen) &&
-						    memcmp(p1, t->fi->capture_name, t->fi->capture_namelen) == 0) {
-							int log_len = p4 - p1;
-
-							if ((t->logs.cli_cookie = pool_alloc(capture)) == NULL) {
-								Alert("HTTP logging : out of memory.\n");
-							} else {
-								if (log_len > t->fi->capture_len)
-									log_len = t->fi->capture_len;
-								memcpy(t->logs.cli_cookie, p1, log_len);
-								t->logs.cli_cookie[log_len] = 0;
-							}
-						}
-
-						if ((p2 - p1 == t->be->cookie_len) && (t->be->cookie_name != NULL) &&
-						    (memcmp(p1, t->be->cookie_name, p2 - p1) == 0)) {
-							/* Cool... it's the right one */
-							struct server *srv = t->be->srv;
-							char *delim;
-
-							/* if we're in cookie prefix mode, we'll search the delimitor so that we
-							 * have the server ID betweek p3 and delim, and the original cookie between
-							 * delim+1 and p4. Otherwise, delim==p4 :
-							 *
-							 * Cookie: NAME=SRV~VALUE;
-							 * |      ||   ||  |     |
-							 * |      ||   ||  |     +--> p4
-							 * |      ||   ||  +--------> delim
-							 * |      ||   |+-----------> p3
-							 * |      ||   +------------> p2
-							 * |      |+----------------> p1
-							 * |      +-----------------> colon
-							 * +------------------------> req->h
-							 */
-
-							if (t->be->options & PR_O_COOK_PFX) {
-								for (delim = p3; delim < p4; delim++)
-									if (*delim == COOKIE_DELIM)
-										break;
-							}
-							else
-								delim = p4;
+		/****************************************************************/
 
 
-							/* Here, we'll look for the first running server which supports the cookie.
-							 * This allows to share a same cookie between several servers, for example
-							 * to dedicate backup servers to specific servers only.
-							 * However, to prevent clients from sticking to cookie-less backup server
-							 * when they have incidentely learned an empty cookie, we simply ignore
-							 * empty cookies and mark them as invalid.
-							 */
-							if (delim == p3)
-								srv = NULL;
 
-							while (srv) {
-								if ((srv->cklen == delim - p3) && !memcmp(p3, srv->cookie, delim - p3)) {
-									if (srv->state & SRV_RUNNING || t->be->options & PR_O_PERSIST) {
-										/* we found the server and it's usable */
-										t->flags &= ~SN_CK_MASK;
-										t->flags |= SN_CK_VALID | SN_DIRECT | SN_ASSIGNED;
-										t->srv = srv;
-										break;
-									} else {
-										/* we found a server, but it's down */
-										t->flags &= ~SN_CK_MASK;
-										t->flags |= SN_CK_DOWN;
-									}
-								}
-								srv = srv->next;
-							}
-
-							if (!srv && !(t->flags & SN_CK_DOWN)) {
-								/* no server matched this cookie */
-								t->flags &= ~SN_CK_MASK;
-								t->flags |= SN_CK_INVALID;
-							}
-
-							/* depending on the cookie mode, we may have to either :
-							 * - delete the complete cookie if we're in insert+indirect mode, so that
-							 *   the server never sees it ;
-							 * - remove the server id from the cookie value, and tag the cookie as an
-							 *   application cookie so that it does not get accidentely removed later,
-							 *   if we're in cookie prefix mode
-							 */
-							if ((t->be->options & PR_O_COOK_PFX) && (delim != p4)) {
-								buffer_replace2(req, p3, delim + 1, NULL, 0);
-								p4  -= (delim + 1 - p3);
-								ptr -= (delim + 1 - p3);
-								del_cookie = del_colon = NULL;
-								app_cookies++;	/* protect the header from deletion */
-							}
-							else if (del_cookie == NULL &&
-								 (t->be->options & (PR_O_COOK_INS | PR_O_COOK_IND)) == (PR_O_COOK_INS | PR_O_COOK_IND)) {
-								del_cookie = p1;
-								del_colon = colon;
-							}
-						} else {
-							/* now we know that we must keep this cookie since it's
-							 * not ours. But if we wanted to delete our cookie
-							 * earlier, we cannot remove the complete header, but we
-							 * can remove the previous block itself.
-							 */
-							app_cookies++;
-			    
-							if (del_cookie != NULL) {
-								buffer_replace2(req, del_cookie, p1, NULL, 0);
-								p4  -= (p1 - del_cookie);
-								ptr -= (p1 - del_cookie);
-								del_cookie = del_colon = NULL;
-							}
-						}
-			
-						if ((t->be->appsession_name != NULL) &&
-						    (memcmp(p1, t->be->appsession_name, p2 - p1) == 0)) {
-							/* first, let's see if the cookie is our appcookie*/
-			    
-							/* Cool... it's the right one */
-
-							asession_temp = &local_asession;
-			  
-							if ((asession_temp->sessid = pool_alloc_from(apools.sessid, apools.ses_msize)) == NULL) {
-								Alert("Not enough memory process_cli():asession->sessid:malloc().\n");
-								send_log(t->be, LOG_ALERT, "Not enough memory process_cli():asession->sessid:malloc().\n");
-								return 0;
-							}
-			  
-							memcpy(asession_temp->sessid, p3, t->be->appsession_len);
-							asession_temp->sessid[t->be->appsession_len] = 0;
-							asession_temp->serverid = NULL;
-			    
-							/* only do insert, if lookup fails */
-							if (chtbl_lookup(&(t->be->htbl_proxy), (void *) &asession_temp) != 0) {
-								if ((asession_temp = pool_alloc(appsess)) == NULL) {
-									Alert("Not enough memory process_cli():asession:calloc().\n");
-									send_log(t->be, LOG_ALERT, "Not enough memory process_cli():asession:calloc().\n");
-									return 0;
-								}
-				
-								asession_temp->sessid = local_asession.sessid;
-								asession_temp->serverid = local_asession.serverid;
-								chtbl_insert(&(t->be->htbl_proxy), (void *) asession_temp);
-							} else {
-								/* free wasted memory */
-								pool_free_to(apools.sessid, local_asession.sessid);
-							}
-			    
-							if (asession_temp->serverid == NULL) {
-								Alert("Found Application Session without matching server.\n");
-							} else {
-								struct server *srv = t->be->srv;
-								while (srv) {
-									if (strcmp(srv->id, asession_temp->serverid) == 0) {
-										if (srv->state & SRV_RUNNING || t->be->options & PR_O_PERSIST) {
-											/* we found the server and it's usable */
-											t->flags &= ~SN_CK_MASK;
-											t->flags |= SN_CK_VALID | SN_DIRECT | SN_ASSIGNED;
-											t->srv = srv;
-											break;
-										} else {
-											t->flags &= ~SN_CK_MASK;
-											t->flags |= SN_CK_DOWN;
-										}
-									}
-									srv = srv->next;
-								}/* end while(srv) */
-							}/* end else if server == NULL */
-			    
-							tv_delayfrom(&asession_temp->expire, &now, t->be->appsession_timeout);
-						}/* end if ((t->proxy->appsession_name != NULL) ... */
-					}
-
-					/* we'll have to look for another cookie ... */
-					p1 = p4;
-				} /* while (p1 < ptr) */
-
-				/* There's no more cookie on this line.
-				 * We may have marked the last one(s) for deletion.
-				 * We must do this now in two ways :
-				 *  - if there is no app cookie, we simply delete the header ;
-				 *  - if there are app cookies, we must delete the end of the
-				 *    string properly, including the colon/semi-colon before
-				 *    the cookie name.
-				 */
-				if (del_cookie != NULL) {
-					if (app_cookies) {
-						buffer_replace2(req, del_colon, ptr, NULL, 0);
-						/* WARNING! <ptr> becomes invalid for now. If some code
-						 * below needs to rely on it before the end of the global
-						 * header loop, we need to correct it with this code :
-						 */
-						ptr = del_colon;
-					}
-					else
-						delete_header = 1;
-				}
-			} /* end of cookie processing on this header */
-
-			/* let's look if we have to delete this header */
-			if (delete_header && !(t->flags & (SN_CLDENY|SN_CLTARPIT))) {
-				buffer_replace2(req, req->h, req->lr, NULL, 0);
-				/* WARNING: ptr is not valid anymore, since the header may have
-				 * been deleted or truncated ! */
-			} else {
-				/* try to catch the first line as the request */
-				if (t->req_line.len < 0) {
-					t->req_line.str = req->h;
-					t->req_line.len = ptr - req->h;
-				}
-
-				/* We might also need the 'Authorization: ' header */
-				if (t->auth_hdr.len < 0 &&
-				    t->fi->uri_auth != NULL &&
-				    ptr > req->h + 15 &&
-				    !strncasecmp("Authorization: ", req->h, 15)) {
-					t->auth_hdr.str = req->h;
-					t->auth_hdr.len = ptr - req->h;
-				}
-			}
-
-			req->h = req->lr;
-		} /* while (req->lr < req->r) */
-
-		/* end of header processing (even if incomplete) */
-
-		if ((req->l < req->rlim - req->data) && ! MY_FD_ISSET(t->cli_fd, StaticReadEvent)) {
-			/* fd in StaticReadEvent was disabled, perhaps because of a previous buffer
-			 * full. We cannot loop here since stream_sock_read will disable it only if
-			 * req->l == rlim-data
-			 */
-			MY_FD_SET(t->cli_fd, StaticReadEvent);
-			if (t->fe->clitimeout)
-				tv_delayfrom(&req->rex, &now, t->fe->clitimeout);
-			else
-				tv_eternity(&req->rex);
-		}
-
-		/* Since we are in header mode, if there's no space left for headers, we
-		 * won't be able to free more later, so the session will never terminate.
-		 */
-		if (req->l >= req->rlim - req->data) {
-			t->logs.status = 400;
-			client_retnclose(t, t->fe->errmsg.len400, t->fe->errmsg.msg400);
-			if (!(t->flags & SN_ERR_MASK))
-				t->flags |= SN_ERR_PRXCOND;
-			if (!(t->flags & SN_FINST_MASK))
-				t->flags |= SN_FINST_R;
-			return 1;
-		}
-		else if (req->flags & (BF_READ_ERROR | BF_READ_NULL)) {
-			/* read error, or last read : give up.  */
-			tv_eternity(&req->rex);
-			fd_delete(t->cli_fd);
-			t->cli_state = CL_STCLOSE;
-			if (!(t->flags & SN_ERR_MASK))
-				t->flags |= SN_ERR_CLICL;
-			if (!(t->flags & SN_FINST_MASK))
-				t->flags |= SN_FINST_R;
-			return 1;
-		}
-		else if (tv_cmp2_ms(&req->rex, &now) <= 0) {
-
-			/* read timeout : give up with an error message.
-			 */
-			t->logs.status = 408;
-			client_retnclose(t, t->fe->errmsg.len408, t->fe->errmsg.msg408);
-			if (!(t->flags & SN_ERR_MASK))
-				t->flags |= SN_ERR_CLITO;
-			if (!(t->flags & SN_FINST_MASK))
-				t->flags |= SN_FINST_R;
-			return 1;
-		}
-
-		return t->cli_state != CL_STHEADERS;
 	}
 	else if (c == CL_STDATA) {
 	process_data:
@@ -1801,15 +1788,8 @@ int process_srv(struct session *t)
 
 			delete_header = 0;
 
-			if ((global.mode & MODE_DEBUG) && (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))) {
-				int len, max;
-				len = sprintf(trash, "%08x:%s.srvhdr[%04x:%04x]: ", t->uniq_id, t->be->id, (unsigned  short)t->cli_fd, (unsigned short)t->srv_fd);
-				max = ptr - rep->h;
-				UBOUND(max, sizeof(trash) - len - 1);
-				len += strlcpy2(trash + len, rep->h, max + 1);
-				trash[len++] = '\n';
-				write(1, trash, len);
-			}
+			if ((global.mode & MODE_DEBUG) && (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))
+				debug_hdr("srvhdr", t, rep->h, ptr);
 
 			/* remove "connection: " if needed */
 			if (!delete_header && (t->fe->options & PR_O_HTTP_CLOSE)
@@ -2895,6 +2875,562 @@ int produce_content(struct session *s)
 		s->flags &= SN_SELF_GEN;
 		return 1;
 	}
+}
+
+
+
+/*
+ * Apply all the req filters <exp> to all headers in buffer <req> of session <t>
+ */
+
+void apply_filters_to_session(struct session *t, struct buffer *req, struct hdr_exp *exp)
+{
+	/* iterate through the filters in the outer loop */
+	while (exp && !(t->flags & (SN_CLDENY|SN_CLTARPIT))) {
+		char term;
+		char *cur_ptr, *cur_end, *cur_next;
+		int cur_idx, old_idx, abort_filt;
+		
+				
+		/*
+		 * The interleaving of transformations and verdicts
+		 * makes it difficult to decide to continue or stop
+		 * the evaluation.
+		 */
+
+		if ((t->flags & SN_CLALLOW) &&
+		    (exp->action == ACT_ALLOW || exp->action == ACT_DENY ||
+		     exp->action == ACT_TARPIT || exp->action == ACT_PASS)) {
+			exp = exp->next;
+			continue;
+		}
+
+		/* Iterate through the headers in the inner loop.
+		 * we start with the start line.
+		 */
+		old_idx = cur_idx = 0;
+		cur_next = req->data + t->hdr_idx.v[0].len;
+		abort_filt = 0;
+
+		while (!abort_filt && (cur_idx = t->hdr_idx.v[cur_idx].next)) {
+			struct hdr_idx_elem *cur_hdr = &t->hdr_idx.v[cur_idx];
+			cur_ptr = cur_next;
+			cur_end = cur_ptr + cur_hdr->len;
+			cur_next = cur_end + cur_hdr->cr + 1;
+
+			/* Now we have one header between cur_ptr and cur_end,
+			 * and the next header starts at cur_next.
+			 */
+
+			/* The annoying part is that pattern matching needs
+			 * that we modify the contents to null-terminate all
+			 * strings before testing them.
+			 */
+
+			term = *cur_end;
+			*cur_end = '\0';
+
+			if (regexec(exp->preg, cur_ptr, MAX_MATCH, pmatch, 0) == 0) {
+				switch (exp->action) {
+				case ACT_ALLOW:
+					if (!(t->flags & (SN_CLDENY | SN_CLTARPIT))) {
+						t->flags |= SN_CLALLOW;
+						abort_filt = 1;
+					}
+					break;
+				case ACT_REPLACE:
+					if (!(t->flags & (SN_CLDENY | SN_CLTARPIT))) {
+						int len, delta;
+						len = exp_replace(trash, cur_ptr, exp->replace, pmatch);
+						delta = buffer_replace2(req, cur_ptr, cur_end, trash, len);
+						cur_end += delta;
+						cur_next += delta;
+						cur_hdr->len += delta;
+					}
+					break;
+				case ACT_REMOVE:
+					if (!(t->flags & (SN_CLDENY | SN_CLTARPIT))) {
+						int delta = buffer_replace2(req, cur_ptr, cur_next, NULL, 0);
+						cur_next += delta;
+
+						/* FIXME: this should be a separate function */
+						t->hdr_idx.v[old_idx].next = cur_hdr->next;
+						t->hdr_idx.used--;
+						cur_hdr->len = 0;
+
+						cur_end = NULL; /* null-term has been rewritten */
+					}
+					break;
+				case ACT_DENY:
+					if (!(t->flags & (SN_CLALLOW | SN_CLTARPIT))) {
+						t->flags |= SN_CLDENY;
+						abort_filt = 1;
+					}
+					break;
+				case ACT_TARPIT:
+					if (!(t->flags & (SN_CLALLOW | SN_CLDENY))) {
+						t->flags |= SN_CLTARPIT;
+						abort_filt = 1;
+					}
+					break;
+					//case ACT_PASS: /* FIXME: broken as of now. We should mark the header as "ignored". */
+					//	break;
+				}
+			}
+			if (cur_end)
+				*cur_end = term; /* restore the string terminator */
+
+			/* keep the link from this header to next one */
+			old_idx = cur_idx;
+		}
+		exp = exp->next;
+	}
+}
+
+
+
+/*
+ * Manager client-side cookie
+ */
+void manage_client_side_cookies(struct session *t, struct buffer *req)
+{
+	char *p1, *p2, *p3, *p4;
+	char *del_colon, *del_cookie, *colon;
+	int app_cookies;
+
+	appsess *asession_temp = NULL;
+	appsess local_asession;
+
+	char *cur_ptr, *cur_end, *cur_next;
+	int cur_idx, old_idx, abort_filt;
+
+	if (t->be->cookie_name == NULL &&
+	    t->be->appsession_name ==NULL &&
+	    t->fi->capture_name != NULL)
+		return;
+
+
+
+	/* Iterate through the headers in the inner loop.
+	 * we start with the start line.
+	 */
+	old_idx = cur_idx = 0;
+	cur_next = req->data + t->hdr_idx.v[0].len;
+	abort_filt = 0;
+
+	while ((cur_idx = t->hdr_idx.v[cur_idx].next)) {
+		struct hdr_idx_elem *cur_hdr;
+
+		cur_hdr  = &t->hdr_idx.v[cur_idx];
+		cur_ptr  = cur_next;
+		cur_end  = cur_ptr + cur_hdr->len;
+		cur_next = cur_end + cur_hdr->cr + 1;
+
+		/* We have one full header between cur_ptr and cur_end, and the
+		 * next header starts at cur_next. We're only interested in
+		 * "Cookie:" headers.
+		 */
+
+		if ((cur_end - cur_ptr <= 7) ||
+		    (strncasecmp(cur_ptr, "Cookie:", 7) != 0)) {
+			old_idx = cur_idx;
+			continue;
+		}
+
+		/* Now look for cookies. Conforming to RFC2109, we have to support
+		 * attributes whose name begin with a '$', and associate them with
+		 * the right cookie, if we want to delete this cookie.
+		 * So there are 3 cases for each cookie read :
+		 * 1) it's a special attribute, beginning with a '$' : ignore it.
+		 * 2) it's a server id cookie that we *MAY* want to delete : save
+		 *    some pointers on it (last semi-colon, beginning of cookie...)
+		 * 3) it's an application cookie : we *MAY* have to delete a previous
+		 *    "special" cookie.
+		 * At the end of loop, if a "special" cookie remains, we may have to
+		 * remove it. If no application cookie persists in the header, we
+		 * *MUST* delete it
+		 */
+
+
+		p1 = cur_ptr + 7; /* first char after 'Cookie:' */
+		if (isspace((int)*p1)) /* try to get the first space with it */
+		    p1++;
+
+		colon = p1;
+		/* del_cookie == NULL => nothing to be deleted */
+		del_colon = del_cookie = NULL;
+		app_cookies = 0;
+		
+		while (p1 < cur_end) {
+			/* skip spaces and colons, but keep an eye on these ones */
+			while (p1 < cur_end) {
+				if (*p1 == ';' || *p1 == ',')
+					colon = p1;
+				else if (!isspace((int)*p1))
+					break;
+				p1++;
+			}
+
+			if (p1 == cur_end)
+				break;
+		    
+			/* p1 is at the beginning of the cookie name */
+			p2 = p1;
+			while (p2 < cur_end && *p2 != '=')
+				p2++;
+
+			if (p2 == cur_end)
+				break;
+
+			p3 = p2 + 1; /* skips the '=' sign */
+			if (p3 == cur_end)
+				break;
+		    
+			p4 = p3;
+			while (p4 < cur_end && !isspace((int)*p4) && *p4 != ';' && *p4 != ',')
+				p4++;
+
+			/* here, we have the cookie name between p1 and p2,
+			 * and its value between p3 and p4.
+			 * we can process it :
+			 *
+			 * Cookie: NAME=VALUE;
+			 * |      ||   ||    |
+			 * |      ||   ||    +--> p4
+			 * |      ||   |+-------> p3
+			 * |      ||   +--------> p2
+			 * |      |+------------> p1
+			 * |      +-------------> colon
+			 * +--------------------> cur_ptr
+			 */
+		    
+			if (*p1 == '$') {
+				/* skip this one */
+			}
+			else {
+				/* first, let's see if we want to capture it */
+				if (t->fi->capture_name != NULL &&
+				    t->logs.cli_cookie == NULL &&
+				    (p4 - p1 >= t->fi->capture_namelen) &&
+				    memcmp(p1, t->fi->capture_name, t->fi->capture_namelen) == 0) {
+					int log_len = p4 - p1;
+
+					if ((t->logs.cli_cookie = pool_alloc(capture)) == NULL) {
+						Alert("HTTP logging : out of memory.\n");
+					} else {
+						if (log_len > t->fi->capture_len)
+							log_len = t->fi->capture_len;
+						memcpy(t->logs.cli_cookie, p1, log_len);
+						t->logs.cli_cookie[log_len] = 0;
+					}
+				}
+
+				if ((p2 - p1 == t->be->cookie_len) && (t->be->cookie_name != NULL) &&
+				    (memcmp(p1, t->be->cookie_name, p2 - p1) == 0)) {
+					/* Cool... it's the right one */
+					struct server *srv = t->be->srv;
+					char *delim;
+
+					/* if we're in cookie prefix mode, we'll search the delimitor so that we
+					 * have the server ID betweek p3 and delim, and the original cookie between
+					 * delim+1 and p4. Otherwise, delim==p4 :
+					 *
+					 * Cookie: NAME=SRV~VALUE;
+					 * |      ||   ||  |     |
+					 * |      ||   ||  |     +--> p4
+					 * |      ||   ||  +--------> delim
+					 * |      ||   |+-----------> p3
+					 * |      ||   +------------> p2
+					 * |      |+----------------> p1
+					 * |      +-----------------> colon
+					 * +------------------------> cur_ptr
+					 */
+
+					if (t->be->options & PR_O_COOK_PFX) {
+						for (delim = p3; delim < p4; delim++)
+							if (*delim == COOKIE_DELIM)
+								break;
+					}
+					else
+						delim = p4;
+
+
+					/* Here, we'll look for the first running server which supports the cookie.
+					 * This allows to share a same cookie between several servers, for example
+					 * to dedicate backup servers to specific servers only.
+					 * However, to prevent clients from sticking to cookie-less backup server
+					 * when they have incidentely learned an empty cookie, we simply ignore
+					 * empty cookies and mark them as invalid.
+					 */
+					if (delim == p3)
+						srv = NULL;
+
+					while (srv) {
+						if ((srv->cklen == delim - p3) && !memcmp(p3, srv->cookie, delim - p3)) {
+							if (srv->state & SRV_RUNNING || t->be->options & PR_O_PERSIST) {
+								/* we found the server and it's usable */
+								t->flags &= ~SN_CK_MASK;
+								t->flags |= SN_CK_VALID | SN_DIRECT | SN_ASSIGNED;
+								t->srv = srv;
+								break;
+							} else {
+								/* we found a server, but it's down */
+								t->flags &= ~SN_CK_MASK;
+								t->flags |= SN_CK_DOWN;
+							}
+						}
+						srv = srv->next;
+					}
+
+					if (!srv && !(t->flags & SN_CK_DOWN)) {
+						/* no server matched this cookie */
+						t->flags &= ~SN_CK_MASK;
+						t->flags |= SN_CK_INVALID;
+					}
+
+					/* depending on the cookie mode, we may have to either :
+					 * - delete the complete cookie if we're in insert+indirect mode, so that
+					 *   the server never sees it ;
+					 * - remove the server id from the cookie value, and tag the cookie as an
+					 *   application cookie so that it does not get accidentely removed later,
+					 *   if we're in cookie prefix mode
+					 */
+					if ((t->be->options & PR_O_COOK_PFX) && (delim != p4)) {
+						int delta; /* negative */
+
+						delta = buffer_replace2(req, p3, delim + 1, NULL, 0);
+						p4  += delta;
+						cur_end += delta;
+						cur_next += delta;
+						cur_hdr->len += delta;
+
+						del_cookie = del_colon = NULL;
+						app_cookies++;	/* protect the header from deletion */
+					}
+					else if (del_cookie == NULL &&
+						 (t->be->options & (PR_O_COOK_INS | PR_O_COOK_IND)) == (PR_O_COOK_INS | PR_O_COOK_IND)) {
+						del_cookie = p1;
+						del_colon = colon;
+					}
+				} else {
+					/* now we know that we must keep this cookie since it's
+					 * not ours. But if we wanted to delete our cookie
+					 * earlier, we cannot remove the complete header, but we
+					 * can remove the previous block itself.
+					 */
+					app_cookies++;
+
+					if (del_cookie != NULL) {
+						int delta; /* negative */
+
+						delta = buffer_replace2(req, del_cookie, p1, NULL, 0);
+						p4  += delta;
+						cur_end += delta;
+						cur_next += delta;
+						cur_hdr->len += delta;
+						del_cookie = del_colon = NULL;
+					}
+				}
+
+				if ((t->be->appsession_name != NULL) &&
+				    (memcmp(p1, t->be->appsession_name, p2 - p1) == 0)) {
+					/* first, let's see if the cookie is our appcookie*/
+			    
+					/* Cool... it's the right one */
+
+					asession_temp = &local_asession;
+			  
+					if ((asession_temp->sessid = pool_alloc_from(apools.sessid, apools.ses_msize)) == NULL) {
+						Alert("Not enough memory process_cli():asession->sessid:malloc().\n");
+						send_log(t->be, LOG_ALERT, "Not enough memory process_cli():asession->sessid:malloc().\n");
+						return;
+					}
+
+					memcpy(asession_temp->sessid, p3, t->be->appsession_len);
+					asession_temp->sessid[t->be->appsession_len] = 0;
+					asession_temp->serverid = NULL;
+			    
+					/* only do insert, if lookup fails */
+					if (chtbl_lookup(&(t->be->htbl_proxy), (void *) &asession_temp) != 0) {
+						if ((asession_temp = pool_alloc(appsess)) == NULL) {
+							/* free previously allocated memory */
+							pool_free_to(apools.sessid, local_asession.sessid);
+							Alert("Not enough memory process_cli():asession:calloc().\n");
+							send_log(t->be, LOG_ALERT, "Not enough memory process_cli():asession:calloc().\n");
+							return;
+						}
+
+						asession_temp->sessid = local_asession.sessid;
+						asession_temp->serverid = local_asession.serverid;
+						chtbl_insert(&(t->be->htbl_proxy), (void *) asession_temp);
+					} else {
+						/* free previously allocated memory */
+						pool_free_to(apools.sessid, local_asession.sessid);
+					}
+			    
+					if (asession_temp->serverid == NULL) {
+						Alert("Found Application Session without matching server.\n");
+					} else {
+						struct server *srv = t->be->srv;
+						while (srv) {
+							if (strcmp(srv->id, asession_temp->serverid) == 0) {
+								if (srv->state & SRV_RUNNING || t->be->options & PR_O_PERSIST) {
+									/* we found the server and it's usable */
+									t->flags &= ~SN_CK_MASK;
+									t->flags |= SN_CK_VALID | SN_DIRECT | SN_ASSIGNED;
+									t->srv = srv;
+									break;
+								} else {
+									t->flags &= ~SN_CK_MASK;
+									t->flags |= SN_CK_DOWN;
+								}
+							}
+							srv = srv->next;
+						}/* end while(srv) */
+					}/* end else if server == NULL */
+
+					tv_delayfrom(&asession_temp->expire, &now, t->be->appsession_timeout);
+				}/* end if ((t->proxy->appsession_name != NULL) ... */
+			}
+
+			/* we'll have to look for another cookie ... */
+			p1 = p4;
+		} /* while (p1 < cur_end) */
+
+		/* There's no more cookie on this line.
+		 * We may have marked the last one(s) for deletion.
+		 * We must do this now in two ways :
+		 *  - if there is no app cookie, we simply delete the header ;
+		 *  - if there are app cookies, we must delete the end of the
+		 *    string properly, including the colon/semi-colon before
+		 *    the cookie name.
+		 */
+		if (del_cookie != NULL) {
+			int delta;
+			if (app_cookies) {
+				delta = buffer_replace2(req, del_colon, cur_end, NULL, 0);
+				cur_end = del_colon;
+				cur_next += delta;
+				cur_hdr->len += delta;
+			} else {
+				delta = buffer_replace2(req, cur_ptr, cur_next, NULL, 0);
+				cur_next += delta;
+
+				/* FIXME: this should be a separate function */
+				t->hdr_idx.v[old_idx].next = cur_hdr->next;
+				t->hdr_idx.used--;
+				cur_hdr->len = 0;
+			}
+		}
+
+		/* keep the link from this header to next one */
+		old_idx = cur_idx;
+	} /* end of cookie processing on this header */
+}
+
+
+
+/*
+ * Try to retrieve a known appsession in the URI, then the associated server.
+ * If the server is found, it's assigned to the session.
+ */
+
+void get_srv_from_appsession(struct session *t, const char *begin, const char *end)
+{
+	appsess *asession_temp = NULL;
+	appsess local_asession;
+	char *request_line;
+
+	if (t->be->appsession_name == NULL ||
+	    (memcmp(begin, "GET ", 4) != 0 && memcmp(begin, "POST ", 5) != 0) ||
+	    (request_line = memchr(begin, ';', end - begin)) == NULL ||
+	    ((1 + t->be->appsession_name_len + 1 + t->be->appsession_len) > (end - request_line)))
+		return;
+
+	/* skip ';' */
+	request_line++;
+
+	/* look if we have a jsessionid */
+	if (strncasecmp(request_line, t->be->appsession_name, t->be->appsession_name_len) != 0)
+		return;
+
+	/* skip jsessionid= */
+	request_line += t->be->appsession_name_len + 1;
+	
+	/* First try if we already have an appsession */
+	asession_temp = &local_asession;
+	
+	if ((asession_temp->sessid = pool_alloc_from(apools.sessid, apools.ses_msize)) == NULL) {
+		Alert("Not enough memory process_cli():asession_temp->sessid:calloc().\n");
+		send_log(t->be, LOG_ALERT, "Not enough Memory process_cli():asession_temp->sessid:calloc().\n");
+		return;
+	}
+	
+	/* Copy the sessionid */
+	memcpy(asession_temp->sessid, request_line, t->be->appsession_len);
+	asession_temp->sessid[t->be->appsession_len] = 0;
+	asession_temp->serverid = NULL;
+	
+	/* only do insert, if lookup fails */
+	if (chtbl_lookup(&(t->be->htbl_proxy), (void *)&asession_temp)) {
+		if ((asession_temp = pool_alloc(appsess)) == NULL) {
+			/* free previously allocated memory */
+			pool_free_to(apools.sessid, local_asession.sessid);
+			Alert("Not enough memory process_cli():asession:calloc().\n");
+			send_log(t->be, LOG_ALERT, "Not enough memory process_cli():asession:calloc().\n");
+			return;
+		}
+		asession_temp->sessid = local_asession.sessid;
+		asession_temp->serverid = local_asession.serverid;
+		chtbl_insert(&(t->be->htbl_proxy), (void *) asession_temp);
+	}
+	else {
+		/* free previously allocated memory */
+		pool_free_to(apools.sessid, local_asession.sessid);
+	}
+	
+	tv_delayfrom(&asession_temp->expire, &now, t->be->appsession_timeout);
+	asession_temp->request_count++;
+	
+#if defined(DEBUG_HASH)
+	print_table(&(t->proxy->htbl_proxy));
+#endif
+	if (asession_temp->serverid == NULL) {
+		Alert("Found Application Session without matching server.\n");
+	} else {
+		struct server *srv = t->be->srv;
+		while (srv) {
+			if (strcmp(srv->id, asession_temp->serverid) == 0) {
+				if (srv->state & SRV_RUNNING || t->be->options & PR_O_PERSIST) {
+					/* we found the server and it's usable */
+					t->flags &= ~SN_CK_MASK;
+					t->flags |= SN_CK_VALID | SN_DIRECT | SN_ASSIGNED;
+					t->srv = srv;
+					break;
+				} else {
+					t->flags &= ~SN_CK_MASK;
+					t->flags |= SN_CK_DOWN;
+				}
+			}
+			srv = srv->next;
+		}
+	}
+}
+
+
+/*
+ * Print a debug line with a header
+ */
+void debug_hdr(const char *dir, struct session *t, const char *start, const char *end)
+{
+	int len, max;
+	len = sprintf(trash, "%08x:%s.%s[%04x:%04x]: ", t->uniq_id, t->be->id,
+		      dir, (unsigned  short)t->cli_fd, (unsigned short)t->srv_fd);
+	max = end - start;
+	UBOUND(max, sizeof(trash) - len - 1);
+	len += strlcpy2(trash + len, start, max + 1);
+	trash[len++] = '\n';
+	write(1, trash, len);
 }
 
 

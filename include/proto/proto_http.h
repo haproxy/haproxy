@@ -27,6 +27,13 @@
 #include <types/session.h>
 #include <types/task.h>
 
+/*
+ * some macros used for the request parsing.
+ * from RFC2616:
+ *   CTL                 = <any US-ASCII control character (octets 0 - 31) and DEL (127)>
+ */
+static inline int IS_CTL(const unsigned char x) { return (x < 32)||(x == 127);}
+
 
 int event_accept(int fd);
 int process_session(struct task *t);
@@ -39,6 +46,10 @@ void srv_close_with_err(struct session *t, int err, int finst,
 			int status, int msglen, const char *msg);
 
 int produce_content(struct session *s);
+void debug_hdr(const char *dir, struct session *t, const char *start, const char *end);
+void get_srv_from_appsession(struct session *t, const char *begin, const char *end);
+void apply_filters_to_session(struct session *t, struct buffer *req, struct hdr_exp *exp);
+void manage_client_side_cookies(struct session *t, struct buffer *req);
 
 #endif /* _PROTO_PROTO_HTTP_H */
 

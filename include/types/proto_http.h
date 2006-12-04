@@ -51,6 +51,21 @@
 #define SV_STCLOSE	6
 
 
+/* Possible states while parsing HTTP messages (request|response) */
+#define HTTP_PA_EMPTY      0    /* leading LF, before start line */
+#define HTTP_PA_START      1    /* inside start line */
+#define HTTP_PA_STRT_LF    2    /* LF after start line */
+#define HTTP_PA_HEADER     3    /* inside a header */
+#define HTTP_PA_HDR_LF     4    /* LF after a header */
+#define HTTP_PA_HDR_LWS    5    /* LWS after a header */
+#define HTTP_PA_LFLF       6    /* after double LF/CRLF at the end of headers */
+#define HTTP_PA_ERROR      7    /* syntax error in the message */
+#define HTTP_PA_CR_SKIP 0x10    /* ORed with other values when a CR was skipped */
+#define HTTP_PA_LF_EXP  0x20    /* ORed with other values when a CR is seen and
+				 * an LF is expected before entering the
+				 * designated state. */
+
+
 #endif /* _TYPES_PROTO_HTTP_H */
 
 /*

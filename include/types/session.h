@@ -122,6 +122,7 @@ struct session {
 	char **req_cap;				/* array of captured request headers (may be NULL) */
 	char **rsp_cap;				/* array of captured response headers (may be NULL) */
 	struct hdr_idx hdr_idx;                 /* array of header indexes (max: MAX_HTTP_HDR) */
+	int hdr_state;                          /* where we are in the current header parsing */
 	struct chunk req_line;			/* points to first line */
 	struct chunk auth_hdr;			/* points to 'Authorization:' header */
 	struct {

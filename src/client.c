@@ -161,6 +161,7 @@ int event_accept(int fd) {
 
 		s->cli_state = (p->mode == PR_MODE_HTTP) ?  CL_STHEADERS : CL_STDATA; /* no HTTP headers for non-HTTP proxies */
 		s->srv_state = SV_STIDLE;
+		s->hdr_state = HTTP_PA_EMPTY; /* at the very beginning of the request */
 		s->req = s->rep = NULL; /* will be allocated later */
 
 		s->cli_fd = cfd;

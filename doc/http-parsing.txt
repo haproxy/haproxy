@@ -1,0 +1,214 @@
+--- Relevant portions of RFC2616 ---
+
+OCTET               = <any 8-bit sequence of data>
+CHAR                = <any US-ASCII character (octets 0 - 127)>
+UPALPHA             = <any US-ASCII uppercase letter "A".."Z">
+LOALPHA             = <any US-ASCII lowercase letter "a".."z">
+ALPHA               = UPALPHA | LOALPHA
+DIGIT               = <any US-ASCII digit "0".."9">
+CTL                 = <any US-ASCII control character (octets 0 - 31) and DEL (127)>
+CR                  = <US-ASCII CR, carriage return (13)>
+LF                  = <US-ASCII LF, linefeed (10)>
+SP                  = <US-ASCII SP, space (32)>
+HT                  = <US-ASCII HT, horizontal-tab (9)>
+<">                 = <US-ASCII double-quote mark (34)>
+CRLF                = CR LF
+LWS                 = [CRLF] 1*( SP | HT )
+TEXT                = <any OCTET except CTLs, but including LWS>
+HEX                 = "A" | "B" | "C" | "D" | "E" | "F"
+                      | "a" | "b" | "c" | "d" | "e" | "f" | DIGIT
+separators          = "(" | ")" | "<" | ">" | "@"
+                    | "," | ";" | ":" | "\" | <">
+                    | "/" | "[" | "]" | "?" | "="
+                    | "{" | "}" | SP | HT
+token               = 1*<any CHAR except CTLs or separators>
+
+quoted-pair         = "\" CHAR
+ctext               = <any TEXT excluding "(" and ")">
+qdtext              = <any TEXT except <">>
+quoted-string       = ( <"> *(qdtext | quoted-pair ) <"> )
+comment             = "(" *( ctext | quoted-pair | comment ) ")"
+
+
+
+
+
+4 HTTP Message
+4.1 Message Types
+
+HTTP messages consist of requests from client to server and responses from
+server to client. Request (section 5) and Response (section 6) messages use the
+generic message format of RFC 822 [9] for transferring entities (the payload of
+the message). Both types of message consist of :
+
+  - a start-line
+  - zero or more header fields (also known as "headers")
+  - an empty line (i.e., a line with nothing preceding the CRLF) indicating the
+    end of the header fields
+  - and possibly a message-body.
+
+
+HTTP-message        = Request | Response
+
+start-line          = Request-Line | Status-Line
+generic-message     = start-line
+                      *(message-header CRLF)
+                      CRLF
+                      [ message-body ]
+
+In the interest of robustness, servers SHOULD ignore any empty line(s) received
+where a Request-Line is expected. In other words, if the server is reading the
+protocol stream at the beginning of a message and receives a CRLF first, it
+should ignore the CRLF.
+
+
+4.2 Message headers
+
+- Each header field consists of a name followed by a colon (":") and the field
+  value.
+- Field names are case-insensitive.
+- The field value MAY be preceded by any amount of LWS, though a single SP is
+  preferred.
+- Header fields can be extended over multiple lines by preceding each extra
+  line with at least one SP or HT.
+
+
+message-header      = field-name ":" [ field-value ]
+field-name          = token
+field-value         = *( field-content | LWS )
+field-content       = <the OCTETs making up the field-value and consisting of
+                       either *TEXT or combinations of token, separators, and
+                       quoted-string>
+
+
+The field-content does not include any leading or trailing LWS occurring before
+the first non-whitespace character of the field-value or after the last
+non-whitespace character of the field-value. Such leading or trailing LWS MAY
+be removed without changing the semantics of the field value. Any LWS that
+occurs between field-content MAY be replaced with a single SP before
+interpreting the field value or forwarding the message downstream.
+
+
+=> format des headers = 1*(CHAR & !ctl & !sep) ":" *(OCTET & (!ctl | LWS))
+=> les regex de matching de headers s'appliquent sur field-content, et peuvent
+   utiliser field-value comme espace de travail (mais de préférence après le
+   premier SP).
+
+(19.3) The line terminator for message-header fields is the sequence CRLF.
+However, we recommend that applications, when parsing such headers, recognize
+a single LF as a line terminator and ignore the leading CR.
+
+
+
+
+
+message-body    = entity-body
+                | <entity-body encoded as per Transfer-Encoding>
+
+
+
+5 Request
+
+Request         = Request-Line
+                  *(( general-header
+                    | request-header
+                    | entity-header ) CRLF)
+                  CRLF
+                  [ message-body ]
+
+
+
+5.1 Request line
+
+The elements are separated by SP characters. No CR or LF is allowed except in
+the final CRLF sequence.
+
+Request-Line = Method SP Request-URI SP HTTP-Version CRLF
+
+(19.3) Clients SHOULD be tolerant in parsing the Status-Line and servers
+tolerant when parsing the Request-Line. In particular, they SHOULD accept any
+amount of SP or HT characters between fields, even though only a single SP is
+required.
+
+4.5 General headers
+Apply to MESSAGE.
+
+general-header  = Cache-Control
+                | Connection
+                | Date
+                | Pragma
+                | Trailer
+                | Transfer-Encoding
+                | Upgrade
+                | Via
+                | Warning
+
+General-header field names can be extended reliably only in combination with a
+change in the protocol version. However, new or experimental header fields may
+be given the semantics of general header fields if all parties in the
+communication recognize them to be general-header fields. Unrecognized header
+fields are treated as entity-header fields.
+
+
+
+
+5.3 Request Header Fields
+
+The request-header fields allow the client to pass additional information about
+the request, and about the client itself, to the server. These fields act as
+request modifiers, with semantics equivalent to the parameters on a programming
+language method invocation.
+
+request-header  = Accept
+                | Accept-Charset
+                | Accept-Encoding
+                | Accept-Language
+                | Authorization
+                | Expect
+                | From
+                | Host
+                | If-Match
+                | If-Modified-Since
+                | If-None-Match
+                | If-Range
+                | If-Unmodified-Since
+                | Max-Forwards
+                | Proxy-Authorization
+                | Range
+                | Referer
+                | TE
+                | User-Agent
+
+Request-header field names can be extended reliably only in combination with a
+change in the protocol version. However, new or experimental header fields MAY
+be given the semantics of request-header fields if all parties in the
+communication recognize them to be request-header fields. Unrecognized header
+fields are treated as entity-header fields.
+
+
+
+7.1 Entity header fields
+
+Entity-header fields define metainformation about the entity-body or, if no
+body is present, about the resource identified by the request. Some of this
+metainformation is OPTIONAL; some might be REQUIRED by portions of this
+specification.
+
+entity-header   = Allow
+                | Content-Encoding
+                | Content-Language
+                | Content-Length
+                | Content-Location
+                | Content-MD5
+                | Content-Range
+                | Content-Type
+                | Expires
+                | Last-Modified
+                | extension-header
+extension-header = message-header
+
+The extension-header mechanism allows additional entity-header fields to be
+defined without changing the protocol, but these fields cannot be assumed to be
+recognizable by the recipient. Unrecognized header fields SHOULD be ignored by
+the recipient and MUST be forwarded by transparent proxies.
+
