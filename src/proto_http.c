@@ -946,6 +946,10 @@ int process_cli(struct session *t)
 		for (cur_hdr = 0; cur_hdr < t->fi->nb_reqadd; cur_hdr++) {
 			int len = sprintf(trash, "%s\r\n", t->fi->req_add[cur_hdr]);
 			buffer_replace2(req, req->h, req->h, trash, len);
+			if (hdr_idx_add(len - 2, 1, t->hdr_idx, t->hdr_idx.tail) < 0) {
+				t->hdr_state = HTTP_PA_ERROR;
+				break;
+			}
 		}
 
 
@@ -960,6 +964,10 @@ int process_cli(struct session *t)
 				len = sprintf(trash, "X-Forwarded-For: %d.%d.%d.%d\r\n",
 					      pn[0], pn[1], pn[2], pn[3]);
 				buffer_replace2(req, req->h, req->h, trash, len);
+				if (hdr_idx_add(len - 2, 1, t->hdr_idx, t->hdr_idx.tail) < 0) {
+					t->hdr_state = HTTP_PA_ERROR;
+					break;
+				}
 			}
 			else if (t->cli_addr.ss_family == AF_INET6) {
 				int len;
@@ -969,6 +977,10 @@ int process_cli(struct session *t)
 					  pn, sizeof(pn));
 				len = sprintf(trash, "X-Forwarded-For: %s\r\n", pn);
 				buffer_replace2(req, req->h, req->h, trash, len);
+				if (hdr_idx_add(len - 2, 1, t->hdr_idx, t->hdr_idx.tail) < 0) {
+					t->hdr_state = HTTP_PA_ERROR;
+					break;
+				}
 			}
 		}
 
@@ -978,8 +990,24 @@ int process_cli(struct session *t)
 		 */
 
 		/* add a "connection: close" line if needed */
-		if (t->fe->options & PR_O_HTTP_CLOSE)
+		if (t->fe->options & PR_O_HTTP_CLOSE) {
 			buffer_replace2(req, req->h, req->h, "Connection: close\r\n", 19);
+			if (hdr_idx_add(17, 1, t->hdr_idx, t->hdr_idx.tail) < 0) {
+				t->hdr_state = HTTP_PA_ERROR;
+				break;
+			}
+		}
+
+
+		/*
+		 * 10: We can now check whether we want to switch to another
+		 * backend, in which case we will re-check the backend's filters
+		 * and various options.
+		 *
+		 */
+
+
+
 
 
 		/*************************************************************
@@ -2952,6 +2980,10 @@ void apply_filters_to_session(struct session *t, struct buffer *req, struct hdr_
 						int len, delta;
 						len = exp_replace(trash, cur_ptr, exp->replace, pmatch);
 						delta = buffer_replace2(req, cur_ptr, cur_end, trash, len);
+						/* FIXME: if the user adds a newline in the replacement, the
+						 * index will not be recalculated for now, and the new line
+						 * will not be counted for a new header.
+						 */
 						cur_end += delta;
 						cur_next += delta;
 						cur_hdr->len += delta;
