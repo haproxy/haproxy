@@ -25,6 +25,7 @@
 #include <common/appsession.h>
 #include <common/compat.h>
 #include <common/config.h>
+#include <common/debug.h>
 #include <common/memory.h>
 #include <common/mini-clist.h>
 #include <common/standard.h>
@@ -225,7 +226,6 @@ int process_cli(struct session *t)
 	int delete_header = 0;
 
 	int cur_hdr, cur_idx;
-	char *ptr;
 
 #ifdef DEBUG_FULL
 	fprintf(stderr,"process_cli: c=%s s=%s set(r,w)=%d,%d exp(r,w)=%d.%d,%d.%d\n",
@@ -260,19 +260,20 @@ int process_cli(struct session *t)
 		 * skipped.
 		 *
 		 * Here is the information we currently have :
-		 *   req->h  = beginning of current line or header
+		 *   req->data  = beginning of request
 		 *   req->lr = first non-visited byte
 		 *   req->r  = end of data
 		 */
 
+		char *sol, *eol; /* Start Of Line, End Of Line */
+
+		eol = sol = req->data;
+
 		while (req->lr < req->r) {
-			char *ptr;
 			int parse;
 
-#ifdef DEBUG_FULL
-			fprintf(stderr, "WHL: hdr_st=0x%02x, hdr_used=%d hdr_tail=%d hdr_last=%d, h=%p, lr=%p, r=%p\n",
-				t->hdr_state, t->hdr_idx.used, t->hdr_idx.tail, t->hdr_idx.last, req->h, req->lr, req->r);
-#endif
+			DPRINTF(stderr, "WHL: hdr_st=0x%02x, hdr_used=%d hdr_tail=%d hdr_last=%d, h=%p, lr=%p, r=%p\n",
+				t->hdr_state, t->hdr_idx.used, t->hdr_idx.tail, t->hdr_idx.last, sol, req->lr, req->r);
 
 			if (t->hdr_state & HTTP_PA_LF_EXP) {
 				if (*req->lr != '\n') {
@@ -298,9 +299,10 @@ int process_cli(struct session *t)
 					continue;
 				}				
 
+				DPRINTF(stderr, "PA_EMPTY[0]: h=%d, lr=%d, r=%d\n", sol-req->data, req->lr-req->data, req->r-req->data);
 #if PARSE_PRESERVE_EMPTY_LINES
 				/* only skip empty leading lines, don't remove them */
-				t->hdr_idx.v[0].len = req->lr - req->h;
+				t->hdr_idx.v[0].len = req->lr - sol;
 #else
 				/* remove empty leading lines, as recommended by
 				 * RFC2616. This takes a lot of time because we
@@ -309,9 +311,10 @@ int process_cli(struct session *t)
 				 * cleaner when we'll be able to start sending
 				 * the request from any place in the buffer.
 				 */
-				buffer_replace2(req, req->h, req->lr, NULL, 0);
+				buffer_replace2(req, sol, req->lr, NULL, 0);
 #endif
-				req->h = req->lr;
+				sol = req->lr;
+				DPRINTF(stderr, "PA_EMPTY[1]: h=%d, lr=%d, r=%d\n", sol-req->data, req->lr-req->data, req->r-req->data);
 
 				t->hdr_state = HTTP_PA_START;
 #ifndef DEBUG_PARSE_NO_SPEEDUP
@@ -350,12 +353,12 @@ int process_cli(struct session *t)
 			parse_strt_lf:
 				/* The LF validating the request line */
 
-				ptr = req->lr;
+				eol = req->lr;
 				if (t->hdr_state & HTTP_PA_CR_SKIP)
-					ptr--; /* Get back to the CR */
+					eol--; /* Get back to the CR */
 
 				/* We have the complete start line between
-				 * req->h and ptr (excluded). lr points to
+				 * sol and eol (excluded). lr points to
 				 * the LF.
 				 */
 
@@ -365,17 +368,17 @@ int process_cli(struct session *t)
 				/* 1: we might have to print this header */
 				if ((global.mode & MODE_DEBUG) &&
 				    (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))
-					debug_hdr("clireq", t, req->h, ptr);
+					debug_hdr("clireq", t, sol, eol);
 
 				/* 2: maybe we have to copy the original REQURI for the logs ? */
 				if (t->logs.logwait & LW_REQ) {
 					/* we have a complete HTTP request that we must log */
 					if ((t->logs.uri = pool_alloc(requri)) != NULL) {
-						int urilen = ptr - req->h;
+						int urilen = eol - sol;
 
 						if (urilen >= REQURI_LEN)
 							urilen = REQURI_LEN - 1;
-						memcpy(t->logs.uri, req->h, urilen);
+						memcpy(t->logs.uri, sol, urilen);
 						t->logs.uri[urilen] = 0;
 
 						if (!(t->logs.logwait &= ~LW_REQ))
@@ -386,14 +389,14 @@ int process_cli(struct session *t)
 				}
 
 				/* 3: reference this line as the start line */
-				if (hdr_idx_add(ptr - req->h, req->lr - ptr,
+				if (hdr_idx_add(eol - sol, req->lr - eol,
 						&t->hdr_idx, t->hdr_idx.tail) < 0) {
 					t->hdr_state = HTTP_PA_ERROR;
 					break;
 				}
 
 				req->lr++;
-				req->h = req->lr;
+				sol = req->lr;
 				/* in fact, a state is missing here, we should
 				 * be able to distinguish between an empty line
 				 * and a header.
@@ -437,13 +440,13 @@ int process_cli(struct session *t)
 				 * now if this LF/CRLF closes an empty line, in
 				 * which case it means the end of the request.
 				 */
-				ptr = req->lr;
+				eol = req->lr;
 				if (t->hdr_state & HTTP_PA_CR_SKIP)
-					ptr--; /* Get back to the CR */
+					eol--; /* Get back to the CR */
 
-				if (ptr == req->h) {
+				if (eol == sol) {
 					/* We have found the end of the headers.
-					 * req->h points to the ending LF/CRLF,
+					 * sol points to the ending LF/CRLF,
 					 * and req->lr points to the first byte
 					 * after the LF, so it is easy to append
 					 * anything there.
@@ -472,8 +475,8 @@ int process_cli(struct session *t)
 					 * allows it. <lr> now points to the
 					 * first space char of the LWS part.
 					 */
-					for (;ptr < req->lr; ptr++)
-						*ptr = ' ';
+					for (;eol < req->lr; eol++)
+						*eol = ' ';
 
 					t->hdr_state = HTTP_PA_HDR_LWS;
 #ifndef DEBUG_PARSE_NO_SPEEDUP
@@ -485,7 +488,7 @@ int process_cli(struct session *t)
 
 				/**********************************************
 				 * We now have one complete header between    *
-				 * req->h and ptr, with a possible CR at ptr, *
+				 * sol and eol, with a possible CR at eol, *
 				 * everything ending before req->lr. Some very*
 				 * early processing can be applied.           *
 				 **********************************************/
@@ -501,7 +504,7 @@ int process_cli(struct session *t)
 				/* 1: we might have to print this header */
 				if ((global.mode & MODE_DEBUG) &&
 				    (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))
-					debug_hdr("clihdr", t, req->h, ptr);
+					debug_hdr("clihdr", t, sol, eol);
 
 
 				/* 2: maybe we have to copy this header for the logs ? */
@@ -511,9 +514,9 @@ int process_cli(struct session *t)
 					struct cap_hdr *h;
 					int len;
 					for (h = t->fi->req_cap; h; h = h->next) {
-						if ((h->namelen + 2 <= ptr - req->h) &&
-						    (req->h[h->namelen] == ':') &&
-						    (strncasecmp(req->h, h->name, h->namelen) == 0)) {
+						if ((h->namelen + 2 <= eol - sol) &&
+						    (sol[h->namelen] == ':') &&
+						    (strncasecmp(sol, h->name, h->namelen) == 0)) {
 							if (t->req_cap[h->index] == NULL)
 								t->req_cap[h->index] = pool_alloc_from(h->pool, h->len + 1);
 
@@ -522,11 +525,11 @@ int process_cli(struct session *t)
 								continue;
 							}
 							
-							len = ptr - (req->h + h->namelen + 2);
+							len = eol - (sol + h->namelen + 2);
 							if (len > h->len)
 								len = h->len;
 							
-							memcpy(t->req_cap[h->index], req->h + h->namelen + 2, len);
+							memcpy(t->req_cap[h->index], sol + h->namelen + 2, len);
 							t->req_cap[h->index][len]=0;
 						}
 					}
@@ -535,7 +538,7 @@ int process_cli(struct session *t)
 
 				/* 3: We might need to remove "connection:" */
 				if (!delete_header && (t->fe->options & PR_O_HTTP_CLOSE)
-				    && (strncasecmp(req->h, "Connection:", 11) == 0)) {
+				    && (strncasecmp(sol, "Connection:", 11) == 0)) {
 					delete_header = 1;
 				}
 
@@ -546,7 +549,7 @@ int process_cli(struct session *t)
 
 				if (!delete_header) {
 					/* we insert it into the index */
-					if (hdr_idx_add(ptr - req->h, req->lr - ptr - 1,
+					if (hdr_idx_add(eol - sol, req->lr - eol - 1,
 							&t->hdr_idx, t->hdr_idx.tail) < 0) {
 						t->hdr_state = HTTP_PA_ERROR;
 						break;
@@ -554,15 +557,15 @@ int process_cli(struct session *t)
 				} else {
 					/* we remove it */
 					delete_header = 0;
-					buffer_replace2(req, req->h, req->lr, NULL, 0);
-					/* WARNING: ptr is not valid anymore, since the
+					buffer_replace2(req, sol, req->lr, NULL, 0);
+					/* WARNING: eol is not valid anymore, since the
 					 * header may have been deleted or truncated ! */
 				}
 				
 				/* In any case, we set the next header pointer
 				 * to the next line.
 				 */
-				req->h = req->lr;
+				sol = req->lr;
 
 #ifndef DEBUG_PARSE_NO_SPEEDUP
 				/*
@@ -570,14 +573,14 @@ int process_cli(struct session *t)
 				 * It is interesting to directly branch to the
 				 * matching state.
 				 */
-				ptr = req->lr;
+				eol = req->lr;
 				if (IS_CTL(*req->lr)) {
-					if (*ptr == '\r') {
+					if (*eol == '\r') {
 						req->lr++;
 						t->hdr_state = HTTP_PA_LFLF | HTTP_PA_LF_EXP;
 						continue;
 					}
-					else if (*ptr == '\n') {
+					else if (*eol == '\n') {
 						t->hdr_state = HTTP_PA_LFLF;
 						goto parse_lflf;
 					}
@@ -618,7 +621,7 @@ int process_cli(struct session *t)
 			} else if (parse == HTTP_PA_LFLF) {
 			parse_lflf:
 				req->lr ++;
-				/* req->h points to either CR or CRLF, and
+				/* sol points to either CR or CRLF, and
 				 * req->lr points to 1 char after LF.
 				 */
 
@@ -632,10 +635,8 @@ int process_cli(struct session *t)
 
 		} /* end of the "while(req->lr < req->r)" loop */
 
-#ifdef DEBUG_FULL
-		fprintf(stderr, "END: hdr_st=0x%02x, hdr_used=%d hdr_tail=%d hdr_last=%d, h=%p, lr=%p, r=%p\n",
-			t->hdr_state, t->hdr_idx.used, t->hdr_idx.tail, t->hdr_idx.last, req->h, req->lr, req->r);
-#endif
+		DPRINTF(stderr, "END: hdr_st=0x%02x, hdr_used=%d hdr_tail=%d hdr_last=%d, h=%p, lr=%p, r=%p\n",
+			t->hdr_state, t->hdr_idx.used, t->hdr_idx.tail, t->hdr_idx.last, sol, req->lr, req->r);
 
 		/*
 		 * Now, let's catch bad requests.
@@ -736,9 +737,9 @@ int process_cli(struct session *t)
 
 		/* It needs to look into the URI */
 		if (t->be->appsession_name) {
-			req->h = req->data + t->hdr_idx.v[0].len;            /* start of the URI */
-			ptr = req->h + t->hdr_idx.v[t->hdr_idx.v[0].next].len; /* end of the URI */
-			get_srv_from_appsession(t, req->h, ptr);
+			sol = req->data + t->hdr_idx.v[0].len;            /* start of the URI */
+			eol = sol + t->hdr_idx.v[t->hdr_idx.v[0].next].len; /* end of the URI */
+			get_srv_from_appsession(t, sol, eol);
 		}
 
 
@@ -778,13 +779,14 @@ int process_cli(struct session *t)
 		 * 3: save a pointer to the first line as the request, and
 		 * check the method (needed for cookies).
 		 */
-		req->h = req->data + t->hdr_idx.v[0].len;            /* start of the REQURI */
-		ptr = req->h + t->hdr_idx.v[t->hdr_idx.v[0].next].len; /* end of the REQURI */
 
-		t->req_line.str = req->h;
-		t->req_line.len = ptr - req->h;
+		t->req_line.str = req->data + t->hdr_idx.v[0].len;      /* start of the REQURI */
+		t->req_line.len = t->hdr_idx.v[t->hdr_idx.v[0].next].len; /* end of the REQURI */
 
-		if (!memcmp(req->h, "POST ", 5)) {
+		sol = t->req_line.str;
+		eol = sol + t->req_line.len;
+
+		if (!memcmp(sol, "POST ", 5)) {
 			/* this is a POST request, which is not cacheable by default */
 			t->flags |= SN_POST;
 		}
@@ -925,19 +927,19 @@ int process_cli(struct session *t)
 		 */
 
 #if READABLE_PARSER_VERSION
-		for (req->h = req->data + t->hdr_idx.v[cur_idx=0].len;
+		for (sol = req->data + t->hdr_idx.v[cur_idx=0].len;
 		     (cur_idx = t->hdr_idx.v[cur_idx].next);
-		     req->h  += t->hdr_idx.v[cur_idx].len + t->hdr_idx.v[cur_idx]cr + 1);
+		     sol  += t->hdr_idx.v[cur_idx].len + t->hdr_idx.v[cur_idx]cr + 1);
 #else
-		req->h = req->data;
+		sol = req->data;
 		cur_idx = 0;
 
-		while ((req->h += t->hdr_idx.v[cur_idx].len,
+		while ((sol += t->hdr_idx.v[cur_idx].len,
 			cur_idx = t->hdr_idx.v[cur_idx].next))
-			req->h  += t->hdr_idx.v[cur_idx].cr + 1;
+			sol  += t->hdr_idx.v[cur_idx].cr + 1;
 #endif
 
-		/* now req->h points to the last LF/CRLF */
+		/* now sol points to the last LF/CRLF */
 
 		/*
 		 * 7: add request headers
@@ -945,7 +947,7 @@ int process_cli(struct session *t)
 		 */
 		for (cur_hdr = 0; cur_hdr < t->fi->nb_reqadd; cur_hdr++) {
 			int len = sprintf(trash, "%s\r\n", t->fi->req_add[cur_hdr]);
-			buffer_replace2(req, req->h, req->h, trash, len);
+			buffer_replace2(req, sol, sol, trash, len);
 			if (hdr_idx_add(len - 2, 1, &t->hdr_idx, t->hdr_idx.tail) < 0) {
 				t->hdr_state = HTTP_PA_ERROR;
 				break;
@@ -963,7 +965,7 @@ int process_cli(struct session *t)
 				pn = (unsigned char *)&((struct sockaddr_in *)&t->cli_addr)->sin_addr;
 				len = sprintf(trash, "X-Forwarded-For: %d.%d.%d.%d\r\n",
 					      pn[0], pn[1], pn[2], pn[3]);
-				buffer_replace2(req, req->h, req->h, trash, len);
+				buffer_replace2(req, sol, sol, trash, len);
 				if (hdr_idx_add(len - 2, 1, &t->hdr_idx, t->hdr_idx.tail) < 0) {
 					t->hdr_state = HTTP_PA_ERROR;
 					t->logs.status = 400;
@@ -982,7 +984,7 @@ int process_cli(struct session *t)
 					  (const void *)&((struct sockaddr_in6 *)(&t->cli_addr))->sin6_addr,
 					  pn, sizeof(pn));
 				len = sprintf(trash, "X-Forwarded-For: %s\r\n", pn);
-				buffer_replace2(req, req->h, req->h, trash, len);
+				buffer_replace2(req, sol, sol, trash, len);
 				if (hdr_idx_add(len - 2, 1, &t->hdr_idx, t->hdr_idx.tail) < 0) {
 					t->hdr_state = HTTP_PA_ERROR;
 					t->logs.status = 400;
@@ -1003,7 +1005,7 @@ int process_cli(struct session *t)
 
 		/* add a "connection: close" line if needed */
 		if (t->fe->options & PR_O_HTTP_CLOSE) {
-			buffer_replace2(req, req->h, req->h, "Connection: close\r\n", 19);
+			buffer_replace2(req, sol, sol, "Connection: close\r\n", 19);
 			if (hdr_idx_add(17, 1, &t->hdr_idx, t->hdr_idx.tail) < 0) {
 				t->hdr_state = HTTP_PA_ERROR;
 				t->logs.status = 400;
@@ -1075,25 +1077,25 @@ int process_cli(struct session *t)
 
 		fprintf(stderr, "t->flags=0x%08x\n", t->flags & (SN_CLALLOW|SN_CLDENY|SN_CLTARPIT));
 
-		fprintf(stderr, "req->h=%d\n", req->h - req->data);
-		req->h = req->data + t->hdr_idx.v[0].len;
+		fprintf(stderr, "sol=%d\n", sol - req->data);
+		sol = req->data + t->hdr_idx.v[0].len;
 		cur_hdr = 0;
 
 		cur_idx = t->hdr_idx.v[0].next;
 		cur_hdr = 1;
 
 		while (cur_hdr < t->hdr_idx.used) {
-			ptr = req->h + t->hdr_idx.v[cur_idx].len + t->hdr_idx.v[cur_idx].cr + 1;
+			eol = sol + t->hdr_idx.v[cur_idx].len + t->hdr_idx.v[cur_idx].cr + 1;
 			fprintf(stderr, "lr=%d r=%d hdr=%d idx=%d adr=%d..%d len=%d cr=%d data:\n",
 				req->lr - req->data, req->r - req->data,
 				cur_hdr, cur_idx,
-				req->h - req->data,
-				req->h - req->data + t->hdr_idx.v[cur_idx].len + t->hdr_idx.v[cur_idx].cr,
+				sol - req->data,
+				sol - req->data + t->hdr_idx.v[cur_idx].len + t->hdr_idx.v[cur_idx].cr,
 				t->hdr_idx.v[cur_idx].len,
 				t->hdr_idx.v[cur_idx].cr);
-			write(2, req->h, ptr - req->h);
+			write(2, sol, eol - sol);
 
-			req->h = ptr;
+			sol = eol;
 			cur_idx = t->hdr_idx.v[cur_idx].next;
 			cur_hdr++;
 		}
