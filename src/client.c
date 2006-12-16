@@ -161,13 +161,10 @@ int event_accept(int fd) {
 
 		s->cli_state = (p->mode == PR_MODE_HTTP) ?  CL_STHEADERS : CL_STDATA; /* no HTTP headers for non-HTTP proxies */
 		s->srv_state = SV_STIDLE;
-		s->hdr_state = HTTP_PA_EMPTY; /* at the very beginning of the request */
 		s->req = s->rep = NULL; /* will be allocated later */
 
 		s->cli_fd = cfd;
 		s->srv_fd = -1;
-		s->req_line.len = -1;
-		s->auth_hdr.len = -1;
 		s->srv = NULL;
 		s->pend_pos = NULL;
 		s->conn_retries = p->conn_retries;
@@ -196,55 +193,60 @@ int event_accept(int fd) {
 		s->uniq_id = totalconn;
 		p->cum_conn++;
 
-		if (p->nb_req_cap > 0) {
-			if ((s->req_cap =
-			     pool_alloc_from(p->req_cap_pool, p->nb_req_cap*sizeof(char *)))
-			    == NULL) { /* no memory */
-				close(cfd); /* nothing can be done for this fd without memory */
-				pool_free(task, t);
-				pool_free(session, s);
-				return 0;
-			}
-			memset(s->req_cap, 0, p->nb_req_cap*sizeof(char *));
-		}
-		else
-			s->req_cap = NULL;
-
-		if (p->nb_rsp_cap > 0) {
-			if ((s->rsp_cap =
-			     pool_alloc_from(p->rsp_cap_pool, p->nb_rsp_cap*sizeof(char *)))
-			    == NULL) { /* no memory */
-				if (s->req_cap != NULL)
-					pool_free_to(p->req_cap_pool, s->req_cap);
-				close(cfd); /* nothing can be done for this fd without memory */
-				pool_free(task, t);
-				pool_free(session, s);
-				return 0;
-			}
-			memset(s->rsp_cap, 0, p->nb_rsp_cap*sizeof(char *));
-		}
-		else
-			s->rsp_cap = NULL;
+		s->rsp_cap = NULL;
+		s->hreq.cap = NULL;
+		s->hreq.hdr_idx.v = NULL;
+		s->hreq.hdr_idx.size = s->hreq.hdr_idx.used = 0;
 
 		if (p->mode == PR_MODE_HTTP) {
-			s->hdr_idx.size = MAX_HTTP_HDR;
-			if ((s->hdr_idx.v =
-			     pool_alloc_from(p->hdr_idx_pool, s->hdr_idx.size*sizeof(*s->hdr_idx.v)))
+			s->hreq.hdr_state = HTTP_PA_EMPTY; /* at the very beginning of the request */
+			s->hreq.start.len = -1;
+			s->hreq.auth_hdr.len = -1;
+			s->hreq.sor = s->hreq.eoh = 0; /* relative to the buffer */
+
+			s->hreq.hdr_idx.size = MAX_HTTP_HDR;
+
+			if (p->nb_req_cap > 0) {
+				if ((s->hreq.cap =
+				     pool_alloc_from(p->req_cap_pool, p->nb_req_cap*sizeof(char *)))
+				    == NULL) { /* no memory */
+					close(cfd); /* nothing can be done for this fd without memory */
+					pool_free(task, t);
+					pool_free(session, s);
+					return 0;
+				}
+				memset(s->hreq.cap, 0, p->nb_req_cap*sizeof(char *));
+			}
+
+
+			if (p->nb_rsp_cap > 0) {
+				if ((s->rsp_cap =
+				     pool_alloc_from(p->rsp_cap_pool, p->nb_rsp_cap*sizeof(char *)))
+				    == NULL) { /* no memory */
+					if (s->hreq.cap != NULL)
+						pool_free_to(p->req_cap_pool, s->hreq.cap);
+					close(cfd); /* nothing can be done for this fd without memory */
+					pool_free(task, t);
+					pool_free(session, s);
+					return 0;
+				}
+				memset(s->rsp_cap, 0, p->nb_rsp_cap*sizeof(char *));
+			}
+
+
+			if ((s->hreq.hdr_idx.v =
+			     pool_alloc_from(p->hdr_idx_pool, s->hreq.hdr_idx.size*sizeof(*s->hreq.hdr_idx.v)))
 			    == NULL) { /* no memory */
 				if (s->rsp_cap != NULL)
 					pool_free_to(p->rsp_cap_pool, s->rsp_cap);
-				if (s->req_cap != NULL)
-					pool_free_to(p->req_cap_pool, s->req_cap);
+				if (s->hreq.cap != NULL)
+					pool_free_to(p->req_cap_pool, s->hreq.cap);
 				close(cfd); /* nothing can be done for this fd without memory */
 				pool_free(task, t);
 				pool_free(session, s);
 				return 0;
 			}
-			hdr_idx_init(&s->hdr_idx);
-		}
-		else {
-			s->hdr_idx.size = s->hdr_idx.used = 0;
-			s->hdr_idx.v = NULL;
+			hdr_idx_init(&s->hreq.hdr_idx);
 		}
 
 		if ((p->mode == PR_MODE_TCP || p->mode == PR_MODE_HTTP)
@@ -323,12 +325,12 @@ int event_accept(int fd) {
 		}
 
 		if ((s->req = pool_alloc(buffer)) == NULL) { /* no memory */
-			if (s->hdr_idx.v != NULL)
-				pool_free_to(p->hdr_idx_pool, s->hdr_idx.v);
+			if (s->hreq.hdr_idx.v != NULL)
+				pool_free_to(p->hdr_idx_pool, s->hreq.hdr_idx.v);
 			if (s->rsp_cap != NULL)
 				pool_free_to(p->rsp_cap_pool, s->rsp_cap);
-			if (s->req_cap != NULL)
-				pool_free_to(p->req_cap_pool, s->req_cap);
+			if (s->hreq.cap != NULL)
+				pool_free_to(p->req_cap_pool, s->hreq.cap);
 			close(cfd); /* nothing can be done for this fd without memory */
 			pool_free(task, t);
 			pool_free(session, s);
@@ -346,10 +348,12 @@ int event_accept(int fd) {
 
 		if ((s->rep = pool_alloc(buffer)) == NULL) { /* no memory */
 			pool_free(buffer, s->req);
+			if (s->hreq.hdr_idx.v != NULL)
+				pool_free_to(p->hdr_idx_pool, s->hreq.hdr_idx.v);
 			if (s->rsp_cap != NULL)
 				pool_free_to(p->rsp_cap_pool, s->rsp_cap);
-			if (s->req_cap != NULL)
-				pool_free_to(p->req_cap_pool, s->req_cap);
+			if (s->hreq.cap != NULL)
+				pool_free_to(p->req_cap_pool, s->hreq.cap);
 			close(cfd); /* nothing can be done for this fd without memory */
 			pool_free(task, t);
 			pool_free(session, s);

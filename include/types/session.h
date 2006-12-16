@@ -119,12 +119,15 @@ struct session {
 	struct sockaddr_in srv_addr;		/* the address to connect to */
 	struct server *srv;			/* the server being used */
 	struct pendconn *pend_pos;		/* if not NULL, points to the position in the pending queue */
-	char **req_cap;				/* array of captured request headers (may be NULL) */
 	char **rsp_cap;				/* array of captured response headers (may be NULL) */
-	struct hdr_idx hdr_idx;                 /* array of header indexes (max: MAX_HTTP_HDR) */
-	int hdr_state;                          /* where we are in the current header parsing */
-	struct chunk req_line;			/* points to first line */
-	struct chunk auth_hdr;			/* points to 'Authorization:' header */
+	struct {
+		int hdr_state;                  /* where we are in the current header parsing */
+		int sor, eoh;			/* Start Of Request and End Of Headers, relative to buffer */
+		struct hdr_idx hdr_idx;         /* array of header indexes (max: MAX_HTTP_HDR) */
+		struct chunk start;		/* points to first line, called "start line" in RFC2616 */
+		struct chunk auth_hdr;		/* points to 'Authorization:' header */
+		char **cap;			/* array of captured request headers (may be NULL) */
+	} hreq;					/* information associated to HTTP request */
 	struct {
 		int logwait;			/* log fields waiting to be collected : LW_* */
 		struct timeval tv_accept;	/* date of the accept() (beginning of the session) */

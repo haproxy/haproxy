@@ -333,9 +333,9 @@ void sess_log(struct session *s)
 			for (hdr = 0; hdr < p->nb_req_cap; hdr++) {
 				if (hdr)
 					*(h++) = '|';
-				if (s->req_cap[hdr] != NULL)
+				if (s->hreq.cap[hdr] != NULL)
 					h = encode_string(h, tmpline + sizeof(tmpline) - 7,
-							  '#', hdr_encode_map, s->req_cap[hdr]);
+							  '#', hdr_encode_map, s->hreq.cap[hdr]);
 			}
 			*(h++) = '}';
 		}
