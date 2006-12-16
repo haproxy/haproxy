@@ -25,9 +25,15 @@
 #include <common/config.h>
 
 #ifdef DEBUG_FULL
-#define DPRINTF(x...) fprintf(args)
+#define DPRINTF(x...) fprintf(x)
 #else
 #define DPRINTF(x...)
+#endif
+
+#ifdef DEBUG_FSM
+#define FSM_PRINTF(x...) fprintf(x)
+#else
+#define FSM_PRINTF(x...)
 #endif
 
 #endif /* _COMMON_DEBUG_H */
