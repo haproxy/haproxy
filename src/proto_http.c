@@ -946,7 +946,7 @@ int process_cli(struct session *t)
 		for (cur_hdr = 0; cur_hdr < t->fi->nb_reqadd; cur_hdr++) {
 			int len = sprintf(trash, "%s\r\n", t->fi->req_add[cur_hdr]);
 			buffer_replace2(req, req->h, req->h, trash, len);
-			if (hdr_idx_add(len - 2, 1, t->hdr_idx, t->hdr_idx.tail) < 0) {
+			if (hdr_idx_add(len - 2, 1, &t->hdr_idx, t->hdr_idx.tail) < 0) {
 				t->hdr_state = HTTP_PA_ERROR;
 				break;
 			}
@@ -964,9 +964,15 @@ int process_cli(struct session *t)
 				len = sprintf(trash, "X-Forwarded-For: %d.%d.%d.%d\r\n",
 					      pn[0], pn[1], pn[2], pn[3]);
 				buffer_replace2(req, req->h, req->h, trash, len);
-				if (hdr_idx_add(len - 2, 1, t->hdr_idx, t->hdr_idx.tail) < 0) {
+				if (hdr_idx_add(len - 2, 1, &t->hdr_idx, t->hdr_idx.tail) < 0) {
 					t->hdr_state = HTTP_PA_ERROR;
-					break;
+					t->logs.status = 400;
+					client_retnclose(t, t->fe->errmsg.len400, t->fe->errmsg.msg400);
+					if (!(t->flags & SN_ERR_MASK))
+						t->flags |= SN_ERR_PRXCOND;
+					if (!(t->flags & SN_FINST_MASK))
+						t->flags |= SN_FINST_R;
+					return 1;
 				}
 			}
 			else if (t->cli_addr.ss_family == AF_INET6) {
@@ -977,9 +983,15 @@ int process_cli(struct session *t)
 					  pn, sizeof(pn));
 				len = sprintf(trash, "X-Forwarded-For: %s\r\n", pn);
 				buffer_replace2(req, req->h, req->h, trash, len);
-				if (hdr_idx_add(len - 2, 1, t->hdr_idx, t->hdr_idx.tail) < 0) {
+				if (hdr_idx_add(len - 2, 1, &t->hdr_idx, t->hdr_idx.tail) < 0) {
 					t->hdr_state = HTTP_PA_ERROR;
-					break;
+					t->logs.status = 400;
+					client_retnclose(t, t->fe->errmsg.len400, t->fe->errmsg.msg400);
+					if (!(t->flags & SN_ERR_MASK))
+						t->flags |= SN_ERR_PRXCOND;
+					if (!(t->flags & SN_FINST_MASK))
+						t->flags |= SN_FINST_R;
+					return 1;
 				}
 			}
 		}
@@ -992,9 +1004,15 @@ int process_cli(struct session *t)
 		/* add a "connection: close" line if needed */
 		if (t->fe->options & PR_O_HTTP_CLOSE) {
 			buffer_replace2(req, req->h, req->h, "Connection: close\r\n", 19);
-			if (hdr_idx_add(17, 1, t->hdr_idx, t->hdr_idx.tail) < 0) {
+			if (hdr_idx_add(17, 1, &t->hdr_idx, t->hdr_idx.tail) < 0) {
 				t->hdr_state = HTTP_PA_ERROR;
-				break;
+				t->logs.status = 400;
+				client_retnclose(t, t->fe->errmsg.len400, t->fe->errmsg.msg400);
+				if (!(t->flags & SN_ERR_MASK))
+					t->flags |= SN_ERR_PRXCOND;
+				if (!(t->flags & SN_FINST_MASK))
+					t->flags |= SN_FINST_R;
+				return 1;
 			}
 		}
 
