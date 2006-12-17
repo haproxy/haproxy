@@ -99,6 +99,18 @@
 #define SN_SELF_GEN	0x02000000	/* the proxy generates data for the client (eg: stats) */
 #define SN_CLTARPIT	0x04000000	/* the session is tarpitted (anti-dos) */
 
+typedef enum {
+	HTTP_METH_NONE = 0,
+	HTTP_METH_OPTIONS,
+	HTTP_METH_GET,
+	HTTP_METH_HEAD,
+	HTTP_METH_POST,
+	HTTP_METH_PUT,
+	HTTP_METH_DELETE,
+	HTTP_METH_TRACE,
+	HTTP_METH_CONNECT,
+	HTTP_METH_OTHER,
+} http_meth_t;
 
 /* WARNING: if new fields are added, they must be initialized in event_accept() */
 struct session {
@@ -122,6 +134,7 @@ struct session {
 	char **rsp_cap;				/* array of captured response headers (may be NULL) */
 	struct {
 		int hdr_state;                  /* where we are in the current header parsing */
+		http_meth_t meth;		/* HTTP method */
 		int sor, eoh;			/* Start Of Request and End Of Headers, relative to buffer */
 		struct hdr_idx hdr_idx;         /* array of header indexes (max: MAX_HTTP_HDR) */
 		struct chunk start;		/* points to first line, called "start line" in RFC2616 */

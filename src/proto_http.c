@@ -86,6 +86,41 @@ const char *HTTP_401_fmt =
 	"<html><body><h1>401 Unauthorized</h1>\nYou need a valid user and password to access this content.\n</body></html>\n";
 
 
+/*
+ * We have 26 list of methods (1 per first letter), each of which can have
+ * up to 3 entries (2 valid, 1 null).
+ */
+struct http_method_desc {
+	http_meth_t meth;
+	int len;
+	const char text[8];
+};
+
+static struct http_method_desc http_methods[26][3] = {
+	['C' - 'A'] = {
+		[0] = {	.meth = HTTP_METH_CONNECT , .len=7, .text="CONNECT" },
+	},
+	['D' - 'A'] = {
+		[0] = {	.meth = HTTP_METH_DELETE  , .len=6, .text="DELETE"  },
+	},
+	['G' - 'A'] = {
+		[0] = {	.meth = HTTP_METH_GET     , .len=3, .text="GET"     },
+	},
+	['H' - 'A'] = {
+		[0] = {	.meth = HTTP_METH_HEAD    , .len=4, .text="HEAD"    },
+	},
+	['P' - 'A'] = {
+		[0] = {	.meth = HTTP_METH_POST    , .len=4, .text="POST"    },
+		[1] = {	.meth = HTTP_METH_PUT     , .len=3, .text="PUT"     },
+	},
+	['T' - 'A'] = {
+		[0] = {	.meth = HTTP_METH_TRACE   , .len=5, .text="TRACE"   },
+	},
+	/* rest is empty like this :
+	 *      [1] = {	.meth = HTTP_METH_NONE    , .len=0, .text=""        },
+	 */
+};
+
 #ifdef DEBUG_FULL
 static char *cli_stnames[5] = {"HDR", "DAT", "SHR", "SHW", "CLS" };
 static char *srv_stnames[7] = {"IDL", "CON", "HDR", "DAT", "SHR", "SHW", "CLS" };
@@ -145,6 +180,37 @@ void srv_close_with_err(struct session *t, int err, int finst,
 		t->flags |= err;
 	if (!(t->flags & SN_FINST_MASK))
 		t->flags |= finst;
+}
+
+
+/*
+ * returns HTTP_METH_NONE if there is nothing valid to read (empty or non-text
+ * string), HTTP_METH_OTHER for unknown methods, or the identified method.
+ */
+static http_meth_t find_http_meth(const char *str, const int len)
+{
+	unsigned char m;
+	struct http_method_desc *h;
+
+	m = ((unsigned)*str - 'A');
+
+	if (m < 26) {
+		int l;
+		for (h = http_methods[m]; (l = (h->len)) > 0; h++) {
+			if (len <= l)
+				continue;
+
+			if (str[l] != ' ' && str[l] != '\t')
+				continue;
+
+			if (memcmp(str, h->text, l) == 0) {
+				return h->meth;
+			}
+		};
+		return HTTP_METH_OTHER;
+	}
+	return HTTP_METH_NONE;
+
 }
 
 
@@ -839,12 +905,24 @@ int process_cli(struct session *t)
 		 * to match the reverse of the forward sequence.
 		 */
 
+		t->hreq.start.str = req->data + t->hreq.sor;      /* start of the REQURI */
+		t->hreq.start.len = t->hreq.hdr_idx.v[t->hreq.hdr_idx.v[0].next].len; /* end of the REQURI */
+
+		t->hreq.meth = find_http_meth(t->hreq.start.str, t->hreq.start.len);
+
 		do {
 			rule_set = t->be;
 
 			/* try headers filters */
-			if (rule_set->req_exp != NULL)
+			if (rule_set->req_exp != NULL) {
 				apply_filters_to_session(t, req, rule_set->req_exp);
+
+				/* the start line might have been modified */
+				t->hreq.start.len = t->hreq.hdr_idx.v[t->hreq.hdr_idx.v[0].next].len;
+				t->hreq.meth = find_http_meth(t->hreq.start.str, t->hreq.start.len);
+
+				t->hreq.meth = find_http_meth(t->hreq.start.str, t->hreq.start.len);
+			}
 
 			/* has the request been denied ? */
 			if (t->flags & SN_CLDENY) {
@@ -887,9 +965,7 @@ int process_cli(struct session *t)
 		t->hreq.start.str = req->data + t->hreq.sor;      /* start of the REQURI */
 		t->hreq.start.len = t->hreq.hdr_idx.v[t->hreq.hdr_idx.v[0].next].len; /* end of the REQURI */
 
-		if ((t->hreq.start.len >= 5) &&
-		    (t->hreq.start.str[4] == ' ' || t->hreq.start.str[4] == '\t') &&
-		    (!memcmp(t->hreq.start.str, "POST", 4))) {
+		if (t->hreq.meth == HTTP_METH_POST) {
 			/* this is a POST request, which is not cacheable by default */
 			t->flags |= SN_POST;
 		}
