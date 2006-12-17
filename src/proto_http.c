@@ -264,6 +264,7 @@ int process_cli(struct session *t)
 		 */
 
 		char *sol, *eol; /* Start Of Line, End Of Line */
+		struct proxy *rule_set;
 
 		eol = sol = req->data + t->hreq.eoh;
 
@@ -649,17 +650,8 @@ int process_cli(struct session *t)
 		 * Now, let's catch bad requests.
 		 */
 
-		if (t->hreq.hdr_state == HTTP_PA_ERROR) {
-			t->logs.status = 400;
-			client_retnclose(t, t->fe->errmsg.len400, t->fe->errmsg.msg400);
-			if (!(t->flags & SN_ERR_MASK))
-				t->flags |= SN_ERR_PRXCOND;
-			if (!(t->flags & SN_FINST_MASK))
-				t->flags |= SN_FINST_R;
-			return 1;
-		}
-
-
+		if (t->hreq.hdr_state == HTTP_PA_ERROR)
+			goto return_bad_req;
 
 		/*
 		 * Now we quickly check if we have found a full request.
@@ -680,13 +672,7 @@ int process_cli(struct session *t)
 				/* FIXME: check if hreq.hdr_state & mask < HTTP_PA_HEADER,
 				 * and return Status 414 Request URI too long instead.
 				 */
-				t->logs.status = 400;
-				client_retnclose(t, t->fe->errmsg.len400, t->fe->errmsg.msg400);
-				if (!(t->flags & SN_ERR_MASK))
-					t->flags |= SN_ERR_PRXCOND;
-				if (!(t->flags & SN_FINST_MASK))
-					t->flags |= SN_FINST_R;
-				return 1;
+				goto return_bad_req;
 			}
 
 			/* 2: have we encountered a read error or a close ? */
@@ -738,15 +724,38 @@ int process_cli(struct session *t)
 
 
 		/*
-		 * 1: the appsession cookie was looked up very early in 1.2,
-		 * so let's do the same now.
+		 * 1: check if the URI matches the monitor_uri.
+		 * We have to do this for every request which gets in, because
+		 * the monitor-uri is defined by the frontend. To speed-up the
+		 * test, we include the leading and trailing spaces in the
+		 * comparison. This is generally not a problem because the
+		 * monitor-uri is primarily used by external checkers which
+		 * send pre-formatted requests too.
 		 */
 
-		/* It needs to look into the URI */
-		if (t->be->appsession_name) {
-			sol = req->data + t->hreq.sor;            /* start of the URI */
-			eol = sol + t->hreq.hdr_idx.v[t->hreq.hdr_idx.v[0].next].len; /* end of the URI */
-			get_srv_from_appsession(t, sol, eol);
+		t->hreq.start.str = req->data + t->hreq.sor;      /* start of the REQURI */
+		t->hreq.start.len = t->hreq.hdr_idx.v[t->hreq.hdr_idx.v[0].next].len; /* end of the REQURI */
+
+		if ((t->fe->monitor_uri_len != 0) &&
+		    (t->hreq.start.len >= t->fe->monitor_uri_len)) {
+			char *p = t->hreq.start.str;
+			int idx = 0;
+
+			/* skip the method so that we accept any method */
+			while (idx < t->hreq.start.len && p[idx] != ' ')
+				idx++;
+			p += idx;
+			
+			if (t->hreq.start.len - idx >= t->fe->monitor_uri_len &&
+			    !memcmp(p, t->fe->monitor_uri, t->fe->monitor_uri_len)) {
+				/*
+				 * We have found the monitor URI
+				 */
+				t->flags |= SN_MONITOR;
+				t->logs.status = 200;
+				client_retnclose(t, strlen(HTTP_200), HTTP_200);
+				goto return_prx_cond;
+			}
 		}
 
 
@@ -755,25 +764,60 @@ int process_cli(struct session *t)
 		 * As opposed to version 1.2, now they will be evaluated in the
 		 * filters order and not in the header order. This means that
 		 * each filter has to be validated among all headers.
+		 *
+		 * We can now check whether we want to switch to another
+		 * backend, in which case we will re-check the backend's
+		 * filters and various options. In order to support 3-level
+		 * switching, here's how we should proceed :
+		 *
+		 *  a) run fe->filters.
+		 *     if (switch) then switch ->fi and ->be to the new backend.
+		 *  b) run fi->filters.
+		 *     If there's another switch, then switch ->be to the new be.
+		 *  c) run be->filters
+		 *     There cannot be any switch from there, so ->be cannot be
+		 *     changed anymore.
+		 *
+		 *  The response path will be able to apply either ->be, or
+		 *  ->be then ->fi, or ->be then ->fi then ->fe filters in order
+		 * to match the reverse of the forward sequence.
 		 */
 
+		do {
+			if (t->fi == t->fe)
+				rule_set = t->fe;
+			else if (t->be == t->fi)
+				rule_set = t->fi;
+			else
+				rule_set = t->be;
 
-		/* try headers filters */
-		if (t->fi->req_exp != NULL)
-			apply_filters_to_session(t, req, t->fi->req_exp);
+			/* try headers filters */
+			if (rule_set->req_exp != NULL)
+				apply_filters_to_session(t, req, rule_set->req_exp);
 
-		/* has the request been denied ? */
-		if (t->flags & SN_CLDENY) {
-			/* no need to go further */
-			t->logs.status = 403;
-			t->logs.t_request = tv_diff(&t->logs.tv_accept, &now); /* let's log the request time */
-			client_retnclose(t, t->fe->errmsg.len403, t->fe->errmsg.msg403);
-			if (!(t->flags & SN_ERR_MASK))
-				t->flags |= SN_ERR_PRXCOND;
-			if (!(t->flags & SN_FINST_MASK))
-				t->flags |= SN_FINST_R;
-			return 1;
-		}
+			/* has the request been denied ? */
+			if (t->flags & SN_CLDENY) {
+				/* no need to go further */
+				t->logs.status = 403;
+				/* let's log the request time */
+				t->logs.t_request = tv_diff(&t->logs.tv_accept, &now);
+				client_retnclose(t, t->fe->errmsg.len403, t->fe->errmsg.msg403);
+				goto return_prx_cond;
+			}
+
+			/* add request headers from the rule sets in the same order */
+			for (cur_hdr = 0; cur_hdr < rule_set->nb_reqadd; cur_hdr++) {
+				int len;
+
+				len = sprintf(trash, "%s\r\n", rule_set->req_add[cur_hdr]);
+				len = buffer_replace2(req, req->data + t->hreq.eoh,
+						      req->data + t->hreq.eoh, trash, len);
+				t->hreq.eoh += len;
+				
+				if (hdr_idx_add(len - 2, 1, &t->hreq.hdr_idx, t->hreq.hdr_idx.tail) < 0)
+					goto return_bad_req;
+			}
+		} while (rule_set != t->be);  /* we loop only if t->be has changed */
 		
 
 		/* Right now, we know that we have processed the entire headers
@@ -787,22 +831,35 @@ int process_cli(struct session *t)
 		 * check the method (needed for cookies).
 		 */
 
-		t->hreq.start.str = req->data + t->hreq.hdr_idx.v[0].len;      /* start of the REQURI */
+		t->hreq.start.str = req->data + t->hreq.sor;      /* start of the REQURI */
 		t->hreq.start.len = t->hreq.hdr_idx.v[t->hreq.hdr_idx.v[0].next].len; /* end of the REQURI */
 
-		sol = t->hreq.start.str;
-		eol = sol + t->hreq.start.len;
-
-		if (!memcmp(sol, "POST ", 5)) {
+		if ((t->hreq.start.len >= 5) &&
+		    (t->hreq.start.str[4] == ' ' || t->hreq.start.str[4] == '\t') &&
+		    (!memcmp(t->hreq.start.str, "POST", 4))) {
 			/* this is a POST request, which is not cacheable by default */
 			t->flags |= SN_POST;
 		}
 		    
 
 		/*
-		 * 4: Now we can work with the cookies.
+		 * 4: the appsession cookie was looked up very early in 1.2,
+		 * so let's do the same now.
+		 */
+
+		/* It needs to look into the URI */
+		if (t->be->appsession_name) {
+			get_srv_from_appsession(t,
+						t->hreq.start.str,
+						t->hreq.start.str + t->hreq.start.len);
+		}
+
+
+		/*
+		 * 5: Now we can work with the cookies.
 		 * Note that doing so might move headers in the request, but
 		 * the fields will stay coherent and the URI will not move.
+		 * This should only be performed in the backend.
 		 */
 		if (!(t->flags & (SN_CLDENY|SN_CLTARPIT)))
 			manage_client_side_cookies(t, req);
@@ -811,49 +868,16 @@ int process_cli(struct session *t)
 		/*
 		 * FIXME:
 		 * we could run the whole list of headers right here to extract
-		 * commonly used headers, as well as re-detect their real end.
+		 * commonly used headers.
 		 */
-
-
-		/*
-		 * 5: check if the URI matches the monitor_uri. To speed-up the
-		 * test, we include the leading and trailing spaces in the
-		 * comparison.
-		 */
-		if ((t->be->monitor_uri_len != 0) &&
-		    (t->hreq.start.len >= t->be->monitor_uri_len)) {
-			char *p = t->hreq.start.str;
-			int idx = 0;
-
-			/* skip the method so that we accept any method */
-			while (idx < t->hreq.start.len && p[idx] != ' ')
-				idx++;
-			p += idx;
-			
-			if (t->hreq.start.len - idx >= t->be->monitor_uri_len &&
-			    !memcmp(p, t->be->monitor_uri, t->be->monitor_uri_len)) {
-				/*
-				 * We have found the monitor URI
-				 */
-				t->flags |= SN_MONITOR;
-				t->logs.status = 200;
-				client_retnclose(t, strlen(HTTP_200), HTTP_200);
-				if (!(t->flags & SN_ERR_MASK))
-					t->flags |= SN_ERR_PRXCOND;
-				if (!(t->flags & SN_FINST_MASK))
-					t->flags |= SN_FINST_R;
-				return 1;
-			}
-		}
-
 
 		/*
 		 * 6: check if the user tries to access a protected URI.
 		 */
-		if (t->fi->uri_auth != NULL
-		    && t->hreq.start.len >= t->fi->uri_auth->uri_len + 4) {   /* +4 for "GET /" */
+		if (t->be->uri_auth != NULL
+		    && t->hreq.start.len >= t->be->uri_auth->uri_len + 4) {   /* +4 for "GET /" */
 			if (!memcmp(t->hreq.start.str + 4,
-				    t->fi->uri_auth->uri_prefix, t->fi->uri_auth->uri_len)
+				    t->be->uri_auth->uri_prefix, t->be->uri_auth->uri_len)
 			    && !memcmp(t->hreq.start.str, "GET ", 4)) {
 				struct user_auth *user;
 				int authenticated;
@@ -862,7 +886,7 @@ int process_cli(struct session *t)
 				/* we are in front of a interceptable URI. Let's check
 				 * if there's an authentication and if it's valid.
 				 */
-				user = t->fi->uri_auth->users;
+				user = t->be->uri_auth->users;
 				if (!user) {
 					/* no user auth required, it's OK */
 					authenticated = 1;
@@ -908,14 +932,10 @@ int process_cli(struct session *t)
 
 					/* no need to go further */
 
-					msglen = sprintf(trash, HTTP_401_fmt, t->fi->uri_auth->auth_realm);
+					msglen = sprintf(trash, HTTP_401_fmt, t->be->uri_auth->auth_realm);
 					t->logs.status = 401;
 					client_retnclose(t, msglen, trash);
-					if (!(t->flags & SN_ERR_MASK))
-						t->flags |= SN_ERR_PRXCOND;
-					if (!(t->flags & SN_FINST_MASK))
-						t->flags |= SN_FINST_R;
-					return 1;
+					goto return_prx_cond;
 				}
 
 				t->cli_state = CL_STSHUTR;
@@ -929,44 +949,8 @@ int process_cli(struct session *t)
 		}
 
 
-//		/*
-//		 * We will now have some data to append after the end of the
-//		 * request. Right now we do not have the end of request pointer
-//		 * anymore, so we have to look for it.
-//		 */
-//
-//#if READABLE_PARSER_VERSION
-//		for (sol = req->data + t->hreq.sor;
-//		     (cur_idx = t->hreq.hdr_idx.v[cur_idx].next);
-//		     sol  += t->hreq.hdr_idx.v[cur_idx].len + t->hreq.hdr_idx.v[cur_idx]cr + 1);
-//#else
-//		sol = req->data + t->hreq.sor;
-//		cur_idx = 0;
-//
-//		while ((cur_idx = t->hreq.hdr_idx.v[cur_idx].next))
-//			sol  += t->hreq.hdr_idx.v[cur_idx].len +
-//				t->hreq.hdr_idx.v[cur_idx].cr +	1;
-//#endif
-
 		/*
-		 * 7: add request headers
-		 * FIXME: this should move to a separate function.
-		 */
-		for (cur_hdr = 0; cur_hdr < t->fi->nb_reqadd; cur_hdr++) {
-			int len = sprintf(trash, "%s\r\n", t->fi->req_add[cur_hdr]);
-			len = buffer_replace2(req, req->data + t->hreq.eoh,
-					      req->data + t->hreq.eoh, trash, len);
-			t->hreq.eoh += len;
-
-			if (hdr_idx_add(len - 2, 1, &t->hreq.hdr_idx, t->hreq.hdr_idx.tail) < 0) {
-				t->hreq.hdr_state = HTTP_PA_ERROR;
-				break;
-			}
-		}
-
-
-		/*
-		 * 8: add X-Forwarded-For
+		 * 7: add X-Forwarded-For : Should depend on the backend only.
 		 */
 		if (t->be->options & PR_O_FWDFOR) {
 			if (t->cli_addr.ss_family == AF_INET) {
@@ -979,16 +963,8 @@ int process_cli(struct session *t)
 						      req->data + t->hreq.eoh, trash, len);
 				t->hreq.eoh += len;
 
-				if (hdr_idx_add(len - 2, 1, &t->hreq.hdr_idx, t->hreq.hdr_idx.tail) < 0) {
-					t->hreq.hdr_state = HTTP_PA_ERROR;
-					t->logs.status = 400;
-					client_retnclose(t, t->fe->errmsg.len400, t->fe->errmsg.msg400);
-					if (!(t->flags & SN_ERR_MASK))
-						t->flags |= SN_ERR_PRXCOND;
-					if (!(t->flags & SN_FINST_MASK))
-						t->flags |= SN_FINST_R;
-					return 1;
-				}
+				if (hdr_idx_add(len - 2, 1, &t->hreq.hdr_idx, t->hreq.hdr_idx.tail) < 0)
+					goto return_bad_req;
 			}
 			else if (t->cli_addr.ss_family == AF_INET6) {
 				int len;
@@ -1001,22 +977,14 @@ int process_cli(struct session *t)
 						      req->data + t->hreq.eoh, trash, len);
 				t->hreq.eoh += len;
 
-				if (hdr_idx_add(len - 2, 1, &t->hreq.hdr_idx, t->hreq.hdr_idx.tail) < 0) {
-					t->hreq.hdr_state = HTTP_PA_ERROR;
-					t->logs.status = 400;
-					client_retnclose(t, t->fe->errmsg.len400, t->fe->errmsg.msg400);
-					if (!(t->flags & SN_ERR_MASK))
-						t->flags |= SN_ERR_PRXCOND;
-					if (!(t->flags & SN_FINST_MASK))
-						t->flags |= SN_FINST_R;
-					return 1;
-				}
+				if (hdr_idx_add(len - 2, 1, &t->hreq.hdr_idx, t->hreq.hdr_idx.tail) < 0)
+					goto return_bad_req;
 			}
 		}
 
 
 		/*
-		 * 9: add "Connection:"
+		 * 8: add "Connection:"
 		 */
 
 		/* add a "connection: close" line if needed */
@@ -1026,29 +994,14 @@ int process_cli(struct session *t)
 					      req->data + t->hreq.eoh, "Connection: close\r\n", 19);
 			t->hreq.eoh += len;
 
-			if (hdr_idx_add(17, 1, &t->hreq.hdr_idx, t->hreq.hdr_idx.tail) < 0) {
-				t->hreq.hdr_state = HTTP_PA_ERROR;
-				t->logs.status = 400;
-				client_retnclose(t, t->fe->errmsg.len400, t->fe->errmsg.msg400);
-				if (!(t->flags & SN_ERR_MASK))
-					t->flags |= SN_ERR_PRXCOND;
-				if (!(t->flags & SN_FINST_MASK))
-					t->flags |= SN_FINST_R;
-				return 1;
-			}
+			if (hdr_idx_add(17, 1, &t->hreq.hdr_idx, t->hreq.hdr_idx.tail) < 0)
+				goto return_bad_req;
 		}
 
 
-		/*
-		 * 10: We can now check whether we want to switch to another
-		 * backend, in which case we will re-check the backend's filters
-		 * and various options.
-		 *
-		 */
 
 
-
-
+		
 
 		/*************************************************************
 		 * OK, that's finished for the headers. We have done what we *
@@ -1089,8 +1042,6 @@ int process_cli(struct session *t)
 			tv_delayfrom(&req->cex, &now,
 				     t->be->contimeout ? t->be->contimeout : 0);
 		}
-		
-		goto process_data;
 
 #if DEBUG_HTTP_PARSER
 		/* example: dump each line */
@@ -1120,6 +1071,19 @@ int process_cli(struct session *t)
 			cur_hdr++;
 		}
 #endif
+
+		goto process_data;
+
+	return_bad_req: /* let's centralize all bad requests */
+		t->hreq.hdr_state = HTTP_PA_ERROR;
+		t->logs.status = 400;
+		client_retnclose(t, t->fe->errmsg.len400, t->fe->errmsg.msg400);
+	return_prx_cond:
+		if (!(t->flags & SN_ERR_MASK))
+			t->flags |= SN_ERR_PRXCOND;
+		if (!(t->flags & SN_FINST_MASK))
+			t->flags |= SN_FINST_R;
+		return 1;
 
 	}
 	else if (c == CL_STDATA) {
