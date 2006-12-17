@@ -67,6 +67,7 @@ struct proxy {
 	struct in_addr mon_net, mon_mask;	/* don't forward connections from this net (network order) FIXME: should support IPv6 */
 	int state;				/* proxy state */
 	struct sockaddr_in dispatch_addr;	/* the default address to connect to */
+	struct proxy *fiprm, *beprm;		/* proxy we find filter and backend params from (default: self) */
 	struct server *srv;			/* known servers */
 	int srv_act, srv_bck;			/* # of running servers */
 	int tot_wact, tot_wbck;			/* total weights of active and backup servers */
