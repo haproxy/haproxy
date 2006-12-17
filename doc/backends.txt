@@ -1,0 +1,125 @@
+There has been a lot of confusion during the development because of the
+backends and frontends.
+
+What we want :
+
+- being able to still use a listener as it has always been working
+
+- being able to write a rule stating that we will *change* the backend when we
+  match some pattern. Only one jump is allowed.
+
+- being able to write a "use_filters_from XXX" line stating that we will ignore
+  any filter in the current listener, and that those from XXX will be borrowed
+  instead. A warning would be welcome for options which will silently get
+  masked. This is used to factor configuration.
+
+- being able to write a "use_backend_from XXX" line stating that we will ignore
+  any server and timeout config in the current listener, and that those from
+  XXX will be borrowed instead. A warning would be welcome for options which
+  will silently get masked. This is used to factor configuration.
+
+
+
+Example :
+---------
+
+  | # frontend HTTP/80
+  | listen fe_http 1.1.1.1:80
+  |        use_filters_from default_http
+  |        use_backend_from appli1
+  | 
+  | # frontend HTTPS/443
+  | listen fe_https 1.1.1.1:443
+  |        use_filters_from default_https
+  |        use_backend_from appli1
+  | 
+  | # frontend HTTP/8080
+  | listen fe_http-dev 1.1.1.1:8080
+  |        reqadd "X-proto: http"
+  |        reqisetbe "^Host: www1" appli1
+  |        reqisetbe "^Host: www2" appli2
+  |        reqisetbe "^Host: www3" appli-dev
+  |        use_backend_from appli1
+  | 
+  | 
+  | # filters default_http
+  | listen default_http
+  |        reqadd "X-proto: http"
+  |        reqisetbe "^Host: www1" appli1
+  |        reqisetbe "^Host: www2" appli2
+  | 
+  | # filters default_https
+  | listen default_https
+  |        reqadd "X-proto: https"
+  |        reqisetbe "^Host: www1" appli1
+  |        reqisetbe "^Host: www2" appli2
+  | 
+  | 
+  | # backend appli1
+  | listen appli1
+  |        reqidel "^X-appli1:.*"
+  |        reqadd "Via: appli1"
+  |        balance roundrobin
+  |        cookie app1
+  |        server srv1
+  |        server srv2
+  | 
+  | # backend appli2
+  | listen appli2
+  |        reqidel "^X-appli2:.*"
+  |        reqadd "Via: appli2"
+  |        balance roundrobin
+  |        cookie app2
+  |        server srv1
+  |        server srv2
+  | 
+  | # backend appli-dev
+  | listen appli-dev
+  |        reqadd "Via: appli-dev"
+  |        use_backend_from appli2
+  | 
+  | 
+
+
+Now we clearly see multiple things :
+------------------------------------
+
+  - a frontend can EITHER have filters OR reference a use_filter
+
+  - a backend can EITHER have servers OR reference a use_backend
+
+  - we want the evaluation to cross TWO levels per request. When a request is
+    being processed, it keeps track of its "frontend" side (where it came
+    from), and of its "backend" side (where the server-side parameters have
+    been found).
+
+  - the use_{filters|backend} have nothing to do with how the request is
+    decomposed.
+
+
+Conclusion :
+------------
+
+  - a proxy is always its own frontend. It also has 2 parameters :
+    - "fi_prm" : pointer to the proxy holding the filters (itself by default)
+    - "be_prm" : pointer to the proxy holding the servers (itself by default)
+
+  - a request has a frontend (fe) and a backend (be). By default, the backend
+    is initialized to the frontend. Everything related to the client side is
+    accessed through ->fe. Everything related to the server side is accessed
+    through ->be.
+
+  - request filters are first called from ->fe then ->be. Since only the
+    filters can change ->be, it is possible to iterate the filters on ->be
+    only and stop when ->be does not change anymore.
+
+  - response filters are first called from ->be then ->fe IF (fe != be).
+
+
+When we parse the configuration, we immediately configure ->fi and ->be for
+all proxies.
+
+Upon session creation, s->fe and s->be are initialized to the proxy. Filters
+are executed via s->fe->fi_prm and s->be->fi_prm. Servers are found in
+s->be->be_prm.
+
