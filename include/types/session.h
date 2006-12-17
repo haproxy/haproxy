@@ -45,7 +45,7 @@
 #define SN_CLALLOW	0x00000004	/* a client header matches an allow regex */
 #define SN_SVDENY	0x00000008	/* a server header matches a deny regex */
 #define SN_SVALLOW	0x00000010	/* a server header matches an allow regex */
-#define	SN_POST		0x00000020	/* the request was an HTTP POST */
+#define SN_UNUSED_1	0x00000020	/* unused bit */
 
 /* session flags dedicated to cookies : bits values 0x40, 0x80 (0-3 shift 6) */
 #define	SN_CK_NONE	0x00000000	/* this session had no cookie */

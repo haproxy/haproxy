@@ -907,7 +907,6 @@ int process_cli(struct session *t)
 
 		t->hreq.start.str = req->data + t->hreq.sor;      /* start of the REQURI */
 		t->hreq.start.len = t->hreq.hdr_idx.v[t->hreq.hdr_idx.v[0].next].len; /* end of the REQURI */
-
 		t->hreq.meth = find_http_meth(t->hreq.start.str, t->hreq.start.len);
 
 		do {
@@ -919,8 +918,6 @@ int process_cli(struct session *t)
 
 				/* the start line might have been modified */
 				t->hreq.start.len = t->hreq.hdr_idx.v[t->hreq.hdr_idx.v[0].next].len;
-				t->hreq.meth = find_http_meth(t->hreq.start.str, t->hreq.start.len);
-
 				t->hreq.meth = find_http_meth(t->hreq.start.str, t->hreq.start.len);
 			}
 
@@ -957,19 +954,7 @@ int process_cli(struct session *t)
 		 */
 
 
-		/*
-		 * 3: save a pointer to the first line as the request, and
-		 * check the method (needed for cookies).
-		 */
 
-		t->hreq.start.str = req->data + t->hreq.sor;      /* start of the REQURI */
-		t->hreq.start.len = t->hreq.hdr_idx.v[t->hreq.hdr_idx.v[0].next].len; /* end of the REQURI */
-
-		if (t->hreq.meth == HTTP_METH_POST) {
-			/* this is a POST request, which is not cacheable by default */
-			t->flags |= SN_POST;
-		}
-		    
 
 		/*
 		 * 4: the appsession cookie was looked up very early in 1.2,
@@ -1004,10 +989,10 @@ int process_cli(struct session *t)
 		 * 6: check if the user tries to access a protected URI.
 		 */
 		if (t->be->uri_auth != NULL
+		    && t->hreq.meth == HTTP_METH_GET
 		    && t->hreq.start.len >= t->be->uri_auth->uri_len + 4) {   /* +4 for "GET /" */
 			if (!memcmp(t->hreq.start.str + 4,
-				    t->be->uri_auth->uri_prefix, t->be->uri_auth->uri_len)
-			    && !memcmp(t->hreq.start.str, "GET ", 4)) {
+			     t->be->uri_auth->uri_prefix, t->be->uri_auth->uri_len)) {
 				struct user_auth *user;
 				int authenticated;
 				char *h;
@@ -1809,7 +1794,7 @@ int process_srv(struct session *t)
 				/* we'll have something else to do here : add new headers ... */
 
 				if ((t->srv) && !(t->flags & SN_DIRECT) && (t->be->options & PR_O_COOK_INS) &&
-				    (!(t->be->options & PR_O_COOK_POST) || (t->flags & SN_POST))) {
+				    (!(t->be->options & PR_O_COOK_POST) || (t->hreq.meth == HTTP_METH_POST))) {
 					/* the server is known, it's not the one the client requested, we have to
 					 * insert a set-cookie here, except if we want to insert only on POST
 					 * requests and this one isn't. Note that servers which don't have cookies
@@ -1927,7 +1912,7 @@ int process_srv(struct session *t)
 					 *    unless the response includes appropriate
 					 *    Cache-Control or Expires header fields."
 					 */
-					if (!(t->flags & SN_POST) && (t->be->options & PR_O_CHK_CACHE))
+					if (!(t->hreq.meth == HTTP_METH_POST) && (t->be->options & PR_O_CHK_CACHE))
 						t->flags |= SN_CACHEABLE | SN_CACHE_COOK;
 					break;
 				default:
@@ -3520,7 +3505,7 @@ void get_srv_from_appsession(struct session *t, const char *begin, const char *e
 	char *request_line;
 
 	if (t->be->appsession_name == NULL ||
-	    (memcmp(begin, "GET ", 4) != 0 && memcmp(begin, "POST ", 5) != 0) ||
+	    (t->hreq.meth != HTTP_METH_GET && t->hreq.meth != HTTP_METH_POST) ||
 	    (request_line = memchr(begin, ';', end - begin)) == NULL ||
 	    ((1 + t->be->appsession_name_len + 1 + t->be->appsession_len) > (end - request_line)))
 		return;
