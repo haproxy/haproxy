@@ -65,7 +65,7 @@ int event_accept(int fd) {
 	else
 		max_accept = -1;
 
-	while (p->nbconn < p->maxconn && max_accept--) {
+	while (p->feconn < p->maxconn && max_accept--) {
 		struct sockaddr_storage addr;
 		socklen_t laddr = sizeof(addr);
 
@@ -191,7 +191,7 @@ int event_accept(int fd) {
 		s->data_source = DATA_SRC_NONE;
 
 		s->uniq_id = totalconn;
-		p->cum_conn++;
+		p->cum_feconn++;	/* cum_beconn will be increased once assigned */
 
 		s->rsp_cap = NULL;
 		s->hreq.cap = NULL;
@@ -415,14 +415,14 @@ int event_accept(int fd) {
 		if (p->mode != PR_MODE_HEALTH)
 			task_wakeup(&rq, t);
 
-		p->nbconn++;
-		if (p->nbconn > p->nbconn_max)
-			p->nbconn_max = p->nbconn;
+		p->feconn++;  /* beconn will be increased later */
+		if (p->feconn > p->feconn_max)
+			p->feconn_max = p->feconn;
 		actconn++;
 		totalconn++;
 
 		// fprintf(stderr, "accepting from %p => %d conn, %d total, task=%p\n", p, actconn, totalconn, t);
-	} /* end of while (p->nbconn < p->maxconn) */
+	} /* end of while (p->feconn < p->maxconn) */
 	return 0;
 }
 

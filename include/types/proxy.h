@@ -94,8 +94,9 @@ struct proxy {
 	struct list pendconns;			/* pending connections with no server assigned yet */
 	int nbpend, nbpend_max;			/* number of pending connections with no server assigned yet */
 	int totpend;				/* total number of pending connections on this instance (for stats) */
-	unsigned int nbconn, nbconn_max;	/* # of active sessions */
-	unsigned int cum_conn;			/* cumulated number of processed sessions */
+	unsigned int feconn, feconn_max;	/* # of active frontend sessions */
+	unsigned int beconn, beconn_max;	/* # of active backend sessions */
+	unsigned int cum_feconn, cum_beconn;	/* cumulated number of processed sessions */
 	unsigned int maxconn;			/* max # of active sessions */
 	unsigned failed_conns, failed_resp;	/* failed connect() and responses */
 	unsigned failed_secu;			/* blocked responses because of security concerns */

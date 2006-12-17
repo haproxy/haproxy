@@ -12,6 +12,7 @@
 
 #include <common/config.h>
 #include <common/time.h>
+#include <common/tools.h>
 
 #include <types/proxy.h>
 #include <types/session.h>
@@ -28,9 +29,10 @@ void **pool_pendconn = NULL;
  */
 unsigned int srv_dynamic_maxconn(const struct server *s)
 {
-	return s->minconn ? 
-		((s->maxconn * s->proxy->nbconn / s->proxy->maxconn) < s->minconn) ? s->minconn :
-		(s->maxconn * s->proxy->nbconn / s->proxy->maxconn) : s->maxconn;
+	return (s->proxy->beconn >= s->proxy->maxconn) ? s->maxconn :
+		(s->minconn ? 
+		 MAX(s->maxconn * s->proxy->beconn / s->proxy->maxconn, s->minconn)
+		 : s->maxconn);
 }
 
 

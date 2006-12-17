@@ -386,7 +386,7 @@ void sess_log(struct session *s)
 			 sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT],
 			 (p->options & PR_O_COOK_ANY) ? sess_cookie[(s->flags & SN_CK_MASK) >> SN_CK_SHIFT] : '-',
 			 (p->options & PR_O_COOK_ANY) ? sess_set_cookie[(s->flags & SN_SCK_MASK) >> SN_SCK_SHIFT] : '-',
-			 s->srv ? s->srv->cur_sess : 0, p->nbconn, actconn,
+			 s->srv ? s->srv->cur_sess : 0, p->beconn, actconn,
 			 s->logs.srv_queue_size, s->logs.prx_queue_size, tmpline);
 	}
 	else {
@@ -406,7 +406,7 @@ void sess_log(struct session *s)
 			 (p->to_log & LW_BYTES) ? "" : "+", s->logs.bytes,
 			 sess_term_cond[(s->flags & SN_ERR_MASK) >> SN_ERR_SHIFT],
 			 sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT],
-			 s->srv ? s->srv->cur_sess : 0, p->nbconn, actconn,
+			 s->srv ? s->srv->cur_sess : 0, p->beconn, actconn,
 			 s->logs.srv_queue_size, s->logs.prx_queue_size);
 	}
 

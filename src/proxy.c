@@ -161,7 +161,7 @@ int maintain_proxies(void)
 	/* if there are enough free sessions, we'll activate proxies */
 	if (actconn < global.maxconn) {
 		while (p) {
-			if (p->nbconn < p->maxconn) {
+			if (p->feconn < p->maxconn) {
 				if (p->state == PR_STIDLE) {
 					for (l = p->listen; l != NULL; l = l->next) {
 						MY_FD_SET(l->fd, StaticReadEvent);
@@ -322,7 +322,7 @@ void listen_proxies(void)
 
 			for (l = p->listen; l != NULL; l = l->next) {
 				if (listen(l->fd, p->maxconn) == 0) {
-					if (actconn < global.maxconn && p->nbconn < p->maxconn) {
+					if (actconn < global.maxconn && p->feconn < p->maxconn) {
 						MY_FD_SET(l->fd, StaticReadEvent);
 						p->state = PR_STRUN;
 					}

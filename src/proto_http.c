@@ -258,7 +258,9 @@ int process_session(struct task *t)
 		return tv_remain2(&now, &t->expire); /* nothing more to do */
 	}
 
-	s->fe->nbconn--;
+	s->fe->feconn--;
+	if (s->flags & SN_BE_ASSIGNED)
+		s->be->beprm->beconn--;
 	actconn--;
     
 	if ((global.mode & MODE_DEBUG) && (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))) {
@@ -917,6 +919,18 @@ int process_cli(struct session *t)
 				t->hreq.meth = find_http_meth(t->hreq.start.str, t->hreq.start.len);
 			}
 
+			if (!(t->flags & SN_BE_ASSIGNED) && (t->be != cur_proxy)) {
+				/* to ensure correct connection accounting on
+				 * the backend, we count the connection for the
+				 * one managing the queue.
+				 */
+				t->be->beprm->beconn++;
+				if (t->be->beprm->beconn > t->be->beprm->beconn_max)
+					t->be->beprm->beconn_max = t->be->beprm->beconn;
+				t->be->beprm->cum_beconn++;
+				t->flags |= SN_BE_ASSIGNED;
+			}
+
 			/* has the request been denied ? */
 			if (t->flags & SN_CLDENY) {
 				/* no need to go further */
@@ -948,6 +962,19 @@ int process_cli(struct session *t)
 
 		} while (cur_proxy != t->be);  /* we loop only if t->be has changed */
 		
+
+		if (!(t->flags & SN_BE_ASSIGNED)) {
+			/* To ensure correct connection accounting on
+			 * the backend, we count the connection for the
+			 * one managing the queue.
+			 */
+			t->be->beprm->beconn++;
+			if (t->be->beprm->beconn > t->be->beprm->beconn_max)
+				t->be->beprm->beconn_max = t->be->beprm->beconn;
+			t->be->beprm->cum_beconn++;
+			t->flags |= SN_BE_ASSIGNED;
+		}
+
 
 		/*
 		 * Right now, we know that we have processed the entire headers
@@ -2748,10 +2775,12 @@ int produce_content(struct session *s)
 
 				msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
 						   "<h3>&gt; Proxy instance %s : "
-						   "%d conns (maxconn=%d), %d queued (%d unassigned), %d total conns</h3>\n"
+						   "%d front conns (max=%d), %d back, "
+						   "%d queued (%d unassigned), %d total front conns, %d back</h3>\n"
 						   "",
 						   px->id,
-						   px->nbconn, px->maxconn, px->totpend, px->nbpend, px->cum_conn);
+						   px->feconn, px->maxconn, px->beconn,
+						   px->totpend, px->nbpend, px->cum_feconn, px->cum_beconn);
 		
 				msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
 						   "<table cols=\"16\" class=\"tbl\">\n"
@@ -2853,8 +2882,8 @@ int produce_content(struct session *s)
 			 * failed. We cannot count this during the servers dump because it
 			 * might be interrupted multiple times.
 			 */
-			dispatch_sess = px->nbconn;
-			dispatch_cum  = px->cum_conn;
+			dispatch_sess = px->beconn;
+			dispatch_cum  = px->cum_beconn;
 			failed_secu   = px->failed_secu;
 			failed_conns  = px->failed_conns;
 			failed_resp   = px->failed_resp;
@@ -2888,8 +2917,8 @@ int produce_content(struct session *s)
 
 			/* sessions : current, max, limit, cumul. */
 			msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
-					   "<td align=right>%d</td><td align=right>%d</td><td align=right>%d</td><td align=right>%d</td>",
-					   dispatch_sess, px->nbconn_max, px->maxconn, dispatch_cum);
+					   "<td align=right>%d</td><td align=right>%d</td><td align=right>-</td><td align=right>%d</td>",
+					   dispatch_sess, px->beconn_max, dispatch_cum);
 
 			/* errors : connect, response, security */
 			msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
@@ -2917,8 +2946,8 @@ int produce_content(struct session *s)
 
 			/* sessions : current, max, limit, cumul */
 			msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
-					   "<td align=right><b>%d</b></td><td align=right><b>%d</b></td><td align=right><b>%d</b></td><td align=right><b>%d</b></td>",
-					   px->nbconn, px->nbconn_max, px->maxconn, px->cum_conn);
+					   "<td align=right><b>%d</b></td><td align=right><b>%d</b></td><td align=right><b>-</b></td><td align=right><b>%d</b></td>",
+					   px->beconn, px->beconn_max, px->cum_beconn);
 
 			/* errors : connect, response, security */
 			msglen += snprintf(trash + msglen, sizeof(trash) - msglen,

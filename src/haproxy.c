@@ -233,16 +233,16 @@ void sig_dump_state(int sig)
 
 		if (p->srv_act == 0) {
 			snprintf(trash, sizeof(trash),
-				 "SIGHUP: Proxy %s %s ! Conn: %d act, %d pend (%d unass), %d tot.",
+				 "SIGHUP: Proxy %s %s ! Conn: act(FE+BE): %d+%d, %d pend (%d unass), tot(FE+BE): %d+%d.",
 				 p->id,
 				 (p->srv_bck) ? "is running on backup servers" : "has no server available",
-				 p->nbconn, p->totpend, p->nbpend,  p->cum_conn);
+				 p->feconn, p->beconn, p->totpend, p->nbpend, p->cum_feconn, p->cum_beconn);
 		} else {
 			snprintf(trash, sizeof(trash),
 				 "SIGHUP: Proxy %s has %d active servers and %d backup servers available."
-				 " Conn: %d act, %d pend (%d unass), %d tot.",
+				 " Conn: act(FE+BE): %d+%d, %d pend (%d unass), tot(FE+BE): %d+%d.",
 				 p->id, p->srv_act, p->srv_bck,
-				 p->nbconn, p->totpend, p->nbpend,  p->cum_conn);
+				 p->feconn, p->beconn, p->totpend, p->nbpend, p->cum_feconn, p->cum_beconn);
 		}
 		Warning("%s\n", trash);
 		send_log(p, LOG_NOTICE, "%s\n", trash);
