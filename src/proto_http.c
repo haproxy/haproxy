@@ -304,7 +304,7 @@ int process_cli(struct session *t)
 	struct buffer *rep = t->rep;
 	int delete_header = 0;
 
-	int cur_hdr, cur_idx;
+	int cur_hdr;
 
 	DPRINTF(stderr,"process_cli: c=%s s=%s set(r,w)=%d,%d exp(r,w)=%d.%d,%d.%d\n",
 		cli_stnames[c], srv_stnames[s],
@@ -855,6 +855,7 @@ int process_cli(struct session *t)
 
 		t->hreq.start.str = req->data + t->hreq.sor;      /* start of the REQURI */
 		t->hreq.start.len = t->hreq.hdr_idx.v[t->hreq.hdr_idx.v[0].next].len; /* end of the REQURI */
+		t->hreq.meth = find_http_meth(t->hreq.start.str, t->hreq.start.len);
 
 		if ((t->fe->monitor_uri_len != 0) &&
 		    (t->hreq.start.len >= t->fe->monitor_uri_len)) {
@@ -905,10 +906,6 @@ int process_cli(struct session *t)
 		 * to match the reverse of the forward sequence.
 		 */
 
-		t->hreq.start.str = req->data + t->hreq.sor;      /* start of the REQURI */
-		t->hreq.start.len = t->hreq.hdr_idx.v[t->hreq.hdr_idx.v[0].next].len; /* end of the REQURI */
-		t->hreq.meth = find_http_meth(t->hreq.start.str, t->hreq.start.len);
-
 		do {
 			rule_set = t->be;
 
@@ -943,6 +940,13 @@ int process_cli(struct session *t)
 				if (hdr_idx_add(len - 2, 1, &t->hreq.hdr_idx, t->hreq.hdr_idx.tail) < 0)
 					goto return_bad_req;
 			}
+
+			if (rule_set->uri_auth != NULL && t->hreq.meth == HTTP_METH_GET) {
+				/* we have to check the URI and auth for this request */
+				if (stats_check_uri_auth(t, rule_set))
+					return 1;
+			}
+
 		} while (rule_set != t->be);  /* we loop only if t->be has changed */
 		
 
@@ -957,7 +961,7 @@ int process_cli(struct session *t)
 
 
 		/*
-		 * 4: the appsession cookie was looked up very early in 1.2,
+		 * 3: the appsession cookie was looked up very early in 1.2,
 		 * so let's do the same now.
 		 */
 
@@ -970,7 +974,7 @@ int process_cli(struct session *t)
 
 
 		/*
-		 * 5: Now we can work with the cookies.
+		 * 4: Now we can work with the cookies.
 		 * Note that doing so might move headers in the request, but
 		 * the fields will stay coherent and the URI will not move.
 		 * This should only be performed in the backend.
@@ -980,91 +984,7 @@ int process_cli(struct session *t)
 
 
 		/*
-		 * FIXME:
-		 * we could run the whole list of headers right here to extract
-		 * commonly used headers.
-		 */
-
-		/*
-		 * 6: check if the user tries to access a protected URI.
-		 */
-		if (t->be->uri_auth != NULL
-		    && t->hreq.meth == HTTP_METH_GET
-		    && t->hreq.start.len >= t->be->uri_auth->uri_len + 4) {   /* +4 for "GET /" */
-			if (!memcmp(t->hreq.start.str + 4,
-			     t->be->uri_auth->uri_prefix, t->be->uri_auth->uri_len)) {
-				struct user_auth *user;
-				int authenticated;
-				char *h;
-
-				/* we are in front of a interceptable URI. Let's check
-				 * if there's an authentication and if it's valid.
-				 */
-				user = t->be->uri_auth->users;
-				if (!user) {
-					/* no user auth required, it's OK */
-					authenticated = 1;
-				} else {
-					authenticated = 0;
-
-					/* a user list is defined, we have to check.
-					 * skip 21 chars for "Authorization: Basic ".
-					 */
-
-					/* FIXME: this should move to an earlier place */
-					cur_idx = 0;
-					h = req->data + t->hreq.sor;
-					while ((cur_idx = t->hreq.hdr_idx.v[cur_idx].next)) {
-						int len = t->hreq.hdr_idx.v[cur_idx].len;
-						if (len > 14 &&
-						    !strncasecmp("Authorization:", h, 14)) {
-							t->hreq.auth_hdr.str = h;
-							t->hreq.auth_hdr.len = len;
-							break;
-						}
-						h += len + t->hreq.hdr_idx.v[cur_idx].cr + 1;
-					}
-
-
-					if (t->hreq.auth_hdr.len < 21 ||
-					    memcmp(t->hreq.auth_hdr.str + 14, " Basic ", 7))
-						user = NULL;
-					
-					while (user) {
-						if ((t->hreq.auth_hdr.len == user->user_len + 14 + 7)
-						    && !memcmp(t->hreq.auth_hdr.str + 14 + 7,
-							       user->user_pwd, user->user_len)) {
-							authenticated = 1;
-							break;
-						}
-						user = user->next;
-					}
-				}
-
-				if (!authenticated) {
-					int msglen;
-
-					/* no need to go further */
-
-					msglen = sprintf(trash, HTTP_401_fmt, t->be->uri_auth->auth_realm);
-					t->logs.status = 401;
-					client_retnclose(t, msglen, trash);
-					goto return_prx_cond;
-				}
-
-				t->cli_state = CL_STSHUTR;
-				req->rlim = req->data + BUFSIZE; /* no more rewrite needed */
-				t->logs.t_request = tv_diff(&t->logs.tv_accept, &now);
-				t->data_source = DATA_SRC_STATS;
-				t->data_state  = DATA_ST_INIT;
-				produce_content(t);
-				return 1;
-			}
-		}
-
-
-		/*
-		 * 7: add X-Forwarded-For : Should depend on the backend only.
+		 * 5: add X-Forwarded-For : Should depend on the backend only.
 		 */
 		if (t->be->options & PR_O_FWDFOR) {
 			if (t->cli_addr.ss_family == AF_INET) {
@@ -1098,10 +1018,13 @@ int process_cli(struct session *t)
 
 
 		/*
-		 * 8: add "Connection:"
+		 * 6: add "Connection:"
 		 */
 
-		/* add a "connection: close" line if needed */
+		/* add a "connection: close" line if needed.
+		 * FIXME: this should depend on both the frontend and the backend.
+		 * Header removals should be performed when the filters are run.
+		 */
 		if (t->fe->options & PR_O_HTTP_CLOSE) {
 			int len;
 			len = buffer_replace2(req, req->data + t->hreq.eoh,
@@ -3579,6 +3502,101 @@ void get_srv_from_appsession(struct session *t, const char *begin, const char *e
 		}
 	}
 }
+
+
+
+/*
+ * In a GET request, check if the requested URI matches the stats uri for the
+ * current backend, and if an authorization has been passed and is valid.
+ *
+ * It is assumed that the request is a GET and that the t->be->uri_auth field
+ * is valid. An HTTP/401 response may be sent, or produce_content() can be
+ * called to start sending data.
+ *
+ * Returns 1 if the session's state changes, otherwise 0.
+ */
+int stats_check_uri_auth(struct session *t, struct proxy *backend)
+{
+	struct uri_auth *uri_auth = backend->uri_auth;
+	struct user_auth *user;
+	int authenticated, cur_idx;
+	char *h;
+
+	if (t->hreq.start.len < uri_auth->uri_len + 4)   /* +4 for "GET " */
+		return 0;
+
+	if (memcmp(t->hreq.start.str + 4, uri_auth->uri_prefix, uri_auth->uri_len) != 0)
+		return 0;
+
+	/* we are in front of a interceptable URI. Let's check
+	 * if there's an authentication and if it's valid.
+	 */
+	user = uri_auth->users;
+	if (!user) {
+		/* no user auth required, it's OK */
+		authenticated = 1;
+	} else {
+		authenticated = 0;
+
+		/* a user list is defined, we have to check.
+		 * skip 21 chars for "Authorization: Basic ".
+		 */
+
+		/* FIXME: this should move to an earlier place */
+		cur_idx = 0;
+		h = t->req->data + t->hreq.sor;
+		while ((cur_idx = t->hreq.hdr_idx.v[cur_idx].next)) {
+			int len = t->hreq.hdr_idx.v[cur_idx].len;
+			if (len > 14 &&
+			    !strncasecmp("Authorization:", h, 14)) {
+				t->hreq.auth_hdr.str = h;
+				t->hreq.auth_hdr.len = len;
+				break;
+			}
+			h += len + t->hreq.hdr_idx.v[cur_idx].cr + 1;
+		}
+
+		if (t->hreq.auth_hdr.len < 21 ||
+		    memcmp(t->hreq.auth_hdr.str + 14, " Basic ", 7))
+			user = NULL;
+
+		while (user) {
+			if ((t->hreq.auth_hdr.len == user->user_len + 14 + 7)
+			    && !memcmp(t->hreq.auth_hdr.str + 14 + 7,
+				       user->user_pwd, user->user_len)) {
+				authenticated = 1;
+				break;
+			}
+			user = user->next;
+		}
+	}
+
+	if (!authenticated) {
+		int msglen;
+
+		/* no need to go further */
+		msglen = sprintf(trash, HTTP_401_fmt, uri_auth->auth_realm);
+		t->logs.status = 401;
+		client_retnclose(t, msglen, trash);
+		if (!(t->flags & SN_ERR_MASK))
+			t->flags |= SN_ERR_PRXCOND;
+		if (!(t->flags & SN_FINST_MASK))
+			t->flags |= SN_FINST_R;
+		return 1;
+	}
+
+	/* The request is valid, the user is authenticate. Let's start sending
+	 * data.
+	 */
+	t->cli_state = CL_STSHUTR;
+	t->req->rlim = t->req->data + BUFSIZE; /* no more rewrite needed */
+	t->logs.t_request = tv_diff(&t->logs.tv_accept, &now);
+	t->data_source = DATA_SRC_STATS;
+	t->data_state  = DATA_ST_INIT;
+	produce_content(t);
+	return 1;
+}
+
 
 
 /*
