@@ -167,7 +167,11 @@ int event_accept(int fd) {
 		s->srv_fd = -1;
 		s->srv = NULL;
 		s->pend_pos = NULL;
-		s->conn_retries = p->conn_retries;
+		s->conn_retries = p->beprm->conn_retries;
+
+		/* FIXME: the logs are horribly complicated now, because they are
+		 * defined in <p>, <p->beprm>, and later <be> and <be->beprm>.
+		 */
 
 		if (s->flags & SN_MONITOR)
 			s->logs.logwait = 0;

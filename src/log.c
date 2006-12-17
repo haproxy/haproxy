@@ -287,12 +287,10 @@ void send_log(struct proxy *p, int level, const char *message, ...)
 void sess_log(struct session *s)
 {
 	char pn[INET6_ADDRSTRLEN + strlen(":65535")];
-#if 1  /* FIXME: this should disappear */
-	struct proxy *p = s->fe;
-#endif
 	struct proxy *fe = s->fe;
-	struct proxy *be = s->be->beprm;
-	int log;
+	struct proxy *be = s->be;
+	struct proxy *prx_log;
+	int log, tolog;
 	char *uri;
 	char *pxid;
 	char *srv;
@@ -304,7 +302,9 @@ void sess_log(struct session *s)
 	 * computed.
 	 */
 
-	log = fe->to_log & ~s->logs.logwait;
+	tolog = (fe->to_log | be->to_log | be->beprm->to_log); /* union of all logs */
+
+	log = tolog & ~s->logs.logwait;
 
 	if (s->cli_addr.ss_family == AF_INET)
 		inet_ntop(AF_INET,
@@ -316,21 +316,31 @@ void sess_log(struct session *s)
 			  pn, sizeof(pn));
 
 	uri = (log & LW_REQ) ? s->logs.uri ? s->logs.uri : "<BADREQ>" : "";
-	pxid = be->id;
-	srv = (be->to_log & LW_SVID) ?
+	pxid = be->beprm->id;
+	srv = (tolog & LW_SVID) ?
 		(s->data_source != DATA_SRC_STATS) ?
 		(s->srv != NULL) ? s->srv->id : "<NOSRV>" : "<STATS>" : "-";
 
 	tm = localtime((time_t *)&s->logs.tv_accept.tv_sec);
-	if (p->to_log & LW_REQ) {
+
+	if (fe->logfac1 >= 0)
+		prx_log = fe;
+	else if (be->logfac1 >= 0)
+		prx_log = be;
+	else
+		prx_log = NULL; /* global */
+
+	if (tolog & LW_REQ) {
 		char tmpline[MAX_SYSLOG_LEN], *h;
 		int hdr;
 	
 		h = tmpline;
-		if (p->to_log & LW_REQHDR && (h < tmpline + sizeof(tmpline) - 10)) {
+
+		/* right now, header capture is limited to the frontend only */
+		if (fe->to_log & LW_REQHDR && (h < tmpline + sizeof(tmpline) - 10)) {
 			*(h++) = ' ';
 			*(h++) = '{';
-			for (hdr = 0; hdr < p->nb_req_cap; hdr++) {
+			for (hdr = 0; hdr < fe->nb_req_cap; hdr++) {
 				if (hdr)
 					*(h++) = '|';
 				if (s->hreq.cap[hdr] != NULL)
@@ -340,10 +350,10 @@ void sess_log(struct session *s)
 			*(h++) = '}';
 		}
 
-		if (p->to_log & LW_RSPHDR && (h < tmpline + sizeof(tmpline) - 7)) {
+		if (fe->to_log & LW_RSPHDR && (h < tmpline + sizeof(tmpline) - 7)) {
 			*(h++) = ' ';
 			*(h++) = '{';
-			for (hdr = 0; hdr < p->nb_rsp_cap; hdr++) {
+			for (hdr = 0; hdr < fe->nb_rsp_cap; hdr++) {
 				if (hdr)
 					*(h++) = '|';
 				if (s->rsp_cap[hdr] != NULL)
@@ -362,7 +372,7 @@ void sess_log(struct session *s)
 		}
 		*h = '\0';
 
-		send_log(p, LOG_INFO,
+		send_log(prx_log, LOG_INFO,
 			 "%s:%d [%02d/%s/%04d:%02d:%02d:%02d]"
 			 " %s %s %d/%d/%d/%d/%s%d %d %s%lld"
 			 " %s %s %c%c%c%c %d/%d/%d %d/%d%s\n",
@@ -377,20 +387,20 @@ void sess_log(struct session *s)
 			 (s->logs.t_queue >= 0) ? s->logs.t_queue - s->logs.t_request : -1,
 			 (s->logs.t_connect >= 0) ? s->logs.t_connect - s->logs.t_queue : -1,
 			 (s->logs.t_data >= 0) ? s->logs.t_data - s->logs.t_connect : -1,
-			 (p->to_log & LW_BYTES) ? "" : "+", s->logs.t_close,
+			 (be->to_log & LW_BYTES) ? "" : "+", s->logs.t_close,
 			 s->logs.status,
-			 (p->to_log & LW_BYTES) ? "" : "+", s->logs.bytes,
+			 (tolog & LW_BYTES) ? "" : "+", s->logs.bytes,
 			 s->logs.cli_cookie ? s->logs.cli_cookie : "-",
 			 s->logs.srv_cookie ? s->logs.srv_cookie : "-",
 			 sess_term_cond[(s->flags & SN_ERR_MASK) >> SN_ERR_SHIFT],
 			 sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT],
-			 (p->options & PR_O_COOK_ANY) ? sess_cookie[(s->flags & SN_CK_MASK) >> SN_CK_SHIFT] : '-',
-			 (p->options & PR_O_COOK_ANY) ? sess_set_cookie[(s->flags & SN_SCK_MASK) >> SN_SCK_SHIFT] : '-',
-			 s->srv ? s->srv->cur_sess : 0, p->beconn, actconn,
+			 (be->beprm->options & PR_O_COOK_ANY) ? sess_cookie[(s->flags & SN_CK_MASK) >> SN_CK_SHIFT] : '-',
+			 (be->beprm->options & PR_O_COOK_ANY) ? sess_set_cookie[(s->flags & SN_SCK_MASK) >> SN_SCK_SHIFT] : '-',
+			 s->srv ? s->srv->cur_sess : 0, be->beprm->beconn, actconn,
 			 s->logs.srv_queue_size, s->logs.prx_queue_size, tmpline);
 	}
 	else {
-		send_log(p, LOG_INFO, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d]"
+		send_log(prx_log, LOG_INFO, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d]"
 			 " %s %s %d/%d/%s%d %s%lld"
 			 " %c%c %d/%d/%d %d/%d\n",
 			 pn,
@@ -402,11 +412,11 @@ void sess_log(struct session *s)
 			 pxid, srv,
 			 (s->logs.t_queue >= 0) ? s->logs.t_queue : -1,
 			 (s->logs.t_connect >= 0) ? s->logs.t_connect - s->logs.t_queue : -1,
-			 (p->to_log & LW_BYTES) ? "" : "+", s->logs.t_close,
-			 (p->to_log & LW_BYTES) ? "" : "+", s->logs.bytes,
+			 (tolog & LW_BYTES) ? "" : "+", s->logs.t_close,
+			 (tolog & LW_BYTES) ? "" : "+", s->logs.bytes,
 			 sess_term_cond[(s->flags & SN_ERR_MASK) >> SN_ERR_SHIFT],
 			 sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT],
-			 s->srv ? s->srv->cur_sess : 0, p->beconn, actconn,
+			 s->srv ? s->srv->cur_sess : 0, be->beprm->beconn, actconn,
 			 s->logs.srv_queue_size, s->logs.prx_queue_size);
 	}
 
