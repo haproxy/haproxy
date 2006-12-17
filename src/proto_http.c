@@ -3041,6 +3041,36 @@ void apply_filters_to_session(struct session *t, struct buffer *req, struct hdr_
 
 			if (regexec(exp->preg, cur_ptr, MAX_MATCH, pmatch, 0) == 0) {
 				switch (exp->action) {
+				case ACT_SETBE:
+					/* It is not possible to jump a second time.
+					 * FIXME: should we return an HTTP/500 here so that
+					 * the admin knows there's a problem ?
+					 */
+					if (t->be != t->fe)
+						break;
+
+					if (!(t->flags & (SN_CLDENY | SN_CLTARPIT))) {
+						struct proxy *target = (struct proxy *) exp->replace;
+
+						/* Swithing Proxy */
+						*cur_end = term;
+						cur_end = NULL;
+
+						/* right now, the backend switch is not too much complicated
+						 * because we have associated req_cap and rsp_cap to the
+						 * frontend, and the beconn will be updated later.
+						 */
+
+						t->rep->rto = t->req->wto = target->beprm->srvtimeout;
+						t->req->cto = target->beprm->contimeout;
+
+						t->be = target;
+
+						//t->logs.logwait |= LW_REQ | (target->to_log & (LW_REQHDR | LW_COOKIE));
+						t->logs.logwait |= (target->to_log | target->beprm->to_log);
+						abort_filt = 1;
+					}
+					break;
 				case ACT_ALLOW:
 					if (!(t->flags & (SN_CLDENY | SN_CLTARPIT))) {
 						t->flags |= SN_CLALLOW;

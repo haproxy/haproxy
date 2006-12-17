@@ -1416,6 +1416,46 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 	
 		chain_regex(&curproxy->req_exp, preg, ACT_TARPIT, NULL);
 	}
+	else if (!strcmp(args[0], "reqsetbe")) { /* switch the backend from a regex, respecting case */
+		regex_t *preg;
+		if(curproxy == &defproxy) {
+			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+			return -1;
+		}
+
+		if(*(args[1]) == 0 || *(args[2]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects <search> and <target> as arguments.\n", 
+				file, linenum, args[0]);
+			return -1;	
+		}
+		
+		preg = calloc(1, sizeof(regex_t));
+		if(regcomp(preg, args[1], REG_EXTENDED) != 0) {
+			Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
+		}
+
+		chain_regex(&curproxy->req_exp, preg, ACT_SETBE, strdup(args[2]));
+	}
+	else if (!strcmp(args[0], "reqisetbe")) { /* switch the backend from a regex, ignoring case */
+		regex_t *preg;
+		if(curproxy == &defproxy) {
+			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+			return -1;
+		}
+
+		if(*(args[1]) == 0 || *(args[2]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects <search> and <target> as arguments.\n", 
+			      file, linenum, args[0]);
+			return -1;	
+		}
+		
+		preg = calloc(1, sizeof(regex_t));
+		if(regcomp(preg, args[1], REG_EXTENDED | REG_ICASE) != 0) {
+			Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
+		}
+
+		chain_regex(&curproxy->req_exp, preg, ACT_SETBE, strdup(args[2]));
+	}
 	else if (!strcmp(args[0], "reqirep")) {  /* replace request header from a regex, ignoring case */
 		regex_t *preg;
 		if (curproxy == &defproxy) {
@@ -1945,8 +1985,6 @@ int readcfgfile(const char *file)
 			Alert("parsing [%s:%d] : unknown keyword '%s' out of section.\n", file, linenum, args[0]);
 			return -1;
 		}
-	    
-	    
 	}
 	fclose(f);
 
@@ -2030,6 +2068,30 @@ int readcfgfile(const char *file)
 			}
 		}
 
+		if (curproxy->mode == PR_MODE_HTTP && curproxy->req_exp != NULL) {
+			/* map jump target for ACT_SETBE in req_rep chain */ 
+			struct hdr_exp *exp;
+			struct proxy *target;
+			for (exp = curproxy->req_exp; exp != NULL; exp = exp->next) {
+				if (exp->action != ACT_SETBE)
+					continue;
+				for (target = proxy; target != NULL; target = target->next) {
+					if (strcmp(target->id, exp->replace) == 0)
+						break;
+				}
+				if (target == NULL) {
+					Alert("parsing %s : backend '%s' in HTTP proxy %s was not found !\n", 
+						file, exp->replace, curproxy->id);
+					cfgerr++;
+				} else if (target == curproxy) {
+					Alert("parsing %s : loop detected for backend %s !\n", file, exp->replace);
+					cfgerr++;
+				} else {
+					free((void *)exp->replace);
+					exp->replace = (const char *)target;
+				}
+			}
+		}
 		if ((curproxy->mode == PR_MODE_TCP || curproxy->mode == PR_MODE_HTTP) &&
 		    (!curproxy->clitimeout || !curproxy->contimeout || !curproxy->srvtimeout)) {
 			Warning("parsing %s : missing timeouts for listener '%s'.\n"
