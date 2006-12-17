@@ -117,7 +117,6 @@ struct session {
 	struct task *task;			/* the task associated with this session */
 	/* application specific below */
 	struct proxy *fe;			/* the proxy this session depends on for the client side */
-	struct proxy *fi;			/* the proxy this session depends on for the filtering rules */
 	struct proxy *be;			/* the proxy this session depends on for the server side */
 	int cli_fd;				/* the client side fd */
 	int srv_fd;				/* the server side fd */

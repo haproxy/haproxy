@@ -264,7 +264,7 @@ int process_session(struct task *t)
 	if ((global.mode & MODE_DEBUG) && (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))) {
 		int len;
 		len = sprintf(trash, "%08x:%s.closed[%04x:%04x]\n",
-			      s->uniq_id, s->be->id,
+			      s->uniq_id, s->be->beprm->id,
 			      (unsigned short)s->cli_fd, (unsigned short)s->srv_fd);
 		write(1, trash, len);
 	}
@@ -341,7 +341,7 @@ int process_cli(struct session *t)
 		 */
 
 		char *sol, *eol; /* Start Of Line, End Of Line */
-		struct proxy *rule_set;
+		struct proxy *cur_proxy;
 
 		eol = sol = req->data + t->hreq.eoh;
 
@@ -434,7 +434,7 @@ int process_cli(struct session *t)
 					 * consider that it's necessary after one single space.*/
 					struct cap_hdr *h;
 					int len;
-					for (h = t->fi->req_cap; h; h = h->next) {
+					for (h = t->fe->fiprm->req_cap; h; h = h->next) {
 						if ((h->namelen + 2 <= eol - sol) &&
 						    (sol[h->namelen] == ':') &&
 						    (strncasecmp(sol, h->name, h->namelen) == 0)) {
@@ -891,23 +891,22 @@ int process_cli(struct session *t)
 		 * filters and various options. In order to support 3-level
 		 * switching, here's how we should proceed :
 		 *
-		 *  a) run be->filters.
-		 *     if (switch) then switch ->fi and ->be to the new backend.
-		 *  b) run be->filters.
-		 *     If there's another switch, then switch ->be to the new be.
-		 *  c) run be->filters
+		 *  a) run be->fiprm.
+		 *     if (switch) then switch ->be to the new backend.
+		 *  b) run be->fiprm if (be != fe).
 		 *     There cannot be any switch from there, so ->be cannot be
 		 *     changed anymore.
 		 *
-		 *  => filters always apply to ->be, then ->be may change.
+		 * => filters always apply to ->be, then ->be may change.
 		 *
-		 *  The response path will be able to apply either ->be, or
-		 *  ->be then ->fi, or ->be then ->fi then ->fe filters in order
-		 * to match the reverse of the forward sequence.
+		 * The response path will be able to apply either ->be, or
+		 * ->be then ->fe filters in order to match the reverse of
+		 * the forward sequence.
 		 */
 
 		do {
-			rule_set = t->be;
+			struct proxy *rule_set = t->be->fiprm;
+			cur_proxy = t->be;
 
 			/* try headers filters */
 			if (rule_set->req_exp != NULL) {
@@ -947,14 +946,14 @@ int process_cli(struct session *t)
 					return 1;
 			}
 
-		} while (rule_set != t->be);  /* we loop only if t->be has changed */
+		} while (cur_proxy != t->be);  /* we loop only if t->be has changed */
 		
 
 		/*
 		 * Right now, we know that we have processed the entire headers
 		 * and that unwanted requests have been filtered out. We can do
 		 * whatever we want with the remaining request. Also, now we
-		 * may have separate values for ->fe, ->fi and ->be.
+		 * may have separate values for ->fe, ->be.
 		 */
 
 
@@ -966,7 +965,7 @@ int process_cli(struct session *t)
 		 */
 
 		/* It needs to look into the URI */
-		if (t->be->appsession_name) {
+		if (t->be->beprm->appsession_name) {
 			get_srv_from_appsession(t,
 						t->hreq.start.str,
 						t->hreq.start.str + t->hreq.start.len);
@@ -986,7 +985,7 @@ int process_cli(struct session *t)
 		/*
 		 * 5: add X-Forwarded-For : Should depend on the backend only.
 		 */
-		if (t->be->options & PR_O_FWDFOR) {
+		if (t->be->beprm->options & PR_O_FWDFOR) {
 			if (t->cli_addr.ss_family == AF_INET) {
 				int len;
 				unsigned char *pn;
@@ -1052,7 +1051,7 @@ int process_cli(struct session *t)
 
 
 		if (!t->fe->clitimeout ||
-		    (t->srv_state < SV_STDATA && t->be->srvtimeout)) {
+		    (t->srv_state < SV_STDATA && t->be->beprm->srvtimeout)) {
 			/* If the client has no timeout, or if the server is not ready yet,
 			 * and we know for sure that it can expire, then it's cleaner to
 			 * disable the timeout on the client side so that too low values
@@ -1077,7 +1076,7 @@ int process_cli(struct session *t)
 			 * if the client closes first.
 			 */
 			tv_delayfrom(&req->cex, &now,
-				     t->be->contimeout ? t->be->contimeout : 0);
+				     t->be->beprm->contimeout ? t->be->beprm->contimeout : 0);
 		}
 
 #if DEBUG_HTTP_PARSER
@@ -1225,7 +1224,7 @@ int process_cli(struct session *t)
 			if (! MY_FD_ISSET(t->cli_fd, StaticReadEvent)) {
 				MY_FD_SET(t->cli_fd, StaticReadEvent);
 				if (!t->fe->clitimeout ||
-				    (t->srv_state < SV_STDATA && t->be->srvtimeout))
+				    (t->srv_state < SV_STDATA && t->be->beprm->srvtimeout))
 					/* If the client has no timeout, or if the server not ready yet, and we
 					 * know for sure that it can expire, then it's cleaner to disable the
 					 * timeout on the client side so that too low values cannot make the
@@ -1400,7 +1399,7 @@ int process_cli(struct session *t)
 	else { /* CL_STCLOSE: nothing to do */
 		if ((global.mode & MODE_DEBUG) && (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))) {
 			int len;
-			len = sprintf(trash, "%08x:%s.clicls[%04x:%04x]\n", t->uniq_id, t->be->id, (unsigned short)t->cli_fd, (unsigned short)t->srv_fd);
+			len = sprintf(trash, "%08x:%s.clicls[%04x:%04x]\n", t->uniq_id, t->be->beprm->id, (unsigned short)t->cli_fd, (unsigned short)t->srv_fd);
 			write(1, trash, len);
 		}
 		return 0;
@@ -1435,7 +1434,7 @@ int process_srv(struct session *t)
 			return 0;	/* stay in idle, waiting for data to reach the client side */
 		else if (c == CL_STCLOSE || c == CL_STSHUTW ||
 			 (c == CL_STSHUTR &&
-			  (t->req->l == 0 || t->be->options & PR_O_ABRT_CLOSE))) { /* give up */
+			  (t->req->l == 0 || t->be->beprm->options & PR_O_ABRT_CLOSE))) { /* give up */
 			tv_eternity(&req->cex);
 			if (t->pend_pos)
 				t->logs.t_queue = tv_diff(&t->logs.tv_accept, &now);
@@ -1511,7 +1510,7 @@ int process_srv(struct session *t)
 	else if (s == SV_STCONN) { /* connection in progress */
 		if (c == CL_STCLOSE || c == CL_STSHUTW ||
 		    (c == CL_STSHUTR &&
-		     (t->req->l == 0 || t->be->options & PR_O_ABRT_CLOSE))) { /* give up */
+		     (t->req->l == 0 || t->be->beprm->options & PR_O_ABRT_CLOSE))) { /* give up */
 			tv_eternity(&req->cex);
 			fd_delete(t->srv_fd);
 			if (t->srv)
@@ -1544,17 +1543,17 @@ int process_srv(struct session *t)
 			if (srv_count_retry_down(t, conn_err))
 				return 1;
 
-			if (t->srv && t->conn_retries == 0 && t->be->options & PR_O_REDISP) {
+			if (t->srv && t->conn_retries == 0 && t->be->beprm->options & PR_O_REDISP) {
 				/* We're on our last chance, and the REDISP option was specified.
 				 * We will ignore cookie and force to balance or use the dispatcher.
 				 */
 				/* let's try to offer this slot to anybody */
-				if (may_dequeue_tasks(t->srv, t->be))
+				if (may_dequeue_tasks(t->srv, t->be->beprm))
 					task_wakeup(&rq, t->srv->queue_mgt);
 
 				if (t->srv)
 					t->srv->failed_conns++;
-				t->be->failed_conns++;
+				t->be->beprm->failed_conns++;
 
 				t->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
 				t->srv = NULL; /* it's left to the dispatcher to choose a server */
@@ -1593,8 +1592,8 @@ int process_srv(struct session *t)
 				tv_eternity(&req->wex);
 			} else  /* need the right to write */ {
 				MY_FD_SET(t->srv_fd, StaticWriteEvent);
-				if (t->be->srvtimeout) {
-					tv_delayfrom(&req->wex, &now, t->be->srvtimeout);
+				if (t->be->beprm->srvtimeout) {
+					tv_delayfrom(&req->wex, &now, t->be->beprm->srvtimeout);
 					/* FIXME: to prevent the server from expiring read timeouts during writes,
 					 * we refresh it. */
 					rep->rex = req->wex;
@@ -1603,10 +1602,10 @@ int process_srv(struct session *t)
 					tv_eternity(&req->wex);
 			}
 
-			if (t->be->mode == PR_MODE_TCP) { /* let's allow immediate data connection in this case */
+			if (t->be->beprm->mode == PR_MODE_TCP) { /* let's allow immediate data connection in this case */
 				MY_FD_SET(t->srv_fd, StaticReadEvent);
-				if (t->be->srvtimeout)
-					tv_delayfrom(&rep->rex, &now, t->be->srvtimeout);
+				if (t->be->beprm->srvtimeout)
+					tv_delayfrom(&rep->rex, &now, t->be->beprm->srvtimeout);
 				else
 					tv_eternity(&rep->rex);
 		
@@ -1653,7 +1652,7 @@ int process_srv(struct session *t)
 				if (t->flags & SN_CACHEABLE) {
 					if ((t->flags & SN_CACHE_COOK) &&
 					    (t->flags & SN_SCK_ANY) &&
-					    (t->be->options & PR_O_CHK_CACHE)) {
+					    (t->be->beprm->options & PR_O_CHK_CACHE)) {
 
 						/* we're in presence of a cacheable response containing
 						 * a set-cookie header. We'll block it as requested by
@@ -1675,13 +1674,13 @@ int process_srv(struct session *t)
 						if (!(t->flags & SN_FINST_MASK))
 							t->flags |= SN_FINST_H;
 
-						Alert("Blocking cacheable cookie in response from instance %s, server %s.\n", t->be->id, t->srv->id);
-						send_log(t->be, LOG_ALERT, "Blocking cacheable cookie in response from instance %s, server %s.\n", t->be->id, t->srv->id);
+						Alert("Blocking cacheable cookie in response from instance %s, server %s.\n", t->be->beprm->id, t->srv->id);
+						send_log(t->be, LOG_ALERT, "Blocking cacheable cookie in response from instance %s, server %s.\n", t->be->beprm->id, t->srv->id);
 
 						/* We used to have a free connection slot. Since we'll never use it,
 						 * we have to inform the server that it may be used by another session.
 						 */
-						if (may_dequeue_tasks(t->srv, t->be))
+						if (may_dequeue_tasks(t->srv, t->be->beprm))
 							task_wakeup(&rq, t->srv->queue_mgt);
 
 						return 1;
@@ -1708,7 +1707,7 @@ int process_srv(struct session *t)
 					/* We used to have a free connection slot. Since we'll never use it,
 					 * we have to inform the server that it may be used by another session.
 					 */
-					if (may_dequeue_tasks(t->srv, t->be))
+					if (may_dequeue_tasks(t->srv, t->be->beprm))
 						task_wakeup(&rq, t->srv->queue_mgt);
 
 					return 1;
@@ -1716,15 +1715,15 @@ int process_srv(struct session *t)
 
 				/* we'll have something else to do here : add new headers ... */
 
-				if ((t->srv) && !(t->flags & SN_DIRECT) && (t->be->options & PR_O_COOK_INS) &&
-				    (!(t->be->options & PR_O_COOK_POST) || (t->hreq.meth == HTTP_METH_POST))) {
+				if ((t->srv) && !(t->flags & SN_DIRECT) && (t->be->beprm->options & PR_O_COOK_INS) &&
+				    (!(t->be->beprm->options & PR_O_COOK_POST) || (t->hreq.meth == HTTP_METH_POST))) {
 					/* the server is known, it's not the one the client requested, we have to
 					 * insert a set-cookie here, except if we want to insert only on POST
 					 * requests and this one isn't. Note that servers which don't have cookies
 					 * (eg: some backup servers) will return a full cookie removal request.
 					 */
 					len = sprintf(trash, "Set-Cookie: %s=%s; path=/\r\n",
-						      t->be->cookie_name,
+						      t->be->beprm->cookie_name,
 						      t->srv->cookie ? t->srv->cookie : "; Expires=Thu, 01-Jan-1970 00:00:01 GMT");
 
 					t->flags |= SN_SCK_INSERTED;
@@ -1734,7 +1733,7 @@ int process_srv(struct session *t)
 					 * Some caches understand the correct form: 'no-cache="set-cookie"', but
 					 * others don't (eg: apache <= 1.3.26). So we use 'private' instead.
 					 */
-					if (t->be->options & PR_O_COOK_NOC)
+					if (t->be->beprm->options & PR_O_COOK_NOC)
 						//len += sprintf(newhdr + len, "Cache-control: no-cache=\"set-cookie\"\r\n");
 						len += sprintf(trash + len, "Cache-control: private\r\n");
 
@@ -1745,8 +1744,9 @@ int process_srv(struct session *t)
 				}
 
 				/* headers to be added */
-				for (line = 0; line < t->fi->nb_rspadd; line++) {
-					len = sprintf(trash, "%s\r\n", t->fi->rsp_add[line]);
+				/* FIXME: we should add headers from BE then from FE */
+				for (line = 0; line < t->be->fiprm->nb_rspadd; line++) {
+					len = sprintf(trash, "%s\r\n", t->be->fiprm->rsp_add[line]);
 					buffer_replace2(rep, rep->h, rep->h, trash, len);
 				}
 
@@ -1762,15 +1762,15 @@ int process_srv(struct session *t)
 				 * we close the server's outgoing connection right now.
 				 */
 				if ((req->l == 0) &&
-				    (c == CL_STSHUTR || c == CL_STCLOSE || t->be->options & PR_O_FORCE_CLO)) {
+				    (c == CL_STSHUTR || c == CL_STCLOSE || t->be->beprm->options & PR_O_FORCE_CLO)) {
 					MY_FD_CLR(t->srv_fd, StaticWriteEvent);
 					tv_eternity(&req->wex);
 
 					/* We must ensure that the read part is still alive when switching
 					 * to shutw */
 					MY_FD_SET(t->srv_fd, StaticReadEvent);
-					if (t->be->srvtimeout)
-						tv_delayfrom(&rep->rex, &now, t->be->srvtimeout);
+					if (t->be->beprm->srvtimeout)
+						tv_delayfrom(&rep->rex, &now, t->be->beprm->srvtimeout);
 
 					shutdown(t->srv_fd, SHUT_WR);
 					t->srv_state = SV_STSHUTW;
@@ -1835,7 +1835,7 @@ int process_srv(struct session *t)
 					 *    unless the response includes appropriate
 					 *    Cache-Control or Expires header fields."
 					 */
-					if (!(t->hreq.meth == HTTP_METH_POST) && (t->be->options & PR_O_CHK_CACHE))
+					if (!(t->hreq.meth == HTTP_METH_POST) && (t->be->beprm->options & PR_O_CHK_CACHE))
 						t->flags |= SN_CACHEABLE | SN_CACHE_COOK;
 					break;
 				default:
@@ -1845,7 +1845,7 @@ int process_srv(struct session *t)
 			else if (t->logs.logwait & LW_RSPHDR) {
 				struct cap_hdr *h;
 				int len;
-				for (h = t->fi->rsp_cap; h; h = h->next) {
+				for (h = t->fe->fiprm->rsp_cap; h; h = h->next) {
 					if ((h->namelen + 2 <= ptr - rep->h) &&
 					    (rep->h[h->namelen] == ':') &&
 					    (strncasecmp(rep->h, h->name, h->namelen) == 0)) {
@@ -1876,14 +1876,14 @@ int process_srv(struct session *t)
 			}
 
 			/* try headers regexps */
-			if (!delete_header && t->fi->rsp_exp != NULL
+			if (!delete_header && t->be->fiprm->rsp_exp != NULL
 			    && !(t->flags & SN_SVDENY)) {
 				struct hdr_exp *exp;
 				char term;
 		
 				term = *ptr;
 				*ptr = '\0';
-				exp = t->fi->rsp_exp;
+				exp = t->be->fiprm->rsp_exp;
 				do {
 					if (regexec(exp->preg, rep->h, MAX_MATCH, pmatch, 0) == 0) {
 						switch (exp->action) {
@@ -1947,7 +1947,9 @@ int process_srv(struct session *t)
 
 			/* check for server cookies */
 			if (!delete_header /*&& (t->proxy->options & PR_O_COOK_ANY)*/
-			    && (t->be->cookie_name != NULL || t->fi->capture_name != NULL || t->be->appsession_name !=NULL)
+			    && (t->be->beprm->cookie_name != NULL ||
+				t->be->fiprm->capture_name != NULL ||
+				t->be->beprm->appsession_name !=NULL)
 			    && (strncasecmp(rep->h, "Set-Cookie: ", 12) == 0)) {
 				char *p1, *p2, *p3, *p4;
 		
@@ -1985,24 +1987,24 @@ int process_srv(struct session *t)
 					 */
 
 					/* first, let's see if we want to capture it */
-					if (t->fi->capture_name != NULL &&
+					if (t->be->fiprm->capture_name != NULL &&
 					    t->logs.srv_cookie == NULL &&
-					    (p4 - p1 >= t->fi->capture_namelen) &&
-					    memcmp(p1, t->fi->capture_name, t->fi->capture_namelen) == 0) {
+					    (p4 - p1 >= t->be->fiprm->capture_namelen) &&
+					    memcmp(p1, t->be->fiprm->capture_name, t->be->fiprm->capture_namelen) == 0) {
 						int log_len = p4 - p1;
 
 						if ((t->logs.srv_cookie = pool_alloc(capture)) == NULL) {
 							Alert("HTTP logging : out of memory.\n");
 						}
 
-						if (log_len > t->fi->capture_len)
-							log_len = t->fi->capture_len;
+						if (log_len > t->be->fiprm->capture_len)
+							log_len = t->be->fiprm->capture_len;
 						memcpy(t->logs.srv_cookie, p1, log_len);
 						t->logs.srv_cookie[log_len] = 0;
 					}
 
-					if ((p2 - p1 == t->be->cookie_len) && (t->be->cookie_name != NULL) &&
-					    (memcmp(p1, t->be->cookie_name, p2 - p1) == 0)) {
+					if ((p2 - p1 == t->be->beprm->cookie_len) && (t->be->beprm->cookie_name != NULL) &&
+					    (memcmp(p1, t->be->beprm->cookie_name, p2 - p1) == 0)) {
 						/* Cool... it's the right one */
 						t->flags |= SN_SCK_SEEN;
 			
@@ -2010,20 +2012,20 @@ int process_srv(struct session *t)
 						 * this occurrence because we'll insert another one later.
 						 * We'll delete it too if the "indirect" option is set and we're in
 						 * a direct access. */
-						if (((t->srv) && (t->be->options & PR_O_COOK_INS)) ||
-						    ((t->flags & SN_DIRECT) && (t->be->options & PR_O_COOK_IND))) {
+						if (((t->srv) && (t->be->beprm->options & PR_O_COOK_INS)) ||
+						    ((t->flags & SN_DIRECT) && (t->be->beprm->options & PR_O_COOK_IND))) {
 							/* this header must be deleted */
 							delete_header = 1;
 							t->flags |= SN_SCK_DELETED;
 						}
-						else if ((t->srv) && (t->be->options & PR_O_COOK_RW)) {
+						else if ((t->srv) && (t->be->beprm->options & PR_O_COOK_RW)) {
 							/* replace bytes p3->p4 with the cookie name associated
 							 * with this server since we know it.
 							 */
 							buffer_replace2(rep, p3, p4, t->srv->cookie, t->srv->cklen);
 							t->flags |= SN_SCK_INSERTED | SN_SCK_DELETED;
 						}
-						else if ((t->srv) && (t->be->options & PR_O_COOK_PFX)) {
+						else if ((t->srv) && (t->be->beprm->options & PR_O_COOK_PFX)) {
 							/* insert the cookie name associated with this server
 							 * before existing cookie, and insert a delimitor between them..
 							 */
@@ -2035,8 +2037,8 @@ int process_srv(struct session *t)
 					}
 
 					/* first, let's see if the cookie is our appcookie*/
-					if ((t->be->appsession_name != NULL) &&
-					    (memcmp(p1, t->be->appsession_name, p2 - p1) == 0)) {
+					if ((t->be->beprm->appsession_name != NULL) &&
+					    (memcmp(p1, t->be->beprm->appsession_name, p2 - p1) == 0)) {
 
 						/* Cool... it's the right one */
 
@@ -2047,8 +2049,8 @@ int process_srv(struct session *t)
 							Alert("Not enought Memory process_srv():asession->sessid:malloc().\n");
 							send_log(t->be, LOG_ALERT, "Not enought Memory process_srv():asession->sessid:malloc().\n");
 						}
-						memcpy(asession_temp->sessid, p3, t->be->appsession_len);
-						asession_temp->sessid[t->be->appsession_len] = 0;
+						memcpy(asession_temp->sessid, p3, t->be->beprm->appsession_len);
+						asession_temp->sessid[t->be->beprm->appsession_len] = 0;
 						asession_temp->serverid = NULL;
 
 						/* only do insert, if lookup fails */
@@ -2060,7 +2062,7 @@ int process_srv(struct session *t)
 							}
 							asession_temp->sessid = local_asession.sessid;
 							asession_temp->serverid = local_asession.serverid;
-							chtbl_insert(&(t->be->htbl_proxy), (void *) asession_temp);
+							chtbl_insert(&(t->be->beprm->htbl_proxy), (void *) asession_temp);
 						}/* end if (chtbl_lookup()) */
 						else {
 							/* free wasted memory */
@@ -2078,10 +2080,10 @@ int process_srv(struct session *t)
 						if (asession_temp->serverid[0] == '\0')
 							memcpy(asession_temp->serverid,t->srv->id,server_id_len);
 		      
-						tv_delayfrom(&asession_temp->expire, &now, t->be->appsession_timeout);
+						tv_delayfrom(&asession_temp->expire, &now, t->be->beprm->appsession_timeout);
 
 #if defined(DEBUG_HASH)
-						print_table(&(t->be->htbl_proxy));
+						print_table(&(t->be->beprm->htbl_proxy));
 #endif
 						break;
 					}/* end if ((t->proxy->appsession_name != NULL) ... */
@@ -2098,7 +2100,7 @@ int process_srv(struct session *t)
 
 			/* check for any set-cookie in case we check for cacheability */
 			if (!delete_header && !(t->flags & SN_SCK_ANY) &&
-			    (t->be->options & PR_O_CHK_CACHE) &&
+			    (t->be->beprm->options & PR_O_CHK_CACHE) &&
 			    (strncasecmp(rep->h, "Set-Cookie: ", 12) == 0)) {
 				t->flags |= SN_SCK_ANY;
 			}
@@ -2118,8 +2120,8 @@ int process_srv(struct session *t)
 			 * rep->l == rlim-data
 			 */
 			MY_FD_SET(t->srv_fd, StaticReadEvent);
-			if (t->be->srvtimeout)
-				tv_delayfrom(&rep->rex, &now, t->be->srvtimeout);
+			if (t->be->beprm->srvtimeout)
+				tv_delayfrom(&rep->rex, &now, t->be->beprm->srvtimeout);
 			else
 				tv_eternity(&rep->rex);
 		}
@@ -2145,7 +2147,7 @@ int process_srv(struct session *t)
 			/* We used to have a free connection slot. Since we'll never use it,
 			 * we have to inform the server that it may be used by another session.
 			 */
-			if (may_dequeue_tasks(t->srv, t->be))
+			if (may_dequeue_tasks(t->srv, t->be->beprm))
 				task_wakeup(&rq, t->srv->queue_mgt);
 
 			return 1;
@@ -2183,7 +2185,7 @@ int process_srv(struct session *t)
 			/* We used to have a free connection slot. Since we'll never use it,
 			 * we have to inform the server that it may be used by another session.
 			 */
-			if (may_dequeue_tasks(t->srv, t->be))
+			if (may_dequeue_tasks(t->srv, t->be->beprm))
 				task_wakeup(&rq, t->srv->queue_mgt);
 
 			return 1;
@@ -2203,8 +2205,8 @@ int process_srv(struct session *t)
 			/* We must ensure that the read part is still alive when switching
 			 * to shutw */
 			MY_FD_SET(t->srv_fd, StaticReadEvent);
-			if (t->be->srvtimeout)
-				tv_delayfrom(&rep->rex, &now, t->be->srvtimeout);
+			if (t->be->beprm->srvtimeout)
+				tv_delayfrom(&rep->rex, &now, t->be->beprm->srvtimeout);
 
 			shutdown(t->srv_fd, SHUT_WR);
 			t->srv_state = SV_STSHUTW;
@@ -2222,14 +2224,14 @@ int process_srv(struct session *t)
 			/* We must ensure that the read part is still alive when switching
 			 * to shutw */
 			MY_FD_SET(t->srv_fd, StaticReadEvent);
-			if (t->be->srvtimeout)
-				tv_delayfrom(&rep->rex, &now, t->be->srvtimeout);
+			if (t->be->beprm->srvtimeout)
+				tv_delayfrom(&rep->rex, &now, t->be->beprm->srvtimeout);
 
 			/* We must ensure that the read part is still alive when switching
 			 * to shutw */
 			MY_FD_SET(t->srv_fd, StaticReadEvent);
-			if (t->be->srvtimeout)
-				tv_delayfrom(&rep->rex, &now, t->be->srvtimeout);
+			if (t->be->beprm->srvtimeout)
+				tv_delayfrom(&rep->rex, &now, t->be->beprm->srvtimeout);
 
 			t->srv_state = SV_STSHUTW;
 			if (!(t->flags & SN_ERR_MASK))
@@ -2248,8 +2250,8 @@ int process_srv(struct session *t)
 		else { /* client buffer not empty */
 			if (! MY_FD_ISSET(t->srv_fd, StaticWriteEvent)) {
 				MY_FD_SET(t->srv_fd, StaticWriteEvent); /* restart writing */
-				if (t->be->srvtimeout) {
-					tv_delayfrom(&req->wex, &now, t->be->srvtimeout);
+				if (t->be->beprm->srvtimeout) {
+					tv_delayfrom(&req->wex, &now, t->be->beprm->srvtimeout);
 					/* FIXME: to prevent the server from expiring read timeouts during writes,
 					 * we refresh it. */
 					rep->rex = req->wex;
@@ -2286,7 +2288,7 @@ int process_srv(struct session *t)
 			/* We used to have a free connection slot. Since we'll never use it,
 			 * we have to inform the server that it may be used by another session.
 			 */
-			if (may_dequeue_tasks(t->srv, t->be))
+			if (may_dequeue_tasks(t->srv, t->be->beprm))
 				task_wakeup(&rq, t->srv->queue_mgt);
 
 			return 1;
@@ -2308,8 +2310,8 @@ int process_srv(struct session *t)
 			/* We must ensure that the read part is still alive when switching
 			 * to shutw */
 			MY_FD_SET(t->srv_fd, StaticReadEvent);
-			if (t->be->srvtimeout)
-				tv_delayfrom(&rep->rex, &now, t->be->srvtimeout);
+			if (t->be->beprm->srvtimeout)
+				tv_delayfrom(&rep->rex, &now, t->be->beprm->srvtimeout);
 
 			t->srv_state = SV_STSHUTW;
 			return 1;
@@ -2334,8 +2336,8 @@ int process_srv(struct session *t)
 			/* We must ensure that the read part is still alive when switching
 			 * to shutw */
 			MY_FD_SET(t->srv_fd, StaticReadEvent);
-			if (t->be->srvtimeout)
-				tv_delayfrom(&rep->rex, &now, t->be->srvtimeout);
+			if (t->be->beprm->srvtimeout)
+				tv_delayfrom(&rep->rex, &now, t->be->beprm->srvtimeout);
 			t->srv_state = SV_STSHUTW;
 			if (!(t->flags & SN_ERR_MASK))
 				t->flags |= SN_ERR_SRVTO;
@@ -2354,8 +2356,8 @@ int process_srv(struct session *t)
 		else { /* buffer not empty, there are still data to be transferred */
 			if (! MY_FD_ISSET(t->srv_fd, StaticWriteEvent)) {
 				MY_FD_SET(t->srv_fd, StaticWriteEvent); /* restart writing */
-				if (t->be->srvtimeout) {
-					tv_delayfrom(&req->wex, &now, t->be->srvtimeout);
+				if (t->be->beprm->srvtimeout) {
+					tv_delayfrom(&req->wex, &now, t->be->beprm->srvtimeout);
 					/* FIXME: to prevent the server from expiring read timeouts during writes,
 					 * we refresh it. */
 					rep->rex = req->wex;
@@ -2375,8 +2377,8 @@ int process_srv(struct session *t)
 		else {
 			if (! MY_FD_ISSET(t->srv_fd, StaticReadEvent)) {
 				MY_FD_SET(t->srv_fd, StaticReadEvent);
-				if (t->be->srvtimeout)
-					tv_delayfrom(&rep->rex, &now, t->be->srvtimeout);
+				if (t->be->beprm->srvtimeout)
+					tv_delayfrom(&rep->rex, &now, t->be->beprm->srvtimeout);
 				else
 					tv_eternity(&rep->rex);
 			}
@@ -2403,7 +2405,7 @@ int process_srv(struct session *t)
 			/* We used to have a free connection slot. Since we'll never use it,
 			 * we have to inform the server that it may be used by another session.
 			 */
-			if (may_dequeue_tasks(t->srv, t->be))
+			if (may_dequeue_tasks(t->srv, t->be->beprm))
 				task_wakeup(&rq, t->srv->queue_mgt);
 
 			return 1;
@@ -2419,7 +2421,7 @@ int process_srv(struct session *t)
 			/* We used to have a free connection slot. Since we'll never use it,
 			 * we have to inform the server that it may be used by another session.
 			 */
-			if (may_dequeue_tasks(t->srv, t->be))
+			if (may_dequeue_tasks(t->srv, t->be->beprm))
 				task_wakeup(&rq, t->srv->queue_mgt);
 
 			return 1;
@@ -2439,7 +2441,7 @@ int process_srv(struct session *t)
 			/* We used to have a free connection slot. Since we'll never use it,
 			 * we have to inform the server that it may be used by another session.
 			 */
-			if (may_dequeue_tasks(t->srv, t->be))
+			if (may_dequeue_tasks(t->srv, t->be->beprm))
 				task_wakeup(&rq, t->srv->queue_mgt);
 
 			return 1;
@@ -2453,8 +2455,8 @@ int process_srv(struct session *t)
 		else { /* buffer not empty */
 			if (! MY_FD_ISSET(t->srv_fd, StaticWriteEvent)) {
 				MY_FD_SET(t->srv_fd, StaticWriteEvent); /* restart writing */
-				if (t->be->srvtimeout) {
-					tv_delayfrom(&req->wex, &now, t->be->srvtimeout);
+				if (t->be->beprm->srvtimeout) {
+					tv_delayfrom(&req->wex, &now, t->be->beprm->srvtimeout);
 					/* FIXME: to prevent the server from expiring read timeouts during writes,
 					 * we refresh it. */
 					rep->rex = req->wex;
@@ -2484,7 +2486,7 @@ int process_srv(struct session *t)
 			/* We used to have a free connection slot. Since we'll never use it,
 			 * we have to inform the server that it may be used by another session.
 			 */
-			if (may_dequeue_tasks(t->srv, t->be))
+			if (may_dequeue_tasks(t->srv, t->be->beprm))
 				task_wakeup(&rq, t->srv->queue_mgt);
 
 			return 1;
@@ -2500,7 +2502,7 @@ int process_srv(struct session *t)
 			/* We used to have a free connection slot. Since we'll never use it,
 			 * we have to inform the server that it may be used by another session.
 			 */
-			if (may_dequeue_tasks(t->srv, t->be))
+			if (may_dequeue_tasks(t->srv, t->be->beprm))
 				task_wakeup(&rq, t->srv->queue_mgt);
 
 			return 1;
@@ -2520,7 +2522,7 @@ int process_srv(struct session *t)
 			/* We used to have a free connection slot. Since we'll never use it,
 			 * we have to inform the server that it may be used by another session.
 			 */
-			if (may_dequeue_tasks(t->srv, t->be))
+			if (may_dequeue_tasks(t->srv, t->be->beprm))
 				task_wakeup(&rq, t->srv->queue_mgt);
 
 			return 1;
@@ -2534,8 +2536,8 @@ int process_srv(struct session *t)
 		else {
 			if (! MY_FD_ISSET(t->srv_fd, StaticReadEvent)) {
 				MY_FD_SET(t->srv_fd, StaticReadEvent);
-				if (t->be->srvtimeout)
-					tv_delayfrom(&rep->rex, &now, t->be->srvtimeout);
+				if (t->be->beprm->srvtimeout)
+					tv_delayfrom(&rep->rex, &now, t->be->beprm->srvtimeout);
 				else
 					tv_eternity(&rep->rex);
 			}
@@ -2545,7 +2547,7 @@ int process_srv(struct session *t)
 	else { /* SV_STCLOSE : nothing to do */
 		if ((global.mode & MODE_DEBUG) && (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))) {
 			int len;
-			len = sprintf(trash, "%08x:%s.srvcls[%04x:%04x]\n", t->uniq_id, t->be->id, (unsigned short)t->cli_fd, (unsigned short)t->srv_fd);
+			len = sprintf(trash, "%08x:%s.srvcls[%04x:%04x]\n", t->uniq_id, t->be->beprm->id, (unsigned short)t->cli_fd, (unsigned short)t->srv_fd);
 			write(1, trash, len);
 		}
 		return 0;
@@ -2720,13 +2722,13 @@ int produce_content(struct session *s)
 				if (px->state == PR_STSTOPPED)
 					goto next_proxy;
 
-				if (s->fi->uri_auth && s->fi->uri_auth->scope) {
+				if (s->be->fiprm->uri_auth && s->be->fiprm->uri_auth->scope) {
 					/* we have a limited scope, we have to check the proxy name */
 					struct stat_scope *scope;
 					int len;
 
 					len = strlen(px->id);
-					scope = s->fi->uri_auth->scope;
+					scope = s->be->fiprm->uri_auth->scope;
 
 					while (scope) {
 						/* match exact proxy name */
@@ -3088,12 +3090,10 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 	char *cur_ptr, *cur_end, *cur_next;
 	int cur_idx, old_idx, abort_filt;
 
-	if (t->be->cookie_name == NULL &&
-	    t->be->appsession_name ==NULL &&
-	    t->fi->capture_name != NULL)
+	if (t->be->beprm->cookie_name == NULL &&
+	    t->be->beprm->appsession_name ==NULL &&
+	    t->be->fiprm->capture_name != NULL)
 		return;
-
-
 
 	/* Iterate through the headers.
 	 * we start with the start line.
@@ -3193,26 +3193,26 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 			}
 			else {
 				/* first, let's see if we want to capture it */
-				if (t->fi->capture_name != NULL &&
+				if (t->fe->fiprm->capture_name != NULL &&
 				    t->logs.cli_cookie == NULL &&
-				    (p4 - p1 >= t->fi->capture_namelen) &&
-				    memcmp(p1, t->fi->capture_name, t->fi->capture_namelen) == 0) {
+				    (p4 - p1 >= t->fe->fiprm->capture_namelen) &&
+				    memcmp(p1, t->fe->fiprm->capture_name, t->fe->fiprm->capture_namelen) == 0) {
 					int log_len = p4 - p1;
 
 					if ((t->logs.cli_cookie = pool_alloc(capture)) == NULL) {
 						Alert("HTTP logging : out of memory.\n");
 					} else {
-						if (log_len > t->fi->capture_len)
-							log_len = t->fi->capture_len;
+						if (log_len > t->fe->fiprm->capture_len)
+							log_len = t->fe->fiprm->capture_len;
 						memcpy(t->logs.cli_cookie, p1, log_len);
 						t->logs.cli_cookie[log_len] = 0;
 					}
 				}
 
-				if ((p2 - p1 == t->be->cookie_len) && (t->be->cookie_name != NULL) &&
-				    (memcmp(p1, t->be->cookie_name, p2 - p1) == 0)) {
+				if ((p2 - p1 == t->be->beprm->cookie_len) && (t->be->beprm->cookie_name != NULL) &&
+				    (memcmp(p1, t->be->beprm->cookie_name, p2 - p1) == 0)) {
 					/* Cool... it's the right one */
-					struct server *srv = t->be->srv;
+					struct server *srv = t->be->beprm->srv;
 					char *delim;
 
 					/* if we're in cookie prefix mode, we'll search the delimitor so that we
@@ -3230,7 +3230,7 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 					 * +------------------------> cur_ptr
 					 */
 
-					if (t->be->options & PR_O_COOK_PFX) {
+					if (t->be->beprm->options & PR_O_COOK_PFX) {
 						for (delim = p3; delim < p4; delim++)
 							if (*delim == COOKIE_DELIM)
 								break;
@@ -3251,7 +3251,7 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 
 					while (srv) {
 						if ((srv->cklen == delim - p3) && !memcmp(p3, srv->cookie, delim - p3)) {
-							if (srv->state & SRV_RUNNING || t->be->options & PR_O_PERSIST) {
+							if (srv->state & SRV_RUNNING || t->be->beprm->options & PR_O_PERSIST) {
 								/* we found the server and it's usable */
 								t->flags &= ~SN_CK_MASK;
 								t->flags |= SN_CK_VALID | SN_DIRECT | SN_ASSIGNED;
@@ -3279,7 +3279,7 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 					 *   application cookie so that it does not get accidentely removed later,
 					 *   if we're in cookie prefix mode
 					 */
-					if ((t->be->options & PR_O_COOK_PFX) && (delim != p4)) {
+					if ((t->be->beprm->options & PR_O_COOK_PFX) && (delim != p4)) {
 						int delta; /* negative */
 
 						delta = buffer_replace2(req, p3, delim + 1, NULL, 0);
@@ -3293,7 +3293,7 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 						app_cookies++;	/* protect the header from deletion */
 					}
 					else if (del_cookie == NULL &&
-						 (t->be->options & (PR_O_COOK_INS | PR_O_COOK_IND)) == (PR_O_COOK_INS | PR_O_COOK_IND)) {
+						 (t->be->beprm->options & (PR_O_COOK_INS | PR_O_COOK_IND)) == (PR_O_COOK_INS | PR_O_COOK_IND)) {
 						del_cookie = p1;
 						del_colon = colon;
 					}
@@ -3318,8 +3318,8 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 					}
 				}
 
-				if ((t->be->appsession_name != NULL) &&
-				    (memcmp(p1, t->be->appsession_name, p2 - p1) == 0)) {
+				if ((t->be->beprm->appsession_name != NULL) &&
+				    (memcmp(p1, t->be->beprm->appsession_name, p2 - p1) == 0)) {
 					/* first, let's see if the cookie is our appcookie*/
 			    
 					/* Cool... it's the right one */
@@ -3332,12 +3332,12 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 						return;
 					}
 
-					memcpy(asession_temp->sessid, p3, t->be->appsession_len);
-					asession_temp->sessid[t->be->appsession_len] = 0;
+					memcpy(asession_temp->sessid, p3, t->be->beprm->appsession_len);
+					asession_temp->sessid[t->be->beprm->appsession_len] = 0;
 					asession_temp->serverid = NULL;
 			    
 					/* only do insert, if lookup fails */
-					if (chtbl_lookup(&(t->be->htbl_proxy), (void *) &asession_temp) != 0) {
+					if (chtbl_lookup(&(t->be->beprm->htbl_proxy), (void *) &asession_temp) != 0) {
 						if ((asession_temp = pool_alloc(appsess)) == NULL) {
 							/* free previously allocated memory */
 							pool_free_to(apools.sessid, local_asession.sessid);
@@ -3348,7 +3348,7 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 
 						asession_temp->sessid = local_asession.sessid;
 						asession_temp->serverid = local_asession.serverid;
-						chtbl_insert(&(t->be->htbl_proxy), (void *) asession_temp);
+						chtbl_insert(&(t->be->beprm->htbl_proxy), (void *) asession_temp);
 					} else {
 						/* free previously allocated memory */
 						pool_free_to(apools.sessid, local_asession.sessid);
@@ -3357,10 +3357,10 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 					if (asession_temp->serverid == NULL) {
 						Alert("Found Application Session without matching server.\n");
 					} else {
-						struct server *srv = t->be->srv;
+						struct server *srv = t->be->beprm->srv;
 						while (srv) {
 							if (strcmp(srv->id, asession_temp->serverid) == 0) {
-								if (srv->state & SRV_RUNNING || t->be->options & PR_O_PERSIST) {
+								if (srv->state & SRV_RUNNING || t->be->beprm->options & PR_O_PERSIST) {
 									/* we found the server and it's usable */
 									t->flags &= ~SN_CK_MASK;
 									t->flags |= SN_CK_VALID | SN_DIRECT | SN_ASSIGNED;
@@ -3375,7 +3375,7 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 						}/* end while(srv) */
 					}/* end else if server == NULL */
 
-					tv_delayfrom(&asession_temp->expire, &now, t->be->appsession_timeout);
+					tv_delayfrom(&asession_temp->expire, &now, t->be->beprm->appsession_timeout);
 				}/* end if ((t->proxy->appsession_name != NULL) ... */
 			}
 
@@ -3427,21 +3427,21 @@ void get_srv_from_appsession(struct session *t, const char *begin, const char *e
 	appsess local_asession;
 	char *request_line;
 
-	if (t->be->appsession_name == NULL ||
+	if (t->be->beprm->appsession_name == NULL ||
 	    (t->hreq.meth != HTTP_METH_GET && t->hreq.meth != HTTP_METH_POST) ||
 	    (request_line = memchr(begin, ';', end - begin)) == NULL ||
-	    ((1 + t->be->appsession_name_len + 1 + t->be->appsession_len) > (end - request_line)))
+	    ((1 + t->be->beprm->appsession_name_len + 1 + t->be->beprm->appsession_len) > (end - request_line)))
 		return;
 
 	/* skip ';' */
 	request_line++;
 
 	/* look if we have a jsessionid */
-	if (strncasecmp(request_line, t->be->appsession_name, t->be->appsession_name_len) != 0)
+	if (strncasecmp(request_line, t->be->beprm->appsession_name, t->be->beprm->appsession_name_len) != 0)
 		return;
 
 	/* skip jsessionid= */
-	request_line += t->be->appsession_name_len + 1;
+	request_line += t->be->beprm->appsession_name_len + 1;
 	
 	/* First try if we already have an appsession */
 	asession_temp = &local_asession;
@@ -3453,12 +3453,12 @@ void get_srv_from_appsession(struct session *t, const char *begin, const char *e
 	}
 	
 	/* Copy the sessionid */
-	memcpy(asession_temp->sessid, request_line, t->be->appsession_len);
-	asession_temp->sessid[t->be->appsession_len] = 0;
+	memcpy(asession_temp->sessid, request_line, t->be->beprm->appsession_len);
+	asession_temp->sessid[t->be->beprm->appsession_len] = 0;
 	asession_temp->serverid = NULL;
 	
 	/* only do insert, if lookup fails */
-	if (chtbl_lookup(&(t->be->htbl_proxy), (void *)&asession_temp)) {
+	if (chtbl_lookup(&(t->be->beprm->htbl_proxy), (void *)&asession_temp)) {
 		if ((asession_temp = pool_alloc(appsess)) == NULL) {
 			/* free previously allocated memory */
 			pool_free_to(apools.sessid, local_asession.sessid);
@@ -3468,14 +3468,14 @@ void get_srv_from_appsession(struct session *t, const char *begin, const char *e
 		}
 		asession_temp->sessid = local_asession.sessid;
 		asession_temp->serverid = local_asession.serverid;
-		chtbl_insert(&(t->be->htbl_proxy), (void *) asession_temp);
+		chtbl_insert(&(t->be->beprm->htbl_proxy), (void *) asession_temp);
 	}
 	else {
 		/* free previously allocated memory */
 		pool_free_to(apools.sessid, local_asession.sessid);
 	}
 	
-	tv_delayfrom(&asession_temp->expire, &now, t->be->appsession_timeout);
+	tv_delayfrom(&asession_temp->expire, &now, t->be->beprm->appsession_timeout);
 	asession_temp->request_count++;
 	
 #if defined(DEBUG_HASH)
@@ -3484,10 +3484,10 @@ void get_srv_from_appsession(struct session *t, const char *begin, const char *e
 	if (asession_temp->serverid == NULL) {
 		Alert("Found Application Session without matching server.\n");
 	} else {
-		struct server *srv = t->be->srv;
+		struct server *srv = t->be->beprm->srv;
 		while (srv) {
 			if (strcmp(srv->id, asession_temp->serverid) == 0) {
-				if (srv->state & SRV_RUNNING || t->be->options & PR_O_PERSIST) {
+				if (srv->state & SRV_RUNNING || t->be->beprm->options & PR_O_PERSIST) {
 					/* we found the server and it's usable */
 					t->flags &= ~SN_CK_MASK;
 					t->flags |= SN_CK_VALID | SN_DIRECT | SN_ASSIGNED;
@@ -3509,7 +3509,7 @@ void get_srv_from_appsession(struct session *t, const char *begin, const char *e
  * In a GET request, check if the requested URI matches the stats uri for the
  * current backend, and if an authorization has been passed and is valid.
  *
- * It is assumed that the request is a GET and that the t->be->uri_auth field
+ * It is assumed that the request is a GET and that the t->be->fiprm->uri_auth field
  * is valid. An HTTP/401 response may be sent, or produce_content() can be
  * called to start sending data.
  *
