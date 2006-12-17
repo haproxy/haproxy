@@ -515,22 +515,51 @@ int process_cli(struct session *t)
 #endif
 
 			} else if (parse == HTTP_PA_HEADER) {
-			parse_inside_hdr:
+				char *ptr;
 				/* Inside a non-empty header */
 
+			parse_inside_hdr:
 				delete_header = 0;
-				while (req->lr < req->r && !IS_CTL(*req->lr))
-					req->lr++;
-				if (req->lr == req->r)
+
+				ptr = req->lr;
+
+#ifdef GCC_FINALLY_PRODUCES_EFFICIENT_WHILE_LOOPS
+				/* This code is disabled right now because
+				 * eventhough it seems straightforward, the
+				 * object code produced by GCC is so much
+				 * suboptimal that about 10% of the time
+				 * spend parsing header is there.
+				 */
+				while (ptr < req->r && !IS_CTL(*ptr))
+					ptr++;
+				req->lr = ptr;
+				if (ptr == req->r)
 					break;
+#else
+				/* Just by using this loop instead of the previous one,
+				 * the global performance increases by about 2% ! The
+				 * code is also smaller by about 50 bytes.
+				 */
+				goto reqhdr_loop_chk;
+			reqhdr_loop:
+				ptr++;
+			reqhdr_loop_chk:
+				if (ptr == req->r) {
+					req->lr = ptr;
+					break;
+				}
+				if (*ptr != 0x7F && (unsigned)*ptr >= 0x20)
+					goto reqhdr_loop;
+				req->lr = ptr;
+#endif
 
 				/* we have a CTL char */
-				if (*req->lr == '\r') {
+				if (*ptr == '\r') {
 					t->hreq.hdr_state = HTTP_PA_HDR_LF | HTTP_PA_CR_SKIP | HTTP_PA_LF_EXP;
 					req->lr++;
 					continue;
 				}
-				else if (*req->lr == '\n') {
+				else if (*ptr == '\n') {
 					t->hreq.hdr_state = HTTP_PA_HDR_LF;
 					QUICK_JUMP(parse_hdr_lf, continue);
 				}
@@ -577,19 +606,49 @@ int process_cli(struct session *t)
 				QUICK_JUMP(parse_start, continue);
 
 			} else if (parse == HTTP_PA_START) {
+				char *ptr;
+				/* Inside the start line */
+
 			parse_start:
-				/* Start line */
-				while (req->lr < req->r && !IS_CTL(*req->lr))
-					req->lr++;
-				if (req->lr == req->r)
+				ptr = req->lr;
+
+#ifdef GCC_FINALLY_PRODUCES_EFFICIENT_WHILE_LOOPS
+				/* This code is disabled right now because
+				 * eventhough it seems straightforward, the
+				 * object code produced by GCC is so much
+				 * suboptimal that about 10% of the time
+				 * spend parsing header is there.
+				 */
+				while (ptr < req->r && !IS_CTL(*ptr))
+					ptr++;
+				req->lr = ptr;
+				if (ptr == req->r)
 					break;
+#else
+				/* Just by using this loop instead of the previous one,
+				 * the global performance increases by about 2% ! The
+				 * code is also smaller by about 50 bytes.
+				 */
+				goto reqstrt_loop_chk;
+			reqstrt_loop:
+				ptr++;
+			reqstrt_loop_chk:
+				if (ptr == req->r) {
+					req->lr = ptr;
+					break;
+				}
+				if (*ptr != 0x7F && (unsigned)*ptr >= 0x20)
+					goto reqstrt_loop;
+				req->lr = ptr;
+#endif
+
 				/* we have a CTL char */
-				if (*req->lr == '\r') {
+				if (*ptr == '\r') {
 					req->lr++;
 					t->hreq.hdr_state = HTTP_PA_STRT_LF | HTTP_PA_CR_SKIP | HTTP_PA_LF_EXP;
 					continue;
 				}
-				else if (*req->lr == '\n') {
+				else if (*ptr == '\n') {
 					t->hreq.hdr_state = HTTP_PA_STRT_LF;
 					/* we know that we still have one char available */
 					QUICK_JUMP(parse_strt_lf, continue);
@@ -765,13 +824,15 @@ int process_cli(struct session *t)
 		 * filters and various options. In order to support 3-level
 		 * switching, here's how we should proceed :
 		 *
-		 *  a) run fe->filters.
+		 *  a) run be->filters.
 		 *     if (switch) then switch ->fi and ->be to the new backend.
-		 *  b) run fi->filters.
+		 *  b) run be->filters.
 		 *     If there's another switch, then switch ->be to the new be.
 		 *  c) run be->filters
 		 *     There cannot be any switch from there, so ->be cannot be
 		 *     changed anymore.
+		 *
+		 *  => filters always apply to ->be, then ->be may change.
 		 *
 		 *  The response path will be able to apply either ->be, or
 		 *  ->be then ->fi, or ->be then ->fi then ->fe filters in order
@@ -779,12 +840,7 @@ int process_cli(struct session *t)
 		 */
 
 		do {
-			if (t->fi == t->fe)
-				rule_set = t->fe;
-			else if (t->be == t->fi)
-				rule_set = t->fi;
-			else
-				rule_set = t->be;
+			rule_set = t->be;
 
 			/* try headers filters */
 			if (rule_set->req_exp != NULL)
@@ -815,9 +871,11 @@ int process_cli(struct session *t)
 		} while (rule_set != t->be);  /* we loop only if t->be has changed */
 		
 
-		/* Right now, we know that we have processed the entire headers
+		/*
+		 * Right now, we know that we have processed the entire headers
 		 * and that unwanted requests have been filtered out. We can do
-		 * whatever we want with the remaining request.
+		 * whatever we want with the remaining request. Also, now we
+		 * may have separate values for ->fe, ->fi and ->be.
 		 */
 
 
