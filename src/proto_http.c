@@ -55,6 +55,17 @@
 #define DEBUG_PARSE_NO_SPEEDUP
 #undef DEBUG_PARSE_NO_SPEEDUP
 
+/* This is used to perform a quick jump as an alternative to a break/continue
+ * instruction. The first argument is the label for normal operation, and the
+ * second one is the break/continue instruction in the no_speedup mode.
+ */
+
+#ifdef DEBUG_PARSE_NO_SPEEDUP
+#define QUICK_JUMP(x,y) y
+#else
+#define QUICK_JUMP(x,y) goto x
+#endif
+
 /* This is used by remote monitoring */
 const char *HTTP_200 =
 	"HTTP/1.0 200 OK\r\n"
@@ -285,156 +296,7 @@ int process_cli(struct session *t)
 
 			parse = t->hreq.hdr_state & ~HTTP_PA_CR_SKIP;;
 
-			if (parse == HTTP_PA_EMPTY) {
-				/* leading empty lines */
-
-				if (*req->lr == '\n') {
-					req->lr ++;
-					t->hreq.hdr_state = HTTP_PA_EMPTY;
-					continue;
-				}
-				else if (*req->lr == '\r') {
-					req->lr ++;
-					t->hreq.hdr_state = HTTP_PA_EMPTY | HTTP_PA_CR_SKIP | HTTP_PA_LF_EXP;
-					continue;
-				}				
-
-				FSM_PRINTF(stderr, "PA_EMPTY[0]: h=%d, lr=%d, r=%d\n",
-					sol - req->data, req->lr - req->data, req->r - req->data);
-#if PARSE_PRESERVE_EMPTY_LINES
-				/* only skip empty leading lines, don't remove them */
-				t->hreq.hdr_idx.v[0].len = req->lr - sol;
-				t->hreq.sor = t->hreq.hdr_idx.v[0].len;
-#else
-				/* remove empty leading lines, as recommended by
-				 * RFC2616. This takes a lot of time because we
-				 * must move all the buffer backwards, but this
-				 * is rarely needed. The method above will be
-				 * cleaner when we'll be able to start sending
-				 * the request from any place in the buffer.
-				 */
-				buffer_replace2(req, sol, req->lr, NULL, 0);
-#endif
-				sol = req->lr;
-				FSM_PRINTF(stderr, "PA_EMPTY[1]: h=%d, lr=%d, r=%d\n",
-					sol - req->data, req->lr - req->data, req->r - req->data);
-
-				t->hreq.hdr_state = HTTP_PA_START;
-#ifndef DEBUG_PARSE_NO_SPEEDUP
-				/* we know that we still have one char available */
-				goto parse_start;
-#else
-				continue;
-#endif
-
-			} else if (parse == HTTP_PA_START) {
-			parse_start:
-				/* Start line */
-				while (req->lr < req->r && !IS_CTL(*req->lr))
-					req->lr++;
-				if (req->lr == req->r)
-					break;
-				/* we have a CTL char */
-				if (*req->lr == '\r') {
-					req->lr++;
-					t->hreq.hdr_state = HTTP_PA_STRT_LF | HTTP_PA_CR_SKIP | HTTP_PA_LF_EXP;
-					continue;
-				}
-				else if (*req->lr == '\n') {
-					t->hreq.hdr_state = HTTP_PA_STRT_LF;
-#ifndef DEBUG_PARSE_NO_SPEEDUP
-					/* we know that we still have one char available */
-					goto parse_strt_lf;
-#else
-					continue;
-#endif
-				}
-				t->hreq.hdr_state = HTTP_PA_ERROR;
-				break;
-
-			} else if (parse == HTTP_PA_STRT_LF) {
-			parse_strt_lf:
-				/* The LF validating the request line */
-
-				eol = req->lr;
-				if (t->hreq.hdr_state & HTTP_PA_CR_SKIP)
-					eol--; /* Get back to the CR */
-
-				/* We have the complete start line between
-				 * sol and eol (excluded). lr points to
-				 * the LF.
-				 */
-
-				/* FIXME: insert a REQUESTURI hook here. */
-
-
-				/* 1: we might have to print this header */
-				if ((global.mode & MODE_DEBUG) &&
-				    (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))
-					debug_hdr("clireq", t, sol, eol);
-
-				/* 2: maybe we have to copy the original REQURI for the logs ? */
-				if (t->logs.logwait & LW_REQ) {
-					/* we have a complete HTTP request that we must log */
-					if ((t->logs.uri = pool_alloc(requri)) != NULL) {
-						int urilen = eol - sol;
-
-						if (urilen >= REQURI_LEN)
-							urilen = REQURI_LEN - 1;
-						memcpy(t->logs.uri, sol, urilen);
-						t->logs.uri[urilen] = 0;
-
-						if (!(t->logs.logwait &= ~LW_REQ))
-							sess_log(t);
-					} else {
-						Alert("HTTP logging : out of memory.\n");
-					}
-				}
-
-				/* 3: reference this line as the start line */
-				if (hdr_idx_add(eol - sol, req->lr - eol,
-						&t->hreq.hdr_idx, t->hreq.hdr_idx.tail) < 0) {
-					t->hreq.hdr_state = HTTP_PA_ERROR;
-					break;
-				}
-
-				req->lr++;
-				sol = req->lr;
-				/* in fact, a state is missing here, we should
-				 * be able to distinguish between an empty line
-				 * and a header.
-				 */
-				t->hreq.hdr_state = HTTP_PA_HEADER;
-				continue;
-
-			} else if (parse == HTTP_PA_HEADER) {
-			parse_inside_hdr:
-				/* Inside a non-empty header */
-
-				delete_header = 0;
-				while (req->lr < req->r && !IS_CTL(*req->lr))
-					req->lr++;
-				if (req->lr == req->r)
-					break;
-
-				/* we have a CTL char */
-				if (*req->lr == '\r') {
-					t->hreq.hdr_state = HTTP_PA_HDR_LF | HTTP_PA_CR_SKIP | HTTP_PA_LF_EXP;
-					req->lr++;
-					continue;
-				}
-				else if (*req->lr == '\n') {
-					t->hreq.hdr_state = HTTP_PA_HDR_LF;
-#ifndef DEBUG_PARSE_NO_SPEEDUP
-					goto parse_hdr_lf;
-#else
-					continue;
-#endif
-				}
-				t->hreq.hdr_state = HTTP_PA_ERROR;
-				break;
-
-			} else if (parse == HTTP_PA_HDR_LF) {
+			if (parse == HTTP_PA_HDR_LF) {
 			parse_hdr_lf:
 				/* The LF validating last header, but it
 				 * may also be an LWS, in which case we will
@@ -455,13 +317,7 @@ int process_cli(struct session *t)
 					 * anything there.
 					 */
 					t->hreq.hdr_state = HTTP_PA_LFLF;
-#ifndef DEBUG_PARSE_NO_SPEEDUP
-					goto parse_lflf;
-#else
-					continue;
-#endif
-					//req->lr++;
-					//break;
+					QUICK_JUMP(parse_lflf, continue);
 				}
 
 				if (req->lr + 1 >= req->r) /* LF, ?? */
@@ -482,11 +338,7 @@ int process_cli(struct session *t)
 						*eol = ' ';
 
 					t->hreq.hdr_state = HTTP_PA_HDR_LWS;
-#ifndef DEBUG_PARSE_NO_SPEEDUP
-					goto parse_hdr_lws;
-#else
-					continue;
-#endif
+					QUICK_JUMP(parse_hdr_lws, continue);
 				}
 
 				/**********************************************
@@ -571,7 +423,10 @@ int process_cli(struct session *t)
 				 */
 				sol = req->lr;
 
-#ifndef DEBUG_PARSE_NO_SPEEDUP
+#ifdef DEBUG_PARSE_NO_SPEEDUP
+				t->hreq.hdr_state = HTTP_PA_HEADER;
+				continue;
+#else
 				/*
 				 * We know that at least one character remains.
 				 * It is interesting to directly branch to the
@@ -595,10 +450,165 @@ int process_cli(struct session *t)
 				}
 				t->hreq.hdr_state = HTTP_PA_HEADER;
 				goto parse_inside_hdr;
-#else
-				t->hreq.hdr_state = HTTP_PA_HEADER;
-				continue;
 #endif
+
+			} else if (parse == HTTP_PA_STRT_LF) {
+			parse_strt_lf:
+				/* The LF validating the request line */
+
+				eol = req->lr;
+				if (t->hreq.hdr_state & HTTP_PA_CR_SKIP)
+					eol--; /* Get back to the CR */
+
+				/* We have the complete start line between
+				 * sol and eol (excluded). lr points to
+				 * the LF.
+				 */
+
+				/* FIXME: insert a REQUESTURI hook here. */
+
+
+				/* 1: we might have to print this header */
+				if ((global.mode & MODE_DEBUG) &&
+				    (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))
+					debug_hdr("clireq", t, sol, eol);
+
+				/* 2: maybe we have to copy the original REQURI for the logs ? */
+				if (t->logs.logwait & LW_REQ) {
+					/* we have a complete HTTP request that we must log */
+					if ((t->logs.uri = pool_alloc(requri)) != NULL) {
+						int urilen = eol - sol;
+
+						if (urilen >= REQURI_LEN)
+							urilen = REQURI_LEN - 1;
+						memcpy(t->logs.uri, sol, urilen);
+						t->logs.uri[urilen] = 0;
+
+						if (!(t->logs.logwait &= ~LW_REQ))
+							sess_log(t);
+					} else {
+						Alert("HTTP logging : out of memory.\n");
+					}
+				}
+
+				/* 3: reference this line as the start line */
+				if (hdr_idx_add(eol - sol, req->lr - eol,
+						&t->hreq.hdr_idx, t->hreq.hdr_idx.tail) < 0) {
+					t->hreq.hdr_state = HTTP_PA_ERROR;
+					break;
+				}
+
+				req->lr++;
+				sol = req->lr;
+				/* in fact, a state is missing here, we should
+				 * be able to distinguish between an empty line
+				 * and a header.
+				 */
+				t->hreq.hdr_state = HTTP_PA_HEADER;
+#ifdef DEBUG_PARSE_NO_SPEEDUP
+				continue;
+#else
+				if (req->lr < req->r)
+					goto parse_inside_hdr;
+				else
+					break;
+#endif
+
+			} else if (parse == HTTP_PA_HEADER) {
+			parse_inside_hdr:
+				/* Inside a non-empty header */
+
+				delete_header = 0;
+				while (req->lr < req->r && !IS_CTL(*req->lr))
+					req->lr++;
+				if (req->lr == req->r)
+					break;
+
+				/* we have a CTL char */
+				if (*req->lr == '\r') {
+					t->hreq.hdr_state = HTTP_PA_HDR_LF | HTTP_PA_CR_SKIP | HTTP_PA_LF_EXP;
+					req->lr++;
+					continue;
+				}
+				else if (*req->lr == '\n') {
+					t->hreq.hdr_state = HTTP_PA_HDR_LF;
+					QUICK_JUMP(parse_hdr_lf, continue);
+				}
+				t->hreq.hdr_state = HTTP_PA_ERROR;
+				break;
+
+			} else if (parse == HTTP_PA_EMPTY) {
+				/* leading empty lines */
+
+				if (*req->lr == '\n') {
+					req->lr ++;
+					t->hreq.hdr_state = HTTP_PA_EMPTY;
+					continue;
+				}
+				else if (*req->lr == '\r') {
+					req->lr ++;
+					t->hreq.hdr_state = HTTP_PA_EMPTY | HTTP_PA_CR_SKIP | HTTP_PA_LF_EXP;
+					continue;
+				}				
+
+				FSM_PRINTF(stderr, "PA_EMPTY[0]: h=%d, lr=%d, r=%d\n",
+					sol - req->data, req->lr - req->data, req->r - req->data);
+
+#if PARSE_PRESERVE_EMPTY_LINES
+				/* only skip empty leading lines, don't remove them */
+				t->hreq.hdr_idx.v[0].len = req->lr - sol;
+				t->hreq.sor = t->hreq.hdr_idx.v[0].len;
+#else
+				/* remove empty leading lines, as recommended by
+				 * RFC2616. This takes a lot of time because we
+				 * must move all the buffer backwards, but this
+				 * is rarely needed. The method above will be
+				 * cleaner when we'll be able to start sending
+				 * the request from any place in the buffer.
+				 */
+				buffer_replace2(req, sol, req->lr, NULL, 0);
+#endif
+				sol = req->lr;
+				FSM_PRINTF(stderr, "PA_EMPTY[1]: h=%d, lr=%d, r=%d\n",
+					sol - req->data, req->lr - req->data, req->r - req->data);
+
+				t->hreq.hdr_state = HTTP_PA_START;
+				/* we know that we still have one char available */
+				QUICK_JUMP(parse_start, continue);
+
+			} else if (parse == HTTP_PA_START) {
+			parse_start:
+				/* Start line */
+				while (req->lr < req->r && !IS_CTL(*req->lr))
+					req->lr++;
+				if (req->lr == req->r)
+					break;
+				/* we have a CTL char */
+				if (*req->lr == '\r') {
+					req->lr++;
+					t->hreq.hdr_state = HTTP_PA_STRT_LF | HTTP_PA_CR_SKIP | HTTP_PA_LF_EXP;
+					continue;
+				}
+				else if (*req->lr == '\n') {
+					t->hreq.hdr_state = HTTP_PA_STRT_LF;
+					/* we know that we still have one char available */
+					QUICK_JUMP(parse_strt_lf, continue);
+				}
+				t->hreq.hdr_state = HTTP_PA_ERROR;
+				break;
+
+
+			} else if (parse == HTTP_PA_LFLF) {
+			parse_lflf:
+				req->lr ++;
+				/* sol points to either CR or CRLF, and
+				 * req->lr points to 1 char after LF.
+				 */
+
+				/*
+				 * FIXME: insert a hook here for the end of the headers
+				 */
+				break;
 
 			} else if (parse == HTTP_PA_HDR_LWS) {
 			parse_hdr_lws:
@@ -612,27 +622,12 @@ int process_cli(struct session *t)
 						*req->lr = ' ';
 					else if (*req->lr != ' ') {
 						t->hreq.hdr_state = HTTP_PA_HEADER;
-#ifndef DEBUG_PARSE_NO_SPEEDUP
-						goto parse_inside_hdr;
-#else
-						break;
-#endif
+						QUICK_JUMP(parse_inside_hdr, break);
 					}
 					req->lr++;
 				}
 				continue;
 
-			} else if (parse == HTTP_PA_LFLF) {
-			parse_lflf:
-				req->lr ++;
-				/* sol points to either CR or CRLF, and
-				 * req->lr points to 1 char after LF.
-				 */
-
-				/*
-				 * FIXME: insert a hook here for the end of the headers
-				 */
-				break;
 			} else if (parse == HTTP_PA_ERROR) {
 				break;
 			}
