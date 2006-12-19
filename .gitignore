@@ -1,3 +1,9 @@
-haproxy
 *.o
+*/.svn
 *~
+.flxdisk*
+.flxpkg
+.flxstatus*
+.svn
+haproxy
+src/*.o
