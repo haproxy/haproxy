@@ -2,7 +2,11 @@
 # You should use it this way :
 #   make TARGET=os CPU=cpu
 
+# Version of last tag
 VERSION := 1.3.3
+# number of changes since last tag
+SUBVERS := -34
+VERDATE := 2006/12/22
 
 # Select target OS. TARGET must match a system for which COPTS and LIBS are
 # correctly defined below.
@@ -135,6 +139,14 @@ endif
 
 ifneq ($(USE_REGPARM),)
 OPTIONS += -DCONFIG_HAP_USE_REGPARM
+endif
+
+ifneq ($(VERSION),)
+OPTIONS += -DCONFIG_HAPROXY_VERSION=\"$(VERSION)$(SUBVERS)\"
+endif
+
+ifneq ($(VERDATE),)
+OPTIONS += -DCONFIG_HAPROXY_DATE=\"$(VERDATE)\"
 endif
 
 #### end of build options
