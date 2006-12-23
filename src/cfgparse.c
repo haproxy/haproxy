@@ -25,85 +25,19 @@
 
 #include <types/capture.h>
 #include <types/global.h>
+#include <types/httperr.h>
 #include <types/polling.h>
 #include <types/proxy.h>
 #include <types/queue.h>
 
 #include <proto/backend.h>
+#include <proto/buffers.h>
 #include <proto/checks.h>
+#include <proto/httperr.h>
 #include <proto/log.h>
 #include <proto/server.h>
 #include <proto/task.h>
 
-
-const char *HTTP_302 =
-	"HTTP/1.0 302 Found\r\n"
-	"Cache-Control: no-cache\r\n"
-	"Connection: close\r\n"
-	"Location: "; /* not terminated since it will be concatenated with the URL */
-
-/* same as 302 except that the browser MUST retry with the GET method */
-const char *HTTP_303 =
-	"HTTP/1.0 303 See Other\r\n"
-	"Cache-Control: no-cache\r\n"
-	"Connection: close\r\n"
-	"Location: "; /* not terminated since it will be concatenated with the URL */
-
-const char *HTTP_400 =
-	"HTTP/1.0 400 Bad request\r\n"
-	"Cache-Control: no-cache\r\n"
-	"Connection: close\r\n"
-	"Content-Type: text/html\r\n"
-	"\r\n"
-	"<html><body><h1>400 Bad request</h1>\nYour browser sent an invalid request.\n</body></html>\n";
-
-const char *HTTP_403 =
-	"HTTP/1.0 403 Forbidden\r\n"
-	"Cache-Control: no-cache\r\n"
-	"Connection: close\r\n"
-	"Content-Type: text/html\r\n"
-	"\r\n"
-	"<html><body><h1>403 Forbidden</h1>\nRequest forbidden by administrative rules.\n</body></html>\n";
-
-const char *HTTP_408 =
-	"HTTP/1.0 408 Request Time-out\r\n"
-	"Cache-Control: no-cache\r\n"
-	"Connection: close\r\n"
-	"Content-Type: text/html\r\n"
-	"\r\n"
-	"<html><body><h1>408 Request Time-out</h1>\nYour browser didn't send a complete request in time.\n</body></html>\n";
-
-const char *HTTP_500 =
-	"HTTP/1.0 500 Server Error\r\n"
-	"Cache-Control: no-cache\r\n"
-	"Connection: close\r\n"
-	"Content-Type: text/html\r\n"
-	"\r\n"
-	"<html><body><h1>500 Server Error</h1>\nAn internal server error occured.\n</body></html>\n";
-
-const char *HTTP_502 =
-	"HTTP/1.0 502 Bad Gateway\r\n"
-	"Cache-Control: no-cache\r\n"
-	"Connection: close\r\n"
-	"Content-Type: text/html\r\n"
-	"\r\n"
-	"<html><body><h1>502 Bad Gateway</h1>\nThe server returned an invalid or incomplete response.\n</body></html>\n";
-
-const char *HTTP_503 =
-	"HTTP/1.0 503 Service Unavailable\r\n"
-	"Cache-Control: no-cache\r\n"
-	"Connection: close\r\n"
-	"Content-Type: text/html\r\n"
-	"\r\n"
-	"<html><body><h1>503 Service Unavailable</h1>\nNo server is available to handle this request.\n</body></html>\n";
-
-const char *HTTP_504 =
-	"HTTP/1.0 504 Gateway Time-out\r\n"
-	"Cache-Control: no-cache\r\n"
-	"Connection: close\r\n"
-	"Content-Type: text/html\r\n"
-	"\r\n"
-	"<html><body><h1>504 Gateway Time-out</h1>\nThe server didn't respond in time.\n</body></html>\n";
 
 /* This is the SSLv3 CLIENT HELLO packet used in conjunction with the
  * ssl-hello-chk option to ensure that the remote server speaks SSL.
@@ -477,33 +411,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		curproxy->capture_namelen = defproxy.capture_namelen;
 		curproxy->capture_len = defproxy.capture_len;
 
-		if (defproxy.errmsg.msg400)
-			curproxy->errmsg.msg400 = strdup(defproxy.errmsg.msg400);
-		curproxy->errmsg.len400 = defproxy.errmsg.len400;
 
-		if (defproxy.errmsg.msg403)
-			curproxy->errmsg.msg403 = strdup(defproxy.errmsg.msg403);
-		curproxy->errmsg.len403 = defproxy.errmsg.len403;
-
-		if (defproxy.errmsg.msg408)
-			curproxy->errmsg.msg408 = strdup(defproxy.errmsg.msg408);
-		curproxy->errmsg.len408 = defproxy.errmsg.len408;
-
-		if (defproxy.errmsg.msg500)
-			curproxy->errmsg.msg500 = strdup(defproxy.errmsg.msg500);
-		curproxy->errmsg.len500 = defproxy.errmsg.len500;
-
-		if (defproxy.errmsg.msg502)
-			curproxy->errmsg.msg502 = strdup(defproxy.errmsg.msg502);
-		curproxy->errmsg.len502 = defproxy.errmsg.len502;
-
-		if (defproxy.errmsg.msg503)
-			curproxy->errmsg.msg503 = strdup(defproxy.errmsg.msg503);
-		curproxy->errmsg.len503 = defproxy.errmsg.len503;
-
-		if (defproxy.errmsg.msg504)
-			curproxy->errmsg.msg504 = strdup(defproxy.errmsg.msg504);
-		curproxy->errmsg.len504 = defproxy.errmsg.len504;
+		for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
+			if (defproxy.errmsg[rc].str)
+				chunk_dup(&curproxy->errmsg[rc], &defproxy.errmsg[rc]);
+		}
 
 		curproxy->clitimeout = defproxy.clitimeout;
 		curproxy->contimeout = defproxy.contimeout;
@@ -533,14 +445,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		if (defproxy.check_req)     free(defproxy.check_req);
 		if (defproxy.cookie_name)   free(defproxy.cookie_name);
 		if (defproxy.capture_name)  free(defproxy.capture_name);
-		if (defproxy.errmsg.msg400) free(defproxy.errmsg.msg400);
-		if (defproxy.errmsg.msg403) free(defproxy.errmsg.msg403);
-		if (defproxy.errmsg.msg408) free(defproxy.errmsg.msg408);
-		if (defproxy.errmsg.msg500) free(defproxy.errmsg.msg500);
-		if (defproxy.errmsg.msg502) free(defproxy.errmsg.msg502);
-		if (defproxy.errmsg.msg503) free(defproxy.errmsg.msg503);
-		if (defproxy.errmsg.msg504) free(defproxy.errmsg.msg504);
 		if (defproxy.monitor_uri)   free(defproxy.monitor_uri);
+
+		for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
+			if (defproxy.errmsg[rc].len)
+				free(defproxy.errmsg[rc].str);
+		}
+
 		/* we cannot free uri_auth because it might already be used */
 		init_default_instance();
 		curproxy = &defproxy;
@@ -1778,7 +1689,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		// }
 
 		if (*(args[2]) == 0) {
-			Alert("parsing [%s:%d] : <errorloc> expects <error> and <url> as arguments.\n", file, linenum);
+			Alert("parsing [%s:%d] : <%s> expects <status_code> and <url> as arguments.\n", file, linenum);
 			return -1;
 		}
 
@@ -1791,64 +1702,19 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			errlen = sprintf(err, "%s%s\r\n\r\n", HTTP_302, args[2]);
 		}
 
-		if (errnum == 400) {
-			if (curproxy->errmsg.msg400) {
-				//Warning("parsing [%s:%d] : error %d already defined.\n", file, linenum, errnum);
-				free(curproxy->errmsg.msg400);
+		for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
+			if (http_err_codes[rc] == errnum) {
+				if (curproxy->errmsg[rc].str)
+					free(curproxy->errmsg[rc].str);
+				curproxy->errmsg[rc].str = err;
+				curproxy->errmsg[rc].len = errlen;
+				break;
 			}
-			curproxy->errmsg.msg400 = err;
-			curproxy->errmsg.len400 = errlen;
 		}
-		else if (errnum == 403) {
-			if (curproxy->errmsg.msg403) {
-				//Warning("parsing [%s:%d] : error %d already defined.\n", file, linenum, errnum);
-				free(curproxy->errmsg.msg403);
-			}
-			curproxy->errmsg.msg403 = err;
-			curproxy->errmsg.len403 = errlen;
-		}
-		else if (errnum == 408) {
-			if (curproxy->errmsg.msg408) {
-				//Warning("parsing [%s:%d] : error %d already defined.\n", file, linenum, errnum);
-				free(curproxy->errmsg.msg408);
-			}
-			curproxy->errmsg.msg408 = err;
-			curproxy->errmsg.len408 = errlen;
-		}
-		else if (errnum == 500) {
-			if (curproxy->errmsg.msg500) {
-				//Warning("parsing [%s:%d] : error %d already defined.\n", file, linenum, errnum);
-				free(curproxy->errmsg.msg500);
-			}
-			curproxy->errmsg.msg500 = err;
-			curproxy->errmsg.len500 = errlen;
-		}
-		else if (errnum == 502) {
-			if (curproxy->errmsg.msg502) {
-				//Warning("parsing [%s:%d] : error %d already defined.\n", file, linenum, errnum);
-				free(curproxy->errmsg.msg502);
-			}
-			curproxy->errmsg.msg502 = err;
-			curproxy->errmsg.len502 = errlen;
-		}
-		else if (errnum == 503) {
-			if (curproxy->errmsg.msg503) {
-				//Warning("parsing [%s:%d] : error %d already defined.\n", file, linenum, errnum);
-				free(curproxy->errmsg.msg503);
-			}
-			curproxy->errmsg.msg503 = err;
-			curproxy->errmsg.len503 = errlen;
-		}
-		else if (errnum == 504) {
-			if (curproxy->errmsg.msg504) {
-				//Warning("parsing [%s:%d] : error %d already defined.\n", file, linenum, errnum);
-				free(curproxy->errmsg.msg504);
-			}
-			curproxy->errmsg.msg504 = err;
-			curproxy->errmsg.len504 = errlen;
-		}
-		else {
-			Warning("parsing [%s:%d] : error %d relocation will be ignored.\n", file, linenum, errnum);
+
+		if (rc >= HTTP_ERR_SIZE) {
+			Warning("parsing [%s:%d] : status code %d not handled, error relocation will be ignored.\n",
+				file, linenum, errnum);
 			free(err);
 		}
 	}
@@ -1874,7 +1740,7 @@ int readcfgfile(const char *file)
 	char *args[MAX_LINE_ARGS];
 	int arg;
 	int cfgerr = 0;
-	int nbchk, mininter;
+	int nbchk, mininter, rc;
 	int confsect = CFG_NONE;
 
 	struct proxy *curproxy = NULL;
@@ -2163,33 +2029,15 @@ int readcfgfile(const char *file)
 		if (curproxy->options & PR_O_LOGASAP)
 			curproxy->to_log &= ~LW_BYTES;
 
-		if (curproxy->errmsg.msg400 == NULL) {
-			curproxy->errmsg.msg400 = (char *)HTTP_400;
-			curproxy->errmsg.len400 = strlen(HTTP_400);
-		}
-		if (curproxy->errmsg.msg403 == NULL) {
-			curproxy->errmsg.msg403 = (char *)HTTP_403;
-			curproxy->errmsg.len403 = strlen(HTTP_403);
-		}
-		if (curproxy->errmsg.msg408 == NULL) {
-			curproxy->errmsg.msg408 = (char *)HTTP_408;
-			curproxy->errmsg.len408 = strlen(HTTP_408);
-		}
-		if (curproxy->errmsg.msg500 == NULL) {
-			curproxy->errmsg.msg500 = (char *)HTTP_500;
-			curproxy->errmsg.len500 = strlen(HTTP_500);
-		}
-		if (curproxy->errmsg.msg502 == NULL) {
-			curproxy->errmsg.msg502 = (char *)HTTP_502;
-			curproxy->errmsg.len502 = strlen(HTTP_502);
-		}
-		if (curproxy->errmsg.msg503 == NULL) {
-			curproxy->errmsg.msg503 = (char *)HTTP_503;
-			curproxy->errmsg.len503 = strlen(HTTP_503);
-		}
-		if (curproxy->errmsg.msg504 == NULL) {
-			curproxy->errmsg.msg504 = (char *)HTTP_504;
-			curproxy->errmsg.len504 = strlen(HTTP_504);
+		for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
+			if (!http_err_msgs[rc]) {
+				Alert("Internal error: no message defined for HTTP return code %d. Aborting.\n");
+				abort();
+			}
+			if (!curproxy->errmsg[rc].str) {
+				curproxy->errmsg[rc].str = strdup(http_err_msgs[rc]);
+				curproxy->errmsg[rc].len = strlen(http_err_msgs[rc]);
+			}
 		}
 
 		/*

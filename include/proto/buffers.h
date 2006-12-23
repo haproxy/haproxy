@@ -22,6 +22,8 @@
 #ifndef _PROTO_BUFFERS_H
 #define _PROTO_BUFFERS_H
 
+#include <stdlib.h>
+
 #include <common/config.h>
 #include <types/buffers.h>
 
@@ -84,6 +86,21 @@ int buffer_write(struct buffer *buf, const char *msg, int len);
 int buffer_replace(struct buffer *b, char *pos, char *end, char *str);
 int buffer_replace2(struct buffer *b, char *pos, char *end, char *str, int len);
 
+/*
+ * frees the destination chunk if already allocated, allocates a new string,
+ * and copies the source into it. The pointer to the destination string is
+ * returned, or NULL if the allocation fails or if any pointer is NULL..
+ */
+static inline char *chunk_dup(struct chunk *dst, const struct chunk *src) {
+	if (!dst || !src || !src->str)
+		return NULL;
+	if (dst->str)
+		free(dst->str);
+	dst->len = src->len;
+	dst->str = (char *)malloc(dst->len);
+	memcpy(dst->str, src->str, dst->len);
+	return dst->str;
+}
 
 #endif /* _PROTO_BUFFERS_H */
 

@@ -40,10 +40,10 @@ int process_session(struct task *t);
 int process_cli(struct session *t);
 int process_srv(struct session *t);
 
-void client_retnclose(struct session *s, int len, const char *msg);
-void client_return(struct session *s, int len, const char *msg);
+void client_retnclose(struct session *s, const struct chunk *msg);
+void client_return(struct session *s, const struct chunk *msg);
 void srv_close_with_err(struct session *t, int err, int finst,
-			int status, int msglen, const char *msg);
+			int status, const struct chunk *msg);
 
 int produce_content(struct session *s);
 void debug_hdr(const char *dir, struct session *t, const char *start, const char *end);

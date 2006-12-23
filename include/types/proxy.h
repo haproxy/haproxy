@@ -34,6 +34,7 @@
 #include <common/regex.h>
 
 #include <types/buffers.h>
+#include <types/httperr.h>
 #include <types/session.h>
 #include <types/server.h>
 
@@ -125,22 +126,7 @@ struct proxy {
 	int grace;				/* grace time after stop request */
 	char *check_req;			/* HTTP or SSL request to use for PR_O_HTTP_CHK|PR_O_SSL3_CHK */
 	int check_len;				/* Length of the HTTP or SSL3 request */
-	struct {
-		char *msg400;			/* message for error 400 */
-		int len400;			/* message length for error 400 */
-		char *msg403;			/* message for error 403 */
-		int len403;			/* message length for error 403 */
-		char *msg408;			/* message for error 408 */
-		int len408;			/* message length for error 408 */
-		char *msg500;			/* message for error 500 */
-		int len500;			/* message length for error 500 */
-		char *msg502;			/* message for error 502 */
-		int len502;			/* message length for error 502 */
-		char *msg503;			/* message for error 503 */
-		int len503;			/* message length for error 503 */
-		char *msg504;			/* message for error 504 */
-		int len504;			/* message length for error 504 */
-	} errmsg;
+	struct chunk errmsg[HTTP_ERR_SIZE];	/* default or customized error messages for known errors */
 };
 
 extern struct proxy *proxy;

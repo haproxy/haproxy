@@ -378,14 +378,17 @@ int event_accept(int fd) {
 		fdtab[cfd].cb[DIR_WR].b = s->rep;
 
 		if ((p->mode == PR_MODE_HTTP && (s->flags & SN_MONITOR)) ||
-		    (p->mode == PR_MODE_HEALTH && (p->options & PR_O_HTTP_CHK)))
+		    (p->mode == PR_MODE_HEALTH && (p->options & PR_O_HTTP_CHK))) {
 			/* Either we got a request from a monitoring system on an HTTP instance,
 			 * or we're in health check mode with the 'httpchk' option enabled. In
 			 * both cases, we return a fake "HTTP/1.0 200 OK" response and we exit.
 			 */
-			client_retnclose(s, 19, "HTTP/1.0 200 OK\r\n\r\n"); /* forge a 200 response */
+			struct chunk msg = { .str = "HTTP/1.0 200 OK\r\n\r\n", .len = 19 };
+			client_retnclose(s, &msg); /* forge a 200 response */
+		}
 		else if (p->mode == PR_MODE_HEALTH) {  /* health check mode, no client reading */
-			client_retnclose(s, 3, "OK\n"); /* forge an "OK" response */
+			struct chunk msg = { .str = "OK\n", .len = 3 };
+			client_retnclose(s, &msg); /* forge an "OK" response */
 		}
 		else {
 			MY_FD_SET(cfd, StaticReadEvent);

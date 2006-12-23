@@ -1,6 +1,6 @@
 /*
-  include/types/httperr.h
-  This file defines everything related to HTTP responses and errors.
+  include/proto/httperr.h
+  This file contains declarations for HTTP responses and errors.
 
   Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
   
@@ -19,35 +19,19 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#ifndef _TYPES_HTTPERR_H
-#define _TYPES_HTTPERR_H
+#ifndef _PROTO_HTTPERR_H
+#define _PROTO_HTTPERR_H
 
-#include <common/config.h>
+#include <types/httperr.h>
 
-/* various data sources for the responses */
-#define DATA_SRC_NONE	0
-#define DATA_SRC_STATS	1
+extern const int http_err_codes[HTTP_ERR_SIZE];
+extern const char *http_err_msgs[HTTP_ERR_SIZE];
+extern const char *HTTP_200;
+extern const char *HTTP_302;
+extern const char *HTTP_303;
+extern const char *HTTP_401_fmt;
 
-/* data transmission states for the responses */
-#define DATA_ST_INIT	0
-#define DATA_ST_DATA	1
-
-/*
- * All implemented return codes
- */
-enum {
-	HTTP_ERR_400 = 0,
-	HTTP_ERR_403,
-	HTTP_ERR_408,
-	HTTP_ERR_500,
-	HTTP_ERR_502,
-	HTTP_ERR_503,
-	HTTP_ERR_504,
-	HTTP_ERR_SIZE
-};
-
-
-#endif /* _TYPES_HTTPERR_H */
+#endif /* _PROTO_HTTPERR_H */
 
 /*
  * Local variables:

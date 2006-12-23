@@ -67,13 +67,31 @@
 #endif
 
 /* This is used by remote monitoring */
-const char *HTTP_200 =
+const char HTTP_200[] =
 	"HTTP/1.0 200 OK\r\n"
 	"Cache-Control: no-cache\r\n"
 	"Connection: close\r\n"
 	"Content-Type: text/html\r\n"
 	"\r\n"
 	"<html><body><h1>200 OK</h1>\nHAProxy: service ready.\n</body></html>\n";
+
+const struct chunk http_200_chunk = {
+	.str = (char *)&HTTP_200,
+	.len = sizeof(HTTP_200)-1
+};
+
+const char *HTTP_302 =
+	"HTTP/1.0 302 Found\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Location: "; /* not terminated since it will be concatenated with the URL */
+
+/* same as 302 except that the browser MUST retry with the GET method */
+const char *HTTP_303 =
+	"HTTP/1.0 303 See Other\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Location: "; /* not terminated since it will be concatenated with the URL */
 
 /* Warning: this one is an sprintf() fmt string, with <realm> as its only argument */
 const char *HTTP_401_fmt =
@@ -84,6 +102,76 @@ const char *HTTP_401_fmt =
 	"WWW-Authenticate: Basic realm=\"%s\"\r\n"
 	"\r\n"
 	"<html><body><h1>401 Unauthorized</h1>\nYou need a valid user and password to access this content.\n</body></html>\n";
+
+
+const int http_err_codes[HTTP_ERR_SIZE] = {
+	[HTTP_ERR_400] = 400,
+	[HTTP_ERR_403] = 403,
+	[HTTP_ERR_408] = 408,
+	[HTTP_ERR_500] = 500,
+	[HTTP_ERR_502] = 502,
+	[HTTP_ERR_503] = 503,
+	[HTTP_ERR_504] = 504,
+};
+
+const char *http_err_msgs[HTTP_ERR_SIZE] = {
+	[HTTP_ERR_400] =
+ 	"HTTP/1.0 400 Bad request\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
+	"\r\n"
+	"<html><body><h1>400 Bad request</h1>\nYour browser sent an invalid request.\n</body></html>\n",
+
+	[HTTP_ERR_403] =
+	"HTTP/1.0 403 Forbidden\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
+	"\r\n"
+	"<html><body><h1>403 Forbidden</h1>\nRequest forbidden by administrative rules.\n</body></html>\n",
+
+	[HTTP_ERR_408] =
+	"HTTP/1.0 408 Request Time-out\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
+	"\r\n"
+	"<html><body><h1>408 Request Time-out</h1>\nYour browser didn't send a complete request in time.\n</body></html>\n",
+
+	[HTTP_ERR_500] =
+	"HTTP/1.0 500 Server Error\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
+	"\r\n"
+	"<html><body><h1>500 Server Error</h1>\nAn internal server error occured.\n</body></html>\n",
+
+	[HTTP_ERR_502] =
+	"HTTP/1.0 502 Bad Gateway\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
+	"\r\n"
+	"<html><body><h1>502 Bad Gateway</h1>\nThe server returned an invalid or incomplete response.\n</body></html>\n",
+
+	[HTTP_ERR_503] =
+	"HTTP/1.0 503 Service Unavailable\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
+	"\r\n"
+	"<html><body><h1>503 Service Unavailable</h1>\nNo server is available to handle this request.\n</body></html>\n",
+
+	[HTTP_ERR_504] =
+	"HTTP/1.0 504 Gateway Time-out\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
+	"\r\n"
+	"<html><body><h1>504 Gateway Time-out</h1>\nThe server didn't respond in time.\n</body></html>\n",
+
+};
 
 
 /*
@@ -131,10 +219,11 @@ static char *srv_stnames[7] = {"IDL", "CON", "HDR", "DAT", "SHR", "SHW", "CLS" }
  * returns a message to the client ; the connection is shut down for read,
  * and the request is cleared so that no server connection can be initiated.
  * The client must be in a valid state for this (HEADER, DATA ...).
- * Nothing is performed on the server side.
+ * Nothing is performed on the server side. The message is contained in a
+ * "chunk". If it is null, then an empty message is used.
  * The reply buffer doesn't need to be empty before this.
  */
-void client_retnclose(struct session *s, int len, const char *msg)
+void client_retnclose(struct session *s, const struct chunk *msg)
 {
 	MY_FD_CLR(s->cli_fd, StaticReadEvent);
 	MY_FD_SET(s->cli_fd, StaticWriteEvent);
@@ -146,35 +235,39 @@ void client_retnclose(struct session *s, int len, const char *msg)
 	shutdown(s->cli_fd, SHUT_RD);
 	s->cli_state = CL_STSHUTR;
 	buffer_flush(s->rep);
-	buffer_write(s->rep, msg, len);
+	if (msg->len)
+		buffer_write(s->rep, msg->str, msg->len);
 	s->req->l = 0;
 }
 
 
 /*
  * returns a message into the rep buffer, and flushes the req buffer.
- * The reply buffer doesn't need to be empty before this.
+ * The reply buffer doesn't need to be empty before this. The message
+ * is contained in a "chunk". If it is null, then an empty message is
+ * used.
  */
-void client_return(struct session *s, int len, const char *msg)
+void client_return(struct session *s, const struct chunk *msg)
 {
 	buffer_flush(s->rep);
-	buffer_write(s->rep, msg, len);
+	if (msg->len)
+		buffer_write(s->rep, msg->str, msg->len);
 	s->req->l = 0;
 }
 
 
 /* This function turns the server state into the SV_STCLOSE, and sets
- * indicators accordingly. Note that if <status> is 0, no message is
- * returned.
+ * indicators accordingly. Note that if <status> is 0, or if the message
+ * pointer is NULL, then no message is returned.
  */
 void srv_close_with_err(struct session *t, int err, int finst,
-			int status, int msglen, const char *msg)
+			int status, const struct chunk *msg)
 {
 	t->srv_state = SV_STCLOSE;
-	if (status > 0) {
+	if (status > 0 && msg) {
 		t->logs.status = status;
 		if (t->fe->mode == PR_MODE_HTTP)
-			client_return(t, msglen, msg);
+			client_return(t, msg);
 	}
 	if (!(t->flags & SN_ERR_MASK))
 		t->flags |= err;
@@ -814,7 +907,7 @@ int process_cli(struct session *t)
 			else if (tv_cmp2_ms(&req->rex, &now) <= 0) {
 				/* read timeout : give up with an error message. */
 				t->logs.status = 408;
-				client_retnclose(t, t->fe->errmsg.len408, t->fe->errmsg.msg408);
+				client_retnclose(t, &t->fe->errmsg[HTTP_ERR_408]);
 				if (!(t->flags & SN_ERR_MASK))
 					t->flags |= SN_ERR_CLITO;
 				if (!(t->flags & SN_FINST_MASK))
@@ -876,7 +969,7 @@ int process_cli(struct session *t)
 				 */
 				t->flags |= SN_MONITOR;
 				t->logs.status = 200;
-				client_retnclose(t, strlen(HTTP_200), HTTP_200);
+				client_retnclose(t, &http_200_chunk);
 				goto return_prx_cond;
 			}
 		}
@@ -937,7 +1030,7 @@ int process_cli(struct session *t)
 				t->logs.status = 403;
 				/* let's log the request time */
 				t->logs.t_request = tv_diff(&t->logs.tv_accept, &now);
-				client_retnclose(t, t->fe->errmsg.len403, t->fe->errmsg.msg403);
+				client_retnclose(t, &t->fe->errmsg[HTTP_ERR_403]);
 				goto return_prx_cond;
 			}
 
@@ -1140,7 +1233,7 @@ int process_cli(struct session *t)
 	return_bad_req: /* let's centralize all bad requests */
 		t->hreq.hdr_state = HTTP_PA_ERROR;
 		t->logs.status = 400;
-		client_retnclose(t, t->fe->errmsg.len400, t->fe->errmsg.msg400);
+		client_retnclose(t, &t->fe->errmsg[HTTP_ERR_400]);
 	return_prx_cond:
 		if (!(t->flags & SN_ERR_MASK))
 			t->flags |= SN_ERR_PRXCOND;
@@ -1469,9 +1562,9 @@ int process_srv(struct session *t)
 			 * overwrite the client_retnclose() output.
 			 */
 			if (t->flags & SN_CLTARPIT)
-				srv_close_with_err(t, SN_ERR_CLICL, SN_FINST_T, 0, 0, NULL);
+				srv_close_with_err(t, SN_ERR_CLICL, SN_FINST_T, 0, NULL);
 			else
-				srv_close_with_err(t, SN_ERR_CLICL, t->pend_pos ? SN_FINST_Q : SN_FINST_C, 0, 0, NULL);
+				srv_close_with_err(t, SN_ERR_CLICL, t->pend_pos ? SN_FINST_Q : SN_FINST_C, 0, NULL);
 
 			return 1;
 		}
@@ -1493,7 +1586,7 @@ int process_srv(struct session *t)
 				tv_eternity(&req->cex);
 				t->logs.t_queue = tv_diff(&t->logs.tv_accept, &now);
 				srv_close_with_err(t, SN_ERR_PRXCOND, SN_FINST_T,
-						   500, t->fe->errmsg.len500, t->fe->errmsg.msg500);
+						   500, &t->fe->errmsg[HTTP_ERR_500]);
 				return 1;
 			}
 
@@ -1510,7 +1603,7 @@ int process_srv(struct session *t)
 					tv_eternity(&req->cex);
 					t->logs.t_queue = tv_diff(&t->logs.tv_accept, &now);
 					srv_close_with_err(t, SN_ERR_SRVTO, SN_FINST_Q,
-							   503, t->fe->errmsg.len503, t->fe->errmsg.msg503);
+							   503, &t->fe->errmsg[HTTP_ERR_503]);
 					if (t->srv)
 						t->srv->failed_conns++;
 					t->fe->failed_conns++;
@@ -1546,7 +1639,7 @@ int process_srv(struct session *t)
 			/* note that this must not return any error because it would be able to
 			 * overwrite the client_retnclose() output.
 			 */
-			srv_close_with_err(t, SN_ERR_CLICL, SN_FINST_C, 0, 0, NULL);
+			srv_close_with_err(t, SN_ERR_CLICL, SN_FINST_C, 0, NULL);
 			return 1;
 		}
 		if (!(req->flags & BF_WRITE_STATUS) && tv_cmp2_ms(&req->cex, &now) > 0) {
@@ -1695,7 +1788,7 @@ int process_srv(struct session *t)
 						t->be->failed_secu++;
 						t->srv_state = SV_STCLOSE;
 						t->logs.status = 502;
-						client_return(t, t->fe->errmsg.len502, t->fe->errmsg.msg502);
+						client_return(t, &t->fe->errmsg[HTTP_ERR_502]);
 						if (!(t->flags & SN_ERR_MASK))
 							t->flags |= SN_ERR_PRXCOND;
 						if (!(t->flags & SN_FINST_MASK))
@@ -1726,7 +1819,7 @@ int process_srv(struct session *t)
 					t->be->failed_secu++;
 					t->srv_state = SV_STCLOSE;
 					t->logs.status = 502;
-					client_return(t, t->fe->errmsg.len502, t->fe->errmsg.msg502);
+					client_return(t, &t->fe->errmsg[HTTP_ERR_502]);
 					if (!(t->flags & SN_ERR_MASK))
 						t->flags |= SN_ERR_PRXCOND;
 					if (!(t->flags & SN_FINST_MASK))
@@ -2166,7 +2259,7 @@ int process_srv(struct session *t)
 
 			t->srv_state = SV_STCLOSE;
 			t->logs.status = 502;
-			client_return(t, t->fe->errmsg.len502, t->fe->errmsg.msg502);
+			client_return(t, &t->fe->errmsg[HTTP_ERR_502]);
 			if (!(t->flags & SN_ERR_MASK))
 				t->flags |= SN_ERR_SRVCL;
 			if (!(t->flags & SN_FINST_MASK))
@@ -2204,7 +2297,7 @@ int process_srv(struct session *t)
 			t->be->failed_resp++;
 			t->srv_state = SV_STCLOSE;
 			t->logs.status = 504;
-			client_return(t, t->fe->errmsg.len504, t->fe->errmsg.msg504);
+			client_return(t, &t->fe->errmsg[HTTP_ERR_504]);
 			if (!(t->flags & SN_ERR_MASK))
 				t->flags |= SN_ERR_SRVTO;
 			if (!(t->flags & SN_FINST_MASK))
@@ -2596,14 +2689,15 @@ int produce_content(struct session *s)
 	struct buffer *rep = s->rep;
 	struct proxy *px;
 	struct server *sv;
-	int msglen;
+	struct chunk msg;
 
 	if (s->data_source == DATA_SRC_NONE) {
 		s->flags &= ~SN_SELF_GEN;
 		return 1;
 	}
 	else if (s->data_source == DATA_SRC_STATS) {
-		msglen = 0;
+		msg.len = 0;
+		msg.str = trash;
 
 		if (s->data_state == DATA_ST_INIT) { /* the function had not been called yet */
 			unsigned int up;
@@ -2611,7 +2705,7 @@ int produce_content(struct session *s)
 			s->flags |= SN_SELF_GEN;  // more data will follow
 
 			/* send the start of the HTTP response */
-			msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+			msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
 					   "HTTP/1.0 200 OK\r\n"
 					   "Cache-Control: no-cache\r\n"
 					   "Connection: close\r\n"
@@ -2619,8 +2713,8 @@ int produce_content(struct session *s)
 					   "\r\n\r\n");
 	    
 			s->logs.status = 200;
-			client_retnclose(s, msglen, trash); // send the start of the response.
-			msglen = 0;
+			client_retnclose(s, &msg); // send the start of the response.
+			msg.len = 0;
 
 			if (!(s->flags & SN_ERR_MASK))  // this is not really an error but it is
 				s->flags |= SN_ERR_PRXCOND; // to mark that it comes from the proxy
@@ -2628,7 +2722,7 @@ int produce_content(struct session *s)
 				s->flags |= SN_FINST_R;
 
 			/* WARNING! This must fit in the first buffer !!! */	    
-			msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+			msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
 					   "<html><head><title>Statistics Report for " PRODUCT_NAME "</title>\n"
 					   "<meta http-equiv=\"content-type\" content=\"text/html; charset=iso-8859-1\">\n"
 					   "<style type=\"text/css\"><!--\n"
@@ -2682,14 +2776,14 @@ int produce_content(struct session *s)
 					   "-->"
 					   "</style></head>");
 
-			if (buffer_write(rep, trash, msglen) != 0)
+			if (buffer_write(rep, trash, msg.len) != 0)
 				return 0;
-			msglen = 0;
+			msg.len = 0;
 
 			up = (now.tv_sec - start_date.tv_sec);
 
 			/* WARNING! this has to fit the first packet too */
-			msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+			msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
 					   "<body><h1>" PRODUCT_NAME "</h1>\n"
 					   "<h2>Statistics Report for pid %d</h2>\n"
 					   "<hr width=\"100%%\" class=\"hr\">\n"
@@ -2725,9 +2819,9 @@ int produce_content(struct session *s)
 					   actconn
 					   );
 	    
-			if (buffer_write(rep, trash, msglen) != 0)
+			if (buffer_write(rep, trash, msg.len) != 0)
 				return 0;
-			msglen = 0;
+			msg.len = 0;
 
 			s->data_state = DATA_ST_DATA;
 			memset(&s->data_ctx, 0, sizeof(s->data_ctx));
@@ -2773,7 +2867,7 @@ int produce_content(struct session *s)
 						goto next_proxy;
 				}
 
-				msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+				msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
 						   "<h3>&gt; Proxy instance %s : "
 						   "%d front conns (max=%d), %d back, "
 						   "%d queued (%d unassigned), %d total front conns, %d back</h3>\n"
@@ -2782,7 +2876,7 @@ int produce_content(struct session *s)
 						   px->feconn, px->maxconn, px->beconn,
 						   px->totpend, px->nbpend, px->cum_feconn, px->cum_beconn);
 		
-				msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+				msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
 						   "<table cols=\"16\" class=\"tbl\">\n"
 						   "<tr align=\"center\" bgcolor=\"#20C0C0\">"
 						   "<th colspan=5>Server</th>"
@@ -2795,9 +2889,9 @@ int produce_content(struct session *s)
 						   "<th>Curr.</th><th>Max.</th><th>Limit</th><th>Cumul.</th>"
 						   "<th>Conn.</th><th>Resp.</th><th>Sec.</th><th>Check</th><th>Down</th></tr>\n");
 		
-				if (buffer_write(rep, trash, msglen) != 0)
+				if (buffer_write(rep, trash, msg.len) != 0)
 					return 0;
-				msglen = 0;
+				msg.len = 0;
 
 				s->data_ctx.stats.sv = px->srv;
 				s->data_ctx.stats.px_st = DATA_ST_DATA;
@@ -2829,48 +2923,48 @@ int produce_content(struct session *s)
 						sv_state = 0; /* DOWN */
 
 				/* name, weight */
-				msglen += snprintf(trash, sizeof(trash),
+				msg.len += snprintf(trash, sizeof(trash),
 						   "<tr align=center bgcolor=\"%s\"><td>%s</td><td>%d</td><td>",
 						   (sv->state & SRV_BACKUP) ? bck_tab_bg[sv_state] : act_tab_bg[sv_state],
 						   sv->id, sv->uweight+1);
 				/* status */
-				msglen += snprintf(trash + msglen, sizeof(trash) - msglen, srv_hlt_st[sv_state],
+				msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len, srv_hlt_st[sv_state],
 						   (sv->state & SRV_RUNNING) ? (sv->health - sv->rise + 1) : (sv->health),
 						   (sv->state & SRV_RUNNING) ? (sv->fall) : (sv->rise));
 
 				/* act, bck */
-				msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+				msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
 						   "</td><td>%s</td><td>%s</td>",
 						   (sv->state & SRV_BACKUP) ? "-" : "Y",
 						   (sv->state & SRV_BACKUP) ? "Y" : "-");
 
 				/* queue : current, max */
-				msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+				msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
 						   "<td align=right>%d</td><td align=right>%d</td>",
 						   sv->nbpend, sv->nbpend_max);
 
 				/* sessions : current, max, limit, cumul */
-				msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+				msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
 						   "<td align=right>%d</td><td align=right>%d</td><td align=right>%s</td><td align=right>%d</td>",
 						   sv->cur_sess, sv->cur_sess_max, sv->maxconn ? ultoa(sv->maxconn) : "-", sv->cum_sess);
 
 				/* errors : connect, response, security */
-				msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+				msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
 						   "<td align=right>%d</td><td align=right>%d</td><td align=right>%d</td>\n",
 						   sv->failed_conns, sv->failed_resp, sv->failed_secu);
 
 				/* check failures : unique, fatal */
 				if (sv->state & SRV_CHECKED)
-					msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+					msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
 							   "<td align=right>%d</td><td align=right>%d</td></tr>\n",
 							   sv->failed_checks, sv->down_trans);
 				else
-					msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+					msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
 							   "<td align=right>-</td><td align=right>-</td></tr>\n");
 
-				if (buffer_write(rep, trash, msglen) != 0)
+				if (buffer_write(rep, trash, msg.len) != 0)
 					return 0;
-				msglen = 0;
+				msg.len = 0;
 
 				s->data_ctx.stats.sv = sv->next;
 			} /* while sv */
@@ -2904,35 +2998,35 @@ int produce_content(struct session *s)
 			}
 
 			/* name, weight, status, act, bck */
-			msglen += snprintf(trash + msglen, sizeof(trash),
+			msg.len += snprintf(trash + msg.len, sizeof(trash),
 					   "<tr align=center bgcolor=\"#e8e8d0\">"
 					   "<td>Dispatcher</td><td>-</td>"
 					   "<td>%s</td><td>-</td><td>-</td>",
 					   px->state == PR_STRUN ? "UP" : "DOWN");
 
 			/* queue : current, max */
-			msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+			msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
 					   "<td align=right>%d</td><td align=right>%d</td>",
 					   px->nbpend, px->nbpend_max);
 
 			/* sessions : current, max, limit, cumul. */
-			msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+			msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
 					   "<td align=right>%d</td><td align=right>%d</td><td align=right>-</td><td align=right>%d</td>",
 					   dispatch_sess, px->beconn_max, dispatch_cum);
 
 			/* errors : connect, response, security */
-			msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+			msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
 					   "<td align=right>%d</td><td align=right>%d</td><td align=right>%d</td>\n",
 					   failed_conns, failed_resp, failed_secu);
 
 			/* check failures : unique, fatal */
-			msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+			msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
 					   "<td align=right>-</td><td align=right>-</td></tr>\n");
 
 
 			/* now the summary for the whole proxy */
 			/* name, weight, status, act, bck */
-			msglen += snprintf(trash + msglen, sizeof(trash),
+			msg.len += snprintf(trash + msg.len, sizeof(trash),
 					   "<tr align=center style=\"color: #ffff80;  background: #20C0C0;\">"
 					   "<td><b>Total</b></td><td>-</td>"
 					   "<td><b>%s</b></td><td><b>%d</b></td><td><b>%d</b></td>",
@@ -2940,30 +3034,30 @@ int produce_content(struct session *s)
 					   px->srv_act, px->srv_bck);
 
 			/* queue : current, max */
-			msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+			msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
 					   "<td align=right><b>%d</b></td><td align=right><b>%d</b></td>",
 					   px->totpend, px->nbpend_max);
 
 			/* sessions : current, max, limit, cumul */
-			msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+			msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
 					   "<td align=right><b>%d</b></td><td align=right><b>%d</b></td><td align=right><b>-</b></td><td align=right><b>%d</b></td>",
 					   px->beconn, px->beconn_max, px->cum_beconn);
 
 			/* errors : connect, response, security */
-			msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+			msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
 					   "<td align=right>%d</td><td align=right>%d</td><td align=right>%d</td>\n",
 					   px->failed_conns, px->failed_resp, px->failed_secu);
 
 			/* check failures : unique, fatal */
-			msglen += snprintf(trash + msglen, sizeof(trash) - msglen,
+			msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
 					   "<td align=right>%d</td><td align=right>%d</td></tr>\n",
 					   failed_checks, down_trans);
 
-			msglen += snprintf(trash + msglen, sizeof(trash) - msglen, "</table><p>\n");
+			msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len, "</table><p>\n");
 
-			if (buffer_write(rep, trash, msglen) != 0)
+			if (buffer_write(rep, trash, msg.len) != 0)
 				return 0;
-			msglen = 0;
+			msg.len = 0;
 	    
 			s->data_ctx.stats.px_st = DATA_ST_INIT;
 		next_proxy:
@@ -2976,7 +3070,7 @@ int produce_content(struct session *s)
 	else {
 		/* unknown data source */
 		s->logs.status = 500;
-		client_retnclose(s, s->fe->errmsg.len500, s->fe->errmsg.msg500);
+		client_retnclose(s, &s->fe->errmsg[HTTP_ERR_500]);
 		if (!(s->flags & SN_ERR_MASK))
 			s->flags |= SN_ERR_PRXCOND;
 		if (!(s->flags & SN_FINST_MASK))
@@ -3631,12 +3725,13 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 	}
 
 	if (!authenticated) {
-		int msglen;
+		struct chunk msg;
 
 		/* no need to go further */
-		msglen = sprintf(trash, HTTP_401_fmt, uri_auth->auth_realm);
+		msg.str = trash;
+		msg.len = sprintf(trash, HTTP_401_fmt, uri_auth->auth_realm);
 		t->logs.status = 401;
-		client_retnclose(t, msglen, trash);
+		client_retnclose(t, &msg);
 		if (!(t->flags & SN_ERR_MASK))
 			t->flags |= SN_ERR_PRXCOND;
 		if (!(t->flags & SN_FINST_MASK))
