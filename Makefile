@@ -1,12 +1,7 @@
 # This makefile supports different OS and CPU setups.
 # You should use it this way :
-#   make TARGET=os CPU=cpu
+#   make TARGET=os CPU=cpu REGEX=lib
 
-# Version of last tag
-VERSION := 1.3.3
-# number of changes since last tag
-SUBVERS := -34
-VERDATE := 2006/12/22
 
 # Select target OS. TARGET must match a system for which COPTS and LIBS are
 # correctly defined below.
@@ -99,6 +94,21 @@ ADDLIB =
 # - use -DCONFIG_HAP_CTTPROXY to enable full transparent proxy support
 DEFINE = -DTPROXY
 
+# Now let's determine the version, sub-version and release date.
+# If we're in the GIT tree, we can use the last commit's version and date.
+VERSION := $(shell [ -d .git/. ] && ref=$$(git-describe --tags 2>/dev/null) && ref=$${ref%-g*} && echo "$${ref\#v}" )
+
+ifneq ($(VERSION),)
+# OK git is there and works.
+SUBVERS := $(shell comms=$$(git-log --no-merges v$(VERSION).. 2>/dev/null |grep -c ^commit ); [ $$comms -gt 0 ] && echo "-$$comms" )
+VERDATE := $(shell date +%Y/%m/%d -d "$$(git-log HEAD^.. 2>/dev/null | grep ^Date: | cut -f2- -d: | cut -f1 -d+)" )
+else
+# Otherwise, use the hard-coded version of last tag, number of changes
+# since last tag, and release date.
+VERSION := 1.3.3
+SUBVERS := -36
+VERDATE := 2006/12/23
+endif
 
 #### build options
 
@@ -184,7 +194,8 @@ objsize: haproxy
 clean:
 	rm -f *.[oas] src/*.[oas] core haproxy test
 	for dir in . src include/* doc; do rm -f $$dir/*~ $$dir/*.rej;done
-	rm -f haproxy-$(VERSION).tar.gz haproxy-$(VERSION) nohup.out gmon.out
+	rm -f haproxy-$(VERSION).tar.gz haproxy-$(VERSION)$(SUBVERS).tar.gz
+	rm -f haproxy-$(VERSION) nohup.out gmon.out
 
 tar:	clean
 	ln -s . haproxy-$(VERSION)
@@ -195,6 +206,4 @@ tar:	clean
 	rm -f haproxy-$(VERSION)
 
 git-tar: clean
-	ref=$$(git-describe --tags); ref=$${ref%-g*}; ver=$${ref#v};\
-	comms=$$(git-log $$ref..|grep -c ^commit); \
-	git-tar-tree HEAD haproxy-$(VERSION) | gzip -9 > haproxy-$$ver-$$comms.tar.gz
+	git-tar-tree HEAD haproxy-$(VERSION) | gzip -9 > haproxy-$(VERSION)$(SUBVERS).tar.gz
