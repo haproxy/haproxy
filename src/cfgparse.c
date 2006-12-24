@@ -1740,7 +1740,7 @@ int readcfgfile(const char *file)
 	char *args[MAX_LINE_ARGS];
 	int arg;
 	int cfgerr = 0;
-	int nbchk, mininter, rc;
+	int nbchk, mininter;
 	int confsect = CFG_NONE;
 
 	struct proxy *curproxy = NULL;
@@ -2028,17 +2028,6 @@ int readcfgfile(const char *file)
 
 		if (curproxy->options & PR_O_LOGASAP)
 			curproxy->to_log &= ~LW_BYTES;
-
-		for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
-			if (!http_err_msgs[rc]) {
-				Alert("Internal error: no message defined for HTTP return code %d. Aborting.\n");
-				abort();
-			}
-			if (!curproxy->errmsg[rc].str) {
-				curproxy->errmsg[rc].str = strdup(http_err_msgs[rc]);
-				curproxy->errmsg[rc].len = strlen(http_err_msgs[rc]);
-			}
-		}
 
 		/*
 		 * If this server supports a maxconn parameter, it needs a dedicated

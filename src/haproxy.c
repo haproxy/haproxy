@@ -83,6 +83,7 @@
 #include <proto/fd.h>
 #include <proto/log.h>
 #include <proto/polling.h>
+#include <proto/proto_http.h>
 #include <proto/proxy.h>
 #include <proto/queue.h>
 #include <proto/server.h>
@@ -353,6 +354,7 @@ void init(int argc, char **argv)
 	start_date = now;
 
 	init_log();
+	init_proto_http();
 
 	cfg_polling_mechanism = POLL_USE_SELECT;  /* select() is always available */
 #if defined(ENABLE_POLL)

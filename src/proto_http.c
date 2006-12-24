@@ -114,9 +114,9 @@ const int http_err_codes[HTTP_ERR_SIZE] = {
 	[HTTP_ERR_504] = 504,
 };
 
-const char *http_err_msgs[HTTP_ERR_SIZE] = {
+static const char *http_err_msgs[HTTP_ERR_SIZE] = {
 	[HTTP_ERR_400] =
- 	"HTTP/1.0 400 Bad request\r\n"
+	"HTTP/1.0 400 Bad request\r\n"
 	"Cache-Control: no-cache\r\n"
 	"Connection: close\r\n"
 	"Content-Type: text/html\r\n"
@@ -173,6 +173,24 @@ const char *http_err_msgs[HTTP_ERR_SIZE] = {
 
 };
 
+/* We must put the messages here since GCC cannot initialize consts depending
+ * on strlen().
+ */
+struct chunk http_err_chunks[HTTP_ERR_SIZE];
+
+void init_proto_http()
+{
+	int msg;
+	for (msg = 0; msg < HTTP_ERR_SIZE; msg++) {
+		if (!http_err_msgs[msg]) {
+			Alert("Internal error: no message defined for HTTP return code %d. Aborting.\n", msg);
+			abort();
+		}
+
+		http_err_chunks[msg].str = (char *)http_err_msgs[msg];
+		http_err_chunks[msg].len = strlen(http_err_msgs[msg]);
+	}
+}
 
 /*
  * We have 26 list of methods (1 per first letter), each of which can have
@@ -275,6 +293,19 @@ void srv_close_with_err(struct session *t, int err, int finst,
 		t->flags |= finst;
 }
 
+/* This function returns the appropriate error location for the given session
+ * and message.
+ */
+
+struct chunk *error_message(struct session *s, int msgnum)
+{
+	if (s->be->beprm->errmsg[msgnum].str)
+		return &s->be->beprm->errmsg[msgnum];
+	else if (s->fe->errmsg[msgnum].str)
+		return &s->fe->errmsg[msgnum];
+	else
+		return &http_err_chunks[msgnum];
+}
 
 /*
  * returns HTTP_METH_NONE if there is nothing valid to read (empty or non-text
@@ -907,7 +938,7 @@ int process_cli(struct session *t)
 			else if (tv_cmp2_ms(&req->rex, &now) <= 0) {
 				/* read timeout : give up with an error message. */
 				t->logs.status = 408;
-				client_retnclose(t, &t->fe->errmsg[HTTP_ERR_408]);
+				client_retnclose(t, error_message(t, HTTP_ERR_408));
 				if (!(t->flags & SN_ERR_MASK))
 					t->flags |= SN_ERR_CLITO;
 				if (!(t->flags & SN_FINST_MASK))
@@ -1030,7 +1061,7 @@ int process_cli(struct session *t)
 				t->logs.status = 403;
 				/* let's log the request time */
 				t->logs.t_request = tv_diff(&t->logs.tv_accept, &now);
-				client_retnclose(t, &t->fe->errmsg[HTTP_ERR_403]);
+				client_retnclose(t, error_message(t, HTTP_ERR_403));
 				goto return_prx_cond;
 			}
 
@@ -1233,7 +1264,7 @@ int process_cli(struct session *t)
 	return_bad_req: /* let's centralize all bad requests */
 		t->hreq.hdr_state = HTTP_PA_ERROR;
 		t->logs.status = 400;
-		client_retnclose(t, &t->fe->errmsg[HTTP_ERR_400]);
+		client_retnclose(t, error_message(t, HTTP_ERR_400));
 	return_prx_cond:
 		if (!(t->flags & SN_ERR_MASK))
 			t->flags |= SN_ERR_PRXCOND;
@@ -1586,7 +1617,7 @@ int process_srv(struct session *t)
 				tv_eternity(&req->cex);
 				t->logs.t_queue = tv_diff(&t->logs.tv_accept, &now);
 				srv_close_with_err(t, SN_ERR_PRXCOND, SN_FINST_T,
-						   500, &t->fe->errmsg[HTTP_ERR_500]);
+						   500, error_message(t, HTTP_ERR_500));
 				return 1;
 			}
 
@@ -1603,7 +1634,7 @@ int process_srv(struct session *t)
 					tv_eternity(&req->cex);
 					t->logs.t_queue = tv_diff(&t->logs.tv_accept, &now);
 					srv_close_with_err(t, SN_ERR_SRVTO, SN_FINST_Q,
-							   503, &t->fe->errmsg[HTTP_ERR_503]);
+							   503, error_message(t, HTTP_ERR_503));
 					if (t->srv)
 						t->srv->failed_conns++;
 					t->fe->failed_conns++;
@@ -1788,7 +1819,7 @@ int process_srv(struct session *t)
 						t->be->failed_secu++;
 						t->srv_state = SV_STCLOSE;
 						t->logs.status = 502;
-						client_return(t, &t->fe->errmsg[HTTP_ERR_502]);
+						client_return(t, error_message(t, HTTP_ERR_502));
 						if (!(t->flags & SN_ERR_MASK))
 							t->flags |= SN_ERR_PRXCOND;
 						if (!(t->flags & SN_FINST_MASK))
@@ -1819,7 +1850,7 @@ int process_srv(struct session *t)
 					t->be->failed_secu++;
 					t->srv_state = SV_STCLOSE;
 					t->logs.status = 502;
-					client_return(t, &t->fe->errmsg[HTTP_ERR_502]);
+					client_return(t, error_message(t, HTTP_ERR_502));
 					if (!(t->flags & SN_ERR_MASK))
 						t->flags |= SN_ERR_PRXCOND;
 					if (!(t->flags & SN_FINST_MASK))
@@ -2259,7 +2290,7 @@ int process_srv(struct session *t)
 
 			t->srv_state = SV_STCLOSE;
 			t->logs.status = 502;
-			client_return(t, &t->fe->errmsg[HTTP_ERR_502]);
+			client_return(t, error_message(t, HTTP_ERR_502));
 			if (!(t->flags & SN_ERR_MASK))
 				t->flags |= SN_ERR_SRVCL;
 			if (!(t->flags & SN_FINST_MASK))
@@ -2297,7 +2328,7 @@ int process_srv(struct session *t)
 			t->be->failed_resp++;
 			t->srv_state = SV_STCLOSE;
 			t->logs.status = 504;
-			client_return(t, &t->fe->errmsg[HTTP_ERR_504]);
+			client_return(t, error_message(t, HTTP_ERR_504));
 			if (!(t->flags & SN_ERR_MASK))
 				t->flags |= SN_ERR_SRVTO;
 			if (!(t->flags & SN_FINST_MASK))
@@ -3070,7 +3101,7 @@ int produce_content(struct session *s)
 	else {
 		/* unknown data source */
 		s->logs.status = 500;
-		client_retnclose(s, &s->fe->errmsg[HTTP_ERR_500]);
+		client_retnclose(s, error_message(s, HTTP_ERR_500));
 		if (!(s->flags & SN_ERR_MASK))
 			s->flags |= SN_ERR_PRXCOND;
 		if (!(s->flags & SN_FINST_MASK))

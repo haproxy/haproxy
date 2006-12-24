@@ -30,6 +30,7 @@
 
 #include <proto/backend.h>
 #include <proto/fd.h>
+#include <proto/httperr.h>
 #include <proto/log.h>
 #include <proto/proto_http.h>
 #include <proto/queue.h>
@@ -545,7 +546,7 @@ int srv_count_retry_down(struct session *t, int conn_err)
 		/* if not retryable anymore, let's abort */
 		tv_eternity(&t->req->cex);
 		srv_close_with_err(t, conn_err, SN_FINST_C,
-				   503, &t->fe->errmsg[HTTP_ERR_503]);
+				   503, error_message(t, HTTP_ERR_503));
 		if (t->srv)
 			t->srv->failed_conns++;
 		t->be->beprm->failed_conns++;
@@ -587,7 +588,7 @@ int srv_retryable_connect(struct session *t)
 		case SN_ERR_INTERNAL:
 			tv_eternity(&t->req->cex);
 			srv_close_with_err(t, SN_ERR_INTERNAL, SN_FINST_C,
-					   500, &t->fe->errmsg[HTTP_ERR_500]);
+					   500, error_message(t, HTTP_ERR_500));
 			if (t->srv)
 				t->srv->failed_conns++;
 			t->be->beprm->failed_conns++;
@@ -647,7 +648,7 @@ int srv_redispatch_connect(struct session *t)
 		/* note: it is guaranteed that t->srv == NULL here */
 		tv_eternity(&t->req->cex);
 		srv_close_with_err(t, SN_ERR_SRVTO, SN_FINST_C,
-				   503, &t->fe->errmsg[HTTP_ERR_503]);
+				   503, error_message(t, HTTP_ERR_503));
 		if (t->srv)
 			t->srv->failed_conns++;
 		t->be->beprm->failed_conns++;
@@ -669,7 +670,7 @@ int srv_redispatch_connect(struct session *t)
 	default:
 		tv_eternity(&t->req->cex);
 		srv_close_with_err(t, SN_ERR_INTERNAL, SN_FINST_C,
-				   500, &t->fe->errmsg[HTTP_ERR_500]);
+				   500, error_message(t, HTTP_ERR_500));
 		if (t->srv)
 			t->srv->failed_conns++;
 		t->be->beprm->failed_conns++;

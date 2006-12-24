@@ -51,6 +51,7 @@ void get_srv_from_appsession(struct session *t, const char *begin, const char *e
 void apply_filters_to_session(struct session *t, struct buffer *req, struct hdr_exp *exp);
 void manage_client_side_cookies(struct session *t, struct buffer *req);
 int stats_check_uri_auth(struct session *t, struct proxy *backend);
+void init_proto_http();
 
 #endif /* _PROTO_PROTO_HTTP_H */
 
