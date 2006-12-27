@@ -3192,7 +3192,12 @@ void apply_filters_to_session(struct session *t, struct buffer *req, struct hdr_
 						t->be = target;
 
 						//t->logs.logwait |= LW_REQ | (target->to_log & (LW_REQHDR | LW_COOKIE));
-						t->logs.logwait |= (target->to_log | target->beprm->to_log);
+						/* FIXME: should we use the backend's log options or not ?
+						 * It would seem far too complicated to configure a service with
+						 * logs defined both in the frontend and the backend.
+						 */
+						//t->logs.logwait |= (target->to_log | target->beprm->to_log);
+
 						abort_filt = 1;
 					}
 					break;

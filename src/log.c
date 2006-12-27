@@ -302,7 +302,8 @@ void sess_log(struct session *s)
 	 * computed.
 	 */
 
-	tolog = (fe->to_log | be->to_log | be->beprm->to_log); /* union of all logs */
+	/* FIXME: let's limit ourselves to frontend logging for now. */
+	tolog = (fe->to_log /*| be->to_log | be->beprm->to_log*/);
 
 	log = tolog & ~s->logs.logwait;
 
@@ -325,8 +326,14 @@ void sess_log(struct session *s)
 
 	if (fe->logfac1 >= 0)
 		prx_log = fe;
-	else if (be->logfac1 >= 0)
-		prx_log = be;
+	/*
+	 * FIXME: should we fall back to the backend if the frontend did not
+	 * define any log ? It seems like we should not permit such complex
+	 * setups because they would induce a debugging nightmare for the
+	 * admin.
+	 */
+	// else if (be->logfac1 >= 0)
+	// prx_log = be;
 	else
 		prx_log = NULL; /* global */
 
@@ -387,7 +394,7 @@ void sess_log(struct session *s)
 			 (s->logs.t_queue >= 0) ? s->logs.t_queue - s->logs.t_request : -1,
 			 (s->logs.t_connect >= 0) ? s->logs.t_connect - s->logs.t_queue : -1,
 			 (s->logs.t_data >= 0) ? s->logs.t_data - s->logs.t_connect : -1,
-			 (be->to_log & LW_BYTES) ? "" : "+", s->logs.t_close,
+			 (tolog & LW_BYTES) ? "" : "+", s->logs.t_close,
 			 s->logs.status,
 			 (tolog & LW_BYTES) ? "" : "+", s->logs.bytes,
 			 s->logs.cli_cookie ? s->logs.cli_cookie : "-",
