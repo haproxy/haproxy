@@ -395,6 +395,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		/* set default values */
 		curproxy->state = defproxy.state;
 		curproxy->maxconn = defproxy.maxconn;
+		curproxy->fullconn = defproxy.fullconn;
 		curproxy->conn_retries = defproxy.conn_retries;
 		curproxy->options = defproxy.options;
 
@@ -908,6 +909,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			return -1;
 		}
 		curproxy->maxconn = atol(args[1]);
+	}
+	else if (!strcmp(args[0], "fullconn")) {  /* fullconn */
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
+			return -1;
+		}
+		curproxy->fullconn = atol(args[1]);
 	}
 	else if (!strcmp(args[0], "grace")) {  /* grace time (ms) */
 		if (*(args[1]) == 0) {
@@ -1973,6 +1981,13 @@ int readcfgfile(const char *file)
 			memcpy(curproxy->check_req, sslv3_client_hello_pkt, sizeof(sslv3_client_hello_pkt));
 		}
 
+		/* for backwards compatibility with "listen" instances, if
+		 * fullconn is not set but maxconn is set, then maxconn
+		 * is used.
+		 */
+		if (!curproxy->fullconn)
+			curproxy->fullconn = curproxy->maxconn;
+
 		/* first, we will invert the servers list order */
 		newsrv = NULL;
 		while (curproxy->srv) {
@@ -2035,13 +2050,18 @@ int readcfgfile(const char *file)
 		 */
 		newsrv = curproxy->srv;
 		while (newsrv != NULL) {
-			if (newsrv->minconn >= newsrv->maxconn) {
+			if (newsrv->minconn > newsrv->maxconn) {
 				/* Only 'minconn' was specified, or it was higher than or equal
 				 * to 'maxconn'. Let's turn this into maxconn and clean it, as
 				 * this will avoid further useless expensive computations.
 				 */
 				newsrv->maxconn = newsrv->minconn;
-				newsrv->minconn = 0;
+			} else if (newsrv->maxconn && !newsrv->minconn) {
+				/* minconn was not specified, so we set it to maxconn */
+				newsrv->minconn = newsrv->maxconn;
+			} else if (!curproxy->fullconn) {
+				Alert("parsing [%s:%d] : fullconn is mandatory when minconn is set on a server.\n", file, linenum);
+				return -1;
 			}
 
 			if (newsrv->maxconn > 0) {

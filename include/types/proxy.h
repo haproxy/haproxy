@@ -98,7 +98,8 @@ struct proxy {
 	unsigned int feconn, feconn_max;	/* # of active frontend sessions */
 	unsigned int beconn, beconn_max;	/* # of active backend sessions */
 	unsigned int cum_feconn, cum_beconn;	/* cumulated number of processed sessions */
-	unsigned int maxconn;			/* max # of active sessions */
+	unsigned int maxconn;			/* max # of active sessions on the frontend */
+	unsigned int fullconn;			/* #conns on backend above which servers are used at full load */
 	unsigned failed_conns, failed_resp;	/* failed connect() and responses */
 	unsigned failed_secu;			/* blocked responses because of security concerns */
 	int conn_retries;			/* maximum number of connect retries */
