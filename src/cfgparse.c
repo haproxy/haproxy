@@ -181,6 +181,31 @@ static struct listener *str2listener(char *str, struct listener *tail)
 	return NULL;
 }
 
+/*
+ * Sends a warning if proxy <proxy> does not have at least one of the
+ * capabilities in <cap>. An optionnal <hint> may be added at the end
+ * of the warning to help the user. Returns 1 if a warning was emitted
+ * or 0 if the condition is valid.
+ */
+int warnifnotcap(struct proxy *proxy, int cap, const char *file, int line, char *arg, char *hint)
+{
+	char *msg;
+
+	switch (cap) {
+	case PR_CAP_BE: msg = "no backend"; break;
+	case PR_CAP_FE: msg = "no frontend"; break;
+	case PR_CAP_RS: msg = "no ruleset"; break;
+	case PR_CAP_BE|PR_CAP_FE: msg = "neither frontend nor backend"; break;
+	default: msg = "not enough"; break;
+	}
+
+	if (!(proxy->cap & cap)) {
+		Warning("parsing [%s:%d] : '%s' ignored because %s '%s' has %s capability.%s\n",
+			file, line, arg, proxy_type_str(proxy->cap), proxy->id, msg, hint ? hint : "");
+		return 1;
+	}
+	return 0;
+}
 
 /*
  * parse a line in a <global> section. Returns 0 if OK, -1 if error.
@@ -356,7 +381,8 @@ static void init_default_instance()
 }
 
 /*
- * parse a line in a <listen> section. Returns 0 if OK, -1 if error.
+ * Parse a line in a <listen>, <frontend>, <backend> or <ruleset> section.
+ * Returns 0 if OK, -1 if error.
  */
 int cfg_parse_listen(const char *file, int linenum, char **args)
 {
@@ -365,7 +391,18 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 	const char *err;
 	int rc;
 
-	if (!strcmp(args[0], "listen")) {  /* new proxy */
+	if (!strcmp(args[0], "listen"))
+		rc = PR_CAP_LISTEN;
+ 	else if (!strcmp(args[0], "frontend"))
+		rc = PR_CAP_FE | PR_CAP_RS;
+ 	else if (!strcmp(args[0], "backend"))
+		rc = PR_CAP_BE | PR_CAP_RS;
+ 	else if (!strcmp(args[0], "ruleset"))
+		rc = PR_CAP_RS;
+	else
+		rc = PR_CAP_NONE;
+
+	if (rc != PR_CAP_NONE) {  /* new proxy */
 		if (!*args[1]) {
 			Alert("parsing [%s:%d] : '%s' expects an <id> argument and\n"
 			      "  optionnally supports [addr1]:port1[-end1]{,[addr]:port[-end]}...\n",
@@ -383,9 +420,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		LIST_INIT(&curproxy->pendconns);
 
 		curproxy->id = strdup(args[1]);
+		curproxy->cap = rc;
 
 		/* parse the listener address if any */
-		if (*args[2]) {
+		if ((curproxy->cap & PR_CAP_FE) && *args[2]) {
 			curproxy->listen = str2listener(args[2], curproxy->listen);
 			if (!curproxy->listen)
 				return -1;
@@ -394,33 +432,56 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 
 		/* set default values */
 		curproxy->state = defproxy.state;
-		curproxy->maxconn = defproxy.maxconn;
-		curproxy->fullconn = defproxy.fullconn;
-		curproxy->conn_retries = defproxy.conn_retries;
 		curproxy->options = defproxy.options;
 
-		if (defproxy.check_req)
-			curproxy->check_req = strdup(defproxy.check_req);
-		curproxy->check_len = defproxy.check_len;
+		if (curproxy->cap & PR_CAP_FE) {
+			curproxy->maxconn = defproxy.maxconn;
 
-		if (defproxy.cookie_name)
-			curproxy->cookie_name = strdup(defproxy.cookie_name);
-		curproxy->cookie_len = defproxy.cookie_len;
+			/* initialize error relocations */
+			for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
+				if (defproxy.errmsg[rc].str)
+					chunk_dup(&curproxy->errmsg[rc], &defproxy.errmsg[rc]);
+			}
 
-		if (defproxy.capture_name)
-			curproxy->capture_name = strdup(defproxy.capture_name);
-		curproxy->capture_namelen = defproxy.capture_namelen;
-		curproxy->capture_len = defproxy.capture_len;
-
-
-		for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
-			if (defproxy.errmsg[rc].str)
-				chunk_dup(&curproxy->errmsg[rc], &defproxy.errmsg[rc]);
+			curproxy->to_log = defproxy.to_log & ~LW_COOKIE & ~LW_REQHDR & ~ LW_RSPHDR;
 		}
 
-		curproxy->clitimeout = defproxy.clitimeout;
-		curproxy->contimeout = defproxy.contimeout;
-		curproxy->srvtimeout = defproxy.srvtimeout;
+		if (curproxy->cap & PR_CAP_BE) {
+			curproxy->fullconn = defproxy.fullconn;
+			curproxy->conn_retries = defproxy.conn_retries;
+
+			if (defproxy.check_req)
+				curproxy->check_req = strdup(defproxy.check_req);
+			curproxy->check_len = defproxy.check_len;
+
+			if (defproxy.cookie_name)
+				curproxy->cookie_name = strdup(defproxy.cookie_name);
+			curproxy->cookie_len = defproxy.cookie_len;
+		}
+
+		if (curproxy->cap & PR_CAP_RS) {
+			if (defproxy.capture_name)
+				curproxy->capture_name = strdup(defproxy.capture_name);
+			curproxy->capture_namelen = defproxy.capture_namelen;
+			curproxy->capture_len = defproxy.capture_len;
+		}
+
+		if (curproxy->cap & PR_CAP_FE) {
+			curproxy->clitimeout = defproxy.clitimeout;
+			curproxy->uri_auth  = defproxy.uri_auth;
+			curproxy->mon_net = defproxy.mon_net;
+			curproxy->mon_mask = defproxy.mon_mask;
+			if (defproxy.monitor_uri)
+				curproxy->monitor_uri = strdup(defproxy.monitor_uri);
+			curproxy->monitor_uri_len = defproxy.monitor_uri_len;
+		}
+
+		if (curproxy->cap & PR_CAP_BE) {
+			curproxy->contimeout = defproxy.contimeout;
+			curproxy->srvtimeout = defproxy.srvtimeout;
+			curproxy->source_addr = defproxy.source_addr;
+		}
+
 		curproxy->mode = defproxy.mode;
 		curproxy->logfac1 = defproxy.logfac1;
 		curproxy->logsrv1 = defproxy.logsrv1;
@@ -428,16 +489,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		curproxy->logfac2 = defproxy.logfac2;
 		curproxy->logsrv2 = defproxy.logsrv2;
 		curproxy->loglev2 = defproxy.loglev2;
-		curproxy->to_log = defproxy.to_log & ~LW_COOKIE & ~LW_REQHDR & ~ LW_RSPHDR;
 		curproxy->grace  = defproxy.grace;
-		curproxy->uri_auth  = defproxy.uri_auth;
-		curproxy->source_addr = defproxy.source_addr;
-		curproxy->mon_net = defproxy.mon_net;
-		curproxy->mon_mask = defproxy.mon_mask;
-
-		if (defproxy.monitor_uri)
-			curproxy->monitor_uri = strdup(defproxy.monitor_uri);
-		curproxy->monitor_uri_len = defproxy.monitor_uri_len;
 
 		return 0;
 	}
@@ -456,6 +508,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		/* we cannot free uri_auth because it might already be used */
 		init_default_instance();
 		curproxy = &defproxy;
+		defproxy.cap = PR_CAP_LISTEN; /* all caps for now */
 		return 0;
 	}
 	else if (curproxy == NULL) {
@@ -463,11 +516,15 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		return -1;
 	}
     
+
+	/* Now let's parse the proxy-specific keywords */
 	if (!strcmp(args[0], "bind")) {  /* new listen addresses */
 		if (curproxy == &defproxy) {
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			return -1;
 		}
+		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
+			return 0;
 
 		if (strchr(args[1], ':') == NULL) {
 			Alert("parsing [%s:%d] : '%s' expects [addr1]:port1[-end1]{,[addr]:port[-end]}... as arguments.\n",
@@ -486,11 +543,17 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			      file, linenum, args[0]);
 			return -1;
 		}
+		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
+			return 0;
+
 		/* flush useless bits */
 		curproxy->mon_net.s_addr &= curproxy->mon_mask.s_addr;
 		return 0;
 	}
 	else if (!strcmp(args[0], "monitor-uri")) {  /* set the URI to intercept */
+		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
+			return 0;
+
 		if (!*args[1]) {
 			Alert("parsing [%s:%d] : '%s' expects an URI.\n",
 			      file, linenum, args[0]);
@@ -529,6 +592,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		//	      Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 		//	      return -1;
 		//	  }
+
+		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
+			return 0;
 
 		if (curproxy->cookie_name != NULL) {
 			//	      Alert("parsing [%s:%d] : cookie name already specified. Continuing.\n",
@@ -590,6 +656,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		//	      return -1;
 		//	  }
 
+		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
+			return 0;
+
 		if (curproxy->appsession_name != NULL) {
 			//	      Alert("parsing [%s:%d] : cookie name already specified. Continuing.\n",
 			//		    file, linenum);
@@ -614,6 +683,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		}
 	} /* Url App Session */
 	else if (!strcmp(args[0], "capture")) {
+		if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
+			return 0;
+
 		if (!strcmp(args[1], "cookie")) {  /* name of a cookie to capture */
 			//	  if (curproxy == &defproxy) {
 			//	      Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
@@ -698,6 +770,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
 			return 0;
 		}
+		else if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
+			return 0;
+
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer <time_in_ms> as argument.\n",
 			      file, linenum, args[0]);
@@ -711,6 +786,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			      file, linenum, args[0]);
 			return 0;
 		}
+		else if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
+			return 0;
+
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer <time_in_ms> as argument.\n",
 			      file, linenum, args[0]);
@@ -723,6 +801,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
 			return 0;
 		}
+		else if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
+			return 0;
+
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer <time_in_ms> as argument.\n",
 			      file, linenum, args[0]);
@@ -731,6 +812,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		curproxy->srvtimeout = atol(args[1]);
 	}
 	else if (!strcmp(args[0], "retries")) {  /* connection retries */
+		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
+			return 0;
+
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument (dispatch counts for one).\n",
 			      file, linenum, args[0]);
@@ -739,6 +823,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		curproxy->conn_retries = atol(args[1]);
 	}
 	else if (!strcmp(args[0], "stats")) {
+		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
+			return 0;
+
 		if (curproxy != &defproxy && curproxy->uri_auth == defproxy.uri_auth)
 			curproxy->uri_auth = NULL; /* we must detach from the default config */
 
@@ -894,6 +981,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		return 0;
 	}
 	else if (!strcmp(args[0], "redispatch") || !strcmp(args[0], "redisp")) {
+		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
+			return 0;
+
 		/* enable reconnections to dispatch */
 		curproxy->options |= PR_O_REDISP;
 	}
@@ -904,6 +994,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 	}
 #endif
 	else if (!strcmp(args[0], "maxconn")) {  /* maxconn */
+		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], " Maybe you want 'fullconn' instead ?"))
+			return 0;
+
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
 			return -1;
@@ -911,6 +1004,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		curproxy->maxconn = atol(args[1]);
 	}
 	else if (!strcmp(args[0], "fullconn")) {  /* fullconn */
+		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], " Maybe you want 'maxconn' instead ?"))
+			return 0;
+
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
 			return -1;
@@ -929,6 +1025,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			return -1;
 		}
+		else if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
+			return 0;
+
 		if (strchr(args[1], ':') == NULL) {
 			Alert("parsing [%s:%d] : '%s' expects <addr:port> as argument.\n", file, linenum, args[0]);
 			return -1;
@@ -936,6 +1035,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		curproxy->dispatch_addr = *str2sa(args[1]);
 	}
 	else if (!strcmp(args[0], "balance")) {  /* set balancing with optional algorithm */
+		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
+			return 0;
+
 		if (*(args[1])) {
 			if (!strcmp(args[1], "roundrobin")) {
 				curproxy->options |= PR_O_BALANCE_RR;
@@ -962,6 +1064,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			return -1;
 		}
+		else if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
+			return 0;
 
 		if (!*args[2]) {
 			Alert("parsing [%s:%d] : '%s' expects <name> and <addr>[:<port>] as arguments.\n",
@@ -1176,6 +1280,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		}
 	}
 	else if (!strcmp(args[0], "source")) {  /* address to which we bind when connecting */
+		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
+			return 0;
+
 		if (!*args[1]) {
 			Alert("parsing [%s:%d] : '%s' expects <addr>[:<port>] as argument.\n",
 			      file, linenum, "source");
@@ -1215,7 +1322,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			return -1;
 		}
-	
+		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
+			return 0;
+
 		if (*(args[1]) == 0 || *(args[2]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects <search> and <replace> as arguments.\n",
 			      file, linenum, args[0]);
@@ -1241,7 +1350,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			return -1;
 		}
-	
+		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
+			return 0;
+
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
 			return -1;
@@ -1261,7 +1372,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			return -1;
 		}
-	
+		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
+			return 0;
+
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
 			return -1;
@@ -1281,7 +1394,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			return -1;
 		}
-	
+		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
+			return 0;
+
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
 			return -1;
@@ -1301,7 +1416,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			return -1;
 		}
-	
+		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
+			return 0;
+
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
 			return -1;
@@ -1321,7 +1438,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			return -1;
 		}
-	
+		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
+			return 0;
+
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
 			return -1;
@@ -1337,19 +1456,21 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 	}
 	else if (!strcmp(args[0], "reqsetbe")) { /* switch the backend from a regex, respecting case */
 		regex_t *preg;
-		if(curproxy == &defproxy) {
+		if (curproxy == &defproxy) {
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			return -1;
 		}
+		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
+			return 0;
 
-		if(*(args[1]) == 0 || *(args[2]) == 0) {
+		if (*(args[1]) == 0 || *(args[2]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects <search> and <target> as arguments.\n", 
 				file, linenum, args[0]);
 			return -1;	
 		}
 		
 		preg = calloc(1, sizeof(regex_t));
-		if(regcomp(preg, args[1], REG_EXTENDED) != 0) {
+		if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
 			Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
 		}
 
@@ -1357,19 +1478,21 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 	}
 	else if (!strcmp(args[0], "reqisetbe")) { /* switch the backend from a regex, ignoring case */
 		regex_t *preg;
-		if(curproxy == &defproxy) {
+		if (curproxy == &defproxy) {
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			return -1;
 		}
+		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
+			return 0;
 
-		if(*(args[1]) == 0 || *(args[2]) == 0) {
+		if (*(args[1]) == 0 || *(args[2]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects <search> and <target> as arguments.\n", 
 			      file, linenum, args[0]);
 			return -1;	
 		}
 		
 		preg = calloc(1, sizeof(regex_t));
-		if(regcomp(preg, args[1], REG_EXTENDED | REG_ICASE) != 0) {
+		if (regcomp(preg, args[1], REG_EXTENDED | REG_ICASE) != 0) {
 			Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
 		}
 
@@ -1381,7 +1504,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			return -1;
 		}
-	
+		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
+			return 0;
+
 		if (*(args[1]) == 0 || *(args[2]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects <search> and <replace> as arguments.\n",
 			      file, linenum, args[0]);
@@ -1407,7 +1532,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			return -1;
 		}
-	
+		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
+			return 0;
+
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
 			return -1;
@@ -1427,7 +1554,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			return -1;
 		}
-	
+		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
+			return 0;
+
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
 			return -1;
@@ -1447,7 +1576,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			return -1;
 		}
-	
+		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
+			return 0;
+
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
 			return -1;
@@ -1467,7 +1598,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			return -1;
 		}
-	
+		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
+			return 0;
+
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
 			return -1;
@@ -1487,7 +1620,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			return -1;
 		}
-	
+		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
+			return 0;
+
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
 			return -1;
@@ -1506,6 +1641,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			return -1;
 		}
+		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
+			return 0;
 
 		if (curproxy->nb_reqadd >= MAX_NEWHDR) {
 			Alert("parsing [%s:%d] : too many '%s'. Continuing.\n", file, linenum, args[0]);
@@ -1527,7 +1664,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			      file, linenum, args[0]);
 			return -1;
 		}
-	
+		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
+			return 0;
+
 		preg = calloc(1, sizeof(regex_t));
 		if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
 			Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
@@ -1547,7 +1686,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			return -1;
 		}
-	
+		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
+			return 0;
+
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects <search> as an argument.\n", file, linenum, args[0]);
 			return -1;
@@ -1572,7 +1713,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			return -1;
 		}
-	
+		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
+			return 0;
+
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects <search> as an argument.\n", file, linenum, args[0]);
 			return -1;
@@ -1597,6 +1740,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			return -1;
 		}
+		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
+			return 0;
 
 		if (*(args[1]) == 0 || *(args[2]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects <search> and <replace> as arguments.\n",
@@ -1623,7 +1768,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			return -1;
 		}
-	
+		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
+			return 0;
+
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects <search> as an argument.\n", file, linenum, args[0]);
 			return -1;
@@ -1648,7 +1795,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			return -1;
 		}
-	
+		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
+			return 0;
+
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects <search> as an argument.\n", file, linenum, args[0]);
 			return -1;
@@ -1672,6 +1821,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			return -1;
 		}
+		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
+			return 0;
 
 		if (curproxy->nb_rspadd >= MAX_NEWHDR) {
 			Alert("parsing [%s:%d] : too many '%s'. Continuing.\n", file, linenum, args[0]);
@@ -1695,6 +1846,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		//     Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 		//     return -1;
 		// }
+
+		if (warnifnotcap(curproxy, PR_CAP_FE | PR_CAP_BE, file, linenum, args[0], NULL))
+			return 0;
 
 		if (*(args[2]) == 0) {
 			Alert("parsing [%s:%d] : <%s> expects <status_code> and <url> as arguments.\n", file, linenum);
@@ -1840,7 +1994,11 @@ int readcfgfile(const char *file)
 			args[arg] = line;
 		}
 
-		if (!strcmp(args[0], "listen") || !strcmp(args[0], "defaults"))  /* new proxy */
+		if (!strcmp(args[0], "listen") ||
+		    !strcmp(args[0], "frontend") ||
+		    !strcmp(args[0], "backend") ||
+		    !strcmp(args[0], "ruleset") ||
+		    !strcmp(args[0], "defaults"))  /* new proxy */
 			confsect = CFG_LISTEN;
 		else if (!strcmp(args[0], "global"))  /* global config */
 			confsect = CFG_GLOBAL;
@@ -1883,55 +2041,57 @@ int readcfgfile(const char *file)
 			continue;
 		}
 
-		if (curproxy->listen == NULL) {
-			Alert("parsing %s : listener %s has no listen address. Please either specify a valid address on the <listen> line, or use the <bind> keyword.\n", file, curproxy->id);
+		if (curproxy->cap & PR_CAP_FE && curproxy->listen == NULL)  {
+			Alert("parsing %s : %s '%s' has no listen address. Please either specify a valid address on the <listen> line, or use the <bind> keyword.\n",
+			      file, proxy_type_str(curproxy->cap), curproxy->id);
 			cfgerr++;
 		}
-		else if ((curproxy->mode != PR_MODE_HEALTH) &&
-			 !(curproxy->options & (PR_O_TRANSP | PR_O_BALANCE)) &&
-			 (*(int *)&curproxy->dispatch_addr.sin_addr == 0)) {
-			Alert("parsing %s : listener %s has no dispatch address and is not in transparent or balance mode.\n",
-			      file, curproxy->id);
+		else if (curproxy->cap & PR_CAP_BE &&
+			 ((curproxy->mode != PR_MODE_HEALTH) &&
+			  !(curproxy->options & (PR_O_TRANSP | PR_O_BALANCE)) &&
+			  (*(int *)&curproxy->dispatch_addr.sin_addr == 0))) {
+			Alert("parsing %s : %s '%s' has no dispatch address and is not in transparent or balance mode.\n",
+			      file, proxy_type_str(curproxy->cap), curproxy->id);
 			cfgerr++;
 		}
 		else if ((curproxy->mode != PR_MODE_HEALTH) && (curproxy->options & PR_O_BALANCE)) {
 			if (curproxy->options & PR_O_TRANSP) {
-				Alert("parsing %s : listener %s cannot use both transparent and balance mode.\n",
-				      file, curproxy->id);
+				Alert("parsing %s : %s '%s' cannot use both transparent and balance mode.\n",
+				      file, proxy_type_str(curproxy->cap), curproxy->id);
 				cfgerr++;
 			}
 #ifdef WE_DONT_SUPPORT_SERVERLESS_LISTENERS
 			else if (curproxy->srv == NULL) {
-				Alert("parsing %s : listener %s needs at least 1 server in balance mode.\n",
-				      file, curproxy->id);
+				Alert("parsing %s : %s '%s' needs at least 1 server in balance mode.\n",
+				      file, proxy_type_str(curproxy->cap), curproxy->id);
 				cfgerr++;
 			}
 #endif
 			else if (*(int *)&curproxy->dispatch_addr.sin_addr != 0) {
-				Warning("parsing %s : dispatch address of listener %s will be ignored in balance mode.\n",
-					file, curproxy->id);
+				Warning("parsing %s : dispatch address of %s '%s' will be ignored in balance mode.\n",
+					file, proxy_type_str(curproxy->cap), curproxy->id);
 			}
 		}
 		else if (curproxy->mode == PR_MODE_TCP || curproxy->mode == PR_MODE_HEALTH) { /* TCP PROXY or HEALTH CHECK */
 			if (curproxy->cookie_name != NULL) {
-				Warning("parsing %s : cookie will be ignored for listener %s.\n",
-					file, curproxy->id);
+				Warning("parsing %s : cookie will be ignored for %s '%s'.\n",
+					file, proxy_type_str(curproxy->cap), curproxy->id);
 			}
 			if ((newsrv = curproxy->srv) != NULL) {
-				Warning("parsing %s : servers will be ignored for listener %s.\n",
-					file, curproxy->id);
+				Warning("parsing %s : servers will be ignored for %s '%s'.\n",
+					file, proxy_type_str(curproxy->cap), curproxy->id);
 			}
 			if (curproxy->rsp_exp != NULL) {
-				Warning("parsing %s : server regular expressions will be ignored for listener %s.\n",
-					file, curproxy->id);
+				Warning("parsing %s : server regular expressions will be ignored for %s '%s'.\n",
+					file, proxy_type_str(curproxy->cap), curproxy->id);
 			}
 			if (curproxy->req_exp != NULL) {
-				Warning("parsing %s : client regular expressions will be ignored for listener %s.\n",
-					file, curproxy->id);
+				Warning("parsing %s : client regular expressions will be ignored for %s '%s'.\n",
+					file, proxy_type_str(curproxy->cap), curproxy->id);
 			}
 			if (curproxy->monitor_uri != NULL) {
-				Warning("parsing %s : monitor-uri will be ignored for listener %s.\n",
-					file, curproxy->id);
+				Warning("parsing %s : monitor-uri will be ignored for %s '%s'.\n",
+					file, proxy_type_str(curproxy->cap), curproxy->id);
 			}
 		}
 		else if (curproxy->mode == PR_MODE_HTTP) { /* HTTP PROXY */
@@ -1954,11 +2114,19 @@ int readcfgfile(const char *file)
 						break;
 				}
 				if (target == NULL) {
-					Alert("parsing %s : backend '%s' in HTTP proxy %s was not found !\n", 
-						file, exp->replace, curproxy->id);
+					Alert("parsing %s : backend '%s' in HTTP %s '%s' was not found !\n", 
+					      file, exp->replace, proxy_type_str(curproxy->cap), curproxy->id);
 					cfgerr++;
 				} else if (target == curproxy) {
 					Alert("parsing %s : loop detected for backend %s !\n", file, exp->replace);
+					cfgerr++;
+				} else if (!(target->cap & PR_CAP_BE)) {
+					Alert("parsing %s : target '%s' in HTTP %s '%s' has no backend capability !\n",
+					      file, exp->replace, proxy_type_str(curproxy->cap), curproxy->id);
+					cfgerr++;
+				} else if (target->mode != PR_MODE_HTTP) {
+					Alert("parsing %s : backend '%s' in HTTP %s '%s' is not HTTP (use 'mode http') !\n",
+					      file, exp->replace, proxy_type_str(curproxy->cap), curproxy->id);
 					cfgerr++;
 				} else {
 					free((void *)exp->replace);
@@ -1967,12 +2135,13 @@ int readcfgfile(const char *file)
 			}
 		}
 		if ((curproxy->mode == PR_MODE_TCP || curproxy->mode == PR_MODE_HTTP) &&
-		    (!curproxy->clitimeout || !curproxy->contimeout || !curproxy->srvtimeout)) {
-			Warning("parsing %s : missing timeouts for listener '%s'.\n"
+		    (((curproxy->cap & PR_CAP_FE) && !curproxy->clitimeout) ||
+		     ((curproxy->cap & PR_CAP_BE) && (curproxy->srv) && (!curproxy->contimeout || !curproxy->srvtimeout)))) {
+			Warning("parsing %s : missing timeouts for %s '%s'.\n"
 				"   | While not properly invalid, you will certainly encounter various problems\n"
 				"   | with such a configuration. To fix this, please ensure that all following\n"
 				"   | values are set to a non-zero value: clitimeout, contimeout, srvtimeout.\n",
-				file, curproxy->id);
+				file, proxy_type_str(curproxy->cap), curproxy->id);
 		}
 
 		if (curproxy->options & PR_O_SSL3_CHK) {
@@ -2059,8 +2228,9 @@ int readcfgfile(const char *file)
 			} else if (newsrv->maxconn && !newsrv->minconn) {
 				/* minconn was not specified, so we set it to maxconn */
 				newsrv->minconn = newsrv->maxconn;
-			} else if (!curproxy->fullconn) {
-				Alert("parsing [%s:%d] : fullconn is mandatory when minconn is set on a server.\n", file, linenum);
+			} else if (newsrv->minconn != newsrv->maxconn && !curproxy->fullconn) {
+				Alert("parsing %s, %s '%s' : fullconn is mandatory when minconn is set on a server.\n",
+				      file, proxy_type_str(curproxy->cap), curproxy->id, linenum);
 				return -1;
 			}
 

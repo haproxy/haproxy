@@ -51,6 +51,13 @@
 #define PR_MODE_HTTP    1
 #define PR_MODE_HEALTH  2
 
+/* flag values for proxy->cap. This is a bitmask of capabilities supported by the proxy */
+#define PR_CAP_NONE    0x0000
+#define PR_CAP_FE      0x0001
+#define PR_CAP_BE      0x0002
+#define PR_CAP_RS      0x0004
+#define PR_CAP_LISTEN  (PR_CAP_FE|PR_CAP_BE|PR_CAP_RS)
+
 /* return codes for start_proxies */
 #define ERR_NONE	0	/* no error */
 #define ERR_RETRYABLE	1	/* retryable error, may be cumulated */
@@ -105,6 +112,7 @@ struct proxy {
 	int conn_retries;			/* maximum number of connect retries */
 	int options;				/* PR_O_REDISP, PR_O_TRANSP, ... */
 	int mode;				/* mode = PR_MODE_TCP, PR_MODE_HTTP or PR_MODE_HEALTH */
+	int cap;				/* supported capabilities (PR_CAP_*) */
 	struct sockaddr_in source_addr;		/* the address to which we want to bind for connect() */
 #ifdef CONFIG_HAP_CTTPROXY
 	struct sockaddr_in tproxy_addr;		/* non-local address we want to bind to for connect() */
@@ -131,6 +139,7 @@ struct proxy {
 };
 
 extern struct proxy *proxy;
+extern const char *proxy_type_str(int capabilities);
 
 #endif /* _TYPES_PROXY_H */
 

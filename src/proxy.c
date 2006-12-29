@@ -33,6 +33,24 @@
 int listeners;	/* # of listeners */
 struct proxy *proxy  = NULL;	/* list of all existing proxies */
 
+/*
+ * This function returns a string containing the type of the proxy in a format
+ * suitable for error messages, from its capabilities.
+ */
+const char *proxy_type_str(int cap)
+{
+	if ((cap & PR_CAP_LISTEN) == PR_CAP_LISTEN)
+		return "listener";
+	else if (cap & PR_CAP_FE)
+		return "frontend";
+	else if (cap & PR_CAP_BE)
+		return "backend";
+	else if (cap & PR_CAP_RS)
+		return "ruleset";
+	else
+		return "proxy";
+}
+
 
 /*
  * this function starts all the proxies. Its return value is composed from
