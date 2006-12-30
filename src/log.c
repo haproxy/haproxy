@@ -380,16 +380,16 @@ void sess_log(struct session *s)
 		*h = '\0';
 
 		send_log(prx_log, LOG_INFO,
-			 "%s:%d [%02d/%s/%04d:%02d:%02d:%02d]"
-			 " %s %s %d/%d/%d/%d/%s%d %d %s%lld"
-			 " %s %s %c%c%c%c %d/%d/%d %d/%d%s\n",
+			 "%s:%d [%02d/%s/%04d:%02d:%02d:%02d.%03d]"
+			 " %s %s/%s %d/%d/%d/%d/%s%d %d %s%lld"
+			 " %s %s %c%c%c%c %d/%d/%d/%d %d/%d%s\n",
 			 pn,
 			 (s->cli_addr.ss_family == AF_INET) ?
 			 ntohs(((struct sockaddr_in *)&s->cli_addr)->sin_port) :
 			 ntohs(((struct sockaddr_in6 *)&s->cli_addr)->sin6_port),
 			 tm->tm_mday, monthname[tm->tm_mon], tm->tm_year+1900,
-			 tm->tm_hour, tm->tm_min, tm->tm_sec,
-			 pxid, srv,
+			 tm->tm_hour, tm->tm_min, tm->tm_sec, s->logs.tv_accept.tv_usec/1000,
+			 fe->id, pxid, srv,
 			 s->logs.t_request,
 			 (s->logs.t_queue >= 0) ? s->logs.t_queue - s->logs.t_request : -1,
 			 (s->logs.t_connect >= 0) ? s->logs.t_connect - s->logs.t_queue : -1,
@@ -403,27 +403,27 @@ void sess_log(struct session *s)
 			 sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT],
 			 (be->beprm->options & PR_O_COOK_ANY) ? sess_cookie[(s->flags & SN_CK_MASK) >> SN_CK_SHIFT] : '-',
 			 (be->beprm->options & PR_O_COOK_ANY) ? sess_set_cookie[(s->flags & SN_SCK_MASK) >> SN_SCK_SHIFT] : '-',
-			 s->srv ? s->srv->cur_sess : 0, be->beprm->beconn, actconn,
+			 actconn, fe->feconn, be->beprm->beconn, s->srv ? s->srv->cur_sess : 0,
 			 s->logs.srv_queue_size, s->logs.prx_queue_size, tmpline);
 	}
 	else {
-		send_log(prx_log, LOG_INFO, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d]"
-			 " %s %s %d/%d/%s%d %s%lld"
-			 " %c%c %d/%d/%d %d/%d\n",
+		send_log(prx_log, LOG_INFO, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d.%03d]"
+			 " %s %s/%s %d/%d/%s%d %s%lld"
+			 " %c%c %d/%d/%d/%d %d/%d\n",
 			 pn,
 			 (s->cli_addr.ss_family == AF_INET) ?
 			 ntohs(((struct sockaddr_in *)&s->cli_addr)->sin_port) :
 			 ntohs(((struct sockaddr_in6 *)&s->cli_addr)->sin6_port),
 			 tm->tm_mday, monthname[tm->tm_mon], tm->tm_year+1900,
-			 tm->tm_hour, tm->tm_min, tm->tm_sec,
-			 pxid, srv,
+			 tm->tm_hour, tm->tm_min, tm->tm_sec, s->logs.tv_accept.tv_usec/1000,
+			 fe->id, pxid, srv,
 			 (s->logs.t_queue >= 0) ? s->logs.t_queue : -1,
 			 (s->logs.t_connect >= 0) ? s->logs.t_connect - s->logs.t_queue : -1,
 			 (tolog & LW_BYTES) ? "" : "+", s->logs.t_close,
 			 (tolog & LW_BYTES) ? "" : "+", s->logs.bytes,
 			 sess_term_cond[(s->flags & SN_ERR_MASK) >> SN_ERR_SHIFT],
 			 sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT],
-			 s->srv ? s->srv->cur_sess : 0, be->beprm->beconn, actconn,
+			 actconn, fe->feconn, be->beprm->beconn, s->srv ? s->srv->cur_sess : 0,
 			 s->logs.srv_queue_size, s->logs.prx_queue_size);
 	}
 

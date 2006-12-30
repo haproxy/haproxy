@@ -162,7 +162,7 @@ int str2net(char *str, struct in_addr *addr, struct in_addr *mask)
 		}
 	}
 	else {
-		mask->s_addr = ~0UL;
+		mask->s_addr = ~0U;
 	}
 	if (!inet_pton(AF_INET, str, addr)) {
 		struct hostent *he;
