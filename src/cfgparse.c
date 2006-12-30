@@ -69,6 +69,32 @@ const char sslv3_client_hello_pkt[] = {
 	"\x00"                /* Compression Type    : 0x00 = NULL compression   */
 };
 
+/* some of the most common options which are also the easiest to handle */
+static const struct {
+	const char *name;
+	unsigned int val;
+	unsigned int cap;
+} cfg_opts[] =
+{
+#ifdef TPROXY
+	{ "transparent",  PR_O_TRANSP,     PR_CAP_FE },
+#endif
+	{ "redispatch",   PR_O_REDISP,     PR_CAP_BE },
+	{ "keepalive",    PR_O_KEEPALIVE,  PR_CAP_NONE },
+	{ "forwardfor",   PR_O_FWDFOR,     PR_CAP_FE | PR_CAP_BE },
+	{ "httpclose",    PR_O_HTTP_CLOSE, PR_CAP_FE | PR_CAP_BE },
+	{ "logasap",      PR_O_LOGASAP,    PR_CAP_FE },
+	{ "abortonclose", PR_O_ABRT_CLOSE, PR_CAP_BE },
+	{ "checkcache",   PR_O_CHK_CACHE,  PR_CAP_BE },
+	{ "dontlognull",  PR_O_NULLNOLOG,  PR_CAP_FE },
+	{ "clitcpka",     PR_O_TCP_CLI_KA, PR_CAP_FE },
+	{ "srvtcpka",     PR_O_TCP_SRV_KA, PR_CAP_BE },
+	{ "allbackups",   PR_O_USE_ALL_BK, PR_CAP_BE },
+	{ "persist",      PR_O_PERSIST,    PR_CAP_BE },
+	{ "forceclose",   PR_O_FORCE_CLO | PR_O_HTTP_CLOSE, PR_CAP_BE },
+	{ NULL, 0, 0 }
+};
+
 
 static struct proxy defproxy;		/* fake proxy used to assign default values on all instances */
 int cfg_maxpconn = DEFAULT_MAXCONN;	/* # of simultaneous connections per proxy (-N) */
@@ -876,66 +902,41 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		}
 	}
 	else if (!strcmp(args[0], "option")) {
+		int optnum;
+
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an option name.\n", file, linenum, args[0]);
 			return -1;
 		}
-		if (!strcmp(args[1], "redispatch"))
-			/* enable reconnections to dispatch */
-			curproxy->options |= PR_O_REDISP;
-#ifdef TPROXY
-		else if (!strcmp(args[1], "transparent"))
-			/* enable transparent proxy connections */
-			curproxy->options |= PR_O_TRANSP;
-#endif
-		else if (!strcmp(args[1], "keepalive"))
-			/* enable keep-alive */
-			curproxy->options |= PR_O_KEEPALIVE;
-		else if (!strcmp(args[1], "forwardfor"))
-			/* insert x-forwarded-for field */
-			curproxy->options |= PR_O_FWDFOR;
-		else if (!strcmp(args[1], "logasap"))
-			/* log as soon as possible, without waiting for the session to complete */
-			curproxy->options |= PR_O_LOGASAP;
-		else if (!strcmp(args[1], "abortonclose"))
-			/* abort connection if client closes during queue or connect() */
-			curproxy->options |= PR_O_ABRT_CLOSE;
-		else if (!strcmp(args[1], "httpclose"))
-			/* force connection: close in both directions in HTTP mode */
-			curproxy->options |= PR_O_HTTP_CLOSE;
-		else if (!strcmp(args[1], "forceclose"))
-			/* force connection: close in both directions in HTTP mode and enforce end of session */
-			curproxy->options |= PR_O_FORCE_CLO | PR_O_HTTP_CLOSE;
-		else if (!strcmp(args[1], "checkcache"))
-			/* require examination of cacheability of the 'set-cookie' field */
-			curproxy->options |= PR_O_CHK_CACHE;
-		else if (!strcmp(args[1], "httplog"))
+
+		for (optnum = 0; cfg_opts[optnum].name; optnum++) {
+			if (!strcmp(args[1], cfg_opts[optnum].name)) {
+				if (warnifnotcap(curproxy, cfg_opts[optnum].cap, file, linenum, args[1], NULL))
+					return 0;
+				curproxy->options |= cfg_opts[optnum].val;
+				return 0;
+			}
+		}
+
+		if (!strcmp(args[1], "httplog"))
 			/* generate a complete HTTP log */
 			curproxy->to_log |= LW_DATE | LW_CLIP | LW_SVID | LW_REQ | LW_PXID | LW_RESP | LW_BYTES;
 		else if (!strcmp(args[1], "tcplog"))
 			/* generate a detailed TCP log */
 			curproxy->to_log |= LW_DATE | LW_CLIP | LW_SVID | LW_PXID | LW_BYTES;
-		else if (!strcmp(args[1], "dontlognull")) {
-			/* don't log empty requests */
-			curproxy->options |= PR_O_NULLNOLOG;
-		}
 		else if (!strcmp(args[1], "tcpka")) {
 			/* enable TCP keep-alives on client and server sessions */
-			curproxy->options |= PR_O_TCP_CLI_KA | PR_O_TCP_SRV_KA;
-		}
-		else if (!strcmp(args[1], "clitcpka")) {
-			/* enable TCP keep-alives on client sessions */
-			curproxy->options |= PR_O_TCP_CLI_KA;
-		}
-		else if (!strcmp(args[1], "srvtcpka")) {
-			/* enable TCP keep-alives on server sessions */
-			curproxy->options |= PR_O_TCP_SRV_KA;
-		}
-		else if (!strcmp(args[1], "allbackups")) {
-			/* Use all backup servers simultaneously */
-			curproxy->options |= PR_O_USE_ALL_BK;
+			if (warnifnotcap(curproxy, PR_CAP_BE | PR_CAP_FE, file, linenum, args[1], NULL))
+				return 0;
+
+			if (curproxy->cap & PR_CAP_FE)
+				curproxy->options |= PR_O_TCP_CLI_KA;
+			if (curproxy->cap & PR_CAP_BE)
+				curproxy->options |= PR_O_TCP_SRV_KA;
 		}
 		else if (!strcmp(args[1], "httpchk")) {
+			if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[1], NULL))
+				return 0;
 			/* use HTTP request to check servers' health */
 			if (curproxy->check_req != NULL) {
 				free(curproxy->check_req);
@@ -964,15 +965,14 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		}
 		else if (!strcmp(args[1], "ssl-hello-chk")) {
 			/* use SSLv3 CLIENT HELLO to check servers' health */
+			if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[1], NULL))
+				return 0;
+
 			if (curproxy->check_req != NULL) {
 				free(curproxy->check_req);
 			}
 			curproxy->options &= ~PR_O_HTTP_CHK;
 			curproxy->options |= PR_O_SSL3_CHK;
-		}
-		else if (!strcmp(args[1], "persist")) {
-			/* persist on using the server specified by the cookie, even when it's down */
-			curproxy->options |= PR_O_PERSIST;
 		}
 		else {
 			Alert("parsing [%s:%d] : unknown option '%s'.\n", file, linenum, args[1]);
