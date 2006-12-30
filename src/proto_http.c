@@ -585,8 +585,9 @@ int process_cli(struct session *t)
 
 
 				/* 3: We might need to remove "connection:" */
-				if (!delete_header && (t->fe->options & PR_O_HTTP_CLOSE)
-				    && (strncasecmp(sol, "Connection:", 11) == 0)) {
+				if (!delete_header &&
+				    ((t->fe->options | t->be->beprm->options) & PR_O_HTTP_CLOSE) &&
+				    (strncasecmp(sol, "Connection:", 11) == 0)) {
 					delete_header = 1;
 				}
 
@@ -1175,7 +1176,7 @@ int process_cli(struct session *t)
 		 * FIXME: this should depend on both the frontend and the backend.
 		 * Header removals should be performed when the filters are run.
 		 */
-		if (t->fe->options & PR_O_HTTP_CLOSE) {
+		if ((t->fe->options | t->be->beprm->options) & PR_O_HTTP_CLOSE) {
 			int len;
 			len = buffer_replace2(req, req->data + t->hreq.eoh,
 					      req->data + t->hreq.eoh, "Connection: close\r\n", 19);
@@ -1902,7 +1903,7 @@ int process_srv(struct session *t)
 				}
 
 				/* add a "connection: close" line if needed */
-				if (t->fe->options & PR_O_HTTP_CLOSE)
+				if ((t->fe->options | t->be->beprm->options) & PR_O_HTTP_CLOSE)
 					buffer_replace2(rep, rep->h, rep->h, "Connection: close\r\n", 19);
 
 				t->srv_state = SV_STDATA;
@@ -2021,8 +2022,9 @@ int process_srv(struct session *t)
 				debug_hdr("srvhdr", t, rep->h, ptr);
 
 			/* remove "connection: " if needed */
-			if (!delete_header && (t->fe->options & PR_O_HTTP_CLOSE)
-			    && (strncasecmp(rep->h, "Connection: ", 12) == 0)) {
+			if (!delete_header &&
+			    ((t->fe->options | t->be->beprm->options) & PR_O_HTTP_CLOSE) &&
+			    (strncasecmp(rep->h, "Connection: ", 12) == 0)) {
 				delete_header = 1;
 			}
 
