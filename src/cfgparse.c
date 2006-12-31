@@ -35,6 +35,7 @@
 #include <proto/checks.h>
 #include <proto/httperr.h>
 #include <proto/log.h>
+#include <proto/proxy.h>
 #include <proto/server.h>
 #include <proto/task.h>
 
@@ -227,7 +228,7 @@ int warnifnotcap(struct proxy *proxy, int cap, const char *file, int line, char 
 
 	if (!(proxy->cap & cap)) {
 		Warning("parsing [%s:%d] : '%s' ignored because %s '%s' has %s capability.%s\n",
-			file, line, arg, proxy_type_str(proxy->cap), proxy->id, msg, hint ? hint : "");
+			file, line, arg, proxy_type_str(proxy), proxy->id, msg, hint ? hint : "");
 		return 1;
 	}
 	return 0;
@@ -2043,7 +2044,7 @@ int readcfgfile(const char *file)
 
 		if (curproxy->cap & PR_CAP_FE && curproxy->listen == NULL)  {
 			Alert("parsing %s : %s '%s' has no listen address. Please either specify a valid address on the <listen> line, or use the <bind> keyword.\n",
-			      file, proxy_type_str(curproxy->cap), curproxy->id);
+			      file, proxy_type_str(curproxy), curproxy->id);
 			cfgerr++;
 		}
 		else if (curproxy->cap & PR_CAP_BE &&
@@ -2051,47 +2052,47 @@ int readcfgfile(const char *file)
 			  !(curproxy->options & (PR_O_TRANSP | PR_O_BALANCE)) &&
 			  (*(int *)&curproxy->dispatch_addr.sin_addr == 0))) {
 			Alert("parsing %s : %s '%s' has no dispatch address and is not in transparent or balance mode.\n",
-			      file, proxy_type_str(curproxy->cap), curproxy->id);
+			      file, proxy_type_str(curproxy), curproxy->id);
 			cfgerr++;
 		}
 		else if ((curproxy->mode != PR_MODE_HEALTH) && (curproxy->options & PR_O_BALANCE)) {
 			if (curproxy->options & PR_O_TRANSP) {
 				Alert("parsing %s : %s '%s' cannot use both transparent and balance mode.\n",
-				      file, proxy_type_str(curproxy->cap), curproxy->id);
+				      file, proxy_type_str(curproxy), curproxy->id);
 				cfgerr++;
 			}
 #ifdef WE_DONT_SUPPORT_SERVERLESS_LISTENERS
 			else if (curproxy->srv == NULL) {
 				Alert("parsing %s : %s '%s' needs at least 1 server in balance mode.\n",
-				      file, proxy_type_str(curproxy->cap), curproxy->id);
+				      file, proxy_type_str(curproxy), curproxy->id);
 				cfgerr++;
 			}
 #endif
 			else if (*(int *)&curproxy->dispatch_addr.sin_addr != 0) {
 				Warning("parsing %s : dispatch address of %s '%s' will be ignored in balance mode.\n",
-					file, proxy_type_str(curproxy->cap), curproxy->id);
+					file, proxy_type_str(curproxy), curproxy->id);
 			}
 		}
 		else if (curproxy->mode == PR_MODE_TCP || curproxy->mode == PR_MODE_HEALTH) { /* TCP PROXY or HEALTH CHECK */
 			if (curproxy->cookie_name != NULL) {
 				Warning("parsing %s : cookie will be ignored for %s '%s'.\n",
-					file, proxy_type_str(curproxy->cap), curproxy->id);
+					file, proxy_type_str(curproxy), curproxy->id);
 			}
 			if ((newsrv = curproxy->srv) != NULL) {
 				Warning("parsing %s : servers will be ignored for %s '%s'.\n",
-					file, proxy_type_str(curproxy->cap), curproxy->id);
+					file, proxy_type_str(curproxy), curproxy->id);
 			}
 			if (curproxy->rsp_exp != NULL) {
 				Warning("parsing %s : server regular expressions will be ignored for %s '%s'.\n",
-					file, proxy_type_str(curproxy->cap), curproxy->id);
+					file, proxy_type_str(curproxy), curproxy->id);
 			}
 			if (curproxy->req_exp != NULL) {
 				Warning("parsing %s : client regular expressions will be ignored for %s '%s'.\n",
-					file, proxy_type_str(curproxy->cap), curproxy->id);
+					file, proxy_type_str(curproxy), curproxy->id);
 			}
 			if (curproxy->monitor_uri != NULL) {
 				Warning("parsing %s : monitor-uri will be ignored for %s '%s'.\n",
-					file, proxy_type_str(curproxy->cap), curproxy->id);
+					file, proxy_type_str(curproxy), curproxy->id);
 			}
 		}
 		else if (curproxy->mode == PR_MODE_HTTP) { /* HTTP PROXY */
@@ -2115,18 +2116,18 @@ int readcfgfile(const char *file)
 				}
 				if (target == NULL) {
 					Alert("parsing %s : backend '%s' in HTTP %s '%s' was not found !\n", 
-					      file, exp->replace, proxy_type_str(curproxy->cap), curproxy->id);
+					      file, exp->replace, proxy_type_str(curproxy), curproxy->id);
 					cfgerr++;
 				} else if (target == curproxy) {
 					Alert("parsing %s : loop detected for backend %s !\n", file, exp->replace);
 					cfgerr++;
 				} else if (!(target->cap & PR_CAP_BE)) {
 					Alert("parsing %s : target '%s' in HTTP %s '%s' has no backend capability !\n",
-					      file, exp->replace, proxy_type_str(curproxy->cap), curproxy->id);
+					      file, exp->replace, proxy_type_str(curproxy), curproxy->id);
 					cfgerr++;
 				} else if (target->mode != PR_MODE_HTTP) {
 					Alert("parsing %s : backend '%s' in HTTP %s '%s' is not HTTP (use 'mode http') !\n",
-					      file, exp->replace, proxy_type_str(curproxy->cap), curproxy->id);
+					      file, exp->replace, proxy_type_str(curproxy), curproxy->id);
 					cfgerr++;
 				} else {
 					free((void *)exp->replace);
@@ -2141,7 +2142,7 @@ int readcfgfile(const char *file)
 				"   | While not properly invalid, you will certainly encounter various problems\n"
 				"   | with such a configuration. To fix this, please ensure that all following\n"
 				"   | values are set to a non-zero value: clitimeout, contimeout, srvtimeout.\n",
-				file, proxy_type_str(curproxy->cap), curproxy->id);
+				file, proxy_type_str(curproxy), curproxy->id);
 		}
 
 		if (curproxy->options & PR_O_SSL3_CHK) {
@@ -2230,7 +2231,7 @@ int readcfgfile(const char *file)
 				newsrv->minconn = newsrv->maxconn;
 			} else if (newsrv->minconn != newsrv->maxconn && !curproxy->fullconn) {
 				Alert("parsing %s, %s '%s' : fullconn is mandatory when minconn is set on a server.\n",
-				      file, proxy_type_str(curproxy->cap), curproxy->id, linenum);
+				      file, proxy_type_str(curproxy), curproxy->id, linenum);
 				return -1;
 			}
 

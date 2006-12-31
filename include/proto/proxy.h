@@ -31,6 +31,7 @@ void soft_stop(void);
 void pause_proxy(struct proxy *p);
 void pause_proxies(void);
 void listen_proxies(void);
+const char *proxy_type_str(struct proxy *proxy);
 
 
 #endif /* _PROTO_PROXY_H */

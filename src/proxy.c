@@ -37,8 +37,9 @@ struct proxy *proxy  = NULL;	/* list of all existing proxies */
  * This function returns a string containing the type of the proxy in a format
  * suitable for error messages, from its capabilities.
  */
-const char *proxy_type_str(int cap)
+const char *proxy_type_str(struct proxy *proxy)
 {
+	int cap = proxy->cap;
 	if ((cap & PR_CAP_LISTEN) == PR_CAP_LISTEN)
 		return "listener";
 	else if (cap & PR_CAP_FE)

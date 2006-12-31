@@ -33,6 +33,7 @@
 #include <proto/fd.h>
 #include <proto/log.h>
 #include <proto/queue.h>
+#include <proto/proxy.h>
 #include <proto/server.h>
 #include <proto/task.h>
 
@@ -91,8 +92,8 @@ void set_server_down(struct server *s)
 		send_log(s->proxy, LOG_ALERT, "%s", trash);
 	
 		if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
-			Alert("Proxy %s has no server available !\n", s->proxy->id);
-			send_log(s->proxy, LOG_EMERG, "Proxy %s has no server available !\n", s->proxy->id);
+			Alert("%s '%s' has no server available !\n", proxy_type_str(s->proxy), s->proxy->id);
+			send_log(s->proxy, LOG_EMERG, "%s %s has no server available !\n", proxy_type_str(s->proxy), s->proxy->id);
 		}
 		s->down_trans++;
 	}
@@ -289,8 +290,8 @@ int process_chk(struct task *t)
 				else if (s->proxy->options & PR_O_BIND_SRC) {
 					setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(one));
 					if (bind(fd, (struct sockaddr *)&s->proxy->source_addr, sizeof(s->proxy->source_addr)) == -1) {
-						Alert("Cannot bind to source address before connect() for proxy %s. Aborting.\n",
-						      s->proxy->id);
+						Alert("Cannot bind to source address before connect() for %s '%s'. Aborting.\n",
+						      proxy_type_str(s->proxy), s->proxy->id);
 						s->result = -1;
 					}
 #ifdef CONFIG_HAP_CTTPROXY
@@ -308,8 +309,8 @@ int process_chk(struct task *t)
 						
 						if (setsockopt(fd, SOL_IP, IP_TPROXY, &itp1, sizeof(itp1)) == -1 ||
 						    setsockopt(fd, SOL_IP, IP_TPROXY, &itp2, sizeof(itp2)) == -1) {
-							Alert("Cannot bind to tproxy source address before connect() for proxy %s. Aborting.\n",
-							      s->proxy->id);
+							Alert("Cannot bind to tproxy source address before connect() for %s '%s'. Aborting.\n",
+							      proxy_type_str(s->proxy), s->proxy->id);
 							s->result = -1;
 						}
 					}

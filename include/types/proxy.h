@@ -139,7 +139,6 @@ struct proxy {
 };
 
 extern struct proxy *proxy;
-extern const char *proxy_type_str(int capabilities);
 
 #endif /* _TYPES_PROXY_H */
 

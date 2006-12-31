@@ -2743,7 +2743,7 @@ int produce_content(struct session *s)
 					   "Cache-Control: no-cache\r\n"
 					   "Connection: close\r\n"
 					   "Content-Type: text/html\r\n"
-					   "\r\n\r\n");
+					   "\r\n");
 	    
 			s->logs.status = 200;
 			client_retnclose(s, &msg); // send the start of the response.
