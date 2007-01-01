@@ -35,6 +35,7 @@ int buffer_write(struct buffer *buf, const char *msg, int len)
 	memcpy(buf->r, msg, len);
 	buf->l += len;
 	buf->r += len;
+	buf->total += len;
 	if (buf->r == buf->data + BUFSIZE)
 		buf->r = buf->data;
 	return 0;
@@ -59,6 +60,7 @@ int buffer_write_chunk(struct buffer *buf, struct chunk *chunk)
 	memcpy(buf->r, chunk->str, chunk->len);
 	buf->l += chunk->len;
 	buf->r += chunk->len;
+	buf->total += chunk->len;
 	if (buf->r == buf->data + BUFSIZE)
 		buf->r = buf->data;
 	chunk->len = 0;

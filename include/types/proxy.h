@@ -74,6 +74,8 @@ struct proxy {
 	struct listener *listen;		/* the listen addresses and sockets */
 	struct in_addr mon_net, mon_mask;	/* don't forward connections from this net (network order) FIXME: should support IPv6 */
 	int state;				/* proxy state */
+	int options;				/* PR_O_REDISP, PR_O_TRANSP, ... */
+	int mode;				/* mode = PR_MODE_TCP, PR_MODE_HTTP or PR_MODE_HEALTH */
 	struct sockaddr_in dispatch_addr;	/* the default address to connect to */
 	struct proxy *fiprm, *beprm;		/* proxy we find filter and backend params from (default: self) */
 	union {
@@ -114,9 +116,9 @@ struct proxy {
 	unsigned failed_conns, failed_resp;	/* failed connect() and responses */
 	unsigned denied_req, denied_resp;	/* blocked requests/responses because of security concerns */
 	unsigned failed_req;			/* failed requests (eg: invalid or timeout) */
+	long long bytes_in;			/* number of bytes transferred from the client to the server */
+	long long bytes_out;			/* number of bytes transferred from the server to the client */
 	int conn_retries;			/* maximum number of connect retries */
-	int options;				/* PR_O_REDISP, PR_O_TRANSP, ... */
-	int mode;				/* mode = PR_MODE_TCP, PR_MODE_HTTP or PR_MODE_HEALTH */
 	int cap;				/* supported capabilities (PR_CAP_*) */
 	struct sockaddr_in source_addr;		/* the address to which we want to bind for connect() */
 #ifdef CONFIG_HAP_CTTPROXY

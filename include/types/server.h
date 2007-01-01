@@ -82,6 +82,8 @@ struct server {
 	unsigned failed_checks, down_trans;	/* failed checks and up-down transitions */
 	unsigned failed_conns, failed_resp;	/* failed connect() and responses */
 	unsigned failed_secu;		/* blocked responses because of security concerns */
+	long long bytes_in;		/* number of bytes transferred from the client to the server */
+	long long bytes_out;		/* number of bytes transferred from the server to the client */
 	struct proxy *proxy;		/* the proxy this server belongs to */
 };
 

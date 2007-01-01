@@ -154,7 +154,8 @@ struct session {
 		char *cli_cookie;		/* cookie presented by the client, in capture mode */
 		char *srv_cookie;		/* cookie presented by the server, in capture mode */
 		int status;			/* HTTP status from the server, negative if from proxy */
-		long long bytes;		/* number of bytes transferred from the server */
+		long long bytes_in;		/* number of bytes transferred from the client to the server */
+		long long bytes_out;		/* number of bytes transferred from the server to the client */
 	} logs;
 	short int data_source;			/* where to get the data we generate ourselves */
 	short int data_state;			/* where to get the data we generate ourselves */

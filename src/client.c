@@ -188,7 +188,7 @@ int event_accept(int fd) {
 		s->logs.cli_cookie = NULL;
 		s->logs.srv_cookie = NULL;
 		s->logs.status = -1;
-		s->logs.bytes = 0;
+		s->logs.bytes_in = s->logs.bytes_out = 0;
 		s->logs.prx_queue_size = 0;  /* we get the number of pending conns before us */
 		s->logs.srv_queue_size = 0; /* we will get this number soon */
 

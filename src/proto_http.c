@@ -396,8 +396,21 @@ int process_session(struct task *t)
 	}
 
 	s->logs.t_close = tv_diff(&s->logs.tv_accept, &now);
+	if (s->req != NULL)
+		s->logs.bytes_in = s->req->total;
 	if (s->rep != NULL)
-		s->logs.bytes = s->rep->total;
+		s->logs.bytes_out = s->rep->total;
+
+	s->fe->bytes_in  += s->logs.bytes_in;
+	s->fe->bytes_out += s->logs.bytes_out;
+	if (s->be->beprm != s->fe) {
+		s->be->beprm->bytes_in  += s->logs.bytes_in;
+		s->be->beprm->bytes_out += s->logs.bytes_out;
+	}
+	if (s->srv) {
+		s->srv->bytes_in  += s->logs.bytes_in;
+		s->srv->bytes_out += s->logs.bytes_out;
+	}
 
 	/* let's do a final log if we need it */
 	if (s->logs.logwait && 
@@ -1947,7 +1960,7 @@ int process_srv(struct session *t)
 				   bytes from the server, then this is the right moment. */
 				if (t->fe->to_log && !(t->logs.logwait & LW_BYTES)) {
 					t->logs.t_close = t->logs.t_data; /* to get a valid end date */
-					t->logs.bytes = rep->h - rep->data;
+					t->logs.bytes_in = rep->h - rep->data;
 					sess_log(t);
 				}
 				break;
@@ -2860,7 +2873,7 @@ int produce_content_stats(struct session *s)
 			     ".backup3	{background: #b0d0ff;}\n"
 			     ".backup4	{background: #e0e0e0;}\n"
 			     "table.tbl { border-collapse: collapse; border-style: none;}\n"
-			     "table.tbl td { border-width: 1px 1px 1px 1px; border-style: solid solid solid solid; border-color: gray;}\n"
+			     "table.tbl td { border-width: 1px 1px 1px 1px; border-style: solid solid solid solid; padding: 2px 3px; border-color: gray;}\n"
 			     "table.tbl th { border-width: 1px; border-style: solid solid solid solid; border-color: gray;}\n"
 			     "table.tbl th.empty { border-style: none; empty-cells: hide;}\n"
 			     "table.lgd { border-collapse: collapse; border-width: 1px; border-style: none none none solid; border-color: black;}\n"
@@ -3042,8 +3055,8 @@ int produce_content_stats_proxy(struct session *s, struct proxy *px)
 			     "<th colspan=3>Errors</th><th colspan=6>Server</th>"
 			     "</tr>\n"
 			     "<tr align=\"center\" class=\"titre\">"
-			     "<th>Curr.</th><th>Max.</th><th>Curr.</th><th>Max.</th>"
-			     "<th>Limit</th><th>Cumul.</th><th>In</th><th>Out</th>"
+			     "<th>Cur</th><th>Max</th><th>Cur</th><th>Max</th>"
+			     "<th>Limit</th><th>Cumul</th><th>In</th><th>Out</th>"
 			     "<th>Req</th><th>Resp</th><th>Req</th><th>Conn</th>"
 			     "<th>Resp</th><th>Status</th><th>Weight</th><th>Act</th>"
 			     "<th>Bck</th><th>Check</th><th>Down</th></tr>\n"
@@ -3065,7 +3078,7 @@ int produce_content_stats_proxy(struct session *s, struct proxy *px)
 				     /* sessions : current, max, limit, cumul. */
 				     "<td align=right>%d</td><td align=right>%d</td><td align=right>%d</td><td align=right>%d</td>"
 				     /* bytes : in, out */
-				     "<td align=right></td><td align=right></td>"
+				     "<td align=right>%lld</td><td align=right>%lld</td>"
 				     /* denied: req, resp */
 				     "<td align=right>%d</td><td align=right>%d</td>"
 				     /* errors : request, connect, response */
@@ -3076,6 +3089,7 @@ int produce_content_stats_proxy(struct session *s, struct proxy *px)
 				     "<td align=center colspan=5></td></tr>"
 				     "",
 				     px->feconn, px->feconn_max, px->maxconn, px->cum_feconn,
+				     px->bytes_in, px->bytes_out,
 				     px->denied_req, px->denied_resp,
 				     px->failed_req,
 				     px->state == PR_STRUN ? "OPEN" :
@@ -3119,7 +3133,7 @@ int produce_content_stats_proxy(struct session *s, struct proxy *px)
 				     /* sessions : current, max, limit, cumul */
 				     "<td align=right>%d</td><td align=right>%d</td><td align=right>%s</td><td align=right>%d</td>"
 				     /* bytes : in, out */
-				     "<td align=right></td><td align=right></td>"
+				     "<td align=right>%lld</td><td align=right>%lld</td>"
 				     /* denied: req, resp */
 				     "<td align=right></td><td align=right>%d</td>"
 				     /* errors : request, connect, response */
@@ -3129,6 +3143,7 @@ int produce_content_stats_proxy(struct session *s, struct proxy *px)
 				     sv_state, sv->id,
 				     sv->nbpend, sv->nbpend_max,
 				     sv->cur_sess, sv->cur_sess_max, sv->maxconn ? ultoa(sv->maxconn) : "-", sv->cum_sess,
+				     sv->bytes_in, sv->bytes_out,
 				     sv->failed_secu,
 				     sv->failed_conns, sv->failed_resp);
 				     
@@ -3178,7 +3193,7 @@ int produce_content_stats_proxy(struct session *s, struct proxy *px)
 				     /* sessions : current, max, limit, cumul. */
 				     "<td align=right>%d</td><td align=right>%d</td><td align=right>%d</td><td align=right>%d</td>"
 				     /* bytes : in, out */
-				     "<td align=right></td><td align=right></td>"
+				     "<td align=right>%lld</td><td align=right>%lld</td>"
 				     /* denied: req, resp */
 				     "<td align=right>%d</td><td align=right>%d</td>"
 				     /* errors : request, connect, response */
@@ -3194,6 +3209,7 @@ int produce_content_stats_proxy(struct session *s, struct proxy *px)
 				     "",
 				     px->nbpend /* or px->totpend ? */, px->nbpend_max,
 				     px->beconn, px->beconn_max, px->fullconn, px->cum_beconn,
+				     px->bytes_in, px->bytes_out,
 				     px->denied_req, px->denied_resp,
 				     px->failed_conns, px->failed_resp,
 				     (px->srv_map_sz > 0 || !px->srv) ? "UP" : "DOWN",
