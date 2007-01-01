@@ -96,7 +96,9 @@ DEFINE = -DTPROXY
 
 # Now let's determine the version, sub-version and release date.
 # If we're in the GIT tree, we can use the last commit's version and date.
+ifeq ($(IGNOREGIT),)
 VERSION := $(shell [ -d .git/. ] && ref=$$(git-describe --tags 2>/dev/null) && ref=$${ref%-g*} && echo "$${ref\#v}" )
+endif
 
 ifneq ($(VERSION),)
 # OK git is there and works.
@@ -105,9 +107,9 @@ VERDATE := $(shell date +%Y/%m/%d -d "$$(git-log HEAD^.. 2>/dev/null | grep ^Dat
 else
 # Otherwise, use the hard-coded version of last tag, number of changes
 # since last tag, and release date.
-VERSION := 1.3.3
-SUBVERS := -36
-VERDATE := 2006/12/23
+VERSION := 1.3.4
+SUBVERS := 
+VERDATE := 2007/01/02
 endif
 
 #### build options
