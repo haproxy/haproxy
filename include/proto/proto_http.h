@@ -46,6 +46,8 @@ void srv_close_with_err(struct session *t, int err, int finst,
 			int status, const struct chunk *msg);
 
 int produce_content(struct session *s);
+int produce_content_stats(struct session *s);
+int produce_content_stats_proxy(struct session *s, struct proxy *px);
 void debug_hdr(const char *dir, struct session *t, const char *start, const char *end);
 void get_srv_from_appsession(struct session *t, const char *begin, const char *end);
 void apply_filters_to_session(struct session *t, struct buffer *req, struct hdr_exp *exp);

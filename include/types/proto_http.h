@@ -65,6 +65,31 @@
 				 * an LF is expected before entering the
 				 * designated state. */
 
+/* various data sources for the responses */
+#define DATA_SRC_NONE	0
+#define DATA_SRC_STATS	1
+
+/* data transmission states for the stats responses */
+enum {
+	DATA_ST_INIT = 0,
+	DATA_ST_HEAD,
+	DATA_ST_INFO,
+	DATA_ST_LIST,
+	DATA_ST_END,
+	DATA_ST_FIN,
+};
+
+/* data transmission states for the stats responses inside a proxy */
+enum {
+	DATA_ST_PX_INIT = 0,
+	DATA_ST_PX_TH,
+	DATA_ST_PX_FE,
+	DATA_ST_PX_SV,
+	DATA_ST_PX_BE,
+	DATA_ST_PX_END,
+	DATA_ST_PX_FIN,
+};
+
 
 #endif /* _TYPES_PROTO_HTTP_H */
 

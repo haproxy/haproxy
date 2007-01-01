@@ -108,7 +108,8 @@ struct proxy {
 	unsigned int maxconn;			/* max # of active sessions on the frontend */
 	unsigned int fullconn;			/* #conns on backend above which servers are used at full load */
 	unsigned failed_conns, failed_resp;	/* failed connect() and responses */
-	unsigned failed_secu;			/* blocked responses because of security concerns */
+	unsigned denied_req, denied_resp;	/* blocked requests/responses because of security concerns */
+	unsigned failed_req;			/* failed requests (eg: invalid or timeout) */
 	int conn_retries;			/* maximum number of connect retries */
 	int options;				/* PR_O_REDISP, PR_O_TRANSP, ... */
 	int mode;				/* mode = PR_MODE_TCP, PR_MODE_HTTP or PR_MODE_HEALTH */

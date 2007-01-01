@@ -26,8 +26,8 @@
 
 #include <types/backend.h>
 #include <types/global.h>
-#include <types/httperr.h>
 #include <types/log.h>
+#include <types/proto_http.h>
 #include <types/proxy.h>
 #include <types/session.h>
 

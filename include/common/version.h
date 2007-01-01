@@ -30,6 +30,30 @@
 #define PRODUCT_NAME    "HAProxy"
 #endif
 
+#ifdef  CONFIG_PRODUCT_BRANCH
+#define PRODUCT_BRANCH    CONFIG_PRODUCT_BRANCH
+#else
+#define PRODUCT_BRANCH   "1.3"
+#endif
+
+#ifdef  CONFIG_PRODUCT_URL
+#define PRODUCT_URL    CONFIG_PRODUCT_URL
+#else
+#define PRODUCT_URL    "http://haproxy.1wt.eu/"
+#endif
+
+#ifdef  CONFIG_PRODUCT_URL_UPD
+#define PRODUCT_URL_UPD  CONFIG_PRODUCT_URL_UPD
+#else
+#define PRODUCT_URL_UPD "http://haproxy.1wt.eu/#down"
+#endif
+
+#ifdef  CONFIG_PRODUCT_URL_DOC
+#define PRODUCT_URL_DOC  CONFIG_PRODUCT_URL_DOC
+#else
+#define PRODUCT_URL_DOC "http://haproxy.1wt.eu/#docs"
+#endif
+
 #ifdef CONFIG_HAPROXY_VERSION
 #define HAPROXY_VERSION CONFIG_HAPROXY_VERSION
 #else

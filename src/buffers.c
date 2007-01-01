@@ -10,6 +10,8 @@
  *
  */
 
+#include <stdarg.h>
+#include <stdio.h>
 #include <string.h>
 
 #include <common/config.h>
@@ -35,6 +37,31 @@ int buffer_write(struct buffer *buf, const char *msg, int len)
 	buf->r += len;
 	if (buf->r == buf->data + BUFSIZE)
 		buf->r = buf->data;
+	return 0;
+}
+
+/* writes the chunk <chunk> to buffer <buf>. Returns 0 in case of
+ * success, or the number of bytes available otherwise. If the chunk
+ * has been written, its size is automatically reset to zero.
+ */
+int buffer_write_chunk(struct buffer *buf, struct chunk *chunk)
+{
+	int max;
+
+	if (chunk->len == 0)
+		return 0;
+
+	max = buffer_realign(buf);
+
+	if (chunk->len > max)
+		return max;
+
+	memcpy(buf->r, chunk->str, chunk->len);
+	buf->l += chunk->len;
+	buf->r += chunk->len;
+	if (buf->r == buf->data + BUFSIZE)
+		buf->r = buf->data;
+	chunk->len = 0;
 	return 0;
 }
 
@@ -107,6 +134,22 @@ int buffer_replace2(struct buffer *b, char *pos, char *end, char *str, int len)
 	b->l += delta;
 
 	return delta;
+}
+
+
+/*
+ * Does an snprintf() at the end of chunk <chk>, respecting the limit of
+ * at most <size> chars. If the size is over, nothing is added. Returns
+ * the new chunk size.
+ */
+int chunk_printf(struct chunk *chk, int size, const char *fmt, ...)
+{
+	va_list argp;
+
+	va_start(argp, fmt);
+	chk->len += vsnprintf(chk->str + chk->len, size - chk->len, fmt, argp);
+	va_end(argp);
+	return chk->len;
 }
 
 

@@ -24,14 +24,6 @@
 
 #include <common/config.h>
 
-/* various data sources for the responses */
-#define DATA_SRC_NONE	0
-#define DATA_SRC_STATS	1
-
-/* data transmission states for the responses */
-#define DATA_ST_INIT	0
-#define DATA_ST_DATA	1
-
 /*
  * All implemented return codes
  */

@@ -928,6 +928,7 @@ int process_cli(struct session *t)
 				tv_eternity(&req->rex);
 				fd_delete(t->cli_fd);
 				t->cli_state = CL_STCLOSE;
+				t->fe->failed_req++;
 				if (!(t->flags & SN_ERR_MASK))
 					t->flags |= SN_ERR_CLICL;
 				if (!(t->flags & SN_FINST_MASK))
@@ -940,6 +941,7 @@ int process_cli(struct session *t)
 				/* read timeout : give up with an error message. */
 				t->logs.status = 408;
 				client_retnclose(t, error_message(t, HTTP_ERR_408));
+				t->fe->failed_req++;
 				if (!(t->flags & SN_ERR_MASK))
 					t->flags |= SN_ERR_CLITO;
 				if (!(t->flags & SN_FINST_MASK))
@@ -1266,6 +1268,7 @@ int process_cli(struct session *t)
 		t->hreq.hdr_state = HTTP_PA_ERROR;
 		t->logs.status = 400;
 		client_retnclose(t, error_message(t, HTTP_ERR_400));
+		t->fe->failed_req++;
 	return_prx_cond:
 		if (!(t->flags & SN_ERR_MASK))
 			t->flags |= SN_ERR_PRXCOND;
@@ -1817,7 +1820,7 @@ int process_srv(struct session *t)
 							t->srv->cur_sess--;
 							t->srv->failed_secu++;
 						}
-						t->be->failed_secu++;
+						t->be->beprm->denied_resp++;
 						t->srv_state = SV_STCLOSE;
 						t->logs.status = 502;
 						client_return(t, error_message(t, HTTP_ERR_502));
@@ -1848,7 +1851,7 @@ int process_srv(struct session *t)
 						t->srv->cur_sess--;
 						t->srv->failed_secu++;
 					}
-					t->be->failed_secu++;
+					t->be->beprm->denied_resp++;
 					t->srv_state = SV_STCLOSE;
 					t->logs.status = 502;
 					client_return(t, error_message(t, HTTP_ERR_502));
@@ -2719,386 +2722,13 @@ int process_srv(struct session *t)
  */
 int produce_content(struct session *s)
 {
-	struct buffer *rep = s->rep;
-	struct proxy *px;
-	struct server *sv;
-	struct chunk msg;
-
 	if (s->data_source == DATA_SRC_NONE) {
 		s->flags &= ~SN_SELF_GEN;
 		return 1;
 	}
 	else if (s->data_source == DATA_SRC_STATS) {
-		msg.len = 0;
-		msg.str = trash;
-
-		if (s->data_state == DATA_ST_INIT) { /* the function had not been called yet */
-			unsigned int up;
-
-			s->flags |= SN_SELF_GEN;  // more data will follow
-
-			/* send the start of the HTTP response */
-			msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
-					   "HTTP/1.0 200 OK\r\n"
-					   "Cache-Control: no-cache\r\n"
-					   "Connection: close\r\n"
-					   "Content-Type: text/html\r\n"
-					   "\r\n");
-	    
-			s->logs.status = 200;
-			client_retnclose(s, &msg); // send the start of the response.
-			msg.len = 0;
-
-			if (!(s->flags & SN_ERR_MASK))  // this is not really an error but it is
-				s->flags |= SN_ERR_PRXCOND; // to mark that it comes from the proxy
-			if (!(s->flags & SN_FINST_MASK))
-				s->flags |= SN_FINST_R;
-
-			/* WARNING! This must fit in the first buffer !!! */	    
-			msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
-					   "<html><head><title>Statistics Report for " PRODUCT_NAME "</title>\n"
-					   "<meta http-equiv=\"content-type\" content=\"text/html; charset=iso-8859-1\">\n"
-					   "<style type=\"text/css\"><!--\n"
-					   "body {"
-					   "  font-family: helvetica, arial;"
-					   "  font-size: 12px;"
-					   "  font-weight: normal;"
-					   "  color: black;"
-					   "  background: white;"
-					   "}\n"
-					   "td {"
-					   "  font-size: 12px;"
-					   "  align: center;"
-					   "}\n"
-					   "h1 {"
-					   "  font-size: xx-large;"
-					   "  margin-bottom: 0.5em;"
-					   "}\n"
-					   "h2 {"
-					   "	font-family: helvetica, arial;"
-					   "	font-size: x-large;"
-					   "	font-weight: bold;"
-					   "  font-style: italic;"
-					   "	color: #6020a0;"
-					   "  margin-top: 0em;"
-					   "  margin-bottom: 0em;"
-					   "}\n"
-					   "h3 {"
-					   "	font-family: helvetica, arial;"
-					   "	font-size: 16px;"
-					   "	font-weight: bold;"
-					   "	color: #b00040;"
-					   "  background: #e8e8d0;"
-					   "  margin-top: 0em;"
-					   "  margin-bottom: 0em;"
-					   "}\n"
-					   "li {"
-					   "  margin-top: 0.25em;"
-					   "  margin-right: 2em;"
-					   "}\n"
-					   ".hr {"
-					   "  margin-top: 0.25em;"
-					   "  border-color: black;"
-					   "  border-bottom-style: solid;"
-					   "}\n"
-					   "table.tbl { border-collapse: collapse; border-width: 1px; border-style: solid; border-color: gray;}\n"
-					   "table.tbl td { border-width: 1px 1px 1px 1px; border-style: solid solid solid solid; border-color: gray; }\n"
-					   "table.tbl th { border-width: 1px; border-style: solid solid solid solid; border-color: gray; }\n"
-					   "table.lgd { border-collapse: collapse; border-width: 1px; border-style: none none none solid; border-color: black;}\n"
-					   "table.lgd td { border-width: 1px; border-style: solid solid solid solid; border-color: gray; padding: 2px;}\n"
-					   "-->"
-					   "</style></head>");
-
-			if (buffer_write(rep, trash, msg.len) != 0)
-				return 0;
-			msg.len = 0;
-
-			up = (now.tv_sec - start_date.tv_sec);
-
-			/* WARNING! this has to fit the first packet too */
-			msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
-					   "<body><h1>" PRODUCT_NAME "</h1>\n"
-					   "<h2>Statistics Report for pid %d</h2>\n"
-					   "<hr width=\"100%%\" class=\"hr\">\n"
-					   "<h3>&gt; General process information</h3>\n"
-					   "<table border=0><tr><td align=\"left\">\n"
-					   "<p><b>pid = </b> %d (nbproc = %d)<br>\n"
-					   "<b>uptime = </b> %dd %dh%02dm%02ds<br>\n"
-					   "<b>system limits :</b> memmax = %s%s ; ulimit-n = %d<br>\n"
-					   "<b>maxsock = </b> %d<br>\n"
-					   "<b>maxconn = </b> %d (current conns = %d)<br>\n"
-					   "</td><td width=\"10%%\">\n"
-					   "</td><td align=\"right\">\n"
-					   "<table class=\"lgd\">"
-					   "<tr><td bgcolor=\"#C0FFC0\">&nbsp;</td><td style=\"border-style: none;\">active UP </td>"
-					   "<td bgcolor=\"#B0D0FF\">&nbsp;</td><td style=\"border-style: none;\">backup UP </td></tr>"
-					   "<tr><td bgcolor=\"#FFFFA0\"></td><td style=\"border-style: none;\">active UP, going down </td>"
-					   "<td bgcolor=\"#C060FF\"></td><td style=\"border-style: none;\">backup UP, going down </td></tr>"
-					   "<tr><td bgcolor=\"#FFD020\"></td><td style=\"border-style: none;\">active DOWN, going up </td>"
-					   "<td bgcolor=\"#FF80FF\"></td><td style=\"border-style: none;\">backup DOWN, going up </td></tr>"
-					   "<tr><td bgcolor=\"#FF9090\"></td><td style=\"border-style: none;\">active or backup DOWN &nbsp;</td>"
-					   "<td bgcolor=\"#E0E0E0\"></td><td style=\"border-style: none;\">not checked </td></tr>"
-					   "</table>\n"
-					   "</tr></table>\n"
-					   "",
-					   pid, pid, global.nbproc,
-					   up / 86400, (up % 86400) / 3600,
-					   (up % 3600) / 60, (up % 60),
-					   global.rlimit_memmax ? ultoa(global.rlimit_memmax) : "unlimited",
-					   global.rlimit_memmax ? " MB" : "",
-					   global.rlimit_nofile,
-					   global.maxsock,
-					   global.maxconn,
-					   actconn
-					   );
-	    
-			if (buffer_write(rep, trash, msg.len) != 0)
-				return 0;
-			msg.len = 0;
-
-			s->data_state = DATA_ST_DATA;
-			memset(&s->data_ctx, 0, sizeof(s->data_ctx));
-
-			px = s->data_ctx.stats.px = proxy;
-			s->data_ctx.stats.px_st = DATA_ST_INIT;
-		}
-
-		while (s->data_ctx.stats.px) {
-			int dispatch_sess, dispatch_cum;
-			int failed_checks, down_trans;
-			int failed_secu, failed_conns, failed_resp;
-
-			if (s->data_ctx.stats.px_st == DATA_ST_INIT) {
-				/* we are on a new proxy */
-				px = s->data_ctx.stats.px;
-
-				/* skip the disabled proxies */
-				if (px->state == PR_STSTOPPED)
-					goto next_proxy;
-
-				if (s->be->fiprm->uri_auth && s->be->fiprm->uri_auth->scope) {
-					/* we have a limited scope, we have to check the proxy name */
-					struct stat_scope *scope;
-					int len;
-
-					len = strlen(px->id);
-					scope = s->be->fiprm->uri_auth->scope;
-
-					while (scope) {
-						/* match exact proxy name */
-						if (scope->px_len == len && !memcmp(px->id, scope->px_id, len))
-							break;
-
-						/* match '.' which means 'self' proxy */
-						if (!strcmp(scope->px_id, ".") && px == s->fe)
-							break;
-						scope = scope->next;
-					}
-
-					/* proxy name not found */
-					if (scope == NULL)
-						goto next_proxy;
-				}
-
-				msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
-						   "<h3>&gt; Proxy instance %s : "
-						   "%d front conns (max=%d), %d back, "
-						   "%d queued (%d unassigned), %d total front conns, %d back</h3>\n"
-						   "",
-						   px->id,
-						   px->feconn, px->maxconn, px->beconn,
-						   px->totpend, px->nbpend, px->cum_feconn, px->cum_beconn);
-		
-				msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
-						   "<table cols=\"16\" class=\"tbl\">\n"
-						   "<tr align=\"center\" bgcolor=\"#20C0C0\">"
-						   "<th colspan=5>Server</th>"
-						   "<th colspan=2>Queue</th>"
-						   "<th colspan=4>Sessions</th>"
-						   "<th colspan=5>Errors</th></tr>\n"
-						   "<tr align=\"center\" bgcolor=\"#20C0C0\">"
-						   "<th>Name</th><th>Weight</th><th>Status</th><th>Act.</th><th>Bck.</th>"
-						   "<th>Curr.</th><th>Max.</th>"
-						   "<th>Curr.</th><th>Max.</th><th>Limit</th><th>Cumul.</th>"
-						   "<th>Conn.</th><th>Resp.</th><th>Sec.</th><th>Check</th><th>Down</th></tr>\n");
-		
-				if (buffer_write(rep, trash, msg.len) != 0)
-					return 0;
-				msg.len = 0;
-
-				s->data_ctx.stats.sv = px->srv;
-				s->data_ctx.stats.px_st = DATA_ST_DATA;
-			}
-
-			px = s->data_ctx.stats.px;
-
-			/* stats.sv has been initialized above */
-			while (s->data_ctx.stats.sv != NULL) {
-				static char *act_tab_bg[5] = { /*down*/"#FF9090", /*rising*/"#FFD020", /*failing*/"#FFFFA0", /*up*/"#C0FFC0", /*unchecked*/"#E0E0E0" };
-				static char *bck_tab_bg[5] = { /*down*/"#FF9090", /*rising*/"#FF80ff", /*failing*/"#C060FF", /*up*/"#B0D0FF", /*unchecked*/"#E0E0E0" };
-				static char *srv_hlt_st[5] = { "DOWN", "DN %d/%d &uarr;", "UP %d/%d &darr;", "UP", "<i>no check</i>" };
-				int sv_state; /* 0=DOWN, 1=going up, 2=going down, 3=UP */
-
-				sv = s->data_ctx.stats.sv;
-
-				/* FIXME: produce some small strings for "UP/DOWN x/y &#xxxx;" */
-				if (!(sv->state & SRV_CHECKED))
-					sv_state = 4;
-				else if (sv->state & SRV_RUNNING)
-					if (sv->health == sv->rise + sv->fall - 1)
-						sv_state = 3; /* UP */
-					else
-						sv_state = 2; /* going down */
-				else
-					if (sv->health)
-						sv_state = 1; /* going up */
-					else
-						sv_state = 0; /* DOWN */
-
-				/* name, weight */
-				msg.len += snprintf(trash, sizeof(trash),
-						   "<tr align=center bgcolor=\"%s\"><td>%s</td><td>%d</td><td>",
-						   (sv->state & SRV_BACKUP) ? bck_tab_bg[sv_state] : act_tab_bg[sv_state],
-						   sv->id, sv->uweight+1);
-				/* status */
-				msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len, srv_hlt_st[sv_state],
-						   (sv->state & SRV_RUNNING) ? (sv->health - sv->rise + 1) : (sv->health),
-						   (sv->state & SRV_RUNNING) ? (sv->fall) : (sv->rise));
-
-				/* act, bck */
-				msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
-						   "</td><td>%s</td><td>%s</td>",
-						   (sv->state & SRV_BACKUP) ? "-" : "Y",
-						   (sv->state & SRV_BACKUP) ? "Y" : "-");
-
-				/* queue : current, max */
-				msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
-						   "<td align=right>%d</td><td align=right>%d</td>",
-						   sv->nbpend, sv->nbpend_max);
-
-				/* sessions : current, max, limit, cumul */
-				msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
-						   "<td align=right>%d</td><td align=right>%d</td><td align=right>%s</td><td align=right>%d</td>",
-						   sv->cur_sess, sv->cur_sess_max, sv->maxconn ? ultoa(sv->maxconn) : "-", sv->cum_sess);
-
-				/* errors : connect, response, security */
-				msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
-						   "<td align=right>%d</td><td align=right>%d</td><td align=right>%d</td>\n",
-						   sv->failed_conns, sv->failed_resp, sv->failed_secu);
-
-				/* check failures : unique, fatal */
-				if (sv->state & SRV_CHECKED)
-					msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
-							   "<td align=right>%d</td><td align=right>%d</td></tr>\n",
-							   sv->failed_checks, sv->down_trans);
-				else
-					msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
-							   "<td align=right>-</td><td align=right>-</td></tr>\n");
-
-				if (buffer_write(rep, trash, msg.len) != 0)
-					return 0;
-				msg.len = 0;
-
-				s->data_ctx.stats.sv = sv->next;
-			} /* while sv */
-
-			/* now we are past the last server, we'll dump information about the dispatcher */
-
-			/* We have to count down from the proxy to the servers to tell how
-			 * many sessions are on the dispatcher, and how many checks have
-			 * failed. We cannot count this during the servers dump because it
-			 * might be interrupted multiple times.
-			 */
-			dispatch_sess = px->beconn;
-			dispatch_cum  = px->cum_beconn;
-			failed_secu   = px->failed_secu;
-			failed_conns  = px->failed_conns;
-			failed_resp   = px->failed_resp;
-			failed_checks = down_trans = 0;
-
-			sv = px->srv;
-			while (sv) {
-				dispatch_sess -= sv->cur_sess;
-				dispatch_cum  -= sv->cum_sess;
-				failed_conns  -= sv->failed_conns;
-				failed_resp   -= sv->failed_resp;
-				failed_secu   -= sv->failed_secu;
-				if (sv->state & SRV_CHECKED) {
-					failed_checks += sv->failed_checks;
-					down_trans    += sv->down_trans;
-				}
-				sv = sv->next;
-			}
-
-			/* name, weight, status, act, bck */
-			msg.len += snprintf(trash + msg.len, sizeof(trash),
-					   "<tr align=center bgcolor=\"#e8e8d0\">"
-					   "<td>Dispatcher</td><td>-</td>"
-					   "<td>%s</td><td>-</td><td>-</td>",
-					   px->state == PR_STRUN ? "UP" : "DOWN");
-
-			/* queue : current, max */
-			msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
-					   "<td align=right>%d</td><td align=right>%d</td>",
-					   px->nbpend, px->nbpend_max);
-
-			/* sessions : current, max, limit, cumul. */
-			msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
-					   "<td align=right>%d</td><td align=right>%d</td><td align=right>-</td><td align=right>%d</td>",
-					   dispatch_sess, px->beconn_max, dispatch_cum);
-
-			/* errors : connect, response, security */
-			msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
-					   "<td align=right>%d</td><td align=right>%d</td><td align=right>%d</td>\n",
-					   failed_conns, failed_resp, failed_secu);
-
-			/* check failures : unique, fatal */
-			msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
-					   "<td align=right>-</td><td align=right>-</td></tr>\n");
-
-
-			/* now the summary for the whole proxy */
-			/* name, weight, status, act, bck */
-			msg.len += snprintf(trash + msg.len, sizeof(trash),
-					   "<tr align=center style=\"color: #ffff80;  background: #20C0C0;\">"
-					   "<td><b>Total</b></td><td>-</td>"
-					   "<td><b>%s</b></td><td><b>%d</b></td><td><b>%d</b></td>",
-					   (px->state == PR_STRUN && ((px->srv == NULL) || px->srv_act || px->srv_bck)) ? "UP" : "DOWN",
-					   px->srv_act, px->srv_bck);
-
-			/* queue : current, max */
-			msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
-					   "<td align=right><b>%d</b></td><td align=right><b>%d</b></td>",
-					   px->totpend, px->nbpend_max);
-
-			/* sessions : current, max, limit, cumul */
-			msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
-					   "<td align=right><b>%d</b></td><td align=right><b>%d</b></td><td align=right><b>-</b></td><td align=right><b>%d</b></td>",
-					   px->beconn, px->beconn_max, px->cum_beconn);
-
-			/* errors : connect, response, security */
-			msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
-					   "<td align=right>%d</td><td align=right>%d</td><td align=right>%d</td>\n",
-					   px->failed_conns, px->failed_resp, px->failed_secu);
-
-			/* check failures : unique, fatal */
-			msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len,
-					   "<td align=right>%d</td><td align=right>%d</td></tr>\n",
-					   failed_checks, down_trans);
-
-			msg.len += snprintf(trash + msg.len, sizeof(trash) - msg.len, "</table><p>\n");
-
-			if (buffer_write(rep, trash, msg.len) != 0)
-				return 0;
-			msg.len = 0;
-	    
-			s->data_ctx.stats.px_st = DATA_ST_INIT;
-		next_proxy:
-			s->data_ctx.stats.px = px->next;
-		} /* proxy loop */
-		/* here, we just have reached the sv == NULL and px == NULL */
-		s->flags &= ~SN_SELF_GEN;
-		return 1;
+		/* dump server statistics */
+		return produce_content_stats(s);
 	}
 	else {
 		/* unknown data source */
@@ -3108,7 +2738,505 @@ int produce_content(struct session *s)
 			s->flags |= SN_ERR_PRXCOND;
 		if (!(s->flags & SN_FINST_MASK))
 			s->flags |= SN_FINST_R;
-		s->flags &= SN_SELF_GEN;
+		s->flags &= ~SN_SELF_GEN;
+		return 1;
+	}
+}
+
+
+/*
+ * Produces statistics data for the session <s>. Expects to be called with
+ * s->cli_state == CL_STSHUTR. It stops by itself by unsetting the SN_SELF_GEN
+ * flag from the session, which it uses to keep on being called when there is
+ * free space in the buffer, of simply by letting an empty buffer upon return.
+ * It returns 1 if it changes the session state from CL_STSHUTR, otherwise 0.
+ */
+int produce_content_stats(struct session *s)
+{
+	struct buffer *rep = s->rep;
+	struct proxy *px;
+	struct chunk msg;
+	unsigned int up;
+
+	msg.len = 0;
+	msg.str = trash;
+
+	switch (s->data_state) {
+	case DATA_ST_INIT:
+		/* the function had not been called yet */
+		s->flags |= SN_SELF_GEN;  // more data will follow
+
+		chunk_printf(&msg, sizeof(trash),
+			     "HTTP/1.0 200 OK\r\n"
+			     "Cache-Control: no-cache\r\n"
+			     "Connection: close\r\n"
+			     "Content-Type: text/html\r\n"
+			     "\r\n");
+
+		s->logs.status = 200;
+		client_retnclose(s, &msg); // send the start of the response.
+		msg.len = 0;
+
+		if (!(s->flags & SN_ERR_MASK))  // this is not really an error but it is
+			s->flags |= SN_ERR_PRXCOND; // to mark that it comes from the proxy
+		if (!(s->flags & SN_FINST_MASK))
+			s->flags |= SN_FINST_R;
+
+		s->data_state = DATA_ST_HEAD; /* let's start producing data */
+		/* fall through */
+
+	case DATA_ST_HEAD:
+		/* WARNING! This must fit in the first buffer !!! */	    
+		chunk_printf(&msg, sizeof(trash),
+			     "<html><head><title>Statistics Report for " PRODUCT_NAME "</title>\n"
+			     "<meta http-equiv=\"content-type\" content=\"text/html; charset=iso-8859-1\">\n"
+			     "<style type=\"text/css\"><!--\n"
+			     "body {"
+			     " font-family: helvetica, arial;"
+			     " font-size: 12px;"
+			     " font-weight: normal;"
+			     " color: black;"
+			     " background: white;"
+			     "}\n"
+			     "th,td {"
+			     " font-size: 0.8em;"
+			     " align: center;"
+			     "}"
+			     "h1 {"
+			     " font-size: xx-large;"
+			     " margin-bottom: 0.5em;"
+			     "}\n"
+			     "h2 {"
+			     " font-family: helvetica, arial;"
+			     " font-size: x-large;"
+			     " font-weight: bold;"
+			     " font-style: italic;"
+			     " color: #6020a0;"
+			     " margin-top: 0em;"
+			     " margin-bottom: 0em;"
+			     "}\n"
+			     "h3 {"
+			     " font-family: helvetica, arial;"
+			     " font-size: 16px;"
+			     " font-weight: bold;"
+			     " color: #b00040;"
+			     " background: #e8e8d0;"
+			     " margin-top: 0em;"
+			     " margin-bottom: 0em;"
+			     "}\n"
+			     "li {"
+			     " margin-top: 0.25em;"
+			     " margin-right: 2em;"
+			     "}\n"
+			     ".hr {margin-top: 0.25em;"
+			     " border-color: black;"
+			     " border-bottom-style: solid;"
+			     "}\n"
+			     ".pxname	{background: #b00040;color: #ffff40;font-weight: bold;}\n"
+			     ".titre	{background: #20D0D0;color: #000000;font-weight: bold;}\n"
+			     ".total	{background: #20D0D0;color: #ffff80;}\n"
+			     ".frontend	{background: #e8e8d0;}\n"
+			     ".backend	{background: #e8e8d0;}\n"
+			     ".active0	{background: #ff9090;}\n"
+			     ".active1	{background: #ffd020;}\n"
+			     ".active2	{background: #ffffa0;}\n"
+			     ".active3	{background: #c0ffc0;}\n"
+			     ".active4	{background: #e0e0e0;}\n"
+			     ".backup0	{background: #ff9090;}\n"
+			     ".backup1	{background: #ff80ff;}\n"
+			     ".backup2	{background: #c060ff;}\n"
+			     ".backup3	{background: #b0d0ff;}\n"
+			     ".backup4	{background: #e0e0e0;}\n"
+			     "table.tbl { border-collapse: collapse; border-style: none;}\n"
+			     "table.tbl td { border-width: 1px 1px 1px 1px; border-style: solid solid solid solid; border-color: gray;}\n"
+			     "table.tbl th { border-width: 1px; border-style: solid solid solid solid; border-color: gray;}\n"
+			     "table.tbl th.empty { border-style: none; empty-cells: hide;}\n"
+			     "table.lgd { border-collapse: collapse; border-width: 1px; border-style: none none none solid; border-color: black;}\n"
+			     "table.lgd td { border-width: 1px; border-style: solid solid solid solid; border-color: gray; padding: 2px;}\n"
+			     "table.lgd td.noborder { border-style: none; padding: 2px; white-space: nowrap;}\n"
+			     "-->"
+			     "</style></head>");
+			
+		if (buffer_write_chunk(rep, &msg) != 0)
+			return 0;
+
+		s->data_state = DATA_ST_INFO;
+		/* fall through */
+
+	case DATA_ST_INFO:
+		up = (now.tv_sec - start_date.tv_sec);
+
+		/* WARNING! this has to fit the first packet too.
+			 * We are around 3.5 kB, add adding entries will
+			 * become tricky if we want to support 4kB buffers !
+			 */
+		chunk_printf(&msg, sizeof(trash),
+			     "<body><h1><a href=\"" PRODUCT_URL "\" style=\"text-decoration: none;\">"
+			     PRODUCT_NAME "</a></h1>\n"
+			     "<h2>Statistics Report for pid %d</h2>\n"
+			     "<hr width=\"100%%\" class=\"hr\">\n"
+			     "<h3>&gt; General process information</h3>\n"
+			     "<table border=0 cols=3><tr><td align=\"left\" nowrap width=\"1%%\">\n"
+			     "<p><b>pid = </b> %d (nbproc = %d)<br>\n"
+			     "<b>uptime = </b> %dd %dh%02dm%02ds<br>\n"
+			     "<b>system limits :</b> memmax = %s%s ; ulimit-n = %d<br>\n"
+			     "<b>maxsock = </b> %d<br>\n"
+			     "<b>maxconn = </b> %d (current conns = %d)<br>\n"
+			     "</td><td align=\"center\" nowrap>\n"
+			     "<table class=\"lgd\"><tr>"
+			     "<td class=\"active3\">&nbsp;</td><td class=\"noborder\">active UP </td>"
+			     "<td class=\"backup3\">&nbsp;</td><td class=\"noborder\">backup UP </td>"
+			     "</tr><tr>"
+			     "<td class=\"active2\"></td><td class=\"noborder\">active UP, going down </td>"
+			     "<td class=\"backup2\"></td><td class=\"noborder\">backup UP, going down </td>"
+			     "</tr><tr>"
+			     "<td class=\"active1\"></td><td class=\"noborder\">active DOWN, going up </td>"
+			     "<td class=\"backup1\"></td><td class=\"noborder\">backup DOWN, going up </td>"
+			     "</tr><tr>"
+			     "<td class=\"active0\"></td><td class=\"noborder\">active or backup DOWN &nbsp;</td>"
+			     "<td class=\"active4\"></td><td class=\"noborder\">not checked </td>"
+			     "</tr></table>\n"
+			     "</td>"
+			     "<td align=\"left\" nowrap width=\"1%%\">"
+			     "<b>External ressources:</b><ul style=\"margin-top: 0.25em;\">"
+			     "<li><a href=\"" PRODUCT_URL "\">Primary site</a><br>"
+			     "<li><a href=\"" PRODUCT_URL_UPD "\">Updates (v" PRODUCT_BRANCH ")</a><br>"
+			     "<li><a href=\"" PRODUCT_URL_DOC "\">Online manual</a><br>"
+			     "</ul>"
+			     "</td>"
+			     "</tr></table>\n"
+			     "",
+			     pid, pid, global.nbproc,
+			     up / 86400, (up % 86400) / 3600,
+			     (up % 3600) / 60, (up % 60),
+			     global.rlimit_memmax ? ultoa(global.rlimit_memmax) : "unlimited",
+			     global.rlimit_memmax ? " MB" : "",
+			     global.rlimit_nofile,
+			     global.maxsock,
+			     global.maxconn,
+			     actconn
+			     );
+	    
+		if (buffer_write_chunk(rep, &msg) != 0)
+			return 0;
+
+		memset(&s->data_ctx, 0, sizeof(s->data_ctx));
+
+		s->data_ctx.stats.px = proxy;
+		s->data_ctx.stats.px_st = DATA_ST_PX_INIT;
+		s->data_state = DATA_ST_LIST;
+		/* fall through */
+
+	case DATA_ST_LIST:
+		/* dump proxies */
+		while (s->data_ctx.stats.px) {
+			px = s->data_ctx.stats.px;
+			/* skip the disabled proxies and non-networked ones */
+			if (px->state != PR_STSTOPPED && (px->cap & (PR_CAP_FE | PR_CAP_BE)))
+				if (produce_content_stats_proxy(s, px) == 0)
+					return 0;
+
+			s->data_ctx.stats.px = px->next;
+			s->data_ctx.stats.px_st = DATA_ST_PX_INIT;
+		}
+		/* here, we just have reached the last proxy */
+
+		s->data_state = DATA_ST_END;
+		/* fall through */
+
+	case DATA_ST_END:
+		chunk_printf(&msg, sizeof(trash), "</body></html>");
+		if (buffer_write_chunk(rep, &msg) != 0)
+			return 0;
+
+		s->data_state = DATA_ST_FIN;
+		/* fall through */
+
+	case DATA_ST_FIN:
+		s->flags &= ~SN_SELF_GEN;
+		return 1;
+
+	default:
+		/* unknown state ! */
+		s->logs.status = 500;
+		client_retnclose(s, error_message(s, HTTP_ERR_500));
+		if (!(s->flags & SN_ERR_MASK))
+			s->flags |= SN_ERR_PRXCOND;
+		if (!(s->flags & SN_FINST_MASK))
+			s->flags |= SN_FINST_R;
+		s->flags &= ~SN_SELF_GEN;
+		return 1;
+	}
+}
+
+
+/*
+ * Dumps statistics for a proxy.
+ * Returns 0 if it had to stop dumping data because of lack of buffer space,
+ * ot non-zero if everything completed.
+ */
+int produce_content_stats_proxy(struct session *s, struct proxy *px)
+{
+	struct buffer *rep = s->rep;
+	struct server *sv;
+	struct chunk msg;
+
+	msg.len = 0;
+	msg.str = trash;
+
+	switch (s->data_ctx.stats.px_st) {
+	case DATA_ST_PX_INIT:
+		/* we are on a new proxy */
+
+		if (s->be->fiprm->uri_auth && s->be->fiprm->uri_auth->scope) {
+			/* we have a limited scope, we have to check the proxy name */
+			struct stat_scope *scope;
+			int len;
+
+			len = strlen(px->id);
+			scope = s->be->fiprm->uri_auth->scope;
+
+			while (scope) {
+				/* match exact proxy name */
+				if (scope->px_len == len && !memcmp(px->id, scope->px_id, len))
+					break;
+
+				/* match '.' which means 'self' proxy */
+				if (!strcmp(scope->px_id, ".") && px == s->fe)
+					break;
+				scope = scope->next;
+			}
+
+			/* proxy name not found : don't dump anything */
+			if (scope == NULL)
+				return 1;
+		}
+
+		s->data_ctx.stats.px_st = DATA_ST_PX_TH;
+		/* fall through */
+
+	case DATA_ST_PX_TH:
+		/* print a new table */
+		chunk_printf(&msg, sizeof(trash),
+			     "<table cols=\"20\" class=\"tbl\" width=\"100%%\">\n"
+			     "<tr align=\"center\" class=\"titre\">"
+			     "<th colspan=2 class=\"pxname\">%s</th>"
+			     "<th colspan=18 class=\"empty\"></th>"
+			     "</tr>\n"
+			     "<tr align=\"center\" class=\"titre\">"
+			     "<th rowspan=2></th>"
+			     "<th colspan=2>Queue</th><th colspan=4>Sessions</th>"
+			     "<th colspan=2>Bytes</th><th colspan=2>Denied</th>"
+			     "<th colspan=3>Errors</th><th colspan=6>Server</th>"
+			     "</tr>\n"
+			     "<tr align=\"center\" class=\"titre\">"
+			     "<th>Curr.</th><th>Max.</th><th>Curr.</th><th>Max.</th>"
+			     "<th>Limit</th><th>Cumul.</th><th>In</th><th>Out</th>"
+			     "<th>Req</th><th>Resp</th><th>Req</th><th>Conn</th>"
+			     "<th>Resp</th><th>Status</th><th>Weight</th><th>Act</th>"
+			     "<th>Bck</th><th>Check</th><th>Down</th></tr>\n"
+			     "",
+			     px->id);
+		
+		if (buffer_write_chunk(rep, &msg) != 0)
+			return 0;
+
+		s->data_ctx.stats.px_st = DATA_ST_PX_FE;
+		/* fall through */
+
+	case DATA_ST_PX_FE:
+		/* print the frontend */
+		if (px->cap & PR_CAP_FE) {
+			/* name, queue */
+			chunk_printf(&msg, sizeof(trash),
+				     "<tr align=center class=\"frontend\"><td>Frontend</td><td colspan=2></td>");
+
+			/* sessions : current, max, limit, cumul. */
+			chunk_printf(&msg, sizeof(trash),
+				     "<td align=right>%d</td><td align=right>%d</td><td align=right>%d</td><td align=right>%d</td>",
+				     px->feconn, px->feconn_max, px->maxconn, px->cum_feconn);
+
+			/* bytes : in, out */
+			chunk_printf(&msg, sizeof(trash),
+				     "<td align=right></td><td align=right></td>");
+
+			/* denied: req, resp */
+			chunk_printf(&msg, sizeof(trash),
+				     "<td align=right>%d</td><td align=right>%d</td>",
+				     px->denied_req, px->denied_resp);
+
+			/* errors : request, connect, response */
+			chunk_printf(&msg, sizeof(trash),
+				     "<td align=right>%d</td><td align=right></td><td align=right></td>",
+				     px->failed_req);
+
+			/* server status : reflect backend status */
+			chunk_printf(&msg, sizeof(trash), "<td align=center>%s</td>",
+				     px->state == PR_STRUN ? "OPEN" :
+				     px->state == PR_STIDLE ? "FULL" : "STOP");
+
+			/* rest of server: nothing */
+			chunk_printf(&msg, sizeof(trash), "<td align=center colspan=5></td></tr>");
+
+			if (buffer_write_chunk(rep, &msg) != 0)
+				return 0;
+		}
+
+		s->data_ctx.stats.sv = px->srv; /* may be NULL */
+		s->data_ctx.stats.px_st = DATA_ST_PX_SV;
+		/* fall through */
+
+	case DATA_ST_PX_SV:
+		/* stats.sv has been initialized above */
+		while (s->data_ctx.stats.sv != NULL) {
+			static char *srv_hlt_st[5] = { "DOWN", "DN %d/%d &uarr;", "UP %d/%d &darr;", "UP", "<i>no check</i>" };
+			int sv_state; /* 0=DOWN, 1=going up, 2=going down, 3=UP, 4=unchecked */
+
+			sv = s->data_ctx.stats.sv;
+
+			/* FIXME: produce some small strings for "UP/DOWN x/y &#xxxx;" */
+			if (!(sv->state & SRV_CHECKED))
+				sv_state = 4;
+			else if (sv->state & SRV_RUNNING)
+				if (sv->health == sv->rise + sv->fall - 1)
+					sv_state = 3; /* UP */
+				else
+					sv_state = 2; /* going down */
+			else
+				if (sv->health)
+					sv_state = 1; /* going up */
+				else
+					sv_state = 0; /* DOWN */
+
+			/* name */
+			chunk_printf(&msg, sizeof(trash),
+				     "<tr align=\"center\" class=\"%s%d\"><td>%s</td>",
+				     (sv->state & SRV_BACKUP) ? "active" : "backup",
+				     sv_state, sv->id);
+
+			/* queue : current, max */
+			chunk_printf(&msg, sizeof(trash),
+				     "<td align=right>%d</td><td align=right>%d</td>",
+				     sv->nbpend, sv->nbpend_max);
+
+			/* sessions : current, max, limit, cumul */
+			chunk_printf(&msg, sizeof(trash),
+				     "<td align=right>%d</td><td align=right>%d</td><td align=right>%s</td><td align=right>%d</td>",
+				     sv->cur_sess, sv->cur_sess_max, sv->maxconn ? ultoa(sv->maxconn) : "-", sv->cum_sess);
+
+			/* bytes : in, out */
+			chunk_printf(&msg, sizeof(trash),
+				     "<td align=right></td><td align=right></td>");
+
+			/* denied: req, resp */
+			chunk_printf(&msg, sizeof(trash),
+				     "<td align=right></td><td align=right>%d</td>",
+				     sv->failed_secu);
+
+			/* errors : request, connect, response */
+			chunk_printf(&msg, sizeof(trash),
+				     "<td align=right></td><td align=right>%d</td><td align=right>%d</td>\n",
+				     sv->failed_conns, sv->failed_resp);
+
+			/* status */
+			chunk_printf(&msg, sizeof(trash), "<td nowrap>");
+			chunk_printf(&msg, sizeof(trash),
+				     srv_hlt_st[sv_state],
+				     (sv->state & SRV_RUNNING) ? (sv->health - sv->rise + 1) : (sv->health),
+				     (sv->state & SRV_RUNNING) ? (sv->fall) : (sv->rise));
+
+			/* weight */
+			chunk_printf(&msg, sizeof(trash), "<td>%d</td>", sv->uweight+1);
+
+			/* act, bck */
+			chunk_printf(&msg, sizeof(trash), "<td>%s</td><td>%s</td>",
+				     (sv->state & SRV_BACKUP) ? "-" : "Y",
+				     (sv->state & SRV_BACKUP) ? "Y" : "-");
+
+			/* check failures : unique, fatal */
+			if (sv->state & SRV_CHECKED)
+				chunk_printf(&msg, sizeof(trash),
+					     "<td align=right>%d</td><td align=right>%d</td></tr>\n",
+					     sv->failed_checks, sv->down_trans);
+			else
+				chunk_printf(&msg, sizeof(trash),
+					     "<td colspan=2></td></tr>\n");
+
+			if (buffer_write_chunk(rep, &msg) != 0)
+				return 0;
+
+			s->data_ctx.stats.sv = sv->next;
+		} /* while sv */
+
+		s->data_ctx.stats.px_st = DATA_ST_PX_BE;
+		/* fall through */
+
+	case DATA_ST_PX_BE:
+		/* print the backend */
+		if (px->cap & PR_CAP_BE) {
+			/* name */
+			chunk_printf(&msg, sizeof(trash),
+				     "<tr align=center class=\"backend\"><td>Backend</td>");
+
+			/* queue : current, max */
+			chunk_printf(&msg, sizeof(trash),
+				     "<td align=right>%d</td><td align=right>%d</td>",
+				     px->nbpend /* or px->totpend ? */, px->nbpend_max);
+
+			/* sessions : current, max, limit, cumul. */
+			chunk_printf(&msg, sizeof(trash),
+				     "<td align=right>%d</td><td align=right>%d</td><td align=right>%d</td><td align=right>%d</td>",
+				     px->beconn, px->beconn_max, px->fullconn, px->cum_beconn);
+
+			/* bytes : in, out */
+			chunk_printf(&msg, sizeof(trash),
+				     "<td align=right></td><td align=right></td>");
+
+			/* denied: req, resp */
+			chunk_printf(&msg, sizeof(trash),
+				     "<td align=right>%d</td><td align=right>%d</td>",
+				     px->denied_req, px->denied_resp);
+
+			/* errors : request, connect, response */
+			chunk_printf(&msg, sizeof(trash),
+				     "<td align=right></td><td align=right>%d</td><td align=right>%d</td>\n",
+				     px->failed_conns, px->failed_resp);
+
+			/* server status : reflect backend status (up/down) : we display UP
+			 * if the backend has known working servers or if it has no server at
+			 * all (eg: for stats). Tthen we display the total weight, number of
+			 * active and backups. */
+			chunk_printf(&msg, sizeof(trash),
+				     "<td align=center>%s</td>"
+				     "<td align=center>%d</td>"
+				     "<td align=center>%d</td><td align=center>%d</td>",
+				     (px->srv_map_sz > 0 || !px->srv) ? "UP" : "DOWN",
+				     px->srv_map_sz, px->srv_act, px->srv_bck);
+
+			/* rest of server: nothing */
+			chunk_printf(&msg, sizeof(trash), "<td align=center colspan=2></td></tr>");
+
+			if (buffer_write_chunk(rep, &msg) != 0)
+				return 0;
+		}
+		
+		s->data_ctx.stats.px_st = DATA_ST_PX_END;
+		/* fall through */
+
+	case DATA_ST_PX_END:
+		chunk_printf(&msg, sizeof(trash), "</table><p>\n");
+
+		if (buffer_write_chunk(rep, &msg) != 0)
+			return 0;
+
+		s->data_ctx.stats.px_st = DATA_ST_PX_FIN;
+		/* fall through */
+
+	case DATA_ST_PX_FIN:
+		return 1;
+
+	default:
+		/* unknown state, we should put an abort() here ! */
 		return 1;
 	}
 }
@@ -3243,12 +3371,14 @@ void apply_filters_to_session(struct session *t, struct buffer *req, struct hdr_
 						t->flags |= SN_CLDENY;
 						abort_filt = 1;
 					}
+					t->be->beprm->denied_req++;
 					break;
 				case ACT_TARPIT:
 					if (!(t->flags & (SN_CLALLOW | SN_CLDENY))) {
 						t->flags |= SN_CLTARPIT;
 						abort_filt = 1;
 					}
+					t->be->beprm->denied_req++;
 					break;
 					//case ACT_PASS: /* FIXME: broken as of now. We should mark the header as "ignored". */
 					//	break;
