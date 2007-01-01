@@ -3047,36 +3047,27 @@ int produce_content_stats_proxy(struct session *s, struct proxy *px)
 	case DATA_ST_PX_FE:
 		/* print the frontend */
 		if (px->cap & PR_CAP_FE) {
-			/* name, queue */
 			chunk_printf(&msg, sizeof(trash),
-				     "<tr align=center class=\"frontend\"><td>Frontend</td><td colspan=2></td>");
-
-			/* sessions : current, max, limit, cumul. */
-			chunk_printf(&msg, sizeof(trash),
-				     "<td align=right>%d</td><td align=right>%d</td><td align=right>%d</td><td align=right>%d</td>",
-				     px->feconn, px->feconn_max, px->maxconn, px->cum_feconn);
-
-			/* bytes : in, out */
-			chunk_printf(&msg, sizeof(trash),
-				     "<td align=right></td><td align=right></td>");
-
-			/* denied: req, resp */
-			chunk_printf(&msg, sizeof(trash),
-				     "<td align=right>%d</td><td align=right>%d</td>",
-				     px->denied_req, px->denied_resp);
-
-			/* errors : request, connect, response */
-			chunk_printf(&msg, sizeof(trash),
-				     "<td align=right>%d</td><td align=right></td><td align=right></td>",
-				     px->failed_req);
-
-			/* server status : reflect backend status */
-			chunk_printf(&msg, sizeof(trash), "<td align=center>%s</td>",
+				     /* name, queue */
+				     "<tr align=center class=\"frontend\"><td>Frontend</td><td colspan=2></td>"
+				     /* sessions : current, max, limit, cumul. */
+				     "<td align=right>%d</td><td align=right>%d</td><td align=right>%d</td><td align=right>%d</td>"
+				     /* bytes : in, out */
+				     "<td align=right></td><td align=right></td>"
+				     /* denied: req, resp */
+				     "<td align=right>%d</td><td align=right>%d</td>"
+				     /* errors : request, connect, response */
+				     "<td align=right>%d</td><td align=right></td><td align=right></td>"
+				     /* server status : reflect backend status */
+				     "<td align=center>%s</td>"
+				     /* rest of server: nothing */
+				     "<td align=center colspan=5></td></tr>"
+				     "",
+				     px->feconn, px->feconn_max, px->maxconn, px->cum_feconn,
+				     px->denied_req, px->denied_resp,
+				     px->failed_req,
 				     px->state == PR_STRUN ? "OPEN" :
 				     px->state == PR_STIDLE ? "FULL" : "STOP");
-
-			/* rest of server: nothing */
-			chunk_printf(&msg, sizeof(trash), "<td align=center colspan=5></td></tr>");
 
 			if (buffer_write_chunk(rep, &msg) != 0)
 				return 0;
@@ -3108,36 +3099,27 @@ int produce_content_stats_proxy(struct session *s, struct proxy *px)
 				else
 					sv_state = 0; /* DOWN */
 
-			/* name */
 			chunk_printf(&msg, sizeof(trash),
-				     "<tr align=\"center\" class=\"%s%d\"><td>%s</td>",
+				     /* name */
+				     "<tr align=\"center\" class=\"%s%d\"><td>%s</td>"
+				     /* queue : current, max */
+				     "<td align=right>%d</td><td align=right>%d</td>"
+				     /* sessions : current, max, limit, cumul */
+				     "<td align=right>%d</td><td align=right>%d</td><td align=right>%s</td><td align=right>%d</td>"
+				     /* bytes : in, out */
+				     "<td align=right></td><td align=right></td>"
+				     /* denied: req, resp */
+				     "<td align=right></td><td align=right>%d</td>"
+				     /* errors : request, connect, response */
+				     "<td align=right></td><td align=right>%d</td><td align=right>%d</td>\n"
+				     "",
 				     (sv->state & SRV_BACKUP) ? "active" : "backup",
-				     sv_state, sv->id);
-
-			/* queue : current, max */
-			chunk_printf(&msg, sizeof(trash),
-				     "<td align=right>%d</td><td align=right>%d</td>",
-				     sv->nbpend, sv->nbpend_max);
-
-			/* sessions : current, max, limit, cumul */
-			chunk_printf(&msg, sizeof(trash),
-				     "<td align=right>%d</td><td align=right>%d</td><td align=right>%s</td><td align=right>%d</td>",
-				     sv->cur_sess, sv->cur_sess_max, sv->maxconn ? ultoa(sv->maxconn) : "-", sv->cum_sess);
-
-			/* bytes : in, out */
-			chunk_printf(&msg, sizeof(trash),
-				     "<td align=right></td><td align=right></td>");
-
-			/* denied: req, resp */
-			chunk_printf(&msg, sizeof(trash),
-				     "<td align=right></td><td align=right>%d</td>",
-				     sv->failed_secu);
-
-			/* errors : request, connect, response */
-			chunk_printf(&msg, sizeof(trash),
-				     "<td align=right></td><td align=right>%d</td><td align=right>%d</td>\n",
+				     sv_state, sv->id,
+				     sv->nbpend, sv->nbpend_max,
+				     sv->cur_sess, sv->cur_sess_max, sv->maxconn ? ultoa(sv->maxconn) : "-", sv->cum_sess,
+				     sv->failed_secu,
 				     sv->failed_conns, sv->failed_resp);
-
+				     
 			/* status */
 			chunk_printf(&msg, sizeof(trash), "<td nowrap>");
 			chunk_printf(&msg, sizeof(trash),
@@ -3145,11 +3127,13 @@ int produce_content_stats_proxy(struct session *s, struct proxy *px)
 				     (sv->state & SRV_RUNNING) ? (sv->health - sv->rise + 1) : (sv->health),
 				     (sv->state & SRV_RUNNING) ? (sv->fall) : (sv->rise));
 
-			/* weight */
-			chunk_printf(&msg, sizeof(trash), "<td>%d</td>", sv->uweight+1);
-
-			/* act, bck */
-			chunk_printf(&msg, sizeof(trash), "<td>%s</td><td>%s</td>",
+			chunk_printf(&msg, sizeof(trash),
+				     /* weight */
+				     "</td><td>%d</td>"
+				     /* act, bck */
+				     "<td>%s</td><td>%s</td>"
+				     "",
+				     sv->uweight+1,
 				     (sv->state & SRV_BACKUP) ? "-" : "Y",
 				     (sv->state & SRV_BACKUP) ? "Y" : "-");
 
@@ -3174,47 +3158,34 @@ int produce_content_stats_proxy(struct session *s, struct proxy *px)
 	case DATA_ST_PX_BE:
 		/* print the backend */
 		if (px->cap & PR_CAP_BE) {
-			/* name */
 			chunk_printf(&msg, sizeof(trash),
-				     "<tr align=center class=\"backend\"><td>Backend</td>");
-
-			/* queue : current, max */
-			chunk_printf(&msg, sizeof(trash),
-				     "<td align=right>%d</td><td align=right>%d</td>",
-				     px->nbpend /* or px->totpend ? */, px->nbpend_max);
-
-			/* sessions : current, max, limit, cumul. */
-			chunk_printf(&msg, sizeof(trash),
-				     "<td align=right>%d</td><td align=right>%d</td><td align=right>%d</td><td align=right>%d</td>",
-				     px->beconn, px->beconn_max, px->fullconn, px->cum_beconn);
-
-			/* bytes : in, out */
-			chunk_printf(&msg, sizeof(trash),
-				     "<td align=right></td><td align=right></td>");
-
-			/* denied: req, resp */
-			chunk_printf(&msg, sizeof(trash),
-				     "<td align=right>%d</td><td align=right>%d</td>",
-				     px->denied_req, px->denied_resp);
-
-			/* errors : request, connect, response */
-			chunk_printf(&msg, sizeof(trash),
-				     "<td align=right></td><td align=right>%d</td><td align=right>%d</td>\n",
-				     px->failed_conns, px->failed_resp);
-
-			/* server status : reflect backend status (up/down) : we display UP
-			 * if the backend has known working servers or if it has no server at
-			 * all (eg: for stats). Tthen we display the total weight, number of
-			 * active and backups. */
-			chunk_printf(&msg, sizeof(trash),
-				     "<td align=center>%s</td>"
-				     "<td align=center>%d</td>"
-				     "<td align=center>%d</td><td align=center>%d</td>",
+				     /* name */
+				     "<tr align=center class=\"backend\"><td>Backend</td>"
+				     /* queue : current, max */
+				     "<td align=right>%d</td><td align=right>%d</td>"
+				     /* sessions : current, max, limit, cumul. */
+				     "<td align=right>%d</td><td align=right>%d</td><td align=right>%d</td><td align=right>%d</td>"
+				     /* bytes : in, out */
+				     "<td align=right></td><td align=right></td>"
+				     /* denied: req, resp */
+				     "<td align=right>%d</td><td align=right>%d</td>"
+				     /* errors : request, connect, response */
+				     "<td align=right></td><td align=right>%d</td><td align=right>%d</td>\n"
+				     /* server status : reflect backend status (up/down) : we display UP
+				      * if the backend has known working servers or if it has no server at
+				      * all (eg: for stats). Tthen we display the total weight, number of
+				      * active and backups. */
+				     "<td align=center>%s</td><td align=center>%d</td>"
+				     "<td align=center>%d</td><td align=center>%d</td>"
+				     /* rest of server: nothing */
+				     "<td align=center colspan=2></td></tr>"
+				     "",
+				     px->nbpend /* or px->totpend ? */, px->nbpend_max,
+				     px->beconn, px->beconn_max, px->fullconn, px->cum_beconn,
+				     px->denied_req, px->denied_resp,
+				     px->failed_conns, px->failed_resp,
 				     (px->srv_map_sz > 0 || !px->srv) ? "UP" : "DOWN",
 				     px->srv_map_sz, px->srv_act, px->srv_bck);
-
-			/* rest of server: nothing */
-			chunk_printf(&msg, sizeof(trash), "<td align=center colspan=2></td></tr>");
 
 			if (buffer_write_chunk(rep, &msg) != 0)
 				return 0;
