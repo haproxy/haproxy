@@ -1087,7 +1087,19 @@ int process_cli(struct session *t)
 					return 1;
 			}
 
-		} while (cur_proxy != t->be);  /* we loop only if t->be has changed */
+			if (!(t->flags & SN_BE_ASSIGNED) && cur_proxy->defbe.be) {
+				/* No backend was set, but there was a default
+				 * backend set in the frontend, so we use it and
+				 * loop again.
+				 */
+				t->be = cur_proxy->defbe.be;
+				t->be->beprm->beconn++;
+				if (t->be->beprm->beconn > t->be->beprm->beconn_max)
+					t->be->beprm->beconn_max = t->be->beprm->beconn;
+				t->be->beprm->cum_beconn++;
+				t->flags |= SN_BE_ASSIGNED;
+			}
+		} while (t->be != cur_proxy);  /* we loop only if t->be has changed */
 		
 
 		if (!(t->flags & SN_BE_ASSIGNED)) {

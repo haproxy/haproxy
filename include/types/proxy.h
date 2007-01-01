@@ -76,6 +76,10 @@ struct proxy {
 	int state;				/* proxy state */
 	struct sockaddr_in dispatch_addr;	/* the default address to connect to */
 	struct proxy *fiprm, *beprm;		/* proxy we find filter and backend params from (default: self) */
+	union {
+		struct proxy *be;		/* default backend, or NULL if none set */
+		char *name;			/* default backend name during config parse */
+	} defbe;
 	struct server *srv;			/* known servers */
 	int srv_act, srv_bck;			/* # of running servers */
 	int tot_wact, tot_wbck;			/* total weights of active and backup servers */

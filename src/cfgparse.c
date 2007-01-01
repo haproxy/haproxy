@@ -501,6 +501,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			if (defproxy.monitor_uri)
 				curproxy->monitor_uri = strdup(defproxy.monitor_uri);
 			curproxy->monitor_uri_len = defproxy.monitor_uri_len;
+			if (defproxy.defbe.name)
+				curproxy->defbe.name = strdup(defproxy.defbe.name);
 		}
 
 		if (curproxy->cap & PR_CAP_BE) {
@@ -522,10 +524,14 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 	}
 	else if (!strcmp(args[0], "defaults")) {  /* use this one to assign default values */
 		/* some variables may have already been initialized earlier */
+		/* FIXME-20070101: we should do this too at the end of the
+		 * config parsing to free all default values.
+		 */
 		if (defproxy.check_req)     free(defproxy.check_req);
 		if (defproxy.cookie_name)   free(defproxy.cookie_name);
 		if (defproxy.capture_name)  free(defproxy.capture_name);
 		if (defproxy.monitor_uri)   free(defproxy.monitor_uri);
+		if (defproxy.defbe.name)    free(defproxy.defbe.name);
 
 		for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
 			if (defproxy.errmsg[rc].len)
@@ -980,6 +986,18 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			return -1;
 		}
 		return 0;
+	}
+	else if (!strcmp(args[0], "default_backend")) {
+		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
+			return 0;
+
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects a backend name.\n", file, linenum, args[0]);
+			return -1;
+		}
+		if (curproxy->defbe.name)
+			free(curproxy->defbe.name);
+		curproxy->defbe.name = strdup(args[1]);
 	}
 	else if (!strcmp(args[0], "redispatch") || !strcmp(args[0], "redisp")) {
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
@@ -2103,6 +2121,36 @@ int readcfgfile(const char *file)
 			}
 		}
 
+		/* if a default backend was specified, let's find it */
+		if (curproxy->defbe.name) {
+			struct proxy *target;
+
+			for (target = proxy; target != NULL; target = target->next) {
+				if (strcmp(target->id, curproxy->defbe.name) == 0)
+					break;
+			}
+			if (target == NULL) {
+				Alert("parsing %s : default backend '%s' in HTTP %s '%s' was not found !\n", 
+				      file, curproxy->defbe.name, proxy_type_str(curproxy), curproxy->id);
+				cfgerr++;
+			} else if (target == curproxy) {
+				Alert("parsing %s : loop detected for default backend %s !\n", file, curproxy->defbe.name);
+				cfgerr++;
+			} else if (!(target->cap & PR_CAP_BE)) {
+				Alert("parsing %s : default backend '%s' in HTTP %s '%s' has no backend capability !\n",
+				      file, curproxy->defbe.name, proxy_type_str(curproxy), curproxy->id);
+				cfgerr++;
+			} else if (target->mode != curproxy->mode) {
+				Alert("parsing %s : default backend '%s' in HTTP %s '%s' is not of same mode (tcp/http) !\n",
+				      file, curproxy->defbe.name, proxy_type_str(curproxy), curproxy->id);
+				cfgerr++;
+			} else {
+				free(curproxy->defbe.name);
+				curproxy->defbe.be = target;
+			}
+		}
+
+		/* find the target proxy in setbe */
 		if (curproxy->mode == PR_MODE_HTTP && curproxy->req_exp != NULL) {
 			/* map jump target for ACT_SETBE in req_rep chain */ 
 			struct hdr_exp *exp;
