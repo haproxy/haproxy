@@ -1,0 +1,8 @@
+
+         Qcur  Qmax  Scur  Smax  Slim  Scum   Fin   Fout   Bin   Bout  Ereq  Econ  Ersp  Sts   Wght  Act   Bck   EChk  Down
+Frontend   -     -     X   maxX    Y   totX    I     O      I     O      Q     -     -     -     -     -     -     -     -
+Server     X   maxX    X   maxX    Y   totX    I     O      I     O      -     C     R     S     W     A     B     E     D
+Server     X   maxX    X   maxX    Y   totX    I     O      I     O      -     C     R     S     W     A     B     E     D
+Server     X   maxX    X   maxX    Y   totX    I     O      I     O      -     C     R     S     W     A     B     E     D
+Backend    X   maxX    X   maxX    Y   totX    I     O      I     O      -     C     R     S   totW  totA  totB  totE  totD
+
