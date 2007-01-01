@@ -39,6 +39,9 @@ void session_free(struct session *s)
 	if (s->rep)
 		pool_free(buffer, s->rep);
 
+	if (s->hreq.hdr_idx.v != NULL)
+		pool_free_to(s->fe->hdr_idx_pool, s->hreq.hdr_idx.v);
+
 	if (s->rsp_cap != NULL) {
 		struct cap_hdr *h;
 		for (h = s->fe->fiprm->rsp_cap; h; h = h->next) {
