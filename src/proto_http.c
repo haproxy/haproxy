@@ -3139,7 +3139,7 @@ int produce_content_stats_proxy(struct session *s, struct proxy *px)
 				     /* errors : request, connect, response */
 				     "<td align=right></td><td align=right>%d</td><td align=right>%d</td>\n"
 				     "",
-				     (sv->state & SRV_BACKUP) ? "active" : "backup",
+				     (sv->state & SRV_BACKUP) ? "backup" : "active",
 				     sv_state, sv->id,
 				     sv->nbpend, sv->nbpend_max,
 				     sv->cur_sess, sv->cur_sess_max, sv->maxconn ? ultoa(sv->maxconn) : "-", sv->cum_sess,
