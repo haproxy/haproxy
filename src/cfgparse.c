@@ -94,6 +94,10 @@ static const struct {
 	{ "allbackups",   PR_O_USE_ALL_BK, PR_CAP_BE, 0 },
 	{ "persist",      PR_O_PERSIST,    PR_CAP_BE, 0 },
 	{ "forceclose",   PR_O_FORCE_CLO | PR_O_HTTP_CLOSE, PR_CAP_BE, 0 },
+#ifdef CONFIG_HAP_TCPSPLICE
+	{ "tcpsplice",    PR_O_TCPSPLICE , PR_CAP_BE|PR_CAP_FE, LSTCHK_TCPSPLICE|LSTCHK_NETADM },
+#endif
+
 	{ NULL, 0, 0 }
 };
 

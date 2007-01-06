@@ -42,6 +42,7 @@
 #define LSTCHK_CAP_BIND	0x00000001	/* check that we can bind to any port */
 #define LSTCHK_CTTPROXY	0x00000002	/* check that tproxy is enabled */
 #define LSTCHK_NETADM	0x00000004	/* check that we have CAP_NET_ADMIN */
+#define LSTCHK_TCPSPLICE	0x00000008	/* check that linux tcp_splice is enabled */
 
 /* FIXME : this will have to be redefined correctly */
 struct global {

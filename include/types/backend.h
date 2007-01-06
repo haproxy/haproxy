@@ -57,6 +57,7 @@
 #define	PR_O_TPXY_CIP	0x04000000	/* bind to the client's IP address when connect()ing */
 #define	PR_O_TPXY_CLI	0x06000000	/* bind to the client's IP+port when connect()ing */
 #define	PR_O_TPXY_MASK	0x06000000	/* bind to a non-local address when connect()ing */
+#define	PR_O_TCPSPLICE	0x08000000      /* delegate data transfer to linux kernel's tcp_splice */
 
 
 #endif /* _TYPES_BACKEND_H */
