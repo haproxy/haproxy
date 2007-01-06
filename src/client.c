@@ -150,8 +150,8 @@ int event_accept(int fd) {
 		if (p->options & PR_O_TCP_CLI_KA)
 			setsockopt(cfd, SOL_SOCKET, SO_KEEPALIVE, (char *) &one, sizeof(one));
 
-		t->next = t->prev = t->rqnext = NULL; /* task not in run queue yet */
-		t->wq = LIST_HEAD(wait_queue[0]); /* but already has a wait queue assigned */
+		t->wq = NULL;
+		t->rqnext = NULL;
 		t->state = TASK_IDLE;
 		t->process = process_session;
 		t->context = s;

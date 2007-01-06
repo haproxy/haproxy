@@ -113,8 +113,8 @@ int appsession_task_init(void)
 	if (!initialized) {
 		if ((t = pool_alloc(task)) == NULL)
 			return -1;
-		t->next = t->prev = t->rqnext = NULL;
-		t->wq = LIST_HEAD(wait_queue[0]);
+		t->wq = NULL;
+		t->rqnext = NULL;
 		t->state = TASK_IDLE;
 		t->context = NULL;
 		tv_delayfrom(&t->expire, &now, TBLCHKINT);

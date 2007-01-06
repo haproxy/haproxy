@@ -61,8 +61,8 @@ static inline struct task *task_sleep(struct task **q, struct task *t)
  */
 static inline struct task *task_delete(struct task *t)
 {
-	t->prev->next = t->next;
-	t->next->prev = t->prev;
+	rb_erase(&t->rb_node, t->wq);
+	t->wq = NULL;
 	return t;
 }
 
