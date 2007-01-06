@@ -75,24 +75,25 @@ static const struct {
 	const char *name;
 	unsigned int val;
 	unsigned int cap;
+	unsigned int checks;
 } cfg_opts[] =
 {
 #ifdef TPROXY
 	{ "transparent",  PR_O_TRANSP,     PR_CAP_FE },
 #endif
-	{ "redispatch",   PR_O_REDISP,     PR_CAP_BE },
-	{ "keepalive",    PR_O_KEEPALIVE,  PR_CAP_NONE },
-	{ "forwardfor",   PR_O_FWDFOR,     PR_CAP_FE | PR_CAP_BE },
-	{ "httpclose",    PR_O_HTTP_CLOSE, PR_CAP_FE | PR_CAP_BE },
-	{ "logasap",      PR_O_LOGASAP,    PR_CAP_FE },
-	{ "abortonclose", PR_O_ABRT_CLOSE, PR_CAP_BE },
-	{ "checkcache",   PR_O_CHK_CACHE,  PR_CAP_BE },
-	{ "dontlognull",  PR_O_NULLNOLOG,  PR_CAP_FE },
-	{ "clitcpka",     PR_O_TCP_CLI_KA, PR_CAP_FE },
-	{ "srvtcpka",     PR_O_TCP_SRV_KA, PR_CAP_BE },
-	{ "allbackups",   PR_O_USE_ALL_BK, PR_CAP_BE },
-	{ "persist",      PR_O_PERSIST,    PR_CAP_BE },
-	{ "forceclose",   PR_O_FORCE_CLO | PR_O_HTTP_CLOSE, PR_CAP_BE },
+	{ "redispatch",   PR_O_REDISP,     PR_CAP_BE, 0 },
+	{ "keepalive",    PR_O_KEEPALIVE,  PR_CAP_NONE, 0 },
+	{ "forwardfor",   PR_O_FWDFOR,     PR_CAP_FE | PR_CAP_BE, 0 },
+	{ "httpclose",    PR_O_HTTP_CLOSE, PR_CAP_FE | PR_CAP_BE, 0 },
+	{ "logasap",      PR_O_LOGASAP,    PR_CAP_FE, 0 },
+	{ "abortonclose", PR_O_ABRT_CLOSE, PR_CAP_BE, 0 },
+	{ "checkcache",   PR_O_CHK_CACHE,  PR_CAP_BE, 0 },
+	{ "dontlognull",  PR_O_NULLNOLOG,  PR_CAP_FE, 0 },
+	{ "clitcpka",     PR_O_TCP_CLI_KA, PR_CAP_FE, 0 },
+	{ "srvtcpka",     PR_O_TCP_SRV_KA, PR_CAP_BE, 0 },
+	{ "allbackups",   PR_O_USE_ALL_BK, PR_CAP_BE, 0 },
+	{ "persist",      PR_O_PERSIST,    PR_CAP_BE, 0 },
+	{ "forceclose",   PR_O_FORCE_CLO | PR_O_HTTP_CLOSE, PR_CAP_BE, 0 },
 	{ NULL, 0, 0 }
 };
 
@@ -921,6 +922,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 				if (warnifnotcap(curproxy, cfg_opts[optnum].cap, file, linenum, args[1], NULL))
 					return 0;
 				curproxy->options |= cfg_opts[optnum].val;
+				global.last_checks |= cfg_opts[optnum].checks;
 				return 0;
 			}
 		}
