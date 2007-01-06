@@ -103,7 +103,7 @@ endif
 ifneq ($(VERSION),)
 # OK git is there and works.
 SUBVERS := $(shell comms=$$(git-log --no-merges v$(VERSION).. 2>/dev/null |grep -c ^commit ); [ $$comms -gt 0 ] && echo "-$$comms" )
-VERDATE := $(shell date +%Y/%m/%d -d "$$(git-log HEAD^.. 2>/dev/null | grep ^Date: | cut -f2- -d: | cut -f1 -d+)" )
+VERDATE := $(shell date +%Y/%m/%d -d "$$(git-log HEAD^.. 2>/dev/null | grep -m 1 ^Date: | cut -f2- -d: | cut -f1 -d+)" )
 else
 # Otherwise, use the hard-coded version of last tag, number of changes
 # since last tag, and release date.
