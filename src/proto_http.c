@@ -1097,7 +1097,8 @@ int process_cli(struct session *t)
 					goto return_bad_req;
 			}
 
-			if (rule_set->uri_auth != NULL && t->hreq.meth == HTTP_METH_GET) {
+			if (rule_set->uri_auth != NULL &&
+			    (t->hreq.meth == HTTP_METH_GET || t->hreq.meth == HTTP_METH_HEAD)) {
 				/* we have to check the URI and auth for this request */
 				if (stats_check_uri_auth(t, rule_set))
 					return 1;
@@ -2822,6 +2823,13 @@ int produce_content_stats(struct session *s)
 		if (!(s->flags & SN_FINST_MASK))
 			s->flags |= SN_FINST_R;
 
+		if (s->hreq.meth == HTTP_METH_HEAD) {
+			/* that's all we return in case of HEAD request */
+			s->data_state = DATA_ST_FIN;
+			s->flags &= ~SN_SELF_GEN;
+			return 1;
+		}
+
 		s->data_state = DATA_ST_HEAD; /* let's start producing data */
 		/* fall through */
 
@@ -2985,7 +2993,7 @@ int produce_content_stats(struct session *s)
 		/* fall through */
 
 	case DATA_ST_END:
-		chunk_printf(&msg, sizeof(trash), "</body></html>");
+		chunk_printf(&msg, sizeof(trash), "</body></html>\n");
 		if (buffer_write_chunk(rep, &msg) != 0)
 			return 0;
 
@@ -3841,12 +3849,12 @@ void get_srv_from_appsession(struct session *t, const char *begin, const char *e
 
 
 /*
- * In a GET request, check if the requested URI matches the stats uri for the
- * current backend, and if an authorization has been passed and is valid.
+ * In a GET or HEAD request, check if the requested URI matches the stats uri
+ * for the current backend, and if an authorization has been passed and is valid.
  *
- * It is assumed that the request is a GET and that the t->be->fiprm->uri_auth field
- * is valid. An HTTP/401 response may be sent, or produce_content() can be
- * called to start sending data.
+ * It is assumed that the request is either a HEAD or GET and that the
+ * t->be->fiprm->uri_auth field is valid. An HTTP/401 response may be sent, or
+ * produce_content() can be called to start sending data.
  *
  * Returns 1 if the session's state changes, otherwise 0.
  */
@@ -3855,12 +3863,25 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 	struct uri_auth *uri_auth = backend->uri_auth;
 	struct user_auth *user;
 	int authenticated, cur_idx;
-	char *h;
+	char *h, *e;
 
-	if (t->hreq.start.len < uri_auth->uri_len + 4)   /* +4 for "GET " */
+	/* FIXME: this will soon be easier */
+	/* skip the method */
+	h = t->hreq.start.str;
+	e = h + t->hreq.start.len - uri_auth->uri_len;
+
+	while (h < e && *h != ' ' && *h != '\t')
+		h++;
+
+	/* find the URI */
+	while (h < e && (*h == ' ' || *h == '\t'))
+		h++;
+
+	if (h >= e)
 		return 0;
 
-	if (memcmp(t->hreq.start.str + 4, uri_auth->uri_prefix, uri_auth->uri_len) != 0)
+	/* the URI is in h */
+	if (memcmp(h, uri_auth->uri_prefix, uri_auth->uri_len) != 0)
 		return 0;
 
 	/* we are in front of a interceptable URI. Let's check
