@@ -212,3 +212,28 @@ defined without changing the protocol, but these fields cannot be assumed to be
 recognizable by the recipient. Unrecognized header fields SHOULD be ignored by
 the recipient and MUST be forwarded by transparent proxies.
 
+---- The correct way to do it ----
+
+- one http_session
+  It is basically any transport session on which we talk HTTP. It may be TCP,
+  SSL over TCP, etc... It knows a way to talk to the client, either the socket
+  file descriptor or a direct access to the client-side buffer. It should hold
+  information about the last accessed server so that we can guarantee that the
+  same server can be used during a whole session if needed. A first version
+  without optimal support for HTTP pipelining will have the client buffers tied
+  to the http_session. It may be possible that it is not sufficient for full
+  pipelining, but this will need further study. The link from the buffers to
+  the backend should be managed by the http_request, provided that they are
+  serialized. Each http_session, has 0 to N http_requests. Each http_request
+  belongs to one and only one http_session.
+
+- each http_request has 1 request message, and 0 or 1 response message. Each of
+  them has 1 and only one http_request. An http_request holds informations such
+  as the HTTP method, the URI, the HTTP version, the transfer-encoding, the
+  HTTP status, the authorization, the req and resp content-length, the timers,
+  logs, etc... The backend and server which process the request are also known
+  from the http_request.
+
+- both request and response messages hold header and parsing informations, such
+  as the parsing state, start of headers, start of request, captures, etc...
+
