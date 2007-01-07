@@ -32,6 +32,8 @@ void **pool_session = NULL;
  */
 void session_free(struct session *s)
 {
+	struct http_req *hreq = &s->hreq;
+
 	if (s->pend_pos)
 		pendconn_free(s->pend_pos);
 	if (s->req)
@@ -39,8 +41,8 @@ void session_free(struct session *s)
 	if (s->rep)
 		pool_free(buffer, s->rep);
 
-	if (s->hreq.hdr_idx.v != NULL)
-		pool_free_to(s->fe->hdr_idx_pool, s->hreq.hdr_idx.v);
+	if (hreq->hdr_idx.v != NULL)
+		pool_free_to(s->fe->hdr_idx_pool, hreq->hdr_idx.v);
 
 	if (s->rsp_cap != NULL) {
 		struct cap_hdr *h;
@@ -50,13 +52,13 @@ void session_free(struct session *s)
 		}
 		pool_free_to(s->fe->fiprm->rsp_cap_pool, s->rsp_cap);
 	}
-	if (s->hreq.cap != NULL) {
+	if (hreq->req.cap != NULL) {
 		struct cap_hdr *h;
 		for (h = s->fe->fiprm->req_cap; h; h = h->next) {
-			if (s->hreq.cap[h->index] != NULL)
-				pool_free_to(h->pool, s->hreq.cap[h->index]);
+			if (hreq->req.cap[h->index] != NULL)
+				pool_free_to(h->pool, hreq->req.cap[h->index]);
 		}
-		pool_free_to(s->fe->fiprm->req_cap_pool, s->hreq.cap);
+		pool_free_to(s->fe->fiprm->req_cap_pool, hreq->req.cap);
 	}
 
 	if (s->logs.uri)

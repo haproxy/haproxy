@@ -440,6 +440,7 @@ int process_session(struct task *t)
  */
 int process_cli(struct session *t)
 {
+	struct http_req *hreq = &t->hreq;
 	int s = t->srv_state;
 	int c = t->cli_state;
 	struct buffer *req = t->req;
@@ -485,24 +486,24 @@ int process_cli(struct session *t)
 		char *sol, *eol; /* Start Of Line, End Of Line */
 		struct proxy *cur_proxy;
 
-		eol = sol = req->data + t->hreq.eoh;
+		eol = sol = req->data + hreq->req.eoh;
 
 		while (req->lr < req->r) {
 			int parse;
 
 			FSM_PRINTF(stderr, "WHL: hdr_st=0x%02x, hdr_used=%d hdr_tail=%d hdr_last=%d, h=%d, lr=%d, r=%d, eoh=%d\n",
-				   t->hreq.hdr_state, t->hreq.hdr_idx.used, t->hreq.hdr_idx.tail, t->hreq.hdr_idx.last,
-				   sol - req->data, req->lr - req->data, req->r - req->data, t->hreq.eoh);
+				   hreq->req.hdr_state, hreq->hdr_idx.used, hreq->hdr_idx.tail, hreq->hdr_idx.last,
+				   sol - req->data, req->lr - req->data, req->r - req->data, hreq->req.eoh);
 			
-			if (t->hreq.hdr_state & HTTP_PA_LF_EXP) {
+			if (hreq->req.hdr_state & HTTP_PA_LF_EXP) {
 				if (*req->lr != '\n') {
-					t->hreq.hdr_state = HTTP_PA_ERROR;
+					hreq->req.hdr_state = HTTP_PA_ERROR;
 					break;
 				}
-				t->hreq.hdr_state &= ~HTTP_PA_LF_EXP;
+				hreq->req.hdr_state &= ~HTTP_PA_LF_EXP;
 			}
 
-			parse = t->hreq.hdr_state & ~HTTP_PA_CR_SKIP;;
+			parse = hreq->req.hdr_state & ~HTTP_PA_CR_SKIP;;
 
 			if (parse == HTTP_PA_HDR_LF) {
 			parse_hdr_lf:
@@ -514,7 +515,7 @@ int process_cli(struct session *t)
 				 * which case it means the end of the request.
 				 */
 				eol = req->lr;
-				if (t->hreq.hdr_state & HTTP_PA_CR_SKIP)
+				if (hreq->req.hdr_state & HTTP_PA_CR_SKIP)
 					eol--; /* Get back to the CR */
 
 				if (eol == sol) {
@@ -524,7 +525,7 @@ int process_cli(struct session *t)
 					 * after the LF, so it is easy to append
 					 * anything there.
 					 */
-					t->hreq.hdr_state = HTTP_PA_LFLF;
+					hreq->req.hdr_state = HTTP_PA_LFLF;
 					QUICK_JUMP(parse_lflf, continue);
 				}
 
@@ -545,7 +546,7 @@ int process_cli(struct session *t)
 					for (;eol < req->lr; eol++)
 						*eol = ' ';
 
-					t->hreq.hdr_state = HTTP_PA_HDR_LWS;
+					hreq->req.hdr_state = HTTP_PA_HDR_LWS;
 					QUICK_JUMP(parse_hdr_lws, continue);
 				}
 
@@ -580,11 +581,11 @@ int process_cli(struct session *t)
 						if ((h->namelen + 2 <= eol - sol) &&
 						    (sol[h->namelen] == ':') &&
 						    (strncasecmp(sol, h->name, h->namelen) == 0)) {
-							if (t->hreq.cap[h->index] == NULL)
-								t->hreq.cap[h->index] =
+							if (hreq->req.cap[h->index] == NULL)
+								hreq->req.cap[h->index] =
 									pool_alloc_from(h->pool, h->len + 1);
 
-							if (t->hreq.cap[h->index] == NULL) {
+							if (hreq->req.cap[h->index] == NULL) {
 								Alert("HTTP capture : out of memory.\n");
 								continue;
 							}
@@ -593,8 +594,8 @@ int process_cli(struct session *t)
 							if (len > h->len)
 								len = h->len;
 							
-							memcpy(t->hreq.cap[h->index], sol + h->namelen + 2, len);
-							t->hreq.cap[h->index][len]=0;
+							memcpy(hreq->req.cap[h->index], sol + h->namelen + 2, len);
+							hreq->req.cap[h->index][len]=0;
 						}
 					}
 				}
@@ -615,8 +616,8 @@ int process_cli(struct session *t)
 				if (!delete_header) {
 					/* we insert it into the index */
 					if (hdr_idx_add(eol - sol, req->lr - eol - 1,
-							&t->hreq.hdr_idx, t->hreq.hdr_idx.tail) < 0) {
-						t->hreq.hdr_state = HTTP_PA_ERROR;
+							&hreq->hdr_idx, hreq->hdr_idx.tail) < 0) {
+						hreq->req.hdr_state = HTTP_PA_ERROR;
 						break;
 					}
 				} else {
@@ -633,7 +634,7 @@ int process_cli(struct session *t)
 				sol = req->lr;
 
 #ifdef DEBUG_PARSE_NO_SPEEDUP
-				t->hreq.hdr_state = HTTP_PA_HEADER;
+				hreq->req.hdr_state = HTTP_PA_HEADER;
 				continue;
 #else
 				/*
@@ -645,19 +646,19 @@ int process_cli(struct session *t)
 				if (IS_CTL(*req->lr)) {
 					if (*eol == '\r') {
 						req->lr++;
-						t->hreq.hdr_state = HTTP_PA_LFLF | HTTP_PA_LF_EXP;
+						hreq->req.hdr_state = HTTP_PA_LFLF | HTTP_PA_LF_EXP;
 						continue;
 					}
 					else if (*eol == '\n') {
-						t->hreq.hdr_state = HTTP_PA_LFLF;
+						hreq->req.hdr_state = HTTP_PA_LFLF;
 						goto parse_lflf;
 					}
 					else {
-						t->hreq.hdr_state = HTTP_PA_ERROR;
+						hreq->req.hdr_state = HTTP_PA_ERROR;
 						break;
 					}
 				}
-				t->hreq.hdr_state = HTTP_PA_HEADER;
+				hreq->req.hdr_state = HTTP_PA_HEADER;
 				goto parse_inside_hdr;
 #endif
 
@@ -666,7 +667,7 @@ int process_cli(struct session *t)
 				/* The LF validating the request line */
 
 				eol = req->lr;
-				if (t->hreq.hdr_state & HTTP_PA_CR_SKIP)
+				if (hreq->req.hdr_state & HTTP_PA_CR_SKIP)
 					eol--; /* Get back to the CR */
 
 				/* We have the complete start line between
@@ -702,8 +703,8 @@ int process_cli(struct session *t)
 
 				/* 3: reference this line as the start line */
 				if (hdr_idx_add(eol - sol, req->lr - eol,
-						&t->hreq.hdr_idx, t->hreq.hdr_idx.tail) < 0) {
-					t->hreq.hdr_state = HTTP_PA_ERROR;
+						&hreq->hdr_idx, hreq->hdr_idx.tail) < 0) {
+					hreq->req.hdr_state = HTTP_PA_ERROR;
 					break;
 				}
 
@@ -713,7 +714,7 @@ int process_cli(struct session *t)
 				 * be able to distinguish between an empty line
 				 * and a header.
 				 */
-				t->hreq.hdr_state = HTTP_PA_HEADER;
+				hreq->req.hdr_state = HTTP_PA_HEADER;
 #ifdef DEBUG_PARSE_NO_SPEEDUP
 				continue;
 #else
@@ -764,15 +765,15 @@ int process_cli(struct session *t)
 
 				/* we have a CTL char */
 				if (*ptr == '\r') {
-					t->hreq.hdr_state = HTTP_PA_HDR_LF | HTTP_PA_CR_SKIP | HTTP_PA_LF_EXP;
+					hreq->req.hdr_state = HTTP_PA_HDR_LF | HTTP_PA_CR_SKIP | HTTP_PA_LF_EXP;
 					req->lr++;
 					continue;
 				}
 				else if (*ptr == '\n') {
-					t->hreq.hdr_state = HTTP_PA_HDR_LF;
+					hreq->req.hdr_state = HTTP_PA_HDR_LF;
 					QUICK_JUMP(parse_hdr_lf, continue);
 				}
-				t->hreq.hdr_state = HTTP_PA_ERROR;
+				hreq->req.hdr_state = HTTP_PA_ERROR;
 				break;
 
 			} else if (parse == HTTP_PA_EMPTY) {
@@ -780,12 +781,12 @@ int process_cli(struct session *t)
 
 				if (*req->lr == '\n') {
 					req->lr ++;
-					t->hreq.hdr_state = HTTP_PA_EMPTY;
+					hreq->req.hdr_state = HTTP_PA_EMPTY;
 					continue;
 				}
 				else if (*req->lr == '\r') {
 					req->lr ++;
-					t->hreq.hdr_state = HTTP_PA_EMPTY | HTTP_PA_CR_SKIP | HTTP_PA_LF_EXP;
+					hreq->req.hdr_state = HTTP_PA_EMPTY | HTTP_PA_CR_SKIP | HTTP_PA_LF_EXP;
 					continue;
 				}				
 
@@ -794,8 +795,8 @@ int process_cli(struct session *t)
 
 #if PARSE_PRESERVE_EMPTY_LINES
 				/* only skip empty leading lines, don't remove them */
-				t->hreq.hdr_idx.v[0].len = req->lr - sol;
-				t->hreq.sor = t->hreq.hdr_idx.v[0].len;
+				hreq->hdr_idx.v[0].len = req->lr - sol;
+				hreq->sor = hreq->hdr_idx.v[0].len;
 #else
 				/* remove empty leading lines, as recommended by
 				 * RFC2616. This takes a lot of time because we
@@ -810,7 +811,7 @@ int process_cli(struct session *t)
 				FSM_PRINTF(stderr, "PA_EMPTY[1]: h=%d, lr=%d, r=%d\n",
 					sol - req->data, req->lr - req->data, req->r - req->data);
 
-				t->hreq.hdr_state = HTTP_PA_START;
+				hreq->req.hdr_state = HTTP_PA_START;
 				/* we know that we still have one char available */
 				QUICK_JUMP(parse_start, continue);
 
@@ -854,15 +855,15 @@ int process_cli(struct session *t)
 				/* we have a CTL char */
 				if (*ptr == '\r') {
 					req->lr++;
-					t->hreq.hdr_state = HTTP_PA_STRT_LF | HTTP_PA_CR_SKIP | HTTP_PA_LF_EXP;
+					hreq->req.hdr_state = HTTP_PA_STRT_LF | HTTP_PA_CR_SKIP | HTTP_PA_LF_EXP;
 					continue;
 				}
 				else if (*ptr == '\n') {
-					t->hreq.hdr_state = HTTP_PA_STRT_LF;
+					hreq->req.hdr_state = HTTP_PA_STRT_LF;
 					/* we know that we still have one char available */
 					QUICK_JUMP(parse_strt_lf, continue);
 				}
-				t->hreq.hdr_state = HTTP_PA_ERROR;
+				hreq->req.hdr_state = HTTP_PA_ERROR;
 				break;
 
 
@@ -889,7 +890,7 @@ int process_cli(struct session *t)
 					if (*req->lr == '\t')
 						*req->lr = ' ';
 					else if (*req->lr != ' ') {
-						t->hreq.hdr_state = HTTP_PA_HEADER;
+						hreq->req.hdr_state = HTTP_PA_HEADER;
 						QUICK_JUMP(parse_inside_hdr, break);
 					}
 					req->lr++;
@@ -903,17 +904,17 @@ int process_cli(struct session *t)
 		} /* end of the "while(req->lr < req->r)" loop */
 
 		/* update the end of headers */
-		t->hreq.eoh = sol - req->data;
+		hreq->req.eoh = sol - req->data;
 
 		FSM_PRINTF(stderr, "END: hdr_st=0x%02x, hdr_used=%d hdr_tail=%d hdr_last=%d, h=%d, lr=%d, r=%d, eoh=%d\n",
-			t->hreq.hdr_state, t->hreq.hdr_idx.used, t->hreq.hdr_idx.tail, t->hreq.hdr_idx.last,
-			sol - req->data, req->lr - req->data, req->r - req->data, t->hreq.eoh);
+			hreq->req.hdr_state, hreq->hdr_idx.used, hreq->hdr_idx.tail, hreq->hdr_idx.last,
+			sol - req->data, req->lr - req->data, req->r - req->data, hreq->req.eoh);
 
 		/*
 		 * Now, let's catch bad requests.
 		 */
 
-		if (t->hreq.hdr_state == HTTP_PA_ERROR)
+		if (hreq->req.hdr_state == HTTP_PA_ERROR)
 			goto return_bad_req;
 
 		/*
@@ -924,7 +925,7 @@ int process_cli(struct session *t)
 		 *
 		 */
 
-		if (t->hreq.hdr_state != HTTP_PA_LFLF) {	/* Request not complete yet */
+		if (hreq->req.hdr_state != HTTP_PA_LFLF) {	/* Request not complete yet */
 
 			/* 1: Since we are in header mode, if there's no space
 			 *    left for headers, we won't be able to free more
@@ -932,7 +933,7 @@ int process_cli(struct session *t)
 			 *    must terminate it now.
 			 */
 			if (req->l >= req->rlim - req->data) {
-				/* FIXME: check if hreq.hdr_state & mask < HTTP_PA_HEADER,
+				/* FIXME: check if hreq.req.hdr_state & mask < HTTP_PA_HEADER,
 				 * and return Status 414 Request URI too long instead.
 				 */
 				goto return_bad_req;
@@ -998,21 +999,21 @@ int process_cli(struct session *t)
 		 * send pre-formatted requests too.
 		 */
 
-		t->hreq.start.str = req->data + t->hreq.sor;      /* start of the REQURI */
-		t->hreq.start.len = t->hreq.hdr_idx.v[t->hreq.hdr_idx.v[0].next].len; /* end of the REQURI */
-		t->hreq.meth = find_http_meth(t->hreq.start.str, t->hreq.start.len);
+		hreq->start.str = req->data + hreq->req.sor;      /* start of the REQURI */
+		hreq->start.len = hreq->hdr_idx.v[hreq->hdr_idx.v[0].next].len; /* end of the REQURI */
+		hreq->meth = find_http_meth(hreq->start.str, hreq->start.len);
 
 		if ((t->fe->monitor_uri_len != 0) &&
-		    (t->hreq.start.len >= t->fe->monitor_uri_len)) {
-			char *p = t->hreq.start.str;
+		    (hreq->start.len >= t->fe->monitor_uri_len)) {
+			char *p = hreq->start.str;
 			int idx = 0;
 
 			/* skip the method so that we accept any method */
-			while (idx < t->hreq.start.len && p[idx] != ' ')
+			while (idx < hreq->start.len && p[idx] != ' ')
 				idx++;
 			p += idx;
 			
-			if (t->hreq.start.len - idx >= t->fe->monitor_uri_len &&
+			if (hreq->start.len - idx >= t->fe->monitor_uri_len &&
 			    !memcmp(p, t->fe->monitor_uri, t->fe->monitor_uri_len)) {
 				/*
 				 * We have found the monitor URI
@@ -1058,8 +1059,8 @@ int process_cli(struct session *t)
 				apply_filters_to_session(t, req, rule_set->req_exp);
 
 				/* the start line might have been modified */
-				t->hreq.start.len = t->hreq.hdr_idx.v[t->hreq.hdr_idx.v[0].next].len;
-				t->hreq.meth = find_http_meth(t->hreq.start.str, t->hreq.start.len);
+				hreq->start.len = hreq->hdr_idx.v[hreq->hdr_idx.v[0].next].len;
+				hreq->meth = find_http_meth(hreq->start.str, hreq->start.len);
 			}
 
 			if (!(t->flags & SN_BE_ASSIGNED) && (t->be != cur_proxy)) {
@@ -1089,16 +1090,16 @@ int process_cli(struct session *t)
 				int len;
 
 				len = sprintf(trash, "%s\r\n", rule_set->req_add[cur_hdr]);
-				len = buffer_replace2(req, req->data + t->hreq.eoh,
-						      req->data + t->hreq.eoh, trash, len);
-				t->hreq.eoh += len;
+				len = buffer_replace2(req, req->data + hreq->req.eoh,
+						      req->data + hreq->req.eoh, trash, len);
+				hreq->req.eoh += len;
 				
-				if (hdr_idx_add(len - 2, 1, &t->hreq.hdr_idx, t->hreq.hdr_idx.tail) < 0)
+				if (hdr_idx_add(len - 2, 1, &hreq->hdr_idx, hreq->hdr_idx.tail) < 0)
 					goto return_bad_req;
 			}
 
 			if (rule_set->uri_auth != NULL &&
-			    (t->hreq.meth == HTTP_METH_GET || t->hreq.meth == HTTP_METH_HEAD)) {
+			    (hreq->meth == HTTP_METH_GET || hreq->meth == HTTP_METH_HEAD)) {
 				/* we have to check the URI and auth for this request */
 				if (stats_check_uri_auth(t, rule_set))
 					return 1;
@@ -1150,8 +1151,8 @@ int process_cli(struct session *t)
 		/* It needs to look into the URI */
 		if (t->be->beprm->appsession_name) {
 			get_srv_from_appsession(t,
-						t->hreq.start.str,
-						t->hreq.start.str + t->hreq.start.len);
+						hreq->start.str,
+						hreq->start.str + hreq->start.len);
 		}
 
 
@@ -1175,11 +1176,11 @@ int process_cli(struct session *t)
 				pn = (unsigned char *)&((struct sockaddr_in *)&t->cli_addr)->sin_addr;
 				len = sprintf(trash, "X-Forwarded-For: %d.%d.%d.%d\r\n",
 					      pn[0], pn[1], pn[2], pn[3]);
-				len = buffer_replace2(req, req->data + t->hreq.eoh,
-						      req->data + t->hreq.eoh, trash, len);
-				t->hreq.eoh += len;
+				len = buffer_replace2(req, req->data + hreq->req.eoh,
+						      req->data + hreq->req.eoh, trash, len);
+				hreq->req.eoh += len;
 
-				if (hdr_idx_add(len - 2, 1, &t->hreq.hdr_idx, t->hreq.hdr_idx.tail) < 0)
+				if (hdr_idx_add(len - 2, 1, &hreq->hdr_idx, hreq->hdr_idx.tail) < 0)
 					goto return_bad_req;
 			}
 			else if (t->cli_addr.ss_family == AF_INET6) {
@@ -1189,11 +1190,11 @@ int process_cli(struct session *t)
 					  (const void *)&((struct sockaddr_in6 *)(&t->cli_addr))->sin6_addr,
 					  pn, sizeof(pn));
 				len = sprintf(trash, "X-Forwarded-For: %s\r\n", pn);
-				len = buffer_replace2(req, req->data + t->hreq.eoh,
-						      req->data + t->hreq.eoh, trash, len);
-				t->hreq.eoh += len;
+				len = buffer_replace2(req, req->data + hreq->req.eoh,
+						      req->data + hreq->req.eoh, trash, len);
+				hreq->req.eoh += len;
 
-				if (hdr_idx_add(len - 2, 1, &t->hreq.hdr_idx, t->hreq.hdr_idx.tail) < 0)
+				if (hdr_idx_add(len - 2, 1, &hreq->hdr_idx, hreq->hdr_idx.tail) < 0)
 					goto return_bad_req;
 			}
 		}
@@ -1209,11 +1210,11 @@ int process_cli(struct session *t)
 		 */
 		if ((t->fe->options | t->be->beprm->options) & PR_O_HTTP_CLOSE) {
 			int len;
-			len = buffer_replace2(req, req->data + t->hreq.eoh,
-					      req->data + t->hreq.eoh, "Connection: close\r\n", 19);
-			t->hreq.eoh += len;
+			len = buffer_replace2(req, req->data + hreq->req.eoh,
+					      req->data + hreq->req.eoh, "Connection: close\r\n", 19);
+			hreq->req.eoh += len;
 
-			if (hdr_idx_add(17, 1, &t->hreq.hdr_idx, t->hreq.hdr_idx.tail) < 0)
+			if (hdr_idx_add(17, 1, &hreq->hdr_idx, hreq->hdr_idx.tail) < 0)
 				goto return_bad_req;
 		}
 
@@ -1268,25 +1269,25 @@ int process_cli(struct session *t)
 		fprintf(stderr, "t->flags=0x%08x\n", t->flags & (SN_CLALLOW|SN_CLDENY|SN_CLTARPIT));
 
 		fprintf(stderr, "sol=%d\n", sol - req->data);
-		sol = req->data + t->hreq.sor;
+		sol = req->data + hreq->sor;
 		cur_hdr = 0;
 
-		cur_idx = t->hreq.hdr_idx.v[0].next;
+		cur_idx = hreq->hdr_idx.v[0].next;
 		cur_hdr = 1;
 
-		while (cur_hdr < t->hreq.hdr_idx.used) {
-			eol = sol + t->hreq.hdr_idx.v[cur_idx].len + t->hreq.hdr_idx.v[cur_idx].cr + 1;
+		while (cur_hdr < hreq->hdr_idx.used) {
+			eol = sol + hreq->hdr_idx.v[cur_idx].len + hreq->hdr_idx.v[cur_idx].cr + 1;
 			fprintf(stderr, "lr=%d r=%d hdr=%d idx=%d adr=%d..%d len=%d cr=%d data:\n",
 				req->lr - req->data, req->r - req->data,
 				cur_hdr, cur_idx,
 				sol - req->data,
-				sol - req->data + t->hreq.hdr_idx.v[cur_idx].len + t->hreq.hdr_idx.v[cur_idx].cr,
-				t->hreq.hdr_idx.v[cur_idx].len,
-				t->hreq.hdr_idx.v[cur_idx].cr);
+				sol - req->data + hreq->hdr_idx.v[cur_idx].len + hreq->hdr_idx.v[cur_idx].cr,
+				hreq->hdr_idx.v[cur_idx].len,
+				hreq->hdr_idx.v[cur_idx].cr);
 			write(2, sol, eol - sol);
 
 			sol = eol;
-			cur_idx = t->hreq.hdr_idx.v[cur_idx].next;
+			cur_idx = hreq->hdr_idx.v[cur_idx].next;
 			cur_hdr++;
 		}
 #endif
@@ -1294,7 +1295,7 @@ int process_cli(struct session *t)
 		goto process_data;
 
 	return_bad_req: /* let's centralize all bad requests */
-		t->hreq.hdr_state = HTTP_PA_ERROR;
+		hreq->req.hdr_state = HTTP_PA_ERROR;
 		t->logs.status = 400;
 		client_retnclose(t, error_message(t, HTTP_ERR_400));
 		t->fe->failed_req++;
@@ -1598,6 +1599,7 @@ int process_cli(struct session *t)
  */
 int process_srv(struct session *t)
 {
+	struct http_req *hreq = &t->hreq;
 	int s = t->srv_state;
 	int c = t->cli_state;
 	struct buffer *req = t->req;
@@ -1906,7 +1908,7 @@ int process_srv(struct session *t)
 				/* we'll have something else to do here : add new headers ... */
 
 				if ((t->srv) && !(t->flags & SN_DIRECT) && (t->be->beprm->options & PR_O_COOK_INS) &&
-				    (!(t->be->beprm->options & PR_O_COOK_POST) || (t->hreq.meth == HTTP_METH_POST))) {
+				    (!(t->be->beprm->options & PR_O_COOK_POST) || (hreq->meth == HTTP_METH_POST))) {
 					/* the server is known, it's not the one the client requested, we have to
 					 * insert a set-cookie here, except if we want to insert only on POST
 					 * requests and this one isn't. Note that servers which don't have cookies
@@ -2031,7 +2033,7 @@ int process_srv(struct session *t)
 					 *    unless the response includes appropriate
 					 *    Cache-Control or Expires header fields."
 					 */
-					if (!(t->hreq.meth == HTTP_METH_POST) && (t->be->beprm->options & PR_O_CHK_CACHE))
+					if (!(hreq->meth == HTTP_METH_POST) && (t->be->beprm->options & PR_O_CHK_CACHE))
 						t->flags |= SN_CACHEABLE | SN_CACHE_COOK;
 					break;
 				default:
@@ -3271,6 +3273,8 @@ int produce_content_stats_proxy(struct session *s, struct proxy *px)
 
 void apply_filters_to_session(struct session *t, struct buffer *req, struct hdr_exp *exp)
 {
+	struct http_req *hreq = &t->hreq;
+
 	/* iterate through the filters in the outer loop */
 	while (exp && !(t->flags & (SN_CLDENY|SN_CLTARPIT))) {
 		char term;
@@ -3295,11 +3299,11 @@ void apply_filters_to_session(struct session *t, struct buffer *req, struct hdr_
 		 * we start with the start line.
 		 */
 		old_idx = cur_idx = 0;
-		cur_next = req->data + t->hreq.sor;
+		cur_next = req->data + hreq->req.sor;
 		abort_filt = 0;
 
-		while (!abort_filt && (cur_idx = t->hreq.hdr_idx.v[cur_idx].next)) {
-			struct hdr_idx_elem *cur_hdr = &t->hreq.hdr_idx.v[cur_idx];
+		while (!abort_filt && (cur_idx = hreq->hdr_idx.v[cur_idx].next)) {
+			struct hdr_idx_elem *cur_hdr = &hreq->hdr_idx.v[cur_idx];
 			cur_ptr = cur_next;
 			cur_end = cur_ptr + cur_hdr->len;
 			cur_next = cur_end + cur_hdr->cr + 1;
@@ -3371,7 +3375,7 @@ void apply_filters_to_session(struct session *t, struct buffer *req, struct hdr_
 						cur_end += delta;
 						cur_next += delta;
 						cur_hdr->len += delta;
-						t->hreq.eoh += delta;
+						hreq->req.eoh += delta;
 					}
 					break;
 				case ACT_REMOVE:
@@ -3380,9 +3384,9 @@ void apply_filters_to_session(struct session *t, struct buffer *req, struct hdr_
 						cur_next += delta;
 
 						/* FIXME: this should be a separate function */
-						t->hreq.eoh += delta;
-						t->hreq.hdr_idx.v[old_idx].next = cur_hdr->next;
-						t->hreq.hdr_idx.used--;
+						hreq->req.eoh += delta;
+						hreq->hdr_idx.v[old_idx].next = cur_hdr->next;
+						hreq->hdr_idx.used--;
 						cur_hdr->len = 0;
 
 						cur_end = NULL; /* null-term has been rewritten */
@@ -3423,6 +3427,7 @@ void apply_filters_to_session(struct session *t, struct buffer *req, struct hdr_
  */
 void manage_client_side_cookies(struct session *t, struct buffer *req)
 {
+	struct http_req *hreq = &t->hreq;
 	char *p1, *p2, *p3, *p4;
 	char *del_colon, *del_cookie, *colon;
 	int app_cookies;
@@ -3442,13 +3447,13 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 	 * we start with the start line.
 	 */
 	old_idx = cur_idx = 0;
-	cur_next = req->data + t->hreq.sor;
+	cur_next = req->data + hreq->req.sor;
 	abort_filt = 0;
 
-	while ((cur_idx = t->hreq.hdr_idx.v[cur_idx].next)) {
+	while ((cur_idx = hreq->hdr_idx.v[cur_idx].next)) {
 		struct hdr_idx_elem *cur_hdr;
 
-		cur_hdr  = &t->hreq.hdr_idx.v[cur_idx];
+		cur_hdr  = &hreq->hdr_idx.v[cur_idx];
 		cur_ptr  = cur_next;
 		cur_end  = cur_ptr + cur_hdr->len;
 		cur_next = cur_end + cur_hdr->cr + 1;
@@ -3630,7 +3635,7 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 						cur_end += delta;
 						cur_next += delta;
 						cur_hdr->len += delta;
-						t->hreq.eoh += delta;
+						hreq->req.eoh += delta;
 
 						del_cookie = del_colon = NULL;
 						app_cookies++;	/* protect the header from deletion */
@@ -3656,7 +3661,7 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 						cur_end += delta;
 						cur_next += delta;
 						cur_hdr->len += delta;
-						t->hreq.eoh += delta;
+						hreq->req.eoh += delta;
 						del_cookie = del_colon = NULL;
 					}
 				}
@@ -3744,12 +3749,12 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 				delta = buffer_replace2(req, cur_ptr, cur_next, NULL, 0);
 
 				/* FIXME: this should be a separate function */
-				t->hreq.hdr_idx.v[old_idx].next = cur_hdr->next;
-				t->hreq.hdr_idx.used--;
+				hreq->hdr_idx.v[old_idx].next = cur_hdr->next;
+				hreq->hdr_idx.used--;
 				cur_hdr->len = 0;
 			}
 			cur_next += delta;
-			t->hreq.eoh += delta;
+			hreq->req.eoh += delta;
 		}
 
 		/* keep the link from this header to next one */
@@ -3860,6 +3865,7 @@ void get_srv_from_appsession(struct session *t, const char *begin, const char *e
  */
 int stats_check_uri_auth(struct session *t, struct proxy *backend)
 {
+	struct http_req *hreq = &t->hreq;
 	struct uri_auth *uri_auth = backend->uri_auth;
 	struct user_auth *user;
 	int authenticated, cur_idx;
@@ -3867,8 +3873,8 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 
 	/* FIXME: this will soon be easier */
 	/* skip the method */
-	h = t->hreq.start.str;
-	e = h + t->hreq.start.len - uri_auth->uri_len;
+	h = hreq->start.str;
+	e = h + hreq->start.len - uri_auth->uri_len;
 
 	while (h < e && *h != ' ' && *h != '\t')
 		h++;
@@ -3900,25 +3906,25 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 
 		/* FIXME: this should move to an earlier place */
 		cur_idx = 0;
-		h = t->req->data + t->hreq.sor;
-		while ((cur_idx = t->hreq.hdr_idx.v[cur_idx].next)) {
-			int len = t->hreq.hdr_idx.v[cur_idx].len;
+		h = t->req->data + hreq->req.sor;
+		while ((cur_idx = hreq->hdr_idx.v[cur_idx].next)) {
+			int len = hreq->hdr_idx.v[cur_idx].len;
 			if (len > 14 &&
 			    !strncasecmp("Authorization:", h, 14)) {
-				t->hreq.auth_hdr.str = h;
-				t->hreq.auth_hdr.len = len;
+				hreq->auth_hdr.str = h;
+				hreq->auth_hdr.len = len;
 				break;
 			}
-			h += len + t->hreq.hdr_idx.v[cur_idx].cr + 1;
+			h += len + hreq->hdr_idx.v[cur_idx].cr + 1;
 		}
 
-		if (t->hreq.auth_hdr.len < 21 ||
-		    memcmp(t->hreq.auth_hdr.str + 14, " Basic ", 7))
+		if (hreq->auth_hdr.len < 21 ||
+		    memcmp(hreq->auth_hdr.str + 14, " Basic ", 7))
 			user = NULL;
 
 		while (user) {
-			if ((t->hreq.auth_hdr.len == user->user_len + 14 + 7)
-			    && !memcmp(t->hreq.auth_hdr.str + 14 + 7,
+			if ((hreq->auth_hdr.len == user->user_len + 14 + 7)
+			    && !memcmp(hreq->auth_hdr.str + 14 + 7,
 				       user->user_pwd, user->user_len)) {
 				authenticated = 1;
 				break;

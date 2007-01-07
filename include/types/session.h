@@ -112,7 +112,34 @@ typedef enum {
 	HTTP_METH_OTHER,
 } http_meth_t;
 
-/* WARNING: if new fields are added, they must be initialized in event_accept() */
+/* FIXME-20070107: this should move out to another file when HTTP will not be
+ * in the session anymore.
+ */
+
+/* This is an HTTP message, as described in RFC2616. It can be either a request
+ * message or a response message.
+ */
+struct http_msg {
+	int hdr_state;                  /* where we are in the current header parsing */
+	int sor, eoh;			/* Start Of Request and End Of Headers, relative to buffer */
+	char **cap;			/* array of captured request headers (may be NULL) */
+};
+
+/* This is an HTTP request, as described in RFC2616. It contains both a request
+ * message and a response message (which can be empty).
+ */
+struct http_req {
+	int req_state;                  /* what we are currently parsing */
+	http_meth_t meth;		/* HTTP method */
+	struct hdr_idx hdr_idx;         /* array of header indexes (max: MAX_HTTP_HDR) */
+	struct chunk start;		/* points to first line, called "start line" in RFC2616 */
+	struct chunk auth_hdr;		/* points to 'Authorization:' header */
+	struct http_msg req, rsp;	/* HTTP request and response messages */
+};
+
+/* WARNING: if new fields are added, they must be initialized in event_accept()
+ * and freed in session_free() !
+ */
 struct session {
 	struct task *task;			/* the task associated with this session */
 	/* application specific below */
@@ -131,15 +158,7 @@ struct session {
 	struct server *srv;			/* the server being used */
 	struct pendconn *pend_pos;		/* if not NULL, points to the position in the pending queue */
 	char **rsp_cap;				/* array of captured response headers (may be NULL) */
-	struct {
-		int hdr_state;                  /* where we are in the current header parsing */
-		http_meth_t meth;		/* HTTP method */
-		int sor, eoh;			/* Start Of Request and End Of Headers, relative to buffer */
-		struct hdr_idx hdr_idx;         /* array of header indexes (max: MAX_HTTP_HDR) */
-		struct chunk start;		/* points to first line, called "start line" in RFC2616 */
-		struct chunk auth_hdr;		/* points to 'Authorization:' header */
-		char **cap;			/* array of captured request headers (may be NULL) */
-	} hreq;					/* information associated to HTTP request */
+	struct http_req hreq;			/* current HTTP request being processed. Should become a list. */
 	struct {
 		int logwait;			/* log fields waiting to be collected : LW_* */
 		struct timeval tv_accept;	/* date of the accept() (beginning of the session) */

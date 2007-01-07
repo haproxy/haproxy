@@ -56,6 +56,7 @@
 int event_accept(int fd) {
 	struct proxy *p = (struct proxy *)fdtab[fd].owner;
 	struct session *s;
+	struct http_req *hreq;
 	struct task *t;
 	int cfd;
 	int max_accept;
@@ -198,20 +199,21 @@ int event_accept(int fd) {
 		p->cum_feconn++;	/* cum_beconn will be increased once assigned */
 
 		s->rsp_cap = NULL;
-		s->hreq.cap = NULL;
-		s->hreq.hdr_idx.v = NULL;
-		s->hreq.hdr_idx.size = s->hreq.hdr_idx.used = 0;
+		hreq = &s->hreq;
+		hreq->req.cap = NULL;
+		hreq->hdr_idx.v = NULL;
+		hreq->hdr_idx.size = hreq->hdr_idx.used = 0;
 
 		if (p->mode == PR_MODE_HTTP) {
-			s->hreq.hdr_state = HTTP_PA_EMPTY; /* at the very beginning of the request */
-			s->hreq.start.len = -1;
-			s->hreq.auth_hdr.len = -1;
-			s->hreq.sor = s->hreq.eoh = 0; /* relative to the buffer */
+			hreq->req.hdr_state = HTTP_PA_EMPTY; /* at the very beginning of the request */
+			hreq->req.sor = hreq->req.eoh = 0; /* relative to the buffer */
+			hreq->start.len = -1;
+			hreq->auth_hdr.len = -1;
 
-			s->hreq.hdr_idx.size = MAX_HTTP_HDR;
+			hreq->hdr_idx.size = MAX_HTTP_HDR;
 
 			if (p->fiprm->nb_req_cap > 0) {
-				if ((s->hreq.cap =
+				if ((hreq->req.cap =
 				     pool_alloc_from(p->fiprm->req_cap_pool, p->fiprm->nb_req_cap*sizeof(char *)))
 				    == NULL) { /* no memory */
 					close(cfd); /* nothing can be done for this fd without memory */
@@ -219,7 +221,7 @@ int event_accept(int fd) {
 					pool_free(session, s);
 					return 0;
 				}
-				memset(s->hreq.cap, 0, p->fiprm->nb_req_cap*sizeof(char *));
+				memset(hreq->req.cap, 0, p->fiprm->nb_req_cap*sizeof(char *));
 			}
 
 
@@ -227,8 +229,8 @@ int event_accept(int fd) {
 				if ((s->rsp_cap =
 				     pool_alloc_from(p->fiprm->rsp_cap_pool, p->fiprm->nb_rsp_cap*sizeof(char *)))
 				    == NULL) { /* no memory */
-					if (s->hreq.cap != NULL)
-						pool_free_to(p->fiprm->req_cap_pool, s->hreq.cap);
+					if (hreq->req.cap != NULL)
+						pool_free_to(p->fiprm->req_cap_pool, hreq->req.cap);
 					close(cfd); /* nothing can be done for this fd without memory */
 					pool_free(task, t);
 					pool_free(session, s);
@@ -238,19 +240,19 @@ int event_accept(int fd) {
 			}
 
 
-			if ((s->hreq.hdr_idx.v =
-			     pool_alloc_from(p->hdr_idx_pool, s->hreq.hdr_idx.size*sizeof(*s->hreq.hdr_idx.v)))
+			if ((hreq->hdr_idx.v =
+			     pool_alloc_from(p->hdr_idx_pool, hreq->hdr_idx.size*sizeof(*hreq->hdr_idx.v)))
 			    == NULL) { /* no memory */
 				if (s->rsp_cap != NULL)
 					pool_free_to(p->fiprm->rsp_cap_pool, s->rsp_cap);
-				if (s->hreq.cap != NULL)
-					pool_free_to(p->fiprm->req_cap_pool, s->hreq.cap);
+				if (hreq->req.cap != NULL)
+					pool_free_to(p->fiprm->req_cap_pool, hreq->req.cap);
 				close(cfd); /* nothing can be done for this fd without memory */
 				pool_free(task, t);
 				pool_free(session, s);
 				return 0;
 			}
-			hdr_idx_init(&s->hreq.hdr_idx);
+			hdr_idx_init(&hreq->hdr_idx);
 		}
 
 		if ((p->mode == PR_MODE_TCP || p->mode == PR_MODE_HTTP)
@@ -329,12 +331,12 @@ int event_accept(int fd) {
 		}
 
 		if ((s->req = pool_alloc(buffer)) == NULL) { /* no memory */
-			if (s->hreq.hdr_idx.v != NULL)
-				pool_free_to(p->hdr_idx_pool, s->hreq.hdr_idx.v);
+			if (hreq->hdr_idx.v != NULL)
+				pool_free_to(p->hdr_idx_pool, hreq->hdr_idx.v);
 			if (s->rsp_cap != NULL)
 				pool_free_to(p->fiprm->rsp_cap_pool, s->rsp_cap);
-			if (s->hreq.cap != NULL)
-				pool_free_to(p->fiprm->req_cap_pool, s->hreq.cap);
+			if (hreq->req.cap != NULL)
+				pool_free_to(p->fiprm->req_cap_pool, hreq->req.cap);
 			close(cfd); /* nothing can be done for this fd without memory */
 			pool_free(task, t);
 			pool_free(session, s);
@@ -352,12 +354,12 @@ int event_accept(int fd) {
 
 		if ((s->rep = pool_alloc(buffer)) == NULL) { /* no memory */
 			pool_free(buffer, s->req);
-			if (s->hreq.hdr_idx.v != NULL)
-				pool_free_to(p->hdr_idx_pool, s->hreq.hdr_idx.v);
+			if (hreq->hdr_idx.v != NULL)
+				pool_free_to(p->hdr_idx_pool, hreq->hdr_idx.v);
 			if (s->rsp_cap != NULL)
 				pool_free_to(p->fiprm->rsp_cap_pool, s->rsp_cap);
-			if (s->hreq.cap != NULL)
-				pool_free_to(p->fiprm->req_cap_pool, s->hreq.cap);
+			if (hreq->req.cap != NULL)
+				pool_free_to(p->fiprm->req_cap_pool, hreq->req.cap);
 			close(cfd); /* nothing can be done for this fd without memory */
 			pool_free(task, t);
 			pool_free(session, s);
