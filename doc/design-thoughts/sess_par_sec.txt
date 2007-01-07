@@ -1,0 +1,13 @@
+Graphe des nombres de traitements par seconde unité de temps avec 
+  - un algo linéaire et très peu coûteux unitairement (0.01 ut)
+  - un algo en log(2) et 5 fois plus coûteux (0.05 ut)
+
+set yrange [0:1]
+plot [0:1000] 1/(1+0.01*x), 1/(1+0.05*log(x+1)/log(2))
+
+Graphe de la latence induite par ces traitements en unités de temps :
+
+set yrange [0:1000]
+plot [0:1000] x/(1+0.01*x), x/(1+0.05*log(x+1)/log(2))
+
+

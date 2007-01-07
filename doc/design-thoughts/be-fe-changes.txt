@@ -1,0 +1,74 @@
+- PR_O_TRANSP => FE  !!! devra peut-être changer vu que c'est un complément du mode dispatch.
+- PR_O_NULLNOLOG => FE
+- PR_O_HTTP_CLOSE => FE. !!! mettre BE aussi !!!
+- PR_O_TCP_CLI_KA => FE
+
+- PR_O_FWDFOR => BE.  FE aussi ?
+- PR_O_FORCE_CLO => BE
+- PR_O_PERSIST => BE
+- PR_O_COOK_RW, PR_O_COOK_INS, PR_O_COOK_PFX, PR_O_COOK_POST => BE
+- PR_O_COOK_NOC, PR_O_COOK_IND => BE
+- PR_O_ABRT_CLOSE => BE
+- PR_O_REDISP => BE
+- PR_O_BALANCE, PR_O_BALANCE_RR, PR_O_BALANCE_SH => BE
+- PR_O_CHK_CACHE => BE
+- PR_O_TCP_SRV_KA => BE
+- PR_O_BIND_SRC => BE
+- PR_O_TPXY_MASK => BE
+
+
+- PR_MODE_TCP : BE côté serveur, FE côté client
+
+- nbconn -> fe->nbconn, be->nbconn.
+  Pb: rendre impossible le fait que (fe == be) avant de faire ça,
+  sinon on va compter les connexions en double. Ce ne sera possible
+  que lorsque les FE et BE seront des entités distinctes. On va donc
+  commencer par laisser uniquement fe->nbconn (vu que le fe ne change
+  pas), et modifier ceci plus tard, ne serait-ce que pour prendre en
+  compte correctement les minconn/maxconn.
+  => solution : avoir beconn et feconn dans chaque proxy.
+
+- failed_conns, failed_secu (réponses bloquées), failed_resp... : be
+  Attention: voir les cas de ERR_SRVCL, il semble que parfois on
+  indique ça alors qu'il y a un write error côté client (ex: ligne
+  2044 dans proto_http).
+
+  => be et pas be->beprm
+
+- logs du backup : ->be (idem)
+
+- queue : be
+
+- logs/debug : srv toujours associé à be (ex: proxy->id:srv->id). Rien
+  pour le client pour le moment. D'une manière générale, les erreurs
+  provoquées côté serveur vont sur BE et celles côté client vont sur
+  FE.
+- logswait & LW_BYTES : FE (puisqu'on veut savoir si on logue tout de suite)
+
+- messages d'erreurs personnalisés (errmsg, ...) -> fe
+
+- monitor_uri -> fe
+- uri_auth  -> (fe->firpm puis be->fiprm). Utilisation de ->be
+
+- req_add, req_exp => fe->fiprm, puis be->fiprm
+- req_cap, rsp_cap -> fe->fiprm
+- rsp_add, rsp_exp => be->fiprm, devrait être fait ensuite aussi sur fe->fiprm
+- capture_name, capture_namelen : fe->fiprm
+
+  Ce n'est pas la solution idéale, mais au moins la capture et configurable
+  par les filtres du FE et ne bouge pas lorsque le BE est réassigné. Cela
+  résoud aussi un pb d'allocation mémoire.
+
+
+- persistance (appsessions, cookiename, ...) -> be
+- stats:scope "." = fe (celui par lequel on arrive)
+  !!!ERREUR!!! => utiliser be pour avoir celui qui a été validé par
+  l'uri_auth.
+
+
+--------- corrections à effectuer ---------
+
+- remplacement de headers : parser le header et éventuellement le supprimer puis le(les) rajouter.
+- session->proto.{l4state,l7state,l7substate} pour CLI et SRV
+- errorloc : si définie dans backend, la prendre, sinon dans front.
+- logs : faire be sinon fe.

@@ -1,0 +1,27 @@
+1 type générique "entité", avec les attributs suivants :
+
+  - frontend *f
+  - l7switch *s
+  - backend  *b
+
+des types spécifiques sont simplement des entités avec certains
+de ces champs remplis et pas forcément tous :
+
+  listen   = f [s] b
+  frontend = f [s]
+  l7switch = s
+  backend  = [s] b
+
+Ensuite, les traitements sont évalués dans l'ordre :
+  - listen   -> s'il a des règles de l7, on les évalue, et potentiellement on branche vers d'autres listen, l7 ou back, ou on travaille avec le back local.
+  - frontend -> s'il a des règles de l7, on les évalue, et potentiellement on branche vers d'autres listen, l7 ou back
+  - l7switch -> on évalue ses règles, potentiellement on branche vers d'autres listen, l7 ou backends
+  - backend  -> s'il a des règles l7, on les évalue (quitte à changer encore de backend) puis on traite.
+
+Les requêtes sont traitées dans l'ordre des chaînages f->s*->b, et les réponses doivent être
+traitées dans l'ordre inverse b->s*->f. Penser aux réécritures de champs Host à l'aller et
+Location en retour.
+
+D'autre part, prévoir des "profils" plutôt que des blocs de nouveaux paramètres par défaut.
+Ca permettra d'avoir plein de jeux de paramètres par défaut à utiliser dans chacun de ces
+types.

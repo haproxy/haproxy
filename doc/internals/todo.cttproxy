@@ -1,0 +1,5 @@
+  - check TPROXY_VERSION if lstchk_tproxy
+  - check capabilities for CAP_NET_ADMIN if lstchk_tproxy
+  - add capabilities support to the global conf (cap_bind_service)
+  - add support for non-local listen address
+

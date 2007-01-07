@@ -1,0 +1,117 @@
+Prévoir des commandes en plusieurs mots clés.
+Par exemple :
+
+  timeout connection XXX
+  connection scale XXX
+
+On doit aussi accepter les préfixes :
+
+  tim co XXX
+  co sca XXX
+
+Prévoir de ranger les combinaisons dans un tableau. On doit même
+pouvoir effectuer un mapping simplifiant le parseur.
+
+
+Pour les filtres :
+
+
+    <direction> <where> <what> <operator> <pattern> <action> [ <args>* ]
+
+    <direction> = [ req | rsp ]
+    <where>     = [ in | out ]
+    <what>      = [ line | LINE | METH | URI | h(hdr) | H(hdr) | c(cookie) | C(cookie) ]
+    <operator>  = [ == | =~ | =* | =^ | =/ | != | !~ | !* | !^ | !/ ]
+    <pattern>   = "<string>"
+    <action>    = [ allow | permit | deny | delete | replace | switch | add | set | redir ]
+    <args>      = optionnal action args
+
+    exemples:
+
+        req in URI     =^ "/images" switch images
+        req in h(host) =* ".mydomain.com" switch mydomain
+        req in h(host) =~ "localhost(.*)" replace "www\1"
+
+    alternative :
+
+    <direction> <where> <action> [not] <what> [<operator> <pattern> [ <args>* ]]
+
+        req in  switch   URI     =^ "/images" images
+        req in  switch   h(host) =* ".mydomain.com" mydomain
+        req in  replace  h(host) =~ "localhost(.*)" "www\1"
+        req in  delete   h(Connection)
+        req in  deny not line =~ "((GET|HEAD|POST|OPTIONS) /)|(OPTIONS *)"
+        req out set      h(Connection) "close"
+        req out add      line "Server: truc"
+
+
+    <direction> <action> <where> [not] <what> [<operator> <pattern> [ <args>* ]] ';' <action2> <what2>
+
+        req in  switch   URI     =^ "/images/" images ; replace "/"
+        req in  switch   h(host) =* ".mydomain.com" mydomain
+        req in  replace  h(host) =~ "localhost(.*)" "www\1"
+        req in  delete   h(Connection)
+        req in  deny not line =~ "((GET|HEAD|POST|OPTIONS) /)|(OPTIONS *)"
+        req out set      h(Connection) "close"
+        req out add      line == "Server: truc"
+
+
+Extension avec des ACL :
+
+        req in acl(meth_valid)   METH =~ "(GET|POST|HEAD|OPTIONS)"  
+        req in acl(meth_options) METH == "OPTIONS" 
+        req in acl(uri_slash)    URI  =^ "/" 
+        req in acl(uri_star)     URI  == "*" 
+
+        req in deny acl !(meth_options && uri_star || meth_valid && uri_slash)
+
+Peut-être plus simplement :
+
+        acl meth_valid   METH =~ "(GET|POST|HEAD|OPTIONS)"  
+        acl meth_options METH == "OPTIONS" 
+        acl uri_slash    URI  =^ "/" 
+        acl uri_star     URI  == "*" 
+
+        req in  deny not acl(meth_options uri_star, meth_valid uri_slash)
+
+        req in  switch   URI     =^ "/images/" images ; replace "/"
+        req in  switch   h(host) =* ".mydomain.com" mydomain
+        req in  replace  h(host) =~ "localhost(.*)" "www\1"
+        req in  delete   h(Connection)
+        req in  deny not line =~ "((GET|HEAD|POST|OPTIONS) /)|(OPTIONS *)"
+        req out set      h(Connection) "close"
+        req out add      line == "Server: truc"
+
+Prévoir le cas du "if" pour exécuter plusieurs actions :
+
+        req in  if URI =^ "/images/" then replace "/" ; switch images
+
+Utiliser les noms en majuscules/minuscules pour indiquer si on veut prendre
+en compte la casse ou non :
+
+        if uri  =^ "/watch/"       setbe watch   rebase "/watch/" "/"
+        if uri  =* ".jpg"          setbe images
+        if uri  =~ ".*dll.*"       deny
+        if HOST =* ".mydomain.com" setbe mydomain
+        etc...
+
+Another solution would be to have a dedicated keyword to URI remapping. It
+would both rewrite the URI and optionally switch to another backend.
+
+        uriremap "/watch/"  "/"       watch
+        uriremap "/chat/"   "/"       chat
+        uriremap "/event/"  "/event/" event
+
+Or better :
+
+        uriremap "/watch/"  watch  "/"
+        uriremap "/chat/"   chat   "/"
+        uriremap "/event/"  event
+
+For the URI, using a regex is sometimes useful (eg: providing a set of possible prefixes.
+
+
+Sinon, peut-être que le "switch" peut prendre un paramètre de mapping pour la partie matchée :
+
+        req in  switch   URI     =^ "/images/" images:"/"
+

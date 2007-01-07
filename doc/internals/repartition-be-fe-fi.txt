@@ -1,0 +1,20 @@
+- session : ajouter ->fiprm et ->beprm comme raccourcis
+- px->maxconn: ne s'applique qu'au FE. Pour le BE, on utilise fullconn,
+  initialisé par défaut à la même chose que maxconn.
+
+
+     \ from:   proxy       session       server           actuellement
+field \
+rules          px->fiprm   sess->fiprm   -
+srv,cookies    px->beprm   sess->beprm   srv->px
+options(log)   px->        sess->fe      -
+options(fe)    px->        sess->fe      -
+options(be)    px->beprm   sess->beprm   srv->px
+captures       px->        sess->fe      -                ->fiprm
+
+
+logs           px->        sess->fe      srv->px
+errorloc       px->        sess->beprm|fe -
+maxconn        px->        sess->fe       -               ->be
+fullconn       px->        sess->beprm   srv->px          -
+

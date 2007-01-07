@@ -1,0 +1,92 @@
+TEST 3:
+
+  printf "GET /\r\nbla: truc\r\n\r\n"
+
+
+NO SPEEDUP :
+
+WHL: hdr_st=0x00, hdr_used=1 hdr_tail=0 hdr_last=1, h=0x8071080, lr=0x8071080, r=0x8071094
+WHL: hdr_st=0x01, hdr_used=1 hdr_tail=0 hdr_last=1, h=0x8071080, lr=0x8071080, r=0x8071094
+WHL: hdr_st=0x32, hdr_used=1 hdr_tail=0 hdr_last=1, h=0x8071080, lr=0x8071086, r=0x8071094
+WHL: hdr_st=0x03, hdr_used=2 hdr_tail=1 hdr_last=2, h=0x8071087, lr=0x8071087, r=0x8071094
+WHL: hdr_st=0x34, hdr_used=2 hdr_tail=1 hdr_last=2, h=0x8071087, lr=0x8071091, r=0x8071094
+WHL: hdr_st=0x03, hdr_used=3 hdr_tail=2 hdr_last=3, h=0x8071092, lr=0x8071092, r=0x8071094
+WHL: hdr_st=0x34, hdr_used=3 hdr_tail=2 hdr_last=3, h=0x8071092, lr=0x8071093, r=0x8071094
+WHL: hdr_st=0x06, hdr_used=3 hdr_tail=2 hdr_last=3, h=0x8071092, lr=0x8071093, r=0x8071094
+END: hdr_st=0x06, hdr_used=3 hdr_tail=2 hdr_last=3, h=0x8071092, lr=0x8071094, r=0x8071094
+=> 9 trans
+
+
+FULL SPEEDUP :
+
+WHL: hdr_st=0x00, hdr_used=1 hdr_tail=0 hdr_last=1, h=0x806a770, lr=0x806a770, r=0x806a784
+WHL: hdr_st=0x32, hdr_used=1 hdr_tail=0 hdr_last=1, h=0x806a770, lr=0x806a776, r=0x806a784
+WHL: hdr_st=0x03, hdr_used=2 hdr_tail=1 hdr_last=2, h=0x806a777, lr=0x806a777, r=0x806a784
+WHL: hdr_st=0x34, hdr_used=2 hdr_tail=1 hdr_last=2, h=0x806a777, lr=0x806a781, r=0x806a784
+WHL: hdr_st=0x26, hdr_used=3 hdr_tail=2 hdr_last=3, h=0x806a782, lr=0x806a783, r=0x806a784
+END: hdr_st=0x06, hdr_used=3 hdr_tail=2 hdr_last=3, h=0x806a782, lr=0x806a784, r=0x806a784
+=> 6 trans
+
+
+
+TEST 4:
+
+
+  printf "GET /\nbla: truc\n\n"
+
+
+NO SPEEDUP :
+
+WHL: hdr_st=0x00, hdr_used=1 hdr_tail=0 hdr_last=1, h=0x80750d0, lr=0x80750d0, r=0x80750e1
+WHL: hdr_st=0x01, hdr_used=1 hdr_tail=0 hdr_last=1, h=0x80750d0, lr=0x80750d0, r=0x80750e1
+WHL: hdr_st=0x02, hdr_used=1 hdr_tail=0 hdr_last=1, h=0x80750d0, lr=0x80750d5, r=0x80750e1
+WHL: hdr_st=0x03, hdr_used=2 hdr_tail=1 hdr_last=2, h=0x80750d6, lr=0x80750d6, r=0x80750e1
+WHL: hdr_st=0x04, hdr_used=2 hdr_tail=1 hdr_last=2, h=0x80750d6, lr=0x80750df, r=0x80750e1
+WHL: hdr_st=0x03, hdr_used=3 hdr_tail=2 hdr_last=3, h=0x80750e0, lr=0x80750e0, r=0x80750e1
+WHL: hdr_st=0x04, hdr_used=3 hdr_tail=2 hdr_last=3, h=0x80750e0, lr=0x80750e0, r=0x80750e1
+WHL: hdr_st=0x06, hdr_used=3 hdr_tail=2 hdr_last=3, h=0x80750e0, lr=0x80750e0, r=0x80750e1
+END: hdr_st=0x06, hdr_used=3 hdr_tail=2 hdr_last=3, h=0x80750e0, lr=0x80750e1, r=0x80750e1
+=> 9 trans
+
+
+FULL SPEEDUP :
+
+WHL: hdr_st=0x00, hdr_used=1 hdr_tail=0 hdr_last=1, h=0x8072010, lr=0x8072010, r=0x8072021
+WHL: hdr_st=0x03, hdr_used=2 hdr_tail=1 hdr_last=2, h=0x8072016, lr=0x8072016, r=0x8072021
+END: hdr_st=0x06, hdr_used=3 hdr_tail=2 hdr_last=3, h=0x8072020, lr=0x8072021, r=0x8072021
+=> 3 trans
+
+
+TEST 5:
+
+
+  printf "GET /\r\nbla: truc\r\n  truc2\r\n\r\n"
+
+
+NO SPEEDUP :
+
+WHL: hdr_st=0x00, hdr_used=1 hdr_tail=0 hdr_last=1, h=0x8071080, lr=0x8071080, r=0x807109d
+WHL: hdr_st=0x01, hdr_used=1 hdr_tail=0 hdr_last=1, h=0x8071080, lr=0x8071080, r=0x807109d
+WHL: hdr_st=0x32, hdr_used=1 hdr_tail=0 hdr_last=1, h=0x8071080, lr=0x8071086, r=0x807109d
+WHL: hdr_st=0x03, hdr_used=2 hdr_tail=1 hdr_last=2, h=0x8071087, lr=0x8071087, r=0x807109d
+WHL: hdr_st=0x34, hdr_used=2 hdr_tail=1 hdr_last=2, h=0x8071087, lr=0x8071091, r=0x807109d
+WHL: hdr_st=0x05, hdr_used=2 hdr_tail=1 hdr_last=2, h=0x8071087, lr=0x8071092, r=0x807109d
+WHL: hdr_st=0x03, hdr_used=2 hdr_tail=1 hdr_last=2, h=0x8071087, lr=0x8071094, r=0x807109d
+WHL: hdr_st=0x34, hdr_used=2 hdr_tail=1 hdr_last=2, h=0x8071087, lr=0x807109a, r=0x807109d
+WHL: hdr_st=0x03, hdr_used=3 hdr_tail=2 hdr_last=3, h=0x807109b, lr=0x807109b, r=0x807109d
+WHL: hdr_st=0x34, hdr_used=3 hdr_tail=2 hdr_last=3, h=0x807109b, lr=0x807109c, r=0x807109d
+WHL: hdr_st=0x06, hdr_used=3 hdr_tail=2 hdr_last=3, h=0x807109b, lr=0x807109c, r=0x807109d
+END: hdr_st=0x06, hdr_used=3 hdr_tail=2 hdr_last=3, h=0x807109b, lr=0x807109d, r=0x807109d
+=> 12 trans
+
+
+FULL SPEEDUP :
+
+WHL: hdr_st=0x00, hdr_used=1 hdr_tail=0 hdr_last=1, h=0x806dfc0, lr=0x806dfc0, r=0x806dfdd
+WHL: hdr_st=0x32, hdr_used=1 hdr_tail=0 hdr_last=1, h=0x806dfc0, lr=0x806dfc6, r=0x806dfdd
+WHL: hdr_st=0x03, hdr_used=2 hdr_tail=1 hdr_last=2, h=0x806dfc7, lr=0x806dfc7, r=0x806dfdd
+WHL: hdr_st=0x34, hdr_used=2 hdr_tail=1 hdr_last=2, h=0x806dfc7, lr=0x806dfd1, r=0x806dfdd
+WHL: hdr_st=0x34, hdr_used=2 hdr_tail=1 hdr_last=2, h=0x806dfc7, lr=0x806dfda, r=0x806dfdd
+WHL: hdr_st=0x26, hdr_used=3 hdr_tail=2 hdr_last=3, h=0x806dfdb, lr=0x806dfdc, r=0x806dfdd
+END: hdr_st=0x06, hdr_used=3 hdr_tail=2 hdr_last=3, h=0x806dfdb, lr=0x806dfdd, r=0x806dfdd
+=> 7 trans

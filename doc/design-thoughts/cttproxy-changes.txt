@@ -1,0 +1,101 @@
+Nécessite CAP_NET_ADMIN (12)
+On peut donc aussi mettre CAP_NET_BIND_SERVICE (10) pour autoriser les ports < 1024
+
+
+charger le module :
+# modprobe ip_conntrack hashsize=65536
+# modprobe iptable_tproxy hashsize=65536
+# echo 15 > /proc/sys/net/ipv4/netfilter/ip_conntrack_tcp_timeout_time_wait 
+# echo 30 > /proc/sys/net/ipv4/netfilter/ip_conntrack_tcp_timeout_fin_wait 
+
+
+Si on utilise "usesrc client", alors on rencontre ce problème en cas
+de réutilisation d'un port :
+
+# dmesg
+IP_TPROXY: error applying NAT mapping, hooknum=4 0103000a:e5a2 -> 05000001:d204
+IP_TPROXY: error applying NAT mapping, hooknum=4 0103000a:e5a2 -> 05000001:d204
+
+Solution retenue pour la configuration :
+
+  You have to write "usesrc XXXX" on the "source" line. "XXXX" is either
+  an IP address or the keyword "clientip" to reuse the client's IP with
+  a dynamically allocated port, or "client" to reuse both the client's IP
+  and port (dangerous). But due to the way cttproxy works, the source address
+  is mandatory. Eg:
+
+  backend static
+      source 192.168.1.254 usesrc clientip
+      server static1 192.168.1.10 source 192.168.1.254 usesrc clientip
+
+
+---- Anciennes réflexions ----
+
+Il faudrait donc peut-être toujours avoir un port dynamique, ou bien
+traiter le TIME_WAIT correctement en appliquant natdel => corrige pratiquement
+toujours le problème (mais réduire les timeouts semble important)
+
+
+  source 10.1.2.3 present 10.2.3.4
+  source 10.1.2.3 present same_ip
+  source 10.1.2.3 present same
+  source 10.1.2.3:5000 present same
+
+  source 10.1.2.3 appear_as 10.2.3.4
+  source 10.1.2.3 appear_as same_ip
+  source 10.1.2.3 appear_as same
+  source 10.1.2.3:5000 appear_as same
+
+  source 10.1.2.3 {keepsrc | keepip | usesrc 1.2.3.4}
+
+  source 10.1.2.3 snat { client | clientip | 1.2.3.4 }
+  source 10.1.2.3 extbind same
+  source 10.1.2.3 intercept same
+  source 10.1.2.3 spoof same
+  source 10.1.2.3 showsrc same
+  source 10.1.2.3 usesrc same
+  source 10.1.2.3 setsrc same
+  source 10.1.2.3 withsrc same
+  source 10.1.2.3 usesrc clientip:sameport
+  source 10.1.2.3 alias same
+  source 10.1.2.3 as same
+  source 10.1.2.3 outgoing same
+  source 10.1.2.3 public same
+  source 10.1.2.3:5000 pretend same
+
+  source 10.1.2.3=same
+  source 10.1.2.3=10.2.3.4
+
+  source 10.1.2.3^same
+  source 10.1.2.3^10.2.3.4
+
+  source 10.1.2.3@same
+  source 10.1.2.3@10.2.3.4
+
+  source 10.1.2.3!same
+  source 10.1.2.3!10.2.3.4
+
+  source 10.1.2.3|same
+  source 10.1.2.3|10.2.3.4
+
+  source 10.1.2.3(same)
+  source 10.1.2.3(10.2.3.4)
+
+  source 10.1.2.3~same
+  source 10.1.2.3~10.2.3.4
+
+A l'inverse, si "source" contient l'adresse vue :
+
+  source same bindto 1.2.3.4
+  source 2.3.4.5 bindto 1.2.3.4
+
+Problème: si "bindto" est oublié, le bind sur 2.3.4.5 ne fonctionnera pas.
+
+Pour l'adresse de listen (avec "bind"), il serait bien que l'adresse
+translatée apparaisse au même niveau que l'IP afin que les plages et
+listes continuent de fonctionner par association.
+
+Différences entre source et bind :
+  - source: 1 seule IP source, éventuellement un port, plus tard une plage
+  - bind  : liste de (IP source facultatives, port obligatoire, parfois une plage)
+
