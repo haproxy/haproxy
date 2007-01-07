@@ -31,6 +31,9 @@ LD = gcc
 PCREDIR	:= $(shell pcre-config --prefix 2>/dev/null || :)
 #PCREDIR=/usr/local
 
+# This is the directory hosting libtcpsplice.[ah] when USE_TCPSPLICE is set
+TCPSPLICEDIR :=
+
 # This is for standard Linux 2.6 with netfilter and epoll()
 COPTS.linux26 = -DNETFILTER -DENABLE_POLL -DENABLE_EPOLL
 LIBS.linux26 =
@@ -117,6 +120,10 @@ endif
 # do not change this one, enable USE_* variables instead.
 OPTIONS =
 
+ifneq ($(USE_TCPSPLICE),)
+OPTIONS += -DCONFIG_HAP_TCPSPLICE
+endif
+
 ifneq ($(USE_CTTPROXY),)
 OPTIONS += -DCONFIG_HAP_CTTPROXY
 endif
@@ -169,8 +176,16 @@ TARGET_OPTS=$(COPTS.$(TARGET))
 REGEX_OPTS=$(COPTS.$(REGEX))
 CPU_OPTS=$(COPTS.$(CPU))
 
-COPTS=-Iinclude $(ADDINC) $(CPU_OPTS) $(TARGET_OPTS) $(REGEX_OPTS) $(SMALL_OPTS) $(DEFINE) $(OPTIONS)
-LIBS=$(LIBS.$(TARGET)) $(LIBS.$(REGEX)) $(ADDLIB)
+COPTS = -Iinclude $(CPU_OPTS) $(TARGET_OPTS) $(REGEX_OPTS) $(SMALL_OPTS) $(DEFINE) $(OPTIONS)
+LIBS=$(LIBS.$(TARGET)) $(LIBS.$(REGEX))
+
+ifneq ($(USE_TCPSPLICE),)
+COPTS += -I$(TCPSPLICEDIR)
+LIBS  += -L$(TCPSPLICEDIR) -ltcpsplice
+endif
+
+COPTS += $(ADDINC)
+LIBS += $(ADDLIB)
 
 CFLAGS = -Wall $(COPTS) $(DEBUG)
 LDFLAGS = -g
