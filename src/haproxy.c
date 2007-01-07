@@ -259,12 +259,13 @@ void sig_dump_state(int sig)
 
 void dump(int sig)
 {
-	struct task *t, *tnext;
+	struct task *t;
 	struct session *s;
+	struct rb_node *node;
 
-	tnext = ((struct task *)LIST_HEAD(wait_queue[0]))->next;
-	while ((t = tnext) != LIST_HEAD(wait_queue[0])) { /* we haven't looped ? */
-		tnext = t->next;
+	for(node = rb_first(&wait_queue[0]);
+		node != NULL; node = rb_next(node)) {
+		t = rb_entry(node, struct task, rb_node);
 		s = t->context;
 		qfprintf(stderr,"[dump] wq: task %p, still %ld ms, "
 			 "cli=%d, srv=%d, cr=%d, cw=%d, sr=%d, sw=%d, "

@@ -25,6 +25,7 @@
 #include <sys/time.h>
 
 #include <common/config.h>
+#include <common/rbtree.h>
 
 /* values for task->state */
 #define TASK_IDLE	0
@@ -32,9 +33,9 @@
 
 /* The base for all tasks */
 struct task {
-	struct task *next, *prev;		/* chaining ... */
+	struct rb_node rb_node;
+	struct rb_root *wq;
 	struct task *rqnext;		/* chaining in run queue ... */
-	struct task *wq;			/* the wait queue this task is in */
 	int state;				/* task state : IDLE or RUNNING */
 	struct timeval expire;		/* next expiration time for this task, use only for fast sorting */
 	int (*process)(struct task *t);	/* the function which processes the task */
@@ -44,7 +45,7 @@ struct task {
 #define sizeof_task     sizeof(struct task)
 extern void **pool_task;
 
-extern struct task wait_queue[2];
+extern struct rb_root wait_queue[2];
 extern struct task *rq;
 
 

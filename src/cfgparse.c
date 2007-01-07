@@ -2297,8 +2297,8 @@ int readcfgfile(const char *file)
 					return -1;
 				}
 		
-				t->next = t->prev = t->rqnext = NULL; /* task not in run queue yet */
-				t->wq = LIST_HEAD(wait_queue[1]); /* already assigned to the eternity queue */
+				t->rqnext = NULL;
+				t->wq = NULL;
 				t->state = TASK_IDLE;
 				t->process = process_srv_queue;
 				t->context = newsrv;
@@ -2344,8 +2344,8 @@ int readcfgfile(const char *file)
 						return -1;
 					}
 		
-					t->next = t->prev = t->rqnext = NULL; /* task not in run queue yet */
-					t->wq = LIST_HEAD(wait_queue[0]); /* but already has a wait queue assigned */
+					t->wq = NULL;
+					t->rqnext = NULL;
 					t->state = TASK_IDLE;
 					t->process = process_chk;
 					t->context = newsrv;
