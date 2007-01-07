@@ -1237,6 +1237,21 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			if (!newsrv->check_port && !(newsrv->state & SRV_MAPPORTS))
 				newsrv->check_port = realport; /* by default */
 			if (!newsrv->check_port) {
+				/* not yet valid, because no port was set on
+				 * the server either. We'll check if we have
+				 * a known port on the first listener.
+				 */
+				struct listener *l;
+				l = curproxy->listen;
+				if (l) {
+					int port;
+					port = (l->addr.ss_family == AF_INET6)
+					        ? ntohs(((struct sockaddr_in6 *)(&l->addr))->sin6_port)
+						: ntohs(((struct sockaddr_in *)(&l->addr))->sin_port);
+					newsrv->check_port = port;
+				}
+			}
+			if (!newsrv->check_port) {
 				Alert("parsing [%s:%d] : server %s has neither service port nor check port. Check has been disabled.\n",
 				      file, linenum, newsrv->id);
 				return -1;
