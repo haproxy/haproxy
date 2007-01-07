@@ -69,6 +69,9 @@ fi
 %attr(0755,root,root) %config %{_sysconfdir}/rc.d/init.d/%{name}
 
 %changelog
+* Wed Jan 07 2007 Willy Tarreau <w@1wt.eu>
+- updated to 1.3.5
+
 * Wed Jan 02 2007 Willy Tarreau <w@1wt.eu>
 - updated to 1.3.4
 

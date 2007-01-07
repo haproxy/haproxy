@@ -1,6 +1,13 @@
 ChangeLog :
 ===========
 
+2007/01/07 : 1.3.5
+    - stats: swap color sets for active and backup servers
+    - try to guess server check port when unset
+    - added complete support and doc for TCP Splicing
+    - replace the wait-queue linked list with an rbtree.
+    - a few bugfixes and cleanups
+
 2007/01/02 : 1.3.4
     - support for cttproxy on the server side to present the client
       address to the server.
