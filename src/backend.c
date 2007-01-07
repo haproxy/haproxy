@@ -41,6 +41,10 @@
 #include <import/ip_tproxy.h>
 #endif
 
+#ifdef CONFIG_HAP_TCPSPLICE
+#include <libtcpsplice.h>
+#endif
+
 /*
  * This function recounts the number of usable active and backup servers for
  * proxy <p>. These numbers are returned into the p->srv_act and p->srv_bck.
@@ -363,6 +367,13 @@ int connect_server(struct session *s)
 		close(fd);
 		return SN_ERR_PRXCOND; /* it is a configuration limit */
 	}
+
+#ifdef CONFIG_HAP_TCPSPLICE
+	if ((s->fe->options & s->be->beprm->options) & PR_O_TCPSPLICE) {
+		/* TCP splicing supported by both FE and BE */
+		tcp_splice_initfd(s->cli_fd, fd);
+	}
+#endif
 
 	if ((fcntl(fd, F_SETFL, O_NONBLOCK)==-1) ||
 	    (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *) &one, sizeof(one)) == -1)) {

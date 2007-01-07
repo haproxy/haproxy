@@ -90,6 +90,10 @@
 #include <proto/stream_sock.h>
 #include <proto/task.h>
 
+#ifdef CONFIG_HAP_TCPSPLICE
+#include <libtcpsplice.h>
+#endif
+
 /*********************************************************************/
 
 /*********************************************************************/
@@ -750,6 +754,18 @@ int main(int argc, char **argv)
 		}
 #endif
 	}
+
+#ifdef CONFIG_HAP_TCPSPLICE
+	if (global.last_checks & LSTCHK_TCPSPLICE) {
+		if (tcp_splice_start() < 0) {
+			Alert("[%s.main()] Cannot enable tcp_splice.\n"
+			      "  Make sure you have enough permissions and that the module is loadable.\n"
+			      "  Alternatively, you may disable the 'tcpsplice' options in the configuration.\n"
+			      "", argv[0], global.gid);
+			exit(1);
+		}
+	}
+#endif
 
 	if (nb_oldpids)
 		tell_old_pids(oldpids_sig);

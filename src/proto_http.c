@@ -51,6 +51,9 @@
 #include <proto/session.h>
 #include <proto/task.h>
 
+#ifdef CONFIG_HAP_TCPSPLICE
+#include <libtcpsplice.h>
+#endif
 
 #define DEBUG_PARSE_NO_SPEEDUP
 #undef DEBUG_PARSE_NO_SPEEDUP
@@ -1800,6 +1803,12 @@ int process_srv(struct session *t)
 					t->logs.t_close = t->logs.t_connect; /* to get a valid end date */
 					sess_log(t);
 				}
+#ifdef CONFIG_HAP_TCPSPLICE
+				if ((t->fe->options & t->be->beprm->options) & PR_O_TCPSPLICE) {
+					/* TCP splicing supported by both FE and BE */
+					tcp_splice_splicefd(t->cli_fd, t->srv_fd, 0);
+				}
+#endif
 			}
 			else {
 				t->srv_state = SV_STHEADERS;
@@ -1956,6 +1965,12 @@ int process_srv(struct session *t)
 					t->srv_state = SV_STSHUTW;
 				}
 
+#ifdef CONFIG_HAP_TCPSPLICE
+				if ((t->fe->options & t->be->beprm->options) & PR_O_TCPSPLICE) {
+					/* TCP splicing supported by both FE and BE */
+					tcp_splice_splicefd(t->cli_fd, t->srv_fd, 0);
+				}
+#endif
 				/* if the user wants to log as soon as possible, without counting
 				   bytes from the server, then this is the right moment. */
 				if (t->fe->to_log && !(t->logs.logwait & LW_BYTES)) {
