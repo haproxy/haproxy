@@ -118,10 +118,24 @@ typedef enum {
 
 /* This is an HTTP message, as described in RFC2616. It can be either a request
  * message or a response message.
+ *
+ * The values there are a little bit obscure, because their meaning can change
+ * during the parsing :
+ *
+ *  - sor (Start of Request) : relative offset in the buffer of first byte of
+ *                             the request being processed or parsed. Reset to
+ *                             zero during accept().
+ *  - eoh (End of Headers)   : relative offset in the buffer of first byte that
+ *                             is not part of a completely processed header.
+ *                             During parsing, it points to last header seen
+ *                             for states after START.
+ *  - eol (End of Line)      : relative offset in the buffer of the first byte
+ *                             which marks the end of the line (LF or CRLF).
  */
 struct http_msg {
 	int hdr_state;                  /* where we are in the current header parsing */
 	int sor, eoh;			/* Start Of Request and End Of Headers, relative to buffer */
+	int eol;			/* end of line */
 	char **cap;			/* array of captured request headers (may be NULL) */
 };
 

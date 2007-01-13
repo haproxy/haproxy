@@ -206,7 +206,7 @@ int event_accept(int fd) {
 
 		if (p->mode == PR_MODE_HTTP) {
 			hreq->req.hdr_state = HTTP_PA_EMPTY; /* at the very beginning of the request */
-			hreq->req.sor = hreq->req.eoh = 0; /* relative to the buffer */
+			hreq->req.eol = hreq->req.sor = hreq->req.eoh = 0; /* relative to the buffer */
 			hreq->start.len = -1;
 			hreq->auth_hdr.len = -1;
 
