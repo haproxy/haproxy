@@ -36,6 +36,19 @@
  * power of 2, and 0 otherwise */
 #define POWEROF2(x) (((x) & ((x)-1)) == 0)
 
+/*
+ * Gcc >= 3 provides the ability for the programme to give hints to the
+ * compiler about what branch of an if is most likely to be taken. This
+ * helps the compiler produce the most compact critical paths, which is
+ * generally better for the cache and to reduce the number of jumps.
+ */
+#if __GNUC__ < 3
+#define __builtin_expect(x,y) (x)
+#endif
+
+#define likely(x) (__builtin_expect((x) != 0, 1))
+#define unlikely(x) (__builtin_expect((x) != 0, 0))
+
 
 /*
  * copies at most <size-1> chars from <src> to <dst>. Last char is always
