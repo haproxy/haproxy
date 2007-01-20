@@ -186,7 +186,10 @@ int assign_server(struct session *s)
 			else /* unknown balancing algorithm */
 				return SRV_STATUS_INTERNAL;
 		}
-		s->flags |= SN_ASSIGNED;
+		else if (*(int *)&s->be->beprm->dispatch_addr.sin_addr || s->fe->options & PR_O_TRANSP)
+			s->flags |= SN_ASSIGNED;
+		else
+			return SRV_STATUS_NOSRV;
 	}
 	return SRV_STATUS_OK;
 }
@@ -242,6 +245,10 @@ int assign_server_address(struct session *s)
 			qfprintf(stderr, "Cannot get original server address.\n");
 			return SRV_STATUS_INTERNAL;
 		}
+	}
+	else {
+		/* no server and no LB algorithm ! */
+		return SRV_STATUS_INTERNAL;
 	}
 
 	s->flags |= SN_ADDR_SET;
