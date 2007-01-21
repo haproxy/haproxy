@@ -139,7 +139,7 @@ struct http_msg {
 	int sor;			/* Start Of Request, relative to buffer */
 	int col, sov;			/* current header: colon, start of value */
 	int eoh;			/* End Of Headers, relative to buffer */
-	char **cap;			/* array of captured request headers (may be NULL) */
+	char **cap;			/* array of captured headers (may be NULL) */
 	union {				/* useful start line pointers, relative to buffer */
 		struct {
 			int l;		/* request line length (not including CR) */
@@ -187,7 +187,6 @@ struct session {
 	struct sockaddr_in srv_addr;		/* the address to connect to */
 	struct server *srv;			/* the server being used */
 	struct pendconn *pend_pos;		/* if not NULL, points to the position in the pending queue */
-	char **rsp_cap;				/* array of captured response headers (may be NULL) */
 	struct http_req hreq;			/* current HTTP request being processed. Should become a list. */
 	struct {
 		int logwait;			/* log fields waiting to be collected : LW_* */

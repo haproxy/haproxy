@@ -198,9 +198,9 @@ int event_accept(int fd) {
 		s->uniq_id = totalconn;
 		p->cum_feconn++;	/* cum_beconn will be increased once assigned */
 
-		s->rsp_cap = NULL;
 		hreq = &s->hreq;
 		hreq->req.cap = NULL;
+		hreq->rsp.cap = NULL;
 		hreq->hdr_idx.v = NULL;
 		hreq->hdr_idx.size = hreq->hdr_idx.used = 0;
 
@@ -226,7 +226,7 @@ int event_accept(int fd) {
 
 
 			if (p->fiprm->nb_rsp_cap > 0) {
-				if ((s->rsp_cap =
+				if ((hreq->rsp.cap =
 				     pool_alloc_from(p->fiprm->rsp_cap_pool, p->fiprm->nb_rsp_cap*sizeof(char *)))
 				    == NULL) { /* no memory */
 					if (hreq->req.cap != NULL)
@@ -236,15 +236,15 @@ int event_accept(int fd) {
 					pool_free(session, s);
 					return 0;
 				}
-				memset(s->rsp_cap, 0, p->fiprm->nb_rsp_cap*sizeof(char *));
+				memset(hreq->rsp.cap, 0, p->fiprm->nb_rsp_cap*sizeof(char *));
 			}
 
 
 			if ((hreq->hdr_idx.v =
 			     pool_alloc_from(p->hdr_idx_pool, hreq->hdr_idx.size*sizeof(*hreq->hdr_idx.v)))
 			    == NULL) { /* no memory */
-				if (s->rsp_cap != NULL)
-					pool_free_to(p->fiprm->rsp_cap_pool, s->rsp_cap);
+				if (hreq->rsp.cap != NULL)
+					pool_free_to(p->fiprm->rsp_cap_pool, hreq->rsp.cap);
 				if (hreq->req.cap != NULL)
 					pool_free_to(p->fiprm->req_cap_pool, hreq->req.cap);
 				close(cfd); /* nothing can be done for this fd without memory */
@@ -333,8 +333,8 @@ int event_accept(int fd) {
 		if ((s->req = pool_alloc(buffer)) == NULL) { /* no memory */
 			if (hreq->hdr_idx.v != NULL)
 				pool_free_to(p->hdr_idx_pool, hreq->hdr_idx.v);
-			if (s->rsp_cap != NULL)
-				pool_free_to(p->fiprm->rsp_cap_pool, s->rsp_cap);
+			if (hreq->rsp.cap != NULL)
+				pool_free_to(p->fiprm->rsp_cap_pool, hreq->rsp.cap);
 			if (hreq->req.cap != NULL)
 				pool_free_to(p->fiprm->req_cap_pool, hreq->req.cap);
 			close(cfd); /* nothing can be done for this fd without memory */
@@ -356,8 +356,8 @@ int event_accept(int fd) {
 			pool_free(buffer, s->req);
 			if (hreq->hdr_idx.v != NULL)
 				pool_free_to(p->hdr_idx_pool, hreq->hdr_idx.v);
-			if (s->rsp_cap != NULL)
-				pool_free_to(p->fiprm->rsp_cap_pool, s->rsp_cap);
+			if (hreq->rsp.cap != NULL)
+				pool_free_to(p->fiprm->rsp_cap_pool, hreq->rsp.cap);
 			if (hreq->req.cap != NULL)
 				pool_free_to(p->fiprm->req_cap_pool, hreq->req.cap);
 			close(cfd); /* nothing can be done for this fd without memory */

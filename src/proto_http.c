@@ -2192,16 +2192,21 @@ int process_srv(struct session *t)
 					if ((h->namelen + 2 <= ptr - rep->h) &&
 					    (rep->h[h->namelen] == ':') &&
 					    (strncasecmp(rep->h, h->name, h->namelen) == 0)) {
+						if (hreq->rsp.cap[h->index] == NULL)
+							hreq->rsp.cap[h->index] =
+								pool_alloc_from(h->pool, h->len + 1);
 
-						if (t->rsp_cap[h->index] == NULL)
-							t->rsp_cap[h->index] = pool_alloc_from(h->pool, h->len + 1);
+						if (hreq->rsp.cap[h->index] == NULL) {
+							Alert("HTTP capture : out of memory.\n");
+							continue;
+						}
 
 						len = ptr - (rep->h + h->namelen + 2);
 						if (len > h->len)
 							len = h->len;
 
-						memcpy(t->rsp_cap[h->index], rep->h + h->namelen + 2, len);
-						t->rsp_cap[h->index][len]=0;
+						memcpy(hreq->rsp.cap[h->index], rep->h + h->namelen + 2, len);
+						hreq->rsp.cap[h->index][len]=0;
 					}
 				}
 		

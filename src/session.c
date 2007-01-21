@@ -45,13 +45,13 @@ void session_free(struct session *s)
 	if (hreq->hdr_idx.v != NULL)
 		pool_free_to(s->fe->hdr_idx_pool, hreq->hdr_idx.v);
 
-	if (s->rsp_cap != NULL) {
+	if (hreq->rsp.cap != NULL) {
 		struct cap_hdr *h;
 		for (h = s->fe->fiprm->rsp_cap; h; h = h->next) {
-			if (s->rsp_cap[h->index] != NULL)
-				pool_free_to(h->pool, s->rsp_cap[h->index]);
+			if (hreq->rsp.cap[h->index] != NULL)
+				pool_free_to(h->pool, hreq->rsp.cap[h->index]);
 		}
-		pool_free_to(s->fe->fiprm->rsp_cap_pool, s->rsp_cap);
+		pool_free_to(s->fe->fiprm->rsp_cap_pool, hreq->rsp.cap);
 	}
 	if (hreq->req.cap != NULL) {
 		struct cap_hdr *h;
