@@ -601,10 +601,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		if (curproxy->monitor_uri != NULL)
 			free(curproxy->monitor_uri);
 
-		curproxy->monitor_uri_len = strlen(args[1]) + 2; /* include leading and trailing spaces */
+		curproxy->monitor_uri_len = strlen(args[1]);
 		curproxy->monitor_uri = (char *)calloc(1, curproxy->monitor_uri_len + 1);
-		memcpy(curproxy->monitor_uri + 1, args[1], curproxy->monitor_uri_len - 2);
-		curproxy->monitor_uri[curproxy->monitor_uri_len-1] = curproxy->monitor_uri[0] = ' ';
+		memcpy(curproxy->monitor_uri, args[1], curproxy->monitor_uri_len);
 		curproxy->monitor_uri[curproxy->monitor_uri_len] = '\0';
 
 		return 0;

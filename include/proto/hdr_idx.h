@@ -41,6 +41,38 @@ static inline void hdr_idx_init(struct hdr_idx *list)
 }
 
 /*
+ * Return index of the first entry in the list. Usually, it means the index of
+ * the first header just after the request or response. If zero is returned, it
+ * means that the list is empty.
+ */
+static inline int hdr_idx_first_idx(struct hdr_idx *list)
+{
+	return list->v[0].next;
+}
+
+/*
+ * Return position of the first entry in the list. Usually, it means the
+ * position of the first header just after the request, but it can also be the
+ * end of the headers if the request has no header. hdr_idx_start_idx() should
+ * be checked before to ensure there is a valid header.
+ */
+static inline int hdr_idx_first_pos(struct hdr_idx *list)
+{
+	return list->v[0].len + list->v[0].cr + 1;
+}
+
+/*
+ * Sets the information about the start line. Its length and the presence of
+ * the CR are registered so that hdr_idx_first_pos() knows exactly where to
+ * find the first header.
+ */
+static inline void hdr_idx_set_start(struct hdr_idx *list, int len, int cr)
+{
+	list->v[0].len = len;
+	list->v[0].cr = cr;
+}
+
+/*
  * Add a header entry to <list> after element <after>. <after> is ignored when
  * the list is empty or full. Common usage is to set <after> to list->tail.
  *

@@ -205,9 +205,9 @@ int event_accept(int fd) {
 		hreq->hdr_idx.size = hreq->hdr_idx.used = 0;
 
 		if (p->mode == PR_MODE_HTTP) {
-			hreq->req.hdr_state = HTTP_PA_EMPTY; /* at the very beginning of the request */
-			hreq->req.eol = hreq->req.sor = hreq->req.eoh = 0; /* relative to the buffer */
-			hreq->start.len = -1;
+			hreq->req.hdr_state = HTTP_MSG_RQBEFORE; /* at the very beginning of the request */
+			hreq->req.sol = hreq->req.eol = NULL;
+			hreq->req.sor = hreq->req.eoh = 0; /* relative to the buffer */
 			hreq->auth_hdr.len = -1;
 
 			hreq->hdr_idx.size = MAX_HTTP_HDR;

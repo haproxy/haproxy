@@ -205,7 +205,7 @@ struct http_method_desc {
 	const char text[8];
 };
 
-static struct http_method_desc http_methods[26][3] = {
+const struct http_method_desc http_methods[26][3] = {
 	['C' - 'A'] = {
 		[0] = {	.meth = HTTP_METH_CONNECT , .len=7, .text="CONNECT" },
 	},
@@ -229,6 +229,70 @@ static struct http_method_desc http_methods[26][3] = {
 	 *      [1] = {	.meth = HTTP_METH_NONE    , .len=0, .text=""        },
 	 */
 };
+
+/* It is about twice as fast on recent architectures to lookup a byte in a
+ * table than two perform a boolean AND or OR between two tests. Refer to
+ * RFC2616 for those chars.
+ */
+
+const char http_is_spht[256] = {
+	[' '] = 1, ['\t'] = 1,
+};
+
+const char http_is_crlf[256] = {
+	['\r'] = 1, ['\n'] = 1,
+};
+
+const char http_is_lws[256] = {
+	[' '] = 1, ['\t'] = 1,
+	['\r'] = 1, ['\n'] = 1,
+};
+
+const char http_is_sep[256] = {
+	['('] = 1, [')']  = 1, ['<']  = 1, ['>'] = 1,
+	['@'] = 1, [',']  = 1, [';']  = 1, [':'] = 1,
+	['"'] = 1, ['/']  = 1, ['[']  = 1, [']'] = 1,
+	['{'] = 1, ['}']  = 1, ['?']  = 1, ['='] = 1,
+	[' '] = 1, ['\t'] = 1, ['\\'] = 1,
+};
+
+const char http_is_ctl[256] = {
+	[0 ... 31] = 1,
+	[127] = 1,
+};
+
+/*
+ * A token is any ASCII char that is neither a separator nor a CTL char.
+ * Do not overwrite values in assignment since gcc-2.95 will not handle
+ * them correctly. Instead, define every non-CTL char's status.
+ */
+const char http_is_token[256] = {
+	[' '] = 0, ['!'] = 1, ['"'] = 0, ['#'] = 1,
+	['$'] = 1, ['%'] = 1, ['&'] = 1, ['\''] = 1,
+	['('] = 0, [')'] = 0, ['*'] = 1, ['+'] = 1,
+	[','] = 0, ['-'] = 1, ['.'] = 1, ['/'] = 0,
+	['0'] = 1, ['1'] = 1, ['2'] = 1, ['3'] = 1,
+	['4'] = 1, ['5'] = 1, ['6'] = 1, ['7'] = 1,
+	['8'] = 1, ['9'] = 1, [':'] = 0, [';'] = 0,
+	['<'] = 0, ['='] = 0, ['>'] = 0, ['?'] = 0,
+	['@'] = 0, ['A'] = 1, ['B'] = 1, ['C'] = 1,
+	['D'] = 1, ['E'] = 1, ['F'] = 1, ['G'] = 1,
+	['H'] = 1, ['I'] = 1, ['J'] = 1, ['K'] = 1,
+	['L'] = 1, ['M'] = 1, ['N'] = 1, ['O'] = 1,
+	['P'] = 1, ['Q'] = 1, ['R'] = 1, ['S'] = 1,
+	['T'] = 1, ['U'] = 1, ['V'] = 1, ['W'] = 1,
+	['X'] = 1, ['Y'] = 1, ['Z'] = 1, ['['] = 0,
+	['\\'] = 0, [']'] = 0, ['^'] = 1, ['_'] = 1,
+	['`'] = 1, ['a'] = 1, ['b'] = 1, ['c'] = 1,
+	['d'] = 1, ['e'] = 1, ['f'] = 1, ['g'] = 1,
+	['h'] = 1, ['i'] = 1, ['j'] = 1, ['k'] = 1,
+	['l'] = 1, ['m'] = 1, ['n'] = 1, ['o'] = 1,
+	['p'] = 1, ['q'] = 1, ['r'] = 1, ['s'] = 1,
+	['t'] = 1, ['u'] = 1, ['v'] = 1, ['w'] = 1,
+	['x'] = 1, ['y'] = 1, ['z'] = 1, ['{'] = 0,
+	['|'] = 1, ['}'] = 0, ['~'] = 1, 
+};
+
 
 #ifdef DEBUG_FULL
 static char *cli_stnames[5] = {"HDR", "DAT", "SHR", "SHW", "CLS" };
@@ -317,22 +381,16 @@ struct chunk *error_message(struct session *s, int msgnum)
 static http_meth_t find_http_meth(const char *str, const int len)
 {
 	unsigned char m;
-	struct http_method_desc *h;
+	const struct http_method_desc *h;
 
 	m = ((unsigned)*str - 'A');
 
 	if (m < 26) {
-		int l;
-		for (h = http_methods[m]; (l = (h->len)) > 0; h++) {
-			if (len <= l)
+		for (h = http_methods[m]; h->len > 0; h++) {
+			if (unlikely(h->len != len))
 				continue;
-
-			if (str[l] != ' ' && str[l] != '\t')
-				continue;
-
-			if (memcmp(str, h->text, l) == 0) {
+			if (likely(memcmp(str, h->text, h->len) == 0))
 				return h->meth;
-			}
 		};
 		return HTTP_METH_OTHER;
 	}
@@ -429,9 +487,407 @@ int process_session(struct task *t)
 }
 
 
-/*
- * FIXME: This should move to the HTTP_flow_analyzer code
+/* either we find an LF at <ptr> or we jump to <bad>.
  */
+#define EXPECT_LF_HERE(ptr, bad)	do { if (unlikely(*(ptr) != '\n')) goto bad; } while (0)
+
+/* plays with variables <ptr>, <end> and <state>. Jumps to <good> if OK,
+ * otherwise to <http_msg_ood> with <state> set to <st>.
+ */
+#define EAT_AND_JUMP_OR_RETURN(good, st)   do { \
+		ptr++;                          \
+		if (likely(ptr < end))          \
+			goto good;              \
+		else {                          \
+			state = (st);           \
+			goto http_msg_ood;      \
+		}                               \
+	} while (0)
+
+/*
+ * This function parses a request line between <ptr> and <end>, starting with
+ * parser state <state>. Only states HTTP_MSG_RQMETH, HTTP_MSG_RQMETH_SP,
+ * HTTP_MSG_RQURI, HTTP_MSG_RQURI_SP and HTTP_MSG_RQVER are handled. Others
+ * will give undefined results.
+ * Note that it is upon the caller's responsibility to ensure that ptr < end,
+ * and that msg->sol points to the beginning of the request.
+ * If a complete line is found (which implies that at least one CR or LF is
+ * found before <end>, the updated <ptr> is returned, otherwise NULL is
+ * returned indicating an incomplete line (which does not mean that parts have
+ * not been updated). In the incomplete case, if <ret_ptr> or <ret_state> are
+ * non-NULL, they are fed with the new <ptr> and <state> values to be passed
+ * upon next call.
+ *
+ * This function was intentionnally designed to be called from
+ * http_msg_analyzer() with the lowest overhead. It should integrate perfectly
+ * within its state machine and use the same macros, hence the need for same
+ * labels and variable names.
+ */
+const char *http_parse_reqline(struct http_msg *msg, const char *msg_buf, int state,
+			 const char *ptr, const char *end,
+			 char **ret_ptr, int *ret_state)
+{
+	__label__
+		http_msg_rqmeth,
+		http_msg_rqmeth_sp,
+		http_msg_rquri,
+		http_msg_rquri_sp,
+		http_msg_rqver,
+		http_msg_rqline_eol,
+		http_msg_ood,     /* out of data */
+		http_msg_invalid;
+
+	switch (state)	{
+	http_msg_rqmeth:
+	case HTTP_MSG_RQMETH:
+		if (likely(HTTP_IS_TOKEN(*ptr)))
+			EAT_AND_JUMP_OR_RETURN(http_msg_rqmeth, HTTP_MSG_RQMETH);
+
+		if (likely(HTTP_IS_SPHT(*ptr))) {
+			msg->sl.rq.m_l = (ptr - msg_buf) - msg->sor;
+			EAT_AND_JUMP_OR_RETURN(http_msg_rqmeth_sp, HTTP_MSG_RQMETH_SP);
+		}
+
+		if (likely(HTTP_IS_CRLF(*ptr))) {
+			/* HTTP 0.9 request */
+			msg->sl.rq.m_l = (ptr - msg_buf) - msg->sor;
+		http_msg_req09_uri:
+			msg->sl.rq.u = ptr - msg_buf;
+		http_msg_req09_uri_e:
+			msg->sl.rq.u_l = (ptr - msg_buf) - msg->sl.rq.u;
+		http_msg_req09_ver:
+			msg->sl.rq.v = ptr - msg_buf;
+			msg->sl.rq.v_l = 0;
+			goto http_msg_rqline_eol;
+		}
+		goto http_msg_invalid;
+		
+	http_msg_rqmeth_sp:
+	case HTTP_MSG_RQMETH_SP:
+		if (likely(!HTTP_IS_LWS(*ptr))) {
+			msg->sl.rq.u = ptr - msg_buf;
+			goto http_msg_rquri;
+		}
+		if (likely(HTTP_IS_SPHT(*ptr)))
+			EAT_AND_JUMP_OR_RETURN(http_msg_rqmeth_sp, HTTP_MSG_RQMETH_SP);
+		/* so it's a CR/LF, meaning an HTTP 0.9 request */
+		goto http_msg_req09_uri;
+
+	http_msg_rquri:
+	case HTTP_MSG_RQURI:
+		if (likely(!HTTP_IS_LWS(*ptr)))
+			EAT_AND_JUMP_OR_RETURN(http_msg_rquri, HTTP_MSG_RQURI);
+
+		if (likely(HTTP_IS_SPHT(*ptr))) {
+			msg->sl.rq.u_l = (ptr - msg_buf) - msg->sl.rq.u;
+			EAT_AND_JUMP_OR_RETURN(http_msg_rquri_sp, HTTP_MSG_RQURI_SP);
+		}
+
+		/* so it's a CR/LF, meaning an HTTP 0.9 request */
+		goto http_msg_req09_uri_e;
+
+	http_msg_rquri_sp:
+	case HTTP_MSG_RQURI_SP:
+		if (likely(!HTTP_IS_LWS(*ptr))) {
+			msg->sl.rq.v = ptr - msg_buf;
+			goto http_msg_rqver;
+		}
+		if (likely(HTTP_IS_SPHT(*ptr)))
+			EAT_AND_JUMP_OR_RETURN(http_msg_rquri_sp, HTTP_MSG_RQURI_SP);
+		/* so it's a CR/LF, meaning an HTTP 0.9 request */
+		goto http_msg_req09_ver;
+
+	http_msg_rqver:
+	case HTTP_MSG_RQVER:
+		if (likely(!HTTP_IS_CRLF(*ptr)))
+			EAT_AND_JUMP_OR_RETURN(http_msg_rqver, HTTP_MSG_RQVER);
+		msg->sl.rq.v_l = (ptr - msg_buf) - msg->sl.rq.v;
+	http_msg_rqline_eol:
+		/* We have seen the end of line. Note that we do not
+		 * necessarily have the \n yet, but at least we know that we
+		 * have EITHER \r OR \n, otherwise the request would not be
+		 * complete. We can then record the request length and return
+		 * to the caller which will be able to register it.
+		 */
+		msg->sl.rq.l = ptr - msg->sol;
+		return ptr;
+
+#ifdef DEBUG_FULL
+	default:
+		fprintf(stderr, "FIXME !!!! impossible state at %s:%d = %d\n", __FILE__, __LINE__, state);
+		exit(1);
+#endif
+	}
+
+ http_msg_ood:
+	/* out of data */
+	if (ret_state)
+		*ret_state = state;
+	if (ret_ptr)
+		*ret_ptr = (char *)ptr;
+	return NULL;
+
+ http_msg_invalid:
+	/* invalid message */
+	if (ret_state)
+		*ret_state = HTTP_MSG_ERROR;
+	return NULL;
+}
+
+
+void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx *idx)
+{
+	__label__
+		http_msg_rqbefore,
+		http_msg_rqbefore_cr,
+		http_msg_rqmeth,
+		http_msg_rqline_end,
+		http_msg_hdr_first,
+		http_msg_hdr_name,
+		http_msg_hdr_l1_sp,
+		http_msg_hdr_l1_lf,
+		http_msg_hdr_l1_lws,
+		http_msg_hdr_val,
+		http_msg_hdr_l2_lf,
+		http_msg_hdr_l2_lws,
+		http_msg_complete_header,
+		http_msg_last_lf,
+		http_msg_ood,     /* out of data */
+		http_msg_invalid;
+
+	int state;                /* updated only when leaving the FSM */
+	register char *ptr, *end; /* request pointers, to avoid dereferences */
+
+	state = msg->hdr_state;
+	ptr = buf->lr;
+	end = buf->r;
+
+	if (unlikely(ptr >= end))
+		goto http_msg_ood;
+
+	switch (state)	{
+	http_msg_rqbefore:
+	case HTTP_MSG_RQBEFORE:
+		if (likely(HTTP_IS_TOKEN(*ptr))) {
+			if (likely(ptr == buf->data)) {
+				msg->sol = ptr;
+				msg->sor = 0;
+				state = HTTP_MSG_RQMETH;
+				goto http_msg_rqmeth;
+			} else {
+#if PARSE_PRESERVE_EMPTY_LINES
+				/* only skip empty leading lines, don't remove them */
+				msg->sol = ptr;
+				msg->sor = ptr - buf->data;
+#else
+				/* Remove empty leading lines, as recommended by
+				 * RFC2616. This takes a lot of time because we
+				 * must move all the buffer backwards, but this
+				 * is rarely needed. The method above will be
+				 * cleaner when we'll be able to start sending
+				 * the request from any place in the buffer.
+				 */
+				buf->lr = ptr;
+				buffer_replace2(buf, buf->data, buf->lr, NULL, 0);
+				msg->sor = 0;
+				msg->sol = buf->data;
+				ptr = buf->data;
+				end = buf->r;
+#endif
+				state = HTTP_MSG_RQMETH;
+				goto http_msg_rqmeth;
+			}
+		}
+
+		if (unlikely(!HTTP_IS_CRLF(*ptr)))
+			goto http_msg_invalid;
+
+		if (unlikely(*ptr == '\n'))
+			EAT_AND_JUMP_OR_RETURN(http_msg_rqbefore, HTTP_MSG_RQBEFORE);
+		EAT_AND_JUMP_OR_RETURN(http_msg_rqbefore_cr, HTTP_MSG_RQBEFORE_CR);
+		/* fall through http_msg_rqbefore_cr */
+
+	http_msg_rqbefore_cr:
+	case HTTP_MSG_RQBEFORE_CR:
+		EXPECT_LF_HERE(ptr, http_msg_invalid);
+		EAT_AND_JUMP_OR_RETURN(http_msg_rqbefore, HTTP_MSG_RQBEFORE);
+		state = HTTP_MSG_RQMETH;
+		/* fall through http_msg_rqmeth */
+
+	http_msg_rqmeth:
+	case HTTP_MSG_RQMETH:
+	case HTTP_MSG_RQMETH_SP:
+	case HTTP_MSG_RQURI:
+	case HTTP_MSG_RQURI_SP:
+	case HTTP_MSG_RQVER:
+		ptr = (char *)http_parse_reqline(msg, buf->data, state, ptr, end,
+						 &buf->lr, &msg->hdr_state);
+		if (unlikely(!ptr))
+			return;
+
+		/* we have a full request and we know that we have either a CR
+		 * or an LF at <ptr>.
+		 */
+		//fprintf(stderr,"sor=%d rq.l=%d *ptr=0x%02x\n", msg->sor, msg->sl.rq.l, *ptr);
+		hdr_idx_set_start(idx, msg->sl.rq.l, *ptr == '\r');
+
+		msg->sol = ptr;
+		if (likely(*ptr == '\r'))
+			EAT_AND_JUMP_OR_RETURN(http_msg_rqline_end, HTTP_MSG_RQLINE_END);
+
+		goto http_msg_rqline_end;
+
+	http_msg_rqline_end:
+	case HTTP_MSG_RQLINE_END:
+		/* check for HTTP/0.9 request : no version information available.
+		 * msg->sol must point to the first of CR or LF.
+		 */
+		if (unlikely(msg->sl.rq.v_l == 0))
+			goto http_msg_last_lf;
+
+		EXPECT_LF_HERE(ptr, http_msg_invalid);
+		EAT_AND_JUMP_OR_RETURN(http_msg_hdr_first, HTTP_MSG_HDR_FIRST);
+
+	http_msg_hdr_first:
+	case HTTP_MSG_HDR_FIRST:
+		msg->sol = ptr;
+		if (likely(!HTTP_IS_CRLF(*ptr))) {
+			goto http_msg_hdr_name;
+		}
+		
+		if (likely(*ptr == '\r'))
+			EAT_AND_JUMP_OR_RETURN(http_msg_last_lf, HTTP_MSG_LAST_LF);
+		goto http_msg_last_lf;
+
+	http_msg_hdr_name:
+	case HTTP_MSG_HDR_NAME:
+		/* assumes msg->sol points to the first char */
+		if (likely(HTTP_IS_TOKEN(*ptr)))
+			EAT_AND_JUMP_OR_RETURN(http_msg_hdr_name, HTTP_MSG_HDR_NAME);
+
+		if (likely(*ptr == ':')) {
+			msg->col = ptr - buf->data;
+			EAT_AND_JUMP_OR_RETURN(http_msg_hdr_l1_sp, HTTP_MSG_HDR_L1_SP);
+		}
+
+		goto http_msg_invalid;
+
+	http_msg_hdr_l1_sp:
+	case HTTP_MSG_HDR_L1_SP:
+		/* assumes msg->sol points to the first char and msg->col to the colon */
+		if (likely(HTTP_IS_SPHT(*ptr)))
+			EAT_AND_JUMP_OR_RETURN(http_msg_hdr_l1_sp, HTTP_MSG_HDR_L1_SP);
+
+		/* header value can be basically anything except CR/LF */
+		msg->sov = ptr - buf->data;
+
+		if (likely(!HTTP_IS_CRLF(*ptr))) {
+			goto http_msg_hdr_val;
+		}
+			
+		if (likely(*ptr == '\r'))
+			EAT_AND_JUMP_OR_RETURN(http_msg_hdr_l1_lf, HTTP_MSG_HDR_L1_LF);
+		goto http_msg_hdr_l1_lf;
+
+	http_msg_hdr_l1_lf:
+	case HTTP_MSG_HDR_L1_LF:
+		EXPECT_LF_HERE(ptr, http_msg_invalid);
+		EAT_AND_JUMP_OR_RETURN(http_msg_hdr_l1_lws, HTTP_MSG_HDR_L1_LWS);
+
+	http_msg_hdr_l1_lws:
+	case HTTP_MSG_HDR_L1_LWS:
+		if (likely(HTTP_IS_SPHT(*ptr))) {
+			/* replace HT,CR,LF with spaces */
+			for (; buf->data+msg->sov < ptr; msg->sov++)
+				buf->data[msg->sov] = ' ';
+			goto http_msg_hdr_l1_sp;
+		}
+		goto http_msg_complete_header;
+		
+	http_msg_hdr_val:
+	case HTTP_MSG_HDR_VAL:
+		/* assumes msg->sol points to the first char, msg->col to the
+		 * colon, and msg->sov points to the first character of the
+		 * value.
+		 */
+		if (likely(!HTTP_IS_CRLF(*ptr)))
+			EAT_AND_JUMP_OR_RETURN(http_msg_hdr_val, HTTP_MSG_HDR_VAL);
+
+		msg->eol = ptr;
+		/* Note: we could also copy eol into ->eoh so that we have the
+		 * real header end in case it ends with lots of LWS, but is this
+		 * really needed ?
+		 */
+		if (likely(*ptr == '\r'))
+			EAT_AND_JUMP_OR_RETURN(http_msg_hdr_l2_lf, HTTP_MSG_HDR_L2_LF);
+		goto http_msg_hdr_l2_lf;
+
+	http_msg_hdr_l2_lf:
+	case HTTP_MSG_HDR_L2_LF:
+		EXPECT_LF_HERE(ptr, http_msg_invalid);
+		EAT_AND_JUMP_OR_RETURN(http_msg_hdr_l2_lws, HTTP_MSG_HDR_L2_LWS);
+
+	http_msg_hdr_l2_lws:
+	case HTTP_MSG_HDR_L2_LWS:
+		if (unlikely(HTTP_IS_SPHT(*ptr))) {
+			/* LWS: replace HT,CR,LF with spaces */
+			for (; msg->eol < ptr; msg->eol++)
+				*msg->eol = ' ';
+			goto http_msg_hdr_val;
+		}
+	http_msg_complete_header:
+		/*
+		 * It was a new header, so the last one is finished.
+		 * Assumes msg->sol points to the first char, msg->col to the
+		 * colon, msg->sov points to the first character of the value
+		 * and msg->eol to the first CR or LF so we know how the line
+		 * ends. We insert last header into the index.
+		 */
+		/*
+		  fprintf(stderr,"registering %-2d bytes : ", msg->eol - msg->sol);
+		  write(2, msg->sol, msg->eol-msg->sol);
+		  fprintf(stderr,"\n");
+		*/
+
+		if (unlikely(hdr_idx_add(msg->eol - msg->sol, *msg->eol == '\r',
+					 idx, idx->tail) < 0))
+			goto http_msg_invalid;
+
+		msg->sol = ptr;
+		if (likely(!HTTP_IS_CRLF(*ptr))) {
+			goto http_msg_hdr_name;
+		}
+		
+		if (likely(*ptr == '\r'))
+			EAT_AND_JUMP_OR_RETURN(http_msg_last_lf, HTTP_MSG_LAST_LF);
+		goto http_msg_last_lf;
+
+	http_msg_last_lf:
+	case HTTP_MSG_LAST_LF:
+		/* Assumes msg->sol points to the first of either CR or LF */
+		EXPECT_LF_HERE(ptr, http_msg_invalid);
+		ptr++;
+		buf->lr = ptr;
+		msg->eoh = msg->sol - buf->data;
+		msg->hdr_state = HTTP_MSG_BODY;
+		return;
+#ifdef DEBUG_FULL
+	default:
+		fprintf(stderr, "FIXME !!!! impossible state at %s:%d = %d\n", __FILE__, __LINE__, state);
+		exit(1);
+#endif
+	}
+ http_msg_ood:
+	/* out of data */
+	msg->hdr_state = state;
+	buf->lr = ptr;
+	return;
+
+ http_msg_invalid:
+	/* invalid message */
+	msg->hdr_state = HTTP_MSG_ERROR;
+	return;
+}
     
 /*
  * manages the client FSM and its socket. BTW, it also tries to handle the
@@ -440,14 +896,10 @@ int process_session(struct task *t)
  */
 int process_cli(struct session *t)
 {
-	struct http_req *hreq = &t->hreq;
 	int s = t->srv_state;
 	int c = t->cli_state;
 	struct buffer *req = t->req;
 	struct buffer *rep = t->rep;
-	int delete_header = 0;
-
-	int cur_hdr;
 
 	DPRINTF(stderr,"process_cli: c=%s s=%s set(r,w)=%d,%d exp(r,w)=%d.%d,%d.%d\n",
 		cli_stnames[c], srv_stnames[s],
@@ -472,476 +924,77 @@ int process_cli(struct session *t)
 		 * whether there's a pending CR or not. We can check it
 		 * globally since all CR followed by anything but LF are
 		 * errors. Each state is entered with the first character is
-		 * has to process at req->lr. We also have HTTP_PA_CR_SKIP
-		 * indicating that a CR has been seen on current line and
-		 * skipped.
+		 * has to process at req->lr.
 		 *
 		 * Here is the information we currently have :
 		 *   req->data + req->sor  = beginning of request
-		 *   req->data + req->eoh  = end of (parsed) headers
+		 *   req->data + req->eoh  = end of processed headers / start of current one
+		 *   req->data + req->eol  = end of current header or line (LF or CRLF)
 		 *   req->lr = first non-visited byte
 		 *   req->r  = end of data
 		 */
 
-		char *sol, *eol; /* Start Of Line, End Of Line */
+		int cur_idx;
+		struct http_req *hreq = &t->hreq;
+		struct http_msg *msg = &hreq->req;
 		struct proxy *cur_proxy;
 
-		eol = sol = req->data + hreq->req.eoh;
+		if (likely(req->lr < req->r))
+			http_msg_analyzer(req, msg, &hreq->hdr_idx);
 
-		while (req->lr < req->r) {
-			int parse;
+		/* 1: we might have to print this header in debug mode */
+		if (unlikely((global.mode & MODE_DEBUG) &&
+			     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) &&
+			     (msg->hdr_state == HTTP_MSG_BODY || msg->hdr_state == HTTP_MSG_ERROR))) {
+			char *eol, *sol;
 
-			FSM_PRINTF(stderr, "WHL: hdr_st=0x%02x, hdr_used=%d hdr_tail=%d hdr_last=%d, h=%d, lr=%d, r=%d, eoh=%d\n",
-				   hreq->req.hdr_state, hreq->hdr_idx.used, hreq->hdr_idx.tail, hreq->hdr_idx.last,
-				   sol - req->data, req->lr - req->data, req->r - req->data, hreq->req.eoh);
-			
-			if (hreq->req.hdr_state & HTTP_PA_LF_EXP) {
-				if (*req->lr != '\n') {
-					hreq->req.hdr_state = HTTP_PA_ERROR;
-					break;
-				}
-				hreq->req.hdr_state &= ~HTTP_PA_LF_EXP;
+			sol = req->data + msg->sor;
+			eol = sol + msg->sl.rq.l;
+			debug_hdr("clireq", t, sol, eol);
+
+			sol += hdr_idx_first_pos(&hreq->hdr_idx);
+			cur_idx = hdr_idx_first_idx(&hreq->hdr_idx);
+
+			while (cur_idx) {
+				eol = sol + hreq->hdr_idx.v[cur_idx].len;
+				debug_hdr("clihdr", t, sol, eol);
+				sol = eol + hreq->hdr_idx.v[cur_idx].cr + 1;
+				cur_idx = hreq->hdr_idx.v[cur_idx].next;
 			}
+		}
 
-			parse = hreq->req.hdr_state & ~HTTP_PA_CR_SKIP;;
-
-			if (parse == HTTP_PA_HDR_LF) {
-			parse_hdr_lf:
-				/* The LF validating last header, but it
-				 * may also be an LWS, in which case we will
-				 * need more data to know if we can close this
-				 * header or not. However, we must check right
-				 * now if this LF/CRLF closes an empty line, in
-				 * which case it means the end of the request.
-				 */
-				eol = req->lr;
-				if (hreq->req.hdr_state & HTTP_PA_CR_SKIP)
-					eol--; /* Get back to the CR */
-
-				if (eol == sol) {
-					/* We have found the end of the headers.
-					 * sol points to the ending LF/CRLF,
-					 * and req->lr points to the first byte
-					 * after the LF, so it is easy to append
-					 * anything there.
-					 */
-					hreq->req.hdr_state = HTTP_PA_LFLF;
-					QUICK_JUMP(parse_lflf, continue);
-				}
-
-				if (req->lr + 1 >= req->r) /* LF, ?? */
-					break;
-				req->lr++;
-
-				/* Right now, we *know* that there is one char
-				 * available at req->lr.
-				 */
-
-				if (*req->lr == ' ' || *req->lr == '\t') {
-					/* We have an LWS, we will replace the
-					 * CR and LF with spaces as RFC2616
-					 * allows it. <lr> now points to the
-					 * first space char of the LWS part.
-					 */
-					for (;eol < req->lr; eol++)
-						*eol = ' ';
-
-					hreq->req.hdr_state = HTTP_PA_HDR_LWS;
-					QUICK_JUMP(parse_hdr_lws, continue);
-				}
-
-				/**********************************************
-				 * We now have one complete header between    *
-				 * sol and eol, with a possible CR at eol, *
-				 * everything ending before req->lr. Some very*
-				 * early processing can be applied.           *
-				 **********************************************/
-
-				/*
-				 * FIXME: insert a REQHEADER hook here.
-				 * For instance, we could check the header's
-				 * syntax such as forbidding the leading space
-				 * in the first header (Apache also has the same problem)
-				 */
-
-
-				/* 1: we might have to print this header */
-				if ((global.mode & MODE_DEBUG) &&
-				    (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))
-					debug_hdr("clihdr", t, sol, eol);
-
-
-				/* 2: maybe we have to copy this header for the logs ? */
-				if (t->logs.logwait & LW_REQHDR) {
-					/* FIXME: we must *search* the value after the ':' and not
-					 * consider that it's necessary after one single space.*/
-					struct cap_hdr *h;
-					int len;
-					for (h = t->fe->fiprm->req_cap; h; h = h->next) {
-						if ((h->namelen + 2 <= eol - sol) &&
-						    (sol[h->namelen] == ':') &&
-						    (strncasecmp(sol, h->name, h->namelen) == 0)) {
-							if (hreq->req.cap[h->index] == NULL)
-								hreq->req.cap[h->index] =
-									pool_alloc_from(h->pool, h->len + 1);
-
-							if (hreq->req.cap[h->index] == NULL) {
-								Alert("HTTP capture : out of memory.\n");
-								continue;
-							}
-							
-							len = eol - (sol + h->namelen + 2);
-							if (len > h->len)
-								len = h->len;
-							
-							memcpy(hreq->req.cap[h->index], sol + h->namelen + 2, len);
-							hreq->req.cap[h->index][len]=0;
-						}
-					}
-				}
-
-
-				/* 3: We might need to remove "connection:" */
-				if (!delete_header &&
-				    ((t->fe->options | t->be->beprm->options) & PR_O_HTTP_CLOSE) &&
-				    (strncasecmp(sol, "Connection:", 11) == 0)) {
-					delete_header = 1;
-				}
-
-
-				/* OK, that's enough processing for the first step.
-				 * Now either we index this header or we remove it.
-				 */
-
-				if (!delete_header) {
-					/* we insert it into the index */
-					if (hdr_idx_add(eol - sol, req->lr - eol - 1,
-							&hreq->hdr_idx, hreq->hdr_idx.tail) < 0) {
-						hreq->req.hdr_state = HTTP_PA_ERROR;
-						break;
-					}
-				} else {
-					/* we remove it */
-					delete_header = 0;
-					buffer_replace2(req, sol, req->lr, NULL, 0);
-					/* WARNING: eol is not valid anymore, since the
-					 * header may have been deleted or truncated ! */
-				}
-				
-				/* In any case, we set the next header pointer
-				 * to the next line.
-				 */
-				sol = req->lr;
-
-#ifdef DEBUG_PARSE_NO_SPEEDUP
-				hreq->req.hdr_state = HTTP_PA_HEADER;
-				continue;
-#else
-				/*
-				 * We know that at least one character remains.
-				 * It is interesting to directly branch to the
-				 * matching state.
-				 */
-				eol = req->lr;
-				if (IS_CTL(*req->lr)) {
-					if (*eol == '\r') {
-						req->lr++;
-						hreq->req.hdr_state = HTTP_PA_LFLF | HTTP_PA_LF_EXP;
-						continue;
-					}
-					else if (*eol == '\n') {
-						hreq->req.hdr_state = HTTP_PA_LFLF;
-						goto parse_lflf;
-					}
-					else {
-						hreq->req.hdr_state = HTTP_PA_ERROR;
-						break;
-					}
-				}
-				hreq->req.hdr_state = HTTP_PA_HEADER;
-				goto parse_inside_hdr;
-#endif
-
-			} else if (parse == HTTP_PA_STRT_LF) {
-			parse_strt_lf:
-				/* The LF validating the request line */
-
-				eol = req->lr;
-				if (hreq->req.hdr_state & HTTP_PA_CR_SKIP)
-					eol--; /* Get back to the CR */
-
-				/* We have the complete start line between
-				 * sol and eol (excluded). lr points to
-				 * the LF.
-				 */
-
-				/* FIXME: insert a REQUESTURI hook here. */
-
-
-				/* 1: we might have to print this header */
-				if ((global.mode & MODE_DEBUG) &&
-				    (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))
-					debug_hdr("clireq", t, sol, eol);
-
-				/* 2: maybe we have to copy the original REQURI for the logs ? */
-				if (t->logs.logwait & LW_REQ) {
-					/* we have a complete HTTP request that we must log */
-					if ((t->logs.uri = pool_alloc(requri)) != NULL) {
-						int urilen = eol - sol;
-
-						if (urilen >= REQURI_LEN)
-							urilen = REQURI_LEN - 1;
-						memcpy(t->logs.uri, sol, urilen);
-						t->logs.uri[urilen] = 0;
-
-						if (!(t->logs.logwait &= ~LW_REQ))
-							sess_log(t);
-					} else {
-						Alert("HTTP logging : out of memory.\n");
-					}
-				}
-
-				/* 3: reference this line as the start line */
-				if (hdr_idx_add(eol - sol, req->lr - eol,
-						&hreq->hdr_idx, hreq->hdr_idx.tail) < 0) {
-					hreq->req.hdr_state = HTTP_PA_ERROR;
-					break;
-				}
-
-				req->lr++;
-				sol = req->lr;
-				/* in fact, a state is missing here, we should
-				 * be able to distinguish between an empty line
-				 * and a header.
-				 */
-				hreq->req.hdr_state = HTTP_PA_HEADER;
-#ifdef DEBUG_PARSE_NO_SPEEDUP
-				continue;
-#else
-				if (req->lr < req->r)
-					goto parse_inside_hdr;
-				else
-					break;
-#endif
-
-			} else if (parse == HTTP_PA_HEADER) {
-				char *ptr;
-				/* Inside a non-empty header */
-
-			parse_inside_hdr:
-				delete_header = 0;
-
-				ptr = req->lr;
-
-#ifdef GCC_FINALLY_PRODUCES_EFFICIENT_WHILE_LOOPS
-				/* This code is disabled right now because
-				 * eventhough it seems straightforward, the
-				 * object code produced by GCC is so much
-				 * suboptimal that about 10% of the time
-				 * spend parsing header is there.
-				 */
-				while (ptr < req->r && !IS_CTL(*ptr))
-					ptr++;
-				req->lr = ptr;
-				if (ptr == req->r)
-					break;
-#else
-				/* Just by using this loop instead of the previous one,
-				 * the global performance increases by about 2% ! The
-				 * code is also smaller by about 50 bytes.
-				 */
-				goto reqhdr_loop_chk;
-			reqhdr_loop:
-				ptr++;
-			reqhdr_loop_chk:
-				if (ptr == req->r) {
-					req->lr = ptr;
-					break;
-				}
-				if (*ptr != 0x7F && (unsigned)*ptr >= 0x20)
-					goto reqhdr_loop;
-				req->lr = ptr;
-#endif
-
-				/* we have a CTL char */
-				if (*ptr == '\r') {
-					hreq->req.hdr_state = HTTP_PA_HDR_LF | HTTP_PA_CR_SKIP | HTTP_PA_LF_EXP;
-					req->lr++;
-					continue;
-				}
-				else if (*ptr == '\n') {
-					hreq->req.hdr_state = HTTP_PA_HDR_LF;
-					QUICK_JUMP(parse_hdr_lf, continue);
-				}
-				hreq->req.hdr_state = HTTP_PA_ERROR;
-				break;
-
-			} else if (parse == HTTP_PA_EMPTY) {
-				/* leading empty lines */
-
-				if (*req->lr == '\n') {
-					req->lr ++;
-					hreq->req.hdr_state = HTTP_PA_EMPTY;
-					continue;
-				}
-				else if (*req->lr == '\r') {
-					req->lr ++;
-					hreq->req.hdr_state = HTTP_PA_EMPTY | HTTP_PA_CR_SKIP | HTTP_PA_LF_EXP;
-					continue;
-				}				
-
-				FSM_PRINTF(stderr, "PA_EMPTY[0]: h=%d, lr=%d, r=%d\n",
-					sol - req->data, req->lr - req->data, req->r - req->data);
-
-#if PARSE_PRESERVE_EMPTY_LINES
-				/* only skip empty leading lines, don't remove them */
-				hreq->hdr_idx.v[0].len = req->lr - sol;
-				hreq->sor = hreq->hdr_idx.v[0].len;
-#else
-				/* remove empty leading lines, as recommended by
-				 * RFC2616. This takes a lot of time because we
-				 * must move all the buffer backwards, but this
-				 * is rarely needed. The method above will be
-				 * cleaner when we'll be able to start sending
-				 * the request from any place in the buffer.
-				 */
-				buffer_replace2(req, sol, req->lr, NULL, 0);
-#endif
-				sol = req->lr;
-				FSM_PRINTF(stderr, "PA_EMPTY[1]: h=%d, lr=%d, r=%d\n",
-					sol - req->data, req->lr - req->data, req->r - req->data);
-
-				hreq->req.hdr_state = HTTP_PA_START;
-				/* we know that we still have one char available */
-				QUICK_JUMP(parse_start, continue);
-
-			} else if (parse == HTTP_PA_START) {
-				char *ptr;
-				/* Inside the start line */
-
-			parse_start:
-				ptr = req->lr;
-
-#ifdef GCC_FINALLY_PRODUCES_EFFICIENT_WHILE_LOOPS
-				/* This code is disabled right now because
-				 * eventhough it seems straightforward, the
-				 * object code produced by GCC is so much
-				 * suboptimal that about 10% of the time
-				 * spend parsing header is there.
-				 */
-				while (ptr < req->r && !IS_CTL(*ptr))
-					ptr++;
-				req->lr = ptr;
-				if (ptr == req->r)
-					break;
-#else
-				/* Just by using this loop instead of the previous one,
-				 * the global performance increases by about 2% ! The
-				 * code is also smaller by about 50 bytes.
-				 */
-				goto reqstrt_loop_chk;
-			reqstrt_loop:
-				ptr++;
-			reqstrt_loop_chk:
-				if (ptr == req->r) {
-					req->lr = ptr;
-					break;
-				}
-				if (*ptr != 0x7F && (unsigned)*ptr >= 0x20)
-					goto reqstrt_loop;
-				req->lr = ptr;
-#endif
-
-				/* we have a CTL char */
-				if (*ptr == '\r') {
-					req->lr++;
-					hreq->req.hdr_state = HTTP_PA_STRT_LF | HTTP_PA_CR_SKIP | HTTP_PA_LF_EXP;
-					continue;
-				}
-				else if (*ptr == '\n') {
-					hreq->req.hdr_state = HTTP_PA_STRT_LF;
-					/* we know that we still have one char available */
-					QUICK_JUMP(parse_strt_lf, continue);
-				}
-				hreq->req.hdr_state = HTTP_PA_ERROR;
-				break;
-
-
-			} else if (parse == HTTP_PA_LFLF) {
-			parse_lflf:
-				req->lr ++;
-				/* sol points to either CR or CRLF, and
-				 * req->lr points to 1 char after LF.
-				 */
-
-				/*
-				 * FIXME: insert a hook here for the end of the headers
-				 */
-				break;
-
-			} else if (parse == HTTP_PA_HDR_LWS) {
-			parse_hdr_lws:
-				/* Inside an LWS. We just replace tabs with
-				 * spaces and fall back to the HEADER state
-				 * at the first non-space character
-				 */
-
-				while (req->lr < req->r) {
-					if (*req->lr == '\t')
-						*req->lr = ' ';
-					else if (*req->lr != ' ') {
-						hreq->req.hdr_state = HTTP_PA_HEADER;
-						QUICK_JUMP(parse_inside_hdr, break);
-					}
-					req->lr++;
-				}
-				continue;
-
-			} else if (parse == HTTP_PA_ERROR) {
-				break;
-			}
-
-		} /* end of the "while(req->lr < req->r)" loop */
-
-		/* update the end of headers */
-		hreq->req.eoh = sol - req->data;
-
-		FSM_PRINTF(stderr, "END: hdr_st=0x%02x, hdr_used=%d hdr_tail=%d hdr_last=%d, h=%d, lr=%d, r=%d, eoh=%d\n",
-			hreq->req.hdr_state, hreq->hdr_idx.used, hreq->hdr_idx.tail, hreq->hdr_idx.last,
-			sol - req->data, req->lr - req->data, req->r - req->data, hreq->req.eoh);
 
 		/*
-		 * Now, let's catch bad requests.
-		 */
-
-		if (hreq->req.hdr_state == HTTP_PA_ERROR)
-			goto return_bad_req;
-
-		/*
-		 * Now we quickly check if we have found a full request.
+		 * Now we quickly check if we have found a full valid request.
 		 * If not so, we check the FD and buffer states before leaving.
 		 * A full request is indicated by the fact that we have seen
-		 * the double LF/CRLF, so the state is HTTP_PA_LFLF.
+		 * the double LF/CRLF, so the state is HTTP_MSG_BODY. Invalid
+		 * requests are checked first.
 		 *
 		 */
 
-		if (hreq->req.hdr_state != HTTP_PA_LFLF) {	/* Request not complete yet */
+		if (unlikely(msg->hdr_state != HTTP_MSG_BODY)) {
+			/*
+			 * First, let's catch bad requests.
+			 */
+			if (unlikely(msg->hdr_state == HTTP_MSG_ERROR))
+				goto return_bad_req;
 
 			/* 1: Since we are in header mode, if there's no space
 			 *    left for headers, we won't be able to free more
 			 *    later, so the session will never terminate. We
 			 *    must terminate it now.
 			 */
-			if (req->l >= req->rlim - req->data) {
-				/* FIXME: check if hreq.req.hdr_state & mask < HTTP_PA_HEADER,
-				 * and return Status 414 Request URI too long instead.
+			if (unlikely(req->l >= req->rlim - req->data)) {
+				/* FIXME: check if URI is set and return Status
+				 * 414 Request URI too long instead.
 				 */
 				goto return_bad_req;
 			}
 
 			/* 2: have we encountered a read error or a close ? */
-			else if (req->flags & (BF_READ_ERROR | BF_READ_NULL)) {
-				/* read error, or last read : give up.  */
+			else if (unlikely(req->flags & (BF_READ_ERROR | BF_READ_NULL))) {
+				/* read error, or last read : give up. */
 				tv_eternity(&req->rex);
 				fd_delete(t->cli_fd);
 				t->cli_state = CL_STCLOSE;
@@ -954,7 +1007,7 @@ int process_cli(struct session *t)
 			}
 
 			/* 3: has the read timeout expired ? */
-			else if (tv_cmp2_ms(&req->rex, &now) <= 0) {
+			else if (unlikely(tv_cmp2_ms(&req->rex, &now) <= 0)) {
 				/* read timeout : give up with an error message. */
 				t->logs.status = 408;
 				client_retnclose(t, error_message(t, HTTP_ERR_408));
@@ -967,7 +1020,7 @@ int process_cli(struct session *t)
 			}
 
 			/* 4: do we need to re-enable the read socket ? */
-			else if (! MY_FD_ISSET(t->cli_fd, StaticReadEvent)) {
+			else if (unlikely(! MY_FD_ISSET(t->cli_fd, StaticReadEvent))) {
 				/* fd in StaticReadEvent was disabled, perhaps because of a previous buffer
 				 * full. We cannot loop here since stream_sock_read will disable it only if
 				 * req->l == rlim-data
@@ -988,46 +1041,133 @@ int process_cli(struct session *t)
 		 * of each header's length, so we can parse them quickly.       *
 		 ****************************************************************/
 
+		/*
+		 * 1: identify the method
+		 */
+		hreq->meth = find_http_meth(&req->data[msg->sor], msg->sl.rq.m_l);
 
 		/*
-		 * 1: check if the URI matches the monitor_uri.
+		 * 2: check if the URI matches the monitor_uri.
 		 * We have to do this for every request which gets in, because
-		 * the monitor-uri is defined by the frontend. To speed-up the
-		 * test, we include the leading and trailing spaces in the
-		 * comparison. This is generally not a problem because the
-		 * monitor-uri is primarily used by external checkers which
-		 * send pre-formatted requests too.
+		 * the monitor-uri is defined by the frontend.
 		 */
-
-		hreq->start.str = req->data + hreq->req.sor;      /* start of the REQURI */
-		hreq->start.len = hreq->hdr_idx.v[hreq->hdr_idx.v[0].next].len; /* end of the REQURI */
-		hreq->meth = find_http_meth(hreq->start.str, hreq->start.len);
-
-		if ((t->fe->monitor_uri_len != 0) &&
-		    (hreq->start.len >= t->fe->monitor_uri_len)) {
-			char *p = hreq->start.str;
-			int idx = 0;
-
-			/* skip the method so that we accept any method */
-			while (idx < hreq->start.len && p[idx] != ' ')
-				idx++;
-			p += idx;
+		if (unlikely((t->fe->monitor_uri_len != 0) &&
+			     (t->fe->monitor_uri_len == msg->sl.rq.u_l) &&
+			     !memcmp(&req->data[msg->sl.rq.u],
+				     t->fe->monitor_uri,
+				     t->fe->monitor_uri_len))) {
+			/*
+			 * We have found the monitor URI
+			 */
+			t->flags |= SN_MONITOR;
+			t->logs.status = 200;
+			client_retnclose(t, &http_200_chunk);
+			goto return_prx_cond;
+		}
 			
-			if (hreq->start.len - idx >= t->fe->monitor_uri_len &&
-			    !memcmp(p, t->fe->monitor_uri, t->fe->monitor_uri_len)) {
-				/*
-				 * We have found the monitor URI
-				 */
-				t->flags |= SN_MONITOR;
-				t->logs.status = 200;
-				client_retnclose(t, &http_200_chunk);
-				goto return_prx_cond;
+		/*
+		 * 3: Maybe we have to copy the original REQURI for the logs ?
+		 * Note: we cannot log anymore if the request has been
+		 * classified as invalid.
+		 */
+		if (unlikely(t->logs.logwait & LW_REQ)) {
+			/* we have a complete HTTP request that we must log */
+			if ((t->logs.uri = pool_alloc(requri)) != NULL) {
+				int urilen = msg->sl.rq.l;
+
+				if (urilen >= REQURI_LEN)
+					urilen = REQURI_LEN - 1;
+				memcpy(t->logs.uri, &req->data[msg->sor], urilen);
+				t->logs.uri[urilen] = 0;
+
+				if (!(t->logs.logwait &= ~LW_REQ))
+					sess_log(t);
+			} else {
+				Alert("HTTP logging : out of memory.\n");
 			}
 		}
 
 
+		/* 4. We may have to convert HTTP/0.9 requests to HTTP/1.0 */
+		if (unlikely(msg->sl.rq.v_l == 0)) {
+			int delta;
+			char *cur_end;
+			msg->sol = req->data + msg->sor;
+			cur_end = msg->sol + msg->sl.rq.l;
+			delta = 0;
+
+			if (msg->sl.rq.u_l == 0) {
+				/* if no URI was set, add "/" */
+				delta = buffer_replace2(req, cur_end, cur_end, " /", 2);
+				cur_end += delta;
+				msg->eoh += delta;
+			}
+			/* add HTTP version */
+			delta = buffer_replace2(req, cur_end, cur_end, " HTTP/1.0\r\n", 11);
+			msg->eoh += delta;
+			cur_end += delta;
+			cur_end = (char *)http_parse_reqline(msg, req->data,
+							     HTTP_MSG_RQMETH,
+							     msg->sol, cur_end + 1,
+							     NULL, NULL);
+			if (unlikely(!cur_end))
+				goto return_bad_req;
+
+			/* we have a full HTTP/1.0 request now and we know that
+			 * we have either a CR or an LF at <ptr>.
+			 */
+			hdr_idx_set_start(&hreq->hdr_idx, msg->sl.rq.l, *cur_end == '\r');
+		}
+
+
+		/* 5: we may need to capture headers */
+		if (unlikely((t->logs.logwait & LW_REQHDR) && t->fe->fiprm->req_cap)) {
+			char *eol, *sol, *col, *sov;
+			int cur_idx;
+			struct cap_hdr *h;
+			int len;
+
+			sol = req->data + msg->sor + hdr_idx_first_pos(&hreq->hdr_idx);
+			cur_idx = hdr_idx_first_idx(&hreq->hdr_idx);
+
+			while (cur_idx) {
+				eol = sol + hreq->hdr_idx.v[cur_idx].len;
+
+				col = sol;
+				while (col < eol && *col != ':')
+					col++;
+
+				sov = col + 1;
+				while (sov < eol && http_is_lws[(unsigned char)*sov])
+					sov++;
+				
+				for (h = t->fe->fiprm->req_cap; h; h = h->next) {
+					if ((h->namelen == col - sol) &&
+					    (strncasecmp(sol, h->name, h->namelen) == 0)) {
+						if (hreq->req.cap[h->index] == NULL)
+							hreq->req.cap[h->index] =
+								pool_alloc_from(h->pool, h->len + 1);
+
+						if (hreq->req.cap[h->index] == NULL) {
+							Alert("HTTP capture : out of memory.\n");
+							continue;
+						}
+							
+						len = eol - sov;
+						if (len > h->len)
+							len = h->len;
+							
+						memcpy(hreq->req.cap[h->index], sov, len);
+						hreq->req.cap[h->index][len]=0;
+					}
+				}
+				sol = eol + hreq->hdr_idx.v[cur_idx].cr + 1;
+				cur_idx = hreq->hdr_idx.v[cur_idx].next;
+			}
+		}
+
 		/*
-		 * 2: we will have to evaluate the filters.
+		 * 6: we will have to evaluate the filters.
 		 * As opposed to version 1.2, now they will be evaluated in the
 		 * filters order and not in the header order. This means that
 		 * each filter has to be validated among all headers.
@@ -1056,11 +1196,8 @@ int process_cli(struct session *t)
 
 			/* try headers filters */
 			if (rule_set->req_exp != NULL) {
-				apply_filters_to_session(t, req, rule_set->req_exp);
-
-				/* the start line might have been modified */
-				hreq->start.len = hreq->hdr_idx.v[hreq->hdr_idx.v[0].next].len;
-				hreq->meth = find_http_meth(hreq->start.str, hreq->start.len);
+				if (apply_filters_to_request(t, req, rule_set->req_exp) < 0)
+					goto return_bad_req;
 			}
 
 			if (!(t->flags & SN_BE_ASSIGNED) && (t->be != cur_proxy)) {
@@ -1085,19 +1222,71 @@ int process_cli(struct session *t)
 				goto return_prx_cond;
 			}
 
-			/* add request headers from the rule sets in the same order */
-			for (cur_hdr = 0; cur_hdr < rule_set->nb_reqadd; cur_hdr++) {
-				int len;
+			/* We might have to check for "Connection:" */
+			if (((t->fe->options | t->be->beprm->options) & PR_O_HTTP_CLOSE) &&
+			    !(t->flags & SN_CONN_CLOSED)) {
+				char *cur_ptr, *cur_end, *cur_next;
+				int cur_idx, old_idx, delta;
+				struct hdr_idx_elem *cur_hdr;
 
-				len = sprintf(trash, "%s\r\n", rule_set->req_add[cur_hdr]);
-				len = buffer_replace2(req, req->data + hreq->req.eoh,
-						      req->data + hreq->req.eoh, trash, len);
-				hreq->req.eoh += len;
+				cur_next = req->data + hreq->req.sor + hdr_idx_first_pos(&hreq->hdr_idx);
+				old_idx = 0;
+
+				while ((cur_idx = hreq->hdr_idx.v[old_idx].next)) {
+					cur_hdr  = &hreq->hdr_idx.v[cur_idx];
+					cur_ptr  = cur_next;
+					cur_end  = cur_ptr + cur_hdr->len;
+					cur_next = cur_end + cur_hdr->cr + 1;
+
+					if (strncasecmp(cur_ptr, "Connection:", 11) == 0) {
+						/* 3 possibilities :
+						 * - we have already set Connection: close,
+						 *   so we remove this line.
+						 * - we have not yet set Connection: close,
+						 *   but this line indicates close. We leave
+						 *   it untouched and set the flag.
+						 * - we have not yet set Connection: close,
+						 *   and this line indicates non-close. We
+						 *   replace it.
+						 */
+						if (t->flags & SN_CONN_CLOSED) {
+							delta = buffer_replace2(req, cur_ptr, cur_next, NULL, 0);
+							hreq->req.eoh += delta;
+							cur_next += delta;
+							hreq->hdr_idx.v[old_idx].next = cur_hdr->next;
+							hreq->hdr_idx.used--;
+							cur_hdr->len = 0;
+						} else {
+							if (cur_ptr + 17 > cur_end ||
+							    !http_is_lws[(unsigned char)*(cur_ptr+17)] ||
+							    strncasecmp(cur_ptr+11, " close", 6)) {
+								delta = buffer_replace2(req, cur_ptr+11, cur_end,
+											" close", 6);
+								cur_next += delta;
+								cur_hdr->len += delta;
+								hreq->req.eoh += delta;
+							}
+							t->flags |= SN_CONN_CLOSED;
+						}
+					}
+					old_idx = cur_idx;
+				}
+
+				/* add request headers from the rule sets in the same order */
+				for (cur_idx = 0; cur_idx < rule_set->nb_reqadd; cur_idx++) {
+					int len;
+
+					len = sprintf(trash, "%s\r\n", rule_set->req_add[cur_idx]);
+					len = buffer_replace2(req, req->data + hreq->req.eoh,
+							      req->data + hreq->req.eoh, trash, len);
+					hreq->req.eoh += len;
 				
-				if (hdr_idx_add(len - 2, 1, &hreq->hdr_idx, hreq->hdr_idx.tail) < 0)
-					goto return_bad_req;
+					if (unlikely(hdr_idx_add(len - 2, 1, &hreq->hdr_idx, hreq->hdr_idx.tail) < 0))
+						goto return_bad_req;
+				}
 			}
 
+			/* check if stats URI was requested, and if an auth is needed */
 			if (rule_set->uri_auth != NULL &&
 			    (hreq->meth == HTTP_METH_GET || hreq->meth == HTTP_METH_HEAD)) {
 				/* we have to check the URI and auth for this request */
@@ -1132,7 +1321,6 @@ int process_cli(struct session *t)
 			t->flags |= SN_BE_ASSIGNED;
 		}
 
-
 		/*
 		 * Right now, we know that we have processed the entire headers
 		 * and that unwanted requests have been filtered out. We can do
@@ -1144,20 +1332,18 @@ int process_cli(struct session *t)
 
 
 		/*
-		 * 3: the appsession cookie was looked up very early in 1.2,
+		 * 7: the appsession cookie was looked up very early in 1.2,
 		 * so let's do the same now.
 		 */
 
 		/* It needs to look into the URI */
 		if (t->be->beprm->appsession_name) {
-			get_srv_from_appsession(t,
-						hreq->start.str,
-						hreq->start.str + hreq->start.len);
+			get_srv_from_appsession(t, &req->data[msg->sor], msg->sl.rq.l);
 		}
 
 
 		/*
-		 * 4: Now we can work with the cookies.
+		 * 8: Now we can work with the cookies.
 		 * Note that doing so might move headers in the request, but
 		 * the fields will stay coherent and the URI will not move.
 		 * This should only be performed in the backend.
@@ -1167,7 +1353,7 @@ int process_cli(struct session *t)
 
 
 		/*
-		 * 5: add X-Forwarded-For : Should depend on the backend only.
+		 * 9: add X-Forwarded-For : Should depend on the backend only.
 		 */
 		if (t->be->beprm->options & PR_O_FWDFOR) {
 			if (t->cli_addr.ss_family == AF_INET) {
@@ -1199,16 +1385,11 @@ int process_cli(struct session *t)
 			}
 		}
 
-
 		/*
-		 * 6: add "Connection:"
+		 * 10: add "Connection: close" if needed and not yet set.
 		 */
-
-		/* add a "connection: close" line if needed.
-		 * FIXME: this should depend on both the frontend and the backend.
-		 * Header removals should be performed when the filters are run.
-		 */
-		if ((t->fe->options | t->be->beprm->options) & PR_O_HTTP_CLOSE) {
+		if (((t->fe->options | t->be->beprm->options) & PR_O_HTTP_CLOSE) &&
+		    !(t->flags & SN_CONN_CLOSED)) {
 			int len;
 			len = buffer_replace2(req, req->data + hreq->req.eoh,
 					      req->data + hreq->req.eoh, "Connection: close\r\n", 19);
@@ -1217,11 +1398,6 @@ int process_cli(struct session *t)
 			if (hdr_idx_add(17, 1, &hreq->hdr_idx, hreq->hdr_idx.tail) < 0)
 				goto return_bad_req;
 		}
-
-
-
-
-		
 
 		/*************************************************************
 		 * OK, that's finished for the headers. We have done what we *
@@ -1232,7 +1408,6 @@ int process_cli(struct session *t)
 		req->rlim = req->data + BUFSIZE; /* no more rewrite needed */
 
 		t->logs.t_request = tv_diff(&t->logs.tv_accept, &now);
-
 
 		if (!t->fe->clitimeout ||
 		    (t->srv_state < SV_STDATA && t->be->beprm->srvtimeout)) {
@@ -1248,7 +1423,6 @@ int process_cli(struct session *t)
 			tv_eternity(&req->rex);
 		}
 
-
 		/* When a connection is tarpitted, we use the queue timeout for the
 		 * tarpit delay, which currently happens to be the server's connect
 		 * timeout. If unset, then set it to zero because we really want it
@@ -1263,39 +1437,11 @@ int process_cli(struct session *t)
 				     t->be->beprm->contimeout ? t->be->beprm->contimeout : 0);
 		}
 
-#if DEBUG_HTTP_PARSER
-		/* example: dump each line */
-
-		fprintf(stderr, "t->flags=0x%08x\n", t->flags & (SN_CLALLOW|SN_CLDENY|SN_CLTARPIT));
-
-		fprintf(stderr, "sol=%d\n", sol - req->data);
-		sol = req->data + hreq->sor;
-		cur_hdr = 0;
-
-		cur_idx = hreq->hdr_idx.v[0].next;
-		cur_hdr = 1;
-
-		while (cur_hdr < hreq->hdr_idx.used) {
-			eol = sol + hreq->hdr_idx.v[cur_idx].len + hreq->hdr_idx.v[cur_idx].cr + 1;
-			fprintf(stderr, "lr=%d r=%d hdr=%d idx=%d adr=%d..%d len=%d cr=%d data:\n",
-				req->lr - req->data, req->r - req->data,
-				cur_hdr, cur_idx,
-				sol - req->data,
-				sol - req->data + hreq->hdr_idx.v[cur_idx].len + hreq->hdr_idx.v[cur_idx].cr,
-				hreq->hdr_idx.v[cur_idx].len,
-				hreq->hdr_idx.v[cur_idx].cr);
-			write(2, sol, eol - sol);
-
-			sol = eol;
-			cur_idx = hreq->hdr_idx.v[cur_idx].next;
-			cur_hdr++;
-		}
-#endif
-
+		/* OK let's go on with the BODY now */
 		goto process_data;
 
 	return_bad_req: /* let's centralize all bad requests */
-		hreq->req.hdr_state = HTTP_PA_ERROR;
+		hreq->req.hdr_state = HTTP_MSG_ERROR;
 		t->logs.status = 400;
 		client_retnclose(t, error_message(t, HTTP_ERR_400));
 		t->fe->failed_req++;
@@ -1689,7 +1835,6 @@ int process_srv(struct session *t)
 					t->logs.t_queue = tv_diff(&t->logs.tv_accept, &now);
 					return t->srv_state != SV_STIDLE;
 				}
-
 			} while (1);
 		}
 	}
@@ -2335,7 +2480,6 @@ int process_srv(struct session *t)
 				t->srv->failed_resp++;
 			}
 			t->be->failed_resp++;
-
 			t->srv_state = SV_STCLOSE;
 			t->logs.status = 502;
 			client_return(t, error_message(t, HTTP_ERR_502));
@@ -3266,22 +3410,256 @@ int produce_content_stats_proxy(struct session *s, struct proxy *px)
 }
 
 
+/* Iterate the same filter through all request headers.
+ * Returns 1 if this filter can be stopped upon return, otherwise 0.
+ */
+int apply_filter_to_req_headers(struct session *t, struct buffer *req, struct hdr_exp *exp)
+{
+	char term;
+	char *cur_ptr, *cur_end, *cur_next;
+	int cur_idx, old_idx, last_hdr;
+	struct http_req *hreq = &t->hreq;
+	struct hdr_idx_elem *cur_hdr;
+	int len, delta;
+
+	last_hdr = 0;
+
+	cur_next = req->data + hreq->req.sor + hdr_idx_first_pos(&hreq->hdr_idx);
+	old_idx = 0;
+
+	while (!last_hdr) {
+		if (unlikely(t->flags & (SN_CLDENY | SN_CLTARPIT)))
+			return 1;
+		else if (unlikely(t->flags & SN_CLALLOW) &&
+			 (exp->action == ACT_ALLOW ||
+			  exp->action == ACT_DENY ||
+			  exp->action == ACT_TARPIT))
+			return 0;
+
+		cur_idx = hreq->hdr_idx.v[old_idx].next;
+		if (!cur_idx)
+			break;
+
+		cur_hdr  = &hreq->hdr_idx.v[cur_idx];
+		cur_ptr  = cur_next;
+		cur_end  = cur_ptr + cur_hdr->len;
+		cur_next = cur_end + cur_hdr->cr + 1;
+
+		/* Now we have one header between cur_ptr and cur_end,
+		 * and the next header starts at cur_next.
+		 */
+
+		/* The annoying part is that pattern matching needs
+		 * that we modify the contents to null-terminate all
+		 * strings before testing them.
+		 */
+
+		term = *cur_end;
+		*cur_end = '\0';
+
+		if (regexec(exp->preg, cur_ptr, MAX_MATCH, pmatch, 0) == 0) {
+			switch (exp->action) {
+			case ACT_SETBE:
+				/* It is not possible to jump a second time.
+				 * FIXME: should we return an HTTP/500 here so that
+				 * the admin knows there's a problem ?
+				 */
+				if (t->be != t->fe)
+					break;
+
+				/* Swithing Proxy */
+				t->be = (struct proxy *) exp->replace;
+
+				/* right now, the backend switch is not too much complicated
+				 * because we have associated req_cap and rsp_cap to the
+				 * frontend, and the beconn will be updated later.
+				 */
+
+				t->rep->rto = t->req->wto = t->be->beprm->srvtimeout;
+				t->req->cto = t->be->beprm->contimeout;
+				last_hdr = 1;
+				break;
+
+			case ACT_ALLOW:
+				t->flags |= SN_CLALLOW;
+				last_hdr = 1;
+				break;
+
+			case ACT_DENY:
+				t->flags |= SN_CLDENY;
+				last_hdr = 1;
+				t->be->beprm->denied_req++;
+				break;
+
+			case ACT_TARPIT:
+				t->flags |= SN_CLTARPIT;
+				last_hdr = 1;
+				t->be->beprm->denied_req++;
+				break;
+
+			case ACT_REPLACE:
+				len = exp_replace(trash, cur_ptr, exp->replace, pmatch);
+				delta = buffer_replace2(req, cur_ptr, cur_end, trash, len);
+				/* FIXME: if the user adds a newline in the replacement, the
+				 * index will not be recalculated for now, and the new line
+				 * will not be counted as a new header.
+				 */
+
+				cur_end += delta;
+				cur_next += delta;
+				cur_hdr->len += delta;
+				hreq->req.eoh += delta;
+				break;
+
+			case ACT_REMOVE:
+				delta = buffer_replace2(req, cur_ptr, cur_next, NULL, 0);
+				cur_next += delta;
+
+				/* FIXME: this should be a separate function */
+				hreq->req.eoh += delta;
+				hreq->hdr_idx.v[old_idx].next = cur_hdr->next;
+				hreq->hdr_idx.used--;
+				cur_hdr->len = 0;
+				cur_end = NULL; /* null-term has been rewritten */
+				break;
+
+			}
+		}
+		if (cur_end)
+			*cur_end = term; /* restore the string terminator */
+
+		/* keep the link from this header to next one in case of later
+		 * removal of next header.
+		 */
+		old_idx = cur_idx;
+	}
+	return 0;
+}
+
+
+/* Apply the filter to the request line.
+ * Returns 0 if nothing has been done, 1 if the filter has been applied,
+ * or -1 if a replacement resulted in an invalid request line.
+ */
+int apply_filter_to_req_line(struct session *t, struct buffer *req, struct hdr_exp *exp)
+{
+	char term;
+	char *cur_ptr, *cur_end;
+	int done;
+	struct http_req *hreq = &t->hreq;
+	int len, delta;
+
+
+	if (unlikely(t->flags & (SN_CLDENY | SN_CLTARPIT)))
+		return 1;
+	else if (unlikely(t->flags & SN_CLALLOW) &&
+		 (exp->action == ACT_ALLOW ||
+		  exp->action == ACT_DENY ||
+		  exp->action == ACT_TARPIT))
+		return 0;
+	else if (exp->action == ACT_REMOVE)
+		return 0;
+
+	done = 0;
+
+	cur_ptr = req->data + hreq->req.sor;
+	cur_end = cur_ptr + hreq->req.sl.rq.l;
+
+	/* Now we have the request line between cur_ptr and cur_end */
+
+	/* The annoying part is that pattern matching needs
+	 * that we modify the contents to null-terminate all
+	 * strings before testing them.
+	 */
+
+	term = *cur_end;
+	*cur_end = '\0';
+
+	if (regexec(exp->preg, cur_ptr, MAX_MATCH, pmatch, 0) == 0) {
+		switch (exp->action) {
+		case ACT_SETBE:
+			/* It is not possible to jump a second time.
+			 * FIXME: should we return an HTTP/500 here so that
+			 * the admin knows there's a problem ?
+			 */
+			if (t->be != t->fe)
+				break;
+
+			/* Swithing Proxy */
+			t->be = (struct proxy *) exp->replace;
+
+			/* right now, the backend switch is not too much complicated
+			 * because we have associated req_cap and rsp_cap to the
+			 * frontend, and the beconn will be updated later.
+			 */
+
+			t->rep->rto = t->req->wto = t->be->beprm->srvtimeout;
+			t->req->cto = t->be->beprm->contimeout;
+			done = 1;
+			break;
+
+		case ACT_ALLOW:
+			t->flags |= SN_CLALLOW;
+			done = 1;
+			break;
+
+		case ACT_DENY:
+			t->flags |= SN_CLDENY;
+			t->be->beprm->denied_req++;
+			done = 1;
+			break;
+
+		case ACT_TARPIT:
+			t->flags |= SN_CLTARPIT;
+			t->be->beprm->denied_req++;
+			done = 1;
+			break;
+
+		case ACT_REPLACE:
+			*cur_end = term; /* restore the string terminator */
+			len = exp_replace(trash, cur_ptr, exp->replace, pmatch);
+			delta = buffer_replace2(req, cur_ptr, cur_end, trash, len);
+			/* FIXME: if the user adds a newline in the replacement, the
+			 * index will not be recalculated for now, and the new line
+			 * will not be counted as a new header.
+			 */
+
+			hreq->req.eoh += delta;
+			cur_end += delta;
+
+			cur_end = (char *)http_parse_reqline(&hreq->req, req->data,
+							     HTTP_MSG_RQMETH,
+							     cur_ptr, cur_end + 1,
+							     NULL, NULL);
+			if (unlikely(!cur_end))
+				return -1;
+
+			/* we have a full request and we know that we have either a CR
+			 * or an LF at <ptr>.
+			 */
+			hreq->meth = find_http_meth(cur_ptr, hreq->req.sl.rq.m_l);
+			hdr_idx_set_start(&hreq->hdr_idx, hreq->req.sl.rq.l, *cur_end == '\r');
+			/* there is no point trying this regex on headers */
+			return 1;
+		}
+	}
+	*cur_end = term; /* restore the string terminator */
+	return done;
+}
+
+
 
 /*
- * Apply all the req filters <exp> to all headers in buffer <req> of session <t>
+ * Apply all the req filters <exp> to all headers in buffer <req> of session <t>.
+ * Returns 0 if everything is alright, or -1 in case a replacement lead to an
+ * unparsable request.
  */
-
-void apply_filters_to_session(struct session *t, struct buffer *req, struct hdr_exp *exp)
+int apply_filters_to_request(struct session *t, struct buffer *req, struct hdr_exp *exp)
 {
-	struct http_req *hreq = &t->hreq;
-
 	/* iterate through the filters in the outer loop */
 	while (exp && !(t->flags & (SN_CLDENY|SN_CLTARPIT))) {
-		char term;
-		char *cur_ptr, *cur_end, *cur_next;
-		int cur_idx, old_idx, abort_filt;
-		
-				
+		int ret;
+
 		/*
 		 * The interleaving of transformations and verdicts
 		 * makes it difficult to decide to continue or stop
@@ -3295,131 +3673,21 @@ void apply_filters_to_session(struct session *t, struct buffer *req, struct hdr_
 			continue;
 		}
 
-		/* Iterate through the headers in the inner loop.
-		 * we start with the start line.
-		 */
-		old_idx = cur_idx = 0;
-		cur_next = req->data + hreq->req.sor;
-		abort_filt = 0;
+		/* Apply the filter to the request line. */
+		ret = apply_filter_to_req_line(t, req, exp);
+		if (unlikely(ret < 0))
+			return -1;
 
-		while (!abort_filt && (cur_idx = hreq->hdr_idx.v[cur_idx].next)) {
-			struct hdr_idx_elem *cur_hdr = &hreq->hdr_idx.v[cur_idx];
-			cur_ptr = cur_next;
-			cur_end = cur_ptr + cur_hdr->len;
-			cur_next = cur_end + cur_hdr->cr + 1;
-
-			/* Now we have one header between cur_ptr and cur_end,
-			 * and the next header starts at cur_next.
+		if (likely(ret == 0)) {
+			/* The filter did not match the request, it can be
+			 * iterated through all headers.
 			 */
-
-			/* The annoying part is that pattern matching needs
-			 * that we modify the contents to null-terminate all
-			 * strings before testing them.
-			 */
-
-			term = *cur_end;
-			*cur_end = '\0';
-
-			if (regexec(exp->preg, cur_ptr, MAX_MATCH, pmatch, 0) == 0) {
-				switch (exp->action) {
-				case ACT_SETBE:
-					/* It is not possible to jump a second time.
-					 * FIXME: should we return an HTTP/500 here so that
-					 * the admin knows there's a problem ?
-					 */
-					if (t->be != t->fe)
-						break;
-
-					if (!(t->flags & (SN_CLDENY | SN_CLTARPIT))) {
-						struct proxy *target = (struct proxy *) exp->replace;
-
-						/* Swithing Proxy */
-						*cur_end = term;
-						cur_end = NULL;
-
-						/* right now, the backend switch is not too much complicated
-						 * because we have associated req_cap and rsp_cap to the
-						 * frontend, and the beconn will be updated later.
-						 */
-
-						t->rep->rto = t->req->wto = target->beprm->srvtimeout;
-						t->req->cto = target->beprm->contimeout;
-
-						t->be = target;
-
-						//t->logs.logwait |= LW_REQ | (target->to_log & (LW_REQHDR | LW_COOKIE));
-						/* FIXME: should we use the backend's log options or not ?
-						 * It would seem far too complicated to configure a service with
-						 * logs defined both in the frontend and the backend.
-						 */
-						//t->logs.logwait |= (target->to_log | target->beprm->to_log);
-
-						abort_filt = 1;
-					}
-					break;
-				case ACT_ALLOW:
-					if (!(t->flags & (SN_CLDENY | SN_CLTARPIT))) {
-						t->flags |= SN_CLALLOW;
-						abort_filt = 1;
-					}
-					break;
-				case ACT_REPLACE:
-					if (!(t->flags & (SN_CLDENY | SN_CLTARPIT))) {
-						int len, delta;
-						len = exp_replace(trash, cur_ptr, exp->replace, pmatch);
-						delta = buffer_replace2(req, cur_ptr, cur_end, trash, len);
-						/* FIXME: if the user adds a newline in the replacement, the
-						 * index will not be recalculated for now, and the new line
-						 * will not be counted for a new header.
-						 */
-						cur_end += delta;
-						cur_next += delta;
-						cur_hdr->len += delta;
-						hreq->req.eoh += delta;
-					}
-					break;
-				case ACT_REMOVE:
-					if (!(t->flags & (SN_CLDENY | SN_CLTARPIT))) {
-						int delta = buffer_replace2(req, cur_ptr, cur_next, NULL, 0);
-						cur_next += delta;
-
-						/* FIXME: this should be a separate function */
-						hreq->req.eoh += delta;
-						hreq->hdr_idx.v[old_idx].next = cur_hdr->next;
-						hreq->hdr_idx.used--;
-						cur_hdr->len = 0;
-
-						cur_end = NULL; /* null-term has been rewritten */
-					}
-					break;
-				case ACT_DENY:
-					if (!(t->flags & (SN_CLALLOW | SN_CLTARPIT))) {
-						t->flags |= SN_CLDENY;
-						abort_filt = 1;
-					}
-					t->be->beprm->denied_req++;
-					break;
-				case ACT_TARPIT:
-					if (!(t->flags & (SN_CLALLOW | SN_CLDENY))) {
-						t->flags |= SN_CLTARPIT;
-						abort_filt = 1;
-					}
-					t->be->beprm->denied_req++;
-					break;
-					//case ACT_PASS: /* FIXME: broken as of now. We should mark the header as "ignored". */
-					//	break;
-				}
-			}
-			if (cur_end)
-				*cur_end = term; /* restore the string terminator */
-
-			/* keep the link from this header to next one */
-			old_idx = cur_idx;
+			apply_filter_to_req_headers(t, req, exp);
 		}
 		exp = exp->next;
 	}
+	return 0;
 }
-
 
 
 /*
@@ -3436,7 +3704,7 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 	appsess local_asession;
 
 	char *cur_ptr, *cur_end, *cur_next;
-	int cur_idx, old_idx, abort_filt;
+	int cur_idx, old_idx;
 
 	if (t->be->beprm->cookie_name == NULL &&
 	    t->be->beprm->appsession_name ==NULL &&
@@ -3448,7 +3716,6 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 	 */
 	old_idx = cur_idx = 0;
 	cur_next = req->data + hreq->req.sor;
-	abort_filt = 0;
 
 	while ((cur_idx = hreq->hdr_idx.v[cur_idx].next)) {
 		struct hdr_idx_elem *cur_hdr;
@@ -3763,13 +4030,11 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 }
 
 
-
 /*
  * Try to retrieve a known appsession in the URI, then the associated server.
  * If the server is found, it's assigned to the session.
  */
-
-void get_srv_from_appsession(struct session *t, const char *begin, const char *end)
+void get_srv_from_appsession(struct session *t, const char *begin, int len)
 {
 	appsess *asession_temp = NULL;
 	appsess local_asession;
@@ -3777,8 +4042,8 @@ void get_srv_from_appsession(struct session *t, const char *begin, const char *e
 
 	if (t->be->beprm->appsession_name == NULL ||
 	    (t->hreq.meth != HTTP_METH_GET && t->hreq.meth != HTTP_METH_POST) ||
-	    (request_line = memchr(begin, ';', end - begin)) == NULL ||
-	    ((1 + t->be->beprm->appsession_name_len + 1 + t->be->beprm->appsession_len) > (end - request_line)))
+	    (request_line = memchr(begin, ';', len)) == NULL ||
+	    ((1 + t->be->beprm->appsession_name_len + 1 + t->be->beprm->appsession_len) > (begin + len - request_line)))
 		return;
 
 	/* skip ';' */
@@ -3852,7 +4117,6 @@ void get_srv_from_appsession(struct session *t, const char *begin, const char *e
 }
 
 
-
 /*
  * In a GET or HEAD request, check if the requested URI matches the stats uri
  * for the current backend, and if an authorization has been passed and is valid.
@@ -3869,22 +4133,13 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 	struct uri_auth *uri_auth = backend->uri_auth;
 	struct user_auth *user;
 	int authenticated, cur_idx;
-	char *h, *e;
+	char *h;
 
-	/* FIXME: this will soon be easier */
-	/* skip the method */
-	h = hreq->start.str;
-	e = h + hreq->start.len - uri_auth->uri_len;
-
-	while (h < e && *h != ' ' && *h != '\t')
-		h++;
-
-	/* find the URI */
-	while (h < e && (*h == ' ' || *h == '\t'))
-		h++;
-
-	if (h >= e)
+	/* check URI size */
+	if (uri_auth->uri_len > hreq->req.sl.rq.u_l)
 		return 0;
+
+	h = t->req->data + hreq->req.sl.rq.u;
 
 	/* the URI is in h */
 	if (memcmp(h, uri_auth->uri_prefix, uri_auth->uri_len) != 0)
@@ -3959,7 +4214,6 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 	produce_content(t);
 	return 1;
 }
-
 
 
 /*

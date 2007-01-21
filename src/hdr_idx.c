@@ -15,22 +15,6 @@
 
 
 /*
- * Initialize the list pointers.
- * list->size must already be set. If list->size is set and list->v is
- * non-null, list->v is also initialized..
- */
-static inline void hdr_idx_init(struct hdr_idx *list)
-{
-
-	if (list->size && list->v) {
-		register struct hdr_idx_elem e = { .len=0, .cr=0, .next=0};
-		list->v[0] = e;
-	}
-	list->tail = 0;
-	list->used = list->last = 1;
-}
-
-/*
  * Add a header entry to <list> after element <after>. <after> is ignored when
  * the list is empty or full. Common usage is to set <after> to list->tail.
  *

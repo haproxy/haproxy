@@ -21,6 +21,7 @@
 #include <types/proxy.h>
 #include <types/server.h>
 
+#include <proto/hdr_idx.h>
 #include <proto/session.h>
 #include <proto/queue.h>
 

@@ -93,6 +93,7 @@
 #define	SN_CACHE_SHIFT	20		/* bit shift */
 
 /* various other session flags, bits values 0x400000 and above */
+#define SN_CONN_CLOSED	0x00000800	/* "Connection: close" was present or added */
 #define SN_MONITOR	0x00400000	/* this session comes from a monitoring system */
 #define SN_ASSIGNED	0x00800000	/* no need to assign a server to this session */
 #define SN_ADDR_SET	0x01000000	/* this session's server address has been set */
@@ -134,9 +135,25 @@ typedef enum {
  */
 struct http_msg {
 	int hdr_state;                  /* where we are in the current header parsing */
-	int sor, eoh;			/* Start Of Request and End Of Headers, relative to buffer */
-	int eol;			/* end of line */
+	char *sol, *eol;		/* start of line, end of line */
+	int sor;			/* Start Of Request, relative to buffer */
+	int col, sov;			/* current header: colon, start of value */
+	int eoh;			/* End Of Headers, relative to buffer */
 	char **cap;			/* array of captured request headers (may be NULL) */
+	union {				/* useful start line pointers, relative to buffer */
+		struct {
+			int l;		/* request line length (not including CR) */
+			int m_l;	/* METHOD length (method starts at ->sor) */
+			int u, u_l;	/* URI, length */
+			int v, v_l;	/* VERSION, length */
+		} rq;			/* request line : field, length */
+		struct {
+			int l;		/* status line length (not including CR) */
+			int v_l;	/* VERSION length (version starts at ->sor) */
+			int c, c_l;	/* CODE, length */
+			int r, r_l;	/* REASON, length */
+		} st;			/* status line : field, length */
+	} sl;				/* start line */
 };
 
 /* This is an HTTP request, as described in RFC2616. It contains both a request
@@ -146,7 +163,6 @@ struct http_req {
 	int req_state;                  /* what we are currently parsing */
 	http_meth_t meth;		/* HTTP method */
 	struct hdr_idx hdr_idx;         /* array of header indexes (max: MAX_HTTP_HDR) */
-	struct chunk start;		/* points to first line, called "start line" in RFC2616 */
 	struct chunk auth_hdr;		/* points to 'Authorization:' header */
 	struct http_msg req, rsp;	/* HTTP request and response messages */
 };

@@ -213,6 +213,10 @@ void send_log(struct proxy *p, int level, const char *message, ...)
 	}
 
 	va_start(argp, message);
+	/*
+	 * FIXME: we take a huge performance hit here. We might have to replace
+	 * vsnprintf() for a hard-coded log writer.
+	 */
 	data_len = vsnprintf(dataptr, logmsg + sizeof(logmsg) - dataptr, message, argp);
 	if (data_len < 0 || data_len > (logmsg + sizeof(logmsg) - dataptr))
 		data_len = logmsg + sizeof(logmsg) - dataptr;

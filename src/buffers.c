@@ -154,6 +154,31 @@ int chunk_printf(struct chunk *chk, int size, const char *fmt, ...)
 	return chk->len;
 }
 
+/*
+ * Dumps part or all of a buffer.
+ */
+void buffer_dump(FILE *o, struct buffer *b, int from, int to)
+{
+	fprintf(o, "Dumping buffer %p\n", b);
+	fprintf(o, "  data=%p l=%d r=%p w=%p h=%p lr=%p\n",
+		b->data, b->l, b->r, b->w, b->h, b->lr);
+
+	if (!to || to > b->l)
+		to = b->l;
+
+	fprintf(o, "Dumping contents from byte %d to byte %d\n", from, to);
+	for (; from < to; from++) {
+		if ((from & 15) == 0)
+			fprintf(o, "  %04x: ", from);
+		fprintf(o, "%02x ", b->data[from]);
+		if ((from & 15) == 7)
+			fprintf(o, "- ");
+		else if (((from & 15) == 15) && (from != to-1))
+			fprintf(o, "\n");
+	}
+	fprintf(o, "\n--\n");
+}
+
 
 /*
  * Local variables:

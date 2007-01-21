@@ -87,6 +87,7 @@ int buffer_write_chunk(struct buffer *buf, struct chunk *chunk);
 int buffer_replace(struct buffer *b, char *pos, char *end, char *str);
 int buffer_replace2(struct buffer *b, char *pos, char *end, char *str, int len);
 int chunk_printf(struct chunk *chk, int size, const char *fmt, ...);
+void buffer_dump(FILE *o, struct buffer *b, int from, int to);
 
 /*
  * frees the destination chunk if already allocated, allocates a new string,

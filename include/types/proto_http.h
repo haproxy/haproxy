@@ -51,19 +51,64 @@
 #define SV_STCLOSE	6
 
 
+/* The HTTP parser is more complex than it looks like, because we have to
+ * support multi-line headers and any number of spaces between the colon and
+ * the value.
+ *
+ * All those examples must work :
+
+ Hdr1:val1\r\n
+ Hdr1: val1\r\n
+ Hdr1:\t val1\r\n
+ Hdr1: \r\n
+  val1\r\n
+ Hdr1:\r\n
+  val1\n
+ \tval2\r\n
+  val3\n
+
+ *
+ */
+
 /* Possible states while parsing HTTP messages (request|response) */
-#define HTTP_PA_EMPTY      0    /* leading LF, before start line */
-#define HTTP_PA_START      1    /* inside start line */
-#define HTTP_PA_STRT_LF    2    /* LF after start line */
-#define HTTP_PA_HEADER     3    /* inside a header */
-#define HTTP_PA_HDR_LF     4    /* LF after a header */
-#define HTTP_PA_HDR_LWS    5    /* LWS after a header */
-#define HTTP_PA_LFLF       6    /* after double LF/CRLF at the end of headers */
-#define HTTP_PA_ERROR      7    /* syntax error in the message */
-#define HTTP_PA_CR_SKIP 0x10    /* ORed with other values when a CR was skipped */
-#define HTTP_PA_LF_EXP  0x20    /* ORed with other values when a CR is seen and
-				 * an LF is expected before entering the
-				 * designated state. */
+#define HTTP_MSG_RQBEFORE      0 // request: leading LF, before start line
+#define HTTP_MSG_RQBEFORE_CR   1 // request: leading CRLF, before start line
+
+/* these ones define a request start line */
+#define HTTP_MSG_RQMETH        2 // parsing the Method
+#define HTTP_MSG_RQMETH_SP     3 // space(s) after the ethod
+#define HTTP_MSG_RQURI         4 // parsing the Request URI
+#define HTTP_MSG_RQURI_SP      5 // space(s) after the Request URI
+#define HTTP_MSG_RQVER         6 // parsing the Request Version
+#define HTTP_MSG_RQLINE_END    7 // end of request line (CR or LF)
+
+#define HTTP_MSG_RPBEFORE      8 // response: leading LF, before start line
+#define HTTP_MSG_RPBEFORE_CR   9 // response: leading CRLF, before start line
+
+/* these ones define a response start line */
+#define HTTP_MSG_RPVER        10 // parsing the Response Version
+#define HTTP_MSG_RPVER_SP     11 // space(s) after the Response Version
+#define HTTP_MSG_RPCODE       12 // response code
+#define HTTP_MSG_RPCODE_SP    13 // space(s) after the response code
+#define HTTP_MSG_RPREASON     14 // response reason
+#define HTTP_MSG_RPLINE_END   15 // end of response line (CR or LF)
+
+/* common header processing */
+
+#define HTTP_MSG_HDR_FIRST    16 // waiting for first header or last CRLF (no LWS possible)
+#define HTTP_MSG_HDR_NAME     17 // parsing header name
+#define HTTP_MSG_HDR_COL      18 // parsing header colon
+#define HTTP_MSG_HDR_L1_SP    19 // parsing header LWS (SP|HT) before value
+#define HTTP_MSG_HDR_L1_LF    20 // parsing header LWS (LF) before value
+#define HTTP_MSG_HDR_L1_LWS   21 // checking whether it's a new header or an LWS
+#define HTTP_MSG_HDR_VAL      22 // parsing header value
+#define HTTP_MSG_HDR_L2_LF    23 // parsing header LWS (LF) inside/after value
+#define HTTP_MSG_HDR_L2_LWS   24 // checking whether it's a new header or an LWS
+
+#define HTTP_MSG_LAST_LF      25 // parsing last LF
+#define HTTP_MSG_BODY         26 // parsing body at end of headers
+#define HTTP_MSG_ERROR        27 // an error occurred
+
 
 /* various data sources for the responses */
 #define DATA_SRC_NONE	0

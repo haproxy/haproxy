@@ -31,9 +31,26 @@
  * some macros used for the request parsing.
  * from RFC2616:
  *   CTL                 = <any US-ASCII control character (octets 0 - 31) and DEL (127)>
+ *   SEP                 = one of the 17 defined separators or SP or HT
+ *   LWS                 = CR, LF, SP or HT
+ *   SPHT                = SP or HT. Use this macro and not a boolean expression for best speed.
+ *   CRLF                = CR or LF. Use this macro and not a boolean expression for best speed.
+ *   token               = any CHAR except CTL or SEP. Use this macro and not a boolean expression for best speed.
  */
-static inline int IS_CTL(const unsigned char x) { return (x < 32)||(x == 127);}
 
+extern const char http_is_ctl[256];
+extern const char http_is_sep[256];
+extern const char http_is_lws[256];
+extern const char http_is_spht[256];
+extern const char http_is_crlf[256];
+extern const char http_is_token[256];
+
+#define HTTP_IS_CTL(x)   (http_is_ctl[(unsigned char)(x)])
+#define HTTP_IS_SEP(x)   (http_is_sep[(unsigned char)(x)])
+#define HTTP_IS_LWS(x)   (http_is_lws[(unsigned char)(x)])
+#define HTTP_IS_SPHT(x)  (http_is_spht[(unsigned char)(x)])
+#define HTTP_IS_CRLF(x)  (http_is_crlf[(unsigned char)(x)])
+#define HTTP_IS_TOKEN(x) (http_is_token[(unsigned char)(x)])
 
 int event_accept(int fd);
 int process_session(struct task *t);
@@ -49,8 +66,10 @@ int produce_content(struct session *s);
 int produce_content_stats(struct session *s);
 int produce_content_stats_proxy(struct session *s, struct proxy *px);
 void debug_hdr(const char *dir, struct session *t, const char *start, const char *end);
-void get_srv_from_appsession(struct session *t, const char *begin, const char *end);
-void apply_filters_to_session(struct session *t, struct buffer *req, struct hdr_exp *exp);
+void get_srv_from_appsession(struct session *t, const char *begin, int len);
+int apply_filter_to_req_headers(struct session *t, struct buffer *req, struct hdr_exp *exp);
+int apply_filter_to_req_line(struct session *t, struct buffer *req, struct hdr_exp *exp);
+int apply_filters_to_request(struct session *t, struct buffer *req, struct hdr_exp *exp);
 void manage_client_side_cookies(struct session *t, struct buffer *req);
 int stats_check_uri_auth(struct session *t, struct proxy *backend);
 void init_proto_http();
