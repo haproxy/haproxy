@@ -505,6 +505,129 @@ int process_session(struct task *t)
 	} while (0)
 
 /*
+ * This function parses a response line between <ptr> and <end>, starting with
+ * parser state <state>. Only states HTTP_MSG_RPVER, HTTP_MSG_RPVER_SP,
+ * HTTP_MSG_RPCODE, HTTP_MSG_RPCODE_SP and HTTP_MSG_RPREASON are handled. Others
+ * will give undefined results.
+ * Note that it is upon the caller's responsibility to ensure that ptr < end,
+ * and that msg->sol points to the beginning of the response.
+ * If a complete line is found (which implies that at least one CR or LF is
+ * found before <end>, the updated <ptr> is returned, otherwise NULL is
+ * returned indicating an incomplete line (which does not mean that parts have
+ * not been updated). In the incomplete case, if <ret_ptr> or <ret_state> are
+ * non-NULL, they are fed with the new <ptr> and <state> values to be passed
+ * upon next call.
+ *
+ * This function was intentionnally designed to be called from
+ * http_msg_analyzer() with the lowest overhead. It should integrate perfectly
+ * within its state machine and use the same macros, hence the need for same
+ * labels and variable names.
+ */
+const char *http_parse_rspline(struct http_msg *msg, const char *msg_buf, int state,
+			       const char *ptr, const char *end,
+			       char **ret_ptr, int *ret_state)
+{
+	__label__
+		http_msg_rpver,
+		http_msg_rpver_sp,
+		http_msg_rpcode,
+		http_msg_rpcode_sp,
+		http_msg_rpreason,
+		http_msg_rpline_eol,
+		http_msg_ood,     /* out of data */
+		http_msg_invalid;
+
+	switch (state)	{
+	http_msg_rpver:
+	case HTTP_MSG_RPVER:
+		if (likely(HTTP_IS_TOKEN(*ptr)))
+			EAT_AND_JUMP_OR_RETURN(http_msg_rpver, HTTP_MSG_RPVER);
+
+		if (likely(HTTP_IS_SPHT(*ptr))) {
+			msg->sl.st.v_l = (ptr - msg_buf) - msg->sor;
+			EAT_AND_JUMP_OR_RETURN(http_msg_rpver_sp, HTTP_MSG_RPVER_SP);
+		}
+		goto http_msg_invalid;
+		
+	http_msg_rpver_sp:
+	case HTTP_MSG_RPVER_SP:
+		if (likely(!HTTP_IS_LWS(*ptr))) {
+			msg->sl.st.c = ptr - msg_buf;
+			goto http_msg_rpcode;
+		}
+		if (likely(HTTP_IS_SPHT(*ptr)))
+			EAT_AND_JUMP_OR_RETURN(http_msg_rpver_sp, HTTP_MSG_RPVER_SP);
+		/* so it's a CR/LF, this is invalid */
+		goto http_msg_invalid;
+
+	http_msg_rpcode:
+	case HTTP_MSG_RPCODE:
+		if (likely(!HTTP_IS_LWS(*ptr)))
+			EAT_AND_JUMP_OR_RETURN(http_msg_rpcode, HTTP_MSG_RPCODE);
+
+		if (likely(HTTP_IS_SPHT(*ptr))) {
+			msg->sl.st.c_l = (ptr - msg_buf) - msg->sl.st.c;
+			EAT_AND_JUMP_OR_RETURN(http_msg_rpcode_sp, HTTP_MSG_RPCODE_SP);
+		}
+
+		/* so it's a CR/LF, so there is no reason phrase */
+		msg->sl.st.c_l = (ptr - msg_buf) - msg->sl.st.c;
+	http_msg_rsp_reason:
+		/* FIXME: should we support HTTP responses without any reason phrase ? */
+		msg->sl.st.r = ptr - msg_buf;
+		msg->sl.st.r_l = 0;
+		goto http_msg_rpline_eol;
+
+	http_msg_rpcode_sp:
+	case HTTP_MSG_RPCODE_SP:
+		if (likely(!HTTP_IS_LWS(*ptr))) {
+			msg->sl.st.r = ptr - msg_buf;
+			goto http_msg_rpreason;
+		}
+		if (likely(HTTP_IS_SPHT(*ptr)))
+			EAT_AND_JUMP_OR_RETURN(http_msg_rpcode_sp, HTTP_MSG_RPCODE_SP);
+		/* so it's a CR/LF, so there is no reason phrase */
+		goto http_msg_rsp_reason;
+
+	http_msg_rpreason:
+	case HTTP_MSG_RPREASON:
+		if (likely(!HTTP_IS_CRLF(*ptr)))
+			EAT_AND_JUMP_OR_RETURN(http_msg_rpreason, HTTP_MSG_RPREASON);
+		msg->sl.st.r_l = (ptr - msg_buf) - msg->sl.st.r;
+	http_msg_rpline_eol:
+		/* We have seen the end of line. Note that we do not
+		 * necessarily have the \n yet, but at least we know that we
+		 * have EITHER \r OR \n, otherwise the response would not be
+		 * complete. We can then record the response length and return
+		 * to the caller which will be able to register it.
+		 */
+		msg->sl.st.l = ptr - msg->sol;
+		return ptr;
+
+#ifdef DEBUG_FULL
+	default:
+		fprintf(stderr, "FIXME !!!! impossible state at %s:%d = %d\n", __FILE__, __LINE__, state);
+		exit(1);
+#endif
+	}
+
+ http_msg_ood:
+	/* out of data */
+	if (ret_state)
+		*ret_state = state;
+	if (ret_ptr)
+		*ret_ptr = (char *)ptr;
+	return NULL;
+
+ http_msg_invalid:
+	/* invalid message */
+	if (ret_state)
+		*ret_state = HTTP_MSG_ERROR;
+	return NULL;
+}
+
+
+/*
  * This function parses a request line between <ptr> and <end>, starting with
  * parser state <state>. Only states HTTP_MSG_RQMETH, HTTP_MSG_RQMETH_SP,
  * HTTP_MSG_RQURI, HTTP_MSG_RQURI_SP and HTTP_MSG_RQVER are handled. Others
@@ -524,8 +647,8 @@ int process_session(struct task *t)
  * labels and variable names.
  */
 const char *http_parse_reqline(struct http_msg *msg, const char *msg_buf, int state,
-			 const char *ptr, const char *end,
-			 char **ret_ptr, int *ret_state)
+			       const char *ptr, const char *end,
+			       char **ret_ptr, int *ret_state)
 {
 	__label__
 		http_msg_rqmeth,
@@ -635,6 +758,13 @@ const char *http_parse_reqline(struct http_msg *msg, const char *msg_buf, int st
 }
 
 
+/*
+ * This function parses an HTTP message, either a request or a response,
+ * depending on the initial msg->hdr_state. It can be preempted everywhere
+ * when data are missing and recalled at the exact same location with no
+ * information loss. The header index is re-initialized when switching from
+ * MSG_R[PQ]BEFORE to MSG_RPVER|MSG_RQMETH.
+ */
 void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx *idx)
 {
 	__label__
@@ -666,14 +796,17 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 		goto http_msg_ood;
 
 	switch (state)	{
-	http_msg_rqbefore:
-	case HTTP_MSG_RQBEFORE:
+	/*
+	 * First, states that are specific to the response only.
+	 * We check them first so that request and headers are
+	 * closer to each other (accessed more often).
+	 */
+	http_msg_rpbefore:
+	case HTTP_MSG_RPBEFORE:
 		if (likely(HTTP_IS_TOKEN(*ptr))) {
 			if (likely(ptr == buf->data)) {
 				msg->sol = ptr;
 				msg->sor = 0;
-				state = HTTP_MSG_RQMETH;
-				goto http_msg_rqmeth;
 			} else {
 #if PARSE_PRESERVE_EMPTY_LINES
 				/* only skip empty leading lines, don't remove them */
@@ -694,9 +827,88 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 				ptr = buf->data;
 				end = buf->r;
 #endif
-				state = HTTP_MSG_RQMETH;
-				goto http_msg_rqmeth;
 			}
+			hdr_idx_init(idx);
+			state = HTTP_MSG_RPVER;
+			goto http_msg_rpver;
+		}
+
+		if (unlikely(!HTTP_IS_CRLF(*ptr)))
+			goto http_msg_invalid;
+
+		if (unlikely(*ptr == '\n'))
+			EAT_AND_JUMP_OR_RETURN(http_msg_rpbefore, HTTP_MSG_RPBEFORE);
+		EAT_AND_JUMP_OR_RETURN(http_msg_rpbefore_cr, HTTP_MSG_RPBEFORE_CR);
+		/* stop here */
+
+	http_msg_rpbefore_cr:
+	case HTTP_MSG_RPBEFORE_CR:
+		EXPECT_LF_HERE(ptr, http_msg_invalid);
+		EAT_AND_JUMP_OR_RETURN(http_msg_rpbefore, HTTP_MSG_RPBEFORE);
+		/* stop here */
+
+	http_msg_rpver:
+	case HTTP_MSG_RPVER:
+	case HTTP_MSG_RPVER_SP:
+	case HTTP_MSG_RPCODE:
+	case HTTP_MSG_RPCODE_SP:
+	case HTTP_MSG_RPREASON:
+		ptr = (char *)http_parse_rspline(msg, buf->data, state, ptr, end,
+						 &buf->lr, &msg->hdr_state);
+		if (unlikely(!ptr))
+			return;
+
+		/* we have a full response and we know that we have either a CR
+		 * or an LF at <ptr>.
+		 */
+		//fprintf(stderr,"sor=%d rq.l=%d *ptr=0x%02x\n", msg->sor, msg->sl.st.l, *ptr);
+		hdr_idx_set_start(idx, msg->sl.st.l, *ptr == '\r');
+
+		msg->sol = ptr;
+		if (likely(*ptr == '\r'))
+			EAT_AND_JUMP_OR_RETURN(http_msg_rpline_end, HTTP_MSG_RPLINE_END);
+		goto http_msg_rpline_end;
+
+	http_msg_rpline_end:
+	case HTTP_MSG_RPLINE_END:
+		/* msg->sol must point to the first of CR or LF. */
+		EXPECT_LF_HERE(ptr, http_msg_invalid);
+		EAT_AND_JUMP_OR_RETURN(http_msg_hdr_first, HTTP_MSG_HDR_FIRST);
+		/* stop here */
+
+	/*
+	 * Second, states that are specific to the request only
+	 */
+	http_msg_rqbefore:
+	case HTTP_MSG_RQBEFORE:
+		if (likely(HTTP_IS_TOKEN(*ptr))) {
+			if (likely(ptr == buf->data)) {
+				msg->sol = ptr;
+				msg->sor = 0;
+			} else {
+#if PARSE_PRESERVE_EMPTY_LINES
+				/* only skip empty leading lines, don't remove them */
+				msg->sol = ptr;
+				msg->sor = ptr - buf->data;
+#else
+				/* Remove empty leading lines, as recommended by
+				 * RFC2616. This takes a lot of time because we
+				 * must move all the buffer backwards, but this
+				 * is rarely needed. The method above will be
+				 * cleaner when we'll be able to start sending
+				 * the request from any place in the buffer.
+				 */
+				buf->lr = ptr;
+				buffer_replace2(buf, buf->data, buf->lr, NULL, 0);
+				msg->sor = 0;
+				msg->sol = buf->data;
+				ptr = buf->data;
+				end = buf->r;
+#endif
+			}
+			hdr_idx_init(idx);
+			state = HTTP_MSG_RQMETH;
+			goto http_msg_rqmeth;
 		}
 
 		if (unlikely(!HTTP_IS_CRLF(*ptr)))
@@ -705,14 +917,13 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 		if (unlikely(*ptr == '\n'))
 			EAT_AND_JUMP_OR_RETURN(http_msg_rqbefore, HTTP_MSG_RQBEFORE);
 		EAT_AND_JUMP_OR_RETURN(http_msg_rqbefore_cr, HTTP_MSG_RQBEFORE_CR);
-		/* fall through http_msg_rqbefore_cr */
+		/* stop here */
 
 	http_msg_rqbefore_cr:
 	case HTTP_MSG_RQBEFORE_CR:
 		EXPECT_LF_HERE(ptr, http_msg_invalid);
 		EAT_AND_JUMP_OR_RETURN(http_msg_rqbefore, HTTP_MSG_RQBEFORE);
-		state = HTTP_MSG_RQMETH;
-		/* fall through http_msg_rqmeth */
+		/* stop here */
 
 	http_msg_rqmeth:
 	case HTTP_MSG_RQMETH:
@@ -734,7 +945,6 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 		msg->sol = ptr;
 		if (likely(*ptr == '\r'))
 			EAT_AND_JUMP_OR_RETURN(http_msg_rqline_end, HTTP_MSG_RQLINE_END);
-
 		goto http_msg_rqline_end;
 
 	http_msg_rqline_end:
@@ -747,7 +957,11 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 
 		EXPECT_LF_HERE(ptr, http_msg_invalid);
 		EAT_AND_JUMP_OR_RETURN(http_msg_hdr_first, HTTP_MSG_HDR_FIRST);
+		/* stop here */
 
+	/*
+	 * Common states below
+	 */
 	http_msg_hdr_first:
 	case HTTP_MSG_HDR_FIRST:
 		msg->sol = ptr;
@@ -914,7 +1128,7 @@ int process_cli(struct session *t)
 		 * headers. An index of all the lines will be elaborated while
 		 * parsing.
 		 *
-		 * For the parsing, we use a 10 states FSM.
+		 * For the parsing, we use a 28 states FSM.
 		 *
 		 * RFC2616 requires that both LF and CRLF are recognized as
 		 * line breaks, but that any other combination is an error.
