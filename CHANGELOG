@@ -1,6 +1,14 @@
 ChangeLog :
 ===========
 
+2007/01/22 : 1.3.6
+    - stats now support the HEAD method too
+    - extracted http request from the session
+    - huge rework of the HTTP parser which is now a 28-state FSM.
+    - linux-style likely/unlikely macros for optimization hints
+    - do not create a server socket when there's no server
+    - imported lots of docs
+
 2007/01/07 : 1.3.5
     - stats: swap color sets for active and backup servers
     - try to guess server check port when unset
