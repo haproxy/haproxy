@@ -160,7 +160,11 @@ int assign_server(struct session *s)
 		return SRV_STATUS_INTERNAL;
 
 	if (!(s->flags & SN_ASSIGNED)) {
-		if ((s->be->beprm->options & PR_O_BALANCE) && !(s->flags & SN_DIRECT)) {
+		if (s->be->beprm->options & PR_O_BALANCE) {
+			if (s->flags & SN_DIRECT) {
+				s->flags |= SN_ASSIGNED;
+				return SRV_STATUS_OK;
+			}
 			if (!s->be->beprm->srv_act && !s->be->beprm->srv_bck)
 				return SRV_STATUS_NOSRV;
 
@@ -186,10 +190,11 @@ int assign_server(struct session *s)
 			else /* unknown balancing algorithm */
 				return SRV_STATUS_INTERNAL;
 		}
-		else if (*(int *)&s->be->beprm->dispatch_addr.sin_addr || s->fe->options & PR_O_TRANSP)
-			s->flags |= SN_ASSIGNED;
-		else
+		else if (!*(int *)&s->be->beprm->dispatch_addr.sin_addr &&
+			 !(s->fe->options & PR_O_TRANSP)) {
 			return SRV_STATUS_NOSRV;
+		}
+		s->flags |= SN_ASSIGNED;
 	}
 	return SRV_STATUS_OK;
 }
@@ -214,7 +219,7 @@ int assign_server_address(struct session *s)
 	fprintf(stderr,"assign_server_address : s=%p\n",s);
 #endif
 
-	if (s->flags & SN_DIRECT || s->be->beprm->options & PR_O_BALANCE) {
+	if ((s->flags & SN_DIRECT) || (s->be->beprm->options & PR_O_BALANCE)) {
 		/* A server is necessarily known for this session */
 		if (!(s->flags & SN_ASSIGNED))
 			return SRV_STATUS_INTERNAL;
