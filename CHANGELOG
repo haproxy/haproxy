@@ -1,6 +1,9 @@
 ChangeLog :
 ===========
 
+2007/01/22 : 1.3.6.1
+    - change in the header chaining broke cookies and authentication
+
 2007/01/22 : 1.3.6
     - stats now support the HEAD method too
     - extracted http request from the session
