@@ -3933,10 +3933,10 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 	/* Iterate through the headers.
 	 * we start with the start line.
 	 */
-	old_idx = cur_idx = 0;
-	cur_next = req->data + hreq->req.sor;
+	old_idx = 0;
+	cur_next = req->data + hreq->req.sor + hdr_idx_first_pos(&hreq->hdr_idx);
 
-	while ((cur_idx = hreq->hdr_idx.v[cur_idx].next)) {
+	while ((cur_idx = hreq->hdr_idx.v[old_idx].next)) {
 		struct hdr_idx_elem *cur_hdr;
 
 		cur_hdr  = &hreq->hdr_idx.v[cur_idx];
@@ -4380,7 +4380,7 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 
 		/* FIXME: this should move to an earlier place */
 		cur_idx = 0;
-		h = t->req->data + hreq->req.sor;
+		h = t->req->data + hreq->req.sor + hdr_idx_first_pos(&hreq->hdr_idx);
 		while ((cur_idx = hreq->hdr_idx.v[cur_idx].next)) {
 			int len = hreq->hdr_idx.v[cur_idx].len;
 			if (len > 14 &&
