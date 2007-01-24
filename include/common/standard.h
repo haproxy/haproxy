@@ -24,6 +24,7 @@
 
 #include <netinet/in.h>
 #include <common/config.h>
+#include <proto/fd.h>
 
 /****** string-specific macros and functions ******/
 /* if a > max, then bound <a> to <max>. The macro returns the new <a> */
