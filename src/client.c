@@ -252,6 +252,7 @@ int event_accept(int fd) {
 				pool_free(session, s);
 				return 0;
 			}
+			hdr_idx_init(&hreq->hdr_idx);
 		}
 
 		if ((p->mode == PR_MODE_TCP || p->mode == PR_MODE_HTTP)

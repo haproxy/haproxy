@@ -906,7 +906,9 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 				end = buf->r;
 #endif
 			}
-			hdr_idx_init(idx);
+			/* we will need this when keep-alive will be supported
+			   hdr_idx_init(idx);
+			 */
 			state = HTTP_MSG_RQMETH;
 			goto http_msg_rqmeth;
 		}
