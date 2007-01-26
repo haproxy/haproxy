@@ -1,6 +1,12 @@
 ChangeLog :
 ===========
 
+2007/01/26 : 1.3.7
+    - fix critical bug introduced with 1.3.6 : an empty request header
+      may lead to a crash due to missing pointer assignment
+    - hdr_idx might be left uninitialized in debug mode
+    - fixed build on FreeBSD due to missing fd_set declaration
+
 2007/01/22 : 1.3.6.1
     - change in the header chaining broke cookies and authentication
 
