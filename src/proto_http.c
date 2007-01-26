@@ -1018,6 +1018,7 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 				buf->data[msg->sov] = ' ';
 			goto http_msg_hdr_l1_sp;
 		}
+		msg->eol = ptr;
 		goto http_msg_complete_header;
 		
 	http_msg_hdr_val:
