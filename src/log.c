@@ -349,7 +349,9 @@ void sess_log(struct session *s)
 		h = tmpline;
 
 		/* right now, header capture is limited to the frontend only */
-		if (fe->to_log & LW_REQHDR && (h < tmpline + sizeof(tmpline) - 10)) {
+		if (fe->to_log & LW_REQHDR &&
+		    hreq->req.cap &&
+		    (h < tmpline + sizeof(tmpline) - 10)) {
 			*(h++) = ' ';
 			*(h++) = '{';
 			for (hdr = 0; hdr < fe->nb_req_cap; hdr++) {
@@ -362,7 +364,9 @@ void sess_log(struct session *s)
 			*(h++) = '}';
 		}
 
-		if (fe->to_log & LW_RSPHDR && (h < tmpline + sizeof(tmpline) - 7)) {
+		if (fe->to_log & LW_RSPHDR &&
+		    hreq->rsp.cap &&
+		    (h < tmpline + sizeof(tmpline) - 7)) {
 			*(h++) = ' ';
 			*(h++) = '{';
 			for (hdr = 0; hdr < fe->nb_rsp_cap; hdr++) {
