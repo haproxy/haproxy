@@ -48,10 +48,17 @@ REGPRM3 struct timeval *tv_delayfrom(struct timeval *tv, const struct timeval *f
 REGPRM2 int tv_cmp_ms(const struct timeval *tv1, const struct timeval *tv2);
 
 /*
+ * compares <tv1> and <tv2> : returns 0 if tv1 < tv2, 1 if tv1 >= tv2,
+ * considering that 0 is the eternity.
+ */
+REGPRM2 int tv_cmp_ge2(const struct timeval *tv1, const struct timeval *tv2);
+
+/*
  * compares <tv1> and <tv2> : returns 0 if equal, -1 if tv1 < tv2, 1 if tv1 > tv2,
  * considering that 0 is the eternity.
  */
 REGPRM2 int tv_cmp2(const struct timeval *tv1, const struct timeval *tv2);
+
 /*
  * compares <tv1> and <tv2> modulo 1 ms: returns 0 if equal, -1 if tv1 < tv2, 1 if tv1 > tv2,
  * considering that 0 is the eternity.
@@ -90,6 +97,20 @@ REGPRM2 static inline int tv_cmp(const struct timeval *tv1, const struct timeval
 		return 1;
 	else
 		return 0;
+}
+
+/*
+ * compares <tv1> and <tv2> : returns 0 if tv1 < tv2, 1 if tv1 >= tv2
+ */
+REGPRM2 static inline int tv_cmp_ge(const struct timeval *tv1, const struct timeval *tv2)
+{
+	if (tv1->tv_sec > tv2->tv_sec)
+		return 1;
+	if (tv1->tv_sec < tv2->tv_sec)
+		return 0;
+	if (tv1->tv_usec >= tv2->tv_usec)
+		return 1;
+	return 0;
 }
 
 /*
@@ -144,7 +165,7 @@ REGPRM1 static inline struct timeval *tv_eternity(struct timeval *tv)
  */
 REGPRM1 static inline int tv_iseternity(const struct timeval *tv)
 {
-	if (tv->tv_sec == 0 && tv->tv_usec == 0)
+	if ((tv->tv_sec | tv->tv_usec) == 0)
 		return 1;
 	else
 		return 0;

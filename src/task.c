@@ -39,7 +39,7 @@ static inline void __rb_insert_task_queue(struct task *newtask)
 	{
 		parent = *p;
 		task = rb_entry(parent, struct task, rb_node);
-		if (tv_cmp2(&task->expire, &newtask->expire) >= 0)
+		if (tv_cmp_ge2(&task->expire, &newtask->expire))
 			p = &(*p)->rb_left;
 		else
 			p = &(*p)->rb_right;
@@ -82,7 +82,7 @@ struct task *task_queue(struct task *task)
 		node = rb_prev(&task->rb_node);
 		if (node) {
 			prev = rb_entry(node, struct task, rb_node);
-			if (tv_cmp2(&prev->expire, &task->expire) >= 0) {
+			if (tv_cmp_ge(&prev->expire, &task->expire)) {
 				task_delete(task);
 				task->wq = &wait_queue[0];
 				rb_insert_task_queue(task);
@@ -93,7 +93,7 @@ struct task *task_queue(struct task *task)
 		node = rb_next(&task->rb_node);
 		if (node) {
 			next = rb_entry(node, struct task, rb_node);
-			if (tv_cmp2(&task->expire, &next->expire) > 0) {
+			if (tv_cmp_ge(&task->expire, &next->expire)) {
 				task_delete(task);
 				task->wq = &wait_queue[0];
 				rb_insert_task_queue(task);

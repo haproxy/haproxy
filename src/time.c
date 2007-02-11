@@ -13,6 +13,7 @@
 #include <sys/time.h>
 
 #include <common/config.h>
+#include <common/standard.h>
 #include <common/time.h>
 
 struct timeval now;             /* the current date at any moment */
@@ -59,17 +60,37 @@ REGPRM2 int tv_cmp_ms(const struct timeval *tv1, const struct timeval *tv2)
 }
 
 /*
+ * compares <tv1> and <tv2> : returns 0 if tv1 < tv2, 1 if tv1 >= tv2,
+ * considering that 0 is the eternity.
+ */
+REGPRM2 int tv_cmp_ge2(const struct timeval *tv1, const struct timeval *tv2)
+{
+	if (unlikely(tv_iseternity(tv1)))
+		return 1;
+	if (unlikely(tv_iseternity(tv2)))
+		return 0; /* same */
+
+	if (tv1->tv_sec > tv2->tv_sec)
+		return 1;
+	if (tv1->tv_sec < tv2->tv_sec)
+		return 0;
+	if (tv1->tv_usec >= tv2->tv_usec)
+		return 1;
+	return 0;
+}
+
+/*
  * compares <tv1> and <tv2> : returns 0 if equal, -1 if tv1 < tv2, 1 if tv1 > tv2,
  * considering that 0 is the eternity.
  */
 REGPRM2 int tv_cmp2(const struct timeval *tv1, const struct timeval *tv2)
 {
-	if (tv_iseternity(tv1))
-		if (tv_iseternity(tv2))
+	if (unlikely(tv_iseternity(tv1)))
+		if (unlikely(tv_iseternity(tv2)))
 			return 0; /* same */
 		else
 			return 1; /* tv1 later than tv2 */
-	else if (tv_iseternity(tv2))
+	else if (likely(tv_iseternity(tv2)))
 		return -1; /* tv2 later than tv1 */
     
 	if (tv1->tv_sec > tv2->tv_sec)
