@@ -47,7 +47,7 @@ static inline void __rb_insert_task_queue(struct task *newtask)
 	rb_link_node(&newtask->rb_node, parent, p);
 }
 
-static inline void rb_insert_task_queue(struct task *newtask)
+static void rb_insert_task_queue(struct task *newtask)
 {
 	__rb_insert_task_queue(newtask);
 	rb_insert_color(&newtask->rb_node, newtask->wq);
