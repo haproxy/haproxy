@@ -123,7 +123,7 @@ typedef enum {
  * The values there are a little bit obscure, because their meaning can change
  * during the parsing :
  *
- *  - sor (Start of Request) : relative offset in the buffer of first byte of
+ *  - som (Start of Message) : relative offset in the buffer of first byte of
  *                             the request being processed or parsed. Reset to
  *                             zero during accept().
  *  - eoh (End of Headers)   : relative offset in the buffer of first byte that
@@ -134,33 +134,32 @@ typedef enum {
  *                             which marks the end of the line (LF or CRLF).
  */
 struct http_msg {
-	int hdr_state;                  /* where we are in the current header parsing */
+	int msg_state;                  /* where we are in the current message parsing */
 	char *sol, *eol;		/* start of line, end of line */
-	int sor;			/* Start Of Request, relative to buffer */
+	int som;			/* Start Of Message, relative to buffer */
 	int col, sov;			/* current header: colon, start of value */
 	int eoh;			/* End Of Headers, relative to buffer */
 	char **cap;			/* array of captured headers (may be NULL) */
 	union {				/* useful start line pointers, relative to buffer */
 		struct {
 			int l;		/* request line length (not including CR) */
-			int m_l;	/* METHOD length (method starts at ->sor) */
+			int m_l;	/* METHOD length (method starts at ->som) */
 			int u, u_l;	/* URI, length */
 			int v, v_l;	/* VERSION, length */
 		} rq;			/* request line : field, length */
 		struct {
 			int l;		/* status line length (not including CR) */
-			int v_l;	/* VERSION length (version starts at ->sor) */
+			int v_l;	/* VERSION length (version starts at ->som) */
 			int c, c_l;	/* CODE, length */
 			int r, r_l;	/* REASON, length */
 		} st;			/* status line : field, length */
 	} sl;				/* start line */
 };
 
-/* This is an HTTP request, as described in RFC2616. It contains both a request
- * message and a response message (which can be empty).
+/* This is an HTTP transaction. It contains both a request message and a
+ * response message (which can be empty).
  */
-struct http_req {
-	int req_state;                  /* what we are currently parsing */
+struct http_txn {
 	http_meth_t meth;		/* HTTP method */
 	struct hdr_idx hdr_idx;         /* array of header indexes (max: MAX_HTTP_HDR) */
 	struct chunk auth_hdr;		/* points to 'Authorization:' header */
@@ -187,7 +186,7 @@ struct session {
 	struct sockaddr_in srv_addr;		/* the address to connect to */
 	struct server *srv;			/* the server being used */
 	struct pendconn *pend_pos;		/* if not NULL, points to the position in the pending queue */
-	struct http_req hreq;			/* current HTTP request being processed. Should become a list. */
+	struct http_txn txn;			/* current HTTP transaction being processed. Should become a list. */
 	struct {
 		int logwait;			/* log fields waiting to be collected : LW_* */
 		struct timeval tv_accept;	/* date of the accept() (beginning of the session) */

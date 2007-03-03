@@ -56,7 +56,7 @@
 int event_accept(int fd) {
 	struct proxy *p = (struct proxy *)fdtab[fd].owner;
 	struct session *s;
-	struct http_req *hreq;
+	struct http_txn *hreq;
 	struct task *t;
 	int cfd;
 	int max_accept;
@@ -198,16 +198,16 @@ int event_accept(int fd) {
 		s->uniq_id = totalconn;
 		p->cum_feconn++;	/* cum_beconn will be increased once assigned */
 
-		hreq = &s->hreq;
+		hreq = &s->txn;
 		hreq->req.cap = NULL;
 		hreq->rsp.cap = NULL;
 		hreq->hdr_idx.v = NULL;
 		hreq->hdr_idx.size = hreq->hdr_idx.used = 0;
 
 		if (p->mode == PR_MODE_HTTP) {
-			hreq->req.hdr_state = HTTP_MSG_RQBEFORE; /* at the very beginning of the request */
+			hreq->req.msg_state = HTTP_MSG_RQBEFORE; /* at the very beginning of the request */
 			hreq->req.sol = hreq->req.eol = NULL;
-			hreq->req.sor = hreq->req.eoh = 0; /* relative to the buffer */
+			hreq->req.som = hreq->req.eoh = 0; /* relative to the buffer */
 			hreq->auth_hdr.len = -1;
 
 			hreq->hdr_idx.size = MAX_HTTP_HDR;

@@ -544,7 +544,7 @@ const char *http_parse_rspline(struct http_msg *msg, const char *msg_buf, int st
 			EAT_AND_JUMP_OR_RETURN(http_msg_rpver, HTTP_MSG_RPVER);
 
 		if (likely(HTTP_IS_SPHT(*ptr))) {
-			msg->sl.st.v_l = (ptr - msg_buf) - msg->sor;
+			msg->sl.st.v_l = (ptr - msg_buf) - msg->som;
 			EAT_AND_JUMP_OR_RETURN(http_msg_rpver_sp, HTTP_MSG_RPVER_SP);
 		}
 		goto http_msg_invalid;
@@ -667,13 +667,13 @@ const char *http_parse_reqline(struct http_msg *msg, const char *msg_buf, int st
 			EAT_AND_JUMP_OR_RETURN(http_msg_rqmeth, HTTP_MSG_RQMETH);
 
 		if (likely(HTTP_IS_SPHT(*ptr))) {
-			msg->sl.rq.m_l = (ptr - msg_buf) - msg->sor;
+			msg->sl.rq.m_l = (ptr - msg_buf) - msg->som;
 			EAT_AND_JUMP_OR_RETURN(http_msg_rqmeth_sp, HTTP_MSG_RQMETH_SP);
 		}
 
 		if (likely(HTTP_IS_CRLF(*ptr))) {
 			/* HTTP 0.9 request */
-			msg->sl.rq.m_l = (ptr - msg_buf) - msg->sor;
+			msg->sl.rq.m_l = (ptr - msg_buf) - msg->som;
 		http_msg_req09_uri:
 			msg->sl.rq.u = ptr - msg_buf;
 		http_msg_req09_uri_e:
@@ -760,7 +760,7 @@ const char *http_parse_reqline(struct http_msg *msg, const char *msg_buf, int st
 
 /*
  * This function parses an HTTP message, either a request or a response,
- * depending on the initial msg->hdr_state. It can be preempted everywhere
+ * depending on the initial msg->msg_state. It can be preempted everywhere
  * when data are missing and recalled at the exact same location with no
  * information loss. The header index is re-initialized when switching from
  * MSG_R[PQ]BEFORE to MSG_RPVER|MSG_RQMETH.
@@ -788,7 +788,7 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 	int state;                /* updated only when leaving the FSM */
 	register char *ptr, *end; /* request pointers, to avoid dereferences */
 
-	state = msg->hdr_state;
+	state = msg->msg_state;
 	ptr = buf->lr;
 	end = buf->r;
 
@@ -806,12 +806,12 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 		if (likely(HTTP_IS_TOKEN(*ptr))) {
 			if (likely(ptr == buf->data)) {
 				msg->sol = ptr;
-				msg->sor = 0;
+				msg->som = 0;
 			} else {
 #if PARSE_PRESERVE_EMPTY_LINES
 				/* only skip empty leading lines, don't remove them */
 				msg->sol = ptr;
-				msg->sor = ptr - buf->data;
+				msg->som = ptr - buf->data;
 #else
 				/* Remove empty leading lines, as recommended by
 				 * RFC2616. This takes a lot of time because we
@@ -822,7 +822,7 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 				 */
 				buf->lr = ptr;
 				buffer_replace2(buf, buf->data, buf->lr, NULL, 0);
-				msg->sor = 0;
+				msg->som = 0;
 				msg->sol = buf->data;
 				ptr = buf->data;
 				end = buf->r;
@@ -854,14 +854,14 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 	case HTTP_MSG_RPCODE_SP:
 	case HTTP_MSG_RPREASON:
 		ptr = (char *)http_parse_rspline(msg, buf->data, state, ptr, end,
-						 &buf->lr, &msg->hdr_state);
+						 &buf->lr, &msg->msg_state);
 		if (unlikely(!ptr))
 			return;
 
 		/* we have a full response and we know that we have either a CR
 		 * or an LF at <ptr>.
 		 */
-		//fprintf(stderr,"sor=%d rq.l=%d *ptr=0x%02x\n", msg->sor, msg->sl.st.l, *ptr);
+		//fprintf(stderr,"som=%d rq.l=%d *ptr=0x%02x\n", msg->som, msg->sl.st.l, *ptr);
 		hdr_idx_set_start(idx, msg->sl.st.l, *ptr == '\r');
 
 		msg->sol = ptr;
@@ -884,12 +884,12 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 		if (likely(HTTP_IS_TOKEN(*ptr))) {
 			if (likely(ptr == buf->data)) {
 				msg->sol = ptr;
-				msg->sor = 0;
+				msg->som = 0;
 			} else {
 #if PARSE_PRESERVE_EMPTY_LINES
 				/* only skip empty leading lines, don't remove them */
 				msg->sol = ptr;
-				msg->sor = ptr - buf->data;
+				msg->som = ptr - buf->data;
 #else
 				/* Remove empty leading lines, as recommended by
 				 * RFC2616. This takes a lot of time because we
@@ -900,7 +900,7 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 				 */
 				buf->lr = ptr;
 				buffer_replace2(buf, buf->data, buf->lr, NULL, 0);
-				msg->sor = 0;
+				msg->som = 0;
 				msg->sol = buf->data;
 				ptr = buf->data;
 				end = buf->r;
@@ -934,14 +934,14 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 	case HTTP_MSG_RQURI_SP:
 	case HTTP_MSG_RQVER:
 		ptr = (char *)http_parse_reqline(msg, buf->data, state, ptr, end,
-						 &buf->lr, &msg->hdr_state);
+						 &buf->lr, &msg->msg_state);
 		if (unlikely(!ptr))
 			return;
 
 		/* we have a full request and we know that we have either a CR
 		 * or an LF at <ptr>.
 		 */
-		//fprintf(stderr,"sor=%d rq.l=%d *ptr=0x%02x\n", msg->sor, msg->sl.rq.l, *ptr);
+		//fprintf(stderr,"som=%d rq.l=%d *ptr=0x%02x\n", msg->som, msg->sl.rq.l, *ptr);
 		hdr_idx_set_start(idx, msg->sl.rq.l, *ptr == '\r');
 
 		msg->sol = ptr;
@@ -1086,7 +1086,7 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 		ptr++;
 		buf->lr = ptr;
 		msg->eoh = msg->sol - buf->data;
-		msg->hdr_state = HTTP_MSG_BODY;
+		msg->msg_state = HTTP_MSG_BODY;
 		return;
 #ifdef DEBUG_FULL
 	default:
@@ -1096,13 +1096,13 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 	}
  http_msg_ood:
 	/* out of data */
-	msg->hdr_state = state;
+	msg->msg_state = state;
 	buf->lr = ptr;
 	return;
 
  http_msg_invalid:
 	/* invalid message */
-	msg->hdr_state = HTTP_MSG_ERROR;
+	msg->msg_state = HTTP_MSG_ERROR;
 	return;
 }
     
@@ -1144,7 +1144,7 @@ int process_cli(struct session *t)
 		 * has to process at req->lr.
 		 *
 		 * Here is the information we currently have :
-		 *   req->data + req->sor  = beginning of request
+		 *   req->data + req->som  = beginning of request
 		 *   req->data + req->eoh  = end of processed headers / start of current one
 		 *   req->data + req->eol  = end of current header or line (LF or CRLF)
 		 *   req->lr = first non-visited byte
@@ -1152,7 +1152,7 @@ int process_cli(struct session *t)
 		 */
 
 		int cur_idx;
-		struct http_req *hreq = &t->hreq;
+		struct http_txn *hreq = &t->txn;
 		struct http_msg *msg = &hreq->req;
 		struct proxy *cur_proxy;
 
@@ -1162,10 +1162,10 @@ int process_cli(struct session *t)
 		/* 1: we might have to print this header in debug mode */
 		if (unlikely((global.mode & MODE_DEBUG) &&
 			     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) &&
-			     (msg->hdr_state == HTTP_MSG_BODY || msg->hdr_state == HTTP_MSG_ERROR))) {
+			     (msg->msg_state == HTTP_MSG_BODY || msg->msg_state == HTTP_MSG_ERROR))) {
 			char *eol, *sol;
 
-			sol = req->data + msg->sor;
+			sol = req->data + msg->som;
 			eol = sol + msg->sl.rq.l;
 			debug_hdr("clireq", t, sol, eol);
 
@@ -1190,11 +1190,11 @@ int process_cli(struct session *t)
 		 *
 		 */
 
-		if (unlikely(msg->hdr_state != HTTP_MSG_BODY)) {
+		if (unlikely(msg->msg_state != HTTP_MSG_BODY)) {
 			/*
 			 * First, let's catch bad requests.
 			 */
-			if (unlikely(msg->hdr_state == HTTP_MSG_ERROR))
+			if (unlikely(msg->msg_state == HTTP_MSG_ERROR))
 				goto return_bad_req;
 
 			/* 1: Since we are in header mode, if there's no space
@@ -1261,7 +1261,7 @@ int process_cli(struct session *t)
 		/*
 		 * 1: identify the method
 		 */
-		hreq->meth = find_http_meth(&req->data[msg->sor], msg->sl.rq.m_l);
+		hreq->meth = find_http_meth(&req->data[msg->som], msg->sl.rq.m_l);
 
 		/*
 		 * 2: check if the URI matches the monitor_uri.
@@ -1294,7 +1294,7 @@ int process_cli(struct session *t)
 
 				if (urilen >= REQURI_LEN)
 					urilen = REQURI_LEN - 1;
-				memcpy(t->logs.uri, &req->data[msg->sor], urilen);
+				memcpy(t->logs.uri, &req->data[msg->som], urilen);
 				t->logs.uri[urilen] = 0;
 
 				if (!(t->logs.logwait &= ~LW_REQ))
@@ -1309,7 +1309,7 @@ int process_cli(struct session *t)
 		if (unlikely(msg->sl.rq.v_l == 0)) {
 			int delta;
 			char *cur_end;
-			msg->sol = req->data + msg->sor;
+			msg->sol = req->data + msg->som;
 			cur_end = msg->sol + msg->sl.rq.l;
 			delta = 0;
 
@@ -1344,7 +1344,7 @@ int process_cli(struct session *t)
 			struct cap_hdr *h;
 			int len;
 
-			sol = req->data + msg->sor + hdr_idx_first_pos(&hreq->hdr_idx);
+			sol = req->data + msg->som + hdr_idx_first_pos(&hreq->hdr_idx);
 			cur_idx = hdr_idx_first_idx(&hreq->hdr_idx);
 
 			while (cur_idx) {
@@ -1446,7 +1446,7 @@ int process_cli(struct session *t)
 				int cur_idx, old_idx, delta;
 				struct hdr_idx_elem *cur_hdr;
 
-				cur_next = req->data + hreq->req.sor + hdr_idx_first_pos(&hreq->hdr_idx);
+				cur_next = req->data + hreq->req.som + hdr_idx_first_pos(&hreq->hdr_idx);
 				old_idx = 0;
 
 				while ((cur_idx = hreq->hdr_idx.v[old_idx].next)) {
@@ -1555,7 +1555,7 @@ int process_cli(struct session *t)
 
 		/* It needs to look into the URI */
 		if (t->be->beprm->appsession_name) {
-			get_srv_from_appsession(t, &req->data[msg->sor], msg->sl.rq.l);
+			get_srv_from_appsession(t, &req->data[msg->som], msg->sl.rq.l);
 		}
 
 
@@ -1658,7 +1658,7 @@ int process_cli(struct session *t)
 		goto process_data;
 
 	return_bad_req: /* let's centralize all bad requests */
-		hreq->req.hdr_state = HTTP_MSG_ERROR;
+		hreq->req.msg_state = HTTP_MSG_ERROR;
 		t->logs.status = 400;
 		client_retnclose(t, error_message(t, HTTP_ERR_400));
 		t->fe->failed_req++;
@@ -1962,7 +1962,7 @@ int process_cli(struct session *t)
  */
 int process_srv(struct session *t)
 {
-	struct http_req *hreq = &t->hreq;
+	struct http_txn *hreq = &t->txn;
 	int s = t->srv_state;
 	int c = t->cli_state;
 	struct buffer *req = t->req;
@@ -3193,7 +3193,7 @@ int produce_content_stats(struct session *s)
 		if (!(s->flags & SN_FINST_MASK))
 			s->flags |= SN_FINST_R;
 
-		if (s->hreq.meth == HTTP_METH_HEAD) {
+		if (s->txn.meth == HTTP_METH_HEAD) {
 			/* that's all we return in case of HEAD request */
 			s->data_state = DATA_ST_FIN;
 			s->flags &= ~SN_SELF_GEN;
@@ -3642,13 +3642,13 @@ int apply_filter_to_req_headers(struct session *t, struct buffer *req, struct hd
 	char term;
 	char *cur_ptr, *cur_end, *cur_next;
 	int cur_idx, old_idx, last_hdr;
-	struct http_req *hreq = &t->hreq;
+	struct http_txn *hreq = &t->txn;
 	struct hdr_idx_elem *cur_hdr;
 	int len, delta;
 
 	last_hdr = 0;
 
-	cur_next = req->data + hreq->req.sor + hdr_idx_first_pos(&hreq->hdr_idx);
+	cur_next = req->data + hreq->req.som + hdr_idx_first_pos(&hreq->hdr_idx);
 	old_idx = 0;
 
 	while (!last_hdr) {
@@ -3770,7 +3770,7 @@ int apply_filter_to_req_line(struct session *t, struct buffer *req, struct hdr_e
 	char term;
 	char *cur_ptr, *cur_end;
 	int done;
-	struct http_req *hreq = &t->hreq;
+	struct http_txn *hreq = &t->txn;
 	int len, delta;
 
 
@@ -3786,7 +3786,7 @@ int apply_filter_to_req_line(struct session *t, struct buffer *req, struct hdr_e
 
 	done = 0;
 
-	cur_ptr = req->data + hreq->req.sor;
+	cur_ptr = req->data + hreq->req.som;
 	cur_end = cur_ptr + hreq->req.sl.rq.l;
 
 	/* Now we have the request line between cur_ptr and cur_end */
@@ -3919,7 +3919,7 @@ int apply_filters_to_request(struct session *t, struct buffer *req, struct hdr_e
  */
 void manage_client_side_cookies(struct session *t, struct buffer *req)
 {
-	struct http_req *hreq = &t->hreq;
+	struct http_txn *hreq = &t->txn;
 	char *p1, *p2, *p3, *p4;
 	char *del_colon, *del_cookie, *colon;
 	int app_cookies;
@@ -3939,7 +3939,7 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 	 * we start with the start line.
 	 */
 	old_idx = 0;
-	cur_next = req->data + hreq->req.sor + hdr_idx_first_pos(&hreq->hdr_idx);
+	cur_next = req->data + hreq->req.som + hdr_idx_first_pos(&hreq->hdr_idx);
 
 	while ((cur_idx = hreq->hdr_idx.v[old_idx].next)) {
 		struct hdr_idx_elem *cur_hdr;
@@ -4266,7 +4266,7 @@ void get_srv_from_appsession(struct session *t, const char *begin, int len)
 	char *request_line;
 
 	if (t->be->beprm->appsession_name == NULL ||
-	    (t->hreq.meth != HTTP_METH_GET && t->hreq.meth != HTTP_METH_POST) ||
+	    (t->txn.meth != HTTP_METH_GET && t->txn.meth != HTTP_METH_POST) ||
 	    (request_line = memchr(begin, ';', len)) == NULL ||
 	    ((1 + t->be->beprm->appsession_name_len + 1 + t->be->beprm->appsession_len) > (begin + len - request_line)))
 		return;
@@ -4354,7 +4354,7 @@ void get_srv_from_appsession(struct session *t, const char *begin, int len)
  */
 int stats_check_uri_auth(struct session *t, struct proxy *backend)
 {
-	struct http_req *hreq = &t->hreq;
+	struct http_txn *hreq = &t->txn;
 	struct uri_auth *uri_auth = backend->uri_auth;
 	struct user_auth *user;
 	int authenticated, cur_idx;
@@ -4386,7 +4386,7 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 
 		/* FIXME: this should move to an earlier place */
 		cur_idx = 0;
-		h = t->req->data + hreq->req.sor + hdr_idx_first_pos(&hreq->hdr_idx);
+		h = t->req->data + hreq->req.som + hdr_idx_first_pos(&hreq->hdr_idx);
 		while ((cur_idx = hreq->hdr_idx.v[cur_idx].next)) {
 			int len = hreq->hdr_idx.v[cur_idx].len;
 			if (len > 14 &&

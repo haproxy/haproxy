@@ -33,7 +33,7 @@ void **pool_session = NULL;
  */
 void session_free(struct session *s)
 {
-	struct http_req *hreq = &s->hreq;
+	struct http_txn *hreq = &s->txn;
 
 	if (s->pend_pos)
 		pendconn_free(s->pend_pos);

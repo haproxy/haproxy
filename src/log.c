@@ -294,7 +294,7 @@ void sess_log(struct session *s)
 	struct proxy *fe = s->fe;
 	struct proxy *be = s->be;
 	struct proxy *prx_log;
-	struct http_req *hreq = &s->hreq;
+	struct http_txn *hreq = &s->txn;
 	int log, tolog;
 	char *uri;
 	char *pxid;
