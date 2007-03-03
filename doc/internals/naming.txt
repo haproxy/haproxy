@@ -1,0 +1,54 @@
+Naming rules for manipulated objects and structures.
+
+Previously, there were ambiguities between sessions, transactions and requests,
+as well as in the way responses are noted ("resp", "rep", "rsp").
+
+Here is a proposal for a better naming scheme.
+
+The "session" is above the transport level, which means at ISO layer 5.
+We can talk about "http sessions" when we consider the entity which lives
+between the accept() and the close(), or the connect() and the close().
+
+=> This demonstrates that it is not possible to have the same http session from
+   the client to the server.
+
+A session can carry one or multiple "transactions", which are each composed of
+one "request" and zero or one "response". Both "request" and "response" are
+described in RFC2616 as "HTTP messages". RFC2616 also seldom references the
+word "transaction" without explicitly defining it.
+
+An "HTTP message" is composed of a "start line" which can be either a
+"request line" or a "status line", followed by a number of "message headers"
+which can be either "request headers" or "response headers", and an "entity",
+itself composed of "entity headers" and an "entity body".Most probably,
+"message headers" and "entity headers" will always be processed together as
+"headers", while the "entity body" will design the payload.
+
+We must try to always use the same abbreviations when naming objects. Here are
+a few common ones :
+
+  - txn : transaction
+  - req : request
+  - rtr : response to request
+  - msg : message
+  - hdr : header
+  - ent : entity
+  - bdy : body
+  - sts : status
+  - stt : state
+  - idx : index
+  - cli : client
+  - srv : server
+  - svc : service
+  - ses : session
+  - tsk : task
+
+Short names for unions or cascaded structs :
+  - sl  : start line
+  - sl.rq : request line
+  - sl.st : status line
+  - cl  : client
+  - px  : proxy
+  - sv  : server
+  - st  : state / status
+
