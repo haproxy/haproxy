@@ -33,7 +33,7 @@ void **pool_session = NULL;
  */
 void session_free(struct session *s)
 {
-	struct http_txn *hreq = &s->txn;
+	struct http_txn *txn = &s->txn;
 
 	if (s->pend_pos)
 		pendconn_free(s->pend_pos);
@@ -42,24 +42,24 @@ void session_free(struct session *s)
 	if (s->rep)
 		pool_free(buffer, s->rep);
 
-	if (hreq->hdr_idx.v != NULL)
-		pool_free_to(s->fe->hdr_idx_pool, hreq->hdr_idx.v);
+	if (txn->hdr_idx.v != NULL)
+		pool_free_to(s->fe->hdr_idx_pool, txn->hdr_idx.v);
 
-	if (hreq->rsp.cap != NULL) {
+	if (txn->rsp.cap != NULL) {
 		struct cap_hdr *h;
 		for (h = s->fe->fiprm->rsp_cap; h; h = h->next) {
-			if (hreq->rsp.cap[h->index] != NULL)
-				pool_free_to(h->pool, hreq->rsp.cap[h->index]);
+			if (txn->rsp.cap[h->index] != NULL)
+				pool_free_to(h->pool, txn->rsp.cap[h->index]);
 		}
-		pool_free_to(s->fe->fiprm->rsp_cap_pool, hreq->rsp.cap);
+		pool_free_to(s->fe->fiprm->rsp_cap_pool, txn->rsp.cap);
 	}
-	if (hreq->req.cap != NULL) {
+	if (txn->req.cap != NULL) {
 		struct cap_hdr *h;
 		for (h = s->fe->fiprm->req_cap; h; h = h->next) {
-			if (hreq->req.cap[h->index] != NULL)
-				pool_free_to(h->pool, hreq->req.cap[h->index]);
+			if (txn->req.cap[h->index] != NULL)
+				pool_free_to(h->pool, txn->req.cap[h->index]);
 		}
-		pool_free_to(s->fe->fiprm->req_cap_pool, hreq->req.cap);
+		pool_free_to(s->fe->fiprm->req_cap_pool, txn->req.cap);
 	}
 
 	if (s->logs.uri)

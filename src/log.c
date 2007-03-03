@@ -294,7 +294,7 @@ void sess_log(struct session *s)
 	struct proxy *fe = s->fe;
 	struct proxy *be = s->be;
 	struct proxy *prx_log;
-	struct http_txn *hreq = &s->txn;
+	struct http_txn *txn = &s->txn;
 	int log, tolog;
 	char *uri;
 	char *pxid;
@@ -350,31 +350,31 @@ void sess_log(struct session *s)
 
 		/* right now, header capture is limited to the frontend only */
 		if (fe->to_log & LW_REQHDR &&
-		    hreq->req.cap &&
+		    txn->req.cap &&
 		    (h < tmpline + sizeof(tmpline) - 10)) {
 			*(h++) = ' ';
 			*(h++) = '{';
 			for (hdr = 0; hdr < fe->nb_req_cap; hdr++) {
 				if (hdr)
 					*(h++) = '|';
-				if (hreq->req.cap[hdr] != NULL)
+				if (txn->req.cap[hdr] != NULL)
 					h = encode_string(h, tmpline + sizeof(tmpline) - 7,
-							  '#', hdr_encode_map, hreq->req.cap[hdr]);
+							  '#', hdr_encode_map, txn->req.cap[hdr]);
 			}
 			*(h++) = '}';
 		}
 
 		if (fe->to_log & LW_RSPHDR &&
-		    hreq->rsp.cap &&
+		    txn->rsp.cap &&
 		    (h < tmpline + sizeof(tmpline) - 7)) {
 			*(h++) = ' ';
 			*(h++) = '{';
 			for (hdr = 0; hdr < fe->nb_rsp_cap; hdr++) {
 				if (hdr)
 					*(h++) = '|';
-				if (hreq->rsp.cap[hdr] != NULL)
+				if (txn->rsp.cap[hdr] != NULL)
 					h = encode_string(h, tmpline + sizeof(tmpline) - 4,
-							  '#', hdr_encode_map, hreq->rsp.cap[hdr]);
+							  '#', hdr_encode_map, txn->rsp.cap[hdr]);
 			}
 			*(h++) = '}';
 		}
