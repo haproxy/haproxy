@@ -174,4 +174,11 @@ TODO for 1.3
     filters and backend, on which every entity could rely.
   - implement 'on uri <uri> <proxy>', 'on host <host> <proxy>'
   - remove the first now useless hop in hdr_idx
+  - implement "track XXX.YYY" for each server as an alternative to
+    health checks. This will automatically set the server state to
+    the same as server YYY of proxy XXX.
+  - balance on URI hash (specify length or depth)
+  - balance on any header hash (eg: host)
+  - balance with redirections to real servers
+  - multi-site LB with weighted redirections to the remote one
 

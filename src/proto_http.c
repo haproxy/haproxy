@@ -1133,16 +1133,6 @@ int process_cli(struct session *t)
 		 *
 		 * For the parsing, we use a 28 states FSM.
 		 *
-		 * RFC2616 requires that both LF and CRLF are recognized as
-		 * line breaks, but that any other combination is an error.
-		 * To avoid duplicating all the states above to check for CR,
-		 * we use a special bit HTTP_PA_LF_EXP that we 'OR' with the
-		 * state we will switch to if the LF is seen, so that we know
-		 * whether there's a pending CR or not. We can check it
-		 * globally since all CR followed by anything but LF are
-		 * errors. Each state is entered with the first character is
-		 * has to process at req->lr.
-		 *
 		 * Here is the information we currently have :
 		 *   req->data + req->som  = beginning of request
 		 *   req->data + req->eoh  = end of processed headers / start of current one
@@ -1570,9 +1560,10 @@ int process_cli(struct session *t)
 
 
 		/*
-		 * 9: add X-Forwarded-For : Should depend on the backend only.
+		 * 9: add X-Forwarded-For if either the frontend or the backend
+		 * asks for it.
 		 */
-		if (t->be->beprm->options & PR_O_FWDFOR) {
+		if ((t->fe->options | t->be->beprm->options) & PR_O_FWDFOR) {
 			if (t->cli_addr.ss_family == AF_INET) {
 				int len;
 				unsigned char *pn;
