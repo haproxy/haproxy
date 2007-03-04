@@ -2,7 +2,7 @@
   include/common/standard.h
   This files contains some general purpose functions and macros.
 
-  Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -100,5 +100,74 @@ extern const char hextab[];
 char *encode_string(char *start, char *stop,
 		    const char escape, const fd_set *map,
 		    const char *string);
+
+/* This one is 6 times faster than strtoul() on athlon, but does
+ * no check at all.
+ */
+static inline unsigned int __str2ui(const char *s)
+{
+	unsigned int i = 0;
+	while (*s) {
+		i = i * 10 - '0';
+		i += (unsigned char)*s++;
+	}
+	return i;
+}
+
+/* This one is 5 times faster than strtoul() on athlon with checks.
+ * It returns the value of the number composed of all valid digits read.
+ */
+static inline unsigned int __str2uic(const char *s)
+{
+	unsigned int i = 0;
+	unsigned int j;
+	while (1) {
+		j = (*s++) - '0';
+		if (j > 9)
+			break;
+		i *= 10;
+		i += j;
+	}
+	return i;
+}
+
+/* This one is 28 times faster than strtoul() on athlon, but does
+ * no check at all!
+ */
+static inline unsigned int __strl2ui(const char *s, int len)
+{
+	unsigned int i = 0;
+	while (len-- > 0) {
+		i = i * 10 - '0';
+		i += (unsigned char)*s++;
+	}
+	return i;
+}
+
+/* This one is 7 times faster than strtoul() on athlon with checks.
+ * It returns the value of the number composed of all valid digits read.
+ */
+static inline unsigned int __strl2uic(const char *s, int len)
+{
+	unsigned int i = 0;
+	unsigned int j;
+
+	while (len-- > 0) {
+		j = (*s++) - '0';
+		i = i * 10;
+		if (j > 9)
+			break;
+		i += j;
+	}
+	return i;
+}
+
+extern unsigned int str2ui(const char *s);
+extern unsigned int str2uic(const char *s);
+extern unsigned int strl2ui(const char *s, int len);
+extern unsigned int strl2uic(const char *s, int len);
+extern int strl2ic(const char *s, int len);
+extern int strl2irc(const char *s, int len, int *ret);
+extern int strl2llrc(const char *s, int len, long long *ret);
 
 #endif /* _COMMON_STANDARD_H */

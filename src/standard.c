@@ -1,7 +1,7 @@
 /*
  * General purpose functions.
  *
- * Copyright 2000-2006 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2007 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -20,7 +20,7 @@
 #include <common/standard.h>
 #include <proto/log.h>
 
-/* enough to store 2^63=18446744073709551615 */
+/* enough to store 2^64-1 = 18446744073709551615 */
 static char itoa_str[21];
 
 /*
@@ -209,6 +209,152 @@ char *encode_string(char *start, char *stop,
 		*start = '\0';
 	}
 	return start;
+}
+
+
+unsigned int str2ui(const char *s)
+{
+	return __str2ui(s);
+}
+
+unsigned int str2uic(const char *s)
+{
+	return __str2uic(s);
+}
+
+unsigned int strl2ui(const char *s, int len)
+{
+	return __strl2ui(s, len);
+}
+
+unsigned int strl2uic(const char *s, int len)
+{
+	return __strl2uic(s, len);
+}
+
+/* This one is 7 times faster than strtol() on athlon with checks.
+ * It returns the value of the number composed of all valid digits read,
+ * and can process negative numbers too.
+ */
+int strl2ic(const char *s, int len)
+{
+	int i = 0;
+	int j;
+
+	if (len > 0) {
+		if (*s != '-') {
+			/* positive number */
+			while (len-- > 0) {
+				j = (*s++) - '0';
+				i = i * 10;
+				if (j > 9)
+					break;
+				i += j;
+			}
+		} else {
+			/* negative number */
+			s++;
+			while (--len > 0) {
+				j = (*s++) - '0';
+				i = i * 10;
+				if (j > 9)
+					break;
+				i -= j;
+			}
+		}
+	}
+	return i;
+}
+
+
+/* This function reads exactly <len> chars from <s> and converts them to a
+ * signed integer which it stores into <ret>. It accurately detects any error
+ * (truncated string, invalid chars, overflows). It is meant to be used in
+ * applications designed for hostile environments. It returns zero when the
+ * number has successfully been converted, non-zero otherwise. When an error
+ * is returned, the <ret> value is left untouched. It is yet 5 to 40 times
+ * faster than strtol().
+ */
+int strl2irc(const char *s, int len, int *ret)
+{
+	int i = 0;
+	int j;
+
+	if (!len)
+		return 1;
+
+	if (*s != '-') {
+		/* positive number */
+		while (len-- > 0) {
+			j = (*s++) - '0';
+			if (j > 9)            return 1; /* invalid char */
+			if (i > INT_MAX / 10) return 1; /* check for multiply overflow */
+			i = i * 10;
+			if (i + j < i)        return 1; /* check for addition overflow */
+			i = i + j;
+		}
+	} else {
+		/* negative number */
+		s++;
+		while (--len > 0) {
+			j = (*s++) - '0';
+			if (j > 9)             return 1; /* invalid char */
+			if (i < INT_MIN / 10)  return 1; /* check for multiply overflow */
+			i = i * 10;
+			if (i - j > i)         return 1; /* check for subtract overflow */
+			i = i - j;
+		}
+	}
+	*ret = i;
+	return 0;
+}
+
+
+/* This function reads exactly <len> chars from <s> and converts them to a
+ * signed integer which it stores into <ret>. It accurately detects any error
+ * (truncated string, invalid chars, overflows). It is meant to be used in
+ * applications designed for hostile environments. It returns zero when the
+ * number has successfully been converted, non-zero otherwise. When an error
+ * is returned, the <ret> value is left untouched. It is about 3 times slower
+ * than str2irc().
+ */
+#ifndef LLONG_MAX
+#define LLONG_MAX 9223372036854775807LL
+#define LLONG_MIN (-LLONG_MAX - 1LL)
+#endif
+
+int strl2llrc(const char *s, int len, long long *ret)
+{
+	long long i = 0;
+	int j;
+
+	if (!len)
+		return 1;
+
+	if (*s != '-') {
+		/* positive number */
+		while (len-- > 0) {
+			j = (*s++) - '0';
+			if (j > 9)              return 1; /* invalid char */
+			if (i > LLONG_MAX / 10LL) return 1; /* check for multiply overflow */
+			i = i * 10LL;
+			if (i + j < i)          return 1; /* check for addition overflow */
+			i = i + j;
+		}
+	} else {
+		/* negative number */
+		s++;
+		while (--len > 0) {
+			j = (*s++) - '0';
+			if (j > 9)              return 1; /* invalid char */
+			if (i < LLONG_MIN / 10LL) return 1; /* check for multiply overflow */
+			i = i * 10LL;
+			if (i - j > i)          return 1; /* check for subtract overflow */
+			i = i - j;
+		}
+	}
+	*ret = i;
+	return 0;
 }
 
 
