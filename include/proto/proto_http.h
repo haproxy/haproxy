@@ -36,6 +36,9 @@
  *   SPHT                = SP or HT. Use this macro and not a boolean expression for best speed.
  *   CRLF                = CR or LF. Use this macro and not a boolean expression for best speed.
  *   token               = any CHAR except CTL or SEP. Use this macro and not a boolean expression for best speed.
+ *
+ * added for ease of use:
+ *   ver_token           = 'H', 'P', 'T', '/', '.', and digits.
  */
 
 extern const char http_is_ctl[256];
@@ -44,6 +47,7 @@ extern const char http_is_lws[256];
 extern const char http_is_spht[256];
 extern const char http_is_crlf[256];
 extern const char http_is_token[256];
+extern const char http_is_ver_token[256];
 
 #define HTTP_IS_CTL(x)   (http_is_ctl[(unsigned char)(x)])
 #define HTTP_IS_SEP(x)   (http_is_sep[(unsigned char)(x)])
@@ -51,6 +55,7 @@ extern const char http_is_token[256];
 #define HTTP_IS_SPHT(x)  (http_is_spht[(unsigned char)(x)])
 #define HTTP_IS_CRLF(x)  (http_is_crlf[(unsigned char)(x)])
 #define HTTP_IS_TOKEN(x) (http_is_token[(unsigned char)(x)])
+#define HTTP_IS_VER_TOKEN(x) (http_is_ver_token[(unsigned char)(x)])
 
 int event_accept(int fd);
 int process_session(struct task *t);

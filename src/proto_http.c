@@ -294,6 +294,18 @@ const char http_is_token[256] = {
 };
 
 
+/*
+ * An http ver_token is any ASCII which can be found in an HTTP version,
+ * which includes 'H', 'T', 'P', '/', '.' and any digit.
+ */
+const char http_is_ver_token[256] = {
+	['.'] = 1, ['/'] = 1,
+	['0'] = 1, ['1'] = 1, ['2'] = 1, ['3'] = 1, ['4'] = 1,
+	['5'] = 1, ['6'] = 1, ['7'] = 1, ['8'] = 1, ['9'] = 1,
+	['H'] = 1, ['P'] = 1, ['T'] = 1,
+};
+
+
 #ifdef DEBUG_FULL
 static char *cli_stnames[5] = {"HDR", "DAT", "SHR", "SHW", "CLS" };
 static char *srv_stnames[7] = {"IDL", "CON", "HDR", "DAT", "SHR", "SHW", "CLS" };
@@ -540,7 +552,7 @@ const char *http_parse_rspline(struct http_msg *msg, const char *msg_buf, int st
 	switch (state)	{
 	http_msg_rpver:
 	case HTTP_MSG_RPVER:
-		if (likely(HTTP_IS_TOKEN(*ptr)))
+		if (likely(HTTP_IS_VER_TOKEN(*ptr)))
 			EAT_AND_JUMP_OR_RETURN(http_msg_rpver, HTTP_MSG_RPVER);
 
 		if (likely(HTTP_IS_SPHT(*ptr))) {
@@ -722,18 +734,24 @@ const char *http_parse_reqline(struct http_msg *msg, const char *msg_buf, int st
 
 	http_msg_rqver:
 	case HTTP_MSG_RQVER:
-		if (likely(!HTTP_IS_CRLF(*ptr)))
+		if (likely(HTTP_IS_VER_TOKEN(*ptr)))
 			EAT_AND_JUMP_OR_RETURN(http_msg_rqver, HTTP_MSG_RQVER);
-		msg->sl.rq.v_l = (ptr - msg_buf) - msg->sl.rq.v;
-	http_msg_rqline_eol:
-		/* We have seen the end of line. Note that we do not
-		 * necessarily have the \n yet, but at least we know that we
-		 * have EITHER \r OR \n, otherwise the request would not be
-		 * complete. We can then record the request length and return
-		 * to the caller which will be able to register it.
-		 */
-		msg->sl.rq.l = ptr - msg->sol;
-		return ptr;
+
+		if (likely(HTTP_IS_CRLF(*ptr))) {
+			msg->sl.rq.v_l = (ptr - msg_buf) - msg->sl.rq.v;
+		http_msg_rqline_eol:
+			/* We have seen the end of line. Note that we do not
+			 * necessarily have the \n yet, but at least we know that we
+			 * have EITHER \r OR \n, otherwise the request would not be
+			 * complete. We can then record the request length and return
+			 * to the caller which will be able to register it.
+			 */
+			msg->sl.rq.l = ptr - msg->sol;
+			return ptr;
+		}
+
+		/* neither an HTTP_VER token nor a CRLF */
+		goto http_msg_invalid;
 
 #ifdef DEBUG_FULL
 	default:
