@@ -117,7 +117,7 @@ Limits :
    below).
 
  - LB1 becomes a very sensible server. If LB1 dies, nothing works anymore.
-   => you can back it up using keepalived.
+   => you can back it up using keepalived (see below)
 
  - if the application needs to log the original client's IP, use the
    "forwardfor" option which will add an "X-Forwarded-For" header with the
@@ -134,6 +134,29 @@ Limits :
         LogFormat "%{X-Forwarded-For}i %l %u %t \"%r\" %>s %b " combined
         CustomLog /var/log/httpd/access_log combined
 
+Hints :
+-------
+Sometimes on the internet, you will find a few percent of the clients which
+disable cookies on their browser. Obviously they have troubles everywhere on
+the web, but you can still help them access your site by using the "source"
+balancing algorithm instead of the "roundrobin". It ensures that a given IP
+address always reaches the same server as long as the number of servers remains
+unchanged. Never use this behind a proxy or in a small network, because the
+distribution will be unfair. However, in large internal networks, and on the
+internet, it works quite well. Clients which have a dynamic address will not
+be affected as long as they accept the cookie, because the cookie always has
+precedence over load balancing :
+
+    listen webfarm 192.168.1.1:80
+       mode http
+       balance source
+       cookie SERVERID insert indirect
+       option httpchk HEAD /index.html HTTP/1.0
+       server webA 192.168.1.11:80 cookie A check
+       server webB 192.168.1.12:80 cookie B check
+       server webC 192.168.1.13:80 cookie C check
+       server webD 192.168.1.14:80 cookie D check
+       
 
 ==================================================================
 2. HTTP load-balancing with cookie prefixing and high availability
@@ -192,9 +215,34 @@ use keep-alive (eg: Apache 1.3 in reverse-proxy mode), you can remove this
 option.
 
 
+Configuration for keepalived on LB1/LB2 :
+-----------------------------------------
+
+    vrrp_script chk_haproxy {           # Requires keepalived-1.1.13
+        script "killall -0 haproxy"     # cheaper than pidof
+        interval 2                      # check every 2 seconds
+	weight 2                        # add 2 points of prio if OK
+    }
+
+    vrrp_instance VI_1 {
+        interface eth0
+        state MASTER
+        virtual_router_id 51
+        priority 101                    # 101 on master, 100 on backup
+        virtual_ipaddress {
+            192.168.1.1
+        }
+        track_script {
+            chk_haproxy
+        }
+    }
+
+
 Description :
 -------------
- - LB1 is VRRP master (keepalived), LB2 is backup.
+ - LB1 is VRRP master (keepalived), LB2 is backup. Both monitor the haproxy
+   process, and lower their prio if it fails, leading to a failover to the
+   other node.
  - LB1 will receive clients requests on IP 192.168.1.1.
  - both load-balancers send their checks from their native IP.
  - if a request does not contain a cookie, it will be forwarded to a valid
@@ -240,6 +288,21 @@ Flows :
   <-- HTTP/1.0 200 OK ---------------< |
                                     ( ... )
 
+Hints :
+-------
+Sometimes, there will be some powerful servers in the farm, and some smaller
+ones. In this situation, it may be desirable to tell haproxy to respect the
+difference in performance. Let's consider that WebA and WebB are two old
+P3-1.2 GHz while WebC and WebD are shiny new Opteron-2.6 GHz. If your
+application scales with CPU, you may assume a very rough 2.6/1.2 performance
+ratio between the servers. You can inform haproxy about this using the "weight"
+keyword, with values between 1 and 256. It will then spread the load the most
+smoothly possible respecting those ratios :
+
+       server webA 192.168.1.11:80 cookie A weight 12 check
+       server webB 192.168.1.12:80 cookie B weight 12 check
+       server webC 192.168.1.13:80 cookie C weight 26 check
+       server webD 192.168.1.14:80 cookie D weight 26 check
 
 
 ========================================================
@@ -392,6 +455,27 @@ Config on the Alteon :
            group 10
 
 
+Special handling of SSL :
+-------------------------
+Sometimes, you want to send health-checks to remote systems, even in TCP mode,
+in order to be able to failover to a backup server in case the first one is
+dead. Of course, you can simply enable TCP health-checks, but it sometimes
+happens that intermediate firewalls between the proxies and the remote servers
+acknowledge the TCP connection themselves, showing an always-up server. Since
+this is generally encountered on long-distance communications, which often
+involve SSL, an SSL health-check has been implemented to workaround this issue.
+It sends SSL Hello messages to the remote server, which in turns replies with
+SSL Hello messages. Setting it up is very easy :
+
+    listen tcp-syslog-proxy
+       bind :1514      # listen to TCP syslog traffic on this port (SSL)
+       mode tcp
+       balance roundrobin
+       option ssl-hello-chk
+       server syslog-prod-site 192.168.1.10 check
+       server syslog-back-site 192.168.2.10 check backup
+
+
 =========================================================
 3. Simple HTTP/HTTPS load-balancing with cookie insertion
 =========================================================
@@ -496,6 +580,73 @@ Flows :
       Cookie: SERVERID=A               |
                                     ( ... )
 
+
+
+========================================
+3.1. Alternate solution using Stunnel
+========================================
+
+When only SSL is required and cache is not needed, stunnel is a cheaper
+solution than Apache+mod_ssl. By default, stunnel does not process HTTP and
+does not add any X-Forwarded-For header, but there is a patch on the official
+haproxy site to provide this feature to recent stunnel versions.
+
+This time, stunnel will only process HTTPS and not HTTP. This means that
+haproxy will get all HTTP traffic, so haproxy will have to add the
+X-Forwarded-For header for HTTP traffic, but not for HTTPS traffic since
+stunnel will already have done it. We will use the "except" keyword to tell
+haproxy that connections from local host already have a valid header.
+
+
+  192.168.1.1    192.168.1.11-192.168.1.14   192.168.1.2
+ -------+-----------+-----+-----+-----+--------+----
+        |           |     |     |     |       _|_db
+     +--+--+      +-+-+ +-+-+ +-+-+ +-+-+    (___)
+     | LB1 |      | A | | B | | C | | D |    (___)
+     +-----+      +---+ +---+ +---+ +---+    (___)
+     stunnel        4 cheap web servers
+     haproxy 
+
+
+Config on stunnel (LB1) :
+-------------------------
+
+    cert=/etc/stunnel/stunnel.pem
+    setuid=stunnel
+    setgid=proxy
+
+    socket=l:TCP_NODELAY=1
+    socket=r:TCP_NODELAY=1
+
+    [https]
+    accept=192.168.1.1:443
+    connect=192.168.1.1:80
+    xforwardedfor=yes
+
+
+Config on haproxy (LB1) :
+-------------------------
+       
+    listen 192.168.1.1:80
+       mode http
+       balance roundrobin
+       option forwardfor except 192.168.1.1
+       cookie SERVERID insert indirect nocache
+       option httpchk HEAD /index.html HTTP/1.0
+       server webA 192.168.1.11:80 cookie A check
+       server webB 192.168.1.12:80 cookie B check
+       server webC 192.168.1.13:80 cookie C check
+       server webD 192.168.1.14:80 cookie D check
+
+Description :
+-------------
+ - stunnel on LB1 will receive clients requests on port 443
+ - it forwards them to haproxy bound to port 80
+ - haproxy will receive HTTP client requests on port 80 and decrypted SSL
+   requests from Stunnel on the same port.
+ - stunnel will add the X-Forwarded-For header
+ - haproxy will add the X-Forwarded-For header for everyone except the local
+   address (stunnel).
 
 
 ========================================
@@ -1123,4 +1274,166 @@ different source. Example :
        server from6to1 10.1.1.1:80 source 10.1.2.6
        server from7to1 10.1.1.1:80 source 10.1.2.7
        server from8to1 10.1.1.1:80 source 10.1.2.8
+
+
+=============================================
+7. Managing high loads on application servers
+=============================================
+
+One of the roles often expected from a load balancer is to mitigate the load on
+the servers during traffic peaks. More and more often, we see heavy frameworks
+used to deliver flexible and evolutive web designs, at the cost of high loads
+on the servers, or very low concurrency. Sometimes, response times are also
+rather high. People developing web sites relying on such frameworks very often
+look for a load balancer which is able to distribute the load in the most
+evenly fashion and which will be nice with the servers.
+
+There is a powerful feature in haproxy which achieves exactly this : request
+queueing associated with concurrent connections limit.
+
+Let's say you have an application server which supports at most 20 concurrent
+requests. You have 3 servers, so you can accept up to 60 concurrent HTTP
+connections, which often means 30 concurrent users in case of keep-alive (2
+persistent connections per user).
+
+Even if you disable keep-alive, if the server takes a long time to respond,
+you still have a high risk of multiple users clicking at the same time and
+having their requests unserved because of server saturation. To workaround
+the problem, you increase the concurrent connection limit on the servers,
+but their performance stalls under higher loads.
+
+The solution is to limit the number of connections between the clients and the
+servers. You set haproxy to limit the number of connections on a per-server
+basis, and you let all the users you want connect to it. It will then fill all
+the servers up to the configured connection limit, and will put the remaining
+connections in a queue, waiting for a connection to be released on a server.
+
+This ensures five essential principles :
+
+  - all clients can be served whatever their number without crashing the
+    servers, the only impact it that the response time can be delayed.
+
+  - the servers can be used at full throttle without the risk of stalling,
+    and fine tuning can lead to optimal performance.
+
+  - response times can be reduced by making the servers work below the
+    congestion point, effectively leading to shorter response times even
+    under moderate loads.
+
+  - no domino effect when a server goes down or starts up. Requests will be
+    queued more or less, always respecting servers limits.
+
+  - it's easy to achieve high performance even on memory-limited hardware.
+    Indeed, heavy frameworks often consume huge amounts of RAM and not always
+    all the CPU available. In case of wrong sizing, reducing the number of
+    concurrent connections will protect against memory shortages while still
+    ensuring optimal CPU usage.
+
+
+Example :
+---------
+
+Haproxy is installed in front of an application servers farm. It will limit
+the concurrent connections to 4 per server (one thread per CPU), thus ensuring
+very fast response times.
+
+
+  192.168.1.1   192.168.1.11-192.168.1.13   192.168.1.2
+ -------+-------------+-----+-----+------------+----
+        |             |     |     |           _|_db
+     +--+--+        +-+-+ +-+-+ +-+-+        (___)
+     | LB1 |        | A | | B | | C |        (___)
+     +-----+        +---+ +---+ +---+        (___)
+     haproxy       3 application servers
+                   with heavy frameworks
+
+
+Config on haproxy (LB1) :
+-------------------------
+       
+    listen appfarm 192.168.1.1:80
+       mode http
+       maxconn 10000
+       option httpclose
+       option forwardfor
+       balance roundrobin
+       cookie SERVERID insert indirect
+       option httpchk HEAD /index.html HTTP/1.0
+       server railsA 192.168.1.11:80 cookie A maxconn 4 check
+       server railsB 192.168.1.12:80 cookie B maxconn 4 check
+       server railsC 192.168.1.13:80 cookie C maxconn 4 check
+       contimeout 60000
+
+
+Description :
+-------------
+The proxy listens on IP 192.168.1.1, port 80, and expects HTTP requests. It
+can accept up to 10000 concurrent connections on this socket. It follows the
+roundrobin algorithm to assign servers to connections as long as servers are
+not saturated.
+
+It allows up to 4 concurrent connections per server, and will queue the
+requests above this value. The "contimeout" parameter is used to set the
+maximum time a connection may take to establish on a server, but here it
+is also used to set the maximum time a connection may stay unserved in the
+queue (1 minute here).
+
+If the servers can each process 4 requests in 10 ms on average, then at 3000
+connections, response times will be delayed by at most :
+
+   3000 / 3 servers / 4 conns * 10 ms = 2.5 seconds
+
+Which is not that dramatic considering the huge number of users for such a low
+number of servers.
+
+When connection queues fill up and application servers are starving, response
+times will grow and users might abort by clicking on the "Stop" button. It is
+very undesirable to send aborted requests to servers, because they will eat
+CPU cycles for nothing.
+
+An option has been added to handle this specific case : "option abortonclose".
+By specifying it, you tell haproxy that if an input channel is closed on the
+client side AND the request is still waiting in the queue, then it is highly
+likely that the user has stopped, so we remove the request from the queue
+before it will get served.
+
+
+Managing unfair response times
+------------------------------
+
+Sometimes, the application server will be very slow for some requests (eg:
+login page) and faster for other requests. This may cause excessive queueing
+of expectedly fast requests when all threads on the server are blocked on a
+request to the database. Then the only solution is to increase the number of
+concurrent connections, so that the server can handle a large average number
+of slow connections with threads left to handle faster connections.
+
+But as we have seen, increasing the number of connections on the servers can
+be detrimental to performance (eg: Apache processes fighting for the accept()
+lock). To improve this situation, the "minconn" parameter has been introduced.
+When it is set, the maximum connection concurrency on the server will be bound
+by this value, and the limit will increase with the number of clients waiting
+in queue, till the clients connected to haproxy reach the proxy's maxconn, in
+which case the connections per server will reach the server's maxconn. It means
+that during low-to-medium loads, the minconn will be applied, and during surges
+the maxconn will be applied. It ensures both optimal response times under
+normal loads, and availability under very high loads.
+
+Example :
+---------
+       
+    listen appfarm 192.168.1.1:80
+       mode http
+       maxconn 10000
+       option httpclose
+       option abortonclose
+       option forwardfor
+       balance roundrobin
+       # The servers will get 4 concurrent connections under low
+       # loads, and 12 when there will be 10000 clients.
+       server railsA 192.168.1.11:80 minconn 4 maxconn 12 check
+       server railsB 192.168.1.12:80 minconn 4 maxconn 12 check
+       server railsC 192.168.1.13:80 minconn 4 maxconn 12 check
+       contimeout 60000
+
 
