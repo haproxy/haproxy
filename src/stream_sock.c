@@ -1,7 +1,7 @@
 /*
  * Functions operating on SOCK_STREAM and buffers.
  *
- * Copyright 2000-2006 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2007 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -60,7 +60,7 @@ int stream_sock_read(int fd) {
 #endif
 		{
 			if (b->l == 0) { /* let's realign the buffer to optimize I/O */
-				b->r = b->w = b->h = b->lr  = b->data;
+				b->r = b->w = b->lr  = b->data;
 				max = b->rlim - b->data;
 			}
 			else if (b->r > b->w) {
@@ -156,7 +156,7 @@ int stream_sock_write(int fd) {
 #endif
 
 	if (b->l == 0) { /* let's realign the buffer to optimize I/O */
-		b->r = b->w = b->h = b->lr  = b->data;
+		b->r = b->w = b->lr  = b->data;
 		max = 0;
 	}
 	else if (b->r > b->w) {

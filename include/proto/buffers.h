@@ -2,7 +2,7 @@
   include/proto/buffers.h
   Buffer management definitions, macros and inline functions.
 
-  Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -34,7 +34,7 @@
 static inline void buffer_init(struct buffer *buf)
 {
 	buf->l = buf->total = buf->flags = 0;
-	buf->rlim = buf->h = buf->r = buf->lr = buf->w = buf->data;
+	buf->rlim = buf->r = buf->lr = buf->w = buf->data;
 }
 
 /* returns 1 if the buffer is empty, 0 otherwise */
@@ -51,7 +51,7 @@ static inline int buffer_isfull(const struct buffer *buf) {
 /* flushes any content from buffer <buf> */
 static inline void buffer_flush(struct buffer *buf)
 {
-	buf->r = buf->h = buf->lr = buf->w = buf->data;
+	buf->r = buf->lr = buf->w = buf->data;
 	buf->l = 0;
 }
 
@@ -76,7 +76,7 @@ static inline int buffer_realign(struct buffer *buf)
 {
 	if (buf->l == 0) {
 		/* let's realign the buffer to optimize I/O */
-		buf->r = buf->w = buf->h = buf->lr = buf->data;
+		buf->r = buf->w = buf->lr = buf->data;
 	}
 	return buffer_max(buf);
 }

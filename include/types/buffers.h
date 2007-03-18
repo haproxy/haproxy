@@ -2,7 +2,7 @@
   include/types/buffers.h
   Buffer management definitions, macros and inline functions.
 
-  Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -67,7 +67,7 @@ struct buffer {
 	int wto;                        /* write timeout */
 	int cto;                        /* connect timeout */
 	unsigned int l;                 /* data length */
-	char *r, *w, *h, *lr;           /* read ptr, write ptr, last header ptr, last read */
+	char *r, *w, *lr;               /* read ptr, write ptr, last read */
 	char *rlim;                     /* read limit, used for header rewriting */
 	unsigned long long total;       /* total data read */
 	char data[BUFSIZE];

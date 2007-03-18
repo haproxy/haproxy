@@ -1,7 +1,7 @@
 /*
  * Buffer management functions.
  *
- * Copyright 2000-2006 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2007 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -95,7 +95,6 @@ int buffer_replace(struct buffer *b, char *pos, char *end, char *str)
 	/* we only move data after the displaced zone */
 	if (b->r  > pos) b->r  += delta;
 	if (b->w  > pos) b->w  += delta;
-	if (b->h  > pos) b->h  += delta;
 	if (b->lr > pos) b->lr += delta;
 	b->l += delta;
 
@@ -131,7 +130,6 @@ int buffer_replace2(struct buffer *b, char *pos, char *end, char *str, int len)
 	/* we only move data after the displaced zone */
 	if (b->r  > pos) b->r  += delta;
 	if (b->w  > pos) b->w  += delta;
-	if (b->h  > pos) b->h  += delta;
 	if (b->lr > pos) b->lr += delta;
 	b->l += delta;
 
@@ -160,8 +158,8 @@ int chunk_printf(struct chunk *chk, int size, const char *fmt, ...)
 void buffer_dump(FILE *o, struct buffer *b, int from, int to)
 {
 	fprintf(o, "Dumping buffer %p\n", b);
-	fprintf(o, "  data=%p l=%d r=%p w=%p h=%p lr=%p\n",
-		b->data, b->l, b->r, b->w, b->h, b->lr);
+	fprintf(o, "  data=%p l=%d r=%p w=%p lr=%p\n",
+		b->data, b->l, b->r, b->w, b->lr);
 
 	if (!to || to > b->l)
 		to = b->l;
