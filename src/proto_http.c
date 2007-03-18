@@ -1,7 +1,7 @@
 /*
  * HTTP protocol analyzer
  *
- * Copyright 2000-2006 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2007 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -570,7 +570,7 @@ void capture_headers(char *som, struct hdr_idx *idx,
 
 
 /*
- * This function parses a response line between <ptr> and <end>, starting with
+ * This function parses a status line between <ptr> and <end>, starting with
  * parser state <state>. Only states HTTP_MSG_RPVER, HTTP_MSG_RPVER_SP,
  * HTTP_MSG_RPCODE, HTTP_MSG_RPCODE_SP and HTTP_MSG_RPREASON are handled. Others
  * will give undefined results.
@@ -588,7 +588,7 @@ void capture_headers(char *som, struct hdr_idx *idx,
  * within its state machine and use the same macros, hence the need for same
  * labels and variable names.
  */
-const char *http_parse_rspline(struct http_msg *msg, const char *msg_buf, int state,
+const char *http_parse_stsline(struct http_msg *msg, const char *msg_buf, int state,
 			       const char *ptr, const char *end,
 			       char **ret_ptr, int *ret_state)
 {
@@ -924,7 +924,7 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 	case HTTP_MSG_RPCODE:
 	case HTTP_MSG_RPCODE_SP:
 	case HTTP_MSG_RPREASON:
-		ptr = (char *)http_parse_rspline(msg, buf->data, state, ptr, end,
+		ptr = (char *)http_parse_stsline(msg, buf->data, state, ptr, end,
 						 &buf->lr, &msg->msg_state);
 		if (unlikely(!ptr))
 			return;
@@ -1635,6 +1635,7 @@ int process_cli(struct session *t)
 
 			if (hdr_idx_add(17, 1, &txn->hdr_idx, txn->hdr_idx.tail) < 0)
 				goto return_bad_req;
+			t->flags |= SN_CONN_CLOSED;
 		}
 
 		/*************************************************************
@@ -1983,13 +1984,10 @@ int process_cli(struct session *t)
  */
 int process_srv(struct session *t)
 {
-	struct http_txn *txn = &t->txn;
 	int s = t->srv_state;
 	int c = t->cli_state;
 	struct buffer *req = t->req;
 	struct buffer *rep = t->rep;
-	appsess *asession_temp = NULL;
-	appsess local_asession;
 	int conn_err;
 
 #ifdef DEBUG_FULL
@@ -2201,507 +2199,62 @@ int process_srv(struct session *t)
 				if (t->srv)
 					t->srv->cum_sess++;
 				rep->rlim = rep->data + BUFSIZE - MAXREWRITE; /* rewrite needed */
+				t->txn.rsp.msg_state = HTTP_MSG_RPBEFORE;
+				/* reset hdr_idx which was already initialized by the request.
+				 * right now, the http parser does it.
+				 * hdr_idx_init(&t->txn.hdr_idx);
+				 */
 			}
 			tv_eternity(&req->cex);
 			return 1;
 		}
 	}
 	else if (s == SV_STHEADERS) { /* receiving server headers */
-		/* now parse the partial (or complete) headers */
-		while (rep->lr < rep->r) { /* this loop only sees one header at each iteration */
-			char *ptr;
-			int delete_header;
+		/*
+		 * Now parse the partial (or complete) lines.
+		 * We will check the response syntax, and also join multi-line
+		 * headers. An index of all the lines will be elaborated while
+		 * parsing.
+		 *
+		 * For the parsing, we use a 28 states FSM.
+		 *
+		 * Here is the information we currently have :
+		 *   rep->data + req->som  = beginning of response
+		 *   rep->data + req->eoh  = end of processed headers / start of current one
+		 *   rep->data + req->eol  = end of current header or line (LF or CRLF)
+		 *   rep->lr = first non-visited byte
+		 *   rep->r  = end of data
+		 */
 
-			ptr = rep->lr;
+		int cur_idx;
+		struct http_txn *txn = &t->txn;
+		struct http_msg *msg = &txn->rsp;
+		struct proxy *cur_proxy;
 
-			/* look for the end of the current header */
-			while (ptr < rep->r && *ptr != '\n' && *ptr != '\r')
-				ptr++;
-	    
-			if (ptr == rep->h) {
-				int line, len;
+		if (likely(rep->lr < rep->r))
+			http_msg_analyzer(rep, msg, &txn->hdr_idx);
 
-				/* we can only get here after an end of headers */
+		/* 1: we might have to print this header in debug mode */
+		if (unlikely((global.mode & MODE_DEBUG) &&
+			     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) &&
+			     (msg->msg_state == HTTP_MSG_BODY || msg->msg_state == HTTP_MSG_ERROR))) {
+			char *eol, *sol;
 
-				/* first, we'll block if security checks have caught nasty things */
-				if (t->flags & SN_CACHEABLE) {
-					if ((t->flags & SN_CACHE_COOK) &&
-					    (t->flags & SN_SCK_ANY) &&
-					    (t->be->beprm->options & PR_O_CHK_CACHE)) {
+			sol = rep->data + msg->som;
+			eol = sol + msg->sl.rq.l;
+			debug_hdr("srvrep", t, sol, eol);
 
-						/* we're in presence of a cacheable response containing
-						 * a set-cookie header. We'll block it as requested by
-						 * the 'checkcache' option, and send an alert.
-						 */
-						tv_eternity(&rep->rex);
-						tv_eternity(&req->wex);
-						fd_delete(t->srv_fd);
-						if (t->srv) {
-							t->srv->cur_sess--;
-							t->srv->failed_secu++;
-						}
-						t->be->beprm->denied_resp++;
-						t->srv_state = SV_STCLOSE;
-						t->logs.status = 502;
-						client_return(t, error_message(t, HTTP_ERR_502));
-						if (!(t->flags & SN_ERR_MASK))
-							t->flags |= SN_ERR_PRXCOND;
-						if (!(t->flags & SN_FINST_MASK))
-							t->flags |= SN_FINST_H;
+			sol += hdr_idx_first_pos(&txn->hdr_idx);
+			cur_idx = hdr_idx_first_idx(&txn->hdr_idx);
 
-						Alert("Blocking cacheable cookie in response from instance %s, server %s.\n", t->be->beprm->id, t->srv->id);
-						send_log(t->be, LOG_ALERT, "Blocking cacheable cookie in response from instance %s, server %s.\n", t->be->beprm->id, t->srv->id);
-
-						/* We used to have a free connection slot. Since we'll never use it,
-						 * we have to inform the server that it may be used by another session.
-						 */
-						if (may_dequeue_tasks(t->srv, t->be->beprm))
-							task_wakeup(&rq, t->srv->queue_mgt);
-
-						return 1;
-					}
-				}
-
-				/* next, we'll block if an 'rspideny' or 'rspdeny' filter matched */
-				if (t->flags & SN_SVDENY) {
-					tv_eternity(&rep->rex);
-					tv_eternity(&req->wex);
-					fd_delete(t->srv_fd);
-					if (t->srv) {
-						t->srv->cur_sess--;
-						t->srv->failed_secu++;
-					}
-					t->be->beprm->denied_resp++;
-					t->srv_state = SV_STCLOSE;
-					t->logs.status = 502;
-					client_return(t, error_message(t, HTTP_ERR_502));
-					if (!(t->flags & SN_ERR_MASK))
-						t->flags |= SN_ERR_PRXCOND;
-					if (!(t->flags & SN_FINST_MASK))
-						t->flags |= SN_FINST_H;
-					/* We used to have a free connection slot. Since we'll never use it,
-					 * we have to inform the server that it may be used by another session.
-					 */
-					if (may_dequeue_tasks(t->srv, t->be->beprm))
-						task_wakeup(&rq, t->srv->queue_mgt);
-
-					return 1;
-				}
-
-				/* we'll have something else to do here : add new headers ... */
-
-				if ((t->srv) && !(t->flags & SN_DIRECT) && (t->be->beprm->options & PR_O_COOK_INS) &&
-				    (!(t->be->beprm->options & PR_O_COOK_POST) || (txn->meth == HTTP_METH_POST))) {
-					/* the server is known, it's not the one the client requested, we have to
-					 * insert a set-cookie here, except if we want to insert only on POST
-					 * requests and this one isn't. Note that servers which don't have cookies
-					 * (eg: some backup servers) will return a full cookie removal request.
-					 */
-					len = sprintf(trash, "Set-Cookie: %s=%s; path=/\r\n",
-						      t->be->beprm->cookie_name,
-						      t->srv->cookie ? t->srv->cookie : "; Expires=Thu, 01-Jan-1970 00:00:01 GMT");
-
-					t->flags |= SN_SCK_INSERTED;
-
-					/* Here, we will tell an eventual cache on the client side that we don't
-					 * want it to cache this reply because HTTP/1.0 caches also cache cookies !
-					 * Some caches understand the correct form: 'no-cache="set-cookie"', but
-					 * others don't (eg: apache <= 1.3.26). So we use 'private' instead.
-					 */
-					if (t->be->beprm->options & PR_O_COOK_NOC)
-						//len += sprintf(newhdr + len, "Cache-control: no-cache=\"set-cookie\"\r\n");
-						len += sprintf(trash + len, "Cache-control: private\r\n");
-
-					if (rep->data + rep->l < rep->h)
-						/* The data has been stolen, we will crash cleanly instead of corrupting memory */
-						*(int *)0 = 0;
-					buffer_replace2(rep, rep->h, rep->h, trash, len);
-				}
-
-				/* headers to be added */
-				/* FIXME: we should add headers from BE then from FE */
-				for (line = 0; line < t->be->fiprm->nb_rspadd; line++) {
-					len = sprintf(trash, "%s\r\n", t->be->fiprm->rsp_add[line]);
-					buffer_replace2(rep, rep->h, rep->h, trash, len);
-				}
-
-				/* add a "connection: close" line if needed */
-				if ((t->fe->options | t->be->beprm->options) & PR_O_HTTP_CLOSE)
-					buffer_replace2(rep, rep->h, rep->h, "Connection: close\r\n", 19);
-
-				t->srv_state = SV_STDATA;
-				rep->rlim = rep->data + BUFSIZE; /* no more rewrite needed */
-				t->logs.t_data = tv_diff(&t->logs.tv_accept, &now);
-
-				/* client connection already closed or option 'httpclose' required :
-				 * we close the server's outgoing connection right now.
-				 */
-				if ((req->l == 0) &&
-				    (c == CL_STSHUTR || c == CL_STCLOSE || t->be->beprm->options & PR_O_FORCE_CLO)) {
-					MY_FD_CLR(t->srv_fd, StaticWriteEvent);
-					tv_eternity(&req->wex);
-
-					/* We must ensure that the read part is still alive when switching
-					 * to shutw */
-					MY_FD_SET(t->srv_fd, StaticReadEvent);
-					if (t->be->beprm->srvtimeout)
-						tv_delayfrom(&rep->rex, &now, t->be->beprm->srvtimeout);
-
-					shutdown(t->srv_fd, SHUT_WR);
-					t->srv_state = SV_STSHUTW;
-				}
-
-#ifdef CONFIG_HAP_TCPSPLICE
-				if ((t->fe->options & t->be->beprm->options) & PR_O_TCPSPLICE) {
-					/* TCP splicing supported by both FE and BE */
-					tcp_splice_splicefd(t->cli_fd, t->srv_fd, 0);
-				}
-#endif
-				/* if the user wants to log as soon as possible, without counting
-				   bytes from the server, then this is the right moment. */
-				if (t->fe->to_log && !(t->logs.logwait & LW_BYTES)) {
-					t->logs.t_close = t->logs.t_data; /* to get a valid end date */
-					t->logs.bytes_in = rep->h - rep->data;
-					sess_log(t);
-				}
-				break;
+			while (cur_idx) {
+				eol = sol + txn->hdr_idx.v[cur_idx].len;
+				debug_hdr("srvhdr", t, sol, eol);
+				sol = eol + txn->hdr_idx.v[cur_idx].cr + 1;
+				cur_idx = txn->hdr_idx.v[cur_idx].next;
 			}
+		}
 
-			/* to get a complete header line, we need the ending \r\n, \n\r, \r or \n too */
-			if (ptr > rep->r - 2) {
-				/* this is a partial header, let's wait for more to come */
-				rep->lr = ptr;
-				break;
-			}
-
-			//	    fprintf(stderr,"h=%p, ptr=%p, lr=%p, r=%p, *h=", rep->h, ptr, rep->lr, rep->r);
-			//	    write(2, rep->h, ptr - rep->h);   fprintf(stderr,"\n");
-
-			/* now we know that *ptr is either \r or \n,
-			 * and that there are at least 1 char after it.
-			 */
-			if ((ptr[0] == ptr[1]) || (ptr[1] != '\r' && ptr[1] != '\n'))
-				rep->lr = ptr + 1; /* \r\r, \n\n, \r[^\n], \n[^\r] */
-			else
-				rep->lr = ptr + 2; /* \r\n or \n\r */
-
-			/*
-			 * now we know that we have a full header ; we can do whatever
-			 * we want with these pointers :
-			 *   rep->h  = beginning of header
-			 *   ptr     = end of header (first \r or \n)
-			 *   rep->lr = beginning of next line (next rep->h)
-			 *   rep->r  = end of data (not used at this stage)
-			 */
-
-
-			if (t->logs.status == -1) {
-				t->logs.logwait &= ~LW_RESP;
-				t->logs.status = atoi(rep->h + 9);
-				switch (t->logs.status) {
-				case 200:
-				case 203:
-				case 206:
-				case 300:
-				case 301:
-				case 410:
-					/* RFC2616 @13.4:
-					 *   "A response received with a status code of
-					 *    200, 203, 206, 300, 301 or 410 MAY be stored
-					 *    by a cache (...) unless a cache-control
-					 *    directive prohibits caching."
-					 *   
-					 * RFC2616 @9.5: POST method :
-					 *   "Responses to this method are not cacheable,
-					 *    unless the response includes appropriate
-					 *    Cache-Control or Expires header fields."
-					 */
-					if (!(txn->meth == HTTP_METH_POST) && (t->be->beprm->options & PR_O_CHK_CACHE))
-						t->flags |= SN_CACHEABLE | SN_CACHE_COOK;
-					break;
-				default:
-					break;
-				}
-			}
-			else if (t->logs.logwait & LW_RSPHDR) {
-				struct cap_hdr *h;
-				int len;
-				for (h = t->fe->fiprm->rsp_cap; h; h = h->next) {
-					if ((h->namelen + 2 <= ptr - rep->h) &&
-					    (rep->h[h->namelen] == ':') &&
-					    (strncasecmp(rep->h, h->name, h->namelen) == 0)) {
-						if (txn->rsp.cap[h->index] == NULL)
-							txn->rsp.cap[h->index] =
-								pool_alloc_from(h->pool, h->len + 1);
-
-						if (txn->rsp.cap[h->index] == NULL) {
-							Alert("HTTP capture : out of memory.\n");
-							continue;
-						}
-
-						len = ptr - (rep->h + h->namelen + 2);
-						if (len > h->len)
-							len = h->len;
-
-						memcpy(txn->rsp.cap[h->index], rep->h + h->namelen + 2, len);
-						txn->rsp.cap[h->index][len]=0;
-					}
-				}
-		
-			}
-
-			delete_header = 0;
-
-			if ((global.mode & MODE_DEBUG) && (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))
-				debug_hdr("srvhdr", t, rep->h, ptr);
-
-			/* remove "connection: " if needed */
-			if (!delete_header &&
-			    ((t->fe->options | t->be->beprm->options) & PR_O_HTTP_CLOSE) &&
-			    (strncasecmp(rep->h, "Connection: ", 12) == 0)) {
-				delete_header = 1;
-			}
-
-			/* try headers regexps */
-			if (!delete_header && t->be->fiprm->rsp_exp != NULL
-			    && !(t->flags & SN_SVDENY)) {
-				struct hdr_exp *exp;
-				char term;
-		
-				term = *ptr;
-				*ptr = '\0';
-				exp = t->be->fiprm->rsp_exp;
-				do {
-					if (regexec(exp->preg, rep->h, MAX_MATCH, pmatch, 0) == 0) {
-						switch (exp->action) {
-						case ACT_ALLOW:
-							if (!(t->flags & SN_SVDENY))
-								t->flags |= SN_SVALLOW;
-							break;
-						case ACT_REPLACE:
-							if (!(t->flags & SN_SVDENY)) {
-								int len = exp_replace(trash, rep->h, exp->replace, pmatch);
-								ptr += buffer_replace2(rep, rep->h, ptr, trash, len);
-							}
-							break;
-						case ACT_REMOVE:
-							if (!(t->flags & SN_SVDENY))
-								delete_header = 1;
-							break;
-						case ACT_DENY:
-							if (!(t->flags & SN_SVALLOW))
-								t->flags |= SN_SVDENY;
-							break;
-						case ACT_PASS: /* we simply don't deny this one */
-							break;
-						}
-						break;
-					}
-				} while ((exp = exp->next) != NULL);
-				*ptr = term; /* restore the string terminator */
-			}
-	    
-			/* check for cache-control: or pragma: headers */
-			if (!delete_header && (t->flags & SN_CACHEABLE)) {
-				if (strncasecmp(rep->h, "Pragma: no-cache", 16) == 0)
-					t->flags &= ~SN_CACHEABLE & ~SN_CACHE_COOK;
-				else if (strncasecmp(rep->h, "Cache-control: ", 15) == 0) {
-					if (strncasecmp(rep->h + 15, "no-cache", 8) == 0) {
-						if (rep->h + 23 == ptr || rep->h[23] == ',')
-							t->flags &= ~SN_CACHEABLE & ~SN_CACHE_COOK;
-						else {
-							if (strncasecmp(rep->h + 23, "=\"set-cookie", 12) == 0
-							    && (rep->h[35] == '"' || rep->h[35] == ','))
-								t->flags &= ~SN_CACHE_COOK;
-						}
-					} else if ((strncasecmp(rep->h + 15, "private", 7) == 0 &&
-						    (rep->h + 22 == ptr || rep->h[22] == ','))
-						   || (strncasecmp(rep->h + 15, "no-store", 8) == 0 &&
-						       (rep->h + 23 == ptr || rep->h[23] == ','))) {
-						t->flags &= ~SN_CACHEABLE & ~SN_CACHE_COOK;
-					} else if (strncasecmp(rep->h + 15, "max-age=0", 9) == 0 &&
-						   (rep->h + 24 == ptr || rep->h[24] == ',')) {
-						t->flags &= ~SN_CACHEABLE & ~SN_CACHE_COOK;
-					} else if (strncasecmp(rep->h + 15, "s-maxage=0", 10) == 0 &&
-						   (rep->h + 25 == ptr || rep->h[25] == ',')) {
-						t->flags &= ~SN_CACHEABLE & ~SN_CACHE_COOK;
-					} else if (strncasecmp(rep->h + 15, "public", 6) == 0 &&
-						   (rep->h + 21 == ptr || rep->h[21] == ',')) {
-						t->flags |= SN_CACHEABLE | SN_CACHE_COOK;
-					}
-				}
-			}
-
-			/* check for server cookies */
-			if (!delete_header /*&& (t->proxy->options & PR_O_COOK_ANY)*/
-			    && (t->be->beprm->cookie_name != NULL ||
-				t->be->fiprm->capture_name != NULL ||
-				t->be->beprm->appsession_name !=NULL)
-			    && (strncasecmp(rep->h, "Set-Cookie: ", 12) == 0)) {
-				char *p1, *p2, *p3, *p4;
-		
-				t->flags |= SN_SCK_ANY;
-
-				p1 = rep->h + 12; /* first char after 'Set-Cookie: ' */
-		
-				while (p1 < ptr) { /* in fact, we'll break after the first cookie */
-					while (p1 < ptr && (isspace((int)*p1)))
-						p1++;
-		    
-					if (p1 == ptr || *p1 == ';') /* end of cookie */
-						break;
-		    
-					/* p1 is at the beginning of the cookie name */
-					p2 = p1;
-		    
-					while (p2 < ptr && *p2 != '=' && *p2 != ';')
-						p2++;
-		    
-					if (p2 == ptr || *p2 == ';') /* next cookie */
-						break;
-		    
-					p3 = p2 + 1; /* skips the '=' sign */
-					if (p3 == ptr)
-						break;
-		    
-					p4 = p3;
-					while (p4 < ptr && !isspace((int)*p4) && *p4 != ';')
-						p4++;
-		    
-					/* here, we have the cookie name between p1 and p2,
-					 * and its value between p3 and p4.
-					 * we can process it.
-					 */
-
-					/* first, let's see if we want to capture it */
-					if (t->be->fiprm->capture_name != NULL &&
-					    t->logs.srv_cookie == NULL &&
-					    (p4 - p1 >= t->be->fiprm->capture_namelen) &&
-					    memcmp(p1, t->be->fiprm->capture_name, t->be->fiprm->capture_namelen) == 0) {
-						int log_len = p4 - p1;
-
-						if ((t->logs.srv_cookie = pool_alloc(capture)) == NULL) {
-							Alert("HTTP logging : out of memory.\n");
-						}
-
-						if (log_len > t->be->fiprm->capture_len)
-							log_len = t->be->fiprm->capture_len;
-						memcpy(t->logs.srv_cookie, p1, log_len);
-						t->logs.srv_cookie[log_len] = 0;
-					}
-
-					if ((p2 - p1 == t->be->beprm->cookie_len) && (t->be->beprm->cookie_name != NULL) &&
-					    (memcmp(p1, t->be->beprm->cookie_name, p2 - p1) == 0)) {
-						/* Cool... it's the right one */
-						t->flags |= SN_SCK_SEEN;
-			
-						/* If the cookie is in insert mode on a known server, we'll delete
-						 * this occurrence because we'll insert another one later.
-						 * We'll delete it too if the "indirect" option is set and we're in
-						 * a direct access. */
-						if (((t->srv) && (t->be->beprm->options & PR_O_COOK_INS)) ||
-						    ((t->flags & SN_DIRECT) && (t->be->beprm->options & PR_O_COOK_IND))) {
-							/* this header must be deleted */
-							delete_header = 1;
-							t->flags |= SN_SCK_DELETED;
-						}
-						else if ((t->srv) && (t->srv->cookie) &&
-							 (t->be->beprm->options & PR_O_COOK_RW)) {
-							/* replace bytes p3->p4 with the cookie name associated
-							 * with this server since we know it.
-							 */
-							buffer_replace2(rep, p3, p4, t->srv->cookie, t->srv->cklen);
-							t->flags |= SN_SCK_INSERTED | SN_SCK_DELETED;
-						}
-						else if ((t->srv) && (t->srv->cookie) &&
-							 (t->be->beprm->options & PR_O_COOK_PFX)) {
-							/* insert the cookie name associated with this server
-							 * before existing cookie, and insert a delimitor between them..
-							 */
-							buffer_replace2(rep, p3, p3, t->srv->cookie, t->srv->cklen + 1);
-							p3[t->srv->cklen] = COOKIE_DELIM;
-							t->flags |= SN_SCK_INSERTED | SN_SCK_DELETED;
-						}
-						break;
-					}
-
-					/* first, let's see if the cookie is our appcookie*/
-					if ((t->be->beprm->appsession_name != NULL) &&
-					    (memcmp(p1, t->be->beprm->appsession_name, p2 - p1) == 0)) {
-
-						/* Cool... it's the right one */
-
-						size_t server_id_len = strlen(t->srv->id) + 1;
-						asession_temp = &local_asession;
-		      
-						if ((asession_temp->sessid = pool_alloc_from(apools.sessid, apools.ses_msize)) == NULL) {
-							Alert("Not enought Memory process_srv():asession->sessid:malloc().\n");
-							send_log(t->be, LOG_ALERT, "Not enought Memory process_srv():asession->sessid:malloc().\n");
-						}
-						memcpy(asession_temp->sessid, p3, t->be->beprm->appsession_len);
-						asession_temp->sessid[t->be->beprm->appsession_len] = 0;
-						asession_temp->serverid = NULL;
-
-						/* only do insert, if lookup fails */
-						if (chtbl_lookup(&(t->be->htbl_proxy), (void *) &asession_temp) != 0) {
-							if ((asession_temp = pool_alloc(appsess)) == NULL) {
-								Alert("Not enought Memory process_srv():asession:calloc().\n");
-								send_log(t->be, LOG_ALERT, "Not enought Memory process_srv():asession:calloc().\n");
-								return 0;
-							}
-							asession_temp->sessid = local_asession.sessid;
-							asession_temp->serverid = local_asession.serverid;
-							chtbl_insert(&(t->be->beprm->htbl_proxy), (void *) asession_temp);
-						}/* end if (chtbl_lookup()) */
-						else {
-							/* free wasted memory */
-							pool_free_to(apools.sessid, local_asession.sessid);
-						} /* end else from if (chtbl_lookup()) */
-		      
-						if (asession_temp->serverid == NULL) {
-							if ((asession_temp->serverid = pool_alloc_from(apools.serverid, apools.ser_msize)) == NULL) {
-								Alert("Not enought Memory process_srv():asession->sessid:malloc().\n");
-								send_log(t->be, LOG_ALERT, "Not enought Memory process_srv():asession->sessid:malloc().\n");
-							}
-							asession_temp->serverid[0] = '\0';
-						}
-		      
-						if (asession_temp->serverid[0] == '\0')
-							memcpy(asession_temp->serverid,t->srv->id,server_id_len);
-		      
-						tv_delayfrom(&asession_temp->expire, &now, t->be->beprm->appsession_timeout);
-
-#if defined(DEBUG_HASH)
-						print_table(&(t->be->beprm->htbl_proxy));
-#endif
-						break;
-					}/* end if ((t->proxy->appsession_name != NULL) ... */
-					else {
-						//	fprintf(stderr,"Ignoring unknown cookie : ");
-						//	write(2, p1, p2-p1);
-						//	fprintf(stderr," = ");
-						//	write(2, p3, p4-p3);
-						//	fprintf(stderr,"\n");
-					}
-					break; /* we don't want to loop again since there cannot be another cookie on the same line */
-				} /* we're now at the end of the cookie value */
-			} /* end of cookie processing */
-
-			/* check for any set-cookie in case we check for cacheability */
-			if (!delete_header && !(t->flags & SN_SCK_ANY) &&
-			    (t->be->beprm->options & PR_O_CHK_CACHE) &&
-			    (strncasecmp(rep->h, "Set-Cookie: ", 12) == 0)) {
-				t->flags |= SN_SCK_ANY;
-			}
-
-			/* let's look if we have to delete this header */
-			if (delete_header && !(t->flags & SN_SVDENY))
-				buffer_replace2(rep, rep->h, rep->lr, "", 0);
-
-			rep->h = rep->lr;
-		} /* while (rep->lr < rep->r) */
-
-		/* end of header processing (even if incomplete) */
 
 		if ((rep->l < rep->rlim - rep->data) && ! MY_FD_ISSET(t->srv_fd, StaticReadEvent)) {
 			/* fd in StaticReadEvent was disabled, perhaps because of a previous buffer
@@ -2715,147 +2268,487 @@ int process_srv(struct session *t)
 				tv_eternity(&rep->rex);
 		}
 
-		/* read error, write error */
-		if (req->flags & BF_WRITE_ERROR || rep->flags & BF_READ_ERROR) {
-			tv_eternity(&rep->rex);
-			tv_eternity(&req->wex);
-			fd_delete(t->srv_fd);
-			if (t->srv) {
-				t->srv->cur_sess--;
-				t->srv->failed_resp++;
-			}
-			t->be->failed_resp++;
-			t->srv_state = SV_STCLOSE;
-			t->logs.status = 502;
-			client_return(t, error_message(t, HTTP_ERR_502));
-			if (!(t->flags & SN_ERR_MASK))
-				t->flags |= SN_ERR_SRVCL;
-			if (!(t->flags & SN_FINST_MASK))
-				t->flags |= SN_FINST_H;
-			/* We used to have a free connection slot. Since we'll never use it,
-			 * we have to inform the server that it may be used by another session.
-			 */
-			if (may_dequeue_tasks(t->srv, t->be->beprm))
-				task_wakeup(&rq, t->srv->queue_mgt);
 
-			return 1;
-		}
-		/* end of client write or end of server read.
-		 * since we are in header mode, if there's no space left for headers, we
-		 * won't be able to free more later, so the session will never terminate.
+		/*
+		 * Now we quickly check if we have found a full valid response.
+		 * If not so, we check the FD and buffer states before leaving.
+		 * A full response is indicated by the fact that we have seen
+		 * the double LF/CRLF, so the state is HTTP_MSG_BODY. Invalid
+		 * responses are checked first.
+		 *
+		 * Depending on whether the client is still there or not, we
+		 * may send an error response back or not. Note that normally
+		 * we should only check for HTTP status there, and check I/O
+		 * errors somewhere else.
 		 */
-		else if (rep->flags & BF_READ_NULL || c == CL_STSHUTW || c == CL_STCLOSE || rep->l >= rep->rlim - rep->data) {
-			MY_FD_CLR(t->srv_fd, StaticReadEvent);
-			tv_eternity(&rep->rex);
-			shutdown(t->srv_fd, SHUT_RD);
-			t->srv_state = SV_STSHUTR;
-			//fprintf(stderr,"%p:%s(%d), c=%d, s=%d\n", t, __FUNCTION__, __LINE__, t->cli_state, t->cli_state);
-			return 1;
-		}	
-		/* read timeout : return a 504 to the client.
-		 */
-		else if (MY_FD_ISSET(t->srv_fd, StaticReadEvent) && tv_cmp2_ms(&rep->rex, &now) <= 0) {
-			tv_eternity(&rep->rex);
-			tv_eternity(&req->wex);
-			fd_delete(t->srv_fd);
-			if (t->srv) {
-				t->srv->cur_sess--;
-				t->srv->failed_resp++;
-			}
-			t->be->failed_resp++;
-			t->srv_state = SV_STCLOSE;
-			t->logs.status = 504;
-			client_return(t, error_message(t, HTTP_ERR_504));
-			if (!(t->flags & SN_ERR_MASK))
-				t->flags |= SN_ERR_SRVTO;
-			if (!(t->flags & SN_FINST_MASK))
-				t->flags |= SN_FINST_H;
-			/* We used to have a free connection slot. Since we'll never use it,
-			 * we have to inform the server that it may be used by another session.
-			 */
-			if (may_dequeue_tasks(t->srv, t->be->beprm))
-				task_wakeup(&rq, t->srv->queue_mgt);
 
-			return 1;
-		}	
-		/* last client read and buffer empty */
-		/* FIXME!!! here, we don't want to switch to SHUTW if the
-		 * client shuts read too early, because we may still have
-		 * some work to do on the headers.
-		 * The side-effect is that if the client completely closes its
-		 * connection during SV_STHEADER, the connection to the server
-		 * is kept until a response comes back or the timeout is reached.
-		 */
-		else if ((/*c == CL_STSHUTR ||*/ c == CL_STCLOSE) && (req->l == 0)) {
-			MY_FD_CLR(t->srv_fd, StaticWriteEvent);
-			tv_eternity(&req->wex);
+		if (unlikely(msg->msg_state != HTTP_MSG_BODY)) {
 
-			/* We must ensure that the read part is still alive when switching
-			 * to shutw */
-			MY_FD_SET(t->srv_fd, StaticReadEvent);
-			if (t->be->beprm->srvtimeout)
-				tv_delayfrom(&rep->rex, &now, t->be->beprm->srvtimeout);
-
-			shutdown(t->srv_fd, SHUT_WR);
-			t->srv_state = SV_STSHUTW;
-			return 1;
-		}
-		/* write timeout */
-		/* FIXME!!! here, we don't want to switch to SHUTW if the
-		 * client shuts read too early, because we may still have
-		 * some work to do on the headers.
-		 */
-		else if (MY_FD_ISSET(t->srv_fd, StaticWriteEvent) && tv_cmp2_ms(&req->wex, &now) <= 0) {
-			MY_FD_CLR(t->srv_fd, StaticWriteEvent);
-			tv_eternity(&req->wex);
-			shutdown(t->srv_fd, SHUT_WR);
-			/* We must ensure that the read part is still alive when switching
-			 * to shutw */
-			MY_FD_SET(t->srv_fd, StaticReadEvent);
-			if (t->be->beprm->srvtimeout)
-				tv_delayfrom(&rep->rex, &now, t->be->beprm->srvtimeout);
-
-			/* We must ensure that the read part is still alive when switching
-			 * to shutw */
-			MY_FD_SET(t->srv_fd, StaticReadEvent);
-			if (t->be->beprm->srvtimeout)
-				tv_delayfrom(&rep->rex, &now, t->be->beprm->srvtimeout);
-
-			t->srv_state = SV_STSHUTW;
-			if (!(t->flags & SN_ERR_MASK))
-				t->flags |= SN_ERR_SRVTO;
-			if (!(t->flags & SN_FINST_MASK))
-				t->flags |= SN_FINST_H;
-			return 1;
-		}
-
-		if (req->l == 0) {
-			if (MY_FD_ISSET(t->srv_fd, StaticWriteEvent)) {
-				MY_FD_CLR(t->srv_fd, StaticWriteEvent); /* stop writing */
+			/* Invalid response, or read error or write error */
+			if (unlikely((msg->msg_state == HTTP_MSG_ERROR) ||
+			             (req->flags & BF_WRITE_ERROR) ||
+			             (rep->flags & BF_READ_ERROR))) {
+				tv_eternity(&rep->rex);
 				tv_eternity(&req->wex);
-			}
-		}
-		else { /* client buffer not empty */
-			if (! MY_FD_ISSET(t->srv_fd, StaticWriteEvent)) {
-				MY_FD_SET(t->srv_fd, StaticWriteEvent); /* restart writing */
-				if (t->be->beprm->srvtimeout) {
-					tv_delayfrom(&req->wex, &now, t->be->beprm->srvtimeout);
-					/* FIXME: to prevent the server from expiring read timeouts during writes,
-					 * we refresh it. */
-					rep->rex = req->wex;
+				fd_delete(t->srv_fd);
+				if (t->srv) {
+					t->srv->cur_sess--;
+					t->srv->failed_resp++;
 				}
-				else
+				t->be->failed_resp++;
+				t->srv_state = SV_STCLOSE;
+				t->logs.status = 502;
+				client_return(t, error_message(t, HTTP_ERR_502));
+				if (!(t->flags & SN_ERR_MASK))
+					t->flags |= SN_ERR_SRVCL;
+				if (!(t->flags & SN_FINST_MASK))
+					t->flags |= SN_FINST_H;
+				/* We used to have a free connection slot. Since we'll never use it,
+				 * we have to inform the server that it may be used by another session.
+				 */
+				if (t->srv && may_dequeue_tasks(t->srv, t->be->beprm))
+					task_wakeup(&rq, t->srv->queue_mgt);
+
+				return 1;
+			}
+
+			/* end of client write or end of server read.
+			 * since we are in header mode, if there's no space left for headers, we
+			 * won't be able to free more later, so the session will never terminate.
+			 */
+			else if (unlikely(rep->flags & BF_READ_NULL ||
+			                  c == CL_STSHUTW || c == CL_STCLOSE ||
+			                  rep->l >= rep->rlim - rep->data)) {
+				MY_FD_CLR(t->srv_fd, StaticReadEvent);
+				tv_eternity(&rep->rex);
+				shutdown(t->srv_fd, SHUT_RD);
+				t->srv_state = SV_STSHUTR;
+				//fprintf(stderr,"%p:%s(%d), c=%d, s=%d\n", t, __FUNCTION__, __LINE__, t->cli_state, t->cli_state);
+				return 1;
+			}
+
+			/* read timeout : return a 504 to the client.
+			 */
+			else if (unlikely(MY_FD_ISSET(t->srv_fd, StaticReadEvent) &&
+			                  tv_cmp2_ms(&rep->rex, &now) <= 0)) {
+				tv_eternity(&rep->rex);
+				tv_eternity(&req->wex);
+				fd_delete(t->srv_fd);
+				if (t->srv) {
+					t->srv->cur_sess--;
+					t->srv->failed_resp++;
+				}
+				t->be->failed_resp++;
+				t->srv_state = SV_STCLOSE;
+				t->logs.status = 504;
+				client_return(t, error_message(t, HTTP_ERR_504));
+				if (!(t->flags & SN_ERR_MASK))
+					t->flags |= SN_ERR_SRVTO;
+				if (!(t->flags & SN_FINST_MASK))
+					t->flags |= SN_FINST_H;
+				/* We used to have a free connection slot. Since we'll never use it,
+				 * we have to inform the server that it may be used by another session.
+				 */
+				if (t->srv && may_dequeue_tasks(t->srv, t->be->beprm))
+					task_wakeup(&rq, t->srv->queue_mgt);
+				return 1;
+			}
+
+			/* last client read and buffer empty */
+			/* FIXME!!! here, we don't want to switch to SHUTW if the
+			 * client shuts read too early, because we may still have
+			 * some work to do on the headers.
+			 * The side-effect is that if the client completely closes its
+			 * connection during SV_STHEADER, the connection to the server
+			 * is kept until a response comes back or the timeout is reached.
+			 */
+			else if (unlikely((/*c == CL_STSHUTR ||*/ c == CL_STCLOSE) &&
+			                  (req->l == 0))) {
+				MY_FD_CLR(t->srv_fd, StaticWriteEvent);
+				tv_eternity(&req->wex);
+
+				/* We must ensure that the read part is still
+				 * alive when switching to shutw */
+				MY_FD_SET(t->srv_fd, StaticReadEvent);
+				if (t->be->beprm->srvtimeout)
+					tv_delayfrom(&rep->rex, &now, t->be->beprm->srvtimeout);
+
+				shutdown(t->srv_fd, SHUT_WR);
+				t->srv_state = SV_STSHUTW;
+				return 1;
+			}
+
+			/* write timeout */
+			/* FIXME!!! here, we don't want to switch to SHUTW if the
+			 * client shuts read too early, because we may still have
+			 * some work to do on the headers.
+			 */
+			else if (unlikely(MY_FD_ISSET(t->srv_fd, StaticWriteEvent) &&
+			                  tv_cmp2_ms(&req->wex, &now) <= 0)) {
+				MY_FD_CLR(t->srv_fd, StaticWriteEvent);
+				tv_eternity(&req->wex);
+				shutdown(t->srv_fd, SHUT_WR);
+				/* We must ensure that the read part is still alive
+				 * when switching to shutw */
+				MY_FD_SET(t->srv_fd, StaticReadEvent);
+				if (t->be->beprm->srvtimeout)
+					tv_delayfrom(&rep->rex, &now, t->be->beprm->srvtimeout);
+
+				t->srv_state = SV_STSHUTW;
+				if (!(t->flags & SN_ERR_MASK))
+					t->flags |= SN_ERR_SRVTO;
+				if (!(t->flags & SN_FINST_MASK))
+					t->flags |= SN_FINST_H;
+				return 1;
+			}
+
+			/*
+			 * And now the non-error cases.
+			 */
+
+			/* Data remaining in the request buffer.
+			 * This happens during the first pass here, and during
+			 * long posts.
+			 */
+			else if (likely(req->l)) {
+				if (! MY_FD_ISSET(t->srv_fd, StaticWriteEvent)) {
+					MY_FD_SET(t->srv_fd, StaticWriteEvent); /* restart writing */
+					if (t->be->beprm->srvtimeout) {
+						tv_delayfrom(&req->wex, &now, t->be->beprm->srvtimeout);
+						/* FIXME: to prevent the server from expiring read timeouts during writes,
+						 * we refresh it. */
+						rep->rex = req->wex;
+					}
+					else
+						tv_eternity(&req->wex);
+				}
+			}
+
+			/* nothing left in the request buffer */
+			else {
+				if (MY_FD_ISSET(t->srv_fd, StaticWriteEvent)) {
+					MY_FD_CLR(t->srv_fd, StaticWriteEvent); /* stop writing */
 					tv_eternity(&req->wex);
+				}
+			}
+
+			return t->srv_state != SV_STHEADERS;
+		}
+
+
+		/*****************************************************************
+		 * More interesting part now : we know that we have a complete   *
+		 * response which at least looks like HTTP. We have an indicator *
+		 * of each header's length, so we can parse them quickly.        *
+		 ****************************************************************/
+
+		/*
+		 * 1: get the status code and check for cacheability.
+		 */
+
+		t->logs.logwait &= ~LW_RESP;
+		t->logs.status = strl2ui(rep->data + msg->sl.st.c, msg->sl.st.c_l);
+
+		switch (t->logs.status) {
+		case 200:
+		case 203:
+		case 206:
+		case 300:
+		case 301:
+		case 410:
+			/* RFC2616 @13.4:
+			 *   "A response received with a status code of
+			 *    200, 203, 206, 300, 301 or 410 MAY be stored
+			 *    by a cache (...) unless a cache-control
+			 *    directive prohibits caching."
+			 *   
+			 * RFC2616 @9.5: POST method :
+			 *   "Responses to this method are not cacheable,
+			 *    unless the response includes appropriate
+			 *    Cache-Control or Expires header fields."
+			 */
+			if (likely(txn->meth != HTTP_METH_POST) &&
+			    unlikely(t->be->beprm->options & PR_O_CHK_CACHE))
+				t->flags |= SN_CACHEABLE | SN_CACHE_COOK;
+			break;
+		default:
+			break;
+		}
+
+		/*
+		 * 2: we may need to capture headers
+		 */
+		if (unlikely((t->logs.logwait & LW_RSPHDR) && t->fe->fiprm->rsp_cap))
+			capture_headers(rep->data + msg->som, &txn->hdr_idx,
+					txn->rsp.cap, t->fe->fiprm->rsp_cap);
+
+		/*
+		 * 3: we will have to evaluate the filters.
+		 * As opposed to version 1.2, now they will be evaluated in the
+		 * filters order and not in the header order. This means that
+		 * each filter has to be validated among all headers.
+		 *
+		 * Filters are tried with ->be first, then with ->fe if it is
+		 * different from ->be.
+		 */
+
+		t->flags &= ~SN_CONN_CLOSED; /* prepare for inspection */
+
+		cur_proxy = t->be;
+		while (1) {
+			struct proxy *rule_set = cur_proxy->fiprm;
+
+			/* try headers filters */
+			if (rule_set->rsp_exp != NULL) {
+				if (apply_filters_to_response(t, rep, rule_set->rsp_exp) < 0) {
+				return_bad_resp:
+					if (t->srv) {
+						t->srv->cur_sess--;
+						t->srv->failed_resp++;
+					}
+					cur_proxy->beprm->failed_resp++;
+				return_srv_prx_502:
+					tv_eternity(&rep->rex);
+					tv_eternity(&req->wex);
+					fd_delete(t->srv_fd);
+					t->srv_state = SV_STCLOSE;
+					t->logs.status = 502;
+					client_return(t, error_message(t, HTTP_ERR_502));
+					if (!(t->flags & SN_ERR_MASK))
+						t->flags |= SN_ERR_PRXCOND;
+					if (!(t->flags & SN_FINST_MASK))
+						t->flags |= SN_FINST_H;
+					/* We used to have a free connection slot. Since we'll never use it,
+					 * we have to inform the server that it may be used by another session.
+					 */
+					if (t->srv && may_dequeue_tasks(t->srv, cur_proxy->beprm))
+						task_wakeup(&rq, t->srv->queue_mgt);
+					return 1;
+				}
+			}
+
+			/* has the response been denied ? */
+			if (t->flags & SN_SVDENY) {
+				if (t->srv) {
+					t->srv->cur_sess--;
+					t->srv->failed_secu++;
+				}
+				cur_proxy->beprm->denied_resp++;
+				goto return_srv_prx_502;
+			}
+
+			/* We might have to check for "Connection:" */
+			if (((t->fe->options | t->be->beprm->options) & PR_O_HTTP_CLOSE) &&
+			    !(t->flags & SN_CONN_CLOSED)) {
+				char *cur_ptr, *cur_end, *cur_next;
+				int cur_idx, old_idx, delta;
+				struct hdr_idx_elem *cur_hdr;
+
+				cur_next = rep->data + txn->rsp.som + hdr_idx_first_pos(&txn->hdr_idx);
+				old_idx = 0;
+
+				while ((cur_idx = txn->hdr_idx.v[old_idx].next)) {
+					cur_hdr  = &txn->hdr_idx.v[cur_idx];
+					cur_ptr  = cur_next;
+					cur_end  = cur_ptr + cur_hdr->len;
+					cur_next = cur_end + cur_hdr->cr + 1;
+
+					if (strncasecmp(cur_ptr, "Connection:", 11) == 0) {
+						/* 3 possibilities :
+						 * - we have already set Connection: close,
+						 *   so we remove this line.
+						 * - we have not yet set Connection: close,
+						 *   but this line indicates close. We leave
+						 *   it untouched and set the flag.
+						 * - we have not yet set Connection: close,
+						 *   and this line indicates non-close. We
+						 *   replace it.
+						 */
+						if (t->flags & SN_CONN_CLOSED) {
+							delta = buffer_replace2(rep, cur_ptr, cur_next, NULL, 0);
+							txn->rsp.eoh += delta;
+							cur_next += delta;
+							txn->hdr_idx.v[old_idx].next = cur_hdr->next;
+							txn->hdr_idx.used--;
+							cur_hdr->len = 0;
+						} else {
+							if (cur_ptr + 17 > cur_end ||
+							    !http_is_lws[(unsigned char)*(cur_ptr+17)] ||
+							    strncasecmp(cur_ptr+11, " close", 6)) {
+								delta = buffer_replace2(rep, cur_ptr+11, cur_end,
+											" close", 6);
+								cur_next += delta;
+								cur_hdr->len += delta;
+								txn->rsp.eoh += delta;
+							}
+							t->flags |= SN_CONN_CLOSED;
+						}
+					}
+					old_idx = cur_idx;
+				}
+			}
+
+			/* add response headers from the rule sets in the same order */
+			for (cur_idx = 0; cur_idx < rule_set->nb_rspadd; cur_idx++) {
+				int len;
+
+				len = sprintf(trash, "%s\r\n", rule_set->rsp_add[cur_idx]);
+				len = buffer_replace2(rep, rep->data + txn->rsp.eoh,
+				                      rep->data + txn->rsp.eoh, trash, len);
+				txn->rsp.eoh += len;
+				
+				if (unlikely(hdr_idx_add(len - 2, 1, &txn->hdr_idx, txn->hdr_idx.tail) < 0))
+					goto return_bad_resp;
+			}
+
+			/* check whether we're already working on the frontend */
+			if (cur_proxy == t->fe)
+				break;
+			cur_proxy = t->fe;
+		}
+
+		/*
+		 * 4: check for server cookie.
+		 */
+		manage_server_side_cookies(t, rep);
+
+		/*
+		 * 5: add server cookie in the response if needed
+		 */
+		if ((t->srv) && !(t->flags & SN_DIRECT) && (t->be->beprm->options & PR_O_COOK_INS) &&
+		    (!(t->be->beprm->options & PR_O_COOK_POST) || (txn->meth == HTTP_METH_POST))) {
+			int len;
+
+			/* the server is known, it's not the one the client requested, we have to
+			 * insert a set-cookie here, except if we want to insert only on POST
+			 * requests and this one isn't. Note that servers which don't have cookies
+			 * (eg: some backup servers) will return a full cookie removal request.
+			 */
+			len = sprintf(trash, "Set-Cookie: %s=%s; path=/\r\n",
+				      t->be->beprm->cookie_name,
+				      t->srv->cookie ? t->srv->cookie : "; Expires=Thu, 01-Jan-1970 00:00:01 GMT");
+
+			len = buffer_replace2(rep, rep->data + txn->rsp.eoh, rep->data + txn->rsp.eoh, trash, len);
+			txn->rsp.eoh += len;
+
+			if (hdr_idx_add(len - 2, 1, &txn->hdr_idx, txn->hdr_idx.tail) < 0)
+				goto return_bad_resp;
+
+			t->flags |= SN_SCK_INSERTED;
+
+			/* Here, we will tell an eventual cache on the client side that we don't
+			 * want it to cache this reply because HTTP/1.0 caches also cache cookies !
+			 * Some caches understand the correct form: 'no-cache="set-cookie"', but
+			 * others don't (eg: apache <= 1.3.26). So we use 'private' instead.
+			 */
+			if (t->be->beprm->options & PR_O_COOK_NOC) {
+				//len += sprintf(newhdr + len, "Cache-control: no-cache=\"set-cookie\"\r\n");
+				len = sprintf(trash, "Cache-control: private\r\n");
+
+				len = buffer_replace2(rep, rep->data + txn->rsp.eoh,
+				                     rep->data + txn->rsp.eoh, trash, len);
+				txn->rsp.eoh += len;
+				if (hdr_idx_add(len - 2, 1, &txn->hdr_idx, txn->hdr_idx.tail) < 0)
+					goto return_bad_resp;
 			}
 		}
 
-		/* be nice with the client side which would like to send a complete header
-		 * FIXME: COMPLETELY BUGGY !!! not all headers may be processed because the client
-		 * would read all remaining data at once ! The client should not write past rep->lr
-		 * when the server is in header state.
+
+		/*
+		 * 6: check for cache-control or pragma headers.
 		 */
-		//return header_processed;
-		return t->srv_state != SV_STHEADERS;
+		check_response_for_cacheability(t, rep);
+
+
+		/*
+		 * 7: check if result will be cacheable with a cookie.
+		 * We'll block the response if security checks have caught
+		 * nasty things such as a cacheable cookie.
+		 */
+		if (((t->flags & (SN_CACHEABLE | SN_CACHE_COOK | SN_SCK_ANY)) ==
+		     (SN_CACHEABLE | SN_CACHE_COOK | SN_SCK_ANY)) &&
+		    (t->be->beprm->options & PR_O_CHK_CACHE)) {
+
+			/* we're in presence of a cacheable response containing
+			 * a set-cookie header. We'll block it as requested by
+			 * the 'checkcache' option, and send an alert.
+			 */
+			if (t->srv) {
+				t->srv->cur_sess--;
+				t->srv->failed_secu++;
+			}
+			t->be->beprm->denied_resp++;
+
+			Alert("Blocking cacheable cookie in response from instance %s, server %s.\n",
+			      t->be->beprm->id, t->srv?t->srv->id:"<dispatch>");
+			send_log(t->be, LOG_ALERT,
+				 "Blocking cacheable cookie in response from instance %s, server %s.\n",
+				 t->be->beprm->id, t->srv?t->srv->id:"<dispatch>");
+			goto return_srv_prx_502;
+		}
+
+		/*
+		 * 8: add "Connection: close" if needed and not yet set.
+		 */
+		if (((t->fe->options | t->be->beprm->options) & PR_O_HTTP_CLOSE) &&
+		    !(t->flags & SN_CONN_CLOSED)) {
+			int len;
+			len = buffer_replace2(rep, rep->data + txn->rsp.eoh,
+					      rep->data + txn->rsp.eoh, "Connection: close\r\n", 19);
+			txn->rsp.eoh += len;
+
+			if (hdr_idx_add(17, 1, &txn->hdr_idx, txn->hdr_idx.tail) < 0)
+				goto return_bad_resp;
+			t->flags |= SN_CONN_CLOSED;
+		}
+
+
+		/*************************************************************
+		 * OK, that's finished for the headers. We have done what we *
+		 * could. Let's switch to the DATA state.                    *
+		 ************************************************************/
+
+		t->srv_state = SV_STDATA;
+		rep->rlim = rep->data + BUFSIZE; /* no more rewrite needed */
+		t->logs.t_data = tv_diff(&t->logs.tv_accept, &now);
+
+		/* client connection already closed or option 'forceclose' required :
+		 * we close the server's outgoing connection right now.
+		 */
+		if ((req->l == 0) &&
+		    (c == CL_STSHUTR || c == CL_STCLOSE || t->be->beprm->options & PR_O_FORCE_CLO)) {
+			MY_FD_CLR(t->srv_fd, StaticWriteEvent);
+			tv_eternity(&req->wex);
+
+			/* We must ensure that the read part is still alive when switching
+			 * to shutw */
+			MY_FD_SET(t->srv_fd, StaticReadEvent);
+			if (t->be->beprm->srvtimeout)
+				tv_delayfrom(&rep->rex, &now, t->be->beprm->srvtimeout);
+
+			shutdown(t->srv_fd, SHUT_WR);
+			t->srv_state = SV_STSHUTW;
+		}
+
+#ifdef CONFIG_HAP_TCPSPLICE
+		if ((t->fe->options & t->be->beprm->options) & PR_O_TCPSPLICE) {
+			/* TCP splicing supported by both FE and BE */
+			tcp_splice_splicefd(t->cli_fd, t->srv_fd, 0);
+		}
+#endif
+		/* if the user wants to log as soon as possible, without counting
+		   bytes from the server, then this is the right moment. */
+		if (t->fe->to_log && !(t->logs.logwait & LW_BYTES)) {
+			t->logs.t_close = t->logs.t_data; /* to get a valid end date */
+			t->logs.bytes_in = rep->h - rep->data;
+			sess_log(t);
+		}
+
+		/* Note: we must not try to cheat by jumping directly to DATA,
+		 * otherwise we would not let the client side wake up.
+		 */
+
+		return 1;
 	}
 	else if (s == SV_STDATA) {
 		/* read or write error */
@@ -3135,7 +3028,8 @@ int process_srv(struct session *t)
 	else { /* SV_STCLOSE : nothing to do */
 		if ((global.mode & MODE_DEBUG) && (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))) {
 			int len;
-			len = sprintf(trash, "%08x:%s.srvcls[%04x:%04x]\n", t->uniq_id, t->be->beprm->id, (unsigned short)t->cli_fd, (unsigned short)t->srv_fd);
+			len = sprintf(trash, "%08x:%s.srvcls[%04x:%04x]\n",
+				      t->uniq_id, t->be->beprm->id, (unsigned short)t->cli_fd, (unsigned short)t->srv_fd);
 			write(1, trash, len);
 		}
 		return 0;
@@ -3657,6 +3551,8 @@ int produce_content_stats_proxy(struct session *s, struct proxy *px)
 
 /* Iterate the same filter through all request headers.
  * Returns 1 if this filter can be stopped upon return, otherwise 0.
+ * Since it can manage the switch to another backend, it updates the per-proxy
+ * DENY stats.
  */
 int apply_filter_to_req_headers(struct session *t, struct buffer *req, struct hdr_exp *exp)
 {
@@ -3785,6 +3681,8 @@ int apply_filter_to_req_headers(struct session *t, struct buffer *req, struct hd
 /* Apply the filter to the request line.
  * Returns 0 if nothing has been done, 1 if the filter has been applied,
  * or -1 if a replacement resulted in an invalid request line.
+ * Since it can manage the switch to another backend, it updates the per-proxy
+ * DENY stats.
  */
 int apply_filter_to_req_line(struct session *t, struct buffer *req, struct hdr_exp *exp)
 {
@@ -3897,7 +3795,8 @@ int apply_filter_to_req_line(struct session *t, struct buffer *req, struct hdr_e
 /*
  * Apply all the req filters <exp> to all headers in buffer <req> of session <t>.
  * Returns 0 if everything is alright, or -1 in case a replacement lead to an
- * unparsable request.
+ * unparsable request. Since it can manage the switch to another backend, it
+ * updates the per-proxy DENY stats.
  */
 int apply_filters_to_request(struct session *t, struct buffer *req, struct hdr_exp *exp)
 {
@@ -3935,6 +3834,7 @@ int apply_filters_to_request(struct session *t, struct buffer *req, struct hdr_e
 }
 
 
+
 /*
  * Manager client-side cookie
  */
@@ -3952,8 +3852,8 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 	int cur_idx, old_idx;
 
 	if (t->be->beprm->cookie_name == NULL &&
-	    t->be->beprm->appsession_name ==NULL &&
-	    t->be->fiprm->capture_name != NULL)
+	    t->be->beprm->appsession_name == NULL &&
+	    t->be->fiprm->capture_name == NULL)
 		return;
 
 	/* Iterate through the headers.
@@ -4273,6 +4173,528 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 		/* keep the link from this header to next one */
 		old_idx = cur_idx;
 	} /* end of cookie processing on this header */
+}
+
+
+/* Iterate the same filter through all response headers contained in <rtr>.
+ * Returns 1 if this filter can be stopped upon return, otherwise 0.
+ */
+int apply_filter_to_resp_headers(struct session *t, struct buffer *rtr, struct hdr_exp *exp)
+{
+	char term;
+	char *cur_ptr, *cur_end, *cur_next;
+	int cur_idx, old_idx, last_hdr;
+	struct http_txn *txn = &t->txn;
+	struct hdr_idx_elem *cur_hdr;
+	int len, delta;
+
+	last_hdr = 0;
+
+	cur_next = rtr->data + txn->rsp.som + hdr_idx_first_pos(&txn->hdr_idx);
+	old_idx = 0;
+
+	while (!last_hdr) {
+		if (unlikely(t->flags & SN_SVDENY))
+			return 1;
+		else if (unlikely(t->flags & SN_SVALLOW) &&
+			 (exp->action == ACT_ALLOW ||
+			  exp->action == ACT_DENY))
+			return 0;
+
+		cur_idx = txn->hdr_idx.v[old_idx].next;
+		if (!cur_idx)
+			break;
+
+		cur_hdr  = &txn->hdr_idx.v[cur_idx];
+		cur_ptr  = cur_next;
+		cur_end  = cur_ptr + cur_hdr->len;
+		cur_next = cur_end + cur_hdr->cr + 1;
+
+		/* Now we have one header between cur_ptr and cur_end,
+		 * and the next header starts at cur_next.
+		 */
+
+		/* The annoying part is that pattern matching needs
+		 * that we modify the contents to null-terminate all
+		 * strings before testing them.
+		 */
+
+		term = *cur_end;
+		*cur_end = '\0';
+
+		if (regexec(exp->preg, cur_ptr, MAX_MATCH, pmatch, 0) == 0) {
+			switch (exp->action) {
+			case ACT_ALLOW:
+				t->flags |= SN_SVALLOW;
+				last_hdr = 1;
+				break;
+
+			case ACT_DENY:
+				t->flags |= SN_SVDENY;
+				last_hdr = 1;
+				break;
+
+			case ACT_REPLACE:
+				len = exp_replace(trash, cur_ptr, exp->replace, pmatch);
+				delta = buffer_replace2(rtr, cur_ptr, cur_end, trash, len);
+				/* FIXME: if the user adds a newline in the replacement, the
+				 * index will not be recalculated for now, and the new line
+				 * will not be counted as a new header.
+				 */
+
+				cur_end += delta;
+				cur_next += delta;
+				cur_hdr->len += delta;
+				txn->rsp.eoh += delta;
+				break;
+
+			case ACT_REMOVE:
+				delta = buffer_replace2(rtr, cur_ptr, cur_next, NULL, 0);
+				cur_next += delta;
+
+				/* FIXME: this should be a separate function */
+				txn->rsp.eoh += delta;
+				txn->hdr_idx.v[old_idx].next = cur_hdr->next;
+				txn->hdr_idx.used--;
+				cur_hdr->len = 0;
+				cur_end = NULL; /* null-term has been rewritten */
+				break;
+
+			}
+		}
+		if (cur_end)
+			*cur_end = term; /* restore the string terminator */
+
+		/* keep the link from this header to next one in case of later
+		 * removal of next header.
+		 */
+		old_idx = cur_idx;
+	}
+	return 0;
+}
+
+
+/* Apply the filter to the status line in the response buffer <rtr>.
+ * Returns 0 if nothing has been done, 1 if the filter has been applied,
+ * or -1 if a replacement resulted in an invalid status line.
+ */
+int apply_filter_to_sts_line(struct session *t, struct buffer *rtr, struct hdr_exp *exp)
+{
+	char term;
+	char *cur_ptr, *cur_end;
+	int done;
+	struct http_txn *txn = &t->txn;
+	int len, delta;
+
+
+	if (unlikely(t->flags & SN_SVDENY))
+		return 1;
+	else if (unlikely(t->flags & SN_SVALLOW) &&
+		 (exp->action == ACT_ALLOW ||
+		  exp->action == ACT_DENY))
+		return 0;
+	else if (exp->action == ACT_REMOVE)
+		return 0;
+
+	done = 0;
+
+	cur_ptr = rtr->data + txn->rsp.som;
+	cur_end = cur_ptr + txn->rsp.sl.rq.l;
+
+	/* Now we have the status line between cur_ptr and cur_end */
+
+	/* The annoying part is that pattern matching needs
+	 * that we modify the contents to null-terminate all
+	 * strings before testing them.
+	 */
+
+	term = *cur_end;
+	*cur_end = '\0';
+
+	if (regexec(exp->preg, cur_ptr, MAX_MATCH, pmatch, 0) == 0) {
+		switch (exp->action) {
+		case ACT_ALLOW:
+			t->flags |= SN_SVALLOW;
+			done = 1;
+			break;
+
+		case ACT_DENY:
+			t->flags |= SN_SVDENY;
+			done = 1;
+			break;
+
+		case ACT_REPLACE:
+			*cur_end = term; /* restore the string terminator */
+			len = exp_replace(trash, cur_ptr, exp->replace, pmatch);
+			delta = buffer_replace2(rtr, cur_ptr, cur_end, trash, len);
+			/* FIXME: if the user adds a newline in the replacement, the
+			 * index will not be recalculated for now, and the new line
+			 * will not be counted as a new header.
+			 */
+
+			txn->rsp.eoh += delta;
+			cur_end += delta;
+
+			cur_end = (char *)http_parse_stsline(&txn->rsp, rtr->data,
+							     HTTP_MSG_RQMETH,
+							     cur_ptr, cur_end + 1,
+							     NULL, NULL);
+			if (unlikely(!cur_end))
+				return -1;
+
+			/* we have a full respnse and we know that we have either a CR
+			 * or an LF at <ptr>.
+			 */
+			t->logs.status = strl2ui(rtr->data + txn->rsp.sl.st.c, txn->rsp.sl.st.c_l);
+			hdr_idx_set_start(&txn->hdr_idx, txn->rsp.sl.rq.l, *cur_end == '\r');
+			/* there is no point trying this regex on headers */
+			return 1;
+		}
+	}
+	*cur_end = term; /* restore the string terminator */
+	return done;
+}
+
+
+
+/*
+ * Apply all the resp filters <exp> to all headers in buffer <rtr> of session <t>.
+ * Returns 0 if everything is alright, or -1 in case a replacement lead to an
+ * unparsable response.
+ */
+int apply_filters_to_response(struct session *t, struct buffer *rtr, struct hdr_exp *exp)
+{
+	/* iterate through the filters in the outer loop */
+	while (exp && !(t->flags & SN_SVDENY)) {
+		int ret;
+
+		/*
+		 * The interleaving of transformations and verdicts
+		 * makes it difficult to decide to continue or stop
+		 * the evaluation.
+		 */
+
+		if ((t->flags & SN_SVALLOW) &&
+		    (exp->action == ACT_ALLOW || exp->action == ACT_DENY ||
+		     exp->action == ACT_PASS)) {
+			exp = exp->next;
+			continue;
+		}
+
+		/* Apply the filter to the status line. */
+		ret = apply_filter_to_sts_line(t, rtr, exp);
+		if (unlikely(ret < 0))
+			return -1;
+
+		if (likely(ret == 0)) {
+			/* The filter did not match the response, it can be
+			 * iterated through all headers.
+			 */
+			apply_filter_to_resp_headers(t, rtr, exp);
+		}
+		exp = exp->next;
+	}
+	return 0;
+}
+
+
+
+/*
+ * Manager server-side cookies
+ */
+void manage_server_side_cookies(struct session *t, struct buffer *rtr)
+{
+	struct http_txn *txn = &t->txn;
+	char *p1, *p2, *p3, *p4;
+
+	appsess *asession_temp = NULL;
+	appsess local_asession;
+
+	char *cur_ptr, *cur_end, *cur_next;
+	int cur_idx, old_idx, delta;
+
+	if (t->be->beprm->cookie_name == NULL &&
+	    t->be->beprm->appsession_name == NULL &&
+	    t->be->fiprm->capture_name == NULL &&
+	    !(t->be->beprm->options & PR_O_CHK_CACHE))
+		return;
+
+	/* Iterate through the headers.
+	 * we start with the start line.
+	 */
+	old_idx = 0;
+	cur_next = rtr->data + txn->rsp.som + hdr_idx_first_pos(&txn->hdr_idx);
+
+	while ((cur_idx = txn->hdr_idx.v[old_idx].next)) {
+		struct hdr_idx_elem *cur_hdr;
+
+		cur_hdr  = &txn->hdr_idx.v[cur_idx];
+		cur_ptr  = cur_next;
+		cur_end  = cur_ptr + cur_hdr->len;
+		cur_next = cur_end + cur_hdr->cr + 1;
+
+		/* We have one full header between cur_ptr and cur_end, and the
+		 * next header starts at cur_next. We're only interested in
+		 * "Cookie:" headers.
+		 */
+
+		if ((cur_end - cur_ptr <= 11) ||
+		    (strncasecmp(cur_ptr, "Set-Cookie:", 11) != 0)) {
+			old_idx = cur_idx;
+			continue;
+		}
+
+		/* OK, right now we know we have a set-cookie at cur_ptr */
+		t->flags |= SN_SCK_ANY;
+
+
+		/* maybe we only wanted to see if there was a set-cookie */
+		if (t->be->beprm->cookie_name == NULL &&
+		    t->be->beprm->appsession_name == NULL &&
+		    t->be->fiprm->capture_name == NULL)
+			return;
+
+		p1 = cur_ptr + 11; /* first char after 'Set-Cookie:' */
+		
+		while (p1 < cur_end) { /* in fact, we'll break after the first cookie */
+			while (p1 < cur_end && (isspace((int)*p1)))
+				p1++;
+
+			if (p1 == cur_end || *p1 == ';') /* end of cookie */
+				break;
+
+			/* p1 is at the beginning of the cookie name */
+			p2 = p1;
+
+			while (p2 < cur_end && *p2 != '=' && *p2 != ';')
+				p2++;
+
+			if (p2 == cur_end || *p2 == ';') /* next cookie */
+				break;
+
+			p3 = p2 + 1; /* skip the '=' sign */
+			if (p3 == cur_end)
+				break;
+
+			p4 = p3;
+			while (p4 < cur_end && !isspace((int)*p4) && *p4 != ';')
+				p4++;
+
+			/* here, we have the cookie name between p1 and p2,
+			 * and its value between p3 and p4.
+			 * we can process it.
+			 */
+
+			/* first, let's see if we want to capture it */
+			if (t->be->fiprm->capture_name != NULL &&
+			    t->logs.srv_cookie == NULL &&
+			    (p4 - p1 >= t->be->fiprm->capture_namelen) &&
+			    memcmp(p1, t->be->fiprm->capture_name, t->be->fiprm->capture_namelen) == 0) {
+				int log_len = p4 - p1;
+
+				if ((t->logs.srv_cookie = pool_alloc(capture)) == NULL) {
+					Alert("HTTP logging : out of memory.\n");
+				}
+
+				if (log_len > t->be->fiprm->capture_len)
+					log_len = t->be->fiprm->capture_len;
+				memcpy(t->logs.srv_cookie, p1, log_len);
+				t->logs.srv_cookie[log_len] = 0;
+			}
+
+			/* now check if we need to process it for persistence */
+			if ((p2 - p1 == t->be->beprm->cookie_len) && (t->be->beprm->cookie_name != NULL) &&
+			    (memcmp(p1, t->be->beprm->cookie_name, p2 - p1) == 0)) {
+				/* Cool... it's the right one */
+				t->flags |= SN_SCK_SEEN;
+			
+				/* If the cookie is in insert mode on a known server, we'll delete
+				 * this occurrence because we'll insert another one later.
+				 * We'll delete it too if the "indirect" option is set and we're in
+				 * a direct access. */
+				if (((t->srv) && (t->be->beprm->options & PR_O_COOK_INS)) ||
+				    ((t->flags & SN_DIRECT) && (t->be->beprm->options & PR_O_COOK_IND))) {
+					/* this header must be deleted */
+					delta = buffer_replace2(rtr, cur_ptr, cur_next, NULL, 0);
+					txn->hdr_idx.v[old_idx].next = cur_hdr->next;
+					txn->hdr_idx.used--;
+					cur_hdr->len = 0;
+					cur_next += delta;
+					txn->rsp.eoh += delta;
+
+					t->flags |= SN_SCK_DELETED;
+				}
+				else if ((t->srv) && (t->srv->cookie) &&
+					 (t->be->beprm->options & PR_O_COOK_RW)) {
+					/* replace bytes p3->p4 with the cookie name associated
+					 * with this server since we know it.
+					 */
+					delta = buffer_replace2(rtr, p3, p4, t->srv->cookie, t->srv->cklen);
+					cur_hdr->len += delta;
+					cur_next += delta;
+					txn->rsp.eoh += delta;
+
+					t->flags |= SN_SCK_INSERTED | SN_SCK_DELETED;
+				}
+				else if ((t->srv) && (t->srv->cookie) &&
+					 (t->be->beprm->options & PR_O_COOK_PFX)) {
+					/* insert the cookie name associated with this server
+					 * before existing cookie, and insert a delimitor between them..
+					 */
+					delta = buffer_replace2(rtr, p3, p3, t->srv->cookie, t->srv->cklen + 1);
+					cur_hdr->len += delta;
+					cur_next += delta;
+					txn->rsp.eoh += delta;
+
+					p3[t->srv->cklen] = COOKIE_DELIM;
+					t->flags |= SN_SCK_INSERTED | SN_SCK_DELETED;
+				}
+			}
+			/* next, let's see if the cookie is our appcookie */
+			else if ((t->be->beprm->appsession_name != NULL) &&
+			         (memcmp(p1, t->be->beprm->appsession_name, p2 - p1) == 0)) {
+
+				/* Cool... it's the right one */
+
+				size_t server_id_len = strlen(t->srv->id) + 1;
+				asession_temp = &local_asession;
+		      
+				if ((asession_temp->sessid = pool_alloc_from(apools.sessid, apools.ses_msize)) == NULL) {
+					Alert("Not enough Memory process_srv():asession->sessid:malloc().\n");
+					send_log(t->be, LOG_ALERT, "Not enough Memory process_srv():asession->sessid:malloc().\n");
+					return;
+				}
+				memcpy(asession_temp->sessid, p3, t->be->beprm->appsession_len);
+				asession_temp->sessid[t->be->beprm->appsession_len] = 0;
+				asession_temp->serverid = NULL;
+
+				/* only do insert, if lookup fails */
+				if (chtbl_lookup(&(t->be->htbl_proxy), (void *) &asession_temp) != 0) {
+					if ((asession_temp = pool_alloc(appsess)) == NULL) {
+						Alert("Not enough Memory process_srv():asession:calloc().\n");
+						send_log(t->be, LOG_ALERT, "Not enough Memory process_srv():asession:calloc().\n");
+						return;
+					}
+					asession_temp->sessid = local_asession.sessid;
+					asession_temp->serverid = local_asession.serverid;
+					chtbl_insert(&(t->be->beprm->htbl_proxy), (void *) asession_temp);
+				}/* end if (chtbl_lookup()) */
+				else {
+					/* free wasted memory */
+					pool_free_to(apools.sessid, local_asession.sessid);
+				} /* end else from if (chtbl_lookup()) */
+		      
+				if (asession_temp->serverid == NULL) {
+					if ((asession_temp->serverid = pool_alloc_from(apools.serverid, apools.ser_msize)) == NULL) {
+						Alert("Not enough Memory process_srv():asession->sessid:malloc().\n");
+						send_log(t->be, LOG_ALERT, "Not enough Memory process_srv():asession->sessid:malloc().\n");
+						return;
+					}
+					asession_temp->serverid[0] = '\0';
+				}
+		      
+				if (asession_temp->serverid[0] == '\0')
+					memcpy(asession_temp->serverid, t->srv->id, server_id_len);
+		      
+				tv_delayfrom(&asession_temp->expire, &now, t->be->beprm->appsession_timeout);
+
+#if defined(DEBUG_HASH)
+				print_table(&(t->be->beprm->htbl_proxy));
+#endif
+			}/* end if ((t->proxy->appsession_name != NULL) ... */
+			break; /* we don't want to loop again since there cannot be another cookie on the same line */
+		} /* we're now at the end of the cookie value */
+
+		/* keep the link from this header to next one */
+		old_idx = cur_idx;
+	} /* end of cookie processing on this header */
+}
+
+
+
+/*
+ * Check if response is cacheable or not. Updates t->flags.
+ */
+void check_response_for_cacheability(struct session *t, struct buffer *rtr)
+{
+	struct http_txn *txn = &t->txn;
+	char *p1, *p2;
+
+	char *cur_ptr, *cur_end, *cur_next;
+	int cur_idx;
+
+	if (!t->flags & SN_CACHEABLE)
+		return;
+
+	/* Iterate through the headers.
+	 * we start with the start line.
+	 */
+	cur_idx = 0;
+	cur_next = rtr->data + txn->rsp.som + hdr_idx_first_pos(&txn->hdr_idx);
+
+	while ((cur_idx = txn->hdr_idx.v[cur_idx].next)) {
+		struct hdr_idx_elem *cur_hdr;
+
+		cur_hdr  = &txn->hdr_idx.v[cur_idx];
+		cur_ptr  = cur_next;
+		cur_end  = cur_ptr + cur_hdr->len;
+		cur_next = cur_end + cur_hdr->cr + 1;
+
+		/* We have one full header between cur_ptr and cur_end, and the
+		 * next header starts at cur_next. We're only interested in
+		 * "Cookie:" headers.
+		 */
+
+		if ((cur_end - cur_ptr >= 16) &&
+		    strncasecmp(cur_ptr, "Pragma: no-cache", 16) == 0) {
+			t->flags &= ~SN_CACHEABLE & ~SN_CACHE_COOK;
+			return;
+		}
+
+		if ((cur_end - cur_ptr <= 14) ||
+		    (strncasecmp(cur_ptr, "Cache-control:", 14) != 0))
+			continue;
+
+		/* OK, right now we know we have a cache-control header at cur_ptr */
+
+		p1 = cur_ptr + 14; /* first char after 'cache-control:' */
+
+		while (p1 < cur_end && (isspace((int)*p1)))
+				p1++;
+
+		if (p1 >= cur_end)	/* no more info */
+			continue;
+
+		/* p1 is at the beginning of the value */
+		p2 = p1;
+
+		while (p2 < cur_end && *p2 != '=' && *p2 != ',' && !isspace((int)*p2))
+			p2++;
+
+		/* we have a complete value between p1 and p2 */
+		if (p2 < cur_end && *p2 == '=') {
+			/* we have something of the form no-cache="set-cookie" */
+			if ((cur_end - p1 >= 21) &&
+			    strncasecmp(p1, "no-cache=\"set-cookie", 20) == 0
+			    && (p1[20] == '"' || p1[20] == ','))
+				t->flags &= ~SN_CACHE_COOK;
+			continue;
+		}
+
+		/* OK, so we know that either p2 points to the end of string or to a comma */
+		if (((p2 - p1 ==  7) && strncasecmp(p1, "private", 7) == 0) ||
+		    ((p2 - p1 ==  8) && strncasecmp(p1, "no-store", 8) == 0) ||
+		    ((p2 - p1 ==  9) && strncasecmp(p1, "max-age=0", 9) == 0) ||
+		    ((p2 - p1 == 10) && strncasecmp(p1, "s-maxage=0", 10) == 0)) {
+			t->flags &= ~SN_CACHEABLE & ~SN_CACHE_COOK;
+			return;
+		}
+
+		if ((p2 - p1 ==  6) && strncasecmp(p1, "public", 6) == 0) {
+			t->flags |= SN_CACHEABLE | SN_CACHE_COOK;
+			continue;
+		}
+	}
 }
 
 

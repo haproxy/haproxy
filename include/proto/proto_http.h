@@ -2,7 +2,7 @@
   include/proto/proto_http.h
   This file contains HTTP protocol definitions.
 
-  Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -75,7 +75,10 @@ void get_srv_from_appsession(struct session *t, const char *begin, int len);
 int apply_filter_to_req_headers(struct session *t, struct buffer *req, struct hdr_exp *exp);
 int apply_filter_to_req_line(struct session *t, struct buffer *req, struct hdr_exp *exp);
 int apply_filters_to_request(struct session *t, struct buffer *req, struct hdr_exp *exp);
+int apply_filters_to_response(struct session *t, struct buffer *rtr, struct hdr_exp *exp);
 void manage_client_side_cookies(struct session *t, struct buffer *req);
+void manage_server_side_cookies(struct session *t, struct buffer *rtr);
+void check_response_for_cacheability(struct session *t, struct buffer *rtr);
 int stats_check_uri_auth(struct session *t, struct proxy *backend);
 void init_proto_http();
 
