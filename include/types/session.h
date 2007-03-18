@@ -32,11 +32,11 @@
 #include <common/mini-clist.h>
 
 #include <types/buffers.h>
+#include <types/proto_http.h>
 #include <types/proxy.h>
 #include <types/queue.h>
 #include <types/server.h>
 #include <types/task.h>
-#include <types/hdr_idx.h>
 
 
 /* various session flags, bits values 0x01 to 0x20 (shift 0) */
@@ -100,71 +100,6 @@
 #define SN_SELF_GEN	0x02000000	/* the proxy generates data for the client (eg: stats) */
 #define SN_CLTARPIT	0x04000000	/* the session is tarpitted (anti-dos) */
 
-typedef enum {
-	HTTP_METH_NONE = 0,
-	HTTP_METH_OPTIONS,
-	HTTP_METH_GET,
-	HTTP_METH_HEAD,
-	HTTP_METH_POST,
-	HTTP_METH_PUT,
-	HTTP_METH_DELETE,
-	HTTP_METH_TRACE,
-	HTTP_METH_CONNECT,
-	HTTP_METH_OTHER,
-} http_meth_t;
-
-/* FIXME-20070107: this should move out to another file when HTTP will not be
- * in the session anymore.
- */
-
-/* This is an HTTP message, as described in RFC2616. It can be either a request
- * message or a response message.
- *
- * The values there are a little bit obscure, because their meaning can change
- * during the parsing :
- *
- *  - som (Start of Message) : relative offset in the buffer of first byte of
- *                             the request being processed or parsed. Reset to
- *                             zero during accept().
- *  - eoh (End of Headers)   : relative offset in the buffer of first byte that
- *                             is not part of a completely processed header.
- *                             During parsing, it points to last header seen
- *                             for states after START.
- *  - eol (End of Line)      : relative offset in the buffer of the first byte
- *                             which marks the end of the line (LF or CRLF).
- */
-struct http_msg {
-	int msg_state;                  /* where we are in the current message parsing */
-	char *sol, *eol;		/* start of line, end of line */
-	int som;			/* Start Of Message, relative to buffer */
-	int col, sov;			/* current header: colon, start of value */
-	int eoh;			/* End Of Headers, relative to buffer */
-	char **cap;			/* array of captured headers (may be NULL) */
-	union {				/* useful start line pointers, relative to buffer */
-		struct {
-			int l;		/* request line length (not including CR) */
-			int m_l;	/* METHOD length (method starts at ->som) */
-			int u, u_l;	/* URI, length */
-			int v, v_l;	/* VERSION, length */
-		} rq;			/* request line : field, length */
-		struct {
-			int l;		/* status line length (not including CR) */
-			int v_l;	/* VERSION length (version starts at ->som) */
-			int c, c_l;	/* CODE, length */
-			int r, r_l;	/* REASON, length */
-		} st;			/* status line : field, length */
-	} sl;				/* start line */
-};
-
-/* This is an HTTP transaction. It contains both a request message and a
- * response message (which can be empty).
- */
-struct http_txn {
-	http_meth_t meth;		/* HTTP method */
-	struct hdr_idx hdr_idx;         /* array of header indexes (max: MAX_HTTP_HDR) */
-	struct chunk auth_hdr;		/* points to 'Authorization:' header */
-	struct http_msg req, rsp;	/* HTTP request and response messages */
-};
 
 /* WARNING: if new fields are added, they must be initialized in event_accept()
  * and freed in session_free() !
@@ -194,13 +129,9 @@ struct session {
 		long  t_queue;			/* delay before the session gets out of the connect queue, -1 if never occurs */
 		long  t_connect;		/* delay before the connect() to the server succeeds, -1 if never occurs */
 		long  t_data;			/* delay before the first data byte from the server ... */
-		unsigned long  t_close;		/* total session duration */
+		unsigned long t_close;		/* total session duration */
 		unsigned long srv_queue_size;	/* number of sessions waiting for a connect slot on this server at accept() time (in direct assignment) */
 		unsigned long prx_queue_size;	/* overall number of sessions waiting for a connect slot on this instance at accept() time */
-		char *uri;			/* first line if log needed, NULL otherwise */
-		char *cli_cookie;		/* cookie presented by the client, in capture mode */
-		char *srv_cookie;		/* cookie presented by the server, in capture mode */
-		int status;			/* HTTP status from the server, negative if from proxy */
 		long long bytes_in;		/* number of bytes transferred from the client to the server */
 		long long bytes_out;		/* number of bytes transferred from the server to the client */
 	} logs;

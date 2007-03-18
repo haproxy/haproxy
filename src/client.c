@@ -185,10 +185,6 @@ int event_accept(int fd) {
 		s->logs.t_connect = -1;
 		s->logs.t_data = -1;
 		s->logs.t_close = 0;
-		s->logs.uri = NULL;
-		s->logs.cli_cookie = NULL;
-		s->logs.srv_cookie = NULL;
-		s->logs.status = -1;
 		s->logs.bytes_in = s->logs.bytes_out = 0;
 		s->logs.prx_queue_size = 0;  /* we get the number of pending conns before us */
 		s->logs.srv_queue_size = 0; /* we will get this number soon */
@@ -205,6 +201,11 @@ int event_accept(int fd) {
 		txn->hdr_idx.size = txn->hdr_idx.used = 0;
 
 		if (p->mode == PR_MODE_HTTP) {
+			txn->uri = NULL;
+			txn->cli_cookie = NULL;
+			txn->srv_cookie = NULL;
+			txn->status = -1;
+
 			txn->req.msg_state = HTTP_MSG_RQBEFORE; /* at the very beginning of the request */
 			txn->req.sol = txn->req.eol = NULL;
 			txn->req.som = txn->req.eoh = 0; /* relative to the buffer */

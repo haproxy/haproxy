@@ -62,12 +62,12 @@ void session_free(struct session *s)
 		pool_free_to(s->fe->fiprm->req_cap_pool, txn->req.cap);
 	}
 
-	if (s->logs.uri)
-		pool_free(requri, s->logs.uri);
-	if (s->logs.cli_cookie)
-		pool_free(capture, s->logs.cli_cookie);
-	if (s->logs.srv_cookie)
-		pool_free(capture, s->logs.srv_cookie);
+	if (txn->uri)
+		pool_free(requri, txn->uri);
+	if (txn->cli_cookie)
+		pool_free(capture, txn->cli_cookie);
+	if (txn->srv_cookie)
+		pool_free(capture, txn->srv_cookie);
 
 	pool_free(session, s);
 }

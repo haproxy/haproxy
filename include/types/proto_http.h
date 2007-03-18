@@ -24,6 +24,9 @@
 
 #include <common/config.h>
 
+#include <types/buffers.h>
+#include <types/hdr_idx.h>
+
 /*
  * FIXME: break this into HTTP state and TCP socket state.
  * See server.h for the other end.
@@ -133,6 +136,74 @@ enum {
 	DATA_ST_PX_BE,
 	DATA_ST_PX_END,
 	DATA_ST_PX_FIN,
+};
+
+/* Known HTTP methods */
+typedef enum {
+	HTTP_METH_NONE = 0,
+	HTTP_METH_OPTIONS,
+	HTTP_METH_GET,
+	HTTP_METH_HEAD,
+	HTTP_METH_POST,
+	HTTP_METH_PUT,
+	HTTP_METH_DELETE,
+	HTTP_METH_TRACE,
+	HTTP_METH_CONNECT,
+	HTTP_METH_OTHER,
+} http_meth_t;
+
+/* This is an HTTP message, as described in RFC2616. It can be either a request
+ * message or a response message.
+ *
+ * The values there are a little bit obscure, because their meaning can change
+ * during the parsing :
+ *
+ *  - som (Start of Message) : relative offset in the buffer of first byte of
+ *                             the request being processed or parsed. Reset to
+ *                             zero during accept().
+ *  - eoh (End of Headers)   : relative offset in the buffer of first byte that
+ *                             is not part of a completely processed header.
+ *                             During parsing, it points to last header seen
+ *                             for states after START.
+ *  - eol (End of Line)      : relative offset in the buffer of the first byte
+ *                             which marks the end of the line (LF or CRLF).
+ */
+struct http_msg {
+	int msg_state;                  /* where we are in the current message parsing */
+	char *sol, *eol;		/* start of line, end of line */
+	int som;			/* Start Of Message, relative to buffer */
+	int col, sov;			/* current header: colon, start of value */
+	int eoh;			/* End Of Headers, relative to buffer */
+	char **cap;			/* array of captured headers (may be NULL) */
+	union {				/* useful start line pointers, relative to buffer */
+		struct {
+			int l;		/* request line length (not including CR) */
+			int m_l;	/* METHOD length (method starts at ->som) */
+			int u, u_l;	/* URI, length */
+			int v, v_l;	/* VERSION, length */
+		} rq;			/* request line : field, length */
+		struct {
+			int l;		/* status line length (not including CR) */
+			int v_l;	/* VERSION length (version starts at ->som) */
+			int c, c_l;	/* CODE, length */
+			int r, r_l;	/* REASON, length */
+		} st;			/* status line : field, length */
+	} sl;				/* start line */
+};
+
+/* This is an HTTP transaction. It contains both a request message and a
+ * response message (which can be empty).
+ */
+struct http_txn {
+	http_meth_t meth;		/* HTTP method */
+	struct hdr_idx hdr_idx;         /* array of header indexes (max: MAX_HTTP_HDR) */
+	struct chunk auth_hdr;		/* points to 'Authorization:' header */
+	struct http_msg req, rsp;	/* HTTP request and response messages */
+
+	char *uri;			/* first line if log needed, NULL otherwise */
+	char *cli_cookie;		/* cookie presented by the client, in capture mode */
+	char *srv_cookie;		/* cookie presented by the server, in capture mode */
+	int status;			/* HTTP status from the server, negative if from proxy */
 };
 
 

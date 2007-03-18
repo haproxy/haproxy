@@ -321,7 +321,7 @@ void sess_log(struct session *s)
 			  (const void *)&((struct sockaddr_in6 *)(&s->cli_addr))->sin6_addr,
 			  pn, sizeof(pn));
 
-	uri = (log & LW_REQ) ? s->logs.uri ? s->logs.uri : "<BADREQ>" : "";
+	uri = (log & LW_REQ) ? txn->uri ? txn->uri : "<BADREQ>" : "";
 	pxid = be->beprm->id;
 	srv = (tolog & LW_SVID) ?
 		(s->data_source != DATA_SRC_STATS) ?
@@ -404,10 +404,10 @@ void sess_log(struct session *s)
 			 (s->logs.t_connect >= 0) ? s->logs.t_connect - s->logs.t_queue : -1,
 			 (s->logs.t_data >= 0) ? s->logs.t_data - s->logs.t_connect : -1,
 			 (tolog & LW_BYTES) ? "" : "+", s->logs.t_close,
-			 s->logs.status,
+			 txn->status,
 			 (tolog & LW_BYTES) ? "" : "+", s->logs.bytes_in,
-			 s->logs.cli_cookie ? s->logs.cli_cookie : "-",
-			 s->logs.srv_cookie ? s->logs.srv_cookie : "-",
+			 txn->cli_cookie ? txn->cli_cookie : "-",
+			 txn->srv_cookie ? txn->srv_cookie : "-",
 			 sess_term_cond[(s->flags & SN_ERR_MASK) >> SN_ERR_SHIFT],
 			 sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT],
 			 (be->beprm->options & PR_O_COOK_ANY) ? sess_cookie[(s->flags & SN_CK_MASK) >> SN_CK_SHIFT] : '-',

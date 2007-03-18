@@ -362,7 +362,7 @@ void srv_close_with_err(struct session *t, int err, int finst,
 {
 	t->srv_state = SV_STCLOSE;
 	if (status > 0 && msg) {
-		t->logs.status = status;
+		t->txn.status = status;
 		if (t->fe->mode == PR_MODE_HTTP)
 			client_return(t, msg);
 	}
@@ -1287,7 +1287,7 @@ int process_cli(struct session *t)
 			/* 3: has the read timeout expired ? */
 			else if (unlikely(tv_cmp2_ms(&req->rex, &now) <= 0)) {
 				/* read timeout : give up with an error message. */
-				t->logs.status = 408;
+				txn->status = 408;
 				client_retnclose(t, error_message(t, HTTP_ERR_408));
 				t->fe->failed_req++;
 				if (!(t->flags & SN_ERR_MASK))
@@ -1338,7 +1338,7 @@ int process_cli(struct session *t)
 			 * We have found the monitor URI
 			 */
 			t->flags |= SN_MONITOR;
-			t->logs.status = 200;
+			txn->status = 200;
 			client_retnclose(t, &http_200_chunk);
 			goto return_prx_cond;
 		}
@@ -1350,13 +1350,13 @@ int process_cli(struct session *t)
 		 */
 		if (unlikely(t->logs.logwait & LW_REQ)) {
 			/* we have a complete HTTP request that we must log */
-			if ((t->logs.uri = pool_alloc(requri)) != NULL) {
+			if ((txn->uri = pool_alloc(requri)) != NULL) {
 				int urilen = msg->sl.rq.l;
 
 				if (urilen >= REQURI_LEN)
 					urilen = REQURI_LEN - 1;
-				memcpy(t->logs.uri, &req->data[msg->som], urilen);
-				t->logs.uri[urilen] = 0;
+				memcpy(txn->uri, &req->data[msg->som], urilen);
+				txn->uri[urilen] = 0;
 
 				if (!(t->logs.logwait &= ~LW_REQ))
 					sess_log(t);
@@ -1452,7 +1452,7 @@ int process_cli(struct session *t)
 			/* has the request been denied ? */
 			if (t->flags & SN_CLDENY) {
 				/* no need to go further */
-				t->logs.status = 403;
+				txn->status = 403;
 				/* let's log the request time */
 				t->logs.t_request = tv_diff(&t->logs.tv_accept, &now);
 				client_retnclose(t, error_message(t, HTTP_ERR_403));
@@ -1681,7 +1681,7 @@ int process_cli(struct session *t)
 
 	return_bad_req: /* let's centralize all bad requests */
 		txn->req.msg_state = HTTP_MSG_ERROR;
-		t->logs.status = 400;
+		txn->status = 400;
 		client_retnclose(t, error_message(t, HTTP_ERR_400));
 		t->fe->failed_req++;
 	return_prx_cond:
@@ -2297,7 +2297,7 @@ int process_srv(struct session *t)
 				}
 				t->be->failed_resp++;
 				t->srv_state = SV_STCLOSE;
-				t->logs.status = 502;
+				txn->status = 502;
 				client_return(t, error_message(t, HTTP_ERR_502));
 				if (!(t->flags & SN_ERR_MASK))
 					t->flags |= SN_ERR_SRVCL;
@@ -2340,7 +2340,7 @@ int process_srv(struct session *t)
 				}
 				t->be->failed_resp++;
 				t->srv_state = SV_STCLOSE;
-				t->logs.status = 504;
+				txn->status = 504;
 				client_return(t, error_message(t, HTTP_ERR_504));
 				if (!(t->flags & SN_ERR_MASK))
 					t->flags |= SN_ERR_SRVTO;
@@ -2447,9 +2447,9 @@ int process_srv(struct session *t)
 		 */
 
 		t->logs.logwait &= ~LW_RESP;
-		t->logs.status = strl2ui(rep->data + msg->sl.st.c, msg->sl.st.c_l);
+		txn->status = strl2ui(rep->data + msg->sl.st.c, msg->sl.st.c_l);
 
-		switch (t->logs.status) {
+		switch (txn->status) {
 		case 200:
 		case 203:
 		case 206:
@@ -2512,7 +2512,7 @@ int process_srv(struct session *t)
 					tv_eternity(&req->wex);
 					fd_delete(t->srv_fd);
 					t->srv_state = SV_STCLOSE;
-					t->logs.status = 502;
+					txn->status = 502;
 					client_return(t, error_message(t, HTTP_ERR_502));
 					if (!(t->flags & SN_ERR_MASK))
 						t->flags |= SN_ERR_PRXCOND;
@@ -3058,7 +3058,7 @@ int produce_content(struct session *s)
 	}
 	else {
 		/* unknown data source */
-		s->logs.status = 500;
+		s->txn.status = 500;
 		client_retnclose(s, error_message(s, HTTP_ERR_500));
 		if (!(s->flags & SN_ERR_MASK))
 			s->flags |= SN_ERR_PRXCOND;
@@ -3099,7 +3099,7 @@ int produce_content_stats(struct session *s)
 			     "Content-Type: text/html\r\n"
 			     "\r\n");
 
-		s->logs.status = 200;
+		s->txn.status = 200;
 		client_retnclose(s, &msg); // send the start of the response.
 		msg.len = 0;
 
@@ -3291,7 +3291,7 @@ int produce_content_stats(struct session *s)
 
 	default:
 		/* unknown state ! */
-		s->logs.status = 500;
+		s->txn.status = 500;
 		client_retnclose(s, error_message(s, HTTP_ERR_500));
 		if (!(s->flags & SN_ERR_MASK))
 			s->flags |= SN_ERR_PRXCOND;
@@ -3954,18 +3954,18 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 			else {
 				/* first, let's see if we want to capture it */
 				if (t->fe->fiprm->capture_name != NULL &&
-				    t->logs.cli_cookie == NULL &&
+				    txn->cli_cookie == NULL &&
 				    (p4 - p1 >= t->fe->fiprm->capture_namelen) &&
 				    memcmp(p1, t->fe->fiprm->capture_name, t->fe->fiprm->capture_namelen) == 0) {
 					int log_len = p4 - p1;
 
-					if ((t->logs.cli_cookie = pool_alloc(capture)) == NULL) {
+					if ((txn->cli_cookie = pool_alloc(capture)) == NULL) {
 						Alert("HTTP logging : out of memory.\n");
 					} else {
 						if (log_len > t->fe->fiprm->capture_len)
 							log_len = t->fe->fiprm->capture_len;
-						memcpy(t->logs.cli_cookie, p1, log_len);
-						t->logs.cli_cookie[log_len] = 0;
+						memcpy(txn->cli_cookie, p1, log_len);
+						txn->cli_cookie[log_len] = 0;
 					}
 				}
 
@@ -4345,7 +4345,7 @@ int apply_filter_to_sts_line(struct session *t, struct buffer *rtr, struct hdr_e
 			/* we have a full respnse and we know that we have either a CR
 			 * or an LF at <ptr>.
 			 */
-			t->logs.status = strl2ui(rtr->data + txn->rsp.sl.st.c, txn->rsp.sl.st.c_l);
+			txn->status = strl2ui(rtr->data + txn->rsp.sl.st.c, txn->rsp.sl.st.c_l);
 			hdr_idx_set_start(&txn->hdr_idx, txn->rsp.sl.rq.l, *cur_end == '\r');
 			/* there is no point trying this regex on headers */
 			return 1;
@@ -4487,19 +4487,19 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 
 			/* first, let's see if we want to capture it */
 			if (t->be->fiprm->capture_name != NULL &&
-			    t->logs.srv_cookie == NULL &&
+			    txn->srv_cookie == NULL &&
 			    (p4 - p1 >= t->be->fiprm->capture_namelen) &&
 			    memcmp(p1, t->be->fiprm->capture_name, t->be->fiprm->capture_namelen) == 0) {
 				int log_len = p4 - p1;
 
-				if ((t->logs.srv_cookie = pool_alloc(capture)) == NULL) {
+				if ((txn->srv_cookie = pool_alloc(capture)) == NULL) {
 					Alert("HTTP logging : out of memory.\n");
 				}
 
 				if (log_len > t->be->fiprm->capture_len)
 					log_len = t->be->fiprm->capture_len;
-				memcpy(t->logs.srv_cookie, p1, log_len);
-				t->logs.srv_cookie[log_len] = 0;
+				memcpy(txn->srv_cookie, p1, log_len);
+				txn->srv_cookie[log_len] = 0;
 			}
 
 			/* now check if we need to process it for persistence */
@@ -4862,7 +4862,7 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 		/* no need to go further */
 		msg.str = trash;
 		msg.len = sprintf(trash, HTTP_401_fmt, uri_auth->auth_realm);
-		t->logs.status = 401;
+		txn->status = 401;
 		client_retnclose(t, &msg);
 		if (!(t->flags & SN_ERR_MASK))
 			t->flags |= SN_ERR_PRXCOND;
