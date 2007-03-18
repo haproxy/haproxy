@@ -352,6 +352,32 @@ int http_header_add_tail2(struct buffer *b, struct http_msg *msg,
 }
 
 /*
+ * Checks if <hdr> is exactly <name> for <len> chars, and ends with a colon.
+ * If so, returns the position of the first non-space character relative to
+ * <hdr>, or <end>-<hdr> if not found before. If no value is found, it tries
+ * to return a pointer to the place after the first space. Returns 0 if the
+ * header name does not match. Checks are case-insensitive.
+ */
+int http_header_match2(const char *hdr, const char *end,
+		       const char *name, int len)
+{
+	const char *val;
+
+	if (hdr + len >= end)
+		return 0;
+	if (hdr[len] != ':')
+		return 0;
+	if (strncasecmp(hdr, name, len) != 0)
+		return 0;
+	val = hdr + len + 1;
+	while (val < end && HTTP_IS_SPHT(*val))
+		val++;
+	if ((val >= end) && (len + 2 <= end - hdr))
+		return len + 2; /* we may replace starting from second space */
+	return val - hdr;
+}
+
+/*
  * returns a message to the client ; the connection is shut down for read,
  * and the request is cleared so that no server connection can be initiated.
  * The client must be in a valid state for this (HEADER, DATA ...).
@@ -1128,7 +1154,8 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 				buf->data[msg->sov] = ' ';
 			goto http_msg_hdr_l1_sp;
 		}
-		msg->eol = ptr;
+		/* we had a header consisting only in spaces ! */
+		msg->eol = buf->data + msg->sov;
 		goto http_msg_complete_header;
 		
 	http_msg_hdr_val:
@@ -1502,7 +1529,7 @@ int process_cli(struct session *t)
 			if (((t->fe->options | t->be->beprm->options) & PR_O_HTTP_CLOSE) &&
 			    !(t->flags & SN_CONN_CLOSED)) {
 				char *cur_ptr, *cur_end, *cur_next;
-				int cur_idx, old_idx, delta;
+				int cur_idx, old_idx, delta, val;
 				struct hdr_idx_elem *cur_hdr;
 
 				cur_next = req->data + txn->req.som + hdr_idx_first_pos(&txn->hdr_idx);
@@ -1514,7 +1541,8 @@ int process_cli(struct session *t)
 					cur_end  = cur_ptr + cur_hdr->len;
 					cur_next = cur_end + cur_hdr->cr + 1;
 
-					if (strncasecmp(cur_ptr, "Connection:", 11) == 0) {
+					val = http_header_match2(cur_ptr, cur_end, "Connection", 10);
+					if (val) {
 						/* 3 possibilities :
 						 * - we have already set Connection: close,
 						 *   so we remove this line.
@@ -1533,11 +1561,9 @@ int process_cli(struct session *t)
 							txn->hdr_idx.used--;
 							cur_hdr->len = 0;
 						} else {
-							if (cur_ptr + 17 > cur_end ||
-							    !http_is_lws[(unsigned char)*(cur_ptr+17)] ||
-							    strncasecmp(cur_ptr+11, " close", 6)) {
-								delta = buffer_replace2(req, cur_ptr+11, cur_end,
-											" close", 6);
+							if (strncasecmp(cur_ptr + val, "close", 5) != 0) {
+								delta = buffer_replace2(req, cur_ptr + val, cur_end,
+											"close", 5);
 								cur_next += delta;
 								cur_hdr->len += delta;
 								txn->req.eoh += delta;
@@ -2564,7 +2590,7 @@ int process_srv(struct session *t)
 			if (((t->fe->options | t->be->beprm->options) & PR_O_HTTP_CLOSE) &&
 			    !(t->flags & SN_CONN_CLOSED)) {
 				char *cur_ptr, *cur_end, *cur_next;
-				int cur_idx, old_idx, delta;
+				int cur_idx, old_idx, delta, val;
 				struct hdr_idx_elem *cur_hdr;
 
 				cur_next = rep->data + txn->rsp.som + hdr_idx_first_pos(&txn->hdr_idx);
@@ -2576,7 +2602,8 @@ int process_srv(struct session *t)
 					cur_end  = cur_ptr + cur_hdr->len;
 					cur_next = cur_end + cur_hdr->cr + 1;
 
-					if (strncasecmp(cur_ptr, "Connection:", 11) == 0) {
+					val = http_header_match2(cur_ptr, cur_end, "Connection", 10);
+					if (val) {
 						/* 3 possibilities :
 						 * - we have already set Connection: close,
 						 *   so we remove this line.
@@ -2595,11 +2622,9 @@ int process_srv(struct session *t)
 							txn->hdr_idx.used--;
 							cur_hdr->len = 0;
 						} else {
-							if (cur_ptr + 17 > cur_end ||
-							    !http_is_lws[(unsigned char)*(cur_ptr+17)] ||
-							    strncasecmp(cur_ptr+11, " close", 6)) {
-								delta = buffer_replace2(rep, cur_ptr+11, cur_end,
-											" close", 6);
+							if (strncasecmp(cur_ptr + val, "close", 5) != 0) {
+								delta = buffer_replace2(rep, cur_ptr + val, cur_end,
+											"close", 5);
 								cur_next += delta;
 								cur_hdr->len += delta;
 								txn->rsp.eoh += delta;
@@ -3870,6 +3895,7 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 
 	while ((cur_idx = txn->hdr_idx.v[old_idx].next)) {
 		struct hdr_idx_elem *cur_hdr;
+		int val;
 
 		cur_hdr  = &txn->hdr_idx.v[cur_idx];
 		cur_ptr  = cur_next;
@@ -3881,8 +3907,8 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 		 * "Cookie:" headers.
 		 */
 
-		if ((cur_end - cur_ptr <= 7) ||
-		    (strncasecmp(cur_ptr, "Cookie:", 7) != 0)) {
+		val = http_header_match2(cur_ptr, cur_end, "Cookie", 6);
+		if (!val) {
 			old_idx = cur_idx;
 			continue;
 		}
@@ -3901,12 +3927,8 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 		 * *MUST* delete it
 		 */
 
+		colon = p1 = cur_ptr + val; /* first non-space char after 'Cookie:' */
 
-		p1 = cur_ptr + 7; /* first char after 'Cookie:' */
-		if (isspace((int)*p1)) /* try to get the first space with it */
-		    p1++;
-
-		colon = p1;
 		/* del_cookie == NULL => nothing to be deleted */
 		del_colon = del_cookie = NULL;
 		app_cookies = 0;
@@ -4436,6 +4458,7 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 
 	while ((cur_idx = txn->hdr_idx.v[old_idx].next)) {
 		struct hdr_idx_elem *cur_hdr;
+		int val;
 
 		cur_hdr  = &txn->hdr_idx.v[cur_idx];
 		cur_ptr  = cur_next;
@@ -4447,8 +4470,8 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 		 * "Cookie:" headers.
 		 */
 
-		if ((cur_end - cur_ptr <= 11) ||
-		    (strncasecmp(cur_ptr, "Set-Cookie:", 11) != 0)) {
+		val = http_header_match2(cur_ptr, cur_end, "Set-Cookie", 10);
+		if (!val) {
 			old_idx = cur_idx;
 			continue;
 		}
@@ -4463,12 +4486,9 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 		    t->be->fiprm->capture_name == NULL)
 			return;
 
-		p1 = cur_ptr + 11; /* first char after 'Set-Cookie:' */
+		p1 = cur_ptr + val; /* first non-space char after 'Set-Cookie:' */
 		
 		while (p1 < cur_end) { /* in fact, we'll break after the first cookie */
-			while (p1 < cur_end && (isspace((int)*p1)))
-				p1++;
-
 			if (p1 == cur_end || *p1 == ';') /* end of cookie */
 				break;
 
@@ -4643,6 +4663,7 @@ void check_response_for_cacheability(struct session *t, struct buffer *rtr)
 
 	while ((cur_idx = txn->hdr_idx.v[cur_idx].next)) {
 		struct hdr_idx_elem *cur_hdr;
+		int val;
 
 		cur_hdr  = &txn->hdr_idx.v[cur_idx];
 		cur_ptr  = cur_next;
@@ -4654,22 +4675,22 @@ void check_response_for_cacheability(struct session *t, struct buffer *rtr)
 		 * "Cookie:" headers.
 		 */
 
-		if ((cur_end - cur_ptr >= 16) &&
-		    strncasecmp(cur_ptr, "Pragma: no-cache", 16) == 0) {
-			txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
-			return;
+		val = http_header_match2(cur_ptr, cur_end, "Pragma", 6);
+		if (val) {
+			if ((cur_end - (cur_ptr + val) >= 8) &&
+			    strncasecmp(cur_ptr + val, "no-cache", 8) == 0) {
+				txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
+				return;
+			}
 		}
 
-		if ((cur_end - cur_ptr <= 14) ||
-		    (strncasecmp(cur_ptr, "Cache-control:", 14) != 0))
+		val = http_header_match2(cur_ptr, cur_end, "Cache-control", 13);
+		if (!val)
 			continue;
 
 		/* OK, right now we know we have a cache-control header at cur_ptr */
 
-		p1 = cur_ptr + 14; /* first char after 'cache-control:' */
-
-		while (p1 < cur_end && (isspace((int)*p1)))
-				p1++;
+		p1 = cur_ptr + val; /* first non-space char after 'cache-control:' */
 
 		if (p1 >= cur_end)	/* no more info */
 			continue;
