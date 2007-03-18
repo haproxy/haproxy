@@ -2125,10 +2125,7 @@ int process_srv(struct session *t)
 
 				t->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
 				t->srv = NULL; /* it's left to the dispatcher to choose a server */
-				if ((txn->flags & TX_CK_MASK) == TX_CK_VALID) {
-					txn->flags &= ~TX_CK_MASK;
-					txn->flags |= TX_CK_DOWN;
-				}
+				http_flush_cookie_flags(txn);
 
 				/* first, get a connection */
 				if (srv_redispatch_connect(t))
