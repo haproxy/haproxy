@@ -410,8 +410,8 @@ void sess_log(struct session *s)
 			 txn->srv_cookie ? txn->srv_cookie : "-",
 			 sess_term_cond[(s->flags & SN_ERR_MASK) >> SN_ERR_SHIFT],
 			 sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT],
-			 (be->beprm->options & PR_O_COOK_ANY) ? sess_cookie[(s->flags & SN_CK_MASK) >> SN_CK_SHIFT] : '-',
-			 (be->beprm->options & PR_O_COOK_ANY) ? sess_set_cookie[(s->flags & SN_SCK_MASK) >> SN_SCK_SHIFT] : '-',
+			 (be->beprm->options & PR_O_COOK_ANY) ? sess_cookie[(txn->flags & TX_CK_MASK) >> TX_CK_SHIFT] : '-',
+			 (be->beprm->options & PR_O_COOK_ANY) ? sess_set_cookie[(txn->flags & TX_SCK_MASK) >> TX_SCK_SHIFT] : '-',
 			 actconn, fe->feconn, be->beprm->beconn, s->srv ? s->srv->cur_sess : 0,
 			 s->logs.srv_queue_size, s->logs.prx_queue_size, tmpline);
 	}

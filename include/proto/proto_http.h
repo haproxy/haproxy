@@ -82,6 +82,15 @@ void check_response_for_cacheability(struct session *t, struct buffer *rtr);
 int stats_check_uri_auth(struct session *t, struct proxy *backend);
 void init_proto_http();
 
+/* used to clear the cookie flags when a transaction failed on the server
+ * designed by the cookie. We clear the CK_VALID bit and set the CK_DOWN.
+ */
+static inline void http_flush_cookie_flags(struct http_txn *txn)
+{
+	if ((txn->flags & TX_CK_MASK) == TX_CK_VALID)
+		txn->flags ^= (TX_CK_VALID | TX_CK_DOWN);
+}
+
 #endif /* _PROTO_PROTO_HTTP_H */
 
 /*

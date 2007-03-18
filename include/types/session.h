@@ -41,19 +41,13 @@
 
 /* various session flags, bits values 0x01 to 0x20 (shift 0) */
 #define SN_DIRECT	0x00000001	/* connection made on the server matching the client cookie */
-#define SN_CLDENY	0x00000002	/* a client header matches a deny regex */
-#define SN_CLALLOW	0x00000004	/* a client header matches an allow regex */
-#define SN_SVDENY	0x00000008	/* a server header matches a deny regex */
-#define SN_SVALLOW	0x00000010	/* a server header matches an allow regex */
-#define SN_BE_ASSIGNED	0x00000020	/* a backend was assigned. Conns are accounted. */
-
-/* session flags dedicated to cookies : bits values 0x40, 0x80 (0-3 shift 6) */
-#define	SN_CK_NONE	0x00000000	/* this session had no cookie */
-#define	SN_CK_INVALID	0x00000040	/* this session had a cookie which matches no server */
-#define	SN_CK_DOWN	0x00000080	/* this session had cookie matching a down server */
-#define	SN_CK_VALID	0x000000C0	/* this session had cookie matching a valid server */
-#define	SN_CK_MASK	0x000000C0	/* mask to get this session's cookie flags */
-#define SN_CK_SHIFT	6		/* bit shift */
+#define SN_ASSIGNED	0x00000002	/* no need to assign a server to this session */
+#define SN_ADDR_SET	0x00000004	/* this session's server address has been set */
+#define SN_BE_ASSIGNED	0x00000008	/* a backend was assigned. Conns are accounted. */
+#define SN_CONN_CLOSED	0x00000010	/* "Connection: close" was present or added */
+#define SN_MONITOR	0x00000020	/* this session comes from a monitoring system */
+#define SN_SELF_GEN	0x00000040	/* the proxy generates data for the client (eg: stats) */
+/* unused:              0x00000080 */
 
 /* session termination conditions, bits values 0x100 to 0x700 (0-7 shift 8) */
 #define SN_ERR_NONE     0x00000000
@@ -66,6 +60,7 @@
 #define SN_ERR_INTERNAL	0x00000700	/* the proxy encountered an internal error */
 #define SN_ERR_MASK	0x00000700	/* mask to get only session error flags */
 #define SN_ERR_SHIFT	8		/* bit shift */
+/* unused:              0x00000800 */
 
 /* session state at termination, bits values 0x1000 to 0x7000 (0-7 shift 12) */
 #define SN_FINST_R	0x00001000	/* session ended during client request */
@@ -77,28 +72,7 @@
 #define SN_FINST_T	0x00007000	/* session ended tarpitted */
 #define SN_FINST_MASK	0x00007000	/* mask to get only final session state flags */
 #define	SN_FINST_SHIFT	12		/* bit shift */
-
-/* cookie information, bits values 0x10000 to 0x80000 (0-8 shift 16) */
-#define	SN_SCK_NONE	0x00000000	/* no set-cookie seen for the server cookie */
-#define	SN_SCK_DELETED	0x00010000	/* existing set-cookie deleted or changed */
-#define	SN_SCK_INSERTED	0x00020000	/* new set-cookie inserted or changed existing one */
-#define	SN_SCK_SEEN	0x00040000	/* set-cookie seen for the server cookie */
-#define	SN_SCK_MASK	0x00070000	/* mask to get the set-cookie field */
-#define	SN_SCK_ANY	0x00080000	/* at least one set-cookie seen (not to be counted) */
-#define	SN_SCK_SHIFT	16		/* bit shift */
-
-/* cacheability management, bits values 0x100000 to 0x300000 (0-3 shift 20) */
-#define	SN_CACHEABLE	0x00100000	/* at least part of the response is cacheable */
-#define	SN_CACHE_COOK	0x00200000	/* a cookie in the response is cacheable */
-#define	SN_CACHE_SHIFT	20		/* bit shift */
-
-/* various other session flags, bits values 0x400000 and above */
-#define SN_CONN_CLOSED	0x00000800	/* "Connection: close" was present or added */
-#define SN_MONITOR	0x00400000	/* this session comes from a monitoring system */
-#define SN_ASSIGNED	0x00800000	/* no need to assign a server to this session */
-#define SN_ADDR_SET	0x01000000	/* this session's server address has been set */
-#define SN_SELF_GEN	0x02000000	/* the proxy generates data for the client (eg: stats) */
-#define SN_CLTARPIT	0x04000000	/* the session is tarpitted (anti-dos) */
+/* unused:              0x00008000 */
 
 
 /* WARNING: if new fields are added, they must be initialized in event_accept()

@@ -53,6 +53,41 @@
 #define SV_STSHUTW	5
 #define SV_STCLOSE	6
 
+/*
+ * Transaction flags moved from session
+ */
+
+
+/* action flags */
+#define TX_CLDENY	0x00000001	/* a client header matches a deny regex */
+#define TX_CLALLOW	0x00000002	/* a client header matches an allow regex */
+#define TX_SVDENY	0x00000004	/* a server header matches a deny regex */
+#define TX_SVALLOW	0x00000008	/* a server header matches an allow regex */
+#define TX_CLTARPIT	0x00000010	/* the session is tarpitted (anti-dos) */
+/* unused:              0x00000020 */
+
+/* transaction flags dedicated to cookies : bits values 0x40, 0x80 (0-3 shift 6) */
+#define TX_CK_NONE	0x00000000	/* this session had no cookie */
+#define TX_CK_INVALID	0x00000040	/* this session had a cookie which matches no server */
+#define TX_CK_DOWN	0x00000080	/* this session had cookie matching a down server */
+#define TX_CK_VALID	0x000000C0	/* this session had cookie matching a valid server */
+#define TX_CK_MASK	0x000000C0	/* mask to get this session's cookie flags */
+#define TX_CK_SHIFT	6		/* bit shift */
+
+/* cookie information, bits values 0x100 to 0x800 (0-8 shift 8) */
+#define TX_SCK_NONE	0x00000000	/* no set-cookie seen for the server cookie */
+#define TX_SCK_DELETED	0x00000100	/* existing set-cookie deleted or changed */
+#define TX_SCK_INSERTED	0x00000200	/* new set-cookie inserted or changed existing one */
+#define TX_SCK_SEEN	0x00000400	/* set-cookie seen for the server cookie */
+#define TX_SCK_MASK	0x00000700	/* mask to get the set-cookie field */
+#define TX_SCK_ANY	0x00000800	/* at least one set-cookie seen (not to be counted) */
+#define TX_SCK_SHIFT	8		/* bit shift */
+
+/* cacheability management, bits values 0x1000 to 0x3000 (0-3 shift 12) */
+#define TX_CACHEABLE	0x00001000	/* at least part of the response is cacheable */
+#define TX_CACHE_COOK	0x00002000	/* a cookie in the response is cacheable */
+#define TX_CACHE_SHIFT	12		/* bit shift */
+
 
 /* The HTTP parser is more complex than it looks like, because we have to
  * support multi-line headers and any number of spaces between the colon and
@@ -204,6 +239,7 @@ struct http_txn {
 	char *cli_cookie;		/* cookie presented by the client, in capture mode */
 	char *srv_cookie;		/* cookie presented by the server, in capture mode */
 	int status;			/* HTTP status from the server, negative if from proxy */
+	unsigned int flags;             /* transaction flags */
 };
 
 

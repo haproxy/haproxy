@@ -1450,7 +1450,7 @@ int process_cli(struct session *t)
 			}
 
 			/* has the request been denied ? */
-			if (t->flags & SN_CLDENY) {
+			if (txn->flags & TX_CLDENY) {
 				/* no need to go further */
 				txn->status = 403;
 				/* let's log the request time */
@@ -1585,7 +1585,7 @@ int process_cli(struct session *t)
 		 * the fields will stay coherent and the URI will not move.
 		 * This should only be performed in the backend.
 		 */
-		if (!(t->flags & (SN_CLDENY|SN_CLTARPIT)))
+		if (!(txn->flags & (TX_CLDENY|TX_CLTARPIT)))
 			manage_client_side_cookies(t, req);
 
 
@@ -1667,7 +1667,7 @@ int process_cli(struct session *t)
 		 * timeout. If unset, then set it to zero because we really want it
 		 * to expire at one moment.
 		 */
-		if (t->flags & SN_CLTARPIT) {
+		if (txn->flags & TX_CLTARPIT) {
 			t->req->l = 0;
 			/* flush the request so that we can drop the connection early
 			 * if the client closes first.
@@ -1986,6 +1986,7 @@ int process_srv(struct session *t)
 {
 	int s = t->srv_state;
 	int c = t->cli_state;
+	struct http_txn *txn = &t->txn;
 	struct buffer *req = t->req;
 	struct buffer *rep = t->rep;
 	int conn_err;
@@ -2009,7 +2010,7 @@ int process_srv(struct session *t)
 			/* note that this must not return any error because it would be able to
 			 * overwrite the client_retnclose() output.
 			 */
-			if (t->flags & SN_CLTARPIT)
+			if (txn->flags & TX_CLTARPIT)
 				srv_close_with_err(t, SN_ERR_CLICL, SN_FINST_T, 0, NULL);
 			else
 				srv_close_with_err(t, SN_ERR_CLICL, t->pend_pos ? SN_FINST_Q : SN_FINST_C, 0, NULL);
@@ -2017,7 +2018,7 @@ int process_srv(struct session *t)
 			return 1;
 		}
 		else {
-			if (t->flags & SN_CLTARPIT) {
+			if (txn->flags & TX_CLTARPIT) {
 				/* This connection is being tarpitted. The CLIENT side has
 				 * already set the connect expiration date to the right
 				 * timeout. We just have to check that it has not expired.
@@ -2124,9 +2125,9 @@ int process_srv(struct session *t)
 
 				t->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
 				t->srv = NULL; /* it's left to the dispatcher to choose a server */
-				if ((t->flags & SN_CK_MASK) == SN_CK_VALID) {
-					t->flags &= ~SN_CK_MASK;
-					t->flags |= SN_CK_DOWN;
+				if ((txn->flags & TX_CK_MASK) == TX_CK_VALID) {
+					txn->flags &= ~TX_CK_MASK;
+					txn->flags |= TX_CK_DOWN;
 				}
 
 				/* first, get a connection */
@@ -2227,7 +2228,6 @@ int process_srv(struct session *t)
 		 */
 
 		int cur_idx;
-		struct http_txn *txn = &t->txn;
 		struct http_msg *msg = &txn->rsp;
 		struct proxy *cur_proxy;
 
@@ -2469,7 +2469,7 @@ int process_srv(struct session *t)
 			 */
 			if (likely(txn->meth != HTTP_METH_POST) &&
 			    unlikely(t->be->beprm->options & PR_O_CHK_CACHE))
-				t->flags |= SN_CACHEABLE | SN_CACHE_COOK;
+				txn->flags |= TX_CACHEABLE | TX_CACHE_COOK;
 			break;
 		default:
 			break;
@@ -2528,7 +2528,7 @@ int process_srv(struct session *t)
 			}
 
 			/* has the response been denied ? */
-			if (t->flags & SN_SVDENY) {
+			if (txn->flags & TX_SVDENY) {
 				if (t->srv) {
 					t->srv->cur_sess--;
 					t->srv->failed_secu++;
@@ -2634,7 +2634,7 @@ int process_srv(struct session *t)
 			if (hdr_idx_add(len - 2, 1, &txn->hdr_idx, txn->hdr_idx.tail) < 0)
 				goto return_bad_resp;
 
-			t->flags |= SN_SCK_INSERTED;
+			txn->flags |= TX_SCK_INSERTED;
 
 			/* Here, we will tell an eventual cache on the client side that we don't
 			 * want it to cache this reply because HTTP/1.0 caches also cache cookies !
@@ -2665,8 +2665,8 @@ int process_srv(struct session *t)
 		 * We'll block the response if security checks have caught
 		 * nasty things such as a cacheable cookie.
 		 */
-		if (((t->flags & (SN_CACHEABLE | SN_CACHE_COOK | SN_SCK_ANY)) ==
-		     (SN_CACHEABLE | SN_CACHE_COOK | SN_SCK_ANY)) &&
+		if (((txn->flags & (TX_CACHEABLE | TX_CACHE_COOK | TX_SCK_ANY)) ==
+		     (TX_CACHEABLE | TX_CACHE_COOK | TX_SCK_ANY)) &&
 		    (t->be->beprm->options & PR_O_CHK_CACHE)) {
 
 			/* we're in presence of a cacheable response containing
@@ -3569,9 +3569,9 @@ int apply_filter_to_req_headers(struct session *t, struct buffer *req, struct hd
 	old_idx = 0;
 
 	while (!last_hdr) {
-		if (unlikely(t->flags & (SN_CLDENY | SN_CLTARPIT)))
+		if (unlikely(txn->flags & (TX_CLDENY | TX_CLTARPIT)))
 			return 1;
-		else if (unlikely(t->flags & SN_CLALLOW) &&
+		else if (unlikely(txn->flags & TX_CLALLOW) &&
 			 (exp->action == ACT_ALLOW ||
 			  exp->action == ACT_DENY ||
 			  exp->action == ACT_TARPIT))
@@ -3622,18 +3622,18 @@ int apply_filter_to_req_headers(struct session *t, struct buffer *req, struct hd
 				break;
 
 			case ACT_ALLOW:
-				t->flags |= SN_CLALLOW;
+				txn->flags |= TX_CLALLOW;
 				last_hdr = 1;
 				break;
 
 			case ACT_DENY:
-				t->flags |= SN_CLDENY;
+				txn->flags |= TX_CLDENY;
 				last_hdr = 1;
 				t->be->beprm->denied_req++;
 				break;
 
 			case ACT_TARPIT:
-				t->flags |= SN_CLTARPIT;
+				txn->flags |= TX_CLTARPIT;
 				last_hdr = 1;
 				t->be->beprm->denied_req++;
 				break;
@@ -3693,9 +3693,9 @@ int apply_filter_to_req_line(struct session *t, struct buffer *req, struct hdr_e
 	int len, delta;
 
 
-	if (unlikely(t->flags & (SN_CLDENY | SN_CLTARPIT)))
+	if (unlikely(txn->flags & (TX_CLDENY | TX_CLTARPIT)))
 		return 1;
-	else if (unlikely(t->flags & SN_CLALLOW) &&
+	else if (unlikely(txn->flags & TX_CLALLOW) &&
 		 (exp->action == ACT_ALLOW ||
 		  exp->action == ACT_DENY ||
 		  exp->action == ACT_TARPIT))
@@ -3742,18 +3742,18 @@ int apply_filter_to_req_line(struct session *t, struct buffer *req, struct hdr_e
 			break;
 
 		case ACT_ALLOW:
-			t->flags |= SN_CLALLOW;
+			txn->flags |= TX_CLALLOW;
 			done = 1;
 			break;
 
 		case ACT_DENY:
-			t->flags |= SN_CLDENY;
+			txn->flags |= TX_CLDENY;
 			t->be->beprm->denied_req++;
 			done = 1;
 			break;
 
 		case ACT_TARPIT:
-			t->flags |= SN_CLTARPIT;
+			txn->flags |= TX_CLTARPIT;
 			t->be->beprm->denied_req++;
 			done = 1;
 			break;
@@ -3800,8 +3800,9 @@ int apply_filter_to_req_line(struct session *t, struct buffer *req, struct hdr_e
  */
 int apply_filters_to_request(struct session *t, struct buffer *req, struct hdr_exp *exp)
 {
+	struct http_txn *txn = &t->txn;
 	/* iterate through the filters in the outer loop */
-	while (exp && !(t->flags & (SN_CLDENY|SN_CLTARPIT))) {
+	while (exp && !(txn->flags & (TX_CLDENY|TX_CLTARPIT))) {
 		int ret;
 
 		/*
@@ -3810,7 +3811,7 @@ int apply_filters_to_request(struct session *t, struct buffer *req, struct hdr_e
 		 * the evaluation.
 		 */
 
-		if ((t->flags & SN_CLALLOW) &&
+		if ((txn->flags & TX_CLALLOW) &&
 		    (exp->action == ACT_ALLOW || exp->action == ACT_DENY ||
 		     exp->action == ACT_TARPIT || exp->action == ACT_PASS)) {
 			exp = exp->next;
@@ -4014,23 +4015,24 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 						    !memcmp(p3, srv->cookie, delim - p3)) {
 							if (srv->state & SRV_RUNNING || t->be->beprm->options & PR_O_PERSIST) {
 								/* we found the server and it's usable */
-								t->flags &= ~SN_CK_MASK;
-								t->flags |= SN_CK_VALID | SN_DIRECT | SN_ASSIGNED;
+								txn->flags &= ~TX_CK_MASK;
+								txn->flags |= TX_CK_VALID;
+								t->flags |= SN_DIRECT | SN_ASSIGNED;
 								t->srv = srv;
 								break;
 							} else {
 								/* we found a server, but it's down */
-								t->flags &= ~SN_CK_MASK;
-								t->flags |= SN_CK_DOWN;
+								txn->flags &= ~TX_CK_MASK;
+								txn->flags |= TX_CK_DOWN;
 							}
 						}
 						srv = srv->next;
 					}
 
-					if (!srv && !(t->flags & SN_CK_DOWN)) {
+					if (!srv && !(txn->flags & TX_CK_DOWN)) {
 						/* no server matched this cookie */
-						t->flags &= ~SN_CK_MASK;
-						t->flags |= SN_CK_INVALID;
+						txn->flags &= ~TX_CK_MASK;
+						txn->flags |= TX_CK_INVALID;
 					}
 
 					/* depending on the cookie mode, we may have to either :
@@ -4123,13 +4125,14 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 							if (strcmp(srv->id, asession_temp->serverid) == 0) {
 								if (srv->state & SRV_RUNNING || t->be->beprm->options & PR_O_PERSIST) {
 									/* we found the server and it's usable */
-									t->flags &= ~SN_CK_MASK;
-									t->flags |= SN_CK_VALID | SN_DIRECT | SN_ASSIGNED;
+									txn->flags &= ~TX_CK_MASK;
+									txn->flags |= TX_CK_VALID;
+									t->flags |= SN_DIRECT | SN_ASSIGNED;
 									t->srv = srv;
 									break;
 								} else {
-									t->flags &= ~SN_CK_MASK;
-									t->flags |= SN_CK_DOWN;
+									txn->flags &= ~TX_CK_MASK;
+									txn->flags |= TX_CK_DOWN;
 								}
 							}
 							srv = srv->next;
@@ -4194,9 +4197,9 @@ int apply_filter_to_resp_headers(struct session *t, struct buffer *rtr, struct h
 	old_idx = 0;
 
 	while (!last_hdr) {
-		if (unlikely(t->flags & SN_SVDENY))
+		if (unlikely(txn->flags & TX_SVDENY))
 			return 1;
-		else if (unlikely(t->flags & SN_SVALLOW) &&
+		else if (unlikely(txn->flags & TX_SVALLOW) &&
 			 (exp->action == ACT_ALLOW ||
 			  exp->action == ACT_DENY))
 			return 0;
@@ -4225,12 +4228,12 @@ int apply_filter_to_resp_headers(struct session *t, struct buffer *rtr, struct h
 		if (regexec(exp->preg, cur_ptr, MAX_MATCH, pmatch, 0) == 0) {
 			switch (exp->action) {
 			case ACT_ALLOW:
-				t->flags |= SN_SVALLOW;
+				txn->flags |= TX_SVALLOW;
 				last_hdr = 1;
 				break;
 
 			case ACT_DENY:
-				t->flags |= SN_SVDENY;
+				txn->flags |= TX_SVDENY;
 				last_hdr = 1;
 				break;
 
@@ -4287,9 +4290,9 @@ int apply_filter_to_sts_line(struct session *t, struct buffer *rtr, struct hdr_e
 	int len, delta;
 
 
-	if (unlikely(t->flags & SN_SVDENY))
+	if (unlikely(txn->flags & TX_SVDENY))
 		return 1;
-	else if (unlikely(t->flags & SN_SVALLOW) &&
+	else if (unlikely(txn->flags & TX_SVALLOW) &&
 		 (exp->action == ACT_ALLOW ||
 		  exp->action == ACT_DENY))
 		return 0;
@@ -4314,12 +4317,12 @@ int apply_filter_to_sts_line(struct session *t, struct buffer *rtr, struct hdr_e
 	if (regexec(exp->preg, cur_ptr, MAX_MATCH, pmatch, 0) == 0) {
 		switch (exp->action) {
 		case ACT_ALLOW:
-			t->flags |= SN_SVALLOW;
+			txn->flags |= TX_SVALLOW;
 			done = 1;
 			break;
 
 		case ACT_DENY:
-			t->flags |= SN_SVDENY;
+			txn->flags |= TX_SVDENY;
 			done = 1;
 			break;
 
@@ -4364,8 +4367,9 @@ int apply_filter_to_sts_line(struct session *t, struct buffer *rtr, struct hdr_e
  */
 int apply_filters_to_response(struct session *t, struct buffer *rtr, struct hdr_exp *exp)
 {
+	struct http_txn *txn = &t->txn;
 	/* iterate through the filters in the outer loop */
-	while (exp && !(t->flags & SN_SVDENY)) {
+	while (exp && !(txn->flags & TX_SVDENY)) {
 		int ret;
 
 		/*
@@ -4374,7 +4378,7 @@ int apply_filters_to_response(struct session *t, struct buffer *rtr, struct hdr_
 		 * the evaluation.
 		 */
 
-		if ((t->flags & SN_SVALLOW) &&
+		if ((txn->flags & TX_SVALLOW) &&
 		    (exp->action == ACT_ALLOW || exp->action == ACT_DENY ||
 		     exp->action == ACT_PASS)) {
 			exp = exp->next;
@@ -4445,7 +4449,7 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 		}
 
 		/* OK, right now we know we have a set-cookie at cur_ptr */
-		t->flags |= SN_SCK_ANY;
+		txn->flags |= TX_SCK_ANY;
 
 
 		/* maybe we only wanted to see if there was a set-cookie */
@@ -4506,7 +4510,7 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 			if ((p2 - p1 == t->be->beprm->cookie_len) && (t->be->beprm->cookie_name != NULL) &&
 			    (memcmp(p1, t->be->beprm->cookie_name, p2 - p1) == 0)) {
 				/* Cool... it's the right one */
-				t->flags |= SN_SCK_SEEN;
+				txn->flags |= TX_SCK_SEEN;
 			
 				/* If the cookie is in insert mode on a known server, we'll delete
 				 * this occurrence because we'll insert another one later.
@@ -4522,7 +4526,7 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 					cur_next += delta;
 					txn->rsp.eoh += delta;
 
-					t->flags |= SN_SCK_DELETED;
+					txn->flags |= TX_SCK_DELETED;
 				}
 				else if ((t->srv) && (t->srv->cookie) &&
 					 (t->be->beprm->options & PR_O_COOK_RW)) {
@@ -4534,7 +4538,7 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 					cur_next += delta;
 					txn->rsp.eoh += delta;
 
-					t->flags |= SN_SCK_INSERTED | SN_SCK_DELETED;
+					txn->flags |= TX_SCK_INSERTED | TX_SCK_DELETED;
 				}
 				else if ((t->srv) && (t->srv->cookie) &&
 					 (t->be->beprm->options & PR_O_COOK_PFX)) {
@@ -4547,7 +4551,7 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 					txn->rsp.eoh += delta;
 
 					p3[t->srv->cklen] = COOKIE_DELIM;
-					t->flags |= SN_SCK_INSERTED | SN_SCK_DELETED;
+					txn->flags |= TX_SCK_INSERTED | TX_SCK_DELETED;
 				}
 			}
 			/* next, let's see if the cookie is our appcookie */
@@ -4623,7 +4627,7 @@ void check_response_for_cacheability(struct session *t, struct buffer *rtr)
 	char *cur_ptr, *cur_end, *cur_next;
 	int cur_idx;
 
-	if (!t->flags & SN_CACHEABLE)
+	if (!txn->flags & TX_CACHEABLE)
 		return;
 
 	/* Iterate through the headers.
@@ -4647,7 +4651,7 @@ void check_response_for_cacheability(struct session *t, struct buffer *rtr)
 
 		if ((cur_end - cur_ptr >= 16) &&
 		    strncasecmp(cur_ptr, "Pragma: no-cache", 16) == 0) {
-			t->flags &= ~SN_CACHEABLE & ~SN_CACHE_COOK;
+			txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
 			return;
 		}
 
@@ -4677,7 +4681,7 @@ void check_response_for_cacheability(struct session *t, struct buffer *rtr)
 			if ((cur_end - p1 >= 21) &&
 			    strncasecmp(p1, "no-cache=\"set-cookie", 20) == 0
 			    && (p1[20] == '"' || p1[20] == ','))
-				t->flags &= ~SN_CACHE_COOK;
+				txn->flags &= ~TX_CACHE_COOK;
 			continue;
 		}
 
@@ -4686,12 +4690,12 @@ void check_response_for_cacheability(struct session *t, struct buffer *rtr)
 		    ((p2 - p1 ==  8) && strncasecmp(p1, "no-store", 8) == 0) ||
 		    ((p2 - p1 ==  9) && strncasecmp(p1, "max-age=0", 9) == 0) ||
 		    ((p2 - p1 == 10) && strncasecmp(p1, "s-maxage=0", 10) == 0)) {
-			t->flags &= ~SN_CACHEABLE & ~SN_CACHE_COOK;
+			txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
 			return;
 		}
 
 		if ((p2 - p1 ==  6) && strncasecmp(p1, "public", 6) == 0) {
-			t->flags |= SN_CACHEABLE | SN_CACHE_COOK;
+			txn->flags |= TX_CACHEABLE | TX_CACHE_COOK;
 			continue;
 		}
 	}
@@ -4704,6 +4708,7 @@ void check_response_for_cacheability(struct session *t, struct buffer *rtr)
  */
 void get_srv_from_appsession(struct session *t, const char *begin, int len)
 {
+	struct http_txn *txn = &t->txn;
 	appsess *asession_temp = NULL;
 	appsess local_asession;
 	char *request_line;
@@ -4770,13 +4775,14 @@ void get_srv_from_appsession(struct session *t, const char *begin, int len)
 			if (strcmp(srv->id, asession_temp->serverid) == 0) {
 				if (srv->state & SRV_RUNNING || t->be->beprm->options & PR_O_PERSIST) {
 					/* we found the server and it's usable */
-					t->flags &= ~SN_CK_MASK;
-					t->flags |= SN_CK_VALID | SN_DIRECT | SN_ASSIGNED;
+					txn->flags &= ~TX_CK_MASK;
+					txn->flags |= TX_CK_VALID;
+					t->flags |= SN_DIRECT | SN_ASSIGNED;
 					t->srv = srv;
 					break;
 				} else {
-					t->flags &= ~SN_CK_MASK;
-					t->flags |= SN_CK_DOWN;
+					txn->flags &= ~TX_CK_MASK;
+					txn->flags |= TX_CK_DOWN;
 				}
 			}
 			srv = srv->next;

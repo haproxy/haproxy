@@ -195,6 +195,7 @@ int event_accept(int fd) {
 		p->cum_feconn++;	/* cum_beconn will be increased once assigned */
 
 		txn = &s->txn;
+		txn->flags = 0;
 		txn->req.cap = NULL;
 		txn->rsp.cap = NULL;
 		txn->hdr_idx.v = NULL;

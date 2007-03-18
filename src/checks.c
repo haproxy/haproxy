@@ -33,6 +33,7 @@
 #include <proto/fd.h>
 #include <proto/log.h>
 #include <proto/queue.h>
+#include <proto/proto_http.h>
 #include <proto/proxy.h>
 #include <proto/server.h>
 #include <proto/task.h>
@@ -71,10 +72,7 @@ void set_server_down(struct server *s)
 				 */
 				sess->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
 				sess->srv = NULL; /* it's left to the dispatcher to choose a server */
-				if ((sess->flags & SN_CK_MASK) == SN_CK_VALID) {
-					sess->flags &= ~SN_CK_MASK;
-					sess->flags |= SN_CK_DOWN;
-				}
+				http_flush_cookie_flags(&sess->txn);
 				pendconn_free(pc);
 				task_wakeup(&rq, sess->task);
 				xferred++;

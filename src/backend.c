@@ -639,10 +639,7 @@ int srv_retryable_connect(struct session *t)
 
 	t->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
 	t->srv = NULL; /* it's left to the dispatcher to choose a server */
-	if ((t->flags & SN_CK_MASK) == SN_CK_VALID) {
-		t->flags &= ~SN_CK_MASK;
-		t->flags |= SN_CK_DOWN;
-	}
+	http_flush_cookie_flags(&t->txn);
 	return 0;
 }
 
