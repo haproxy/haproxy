@@ -75,7 +75,7 @@ int buffer_write_chunk(struct buffer *buf, struct chunk *chunk)
  * If there's no space left, the move is not done.
  *
  */
-int buffer_replace(struct buffer *b, char *pos, char *end, char *str)
+int buffer_replace(struct buffer *b, char *pos, char *end, const char *str)
 {
 	int delta;
 	int len;
@@ -105,7 +105,7 @@ int buffer_replace(struct buffer *b, char *pos, char *end, char *str)
  * same except that the string length is given, which allows str to be NULL if
  * len is 0.
  */
-int buffer_replace2(struct buffer *b, char *pos, char *end, char *str, int len)
+int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int len)
 {
 	int delta;
 
@@ -126,6 +126,44 @@ int buffer_replace2(struct buffer *b, char *pos, char *end, char *str, int len)
 	/* now, copy str over pos */
 	if (len)
 		memcpy(pos, str, len);
+
+	/* we only move data after the displaced zone */
+	if (b->r  > pos) b->r  += delta;
+	if (b->w  > pos) b->w  += delta;
+	if (b->lr > pos) b->lr += delta;
+	b->l += delta;
+
+	return delta;
+}
+
+
+/*
+ * Inserts <str> followed by "\r\n" at position <pos> in buffer <b>. The <len>
+ * argument informs about the length of string <str> so that we don't have to
+ * measure it. It does not include the "\r\n". If <str> is NULL, then the buffer
+ * is only opened for len+2 bytes but nothing is copied in. It may be useful in
+ * some circumstances.
+ *
+ * The number of bytes added is returned on success. 0 is returned on failure.
+ */
+int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len)
+{
+	int delta;
+
+	delta = len + 2;
+
+	if (delta + b->r >= b->data + BUFSIZE)
+		return 0;  /* no space left */
+
+	/* first, protect the end of the buffer */
+	memmove(pos + delta, pos, b->data + b->l - pos);
+
+	/* now, copy str over pos */
+	if (len && str) {
+		memcpy(pos, str, len);
+		pos[len] = '\r';
+		pos[len + 1] = '\n';
+	}
 
 	/* we only move data after the displaced zone */
 	if (b->r  > pos) b->r  += delta;

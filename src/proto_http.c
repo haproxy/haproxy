@@ -311,6 +311,45 @@ static char *cli_stnames[5] = {"HDR", "DAT", "SHR", "SHW", "CLS" };
 static char *srv_stnames[7] = {"IDL", "CON", "HDR", "DAT", "SHR", "SHW", "CLS" };
 #endif
 
+/*
+ * Adds a header and its CRLF at the tail of buffer <b>, just before the last
+ * CRLF. Text length is measured first, so it cannot be NULL.
+ * The header is also automatically added to the index <hdr_idx>, and the end
+ * of headers is automatically adjusted. The number of bytes added is returned
+ * on success, otherwise <0 is returned indicating an error.
+ */
+int http_header_add_tail(struct buffer *b, struct http_msg *msg,
+			 struct hdr_idx *hdr_idx, const char *text)
+{
+	int bytes, len;
+
+	len = strlen(text);
+	bytes = buffer_insert_line2(b, b->data + msg->eoh, text, len);
+	if (!bytes)
+		return -1;
+	msg->eoh += bytes;
+	return hdr_idx_add(len, 1, hdr_idx, hdr_idx->tail);
+}
+
+/*
+ * Adds a header and its CRLF at the tail of buffer <b>, just before the last
+ * CRLF. <len> bytes are copied, not counting the CRLF. If <text> is NULL, then
+ * the buffer is only opened and the space reserved, but nothing is copied.
+ * The header is also automatically added to the index <hdr_idx>, and the end
+ * of headers is automatically adjusted. The number of bytes added is returned
+ * on success, otherwise <0 is returned indicating an error.
+ */
+int http_header_add_tail2(struct buffer *b, struct http_msg *msg,
+			 struct hdr_idx *hdr_idx, const char *text, int len)
+{
+	int bytes;
+
+	bytes = buffer_insert_line2(b, b->data + msg->eoh, text, len);
+	if (!bytes)
+		return -1;
+	msg->eoh += bytes;
+	return hdr_idx_add(len, 1, hdr_idx, hdr_idx->tail);
+}
 
 /*
  * returns a message to the client ; the connection is shut down for read,
@@ -1511,14 +1550,10 @@ int process_cli(struct session *t)
 
 				/* add request headers from the rule sets in the same order */
 				for (cur_idx = 0; cur_idx < rule_set->nb_reqadd; cur_idx++) {
-					int len;
-
-					len = sprintf(trash, "%s\r\n", rule_set->req_add[cur_idx]);
-					len = buffer_replace2(req, req->data + txn->req.eoh,
-							      req->data + txn->req.eoh, trash, len);
-					txn->req.eoh += len;
-				
-					if (unlikely(hdr_idx_add(len - 2, 1, &txn->hdr_idx, txn->hdr_idx.tail) < 0))
+					if (unlikely(http_header_add_tail(req,
+									  &txn->req,
+									  &txn->hdr_idx,
+									  rule_set->req_add[cur_idx])) < 0)
 						goto return_bad_req;
 				}
 			}
@@ -1598,13 +1633,11 @@ int process_cli(struct session *t)
 				int len;
 				unsigned char *pn;
 				pn = (unsigned char *)&((struct sockaddr_in *)&t->cli_addr)->sin_addr;
-				len = sprintf(trash, "X-Forwarded-For: %d.%d.%d.%d\r\n",
+				len = sprintf(trash, "X-Forwarded-For: %d.%d.%d.%d",
 					      pn[0], pn[1], pn[2], pn[3]);
-				len = buffer_replace2(req, req->data + txn->req.eoh,
-						      req->data + txn->req.eoh, trash, len);
-				txn->req.eoh += len;
 
-				if (hdr_idx_add(len - 2, 1, &txn->hdr_idx, txn->hdr_idx.tail) < 0)
+				if (unlikely(http_header_add_tail2(req, &txn->req,
+								   &txn->hdr_idx, trash, len)) < 0)
 					goto return_bad_req;
 			}
 			else if (t->cli_addr.ss_family == AF_INET6) {
@@ -1613,12 +1646,9 @@ int process_cli(struct session *t)
 				inet_ntop(AF_INET6,
 					  (const void *)&((struct sockaddr_in6 *)(&t->cli_addr))->sin6_addr,
 					  pn, sizeof(pn));
-				len = sprintf(trash, "X-Forwarded-For: %s\r\n", pn);
-				len = buffer_replace2(req, req->data + txn->req.eoh,
-						      req->data + txn->req.eoh, trash, len);
-				txn->req.eoh += len;
-
-				if (hdr_idx_add(len - 2, 1, &txn->hdr_idx, txn->hdr_idx.tail) < 0)
+				len = sprintf(trash, "X-Forwarded-For: %s", pn);
+				if (unlikely(http_header_add_tail2(req, &txn->req,
+								   &txn->hdr_idx, trash, len)) < 0)
 					goto return_bad_req;
 			}
 		}
@@ -1628,12 +1658,8 @@ int process_cli(struct session *t)
 		 */
 		if (((t->fe->options | t->be->beprm->options) & PR_O_HTTP_CLOSE) &&
 		    !(t->flags & SN_CONN_CLOSED)) {
-			int len;
-			len = buffer_replace2(req, req->data + txn->req.eoh,
-					      req->data + txn->req.eoh, "Connection: close\r\n", 19);
-			txn->req.eoh += len;
-
-			if (hdr_idx_add(17, 1, &txn->hdr_idx, txn->hdr_idx.tail) < 0)
+			if (unlikely(http_header_add_tail2(req, &txn->req, &txn->hdr_idx,
+							   "Connection: close", 17)) < 0)
 				goto return_bad_req;
 			t->flags |= SN_CONN_CLOSED;
 		}
@@ -2587,14 +2613,8 @@ int process_srv(struct session *t)
 
 			/* add response headers from the rule sets in the same order */
 			for (cur_idx = 0; cur_idx < rule_set->nb_rspadd; cur_idx++) {
-				int len;
-
-				len = sprintf(trash, "%s\r\n", rule_set->rsp_add[cur_idx]);
-				len = buffer_replace2(rep, rep->data + txn->rsp.eoh,
-				                      rep->data + txn->rsp.eoh, trash, len);
-				txn->rsp.eoh += len;
-				
-				if (unlikely(hdr_idx_add(len - 2, 1, &txn->hdr_idx, txn->hdr_idx.tail) < 0))
+				if (unlikely(http_header_add_tail(rep, &txn->rsp, &txn->hdr_idx,
+								  rule_set->rsp_add[cur_idx])) < 0)
 					goto return_bad_resp;
 			}
 
@@ -2621,16 +2641,13 @@ int process_srv(struct session *t)
 			 * requests and this one isn't. Note that servers which don't have cookies
 			 * (eg: some backup servers) will return a full cookie removal request.
 			 */
-			len = sprintf(trash, "Set-Cookie: %s=%s; path=/\r\n",
+			len = sprintf(trash, "Set-Cookie: %s=%s; path=/",
 				      t->be->beprm->cookie_name,
 				      t->srv->cookie ? t->srv->cookie : "; Expires=Thu, 01-Jan-1970 00:00:01 GMT");
 
-			len = buffer_replace2(rep, rep->data + txn->rsp.eoh, rep->data + txn->rsp.eoh, trash, len);
-			txn->rsp.eoh += len;
-
-			if (hdr_idx_add(len - 2, 1, &txn->hdr_idx, txn->hdr_idx.tail) < 0)
+			if (unlikely(http_header_add_tail2(rep, &txn->rsp, &txn->hdr_idx,
+							   trash, len)) < 0)
 				goto return_bad_resp;
-
 			txn->flags |= TX_SCK_INSERTED;
 
 			/* Here, we will tell an eventual cache on the client side that we don't
@@ -2639,13 +2656,8 @@ int process_srv(struct session *t)
 			 * others don't (eg: apache <= 1.3.26). So we use 'private' instead.
 			 */
 			if (t->be->beprm->options & PR_O_COOK_NOC) {
-				//len += sprintf(newhdr + len, "Cache-control: no-cache=\"set-cookie\"\r\n");
-				len = sprintf(trash, "Cache-control: private\r\n");
-
-				len = buffer_replace2(rep, rep->data + txn->rsp.eoh,
-				                     rep->data + txn->rsp.eoh, trash, len);
-				txn->rsp.eoh += len;
-				if (hdr_idx_add(len - 2, 1, &txn->hdr_idx, txn->hdr_idx.tail) < 0)
+				if (unlikely(http_header_add_tail2(rep, &txn->rsp, &txn->hdr_idx,
+								   "Cache-control: private", 22)) < 0)
 					goto return_bad_resp;
 			}
 		}
@@ -2689,12 +2701,8 @@ int process_srv(struct session *t)
 		 */
 		if (((t->fe->options | t->be->beprm->options) & PR_O_HTTP_CLOSE) &&
 		    !(t->flags & SN_CONN_CLOSED)) {
-			int len;
-			len = buffer_replace2(rep, rep->data + txn->rsp.eoh,
-					      rep->data + txn->rsp.eoh, "Connection: close\r\n", 19);
-			txn->rsp.eoh += len;
-
-			if (hdr_idx_add(17, 1, &txn->hdr_idx, txn->hdr_idx.tail) < 0)
+			if (unlikely(http_header_add_tail2(rep, &txn->rsp, &txn->hdr_idx,
+							   "Connection: close", 17)) < 0)
 				goto return_bad_resp;
 			t->flags |= SN_CONN_CLOSED;
 		}
