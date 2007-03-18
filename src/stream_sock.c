@@ -23,19 +23,12 @@
 #include <common/config.h>
 #include <common/time.h>
 
-#include <types/backend.h>
 #include <types/buffers.h>
 #include <types/global.h>
-#include <types/httperr.h>
 #include <types/polling.h>
-#include <types/proxy.h>
-#include <types/server.h>
-#include <types/session.h>
 
 #include <proto/client.h>
 #include <proto/fd.h>
-#include <proto/log.h>
-#include <proto/proto_http.h>
 #include <proto/stream_sock.h>
 #include <proto/task.h>
 
