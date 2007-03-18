@@ -2740,7 +2740,7 @@ int process_srv(struct session *t)
 		   bytes from the server, then this is the right moment. */
 		if (t->fe->to_log && !(t->logs.logwait & LW_BYTES)) {
 			t->logs.t_close = t->logs.t_data; /* to get a valid end date */
-			t->logs.bytes_in = rep->h - rep->data;
+			t->logs.bytes_in = txn->rsp.eoh;
 			sess_log(t);
 		}
 
