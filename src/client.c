@@ -196,15 +196,19 @@ int event_accept(int fd) {
 
 		txn = &s->txn;
 		txn->flags = 0;
+		/* Those variables will be checked and freed if non-NULL in
+		 * session.c:session_free(). It is important that they are
+		 * properly initialized.
+		 */
+		txn->srv_cookie = NULL;
+		txn->cli_cookie = NULL;
+		txn->uri = NULL;
 		txn->req.cap = NULL;
 		txn->rsp.cap = NULL;
 		txn->hdr_idx.v = NULL;
 		txn->hdr_idx.size = txn->hdr_idx.used = 0;
 
 		if (p->mode == PR_MODE_HTTP) {
-			txn->uri = NULL;
-			txn->cli_cookie = NULL;
-			txn->srv_cookie = NULL;
 			txn->status = -1;
 
 			txn->req.msg_state = HTTP_MSG_RQBEFORE; /* at the very beginning of the request */
