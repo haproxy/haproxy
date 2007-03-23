@@ -64,6 +64,13 @@
 #define MAX_READ_POLL_LOOPS 4
 #endif
 
+// the number of bytes returned by a read below which we will not try to
+// poll the socket again. Generally, return values below the MSS are worthless
+// to try again.
+#ifndef MIN_RET_FOR_READ_LOOP
+#define MIN_RET_FOR_READ_LOOP 1460
+#endif
+
 // cookie delimitor in "prefix" mode. This character is inserted between the
 // persistence cookie and the original value. The '~' is allowed by RFC2965,
 // and should not be too common in server names.

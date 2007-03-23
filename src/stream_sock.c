@@ -95,6 +95,15 @@ int stream_sock_read(int fd) {
 				}
 
 				b->total += ret;
+
+				/* generally if we read something smaller than the 1 or 2 MSS,
+				 * it means that it's not worth trying to read again.
+				 */
+				if (ret < MIN_RET_FOR_READ_LOOP)
+					break;
+				if (!read_poll)
+					break;
+
 				/* we hope to read more data or to get a close on next round */
 				continue;
 			}
