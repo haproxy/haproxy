@@ -40,17 +40,14 @@
 int stream_sock_read(int fd) {
 	struct buffer *b = fdtab[fd].cb[DIR_RD].b;
 	int ret, max;
+	int read_poll = MAX_READ_POLL_LOOPS;
 
 #ifdef DEBUG_FULL
 	fprintf(stderr,"stream_sock_read : fd=%d, owner=%p\n", fd, fdtab[fd].owner);
 #endif
 
 	if (fdtab[fd].state != FD_STERROR) {
-#ifdef FILL_BUFFERS
-		while (1)
-#else
-		do
-#endif
+		while (read_poll-- > 0)
 		{
 			if (b->l == 0) { /* let's realign the buffer to optimize I/O */
 				b->r = b->w = b->lr  = b->data;
@@ -114,9 +111,6 @@ int stream_sock_read(int fd) {
 				break;
 			}
 		} /* while(1) */
-#ifndef FILL_BUFFERS
-		while (0);
-#endif
 	}
 	else {
 		b->flags |= BF_READ_ERROR;

@@ -58,6 +58,12 @@
 #define MAX_HTTP_HDR    ((BUFSIZE+79)/80)
 #endif
 
+// max # of loops we can perform around a read() which succeeds.
+// It's very frequent that the system returns a few TCP segments at a time.
+#ifndef MAX_READ_POLL_LOOPS
+#define MAX_READ_POLL_LOOPS 4
+#endif
+
 // cookie delimitor in "prefix" mode. This character is inserted between the
 // persistence cookie and the original value. The '~' is allowed by RFC2965,
 // and should not be too common in server names.
