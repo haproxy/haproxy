@@ -1193,18 +1193,23 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			}
 			else if (!strcmp(args[cur_arg], "source")) {  /* address to which we bind when connecting */
 				if (!*args[cur_arg + 1]) {
+#ifdef CONFIG_HAP_CTTPROXY
+					Alert("parsing [%s:%d] : '%s' expects <addr>[:<port>], and optional '%s' <addr> as argument.\n",
+					      file, linenum, "source", "usesrc");
+#else
 					Alert("parsing [%s:%d] : '%s' expects <addr>[:<port>] as argument.\n",
 					      file, linenum, "source");
+#endif
 					return -1;
 				}
 				newsrv->state |= SRV_BIND_SRC;
 				newsrv->source_addr = *str2sa(args[cur_arg + 1]);
 				cur_arg += 2;
-#ifdef CONFIG_HAP_CTTPROXY
 				if (!strcmp(args[cur_arg], "usesrc")) {  /* address to use outside */
+#ifdef CONFIG_HAP_CTTPROXY
 					if (newsrv->source_addr.sin_addr.s_addr == INADDR_ANY) {
-						Alert("parsing [%s:%d] : '%s' requires an explicit 'source' address.\n",
-						      file, linenum, "usesrc");
+						Alert("parsing [%s:%d] : '%s' requires an explicit '%s' address.\n",
+						      file, linenum, "usesrc", "source");
 						return -1;
 					}
 					if (!*args[cur_arg + 1]) {
@@ -1222,9 +1227,20 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 					}
 					global.last_checks |= LSTCHK_CTTPROXY | LSTCHK_NETADM;
 					cur_arg += 2;
-				}
+#else	/* no CTTPROXY support */
+					Alert("parsing [%s:%d] : '%s' not allowed here because support for cttproxy was not compiled in.\n",
+						      file, linenum, "usesrc");
+						return -1;
 #endif
+				}
 			}
+#ifdef CONFIG_HAP_CTTPROXY
+			else if (!strcmp(args[cur_arg], "usesrc")) {  /* address to use outside: needs "source" first */
+				Alert("parsing [%s:%d] : '%s' only allowed after a '%s' statement.\n",
+				      file, linenum, "usesrc", "source");
+				return -1;
+			}
+#endif
 			else {
 				Alert("parsing [%s:%d] : server %s only supports options 'backup', 'cookie', 'check', 'inter', 'rise', 'fall', 'port', 'source', 'minconn', 'maxconn' and 'weight'.\n",
 				      file, linenum, newsrv->id);
@@ -1323,15 +1339,20 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			return 0;
 
 		if (!*args[1]) {
+#ifdef CONFIG_HAP_CTTPROXY
+			Alert("parsing [%s:%d] : '%s' expects <addr>[:<port>], and optional '%s' <addr> as argument.\n",
+			      file, linenum, "source", "usesrc");
+#else
 			Alert("parsing [%s:%d] : '%s' expects <addr>[:<port>] as argument.\n",
 			      file, linenum, "source");
+#endif
 			return -1;
 		}
 	
 		curproxy->source_addr = *str2sa(args[1]);
 		curproxy->options |= PR_O_BIND_SRC;
-#ifdef CONFIG_HAP_CTTPROXY
 		if (!strcmp(args[2], "usesrc")) {  /* address to use outside */
+#ifdef CONFIG_HAP_CTTPROXY
 			if (curproxy->source_addr.sin_addr.s_addr == INADDR_ANY) {
 				Alert("parsing [%s:%d] : '%s' requires an explicit 'source' address.\n",
 				      file, linenum, "usesrc");
@@ -1352,9 +1373,20 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 				curproxy->tproxy_addr = *str2sa(args[3]);
 			}
 			global.last_checks |= LSTCHK_CTTPROXY | LSTCHK_NETADM;
-		}
+#else	/* no CTTPROXY support */
+			Alert("parsing [%s:%d] : '%s' not allowed here because support for cttproxy was not compiled in.\n",
+			      file, linenum, "usesrc");
+			return -1;
 #endif
+		}
 	}
+#ifdef CONFIG_HAP_CTTPROXY
+	else if (!strcmp(args[0], "usesrc")) {  /* address to use outside: needs "source" first */
+		Alert("parsing [%s:%d] : '%s' only allowed after a '%s' statement.\n",
+		      file, linenum, "usesrc", "source");
+		return -1;
+	}
+#endif
 	else if (!strcmp(args[0], "cliexp") || !strcmp(args[0], "reqrep")) {  /* replace request header from a regex */
 		regex_t *preg;
 		if (curproxy == &defproxy) {
