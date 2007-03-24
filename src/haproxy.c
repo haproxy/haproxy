@@ -94,6 +94,10 @@
 #include <libtcpsplice.h>
 #endif
 
+#ifdef CONFIG_HAP_CTTPROXY
+#include <proto/cttproxy.h>
+#endif
+
 /*********************************************************************/
 
 /*********************************************************************/
@@ -767,6 +771,27 @@ int main(int argc, char **argv)
 		}
 	}
 #endif
+
+#ifdef CONFIG_HAP_CTTPROXY
+	if (global.last_checks & LSTCHK_CTTPROXY) {
+		int ret;
+
+		ret = check_cttproxy_version();
+		if (ret < 0) {
+			Alert("[%s.main()] Cannot enable cttproxy.\n%s",
+			      argv[0],
+			      (ret == -1) ? "  Incorrect module version.\n"
+			      : "  Make sure you have enough permissions and that the module is loaded.\n");
+			exit(1);
+		}
+	}
+#endif
+
+	if ((global.last_checks & LSTCHK_NETADM) && global.uid) {
+		Alert("[%s.main()] Some configuration options require full privileges, so global.uid cannot be changed.\n"
+		      "", argv[0], global.gid);
+		exit(1);
+	}
 
 	if (nb_oldpids)
 		tell_old_pids(oldpids_sig);

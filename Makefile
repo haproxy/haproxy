@@ -94,7 +94,6 @@ ADDLIB =
 # set some defines when needed.
 # Known ones are -DENABLE_POLL, -DENABLE_EPOLL, and -DUSE_MY_EPOLL
 # - use -DTPROXY to compile with transparent proxy support.
-# - use -DCONFIG_HAP_CTTPROXY to enable full transparent proxy support
 DEFINE = -DTPROXY
 
 # Now let's determine the version, sub-version and release date.
@@ -119,13 +118,16 @@ endif
 
 # do not change this one, enable USE_* variables instead.
 OPTIONS =
+OPT_OBJS =
 
 ifneq ($(USE_TCPSPLICE),)
 OPTIONS += -DCONFIG_HAP_TCPSPLICE
 endif
 
+# - set USE_CTTPROXY to enable full transparent proxy support
 ifneq ($(USE_CTTPROXY),)
 OPTIONS += -DCONFIG_HAP_CTTPROXY
+OPT_OBJS += src/cttproxy.o
 endif
 
 ifneq ($(USE_TPROXY),)
@@ -199,7 +201,7 @@ OBJS = src/haproxy.o src/list.o src/chtbl.o src/hashpjw.o src/base64.o \
        src/proto_http.o src/stream_sock.o src/appsession.o src/backend.o \
        src/session.o src/hdr_idx.o src/rbtree.o
 
-haproxy: $(OBJS)
+haproxy: $(OBJS) $(OPT_OBJS)
 	$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
 
 objsize: haproxy
