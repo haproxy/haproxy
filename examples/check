@@ -1,0 +1,540 @@
+#!/usr/bin/perl
+###################################################################################################################
+# $Id:: check 20 2007-02-23 14:26:44Z fabrice                     $
+# $Revision:: 20                                                  $
+###################################################################################################################
+# Authors : Fabrice Dulaunoy <fabrice@dulaunoy.com>
+#
+# Copyright (C) 2006-2007 Fabrice Dulaunoy <fabrice@dulaunoy.com>
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation; either version 2 of the License, or (at your
+# option) any later version.  See <http://www.fsf.org/copyleft/gpl.txt>.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+# or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+# for more details.
+###################################################################################################################
+#
+###################################################################################################################
+
+use strict;
+
+package MyPackage;
+use Config::General;
+use Getopt::Std;
+use LWP::UserAgent;
+use URI;
+use File::Basename;
+
+# CVS VSERSION
+#my $VERSION = do { my @rev = ( q$Revision: 20 $ =~ /\d+/g ); sprintf "%d." . "%d" x $#rev, @rev };
+# SVN VERSION
+my $VERSION = sprintf "1.%02d", '$Revision: 20 $ ' =~ /(\d+)/;
+
+my %option;
+
+getopts( "vHhc:", \%option );
+
+if ( $option{ h } )
+{
+    print "Usage: $0 [options ...]\n\n";
+    print "Where options include:\n";
+    print "\t -h \t\t\tthis help (what else ?)\n";
+    print "\t -H \t\t\tshow a sample config file\n";
+    print "\t -v \t\t\tprint version and exit\n";
+    print "\t -c file \t\tuse config file (default /etc/check.conf)\n";
+    print "\n\t This is a small program parsing the config file \n";
+    print "\t and checking one or more condition on one or more  servers\n";
+    print "\t these condition could be \n";
+    print "\t\t HTTP return code list (with optinal Host Header and optional Basic Authentication) \n";
+    print "\t\t a regex over a HTTP GET  (with optinal Host Header and optional Basic Authentication)\n";
+    print "\t\t a regex over a FTP GET ( with optional Basic Authentication)\n";
+    print "\t\t a TCP open port\n";
+    print "\t the result state is an AND over all tests  \n";
+    print "\t this result could be \n";
+    print "\t\t a simple HTTP return state  (\"200 OK\" or \"503 Service Unavailable\"  \n";
+    print "\t\t a HTML page with a status OK or NOK for each test\n";
+    print "\t\t a HTML page with a staus OK or NOK for each test in a row of a TABLE\n";
+    print "\n\t The natural complement of this tools is the poll_check tool\n";
+    print "\t The result code of this tools is designed to fit the HAPROXY requirement (test over a port not related to the WEB server)\n";
+}
+
+if ( $option{ H } )
+{
+    print "\t A sample config file could be:\n";
+    print <<'EOF';
+    
+			###########################################################
+			# listening port ( default 9898 )
+			port 9899
+			
+			# on which IP to bind (default 127.0.0.1 ) * = all IP
+			host 10.2.1.1
+			
+			# which client addr is allow ( default 127.0.0.0/8 )
+			#cidr_allow = 0.0.0.0/0 
+			
+			# verbosity from 0 to 4 (default 0 = no log )
+			log_level = 1
+			
+			# daemonize (default 0 = no )
+			daemon = 1
+			
+			# content put a HTML content after header
+			# (default 0 = no content 1 = html 2 = table )
+			content = 2
+			
+			# reparse the config file at each request ( default 0 = no )
+			# only SIGHUP reread the config file)
+			reparse = 1
+			
+			# pid_file  (default /var/run/check.pid )
+			# $$$ = basename of config file
+			# $$ = PID
+			pid_file=/var/run/CHECK_$$$.pid
+			
+			# log_file  (default /var/log/check.log )
+			# $$$ = basename of config file
+			# $$ = PID
+			log_file=/var/log/CHECK_$$$.log
+			
+			# number of servers to keep running (default = 5)
+			min_servers = 2
+			
+			# number of servers to have waiting for requests (default = 2)
+			min_spare_servers = 1
+			
+			# maximum number of servers to have waiting for requests (default = 10)
+			max_spare_servers =1
+			
+			# number of servers (default = 50)
+			max_servers = 2
+			
+   			
+			###########################################################
+			# a server to check
+			# type could be get , regex or tcp
+			#
+			# get = do a http or ftp get and check the result code with
+			# the list, coma separated, provided ( default = 200,201 )
+			# hostheader is optional and send to the server if provided
+			#
+			# regex = do a http or ftp get and check the content result 
+			# with regex provided
+			# hostheader is optional and send to the server if provided
+			#
+			# tcp = test if the tcp port provided is open
+			#
+			###########################################################
+			
+			<realserver>
+				url=http://127.0.0.1:80/apache2-default/index.html
+				type = get
+				code=200,201
+				hostheader = www.test.com
+			</realserver>
+			
+			
+			<realserver>
+				url=http://127.0.0.1:82/apache2-default/index.html
+				type = get
+				code=200,201
+				hostheader = www.myhost.com
+			</realserver>
+			
+			<realserver>
+				url=	 http://10.2.2.1
+				type = regex
+				regex= /qdAbm/
+			</realserver>
+			
+			<realserver>
+				type = tcp
+				url = 10.2.2.1
+				port =80
+			</realserver>
+			
+			<realserver>
+				type = get
+				url = ftp://USER:PASSWORD@10.2.3.1
+				code=200,201
+			</realserver>
+			###########################################################
+
+
+
+EOF
+
+}
+
+if ( $option{ h } || $option{ H } )
+{
+    exit;
+}
+
+if ( $option{ v } ) { print "$VERSION\n"; exit; }
+
+use vars qw(@ISA);
+use Net::Server::PreFork;
+@ISA = qw(Net::Server::PreFork);
+
+my $port;
+my $host;
+my $reparse;
+my $cidr_allow;
+my $log_level;
+my $log_file;
+my $pid_file;
+my $daemon;
+my $min_servers;
+my $min_spare_servers;
+my $max_spare_servers;
+my $max_servers;
+my $html_content;
+
+my $conf_file = $option{ c } || "/etc/check.conf";
+my $pwd = $ENV{ PWD };
+$conf_file =~ s/^\./$pwd/;
+$conf_file =~ s/^([^\/])/$pwd\/$1/;
+my $basename = basename( $conf_file, ( '.conf' ) );
+my $CONF = parse_conf( $conf_file );
+
+my $reparse_one = 0;
+
+$SIG{ HUP } = sub { $reparse_one = 1; };
+
+my @TEST;
+my $test_list = $CONF->{ realserver };
+if ( ref( $test_list ) eq "ARRAY" )
+{
+    @TEST = @{ $test_list };
+}
+else
+{
+    @TEST = ( $test_list );
+}
+
+my $server = MyPackage->new(
+    {
+        port                => $port,
+        host                => $host,
+        cidr_allow          => $cidr_allow,
+        log_level           => $log_level,
+        child_communication => 1,
+        setsid              => $daemon,
+        log_file            => $log_file,
+        pid_file            => $pid_file,
+        min_servers         => $min_servers,
+        min_spare_servers   => $min_spare_servers,
+        max_spare_servers   => $max_spare_servers,
+        max_servers         => $max_servers,
+    }
+);
+
+$server->run();
+exit;
+
+sub process_request
+{
+    my $self = shift;
+    if ( $reparse || $reparse_one )
+    {
+        $CONF = parse_conf( $conf_file );
+    }
+    my $result;
+    my @TEST;
+    my $test_list = $CONF->{ realserver };
+
+    if ( ref( $test_list ) eq "ARRAY" )
+    {
+        @TEST = @{ $test_list };
+    }
+    else
+    {
+        @TEST = ( $test_list );
+    }
+
+    my $allow_code;
+    my $test_item;
+    my $html_data;
+    foreach my $test ( @TEST )
+    {
+        my $uri;
+        my $authority;
+        my $URL = $test->{ url };
+        $uri       = URI->new( $URL );
+        $authority = $uri->authority;
+
+        if ( exists $test->{ type } )
+        {
+            if ( $test->{ type } =~ /get/i )
+            {
+                my $allow_code = $test->{ code } || '200,201';
+                $test_item++;
+                my $host = $test->{ hostheader } || $authority;
+                my $res = get( $URL, $allow_code, $host );
+                if ( $html_content == 1 )
+                {
+                    if ( $res )
+                    {
+                        $html_data .= "GET OK $URL<br>\r\n";
+                    }
+                    else
+                    {
+                        $html_data .= "GET NOK $URL<br>\r\n";
+                    }
+                }
+                if ( $html_content == 2 )
+                {
+                    if ( $res )
+                    {
+                        $html_data .= "<tr><td>GET</td><td>OK</td><td>$URL</td></tr>\r\n";
+                    }
+                    else
+                    {
+                        $html_data .= "<tr><td>GET</td><td>NOK</td><td>$URL</td></tr>\r\n";
+                    }
+                }
+                $result += $res;
+            }
+            if ( $test->{ type } =~ /regex/i )
+            {
+                my $regex = $test->{ regex };
+                $test_item++;
+                my $host = $test->{ hostheader } || $authority;
+                my $res = regex( $URL, $regex, $host );
+                if ( $html_content == 1 )
+                {
+                    if ( $res )
+                    {
+                        $html_data .= "REGEX OK $URL<br>\r\n";
+                    }
+                    else
+                    {
+                        $html_data .= "REGEX NOK $URL<br>\r\n";
+                    }
+                }
+                if ( $html_content == 2 )
+                {
+                    if ( $res )
+                    {
+                        $html_data .= "<tr><td>REGEX</td><td>OK</td><td>$URL</td></tr>\r\n";
+                    }
+                    else
+                    {
+                        $html_data .= "<tr><td>REGEX</td><td>NOK</td><td>$URL</td></tr>\r\n";
+                    }
+                }
+                $result += $res;
+            }
+            if ( $test->{ type } =~ /tcp/i )
+            {
+                $test_item++;
+                my $PORT = $test->{ port } || 80;
+                my $res = TCP( $URL, $PORT );
+                if ( $html_content == 1 )
+                {
+                    if ( $res )
+                    {
+                        $html_data .= "TCP OK  $URL<br>\r\n";
+                    }
+                    else
+                    {
+                        $html_data .= "TCP NOK $URL<br>\r\n";
+                    }
+                }
+                if ( $html_content == 2 )
+                {
+                    if ( $res )
+                    {
+                        $html_data .= "<tr><td>TCP</td><td>OK</td><td>$URL</td></tr>\r\n";
+                    }
+                    else
+                    {
+                        $html_data .= "<tr><td>TCP</td><td>NOK</td><td>$URL</td></tr>\r\n";
+                    }
+                }
+                $result += $res;
+            }
+        }
+    }
+
+    my $len;
+    if ( $html_content == 1 )
+    {
+        $html_data = "\r\n<html><body>\r\n$html_data</body></html>\r\n";
+        $len       = ( length( $html_data ) ) - 2;
+    }
+    if ( $html_content == 2 )
+    {
+        $html_data = "\r\n<table align='center' border='1' >\r\n$html_data</table>\r\n";
+        $len       = ( length( $html_data ) ) - 2;
+    }
+
+    if ( $result != $test_item )
+    {
+        my $header = "HTTP/1.0 503 Service Unavailable\r\n";
+        if ( $html_content )
+        {
+            $header .= "Content-Length: $len\r\nContent-Type: text/html; charset=iso-8859-1\r\n";
+        }
+        print $header . $html_data;
+        return;
+    }
+    my $header = "HTTP/1.0 200 OK\r\n";
+    if ( $html_content )
+    {
+        $header .= "Content-Length: $len\r\nContent-Type: text/html; charset=iso-8859-1\r\n";
+    }
+    print $header. $html_data;
+}
+
+1;
+
+##########################################################
+##########################################################
+# function to REGEX on a GET from URL
+#	arg: 	uri
+#		regex to test (with extra parameter like perl e.g.  /\bweb\d{2,3}/i )
+#		IP
+#		port (optionnal: default=80)
+#	ret:	0 if no reply
+#		1 if reply
+##########################################################
+##########################################################
+sub regex
+{
+    my $url   = shift;
+    my $regex = shift;
+    my $host  = shift;
+
+    $regex =~ /\/(.*)\/(.*)/;
+    my $reg = $1;
+    my $ext = $2;
+    my %options;
+    $options{ 'agent' }   = "LB_REGEX_PROBE/$VERSION";
+    $options{ 'timeout' } = 10;
+    my $ua = LWP::UserAgent->new( %options );
+    my $response = $ua->get( $url, "Host" => $host );
+    if ( $response->is_success )
+    {
+        my $html = $response->content;
+        if ( $ext =~ /i/ )
+        {
+            if ( $html =~ /$reg/si )
+            {
+                return 1;
+            }
+        }
+        else
+        {
+            if ( $html =~ /$reg/s )
+            {
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
+##########################################################
+##########################################################
+# function to GET an URL (HTTP or FTP) ftp://FTPTest:6ccount4F@brice!@172.29.0.146
+#	arg: 	uri
+#		allowed code (comma seaparated)
+#		IP
+#		port (optionnal: default=80)
+#	ret:	0 if not the expected vcode
+#		1 if the expected code is returned
+##########################################################
+##########################################################
+sub get
+{
+    my $url  = shift;
+    my $code = shift;
+    my $host = shift;
+
+    $code =~ s/\s*//g;
+    my %codes = map { $_ => $_ } split /,/, $code;
+    my %options;
+    $options{ 'agent' }   = "LB_HTTP_PROBE/$VERSION";
+    $options{ 'timeout' } = 10;
+    my $ua = LWP::UserAgent->new( %options );
+    my $response = $ua->get( $url, "Host" => $host );
+    if ( $response->is_success )
+    {
+        my $rc = $response->{ _rc };
+        if ( defined $codes{ $rc } )
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+##########################################################
+##########################################################
+# function to test a port on a host
+#	arg: 	hostip
+#		port
+#		timeout
+#	ret:	0 if not open
+#		1 if open
+##########################################################
+##########################################################
+sub TCP
+{
+    use IO::Socket::PortState qw(check_ports);
+    my $remote_host = shift;
+    my $remote_port = shift;
+    my $timeout     = shift;
+
+    my %porthash = ( tcp => { $remote_port => { name => 'to_test', } } );
+    check_ports( $remote_host, $timeout, \%porthash );
+    return $porthash{ tcp }{ $remote_port }{ open };
+}
+
+##############################################
+# parse config file
+# IN: 	File PATH
+# Out:	Ref to a hash with config data
+##############################################
+sub parse_conf
+{
+    my $file = shift;
+
+    my $conf = new Config::General(
+        -ConfigFile        => $file,
+        -ExtendedAccess    => 1,
+        -AllowMultiOptions => "yes"
+    );
+    my %config = $conf->getall;
+    $port              = $config{ port }              || 9898;
+    $host              = $config{ host }              || '127.0.0.1';
+    $reparse           = $config{ reparse }           || 0;
+    $cidr_allow        = $config{ cidr_allow }        || '127.0.0.0/8';
+    $log_level         = $config{ log_level }         || 0;
+    $log_file          = $config{ log_file }          || "/var/log/check.log";
+    $pid_file          = $config{ pid_file }          || "/var/run/check.pid";
+    $daemon            = $config{ daemon }            || 0;
+    $min_servers       = $config{ min_servers }       || 5;
+    $min_spare_servers = $config{ min_spare_servers } || 2;
+    $max_spare_servers = $config{ max_spare_servers } || 10;
+    $max_servers       = $config{ max_servers }       || 50;
+    $html_content      = $config{ content }           || 0;
+
+    $pid_file =~ s/\$\$\$/$basename/g;
+    $pid_file =~ s/\$\$/$$/g;
+    $log_file =~ s/\$\$\$/$basename/g;
+    $log_file =~ s/\$\$/$$/g;
+
+    if ( !( keys %{ $config{ realserver } } ) )
+    {
+        die "No farm to test\n";
+    }
+    return ( \%config );
+}
+

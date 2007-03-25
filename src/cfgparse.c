@@ -1197,6 +1197,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		newsrv->rise = DEF_RISETIME;
 		newsrv->fall = DEF_FALLTIME;
 		newsrv->health = newsrv->rise; /* up, but will fall down at first failure */
+		newsrv->set_check_addr = 0;
 		cur_arg = 3;
 		while (*args[cur_arg]) {
 			if (!strcmp(args[cur_arg], "cookie")) {
@@ -1215,6 +1216,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			}
 			else if (!strcmp(args[cur_arg], "inter")) {
 				newsrv->inter = atol(args[cur_arg + 1]);
+				cur_arg += 2;
+			}
+			else if (!strcmp(args[cur_arg], "addr")) {
+				newsrv->check_addr = *str2sa(args[cur_arg + 1]);
+				newsrv->set_check_addr = 1;
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "port")) {

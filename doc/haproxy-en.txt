@@ -970,7 +970,8 @@ values are the following ones :
   - rise  : 2
   - fall  : 3
   - port  : default server port
-
+  - addr  : specific address for the test (default = address server)
+  
 The default mode consists in establishing TCP connections only. But in certain
 types of application failures, it is often that the server continues to accept
 connections because the system does it itself while the application is running
@@ -1021,6 +1022,15 @@ is no load-balancing among backup servers by default. If there are several
 backup servers, the second one will only be used when the first one dies, and
 so on. To force load-balancing between backup servers, specify the 'allbackups'
 option.
+
+Since version 1.1.22, it is possible to send health checks to a different port
+than the service. It is mainly needed in setups where the server does not have
+any predefined port, for instance when the port is deduced from the listening
+port. For this, use the 'port' parameter followed by the port number which must
+respond to health checks. It is also possible to send health checks to a
+different address than the service. It makes it easier to use a dedicated check
+daemon on the servers, for instance, check return contents and stop several
+farms at once in the event of an error anywhere.
 
 Since version 1.1.17, it is also possible to visually check the status of all
 servers at once. For this, you just have to send a SIGHUP signal to the proxy.

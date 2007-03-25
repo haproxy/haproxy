@@ -971,7 +971,8 @@ Les paramètres non précisés prennent les valeurs suivantes par défaut :
  - rise  : 2
  - fall  : 3
  - port  : port de connexion du serveur
-
+ - addr  : adresse de connexion du serveur (par defaut: adresse du serveur)
+ 
 Le mode par défaut consiste à établir des connexions TCP uniquement. Dans
 certains cas de pannes, des serveurs peuvent continuer à accepter les
 connexions sans les traiter. Depuis la version 1.1.16, haproxy est en mesure
@@ -1032,7 +1033,11 @@ Depuis la version 1.1.22, il est possible d'envoyer les tests de fonctionnement
 vers un port différent de celui de service. C'est nécessaire principalement
 pour les configurations où le serveur n'a pas de port prédéfini, par exemple
 lorsqu'il est déduit du port d'acceptation de la connexion. Pour cela, utiliser
-le paramètre 'port' suivi du numéro de port devant répondre aux requêtes.
+le paramètre 'port' suivi du numéro de port devant répondre aux requêtes. Il
+est possible d'envoyer les tests de fonctionnement vers une adresse différente 
+de celle de service. Cela permet d'utiliser, sur la machine faisant fonctionner
+HAproxy, un démon permettant des tests specifiques ( REGEX sur un résultat et
+basculement de plusieurs fermes en cas d'erreur sur l'une d'elles).
 
 Enfin, depuis la version 1.1.17, il est possible de visualiser rapidement
 l'état courant de tous les serveurs. Pour cela, il suffit d'envoyer un signal
