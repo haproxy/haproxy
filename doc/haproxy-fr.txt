@@ -119,6 +119,8 @@ supportés sont :
   - maxconn <nombre>
   - uid <identifiant>
   - gid <identifiant>
+  - user <nom d'utilisateur>
+  - group <nom de groupe>
   - chroot <répertoire>
   - nbproc <nombre>
   - daemon
@@ -208,9 +210,14 @@ utilisateur, possède ici une signification particulière car elle indique que
 l'on ne souhaite pas changer cet identifiant et conserver la valeur courante.
 C'est la valeur par défaut. De la même manière, le paramètre 'gid' correspond à
 un identifiant de groupe, et utilise par défaut la valeur 0 pour ne rien
-changer. Il est particulièrement déconseillé d'utiliser des comptes génériques
-tels que 'nobody' car cette pratique revient à utiliser 'root' si d'autres
-processus utilisent les mêmes identifiants.
+changer. Dans le cas où il ne serait pas possible de spécifier un identifiant
+numérique pour l'uid, il est possible de spécifier un nom d'utilisateur après
+le mot-clé 'user'. De la même manière, il est possible de préciser un nom de
+groupe après le mot-clé 'group'.
+
+Il est particulièrement déconseillé d'utiliser des comptes génériques tels que
+'nobody' car cette pratique revient à utiliser 'root' si d'autres processus
+utilisent les mêmes identifiants.
 
 Le paramètre 'chroot' autorise à changer la racine du processus une fois le
 programme lancé, de sorte que ni le processus, ni l'un de ses descendants ne
@@ -246,10 +253,18 @@ lancer le programme :
 Exemple :
 ---------
 
+    # with uid/gid
     global
         uid        30000
         gid        30000
         chroot  /var/chroot/haproxy
+
+    # with user/group
+    global
+        user    haproxy
+        group   public
+        chroot  /var/chroot/haproxy
+
 
 1.4) Modes de fonctionnement
 ----------------------------

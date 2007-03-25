@@ -112,6 +112,8 @@ the following ones :
   - maxconn <number>
   - uid <user id>
   - gid <group id>
+  - user <user name>
+  - group <group name>
   - chroot <directory>
   - nbproc <number>
   - daemon
@@ -197,9 +199,14 @@ In the 'global' section, the 'uid' parameter sets a numerical user identifier
 which the process will switch to after binding its listening sockets. The value
 '0', which normally represents the super-user, here indicates that the UID must
 not change during startup. It's the default behaviour. The 'gid' parameter does
-the same for the group identifier. It's particularly advised against use of
-generic accounts such as 'nobody' because it has the same consequences as using
-'root' if other services use them.
+the same for the group identifier. If setting an uid is not possible because of
+deployment constraints, it is possible to set a user name with the 'user'
+keyword followed by a valid user name. The same is true for the gid. It is
+possible to specify a group name after the 'group' keyword.
+
+It is particularly advised against use of generic accounts such as 'nobody'
+because it has the same consequences as using 'root' if other services use
+them.
 
 The 'chroot' parameter makes the process isolate itself in an empty directory
 just before switching its UID. This type of isolation (chroot) can sometimes
@@ -227,9 +234,16 @@ directories. Do not forget to allow core dumps prior to start the process :
 Example :
 ---------
 
+    # with uid/gid
     global
         uid     30000
         gid     30000
+        chroot  /var/chroot/haproxy
+
+    # with user/group
+    global
+        user    haproxy
+        group   public
         chroot  /var/chroot/haproxy
 
 
