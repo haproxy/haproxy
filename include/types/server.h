@@ -58,34 +58,39 @@ struct server {
 	struct server *next;
 	int state;				/* server state (SRV_*) */
 	int  cklen;				/* the len of the cookie, to speed up checks */
-	char *cookie;			/* the id set in the cookie */
-	char *id;				/* just for identification */
-	struct list pendconns;		/* pending connections */
-	int nbpend, nbpend_max;		/* number of pending connections */
-	struct task *queue_mgt;		/* the task associated to the queue processing */
+	char *cookie;				/* the id set in the cookie */
+
+	struct proxy *proxy;			/* the proxy this server belongs to */
+	int cur_sess, cur_sess_max;		/* number of currently active sessions (including syn_sent) */
+	unsigned maxconn, minconn;		/* max # of active sessions (0 = unlimited), min# for dynamic limit. */
+	int nbpend, nbpend_max;			/* number of pending connections */
+	struct list pendconns;			/* pending connections */
+	struct task *queue_mgt;			/* the task associated to the queue processing */
+
 	struct sockaddr_in addr;		/* the address to connect to */
-	struct sockaddr_in source_addr;	/* the address to which we want to bind for connect() */
+	struct sockaddr_in source_addr;		/* the address to which we want to bind for connect() */
 #ifdef CONFIG_HAP_CTTPROXY
-	struct sockaddr_in tproxy_addr;	/* non-local address we want to bind to for connect() */
+	struct sockaddr_in tproxy_addr;		/* non-local address we want to bind to for connect() */
 #endif
+
 	struct sockaddr_in check_addr;		/* the address to check, if different from <addr> */
 	short check_port;			/* the port to use for the health checks */
 	int health;				/* 0->rise-1 = bad; rise->rise+fall-1 = good */
-	int rise, fall;			/* time in iterations */
+	int rise, fall;				/* time in iterations */
 	int inter;				/* time in milliseconds */
 	int result;				/* 0 = connect OK, -1 = connect KO */
 	int curfd;				/* file desc used for current test, or -1 if not in test */
-	unsigned char uweight, eweight;	/* user-specified weight-1, and effective weight-1 */
-	unsigned int wscore;		/* weight score, used during srv map computation */
-	int cur_sess, cur_sess_max;		/* number of currently active sessions (including syn_sent) */
-	unsigned int cum_sess;		/* cumulated number of sessions really sent to this server */
-	unsigned int maxconn, minconn;	/* max # of active sessions (0 = unlimited), min# for dynamic limit. */
+
+	char *id;				/* just for identification */
+	unsigned char uweight, eweight;		/* user-specified weight-1, and effective weight-1 */
+	unsigned int wscore;			/* weight score, used during srv map computation */
+
 	unsigned failed_checks, down_trans;	/* failed checks and up-down transitions */
 	unsigned failed_conns, failed_resp;	/* failed connect() and responses */
-	unsigned failed_secu;		/* blocked responses because of security concerns */
-	long long bytes_in;		/* number of bytes transferred from the client to the server */
-	long long bytes_out;		/* number of bytes transferred from the server to the client */
-	struct proxy *proxy;		/* the proxy this server belongs to */
+	unsigned failed_secu;			/* blocked responses because of security concerns */
+	unsigned cum_sess;			/* cumulated number of sessions really sent to this server */
+	long long bytes_in;			/* number of bytes transferred from the client to the server */
+	long long bytes_out;			/* number of bytes transferred from the server to the client */
 };
 
 
