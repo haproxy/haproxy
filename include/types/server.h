@@ -68,8 +68,7 @@ struct server {
 #ifdef CONFIG_HAP_CTTPROXY
 	struct sockaddr_in tproxy_addr;	/* non-local address we want to bind to for connect() */
 #endif
-	struct sockaddr_in check_addr;
-	int set_check_addr ;
+	struct sockaddr_in check_addr;		/* the address to check, if different from <addr> */
 	short check_port;			/* the port to use for the health checks */
 	int health;				/* 0->rise-1 = bad; rise->rise+fall-1 = good */
 	int rise, fall;			/* time in iterations */

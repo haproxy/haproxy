@@ -249,16 +249,13 @@ int process_chk(struct task *t)
 				//fprintf(stderr, "process_chk: 3\n");
 
 				
-				 if ( s->set_check_addr == 1 )
-				{
-				/* we'll connect to the check addr specified on the server */
+				if (s->check_addr.sin_addr.s_addr)
+					/* we'll connect to the check addr specified on the server */
 					sa = s->check_addr;
-				}
 				else
-				{
-				/* we'll connect to the addr on the server */
+					/* we'll connect to the addr on the server */
 					sa = s->addr;
-				}
+
 				/* we'll connect to the check port on the server */
 				sa.sin_port = htons(s->check_port);
 
