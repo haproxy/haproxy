@@ -1,7 +1,7 @@
 /*
  * Configuration parser
  *
- * Copyright 2000-2006 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2007 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -17,6 +17,7 @@
 #include <ctype.h>
 #include <pwd.h>
 #include <grp.h>
+#include <errno.h>
 
 #include <common/cfgparse.h>
 #include <common/config.h>
