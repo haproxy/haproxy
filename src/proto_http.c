@@ -3512,7 +3512,7 @@ int produce_content_stats_proxy(struct session *s, struct proxy *px)
 				     /* act, bck */
 				     "<td>%s</td><td>%s</td>"
 				     "",
-				     sv->uweight+1,
+				     sv->uweight,
 				     (sv->state & SRV_BACKUP) ? "-" : "Y",
 				     (sv->state & SRV_BACKUP) ? "Y" : "-");
 

@@ -82,8 +82,8 @@ struct server {
 	int curfd;				/* file desc used for current test, or -1 if not in test */
 
 	char *id;				/* just for identification */
-	unsigned char uweight, eweight;		/* user-specified weight-1, and effective weight-1 */
-	unsigned int wscore;			/* weight score, used during srv map computation */
+	unsigned uweight, eweight;		/* user-specified weight, and effective weight */
+	unsigned wscore;			/* weight score, used during srv map computation */
 
 	unsigned failed_checks, down_trans;	/* failed checks and up-down transitions */
 	unsigned failed_conns, failed_resp;	/* failed connect() and responses */

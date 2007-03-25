@@ -59,10 +59,10 @@ void recount_servers(struct proxy *px)
 		if (srv->state & SRV_RUNNING) {
 			if (srv->state & SRV_BACKUP) {
 				px->srv_bck++;
-				px->tot_wbck += srv->eweight + 1;
+				px->tot_wbck += srv->eweight;
 			} else {
 				px->srv_act++;
-				px->tot_wact += srv->eweight + 1;
+				px->tot_wact += srv->eweight;
 			}
 		}
 	}
@@ -117,7 +117,7 @@ void recalc_server_map(struct proxy *px)
 					break;
 				}
 
-				cur->wscore += cur->eweight + 1;
+				cur->wscore += cur->eweight;
 				v = (cur->wscore + tot) / tot; /* result between 0 and 3 */
 				if (best == NULL || v > max) {
 					max = v;

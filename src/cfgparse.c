@@ -1197,6 +1197,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		newsrv->rise = DEF_RISETIME;
 		newsrv->fall = DEF_FALLTIME;
 		newsrv->health = newsrv->rise; /* up, but will fall down at first failure */
+		newsrv->uweight = 1;
 
 		cur_arg = 3;
 		while (*args[cur_arg]) {
@@ -1238,7 +1239,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 					      file, linenum, newsrv->id, w);
 					return -1;
 				}
-				newsrv->uweight = w - 1;
+				newsrv->uweight = w;
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "minconn")) {
@@ -2346,11 +2347,11 @@ int readcfgfile(const char *file)
 			/* We will factor the weights to reduce the table,
 			 * using Euclide's largest common divisor algorithm
 			 */
-			pgcd = newsrv->uweight + 1;
+			pgcd = newsrv->uweight;
 			for (srv = newsrv->next; srv && pgcd > 1; srv = srv->next) {
 				int t, w;
 		
-				w = srv->uweight + 1;
+				w = srv->uweight;
 				while (w) {
 					t = pgcd % w;
 					pgcd = w;
@@ -2360,11 +2361,11 @@ int readcfgfile(const char *file)
 
 			act = bck = 0;
 			for (srv = newsrv; srv; srv = srv->next) {
-				srv->eweight = ((srv->uweight + 1) / pgcd) - 1;
+				srv->eweight = srv->uweight / pgcd;
 				if (srv->state & SRV_BACKUP)
-					bck += srv->eweight + 1;
+					bck += srv->eweight;
 				else
-					act += srv->eweight + 1;
+					act += srv->eweight;
 			}
 
 			/* this is the largest map we will ever need for this servers list */
