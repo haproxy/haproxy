@@ -1,0 +1,9 @@
+Special thanks to the following people for their useful contributions :
+
+- Aleksandar Lazic and Klaus Wagner : ability to learn application cookies.
+- Cameron Simpson : code reviews and many cleanups.
+- Dan Zinngrabe : Makefile for MacOS 10.4 / Darwin.
+- Sin Yu : preliminary virtual host support and rbtree for the scheduler.
+- Marcus Rueckert : support for username/groupname.
+- Bryan Germann : option to exempt some sources from x-forwarded-for.
+- Fabrice Dulaunoy : health-checks on different addresses
