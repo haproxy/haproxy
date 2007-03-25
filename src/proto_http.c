@@ -1695,10 +1695,13 @@ int process_cli(struct session *t)
 
 		/*
 		 * 10: add "Connection: close" if needed and not yet set.
+		 * Note that we do not need to add it in case of HTTP/1.0.
 		 */
-		if (((t->fe->options | t->be->beprm->options) & PR_O_HTTP_CLOSE) &&
-		    !(t->flags & SN_CONN_CLOSED)) {
-			if (unlikely(http_header_add_tail2(req, &txn->req, &txn->hdr_idx,
+		if (!(t->flags & SN_CONN_CLOSED) &&
+		    ((t->fe->options | t->be->beprm->options) & PR_O_HTTP_CLOSE)) {
+			if ((unlikely(msg->sl.rq.v_l != 8) ||
+			     unlikely(req->data[msg->som + msg->sl.rq.v + 7] != '0')) &&
+			    unlikely(http_header_add_tail2(req, &txn->req, &txn->hdr_idx,
 							   "Connection: close", 17)) < 0)
 				goto return_bad_req;
 			t->flags |= SN_CONN_CLOSED;
@@ -2737,10 +2740,13 @@ int process_srv(struct session *t)
 
 		/*
 		 * 8: add "Connection: close" if needed and not yet set.
+		 * Note that we do not need to add it in case of HTTP/1.0.
 		 */
-		if (((t->fe->options | t->be->beprm->options) & PR_O_HTTP_CLOSE) &&
-		    !(t->flags & SN_CONN_CLOSED)) {
-			if (unlikely(http_header_add_tail2(rep, &txn->rsp, &txn->hdr_idx,
+		if (!(t->flags & SN_CONN_CLOSED) &&
+		    ((t->fe->options | t->be->beprm->options) & PR_O_HTTP_CLOSE)) {
+			if ((unlikely(msg->sl.st.v_l != 8) ||
+			     unlikely(req->data[msg->som + 7] != '0')) &&
+			    unlikely(http_header_add_tail2(rep, &txn->rsp, &txn->hdr_idx,
 							   "Connection: close", 17)) < 0)
 				goto return_bad_resp;
 			t->flags |= SN_CONN_CLOSED;
