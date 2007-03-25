@@ -2,7 +2,7 @@
   include/common/version.h
   This file serves as a template for future include files.
 
-  Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -57,13 +57,13 @@
 #ifdef CONFIG_HAPROXY_VERSION
 #define HAPROXY_VERSION CONFIG_HAPROXY_VERSION
 #else
-#define HAPROXY_VERSION "1.3.7"
+#define HAPROXY_VERSION "1.3.8"
 #endif
 
 #ifdef CONFIG_HAPROXY_DATE
 #define HAPROXY_DATE    CONFIG_HAPROXY_DATE
 #else
-#define HAPROXY_DATE    "2007/01/26"
+#define HAPROXY_DATE    "2007/03/25"
 #endif
 
 #endif /* _COMMON_VERSION_H */

@@ -1,6 +1,23 @@
 ChangeLog :
 ===========
 
+2007/03/25 : 1.3.8
+    - fixed several bugs which might have caused a crash with bad configs
+    - several optimizations in header processing
+    - many progresses towards transaction-based processing
+    - option forwardfor may be used in frontends
+    - completed HTTP response processing
+    - some code refactoring between request and response processing
+    - new HTTP header manipulation functions
+    - optimizations on the recv() patch to reduce CPU usage under very
+      high data rates.
+    - more user-friendly help about the 'usesrc' keyword (CTTPROXY)
+    - username/groupname support from Marcus Rueckert
+    - added the "except" keyword to the "forwardfor" option (Bryan German)
+    - support for health-checks on other addresses (Fabrice Dulaunoy)
+    - makefile for MacOS 10.4 / Darwin (Dan Zinngrabe)
+    - do not insert "Connection: close" in HTTP/1.0 messages
+
 2007/01/26 : 1.3.7
     - fix critical bug introduced with 1.3.6 : an empty request header
       may lead to a crash due to missing pointer assignment
