@@ -113,6 +113,7 @@ struct proxy {
 	unsigned int cum_feconn, cum_beconn;	/* cumulated number of processed sessions */
 	unsigned int maxconn;			/* max # of active sessions on the frontend */
 	unsigned int fullconn;			/* #conns on backend above which servers are used at full load */
+	struct in_addr except_net, except_mask; /* don't x-forward-for for this address. FIXME: should support IPv6 */
 	unsigned failed_conns, failed_resp;	/* failed connect() and responses */
 	unsigned denied_req, denied_resp;	/* blocked requests/responses because of security concerns */
 	unsigned failed_req;			/* failed requests (eg: invalid or timeout) */

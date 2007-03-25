@@ -1656,17 +1656,31 @@ int process_cli(struct session *t)
 		 */
 		if ((t->fe->options | t->be->beprm->options) & PR_O_FWDFOR) {
 			if (t->cli_addr.ss_family == AF_INET) {
-				int len;
-				unsigned char *pn;
-				pn = (unsigned char *)&((struct sockaddr_in *)&t->cli_addr)->sin_addr;
-				len = sprintf(trash, "X-Forwarded-For: %d.%d.%d.%d",
-					      pn[0], pn[1], pn[2], pn[3]);
+				/* Add an X-Forwarded-For header unless the source IP is
+				 * in the 'except' network range.
+				 */
+				if ((!t->fe->except_mask.s_addr ||
+				     (((struct sockaddr_in *)&t->cli_addr)->sin_addr.s_addr & t->fe->except_mask.s_addr)
+				     != t->fe->except_net.s_addr) &&
+				    (!t->be->except_mask.s_addr ||
+				     (((struct sockaddr_in *)&t->cli_addr)->sin_addr.s_addr & t->be->except_mask.s_addr)
+				     != t->be->except_net.s_addr)) {
+					int len;
+					unsigned char *pn;
+					pn = (unsigned char *)&((struct sockaddr_in *)&t->cli_addr)->sin_addr;
 
-				if (unlikely(http_header_add_tail2(req, &txn->req,
-								   &txn->hdr_idx, trash, len)) < 0)
-					goto return_bad_req;
+					len = sprintf(trash, "X-Forwarded-For: %d.%d.%d.%d",
+						      pn[0], pn[1], pn[2], pn[3]);
+
+					if (unlikely(http_header_add_tail2(req, &txn->req,
+									   &txn->hdr_idx, trash, len)) < 0)
+						goto return_bad_req;
+				}
 			}
 			else if (t->cli_addr.ss_family == AF_INET6) {
+				/* FIXME: for the sake of completeness, we should also support
+				 * 'except' here, although it is mostly useless in this case.
+				 */
 				int len;
 				char pn[INET6_ADDRSTRLEN];
 				inet_ntop(AF_INET6,

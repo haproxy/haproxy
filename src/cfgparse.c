@@ -85,7 +85,6 @@ static const struct {
 #endif
 	{ "redispatch",   PR_O_REDISP,     PR_CAP_BE, 0 },
 	{ "keepalive",    PR_O_KEEPALIVE,  PR_CAP_NONE, 0 },
-	{ "forwardfor",   PR_O_FWDFOR,     PR_CAP_FE | PR_CAP_BE, 0 },
 	{ "httpclose",    PR_O_HTTP_CLOSE, PR_CAP_FE | PR_CAP_BE, 0 },
 	{ "logasap",      PR_O_LOGASAP,    PR_CAP_FE, 0 },
 	{ "abortonclose", PR_O_ABRT_CLOSE, PR_CAP_BE, 0 },
@@ -501,6 +500,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		/* set default values */
 		curproxy->state = defproxy.state;
 		curproxy->options = defproxy.options;
+		curproxy->except_net = defproxy.except_net;
+		curproxy->except_mask = defproxy.except_mask;
 
 		if (curproxy->cap & PR_CAP_FE) {
 			curproxy->maxconn = defproxy.maxconn;
@@ -1021,6 +1022,27 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			}
 			curproxy->options &= ~PR_O_HTTP_CHK;
 			curproxy->options |= PR_O_SSL3_CHK;
+		}
+		else if (!strcmp(args[1], "forwardfor")) {
+			/* insert x-forwarded-for field, but not for the
+			 * IP address listed as an except.
+			 */
+			if (*(args[2])) {
+				if (!strcmp(args[2], "except")) {
+					if (!*args[3] || !str2net(args[3], &curproxy->except_net, &curproxy->except_mask)) {
+						Alert("parsing [%s:%d] : '%s' only supports optional 'except' address[/mask].\n",
+						      file, linenum, args[0]);
+						return -1;
+					}
+					/* flush useless bits */
+					curproxy->except_net.s_addr &= curproxy->except_mask.s_addr;
+				} else {
+					Alert("parsing [%s:%d] : '%s' only supports optional 'except' address[/mask].\n",
+					      file, linenum, args[0]);
+					return -1;
+				}
+			}
+			curproxy->options |= PR_O_FWDFOR;
 		}
 		else {
 			Alert("parsing [%s:%d] : unknown option '%s'.\n", file, linenum, args[1]);

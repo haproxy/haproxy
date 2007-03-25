@@ -2223,7 +2223,12 @@ Exemples :
 
 De plus, l'option 'forwardfor' ajoute l'adresse IP du client dans un champ
 'X-Forwarded-For' de la requête, ce qui permet à un serveur web final de
-connaître l'adresse IP du client initial.
+connaître l'adresse IP du client initial. Depuis la version 1.3.8, il est
+possible de préciser le mot-clé "except" suivi d'une adresse ou un réseau
+IP source pour lequel l'entête ne sera pas ajouté. C'est très pratique dans le
+cas où un autre reverse-proxy ajoutant déjà l'entête est installé sur la même
+machine ou dans une DMZ connue. Le cas le plus fréquent est lié à l'utilisation
+de stunnel en local.
 
 Enfin, l'option 'httpclose' apparue dans la version 1.1.28/1.2.1 supprime tout
 en-tête de type 'Connection:' et ajoute 'Connection: close' dans les deux sens.
@@ -2237,7 +2242,7 @@ Exemple :
         log  global
         option httplog
         option dontlognull
-        option forwardfor
+        option forwardfor except 127.0.0.1/8
         option httpclose
 
 Notons que certains serveurs HTTP ne referment pas nécessairement la session

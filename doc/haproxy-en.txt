@@ -2142,7 +2142,12 @@ Examples :
 
 Also, the 'forwardfor' option creates an HTTP 'X-Forwarded-For' header which
 contains the client's IP address. This is useful to let the final web server
-know what the client address was (eg for statistics on domains).
+know what the client address was (eg for statistics on domains). Starting with
+version 1.3.8, it is possible to specify the "except" keyword followed by a
+source IP address or network for which no header will be added. This is very
+useful when another reverse-proxy which already adds the header runs on the
+same machine or in a known DMZ, the most common case being the local use of
+stunnel on the same system.
 
 Last, the 'httpclose' option removes any 'Connection' header both ways, and
 adds a 'Connection: close' header in each direction. This makes it easier to
@@ -2155,7 +2160,7 @@ Example :
         log  global
         option httplog
         option dontlognull
-        option forwardfor
+        option forwardfor except 127.0.0.1/8
         option httpclose
 
 Note that some HTTP servers do not necessarily close the connections when they
