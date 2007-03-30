@@ -1573,15 +1573,14 @@ int process_cli(struct session *t)
 					}
 					old_idx = cur_idx;
 				}
-
-				/* add request headers from the rule sets in the same order */
-				for (cur_idx = 0; cur_idx < rule_set->nb_reqadd; cur_idx++) {
-					if (unlikely(http_header_add_tail(req,
-									  &txn->req,
-									  &txn->hdr_idx,
-									  rule_set->req_add[cur_idx])) < 0)
-						goto return_bad_req;
-				}
+			}
+			/* add request headers from the rule sets in the same order */
+			for (cur_idx = 0; cur_idx < rule_set->nb_reqadd; cur_idx++) {
+				if (unlikely(http_header_add_tail(req,
+								  &txn->req,
+								  &txn->hdr_idx,
+								  rule_set->req_add[cur_idx])) < 0)
+					goto return_bad_req;
 			}
 
 			/* check if stats URI was requested, and if an auth is needed */
