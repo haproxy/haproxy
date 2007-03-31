@@ -77,7 +77,6 @@ struct proxy {
 	int options;				/* PR_O_REDISP, PR_O_TRANSP, ... */
 	int mode;				/* mode = PR_MODE_TCP, PR_MODE_HTTP or PR_MODE_HEALTH */
 	struct sockaddr_in dispatch_addr;	/* the default address to connect to */
-	struct proxy *fiprm, *beprm;		/* proxy we find filter and backend params from (default: self) */
 	union {
 		struct proxy *be;		/* default backend, or NULL if none set */
 		char *name;			/* default backend name during config parse */

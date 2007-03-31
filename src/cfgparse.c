@@ -2173,8 +2173,6 @@ int readcfgfile(const char *file)
 	}
 
 	while (curproxy != NULL) {
-		curproxy->fiprm = curproxy->beprm = curproxy;
-
 		if (curproxy->state == PR_STSTOPPED) {
 			curproxy = curproxy->next;
 			continue;

@@ -168,10 +168,10 @@ int event_accept(int fd) {
 		s->srv_fd = -1;
 		s->srv = NULL;
 		s->pend_pos = NULL;
-		s->conn_retries = p->beprm->conn_retries;
+		s->conn_retries = p->conn_retries;
 
 		/* FIXME: the logs are horribly complicated now, because they are
-		 * defined in <p>, <p->beprm>, and later <be> and <be->beprm>.
+		 * defined in <p>, <p>, and later <be> and <be>.
 		 */
 
 		if (s->flags & SN_MONITOR)
@@ -218,31 +218,31 @@ int event_accept(int fd) {
 
 			txn->hdr_idx.size = MAX_HTTP_HDR;
 
-			if (p->fiprm->nb_req_cap > 0) {
+			if (p->nb_req_cap > 0) {
 				if ((txn->req.cap =
-				     pool_alloc_from(p->fiprm->req_cap_pool, p->fiprm->nb_req_cap*sizeof(char *)))
+				     pool_alloc_from(p->req_cap_pool, p->nb_req_cap*sizeof(char *)))
 				    == NULL) { /* no memory */
 					close(cfd); /* nothing can be done for this fd without memory */
 					pool_free(task, t);
 					pool_free(session, s);
 					return 0;
 				}
-				memset(txn->req.cap, 0, p->fiprm->nb_req_cap*sizeof(char *));
+				memset(txn->req.cap, 0, p->nb_req_cap*sizeof(char *));
 			}
 
 
-			if (p->fiprm->nb_rsp_cap > 0) {
+			if (p->nb_rsp_cap > 0) {
 				if ((txn->rsp.cap =
-				     pool_alloc_from(p->fiprm->rsp_cap_pool, p->fiprm->nb_rsp_cap*sizeof(char *)))
+				     pool_alloc_from(p->rsp_cap_pool, p->nb_rsp_cap*sizeof(char *)))
 				    == NULL) { /* no memory */
 					if (txn->req.cap != NULL)
-						pool_free_to(p->fiprm->req_cap_pool, txn->req.cap);
+						pool_free_to(p->req_cap_pool, txn->req.cap);
 					close(cfd); /* nothing can be done for this fd without memory */
 					pool_free(task, t);
 					pool_free(session, s);
 					return 0;
 				}
-				memset(txn->rsp.cap, 0, p->fiprm->nb_rsp_cap*sizeof(char *));
+				memset(txn->rsp.cap, 0, p->nb_rsp_cap*sizeof(char *));
 			}
 
 
@@ -250,9 +250,9 @@ int event_accept(int fd) {
 			     pool_alloc_from(p->hdr_idx_pool, txn->hdr_idx.size*sizeof(*txn->hdr_idx.v)))
 			    == NULL) { /* no memory */
 				if (txn->rsp.cap != NULL)
-					pool_free_to(p->fiprm->rsp_cap_pool, txn->rsp.cap);
+					pool_free_to(p->rsp_cap_pool, txn->rsp.cap);
 				if (txn->req.cap != NULL)
-					pool_free_to(p->fiprm->req_cap_pool, txn->req.cap);
+					pool_free_to(p->req_cap_pool, txn->req.cap);
 				close(cfd); /* nothing can be done for this fd without memory */
 				pool_free(task, t);
 				pool_free(session, s);
@@ -340,9 +340,9 @@ int event_accept(int fd) {
 			if (txn->hdr_idx.v != NULL)
 				pool_free_to(p->hdr_idx_pool, txn->hdr_idx.v);
 			if (txn->rsp.cap != NULL)
-				pool_free_to(p->fiprm->rsp_cap_pool, txn->rsp.cap);
+				pool_free_to(p->rsp_cap_pool, txn->rsp.cap);
 			if (txn->req.cap != NULL)
-				pool_free_to(p->fiprm->req_cap_pool, txn->req.cap);
+				pool_free_to(p->req_cap_pool, txn->req.cap);
 			close(cfd); /* nothing can be done for this fd without memory */
 			pool_free(task, t);
 			pool_free(session, s);
@@ -355,17 +355,17 @@ int event_accept(int fd) {
 			s->req->rlim -= MAXREWRITE;
 
 		s->req->rto = s->fe->clitimeout;
-		s->req->wto = s->be->beprm->srvtimeout;
-		s->req->cto = s->be->beprm->srvtimeout;
+		s->req->wto = s->be->srvtimeout;
+		s->req->cto = s->be->srvtimeout;
 
 		if ((s->rep = pool_alloc(buffer)) == NULL) { /* no memory */
 			pool_free(buffer, s->req);
 			if (txn->hdr_idx.v != NULL)
 				pool_free_to(p->hdr_idx_pool, txn->hdr_idx.v);
 			if (txn->rsp.cap != NULL)
-				pool_free_to(p->fiprm->rsp_cap_pool, txn->rsp.cap);
+				pool_free_to(p->rsp_cap_pool, txn->rsp.cap);
 			if (txn->req.cap != NULL)
-				pool_free_to(p->fiprm->req_cap_pool, txn->req.cap);
+				pool_free_to(p->req_cap_pool, txn->req.cap);
 			close(cfd); /* nothing can be done for this fd without memory */
 			pool_free(task, t);
 			pool_free(session, s);
@@ -374,7 +374,7 @@ int event_accept(int fd) {
 
 		buffer_init(s->rep);
 
-		s->rep->rto = s->be->beprm->srvtimeout;
+		s->rep->rto = s->be->srvtimeout;
 		s->rep->wto = s->fe->clitimeout;
 		s->rep->cto = 0;
 

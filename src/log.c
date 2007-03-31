@@ -308,7 +308,7 @@ void sess_log(struct session *s)
 	 */
 
 	/* FIXME: let's limit ourselves to frontend logging for now. */
-	tolog = (fe->to_log /*| be->to_log | be->beprm->to_log*/);
+	tolog = (fe->to_log /*| be->to_log | be->to_log*/);
 
 	log = tolog & ~s->logs.logwait;
 
@@ -322,7 +322,7 @@ void sess_log(struct session *s)
 			  pn, sizeof(pn));
 
 	uri = (log & LW_REQ) ? txn->uri ? txn->uri : "<BADREQ>" : "";
-	pxid = be->beprm->id;
+	pxid = be->id;
 	srv = (tolog & LW_SVID) ?
 		(s->data_source != DATA_SRC_STATS) ?
 		(s->srv != NULL) ? s->srv->id : "<NOSRV>" : "<STATS>" : "-";
@@ -410,9 +410,9 @@ void sess_log(struct session *s)
 			 txn->srv_cookie ? txn->srv_cookie : "-",
 			 sess_term_cond[(s->flags & SN_ERR_MASK) >> SN_ERR_SHIFT],
 			 sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT],
-			 (be->beprm->options & PR_O_COOK_ANY) ? sess_cookie[(txn->flags & TX_CK_MASK) >> TX_CK_SHIFT] : '-',
-			 (be->beprm->options & PR_O_COOK_ANY) ? sess_set_cookie[(txn->flags & TX_SCK_MASK) >> TX_SCK_SHIFT] : '-',
-			 actconn, fe->feconn, be->beprm->beconn, s->srv ? s->srv->cur_sess : 0,
+			 (be->options & PR_O_COOK_ANY) ? sess_cookie[(txn->flags & TX_CK_MASK) >> TX_CK_SHIFT] : '-',
+			 (be->options & PR_O_COOK_ANY) ? sess_set_cookie[(txn->flags & TX_SCK_MASK) >> TX_SCK_SHIFT] : '-',
+			 actconn, fe->feconn, be->beconn, s->srv ? s->srv->cur_sess : 0,
 			 s->logs.srv_queue_size, s->logs.prx_queue_size, tmpline);
 	}
 	else {
@@ -432,7 +432,7 @@ void sess_log(struct session *s)
 			 (tolog & LW_BYTES) ? "" : "+", s->logs.bytes_in,
 			 sess_term_cond[(s->flags & SN_ERR_MASK) >> SN_ERR_SHIFT],
 			 sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT],
-			 actconn, fe->feconn, be->beprm->beconn, s->srv ? s->srv->cur_sess : 0,
+			 actconn, fe->feconn, be->beconn, s->srv ? s->srv->cur_sess : 0,
 			 s->logs.srv_queue_size, s->logs.prx_queue_size);
 	}
 

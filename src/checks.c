@@ -66,7 +66,7 @@ void set_server_down(struct server *s)
 		xferred = 0;
 		FOREACH_ITEM_SAFE(pc, pc_bck, &s->pendconns, pc_end, struct pendconn *, list) {
 			sess = pc->sess;
-			if ((sess->be->beprm->options & PR_O_REDISP)) {
+			if ((sess->be->options & PR_O_REDISP)) {
 				/* The REDISP option was specified. We will ignore
 				 * cookie and force to balance or use the dispatcher.
 				 */
