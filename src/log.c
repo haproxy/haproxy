@@ -27,8 +27,6 @@
 #include <types/backend.h>
 #include <types/global.h>
 #include <types/log.h>
-#include <types/proto_http.h>
-#include <types/proxy.h>
 #include <types/session.h>
 
 
@@ -54,12 +52,6 @@ const char *monthname[12] = {
 
 const char sess_term_cond[8]  = "-cCsSPRI";	/* normal, CliTo, CliErr, SrvTo, SrvErr, PxErr, Resource, Internal */
 const char sess_fin_state[8]  = "-RCHDLQT";	/* cliRequest, srvConnect, srvHeader, Data, Last, Queue, Tarpit */
-const char sess_cookie[4]     = "NIDV";		/* No cookie, Invalid cookie, cookie for a Down server, Valid cookie */
-const char sess_set_cookie[8] = "N1I3PD5R";	/* No set-cookie, unknown, Set-Cookie Inserted, unknown,
-					    	   Set-cookie seen and left unchanged (passive), Set-cookie Deleted,
-						   unknown, Set-cookie Rewritten */
-void **pool_requri = NULL;
-
 
 /*
  * Displays the message on stderr with the date and pid. Overrides the quiet
@@ -147,22 +139,6 @@ int get_log_facility(const char *fac)
 	return facility;
 }
 
-
-#define FD_SETS_ARE_BITFIELDS
-#ifdef FD_SETS_ARE_BITFIELDS
-/*
- * This map is used with all the FD_* macros to check whether a particular bit
- * is set or not. Each bit represents an ACSII code. FD_SET() sets those bytes
- * which should be encoded. When FD_ISSET() returns non-zero, it means that the
- * byte should be encoded. Be careful to always pass bytes from 0 to 255
- * exclusively to the macros.
- */
-fd_set hdr_encode_map[(sizeof(fd_set) > (256/8)) ? 1 : ((256/8) / sizeof(fd_set))];
-fd_set url_encode_map[(sizeof(fd_set) > (256/8)) ? 1 : ((256/8) / sizeof(fd_set))];
-
-#else
-#error "Check if your OS uses bitfields for fd_sets"
-#endif
 
 /*
  * This function sends a syslog message to both log servers of a proxy,
@@ -288,29 +264,15 @@ void send_log(struct proxy *p, int level, const char *message, ...)
 /*
  * send a log for the session when we have enough info about it
  */
-void sess_log(struct session *s)
+void tcp_sess_log(struct session *s)
 {
 	char pn[INET6_ADDRSTRLEN + strlen(":65535")];
 	struct proxy *fe = s->fe;
 	struct proxy *be = s->be;
 	struct proxy *prx_log;
-	struct http_txn *txn = &s->txn;
-	int log, tolog;
-	char *uri;
-	char *pxid;
-	char *srv;
+	int tolog;
+	char *svid;
 	struct tm *tm;
-
-	/* This is a first attempt at a better logging system.
-	 * For now, we rely on send_log() to provide the date, although it obviously
-	 * is the date of the log and not of the request, and most fields are not
-	 * computed.
-	 */
-
-	/* FIXME: let's limit ourselves to frontend logging for now. */
-	tolog = (fe->to_log /*| be->to_log | be->to_log*/);
-
-	log = tolog & ~s->logs.logwait;
 
 	if (s->cli_addr.ss_family == AF_INET)
 		inet_ntop(AF_INET,
@@ -320,12 +282,6 @@ void sess_log(struct session *s)
 		inet_ntop(AF_INET6,
 			  (const void *)&((struct sockaddr_in6 *)(&s->cli_addr))->sin6_addr,
 			  pn, sizeof(pn));
-
-	uri = (log & LW_REQ) ? txn->uri ? txn->uri : "<BADREQ>" : "";
-	pxid = be->id;
-	srv = (tolog & LW_SVID) ?
-		(s->data_source != DATA_SRC_STATS) ?
-		(s->srv != NULL) ? s->srv->id : "<NOSRV>" : "<STATS>" : "-";
 
 	tm = localtime((time_t *)&s->logs.tv_accept.tv_sec);
 
@@ -342,140 +298,32 @@ void sess_log(struct session *s)
 	else
 		prx_log = NULL; /* global */
 
-	if (tolog & LW_REQ) {
-		char tmpline[MAX_SYSLOG_LEN], *h;
-		int hdr;
-	
-		h = tmpline;
+	/* FIXME: let's limit ourselves to frontend logging for now. */
+	tolog = fe->to_log;
+	svid = (tolog & LW_SVID) ? (s->srv != NULL) ? s->srv->id : "<NOSRV>" : "-";
 
-		/* right now, header capture is limited to the frontend only */
-		if (fe->to_log & LW_REQHDR &&
-		    txn->req.cap &&
-		    (h < tmpline + sizeof(tmpline) - 10)) {
-			*(h++) = ' ';
-			*(h++) = '{';
-			for (hdr = 0; hdr < fe->nb_req_cap; hdr++) {
-				if (hdr)
-					*(h++) = '|';
-				if (txn->req.cap[hdr] != NULL)
-					h = encode_string(h, tmpline + sizeof(tmpline) - 7,
-							  '#', hdr_encode_map, txn->req.cap[hdr]);
-			}
-			*(h++) = '}';
-		}
-
-		if (fe->to_log & LW_RSPHDR &&
-		    txn->rsp.cap &&
-		    (h < tmpline + sizeof(tmpline) - 7)) {
-			*(h++) = ' ';
-			*(h++) = '{';
-			for (hdr = 0; hdr < fe->nb_rsp_cap; hdr++) {
-				if (hdr)
-					*(h++) = '|';
-				if (txn->rsp.cap[hdr] != NULL)
-					h = encode_string(h, tmpline + sizeof(tmpline) - 4,
-							  '#', hdr_encode_map, txn->rsp.cap[hdr]);
-			}
-			*(h++) = '}';
-		}
-
-		if (h < tmpline + sizeof(tmpline) - 4) {
-			*(h++) = ' ';
-			*(h++) = '"';
-			h = encode_string(h, tmpline + sizeof(tmpline) - 1,
-					  '#', url_encode_map, uri);
-			*(h++) = '"';
-		}
-		*h = '\0';
-
-		send_log(prx_log, LOG_INFO,
-			 "%s:%d [%02d/%s/%04d:%02d:%02d:%02d.%03d]"
-			 " %s %s/%s %d/%d/%d/%d/%s%d %d %s%lld"
-			 " %s %s %c%c%c%c %d/%d/%d/%d %d/%d%s\n",
-			 pn,
-			 (s->cli_addr.ss_family == AF_INET) ?
-			 ntohs(((struct sockaddr_in *)&s->cli_addr)->sin_port) :
-			 ntohs(((struct sockaddr_in6 *)&s->cli_addr)->sin6_port),
-			 tm->tm_mday, monthname[tm->tm_mon], tm->tm_year+1900,
-			 tm->tm_hour, tm->tm_min, tm->tm_sec, s->logs.tv_accept.tv_usec/1000,
-			 fe->id, pxid, srv,
-			 s->logs.t_request,
-			 (s->logs.t_queue >= 0) ? s->logs.t_queue - s->logs.t_request : -1,
-			 (s->logs.t_connect >= 0) ? s->logs.t_connect - s->logs.t_queue : -1,
-			 (s->logs.t_data >= 0) ? s->logs.t_data - s->logs.t_connect : -1,
-			 (tolog & LW_BYTES) ? "" : "+", s->logs.t_close,
-			 txn->status,
-			 (tolog & LW_BYTES) ? "" : "+", s->logs.bytes_in,
-			 txn->cli_cookie ? txn->cli_cookie : "-",
-			 txn->srv_cookie ? txn->srv_cookie : "-",
-			 sess_term_cond[(s->flags & SN_ERR_MASK) >> SN_ERR_SHIFT],
-			 sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT],
-			 (be->options & PR_O_COOK_ANY) ? sess_cookie[(txn->flags & TX_CK_MASK) >> TX_CK_SHIFT] : '-',
-			 (be->options & PR_O_COOK_ANY) ? sess_set_cookie[(txn->flags & TX_SCK_MASK) >> TX_SCK_SHIFT] : '-',
-			 actconn, fe->feconn, be->beconn, s->srv ? s->srv->cur_sess : 0,
-			 s->logs.srv_queue_size, s->logs.prx_queue_size, tmpline);
-	}
-	else {
-		send_log(prx_log, LOG_INFO, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d.%03d]"
-			 " %s %s/%s %d/%d/%s%d %s%lld"
-			 " %c%c %d/%d/%d/%d %d/%d\n",
-			 pn,
-			 (s->cli_addr.ss_family == AF_INET) ?
-			 ntohs(((struct sockaddr_in *)&s->cli_addr)->sin_port) :
-			 ntohs(((struct sockaddr_in6 *)&s->cli_addr)->sin6_port),
-			 tm->tm_mday, monthname[tm->tm_mon], tm->tm_year+1900,
-			 tm->tm_hour, tm->tm_min, tm->tm_sec, s->logs.tv_accept.tv_usec/1000,
-			 fe->id, pxid, srv,
-			 (s->logs.t_queue >= 0) ? s->logs.t_queue : -1,
-			 (s->logs.t_connect >= 0) ? s->logs.t_connect - s->logs.t_queue : -1,
-			 (tolog & LW_BYTES) ? "" : "+", s->logs.t_close,
-			 (tolog & LW_BYTES) ? "" : "+", s->logs.bytes_in,
-			 sess_term_cond[(s->flags & SN_ERR_MASK) >> SN_ERR_SHIFT],
-			 sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT],
-			 actconn, fe->feconn, be->beconn, s->srv ? s->srv->cur_sess : 0,
-			 s->logs.srv_queue_size, s->logs.prx_queue_size);
-	}
+	send_log(prx_log, LOG_INFO, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d.%03d]"
+		 " %s %s/%s %d/%d/%s%d %s%lld"
+		 " %c%c %d/%d/%d/%d %d/%d\n",
+		 pn,
+		 (s->cli_addr.ss_family == AF_INET) ?
+		 ntohs(((struct sockaddr_in *)&s->cli_addr)->sin_port) :
+		 ntohs(((struct sockaddr_in6 *)&s->cli_addr)->sin6_port),
+		 tm->tm_mday, monthname[tm->tm_mon], tm->tm_year+1900,
+		 tm->tm_hour, tm->tm_min, tm->tm_sec, s->logs.tv_accept.tv_usec/1000,
+		 fe->id, be->id, svid,
+		 (s->logs.t_queue >= 0) ? s->logs.t_queue : -1,
+		 (s->logs.t_connect >= 0) ? s->logs.t_connect - s->logs.t_queue : -1,
+		 (tolog & LW_BYTES) ? "" : "+", s->logs.t_close,
+		 (tolog & LW_BYTES) ? "" : "+", s->logs.bytes_in,
+		 sess_term_cond[(s->flags & SN_ERR_MASK) >> SN_ERR_SHIFT],
+		 sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT],
+		 actconn, fe->feconn, be->beconn, s->srv ? s->srv->cur_sess : 0,
+		 s->logs.srv_queue_size, s->logs.prx_queue_size);
 
 	s->logs.logwait = 0;
 }
 
-
-/*
- * Initializes some data needed later.
- */
-void init_log()
-{
-	int i;
-	char *tmp;
-
-	/* initialize the log header encoding map : '{|}"#' should be encoded with
-	 * '#' as prefix, as well as non-printable characters ( <32 or >= 127 ).
-	 * URL encoding only requires '"', '#' to be encoded as well as non-
-	 * printable characters above.
-	 */
-	memset(hdr_encode_map, 0, sizeof(hdr_encode_map));
-	memset(url_encode_map, 0, sizeof(url_encode_map));
-	for (i = 0; i < 32; i++) {
-		FD_SET(i, hdr_encode_map);
-		FD_SET(i, url_encode_map);
-	}
-	for (i = 127; i < 256; i++) {
-		FD_SET(i, hdr_encode_map);
-		FD_SET(i, url_encode_map);
-	}
-
-	tmp = "\"#{|}";
-	while (*tmp) {
-		FD_SET(*tmp, hdr_encode_map);
-		tmp++;
-	}
-
-	tmp = "\"#";
-	while (*tmp) {
-		FD_SET(*tmp, url_encode_map);
-		tmp++;
-	}
-}
 
 /*
  * Local variables:

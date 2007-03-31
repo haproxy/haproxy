@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
+#include <time.h>
 
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -181,9 +182,28 @@ static const char *http_err_msgs[HTTP_ERR_SIZE] = {
  */
 struct chunk http_err_chunks[HTTP_ERR_SIZE];
 
+#define FD_SETS_ARE_BITFIELDS
+#ifdef FD_SETS_ARE_BITFIELDS
+/*
+ * This map is used with all the FD_* macros to check whether a particular bit
+ * is set or not. Each bit represents an ACSII code. FD_SET() sets those bytes
+ * which should be encoded. When FD_ISSET() returns non-zero, it means that the
+ * byte should be encoded. Be careful to always pass bytes from 0 to 255
+ * exclusively to the macros.
+ */
+fd_set hdr_encode_map[(sizeof(fd_set) > (256/8)) ? 1 : ((256/8) / sizeof(fd_set))];
+fd_set url_encode_map[(sizeof(fd_set) > (256/8)) ? 1 : ((256/8) / sizeof(fd_set))];
+
+#else
+#error "Check if your OS uses bitfields for fd_sets"
+#endif
+
 void init_proto_http()
 {
+	int i;
+	char *tmp;
 	int msg;
+
 	for (msg = 0; msg < HTTP_ERR_SIZE; msg++) {
 		if (!http_err_msgs[msg]) {
 			Alert("Internal error: no message defined for HTTP return code %d. Aborting.\n", msg);
@@ -192,6 +212,34 @@ void init_proto_http()
 
 		http_err_chunks[msg].str = (char *)http_err_msgs[msg];
 		http_err_chunks[msg].len = strlen(http_err_msgs[msg]);
+	}
+
+	/* initialize the log header encoding map : '{|}"#' should be encoded with
+	 * '#' as prefix, as well as non-printable characters ( <32 or >= 127 ).
+	 * URL encoding only requires '"', '#' to be encoded as well as non-
+	 * printable characters above.
+	 */
+	memset(hdr_encode_map, 0, sizeof(hdr_encode_map));
+	memset(url_encode_map, 0, sizeof(url_encode_map));
+	for (i = 0; i < 32; i++) {
+		FD_SET(i, hdr_encode_map);
+		FD_SET(i, url_encode_map);
+	}
+	for (i = 127; i < 256; i++) {
+		FD_SET(i, hdr_encode_map);
+		FD_SET(i, url_encode_map);
+	}
+
+	tmp = "\"#{|}";
+	while (*tmp) {
+		FD_SET(*tmp, hdr_encode_map);
+		tmp++;
+	}
+
+	tmp = "\"#";
+	while (*tmp) {
+		FD_SET(*tmp, url_encode_map);
+		tmp++;
 	}
 }
 
@@ -310,6 +358,8 @@ const char http_is_ver_token[256] = {
 static char *cli_stnames[5] = {"HDR", "DAT", "SHR", "SHW", "CLS" };
 static char *srv_stnames[7] = {"IDL", "CON", "HDR", "DAT", "SHR", "SHW", "CLS" };
 #endif
+
+static void http_sess_log(struct session *s);
 
 /*
  * Adds a header and its CRLF at the tail of buffer <b>, just before the last
@@ -553,8 +603,12 @@ int process_session(struct task *t)
 	/* let's do a final log if we need it */
 	if (s->logs.logwait && 
 	    !(s->flags & SN_MONITOR) &&
-	    (!(s->fe->options & PR_O_NULLNOLOG) || s->req->total))
-		sess_log(s);
+	    (!(s->fe->options & PR_O_NULLNOLOG) || s->req->total)) {
+		if (s->fe->to_log & LW_REQ)
+			http_sess_log(s);
+		else
+			tcp_sess_log(s);
+	}
 
 	/* the task MUST not be in the run queue anymore */
 	task_delete(t);
@@ -564,22 +618,126 @@ int process_session(struct task *t)
 }
 
 
-/* either we find an LF at <ptr> or we jump to <bad>.
- */
-#define EXPECT_LF_HERE(ptr, bad)	do { if (unlikely(*(ptr) != '\n')) goto bad; } while (0)
+extern const char sess_term_cond[8];
+extern const char sess_fin_state[8];
+extern const char *monthname[12];
+const char sess_cookie[4]     = "NIDV";		/* No cookie, Invalid cookie, cookie for a Down server, Valid cookie */
+const char sess_set_cookie[8] = "N1I3PD5R";	/* No set-cookie, unknown, Set-Cookie Inserted, unknown,
+					    	   Set-cookie seen and left unchanged (passive), Set-cookie Deleted,
+						   unknown, Set-cookie Rewritten */
+void **pool_requri = NULL;
 
-/* plays with variables <ptr>, <end> and <state>. Jumps to <good> if OK,
- * otherwise to <http_msg_ood> with <state> set to <st>.
+/*
+ * send a log for the session when we have enough info about it.
+ * Will not log if the frontend has no log defined.
  */
-#define EAT_AND_JUMP_OR_RETURN(good, st)   do { \
-		ptr++;                          \
-		if (likely(ptr < end))          \
-			goto good;              \
-		else {                          \
-			state = (st);           \
-			goto http_msg_ood;      \
-		}                               \
-	} while (0)
+static void http_sess_log(struct session *s)
+{
+	char pn[INET6_ADDRSTRLEN + strlen(":65535")];
+	struct proxy *fe = s->fe;
+	struct proxy *be = s->be;
+	struct proxy *prx_log;
+	struct http_txn *txn = &s->txn;
+	int tolog;
+	char *uri, *h;
+	char *svid;
+	struct tm *tm;
+	static char tmpline[MAX_SYSLOG_LEN];
+	int hdr;
+
+	if (fe->logfac1 < 0 && fe->logfac2 < 0)
+		return;
+	prx_log = fe;
+
+	if (s->cli_addr.ss_family == AF_INET)
+		inet_ntop(AF_INET,
+			  (const void *)&((struct sockaddr_in *)&s->cli_addr)->sin_addr,
+			  pn, sizeof(pn));
+	else
+		inet_ntop(AF_INET6,
+			  (const void *)&((struct sockaddr_in6 *)(&s->cli_addr))->sin6_addr,
+			  pn, sizeof(pn));
+
+	tm = localtime((time_t *)&s->logs.tv_accept.tv_sec);
+
+
+	/* FIXME: let's limit ourselves to frontend logging for now. */
+	tolog = fe->to_log;
+
+	h = tmpline;
+	if (fe->to_log & LW_REQHDR &&
+	    txn->req.cap &&
+	    (h < tmpline + sizeof(tmpline) - 10)) {
+		*(h++) = ' ';
+		*(h++) = '{';
+		for (hdr = 0; hdr < fe->nb_req_cap; hdr++) {
+			if (hdr)
+				*(h++) = '|';
+			if (txn->req.cap[hdr] != NULL)
+				h = encode_string(h, tmpline + sizeof(tmpline) - 7,
+						  '#', hdr_encode_map, txn->req.cap[hdr]);
+		}
+		*(h++) = '}';
+	}
+
+	if (fe->to_log & LW_RSPHDR &&
+	    txn->rsp.cap &&
+	    (h < tmpline + sizeof(tmpline) - 7)) {
+		*(h++) = ' ';
+		*(h++) = '{';
+		for (hdr = 0; hdr < fe->nb_rsp_cap; hdr++) {
+			if (hdr)
+				*(h++) = '|';
+			if (txn->rsp.cap[hdr] != NULL)
+				h = encode_string(h, tmpline + sizeof(tmpline) - 4,
+						  '#', hdr_encode_map, txn->rsp.cap[hdr]);
+		}
+		*(h++) = '}';
+	}
+
+	if (h < tmpline + sizeof(tmpline) - 4) {
+		*(h++) = ' ';
+		*(h++) = '"';
+		uri = txn->uri ? txn->uri : "<BADREQ>";
+		h = encode_string(h, tmpline + sizeof(tmpline) - 1,
+				  '#', url_encode_map, uri);
+		*(h++) = '"';
+	}
+	*h = '\0';
+
+	svid = (tolog & LW_SVID) ?
+		(s->data_source != DATA_SRC_STATS) ?
+		(s->srv != NULL) ? s->srv->id : "<NOSRV>" : "<STATS>" : "-";
+
+	send_log(prx_log, LOG_INFO,
+		 "%s:%d [%02d/%s/%04d:%02d:%02d:%02d.%03d]"
+		 " %s %s/%s %d/%d/%d/%d/%s%d %d %s%lld"
+		 " %s %s %c%c%c%c %d/%d/%d/%d %d/%d%s\n",
+		 pn,
+		 (s->cli_addr.ss_family == AF_INET) ?
+		 ntohs(((struct sockaddr_in *)&s->cli_addr)->sin_port) :
+		 ntohs(((struct sockaddr_in6 *)&s->cli_addr)->sin6_port),
+		 tm->tm_mday, monthname[tm->tm_mon], tm->tm_year+1900,
+		 tm->tm_hour, tm->tm_min, tm->tm_sec, s->logs.tv_accept.tv_usec/1000,
+		 fe->id, be->id, svid,
+		 s->logs.t_request,
+		 (s->logs.t_queue >= 0) ? s->logs.t_queue - s->logs.t_request : -1,
+		 (s->logs.t_connect >= 0) ? s->logs.t_connect - s->logs.t_queue : -1,
+		 (s->logs.t_data >= 0) ? s->logs.t_data - s->logs.t_connect : -1,
+		 (tolog & LW_BYTES) ? "" : "+", s->logs.t_close,
+		 txn->status,
+		 (tolog & LW_BYTES) ? "" : "+", s->logs.bytes_in,
+		 txn->cli_cookie ? txn->cli_cookie : "-",
+		 txn->srv_cookie ? txn->srv_cookie : "-",
+		 sess_term_cond[(s->flags & SN_ERR_MASK) >> SN_ERR_SHIFT],
+		 sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT],
+		 (be->options & PR_O_COOK_ANY) ? sess_cookie[(txn->flags & TX_CK_MASK) >> TX_CK_SHIFT] : '-',
+		 (be->options & PR_O_COOK_ANY) ? sess_set_cookie[(txn->flags & TX_SCK_MASK) >> TX_SCK_SHIFT] : '-',
+		 actconn, fe->feconn, be->beconn, s->srv ? s->srv->cur_sess : 0,
+		 s->logs.srv_queue_size, s->logs.prx_queue_size, tmpline);
+
+	s->logs.logwait = 0;
+}
 
 
 /*
@@ -632,6 +790,24 @@ void capture_headers(char *som, struct hdr_idx *idx,
 		cur_idx = idx->v[cur_idx].next;
 	}
 }
+
+
+/* either we find an LF at <ptr> or we jump to <bad>.
+ */
+#define EXPECT_LF_HERE(ptr, bad)	do { if (unlikely(*(ptr) != '\n')) goto bad; } while (0)
+
+/* plays with variables <ptr>, <end> and <state>. Jumps to <good> if OK,
+ * otherwise to <http_msg_ood> with <state> set to <st>.
+ */
+#define EAT_AND_JUMP_OR_RETURN(good, st)   do { \
+		ptr++;                          \
+		if (likely(ptr < end))          \
+			goto good;              \
+		else {                          \
+			state = (st);           \
+			goto http_msg_ood;      \
+		}                               \
+	} while (0)
 
 
 /*
@@ -1425,7 +1601,7 @@ int process_cli(struct session *t)
 				txn->uri[urilen] = 0;
 
 				if (!(t->logs.logwait &= ~LW_REQ))
-					sess_log(t);
+					http_sess_log(t);
 			} else {
 				Alert("HTTP logging : out of memory.\n");
 			}
@@ -2251,7 +2427,7 @@ int process_srv(struct session *t)
 				   bytes from the server, then this is the right moment. */
 				if (t->fe->to_log && !(t->logs.logwait & LW_BYTES)) {
 					t->logs.t_close = t->logs.t_connect; /* to get a valid end date */
-					sess_log(t);
+					tcp_sess_log(t);
 				}
 #ifdef CONFIG_HAP_TCPSPLICE
 				if ((t->fe->options & t->be->options) & PR_O_TCPSPLICE) {
@@ -2790,7 +2966,10 @@ int process_srv(struct session *t)
 		if (t->fe->to_log && !(t->logs.logwait & LW_BYTES)) {
 			t->logs.t_close = t->logs.t_data; /* to get a valid end date */
 			t->logs.bytes_in = txn->rsp.eoh;
-			sess_log(t);
+			if (t->fe->to_log & LW_REQ)
+				http_sess_log(t);
+			else
+				tcp_sess_log(t);
 		}
 
 		/* Note: we must not try to cheat by jumping directly to DATA,

@@ -275,7 +275,7 @@ int event_accept(int fd) {
 				/* we have the client ip */
 				if (s->logs.logwait & LW_CLIP)
 					if (!(s->logs.logwait &= ~LW_CLIP))
-						sess_log(s);
+						tcp_sess_log(s);
 			}
 			else if (s->cli_addr.ss_family == AF_INET) {
 				char pn[INET_ADDRSTRLEN], sn[INET_ADDRSTRLEN];

@@ -58,7 +58,7 @@ void send_log(struct proxy *p, int level, char *message, ...);
 /*
  * send a log for the session when we have enough info about it
  */
-void sess_log(struct session *s);
+void tcp_sess_log(struct session *s);
 
 /*
  * returns log level for <lev> or -1 if not found.
@@ -69,11 +69,6 @@ int get_log_level(const char *lev);
  * returns log facility for <fac> or -1 if not found.
  */
 int get_log_facility(const char *fac);
-
-/*
- * Initializes some data needed later.
- */
-void init_log();
 
 #endif /* _PROTO_LOG_H */
 

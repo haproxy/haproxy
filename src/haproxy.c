@@ -362,7 +362,6 @@ void init(int argc, char **argv)
 	localtime((time_t *)&now.tv_sec);
 	start_date = now;
 
-	init_log();
 	init_proto_http();
 
 	cfg_polling_mechanism = POLL_USE_SELECT;  /* select() is always available */
