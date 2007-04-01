@@ -1,0 +1,124 @@
+2007/03/30 - Header storage in trees
+
+This documentation describes how to store headers in radix trees, providing
+fast access to any known position, while retaining the ability to grow/reduce
+any arbitrary header without having to recompute all positions.
+
+Principle :
+  We have a radix tree represented in an integer array, which represents the
+  total number of bytes used by all headers whose position is below it. This
+  ensures that we can compute any header's position in O(log(N)) where N is
+  the number of headers.
+
+Example with N=16 :
+
+   +-----------------------+
+   |                       |
+   +-----------+           +-----------+
+   |           |           |           |
+   +-----+     +-----+     +-----+     +-----+
+   |     |     |     |     |     |     |     |
+   +--+  +--+  +--+  +--+  +--+  +--+  +--+  +--+
+   |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+
+   0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F
+
+   To reach header 6, we have to compute hdr[0]+hdr[4]+hdr[6]
+
+   With this method, it becomes easy to grow any header and update the array.
+   To achieve this, we have to replace one after the other all bits on the
+   right with one 1 followed by zeroes, and update the position if it's higher
+   than current position, and stop when it's above number of stored headers.
+
+   For instance, if we want to grow hdr[6], we proceed like this :
+
+   6 = 0110 (BIN)
+
+   Let's consider the values to update :
+
+   (bit 0) : (0110 & ~0001) | 0001 = 0111 = 7 >  6 => update
+   (bit 1) : (0110 & ~0011) | 0010 = 0110 = 6 <= 6 => leave it
+   (bit 2) : (0110 & ~0111) | 0100 = 0100 = 4 <= 6 => leave it
+   (bit 4) : (0110 & ~1111) | 1000 = 1000 = 8 >  6 => update
+   (bit 5) : larger than array size, stop.
+
+
+It's easy to walk through the tree too. We only have one iteration per bit
+changing from X to the ancestor, and one per bit from the ancestor to Y.
+The ancestor is found while walking. To go from X to Y :
+
+   pos = pos(X)
+
+   while (Y != X) {
+     if (Y > X) {
+       // walk from Y to ancestor
+       pos += hdr[Y]
+       Y &= (Y - 1)
+     } else {
+       // walk from X to ancestor
+       pos -= hdr[X]
+       X &= (X - 1)
+     }
+   }
+
+However, it is not trivial anymore to linearly walk the tree. We have to move
+from a known place to another known place, but a jump to next entry costs the
+same as a jump to a random place.
+
+Other caveats :
+  - it is not possible to remove a header, it is only possible to empty it.
+  - it is not possible to insert a header, as that would imply a renumbering.
+  => this means that a "defrag" function is required. Headers should preferably
+     be added, then should be stuffed on top of destroyed ones, then only
+     inserted if absolutely required.
+
+
+When we have this, we can then focus on a 32-bit header descriptor which would
+look like this :
+
+{
+  unsigned line_len :13; /* total line length, including CRLF */
+  unsigned name_len  :6; /* header name length, max 63 chars */
+  unsigned sp1       :5; /* max spaces before value : 31 */
+  unsigned sp2       :8; /* max spaces after value : 255 */
+}
+
+Example :
+
+  Connection:      close           \r\n
+  <---------+-----+-----+-------------> line_len
+  <-------->|     |     |               name_len
+            <----->     |               sp1
+                        <-------------> sp2
+Rem:
+  - if there are more than 31 spaces before the value, the buffer will have to
+    be moved before being registered
+
+  - if there are more than 255  spaces after the value, the buffer will have to
+    be moved before being registered
+
+  - we can use the empty header name as an indicator for a deleted header
+
+  - it would be wise to format a new request before sending lots of random
+    spaces to the servers.
+
+  - normal clients do not send such crap, so those operations *may* reasonably
+    be more expensive than the rest provided that other ones are very fast.
+
+It would be handy to have the following macros :
+
+  hdr_eon(hdr)  => end of name
+  hdr_sov(hdr)  => start of value
+  hdr_eof(hdr)  => end of value
+  hdr_vlen(hdr) => length of value
+  hdr_hlen(hdr) => total header length
+
+
+A 48-bit encoding would look like this :
+
+  Connection:      close           \r\n
+  <---------+------+---+--------------> eoh = 16 bits
+  <-------->|      |   |                eon = 8 bits
+  <--------------->|   |                sov = 8 bits
+                   <--->                vlen = 16 bits
+

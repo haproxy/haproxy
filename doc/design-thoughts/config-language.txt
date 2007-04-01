@@ -115,3 +115,148 @@ Sinon, peut-être que le "switch" peut prendre un paramètre de mapping pour la pa
 
         req in  switch   URI     =^ "/images/" images:"/"
 
+
+2007/03/31 - Besoins plus précis.
+
+1) aucune extension de branchement ou autre dans les "listen", c'est trop complexe.
+
+Distinguer les données entrantes (in) et sortantes (out).
+
+Le frontend ne voit que les requetes entrantes et les réponses sortantes.
+Le backend voir les requêtes in/out et les réponses in/out.
+Le frontend permet les branchements d'ensembles de filtres de requêtes vers
+d'autres. Le frontend et les ensembles de filtres de requêtes peuvent brancher
+vers un backend.
+
+-----------+--------+----------+----------+---------+----------+
+  \  Where |        |          |          |         |          |
+   \______ | Listen | Frontend | ReqRules | Backend | RspRules |
+          \|        |          |          |         |          |
+Capability |        |          |          |         |          |
+-----------+--------+----------+----------+---------+----------+
+Frontend   |    X   |     X    |          |         |          |
+-----------+--------+----------+----------+---------+----------+
+FiltReqIn  |    X   |     X    |     X    |    X    |          |
+-----------+--------+----------+----------+---------+----------+
+JumpFiltReq|    X   |     X    |     X    |         |          | \
+-----------+--------+----------+----------+---------+----------+  > = ReqJump
+SetBackend |    X   |     X    |     X    |         |          | /
+-----------+--------+----------+----------+---------+----------+
+FiltReqOut |        |          |          |    X    |          |
+-----------+--------+----------+----------+---------+----------+
+FiltRspIn  |    X   |          |          |    X    |     X    |
+-----------+--------+----------+----------+---------+----------+
+JumpFiltRsp|        |          |          |    X    |     X    |
+-----------+--------+----------+----------+---------+----------+
+FiltRspOut |        |     X    |          |    X    |     X    |
+-----------+--------+----------+----------+---------+----------+
+Backend    |    X   |          |          |    X    |          |
+-----------+--------+----------+----------+---------+----------+
+
+En conclusion
+-------------
+
+Il y a au moins besoin de distinguer 8 fonctionnalités de base :
+ - capacité à recevoir des connexions (frontend)
+ - capacité à filtrer les requêtes entrantes
+ - capacité à brancher vers un backend ou un ensemble de règles de requêtes
+ - capacité à filtrer les requêtes sortantes
+ - capacité à filtrer les réponses entrantes
+ - capacité à brancher vers un autre ensemble de règles de réponses
+ - capacité à filtrer la réponse sortante
+ - capacité à gérer des serveurs (backend)
+
+Remarque
+--------
+ - on a souvent besoin de pouvoir appliquer un petit traitement sur un ensemble
+   host/uri/autre. Le petit traitement peut consister en quelques filtres ainsi
+   qu'une réécriture du couple (host,uri).
+
+
+Proposition : ACL
+
+Syntaxe :
+---------
+
+   acl <name> <what> <operator> <value> ...
+
+Ceci créera une acl référencée sous le nom <name> qui sera validée si
+l'application d'au moins une des valeurs <value> avec l'opérateur <operator>
+sur le sujet <what> est validée.
+
+Opérateurs :
+------------
+
+Toujours 2 caractères :
+
+  [=!][~=*^%/.]
+
+Premier caractère :  
+   '=' : OK si test valide
+   '!' : OK si test échoué.
+
+Second caractère :
+   '~' : compare avec une regex
+   '=' : compare chaîne à chaîne
+   '*' : compare la fin de la chaîne (ex: =* ".mydomain.com")
+   '^' : compare le début de la chaîne (ex: =^ "/images/")
+   '%' : recherche une sous-chaîne
+   '/' : compare avec un mot entier en acceptant le '/' comme délimiteur
+   '.' : compare avec un mot entier en acceptant el '.' comme délimiteur
+
+Ensuite on exécute une action de manière conditionnelle si l'ensemble des ACLs
+mentionnées sont validées (ou invalidées pour celles précédées d'un "!") :
+
+   <what> <where> <action> on [!]<aclname> ...
+
+
+Exemple :
+---------
+
+   acl www_pub host =. www www01 dev preprod
+   acl imghost host =. images
+   acl imgdir   uri =/ img
+   acl imagedir uri =/ images
+   acl msie h(user-agent) =% "MSIE"
+
+   set_host  "images"       on www_pub imgdir 
+   remap_uri "/img"    "/"  on www_pub imgdir
+   remap_uri "/images" "/"  on www_pub imagedir
+   setbe images             on imghost
+   reqdel "Cookie"          on all
+
+
+
+Actions possibles :
+
+   req  {in|out} {append|delete|rem|add|set|rep|mapuri|rewrite|reqline|deny|allow|setbe|tarpit}
+   resp {in|out} {append|delete|rem|add|set|rep|maploc|rewrite|stsline|deny|allow}
+
+   req in append <line>
+   req in delete <line_regex>
+   req in rem <header>
+   req in add <header> <new_value>
+   req in set <header> <new_value>
+   req in rep <header> <old_value> <new_value>
+   req in mapuri  <old_uri_prefix> <new_uri_prefix>
+   req in rewrite <old_uri_regex>  <new_uri>
+   req in reqline <old_req_regex>  <new_req>
+   req in deny
+   req in allow
+   req in tarpit
+   req in setbe <backend>
+
+   resp out maploc <old_location_prefix> <new_loc_prefix>
+   resp out stsline <old_sts_regex> <new_sts_regex>
+
+Les chaînes doivent être délimitées par un même caractère au début et à la fin,
+qui doit être échappé s'il est présent dans la chaîne. Tout ce qui se trouve
+entre le caractère de fin et les premiers espace est considéré comme des
+options passées au traitement. Par exemple :
+
+   req in rep host /www/i /www/
+   req in rep connection /keep-alive/i "close"
+
+Il serait pratique de pouvoir effectuer un remap en même temps qu'un setbe.
+
+Captures: les séparer en in/out. Les rendre conditionnelles ?
