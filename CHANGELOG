@@ -1,6 +1,13 @@
 ChangeLog :
 ===========
 
+2007/04/01 : 1.3.8.1
+    - fix reqadd when no option httpclose is used.
+    - removed now unused fiprm and beprm from proxies
+    - split logs into two versions : TCP and HTTP
+    - added some docs about http headers storage and acls
+    - added a VIM script for syntax color highlighting (Bruno Michel)
+
 2007/03/25 : 1.3.8
     - fixed several bugs which might have caused a crash with bad configs
     - several optimizations in header processing
