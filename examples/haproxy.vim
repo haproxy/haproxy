@@ -69,7 +69,7 @@ syn keyword hapParam     capture     skipwhite nextgroup=hapCapture
 syn keyword hapParam     dispatch    skipwhite nextgroup=hapIpPort
 syn keyword hapParam     source      skipwhite nextgroup=hapIpPort
 syn keyword hapParam     mode        skipwhite nextgroup=hapMode
-syn keyword hapParam     monitor-net skipwhite nextgroup=hapMonitorN
+syn keyword hapParam     monitor-net skipwhite nextgroup=hapIPv4Mask
 syn keyword hapParam     option      skipwhite nextgroup=hapOption
 syn keyword hapParam     stats       skipwhite nextgroup=hapStats
 syn keyword hapParam     server      skipwhite nextgroup=hapServerN
@@ -85,6 +85,7 @@ syn keyword hapMode      contained http tcp health
 syn keyword hapOption    contained abortonclose allbackups checkcache clitcpka dontlognull forceclose forwardfor
 syn keyword hapOption    contained httpchk httpclose httplog keepalive logasap persist srvtcpka ssl-hello-chk
 syn keyword hapOption    contained tcplog tcpka tcpsplice
+syn keyword hapOption    contained except skipwhite nextgroup=hapIPv4Mask
 syn keyword hapStats     contained uri realm auth scope enable
 syn keyword hapLogFac    contained kern user mail daemon auth syslog lpr news nextgroup=hapLogLvl skipwhite
 syn keyword hapLogFac    contained uucp cron auth2 ftp ntp audit alert cron2  nextgroup=hapLogLvl skipwhite
@@ -96,7 +97,7 @@ syn keyword hapCapture   contained request response nextgroup=hapHeader skipwhit
 syn keyword hapHeader    contained header nextgroup=hapNameLen skipwhite
 syn keyword hapSrvKey    contained backup cookie check inter rise fall port source minconn maxconn weight usesrc
 syn match   hapStatus    contained /\d\{3}/
-syn match   hapMonitorN  contained /\d\{1,3}\.\d\{1,3}\.\d\{1,3}\.\d\{1,3}\(\/\d\{1,2}\)\?/
+syn match   hapIPv4Mask  contained /\d\{1,3}\.\d\{1,3}\.\d\{1,3}\.\d\{1,3}\(\/\d\{1,2}\)\?/
 syn match   hapLogIp     contained /\d\{1,3}\.\d\{1,3}\.\d\{1,3}\.\d\{1,3}/   nextgroup=hapLogFac skipwhite
 syn match   hapIpPort    contained /\d\{1,3}\.\d\{1,3}\.\d\{1,3}\.\d\{1,3}:\d\{1,5}/
 syn match   hapServerAd  contained /\d\{1,3}\.\d\{1,3}\.\d\{1,3}\.\d\{1,3}\(:[+-]\?\d\{1,5}\)\?/ nextgroup=hapSrvEOL skipwhite
@@ -138,7 +139,7 @@ HiLink      hapIp1       Number
 HiLink      hapIp2       hapIp1
 HiLink      hapLogIp     hapIp1
 HiLink      hapIpPort    hapIp1
-HiLink      hapMonitorN  hapIp1
+HiLink      hapIPv4Mask  hapIp1
 HiLink      hapServerAd  hapIp1
 HiLink      hapStatus    Number
 
