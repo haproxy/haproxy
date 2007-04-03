@@ -3998,6 +3998,7 @@ int apply_filter_to_req_line(struct session *t, struct buffer *req, struct hdr_e
 			txn->req.eoh += delta;
 			cur_end += delta;
 
+			txn->req.sol = req->data + txn->req.som;
 			cur_end = (char *)http_parse_reqline(&txn->req, req->data,
 							     HTTP_MSG_RQMETH,
 							     cur_ptr, cur_end + 1,
@@ -4563,6 +4564,7 @@ int apply_filter_to_sts_line(struct session *t, struct buffer *rtr, struct hdr_e
 			txn->rsp.eoh += delta;
 			cur_end += delta;
 
+			txn->rsp.sol = rtr->data + txn->rsp.som;
 			cur_end = (char *)http_parse_stsline(&txn->rsp, rtr->data,
 							     HTTP_MSG_RPVER,
 							     cur_ptr, cur_end + 1,
