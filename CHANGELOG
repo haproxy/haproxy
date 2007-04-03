@@ -1,6 +1,12 @@
 ChangeLog :
 ===========
 
+2007/04/03 : 1.3.8.2
+    - rewriting either the status line or request line could crash the
+      process due to a pointer which ought to be reset before parsing.
+    - rewriting the status line in the response did not work, it caused
+      a 502 Bad Gateway due to an erroneous state during parsing
+
 2007/04/01 : 1.3.8.1
     - fix reqadd when no option httpclose is used.
     - removed now unused fiprm and beprm from proxies
