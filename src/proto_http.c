@@ -4564,7 +4564,7 @@ int apply_filter_to_sts_line(struct session *t, struct buffer *rtr, struct hdr_e
 			cur_end += delta;
 
 			cur_end = (char *)http_parse_stsline(&txn->rsp, rtr->data,
-							     HTTP_MSG_RQMETH,
+							     HTTP_MSG_RPVER,
 							     cur_ptr, cur_end + 1,
 							     NULL, NULL);
 			if (unlikely(!cur_end))
