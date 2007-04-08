@@ -1540,12 +1540,11 @@ int process_cli(struct session *t)
 			}
 
 			/* 4: do we need to re-enable the read socket ? */
-			else if (unlikely(! EV_FD_ISSET(t->cli_fd, DIR_RD))) {
+			else if (unlikely(EV_FD_COND_S(t->cli_fd, DIR_RD))) {
 				/* fd in DIR_RD was disabled, perhaps because of a previous buffer
 				 * full. We cannot loop here since stream_sock_read will disable it only if
 				 * req->l == rlim-data
 				 */
-				EV_FD_SET(t->cli_fd, DIR_RD);
 				if (t->fe->clitimeout)
 					tv_delayfrom(&req->rex, &now, t->fe->clitimeout);
 				else
@@ -2028,15 +2027,13 @@ int process_cli(struct session *t)
 
 		if (req->l >= req->rlim - req->data) {
 			/* no room to read more data */
-			if (EV_FD_ISSET(t->cli_fd, DIR_RD)) {
+			if (EV_FD_COND_C(t->cli_fd, DIR_RD)) {
 				/* stop reading until we get some space */
-				EV_FD_CLR(t->cli_fd, DIR_RD);
 				tv_eternity(&req->rex);
 			}
 		} else {
 			/* there's still some space in the buffer */
-			if (! EV_FD_ISSET(t->cli_fd, DIR_RD)) {
-				EV_FD_SET(t->cli_fd, DIR_RD);
+			if (EV_FD_COND_S(t->cli_fd, DIR_RD)) {
 				if (!t->fe->clitimeout ||
 				    (t->srv_state < SV_STDATA && t->be->srvtimeout))
 					/* If the client has no timeout, or if the server not ready yet, and we
@@ -2052,14 +2049,14 @@ int process_cli(struct session *t)
 
 		if ((rep->l == 0) ||
 		    ((s < SV_STDATA) /* FIXME: this may be optimized && (rep->w == rep->h)*/)) {
-			if (EV_FD_ISSET(t->cli_fd, DIR_WR)) {
-				EV_FD_CLR(t->cli_fd, DIR_WR); /* stop writing */
+			if (EV_FD_COND_C(t->cli_fd, DIR_WR)) {
+				/* stop writing */
 				tv_eternity(&rep->wex);
 			}
 		} else {
 			/* buffer not empty */
-			if (! EV_FD_ISSET(t->cli_fd, DIR_WR)) {
-				EV_FD_SET(t->cli_fd, DIR_WR); /* restart writing */
+			if (EV_FD_COND_S(t->cli_fd, DIR_WR)) {
+				/* restart writing */
 				if (t->fe->clitimeout) {
 					tv_delayfrom(&rep->wex, &now, t->fe->clitimeout);
 					/* FIXME: to prevent the client from expiring read timeouts during writes,
@@ -2125,14 +2122,14 @@ int process_cli(struct session *t)
 
 		if ((rep->l == 0)
 		    || ((s == SV_STHEADERS) /* FIXME: this may be optimized && (rep->w == rep->h)*/)) {
-			if (EV_FD_ISSET(t->cli_fd, DIR_WR)) {
-				EV_FD_CLR(t->cli_fd, DIR_WR); /* stop writing */
+			if (EV_FD_COND_C(t->cli_fd, DIR_WR)) {
+				/* stop writing */
 				tv_eternity(&rep->wex);
 			}
 		} else {
 			/* buffer not empty */
-			if (! EV_FD_ISSET(t->cli_fd, DIR_WR)) {
-				EV_FD_SET(t->cli_fd, DIR_WR); /* restart writing */
+			if (EV_FD_COND_S(t->cli_fd, DIR_WR)) {
+				/* restart writing */
 				if (t->fe->clitimeout) {
 					tv_delayfrom(&rep->wex, &now, t->fe->clitimeout);
 					/* FIXME: to prevent the client from expiring read timeouts during writes,
@@ -2191,16 +2188,14 @@ int process_cli(struct session *t)
 			 * after the timeout by sending more data after it receives a close ?
 			 */
 
-			if (EV_FD_ISSET(t->cli_fd, DIR_RD)) {
+			if (EV_FD_COND_C(t->cli_fd, DIR_RD)) {
 				/* stop reading until we get some space */
-				EV_FD_CLR(t->cli_fd, DIR_RD);
 				tv_eternity(&req->rex);
 				//fprintf(stderr,"%p:%s(%d), c=%d, s=%d\n", t, __FUNCTION__, __LINE__, t->cli_state, t->cli_state);
 			}
 		} else {
 			/* there's still some space in the buffer */
-			if (! EV_FD_ISSET(t->cli_fd, DIR_RD)) {
-				EV_FD_SET(t->cli_fd, DIR_RD);
+			if (EV_FD_COND_S(t->cli_fd, DIR_RD)) {
 				if (t->fe->clitimeout)
 					tv_delayfrom(&req->rex, &now, t->fe->clitimeout);
 				else
@@ -2497,12 +2492,11 @@ int process_srv(struct session *t)
 		}
 
 
-		if ((rep->l < rep->rlim - rep->data) && ! EV_FD_ISSET(t->srv_fd, DIR_RD)) {
+		if ((rep->l < rep->rlim - rep->data) && EV_FD_COND_S(t->srv_fd, DIR_RD)) {
 			/* fd in DIR_RD was disabled, perhaps because of a previous buffer
 			 * full. We cannot loop here since stream_sock_read will disable it only if
 			 * rep->l == rlim-data
 			 */
-			EV_FD_SET(t->srv_fd, DIR_RD);
 			if (t->be->srvtimeout)
 				tv_delayfrom(&rep->rex, &now, t->be->srvtimeout);
 			else
@@ -2625,7 +2619,7 @@ int process_srv(struct session *t)
 			 * some work to do on the headers.
 			 */
 			else if (unlikely(EV_FD_ISSET(t->srv_fd, DIR_WR) &&
-			                  tv_cmp2_ms(&req->wex, &now) <= 0)) {
+					  tv_cmp2_ms(&req->wex, &now) <= 0)) {
 				EV_FD_CLR(t->srv_fd, DIR_WR);
 				tv_eternity(&req->wex);
 				shutdown(t->srv_fd, SHUT_WR);
@@ -2652,8 +2646,8 @@ int process_srv(struct session *t)
 			 * long posts.
 			 */
 			else if (likely(req->l)) {
-				if (! EV_FD_ISSET(t->srv_fd, DIR_WR)) {
-					EV_FD_SET(t->srv_fd, DIR_WR); /* restart writing */
+				if (EV_FD_COND_S(t->srv_fd, DIR_WR)) {
+					/* restart writing */
 					if (t->be->srvtimeout) {
 						tv_delayfrom(&req->wex, &now, t->be->srvtimeout);
 						/* FIXME: to prevent the server from expiring read timeouts during writes,
@@ -2667,8 +2661,8 @@ int process_srv(struct session *t)
 
 			/* nothing left in the request buffer */
 			else {
-				if (EV_FD_ISSET(t->srv_fd, DIR_WR)) {
-					EV_FD_CLR(t->srv_fd, DIR_WR); /* stop writing */
+				if (EV_FD_COND_C(t->srv_fd, DIR_WR)) {
+					/* stop writing */
 					tv_eternity(&req->wex);
 				}
 			}
@@ -3057,14 +3051,14 @@ int process_srv(struct session *t)
 
 		/* recompute request time-outs */
 		if (req->l == 0) {
-			if (EV_FD_ISSET(t->srv_fd, DIR_WR)) {
-				EV_FD_CLR(t->srv_fd, DIR_WR); /* stop writing */
+			if (EV_FD_COND_C(t->srv_fd, DIR_WR)) {
+				/* stop writing */
 				tv_eternity(&req->wex);
 			}
 		}
 		else { /* buffer not empty, there are still data to be transferred */
-			if (! EV_FD_ISSET(t->srv_fd, DIR_WR)) {
-				EV_FD_SET(t->srv_fd, DIR_WR); /* restart writing */
+			if (EV_FD_COND_S(t->srv_fd, DIR_WR)) {
+				/* restart writing */
 				if (t->be->srvtimeout) {
 					tv_delayfrom(&req->wex, &now, t->be->srvtimeout);
 					/* FIXME: to prevent the server from expiring read timeouts during writes,
@@ -3078,14 +3072,12 @@ int process_srv(struct session *t)
 
 		/* recompute response time-outs */
 		if (rep->l == BUFSIZE) { /* no room to read more data */
-			if (EV_FD_ISSET(t->srv_fd, DIR_RD)) {
-				EV_FD_CLR(t->srv_fd, DIR_RD);
+			if (EV_FD_COND_C(t->srv_fd, DIR_RD)) {
 				tv_eternity(&rep->rex);
 			}
 		}
 		else {
-			if (! EV_FD_ISSET(t->srv_fd, DIR_RD)) {
-				EV_FD_SET(t->srv_fd, DIR_RD);
+			if (EV_FD_COND_S(t->srv_fd, DIR_RD)) {
 				if (t->be->srvtimeout)
 					tv_delayfrom(&rep->rex, &now, t->be->srvtimeout);
 				else
@@ -3156,14 +3148,14 @@ int process_srv(struct session *t)
 			return 1;
 		}
 		else if (req->l == 0) {
-			if (EV_FD_ISSET(t->srv_fd, DIR_WR)) {
-				EV_FD_CLR(t->srv_fd, DIR_WR); /* stop writing */
+			if (EV_FD_COND_C(t->srv_fd, DIR_WR)) {
+				/* stop writing */
 				tv_eternity(&req->wex);
 			}
 		}
 		else { /* buffer not empty */
-			if (! EV_FD_ISSET(t->srv_fd, DIR_WR)) {
-				EV_FD_SET(t->srv_fd, DIR_WR); /* restart writing */
+			if (EV_FD_COND_S(t->srv_fd, DIR_WR)) {
+				/* restart writing */
 				if (t->be->srvtimeout) {
 					tv_delayfrom(&req->wex, &now, t->be->srvtimeout);
 					/* FIXME: to prevent the server from expiring read timeouts during writes,
@@ -3237,14 +3229,12 @@ int process_srv(struct session *t)
 			return 1;
 		}
 		else if (rep->l == BUFSIZE) { /* no room to read more data */
-			if (EV_FD_ISSET(t->srv_fd, DIR_RD)) {
-				EV_FD_CLR(t->srv_fd, DIR_RD);
+			if (EV_FD_COND_C(t->srv_fd, DIR_RD)) {
 				tv_eternity(&rep->rex);
 			}
 		}
 		else {
-			if (! EV_FD_ISSET(t->srv_fd, DIR_RD)) {
-				EV_FD_SET(t->srv_fd, DIR_RD);
+			if (EV_FD_COND_S(t->srv_fd, DIR_RD)) {
 				if (t->be->srvtimeout)
 					tv_delayfrom(&rep->rex, &now, t->be->srvtimeout);
 				else
