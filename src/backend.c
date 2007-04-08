@@ -532,13 +532,7 @@ int connect_server(struct session *s)
 	fdtab[fd].cb[DIR_WR].f = &stream_sock_write;
 	fdtab[fd].cb[DIR_WR].b = s->req;
     
-	MY_FD_SET(fd, StaticWriteEvent);  /* for connect status */
-#if defined(DEBUG_FULL) && defined(ENABLE_EPOLL)
-	if (PrevReadEvent) {
-		assert(!(MY_FD_ISSET(fd, PrevReadEvent)));
-		assert(!(MY_FD_ISSET(fd, PrevWriteEvent)));
-	}
-#endif
+	EV_FD_SET(fd, DIR_WR);  /* for connect status */
     
 	fd_insert(fd);
 	if (s->srv) {

@@ -51,22 +51,11 @@ int init_pollers();
  */
 void run_poller();
 
-
-/* FIXME: dirty hack during code transition */
-#define dir_StaticWriteEvent DIR_WR
-#define dir_StaticReadEvent DIR_RD
-#define dir_DIR_RD DIR_RD
-#define dir_DIR_WR DIR_WR
-
-#define MY_FD_SET(fd, ev) (cur_poller.set((fd), dir_##ev))
-#define MY_FD_CLR(fd, ev) (cur_poller.clr((fd), dir_##ev))
-#define MY_FD_ISSET(fd, ev) (cur_poller.isset((fd), dir_##ev))
-
-#define EV_FD_SET(fd, ev)    (cur_poller.set((fd), dir_##ev))
-#define EV_FD_CLR(fd, ev)    (cur_poller.clr((fd), dir_##ev))
-#define EV_FD_ISSET(fd, ev)  (cur_poller.isset((fd), dir_##ev))
-#define EV_FD_COND_S(fd, ev) (cur_poller.cond_s((fd), dir_##ev))
-#define EV_FD_COND_C(fd, ev) (cur_poller.cond_c((fd), dir_##ev))
+#define EV_FD_SET(fd, ev)    (cur_poller.set((fd), (ev)))
+#define EV_FD_CLR(fd, ev)    (cur_poller.clr((fd), (ev)))
+#define EV_FD_ISSET(fd, ev)  (cur_poller.isset((fd), (ev)))
+#define EV_FD_COND_S(fd, ev) (cur_poller.cond_s((fd), (ev)))
+#define EV_FD_COND_C(fd, ev) (cur_poller.cond_c((fd), (ev)))
 #define EV_FD_REM(fd)        (cur_poller.rem(fd))
 #define EV_FD_CLO(fd)        (cur_poller.clo(fd))
 

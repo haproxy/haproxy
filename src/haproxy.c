@@ -277,10 +277,10 @@ void dump(int sig)
 			 s, tv_remain(&now, &t->expire),
 			 s->cli_state,
 			 s->srv_state,
-			 MY_FD_ISSET(s->cli_fd, StaticReadEvent),
-			 MY_FD_ISSET(s->cli_fd, StaticWriteEvent),
-			 MY_FD_ISSET(s->srv_fd, StaticReadEvent),
-			 MY_FD_ISSET(s->srv_fd, StaticWriteEvent),
+			 EV_FD_ISSET(s->cli_fd, DIR_RD),
+			 EV_FD_ISSET(s->cli_fd, DIR_WR),
+			 EV_FD_ISSET(s->srv_fd, DIR_RD),
+			 EV_FD_ISSET(s->srv_fd, DIR_WR),
 			 s->req->l, s->rep?s->rep->l:0, s->cli_fd
 			 );
 	}

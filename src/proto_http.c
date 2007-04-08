@@ -437,8 +437,8 @@ int http_header_match2(const char *hdr, const char *end,
  */
 void client_retnclose(struct session *s, const struct chunk *msg)
 {
-	MY_FD_CLR(s->cli_fd, StaticReadEvent);
-	MY_FD_SET(s->cli_fd, StaticWriteEvent);
+	EV_FD_CLR(s->cli_fd, DIR_RD);
+	EV_FD_SET(s->cli_fd, DIR_WR);
 	tv_eternity(&s->req->rex);
 	if (s->fe->clitimeout)
 		tv_delayfrom(&s->rep->wex, &now, s->fe->clitimeout);
@@ -1433,7 +1433,7 @@ int process_cli(struct session *t)
 
 	DPRINTF(stderr,"process_cli: c=%s s=%s set(r,w)=%d,%d exp(r,w)=%d.%d,%d.%d\n",
 		cli_stnames[c], srv_stnames[s],
-		MY_FD_ISSET(t->cli_fd, StaticReadEvent), MY_FD_ISSET(t->cli_fd, StaticWriteEvent),
+		EV_FD_ISSET(t->cli_fd, DIR_RD), EV_FD_ISSET(t->cli_fd, DIR_WR),
 		req->rex.tv_sec, req->rex.tv_usec,
 		rep->wex.tv_sec, rep->wex.tv_usec);
 
@@ -1540,12 +1540,12 @@ int process_cli(struct session *t)
 			}
 
 			/* 4: do we need to re-enable the read socket ? */
-			else if (unlikely(! MY_FD_ISSET(t->cli_fd, StaticReadEvent))) {
-				/* fd in StaticReadEvent was disabled, perhaps because of a previous buffer
+			else if (unlikely(! EV_FD_ISSET(t->cli_fd, DIR_RD))) {
+				/* fd in DIR_RD was disabled, perhaps because of a previous buffer
 				 * full. We cannot loop here since stream_sock_read will disable it only if
 				 * req->l == rlim-data
 				 */
-				MY_FD_SET(t->cli_fd, StaticReadEvent);
+				EV_FD_SET(t->cli_fd, DIR_RD);
 				if (t->fe->clitimeout)
 					tv_delayfrom(&req->rex, &now, t->fe->clitimeout);
 				else
@@ -1963,7 +1963,7 @@ int process_cli(struct session *t)
 		}
 		/* last read, or end of server write */
 		else if (req->flags & BF_READ_NULL || s == SV_STSHUTW || s == SV_STCLOSE) {
-			MY_FD_CLR(t->cli_fd, StaticReadEvent);
+			EV_FD_CLR(t->cli_fd, DIR_RD);
 			tv_eternity(&req->rex);
 			shutdown(t->cli_fd, SHUT_RD);
 			t->cli_state = CL_STSHUTR;
@@ -1971,12 +1971,12 @@ int process_cli(struct session *t)
 		}	
 		/* last server read and buffer empty */
 		else if ((s == SV_STSHUTR || s == SV_STCLOSE) && (rep->l == 0)) {
-			MY_FD_CLR(t->cli_fd, StaticWriteEvent);
+			EV_FD_CLR(t->cli_fd, DIR_WR);
 			tv_eternity(&rep->wex);
 			shutdown(t->cli_fd, SHUT_WR);
 			/* We must ensure that the read part is still alive when switching
 			 * to shutw */
-			MY_FD_SET(t->cli_fd, StaticReadEvent);
+			EV_FD_SET(t->cli_fd, DIR_RD);
 			if (t->fe->clitimeout)
 				tv_delayfrom(&req->rex, &now, t->fe->clitimeout);
 			t->cli_state = CL_STSHUTW;
@@ -1985,7 +1985,7 @@ int process_cli(struct session *t)
 		}
 		/* read timeout */
 		else if (tv_cmp2_ms(&req->rex, &now) <= 0) {
-			MY_FD_CLR(t->cli_fd, StaticReadEvent);
+			EV_FD_CLR(t->cli_fd, DIR_RD);
 			tv_eternity(&req->rex);
 			shutdown(t->cli_fd, SHUT_RD);
 			t->cli_state = CL_STSHUTR;
@@ -2003,12 +2003,12 @@ int process_cli(struct session *t)
 		}	
 		/* write timeout */
 		else if (tv_cmp2_ms(&rep->wex, &now) <= 0) {
-			MY_FD_CLR(t->cli_fd, StaticWriteEvent);
+			EV_FD_CLR(t->cli_fd, DIR_WR);
 			tv_eternity(&rep->wex);
 			shutdown(t->cli_fd, SHUT_WR);
 			/* We must ensure that the read part is still alive when switching
 			 * to shutw */
-			MY_FD_SET(t->cli_fd, StaticReadEvent);
+			EV_FD_SET(t->cli_fd, DIR_RD);
 			if (t->fe->clitimeout)
 				tv_delayfrom(&req->rex, &now, t->fe->clitimeout);
 
@@ -2028,15 +2028,15 @@ int process_cli(struct session *t)
 
 		if (req->l >= req->rlim - req->data) {
 			/* no room to read more data */
-			if (MY_FD_ISSET(t->cli_fd, StaticReadEvent)) {
+			if (EV_FD_ISSET(t->cli_fd, DIR_RD)) {
 				/* stop reading until we get some space */
-				MY_FD_CLR(t->cli_fd, StaticReadEvent);
+				EV_FD_CLR(t->cli_fd, DIR_RD);
 				tv_eternity(&req->rex);
 			}
 		} else {
 			/* there's still some space in the buffer */
-			if (! MY_FD_ISSET(t->cli_fd, StaticReadEvent)) {
-				MY_FD_SET(t->cli_fd, StaticReadEvent);
+			if (! EV_FD_ISSET(t->cli_fd, DIR_RD)) {
+				EV_FD_SET(t->cli_fd, DIR_RD);
 				if (!t->fe->clitimeout ||
 				    (t->srv_state < SV_STDATA && t->be->srvtimeout))
 					/* If the client has no timeout, or if the server not ready yet, and we
@@ -2052,14 +2052,14 @@ int process_cli(struct session *t)
 
 		if ((rep->l == 0) ||
 		    ((s < SV_STDATA) /* FIXME: this may be optimized && (rep->w == rep->h)*/)) {
-			if (MY_FD_ISSET(t->cli_fd, StaticWriteEvent)) {
-				MY_FD_CLR(t->cli_fd, StaticWriteEvent); /* stop writing */
+			if (EV_FD_ISSET(t->cli_fd, DIR_WR)) {
+				EV_FD_CLR(t->cli_fd, DIR_WR); /* stop writing */
 				tv_eternity(&rep->wex);
 			}
 		} else {
 			/* buffer not empty */
-			if (! MY_FD_ISSET(t->cli_fd, StaticWriteEvent)) {
-				MY_FD_SET(t->cli_fd, StaticWriteEvent); /* restart writing */
+			if (! EV_FD_ISSET(t->cli_fd, DIR_WR)) {
+				EV_FD_SET(t->cli_fd, DIR_WR); /* restart writing */
 				if (t->fe->clitimeout) {
 					tv_delayfrom(&rep->wex, &now, t->fe->clitimeout);
 					/* FIXME: to prevent the client from expiring read timeouts during writes,
@@ -2125,14 +2125,14 @@ int process_cli(struct session *t)
 
 		if ((rep->l == 0)
 		    || ((s == SV_STHEADERS) /* FIXME: this may be optimized && (rep->w == rep->h)*/)) {
-			if (MY_FD_ISSET(t->cli_fd, StaticWriteEvent)) {
-				MY_FD_CLR(t->cli_fd, StaticWriteEvent); /* stop writing */
+			if (EV_FD_ISSET(t->cli_fd, DIR_WR)) {
+				EV_FD_CLR(t->cli_fd, DIR_WR); /* stop writing */
 				tv_eternity(&rep->wex);
 			}
 		} else {
 			/* buffer not empty */
-			if (! MY_FD_ISSET(t->cli_fd, StaticWriteEvent)) {
-				MY_FD_SET(t->cli_fd, StaticWriteEvent); /* restart writing */
+			if (! EV_FD_ISSET(t->cli_fd, DIR_WR)) {
+				EV_FD_SET(t->cli_fd, DIR_WR); /* restart writing */
 				if (t->fe->clitimeout) {
 					tv_delayfrom(&rep->wex, &now, t->fe->clitimeout);
 					/* FIXME: to prevent the client from expiring read timeouts during writes,
@@ -2191,16 +2191,16 @@ int process_cli(struct session *t)
 			 * after the timeout by sending more data after it receives a close ?
 			 */
 
-			if (MY_FD_ISSET(t->cli_fd, StaticReadEvent)) {
+			if (EV_FD_ISSET(t->cli_fd, DIR_RD)) {
 				/* stop reading until we get some space */
-				MY_FD_CLR(t->cli_fd, StaticReadEvent);
+				EV_FD_CLR(t->cli_fd, DIR_RD);
 				tv_eternity(&req->rex);
 				//fprintf(stderr,"%p:%s(%d), c=%d, s=%d\n", t, __FUNCTION__, __LINE__, t->cli_state, t->cli_state);
 			}
 		} else {
 			/* there's still some space in the buffer */
-			if (! MY_FD_ISSET(t->cli_fd, StaticReadEvent)) {
-				MY_FD_SET(t->cli_fd, StaticReadEvent);
+			if (! EV_FD_ISSET(t->cli_fd, DIR_RD)) {
+				EV_FD_SET(t->cli_fd, DIR_RD);
 				if (t->fe->clitimeout)
 					tv_delayfrom(&req->rex, &now, t->fe->clitimeout);
 				else
@@ -2239,8 +2239,8 @@ int process_srv(struct session *t)
 	fprintf(stderr,"process_srv: c=%s, s=%s\n", cli_stnames[c], srv_stnames[s]);
 #endif
 	//fprintf(stderr,"process_srv: c=%d, s=%d, cr=%d, cw=%d, sr=%d, sw=%d\n", c, s,
-	//MY_FD_ISSET(t->cli_fd, StaticReadEvent), MY_FD_ISSET(t->cli_fd, StaticWriteEvent),
-	//MY_FD_ISSET(t->srv_fd, StaticReadEvent), MY_FD_ISSET(t->srv_fd, StaticWriteEvent)
+	//EV_FD_ISSET(t->cli_fd, DIR_RD), EV_FD_ISSET(t->cli_fd, DIR_WR),
+	//EV_FD_ISSET(t->srv_fd, DIR_RD), EV_FD_ISSET(t->srv_fd, DIR_WR)
 	//);
 	if (s == SV_STIDLE) {
 		if (c == CL_STHEADERS)
@@ -2397,10 +2397,10 @@ int process_srv(struct session *t)
 
 			//fprintf(stderr,"3: c=%d, s=%d\n", c, s);
 			if (req->l == 0) /* nothing to write */ {
-				MY_FD_CLR(t->srv_fd, StaticWriteEvent);
+				EV_FD_CLR(t->srv_fd, DIR_WR);
 				tv_eternity(&req->wex);
 			} else  /* need the right to write */ {
-				MY_FD_SET(t->srv_fd, StaticWriteEvent);
+				EV_FD_SET(t->srv_fd, DIR_WR);
 				if (t->be->srvtimeout) {
 					tv_delayfrom(&req->wex, &now, t->be->srvtimeout);
 					/* FIXME: to prevent the server from expiring read timeouts during writes,
@@ -2412,7 +2412,7 @@ int process_srv(struct session *t)
 			}
 
 			if (t->be->mode == PR_MODE_TCP) { /* let's allow immediate data connection in this case */
-				MY_FD_SET(t->srv_fd, StaticReadEvent);
+				EV_FD_SET(t->srv_fd, DIR_RD);
 				if (t->be->srvtimeout)
 					tv_delayfrom(&rep->rex, &now, t->be->srvtimeout);
 				else
@@ -2497,12 +2497,12 @@ int process_srv(struct session *t)
 		}
 
 
-		if ((rep->l < rep->rlim - rep->data) && ! MY_FD_ISSET(t->srv_fd, StaticReadEvent)) {
-			/* fd in StaticReadEvent was disabled, perhaps because of a previous buffer
+		if ((rep->l < rep->rlim - rep->data) && ! EV_FD_ISSET(t->srv_fd, DIR_RD)) {
+			/* fd in DIR_RD was disabled, perhaps because of a previous buffer
 			 * full. We cannot loop here since stream_sock_read will disable it only if
 			 * rep->l == rlim-data
 			 */
-			MY_FD_SET(t->srv_fd, StaticReadEvent);
+			EV_FD_SET(t->srv_fd, DIR_RD);
 			if (t->be->srvtimeout)
 				tv_delayfrom(&rep->rex, &now, t->be->srvtimeout);
 			else
@@ -2560,7 +2560,7 @@ int process_srv(struct session *t)
 			else if (unlikely(rep->flags & BF_READ_NULL ||
 			                  c == CL_STSHUTW || c == CL_STCLOSE ||
 			                  rep->l >= rep->rlim - rep->data)) {
-				MY_FD_CLR(t->srv_fd, StaticReadEvent);
+				EV_FD_CLR(t->srv_fd, DIR_RD);
 				tv_eternity(&rep->rex);
 				shutdown(t->srv_fd, SHUT_RD);
 				t->srv_state = SV_STSHUTR;
@@ -2570,7 +2570,7 @@ int process_srv(struct session *t)
 
 			/* read timeout : return a 504 to the client.
 			 */
-			else if (unlikely(MY_FD_ISSET(t->srv_fd, StaticReadEvent) &&
+			else if (unlikely(EV_FD_ISSET(t->srv_fd, DIR_RD) &&
 			                  tv_cmp2_ms(&rep->rex, &now) <= 0)) {
 				tv_eternity(&rep->rex);
 				tv_eternity(&req->wex);
@@ -2605,12 +2605,12 @@ int process_srv(struct session *t)
 			 */
 			else if (unlikely((/*c == CL_STSHUTR ||*/ c == CL_STCLOSE) &&
 			                  (req->l == 0))) {
-				MY_FD_CLR(t->srv_fd, StaticWriteEvent);
+				EV_FD_CLR(t->srv_fd, DIR_WR);
 				tv_eternity(&req->wex);
 
 				/* We must ensure that the read part is still
 				 * alive when switching to shutw */
-				MY_FD_SET(t->srv_fd, StaticReadEvent);
+				EV_FD_SET(t->srv_fd, DIR_RD);
 				if (t->be->srvtimeout)
 					tv_delayfrom(&rep->rex, &now, t->be->srvtimeout);
 
@@ -2624,14 +2624,14 @@ int process_srv(struct session *t)
 			 * client shuts read too early, because we may still have
 			 * some work to do on the headers.
 			 */
-			else if (unlikely(MY_FD_ISSET(t->srv_fd, StaticWriteEvent) &&
+			else if (unlikely(EV_FD_ISSET(t->srv_fd, DIR_WR) &&
 			                  tv_cmp2_ms(&req->wex, &now) <= 0)) {
-				MY_FD_CLR(t->srv_fd, StaticWriteEvent);
+				EV_FD_CLR(t->srv_fd, DIR_WR);
 				tv_eternity(&req->wex);
 				shutdown(t->srv_fd, SHUT_WR);
 				/* We must ensure that the read part is still alive
 				 * when switching to shutw */
-				MY_FD_SET(t->srv_fd, StaticReadEvent);
+				EV_FD_SET(t->srv_fd, DIR_RD);
 				if (t->be->srvtimeout)
 					tv_delayfrom(&rep->rex, &now, t->be->srvtimeout);
 
@@ -2652,8 +2652,8 @@ int process_srv(struct session *t)
 			 * long posts.
 			 */
 			else if (likely(req->l)) {
-				if (! MY_FD_ISSET(t->srv_fd, StaticWriteEvent)) {
-					MY_FD_SET(t->srv_fd, StaticWriteEvent); /* restart writing */
+				if (! EV_FD_ISSET(t->srv_fd, DIR_WR)) {
+					EV_FD_SET(t->srv_fd, DIR_WR); /* restart writing */
 					if (t->be->srvtimeout) {
 						tv_delayfrom(&req->wex, &now, t->be->srvtimeout);
 						/* FIXME: to prevent the server from expiring read timeouts during writes,
@@ -2667,8 +2667,8 @@ int process_srv(struct session *t)
 
 			/* nothing left in the request buffer */
 			else {
-				if (MY_FD_ISSET(t->srv_fd, StaticWriteEvent)) {
-					MY_FD_CLR(t->srv_fd, StaticWriteEvent); /* stop writing */
+				if (EV_FD_ISSET(t->srv_fd, DIR_WR)) {
+					EV_FD_CLR(t->srv_fd, DIR_WR); /* stop writing */
 					tv_eternity(&req->wex);
 				}
 			}
@@ -2942,12 +2942,12 @@ int process_srv(struct session *t)
 		 */
 		if ((req->l == 0) &&
 		    (c == CL_STSHUTR || c == CL_STCLOSE || t->be->options & PR_O_FORCE_CLO)) {
-			MY_FD_CLR(t->srv_fd, StaticWriteEvent);
+			EV_FD_CLR(t->srv_fd, DIR_WR);
 			tv_eternity(&req->wex);
 
 			/* We must ensure that the read part is still alive when switching
 			 * to shutw */
-			MY_FD_SET(t->srv_fd, StaticReadEvent);
+			EV_FD_SET(t->srv_fd, DIR_RD);
 			if (t->be->srvtimeout)
 				tv_delayfrom(&rep->rex, &now, t->be->srvtimeout);
 
@@ -3004,7 +3004,7 @@ int process_srv(struct session *t)
 		}
 		/* last read, or end of client write */
 		else if (rep->flags & BF_READ_NULL || c == CL_STSHUTW || c == CL_STCLOSE) {
-			MY_FD_CLR(t->srv_fd, StaticReadEvent);
+			EV_FD_CLR(t->srv_fd, DIR_RD);
 			tv_eternity(&rep->rex);
 			shutdown(t->srv_fd, SHUT_RD);
 			t->srv_state = SV_STSHUTR;
@@ -3013,12 +3013,12 @@ int process_srv(struct session *t)
 		}
 		/* end of client read and no more data to send */
 		else if ((c == CL_STSHUTR || c == CL_STCLOSE) && (req->l == 0)) {
-			MY_FD_CLR(t->srv_fd, StaticWriteEvent);
+			EV_FD_CLR(t->srv_fd, DIR_WR);
 			tv_eternity(&req->wex);
 			shutdown(t->srv_fd, SHUT_WR);
 			/* We must ensure that the read part is still alive when switching
 			 * to shutw */
-			MY_FD_SET(t->srv_fd, StaticReadEvent);
+			EV_FD_SET(t->srv_fd, DIR_RD);
 			if (t->be->srvtimeout)
 				tv_delayfrom(&rep->rex, &now, t->be->srvtimeout);
 
@@ -3027,7 +3027,7 @@ int process_srv(struct session *t)
 		}
 		/* read timeout */
 		else if (tv_cmp2_ms(&rep->rex, &now) <= 0) {
-			MY_FD_CLR(t->srv_fd, StaticReadEvent);
+			EV_FD_CLR(t->srv_fd, DIR_RD);
 			tv_eternity(&rep->rex);
 			shutdown(t->srv_fd, SHUT_RD);
 			t->srv_state = SV_STSHUTR;
@@ -3039,12 +3039,12 @@ int process_srv(struct session *t)
 		}	
 		/* write timeout */
 		else if (tv_cmp2_ms(&req->wex, &now) <= 0) {
-			MY_FD_CLR(t->srv_fd, StaticWriteEvent);
+			EV_FD_CLR(t->srv_fd, DIR_WR);
 			tv_eternity(&req->wex);
 			shutdown(t->srv_fd, SHUT_WR);
 			/* We must ensure that the read part is still alive when switching
 			 * to shutw */
-			MY_FD_SET(t->srv_fd, StaticReadEvent);
+			EV_FD_SET(t->srv_fd, DIR_RD);
 			if (t->be->srvtimeout)
 				tv_delayfrom(&rep->rex, &now, t->be->srvtimeout);
 			t->srv_state = SV_STSHUTW;
@@ -3057,14 +3057,14 @@ int process_srv(struct session *t)
 
 		/* recompute request time-outs */
 		if (req->l == 0) {
-			if (MY_FD_ISSET(t->srv_fd, StaticWriteEvent)) {
-				MY_FD_CLR(t->srv_fd, StaticWriteEvent); /* stop writing */
+			if (EV_FD_ISSET(t->srv_fd, DIR_WR)) {
+				EV_FD_CLR(t->srv_fd, DIR_WR); /* stop writing */
 				tv_eternity(&req->wex);
 			}
 		}
 		else { /* buffer not empty, there are still data to be transferred */
-			if (! MY_FD_ISSET(t->srv_fd, StaticWriteEvent)) {
-				MY_FD_SET(t->srv_fd, StaticWriteEvent); /* restart writing */
+			if (! EV_FD_ISSET(t->srv_fd, DIR_WR)) {
+				EV_FD_SET(t->srv_fd, DIR_WR); /* restart writing */
 				if (t->be->srvtimeout) {
 					tv_delayfrom(&req->wex, &now, t->be->srvtimeout);
 					/* FIXME: to prevent the server from expiring read timeouts during writes,
@@ -3078,14 +3078,14 @@ int process_srv(struct session *t)
 
 		/* recompute response time-outs */
 		if (rep->l == BUFSIZE) { /* no room to read more data */
-			if (MY_FD_ISSET(t->srv_fd, StaticReadEvent)) {
-				MY_FD_CLR(t->srv_fd, StaticReadEvent);
+			if (EV_FD_ISSET(t->srv_fd, DIR_RD)) {
+				EV_FD_CLR(t->srv_fd, DIR_RD);
 				tv_eternity(&rep->rex);
 			}
 		}
 		else {
-			if (! MY_FD_ISSET(t->srv_fd, StaticReadEvent)) {
-				MY_FD_SET(t->srv_fd, StaticReadEvent);
+			if (! EV_FD_ISSET(t->srv_fd, DIR_RD)) {
+				EV_FD_SET(t->srv_fd, DIR_RD);
 				if (t->be->srvtimeout)
 					tv_delayfrom(&rep->rex, &now, t->be->srvtimeout);
 				else
@@ -3097,7 +3097,7 @@ int process_srv(struct session *t)
 	}
 	else if (s == SV_STSHUTR) {
 		if (req->flags & BF_WRITE_ERROR) {
-			//MY_FD_CLR(t->srv_fd, StaticWriteEvent);
+			//EV_FD_CLR(t->srv_fd, DIR_WR);
 			tv_eternity(&req->wex);
 			fd_delete(t->srv_fd);
 			if (t->srv) {
@@ -3120,7 +3120,7 @@ int process_srv(struct session *t)
 			return 1;
 		}
 		else if ((c == CL_STSHUTR || c == CL_STCLOSE) && (req->l == 0)) {
-			//MY_FD_CLR(t->srv_fd, StaticWriteEvent);
+			//EV_FD_CLR(t->srv_fd, DIR_WR);
 			tv_eternity(&req->wex);
 			fd_delete(t->srv_fd);
 			if (t->srv)
@@ -3136,7 +3136,7 @@ int process_srv(struct session *t)
 			return 1;
 		}
 		else if (tv_cmp2_ms(&req->wex, &now) <= 0) {
-			//MY_FD_CLR(t->srv_fd, StaticWriteEvent);
+			//EV_FD_CLR(t->srv_fd, DIR_WR);
 			tv_eternity(&req->wex);
 			fd_delete(t->srv_fd);
 			if (t->srv)
@@ -3156,14 +3156,14 @@ int process_srv(struct session *t)
 			return 1;
 		}
 		else if (req->l == 0) {
-			if (MY_FD_ISSET(t->srv_fd, StaticWriteEvent)) {
-				MY_FD_CLR(t->srv_fd, StaticWriteEvent); /* stop writing */
+			if (EV_FD_ISSET(t->srv_fd, DIR_WR)) {
+				EV_FD_CLR(t->srv_fd, DIR_WR); /* stop writing */
 				tv_eternity(&req->wex);
 			}
 		}
 		else { /* buffer not empty */
-			if (! MY_FD_ISSET(t->srv_fd, StaticWriteEvent)) {
-				MY_FD_SET(t->srv_fd, StaticWriteEvent); /* restart writing */
+			if (! EV_FD_ISSET(t->srv_fd, DIR_WR)) {
+				EV_FD_SET(t->srv_fd, DIR_WR); /* restart writing */
 				if (t->be->srvtimeout) {
 					tv_delayfrom(&req->wex, &now, t->be->srvtimeout);
 					/* FIXME: to prevent the server from expiring read timeouts during writes,
@@ -3178,7 +3178,7 @@ int process_srv(struct session *t)
 	}
 	else if (s == SV_STSHUTW) {
 		if (rep->flags & BF_READ_ERROR) {
-			//MY_FD_CLR(t->srv_fd, StaticReadEvent);
+			//EV_FD_CLR(t->srv_fd, DIR_RD);
 			tv_eternity(&rep->rex);
 			fd_delete(t->srv_fd);
 			if (t->srv) {
@@ -3201,7 +3201,7 @@ int process_srv(struct session *t)
 			return 1;
 		}
 		else if (rep->flags & BF_READ_NULL || c == CL_STSHUTW || c == CL_STCLOSE) {
-			//MY_FD_CLR(t->srv_fd, StaticReadEvent);
+			//EV_FD_CLR(t->srv_fd, DIR_RD);
 			tv_eternity(&rep->rex);
 			fd_delete(t->srv_fd);
 			if (t->srv)
@@ -3217,7 +3217,7 @@ int process_srv(struct session *t)
 			return 1;
 		}
 		else if (tv_cmp2_ms(&rep->rex, &now) <= 0) {
-			//MY_FD_CLR(t->srv_fd, StaticReadEvent);
+			//EV_FD_CLR(t->srv_fd, DIR_RD);
 			tv_eternity(&rep->rex);
 			fd_delete(t->srv_fd);
 			if (t->srv)
@@ -3237,14 +3237,14 @@ int process_srv(struct session *t)
 			return 1;
 		}
 		else if (rep->l == BUFSIZE) { /* no room to read more data */
-			if (MY_FD_ISSET(t->srv_fd, StaticReadEvent)) {
-				MY_FD_CLR(t->srv_fd, StaticReadEvent);
+			if (EV_FD_ISSET(t->srv_fd, DIR_RD)) {
+				EV_FD_CLR(t->srv_fd, DIR_RD);
 				tv_eternity(&rep->rex);
 			}
 		}
 		else {
-			if (! MY_FD_ISSET(t->srv_fd, StaticReadEvent)) {
-				MY_FD_SET(t->srv_fd, StaticReadEvent);
+			if (! EV_FD_ISSET(t->srv_fd, DIR_RD)) {
+				EV_FD_SET(t->srv_fd, DIR_RD);
 				if (t->be->srvtimeout)
 					tv_delayfrom(&rep->rex, &now, t->be->srvtimeout);
 				else

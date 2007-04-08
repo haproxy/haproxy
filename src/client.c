@@ -99,7 +99,7 @@ int event_accept(int fd) {
 
 		if ((s = pool_alloc(session)) == NULL) { /* disable this proxy for a while */
 			Alert("out of memory in event_accept().\n");
-			MY_FD_CLR(fd, StaticReadEvent);
+			EV_FD_CLR(fd, DIR_RD);
 			p->state = PR_STIDLE;
 			close(cfd);
 			return 0;
@@ -122,7 +122,7 @@ int event_accept(int fd) {
 
 		if ((t = pool_alloc(task)) == NULL) { /* disable this proxy for a while */
 			Alert("out of memory in event_accept().\n");
-			MY_FD_CLR(fd, StaticReadEvent);
+			EV_FD_CLR(fd, DIR_RD);
 			p->state = PR_STIDLE;
 			close(cfd);
 			pool_free(session, s);
@@ -399,15 +399,9 @@ int event_accept(int fd) {
 			client_retnclose(s, &msg); /* forge an "OK" response */
 		}
 		else {
-			MY_FD_SET(cfd, StaticReadEvent);
+			EV_FD_SET(cfd, DIR_RD);
 		}
 
-#if defined(DEBUG_FULL) && defined(ENABLE_EPOLL)
-		if (PrevReadEvent) {
-			assert(!(MY_FD_ISSET(cfd, PrevReadEvent)));
-			assert(!(MY_FD_ISSET(cfd, PrevWriteEvent)));
-		}
-#endif
 		fd_insert(cfd);
 
 		tv_eternity(&s->req->rex);
@@ -417,9 +411,9 @@ int event_accept(int fd) {
 		tv_eternity(&s->rep->wex);
 
 		if (s->fe->clitimeout) {
-			if (MY_FD_ISSET(cfd, StaticReadEvent))
+			if (EV_FD_ISSET(cfd, DIR_RD))
 				tv_delayfrom(&s->req->rex, &now, s->fe->clitimeout);
-			if (MY_FD_ISSET(cfd, StaticWriteEvent))
+			if (EV_FD_ISSET(cfd, DIR_WR))
 				tv_delayfrom(&s->rep->wex, &now, s->fe->clitimeout);
 		}
 

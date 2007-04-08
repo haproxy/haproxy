@@ -118,7 +118,7 @@ int event_srv_chk_w(int fd)
 		/* in case of TCP only, this tells us if the connection failed */
 		s->result = -1;
 		fdtab[fd].state = FD_STERROR;
-		MY_FD_CLR(fd, StaticWriteEvent);
+		EV_FD_CLR(fd, DIR_WR);
 	}
 	else if (s->result != -1) {
 		/* we don't want to mark 'UP' a server on which we detected an error earlier */
@@ -141,13 +141,13 @@ int event_srv_chk_w(int fd)
 			ret = send(fd, s->proxy->check_req, s->proxy->check_len, MSG_DONTWAIT | MSG_NOSIGNAL);
 #endif
 			if (ret == s->proxy->check_len) {
-				MY_FD_SET(fd, StaticReadEvent);   /* prepare for reading reply */
-				MY_FD_CLR(fd, StaticWriteEvent);  /* nothing more to write */
+				EV_FD_SET(fd, DIR_RD);   /* prepare for reading reply */
+				EV_FD_CLR(fd, DIR_WR);   /* nothing more to write */
 				return 0;
 			}
 			else {
 				s->result = -1;
-				MY_FD_CLR(fd, StaticWriteEvent);
+				EV_FD_CLR(fd, DIR_WR);
 			}
 		}
 		else {
@@ -204,7 +204,7 @@ int event_srv_chk_r(int fd)
 	if (s->result != -1)
 		s->result = result;
 
-	MY_FD_CLR(fd, StaticReadEvent);
+	EV_FD_CLR(fd, DIR_RD);
 	task_wakeup(&rq, t);
 	return 0;
 }
@@ -335,9 +335,9 @@ int process_chk(struct task *t)
 						fdtab[fd].cb[DIR_WR].f = &event_srv_chk_w;
 						fdtab[fd].cb[DIR_WR].b = NULL;
 						fdtab[fd].state = FD_STCONN; /* connection in progress */
-						MY_FD_SET(fd, StaticWriteEvent);  /* for connect status */
+						EV_FD_SET(fd, DIR_WR);  /* for connect status */
 #ifdef DEBUG_FULL
-						assert (!MY_FD_ISSET(fd, StaticReadEvent));
+						assert (!EV_FD_ISSET(fd, DIR_RD));
 #endif
 						fd_insert(fd);
 						/* FIXME: we allow up to <inter> for a connection to establish, but we should use another parameter */
@@ -420,7 +420,6 @@ int process_chk(struct task *t)
 				s->health = s->rise + s->fall - 1; /* OK now */
 			}
 			s->curfd = -1; /* no check running anymore */
-			//MY_FD_CLR(fd, StaticWriteEvent);
 			fd_delete(fd);
 			while (tv_cmp2_ms(&t->expire, &now) <= 0)
 				tv_delayfrom(&t->expire, &t->expire, s->inter);
@@ -436,7 +435,6 @@ int process_chk(struct task *t)
 			else
 				set_server_down(s);
 			s->curfd = -1;
-			//MY_FD_CLR(fd, StaticWriteEvent);
 			fd_delete(fd);
 			while (tv_cmp2_ms(&t->expire, &now) <= 0)
 				tv_delayfrom(&t->expire, &t->expire, s->inter);

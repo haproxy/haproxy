@@ -147,7 +147,7 @@ int start_proxies(int verbose)
 			fdtab[fd].cb[DIR_RD].b = fdtab[fd].cb[DIR_WR].b = NULL;
 			fdtab[fd].owner = (struct task *)curproxy; /* reference the proxy instead of a task */
 			fdtab[fd].state = FD_STLISTEN;
-			MY_FD_SET(fd, StaticReadEvent);
+			EV_FD_SET(fd, DIR_RD);
 			fd_insert(fd);
 			listeners++;
 		}
@@ -183,7 +183,7 @@ int maintain_proxies(void)
 			if (p->feconn < p->maxconn) {
 				if (p->state == PR_STIDLE) {
 					for (l = p->listen; l != NULL; l = l->next) {
-						MY_FD_SET(l->fd, StaticReadEvent);
+						EV_FD_SET(l->fd, DIR_RD);
 					}
 					p->state = PR_STRUN;
 				}
@@ -191,7 +191,7 @@ int maintain_proxies(void)
 			else {
 				if (p->state == PR_STRUN) {
 					for (l = p->listen; l != NULL; l = l->next) {
-						MY_FD_CLR(l->fd, StaticReadEvent);
+						EV_FD_CLR(l->fd, DIR_RD);
 					}
 					p->state = PR_STIDLE;
 				}
@@ -203,7 +203,7 @@ int maintain_proxies(void)
 		while (p) {
 			if (p->state == PR_STRUN) {
 				for (l = p->listen; l != NULL; l = l->next) {
-					MY_FD_CLR(l->fd, StaticReadEvent);
+					EV_FD_CLR(l->fd, DIR_RD);
 				}
 				p->state = PR_STIDLE;
 			}
@@ -276,7 +276,7 @@ void pause_proxy(struct proxy *p)
 		if (shutdown(l->fd, SHUT_WR) == 0 &&
 		    listen(l->fd, p->maxconn) == 0 &&
 		    shutdown(l->fd, SHUT_RD) == 0) {
-			MY_FD_CLR(l->fd, StaticReadEvent);
+			EV_FD_CLR(l->fd, DIR_RD);
 			if (p->state != PR_STERROR)
 				p->state = PR_STPAUSED;
 		}
@@ -342,7 +342,7 @@ void listen_proxies(void)
 			for (l = p->listen; l != NULL; l = l->next) {
 				if (listen(l->fd, p->maxconn) == 0) {
 					if (actconn < global.maxconn && p->feconn < p->maxconn) {
-						MY_FD_SET(l->fd, StaticReadEvent);
+						EV_FD_SET(l->fd, DIR_RD);
 						p->state = PR_STRUN;
 					}
 					else
