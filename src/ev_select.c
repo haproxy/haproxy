@@ -26,8 +26,8 @@
 #include <proto/task.h>
 
 
-static fd_set *ReadEvent, *WriteEvent;
-static fd_set *StaticReadEvent, *StaticWriteEvent;
+static fd_set *fd_evts[2];
+static fd_set *tmp_evts[2];
 
 
 /*
@@ -37,72 +37,43 @@ static fd_set *StaticReadEvent, *StaticWriteEvent;
  */
 REGPRM2 static int __fd_isset(const int fd, const int dir)
 {
-	fd_set *ev;
-	if (dir == DIR_RD)
-		ev = StaticReadEvent;
-	else
-		ev = StaticWriteEvent;
-
-	return FD_ISSET(fd, ev);
+	return FD_ISSET(fd, fd_evts[dir]);
 }
 
 REGPRM2 static void __fd_set(const int fd, const int dir)
 {
-	fd_set *ev;
-	if (dir == DIR_RD)
-		ev = StaticReadEvent;
-	else
-		ev = StaticWriteEvent;
-
-	FD_SET(fd, ev);
+	FD_SET(fd, fd_evts[dir]);
 }
 
 REGPRM2 static void __fd_clr(const int fd, const int dir)
 {
-	fd_set *ev;
-	if (dir == DIR_RD)
-		ev = StaticReadEvent;
-	else
-		ev = StaticWriteEvent;
-
-	FD_CLR(fd, ev);
+	FD_CLR(fd, fd_evts[dir]);
 }
 
 REGPRM2 static int __fd_cond_s(const int fd, const int dir)
 {
 	int ret;
-	fd_set *ev;
-	if (dir == DIR_RD)
-		ev = StaticReadEvent;
-	else
-		ev = StaticWriteEvent;
-
-	ret = !FD_ISSET(fd, ev);
+	ret = !FD_ISSET(fd, fd_evts[dir]);
 	if (ret)
-		FD_SET(fd, ev);
+		FD_SET(fd, fd_evts[dir]);
 	return ret;
 }
 
 REGPRM2 static int __fd_cond_c(const int fd, const int dir)
 {
 	int ret;
-	fd_set *ev;
-	if (dir == DIR_RD)
-		ev = StaticReadEvent;
-	else
-		ev = StaticWriteEvent;
-
-	ret = FD_ISSET(fd, ev);
+	ret = FD_ISSET(fd, fd_evts[dir]);
 	if (ret)
-		FD_CLR(fd, ev);
+		FD_CLR(fd, fd_evts[dir]);
 	return ret;
 }
 
 REGPRM1 static void __fd_rem(const int fd)
 {
-	FD_CLR(fd, StaticReadEvent);
-	FD_CLR(fd, StaticWriteEvent);
+	FD_CLR(fd, fd_evts[DIR_RD]);
+	FD_CLR(fd, fd_evts[DIR_WR]);
 }
+
 
 
 /*
@@ -118,26 +89,26 @@ REGPRM1 static int select_init(struct poller *p)
 	p->private = NULL;
 	fd_set_bytes = sizeof(fd_set) * (global.maxsock + FD_SETSIZE - 1) / FD_SETSIZE;
 
-	if ((ReadEvent = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
+	if ((tmp_evts[DIR_RD] = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
 		goto fail_revt;
 		
-	if ((WriteEvent = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
+	if ((tmp_evts[DIR_WR] = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
 		goto fail_wevt;
 
-	if ((StaticReadEvent = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
+	if ((fd_evts[DIR_RD] = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
 		goto fail_srevt;
 
-	if ((StaticWriteEvent = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
+	if ((fd_evts[DIR_WR] = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
 		goto fail_swevt;
 
 	return 1;
 
  fail_swevt:
-	free(StaticReadEvent);
+	free(fd_evts[DIR_RD]);
  fail_srevt:
-	free(WriteEvent);
+	free(tmp_evts[DIR_WR]);
  fail_wevt:
-	free(ReadEvent);
+	free(tmp_evts[DIR_RD]);
  fail_revt:
 	p->pref = 0;
 	return 0;
@@ -149,14 +120,14 @@ REGPRM1 static int select_init(struct poller *p)
  */
 REGPRM1 static void select_term(struct poller *p)
 {
-	if (StaticWriteEvent)
-		free(StaticWriteEvent);
-	if (StaticReadEvent)
-		free(StaticReadEvent);
-	if (WriteEvent)
-		free(WriteEvent);
-	if (ReadEvent)
-		free(ReadEvent);
+	if (fd_evts[DIR_WR])
+		free(fd_evts[DIR_WR]);
+	if (fd_evts[DIR_RD])
+		free(fd_evts[DIR_RD]);
+	if (tmp_evts[DIR_WR])
+		free(tmp_evts[DIR_WR]);
+	if (tmp_evts[DIR_RD])
+		free(tmp_evts[DIR_RD]);
 	p->private = NULL;
 	p->pref = 0;
 }
@@ -187,22 +158,22 @@ REGPRM2 static void select_poll(struct poller *p, int wait_time)
 
 	readnotnull = 0; writenotnull = 0;
 	for (i = 0; i < (maxfd + FD_SETSIZE - 1)/(8*sizeof(int)); i++) {
-		readnotnull |= (*(((int*)ReadEvent)+i) = *(((int*)StaticReadEvent)+i)) != 0;
-		writenotnull |= (*(((int*)WriteEvent)+i) = *(((int*)StaticWriteEvent)+i)) != 0;
+		readnotnull |= (*(((int*)tmp_evts[DIR_RD])+i) = *(((int*)fd_evts[DIR_RD])+i)) != 0;
+		writenotnull |= (*(((int*)tmp_evts[DIR_WR])+i) = *(((int*)fd_evts[DIR_WR])+i)) != 0;
 	}
 
 	//	/* just a verification code, needs to be removed for performance */
 	//	for (i=0; i<maxfd; i++) {
-	//	    if (FD_ISSET(i, ReadEvent) != FD_ISSET(i, StaticReadEvent))
+	//	    if (FD_ISSET(i, tmp_evts[DIR_RD]) != FD_ISSET(i, fd_evts[DIR_RD]))
 	//		abort();
-	//	    if (FD_ISSET(i, WriteEvent) != FD_ISSET(i, StaticWriteEvent))
+	//	    if (FD_ISSET(i, tmp_evts[DIR_WR]) != FD_ISSET(i, fd_evts[DIR_WR]))
 	//		abort();
 	//	    
 	//	}
 
 	status = select(maxfd,
-			readnotnull ? ReadEvent : NULL,
-			writenotnull ? WriteEvent : NULL,
+			readnotnull ? tmp_evts[DIR_RD] : NULL,
+			writenotnull ? tmp_evts[DIR_WR] : NULL,
 			NULL,
 			(wait_time >= 0) ? &delta : NULL);
       
@@ -212,20 +183,20 @@ REGPRM2 static void select_poll(struct poller *p, int wait_time)
 		return;
 
 	for (fds = 0; (fds << INTBITS) < maxfd; fds++) {
-		if ((((int *)(ReadEvent))[fds] | ((int *)(WriteEvent))[fds]) == 0)
+		if ((((int *)(tmp_evts[DIR_RD]))[fds] | ((int *)(tmp_evts[DIR_WR]))[fds]) == 0)
 			continue;
 
 		for (count = 1<<INTBITS, fd = fds << INTBITS; count && fd < maxfd; count--, fd++) {
 			/* if we specify read first, the accepts and zero reads will be
 			 * seen first. Moreover, system buffers will be flushed faster.
 			 */
-			if (FD_ISSET(fd, ReadEvent)) {
+			if (FD_ISSET(fd, tmp_evts[DIR_RD])) {
 				if (fdtab[fd].state == FD_STCLOSE)
 					continue;
 				fdtab[fd].cb[DIR_RD].f(fd);
 			}
 
-			if (FD_ISSET(fd, WriteEvent)) {
+			if (FD_ISSET(fd, tmp_evts[DIR_WR])) {
 				if (fdtab[fd].state == FD_STCLOSE)
 					continue;
 				fdtab[fd].cb[DIR_WR].f(fd);

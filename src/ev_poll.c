@@ -26,7 +26,7 @@
 #include <proto/task.h>
 
 
-static fd_set *StaticReadEvent, *StaticWriteEvent;
+static fd_set *fd_evts[2];
 
 /* private data */
 static struct pollfd *poll_events = NULL;
@@ -39,71 +39,41 @@ static struct pollfd *poll_events = NULL;
  */
 REGPRM2 static int __fd_isset(const int fd, const int dir)
 {
-	fd_set *ev;
-	if (dir == DIR_RD)
-		ev = StaticReadEvent;
-	else
-		ev = StaticWriteEvent;
-
-	return FD_ISSET(fd, ev);
+	return FD_ISSET(fd, fd_evts[dir]);
 }
 
 REGPRM2 static void __fd_set(const int fd, const int dir)
 {
-	fd_set *ev;
-	if (dir == DIR_RD)
-		ev = StaticReadEvent;
-	else
-		ev = StaticWriteEvent;
-
-	FD_SET(fd, ev);
+	FD_SET(fd, fd_evts[dir]);
 }
 
 REGPRM2 static void __fd_clr(const int fd, const int dir)
 {
-	fd_set *ev;
-	if (dir == DIR_RD)
-		ev = StaticReadEvent;
-	else
-		ev = StaticWriteEvent;
-
-	FD_CLR(fd, ev);
+	FD_CLR(fd, fd_evts[dir]);
 }
 
 REGPRM2 static int __fd_cond_s(const int fd, const int dir)
 {
 	int ret;
-	fd_set *ev;
-	if (dir == DIR_RD)
-		ev = StaticReadEvent;
-	else
-		ev = StaticWriteEvent;
-
-	ret = !FD_ISSET(fd, ev);
+	ret = !FD_ISSET(fd, fd_evts[dir]);
 	if (ret)
-		FD_SET(fd, ev);
+		FD_SET(fd, fd_evts[dir]);
 	return ret;
 }
 
 REGPRM2 static int __fd_cond_c(const int fd, const int dir)
 {
 	int ret;
-	fd_set *ev;
-	if (dir == DIR_RD)
-		ev = StaticReadEvent;
-	else
-		ev = StaticWriteEvent;
-
-	ret = FD_ISSET(fd, ev);
+	ret = FD_ISSET(fd, fd_evts[dir]);
 	if (ret)
-		FD_CLR(fd, ev);
+		FD_CLR(fd, fd_evts[dir]);
 	return ret;
 }
 
 REGPRM1 static void __fd_rem(const int fd)
 {
-	FD_CLR(fd, StaticReadEvent);
-	FD_CLR(fd, StaticWriteEvent);
+	FD_CLR(fd, fd_evts[DIR_RD]);
+	FD_CLR(fd, fd_evts[DIR_WR]);
 }
 
 
@@ -127,16 +97,16 @@ REGPRM1 static int poll_init(struct poller *p)
 	if (poll_events == NULL)
 		goto fail_pe;
 		
-	if ((StaticReadEvent = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
+	if ((fd_evts[DIR_RD] = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
 		goto fail_srevt;
 
-	if ((StaticWriteEvent = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
+	if ((fd_evts[DIR_WR] = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
 		goto fail_swevt;
 
 	return 1;
 
  fail_swevt:
-	free(StaticReadEvent);
+	free(fd_evts[DIR_RD]);
  fail_srevt:
 	free(poll_events);
  fail_pe:
@@ -150,10 +120,10 @@ REGPRM1 static int poll_init(struct poller *p)
  */
 REGPRM1 static void poll_term(struct poller *p)
 {
-	if (StaticWriteEvent)
-		free(StaticWriteEvent);
-	if (StaticReadEvent)
-		free(StaticReadEvent);
+	if (fd_evts[DIR_WR])
+		free(fd_evts[DIR_WR]);
+	if (fd_evts[DIR_RD])
+		free(fd_evts[DIR_RD]);
 	if (poll_events)
 		free(poll_events);
 	p->private = NULL;
@@ -175,8 +145,8 @@ REGPRM2 static void poll_poll(struct poller *p, int wait_time)
 	nbfd = 0;
 	for (fds = 0; (fds << INTBITS) < maxfd; fds++) {
 
-		rn = ((int*)StaticReadEvent)[fds];
-		wn = ((int*)StaticWriteEvent)[fds];
+		rn = ((int*)fd_evts[DIR_RD])[fds];
+		wn = ((int*)fd_evts[DIR_WR])[fds];
 	  
 		if ((rn|wn)) {
 			for (count = 0, fd = fds << INTBITS; count < (1<<INTBITS) && fd < maxfd; count++, fd++) {
@@ -192,8 +162,8 @@ REGPRM2 static void poll_poll(struct poller *p, int wait_time)
 				sw = FD_ISSET(fd&((1<<INTBITS)-1), (typeof(fd_set*))&wn);
 #endif
 #else
-				sr = FD_ISSET(fd, StaticReadEvent);
-				sw = FD_ISSET(fd, StaticWriteEvent);
+				sr = FD_ISSET(fd, fd_evts[DIR_RD]);
+				sw = FD_ISSET(fd, fd_evts[DIR_WR]);
 #endif
 				if ((sr|sw)) {
 					poll_events[nbfd].fd = fd;
@@ -217,14 +187,14 @@ REGPRM2 static void poll_poll(struct poller *p, int wait_time)
 		/* ok, we found one active fd */
 		status--;
 
-		if (FD_ISSET(fd, StaticReadEvent)) {
+		if (FD_ISSET(fd, fd_evts[DIR_RD])) {
 			if (fdtab[fd].state == FD_STCLOSE)
 				continue;
 			if (poll_events[count].revents & ( POLLIN | POLLERR | POLLHUP ))
 				fdtab[fd].cb[DIR_RD].f(fd);
 		}
 	  
-		if (FD_ISSET(fd, StaticWriteEvent)) {
+		if (FD_ISSET(fd, fd_evts[DIR_WR])) {
 			if (fdtab[fd].state == FD_STCLOSE)
 				continue;
 			if (poll_events[count].revents & ( POLLOUT | POLLERR | POLLHUP ))

@@ -34,8 +34,8 @@ _syscall4 (int, epoll_wait, int, epfd, struct epoll_event *, events, int, maxeve
 #endif
 
 
-static fd_set *StaticReadEvent, *StaticWriteEvent;
-static fd_set *PrevReadEvent, *PrevWriteEvent;
+static fd_set *fd_evts[2];
+static fd_set *old_evts[2];
 
 /* private data */
 static struct epoll_event *epoll_events;
@@ -49,79 +49,49 @@ static int epoll_fd;
  */
 REGPRM2 static int __fd_isset(const int fd, const int dir)
 {
-	fd_set *ev;
-	if (dir == DIR_RD)
-		ev = StaticReadEvent;
-	else
-		ev = StaticWriteEvent;
-
-	return FD_ISSET(fd, ev);
+	return FD_ISSET(fd, fd_evts[dir]);
 }
 
 REGPRM2 static void __fd_set(const int fd, const int dir)
 {
-	fd_set *ev;
-	if (dir == DIR_RD)
-		ev = StaticReadEvent;
-	else
-		ev = StaticWriteEvent;
-
-	FD_SET(fd, ev);
+	FD_SET(fd, fd_evts[dir]);
 }
 
 REGPRM2 static void __fd_clr(const int fd, const int dir)
 {
-	fd_set *ev;
-	if (dir == DIR_RD)
-		ev = StaticReadEvent;
-	else
-		ev = StaticWriteEvent;
-
-	FD_CLR(fd, ev);
+	FD_CLR(fd, fd_evts[dir]);
 }
 
 REGPRM2 static int __fd_cond_s(const int fd, const int dir)
 {
 	int ret;
-	fd_set *ev;
-	if (dir == DIR_RD)
-		ev = StaticReadEvent;
-	else
-		ev = StaticWriteEvent;
-
-	ret = !FD_ISSET(fd, ev);
+	ret = !FD_ISSET(fd, fd_evts[dir]);
 	if (ret)
-		FD_SET(fd, ev);
+		FD_SET(fd, fd_evts[dir]);
 	return ret;
 }
 
 REGPRM2 static int __fd_cond_c(const int fd, const int dir)
 {
 	int ret;
-	fd_set *ev;
-	if (dir == DIR_RD)
-		ev = StaticReadEvent;
-	else
-		ev = StaticWriteEvent;
-
-	ret = FD_ISSET(fd, ev);
+	ret = FD_ISSET(fd, fd_evts[dir]);
 	if (ret)
-		FD_CLR(fd, ev);
+		FD_CLR(fd, fd_evts[dir]);
 	return ret;
 }
 
 REGPRM1 static void __fd_rem(const int fd)
 {
-	FD_CLR(fd, StaticReadEvent);
-	FD_CLR(fd, StaticWriteEvent);
+	FD_CLR(fd, fd_evts[DIR_RD]);
+	FD_CLR(fd, fd_evts[DIR_WR]);
 }
 
 REGPRM1 static void __fd_clo(const int fd)
 {
-	FD_CLR(fd, StaticReadEvent);
-	FD_CLR(fd, StaticWriteEvent);
-	FD_CLR(fd, PrevReadEvent);
-	FD_CLR(fd, PrevWriteEvent);
+	FD_CLR(fd, fd_evts[DIR_RD]);
+	FD_CLR(fd, fd_evts[DIR_WR]);
+	FD_CLR(fd, old_evts[DIR_RD]);
+	FD_CLR(fd, old_evts[DIR_WR]);
 }
 
 
@@ -149,26 +119,26 @@ REGPRM1 static int epoll_init(struct poller *p)
 	if (epoll_events == NULL)
 		goto fail_ee;
 
-	if ((PrevReadEvent = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
+	if ((old_evts[DIR_RD] = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
 		goto fail_prevt;
 
-	if ((PrevWriteEvent = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
+	if ((old_evts[DIR_WR] = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
 		goto fail_pwevt;
 		
-	if ((StaticReadEvent = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
+	if ((fd_evts[DIR_RD] = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
 		goto fail_srevt;
 
-	if ((StaticWriteEvent = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
+	if ((fd_evts[DIR_WR] = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
 		goto fail_swevt;
 
 	return 1;
 
  fail_swevt:
-	free(StaticReadEvent);
+	free(fd_evts[DIR_RD]);
  fail_srevt:
-	free(PrevWriteEvent);
+	free(old_evts[DIR_WR]);
  fail_pwevt:
-	free(PrevReadEvent);
+	free(old_evts[DIR_RD]);
  fail_prevt:
 	free(epoll_events);
  fail_ee:
@@ -185,17 +155,17 @@ REGPRM1 static int epoll_init(struct poller *p)
  */
 REGPRM1 static void epoll_term(struct poller *p)
 {
-	if (StaticWriteEvent)
-		free(StaticWriteEvent);
+	if (fd_evts[DIR_WR])
+		free(fd_evts[DIR_WR]);
 
-	if (StaticReadEvent)
-		free(StaticReadEvent);
+	if (fd_evts[DIR_RD])
+		free(fd_evts[DIR_RD]);
 
-	if (PrevWriteEvent)
-		free(PrevWriteEvent);
+	if (old_evts[DIR_WR])
+		free(old_evts[DIR_WR]);
 
-	if (PrevReadEvent)
-		free(PrevReadEvent);
+	if (old_evts[DIR_RD])
+		free(old_evts[DIR_RD]);
 
 	if (epoll_events)
 		free(epoll_events);
@@ -222,8 +192,8 @@ REGPRM2 static void epoll_poll(struct poller *p, int wait_time)
 
 	for (fds = 0; (fds << INTBITS) < maxfd; fds++) {
 	  
-		rn = ((int*)StaticReadEvent)[fds];  ro = ((int*)PrevReadEvent)[fds];
-		wn = ((int*)StaticWriteEvent)[fds]; wo = ((int*)PrevWriteEvent)[fds];
+		rn = ((int*)fd_evts[DIR_RD])[fds];  ro = ((int*)old_evts[DIR_RD])[fds];
+		wn = ((int*)fd_evts[DIR_WR])[fds]; wo = ((int*)old_evts[DIR_WR])[fds];
 	  
 		if ((ro^rn) | (wo^wn)) {
 			for (count = 0, fd = fds << INTBITS; count < (1<<INTBITS) && fd < maxfd; count++, fd++) {
@@ -243,10 +213,10 @@ REGPRM2 static void epoll_poll(struct poller *p, int wait_time)
 				sw = FD_ISSET(fd&((1<<INTBITS)-1), (typeof(fd_set*))&wn);
 #endif
 #else
-				pr = FD_ISSET(fd, PrevReadEvent);
-				pw = FD_ISSET(fd, PrevWriteEvent);
-				sr = FD_ISSET(fd, StaticReadEvent);
-				sw = FD_ISSET(fd, StaticWriteEvent);
+				pr = FD_ISSET(fd, old_evts[DIR_RD]);
+				pw = FD_ISSET(fd, old_evts[DIR_WR]);
+				sr = FD_ISSET(fd, fd_evts[DIR_RD]);
+				sw = FD_ISSET(fd, fd_evts[DIR_WR]);
 #endif
 				if (!((sr^pr) | (sw^pw)))
 					continue;
@@ -296,8 +266,8 @@ REGPRM2 static void epoll_poll(struct poller *p, int wait_time)
 				}
 #endif // EPOLL_CTL_MOD_WORKAROUND
 			}
-			((int*)PrevReadEvent)[fds] = rn;
-			((int*)PrevWriteEvent)[fds] = wn;
+			((int*)old_evts[DIR_RD])[fds] = rn;
+			((int*)old_evts[DIR_WR])[fds] = wn;
 		}		  
 	}
       
@@ -308,14 +278,14 @@ REGPRM2 static void epoll_poll(struct poller *p, int wait_time)
 	for (count = 0; count < status; count++) {
 		fd = epoll_events[count].data.fd;
 
-		if (FD_ISSET(fd, StaticReadEvent)) {
+		if (FD_ISSET(fd, fd_evts[DIR_RD])) {
 			if (fdtab[fd].state == FD_STCLOSE)
 				continue;
 			if (epoll_events[count].events & ( EPOLLIN | EPOLLERR | EPOLLHUP ))
 				fdtab[fd].cb[DIR_RD].f(fd);
 		}
 
-		if (FD_ISSET(fd, StaticWriteEvent)) {
+		if (FD_ISSET(fd, fd_evts[DIR_WR])) {
 			if (fdtab[fd].state == FD_STCLOSE)
 				continue;
 			if (epoll_events[count].events & ( EPOLLOUT | EPOLLERR | EPOLLHUP ))
