@@ -35,22 +35,24 @@ static fd_set *tmp_evts[2];
  * instead of the usual macros improve the FD_* performance by about 80%,
  * and that marking them regparm(2) adds another 20%.
  */
-REGPRM2 static int __fd_isset(const int fd, const int dir)
+REGPRM2 static int __fd_isset(const int fd, int dir)
 {
 	return FD_ISSET(fd, fd_evts[dir]);
 }
 
-REGPRM2 static void __fd_set(const int fd, const int dir)
+REGPRM2 static int __fd_set(const int fd, int dir)
 {
 	FD_SET(fd, fd_evts[dir]);
+	return 0;
 }
 
-REGPRM2 static void __fd_clr(const int fd, const int dir)
+REGPRM2 static int __fd_clr(const int fd, int dir)
 {
 	FD_CLR(fd, fd_evts[dir]);
+	return 0;
 }
 
-REGPRM2 static int __fd_cond_s(const int fd, const int dir)
+REGPRM2 static int __fd_cond_s(const int fd, int dir)
 {
 	int ret;
 	ret = !FD_ISSET(fd, fd_evts[dir]);
@@ -59,7 +61,7 @@ REGPRM2 static int __fd_cond_s(const int fd, const int dir)
 	return ret;
 }
 
-REGPRM2 static int __fd_cond_c(const int fd, const int dir)
+REGPRM2 static int __fd_cond_c(const int fd, int dir)
 {
 	int ret;
 	ret = FD_ISSET(fd, fd_evts[dir]);
@@ -68,7 +70,7 @@ REGPRM2 static int __fd_cond_c(const int fd, const int dir)
 	return ret;
 }
 
-REGPRM1 static void __fd_rem(const int fd)
+REGPRM1 static void __fd_rem(int fd)
 {
 	FD_CLR(fd, fd_evts[DIR_RD]);
 	FD_CLR(fd, fd_evts[DIR_WR]);

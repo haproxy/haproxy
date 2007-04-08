@@ -63,19 +63,21 @@ struct fdtab {
  *    poller should set it to 100.
  *  - <private> is initialized by the poller's init() function, and cleaned by
  *    the term() function.
- *  - cond_s() checks if fd was not set then sets it and returns 1. Otherwise 0.
- *  - cond_c() checks if fd was set then clears it and returns 1. Otherwise 0.
+ *  - cond_s() checks if fd was not set then sets it and returns 1. Otherwise
+ *    it returns 0. It may be the same as set().
+ *  - cond_c() checks if fd was set then clears it and returns 1. Otherwise
+ *    it returns 0. It may be the same as clr().
  *  - clo() should be used to do indicate the poller that fd will be closed. It
  *    may be the same as rem() on some pollers.
  *  - poll() calls the poller, waiting at most wait_time ms.
  */
 struct poller {
 	void   *private;                                     /* any private data for the poller */
-	REGPRM2 int   (*isset)(const int fd, const int dir); /* check if <fd> is being polled for dir <dir> */
-	REGPRM2 void    (*set)(const int fd, const int dir); /* set   polling on <fd> for <dir> */
-	REGPRM2 void    (*clr)(const int fd, const int dir); /* clear polling on <fd> for <dir> */
-	REGPRM2 int  (*cond_s)(const int fd, const int dir); /* set   polling on <fd> for <dir> if unset */
-	REGPRM2 int  (*cond_c)(const int fd, const int dir); /* clear polling on <fd> for <dir> if set */
+	REGPRM2 int   (*isset)(const int fd, int dir);       /* check if <fd> is being polled for dir <dir> */
+	REGPRM2 int     (*set)(const int fd, int dir);       /* set   polling on <fd> for <dir> */
+	REGPRM2 int     (*clr)(const int fd, int dir);       /* clear polling on <fd> for <dir> */
+	REGPRM2 int  (*cond_s)(const int fd, int dir);       /* set   polling on <fd> for <dir> if unset */
+	REGPRM2 int  (*cond_c)(const int fd, int dir);       /* clear polling on <fd> for <dir> if set */
 	REGPRM1 void    (*rem)(const int fd);                /* remove any polling on <fd> */
 	REGPRM1 void    (*clo)(const int fd);                /* mark <fd> as closed */
     	REGPRM2 void   (*poll)(struct poller *p, int wait_time); /* the poller itself */
