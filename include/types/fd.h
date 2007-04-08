@@ -53,6 +53,43 @@ struct fdtab {
 	int state;                      /* the state of this fd */
 };
 
+/*
+ * Poller descriptors.
+ *  - <name> is initialized by the poller's register() function, and should not
+ *    be allocated, just linked to.
+ *  - <pref> is initialized by the poller's register() function. It is set to 0
+ *    by default, meaning the poller is disabled. init() should set it to 0 in
+ *    case of failure. term() must set it to 0. A generic unoptimized select()
+ *    poller should set it to 100.
+ *  - <private> is initialized by the poller's init() function, and cleaned by
+ *    the term() function.
+ *  - cond_s() checks if fd was not set then sets it and returns 1. Otherwise 0.
+ *  - cond_c() checks if fd was set then clears it and returns 1. Otherwise 0.
+ *  - clo() should be used to do indicate the poller that fd will be closed. It
+ *    may be the same as rem() on some pollers.
+ *  - poll() calls the poller, waiting at most wait_time ms.
+ */
+struct poller {
+	void   *private;                                     /* any private data for the poller */
+	REGPRM2 int   (*isset)(const int fd, const int dir); /* check if <fd> is being polled for dir <dir> */
+	REGPRM2 void    (*set)(const int fd, const int dir); /* set   polling on <fd> for <dir> */
+	REGPRM2 void    (*clr)(const int fd, const int dir); /* clear polling on <fd> for <dir> */
+	REGPRM2 int  (*cond_s)(const int fd, const int dir); /* set   polling on <fd> for <dir> if unset */
+	REGPRM2 int  (*cond_c)(const int fd, const int dir); /* clear polling on <fd> for <dir> if set */
+	REGPRM1 void    (*rem)(const int fd);                /* remove any polling on <fd> */
+	REGPRM1 void    (*clo)(const int fd);                /* mark <fd> as closed */
+    	REGPRM2 void   (*poll)(struct poller *p, int wait_time); /* the poller itself */
+	REGPRM1 int    (*init)(struct poller *p);            /* poller initialization */
+	REGPRM1 void   (*term)(struct poller *p);            /* termination of this poller */
+	const char   *name;                                  /* poller name */
+	int    pref;                                         /* try pollers with higher preference first */
+};
+
+extern struct poller cur_poller; /* the current poller */
+extern int nbpollers;
+#define MAX_POLLERS	10
+extern struct poller pollers[MAX_POLLERS];   /* all registered pollers */
+
 extern struct fdtab *fdtab;             /* array of all the file descriptors */
 extern int maxfd;                       /* # of the highest fd + 1 */
 extern int totalconn;                   /* total # of terminated sessions */

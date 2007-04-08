@@ -507,18 +507,34 @@ void init(int argc, char **argv)
 	if (global.nbproc < 1)
 		global.nbproc = 1;
 
-	StaticReadEvent = (fd_set *)calloc(1,
-					   sizeof(fd_set) *
-					   (global.maxsock + FD_SETSIZE - 1) / FD_SETSIZE);
-	StaticWriteEvent = (fd_set *)calloc(1,
-					    sizeof(fd_set) *
-					    (global.maxsock + FD_SETSIZE - 1) / FD_SETSIZE);
-
 	fdtab = (struct fdtab *)calloc(1,
 				       sizeof(struct fdtab) * (global.maxsock));
 	for (i = 0; i < global.maxsock; i++) {
 		fdtab[i].state = FD_STCLOSE;
 	}
+
+	register_pollers();
+	/* Note: we could register external pollers here */
+
+	if (!(cfg_polling_mechanism & POLL_USE_EPOLL))
+		disable_poller("epoll");
+
+	if (!(cfg_polling_mechanism & POLL_USE_POLL))
+		disable_poller("poll");
+
+	if (!(cfg_polling_mechanism & POLL_USE_SELECT))
+		disable_poller("select");
+
+	/* Note: we could disable any poller by name here */
+
+	if (!init_pollers()) {
+		Alert("No polling mechanism available\n");
+		exit(1);
+	}
+	if (global.mode & MODE_DEBUG) {
+		printf("Note: using %s() as the polling mechanism.\n", cur_poller.name);
+	}
+
 }
 
 void deinit(void)
@@ -603,8 +619,6 @@ void deinit(void)
 	if (global.chroot)    free(global.chroot);
 	if (global.pidfile)   free(global.pidfile);
     
-	if (StaticReadEvent)  free(StaticReadEvent);
-	if (StaticWriteEvent) free(StaticWriteEvent);
 	if (fdtab)            free(fdtab);
     
 	pool_destroy(pool_session);
@@ -627,6 +641,30 @@ static void tell_old_pids(int sig)
 	for (p = 0; p < nb_oldpids; p++)
 		kill(oldpids[p], sig);
 }
+
+/*
+ * Runs the polling loop
+ *
+ * FIXME:
+ * - we still use 'listeners' to check whether we want to stop or not.
+ *
+ */
+void run_poll_loop()
+{
+	int next_time;
+	tv_now(&now);
+
+	while (1) {
+		next_time = process_runnable_tasks();
+
+		/* stop when there's no connection left and we don't allow them anymore */
+		if (!actconn && listeners == 0)
+			break;
+
+		cur_poller.poll(&cur_poller, next_time);
+	}
+}
+
 
 int main(int argc, char **argv)
 {
@@ -860,41 +898,10 @@ int main(int argc, char **argv)
 		setsid();
 	}
 
-#if defined(ENABLE_EPOLL)
-	if (cfg_polling_mechanism & POLL_USE_EPOLL) {
-		if (epoll_loop(POLL_LOOP_ACTION_INIT)) {
-			epoll_loop(POLL_LOOP_ACTION_RUN);
-			epoll_loop(POLL_LOOP_ACTION_CLEAN);
-			cfg_polling_mechanism &= POLL_USE_EPOLL;
-		}
-		else {
-			Warning("epoll() is not available. Using poll()/select() instead.\n");
-			cfg_polling_mechanism &= ~POLL_USE_EPOLL;
-		}
-	}
-#endif
-
-#if defined(ENABLE_POLL)
-	if (cfg_polling_mechanism & POLL_USE_POLL) {
-		if (poll_loop(POLL_LOOP_ACTION_INIT)) {
-			poll_loop(POLL_LOOP_ACTION_RUN);
-			poll_loop(POLL_LOOP_ACTION_CLEAN);
-			cfg_polling_mechanism &= POLL_USE_POLL;
-		}
-		else {
-			Warning("poll() is not available. Using select() instead.\n");
-			cfg_polling_mechanism &= ~POLL_USE_POLL;
-		}
-	}
-#endif
-	if (cfg_polling_mechanism & POLL_USE_SELECT) {
-		if (select_loop(POLL_LOOP_ACTION_INIT)) {
-			select_loop(POLL_LOOP_ACTION_RUN);
-			select_loop(POLL_LOOP_ACTION_CLEAN);
-			cfg_polling_mechanism &= POLL_USE_SELECT;
-		}
-	}
-
+	/*
+	 * That's it : the central polling loop. Run until we stop.
+	 */
+	run_poll_loop();
 
 	/* Free all Hash Keys and all Hash elements */
 	appsession_cleanup();

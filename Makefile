@@ -11,6 +11,16 @@ TARGET = linux24
 #TARGET = linux22
 #TARGET = solaris
 
+USE_POLL = 1
+
+ifeq ($(TARGET),linux24e)
+USE_EPOLL = 1
+endif
+
+ifeq ($(TARGET),linux26)
+USE_EPOLL = 1
+endif
+
 # pass CPU=<cpu_name> to make to optimize for a particular CPU
 CPU = generic
 #CPU = i586
@@ -35,26 +45,26 @@ PCREDIR	:= $(shell pcre-config --prefix 2>/dev/null || :)
 TCPSPLICEDIR :=
 
 # This is for standard Linux 2.6 with netfilter and epoll()
-COPTS.linux26 = -DNETFILTER -DENABLE_POLL -DENABLE_EPOLL
+COPTS.linux26 = -DNETFILTER
 LIBS.linux26 =
 
 # This is for enhanced Linux 2.4 with netfilter and epoll() patch.
 # Warning! If kernel is 2.4 with epoll-lt <= 0.21, then you must add
 # -DEPOLL_CTL_MOD_WORKAROUND to workaround a very rare bug.
-#COPTS.linux24e = -DNETFILTER -DENABLE_POLL -DENABLE_EPOLL -DUSE_MY_EPOLL -DEPOLL_CTL_MOD_WORKAROUND
-COPTS.linux24e = -DNETFILTER -DENABLE_POLL -DENABLE_EPOLL -DUSE_MY_EPOLL
+#COPTS.linux24e = -DNETFILTER -DUSE_MY_EPOLL -DEPOLL_CTL_MOD_WORKAROUND
+COPTS.linux24e = -DNETFILTER -DUSE_MY_EPOLL
 LIBS.linux24e =
 
 # This is for standard Linux 2.4 with netfilter but without epoll()
-COPTS.linux24 = -DNETFILTER -DENABLE_POLL
+COPTS.linux24 = -DNETFILTER
 LIBS.linux24 =
 
 # This is for Linux 2.2
-COPTS.linux22 = -DUSE_GETSOCKNAME -DENABLE_POLL
+COPTS.linux22 = -DUSE_GETSOCKNAME
 LIBS.linux22 =
 
 # This is for Solaris 8
-COPTS.solaris = -fomit-frame-pointer -DENABLE_POLL -DFD_SETSIZE=65536
+COPTS.solaris = -fomit-frame-pointer -DFD_SETSIZE=65536
 LIBS.solaris = -lnsl -lsocket
 
 # CPU dependant optimizations
@@ -92,7 +102,6 @@ ADDINC =
 ADDLIB =
 
 # set some defines when needed.
-# Known ones are -DENABLE_POLL, -DENABLE_EPOLL, and -DUSE_MY_EPOLL
 # - use -DTPROXY to compile with transparent proxy support.
 DEFINE = -DTPROXY
 
@@ -136,10 +145,12 @@ endif
 
 ifneq ($(USE_POLL),)
 OPTIONS += -DENABLE_POLL
+OPT_OBJS += src/ev_poll.o
 endif
 
 ifneq ($(USE_EPOLL),)
 OPTIONS += -DENABLE_EPOLL
+OPT_OBJS += src/ev_epoll.o
 endif
 
 ifneq ($(USE_MY_EPOLL),)
@@ -199,7 +210,7 @@ OBJS = src/haproxy.o src/list.o src/chtbl.o src/hashpjw.o src/base64.o \
        src/time.o src/fd.o src/regex.o src/cfgparse.o src/server.o \
        src/checks.o src/queue.o src/capture.o src/client.o src/proxy.o \
        src/proto_http.o src/stream_sock.o src/appsession.o src/backend.o \
-       src/session.o src/hdr_idx.o src/rbtree.o
+       src/session.o src/hdr_idx.o src/rbtree.o src/ev_select.o
 
 haproxy: $(OBJS) $(OPT_OBJS)
 	$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)

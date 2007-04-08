@@ -2,7 +2,7 @@
   include/proto/fd.h
   File descriptors states.
 
-  Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -34,29 +34,41 @@
  */
 void fd_delete(int fd);
 
+/* registers all known pollers */
+void register_pollers();
+
+/* disable the specified poller */
+void disable_poller(const char *poller_name);
 
 /*
- * Benchmarks performed on a Pentium-M notebook show that using functions
- * instead of the usual macros improve the FD_* performance by about 80%,
- * and that marking them regparm(2) adds another 20%.
+ * Initialize the pollers till the best one is found.
+ * If none works, returns 0, otherwise 1.
  */
-#if defined(CONFIG_HAP_INLINE_FD_SET)
+int init_pollers();
 
-# define MY_FD_SET   FD_SET
-# define MY_FD_CLR   FD_CLR
-# define MY_FD_ISSET FD_ISSET
+/*
+ * Runs the polling loop
+ */
+void run_poller();
 
-#else
 
-# define MY_FD_SET   my_fd_set
-# define MY_FD_CLR   my_fd_clr
-# define MY_FD_ISSET my_fd_isset
+/* FIXME: dirty hack during code transition */
+#define dir_StaticWriteEvent DIR_WR
+#define dir_StaticReadEvent DIR_RD
+#define dir_DIR_RD DIR_RD
+#define dir_DIR_WR DIR_WR
 
-REGPRM2 void my_fd_set(const int fd, fd_set *ev);
-REGPRM2 void my_fd_clr(const int fd, fd_set *ev);
-REGPRM2 int my_fd_isset(const int fd, const fd_set *ev);
+#define MY_FD_SET(fd, ev) (cur_poller.set((fd), dir_##ev))
+#define MY_FD_CLR(fd, ev) (cur_poller.clr((fd), dir_##ev))
+#define MY_FD_ISSET(fd, ev) (cur_poller.isset((fd), dir_##ev))
 
-#endif
+#define EV_FD_SET(fd, ev)    (cur_poller.set((fd), dir_##ev))
+#define EV_FD_CLR(fd, ev)    (cur_poller.clr((fd), dir_##ev))
+#define EV_FD_ISSET(fd, ev)  (cur_poller.isset((fd), dir_##ev))
+#define EV_FD_COND_S(fd, ev) (cur_poller.cond_s((fd), dir_##ev))
+#define EV_FD_COND_C(fd, ev) (cur_poller.cond_c((fd), dir_##ev))
+#define EV_FD_REM(fd)        (cur_poller.rem(fd))
+#define EV_FD_CLO(fd)        (cur_poller.clo(fd))
 
 
 /* recomputes the maxfd limit from the fd */

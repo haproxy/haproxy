@@ -2,7 +2,7 @@
   include/types/polling.h
   File descriptors and polling definitions.
 
-  Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -53,8 +53,6 @@
 #define POLL_USE_POLL           (1<<1)
 #define POLL_USE_EPOLL          (1<<2)
 
-/* fd states */
-extern fd_set *StaticReadEvent, *StaticWriteEvent;
 extern int cfg_polling_mechanism;       /* POLL_USE_{SELECT|POLL|EPOLL} */
 
 

@@ -87,7 +87,7 @@ OBJS = src/haproxy.o src/list.o src/chtbl.o src/hashpjw.o src/base64.o \
        src/time.o src/fd.o src/regex.o src/cfgparse.o src/server.o \
        src/checks.o src/queue.o src/capture.o src/client.o src/proxy.o \
        src/proto_http.o src/stream_sock.o src/appsession.o src/backend.o \
-       src/session.o src/hdr_idx.o src/rbtree.o
+       src/session.o src/hdr_idx.o src/rbtree.o src/ev_select.o src/ev_poll.o
 
 all: haproxy
 
