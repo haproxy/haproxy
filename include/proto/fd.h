@@ -53,7 +53,7 @@ void run_poller();
 
 #define EV_FD_SET(fd, ev)    (cur_poller.set((fd), (ev)))
 #define EV_FD_CLR(fd, ev)    (cur_poller.clr((fd), (ev)))
-#define EV_FD_ISSET(fd, ev)  (cur_poller.isset((fd), (ev)))
+#define EV_FD_ISSET(fd, ev)  (cur_poller.is_set((fd), (ev)))
 #define EV_FD_COND_S(fd, ev) (cur_poller.cond_s((fd), (ev)))
 #define EV_FD_COND_C(fd, ev) (cur_poller.cond_c((fd), (ev)))
 #define EV_FD_REM(fd)        (cur_poller.rem(fd))

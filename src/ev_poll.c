@@ -37,7 +37,7 @@ static struct pollfd *poll_events = NULL;
  * instead of the usual macros improve the FD_* performance by about 80%,
  * and that marking them regparm(2) adds another 20%.
  */
-REGPRM2 static int __fd_isset(const int fd, int dir)
+REGPRM2 static int __fd_is_set(const int fd, int dir)
 {
 	return FD_ISSET(fd, fd_evts[dir]);
 }
@@ -216,7 +216,7 @@ int poll_register(struct poller *p)
 	p->init = poll_init;
 	p->term = poll_term;
 	p->poll = poll_poll;
-	p->isset = __fd_isset;
+	p->is_set = __fd_is_set;
 	p->set = __fd_set;
 	p->clr = __fd_clr;
 	p->clo = p->rem = __fd_rem;
