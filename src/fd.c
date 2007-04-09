@@ -45,6 +45,9 @@ extern int poll_register(struct poller *p);
 #if defined(ENABLE_EPOLL)
 extern int epoll_register(struct poller *p);
 #endif
+#if defined(ENABLE_KQUEUE)
+extern int kqueue_register(struct poller *p);
+#endif
 
 
 /* Deletes an FD from the fdsets, and recomputes the maxfd limit.
@@ -73,6 +76,11 @@ void register_pollers()
 
 #if defined(ENABLE_EPOLL)
 	epoll_register(&pollers[nbpollers]);
+	nbpollers++;
+#endif
+
+#if defined(ENABLE_KQUEUE)
+	kqueue_register(&pollers[nbpollers]);
 	nbpollers++;
 #endif
 }
