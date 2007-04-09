@@ -65,7 +65,7 @@ REGPRM2 static int __fd_set(const int fd, int dir)
 		return 0;
 
 	FD_SET(fd, fd_evts[dir]);
-	EV_SET(kev, fd, dir2filt[dir], EV_ADD|EV_CLEAR, 0, 0, NULL);
+	EV_SET(kev, fd, dir2filt[dir], EV_ADD, 0, 0, NULL);
 	kevent(kqueue_fd, kev, 1, NULL, 0, NULL);
 	return 1;
 }
@@ -87,6 +87,12 @@ REGPRM1 static void __fd_rem(int fd)
 
 	if (changes)
 		kevent(kqueue_fd, kev, changes, NULL, 0, NULL);
+}
+
+REGPRM1 static void __fd_clo(int fd)
+{
+	FD_CLR(fd, fd_evts[DIR_RD]);
+	FD_CLR(fd, fd_evts[DIR_WR]);
 }
 
 /*
