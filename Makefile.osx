@@ -29,7 +29,7 @@ PCREDIR!= pcre-config --prefix 2>/dev/null || :
 #PCREDIR=/usr/local
 
 # This is for darwin 3.0 and above
-COPTS.darwin = -DENABLE_POLL
+COPTS.darwin = -DENABLE_POLL -DENABLE_KQUEUE
 LIBS.darwin =
 
 # CPU dependant optimizations
@@ -69,7 +69,7 @@ ADDLIB =
 # set some defines when needed.
 # Known ones are -DENABLE_POLL
 # - use -DTPROXY to compile with transparent proxy support.
-DEFINE = -DTPROXY
+DEFINE = -DTPROXY 
 
 # global options
 TARGET_OPTS=$(COPTS.$(TARGET))
