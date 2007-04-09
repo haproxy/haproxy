@@ -75,6 +75,7 @@
 #include <types/capture.h>
 #include <types/global.h>
 #include <types/httperr.h>
+#include <types/polling.h>
 #include <types/proto_http.h>
 
 #include <proto/backend.h>
@@ -82,7 +83,6 @@
 #include <proto/client.h>
 #include <proto/fd.h>
 #include <proto/log.h>
-#include <proto/polling.h>
 #include <proto/proto_http.h>
 #include <proto/proxy.h>
 #include <proto/queue.h>

@@ -29,25 +29,6 @@
 
 #include <common/config.h>
 
-/* for POLL_* */
-#if defined(ENABLE_POLL)
-#include <sys/poll.h>
-#endif
-
-/* for EPOLL_* */
-#if defined(ENABLE_EPOLL)
-#if !defined(USE_MY_EPOLL)
-#include <sys/epoll.h>
-#else
-#include <common/epoll.h>
-#endif
-#endif
-
-/* possible actions for the *poll() loops */
-#define POLL_LOOP_ACTION_INIT	0
-#define POLL_LOOP_ACTION_RUN	1
-#define POLL_LOOP_ACTION_CLEAN	2
-
 /* poll mechanisms available */
 #define POLL_USE_SELECT         (1<<0)
 #define POLL_USE_POLL           (1<<1)

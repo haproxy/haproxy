@@ -30,7 +30,6 @@
 #include <types/global.h>
 
 #include <proto/fd.h>
-#include <proto/polling.h>
 #include <proto/task.h>
 
 /* private data */

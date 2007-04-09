@@ -11,6 +11,7 @@
  */
 
 #include <unistd.h>
+#include <sys/poll.h>
 #include <sys/time.h>
 #include <sys/types.h>
 
@@ -22,7 +23,6 @@
 #include <types/global.h>
 
 #include <proto/fd.h>
-#include <proto/polling.h>
 #include <proto/task.h>
 
 
