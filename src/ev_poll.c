@@ -78,60 +78,6 @@ REGPRM1 static void __fd_rem(const int fd)
 	FD_CLR(fd, fd_evts[DIR_WR]);
 }
 
-
-
-/*
- * Initialization of the poll() poller.
- * Returns 0 in case of failure, non-zero in case of success. If it fails, it
- * disables the poller by setting its pref to 0.
- */
-REGPRM1 static int poll_init(struct poller *p)
-{
-	__label__ fail_swevt, fail_srevt, fail_pe;
-	int fd_set_bytes;
-
-	p->private = NULL;
-	fd_set_bytes = sizeof(fd_set) * (global.maxsock + FD_SETSIZE - 1) / FD_SETSIZE;
-
-	poll_events = (struct pollfd*)
-		calloc(1, sizeof(struct pollfd) * global.maxsock);
-
-	if (poll_events == NULL)
-		goto fail_pe;
-		
-	if ((fd_evts[DIR_RD] = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
-		goto fail_srevt;
-
-	if ((fd_evts[DIR_WR] = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
-		goto fail_swevt;
-
-	return 1;
-
- fail_swevt:
-	free(fd_evts[DIR_RD]);
- fail_srevt:
-	free(poll_events);
- fail_pe:
-	p->pref = 0;
-	return 0;
-}
-
-/*
- * Termination of the poll() poller.
- * Memory is released and the poller is marked as unselectable.
- */
-REGPRM1 static void poll_term(struct poller *p)
-{
-	if (fd_evts[DIR_WR])
-		free(fd_evts[DIR_WR]);
-	if (fd_evts[DIR_RD])
-		free(fd_evts[DIR_RD]);
-	if (poll_events)
-		free(poll_events);
-	p->private = NULL;
-	p->pref = 0;
-}
-
 /*
  * Poll() poller
  */
@@ -204,6 +150,58 @@ REGPRM2 static void poll_poll(struct poller *p, int wait_time)
 		}
 	}
 
+}
+
+/*
+ * Initialization of the poll() poller.
+ * Returns 0 in case of failure, non-zero in case of success. If it fails, it
+ * disables the poller by setting its pref to 0.
+ */
+REGPRM1 static int poll_init(struct poller *p)
+{
+	__label__ fail_swevt, fail_srevt, fail_pe;
+	int fd_set_bytes;
+
+	p->private = NULL;
+	fd_set_bytes = sizeof(fd_set) * (global.maxsock + FD_SETSIZE - 1) / FD_SETSIZE;
+
+	poll_events = (struct pollfd*)
+		calloc(1, sizeof(struct pollfd) * global.maxsock);
+
+	if (poll_events == NULL)
+		goto fail_pe;
+		
+	if ((fd_evts[DIR_RD] = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
+		goto fail_srevt;
+
+	if ((fd_evts[DIR_WR] = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
+		goto fail_swevt;
+
+	return 1;
+
+ fail_swevt:
+	free(fd_evts[DIR_RD]);
+ fail_srevt:
+	free(poll_events);
+ fail_pe:
+	p->pref = 0;
+	return 0;
+}
+
+/*
+ * Termination of the poll() poller.
+ * Memory is released and the poller is marked as unselectable.
+ */
+REGPRM1 static void poll_term(struct poller *p)
+{
+	if (fd_evts[DIR_WR])
+		free(fd_evts[DIR_WR]);
+	if (fd_evts[DIR_RD])
+		free(fd_evts[DIR_RD]);
+	if (poll_events)
+		free(poll_events);
+	p->private = NULL;
+	p->pref = 0;
 }
 
 /*

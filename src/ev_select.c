@@ -76,64 +76,6 @@ REGPRM1 static void __fd_rem(int fd)
 	FD_CLR(fd, fd_evts[DIR_WR]);
 }
 
-
-
-/*
- * Initialization of the select() poller.
- * Returns 0 in case of failure, non-zero in case of success. If it fails, it
- * disables the poller by setting its pref to 0.
- */
-REGPRM1 static int select_init(struct poller *p)
-{
-	__label__ fail_swevt, fail_srevt, fail_wevt, fail_revt;
-	int fd_set_bytes;
-
-	p->private = NULL;
-	fd_set_bytes = sizeof(fd_set) * (global.maxsock + FD_SETSIZE - 1) / FD_SETSIZE;
-
-	if ((tmp_evts[DIR_RD] = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
-		goto fail_revt;
-		
-	if ((tmp_evts[DIR_WR] = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
-		goto fail_wevt;
-
-	if ((fd_evts[DIR_RD] = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
-		goto fail_srevt;
-
-	if ((fd_evts[DIR_WR] = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
-		goto fail_swevt;
-
-	return 1;
-
- fail_swevt:
-	free(fd_evts[DIR_RD]);
- fail_srevt:
-	free(tmp_evts[DIR_WR]);
- fail_wevt:
-	free(tmp_evts[DIR_RD]);
- fail_revt:
-	p->pref = 0;
-	return 0;
-}
-
-/*
- * Termination of the select() poller.
- * Memory is released and the poller is marked as unselectable.
- */
-REGPRM1 static void select_term(struct poller *p)
-{
-	if (fd_evts[DIR_WR])
-		free(fd_evts[DIR_WR]);
-	if (fd_evts[DIR_RD])
-		free(fd_evts[DIR_RD]);
-	if (tmp_evts[DIR_WR])
-		free(tmp_evts[DIR_WR]);
-	if (tmp_evts[DIR_RD])
-		free(tmp_evts[DIR_RD]);
-	p->private = NULL;
-	p->pref = 0;
-}
-
 /*
  * Select() poller
  */
@@ -205,6 +147,62 @@ REGPRM2 static void select_poll(struct poller *p, int wait_time)
 			}
 		}
 	}
+}
+
+/*
+ * Initialization of the select() poller.
+ * Returns 0 in case of failure, non-zero in case of success. If it fails, it
+ * disables the poller by setting its pref to 0.
+ */
+REGPRM1 static int select_init(struct poller *p)
+{
+	__label__ fail_swevt, fail_srevt, fail_wevt, fail_revt;
+	int fd_set_bytes;
+
+	p->private = NULL;
+	fd_set_bytes = sizeof(fd_set) * (global.maxsock + FD_SETSIZE - 1) / FD_SETSIZE;
+
+	if ((tmp_evts[DIR_RD] = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
+		goto fail_revt;
+		
+	if ((tmp_evts[DIR_WR] = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
+		goto fail_wevt;
+
+	if ((fd_evts[DIR_RD] = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
+		goto fail_srevt;
+
+	if ((fd_evts[DIR_WR] = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
+		goto fail_swevt;
+
+	return 1;
+
+ fail_swevt:
+	free(fd_evts[DIR_RD]);
+ fail_srevt:
+	free(tmp_evts[DIR_WR]);
+ fail_wevt:
+	free(tmp_evts[DIR_RD]);
+ fail_revt:
+	p->pref = 0;
+	return 0;
+}
+
+/*
+ * Termination of the select() poller.
+ * Memory is released and the poller is marked as unselectable.
+ */
+REGPRM1 static void select_term(struct poller *p)
+{
+	if (fd_evts[DIR_WR])
+		free(fd_evts[DIR_WR]);
+	if (fd_evts[DIR_RD])
+		free(fd_evts[DIR_RD]);
+	if (tmp_evts[DIR_WR])
+		free(tmp_evts[DIR_WR]);
+	if (tmp_evts[DIR_RD])
+		free(tmp_evts[DIR_RD]);
+	p->private = NULL;
+	p->pref = 0;
 }
 
 /*
