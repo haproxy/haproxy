@@ -2,7 +2,7 @@
   include/types/proxy.h
   This file defines everything related to proxies.
 
-  Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -32,6 +32,7 @@
 #include <common/config.h>
 #include <common/mini-clist.h>
 #include <common/regex.h>
+#include <common/tools.h>
 
 #include <types/buffers.h>
 #include <types/httperr.h>

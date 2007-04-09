@@ -1,7 +1,7 @@
 /*
  * Queue management functions.
  *
- * Copyright 2000-2006 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2007 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -12,7 +12,6 @@
 
 #include <common/config.h>
 #include <common/time.h>
-#include <common/tools.h>
 
 #include <types/proxy.h>
 #include <types/session.h>
