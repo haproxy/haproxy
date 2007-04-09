@@ -22,15 +22,10 @@
 #ifndef _COMMON_STANDARD_H
 #define _COMMON_STANDARD_H
 
-#include <sys/types.h>
+#include <limits.h>
 #include <netinet/in.h>
 #include <common/config.h>
 #include <proto/fd.h>
-
-#ifndef INT_MAX
-/* Needed on FreeBSD */
-#include <sys/limits.h>
-#endif
 
 /****** string-specific macros and functions ******/
 /* if a > max, then bound <a> to <max>. The macro returns the new <a> */
