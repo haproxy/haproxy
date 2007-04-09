@@ -244,7 +244,8 @@ int kqueue_register(struct poller *p)
 	p->is_set  = __fd_is_set;
 	p->cond_s = p->set = __fd_set;
 	p->cond_c = p->clr = __fd_clr;
-	p->clo    = p->rem = __fd_rem;
+	p->rem = __fd_rem;
+	p->clo = __fd_clo;
 	
 	return 1;
 }
