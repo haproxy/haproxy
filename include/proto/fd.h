@@ -22,6 +22,7 @@
 #ifndef _PROTO_FD_H
 #define _PROTO_FD_H
 
+#include <stdio.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -45,6 +46,21 @@ void disable_poller(const char *poller_name);
  * If none works, returns 0, otherwise 1.
  */
 int init_pollers();
+
+/*
+ * Some pollers may lose their connection after a fork(). It may be necessary
+ * to create initialize part of them again. Returns 0 in case of failure,
+ * otherwise 1. The fork() function may be NULL if unused. In case of error,
+ * the the current poller is destroyed and the caller is responsible for trying
+ * another one by calling init_pollers() again.
+ */
+int fork_poller();
+
+/*
+ * Lists the known pollers on <out>.
+ * Should be performed only before initialization.
+ */
+int list_pollers(FILE *out);
 
 /*
  * Runs the polling loop

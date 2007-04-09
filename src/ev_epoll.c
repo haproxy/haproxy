@@ -297,6 +297,21 @@ REGPRM1 static void epoll_term(struct poller *p)
 }
 
 /*
+ * Check that the poller works.
+ * Returns 1 if OK, otherwise 0.
+ */
+REGPRM1 static int epoll_test(struct poller *p)
+{
+	int fd;
+
+	fd = epoll_create(global.maxsock + 1);
+	if (fd < 0)
+		return 0;
+	close(fd);
+	return 1;
+}
+
+/*
  * The only exported function. Returns 1.
  */
 int epoll_register(struct poller *p)
@@ -305,6 +320,7 @@ int epoll_register(struct poller *p)
 	p->pref = 300;
 	p->private = NULL;
 
+	p->test = epoll_test;
 	p->init = epoll_init;
 	p->term = epoll_term;
 	p->poll = epoll_poll;

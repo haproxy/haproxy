@@ -83,6 +83,8 @@ struct poller {
     	REGPRM2 void   (*poll)(struct poller *p, int wait_time); /* the poller itself */
 	REGPRM1 int    (*init)(struct poller *p);            /* poller initialization */
 	REGPRM1 void   (*term)(struct poller *p);            /* termination of this poller */
+	REGPRM1 int    (*test)(struct poller *p);            /* pre-init check of the poller */
+	REGPRM1 int    (*fork)(struct poller *p);            /* post-fork re-opening */
 	const char   *name;                                  /* poller name */
 	int    pref;                                         /* try pollers with higher preference first */
 };

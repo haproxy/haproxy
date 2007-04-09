@@ -10,6 +10,7 @@
  *
  */
 
+#include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/types.h>
@@ -120,6 +121,75 @@ int init_pollers()
 		}
 	} while (!bp || bp->pref == 0);
 	return 0;
+}
+
+/*
+ * Lists the known pollers on <out>.
+ * Should be performed only before initialization.
+ */
+int list_pollers(FILE *out)
+{
+	int p;
+	int last, next;
+	int usable;
+	struct poller *bp;
+
+	fprintf(out, "Available polling systems :\n");
+
+	usable = 0;
+	bp = NULL;
+	last = next = -1;
+	while (1) {
+		for (p = 0; p < nbpollers; p++) {
+			if (!bp || (pollers[p].pref > bp->pref))
+				bp = &pollers[p];
+			if ((next < 0 || pollers[p].pref > next)
+			    && (last < 0 || pollers[p].pref < last))
+				next = pollers[p].pref;
+		}
+
+		if (next == -1)
+			break;
+
+		for (p = 0; p < nbpollers; p++) {
+			if (pollers[p].pref == next) {
+				fprintf(out, " %10s : ", pollers[p].name);
+				if (pollers[p].pref == 0)
+					fprintf(out, "disabled, ");
+				else
+					fprintf(out, "pref=%3d, ", pollers[p].pref);
+				if (pollers[p].test(&pollers[p])) {
+					fprintf(out, " test result OK");
+					if (next > 0)
+						usable++;
+				} else
+					fprintf(out, " test result FAILED");
+				fprintf(out, "\n");
+			}
+		}
+		last = next;
+		next = -1;
+	};
+	fprintf(out, "Total: %d (%d usable), will use %s.\n", nbpollers, usable, bp ? bp->name : "none");
+	return 0;
+}
+
+/*
+ * Some pollers may lose their connection after a fork(). It may be necessary
+ * to create initialize part of them again. Returns 0 in case of failure,
+ * otherwise 1. The fork() function may be NULL if unused. In case of error,
+ * the the current poller is destroyed and the caller is responsible for trying
+ * another one by calling init_pollers() again.
+ */
+int fork_poller()
+{
+	if (cur_poller.fork) {
+		if (cur_poller.fork(&cur_poller))
+			return 1;
+		cur_poller.term(&cur_poller);
+		return 0;
+	}
+	return 1;
 }
 
 /*

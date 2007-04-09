@@ -540,12 +540,15 @@ void init(int argc, char **argv)
 
 	/* Note: we could disable any poller by name here */
 
+	if (global.mode & (MODE_VERBOSE|MODE_DEBUG))
+		list_pollers(stderr);
+
 	if (!init_pollers()) {
-		Alert("No polling mechanism available\n");
+		Alert("No polling mechanism available.\n");
 		exit(1);
 	}
-	if (global.mode & MODE_DEBUG) {
-		printf("Note: using %s() as the polling mechanism.\n", cur_poller.name);
+	if (global.mode & (MODE_VERBOSE|MODE_DEBUG)) {
+		printf("Using %s() as the polling mechanism.\n", cur_poller.name);
 	}
 
 }
@@ -909,6 +912,7 @@ int main(int argc, char **argv)
 		}
 		pid = getpid(); /* update child's pid */
 		setsid();
+		fork_poller();
 	}
 
 	/*

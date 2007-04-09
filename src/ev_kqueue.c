@@ -198,18 +198,48 @@ REGPRM1 static void kqueue_term(struct poller *p)
 }
 
 /*
+ * Check that the poller works.
+ * Returns 1 if OK, otherwise 0.
+ */
+REGPRM1 static int kqueue_test(struct poller *p)
+{
+	int fd;
+
+	fd = kqueue();
+	if (fd < 0)
+		return 0;
+	close(fd);
+	return 1;
+}
+
+/*
+ * Recreate the kqueue file descriptor after a fork(). Returns 1 if OK,
+ * otherwise 0. Note that some pollers need to be reopened after a fork()
+ * (such as kqueue), and some others may fail to do so in a chroot.
+ */
+REGPRM1 static int kqueue_fork(struct poller *p)
+{
+	close(kqueue_fd);
+	kqueue_fd = kqueue();
+	if (kqueue_fd < 0)
+		return 0;
+	return 1;
+}
+
+/*
  * The only exported function. Returns 1.
  */
-//int kqueue_native_register(struct poller *p)
 int kqueue_register(struct poller *p)
 {
 	p->name = "kqueue";
 	p->pref = 300;
 	p->private = NULL;
 
+	p->test = kqueue_test;
 	p->init = kqueue_init;
 	p->term = kqueue_term;
 	p->poll = kqueue_poll;
+	p->fork = kqueue_fork;
 
 	p->is_set  = __fd_is_set;
 	p->cond_s = p->set = __fd_set;

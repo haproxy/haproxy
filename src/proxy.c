@@ -54,9 +54,14 @@ const char *proxy_type_str(struct proxy *proxy)
 
 
 /*
- * this function starts all the proxies. Its return value is composed from
- * ERR_NONE, ERR_RETRYABLE and ERR_FATAL. Retryable errors will only be printed
- * if <verbose> is not zero.
+ * This function creates all proxy sockets. It should be done very early,
+ * typically before privileges are dropped. The sockets will be registered
+ * but not added to any fd_set, in order not to loose them across the fork().
+ * The proxies also start in IDLE state, meaning that it will be
+ * maintain_proxies that will finally complete their loading.
+ *
+ * Its return value is composed from ERR_NONE, ERR_RETRYABLE and ERR_FATAL.
+ * Retryable errors will only be printed if <verbose> is not zero.
  */
 int start_proxies(int verbose)
 {
@@ -147,13 +152,12 @@ int start_proxies(int verbose)
 			fdtab[fd].cb[DIR_RD].b = fdtab[fd].cb[DIR_WR].b = NULL;
 			fdtab[fd].owner = (struct task *)curproxy; /* reference the proxy instead of a task */
 			fdtab[fd].state = FD_STLISTEN;
-			EV_FD_SET(fd, DIR_RD);
 			fd_insert(fd);
 			listeners++;
 		}
 
 		if (!pxerr) {
-			curproxy->state = PR_STRUN;
+			curproxy->state = PR_STIDLE;
 			send_log(curproxy, LOG_NOTICE, "Proxy %s started.\n", curproxy->id);
 		}
 	}

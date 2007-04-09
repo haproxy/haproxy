@@ -205,6 +205,15 @@ REGPRM1 static void select_term(struct poller *p)
 }
 
 /*
+ * Check that the poller works.
+ * Returns 1 if OK, otherwise 0.
+ */
+REGPRM1 static int select_test(struct poller *p)
+{
+	return 1;
+}
+
+/*
  * The only exported function. Returns 1.
  */
 int select_register(struct poller *p)
@@ -213,6 +222,7 @@ int select_register(struct poller *p)
 	p->pref = 150;
 	p->private = NULL;
 
+	p->test = select_test;
 	p->init = select_init;
 	p->term = select_term;
 	p->poll = select_poll;
