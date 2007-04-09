@@ -175,6 +175,9 @@ void usage(char *name)
 #if defined(ENABLE_EPOLL)
 		"        -de disables epoll() usage even when available\n"
 #endif
+#if defined(ENABLE_KQUEUE)
+		"        -dk disables kqueue() usage even when available\n"
+#endif
 #if defined(ENABLE_POLL)
 		"        -dp disables poll() usage even when available\n"
 #endif
@@ -371,6 +374,9 @@ void init(int argc, char **argv)
 #if defined(ENABLE_EPOLL)
 	cfg_polling_mechanism |= POLL_USE_EPOLL;
 #endif
+#if defined(ENABLE_KQUEUE)
+	cfg_polling_mechanism |= POLL_USE_KQUEUE;
+#endif
 
 	pid = getpid();
 	progname = *argv;
@@ -396,6 +402,10 @@ void init(int argc, char **argv)
 #if defined(ENABLE_POLL)
 			else if (*flag == 'd' && flag[1] == 'p')
 				cfg_polling_mechanism &= ~POLL_USE_POLL;
+#endif
+#if defined(ENABLE_POLL)
+			else if (*flag == 'd' && flag[1] == 'k')
+				cfg_polling_mechanism &= ~POLL_USE_KQUEUE;
 #endif
 			else if (*flag == 'V')
 				arg_mode |= MODE_VERBOSE;
@@ -515,6 +525,9 @@ void init(int argc, char **argv)
 
 	register_pollers();
 	/* Note: we could register external pollers here */
+
+	if (!(cfg_polling_mechanism & POLL_USE_KQUEUE))
+		disable_poller("kqueue");
 
 	if (!(cfg_polling_mechanism & POLL_USE_EPOLL))
 		disable_poller("epoll");
