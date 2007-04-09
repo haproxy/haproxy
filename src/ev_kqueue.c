@@ -14,7 +14,6 @@
  *
  */
 
-#include <stdio.h>
 #include <unistd.h>
 #include <sys/time.h>
 #include <sys/types.h>
@@ -73,14 +72,6 @@ REGPRM2 static int __fd_set(const int fd, int dir)
 
 REGPRM2 static int __fd_clr(const int fd, int dir)
 {
-	/* if the value was not set, do nothing */
-	//if (!FD_ISSET(fd, fd_evts[dir]))
-	//	return 0;
-	//
-	//FD_CLR(fd, fd_evts[dir]);
-	//EV_SET(&kev, fd, dir2filt[dir], EV_DELETE, 0, 0, NULL);
-	//kevent(kqueue_fd, &kev, 1, NULL, 0, NULL);
-	//return 1;
 	if (!kqev_del(kev, fd, dir))
 		return 0;
 	kevent(kqueue_fd, kev, 1, NULL, 0, NULL);
@@ -91,16 +82,6 @@ REGPRM1 static void __fd_rem(int fd)
 {
 	int changes = 0;
 
-	//if (FD_ISSET(fd, fd_evts[DIR_RD])) {
-	//	FD_CLR(fd, fd_evts[DIR_RD]);
-	//	EV_SET(&kev[changes], fd, dir2filt[DIR_RD], EV_DELETE, 0, 0, NULL);
-	//	changes++;
-	//}
-	//if (FD_ISSET(fd, fd_evts[DIR_WR])) {
-	//	FD_CLR(fd, fd_evts[DIR_WR]);
-	//	EV_SET(&kev[changes], fd, dir2filt[DIR_WR], EV_DELETE, 0, 0, NULL);
-	//	changes++;
-	//}
 	changes += kqev_del(&kev[changes], fd, DIR_RD);
 	changes += kqev_del(&kev[changes], fd, DIR_WR);
 
@@ -115,17 +96,21 @@ REGPRM2 static void kqueue_poll(struct poller *p, int wait_time)
 {
 	int status;
 	int count, fd;
-	struct timespec timeout;
+	struct timespec timeout, *to_ptr;
 
-	timeout.tv_sec  =  wait_time / 1000;
-	timeout.tv_nsec = (wait_time % 1000) * 1000000;
+	to_ptr = NULL;	// no timeout
+	if (wait_time >= 0) {
+		timeout.tv_sec  =  wait_time / 1000;
+		timeout.tv_nsec = (wait_time % 1000) * 1000000;
+		to_ptr = &timeout;
+	}
 
 	status = kevent(kqueue_fd, // int kq
 			NULL,      // const struct kevent *changelist
 			0,         // int nchanges
 			kev,       // struct kevent *eventlist
 			maxfd,     // int nevents
-			&timeout); // const struct timespec *timeout
+			to_ptr);   // const struct timespec *timeout
 
 	for (count = 0; count < status; count++) {
 		fd = kev[count].ident;
