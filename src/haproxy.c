@@ -403,7 +403,7 @@ void init(int argc, char **argv)
 			else if (*flag == 'd' && flag[1] == 'p')
 				cfg_polling_mechanism &= ~POLL_USE_POLL;
 #endif
-#if defined(ENABLE_POLL)
+#if defined(ENABLE_KQUEUE)
 			else if (*flag == 'd' && flag[1] == 'k')
 				cfg_polling_mechanism &= ~POLL_USE_KQUEUE;
 #endif
