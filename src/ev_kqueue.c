@@ -117,6 +117,7 @@ REGPRM2 static void kqueue_poll(struct poller *p, int wait_time)
 			kev,       // struct kevent *eventlist
 			maxfd,     // int nevents
 			to_ptr);   // const struct timespec *timeout
+	tv_now(&now);
 
 	for (count = 0; count < status; count++) {
 		fd = kev[count].ident;
