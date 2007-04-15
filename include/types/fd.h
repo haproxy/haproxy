@@ -85,18 +85,18 @@ struct fdtab {
  */
 struct poller {
 	void   *private;                                     /* any private data for the poller */
-	REGPRM2 int  (*is_set)(const int fd, int dir);       /* check if <fd> is being polled for dir <dir> */
-	REGPRM2 int     (*set)(const int fd, int dir);       /* set   polling on <fd> for <dir> */
-	REGPRM2 int     (*clr)(const int fd, int dir);       /* clear polling on <fd> for <dir> */
-	REGPRM2 int  (*cond_s)(const int fd, int dir);       /* set   polling on <fd> for <dir> if unset */
-	REGPRM2 int  (*cond_c)(const int fd, int dir);       /* clear polling on <fd> for <dir> if set */
-	REGPRM1 void    (*rem)(const int fd);                /* remove any polling on <fd> */
-	REGPRM1 void    (*clo)(const int fd);                /* mark <fd> as closed */
-    	REGPRM2 void   (*poll)(struct poller *p, int wait_time); /* the poller itself */
-	REGPRM1 int    (*init)(struct poller *p);            /* poller initialization */
-	REGPRM1 void   (*term)(struct poller *p);            /* termination of this poller */
-	REGPRM1 int    (*test)(struct poller *p);            /* pre-init check of the poller */
-	REGPRM1 int    (*fork)(struct poller *p);            /* post-fork re-opening */
+	int  REGPRM2 (*is_set)(const int fd, int dir);       /* check if <fd> is being polled for dir <dir> */
+	int  REGPRM2    (*set)(const int fd, int dir);       /* set   polling on <fd> for <dir> */
+	int  REGPRM2    (*clr)(const int fd, int dir);       /* clear polling on <fd> for <dir> */
+	int  REGPRM2 (*cond_s)(const int fd, int dir);       /* set   polling on <fd> for <dir> if unset */
+	int  REGPRM2 (*cond_c)(const int fd, int dir);       /* clear polling on <fd> for <dir> if set */
+	void REGPRM1    (*rem)(const int fd);                /* remove any polling on <fd> */
+	void REGPRM1    (*clo)(const int fd);                /* mark <fd> as closed */
+    	void REGPRM2   (*poll)(struct poller *p, int wait_time); /* the poller itself */
+	int  REGPRM1   (*init)(struct poller *p);            /* poller initialization */
+	void REGPRM1   (*term)(struct poller *p);            /* termination of this poller */
+	int  REGPRM1   (*test)(struct poller *p);            /* pre-init check of the poller */
+	int  REGPRM1   (*fork)(struct poller *p);            /* post-fork re-opening */
 	const char   *name;                                  /* poller name */
 	int    pref;                                         /* try pollers with higher preference first */
 };
