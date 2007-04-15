@@ -523,8 +523,10 @@ void init(int argc, char **argv)
 		fdtab[i].state = FD_STCLOSE;
 	}
 
-	register_pollers();
-	/* Note: we could register external pollers here */
+	/*
+	 * Note: we could register external pollers here.
+	 * Built-in pollers have been registered before main().
+	 */
 
 	if (!(cfg_polling_mechanism & POLL_USE_KQUEUE))
 		disable_poller("kqueue");

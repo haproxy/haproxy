@@ -35,22 +35,6 @@ struct poller cur_poller;
 int nbpollers = 0;
 
 
-/*********************
- * generic functions
- *********************/
-
-extern int select_register(struct poller *p);
-#if defined(ENABLE_POLL)
-extern int poll_register(struct poller *p);
-#endif
-#if defined(ENABLE_EPOLL)
-extern int epoll_register(struct poller *p);
-#endif
-#if defined(ENABLE_KQUEUE)
-extern int kqueue_register(struct poller *p);
-#endif
-
-
 /* Deletes an FD from the fdsets, and recomputes the maxfd limit.
  * The file descriptor is also closed.
  */
@@ -64,27 +48,6 @@ void fd_delete(int fd)
 		maxfd--;
 }
 
-
-/* registers all known pollers */
-void register_pollers()
-{
-	if (select_register(&pollers[nbpollers]))
-		nbpollers++;
-#if defined(ENABLE_POLL)
-	poll_register(&pollers[nbpollers]);
-	nbpollers++;
-#endif
-
-#if defined(ENABLE_EPOLL)
-	epoll_register(&pollers[nbpollers]);
-	nbpollers++;
-#endif
-
-#if defined(ENABLE_KQUEUE)
-	kqueue_register(&pollers[nbpollers]);
-	nbpollers++;
-#endif
-}
 
 /* disable the specified poller */
 void disable_poller(const char *poller_name)

@@ -35,15 +35,13 @@
  */
 void fd_delete(int fd);
 
-/* registers all known pollers */
-void register_pollers();
-
 /* disable the specified poller */
 void disable_poller(const char *poller_name);
 
 /*
  * Initialize the pollers till the best one is found.
  * If none works, returns 0, otherwise 1.
+ * The pollers register themselves just before main() is called.
  */
 int init_pollers();
 

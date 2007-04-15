@@ -98,7 +98,7 @@ REGPRM1 static void __fd_clo(int fd)
 /*
  * kqueue() poller
  */
-REGPRM2 static void kqueue_poll(struct poller *p, int wait_time)
+REGPRM2 static void _do_poll(struct poller *p, int wait_time)
 {
 	int status;
 	int count, fd;
@@ -142,7 +142,7 @@ REGPRM2 static void kqueue_poll(struct poller *p, int wait_time)
  * Returns 0 in case of failure, non-zero in case of success. If it fails, it
  * disables the poller by setting its pref to 0.
  */
-REGPRM1 static int kqueue_init(struct poller *p)
+REGPRM1 static int _do_init(struct poller *p)
 {
 	__label__ fail_wevt, fail_revt, fail_fd;
 	int fd_set_bytes;
@@ -183,7 +183,7 @@ REGPRM1 static int kqueue_init(struct poller *p)
  * Termination of the kqueue() poller.
  * Memory is released and the poller is marked as unselectable.
  */
-REGPRM1 static void kqueue_term(struct poller *p)
+REGPRM1 static void _do_term(struct poller *p)
 {
 	if (fd_evts[DIR_WR])
 		free(fd_evts[DIR_WR]);
@@ -202,7 +202,7 @@ REGPRM1 static void kqueue_term(struct poller *p)
  * Check that the poller works.
  * Returns 1 if OK, otherwise 0.
  */
-REGPRM1 static int kqueue_test(struct poller *p)
+REGPRM1 static int _do_test(struct poller *p)
 {
 	int fd;
 
@@ -218,7 +218,7 @@ REGPRM1 static int kqueue_test(struct poller *p)
  * otherwise 0. Note that some pollers need to be reopened after a fork()
  * (such as kqueue), and some others may fail to do so in a chroot.
  */
-REGPRM1 static int kqueue_fork(struct poller *p)
+REGPRM1 static int _do_fork(struct poller *p)
 {
 	close(kqueue_fd);
 	kqueue_fd = kqueue();
@@ -228,27 +228,34 @@ REGPRM1 static int kqueue_fork(struct poller *p)
 }
 
 /*
- * The only exported function. Returns 1.
+ * It is a constructor, which means that it will automatically be called before
+ * main(). This is GCC-specific but it works at least since 2.95.
+ * Special care must be taken so that it does not need any uninitialized data.
  */
-int kqueue_register(struct poller *p)
+__attribute__((constructor))
+static void _do_register(void)
 {
+	struct poller *p;
+
+	if (nbpollers >= MAX_POLLERS)
+		return;
+	p = &pollers[nbpollers++];
+
 	p->name = "kqueue";
 	p->pref = 300;
 	p->private = NULL;
 
-	p->test = kqueue_test;
-	p->init = kqueue_init;
-	p->term = kqueue_term;
-	p->poll = kqueue_poll;
-	p->fork = kqueue_fork;
+	p->test = _do_test;
+	p->init = _do_init;
+	p->term = _do_term;
+	p->poll = _do_poll;
+	p->fork = _do_fork;
 
 	p->is_set  = __fd_is_set;
 	p->cond_s = p->set = __fd_set;
 	p->cond_c = p->clr = __fd_clr;
 	p->rem = __fd_rem;
 	p->clo = __fd_clo;
-	
-	return 1;
 }
 
 

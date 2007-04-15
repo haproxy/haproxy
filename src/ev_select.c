@@ -78,7 +78,7 @@ REGPRM1 static void __fd_rem(int fd)
 /*
  * Select() poller
  */
-REGPRM2 static void select_poll(struct poller *p, int wait_time)
+REGPRM2 static void _do_poll(struct poller *p, int wait_time)
 {
 	int status;
 	int fd, i;
@@ -153,7 +153,7 @@ REGPRM2 static void select_poll(struct poller *p, int wait_time)
  * Returns 0 in case of failure, non-zero in case of success. If it fails, it
  * disables the poller by setting its pref to 0.
  */
-REGPRM1 static int select_init(struct poller *p)
+REGPRM1 static int _do_init(struct poller *p)
 {
 	__label__ fail_swevt, fail_srevt, fail_wevt, fail_revt;
 	int fd_set_bytes;
@@ -190,7 +190,7 @@ REGPRM1 static int select_init(struct poller *p)
  * Termination of the select() poller.
  * Memory is released and the poller is marked as unselectable.
  */
-REGPRM1 static void select_term(struct poller *p)
+REGPRM1 static void _do_term(struct poller *p)
 {
 	if (fd_evts[DIR_WR])
 		free(fd_evts[DIR_WR]);
@@ -208,31 +208,39 @@ REGPRM1 static void select_term(struct poller *p)
  * Check that the poller works.
  * Returns 1 if OK, otherwise 0.
  */
-REGPRM1 static int select_test(struct poller *p)
+REGPRM1 static int _do_test(struct poller *p)
 {
 	return 1;
 }
 
 /*
- * The only exported function. Returns 1.
+ * It is a constructor, which means that it will automatically be called before
+ * main(). This is GCC-specific but it works at least since 2.95.
+ * Special care must be taken so that it does not need any uninitialized data.
  */
-int select_register(struct poller *p)
+__attribute__((constructor))
+static void _do_register(void)
 {
+	struct poller *p;
+
+	if (nbpollers >= MAX_POLLERS)
+		return;
+	p = &pollers[nbpollers++];
+
 	p->name = "select";
 	p->pref = 150;
 	p->private = NULL;
 
-	p->test = select_test;
-	p->init = select_init;
-	p->term = select_term;
-	p->poll = select_poll;
+	p->test = _do_test;
+	p->init = _do_init;
+	p->term = _do_term;
+	p->poll = _do_poll;
 	p->is_set = __fd_is_set;
 	p->set = __fd_set;
 	p->clr = __fd_clr;
 	p->clo = p->rem = __fd_rem;
 	p->cond_s = __fd_cond_s;
 	p->cond_c = __fd_cond_c;
-	return 1;
 }
 
 
