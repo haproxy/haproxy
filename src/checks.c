@@ -336,6 +336,7 @@ int process_chk(struct task *t)
 						fdtab[fd].cb[DIR_WR].f = &event_srv_chk_w;
 						fdtab[fd].cb[DIR_WR].b = NULL;
 						fdtab[fd].state = FD_STCONN; /* connection in progress */
+						fdtab[fd].ev = 0;
 						EV_FD_SET(fd, DIR_WR);  /* for connect status */
 #ifdef DEBUG_FULL
 						assert (!EV_FD_ISSET(fd, DIR_RD));

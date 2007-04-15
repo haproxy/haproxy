@@ -43,14 +43,26 @@ enum {
 	DIR_SIZE
 };
 
+
+#define FD_POLL_IN	0x01
+#define FD_POLL_PRI	0x02
+#define FD_POLL_OUT	0x04
+#define FD_POLL_ERR	0x08
+#define FD_POLL_HUP	0x10
+#define FD_POLL_ANY	0x1F
+
+#define FD_POLL_RD	(FD_POLL_IN  | FD_POLL_ERR | FD_POLL_HUP)
+#define FD_POLL_WR	(FD_POLL_OUT | FD_POLL_ERR | FD_POLL_HUP)
+
 /* info about one given fd */
 struct fdtab {
 	struct {
 		int (*f)(int fd);            /* read/write function */
 		struct buffer *b;            /* read/write buffer */
 	} cb[DIR_SIZE];
-	struct task *owner;             /* the session (or proxy) associated with this fd */
-	int state;                      /* the state of this fd */
+	struct task *owner;                  /* the session (or proxy) associated with this fd */
+	unsigned char state;                 /* the state of this fd */
+	unsigned char ev;                    /* event seen in return of poll() : FD_POLL_* */
 };
 
 /*

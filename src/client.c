@@ -385,6 +385,7 @@ int event_accept(int fd) {
 		fdtab[cfd].cb[DIR_RD].b = s->req;
 		fdtab[cfd].cb[DIR_WR].f = &stream_sock_write;
 		fdtab[cfd].cb[DIR_WR].b = s->rep;
+		fdtab[cfd].ev = 0;
 
 		if ((p->mode == PR_MODE_HTTP && (s->flags & SN_MONITOR)) ||
 		    (p->mode == PR_MODE_HEALTH && (p->options & PR_O_HTTP_CHK))) {
