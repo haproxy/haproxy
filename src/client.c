@@ -378,6 +378,7 @@ int event_accept(int fd) {
 		s->rep->wto = s->fe->clitimeout;
 		s->rep->cto = 0;
 
+		fd_insert(cfd);
 		fdtab[cfd].owner = t;
 		fdtab[cfd].state = FD_STREADY;
 		fdtab[cfd].cb[DIR_RD].f = &stream_sock_read;
@@ -401,8 +402,6 @@ int event_accept(int fd) {
 		else {
 			EV_FD_SET(cfd, DIR_RD);
 		}
-
-		fd_insert(cfd);
 
 		tv_eternity(&s->req->rex);
 		tv_eternity(&s->req->wex);

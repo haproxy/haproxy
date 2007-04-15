@@ -329,6 +329,7 @@ int process_chk(struct task *t)
 						//fprintf(stderr, "process_chk: 4\n");
 			
 						s->curfd = fd; /* that's how we know a test is in progress ;-) */
+						fd_insert(fd);
 						fdtab[fd].owner = t;
 						fdtab[fd].cb[DIR_RD].f = &event_srv_chk_r;
 						fdtab[fd].cb[DIR_RD].b = NULL;
@@ -339,7 +340,6 @@ int process_chk(struct task *t)
 #ifdef DEBUG_FULL
 						assert (!EV_FD_ISSET(fd, DIR_RD));
 #endif
-						fd_insert(fd);
 						/* FIXME: we allow up to <inter> for a connection to establish, but we should use another parameter */
 						tv_delayfrom(&t->expire, &now, s->inter);
 						task_queue(t);	/* restore t to its place in the task list */
