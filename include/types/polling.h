@@ -34,8 +34,9 @@
 #define POLL_USE_POLL           (1<<1)
 #define POLL_USE_EPOLL          (1<<2)
 #define POLL_USE_KQUEUE         (1<<3)
+#define POLL_USE_SEPOLL         (1<<4)
 
-extern int cfg_polling_mechanism;       /* POLL_USE_{SELECT|POLL|EPOLL|KQUEUE} */
+extern int cfg_polling_mechanism;       /* POLL_USE_{SELECT|POLL|EPOLL|KQUEUE|SEPOLL} */
 
 
 #endif /* _TYPES_POLLING_H */

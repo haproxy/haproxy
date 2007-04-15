@@ -15,10 +15,12 @@ USE_POLL = 1
 
 ifeq ($(TARGET),linux24e)
 USE_EPOLL = 1
+USE_SEPOLL = 1
 endif
 
 ifeq ($(TARGET),linux26)
 USE_EPOLL = 1
+USE_SEPOLL = 1
 endif
 
 # pass CPU=<cpu_name> to make to optimize for a particular CPU
@@ -151,6 +153,11 @@ endif
 ifneq ($(USE_EPOLL),)
 OPTIONS += -DENABLE_EPOLL
 OPT_OBJS += src/ev_epoll.o
+endif
+
+ifneq ($(USE_SEPOLL),)
+OPTIONS += -DENABLE_SEPOLL
+OPT_OBJS += src/ev_sepoll.o
 endif
 
 ifneq ($(USE_MY_EPOLL),)

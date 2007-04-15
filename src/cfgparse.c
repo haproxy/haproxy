@@ -260,6 +260,12 @@ int cfg_parse_global(const char *file, int linenum, char **args)
 	else if (!strcmp(args[0], "noepoll")) {
 		cfg_polling_mechanism &= ~POLL_USE_EPOLL;
 	}
+	else if (!strcmp(args[0], "nosepoll")) {
+		cfg_polling_mechanism &= ~POLL_USE_SEPOLL;
+	}
+	else if (!strcmp(args[0], "nokqueue")) {
+		cfg_polling_mechanism &= ~POLL_USE_KQUEUE;
+	}
 	else if (!strcmp(args[0], "nopoll")) {
 		cfg_polling_mechanism &= ~POLL_USE_POLL;
 	}

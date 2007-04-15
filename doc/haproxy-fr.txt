@@ -56,6 +56,8 @@ Les options de lancement sont peu nombreuses :
     -st specifie une liste de PIDs auxquels envoyer un signal TERMINATE
     -s affiche les statistiques (si option compilée)
     -l ajoute des informations aux statistiques
+    -dk désactive l'utilisation de kqueue()
+    -ds désactive l'utilisation de epoll() speculatif
     -de désactive l'utilisation de epoll()
     -dp désactive l'utilisation de poll()
     -db désactive la mise en arrière-plan (utile pour débugger)
@@ -125,6 +127,8 @@ supportés sont :
   - nbproc <nombre>
   - daemon
   - debug
+  - nokqueue
+  - nosepoll
   - noepoll
   - nopoll
   - quiet
@@ -353,12 +357,17 @@ apporter de performances supplémentaires. Sur les systèmes à base Linux
 incluant le patch epoll() (ou tous les Linux 2.6), haproxy utilisera epoll()
 qui est extrèmement rapide indépendamment du nombre de sockets. Les tests sur
 haproxy ont montré une performance constante de 1 à 40000 sessions simultanées.
+La version 1.3.9 a introduit le support de kqueue() pour FreeBSD/OpenBSD, ainsi
+qu'une variante appelée "speculative epoll()" consistant à tenter d'effectuer
+les opérations d'entrées/sorties avant de chaîner les événements par les appels
+système.
 
-Haproxy utilisera epoll() lorsqu'il est disponible, et se repliera sur poll(),
-puis en dernier lieu sur select(). Cependant, si pour une raison quelconque il
-s'avérait nécessaire de désactiver epoll() ou poll() (p.ex: à cause d'un bug ou
-juste pour comparer les performances), deux nouvelles options globales ont été
-ajoutées dans ce but : 'noepoll' et 'nopoll'.
+Haproxy utilisera kqueue() ou speculative epoll() lorsque ce sera disponible,
+puis epoll(), et se repliera sur poll(), puis en dernier lieu sur select().
+Cependant, si pour une raison quelconque il s'avérait nécessaire de désactiver
+epoll() ou poll() (p.ex: à cause d'un bug ou juste pour comparer les
+performances), de nouvelles options globales ont été ajoutées dans ce but :
+'nosepoll', 'nokqueue', 'noepoll' et 'nopoll'.
 
 Exemple :
 ---------
@@ -374,8 +383,9 @@ sont acceptées et ignorées si les mécanismes poll() ou epoll() n'ont pas été
 activés lors de la compilation.
 
 Afin de simplifier la résolution de problèmes, le paramètre '-de' en ligne de
-commande désactive epoll() et le paramètre '-dp' désactive poll(). Ils sont
-respectivement équivalents à 'noepoll' et 'nopoll'.
+commande désactive epoll(), le paramètre '-dp' désactive poll(), '-dk' kqueue()
+et '-ds' désactive speculative epoll(). Ils sont respectivement équivalents à
+'noepoll', 'nopoll', 'nokqueue' et 'nosepoll'.
 
 
 2) Définition d'un service en écoute

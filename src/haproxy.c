@@ -175,6 +175,9 @@ void usage(char *name)
 #if defined(ENABLE_EPOLL)
 		"        -de disables epoll() usage even when available\n"
 #endif
+#if defined(ENABLE_SEPOLL)
+		"        -ds disables speculative epoll() usage even when available\n"
+#endif
 #if defined(ENABLE_KQUEUE)
 		"        -dk disables kqueue() usage even when available\n"
 #endif
@@ -374,6 +377,9 @@ void init(int argc, char **argv)
 #if defined(ENABLE_EPOLL)
 	cfg_polling_mechanism |= POLL_USE_EPOLL;
 #endif
+#if defined(ENABLE_SEPOLL)
+	cfg_polling_mechanism |= POLL_USE_SEPOLL;
+#endif
 #if defined(ENABLE_KQUEUE)
 	cfg_polling_mechanism |= POLL_USE_KQUEUE;
 #endif
@@ -398,6 +404,10 @@ void init(int argc, char **argv)
 #if defined(ENABLE_EPOLL)
 			else if (*flag == 'd' && flag[1] == 'e')
 				cfg_polling_mechanism &= ~POLL_USE_EPOLL;
+#endif
+#if defined(ENABLE_SEPOLL)
+			else if (*flag == 'd' && flag[1] == 's')
+				cfg_polling_mechanism &= ~POLL_USE_SEPOLL;
 #endif
 #if defined(ENABLE_POLL)
 			else if (*flag == 'd' && flag[1] == 'p')
@@ -533,6 +543,9 @@ void init(int argc, char **argv)
 
 	if (!(cfg_polling_mechanism & POLL_USE_EPOLL))
 		disable_poller("epoll");
+
+	if (!(cfg_polling_mechanism & POLL_USE_SEPOLL))
+		disable_poller("sepoll");
 
 	if (!(cfg_polling_mechanism & POLL_USE_POLL))
 		disable_poller("poll");
