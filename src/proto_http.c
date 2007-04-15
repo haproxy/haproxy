@@ -444,7 +444,6 @@ void client_retnclose(struct session *s, const struct chunk *msg)
 		tv_delayfrom(&s->rep->wex, &now, s->fe->clitimeout);
 	else
 		tv_eternity(&s->rep->wex);
-	shutdown(s->cli_fd, SHUT_RD);
 	s->cli_state = CL_STSHUTR;
 	buffer_flush(s->rep);
 	if (msg->len)
@@ -1964,7 +1963,6 @@ int process_cli(struct session *t)
 		else if (req->flags & BF_READ_NULL || s == SV_STSHUTW || s == SV_STCLOSE) {
 			EV_FD_CLR(t->cli_fd, DIR_RD);
 			tv_eternity(&req->rex);
-			shutdown(t->cli_fd, SHUT_RD);
 			t->cli_state = CL_STSHUTR;
 			return 1;
 		}	
@@ -1986,7 +1984,6 @@ int process_cli(struct session *t)
 		else if (tv_cmp2_ms(&req->rex, &now) <= 0) {
 			EV_FD_CLR(t->cli_fd, DIR_RD);
 			tv_eternity(&req->rex);
-			shutdown(t->cli_fd, SHUT_RD);
 			t->cli_state = CL_STSHUTR;
 			if (!(t->flags & SN_ERR_MASK))
 				t->flags |= SN_ERR_CLITO;
@@ -2556,7 +2553,6 @@ int process_srv(struct session *t)
 			                  rep->l >= rep->rlim - rep->data)) {
 				EV_FD_CLR(t->srv_fd, DIR_RD);
 				tv_eternity(&rep->rex);
-				shutdown(t->srv_fd, SHUT_RD);
 				t->srv_state = SV_STSHUTR;
 				//fprintf(stderr,"%p:%s(%d), c=%d, s=%d\n", t, __FUNCTION__, __LINE__, t->cli_state, t->cli_state);
 				return 1;
@@ -3000,7 +2996,6 @@ int process_srv(struct session *t)
 		else if (rep->flags & BF_READ_NULL || c == CL_STSHUTW || c == CL_STCLOSE) {
 			EV_FD_CLR(t->srv_fd, DIR_RD);
 			tv_eternity(&rep->rex);
-			shutdown(t->srv_fd, SHUT_RD);
 			t->srv_state = SV_STSHUTR;
 			//fprintf(stderr,"%p:%s(%d), c=%d, s=%d\n", t, __FUNCTION__, __LINE__, t->cli_state, t->cli_state);
 			return 1;
@@ -3023,7 +3018,6 @@ int process_srv(struct session *t)
 		else if (tv_cmp2_ms(&rep->rex, &now) <= 0) {
 			EV_FD_CLR(t->srv_fd, DIR_RD);
 			tv_eternity(&rep->rex);
-			shutdown(t->srv_fd, SHUT_RD);
 			t->srv_state = SV_STSHUTR;
 			if (!(t->flags & SN_ERR_MASK))
 				t->flags |= SN_ERR_SRVTO;

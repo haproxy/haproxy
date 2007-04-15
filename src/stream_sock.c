@@ -134,7 +134,10 @@ int stream_sock_read(int fd) {
 			retval = 1;     // connection closed
 			break;
 		}
-		else if (errno == EAGAIN) {/* ignore EAGAIN */
+		else if (errno == EAGAIN) {
+			/* Ignore EAGAIN but inform the poller that there is
+			 * nothing to read left.
+			 */
 			retval = 0;
 			break;
 		}
