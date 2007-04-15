@@ -22,6 +22,7 @@
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/mini-clist.h>
+#include <common/standard.h>
 #include <common/time.h>
 
 #include <types/global.h>
@@ -47,7 +48,7 @@
  * remaining servers on the proxy and transfers queued sessions whenever
  * possible to other servers.
  */
-void set_server_down(struct server *s)
+static void set_server_down(struct server *s)
 {
 	struct pendconn *pc, *pc_bck, *pc_end;
 	struct session *sess;
@@ -102,25 +103,31 @@ void set_server_down(struct server *s)
 /*
  * This function is used only for server health-checks. It handles
  * the connection acknowledgement. If the proxy requires HTTP health-checks,
- * it sends the request. In other cases, it returns 1 if the socket is OK,
- * or -1 if an error occured.
+ * it sends the request. In other cases, it returns 1 in s->result if the
+ * socket is OK, or -1 if an error occured.
+ * The function itself returns 0 if it needs some polling before being called
+ * again, otherwise 1.
  */
-int event_srv_chk_w(int fd)
+static int event_srv_chk_w(int fd)
 {
+	__label__ out_wakeup, out_nowake;
 	struct task *t = fdtab[fd].owner;
 	struct server *s = t->context;
 	int skerr;
 	socklen_t lskerr = sizeof(skerr);
 
 	skerr = 1;
-	if ((getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr) == -1)
-	    || (skerr != 0)) {
+	if (unlikely(fdtab[fd].state == FD_STERROR ||
+		     (fdtab[fd].ev & FD_POLL_ERR) ||
+		     (getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr) == -1) ||
+		     (skerr != 0))) {
 		/* in case of TCP only, this tells us if the connection failed */
 		s->result = -1;
 		fdtab[fd].state = FD_STERROR;
-		EV_FD_CLR(fd, DIR_WR);
+		goto out_wakeup;
 	}
-	else if (s->result != -1) {
+
+	if (s->result != -1) {
 		/* we don't want to mark 'UP' a server on which we detected an error earlier */
 		if ((s->proxy->options & PR_O_HTTP_CHK) ||
 		    (s->proxy->options & PR_O_SSL3_CHK)) {
@@ -142,7 +149,11 @@ int event_srv_chk_w(int fd)
 #endif
 			if (ret == s->proxy->check_len) {
 				EV_FD_SET(fd, DIR_RD);   /* prepare for reading reply */
-				EV_FD_CLR(fd, DIR_WR);   /* nothing more to write */
+				goto out_nowake;
+			}
+			else if (ret == 0 || errno == EAGAIN) {
+				/* we want some polling to happen first */
+				fdtab[fd].ev &= ~FD_POLL_WR;
 				return 0;
 			}
 			else {
@@ -155,9 +166,12 @@ int event_srv_chk_w(int fd)
 			s->result = 1;
 		}
 	}
-
+ out_wakeup:
 	task_wakeup(&rq, t);
-	return 0;
+ out_nowake:
+	EV_FD_CLR(fd, DIR_WR);   /* nothing more to write */
+	fdtab[fd].ev &= ~FD_POLL_WR;
+	return 1;
 }
 
 
@@ -167,10 +181,12 @@ int event_srv_chk_w(int fd)
  * server replies HTTP 2xx or 3xx (valid responses), or if it returns at least
  * 5 bytes in response to SSL HELLO. The principle is that this is enough to
  * distinguish between an SSL server and a pure TCP relay. All other cases will
- * return -1. The function returns 0.
+ * return -1. The function returns 0 if it needs to be called again after some
+ * polling, otherwise non-zero..
  */
-int event_srv_chk_r(int fd)
+static int event_srv_chk_r(int fd)
 {
+	__label__ out_wakeup;
 	char reply[64];
 	int len, result;
 	struct task *t = fdtab[fd].owner;
@@ -179,24 +195,39 @@ int event_srv_chk_r(int fd)
 	socklen_t lskerr = sizeof(skerr);
 
 	result = len = -1;
-	if (!getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr) && !skerr) {
-#ifndef MSG_NOSIGNAL
-		len = recv(fd, reply, sizeof(reply), 0);
-#else
-		/* Warning! Linux returns EAGAIN on SO_ERROR if data are still available
-		 * but the connection was closed on the remote end. Fortunately, recv still
-		 * works correctly and we don't need to do the getsockopt() on linux.
-		 */
-		len = recv(fd, reply, sizeof(reply), MSG_NOSIGNAL);
-#endif
-		if (((s->proxy->options & PR_O_HTTP_CHK) &&
-		     (len >= sizeof("HTTP/1.0 000")) &&
-		    !memcmp(reply, "HTTP/1.", 7) &&
-		    (reply[9] == '2' || reply[9] == '3')) /* 2xx or 3xx */
-		    || ((s->proxy->options & PR_O_SSL3_CHK) && (len >= 5) &&
-			(reply[0] == 0x15 || reply[0] == 0x16))) /* alert or handshake */
-			result = 1;
+
+	if (unlikely(fdtab[fd].state == FD_STERROR ||
+		     (fdtab[fd].ev & FD_POLL_ERR) ||
+		     (getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr) == -1) ||
+		     (skerr != 0))) {
+		/* in case of TCP only, this tells us if the connection failed */
+		s->result = -1;
+		fdtab[fd].state = FD_STERROR;
+		goto out_wakeup;
 	}
+
+#ifndef MSG_NOSIGNAL
+	len = recv(fd, reply, sizeof(reply), 0);
+#else
+	/* Warning! Linux returns EAGAIN on SO_ERROR if data are still available
+	 * but the connection was closed on the remote end. Fortunately, recv still
+	 * works correctly and we don't need to do the getsockopt() on linux.
+	 */
+	len = recv(fd, reply, sizeof(reply), MSG_NOSIGNAL);
+#endif
+	if (unlikely(len < 0 && errno == EAGAIN)) {
+		/* we want some polling to happen first */
+		fdtab[fd].ev &= ~FD_POLL_RD;
+		return 0;
+	}
+
+	if (((s->proxy->options & PR_O_HTTP_CHK) &&
+	     (len >= sizeof("HTTP/1.0 000")) &&
+	     !memcmp(reply, "HTTP/1.", 7) &&
+	     (reply[9] == '2' || reply[9] == '3')) /* 2xx or 3xx */
+	    || ((s->proxy->options & PR_O_SSL3_CHK) && (len >= 5) &&
+		(reply[0] == 0x15 || reply[0] == 0x16))) /* alert or handshake */
+		result = 1;
 
 	if (result == -1)
 		fdtab[fd].state = FD_STERROR;
@@ -204,9 +235,11 @@ int event_srv_chk_r(int fd)
 	if (s->result != -1)
 		s->result = result;
 
+ out_wakeup:
 	EV_FD_CLR(fd, DIR_RD);
 	task_wakeup(&rq, t);
-	return 0;
+	fdtab[fd].ev &= ~FD_POLL_RD;
+	return 1;
 }
 
 /*

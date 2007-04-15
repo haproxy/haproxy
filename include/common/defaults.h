@@ -64,6 +64,13 @@
 #define MAX_READ_POLL_LOOPS 4
 #endif
 
+// same, but for writes. Generally, it's enough to write twice: one time for
+// first half of the buffer, and a second time for the last half after a
+// wrap-around.
+#ifndef MAX_WRITE_POLL_LOOPS
+#define MAX_WRITE_POLL_LOOPS 2
+#endif
+
 // the number of bytes returned by a read below which we will not try to
 // poll the socket again. Generally, return values below the MSS are worthless
 // to try again.
