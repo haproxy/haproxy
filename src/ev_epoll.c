@@ -29,9 +29,9 @@
 #include <common/epoll.h>
 #include <errno.h>
 #include <sys/syscall.h>
-_syscall1 (int, epoll_create, int, size);
-_syscall4 (int, epoll_ctl, int, epfd, int, op, int, fd, struct epoll_event *, event);
-_syscall4 (int, epoll_wait, int, epfd, struct epoll_event *, events, int, maxevents, int, timeout);
+static _syscall1 (int, epoll_create, int, size);
+static _syscall4 (int, epoll_ctl, int, epfd, int, op, int, fd, struct epoll_event *, event);
+static _syscall4 (int, epoll_wait, int, epfd, struct epoll_event *, events, int, maxevents, int, timeout);
 #else
 #include <sys/epoll.h>
 #endif

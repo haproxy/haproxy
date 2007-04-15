@@ -90,9 +90,10 @@ struct epoll_event {
 #define __NR_epoll_wait   256
 #endif
 
-extern int epoll_create(int size);
-extern int epoll_ctl(int epfd, int op, int fd, struct epoll_event * event);
-extern int epoll_wait(int epfd, struct epoll_event * events, int maxevents, int timeout);
+/* Those are our self-defined functions */
+static int epoll_create(int size);
+static int epoll_ctl(int epfd, int op, int fd, struct epoll_event * event);
+static int epoll_wait(int epfd, struct epoll_event * events, int maxevents, int timeout);
 
 #endif /* _COMMON_EPOLL_H */
 
