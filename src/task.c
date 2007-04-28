@@ -12,8 +12,8 @@
 
 #include <common/config.h>
 #include <common/mini-clist.h>
-#include <common/time.h>
 #include <common/standard.h>
+#include <common/time.h>
 
 #include <proto/task.h>
 #include <types/task.h>
@@ -106,7 +106,7 @@ int wake_expired_tasks()
 	tree64_foreach(&timer_wq, data, stack, slen) {
 		task = LIST_ELEM(data, struct task *, qlist);
 
-		if (unlikely(tv_cmp_ge(&task->expire, &now) > 0)) {
+		if (!tv_isbefore(&task->expire, &now)) {
 			next_time = tv_remain(&now, &task->expire);
 			break;
 		}

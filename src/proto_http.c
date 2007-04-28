@@ -524,7 +524,6 @@ static http_meth_t find_http_meth(const char *str, const int len)
 
 }
 
-
 /* Processes the client and server jobs of a session task, then
  * puts it back to the wait queue in a clean state, or
  * cleans up its resources if it must be deleted. Returns
@@ -546,14 +545,14 @@ int process_session(struct task *t)
 	} while (fsm_resync);
 
 	if (s->cli_state != CL_STCLOSE || s->srv_state != SV_STCLOSE) {
-		struct timeval min1, min2;
 		s->req->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE;
 		s->rep->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE;
 
-		tv_min(&min1, &s->req->rex, &s->req->wex);
-		tv_min(&min2, &s->rep->rex, &s->rep->wex);
-		tv_min(&min1, &min1, &s->req->cex);
-		tv_min(&t->expire, &min1, &min2);
+		t->expire = s->req->rex;
+		tv_min(&t->expire, &s->req->rex, &s->req->wex);
+		tv_bound(&t->expire, &s->req->cex);
+		tv_bound(&t->expire, &s->rep->rex);
+		tv_bound(&t->expire, &s->rep->wex);
 
 		/* restore t to its place in the task list */
 		task_queue(t);

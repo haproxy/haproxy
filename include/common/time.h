@@ -26,7 +26,18 @@
 #include <sys/time.h>
 #include <common/config.h>
 
-#define TIME_ETERNITY		-1
+/* eternity when exprimed in timeval */
+#ifndef TV_ETERNITY
+#define TV_ETERNITY     (~0UL)
+#endif
+
+/* eternity when exprimed in ms */
+#ifndef TV_ETERNITY_MS
+#define TV_ETERNITY_MS  (-1)
+#endif
+
+#define TIME_ETERNITY   (TV_ETERNITY_MS)
+
 
 /* returns the lowest delay amongst <old> and <new>, and respects TIME_ETERNITY */
 #define MINTIME(old, new)	(((new)<0)?(old):(((old)<0||(new)<(old))?(new):(old)))
@@ -72,7 +83,6 @@ REGPRM2 int tv_cmp2_ms(const struct timeval *tv1, const struct timeval *tv2);
  */
 REGPRM2 unsigned long tv_remain2(const struct timeval *tv1, const struct timeval *tv2);
 
-
 /* sets <tv> to the current time */
 REGPRM1 static inline struct timeval *tv_now(struct timeval *tv)
 {
@@ -87,13 +97,13 @@ REGPRM1 static inline struct timeval *tv_now(struct timeval *tv)
  */
 REGPRM2 static inline int tv_cmp(const struct timeval *tv1, const struct timeval *tv2)
 {
-	if (tv1->tv_sec < tv2->tv_sec)
+	if ((unsigned)tv1->tv_sec < (unsigned)tv2->tv_sec)
 		return -1;
-	else if (tv1->tv_sec > tv2->tv_sec)
+	else if ((unsigned)tv1->tv_sec > (unsigned)tv2->tv_sec)
 		return 1;
-	else if (tv1->tv_usec < tv2->tv_usec)
+	else if ((unsigned)tv1->tv_usec < (unsigned)tv2->tv_usec)
 		return -1;
-	else if (tv1->tv_usec > tv2->tv_usec)
+	else if ((unsigned)tv1->tv_usec > (unsigned)tv2->tv_usec)
 		return 1;
 	else
 		return 0;
@@ -104,11 +114,11 @@ REGPRM2 static inline int tv_cmp(const struct timeval *tv1, const struct timeval
  */
 REGPRM2 static inline int tv_cmp_ge(const struct timeval *tv1, const struct timeval *tv2)
 {
-	if (tv1->tv_sec > tv2->tv_sec)
+	if ((unsigned)tv1->tv_sec > (unsigned)tv2->tv_sec)
 		return 1;
-	if (tv1->tv_sec < tv2->tv_sec)
+	if ((unsigned)tv1->tv_sec < (unsigned)tv2->tv_sec)
 		return 0;
-	if (tv1->tv_usec >= tv2->tv_usec)
+	if ((unsigned)tv1->tv_usec >= (unsigned)tv2->tv_usec)
 		return 1;
 	return 0;
 }
@@ -122,7 +132,7 @@ REGPRM2 static inline unsigned long tv_diff(const struct timeval *tv1, const str
 	unsigned long ret;
   
 	ret = (tv2->tv_sec - tv1->tv_sec) * 1000;
-	if (tv2->tv_usec > tv1->tv_usec)
+	if ((unsigned)tv2->tv_usec > (unsigned)tv1->tv_usec)
 		ret += (tv2->tv_usec - tv1->tv_usec) / 1000;
 	else
 		ret -= (tv1->tv_usec - tv2->tv_usec) / 1000;
@@ -142,7 +152,7 @@ REGPRM2 static inline unsigned long tv_remain(const struct timeval *tv1, const s
 		return 0; /* event elapsed */
 
 	ret = (tv2->tv_sec - tv1->tv_sec) * 1000;
-	if (tv2->tv_usec > tv1->tv_usec)
+	if ((unsigned)tv2->tv_usec > (unsigned)tv1->tv_usec)
 		ret += (tv2->tv_usec - tv1->tv_usec) / 1000;
 	else
 		ret -= (tv1->tv_usec - tv2->tv_usec) / 1000;
@@ -151,42 +161,75 @@ REGPRM2 static inline unsigned long tv_remain(const struct timeval *tv1, const s
 
 
 /*
- * zeroes a struct timeval
+ * sets a struct timeval to its highest value so that it can never happen
+ * note that only tv_usec is necessary to detect it since a tv_usec > 999999
+ * is normally not possible.
+ *
  */
 
 REGPRM1 static inline struct timeval *tv_eternity(struct timeval *tv)
 {
+	tv->tv_sec = tv->tv_usec = TV_ETERNITY;
+	return tv;
+}
+
+/*
+ * sets a struct timeval to 0
+ *
+ */
+REGPRM1 static inline struct timeval *tv_zero(struct timeval *tv) {
 	tv->tv_sec = tv->tv_usec = 0;
 	return tv;
 }
 
 /*
- * returns 1 if tv is null, else 0
+ * returns non null if tv is [eternity], otherwise 0.
  */
-REGPRM1 static inline int tv_iseternity(const struct timeval *tv)
-{
-	if ((tv->tv_sec | tv->tv_usec) == 0)
-		return 1;
-	else
-		return 0;
-}
+#define tv_iseternity(tv)       ((tv)->tv_usec == TV_ETERNITY)
 
 /*
- * returns the first event between tv1 and tv2 into tvmin.
- * a zero tv is ignored. tvmin is returned.
+ * returns non null if tv is [0], otherwise 0.
  */
-REGPRM3 static inline const struct timeval *tv_min(struct timeval *tvmin,
-				     const struct timeval *tv1,
-				     const struct timeval *tv2)
-{
+#define tv_iszero(tv)           (((tv)->tv_sec | (tv)->tv_usec) == 0)
 
-	if (tv_cmp2(tv1, tv2) <= 0)
-		*tvmin = *tv1;
-	else
-		*tvmin = *tv2;
+/*
+ * compares <tv1> and <tv2> : returns 1 if <tv1> is before <tv2>, otherwise 0.
+ * This should be very fast because it's used in schedulers.
+ * It has been optimized to return 1  (so call it in a loop which continues
+ * as long as tv1<=tv2)
+ */
 
-	return tvmin;
-}
+#define tv_isbefore(tv1, tv2)                                               \
+	(unlikely((unsigned)(tv1)->tv_sec < (unsigned)(tv2)->tv_sec) ? 1 :  \
+	 (unlikely((unsigned)(tv1)->tv_sec > (unsigned)(tv2)->tv_sec) ? 0 : \
+	  unlikely((unsigned)(tv1)->tv_usec < (unsigned)(tv2)->tv_usec)))
+
+/*
+ * returns the first event between <tv1> and <tv2> into <tvmin>.
+ * a zero tv is ignored. <tvmin> is returned. If <tvmin> is known
+ * to be the same as <tv1> or <tv2>, it is recommended to use
+ * tv_bound instead.
+ */
+#define tv_min(tvmin, tv1, tv2) ({      \
+        if (tv_isbefore(tv1, tv2)) {    \
+                *tvmin = *tv1;          \
+        }                               \
+        else {                          \
+                *tvmin = *tv2;          \
+        }                               \
+        tvmin;                          \
+})
+
+/*
+ * returns the first event between <tv1> and <tv2> into <tvmin>.
+ * a zero tv is ignored. <tvmin> is returned. This function has been
+ * optimized to be called as tv_min(a,a,b) or tv_min(b,a,b).
+ */
+#define tv_bound(tv1, tv2) ({      \
+        if (tv_isbefore(tv2, tv1)) \
+                  *tv1 = *tv2;     \
+        tv1;                       \
+})
 
 
 #endif /* _COMMON_TIME_H */

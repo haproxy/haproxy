@@ -41,19 +41,21 @@ REGPRM3 struct timeval *tv_delayfrom(struct timeval *tv, const struct timeval *f
  */
 REGPRM2 int tv_cmp_ms(const struct timeval *tv1, const struct timeval *tv2)
 {
-	if (tv1->tv_sec == tv2->tv_sec) {
-		if (tv2->tv_usec >= tv1->tv_usec + 1000)
+	if ((unsigned)tv1->tv_sec == (unsigned)tv2->tv_sec) {
+		if ((unsigned)tv2->tv_usec >= (unsigned)tv1->tv_usec + 1000)
 			return -1;
-		else if (tv1->tv_usec >= tv2->tv_usec + 1000)
+		else if ((unsigned)tv1->tv_usec >= (unsigned)tv2->tv_usec + 1000)
 			return 1;
 		else
 			return 0;
 	}
-	else if ((tv2->tv_sec > tv1->tv_sec + 1) ||
-		 ((tv2->tv_sec == tv1->tv_sec + 1) && (tv2->tv_usec + 1000000 >= tv1->tv_usec + 1000)))
+	else if (((unsigned)tv2->tv_sec > (unsigned)tv1->tv_sec + 1) ||
+		 (((unsigned)tv2->tv_sec == (unsigned)tv1->tv_sec + 1) &&
+		  ((unsigned)tv2->tv_usec + 1000000 >= (unsigned)tv1->tv_usec + 1000)))
 		return -1;
-	else if ((tv1->tv_sec > tv2->tv_sec + 1) ||
-		 ((tv1->tv_sec == tv2->tv_sec + 1) && (tv1->tv_usec + 1000000 >= tv2->tv_usec + 1000)))
+	else if (((unsigned)tv1->tv_sec > (unsigned)tv2->tv_sec + 1) ||
+		 (((unsigned)tv1->tv_sec == (unsigned)tv2->tv_sec + 1) &&
+		  ((unsigned)tv1->tv_usec + 1000000 >= (unsigned)tv2->tv_usec + 1000)))
 		return 1;
 	else
 		return 0;
@@ -61,45 +63,32 @@ REGPRM2 int tv_cmp_ms(const struct timeval *tv1, const struct timeval *tv2)
 
 /*
  * compares <tv1> and <tv2> : returns 0 if tv1 < tv2, 1 if tv1 >= tv2,
- * considering that 0 is the eternity.
+ * assuming that TV_ETERNITY is greater than everything.
  */
 REGPRM2 int tv_cmp_ge2(const struct timeval *tv1, const struct timeval *tv2)
 {
-	if (unlikely(tv_iseternity(tv1)))
+	if ((unsigned)tv1->tv_sec > (unsigned)tv2->tv_sec)
 		return 1;
-	if (unlikely(tv_iseternity(tv2)))
-		return 0; /* same */
-
-	if (tv1->tv_sec > tv2->tv_sec)
-		return 1;
-	if (tv1->tv_sec < tv2->tv_sec)
+	if ((unsigned)tv1->tv_sec < (unsigned)tv2->tv_sec)
 		return 0;
-	if (tv1->tv_usec >= tv2->tv_usec)
+	if ((unsigned)tv1->tv_usec >= (unsigned)tv2->tv_usec)
 		return 1;
 	return 0;
 }
 
 /*
  * compares <tv1> and <tv2> : returns 0 if equal, -1 if tv1 < tv2, 1 if tv1 > tv2,
- * considering that 0 is the eternity.
+ * assuming that TV_ETERNITY is greater than everything.
  */
 REGPRM2 int tv_cmp2(const struct timeval *tv1, const struct timeval *tv2)
 {
-	if (unlikely(tv_iseternity(tv1)))
-		if (unlikely(tv_iseternity(tv2)))
-			return 0; /* same */
-		else
-			return 1; /* tv1 later than tv2 */
-	else if (likely(tv_iseternity(tv2)))
-		return -1; /* tv2 later than tv1 */
-    
-	if (tv1->tv_sec > tv2->tv_sec)
+	if ((unsigned)tv1->tv_sec > (unsigned)tv2->tv_sec)
 		return 1;
-	else if (tv1->tv_sec < tv2->tv_sec)
+	else if ((unsigned)tv1->tv_sec < (unsigned)tv2->tv_sec)
 		return -1;
-	else if (tv1->tv_usec > tv2->tv_usec)
+	else if ((unsigned)tv1->tv_usec > (unsigned)tv2->tv_usec)
 		return 1;
-	else if (tv1->tv_usec < tv2->tv_usec)
+	else if ((unsigned)tv1->tv_usec < (unsigned)tv2->tv_usec)
 		return -1;
 	else
 		return 0;
@@ -107,7 +96,7 @@ REGPRM2 int tv_cmp2(const struct timeval *tv1, const struct timeval *tv2)
 
 /*
  * compares <tv1> and <tv2> modulo 1 ms: returns 0 if equal, -1 if tv1 < tv2, 1 if tv1 > tv2,
- * considering that 0 is the eternity.
+ * assuming that TV_ETERNITY is greater than everything.
  */
 REGPRM2 int tv_cmp2_ms(const struct timeval *tv1, const struct timeval *tv2)
 {
@@ -119,19 +108,21 @@ REGPRM2 int tv_cmp2_ms(const struct timeval *tv1, const struct timeval *tv2)
 	else if (tv_iseternity(tv2))
 		return -1; /* tv2 later than tv1 */
     
-	if (tv1->tv_sec == tv2->tv_sec) {
-		if (tv1->tv_usec >= tv2->tv_usec + 1000)
+	if ((unsigned)tv1->tv_sec == (unsigned)tv2->tv_sec) {
+		if ((unsigned)tv1->tv_usec >= (unsigned)tv2->tv_usec + 1000)
 			return 1;
-		else if (tv2->tv_usec >= tv1->tv_usec + 1000)
+		else if ((unsigned)tv2->tv_usec >= (unsigned)tv1->tv_usec + 1000)
 			return -1;
 		else
 			return 0;
 	}
-	else if ((tv1->tv_sec > tv2->tv_sec + 1) ||
-		 ((tv1->tv_sec == tv2->tv_sec + 1) && (tv1->tv_usec + 1000000 >= tv2->tv_usec + 1000)))
+	else if (((unsigned)tv1->tv_sec > (unsigned)tv2->tv_sec + 1) ||
+		 (((unsigned)tv1->tv_sec == (unsigned)tv2->tv_sec + 1) &&
+		  ((unsigned)tv1->tv_usec + 1000000 >= (unsigned)tv2->tv_usec + 1000)))
 		return 1;
-	else if ((tv2->tv_sec > tv1->tv_sec + 1) ||
-		 ((tv2->tv_sec == tv1->tv_sec + 1) && (tv2->tv_usec + 1000000 >= tv1->tv_usec + 1000)))
+	else if (((unsigned)tv2->tv_sec > (unsigned)tv1->tv_sec + 1) ||
+		 (((unsigned)tv2->tv_sec == (unsigned)tv1->tv_sec + 1) &&
+		  ((unsigned)tv2->tv_usec + 1000000 >= (unsigned)tv1->tv_usec + 1000)))
 		return -1;
 	else
 		return 0;
@@ -153,7 +144,7 @@ REGPRM2 unsigned long tv_remain2(const struct timeval *tv1, const struct timeval
 		return 0; /* event elapsed */
 
 	ret = (tv2->tv_sec - tv1->tv_sec) * 1000;
-	if (tv2->tv_usec > tv1->tv_usec)
+	if ((unsigned)tv2->tv_usec > (unsigned)tv1->tv_usec)
 		ret += (tv2->tv_usec - tv1->tv_usec) / 1000;
 	else
 		ret -= (tv1->tv_usec - tv2->tv_usec) / 1000;
@@ -180,7 +171,7 @@ REGPRM2 unsigned long tv_delta(const struct timeval *tv1, const struct timeval *
 		tv2 = tmp;
 	}
 	ret = (tv1->tv_sec - tv2->tv_sec) * 1000;
-	if (tv1->tv_usec > tv2->tv_usec)
+	if ((unsigned)tv1->tv_usec > (unsigned)tv2->tv_usec)
 		ret += (tv1->tv_usec - tv2->tv_usec) / 1000;
 	else
 		ret -= (tv2->tv_usec - tv1->tv_usec) / 1000;
