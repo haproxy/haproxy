@@ -1,6 +1,6 @@
 /*
  * list.h : list manipulation macros and structures.
- * Copyright 2002-2006 Willy Tarreau <w@1wt.eu>
+ * Copyright 2002-2007 Willy Tarreau <w@1wt.eu>
  *
  */
 
@@ -30,6 +30,44 @@ struct list {
  *   - next = pointer to next element's prev. NULL = end.
  *
  */
+
+/* adds an element at the beginning of a dual-linked list ; returns the element */
+#define DLIST_ADD(lh, el) ({ typeof(el) __ret = (el); __ret->n = (void *)(lh); __ret->p = (void *)&(lh); if (__ret->n != NULL) __ret->n->p = __ret; (lh) = (typeof(lh))&__ret->n; __ret; })
+
+/* removes an element from a dual-linked list and returns it */
+#define DLIST_DEL(el) ({ typeof(el) __ret = (el); if (__ret->n != NULL) __ret->n->p = __ret->p; __ret->p->n = __ret->n; __ret; })
+
+/*
+ * iterates through a list of items of type "<struct_type>" which are
+ * linked via a "struct list" member named <struct_member>. The head of the
+ * list is stored at a location designed by <list_head>, which should be a
+ * "struct list *". A variable <end_item> of type "<struct_type>" will
+ * be used as temporary end of list pointer. It can be derived from <list_head>
+ * since this one is only used before. <list_head> will be modified except for
+ * foreach_dlist_item_cst which is slightly slower.
+ * Major difference between FOREACH_ITEM is that it stops at NULL.
+ * Example: foreach_dlist_item(cur_node, args, struct node *, list) { ... };
+ *          foreach_dlist_item_cst(cur_node, &node->args, struct node *, list) { ... };
+ */
+#define foreach_dlist_item_cst(iterator, list_head, struct_type, struct_member)	\
+	for ((iterator) = LIST_ELEM(&(list_head), struct_type, struct_member.n);	\
+	     ((iterator)->struct_member.n != NULL) && \
+             (((iterator) = LIST_ELEM((iterator)->struct_member.n, struct_type, struct_member.n)), 1);\
+	     )
+
+#define foreach_dlist_item(iterator, var_list_head, struct_type, struct_member)	\
+	while ((var_list_head != NULL) &&			\
+	       ((var_list_head=((iterator)=LIST_ELEM(var_list_head, struct_type, struct_member.n))->struct_member.n), 1))
+
+/*
+ * Like foreach_dlist_item, except that this one only operates on the head of
+ * the list. It's to the inner instructions to iterate the list head. If not,
+ * this will be an endless loop.
+ */
+#define while_dlist_item(iterator, var_list_head, struct_type, struct_member)	\
+	while ((var_list_head != NULL) &&			\
+	       (((iterator)=LIST_ELEM(var_list_head, struct_type, struct_member.n)),1))
+
 
 /****** circular lists ********/
 
