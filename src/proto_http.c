@@ -544,7 +544,7 @@ int process_session(struct task *t)
 		//fprintf(stderr,"after_srv:cli=%d, srv=%d\n", s->cli_state, s->srv_state);
 	} while (fsm_resync);
 
-	if (s->cli_state != CL_STCLOSE || s->srv_state != SV_STCLOSE) {
+	if (likely(s->cli_state != CL_STCLOSE || s->srv_state != SV_STCLOSE)) {
 		s->req->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE;
 		s->rep->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE;
 
@@ -573,7 +573,8 @@ int process_session(struct task *t)
 		s->be->beconn--;
 	actconn--;
     
-	if ((global.mode & MODE_DEBUG) && (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))) {
+	if (unlikely((global.mode & MODE_DEBUG) &&
+		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
 		int len;
 		len = sprintf(trash, "%08x:%s.closed[%04x:%04x]\n",
 			      s->uniq_id, s->be->id,
