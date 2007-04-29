@@ -326,11 +326,6 @@ REGPRM2 static void _do_poll(struct poller *p, int wait_time)
 			}
 			epoll_ctl(epoll_fd, opcode, fd, &ev);
 
-			/* We don't want epoll_wait() to wait for certain events
-			 * which might never come.
-			 */
-			wait_time = 0;
-
 			if (status & EPOLLIN) {
 				fd_list[fd].e &= ~FD_EV_MASK_R;
 				fd_list[fd].e |= FD_EV_WAIT_R;
