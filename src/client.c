@@ -409,15 +409,18 @@ int event_accept(int fd) {
 		tv_eternity(&s->req->cex);
 		tv_eternity(&s->rep->rex);
 		tv_eternity(&s->rep->wex);
+		tv_eternity(&t->expire);
 
 		if (s->fe->clitimeout) {
-			if (EV_FD_ISSET(cfd, DIR_RD))
+			if (EV_FD_ISSET(cfd, DIR_RD)) {
 				tv_ms_add(&s->req->rex, &now, s->fe->clitimeout);
-			if (EV_FD_ISSET(cfd, DIR_WR))
+				t->expire = s->req->rex;
+			}
+			if (EV_FD_ISSET(cfd, DIR_WR)) {
 				tv_ms_add(&s->rep->wex, &now, s->fe->clitimeout);
+				t->expire = s->req->rex;
+			}
 		}
-
-		tv_min(&t->expire, &s->req->rex, &s->rep->wex);
 
 		task_queue(t);
 
