@@ -1525,7 +1525,7 @@ int process_cli(struct session *t)
 			}
 
 			/* 3: has the read timeout expired ? */
-			else if (unlikely(tv_cmp2_ms(&req->rex, &now) <= 0)) {
+			else if (unlikely(tv_cmp2_le(&req->rex, &now))) {
 				/* read timeout : give up with an error message. */
 				txn->status = 408;
 				client_retnclose(t, error_message(t, HTTP_ERR_408));
@@ -1980,7 +1980,7 @@ int process_cli(struct session *t)
 			return 1;
 		}
 		/* read timeout */
-		else if (tv_cmp2_ms(&req->rex, &now) <= 0) {
+		else if (tv_cmp2_le(&req->rex, &now)) {
 			EV_FD_CLR(t->cli_fd, DIR_RD);
 			tv_eternity(&req->rex);
 			t->cli_state = CL_STSHUTR;
@@ -1997,7 +1997,7 @@ int process_cli(struct session *t)
 			return 1;
 		}	
 		/* write timeout */
-		else if (tv_cmp2_ms(&rep->wex, &now) <= 0) {
+		else if (tv_cmp2_le(&rep->wex, &now)) {
 			EV_FD_CLR(t->cli_fd, DIR_WR);
 			tv_eternity(&rep->wex);
 			shutdown(t->cli_fd, SHUT_WR);
@@ -2089,7 +2089,7 @@ int process_cli(struct session *t)
 			t->cli_state = CL_STCLOSE;
 			return 1;
 		}
-		else if (tv_cmp2_ms(&rep->wex, &now) <= 0) {
+		else if (tv_cmp2_le(&rep->wex, &now)) {
 			tv_eternity(&rep->wex);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
@@ -2161,7 +2161,7 @@ int process_cli(struct session *t)
 			t->cli_state = CL_STCLOSE;
 			return 1;
 		}
-		else if (tv_cmp2_ms(&req->rex, &now) <= 0) {
+		else if (tv_cmp2_le(&req->rex, &now)) {
 			tv_eternity(&req->rex);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
@@ -2258,7 +2258,7 @@ int process_srv(struct session *t)
 				 * already set the connect expiration date to the right
 				 * timeout. We just have to check that it has not expired.
 				 */
-				if (tv_cmp2_ms(&req->cex, &now) > 0)
+				if (!tv_cmp2_le(&req->cex, &now))
 					return 0;
 
 				/* We will set the queue timer to the time spent, just for
@@ -2280,7 +2280,7 @@ int process_srv(struct session *t)
 			 * to any other session to release it and wake us up again.
 			 */
 			if (t->pend_pos) {
-				if (tv_cmp2_ms(&req->cex, &now) > 0)
+				if (!tv_cmp2_le(&req->cex, &now))
 					return 0;
 				else {
 					/* we've been waiting too long here */
@@ -2325,7 +2325,7 @@ int process_srv(struct session *t)
 			srv_close_with_err(t, SN_ERR_CLICL, SN_FINST_C, 0, NULL);
 			return 1;
 		}
-		if (!(req->flags & BF_WRITE_STATUS) && tv_cmp2_ms(&req->cex, &now) > 0) {
+		if (!(req->flags & BF_WRITE_STATUS) && !tv_cmp2_le(&req->cex, &now)) {
 			//fprintf(stderr,"1: c=%d, s=%d, now=%d.%06d, exp=%d.%06d\n", c, s, now.tv_sec, now.tv_usec, req->cex.tv_sec, req->cex.tv_usec);
 			return 0; /* nothing changed */
 		}
@@ -2560,7 +2560,7 @@ int process_srv(struct session *t)
 			/* read timeout : return a 504 to the client.
 			 */
 			else if (unlikely(EV_FD_ISSET(t->srv_fd, DIR_RD) &&
-			                  tv_cmp2_ms(&rep->rex, &now) <= 0)) {
+			                  tv_cmp2_le(&rep->rex, &now))) {
 				tv_eternity(&rep->rex);
 				tv_eternity(&req->wex);
 				fd_delete(t->srv_fd);
@@ -2614,7 +2614,7 @@ int process_srv(struct session *t)
 			 * some work to do on the headers.
 			 */
 			else if (unlikely(EV_FD_ISSET(t->srv_fd, DIR_WR) &&
-					  tv_cmp2_ms(&req->wex, &now) <= 0)) {
+					  tv_cmp2_le(&req->wex, &now))) {
 				EV_FD_CLR(t->srv_fd, DIR_WR);
 				tv_eternity(&req->wex);
 				shutdown(t->srv_fd, SHUT_WR);
@@ -3014,7 +3014,7 @@ int process_srv(struct session *t)
 			return 1;
 		}
 		/* read timeout */
-		else if (tv_cmp2_ms(&rep->rex, &now) <= 0) {
+		else if (tv_cmp2_le(&rep->rex, &now)) {
 			EV_FD_CLR(t->srv_fd, DIR_RD);
 			tv_eternity(&rep->rex);
 			t->srv_state = SV_STSHUTR;
@@ -3025,7 +3025,7 @@ int process_srv(struct session *t)
 			return 1;
 		}	
 		/* write timeout */
-		else if (tv_cmp2_ms(&req->wex, &now) <= 0) {
+		else if (tv_cmp2_le(&req->wex, &now)) {
 			EV_FD_CLR(t->srv_fd, DIR_WR);
 			tv_eternity(&req->wex);
 			shutdown(t->srv_fd, SHUT_WR);
@@ -3120,7 +3120,7 @@ int process_srv(struct session *t)
 
 			return 1;
 		}
-		else if (tv_cmp2_ms(&req->wex, &now) <= 0) {
+		else if (tv_cmp2_le(&req->wex, &now)) {
 			//EV_FD_CLR(t->srv_fd, DIR_WR);
 			tv_eternity(&req->wex);
 			fd_delete(t->srv_fd);
@@ -3201,7 +3201,7 @@ int process_srv(struct session *t)
 
 			return 1;
 		}
-		else if (tv_cmp2_ms(&rep->rex, &now) <= 0) {
+		else if (tv_cmp2_le(&rep->rex, &now)) {
 			//EV_FD_CLR(t->srv_fd, DIR_RD);
 			tv_eternity(&rep->rex);
 			fd_delete(t->srv_fd);

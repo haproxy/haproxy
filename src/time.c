@@ -62,39 +62,6 @@ REGPRM2 int tv_cmp_ms(const struct timeval *tv1, const struct timeval *tv2)
 }
 
 /*
- * compares <tv1> and <tv2> : returns 0 if tv1 < tv2, 1 if tv1 >= tv2,
- * assuming that TV_ETERNITY is greater than everything.
- */
-REGPRM2 int tv_cmp_ge2(const struct timeval *tv1, const struct timeval *tv2)
-{
-	if ((unsigned)tv1->tv_sec > (unsigned)tv2->tv_sec)
-		return 1;
-	if ((unsigned)tv1->tv_sec < (unsigned)tv2->tv_sec)
-		return 0;
-	if ((unsigned)tv1->tv_usec >= (unsigned)tv2->tv_usec)
-		return 1;
-	return 0;
-}
-
-/*
- * compares <tv1> and <tv2> : returns 0 if equal, -1 if tv1 < tv2, 1 if tv1 > tv2,
- * assuming that TV_ETERNITY is greater than everything.
- */
-REGPRM2 int tv_cmp2(const struct timeval *tv1, const struct timeval *tv2)
-{
-	if ((unsigned)tv1->tv_sec > (unsigned)tv2->tv_sec)
-		return 1;
-	else if ((unsigned)tv1->tv_sec < (unsigned)tv2->tv_sec)
-		return -1;
-	else if ((unsigned)tv1->tv_usec > (unsigned)tv2->tv_usec)
-		return 1;
-	else if ((unsigned)tv1->tv_usec < (unsigned)tv2->tv_usec)
-		return -1;
-	else
-		return 0;
-}
-
-/*
  * compares <tv1> and <tv2> modulo 1 ms: returns 0 if equal, -1 if tv1 < tv2, 1 if tv1 > tv2,
  * assuming that TV_ETERNITY is greater than everything.
  */
@@ -126,6 +93,34 @@ REGPRM2 int tv_cmp2_ms(const struct timeval *tv1, const struct timeval *tv2)
 		return -1;
 	else
 		return 0;
+}
+
+/*
+ * compares <tv1> and <tv2> modulo 1 ms: returns 1 if tv1 <= tv2, 0 if tv1 > tv2,
+ * assuming that TV_ETERNITY is greater than everything. Returns 0 if tv1 is
+ * TV_ETERNITY, and always assumes that tv2 != TV_ETERNITY. Designed to replace
+ * occurrences of (tv_cmp2_ms(tv,now) <= 0).
+ */
+REGPRM2 int tv_cmp2_le(const struct timeval *tv1, const struct timeval *tv2)
+{
+	if (likely((unsigned)tv1->tv_sec > (unsigned)tv2->tv_sec + 1))
+		return 0;
+
+	if (likely((unsigned)tv1->tv_sec < (unsigned)tv2->tv_sec))
+		return 1;
+
+	if (likely((unsigned)tv1->tv_sec == (unsigned)tv2->tv_sec)) {
+		if ((unsigned)tv2->tv_usec >= (unsigned)tv1->tv_usec + 1000)
+			return 1;
+		else
+			return 0;
+	}
+
+	if (unlikely(((unsigned)tv1->tv_sec == (unsigned)tv2->tv_sec + 1) &&
+		     ((unsigned)tv1->tv_usec + 1000000 >= (unsigned)tv2->tv_usec + 1000)))
+		return 0;
+	else
+		return 1;
 }
 
 /*
