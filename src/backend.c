@@ -542,7 +542,7 @@ int connect_server(struct session *s)
 	}
 
 	if (s->be->contimeout)
-		tv_delayfrom(&s->req->cex, &now, s->be->contimeout);
+		tv_ms_add(&s->req->cex, &now, s->be->contimeout);
 	else
 		tv_eternity(&s->req->cex);
 	return SN_ERR_NONE;  /* connection is OK */
@@ -672,7 +672,7 @@ int srv_redispatch_connect(struct session *t)
 	case SRV_STATUS_QUEUED:
 		/* FIXME-20060503 : we should use the queue timeout instead */
 		if (t->be->contimeout)
-			tv_delayfrom(&t->req->cex, &now, t->be->contimeout);
+			tv_ms_add(&t->req->cex, &now, t->be->contimeout);
 		else
 			tv_eternity(&t->req->cex);
 		t->srv_state = SV_STIDLE;

@@ -152,7 +152,7 @@ int stream_sock_read(int fd) {
 	if (b->flags & BF_READ_STATUS) {
 	out_wakeup:
 		if (b->rto && EV_FD_ISSET(fd, DIR_RD))
-			tv_delayfrom(&b->rex, &now, b->rto);
+			tv_ms_add(&b->rex, &now, b->rto);
 		else
 			tv_eternity(&b->rex);
 	
@@ -278,7 +278,7 @@ int stream_sock_write(int fd) {
 
 	if (b->flags & BF_WRITE_STATUS) {
 		if (b->wto) {
-			tv_delayfrom(&b->wex, &now, b->wto);
+			tv_ms_add(&b->wex, &now, b->wto);
 			/* FIXME: to prevent the client from expiring read timeouts during writes,
 			 * we refresh it. A solution would be to merge read+write timeouts into a
 			 * unique one, although that needs some study particularly on full-duplex

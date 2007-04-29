@@ -412,9 +412,9 @@ int event_accept(int fd) {
 
 		if (s->fe->clitimeout) {
 			if (EV_FD_ISSET(cfd, DIR_RD))
-				tv_delayfrom(&s->req->rex, &now, s->fe->clitimeout);
+				tv_ms_add(&s->req->rex, &now, s->fe->clitimeout);
 			if (EV_FD_ISSET(cfd, DIR_WR))
-				tv_delayfrom(&s->rep->wex, &now, s->fe->clitimeout);
+				tv_ms_add(&s->rep->wex, &now, s->fe->clitimeout);
 		}
 
 		tv_min(&t->expire, &s->req->rex, &s->rep->wex);

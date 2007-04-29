@@ -96,8 +96,8 @@ int wake_expired_tasks()
 
 	if (likely(timer_wq.data != NULL)) {
 		task = LIST_ELEM(timer_wq.data, struct task *, qlist);
-		if (likely(tv_cmp_ge(&task->expire, &now) > 0))
-			return tv_remain(&now, &task->expire);
+		if (likely(__tv_isge(&task->expire, &now) > 0))
+			return tv_ms_remain(&now, &task->expire);
 	}
 
 	/* OK we lose. Let's scan the tree then. */
@@ -106,8 +106,8 @@ int wake_expired_tasks()
 	tree64_foreach(&timer_wq, data, stack, slen) {
 		task = LIST_ELEM(data, struct task *, qlist);
 
-		if (!tv_isbefore(&task->expire, &now)) {
-			next_time = tv_remain(&now, &task->expire);
+		if (__tv_isgt(&task->expire, &now)) {
+			next_time = tv_ms_remain(&now, &task->expire);
 			break;
 		}
 

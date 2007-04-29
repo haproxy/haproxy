@@ -221,7 +221,7 @@ int maintain_proxies(void)
 		while (p) {
 			if (p->state != PR_STSTOPPED) {
 				int t;
-				t = tv_remain2(&now, &p->stop_time);
+				t = tv_ms_remain2(&now, &p->stop_time);
 				if (t == 0) {
 					Warning("Proxy %s stopped.\n", p->id);
 					send_log(p, LOG_WARNING, "Proxy %s stopped.\n", p->id);
@@ -259,7 +259,7 @@ void soft_stop(void)
 		if (p->state != PR_STSTOPPED) {
 			Warning("Stopping proxy %s in %d ms.\n", p->id, p->grace);
 			send_log(p, LOG_WARNING, "Stopping proxy %s in %d ms.\n", p->id, p->grace);
-			tv_delayfrom(&p->stop_time, &now, p->grace);
+			tv_ms_add(&p->stop_time, &now, p->grace);
 		}
 		p = p->next;
 	}

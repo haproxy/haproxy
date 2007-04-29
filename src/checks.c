@@ -258,19 +258,19 @@ int process_chk(struct task *t)
 	fd = s->curfd;
 	if (fd < 0) {   /* no check currently running */
 		//fprintf(stderr, "process_chk: 2\n");
-		if (tv_cmp2_ms(&t->expire, &now) > 0) { /* not good time yet */
+		if (!tv_ms_le2(&t->expire, &now)) { /* not good time yet */
 			task_queue(t);	/* restore t to its place in the task list */
-			return tv_remain2(&now, &t->expire);
+			return tv_ms_remain2(&now, &t->expire);
 		}
 
 		/* we don't send any health-checks when the proxy is stopped or when
 		 * the server should not be checked.
 		 */
 		if (!(s->state & SRV_CHECKED) || s->proxy->state == PR_STSTOPPED) {
-			while (tv_cmp2_ms(&t->expire, &now) <= 0)
-				tv_delayfrom(&t->expire, &t->expire, s->inter);
+			while (tv_ms_le2(&t->expire, &now))
+				tv_ms_add(&t->expire, &t->expire, s->inter);
 			task_queue(t);	/* restore t to its place in the task list */
-			return tv_remain2(&now, &t->expire);
+			return tv_ms_remain2(&now, &t->expire);
 		}
 
 		/* we'll initiate a new check */
@@ -375,9 +375,9 @@ int process_chk(struct task *t)
 						assert (!EV_FD_ISSET(fd, DIR_RD));
 #endif
 						/* FIXME: we allow up to <inter> for a connection to establish, but we should use another parameter */
-						tv_delayfrom(&t->expire, &now, s->inter);
+						tv_ms_add(&t->expire, &now, s->inter);
 						task_queue(t);	/* restore t to its place in the task list */
-						return tv_remain(&now, &t->expire);
+						return tv_ms_remain(&now, &t->expire);
 					}
 					else if (errno != EALREADY && errno != EISCONN && errno != EAGAIN) {
 						s->result = -1;    /* a real error */
@@ -389,8 +389,8 @@ int process_chk(struct task *t)
 
 		if (!s->result) { /* nothing done */
 			//fprintf(stderr, "process_chk: 6\n");
-			while (tv_cmp2_ms(&t->expire, &now) <= 0)
-				tv_delayfrom(&t->expire, &t->expire, s->inter);
+			while (tv_ms_le2(&t->expire, &now))
+				tv_ms_add(&t->expire, &t->expire, s->inter);
 			goto new_chk; /* may be we should initialize a new check */
 		}
 
@@ -404,8 +404,8 @@ int process_chk(struct task *t)
 
 		//fprintf(stderr, "process_chk: 7\n");
 		/* FIXME: we allow up to <inter> for a connection to establish, but we should use another parameter */
-		while (tv_cmp2_ms(&t->expire, &now) <= 0)
-			tv_delayfrom(&t->expire, &t->expire, s->inter);
+		while (tv_ms_le2(&t->expire, &now))
+			tv_ms_add(&t->expire, &t->expire, s->inter);
 		goto new_chk;
 	}
 	else {
@@ -455,11 +455,11 @@ int process_chk(struct task *t)
 			}
 			s->curfd = -1; /* no check running anymore */
 			fd_delete(fd);
-			while (tv_cmp2_ms(&t->expire, &now) <= 0)
-				tv_delayfrom(&t->expire, &t->expire, s->inter);
+			while (tv_ms_le2(&t->expire, &now))
+				tv_ms_add(&t->expire, &t->expire, s->inter);
 			goto new_chk;
 		}
-		else if (s->result < 0 || tv_cmp2_ms(&t->expire, &now) <= 0) {
+		else if (s->result < 0 || tv_ms_le2(&t->expire, &now)) {
 			//fprintf(stderr, "process_chk: 10\n");
 			/* failure or timeout detected */
 			if (s->health > s->rise) {
@@ -470,8 +470,8 @@ int process_chk(struct task *t)
 				set_server_down(s);
 			s->curfd = -1;
 			fd_delete(fd);
-			while (tv_cmp2_ms(&t->expire, &now) <= 0)
-				tv_delayfrom(&t->expire, &t->expire, s->inter);
+			while (tv_ms_le2(&t->expire, &now))
+				tv_ms_add(&t->expire, &t->expire, s->inter);
 			goto new_chk;
 		}
 		/* if result is 0 and there's no timeout, we have to wait again */
@@ -479,7 +479,7 @@ int process_chk(struct task *t)
 	//fprintf(stderr, "process_chk: 11\n");
 	s->result = 0;
 	task_queue(t);	/* restore t to its place in the task list */
-	return tv_remain2(&now, &t->expire);
+	return tv_ms_remain2(&now, &t->expire);
 }
 
 

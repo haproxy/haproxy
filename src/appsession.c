@@ -117,7 +117,7 @@ int appsession_task_init(void)
 		t->qlist.p = NULL;
 		t->state = TASK_IDLE;
 		t->context = NULL;
-		tv_delayfrom(&t->expire, &now, TBLCHKINT);
+		tv_ms_add(&t->expire, &now, TBLCHKINT);
 		task_queue(t);
 		t->process = appsession_refresh;
 		initialized ++;
@@ -143,7 +143,7 @@ int appsession_refresh(struct task *t)
 				for (element = list_head(&htbl->table[i]);
 				     element != NULL; element = list_next(element)) {
 					asession = (appsess *)list_data(element);
-					if (tv_cmp2_ms(&asession->expire, &now) <= 0) {
+					if (tv_ms_le2(&asession->expire, &now)) {
 						if ((global.mode & MODE_DEBUG) &&
 						    (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))) {
 							int len;
@@ -165,7 +165,7 @@ int appsession_refresh(struct task *t)
 						}
 						else
 							element = last;
-					}/* end if (tv_cmp2_ms(&asession->expire, &now) <= 0) */
+					}/* end if (tv_ms_le2(&asession->expire, &now)) */
 					else
 						last = element;
 				}/* end  for (element = list_head(&htbl->table[i]); element != NULL; element = list_next(element)) */
@@ -173,7 +173,7 @@ int appsession_refresh(struct task *t)
 		}
 		p = p->next;
 	}
-	tv_delayfrom(&t->expire, &now, TBLCHKINT); /* check expiration every 5 seconds */
+	tv_ms_add(&t->expire, &now, TBLCHKINT); /* check expiration every 5 seconds */
 	return TBLCHKINT;
 } /* end appsession_refresh */
 

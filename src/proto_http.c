@@ -441,7 +441,7 @@ void client_retnclose(struct session *s, const struct chunk *msg)
 	EV_FD_SET(s->cli_fd, DIR_WR);
 	tv_eternity(&s->req->rex);
 	if (s->fe->clitimeout)
-		tv_delayfrom(&s->rep->wex, &now, s->fe->clitimeout);
+		tv_ms_add(&s->rep->wex, &now, s->fe->clitimeout);
 	else
 		tv_eternity(&s->rep->wex);
 	s->cli_state = CL_STSHUTR;
@@ -561,11 +561,11 @@ int process_session(struct task *t)
 		/* DEBUG code : this should never ever happen, otherwise it indicates
 		 * that a task still has something to do and will provoke a quick loop.
 		 */
-		if (tv_remain2(&now, &t->expire) <= 0)
+		if (tv_ms_remain2(&now, &t->expire) <= 0)
 			exit(100);
 #endif
 
-		return tv_remain2(&now, &t->expire); /* nothing more to do */
+		return tv_ms_remain2(&now, &t->expire); /* nothing more to do */
 	}
 
 	s->fe->feconn--;
@@ -582,7 +582,7 @@ int process_session(struct task *t)
 		write(1, trash, len);
 	}
 
-	s->logs.t_close = tv_diff(&s->logs.tv_accept, &now);
+	s->logs.t_close = tv_ms_elapsed(&s->logs.tv_accept, &now);
 	if (s->req != NULL)
 		s->logs.bytes_in = s->req->total;
 	if (s->rep != NULL)
@@ -1526,7 +1526,7 @@ int process_cli(struct session *t)
 			}
 
 			/* 3: has the read timeout expired ? */
-			else if (unlikely(tv_cmp2_le(&req->rex, &now))) {
+			else if (unlikely(tv_ms_le2(&req->rex, &now))) {
 				/* read timeout : give up with an error message. */
 				txn->status = 408;
 				client_retnclose(t, error_message(t, HTTP_ERR_408));
@@ -1545,7 +1545,7 @@ int process_cli(struct session *t)
 				 * req->l == rlim-data
 				 */
 				if (t->fe->clitimeout)
-					tv_delayfrom(&req->rex, &now, t->fe->clitimeout);
+					tv_ms_add(&req->rex, &now, t->fe->clitimeout);
 				else
 					tv_eternity(&req->rex);
 			}
@@ -1694,7 +1694,7 @@ int process_cli(struct session *t)
 				/* no need to go further */
 				txn->status = 403;
 				/* let's log the request time */
-				t->logs.t_request = tv_diff(&t->logs.tv_accept, &now);
+				t->logs.t_request = tv_ms_elapsed(&t->logs.tv_accept, &now);
 				client_retnclose(t, error_message(t, HTTP_ERR_403));
 				goto return_prx_cond;
 			}
@@ -1888,7 +1888,7 @@ int process_cli(struct session *t)
 		t->cli_state = CL_STDATA;
 		req->rlim = req->data + BUFSIZE; /* no more rewrite needed */
 
-		t->logs.t_request = tv_diff(&t->logs.tv_accept, &now);
+		t->logs.t_request = tv_ms_elapsed(&t->logs.tv_accept, &now);
 
 		if (!t->fe->clitimeout ||
 		    (t->srv_state < SV_STDATA && t->be->srvtimeout)) {
@@ -1914,7 +1914,7 @@ int process_cli(struct session *t)
 			/* flush the request so that we can drop the connection early
 			 * if the client closes first.
 			 */
-			tv_delayfrom(&req->cex, &now,
+			tv_ms_add(&req->cex, &now,
 				     t->be->contimeout ? t->be->contimeout : 0);
 		}
 
@@ -1975,13 +1975,13 @@ int process_cli(struct session *t)
 			 * to shutw */
 			EV_FD_SET(t->cli_fd, DIR_RD);
 			if (t->fe->clitimeout)
-				tv_delayfrom(&req->rex, &now, t->fe->clitimeout);
+				tv_ms_add(&req->rex, &now, t->fe->clitimeout);
 			t->cli_state = CL_STSHUTW;
 			//fprintf(stderr,"%p:%s(%d), c=%d, s=%d\n", t, __FUNCTION__, __LINE__, t->cli_state, t->cli_state);
 			return 1;
 		}
 		/* read timeout */
-		else if (tv_cmp2_le(&req->rex, &now)) {
+		else if (tv_ms_le2(&req->rex, &now)) {
 			EV_FD_CLR(t->cli_fd, DIR_RD);
 			tv_eternity(&req->rex);
 			t->cli_state = CL_STSHUTR;
@@ -1998,7 +1998,7 @@ int process_cli(struct session *t)
 			return 1;
 		}	
 		/* write timeout */
-		else if (tv_cmp2_le(&rep->wex, &now)) {
+		else if (tv_ms_le2(&rep->wex, &now)) {
 			EV_FD_CLR(t->cli_fd, DIR_WR);
 			tv_eternity(&rep->wex);
 			shutdown(t->cli_fd, SHUT_WR);
@@ -2006,7 +2006,7 @@ int process_cli(struct session *t)
 			 * to shutw */
 			EV_FD_SET(t->cli_fd, DIR_RD);
 			if (t->fe->clitimeout)
-				tv_delayfrom(&req->rex, &now, t->fe->clitimeout);
+				tv_ms_add(&req->rex, &now, t->fe->clitimeout);
 
 			t->cli_state = CL_STSHUTW;
 			if (!(t->flags & SN_ERR_MASK))
@@ -2040,7 +2040,7 @@ int process_cli(struct session *t)
 					 */
 					tv_eternity(&req->rex);
 				else
-					tv_delayfrom(&req->rex, &now, t->fe->clitimeout);
+					tv_ms_add(&req->rex, &now, t->fe->clitimeout);
 			}
 		}
 
@@ -2055,7 +2055,7 @@ int process_cli(struct session *t)
 			if (EV_FD_COND_S(t->cli_fd, DIR_WR)) {
 				/* restart writing */
 				if (t->fe->clitimeout) {
-					tv_delayfrom(&rep->wex, &now, t->fe->clitimeout);
+					tv_ms_add(&rep->wex, &now, t->fe->clitimeout);
 					/* FIXME: to prevent the client from expiring read timeouts during writes,
 					 * we refresh it. */
 					req->rex = rep->wex;
@@ -2090,7 +2090,7 @@ int process_cli(struct session *t)
 			t->cli_state = CL_STCLOSE;
 			return 1;
 		}
-		else if (tv_cmp2_le(&rep->wex, &now)) {
+		else if (tv_ms_le2(&rep->wex, &now)) {
 			tv_eternity(&rep->wex);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
@@ -2128,7 +2128,7 @@ int process_cli(struct session *t)
 			if (EV_FD_COND_S(t->cli_fd, DIR_WR)) {
 				/* restart writing */
 				if (t->fe->clitimeout) {
-					tv_delayfrom(&rep->wex, &now, t->fe->clitimeout);
+					tv_ms_add(&rep->wex, &now, t->fe->clitimeout);
 					/* FIXME: to prevent the client from expiring read timeouts during writes,
 					 * we refresh it. */
 					req->rex = rep->wex;
@@ -2162,7 +2162,7 @@ int process_cli(struct session *t)
 			t->cli_state = CL_STCLOSE;
 			return 1;
 		}
-		else if (tv_cmp2_le(&req->rex, &now)) {
+		else if (tv_ms_le2(&req->rex, &now)) {
 			tv_eternity(&req->rex);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
@@ -2194,7 +2194,7 @@ int process_cli(struct session *t)
 			/* there's still some space in the buffer */
 			if (EV_FD_COND_S(t->cli_fd, DIR_RD)) {
 				if (t->fe->clitimeout)
-					tv_delayfrom(&req->rex, &now, t->fe->clitimeout);
+					tv_ms_add(&req->rex, &now, t->fe->clitimeout);
 				else
 					tv_eternity(&req->rex);
 				//fprintf(stderr,"%p:%s(%d), c=%d, s=%d\n", t, __FUNCTION__, __LINE__, t->cli_state, t->cli_state);
@@ -2242,7 +2242,7 @@ int process_srv(struct session *t)
 			  (t->req->l == 0 || t->be->options & PR_O_ABRT_CLOSE))) { /* give up */
 			tv_eternity(&req->cex);
 			if (t->pend_pos)
-				t->logs.t_queue = tv_diff(&t->logs.tv_accept, &now);
+				t->logs.t_queue = tv_ms_elapsed(&t->logs.tv_accept, &now);
 			/* note that this must not return any error because it would be able to
 			 * overwrite the client_retnclose() output.
 			 */
@@ -2259,7 +2259,7 @@ int process_srv(struct session *t)
 				 * already set the connect expiration date to the right
 				 * timeout. We just have to check that it has not expired.
 				 */
-				if (!tv_cmp2_le(&req->cex, &now))
+				if (!tv_ms_le2(&req->cex, &now))
 					return 0;
 
 				/* We will set the queue timer to the time spent, just for
@@ -2269,7 +2269,7 @@ int process_srv(struct session *t)
 				 * the tarpitted connections by filtering on the 'PT' status flags.
 				 */
 				tv_eternity(&req->cex);
-				t->logs.t_queue = tv_diff(&t->logs.tv_accept, &now);
+				t->logs.t_queue = tv_ms_elapsed(&t->logs.tv_accept, &now);
 				srv_close_with_err(t, SN_ERR_PRXCOND, SN_FINST_T,
 						   500, error_message(t, HTTP_ERR_500));
 				return 1;
@@ -2281,12 +2281,12 @@ int process_srv(struct session *t)
 			 * to any other session to release it and wake us up again.
 			 */
 			if (t->pend_pos) {
-				if (!tv_cmp2_le(&req->cex, &now))
+				if (!tv_ms_le2(&req->cex, &now))
 					return 0;
 				else {
 					/* we've been waiting too long here */
 					tv_eternity(&req->cex);
-					t->logs.t_queue = tv_diff(&t->logs.tv_accept, &now);
+					t->logs.t_queue = tv_ms_elapsed(&t->logs.tv_accept, &now);
 					srv_close_with_err(t, SN_ERR_SRVTO, SN_FINST_Q,
 							   503, error_message(t, HTTP_ERR_503));
 					if (t->srv)
@@ -2305,7 +2305,7 @@ int process_srv(struct session *t)
 				 * number of retries.
 				 */
 				if (srv_retryable_connect(t)) {
-					t->logs.t_queue = tv_diff(&t->logs.tv_accept, &now);
+					t->logs.t_queue = tv_ms_elapsed(&t->logs.tv_accept, &now);
 					return t->srv_state != SV_STIDLE;
 				}
 			} while (1);
@@ -2326,7 +2326,7 @@ int process_srv(struct session *t)
 			srv_close_with_err(t, SN_ERR_CLICL, SN_FINST_C, 0, NULL);
 			return 1;
 		}
-		if (!(req->flags & BF_WRITE_STATUS) && !tv_cmp2_le(&req->cex, &now)) {
+		if (!(req->flags & BF_WRITE_STATUS) && !tv_ms_le2(&req->cex, &now)) {
 			//fprintf(stderr,"1: c=%d, s=%d, now=%d.%06d, exp=%d.%06d\n", c, s, now.tv_sec, now.tv_usec, req->cex.tv_sec, req->cex.tv_usec);
 			return 0; /* nothing changed */
 		}
@@ -2375,7 +2375,7 @@ int process_srv(struct session *t)
 				 * the SV_STIDLE state.
 				 */
 				if (srv_retryable_connect(t)) {
-					t->logs.t_queue = tv_diff(&t->logs.tv_accept, &now);
+					t->logs.t_queue = tv_ms_elapsed(&t->logs.tv_accept, &now);
 					return t->srv_state != SV_STCONN;
 				}
 
@@ -2385,7 +2385,7 @@ int process_srv(struct session *t)
 			} while (1);
 		}
 		else { /* no error or write 0 */
-			t->logs.t_connect = tv_diff(&t->logs.tv_accept, &now);
+			t->logs.t_connect = tv_ms_elapsed(&t->logs.tv_accept, &now);
 
 			//fprintf(stderr,"3: c=%d, s=%d\n", c, s);
 			if (req->l == 0) /* nothing to write */ {
@@ -2394,7 +2394,7 @@ int process_srv(struct session *t)
 			} else  /* need the right to write */ {
 				EV_FD_SET(t->srv_fd, DIR_WR);
 				if (t->be->srvtimeout) {
-					tv_delayfrom(&req->wex, &now, t->be->srvtimeout);
+					tv_ms_add(&req->wex, &now, t->be->srvtimeout);
 					/* FIXME: to prevent the server from expiring read timeouts during writes,
 					 * we refresh it. */
 					rep->rex = req->wex;
@@ -2406,7 +2406,7 @@ int process_srv(struct session *t)
 			if (t->be->mode == PR_MODE_TCP) { /* let's allow immediate data connection in this case */
 				EV_FD_SET(t->srv_fd, DIR_RD);
 				if (t->be->srvtimeout)
-					tv_delayfrom(&rep->rex, &now, t->be->srvtimeout);
+					tv_ms_add(&rep->rex, &now, t->be->srvtimeout);
 				else
 					tv_eternity(&rep->rex);
 		
@@ -2495,7 +2495,7 @@ int process_srv(struct session *t)
 			 * rep->l == rlim-data
 			 */
 			if (t->be->srvtimeout)
-				tv_delayfrom(&rep->rex, &now, t->be->srvtimeout);
+				tv_ms_add(&rep->rex, &now, t->be->srvtimeout);
 			else
 				tv_eternity(&rep->rex);
 		}
@@ -2561,7 +2561,7 @@ int process_srv(struct session *t)
 			/* read timeout : return a 504 to the client.
 			 */
 			else if (unlikely(EV_FD_ISSET(t->srv_fd, DIR_RD) &&
-			                  tv_cmp2_le(&rep->rex, &now))) {
+			                  tv_ms_le2(&rep->rex, &now))) {
 				tv_eternity(&rep->rex);
 				tv_eternity(&req->wex);
 				fd_delete(t->srv_fd);
@@ -2602,7 +2602,7 @@ int process_srv(struct session *t)
 				 * alive when switching to shutw */
 				EV_FD_SET(t->srv_fd, DIR_RD);
 				if (t->be->srvtimeout)
-					tv_delayfrom(&rep->rex, &now, t->be->srvtimeout);
+					tv_ms_add(&rep->rex, &now, t->be->srvtimeout);
 
 				shutdown(t->srv_fd, SHUT_WR);
 				t->srv_state = SV_STSHUTW;
@@ -2615,7 +2615,7 @@ int process_srv(struct session *t)
 			 * some work to do on the headers.
 			 */
 			else if (unlikely(EV_FD_ISSET(t->srv_fd, DIR_WR) &&
-					  tv_cmp2_le(&req->wex, &now))) {
+					  tv_ms_le2(&req->wex, &now))) {
 				EV_FD_CLR(t->srv_fd, DIR_WR);
 				tv_eternity(&req->wex);
 				shutdown(t->srv_fd, SHUT_WR);
@@ -2623,7 +2623,7 @@ int process_srv(struct session *t)
 				 * when switching to shutw */
 				EV_FD_SET(t->srv_fd, DIR_RD);
 				if (t->be->srvtimeout)
-					tv_delayfrom(&rep->rex, &now, t->be->srvtimeout);
+					tv_ms_add(&rep->rex, &now, t->be->srvtimeout);
 
 				t->srv_state = SV_STSHUTW;
 				if (!(t->flags & SN_ERR_MASK))
@@ -2645,7 +2645,7 @@ int process_srv(struct session *t)
 				if (EV_FD_COND_S(t->srv_fd, DIR_WR)) {
 					/* restart writing */
 					if (t->be->srvtimeout) {
-						tv_delayfrom(&req->wex, &now, t->be->srvtimeout);
+						tv_ms_add(&req->wex, &now, t->be->srvtimeout);
 						/* FIXME: to prevent the server from expiring read timeouts during writes,
 						 * we refresh it. */
 						rep->rex = req->wex;
@@ -2925,7 +2925,7 @@ int process_srv(struct session *t)
 
 		t->srv_state = SV_STDATA;
 		rep->rlim = rep->data + BUFSIZE; /* no more rewrite needed */
-		t->logs.t_data = tv_diff(&t->logs.tv_accept, &now);
+		t->logs.t_data = tv_ms_elapsed(&t->logs.tv_accept, &now);
 
 		/* client connection already closed or option 'forceclose' required :
 		 * we close the server's outgoing connection right now.
@@ -2939,7 +2939,7 @@ int process_srv(struct session *t)
 			 * to shutw */
 			EV_FD_SET(t->srv_fd, DIR_RD);
 			if (t->be->srvtimeout)
-				tv_delayfrom(&rep->rex, &now, t->be->srvtimeout);
+				tv_ms_add(&rep->rex, &now, t->be->srvtimeout);
 
 			shutdown(t->srv_fd, SHUT_WR);
 			t->srv_state = SV_STSHUTW;
@@ -3009,13 +3009,13 @@ int process_srv(struct session *t)
 			 * to shutw */
 			EV_FD_SET(t->srv_fd, DIR_RD);
 			if (t->be->srvtimeout)
-				tv_delayfrom(&rep->rex, &now, t->be->srvtimeout);
+				tv_ms_add(&rep->rex, &now, t->be->srvtimeout);
 
 			t->srv_state = SV_STSHUTW;
 			return 1;
 		}
 		/* read timeout */
-		else if (tv_cmp2_le(&rep->rex, &now)) {
+		else if (tv_ms_le2(&rep->rex, &now)) {
 			EV_FD_CLR(t->srv_fd, DIR_RD);
 			tv_eternity(&rep->rex);
 			t->srv_state = SV_STSHUTR;
@@ -3026,7 +3026,7 @@ int process_srv(struct session *t)
 			return 1;
 		}	
 		/* write timeout */
-		else if (tv_cmp2_le(&req->wex, &now)) {
+		else if (tv_ms_le2(&req->wex, &now)) {
 			EV_FD_CLR(t->srv_fd, DIR_WR);
 			tv_eternity(&req->wex);
 			shutdown(t->srv_fd, SHUT_WR);
@@ -3034,7 +3034,7 @@ int process_srv(struct session *t)
 			 * to shutw */
 			EV_FD_SET(t->srv_fd, DIR_RD);
 			if (t->be->srvtimeout)
-				tv_delayfrom(&rep->rex, &now, t->be->srvtimeout);
+				tv_ms_add(&rep->rex, &now, t->be->srvtimeout);
 			t->srv_state = SV_STSHUTW;
 			if (!(t->flags & SN_ERR_MASK))
 				t->flags |= SN_ERR_SRVTO;
@@ -3054,7 +3054,7 @@ int process_srv(struct session *t)
 			if (EV_FD_COND_S(t->srv_fd, DIR_WR)) {
 				/* restart writing */
 				if (t->be->srvtimeout) {
-					tv_delayfrom(&req->wex, &now, t->be->srvtimeout);
+					tv_ms_add(&req->wex, &now, t->be->srvtimeout);
 					/* FIXME: to prevent the server from expiring read timeouts during writes,
 					 * we refresh it. */
 					rep->rex = req->wex;
@@ -3073,7 +3073,7 @@ int process_srv(struct session *t)
 		else {
 			if (EV_FD_COND_S(t->srv_fd, DIR_RD)) {
 				if (t->be->srvtimeout)
-					tv_delayfrom(&rep->rex, &now, t->be->srvtimeout);
+					tv_ms_add(&rep->rex, &now, t->be->srvtimeout);
 				else
 					tv_eternity(&rep->rex);
 			}
@@ -3121,7 +3121,7 @@ int process_srv(struct session *t)
 
 			return 1;
 		}
-		else if (tv_cmp2_le(&req->wex, &now)) {
+		else if (tv_ms_le2(&req->wex, &now)) {
 			//EV_FD_CLR(t->srv_fd, DIR_WR);
 			tv_eternity(&req->wex);
 			fd_delete(t->srv_fd);
@@ -3151,7 +3151,7 @@ int process_srv(struct session *t)
 			if (EV_FD_COND_S(t->srv_fd, DIR_WR)) {
 				/* restart writing */
 				if (t->be->srvtimeout) {
-					tv_delayfrom(&req->wex, &now, t->be->srvtimeout);
+					tv_ms_add(&req->wex, &now, t->be->srvtimeout);
 					/* FIXME: to prevent the server from expiring read timeouts during writes,
 					 * we refresh it. */
 					rep->rex = req->wex;
@@ -3202,7 +3202,7 @@ int process_srv(struct session *t)
 
 			return 1;
 		}
-		else if (tv_cmp2_le(&rep->rex, &now)) {
+		else if (tv_ms_le2(&rep->rex, &now)) {
 			//EV_FD_CLR(t->srv_fd, DIR_RD);
 			tv_eternity(&rep->rex);
 			fd_delete(t->srv_fd);
@@ -3230,7 +3230,7 @@ int process_srv(struct session *t)
 		else {
 			if (EV_FD_COND_S(t->srv_fd, DIR_RD)) {
 				if (t->be->srvtimeout)
-					tv_delayfrom(&rep->rex, &now, t->be->srvtimeout);
+					tv_ms_add(&rep->rex, &now, t->be->srvtimeout);
 				else
 					tv_eternity(&rep->rex);
 			}
@@ -4349,7 +4349,7 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 						}/* end while(srv) */
 					}/* end else if server == NULL */
 
-					tv_delayfrom(&asession_temp->expire, &now, t->be->appsession_timeout);
+					tv_ms_add(&asession_temp->expire, &now, t->be->appsession_timeout);
 				}/* end if ((t->proxy->appsession_name != NULL) ... */
 			}
 
@@ -4809,7 +4809,7 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 				if (asession_temp->serverid[0] == '\0')
 					memcpy(asession_temp->serverid, t->srv->id, server_id_len);
 		      
-				tv_delayfrom(&asession_temp->expire, &now, t->be->appsession_timeout);
+				tv_ms_add(&asession_temp->expire, &now, t->be->appsession_timeout);
 
 #if defined(DEBUG_HASH)
 				print_table(&(t->be->htbl_proxy));
@@ -4971,7 +4971,7 @@ void get_srv_from_appsession(struct session *t, const char *begin, int len)
 		pool_free_to(apools.sessid, local_asession.sessid);
 	}
 	
-	tv_delayfrom(&asession_temp->expire, &now, t->be->appsession_timeout);
+	tv_ms_add(&asession_temp->expire, &now, t->be->appsession_timeout);
 	asession_temp->request_count++;
 	
 #if defined(DEBUG_HASH)
@@ -5092,7 +5092,7 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 	 */
 	t->cli_state = CL_STSHUTR;
 	t->req->rlim = t->req->data + BUFSIZE; /* no more rewrite needed */
-	t->logs.t_request = tv_diff(&t->logs.tv_accept, &now);
+	t->logs.t_request = tv_ms_elapsed(&t->logs.tv_accept, &now);
 	t->data_source = DATA_SRC_STATS;
 	t->data_state  = DATA_ST_INIT;
 	produce_content(t);

@@ -2469,8 +2469,8 @@ int readcfgfile(const char *file)
 					t->context = newsrv;
 		
 					/* check this every ms */
-					tv_delayfrom(&t->expire, &now,
-						     newsrv->inter + mininter * srvpos / nbchk);
+					tv_ms_add(&t->expire, &now,
+						  newsrv->inter + mininter * srvpos / nbchk);
 					task_queue(t);
 					//task_wakeup(&rq, t);
 					srvpos++;

@@ -281,7 +281,7 @@ void dump(int sig)
 		qfprintf(stderr,"[dump] wq: task %p, still %ld ms, "
 			 "cli=%d, srv=%d, cr=%d, cw=%d, sr=%d, sw=%d, "
 			 "req=%d, rep=%d, clifd=%d\n",
-			 s, tv_remain(&now, &t->expire),
+			 s, tv_ms_remain(&now, &t->expire),
 			 s->cli_state,
 			 s->srv_state,
 			 EV_FD_ISSET(s->cli_fd, DIR_RD),
