@@ -75,7 +75,7 @@ static void set_server_down(struct server *s)
 				sess->srv = NULL; /* it's left to the dispatcher to choose a server */
 				http_flush_cookie_flags(&sess->txn);
 				pendconn_free(pc);
-				task_wakeup(&rq, sess->task);
+				task_wakeup(sess->task);
 				xferred++;
 			}
 		}
@@ -167,7 +167,7 @@ static int event_srv_chk_w(int fd)
 		}
 	}
  out_wakeup:
-	task_wakeup(&rq, t);
+	task_wakeup(t);
  out_nowake:
 	EV_FD_CLR(fd, DIR_WR);   /* nothing more to write */
 	fdtab[fd].ev &= ~FD_POLL_WR;
@@ -237,7 +237,7 @@ static int event_srv_chk_r(int fd)
 
  out_wakeup:
 	EV_FD_CLR(fd, DIR_RD);
-	task_wakeup(&rq, t);
+	task_wakeup(t);
 	fdtab[fd].ev &= ~FD_POLL_RD;
 	return 1;
 }
@@ -436,7 +436,7 @@ int process_chk(struct task *t)
 						p->sess->srv = s;
 						sess = p->sess;
 						pendconn_free(p);
-						task_wakeup(&rq, sess->task);
+						task_wakeup(sess->task);
 					}
 
 					sprintf(trash,

@@ -156,7 +156,7 @@ int stream_sock_read(int fd) {
 		else
 			tv_eternity(&b->rex);
 	
-		task_wakeup(&rq, fdtab[fd].owner);
+		task_wakeup(fdtab[fd].owner);
 	}
 
 	fdtab[fd].ev &= ~FD_POLL_RD;
@@ -291,7 +291,7 @@ int stream_sock_write(int fd) {
 		}
 	}
 
-	task_wakeup(&rq, fdtab[fd].owner);
+	task_wakeup(fdtab[fd].owner);
 	fdtab[fd].ev &= ~FD_POLL_WR;
 	return retval;
 }

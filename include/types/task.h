@@ -25,7 +25,8 @@
 #include <sys/time.h>
 
 #include <common/config.h>
-#include <common/rbtree.h>
+#include <common/mini-clist.h>
+#include <import/tree.h>
 
 /* values for task->state */
 #define TASK_IDLE	0
@@ -33,10 +34,9 @@
 
 /* The base for all tasks */
 struct task {
-	struct rb_node rb_node;
-	struct rb_root *wq;
-	struct task *rqnext;		/* chaining in run queue ... */
-	int state;				/* task state : IDLE or RUNNING */
+	struct list qlist;              /* chaining in the same queue; bidirectionnal but not circular */
+	struct ultree *wq;		/* NULL if unqueued, or back ref to the carrier node in the WQ */
+	int state;			/* task state : IDLE or RUNNING */
 	struct timeval expire;		/* next expiration time for this task, use only for fast sorting */
 	int (*process)(struct task *t);	/* the function which processes the task */
 	void *context;			/* the task's context */
@@ -44,10 +44,6 @@ struct task {
 
 #define sizeof_task     sizeof(struct task)
 extern void **pool_task;
-
-extern struct rb_root wait_queue[2];
-extern struct task *rq;
-
 
 #endif /* _TYPES_TASK_H */
 

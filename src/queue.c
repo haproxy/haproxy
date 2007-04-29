@@ -62,7 +62,7 @@ int process_srv_queue(struct task *t)
 		sess = pendconn_get_next_sess(s, p);
 		if (sess == NULL)
 			break;
-		task_wakeup(&rq, sess->task);
+		task_wakeup(sess->task);
 	}
 
 	return TIME_ETERNITY;

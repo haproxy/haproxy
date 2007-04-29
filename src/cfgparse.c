@@ -2415,7 +2415,7 @@ int readcfgfile(const char *file)
 					return -1;
 				}
 		
-				t->rqnext = NULL;
+				t->qlist.p = NULL;
 				t->wq = NULL;
 				t->state = TASK_IDLE;
 				t->process = process_srv_queue;
@@ -2463,7 +2463,7 @@ int readcfgfile(const char *file)
 					}
 		
 					t->wq = NULL;
-					t->rqnext = NULL;
+					t->qlist.p = NULL;
 					t->state = TASK_IDLE;
 					t->process = process_chk;
 					t->context = newsrv;

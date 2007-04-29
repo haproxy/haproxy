@@ -2353,7 +2353,7 @@ int process_srv(struct session *t)
 				 */
 				/* let's try to offer this slot to anybody */
 				if (may_dequeue_tasks(t->srv, t->be))
-					task_wakeup(&rq, t->srv->queue_mgt);
+					task_wakeup(t->srv->queue_mgt);
 
 				if (t->srv)
 					t->srv->failed_conns++;
@@ -2539,7 +2539,7 @@ int process_srv(struct session *t)
 				 * we have to inform the server that it may be used by another session.
 				 */
 				if (t->srv && may_dequeue_tasks(t->srv, t->be))
-					task_wakeup(&rq, t->srv->queue_mgt);
+					task_wakeup(t->srv->queue_mgt);
 
 				return 1;
 			}
@@ -2581,7 +2581,7 @@ int process_srv(struct session *t)
 				 * we have to inform the server that it may be used by another session.
 				 */
 				if (t->srv && may_dequeue_tasks(t->srv, t->be))
-					task_wakeup(&rq, t->srv->queue_mgt);
+					task_wakeup(t->srv->queue_mgt);
 				return 1;
 			}
 
@@ -2753,7 +2753,7 @@ int process_srv(struct session *t)
 					 * we have to inform the server that it may be used by another session.
 					 */
 					if (t->srv && may_dequeue_tasks(t->srv, cur_proxy))
-						task_wakeup(&rq, t->srv->queue_mgt);
+						task_wakeup(t->srv->queue_mgt);
 					return 1;
 				}
 			}
@@ -2988,7 +2988,7 @@ int process_srv(struct session *t)
 			 * we have to inform the server that it may be used by another session.
 			 */
 			if (may_dequeue_tasks(t->srv, t->be))
-				task_wakeup(&rq, t->srv->queue_mgt);
+				task_wakeup(t->srv->queue_mgt);
 
 			return 1;
 		}
@@ -3101,7 +3101,7 @@ int process_srv(struct session *t)
 			 * we have to inform the server that it may be used by another session.
 			 */
 			if (may_dequeue_tasks(t->srv, t->be))
-				task_wakeup(&rq, t->srv->queue_mgt);
+				task_wakeup(t->srv->queue_mgt);
 
 			return 1;
 		}
@@ -3117,7 +3117,7 @@ int process_srv(struct session *t)
 			 * we have to inform the server that it may be used by another session.
 			 */
 			if (may_dequeue_tasks(t->srv, t->be))
-				task_wakeup(&rq, t->srv->queue_mgt);
+				task_wakeup(t->srv->queue_mgt);
 
 			return 1;
 		}
@@ -3137,7 +3137,7 @@ int process_srv(struct session *t)
 			 * we have to inform the server that it may be used by another session.
 			 */
 			if (may_dequeue_tasks(t->srv, t->be))
-				task_wakeup(&rq, t->srv->queue_mgt);
+				task_wakeup(t->srv->queue_mgt);
 
 			return 1;
 		}
@@ -3182,7 +3182,7 @@ int process_srv(struct session *t)
 			 * we have to inform the server that it may be used by another session.
 			 */
 			if (may_dequeue_tasks(t->srv, t->be))
-				task_wakeup(&rq, t->srv->queue_mgt);
+				task_wakeup(t->srv->queue_mgt);
 
 			return 1;
 		}
@@ -3198,7 +3198,7 @@ int process_srv(struct session *t)
 			 * we have to inform the server that it may be used by another session.
 			 */
 			if (may_dequeue_tasks(t->srv, t->be))
-				task_wakeup(&rq, t->srv->queue_mgt);
+				task_wakeup(t->srv->queue_mgt);
 
 			return 1;
 		}
@@ -3218,7 +3218,7 @@ int process_srv(struct session *t)
 			 * we have to inform the server that it may be used by another session.
 			 */
 			if (may_dequeue_tasks(t->srv, t->be))
-				task_wakeup(&rq, t->srv->queue_mgt);
+				task_wakeup(t->srv->queue_mgt);
 
 			return 1;
 		}

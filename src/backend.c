@@ -572,7 +572,7 @@ int srv_count_retry_down(struct session *t, int conn_err)
 		 * we have to inform the server that it may be used by another session.
 		 */
 		if (may_dequeue_tasks(t->srv, t->be))
-			task_wakeup(&rq, t->srv->queue_mgt);
+			task_wakeup(t->srv->queue_mgt);
 		return 1;
 	}
 	return 0;
@@ -611,7 +611,7 @@ int srv_retryable_connect(struct session *t)
 			t->be->failed_conns++;
 			/* release other sessions waiting for this server */
 			if (may_dequeue_tasks(t->srv, t->be))
-				task_wakeup(&rq, t->srv->queue_mgt);
+				task_wakeup(t->srv->queue_mgt);
 			return 1;
 		}
 		/* ensure that we have enough retries left */
@@ -625,7 +625,7 @@ int srv_retryable_connect(struct session *t)
 	 */
 	/* let's try to offer this slot to anybody */
 	if (may_dequeue_tasks(t->srv, t->be))
-		task_wakeup(&rq, t->srv->queue_mgt);
+		task_wakeup(t->srv->queue_mgt);
 
 	if (t->srv)
 		t->srv->failed_conns++;
@@ -691,7 +691,7 @@ int srv_redispatch_connect(struct session *t)
 
 		/* release other sessions waiting for this server */
 		if (may_dequeue_tasks(t->srv, t->be))
-			task_wakeup(&rq, t->srv->queue_mgt);
+			task_wakeup(t->srv->queue_mgt);
 		return 1;
 	}
 	/* if we get here, it's because we got SRV_STATUS_OK, which also

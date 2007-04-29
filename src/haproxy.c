@@ -269,6 +269,7 @@ void sig_dump_state(int sig)
 
 void dump(int sig)
 {
+#if 0
 	struct task *t;
 	struct session *s;
 	struct rb_node *node;
@@ -290,6 +291,7 @@ void dump(int sig)
 			 s->req->l, s->rep?s->rep->l:0, s->cli_fd
 			 );
 	}
+#endif
 }
 
 #ifdef DEBUG_MEMORY

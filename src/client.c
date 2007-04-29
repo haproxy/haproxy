@@ -152,7 +152,7 @@ int event_accept(int fd) {
 			setsockopt(cfd, SOL_SOCKET, SO_KEEPALIVE, (char *) &one, sizeof(one));
 
 		t->wq = NULL;
-		t->rqnext = NULL;
+		t->qlist.p = NULL;
 		t->state = TASK_IDLE;
 		t->process = process_session;
 		t->context = s;
@@ -422,7 +422,7 @@ int event_accept(int fd) {
 		task_queue(t);
 
 		if (p->mode != PR_MODE_HEALTH)
-			task_wakeup(&rq, t);
+			task_wakeup(t);
 
 		p->feconn++;  /* beconn will be increased later */
 		if (p->feconn > p->feconn_max)

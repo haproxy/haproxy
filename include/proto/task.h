@@ -2,7 +2,7 @@
   include/proto/task.h
   Functions for task management.
 
-  Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -27,42 +27,66 @@
 
 #include <common/config.h>
 #include <common/memory.h>
+#include <common/mini-clist.h>
+#include <common/standard.h>
+
 #include <types/task.h>
 
+extern void *run_queue;
+
+/* needed later */
+void *tree_delete(void *node);
 
 /* puts the task <t> in run queue <q>, and returns <t> */
-static inline struct task *task_wakeup(struct task **q, struct task *t)
+static inline struct task *task_wakeup(struct task *t)
 {
 	if (t->state == TASK_RUNNING)
 		return t;
-	else {
-		t->rqnext = *q;
-		t->state = TASK_RUNNING;
-		return *q = t;
+
+	if (t->qlist.p != NULL)
+		DLIST_DEL(&t->qlist);
+
+	DLIST_ADD(run_queue, &t->qlist);
+	t->state = TASK_RUNNING;
+
+	if (likely(t->wq)) {
+		tree_delete(t->wq);
+		t->wq = NULL;
 	}
+
+	return t;
 }
 
-/* removes the task <t> from the queue <q>
- * <s> MUST be <q>'s first task.
- * set the run queue to point to the next one, and return it
+/* removes the task <t> from the run queue if it was in it.
+ * returns <t>.
  */
-static inline struct task *task_sleep(struct task **q, struct task *t)
+static inline struct task *task_sleep(struct task *t)
 {
 	if (t->state == TASK_RUNNING) {
-		*q = t->rqnext;
-		t->state = TASK_IDLE; /* tell that s has left the run queue */
+		DLIST_DEL(&t->qlist);
+		t->qlist.p = NULL;
+		t->state = TASK_IDLE;
 	}
-	return *q; /* return next running task */
+	return t;
 }
 
 /*
- * removes the task <t> from its wait queue. It must have already been removed
- * from the run queue. A pointer to the task itself is returned.
+ * unlinks the task from wherever it is queued :
+ *  - eternity_queue, run_queue
+ *  - wait queue : wq not null => remove carrier node too
+ * A pointer to the task itself is returned.
  */
 static inline struct task *task_delete(struct task *t)
 {
-	rb_erase(&t->rb_node, t->wq);
-	t->wq = NULL;
+	if (t->qlist.p != NULL) {
+		DLIST_DEL(&t->qlist);
+		t->qlist.p = NULL;
+	}
+
+	if (t->wq) {
+		tree_delete(t->wq);
+		t->wq = NULL;
+	}
 	return t;
 }
 

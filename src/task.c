@@ -1,7 +1,7 @@
 /*
  * Task management functions.
  *
- * Copyright 2000-2006 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2007 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -13,95 +13,117 @@
 #include <common/config.h>
 #include <common/mini-clist.h>
 #include <common/time.h>
+#include <common/standard.h>
 
 #include <proto/task.h>
+#include <types/task.h>
+
+// FIXME: check 8bitops.c for faster FLS
+#include <import/bitops.h>
+#include <import/tree.h>
 
 
 /* FIXME : this should be removed very quickly ! */
 extern int maintain_proxies(void);
 
 void **pool_task= NULL;
-struct task *rq = NULL;		/* global run queue */
+void **pool_tree64 = NULL;
+static struct ultree *stack[LLONGBITS];
 
-struct rb_root wait_queue[2] = {
-	RB_ROOT,
-	RB_ROOT,
-};
+UL2TREE_HEAD(timer_wq);
+void *eternity_queue = NULL;
+void *run_queue = NULL;
 
-
-static inline void __rb_insert_task_queue(struct task *newtask)
+struct ultree *ul2tree_insert(struct ultree *root, unsigned long h, unsigned long l)
 {
-	struct rb_node **p = &newtask->wq->rb_node;
-	struct rb_node *parent = NULL;
-	struct task * task;
-
-	while (*p)
-	{
-		parent = *p;
-		task = rb_entry(parent, struct task, rb_node);
-		if (tv_cmp_ge2(&task->expire, &newtask->expire))
-			p = &(*p)->rb_left;
-		else
-			p = &(*p)->rb_right;
-	}
-	rb_link_node(&newtask->rb_node, parent, p);
+	return __ul2tree_insert(root, h, l);
 }
 
-static void rb_insert_task_queue(struct task *newtask)
-{
-	__rb_insert_task_queue(newtask);
-	rb_insert_color(&newtask->rb_node, newtask->wq);
+void *tree_delete(void *node) {
+    return __tree_delete(node);
 }
 
-
+/*
+ * task_queue()
+ *
+ * Inserts a task into the wait queue at the position given by its expiration
+ * date.
+ *
+ */
 struct task *task_queue(struct task *task)
 {
-	struct rb_node *node;
-	struct task *next, *prev;
+	if (unlikely(task->qlist.p != NULL)) {
+		DLIST_DEL(&task->qlist);
+		task->qlist.p = NULL;
+	}
 
-	if (tv_iseternity(&task->expire)) {
-		if (task->wq) {
-			if (task->wq == &wait_queue[1])
-				return task;
-			else
-				task_delete(task);
-		}
-		task->wq = &wait_queue[1];
-		rb_insert_task_queue(task);
-		return task;
-	} else {
-		if (task->wq != &wait_queue[0]) {
-			if (task->wq)
-				task_delete(task);
-			task->wq = &wait_queue[0];
-			rb_insert_task_queue(task);
-			return task;
-		}
+	if (unlikely(task->wq)) {
+		tree_delete(task->wq);
+		task->wq = NULL;
+	}
 
-		// check whether task should be re insert
-		node = rb_prev(&task->rb_node);
-		if (node) {
-			prev = rb_entry(node, struct task, rb_node);
-			if (tv_cmp_ge(&prev->expire, &task->expire)) {
-				task_delete(task);
-				task->wq = &wait_queue[0];
-				rb_insert_task_queue(task);
-				return task;
-			}
-		}
-
-		node = rb_next(&task->rb_node);
-		if (node) {
-			next = rb_entry(node, struct task, rb_node);
-			if (tv_cmp_ge(&task->expire, &next->expire)) {
-				task_delete(task);
-				task->wq = &wait_queue[0];
-				rb_insert_task_queue(task);
-				return task;
-			}
-		}
+	if (unlikely(tv_iseternity(&task->expire))) {
+		task->wq = NULL;
+		DLIST_ADD(eternity_queue, &task->qlist);
 		return task;
 	}
+
+	task->wq = ul2tree_insert(&timer_wq, task->expire.tv_sec, task->expire.tv_usec);
+	DLIST_ADD(task->wq->data, &task->qlist);
+	return task;
+}
+
+
+/*
+ * Extract all expired timers from the wait queue, and wakes up all
+ * associated tasks.
+ * Returns the time to wait for next task (next_time).
+ *
+ * FIXME: Use an alternative queue for ETERNITY tasks.
+ *
+ */
+int wake_expired_tasks()
+{
+	int slen;
+	struct task *task;
+	void *data;
+	int next_time;
+
+	/*
+	 * Hint: tasks are *rarely* expired. So we can try to optimize
+	 * by not scanning the tree at all in most cases.
+	 */
+
+	if (likely(timer_wq.data != NULL)) {
+		task = LIST_ELEM(timer_wq.data, struct task *, qlist);
+		if (likely(tv_cmp_ge(&task->expire, &now) > 0))
+			return tv_remain(&now, &task->expire);
+	}
+
+	/* OK we lose. Let's scan the tree then. */
+	next_time = TIME_ETERNITY;
+
+	tree64_foreach(&timer_wq, data, stack, slen) {
+		task = LIST_ELEM(data, struct task *, qlist);
+
+		if (unlikely(tv_cmp_ge(&task->expire, &now) > 0)) {
+			next_time = tv_remain(&now, &task->expire);
+			break;
+		}
+
+		/*
+		 * OK, all tasks linked to this node will be unlinked, as well
+		 * as the node itself, so we do not need to care about correct
+		 * unlinking.
+		 */
+		foreach_dlist_item(task, data, struct task *, qlist) {
+			DLIST_DEL(&task->qlist);
+			task->wq = NULL;
+			DLIST_ADD(run_queue, &task->qlist);
+			task->state = TASK_RUNNING;
+		}
+	}
+	return next_time;
 }
 
 /*
@@ -117,35 +139,23 @@ int process_runnable_tasks()
 	int next_time;
 	int time2;
 	struct task *t;
-	struct rb_node *node;
+	void *queue;
 
-	next_time = TIME_ETERNITY;
-	for (node = rb_first(&wait_queue[0]);
-		node != NULL; node = rb_next(node)) {
-		t = rb_entry(node, struct task, rb_node);
-		if (t->state & TASK_RUNNING)
-			continue;
-		if (tv_iseternity(&t->expire))
-			continue;
-		if (tv_cmp_ms(&t->expire, &now) <= 0) {
-			task_wakeup(&rq, t);
-		} else {
-			int temp_time = tv_remain(&now, &t->expire);
-			if (temp_time)
-				next_time = temp_time;
-			break;
-		}
-	}
-
+	next_time = wake_expired_tasks();
 	/* process each task in the run queue now. Each task may be deleted
 	 * since we only use the run queue's head. Note that any task can be
 	 * woken up by any other task and it will be processed immediately
 	 * after as it will be queued on the run queue's head !
 	 */
-	while ((t = rq) != NULL) {
+
+	queue = run_queue;
+	foreach_dlist_item(t, queue, struct task *, qlist) {
 		int temp_time;
 
-		task_sleep(&rq, t);
+		DLIST_DEL(&t->qlist);
+		t->qlist.p = NULL;
+
+		t->state = TASK_IDLE;
 		temp_time = t->process(t);
 		next_time = MINTIME(temp_time, next_time);
 	}
