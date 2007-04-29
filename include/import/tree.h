@@ -54,8 +54,6 @@ struct tree64 {
 #define sizeof_tree64 (sizeof (struct tree64))
 extern void **pool_tree64;
 
-static int node_right_lookup, node_lookup;
-
 #define ULTREE_HEAD(l)		struct ultree (l) = { .left=NULL, .right=NULL, .up=NULL, .low=0, .level=LONGBITS, .data=NULL }
 #define ULTREE_INIT(l)		{ (l)->data = (l)->left = (l)->right = NULL; }
 #define ULTREE_INIT_ROOT(l)	{ (l)->left=(l)->right=(l)->up=(l)->data=NULL; (l)->low=0; (l)->level=LONGBITS; }
@@ -270,18 +268,15 @@ inline static struct ultree *__ul2tree_insert(struct ultree *root, unsigned long
 	if (next->level >= 33) {
 	    if ((h >> (next->level - 33)) & 1) { /* right branch */
 		branch = &next->right;
-		node_right_lookup++;
 	    }
 	}
 	else {
 	    if ((l >> (next->level - 1)) & 1) { /* right branch */
 		branch = &next->right;
-		node_right_lookup++;
 	    }
 	}
 	next = *branch;
 
-	node_lookup++;
 	if (next == NULL) {
 	    /* we'll have to insert our node here */
 	    *branch = new =(struct ultree *)pool_alloc(tree64);
