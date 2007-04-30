@@ -295,7 +295,7 @@ REGPRM2 static void _do_poll(struct poller *p, int wait_time)
 		fdtab[fd].ev = 0;
 
 		if ((fd_list[fd].e & FD_EV_MASK_R) == FD_EV_SPEC_R) {
-			if (fdtab[fd].state != FD_STCLOSE) {
+			if (fdtab[fd].state != FD_STCLOSE && fdtab[fd].state != FD_STERROR) {
 				fdtab[fd].ev |= FD_POLL_IN;
 				if (fdtab[fd].cb[DIR_RD].f(fd) == 0)
 					status |= EPOLLIN;
@@ -303,7 +303,7 @@ REGPRM2 static void _do_poll(struct poller *p, int wait_time)
 		}
 		
 		if ((fd_list[fd].e & FD_EV_MASK_W) == FD_EV_SPEC_W) {
-			if (fdtab[fd].state != FD_STCLOSE) {
+			if (fdtab[fd].state != FD_STCLOSE && fdtab[fd].state != FD_STERROR) {
 				fdtab[fd].ev |= FD_POLL_OUT;
 				if (fdtab[fd].cb[DIR_WR].f(fd) == 0)
 					status |= EPOLLOUT;
@@ -383,16 +383,16 @@ REGPRM2 static void _do_poll(struct poller *p, int wait_time)
 			((e & EPOLLHUP) ? FD_POLL_HUP : 0);
 		
 		if ((fd_list[fd].e & FD_EV_MASK_R) == FD_EV_WAIT_R) {
-			if (fdtab[fd].state == FD_STCLOSE)
+			if (fdtab[fd].state == FD_STCLOSE || fdtab[fd].state == FD_STERROR)
 				continue;
-			if (fdtab[fd].ev & FD_POLL_RD)
+			if (fdtab[fd].ev & (FD_POLL_RD|FD_POLL_HUP|FD_POLL_ERR))
 				fdtab[fd].cb[DIR_RD].f(fd);
 		}
 
 		if ((fd_list[fd].e & FD_EV_MASK_W) == FD_EV_WAIT_W) {
-			if (fdtab[fd].state == FD_STCLOSE)
+			if (fdtab[fd].state == FD_STCLOSE || fdtab[fd].state == FD_STERROR)
 				continue;
-			if (fdtab[fd].ev & FD_POLL_WR)
+			if (fdtab[fd].ev & (FD_POLL_WR|FD_POLL_ERR))
 				fdtab[fd].cb[DIR_WR].f(fd);
 		}
 	}
