@@ -38,7 +38,9 @@ extern void *run_queue;
 void *tree_delete(void *node);
 
 /* puts the task <t> in run queue <q>, and returns <t> */
-static inline struct task *task_wakeup(struct task *t)
+#define task_wakeup _task_wakeup
+struct task *_task_wakeup(struct task *t);
+static inline struct task *__task_wakeup(struct task *t)
 {
 	if (t->state == TASK_RUNNING)
 		return t;

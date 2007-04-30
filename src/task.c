@@ -43,6 +43,10 @@ void *tree_delete(void *node) {
     return __tree_delete(node);
 }
 
+struct task *_task_wakeup(struct task *t)
+{
+	return __task_wakeup(t);
+}
 /*
  * task_queue()
  *
