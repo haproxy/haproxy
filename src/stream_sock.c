@@ -27,6 +27,7 @@
 #include <types/buffers.h>
 #include <types/global.h>
 #include <types/polling.h>
+#include <types/session.h>
 
 #include <proto/client.h>
 #include <proto/fd.h>
@@ -41,7 +42,7 @@
  * otherwise.
  */
 int stream_sock_read(int fd) {
-	__label__ out_wakeup;
+	__label__ out_eternity, out_wakeup, out_error;
 	struct buffer *b = fdtab[fd].cb[DIR_RD].b;
 	int ret, max, retval;
 	int read_poll = MAX_READ_POLL_LOOPS;
@@ -52,21 +53,19 @@ int stream_sock_read(int fd) {
 
 	retval = 1;
 
-	if (unlikely(fdtab[fd].state == FD_STERROR || (fdtab[fd].ev & FD_POLL_ERR))) {
-		/* read/write error */
-		b->flags |= BF_READ_ERROR;
-		fdtab[fd].state = FD_STERROR;
-		goto out_wakeup;
-	}
-
 	if (unlikely(fdtab[fd].ev & FD_POLL_HUP)) {
 		/* connection closed */
 		b->flags |= BF_READ_NULL;
-		goto out_wakeup;
+		goto out_eternity;
+	}
+	else if (unlikely(fdtab[fd].state == FD_STERROR || (fdtab[fd].ev & FD_POLL_ERR))) {
+		goto out_error;
 	}
 
-	retval = 0;
-	while (read_poll-- > 0)	{
+	while (1) {
+		/*
+		 * 1. compute the maximum block size we can read at once.
+		 */
 		if (b->l == 0) { /* let's realign the buffer to optimize I/O */
 			b->r = b->w = b->lr  = b->data;
 			max = b->rlim - b->data;
@@ -84,11 +83,17 @@ int stream_sock_read(int fd) {
 				max = b->rlim - b->data;
 		}
 	    
-		if (max == 0) {  /* not anymore room to store data */
+		if (unlikely(max == 0)) {
+			/* Not anymore room to store data. This should theorically
+			 * never happen, but better safe than sorry !
+			 */
 			EV_FD_CLR(fd, DIR_RD);
-			break;
+			goto out_eternity;
 		}
 
+		/*
+		 * 2. read the largest possible block
+		 */
 #ifndef MSG_NOSIGNAL
 		{
 			int skerr;
@@ -107,13 +112,20 @@ int stream_sock_read(int fd) {
 			b->r += ret;
 			b->l += ret;
 			b->flags |= BF_PARTIAL_READ;
-			retval = 1;
 	
 			if (b->r == b->data + BUFSIZE) {
 				b->r = b->data; /* wrap around the buffer */
 			}
 
 			b->total += ret;
+
+			if (b->l == b->rlim - b->data) {
+				/* The buffer is now full, there's no point in going through
+				 * the loop again.
+				 */
+				EV_FD_CLR(fd, DIR_RD);
+				goto out_eternity;
+			}
 
 			/* generally if we read something smaller than the 1 or 2 MSS,
 			 * it means that it's not worth trying to read again. It may
@@ -123,44 +135,57 @@ int stream_sock_read(int fd) {
 			if (ret < MIN_RET_FOR_READ_LOOP)
 				break;
 
-			if (!read_poll)
+			if (--read_poll <= 0)
 				break;
 
-			/* we hope to read more data or to get a close on next round */
-			continue;
 		}
 		else if (ret == 0) {
+			/* connection closed */
 			b->flags |= BF_READ_NULL;
-			retval = 1;     // connection closed
-			break;
+			goto out_eternity;
 		}
 		else if (errno == EAGAIN) {
 			/* Ignore EAGAIN but inform the poller that there is
-			 * nothing to read left.
+			 * nothing to read left. But we may have done some work
+			 * justifying to notify the task.
 			 */
 			retval = 0;
 			break;
 		}
 		else {
-			retval = 1;
-			b->flags |= BF_READ_ERROR;
-			fdtab[fd].state = FD_STERROR;
-			break;
+			goto out_error;
 		}
-	} /* while (read_poll) */
+	} /* while (1) */
 
-	if (b->flags & BF_READ_STATUS) {
-	out_wakeup:
-		if (b->rto && EV_FD_ISSET(fd, DIR_RD))
+	/*
+	 * The only way to get out of this loop is to have stopped reading
+	 * without any error nor close, either by limiting the number of
+	 * loops, or because of an EAGAIN. We only rearm the timer if we
+	 * have at least read something.
+	 */
+
+	if (b->flags & BF_PARTIAL_READ) {
+		if (b->rto) {
 			tv_ms_add(&b->rex, &now, b->rto);
-		else
-			tv_eternity(&b->rex);
-	
-		task_wakeup(fdtab[fd].owner);
+			goto out_wakeup;
+		}
+	out_eternity:
+		tv_eternity(&b->rex);
 	}
 
+ out_wakeup:
+	if (b->flags & BF_READ_STATUS)
+		task_wakeup(fdtab[fd].owner);
 	fdtab[fd].ev &= ~FD_POLL_RD;
 	return retval;
+
+ out_error:
+	/* There was an error. we must wakeup the task. No need to clear
+	 * the events, the task will do it.
+	 */
+	fdtab[fd].state = FD_STERROR;
+	b->flags |= BF_READ_ERROR;
+	goto out_eternity;
 }
 
 
@@ -171,7 +196,7 @@ int stream_sock_read(int fd) {
  * otherwise.
  */
 int stream_sock_write(int fd) {
-	__label__ out_eternity;
+	__label__ out_eternity, out_wakeup, out_error;
 	struct buffer *b = fdtab[fd].cb[DIR_WR].b;
 	int ret, max, retval;
 	int write_poll = MAX_WRITE_POLL_LOOPS;
@@ -181,17 +206,10 @@ int stream_sock_write(int fd) {
 #endif
 
 	retval = 1;
+	if (unlikely(fdtab[fd].state == FD_STERROR || (fdtab[fd].ev & FD_POLL_ERR)))
+		goto out_error;
 
-	if (unlikely(fdtab[fd].state == FD_STERROR || (fdtab[fd].ev & FD_POLL_ERR))) {
-		/* read/write error */
-		b->flags |= BF_WRITE_ERROR;
-		fdtab[fd].state = FD_STERROR;
-		EV_FD_CLR(fd, DIR_WR);
-		goto out_eternity;
-	}
-
-	retval = 0;
-	while (write_poll-- > 0) {
+	while (1) {
 		if (b->l == 0) { /* let's realign the buffer to optimize I/O */
 			b->r = b->w = b->lr  = b->data;
 			max = 0;
@@ -205,24 +223,41 @@ int stream_sock_write(int fd) {
 
 		if (max == 0) {
 			/* may be we have received a connection acknowledgement in TCP mode without data */
-			if (!(b->flags & BF_PARTIAL_WRITE)
-			    && fdtab[fd].state == FD_STCONN) {
-				int skerr;
-				socklen_t lskerr = sizeof(skerr);
-				ret = getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
-				if (ret == -1 || skerr) {
-					b->flags |= BF_WRITE_ERROR;
-					fdtab[fd].state = FD_STERROR;
-					EV_FD_CLR(fd, DIR_WR);
-					retval = 1;
-					goto out_eternity;
+			if (likely(fdtab[fd].state == FD_STCONN)) {
+				struct session *s = fdtab[fd].owner->context;
+
+				/* We have no data to send to check the connection, and
+				 * getsockopt() will not inform us whether the connection
+				 * is still pending. So we'll reuse connect() to check the
+				 * state of the socket. This has the advantage of givig us
+				 * the following info :
+				 *  - error
+				 *  - connecting (EALREADY, EINPROGRESS)
+				 *  - connected (EISCONN, 0)
+				 */
+				if ((connect(fd, (struct sockaddr *)&s->srv_addr, sizeof(s->srv_addr)) == 0))
+					errno = 0;
+
+				if (errno == EALREADY || errno == EINPROGRESS) {
+					retval = 0;
+					goto out_wakeup;
 				}
+
+				if (errno && errno != EISCONN)
+					goto out_error;
+
+				/* OK we just need to indicate that we got a connection
+				 * and that we wrote nothing.
+				 */
+				b->flags |= BF_WRITE_NULL;
+				fdtab[fd].state = FD_STREADY;
 			}
 
-			b->flags |= BF_WRITE_NULL;
-			fdtab[fd].state = FD_STREADY;
+			/* Funny, we were called to write something but there wasn't
+			 * anything. Theorically we cannot get there, but just in case,
+			 * let's disable the write event and pretend we never came there.
+			 */
 			EV_FD_CLR(fd, DIR_WR);
-			retval = 1;
 			goto out_eternity;
 		}
 
@@ -246,37 +281,40 @@ int stream_sock_write(int fd) {
 			b->w += ret;
 	    
 			b->flags |= BF_PARTIAL_WRITE;
-			retval = 1;
 	    
 			if (b->w == b->data + BUFSIZE) {
 				b->w = b->data; /* wrap around the buffer */
 			}
 
-			if (!write_poll)
-				break;
+			if (!b->l) {
+				EV_FD_CLR(fd, DIR_WR);
+				goto out_eternity;
+			}
 
-			/* we hope to be able to write more data */
-			continue;
+			if (--write_poll <= 0)
+				break;
 		}
-		else if (ret == 0) {
-			/* nothing written, just pretend we were never called */
-			retval = 0;
-			break;
-		}
-		else if (errno == EAGAIN) {/* ignore EAGAIN */
+		else if (ret == 0 || errno == EAGAIN) {
+			/* nothing written, just pretend we were never called
+			 * and wait for the socket to be ready. But we may have
+			 * done some work justifying to notify the task.
+			 */
 			retval = 0;
 			break;
 		}
 		else {
-			b->flags |= BF_WRITE_ERROR;
-			fdtab[fd].state = FD_STERROR;
-			EV_FD_CLR(fd, DIR_WR);
-			retval = 1;
-			goto out_eternity;
+			goto out_error;
 		}
-	} /* while (write_poll) */
+	} /* while (1) */
 
-	if (b->flags & BF_WRITE_STATUS) {
+	/*
+	 * The only way to get out of this loop is to have stopped writing
+	 * without any error, either by limiting the number of loops, or
+	 * because of an EAGAIN. We only rearm the timer if we have at least
+	 * written something.
+	 */
+
+	if (b->flags & BF_PARTIAL_WRITE) {
 		if (b->wto) {
 			tv_ms_add(&b->wex, &now, b->wto);
 			/* FIXME: to prevent the client from expiring read timeouts during writes,
@@ -284,16 +322,27 @@ int stream_sock_write(int fd) {
 			 * unique one, although that needs some study particularly on full-duplex
 			 * TCP connections. */
 			b->rex = b->wex;
+			goto out_wakeup;
 		}
-		else {
-		out_eternity:
-			tv_eternity(&b->wex);
-		}
+	out_eternity:
+		tv_eternity(&b->wex);
 	}
 
-	task_wakeup(fdtab[fd].owner);
+ out_wakeup:
+	if (b->flags & BF_WRITE_STATUS)
+		task_wakeup(fdtab[fd].owner);
 	fdtab[fd].ev &= ~FD_POLL_WR;
 	return retval;
+
+ out_error:
+	/* There was an error. we must wakeup the task. No need to clear
+	 * the events, the task will do it.
+	 */
+	fdtab[fd].state = FD_STERROR;
+	b->flags |= BF_WRITE_ERROR;
+	goto out_eternity;
+
+
 }
 
 

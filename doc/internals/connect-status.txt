@@ -1,0 +1,28 @@
+Normally, we should use getsockopt(fd, SOL_SOCKET, SO_ERROR) on a pending
+connect() to detect whether the connection correctly established or not.
+
+Unfortunately, getsockopt() does not report the status of a pending connection,
+which means that it returns 0 if the connection is still pending. This has to
+be expected, because as the name implies it, it only returns errors.
+
+With the speculative I/O, a new problem was introduced : if we pretend the
+socket was indicated as ready and we go to the socket's write() function,
+a pending connection will then inevitably be identified as established.
+
+In fact, there are solutions to this issue :
+
+  - send() returns -EAGAIN if it cannot write, so that as long as there are
+    pending data in the buffer, we'll be informed about the status of the
+    connection
+
+  - connect() on an already pending connection will return -1 with errno set to
+    one of the following values :
+      - EALREADY : connection already in progress
+      - EISCONN  : connection already established
+      - anything else will indicate an error.
+
+=> So instead of using getsockopt() on a pending connection with no data, we
+   will switch to connect(). This implies that the connection address must be
+   known within the socket's write() function.
+
+

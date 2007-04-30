@@ -110,22 +110,14 @@ static void set_server_down(struct server *s)
  */
 static int event_srv_chk_w(int fd)
 {
-	__label__ out_wakeup, out_nowake;
+	__label__ out_wakeup, out_nowake, out_poll, out_error;
 	struct task *t = fdtab[fd].owner;
 	struct server *s = t->context;
-	int skerr;
-	socklen_t lskerr = sizeof(skerr);
 
-	skerr = 1;
-	if (unlikely(fdtab[fd].state == FD_STERROR ||
-		     (fdtab[fd].ev & FD_POLL_ERR) ||
-		     (getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr) == -1) ||
-		     (skerr != 0))) {
-		/* in case of TCP only, this tells us if the connection failed */
-		s->result = -1;
-		fdtab[fd].state = FD_STERROR;
-		goto out_wakeup;
-	}
+	if (unlikely(fdtab[fd].state == FD_STERROR || (fdtab[fd].ev & FD_POLL_ERR)))
+		goto out_error;
+
+	/* here, we know that the connection is established */
 
 	if (s->result != -1) {
 		/* we don't want to mark 'UP' a server on which we detected an error earlier */
@@ -151,19 +143,39 @@ static int event_srv_chk_w(int fd)
 				EV_FD_SET(fd, DIR_RD);   /* prepare for reading reply */
 				goto out_nowake;
 			}
-			else if (ret == 0 || errno == EAGAIN) {
-				/* we want some polling to happen first */
-				fdtab[fd].ev &= ~FD_POLL_WR;
-				return 0;
-			}
-			else {
-				s->result = -1;
-				EV_FD_CLR(fd, DIR_WR);
-			}
+			else if (ret == 0 || errno == EAGAIN)
+				goto out_poll;
+			else
+				goto out_error;
 		}
 		else {
+			/* We have no data to send to check the connection, and
+			 * getsockopt() will not inform us whether the connection
+			 * is still pending. So we'll reuse connect() to check the
+			 * state of the socket. This has the advantage of givig us
+			 * the following info :
+			 *  - error
+			 *  - connecting (EALREADY, EINPROGRESS)
+			 *  - connected (EISCONN, 0)
+			 */
+
+			struct sockaddr_in sa;
+
+			sa = (s->check_addr.sin_addr.s_addr) ? s->check_addr : s->addr;
+			sa.sin_port = htons(s->check_port);
+
+			if (connect(fd, (struct sockaddr *)&sa, sizeof(sa)) == 0)
+				errno = 0;
+
+			if (errno == EALREADY || errno == EINPROGRESS)
+				goto out_poll;
+
+			if (errno && errno != EISCONN)
+				goto out_error;
+
 			/* good TCP connection is enough */
 			s->result = 1;
+			goto out_wakeup;
 		}
 	}
  out_wakeup:
@@ -172,6 +184,15 @@ static int event_srv_chk_w(int fd)
 	EV_FD_CLR(fd, DIR_WR);   /* nothing more to write */
 	fdtab[fd].ev &= ~FD_POLL_WR;
 	return 1;
+ out_poll:
+	/* The connection is still pending. We'll have to poll it
+	 * before attempting to go further. */
+	fdtab[fd].ev &= ~FD_POLL_WR;
+	return 0;
+ out_error:
+	s->result = -1;
+	fdtab[fd].state = FD_STERROR;
+	goto out_wakeup;
 }
 
 
@@ -221,13 +242,16 @@ static int event_srv_chk_r(int fd)
 		return 0;
 	}
 
-	if (((s->proxy->options & PR_O_HTTP_CHK) &&
-	     (len >= sizeof("HTTP/1.0 000")) &&
-	     !memcmp(reply, "HTTP/1.", 7) &&
-	     (reply[9] == '2' || reply[9] == '3')) /* 2xx or 3xx */
-	    || ((s->proxy->options & PR_O_SSL3_CHK) && (len >= 5) &&
-		(reply[0] == 0x15 || reply[0] == 0x16))) /* alert or handshake */
+	if ((s->proxy->options & PR_O_HTTP_CHK) && (len >= sizeof("HTTP/1.0 000")) &&
+	     (memcmp(reply, "HTTP/1.", 7) == 0) && (reply[9] == '2' || reply[9] == '3')) {
+		/* HTTP/1.X 2xx or 3xx */
 		result = 1;
+	}
+	else if ((s->proxy->options & PR_O_SSL3_CHK) && (len >= 5) &&
+		 (reply[0] == 0x15 || reply[0] == 0x16)) {
+		/* SSLv3 alert or handshake */
+		result = 1;
+	}
 
 	if (result == -1)
 		fdtab[fd].state = FD_STERROR;
