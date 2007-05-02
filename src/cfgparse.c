@@ -2052,7 +2052,7 @@ int readcfgfile(const char *file)
 	FILE *f;
 	int linenum = 0;
 	char *end;
-	char *args[MAX_LINE_ARGS];
+	char *args[MAX_LINE_ARGS + 1];
 	int arg;
 	int cfgerr = 0;
 	int nbchk, mininter;
@@ -2142,8 +2142,10 @@ int readcfgfile(const char *file)
 		if (!**args)
 			continue;
 
-		/* zero out remaining args */
-		while (++arg < MAX_LINE_ARGS) {
+		/* zero out remaining args and ensure that at least one entry
+		 * is zeroed out.
+		 */
+		while (++arg <= MAX_LINE_ARGS) {
 			args[arg] = line;
 		}
 
