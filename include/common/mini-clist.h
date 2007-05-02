@@ -105,6 +105,8 @@ struct list {
 #define LIST_PREV(lh, pt, el) (LIST_ELEM((lh)->p, pt, el))
 
 /*
+ * DEPRECATED !!!  Use list_for_each_entry() below instead !
+ *
  * iterates through a list of items of type "<struct_type>" which are
  * linked via a "struct list" member named <struct_member>. The head of the
  * list is stored at a location designed by <list_head>, which should be a
@@ -119,6 +121,8 @@ struct list {
 			     struct_type, struct_member)) != (end_item))
 
 /*
+ * DEPRECATED !!!  Use list_for_each_entry_safe() below instead !
+ *
  * idem except that this one is safe against deletion, but it needs a backup
  * pointer of the element after the iterator.
  * Example: FOREACH_ITEM_SAFE(cur_node, backup, &node->args, node, struct node *, neigh) { ... };
@@ -130,5 +134,33 @@ struct list {
 		backup = LIST_ELEM((iterator)->struct_member.n, struct_type, struct_member); \
 	for ( ; (iterator) != (end_item); (iterator) = (backup),   \
 		backup = LIST_ELEM((iterator)->struct_member.n, struct_type, struct_member))
+
+/*
+ * Simpler FOREACH_ITEM macro inspired from Linux sources.
+ * Iterates <item> through a list of items of type "typeof(*item)" which are
+ * linked via a "struct list" member named <member>. A pointer to the head of
+ * the list is passed in <list_head>. No temporary variable is needed. Note
+ * that <item> must not be modified during the loop.
+ * Example: list_for_each_entry(cur_acl, known_acl, list) { ... };
+ */ 
+#define list_for_each_entry(item, list_head, member)                      \
+	for (item = LIST_ELEM((list_head)->n, typeof(item), member);     \
+	     &item->member != (list_head);                                \
+	     item = LIST_ELEM(item->member.n, typeof(item), member))
+
+/*
+ * Simpler FOREACH_ITEM_SAFE macro inspired from Linux sources.
+ * Iterates <item> through a list of items of type "typeof(*item)" which are
+ * linked via a "struct list" member named <member>. A pointer to the head of
+ * the list is passed in <list_head>. A temporary variable <back> of same type
+ * as <item> is needed so that <item> may safely be deleted if needed.
+ * Example: list_for_each_entry_safe(cur_acl, tmp, known_acl, list) { ... };
+ */ 
+#define list_for_each_entry_safe(item, back, list_head, member)           \
+	for (item = LIST_ELEM((list_head)->n, typeof(item), member),     \
+	     back = LIST_ELEM(item->member.n, typeof(item), member);     \
+	     &item->member != (list_head);                                \
+	     item = back, back = LIST_ELEM(back->member.n, typeof(back), member))
+
 
 #endif /* _COMMON_MINI_CLIST_H */
