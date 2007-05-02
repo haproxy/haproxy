@@ -205,7 +205,8 @@ typedef enum {
  */
 struct http_msg {
 	int msg_state;                  /* where we are in the current message parsing */
-	char *sol, *eol;		/* start of line, end of line */
+	char *sol;                      /* start of line, also start of message when fully parsed */
+	char *eol;                      /* end of line */
 	int som;			/* Start Of Message, relative to buffer */
 	int col, sov;			/* current header: colon, start of value */
 	int eoh;			/* End Of Headers, relative to buffer */

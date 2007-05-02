@@ -823,10 +823,10 @@ void capture_headers(char *som, struct hdr_idx *idx,
  * non-NULL, they are fed with the new <ptr> and <state> values to be passed
  * upon next call.
  *
- * This function was intentionnally designed to be called from
+ * This function was intentionally designed to be called from
  * http_msg_analyzer() with the lowest overhead. It should integrate perfectly
  * within its state machine and use the same macros, hence the need for same
- * labels and variable names.
+ * labels and variable names. Note that msg->sol is left unchanged.
  */
 const char *http_parse_stsline(struct http_msg *msg, const char *msg_buf, int state,
 			       const char *ptr, const char *end,
@@ -946,10 +946,10 @@ const char *http_parse_stsline(struct http_msg *msg, const char *msg_buf, int st
  * non-NULL, they are fed with the new <ptr> and <state> values to be passed
  * upon next call.
  *
- * This function was intentionnally designed to be called from
+ * This function was intentionally designed to be called from
  * http_msg_analyzer() with the lowest overhead. It should integrate perfectly
  * within its state machine and use the same macros, hence the need for same
- * labels and variable names.
+ * labels and variable names. Note that msg->sol is left unchanged.
  */
 const char *http_parse_reqline(struct http_msg *msg, const char *msg_buf, int state,
 			       const char *ptr, const char *end,
@@ -1074,7 +1074,8 @@ const char *http_parse_reqline(struct http_msg *msg, const char *msg_buf, int st
  * depending on the initial msg->msg_state. It can be preempted everywhere
  * when data are missing and recalled at the exact same location with no
  * information loss. The header index is re-initialized when switching from
- * MSG_R[PQ]BEFORE to MSG_RPVER|MSG_RQMETH.
+ * MSG_R[PQ]BEFORE to MSG_RPVER|MSG_RQMETH. It modifies msg->sol among other
+ * fields.
  */
 void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx *idx)
 {
@@ -1558,6 +1559,9 @@ int process_cli(struct session *t)
 		 * request which at least looks like HTTP. We have an indicator *
 		 * of each header's length, so we can parse them quickly.       *
 		 ****************************************************************/
+
+		/* ensure we keep this pointer to the beginning of the message */
+		msg->sol = req->data + msg->som;
 
 		/*
 		 * 1: identify the method
@@ -2672,6 +2676,9 @@ int process_srv(struct session *t)
 		 * response which at least looks like HTTP. We have an indicator *
 		 * of each header's length, so we can parse them quickly.        *
 		 ****************************************************************/
+
+		/* ensure we keep this pointer to the beginning of the message */
+		msg->sol = rep->data + msg->som;
 
 		/*
 		 * 1: get the status code and check for cacheability.
@@ -3917,7 +3924,7 @@ int apply_filter_to_req_line(struct session *t, struct buffer *req, struct hdr_e
 
 	done = 0;
 
-	cur_ptr = req->data + txn->req.som;
+	cur_ptr = req->data + txn->req.som; /* should be equal to txn->sol */
 	cur_end = cur_ptr + txn->req.sl.rq.l;
 
 	/* Now we have the request line between cur_ptr and cur_end */
@@ -3982,7 +3989,7 @@ int apply_filter_to_req_line(struct session *t, struct buffer *req, struct hdr_e
 			txn->req.eoh += delta;
 			cur_end += delta;
 
-			txn->req.sol = req->data + txn->req.som;
+			txn->req.sol = req->data + txn->req.som; /* should be equal to txn->sol */
 			cur_end = (char *)http_parse_reqline(&txn->req, req->data,
 							     HTTP_MSG_RQMETH,
 							     cur_ptr, cur_end + 1,
@@ -4511,7 +4518,7 @@ int apply_filter_to_sts_line(struct session *t, struct buffer *rtr, struct hdr_e
 
 	done = 0;
 
-	cur_ptr = rtr->data + txn->rsp.som;
+	cur_ptr = rtr->data + txn->rsp.som; /* should be equal to txn->sol */
 	cur_end = cur_ptr + txn->rsp.sl.rq.l;
 
 	/* Now we have the status line between cur_ptr and cur_end */
@@ -4548,7 +4555,7 @@ int apply_filter_to_sts_line(struct session *t, struct buffer *rtr, struct hdr_e
 			txn->rsp.eoh += delta;
 			cur_end += delta;
 
-			txn->rsp.sol = rtr->data + txn->rsp.som;
+			txn->rsp.sol = rtr->data + txn->rsp.som; /* should be equal to txn->sol */
 			cur_end = (char *)http_parse_stsline(&txn->rsp, rtr->data,
 							     HTTP_MSG_RPVER,
 							     cur_ptr, cur_end + 1,
