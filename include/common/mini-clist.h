@@ -23,6 +23,8 @@ struct list {
 
 #define LIST_INIT(l) ((l)->n = (l)->p = (l))
 
+#define LIST_HEAD_INIT(l) { &l, &l }
+
 /* dual linked lists :
  * Start = (struct list *) pointer to the next elem's prev list entry
  * For each element :
