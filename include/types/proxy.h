@@ -84,6 +84,7 @@ struct proxy {
 		char *name;			/* default backend name during config parse */
 	} defbe;
 	struct list acl;                        /* ACL declared on this proxy */
+	struct list block_cond;                 /* early blocking conditions (chained) */
 	struct server *srv;			/* known servers */
 	int srv_act, srv_bck;			/* # of running servers */
 	int tot_wact, tot_wbck;			/* total weights of active and backup servers */

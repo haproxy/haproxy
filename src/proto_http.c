@@ -1674,8 +1674,24 @@ int process_cli(struct session *t)
 		 */
 
 		do {
+			struct acl_cond *cond;
 			struct proxy *rule_set = t->be;
 			cur_proxy = t->be;
+
+			/* first check whether we have some ACLs set to block this request */
+			list_for_each_entry(cond, &cur_proxy->block_cond, list) {
+				int ret = acl_exec_cond(cond, cur_proxy, t, txn);
+				if (cond->pol == ACL_COND_UNLESS)
+					ret = !ret;
+
+				if (ret) {
+					txn->status = 403;
+					/* let's log the request time */
+					t->logs.t_request = tv_ms_elapsed(&t->logs.tv_accept, &now);
+					client_retnclose(t, error_message(t, HTTP_ERR_403));
+					goto return_prx_cond;
+				}
+			}
 
 			/* try headers filters */
 			if (rule_set->req_exp != NULL) {

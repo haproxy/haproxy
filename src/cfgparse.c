@@ -494,6 +494,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		proxy = curproxy;
 		LIST_INIT(&curproxy->pendconns);
 		LIST_INIT(&curproxy->acl);
+		LIST_INIT(&curproxy->block_cond);
 
 		curproxy->id = strdup(args[1]);
 		curproxy->cap = rc;
@@ -911,6 +912,28 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			return -1;
 		}
 		curproxy->conn_retries = atol(args[1]);
+	}
+	else if (!strcmp(args[0], "block")) {  /* early blocking based on ACLs */
+		int pol = ACL_COND_NONE;
+		struct acl_cond *cond;
+
+		if (!strcmp(args[1], "if"))
+			pol = ACL_COND_IF;
+		else if (!strcmp(args[1], "unless"))
+			pol = ACL_COND_UNLESS;
+
+		if (pol == ACL_COND_NONE) {
+			Alert("parsing [%s:%d] : '%s' requires either 'if' or 'unless' followed by a condition.\n",
+			      file, linenum, args[0]);
+			return -1;
+		}
+
+		if ((cond = parse_acl_cond((const char **)args + 2, &curproxy->acl, pol)) == NULL) {
+			Alert("parsing [%s:%d] : error detected while parsing blocking condition.\n",
+			      file, linenum);
+			return -1;
+		}
+		LIST_ADDQ(&curproxy->block_cond, &cond->list);
 	}
 	else if (!strcmp(args[0], "stats")) {
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
