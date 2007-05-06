@@ -33,6 +33,7 @@
 #include <types/proxy.h>
 #include <types/queue.h>
 
+#include <proto/acl.h>
 #include <proto/backend.h>
 #include <proto/buffers.h>
 #include <proto/checks.h>
@@ -492,6 +493,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		curproxy->next = proxy;
 		proxy = curproxy;
 		LIST_INIT(&curproxy->pendconns);
+		LIST_INIT(&curproxy->acl);
 
 		curproxy->id = strdup(args[1]);
 		curproxy->cap = rc;
@@ -666,6 +668,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 	}
 	else if (!strcmp(args[0], "enabled")) {  /* enables this proxy (used to revert a disabled default) */
 		curproxy->state = PR_STNEW;
+	}
+	else if (!strcmp(args[0], "acl")) {  /* add an ACL */
+		if (parse_acl((const char **)args + 1, &curproxy->acl) == NULL) {
+			Alert("parsing [%s:%d] : error detected while parsing ACL '%s'.\n",
+			      file, linenum, args[1]);
+			return -1;
+		}
 	}
 	else if (!strcmp(args[0], "cookie")) {  /* cookie name */
 		int cur_arg;

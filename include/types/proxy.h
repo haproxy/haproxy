@@ -34,6 +34,7 @@
 #include <common/regex.h>
 #include <common/tools.h>
 
+#include <types/acl.h>
 #include <types/buffers.h>
 #include <types/httperr.h>
 #include <types/session.h>
@@ -82,6 +83,7 @@ struct proxy {
 		struct proxy *be;		/* default backend, or NULL if none set */
 		char *name;			/* default backend name during config parse */
 	} defbe;
+	struct list acl;                        /* ACL declared on this proxy */
 	struct server *srv;			/* known servers */
 	int srv_act, srv_bck;			/* # of running servers */
 	int tot_wact, tot_wbck;			/* total weights of active and backup servers */
