@@ -24,6 +24,7 @@
 #include <common/config.h>
 #include <common/time.h>
 
+#include <types/acl.h>
 #include <types/backend.h>
 #include <types/buffers.h>
 #include <types/global.h>
@@ -33,6 +34,7 @@
 #include <types/server.h>
 #include <types/session.h>
 
+#include <proto/acl.h>
 #include <proto/buffers.h>
 #include <proto/client.h>
 #include <proto/fd.h>
@@ -446,6 +448,65 @@ int event_accept(int fd) {
 	return 0;
 }
 
+
+
+/************************************************************************/
+/*             All supported keywords must be declared here.            */
+/************************************************************************/
+
+/* set test->ptr to point to the source IPv4/IPv6 address and test->i to the family */
+static int acl_fetch_src(struct proxy *px, struct session *l4, void *l7, void *arg, struct acl_test *test)
+{
+	test->i = l4->cli_addr.ss_family;
+	if (test->i == AF_INET)
+		test->ptr = (void *)&((struct sockaddr_in *)&l4->cli_addr)->sin_addr;
+	else
+		test->ptr = (void *)&((struct sockaddr_in6 *)(&l4->cli_addr))->sin6_addr;
+	test->flags = ACL_TEST_F_READ_ONLY;
+	return 1;
+}
+
+
+/* set test->i to the connexion's source port */
+static int acl_fetch_sport(struct proxy *px, struct session *l4, void *l7, void *arg, struct acl_test *test)
+{
+	if (l4->cli_addr.ss_family == AF_INET)
+		test->i = ntohs(((struct sockaddr_in *)&l4->cli_addr)->sin_port);
+	else
+		test->i = ntohs(((struct sockaddr_in6 *)(&l4->cli_addr))->sin6_port);
+	test->flags = 0;
+	return 1;
+}
+
+/* set test->i to the number of connexions to the proxy */
+static int acl_fetch_dconn(struct proxy *px, struct session *l4, void *l7, void *arg, struct acl_test *test)
+{
+	test->i = px->feconn;
+	return 1;
+}
+
+
+/* Note: must not be declared <const> as its list will be overwritten */
+static struct acl_kw_list acl_kws = {{ },{
+	{ "src_port",   acl_parse_range, acl_fetch_sport,  acl_match_range },
+#if 0
+	{ "src",        acl_parse_ip,    acl_fetch_src,    acl_match_ip    },
+	{ "dst",        acl_parse_ip,    acl_fetch_dst,    acl_match_ip    },
+
+	{ "dst_port",   acl_parse_range, acl_fetch_dport,  acl_match_range },
+
+	{ "src_limit",  acl_parse_int,   acl_fetch_sconn,  acl_match_max   },
+#endif
+	{ "dst_limit",  acl_parse_int,   acl_fetch_dconn,  acl_match_max   },
+	{ NULL, NULL, NULL, NULL },
+}};
+
+
+__attribute__((constructor))
+static void __client_init(void)
+{
+	acl_register_keywords(&acl_kws);
+}
 
 
 /*

@@ -34,6 +34,7 @@
 #include <common/uri_auth.h>
 #include <common/version.h>
 
+#include <types/acl.h>
 #include <types/capture.h>
 #include <types/client.h>
 #include <types/global.h>
@@ -42,6 +43,7 @@
 #include <types/proxy.h>
 #include <types/server.h>
 
+#include <proto/acl.h>
 #include <proto/backend.h>
 #include <proto/buffers.h>
 #include <proto/fd.h>
@@ -5121,6 +5123,217 @@ void debug_hdr(const char *dir, struct session *t, const char *start, const char
 	len += strlcpy2(trash + len, start, max + 1);
 	trash[len++] = '\n';
 	write(1, trash, len);
+}
+
+
+/************************************************************************/
+/*        The code below is dedicated to ACL parsing and matching       */
+/************************************************************************/
+
+
+
+
+/* 1. Check on METHOD
+ * We use the pre-parsed method if it is known, and store its number as an
+ * integer. If it is unknown, we use the pointer and the length.
+ */
+static int acl_parse_meth(const char *text, struct acl_pattern *pattern)
+{
+	int len, meth;
+
+	len  = strlen(text);
+	meth = find_http_meth(text, len);
+
+	pattern->val.i = meth;
+	if (meth == HTTP_METH_OTHER) {
+		pattern->ptr.str = strdup(text);
+		if (!pattern->ptr.str)
+			return 0;
+		pattern->len = len;
+	}
+	return 1;
+}
+
+static int acl_fetch_meth(struct proxy *px, struct session *l4, void *l7, void *arg, struct acl_test *test)
+{
+	int meth;
+	struct http_txn *txn = l7;
+
+	meth = txn->meth;
+	test->i = meth;
+	if (meth == HTTP_METH_OTHER) {
+		test->len = txn->req.sl.rq.m_l;
+		test->ptr = txn->req.sol;
+	}
+	test->flags = ACL_TEST_F_READ_ONLY | ACL_TEST_F_VOL_1ST;
+	return 1;
+}
+
+static int acl_match_meth(struct acl_test *test, struct acl_pattern *pattern)
+{
+	if (test->i != pattern->val.i)
+		return 0;
+
+	if (test->i != HTTP_METH_OTHER)
+		return 1;
+
+	/* Other method, we must compare the strings */
+	if (pattern->len != test->len)
+		return 0;
+	if (strncmp(pattern->ptr.str, test->ptr, test->len) != 0)
+		return 0;
+	return 1;
+}
+
+/* 2. Check on Request/Status Version
+ * We simply compare strings here.
+ */
+static int acl_parse_ver(const char *text, struct acl_pattern *pattern)
+{
+	pattern->ptr.str = strdup(text);
+	if (!pattern->ptr.str)
+		return 0;
+	pattern->len = strlen(text);
+	return 1;
+}
+
+static int acl_fetch_rqver(struct proxy *px, struct session *l4, void *l7, void *arg, struct acl_test *test)
+{
+	struct http_txn *txn = l7;
+	char *ptr;
+	int len;
+
+	len = txn->req.sl.rq.v_l;
+	ptr = txn->req.sol + txn->req.sl.rq.v - txn->req.som;
+
+	while ((len-- > 0) && (*ptr++ != '/'));
+	if (len <= 0)
+		return 0;
+
+	test->ptr = ptr;
+	test->len = len;
+
+	test->flags = ACL_TEST_F_READ_ONLY | ACL_TEST_F_VOL_1ST;
+	return 1;
+}
+
+static int acl_fetch_stver(struct proxy *px, struct session *l4, void *l7, void *arg, struct acl_test *test)
+{
+	struct http_txn *txn = l7;
+	char *ptr;
+	int len;
+
+	len = txn->rsp.sl.st.v_l;
+	ptr = txn->rsp.sol;
+
+	while ((len-- > 0) && (*ptr++ != '/'));
+	if (len <= 0)
+		return 0;
+
+	test->ptr = ptr;
+	test->len = len;
+
+	test->flags = ACL_TEST_F_READ_ONLY | ACL_TEST_F_VOL_1ST;
+	return 1;
+}
+
+/* 3. Check on Status Code. We manipulate integers here. */
+static int acl_fetch_stcode(struct proxy *px, struct session *l4, void *l7, void *arg, struct acl_test *test)
+{
+	struct http_txn *txn = l7;
+	char *ptr;
+	int len;
+
+	len = txn->rsp.sl.st.c_l;
+	ptr = txn->rsp.sol + txn->rsp.sl.st.c - txn->rsp.som;
+
+	test->i = __strl2ui(ptr, len);
+	test->flags = ACL_TEST_F_VOL_1ST;
+	return 1;
+}
+
+/* 4. Check on URL/URI. A pointer to the URI is stored. */
+static int acl_fetch_url(struct proxy *px, struct session *l4, void *l7, void *arg, struct acl_test *test)
+{
+	struct http_txn *txn = l7;
+
+	test->len = txn->req.sl.rq.u_l;
+	test->ptr = txn->req.sol + txn->req.sl.rq.u;
+
+	test->flags = ACL_TEST_F_READ_ONLY | ACL_TEST_F_VOL_1ST;
+	return 1;
+}
+
+
+
+/************************************************************************/
+/*             All supported keywords must be declared here.            */
+/************************************************************************/
+
+/* Note: must not be declared <const> as its list will be overwritten */
+static struct acl_kw_list acl_kws = {{ },{
+	{ "method",     acl_parse_meth,  acl_fetch_meth,   acl_match_meth },
+	{ "req_ver",    acl_parse_ver,   acl_fetch_rqver,  acl_match_str  },
+	{ "resp_ver",   acl_parse_ver,   acl_fetch_stver,  acl_match_str  },
+	{ "status",     acl_parse_range, acl_fetch_stcode, acl_match_range },
+
+	{ "url",        acl_parse_str,   acl_fetch_url,    acl_match_str   },
+	{ "url_beg",    acl_parse_str,   acl_fetch_url,    acl_match_beg   },
+	{ "url_end",    acl_parse_str,   acl_fetch_url,    acl_match_end   },
+	{ "url_sub",    acl_parse_str,   acl_fetch_url,    acl_match_sub   },
+	{ "url_dir",    acl_parse_str,   acl_fetch_url,    acl_match_dir   },
+	{ "url_dom",    acl_parse_str,   acl_fetch_url,    acl_match_dom   },
+	{ NULL, NULL, NULL, NULL },
+#if 0
+	{ "url_reg",    acl_parse_reg,   acl_fetch_url,    acl_match_reg   },
+
+	{ "line",       acl_parse_str,   acl_fetch_line,   acl_match_str   },
+	{ "line_reg",   acl_parse_reg,   acl_fetch_line,   acl_match_reg   },
+	{ "line_beg",   acl_parse_str,   acl_fetch_line,   acl_match_beg   },
+	{ "line_end",   acl_parse_str,   acl_fetch_line,   acl_match_end   },
+	{ "line_sub",   acl_parse_str,   acl_fetch_line,   acl_match_sub   },
+	{ "line_dir",   acl_parse_str,   acl_fetch_line,   acl_match_dir   },
+	{ "line_dom",   acl_parse_str,   acl_fetch_line,   acl_match_dom   },
+
+	{ "path",       acl_parse_str,   acl_fetch_path,   acl_match_str   },
+	{ "path_reg",   acl_parse_reg,   acl_fetch_path,   acl_match_reg   },
+	{ "path_beg",   acl_parse_str,   acl_fetch_path,   acl_match_beg   },
+	{ "path_end",   acl_parse_str,   acl_fetch_path,   acl_match_end   },
+	{ "path_sub",   acl_parse_str,   acl_fetch_path,   acl_match_sub   },
+	{ "path_dir",   acl_parse_str,   acl_fetch_path,   acl_match_dir   },
+	{ "path_dom",   acl_parse_str,   acl_fetch_path,   acl_match_dom   },
+
+	{ "hdr",        acl_parse_str,   acl_fetch_hdr,    acl_match_str   },
+	{ "hdr_reg",    acl_parse_reg,   acl_fetch_hdr,    acl_match_reg   },
+	{ "hdr_beg",    acl_parse_str,   acl_fetch_hdr,    acl_match_beg   },
+	{ "hdr_end",    acl_parse_str,   acl_fetch_hdr,    acl_match_end   },
+	{ "hdr_sub",    acl_parse_str,   acl_fetch_hdr,    acl_match_sub   },
+	{ "hdr_dir",    acl_parse_str,   acl_fetch_hdr,    acl_match_dir   },
+	{ "hdr_dom",    acl_parse_str,   acl_fetch_hdr,    acl_match_dom   },
+	{ "hdr_pst",    acl_parse_none,  acl_fetch_hdr,    acl_match_pst   },
+
+	{ "cook",       acl_parse_str,   acl_fetch_cook,   acl_match_str   },
+	{ "cook_reg",   acl_parse_reg,   acl_fetch_cook,   acl_match_reg   },
+	{ "cook_beg",   acl_parse_str,   acl_fetch_cook,   acl_match_beg   },
+	{ "cook_end",   acl_parse_str,   acl_fetch_cook,   acl_match_end   },
+	{ "cook_sub",   acl_parse_str,   acl_fetch_cook,   acl_match_sub   },
+	{ "cook_dir",   acl_parse_str,   acl_fetch_cook,   acl_match_dir   },
+	{ "cook_dom",   acl_parse_str,   acl_fetch_cook,   acl_match_dom   },
+	{ "cook_pst",   acl_parse_none,  acl_fetch_cook,   acl_match_pst   },
+
+	{ "auth_user",  acl_parse_str,   acl_fetch_user,   acl_match_str   },
+	{ "auth_regex", acl_parse_reg,   acl_fetch_user,   acl_match_reg   },
+	{ "auth_clear", acl_parse_str,   acl_fetch_auth,   acl_match_str   },
+	{ "auth_md5",   acl_parse_str,   acl_fetch_auth,   acl_match_md5   },
+	{ NULL, NULL, NULL, NULL },
+#endif
+}};
+
+
+__attribute__((constructor))
+static void __http_protocol_init(void)
+{
+	acl_register_keywords(&acl_kws);
 }
 
 
