@@ -22,6 +22,15 @@
 #ifndef _COMMON_COMPAT_H
 #define _COMMON_COMPAT_H
 
+/*
+ * Gcc before 3.0 needs [0] to declare a variable-size array
+ */
+#if  __GNUC__  < 3
+#define VAR_ARRAY	0
+#else
+#define VAR_ARRAY
+#endif
+
 /* This is needed on Linux for Netfilter includes */
 #include <sys/socket.h>
 #include <common/config.h>
