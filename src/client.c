@@ -43,6 +43,17 @@
 #include <proto/task.h>
 
 
+/* Retrieves the original destination address used by the client, and sets the
+ * SN_FRT_ADDR_SET flag.
+ */
+void get_frt_addr(struct session *s)
+{
+	socklen_t namelen = sizeof(s->frt_addr);
+
+	if (get_original_dst(s->cli_fd, (struct sockaddr_in *)&s->frt_addr, &namelen) == -1)
+		getsockname(s->cli_fd, (struct sockaddr *)&s->frt_addr, &namelen);
+	s->flags |= SN_FRT_ADDR_SET;
+}
 
 /*
  * FIXME: This should move to the STREAM_SOCK code then split into TCP and HTTP.
@@ -263,14 +274,6 @@ int event_accept(int fd) {
 
 		if ((p->mode == PR_MODE_TCP || p->mode == PR_MODE_HTTP)
 		    && (p->logfac1 >= 0 || p->logfac2 >= 0)) {
-			struct sockaddr_storage sockname;
-			socklen_t namelen = sizeof(sockname);
-
-			if (addr.ss_family != AF_INET ||
-			    !(s->fe->options & PR_O_TRANSP) ||
-			    get_original_dst(cfd, (struct sockaddr_in *)&sockname, &namelen) == -1)
-				getsockname(cfd, (struct sockaddr *)&sockname, &namelen);
-
 			if (p->to_log) {
 				/* we have the client ip */
 				if (s->logs.logwait & LW_CLIP)
@@ -279,38 +282,43 @@ int event_accept(int fd) {
 			}
 			else if (s->cli_addr.ss_family == AF_INET) {
 				char pn[INET_ADDRSTRLEN], sn[INET_ADDRSTRLEN];
-				if (inet_ntop(AF_INET, (const void *)&((struct sockaddr_in *)&sockname)->sin_addr,
+
+				if (!(s->flags & SN_FRT_ADDR_SET))
+					get_frt_addr(s);
+
+				if (inet_ntop(AF_INET, (const void *)&((struct sockaddr_in *)&s->frt_addr)->sin_addr,
 					      sn, sizeof(sn)) &&
 				    inet_ntop(AF_INET, (const void *)&((struct sockaddr_in *)&s->cli_addr)->sin_addr,
 					      pn, sizeof(pn))) {
 					send_log(p, LOG_INFO, "Connect from %s:%d to %s:%d (%s/%s)\n",
 						 pn, ntohs(((struct sockaddr_in *)&s->cli_addr)->sin_port),
-						 sn, ntohs(((struct sockaddr_in *)&sockname)->sin_port),
+						 sn, ntohs(((struct sockaddr_in *)&s->frt_addr)->sin_port),
 						 p->id, (p->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
 				}
 			}
 			else {
 				char pn[INET6_ADDRSTRLEN], sn[INET6_ADDRSTRLEN];
-				if (inet_ntop(AF_INET6, (const void *)&((struct sockaddr_in6 *)&sockname)->sin6_addr,
+
+				if (!(s->flags & SN_FRT_ADDR_SET))
+					get_frt_addr(s);
+
+				if (inet_ntop(AF_INET6, (const void *)&((struct sockaddr_in6 *)&s->frt_addr)->sin6_addr,
 					      sn, sizeof(sn)) &&
 				    inet_ntop(AF_INET6, (const void *)&((struct sockaddr_in6 *)&s->cli_addr)->sin6_addr,
 					      pn, sizeof(pn))) {
 					send_log(p, LOG_INFO, "Connect from %s:%d to %s:%d (%s/%s)\n",
 						 pn, ntohs(((struct sockaddr_in6 *)&s->cli_addr)->sin6_port),
-						 sn, ntohs(((struct sockaddr_in6 *)&sockname)->sin6_port),
+						 sn, ntohs(((struct sockaddr_in6 *)&s->frt_addr)->sin6_port),
 						 p->id, (p->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
 				}
 			}
 		}
 
 		if ((global.mode & MODE_DEBUG) && (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))) {
-			struct sockaddr_in sockname;
-			socklen_t namelen = sizeof(sockname);
 			int len;
-			if (addr.ss_family != AF_INET ||
-			    !(s->fe->options & PR_O_TRANSP) ||
-			    get_original_dst(cfd, (struct sockaddr_in *)&sockname, &namelen) == -1)
-				getsockname(cfd, (struct sockaddr *)&sockname, &namelen);
+
+			if (!(s->flags & SN_FRT_ADDR_SET))
+				get_frt_addr(s);
 
 			if (s->cli_addr.ss_family == AF_INET) {
 				char pn[INET_ADDRSTRLEN];

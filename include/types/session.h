@@ -47,7 +47,7 @@
 #define SN_CONN_CLOSED	0x00000010	/* "Connection: close" was present or added */
 #define SN_MONITOR	0x00000020	/* this session comes from a monitoring system */
 #define SN_SELF_GEN	0x00000040	/* the proxy generates data for the client (eg: stats) */
-/* unused:              0x00000080 */
+#define SN_FRT_ADDR_SET	0x00000080	/* set if the frontend address has been filled */
 
 /* session termination conditions, bits values 0x100 to 0x700 (0-7 shift 8) */
 #define SN_ERR_NONE     0x00000000
@@ -92,6 +92,7 @@ struct session {
 	struct buffer *req;			/* request buffer */
 	struct buffer *rep;			/* response buffer */
 	struct sockaddr_storage cli_addr;	/* the client address */
+	struct sockaddr_storage frt_addr;	/* the frontend address reached by the client if SN_FRT_ADDR_SET is set */
 	struct sockaddr_in srv_addr;		/* the address to connect to */
 	struct server *srv;			/* the server being used */
 	struct pendconn *pend_pos;		/* if not NULL, points to the position in the pending queue */

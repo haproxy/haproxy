@@ -29,6 +29,7 @@
 #include <types/session.h>
 
 #include <proto/backend.h>
+#include <proto/client.h>
 #include <proto/fd.h>
 #include <proto/httperr.h>
 #include <proto/log.h>
@@ -235,13 +236,15 @@ int assign_server_address(struct session *s)
 		/* if this server remaps proxied ports, we'll use
 		 * the port the client connected to with an offset. */
 		if (s->srv->state & SRV_MAPPORTS) {
-			struct sockaddr_in sockname;
-			socklen_t namelen = sizeof(sockname);
-
-			if (!(s->fe->options & PR_O_TRANSP) ||
-			    get_original_dst(s->cli_fd, (struct sockaddr_in *)&sockname, &namelen) == -1)
-				getsockname(s->cli_fd, (struct sockaddr *)&sockname, &namelen);
-			s->srv_addr.sin_port = htons(ntohs(s->srv_addr.sin_port) + ntohs(sockname.sin_port));
+			if (!(s->fe->options & PR_O_TRANSP) && !(s->flags & SN_FRT_ADDR_SET))
+				get_frt_addr(s);
+			if (s->frt_addr.ss_family == AF_INET) {
+				s->srv_addr.sin_port = htons(ntohs(s->srv_addr.sin_port) +
+							     ntohs(((struct sockaddr_in *)&s->frt_addr)->sin_port));
+			} else {
+				s->srv_addr.sin_port = htons(ntohs(s->srv_addr.sin_port) +
+							     ntohs(((struct sockaddr_in6 *)&s->frt_addr)->sin6_port));
+			}
 		}
 	}
 	else if (*(int *)&s->be->dispatch_addr.sin_addr) {

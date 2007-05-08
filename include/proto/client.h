@@ -2,7 +2,7 @@
   include/proto/client.h
   This file contains client-side definitions.
 
-  Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -24,7 +24,9 @@
 
 #include <common/config.h>
 #include <types/client.h>
+#include <types/session.h>
 
+void get_frt_addr(struct session *s);
 int event_accept(int fd);
 
 
