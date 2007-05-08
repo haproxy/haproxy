@@ -118,6 +118,9 @@ int acl_parse_range(const char *text, struct acl_pattern *pattern);
 /* Parse a string. It is allocated and duplicated. */
 int acl_parse_str(const char *text, struct acl_pattern *pattern);
 
+/* Parse a regex. It is allocated. */
+int acl_parse_reg(const char *text, struct acl_pattern *pattern);
+
 /* Parse an IP address and an optional mask in the form addr[/mask].
  * The addr may either be an IPv4 address or a hostname. The mask
  * may either be a dotted mask or a number of bits. Returns 1 if OK,
@@ -148,6 +151,13 @@ int acl_match_dom(struct acl_test *test, struct acl_pattern *pattern);
 
 /* Check that the IPv4 address in <test> matches the IP/mask in pattern */
 int acl_match_ip(struct acl_test *test, struct acl_pattern *pattern);
+
+/* Executes a regex. It needs to change the data. If it is marked READ_ONLY
+ * then it will be allocated and duplicated in place so that others may use
+ * it later on. Note that this is embarrassing because we always try to avoid
+ * allocating memory at run time.
+ */
+int acl_match_reg(struct acl_test *test, struct acl_pattern *pattern);
 
 #endif /* _PROTO_ACL_H */
 

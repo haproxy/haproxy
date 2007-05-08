@@ -47,6 +47,44 @@ int acl_match_str(struct acl_test *test, struct acl_pattern *pattern)
 	return 0;
 }
 
+/* Executes a regex. It needs to change the data. If it is marked READ_ONLY
+ * then it will be allocated and duplicated in place so that others may use
+ * it later on. Note that this is embarrassing because we always try to avoid
+ * allocating memory at run time.
+ */
+int acl_match_reg(struct acl_test *test, struct acl_pattern *pattern)
+{
+	char old_char;
+	int ret;
+
+	if (unlikely(test->flags & ACL_TEST_F_READ_ONLY)) {
+		char *new_str;
+
+		new_str = calloc(1, test->len + 1);
+		if (!new_str)
+			return 0;
+
+		memcpy(new_str, test->ptr, test->len);
+		new_str[test->len] = 0;
+		if (test->flags & ACL_TEST_F_MUST_FREE)
+			free(test->ptr);
+		test->ptr = new_str;
+		test->flags |= ACL_TEST_F_MUST_FREE;
+		test->flags &= ~ACL_TEST_F_READ_ONLY;
+	}
+
+	old_char = test->ptr[test->len];
+	test->ptr[test->len] = 0;
+
+	if (regexec(pattern->ptr.reg, test->ptr, 0, NULL, 0) == 0)
+		ret = 1;
+	else
+		ret = 0;
+
+	test->ptr[test->len] = old_char;
+	return ret;
+}
+
 /* Checks that the pattern matches the beginning of the tested string. */
 int acl_match_beg(struct acl_test *test, struct acl_pattern *pattern)
 {
@@ -196,6 +234,25 @@ int acl_parse_str(const char *text, struct acl_pattern *pattern)
 	if (!pattern->ptr.str)
 		return 0;
 	pattern->len = len;
+	return 1;
+}
+
+/* Parse a regex. It is allocated. */
+int acl_parse_reg(const char *text, struct acl_pattern *pattern)
+{
+	regex_t *preg;
+
+	preg = calloc(1, sizeof(regex_t));
+
+	if (!preg)
+		return 0;
+
+	if (regcomp(preg, text, REG_EXTENDED | REG_NOSUB) != 0) {
+		free(preg);
+		return 0;
+	}
+
+	pattern->ptr.reg = preg;
 	return 1;
 }
 

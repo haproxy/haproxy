@@ -5276,7 +5276,8 @@ static int acl_fetch_url(struct proxy *px, struct session *l4, void *l7, void *a
 	test->len = txn->req.sl.rq.u_l;
 	test->ptr = txn->req.sol + txn->req.sl.rq.u;
 
-	test->flags = ACL_TEST_F_READ_ONLY | ACL_TEST_F_VOL_1ST;
+	/* we do not need to set READ_ONLY because the data is in a buffer */
+	test->flags = ACL_TEST_F_VOL_1ST;
 	return 1;
 }
 
@@ -5299,10 +5300,11 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "url_sub",    acl_parse_str,   acl_fetch_url,    acl_match_sub   },
 	{ "url_dir",    acl_parse_str,   acl_fetch_url,    acl_match_dir   },
 	{ "url_dom",    acl_parse_str,   acl_fetch_url,    acl_match_dom   },
-	{ NULL, NULL, NULL, NULL },
-#if 0
 	{ "url_reg",    acl_parse_reg,   acl_fetch_url,    acl_match_reg   },
 
+	{ NULL, NULL, NULL, NULL },
+
+#if 0
 	{ "line",       acl_parse_str,   acl_fetch_line,   acl_match_str   },
 	{ "line_reg",   acl_parse_reg,   acl_fetch_line,   acl_match_reg   },
 	{ "line_beg",   acl_parse_str,   acl_fetch_line,   acl_match_beg   },
