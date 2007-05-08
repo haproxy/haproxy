@@ -127,21 +127,18 @@ struct sockaddr_in *str2sa(char *str)
 }
 
 /*
- * converts <str> to a two struct in_addr* which are locally allocated.
+ * converts <str> to two struct in_addr* which must be pre-allocated.
  * The format is "addr[/mask]", where "addr" cannot be empty, and mask
  * is optionnal and either in the dotted or CIDR notation.
  * Note: "addr" can also be a hostname. Returns 1 if OK, 0 if error.
  */
-int str2net(char *str, struct in_addr *addr, struct in_addr *mask)
+int str2net(const char *str, struct in_addr *addr, struct in_addr *mask)
 {
 	char *c;
 	unsigned long len;
 
 	memset(mask, 0, sizeof(*mask));
 	memset(addr, 0, sizeof(*addr));
-	str = strdup(str);
-	if (str == NULL)
-		return 0;
 
 	if ((c = strrchr(str, '/')) != NULL) {
 		*c++ = '\0';
@@ -173,7 +170,6 @@ int str2net(char *str, struct in_addr *addr, struct in_addr *mask)
 		else
 			*addr = *(struct in_addr *) *(he->h_addr_list);
 	}
-	free(str);
 	return 1;
 }
 

@@ -80,12 +80,12 @@ extern int ishex(char s);
 struct sockaddr_in *str2sa(char *str);
 
 /*
- * converts <str> to a two struct in_addr* which are locally allocated.
+ * converts <str> to two struct in_addr* which must be pre-allocated.
  * The format is "addr[/mask]", where "addr" cannot be empty, and mask
  * is optionnal and either in the dotted or CIDR notation.
  * Note: "addr" can also be a hostname. Returns 1 if OK, 0 if error.
  */
-int str2net(char *str, struct in_addr *addr, struct in_addr *mask);
+int str2net(const char *str, struct in_addr *addr, struct in_addr *mask);
 
 /* will try to encode the string <string> replacing all characters tagged in
  * <map> with the hexadecimal representation of their ASCII-code (2 digits)
