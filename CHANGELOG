@@ -1,6 +1,22 @@
 ChangeLog :
 ===========
 
+2007/05/08 : 1.3.10
+    - several fixes in ev_sepoll
+    - fixed some expiration dates on some tasks
+    - fixed a bug in connection establishment detection due to speculative I/O
+    - fixed rare bug occuring on TCP with early close (reported by Andy Smith)
+    - implemented URI hashing algorithm (Guillaume Dallaire)
+    - implemented SMTP health checks (Peter van Dijk)
+    - replaced the rbtree with ul2tree from old scheduler project
+    - new framework for generic ACL support
+    - added the 'acl' and 'block' keywords to the config language
+    - added several ACL criteria and matches (IP, port, URI, ...)
+    - cleaned up and better modularization for some time functions
+    - fixed list macros
+    - fixed useless memory allocation in str2net()
+    - store the original destination address in the session
+
 2007/04/15 : 1.3.9
     - modularized the polling mechanisms and use function pointers instead
       of macros at many places
