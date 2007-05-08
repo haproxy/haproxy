@@ -478,6 +478,37 @@ static int acl_fetch_sport(struct proxy *px, struct session *l4, void *l7, void 
 	return 1;
 }
 
+
+/* set test->ptr to point to the frontend's IPv4/IPv6 address and test->i to the family */
+static int acl_fetch_dst(struct proxy *px, struct session *l4, void *l7, void *arg, struct acl_test *test)
+{
+	if (!(l4->flags & SN_FRT_ADDR_SET))
+		get_frt_addr(l4);
+
+	test->i = l4->frt_addr.ss_family;
+	if (test->i == AF_INET)
+		test->ptr = (void *)&((struct sockaddr_in *)&l4->frt_addr)->sin_addr;
+	else
+		test->ptr = (void *)&((struct sockaddr_in6 *)(&l4->frt_addr))->sin6_addr;
+	test->flags = ACL_TEST_F_READ_ONLY;
+	return 1;
+}
+
+
+/* set test->i to the frontend connexion's destination port */
+static int acl_fetch_dport(struct proxy *px, struct session *l4, void *l7, void *arg, struct acl_test *test)
+{
+	if (!(l4->flags & SN_FRT_ADDR_SET))
+		get_frt_addr(l4);
+
+	if (l4->frt_addr.ss_family == AF_INET)
+		test->i = ntohs(((struct sockaddr_in *)&l4->frt_addr)->sin_port);
+	else
+		test->i = ntohs(((struct sockaddr_in6 *)(&l4->frt_addr))->sin6_port);
+	test->flags = 0;
+	return 1;
+}
+
 /* set test->i to the number of connexions to the proxy */
 static int acl_fetch_dconn(struct proxy *px, struct session *l4, void *l7, void *arg, struct acl_test *test)
 {
@@ -490,11 +521,9 @@ static int acl_fetch_dconn(struct proxy *px, struct session *l4, void *l7, void 
 static struct acl_kw_list acl_kws = {{ },{
 	{ "src_port",   acl_parse_range, acl_fetch_sport,  acl_match_range },
 	{ "src",        acl_parse_ip,    acl_fetch_src,    acl_match_ip    },
-#if 0
 	{ "dst",        acl_parse_ip,    acl_fetch_dst,    acl_match_ip    },
-
 	{ "dst_port",   acl_parse_range, acl_fetch_dport,  acl_match_range },
-
+#if 0
 	{ "src_limit",  acl_parse_int,   acl_fetch_sconn,  acl_match_max   },
 #endif
 	{ "dst_limit",  acl_parse_int,   acl_fetch_dconn,  acl_match_max   },
