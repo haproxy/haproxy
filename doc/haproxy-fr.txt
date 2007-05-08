@@ -2624,6 +2624,81 @@ Notes :
     pas précisée.
 
 
+5) Listes d'accès
+=================
+
+Avec la version 1.3.10, un nouveau concept de listes d'accès (ACL) a vu le
+jour. Comme il n'était pas nécessaire de réinventer la roue, et du fait que
+toutes les réflexions passées aboutissaient à des propositions non
+satisfaisantes, il a finalement été décidé que quelque chose de proche de ce
+que Squid offre serait un bon compromis entre une richesse fonctionnelle et une
+facilité d'utilisation
+
+Le principe est très simple : les ACLs sont déclarées avec un nom, un test et
+une liste de valeurs valides à tester. Des conditions sont appliquées sur
+diverses actions, et ces conditions effectuent un ET logique entre les ACLs. La
+condition n'est donc validée que si toutes les ACLs sont vraies.
+
+Il est également possible d'utiliser le mot réservé "OR" dans les conditions,
+et il est possible pour une ACL d'être spécifiée plusieurs fois, même avec des
+tests différents, auquel cas le premier test réussi validera l'ACL.
+
+Au stade de la version 1.3.10, seuls les tests suivants ont été implémentés :
+
+   Niveaux 3/4 :
+     src       <ipv4_address>[/mask] ... : match IPv4 source address
+     dst       <ipv4_address>[/mask] ... : match IPv4 destination address
+     src_port  <low>[:<high>] ...        : match source port range
+     dst_port  <low>[:<high>] ...        : match destination port range
+     dst_limit <max>        : true if frontend has less than <max> connections
+
+   Niveau 7 :
+     method    <HTTP method> ...  : match HTTP method
+     req_ver   <1.0|1.1> ...      : match HTTP request version
+     resp_ver  <1.0|1.1> ...      : match HTTP response version
+     status    <low>[:<high>] ... : match HTTP response status code in range
+     url       <string> ... : exact string match on URI
+     url_reg   <regex>  ... : regex string match on URI
+     url_beg   <string> ... : true if URI begins with <string>
+     url_end   <string> ... : true if URI ends with <string>
+     url_sub   <string> ... : true if URI contains <string>
+     url_dir   <string> ... : true if URI contains <string> between slashes
+     url_dom   <string> ... : true if URI contains <string> between slashes or dots
+
+D'autres tests arrivent (entêtes, cookies, heure, authentification), c'est
+juste une question de temps. Il est aussi prévu de permettre de lire les
+valeurs depuis un fichier, ainsi que d'ignorer la casse pour certains tests.
+
+La seule commande supportant les conditions d'ACL à ce jour est la nouvelle
+commande "block" qui bloque une requête et retourne un statut 403 si sa
+condition est validée (cas du "if") ou invalidée (cas du "unless").
+
+Exemple :
+---------
+
+    acl options_uris  url *
+    acl meth_option   method OPTIONS
+    acl http_1.1      req_ver 1.1
+    acl allowed_meth  method GET HEAD POST OPTIONS CONNECT
+    acl connect_meth  method CONNECT
+    acl proxy_url     url_beg http://
+
+    # block if reserved URI "*" used with a method other than "OPTIONS"
+    block if options_uris !meth_option
+
+    # block if the OPTIONS method is used with HTTP 1.0
+    block if meth_option !http_1.1
+
+    # allow non-proxy url with anything but the CONNECT method
+    block if !connect_meth !proxy_url
+
+    # block all unknown methods
+    block unless allowed_meth
+
+Note: Cette documentation est embryonnaire mais doit permettre de démarrer et
+surtout d'avancer sur le projet sans être trop ralenti par la documentation.
+
+
 =======================
 | Paramétrage système |
 =======================
