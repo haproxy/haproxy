@@ -1129,18 +1129,26 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 
 		if (*(args[1])) {
 			if (!strcmp(args[1], "roundrobin")) {
+				curproxy->options &= ~PR_O_BALANCE;
 				curproxy->options |= PR_O_BALANCE_RR;
 			}
 			else if (!strcmp(args[1], "source")) {
+				curproxy->options &= ~PR_O_BALANCE;
 				curproxy->options |= PR_O_BALANCE_SH;
 			}
+			else if (!strcmp(args[1], "uri")) {
+				curproxy->options &= ~PR_O_BALANCE;
+				curproxy->options |= PR_O_BALANCE_UH;
+			}
 			else {
-				Alert("parsing [%s:%d] : '%s' only supports 'roundrobin' and 'source' options.\n", file, linenum, args[0]);
+				Alert("parsing [%s:%d] : '%s' only supports 'roundrobin', 'source' and 'uri' options.\n", file, linenum, args[0]);
 				return -1;
 			}
 		}
-		else /* if no option is set, use round-robin by default */
+		else {/* if no option is set, use round-robin by default */
+			curproxy->options &= ~PR_O_BALANCE;
 			curproxy->options |= PR_O_BALANCE_RR;
+		}
 	}
 	else if (!strcmp(args[0], "server")) {  /* server address */
 		int cur_arg;
@@ -2234,6 +2242,13 @@ int readcfgfile(const char *file)
 			}
 			if (curproxy->monitor_uri != NULL) {
 				Warning("parsing %s : monitor-uri will be ignored for %s '%s'.\n",
+					file, proxy_type_str(curproxy), curproxy->id);
+			}
+			if (curproxy->options & PR_O_BALANCE_UH) {
+				curproxy->options &= ~PR_O_BALANCE;
+				curproxy->options |= PR_O_BALANCE_RR;
+
+				Warning("parsing %s : URI hash will be ignored for %s '%s'. Falling back to round robin.\n",
 					file, proxy_type_str(curproxy), curproxy->id);
 			}
 		}

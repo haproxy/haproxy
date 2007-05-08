@@ -187,6 +187,12 @@ int assign_server(struct session *s)
 						       (void *)&((struct sockaddr_in *)&s->cli_addr)->sin_addr,
 						       len);
 			}
+			else if (s->be->options & PR_O_BALANCE_UH) {
+				/* URI hashing */
+				s->srv = get_server_uh(s->be,
+						       s->txn.req.sol + s->txn.req.sl.rq.u,
+						       s->txn.req.sl.rq.u_l);
+			}
 			else /* unknown balancing algorithm */
 				return SRV_STATUS_INTERNAL;
 		}

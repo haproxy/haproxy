@@ -863,9 +863,10 @@ serveurs définis pour un service donné, en mode TCP comme en mode HTTP. Pour
 cela, on précise le mot clé 'balance' dans la définition du service,
 éventuellement suivi du nom d'un algorithme de répartition. Jusqu'à la version
 1.2.11, seul 'roundrobin' était géré, et c'est aussi la valeur implicite par
-défaut. Avec la version 1.2.12, le nouveau mot clé 'source' est apparu. Il est
-évident qu'en cas d'utilisation du répartiteur interne, il ne faudra pas
-spécifier d'adresse de dispatch, et qu'il faudra au moins un serveur.
+défaut. Avec la version 1.2.12, le nouveau mot clé 'source' est apparu. La
+version 1.3.10 a également apporté le mot clé 'uri'. Il est évident qu'en cas
+d'utilisation du répartiteur interne, il ne faudra pas spécifier d'adresse de
+dispatch, et qu'il faudra au moins un serveur.
 
 Exemple : même que précédemment en répartition interne
 ---------
@@ -964,6 +965,25 @@ Exemples :
         balance source
         server web1 192.168.1.1 cookie server01
         server web2 192.168.1.2 cookie server02
+
+De plus, tel qu'indiqué ci-dessus, la version 1.3.10 a introduit le mot clé
+'uri'. Il est très pratique dans le cas de répartition de charge entre des
+reverse-proxy-caches, parce qu'il utilisera le résultat d'un hachage de l'URI
+pour choisir un serveur, ce qui aura pour effet d'optimiser le taux de cache
+du fait que la même URI sera toujours envoyée au même cache. Ce mot-clé n'est
+autorisé qu'en mode HTTP.
+
+Example :
+---------
+
+# Envoie toujours une URI donnée au même serveur
+
+    listen http_proxy
+        bind :3128
+        mode http
+        balance uri
+        server squid1 192.168.1.1
+        server squid2 192.168.1.2
 
 
 3.1) Surveillance des serveurs

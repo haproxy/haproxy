@@ -861,8 +861,9 @@ described above. It has advantages such as server health monitoring, multiple
 port binding and port mapping. To use this mode, the 'balance' keyword is used,
 followed by the selected algorithm. Up to version 1.2.11, only 'roundrobin' was
 available, which is also the default value if unspecified. Starting with
-version 1.2.12, a new 'source' keyword appeared. In this mode, there will be no
-dispatch address, but the proxy needs at least one server.
+version 1.2.12, a new 'source' keyword appeared. A new 'uri' keyword was added
+in version 1.3.10. In this mode, there will be no dispatch address, but the
+proxy needs at least one server.
 
 Example : same as the last one, with internal load balancer
 ---------
@@ -958,6 +959,24 @@ Examples :
         balance source
         server web1 192.168.1.1 cookie server01
         server web2 192.168.1.2 cookie server02
+
+As indicated above, the 'uri' keyword was introduced in version 1.3.10. It is
+useful when load-balancing between reverse proxy-caches, because it will hash
+the URI and use the hash result to select a server, thus optimizing the hit
+rate on the caches, because the same URI will always reach the same cache. This
+keyword is only allowed in HTTP mode.
+
+Example :
+---------
+
+# Always send a given URI to the same server
+
+    listen http_proxy
+        bind :3128
+        mode http
+        balance uri
+        server squid1 192.168.1.1
+        server squid2 192.168.1.2
 
 
 3.1) Server monitoring

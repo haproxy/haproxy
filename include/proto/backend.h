@@ -2,7 +2,7 @@
   include/proto/backend.h
   Functions prototypes for the backend.
 
-  Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -114,6 +114,36 @@ static inline struct server *get_server_sh(const struct proxy *px,
 		h %= px->srv_map_sz;
 	}
 	return px->srv_map[h];
+}
+
+/* 
+ * This function tries to find a running server for the proxy <px> following
+ * the URI hash method. In order to optimize cache hits, the hash computation
+ * ends at the question mark. Depending on the number of active/backup servers,
+ * it will either look for active servers, or for backup servers.
+ * If any server is found, it will be returned. If no valid server is found,
+ * NULL is returned.
+ *
+ * This code was contributed by Guillaume Dallaire, who also selected this hash
+ * algorithm out of a tens because it gave him the best results.
+ *
+ */
+static inline struct server *get_server_uh(struct proxy *px, char *uri, int uri_len)
+{
+	unsigned long hash = 0;
+	int c;
+
+	if (px->srv_map_sz == 0)
+		return NULL;
+
+	while (uri_len--) {
+		c = *uri++;
+		if (c == '?')
+			break;
+		hash = c + (hash << 6) + (hash << 16) - hash;
+	}
+
+	return px->srv_map[hash % px->srv_map_sz];
 }
 
 
