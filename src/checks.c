@@ -277,9 +277,11 @@ static int event_srv_chk_r(int fd)
  */
 int process_chk(struct task *t)
 {
+	__label__ new_chk, out;
 	struct server *s = t->context;
 	struct sockaddr_in sa;
 	int fd;
+	int next_time;
 
 	//fprintf(stderr, "process_chk: task=%p\n", t);
 
@@ -289,7 +291,8 @@ int process_chk(struct task *t)
 		//fprintf(stderr, "process_chk: 2\n");
 		if (!tv_ms_le2(&t->expire, &now)) { /* not good time yet */
 			task_queue(t);	/* restore t to its place in the task list */
-			return tv_ms_remain2(&now, &t->expire);
+			next_time = tv_ms_remain2(&now, &t->expire);
+			goto out;
 		}
 
 		/* we don't send any health-checks when the proxy is stopped or when
@@ -299,7 +302,8 @@ int process_chk(struct task *t)
 			while (tv_ms_le2(&t->expire, &now))
 				tv_ms_add(&t->expire, &t->expire, s->inter);
 			task_queue(t);	/* restore t to its place in the task list */
-			return tv_ms_remain2(&now, &t->expire);
+			next_time = tv_ms_remain2(&now, &t->expire);
+			goto out;
 		}
 
 		/* we'll initiate a new check */
@@ -508,7 +512,12 @@ int process_chk(struct task *t)
 	//fprintf(stderr, "process_chk: 11\n");
 	s->result = 0;
 	task_queue(t);	/* restore t to its place in the task list */
-	return tv_ms_remain2(&now, &t->expire);
+	next_time = tv_ms_remain2(&now, &t->expire);
+ out:
+	/* Ensure that we don't report sub-millisecond timeouts */
+	if (next_time != TIME_ETERNITY)
+		next_time++;
+	return next_time;
 }
 
 

@@ -88,6 +88,7 @@ struct task *task_queue(struct task *task)
  */
 int wake_expired_tasks()
 {
+	__label__ out;
 	int slen;
 	struct task *task;
 	void *data;
@@ -100,8 +101,10 @@ int wake_expired_tasks()
 
 	if (likely(timer_wq.data != NULL)) {
 		task = LIST_ELEM(timer_wq.data, struct task *, qlist);
-		if (likely(__tv_isge(&task->expire, &now) > 0))
-			return tv_ms_remain(&now, &task->expire);
+		if (likely(__tv_isge(&task->expire, &now) > 0)) {
+			next_time = tv_ms_remain(&now, &task->expire);
+			goto out;
+		}
 	}
 
 	/* OK we lose. Let's scan the tree then. */
@@ -127,6 +130,10 @@ int wake_expired_tasks()
 			task->state = TASK_RUNNING;
 		}
 	}
+ out:
+	/* Ensure that we don't report sub-millisecond timeouts */
+	if (next_time != TIME_ETERNITY)
+		next_time++;
 	return next_time;
 }
 
