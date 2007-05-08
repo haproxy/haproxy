@@ -59,6 +59,7 @@
 #define	PR_O_TCPSPLICE	0x08000000      /* delegate data transfer to linux kernel's tcp_splice */
 #define PR_O_BALANCE_UH 0x10000000      /* balance on URI hash */
 #define PR_O_BALANCE    (PR_O_BALANCE_RR | PR_O_BALANCE_SH | PR_O_BALANCE_UH)
+#define PR_O_SMTP_CHK   0x20000000      /* use SMTP EHLO check for server health - pvandijk@vision6.com.au */
 
 
 #endif /* _TYPES_BACKEND_H */

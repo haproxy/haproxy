@@ -122,7 +122,8 @@ static int event_srv_chk_w(int fd)
 	if (s->result != -1) {
 		/* we don't want to mark 'UP' a server on which we detected an error earlier */
 		if ((s->proxy->options & PR_O_HTTP_CHK) ||
-		    (s->proxy->options & PR_O_SSL3_CHK)) {
+		    (s->proxy->options & PR_O_SSL3_CHK) ||
+		    (s->proxy->options & PR_O_SMTP_CHK)) {
 			int ret;
 			/* we want to check if this host replies to HTTP or SSLv3 requests
 			 * so we'll send the request, and won't wake the checker up now.
@@ -250,6 +251,10 @@ static int event_srv_chk_r(int fd)
 	else if ((s->proxy->options & PR_O_SSL3_CHK) && (len >= 5) &&
 		 (reply[0] == 0x15 || reply[0] == 0x16)) {
 		/* SSLv3 alert or handshake */
+		result = 1;
+	}
+	else if ((s->proxy->options & PR_O_SMTP_CHK) && (len >= 3) &&
+		   (reply[0] == '2')) /* 2xx (should be 250) */ {
 		result = 1;
 	}
 

@@ -1029,13 +1029,14 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			if (curproxy->check_req != NULL) {
 				free(curproxy->check_req);
 			}
-			curproxy->options |= PR_O_HTTP_CHK;
 			curproxy->options &= ~PR_O_SSL3_CHK;
+			curproxy->options &= ~PR_O_SMTP_CHK;
+			curproxy->options |= PR_O_HTTP_CHK;
 			if (!*args[2]) { /* no argument */
 				curproxy->check_req = strdup(DEF_CHECK_REQ); /* default request */
 				curproxy->check_len = strlen(DEF_CHECK_REQ);
 			} else if (!*args[3]) { /* one argument : URI */
-				int reqlen = strlen(args[2]) + strlen("OPTIONS / HTTP/1.0\r\n\r\n");
+				int reqlen = strlen(args[2]) + strlen("OPTIONS  HTTP/1.0\r\n\r\n") + 1;
 				curproxy->check_req = (char *)malloc(reqlen);
 				curproxy->check_len = snprintf(curproxy->check_req, reqlen,
 							       "OPTIONS %s HTTP/1.0\r\n\r\n", args[2]); /* URI to use */
@@ -1060,7 +1061,34 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 				free(curproxy->check_req);
 			}
 			curproxy->options &= ~PR_O_HTTP_CHK;
+			curproxy->options &= ~PR_O_SMTP_CHK;
 			curproxy->options |= PR_O_SSL3_CHK;
+		}
+		else if (!strcmp(args[1], "smtpchk")) {
+			/* use SMTP request to check servers' health */
+			if (curproxy->check_req != NULL) {
+				free(curproxy->check_req);
+			}
+			curproxy->options &= ~PR_O_HTTP_CHK;
+			curproxy->options &= ~PR_O_SSL3_CHK;
+			curproxy->options |= PR_O_SMTP_CHK;
+
+			if (!*args[2] || !*args[3]) { /* no argument or incomplete EHLO host */
+				curproxy->check_req = strdup(DEF_SMTP_CHECK_REQ); /* default request */
+				curproxy->check_len = strlen(DEF_SMTP_CHECK_REQ);
+			} else { /* ESMTP EHLO, or SMTP HELO, and a hostname */
+				if (!strcmp(args[2], "EHLO") || !strcmp(args[2], "HELO")) {
+					int reqlen = strlen(args[2]) + strlen(args[3]) + strlen(" \r\n") + 1;
+					curproxy->check_req = (char *)malloc(reqlen);
+					curproxy->check_len = snprintf(curproxy->check_req, reqlen,
+								       "%s %s\r\n", args[2], args[3]); /* HELO hostname */
+				} else {
+					/* this just hits the default for now, but you could potentially expand it to allow for other stuff
+					   though, it's unlikely you'd want to send anything other than an EHLO or HELO */
+					curproxy->check_req = strdup(DEF_SMTP_CHECK_REQ); /* default request */
+					curproxy->check_len = strlen(DEF_SMTP_CHECK_REQ);
+				}
+			}
 		}
 		else if (!strcmp(args[1], "forwardfor")) {
 			/* insert x-forwarded-for field, but not for the

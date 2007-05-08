@@ -1044,6 +1044,14 @@ réponse sera considérée comme valide. Noter qu'Apache ne produit pas de log
 lorsqu'il reçoit des messages HELLO, ce qui en fait un type de message
 parfaitement adapté à ce besoin.
 
+La version 1.3.10 est accompagnée d'un nouveau test d'état pour le SMTP. Par
+défaut, il consiste à envoyer "HELO localhost" aux serveurs, et à attendre le
+message "250" en retour. Notez qu'il peut aussi envoyer une requête plus
+spécifique :
+
+  - option smtpchk                         -> envoie "HELO localhost"
+  - option smtpchk EHLO mail.mydomain.com  -> envoie ce message ESMTP
+
 Voir les exemples ci-après.        
 
 Depuis la version 1.1.17, il est possible de définir des serveurs de secours,

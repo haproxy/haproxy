@@ -1034,6 +1034,13 @@ the response is considered as valid. Note that Apache does not generate a log
 when it receives only an HELLO message, which makes this type of message
 perfectly suit this need.
 
+Version 1.3.10 introduced the SMTP health check. By default, it sends
+"HELO localhost" to the servers, and waits for the 250 message. Note that it
+can also send a specific request :
+
+  - option smtpchk                         -> sends "HELO localhost"
+  - option smtpchk EHLO mail.mydomain.com  -> sends this ESMTP greeting
+
 See examples below.
 
 Since version 1.1.17, it is possible to specify backup servers. These servers
