@@ -2318,7 +2318,8 @@ int process_srv(struct session *t)
 	else if (s == SV_STCONN) { /* connection in progress */
 		if (c == CL_STCLOSE || c == CL_STSHUTW ||
 		    (c == CL_STSHUTR &&
-		     (t->req->l == 0 || t->be->options & PR_O_ABRT_CLOSE))) { /* give up */
+		     ((t->req->l == 0 && !(req->flags & BF_WRITE_STATUS)) ||
+		      t->be->options & PR_O_ABRT_CLOSE))) { /* give up */
 			tv_eternity(&req->cex);
 			fd_delete(t->srv_fd);
 			if (t->srv)
