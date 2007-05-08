@@ -489,8 +489,8 @@ static int acl_fetch_dconn(struct proxy *px, struct session *l4, void *l7, void 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct acl_kw_list acl_kws = {{ },{
 	{ "src_port",   acl_parse_range, acl_fetch_sport,  acl_match_range },
-#if 0
 	{ "src",        acl_parse_ip,    acl_fetch_src,    acl_match_ip    },
+#if 0
 	{ "dst",        acl_parse_ip,    acl_fetch_dst,    acl_match_ip    },
 
 	{ "dst_port",   acl_parse_range, acl_fetch_dport,  acl_match_range },

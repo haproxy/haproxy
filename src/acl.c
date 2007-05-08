@@ -172,6 +172,19 @@ int acl_match_max(struct acl_test *test, struct acl_pattern *pattern)
 	return 0;
 }
 
+int acl_match_ip(struct acl_test *test, struct acl_pattern *pattern)
+{
+	struct in_addr *s;
+
+	if (test->i != AF_INET)
+		return 0;
+
+	s = (void *)test->ptr;
+	if (((s->s_addr ^ pattern->val.ipv4.addr.s_addr) & pattern->val.ipv4.mask.s_addr) == 0)
+		return 1;
+	return 0;
+}
+
 /* Parse a string. It is allocated and duplicated. */
 int acl_parse_str(const char *text, struct acl_pattern *pattern)
 {
@@ -220,6 +233,16 @@ int acl_parse_range(const char *text, struct acl_pattern *pattern)
 		pattern->val.range.min = i;
 	pattern->val.range.max = i;
 	return 1;
+}
+
+/* Parse an IP address and an optional mask in the form addr[/mask].
+ * The addr may either be an IPv4 address or a hostname. The mask
+ * may either be a dotted mask or a number of bits. Returns 1 if OK,
+ * otherwise 0.
+ */
+int acl_parse_ip(const char *text, struct acl_pattern *pattern)
+{
+	return str2net(text, &pattern->val.ipv4.addr, &pattern->val.ipv4.mask);
 }
 
 /*

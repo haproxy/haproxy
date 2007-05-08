@@ -74,7 +74,10 @@ struct acl_pattern {
 	union {
 		int i;                          /* integer value */
 		struct { int min, max; } range; /* integer range */
-		struct sockaddr_in ipv4;        /* IPv4 address */
+		struct {
+			struct in_addr addr;
+			struct in_addr mask;
+		} ipv4;                         /* IPv4 address */
 		struct acl_time time;           /* valid hours and days */
 	} val;                                  /* direct value */
 	union {
