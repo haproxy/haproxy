@@ -120,9 +120,9 @@ VERDATE := $(shell date +%Y/%m/%d -d "`git-log HEAD^.. 2>/dev/null | grep -m 1 ^
 else
 # Otherwise, use the hard-coded version of last tag, number of changes
 # since last tag, and release date.
-VERSION := 1.3.10
+VERSION := 1.3.10.1
 SUBVERS := 
-VERDATE := 2007/05/08
+VERDATE := 2007/05/09
 endif
 
 #### build options

@@ -1,6 +1,9 @@
 ChangeLog :
 ===========
 
+2007/05/09 : 1.3.10.1
+    - fixed sepoll transition matrix (two states were missing)
+
 2007/05/08 : 1.3.10
     - several fixes in ev_sepoll
     - fixed some expiration dates on some tasks
