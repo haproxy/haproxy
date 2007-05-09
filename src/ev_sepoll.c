@@ -232,10 +232,16 @@ REGPRM1 static void __fd_clo(int fd)
 	fd_list[fd].e &= ~(FD_EV_MASK);
 }
 
+/*
+ * operations to perform when reaching _do_poll() for some FDs in the spec
+ * queue depending on their state. This is mainly used to cleanup some FDs
+ * which are in STOP state. It is also used to compute EPOLL* flags when
+ * switching from SPEC to WAIT.
+ */
 static struct ev_to_epoll {
 	char op;        // epoll opcode to switch from spec to wait, 0 if none
 	char m;         // inverted mask for existing events
-	char ev;        // remainint epoll events after change
+	char ev;        // remaining epoll events after change
 	char pad;
 } ev_to_epoll[16] = {
 	[FD_EV_IDLE_W | FD_EV_STOP_R] = { .op=EPOLL_CTL_DEL, .m=FD_EV_MASK_R },
@@ -245,6 +251,8 @@ static struct ev_to_epoll {
 	[FD_EV_WAIT_W | FD_EV_STOP_R] = { .op=EPOLL_CTL_MOD, .m=FD_EV_MASK_R, .ev=EPOLLOUT },
 	[FD_EV_STOP_W | FD_EV_WAIT_R] = { .op=EPOLL_CTL_MOD, .m=FD_EV_MASK_W, .ev=EPOLLIN },
 	[FD_EV_STOP_W | FD_EV_STOP_R] = { .op=EPOLL_CTL_DEL, .m=FD_EV_MASK_R|FD_EV_MASK_W },
+	[FD_EV_SPEC_W | FD_EV_WAIT_R] = { .ev=EPOLLIN },
+	[FD_EV_WAIT_W | FD_EV_SPEC_R] = { .ev=EPOLLOUT },
 	[FD_EV_WAIT_W | FD_EV_WAIT_R] = { .ev=EPOLLIN|EPOLLOUT },
 };
 
@@ -274,10 +282,10 @@ REGPRM2 static void _do_poll(struct poller *p, int wait_time)
 
 		opcode = ev_to_epoll[fd_list[fd].e].op;
 		if (opcode) {
-			ev.events  = ev_to_epoll[fd_list[fd].e].ev;
 			ev.data.fd = fd;
-			epoll_ctl(epoll_fd, opcode, fd, &ev);
+			ev.events  = ev_to_epoll[fd_list[fd].e].ev;
 			fd_list[fd].e &= ~(unsigned int)ev_to_epoll[fd_list[fd].e].m;
+			epoll_ctl(epoll_fd, opcode, fd, &ev);
 		}
 
 		if (!(fd_list[fd].e & FD_EV_RW_SL)) {
