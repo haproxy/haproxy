@@ -23,6 +23,7 @@
 #define _COMMON_STANDARD_H
 
 #include <limits.h>
+#include <sys/types.h>
 #include <netinet/in.h>
 #include <common/config.h>
 #include <proto/fd.h>
