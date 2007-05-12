@@ -1,7 +1,10 @@
 /*
  * Contribution from Aleksandar Lazic <al-haproxy@none.at>
  *
- * Build with :  gcc -O2 -o test_pools test_pools.c
+ * Build with :
+ *   gcc -O2 -o test_pools test_pools.c
+ * or with dlmalloc too :
+ *   gcc -O2 -o test_pools -D USE_DLMALLOC test_pools.c -DUSE_DL_PREFIX dlmalloc.c
  */
 
 #include <sys/time.h>
@@ -150,7 +153,7 @@ static bool test_speed1(void)
 		count += 3 * loop;
 	} while (timeval_elapsed(&tv) < 5.0);
 
-	fprintf(stderr, "haprox: %.0f ops/sec\n", count/timeval_elapsed(&tv));
+	fprintf(stderr, "haproxy : %10.0f ops/sec\n", count/timeval_elapsed(&tv));
 
         pool_destroy(pool_talloc);
 
@@ -160,7 +163,8 @@ static bool test_speed1(void)
 		void *p1, *p2, *p3;
 		for (i=0;i<loop;i++) {
 			p1 = malloc(10 + loop % 100);
-			p2 = strdup("foo bar");
+			p2 = malloc(strlen("foo bar") + 1);
+			strcpy(p2, "foo bar");
 			p3 = malloc(300);
 			free(p1);
 			free(p2);
@@ -168,7 +172,26 @@ static bool test_speed1(void)
 		}
 		count += 3 * loop;
 	} while (timeval_elapsed(&tv) < 5.0);
-	fprintf(stderr, "malloc: %.0f ops/sec\n", count/timeval_elapsed(&tv));
+	fprintf(stderr, "malloc  : %10.0f ops/sec\n", count/timeval_elapsed(&tv));
+
+#ifdef USE_DLMALLOC
+	tv = timeval_current();
+	count = 0;
+	do {
+		void *p1, *p2, *p3;
+		for (i=0;i<loop;i++) {
+			p1 = dlmalloc(10 + loop % 100);
+			p2 = dlmalloc(strlen("foo bar") + 1);
+			strcpy(p2, "foo bar");
+			p3 = dlmalloc(300);
+			dlfree(p1);
+			dlfree(p2);
+			dlfree(p3);
+		}
+		count += 3 * loop;
+	} while (timeval_elapsed(&tv) < 5.0);
+	fprintf(stderr, "dlmalloc: %10.0f ops/sec\n", count/timeval_elapsed(&tv));
+#endif
 
 	printf("success: speed1\n");
 
