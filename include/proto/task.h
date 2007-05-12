@@ -111,12 +111,10 @@ struct task *task_queue(struct task *task);
  *   - wake up all expired tasks
  *   - call all runnable tasks
  *   - call maintain_proxies() to enable/disable the listeners
- *   - return the delay till next event in ms, -1 = wait indefinitely
- * Note: this part should be rewritten with the O(ln(n)) scheduler.
- *
+ *   - return the date of next event in <next> or eternity.
  */
 
-int process_runnable_tasks();
+void process_runnable_tasks(struct timeval *next);
 
 
 #endif /* _PROTO_TASK_H */

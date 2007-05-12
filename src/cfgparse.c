@@ -766,7 +766,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		curproxy->appsession_name = strdup(args[1]);
 		curproxy->appsession_name_len = strlen(curproxy->appsession_name);
 		curproxy->appsession_len = atoi(args[3]);
-		curproxy->appsession_timeout = atoi(args[5]);
+		__tv_from_ms(&curproxy->appsession_timeout, atoi(args[5]));
 		rc = chtbl_init(&(curproxy->htbl_proxy), TBLSIZ, hashpjw, match_str, destroy);
 		if (rc) {
 			Alert("Error Init Appsession Hashtable.\n");
@@ -857,7 +857,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		}
 	}
 	else if (!strcmp(args[0], "contimeout")) {  /* connect timeout */
-		if (curproxy->contimeout != defproxy.contimeout) {
+		if (!__tv_iseq(&curproxy->contimeout, &defproxy.contimeout)) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
 			return 0;
 		}
@@ -869,10 +869,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			      file, linenum, args[0]);
 			return -1;
 		}
-		curproxy->contimeout = atol(args[1]);
+		__tv_from_ms(&curproxy->contimeout, atol(args[1]));
 	}
 	else if (!strcmp(args[0], "clitimeout")) {  /*  client timeout */
-		if (curproxy->clitimeout != defproxy.clitimeout) {
+		if (!__tv_iseq(&curproxy->clitimeout, &defproxy.clitimeout)) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n",
 			      file, linenum, args[0]);
 			return 0;
@@ -885,10 +885,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			      file, linenum, args[0]);
 			return -1;
 		}
-		curproxy->clitimeout = atol(args[1]);
+		__tv_from_ms(&curproxy->clitimeout, atol(args[1]));
 	}
 	else if (!strcmp(args[0], "srvtimeout")) {  /*  server timeout */
-		if (curproxy->srvtimeout != defproxy.srvtimeout) {
+		if (!__tv_iseq(&curproxy->srvtimeout, &defproxy.srvtimeout)) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
 			return 0;
 		}
@@ -900,7 +900,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			      file, linenum, args[0]);
 			return -1;
 		}
-		curproxy->srvtimeout = atol(args[1]);
+		__tv_from_ms(&curproxy->srvtimeout, atol(args[1]));
 	}
 	else if (!strcmp(args[0], "retries")) {  /* connection retries */
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
@@ -2385,8 +2385,9 @@ int readcfgfile(const char *file)
 			}
 		}
 		if ((curproxy->mode == PR_MODE_TCP || curproxy->mode == PR_MODE_HTTP) &&
-		    (((curproxy->cap & PR_CAP_FE) && !curproxy->clitimeout) ||
-		     ((curproxy->cap & PR_CAP_BE) && (curproxy->srv) && (!curproxy->contimeout || !curproxy->srvtimeout)))) {
+		    (((curproxy->cap & PR_CAP_FE) && !tv_isset(&curproxy->clitimeout)) ||
+		     ((curproxy->cap & PR_CAP_BE) && (curproxy->srv) &&
+		      (!tv_isset(&curproxy->contimeout) || !tv_isset(&curproxy->srvtimeout))))) {
 			Warning("parsing %s : missing timeouts for %s '%s'.\n"
 				"   | While not properly invalid, you will certainly encounter various problems\n"
 				"   | with such a configuration. To fix this, please ensure that all following\n"

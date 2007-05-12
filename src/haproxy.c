@@ -684,17 +684,17 @@ static void tell_old_pids(int sig)
  */
 void run_poll_loop()
 {
-	int next_time;
-	tv_now(&now);
+	struct timeval next;
 
+	tv_now(&now);
 	while (1) {
-		next_time = process_runnable_tasks();
+		process_runnable_tasks(&next);
 
 		/* stop when there's no connection left and we don't allow them anymore */
 		if (!actconn && listeners == 0)
 			break;
 
-		cur_poller.poll(&cur_poller, next_time);
+		cur_poller.poll(&cur_poller, &next);
 	}
 }
 

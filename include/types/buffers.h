@@ -63,9 +63,9 @@ struct buffer {
 	struct timeval rex;             /* expiration date for a read  */
 	struct timeval wex;             /* expiration date for a write */
 	struct timeval cex;             /* expiration date for a connect */
-	int rto;                        /* read timeout */
-	int wto;                        /* write timeout */
-	int cto;                        /* connect timeout */
+	struct timeval rto;             /* read timeout */
+	struct timeval wto;             /* write timeout */
+	struct timeval cto;             /* connect timeout */
 	unsigned int l;                 /* data length */
 	char *r, *w, *lr;               /* read ptr, write ptr, last read */
 	char *rlim;                     /* read limit, used for header rewriting */

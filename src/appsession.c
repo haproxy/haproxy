@@ -125,7 +125,7 @@ int appsession_task_init(void)
 	return 0;
 }
 
-int appsession_refresh(struct task *t)
+void appsession_refresh(struct task *t, struct timeval *next)
 {
 	struct proxy       *p = proxy;
 	CHTbl              *htbl;
@@ -143,7 +143,7 @@ int appsession_refresh(struct task *t)
 				for (element = list_head(&htbl->table[i]);
 				     element != NULL; element = list_next(element)) {
 					asession = (appsess *)list_data(element);
-					if (tv_ms_le2(&asession->expire, &now)) {
+					if (__tv_isle(&asession->expire, &now)) {
 						if ((global.mode & MODE_DEBUG) &&
 						    (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))) {
 							int len;
@@ -165,7 +165,7 @@ int appsession_refresh(struct task *t)
 						}
 						else
 							element = last;
-					}/* end if (tv_ms_le2(&asession->expire, &now)) */
+					}/* end if (__tv_isle(&asession->expire, &now)) */
 					else
 						last = element;
 				}/* end  for (element = list_head(&htbl->table[i]); element != NULL; element = list_next(element)) */
@@ -174,7 +174,7 @@ int appsession_refresh(struct task *t)
 		p = p->next;
 	}
 	tv_ms_add(&t->expire, &now, TBLCHKINT); /* check expiration every 5 seconds */
-	return TBLCHKINT;
+	*next = t->expire;
 } /* end appsession_refresh */
 
 int match_str(const void *key1, const void *key2)

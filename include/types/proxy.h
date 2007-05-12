@@ -96,7 +96,6 @@ struct proxy {
 	char *appsession_name;			/* name of the cookie to look for */
 	int  appsession_name_len;		/* strlen(appsession_name), computed only once */
 	int  appsession_len;			/* length of the appsession cookie value to be used */
-	int  appsession_timeout;
 	CHTbl htbl_proxy;			/* Per Proxy hashtable */
 	char *capture_name;			/* beginning of the name of the cookie to capture */
 	int  capture_namelen;			/* length of the cookie name to match */
@@ -104,9 +103,10 @@ struct proxy {
 	struct uri_auth *uri_auth;		/* if non-NULL, the (list of) per-URI authentications */
 	char *monitor_uri;			/* a special URI to which we respond with HTTP/200 OK */
 	int monitor_uri_len;			/* length of the string above. 0 if unused */
-	int clitimeout;				/* client I/O timeout (in milliseconds) */
-	int srvtimeout;				/* server I/O timeout (in milliseconds) */
-	int contimeout;				/* connect timeout (in milliseconds) */
+	struct timeval clitimeout;		/* client I/O timeout (in milliseconds) */
+	struct timeval srvtimeout;		/* server I/O timeout (in milliseconds) */
+	struct timeval contimeout;		/* connect timeout (in milliseconds) */
+	struct timeval appsession_timeout;
 	char *id;				/* proxy id */
 	struct list pendconns;			/* pending connections with no server assigned yet */
 	int nbpend, nbpend_max;			/* number of pending connections with no server assigned yet */

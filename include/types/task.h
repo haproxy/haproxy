@@ -2,7 +2,7 @@
   include/types/task.h
   Macros, variables and structures for task management.
 
-  Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -38,7 +38,7 @@ struct task {
 	struct ultree *wq;		/* NULL if unqueued, or back ref to the carrier node in the WQ */
 	int state;			/* task state : IDLE or RUNNING */
 	struct timeval expire;		/* next expiration time for this task, use only for fast sorting */
-	int (*process)(struct task *t);	/* the function which processes the task */
+	void (*process)(struct task *t, struct timeval *next);	/* the function which processes the task */
 	void *context;			/* the task's context */
 };
 

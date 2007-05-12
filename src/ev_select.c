@@ -78,7 +78,7 @@ REGPRM1 static void __fd_rem(int fd)
 /*
  * Select() poller
  */
-REGPRM2 static void _do_poll(struct poller *p, int wait_time)
+REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 {
 	int status;
 	int fd, i;
@@ -89,12 +89,14 @@ REGPRM2 static void _do_poll(struct poller *p, int wait_time)
 		
 	/* allow select to return immediately when needed */
 	delta.tv_sec = delta.tv_usec = 0;
-	if (wait_time > 0) {  /* FIXME */
-		/* Convert to timeval */
-		/* to avoid eventual select loops due to timer precision */
-		wait_time += SCHEDULER_RESOLUTION;
-		delta.tv_sec  = wait_time / 1000; 
-		delta.tv_usec = (wait_time % 1000) * 1000;
+	if (tv_isset(exp)) {
+		tv_remain(&now, exp, &delta);
+		/* To avoid eventual select loops due to timer precision */
+		delta.tv_usec += SCHEDULER_RESOLUTION * 1000;
+		if (delta.tv_usec >= 1000000) {
+			delta.tv_usec -= 1000000;
+			delta.tv_sec ++;
+		}
 	}
 
 	/* let's restore fdset state */
@@ -118,7 +120,7 @@ REGPRM2 static void _do_poll(struct poller *p, int wait_time)
 			readnotnull ? tmp_evts[DIR_RD] : NULL,
 			writenotnull ? tmp_evts[DIR_WR] : NULL,
 			NULL,
-			(wait_time >= 0) ? &delta : NULL);
+			tv_isset(exp) ? &delta : NULL);
       
 	tv_now(&now);
 

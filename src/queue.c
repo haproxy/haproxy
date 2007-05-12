@@ -45,9 +45,9 @@ unsigned int srv_dynamic_maxconn(const struct server *s)
 /*
  * Manages a server's connection queue. If woken up, will try to dequeue as
  * many pending sessions as possible, and wake them up. The task has nothing
- * else to do, so it always returns TIME_ETERNITY.
+ * else to do, so it always returns ETERNITY.
  */
-int process_srv_queue(struct task *t)
+void process_srv_queue(struct task *t, struct timeval *next)
 {
 	struct server *s = (struct server*)t->context;
 	struct proxy  *p = s->proxy;
@@ -65,7 +65,7 @@ int process_srv_queue(struct task *t)
 		task_wakeup(sess->task);
 	}
 
-	return TIME_ETERNITY;
+	tv_eternity(next);
 }
 
 /* Detaches the next pending connection from either a server or a proxy, and

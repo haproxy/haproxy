@@ -259,13 +259,14 @@ static struct ev_to_epoll {
 /*
  * speculative epoll() poller
  */
-REGPRM2 static void _do_poll(struct poller *p, int wait_time)
+REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 {
 	static unsigned int last_skipped;
 	int status;
 	int fd, opcode;
 	int count;
 	int spec_idx;
+	int wait_time;
 
 
 	/* Here we have two options :
@@ -369,6 +370,12 @@ REGPRM2 static void _do_poll(struct poller *p, int wait_time)
 			return;
 		}
 		wait_time = 0;
+	}
+	else {
+		if (tv_isset(exp))
+			wait_time = tv_ms_remain(&now, exp);
+		else
+			wait_time = -1;
 	}
 	last_skipped = 0;
 

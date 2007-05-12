@@ -1,7 +1,7 @@
 /*
  * Proxy variables and functions.
  *
- * Copyright 2000-2006 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2007 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -170,17 +170,16 @@ int start_proxies(int verbose)
 /*
  * this function enables proxies when there are enough free sessions,
  * or stops them when the table is full. It is designed to be called from the
- * select_loop(). It returns the time left before next expiration event
- * during stop time, TIME_ETERNITY otherwise.
+ * select_loop(). It returns the date of next expiration event during stop
+ * time, ETERNITY otherwise.
  */
-int maintain_proxies(void)
+void maintain_proxies(struct timeval *next)
 {
 	struct proxy *p;
 	struct listener *l;
-	int tleft; /* time left */
 
 	p = proxy;
-	tleft = TIME_ETERNITY; /* infinite time */
+	tv_eternity(next);
 
 	/* if there are enough free sessions, we'll activate proxies */
 	if (actconn < global.maxconn) {
@@ -233,13 +232,13 @@ int maintain_proxies(void)
 					p->state = PR_STSTOPPED;
 				}
 				else {
-					tleft = MINTIME(t, tleft);
+					tv_bound(next, &p->stop_time);
 				}
 			}
 			p = p->next;
 		}
 	}
-	return tleft;
+	return;
 }
 
 

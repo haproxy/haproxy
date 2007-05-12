@@ -2,7 +2,7 @@
   include/proto/queue.h
   This file defines everything related to queues.
 
-  Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -35,7 +35,7 @@
 struct session *pendconn_get_next_sess(struct server *srv, struct proxy *px);
 struct pendconn *pendconn_add(struct session *sess);
 void pendconn_free(struct pendconn *p);
-int process_srv_queue(struct task *t);
+void process_srv_queue(struct task *t, struct timeval *next);
 unsigned int srv_dynamic_maxconn(const struct server *s);
 
 

@@ -81,7 +81,7 @@ struct fdtab {
  *    it returns 0. It may be the same as clr().
  *  - clo() should be used to do indicate the poller that fd will be closed. It
  *    may be the same as rem() on some pollers.
- *  - poll() calls the poller, waiting at most wait_time ms.
+ *  - poll() calls the poller, expiring at <exp>
  */
 struct poller {
 	void   *private;                                     /* any private data for the poller */
@@ -92,7 +92,7 @@ struct poller {
 	int  REGPRM2 (*cond_c)(const int fd, int dir);       /* clear polling on <fd> for <dir> if set */
 	void REGPRM1    (*rem)(const int fd);                /* remove any polling on <fd> */
 	void REGPRM1    (*clo)(const int fd);                /* mark <fd> as closed */
-    	void REGPRM2   (*poll)(struct poller *p, int wait_time); /* the poller itself */
+    	void REGPRM2   (*poll)(struct poller *p, struct timeval *exp); /* the poller itself */
 	int  REGPRM1   (*init)(struct poller *p);            /* poller initialization */
 	void REGPRM1   (*term)(struct poller *p);            /* termination of this poller */
 	int  REGPRM1   (*test)(struct poller *p);            /* pre-init check of the poller */

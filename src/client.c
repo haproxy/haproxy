@@ -1,7 +1,7 @@
 /*
  * Client-side variables and functions.
  *
- * Copyright 2000-2006 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2007 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -386,7 +386,7 @@ int event_accept(int fd) {
 
 		s->rep->rto = s->be->srvtimeout;
 		s->rep->wto = s->fe->clitimeout;
-		s->rep->cto = 0;
+		tv_zero(&s->rep->cto);
 
 		fd_insert(cfd);
 		fdtab[cfd].owner = t;
@@ -421,13 +421,13 @@ int event_accept(int fd) {
 		tv_eternity(&s->rep->wex);
 		tv_eternity(&t->expire);
 
-		if (s->fe->clitimeout) {
+		if (tv_isset(&s->fe->clitimeout)) {
 			if (EV_FD_ISSET(cfd, DIR_RD)) {
-				tv_ms_add(&s->req->rex, &now, s->fe->clitimeout);
+				tv_add(&s->req->rex, &now, &s->fe->clitimeout);
 				t->expire = s->req->rex;
 			}
 			if (EV_FD_ISSET(cfd, DIR_WR)) {
-				tv_ms_add(&s->rep->wex, &now, s->fe->clitimeout);
+				tv_add(&s->rep->wex, &now, &s->fe->clitimeout);
 				t->expire = s->req->rex;
 			}
 		}

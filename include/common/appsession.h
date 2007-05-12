@@ -44,7 +44,7 @@ void destroy(void *data);
 static void print_table(const CHTbl *htbl);
 #endif
 
-int appsession_refresh(struct task *t);
+void appsession_refresh(struct task *t, struct timeval *next);
 int appsession_task_init(void);
 int appsession_init(void);
 void appsession_cleanup(void);

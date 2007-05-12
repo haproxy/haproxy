@@ -81,10 +81,11 @@ REGPRM1 static void __fd_rem(const int fd)
 /*
  * Poll() poller
  */
-REGPRM2 static void _do_poll(struct poller *p, int wait_time)
+REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 {
 	int status;
 	int fd, nbfd;
+	int wait_time;
 
 	int fds, count;
 	int sr, sw;
@@ -123,6 +124,11 @@ REGPRM2 static void _do_poll(struct poller *p, int wait_time)
 	}
       
 	/* now let's wait for events */
+	if (tv_isset(exp))
+		wait_time = tv_ms_remain(&now, exp);
+	else
+		wait_time = -1;
+
 	status = poll(poll_events, nbfd, wait_time);
 	tv_now(&now);
 

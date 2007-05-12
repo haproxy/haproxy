@@ -95,6 +95,33 @@ REGPRM2 unsigned long _tv_ms_elapsed(const struct timeval *tv1, const struct tim
 }
 
 /*
+ * adds <inc> to <from>, set the result to <tv> and returns a pointer <tv>
+ */
+REGPRM3 struct timeval *_tv_add(struct timeval *tv, const struct timeval *from, const struct timeval *inc)
+{
+	return __tv_add(tv, from, inc);
+}
+
+/*
+ * Computes the remaining time between tv1=now and event=tv2. if tv2 is passed,
+ * 0 is returned. The result is stored into tv.
+ */
+REGPRM3 struct timeval *_tv_remain(const struct timeval *tv1, const struct timeval *tv2, struct timeval *tv)
+{
+	return __tv_remain(tv1, tv2, tv);
+}
+
+/*
+ * Computes the remaining time between tv1=now and event=tv2. if tv2 is passed,
+ * 0 is returned. The result is stored into tv. Returns ETERNITY if tv2 is
+ * eternity.
+ */
+REGPRM3 struct timeval *_tv_remain2(const struct timeval *tv1, const struct timeval *tv2, struct timeval *tv)
+{
+	return __tv_remain2(tv1, tv2, tv);
+}
+
+/*
  * Local variables:
  *  c-indent-level: 8
  *  c-basic-offset: 8

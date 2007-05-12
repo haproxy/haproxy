@@ -2,7 +2,7 @@
   include/proto/checks.h
   Functions prototypes for the checks.
 
-  Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -25,7 +25,7 @@
 #include <types/task.h>
 #include <common/config.h>
 
-int process_chk(struct task *t);
+void process_chk(struct task *t, struct timeval *next);
 
 #endif /* _PROTO_CHECKS_H */
 

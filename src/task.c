@@ -15,6 +15,7 @@
 #include <common/standard.h>
 #include <common/time.h>
 
+#include <proto/proxy.h>
 #include <proto/task.h>
 #include <types/task.h>
 
@@ -22,9 +23,6 @@
 #include <import/bitops.h>
 #include <import/tree.h>
 
-
-/* FIXME : this should be removed very quickly ! */
-extern int maintain_proxies(void);
 
 void **pool_task= NULL;
 void **pool_tree64 = NULL;
@@ -47,6 +45,7 @@ struct task *_task_wakeup(struct task *t)
 {
 	return __task_wakeup(t);
 }
+
 /*
  * task_queue()
  *
@@ -80,19 +79,15 @@ struct task *task_queue(struct task *task)
 
 /*
  * Extract all expired timers from the wait queue, and wakes up all
- * associated tasks.
- * Returns the time to wait for next task (next_time).
- *
- * FIXME: Use an alternative queue for ETERNITY tasks.
+ * associated tasks. Returns the date of next event (or eternity).
  *
  */
-int wake_expired_tasks()
+void wake_expired_tasks(struct timeval *next)
 {
 	__label__ out;
 	int slen;
 	struct task *task;
 	void *data;
-	int next_time;
 
 	/*
 	 * Hint: tasks are *rarely* expired. So we can try to optimize
@@ -102,19 +97,19 @@ int wake_expired_tasks()
 	if (likely(timer_wq.data != NULL)) {
 		task = LIST_ELEM(timer_wq.data, struct task *, qlist);
 		if (likely(__tv_isge(&task->expire, &now) > 0)) {
-			next_time = tv_ms_remain(&now, &task->expire);
+			__tv_remain(&now, &task->expire, next);
 			goto out;
 		}
 	}
 
 	/* OK we lose. Let's scan the tree then. */
-	next_time = TIME_ETERNITY;
+	tv_eternity(next);
 
 	tree64_foreach(&timer_wq, data, stack, slen) {
 		task = LIST_ELEM(data, struct task *, qlist);
 
 		if (__tv_isgt(&task->expire, &now)) {
-			next_time = tv_ms_remain(&now, &task->expire);
+			__tv_remain2(&now, &task->expire, next);
 			break;
 		}
 
@@ -131,10 +126,7 @@ int wake_expired_tasks()
 		}
 	}
  out:
-	/* Ensure that we don't report sub-millisecond timeouts */
-	if (next_time != TIME_ETERNITY)
-		next_time++;
-	return next_time;
+	return;
 }
 
 /*
@@ -142,17 +134,16 @@ int wake_expired_tasks()
  *   - wake up all expired tasks
  *   - call all runnable tasks
  *   - call maintain_proxies() to enable/disable the listeners
- *   - return the delay till next event in ms, -1 = wait indefinitely
+ *   - return the date of next event in <next> or eternity.
  *
  */
-int process_runnable_tasks()
+void process_runnable_tasks(struct timeval *next)
 {
-	int next_time;
-	int time2;
+	struct timeval temp;
 	struct task *t;
 	void *queue;
 
-	next_time = wake_expired_tasks();
+	wake_expired_tasks(next);
 	/* process each task in the run queue now. Each task may be deleted
 	 * since we only use the run queue's head. Note that any task can be
 	 * woken up by any other task and it will be processed immediately
@@ -161,21 +152,20 @@ int process_runnable_tasks()
 
 	queue = run_queue;
 	foreach_dlist_item(t, queue, struct task *, qlist) {
-		int temp_time;
-
 		DLIST_DEL(&t->qlist);
 		t->qlist.p = NULL;
 
 		t->state = TASK_IDLE;
-		temp_time = t->process(t);
-		next_time = MINTIME(temp_time, next_time);
+		t->process(t, &temp);
+		tv_bound(next, &temp);
 	}
 
 	/* maintain all proxies in a consistent state. This should quickly
 	 * become a task because it becomes expensive when there are huge
 	 * numbers of proxies. */
-	time2 = maintain_proxies();
-	return MINTIME(time2, next_time);
+	maintain_proxies(&temp);
+	tv_bound(next, &temp);
+	return;
 }
 
 /*
