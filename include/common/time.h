@@ -106,12 +106,39 @@ REGPRM1 static inline struct timeval *tv_zero(struct timeval *tv) {
 #define tv_iseternity(tv)       ((tv)->tv_usec == TV_ETERNITY)
 
 /*
+ * returns 0 if tv is [eternity], otherwise non-zero.
+ */
+#define tv_isset(tv)       ((tv)->tv_usec != TV_ETERNITY)
+
+/*
  * returns non null if tv is [0], otherwise 0.
  */
 #define tv_iszero(tv)           (((tv)->tv_sec | (tv)->tv_usec) == 0)
 
+/*
+ * Converts a struct timeval to a number of milliseconds.
+ */
+REGPRM1 static inline unsigned long __tv_to_ms(const struct timeval *tv)
+{
+	unsigned long ret;
 
-/**** comparision functions and macros ***********************************/
+	ret  = tv->tv_sec * 1000;
+	ret += tv->tv_usec / 1000;
+	return ret;
+}
+
+/*
+ * Converts a struct timeval to a number of milliseconds.
+ */
+REGPRM2 static inline struct timeval * __tv_from_ms(struct timeval *tv, unsigned long ms)
+{
+	tv->tv_sec = ms / 1000;
+	tv->tv_usec = (ms % 1000) * 1000;
+	return tv;
+}
+
+
+/**** comparison functions and macros ***********************************/
 
 
 /* tv_cmp: compares <tv1> and <tv2> : returns 0 if equal, -1 if tv1 < tv2, 1 if tv1 > tv2. */
@@ -297,6 +324,79 @@ REGPRM2 static inline unsigned long __tv_ms_remain2(const struct timeval *tv1, c
 
 	return tv_ms_remain(tv1, tv2);
 }
+
+/*
+ * adds <inc> to <from>, set the result to <tv> and returns a pointer <tv>
+ */
+#define tv_add __tv_add
+REGPRM3 struct timeval *_tv_add(struct timeval *tv, const struct timeval *from, const struct timeval *inc);
+REGPRM3 static inline struct timeval *__tv_add(struct timeval *tv, const struct timeval *from, const struct timeval *inc)
+{
+	tv->tv_usec = from->tv_usec + inc->tv_usec;
+	tv->tv_sec  = from->tv_sec  + inc->tv_sec;
+	if (tv->tv_usec >= 1000000) {
+		tv->tv_usec -= 1000000;
+		tv->tv_sec++;
+	}
+	return tv;
+}
+
+
+/*
+ * adds <inc> to <tv> and returns a pointer <tv>
+ */
+REGPRM2 static inline struct timeval *__tv_add2(struct timeval *tv, const struct timeval *inc)
+{
+	tv->tv_usec += inc->tv_usec;
+	tv->tv_sec  += inc->tv_sec;
+	if (tv->tv_usec >= 1000000) {
+		tv->tv_usec -= 1000000;
+		tv->tv_sec++;
+	}
+	return tv;
+}
+
+
+/*
+ * Computes the remaining time between tv1=now and event=tv2. if tv2 is passed,
+ * 0 is returned. The result is stored into tv.
+ */
+#define tv_remain _tv_remain
+REGPRM3 struct timeval *_tv_remain(const struct timeval *tv1, const struct timeval *tv2, struct timeval *tv);
+REGPRM3 static inline struct timeval *__tv_remain(const struct timeval *tv1, const struct timeval *tv2, struct timeval *tv)
+{
+	tv->tv_usec = tv2->tv_usec - tv1->tv_usec;
+	tv->tv_sec  = tv2->tv_sec  - tv1->tv_sec;
+	if ((signed)tv->tv_sec > 0) {
+		if ((signed)tv->tv_usec < 0) {
+			tv->tv_usec += 1000000;
+			tv->tv_sec--;
+		}
+	} else if (tv->tv_sec == 0) {
+		if ((signed)tv->tv_usec < 0)
+			tv->tv_usec = 0;
+	} else {
+		tv->tv_sec = 0;
+		tv->tv_usec = 0;
+	}
+ 	return tv;
+}
+
+
+/*
+ * Computes the remaining time between tv1=now and event=tv2. if tv2 is passed,
+ * 0 is returned. The result is stored into tv. Returns ETERNITY if tv2 is
+ * eternity.
+ */
+#define tv_remain2 _tv_remain2
+REGPRM3 struct timeval *_tv_remain2(const struct timeval *tv1, const struct timeval *tv2, struct timeval *tv);
+REGPRM3 static inline struct timeval *__tv_remain2(const struct timeval *tv1, const struct timeval *tv2, struct timeval *tv)
+{
+	if (tv_iseternity(tv2))
+		return tv_eternity(tv);
+	return __tv_remain(tv1, tv2, tv);
+}
+
 
 /*
  * adds <ms> ms to <from>, set the result to <tv> and returns a pointer <tv>
