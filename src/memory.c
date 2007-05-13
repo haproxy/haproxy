@@ -66,7 +66,7 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 /* Allocate a new entry for pool <pool>, and return it for immediate use.
  * NULL is returned if no memory is available for a new creation.
  */
-void *refill_pool_alloc(struct pool_head *pool)
+void *pool_refill_alloc(struct pool_head *pool)
 {
 	void *ret;
 
@@ -80,6 +80,57 @@ void *refill_pool_alloc(struct pool_head *pool)
 	return ret;
 }
 
+/*
+ * This function frees whatever can be freed in pool <pool>.
+ */
+void pool_flush2(struct pool_head *pool)
+{
+	void *temp, *next;
+	next = pool->free_list;
+	while (next) {
+		temp = next;
+		next = *(void **)temp;
+		pool->allocated--;
+		FREE(temp);
+	}
+	pool->free_list = next;
+
+	/* here, we should have pool->allocate == pool->used */
+}
+
+/*
+ * This function frees whatever can be freed in all pools, but respecting
+ * the minimum thresholds imposed by owners.
+ */
+void pool_gc2()
+{
+	struct pool_head *entry;
+	list_for_each_entry(entry, &pools, list) {
+		void *temp, *next;
+		//qfprintf(stderr, "Flushing pool %s\n", entry->name);
+		next = entry->free_list;
+		while (next &&
+		       entry->allocated > entry->minavail &&
+		       entry->allocated > entry->used) {
+			temp = next;
+			next = *(void **)temp;
+			entry->allocated--;
+			FREE(temp);
+		}
+		entry->free_list = next;
+	}
+}
+
+/*
+ * This function destroys a pull by freeing it completely.
+ * This should be called only under extreme circumstances.
+ */
+void pool_destroy2(struct pool_head *pool)
+{
+	pool_flush2(pool);
+	FREE(pool);
+}
+
 /* Dump statistics on pools usage.
  */
 void dump_pools(void)
@@ -91,15 +142,16 @@ void dump_pools(void)
 	allocated = used = nbpools = 0;
 	qfprintf(stderr, "Dumping pools usage.\n");
 	list_for_each_entry(entry, &pools, list) {
-		qfprintf(stderr, "  - Pool %s (%d bytes) : %d allocated, %d used%s\n",
-			 entry->name, entry->size, entry->allocated, entry->used,
-			 (entry->flags & MEM_F_SHARED) ? " (SHARED)" : "");
+		qfprintf(stderr, "  - Pool %s (%d bytes) : %d allocated (%lu bytes), %d used%s\n",
+			 entry->name, entry->size, entry->allocated,
+			 entry->size * entry->allocated, entry->used,
+			 (entry->flags & MEM_F_SHARED) ? " [SHARED]" : "");
 
 		allocated += entry->allocated * entry->size;
 		used += entry->used * entry->size;
 		nbpools++;
 	}
-	qfprintf(stderr, "Total: %d pools, %lu allocated, %lu used.\n",
+	qfprintf(stderr, "Total: %d pools, %lu bytes allocated, %lu used.\n",
 		 nbpools, allocated, used);
 }
 

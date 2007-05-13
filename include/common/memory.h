@@ -134,7 +134,7 @@ struct pool_head {
 /* Allocate a new entry for pool <pool>, and return it for immediate use.
  * NULL is returned if no memory is available for a new creation.
  */
-void *refill_pool_alloc(struct pool_head *pool);
+void *pool_refill_alloc(struct pool_head *pool);
 
 /* Try to find an existing shared pool with the same characteristics and
  * returns it, otherwise creates this one. NULL is returned if no memory
@@ -147,6 +147,23 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 void dump_pools(void);
 
 /*
+ * This function frees whatever can be freed in pool <pool>.
+ */
+void pool_flush2(struct pool_head *pool);
+
+/*
+ * This function frees whatever can be freed in all pools, but respecting
+ * the minimum thresholds imposed by owners.
+ */
+void pool_gc2();
+
+/*
+ * This function destroys a pull by freeing it completely.
+ * This should be called only under extreme circumstances.
+ */
+void pool_destroy2(struct pool_head *pool);
+
+/*
  * Returns a pointer to type <type> taken from the
  * pool <pool_type> or dynamically allocated. In the
  * first case, <pool_type> is updated to point to the
@@ -155,11 +172,11 @@ void dump_pools(void);
 #define pool_alloc2(pool)                                       \
 ({                                                              \
         void *__p;                                              \
-        if ((__p = pool.free_list) == NULL)                     \
-                __p = pool_refill_alloc(&pool);                 \
+        if ((__p = pool->free_list) == NULL)                    \
+                __p = pool_refill_alloc(pool);                  \
         else {                                                  \
-                pool.free_list = *(void **)pool.free_list;      \
-                pool.used++;                                    \
+                pool->free_list = *(void **)pool->free_list;    \
+                pool->used++;                                   \
         }                                                       \
         __p;                                                    \
 })
@@ -174,9 +191,9 @@ void dump_pools(void);
  */
 #define pool_free2(pool, ptr)                           \
 ({                                                      \
-        *(void **)ptr = (void *)pool.free_list;         \
-        pool.free_list = (void *)ptr;                   \
-        pool.used--;                                    \
+        *(void **)ptr = (void *)pool->free_list;        \
+        pool->free_list = (void *)ptr;                  \
+        pool->used--;                                   \
 })
 
 
