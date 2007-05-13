@@ -2,7 +2,7 @@
   include/common/memory.h
   Memory management definitions..
 
-  Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -25,6 +25,7 @@
 #include <stdlib.h>
 
 #include <common/config.h>
+#include <common/mini-clist.h>
 
 #define sizeof_requri   REQURI_LEN
 #define sizeof_capture  CAPTURE_LEN
@@ -111,6 +112,73 @@ static inline void pool_destroy(void **pool)
 		free(temp);
 	}
 }
+
+
+/******* pools version 2 ********/
+
+#define MEM_F_SHARED	0x1
+
+struct pool_head {
+	void **free_list;
+	struct list list;	/* list of all known pools */
+	unsigned int used;	/* how many chunks are currently in use */
+	unsigned int allocated;	/* how many chunks have been allocated */
+	unsigned int limit;	/* hard limit on the number of chunks */
+	unsigned int minavail;	/* how many chunks are expected to be used */
+	unsigned int size;	/* chunk size */
+	unsigned int flags;	/* MEM_F_* */
+	char name[9];		/* name of the pool */
+};
+
+
+/* Allocate a new entry for pool <pool>, and return it for immediate use.
+ * NULL is returned if no memory is available for a new creation.
+ */
+void *refill_pool_alloc(struct pool_head *pool);
+
+/* Try to find an existing shared pool with the same characteristics and
+ * returns it, otherwise creates this one. NULL is returned if no memory
+ * is available for a new creation.
+ */
+struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags);
+
+/* Dump statistics on pools usage.
+ */
+void dump_pools(void);
+
+/*
+ * Returns a pointer to type <type> taken from the
+ * pool <pool_type> or dynamically allocated. In the
+ * first case, <pool_type> is updated to point to the
+ * next element in the list.
+ */
+#define pool_alloc2(pool)                                       \
+({                                                              \
+        void *__p;                                              \
+        if ((__p = pool.free_list) == NULL)                     \
+                __p = pool_refill_alloc(&pool);                 \
+        else {                                                  \
+                pool.free_list = *(void **)pool.free_list;      \
+                pool.used++;                                    \
+        }                                                       \
+        __p;                                                    \
+})
+
+/*
+ * Puts a memory area back to the corresponding pool.
+ * Items are chained directly through a pointer that
+ * is written in the beginning of the memory area, so
+ * there's no need for any carrier cell. This implies
+ * that each memory area is at least as big as one
+ * pointer.
+ */
+#define pool_free2(pool, ptr)                           \
+({                                                      \
+        *(void **)ptr = (void *)pool.free_list;         \
+        pool.free_list = (void *)ptr;                   \
+        pool.used--;                                    \
+})
+
 
 #endif /* _COMMON_MEMORY_H */
 
