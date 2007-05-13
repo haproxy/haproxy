@@ -45,7 +45,7 @@ void session_free(struct session *s)
 		pool_free2(pool2_buffer, s->rep);
 
 	if (txn->hdr_idx.v != NULL)
-		pool_free_to(s->fe->hdr_idx_pool, txn->hdr_idx.v);
+		pool_free2(s->fe->hdr_idx_pool, txn->hdr_idx.v);
 
 	if (txn->rsp.cap != NULL) {
 		struct cap_hdr *h;

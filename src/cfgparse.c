@@ -2413,6 +2413,10 @@ int readcfgfile(const char *file)
 							     curproxy->nb_rsp_cap * sizeof(char *),
 							     MEM_F_SHARED);
 
+		curproxy->hdr_idx_pool = create_pool("hdr_idx",
+						     MAX_HTTP_HDR * sizeof(struct hdr_idx_elem),
+						     MEM_F_SHARED);
+
 		/* for backwards compatibility with "listen" instances, if
 		 * fullconn is not set but maxconn is set, then maxconn
 		 * is used.

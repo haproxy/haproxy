@@ -230,8 +230,6 @@ int event_accept(int fd) {
 			txn->req.som = txn->req.eoh = 0; /* relative to the buffer */
 			txn->auth_hdr.len = -1;
 
-			txn->hdr_idx.size = MAX_HTTP_HDR;
-
 			if (p->nb_req_cap > 0) {
 				if ((txn->req.cap = pool_alloc2(p->req_cap_pool)) == NULL) {
 					/* no memory */
@@ -258,9 +256,10 @@ int event_accept(int fd) {
 			}
 
 
-			if ((txn->hdr_idx.v =
-			     pool_alloc_from(p->hdr_idx_pool, txn->hdr_idx.size*sizeof(*txn->hdr_idx.v)))
-			    == NULL) { /* no memory */
+			txn->hdr_idx.size = MAX_HTTP_HDR;
+
+			if ((txn->hdr_idx.v = pool_alloc2(p->hdr_idx_pool)) == NULL) {
+				/* no memory */
 				if (txn->rsp.cap != NULL)
 					pool_free2(p->rsp_cap_pool, txn->rsp.cap);
 				if (txn->req.cap != NULL)
@@ -347,7 +346,7 @@ int event_accept(int fd) {
 
 		if ((s->req = pool_alloc2(pool2_buffer)) == NULL) { /* no memory */
 			if (txn->hdr_idx.v != NULL)
-				pool_free_to(p->hdr_idx_pool, txn->hdr_idx.v);
+				pool_free2(p->hdr_idx_pool, txn->hdr_idx.v);
 			if (txn->rsp.cap != NULL)
 				pool_free2(p->rsp_cap_pool, txn->rsp.cap);
 			if (txn->req.cap != NULL)
@@ -370,7 +369,7 @@ int event_accept(int fd) {
 		if ((s->rep = pool_alloc2(pool2_buffer)) == NULL) { /* no memory */
 			pool_free2(pool2_buffer, s->req);
 			if (txn->hdr_idx.v != NULL)
-				pool_free_to(p->hdr_idx_pool, txn->hdr_idx.v);
+				pool_free2(p->hdr_idx_pool, txn->hdr_idx.v);
 			if (txn->rsp.cap != NULL)
 				pool_free2(p->rsp_cap_pool, txn->rsp.cap);
 			if (txn->req.cap != NULL)
