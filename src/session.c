@@ -67,9 +67,9 @@ void session_free(struct session *s)
 	if (txn->uri)
 		pool_free2(pool2_requri, txn->uri);
 	if (txn->cli_cookie)
-		pool_free(capture, txn->cli_cookie);
+		pool_free2(pool2_capture, txn->cli_cookie);
 	if (txn->srv_cookie)
-		pool_free(capture, txn->srv_cookie);
+		pool_free2(pool2_capture, txn->srv_cookie);
 
 	pool_free2(pool2_session, s);
 }

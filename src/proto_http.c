@@ -246,6 +246,7 @@ void init_proto_http()
 
 	/* memory allocations */
 	pool2_requri = create_pool("requri", REQURI_LEN, MEM_F_SHARED);
+	pool2_capture = create_pool("capture", CAPTURE_LEN, MEM_F_SHARED);
 }
 
 /*
@@ -628,6 +629,7 @@ const char sess_set_cookie[8] = "N1I3PD5R";	/* No set-cookie, unknown, Set-Cooki
 					    	   Set-cookie seen and left unchanged (passive), Set-cookie Deleted,
 						   unknown, Set-cookie Rewritten */
 struct pool_head *pool2_requri;
+struct pool_head *pool2_capture;
 
 /*
  * send a log for the session when we have enough info about it.
@@ -4172,7 +4174,7 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 				    memcmp(p1, t->fe->capture_name, t->fe->capture_namelen) == 0) {
 					int log_len = p4 - p1;
 
-					if ((txn->cli_cookie = pool_alloc(capture)) == NULL) {
+					if ((txn->cli_cookie = pool_alloc2(pool2_capture)) == NULL) {
 						Alert("HTTP logging : out of memory.\n");
 					} else {
 						if (log_len > t->fe->capture_len)
@@ -4707,7 +4709,7 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 			    memcmp(p1, t->be->capture_name, t->be->capture_namelen) == 0) {
 				int log_len = p4 - p1;
 
-				if ((txn->srv_cookie = pool_alloc(capture)) == NULL) {
+				if ((txn->srv_cookie = pool_alloc2(pool2_capture)) == NULL) {
 					Alert("HTTP logging : out of memory.\n");
 				}
 

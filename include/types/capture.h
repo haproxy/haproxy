@@ -2,7 +2,7 @@
   include/types/capture.h
   This file defines everything related to captures.
 
-  Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -23,6 +23,7 @@
 #define _TYPES_CAPTURE_H
 
 #include <common/config.h>
+#include <common/memory.h>
 
 struct cap_hdr {
     struct cap_hdr *next;
@@ -33,7 +34,7 @@ struct cap_hdr {
     void *pool;				/* pool of pre-allocated memory area of (len+1) bytes */
 };
 
-extern void **pool_capture;
+extern struct pool_head *pool2_capture;
 
 #endif /* _TYPES_CAPTURE_H */
 
