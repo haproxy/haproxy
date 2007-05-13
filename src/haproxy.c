@@ -374,9 +374,10 @@ void init(int argc, char **argv)
 	localtime((time_t *)&now.tv_sec);
 	start_date = now;
 
-	init_buffer();
 	init_task();
 	init_session();
+	init_buffer();
+	init_pendconn();
 	init_proto_http();
 
 	cfg_polling_mechanism = POLL_USE_SELECT;  /* select() is always available */
@@ -667,6 +668,7 @@ void deinit(void)
 	pool_destroy2(pool2_task);
 	pool_destroy(pool_capture);
 	pool_destroy(pool_appsess);
+	pool_destroy2(pool2_pendconn);
     
 	if (have_appsession) {
 		pool_destroy(apools.serverid);
