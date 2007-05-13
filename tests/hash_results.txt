@@ -1,0 +1,218 @@
+Test:  ./test_hashes  | sort -k 3 -r
+
+Note: haproxy_server_hash should be avoided as it's just a 32 bit XOR.
+
+Athlon @ 1533 MHz, gcc-3.4 -march=i686 :
+	haproxy_server_hash  :   18477000 run/sec
+	SuperFastHash        :    6983511 run/sec
+	hash_djbx33          :    4164334 run/sec
+	bernstein            :    3371838 run/sec
+	kr_hash              :    3257684 run/sec
+	sax_hash             :    3027567 run/sec
+	fnv_hash             :    2818374 run/sec
+	haproxy_uri_hash     :    2108346 run/sec
+	oat_hash             :    2106181 run/sec
+	hashword             :    1936973 run/sec
+	hashpjw              :    1803475 run/sec
+	fnv_32a_str          :    1499198 run/sec
+
+Pentium-M @1700 MHz, gcc-3.4 -march=i686 :
+	haproxy_server_hash  :   15471737 run/sec
+	SuperFastHash        :    8155706 run/sec
+	hash_djbx33          :    4520191 run/sec
+	bernstein            :    3956142 run/sec
+	kr_hash              :    3725125 run/sec
+	fnv_hash             :    3155413 run/sec
+	sax_hash             :    2688323 run/sec
+	oat_hash             :    2452789 run/sec
+	haproxy_uri_hash     :    2010853 run/sec
+	hashword             :    1831441 run/sec
+	hashpjw              :    1737000 run/sec
+	fnv_32a_str          :    1643737 run/sec
+
+Athlon @ 1533 MHz, gcc-4.1 -march=i686 :
+	haproxy_server_hash  :   13592089 run/sec
+	SuperFastHash2       :    8687957 run/sec
+	SuperFastHash        :    7361242 run/sec
+	hash_djbx33          :    5741546 run/sec
+	bernstein            :    3368909 run/sec
+	sax_hash             :    3339880 run/sec
+	kr_hash              :    3277230 run/sec
+	fnv_hash             :    2832402 run/sec
+	hashword             :    2500317 run/sec
+	haproxy_uri_hash     :    2433241 run/sec
+	oat_hash             :    2403118 run/sec
+	hashpjw              :    1881229 run/sec
+	fnv_32a_str          :    1815709 run/sec
+
+Pentium-M @1700 MHz, gcc-4.1 -march=i686 :
+	haproxy_server_hash  :   14128788 run/sec
+	SuperFastHash2       :    8157119 run/sec
+	SuperFastHash        :    7481027 run/sec
+	hash_djbx33          :    5660711 run/sec
+	bernstein            :    3961493 run/sec
+	fnv_hash             :    3590727 run/sec
+	kr_hash              :    3389393 run/sec
+	sax_hash             :    2667227 run/sec
+	oat_hash             :    2348211 run/sec
+	hashword             :    2278856 run/sec
+	haproxy_uri_hash     :    2098022 run/sec
+	hashpjw              :    1846583 run/sec
+	fnv_32a_str          :    1661219 run/sec
+
+Pentium-M @600 MHz, gcc-4.1 -march=i686 :
+	haproxy_server_hash  :    5318468 run/sec
+	SuperFastHash2       :    3126165 run/sec
+	SuperFastHash        :    2729981 run/sec
+	hash_djbx33          :    2042181 run/sec
+	bernstein            :    1422927 run/sec
+	fnv_hash             :    1287736 run/sec
+	kr_hash              :    1217924 run/sec
+	sax_hash             :     949694 run/sec
+	oat_hash             :     837279 run/sec
+	hashword             :     812868 run/sec
+	haproxy_uri_hash     :     747611 run/sec
+	hashpjw              :     659890 run/sec
+	fnv_32a_str          :     590895 run/sec
+
+athlon @ 1.5 GHz, gcc-2.95 -march=i686 :
+	haproxy_server_hash  :   13592864 run/sec
+	SuperFastHash        :    6931251 run/sec
+	bernstein            :    4105179 run/sec
+	hash_djbx33          :    3920059 run/sec
+	kr_hash              :    2985794 run/sec
+	fnv_hash             :    2815457 run/sec
+	sax_hash             :    2791358 run/sec
+	haproxy_uri_hash     :    2786663 run/sec
+	oat_hash             :    2237859 run/sec
+	hashword             :    1985740 run/sec
+	hashpjw              :    1757733 run/sec
+	fnv_32a_str          :    1697299 run/sec
+
+Pentium-M @ 600 MHz, gcc-2.95 -march=i686 :
+	SuperFastHash        :    2934387 run/sec
+	haproxy_server_hash  :    2864668 run/sec
+	hash_djbx33          :    1498043 run/sec
+	bernstein            :    1414993 run/sec
+	kr_hash              :    1297907 run/sec
+	fnv_hash             :    1260343 run/sec
+	sax_hash             :     924764 run/sec
+	oat_hash             :     854545 run/sec
+	haproxy_uri_hash     :     790040 run/sec
+	hashword             :     693501 run/sec
+	hashpjw              :     647346 run/sec
+	fnv_32a_str          :     579691 run/sec
+
+Pentium-M @ 1700 MHz, gcc-2.95 -march=i686 :
+	SuperFastHash        :    8006127 run/sec
+	haproxy_server_hash  :    7834162 run/sec
+	hash_djbx33          :    4186025 run/sec
+	bernstein            :    3941492 run/sec
+	kr_hash              :    3630713 run/sec
+	fnv_hash             :    3507488 run/sec
+	sax_hash             :    2528128 run/sec
+	oat_hash             :    2395188 run/sec
+	haproxy_uri_hash     :    2158924 run/sec
+	hashword             :    1910992 run/sec
+	hashpjw              :    1819894 run/sec
+	fnv_32a_str          :    1629844 run/sec
+
+UltraSparc @ 400 MHz, gcc-3.4.3 :
+	haproxy_server_hash  :    5573220 run/sec
+	SuperFastHash        :    1372714 run/sec
+	bernstein            :    1361733 run/sec
+	hash_djbx33          :    1090373 run/sec
+	sax_hash             :     872499 run/sec
+	oat_hash             :     730354 run/sec
+	kr_hash              :     645431 run/sec
+	haproxy_uri_hash     :     541157 run/sec
+	fnv_32a_str          :     442608 run/sec
+	hashpjw              :     434858 run/sec
+	fnv_hash             :     401945 run/sec
+	hashword             :     340594 run/sec
+
+UltraSparc @ 400 MHz, gcc-3.4.3 -mcpu=v9 :
+	haproxy_server_hash  :    5671183 run/sec
+	bernstein            :    1437122 run/sec
+	hash_djbx33          :    1376294 run/sec
+	SuperFastHash        :    1306634 run/sec
+	sax_hash             :     873650 run/sec
+	kr_hash              :     801439 run/sec
+	oat_hash             :     729920 run/sec
+	haproxy_uri_hash     :     545341 run/sec
+	hashpjw              :     472190 run/sec
+	fnv_32a_str          :     443668 run/sec
+	hashword             :     357295 run/sec
+	fnv_hash             :     208823 run/sec
+
+
+Alpha EV6 @ 466 MHz, gcc-3.3 :
+	haproxy_server_hash  :    2495928 run/sec
+	SuperFastHash        :    2037208 run/sec
+	hash_djbx33          :    1625092 run/sec
+	kr_hash              :    1532206 run/sec
+	bernstein            :    1256746 run/sec
+	haproxy_uri_hash     :     999106 run/sec
+	oat_hash             :     841943 run/sec
+	sax_hash             :     737447 run/sec
+	hashpjw              :     676170 run/sec
+	fnv_hash             :     644054 run/sec
+	fnv_32a_str          :     638526 run/sec
+	hashword             :     421777 run/sec
+
+VIA EPIA @ 533 MHz, gcc-2.95 -march=i586 :
+	haproxy_server_hash  :    1391374 run/sec
+	SuperFastHash        :     912397 run/sec
+	hash_djbx33          :     589868 run/sec
+	kr_hash              :     453706 run/sec
+	bernstein            :     437318 run/sec
+	sax_hash             :     334456 run/sec
+	hashpjw              :     316670 run/sec
+	hashword             :     315476 run/sec
+	haproxy_uri_hash     :     311112 run/sec
+	oat_hash             :     259127 run/sec
+	fnv_32a_str          :     229485 run/sec
+	fnv_hash             :     151620 run/sec
+
+VIA EPIA @ 533 MHz, gcc-3.4 -march=i586 :
+	haproxy_server_hash  :    1660407 run/sec
+	SuperFastHash        :     791981 run/sec
+	hash_djbx33          :     680498 run/sec
+	kr_hash              :     384076 run/sec
+	bernstein            :     377247 run/sec
+	sax_hash             :     355183 run/sec
+	hashpjw              :     298879 run/sec
+	haproxy_uri_hash     :     296748 run/sec
+	oat_hash             :     283932 run/sec
+	hashword             :     269429 run/sec
+	fnv_32a_str          :     204776 run/sec
+	fnv_hash             :     155301 run/sec
+
+Pentium @ 133 MHz, gcc-3.4 -march=i586 :
+	haproxy_server_hash  :     930788 run/sec
+	SuperFastHash        :     344988 run/sec
+	hash_djbx33          :     278996 run/sec
+	bernstein            :     211545 run/sec
+	sax_hash             :     185225 run/sec
+	kr_hash              :     156603 run/sec
+	oat_hash             :     135163 run/sec
+	hashword             :     128518 run/sec
+	fnv_hash             :     107024 run/sec
+	haproxy_uri_hash     :     105523 run/sec
+	fnv_32a_str          :      99913 run/sec
+	hashpjw              :      97860 run/sec
+
+VAX VLC4000 @30 MHz, gcc-2.95 :
+	haproxy_server_hash  :      13208 run/sec
+	hash_djbx33          :      12963 run/sec
+	fnv_hash             :      12150 run/sec
+	SuperFastHash        :      12037 run/sec
+	bernstein            :      11765 run/sec
+	kr_hash              :      11111 run/sec
+	sax_hash             :       7273 run/sec
+	hashword             :       7143 run/sec
+	oat_hash             :       6931 run/sec
+	hashpjw              :       6667 run/sec
+	haproxy_uri_hash     :       5714 run/sec
+	fnv_32a_str          :       4800 run/sec
+

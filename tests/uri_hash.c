@@ -1,4 +1,6 @@
 #include <stdio.h>
+#include <string.h>
+#include <arpa/inet.h>
 
 #define NSERV   10
 #define MAXLINE 1000
@@ -11,7 +13,7 @@ static unsigned long hash_gd1(char *uri)
     unsigned long hash = 0;
     int c;
 
-    while (c = *uri++)
+    while ((c = *uri++))
         hash = c + (hash << 6) + (hash << 16) - hash;
 
     return hash;
@@ -23,7 +25,7 @@ static unsigned long hash_gd2(char *uri)
     unsigned long hash = 0;
     int c;
 
-    while (c = *uri++) {
+    while ((c = *uri++)) {
 	if (c == '?' || c == '\n')
 	    break;
         hash = c + (hash << 6) + (hash << 16) - hash;
@@ -39,7 +41,7 @@ static unsigned long hash_gd3(char *uri)
     unsigned long hash = 0;
     int c;
 
-    while (c = *uri++) {
+    while ((c = *uri++)) {
 	if (c == '?' || c == '\n')
 	    break;
         hash = c - (hash << 3) + (hash << 15) - hash;
@@ -55,7 +57,7 @@ static unsigned long hash_gd4(char *uri)
     unsigned long hash = 0;
     int c;
 
-    while (c = *uri++) {
+    while ((c = *uri++)) {
 	if (c == '?' || c == '\n')
 	    break;
         hash = hash + (hash << 6) - (hash << 15) - c;
@@ -71,7 +73,7 @@ static unsigned long hash_gd5(char *uri)
     unsigned long hash = 0;
     int c;
 
-    while (c = *uri++) {
+    while ((c = *uri++)) {
 	if (c == '?' || c == '\n')
 	    break;
         hash = hash + (hash << 2) - (hash << 19) - c;
@@ -87,7 +89,7 @@ static unsigned long hash_gd6(char *uri)
     unsigned long hash = 0;
     int c;
 
-    while (c = *uri++) {
+    while ((c = *uri++)) {
 	if (c == '?' || c == '\n')
 	    break;
         hash = hash + (hash << 2) - (hash << 22) - c;
@@ -152,7 +154,7 @@ static unsigned int rev32(unsigned int c) {
 
 int hash_wt2(const char *src, int len) {
 	unsigned int i = 0x3C964BA5; /* as many ones as zeroes */
-	unsigned int j, k;
+	unsigned int j;
 	unsigned int ih, il;
 	int bit;
 
@@ -170,6 +172,142 @@ int hash_wt2(const char *src, int len) {
 	}
 	return i;
 }
+
+
+//typedef unsigned int uint32_t;
+//typedef unsigned short uint8_t;
+//typedef unsigned char uint16_t;
+
+/*
+ * http://www.azillionmonkeys.com/qed/hash.html
+ */
+#undef get16bits
+#if (defined(__GNUC__) && defined(__i386__)) || defined(__WATCOMC__) \
+  || defined(_MSC_VER) || defined (__BORLANDC__) || defined (__TURBOC__)
+#define get16bits(d) (*((const uint16_t *) (d)))
+#endif
+
+#if !defined (get16bits)
+#define get16bits(d) ((((uint32_t)(((const uint8_t *)(d))[1])) << 8)\
+                       +(uint32_t)(((const uint8_t *)(d))[0]) )
+#endif
+
+/*
+ * This function has a hole of 11 unused bits in bytes 2 and 3 of each block of
+ * 32 bits.
+ */
+int counts_SuperFastHash[NSERV][NSERV];
+
+uint32_t SuperFastHash (const char * data, int len) {
+uint32_t hash = len, tmp;
+int rem;
+
+    if (len <= 0 || data == NULL) return 0;
+
+    rem = len & 3;
+    len >>= 2;
+
+    /* Main loop */
+    for (;len > 0; len--) {
+        hash  += get16bits (data);
+        tmp    = (get16bits (data+2) << 11) ^ hash;
+        hash   = (hash << 16) ^ tmp;
+        data  += 2*sizeof (uint16_t);
+        hash  += hash >> 11;
+    }
+
+    /* Handle end cases */
+    switch (rem) {
+        case 3: hash += get16bits (data);
+                hash ^= hash << 16;
+                hash ^= data[sizeof (uint16_t)] << 18;
+                hash += hash >> 11;
+                break;
+        case 2: hash += get16bits (data);
+                hash ^= hash << 11;
+                hash += hash >> 17;
+                break;
+        case 1: hash += *data;
+                hash ^= hash << 10;
+                hash += hash >> 1;
+    }
+
+    /* Force "avalanching" of final 127 bits */
+    hash ^= hash << 3;
+    hash += hash >> 5;
+    hash ^= hash << 4;
+    hash += hash >> 17;
+    hash ^= hash << 25;
+    hash += hash >> 6;
+
+    return hash;
+}
+
+/*
+ * This variant uses all bits from the input block, and is about 15% faster.
+ */
+int counts_SuperFastHash2[NSERV][NSERV];
+uint32_t SuperFastHash2 (const char * data, int len) {
+uint32_t hash = len, tmp;
+int rem;
+
+    if (len <= 0 || data == NULL) return 0;
+
+    rem = len & 3;
+    len >>= 2;
+
+    /* Main loop */
+    for (;len > 0; len--) {
+	register uint32_t next;
+	next   = get16bits(data+2);
+        hash  += get16bits(data);
+        tmp    = ((next << 11) | (next >> 21)) ^ hash;
+        hash   = (hash << 16) ^ tmp;
+        data  += 2*sizeof (uint16_t);
+        hash  += hash >> 11;
+    }
+
+    /* Handle end cases */
+    switch (rem) {
+        case 3: hash += get16bits (data);
+                hash ^= hash << 16;
+                hash ^= data[sizeof (uint16_t)] << 18;
+                hash += hash >> 11;
+                break;
+        case 2: hash += get16bits (data);
+                hash ^= hash << 11;
+                hash += hash >> 17;
+                break;
+        case 1: hash += *data;
+                hash ^= hash << 10;
+                hash += hash >> 1;
+    }
+
+    /* Force "avalanching" of final 127 bits */
+    hash ^= hash << 3;
+    hash += hash >> 5;
+    hash ^= hash << 4;
+    hash += hash >> 17;
+    hash ^= hash << 25;
+    hash += hash >> 6;
+
+    return hash;
+}
+
+/* len 4 for ipv4 and 16 for ipv6 */
+int counts_srv[NSERV][NSERV];
+unsigned int haproxy_server_hash(const char *addr, int len){
+  unsigned int h, l;
+  l = h = 0;
+
+  while ((l + sizeof (int)) <= len) {
+    h ^= ntohl(*(unsigned int *)(&addr[l]));
+    l += sizeof (int);
+  }
+  return h;
+}/* end haproxy_server_hash() */
+
+
 
 void count_hash_results(unsigned long hash, int counts[NSERV][NSERV]) {
     int srv, nsrv;
@@ -196,7 +334,7 @@ void dump_hash_results(char *name, int counts[NSERV][NSERV]) {
     printf("\n");
 }
 
-main() {
+int main() {
     memset(counts_gd1, 0, sizeof(counts_gd1));
     memset(counts_gd2, 0, sizeof(counts_gd2));
     memset(counts_gd3, 0, sizeof(counts_gd3));
@@ -205,6 +343,9 @@ main() {
     memset(counts_gd6, 0, sizeof(counts_gd6));
     memset(counts_wt1, 0, sizeof(counts_wt1));
     memset(counts_wt2, 0, sizeof(counts_wt2));
+    memset(counts_srv, 0, sizeof(counts_srv));
+    memset(counts_SuperFastHash, 0, sizeof(counts_SuperFastHash));
+    memset(counts_SuperFastHash2, 0, sizeof(counts_SuperFastHash2));
 
     while (fgets(line, MAXLINE, stdin) != NULL) {
 	count_hash_results(hash_gd1(line), counts_gd1);
@@ -215,6 +356,9 @@ main() {
 	count_hash_results(hash_gd6(line), counts_gd6);
 	count_hash_results(hash_wt1(31, line), counts_wt1);
 	count_hash_results(hash_wt2(line, strlen(line)), counts_wt2);
+	count_hash_results(haproxy_server_hash(line, strlen(line)), counts_srv);
+	count_hash_results(SuperFastHash(line, strlen(line)), counts_SuperFastHash);
+	count_hash_results(SuperFastHash2(line, strlen(line)), counts_SuperFastHash2);
     }
 
     dump_hash_results("hash_gd1", counts_gd1);
@@ -225,4 +369,9 @@ main() {
     dump_hash_results("hash_gd6", counts_gd6);
     dump_hash_results("hash_wt1", counts_wt1);
     dump_hash_results("hash_wt2", counts_wt2);
+    dump_hash_results("haproxy_server_hash", counts_srv);
+    dump_hash_results("SuperFastHash", counts_SuperFastHash);
+    dump_hash_results("SuperFastHash2", counts_SuperFastHash2);
+
+    return 0;
 }
