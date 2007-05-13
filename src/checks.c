@@ -288,7 +288,7 @@ void process_chk(struct task *t, struct timeval *next)
 	fd = s->curfd;
 	if (fd < 0) {   /* no check currently running */
 		//fprintf(stderr, "process_chk: 2\n");
-		if (!__tv_isle(&t->expire, &now)) { /* not good time yet */
+		if (!tv_isle(&t->expire, &now)) { /* not good time yet */
 			task_queue(t);	/* restore t to its place in the task list */
 			*next = t->expire;
 			goto out;
@@ -298,7 +298,7 @@ void process_chk(struct task *t, struct timeval *next)
 		 * the server should not be checked.
 		 */
 		if (!(s->state & SRV_CHECKED) || s->proxy->state == PR_STSTOPPED) {
-			while (__tv_isle(&t->expire, &now))
+			while (tv_isle(&t->expire, &now))
 				tv_ms_add(&t->expire, &t->expire, s->inter);
 			task_queue(t);	/* restore t to its place in the task list */
 			*next = t->expire;
@@ -421,7 +421,7 @@ void process_chk(struct task *t, struct timeval *next)
 
 		if (!s->result) { /* nothing done */
 			//fprintf(stderr, "process_chk: 6\n");
-			while (__tv_isle(&t->expire, &now))
+			while (tv_isle(&t->expire, &now))
 				tv_ms_add(&t->expire, &t->expire, s->inter);
 			goto new_chk; /* may be we should initialize a new check */
 		}
@@ -436,7 +436,7 @@ void process_chk(struct task *t, struct timeval *next)
 
 		//fprintf(stderr, "process_chk: 7\n");
 		/* FIXME: we allow up to <inter> for a connection to establish, but we should use another parameter */
-		while (__tv_isle(&t->expire, &now))
+		while (tv_isle(&t->expire, &now))
 			tv_ms_add(&t->expire, &t->expire, s->inter);
 		goto new_chk;
 	}
@@ -487,11 +487,11 @@ void process_chk(struct task *t, struct timeval *next)
 			}
 			s->curfd = -1; /* no check running anymore */
 			fd_delete(fd);
-			while (__tv_isle(&t->expire, &now))
+			while (tv_isle(&t->expire, &now))
 				tv_ms_add(&t->expire, &t->expire, s->inter);
 			goto new_chk;
 		}
-		else if (s->result < 0 || __tv_isle(&t->expire, &now)) {
+		else if (s->result < 0 || tv_isle(&t->expire, &now)) {
 			//fprintf(stderr, "process_chk: 10\n");
 			/* failure or timeout detected */
 			if (s->health > s->rise) {
@@ -502,7 +502,7 @@ void process_chk(struct task *t, struct timeval *next)
 				set_server_down(s);
 			s->curfd = -1;
 			fd_delete(fd);
-			while (__tv_isle(&t->expire, &now))
+			while (tv_isle(&t->expire, &now))
 				tv_ms_add(&t->expire, &t->expire, s->inter);
 			goto new_chk;
 		}

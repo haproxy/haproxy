@@ -157,46 +157,53 @@ REGPRM2 static inline int __tv_cmp(const struct timeval *tv1, const struct timev
 }
 
 /* tv_iseq: compares <tv1> and <tv2> : returns 1 if tv1 == tv2, otherwise 0 */
+#define tv_iseq __tv_iseq
 REGPRM2 static inline int __tv_iseq(const struct timeval *tv1, const struct timeval *tv2)
 {
-    return ((unsigned)tv1->tv_sec  == (unsigned)tv2->tv_sec) &&
-	    ((unsigned)tv1->tv_usec == (unsigned)tv2->tv_usec);
+	return ((unsigned)tv1->tv_sec  == (unsigned)tv2->tv_sec) &&
+		((unsigned)tv1->tv_usec == (unsigned)tv2->tv_usec);
 }
 
 /* tv_isgt: compares <tv1> and <tv2> : returns 1 if tv1 > tv2, otherwise 0 */
+#define tv_isgt _tv_isgt
+REGPRM2 int _tv_isgt(const struct timeval *tv1, const struct timeval *tv2);
 REGPRM2 static inline int __tv_isgt(const struct timeval *tv1, const struct timeval *tv2)
 {
-    return
-	((unsigned)tv1->tv_sec  == (unsigned)tv2->tv_sec) ?
-	((unsigned)tv1->tv_usec >  (unsigned)tv2->tv_usec) :
-	((unsigned)tv1->tv_sec  >  (unsigned)tv2->tv_sec);
+	return
+		((unsigned)tv1->tv_sec  == (unsigned)tv2->tv_sec) ?
+		((unsigned)tv1->tv_usec >  (unsigned)tv2->tv_usec) :
+		((unsigned)tv1->tv_sec  >  (unsigned)tv2->tv_sec);
 }
 
 /* tv_isge: compares <tv1> and <tv2> : returns 1 if tv1 >= tv2, otherwise 0 */
+#define tv_isge __tv_isge
 REGPRM2 static inline int __tv_isge(const struct timeval *tv1, const struct timeval *tv2)
 {
-    return
-	((unsigned)tv1->tv_sec  == (unsigned)tv2->tv_sec) ?
-	((unsigned)tv1->tv_usec >= (unsigned)tv2->tv_usec) :
-	((unsigned)tv1->tv_sec  >  (unsigned)tv2->tv_sec);
+	return
+		((unsigned)tv1->tv_sec  == (unsigned)tv2->tv_sec) ?
+		((unsigned)tv1->tv_usec >= (unsigned)tv2->tv_usec) :
+		((unsigned)tv1->tv_sec  >  (unsigned)tv2->tv_sec);
 }
 
 /* tv_islt: compares <tv1> and <tv2> : returns 1 if tv1 < tv2, otherwise 0 */
+#define tv_islt __tv_islt
 REGPRM2 static inline int __tv_islt(const struct timeval *tv1, const struct timeval *tv2)
 {
-    return
-	((unsigned)tv1->tv_sec  == (unsigned)tv2->tv_sec) ?
-	((unsigned)tv1->tv_usec <  (unsigned)tv2->tv_usec) :
-	((unsigned)tv1->tv_sec  <  (unsigned)tv2->tv_sec);
+	return
+		((unsigned)tv1->tv_sec  == (unsigned)tv2->tv_sec) ?
+		((unsigned)tv1->tv_usec <  (unsigned)tv2->tv_usec) :
+		((unsigned)tv1->tv_sec  <  (unsigned)tv2->tv_sec);
 }
 
 /* tv_isle: compares <tv1> and <tv2> : returns 1 if tv1 <= tv2, otherwise 0 */
+#define tv_isle _tv_isle
+REGPRM2 int _tv_isle(const struct timeval *tv1, const struct timeval *tv2);
 REGPRM2 static inline int __tv_isle(const struct timeval *tv1, const struct timeval *tv2)
 {
-    return
-	((unsigned)tv1->tv_sec  == (unsigned)tv2->tv_sec) ?
-	((unsigned)tv1->tv_usec <= (unsigned)tv2->tv_usec) :
-	((unsigned)tv1->tv_sec  <  (unsigned)tv2->tv_sec);
+	return
+		((unsigned)tv1->tv_sec  == (unsigned)tv2->tv_sec) ?
+		((unsigned)tv1->tv_usec <= (unsigned)tv2->tv_usec) :
+		((unsigned)tv1->tv_sec  <  (unsigned)tv2->tv_sec);
 }
 
 /*
@@ -328,7 +335,7 @@ REGPRM2 static inline unsigned long __tv_ms_remain2(const struct timeval *tv1, c
 /*
  * adds <inc> to <from>, set the result to <tv> and returns a pointer <tv>
  */
-#define tv_add __tv_add
+#define tv_add _tv_add
 REGPRM3 struct timeval *_tv_add(struct timeval *tv, const struct timeval *from, const struct timeval *inc);
 REGPRM3 static inline struct timeval *__tv_add(struct timeval *tv, const struct timeval *from, const struct timeval *inc)
 {
@@ -341,6 +348,25 @@ REGPRM3 static inline struct timeval *__tv_add(struct timeval *tv, const struct 
 	return tv;
 }
 
+
+/*
+ * If <inc> is set, then add it to <from> and set the result to <tv>, then
+ * return 1, otherwise return 0. It is meant to be used in if conditions.
+ */
+#define tv_add_ifset _tv_add_ifset
+REGPRM3 int _tv_add_ifset(struct timeval *tv, const struct timeval *from, const struct timeval *inc);
+REGPRM3 static inline int __tv_add_ifset(struct timeval *tv, const struct timeval *from, const struct timeval *inc)
+{
+	if (tv_iseternity(inc))
+		return 0;
+	tv->tv_usec = from->tv_usec + inc->tv_usec;
+	tv->tv_sec  = from->tv_sec  + inc->tv_sec;
+	if (tv->tv_usec >= 1000000) {
+		tv->tv_usec -= 1000000;
+		tv->tv_sec++;
+	}
+	return 1;
+}
 
 /*
  * adds <inc> to <tv> and returns a pointer <tv>

@@ -84,7 +84,6 @@ struct task *task_queue(struct task *task)
  */
 void wake_expired_tasks(struct timeval *next)
 {
-	__label__ out;
 	int slen;
 	struct task *task;
 	void *data;
@@ -96,9 +95,9 @@ void wake_expired_tasks(struct timeval *next)
 
 	if (likely(timer_wq.data != NULL)) {
 		task = LIST_ELEM(timer_wq.data, struct task *, qlist);
-		if (likely(__tv_isge(&task->expire, &now) > 0)) {
-			__tv_remain(&now, &task->expire, next);
-			goto out;
+		if (likely(tv_isgt(&task->expire, &now))) {
+			tv_remain(&now, &task->expire, next);
+			return;
 		}
 	}
 
@@ -108,8 +107,8 @@ void wake_expired_tasks(struct timeval *next)
 	tree64_foreach(&timer_wq, data, stack, slen) {
 		task = LIST_ELEM(data, struct task *, qlist);
 
-		if (__tv_isgt(&task->expire, &now)) {
-			__tv_remain2(&now, &task->expire, next);
+		if (tv_isgt(&task->expire, &now)) {
+			tv_remain(&now, &task->expire, next);
 			break;
 		}
 
@@ -125,7 +124,6 @@ void wake_expired_tasks(struct timeval *next)
 			task->state = TASK_RUNNING;
 		}
 	}
- out:
 	return;
 }
 

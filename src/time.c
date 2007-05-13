@@ -103,6 +103,15 @@ REGPRM3 struct timeval *_tv_add(struct timeval *tv, const struct timeval *from, 
 }
 
 /*
+ * If <inc> is set, then add it to <from> and set the result to <tv>, then
+ * return 1, otherwise return 0. It is meant to be used in if conditions.
+ */
+REGPRM3 int _tv_add_ifset(struct timeval *tv, const struct timeval *from, const struct timeval *inc)
+{
+	return __tv_add_ifset(tv, from, inc);
+}
+
+/*
  * Computes the remaining time between tv1=now and event=tv2. if tv2 is passed,
  * 0 is returned. The result is stored into tv.
  */
@@ -119,6 +128,18 @@ REGPRM3 struct timeval *_tv_remain(const struct timeval *tv1, const struct timev
 REGPRM3 struct timeval *_tv_remain2(const struct timeval *tv1, const struct timeval *tv2, struct timeval *tv)
 {
 	return __tv_remain2(tv1, tv2, tv);
+}
+
+/* tv_isle: compares <tv1> and <tv2> : returns 1 if tv1 <= tv2, otherwise 0 */
+REGPRM2 int _tv_isle(const struct timeval *tv1, const struct timeval *tv2)
+{
+	return __tv_isle(tv1, tv2);
+}
+
+/* tv_isgt: compares <tv1> and <tv2> : returns 1 if tv1 > tv2, otherwise 0 */
+REGPRM2 int _tv_isgt(const struct timeval *tv1, const struct timeval *tv2)
+{
+	return __tv_isgt(tv1, tv2);
 }
 
 /*
