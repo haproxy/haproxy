@@ -143,7 +143,7 @@ void appsession_refresh(struct task *t, struct timeval *next)
 				for (element = list_head(&htbl->table[i]);
 				     element != NULL; element = list_next(element)) {
 					asession = (appsess *)list_data(element);
-					if (__tv_isle(&asession->expire, &now)) {
+					if (tv_isle(&asession->expire, &now)) {
 						if ((global.mode & MODE_DEBUG) &&
 						    (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))) {
 							int len;
@@ -165,7 +165,7 @@ void appsession_refresh(struct task *t, struct timeval *next)
 						}
 						else
 							element = last;
-					}/* end if (__tv_isle(&asession->expire, &now)) */
+					}/* end if (tv_isle(&asession->expire, &now)) */
 					else
 						last = element;
 				}/* end  for (element = list_head(&htbl->table[i]); element != NULL; element = list_next(element)) */
