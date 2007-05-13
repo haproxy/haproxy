@@ -21,6 +21,7 @@
 #include <types/proxy.h>
 #include <types/server.h>
 
+#include <proto/buffers.h>
 #include <proto/hdr_idx.h>
 #include <proto/session.h>
 #include <proto/queue.h>
@@ -38,9 +39,9 @@ void session_free(struct session *s)
 	if (s->pend_pos)
 		pendconn_free(s->pend_pos);
 	if (s->req)
-		pool_free(buffer, s->req);
+		pool_free2(pool2_buffer, s->req);
 	if (s->rep)
-		pool_free(buffer, s->rep);
+		pool_free2(pool2_buffer, s->rep);
 
 	if (txn->hdr_idx.v != NULL)
 		pool_free_to(s->fe->hdr_idx_pool, txn->hdr_idx.v);

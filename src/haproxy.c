@@ -374,6 +374,7 @@ void init(int argc, char **argv)
 	localtime((time_t *)&now.tv_sec);
 	start_date = now;
 
+	init_buffer();
 	init_task();
 	init_session();
 	init_proto_http();
@@ -661,7 +662,7 @@ void deinit(void)
 	if (fdtab)            free(fdtab);
     
 	pool_destroy2(pool2_session);
-	pool_destroy(pool_buffer);
+	pool_destroy2(pool2_buffer);
 	pool_destroy(pool_requri);
 	pool_destroy2(pool2_task);
 	pool_destroy(pool_capture);

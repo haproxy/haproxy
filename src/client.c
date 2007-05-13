@@ -347,7 +347,7 @@ int event_accept(int fd) {
 			write(1, trash, len);
 		}
 
-		if ((s->req = pool_alloc(buffer)) == NULL) { /* no memory */
+		if ((s->req = pool_alloc2(pool2_buffer)) == NULL) { /* no memory */
 			if (txn->hdr_idx.v != NULL)
 				pool_free_to(p->hdr_idx_pool, txn->hdr_idx.v);
 			if (txn->rsp.cap != NULL)
@@ -369,8 +369,8 @@ int event_accept(int fd) {
 		s->req->wto = s->be->srvtimeout;
 		s->req->cto = s->be->srvtimeout;
 
-		if ((s->rep = pool_alloc(buffer)) == NULL) { /* no memory */
-			pool_free(buffer, s->req);
+		if ((s->rep = pool_alloc2(pool2_buffer)) == NULL) { /* no memory */
+			pool_free2(pool2_buffer, s->req);
 			if (txn->hdr_idx.v != NULL)
 				pool_free_to(p->hdr_idx_pool, txn->hdr_idx.v);
 			if (txn->rsp.cap != NULL)
