@@ -4298,7 +4298,7 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 
 					asession_temp = &local_asession;
 			  
-					if ((asession_temp->sessid = pool_alloc_from(apools.sessid, apools.ses_msize)) == NULL) {
+					if ((asession_temp->sessid = pool_alloc2(apools.sessid)) == NULL) {
 						Alert("Not enough memory process_cli():asession->sessid:malloc().\n");
 						send_log(t->be, LOG_ALERT, "Not enough memory process_cli():asession->sessid:malloc().\n");
 						return;
@@ -4310,9 +4310,9 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 			    
 					/* only do insert, if lookup fails */
 					if (chtbl_lookup(&(t->be->htbl_proxy), (void *) &asession_temp) != 0) {
-						if ((asession_temp = pool_alloc(appsess)) == NULL) {
+						if ((asession_temp = pool_alloc2(pool2_appsess)) == NULL) {
 							/* free previously allocated memory */
-							pool_free_to(apools.sessid, local_asession.sessid);
+							pool_free2(apools.sessid, local_asession.sessid);
 							Alert("Not enough memory process_cli():asession:calloc().\n");
 							send_log(t->be, LOG_ALERT, "Not enough memory process_cli():asession:calloc().\n");
 							return;
@@ -4323,7 +4323,7 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 						chtbl_insert(&(t->be->htbl_proxy), (void *) asession_temp);
 					} else {
 						/* free previously allocated memory */
-						pool_free_to(apools.sessid, local_asession.sessid);
+						pool_free2(apools.sessid, local_asession.sessid);
 					}
 			    
 					if (asession_temp->serverid == NULL) {
@@ -4771,7 +4771,7 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 				size_t server_id_len = strlen(t->srv->id) + 1;
 				asession_temp = &local_asession;
 		      
-				if ((asession_temp->sessid = pool_alloc_from(apools.sessid, apools.ses_msize)) == NULL) {
+				if ((asession_temp->sessid = pool_alloc2(apools.sessid)) == NULL) {
 					Alert("Not enough Memory process_srv():asession->sessid:malloc().\n");
 					send_log(t->be, LOG_ALERT, "Not enough Memory process_srv():asession->sessid:malloc().\n");
 					return;
@@ -4782,7 +4782,7 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 
 				/* only do insert, if lookup fails */
 				if (chtbl_lookup(&(t->be->htbl_proxy), (void *) &asession_temp) != 0) {
-					if ((asession_temp = pool_alloc(appsess)) == NULL) {
+					if ((asession_temp = pool_alloc2(pool2_appsess)) == NULL) {
 						Alert("Not enough Memory process_srv():asession:calloc().\n");
 						send_log(t->be, LOG_ALERT, "Not enough Memory process_srv():asession:calloc().\n");
 						return;
@@ -4793,11 +4793,11 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 				}/* end if (chtbl_lookup()) */
 				else {
 					/* free wasted memory */
-					pool_free_to(apools.sessid, local_asession.sessid);
+					pool_free2(apools.sessid, local_asession.sessid);
 				} /* end else from if (chtbl_lookup()) */
 		      
 				if (asession_temp->serverid == NULL) {
-					if ((asession_temp->serverid = pool_alloc_from(apools.serverid, apools.ser_msize)) == NULL) {
+					if ((asession_temp->serverid = pool_alloc2(apools.serverid)) == NULL) {
 						Alert("Not enough Memory process_srv():asession->sessid:malloc().\n");
 						send_log(t->be, LOG_ALERT, "Not enough Memory process_srv():asession->sessid:malloc().\n");
 						return;
@@ -4941,7 +4941,7 @@ void get_srv_from_appsession(struct session *t, const char *begin, int len)
 	/* First try if we already have an appsession */
 	asession_temp = &local_asession;
 	
-	if ((asession_temp->sessid = pool_alloc_from(apools.sessid, apools.ses_msize)) == NULL) {
+	if ((asession_temp->sessid = pool_alloc2(apools.sessid)) == NULL) {
 		Alert("Not enough memory process_cli():asession_temp->sessid:calloc().\n");
 		send_log(t->be, LOG_ALERT, "Not enough Memory process_cli():asession_temp->sessid:calloc().\n");
 		return;
@@ -4954,9 +4954,9 @@ void get_srv_from_appsession(struct session *t, const char *begin, int len)
 	
 	/* only do insert, if lookup fails */
 	if (chtbl_lookup(&(t->be->htbl_proxy), (void *)&asession_temp)) {
-		if ((asession_temp = pool_alloc(appsess)) == NULL) {
+		if ((asession_temp = pool_alloc2(pool2_appsess)) == NULL) {
 			/* free previously allocated memory */
-			pool_free_to(apools.sessid, local_asession.sessid);
+			pool_free2(apools.sessid, local_asession.sessid);
 			Alert("Not enough memory process_cli():asession:calloc().\n");
 			send_log(t->be, LOG_ALERT, "Not enough memory process_cli():asession:calloc().\n");
 			return;
@@ -4967,7 +4967,7 @@ void get_srv_from_appsession(struct session *t, const char *begin, int len)
 	}
 	else {
 		/* free previously allocated memory */
-		pool_free_to(apools.sessid, local_asession.sessid);
+		pool_free2(apools.sessid, local_asession.sessid);
 	}
 	
 	tv_add(&asession_temp->expire, &now, &t->be->appsession_timeout);

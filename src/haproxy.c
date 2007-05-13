@@ -667,12 +667,12 @@ void deinit(void)
 	pool_destroy(pool_requri);
 	pool_destroy2(pool2_task);
 	pool_destroy(pool_capture);
-	pool_destroy(pool_appsess);
+	pool_destroy2(pool2_appsess);
 	pool_destroy2(pool2_pendconn);
     
 	if (have_appsession) {
-		pool_destroy(apools.serverid);
-		pool_destroy(apools.sessid);
+		pool_destroy2(apools.serverid);
+		pool_destroy2(apools.sessid);
 	}
 } /* end deinit() */
 

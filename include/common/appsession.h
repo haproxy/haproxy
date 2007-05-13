@@ -10,6 +10,7 @@
 #include <common/config.h>
 #include <common/hashpjw.h>
 #include <common/list.h>
+#include <common/memory.h>
 
 #include <types/task.h>
 
@@ -20,14 +21,11 @@ typedef struct appsessions {
 	unsigned long int request_count;
 } appsess;
 
-#define sizeof_appsess  sizeof(struct appsessions)
-extern void **pool_appsess;
+extern struct pool_head *pool2_appsess;
 
 struct app_pool {
-	void **sessid;
-	void **serverid;
-	int ses_waste, ses_use, ses_msize;
-	int ser_waste, ser_use, ser_msize;
+	struct pool_head *sessid;
+	struct pool_head *serverid;
 };
 
 extern struct app_pool apools;

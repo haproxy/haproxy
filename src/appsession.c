@@ -2,6 +2,7 @@
  * AppSession functions.
  *
  * Copyright 2004-2006 Alexander Lazic, Klaus Wagner
+ * Copyright 2006-2007 Willy Tarreau
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -17,6 +18,7 @@
 #include <common/chtbl.h>
 #include <common/config.h>
 #include <common/list.h>
+#include <common/memory.h>
 #include <common/time.h>
 
 #include <types/buffers.h>
@@ -27,7 +29,7 @@
 #include <proto/task.h>
 
 
-void **pool_appsess = NULL;
+struct pool_head *pool2_appsess;
 struct app_pool apools;
 int have_appsession;
 
@@ -72,30 +74,40 @@ int appsession_init(void)
 	struct proxy        *p = proxy;
     
 	if (!initialized) {
+		pool2_appsess = create_pool("appsess", sizeof(appsess), MEM_F_SHARED);
+		if (pool2_appsess == NULL)
+			return -1;
+
 		if (!appsession_task_init()) {
+			int ser_msize, ses_msize;
+
 			apools.sessid = NULL;
 			apools.serverid = NULL;
-			apools.ser_waste = 0;
-			apools.ser_use = 0;
-			apools.ser_msize = sizeof(void *);
-			apools.ses_waste = 0;
-			apools.ses_use = 0;
-			apools.ses_msize = sizeof(void *);
+
+			ser_msize = sizeof(void *);
+			ses_msize = sizeof(void *);
 			while (p) {
 				s = p->srv;
-				if (apools.ses_msize < p->appsession_len)
-					apools.ses_msize = p->appsession_len;
+				if (ses_msize < p->appsession_len)
+					ses_msize = p->appsession_len;
 				while (s) {
 					idlen = strlen(s->id);
-					if (apools.ser_msize < idlen)
-						apools.ser_msize = idlen;
+					if (ser_msize < idlen)
+						ser_msize = idlen;
 					s = s->next;
 				}
 				p = p->next;
 			}
 			/* we use strings, so reserve space for '\0' */
-			apools.ser_msize ++;
-			apools.ses_msize ++;
+			ser_msize ++;
+			ses_msize ++;
+
+			apools.sessid = create_pool("sessid", ses_msize, MEM_F_SHARED);
+			if (!apools.sessid)
+				return -1;
+			apools.serverid = create_pool("serverid", ser_msize, MEM_F_SHARED);
+			if (!apools.serverid)
+				return -1;
 		}
 		else {
 			fprintf(stderr, "appsession_task_init failed\n");
@@ -118,8 +130,8 @@ int appsession_task_init(void)
 		t->state = TASK_IDLE;
 		t->context = NULL;
 		tv_ms_add(&t->expire, &now, TBLCHKINT);
-		task_queue(t);
 		t->process = appsession_refresh;
+		task_queue(t);
 		initialized ++;
 	}
 	return 0;
@@ -174,6 +186,7 @@ void appsession_refresh(struct task *t, struct timeval *next)
 		p = p->next;
 	}
 	tv_ms_add(&t->expire, &now, TBLCHKINT); /* check expiration every 5 seconds */
+	task_queue(t);
 	*next = t->expire;
 } /* end appsession_refresh */
 
@@ -196,12 +209,12 @@ void destroy(void *data) {
     temp1 = (appsess *)data;
 
     if (temp1->sessid)
-	pool_free_to(apools.sessid, temp1->sessid);
+	pool_free2(apools.sessid, temp1->sessid);
 
     if (temp1->serverid)
-	pool_free_to(apools.serverid, temp1->serverid);
+	pool_free2(apools.serverid, temp1->serverid);
 
-    pool_free(appsess, temp1);
+    pool_free2(pool2_appsess, temp1);
 } /* end destroy */
 
 void appsession_cleanup( void )
