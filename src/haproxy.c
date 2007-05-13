@@ -87,6 +87,7 @@
 #include <proto/proxy.h>
 #include <proto/queue.h>
 #include <proto/server.h>
+#include <proto/session.h>
 #include <proto/stream_sock.h>
 #include <proto/task.h>
 
@@ -292,6 +293,9 @@ void dump(int sig)
 			 );
 	}
 #endif
+	/* dump memory usage then free everything possible */
+	dump_pools();
+	pool_gc2();
 }
 
 #ifdef DEBUG_MEMORY
@@ -370,6 +374,8 @@ void init(int argc, char **argv)
 	localtime((time_t *)&now.tv_sec);
 	start_date = now;
 
+	init_task();
+	init_session();
 	init_proto_http();
 
 	cfg_polling_mechanism = POLL_USE_SELECT;  /* select() is always available */
@@ -654,10 +660,10 @@ void deinit(void)
     
 	if (fdtab)            free(fdtab);
     
-	pool_destroy(pool_session);
+	pool_destroy2(pool2_session);
 	pool_destroy(pool_buffer);
 	pool_destroy(pool_requri);
-	pool_destroy(pool_task);
+	pool_destroy2(pool2_task);
 	pool_destroy(pool_capture);
 	pool_destroy(pool_appsess);
     

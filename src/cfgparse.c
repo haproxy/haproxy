@@ -2488,7 +2488,7 @@ int readcfgfile(const char *file)
 			if (newsrv->maxconn > 0) {
 				struct task *t;
 
-				if ((t = pool_alloc(task)) == NULL) {
+				if ((t = pool_alloc2(pool2_task)) == NULL) {
 					Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 					return -1;
 				}
@@ -2535,7 +2535,7 @@ int readcfgfile(const char *file)
 			while (newsrv != NULL) {
 				/* should this server be checked ? */
 				if (newsrv->state & SRV_CHECKED) {
-					if ((t = pool_alloc(task)) == NULL) {
+					if ((t = pool_alloc2(pool2_task)) == NULL) {
 						Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 						return -1;
 					}

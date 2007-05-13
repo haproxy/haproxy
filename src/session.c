@@ -1,7 +1,7 @@
 /*
  * Server management functions.
  *
- * Copyright 2000-2006 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2007 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -26,7 +26,7 @@
 #include <proto/queue.h>
 
 
-void **pool_session = NULL;
+struct pool_head *pool2_session;
 
 /*
  * frees  the context associated to a session. It must have been removed first.
@@ -69,7 +69,15 @@ void session_free(struct session *s)
 	if (txn->srv_cookie)
 		pool_free(capture, txn->srv_cookie);
 
-	pool_free(session, s);
+	pool_free2(pool2_session, s);
+}
+
+
+/* perform minimal intializations, report 0 in case of error, 1 if OK. */
+int init_session()
+{
+	pool2_session = create_pool("session", sizeof(struct session), MEM_F_SHARED);
+	return pool2_session != NULL;
 }
 
 

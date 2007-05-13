@@ -11,6 +11,7 @@
  */
 
 #include <common/config.h>
+#include <common/memory.h>
 #include <common/mini-clist.h>
 #include <common/standard.h>
 #include <common/time.h>
@@ -23,14 +24,21 @@
 #include <import/bitops.h>
 #include <import/tree.h>
 
-
-void **pool_task= NULL;
-void **pool_tree64 = NULL;
 static struct ultree *stack[LLONGBITS];
+
+struct pool_head *pool2_task, *pool2_tree64;
 
 UL2TREE_HEAD(timer_wq);
 void *eternity_queue = NULL;
 void *run_queue = NULL;
+
+/* perform minimal intializations, report 0 in case of error, 1 if OK. */
+int init_task()
+{
+	pool2_task = create_pool("task", sizeof(struct task), MEM_F_SHARED);
+	pool2_tree64 = create_pool("tree64", sizeof(struct tree64), MEM_F_SHARED);
+	return pool2_task && pool2_tree64;
+}
 
 struct ultree *ul2tree_insert(struct ultree *root, unsigned long h, unsigned long l)
 {

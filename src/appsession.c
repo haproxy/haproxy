@@ -111,7 +111,7 @@ int appsession_task_init(void)
 	static int initialized = 0;
 	struct task *t;
 	if (!initialized) {
-		if ((t = pool_alloc(task)) == NULL)
+		if ((t = pool_alloc2(pool2_task)) == NULL)
 			return -1;
 		t->wq = NULL;
 		t->qlist.p = NULL;
