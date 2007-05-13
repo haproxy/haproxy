@@ -125,7 +125,8 @@ struct pool_head {
 	unsigned int minavail;	/* how many chunks are expected to be used */
 	unsigned int size;	/* chunk size */
 	unsigned int flags;	/* MEM_F_* */
-	char name[9];		/* name of the pool */
+	unsigned int users;	/* number of pools sharing this zone */
+	char name[12];		/* name of the pool */
 };
 
 

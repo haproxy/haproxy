@@ -26,6 +26,8 @@ static struct list pools = LIST_HEAD_INIT(pools);
 struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 {
 	struct pool_head *pool;
+	struct pool_head *entry;
+	struct list *start;
 	unsigned int align;
 
 	/* We need to store at least a (void *) in the chunks. Since we know
@@ -34,19 +36,28 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 	 * ease merging of entries. Note that the rounding is a power of two.
 	 */
 
-	align = 4 * sizeof(void *);
+	align = 16;
 	size  = (size + align - 1) & -align;
 
+	start = &pools;
 	pool = NULL;
-	if (flags & MEM_F_SHARED) {
-		struct pool_head *entry;
-		list_for_each_entry(entry, &pools, list) {
-			if (!(entry->flags & MEM_F_SHARED))
-				continue;
-			if (entry->size == size) {
+
+	list_for_each_entry(entry, &pools, list) {
+		if (entry->size == size) {
+			/* either we can share this place and we take it, or
+			 * we look for a sharable one or for the next position
+			 * before which we will insert a new one.
+			 */
+			if (flags & entry->flags & MEM_F_SHARED) {
+				/* we can share this one */
 				pool = entry;
 				break;
 			}
+		}
+		else if (entry->size > size) {
+			/* insert before this one */
+			start = &entry->list;
+			break;
 		}
 	}
 
@@ -58,13 +69,15 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 			strlcpy2(pool->name, name, sizeof(pool->name));
 		pool->size = size;
 		pool->flags = flags;
-		LIST_ADDQ(&pools, &pool->list);
+		LIST_ADDQ(start, &pool->list);
 	}
+	pool->users++;
 	return pool;
 }
 
 /* Allocate a new entry for pool <pool>, and return it for immediate use.
- * NULL is returned if no memory is available for a new creation.
+ * NULL is returned if no memory is available for a new creation. A call
+ * to the garbage collector is performed before returning NULL.
  */
 void *pool_refill_alloc(struct pool_head *pool)
 {
@@ -73,8 +86,12 @@ void *pool_refill_alloc(struct pool_head *pool)
 	if (pool->limit && (pool->allocated >= pool->limit))
 		return NULL;
 	ret = MALLOC(pool->size);
-	if (!ret)
-		return NULL;
+	if (!ret) {
+		pool_gc2();
+		ret = MALLOC(pool->size);
+		if (!ret)
+			return NULL;
+	}
 	pool->allocated++;
 	pool->used++;
 	return ret;
@@ -142,10 +159,10 @@ void dump_pools(void)
 	allocated = used = nbpools = 0;
 	qfprintf(stderr, "Dumping pools usage.\n");
 	list_for_each_entry(entry, &pools, list) {
-		qfprintf(stderr, "  - Pool %s (%d bytes) : %d allocated (%lu bytes), %d used%s\n",
+		qfprintf(stderr, "  - Pool %s (%d bytes) : %d allocated (%lu bytes), %d used, %d users%s\n",
 			 entry->name, entry->size, entry->allocated,
 			 entry->size * entry->allocated, entry->used,
-			 (entry->flags & MEM_F_SHARED) ? " [SHARED]" : "");
+			 entry->users, (entry->flags & MEM_F_SHARED) ? " [SHARED]" : "");
 
 		allocated += entry->allocated * entry->size;
 		used += entry->used * entry->size;
