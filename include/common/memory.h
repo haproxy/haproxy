@@ -160,7 +160,7 @@ void pool_gc2();
  * This function destroys a pull by freeing it completely.
  * This should be called only under extreme circumstances.
  */
-void pool_destroy2(struct pool_head *pool);
+void *pool_destroy2(struct pool_head *pool);
 
 /*
  * Returns a pointer to type <type> taken from the

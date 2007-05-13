@@ -103,6 +103,9 @@ void *pool_refill_alloc(struct pool_head *pool)
 void pool_flush2(struct pool_head *pool)
 {
 	void *temp, *next;
+	if (!pool)
+		return;
+
 	next = pool->free_list;
 	while (next) {
 		temp = next;
@@ -141,11 +144,15 @@ void pool_gc2()
 /*
  * This function destroys a pull by freeing it completely.
  * This should be called only under extreme circumstances.
+ * It always returns NULL, easing the clearing of the old pointer.
  */
-void pool_destroy2(struct pool_head *pool)
+void *pool_destroy2(struct pool_head *pool)
 {
-	pool_flush2(pool);
-	FREE(pool);
+	if (pool) {
+		pool_flush2(pool);
+		FREE(pool);
+	}
+	return NULL;
 }
 
 /* Dump statistics on pools usage.

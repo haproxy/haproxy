@@ -203,6 +203,7 @@ void usage(char *name)
 void sig_soft_stop(int sig)
 {
 	soft_stop();
+	pool_gc2();
 	signal(sig, SIG_IGN);
 }
 
@@ -212,6 +213,7 @@ void sig_soft_stop(int sig)
 void sig_pause(int sig)
 {
 	pause_proxies();
+	pool_gc2();
 	signal(sig, sig_pause);
 }
 
@@ -318,6 +320,7 @@ void sig_int(int sig)
 	   0 GRACE time
 	*/
 	fast_stop();
+	pool_gc2();
 	/* If we are killed twice, we decide to die*/
 	signal(sig, SIG_DFL);
 }
@@ -330,6 +333,7 @@ void sig_term(int sig)
 	   0 GRACE time
 	*/
 	fast_stop();
+	pool_gc2();
 	/* If we are killed twice, we decide to die*/
 	signal(sig, SIG_DFL);
 }
@@ -580,7 +584,7 @@ void init(int argc, char **argv)
 
 void deinit(void)
 {
-	struct proxy *p = proxy;
+	struct proxy *p = proxy, *p0;
 	struct cap_hdr *h,*h_next;
 	struct server *s,*s_next;
 	struct listener *l,*l_next;
@@ -654,7 +658,9 @@ void deinit(void)
 	
 		pool_destroy2(p->req_cap_pool);
 		pool_destroy2(p->rsp_cap_pool);
+		p0 = p;
 		p = p->next;
+		free(p0);
 	}/* end while(p) */
     
 	if (global.chroot)    free(global.chroot);
