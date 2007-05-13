@@ -23,6 +23,7 @@
 
 #include <proto/buffers.h>
 #include <proto/hdr_idx.h>
+#include <proto/log.h>
 #include <proto/session.h>
 #include <proto/queue.h>
 
@@ -64,7 +65,7 @@ void session_free(struct session *s)
 	}
 
 	if (txn->uri)
-		pool_free(requri, txn->uri);
+		pool_free2(pool2_requri, txn->uri);
 	if (txn->cli_cookie)
 		pool_free(capture, txn->cli_cookie);
 	if (txn->srv_cookie)

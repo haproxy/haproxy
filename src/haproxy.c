@@ -664,7 +664,7 @@ void deinit(void)
     
 	pool_destroy2(pool2_session);
 	pool_destroy2(pool2_buffer);
-	pool_destroy(pool_requri);
+	pool_destroy2(pool2_requri);
 	pool_destroy2(pool2_task);
 	pool_destroy(pool_capture);
 	pool_destroy2(pool2_appsess);

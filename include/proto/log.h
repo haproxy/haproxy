@@ -27,9 +27,12 @@
 #include <syslog.h>
 
 #include <common/config.h>
+#include <common/memory.h>
 #include <types/log.h>
 #include <types/proxy.h>
 #include <types/session.h>
+
+extern struct pool_head *pool2_requri;
 
 /*
  * Displays the message on stderr with the date and pid. Overrides the quiet

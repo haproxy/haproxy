@@ -243,6 +243,9 @@ void init_proto_http()
 		FD_SET(*tmp, url_encode_map);
 		tmp++;
 	}
+
+	/* memory allocations */
+	pool2_requri = create_pool("requri", REQURI_LEN, MEM_F_SHARED);
 }
 
 /*
@@ -624,7 +627,7 @@ const char sess_cookie[4]     = "NIDV";		/* No cookie, Invalid cookie, cookie fo
 const char sess_set_cookie[8] = "N1I3PD5R";	/* No set-cookie, unknown, Set-Cookie Inserted, unknown,
 					    	   Set-cookie seen and left unchanged (passive), Set-cookie Deleted,
 						   unknown, Set-cookie Rewritten */
-void **pool_requri = NULL;
+struct pool_head *pool2_requri;
 
 /*
  * send a log for the session when we have enough info about it.
@@ -1592,7 +1595,7 @@ int process_cli(struct session *t)
 		 */
 		if (unlikely(t->logs.logwait & LW_REQ)) {
 			/* we have a complete HTTP request that we must log */
-			if ((txn->uri = pool_alloc(requri)) != NULL) {
+			if ((txn->uri = pool_alloc2(pool2_requri)) != NULL) {
 				int urilen = msg->sl.rq.l;
 
 				if (urilen >= REQURI_LEN)
