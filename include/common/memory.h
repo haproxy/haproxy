@@ -27,7 +27,6 @@
 #include <common/config.h>
 #include <common/mini-clist.h>
 
-#define sizeof_capture  CAPTURE_LEN
 /*
  * Returns a pointer to an area of <__len> bytes taken from the pool <pool> or
  * dynamically allocated. In the first case, <__pool> is updated to point to

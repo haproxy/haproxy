@@ -616,7 +616,7 @@ void deinit(void)
 			h_next = h->next;
 			if (h->name)
 				free(h->name);
-			pool_destroy(h->pool);
+			pool_destroy2(h->pool);
 			free(h);
 			h = h_next;
 		}/* end while(h) */
@@ -627,7 +627,7 @@ void deinit(void)
 			if (h->name)
 				free(h->name);
 	    
-			pool_destroy(h->pool);
+			pool_destroy2(h->pool);
 			free(h);
 			h = h_next;
 		}/* end while(h) */
@@ -652,8 +652,8 @@ void deinit(void)
 			l = l_next;
 		}/* end while(l) */
 	
-		pool_destroy((void **) p->req_cap_pool);
-		pool_destroy((void **) p->rsp_cap_pool);
+		pool_destroy2(p->req_cap_pool);
+		pool_destroy2(p->rsp_cap_pool);
 		p = p->next;
 	}/* end while(p) */
     

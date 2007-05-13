@@ -775,7 +775,7 @@ void capture_headers(char *som, struct hdr_idx *idx,
 			    (strncasecmp(sol, h->name, h->namelen) == 0)) {
 				if (cap[h->index] == NULL)
 					cap[h->index] =
-						pool_alloc_from(h->pool, h->len + 1);
+						pool_alloc2(h->pool);
 
 				if (cap[h->index] == NULL) {
 					Alert("HTTP capture : out of memory.\n");

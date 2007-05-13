@@ -140,7 +140,8 @@ struct proxy {
 	int nb_req_cap, nb_rsp_cap;		/* # of headers to be captured */
 	struct cap_hdr *req_cap;		/* chained list of request headers to be captured */
 	struct cap_hdr *rsp_cap;		/* chained list of response headers to be captured */
-	void *req_cap_pool, *rsp_cap_pool;	/* pools of pre-allocated char ** used to build the sessions */
+	struct pool_head *req_cap_pool,		/* pools of pre-allocated char ** used to build the sessions */
+	                 *rsp_cap_pool;
 	void *hdr_idx_pool;                     /* pools of pre-allocated int* used for headers indexing */
 	char *req_add[MAX_NEWHDR], *rsp_add[MAX_NEWHDR]; /* headers to be added */
 	int grace;				/* grace time after stop request */

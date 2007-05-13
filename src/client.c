@@ -233,9 +233,8 @@ int event_accept(int fd) {
 			txn->hdr_idx.size = MAX_HTTP_HDR;
 
 			if (p->nb_req_cap > 0) {
-				if ((txn->req.cap =
-				     pool_alloc_from(p->req_cap_pool, p->nb_req_cap*sizeof(char *)))
-				    == NULL) { /* no memory */
+				if ((txn->req.cap = pool_alloc2(p->req_cap_pool)) == NULL) {
+					/* no memory */
 					close(cfd); /* nothing can be done for this fd without memory */
 					pool_free2(pool2_task, t);
 					pool_free2(pool2_session, s);
@@ -246,11 +245,10 @@ int event_accept(int fd) {
 
 
 			if (p->nb_rsp_cap > 0) {
-				if ((txn->rsp.cap =
-				     pool_alloc_from(p->rsp_cap_pool, p->nb_rsp_cap*sizeof(char *)))
-				    == NULL) { /* no memory */
+				if ((txn->rsp.cap = pool_alloc2(p->rsp_cap_pool)) == NULL) {
+					/* no memory */
 					if (txn->req.cap != NULL)
-						pool_free_to(p->req_cap_pool, txn->req.cap);
+						pool_free2(p->req_cap_pool, txn->req.cap);
 					close(cfd); /* nothing can be done for this fd without memory */
 					pool_free2(pool2_task, t);
 					pool_free2(pool2_session, s);
@@ -264,9 +262,9 @@ int event_accept(int fd) {
 			     pool_alloc_from(p->hdr_idx_pool, txn->hdr_idx.size*sizeof(*txn->hdr_idx.v)))
 			    == NULL) { /* no memory */
 				if (txn->rsp.cap != NULL)
-					pool_free_to(p->rsp_cap_pool, txn->rsp.cap);
+					pool_free2(p->rsp_cap_pool, txn->rsp.cap);
 				if (txn->req.cap != NULL)
-					pool_free_to(p->req_cap_pool, txn->req.cap);
+					pool_free2(p->req_cap_pool, txn->req.cap);
 				close(cfd); /* nothing can be done for this fd without memory */
 				pool_free2(pool2_task, t);
 				pool_free2(pool2_session, s);
@@ -351,9 +349,9 @@ int event_accept(int fd) {
 			if (txn->hdr_idx.v != NULL)
 				pool_free_to(p->hdr_idx_pool, txn->hdr_idx.v);
 			if (txn->rsp.cap != NULL)
-				pool_free_to(p->rsp_cap_pool, txn->rsp.cap);
+				pool_free2(p->rsp_cap_pool, txn->rsp.cap);
 			if (txn->req.cap != NULL)
-				pool_free_to(p->req_cap_pool, txn->req.cap);
+				pool_free2(p->req_cap_pool, txn->req.cap);
 			close(cfd); /* nothing can be done for this fd without memory */
 			pool_free2(pool2_task, t);
 			pool_free2(pool2_session, s);
@@ -374,9 +372,9 @@ int event_accept(int fd) {
 			if (txn->hdr_idx.v != NULL)
 				pool_free_to(p->hdr_idx_pool, txn->hdr_idx.v);
 			if (txn->rsp.cap != NULL)
-				pool_free_to(p->rsp_cap_pool, txn->rsp.cap);
+				pool_free2(p->rsp_cap_pool, txn->rsp.cap);
 			if (txn->req.cap != NULL)
-				pool_free_to(p->req_cap_pool, txn->req.cap);
+				pool_free2(p->req_cap_pool, txn->req.cap);
 			close(cfd); /* nothing can be done for this fd without memory */
 			pool_free2(pool2_task, t);
 			pool_free2(pool2_session, s);

@@ -31,7 +31,7 @@ struct cap_hdr {
     int namelen;			/* length of the header name, to speed-up lookups */
     int len;				/* capture length, not including terminal zero */
     int index;				/* index in the output array */
-    void *pool;				/* pool of pre-allocated memory area of (len+1) bytes */
+    struct pool_head *pool;		/* pool of pre-allocated memory area of (len+1) bytes */
 };
 
 extern struct pool_head *pool2_capture;

@@ -51,17 +51,17 @@ void session_free(struct session *s)
 		struct cap_hdr *h;
 		for (h = s->fe->rsp_cap; h; h = h->next) {
 			if (txn->rsp.cap[h->index] != NULL)
-				pool_free_to(h->pool, txn->rsp.cap[h->index]);
+				pool_free2(h->pool, txn->rsp.cap[h->index]);
 		}
-		pool_free_to(s->fe->rsp_cap_pool, txn->rsp.cap);
+		pool_free2(s->fe->rsp_cap_pool, txn->rsp.cap);
 	}
 	if (txn->req.cap != NULL) {
 		struct cap_hdr *h;
 		for (h = s->fe->req_cap; h; h = h->next) {
 			if (txn->req.cap[h->index] != NULL)
-				pool_free_to(h->pool, txn->req.cap[h->index]);
+				pool_free2(h->pool, txn->req.cap[h->index]);
 		}
-		pool_free_to(s->fe->req_cap_pool, txn->req.cap);
+		pool_free2(s->fe->req_cap_pool, txn->req.cap);
 	}
 
 	if (txn->uri)
