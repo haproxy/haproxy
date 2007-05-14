@@ -73,9 +73,6 @@ struct buffer {
 	char data[BUFSIZE];
 };
 
-#define sizeof_buffer   sizeof(struct buffer)
-extern void **pool_buffer;
-
 
 #endif /* _TYPES_BUFFERS_H */
 

@@ -11,6 +11,7 @@
  */
 
 #include <common/config.h>
+#include <common/memory.h>
 #include <common/time.h>
 
 #include <types/proxy.h>
@@ -21,7 +22,14 @@
 #include <proto/task.h>
 
 
-void **pool_pendconn = NULL;
+struct pool_head *pool2_pendconn;
+
+/* perform minimal intializations, report 0 in case of error, 1 if OK. */
+int init_pendconn()
+{
+	pool2_pendconn = create_pool("pendconn", sizeof(struct pendconn), MEM_F_SHARED);
+	return pool2_pendconn != NULL;
+}
 
 /* returns the effective dynamic maxconn for a server, considering the minconn
  * and the proxy's usage relative to its dynamic connections limit. It is
@@ -98,7 +106,7 @@ struct pendconn *pendconn_add(struct session *sess)
 {
 	struct pendconn *p;
 
-	p = pool_alloc(pendconn);
+	p = pool_alloc2(pool2_pendconn);
 	if (!p)
 		return NULL;
 
@@ -136,7 +144,7 @@ void pendconn_free(struct pendconn *p)
 	else
 		p->sess->be->nbpend--;
 	p->sess->be->totpend--;
-	pool_free(pendconn, p);
+	pool_free2(pool2_pendconn, p);
 }
 
 

@@ -42,9 +42,6 @@ struct task {
 	void *context;			/* the task's context */
 };
 
-#define sizeof_task     sizeof(struct task)
-extern void **pool_task;
-
 #endif /* _TYPES_TASK_H */
 
 /*

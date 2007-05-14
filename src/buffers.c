@@ -15,9 +15,19 @@
 #include <string.h>
 
 #include <common/config.h>
+#include <common/memory.h>
 #include <proto/buffers.h>
 
-void **pool_buffer   = NULL;
+struct pool_head *pool2_buffer;
+
+
+/* perform minimal intializations, report 0 in case of error, 1 if OK. */
+int init_buffer()
+{
+	pool2_buffer = create_pool("buffer", sizeof(struct buffer), MEM_F_SHARED);
+	return pool2_buffer != NULL;
+}
+
 
 /* writes <len> bytes from message <msg> to buffer <buf>. Returns 0 in case of
  * success, or the number of bytes available otherwise.

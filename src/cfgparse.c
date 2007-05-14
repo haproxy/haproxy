@@ -824,6 +824,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			hdr->name = strdup(args[3]);
 			hdr->namelen = strlen(args[3]);
 			hdr->len = atol(args[5]);
+			hdr->pool = create_pool("caphdr", hdr->len + 1, MEM_F_SHARED);
 			hdr->index = curproxy->nb_req_cap++;
 			curproxy->req_cap = hdr;
 			curproxy->to_log |= LW_REQHDR;
@@ -846,6 +847,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			hdr->name = strdup(args[3]);
 			hdr->namelen = strlen(args[3]);
 			hdr->len = atol(args[5]);
+			hdr->pool = create_pool("caphdr", hdr->len + 1, MEM_F_SHARED);
 			hdr->index = curproxy->nb_rsp_cap++;
 			curproxy->rsp_cap = hdr;
 			curproxy->to_log |= LW_RSPHDR;
@@ -2401,6 +2403,20 @@ int readcfgfile(const char *file)
 			memcpy(curproxy->check_req, sslv3_client_hello_pkt, sizeof(sslv3_client_hello_pkt));
 		}
 
+		/* The small pools required for the capture lists */
+		if (curproxy->nb_req_cap)
+			curproxy->req_cap_pool = create_pool("ptrcap",
+							     curproxy->nb_req_cap * sizeof(char *),
+							     MEM_F_SHARED);
+		if (curproxy->nb_rsp_cap)
+			curproxy->rsp_cap_pool = create_pool("ptrcap",
+							     curproxy->nb_rsp_cap * sizeof(char *),
+							     MEM_F_SHARED);
+
+		curproxy->hdr_idx_pool = create_pool("hdr_idx",
+						     MAX_HTTP_HDR * sizeof(struct hdr_idx_elem),
+						     MEM_F_SHARED);
+
 		/* for backwards compatibility with "listen" instances, if
 		 * fullconn is not set but maxconn is set, then maxconn
 		 * is used.
@@ -2488,7 +2504,7 @@ int readcfgfile(const char *file)
 			if (newsrv->maxconn > 0) {
 				struct task *t;
 
-				if ((t = pool_alloc(task)) == NULL) {
+				if ((t = pool_alloc2(pool2_task)) == NULL) {
 					Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 					return -1;
 				}
@@ -2535,7 +2551,7 @@ int readcfgfile(const char *file)
 			while (newsrv != NULL) {
 				/* should this server be checked ? */
 				if (newsrv->state & SRV_CHECKED) {
-					if ((t = pool_alloc(task)) == NULL) {
+					if ((t = pool_alloc2(pool2_task)) == NULL) {
 						Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 						return -1;
 					}

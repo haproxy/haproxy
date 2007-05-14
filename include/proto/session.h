@@ -2,7 +2,7 @@
   include/proto/session.h
   This file defines everything related to sessions.
 
-  Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -23,10 +23,15 @@
 #define _PROTO_SESSION_H
 
 #include <common/config.h>
+#include <common/memory.h>
 #include <types/session.h>
+
+extern struct pool_head *pool2_session;
 
 void session_free(struct session *s);
 
+/* perform minimal intializations, report 0 in case of error, 1 if OK. */
+int init_session();
 
 #endif /* _PROTO_SESSION_H */
 

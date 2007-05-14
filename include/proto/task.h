@@ -33,6 +33,10 @@
 #include <types/task.h>
 
 extern void *run_queue;
+extern struct pool_head *pool2_task;
+
+/* perform minimal intializations, report 0 in case of error, 1 if OK. */
+int init_task();
 
 /* needed later */
 void *tree_delete(void *node);
@@ -97,7 +101,7 @@ static inline struct task *task_delete(struct task *t)
  */
 static inline void task_free(struct task *t)
 {
-	pool_free(task, t);
+	pool_free2(pool2_task, t);
 }
 
 /* inserts <task> into its assigned wait queue, where it may already be. In this case, it

@@ -2,6 +2,8 @@
  * tree.h : tree manipulation macros and structures.
  * (C) 2002 - Willy Tarreau - willy@ant-computing.com
  *
+ * 2007/05/13: adapted to mempools v2.
+ *
  */
 
 #ifndef __TREE_H__
@@ -51,8 +53,7 @@ struct tree64 {
     struct tree64 *up;			/* parent node. NULL = root */
 };
 
-#define sizeof_tree64 (sizeof (struct tree64))
-extern void **pool_tree64;
+extern struct pool_head *pool2_tree64;
 
 #define ULTREE_HEAD(l)		struct ultree (l) = { .left=NULL, .right=NULL, .up=NULL, .low=0, .level=LONGBITS, .data=NULL }
 #define ULTREE_INIT(l)		{ (l)->data = (l)->left = (l)->right = NULL; }
@@ -96,7 +97,7 @@ inline static struct ulltree *__ulltree_insert(struct ulltree *root, unsigned lo
 
 	if (next == NULL) {
 	    /* we'll have to insert our node here */
-	    *branch = new = (struct ulltree *)pool_alloc(tree64);
+	    *branch = new = (struct ulltree *)pool_alloc2(pool2_tree64);
 	    ULLTREE_INIT(new);
 	    new->up = root;
 	    new->value = x;
@@ -111,7 +112,7 @@ inline static struct ulltree *__ulltree_insert(struct ulltree *root, unsigned lo
     /* ok, now we know that we must insert between both. */
 
     /* the new interconnect node */
-    *branch = node = (struct ulltree *)pool_alloc(tree64); /* was <next> */
+    *branch = node = (struct ulltree *)pool_alloc2(pool2_tree64); /* was <next> */
     ULLTREE_INIT(node);
     node->up = root;
     next->up = node;
@@ -139,7 +140,7 @@ inline static struct ulltree *__ulltree_insert(struct ulltree *root, unsigned lo
 
     /* the new leaf now */
     node->level = m; /* set the level to the lowest common bit */
-    new = (struct ulltree *)pool_alloc(tree64);
+    new = (struct ulltree *)pool_alloc2(pool2_tree64);
     ULLTREE_INIT(new);
     new->value = x;
     new->level = ffs;
@@ -186,7 +187,7 @@ inline static struct ultree *__ultree_insert(struct ultree *root, unsigned long 
 
 	if (next == NULL) {
 	    /* we'll have to insert our node here */
-	    *branch = new = (struct ultree *)pool_alloc(tree64);
+	    *branch = new = (struct ultree *)pool_alloc2(pool2_tree64);
 	    ULTREE_INIT(new);
 	    new->up = root;
 	    new->low = x;
@@ -200,7 +201,7 @@ inline static struct ultree *__ultree_insert(struct ultree *root, unsigned long 
     /* ok, now we know that we must insert between both. */
 
     /* the new interconnect node */
-    *branch = node = (struct ultree *)pool_alloc(tree64); /* was <next> */
+    *branch = node = (struct ultree *)pool_alloc2(pool2_tree64); /* was <next> */
     ULTREE_INIT(node);
     node->up = root;
     next->up = node;
@@ -228,7 +229,7 @@ inline static struct ultree *__ultree_insert(struct ultree *root, unsigned long 
 
     /* the new leaf now */
     node->level = m; /* set the level to the lowest common bit */
-    new = (struct ultree *)pool_alloc(tree64);
+    new = (struct ultree *)pool_alloc2(pool2_tree64);
     ULTREE_INIT(new);
     new->low = x;
     new->level = ffs;
@@ -279,7 +280,7 @@ inline static struct ultree *__ul2tree_insert(struct ultree *root, unsigned long
 
 	if (next == NULL) {
 	    /* we'll have to insert our node here */
-	    *branch = new =(struct ultree *)pool_alloc(tree64);
+	    *branch = new =(struct ultree *)pool_alloc2(pool2_tree64);
 	    UL2TREE_INIT(new);
 	    new->up = root;
 	    new->high = h;
@@ -308,7 +309,7 @@ inline static struct ultree *__ul2tree_insert(struct ultree *root, unsigned long
     /* ok, now we know that we must insert between both. */
 
     /* the new interconnect node */
-    *branch = node = (struct ultree *)pool_alloc(tree64); /* was <next> */
+    *branch = node = (struct ultree *)pool_alloc2(pool2_tree64); /* was <next> */
     UL2TREE_INIT(node);
     node->up = root;
     next->up = node;
@@ -352,7 +353,7 @@ inline static struct ultree *__ul2tree_insert(struct ultree *root, unsigned long
 
     /* the new leaf now */
     node->level = m; /* set the level to the lowest common bit */
-    new = (struct ultree *)pool_alloc(tree64);
+    new = (struct ultree *)pool_alloc2(pool2_tree64);
     UL2TREE_INIT(new);
     new->high = h;
     new->low = l;
@@ -456,7 +457,7 @@ __right:								\
 	    goto __end; /* nothing left, don't delete the root node */	\
 	else {								\
 	    typeof (__root) __old;					\
-	    pool_free(tree64, __ptr);					\
+	    pool_free2(pool2_tree64, __ptr);				\
 	    __old = __ptr;						\
 	    __ptr = __stack[__slen];					\
 	    if (__ptr->left == __old) {					\
@@ -506,7 +507,7 @@ __right:								\
 	    goto __end; /* nothing left, don't delete the root node */	\
 	else {								\
 	    typeof (__root) __old;					\
-	    pool_free(__type, __ptr);					\
+	    pool_free2(pool##__type, __ptr);				\
 	    __old = __ptr;						\
 	    __ptr = __stack[__slen];					\
 	    if (__ptr->left == __old) {					\
@@ -561,7 +562,7 @@ __right:								\
 	    goto __end; /* nothing left, don't delete the root node */	\
 	else {								\
 	    typeof (__root) __old;					\
-	    pool_free(tree64, __ptr);					\
+	    pool_free2(pool2_tree64, __ptr);				\
 	    __old = __ptr;						\
 	    __ptr = __stack[__slen];					\
 	    if (__ptr->left == __old) {					\
@@ -617,7 +618,7 @@ __right:								\
 	    goto __end; /* nothing left, don't delete the root node */	\
 	else {								\
 	    typeof (__root) __old;					\
-	    pool_free(tree64, __ptr);					\
+	    pool_free2(pool2_tree64, __ptr);				\
 	    __old = __ptr;						\
 	    __ptr = __stack[__slen];					\
 	    if (__ptr->left == __old) {					\
@@ -671,7 +672,7 @@ inline static void *__tree_delete_only_one(void *firstnode) {
 	 */
 	down = node;
 	node = node->up;
-	pool_free(tree64, down);
+	pool_free2(pool2_tree64, down);
 	if (node->data || node->up == NULL)
 	    return node;
 	/* now we're sure we were sharing this empty node with another branch, let's find it */
@@ -684,7 +685,7 @@ inline static void *__tree_delete_only_one(void *firstnode) {
 	down->up = node->up;
     }
     /* free the last node */
-    pool_free(tree64, node);
+    pool_free2(pool2_tree64, node);
     return down->up;
 }
 
@@ -716,7 +717,7 @@ inline static void *__tree_delete(void *firstnode) {
 	    uplink = &up->right;
 
 	*uplink = down; /* we relink the lower branch above us or simply cut it */
-	pool_free(tree64, node);
+	pool_free2(pool2_tree64, node);
 	node = up;
 	if (down)
 	    down->up = node;

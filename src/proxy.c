@@ -19,6 +19,7 @@
 #include <common/defaults.h>
 #include <common/compat.h>
 #include <common/config.h>
+#include <common/memory.h>
 #include <common/time.h>
 
 #include <types/global.h>
@@ -230,6 +231,8 @@ void maintain_proxies(struct timeval *next)
 						listeners--;
 					}
 					p->state = PR_STSTOPPED;
+					/* try to free more memory */
+					pool_gc2();
 				}
 				else {
 					tv_bound(next, &p->stop_time);

@@ -87,6 +87,7 @@
 #include <proto/proxy.h>
 #include <proto/queue.h>
 #include <proto/server.h>
+#include <proto/session.h>
 #include <proto/stream_sock.h>
 #include <proto/task.h>
 
@@ -202,6 +203,7 @@ void usage(char *name)
 void sig_soft_stop(int sig)
 {
 	soft_stop();
+	pool_gc2();
 	signal(sig, SIG_IGN);
 }
 
@@ -211,6 +213,7 @@ void sig_soft_stop(int sig)
 void sig_pause(int sig)
 {
 	pause_proxies();
+	pool_gc2();
 	signal(sig, sig_pause);
 }
 
@@ -292,6 +295,9 @@ void dump(int sig)
 			 );
 	}
 #endif
+	/* dump memory usage then free everything possible */
+	dump_pools();
+	pool_gc2();
 }
 
 #ifdef DEBUG_MEMORY
@@ -314,6 +320,7 @@ void sig_int(int sig)
 	   0 GRACE time
 	*/
 	fast_stop();
+	pool_gc2();
 	/* If we are killed twice, we decide to die*/
 	signal(sig, SIG_DFL);
 }
@@ -326,6 +333,7 @@ void sig_term(int sig)
 	   0 GRACE time
 	*/
 	fast_stop();
+	pool_gc2();
 	/* If we are killed twice, we decide to die*/
 	signal(sig, SIG_DFL);
 }
@@ -370,6 +378,10 @@ void init(int argc, char **argv)
 	localtime((time_t *)&now.tv_sec);
 	start_date = now;
 
+	init_task();
+	init_session();
+	init_buffer();
+	init_pendconn();
 	init_proto_http();
 
 	cfg_polling_mechanism = POLL_USE_SELECT;  /* select() is always available */
@@ -572,7 +584,7 @@ void init(int argc, char **argv)
 
 void deinit(void)
 {
-	struct proxy *p = proxy;
+	struct proxy *p = proxy, *p0;
 	struct cap_hdr *h,*h_next;
 	struct server *s,*s_next;
 	struct listener *l,*l_next;
@@ -608,7 +620,7 @@ void deinit(void)
 			h_next = h->next;
 			if (h->name)
 				free(h->name);
-			pool_destroy(h->pool);
+			pool_destroy2(h->pool);
 			free(h);
 			h = h_next;
 		}/* end while(h) */
@@ -619,7 +631,7 @@ void deinit(void)
 			if (h->name)
 				free(h->name);
 	    
-			pool_destroy(h->pool);
+			pool_destroy2(h->pool);
 			free(h);
 			h = h_next;
 		}/* end while(h) */
@@ -644,9 +656,11 @@ void deinit(void)
 			l = l_next;
 		}/* end while(l) */
 	
-		pool_destroy((void **) p->req_cap_pool);
-		pool_destroy((void **) p->rsp_cap_pool);
+		pool_destroy2(p->req_cap_pool);
+		pool_destroy2(p->rsp_cap_pool);
+		p0 = p;
 		p = p->next;
+		free(p0);
 	}/* end while(p) */
     
 	if (global.chroot)    free(global.chroot);
@@ -654,16 +668,17 @@ void deinit(void)
     
 	if (fdtab)            free(fdtab);
     
-	pool_destroy(pool_session);
-	pool_destroy(pool_buffer);
-	pool_destroy(pool_requri);
-	pool_destroy(pool_task);
-	pool_destroy(pool_capture);
-	pool_destroy(pool_appsess);
+	pool_destroy2(pool2_session);
+	pool_destroy2(pool2_buffer);
+	pool_destroy2(pool2_requri);
+	pool_destroy2(pool2_task);
+	pool_destroy2(pool2_capture);
+	pool_destroy2(pool2_appsess);
+	pool_destroy2(pool2_pendconn);
     
 	if (have_appsession) {
-		pool_destroy(apools.serverid);
-		pool_destroy(apools.sessid);
+		pool_destroy2(apools.serverid);
+		pool_destroy2(apools.sessid);
 	}
 } /* end deinit() */
 

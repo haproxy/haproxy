@@ -41,6 +41,7 @@
 #include <proto/log.h>
 #include <proto/hdr_idx.h>
 #include <proto/proto_http.h>
+#include <proto/session.h>
 #include <proto/stream_sock.h>
 #include <proto/task.h>
 
@@ -110,7 +111,7 @@ int event_accept(int fd) {
 			}
 		}
 
-		if ((s = pool_alloc(session)) == NULL) { /* disable this proxy for a while */
+		if ((s = pool_alloc2(pool2_session)) == NULL) { /* disable this proxy for a while */
 			Alert("out of memory in event_accept().\n");
 			EV_FD_CLR(fd, DIR_RD);
 			p->state = PR_STIDLE;
@@ -127,18 +128,18 @@ int event_accept(int fd) {
 		    (((struct sockaddr_in *)&addr)->sin_addr.s_addr & p->mon_mask.s_addr) == p->mon_net.s_addr) {
 			if (p->mode == PR_MODE_TCP) {
 				close(cfd);
-				pool_free(session, s);
+				pool_free2(pool2_session, s);
 				continue;
 			}
 			s->flags |= SN_MONITOR;
 		}
 
-		if ((t = pool_alloc(task)) == NULL) { /* disable this proxy for a while */
+		if ((t = pool_alloc2(pool2_task)) == NULL) { /* disable this proxy for a while */
 			Alert("out of memory in event_accept().\n");
 			EV_FD_CLR(fd, DIR_RD);
 			p->state = PR_STIDLE;
 			close(cfd);
-			pool_free(session, s);
+			pool_free2(pool2_session, s);
 			return 0;
 		}
 
@@ -146,8 +147,8 @@ int event_accept(int fd) {
 		if (cfd >= global.maxsock) {
 			Alert("accept(): not enough free sockets. Raise -n argument. Giving up.\n");
 			close(cfd);
-			pool_free(task, t);
-			pool_free(session, s);
+			pool_free2(pool2_task, t);
+			pool_free2(pool2_session, s);
 			return 0;
 		}
 
@@ -156,8 +157,8 @@ int event_accept(int fd) {
 				(char *) &one, sizeof(one)) == -1)) {
 			Alert("accept(): cannot set the socket in non blocking mode. Giving up\n");
 			close(cfd);
-			pool_free(task, t);
-			pool_free(session, s);
+			pool_free2(pool2_task, t);
+			pool_free2(pool2_session, s);
 			return 0;
 		}
 
@@ -229,15 +230,12 @@ int event_accept(int fd) {
 			txn->req.som = txn->req.eoh = 0; /* relative to the buffer */
 			txn->auth_hdr.len = -1;
 
-			txn->hdr_idx.size = MAX_HTTP_HDR;
-
 			if (p->nb_req_cap > 0) {
-				if ((txn->req.cap =
-				     pool_alloc_from(p->req_cap_pool, p->nb_req_cap*sizeof(char *)))
-				    == NULL) { /* no memory */
+				if ((txn->req.cap = pool_alloc2(p->req_cap_pool)) == NULL) {
+					/* no memory */
 					close(cfd); /* nothing can be done for this fd without memory */
-					pool_free(task, t);
-					pool_free(session, s);
+					pool_free2(pool2_task, t);
+					pool_free2(pool2_session, s);
 					return 0;
 				}
 				memset(txn->req.cap, 0, p->nb_req_cap*sizeof(char *));
@@ -245,30 +243,30 @@ int event_accept(int fd) {
 
 
 			if (p->nb_rsp_cap > 0) {
-				if ((txn->rsp.cap =
-				     pool_alloc_from(p->rsp_cap_pool, p->nb_rsp_cap*sizeof(char *)))
-				    == NULL) { /* no memory */
+				if ((txn->rsp.cap = pool_alloc2(p->rsp_cap_pool)) == NULL) {
+					/* no memory */
 					if (txn->req.cap != NULL)
-						pool_free_to(p->req_cap_pool, txn->req.cap);
+						pool_free2(p->req_cap_pool, txn->req.cap);
 					close(cfd); /* nothing can be done for this fd without memory */
-					pool_free(task, t);
-					pool_free(session, s);
+					pool_free2(pool2_task, t);
+					pool_free2(pool2_session, s);
 					return 0;
 				}
 				memset(txn->rsp.cap, 0, p->nb_rsp_cap*sizeof(char *));
 			}
 
 
-			if ((txn->hdr_idx.v =
-			     pool_alloc_from(p->hdr_idx_pool, txn->hdr_idx.size*sizeof(*txn->hdr_idx.v)))
-			    == NULL) { /* no memory */
+			txn->hdr_idx.size = MAX_HTTP_HDR;
+
+			if ((txn->hdr_idx.v = pool_alloc2(p->hdr_idx_pool)) == NULL) {
+				/* no memory */
 				if (txn->rsp.cap != NULL)
-					pool_free_to(p->rsp_cap_pool, txn->rsp.cap);
+					pool_free2(p->rsp_cap_pool, txn->rsp.cap);
 				if (txn->req.cap != NULL)
-					pool_free_to(p->req_cap_pool, txn->req.cap);
+					pool_free2(p->req_cap_pool, txn->req.cap);
 				close(cfd); /* nothing can be done for this fd without memory */
-				pool_free(task, t);
-				pool_free(session, s);
+				pool_free2(pool2_task, t);
+				pool_free2(pool2_session, s);
 				return 0;
 			}
 			hdr_idx_init(&txn->hdr_idx);
@@ -346,16 +344,16 @@ int event_accept(int fd) {
 			write(1, trash, len);
 		}
 
-		if ((s->req = pool_alloc(buffer)) == NULL) { /* no memory */
+		if ((s->req = pool_alloc2(pool2_buffer)) == NULL) { /* no memory */
 			if (txn->hdr_idx.v != NULL)
-				pool_free_to(p->hdr_idx_pool, txn->hdr_idx.v);
+				pool_free2(p->hdr_idx_pool, txn->hdr_idx.v);
 			if (txn->rsp.cap != NULL)
-				pool_free_to(p->rsp_cap_pool, txn->rsp.cap);
+				pool_free2(p->rsp_cap_pool, txn->rsp.cap);
 			if (txn->req.cap != NULL)
-				pool_free_to(p->req_cap_pool, txn->req.cap);
+				pool_free2(p->req_cap_pool, txn->req.cap);
 			close(cfd); /* nothing can be done for this fd without memory */
-			pool_free(task, t);
-			pool_free(session, s);
+			pool_free2(pool2_task, t);
+			pool_free2(pool2_session, s);
 			return 0;
 		}
 
@@ -368,17 +366,17 @@ int event_accept(int fd) {
 		s->req->wto = s->be->srvtimeout;
 		s->req->cto = s->be->srvtimeout;
 
-		if ((s->rep = pool_alloc(buffer)) == NULL) { /* no memory */
-			pool_free(buffer, s->req);
+		if ((s->rep = pool_alloc2(pool2_buffer)) == NULL) { /* no memory */
+			pool_free2(pool2_buffer, s->req);
 			if (txn->hdr_idx.v != NULL)
-				pool_free_to(p->hdr_idx_pool, txn->hdr_idx.v);
+				pool_free2(p->hdr_idx_pool, txn->hdr_idx.v);
 			if (txn->rsp.cap != NULL)
-				pool_free_to(p->rsp_cap_pool, txn->rsp.cap);
+				pool_free2(p->rsp_cap_pool, txn->rsp.cap);
 			if (txn->req.cap != NULL)
-				pool_free_to(p->req_cap_pool, txn->req.cap);
+				pool_free2(p->req_cap_pool, txn->req.cap);
 			close(cfd); /* nothing can be done for this fd without memory */
-			pool_free(task, t);
-			pool_free(session, s);
+			pool_free2(pool2_task, t);
+			pool_free2(pool2_session, s);
 			return 0;
 		}
 

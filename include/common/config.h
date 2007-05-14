@@ -2,7 +2,7 @@
   include/common/config.h
   This files contains most of the user-configurable settings.
 
-  Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -38,6 +38,27 @@
 #ifndef   CONFIG_HAP_NO_MEM_OPTIM
 #  define CONFIG_HAP_MEM_OPTIM
 #endif /* CONFIG_HAP_NO_MEM_OPTIM */
+
+/* CONFIG_HAP_MALLOC / CONFIG_HAP_CALLOC / CONFIG_HAP_FREE
+ * This macro allows to replace the malloc function with another one.
+ */
+#ifdef CONFIG_HAP_MALLOC
+#define MALLOC	CONFIG_HAP_MALLOC
+#else
+#define MALLOC	malloc
+#endif
+
+#ifdef CONFIG_HAP_CALLOC
+#define CALLOC	CONFIG_HAP_CALLOC
+#else
+#define CALLOC	calloc
+#endif
+
+#ifdef CONFIG_HAP_FREE
+#define FREE	CONFIG_HAP_FREE
+#else
+#define FREE	free
+#endif
 
 
 /* CONFIG_HAP_INLINE_FD_SET

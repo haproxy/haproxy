@@ -44,8 +44,6 @@
 #define LW_REQHDR	1024	/* request header(s) */
 #define LW_RSPHDR	2048	/* response header(s) */
 
-extern void **pool_requri;
-
 
 #endif /* _TYPES_LOG_H */
 

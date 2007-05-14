@@ -32,6 +32,9 @@
 #include <types/server.h>
 #include <types/task.h>
 
+extern struct pool_head *pool2_pendconn;
+
+int init_pendconn();
 struct session *pendconn_get_next_sess(struct server *srv, struct proxy *px);
 struct pendconn *pendconn_add(struct session *sess);
 void pendconn_free(struct pendconn *p);

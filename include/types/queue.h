@@ -34,10 +34,6 @@ struct pendconn {
 	struct server *srv;		/* the server we are waiting for */
 };
 
-#define sizeof_pendconn sizeof(struct pendconn)
-extern void **pool_pendconn;
-
-
 #endif /* _TYPES_QUEUE_H */
 
 /*

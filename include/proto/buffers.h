@@ -22,10 +22,18 @@
 #ifndef _PROTO_BUFFERS_H
 #define _PROTO_BUFFERS_H
 
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <common/config.h>
+#include <common/memory.h>
 #include <types/buffers.h>
+
+extern struct pool_head *pool2_buffer;
+
+/* perform minimal intializations, report 0 in case of error, 1 if OK. */
+int init_buffer();
 
 /* Initializes all fields in the buffer. The ->rlim field is initialized last
  * so that the compiler can optimize it away if changed immediately after the

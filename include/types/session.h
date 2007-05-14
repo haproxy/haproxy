@@ -2,7 +2,7 @@
   include/types/session.h
   This file defines everything related to sessions.
 
-  Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -121,10 +121,6 @@ struct session {
 	} data_ctx;				/* used by produce_content to dump the stats right now */
 	unsigned int uniq_id;			/* unique ID used for the traces */
 };
-
-
-#define sizeof_session  sizeof(struct session)
-extern void **pool_session;
 
 
 #endif /* _TYPES_SESSION_H */
