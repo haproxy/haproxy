@@ -1,6 +1,9 @@
 ChangeLog :
 ===========
 
+2007/05/14 : 1.3.11.2
+    - fixed broken health-checks since switch to timeval
+
 2007/05/14 : 1.3.11.1
     - fixed ev_kqueue which was forgotten during the switch to timeval
     - allowed null timeouts for past events in select
