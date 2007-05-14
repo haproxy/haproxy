@@ -98,16 +98,23 @@ REGPRM1 static void __fd_clo(int fd)
 /*
  * kqueue() poller
  */
-REGPRM2 static void _do_poll(struct poller *p, int wait_time)
+REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 {
 	int status;
 	int count, fd;
 	struct timespec timeout, *to_ptr;
 
 	to_ptr = NULL;	// no timeout
-	if (wait_time >= 0) {
-		timeout.tv_sec  =  wait_time / 1000;
-		timeout.tv_nsec = (wait_time % 1000) * 1000000;
+	if (tv_isset(exp)) {
+		struct timeval delta;
+
+		if (tv_isge(&now, exp))
+			delta.tv_sec = delta.tv_usec = 0;
+		else
+			tv_remain(&now, exp, &delta);
+
+		timeout.tv_sec  = delta.tv_sec;
+		timeout.tv_nsec = delta.tv_usec * 1000;
 		to_ptr = &timeout;
 	}
 
