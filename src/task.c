@@ -96,7 +96,7 @@ void wake_expired_tasks(struct timeval *next)
 	if (likely(timer_wq.data != NULL)) {
 		task = LIST_ELEM(timer_wq.data, struct task *, qlist);
 		if (likely(tv_isgt(&task->expire, &now))) {
-			tv_remain(&now, &task->expire, next);
+			*next = task->expire;
 			return;
 		}
 	}
@@ -108,7 +108,7 @@ void wake_expired_tasks(struct timeval *next)
 		task = LIST_ELEM(data, struct task *, qlist);
 
 		if (tv_isgt(&task->expire, &now)) {
-			tv_remain(&now, &task->expire, next);
+			*next = task->expire;
 			break;
 		}
 
