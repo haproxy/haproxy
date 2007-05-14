@@ -380,10 +380,12 @@ REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 		wait_time = 0;
 	}
 	else {
-		if (tv_isset(exp))
-			wait_time = tv_ms_remain(&now, exp);
-		else
+		if (tv_iseternity(exp))
 			wait_time = -1;
+		else if (tv_isge(&now, exp))
+			wait_time = 0;
+		else
+			wait_time = __tv_ms_elapsed(&now, exp) + 1;
 	}
 
 	/* now let's wait for real events */
