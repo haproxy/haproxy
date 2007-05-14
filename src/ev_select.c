@@ -90,12 +90,14 @@ REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 	/* allow select to return immediately when needed */
 	delta.tv_sec = delta.tv_usec = 0;
 	if (tv_isset(exp)) {
-		tv_remain(&now, exp, &delta);
-		/* To avoid eventual select loops due to timer precision */
-		delta.tv_usec += SCHEDULER_RESOLUTION * 1000;
-		if (delta.tv_usec >= 1000000) {
-			delta.tv_usec -= 1000000;
-			delta.tv_sec ++;
+		if (tv_islt(&now, exp)) {
+			tv_remain(&now, exp, &delta);
+			/* To avoid eventual select loops due to timer precision */
+			delta.tv_usec += SCHEDULER_RESOLUTION * 1000;
+			if (delta.tv_usec >= 1000000) {
+				delta.tv_usec -= 1000000;
+				delta.tv_sec ++;
+			}
 		}
 	}
 
