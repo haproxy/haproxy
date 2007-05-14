@@ -410,6 +410,7 @@ void process_chk(struct task *t, struct timeval *next)
 						tv_ms_add(&t->expire, &now, s->inter);
 						task_queue(t);	/* restore t to its place in the task list */
 						*next = t->expire;
+						return;
 					}
 					else if (errno != EALREADY && errno != EISCONN && errno != EAGAIN) {
 						s->result = -1;    /* a real error */
