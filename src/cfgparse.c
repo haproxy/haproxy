@@ -464,7 +464,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 	static struct proxy *curproxy = NULL;
 	struct server *newsrv = NULL;
 	const char *err;
-	int rc;
+	int rc, val;
 
 	if (!strcmp(args[0], "listen"))
 		rc = PR_CAP_LISTEN;
@@ -496,6 +496,14 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		LIST_INIT(&curproxy->acl);
 		LIST_INIT(&curproxy->block_cond);
 
+		/* Timeouts are defined as -1, so we cannot use the zeroed area
+		 * as a default value.
+		 */
+		tv_eternity(&curproxy->clitimeout);
+		tv_eternity(&curproxy->srvtimeout);
+		tv_eternity(&curproxy->contimeout);
+		tv_eternity(&curproxy->appsession_timeout);
+		
 		curproxy->id = strdup(args[1]);
 		curproxy->cap = rc;
 
@@ -766,7 +774,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		curproxy->appsession_name = strdup(args[1]);
 		curproxy->appsession_name_len = strlen(curproxy->appsession_name);
 		curproxy->appsession_len = atoi(args[3]);
-		__tv_from_ms(&curproxy->appsession_timeout, atoi(args[5]));
+		val = atoi(args[5]);
+		if (val > 0)
+			__tv_from_ms(&curproxy->appsession_timeout, val);
+		else
+			tv_eternity(&curproxy->appsession_timeout);
+
 		rc = chtbl_init(&(curproxy->htbl_proxy), TBLSIZ, hashpjw, match_str, destroy);
 		if (rc) {
 			Alert("Error Init Appsession Hashtable.\n");
@@ -871,7 +884,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			      file, linenum, args[0]);
 			return -1;
 		}
-		__tv_from_ms(&curproxy->contimeout, atol(args[1]));
+		val = atoi(args[1]);
+		if (val > 0)
+			__tv_from_ms(&curproxy->contimeout, val);
+		else
+			tv_eternity(&curproxy->contimeout);
 	}
 	else if (!strcmp(args[0], "clitimeout")) {  /*  client timeout */
 		if (!__tv_iseq(&curproxy->clitimeout, &defproxy.clitimeout)) {
@@ -887,7 +904,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			      file, linenum, args[0]);
 			return -1;
 		}
-		__tv_from_ms(&curproxy->clitimeout, atol(args[1]));
+		val = atoi(args[1]);
+		if (val > 0)
+			__tv_from_ms(&curproxy->clitimeout, val);
+		else
+			tv_eternity(&curproxy->clitimeout);
 	}
 	else if (!strcmp(args[0], "srvtimeout")) {  /*  server timeout */
 		if (!__tv_iseq(&curproxy->srvtimeout, &defproxy.srvtimeout)) {
@@ -902,7 +923,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			      file, linenum, args[0]);
 			return -1;
 		}
-		__tv_from_ms(&curproxy->srvtimeout, atol(args[1]));
+		val = atoi(args[1]);
+		if (val > 0)
+			__tv_from_ms(&curproxy->srvtimeout, val);
+		else
+			tv_eternity(&curproxy->srvtimeout);
 	}
 	else if (!strcmp(args[0], "retries")) {  /* connection retries */
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))

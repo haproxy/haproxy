@@ -384,7 +384,7 @@ int event_accept(int fd) {
 
 		s->rep->rto = s->be->srvtimeout;
 		s->rep->wto = s->fe->clitimeout;
-		tv_zero(&s->rep->cto);
+		tv_eternity(&s->rep->cto);
 
 		fd_insert(cfd);
 		fdtab[cfd].owner = t;

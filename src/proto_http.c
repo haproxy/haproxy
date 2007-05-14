@@ -2247,6 +2247,32 @@ int process_srv(struct session *t)
 #ifdef DEBUG_FULL
 	fprintf(stderr,"process_srv: c=%s, s=%s\n", cli_stnames[c], srv_stnames[s]);
 #endif
+
+#if 0
+	fprintf(stderr,"%s:%d  fe->clito=%d.%d, fe->conto=%d.%d, fe->srvto=%d.%d\n",
+		__FUNCTION__, __LINE__,
+		t->fe->clitimeout.tv_sec, t->fe->clitimeout.tv_usec, 
+		t->fe->contimeout.tv_sec, t->fe->contimeout.tv_usec, 
+		t->fe->srvtimeout.tv_sec, t->fe->srvtimeout.tv_usec);
+	fprintf(stderr,"%s:%d  be->clito=%d.%d, be->conto=%d.%d, be->srvto=%d.%d\n",
+		__FUNCTION__, __LINE__,
+		t->be->clitimeout.tv_sec, t->be->clitimeout.tv_usec, 
+		t->be->contimeout.tv_sec, t->be->contimeout.tv_usec, 
+		t->be->srvtimeout.tv_sec, t->be->srvtimeout.tv_usec);
+
+	fprintf(stderr,"%s:%d  req->cto=%d.%d, req->rto=%d.%d, req->wto=%d.%d\n",
+		__FUNCTION__, __LINE__,
+		req->cto.tv_sec, req->cto.tv_usec, 
+		req->rto.tv_sec, req->rto.tv_usec, 
+		req->wto.tv_sec, req->wto.tv_usec);
+
+	fprintf(stderr,"%s:%d  rep->cto=%d.%d, rep->rto=%d.%d, rep->wto=%d.%d\n",
+		__FUNCTION__, __LINE__,
+		rep->cto.tv_sec, rep->cto.tv_usec, 
+		rep->rto.tv_sec, rep->rto.tv_usec, 
+		rep->wto.tv_sec, rep->wto.tv_usec);
+#endif
+
 	//fprintf(stderr,"process_srv: c=%d, s=%d, cr=%d, cw=%d, sr=%d, sw=%d\n", c, s,
 	//EV_FD_ISSET(t->cli_fd, DIR_RD), EV_FD_ISSET(t->cli_fd, DIR_WR),
 	//EV_FD_ISSET(t->srv_fd, DIR_RD), EV_FD_ISSET(t->srv_fd, DIR_WR)
