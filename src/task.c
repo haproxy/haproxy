@@ -88,9 +88,12 @@ void wake_expired_tasks(struct timeval *next)
 	struct task *task;
 	void *data;
 
+#ifdef WAKE_HINT_CHECK_FIRST
 	/*
 	 * Hint: tasks are *rarely* expired. So we can try to optimize
-	 * by not scanning the tree at all in most cases.
+	 * by not scanning the tree at all in most cases. However, this
+	 * code costs 160 more bytes which do not look much useful because
+	 * the performance win is not obvious.
 	 */
 
 	if (likely(timer_wq.data != NULL)) {
@@ -100,16 +103,15 @@ void wake_expired_tasks(struct timeval *next)
 			return;
 		}
 	}
-
 	/* OK we lose. Let's scan the tree then. */
-	tv_eternity(next);
+#endif
 
 	tree64_foreach(&timer_wq, data, stack, slen) {
 		task = LIST_ELEM(data, struct task *, qlist);
 
 		if (tv_isgt(&task->expire, &now)) {
 			*next = task->expire;
-			break;
+			return;
 		}
 
 		/*
@@ -124,6 +126,7 @@ void wake_expired_tasks(struct timeval *next)
 			task->state = TASK_RUNNING;
 		}
 	}
+	tv_eternity(next);
 	return;
 }
 
