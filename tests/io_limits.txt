@@ -1,0 +1,116 @@
+---------- epoll without limits --------
+% time     seconds  usecs/call     calls    errors syscall
+------ ----------- ----------- --------- --------- ----------------
+ 47.19    2.671077          56     48093     22397 recv
+ 47.15    2.668840         106     25060      4858 send
+  2.19    0.124020          10     12150           epoll_ctl
+  1.96    0.110904         286       388           epoll_wait
+  0.56    0.031565          47       670           close
+  0.19    0.010481          28       380       350 connect
+  0.15    0.008650          25       350           socket
+  0.14    0.008204          26       320           shutdown
+  0.14    0.007655          22       355        35 accept
+  0.12    0.006871          10       670           setsockopt
+  0.11    0.006194           9       670           fcntl64
+  0.07    0.004148          12       355           brk
+  0.04    0.002055           5       389           gettimeofday
+------ ----------- ----------- --------- --------- ----------------
+100.00    5.660664                 89850     27640 total
+
+
+---------- sepoll without limit --------
+% time     seconds  usecs/call     calls    errors syscall
+------ ----------- ----------- --------- --------- ----------------
+ 49.43    2.770682          97     28486      3861 send
+ 46.48    2.605336          53     49317     23434 recv
+  2.00    0.111916         206       542           epoll_wait
+  0.65    0.036325          12      3030           epoll_ctl
+  0.45    0.025282          38       670           close
+  0.24    0.013247          34       388       358 connect
+  0.17    0.009544          27       350           socket
+  0.16    0.008734          27       320           shutdown
+  0.11    0.006432          18       357        37 accept
+  0.10    0.005699           9       670           setsockopt
+  0.08    0.004724           7       670           fcntl64
+  0.08    0.004568           6       767           gettimeofday
+  0.06    0.003127           9       356           brk
+------ ----------- ----------- --------- --------- ----------------
+100.00    5.605616                 85923     27690 total
+
+
+---------- sepoll with send limit only --------
+% time     seconds  usecs/call     calls    errors syscall
+------ ----------- ----------- --------- --------- ----------------
+ 49.21    2.779349         109     25417       418 send
+ 46.94    2.651058          54     49150     23368 recv
+  1.77    0.099863         264       378           epoll_wait
+  0.57    0.032141          14      2351           epoll_ctl
+  0.46    0.025822          39       670           close
+  0.25    0.014300          37       387       357 connect
+  0.19    0.010530          30       350           socket
+  0.15    0.008656          27       320           shutdown
+  0.14    0.008008          23       354        34 accept
+  0.11    0.006051           9       670           setsockopt
+  0.10    0.005461           8       670           fcntl64
+  0.07    0.003842           6       604           gettimeofday
+  0.06    0.003120           9       358           brk
+------ ----------- ----------- --------- --------- ----------------
+100.00    5.648201                 81679     24177 total
+
+
+---------- sepoll with send + recv limits --------
+Process 3173 attached - interrupt to quit
+Process 3173 detached
+% time     seconds  usecs/call     calls    errors syscall
+------ ----------- ----------- --------- --------- ----------------
+ 49.09    2.802918         105     26771       596 send
+ 47.72    2.724651          89     30761       728 recv
+  1.12    0.063952          55      1169           epoll_wait
+  0.47    0.026810          40       676           close
+  0.44    0.025358          11      2329           epoll_ctl
+  0.21    0.012255          30       403       367 connect
+  0.20    0.011135          35       320           shutdown
+  0.18    0.010313          29       356           socket
+  0.15    0.008614           6      1351           gettimeofday
+  0.13    0.007678          21       360        40 accept
+  0.13    0.007218          11       676           setsockopt
+  0.10    0.005559           8       676           fcntl64
+  0.05    0.002882           9       327           brk
+------ ----------- ----------- --------- --------- ----------------
+100.00    5.709343                 66175      1731 total
+
+---------- epoll with send+recv limits -----------
+Process 3271 attached - interrupt to quit
+Process 3271 detached
+% time     seconds  usecs/call     calls    errors syscall
+------ ----------- ----------- --------- --------- ----------------
+ 46.96    2.742476         124     22193           send
+ 46.55    2.718027          98     27730           recv
+  2.58    0.150701          11     13331           epoll_ctl
+  2.30    0.134350         135       998           epoll_wait
+  0.52    0.030520          45       673           close
+  0.23    0.013422          42       320           shutdown
+  0.19    0.011282          29       386       353 connect
+  0.19    0.011063          31       353           socket
+  0.12    0.007039          20       359        39 accept
+  0.11    0.006629          10       673           fcntl64
+  0.10    0.005920           9       673           setsockopt
+  0.09    0.005157           5       999           gettimeofday
+  0.05    0.002885           9       335           brk
+------ ----------- ----------- --------- --------- ----------------
+100.00    5.839471                 69023       392 total
+
+
+Conclusion
+----------
+epoll         = 89850 syscalls
+sepoll        = 85923 syscalls
+epoll+limits  = 69023 syscalls
+sepoll+limits = 66175 syscalls
+
+=> limits reduce the number of syscalls by 23%
+=> sepoll reduces the number of syscalls by 4%
+=> sepoll reduces the number of epoll_ctl by 83%
+=> limits reduce the number of epoll_ctl by 24%
+=> limits increase the number of epoll_wait by 115%
+

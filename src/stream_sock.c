@@ -127,7 +127,14 @@ int stream_sock_read(int fd) {
 				goto out_eternity;
 			}
 
-			/* generally if we read something smaller than the 1 or 2 MSS,
+			/* if too many bytes were missing from last read, it means that
+			 * it's pointless trying to read again because the system does
+			 * not have them in buffers.
+			 */
+			if (ret < max)
+				break;
+
+			/* generally if we read something smaller than 1 or 2 MSS,
 			 * it means that it's not worth trying to read again. It may
 			 * also happen on headers, but the application then can stop
 			 * reading before we start polling.
@@ -288,6 +295,10 @@ int stream_sock_write(int fd) {
 				EV_FD_CLR(fd, DIR_WR);
 				goto out_eternity;
 			}
+
+			/* if the system buffer is full, don't insist */
+			if (ret < max)
+				break;
 
 			if (--write_poll <= 0)
 				break;
