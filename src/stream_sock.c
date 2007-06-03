@@ -318,7 +318,8 @@ int stream_sock_write(int fd) {
 			 * we refresh it. A solution would be to merge read+write timeouts into a
 			 * unique one, although that needs some study particularly on full-duplex
 			 * TCP connections. */
-			b->rex = b->wex;
+			if (!(b->flags & BF_SHUTR_STATUS))
+				b->rex = b->wex;
 			goto out_wakeup;
 		}
 	out_eternity:

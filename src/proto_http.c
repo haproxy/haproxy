@@ -445,7 +445,7 @@ void client_retnclose(struct session *s, const struct chunk *msg)
 {
 	EV_FD_CLR(s->cli_fd, DIR_RD);
 	EV_FD_SET(s->cli_fd, DIR_WR);
-	tv_eternity(&s->req->rex);
+	buffer_shutr(s->req);
 	if (!tv_add_ifset(&s->rep->wex, &now, &s->fe->clitimeout))
 		tv_eternity(&s->rep->wex);
 	s->cli_state = CL_STSHUTR;
@@ -1520,7 +1520,7 @@ int process_cli(struct session *t)
 			/* 2: have we encountered a read error or a close ? */
 			else if (unlikely(req->flags & (BF_READ_ERROR | BF_READ_NULL))) {
 				/* read error, or last read : give up. */
-				tv_eternity(&req->rex);
+				buffer_shutr(req);
 				fd_delete(t->cli_fd);
 				t->cli_state = CL_STCLOSE;
 				t->fe->failed_req++;
@@ -1966,8 +1966,8 @@ int process_cli(struct session *t)
 		 */
 		/* read or write error */
 		if (rep->flags & BF_WRITE_ERROR || req->flags & BF_READ_ERROR) {
-			tv_eternity(&req->rex);
-			tv_eternity(&rep->wex);
+			buffer_shutr(req);
+			buffer_shutw(rep);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
 			if (!(t->flags & SN_ERR_MASK))
@@ -1985,14 +1985,14 @@ int process_cli(struct session *t)
 		/* last read, or end of server write */
 		else if (req->flags & BF_READ_NULL || s == SV_STSHUTW || s == SV_STCLOSE) {
 			EV_FD_CLR(t->cli_fd, DIR_RD);
-			tv_eternity(&req->rex);
+			buffer_shutr(req);
 			t->cli_state = CL_STSHUTR;
 			return 1;
 		}	
 		/* last server read and buffer empty */
 		else if ((s == SV_STSHUTR || s == SV_STCLOSE) && (rep->l == 0)) {
 			EV_FD_CLR(t->cli_fd, DIR_WR);
-			tv_eternity(&rep->wex);
+			buffer_shutw(rep);
 			shutdown(t->cli_fd, SHUT_WR);
 			/* We must ensure that the read part is still alive when switching
 			 * to shutw */
@@ -2005,7 +2005,7 @@ int process_cli(struct session *t)
 		/* read timeout */
 		else if (tv_isle(&req->rex, &now)) {
 			EV_FD_CLR(t->cli_fd, DIR_RD);
-			tv_eternity(&req->rex);
+			buffer_shutr(req);
 			t->cli_state = CL_STSHUTR;
 			if (!(t->flags & SN_ERR_MASK))
 				t->flags |= SN_ERR_CLITO;
@@ -2022,7 +2022,7 @@ int process_cli(struct session *t)
 		/* write timeout */
 		else if (tv_isle(&rep->wex, &now)) {
 			EV_FD_CLR(t->cli_fd, DIR_WR);
-			tv_eternity(&rep->wex);
+			buffer_shutw(rep);
 			shutdown(t->cli_fd, SHUT_WR);
 			/* We must ensure that the read part is still alive when switching
 			 * to shutw */
@@ -2088,7 +2088,7 @@ int process_cli(struct session *t)
 	}
 	else if (c == CL_STSHUTR) {
 		if (rep->flags & BF_WRITE_ERROR) {
-			tv_eternity(&rep->wex);
+			buffer_shutw(rep);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
 			if (!(t->flags & SN_ERR_MASK))
@@ -2105,13 +2105,13 @@ int process_cli(struct session *t)
 		}
 		else if ((s == SV_STSHUTR || s == SV_STCLOSE) && (rep->l == 0)
 			 && !(t->flags & SN_SELF_GEN)) {
-			tv_eternity(&rep->wex);
+			buffer_shutw(rep);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
 			return 1;
 		}
 		else if (tv_isle(&rep->wex, &now)) {
-			tv_eternity(&rep->wex);
+			buffer_shutw(rep);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
 			if (!(t->flags & SN_ERR_MASK))
@@ -2130,7 +2130,7 @@ int process_cli(struct session *t)
 		if (t->flags & SN_SELF_GEN) {
 			produce_content(t);
 			if (rep->l == 0) {
-				tv_eternity(&rep->wex);
+				buffer_shutw(rep);
 				fd_delete(t->cli_fd);
 				t->cli_state = CL_STCLOSE;
 				return 1;
@@ -2155,7 +2155,7 @@ int process_cli(struct session *t)
 	}
 	else if (c == CL_STSHUTW) {
 		if (req->flags & BF_READ_ERROR) {
-			tv_eternity(&req->rex);
+			buffer_shutr(req);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
 			if (!(t->flags & SN_ERR_MASK))
@@ -2171,13 +2171,13 @@ int process_cli(struct session *t)
 			return 1;
 		}
 		else if (req->flags & BF_READ_NULL || s == SV_STSHUTW || s == SV_STCLOSE) {
-			tv_eternity(&req->rex);
+			buffer_shutr(req);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
 			return 1;
 		}
 		else if (tv_isle(&req->rex, &now)) {
-			tv_eternity(&req->rex);
+			buffer_shutr(req);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
 			if (!(t->flags & SN_ERR_MASK))
@@ -2554,8 +2554,8 @@ int process_srv(struct session *t)
 			if (unlikely((msg->msg_state == HTTP_MSG_ERROR) ||
 			             (req->flags & BF_WRITE_ERROR) ||
 			             (rep->flags & BF_READ_ERROR))) {
-				tv_eternity(&rep->rex);
-				tv_eternity(&req->wex);
+				buffer_shutr(rep);
+				buffer_shutw(req);
 				fd_delete(t->srv_fd);
 				if (t->srv) {
 					t->srv->cur_sess--;
@@ -2586,7 +2586,7 @@ int process_srv(struct session *t)
 			                  c == CL_STSHUTW || c == CL_STCLOSE ||
 			                  rep->l >= rep->rlim - rep->data)) {
 				EV_FD_CLR(t->srv_fd, DIR_RD);
-				tv_eternity(&rep->rex);
+				buffer_shutr(rep);
 				t->srv_state = SV_STSHUTR;
 				//fprintf(stderr,"%p:%s(%d), c=%d, s=%d\n", t, __FUNCTION__, __LINE__, t->cli_state, t->cli_state);
 				return 1;
@@ -2596,8 +2596,8 @@ int process_srv(struct session *t)
 			 */
 			else if (unlikely(EV_FD_ISSET(t->srv_fd, DIR_RD) &&
 			                  tv_isle(&rep->rex, &now))) {
-				tv_eternity(&rep->rex);
-				tv_eternity(&req->wex);
+				buffer_shutr(rep);
+				buffer_shutw(req);
 				fd_delete(t->srv_fd);
 				if (t->srv) {
 					t->srv->cur_sess--;
@@ -2630,7 +2630,7 @@ int process_srv(struct session *t)
 			else if (unlikely((/*c == CL_STSHUTR ||*/ c == CL_STCLOSE) &&
 			                  (req->l == 0))) {
 				EV_FD_CLR(t->srv_fd, DIR_WR);
-				tv_eternity(&req->wex);
+				buffer_shutw(req);
 
 				/* We must ensure that the read part is still
 				 * alive when switching to shutw */
@@ -2650,7 +2650,7 @@ int process_srv(struct session *t)
 			else if (unlikely(EV_FD_ISSET(t->srv_fd, DIR_WR) &&
 					  tv_isle(&req->wex, &now))) {
 				EV_FD_CLR(t->srv_fd, DIR_WR);
-				tv_eternity(&req->wex);
+				buffer_shutw(req);
 				shutdown(t->srv_fd, SHUT_WR);
 				/* We must ensure that the read part is still alive
 				 * when switching to shutw */
@@ -2773,8 +2773,8 @@ int process_srv(struct session *t)
 					}
 					cur_proxy->failed_resp++;
 				return_srv_prx_502:
-					tv_eternity(&rep->rex);
-					tv_eternity(&req->wex);
+					buffer_shutr(rep);
+					buffer_shutw(req);
 					fd_delete(t->srv_fd);
 					t->srv_state = SV_STCLOSE;
 					txn->status = 502;
@@ -2967,7 +2967,7 @@ int process_srv(struct session *t)
 		if ((req->l == 0) &&
 		    (c == CL_STSHUTR || c == CL_STCLOSE || t->be->options & PR_O_FORCE_CLO)) {
 			EV_FD_CLR(t->srv_fd, DIR_WR);
-			tv_eternity(&req->wex);
+			buffer_shutw(req);
 
 			/* We must ensure that the read part is still alive when switching
 			 * to shutw */
@@ -3004,8 +3004,8 @@ int process_srv(struct session *t)
 	else if (s == SV_STDATA) {
 		/* read or write error */
 		if (req->flags & BF_WRITE_ERROR || rep->flags & BF_READ_ERROR) {
-			tv_eternity(&rep->rex);
-			tv_eternity(&req->wex);
+			buffer_shutr(rep);
+			buffer_shutw(req);
 			fd_delete(t->srv_fd);
 			if (t->srv) {
 				t->srv->cur_sess--;
@@ -3028,7 +3028,7 @@ int process_srv(struct session *t)
 		/* last read, or end of client write */
 		else if (rep->flags & BF_READ_NULL || c == CL_STSHUTW || c == CL_STCLOSE) {
 			EV_FD_CLR(t->srv_fd, DIR_RD);
-			tv_eternity(&rep->rex);
+			buffer_shutr(rep);
 			t->srv_state = SV_STSHUTR;
 			//fprintf(stderr,"%p:%s(%d), c=%d, s=%d\n", t, __FUNCTION__, __LINE__, t->cli_state, t->cli_state);
 			return 1;
@@ -3036,7 +3036,7 @@ int process_srv(struct session *t)
 		/* end of client read and no more data to send */
 		else if ((c == CL_STSHUTR || c == CL_STCLOSE) && (req->l == 0)) {
 			EV_FD_CLR(t->srv_fd, DIR_WR);
-			tv_eternity(&req->wex);
+			buffer_shutw(req);
 			shutdown(t->srv_fd, SHUT_WR);
 			/* We must ensure that the read part is still alive when switching
 			 * to shutw */
@@ -3049,7 +3049,7 @@ int process_srv(struct session *t)
 		/* read timeout */
 		else if (tv_isle(&rep->rex, &now)) {
 			EV_FD_CLR(t->srv_fd, DIR_RD);
-			tv_eternity(&rep->rex);
+			buffer_shutr(rep);
 			t->srv_state = SV_STSHUTR;
 			if (!(t->flags & SN_ERR_MASK))
 				t->flags |= SN_ERR_SRVTO;
@@ -3060,7 +3060,7 @@ int process_srv(struct session *t)
 		/* write timeout */
 		else if (tv_isle(&req->wex, &now)) {
 			EV_FD_CLR(t->srv_fd, DIR_WR);
-			tv_eternity(&req->wex);
+			buffer_shutw(req);
 			shutdown(t->srv_fd, SHUT_WR);
 			/* We must ensure that the read part is still alive when switching
 			 * to shutw */
@@ -3112,7 +3112,7 @@ int process_srv(struct session *t)
 	else if (s == SV_STSHUTR) {
 		if (req->flags & BF_WRITE_ERROR) {
 			//EV_FD_CLR(t->srv_fd, DIR_WR);
-			tv_eternity(&req->wex);
+			buffer_shutw(req);
 			fd_delete(t->srv_fd);
 			if (t->srv) {
 				t->srv->cur_sess--;
@@ -3135,7 +3135,7 @@ int process_srv(struct session *t)
 		}
 		else if ((c == CL_STSHUTR || c == CL_STCLOSE) && (req->l == 0)) {
 			//EV_FD_CLR(t->srv_fd, DIR_WR);
-			tv_eternity(&req->wex);
+			buffer_shutw(req);
 			fd_delete(t->srv_fd);
 			if (t->srv)
 				t->srv->cur_sess--;
@@ -3151,7 +3151,7 @@ int process_srv(struct session *t)
 		}
 		else if (tv_isle(&req->wex, &now)) {
 			//EV_FD_CLR(t->srv_fd, DIR_WR);
-			tv_eternity(&req->wex);
+			buffer_shutw(req);
 			fd_delete(t->srv_fd);
 			if (t->srv)
 				t->srv->cur_sess--;
@@ -3187,7 +3187,7 @@ int process_srv(struct session *t)
 	else if (s == SV_STSHUTW) {
 		if (rep->flags & BF_READ_ERROR) {
 			//EV_FD_CLR(t->srv_fd, DIR_RD);
-			tv_eternity(&rep->rex);
+			buffer_shutr(rep);
 			fd_delete(t->srv_fd);
 			if (t->srv) {
 				t->srv->cur_sess--;
@@ -3210,7 +3210,7 @@ int process_srv(struct session *t)
 		}
 		else if (rep->flags & BF_READ_NULL || c == CL_STSHUTW || c == CL_STCLOSE) {
 			//EV_FD_CLR(t->srv_fd, DIR_RD);
-			tv_eternity(&rep->rex);
+			buffer_shutr(rep);
 			fd_delete(t->srv_fd);
 			if (t->srv)
 				t->srv->cur_sess--;
@@ -3226,7 +3226,7 @@ int process_srv(struct session *t)
 		}
 		else if (tv_isle(&rep->rex, &now)) {
 			//EV_FD_CLR(t->srv_fd, DIR_RD);
-			tv_eternity(&rep->rex);
+			buffer_shutr(rep);
 			fd_delete(t->srv_fd);
 			if (t->srv)
 				t->srv->cur_sess--;

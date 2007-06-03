@@ -28,6 +28,8 @@
 
 #include <common/config.h>
 #include <common/memory.h>
+#include <common/time.h>
+
 #include <types/buffers.h>
 
 extern struct pool_head *pool2_buffer;
@@ -61,6 +63,20 @@ static inline void buffer_flush(struct buffer *buf)
 {
 	buf->r = buf->lr = buf->w = buf->data;
 	buf->l = 0;
+}
+
+/* marks the buffer as "shutdown pending" for reads and cancels the timeout */
+static inline void buffer_shutr(struct buffer *buf)
+{
+	tv_eternity(&buf->rex);
+	buf->flags |= BF_SHUTR_PENDING;
+}
+
+/* marks the buffer as "shutdown pending" for writes and cancels the timeout */
+static inline void buffer_shutw(struct buffer *buf)
+{
+	tv_eternity(&buf->wex);
+	buf->flags |= BF_SHUTW_PENDING;
 }
 
 

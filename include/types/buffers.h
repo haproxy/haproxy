@@ -33,8 +33,11 @@
  */
 #define BF_SHUTR_PENDING        1
 #define BF_SHUTR_DONE           2
+#define BF_SHUTR_STATUS         (BF_SHUTR_PENDING|BF_SHUTR_DONE)
+
 #define BF_SHUTW_PENDING        4
 #define BF_SHUTW_DONE           8
+#define BF_SHUTW_STATUS         (BF_SHUTW_PENDING|BF_SHUTW_DONE)
 
 #define BF_PARTIAL_READ        16
 #define BF_COMPLETE_READ       32
