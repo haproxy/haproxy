@@ -24,6 +24,7 @@
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/time.h>
+#include <common/tools.h>
 
 #include <types/fd.h>
 #include <types/global.h>
@@ -118,11 +119,12 @@ REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 		to_ptr = &timeout;
 	}
 
+	fd = MIN(maxfd, global.tune.maxpollevents);
 	status = kevent(kqueue_fd, // int kq
 			NULL,      // const struct kevent *changelist
 			0,         // int nchanges
 			kev,       // struct kevent *eventlist
-			maxfd,     // int nevents
+			fd,        // int nevents
 			to_ptr);   // const struct timespec *timeout
 	tv_now(&now);
 
@@ -161,7 +163,7 @@ REGPRM1 static int _do_init(struct poller *p)
 	if (kqueue_fd < 0)
 		goto fail_fd;
 
-	kev = (struct kevent*)calloc(1, sizeof(struct kevent) * global.maxsock);
+	kev = (struct kevent*)calloc(1, sizeof(struct kevent) * global.tune.maxpollevents);
 
 	if (kev == NULL)
 		goto fail_kev;

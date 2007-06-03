@@ -2,7 +2,7 @@
   include/common/defaults.h
   Miscellaneous default values.
 
-  Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -76,6 +76,12 @@
 // to try again.
 #ifndef MIN_RET_FOR_READ_LOOP
 #define MIN_RET_FOR_READ_LOOP 1460
+#endif
+
+// the max number of events returned in one call to poll/epoll. Too small a
+// value will cause lots of calls, and too high a value may cause high latency.
+#ifndef MAX_POLL_EVENTS
+#define MAX_POLL_EVENTS 200
 #endif
 
 // cookie delimitor in "prefix" mode. This character is inserted between the

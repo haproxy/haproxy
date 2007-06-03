@@ -520,6 +520,9 @@ void init(int argc, char **argv)
 
 	global.maxsock += global.maxconn * 2; /* each connection needs two sockets */
 
+	if (global.tune.maxpollevents <= 0)
+		global.tune.maxpollevents = MAX_POLL_EVENTS;
+
 	if (arg_mode & (MODE_DEBUG | MODE_FOREGROUND)) {
 		/* command line debug mode inhibits configuration mode */
 		global.mode &= ~(MODE_DAEMON | MODE_QUIET);

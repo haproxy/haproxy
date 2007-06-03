@@ -134,6 +134,7 @@ supportés sont :
   - quiet
   - pidfile <fichier>
   - ulimit-n <nombre>
+  - tune.maxpollevents <nombre>
 
 
 1.1) Journalisation des événements
@@ -362,6 +363,13 @@ qu'une variante appelée "speculative epoll()" consistant à tenter d'effectuer
 les opérations d'entrées/sorties avant de chaîner les événements par les appels
 système.
 
+Afin d'optimiser la latence, il est désormais possible de limiter le nombre
+d'événements remontés à chaque appel. La limite par défaut est fixée à 200. Si
+une latence plus petite est recherchée, il peut être justifié d'abaisser cette
+limite par l'utilisation du paramètre 'tune.maxpollevents' dans la section
+'global'. L'augmenter permettra d'économiser un peu le processeur en présence
+de très grands nombres de connexions simultanées.
+
 Haproxy utilisera kqueue() ou speculative epoll() lorsque ce sera disponible,
 puis epoll(), et se repliera sur poll(), puis en dernier lieu sur select().
 Cependant, si pour une raison quelconque il s'avérait nécessaire de désactiver
@@ -375,6 +383,7 @@ Exemple :
         # utiliser seulement select()
         noepoll
         nopoll
+        tune.maxpollevents 100
 
 Remarque :
 ----------

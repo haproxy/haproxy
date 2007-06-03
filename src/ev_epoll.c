@@ -18,6 +18,7 @@
 #include <common/config.h>
 #include <common/standard.h>
 #include <common/time.h>
+#include <common/tools.h>
 
 #include <types/fd.h>
 #include <types/global.h>
@@ -238,7 +239,8 @@ REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 	else
 		wait_time = __tv_ms_elapsed(&now, exp) + 1;
 
-	status = epoll_wait(epoll_fd, epoll_events, maxfd, wait_time);
+	fd = MIN(maxfd, global.tune.maxpollevents);
+	status = epoll_wait(epoll_fd, epoll_events, fd, wait_time);
 	tv_now(&now);
 
 	for (count = 0; count < status; count++) {
@@ -278,7 +280,7 @@ REGPRM1 static int _do_init(struct poller *p)
 		goto fail_fd;
 
 	epoll_events = (struct epoll_event*)
-		calloc(1, sizeof(struct epoll_event) * global.maxsock);
+		calloc(1, sizeof(struct epoll_event) * global.tune.maxpollevents);
 
 	if (epoll_events == NULL)
 		goto fail_ee;

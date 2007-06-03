@@ -60,6 +60,9 @@ struct global {
 	int logfac1, logfac2;
 	int loglev1, loglev2;
 	struct sockaddr_in logsrv1, logsrv2;
+	struct {
+		int maxpollevents; /* max number of poll events at once */
+	} tune;
 };
 
 extern struct global global;

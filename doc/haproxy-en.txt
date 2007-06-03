@@ -128,6 +128,7 @@ the following ones :
   - pidfile <file>
   - ulimit-n <number>
   - stats
+  - tune.maxpollevents <number>
 
 
 1.1) Event logging
@@ -338,6 +339,12 @@ Tests have shown constant performance from 1 to 20000 simultaneous sessions.
 Version 1.3.9 introduced kqueue() for FreeBSD/OpenBSD, and speculative epoll()
 which consists in trying to perform I/O before queuing the events via syscalls.
 
+In order to optimize latency, it is now possible to limit the number of events
+returned by a single call to poll. The limit is fixed to 200 by default. If a
+smaller latency is seeked, it may be useful to reduce this value by using the
+'tune.maxpollevents' parameter in the 'global' section. Increasing it will
+slightly save CPU cycles in presence of large number of connections.
+
 Haproxy will use kqueue() or speculative epoll() when available, then epoll(),
 and will fall back to poll(), then to select(). However, if for any reason you
 need to disable epoll() or poll() (eg. because of a bug or just to compare
@@ -351,6 +358,7 @@ Example :
         # use only select()
         noepoll
         nopoll
+        tune.maxpollevents 100
 
 Note :
 ------

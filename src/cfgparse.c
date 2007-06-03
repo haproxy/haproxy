@@ -276,6 +276,17 @@ int cfg_parse_global(const char *file, int linenum, char **args)
 	else if (!strcmp(args[0], "stats")) {
 		global.mode |= MODE_STATS;
 	}
+	else if (!strcmp(args[0], "tune.maxpollevents")) {
+		if (global.tune.maxpollevents != 0) {
+			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
+			return 0;
+		}
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
+			return -1;
+		}
+		global.tune.maxpollevents = atol(args[1]);
+	}
 	else if (!strcmp(args[0], "uid")) {
 		if (global.uid != 0) {
 			Alert("parsing [%s:%d] : user/uid already specified. Continuing.\n", file, linenum);
