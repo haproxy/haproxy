@@ -505,6 +505,21 @@ REGPRM1 static int _do_test(struct poller *p)
 }
 
 /*
+ * Recreate the epoll file descriptor after a fork(). Returns 1 if OK,
+ * otherwise 0. It will ensure that all processes will not share their
+ * epoll_fd. Some side effects were encountered because of this, such
+ * as epoll_wait() returning an FD which was previously deleted.
+ */
+REGPRM1 static int _do_fork(struct poller *p)
+{
+	close(epoll_fd);
+	epoll_fd = epoll_create(global.maxsock + 1);
+	if (epoll_fd < 0)
+		return 0;
+	return 1;
+}
+
+/*
  * It is a constructor, which means that it will automatically be called before
  * main(). This is GCC-specific but it works at least since 2.95.
  * Special care must be taken so that it does not need any uninitialized data.
@@ -526,6 +541,7 @@ static void _do_register(void)
 	p->init = _do_init;
 	p->term = _do_term;
 	p->poll = _do_poll;
+	p->fork = _do_fork;
 
 	p->is_set  = __fd_is_set;
 	p->cond_s = p->set = __fd_set;
