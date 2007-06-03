@@ -2147,12 +2147,7 @@ int process_cli(struct session *t)
 			/* buffer not empty */
 			if (EV_FD_COND_S(t->cli_fd, DIR_WR)) {
 				/* restart writing */
-				if (tv_add_ifset(&rep->wex, &now, &t->fe->clitimeout)) {
-					/* FIXME: to prevent the client from expiring read timeouts during writes,
-					 * we refresh it. */
-					req->rex = rep->wex;
-				}
-				else
+				if (!tv_add_ifset(&rep->wex, &now, &t->fe->clitimeout))
 					tv_eternity(&rep->wex);
 			}
 		}
@@ -3183,12 +3178,7 @@ int process_srv(struct session *t)
 		else { /* buffer not empty */
 			if (EV_FD_COND_S(t->srv_fd, DIR_WR)) {
 				/* restart writing */
-				if (tv_add_ifset(&req->wex, &now, &t->be->srvtimeout)) {
-					/* FIXME: to prevent the server from expiring read timeouts during writes,
-					 * we refresh it. */
-					rep->rex = req->wex;
-				}
-				else
+				if (!tv_add_ifset(&req->wex, &now, &t->be->srvtimeout))
 					tv_eternity(&req->wex);
 			}
 		}
