@@ -1,6 +1,12 @@
 ChangeLog :
 ===========
 
+2007/06/03 : 1.3.11.4
+    - do not re-arm read timeout in SHUTR state !
+    - optimize I/O by detecting system starvation
+    - the epoll FD must not be shared between processes
+    - limit the number of events returned by *poll*
+
 2007/05/14 : 1.3.11.3
     - pre-initialize timeouts with tv_eternity during parsing
 
