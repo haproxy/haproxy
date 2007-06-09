@@ -73,7 +73,11 @@ struct acl_pattern {
 	struct list list;                       /* chaining */
 	union {
 		int i;                          /* integer value */
-		struct { int min, max; } range; /* integer range */
+		struct {
+			signed long long min, max;
+			int min_set :1;
+			int max_set :1;
+		} range; /* integer range */
 		struct {
 			struct in_addr addr;
 			struct in_addr mask;
@@ -111,9 +115,18 @@ struct acl_test {
 struct proxy;
 struct session;
 
+/*
+ * NOTE:
+ * The 'parse' function is called to parse words in the configuration. It must
+ * return the number of valid words read. 0 = error. The 'opaque' argument may
+ * be used by functions which need to maintain a context between consecutive
+ * values. It is initialized to zero before the first call, and passed along
+ * successive calls.
+ */
+
 struct acl_keyword {
 	const char *kw;
-	int (*parse)(const char *text, struct acl_pattern *pattern);
+	int (*parse)(const char **text, struct acl_pattern *pattern, int *opaque);
 	int (*fetch)(struct proxy *px, struct session *l4, void *l7, void *arg, struct acl_test *test);
 	int (*match)(struct acl_test *test, struct acl_pattern *pattern);
 	int use_cnt;

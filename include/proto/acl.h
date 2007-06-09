@@ -103,30 +103,28 @@ int acl_match_pst(struct acl_test *test, struct acl_pattern *pattern);
 int acl_match_str(struct acl_test *test, struct acl_pattern *pattern);
 
 /* Checks that the integer in <test> is included between min and max */
-int acl_match_range(struct acl_test *test, struct acl_pattern *pattern);
-int acl_match_min(struct acl_test *test, struct acl_pattern *pattern);
-int acl_match_max(struct acl_test *test, struct acl_pattern *pattern);
+int acl_match_int(struct acl_test *test, struct acl_pattern *pattern);
 
 /* Parse an integer. It is put both in min and max. */
-int acl_parse_int(const char *text, struct acl_pattern *pattern);
+int acl_parse_int(const char **text, struct acl_pattern *pattern, int *opaque);
 
 /* Parse a range of integers delimited by either ':' or '-'. If only one
  * integer is read, it is set as both min and max.
  */
-int acl_parse_range(const char *text, struct acl_pattern *pattern);
+int acl_parse_range(const char **text, struct acl_pattern *pattern, int *opaque);
 
 /* Parse a string. It is allocated and duplicated. */
-int acl_parse_str(const char *text, struct acl_pattern *pattern);
+int acl_parse_str(const char **text, struct acl_pattern *pattern, int *opaque);
 
 /* Parse a regex. It is allocated. */
-int acl_parse_reg(const char *text, struct acl_pattern *pattern);
+int acl_parse_reg(const char **text, struct acl_pattern *pattern, int *opaque);
 
 /* Parse an IP address and an optional mask in the form addr[/mask].
  * The addr may either be an IPv4 address or a hostname. The mask
  * may either be a dotted mask or a number of bits. Returns 1 if OK,
  * otherwise 0.
  */
-int acl_parse_ip(const char *text, struct acl_pattern *pattern);
+int acl_parse_ip(const char **text, struct acl_pattern *pattern, int *opaque);
 
 /* Checks that the pattern matches the end of the tested string. */
 int acl_match_end(struct acl_test *test, struct acl_pattern *pattern);

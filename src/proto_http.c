@@ -5147,16 +5147,16 @@ void debug_hdr(const char *dir, struct session *t, const char *start, const char
  * We use the pre-parsed method if it is known, and store its number as an
  * integer. If it is unknown, we use the pointer and the length.
  */
-static int acl_parse_meth(const char *text, struct acl_pattern *pattern)
+static int acl_parse_meth(const char **text, struct acl_pattern *pattern, int *opaque)
 {
 	int len, meth;
 
-	len  = strlen(text);
-	meth = find_http_meth(text, len);
+	len  = strlen(*text);
+	meth = find_http_meth(*text, len);
 
 	pattern->val.i = meth;
 	if (meth == HTTP_METH_OTHER) {
-		pattern->ptr.str = strdup(text);
+		pattern->ptr.str = strdup(*text);
 		if (!pattern->ptr.str)
 			return 0;
 		pattern->len = len;
@@ -5198,12 +5198,12 @@ static int acl_match_meth(struct acl_test *test, struct acl_pattern *pattern)
 /* 2. Check on Request/Status Version
  * We simply compare strings here.
  */
-static int acl_parse_ver(const char *text, struct acl_pattern *pattern)
+static int acl_parse_ver(const char **text, struct acl_pattern *pattern, int *opaque)
 {
-	pattern->ptr.str = strdup(text);
+	pattern->ptr.str = strdup(*text);
 	if (!pattern->ptr.str)
 		return 0;
-	pattern->len = strlen(text);
+	pattern->len = strlen(*text);
 	return 1;
 }
 
@@ -5286,15 +5286,15 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "method",     acl_parse_meth,  acl_fetch_meth,   acl_match_meth },
 	{ "req_ver",    acl_parse_ver,   acl_fetch_rqver,  acl_match_str  },
 	{ "resp_ver",   acl_parse_ver,   acl_fetch_stver,  acl_match_str  },
-	{ "status",     acl_parse_range, acl_fetch_stcode, acl_match_range },
+	{ "status",     acl_parse_int,   acl_fetch_stcode, acl_match_int  },
 
-	{ "url",        acl_parse_str,   acl_fetch_url,    acl_match_str   },
-	{ "url_beg",    acl_parse_str,   acl_fetch_url,    acl_match_beg   },
-	{ "url_end",    acl_parse_str,   acl_fetch_url,    acl_match_end   },
-	{ "url_sub",    acl_parse_str,   acl_fetch_url,    acl_match_sub   },
-	{ "url_dir",    acl_parse_str,   acl_fetch_url,    acl_match_dir   },
-	{ "url_dom",    acl_parse_str,   acl_fetch_url,    acl_match_dom   },
-	{ "url_reg",    acl_parse_reg,   acl_fetch_url,    acl_match_reg   },
+	{ "url",        acl_parse_str,   acl_fetch_url,    acl_match_str  },
+	{ "url_beg",    acl_parse_str,   acl_fetch_url,    acl_match_beg  },
+	{ "url_end",    acl_parse_str,   acl_fetch_url,    acl_match_end  },
+	{ "url_sub",    acl_parse_str,   acl_fetch_url,    acl_match_sub  },
+	{ "url_dir",    acl_parse_str,   acl_fetch_url,    acl_match_dir  },
+	{ "url_dom",    acl_parse_str,   acl_fetch_url,    acl_match_dom  },
+	{ "url_reg",    acl_parse_reg,   acl_fetch_url,    acl_match_reg  },
 
 	{ NULL, NULL, NULL, NULL },
 

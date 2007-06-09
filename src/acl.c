@@ -10,6 +10,7 @@
  *
  */
 
+#include <ctype.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -188,24 +189,10 @@ int acl_match_dom(struct acl_test *test, struct acl_pattern *pattern)
 }
 
 /* Checks that the integer in <test> is included between min and max */
-int acl_match_range(struct acl_test *test, struct acl_pattern *pattern)
+int acl_match_int(struct acl_test *test, struct acl_pattern *pattern)
 {
-	if ((pattern->val.range.min <= test->i) &&
-	    (test->i <= pattern->val.range.max))
-		return 1;
-	return 0;
-}
-
-int acl_match_min(struct acl_test *test, struct acl_pattern *pattern)
-{
-	if (pattern->val.range.min <= test->i)
-		return 1;
-	return 0;
-}
-
-int acl_match_max(struct acl_test *test, struct acl_pattern *pattern)
-{
-	if (test->i <= pattern->val.range.max)
+	if ((!pattern->val.range.min_set || pattern->val.range.min <= test->i) &&
+	    (!pattern->val.range.max_set || test->i <= pattern->val.range.max))
 		return 1;
 	return 0;
 }
@@ -224,13 +211,12 @@ int acl_match_ip(struct acl_test *test, struct acl_pattern *pattern)
 }
 
 /* Parse a string. It is allocated and duplicated. */
-int acl_parse_str(const char *text, struct acl_pattern *pattern)
+int acl_parse_str(const char **text, struct acl_pattern *pattern, int *opaque)
 {
 	int len;
 
-	len  = strlen(text);
-
-	pattern->ptr.str = strdup(text);
+	len  = strlen(*text);
+	pattern->ptr.str = strdup(*text);
 	if (!pattern->ptr.str)
 		return 0;
 	pattern->len = len;
@@ -238,7 +224,7 @@ int acl_parse_str(const char *text, struct acl_pattern *pattern)
 }
 
 /* Parse a regex. It is allocated. */
-int acl_parse_reg(const char *text, struct acl_pattern *pattern)
+int acl_parse_reg(const char **text, struct acl_pattern *pattern, int *opaque)
 {
 	regex_t *preg;
 
@@ -247,7 +233,7 @@ int acl_parse_reg(const char *text, struct acl_pattern *pattern)
 	if (!preg)
 		return 0;
 
-	if (regcomp(preg, text, REG_EXTENDED | REG_NOSUB) != 0) {
+	if (regcomp(preg, *text, REG_EXTENDED | REG_NOSUB) != 0) {
 		free(preg);
 		return 0;
 	}
@@ -256,23 +242,40 @@ int acl_parse_reg(const char *text, struct acl_pattern *pattern)
 	return 1;
 }
 
-/* Parse an integer. It is put both in min and max. */
-int acl_parse_int(const char *text, struct acl_pattern *pattern)
-{
-	pattern->val.range.min = pattern->val.range.max = __str2ui(text);
-	return 1;
-}
-
-/* Parse a range of integers delimited by either ':' or '-'. If only one
- * integer is read, it is set as both min and max.
+/* Parse a range of positive integers delimited by either ':' or '-'. If only
+ * one integer is read, it is set as both min and max. An operator may be
+ * specified as the prefix, among this list of 5 :
+ *
+ *    0:eq, 1:gt, 2:ge, 3:lt, 4:le
+ *
+ * The default operator is "eq". It supports range matching. Ranges are
+ * rejected for other operators. The operator may be changed at any time.
+ * The operator is stored in the 'opaque' argument.
+ *
  */
-int acl_parse_range(const char *text, struct acl_pattern *pattern)
+int acl_parse_int(const char **text, struct acl_pattern *pattern, int *opaque)
 {
-	unsigned int i, j, last;
+	signed long long i;
+	unsigned int j, last, skip = 0;
+	const char *ptr = *text;
+
+
+	while (!isdigit(*ptr)) {
+		if      (strcmp(ptr, "eq") == 0) *opaque = 0;
+		else if (strcmp(ptr, "gt") == 0) *opaque = 1;
+		else if (strcmp(ptr, "ge") == 0) *opaque = 2;
+		else if (strcmp(ptr, "lt") == 0) *opaque = 3;
+		else if (strcmp(ptr, "le") == 0) *opaque = 4;
+		else
+			return 0;
+
+		skip++;
+		ptr = text[skip];
+	}
 
 	last = i = 0;
 	while (1) {
-                j = (*text++);
+                j = *ptr++;
 		if ((j == '-' || j == ':') && !last) {
 			last++;
 			pattern->val.range.min = i;
@@ -286,10 +289,34 @@ int acl_parse_range(const char *text, struct acl_pattern *pattern)
                 i *= 10;
                 i += j;
         }
+
+	if (last && *opaque >= 1 && *opaque <= 4)
+		/* having a range with a min or a max is absurd */
+		return 0;
+
 	if (!last)
 		pattern->val.range.min = i;
 	pattern->val.range.max = i;
-	return 1;
+
+	switch (*opaque) {
+	case 0: /* eq */
+		pattern->val.range.min_set = 1;
+		pattern->val.range.max_set = 1;
+		break;
+	case 1: /* gt */
+		pattern->val.range.min++; /* gt = ge + 1 */
+	case 2: /* ge */
+		pattern->val.range.min_set = 1;
+		pattern->val.range.max_set = 0;
+		break;
+	case 3: /* lt */
+		pattern->val.range.max--; /* lt = le - 1 */
+	case 4: /* le */
+		pattern->val.range.min_set = 0;
+		pattern->val.range.max_set = 1;
+		break;
+	}
+	return skip + 1;
 }
 
 /* Parse an IP address and an optional mask in the form addr[/mask].
@@ -297,9 +324,12 @@ int acl_parse_range(const char *text, struct acl_pattern *pattern)
  * may either be a dotted mask or a number of bits. Returns 1 if OK,
  * otherwise 0.
  */
-int acl_parse_ip(const char *text, struct acl_pattern *pattern)
+int acl_parse_ip(const char **text, struct acl_pattern *pattern, int *opaque)
 {
-	return str2net(text, &pattern->val.ipv4.addr, &pattern->val.ipv4.mask);
+	if (str2net(*text, &pattern->val.ipv4.addr, &pattern->val.ipv4.mask))
+		return 1;
+	else
+		return 0;
 }
 
 /*
@@ -390,6 +420,7 @@ struct acl_expr *parse_acl_expr(const char **args)
 	struct acl_expr *expr;
 	struct acl_keyword *aclkw;
 	struct acl_pattern *pattern;
+	int opaque;
 	const char *arg;
 
 	aclkw = find_acl_kw(args[0]);
@@ -423,14 +454,17 @@ struct acl_expr *parse_acl_expr(const char **args)
 
 	/* now parse all patterns */
 	args++;
+	opaque = 0;
 	while (**args) {
+		int ret;
 		pattern = (struct acl_pattern *)calloc(1, sizeof(*pattern));
 		if (!pattern)
 			goto out_free_expr;
-		if (!aclkw->parse(*args, pattern))
+		ret = aclkw->parse(args, pattern, &opaque);
+		if (!ret)
 			goto out_free_pattern;
 		LIST_ADDQ(&expr->patterns, &pattern->list);
-		args++;
+		args += ret;
 	}
 
 	return expr;

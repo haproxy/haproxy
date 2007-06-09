@@ -2652,20 +2652,20 @@ Il est également possible d'utiliser le mot réservé "OR" dans les conditions,
 et il est possible pour une ACL d'être spécifiée plusieurs fois, même avec des
 tests différents, auquel cas le premier test réussi validera l'ACL.
 
-Au stade de la version 1.3.10, seuls les tests suivants ont été implémentés :
+Au stade de la version 1.3.12, seuls les tests suivants ont été implémentés :
 
    Niveaux 3/4 :
      src       <ipv4_address>[/mask] ... : match IPv4 source address
      dst       <ipv4_address>[/mask] ... : match IPv4 destination address
-     src_port  <low>[:<high>] ...        : match source port range
-     dst_port  <low>[:<high>] ...        : match destination port range
-     dst_limit <max>        : true if frontend has less than <max> connections
+     src_port  <range> ...               : match source port range
+     dst_port  <range> ...               : match destination port range
+     dst_conn  <range> ...               : match #connections on frontend
 
    Niveau 7 :
      method    <HTTP method> ...  : match HTTP method
      req_ver   <1.0|1.1> ...      : match HTTP request version
      resp_ver  <1.0|1.1> ...      : match HTTP response version
-     status    <low>[:<high>] ... : match HTTP response status code in range
+     status    <range> ...        : match HTTP response status code in range
      url       <string> ... : exact string match on URI
      url_reg   <regex>  ... : regex string match on URI
      url_beg   <string> ... : true if URI begins with <string>
@@ -2673,6 +2673,27 @@ Au stade de la version 1.3.10, seuls les tests suivants ont été implémentés :
      url_sub   <string> ... : true if URI contains <string>
      url_dir   <string> ... : true if URI contains <string> between slashes
      url_dom   <string> ... : true if URI contains <string> between slashes or dots
+
+Une plage ('range') est constituée d'un ou deux entiers qui peuvent être
+préfixés d'un opérateur. La syntaxe est :
+
+  [<op>] <min>[:<max>]
+
+Avec <op> pouvant être :
+  'eq' : la valeur doit égaler <min> ou être comprise entre <min> et <max>
+  'le' : la valeur doit être inférieure ou égale à <min>
+  'lt' : la valeur doit être strictement inférieure à <min>
+  'ge' : la valeur doit être supérieure ou égale à <min>
+  'gt' : la valeur doit être strictement supérieure à <min>
+
+Lorsqu'aucun opérateur n'est défini, 'eq' est employé. Noter que lorsqu'un
+opérateur est spécifié, il s'applique à toutes les plages de valeurs suivantes
+jusqu'à la fin de la ligne ou bien jusqu'à ce qu'un nouvel opérateur soit
+précisé. Exemple :
+
+  acl status_error  status   400:599
+  acl saturated_frt dst_conn ge 1000
+  acl invalid_ports src_port lt 512 ge 65535
 
 D'autres tests arrivent (entêtes, cookies, heure, authentification), c'est
 juste une question de temps. Il est aussi prévu de permettre de lire les

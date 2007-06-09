@@ -2550,20 +2550,20 @@ It is possible to use the reserved keyword "OR" in conditions, and it is
 possible for an acl to be specified multiple times, even with various tests, in
 which case the first one which returns true validates the ACL.
 
-As of 1.3.10, only the following tests have been implemented :
+As of 1.3.12, only the following tests have been implemented :
 
    Layer 3/4 :
      src       <ipv4_address>[/mask] ... : match IPv4 source address
      dst       <ipv4_address>[/mask] ... : match IPv4 destination address
-     src_port  <low>[:<high>] ...        : match source port range
-     dst_port  <low>[:<high>] ...        : match destination port range
-     dst_limit <max>        : true if frontend has less than <max> connections
+     src_port  <range> ...               : match source port range
+     dst_port  <range> ...               : match destination port range
+     dst_conn  <range> ...               : match #connections on frontend
 
    Layer 7 :
      method    <HTTP method> ...  : match HTTP method
      req_ver   <1.0|1.1> ...      : match HTTP request version
      resp_ver  <1.0|1.1> ...      : match HTTP response version
-     status    <low>[:<high>] ... : match HTTP response status code in range
+     status    <range> ...        : match HTTP response status code in range
      url       <string> ... : exact string match on URI
      url_reg   <regex>  ... : regex string match on URI
      url_beg   <string> ... : true if URI begins with <string>
@@ -2571,6 +2571,26 @@ As of 1.3.10, only the following tests have been implemented :
      url_sub   <string> ... : true if URI contains <string>
      url_dir   <string> ... : true if URI contains <string> between slashes
      url_dom   <string> ... : true if URI contains <string> between slashes or dots
+
+A 'range' is one or two integers which may be prefixed by an operator.
+The syntax is :
+
+  [<op>] <low>[:<high>]
+
+Where <op> can be :
+  'eq' : the tested value must be equal to <low> or within <low>..<high>
+  'le' : the tested value must be lower than or equal to <low>
+  'lt' : the tested value must be lower than <low>
+  'ge' : the tested value must be greater than or equal to <low>
+  'gt' : the tested value must be greater than <low>
+
+When no operator is defined, 'eq' is assumed. Note that when the operator is
+specified, it applies to all subsequent ranges of values until the end of the
+line is reached or another operator is specified. Example :
+
+  acl status_error  status   400:599
+  acl saturated_frt dst_conn ge 1000
+  acl invalid_ports src_port lt 512 ge 65535
 
 Other ones are coming (headers, cookies, time, auth), it's just a matter of
 time. It is also planned to be able to read the patterns from a file, as well
