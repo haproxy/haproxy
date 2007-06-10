@@ -1681,7 +1681,7 @@ int process_cli(struct session *t)
 
 			/* first check whether we have some ACLs set to block this request */
 			list_for_each_entry(cond, &cur_proxy->block_cond, list) {
-				int ret = acl_exec_cond(cond, cur_proxy, t, txn);
+				int ret = acl_exec_cond(cond, cur_proxy, t, txn, ACL_DIR_REQ);
 				if (cond->pol == ACL_COND_UNLESS)
 					ret = !ret;
 
@@ -5164,7 +5164,8 @@ static int acl_parse_meth(const char **text, struct acl_pattern *pattern, int *o
 	return 1;
 }
 
-static int acl_fetch_meth(struct proxy *px, struct session *l4, void *l7, void *arg, struct acl_test *test)
+static int
+acl_fetch_meth(struct proxy *px, struct session *l4, void *l7, int dir, void *arg, struct acl_test *test)
 {
 	int meth;
 	struct http_txn *txn = l7;
@@ -5207,7 +5208,8 @@ static int acl_parse_ver(const char **text, struct acl_pattern *pattern, int *op
 	return 1;
 }
 
-static int acl_fetch_rqver(struct proxy *px, struct session *l4, void *l7, void *arg, struct acl_test *test)
+static int
+acl_fetch_rqver(struct proxy *px, struct session *l4, void *l7, int dir, void *arg, struct acl_test *test)
 {
 	struct http_txn *txn = l7;
 	char *ptr;
@@ -5227,7 +5229,8 @@ static int acl_fetch_rqver(struct proxy *px, struct session *l4, void *l7, void 
 	return 1;
 }
 
-static int acl_fetch_stver(struct proxy *px, struct session *l4, void *l7, void *arg, struct acl_test *test)
+static int
+acl_fetch_stver(struct proxy *px, struct session *l4, void *l7, int dir, void *arg, struct acl_test *test)
 {
 	struct http_txn *txn = l7;
 	char *ptr;
@@ -5248,7 +5251,8 @@ static int acl_fetch_stver(struct proxy *px, struct session *l4, void *l7, void 
 }
 
 /* 3. Check on Status Code. We manipulate integers here. */
-static int acl_fetch_stcode(struct proxy *px, struct session *l4, void *l7, void *arg, struct acl_test *test)
+static int
+acl_fetch_stcode(struct proxy *px, struct session *l4, void *l7, int dir, void *arg, struct acl_test *test)
 {
 	struct http_txn *txn = l7;
 	char *ptr;
@@ -5263,7 +5267,8 @@ static int acl_fetch_stcode(struct proxy *px, struct session *l4, void *l7, void
 }
 
 /* 4. Check on URL/URI. A pointer to the URI is stored. */
-static int acl_fetch_url(struct proxy *px, struct session *l4, void *l7, void *arg, struct acl_test *test)
+static int
+acl_fetch_url(struct proxy *px, struct session *l4, void *l7, int dir, void *arg, struct acl_test *test)
 {
 	struct http_txn *txn = l7;
 

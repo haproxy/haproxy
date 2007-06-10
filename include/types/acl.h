@@ -61,6 +61,12 @@ enum {
 	ACL_TEST_F_FETCH_MORE = 1 << 7, /* if test does not match, retry with next entry */
 };
 
+/* ACLs can be evaluated on requests and on responses. */
+enum {
+	ACL_DIR_REQ = 0,        /* ACL evaluated on request */
+	ACL_DIR_RTR,            /* ACL evaluated on response */
+};
+
 /* How to store a time range and the valid days in 29 bits */
 struct acl_time {
 	int dow:7;              /* 1 bit per day of week: 0-6 */
@@ -127,7 +133,7 @@ struct session;
 struct acl_keyword {
 	const char *kw;
 	int (*parse)(const char **text, struct acl_pattern *pattern, int *opaque);
-	int (*fetch)(struct proxy *px, struct session *l4, void *l7, void *arg, struct acl_test *test);
+	int (*fetch)(struct proxy *px, struct session *l4, void *l7, int dir, void *arg, struct acl_test *test);
 	int (*match)(struct acl_test *test, struct acl_pattern *pattern);
 	int use_cnt;
 };

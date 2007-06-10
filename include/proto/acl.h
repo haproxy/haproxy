@@ -68,7 +68,7 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int p
  * This function only computes the condition, it does not apply the polarity
  * required by IF/UNLESS, it's up to the caller to do this.
  */
-int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, void *l7);
+int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, void *l7, int dir);
 
 /* Return a pointer to the ACL <name> within the list starting at <head>, or
  * NULL if not found.

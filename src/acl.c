@@ -620,7 +620,7 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int p
  * This function only computes the condition, it does not apply the polarity
  * required by IF/UNLESS, it's up to the caller to do this.
  */
-int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, void *l7)
+int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, void *l7, int dir)
 {
 	__label__ fetch_next;
 	struct acl_term_suite *suite;
@@ -654,9 +654,10 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 			 */
 			acl_res = ACL_PAT_FAIL;
 			list_for_each_entry(expr, &acl->expr, list) {
-				test.flags = test.len = 0;
+				/* we need to reset context and flags */
+				memset(&test, 0, sizeof(test));
 			fetch_next:
-				if (!expr->kw->fetch(px, l4, l7, expr->arg.str, &test))
+				if (!expr->kw->fetch(px, l4, l7, dir, expr->arg.str, &test))
 					continue;
 
 				/* apply all tests to this value */
