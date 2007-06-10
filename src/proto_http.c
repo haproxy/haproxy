@@ -5457,6 +5457,64 @@ acl_fetch_hdr_val(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 0;
 }
 
+/* 8. Check on URI PATH. A pointer to the PATH is stored. The path starts at
+ * the first '/' after the possible hostname, and ends before the possible '?'.
+ */
+static int
+acl_fetch_path(struct proxy *px, struct session *l4, void *l7, int dir,
+               struct acl_expr *expr, struct acl_test *test)
+{
+	struct http_txn *txn = l7;
+	char *ptr, *end;
+
+	ptr = txn->req.sol + txn->req.sl.rq.u;
+	end = ptr + txn->req.sl.rq.u_l;
+
+	if (ptr >= end)
+		return 0;
+
+	/* RFC2616, par. 5.1.2 :
+	 * Request-URI = "*" | absuri | abspath | authority
+	 */
+
+	if (*ptr == '*')
+		return 0;
+
+	if (isalpha(*ptr)) {
+		/* this is a scheme as described by RFC3986, par. 3.1 */
+		ptr++;
+		while (ptr < end &&
+		       (isalnum(*ptr) || *ptr == '+' || *ptr == '-' || *ptr == '.'))
+			ptr++;
+		/* skip '://' */
+		if (ptr == end || *ptr++ != ':')
+			return 0;
+		if (ptr == end || *ptr++ != '/')
+			return 0;
+		if (ptr == end || *ptr++ != '/')
+			return 0;
+	}
+	/* skip [user[:passwd]@]host[:[port]] */
+
+	while (ptr < end && *ptr != '/')
+		ptr++;
+
+	if (ptr == end)
+		return 0;
+
+	/* OK, we got the '/' ! */
+	test->ptr = ptr;
+
+	while (ptr < end && *ptr != '?')
+		ptr++;
+
+	test->len = ptr - test->ptr;
+
+	/* we do not need to set READ_ONLY because the data is in a buffer */
+	test->flags = ACL_TEST_F_VOL_1ST;
+	return 1;
+}
+
 
 
 /************************************************************************/
@@ -5487,6 +5545,15 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "hdr_dom",    acl_parse_str,   acl_fetch_hdr,     acl_match_dom },
 	{ "hdr_cnt",    acl_parse_int,   acl_fetch_hdr_cnt, acl_match_int },
 	{ "hdr_val",    acl_parse_int,   acl_fetch_hdr_val, acl_match_int },
+
+	{ "path",       acl_parse_str,   acl_fetch_path,   acl_match_str  },
+	{ "path_reg",   acl_parse_reg,   acl_fetch_path,   acl_match_reg  },
+	{ "path_beg",   acl_parse_str,   acl_fetch_path,   acl_match_beg  },
+	{ "path_end",   acl_parse_str,   acl_fetch_path,   acl_match_end  },
+	{ "path_sub",   acl_parse_str,   acl_fetch_path,   acl_match_sub  },
+	{ "path_dir",   acl_parse_str,   acl_fetch_path,   acl_match_dir  },
+	{ "path_dom",   acl_parse_str,   acl_fetch_path,   acl_match_dom  },
+
 	{ NULL, NULL, NULL, NULL },
 
 #if 0
@@ -5497,14 +5564,6 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "line_sub",   acl_parse_str,   acl_fetch_line,   acl_match_sub   },
 	{ "line_dir",   acl_parse_str,   acl_fetch_line,   acl_match_dir   },
 	{ "line_dom",   acl_parse_str,   acl_fetch_line,   acl_match_dom   },
-
-	{ "path",       acl_parse_str,   acl_fetch_path,   acl_match_str   },
-	{ "path_reg",   acl_parse_reg,   acl_fetch_path,   acl_match_reg   },
-	{ "path_beg",   acl_parse_str,   acl_fetch_path,   acl_match_beg   },
-	{ "path_end",   acl_parse_str,   acl_fetch_path,   acl_match_end   },
-	{ "path_sub",   acl_parse_str,   acl_fetch_path,   acl_match_sub   },
-	{ "path_dir",   acl_parse_str,   acl_fetch_path,   acl_match_dir   },
-	{ "path_dom",   acl_parse_str,   acl_fetch_path,   acl_match_dom   },
 
 	{ "cook",       acl_parse_str,   acl_fetch_cook,   acl_match_str   },
 	{ "cook_reg",   acl_parse_reg,   acl_fetch_cook,   acl_match_reg   },
