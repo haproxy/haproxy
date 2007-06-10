@@ -164,6 +164,7 @@ struct acl_expr {
 	union {                     /* optional argument of the subject (eg: header or cookie name) */
 		char *str;
 	} arg;
+	int arg_len;                /* optional argument length */
 	struct list patterns;       /* list of acl_patterns */
 };
 

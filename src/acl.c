@@ -435,6 +435,7 @@ struct acl_expr *parse_acl_expr(const char **args)
 	aclkw->use_cnt++;
 	LIST_INIT(&expr->patterns);
 	expr->arg.str = NULL;
+	expr->arg_len = 0;
 
 	arg = strchr(args[0], '(');
 	if (arg != NULL) {
@@ -449,6 +450,7 @@ struct acl_expr *parse_acl_expr(const char **args)
 			goto out_free_expr;
 		memcpy(arg2, arg, end - arg);
 		arg2[end-arg] = '\0';
+		expr->arg_len = end - arg;
 		expr->arg.str = arg2;
 	}
 
