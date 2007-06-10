@@ -659,7 +659,7 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 				/* we need to reset context and flags */
 				memset(&test, 0, sizeof(test));
 			fetch_next:
-				if (!expr->kw->fetch(px, l4, l7, dir, expr->arg.str, &test))
+				if (!expr->kw->fetch(px, l4, l7, dir, expr, &test))
 					continue;
 
 				/* apply all tests to this value */

@@ -130,10 +130,12 @@ struct session;
  * successive calls.
  */
 
+struct acl_expr;
 struct acl_keyword {
 	const char *kw;
 	int (*parse)(const char **text, struct acl_pattern *pattern, int *opaque);
-	int (*fetch)(struct proxy *px, struct session *l4, void *l7, int dir, void *arg, struct acl_test *test);
+	int (*fetch)(struct proxy *px, struct session *l4, void *l7, int dir,
+	             struct acl_expr *expr, struct acl_test *test);
 	int (*match)(struct acl_test *test, struct acl_pattern *pattern);
 	int use_cnt;
 };

@@ -454,7 +454,8 @@ int event_accept(int fd) {
 
 /* set test->ptr to point to the source IPv4/IPv6 address and test->i to the family */
 static int
-acl_fetch_src(struct proxy *px, struct session *l4, void *l7, int dir, void *arg, struct acl_test *test)
+acl_fetch_src(struct proxy *px, struct session *l4, void *l7, int dir,
+              struct acl_expr *expr, struct acl_test *test)
 {
 	test->i = l4->cli_addr.ss_family;
 	if (test->i == AF_INET)
@@ -468,7 +469,8 @@ acl_fetch_src(struct proxy *px, struct session *l4, void *l7, int dir, void *arg
 
 /* set test->i to the connexion's source port */
 static int
-acl_fetch_sport(struct proxy *px, struct session *l4, void *l7, int dir, void *arg, struct acl_test *test)
+acl_fetch_sport(struct proxy *px, struct session *l4, void *l7, int dir,
+                struct acl_expr *expr, struct acl_test *test)
 {
 	if (l4->cli_addr.ss_family == AF_INET)
 		test->i = ntohs(((struct sockaddr_in *)&l4->cli_addr)->sin_port);
@@ -481,7 +483,8 @@ acl_fetch_sport(struct proxy *px, struct session *l4, void *l7, int dir, void *a
 
 /* set test->ptr to point to the frontend's IPv4/IPv6 address and test->i to the family */
 static int
-acl_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir, void *arg, struct acl_test *test)
+acl_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir,
+              struct acl_expr *expr, struct acl_test *test)
 {
 	if (!(l4->flags & SN_FRT_ADDR_SET))
 		get_frt_addr(l4);
@@ -498,7 +501,8 @@ acl_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir, void *arg
 
 /* set test->i to the frontend connexion's destination port */
 static int
-acl_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir, void *arg, struct acl_test *test)
+acl_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
+                struct acl_expr *expr, struct acl_test *test)
 {
 	if (!(l4->flags & SN_FRT_ADDR_SET))
 		get_frt_addr(l4);
@@ -513,7 +517,8 @@ acl_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir, void *a
 
 /* set test->i to the number of connexions to the proxy */
 static int
-acl_fetch_dconn(struct proxy *px, struct session *l4, void *l7, int dir, void *arg, struct acl_test *test)
+acl_fetch_dconn(struct proxy *px, struct session *l4, void *l7, int dir,
+                struct acl_expr *expr, struct acl_test *test)
 {
 	test->i = px->feconn;
 	return 1;
