@@ -102,13 +102,16 @@ struct acl_pattern {
  * retrieving a value, and an acl_match_* function responsible for testing it.
  */
 struct acl_test {
-	int i;          /* integer value */
-	char *ptr;      /* pointer to beginning of value */
-	int len;        /* length of value at ptr, otherwise ignored */
-	int flags;      /* ACL_TEST_F_* set to 0 on first call */
-	union {         /* fetch_* functions context for any purpose */
-		void *p;
-		int i;
+	int i;                  /* integer value */
+	char *ptr;              /* pointer to beginning of value */
+	int len;                /* length of value at ptr, otherwise ignored */
+	int flags;              /* ACL_TEST_F_* set to 0 on first call */
+	union {                 /* fetch_* functions context for any purpose */
+		void *p;        /* any pointer */
+		int i;          /* any integer */
+		long long ll;   /* any long long or smaller */
+		double d;       /* any float or double */
+		void *a[8];     /* any array of up to 8 pointers */
 	} ctx;
 };
 

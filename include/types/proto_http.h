@@ -243,6 +243,15 @@ struct http_txn {
 	unsigned int flags;             /* transaction flags */
 };
 
+/* This structure is used by http_find_header() to return values of headers.
+ * The header starts at <line>, the value at <line>+<val> for <vlen> bytes.
+ */
+struct hdr_ctx {
+	const char *line;
+	int  idx;
+	int  val;  /* relative to line */
+	int  vlen; /* relative to line+val */
+};
 
 #endif /* _TYPES_PROTO_HTTP_H */
 

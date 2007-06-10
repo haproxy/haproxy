@@ -433,6 +433,98 @@ int http_header_match2(const char *hdr, const char *end,
 	return val - hdr;
 }
 
+/* Find the end of the header value contained between <s> and <e>.
+ * See RFC2616, par 2.2 for more information. Note that it requires
+ * a valid header to return a valid result.
+ */
+const char *find_hdr_value_end(const char *s, const char *e)
+{
+	int quoted, qdpair;
+
+	quoted = qdpair = 0;
+	for (; s < e; s++) {
+		if (qdpair)                    qdpair = 0;
+		else if (quoted && *s == '\\') qdpair = 1;
+		else if (quoted && *s == '"')  quoted = 0;
+		else if (*s == '"')            quoted = 1;
+		else if (*s == ',')            return s;
+	}
+	return s;
+}
+
+/* Find the first or next occurrence of header <name> in message buffer <sol>
+ * using headers index <idx>, and return it in the <ctx> structure. This
+ * structure holds everything necessary to use the header and find next
+ * occurrence. If its <idx> member is 0, the header is searched from the
+ * beginning. Otherwise, the next occurrence is returned. The function returns
+ * 1 when it finds a value, and 0 when there is no more.
+ */
+int http_find_header2(const char *name, int len,
+		      const char *sol, struct hdr_idx *idx,
+		      struct hdr_ctx *ctx)
+{
+	__label__ return_hdr, next_hdr;
+	const char *eol, *sov;
+	int cur_idx;
+
+	if (ctx->idx) {
+		/* We have previously returned a value, let's search
+		 * another one on the same line.
+		 */
+		cur_idx = ctx->idx;
+		sol = ctx->line;
+		sov = sol + ctx->val + ctx->vlen;
+		eol = sol + idx->v[cur_idx].len;
+
+		if (sov >= eol)
+			/* no more values in this header */
+			goto next_hdr;
+
+		/* values remaining for this header, skip the comma */
+		sov++;
+		while (sov < eol && http_is_lws[(unsigned char)*sov])
+			sov++;
+
+		goto return_hdr;
+	}
+
+	/* first request for this header */
+	sol += hdr_idx_first_pos(idx);
+	cur_idx = hdr_idx_first_idx(idx);
+
+	while (cur_idx) {
+		eol = sol + idx->v[cur_idx].len;
+
+		if ((len < eol - sol) &&
+		    (sol[len] == ':') &&
+		    (strncasecmp(sol, name, len) == 0)) {
+
+			sov = sol + len + 1;
+			while (sov < eol && http_is_lws[(unsigned char)*sov])
+				sov++;
+		return_hdr:
+			ctx->line = sol;
+			ctx->idx  = cur_idx;
+			ctx->val  = sov - sol;
+
+			eol = find_hdr_value_end(sov, eol);
+			ctx->vlen = eol - sov;
+			return 1;
+		}
+	next_hdr:
+		sol = eol + idx->v[cur_idx].cr + 1;
+		cur_idx = idx->v[cur_idx].next;
+	}
+	return 0;
+}
+
+int http_find_header(const char *name,
+		     const char *sol, struct hdr_idx *idx,
+		     struct hdr_ctx *ctx)
+{
+	return http_find_header2(name, strlen(name), sol, idx, ctx);
+}
+
 /*
  * returns a message to the client ; the connection is shut down for read,
  * and the request is cleared so that no server connection can be initiated.
@@ -5285,6 +5377,86 @@ acl_fetch_url(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 1;
 }
 
+/* 5. Check on HTTP header. A pointer to the beginning of the value is returned. */
+static int
+acl_fetch_hdr(struct proxy *px, struct session *l4, void *l7, int dir,
+              struct acl_expr *expr, struct acl_test *test)
+{
+	struct http_txn *txn = l7;
+	struct hdr_idx *idx = &txn->hdr_idx;
+	struct hdr_ctx *ctx = (struct hdr_ctx *)test->ctx.a;
+	char *sol;
+
+	if (!(test->flags & ACL_TEST_F_FETCH_MORE))
+		/* search for header from the beginning */
+		ctx->idx = 0;
+
+	sol = (dir == ACL_DIR_REQ) ? txn->req.sol : txn->rsp.sol;
+	if (http_find_header2(expr->arg.str, expr->arg_len, sol, idx, ctx)) {
+		test->flags |= ACL_TEST_F_FETCH_MORE;
+		test->flags |= ACL_TEST_F_VOL_HDR;
+		test->len = ctx->vlen;
+		test->ptr = (char *)ctx->line + ctx->val;
+		return 1;
+	}
+
+	test->flags &= ~ACL_TEST_F_FETCH_MORE;
+	test->flags |= ACL_TEST_F_VOL_HDR;
+	return 0;
+}
+
+/* 6. Check on HTTP header count. The number of occurrences is returned. */
+static int
+acl_fetch_hdr_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+                  struct acl_expr *expr, struct acl_test *test)
+{
+	struct http_txn *txn = l7;
+	struct hdr_idx *idx = &txn->hdr_idx;
+	struct hdr_ctx ctx;
+	char *sol;
+	int cnt;
+
+	sol = (dir == ACL_DIR_REQ) ? txn->req.sol : txn->rsp.sol;
+
+	ctx.idx = 0;
+	cnt = 0;
+	while (http_find_header2(expr->arg.str, expr->arg_len, sol, idx, &ctx))
+		cnt++;
+
+	test->i = cnt;
+	test->flags = ACL_TEST_F_VOL_HDR;
+	return 1;
+}
+
+/* 7. Check on HTTP header's integer value. The integer value is returned.
+ * FIXME: the type is 'int', it may not be appropriate for everything.
+ */
+static int
+acl_fetch_hdr_val(struct proxy *px, struct session *l4, void *l7, int dir,
+                  struct acl_expr *expr, struct acl_test *test)
+{
+	struct http_txn *txn = l7;
+	struct hdr_idx *idx = &txn->hdr_idx;
+	struct hdr_ctx *ctx = (struct hdr_ctx *)test->ctx.a;
+	char *sol;
+
+	if (!(test->flags & ACL_TEST_F_FETCH_MORE))
+		/* search for header from the beginning */
+		ctx->idx = 0;
+
+	sol = (dir == ACL_DIR_REQ) ? txn->req.sol : txn->rsp.sol;
+	if (http_find_header2(expr->arg.str, expr->arg_len, sol, idx, ctx)) {
+		test->flags |= ACL_TEST_F_FETCH_MORE;
+		test->flags |= ACL_TEST_F_VOL_HDR;
+		test->i = strl2ic((char *)ctx->line + ctx->val, ctx->vlen);
+		return 1;
+	}
+
+	test->flags &= ~ACL_TEST_F_FETCH_MORE;
+	test->flags |= ACL_TEST_F_VOL_HDR;
+	return 0;
+}
+
 
 
 /************************************************************************/
@@ -5306,6 +5478,15 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "url_dom",    acl_parse_str,   acl_fetch_url,    acl_match_dom  },
 	{ "url_reg",    acl_parse_reg,   acl_fetch_url,    acl_match_reg  },
 
+	{ "hdr",        acl_parse_str,   acl_fetch_hdr,     acl_match_str },
+	{ "hdr_reg",    acl_parse_reg,   acl_fetch_hdr,     acl_match_reg },
+	{ "hdr_beg",    acl_parse_str,   acl_fetch_hdr,     acl_match_beg },
+	{ "hdr_end",    acl_parse_str,   acl_fetch_hdr,     acl_match_end },
+	{ "hdr_sub",    acl_parse_str,   acl_fetch_hdr,     acl_match_sub },
+	{ "hdr_dir",    acl_parse_str,   acl_fetch_hdr,     acl_match_dir },
+	{ "hdr_dom",    acl_parse_str,   acl_fetch_hdr,     acl_match_dom },
+	{ "hdr_cnt",    acl_parse_int,   acl_fetch_hdr_cnt, acl_match_int },
+	{ "hdr_val",    acl_parse_int,   acl_fetch_hdr_val, acl_match_int },
 	{ NULL, NULL, NULL, NULL },
 
 #if 0
@@ -5324,15 +5505,6 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "path_sub",   acl_parse_str,   acl_fetch_path,   acl_match_sub   },
 	{ "path_dir",   acl_parse_str,   acl_fetch_path,   acl_match_dir   },
 	{ "path_dom",   acl_parse_str,   acl_fetch_path,   acl_match_dom   },
-
-	{ "hdr",        acl_parse_str,   acl_fetch_hdr,    acl_match_str   },
-	{ "hdr_reg",    acl_parse_reg,   acl_fetch_hdr,    acl_match_reg   },
-	{ "hdr_beg",    acl_parse_str,   acl_fetch_hdr,    acl_match_beg   },
-	{ "hdr_end",    acl_parse_str,   acl_fetch_hdr,    acl_match_end   },
-	{ "hdr_sub",    acl_parse_str,   acl_fetch_hdr,    acl_match_sub   },
-	{ "hdr_dir",    acl_parse_str,   acl_fetch_hdr,    acl_match_dir   },
-	{ "hdr_dom",    acl_parse_str,   acl_fetch_hdr,    acl_match_dom   },
-	{ "hdr_pst",    acl_parse_none,  acl_fetch_hdr,    acl_match_pst   },
 
 	{ "cook",       acl_parse_str,   acl_fetch_cook,   acl_match_str   },
 	{ "cook_reg",   acl_parse_reg,   acl_fetch_cook,   acl_match_reg   },
