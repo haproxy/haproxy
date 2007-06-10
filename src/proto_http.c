@@ -495,6 +495,14 @@ int http_find_header2(const char *name, int len,
 	while (cur_idx) {
 		eol = sol + idx->v[cur_idx].len;
 
+		if (len == 0) {
+			/* No argument was passed, we want any header.
+			 * To achieve this, we simply build a fake request. */
+			while (sol + len < eol && sol[len] != ':')
+				len++;
+			name = sol;
+		}
+
 		if ((len < eol - sol) &&
 		    (sol[len] == ':') &&
 		    (strncasecmp(sol, name, len) == 0)) {
