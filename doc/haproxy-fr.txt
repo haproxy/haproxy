@@ -2395,7 +2395,13 @@ Certaines situations conduisent à retourner une erreur HTTP au client :
 
 Un message d'erreur succint tiré de la RFC accompagne ces codes de retour.
 Cependant, en fonction du type de clientèle, on peut préférer retourner des
-pages personnalisées. Ceci est possible par le biais de la commande "errorloc":
+pages personnalisées. Ceci est possible de deux manières, l'une reposant sur
+une redirection vers un serveur connu, et l'autre consistant à retourner un
+fichier local.
+
+4.6.1) Redirection
+------------------
+Une redirection d'erreur est assurée par le biais de la commande "errorloc" :
 
     errorloc <code_HTTP> <location>
 
@@ -2430,6 +2436,38 @@ visant à remplacer 'errorloc' : 'errorloc302' et 'errorloc303'.
 Leur usage non ambigü est recommandé à la place de la commande 'errorloc' (qui
 utilise toujours 302). Dans le doute, préférez l'utilisation de 'errorloc303'
 dès que vous savez que vos clients supportent le code de retour HTTP 303.
+
+4.6.2) Fichiers locaux
+----------------------
+Parfois il est souhaitable de changer l'erreur retournée sans recourir à des
+redirections. La seconde méthode consiste à charger des fichiers locaux lors
+du démarrage et à les envoyer en guise de pur contenu HTTP en cas d'erreur.
+C'est ce que fait le mot clé 'errorfile'.
+
+Attention, il y a des pièges à prendre en compte :
+ - les fichiers sont chargés durant l'analyse de la configuration, avant de
+   faire le chroot(). Donc ils sont relatifs au système de fichiers réel. Pour
+   cette raison, il est recommandé de toujours passer un chemin absolu vers ces
+   fichiers.
+
+ - le contenu de ces fichiers n'est pas du HTML mais vraiment du protocole HTTP
+   avec potentiellement un corps HTML. Donc la première ligne et les en-têtes
+   sont obligatoires. Idéalement, chaque ligne dans la partie HTTP devrait se
+   terminer par un CR-LF pour un maximum de compatibilité.
+
+ - les réponses sont limitées à une taille de buffer (BUFSIZE), généralement 8
+   ou 16 ko.
+
+ - les réponses ne devraient pas inclure de références aux serveurs locaux,
+   afin de ne pas risquer de créer des boucles infinies sur le navigateur dans
+   le cas d'une panne locale.
+
+Exemple :
+---------
+        errorfile 400 /etc/haproxy/errorfiles/400badreq.http
+        errorfile 403 /etc/haproxy/errorfiles/403forbid.http
+        errorfile 503 /etc/haproxy/errorfiles/503sorry.http
+
 
 4.7) Changement des valeurs par défaut
 --------------------------------------

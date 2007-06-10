@@ -2311,8 +2311,13 @@ Some situations can make haproxy return an HTTP error code to the client :
 
 A succint error message taken from the RFC accompanies these return codes.
 But depending on the clients knowledge, it may be better to return custom, user
-friendly, error pages. This is made possible through the use of the 'errorloc'
-command :
+friendly, error pages. This is made possible in two ways, one involving a
+redirection to a known server, and another one consisting in returning a local
+file.
+
+4.6.1) Relocation
+-----------------
+An error relocation is achieved using the 'errorloc' command :
 
     errorloc <HTTP_code> <location>
 
@@ -2343,6 +2348,33 @@ bring two new keywords to replace 'errorloc' : 'errorloc302' and 'errorloc303'.
 
 They are preffered over errorloc (which still does 302). Consider using
 errorloc303 everytime you know that your clients support HTTP 303 responses..
+
+4.6.2) Local files
+------------------
+Sometimes, it is desirable to change the returned error without resorting to
+redirections. The second method consists in loading local files during startup
+and send them as pure HTTP content upon error. This is what the 'errorfile'
+keyword does.
+
+Warning, there are traps to consider :
+ - The files are loaded while parsing configuration, before doing a chroot().
+   Thus, they are relative to the real filesystem. For this reason, it is
+   recommended to pass an absolute path to those files.
+
+ - The contents of those files is not HTML, but real HTTP protocol with
+   possible HTML body. So the first line and headers are mandatory. Ideally,
+   every line in the HTTP part should end with CR-LF for maximum compatibility.
+
+ - The response is limited to the buffer size (BUSIZE), generally 8 or 16 kB.
+
+ - The response should not include references to the local server, in order to
+   avoid infinite loops on the browser in case of local failure.
+
+Example :
+---------
+        errorfile 400 /etc/haproxy/errorfiles/400badreq.http
+        errorfile 403 /etc/haproxy/errorfiles/403forbid.http
+        errorfile 503 /etc/haproxy/errorfiles/503sorry.http
 
 
 4.7) Modifying default values

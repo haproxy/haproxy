@@ -1,0 +1,9 @@
+HTTP/1.0 500 Server Error
+Cache-Control: no-cache
+Connection: close
+Content-Type: text/html
+
+<html><body><h1>500 Server Error</h1>
+An internal server error occured.
+</body></html>
+

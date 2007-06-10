@@ -18,6 +18,10 @@
 #include <pwd.h>
 #include <grp.h>
 #include <errno.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 #include <common/cfgparse.h>
 #include <common/config.h>
@@ -2093,11 +2097,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		int errnum, errlen;
 		char *err;
 
-		// if (curproxy == &defproxy) {
-		//     Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-		//     return -1;
-		// }
-
 		if (warnifnotcap(curproxy, PR_CAP_FE | PR_CAP_BE, file, linenum, args[0], NULL))
 			return 0;
 
@@ -2127,6 +2126,64 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 
 		if (rc >= HTTP_ERR_SIZE) {
 			Warning("parsing [%s:%d] : status code %d not handled, error relocation will be ignored.\n",
+				file, linenum, errnum);
+			free(err);
+		}
+	}
+	else if (!strcmp(args[0], "errorfile")) { /* error message from a file */
+		int errnum, errlen, fd;
+		char *err;
+		struct stat stat;
+
+		if (warnifnotcap(curproxy, PR_CAP_FE | PR_CAP_BE, file, linenum, args[0], NULL))
+			return 0;
+
+		if (*(args[2]) == 0) {
+			Alert("parsing [%s:%d] : <%s> expects <status_code> and <file> as arguments.\n", file, linenum);
+			return -1;
+		}
+
+		fd = open(args[2], O_RDONLY);
+		if ((fd < 0) || (fstat(fd, &stat) < 0)) {
+			Alert("parsing [%s:%d] : error opening file <%s> for custom error message <%s>.\n",
+			      file, linenum, args[2], args[1]);
+			if (fd >= 0)
+				close(fd);
+			return -1;
+		}
+
+		if (stat.st_size <= BUFSIZE) {
+			errlen = stat.st_size;
+		} else {
+			Warning("parsing [%s:%d] : custom error message file <%s> larger than %d bytes. Truncating.\n",
+				file, linenum, args[2], BUFSIZE);
+			errlen = BUFSIZE;
+		}
+
+		err = malloc(errlen); /* malloc() must succeed during parsing */
+		errnum = read(fd, err, errlen);
+		if (errnum != errlen) {
+			Alert("parsing [%s:%d] : error reading file <%s> for custom error message <%s>.\n",
+			      file, linenum, args[2], args[1]);
+			close(fd);
+			free(err);
+			return -1;
+		}
+		close(fd);
+
+		errnum = atol(args[1]);
+		for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
+			if (http_err_codes[rc] == errnum) {
+				if (curproxy->errmsg[rc].str)
+					free(curproxy->errmsg[rc].str);
+				curproxy->errmsg[rc].str = err;
+				curproxy->errmsg[rc].len = errlen;
+				break;
+			}
+		}
+
+		if (rc >= HTTP_ERR_SIZE) {
+			Warning("parsing [%s:%d] : status code %d not handled, error customization will be ignored.\n",
 				file, linenum, errnum);
 			free(err);
 		}

@@ -1,0 +1,9 @@
+These files are default error files that can be customized
+if necessary. They are complete HTTP responses, so that
+everything is possible, including using redirects or setting
+special headers.
+
+They can be used with the 'errorfile' keyword like this :
+
+    errorfile 503 /etc/haproxy/errors/503.http
+
