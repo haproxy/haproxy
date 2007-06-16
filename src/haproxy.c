@@ -78,6 +78,7 @@
 #include <types/polling.h>
 #include <types/proto_http.h>
 
+#include <proto/acl.h>
 #include <proto/backend.h>
 #include <proto/buffers.h>
 #include <proto/client.h>
@@ -591,6 +592,9 @@ void deinit(void)
 	struct cap_hdr *h,*h_next;
 	struct server *s,*s_next;
 	struct listener *l,*l_next;
+	struct acl_cond *cond, *condb;
+	struct hdr_exp *exp, *expb;
+	int i;
   
 	while (p) {
 		if (p->id)
@@ -605,16 +609,55 @@ void deinit(void)
 		if (p->capture_name)
 			free(p->capture_name);
 
-		/* only strup if the user have set in config.
-		   When should we free it?!
-		   if (p->errmsg.msg400) free(p->errmsg.msg400);
-		   if (p->errmsg.msg403) free(p->errmsg.msg403);
-		   if (p->errmsg.msg408) free(p->errmsg.msg408);
-		   if (p->errmsg.msg500) free(p->errmsg.msg500);
-		   if (p->errmsg.msg502) free(p->errmsg.msg502);
-		   if (p->errmsg.msg503) free(p->errmsg.msg503);
-		   if (p->errmsg.msg504) free(p->errmsg.msg504);
-		*/
+		if (p->monitor_uri)
+			free(p->monitor_uri);
+
+		for (i = 0; i < HTTP_ERR_SIZE; i++) {
+			if (p->errmsg[i].len)
+				free(p->errmsg[i].str);
+		}
+
+		for (i = 0; i < p->nb_reqadd; i++) {
+			if (p->req_add[i])
+				free(p->req_add[i]);
+		}
+
+		for (i = 0; i < p->nb_rspadd; i++) {
+			if (p->rsp_add[i])
+				free(p->rsp_add[i]);
+		}
+
+		list_for_each_entry_safe(cond, condb, &p->block_cond, list) {
+			LIST_DEL(&cond->list);
+			prune_acl_cond(cond);
+			free(cond);
+		}
+
+		for (exp = p->req_exp; exp != NULL; ) {
+			if (exp->preg)
+				regfree((regex_t *)exp->preg);
+			if (exp->replace && exp->action != ACT_SETBE)
+				free((char *)exp->replace);
+			expb = exp;
+			exp = exp->next;
+			free(expb);
+		}
+
+		for (exp = p->rsp_exp; exp != NULL; ) {
+			if (exp->preg)
+				regfree((regex_t *)exp->preg);
+			if (exp->replace && exp->action != ACT_SETBE)
+				free((char *)exp->replace);
+			expb = exp;
+			exp = exp->next;
+			free(expb);
+		}
+
+		/* FIXME: this must also be freed :
+		 *  - ACLs
+		 *  - uri_auth (but it's shared)
+		 */
+
 		if (p->appsession_name)
 			free(p->appsession_name);
 
@@ -667,9 +710,13 @@ void deinit(void)
 	}/* end while(p) */
     
 	if (global.chroot)    free(global.chroot);
+	global.chroot = NULL;
+
 	if (global.pidfile)   free(global.pidfile);
+	global.pidfile = NULL;
     
 	if (fdtab)            free(fdtab);
+	fdtab = NULL;
     
 	pool_destroy2(pool2_session);
 	pool_destroy2(pool2_buffer);
