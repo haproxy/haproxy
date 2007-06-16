@@ -142,15 +142,23 @@ void pool_gc2()
 }
 
 /*
- * This function destroys a pull by freeing it completely.
- * This should be called only under extreme circumstances.
- * It always returns NULL, easing the clearing of the old pointer.
+ * This function destroys a pool by freeing it completely, unless it's still
+ * in use. This should be called only under extreme circumstances. It always
+ * returns NULL if the resulting pool is empty, easing the clearing of the old
+ * pointer, otherwise it returns the pool.
+ * .
  */
 void *pool_destroy2(struct pool_head *pool)
 {
 	if (pool) {
 		pool_flush2(pool);
-		FREE(pool);
+		if (pool->used)
+			return pool;
+		pool->users--;
+		if (!pool->users) {
+			LIST_DEL(&pool->list);
+			FREE(pool);
+		}
 	}
 	return NULL;
 }
