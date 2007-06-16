@@ -546,8 +546,7 @@ struct acl_cond *prune_acl_cond(struct acl_cond *cond)
 struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int pol)
 {
 	__label__ out_return, out_free_suite, out_free_term;
-	int arg;
-	int neg = 0;
+	int arg, neg;
 	const char *word;
 	struct acl *cur_acl;
 	struct acl_term *cur_term;
@@ -563,6 +562,7 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int p
 	cond->pol = pol;
 
 	cur_suite = NULL;
+	neg = 0;
 	for (arg = 0; *args[arg]; arg++) {
 		word = args[arg];
 
@@ -605,6 +605,7 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int p
 			LIST_ADDQ(&cond->suites, &cur_suite->list);
 		}
 		LIST_ADDQ(&cur_suite->terms, &cur_term->list);
+		neg = 0;
 	}
 
 	return cond;
@@ -677,7 +678,7 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 					}
 				}
 				/*
-				 * OK now we have the result of this expression in expr_res.
+				 * OK now we have the result of this expression in acl_res.
 				 *  - we have the PASS bit set if at least one pattern matched ;
 				 *  - we have the MISS bit set if at least one pattern may match
 				 *    later so that we should not cache a failure ;
