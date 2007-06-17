@@ -584,6 +584,76 @@ struct acl *parse_acl(const char **args, struct list *known_acl)
 	return NULL;
 }
 
+/* Some useful ACLs provided by default. Only those used are allocated. */
+
+const struct {
+	const char *name;
+	const char *expr[4]; /* put enough for longest expression */
+} default_acl_list[] = {
+	{ .name = "LOCALHOST",      .expr = {"src","127.0.0.1/8",""}},
+	{ .name = "HTTP_1.0",       .expr = {"req_ver","1.0",""}},
+	{ .name = "HTTP_1.1",       .expr = {"req_ver","1.1",""}},
+	{ .name = "METH_CONNECT",   .expr = {"method","CONNECT",""}},
+	{ .name = "METH_GET",       .expr = {"method","GET","HEAD",""}},
+	{ .name = "METH_HEAD",      .expr = {"method","HEAD",""}},
+	{ .name = "METH_OPTIONS",   .expr = {"method","OPTIONS",""}},
+	{ .name = "METH_POST",      .expr = {"method","POST",""}},
+	{ .name = "METH_TRACE",     .expr = {"method","TRACE",""}},
+	{ .name = "HTTP_URL_ABS",   .expr = {"url_reg","^[^/:]*://",""}},
+	{ .name = "HTTP_URL_SLASH", .expr = {"url_beg","/",""}},
+	{ .name = "HTTP_URL_STAR",  .expr = {"url","*",""}},
+	{ .name = "HTTP_CONTENT",   .expr = {"hdr_val(content-length)","gt","0",""}},
+	{ .name = NULL, .expr = {""}}
+};
+
+/* Find a default ACL from the default_acl list, compile it and return it.
+ * If the ACL is not found, NULL is returned. In theory, it cannot fail,
+ * except when default ACLs are broken, in which case it will return NULL.
+ * If <known_acl> is not NULL, the ACL will be queued at its tail.
+ */
+struct acl *find_acl_default(const char *acl_name, struct list *known_acl)
+{
+	__label__ out_return, out_free_acl_expr, out_free_name;
+	struct acl *cur_acl;
+	struct acl_expr *acl_expr;
+	char *name;
+	int index;
+
+	for (index = 0; default_acl_list[index].name != NULL; index++) {
+		if (strcmp(acl_name, default_acl_list[index].name) == 0)
+			break;
+	}
+
+	if (default_acl_list[index].name == NULL)
+		return NULL;
+
+	acl_expr = parse_acl_expr((const char **)default_acl_list[index].expr);
+	if (!acl_expr)
+		goto out_return;
+
+	name = strdup(acl_name);
+	if (!name)
+		goto out_free_acl_expr;
+	cur_acl = (struct acl *)calloc(1, sizeof(*cur_acl));
+	if (cur_acl == NULL)
+		goto out_free_name;
+
+	cur_acl->name = name;
+	LIST_INIT(&cur_acl->expr);
+	LIST_ADDQ(&cur_acl->expr, &acl_expr->list);
+	if (known_acl)
+		LIST_ADDQ(known_acl, &cur_acl->list);
+
+	return cur_acl;
+
+ out_free_name:
+	free(name);
+ out_free_acl_expr:
+	prune_acl_expr(acl_expr);
+	free(acl_expr);
+ out_return:
+	return NULL;
+}
 
 /* Purge everything in the acl_cond <cond>, then return <cond>. */
 struct acl_cond *prune_acl_cond(struct acl_cond *cond)
@@ -639,17 +709,24 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int p
 		if (!*word)
 			continue;
 
-		if (strcasecmp(word, "or") == 0) {
+		if (strcasecmp(word, "or") == 0 || strcmp(word, "||") == 0) {
 			/* new term suite */
 			cur_suite = NULL;
 			neg = 0;
 			continue;
 		}
 
-		/* search for <word> in the known ACL names */
+		/* search for <word> in the known ACL names. If we do not find
+		 * it, let's look for it in the default ACLs, and if found, add
+		 * it to the list of ACLs of this proxy. This makes it possible
+		 * to override them.
+		 */
 		cur_acl = find_acl_by_name(word, known_acl);
-		if (cur_acl == NULL)
-			goto out_free_suite;
+		if (cur_acl == NULL) {
+			cur_acl = find_acl_default(word, known_acl);
+			if (cur_acl == NULL)
+				goto out_free_suite;
+		}
 
 		cur_term = (struct acl_term *)calloc(1, sizeof(*cur_term));
 		if (cur_term == NULL)
