@@ -226,6 +226,7 @@ int event_accept(int fd) {
 			txn->status = -1;
 
 			txn->req.msg_state = HTTP_MSG_RQBEFORE; /* at the very beginning of the request */
+			txn->rsp.msg_state = HTTP_MSG_RPBEFORE; /* at the very beginning of the response */
 			txn->req.sol = txn->req.eol = NULL;
 			txn->req.som = txn->req.eoh = 0; /* relative to the buffer */
 			txn->auth_hdr.len = -1;

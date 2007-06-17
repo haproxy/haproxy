@@ -5271,9 +5271,15 @@ acl_fetch_meth(struct proxy *px, struct session *l4, void *l7, int dir,
 	int meth;
 	struct http_txn *txn = l7;
 
+	if (txn->req.msg_state != HTTP_MSG_BODY)
+		return 0;
+
 	meth = txn->meth;
 	test->i = meth;
 	if (meth == HTTP_METH_OTHER) {
+		if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
+			/* ensure the indexes are not affected */
+			return 0;
 		test->len = txn->req.sl.rq.m_l;
 		test->ptr = txn->req.sol;
 	}
@@ -5322,6 +5328,9 @@ acl_fetch_rqver(struct proxy *px, struct session *l4, void *l7, int dir,
 	char *ptr;
 	int len;
 
+	if (txn->req.msg_state != HTTP_MSG_BODY)
+		return 0;
+
 	len = txn->req.sl.rq.v_l;
 	ptr = txn->req.sol + txn->req.sl.rq.v - txn->req.som;
 
@@ -5343,6 +5352,9 @@ acl_fetch_stver(struct proxy *px, struct session *l4, void *l7, int dir,
 	struct http_txn *txn = l7;
 	char *ptr;
 	int len;
+
+	if (txn->rsp.msg_state != HTTP_MSG_BODY)
+		return 0;
 
 	len = txn->rsp.sl.st.v_l;
 	ptr = txn->rsp.sol;
@@ -5367,6 +5379,9 @@ acl_fetch_stcode(struct proxy *px, struct session *l4, void *l7, int dir,
 	char *ptr;
 	int len;
 
+	if (txn->rsp.msg_state != HTTP_MSG_BODY)
+		return 0;
+
 	len = txn->rsp.sl.st.c_l;
 	ptr = txn->rsp.sol + txn->rsp.sl.st.c - txn->rsp.som;
 
@@ -5382,6 +5397,12 @@ acl_fetch_url(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	struct http_txn *txn = l7;
 
+	if (txn->req.msg_state != HTTP_MSG_BODY)
+		return 0;
+	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
+		/* ensure the indexes are not affected */
+		return 0;
+
 	test->len = txn->req.sl.rq.u_l;
 	test->ptr = txn->req.sol + txn->req.sl.rq.u;
 
@@ -5390,21 +5411,21 @@ acl_fetch_url(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 1;
 }
 
-/* 5. Check on HTTP header. A pointer to the beginning of the value is returned. */
+/* 5. Check on HTTP header. A pointer to the beginning of the value is returned.
+ * This generic function is used by both acl_fetch_chdr() and acl_fetch_shdr().
+ */
 static int
-acl_fetch_hdr(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_hdr(struct proxy *px, struct session *l4, void *l7, char *sol,
               struct acl_expr *expr, struct acl_test *test)
 {
 	struct http_txn *txn = l7;
 	struct hdr_idx *idx = &txn->hdr_idx;
 	struct hdr_ctx *ctx = (struct hdr_ctx *)test->ctx.a;
-	char *sol;
 
 	if (!(test->flags & ACL_TEST_F_FETCH_MORE))
 		/* search for header from the beginning */
 		ctx->idx = 0;
 
-	sol = (dir == ACL_DIR_REQ) ? txn->req.sol : txn->rsp.sol;
 	if (http_find_header2(expr->arg.str, expr->arg_len, sol, idx, ctx)) {
 		test->flags |= ACL_TEST_F_FETCH_MORE;
 		test->flags |= ACL_TEST_F_VOL_HDR;
@@ -5418,18 +5439,44 @@ acl_fetch_hdr(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 0;
 }
 
-/* 6. Check on HTTP header count. The number of occurrences is returned. */
 static int
-acl_fetch_hdr_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_chdr(struct proxy *px, struct session *l4, void *l7, int dir,
+	       struct acl_expr *expr, struct acl_test *test)
+{
+	struct http_txn *txn = l7;
+
+	if (txn->req.msg_state != HTTP_MSG_BODY)
+		return 0;
+	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
+		/* ensure the indexes are not affected */
+		return 0;
+
+	return acl_fetch_hdr(px, l4, txn, txn->req.sol, expr, test);
+}
+
+static int
+acl_fetch_shdr(struct proxy *px, struct session *l4, void *l7, int dir,
+	       struct acl_expr *expr, struct acl_test *test)
+{
+	struct http_txn *txn = l7;
+
+	if (txn->rsp.msg_state != HTTP_MSG_BODY)
+		return 0;
+
+	return acl_fetch_hdr(px, l4, txn, txn->rsp.sol, expr, test);
+}
+
+/* 6. Check on HTTP header count. The number of occurrences is returned.
+ * This generic function is used by both acl_fetch_chdr* and acl_fetch_shdr*.
+ */
+static int
+acl_fetch_hdr_cnt(struct proxy *px, struct session *l4, void *l7, char *sol,
                   struct acl_expr *expr, struct acl_test *test)
 {
 	struct http_txn *txn = l7;
 	struct hdr_idx *idx = &txn->hdr_idx;
 	struct hdr_ctx ctx;
-	char *sol;
 	int cnt;
-
-	sol = (dir == ACL_DIR_REQ) ? txn->req.sol : txn->rsp.sol;
 
 	ctx.idx = 0;
 	cnt = 0;
@@ -5441,23 +5488,49 @@ acl_fetch_hdr_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 1;
 }
 
+static int
+acl_fetch_chdr_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+		   struct acl_expr *expr, struct acl_test *test)
+{
+	struct http_txn *txn = l7;
+
+	if (txn->req.msg_state != HTTP_MSG_BODY)
+		return 0;
+	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
+		/* ensure the indexes are not affected */
+		return 0;
+
+	return acl_fetch_hdr_cnt(px, l4, txn, txn->req.sol, expr, test);
+}
+
+static int
+acl_fetch_shdr_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+		   struct acl_expr *expr, struct acl_test *test)
+{
+	struct http_txn *txn = l7;
+
+	if (txn->rsp.msg_state != HTTP_MSG_BODY)
+		return 0;
+
+	return acl_fetch_hdr_cnt(px, l4, txn, txn->rsp.sol, expr, test);
+}
+
 /* 7. Check on HTTP header's integer value. The integer value is returned.
  * FIXME: the type is 'int', it may not be appropriate for everything.
+ * This generic function is used by both acl_fetch_chdr* and acl_fetch_shdr*.
  */
 static int
-acl_fetch_hdr_val(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_hdr_val(struct proxy *px, struct session *l4, void *l7, char *sol,
                   struct acl_expr *expr, struct acl_test *test)
 {
 	struct http_txn *txn = l7;
 	struct hdr_idx *idx = &txn->hdr_idx;
 	struct hdr_ctx *ctx = (struct hdr_ctx *)test->ctx.a;
-	char *sol;
 
 	if (!(test->flags & ACL_TEST_F_FETCH_MORE))
 		/* search for header from the beginning */
 		ctx->idx = 0;
 
-	sol = (dir == ACL_DIR_REQ) ? txn->req.sol : txn->rsp.sol;
 	if (http_find_header2(expr->arg.str, expr->arg_len, sol, idx, ctx)) {
 		test->flags |= ACL_TEST_F_FETCH_MORE;
 		test->flags |= ACL_TEST_F_VOL_HDR;
@@ -5470,6 +5543,33 @@ acl_fetch_hdr_val(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 0;
 }
 
+static int
+acl_fetch_chdr_val(struct proxy *px, struct session *l4, void *l7, int dir,
+		   struct acl_expr *expr, struct acl_test *test)
+{
+	struct http_txn *txn = l7;
+
+	if (txn->req.msg_state != HTTP_MSG_BODY)
+		return 0;
+	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
+		/* ensure the indexes are not affected */
+		return 0;
+
+	return acl_fetch_hdr_val(px, l4, txn, txn->req.sol, expr, test);
+}
+
+static int
+acl_fetch_shdr_val(struct proxy *px, struct session *l4, void *l7, int dir,
+		   struct acl_expr *expr, struct acl_test *test)
+{
+	struct http_txn *txn = l7;
+
+	if (txn->rsp.msg_state != HTTP_MSG_BODY)
+		return 0;
+
+	return acl_fetch_hdr_val(px, l4, txn, txn->rsp.sol, expr, test);
+}
+
 /* 8. Check on URI PATH. A pointer to the PATH is stored. The path starts at
  * the first '/' after the possible hostname, and ends before the possible '?'.
  */
@@ -5479,6 +5579,12 @@ acl_fetch_path(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	struct http_txn *txn = l7;
 	char *ptr, *end;
+
+	if (txn->req.msg_state != HTTP_MSG_BODY)
+		return 0;
+	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
+		/* ensure the indexes are not affected */
+		return 0;
 
 	ptr = txn->req.sol + txn->req.sl.rq.u;
 	end = ptr + txn->req.sl.rq.u_l;
@@ -5549,15 +5655,25 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "url_dom",    acl_parse_str,   acl_fetch_url,    acl_match_dom  },
 	{ "url_reg",    acl_parse_reg,   acl_fetch_url,    acl_match_reg  },
 
-	{ "hdr",        acl_parse_str,   acl_fetch_hdr,     acl_match_str },
-	{ "hdr_reg",    acl_parse_reg,   acl_fetch_hdr,     acl_match_reg },
-	{ "hdr_beg",    acl_parse_str,   acl_fetch_hdr,     acl_match_beg },
-	{ "hdr_end",    acl_parse_str,   acl_fetch_hdr,     acl_match_end },
-	{ "hdr_sub",    acl_parse_str,   acl_fetch_hdr,     acl_match_sub },
-	{ "hdr_dir",    acl_parse_str,   acl_fetch_hdr,     acl_match_dir },
-	{ "hdr_dom",    acl_parse_str,   acl_fetch_hdr,     acl_match_dom },
-	{ "hdr_cnt",    acl_parse_int,   acl_fetch_hdr_cnt, acl_match_int },
-	{ "hdr_val",    acl_parse_int,   acl_fetch_hdr_val, acl_match_int },
+	{ "hdr",        acl_parse_str,   acl_fetch_chdr,    acl_match_str },
+	{ "hdr_reg",    acl_parse_reg,   acl_fetch_chdr,    acl_match_reg },
+	{ "hdr_beg",    acl_parse_str,   acl_fetch_chdr,    acl_match_beg },
+	{ "hdr_end",    acl_parse_str,   acl_fetch_chdr,    acl_match_end },
+	{ "hdr_sub",    acl_parse_str,   acl_fetch_chdr,    acl_match_sub },
+	{ "hdr_dir",    acl_parse_str,   acl_fetch_chdr,    acl_match_dir },
+	{ "hdr_dom",    acl_parse_str,   acl_fetch_chdr,    acl_match_dom },
+	{ "hdr_cnt",    acl_parse_int,   acl_fetch_chdr_cnt,acl_match_int },
+	{ "hdr_val",    acl_parse_int,   acl_fetch_chdr_val,acl_match_int },
+
+	{ "shdr",       acl_parse_str,   acl_fetch_shdr,    acl_match_str },
+	{ "shdr_reg",   acl_parse_reg,   acl_fetch_shdr,    acl_match_reg },
+	{ "shdr_beg",   acl_parse_str,   acl_fetch_shdr,    acl_match_beg },
+	{ "shdr_end",   acl_parse_str,   acl_fetch_shdr,    acl_match_end },
+	{ "shdr_sub",   acl_parse_str,   acl_fetch_shdr,    acl_match_sub },
+	{ "shdr_dir",   acl_parse_str,   acl_fetch_shdr,    acl_match_dir },
+	{ "shdr_dom",   acl_parse_str,   acl_fetch_shdr,    acl_match_dom },
+	{ "shdr_cnt",   acl_parse_int,   acl_fetch_shdr_cnt,acl_match_int },
+	{ "shdr_val",   acl_parse_int,   acl_fetch_shdr_val,acl_match_int },
 
 	{ "path",       acl_parse_str,   acl_fetch_path,   acl_match_str  },
 	{ "path_reg",   acl_parse_reg,   acl_fetch_path,   acl_match_reg  },
