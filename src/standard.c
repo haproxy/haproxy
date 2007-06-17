@@ -134,24 +134,30 @@ struct sockaddr_in *str2sa(char *str)
  */
 int str2net(const char *str, struct in_addr *addr, struct in_addr *mask)
 {
-	char *c;
+	__label__ out_free, out_err;
+	char *c, *s;
+	int ret_val;
 	unsigned long len;
+
+	s = strdup(str);
+	if (!s)
+		return 0;
 
 	memset(mask, 0, sizeof(*mask));
 	memset(addr, 0, sizeof(*addr));
 
-	if ((c = strrchr(str, '/')) != NULL) {
+	if ((c = strrchr(s, '/')) != NULL) {
 		*c++ = '\0';
 		/* c points to the mask */
 		if (strchr(c, '.') != NULL) {	    /* dotted notation */
 			if (!inet_pton(AF_INET, c, mask))
-				return 0;
+				goto out_err;
 		}
 		else { /* mask length */
 			char *err;
 			len = strtol(c, &err, 10);
 			if (!*c || (err && *err) || (unsigned)len > 32)
-				return 0;
+				goto out_err;
 			if (len)
 				mask->s_addr = htonl(~0UL << (32 - len));
 			else
@@ -161,16 +167,23 @@ int str2net(const char *str, struct in_addr *addr, struct in_addr *mask)
 	else {
 		mask->s_addr = ~0U;
 	}
-	if (!inet_pton(AF_INET, str, addr)) {
+	if (!inet_pton(AF_INET, s, addr)) {
 		struct hostent *he;
 
-		if ((he = gethostbyname(str)) == NULL) {
-			return 0;
+		if ((he = gethostbyname(s)) == NULL) {
+			goto out_err;
 		}
 		else
 			*addr = *(struct in_addr *) *(he->h_addr_list);
 	}
-	return 1;
+
+	ret_val = 1;
+ out_free:
+	free(s);
+	return ret_val;
+ out_err:
+	ret_val = 0;
+	goto out_free;
 }
 
 /* will try to encode the string <string> replacing all characters tagged in
