@@ -1,6 +1,25 @@
 ChangeLog :
 ===========
 
+2007/06/17 : 1.3.12
+    - fix segfault at exit when using captures
+    - bug: negation in ACL conds was not cleared between terms
+    - errorfile: use a local file to feed error messages
+    - acl: support '-i' to ignore case when matching
+    - acl: smarter integer comparison with operators eq,lt,gt,le,ge
+    - acl: support maching on 'path' component
+    - acl: implement matching on header values
+    - acl: distinguish between request and response headers
+    - acl: permit to return any header when no name specified
+    - acl: provide default ACLs
+    - added the 'use_backend' keyword for full content-switching
+    - acl: specify the direction during fetches
+    - acl: provide the argument length for fetch functions
+    - acl: provide a reference to the expr to fetch()
+    - improve memory freeing upon exit
+    - str2net() must not change the const char *
+    - shut warnings 'is*' macros from ctype.h on solaris
+
 2007/06/03 : 1.3.11.4
     - do not re-arm read timeout in SHUTR state !
     - optimize I/O by detecting system starvation
