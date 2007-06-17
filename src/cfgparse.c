@@ -510,6 +510,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		LIST_INIT(&curproxy->pendconns);
 		LIST_INIT(&curproxy->acl);
 		LIST_INIT(&curproxy->block_cond);
+		LIST_INIT(&curproxy->switching_rules);
 
 		/* Timeouts are defined as -1, so we cannot use the zeroed area
 		 * as a default value.
@@ -976,6 +977,42 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			return -1;
 		}
 		LIST_ADDQ(&curproxy->block_cond, &cond->list);
+	}
+	else if (!strcmp(args[0], "use_backend")) {  /* early blocking based on ACLs */
+		int pol = ACL_COND_NONE;
+		struct acl_cond *cond;
+		struct switching_rule *rule;
+
+		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
+			return 0;
+
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects a backend name.\n", file, linenum, args[0]);
+			return -1;
+		}
+
+		if (!strcmp(args[2], "if"))
+			pol = ACL_COND_IF;
+		else if (!strcmp(args[2], "unless"))
+			pol = ACL_COND_UNLESS;
+
+		if (pol == ACL_COND_NONE) {
+			Alert("parsing [%s:%d] : '%s' requires either 'if' or 'unless' followed by a condition.\n",
+			      file, linenum, args[0]);
+			return -1;
+		}
+
+		if ((cond = parse_acl_cond((const char **)args + 3, &curproxy->acl, pol)) == NULL) {
+			Alert("parsing [%s:%d] : error detected while parsing blocking condition.\n",
+			      file, linenum);
+			return -1;
+		}
+
+		rule = (struct switching_rule *)calloc(1, sizeof(*rule));
+		rule->cond = cond;
+		rule->be.name = strdup(args[1]);
+		LIST_INIT(&rule->list);
+		LIST_ADDQ(&curproxy->switching_rules, &rule->list);
 	}
 	else if (!strcmp(args[0], "stats")) {
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
@@ -2344,6 +2381,8 @@ int readcfgfile(const char *file)
 	}
 
 	while (curproxy != NULL) {
+		struct switching_rule *rule;
+
 		if (curproxy->state == PR_STSTOPPED) {
 			curproxy = curproxy->next;
 			continue;
@@ -2479,6 +2518,38 @@ int readcfgfile(const char *file)
 				}
 			}
 		}
+
+		/* find the target proxy for 'use_backend' rules */
+		list_for_each_entry(rule, &curproxy->switching_rules, list) {
+			/* map jump target for ACT_SETBE in req_rep chain */ 
+			struct proxy *target;
+
+			for (target = proxy; target != NULL; target = target->next) {
+				if (strcmp(target->id, rule->be.name) == 0)
+					break;
+			}
+
+			if (target == NULL) {
+				Alert("parsing %s : backend '%s' in HTTP %s '%s' was not found !\n", 
+				      file, rule->be.name, proxy_type_str(curproxy), curproxy->id);
+				cfgerr++;
+			} else if (target == curproxy) {
+				Alert("parsing %s : loop detected for backend %s !\n", file, rule->be.name);
+				cfgerr++;
+			} else if (!(target->cap & PR_CAP_BE)) {
+				Alert("parsing %s : target '%s' in HTTP %s '%s' has no backend capability !\n",
+				      file, rule->be.name, proxy_type_str(curproxy), curproxy->id);
+				cfgerr++;
+			} else if (target->mode != curproxy->mode) {
+				Alert("parsing %s : backend '%s' referenced in %s '%s' is of different mode !\n",
+				      file, rule->be.name, proxy_type_str(curproxy), curproxy->id);
+				cfgerr++;
+			} else {
+				free((void *)rule->be.name);
+				rule->be.backend = target;
+			}
+		}
+
 		if ((curproxy->mode == PR_MODE_TCP || curproxy->mode == PR_MODE_HTTP) &&
 		    (((curproxy->cap & PR_CAP_FE) && !tv_isset(&curproxy->clitimeout)) ||
 		     ((curproxy->cap & PR_CAP_BE) && (curproxy->srv) &&

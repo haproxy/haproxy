@@ -1888,6 +1888,29 @@ int process_cli(struct session *t)
 					return 1;
 			}
 
+			/* now check whether we have some switching rules for this request */
+			if (!(t->flags & SN_BE_ASSIGNED)) {
+				struct switching_rule *rule;
+
+				list_for_each_entry(rule, &cur_proxy->switching_rules, list) {
+					int ret;
+
+					ret = acl_exec_cond(rule->cond, cur_proxy, t, txn, ACL_DIR_REQ);
+					if (cond->pol == ACL_COND_UNLESS)
+						ret = !ret;
+
+					if (ret) {
+						t->be = rule->be.backend;
+						t->be->beconn++;
+						if (t->be->beconn > t->be->beconn_max)
+							t->be->beconn_max = t->be->beconn;
+						t->be->cum_beconn++;
+						t->flags |= SN_BE_ASSIGNED;
+						break;
+					}
+				}
+			}
+
 			if (!(t->flags & SN_BE_ASSIGNED) && cur_proxy->defbe.be) {
 				/* No backend was set, but there was a default
 				 * backend set in the frontend, so we use it and

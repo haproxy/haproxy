@@ -85,6 +85,7 @@ struct proxy {
 	} defbe;
 	struct list acl;                        /* ACL declared on this proxy */
 	struct list block_cond;                 /* early blocking conditions (chained) */
+	struct list switching_rules;            /* content switching rules (chained) */
 	struct server *srv;			/* known servers */
 	int srv_act, srv_bck;			/* # of running servers */
 	int tot_wact, tot_wbck;			/* total weights of active and backup servers */
@@ -148,6 +149,15 @@ struct proxy {
 	char *check_req;			/* HTTP or SSL request to use for PR_O_HTTP_CHK|PR_O_SSL3_CHK */
 	int check_len;				/* Length of the HTTP or SSL3 request */
 	struct chunk errmsg[HTTP_ERR_SIZE];	/* default or customized error messages for known errors */
+};
+
+struct switching_rule {
+	struct list list;			/* list linked to from the proxy */
+	struct acl_cond *cond;			/* acl condition to meet */
+	union {
+		struct proxy *backend;		/* target backend */
+		char *name;			/* target backend name during config parsing */
+	} be;
 };
 
 extern struct proxy *proxy;
