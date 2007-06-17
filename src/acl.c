@@ -41,9 +41,14 @@ int acl_match_pst(struct acl_test *test, struct acl_pattern *pattern)
 /* NB: For two strings to be identical, it is required that their lengths match */
 int acl_match_str(struct acl_test *test, struct acl_pattern *pattern)
 {
+	int icase;
+
 	if (pattern->len != test->len)
 		return 0;
-	if (strncmp(pattern->ptr.str, test->ptr, test->len) == 0)
+
+	icase = pattern->flags & ACL_PAT_F_IGNORE_CASE;
+	if ((icase && strncasecmp(pattern->ptr.str, test->ptr, test->len) == 0) ||
+	    (!icase && strncmp(pattern->ptr.str, test->ptr, test->len) == 0))
 		return 1;
 	return 0;
 }
@@ -89,9 +94,14 @@ int acl_match_reg(struct acl_test *test, struct acl_pattern *pattern)
 /* Checks that the pattern matches the beginning of the tested string. */
 int acl_match_beg(struct acl_test *test, struct acl_pattern *pattern)
 {
+	int icase;
+
 	if (pattern->len > test->len)
 		return 0;
-	if (strncmp(pattern->ptr.str, test->ptr, pattern->len) != 0)
+
+	icase = pattern->flags & ACL_PAT_F_IGNORE_CASE;
+	if ((icase && strncasecmp(pattern->ptr.str, test->ptr, pattern->len) != 0) ||
+	    (!icase && strncmp(pattern->ptr.str, test->ptr, pattern->len) != 0))
 		return 0;
 	return 1;
 }
@@ -99,9 +109,13 @@ int acl_match_beg(struct acl_test *test, struct acl_pattern *pattern)
 /* Checks that the pattern matches the end of the tested string. */
 int acl_match_end(struct acl_test *test, struct acl_pattern *pattern)
 {
+	int icase;
+
 	if (pattern->len > test->len)
 		return 0;
-	if (strncmp(pattern->ptr.str, test->ptr + test->len - pattern->len, pattern->len) != 0)
+	icase = pattern->flags & ACL_PAT_F_IGNORE_CASE;
+	if ((icase && strncasecmp(pattern->ptr.str, test->ptr + test->len - pattern->len, pattern->len) != 0) ||
+	    (!icase && strncmp(pattern->ptr.str, test->ptr + test->len - pattern->len, pattern->len) != 0))
 		return 0;
 	return 1;
 }
@@ -111,6 +125,7 @@ int acl_match_end(struct acl_test *test, struct acl_pattern *pattern)
  */
 int acl_match_sub(struct acl_test *test, struct acl_pattern *pattern)
 {
+	int icase;
 	char *end;
 	char *c;
 
@@ -118,11 +133,21 @@ int acl_match_sub(struct acl_test *test, struct acl_pattern *pattern)
 		return 0;
 
 	end = test->ptr + test->len - pattern->len;
-	for (c = test->ptr; c <= end; c++) {
-		if (*c != *pattern->ptr.str)
-			continue;
-		if (strncmp(pattern->ptr.str, c, pattern->len) == 0)
-			return 1;
+	icase = pattern->flags & ACL_PAT_F_IGNORE_CASE;
+	if (icase) {
+		for (c = test->ptr; c <= end; c++) {
+			if (tolower(*c) != tolower(*pattern->ptr.str))
+				continue;
+			if (strncasecmp(pattern->ptr.str, c, pattern->len) == 0)
+				return 1;
+		}
+	} else {
+		for (c = test->ptr; c <= end; c++) {
+			if (*c != *pattern->ptr.str)
+				continue;
+			if (strncmp(pattern->ptr.str, c, pattern->len) == 0)
+				return 1;
+		}
 	}
 	return 0;
 }
@@ -130,41 +155,52 @@ int acl_match_sub(struct acl_test *test, struct acl_pattern *pattern)
 /* This one is used by other real functions. It checks that the pattern is
  * included inside the tested string, but enclosed between the specified
  * delimitor, or a '/' or a '?' or at the beginning or end of the string.
- * The delimitor is stripped at the beginning or end of the pattern are
- * ignored.
+ * The delimitor is stripped at the beginning or end of the pattern.
  */
 static int match_word(struct acl_test *test, struct acl_pattern *pattern, char delim)
 {
-	int may_match;
+	int may_match, icase;
 	char *c, *end;
 	char *ps;
 	int pl;
 
 	pl = pattern->len;
 	ps = pattern->ptr.str;
-	while (pl > 0 && *ps == delim) {
+	while (pl > 0 && (*ps == delim || *ps == '/' || *ps == '?')) {
 		pl--;
 		ps++;
 	}
 
-	while (pl > 0 && *(ps + pl - 1) == delim)
+	while (pl > 0 &&
+	       (ps[pl - 1] == delim || ps[pl - 1] == '/' || ps[pl - 1] == '?'))
 		pl--;
 
 	if (pl > test->len)
 		return 0;
 
 	may_match = 1;
+	icase = pattern->flags & ACL_PAT_F_IGNORE_CASE;
 	end = test->ptr + test->len - pl;
 	for (c = test->ptr; c <= end; c++) {
 		if (*c == '/' || *c == delim || *c == '?') {
 			may_match = 1;
 			continue;
 		}
-		if (may_match && (*c == *ps) &&
-		    (strncmp(ps, c, pl) == 0) &&
-		    (c == end || c[pl] == '/' || c[pl] == delim || c[pl] == '?'))
-				return 1;
 
+		if (!may_match)
+			continue;
+
+		if (icase) {
+			if ((tolower(*c) == tolower(*ps)) &&
+			    (strncasecmp(ps, c, pl) == 0) &&
+			    (c == end || c[pl] == '/' || c[pl] == delim || c[pl] == '?'))
+				return 1;
+		} else {
+			if ((*c == *ps) &&
+			    (strncmp(ps, c, pl) == 0) &&
+			    (c == end || c[pl] == '/' || c[pl] == delim || c[pl] == '?'))
+				return 1;
+		}
 		may_match = 0;
 	}
 	return 0;
@@ -227,13 +263,15 @@ int acl_parse_str(const char **text, struct acl_pattern *pattern, int *opaque)
 int acl_parse_reg(const char **text, struct acl_pattern *pattern, int *opaque)
 {
 	regex_t *preg;
+	int icase;
 
 	preg = calloc(1, sizeof(regex_t));
 
 	if (!preg)
 		return 0;
 
-	if (regcomp(preg, *text, REG_EXTENDED | REG_NOSUB) != 0) {
+	icase = (pattern->flags & ACL_PAT_F_IGNORE_CASE) ? REG_ICASE : 0;
+	if (regcomp(preg, *text, REG_EXTENDED | REG_NOSUB | icase) != 0) {
 		free(preg);
 		return 0;
 	}
@@ -420,7 +458,7 @@ struct acl_expr *parse_acl_expr(const char **args)
 	struct acl_expr *expr;
 	struct acl_keyword *aclkw;
 	struct acl_pattern *pattern;
-	int opaque;
+	int opaque, patflags;
 	const char *arg;
 
 	aclkw = find_acl_kw(args[0]);
@@ -454,14 +492,37 @@ struct acl_expr *parse_acl_expr(const char **args)
 		expr->arg.str = arg2;
 	}
 
-	/* now parse all patterns */
 	args++;
+
+	/* check for options before patterns. Supported options are :
+	 *   -i : ignore case for all patterns by default
+	 *   -f : read patterns from those files
+	 *   -- : everything after this is not an option
+	 */
+	patflags = 0;
+	while (**args == '-') {
+		if ((*args)[1] == 'i')
+			patflags |= ACL_PAT_F_IGNORE_CASE;
+		else if ((*args)[1] == 'f')
+			patflags |= ACL_PAT_F_FROM_FILE;
+		else if ((*args)[1] == '-') {
+			args++;
+			break;
+		}
+		else
+			break;
+		args++;
+	}
+
+	/* now parse all patterns */
 	opaque = 0;
 	while (**args) {
 		int ret;
 		pattern = (struct acl_pattern *)calloc(1, sizeof(*pattern));
 		if (!pattern)
 			goto out_free_expr;
+		pattern->flags = patflags;
+
 		ret = aclkw->parse(args, pattern, &opaque);
 		if (!ret)
 			goto out_free_pattern;

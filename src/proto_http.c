@@ -5283,6 +5283,8 @@ acl_fetch_meth(struct proxy *px, struct session *l4, void *l7, int dir,
 
 static int acl_match_meth(struct acl_test *test, struct acl_pattern *pattern)
 {
+	int icase;
+
 	if (test->i != pattern->val.i)
 		return 0;
 
@@ -5292,7 +5294,10 @@ static int acl_match_meth(struct acl_test *test, struct acl_pattern *pattern)
 	/* Other method, we must compare the strings */
 	if (pattern->len != test->len)
 		return 0;
-	if (strncmp(pattern->ptr.str, test->ptr, test->len) != 0)
+
+	icase = pattern->flags & ACL_PAT_F_IGNORE_CASE;
+	if ((icase && strncasecmp(pattern->ptr.str, test->ptr, test->len) != 0) ||
+	    (!icase && strncmp(pattern->ptr.str, test->ptr, test->len) != 0))
 		return 0;
 	return 1;
 }

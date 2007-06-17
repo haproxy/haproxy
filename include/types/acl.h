@@ -67,6 +67,12 @@ enum {
 	ACL_DIR_RTR,            /* ACL evaluated on response */
 };
 
+/* possible flags for expressions or patterns */
+enum {
+	ACL_PAT_F_IGNORE_CASE = 1 << 0,       /* ignore case */
+	ACL_PAT_F_FROM_FILE   = 1 << 1,       /* pattern comes from a file */
+};
+
 /* How to store a time range and the valid days in 29 bits */
 struct acl_time {
 	int dow:7;              /* 1 bit per day of week: 0-6 */
@@ -96,6 +102,7 @@ struct acl_pattern {
 		regex_t *reg;           /* a compiled regex */
 	} ptr;                          /* indirect values, allocated */
 	int len;                        /* data length when required  */
+	int flags;                      /* expr or pattern flags. */
 };
 
 /* The structure exchanged between an acl_fetch_* function responsible for
