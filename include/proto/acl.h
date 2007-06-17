@@ -94,11 +94,6 @@ void acl_unregister_keywords(struct acl_kw_list *kwl);
  */
 
 
-/* This one always returns 1 because its only purpose is to check that the
- * value is present, which is already checked by getval().
- */
-int acl_match_pst(struct acl_test *test, struct acl_pattern *pattern);
-
 /* NB: For two strings to be identical, it is required that their lengths match */
 int acl_match_str(struct acl_test *test, struct acl_pattern *pattern);
 
