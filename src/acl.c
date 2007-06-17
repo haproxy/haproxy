@@ -324,7 +324,7 @@ int acl_parse_int(const char **text, struct acl_pattern *pattern, int *opaque)
 	const char *ptr = *text;
 
 
-	while (!isdigit(*ptr)) {
+	while (!isdigit((unsigned char)*ptr)) {
 		if      (strcmp(ptr, "eq") == 0) *opaque = 0;
 		else if (strcmp(ptr, "gt") == 0) *opaque = 1;
 		else if (strcmp(ptr, "ge") == 0) *opaque = 2;

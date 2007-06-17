@@ -1335,7 +1335,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		if (rport) {
 			*rport++ = 0;
 			realport = atol(rport);
-			if (!isdigit((int)*rport))
+			if (!isdigit((unsigned char)*rport))
 				newsrv->state |= SRV_MAPPORTS;
 		} else {
 			realport = 0;
@@ -2264,7 +2264,7 @@ int readcfgfile(const char *file)
 		end = line + strlen(line);
 
 		/* skip leading spaces */
-		while (isspace((int)*line))
+		while (isspace((unsigned char)*line))
 			line++;
 	
 		arg = 0;
@@ -2318,10 +2318,10 @@ int readcfgfile(const char *file)
 				*line = 0;
 				break;
 			}
-			else if (isspace((int)*line)) {
+			else if (isspace((unsigned char)*line)) {
 				/* a non-escaped space is an argument separator */
 				*line++ = 0;
-				while (isspace((int)*line))
+				while (isspace((unsigned char)*line))
 					line++;
 				args[++arg] = line;
 			}

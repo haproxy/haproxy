@@ -4264,7 +4264,7 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 			while (p1 < cur_end) {
 				if (*p1 == ';' || *p1 == ',')
 					colon = p1;
-				else if (!isspace((int)*p1))
+				else if (!isspace((unsigned char)*p1))
 					break;
 				p1++;
 			}
@@ -4285,7 +4285,7 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 				break;
 		    
 			p4 = p3;
-			while (p4 < cur_end && !isspace((int)*p4) && *p4 != ';' && *p4 != ',')
+			while (p4 < cur_end && !isspace((unsigned char)*p4) && *p4 != ';' && *p4 != ',')
 				p4++;
 
 			/* here, we have the cookie name between p1 and p2,
@@ -4833,7 +4833,7 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 				break;
 
 			p4 = p3;
-			while (p4 < cur_end && !isspace((int)*p4) && *p4 != ';')
+			while (p4 < cur_end && !isspace((unsigned char)*p4) && *p4 != ';')
 				p4++;
 
 			/* here, we have the cookie name between p1 and p2,
@@ -5025,7 +5025,7 @@ void check_response_for_cacheability(struct session *t, struct buffer *rtr)
 		/* p1 is at the beginning of the value */
 		p2 = p1;
 
-		while (p2 < cur_end && *p2 != '=' && *p2 != ',' && !isspace((int)*p2))
+		while (p2 < cur_end && *p2 != '=' && *p2 != ',' && !isspace((unsigned char)*p2))
 			p2++;
 
 		/* we have a complete value between p1 and p2 */
@@ -5622,11 +5622,11 @@ acl_fetch_path(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (*ptr == '*')
 		return 0;
 
-	if (isalpha(*ptr)) {
+	if (isalpha((unsigned char)*ptr)) {
 		/* this is a scheme as described by RFC3986, par. 3.1 */
 		ptr++;
 		while (ptr < end &&
-		       (isalnum(*ptr) || *ptr == '+' || *ptr == '-' || *ptr == '.'))
+		       (isalnum((unsigned char)*ptr) || *ptr == '+' || *ptr == '-' || *ptr == '.'))
 			ptr++;
 		/* skip '://' */
 		if (ptr == end || *ptr++ != ':')

@@ -31,7 +31,7 @@ int exp_replace(char *dst, char *src, const char *str, const regmatch_t *matches
 	while (*str) {
 		if (*str == '\\') {
 			str++;
-			if (isdigit((int)*str)) {
+			if (isdigit((unsigned char)*str)) {
 				int len, num;
 
 				num = *str - '0';
@@ -74,7 +74,7 @@ const char *check_replace_string(const char *str)
 			str++;
 			if (!*str)
 				return err;
-			else if (isdigit((int)*str))
+			else if (isdigit((unsigned char)*str))
 				err = NULL;
 			else if (*str == 'x') {
 				str++;
