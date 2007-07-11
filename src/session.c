@@ -36,6 +36,7 @@ struct pool_head *pool2_session;
 void session_free(struct session *s)
 {
 	struct http_txn *txn = &s->txn;
+	struct proxy *fe = s->fe;
 
 	if (s->pend_pos)
 		pendconn_free(s->pend_pos);
@@ -45,23 +46,23 @@ void session_free(struct session *s)
 		pool_free2(pool2_buffer, s->rep);
 
 	if (txn->hdr_idx.v != NULL)
-		pool_free2(s->fe->hdr_idx_pool, txn->hdr_idx.v);
+		pool_free2(fe->hdr_idx_pool, txn->hdr_idx.v);
 
 	if (txn->rsp.cap != NULL) {
 		struct cap_hdr *h;
-		for (h = s->fe->rsp_cap; h; h = h->next) {
+		for (h = fe->rsp_cap; h; h = h->next) {
 			if (txn->rsp.cap[h->index] != NULL)
 				pool_free2(h->pool, txn->rsp.cap[h->index]);
 		}
-		pool_free2(s->fe->rsp_cap_pool, txn->rsp.cap);
+		pool_free2(fe->rsp_cap_pool, txn->rsp.cap);
 	}
 	if (txn->req.cap != NULL) {
 		struct cap_hdr *h;
-		for (h = s->fe->req_cap; h; h = h->next) {
+		for (h = fe->req_cap; h; h = h->next) {
 			if (txn->req.cap[h->index] != NULL)
 				pool_free2(h->pool, txn->req.cap[h->index]);
 		}
-		pool_free2(s->fe->req_cap_pool, txn->req.cap);
+		pool_free2(fe->req_cap_pool, txn->req.cap);
 	}
 
 	if (txn->uri)
@@ -72,6 +73,24 @@ void session_free(struct session *s)
 		pool_free2(pool2_capture, txn->srv_cookie);
 
 	pool_free2(pool2_session, s);
+
+	/* We may want to free the maximum amount of pools if the proxy is stopping */
+	if (unlikely(fe->state == PR_STSTOPPED)) {
+		if (pool2_buffer)
+			pool_flush2(pool2_buffer);
+		if (fe->hdr_idx_pool)
+			pool_flush2(fe->hdr_idx_pool);
+		if (pool2_requri)
+			pool_flush2(pool2_requri);
+		if (pool2_capture)
+			pool_flush2(pool2_capture);
+		if (pool2_session)
+			pool_flush2(pool2_session);
+		if (fe->req_cap_pool)
+			pool_flush2(fe->req_cap_pool);
+		if (fe->rsp_cap_pool)
+			pool_flush2(fe->rsp_cap_pool);
+	}
 }
 
 
