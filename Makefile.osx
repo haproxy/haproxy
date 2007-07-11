@@ -1,6 +1,11 @@
 # This makefile is dedicated to darwin (and possibly other BSDs)
 # You should use it this way :
 #   make TARGET=os CPU=cpu
+#
+# Some optional components may be added, such as DLMALLOC :
+#
+#   make DLMALLOC_SRC=/usr/local/src/dlmalloc.c \
+#        OPT_OBJS=src/dlmalloc.o
 
 VERSION := 1.3.12
 
@@ -71,6 +76,9 @@ ADDLIB =
 # - use -DTPROXY to compile with transparent proxy support.
 DEFINE = -DTPROXY 
 
+# May be changed to patch PAGE_SIZE on every platform when using dlmalloc
+DLMALLOC_THRES=4096
+
 # global options
 TARGET_OPTS=$(COPTS.$(TARGET))
 REGEX_OPTS=$(COPTS.$(REGEX))
@@ -99,6 +107,9 @@ haproxy: $(OBJS)
 
 .c.o:
 	$(CC) $(CFLAGS) -c -o $@ $<
+
+src/dlmalloc.o: $(DLMALLOC_SRC)
+	$(CC) $(CFLAGS) -DDEFAULT_MMAP_THRESHOLD=$(DLMALLOC_THRES) -c -o $@ $<
 
 clean:
 	rm -f *.[oas] src/*.[oas] core haproxy test

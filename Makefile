@@ -1,7 +1,10 @@
 # This makefile supports different OS and CPU setups.
 # You should use it this way :
 #   make TARGET=os CPU=cpu REGEX=lib
-
+#
+# Some external components may be build with it, such dlmalloc :
+#
+#   make DLMALLOC_SRC=/usr/local/src/dlmalloc.c
 
 # Select target OS. TARGET must match a system for which COPTS and LIBS are
 # correctly defined below.
@@ -180,6 +183,12 @@ ifneq ($(USE_REGPARM),)
 OPTIONS += -DCONFIG_HAP_USE_REGPARM
 endif
 
+ifneq ($(DLMALLOC_SRC),)
+# May be changed to patch PAGE_SIZE on every platform
+DLMALLOC_THRES=4096
+OPT_OBJS += src/dlmalloc.o
+endif
+
 ifneq ($(VERSION),)
 OPTIONS += -DCONFIG_HAPROXY_VERSION=\"$(VERSION)$(SUBVERS)\"
 endif
@@ -227,6 +236,9 @@ objsize: haproxy
 
 %.o:	%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
+
+src/dlmalloc.o: $(DLMALLOC_SRC)
+	$(CC) $(CFLAGS) -DDEFAULT_MMAP_THRESHOLD=$(DLMALLOC_THRES) -c -o $@ $<
 
 clean:
 	rm -f *.[oas] src/*.[oas] core haproxy test

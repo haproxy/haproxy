@@ -1,6 +1,11 @@
 # This makefile is dedicated to OpenBSD (and possibly other BSDs)
 # You should use it this way :
 #   make TARGET=os CPU=cpu
+#
+# Some optional components may be added, such as DLMALLOC :
+#
+#   make TARGET=freebsd CPU=i686 DLMALLOC_SRC=/usr/local/src/dlmalloc.c \
+#        OPT_OBJS=src/dlmalloc.o
 
 VERSION := 1.3.12
 
@@ -66,10 +71,16 @@ SMALL_OPTS = -DBUFSIZE=8030 -DMAXREWRITE=1030 -DSYSTEM_MAXCONN=1024
 ADDINC =
 ADDLIB =
 
+# redefine this if you want to add some special .o files
+OPT_OBJS =
+
 # set some defines when needed.
 # Known ones are -DENABLE_POLL
 # - use -DTPROXY to compile with transparent proxy support.
 DEFINE = -DTPROXY
+
+# May be changed to patch PAGE_SIZE on every platform when using dlmalloc
+DLMALLOC_THRES=4096
 
 # global options
 TARGET_OPTS=$(COPTS.$(TARGET))
@@ -92,13 +103,16 @@ OBJS = src/haproxy.o src/list.o src/chtbl.o src/hashpjw.o src/base64.o \
 
 all: haproxy
 
-haproxy: $(OBJS)
+haproxy: $(OBJS) $(OPT_OBJS)
 	$(LD) $(LDFLAGS) -o $@ $> $(LIBS)
 
 .SUFFIXES: .c.o
 
 .c.o:
 	$(CC) $(CFLAGS) -c -o $@ $>
+
+src/dlmalloc.o: $(DLMALLOC_SRC)
+	$(CC) $(CFLAGS) -DDEFAULT_MMAP_THRESHOLD=$(DLMALLOC_THRES) -c -o $@ $>
 
 clean:
 	rm -f *.[oas] src/*.[oas] core haproxy test
