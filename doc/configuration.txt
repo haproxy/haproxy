@@ -1,0 +1,635 @@
+                         ----------------------
+                                 HAProxy
+                          Configuration Manual
+                         ----------------------
+                             version 1.3.12
+                             willy tarreau
+                               2007/07/15
+
+
+This document covers the configuration language as implemented in the version
+specified above. It does not provide any hint, example or advice. For such
+docuemntation, please refer to the Reference Manual or the Architecture Manual.
+
+
+HAProxy's configuration process involves 3 major sources of parameters :
+
+  - the arguments from the command-line, which always take precedence
+  - the "global" section, which sets process-wide parameters
+  - the proxies sections which can take form of "defaults", "listen",
+    "frontend" and "backend".
+
+1. Global parameters
+--------------------
+
+Parameters in the "global" section are process-wide and often OS-specific. They
+are generally set once for all and do not need being changed once correct. Some
+of them have command-line equivalents.
+
+The following keywords are supported in the "global" section :
+
+ * Process management and security
+   - chroot
+   - daemon
+   - gid
+   - group
+   - log
+   - nbproc
+   - pidfile
+   - uid
+   - ulimit-n
+   - user
+  
+ * Performance tuning
+   - maxconn
+   - noepoll
+   - nokqueue
+   - nopoll
+   - nosepoll
+   - tune.maxpollevents
+  
+ * Debugging
+   - debug
+   - quiet
+   - stats
+
+
+1.1) Process management and security
+------------------------------------
+
+chroot <jail dir>
+  Changes current directory to <jail dir> and performs a chroot() there before
+  dropping privileges. This increases the security level in case an unknown
+  vulnerability would be exploited, since it would make it very hard for the
+  attacker to exploit the system. This only works when the process is started
+  with superuser privileges. It is important to ensure that <jail_dir> is both
+  empty and unwritable to anyone.
+  
+daemon
+  Makes the process fork into background. This is the recommended mode of
+  operation. It is equivalent to the command line "-D" argument. It can be
+  disabled by the command line "-db" argument.
+
+gid <number>
+  Changes the process' group ID to <number>. It is recommended that the group
+  ID is dedicated to HAProxy or to a small set of similar daemons. HAProxy must
+  be started with a user belonging to this group, or with superuser privileges.
+  See also "group" and "uid".
+  
+group <group name>
+  Similar to "gid" but uses the GID of group name <group name> from /etc/group.
+  See also "gid" and "user".
+  
+log <address> <facility> [max level]
+  Adds a global syslog server. Up to two global servers can be defined. They
+  will receive logs for startups and exits, as well as all logs from proxies
+  configured with "log global". <address> is an IPv4 address optionally
+  followed by a colon and an UDP port. If no port is specified, 514 is used
+  by default (the standard syslog port). <facility> must be one of the 24
+  standard syslog facilities :
+
+          kern   user   mail   daemon auth   syslog lpr    news
+          uucp   cron   auth2  ftp    ntp    audit  alert  cron2
+          local0 local1 local2 local3 local4 local5 local6 local7
+
+  An optional level can be specified to filter outgoing messages. By default,
+  all messages are sent. If a level is specified, only messages with a severity
+  at least as important as this level will be sent. 8 levels are known :
+
+	  emerg  alert  crit   err    warning notice info  debug
+
+nbproc <number>
+  Creates <number> processes when going daemon. This requires the "daemon"
+  mode. By default, only one process is created, which is the recommended mode
+  of operation. For systems limited to small sets of file descriptors per
+  process, it may be needed to fork multiple daemons. USING MULTIPLE PROCESSES
+  IS HARDER TO DEBUG AND IS REALLY DISCOURAGED. See also "daemon".
+
+pidfile <pidfile>
+  Writes pids of all daemons into file <pidfile>. This option is equivalent to
+  the "-p" command line argument. The file must be accessible to the user
+  starting the process. See also "daemon".
+
+uid <number>
+  Changes the process' user ID to <number>. It is recommended that the user ID
+  is dedicated to HAProxy or to a small set of similar daemons. HAProxy must
+  be started with superuser privileges in order to be able to switch to another
+  one. See also "gid" and "user".
+
+ulimit-n <number>
+  Sets the maximum number of per-process file-descriptors to <number>. By
+  default, it is automatically computed, so it is recommended not to use this
+  option.
+
+user <user name>
+  Similar to "uid" but uses the UID of user name <user name> from /etc/passwd.
+  See also "uid" and "group".
+
+
+1.2) Performance tuning
+-----------------------
+
+maxconn <number>
+  Sets the maximum per-process number of concurrent connections to <number>. It
+  is equivalent to the command-line argument "-n". Proxies will stop accepting
+  connections when this limit is reached. The "ulimit-n" parameter is
+  automatically adjusted according to this value. See also "ulimit-n".
+
+noepoll
+  Disables the use of the "epoll" event polling system on Linux. It is
+  equivalent to the command-line argument "-de". The next polling system
+  used will generally be "poll". See also "nosepoll", and "nopoll".
+
+nokqueue
+  Disables the use of the "kqueue" event polling system on BSD. It is
+  equivalent to the command-line argument "-dk". The next polling system
+  used will generally be "poll". See also "nopoll".
+
+nopoll
+  Disables the use of the "poll" event polling system. It is equivalent to the
+  command-line argument "-dp". The next polling system used will be "select".
+  It should never be needed to didsable "poll" since it's available on all
+  platforms supported by HAProxy. See also "nosepoll", and "nopoll" and
+  "nokqueue".
+
+nosepoll
+  Disables the use of the "speculative epoll" event polling system on Linux. It
+  is equivalent to the command-line argument "-ds". The next polling system
+  used will generally be "epoll". See also "nosepoll", and "nopoll".
+
+tune.maxpollevents <number>
+  Sets the maximum amount of events that can be processed at once in a call to
+  the polling system. The default value is adapted to the operating system. It
+  has been noticed that reducing it below 200 tends to slightly decrease
+  latency at the expense of network bandwidth, and increasing it above 200
+  tends to trade latency for slightly increased bandwidth.
+
+
+1.3) Debugging
+---------------
+
+debug
+  Enables debug mode which dumps to stdout all exchanges, and disables forking
+  into background. It is the equivalent of the command-line argument "-d". It
+  should never be used in a production configuration since it may prevent full
+  system startup.
+
+quiet
+  Do not display any message during startup. It is equivalent to the command-
+  line argument "-q".
+
+stats
+  Dump internal statistics to stdout at regular interval. It is available for
+  development purposes only and should never be set.
+
+
+2) Proxies
+----------
+Proxy configuration can be located in a set of sections :
+ - defaults <name>
+ - frontend <name>
+ - backend  <name>
+ - listen   <name>
+
+A "defaults" section sets default parameters for all other sections following
+its declaration. Those default parameters are reset by the next "defaults"
+section. See below for the list of parameters which can be set in a "defaults"
+section.
+
+A "frontend" section describes a set of listening sockets accepting client
+connections.
+
+A "backend" section describes a set of servers to which the proxy will connect
+to forward incoming connections.
+
+A "listen" section defines a complete proxy with its frontend and backend
+parts combined in one section. It is generally useful for TCP-only traffic.
+
+The following list of keywords is supported. Most of them may only be used in a
+limited set of section types.
+
+keyword                 defaults   frontend   listen    backend
+----------------------+----------+----------+---------+---------
+acl                         -          X         X         X   
+appsession                  -          -         X         X   
+balance                     -          -         X         X   
+bind                        -          X         X         -   
+block                       -          X         X         X
+capture cookie              X          X         X         X
+capture request header      X          X         X         X
+capture response header     X          X         X         X
+clitimeout                  X          X         X         -
+contimeout                  X          X         X         X
+cookie                      X          -         X         X
+default_backend             -          X         X         -
+disabled                    -          X         X         X
+dispatch                    -          -         X         X
+enabled                     -          X         X         X
+errorfile                   X          X         X         X
+errorloc                    X          X         X         X
+errorloc302                 X          X         X         X
+errorloc303                 X          X         X         X
+fullconn                    X          -         X         X
+grace                       -          X         X         X
+log                         X          X         X         X
+maxconn                     X          X         X         -
+mode                        X          X         X         X
+monitor-net                 X          X         X         -
+monitor-uri                 X          X         X         -
+option abortonclose         X          -         X         X
+option allbackups           X          -         X         X
+option checkcache           X          -         X         X
+option clitcpka             X          X         X         -
+option dontlognull          X          X         X         -
+option forceclose           X          -         X         X
+option forwardfor           X          X         X         X
+option httpchk              X          -         X         X
+option httpclose            X          X         X         X
+option httplog              X          X         X         X
+option logasap              X          X         X         -
+option persist              X          -         X         X
+option redispatch           X          -         X         X
+option smtpchk              X          -         X         X
+option srvtcpka             X          -         X         X
+option ssl-hello-chk        X          -         X         X
+option tcpka                X          X         X         X
+option tcplog               X          X         X         X
+option tcpsplice            X          X         X         X
+option transparent          X          X         X         -
+redisp                      X          -         X         X
+redispatch                  X          -         X         X
+reqadd                      -          X         X         X
+reqallow                    -          X         X         X
+reqdel                      -          X         X         X
+reqdeny                     -          X         X         X
+reqiallow                   -          X         X         X
+reqidel                     -          X         X         X
+reqideny                    -          X         X         X
+reqipass                    -          X         X         X
+reqirep                     -          X         X         X
+reqisetbe                   -          X         X         X
+reqitarpit                  -          X         X         X
+reqpass                     -          X         X         X
+reqrep                      -          X         X         X
+reqsetbe                    -          X         X         X
+reqtarpit                   -          X         X         X
+retries                     X          -         X         X
+rspadd                      -          X         X         X
+rspdel                      -          X         X         X
+rspdeny                     -          X         X         X
+rspidel                     -          X         X         X
+rspideny                    -          X         X         X
+rspirep                     -          X         X         X
+rsprep                      -          X         X         X
+server                      -          -         X         X
+source                      X          -         X         X
+srvtimeout                  X          -         X         X
+stats auth                  X          X         X         X
+stats enable                X          X         X         X
+stats realm                 X          X         X         X
+stats scope                 X          X         X         X
+stats uri                   X          X         X         X
+transparent                 X          X         X         -
+use_backend                 -          X         X         -
+usesrc                      X          -         X         X
+----------------------+----------+----------+---------+---------
+keyword                 defaults   frontend   listen    backend
+
+
+2.1) using ACLs
+---------------
+
+The use of Access Control Lists (ACL) provides a flexible solution to perform
+content switching. The principle is simple :
+
+  - define test criteria with sets of values
+  - perform actions only if a set of tests is valid
+
+The actions generally consist in blocking the request, or selecting a backend.
+
+In order to define a test, the "acl" keyword is used. The syntax is :
+
+   acl <aclname> <criterion> [flags] [operator] <value> ...
+
+This creates an ACL <aclname> or completes an existing one with new
+tests. Those tests apply to the portion of request specified in <criterion>
+and may be adjusted with optional flags [flags]. Some criteria also support
+an operator which may be specified before the set of values. The values are
+of the type supported by the criterion, and are separated by spaces.
+
+There is no limit to the number of ACLs. The unused ones do not affect
+performance, they just consume a small amount of memory.
+
+The current flags are currently supported :
+
+   -i : ignore case during matching.
+   -- : force end of flags. Useful when a string looks like one of the flags.
+
+Supported types of values are :
+  - integers or integer ranges
+  - strings
+  - regular expressions
+  - IP addresses and networks
+
+
+2.1.1) Matching integers
+------------------------
+
+Matching integers is special in that ranges and operators are permitted. Note
+that integer matching only applies to positive values. A range is a value
+expressed with a lower and an upper bound separated with a colon, both of which
+may be omitted.
+
+For instance, "1024:65535" is a valid range to represent a range of
+unprivileged ports, and "1024:" would also work. "0:1023" is a valid
+representation of privileged ports, and ":1023" would also work.
+
+For an easier usage, comparison operators are also supported. Note that using
+operators with ranges does not make much sense and is discouraged. Also, it
+does not make much sense to perform order comparisons with a set of values.
+
+Available operators are :
+
+  eq : true if the tested value equals at least one value
+  ge : true if the tested value is greater than or equal to at least one value
+  gt : true if the tested value is greater than at least one value
+  le : true if the tested value is less than or equal to at least one value
+  lt : true if the tested value is less than at least one value
+
+For instance, the following ACL matches negative Content-Length headers :
+
+  acl negative-length hdr_val(content-length) lt 0
+
+
+2.1.2) Matching strings
+-----------------------
+
+String matching applies to verbatim strings as they are passed, with the
+exception of the backslash ("\") which makes it possible to escape some
+characters such as the space. If the "-i" flag is passed before the first
+string, then the matching will be performed ignoring the case. In order
+to match the string "-i", either set it second, or pass the "--" flag
+before the first string.
+
+
+2.1.3) Matching regular expressions (regexes)
+---------------------------------------------
+
+Just like with string matching, regex matching applies to verbatim strings as
+they are passed, with the exception of the backslash ("\") which makes it
+possible to escape some characters such as the space. If the "-i" flag is
+passed before the first regex, then the matching will be performed ignoring
+the case. In order to match the string "-i", either set it second, or pass
+the "--" flag before the first string.
+
+
+2.1.4) Matching IPv4 addresses
+----------------------------
+
+IPv4 addresses values can be specified either as plain addresses or with a
+netmask appended, in which case the IPv4 address matches whenever it is
+within the network. Plain addresses may also be replaced with a resolvable
+host name, but this practise is generally discouraged as it makes it more
+difficult to read configurations.
+
+
+2.1.5) Available matching criteria
+----------------------------------
+
+always_false
+  This one never matches. All values and flags are ignored. It may be used as
+  a temporary replacement for another one when adjusting configurations.
+
+always_true
+  This one always matches. All values and flags are ignored. It may be used as
+  a temporary replacement for another one when adjusting configurations.
+
+src <ip_address>
+  Applies to the client's IP address. It is usually used to limit access to
+  certain resources such as statistics. Note that it is the TCP-level source
+  address which is used, and not the address of a client behind a proxy.
+
+src_port <integer>
+  Applies to the client's TCP source port. This has a very limited usage.
+
+dst <ip_address>
+  Applies to the local IP address the client connected to. It can be used to
+  switch to a different backend for some alternative addresses.
+
+dst_port <integer>
+  Applies to the local port the client connected to. It can be used to switch
+  to a different backend for some alternative ports.
+
+dst_conn <integer>
+  Applies to the number of currently established connections on the frontend,
+  including the one being evaluated. It can be used to either return a sorry
+  page before hard-blocking, or to use a specific backend to drain the requests
+  when the farm is considered saturated.
+
+method <string>
+  Applies to the method in the HTTP request, eg: "GET". Some predefined ACL
+  already check for most common methods.
+
+req_ver <string>
+  Applies to the version string in the HTTP request, eg: "1.0". Some predefined
+  ACL already check for versions 1.0 and 1.1.
+
+path <string>
+  Returns true when the path part of the request, which starts at the first
+  slash and ends before the question mark, equals one of the strings. It may be
+  used to match known files, such as /favicon.ico.
+
+path_beg <string>
+  Returns true when the path begins with one of the strings. This can be used to
+  send certain directory names to alternative backends.
+
+path_end <string>
+  Returns true when the path ends with one of the strings. This may be used to
+  control file name extension.
+
+path_sub <string>
+  Returns true when the path contains one of the strings. It can be used to
+  detect particular patterns in paths, such as "../" for example. See also
+  "path_dir".
+
+path_dir <string>
+  Returns true when one of the strings is found isolated or delimited with
+  slashes in the path. This is used to perform filename or directory name
+  matching without the risk of wrong match due to colliding prefixes. See also
+  "url_dir" and "path_sub".
+
+path_dom <string>
+  Returns true when one of the strings is found isolated or delimited with dots
+  in the path. This may be used to perform domain name matching in proxy
+  requests. See also "path_sub" and "url_dom".
+
+path_reg <regex>
+  Returns true when the path matches one of the regular expressions. It can be
+  used any time, but it is important to remember that regex matching is slower
+  than other methods. See also "url_reg" and all "path_" criteria.
+
+url <string>
+  Applies to the whole URL passed in the request. The only real use is to match
+  "*", for which there already is a predefined ACL.
+
+url_beg <string>
+  Returns true when the URL begins with one of the strings. This can be used to
+  check whether a URL begins with a slash or with a protocol scheme.
+
+url_end <string>
+  Returns true when the URL ends with one of the strings. It has very limited
+  use. "path_end" should be used instead for filename matching.
+
+url_sub <string>
+  Returns true when the URL contains one of the strings. It can be used to
+  detect particular patterns in query strings for example. See also "path_sub".
+
+url_dir <string>
+  Returns true when one of the strings is found isolated or delimited with
+  slashes in the URL. This is used to perform filename or directory name
+  matching without the risk of wrong match due to colliding prefixes. See also
+  "path_dir" and "url_sub".
+
+url_dom <string>
+  Returns true when one of the strings is found isolated or delimited with dots
+  in the URL. This is used to perform domain name matching without the risk of
+  wrong match due to colliding prefixes. See also "url_sub".
+
+url_reg <regex>
+  Returns true when the URL matches one of the regular expressions. It can be
+  used any time, but it is important to remember that regex matching is slower
+  than other methods. See also "path_reg" and all "url_" criteria.
+
+hdr <string> 
+hdr(header) <string>
+  Note: all the "hdr*" matching criteria either apply to all headers, or to a
+  particular header whose name is passed between parenthesis and without any
+  space. The header matching complies with RFC2616, and treats as separate
+  headers all values delimited by comas.
+
+  The "hdr" criteria returns true if any of the headers matching the criteria
+  match any of the strings. This can be used to check exact values. For
+  instance, checking that "connection: close" is set :
+
+     hdr(Connection) -i close
+
+hdr_beg <string>
+hdr_beg(header) <string>
+  Returns true when one of the headers begins with one of the strings. See
+  "hdr" for more information on header matching.
+
+hdr_end <string>
+hdr_end(header) <string>
+  Returns true when one of the headers ends with one of the strings. See "hdr"
+  for more information on header matching.
+
+hdr_sub <string>
+hdr_sub(header) <string>
+  Returns true when one of the headers contains one of the strings. See "hdr"
+  for more information on header matching.
+
+hdr_dir <string>
+hdr_dir(header) <string>
+  Returns true when one of the headers contains one of the strings either
+  isolated or delimited by slashes. This is used to perform filename or
+  directory name matching, and may be used with Referer. See "hdr" for more
+  information on header matching.
+
+hdr_dom <string>
+hdr_dom(header) <string>
+  Returns true when one of the headers contains one of the strings either
+  isolated or delimited by dots. This is used to perform domain name matching,
+  and may be used with the Host header. See "hdr" for more information on
+  header matching.
+
+hdr_reg <regex>
+hdr_reg(header) <regex>
+  Returns true when one of the headers matches of the regular expressions. It
+  can be used at any time, but it is important to remember that regex matching
+  is slower than other methods. See also other "hdr_" criteria, as well as
+  "hdr" for more information on header matching.
+
+hdr_val <integer>
+hdr_val(header) <integer>
+  Returns true when one of the headers starts with a number which matches the
+  values or ranges specified. This may be used to limit content-length to
+  acceptable values for example. See "hdr" for more information on header
+  matching.
+
+hdr_cnt <integer>
+hdr_cnt(header) <integer>
+  Returns true when the count of the headers which matches the values or ranges
+  specified. This is used to detect presence or absence of a specific header,
+  as well as to block request smugling attacks by rejecting requests which
+  contain more than one of certain headers. See "hdr" for more information on
+  header matching.
+
+
+2.1.6) Pre-defined ACLs
+-----------------------
+
+Some predefined ACLs are hard-coded so that they do not have to be declared in
+every frontend which needs them. They all have their names in upper case in
+order to avoid confusion. Their equivalence is provided below :
+
+ACL name          Equivalent to                Usage
+---------------+-----------------------------+---------------------------------
+TRUE             always_true  1                always match
+FALSE            always_false 0                never match
+LOCALHOST        src 127.0.0.1/8               match connection from local host
+HTTP_1.0         req_ver 1.0                   match HTTP version 1.0
+HTTP_1.1         req_ver 1.1                   match HTTP version 1.1
+METH_CONNECT     method  CONNECT               match HTTP CONNECT method
+METH_GET         method  GET HEAD              match HTTP GET or HEAD method
+METH_HEAD        method  HEAD                  match HTTP HEAD method
+METH_OPTIONS     method  OPTIONS               match HTTP OPTIONS method
+METH_POST        method  POST                  match HTTP POST method
+METH_TRACE       method  TRACE                 match HTTP TRACE method
+HTTP_URL_ABS     url_reg ^[^/:]*://            match absolute URL with scheme
+HTTP_URL_SLASH   url_beg /                     match URL begining with "/"
+HTTP_URL_STAR    url     *                     match URL equal to "*"
+HTTP_CONTENT     hdr_val(content-length) gt 0  match an existing content-length
+---------------+-----------------------------+---------------------------------
+
+
+2.1.7) Using ACLs to form conditions
+------------------------------------
+
+Some actions are only performed upon a valid condition. A condition is a
+combination of ACLs with operators. 3 operators are supported :
+
+  - AND (implicit)
+  - OR  (explicit with the "or" keyword or the "||" operator)
+  - Negation with the exclamation mark ("!")
+
+A condition is formed as a disjonctive form :
+
+   [!]acl1 [!]acl2 ... [!]acln  { or [!]acl1 [!]acl2 ... [!]acln } ...
+
+Such conditions are generally used after an "if" or "unless" statement,
+indicating when the condition will trigger the action.
+
+For instance, to block HTTP requests to the "*" URL with methods other than
+"OPTIONS", as well as POST requests without content-length, and GET/HEAD
+requests with a content-length greater than 0, and finally every request
+which is not either GET/HEAD/POST/OPTIONS !
+
+   acl missing_cl hdr_cnt(Content-length) eq 0
+   block if HTTP_URL_STAR !METH_OPTIONS || METH_POST missing_cl
+   block if METH_GET HTTP_CONTENT
+   block unless METH_GET or METH_POST or METH_OPTIONS
+
+To select a different backend for requests to static contents on the "www" site
+and to every request on the "img", "video", "download" and "ftp" hosts :
+
+   acl url_static  path_beg         /static /images /img /css
+   acl url_static  path_end         .gif .png .jpg .css .js
+   acl host_www    hdr_beg(host) -i www
+   acl host_static hdr_beg(host) -i img. video. download. ftp.
+
+   # now use backend "static" for all static-only hosts, and for static urls
+   # of host "www". Use backend "www" for the rest.
+   use_backend static if host_static or host_www url_static
+   use_backend www    if host_www
+
+See below for the detailed help on the "block" and "use_backend" keywords.
