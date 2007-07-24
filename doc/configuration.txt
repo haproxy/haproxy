@@ -4,7 +4,7 @@
                          ----------------------
                              version 1.3.12
                              willy tarreau
-                               2007/07/15
+                               2007/07/24
 
 
 This document covers the configuration language as implemented in the version
@@ -284,11 +284,11 @@ rsprep                      -          X         X         X
 server                      -          -         X         X
 source                      X          -         X         X
 srvtimeout                  X          -         X         X
-stats auth                  X          X         X         X
-stats enable                X          X         X         X
-stats realm                 X          X         X         X
-stats scope                 X          X         X         X
-stats uri                   X          X         X         X
+stats auth                  X          -         X         X
+stats enable                X          -         X         X
+stats realm                 X          -         X         X
+stats scope                 X          -         X         X
+stats uri                   X          -         X         X
 transparent                 X          X         X         -
 use_backend                 -          X         X         -
 usesrc                      X          -         X         X
