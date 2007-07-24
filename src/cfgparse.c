@@ -2637,6 +2637,7 @@ int readcfgfile(const char *file)
 
 			curproxy->srv_map = (struct server **)calloc(act, sizeof(struct server *));
 			/* recounts servers and their weights */
+			curproxy->map_state = PR_MAP_RECALC;
 			recount_servers(curproxy);
 			recalc_server_map(curproxy);
 		}

@@ -53,6 +53,9 @@
 #define PR_MODE_HTTP    1
 #define PR_MODE_HEALTH  2
 
+/* values for proxy->map_state */
+#define PR_MAP_RECALC  (1 << 0)
+
 /* flag values for proxy->cap. This is a bitmask of capabilities supported by the proxy */
 #define PR_CAP_NONE    0x0000
 #define PR_CAP_FE      0x0001
@@ -86,6 +89,7 @@ struct proxy {
 	struct list acl;                        /* ACL declared on this proxy */
 	struct list block_cond;                 /* early blocking conditions (chained) */
 	struct list switching_rules;            /* content switching rules (chained) */
+	int map_state;				/* PR_MAP_RECALC */
 	struct server *srv;			/* known servers */
 	int srv_act, srv_bck;			/* # of running servers */
 	int tot_wact, tot_wbck;			/* total weights of active and backup servers */

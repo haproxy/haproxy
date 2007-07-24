@@ -3848,6 +3848,9 @@ int produce_content_stats_proxy(struct session *s, struct proxy *px)
 	case DATA_ST_PX_BE:
 		/* print the backend */
 		if (px->cap & PR_CAP_BE) {
+			if (px->map_state & PR_MAP_RECALC)
+				recalc_server_map(px);
+
 			chunk_printf(&msg, sizeof(trash),
 				     /* name */
 				     "<tr align=center class=\"backend\"><td>Backend</td>"

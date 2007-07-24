@@ -46,7 +46,8 @@
 
 /* Sets server <s> down, notifies by all available means, recounts the
  * remaining servers on the proxy and transfers queued sessions whenever
- * possible to other servers.
+ * possible to other servers. It automatically recomputes the number of
+ * servers, but not the map.
  */
 static void set_server_down(struct server *s)
 {
@@ -58,7 +59,7 @@ static void set_server_down(struct server *s)
 
 	if (s->health == s->rise) {
 		recount_servers(s->proxy);
-		recalc_server_map(s->proxy);
+		s->proxy->map_state |= PR_MAP_RECALC;
 
 		/* we might have sessions queued on this server and waiting for
 		 * a connection. Those which are redispatchable will be queued
@@ -454,7 +455,7 @@ void process_chk(struct task *t, struct timeval *next)
 					int xferred;
 
 					recount_servers(s->proxy);
-					recalc_server_map(s->proxy);
+					s->proxy->map_state |= PR_MAP_RECALC;
 
 					/* check if we can handle some connections queued at the proxy. We
 					 * will take as many as we can handle.
