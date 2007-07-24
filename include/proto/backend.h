@@ -52,6 +52,9 @@ static inline struct server *get_server_rr_with_conns(struct proxy *px)
 	int newidx;
 	struct server *srv;
 
+	if (px->map_state & PR_MAP_RECALC)
+		recalc_server_map(px);
+
 	if (px->srv_map_sz == 0)
 		return NULL;
 
@@ -81,6 +84,9 @@ static inline struct server *get_server_rr_with_conns(struct proxy *px)
  */
 static inline struct server *get_server_rr(struct proxy *px)
 {
+	if (px->map_state & PR_MAP_RECALC)
+		recalc_server_map(px);
+
 	if (px->srv_map_sz == 0)
 		return NULL;
 
@@ -97,10 +103,13 @@ static inline struct server *get_server_rr(struct proxy *px)
  * If any server is found, it will be returned. If no valid server is found,
  * NULL is returned.
  */
-static inline struct server *get_server_sh(const struct proxy *px,
+static inline struct server *get_server_sh(struct proxy *px,
 					   const char *addr, int len)
 {
 	unsigned int h, l;
+
+	if (px->map_state & PR_MAP_RECALC)
+		recalc_server_map(px);
 
 	if (px->srv_map_sz == 0)
 		return NULL;
@@ -132,6 +141,9 @@ static inline struct server *get_server_uh(struct proxy *px, char *uri, int uri_
 {
 	unsigned long hash = 0;
 	int c;
+
+	if (px->map_state & PR_MAP_RECALC)
+		recalc_server_map(px);
 
 	if (px->srv_map_sz == 0)
 		return NULL;

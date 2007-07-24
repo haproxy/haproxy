@@ -90,6 +90,7 @@ void recalc_server_map(struct proxy *px)
 			tot = 1; /* the first server is enough */
 	} else {
 		px->srv_map_sz = 0;
+		px->map_state &= ~PR_MAP_RECALC;
 		return;
 	}
 
@@ -130,6 +131,7 @@ void recalc_server_map(struct proxy *px)
 		best->wscore -= tot;
 	}
 	px->srv_map_sz = tot;
+	px->map_state &= ~PR_MAP_RECALC;
 }
 
 
