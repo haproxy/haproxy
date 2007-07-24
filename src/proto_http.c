@@ -3848,8 +3848,17 @@ int produce_content_stats_proxy(struct session *s, struct proxy *px)
 	case DATA_ST_PX_BE:
 		/* print the backend */
 		if (px->cap & PR_CAP_BE) {
+			int gcd = 1;
+
 			if (px->map_state & PR_MAP_RECALC)
 				recalc_server_map(px);
+
+			/* The GCD which was computed causes the total effective
+			 * weight to appear lower than all weights. Let's
+			 * recompute it.
+			 */
+			if (px->srv && px->srv->eweight)
+				gcd = px->srv->uweight / px->srv->eweight;
 
 			chunk_printf(&msg, sizeof(trash),
 				     /* name */
@@ -3879,7 +3888,7 @@ int produce_content_stats_proxy(struct session *s, struct proxy *px)
 				     px->denied_req, px->denied_resp,
 				     px->failed_conns, px->failed_resp,
 				     (px->srv_map_sz > 0 || !px->srv) ? "UP" : "DOWN",
-				     px->srv_map_sz, px->srv_act, px->srv_bck);
+				     px->srv_map_sz * gcd, px->srv_act, px->srv_bck);
 
 			if (buffer_write_chunk(rep, &msg) != 0)
 				return 0;
