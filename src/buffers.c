@@ -193,9 +193,15 @@ int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len)
 int chunk_printf(struct chunk *chk, int size, const char *fmt, ...)
 {
 	va_list argp;
+	int ret;
 
 	va_start(argp, fmt);
-	chk->len += vsnprintf(chk->str + chk->len, size - chk->len, fmt, argp);
+	ret = vsnprintf(chk->str + chk->len, size - chk->len, fmt, argp);
+	if (ret >= size - chk->len)
+		/* do not copy anything in case of truncation */
+		chk->str[chk->len] = 0;
+	else
+		chk->len += ret;
 	va_end(argp);
 	return chk->len;
 }
