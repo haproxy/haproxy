@@ -3453,7 +3453,7 @@ int produce_content_stats(struct session *s)
 			     "Connection: close\r\n"
 			     "Content-Type: text/html\r\n");
 
-		if (s->be->uri_auth->refresh > 0)
+		if (s->be->uri_auth->refresh > 0 && !(s->flags & SN_STAT_NORFRSH))
 			chunk_printf(&msg, sizeof(trash), "Refresh: %d\r\n",
 				     s->be->uri_auth->refresh);
 
@@ -3569,7 +3569,7 @@ int produce_content_stats(struct session *s)
 			     "<h2>Statistics Report for pid %d</h2>\n"
 			     "<hr width=\"100%%\" class=\"hr\">\n"
 			     "<h3>&gt; General process information</h3>\n"
-			     "<table border=0 cols=3><tr><td align=\"left\" nowrap width=\"1%%\">\n"
+			     "<table border=0 cols=4><tr><td align=\"left\" nowrap width=\"1%%\">\n"
 			     "<p><b>pid = </b> %d (nbproc = %d)<br>\n"
 			     "<b>uptime = </b> %dd %dh%02dm%02ds<br>\n"
 			     "<b>system limits :</b> memmax = %s%s ; ulimit-n = %d<br>\n"
@@ -3590,14 +3590,8 @@ int produce_content_stats(struct session *s)
 			     "<td class=\"active4\"></td><td class=\"noborder\">not checked </td>"
 			     "</tr></table>\n"
 			     "</td>"
-			     "<td align=\"left\" nowrap width=\"1%%\">"
-			     "<b>External ressources:</b><ul style=\"margin-top: 0.25em;\">\n"
-			     "<li><a href=\"" PRODUCT_URL "\">Primary site</a><br>\n"
-			     "<li><a href=\"" PRODUCT_URL_UPD "\">Updates (v" PRODUCT_BRANCH ")</a><br>\n"
-			     "<li><a href=\"" PRODUCT_URL_DOC "\">Online manual</a><br>\n"
-			     "</ul>"
-			     "</td>"
-			     "</tr></table>\n"
+			     "<td align=\"left\" valign=\"top\" nowrap width=\"1%%\">"
+			     "<b>Display option:</b><ul style=\"margin-top: 0.25em;\">"
 			     "",
 			     pid, pid, global.nbproc,
 			     up / 86400, (up % 86400) / 3600,
@@ -3608,6 +3602,53 @@ int produce_content_stats(struct session *s)
 			     global.maxsock,
 			     global.maxconn,
 			     actconn
+			     );
+	    
+		if (s->flags & SN_STAT_HIDEDWN)
+			chunk_printf(&msg, sizeof(trash),
+				     "<li><a href=\"%s%s%s\">Show all servers</a><br>\n",
+				     s->be->uri_auth->uri_prefix,
+				     "",
+				     (s->flags & SN_STAT_NORFRSH) ? ";norefresh" : "");
+		else
+			chunk_printf(&msg, sizeof(trash),
+				     "<li><a href=\"%s%s%s\">Hide 'DOWN' servers</a><br>\n",
+				     s->be->uri_auth->uri_prefix,
+				     ";up",
+				     (s->flags & SN_STAT_NORFRSH) ? ";norefresh" : "");
+
+		if (s->be->uri_auth->refresh > 0) {
+			if (s->flags & SN_STAT_NORFRSH)
+				chunk_printf(&msg, sizeof(trash),
+					     "<li><a href=\"%s%s%s\">Enable refresh</a><br>\n",
+					     s->be->uri_auth->uri_prefix,
+					     (s->flags & SN_STAT_HIDEDWN) ? ";up" : "",
+					     "");
+			else
+				chunk_printf(&msg, sizeof(trash),
+					     "<li><a href=\"%s%s%s\">Disable refresh</a><br>\n",
+					     s->be->uri_auth->uri_prefix,
+					     (s->flags & SN_STAT_HIDEDWN) ? ";up" : "",
+					     ";norefresh");
+		}
+
+		chunk_printf(&msg, sizeof(trash),
+			     "<li><a href=\"%s%s%s\">Refresh now</a><br>\n",
+			     s->be->uri_auth->uri_prefix,
+			     (s->flags & SN_STAT_HIDEDWN) ? ";up" : "",
+			     (s->flags & SN_STAT_NORFRSH) ? ";norefresh" : "");
+
+		chunk_printf(&msg, sizeof(trash),
+			     "</td>"
+			     "<td align=\"left\" valign=\"top\" nowrap width=\"1%%\">"
+			     "<b>External ressources:</b><ul style=\"margin-top: 0.25em;\">\n"
+			     "<li><a href=\"" PRODUCT_URL "\">Primary site</a><br>\n"
+			     "<li><a href=\"" PRODUCT_URL_UPD "\">Updates (v" PRODUCT_BRANCH ")</a><br>\n"
+			     "<li><a href=\"" PRODUCT_URL_DOC "\">Online manual</a><br>\n"
+			     "</ul>"
+			     "</td>"
+			     "</tr></table>\n"
+			     ""
 			     );
 	    
 		if (buffer_write_chunk(rep, &msg) != 0)
@@ -3792,6 +3833,12 @@ int produce_content_stats_proxy(struct session *s, struct proxy *px)
 					sv_state = 1; /* going up */
 				else
 					sv_state = 0; /* DOWN */
+
+			if ((sv_state == 0) && (s->flags & SN_STAT_HIDEDWN)) {
+				/* do not report servers which are DOWN */
+				s->data_ctx.stats.sv = sv->next;
+				continue;
+			}
 
 			chunk_printf(&msg, sizeof(trash),
 				     /* name */
@@ -5188,6 +5235,26 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 	/* the URI is in h */
 	if (memcmp(h, uri_auth->uri_prefix, uri_auth->uri_len) != 0)
 		return 0;
+
+	h += uri_auth->uri_len;
+	while (h <= t->req->data + txn->req.sl.rq.u + txn->req.sl.rq.u_l - 3) {
+		if (memcmp(h, ";up", 3) == 0) {
+			t->flags |= SN_STAT_HIDEDWN;
+			break;
+		}
+		h++;
+	}
+
+	if (uri_auth->refresh) {
+		h = t->req->data + txn->req.sl.rq.u + uri_auth->uri_len;
+		while (h <= t->req->data + txn->req.sl.rq.u + txn->req.sl.rq.u_l - 10) {
+			if (memcmp(h, ";norefresh", 10) == 0) {
+				t->flags |= SN_STAT_NORFRSH;
+				break;
+			}
+			h++;
+		}
+	}
 
 	/* we are in front of a interceptable URI. Let's check
 	 * if there's an authentication and if it's valid.

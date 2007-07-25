@@ -74,6 +74,9 @@
 #define	SN_FINST_SHIFT	12		/* bit shift */
 /* unused:              0x00008000 */
 
+#define SN_STAT_HIDEDWN	0x00010000	/* hide 'down' servers in the stats page */
+#define SN_STAT_NORFRSH	0x00020000	/* do not automatically refresh the stats page */
+
 
 /* WARNING: if new fields are added, they must be initialized in event_accept()
  * and freed in session_free() !
