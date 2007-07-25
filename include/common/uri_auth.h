@@ -1,7 +1,7 @@
 /*
  * URI-based user authentication using the HTTP basic method.
  *
- * Copyright 2006 Willy Tarreau <w@1wt.eu>
+ * Copyright 2006-2007 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -36,6 +36,7 @@ struct uri_auth {
 	int uri_len;			/* the prefix length */
 	char *uri_prefix;		/* the prefix we want to match */
 	char *auth_realm;		/* the realm reported to the client */
+	int refresh;			/* refresh interval for the browser (in seconds) */
 	struct user_auth *users;	/* linked list of valid user:passwd couples */
 	struct stat_scope *scope;	/* linked list of authorized proxies */
 };
@@ -65,7 +66,15 @@ struct uri_auth {
 struct uri_auth *stats_check_init_uri_auth(struct uri_auth **root);
 struct uri_auth *stats_set_uri(struct uri_auth **root, char *uri);
 struct uri_auth *stats_set_realm(struct uri_auth **root, char *realm);
+struct uri_auth *stats_set_refresh(struct uri_auth **root, int interval);
 struct uri_auth *stats_add_auth(struct uri_auth **root, char *user);
 struct uri_auth *stats_add_scope(struct uri_auth **root, char *scope);
 
 #endif /* _COMMON_URI_AUTH_H */
+
+/*
+ * Local variables:
+ *  c-indent-level: 8
+ *  c-basic-offset: 8
+ * End:
+ */

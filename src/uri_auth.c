@@ -1,7 +1,7 @@
 /*
  * URI-based user authentication using the HTTP basic method.
  *
- * Copyright 2006 Willy Tarreau <w@1wt.eu>
+ * Copyright 2006-2007 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -114,6 +114,19 @@ struct uri_auth *stats_set_realm(struct uri_auth **root, char *realm)
 }
 
 /*
+ * Returns a default uri_auth with the <refresh> refresh interval.
+ * Uses the pointer provided if not NULL and not initialized.
+ */
+struct uri_auth *stats_set_refresh(struct uri_auth **root, int interval)
+{
+	struct uri_auth *u;
+	
+	if ((u = stats_check_init_uri_auth(root)) != NULL)
+		u->refresh = interval;
+	return u;
+}
+
+/*
  * Returns a default uri_auth with a <user:passwd> entry added to the list of
  * authorized users. If a matching entry is found, no update will be performed.
  * Uses the pointer provided if not NULL and not initialized.
@@ -204,3 +217,9 @@ struct uri_auth *stats_add_scope(struct uri_auth **root, char *scope)
 	return NULL;
 }
 
+/*
+ * Local variables:
+ *  c-indent-level: 8
+ *  c-basic-offset: 8
+ * End:
+ */

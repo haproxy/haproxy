@@ -3451,8 +3451,13 @@ int produce_content_stats(struct session *s)
 			     "HTTP/1.0 200 OK\r\n"
 			     "Cache-Control: no-cache\r\n"
 			     "Connection: close\r\n"
-			     "Content-Type: text/html\r\n"
-			     "\r\n");
+			     "Content-Type: text/html\r\n");
+
+		if (s->be->uri_auth->refresh > 0)
+			chunk_printf(&msg, sizeof(trash), "Refresh: %d\r\n",
+				     s->be->uri_auth->refresh);
+
+		chunk_printf(&msg, sizeof(trash), "\r\n");
 
 		s->txn.status = 200;
 		client_retnclose(s, &msg); // send the start of the response.
