@@ -1040,6 +1040,16 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 				Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 				return -1;
 			}
+		} else if (!strcmp(args[1], "refresh")) {
+			int interval = atoi(args[2]);
+			
+			if (interval < 0) {
+				Alert("parsing [%s:%d] : 'refresh' needs a positive interval in seconds.\n", file, linenum);
+				return -1;
+			} else if (!stats_set_refresh(&curproxy->uri_auth, interval)) {
+				Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+				return -1;
+			}
 		} else if (!strcmp(args[1], "auth")) {
 			if (*(args[2]) == 0) {
 				Alert("parsing [%s:%d] : 'auth' needs a user:password account.\n", file, linenum);
