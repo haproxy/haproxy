@@ -115,7 +115,7 @@ static _syscall4 (int, epoll_wait, int, epfd, struct epoll_event *, events, int,
  * FIXME: should be a bit field */
 struct fd_status {
 	unsigned int e:4;       // read and write events status.
-	unsigned int s:28;      // Position in spec list. Should be last.
+	unsigned int s1:28;     // Position in spec list+1. 0=not in list. Should be last.
 };
 
 static int nbspec = 0;          // current size of the spec list
@@ -135,27 +135,37 @@ static struct epoll_event ev;
 
 REGPRM1 static void alloc_spec_entry(const int fd)
 {
-	if (fd_list[fd].e & FD_EV_RW_SL)
+	if (fd_list[fd].s1)
 		return;
-	fd_list[fd].s = nbspec;
-	spec_list[nbspec++] = fd;
+	fd_list[fd].s1 = nbspec + 1;
+	spec_list[nbspec] = fd;
+	nbspec++;
 }
 
-/* removes entry <pos> from the spec list and replaces it with the last one.
- * The fd_list is adjusted to match the back reference if needed.
+/* Removes entry used by fd <fd> from the spec list and replaces it with the
+ * last one. The fd_list is adjusted to match the back reference if needed.
+ * If the fd has no entry assigned, return immediately.
  */
-REGPRM1 static void delete_spec_entry(const int pos)
+REGPRM1 static void release_spec_entry(int fd)
 {
-	int fd;
+	unsigned int pos;
+
+	pos = fd_list[fd].s1;
+	if (!pos)
+		return;
+
+	fd_list[fd].s1 = 0;
+	pos--;
+	/* we have spec_list[pos]==fd */
 
 	nbspec--;
 	if (pos == nbspec)
 		return;
 
-	/* we replace current FD by the highest one */
+	/* we replace current FD by the highest one, which may sometimes be the same */
 	fd = spec_list[nbspec];
+	fd_list[fd].s1 = pos + 1;
 	spec_list[pos] = fd;
-	fd_list[fd].s = pos;
 }
 
 /*
@@ -234,7 +244,7 @@ REGPRM1 static void __fd_rem(int fd)
 REGPRM1 static void __fd_clo(int fd)
 {
 	if (fd_list[fd].e & FD_EV_RW_SL)
-		delete_spec_entry(fd_list[fd].s);
+		release_spec_entry(fd);
 	fd_list[fd].e &= ~(FD_EV_MASK);
 }
 
@@ -346,7 +356,7 @@ REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 			/* This fd switched to combinations of either WAIT or
 			 * IDLE. It must be removed from the spec list.
 			 */
-			delete_spec_entry(spec_idx);
+			release_spec_entry(fd);
 			continue;
 		}
 	}
