@@ -57,13 +57,13 @@
 #ifdef CONFIG_HAPROXY_VERSION
 #define HAPROXY_VERSION CONFIG_HAPROXY_VERSION
 #else
-#define HAPROXY_VERSION "1.3.12"
+#error "Must define CONFIG_HAPROXY_VERSION"
 #endif
 
 #ifdef CONFIG_HAPROXY_DATE
 #define HAPROXY_DATE    CONFIG_HAPROXY_DATE
 #else
-#define HAPROXY_DATE    "2007/06/17"
+#error "Must define CONFIG_HAPROXY_DATE"
 #endif
 
 #endif /* _COMMON_VERSION_H */

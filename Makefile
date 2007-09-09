@@ -113,19 +113,24 @@ DEFINE = -DTPROXY
 # Now let's determine the version, sub-version and release date.
 # If we're in the GIT tree, we can use the last commit's version and date.
 ifeq ($(IGNOREGIT),)
-VERSION := $(shell [ -d .git/. ] && ref=`git-describe --tags 2>/dev/null` && ref=$${ref%-g*} && echo "$${ref\#v}" )
-endif
-
+VERSION := $(shell [ -d .git/. ] && ref=`(git-describe --tags) 2>/dev/null` && ref=$${ref%-g*} && echo "$${ref\#v}")
 ifneq ($(VERSION),)
 # OK git is there and works.
 SUBVERS := $(shell comms=`git-log --no-merges v$(VERSION).. 2>/dev/null |grep -c ^commit `; [ $$comms -gt 0 ] && echo "-$$comms" )
 VERDATE := $(shell date +%Y/%m/%d -d "`git-log HEAD^.. 2>/dev/null | grep -m 1 ^Date: | cut -f2- -d: | cut -f1 -d+`" )
-else
+endif
+endif
+
 # Otherwise, use the hard-coded version of last tag, number of changes
 # since last tag, and release date.
-VERSION := 1.3.12
-SUBVERS := 
-VERDATE := 2007/06/17
+ifeq ($(VERSION),)
+VERSION := $(shell cat VERSION 2>/dev/null || touch VERSION)
+endif
+ifeq ($(SUBVERS),)
+SUBVERS := $(shell cat SUBVERS 2>/dev/null || touch SUBVERS)
+endif
+ifeq ($(VERDATE),)
+VERDATE := $(shell cat VERDATE 2>/dev/null || touch VERDATE)
 endif
 
 #### build options
@@ -256,3 +261,19 @@ tar:	clean
 
 git-tar: clean
 	git-tar-tree HEAD haproxy-$(VERSION) | gzip -9 > haproxy-$(VERSION)$(SUBVERS).tar.gz
+
+version:
+	@echo "VERSION: $(VERSION)"
+	@echo "SUBVERS: $(SUBVERS)"
+	@echo "VERDATE: $(VERDATE)"
+
+# never use this one if you don't know what it is used for.
+update-version:
+	@echo "Ready to update the following versions :"
+	@echo "VERSION: $(VERSION)"
+	@echo "SUBVERS: $(SUBVERS)"
+	@echo "VERDATE: $(VERDATE)"
+	@echo "Press [ENTER] to continue or Ctrl-C to abort now.";read
+	echo "$(VERSION)" > VERSION
+	echo "$(SUBVERS)" > SUBVERS
+	echo "$(VERDATE)" > VERDATE

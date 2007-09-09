@@ -7,8 +7,6 @@
 #   make TARGET=freebsd CPU=i686 DLMALLOC_SRC=/usr/local/src/dlmalloc.c \
 #        OPT_OBJS=src/dlmalloc.o
 
-VERSION := 1.3.12
-
 # Select target OS. TARGET must match a system for which COPTS and LIBS are
 # correctly defined below.
 TARGET = openbsd
@@ -87,10 +85,17 @@ TARGET_OPTS=$(COPTS.$(TARGET))
 REGEX_OPTS=$(COPTS.$(REGEX))
 CPU_OPTS=$(COPTS.$(CPU))
 
-COPTS=-Iinclude $(ADDINC) $(CPU_OPTS) $(TARGET_OPTS) $(REGEX_OPTS) $(SMALL_OPTS) $(DEFINE)
-LIBS=$(LIBS.$(TARGET)) $(LIBS.$(REGEX)) $(ADDLIB)
+VERSION != cat VERSION 2>/dev/null || touch VERSION
+SUBVERS != cat SUBVERS 2>/dev/null || touch SUBVERS
+VERDATE != cat VERDATE 2>/dev/null || touch VERDATE
 
-CFLAGS = -Wall $(COPTS) $(DEBUG)
+VER_OPTS := -DCONFIG_HAPROXY_VERSION=\"$(VERSION)$(SUBVERS)\" \
+            -DCONFIG_HAPROXY_DATE=\"$(VERDATE)\"
+
+COPTS   = -Iinclude $(ADDINC) $(CPU_OPTS) $(TARGET_OPTS) $(REGEX_OPTS) \
+          $(SMALL_OPTS) $(VER_OPTS) $(DEFINE)
+LIBS    = $(LIBS.$(TARGET)) $(LIBS.$(REGEX)) $(ADDLIB)
+CFLAGS  = -Wall $(COPTS) $(DEBUG)
 LDFLAGS = -g
 
 OBJS = src/haproxy.o src/sessionhash.o src/base64.o \
@@ -118,3 +123,8 @@ clean:
 	rm -f *.[oas] src/*.[oas] core haproxy test
 	for dir in . src include/* doc; do rm -f $$dir/*~ $$dir/*.rej;done
 	rm -f haproxy-$(VERSION).tar.gz haproxy-$(VERSION) nohup.out gmon.out
+
+version:
+	@echo "VERSION: $(VERSION)"
+	@echo "SUBVERS: $(SUBVERS)"
+	@echo "VERDATE: $(VERDATE)"
