@@ -322,7 +322,7 @@ Example :
 
     # to reload a new configuration with minimal service impact and without
     # breaking existing sessions :
-    # haproxy -f haproxy.cfg -p $(</var/run/haproxy-private.pid) -st $(</var/run/haproxy-private.pid)
+    # haproxy -f haproxy.cfg -p /var/run/haproxy-private.pid -sf $(</var/run/haproxy-private.pid)
 
 1.7) Polling mechanisms
 -----------------------
