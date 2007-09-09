@@ -343,7 +343,7 @@ Exemple :
 
     # pour recharger une configuration avec un impact minimal sur le service,
     # et sans casser les sessions existantes :
-    # haproxy -f haproxy.cfg -p $(</var/run/haproxy-private.pid) -st $(</var/run/haproxy-private.pid)
+    # haproxy -f haproxy.cfg -p /var/run/haproxy-private.pid -sf $(</var/run/haproxy-private.pid)
 
 1.7) Mécanismes de traitements des événements
 ---------------------------------------------
