@@ -4515,9 +4515,10 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 					memcpy(asession_temp->sessid, p3, t->be->appsession_len);
 					asession_temp->sessid[t->be->appsession_len] = 0;
 					asession_temp->serverid = NULL;
-			    
+
 					/* only do insert, if lookup fails */
-					if (chtbl_lookup(&(t->be->htbl_proxy), (void *) &asession_temp) != 0) {
+					asession_temp = appsession_hash_lookup(&(t->be->htbl_proxy), asession_temp->sessid);
+					if (asession_temp == NULL) {
 						if ((asession_temp = pool_alloc2(pool2_appsess)) == NULL) {
 							/* free previously allocated memory */
 							pool_free2(apools.sessid, local_asession.sessid);
@@ -4528,12 +4529,11 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 
 						asession_temp->sessid = local_asession.sessid;
 						asession_temp->serverid = local_asession.serverid;
-						chtbl_insert(&(t->be->htbl_proxy), (void *) asession_temp);
+						appsession_hash_insert(&(t->be->htbl_proxy), asession_temp);
 					} else {
 						/* free previously allocated memory */
 						pool_free2(apools.sessid, local_asession.sessid);
 					}
-			    
 					if (asession_temp->serverid == NULL) {
 						Alert("Found Application Session without matching server.\n");
 					} else {
@@ -4989,7 +4989,7 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 				asession_temp->serverid = NULL;
 
 				/* only do insert, if lookup fails */
-				if (chtbl_lookup(&(t->be->htbl_proxy), (void *) &asession_temp) != 0) {
+				if (appsession_hash_lookup(&(t->be->htbl_proxy), asession_temp->sessid) == NULL) {
 					if ((asession_temp = pool_alloc2(pool2_appsess)) == NULL) {
 						Alert("Not enough Memory process_srv():asession:calloc().\n");
 						send_log(t->be, LOG_ALERT, "Not enough Memory process_srv():asession:calloc().\n");
@@ -4997,13 +4997,12 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 					}
 					asession_temp->sessid = local_asession.sessid;
 					asession_temp->serverid = local_asession.serverid;
-					chtbl_insert(&(t->be->htbl_proxy), (void *) asession_temp);
-				}/* end if (chtbl_lookup()) */
-				else {
+					appsession_hash_insert(&(t->be->htbl_proxy), asession_temp);
+				} else {
 					/* free wasted memory */
 					pool_free2(apools.sessid, local_asession.sessid);
-				} /* end else from if (chtbl_lookup()) */
-		      
+				}
+
 				if (asession_temp->serverid == NULL) {
 					if ((asession_temp->serverid = pool_alloc2(apools.serverid)) == NULL) {
 						Alert("Not enough Memory process_srv():asession->sessid:malloc().\n");
@@ -5019,7 +5018,7 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 				tv_add(&asession_temp->expire, &now, &t->be->appsession_timeout);
 
 #if defined(DEBUG_HASH)
-				print_table(&(t->be->htbl_proxy));
+				appsession_hash_dump(&(t->be->htbl_proxy));
 #endif
 			}/* end if ((t->proxy->appsession_name != NULL) ... */
 			break; /* we don't want to loop again since there cannot be another cookie on the same line */
@@ -5161,7 +5160,7 @@ void get_srv_from_appsession(struct session *t, const char *begin, int len)
 	asession_temp->serverid = NULL;
 	
 	/* only do insert, if lookup fails */
-	if (chtbl_lookup(&(t->be->htbl_proxy), (void *)&asession_temp)) {
+	if (appsession_hash_lookup(&(t->be->htbl_proxy), asession_temp->sessid) == NULL) {
 		if ((asession_temp = pool_alloc2(pool2_appsess)) == NULL) {
 			/* free previously allocated memory */
 			pool_free2(apools.sessid, local_asession.sessid);
@@ -5171,18 +5170,18 @@ void get_srv_from_appsession(struct session *t, const char *begin, int len)
 		}
 		asession_temp->sessid = local_asession.sessid;
 		asession_temp->serverid = local_asession.serverid;
-		chtbl_insert(&(t->be->htbl_proxy), (void *) asession_temp);
+		appsession_hash_insert(&(t->be->htbl_proxy), asession_temp);
 	}
 	else {
 		/* free previously allocated memory */
 		pool_free2(apools.sessid, local_asession.sessid);
 	}
-	
+
 	tv_add(&asession_temp->expire, &now, &t->be->appsession_timeout);
 	asession_temp->request_count++;
-	
+
 #if defined(DEBUG_HASH)
-	print_table(&(t->proxy->htbl_proxy));
+	appsession_hash_dump(&(t->be->htbl_proxy));
 #endif
 	if (asession_temp->serverid == NULL) {
 		Alert("Found Application Session without matching server.\n");

@@ -28,10 +28,10 @@
 #include <arpa/inet.h>
 
 #include <common/appsession.h>
-#include <common/chtbl.h>
 #include <common/config.h>
 #include <common/mini-clist.h>
 #include <common/regex.h>
+#include <common/sessionhash.h>
 #include <common/tools.h>
 
 #include <types/acl.h>
@@ -101,7 +101,7 @@ struct proxy {
 	char *appsession_name;			/* name of the cookie to look for */
 	int  appsession_name_len;		/* strlen(appsession_name), computed only once */
 	int  appsession_len;			/* length of the appsession cookie value to be used */
-	CHTbl htbl_proxy;			/* Per Proxy hashtable */
+	struct appsession_hash htbl_proxy;	/* Per Proxy hashtable */
 	char *capture_name;			/* beginning of the name of the cookie to capture */
 	int  capture_namelen;			/* length of the cookie name to match */
 	int  capture_len;			/* length of the string to be captured */

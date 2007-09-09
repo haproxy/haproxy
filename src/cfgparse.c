@@ -796,9 +796,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		else
 			tv_eternity(&curproxy->appsession_timeout);
 
-		rc = chtbl_init(&(curproxy->htbl_proxy), TBLSIZ, hashpjw, match_str, destroy);
-		if (rc) {
-			Alert("Error Init Appsession Hashtable.\n");
+		if (appsession_hash_init(&(curproxy->htbl_proxy), destroy) == 0) {
+			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			return -1;
 		}
 	} /* Url App Session */

@@ -15,10 +15,9 @@
 #include <string.h>
 
 #include <common/appsession.h>
-#include <common/chtbl.h>
 #include <common/config.h>
-#include <common/list.h>
 #include <common/memory.h>
+#include <common/sessionhash.h>
 #include <common/time.h>
 
 #include <types/buffers.h>
@@ -32,39 +31,6 @@
 struct pool_head *pool2_appsess;
 struct app_pool apools;
 int have_appsession;
-
-#if defined(DEBUG_HASH)
-void print_table(const CHTbl *htbl)
-{
-	ListElmt           *element;
-	int                i;
-	appsess *asession;
-
-	/*********************************************************************
-	 *                                                                    *
-	 *  Display the chained hash table.                                   *
-	 *                                                                    *
-	 *********************************************************************/
-    
-	fprintf(stdout, "Table size is %d\n", chtbl_size(htbl));
-    
-	for (i = 0; i < TBLSIZ; i++) {
-		fprintf(stdout, "Bucket[%03d]\n", i);
-	
-		for (element = list_head(&htbl->table[i]);
-		     element != NULL; element = list_next(element)) {
-			//fprintf(stdout, "%c", *(char *)list_data(element));
-			asession = (appsess *)list_data(element);
-			fprintf(stdout, "ELEM :%s:", asession->sessid);
-			fprintf(stdout, " Server :%s: \n", asession->serverid);
-			//fprintf(stdout, " Server request_count :%li:\n",asession->request_count);
-		}
-	
-		fprintf(stdout, "\n");
-	}
-	return;
-} /* end print_table */
-#endif
 
 int appsession_init(void)
 {
@@ -139,48 +105,30 @@ int appsession_task_init(void)
 
 void appsession_refresh(struct task *t, struct timeval *next)
 {
-	struct proxy       *p = proxy;
-	CHTbl              *htbl;
-	ListElmt           *element, *last;
-	int                i;
-	appsess            *asession;
-	void               *data;
+	struct proxy           *p = proxy;
+	struct appsession_hash *htbl;
+	appsess                *element, *back;
+	int                    i;
 
 	while (p) {
 		if (p->appsession_name != NULL) {
 			htbl = &p->htbl_proxy;
-			/* if we ever give up the use of TBLSIZ, we need to change this */
-			for (i = 0; i < TBLSIZ; i++) {
-				last = NULL;
-				for (element = list_head(&htbl->table[i]);
-				     element != NULL; element = list_next(element)) {
-					asession = (appsess *)list_data(element);
-					if (tv_isle(&asession->expire, &now)) {
-						if ((global.mode & MODE_DEBUG) &&
-						    (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))) {
-							int len;
-							/*
-							  on Linux NULL pointers are catched by sprintf, on solaris -> segfault 
-							*/
-							len = sprintf(trash, "appsession_refresh: cleaning up expired Session '%s' on Server %s\n", 
-								      asession->sessid,  asession->serverid?asession->serverid:"(null)");
-							write(1, trash, len);
-						}
-						/* delete the expired element from within the hash table */
-						if ((list_rem_next(&htbl->table[i], last, (void **)&data) == 0)
-						    && (htbl->table[i].destroy != NULL)) {
-							htbl->table[i].destroy(data);
-						}
-						if (last == NULL) {/* patient lost his head, get a new one */
-							element = list_head(&htbl->table[i]);
-							if (element == NULL) break; /* no heads left, go to next patient */
-						}
-						else
-							element = last;
-					}/* end if (tv_isle(&asession->expire, &now)) */
-					else
-						last = element;
-				}/* end  for (element = list_head(&htbl->table[i]); element != NULL; element = list_next(element)) */
+			as_hash_for_each_entry_safe(i, element, back, &p->htbl_proxy, hash_list) {
+				if (tv_isle(&element->expire, &now)) {
+					if ((global.mode & MODE_DEBUG) &&
+					    (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))) {
+						int len;
+						/*
+						  on Linux NULL pointers are caught by sprintf, on solaris -> segfault 
+						*/
+						len = sprintf(trash, "appsession_refresh: cleaning up expired Session '%s' on Server %s\n", 
+							      element->sessid, element->serverid?element->serverid:"(null)");
+						write(1, trash, len);
+					}
+					/* delete the expired element from within the hash table */
+					LIST_DEL(&element->hash_list);
+					htbl->destroy(element);
+				}/* end if (tv_isle(&asession->expire, &now)) */
 			}
 		}
 		p = p->next;
@@ -202,12 +150,7 @@ int match_str(const void *key1, const void *key2)
     return (strcmp(temp1->sessid,temp2->sessid) == 0);
 }/* end match_str */
 
-void destroy(void *data) {
-    appsess *temp1;
-
-    //printf("destroy called\n");
-    temp1 = (appsess *)data;
-
+void destroy(appsess *temp1) {
     if (temp1->sessid)
 	pool_free2(apools.sessid, temp1->sessid);
 
@@ -222,7 +165,7 @@ void appsession_cleanup( void )
 	struct proxy *p = proxy;
 
 	while(p) {
-		chtbl_destroy(&(p->htbl_proxy));
+		appsession_hash_destroy(&(p->htbl_proxy));
 		p = p->next;
 	}
 }/* end appsession_cleanup() */
