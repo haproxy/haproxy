@@ -1,0 +1,174 @@
+.TH HAPROXY 1 "17 August 2007" 
+
+.SH NAME
+
+HAProxy \- fast and reliable http reverse proxy and load balancer
+
+.SH SYNOPSIS
+
+haproxy -f <configuration\ file> [-n\ maxconn] [-N\ maxconn] [-d] [-D] [-q] [-V] [-c] [-p\ <pidfile>] [-s] [-l] [-dk] [-ds] [-de] [-dp] [-db] [-m\ <megs>] [{-sf|-st}\ pidlist...] 
+
+.SH DESCRIPTION
+
+HAProxy is a TCP/HTTP reverse proxy which is particularly suited for
+high availability environments. Indeed, it can:
+ \- route HTTP requests depending on statically assigned cookies ;
+ \- spread the load among several servers while assuring server
+   persistence through the use of HTTP cookies ;
+ \- switch to backup servers in the event a main one fails ;
+ \- accept connections to special ports dedicated to service
+   monitoring ;
+ \- stop accepting connections without breaking existing ones ;
+ \- add/modify/delete HTTP headers both ways ;
+ \- block requests matching a particular pattern ;
+ \- hold clients to the right application server depending on
+   application cookies
+ \- report detailed status as HTML pages to authenticated users from an
+   URI intercepted from the application.
+
+It needs very little resource. Its event-driven architecture allows it
+to easily handle thousands of simultaneous connections on hundreds of
+instances without risking the system's stability.
+
+.SH OPTIONS
+
+.TP
+\fB-f <configuration file>\fP
+Specify configuration file path.
+
+.TP
+\fB-n <maxconn>\fP
+Set the high limit for the total number of simultaneous connections.
+
+.TP
+\fB-N <maxconn>\fP
+Set the high limit for the per-listener number of simultaneous connections.
+
+.TP
+\fB-d\fP
+Start in foregreound with debugging mode enabled.
+When the proxy runs in this mode, it dumps every connections,
+disconnections, timestamps, and HTTP headers to stdout. This should
+NEVER be used in an init script since it will prevent the system from
+starting up.
+
+.TP
+\fB-D\fP
+Start in daemon mode.
+
+.TP
+\fB-q\fP
+Disable messages on output.
+
+.TP
+\fB-V\fP
+Displays messages on output even when -q or 'quiet' are specified. Some
+information about pollers and config file are displayed during startup.
+
+.TP
+\fB-c\fP
+Only checks config file and exits with code 0 if no error was found, or
+exits with code 1 if a syntax error was found.
+
+.TP
+\fB-p <pidfile>\fP
+Ask the process to write down each of its children's pids to this file
+in daemon mode.
+
+.TP
+\fB-s\fP
+Show statistics (only if compiled in).
+Statistics are only available if compiled in with the 'STATTIME' option.
+It's only used during code optimization phases, and will soon disappear.
+
+.TP
+\fB-l\fP
+Show even more statistics (implies '-s').
+
+.TP
+\fB-dk\fP
+Disable use of kqueue(). kqueue() is available only on BSD systems.
+
+.TP
+\fB-ds\fP
+Disable use of speculative epoll(). epoll() is available only on Linux 2.6
+and some custom Linux 2.4 systems.
+
+.TP
+\fB-de\fP
+Disable use of epoll(). epoll() is available only on Linux 2.6
+and some custom Linux 2.4 systems.
+
+.TP
+\fB-dp\fP
+Disables use of poll(). select() might be used instead.
+
+.TP
+\fB-db\fP
+Disables background mode (stays in foreground, useful for debugging).
+For debugging, the '-db' option is very useful as it temporarily
+disables daemon mode and multi-process mode. The service can then be
+stopped by simply pressing Ctrl-C, without having to edit the config nor
+run full debug.
+
+.TP
+\fB-m <megs>\fP
+Enforce a memory usage limit to a maximum of <megs> megabytes.
+
+.TP
+\fB-sf <pidlist>\fP
+Send FINISH signal to the pids in pidlist after startup. The processes
+which receive this signal will wait for all sessions to finish before
+exiting. This option must be specified last, followed by any number of
+PIDs. Technically speaking, \fBSIGTTOU\fP and \fBSIGUSR1\fP are sent.
+
+.TP
+\fB-st <pidlist>\fP
+Send TERMINATE signal to the pids in pidlist after startup. The processes
+which receive this signal will wait immediately terminate, closing all
+active sessions. This option must be specified last, followed by any number
+of PIDs. Technically speaking, \fBSIGTTOU\fP and \fBSIGTERM\fP are sent.
+
+.SH LOGGING
+Since HAProxy can run inside a chroot, it cannot reliably access /dev/log.
+For this reason, it uses the UDP protocol to send its logs to the server,
+even if it is the local server. People who experience trouble receiving
+logs should ensure that their syslog daemon listens to the UDP socket.
+Several Linux distributions which ship with syslogd from the sysklogd
+package have UDP disabled by default. The \fB-r\fP option must be passed
+to the daemon in order to enable UDP.
+
+.SH SIGNALS
+Some signals have a special meaning for the haproxy daemon. Generally, they are used between daemons and need not be used by the administrator.
+.TP
+- \fBSIGUSR1\fP
+Tells the daemon to stop all proxies and exit once all sessions are closed. It is often referred to as the "soft-stop" signal.
+.TP
+- \fBSIGTTOU\fP
+Tells the daemon to stop listening to all sockets. Used internally by \fB-sf\fP and \fB-st\fP.
+.TP
+- \fBSIGTTIN\fP
+Tells the daemon to restart listening to all sockets after a \fBSIGTTOU\fP. Used internally when there was a problem during hot reconfiguration.
+.TP
+- \fBSIGINT\fP and \fBSIGTERM\fP
+Both signals can be used to quickly stop the daemon.
+.TP
+- \fBSIGHUP\fP
+Dumps the status of all proxies and servers into the logs. Mostly used for trouble-shooting purposes.
+.TP
+\-\ \fBSIGQUIT\fP
+Dumps information about memory pools into the logs. Mostly used for debugging purposes.
+.TP
+\-\ \fBSIGPIPE\fP
+This signal is intercepted and ignored on systems without \fBMSG_NOSIGNAL\fP.
+
+.SH SEE ALSO
+
+A much better documentation can be found in haproxy-en.txt. On debian
+systems, you can find this file in
+/usr/share/doc/haproxy/haproxy-en.txt.gz.
+
+.SH AUTHOR
+
+HAProxy was written by Willy Tarreau. This man page was written by Arnaud Cornet and Willy Tarreau.
+
