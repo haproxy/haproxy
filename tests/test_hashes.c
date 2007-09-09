@@ -158,10 +158,6 @@ ub4 bernstein(ub1 *key, ub4 len, ub4 level){
                        +(uint32_t)(((const uint8_t *)(d))[0]) )
 #endif
 
-/*
- * This function has a hole of 11 unused bits in bytes 2 and 3 of each block of
- * 32 bits.
- */
 uint32_t SuperFastHash (const char * data, int len) {
 uint32_t hash = len, tmp;
 int rem;
@@ -208,7 +204,7 @@ int rem;
 }
 
 /*
- * This variant uses all bits from the input block, and is about 15% faster.
+ * This variant is about 15% faster.
  */
 uint32_t SuperFastHash2 (const char * data, int len) {
 uint32_t hash = len, tmp;
@@ -224,7 +220,7 @@ int rem;
 	register uint32_t next;
 	next   = get16bits(data+2);
         hash  += get16bits(data);
-        tmp    = ((next << 11) | (next >> 21)) ^ hash;
+        tmp    = (next << 11) ^ hash;
         hash   = (hash << 16) ^ tmp;
         data  += 2*sizeof (uint16_t);
         hash  += hash >> 11;
@@ -493,6 +489,23 @@ unsigned oat_hash ( void *key, int len )
   return h;
 }
 
+unsigned wt_hash ( void *key, int len )
+{
+  unsigned char *p = key;
+  unsigned h = 0x783c965aUL;
+  unsigned step = 16;
+
+  for (; len > 0; len--) {
+      h ^= *p * 9;
+      p++;
+      h = (h << step) | (h >> (32-step));
+      step ^= h;
+      step &= 0x1F;
+  }
+
+  return h;
+}
+
 
 #define run_test(fct, args) {						\
     unsigned long loop, count;						\
@@ -526,6 +539,7 @@ int main(){
   start = urls;
   len = strlen(*urls);
 
+  run_test(wt_hash, (*urls, len));
   run_test(SuperFastHash2, (*urls, len));
   run_test(SuperFastHash, (*urls, len));
   run_test(haproxy_uri_hash, (*urls, len));
