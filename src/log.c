@@ -163,6 +163,9 @@ void send_log(struct proxy *p, int level, const char *message, ...)
 	if (logfd < 0) {
 		if ((logfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
 			return;
+		/* we don't want to receive anything on this socket */
+		setsockopt(logfd, SOL_SOCKET, SO_RCVBUF, &zero, sizeof(zero));
+		shutdown(logfd, SHUT_RD); /* does nothing under Linux, maybe needed for others */
 	}
     
 	if (level < 0 || progname == NULL || message == NULL)
