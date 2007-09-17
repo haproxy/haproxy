@@ -468,6 +468,10 @@ static void init_default_instance()
 	defproxy.maxconn = cfg_maxpconn;
 	defproxy.conn_retries = CONN_RETRIES;
 	defproxy.logfac1 = defproxy.logfac2 = -1; /* log disabled */
+	tv_eternity(&defproxy.clitimeout);
+	tv_eternity(&defproxy.contimeout);
+	tv_eternity(&defproxy.srvtimeout);
+	tv_eternity(&defproxy.appsession_timeout);
 }
 
 /*
