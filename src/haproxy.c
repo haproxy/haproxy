@@ -250,7 +250,13 @@ void sig_dump_state(int sig)
 			s = s->next;
 		}
 
-		if (p->srv_act == 0) {
+		/* FIXME: those info are a bit outdated. We should be able to distinguish between FE and BE. */
+		if (!p->srv) {
+			snprintf(trash, sizeof(trash),
+				 "SIGHUP: Proxy %s has no servers. Conn: act(FE+BE): %d+%d, %d pend (%d unass), tot(FE+BE): %d+%d.",
+				 p->id,
+				 p->feconn, p->beconn, p->totpend, p->nbpend, p->cum_feconn, p->cum_beconn);
+		} else if (p->srv_act == 0) {
 			snprintf(trash, sizeof(trash),
 				 "SIGHUP: Proxy %s %s ! Conn: act(FE+BE): %d+%d, %d pend (%d unass), tot(FE+BE): %d+%d.",
 				 p->id,
