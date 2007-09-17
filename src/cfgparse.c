@@ -2411,7 +2411,8 @@ int readcfgfile(const char *file)
 			      file, proxy_type_str(curproxy), curproxy->id);
 			cfgerr++;
 		}
-		else if ((curproxy->mode != PR_MODE_HEALTH) && (curproxy->options & PR_O_BALANCE)) {
+
+		if ((curproxy->mode != PR_MODE_HEALTH) && (curproxy->options & PR_O_BALANCE)) {
 			if (curproxy->options & PR_O_TRANSP) {
 				Alert("parsing %s : %s '%s' cannot use both transparent and balance mode.\n",
 				      file, proxy_type_str(curproxy), curproxy->id);
@@ -2429,13 +2430,10 @@ int readcfgfile(const char *file)
 					file, proxy_type_str(curproxy), curproxy->id);
 			}
 		}
-		else if (curproxy->mode == PR_MODE_TCP || curproxy->mode == PR_MODE_HEALTH) { /* TCP PROXY or HEALTH CHECK */
+
+		if (curproxy->mode == PR_MODE_TCP || curproxy->mode == PR_MODE_HEALTH) { /* TCP PROXY or HEALTH CHECK */
 			if (curproxy->cookie_name != NULL) {
 				Warning("parsing %s : cookie will be ignored for %s '%s'.\n",
-					file, proxy_type_str(curproxy), curproxy->id);
-			}
-			if ((newsrv = curproxy->srv) != NULL) {
-				Warning("parsing %s : servers will be ignored for %s '%s'.\n",
 					file, proxy_type_str(curproxy), curproxy->id);
 			}
 			if (curproxy->rsp_exp != NULL) {
@@ -2458,7 +2456,15 @@ int readcfgfile(const char *file)
 					file, proxy_type_str(curproxy), curproxy->id);
 			}
 		}
-		else if (curproxy->mode == PR_MODE_HTTP) { /* HTTP PROXY */
+
+		if (curproxy->mode == PR_MODE_HEALTH) { /* TCP PROXY or HEALTH CHECK */
+			if ((newsrv = curproxy->srv) != NULL) {
+				Warning("parsing %s : servers will be ignored for %s '%s'.\n",
+					file, proxy_type_str(curproxy), curproxy->id);
+			}
+		}
+
+		if (curproxy->mode == PR_MODE_HTTP) { /* HTTP PROXY */
 			if ((curproxy->cookie_name != NULL) && ((newsrv = curproxy->srv) == NULL)) {
 				Alert("parsing %s : HTTP proxy %s has a cookie but no server list !\n",
 				      file, curproxy->id);
