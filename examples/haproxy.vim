@@ -44,7 +44,7 @@ syn keyword hapParam     chroot cliexp clitimeout contimeout
 syn keyword hapParam     daemon debug disabled
 syn keyword hapParam     enabled
 syn keyword hapParam     fullconn
-syn keyword hapParam     gid grace
+syn keyword hapParam     gid grace group
 syn keyword hapParam     maxconn monitor-uri
 syn keyword hapParam     nbproc noepoll nopoll
 syn keyword hapParam     pidfile
@@ -57,7 +57,7 @@ syn keyword hapParam     rspidel rspideny   skipwhite nextgroup=hapRegexp
 syn keyword hapParam     reqsetbe reqisetbe skipwhite nextgroup=hapRegexp2
 syn keyword hapParam     reqadd reqiadd rspadd rspiadd
 syn keyword hapParam     server source srvexp srvtimeout
-syn keyword hapParam     uid ulimit-n
+syn keyword hapParam     uid ulimit-n user
 syn keyword hapParam     reqrep reqirep rsprep rspirep    skipwhite nextgroup=hapRegexp
 syn keyword hapParam     errorloc errorloc302 errorloc303 skipwhite nextgroup=hapStatus
 syn keyword hapParam     default_backend                  skipwhite nextgroup=hapSectLabel
