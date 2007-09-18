@@ -1905,6 +1905,11 @@ int process_cli(struct session *t)
 						if (t->be->beconn > t->be->beconn_max)
 							t->be->beconn_max = t->be->beconn;
 						t->be->cum_beconn++;
+
+						/* assign new parameters to the session from the new backend */
+						t->rep->rto = t->req->wto = t->be->srvtimeout;
+						t->req->cto = t->be->contimeout;
+						t->conn_retries = t->be->conn_retries;
 						t->flags |= SN_BE_ASSIGNED;
 						break;
 					}
@@ -1921,6 +1926,11 @@ int process_cli(struct session *t)
 				if (t->be->beconn > t->be->beconn_max)
 					t->be->beconn_max = t->be->beconn;
 				t->be->cum_beconn++;
+
+				/* assign new parameters to the session from the new backend */
+				t->rep->rto = t->req->wto = t->be->srvtimeout;
+				t->req->cto = t->be->contimeout;
+				t->conn_retries = t->be->conn_retries;
 				t->flags |= SN_BE_ASSIGNED;
 			}
 		} while (t->be != cur_proxy);  /* we loop only if t->be has changed */
@@ -4037,6 +4047,7 @@ int apply_filter_to_req_headers(struct session *t, struct buffer *req, struct hd
 
 				t->rep->rto = t->req->wto = t->be->srvtimeout;
 				t->req->cto = t->be->contimeout;
+				t->conn_retries = t->be->conn_retries;
 				last_hdr = 1;
 				break;
 
@@ -4157,6 +4168,7 @@ int apply_filter_to_req_line(struct session *t, struct buffer *req, struct hdr_e
 
 			t->rep->rto = t->req->wto = t->be->srvtimeout;
 			t->req->cto = t->be->contimeout;
+			t->conn_retries = t->be->conn_retries;
 			done = 1;
 			break;
 
