@@ -27,7 +27,6 @@
 #include <types/buffers.h>
 #include <types/global.h>
 #include <types/polling.h>
-#include <types/session.h>
 
 #include <proto/client.h>
 #include <proto/fd.h>
@@ -229,8 +228,6 @@ int stream_sock_write(int fd) {
 		if (max == 0) {
 			/* may be we have received a connection acknowledgement in TCP mode without data */
 			if (likely(fdtab[fd].state == FD_STCONN)) {
-				struct session *s = fdtab[fd].owner->context;
-
 				/* We have no data to send to check the connection, and
 				 * getsockopt() will not inform us whether the connection
 				 * is still pending. So we'll reuse connect() to check the
@@ -240,7 +237,7 @@ int stream_sock_write(int fd) {
 				 *  - connecting (EALREADY, EINPROGRESS)
 				 *  - connected (EISCONN, 0)
 				 */
-				if ((connect(fd, (struct sockaddr *)&s->srv_addr, sizeof(s->srv_addr)) == 0))
+				if ((connect(fd, fdtab[fd].peeraddr, fdtab[fd].peerlen) == 0))
 					errno = 0;
 
 				if (errno == EALREADY || errno == EINPROGRESS) {

@@ -403,6 +403,8 @@ void process_chk(struct task *t, struct timeval *next)
 						fdtab[fd].cb[DIR_RD].b = NULL;
 						fdtab[fd].cb[DIR_WR].f = &event_srv_chk_w;
 						fdtab[fd].cb[DIR_WR].b = NULL;
+						fdtab[fd].peeraddr = (struct sockaddr *)&sa;
+						fdtab[fd].peerlen = sizeof(sa);
 						fdtab[fd].state = FD_STCONN; /* connection in progress */
 						fdtab[fd].ev = 0;
 						EV_FD_SET(fd, DIR_WR);  /* for connect status */

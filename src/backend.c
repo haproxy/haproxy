@@ -545,7 +545,10 @@ int connect_server(struct session *s)
 	fdtab[fd].cb[DIR_RD].b = s->rep;
 	fdtab[fd].cb[DIR_WR].f = &stream_sock_write;
 	fdtab[fd].cb[DIR_WR].b = s->req;
-    
+
+	fdtab[fd].peeraddr = (struct sockaddr *)&s->srv_addr;
+	fdtab[fd].peerlen = sizeof(s->srv_addr);
+
 	EV_FD_SET(fd, DIR_WR);  /* for connect status */
     
 	fd_insert(fd);

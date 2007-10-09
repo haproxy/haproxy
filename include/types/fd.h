@@ -22,6 +22,7 @@
 #ifndef _TYPES_FD_H
 #define _TYPES_FD_H
 
+#include <sys/socket.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -63,6 +64,8 @@ struct fdtab {
 	struct task *owner;                  /* the session (or proxy) associated with this fd */
 	unsigned char state;                 /* the state of this fd */
 	unsigned char ev;                    /* event seen in return of poll() : FD_POLL_* */
+	struct sockaddr *peeraddr;           /* pointer to peer's network address, or NULL if unset */
+	socklen_t peerlen;                   /* peer's address length, or 0 if unset */
 };
 
 /*

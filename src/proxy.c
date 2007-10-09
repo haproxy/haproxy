@@ -158,6 +158,8 @@ int start_proxies(int verbose)
 			fdtab[fd].cb[DIR_RD].b = fdtab[fd].cb[DIR_WR].b = NULL;
 			fdtab[fd].owner = (struct task *)curproxy; /* reference the proxy instead of a task */
 			fdtab[fd].state = FD_STLISTEN;
+			fdtab[fd].peeraddr = NULL;
+			fdtab[fd].peerlen = 0;
 			fdtab[fd].ev = 0;
 			listeners++;
 		}
