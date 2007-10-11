@@ -983,6 +983,7 @@ int main(int argc, char **argv)
 		if (pidfile != NULL)
 			fclose(pidfile);
 		free(global.pidfile);
+		global.pidfile = NULL;
 
 		if (proc == global.nbproc)
 			exit(0); /* parent must leave */
