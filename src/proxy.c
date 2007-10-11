@@ -26,6 +26,7 @@
 #include <types/polling.h>
 
 #include <proto/client.h>
+#include <proto/backend.h>
 #include <proto/fd.h>
 #include <proto/log.h>
 #include <proto/proxy.h>
@@ -113,6 +114,9 @@ int start_proxies(int verbose)
 				Alert("cannot do so_reuseaddr for proxy %s. Continuing.\n",
 				      curproxy->id);
 			}
+
+			if (curproxy->options & PR_O_TCP_NOLING)
+				setsockopt(fd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
 	
 #ifdef SO_REUSEPORT
 			/* OpenBSD supports this. As it's present in old libc versions of Linux,

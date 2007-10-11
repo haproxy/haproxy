@@ -73,6 +73,7 @@ extern int listeners;
 extern char trash[BUFSIZE];
 extern const int zero;
 extern const int one;
+extern const struct linger nolinger;
 extern int stopping;	/* non zero means stopping in progress */
 
 #endif /* _TYPES_GLOBAL_H */

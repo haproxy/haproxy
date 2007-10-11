@@ -92,6 +92,7 @@ static const struct {
 	{ "redispatch",   PR_O_REDISP,     PR_CAP_BE, 0 },
 	{ "keepalive",    PR_O_KEEPALIVE,  PR_CAP_NONE, 0 },
 	{ "httpclose",    PR_O_HTTP_CLOSE, PR_CAP_FE | PR_CAP_BE, 0 },
+	{ "nolinger",     PR_O_TCP_NOLING, PR_CAP_FE | PR_CAP_BE, 0 },
 	{ "logasap",      PR_O_LOGASAP,    PR_CAP_FE, 0 },
 	{ "abortonclose", PR_O_ABRT_CLOSE, PR_CAP_BE, 0 },
 	{ "checkcache",   PR_O_CHK_CACHE,  PR_CAP_BE, 0 },
