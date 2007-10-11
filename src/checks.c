@@ -210,7 +210,6 @@ static int event_srv_chk_w(int fd)
 static int event_srv_chk_r(int fd)
 {
 	__label__ out_wakeup;
-	char reply[64];
 	int len, result;
 	struct task *t = fdtab[fd].owner;
 	struct server *s = t->context;
@@ -230,13 +229,13 @@ static int event_srv_chk_r(int fd)
 	}
 
 #ifndef MSG_NOSIGNAL
-	len = recv(fd, reply, sizeof(reply), 0);
+	len = recv(fd, trash, sizeof(trash), 0);
 #else
 	/* Warning! Linux returns EAGAIN on SO_ERROR if data are still available
 	 * but the connection was closed on the remote end. Fortunately, recv still
 	 * works correctly and we don't need to do the getsockopt() on linux.
 	 */
-	len = recv(fd, reply, sizeof(reply), MSG_NOSIGNAL);
+	len = recv(fd, trash, sizeof(trash), MSG_NOSIGNAL);
 #endif
 	if (unlikely(len < 0 && errno == EAGAIN)) {
 		/* we want some polling to happen first */
@@ -245,17 +244,17 @@ static int event_srv_chk_r(int fd)
 	}
 
 	if ((s->proxy->options & PR_O_HTTP_CHK) && (len >= sizeof("HTTP/1.0 000")) &&
-	     (memcmp(reply, "HTTP/1.", 7) == 0) && (reply[9] == '2' || reply[9] == '3')) {
+	     (memcmp(trash, "HTTP/1.", 7) == 0) && (trash[9] == '2' || trash[9] == '3')) {
 		/* HTTP/1.X 2xx or 3xx */
 		result = 1;
 	}
 	else if ((s->proxy->options & PR_O_SSL3_CHK) && (len >= 5) &&
-		 (reply[0] == 0x15 || reply[0] == 0x16)) {
+		 (trash[0] == 0x15 || trash[0] == 0x16)) {
 		/* SSLv3 alert or handshake */
 		result = 1;
 	}
 	else if ((s->proxy->options & PR_O_SMTP_CHK) && (len >= 3) &&
-		   (reply[0] == '2')) /* 2xx (should be 250) */ {
+		   (trash[0] == '2')) /* 2xx (should be 250) */ {
 		result = 1;
 	}
 
