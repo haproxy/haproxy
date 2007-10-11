@@ -2866,7 +2866,7 @@ int process_srv(struct session *t)
 			 *    Cache-Control or Expires header fields."
 			 */
 			if (likely(txn->meth != HTTP_METH_POST) &&
-			    unlikely(t->be->options & PR_O_CHK_CACHE))
+			    (t->be->options & (PR_O_CHK_CACHE|PR_O_COOK_NOC)))
 				txn->flags |= TX_CACHEABLE | TX_CACHE_COOK;
 			break;
 		default:
@@ -3003,8 +3003,15 @@ int process_srv(struct session *t)
 		 */
 		manage_server_side_cookies(t, rep);
 
+
 		/*
-		 * 5: add server cookie in the response if needed
+		 * 5: check for cache-control or pragma headers.
+		 */
+		check_response_for_cacheability(t, rep);
+
+
+		/*
+		 * 6: add server cookie in the response if needed
 		 */
 		if ((t->srv) && !(t->flags & SN_DIRECT) && (t->be->options & PR_O_COOK_INS) &&
 		    (!(t->be->options & PR_O_COOK_POST) || (txn->meth == HTTP_METH_POST))) {
@@ -3029,18 +3036,15 @@ int process_srv(struct session *t)
 			 * Some caches understand the correct form: 'no-cache="set-cookie"', but
 			 * others don't (eg: apache <= 1.3.26). So we use 'private' instead.
 			 */
-			if (t->be->options & PR_O_COOK_NOC) {
+			if ((t->be->options & PR_O_COOK_NOC) && (txn->flags & TX_CACHEABLE)) {
+
+				txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
+
 				if (unlikely(http_header_add_tail2(rep, &txn->rsp, &txn->hdr_idx,
 								   "Cache-control: private", 22)) < 0)
 					goto return_bad_resp;
 			}
 		}
-
-
-		/*
-		 * 6: check for cache-control or pragma headers.
-		 */
-		check_response_for_cacheability(t, rep);
 
 
 		/*
