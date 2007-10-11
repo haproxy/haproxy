@@ -1525,6 +1525,17 @@ options to enable TCP keep-alive :
 	option clitcpka	# enables keep-alive only on client side
 	option srvtcpka	# enables keep-alive only on server side
 
+4.1.4) TCP lingering
+--------------------
+It is possible to disable the system's lingering of data unacked by the client
+at the end of a session. This is sometimes required when haproxy is used as a
+front-end with lots of unreliable clients, and you observe thousands of sockets
+in the FIN_WAIT state on the machine. This may be used in a frontend to affect
+the client-side connection, as well as in a backend for the server-side
+connection :
+
+	option nolinger	# disables data lingering
+
 
 4.2) Event logging
 ------------------

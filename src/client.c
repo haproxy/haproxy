@@ -165,6 +165,9 @@ int event_accept(int fd) {
 		if (p->options & PR_O_TCP_CLI_KA)
 			setsockopt(cfd, SOL_SOCKET, SO_KEEPALIVE, (char *) &one, sizeof(one));
 
+		if (p->options & PR_O_TCP_NOLING)
+			setsockopt(cfd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
+
 		t->wq = NULL;
 		t->qlist.p = NULL;
 		t->state = TASK_IDLE;

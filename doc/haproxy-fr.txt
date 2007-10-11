@@ -1562,6 +1562,17 @@ pour activer le maintien de session TCP :
 	option clitcpka	# active le keep-alive côté client
 	option srvtcpka	# active le keep-alive côté serveur
 
+4.1.4) Rémanence des données TCP (lingering)
+--------------------------------------------
+Il est possible de désactiver la conservation de données non acquittées par un
+client à la fin d'une session. Cela peut parfois s'avérer nécessaire lorsque
+haproxy est utilisé en face d'un grand nombre de clients non fiables et qu'un
+nombre élevé de sockets en état FIN_WAIT est observé sur la machine. L'option
+peut être utilisée dans un frontend pour ajuster les connexions vers les
+clients, et dans un backend pour ajuster les connexions vers les serveurs :
+
+	option nolinger	# désactive la conservation de données
+
 
 4.2) Journalisation des connexions
 ----------------------------------

@@ -408,6 +408,9 @@ int connect_server(struct session *s)
 	if (s->be->options & PR_O_TCP_SRV_KA)
 		setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, (char *) &one, sizeof(one));
 
+	if (s->be->options & PR_O_TCP_NOLING)
+		setsockopt(fd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
+
 	/* allow specific binding :
 	 * - server-specific at first
 	 * - proxy-specific next

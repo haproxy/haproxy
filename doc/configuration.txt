@@ -2,9 +2,9 @@
                                  HAProxy
                           Configuration Manual
                          ----------------------
-                             version 1.3.12.1
+                             version 1.3.12.3
                              willy tarreau
-                               2007/07/25
+                               2007/09/11
 
 
 This document covers the configuration language as implemented in the version
@@ -247,6 +247,7 @@ option httpchk              X          -         X         X
 option httpclose            X          X         X         X
 option httplog              X          X         X         X
 option logasap              X          X         X         -
+option nolinger             X          X         X         X
 option persist              X          -         X         X
 option redispatch           X          -         X         X
 option smtpchk              X          -         X         X
