@@ -13,7 +13,9 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -281,6 +283,7 @@ void process_chk(struct task *t, struct timeval *next)
 	struct server *s = t->context;
 	struct sockaddr_in sa;
 	int fd;
+	int rv;
 
 	//fprintf(stderr, "process_chk: task=%p\n", t);
 
@@ -503,8 +506,15 @@ void process_chk(struct task *t, struct timeval *next)
 				set_server_down(s);
 			s->curfd = -1;
 			fd_delete(fd);
+
+			rv = 0;
+			if (global.spread_checks > 0) {
+				rv = s->inter * global.spread_checks / 100;
+				rv -= (int) (2 * rv * (rand() / (RAND_MAX + 1.0)));
+				//fprintf(stderr, "process_chk: (%d+/-%d%%) random=%d\n", s->inter, global.spread_checks, rv);
+			}
 			while (tv_isle(&t->expire, &now))
-				tv_ms_add(&t->expire, &t->expire, s->inter);
+				tv_ms_add(&t->expire, &t->expire, s->inter + rv);
 			goto new_chk;
 		}
 		/* if result is 0 and there's no timeout, we have to wait again */
@@ -517,6 +527,65 @@ void process_chk(struct task *t, struct timeval *next)
 	return;
 }
 
+/*
+ * Start health-check.
+ * Returns 0 if OK, -1 if error, and prints the error in this case.
+ */
+int start_checks() {
+
+	struct proxy *px;
+	struct server *s;
+	struct task *t;
+	int nbchk=0, mininter=0, srvpos=0;
+
+	/* 1- count the checkers to run simultaneously */
+	for (px = proxy; px; px = px->next) {
+		for (s = px->srv; s; s = s->next) {
+			if (!(s->state & SRV_CHECKED))
+				continue;
+
+			if (!mininter || mininter > s->inter)
+				mininter = s->inter;
+
+			nbchk++;
+		}
+	}
+
+	if (!nbchk)
+		return 0;
+
+	srand((unsigned)time(NULL));
+
+	/*
+	 * 2- start them as far as possible from each others. For this, we will
+	 * start them after their interval set to the min interval divided by
+	 * the number of servers, weighted by the server's position in the list.
+	 */
+	for (px = proxy; px; px = px->next) {
+		for (s = px->srv; s; s = s->next) {
+			if (!(s->state & SRV_CHECKED))
+				continue;
+
+			if ((t = pool_alloc2(pool2_task)) == NULL) {
+				Alert("Starting [%s:%s] check: out of memory.\n", px->id, s->id);
+				return -1;
+			}
+
+			t->wq = NULL;
+			t->qlist.p = NULL;
+			t->state = TASK_IDLE;
+			t->process = process_chk;
+			t->context = s;
+
+			/* check this every ms */
+			tv_ms_add(&t->expire, &now, mininter * srvpos / nbchk);
+			task_queue(t);
+
+			srvpos++;
+		}
+	}
+	return 0;
+}
 
 /*
  * Local variables:

@@ -26,6 +26,7 @@
 #include <common/config.h>
 
 void process_chk(struct task *t, struct timeval *next);
+int start_checks();
 
 #endif /* _PROTO_CHECKS_H */
 
