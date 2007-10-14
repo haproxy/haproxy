@@ -115,4 +115,14 @@
 #define DEFAULT_MAXCONN SYSTEM_MAXCONN
 #endif
 
+/* Minimum check interval for spread health checks. Servers with intervals
+ * greater than or equal to this value will have their checks spread apart
+ * and will be considered when searching the minimal interval.
+ * Others will be ignored for the minimal interval and will have their checks
+ * scheduled on a different basis.
+ */
+#ifndef SRV_CHK_INTER_THRES
+#define SRV_CHK_INTER_THRES 1000
+#endif
+
 #endif /* _COMMON_DEFAULTS_H */
