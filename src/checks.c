@@ -491,8 +491,14 @@ void process_chk(struct task *t, struct timeval *next)
 			}
 			s->curfd = -1; /* no check running anymore */
 			fd_delete(fd);
-			while (tv_isle(&t->expire, &now))
-				tv_ms_add(&t->expire, &t->expire, s->inter);
+
+			rv = 0;
+			if (global.spread_checks > 0) {
+				rv = s->inter * global.spread_checks / 100;
+				rv -= (int) (2 * rv * (rand() / (RAND_MAX + 1.0)));
+				//fprintf(stderr, "process_chk(%p): (%d+/-%d%%) random=%d\n", s, s->inter, global.spread_checks, rv);
+			}
+			tv_ms_add(&t->expire, &now, s->inter + rv);
 			goto new_chk;
 		}
 		else if (s->result < 0 || tv_isle(&t->expire, &now)) {
@@ -511,10 +517,9 @@ void process_chk(struct task *t, struct timeval *next)
 			if (global.spread_checks > 0) {
 				rv = s->inter * global.spread_checks / 100;
 				rv -= (int) (2 * rv * (rand() / (RAND_MAX + 1.0)));
-				//fprintf(stderr, "process_chk: (%d+/-%d%%) random=%d\n", s->inter, global.spread_checks, rv);
+				//fprintf(stderr, "process_chk(%p): (%d+/-%d%%) random=%d\n", s, s->inter, global.spread_checks, rv);
 			}
-			while (tv_isle(&t->expire, &now))
-				tv_ms_add(&t->expire, &t->expire, s->inter + rv);
+			tv_ms_add(&t->expire, &now, s->inter + rv);
 			goto new_chk;
 		}
 		/* if result is 0 and there's no timeout, we have to wait again */
