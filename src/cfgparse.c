@@ -451,7 +451,21 @@ int cfg_parse_global(const char *file, int linenum, char **args)
 			Alert("parsing [%s:%d] : too many syslog servers\n", file, linenum);
 			return -1;
 		}
-	
+	}
+	else if (!strcmp(args[0], "spread-checks")) {  /* random time between checks (0-50) */
+		if (global.spread_checks != 0) {
+			Alert("parsing [%s:%d]: spread-checks already specified. Continuing.\n", file, linenum);
+			return 0;
+		}
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d]: '%s' expects an integer argument (0..50).\n", file, linenum, args[0]);
+			return -1;
+		}
+		global.spread_checks = atol(args[1]);
+		if (global.spread_checks < 0 || global.spread_checks > 50) {
+			Alert("parsing [%s:%d]: 'spread-checks' needs a positive value in range 0..50.\n", file, linenum);
+			return -1;
+		}
 	}
 	else {
 		Alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section\n", file, linenum, args[0], "global");
@@ -2262,7 +2276,6 @@ int readcfgfile(const char *file)
 	char *args[MAX_LINE_ARGS + 1];
 	int arg;
 	int cfgerr = 0;
-	int nbchk, mininter;
 	int confsect = CFG_NONE;
 
 	struct proxy *curproxy = NULL;
@@ -2707,56 +2720,6 @@ int readcfgfile(const char *file)
 				task_queue(t);
 			}
 			newsrv = newsrv->next;
-		}
-
-		/* now we'll start this proxy's health checks if any */
-		/* 1- count the checkers to run simultaneously */
-		nbchk = 0;
-		mininter = 0;
-		newsrv = curproxy->srv;
-		while (newsrv != NULL) {
-			if (newsrv->state & SRV_CHECKED) {
-				if (!mininter || mininter > newsrv->inter)
-					mininter = newsrv->inter;
-				nbchk++;
-			}
-			newsrv = newsrv->next;
-		}
-
-		/* 2- start them as far as possible from each others while respecting
-		 * their own intervals. For this, we will start them after their own
-		 * interval added to the min interval divided by the number of servers,
-		 * weighted by the server's position in the list.
-		 */
-		if (nbchk > 0) {
-			struct task *t;
-			int srvpos;
-
-			newsrv = curproxy->srv;
-			srvpos = 0;
-			while (newsrv != NULL) {
-				/* should this server be checked ? */
-				if (newsrv->state & SRV_CHECKED) {
-					if ((t = pool_alloc2(pool2_task)) == NULL) {
-						Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
-						return -1;
-					}
-		
-					t->wq = NULL;
-					t->qlist.p = NULL;
-					t->state = TASK_IDLE;
-					t->process = process_chk;
-					t->context = newsrv;
-		
-					/* check this every ms */
-					tv_ms_add(&t->expire, &now,
-						  newsrv->inter + mininter * srvpos / nbchk);
-					task_queue(t);
-					//task_wakeup(&rq, t);
-					srvpos++;
-				}
-				newsrv = newsrv->next;
-			}
 		}
 
 		curproxy = curproxy->next;

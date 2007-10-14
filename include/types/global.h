@@ -55,6 +55,7 @@ struct global {
 	int rlimit_memmax;	/* default ulimit-d in megs value : 0=unset */
 	int mode;
 	int last_checks;
+	int spread_checks;
 	char *chroot;
 	char *pidfile;
 	int logfac1, logfac2;

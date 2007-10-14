@@ -81,6 +81,7 @@
 #include <proto/acl.h>
 #include <proto/backend.h>
 #include <proto/buffers.h>
+#include <proto/checks.h>
 #include <proto/client.h>
 #include <proto/fd.h>
 #include <proto/log.h>
@@ -506,6 +507,7 @@ void init(int argc, char **argv)
 		Alert("Error reading configuration file : %s\n", cfg_cfgfile);
 		exit(1);
 	}
+
 	if (have_appsession)
 		appsession_init();
 
@@ -513,6 +515,9 @@ void init(int argc, char **argv)
 		qfprintf(stdout, "Configuration file is valid : %s\n", cfg_cfgfile);
 		exit(0);
 	}
+
+	if (start_checks() < 0)
+		exit(1);
 
 	if (cfg_maxconn > 0)
 		global.maxconn = cfg_maxconn;
