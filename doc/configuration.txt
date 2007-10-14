@@ -47,6 +47,7 @@ The following keywords are supported in the "global" section :
    - nopoll
    - nosepoll
    - tune.maxpollevents
+   - spread-checks
   
  * Debugging
    - debug
@@ -163,6 +164,13 @@ tune.maxpollevents <number>
   has been noticed that reducing it below 200 tends to slightly decrease
   latency at the expense of network bandwidth, and increasing it above 200
   tends to trade latency for slightly increased bandwidth.
+
+spread-checks <0..50, in percent>
+  Sometimes it is desirable to avoid sending health checks to servers at exact
+  intervals, for instance when many logical servers are located on the same
+  physical server. With the help of this parameter, it becomes possible to add
+  some randomness in the check interval between 0 and +/- 50%. A value between
+  2 and 5 seems to show good results. The default value remains at 0.
 
 
 1.3) Debugging
