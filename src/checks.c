@@ -538,13 +538,20 @@ int start_checks() {
 	struct task *t;
 	int nbchk=0, mininter=0, srvpos=0;
 
-	/* 1- count the checkers to run simultaneously */
+	/* 1- count the checkers to run simultaneously.
+	 * We also determine the minimum interval among all of those which
+	 * have an interval larger than SRV_CHK_INTER_THRES. This interval
+	 * will be used to spread their start-up date. Those which have
+	 * a shorter interval will start independantly and will not dictate
+	 * too short an interval for all others.
+	 */
 	for (px = proxy; px; px = px->next) {
 		for (s = px->srv; s; s = s->next) {
 			if (!(s->state & SRV_CHECKED))
 				continue;
 
-			if (!mininter || mininter > s->inter)
+			if ((s->inter >= SRV_CHK_INTER_THRES) &&
+			    (!mininter || mininter > s->inter))
 				mininter = s->inter;
 
 			nbchk++;
@@ -578,7 +585,8 @@ int start_checks() {
 			t->context = s;
 
 			/* check this every ms */
-			tv_ms_add(&t->expire, &now, mininter * srvpos / nbchk);
+			tv_ms_add(&t->expire, &now,
+				  ((mininter && mininter >= s->inter) ? mininter : s->inter) * srvpos / nbchk);
 			task_queue(t);
 
 			srvpos++;
