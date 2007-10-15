@@ -31,12 +31,15 @@ struct stat_scope {
 	char *px_id;			/* proxy id */
 };
 
+#define	ST_HIDEVER	0x00000001	/* do not report the version and reldate */
+
 /* later we may link them to support multiple URI matching */
 struct uri_auth {
 	int uri_len;			/* the prefix length */
 	char *uri_prefix;		/* the prefix we want to match */
 	char *auth_realm;		/* the realm reported to the client */
 	int refresh;			/* refresh interval for the browser (in seconds) */
+	int flags;			/* some flags describing the statistics page */
 	struct user_auth *users;	/* linked list of valid user:passwd couples */
 	struct stat_scope *scope;	/* linked list of authorized proxies */
 };
@@ -67,6 +70,7 @@ struct uri_auth *stats_check_init_uri_auth(struct uri_auth **root);
 struct uri_auth *stats_set_uri(struct uri_auth **root, char *uri);
 struct uri_auth *stats_set_realm(struct uri_auth **root, char *realm);
 struct uri_auth *stats_set_refresh(struct uri_auth **root, int interval);
+struct uri_auth *stats_set_flag(struct uri_auth **root, int flag);
 struct uri_auth *stats_add_auth(struct uri_auth **root, char *user);
 struct uri_auth *stats_add_scope(struct uri_auth **root, char *scope);
 

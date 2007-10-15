@@ -125,4 +125,12 @@
 #define SRV_CHK_INTER_THRES 1000
 #endif
 
+/* Specifies the string used to report the version and release date on the
+ * statistics page. May be defined to the empty string ("") to permanently
+ * disable the feature.
+ */
+#ifndef STATS_VERSION_STRING
+#define STATS_VERSION_STRING " version " HAPROXY_VERSION ", released " HAPROXY_DATE
+#endif
+
 #endif /* _COMMON_DEFAULTS_H */

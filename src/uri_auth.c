@@ -127,6 +127,19 @@ struct uri_auth *stats_set_refresh(struct uri_auth **root, int interval)
 }
 
 /*
+ * Returns a default uri_auth with the <flag> set.
+ * Uses the pointer provided if not NULL and not initialized.
+ */
+struct uri_auth *stats_set_flag(struct uri_auth **root, int flag)
+{
+	struct uri_auth *u;
+	
+	if ((u = stats_check_init_uri_auth(root)) != NULL)
+		u->flags |= flag;
+	return u;
+}
+
+/*
  * Returns a default uri_auth with a <user:passwd> entry added to the list of
  * authorized users. If a matching entry is found, no update will be performed.
  * Uses the pointer provided if not NULL and not initialized.

@@ -3579,7 +3579,7 @@ int produce_content_stats(struct session *s)
 			 */
 		chunk_printf(&msg, sizeof(trash),
 			     "<body><h1><a href=\"" PRODUCT_URL "\" style=\"text-decoration: none;\">"
-			     PRODUCT_NAME "</a></h1>\n"
+			     PRODUCT_NAME "%s</a></h1>\n"
 			     "<h2>Statistics Report for pid %d</h2>\n"
 			     "<hr width=\"100%%\" class=\"hr\">\n"
 			     "<h3>&gt; General process information</h3>\n"
@@ -3607,6 +3607,7 @@ int produce_content_stats(struct session *s)
 			     "<td align=\"left\" valign=\"top\" nowrap width=\"1%%\">"
 			     "<b>Display option:</b><ul style=\"margin-top: 0.25em;\">"
 			     "",
+			     (s->be->uri_auth->flags&ST_HIDEVER)?"":(STATS_VERSION_STRING),
 			     pid, pid, global.nbproc,
 			     up / 86400, (up % 86400) / 3600,
 			     (up % 3600) / 60, (up % 60),

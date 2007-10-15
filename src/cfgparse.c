@@ -1089,8 +1089,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 				Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 				return -1;
 			}
+		} else if (!strcmp(args[1], "hide-version")) {
+			if (!stats_set_flag(&curproxy->uri_auth, ST_HIDEVER)) {
+				Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+				return -1;
+			}
 		} else {
-			Alert("parsing [%s:%d] : unknown stats parameter '%s' (expects 'uri', 'realm', 'auth' or 'enable').\n",
+			Alert("parsing [%s:%d] : unknown stats parameter '%s' (expects 'hide-version', 'uri', 'realm', 'auth' or 'enable').\n",
 			      file, linenum, args[0]);
 			return -1;
 		}
