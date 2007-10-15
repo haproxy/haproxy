@@ -92,6 +92,9 @@ void appsession_hash_destroy(struct appsession_hash *hash)
 	unsigned int i;
 	appsess *item;
 
+	if (!hash->table)
+		return;
+
 	for (i = 0; i < TABLESIZE; i++) {
 		while (!LIST_ISEMPTY(&hash->table[i])) {
 			item = LIST_ELEM(hash->table[i].n, appsess *,
