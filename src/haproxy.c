@@ -870,16 +870,6 @@ int main(int argc, char **argv)
 		pidfile = fdopen(pidfd, "w");
 	}
 
-	/* chroot if needed */
-	if (global.chroot != NULL) {
-		if (chroot(global.chroot) == -1) {
-			Alert("[%s.main()] Cannot chroot(%s).\n", argv[0], global.chroot);
-			if (nb_oldpids)
-				tell_old_pids(SIGTTIN);
-		}
-		chdir("/");
-	}
-
 	/* ulimits */
 	if (!global.rlimit_nofile)
 		global.rlimit_nofile = global.maxsock;
@@ -938,6 +928,17 @@ int main(int argc, char **argv)
 		Alert("[%s.main()] Some configuration options require full privileges, so global.uid cannot be changed.\n"
 		      "", argv[0], global.gid);
 		exit(1);
+	}
+
+	/* chroot if needed */
+	if (global.chroot != NULL) {
+		if (chroot(global.chroot) == -1) {
+			Alert("[%s.main()] Cannot chroot(%s).\n", argv[0], global.chroot);
+			if (nb_oldpids)
+				tell_old_pids(SIGTTIN);
+			exit(1);
+		}
+		chdir("/");
 	}
 
 	if (nb_oldpids)
