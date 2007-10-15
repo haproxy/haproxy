@@ -430,7 +430,7 @@ int event_accept(int fd) {
 			}
 			if (EV_FD_ISSET(cfd, DIR_WR)) {
 				tv_add(&s->rep->wex, &now, &s->fe->clitimeout);
-				t->expire = s->req->rex;
+				t->expire = s->rep->wex;
 			}
 		}
 
