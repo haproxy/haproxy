@@ -37,6 +37,7 @@
 #include <types/acl.h>
 #include <types/buffers.h>
 #include <types/httperr.h>
+#include <types/protocols.h>
 #include <types/session.h>
 #include <types/server.h>
 
@@ -62,18 +63,6 @@
 #define PR_CAP_BE      0x0002
 #define PR_CAP_RS      0x0004
 #define PR_CAP_LISTEN  (PR_CAP_FE|PR_CAP_BE|PR_CAP_RS)
-
-/* return codes for start_proxies */
-#define ERR_NONE	0	/* no error */
-#define ERR_RETRYABLE	1	/* retryable error, may be cumulated */
-#define ERR_FATAL	2	/* fatal error, may be cumulated */
-
-
-struct listener {
-	int fd;				/* the listen socket */
-	struct sockaddr_storage addr;	/* the address we listen to */
-	struct listener *next;		/* next address or NULL */
-};
 
 struct proxy {
 	struct listener *listen;		/* the listen addresses and sockets */

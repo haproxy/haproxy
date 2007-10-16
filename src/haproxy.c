@@ -85,6 +85,7 @@
 #include <proto/client.h>
 #include <proto/fd.h>
 #include <proto/log.h>
+#include <proto/protocols.h>
 #include <proto/proto_http.h>
 #include <proto/proxy.h>
 #include <proto/queue.h>
@@ -720,7 +721,9 @@ void deinit(void)
 		p = p->next;
 		free(p0);
 	}/* end while(p) */
-    
+
+	protocol_unbind_all();
+
 	if (global.chroot)    free(global.chroot);
 	global.chroot = NULL;
 
@@ -838,6 +841,14 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
+	if (protocol_bind_all() != ERR_NONE) {
+		Alert("[%s.main()] Some protocols failed to start their listeners! Exiting.\n", argv[0]);
+		protocol_unbind_all(); /* cleanup everything we can */
+		if (nb_oldpids)
+			tell_old_pids(SIGTTIN);
+		exit(1);
+	}
+
 	/* prepare pause/play signals */
 	signal(SIGTTOU, sig_pause);
 	signal(SIGTTIN, sig_listen);
@@ -865,6 +876,7 @@ int main(int argc, char **argv)
 			Alert("[%s.main()] Cannot create pidfile %s\n", argv[0], global.pidfile);
 			if (nb_oldpids)
 				tell_old_pids(SIGTTIN);
+			protocol_unbind_all();
 			exit(1);
 		}
 		pidfile = fdopen(pidfd, "w");
@@ -904,6 +916,7 @@ int main(int argc, char **argv)
 			      "  Make sure you have enough permissions and that the module is loadable.\n"
 			      "  Alternatively, you may disable the 'tcpsplice' options in the configuration.\n"
 			      "", argv[0], global.gid);
+			protocol_unbind_all();
 			exit(1);
 		}
 	}
@@ -919,6 +932,7 @@ int main(int argc, char **argv)
 			      argv[0],
 			      (ret == -1) ? "  Incorrect module version.\n"
 			      : "  Make sure you have enough permissions and that the module is loaded.\n");
+			protocol_unbind_all();
 			exit(1);
 		}
 	}
@@ -927,6 +941,7 @@ int main(int argc, char **argv)
 	if ((global.last_checks & LSTCHK_NETADM) && global.uid) {
 		Alert("[%s.main()] Some configuration options require full privileges, so global.uid cannot be changed.\n"
 		      "", argv[0], global.gid);
+		protocol_unbind_all();
 		exit(1);
 	}
 
@@ -936,6 +951,7 @@ int main(int argc, char **argv)
 			Alert("[%s.main()] Cannot chroot(%s).\n", argv[0], global.chroot);
 			if (nb_oldpids)
 				tell_old_pids(SIGTTIN);
+			protocol_unbind_all();
 			exit(1);
 		}
 		chdir("/");
@@ -951,11 +967,13 @@ int main(int argc, char **argv)
 	/* setgid / setuid */
 	if (global.gid && setgid(global.gid) == -1) {
 		Alert("[%s.main()] Cannot set gid %d.\n", argv[0], global.gid);
+		protocol_unbind_all();
 		exit(1);
 	}
 
 	if (global.uid && setuid(global.uid) == -1) {
 		Alert("[%s.main()] Cannot set uid %d.\n", argv[0], global.uid);
+		protocol_unbind_all();
 		exit(1);
 	}
 
@@ -976,6 +994,7 @@ int main(int argc, char **argv)
 			ret = fork();
 			if (ret < 0) {
 				Alert("[%s.main()] Cannot fork.\n", argv[0]);
+				protocol_unbind_all();
 				exit(1); /* there has been an error */
 			}
 			else if (ret == 0) /* child breaks here */
@@ -1010,6 +1029,7 @@ int main(int argc, char **argv)
 		fork_poller();
 	}
 
+	protocol_enable_all();
 	/*
 	 * That's it : the central polling loop. Run until we stop.
 	 */

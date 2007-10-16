@@ -30,6 +30,7 @@
 #include <common/config.h>
 #include <types/task.h>
 #include <types/buffers.h>
+#include <types/protocols.h>
 
 /* different possible states for the fd */
 #define FD_STCLOSE	0
@@ -66,6 +67,7 @@ struct fdtab {
 	unsigned char ev;                    /* event seen in return of poll() : FD_POLL_* */
 	struct sockaddr *peeraddr;           /* pointer to peer's network address, or NULL if unset */
 	socklen_t peerlen;                   /* peer's address length, or 0 if unset */
+	struct listener *listener;           /* the listener which created this fd, or NULL if unset */
 };
 
 /*
