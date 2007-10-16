@@ -2,7 +2,7 @@
   include/types/global.h
   Global variables.
 
-  Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -25,6 +25,7 @@
 #include <netinet/in.h>
 
 #include <common/config.h>
+#include <types/protocols.h>
 #include <types/task.h>
 
 /* modes of operation (global.mode) */
@@ -64,6 +65,8 @@ struct global {
 	struct {
 		int maxpollevents; /* max number of poll events at once */
 	} tune;
+	struct listener stats_sock; /* unix socket listener for statistics */
+	struct timeval stats_timeout;
 };
 
 extern struct global global;

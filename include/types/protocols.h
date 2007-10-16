@@ -38,9 +38,10 @@
 
 /* listener state */
 #define LI_NEW		0	/* not initialized yet */
-#define LI_LISTEN	1	/* started, listening but not enabled */
-#define LI_READY	2	/* started, listening and enabled */
-#define LI_FULL		3	/* reached its connection limit */
+#define LI_INIT		1	/* attached to the protocol, but not listening yet */
+#define LI_LISTEN	2	/* started, listening but not enabled */
+#define LI_READY	3	/* started, listening and enabled */
+#define LI_FULL		4	/* reached its connection limit */
 
 /* The listener will be directly referenced by the fdtab[] which holds its
  * socket. The listener provides the protocol-specific accept() function to
@@ -48,7 +49,7 @@
  */
 struct listener {
 	int fd;				/* the listen socket */
-	int state;			/* state: NEW, READY, FULL */
+	int state;			/* state: NEW, INIT, LISTEN, READY, FULL */
 	struct sockaddr_storage addr;	/* the address we listen to */
 	struct protocol *proto;		/* protocol this listener belongs to */
 	int nbconn;			/* current number of connections on this listener */
