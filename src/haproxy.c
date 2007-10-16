@@ -976,8 +976,7 @@ int main(int argc, char **argv)
 			ret = fork();
 			if (ret < 0) {
 				Alert("[%s.main()] Cannot fork.\n", argv[0]);
-				if (nb_oldpids)
-					exit(1); /* there has been an error */
+				exit(1); /* there has been an error */
 			}
 			else if (ret == 0) /* child breaks here */
 				break;
