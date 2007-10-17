@@ -3387,7 +3387,8 @@ int produce_content(struct session *s)
 	}
 	else if (s->data_source == DATA_SRC_STATS) {
 		/* dump server statistics */
-		int ret = stats_dump_http(s, s->be->uri_auth, 0);
+		int ret = stats_dump_http(s, s->be->uri_auth,
+					  (s->flags & SN_STAT_FMTCSV) ? 0 : STAT_FMT_HTML);
 		if (ret >= 0)
 			return ret;
 		/* -1 indicates an error */
@@ -4692,6 +4693,15 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 			}
 			h++;
 		}
+	}
+
+	h = t->req->data + txn->req.sl.rq.u + uri_auth->uri_len;
+	while (h <= t->req->data + txn->req.sl.rq.u + txn->req.sl.rq.u_l - 4) {
+		if (memcmp(h, ";csv", 4) == 0) {
+			t->flags |= SN_STAT_FMTCSV;
+			break;
+		}
+		h++;
 	}
 
 	/* we are in front of a interceptable URI. Let's check

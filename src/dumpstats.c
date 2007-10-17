@@ -72,7 +72,8 @@ int stats_dump_http(struct session *s, struct uri_auth *uri, int flags)
 			     "HTTP/1.0 200 OK\r\n"
 			     "Cache-Control: no-cache\r\n"
 			     "Connection: close\r\n"
-			     "Content-Type: text/html\r\n");
+			     "Content-Type: %s\r\n",
+			     (flags & STAT_FMT_HTML) ? "text/html" : "text/plain");
 
 		if (uri->refresh > 0 && !(s->flags & SN_STAT_NORFRSH))
 			chunk_printf(&msg, sizeof(trash), "Refresh: %d\r\n",
@@ -100,8 +101,9 @@ int stats_dump_http(struct session *s, struct uri_auth *uri, int flags)
 		/* fall through */
 
 	case DATA_ST_HEAD:
-		/* WARNING! This must fit in the first buffer !!! */	    
-		chunk_printf(&msg, sizeof(trash),
+		if (flags & STAT_FMT_HTML) {
+			/* WARNING! This must fit in the first buffer !!! */	    
+			chunk_printf(&msg, sizeof(trash),
 			     "<html><head><title>Statistics Report for " PRODUCT_NAME "</title>\n"
 			     "<meta http-equiv=\"content-type\" content=\"text/html; charset=iso-8859-1\">\n"
 			     "<style type=\"text/css\"><!--\n"
@@ -170,7 +172,18 @@ int stats_dump_http(struct session *s, struct uri_auth *uri, int flags)
 			     "table.lgd td.noborder { border-style: none; padding: 2px; white-space: nowrap;}\n"
 			     "-->\n"
 			     "</style></head>\n");
-			
+		} else {
+			chunk_printf(&msg, sizeof(trash),
+			     "# pxname,svname,"
+			     "qcur,qmax,"
+			     "scur,smax,slim,stot,"
+			     "bin,bout,"
+			     "dreq,dresp,"
+			     "ereq,econ,eresp,"
+			     "weight,act,bck,"
+			     "chkfail,chkdown"
+			     "\n");
+		}
 		if (buffer_write_chunk(rep, &msg) != 0)
 			return 0;
 
@@ -184,7 +197,8 @@ int stats_dump_http(struct session *s, struct uri_auth *uri, int flags)
 			 * We are around 3.5 kB, add adding entries will
 			 * become tricky if we want to support 4kB buffers !
 			 */
-		chunk_printf(&msg, sizeof(trash),
+		if (flags & STAT_FMT_HTML) {
+			chunk_printf(&msg, sizeof(trash),
 			     "<body><h1><a href=\"" PRODUCT_URL "\" style=\"text-decoration: none;\">"
 			     PRODUCT_NAME "%s</a></h1>\n"
 			     "<h2>Statistics Report for pid %d</h2>\n"
@@ -226,41 +240,41 @@ int stats_dump_http(struct session *s, struct uri_auth *uri, int flags)
 			     actconn
 			     );
 	    
-		if (s->flags & SN_STAT_HIDEDWN)
-			chunk_printf(&msg, sizeof(trash),
+			if (s->flags & SN_STAT_HIDEDWN)
+				chunk_printf(&msg, sizeof(trash),
 				     "<li><a href=\"%s%s%s\">Show all servers</a><br>\n",
 				     uri->uri_prefix,
 				     "",
 				     (s->flags & SN_STAT_NORFRSH) ? ";norefresh" : "");
-		else
-			chunk_printf(&msg, sizeof(trash),
+			else
+				chunk_printf(&msg, sizeof(trash),
 				     "<li><a href=\"%s%s%s\">Hide 'DOWN' servers</a><br>\n",
 				     uri->uri_prefix,
 				     ";up",
 				     (s->flags & SN_STAT_NORFRSH) ? ";norefresh" : "");
 
-		if (uri->refresh > 0) {
-			if (s->flags & SN_STAT_NORFRSH)
-				chunk_printf(&msg, sizeof(trash),
+			if (uri->refresh > 0) {
+				if (s->flags & SN_STAT_NORFRSH)
+					chunk_printf(&msg, sizeof(trash),
 					     "<li><a href=\"%s%s%s\">Enable refresh</a><br>\n",
 					     uri->uri_prefix,
 					     (s->flags & SN_STAT_HIDEDWN) ? ";up" : "",
 					     "");
-			else
-				chunk_printf(&msg, sizeof(trash),
+				else
+					chunk_printf(&msg, sizeof(trash),
 					     "<li><a href=\"%s%s%s\">Disable refresh</a><br>\n",
 					     uri->uri_prefix,
 					     (s->flags & SN_STAT_HIDEDWN) ? ";up" : "",
 					     ";norefresh");
-		}
+			}
 
-		chunk_printf(&msg, sizeof(trash),
+			chunk_printf(&msg, sizeof(trash),
 			     "<li><a href=\"%s%s%s\">Refresh now</a><br>\n",
 			     uri->uri_prefix,
 			     (s->flags & SN_STAT_HIDEDWN) ? ";up" : "",
 			     (s->flags & SN_STAT_NORFRSH) ? ";norefresh" : "");
 
-		chunk_printf(&msg, sizeof(trash),
+			chunk_printf(&msg, sizeof(trash),
 			     "</td>"
 			     "<td align=\"left\" valign=\"top\" nowrap width=\"1%%\">"
 			     "<b>External ressources:</b><ul style=\"margin-top: 0.25em;\">\n"
@@ -273,8 +287,9 @@ int stats_dump_http(struct session *s, struct uri_auth *uri, int flags)
 			     ""
 			     );
 	    
-		if (buffer_write_chunk(rep, &msg) != 0)
-			return 0;
+			if (buffer_write_chunk(rep, &msg) != 0)
+				return 0;
+		}
 
 		memset(&s->data_ctx, 0, sizeof(s->data_ctx));
 
@@ -301,9 +316,11 @@ int stats_dump_http(struct session *s, struct uri_auth *uri, int flags)
 		/* fall through */
 
 	case DATA_ST_END:
-		chunk_printf(&msg, sizeof(trash), "</body></html>\n");
-		if (buffer_write_chunk(rep, &msg) != 0)
-			return 0;
+		if (flags & STAT_FMT_HTML) {
+			chunk_printf(&msg, sizeof(trash), "</body></html>\n");
+			if (buffer_write_chunk(rep, &msg) != 0)
+				return 0;
+		}
 
 		s->data_state = DATA_ST_FIN;
 		/* fall through */
@@ -366,30 +383,32 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 		/* fall through */
 
 	case DATA_ST_PX_TH:
-		/* print a new table */
-		chunk_printf(&msg, sizeof(trash),
-			     "<table cols=\"20\" class=\"tbl\" width=\"100%%\">\n"
-			     "<tr align=\"center\" class=\"titre\">"
-			     "<th colspan=2 class=\"pxname\">%s</th>"
-			     "<th colspan=18 class=\"empty\"></th>"
-			     "</tr>\n"
-			     "<tr align=\"center\" class=\"titre\">"
-			     "<th rowspan=2></th>"
-			     "<th colspan=2>Queue</th><th colspan=4>Sessions</th>"
-			     "<th colspan=2>Bytes</th><th colspan=2>Denied</th>"
-			     "<th colspan=3>Errors</th><th colspan=6>Server</th>"
-			     "</tr>\n"
-			     "<tr align=\"center\" class=\"titre\">"
-			     "<th>Cur</th><th>Max</th><th>Cur</th><th>Max</th>"
-			     "<th>Limit</th><th>Cumul</th><th>In</th><th>Out</th>"
-			     "<th>Req</th><th>Resp</th><th>Req</th><th>Conn</th>"
-			     "<th>Resp</th><th>Status</th><th>Weight</th><th>Act</th>"
-			     "<th>Bck</th><th>Check</th><th>Down</th></tr>\n"
-			     "",
-			     px->id);
-		
-		if (buffer_write_chunk(rep, &msg) != 0)
-			return 0;
+		if (flags & STAT_FMT_HTML) {
+			/* print a new table */
+			chunk_printf(&msg, sizeof(trash),
+				     "<table cols=\"20\" class=\"tbl\" width=\"100%%\">\n"
+				     "<tr align=\"center\" class=\"titre\">"
+				     "<th colspan=2 class=\"pxname\">%s</th>"
+				     "<th colspan=18 class=\"empty\"></th>"
+				     "</tr>\n"
+				     "<tr align=\"center\" class=\"titre\">"
+				     "<th rowspan=2></th>"
+				     "<th colspan=2>Queue</th><th colspan=4>Sessions</th>"
+				     "<th colspan=2>Bytes</th><th colspan=2>Denied</th>"
+				     "<th colspan=3>Errors</th><th colspan=6>Server</th>"
+				     "</tr>\n"
+				     "<tr align=\"center\" class=\"titre\">"
+				     "<th>Cur</th><th>Max</th><th>Cur</th><th>Max</th>"
+				     "<th>Limit</th><th>Cumul</th><th>In</th><th>Out</th>"
+				     "<th>Req</th><th>Resp</th><th>Req</th><th>Conn</th>"
+				     "<th>Resp</th><th>Status</th><th>Weight</th><th>Act</th>"
+				     "<th>Bck</th><th>Check</th><th>Down</th></tr>\n"
+				     "",
+				     px->id);
+
+			if (buffer_write_chunk(rep, &msg) != 0)
+				return 0;
+		}
 
 		s->data_ctx.stats.px_st = DATA_ST_PX_FE;
 		/* fall through */
@@ -397,18 +416,20 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 	case DATA_ST_PX_FE:
 		/* print the frontend */
 		if (px->cap & PR_CAP_FE) {
-			chunk_printf(&msg, sizeof(trash),
+			if (flags & STAT_FMT_HTML) {
+				chunk_printf(&msg, sizeof(trash),
 				     /* name, queue */
 				     "<tr align=center class=\"frontend\"><td>Frontend</td><td colspan=2></td>"
-				     /* sessions : current, max, limit, cumul. */
-				     "<td align=right>%d</td><td align=right>%d</td><td align=right>%d</td><td align=right>%d</td>"
+				     /* sessions : current, max, limit, cumul */
+				     "<td align=right>%d</td><td align=right>%d</td>"
+				     "<td align=right>%d</td><td align=right>%d</td>"
 				     /* bytes : in, out */
 				     "<td align=right>%lld</td><td align=right>%lld</td>"
 				     /* denied: req, resp */
 				     "<td align=right>%d</td><td align=right>%d</td>"
 				     /* errors : request, connect, response */
 				     "<td align=right>%d</td><td align=right></td><td align=right></td>"
-				     /* server status : reflect backend status */
+				     /* server status : reflect frontend status */
 				     "<td align=center>%s</td>"
 				     /* rest of server: nothing */
 				     "<td align=center colspan=5></td></tr>"
@@ -419,6 +440,31 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     px->failed_req,
 				     px->state == PR_STRUN ? "OPEN" :
 				     px->state == PR_STIDLE ? "FULL" : "STOP");
+			} else {
+				chunk_printf(&msg, sizeof(trash),
+				     /* pxid, name, queue cur, queue max, */
+				     "%s,FRONTEND,,,"
+				     /* sessions : current, max, limit, cumul */
+				     "%d,%d,%d,%d,"
+				     /* bytes : in, out */
+				     "%lld,%lld,"
+				     /* denied: req, resp */
+				     "%d,%d,"
+				     /* errors : request, connect, response */
+				     "%d,,,"
+				     /* server status : reflect frontend status */
+				     "%s,"
+				     /* rest of server: nothing */
+				     ",,,,,"
+				     "\n",
+				     px->id,
+				     px->feconn, px->feconn_max, px->maxconn, px->cum_feconn,
+				     px->bytes_in, px->bytes_out,
+				     px->denied_req, px->denied_resp,
+				     px->failed_req,
+				     px->state == PR_STRUN ? "OPEN" :
+				     px->state == PR_STIDLE ? "FULL" : "STOP");
+			}
 
 			if (buffer_write_chunk(rep, &msg) != 0)
 				return 0;
@@ -431,7 +477,6 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 	case DATA_ST_PX_SV:
 		/* stats.sv has been initialized above */
 		while (s->data_ctx.stats.sv != NULL) {
-			static char *srv_hlt_st[5] = { "DOWN", "DN %d/%d &uarr;", "UP %d/%d &darr;", "UP", "<i>no check</i>" };
 			int sv_state; /* 0=DOWN, 1=going up, 2=going down, 3=UP, 4=unchecked */
 
 			sv = s->data_ctx.stats.sv;
@@ -456,13 +501,17 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				continue;
 			}
 
-			chunk_printf(&msg, sizeof(trash),
+			if (flags & STAT_FMT_HTML) {
+				static char *srv_hlt_st[5] = { "DOWN", "DN %d/%d &uarr;", "UP %d/%d &darr;",
+							       "UP", "<i>no check</i>" };
+				chunk_printf(&msg, sizeof(trash),
 				     /* name */
 				     "<tr align=\"center\" class=\"%s%d\"><td>%s</td>"
 				     /* queue : current, max */
 				     "<td align=right>%d</td><td align=right>%d</td>"
 				     /* sessions : current, max, limit, cumul */
-				     "<td align=right>%d</td><td align=right>%d</td><td align=right>%s</td><td align=right>%d</td>"
+				     "<td align=right>%d</td><td align=right>%d</td>"
+				     "<td align=right>%s</td><td align=right>%d</td>"
 				     /* bytes : in, out */
 				     "<td align=right>%lld</td><td align=right>%lld</td>"
 				     /* denied: req, resp */
@@ -478,14 +527,14 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     sv->failed_secu,
 				     sv->failed_conns, sv->failed_resp);
 				     
-			/* status */
-			chunk_printf(&msg, sizeof(trash), "<td nowrap>");
-			chunk_printf(&msg, sizeof(trash),
+				/* status */
+				chunk_printf(&msg, sizeof(trash), "<td nowrap>");
+				chunk_printf(&msg, sizeof(trash),
 				     srv_hlt_st[sv_state],
 				     (sv->state & SRV_RUNNING) ? (sv->health - sv->rise + 1) : (sv->health),
 				     (sv->state & SRV_RUNNING) ? (sv->fall) : (sv->rise));
 
-			chunk_printf(&msg, sizeof(trash),
+				chunk_printf(&msg, sizeof(trash),
 				     /* weight */
 				     "</td><td>%d</td>"
 				     /* act, bck */
@@ -495,15 +544,61 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     (sv->state & SRV_BACKUP) ? "-" : "Y",
 				     (sv->state & SRV_BACKUP) ? "Y" : "-");
 
-			/* check failures : unique, fatal */
-			if (sv->state & SRV_CHECKED)
-				chunk_printf(&msg, sizeof(trash),
+				/* check failures : unique, fatal */
+				if (sv->state & SRV_CHECKED)
+					chunk_printf(&msg, sizeof(trash),
 					     "<td align=right>%d</td><td align=right>%d</td></tr>\n",
 					     sv->failed_checks, sv->down_trans);
-			else
-				chunk_printf(&msg, sizeof(trash),
+				else
+					chunk_printf(&msg, sizeof(trash),
 					     "<td colspan=2></td></tr>\n");
+			} else {
+				static char *srv_hlt_st[5] = { "DOWN,", "DOWN %d/%d,", "UP %d/%d,",
+							       "UP,", "no check," };
+				chunk_printf(&msg, sizeof(trash),
+				     /* pxid, name */
+				     "%s,%s,"
+				     /* queue : current, max */
+				     "%d,%d,"
+				     /* sessions : current, max, limit, cumul */
+				     "%d,%d,%s,%d,"
+				     /* bytes : in, out */
+				     "%lld,%lld,"
+				     /* denied: req, resp */
+				     ",%d,"
+				     /* errors : request, connect, response */
+				     ",%d,%d,"
+				     "",
+				     px->id, sv->id,
+				     sv->nbpend, sv->nbpend_max,
+				     sv->cur_sess, sv->cur_sess_max, sv->maxconn ? ultoa(sv->maxconn) : "-", sv->cum_sess,
+				     sv->bytes_in, sv->bytes_out,
+				     sv->failed_secu,
+				     sv->failed_conns, sv->failed_resp);
+				     
+				/* status */
+				chunk_printf(&msg, sizeof(trash),
+				     srv_hlt_st[sv_state],
+				     (sv->state & SRV_RUNNING) ? (sv->health - sv->rise + 1) : (sv->health),
+				     (sv->state & SRV_RUNNING) ? (sv->fall) : (sv->rise));
 
+				chunk_printf(&msg, sizeof(trash),
+				     /* weight, active, backup */
+				     "%d,%d,%d,"
+				     "",
+				     sv->uweight,
+				     (sv->state & SRV_BACKUP) ? 0 : 1,
+				     (sv->state & SRV_BACKUP) ? 1 : 0);
+
+				/* check failures : unique, fatal */
+				if (sv->state & SRV_CHECKED)
+					chunk_printf(&msg, sizeof(trash),
+					     "%d,%d,\n",
+					     sv->failed_checks, sv->down_trans);
+				else
+					chunk_printf(&msg, sizeof(trash),
+					     ",,\n");
+			}
 			if (buffer_write_chunk(rep, &msg) != 0)
 				return 0;
 
@@ -528,7 +623,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 			if (px->srv && px->srv->eweight)
 				gcd = px->srv->uweight / px->srv->eweight;
 
-			chunk_printf(&msg, sizeof(trash),
+			if (flags & STAT_FMT_HTML) {
+				chunk_printf(&msg, sizeof(trash),
 				     /* name */
 				     "<tr align=center class=\"backend\"><td>Backend</td>"
 				     /* queue : current, max */
@@ -557,7 +653,38 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     px->failed_conns, px->failed_resp,
 				     (px->srv_map_sz > 0 || !px->srv) ? "UP" : "DOWN",
 				     px->srv_map_sz * gcd, px->srv_act, px->srv_bck);
-
+			} else {
+				chunk_printf(&msg, sizeof(trash),
+				     /* pxid, name */
+				     "%s,BACKEND,"
+				     /* queue : current, max */
+				     "%d,%d,"
+				     /* sessions : current, max, limit, cumul */
+				     "%d,%d,%d,%d,"
+				     /* bytes : in, out */
+				     "%lld,%lld,"
+				     /* denied: req, resp */
+				     "%d,%d,"
+				     /* errors : request, connect, response */
+				     ",%d,%d,"
+				     /* server status : reflect backend status (up/down) : we display UP
+				      * if the backend has known working servers or if it has no server at
+				      * all (eg: for stats). Tthen we display the total weight, number of
+				      * active and backups. */
+				     "%s,"
+				     "%d,%d,%d,"
+				     /* rest of server: nothing */
+				     ",,"
+				     "\n",
+				     px->id,
+				     px->nbpend /* or px->totpend ? */, px->nbpend_max,
+				     px->beconn, px->beconn_max, px->fullconn, px->cum_beconn,
+				     px->bytes_in, px->bytes_out,
+				     px->denied_req, px->denied_resp,
+				     px->failed_conns, px->failed_resp,
+				     (px->srv_map_sz > 0 || !px->srv) ? "UP" : "DOWN",
+				     px->srv_map_sz * gcd, px->srv_act, px->srv_bck);
+			}
 			if (buffer_write_chunk(rep, &msg) != 0)
 				return 0;
 		}
@@ -566,10 +693,12 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 		/* fall through */
 
 	case DATA_ST_PX_END:
-		chunk_printf(&msg, sizeof(trash), "</table><p>\n");
+		if (flags & STAT_FMT_HTML) {
+			chunk_printf(&msg, sizeof(trash), "</table><p>\n");
 
-		if (buffer_write_chunk(rep, &msg) != 0)
-			return 0;
+			if (buffer_write_chunk(rep, &msg) != 0)
+				return 0;
+		}
 
 		s->data_ctx.stats.px_st = DATA_ST_PX_FIN;
 		/* fall through */

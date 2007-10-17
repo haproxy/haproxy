@@ -27,6 +27,8 @@
 #include <types/buffers.h>
 #include <types/session.h>
 
+#define STAT_FMT_HTML 0x1
+
 int stats_dump_http(struct session *s, struct uri_auth *uri, int flags);
 int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, int flags);
 
