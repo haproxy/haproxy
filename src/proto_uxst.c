@@ -45,11 +45,13 @@
 #include <proto/acl.h>
 #include <proto/backend.h>
 #include <proto/buffers.h>
+#include <proto/dumpstats.h>
 #include <proto/fd.h>
 #include <proto/log.h>
 #include <proto/protocols.h>
 #include <proto/proto_uxst.h>
 #include <proto/queue.h>
+#include <proto/senddata.h>
 #include <proto/session.h>
 #include <proto/stream_sock.h>
 #include <proto/task.h>
@@ -401,6 +403,7 @@ int uxst_event_accept(int fd) {
 		memset(&s->logs, 0, sizeof(s->logs));
 		memset(&s->txn, 0, sizeof(s->txn));
 
+		s->data_state = DATA_ST_INIT;
 		s->data_source = DATA_SRC_NONE;
 		s->uniq_id = totalconn;
 
@@ -460,7 +463,6 @@ int uxst_event_accept(int fd) {
 		if (l->timeout && tv_isset(l->timeout)) {
 			EV_FD_SET(cfd, DIR_RD);
 			tv_add(&s->req->rex, &now, &s->req->rto);
-			tv_add(&s->rep->wex, &now, &s->rep->wto);
 			t->expire = s->req->rex;
 		}
 
@@ -1305,8 +1307,8 @@ void process_uxst_session(struct task *t, struct timeval *next)
 /* Processes data exchanges on the statistics socket. The client processing
  * is called and the task is put back in the wait queue or it is cleared.
  * In order to ease the transition, we simply simulate the server status
- * for now. It only knows states SV_STIDLE and SV_STCLOSE. Returns in <next>
- * the task's expiration date.
+ * for now. It only knows states SV_STIDLE, SV_STDATA and SV_STCLOSE. Returns
+ * in <next> the task's expiration date.
  */
 void process_uxst_stats(struct task *t, struct timeval *next)
 {
@@ -1314,39 +1316,50 @@ void process_uxst_stats(struct task *t, struct timeval *next)
 	struct listener *listener;
 	int fsm_resync = 0;
 
+	/* we need to be in DATA phase on the "server" side */
+	if (s->srv_state == SV_STIDLE) {
+		s->srv_state = SV_STDATA;
+		s->data_source = DATA_SRC_STATS;
+	}
+			
 	do {
-		//fprintf(stderr,"fct %s:%d\n", __FUNCTION__, __LINE__);
-		fsm_resync = 0;
-		fsm_resync |= process_uxst_cli(s);
-		if (s->srv_state == SV_STIDLE) {
-			if (s->cli_state == CL_STCLOSE || s->cli_state == CL_STSHUTW) {
-				s->srv_state = SV_STCLOSE;
-				fsm_resync |= 1;
-				continue;
-			}
-			else if (s->cli_state == CL_STSHUTR ||
-				 (s->req->l >= s->req->rlim - s->req->data)) {
-				if (s->req->l == 0) {
+		fsm_resync = process_uxst_cli(s);
+		if (s->srv_state != SV_STDATA)
+			continue;
+
+		if (s->cli_state == CL_STCLOSE || s->cli_state == CL_STSHUTW) {
+			s->srv_state = SV_STCLOSE;
+			fsm_resync |= 1;
+			continue;
+		}
+
+		if (s->data_state == DATA_ST_INIT) {
+			if ((s->req->l >= 10) && (memcmp(s->req->data, "show stat\n", 10) == 0)) {
+				/* send the stats, and changes the data_state */
+				if (stats_dump_raw(s, NULL, 0) != 0) {
 					s->srv_state = SV_STCLOSE;
 					fsm_resync |= 1;
 					continue;
 				}
-				/* OK we have some remaining data to process. Just for the
-				 * sake of an exercice, we copy the req into the resp,
-				 * and flush the req. This produces a simple echo function.
-				 */
-				memcpy(s->rep->data, s->req->data, sizeof(s->rep->data));
-				s->rep->l = s->req->l;
-				s->rep->rlim = s->rep->data + BUFSIZE;
-				s->rep->w = s->rep->data;
-				s->rep->lr = s->rep->r = s->rep->data + s->rep->l;
-
-				s->req->l = 0;
+			}
+			else if (s->cli_state == CL_STSHUTR || (s->req->l >= s->req->rlim - s->req->data)) {
 				s->srv_state = SV_STCLOSE;
-
 				fsm_resync |= 1;
 				continue;
 			}
+		}
+
+		if (s->data_state == DATA_ST_INIT)
+			continue;
+
+		/* OK we have some remaining data to process. Just for the
+		 * sake of an exercice, we copy the req into the resp,
+		 * and flush the req. This produces a simple echo function.
+		 */
+		if (stats_dump_raw(s, NULL, 0) != 0) {
+			s->srv_state = SV_STCLOSE;
+			fsm_resync |= 1;
+			continue;
 		}
 	} while (fsm_resync);
 
@@ -1414,7 +1427,6 @@ __attribute__((constructor))
 static void __uxst_protocol_init(void)
 {
 	protocol_register(&proto_unix);
-	//tv_eternity(&global.unix_fe.clitimeout);
 }
 
 

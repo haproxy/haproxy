@@ -47,6 +47,88 @@
 
 /*
  * Produces statistics data for the session <s>. Expects to be called with
+ * s->cli_state == CL_STSHUTR. It *may* make use of informations from <uri>
+ * and <flags>.
+ * It returns 0 if it had to stop writing data and an I/O is needed, 1 if the
+ * dump is finished and the session must be closed, or -1 in case of any error.
+ */
+int stats_dump_raw(struct session *s, struct uri_auth *uri, int flags)
+{
+	struct buffer *rep = s->rep;
+	struct proxy *px;
+	struct chunk msg;
+
+	msg.len = 0;
+	msg.str = trash;
+
+	switch (s->data_state) {
+	case DATA_ST_INIT:
+		/* the function had not been called yet, let's prepare the
+		 * buffer for a response.
+		 */
+		client_retnclose(s, &msg);
+		s->data_state = DATA_ST_HEAD;
+		/* fall through */
+
+	case DATA_ST_HEAD:
+		chunk_printf(&msg, sizeof(trash),
+			     "# pxname,svname,"
+			     "qcur,qmax,"
+			     "scur,smax,slim,stot,"
+			     "bin,bout,"
+			     "dreq,dresp,"
+			     "ereq,econ,eresp,"
+			     "weight,act,bck,"
+			     "chkfail,chkdown"
+			     "\n");
+			
+		if (buffer_write_chunk(rep, &msg) != 0)
+			return 0;
+
+		s->data_state = DATA_ST_INFO;
+		/* fall through */
+
+	case DATA_ST_INFO:
+		memset(&s->data_ctx, 0, sizeof(s->data_ctx));
+
+		s->data_ctx.stats.px = proxy;
+		s->data_ctx.stats.px_st = DATA_ST_PX_INIT;
+		s->data_state = DATA_ST_LIST;
+		/* fall through */
+
+	case DATA_ST_LIST:
+		/* dump proxies */
+		while (s->data_ctx.stats.px) {
+			px = s->data_ctx.stats.px;
+			/* skip the disabled proxies and non-networked ones */
+			if (px->state != PR_STSTOPPED && (px->cap & (PR_CAP_FE | PR_CAP_BE)))
+				if (stats_dump_proxy(s, px, NULL, 0) == 0)
+					return 0;
+
+			s->data_ctx.stats.px = px->next;
+			s->data_ctx.stats.px_st = DATA_ST_PX_INIT;
+		}
+		/* here, we just have reached the last proxy */
+
+		s->data_state = DATA_ST_END;
+		/* fall through */
+
+	case DATA_ST_END:
+		s->data_state = DATA_ST_FIN;
+		return 1;
+
+	case DATA_ST_FIN:
+		return 1;
+
+	default:
+		/* unknown state ! */
+		return -1;
+	}
+}
+
+
+/*
+ * Produces statistics data for the session <s>. Expects to be called with
  * s->cli_state == CL_STSHUTR. It stops by itself by unsetting the SN_SELF_GEN
  * flag from the session, which it uses to keep on being called when there is
  * free space in the buffer, of simply by letting an empty buffer upon return.
