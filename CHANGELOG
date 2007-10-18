@@ -1,6 +1,19 @@
 ChangeLog :
 ===========
 
+2007/10/18 : 1.3.12.3
+    - add the "nolinger" option to disable data lingering (Alexandre Cassen)
+    - fix double-free during clean exit (Krzysztof Oledzki)
+    - prevent the system from sending an RST when closing health-checks
+      (Krzysztof Oledzki)
+    - do not add a cache-control header when on non-cacheable responses
+      (Krzysztof Oledzki)
+    - spread health checks even more (Krzysztof Oledzki)
+    - stats: scope "." must match the backend and not the frontend
+    - fixed call to chroot() during startup
+    - fix wrong timeout computation in event_accept()
+    - remove condition for exit() under fork() failure
+
 2007/09/20 : 1.3.12.2
     - fix configuration sanity checks for TCP listeners
     - set the log socket receive window to zero bytes
