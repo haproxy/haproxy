@@ -3750,7 +3750,7 @@ int produce_content_stats_proxy(struct session *s, struct proxy *px)
 					break;
 
 				/* match '.' which means 'self' proxy */
-				if (!strcmp(scope->px_id, ".") && px == s->fe)
+				if (!strcmp(scope->px_id, ".") && px == s->be)
 					break;
 				scope = scope->next;
 			}
