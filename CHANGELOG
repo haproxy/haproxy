@@ -1,6 +1,55 @@
 ChangeLog :
 ===========
 
+2007/10/18 : 1.3.13
+    - replace the code under O'Reilly license (Arnaud Cornet)
+    - add a small man page (Arnaud Cornet)
+    - stats: report haproxy's version by default (Krzysztof Oledzki)
+    - stats: count server retries and redispatches (Krzysztof Oledzki)
+    - core: added easy support for Doug Lea's malloc (dlmalloc)
+    - core: fade out memory usage when stopping proxies
+    - core: moved the sockaddr pointer to the fdtab structure
+    - core: add generic protocol support
+    - core: implement client-side support for PF_UNIX sockets
+    - stats: implement the CSV output
+    - stats: add a link to the CSV export HTML page
+    - stats: implement the statistics output on a unix socket
+    - config: introduce the "stats" keyword in global section
+    - build: centralize version and date into one file for each
+    - tests: added a new hash algorithm
+
+2007/10/18 : 1.3.12.3
+    - add the "nolinger" option to disable data lingering (Alexandre Cassen)
+    - fix double-free during clean exit (Krzysztof Oledzki)
+    - prevent the system from sending an RST when closing health-checks
+      (Krzysztof Oledzki)
+    - do not add a cache-control header when on non-cacheable responses
+      (Krzysztof Oledzki)
+    - spread health checks even more (Krzysztof Oledzki)
+    - stats: scope "." must match the backend and not the frontend
+    - fixed call to chroot() during startup
+    - fix wrong timeout computation in event_accept()
+    - remove condition for exit() under fork() failure
+
+2007/09/20 : 1.3.12.2
+    - fix configuration sanity checks for TCP listeners
+    - set the log socket receive window to zero bytes
+    - pre-initialize timeouts to infinity, not zero
+    - fix the SIGHUP message not to alert on server-less proxies
+    - timeouts and retries could be ignored when switching backend
+    - added a file to check that "retries" works.
+    - O'Reilly has clarified its license
+
+2007/09/05 : 1.3.12.1
+    - spec I/O: fix allocations of spec entries for an FD
+    - ensure we never overflow in chunk_printf()
+    - improve behaviour with large number of servers per proxy
+    - add support for "stats refresh <interval>"
+    - stats page: added links for 'refresh' and 'hide down'
+    - fix backend's weight in the stats page.
+    - the "stats" keyword is not allowed in a pure frontend.
+    - provide a test configuration file for stats and checks
+
 2007/06/17 : 1.3.12
     - fix segfault at exit when using captures
     - bug: negation in ACL conds was not cleared between terms
