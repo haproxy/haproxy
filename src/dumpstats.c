@@ -275,6 +275,11 @@ int stats_dump_http(struct session *s, struct uri_auth *uri, int flags)
 			     (s->flags & SN_STAT_NORFRSH) ? ";norefresh" : "");
 
 			chunk_printf(&msg, sizeof(trash),
+			     "<li><a href=\"%s;csv%s\">CSV export</a><br>\n",
+			     uri->uri_prefix,
+			     (uri->refresh > 0) ? ";norefresh" : "");
+
+			chunk_printf(&msg, sizeof(trash),
 			     "</td>"
 			     "<td align=\"left\" valign=\"top\" nowrap width=\"1%%\">"
 			     "<b>External ressources:</b><ul style=\"margin-top: 0.25em;\">\n"
