@@ -4,7 +4,7 @@
                          ----------------------
                              version 1.3.13
                              willy tarreau
-                               2007/10/15
+                               2007/10/18
 
 
 This document covers the configuration language as implemented in the version
@@ -39,6 +39,7 @@ The following keywords are supported in the "global" section :
    - uid
    - ulimit-n
    - user
+   - stats
   
  * Performance tuning
    - maxconn
@@ -52,7 +53,6 @@ The following keywords are supported in the "global" section :
  * Debugging
    - debug
    - quiet
-   - stats
 
 
 1.1) Process management and security
@@ -110,6 +110,28 @@ pidfile <pidfile>
   Writes pids of all daemons into file <pidfile>. This option is equivalent to
   the "-p" command line argument. The file must be accessible to the user
   starting the process. See also "daemon".
+
+stats socket <path> [{uid | user} <uid>] [{gid | group} <gid>] [mode <mode>]
+  Creates a UNIX socket in stream mode at location <path>. Any previously
+  existing socket will be backed up then replaced. Connections to this socket
+  will get a CSV-formated output of the process statistics in response to the
+  "show stat" command followed by a line feed. On platforms which support it,
+  it is possible to restrict access to this socket by specifying numerical IDs
+  after "uid" and "gid", or valid user and group names after the "user" and
+  "group" keywords. It is also possible to restrict permissions on the socket
+  by passing an octal value after the "mode" keyword (same syntax as chmod).
+  Depending on the platform, the permissions on the socket will be inherited
+  from the directory which hosts it, or from the user the process is started
+  with.
+
+stats timeout <timeout, in milliseconds>
+  The default timeout on the stats socket is set to 10 seconds. It is possible
+  to change this value with "stats timeout". The value must be passed in
+  milliseconds.
+
+stats maxconn <connections>
+  By default, the stats socket is limited to 10 concurrent connections. It is
+  possible to change this value with "stats maxconn".
 
 uid <number>
   Changes the process' user ID to <number>. It is recommended that the user ID
@@ -185,10 +207,6 @@ debug
 quiet
   Do not display any message during startup. It is equivalent to the command-
   line argument "-q".
-
-stats
-  Dump internal statistics to stdout at regular interval. It is available for
-  development purposes only and should never be set.
 
 
 2) Proxies

@@ -41,6 +41,7 @@
 #include <proto/backend.h>
 #include <proto/buffers.h>
 #include <proto/checks.h>
+#include <proto/dumpstats.h>
 #include <proto/httperr.h>
 #include <proto/log.h>
 #include <proto/proxy.h>
@@ -279,7 +280,11 @@ int cfg_parse_global(const char *file, int linenum, char **args)
 		global.mode |= MODE_QUIET;
 	}
 	else if (!strcmp(args[0], "stats")) {
-		global.mode |= MODE_STATS;
+		memcpy(trash, "error near 'stats'", 19);
+		if (stats_parse_global((const char **)args + 1, trash, sizeof(trash)) < 0) {
+			Alert("parsing [%s:%d] : %s\n", file, linenum, trash);
+			return -1;
+		}
 	}
 	else if (!strcmp(args[0], "tune.maxpollevents")) {
 		if (global.tune.maxpollevents != 0) {

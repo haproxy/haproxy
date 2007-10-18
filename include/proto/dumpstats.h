@@ -29,6 +29,7 @@
 
 #define STAT_FMT_HTML 0x1
 
+int stats_parse_global(const char **args, char *err, int errlen);
 int stats_dump_raw(struct session *s, struct uri_auth *uri, int flags);
 int stats_dump_http(struct session *s, struct uri_auth *uri, int flags);
 int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, int flags);

@@ -29,15 +29,13 @@
 #include <types/task.h>
 
 /* modes of operation (global.mode) */
-#define	MODE_DEBUG	1
-#define	MODE_STATS	2
-#define	MODE_LOG	4
-#define	MODE_DAEMON	8
-#define	MODE_QUIET	16
-#define	MODE_CHECK	32
-#define	MODE_VERBOSE	64
-#define	MODE_STARTING	128
-#define	MODE_FOREGROUND	256
+#define	MODE_DEBUG	0x01
+#define	MODE_DAEMON	0x02
+#define	MODE_QUIET	0x04
+#define	MODE_CHECK	0x08
+#define	MODE_VERBOSE	0x10
+#define	MODE_STARTING	0x20
+#define	MODE_FOREGROUND	0x40
 
 /* list of last checks to perform, depending on config options */
 #define LSTCHK_CAP_BIND	0x00000001	/* check that we can bind to any port */

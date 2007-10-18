@@ -17,6 +17,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <pwd.h>
+#include <grp.h>
 
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -42,8 +44,113 @@
 #include <proto/buffers.h>
 #include <proto/dumpstats.h>
 #include <proto/fd.h>
+#include <proto/proto_uxst.h>
 #include <proto/senddata.h>
 #include <proto/session.h>
+
+/* This function parses a "stats" statement in the "global" section. It returns
+ * -1 if there is any error, otherwise zero. If it returns -1, it may write an
+ * error message into ther <err> buffer, for at most <errlen> bytes, trailing
+ * zero included. The trailing '\n' must not be written. The function must be
+ * called with <args> pointing to the first word after "stats".
+ */
+int stats_parse_global(const char **args, char *err, int errlen)
+{
+	if (!strcmp(args[0], "socket")) {
+		struct sockaddr_un su;
+		int cur_arg;
+
+		if (*args[1] == 0) {
+			snprintf(err, errlen, "'stats socket' in global section expects a path to a UNIX socket");
+			return -1;
+		}
+
+		if (global.stats_sock.state != LI_NEW) {
+			snprintf(err, errlen, "'stats socket' already specified in global section");
+			return -1;
+		}
+
+		su.sun_family = AF_UNIX;
+		strncpy(su.sun_path, args[1], sizeof(su.sun_path));
+		su.sun_path[sizeof(su.sun_path) - 1] = 0;
+		memcpy(&global.stats_sock.addr, &su, sizeof(su)); // guaranteed to fit
+
+		global.stats_sock.state = LI_INIT;
+		global.stats_sock.accept = uxst_event_accept;
+		global.stats_sock.handler = process_uxst_stats;
+		global.stats_sock.private = NULL;
+
+		cur_arg = 2;
+		while (*args[cur_arg]) {
+			if (!strcmp(args[cur_arg], "uid")) {
+				global.stats_sock.perm.ux.uid = atol(args[cur_arg + 1]);
+				cur_arg += 2;
+			}
+			else if (!strcmp(args[cur_arg], "gid")) {
+				global.stats_sock.perm.ux.gid = atol(args[cur_arg + 1]);
+				cur_arg += 2;
+			}
+			else if (!strcmp(args[cur_arg], "mode")) {
+				global.stats_sock.perm.ux.mode = strtol(args[cur_arg + 1], NULL, 8);
+				cur_arg += 2;
+			}
+			else if (!strcmp(args[cur_arg], "user")) {
+				struct passwd *user;
+				user = getpwnam(args[cur_arg + 1]);
+				if (!user) {
+					snprintf(err, errlen, "unknown user '%s' in 'global' section ('stats user')",
+						 args[cur_arg + 1]);
+					return -1;
+				}
+				global.stats_sock.perm.ux.uid = user->pw_uid;
+				cur_arg += 2;
+			}
+			else if (!strcmp(args[cur_arg], "group")) {
+				struct group *group;
+				group = getgrnam(args[cur_arg + 1]);
+				if (!group) {
+					snprintf(err, errlen, "unknown group '%s' in 'global' section ('stats group')",
+						 args[cur_arg + 1]);
+					return -1;
+				}
+				global.stats_sock.perm.ux.gid = group->gr_gid;
+				cur_arg += 2;
+			}
+			else {
+				snprintf(err, errlen, "'stats socket' only supports 'user', 'uid', 'group', 'gid', and 'mode'");
+				return -1;
+			}
+		}
+			
+		uxst_add_listener(&global.stats_sock);
+		global.maxsock++;
+	}
+	else if (!strcmp(args[0], "timeout")) {
+		int timeout = atol(args[1]);
+
+		if (timeout <= 0) {
+			snprintf(err, errlen, "a positive value is expected for 'stats timeout' in 'global section'");
+			return -1;
+		}
+		__tv_from_ms(&global.stats_timeout, timeout);
+	}
+	else if (!strcmp(args[0], "maxconn")) {
+		int maxconn = atol(args[1]);
+
+		if (maxconn <= 0) {
+			snprintf(err, errlen, "a positive value is expected for 'stats maxconn' in 'global section'");
+			return -1;
+		}
+		global.maxsock -= global.stats_sock.maxconn;
+		global.stats_sock.maxconn = maxconn;
+		global.maxsock += global.stats_sock.maxconn;
+	}
+	else {
+		snprintf(err, errlen, "'stats' only supports 'socket', 'maxconn' and 'timeout' in 'global' section");
+		return -1;
+	}
+	return 0;
+}
 
 /*
  * Produces statistics data for the session <s>. Expects to be called with
