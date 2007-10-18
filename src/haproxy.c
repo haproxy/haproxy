@@ -117,11 +117,17 @@ struct global global = {
 	loglev1 : 7, /* max syslog level : debug */
 	loglev2 : 7,
 	.stats_timeout = { .tv_sec = 10, .tv_usec = 0 }, /* stats timeout = 10 seconds */
-	.stats_sock.timeout = &global.stats_timeout,
-	.stats_sock.maxconn = 10, /* 10 concurrent stats connections */
-	.stats_sock.perm.ux.uid = -1,
-	.stats_sock.perm.ux.gid = -1,
-	.stats_sock.perm.ux.mode = 0,
+	.stats_sock = {
+		.timeout = &global.stats_timeout,
+		.maxconn = 10, /* 10 concurrent stats connections */
+		.perm = {
+			 .ux = {
+				 .uid = -1,
+				 .gid = -1,
+				 .mode = 0,
+			 }
+		 }
+	}
 	/* others NULL OK */
 };
 
