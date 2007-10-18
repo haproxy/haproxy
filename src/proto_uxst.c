@@ -198,7 +198,7 @@ static void destroy_uxst_socket(const char *path)
 
 	addr.sun_family = AF_UNIX;
 	strncpy(addr.sun_path, path, sizeof(addr.sun_path));
-	addr.sun_path[sizeof(addr.sun_path)] = 0;
+	addr.sun_path[sizeof(addr.sun_path) - 1] = 0;
 	ret = connect(sock, (struct sockaddr *)&addr, sizeof(addr));
 	if (ret < 0 && errno == ECONNREFUSED) {
 		/* Connect failed: the socket still exists but is not used
