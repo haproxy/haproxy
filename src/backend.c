@@ -574,6 +574,10 @@ int srv_count_retry_down(struct session *t, int conn_err)
 {
 	/* we are in front of a retryable error */
 	t->conn_retries--;
+	if (t->srv)
+		t->srv->retries++;
+	t->be->retries++;
+
 	if (t->conn_retries < 0) {
 		/* if not retryable anymore, let's abort */
 		tv_eternity(&t->req->cex);
@@ -644,7 +648,7 @@ int srv_retryable_connect(struct session *t)
 
 	if (t->srv)
 		t->srv->failed_conns++;
-	t->be->failed_conns++;
+	t->be->redispatches++;
 
 	t->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
 	t->srv = NULL; /* it's left to the dispatcher to choose a server */

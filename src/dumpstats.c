@@ -185,6 +185,7 @@ int stats_dump_raw(struct session *s, struct uri_auth *uri, int flags)
 			     "bin,bout,"
 			     "dreq,dresp,"
 			     "ereq,econ,eresp,"
+			     "wretr,wredis,"
 			     "weight,act,bck,"
 			     "chkfail,chkdown"
 			     "\n");
@@ -369,6 +370,7 @@ int stats_dump_http(struct session *s, struct uri_auth *uri, int flags)
 			     "bin,bout,"
 			     "dreq,dresp,"
 			     "ereq,econ,eresp,"
+			     "wretr,wredis,"
 			     "weight,act,bck,"
 			     "chkfail,chkdown"
 			     "\n");
@@ -589,13 +591,15 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     "<th rowspan=2></th>"
 				     "<th colspan=2>Queue</th><th colspan=4>Sessions</th>"
 				     "<th colspan=2>Bytes</th><th colspan=2>Denied</th>"
-				     "<th colspan=3>Errors</th><th colspan=6>Server</th>"
+				     "<th colspan=3>Errors</th><th colspan=2>Warnings</th>"
+				     "<th colspan=6>Server</th>"
 				     "</tr>\n"
 				     "<tr align=\"center\" class=\"titre\">"
 				     "<th>Cur</th><th>Max</th><th>Cur</th><th>Max</th>"
 				     "<th>Limit</th><th>Cumul</th><th>In</th><th>Out</th>"
 				     "<th>Req</th><th>Resp</th><th>Req</th><th>Conn</th>"
-				     "<th>Resp</th><th>Status</th><th>Weight</th><th>Act</th>"
+				     "<th>Resp</th><th>Retr</th><th>Redis</th>"
+				     "<th>Status</th><th>Weight</th><th>Act</th>"
 				     "<th>Bck</th><th>Check</th><th>Down</th></tr>\n"
 				     "",
 				     px->id);
@@ -623,6 +627,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     "<td align=right>%d</td><td align=right>%d</td>"
 				     /* errors : request, connect, response */
 				     "<td align=right>%d</td><td align=right></td><td align=right></td>"
+				     /* warnings: retries, redispatches */
+				     "<td align=right></td><td align=right></td>"
 				     /* server status : reflect frontend status */
 				     "<td align=center>%s</td>"
 				     /* rest of server: nothing */
@@ -646,6 +652,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     "%d,%d,"
 				     /* errors : request, connect, response */
 				     "%d,,,"
+				     /* warnings: retries, redispatches */
+				     ",,"
 				     /* server status : reflect frontend status */
 				     "%s,"
 				     /* rest of server: nothing */
@@ -712,6 +720,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     "<td align=right></td><td align=right>%d</td>"
 				     /* errors : request, connect, response */
 				     "<td align=right></td><td align=right>%d</td><td align=right>%d</td>\n"
+				     /* warnings: retries, redispatches */
+				     "<td align=right>%d</td><td align=right></td>"
 				     "",
 				     (sv->state & SRV_BACKUP) ? "backup" : "active",
 				     sv_state, sv->id,
@@ -719,7 +729,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     sv->cur_sess, sv->cur_sess_max, sv->maxconn ? ultoa(sv->maxconn) : "-", sv->cum_sess,
 				     sv->bytes_in, sv->bytes_out,
 				     sv->failed_secu,
-				     sv->failed_conns, sv->failed_resp);
+				     sv->failed_conns, sv->failed_resp,
+				     sv->retries);
 				     
 				/* status */
 				chunk_printf(&msg, sizeof(trash), "<td nowrap>");
@@ -762,13 +773,16 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     ",%d,"
 				     /* errors : request, connect, response */
 				     ",%d,%d,"
+				     /* warnings: retries, redispatches */
+				     ",%d,"
 				     "",
 				     px->id, sv->id,
 				     sv->nbpend, sv->nbpend_max,
 				     sv->cur_sess, sv->cur_sess_max, sv->maxconn ? ultoa(sv->maxconn) : "-", sv->cum_sess,
 				     sv->bytes_in, sv->bytes_out,
 				     sv->failed_secu,
-				     sv->failed_conns, sv->failed_resp);
+				     sv->failed_conns, sv->failed_resp,
+				     sv->retries);
 				     
 				/* status */
 				chunk_printf(&msg, sizeof(trash),
@@ -831,6 +845,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     "<td align=right>%d</td><td align=right>%d</td>"
 				     /* errors : request, connect, response */
 				     "<td align=right></td><td align=right>%d</td><td align=right>%d</td>\n"
+				     /* warnings: retries, redispatches */
+				     "<td align=right>%d</td><td align=right>%d</td>"
 				     /* server status : reflect backend status (up/down) : we display UP
 				      * if the backend has known working servers or if it has no server at
 				      * all (eg: for stats). Tthen we display the total weight, number of
@@ -845,6 +861,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     px->bytes_in, px->bytes_out,
 				     px->denied_req, px->denied_resp,
 				     px->failed_conns, px->failed_resp,
+				     px->retries, px->redispatches,
 				     (px->srv_map_sz > 0 || !px->srv) ? "UP" : "DOWN",
 				     px->srv_map_sz * gcd, px->srv_act, px->srv_bck);
 			} else {
@@ -861,6 +878,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     "%d,%d,"
 				     /* errors : request, connect, response */
 				     ",%d,%d,"
+				     /* warnings: retries, redispatches */
+				     "%d,%d,"
 				     /* server status : reflect backend status (up/down) : we display UP
 				      * if the backend has known working servers or if it has no server at
 				      * all (eg: for stats). Tthen we display the total weight, number of
@@ -876,6 +895,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     px->bytes_in, px->bytes_out,
 				     px->denied_req, px->denied_resp,
 				     px->failed_conns, px->failed_resp,
+				     px->retries, px->redispatches,
 				     (px->srv_map_sz > 0 || !px->srv) ? "UP" : "DOWN",
 				     px->srv_map_sz * gcd, px->srv_act, px->srv_bck);
 			}

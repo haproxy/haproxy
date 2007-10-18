@@ -2493,7 +2493,7 @@ int process_srv(struct session *t)
 
 				if (t->srv)
 					t->srv->failed_conns++;
-				t->be->failed_conns++;
+				t->be->redispatches++;
 
 				t->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
 				t->srv = NULL; /* it's left to the dispatcher to choose a server */
