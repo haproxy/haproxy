@@ -316,6 +316,10 @@ void process_chk(struct task *t, struct timeval *next)
 			    (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *) &one, sizeof(one)) != -1)) {
 				//fprintf(stderr, "process_chk: 3\n");
 
+				if (s->proxy->options & PR_O_TCP_NOLING) {
+					/* We don't want to useless data */
+					setsockopt(fd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
+				}
 				
 				if (s->check_addr.sin_addr.s_addr)
 					/* we'll connect to the check addr specified on the server */
