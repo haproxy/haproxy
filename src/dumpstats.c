@@ -563,7 +563,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 					break;
 
 				/* match '.' which means 'self' proxy */
-				if (!strcmp(scope->px_id, ".") && px == s->fe)
+				if (!strcmp(scope->px_id, ".") && px == s->be)
 					break;
 				scope = scope->next;
 			}
