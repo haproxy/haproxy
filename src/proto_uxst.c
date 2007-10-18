@@ -59,10 +59,13 @@
 #endif
 
 /* This function creates a named PF_UNIX stream socket at address <path>. Note
- * that the path cannot be NULL nor empty.
+ * that the path cannot be NULL nor empty. <uid> and <gid> different of -1 will
+ * be used to change the socket owner. If <mode> is not 0, it will be used to
+ * restrict access to the socket. While it is known not to be portable on every
+ * OS, it's still useful where it works.
  * It returns the assigned file descriptor, or -1 in the event of an error.
  */
-static int create_uxst_socket(const char *path)
+static int create_uxst_socket(const char *path, uid_t uid, gid_t gid, mode_t mode)
 {
 	char tempname[MAXPATHLEN];
 	char backname[MAXPATHLEN];
@@ -129,6 +132,12 @@ static int create_uxst_socket(const char *path)
 	if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
 		/* note that bind() creates the socket <tempname> on the file system */
 		Alert("cannot bind socket for UNIX listener. Aborting.\n");
+		goto err_unlink_temp;
+	}
+
+	if (((uid != -1 || gid != -1) && (chown(tempname, uid, gid) == -1)) ||
+	    (mode != 0 && chmod(tempname, mode) == -1)) {
+		Alert("cannot change UNIX socket ownership. Aborting.\n");
 		goto err_unlink_temp;
 	}
 
@@ -217,7 +226,10 @@ static int uxst_bind_listeners(struct protocol *proto)
 		if (listener->state != LI_INIT)
 			continue; /* already started */
 
-		fd = create_uxst_socket(((struct sockaddr_un *)&listener->addr)->sun_path);
+		fd = create_uxst_socket(((struct sockaddr_un *)&listener->addr)->sun_path,
+					listener->perm.ux.uid,
+					listener->perm.ux.gid,
+					listener->perm.ux.mode);
 		if (fd == -1) {
 			err |= ERR_FATAL;
 			continue;

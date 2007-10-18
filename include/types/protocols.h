@@ -24,6 +24,8 @@
 
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/un.h>
 
 #include <common/config.h>
 #include <common/mini-clist.h>
@@ -60,6 +62,13 @@ struct listener {
 	void (*handler)(struct task *t, struct timeval *next); /* protocol handler */
 	struct timeval *timeout;	/* pointer to client-side timeout */
 	void *private;			/* any private data which may be used by accept() */
+	union {				/* protocol-dependant access restrictions */
+		struct {		/* UNIX socket permissions */
+			uid_t uid;	/* -1 to leave unchanged */
+			gid_t gid;	/* -1 to leave unchanged */
+			mode_t mode;	/* 0 to leave unchanged */
+		} ux;
+	} perm;
 };
 
 /* This structure contains all information needed to easily handle a protocol.
