@@ -582,7 +582,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 		if (flags & STAT_FMT_HTML) {
 			/* print a new table */
 			chunk_printf(&msg, sizeof(trash),
-				     "<table cols=\"20\" class=\"tbl\" width=\"100%%\">\n"
+				     "<table cols=\"22\" class=\"tbl\" width=\"100%%\">\n"
 				     "<tr align=\"center\" class=\"titre\">"
 				     "<th colspan=2 class=\"pxname\">%s</th>"
 				     "<th colspan=18 class=\"empty\"></th>"
