@@ -523,7 +523,28 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			      file, linenum, args[0]);
 			return -1;
 		}
-	
+
+		for (curproxy = proxy; curproxy != NULL; curproxy = curproxy->next) {
+			/*
+			 * If there are two proxies with the same name only following
+			 * combinations are allowed:
+			 *
+			 *			listen backend frontend ruleset
+			 *	listen             -      -       -        -
+			 *	backend            -      -       OK       -
+			 *	frontend           -      OK      -        -
+			 *	ruleset            -      -       -        -
+			 */
+
+			if (!strcmp(curproxy->id, args[1]) &&
+				(rc!=(PR_CAP_FE|PR_CAP_RS) || curproxy->cap!=(PR_CAP_BE|PR_CAP_RS)) &&
+				(rc!=(PR_CAP_BE|PR_CAP_RS) || curproxy->cap!=(PR_CAP_FE|PR_CAP_RS))) {
+				Alert("parsing %s: duplicated proxy %s with conflicting capabilities: %X/%X!\n",
+					file, args[1], curproxy->cap, rc);
+				return -1;
+			}
+		}
+
 		if ((curproxy = (struct proxy *)calloc(1, sizeof(struct proxy))) == NULL) {
 			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			return -1;
