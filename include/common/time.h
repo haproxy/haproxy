@@ -27,6 +27,11 @@
 #include <common/config.h>
 #include <common/standard.h>
 
+#define SEC 1
+#define MINUTE (60 * SEC)
+#define HOUR (60 * MINUTE)
+#define DAY (24 * HOUR)
+
 /* eternity when exprimed in timeval */
 #ifndef TV_ETERNITY
 #define TV_ETERNITY     (~0UL)
@@ -480,6 +485,7 @@ REGPRM3 static inline struct timeval *__tv_ms_add(struct timeval *tv, const stru
         tv1;                       \
 })
 
+char *human_time(int t, short hz);
 
 #endif /* _COMMON_TIME_H */
 

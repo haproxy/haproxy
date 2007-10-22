@@ -86,10 +86,14 @@ struct server {
 	unsigned wscore;			/* weight score, used during srv map computation */
 
 	unsigned failed_checks, down_trans;	/* failed checks and up-down transitions */
+	unsigned down_time;			/* total time the server was down */
+	time_t last_change;			/* last time, when the state was changed */
+
 	unsigned failed_conns, failed_resp;	/* failed connect() and responses */
 	unsigned retries;			/* retried connections */
 	unsigned failed_secu;			/* blocked responses because of security concerns */
 	unsigned cum_sess;			/* cumulated number of sessions really sent to this server */
+
 	long long bytes_in;			/* number of bytes transferred from the client to the server */
 	long long bytes_out;			/* number of bytes transferred from the server to the client */
 };

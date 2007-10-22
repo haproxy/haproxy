@@ -11,10 +11,19 @@
  */
 
 #include <common/config.h>
+#include <common/time.h>
+
 #include <types/backend.h>
 #include <types/proxy.h>
 #include <types/server.h>
 
+int srv_downtime(struct server *s) {
+
+	if ((s->state & SRV_RUNNING) && s->last_change < now.tv_sec)		// ignore negative time
+		return s->down_time;
+
+	return now.tv_sec - s->last_change + s->down_time;
+}
 
 /*
  * Local variables:

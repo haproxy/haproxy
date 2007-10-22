@@ -564,7 +564,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		tv_eternity(&curproxy->srvtimeout);
 		tv_eternity(&curproxy->contimeout);
 		tv_eternity(&curproxy->appsession_timeout);
-		
+
+		curproxy->last_change = now.tv_sec;
 		curproxy->id = strdup(args[1]);
 		curproxy->cap = rc;
 
@@ -1380,6 +1381,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		LIST_INIT(&newsrv->pendconns);
 		do_check = 0;
 		newsrv->state = SRV_RUNNING; /* early server setup */
+		newsrv->last_change = now.tv_sec;
 		newsrv->id = strdup(args[1]);
 
 		/* several ways to check the port component :

@@ -142,6 +142,40 @@ REGPRM2 int _tv_isgt(const struct timeval *tv1, const struct timeval *tv2)
 	return __tv_isgt(tv1, tv2);
 }
 
+char *human_time(int t, short hz) {
+	static char rv[sizeof("24855d23h")+1];	// longest of "23h59m" and "59m59s"
+	char *p = rv;
+	int cnt=2;				// print two numbers
+
+	if (unlikely(t < 0 || hz <= 0)) {
+		sprintf(p, "?");
+		return rv;
+	}
+
+	if (unlikely(hz > 1))
+		t /= hz;
+
+	if (t >= DAY) {
+		p += sprintf(p, "%dd", t / DAY);
+		cnt--;
+	}
+
+	if (cnt && t % DAY / HOUR) {
+		p += sprintf(p, "%dh", t % DAY / HOUR);
+		cnt--;
+	}
+
+	if (cnt && t % HOUR / MINUTE) {
+		p += sprintf(p, "%dm", t % HOUR / MINUTE);
+		cnt--;
+	}
+
+	if ((cnt && t % MINUTE) || !t)					// also display '0s'
+		p += sprintf(p, "%ds", t % MINUTE / SEC);
+
+	return rv;
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8

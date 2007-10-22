@@ -717,6 +717,13 @@ int srv_redispatch_connect(struct session *t)
 	return 0;
 }
 
+int be_downtime(struct proxy *px) {
+
+	if ((px->srv_act || px->srv_bck) && px->last_change < now.tv_sec)		// ignore negative time
+		return px->down_time;
+
+	return now.tv_sec - px->last_change + px->down_time;
+}
 
 /*
  * Local variables:

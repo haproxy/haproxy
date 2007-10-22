@@ -39,7 +39,7 @@ int srv_redispatch_connect(struct session *t);
 
 void recount_servers(struct proxy *px);
 void recalc_server_map(struct proxy *px);
-
+int be_downtime(struct proxy *px);
 
 /*
  * This function tries to find a running server with free connection slots for

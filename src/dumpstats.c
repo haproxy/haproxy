@@ -16,7 +16,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 #include <pwd.h>
 #include <grp.h>
 
@@ -47,6 +46,7 @@
 #include <proto/proto_uxst.h>
 #include <proto/senddata.h>
 #include <proto/session.h>
+#include <proto/server.h>
 
 /* This function parses a "stats" statement in the "global" section. It returns
  * -1 if there is any error, otherwise zero. If it returns -1, it may write an
@@ -186,8 +186,8 @@ int stats_dump_raw(struct session *s, struct uri_auth *uri, int flags)
 			     "dreq,dresp,"
 			     "ereq,econ,eresp,"
 			     "wretr,wredis,"
-			     "weight,act,bck,"
-			     "chkfail,chkdown"
+			     "status,weight,act,bck,"
+			     "chkfail,chkdown,lastchg,downtime,"
 			     "\n");
 			
 		if (buffer_write_chunk(rep, &msg) != 0)
@@ -371,8 +371,8 @@ int stats_dump_http(struct session *s, struct uri_auth *uri, int flags)
 			     "dreq,dresp,"
 			     "ereq,econ,eresp,"
 			     "wretr,wredis,"
-			     "weight,act,bck,"
-			     "chkfail,chkdown"
+			     "status,weight,act,bck,"
+			     "chkfail,chkdown,lastchg,downtime,"
 			     "\n");
 		}
 		if (buffer_write_chunk(rep, &msg) != 0)
@@ -582,26 +582,26 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 		if (flags & STAT_FMT_HTML) {
 			/* print a new table */
 			chunk_printf(&msg, sizeof(trash),
-				     "<table cols=\"22\" class=\"tbl\" width=\"100%%\">\n"
+				     "<table cols=\"23\" class=\"tbl\" width=\"100%%\">\n"
 				     "<tr align=\"center\" class=\"titre\">"
 				     "<th colspan=2 class=\"pxname\">%s</th>"
-				     "<th colspan=18 class=\"empty\"></th>"
+				     "<th colspan=21 class=\"empty\"></th>"
 				     "</tr>\n"
 				     "<tr align=\"center\" class=\"titre\">"
 				     "<th rowspan=2></th>"
 				     "<th colspan=2>Queue</th><th colspan=4>Sessions</th>"
 				     "<th colspan=2>Bytes</th><th colspan=2>Denied</th>"
 				     "<th colspan=3>Errors</th><th colspan=2>Warnings</th>"
-				     "<th colspan=6>Server</th>"
+				     "<th colspan=7>Server</th>"
 				     "</tr>\n"
 				     "<tr align=\"center\" class=\"titre\">"
 				     "<th>Cur</th><th>Max</th><th>Cur</th><th>Max</th>"
 				     "<th>Limit</th><th>Cumul</th><th>In</th><th>Out</th>"
 				     "<th>Req</th><th>Resp</th><th>Req</th><th>Conn</th>"
 				     "<th>Resp</th><th>Retr</th><th>Redis</th>"
-				     "<th>Status</th><th>Weight</th><th>Act</th>"
-				     "<th>Bck</th><th>Check</th><th>Down</th></tr>\n"
-				     "",
+				     "<th>Status</th><th>Wght</th><th>Act</th>"
+				     "<th>Bck</th><th>Chk</th><th>Dwn</th><th>Dwntme</th>\n"
+				     "</tr>",
 				     px->id);
 
 			if (buffer_write_chunk(rep, &msg) != 0)
@@ -632,7 +632,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     /* server status : reflect frontend status */
 				     "<td align=center>%s</td>"
 				     /* rest of server: nothing */
-				     "<td align=center colspan=5></td></tr>"
+				     "<td align=center colspan=6></td></tr>"
 				     "",
 				     px->feconn, px->feconn_max, px->maxconn, px->cum_feconn,
 				     px->bytes_in, px->bytes_out,
@@ -657,7 +657,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     /* server status : reflect frontend status */
 				     "%s,"
 				     /* rest of server: nothing */
-				     ",,,,,"
+				     ",,,,,,,"
 				     "\n",
 				     px->id,
 				     px->feconn, px->feconn_max, px->maxconn, px->cum_feconn,
@@ -734,6 +734,11 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     
 				/* status */
 				chunk_printf(&msg, sizeof(trash), "<td nowrap>");
+
+				if (sv->state & SRV_CHECKED)
+					chunk_printf(&msg, sizeof(trash), "%s ",
+						human_time(now.tv_sec - sv->last_change, 1));
+
 				chunk_printf(&msg, sizeof(trash),
 				     srv_hlt_st[sv_state],
 				     (sv->state & SRV_RUNNING) ? (sv->health - sv->rise + 1) : (sv->health),
@@ -749,14 +754,17 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     (sv->state & SRV_BACKUP) ? "-" : "Y",
 				     (sv->state & SRV_BACKUP) ? "Y" : "-");
 
-				/* check failures : unique, fatal */
+				/* check failures: unique, fatal, down time */
 				if (sv->state & SRV_CHECKED)
 					chunk_printf(&msg, sizeof(trash),
-					     "<td align=right>%d</td><td align=right>%d</td></tr>\n",
-					     sv->failed_checks, sv->down_trans);
+					     "<td align=right>%d</td><td align=right>%d</td>"
+					     "<td nowrap align=right>%s</td>"
+					     "</tr>\n",
+					     sv->failed_checks, sv->down_trans,
+					     human_time(srv_downtime(sv), 1));
 				else
 					chunk_printf(&msg, sizeof(trash),
-					     "<td colspan=2></td></tr>\n");
+					     "<td colspan=3></td></tr>\n");
 			} else {
 				static char *srv_hlt_st[5] = { "DOWN,", "DOWN %d/%d,", "UP %d/%d,",
 							       "UP,", "no check," };
@@ -774,7 +782,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     /* errors : request, connect, response */
 				     ",%d,%d,"
 				     /* warnings: retries, redispatches */
-				     ",%d,"
+				     "%d,,"
 				     "",
 				     px->id, sv->id,
 				     sv->nbpend, sv->nbpend_max,
@@ -798,14 +806,15 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     (sv->state & SRV_BACKUP) ? 0 : 1,
 				     (sv->state & SRV_BACKUP) ? 1 : 0);
 
-				/* check failures : unique, fatal */
+				/* check failures: unique, fatal; last change, total downtime */
 				if (sv->state & SRV_CHECKED)
 					chunk_printf(&msg, sizeof(trash),
-					     "%d,%d,\n",
-					     sv->failed_checks, sv->down_trans);
+					     "%d,%d,%d,%d,\n",
+					     sv->failed_checks, sv->down_trans,
+					     now.tv_sec - sv->last_change, srv_downtime(sv));
 				else
 					chunk_printf(&msg, sizeof(trash),
-					     ",,\n");
+					     ",,,,\n");
 			}
 			if (buffer_write_chunk(rep, &msg) != 0)
 				return 0;
@@ -847,23 +856,29 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     "<td align=right></td><td align=right>%d</td><td align=right>%d</td>\n"
 				     /* warnings: retries, redispatches */
 				     "<td align=right>%d</td><td align=right>%d</td>"
-				     /* server status : reflect backend status (up/down) : we display UP
+				     /* backend status: reflect backend status (up/down): we display UP
 				      * if the backend has known working servers or if it has no server at
-				      * all (eg: for stats). Tthen we display the total weight, number of
+				      * all (eg: for stats). Then we display the total weight, number of
 				      * active and backups. */
-				     "<td align=center>%s</td><td align=center>%d</td>"
-				     "<td align=center>%d</td><td align=center>%d</td>"
-				     /* rest of server: nothing */
-				     "<td align=center colspan=2></td></tr>"
-				     "",
+				     "<td align=center nowrap>%s %s</td><td align=center>%d</td>"
+				     "<td align=center>%d</td><td align=center>%d</td>",
 				     px->nbpend /* or px->totpend ? */, px->nbpend_max,
 				     px->beconn, px->beconn_max, px->fullconn, px->cum_beconn,
 				     px->bytes_in, px->bytes_out,
 				     px->denied_req, px->denied_resp,
 				     px->failed_conns, px->failed_resp,
 				     px->retries, px->redispatches,
+				     human_time(now.tv_sec - px->last_change, 1),
 				     (px->srv_map_sz > 0 || !px->srv) ? "UP" : "DOWN",
 				     px->srv_map_sz * gcd, px->srv_act, px->srv_bck);
+
+				chunk_printf(&msg, sizeof(trash),
+				     /* rest of backend: nothing, down transformations, total downtime */
+				     "<td align=center>&nbsp;</td><td align=\"right\">%d</td>"
+				     "<td align=\"right\" nowrap>%s</td>"
+				     "</tr>",
+				     px->down_trans,
+				     px->srv?human_time(be_downtime(px), 1):"&nbsp;");
 			} else {
 				chunk_printf(&msg, sizeof(trash),
 				     /* pxid, name */
@@ -880,14 +895,15 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     ",%d,%d,"
 				     /* warnings: retries, redispatches */
 				     "%d,%d,"
-				     /* server status : reflect backend status (up/down) : we display UP
+				     /* backend status: reflect backend status (up/down): we display UP
 				      * if the backend has known working servers or if it has no server at
-				      * all (eg: for stats). Tthen we display the total weight, number of
+				      * all (eg: for stats). Then we display the total weight, number of
 				      * active and backups. */
 				     "%s,"
 				     "%d,%d,%d,"
-				     /* rest of server: nothing */
-				     ",,"
+				     /* rest of backend: nothing, down transformations,
+				      * last change, total downtime. */
+				     ",%d,%d,%d,"
 				     "\n",
 				     px->id,
 				     px->nbpend /* or px->totpend ? */, px->nbpend_max,
@@ -897,7 +913,9 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     px->failed_conns, px->failed_resp,
 				     px->retries, px->redispatches,
 				     (px->srv_map_sz > 0 || !px->srv) ? "UP" : "DOWN",
-				     px->srv_map_sz * gcd, px->srv_act, px->srv_bck);
+				     px->srv_map_sz * gcd, px->srv_act, px->srv_bck,
+				     px->down_trans, now.tv_sec - px->last_change,
+				     px->srv?be_downtime(px):0);
 			}
 			if (buffer_write_chunk(rep, &msg) != 0)
 				return 0;

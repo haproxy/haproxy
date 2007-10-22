@@ -57,9 +57,11 @@ static void set_server_down(struct server *s)
 	struct session *sess;
 	int xferred;
 
-	s->state &= ~SRV_RUNNING;
-
 	if (s->health == s->rise) {
+
+		s->last_change = now.tv_sec;
+		s->state &= ~SRV_RUNNING;
+
 		recount_servers(s->proxy);
 		s->proxy->map_state |= PR_MAP_RECALC;
 
@@ -92,10 +94,13 @@ static void set_server_down(struct server *s)
 
 		Warning("%s", trash);
 		send_log(s->proxy, LOG_ALERT, "%s", trash);
-	
+
 		if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
-			Alert("%s '%s' has no server available !\n", proxy_type_str(s->proxy), s->proxy->id);
-			send_log(s->proxy, LOG_EMERG, "%s %s has no server available !\n", proxy_type_str(s->proxy), s->proxy->id);
+			s->proxy->last_change = now.tv_sec;
+			s->proxy->down_trans++;
+
+			Alert("%s '%s' has no server available!\n", proxy_type_str(s->proxy), s->proxy->id);
+			send_log(s->proxy, LOG_EMERG, "%s %s has no server available!\n", proxy_type_str(s->proxy), s->proxy->id);
 		}
 		s->down_trans++;
 	}
@@ -455,12 +460,23 @@ void process_chk(struct task *t, struct timeval *next)
 		/* there was a test running */
 		if (s->result > 0) { /* good server detected */
 			//fprintf(stderr, "process_chk: 9\n");
-			s->health++; /* was bad, stays for a while */
-			if (s->health >= s->rise) {
-				s->state |= SRV_RUNNING;
+
+			if (s->health < s->rise + s->fall - 1) {
+				s->health++; /* was bad, stays for a while */
 
 				if (s->health == s->rise) {
 					int xferred;
+
+					if (s->last_change < now.tv_sec)			// ignore negative times
+						s->down_time += now.tv_sec - s->last_change;
+					s->last_change = now.tv_sec;
+					s->state |= SRV_RUNNING;
+
+					if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
+						if (s->proxy->last_change < now.tv_sec)		// ignore negative times
+							s->proxy->down_time += now.tv_sec - s->proxy->last_change;
+						s->proxy->last_change = now.tv_sec;
+					}
 
 					recount_servers(s->proxy);
 					s->proxy->map_state |= PR_MAP_RECALC;
@@ -493,7 +509,8 @@ void process_chk(struct task *t, struct timeval *next)
 					send_log(s->proxy, LOG_NOTICE, "%s", trash);
 				}
 
-				s->health = s->rise + s->fall - 1; /* OK now */
+				if (s->health >= s->rise)
+					s->health = s->rise + s->fall - 1; /* OK now */
 			}
 			s->curfd = -1; /* no check running anymore */
 			fd_delete(fd);
