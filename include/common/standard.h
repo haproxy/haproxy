@@ -153,14 +153,14 @@ static inline unsigned int __strl2ui(const char *s, int len)
 static inline unsigned int __strl2uic(const char *s, int len)
 {
 	unsigned int i = 0;
-	unsigned int j;
+	unsigned int j, k;
 
 	while (len-- > 0) {
 		j = (*s++) - '0';
-		i = i * 10;
+		k = i * 10;
 		if (j > 9)
 			break;
-		i += j;
+		i = k + j;
 	}
 	return i;
 }

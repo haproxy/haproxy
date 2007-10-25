@@ -248,27 +248,27 @@ unsigned int strl2uic(const char *s, int len)
 int strl2ic(const char *s, int len)
 {
 	int i = 0;
-	int j;
+	int j, k;
 
 	if (len > 0) {
 		if (*s != '-') {
 			/* positive number */
 			while (len-- > 0) {
 				j = (*s++) - '0';
-				i = i * 10;
+				k = i * 10;
 				if (j > 9)
 					break;
-				i += j;
+				i = k + j;
 			}
 		} else {
 			/* negative number */
 			s++;
 			while (--len > 0) {
 				j = (*s++) - '0';
-				i = i * 10;
+				k = i * 10;
 				if (j > 9)
 					break;
-				i -= j;
+				i = k - j;
 			}
 		}
 	}
