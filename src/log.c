@@ -60,14 +60,14 @@ const char sess_fin_state[8]  = "-RCHDLQT";	/* cliRequest, srvConnect, srvHeader
 void Alert(const char *fmt, ...)
 {
 	va_list argp;
-	struct tm *tm;
+	struct tm tm;
 
 	if (!(global.mode & MODE_QUIET) || (global.mode & (MODE_VERBOSE | MODE_STARTING))) {
 		va_start(argp, fmt);
 
-		tm = localtime((time_t *)&now.tv_sec);
+		get_localtime(now.tv_sec, &tm);
 		fprintf(stderr, "[ALERT] %03d/%02d%02d%02d (%d) : ",
-			tm->tm_yday, tm->tm_hour, tm->tm_min, tm->tm_sec, (int)getpid());
+			tm.tm_yday, tm.tm_hour, tm.tm_min, tm.tm_sec, (int)getpid());
 		vfprintf(stderr, fmt, argp);
 		fflush(stderr);
 		va_end(argp);
@@ -81,14 +81,14 @@ void Alert(const char *fmt, ...)
 void Warning(const char *fmt, ...)
 {
 	va_list argp;
-	struct tm *tm;
+	struct tm tm;
 
 	if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) {
 		va_start(argp, fmt);
 
-		tm = localtime((time_t *)&now.tv_sec);
+		get_localtime(now.tv_sec, &tm);
 		fprintf(stderr, "[WARNING] %03d/%02d%02d%02d (%d) : ",
-			tm->tm_yday, tm->tm_hour, tm->tm_min, tm->tm_sec, (int)getpid());
+			tm.tm_yday, tm.tm_hour, tm.tm_min, tm.tm_sec, (int)getpid());
 		vfprintf(stderr, fmt, argp);
 		fflush(stderr);
 		va_end(argp);
@@ -173,13 +173,15 @@ void send_log(struct proxy *p, int level, const char *message, ...)
 
 	if (now.tv_sec != tvsec || dataptr == NULL) {
 		/* this string is rebuild only once a second */
-		struct tm *tm = localtime((time_t *)&now.tv_sec);
+		struct tm tm;
+
 		tvsec = now.tv_sec;
+		get_localtime(tvsec, &tm);
 
 		hdr_len = snprintf(logmsg, sizeof(logmsg),
 				   "<<<<>%s %2d %02d:%02d:%02d %s[%d]: ",
-				   monthname[tm->tm_mon],
-				   tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec,
+				   monthname[tm.tm_mon],
+				   tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec,
 				   progname, pid);
 		/* WARNING: depending upon implementations, snprintf may return
 		 * either -1 or the number of bytes that would be needed to store
@@ -275,7 +277,7 @@ void tcp_sess_log(struct session *s)
 	struct proxy *prx_log;
 	int tolog;
 	char *svid;
-	struct tm *tm;
+	struct tm tm;
 
 	if (s->cli_addr.ss_family == AF_INET)
 		inet_ntop(AF_INET,
@@ -286,7 +288,7 @@ void tcp_sess_log(struct session *s)
 			  (const void *)&((struct sockaddr_in6 *)(&s->cli_addr))->sin6_addr,
 			  pn, sizeof(pn));
 
-	tm = localtime((time_t *)&s->logs.tv_accept.tv_sec);
+	get_localtime(s->logs.tv_accept.tv_sec, &tm);
 
 	if (fe->logfac1 >= 0)
 		prx_log = fe;
@@ -312,8 +314,8 @@ void tcp_sess_log(struct session *s)
 		 (s->cli_addr.ss_family == AF_INET) ?
 		 ntohs(((struct sockaddr_in *)&s->cli_addr)->sin_port) :
 		 ntohs(((struct sockaddr_in6 *)&s->cli_addr)->sin6_port),
-		 tm->tm_mday, monthname[tm->tm_mon], tm->tm_year+1900,
-		 tm->tm_hour, tm->tm_min, tm->tm_sec, s->logs.tv_accept.tv_usec/1000,
+		 tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
+		 tm.tm_hour, tm.tm_min, tm.tm_sec, s->logs.tv_accept.tv_usec/1000,
 		 fe->id, be->id, svid,
 		 (s->logs.t_queue >= 0) ? s->logs.t_queue : -1,
 		 (s->logs.t_connect >= 0) ? s->logs.t_connect - s->logs.t_queue : -1,

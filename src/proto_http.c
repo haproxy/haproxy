@@ -709,7 +709,7 @@ static void http_sess_log(struct session *s)
 	int tolog;
 	char *uri, *h;
 	char *svid;
-	struct tm *tm;
+	struct tm tm;
 	static char tmpline[MAX_SYSLOG_LEN];
 	int hdr;
 
@@ -726,8 +726,7 @@ static void http_sess_log(struct session *s)
 			  (const void *)&((struct sockaddr_in6 *)(&s->cli_addr))->sin6_addr,
 			  pn, sizeof(pn));
 
-	tm = localtime((time_t *)&s->logs.tv_accept.tv_sec);
-
+	get_localtime(s->logs.tv_accept.tv_sec, &tm);
 
 	/* FIXME: let's limit ourselves to frontend logging for now. */
 	tolog = fe->to_log;
@@ -785,8 +784,8 @@ static void http_sess_log(struct session *s)
 		 (s->cli_addr.ss_family == AF_INET) ?
 		 ntohs(((struct sockaddr_in *)&s->cli_addr)->sin_port) :
 		 ntohs(((struct sockaddr_in6 *)&s->cli_addr)->sin6_port),
-		 tm->tm_mday, monthname[tm->tm_mon], tm->tm_year+1900,
-		 tm->tm_hour, tm->tm_min, tm->tm_sec, s->logs.tv_accept.tv_usec/1000,
+		 tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
+		 tm.tm_hour, tm.tm_min, tm.tm_sec, s->logs.tv_accept.tv_usec/1000,
 		 fe->id, be->id, svid,
 		 s->logs.t_request,
 		 (s->logs.t_queue >= 0) ? s->logs.t_queue - s->logs.t_request : -1,

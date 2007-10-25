@@ -392,12 +392,7 @@ void init(int argc, char **argv)
 	global.rlimit_memmax = HAPROXY_MEMMAX;
 #endif
 
-	/* initialize the libc's localtime structures once for all so that we
-	 * won't be missing memory if we want to send alerts under OOM conditions.
-	 * Also, the Alert() and Warning() functions need <now> to be initialized.
-	 */
 	tv_now(&now);
-	localtime((time_t *)&now.tv_sec);
 	start_date = now;
 
 	init_task();
