@@ -23,6 +23,7 @@
 #define _COMMON_STANDARD_H
 
 #include <limits.h>
+#include <time.h>
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <common/config.h>
@@ -171,5 +172,15 @@ extern unsigned int strl2uic(const char *s, int len);
 extern int strl2ic(const char *s, int len);
 extern int strl2irc(const char *s, int len, int *ret);
 extern int strl2llrc(const char *s, int len, long long *ret);
+
+/* This function converts the time_t value <now> into a broken out struct tm
+ * which must be allocated by the caller. It is highly recommended to use this
+ * function intead of localtime() because that one requires a time_t* which
+ * is not always compatible with tv_sec depending on OS/hardware combinations.
+ */
+static inline void get_localtime(const time_t now, struct tm *tm)
+{
+	localtime_r(&now, tm);
+}
 
 #endif /* _COMMON_STANDARD_H */
