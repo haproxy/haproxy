@@ -1391,6 +1391,23 @@ connexions simultanées lorsque l'instance du proxy en atteindra 10000, et
 recevra seulement 10 connexions simultanées tant que le proxy sera sous les 1000
 sessions.
 
+Il est possible de limiter la taille de la file d'attente dans le but de
+redistribuer les connexions destinées à un serveur en particulier qui sont trop
+loin pour avoir une chance d'être servies en un temps raisonnable. Ceci n'est
+acceptable que dans le cas où l'affinité entre le client et le serveur n'est
+pas obligatoire, mais motivée uniquement par des raisons de performances, par
+exemple, par l'utilisation d'un cache local au serveur. L'option 'maxqueue'
+permet de préciser la limite par serveur, tel que dans l'exemple ci-dessous :
+
+... (même exemple que précédemment)
+        server pentium3-800 192.168.1.1:80 cookie s1 weight  8 minconn 10 maxconn 100 check maxqueue 50
+        server opteron-2.0G 192.168.1.2:80 cookie s2 weight 20 minconn 30 maxconn 300 check maxqueue 200
+        server opteron-2.4G 192.168.1.3:80 cookie s3 weight 24 minconn 30 maxconn 300 check
+
+En l'absence du paramètre 'maxqueue', la file d'un serveur n'a pas de limite
+définie. Dans le cas contraire, lorsque la file atteint la limite fixée par
+'maxqueue', les clients sont déplacés vers la file globale.
+
 Notes :
 -------
   - la requête ne restera pas indéfiniment en file d'attente, elle est

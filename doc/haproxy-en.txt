@@ -1364,6 +1364,21 @@ simultaneous sessions when the proxy instance will reach 10000 sessions, and
 will receive only 10 simultaneous sessions when the proxy will be under 1000
 sessions.
 
+It is possible to limit server queue length in order to rebalance excess
+sessions between less busy application servers IF session affinity isn't
+hard functional requirement (for example it just gives huge performance boost
+by keeping server-local caches hot and compact). 'maxqueue' option sets a
+queue limit on a server, as in example below:
+
+... (just the same as in example above)
+        server pentium3-800 192.168.1.1:80 cookie s1 weight  8 minconn 10 maxconn 100 check maxqueue 50
+        server opteron-2.0G 192.168.1.2:80 cookie s2 weight 20 minconn 30 maxconn 300 check maxqueue 200
+        server opteron-2.4G 192.168.1.3:80 cookie s3 weight 24 minconn 30 maxconn 300 check
+
+Absence of 'maxqueue' option means unlimited queue. When queue gets filled
+up to 'maxqueue' client session is moved from server-local queue to a global
+one.
+
 Notes :
 -------
   - The requests will not stay indefinitely in the queue, they follow the

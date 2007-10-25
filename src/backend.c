@@ -294,19 +294,25 @@ int assign_server_and_queue(struct session *s)
 		return SRV_STATUS_INTERNAL;
 
 	if (s->flags & SN_ASSIGNED) {
-		/* a server does not need to be assigned, perhaps because we're in
-		 * direct mode, or in dispatch or transparent modes where the server
-		 * is not needed.
-		 */
-		if (s->srv &&
-		    s->srv->maxconn && s->srv->cur_sess >= srv_dynamic_maxconn(s->srv)) {
-			p = pendconn_add(s);
-			if (p)
-				return SRV_STATUS_QUEUED;
-			else
-				return SRV_STATUS_FULL;
+		if (s->srv && s->srv->maxqueue > 0 && s->srv->nbpend >= s->srv->maxqueue) {
+			s->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
+			s->srv = NULL;
+			http_flush_cookie_flags(&s->txn);
+		} else {
+			/* a server does not need to be assigned, perhaps because we're in
+			 * direct mode, or in dispatch or transparent modes where the server
+			 * is not needed.
+			 */
+			if (s->srv &&
+			    s->srv->maxconn && s->srv->cur_sess >= srv_dynamic_maxconn(s->srv)) {
+				p = pendconn_add(s);
+				if (p)
+					return SRV_STATUS_QUEUED;
+				else
+					return SRV_STATUS_FULL;
+			}
+			return SRV_STATUS_OK;
 		}
-		return SRV_STATUS_OK;
 	}
 
 	/* a server needs to be assigned */
