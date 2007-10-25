@@ -64,10 +64,29 @@
 extern int strlcpy2(char *dst, const char *src, int size);
 
 /*
- * This function simply returns a statically allocated string containing
+ * This function simply returns a locally allocated string containing
  * the ascii representation for number 'n' in decimal.
  */
-extern char *ultoa(unsigned long n);
+extern char itoa_str[][21];
+extern const char *ultoa_r(unsigned long n, char *buffer, int size);
+static inline const char *ultoa(unsigned long n)
+{
+	return ultoa_r(n, itoa_str[0], sizeof(itoa_str[0]));
+}
+
+/* Fast macros to convert up to 10 different parameters inside a same call of
+ * expression.
+ */
+#define U2A0(n) ({ ultoa_r((n), itoa_str[0], sizeof(itoa_str[0])); })
+#define U2A1(n) ({ ultoa_r((n), itoa_str[1], sizeof(itoa_str[1])); })
+#define U2A2(n) ({ ultoa_r((n), itoa_str[2], sizeof(itoa_str[2])); })
+#define U2A3(n) ({ ultoa_r((n), itoa_str[3], sizeof(itoa_str[3])); })
+#define U2A4(n) ({ ultoa_r((n), itoa_str[4], sizeof(itoa_str[4])); })
+#define U2A5(n) ({ ultoa_r((n), itoa_str[5], sizeof(itoa_str[5])); })
+#define U2A6(n) ({ ultoa_r((n), itoa_str[6], sizeof(itoa_str[6])); })
+#define U2A7(n) ({ ultoa_r((n), itoa_str[7], sizeof(itoa_str[7])); })
+#define U2A8(n) ({ ultoa_r((n), itoa_str[8], sizeof(itoa_str[8])); })
+#define U2A9(n) ({ ultoa_r((n), itoa_str[9], sizeof(itoa_str[9])); })
 
 /*
  * Returns non-zero if character <s> is a hex digit (0-9, a-f, A-F), else zero.

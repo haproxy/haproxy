@@ -20,8 +20,11 @@
 #include <common/standard.h>
 #include <proto/log.h>
 
-/* enough to store 2^64-1 = 18446744073709551615 */
-static char itoa_str[21];
+/* enough to store 10 integers of :
+ *   2^64-1 = 18446744073709551615 or
+ *    -2^63 = -9223372036854775808
+ */
+char itoa_str[10][21];
 
 /*
  * copies at most <size-1> chars from <src> to <dst>. Last char is always
@@ -43,20 +46,20 @@ int strlcpy2(char *dst, const char *src, int size)
 }
 
 /*
- * This function simply returns a statically allocated string containing
+ * This function simply returns a locally allocated string containing
  * the ascii representation for number 'n' in decimal.
  */
-char *ultoa(unsigned long n)
+const char *ultoa_r(unsigned long n, char *buffer, int size)
 {
 	char *pos;
 	
-	pos = itoa_str + sizeof(itoa_str) - 1;
+	pos = buffer + size - 1;
 	*pos-- = '\0';
 	
 	do {
 		*pos-- = '0' + n % 10;
 		n /= 10;
-	} while (n && pos >= itoa_str);
+	} while (n && pos >= buffer);
 	return pos + 1;
 }
 
