@@ -63,6 +63,19 @@ const char *ultoa_r(unsigned long n, char *buffer, int size)
 	return pos + 1;
 }
 
+/*
+ * This function simply returns a locally allocated string containing the ascii
+ * representation for number 'n' in decimal, unless n is 0 in which case it
+ * returns the alternate string (or an empty string if the alternate string is
+ * NULL). It use is intended for limits reported in reports, where it's
+ * desirable not to display anything if there is no limit. Warning! it shares
+ * the same vector as ultoa_r().
+ */
+const char *limit_r(unsigned long n, char *buffer, int size, const char *alt)
+{
+	return (n) ? ultoa_r(n, buffer, size) : (alt ? alt : "");
+}
+
 
 /*
  * Returns non-zero if character <s> is a hex digit (0-9, a-f, A-F), else zero.

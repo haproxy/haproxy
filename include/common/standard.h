@@ -89,6 +89,30 @@ static inline const char *ultoa(unsigned long n)
 #define U2A9(n) ({ ultoa_r((n), itoa_str[9], sizeof(itoa_str[9])); })
 
 /*
+ * This function simply returns a locally allocated string containing the ascii
+ * representation for number 'n' in decimal, unless n is 0 in which case it
+ * returns the alternate string (or an empty string if the alternate string is
+ * NULL). It use is intended for limits reported in reports, where it's
+ * desirable not to display anything if there is no limit. Warning! it shares
+ * the same vector as ultoa_r().
+ */
+extern const char *limit_r(unsigned long n, char *buffer, int size, const char *alt);
+
+/* Fast macros to convert up to 10 different parameters inside a same call of
+ * expression. Warning! they share the same vectors as U2A*!
+ */
+#define LIM2A0(n, alt) ({ limit_r((n), itoa_str[0], sizeof(itoa_str[0]), (alt)); })
+#define LIM2A1(n, alt) ({ limit_r((n), itoa_str[1], sizeof(itoa_str[1]), (alt)); })
+#define LIM2A2(n, alt) ({ limit_r((n), itoa_str[2], sizeof(itoa_str[2]), (alt)); })
+#define LIM2A3(n, alt) ({ limit_r((n), itoa_str[3], sizeof(itoa_str[3]), (alt)); })
+#define LIM2A4(n, alt) ({ limit_r((n), itoa_str[4], sizeof(itoa_str[4]), (alt)); })
+#define LIM2A5(n, alt) ({ limit_r((n), itoa_str[5], sizeof(itoa_str[5]), (alt)); })
+#define LIM2A6(n, alt) ({ limit_r((n), itoa_str[6], sizeof(itoa_str[6]), (alt)); })
+#define LIM2A7(n, alt) ({ limit_r((n), itoa_str[7], sizeof(itoa_str[7]), (alt)); })
+#define LIM2A8(n, alt) ({ limit_r((n), itoa_str[8], sizeof(itoa_str[8]), (alt)); })
+#define LIM2A9(n, alt) ({ limit_r((n), itoa_str[9], sizeof(itoa_str[9]), (alt)); })
+
+/*
  * Returns non-zero if character <s> is a hex digit (0-9, a-f, A-F), else zero.
  */
 extern int ishex(char s);
