@@ -76,6 +76,7 @@ int stats_parse_global(const char **args, char *err, int errlen)
 		memcpy(&global.stats_sock.addr, &su, sizeof(su)); // guaranteed to fit
 
 		global.stats_sock.state = LI_INIT;
+		global.stats_sock.options = LI_O_NONE;
 		global.stats_sock.accept = uxst_event_accept;
 		global.stats_sock.handler = process_uxst_stats;
 		global.stats_sock.private = NULL;

@@ -40,6 +40,10 @@
 #define LI_READY	3	/* started, listening and enabled */
 #define LI_FULL		4	/* reached its connection limit */
 
+/* listener socket options */
+#define LI_O_NONE	0x0000
+#define LI_O_NOLINGER	0x0001	/* disable linger on this socket */
+
 /* The listener will be directly referenced by the fdtab[] which holds its
  * socket. The listener provides the protocol-specific accept() function to
  * the fdtab.
@@ -47,6 +51,7 @@
 struct listener {
 	int fd;				/* the listen socket */
 	int state;			/* state: NEW, INIT, LISTEN, READY, FULL */
+	int options;			/* socket options : LI_O_* */
 	struct sockaddr_storage addr;	/* the address we listen to */
 	struct protocol *proto;		/* protocol this listener belongs to */
 	int nbconn;			/* current number of connections on this listener */

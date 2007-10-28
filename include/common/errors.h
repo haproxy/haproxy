@@ -35,6 +35,7 @@
 #define ERR_WARN	0x08	/* a warning message has been returned */
 #define ERR_ALERT	0x10	/* an alert message has been returned */
 
+#define ERR_CODE	(ERR_RETRYABLE|ERR_FATAL|ERR_ABORT)	/* mask */
 
 #endif /* _COMMON_ERRORS_H */
 
