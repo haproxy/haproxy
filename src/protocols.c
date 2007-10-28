@@ -20,6 +20,8 @@
 
 #include <types/protocols.h>
 
+#include <proto/fd.h>
+
 /* List head of all registered protocols */
 static struct list protocols = LIST_HEAD_INIT(protocols);
 
@@ -78,6 +80,23 @@ int disable_all_listeners(struct protocol *proto)
 
 	list_for_each_entry(listener, &proto->listeners, proto_list)
 		disable_listener(listener);
+	return ERR_NONE;
+}
+
+/* This function closes the listening socket for the specified listener,
+ * provided that it's already in a listening state. The listener enters the
+ * LI_ASSIGNED state. It always returns ERR_NONE. This function is intended
+ * to be used as a generic function for standard protocols.
+ */
+int unbind_listener(struct listener *listener)
+{
+	if (listener->state == LI_READY)
+		EV_FD_CLR(listener->fd, DIR_RD);
+
+	if (listener->state >= LI_LISTEN) {
+		fd_delete(listener->fd);
+		listener->state = LI_ASSIGNED;
+	}
 	return ERR_NONE;
 }
 
