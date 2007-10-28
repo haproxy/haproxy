@@ -61,6 +61,34 @@
 #define MAXPATHLEN 128
 #endif
 
+static int uxst_bind_listeners(struct protocol *proto);
+static int uxst_unbind_listeners(struct protocol *proto);
+
+/* Note: must not be declared <const> as its list will be overwritten */
+static struct protocol proto_unix = {
+	.name = "unix_stream",
+	.sock_domain = PF_UNIX,
+	.sock_type = SOCK_STREAM,
+	.sock_prot = 0,
+	.sock_family = AF_UNIX,
+	.sock_addrlen = sizeof(struct sockaddr_un),
+	.l3_addrlen = sizeof(((struct sockaddr_un*)0)->sun_path),/* path len */
+	.read = &stream_sock_read,
+	.write = &stream_sock_write,
+	.bind_all = uxst_bind_listeners,
+	.unbind_all = uxst_unbind_listeners,
+	.enable_all = enable_all_listeners,
+	.disable_all = disable_all_listeners,
+	.listeners = LIST_HEAD_INIT(proto_unix.listeners),
+	.nb_listeners = 0,
+};
+
+
+/********************************
+ * 1) low-level socket functions
+ ********************************/
+
+
 /* This function creates a named PF_UNIX stream socket at address <path>. Note
  * that the path cannot be NULL nor empty. <uid> and <gid> different of -1 will
  * be used to change the socket owner. If <mode> is not 0, it will be used to
@@ -211,6 +239,97 @@ static void destroy_uxst_socket(const char *path)
 }
 
 
+/********************************
+ * 2) listener-oriented functions
+ ********************************/
+
+
+/* This function creates the UNIX socket associated to the listener. It changes
+ * the state from ASSIGNED to LISTEN. The socket is NOT enabled for polling.
+ * The return value is composed from ERR_NONE, ERR_RETRYABLE and ERR_FATAL.
+ */
+static int uxst_bind_listener(struct listener *listener)
+{
+	int fd;
+		
+	if (listener->state != LI_ASSIGNED)
+		return ERR_NONE; /* already bound */
+
+	fd = create_uxst_socket(((struct sockaddr_un *)&listener->addr)->sun_path,
+				listener->perm.ux.uid,
+				listener->perm.ux.gid,
+				listener->perm.ux.mode);
+	if (fd == -1)
+		return ERR_FATAL;
+	
+	/* the socket is now listening */
+	listener->fd = fd;
+	listener->state = LI_LISTEN;
+
+	/* the function for the accept() event */
+	fd_insert(fd);
+	fdtab[fd].cb[DIR_RD].f = listener->accept;
+	fdtab[fd].cb[DIR_WR].f = NULL; /* never called */
+	fdtab[fd].cb[DIR_RD].b = fdtab[fd].cb[DIR_WR].b = NULL;
+	fdtab[fd].owner = (struct task *)listener; /* reference the listener instead of a task */
+	fdtab[fd].state = FD_STLISTEN;
+	fdtab[fd].peeraddr = NULL;
+	fdtab[fd].peerlen = 0;
+	fdtab[fd].listener = NULL;
+	fdtab[fd].ev = 0;
+	return ERR_NONE;
+}
+
+/* This function closes the UNIX sockets for the specified listener.
+ * The listener enters the LI_ASSIGNED state. It always returns ERR_NONE.
+ */
+static int uxst_unbind_listener(struct listener *listener)
+{
+	if (listener->state == LI_READY)
+		EV_FD_CLR(listener->fd, DIR_RD);
+
+	if (listener->state >= LI_LISTEN) {
+		close(listener->fd);
+		listener->state = LI_ASSIGNED;
+		destroy_uxst_socket(((struct sockaddr_un *)&listener->addr)->sun_path);
+	}
+	return ERR_NONE;
+}
+
+/* Add a listener to the list of unix stream listeners. The listener's state
+ * is automatically updated from LI_INIT to LI_ASSIGNED. The number of
+ * listeners is updated. This is the function to use to add a new listener.
+ */
+void uxst_add_listener(struct listener *listener)
+{
+	if (listener->state != LI_INIT)
+		return;
+	listener->state = LI_ASSIGNED;
+	listener->proto = &proto_unix;
+	LIST_ADDQ(&proto_unix.listeners, &listener->proto_list);
+	proto_unix.nb_listeners++;
+}
+
+/* Delete a listener from the list of unix stream listeners. The listener's
+ * state is automatically updated from LI_ASSIGNED to LI_INIT. The number of
+ * listeners is updated. Note that the listener must have previously been
+ * unbound. This is the function to use to remove a listener.
+ */
+void uxst_del_listener(struct listener *listener)
+{
+	if (listener->state != LI_ASSIGNED)
+		return;
+	listener->state = LI_INIT;
+	LIST_DEL(&listener->proto_list);
+	proto_unix.nb_listeners--;
+}
+
+
+/********************************
+ * 3) protocol-oriented functions
+ ********************************/
+
+
 /* This function creates all UNIX sockets bound to the protocol entry <proto>.
  * It is intended to be used as the protocol's bind_all() function.
  * The sockets will be registered but not added to any fd_set, in order not to
@@ -223,58 +342,15 @@ static int uxst_bind_listeners(struct protocol *proto)
 {
 	struct listener *listener;
 	int err = ERR_NONE;
-	int fd;
 
 	list_for_each_entry(listener, &proto->listeners, proto_list) {
-		if (listener->state != LI_INIT)
-			continue; /* already started */
-
-		fd = create_uxst_socket(((struct sockaddr_un *)&listener->addr)->sun_path,
-					listener->perm.ux.uid,
-					listener->perm.ux.gid,
-					listener->perm.ux.mode);
-		if (fd == -1) {
-			err |= ERR_FATAL;
+		err |= uxst_bind_listener(listener);
+		if (err != ERR_NONE)
 			continue;
-		}
-	
-		/* the socket is listening */
-		listener->fd = fd;
-		listener->state = LI_LISTEN;
-
-		/* the function for the accept() event */
-		fd_insert(fd);
-		fdtab[fd].cb[DIR_RD].f = listener->accept;
-		fdtab[fd].cb[DIR_WR].f = NULL; /* never called */
-		fdtab[fd].cb[DIR_RD].b = fdtab[fd].cb[DIR_WR].b = NULL;
-		fdtab[fd].owner = (struct task *)listener; /* reference the listener instead of a task */
-		fdtab[fd].state = FD_STLISTEN;
-		fdtab[fd].peeraddr = NULL;
-		fdtab[fd].peerlen = 0;
-		fdtab[fd].listener = NULL;
-		fdtab[fd].ev = 0;
 	}
-
 	return err;
 }
 
-/* This function adds the UNIX sockets file descriptors to the polling lists
- * for all listeners in the LI_LISTEN state. It is intended to be used as the
- * protocol's enable_all() primitive, after the fork(). It always returns
- * ERR_NONE.
- */
-static int uxst_enable_listeners(struct protocol *proto)
-{
-	struct listener *listener;
-
-	list_for_each_entry(listener, &proto->listeners, proto_list) {
-		if (listener->state == LI_LISTEN) {
-			EV_FD_SET(listener->fd, DIR_RD);
-			listener->state = LI_READY;
-		}
-	}
-	return ERR_NONE;
-}
 
 /* This function stops all listening UNIX sockets bound to the protocol
  * <proto>. It does not detaches them from the protocol.
@@ -284,16 +360,16 @@ static int uxst_unbind_listeners(struct protocol *proto)
 {
 	struct listener *listener;
 
-	list_for_each_entry(listener, &proto->listeners, proto_list) {
-		if (listener->state != LI_INIT) {
-			EV_FD_CLR(listener->fd, DIR_RD);
-			close(listener->fd);
-			listener->state = LI_INIT;
-			destroy_uxst_socket(((struct sockaddr_un *)&listener->addr)->sun_path);
-		}
-	}
+	list_for_each_entry(listener, &proto->listeners, proto_list)
+		uxst_unbind_listener(listener);
 	return ERR_NONE;
 }
+
+
+/********************************
+ * 4) high-level functions
+ ********************************/
+
 
 /*
  * This function is called on a read event from a listen socket, corresponding
@@ -1398,32 +1474,6 @@ void process_uxst_stats(struct task *t, struct timeval *next)
 	session_free(s);
 	task_free(t);
 	tv_eternity(next);
-}
-
-/* Note: must not be declared <const> as its list will be overwritten */
-static struct protocol proto_unix = {
-	.name = "unix_stream",
-	.sock_domain = PF_UNIX,
-	.sock_type = SOCK_STREAM,
-	.sock_prot = 0,
-	.sock_family = AF_UNIX,
-	.sock_addrlen = sizeof(struct sockaddr_un),
-	.l3_addrlen = sizeof(((struct sockaddr_un*)0)->sun_path),/* path len */
-	.read = &stream_sock_read,
-	.write = &stream_sock_write,
-	.bind_all = uxst_bind_listeners,
-	.unbind_all = uxst_unbind_listeners,
-	.enable_all = uxst_enable_listeners,
-	.listeners = LIST_HEAD_INIT(proto_unix.listeners),
-	.nb_listeners = 0,
-};
-
-/* Adds listener to the list of unix stream listeners */
-void uxst_add_listener(struct listener *listener)
-{
-	listener->proto = &proto_unix;
-	LIST_ADDQ(&proto_unix.listeners, &listener->proto_list);
-	proto_unix.nb_listeners++;
 }
 
 __attribute__((constructor))

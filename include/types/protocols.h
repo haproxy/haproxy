@@ -35,10 +35,32 @@
 
 /* listener state */
 #define LI_NEW		0	/* not initialized yet */
-#define LI_INIT		1	/* attached to the protocol, but not listening yet */
-#define LI_LISTEN	2	/* started, listening but not enabled */
-#define LI_READY	3	/* started, listening and enabled */
-#define LI_FULL		4	/* reached its connection limit */
+#define LI_INIT		1	/* all parameters filled in, but not assigned yet */
+#define LI_ASSIGNED	2	/* assigned to the protocol, but not listening yet */
+#define LI_LISTEN	3	/* started, listening but not enabled */
+#define LI_READY	4	/* started, listening and enabled */
+#define LI_FULL		5	/* reached its connection limit */
+
+/* Listener transitions
+ * calloc()     set()      add_listener()       bind()
+ * -------> NEW ----> INIT ----------> ASSIGNED -----> LISTEN
+ * <-------     <----      <----------          <-----
+ *    free()   bzero()     del_listener()       unbind()
+ *
+ * The file descriptor is valid only during these three states :
+ *
+ *             disable()
+ * LISTEN <------------ READY
+ *   A|   ------------>  |A
+ *   ||  !max & enable() ||
+ *   ||                  ||
+ *   ||              max ||
+ *   || max & enable()   V| !max
+ *   |+---------------> FULL
+ *   +-----------------
+ *            disable()
+ *
+ */
 
 /* listener socket options */
 #define LI_O_NONE	0x0000
@@ -50,7 +72,7 @@
  */
 struct listener {
 	int fd;				/* the listen socket */
-	int state;			/* state: NEW, INIT, LISTEN, READY, FULL */
+	int state;			/* state: NEW, INIT, ASSIGNED, LISTEN, READY, FULL */
 	int options;			/* socket options : LI_O_* */
 	struct sockaddr_storage addr;	/* the address we listen to */
 	struct protocol *proto;		/* protocol this listener belongs to */
@@ -90,6 +112,7 @@ struct protocol {
 	int (*bind_all)(struct protocol *proto);	/* bind all unbound listeners */
 	int (*unbind_all)(struct protocol *proto);	/* unbind all bound listeners */
 	int (*enable_all)(struct protocol *proto);	/* enable all bound listeners */
+	int (*disable_all)(struct protocol *proto);	/* disable all bound listeners */
 	struct list listeners;				/* list of listeners using this protocol */
 	int nb_listeners;				/* number of listeners */
 	struct list list;				/* list of registered protocols */

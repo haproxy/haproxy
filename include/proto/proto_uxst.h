@@ -28,6 +28,7 @@
 
 int uxst_event_accept(int fd);
 void uxst_add_listener(struct listener *listener);
+void uxst_del_listener(struct listener *listener);
 void process_uxst_stats(struct task *t, struct timeval *next);
 
 #endif /* _PROTO_PROTO_UXST_H */
