@@ -310,21 +310,6 @@ void uxst_add_listener(struct listener *listener)
 	proto_unix.nb_listeners++;
 }
 
-/* Delete a listener from the list of unix stream listeners. The listener's
- * state is automatically updated from LI_ASSIGNED to LI_INIT. The number of
- * listeners is updated. Note that the listener must have previously been
- * unbound. This is the function to use to remove a listener.
- */
-void uxst_del_listener(struct listener *listener)
-{
-	if (listener->state != LI_ASSIGNED)
-		return;
-	listener->state = LI_INIT;
-	LIST_DEL(&listener->proto_list);
-	proto_unix.nb_listeners--;
-}
-
-
 /********************************
  * 3) protocol-oriented functions
  ********************************/

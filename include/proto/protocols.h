@@ -58,6 +58,13 @@ int disable_all_listeners(struct protocol *proto);
  */
 int unbind_listener(struct listener *listener);
 
+/* Delete a listener from its protocol's list of listeners. The listener's
+ * state is automatically updated from LI_ASSIGNED to LI_INIT. The protocol's
+ * number of listeners is updated. Note that the listener must have previously
+ * been unbound. This is the generic function to use to remove a listener.
+ */
+void delete_listener(struct listener *listener);
+
 /* Registers the protocol <proto> */
 void protocol_register(struct protocol *proto);
 
