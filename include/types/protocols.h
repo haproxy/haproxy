@@ -78,6 +78,8 @@ struct protocol {
 	int sock_type;					/* socket type, as passed to socket()     */
 	int sock_prot;					/* socket protocol, as passed to socket() */
 	sa_family_t sock_family;			/* socket family, for sockaddr */
+	socklen_t sock_addrlen;				/* socket address length, used by bind() */
+	int l3_addrlen;					/* layer3 address length, used by hashes */
 	int (*read)(int fd);				/* generic read function */
 	int (*write)(int fd);				/* generic write function */
 	int (*bind_all)(struct protocol *proto);	/* bind all unbound listeners */
