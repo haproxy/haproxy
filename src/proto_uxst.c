@@ -289,7 +289,7 @@ static int uxst_unbind_listener(struct listener *listener)
 		EV_FD_CLR(listener->fd, DIR_RD);
 
 	if (listener->state >= LI_LISTEN) {
-		close(listener->fd);
+		fd_delete(listener->fd);
 		listener->state = LI_ASSIGNED;
 		destroy_uxst_socket(((struct sockaddr_un *)&listener->addr)->sun_path);
 	}
