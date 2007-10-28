@@ -58,6 +58,12 @@ int disable_all_listeners(struct protocol *proto);
  */
 int unbind_listener(struct listener *listener);
 
+/* This function closes all listening sockets bound to the protocol <proto>,
+ * and the listeners end in LI_ASSIGNED state if they were higher. It does not
+ * detach them from the protocol. It always returns ERR_NONE.
+ */
+int unbind_all_listeners(struct protocol *proto);
+
 /* Delete a listener from its protocol's list of listeners. The listener's
  * state is automatically updated from LI_ASSIGNED to LI_INIT. The protocol's
  * number of listeners is updated. Note that the listener must have previously
