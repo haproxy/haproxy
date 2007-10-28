@@ -64,6 +64,7 @@
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/defaults.h>
+#include <common/errors.h>
 #include <common/memory.h>
 #include <common/mini-clist.h>
 #include <common/regex.h>

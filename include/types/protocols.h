@@ -33,11 +33,6 @@
 /* max length of a protcol name, including trailing zero */
 #define PROTO_NAME_LEN 16
 
-/* return codes for bind_all() */
-#define ERR_NONE	0	/* no error */
-#define ERR_RETRYABLE	1	/* retryable error, may be cumulated */
-#define ERR_FATAL	2	/* fatal error, may be cumulated */
-
 /* listener state */
 #define LI_NEW		0	/* not initialized yet */
 #define LI_INIT		1	/* attached to the protocol, but not listening yet */
