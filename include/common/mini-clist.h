@@ -19,6 +19,13 @@ struct list {
     struct list *p;	/* prev */
 };
 
+/* First undefine some macros which happen to also be defined on OpenBSD,
+ * in sys/queue.h, used by sys/event.h
+ */
+#undef LIST_HEAD
+#undef LIST_INIT
+#undef LIST_NEXT
+
 #define LIST_HEAD(a)	((void *)(&(a)))
 
 #define LIST_INIT(l) ((l)->n = (l)->p = (l))
