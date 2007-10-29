@@ -44,6 +44,9 @@
 #include <proto/dumpstats.h>
 #include <proto/httperr.h>
 #include <proto/log.h>
+#include <proto/protocols.h>
+#include <proto/proto_tcp.h>
+#include <proto/proto_http.h>
 #include <proto/proxy.h>
 #include <proto/server.h>
 #include <proto/task.h>
@@ -208,11 +211,16 @@ static struct listener *str2listener(char *str, struct listener *tail)
 
 			l->fd = -1;
 			l->addr = ss;
-			if (ss.ss_family == AF_INET6)
-				((struct sockaddr_in6 *)(&l->addr))->sin6_port = htons(port);
-			else
-				((struct sockaddr_in *)(&l->addr))->sin_port = htons(port);
+			l->state = LI_INIT;
 
+			if (ss.ss_family == AF_INET6) {
+				((struct sockaddr_in6 *)(&l->addr))->sin6_port = htons(port);
+				tcpv6_add_listener(l);
+			} else {
+				((struct sockaddr_in *)(&l->addr))->sin_port = htons(port);
+				tcpv4_add_listener(l);
+			}
+			listeners++;
 		} /* end for(port) */
 	} /* end while(next) */
 	free(dupstr);
@@ -2444,6 +2452,7 @@ int readcfgfile(const char *file)
 
 	while (curproxy != NULL) {
 		struct switching_rule *rule;
+		struct listener *listener;
 
 		if (curproxy->state == PR_STSTOPPED) {
 			curproxy = curproxy->next;
@@ -2724,6 +2733,19 @@ int readcfgfile(const char *file)
 				task_queue(t);
 			}
 			newsrv = newsrv->next;
+		}
+
+		/* adjust this proxy's listeners */
+		listener = curproxy->listen;
+		while (listener) {
+			if (curproxy->options & PR_O_TCP_NOLING)
+				listener->options |= LI_O_NOLINGER;
+			listener->maxconn = curproxy->maxconn;
+			listener->timeout = &curproxy->clitimeout;
+			listener->accept = event_accept;
+			listener->private = curproxy;
+
+			listener = listener->next;
 		}
 
 		curproxy = curproxy->next;

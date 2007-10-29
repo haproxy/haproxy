@@ -30,10 +30,12 @@
 #include <proto/backend.h>
 #include <proto/fd.h>
 #include <proto/log.h>
+#include <proto/protocols.h>
+#include <proto/proto_tcp.h>
 #include <proto/proxy.h>
 
 
-int listeners;	/* # of listeners */
+int listeners;	/* # of proxy listeners, set by cfgparse, unset by maintain_proxies */
 struct proxy *proxy  = NULL;	/* list of all existing proxies */
 
 /*
@@ -120,8 +122,9 @@ int start_proxies(int verbose)
 {
 	struct proxy *curproxy;
 	struct listener *listener;
-	int err = ERR_NONE;
-	int fd, pxerr;
+	int lerr, err = ERR_NONE;
+	int pxerr;
+	char msg[100];
 
 	for (curproxy = proxy; curproxy != NULL; curproxy = curproxy->next) {
 		if (curproxy->state != PR_STNEW)
@@ -129,96 +132,39 @@ int start_proxies(int verbose)
 
 		pxerr = 0;
 		for (listener = curproxy->listen; listener != NULL; listener = listener->next) {
-			if (listener->fd != -1)
-				continue; /* already initialized */
+			if (listener->state != LI_ASSIGNED)
+				continue; /* already started */
 
-			if ((fd = socket(listener->addr.ss_family, SOCK_STREAM, IPPROTO_TCP)) == -1) {
-				if (verbose)
-					Alert("cannot create listening socket for proxy %s. Aborting.\n",
-					      curproxy->id);
-				err |= ERR_RETRYABLE;
-				pxerr |= 1;
-				continue;
-			}
-	
-			if (fd >= global.maxsock) {
-				Alert("socket(): not enough free sockets for proxy %s. Raise -n argument. Aborting.\n",
-				      curproxy->id);
-				close(fd);
-				err |= ERR_FATAL;
-				pxerr |= 1;
-				break;
+			lerr = tcp_bind_listener(listener, msg, sizeof(msg));
+
+			/* errors are reported if <verbose> is set or if they are fatal */
+			if (verbose || (lerr & (ERR_FATAL | ERR_ABORT))) {
+				if (lerr & ERR_ALERT)
+					Alert("Starting %s %s: %s\n",
+					      proxy_type_str(curproxy), curproxy->id, msg);
+				else if (lerr & ERR_WARN)
+					Warning("Starting %s %s: %s\n",
+						proxy_type_str(curproxy), curproxy->id, msg);
 			}
 
-			if ((fcntl(fd, F_SETFL, O_NONBLOCK) == -1) ||
-			    (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY,
-					(char *) &one, sizeof(one)) == -1)) {
-				Alert("cannot make socket non-blocking for proxy %s. Aborting.\n",
-				      curproxy->id);
-				close(fd);
-				err |= ERR_FATAL;
+			err |= lerr;
+			if (lerr & (ERR_ABORT | ERR_FATAL)) {
 				pxerr |= 1;
 				break;
 			}
-
-			if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(one)) == -1) {
-				Alert("cannot do so_reuseaddr for proxy %s. Continuing.\n",
-				      curproxy->id);
-			}
-
-			if (curproxy->options & PR_O_TCP_NOLING)
-				setsockopt(fd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
-	
-#ifdef SO_REUSEPORT
-			/* OpenBSD supports this. As it's present in old libc versions of Linux,
-			 * it might return an error that we will silently ignore.
-			 */
-			setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, (char *) &one, sizeof(one));
-#endif
-			if (bind(fd,
-				 (struct sockaddr *)&listener->addr,
-				 listener->addr.ss_family == AF_INET6 ?
-				 sizeof(struct sockaddr_in6) :
-				 sizeof(struct sockaddr_in)) == -1) {
-				if (verbose)
-					Alert("cannot bind socket for proxy %s. Aborting.\n",
-					      curproxy->id);
-				close(fd);
-				err |= ERR_RETRYABLE;
+			else if (lerr & ERR_CODE) {
 				pxerr |= 1;
 				continue;
 			}
-	
-			if (listen(fd, curproxy->maxconn) == -1) {
-				if (verbose)
-					Alert("cannot listen to socket for proxy %s. Aborting.\n",
-					      curproxy->id);
-				close(fd);
-				err |= ERR_RETRYABLE;
-				pxerr |= 1;
-				continue;
-			}
-	
-			/* the socket is ready */
-			listener->fd = fd;
-
-			/* the function for the accept() event */
-			fd_insert(fd);
-			fdtab[fd].cb[DIR_RD].f  = &event_accept;
-			fdtab[fd].cb[DIR_WR].f = NULL; /* never called */
-			fdtab[fd].cb[DIR_RD].b = fdtab[fd].cb[DIR_WR].b = NULL;
-			fdtab[fd].owner = (struct task *)curproxy; /* reference the proxy instead of a task */
-			fdtab[fd].state = FD_STLISTEN;
-			fdtab[fd].peeraddr = NULL;
-			fdtab[fd].peerlen = 0;
-			fdtab[fd].ev = 0;
-			listeners++;
 		}
 
 		if (!pxerr) {
 			curproxy->state = PR_STIDLE;
 			send_log(curproxy, LOG_NOTICE, "Proxy %s started.\n", curproxy->id);
 		}
+
+		if (err & ERR_ABORT)
+			break;
 	}
 
 	return err;
@@ -244,17 +190,15 @@ void maintain_proxies(struct timeval *next)
 		while (p) {
 			if (p->feconn < p->maxconn) {
 				if (p->state == PR_STIDLE) {
-					for (l = p->listen; l != NULL; l = l->next) {
-						EV_FD_SET(l->fd, DIR_RD);
-					}
+					for (l = p->listen; l != NULL; l = l->next)
+						enable_listener(l);
 					p->state = PR_STRUN;
 				}
 			}
 			else {
 				if (p->state == PR_STRUN) {
-					for (l = p->listen; l != NULL; l = l->next) {
-						EV_FD_CLR(l->fd, DIR_RD);
-					}
+					for (l = p->listen; l != NULL; l = l->next)
+						disable_listener(l);
 					p->state = PR_STIDLE;
 				}
 			}
@@ -264,9 +208,8 @@ void maintain_proxies(struct timeval *next)
 	else {  /* block all proxies */
 		while (p) {
 			if (p->state == PR_STRUN) {
-				for (l = p->listen; l != NULL; l = l->next) {
-					EV_FD_CLR(l->fd, DIR_RD);
-				}
+				for (l = p->listen; l != NULL; l = l->next)
+					disable_listener(l);
 				p->state = PR_STIDLE;
 			}
 			p = p->next;
@@ -284,8 +227,11 @@ void maintain_proxies(struct timeval *next)
 					send_log(p, LOG_WARNING, "Proxy %s stopped.\n", p->id);
 
 					for (l = p->listen; l != NULL; l = l->next) {
-						fd_delete(l->fd);
-						listeners--;
+						unbind_listener(l);
+						if (l->state >= LI_ASSIGNED) {
+							delete_listener(l);
+							listeners--;
+						}
 					}
 					p->state = PR_STSTOPPED;
 					/* try to free more memory */

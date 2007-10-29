@@ -103,7 +103,7 @@ OBJS = src/haproxy.o src/sessionhash.o src/base64.o src/protocols.o \
        src/time.o src/fd.o src/regex.o src/cfgparse.o src/server.o \
        src/checks.o src/queue.o src/client.o src/proxy.o src/proto_uxst.o \
        src/proto_http.o src/stream_sock.o src/appsession.o src/backend.o \
-       src/senddata.o src/dumpstats.o \
+       src/senddata.o src/dumpstats.o src/proto_tcp.o \
        src/session.o src/hdr_idx.o src/ev_select.o src/ev_poll.o \
        src/ev_kqueue.o src/acl.o src/memory.o
 

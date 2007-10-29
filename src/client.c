@@ -68,7 +68,8 @@ void get_frt_addr(struct session *s)
  * It returns 0.
  */
 int event_accept(int fd) {
-	struct proxy *p = (struct proxy *)fdtab[fd].owner;
+	struct listener *l = (struct listener *)fdtab[fd].owner;
+	struct proxy *p = (struct proxy *)l->private; /* attached frontend */
 	struct session *s;
 	struct http_txn *txn;
 	struct task *t;
@@ -362,10 +363,11 @@ int event_accept(int fd) {
 
 		fd_insert(cfd);
 		fdtab[cfd].owner = t;
+		fdtab[cfd].listener = l;
 		fdtab[cfd].state = FD_STREADY;
-		fdtab[cfd].cb[DIR_RD].f = &stream_sock_read;
+		fdtab[cfd].cb[DIR_RD].f = l->proto->read;
 		fdtab[cfd].cb[DIR_RD].b = s->req;
-		fdtab[cfd].cb[DIR_WR].f = &stream_sock_write;
+		fdtab[cfd].cb[DIR_WR].f = l->proto->write;
 		fdtab[cfd].cb[DIR_WR].b = s->rep;
 		fdtab[cfd].peeraddr = (struct sockaddr *)&s->cli_addr;
 		fdtab[cfd].peerlen = sizeof(s->cli_addr);
