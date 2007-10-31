@@ -43,8 +43,13 @@
 #define REQURI_LEN      1024
 #define CAPTURE_LEN     64
 
+// maximum line size when parsing config
+#ifndef LINESIZE
+#define LINESIZE	2048
+#endif
+
 // max # args on a configuration line
-#define MAX_LINE_ARGS   40
+#define MAX_LINE_ARGS   64
 
 // max # of added headers per request
 #define MAX_NEWHDR      10
