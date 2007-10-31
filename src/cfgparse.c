@@ -2305,13 +2305,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
  */
 int readcfgfile(const char *file)
 {
-	char thisline[256];
-	char *line;
+	char thisline[LINESIZE];
 	FILE *f;
 	int linenum = 0;
-	char *end;
-	char *args[MAX_LINE_ARGS + 1];
-	int arg;
 	int cfgerr = 0;
 	int confsect = CFG_NONE;
 
@@ -2323,10 +2319,24 @@ int readcfgfile(const char *file)
 
 	init_default_instance();
 
-	while (fgets(line = thisline, sizeof(thisline), f) != NULL) {
+	while (fgets(thisline, sizeof(thisline), f) != NULL) {
+		int arg;
+		char *end;
+		char *args[MAX_LINE_ARGS + 1];
+		char *line = thisline;
+
 		linenum++;
 
 		end = line + strlen(line);
+
+		if (end-line == sizeof(thisline)-1 && *(end-1) != '\n') {
+			/* Check if we reached the limit and the last char is not \n.
+			 * Watch out for the last line without the terminating '\n'!
+			 */
+			Alert("parsing [%s:%d]: line too long, limit: %d.\n",
+				file, linenum, sizeof(thisline)-1);
+			return -1;
+		}
 
 		/* skip leading spaces */
 		while (isspace((unsigned char)*line))
@@ -2385,7 +2395,7 @@ int readcfgfile(const char *file)
 			}
 			else if (isspace((unsigned char)*line)) {
 				/* a non-escaped space is an argument separator */
-				*line++ = 0;
+				*line++ = '\0';
 				while (isspace((unsigned char)*line))
 					line++;
 				args[++arg] = line;
