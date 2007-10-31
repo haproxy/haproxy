@@ -2532,19 +2532,15 @@ int readcfgfile(const char *file)
 			struct proxy *target;
 
 			for (target = proxy; target != NULL; target = target->next) {
-				if (strcmp(target->id, curproxy->defbe.name) == 0)
+				if ((target->cap & PR_CAP_BE) && !strcmp(target->id, curproxy->defbe.name))
 					break;
 			}
 			if (target == NULL) {
-				Alert("parsing %s : default backend '%s' in HTTP %s '%s' was not found !\n", 
+				Alert("parsing %s: default proxy '%s' with backend capability in HTTP %s '%s' was not found!\n", 
 				      file, curproxy->defbe.name, proxy_type_str(curproxy), curproxy->id);
 				cfgerr++;
 			} else if (target == curproxy) {
 				Alert("parsing %s : loop detected for default backend %s !\n", file, curproxy->defbe.name);
-				cfgerr++;
-			} else if (!(target->cap & PR_CAP_BE)) {
-				Alert("parsing %s : default backend '%s' in HTTP %s '%s' has no backend capability !\n",
-				      file, curproxy->defbe.name, proxy_type_str(curproxy), curproxy->id);
 				cfgerr++;
 			} else if (target->mode != curproxy->mode) {
 				Alert("parsing %s : default backend '%s' in HTTP %s '%s' is not of same mode (tcp/http) !\n",
@@ -2565,19 +2561,15 @@ int readcfgfile(const char *file)
 				if (exp->action != ACT_SETBE)
 					continue;
 				for (target = proxy; target != NULL; target = target->next) {
-					if (strcmp(target->id, exp->replace) == 0)
+					if ((target->cap & PR_CAP_BE) && !strcmp(target->id, exp->replace))
 						break;
 				}
 				if (target == NULL) {
-					Alert("parsing %s : backend '%s' in HTTP %s '%s' was not found !\n", 
+					Alert("parsing %s: proxy '%s' with backend capability in HTTP %s '%s' was not found!\n", 
 					      file, exp->replace, proxy_type_str(curproxy), curproxy->id);
 					cfgerr++;
 				} else if (target == curproxy) {
 					Alert("parsing %s : loop detected for backend %s !\n", file, exp->replace);
-					cfgerr++;
-				} else if (!(target->cap & PR_CAP_BE)) {
-					Alert("parsing %s : target '%s' in HTTP %s '%s' has no backend capability !\n",
-					      file, exp->replace, proxy_type_str(curproxy), curproxy->id);
 					cfgerr++;
 				} else if (target->mode != PR_MODE_HTTP) {
 					Alert("parsing %s : backend '%s' in HTTP %s '%s' is not HTTP (use 'mode http') !\n",
@@ -2596,20 +2588,16 @@ int readcfgfile(const char *file)
 			struct proxy *target;
 
 			for (target = proxy; target != NULL; target = target->next) {
-				if (strcmp(target->id, rule->be.name) == 0)
+				if ((target->cap & PR_CAP_BE) && !strcmp(target->id, rule->be.name))
 					break;
 			}
 
 			if (target == NULL) {
-				Alert("parsing %s : backend '%s' in HTTP %s '%s' was not found !\n", 
+				Alert("parsing %s: proxy '%s' with backend capability in HTTP %s '%s' was not found!\n", 
 				      file, rule->be.name, proxy_type_str(curproxy), curproxy->id);
 				cfgerr++;
 			} else if (target == curproxy) {
 				Alert("parsing %s : loop detected for backend %s !\n", file, rule->be.name);
-				cfgerr++;
-			} else if (!(target->cap & PR_CAP_BE)) {
-				Alert("parsing %s : target '%s' in HTTP %s '%s' has no backend capability !\n",
-				      file, rule->be.name, proxy_type_str(curproxy), curproxy->id);
 				cfgerr++;
 			} else if (target->mode != curproxy->mode) {
 				Alert("parsing %s : backend '%s' referenced in %s '%s' is of different mode !\n",
