@@ -728,11 +728,45 @@ int srv_redispatch_connect(struct session *t)
 }
 
 int be_downtime(struct proxy *px) {
-
 	if ((px->srv_act || px->srv_bck) && px->last_change < now.tv_sec)		// ignore negative time
 		return px->down_time;
 
 	return now.tv_sec - px->last_change + px->down_time;
+}
+
+/* This function parses a "balance" statement in a backend section describing
+ * <curproxy>. It returns -1 if there is any error, otherwise zero. If it
+ * returns -1, it may write an error message into ther <err> buffer, for at
+ * most <errlen> bytes, trailing zero included. The trailing '\n' will not be
+ * written. The function must be called with <args> pointing to the first word
+ * after "balance".
+ */
+int backend_parse_balance(const char **args, char *err, int errlen, struct proxy *curproxy)
+{
+	if (!*(args[0])) {
+		/* if no option is set, use round-robin by default */
+		curproxy->options &= ~PR_O_BALANCE;
+		curproxy->options |= PR_O_BALANCE_RR;
+		return 0;
+	}
+
+	if (!strcmp(args[0], "roundrobin")) {
+		curproxy->options &= ~PR_O_BALANCE;
+		curproxy->options |= PR_O_BALANCE_RR;
+	}
+	else if (!strcmp(args[0], "source")) {
+		curproxy->options &= ~PR_O_BALANCE;
+		curproxy->options |= PR_O_BALANCE_SH;
+	}
+	else if (!strcmp(args[0], "uri")) {
+		curproxy->options &= ~PR_O_BALANCE;
+		curproxy->options |= PR_O_BALANCE_UH;
+	}
+	else {
+		snprintf(err, errlen, "'balance' only supports 'roundrobin', 'source' and 'uri' options.");
+		return -1;
+	}
+	return 0;
 }
 
 /*

@@ -1326,27 +1326,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			return 0;
 
-		if (*(args[1])) {
-			if (!strcmp(args[1], "roundrobin")) {
-				curproxy->options &= ~PR_O_BALANCE;
-				curproxy->options |= PR_O_BALANCE_RR;
-			}
-			else if (!strcmp(args[1], "source")) {
-				curproxy->options &= ~PR_O_BALANCE;
-				curproxy->options |= PR_O_BALANCE_SH;
-			}
-			else if (!strcmp(args[1], "uri")) {
-				curproxy->options &= ~PR_O_BALANCE;
-				curproxy->options |= PR_O_BALANCE_UH;
-			}
-			else {
-				Alert("parsing [%s:%d] : '%s' only supports 'roundrobin', 'source' and 'uri' options.\n", file, linenum, args[0]);
-				return -1;
-			}
-		}
-		else {/* if no option is set, use round-robin by default */
-			curproxy->options &= ~PR_O_BALANCE;
-			curproxy->options |= PR_O_BALANCE_RR;
+		memcpy(trash, "error near 'balance'", 19);
+		if (backend_parse_balance((const char **)args + 1, trash, sizeof(trash), curproxy) < 0) {
+			Alert("parsing [%s:%d] : %s\n", file, linenum, trash);
+			return -1;
 		}
 	}
 	else if (!strcmp(args[0], "server")) {  /* server address */

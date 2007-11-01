@@ -36,6 +36,8 @@ int connect_server(struct session *s);
 int srv_count_retry_down(struct session *t, int conn_err);
 int srv_retryable_connect(struct session *t);
 int srv_redispatch_connect(struct session *t);
+int backend_parse_balance(const char **args, char *err,
+			  int errlen, struct proxy *curproxy);
 
 void recount_servers(struct proxy *px);
 void recalc_server_map(struct proxy *px);
