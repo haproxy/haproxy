@@ -64,6 +64,7 @@
 #define PR_O_BALANCE_SH 0x20000000      /* balance on source IP hash */
 #define PR_O_BALANCE_L4 0x30000000      /* mask to match layer4-based algorithms */
 #define PR_O_BALANCE_UH 0x40000000      /* balance on URI hash */
+#define PR_O_BALANCE_PH 0x50000000      /* balance on URL parameter hash */
 #define PR_O_BALANCE_L7 0x40000000      /* mask to match layer7-based algorithms */
 #define PR_O_BALANCE    0x70000000      /* mask to extract BALANCE algorithm */
 

@@ -606,6 +606,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			if (defproxy.cookie_name)
 				curproxy->cookie_name = strdup(defproxy.cookie_name);
 			curproxy->cookie_len = defproxy.cookie_len;
+
+			if (defproxy.url_param_name)
+				curproxy->url_param_name = strdup(defproxy.url_param_name);
+			curproxy->url_param_len = defproxy.url_param_len;
 		}
 
 		if (curproxy->cap & PR_CAP_RS) {
@@ -651,6 +655,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		 */
 		if (defproxy.check_req)     free(defproxy.check_req);
 		if (defproxy.cookie_name)   free(defproxy.cookie_name);
+		if (defproxy.url_param_name) free(defproxy.url_param_name);
 		if (defproxy.capture_name)  free(defproxy.capture_name);
 		if (defproxy.monitor_uri)   free(defproxy.monitor_uri);
 		if (defproxy.defbe.name)    free(defproxy.defbe.name);

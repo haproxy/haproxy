@@ -986,6 +986,26 @@ Example :
         server squid1 192.168.1.1
         server squid2 192.168.1.2
 
+Version 1.3.14 introduced the "balance url_param" method. It consists in
+relying on a parameter passed in the URL to perform a hash. This is mostly
+useful for applications which do not have strict persistence requirements,
+but for which it still provides a performance boost due to local caching.
+Some of these applications may not be able to use a cookie for whatever reason,
+but may be able to look for a parameter passed in the URL. If the parameter is
+missing from the URL, then the 'round robin' method applies.
+
+Example :
+---------
+
+# Hash the "basket_id" argument from the URL to determine the server
+
+    listen http_proxy
+        bind :3128
+        mode http
+        balance url_param basket_id
+        server ebiz1 192.168.1.1
+        server ebiz2 192.168.1.2
+
 
 3.1) Server monitoring
 ----------------------

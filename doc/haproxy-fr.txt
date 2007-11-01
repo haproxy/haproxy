@@ -994,6 +994,27 @@ Example :
         server squid1 192.168.1.1
         server squid2 192.168.1.2
 
+La version 1.3.14 a apporté une nouvelle méthode 'balance url_param'. Elle
+consiste à se baser sur un paramètre passé dans l'URL pour effectuer un hachage
+utilisé pour déterminer le serveur à utiliser. Ceci est principalement utile
+pour des applications n'ayant pas une exigence stricte de persistance, mais
+pour lesquelles elle procure un gain de performance notable dans des
+environnements où il n'est pas toujours possible d'utiliser des cookies. En cas
+d'absence du paramètre dans l'URL, alors une répartition de type 'round robin'
+est effectuée.
+
+Example :
+---------
+
+# hache le paramètre "basket_id" dans l'URL pour déterminer le serveur
+
+    listen http_proxy
+        bind :3128
+        mode http
+        balance url_param basket_id
+        server ebiz1 192.168.1.1
+        server ebiz2 192.168.1.2
+
 
 3.1) Surveillance des serveurs
 ------------------------------

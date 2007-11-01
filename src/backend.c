@@ -134,6 +134,69 @@ void recalc_server_map(struct proxy *px)
 	px->map_state &= ~PR_MAP_RECALC;
 }
 
+/* 
+ * This function tries to find a running server for the proxy <px> following
+ * the URL parameter hash method. It looks for a specific parameter in the
+ * URL and hashes it to compute the server ID. This is useful to optimize
+ * performance by avoiding bounces between servers in contexts where sessions
+ * are shared but cookies are not usable. If the parameter is not found, NULL
+ * is returned. If any server is found, it will be returned. If no valid server
+ * is found, NULL is returned.
+ *
+ */
+struct server *get_server_ph(struct proxy *px, const char *uri, int uri_len)
+{
+	unsigned long hash = 0;
+	char *p;
+	int plen;
+
+	if (px->map_state & PR_MAP_RECALC)
+		recalc_server_map(px);
+
+	if (px->srv_map_sz == 0)
+		return NULL;
+
+	p = memchr(uri, '?', uri_len);
+	if (!p)
+		return NULL;
+	p++;
+
+	uri_len -= (p - uri);
+	plen = px->url_param_len;
+
+	if (uri_len <= plen)
+		return NULL;
+
+	while (uri_len > plen) {
+		/* Look for the parameter name followed by an equal symbol */
+		if (p[plen] == '=') {
+			/* skip the equal symbol */
+			uri = p;
+			p += plen + 1;
+			uri_len -= plen + 1;
+			if (memcmp(uri, px->url_param_name, plen) == 0) {
+				/* OK, we have the parameter here at <uri>, and
+				 * the value after the equal sign, at <p>
+				 */
+				while (uri_len && *p != '&') {
+					hash = *p + (hash << 6) + (hash << 16) - hash;
+					uri_len--;
+					p++;
+				}
+				return px->srv_map[hash % px->srv_map_sz];
+			}
+		}
+
+		/* skip to next parameter */
+		uri = p;
+		p = memchr(uri, '&', uri_len);
+		if (!p)
+			return NULL;
+		p++;
+		uri_len -= (p - uri);
+	}
+	return NULL;
+}
 
 /*
  * This function marks the session as 'assigned' in direct or dispatch modes,
@@ -197,6 +260,18 @@ int assign_server(struct session *s)
 				s->srv = get_server_uh(s->be,
 						       s->txn.req.sol + s->txn.req.sl.rq.u,
 						       s->txn.req.sl.rq.u_l);
+				break;
+			case PR_O_BALANCE_PH:
+				/* URL Parameter hashing */
+				s->srv = get_server_ph(s->be,
+						       s->txn.req.sol + s->txn.req.sl.rq.u,
+						       s->txn.req.sl.rq.u_l);
+				if (!s->srv) {
+					/* parameter not found, fall back to round robin */
+					s->srv = get_server_rr_with_conns(s->be);
+					if (!s->srv)
+						return SRV_STATUS_FULL;
+				}
 				break;
 			default:
 				/* unknown balancing algorithm */
@@ -762,8 +837,20 @@ int backend_parse_balance(const char **args, char *err, int errlen, struct proxy
 		curproxy->options &= ~PR_O_BALANCE;
 		curproxy->options |= PR_O_BALANCE_UH;
 	}
+	else if (!strcmp(args[0], "url_param")) {
+		if (!*args[1]) {
+			snprintf(err, errlen, "'balance url_param' requires an URL parameter name.");
+			return -1;
+		}
+		curproxy->options &= ~PR_O_BALANCE;
+		curproxy->options |= PR_O_BALANCE_PH;
+		if (curproxy->url_param_name)
+			free(curproxy->url_param_name);
+		curproxy->url_param_name = strdup(args[1]);
+		curproxy->url_param_len = strlen(args[1]);
+	}
 	else {
-		snprintf(err, errlen, "'balance' only supports 'roundrobin', 'source' and 'uri' options.");
+		snprintf(err, errlen, "'balance' only supports 'roundrobin', 'source', 'uri' and 'url_param' options.");
 		return -1;
 	}
 	return 0;
