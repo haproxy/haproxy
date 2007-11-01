@@ -2513,11 +2513,11 @@ int readcfgfile(const char *file)
 				Warning("parsing %s : monitor-uri will be ignored for %s '%s'.\n",
 					file, proxy_type_str(curproxy), curproxy->id);
 			}
-			if (curproxy->options & PR_O_BALANCE_UH) {
+			if (curproxy->options & PR_O_BALANCE_L7) {
 				curproxy->options &= ~PR_O_BALANCE;
 				curproxy->options |= PR_O_BALANCE_RR;
 
-				Warning("parsing %s : URI hash will be ignored for %s '%s'. Falling back to round robin.\n",
+				Warning("parsing %s : Layer 7 hash not possible for %s '%s'. Falling back to round robin.\n",
 					file, proxy_type_str(curproxy), curproxy->id);
 			}
 		}

@@ -164,21 +164,23 @@ int assign_server(struct session *s)
 
 	if (!(s->flags & SN_ASSIGNED)) {
 		if (s->be->options & PR_O_BALANCE) {
+			int len;
+		
 			if (s->flags & SN_DIRECT) {
 				s->flags |= SN_ASSIGNED;
 				return SRV_STATUS_OK;
 			}
+
 			if (!s->be->srv_act && !s->be->srv_bck)
 				return SRV_STATUS_NOSRV;
 
-			if (s->be->options & PR_O_BALANCE_RR) {
+			switch (s->be->options & PR_O_BALANCE) {
+			case PR_O_BALANCE_RR:
 				s->srv = get_server_rr_with_conns(s->be);
 				if (!s->srv)
 					return SRV_STATUS_FULL;
-			}
-			else if (s->be->options & PR_O_BALANCE_SH) {
-				int len;
-		
+				break;
+			case PR_O_BALANCE_SH:
 				if (s->cli_addr.ss_family == AF_INET)
 					len = 4;
 				else if (s->cli_addr.ss_family == AF_INET6)
@@ -189,15 +191,17 @@ int assign_server(struct session *s)
 				s->srv = get_server_sh(s->be,
 						       (void *)&((struct sockaddr_in *)&s->cli_addr)->sin_addr,
 						       len);
-			}
-			else if (s->be->options & PR_O_BALANCE_UH) {
+				break;
+			case PR_O_BALANCE_UH:
 				/* URI hashing */
 				s->srv = get_server_uh(s->be,
 						       s->txn.req.sol + s->txn.req.sl.rq.u,
 						       s->txn.req.sl.rq.u_l);
-			}
-			else /* unknown balancing algorithm */
+				break;
+			default:
+				/* unknown balancing algorithm */
 				return SRV_STATUS_INTERNAL;
+			}
 		}
 		else if (!*(int *)&s->be->dispatch_addr.sin_addr &&
 			 !(s->fe->options & PR_O_TRANSP)) {

@@ -2,7 +2,7 @@
   include/types/backend.h
   This file rassembles definitions for backends
 
-  Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -32,7 +32,7 @@
 #define PR_O_COOK_INS   0x00000010      /* insert cookies when not accessing a server directly */
 #define PR_O_COOK_PFX   0x00000020      /* rewrite all cookies by prefixing the right serverid */
 #define PR_O_COOK_ANY   (PR_O_COOK_RW | PR_O_COOK_IND | PR_O_COOK_INS | PR_O_COOK_PFX)
-#define PR_O_BALANCE_RR 0x00000040      /* balance in round-robin mode */
+#define PR_O_SMTP_CHK   0x00000040      /* use SMTP EHLO check for server health - pvandijk@vision6.com.au */
 #define	PR_O_KEEPALIVE  0x00000080      /* follow keep-alive sessions */
 #define	PR_O_FWDFOR     0x00000100      /* insert x-forwarded-for with client address */
 #define	PR_O_BIND_SRC   0x00000200      /* bind to a specific source address when connect()ing */
@@ -48,19 +48,24 @@
 #define PR_O_TCP_SRV_KA 0x00080000      /* enable TCP keep-alive on server-side sessions */
 #define PR_O_USE_ALL_BK 0x00100000      /* load-balance between backup servers */
 #define PR_O_FORCE_CLO  0x00200000      /* enforce the connection close immediately after server response */
-#define PR_O_BALANCE_SH 0x00400000      /* balance on source IP hash */
+#define PR_O_TCP_NOLING 0x00400000      /* disable lingering on client and server connections */
 #define PR_O_ABRT_CLOSE 0x00800000      /* immediately abort request when client closes */
 #define PR_O_SSL3_CHK   0x01000000      /* use SSLv3 CLIENT_HELLO packets for server health */
 
+/* TPXY: exclusive values */
 #define	PR_O_TPXY_ADDR  0x02000000	/* bind to this non-local address when connect()ing */
 #define	PR_O_TPXY_CIP	0x04000000	/* bind to the client's IP address when connect()ing */
 #define	PR_O_TPXY_CLI	0x06000000	/* bind to the client's IP+port when connect()ing */
 #define	PR_O_TPXY_MASK	0x06000000	/* bind to a non-local address when connect()ing */
 #define	PR_O_TCPSPLICE	0x08000000      /* delegate data transfer to linux kernel's tcp_splice */
-#define PR_O_BALANCE_UH 0x10000000      /* balance on URI hash */
-#define PR_O_BALANCE    (PR_O_BALANCE_RR | PR_O_BALANCE_SH | PR_O_BALANCE_UH)
-#define PR_O_SMTP_CHK   0x20000000      /* use SMTP EHLO check for server health - pvandijk@vision6.com.au */
-#define PR_O_TCP_NOLING 0x40000000      /* disable lingering on client and server connections */
+
+/* BALANCE: exclusive values */
+#define PR_O_BALANCE_RR 0x10000000      /* balance in round-robin mode */
+#define PR_O_BALANCE_SH 0x20000000      /* balance on source IP hash */
+#define PR_O_BALANCE_L4 0x30000000      /* mask to match layer4-based algorithms */
+#define PR_O_BALANCE_UH 0x40000000      /* balance on URI hash */
+#define PR_O_BALANCE_L7 0x40000000      /* mask to match layer7-based algorithms */
+#define PR_O_BALANCE    0x70000000      /* mask to extract BALANCE algorithm */
 
 
 #endif /* _TYPES_BACKEND_H */
