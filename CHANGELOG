@@ -1,6 +1,14 @@
 ChangeLog :
 ===========
 
+2007/11/03 : 1.3.12.4
+    - Handle long lines properly
+    - silent warning about LIST_* being redefined on OpenBSD
+    - fix calls to localtime()
+    - fix error checking in strl2ic/strl2uic()
+    - fixed 2 typos in haproxy-en/fr
+    - make default_backend work in TCP mode too
+
 2007/10/18 : 1.3.12.3
     - add the "nolinger" option to disable data lingering (Alexandre Cassen)
     - fix double-free during clean exit (Krzysztof Oledzki)

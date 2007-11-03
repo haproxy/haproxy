@@ -2,7 +2,7 @@
 # You should use it this way :
 #   make TARGET=os CPU=cpu
 
-VERSION := 1.3.12.3
+VERSION := 1.3.12.4
 
 # Select target OS. TARGET must match a system for which COPTS and LIBS are
 # correctly defined below.
