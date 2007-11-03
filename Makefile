@@ -69,7 +69,7 @@ COPTS.linux22 = -DUSE_GETSOCKNAME
 LIBS.linux22 =
 
 # This is for Solaris 8
-COPTS.solaris = -fomit-frame-pointer -DFD_SETSIZE=65536
+COPTS.solaris = -fomit-frame-pointer -DFD_SETSIZE=65536 -D_REENTRANT
 LIBS.solaris = -lnsl -lsocket
 
 # CPU dependant optimizations
