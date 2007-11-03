@@ -177,7 +177,25 @@ int event_accept(int fd) {
 		s->task = t;
 		s->be = s->fe = p;
 
-		s->cli_state = (p->mode == PR_MODE_HTTP) ?  CL_STHEADERS : CL_STDATA; /* no HTTP headers for non-HTTP proxies */
+		/* in HTTP mode, content switching requires that the backend
+		 * first points to the same proxy as the frontend. However, in
+		 * TCP mode there will be no header processing so any default
+		 * backend must be assigned if set.
+		 */
+		if (p->mode == PR_MODE_HTTP) {
+			s->cli_state = CL_STHEADERS;
+		} else {
+			/* We must assign any default backend now since
+			 * there will be no header processing.
+			 */
+			if (p->mode == PR_MODE_TCP) {
+				if (p->defbe.be)
+					s->be = p->defbe.be;
+				s->flags |= SN_BE_ASSIGNED;
+			}
+			s->cli_state = CL_STDATA; /* no HTTP headers for non-HTTP proxies */
+		}
+
 		s->srv_state = SV_STIDLE;
 		s->req = s->rep = NULL; /* will be allocated later */
 
@@ -185,7 +203,7 @@ int event_accept(int fd) {
 		s->srv_fd = -1;
 		s->srv = NULL;
 		s->pend_pos = NULL;
-		s->conn_retries = p->conn_retries;
+		s->conn_retries = s->be->conn_retries;
 
 		/* FIXME: the logs are horribly complicated now, because they are
 		 * defined in <p>, <p>, and later <be> and <be>.
@@ -368,7 +386,7 @@ int event_accept(int fd) {
 
 		s->req->rto = s->fe->clitimeout;
 		s->req->wto = s->be->srvtimeout;
-		s->req->cto = s->be->srvtimeout;
+		s->req->cto = s->be->contimeout;
 
 		if ((s->rep = pool_alloc2(pool2_buffer)) == NULL) { /* no memory */
 			pool_free2(pool2_buffer, s->req);
@@ -444,6 +462,13 @@ int event_accept(int fd) {
 		p->feconn++;  /* beconn will be increased later */
 		if (p->feconn > p->feconn_max)
 			p->feconn_max = p->feconn;
+
+		if (s->flags & SN_BE_ASSIGNED) {
+			s->be->cum_beconn++;
+			s->be->beconn++;
+			if (s->be->beconn > s->be->beconn_max)
+				s->be->beconn_max = s->be->beconn;
+		}
 		actconn++;
 		totalconn++;
 
