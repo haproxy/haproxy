@@ -539,9 +539,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			if (!strcmp(curproxy->id, args[1]) &&
 				(rc!=(PR_CAP_FE|PR_CAP_RS) || curproxy->cap!=(PR_CAP_BE|PR_CAP_RS)) &&
 				(rc!=(PR_CAP_BE|PR_CAP_RS) || curproxy->cap!=(PR_CAP_FE|PR_CAP_RS))) {
-				Alert("parsing %s: duplicated proxy %s with conflicting capabilities: %X/%X!\n",
-					file, args[1], curproxy->cap, rc);
-				return -1;
+				Warning("Parsing [%s:%d]: duplicated proxy '%s' with conflicting capabilities: %s/%s!\n",
+					file, linenum, args[1], proxy_type_str(curproxy), args[0]);
 			}
 		}
 
@@ -2534,21 +2533,14 @@ int readcfgfile(const char *file)
 		if (curproxy->defbe.name) {
 			struct proxy *target;
 
-			for (target = proxy; target != NULL; target = target->next) {
-				if ((target->cap & PR_CAP_BE) && !strcmp(target->id, curproxy->defbe.name))
-					break;
-			}
-			if (target == NULL) {
-				Alert("parsing %s: default proxy '%s' with backend capability in HTTP %s '%s' was not found!\n", 
-				      file, curproxy->defbe.name, proxy_type_str(curproxy), curproxy->id);
+			target = findproxy(curproxy->defbe.name, curproxy->mode, PR_CAP_BE);
+			if (!target) {
+				Alert("Proxy '%s': unable to find required default_backend: '%s'.\n",
+					curproxy->id, curproxy->defbe.name);
 				cfgerr++;
 			} else if (target == curproxy) {
-				Alert("parsing %s : loop detected for default backend %s !\n", file, curproxy->defbe.name);
-				cfgerr++;
-			} else if (target->mode != curproxy->mode) {
-				Alert("parsing %s : default backend '%s' in HTTP %s '%s' is not of same mode (tcp/http) !\n",
-				      file, curproxy->defbe.name, proxy_type_str(curproxy), curproxy->id);
-				cfgerr++;
+				Alert("Proxy '%s': loop detected for default_backend: '%s'.\n",
+					curproxy->id, curproxy->defbe.name);
 			} else {
 				free(curproxy->defbe.name);
 				curproxy->defbe.be = target;
@@ -2559,24 +2551,20 @@ int readcfgfile(const char *file)
 		if (curproxy->mode == PR_MODE_HTTP && curproxy->req_exp != NULL) {
 			/* map jump target for ACT_SETBE in req_rep chain */ 
 			struct hdr_exp *exp;
-			struct proxy *target;
 			for (exp = curproxy->req_exp; exp != NULL; exp = exp->next) {
+				struct proxy *target;
+
 				if (exp->action != ACT_SETBE)
 					continue;
-				for (target = proxy; target != NULL; target = target->next) {
-					if ((target->cap & PR_CAP_BE) && !strcmp(target->id, exp->replace))
-						break;
-				}
-				if (target == NULL) {
-					Alert("parsing %s: proxy '%s' with backend capability in HTTP %s '%s' was not found!\n", 
-					      file, exp->replace, proxy_type_str(curproxy), curproxy->id);
+
+				target = findproxy(exp->replace, PR_MODE_HTTP, PR_CAP_BE);
+				if (!target) {
+					Alert("Proxy '%s': unable to find required setbe: '%s'.\n",
+						curproxy->id, exp->replace);
 					cfgerr++;
 				} else if (target == curproxy) {
-					Alert("parsing %s : loop detected for backend %s !\n", file, exp->replace);
-					cfgerr++;
-				} else if (target->mode != PR_MODE_HTTP) {
-					Alert("parsing %s : backend '%s' in HTTP %s '%s' is not HTTP (use 'mode http') !\n",
-					      file, exp->replace, proxy_type_str(curproxy), curproxy->id);
+					Alert("Proxy '%s': loop detected for setbe: '%s'.\n",
+						curproxy->id, exp->replace);
 					cfgerr++;
 				} else {
 					free((void *)exp->replace);
@@ -2587,24 +2575,17 @@ int readcfgfile(const char *file)
 
 		/* find the target proxy for 'use_backend' rules */
 		list_for_each_entry(rule, &curproxy->switching_rules, list) {
-			/* map jump target for ACT_SETBE in req_rep chain */ 
 			struct proxy *target;
 
-			for (target = proxy; target != NULL; target = target->next) {
-				if ((target->cap & PR_CAP_BE) && !strcmp(target->id, rule->be.name))
-					break;
-			}
+			target = findproxy(rule->be.name, curproxy->mode, PR_CAP_BE);
 
-			if (target == NULL) {
-				Alert("parsing %s: proxy '%s' with backend capability in HTTP %s '%s' was not found!\n", 
-				      file, rule->be.name, proxy_type_str(curproxy), curproxy->id);
+			if (!target) {
+				Alert("Proxy '%s': unable to find required use_backend: '%s'.\n",
+					curproxy->id, rule->be.name);
 				cfgerr++;
 			} else if (target == curproxy) {
-				Alert("parsing %s : loop detected for backend %s !\n", file, rule->be.name);
-				cfgerr++;
-			} else if (target->mode != curproxy->mode) {
-				Alert("parsing %s : backend '%s' referenced in %s '%s' is of different mode !\n",
-				      file, rule->be.name, proxy_type_str(curproxy), curproxy->id);
+				Alert("Proxy '%s': loop detected for use_backend: '%s'.\n",
+					curproxy->id, rule->be.name);
 				cfgerr++;
 			} else {
 				free((void *)rule->be.name);

@@ -54,6 +54,57 @@ const char *proxy_type_str(struct proxy *proxy)
 		return "proxy";
 }
 
+/*
+ * This function returns a string containing the mode of the proxy in a format
+ * suitable for error messages.
+ */
+
+const char *proxy_mode_str(int mode) {
+
+	if (mode == PR_MODE_TCP)
+		return "tcp";
+	else if (mode == PR_MODE_HTTP)
+		return "http";
+	else if (mode == PR_MODE_HEALTH)
+		return "health";
+	else
+		return "unknown";
+}
+
+/*
+ * This function finds a proxy with matching name, mode and with satisfying
+ * capabilities. It also checks if there are more matching proxies with
+ * requested name as this often leads into unexpected situations.
+ */
+
+struct proxy *findproxy(const char *name, int mode, int cap) {
+
+	struct proxy *curproxy, *target=NULL;
+
+	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
+		if ((curproxy->cap & cap)!=cap || strcmp(curproxy->id, name))
+			continue;
+
+		if (curproxy->mode != mode) {
+			Alert("Unable to use proxy '%s' with wrong mode, required: %s, has: %s.\n", 
+				name, proxy_mode_str(mode), proxy_mode_str(curproxy->mode));
+			Alert("You may want to use 'mode %s'.\n", proxy_mode_str(mode));
+			return NULL;
+		}
+
+		if (!target) {
+			target = curproxy;
+			continue;
+		}
+
+		Alert("Refusing to use duplicated proxy '%s' with conflicting capabilities: %s/%s!\n",
+			name, proxy_type_str(curproxy), proxy_type_str(target));
+
+		return NULL;
+	}
+
+	return target;
+}
 
 /*
  * This function creates all proxy sockets. It should be done very early,
