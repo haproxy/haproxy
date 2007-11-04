@@ -1938,7 +1938,8 @@ int process_cli(struct session *t)
 		 * the fields will stay coherent and the URI will not move.
 		 * This should only be performed in the backend.
 		 */
-		if (!(txn->flags & (TX_CLDENY|TX_CLTARPIT)))
+		if ((t->be->cookie_name || t->be->appsession_name || t->be->capture_name)
+		    && !(txn->flags & (TX_CLDENY|TX_CLTARPIT)))
 			manage_client_side_cookies(t, req);
 
 
@@ -2964,14 +2965,16 @@ int process_srv(struct session *t)
 		/*
 		 * 4: check for server cookie.
 		 */
-		manage_server_side_cookies(t, rep);
+		if (t->be->cookie_name || t->be->appsession_name || t->be->capture_name
+		    || (t->be->options & PR_O_CHK_CACHE))
+			manage_server_side_cookies(t, rep);
 
 
 		/*
-		 * 5: check for cache-control or pragma headers.
+		 * 5: check for cache-control or pragma headers if required.
 		 */
-		check_response_for_cacheability(t, rep);
-
+		if ((t->be->options & (PR_O_COOK_NOC | PR_O_CHK_CACHE)) != 0)
+			check_response_for_cacheability(t, rep);
 
 		/*
 		 * 6: add server cookie in the response if needed
@@ -3696,7 +3699,8 @@ int apply_filters_to_request(struct session *t, struct buffer *req, struct hdr_e
 
 
 /*
- * Manager client-side cookie
+ * Manage client-side cookie. It can impact performance by about 2% so it is
+ * desirable to call it only when needed.
  */
 void manage_client_side_cookies(struct session *t, struct buffer *req)
 {
@@ -3710,11 +3714,6 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 
 	char *cur_ptr, *cur_end, *cur_next;
 	int cur_idx, old_idx;
-
-	if (t->be->cookie_name == NULL &&
-	    t->be->appsession_name == NULL &&
-	    t->be->capture_name == NULL)
-		return;
 
 	/* Iterate through the headers.
 	 * we start with the start line.
@@ -4261,7 +4260,8 @@ int apply_filters_to_response(struct session *t, struct buffer *rtr, struct hdr_
 
 
 /*
- * Manager server-side cookies
+ * Manage server-side cookies. It can impact performance by about 2% so it is
+ * desirable to call it only when needed.
  */
 void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 {
@@ -4273,12 +4273,6 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 
 	char *cur_ptr, *cur_end, *cur_next;
 	int cur_idx, old_idx, delta;
-
-	if (t->be->cookie_name == NULL &&
-	    t->be->appsession_name == NULL &&
-	    t->be->capture_name == NULL &&
-	    !(t->be->options & PR_O_CHK_CACHE))
-		return;
 
 	/* Iterate through the headers.
 	 * we start with the start line.
