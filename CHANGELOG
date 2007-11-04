@@ -1,6 +1,20 @@
 ChangeLog :
 ===========
 
+2007/11/04 : 1.3.13.1
+    - Check for duplicated conflicting proxies (Krzysztof Oledzki)
+    - adjust error messages about conflicting proxies
+    - use backends only with use_backend directive (Krzysztof Oledzki)
+    - Handle long lines properly (Krzysztof Oledzki)
+    - Implement and use generic findproxy and relax duplicated proxy check
+      (Krzysztof Oledzki)
+    - stats: update the width of the table to 22 columns
+    - silent warning about LIST_* being redefined on OpenBSD
+    - fix calls to localtime() (reported by Thierry Fournier)
+    - disable warning about localtime_r on Solaris
+    - fix error checking in strl2ic/strl2uic()
+    - make default_backend work in TCP mode too
+
 2007/10/18 : 1.3.13
     - replace the code under O'Reilly license (Arnaud Cornet)
     - add a small man page (Arnaud Cornet)
