@@ -115,8 +115,7 @@ int event_accept(int fd) {
 			Alert("out of memory in event_accept().\n");
 			EV_FD_CLR(fd, DIR_RD);
 			p->state = PR_STIDLE;
-			close(cfd);
-			return 0;
+			goto out_close;
 		}
 
 		/* if this session comes from a known monitoring system, we want to ignore
@@ -138,28 +137,20 @@ int event_accept(int fd) {
 			Alert("out of memory in event_accept().\n");
 			EV_FD_CLR(fd, DIR_RD);
 			p->state = PR_STIDLE;
-			close(cfd);
-			pool_free2(pool2_session, s);
-			return 0;
+			goto out_free_session;
 		}
 
 		s->cli_addr = addr;
 		if (cfd >= global.maxsock) {
 			Alert("accept(): not enough free sockets. Raise -n argument. Giving up.\n");
-			close(cfd);
-			pool_free2(pool2_task, t);
-			pool_free2(pool2_session, s);
-			return 0;
+			goto out_free_task;
 		}
 
 		if ((fcntl(cfd, F_SETFL, O_NONBLOCK) == -1) ||
 		    (setsockopt(cfd, IPPROTO_TCP, TCP_NODELAY,
 				(char *) &one, sizeof(one)) == -1)) {
 			Alert("accept(): cannot set the socket in non blocking mode. Giving up\n");
-			close(cfd);
-			pool_free2(pool2_task, t);
-			pool_free2(pool2_session, s);
-			return 0;
+			goto out_free_task;
 		}
 
 		if (p->options & PR_O_TCP_CLI_KA)
@@ -253,44 +244,26 @@ int event_accept(int fd) {
 			txn->auth_hdr.len = -1;
 
 			if (p->nb_req_cap > 0) {
-				if ((txn->req.cap = pool_alloc2(p->req_cap_pool)) == NULL) {
-					/* no memory */
-					close(cfd); /* nothing can be done for this fd without memory */
-					pool_free2(pool2_task, t);
-					pool_free2(pool2_session, s);
-					return 0;
-				}
+				if ((txn->req.cap = pool_alloc2(p->req_cap_pool)) == NULL)
+					goto out_fail_reqcap;	/* no memory */
+
 				memset(txn->req.cap, 0, p->nb_req_cap*sizeof(char *));
 			}
 
 
 			if (p->nb_rsp_cap > 0) {
-				if ((txn->rsp.cap = pool_alloc2(p->rsp_cap_pool)) == NULL) {
-					/* no memory */
-					if (txn->req.cap != NULL)
-						pool_free2(p->req_cap_pool, txn->req.cap);
-					close(cfd); /* nothing can be done for this fd without memory */
-					pool_free2(pool2_task, t);
-					pool_free2(pool2_session, s);
-					return 0;
-				}
+				if ((txn->rsp.cap = pool_alloc2(p->rsp_cap_pool)) == NULL)
+					goto out_fail_rspcap;	/* no memory */
+
 				memset(txn->rsp.cap, 0, p->nb_rsp_cap*sizeof(char *));
 			}
 
 
 			txn->hdr_idx.size = MAX_HTTP_HDR;
 
-			if ((txn->hdr_idx.v = pool_alloc2(p->hdr_idx_pool)) == NULL) {
-				/* no memory */
-				if (txn->rsp.cap != NULL)
-					pool_free2(p->rsp_cap_pool, txn->rsp.cap);
-				if (txn->req.cap != NULL)
-					pool_free2(p->req_cap_pool, txn->req.cap);
-				close(cfd); /* nothing can be done for this fd without memory */
-				pool_free2(pool2_task, t);
-				pool_free2(pool2_session, s);
-				return 0;
-			}
+			if ((txn->hdr_idx.v = pool_alloc2(p->hdr_idx_pool)) == NULL)
+				goto out_fail_idx; /* no memory */
+
 			hdr_idx_init(&txn->hdr_idx);
 		}
 
@@ -366,18 +339,8 @@ int event_accept(int fd) {
 			write(1, trash, len);
 		}
 
-		if ((s->req = pool_alloc2(pool2_buffer)) == NULL) { /* no memory */
-			if (txn->hdr_idx.v != NULL)
-				pool_free2(p->hdr_idx_pool, txn->hdr_idx.v);
-			if (txn->rsp.cap != NULL)
-				pool_free2(p->rsp_cap_pool, txn->rsp.cap);
-			if (txn->req.cap != NULL)
-				pool_free2(p->req_cap_pool, txn->req.cap);
-			close(cfd); /* nothing can be done for this fd without memory */
-			pool_free2(pool2_task, t);
-			pool_free2(pool2_session, s);
-			return 0;
-		}
+		if ((s->req = pool_alloc2(pool2_buffer)) == NULL)
+			goto out_fail_req; /* no memory */
 
 		buffer_init(s->req);
 		s->req->rlim += BUFSIZE;
@@ -388,19 +351,8 @@ int event_accept(int fd) {
 		s->req->wto = s->be->srvtimeout;
 		s->req->cto = s->be->contimeout;
 
-		if ((s->rep = pool_alloc2(pool2_buffer)) == NULL) { /* no memory */
-			pool_free2(pool2_buffer, s->req);
-			if (txn->hdr_idx.v != NULL)
-				pool_free2(p->hdr_idx_pool, txn->hdr_idx.v);
-			if (txn->rsp.cap != NULL)
-				pool_free2(p->rsp_cap_pool, txn->rsp.cap);
-			if (txn->req.cap != NULL)
-				pool_free2(p->req_cap_pool, txn->req.cap);
-			close(cfd); /* nothing can be done for this fd without memory */
-			pool_free2(pool2_task, t);
-			pool_free2(pool2_session, s);
-			return 0;
-		}
+		if ((s->rep = pool_alloc2(pool2_buffer)) == NULL)
+			goto out_fail_rep; /* no memory */
 
 		buffer_init(s->rep);
 
@@ -474,6 +426,28 @@ int event_accept(int fd) {
 
 		// fprintf(stderr, "accepting from %p => %d conn, %d total, task=%p\n", p, actconn, totalconn, t);
 	} /* end of while (p->feconn < p->maxconn) */
+	return 0;
+
+	/* Error unrolling */
+ out_fail_rep:
+	if (s->req)
+		pool_free2(pool2_buffer, s->req);
+ out_fail_req:
+	if (txn->hdr_idx.v != NULL)
+		pool_free2(p->hdr_idx_pool, txn->hdr_idx.v);
+ out_fail_idx:
+	if (txn->rsp.cap != NULL)
+		pool_free2(p->rsp_cap_pool, txn->rsp.cap);
+ out_fail_rspcap:
+	if (txn->req.cap != NULL)
+		pool_free2(p->req_cap_pool, txn->req.cap);
+ out_fail_reqcap:
+ out_free_task:
+	pool_free2(pool2_task, t);
+ out_free_session:
+	pool_free2(pool2_session, s);
+ out_close:
+	close(cfd);
 	return 0;
 }
 
