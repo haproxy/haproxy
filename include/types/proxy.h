@@ -150,6 +150,8 @@ struct proxy {
 	char *check_req;			/* HTTP or SSL request to use for PR_O_HTTP_CHK|PR_O_SSL3_CHK */
 	int check_len;				/* Length of the HTTP or SSL3 request */
 	struct chunk errmsg[HTTP_ERR_SIZE];	/* default or customized error messages for known errors */
+	int uuid;				/* universally unique proxy ID, used for SNMP */
+	int next_svid;				/* next server-id, used for SNMP */
 };
 
 struct switching_rule {
@@ -162,6 +164,7 @@ struct switching_rule {
 };
 
 extern struct proxy *proxy;
+extern int next_pxid;
 
 #endif /* _TYPES_PROXY_H */
 

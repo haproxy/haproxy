@@ -652,6 +652,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		curproxy->logsrv2 = defproxy.logsrv2;
 		curproxy->loglev2 = defproxy.loglev2;
 		curproxy->grace  = defproxy.grace;
+		curproxy->uuid = next_pxid++;   /* generate a uuid for this proxy */
+		curproxy->next_svid = 1;        /* server id 0 is reserved */
 
 		return 0;
 	}
@@ -1372,6 +1374,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		newsrv->next = curproxy->srv;
 		curproxy->srv = newsrv;
 		newsrv->proxy = curproxy;
+		newsrv->puid = curproxy->next_svid++;
 
 		LIST_INIT(&newsrv->pendconns);
 		do_check = 0;

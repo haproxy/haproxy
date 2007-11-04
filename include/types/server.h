@@ -97,6 +97,7 @@ struct server {
 
 	long long bytes_in;			/* number of bytes transferred from the client to the server */
 	long long bytes_out;			/* number of bytes transferred from the server to the client */
+	int puid;				/* proxy-unique server ID, used for SNMP */
 };
 
 

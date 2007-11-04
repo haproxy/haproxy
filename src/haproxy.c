@@ -110,6 +110,7 @@
 char *cfg_cfgfile = NULL;	/* configuration file */
 char *progname = NULL;		/* program name */
 int  pid;			/* current process id */
+int  relative_pid;		/* process id starting at 1 */
 
 /* global options */
 struct global global = {
@@ -1014,6 +1015,7 @@ int main(int argc, char **argv)
 				fprintf(pidfile, "%d\n", ret);
 				fflush(pidfile);
 			}
+			relative_pid++; /* each child will get a different one */
 		}
 		/* close the pidfile both in children and father */
 		if (pidfile != NULL)

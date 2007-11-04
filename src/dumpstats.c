@@ -374,6 +374,7 @@ int stats_dump_http(struct session *s, struct uri_auth *uri, int flags)
 			     "wretr,wredis,"
 			     "status,weight,act,bck,"
 			     "chkfail,chkdown,lastchg,downtime,qlimit,"
+			     "pid,iid,sid,"
 			     "\n");
 		}
 		if (buffer_write_chunk(rep, &msg) != 0)
@@ -659,6 +660,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     "%s,"
 				     /* rest of server: nothing */
 				     ",,,,,,,,"
+				     /* pid, iid, sid, */
+				     "%d,%d,0,"
 				     "\n",
 				     px->id,
 				     px->feconn, px->feconn_max, px->maxconn, px->cum_feconn,
@@ -666,7 +669,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     px->denied_req, px->denied_resp,
 				     px->failed_req,
 				     px->state == PR_STRUN ? "OPEN" :
-				     px->state == PR_STIDLE ? "FULL" : "STOP");
+				     px->state == PR_STIDLE ? "FULL" : "STOP",
+				     relative_pid, px->uuid);
 			}
 
 			if (buffer_write_chunk(rep, &msg) != 0)
@@ -787,7 +791,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     "",
 				     px->id, sv->id,
 				     sv->nbpend, sv->nbpend_max,
-				     sv->cur_sess, sv->cur_sess_max, sv->maxconn ? ultoa(sv->maxconn) : "-", sv->cum_sess,
+				     sv->cur_sess, sv->cur_sess_max, LIM2A0(sv->maxconn, ""), sv->cum_sess,
 				     sv->bytes_in, sv->bytes_out,
 				     sv->failed_secu,
 				     sv->failed_conns, sv->failed_resp,
@@ -817,10 +821,13 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 					chunk_printf(&msg, sizeof(trash),
 					     ",,,,");
 
-				/* queue limit and EOL */
+				/* queue limit, pid, iid, sid and EOL */
 				chunk_printf(&msg, sizeof(trash),
-				     "%s,\n",
-				     LIM2A0(sv->maxqueue, ""));
+				     "%s,"
+				     "%d,%d,%d,"
+				     "\n",
+				     LIM2A0(sv->maxqueue, ""),
+				     relative_pid, px->uuid, sv->puid);
 			}
 			if (buffer_write_chunk(rep, &msg) != 0)
 				return 0;
@@ -910,6 +917,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     /* rest of backend: nothing, down transformations,
 				      * last change, total downtime. */
 				     ",%d,%d,%d,,"
+				     /* pid, iid, sid, */
+				     "%d,%d,0,"
 				     "\n",
 				     px->id,
 				     px->nbpend /* or px->totpend ? */, px->nbpend_max,
@@ -921,7 +930,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     (px->srv_map_sz > 0 || !px->srv) ? "UP" : "DOWN",
 				     px->srv_map_sz * gcd, px->srv_act, px->srv_bck,
 				     px->down_trans, now.tv_sec - px->last_change,
-				     px->srv?be_downtime(px):0);
+					     px->srv?be_downtime(px):0,
+				     relative_pid, px->uuid);
 			}
 			if (buffer_write_chunk(rep, &msg) != 0)
 				return 0;

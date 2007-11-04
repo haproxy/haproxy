@@ -37,6 +37,7 @@
 
 int listeners;	/* # of proxy listeners, set by cfgparse, unset by maintain_proxies */
 struct proxy *proxy  = NULL;	/* list of all existing proxies */
+int next_pxid = 1;		/* UUID assigned to next new proxy, 0 reserved */
 
 /*
  * This function returns a string containing a name describing capabilities to
