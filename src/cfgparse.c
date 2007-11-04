@@ -539,8 +539,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			if (!strcmp(curproxy->id, args[1]) &&
 				(rc!=(PR_CAP_FE|PR_CAP_RS) || curproxy->cap!=(PR_CAP_BE|PR_CAP_RS)) &&
 				(rc!=(PR_CAP_BE|PR_CAP_RS) || curproxy->cap!=(PR_CAP_FE|PR_CAP_RS))) {
-				Warning("Parsing [%s:%d]: duplicated proxy '%s' with conflicting capabilities: %s/%s!\n",
-					file, linenum, args[1], proxy_type_str(curproxy), args[0]);
+				Warning("Parsing [%s:%d]: %s '%s' has same name as another %s.\n",
+					file, linenum, proxy_cap_str(rc), args[1], proxy_type_str(curproxy));
 			}
 		}
 

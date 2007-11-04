@@ -33,9 +33,18 @@ void pause_proxy(struct proxy *p);
 void pause_proxies(void);
 void listen_proxies(void);
 
-const char *proxy_type_str(struct proxy *proxy);
+const char *proxy_cap_str(int cap);
 const char *proxy_mode_str(int mode);
 struct proxy *findproxy(const char *name, int mode, int cap);
+
+/*
+ * This function returns a string containing the type of the proxy in a format
+ * suitable for error messages, from its capabilities.
+ */
+static inline const char *proxy_type_str(struct proxy *proxy)
+{
+	return proxy_cap_str(proxy->cap);
+}
 
 #endif /* _PROTO_PROXY_H */
 

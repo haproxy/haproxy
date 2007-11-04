@@ -37,29 +37,28 @@ int listeners;	/* # of listeners */
 struct proxy *proxy  = NULL;	/* list of all existing proxies */
 
 /*
- * This function returns a string containing the type of the proxy in a format
- * suitable for error messages, from its capabilities.
+ * This function returns a string containing a name describing capabilities to
+ * report comprehensible error messages. Specifically, it will return the words
+ * "frontend", "backend", "ruleset" when appropriate, or "proxy" for all other
+ * cases including the proxies declared in "listen" mode.
  */
-const char *proxy_type_str(struct proxy *proxy)
+const char *proxy_cap_str(int cap)
 {
-	int cap = proxy->cap;
-	if ((cap & PR_CAP_LISTEN) == PR_CAP_LISTEN)
-		return "listener";
-	else if (cap & PR_CAP_FE)
-		return "frontend";
-	else if (cap & PR_CAP_BE)
-		return "backend";
-	else if (cap & PR_CAP_RS)
-		return "ruleset";
-	else
-		return "proxy";
+	if ((cap & PR_CAP_LISTEN) != PR_CAP_LISTEN) {
+		if (cap & PR_CAP_FE)
+			return "frontend";
+		else if (cap & PR_CAP_BE)
+			return "backend";
+		else if (cap & PR_CAP_RS)
+			return "ruleset";
+	}
+	return "proxy";
 }
 
 /*
  * This function returns a string containing the mode of the proxy in a format
  * suitable for error messages.
  */
-
 const char *proxy_mode_str(int mode) {
 
 	if (mode == PR_MODE_TCP)
@@ -98,7 +97,7 @@ struct proxy *findproxy(const char *name, int mode, int cap) {
 			continue;
 		}
 
-		Alert("Refusing to use duplicated proxy '%s' with conflicting capabilities: %s/%s!\n",
+		Alert("Refusing to use duplicated proxy '%s' with overlapping capabilities: %s/%s!\n",
 			name, proxy_type_str(curproxy), proxy_type_str(target));
 
 		return NULL;
