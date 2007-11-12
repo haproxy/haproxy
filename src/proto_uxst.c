@@ -796,7 +796,7 @@ static int process_uxst_srv(struct session *t)
 					if (t->srv)
 						t->srv->failed_conns++;
 					if (t->fe)
-						t->fe->failed_conns++;
+						t->be->failed_conns++;
 					return 1;
 				}
 			}
