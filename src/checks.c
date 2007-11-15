@@ -63,7 +63,7 @@ static void set_server_down(struct server *s)
 		s->state &= ~SRV_RUNNING;
 
 		recount_servers(s->proxy);
-		s->proxy->map_state |= PR_MAP_RECALC;
+		s->proxy->lbprm.map.state |= PR_MAP_RECALC;
 
 		/* we might have sessions queued on this server and waiting for
 		 * a connection. Those which are redispatchable will be queued
@@ -479,7 +479,7 @@ void process_chk(struct task *t, struct timeval *next)
 					}
 
 					recount_servers(s->proxy);
-					s->proxy->map_state |= PR_MAP_RECALC;
+					s->proxy->lbprm.map.state |= PR_MAP_RECALC;
 
 					/* check if we can handle some connections queued at the proxy. We
 					 * will take as many as we can handle.

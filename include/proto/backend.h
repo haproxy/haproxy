@@ -46,7 +46,7 @@ int be_downtime(struct proxy *px);
 /*
  * This function tries to find a running server with free connection slots for
  * the proxy <px> following the round-robin method.
- * If any server is found, it will be returned and px->srv_rr_idx will be updated
+ * If any server is found, it will be returned and px->lbprm.map.rr_idx will be updated
  * to point to the next server. If no valid server is found, NULL is returned.
  */
 static inline struct server *get_server_rr_with_conns(struct proxy *px)
@@ -54,25 +54,25 @@ static inline struct server *get_server_rr_with_conns(struct proxy *px)
 	int newidx;
 	struct server *srv;
 
-	if (px->map_state & PR_MAP_RECALC)
-		recalc_server_map(px);
-
-	if (px->srv_map_sz == 0)
+	if (px->lbprm.tot_weight == 0)
 		return NULL;
 
-	if (px->srv_rr_idx < 0 || px->srv_rr_idx >= px->srv_map_sz)
-		px->srv_rr_idx = 0;
-	newidx = px->srv_rr_idx;
+	if (px->lbprm.map.state & PR_MAP_RECALC)
+		recalc_server_map(px);
+
+	if (px->lbprm.map.rr_idx < 0 || px->lbprm.map.rr_idx >= px->lbprm.tot_weight)
+		px->lbprm.map.rr_idx = 0;
+	newidx = px->lbprm.map.rr_idx;
 
 	do {
-		srv = px->srv_map[newidx++];
+		srv = px->lbprm.map.srv[newidx++];
 		if (!srv->maxconn || srv->cur_sess < srv_dynamic_maxconn(srv)) {
-			px->srv_rr_idx = newidx;
+			px->lbprm.map.rr_idx = newidx;
 			return srv;
 		}
-		if (newidx == px->srv_map_sz)
+		if (newidx == px->lbprm.tot_weight)
 			newidx = 0;
-	} while (newidx != px->srv_rr_idx);
+	} while (newidx != px->lbprm.map.rr_idx);
 
 	return NULL;
 }
@@ -81,20 +81,20 @@ static inline struct server *get_server_rr_with_conns(struct proxy *px)
 /*
  * This function tries to find a running server for the proxy <px> following
  * the round-robin method.
- * If any server is found, it will be returned and px->srv_rr_idx will be updated
+ * If any server is found, it will be returned and px->lbprm.map.rr_idx will be updated
  * to point to the next server. If no valid server is found, NULL is returned.
  */
 static inline struct server *get_server_rr(struct proxy *px)
 {
-	if (px->map_state & PR_MAP_RECALC)
-		recalc_server_map(px);
-
-	if (px->srv_map_sz == 0)
+	if (px->lbprm.tot_weight == 0)
 		return NULL;
 
-	if (px->srv_rr_idx < 0 || px->srv_rr_idx >= px->srv_map_sz)
-		px->srv_rr_idx = 0;
-	return px->srv_map[px->srv_rr_idx++];
+	if (px->lbprm.map.state & PR_MAP_RECALC)
+		recalc_server_map(px);
+
+	if (px->lbprm.map.rr_idx < 0 || px->lbprm.map.rr_idx >= px->lbprm.tot_weight)
+		px->lbprm.map.rr_idx = 0;
+	return px->lbprm.map.srv[px->lbprm.map.rr_idx++];
 }
 
 
@@ -110,11 +110,11 @@ static inline struct server *get_server_sh(struct proxy *px,
 {
 	unsigned int h, l;
 
-	if (px->map_state & PR_MAP_RECALC)
-		recalc_server_map(px);
-
-	if (px->srv_map_sz == 0)
+	if (px->lbprm.tot_weight == 0)
 		return NULL;
+
+	if (px->lbprm.map.state & PR_MAP_RECALC)
+		recalc_server_map(px);
 
 	l = h = 0;
 	if (px->srv_act > 1 || (px->srv_act == 0 && px->srv_bck > 1)) {
@@ -122,9 +122,9 @@ static inline struct server *get_server_sh(struct proxy *px,
 			h ^= ntohl(*(unsigned int *)(&addr[l]));
 			l += sizeof (int);
 		}
-		h %= px->srv_map_sz;
+		h %= px->lbprm.tot_weight;
 	}
-	return px->srv_map[h];
+	return px->lbprm.map.srv[h];
 }
 
 /* 
@@ -144,11 +144,11 @@ static inline struct server *get_server_uh(struct proxy *px, char *uri, int uri_
 	unsigned long hash = 0;
 	int c;
 
-	if (px->map_state & PR_MAP_RECALC)
-		recalc_server_map(px);
-
-	if (px->srv_map_sz == 0)
+	if (px->lbprm.tot_weight == 0)
 		return NULL;
+
+	if (px->lbprm.map.state & PR_MAP_RECALC)
+		recalc_server_map(px);
 
 	while (uri_len--) {
 		c = *uri++;
@@ -157,7 +157,7 @@ static inline struct server *get_server_uh(struct proxy *px, char *uri, int uri_
 		hash = c + (hash << 6) + (hash << 16) - hash;
 	}
 
-	return px->srv_map[hash % px->srv_map_sz];
+	return px->lbprm.map.srv[hash % px->lbprm.tot_weight];
 }
 
 

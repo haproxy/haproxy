@@ -842,18 +842,6 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 	case DATA_ST_PX_BE:
 		/* print the backend */
 		if (px->cap & PR_CAP_BE) {
-			int gcd = 1;
-
-			if (px->map_state & PR_MAP_RECALC)
-				recalc_server_map(px);
-
-			/* The GCD which was computed causes the total effective
-			 * weight to appear lower than all weights. Let's
-			 * recompute it.
-			 */
-			if (px->srv && px->srv->eweight)
-				gcd = px->srv->uweight / px->srv->eweight;
-
 			if (flags & STAT_FMT_HTML) {
 				chunk_printf(&msg, sizeof(trash),
 				     /* name */
@@ -883,8 +871,9 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     px->failed_conns, px->failed_resp,
 				     px->retries, px->redispatches,
 				     human_time(now.tv_sec - px->last_change, 1),
-				     (px->srv_map_sz > 0 || !px->srv) ? "UP" : "DOWN",
-				     px->srv_map_sz * gcd, px->srv_act, px->srv_bck);
+				     (px->lbprm.tot_weight > 0 || !px->srv) ? "UP" : "DOWN",
+				     px->lbprm.tot_weight * px->lbprm.wmult,
+				     px->srv_act, px->srv_bck);
 
 				chunk_printf(&msg, sizeof(trash),
 				     /* rest of backend: nothing, down transformations, total downtime */
@@ -928,10 +917,11 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     px->denied_req, px->denied_resp,
 				     px->failed_conns, px->failed_resp,
 				     px->retries, px->redispatches,
-				     (px->srv_map_sz > 0 || !px->srv) ? "UP" : "DOWN",
-				     px->srv_map_sz * gcd, px->srv_act, px->srv_bck,
+				     (px->lbprm.tot_weight > 0 || !px->srv) ? "UP" : "DOWN",
+				     px->lbprm.tot_weight * px->lbprm.wmult,
+				     px->srv_act, px->srv_bck,
 				     px->down_trans, now.tv_sec - px->last_change,
-					     px->srv?be_downtime(px):0,
+				     px->srv?be_downtime(px):0,
 				     relative_pid, px->uuid);
 			}
 			if (buffer_write_chunk(rep, &msg) != 0)

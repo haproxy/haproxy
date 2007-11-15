@@ -54,50 +54,77 @@
 void recount_servers(struct proxy *px)
 {
 	struct server *srv;
+	int first_bkw = 0;
 
-	px->srv_act = 0; px->srv_bck = px->tot_wact = px->tot_wbck = 0;
+	px->srv_act = px->srv_bck = 0;
+	px->lbprm.tot_wact = px->lbprm.tot_wbck = 0;
 	for (srv = px->srv; srv != NULL; srv = srv->next) {
 		if (srv->state & SRV_RUNNING) {
 			if (srv->state & SRV_BACKUP) {
 				px->srv_bck++;
-				px->tot_wbck += srv->eweight;
+				px->lbprm.tot_wbck += srv->eweight;
+				if (px->srv_bck == 1)
+					first_bkw = srv->eweight;
 			} else {
 				px->srv_act++;
-				px->tot_wact += srv->eweight;
+				px->lbprm.tot_wact += srv->eweight;
 			}
 		}
 	}
+
+	if (px->srv_act) {
+		px->lbprm.tot_weight = px->lbprm.tot_wact;
+		px->lbprm.tot_used   = px->srv_act;
+	}
+	else if (px->srv_bck) {
+		if (px->options & PR_O_USE_ALL_BK) {
+			px->lbprm.tot_weight = px->lbprm.tot_wbck;
+			px->lbprm.tot_used   = px->srv_bck;
+		}
+		else {	/* the first backup server is enough */
+			px->lbprm.tot_weight = first_bkw;
+			px->lbprm.tot_used = 1;
+		}
+	}
+	else {
+		px->lbprm.tot_weight = 0;
+		px->lbprm.tot_used = 0;
+	}
+
 }
 
-/* This function recomputes the server map for proxy px. It
- * relies on px->tot_wact and px->tot_wbck, so it must be
- * called after recount_servers(). It also expects px->srv_map
- * to be initialized to the largest value needed.
+/* This function recomputes the server map for proxy px. It relies on
+ * px->lbprm.tot_wact, tot_wbck, tot_used, tot_weight, so it must be
+ * called after recount_servers(). It also expects px->lbprm.map.srv
+ * to be allocated with the largest size needed. It updates tot_weight.
  */
 void recalc_server_map(struct proxy *px)
 {
 	int o, tot, flag;
 	struct server *cur, *best;
 
-	if (px->srv_act) {
-		flag = SRV_RUNNING;
-		tot  = px->tot_wact;
-	} else if (px->srv_bck) {
-		flag = SRV_RUNNING | SRV_BACKUP;
-		if (px->options & PR_O_USE_ALL_BK)
-			tot = px->tot_wbck;
-		else
-			tot = 1; /* the first server is enough */
-	} else {
-		px->srv_map_sz = 0;
-		px->map_state &= ~PR_MAP_RECALC;
+	switch (px->lbprm.tot_used) {
+	case 0:	/* no server */
+		px->lbprm.map.state &= ~PR_MAP_RECALC;
 		return;
+	case 1: /* only one server, just fill first entry */
+		tot = 1;
+		break;
+	default:
+		tot = px->lbprm.tot_weight;
+		break;
 	}
+
+	/* here we *know* that we have some servers */
+	if (px->srv_act)
+		flag = SRV_RUNNING;
+	else
+		flag = SRV_RUNNING | SRV_BACKUP;
 
 	/* this algorithm gives priority to the first server, which means that
 	 * it will respect the declaration order for equivalent weights, and
 	 * that whatever the weights, the first server called will always be
-	 * the first declard. This is an important asumption for the backup
+	 * the first declared. This is an important asumption for the backup
 	 * case, where we want the first server only.
 	 */
 	for (cur = px->srv; cur; cur = cur->next)
@@ -116,6 +143,7 @@ void recalc_server_map(struct proxy *px)
 				 */
 				if (tot == 1) {
 					best = cur;
+					/* note that best->wscore will be wrong but we don't care */
 					break;
 				}
 
@@ -127,11 +155,10 @@ void recalc_server_map(struct proxy *px)
 				}
 			}
 		}
-		px->srv_map[o] = best;
+		px->lbprm.map.srv[o] = best;
 		best->wscore -= tot;
 	}
-	px->srv_map_sz = tot;
-	px->map_state &= ~PR_MAP_RECALC;
+	px->lbprm.map.state &= ~PR_MAP_RECALC;
 }
 
 /* 
@@ -150,11 +177,11 @@ struct server *get_server_ph(struct proxy *px, const char *uri, int uri_len)
 	char *p;
 	int plen;
 
-	if (px->map_state & PR_MAP_RECALC)
-		recalc_server_map(px);
-
-	if (px->srv_map_sz == 0)
+	if (px->lbprm.tot_weight == 0)
 		return NULL;
+
+	if (px->lbprm.map.state & PR_MAP_RECALC)
+		recalc_server_map(px);
 
 	p = memchr(uri, '?', uri_len);
 	if (!p)
@@ -183,7 +210,7 @@ struct server *get_server_ph(struct proxy *px, const char *uri, int uri_len)
 					uri_len--;
 					p++;
 				}
-				return px->srv_map[hash % px->srv_map_sz];
+				return px->lbprm.map.srv[hash % px->lbprm.tot_weight];
 			}
 		}
 

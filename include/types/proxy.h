@@ -54,7 +54,7 @@
 #define PR_MODE_HTTP    1
 #define PR_MODE_HEALTH  2
 
-/* values for proxy->map_state */
+/* values for proxy->lbprm.map.state */
 #define PR_MAP_RECALC  (1 << 0)
 
 /* flag values for proxy->cap. This is a bitmask of capabilities supported by the proxy */
@@ -78,13 +78,21 @@ struct proxy {
 	struct list acl;                        /* ACL declared on this proxy */
 	struct list block_cond;                 /* early blocking conditions (chained) */
 	struct list switching_rules;            /* content switching rules (chained) */
-	int map_state;				/* PR_MAP_RECALC */
 	struct server *srv;			/* known servers */
 	int srv_act, srv_bck;			/* # of running servers */
-	int tot_wact, tot_wbck;			/* total weights of active and backup servers */
-	struct server **srv_map;		/* the server map used to apply weights */
-	int srv_map_sz;				/* the size of the effective server map */
-	int srv_rr_idx;				/* next server to be elected in round robin mode */
+
+	struct {
+		int tot_wact, tot_wbck;		/* total effective weights of active and backup servers */
+		int tot_weight;			/* total effective weight of servers participating to LB */
+		int tot_used;			/* total number of servers used for LB */
+		int wmult;			/* ratio between user weight and effective weight */
+		struct {
+			struct server **srv;	/* the server map used to apply weights */
+			int rr_idx;		/* next server to be elected in round robin mode */
+			int state;		/* PR_MAP_RECALC */
+		} map;				/* LB parameters for map-based algorithms */
+	} lbprm;				/* LB parameters for all algorithms */
+
 	char *cookie_name;			/* name of the cookie to look for */
 	int  cookie_len;			/* strlen(cookie_name), computed only once */
 	char *url_param_name;			/* name of the URL parameter used for hashing */

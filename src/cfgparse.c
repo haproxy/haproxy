@@ -2652,6 +2652,8 @@ int readcfgfile(const char *file)
 			curproxy->srv = next;
 		}
 
+		curproxy->lbprm.wmult = 1; /* default weight multiplier */
+
 		/* now, newsrv == curproxy->srv */
 		if (newsrv) {
 			struct server *srv;
@@ -2673,6 +2675,12 @@ int readcfgfile(const char *file)
 				}
 			}
 
+			/* It is sometimes useful to know what factor to apply
+			 * to the backend's effective weight to know its real
+			 * weight.
+			 */
+			curproxy->lbprm.wmult = pgcd;
+
 			act = bck = 0;
 			for (srv = newsrv; srv; srv = srv->next) {
 				srv->eweight = srv->uweight / pgcd;
@@ -2686,9 +2694,9 @@ int readcfgfile(const char *file)
 			if (act < bck)
 				act = bck;
 
-			curproxy->srv_map = (struct server **)calloc(act, sizeof(struct server *));
+			curproxy->lbprm.map.srv = (struct server **)calloc(act, sizeof(struct server *));
 			/* recounts servers and their weights */
-			curproxy->map_state = PR_MAP_RECALC;
+			curproxy->lbprm.map.state = PR_MAP_RECALC;
 			recount_servers(curproxy);
 			recalc_server_map(curproxy);
 		}
