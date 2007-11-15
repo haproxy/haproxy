@@ -1,0 +1,14 @@
+Version 3.0 of ebtree has been imported in haproxy 1.3.14. The files have
+been split into two directories :
+  - src/eb*.c
+  - include/common/eb*.h
+
+The .c files had their #include changed to find the include files in the
+common subdirectory. Changes have been committed right after the merge
+without the files being used. They are known to build without warnings
+on Linux at this stage.
+
+Also, some optimizations are not redefined if already known: REGPRM*
+and likely/unlikely which are used in ebtree are also used and defined
+in haproxy. Thus, we just conditionally define them.
+
