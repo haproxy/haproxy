@@ -12,3 +12,5 @@ Also, some optimizations are not redefined if already known: REGPRM*
 and likely/unlikely which are used in ebtree are also used and defined
 in haproxy. Thus, we just conditionally define them.
 
+Last, all eb*tree*.h have been adapted to support being included multiple
+times, using #ifndef/#define/#endif.

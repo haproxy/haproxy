@@ -246,6 +246,8 @@
 
  */
 
+#ifndef _COMMON_EBTREE_H
+#define _COMMON_EBTREE_H
 
 #include <stdlib.h>
 
@@ -716,6 +718,7 @@ static inline void __eb_delete(struct eb_node *node)
 void eb_delete(struct eb_node *node);
 REGPRM1 struct eb_node *eb_insert_dup(struct eb_node *sub, struct eb_node *new);
 
+#endif /* _COMMON_EBTREE_H */
 
 /*
  * Local variables:
