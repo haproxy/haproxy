@@ -42,6 +42,7 @@ int backend_parse_balance(const char **args, char *err,
 void recount_servers(struct proxy *px);
 void recalc_server_map(struct proxy *px);
 int be_downtime(struct proxy *px);
+void init_server_map(struct proxy *p);
 
 /*
  * This function tries to find a running server with free connection slots for

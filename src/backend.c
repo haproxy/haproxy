@@ -161,6 +161,59 @@ void recalc_server_map(struct proxy *px)
 	px->lbprm.map.state &= ~PR_MAP_RECALC;
 }
 
+/* This function is responsible of building the server MAP for map-based LB
+ * algorithms, allocating the map, and setting p->lbprm.wmult to the GCD of the
+ * weights if applicable. It should be called only once per proxy, at config
+ * time.
+ */
+void init_server_map(struct proxy *p)
+{
+	struct server *srv;
+	int pgcd;
+	int act, bck;
+
+	if (!p->srv)
+		return;
+
+	/* We will factor the weights to reduce the table,
+	 * using Euclide's largest common divisor algorithm
+	 */
+	pgcd = p->srv->uweight;
+	for (srv = p->srv->next; srv && pgcd > 1; srv = srv->next) {
+		int w = srv->uweight;
+		while (w) {
+			int t = pgcd % w;
+			pgcd = w;
+			w = t;
+		}
+	}
+
+	/* It is sometimes useful to know what factor to apply
+	 * to the backend's effective weight to know its real
+	 * weight.
+	 */
+	p->lbprm.wmult = pgcd;
+
+	act = bck = 0;
+	for (srv = p->srv; srv; srv = srv->next) {
+		srv->eweight = srv->uweight / pgcd;
+		if (srv->state & SRV_BACKUP)
+			bck += srv->eweight;
+		else
+			act += srv->eweight;
+	}
+
+	/* this is the largest map we will ever need for this servers list */
+	if (act < bck)
+		act = bck;
+
+	p->lbprm.map.srv = (struct server **)calloc(act, sizeof(struct server *));
+	/* recounts servers and their weights */
+	p->lbprm.map.state = PR_MAP_RECALC;
+	recount_servers(p);
+	recalc_server_map(p);
+}
+
 /* 
  * This function tries to find a running server for the proxy <px> following
  * the URL parameter hash method. It looks for a specific parameter in the

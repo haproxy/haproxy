@@ -86,6 +86,7 @@ struct proxy {
 		int tot_weight;			/* total effective weight of servers participating to LB */
 		int tot_used;			/* total number of servers used for LB */
 		int wmult;			/* ratio between user weight and effective weight */
+		int wdiv;			/* ratio between effective weight and user weight */
 		struct {
 			struct server **srv;	/* the server map used to apply weights */
 			int rr_idx;		/* next server to be elected in round robin mode */

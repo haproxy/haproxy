@@ -2653,53 +2653,9 @@ int readcfgfile(const char *file)
 		}
 
 		curproxy->lbprm.wmult = 1; /* default weight multiplier */
+		curproxy->lbprm.wdiv  = 1; /* default weight divider */
 
-		/* now, newsrv == curproxy->srv */
-		if (newsrv) {
-			struct server *srv;
-			int pgcd;
-			int act, bck;
-
-			/* We will factor the weights to reduce the table,
-			 * using Euclide's largest common divisor algorithm
-			 */
-			pgcd = newsrv->uweight;
-			for (srv = newsrv->next; srv && pgcd > 1; srv = srv->next) {
-				int t, w;
-		
-				w = srv->uweight;
-				while (w) {
-					t = pgcd % w;
-					pgcd = w;
-					w = t;
-				}
-			}
-
-			/* It is sometimes useful to know what factor to apply
-			 * to the backend's effective weight to know its real
-			 * weight.
-			 */
-			curproxy->lbprm.wmult = pgcd;
-
-			act = bck = 0;
-			for (srv = newsrv; srv; srv = srv->next) {
-				srv->eweight = srv->uweight / pgcd;
-				if (srv->state & SRV_BACKUP)
-					bck += srv->eweight;
-				else
-					act += srv->eweight;
-			}
-
-			/* this is the largest map we will ever need for this servers list */
-			if (act < bck)
-				act = bck;
-
-			curproxy->lbprm.map.srv = (struct server **)calloc(act, sizeof(struct server *));
-			/* recounts servers and their weights */
-			curproxy->lbprm.map.state = PR_MAP_RECALC;
-			recount_servers(curproxy);
-			recalc_server_map(curproxy);
-		}
+		init_server_map(curproxy);
 
 		if (curproxy->options & PR_O_LOGASAP)
 			curproxy->to_log &= ~LW_BYTES;
