@@ -250,6 +250,7 @@
 #define _COMMON_EBTREE_H
 
 #include <stdlib.h>
+#include <common/config.h>
 
 /* Note: we never need to run fls on null keys, so we can optimize the fls
  * function by removing a conditional jump.
