@@ -57,6 +57,7 @@
 #define	PR_O_TPXY_CIP	0x04000000	/* bind to the client's IP address when connect()ing */
 #define	PR_O_TPXY_CLI	0x06000000	/* bind to the client's IP+port when connect()ing */
 #define	PR_O_TPXY_MASK	0x06000000	/* bind to a non-local address when connect()ing */
+
 #define	PR_O_TCPSPLICE	0x08000000      /* delegate data transfer to linux kernel's tcp_splice */
 
 /* BALANCE: exclusive values */
@@ -68,6 +69,7 @@
 #define PR_O_BALANCE_L7 0x40000000      /* mask to match layer7-based algorithms */
 #define PR_O_BALANCE    0x70000000      /* mask to extract BALANCE algorithm */
 
+#define PR_O_CONTSTATS	0x80000000	/* continous counters */
 
 #endif /* _TYPES_BACKEND_H */
 

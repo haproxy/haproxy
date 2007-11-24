@@ -102,6 +102,38 @@ int init_session()
 	return pool2_session != NULL;
 }
 
+void session_process_counters(struct session *s) {
+
+	unsigned long long bytes;
+
+	if (s->req && s->req->total != s->logs.bytes_in) {
+		bytes = s->req->total - s->logs.bytes_in;
+
+		s->fe->bytes_in		+= bytes;
+
+		if (s->be != s->fe)
+			s->be->bytes_in += bytes;
+
+		if (s->srv)
+			s->srv->bytes_in += bytes;
+
+		s->logs.bytes_in = s->req->total;
+	}
+
+	if (s->rep && s->rep->total != s->logs.bytes_out) {
+		bytes = s->rep->total - s->logs.bytes_out;
+
+		s->fe->bytes_out	+= bytes;
+
+		if (s->be != s->fe)
+			s->be->bytes_out += bytes;
+
+		if (s->srv)
+			s->srv->bytes_out += bytes;
+
+		s->logs.bytes_out = s->rep->total;
+	}
+}
 
 /*
  * Local variables:

@@ -266,6 +266,7 @@ option abortonclose         X          -         X         X
 option allbackups           X          -         X         X
 option checkcache           X          -         X         X
 option clitcpka             X          X         X         -
+option contstats            X          X         X         -
 option dontlognull          X          X         X         -
 option forceclose           X          -         X         X
 option forwardfor           X          X         X         X
@@ -323,6 +324,15 @@ use_backend                 -          X         X         -
 usesrc                      X          -         X         X
 ----------------------+----------+----------+---------+---------
 keyword                 defaults   frontend   listen    backend
+
+option contstats
+  By default, counters used for statistics calculation are incremented
+  only when a session finishes. It works quite well when serving small
+  objects, but with big ones (for example large images or archives) or
+  with A/V streaming, a graph generated from haproxy counters looks like
+  a hedgehog. With this option enabled counters get incremented continuously,
+  during a whole session. Recounting touches a hotpath directly so
+  it is not enabled by default, as it has small performance impact (~0.5%).
 
 
 2.1) using ACLs

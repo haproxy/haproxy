@@ -98,6 +98,7 @@ static const struct {
 	{ "httpclose",    PR_O_HTTP_CLOSE, PR_CAP_FE | PR_CAP_BE, 0 },
 	{ "nolinger",     PR_O_TCP_NOLING, PR_CAP_FE | PR_CAP_BE, 0 },
 	{ "logasap",      PR_O_LOGASAP,    PR_CAP_FE, 0 },
+	{ "contstats",    PR_O_CONTSTATS,  PR_CAP_FE, 0 },
 	{ "abortonclose", PR_O_ABRT_CLOSE, PR_CAP_BE, 0 },
 	{ "checkcache",   PR_O_CHK_CACHE,  PR_CAP_BE, 0 },
 	{ "dontlognull",  PR_O_NULLNOLOG,  PR_CAP_FE, 0 },

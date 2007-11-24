@@ -1300,6 +1300,10 @@ void process_uxst_session(struct task *t, struct timeval *next)
 	} while (fsm_resync);
 
 	if (likely(s->cli_state != CL_STCLOSE || s->srv_state != SV_STCLOSE)) {
+
+		if ((s->fe->options & PR_O_CONTSTATS) && (s->flags & SN_BE_ASSIGNED))
+			session_process_counters(s);
+
 		s->req->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE;
 		s->rep->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE;
 
@@ -1332,23 +1336,7 @@ void process_uxst_session(struct task *t, struct timeval *next)
 	}
 
 	s->logs.t_close = tv_ms_elapsed(&s->logs.tv_accept, &now);
-	if (s->req != NULL)
-		s->logs.bytes_in = s->req->total;
-	if (s->rep != NULL)
-		s->logs.bytes_out = s->rep->total;
-
-	if (s->fe) {
-		s->fe->bytes_in  += s->logs.bytes_in;
-		s->fe->bytes_out += s->logs.bytes_out;
-	}
-	if (s->be && (s->be != s->fe)) {
-		s->be->bytes_in  += s->logs.bytes_in;
-		s->be->bytes_out += s->logs.bytes_out;
-	}
-	if (s->srv) {
-		s->srv->bytes_in  += s->logs.bytes_in;
-		s->srv->bytes_out += s->logs.bytes_out;
-	}
+	session_process_counters(s);
 
 	/* let's do a final log if we need it */
 	if (s->logs.logwait && 

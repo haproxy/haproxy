@@ -33,6 +33,8 @@ void session_free(struct session *s);
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_session();
 
+void session_process_counters(struct session *s);
+
 #endif /* _PROTO_SESSION_H */
 
 /*
