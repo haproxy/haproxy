@@ -4475,7 +4475,7 @@ void check_response_for_cacheability(struct session *t, struct buffer *rtr)
 	char *cur_ptr, *cur_end, *cur_next;
 	int cur_idx;
 
-	if (!txn->flags & TX_CACHEABLE)
+	if (!(txn->flags & TX_CACHEABLE))
 		return;
 
 	/* Iterate through the headers.
