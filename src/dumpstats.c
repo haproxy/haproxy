@@ -188,7 +188,8 @@ int stats_dump_raw(struct session *s, struct uri_auth *uri, int flags)
 			     "ereq,econ,eresp,"
 			     "wretr,wredis,"
 			     "status,weight,act,bck,"
-			     "chkfail,chkdown,lastchg,downtime,"
+			     "chkfail,chkdown,lastchg,downtime,qlimit,"
+			     "pid,iid,sid,"
 			     "\n");
 			
 		if (buffer_write_chunk(rep, &msg) != 0)
