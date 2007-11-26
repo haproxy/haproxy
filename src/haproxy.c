@@ -110,7 +110,7 @@
 char *cfg_cfgfile = NULL;	/* configuration file */
 char *progname = NULL;		/* program name */
 int  pid;			/* current process id */
-int  relative_pid;		/* process id starting at 1 */
+int  relative_pid = 1;		/* process id starting at 1 */
 
 /* global options */
 struct global global = {
