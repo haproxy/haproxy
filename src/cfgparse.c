@@ -1564,6 +1564,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			curproxy->srv_bck++;
 		else
 			curproxy->srv_act++;
+
+		newsrv->prev_state = newsrv->state;
 	}
 	else if (!strcmp(args[0], "log")) {  /* syslog server address */
 		struct sockaddr_in *sa;
@@ -2655,7 +2657,11 @@ int readcfgfile(const char *file)
 		curproxy->lbprm.wmult = 1; /* default weight multiplier */
 		curproxy->lbprm.wdiv  = 1; /* default weight divider */
 
-		init_server_map(curproxy);
+		/* round robin relies on a weight tree */
+		if ((curproxy->options & PR_O_BALANCE) == PR_O_BALANCE_RR)
+			fwrr_init_server_groups(curproxy);
+		else
+			init_server_map(curproxy);
 
 		if (curproxy->options & PR_O_LOGASAP)
 			curproxy->to_log &= ~LW_BYTES;

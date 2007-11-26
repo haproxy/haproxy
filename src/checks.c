@@ -61,9 +61,7 @@ static void set_server_down(struct server *s)
 
 		s->last_change = now.tv_sec;
 		s->state &= ~SRV_RUNNING;
-
-		recount_servers(s->proxy);
-		s->proxy->lbprm.map.state |= PR_MAP_RECALC;
+		s->proxy->lbprm.set_server_status_down(s);
 
 		/* we might have sessions queued on this server and waiting for
 		 * a connection. Those which are redispatchable will be queued
@@ -467,19 +465,18 @@ void process_chk(struct task *t, struct timeval *next)
 				if (s->health == s->rise) {
 					int xferred;
 
-					if (s->last_change < now.tv_sec)			// ignore negative times
-						s->down_time += now.tv_sec - s->last_change;
-					s->last_change = now.tv_sec;
-					s->state |= SRV_RUNNING;
-
 					if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
 						if (s->proxy->last_change < now.tv_sec)		// ignore negative times
 							s->proxy->down_time += now.tv_sec - s->proxy->last_change;
 						s->proxy->last_change = now.tv_sec;
 					}
 
-					recount_servers(s->proxy);
-					s->proxy->lbprm.map.state |= PR_MAP_RECALC;
+					if (s->last_change < now.tv_sec)			// ignore negative times
+						s->down_time += now.tv_sec - s->last_change;
+
+					s->last_change = now.tv_sec;
+					s->state |= SRV_RUNNING;
+					s->proxy->lbprm.set_server_status_up(s);
 
 					/* check if we can handle some connections queued at the proxy. We
 					 * will take as many as we can handle.

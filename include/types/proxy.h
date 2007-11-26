@@ -29,6 +29,7 @@
 
 #include <common/appsession.h>
 #include <common/config.h>
+#include <common/ebtree.h>
 #include <common/mini-clist.h>
 #include <common/regex.h>
 #include <common/sessionhash.h>
@@ -64,6 +65,17 @@
 #define PR_CAP_RS      0x0004
 #define PR_CAP_LISTEN  (PR_CAP_FE|PR_CAP_BE|PR_CAP_RS)
 
+/* This structure is used to apply fast weighted round robin on a server group */
+struct fwrr_group {
+	struct eb_root curr;    /* tree for servers in "current" time range */
+	struct eb_root t0, t1;  /* "init" and "next" servers */
+	struct eb_root *init;   /* servers waiting to be placed */
+	struct eb_root *next;   /* servers to be placed at next run */
+	int curr_pos;           /* current position in the tree */
+	int curr_weight;        /* total weight of the current time range */
+	int next_weight;        /* total weight of the next time range */
+}; 
+
 struct proxy {
 	struct listener *listen;		/* the listen addresses and sockets */
 	struct in_addr mon_net, mon_mask;	/* don't forward connections from this net (network order) FIXME: should support IPv6 */
@@ -79,7 +91,7 @@ struct proxy {
 	struct list block_cond;                 /* early blocking conditions (chained) */
 	struct list switching_rules;            /* content switching rules (chained) */
 	struct server *srv;			/* known servers */
-	int srv_act, srv_bck;			/* # of running servers */
+	int srv_act, srv_bck;			/* # of servers eligible for LB (UP|!checked) AND (enabled+weight!=0) */
 
 	struct {
 		int tot_wact, tot_wbck;		/* total effective weights of active and backup servers */
@@ -87,11 +99,19 @@ struct proxy {
 		int tot_used;			/* total number of servers used for LB */
 		int wmult;			/* ratio between user weight and effective weight */
 		int wdiv;			/* ratio between effective weight and user weight */
+		struct server *fbck;		/* first backup server when !PR_O_USE_ALL_BK, or NULL */
 		struct {
 			struct server **srv;	/* the server map used to apply weights */
 			int rr_idx;		/* next server to be elected in round robin mode */
 			int state;		/* PR_MAP_RECALC */
 		} map;				/* LB parameters for map-based algorithms */
+		struct {
+			struct fwrr_group act;	/* weighted round robin on the active servers */
+			struct fwrr_group bck;	/* weighted round robin on the backup servers */
+		} fwrr;
+		void (*update_server_eweight)(struct server *);/* if non-NULL, to be called after eweight change */
+		void (*set_server_status_up)(struct server *);/* to be called after status changes to UP */
+		void (*set_server_status_down)(struct server *);/* to be called after status changes to DOWN */
 	} lbprm;				/* LB parameters for all algorithms */
 
 	char *cookie_name;			/* name of the cookie to look for */

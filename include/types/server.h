@@ -2,7 +2,7 @@
   include/types/server.h
   This file defines everything related to servers.
 
-  Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -26,6 +26,7 @@
 #include <arpa/inet.h>
 
 #include <common/config.h>
+#include <common/eb32tree.h>
 #include <common/mini-clist.h>
 
 #include <types/buffers.h>
@@ -57,6 +58,7 @@
 struct server {
 	struct server *next;
 	int state;				/* server state (SRV_*) */
+	int prev_state;				/* server state before last change (SRV_*) */
 	int  cklen;				/* the len of the cookie, to speed up checks */
 	char *cookie;				/* the id set in the cookie */
 
@@ -85,6 +87,12 @@ struct server {
 	char *id;				/* just for identification */
 	unsigned uweight, eweight;		/* user-specified weight, and effective weight */
 	unsigned wscore;			/* weight score, used during srv map computation */
+	unsigned prev_eweight;			/* eweight before last change */
+	unsigned rweight;			/* remainer of weight in the current LB tree */
+	unsigned npos, lpos;			/* next and last positions in the LB tree */
+	struct eb32_node lb_node;               /* node used for tree-based load balancing */
+	struct eb_root *lb_tree;                /* we want to know in what tree the server is */
+	struct server *next_full;               /* next server in the temporary full list */
 
 	unsigned failed_checks, down_trans;	/* failed checks and up-down transitions */
 	unsigned down_time;			/* total time the server was down */

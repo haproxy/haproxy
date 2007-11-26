@@ -39,10 +39,10 @@ int srv_redispatch_connect(struct session *t);
 int backend_parse_balance(const char **args, char *err,
 			  int errlen, struct proxy *curproxy);
 
-void recount_servers(struct proxy *px);
 void recalc_server_map(struct proxy *px);
 int be_downtime(struct proxy *px);
 void init_server_map(struct proxy *p);
+void fwrr_init_server_groups(struct proxy *p);
 
 /*
  * This function tries to find a running server with free connection slots for
@@ -118,7 +118,9 @@ static inline struct server *get_server_sh(struct proxy *px,
 		recalc_server_map(px);
 
 	l = h = 0;
-	if (px->srv_act > 1 || (px->srv_act == 0 && px->srv_bck > 1)) {
+
+	/* note: we won't hash if there's only one server left */
+	if (px->lbprm.tot_used > 1) {
 		while ((l + sizeof (int)) <= len) {
 			h ^= ntohl(*(unsigned int *)(&addr[l]));
 			l += sizeof (int);

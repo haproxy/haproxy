@@ -71,6 +71,10 @@
 
 #define PR_O_CONTSTATS	0x80000000	/* continous counters */
 
+
+/* various constants */
+#define BE_WEIGHT_SCALE 256             /* scale between user weight and effective weight */
+
 #endif /* _TYPES_BACKEND_H */
 
 /*
