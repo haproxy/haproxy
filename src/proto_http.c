@@ -1476,7 +1476,7 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 	msg->msg_state = HTTP_MSG_ERROR;
 	return;
 }
-    
+
 /*
  * manages the client FSM and its socket. BTW, it also tries to handle the
  * cookie. It returns 1 if a state has changed (and a resync may be needed),
@@ -1908,8 +1908,13 @@ int process_cli(struct session *t)
 		 * may have separate values for ->fe, ->be.
 		 */
 
-
-
+		/*
+		 * If HTTP PROXY is set we simply get remote server address
+		 * parsing incoming request.
+		 */
+		if ((t->be->options & PR_O_HTTP_PROXY) && !(t->flags & SN_ADDR_SET)) {
+			url2sa(req->data + msg->sl.rq.u, msg->sl.rq.u_l, &t->srv_addr);
+		}
 
 		/*
 		 * 7: the appsession cookie was looked up very early in 1.2,
@@ -4950,6 +4955,57 @@ acl_fetch_url(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 1;
 }
 
+static int
+acl_fetch_url_ip(struct proxy *px, struct session *l4, void *l7, int dir,
+		 struct acl_expr *expr, struct acl_test *test)
+{
+	struct http_txn *txn = l7;
+
+	if (txn->req.msg_state != HTTP_MSG_BODY)
+		return 0;
+	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
+		/* ensure the indexes are not affected */
+		return 0;
+
+	/* Parse HTTP request */
+	url2sa(txn->req.sol + txn->req.sl.rq.u, txn->req.sl.rq.u_l, &l4->srv_addr);
+	test->ptr = (void *)&((struct sockaddr_in *)&l4->srv_addr)->sin_addr;
+	test->i = AF_INET;
+
+	/*
+	 * If we are parsing url in frontend space, we prepare backend stage
+	 * to not parse again the same url ! optimization lazyness...
+	 */
+	if (px->options & PR_O_HTTP_PROXY)
+		l4->flags |= SN_ADDR_SET;
+
+	test->flags = ACL_TEST_F_READ_ONLY;
+	return 1;
+}
+
+static int
+acl_fetch_url_port(struct proxy *px, struct session *l4, void *l7, int dir,
+		   struct acl_expr *expr, struct acl_test *test)
+{
+	struct http_txn *txn = l7;
+
+	if (txn->req.msg_state != HTTP_MSG_BODY)
+		return 0;
+	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
+		/* ensure the indexes are not affected */
+		return 0;
+
+	/* Same optimization as url_ip */
+	url2sa(txn->req.sol + txn->req.sl.rq.u, txn->req.sl.rq.u_l, &l4->srv_addr);
+	test->i = ntohs(((struct sockaddr_in *)&l4->srv_addr)->sin_port);
+
+	if (px->options & PR_O_HTTP_PROXY)
+		l4->flags |= SN_ADDR_SET;
+
+	test->flags = ACL_TEST_F_READ_ONLY;
+	return 1;
+}
+
 /* 5. Check on HTTP header. A pointer to the beginning of the value is returned.
  * This generic function is used by both acl_fetch_chdr() and acl_fetch_shdr().
  */
@@ -5186,13 +5242,15 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "resp_ver",   acl_parse_ver,   acl_fetch_stver,  acl_match_str  },
 	{ "status",     acl_parse_int,   acl_fetch_stcode, acl_match_int  },
 
-	{ "url",        acl_parse_str,   acl_fetch_url,    acl_match_str  },
-	{ "url_beg",    acl_parse_str,   acl_fetch_url,    acl_match_beg  },
-	{ "url_end",    acl_parse_str,   acl_fetch_url,    acl_match_end  },
-	{ "url_sub",    acl_parse_str,   acl_fetch_url,    acl_match_sub  },
-	{ "url_dir",    acl_parse_str,   acl_fetch_url,    acl_match_dir  },
-	{ "url_dom",    acl_parse_str,   acl_fetch_url,    acl_match_dom  },
-	{ "url_reg",    acl_parse_reg,   acl_fetch_url,    acl_match_reg  },
+	{ "url",        acl_parse_str,   acl_fetch_url,      acl_match_str  },
+	{ "url_beg",    acl_parse_str,   acl_fetch_url,      acl_match_beg  },
+	{ "url_end",    acl_parse_str,   acl_fetch_url,      acl_match_end  },
+	{ "url_sub",    acl_parse_str,   acl_fetch_url,      acl_match_sub  },
+	{ "url_dir",    acl_parse_str,   acl_fetch_url,      acl_match_dir  },
+	{ "url_dom",    acl_parse_str,   acl_fetch_url,      acl_match_dom  },
+	{ "url_reg",    acl_parse_reg,   acl_fetch_url,      acl_match_reg  },
+	{ "url_ip",     acl_parse_ip,    acl_fetch_url_ip,   acl_match_ip   },
+	{ "url_port",   acl_parse_int,   acl_fetch_url_port, acl_match_int  },
 
 	{ "hdr",        acl_parse_str,   acl_fetch_chdr,    acl_match_str },
 	{ "hdr_reg",    acl_parse_reg,   acl_fetch_chdr,    acl_match_reg },

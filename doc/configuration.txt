@@ -275,6 +275,7 @@ option httpclose            X          X         X         X
 option httplog              X          X         X         X
 option logasap              X          X         X         -
 option nolinger             X          X         X         X
+option http_proxy           X          X         X         X
 option persist              X          -         X         X
 option redispatch           X          -         X         X
 option smtpchk              X          -         X         X
@@ -538,6 +539,15 @@ url_reg <regex>
   Returns true when the URL matches one of the regular expressions. It can be
   used any time, but it is important to remember that regex matching is slower
   than other methods. See also "path_reg" and all "url_" criteria.
+
+url_ip <ip_address>
+  Applies to the IP address parsed in HTTP request. It can be used to
+  prevent access to certain resources such as local network. It is useful
+  with option 'http_proxy'.
+
+url_port <integer>
+  Applies to the port parsed in HTTP request. It can be used to
+  prevent access to certain resources. It is useful with option 'http_proxy'.
 
 hdr <string> 
 hdr(header) <string>

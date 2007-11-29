@@ -936,6 +936,10 @@ int assign_server(struct session *s)
 				return SRV_STATUS_INTERNAL;
 			}
 		}
+		else if (s->be->options & PR_O_HTTP_PROXY) {
+			if (!s->srv_addr.sin_addr.s_addr)
+				return SRV_STATUS_NOSRV;
+		}
 		else if (!*(int *)&s->be->dispatch_addr.sin_addr &&
 			 !(s->fe->options & PR_O_TRANSP)) {
 			return SRV_STATUS_NOSRV;
@@ -998,6 +1002,10 @@ int assign_server_address(struct session *s)
 			qfprintf(stderr, "Cannot get original server address.\n");
 			return SRV_STATUS_INTERNAL;
 		}
+	}
+	else if (s->be->options & PR_O_HTTP_PROXY) {
+		/* If HTTP PROXY option is set, then server is already assigned
+		 * during incoming client request parsing. */
 	}
 	else {
 		/* no server and no LB algorithm ! */

@@ -132,6 +132,11 @@ struct sockaddr_in *str2sa(char *str);
  */
 int str2net(const char *str, struct in_addr *addr, struct in_addr *mask);
 
+/*
+ * Resolve destination server from URL. Convert <str> to a sockaddr_in*.
+ */
+int url2sa(const char *url, int ulen, struct sockaddr_in *addr);
+
 /* will try to encode the string <string> replacing all characters tagged in
  * <map> with the hexadecimal representation of their ASCII-code (2 digits)
  * prefixed by <escape>, and will store the result between <start> (included)

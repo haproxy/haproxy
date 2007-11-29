@@ -522,6 +522,7 @@ acl_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 1;
 }
 
+
 /* set test->i to the number of connexions to the proxy */
 static int
 acl_fetch_dconn(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -534,14 +535,14 @@ acl_fetch_dconn(struct proxy *px, struct session *l4, void *l7, int dir,
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct acl_kw_list acl_kws = {{ },{
-	{ "src_port",   acl_parse_int,   acl_fetch_sport,  acl_match_int },
-	{ "src",        acl_parse_ip,    acl_fetch_src,    acl_match_ip  },
-	{ "dst",        acl_parse_ip,    acl_fetch_dst,    acl_match_ip  },
-	{ "dst_port",   acl_parse_int,   acl_fetch_dport,  acl_match_int },
+	{ "src_port",   acl_parse_int,   acl_fetch_sport,    acl_match_int },
+	{ "src",        acl_parse_ip,    acl_fetch_src,      acl_match_ip  },
+	{ "dst",        acl_parse_ip,    acl_fetch_dst,      acl_match_ip  },
+	{ "dst_port",   acl_parse_int,   acl_fetch_dport,    acl_match_int },
 #if 0
-	{ "src_limit",  acl_parse_int,   acl_fetch_sconn,  acl_match_int },
+	{ "src_limit",  acl_parse_int,   acl_fetch_sconn,    acl_match_int },
 #endif
-	{ "dst_conn",   acl_parse_int,   acl_fetch_dconn,  acl_match_int },
+	{ "dst_conn",   acl_parse_int,   acl_fetch_dconn,    acl_match_int },
 	{ NULL, NULL, NULL, NULL },
 }};
 

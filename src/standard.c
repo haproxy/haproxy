@@ -202,6 +202,100 @@ int str2net(const char *str, struct in_addr *addr, struct in_addr *mask)
 	goto out_free;
 }
 
+
+/*
+ * Parse IP address found in url.
+ */
+static int url2ip(const char *addr, struct in_addr *dst)
+{
+	int saw_digit, octets, ch;
+	u_char tmp[4], *tp;
+	const char *cp = addr;
+
+	saw_digit = 0;
+	octets = 0;
+	*(tp = tmp) = 0;
+
+	while (*addr) {
+		unsigned char digit = (ch = *addr++) - '0';
+		if (digit > 9 && ch != '.')
+			break;
+		if (digit <= 9) {
+			u_int new = *tp * 10 + digit;
+			if (new > 255)
+				return 0;
+			*tp = new;
+			if (!saw_digit) {
+				if (++octets > 4)
+					return 0;
+				saw_digit = 1;
+			}
+		} else if (ch == '.' && saw_digit) {
+			if (octets == 4)
+				return 0;
+			*++tp = 0;
+			saw_digit = 0;
+		} else
+			return 0;
+	}
+
+	if (octets < 4)
+		return 0;
+
+	memcpy(&dst->s_addr, tmp, 4);
+	return addr-cp-1;
+}
+
+/*
+ * Resolve destination server from URL. Convert <str> to a sockaddr_in*.
+ */
+int url2sa(const char *url, int ulen, struct sockaddr_in *addr)
+{
+	const char *curr = url, *cp = url;
+	int ret, url_code = 0;
+	unsigned int http_code = 0;
+
+	/* Cleanup the room */
+	addr->sin_family = AF_INET;
+	addr->sin_addr.s_addr = 0;
+	addr->sin_port = 0;
+
+	/* Firstly, try to find :// pattern */
+	while (curr < url+ulen && url_code != 0x3a2f2f) {
+		url_code = ((url_code & 0xffff) << 8);
+		url_code += (unsigned char)*curr++;
+	}
+
+	/* Secondly, if :// pattern is found, verify parsed stuff
+	 * before pattern is matching our http pattern.
+	 * If so parse ip address and port in uri.
+	 * 
+	 * WARNING: Current code doesn't support dynamic async dns resolver.
+	 */
+	if (url_code == 0x3a2f2f) {
+		while (cp < curr - 3)
+			http_code = (http_code << 8) + *cp++;
+		http_code |= 0x20202020;			/* Turn everything to lower case */
+		
+		/* HTTP url matching */
+		if (http_code == 0x68747470) {
+			/* We are looking for IP address. If you want to parse and
+			 * resolve hostname found in url, you can use str2sa(), but
+			 * be warned this can slow down global daemon performances
+			 * while handling lagging dns responses.
+			 */
+			ret = url2ip(curr, &addr->sin_addr);
+			if (!ret)
+				return -1;
+			curr += ret;
+			addr->sin_port = (*curr == ':') ? htons(str2uic(++curr)) : htons(80);
+		}
+		return 0;
+	}
+
+	return -1;
+}
+
 /* will try to encode the string <string> replacing all characters tagged in
  * <map> with the hexadecimal representation of their ASCII-code (2 digits)
  * prefixed by <escape>, and will store the result between <start> (included)

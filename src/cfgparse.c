@@ -97,6 +97,7 @@ static const struct {
 	{ "keepalive",    PR_O_KEEPALIVE,  PR_CAP_NONE, 0 },
 	{ "httpclose",    PR_O_HTTP_CLOSE, PR_CAP_FE | PR_CAP_BE, 0 },
 	{ "nolinger",     PR_O_TCP_NOLING, PR_CAP_FE | PR_CAP_BE, 0 },
+	{ "http_proxy",	  PR_O_HTTP_PROXY, PR_CAP_FE | PR_CAP_BE, 0 },
 	{ "logasap",      PR_O_LOGASAP,    PR_CAP_FE, 0 },
 	{ "contstats",    PR_O_CONTSTATS,  PR_CAP_FE, 0 },
 	{ "abortonclose", PR_O_ABRT_CLOSE, PR_CAP_BE, 0 },
@@ -2473,7 +2474,7 @@ int readcfgfile(const char *file)
 		}
 		else if (curproxy->cap & PR_CAP_BE &&
 			 ((curproxy->mode != PR_MODE_HEALTH) &&
-			  !(curproxy->options & PR_O_TRANSP) &&
+			  !(curproxy->options & (PR_O_TRANSP | PR_O_HTTP_PROXY)) &&
 			  !(curproxy->lbprm.algo & BE_LB_ALGO) &&
 			  (*(int *)&curproxy->dispatch_addr.sin_addr == 0))) {
 			Alert("parsing %s : %s '%s' has no dispatch address and is not in transparent or balance mode.\n",
