@@ -588,6 +588,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		/* set default values */
 		curproxy->state = defproxy.state;
 		curproxy->options = defproxy.options;
+		curproxy->lbprm.algo = defproxy.lbprm.algo;
 		curproxy->except_net = defproxy.except_net;
 		curproxy->except_mask = defproxy.except_mask;
 
@@ -2472,14 +2473,15 @@ int readcfgfile(const char *file)
 		}
 		else if (curproxy->cap & PR_CAP_BE &&
 			 ((curproxy->mode != PR_MODE_HEALTH) &&
-			  !(curproxy->options & (PR_O_TRANSP | PR_O_BALANCE)) &&
+			  !(curproxy->options & PR_O_TRANSP) &&
+			  !(curproxy->lbprm.algo & BE_LB_ALGO) &&
 			  (*(int *)&curproxy->dispatch_addr.sin_addr == 0))) {
 			Alert("parsing %s : %s '%s' has no dispatch address and is not in transparent or balance mode.\n",
 			      file, proxy_type_str(curproxy), curproxy->id);
 			cfgerr++;
 		}
 
-		if ((curproxy->mode != PR_MODE_HEALTH) && (curproxy->options & PR_O_BALANCE)) {
+		if ((curproxy->mode != PR_MODE_HEALTH) && (curproxy->lbprm.algo & BE_LB_ALGO)) {
 			if (curproxy->options & PR_O_TRANSP) {
 				Alert("parsing %s : %s '%s' cannot use both transparent and balance mode.\n",
 				      file, proxy_type_str(curproxy), curproxy->id);
@@ -2515,9 +2517,9 @@ int readcfgfile(const char *file)
 				Warning("parsing %s : monitor-uri will be ignored for %s '%s'.\n",
 					file, proxy_type_str(curproxy), curproxy->id);
 			}
-			if (curproxy->options & PR_O_BALANCE_L7) {
-				curproxy->options &= ~PR_O_BALANCE;
-				curproxy->options |= PR_O_BALANCE_RR;
+			if (curproxy->lbprm.algo & BE_LB_ALGO_L7) {
+				curproxy->lbprm.algo &= ~BE_LB_ALGO;
+				curproxy->lbprm.algo |= BE_LB_ALGO_RR;
 
 				Warning("parsing %s : Layer 7 hash not possible for %s '%s'. Falling back to round robin.\n",
 					file, proxy_type_str(curproxy), curproxy->id);
@@ -2658,7 +2660,7 @@ int readcfgfile(const char *file)
 		curproxy->lbprm.wdiv  = 1; /* default weight divider */
 
 		/* round robin relies on a weight tree */
-		if ((curproxy->options & PR_O_BALANCE) == PR_O_BALANCE_RR)
+		if ((curproxy->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_RR)
 			fwrr_init_server_groups(curproxy);
 		else
 			init_server_map(curproxy);

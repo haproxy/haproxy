@@ -85,7 +85,7 @@ static void recount_servers(struct proxy *px)
 
 		if (srv->state & SRV_BACKUP) {
 			if (!px->srv_bck &&
-			    !(px->options & PR_O_USE_ALL_BK))
+			    !(px->lbprm.algo & PR_O_USE_ALL_BK))
 				px->lbprm.fbck = srv;
 			px->srv_bck++;
 			px->lbprm.tot_wbck += srv->eweight;
@@ -884,7 +884,7 @@ int assign_server(struct session *s)
 		return SRV_STATUS_INTERNAL;
 
 	if (!(s->flags & SN_ASSIGNED)) {
-		if (s->be->options & PR_O_BALANCE) {
+		if (s->be->lbprm.algo & BE_LB_ALGO) {
 			int len;
 		
 			if (s->flags & SN_DIRECT) {
@@ -895,13 +895,13 @@ int assign_server(struct session *s)
 			if (!s->be->lbprm.tot_weight)
 				return SRV_STATUS_NOSRV;
 
-			switch (s->be->options & PR_O_BALANCE) {
-			case PR_O_BALANCE_RR:
+			switch (s->be->lbprm.algo & BE_LB_ALGO) {
+			case BE_LB_ALGO_RR:
 				s->srv = fwrr_get_next_server(s->be);
 				if (!s->srv)
 					return SRV_STATUS_FULL;
 				break;
-			case PR_O_BALANCE_SH:
+			case BE_LB_ALGO_SH:
 				if (s->cli_addr.ss_family == AF_INET)
 					len = 4;
 				else if (s->cli_addr.ss_family == AF_INET6)
@@ -913,13 +913,13 @@ int assign_server(struct session *s)
 						       (void *)&((struct sockaddr_in *)&s->cli_addr)->sin_addr,
 						       len);
 				break;
-			case PR_O_BALANCE_UH:
+			case BE_LB_ALGO_UH:
 				/* URI hashing */
 				s->srv = get_server_uh(s->be,
 						       s->txn.req.sol + s->txn.req.sl.rq.u,
 						       s->txn.req.sl.rq.u_l);
 				break;
-			case PR_O_BALANCE_PH:
+			case BE_LB_ALGO_PH:
 				/* URL Parameter hashing */
 				s->srv = get_server_ph(s->be,
 						       s->txn.req.sol + s->txn.req.sl.rq.u,
@@ -965,7 +965,7 @@ int assign_server_address(struct session *s)
 	fprintf(stderr,"assign_server_address : s=%p\n",s);
 #endif
 
-	if ((s->flags & SN_DIRECT) || (s->be->options & PR_O_BALANCE)) {
+	if ((s->flags & SN_DIRECT) || (s->be->lbprm.algo & BE_LB_ALGO)) {
 		/* A server is necessarily known for this session */
 		if (!(s->flags & SN_ASSIGNED))
 			return SRV_STATUS_INTERNAL;
@@ -1478,30 +1478,30 @@ int backend_parse_balance(const char **args, char *err, int errlen, struct proxy
 {
 	if (!*(args[0])) {
 		/* if no option is set, use round-robin by default */
-		curproxy->options &= ~PR_O_BALANCE;
-		curproxy->options |= PR_O_BALANCE_RR;
+		curproxy->lbprm.algo &= ~BE_LB_ALGO;
+		curproxy->lbprm.algo |= BE_LB_ALGO_RR;
 		return 0;
 	}
 
 	if (!strcmp(args[0], "roundrobin")) {
-		curproxy->options &= ~PR_O_BALANCE;
-		curproxy->options |= PR_O_BALANCE_RR;
+		curproxy->lbprm.algo &= ~BE_LB_ALGO;
+		curproxy->lbprm.algo |= BE_LB_ALGO_RR;
 	}
 	else if (!strcmp(args[0], "source")) {
-		curproxy->options &= ~PR_O_BALANCE;
-		curproxy->options |= PR_O_BALANCE_SH;
+		curproxy->lbprm.algo &= ~BE_LB_ALGO;
+		curproxy->lbprm.algo |= BE_LB_ALGO_SH;
 	}
 	else if (!strcmp(args[0], "uri")) {
-		curproxy->options &= ~PR_O_BALANCE;
-		curproxy->options |= PR_O_BALANCE_UH;
+		curproxy->lbprm.algo &= ~BE_LB_ALGO;
+		curproxy->lbprm.algo |= BE_LB_ALGO_UH;
 	}
 	else if (!strcmp(args[0], "url_param")) {
 		if (!*args[1]) {
 			snprintf(err, errlen, "'balance url_param' requires an URL parameter name.");
 			return -1;
 		}
-		curproxy->options &= ~PR_O_BALANCE;
-		curproxy->options |= PR_O_BALANCE_PH;
+		curproxy->lbprm.algo &= ~BE_LB_ALGO;
+		curproxy->lbprm.algo |= BE_LB_ALGO_PH;
 		if (curproxy->url_param_name)
 			free(curproxy->url_param_name);
 		curproxy->url_param_name = strdup(args[1]);
