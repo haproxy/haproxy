@@ -128,16 +128,19 @@ static void map_set_server_status_down(struct server *srv)
 	    srv->eweight == srv->prev_eweight)
 		return;
 
+	if (srv_is_usable(srv->state, srv->eweight))
+		goto out_update_state;
+
 	/* FIXME: could be optimized since we know what changed */
 	recount_servers(p);
 	update_backend_weight(p);
+	p->lbprm.map.state |= PR_MAP_RECALC;
+ out_update_state:
 	srv->prev_state = srv->state;
 	srv->prev_eweight = srv->eweight;
-	p->lbprm.map.state |= PR_MAP_RECALC;
-
 }
 
-/* this function updates the map according to server <srv>'s new state */
+/* This function updates the map according to server <srv>'s new state */
 static void map_set_server_status_up(struct server *srv)
 {
 	struct proxy *p = srv->proxy;
@@ -146,12 +149,16 @@ static void map_set_server_status_up(struct server *srv)
 	    srv->eweight == srv->prev_eweight)
 		return;
 
+	if (!srv_is_usable(srv->state, srv->eweight))
+		goto out_update_state;
+
 	/* FIXME: could be optimized since we know what changed */
 	recount_servers(p);
 	update_backend_weight(p);
+	p->lbprm.map.state |= PR_MAP_RECALC;
+ out_update_state:
 	srv->prev_state = srv->state;
 	srv->prev_eweight = srv->eweight;
-	p->lbprm.map.state |= PR_MAP_RECALC;
 }
 
 /* This function recomputes the server map for proxy px. It relies on
@@ -285,8 +292,9 @@ void init_server_map(struct proxy *p)
 
 /* This function updates the server trees according to server <srv>'s new
  * state. It should be called when server <srv>'s status changes to down.
- * It is not important whether the server was already down or not. However,
- * it is mandatory that the new state be down.
+ * It is not important whether the server was already down or not. It is not
+ * important either that the new state is completely down (the caller may not
+ * know all the variables of a server's state).
  */
 static void fwrr_set_server_status_down(struct server *srv)
 {
@@ -296,6 +304,9 @@ static void fwrr_set_server_status_down(struct server *srv)
 	if (srv->state == srv->prev_state &&
 	    srv->eweight == srv->prev_eweight)
 		return;
+
+	if (srv_is_usable(srv->state, srv->eweight))
+		goto out_update_state;
 
 	if (!srv_is_usable(srv->prev_state, srv->prev_eweight))
 		/* server was already down */
@@ -331,15 +342,16 @@ static void fwrr_set_server_status_down(struct server *srv)
 out_update_backend:
 	/* check/update tot_used, tot_weight */
 	update_backend_weight(p);
+ out_update_state:
 	srv->prev_state = srv->state;
 	srv->prev_eweight = srv->eweight;
-
 }
 
 /* This function updates the server trees according to server <srv>'s new
  * state. It should be called when server <srv>'s status changes to up.
- * It is not important whether the server was already down or not. However,
- * it is mandatory that the new state be up. This function will not change
+ * It is not important whether the server was already down or not. It is not
+ * important either that the new state is completely UP (the caller may not
+ * know all the variables of a server's state). This function will not change
  * the weight of a server which was already up.
  */
 static void fwrr_set_server_status_up(struct server *srv)
@@ -350,6 +362,9 @@ static void fwrr_set_server_status_up(struct server *srv)
 	if (srv->state == srv->prev_state &&
 	    srv->eweight == srv->prev_eweight)
 		return;
+
+	if (!srv_is_usable(srv->state, srv->eweight))
+		goto out_update_state;
 
 	if (srv_is_usable(srv->prev_state, srv->prev_eweight))
 		/* server was already up */
@@ -386,6 +401,7 @@ static void fwrr_set_server_status_up(struct server *srv)
 out_update_backend:
 	/* check/update tot_used, tot_weight */
 	update_backend_weight(p);
+ out_update_state:
 	srv->prev_state = srv->state;
 	srv->prev_eweight = srv->eweight;
 }
