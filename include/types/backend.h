@@ -24,14 +24,24 @@
 
 #include <common/config.h>
 
-/* Parameters for proxy->lbprm.algo. Those values are exclusive */
-#define BE_LB_ALGO_RR	0x00000001      /* balance in round-robin mode */
-#define BE_LB_ALGO_SH	0x00000002      /* balance on source IP hash */
-#define BE_LB_ALGO_L4	0x00000003      /* mask to match layer4-based algorithms */
-#define BE_LB_ALGO_UH	0x00000004      /* balance on URI hash */
-#define BE_LB_ALGO_PH	0x00000005      /* balance on URL parameter hash */
-#define BE_LB_ALGO_L7	0x00000004      /* mask to match layer7-based algorithms */
-#define BE_LB_ALGO	0x00000007      /* mask to extract BALANCE algorithm */
+/* Parameters for proxy->lbprm.algo.
+ * The low part of the value is unique for each algo so that applying the mask
+ * BE_LB_ALGO returns a unique algorithm.
+ * The high part indicates specific properties.
+ */
+
+/* Masks to extract algorithm properties */
+#define BE_LB_ALGO	0x000007FF      /* mask to extract all algorithm flags */
+#define BE_LB_PROP_DYN  0x00000100      /* mask to match dynamic algorithms */
+#define BE_LB_PROP_L4   0x00000200      /* mask to match layer4-based algorithms */
+#define BE_LB_PROP_L7   0x00000400      /* mask to match layer7-based algorithms */
+
+/* the algorithms themselves */
+#define BE_LB_ALGO_NONE 0x00000000              /* dispatch or transparent mode */
+#define BE_LB_ALGO_RR	(BE_LB_PROP_DYN | 0x01) /* fast weighted round-robin mode (dynamic) */
+#define BE_LB_ALGO_SH	(BE_LB_PROP_L4  | 0x02) /* balance on source IP hash */
+#define BE_LB_ALGO_UH	(BE_LB_PROP_L7  | 0x03) /* balance on URI hash */
+#define BE_LB_ALGO_PH	(BE_LB_PROP_L7  | 0x04) /* balance on URL parameter hash */
 
 /* various constants */
 #define BE_WEIGHT_SCALE 256             /* scale between user weight and effective weight */

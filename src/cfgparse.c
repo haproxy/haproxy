@@ -2531,7 +2531,7 @@ int readcfgfile(const char *file)
 				Warning("parsing %s : monitor-uri will be ignored for %s '%s'.\n",
 					file, proxy_type_str(curproxy), curproxy->id);
 			}
-			if (curproxy->lbprm.algo & BE_LB_ALGO_L7) {
+			if (curproxy->lbprm.algo & BE_LB_PROP_L7) {
 				curproxy->lbprm.algo &= ~BE_LB_ALGO;
 				curproxy->lbprm.algo |= BE_LB_ALGO_RR;
 
