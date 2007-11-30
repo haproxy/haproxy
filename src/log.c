@@ -10,6 +10,7 @@
  *
  */
 
+#include <fcntl.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -165,6 +166,9 @@ void send_log(struct proxy *p, int level, const char *message, ...)
 			return;
 		/* we don't want to receive anything on this socket */
 		setsockopt(logfd, SOL_SOCKET, SO_RCVBUF, &zero, sizeof(zero));
+		/* need for AIX which does not know about MSG_DONTWAIT */
+		if (!MSG_DONTWAIT)
+			fcntl(logfd, F_SETFL, O_NONBLOCK);
 		shutdown(logfd, SHUT_RD); /* does nothing under Linux, maybe needed for others */
 	}
     

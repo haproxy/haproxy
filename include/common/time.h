@@ -485,7 +485,7 @@ REGPRM3 static inline struct timeval *__tv_ms_add(struct timeval *tv, const stru
         tv1;                       \
 })
 
-char *human_time(int t, short hz);
+char *human_time(int t, short hz_div);
 
 #endif /* _COMMON_TIME_H */
 

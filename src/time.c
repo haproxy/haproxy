@@ -142,18 +142,18 @@ REGPRM2 int _tv_isgt(const struct timeval *tv1, const struct timeval *tv2)
 	return __tv_isgt(tv1, tv2);
 }
 
-char *human_time(int t, short hz) {
+char *human_time(int t, short hz_div) {
 	static char rv[sizeof("24855d23h")+1];	// longest of "23h59m" and "59m59s"
 	char *p = rv;
 	int cnt=2;				// print two numbers
 
-	if (unlikely(t < 0 || hz <= 0)) {
+	if (unlikely(t < 0 || hz_div <= 0)) {
 		sprintf(p, "?");
 		return rv;
 	}
 
-	if (unlikely(hz > 1))
-		t /= hz;
+	if (unlikely(hz_div > 1))
+		t /= hz_div;
 
 	if (t >= DAY) {
 		p += sprintf(p, "%dd", t / DAY);

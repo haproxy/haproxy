@@ -33,6 +33,7 @@
 
 /* This is needed on Linux for Netfilter includes */
 #include <sys/socket.h>
+#include <sys/types.h>
 #include <common/config.h>
 
 /* INTBITS
@@ -52,6 +53,13 @@
 
 #ifndef SHUT_WR
 #define SHUT_WR	        1
+#endif
+
+/* AIX does not define MSG_DONTWAIT. We'll define it to zero, and test it
+ * wherever appropriate.
+ */
+#ifndef MSG_DONTWAIT
+#define MSG_DONTWAIT	0
 #endif
 
 #if defined(TPROXY) && defined(NETFILTER)
