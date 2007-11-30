@@ -153,6 +153,22 @@ int stats_parse_global(const char **args, char *err, int errlen)
 	return 0;
 }
 
+int print_csv_header(struct chunk *msg, int size)
+{
+	return chunk_printf(msg, size,
+			    "# pxname,svname,"
+			    "qcur,qmax,"
+			    "scur,smax,slim,stot,"
+			    "bin,bout,"
+			    "dreq,dresp,"
+			    "ereq,econ,eresp,"
+			    "wretr,wredis,"
+			    "status,weight,act,bck,"
+			    "chkfail,chkdown,lastchg,downtime,qlimit,"
+			    "pid,iid,sid,throttle,"
+			    "\n");
+}
+
 /*
  * Produces statistics data for the session <s>. Expects to be called with
  * s->cli_state == CL_STSHUTR. It *may* make use of informations from <uri>
@@ -179,19 +195,7 @@ int stats_dump_raw(struct session *s, struct uri_auth *uri, int flags)
 		/* fall through */
 
 	case DATA_ST_HEAD:
-		chunk_printf(&msg, sizeof(trash),
-			     "# pxname,svname,"
-			     "qcur,qmax,"
-			     "scur,smax,slim,stot,"
-			     "bin,bout,"
-			     "dreq,dresp,"
-			     "ereq,econ,eresp,"
-			     "wretr,wredis,"
-			     "status,weight,act,bck,"
-			     "chkfail,chkdown,lastchg,downtime,qlimit,"
-			     "pid,iid,sid,"
-			     "\n");
-			
+		print_csv_header(&msg, sizeof(trash));
 		if (buffer_write_chunk(rep, &msg) != 0)
 			return 0;
 
@@ -369,18 +373,7 @@ int stats_dump_http(struct session *s, struct uri_auth *uri, int flags)
 			     "-->\n"
 			     "</style></head>\n");
 		} else {
-			chunk_printf(&msg, sizeof(trash),
-			     "# pxname,svname,"
-			     "qcur,qmax,"
-			     "scur,smax,slim,stot,"
-			     "bin,bout,"
-			     "dreq,dresp,"
-			     "ereq,econ,eresp,"
-			     "wretr,wredis,"
-			     "status,weight,act,bck,"
-			     "chkfail,chkdown,lastchg,downtime,qlimit,"
-			     "pid,iid,sid,"
-			     "\n");
+			print_csv_header(&msg, sizeof(trash));
 		}
 		if (buffer_write_chunk(rep, &msg) != 0)
 			return 0;
@@ -590,17 +583,17 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 		if (flags & STAT_FMT_HTML) {
 			/* print a new table */
 			chunk_printf(&msg, sizeof(trash),
-				     "<table cols=\"24\" class=\"tbl\" width=\"100%%\">\n"
+				     "<table cols=\"25\" class=\"tbl\" width=\"100%%\">\n"
 				     "<tr align=\"center\" class=\"titre\">"
 				     "<th colspan=2 class=\"pxname\">%s</th>"
-				     "<th colspan=21 class=\"empty\"></th>"
+				     "<th colspan=22 class=\"empty\"></th>"
 				     "</tr>\n"
 				     "<tr align=\"center\" class=\"titre\">"
 				     "<th rowspan=2></th>"
 				     "<th colspan=3>Queue</th><th colspan=4>Sessions</th>"
 				     "<th colspan=2>Bytes</th><th colspan=2>Denied</th>"
 				     "<th colspan=3>Errors</th><th colspan=2>Warnings</th>"
-				     "<th colspan=7>Server</th>"
+				     "<th colspan=8>Server</th>"
 				     "</tr>\n"
 				     "<tr align=\"center\" class=\"titre\">"
 				     "<th>Cur</th><th>Max</th><th>Limit</th><th>Cur</th><th>Max</th>"
@@ -608,7 +601,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     "<th>Req</th><th>Resp</th><th>Req</th><th>Conn</th>"
 				     "<th>Resp</th><th>Retr</th><th>Redis</th>"
 				     "<th>Status</th><th>Wght</th><th>Act</th>"
-				     "<th>Bck</th><th>Chk</th><th>Dwn</th><th>Dwntme</th>\n"
+				     "<th>Bck</th><th>Chk</th><th>Dwn</th><th>Dwntme</th>"
+				     "<th>Thrtle</th>\n"
 				     "</tr>",
 				     px->id);
 
@@ -640,7 +634,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     /* server status : reflect frontend status */
 				     "<td align=center>%s</td>"
 				     /* rest of server: nothing */
-				     "<td align=center colspan=6></td></tr>"
+				     "<td align=center colspan=7></td></tr>"
 				     "",
 				     px->feconn, px->feconn_max, px->maxconn, px->cum_feconn,
 				     px->bytes_in, px->bytes_out,
@@ -666,8 +660,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     "%s,"
 				     /* rest of server: nothing */
 				     ",,,,,,,,"
-				     /* pid, iid, sid, */
-				     "%d,%d,0,"
+				     /* pid, iid, sid, throttle, */
+				     "%d,%d,0,,"
 				     "\n",
 				     px->id,
 				     px->feconn, px->feconn_max, px->maxconn, px->cum_feconn,
@@ -776,12 +770,25 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 					chunk_printf(&msg, sizeof(trash),
 					     "<td align=right>%d</td><td align=right>%d</td>"
 					     "<td nowrap align=right>%s</td>"
-					     "</tr>\n",
+					     "",
 					     sv->failed_checks, sv->down_trans,
 					     human_time(srv_downtime(sv), 1));
 				else
 					chunk_printf(&msg, sizeof(trash),
-					     "<td colspan=3></td></tr>\n");
+					     "<td colspan=3></td>");
+
+				/* throttle */
+				if ((sv->state & SRV_WARMINGUP) &&
+				    now.tv_sec < sv->last_change + sv->slowstart &&
+				    now.tv_sec >= sv->last_change) {
+					unsigned int ratio;
+					ratio = MAX(1, 100 * (now.tv_sec - sv->last_change) / sv->slowstart);
+					chunk_printf(&msg, sizeof(trash),
+						     "<td>%d %%</td></tr>\n", ratio);
+				} else {
+					chunk_printf(&msg, sizeof(trash),
+						     "<td>-</td></tr>\n");
+				}
 			} else {
 				static char *srv_hlt_st[7] = { "DOWN,", "DOWN %d/%d,",
 							       "UP %d/%d,", "UP,",
@@ -835,13 +842,24 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 					chunk_printf(&msg, sizeof(trash),
 					     ",,,,");
 
-				/* queue limit, pid, iid, sid and EOL */
+				/* queue limit, pid, iid, sid, */
 				chunk_printf(&msg, sizeof(trash),
 				     "%s,"
-				     "%d,%d,%d,"
-				     "\n",
+				     "%d,%d,%d,",
 				     LIM2A0(sv->maxqueue, ""),
 				     relative_pid, px->uuid, sv->puid);
+
+				/* throttle */
+				if ((sv->state & SRV_WARMINGUP) &&
+				    now.tv_sec < sv->last_change + sv->slowstart &&
+				    now.tv_sec >= sv->last_change) {
+					unsigned int ratio;
+					ratio = MAX(1, 100 * (now.tv_sec - sv->last_change) / sv->slowstart);
+					chunk_printf(&msg, sizeof(trash), "%d", ratio);
+				}
+
+				/* ',' then EOL */
+				chunk_printf(&msg, sizeof(trash), ",\n");
 			}
 			if (buffer_write_chunk(rep, &msg) != 0)
 				return 0;
@@ -890,9 +908,10 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     px->srv_act, px->srv_bck);
 
 				chunk_printf(&msg, sizeof(trash),
-				     /* rest of backend: nothing, down transformations, total downtime */
+				     /* rest of backend: nothing, down transitions, total downtime, throttle */
 				     "<td align=center>&nbsp;</td><td align=\"right\">%d</td>"
 				     "<td align=\"right\" nowrap>%s</td>"
+				     "<td></td>"
 				     "</tr>",
 				     px->down_trans,
 				     px->srv?human_time(be_downtime(px), 1):"&nbsp;");
@@ -918,11 +937,10 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				      * active and backups. */
 				     "%s,"
 				     "%d,%d,%d,"
-				     /* rest of backend: nothing, down transformations,
-				      * last change, total downtime. */
+				     /* rest of backend: nothing, down transitions, last change, total downtime */
 				     ",%d,%d,%d,,"
-				     /* pid, iid, sid, */
-				     "%d,%d,0,"
+				     /* pid, iid, sid, throttle, */
+				     "%d,%d,0,,"
 				     "\n",
 				     px->id,
 				     px->nbpend /* or px->totpend ? */, px->nbpend_max,
