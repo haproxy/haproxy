@@ -109,8 +109,7 @@ static void set_server_down(struct server *s)
 /*
  * This function is used only for server health-checks. It handles
  * the connection acknowledgement. If the proxy requires HTTP health-checks,
- * it sends the request. In other cases, it returns 1 in s->result if the
- * socket is OK, or -1 if an error occured.
+ * it sends the request. In other cases, it fills s->result with SRV_CHK_*.
  * The function itself returns 0 if it needs some polling before being called
  * again, otherwise 1.
  */
@@ -125,7 +124,7 @@ static int event_srv_chk_w(int fd)
 
 	/* here, we know that the connection is established */
 
-	if (s->result != -1) {
+	if (!(s->result & SRV_CHK_ERROR)) {
 		/* we don't want to mark 'UP' a server on which we detected an error earlier */
 		if ((s->proxy->options & PR_O_HTTP_CHK) ||
 		    (s->proxy->options & PR_O_SSL3_CHK) ||
@@ -181,7 +180,7 @@ static int event_srv_chk_w(int fd)
 				goto out_error;
 
 			/* good TCP connection is enough */
-			s->result = 1;
+			s->result |= SRV_CHK_RUNNING;
 			goto out_wakeup;
 		}
 	}
@@ -197,7 +196,7 @@ static int event_srv_chk_w(int fd)
 	fdtab[fd].ev &= ~FD_POLL_WR;
 	return 0;
  out_error:
-	s->result = -1;
+	s->result |= SRV_CHK_ERROR;
 	fdtab[fd].state = FD_STERROR;
 	goto out_wakeup;
 }
@@ -205,31 +204,32 @@ static int event_srv_chk_w(int fd)
 
 /*
  * This function is used only for server health-checks. It handles the server's
- * reply to an HTTP request or SSL HELLO. It returns 1 in s->result if the
- * server replies HTTP 2xx or 3xx (valid responses), or if it returns at least
- * 5 bytes in response to SSL HELLO. The principle is that this is enough to
- * distinguish between an SSL server and a pure TCP relay. All other cases will
- * return -1. The function returns 0 if it needs to be called again after some
- * polling, otherwise non-zero..
+ * reply to an HTTP request or SSL HELLO. It sets s->result to SRV_CHK_RUNNING
+ * if an HTTP server replies HTTP 2xx or 3xx (valid responses), if an SMTP
+ * server returns 2xx, or if an SSL server returns at least 5 bytes in response
+ * to an SSL HELLO (the principle is that this is enough to distinguish between
+ * an SSL server and a pure TCP relay). All other cases will set s->result to
+ * SRV_CHK_ERROR. The function returns 0 if it needs to be called again after
+ * some polling, otherwise non-zero..
  */
 static int event_srv_chk_r(int fd)
 {
 	__label__ out_wakeup;
-	int len, result;
+	int len;
 	struct task *t = fdtab[fd].owner;
 	struct server *s = t->context;
 	int skerr;
 	socklen_t lskerr = sizeof(skerr);
 
-	result = len = -1;
+	len = -1;
 
-	if (unlikely(fdtab[fd].state == FD_STERROR ||
+	if (unlikely((s->result & SRV_CHK_ERROR) ||
+		     (fdtab[fd].state == FD_STERROR) ||
 		     (fdtab[fd].ev & FD_POLL_ERR) ||
 		     (getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr) == -1) ||
 		     (skerr != 0))) {
 		/* in case of TCP only, this tells us if the connection failed */
-		s->result = -1;
-		fdtab[fd].state = FD_STERROR;
+		s->result |= SRV_CHK_ERROR;
 		goto out_wakeup;
 	}
 
@@ -248,28 +248,44 @@ static int event_srv_chk_r(int fd)
 		return 0;
 	}
 
-	if ((s->proxy->options & PR_O_HTTP_CHK) && (len >= sizeof("HTTP/1.0 000")) &&
-	     (memcmp(trash, "HTTP/1.", 7) == 0) && (trash[9] == '2' || trash[9] == '3')) {
-		/* HTTP/1.X 2xx or 3xx */
-		result = 1;
-	}
-	else if ((s->proxy->options & PR_O_SSL3_CHK) && (len >= 5) &&
-		 (trash[0] == 0x15 || trash[0] == 0x16)) {
-		/* SSLv3 alert or handshake */
-		result = 1;
-	}
-	else if ((s->proxy->options & PR_O_SMTP_CHK) && (len >= 3) &&
-		   (trash[0] == '2')) /* 2xx (should be 250) */ {
-		result = 1;
-	}
+	/* Note: the response will only be accepted if read at once */
+	if (s->proxy->options & PR_O_HTTP_CHK) {
+		/* Check if the server speaks HTTP 1.X */
+		if ((len < strlen("HTTP/1.0 000\r")) ||
+		    (memcmp(trash, "HTTP/1.", 7) != 0)) {
+			s->result |= SRV_CHK_ERROR;
+			goto out_wakeup;
+		}
 
-	if (result == -1)
-		fdtab[fd].state = FD_STERROR;
-
-	if (s->result != -1)
-		s->result = result;
+		/* check the reply : HTTP/1.X 2xx and 3xx are OK */
+		if (trash[9] == '2' || trash[9] == '3')
+			s->result |= SRV_CHK_RUNNING;
+		else
+			s->result |= SRV_CHK_ERROR;
+	}
+	else if (s->proxy->options & PR_O_SSL3_CHK) {
+		/* Check for SSLv3 alert or handshake */
+		if ((len >= 5) && (trash[0] == 0x15 || trash[0] == 0x16))
+			s->result |= SRV_CHK_RUNNING;
+		else
+			s->result |= SRV_CHK_ERROR;
+	}
+	else if (s->proxy->options & PR_O_SMTP_CHK) {
+		/* Check for SMTP code 2xx (should be 250) */
+		if ((len >= 3) && (trash[0] == '2'))
+			s->result |= SRV_CHK_RUNNING;
+		else
+			s->result |= SRV_CHK_ERROR;
+	}
+	else {
+		/* other checks are valid if the connection succeeded anyway */
+		s->result |= SRV_CHK_RUNNING;
+	}
 
  out_wakeup:
+	if (s->result & SRV_CHK_ERROR)
+		fdtab[fd].state = FD_STERROR;
+
 	EV_FD_CLR(fd, DIR_RD);
 	task_wakeup(t);
 	fdtab[fd].ev &= ~FD_POLL_RD;
@@ -312,7 +328,7 @@ void process_chk(struct task *t, struct timeval *next)
 		}
 
 		/* we'll initiate a new check */
-		s->result = 0; /* no result yet */
+		s->result = SRV_CHK_UNKNOWN; /* no result yet */
 		if ((fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) != -1) {
 			if ((fd < global.maxsock) &&
 			    (fcntl(fd, F_SETFL, O_NONBLOCK) != -1) &&
@@ -343,7 +359,7 @@ void process_chk(struct task *t, struct timeval *next)
 					if (bind(fd, (struct sockaddr *)&s->source_addr, sizeof(s->source_addr)) == -1) {
 						Alert("Cannot bind to source address before connect() for server %s/%s. Aborting.\n",
 						      s->proxy->id, s->id);
-						s->result = -1;
+						s->result |= SRV_CHK_ERROR;
 					}
 #ifdef CONFIG_HAP_CTTPROXY
 					if ((s->state & SRV_TPROXY_MASK) == SRV_TPROXY_ADDR) {
@@ -362,7 +378,7 @@ void process_chk(struct task *t, struct timeval *next)
 						    setsockopt(fd, SOL_IP, IP_TPROXY, &itp2, sizeof(itp2)) == -1) {
 							Alert("Cannot bind to tproxy source address before connect() for server %s/%s. Aborting.\n",
 							      s->proxy->id, s->id);
-							s->result = -1;
+							s->result |= SRV_CHK_ERROR;
 						}
 					}
 #endif
@@ -372,7 +388,7 @@ void process_chk(struct task *t, struct timeval *next)
 					if (bind(fd, (struct sockaddr *)&s->proxy->source_addr, sizeof(s->proxy->source_addr)) == -1) {
 						Alert("Cannot bind to source address before connect() for %s '%s'. Aborting.\n",
 						      proxy_type_str(s->proxy), s->proxy->id);
-						s->result = -1;
+						s->result |= SRV_CHK_ERROR;
 					}
 #ifdef CONFIG_HAP_CTTPROXY
 					if ((s->proxy->options & PR_O_TPXY_MASK) == PR_O_TPXY_ADDR) {
@@ -391,13 +407,13 @@ void process_chk(struct task *t, struct timeval *next)
 						    setsockopt(fd, SOL_IP, IP_TPROXY, &itp2, sizeof(itp2)) == -1) {
 							Alert("Cannot bind to tproxy source address before connect() for %s '%s'. Aborting.\n",
 							      proxy_type_str(s->proxy), s->proxy->id);
-							s->result = -1;
+							s->result |= SRV_CHK_ERROR;
 						}
 					}
 #endif
 				}
 
-				if (!s->result) {
+				if (s->result == SRV_CHK_UNKNOWN) {
 					if ((connect(fd, (struct sockaddr *)&sa, sizeof(sa)) != -1) || (errno == EINPROGRESS)) {
 						/* OK, connection in progress or established */
 			
@@ -425,14 +441,14 @@ void process_chk(struct task *t, struct timeval *next)
 						return;
 					}
 					else if (errno != EALREADY && errno != EISCONN && errno != EAGAIN) {
-						s->result = -1;    /* a real error */
+						s->result |= SRV_CHK_ERROR;    /* a real error */
 					}
 				}
 			}
 			close(fd); /* socket creation error */
 		}
 
-		if (!s->result) { /* nothing done */
+		if (s->result == SRV_CHK_UNKNOWN) { /* nothing done */
 			//fprintf(stderr, "process_chk: 6\n");
 			while (tv_isle(&t->expire, &now))
 				tv_ms_add(&t->expire, &t->expire, s->inter);
@@ -456,7 +472,7 @@ void process_chk(struct task *t, struct timeval *next)
 	else {
 		//fprintf(stderr, "process_chk: 8\n");
 		/* there was a test running */
-		if (s->result > 0) { /* good server detected */
+		if ((s->result & (SRV_CHK_ERROR|SRV_CHK_RUNNING)) == SRV_CHK_RUNNING) { /* good server detected */
 			//fprintf(stderr, "process_chk: 9\n");
 
 			if (s->health < s->rise + s->fall - 1) {
@@ -521,7 +537,7 @@ void process_chk(struct task *t, struct timeval *next)
 			tv_ms_add(&t->expire, &now, s->inter + rv);
 			goto new_chk;
 		}
-		else if (s->result < 0 || tv_isle(&t->expire, &now)) {
+		else if ((s->result & SRV_CHK_ERROR) || tv_isle(&t->expire, &now)) {
 			//fprintf(stderr, "process_chk: 10\n");
 			/* failure or timeout detected */
 			if (s->health > s->rise) {
@@ -542,10 +558,10 @@ void process_chk(struct task *t, struct timeval *next)
 			tv_ms_add(&t->expire, &now, s->inter + rv);
 			goto new_chk;
 		}
-		/* if result is 0 and there's no timeout, we have to wait again */
+		/* if result is unknown and there's no timeout, we have to wait again */
 	}
 	//fprintf(stderr, "process_chk: 11\n");
-	s->result = 0;
+	s->result = SRV_CHK_UNKNOWN;
 	task_queue(t);	/* restore t to its place in the task list */
 	*next = t->expire;
  out:

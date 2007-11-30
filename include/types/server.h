@@ -54,6 +54,11 @@
 #define SRV_STATUS_FULL     3   /* the/all server(s) are saturated */
 #define SRV_STATUS_QUEUED   4   /* the/all server(s) are saturated but the connection was queued */
 
+/* bits for s->result used for health-checks */
+#define SRV_CHK_UNKNOWN 0x0000   /* initialized to this by default */
+#define SRV_CHK_ERROR   0x0001   /* error encountered during the check; has precedence */
+#define SRV_CHK_RUNNING 0x0002   /* server seen as running */
+#define SRV_CHK_DISABLE 0x0004   /* server returned a "disable" code */
 
 struct server {
 	struct server *next;
@@ -81,7 +86,7 @@ struct server {
 	int health;				/* 0->rise-1 = bad; rise->rise+fall-1 = good */
 	int rise, fall;				/* time in iterations */
 	int inter;				/* time in milliseconds */
-	int result;				/* 0 = connect OK, -1 = connect KO */
+	int result;				/* health-check result : SRV_CHK_* */
 	int curfd;				/* file desc used for current test, or -1 if not in test */
 
 	char *id;				/* just for identification */
