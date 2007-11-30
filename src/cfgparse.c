@@ -2538,11 +2538,6 @@ int readcfgfile(const char *file)
 				Warning("parsing %s : Layer 7 hash not possible for %s '%s'. Falling back to round robin.\n",
 					file, proxy_type_str(curproxy), curproxy->id);
 			}
-			if (curproxy->options & PR_O_DISABLE404) {
-				curproxy->options &= ~PR_O_DISABLE404;
-				Warning("parsing %s : '%s' will be ignored for %s '%s' (requires HTTP mode).\n",
-					file, "disable-on-404", proxy_type_str(curproxy), curproxy->id);
-			}
 		}
 
 		if (curproxy->mode == PR_MODE_HEALTH) { /* TCP PROXY or HEALTH CHECK */
@@ -2558,11 +2553,12 @@ int readcfgfile(const char *file)
 				      file, curproxy->id);
 				cfgerr++;
 			}
-			if ((curproxy->options & PR_O_DISABLE404) && !(curproxy->options & PR_O_HTTP_CHK)) {
-				curproxy->options &= ~PR_O_DISABLE404;
-				Warning("parsing %s : '%s' will be ignored for %s '%s' (requires 'option httpchk').\n",
-					file, "disable-on-404", proxy_type_str(curproxy), curproxy->id);
-			}
+		}
+
+		if ((curproxy->options & PR_O_DISABLE404) && !(curproxy->options & PR_O_HTTP_CHK)) {
+			curproxy->options &= ~PR_O_DISABLE404;
+			Warning("parsing %s : '%s' will be ignored for %s '%s' (requires 'option httpchk').\n",
+				file, "disable-on-404", proxy_type_str(curproxy), curproxy->id);
 		}
 
 		/* if a default backend was specified, let's find it */
