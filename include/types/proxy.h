@@ -168,6 +168,7 @@ struct proxy {
 	struct uri_auth *uri_auth;		/* if non-NULL, the (list of) per-URI authentications */
 	char *monitor_uri;			/* a special URI to which we respond with HTTP/200 OK */
 	int monitor_uri_len;			/* length of the string above. 0 if unused */
+	struct list mon_fail_cond;              /* list of conditions to fail monitoring requests (chained) */
 	struct timeval clitimeout;		/* client I/O timeout (in milliseconds) */
 	struct timeval srvtimeout;		/* server I/O timeout (in milliseconds) */
 	struct timeval contimeout;		/* connect timeout (in milliseconds) */

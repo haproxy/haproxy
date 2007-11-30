@@ -1637,7 +1637,26 @@ int process_cli(struct session *t)
 			/*
 			 * We have found the monitor URI
 			 */
+			struct acl_cond *cond;
+			cur_proxy = t->fe;
+
 			t->flags |= SN_MONITOR;
+
+			/* Check if we want to fail this monitor request or not */
+			list_for_each_entry(cond, &cur_proxy->mon_fail_cond, list) {
+				int ret = acl_exec_cond(cond, cur_proxy, t, txn, ACL_DIR_REQ);
+				if (cond->pol == ACL_COND_UNLESS)
+					ret = !ret;
+
+				if (ret) {
+					/* we fail this request, let's return 503 service unavail */
+					txn->status = 503;
+					client_retnclose(t, error_message(t, HTTP_ERR_503));
+					goto return_prx_cond;
+				}
+			}
+
+			/* nothing to fail, let's reply normaly */
 			txn->status = 200;
 			client_retnclose(t, &http_200_chunk);
 			goto return_prx_cond;

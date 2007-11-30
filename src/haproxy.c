@@ -658,6 +658,12 @@ void deinit(void)
 			free(cond);
 		}
 
+		list_for_each_entry_safe(cond, condb, &p->mon_fail_cond, list) {
+			LIST_DEL(&cond->list);
+			prune_acl_cond(cond);
+			free(cond);
+		}
+
 		for (exp = p->req_exp; exp != NULL; ) {
 			if (exp->preg)
 				regfree((regex_t *)exp->preg);

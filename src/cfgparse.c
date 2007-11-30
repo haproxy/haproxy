@@ -564,6 +564,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		LIST_INIT(&curproxy->pendconns);
 		LIST_INIT(&curproxy->acl);
 		LIST_INIT(&curproxy->block_cond);
+		LIST_INIT(&curproxy->mon_fail_cond);
 		LIST_INIT(&curproxy->switching_rules);
 
 		/* Timeouts are defined as -1, so we cannot use the zeroed area
@@ -1302,6 +1303,38 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		}
 		else {
 			Alert("parsing [%s:%d] : '%s' only supports 'disable-on-404'.\n", file, linenum, args[0]);
+			return -1;
+		}
+	}
+	else if (!strcmp(args[0], "monitor")) {
+		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
+			return 0;
+
+		if (strcmp(args[1], "fail") == 0) {
+			/* add a condition to fail monitor requests */
+			int pol = ACL_COND_NONE;
+			struct acl_cond *cond;
+
+			if (!strcmp(args[2], "if"))
+				pol = ACL_COND_IF;
+			else if (!strcmp(args[2], "unless"))
+				pol = ACL_COND_UNLESS;
+
+			if (pol == ACL_COND_NONE) {
+				Alert("parsing [%s:%d] : '%s %s' requires either 'if' or 'unless' followed by a condition.\n",
+				      file, linenum, args[0], args[1]);
+				return -1;
+			}
+
+			if ((cond = parse_acl_cond((const char **)args + 3, &curproxy->acl, pol)) == NULL) {
+				Alert("parsing [%s:%d] : error detected while parsing a '%s %s' condition.\n",
+				      file, linenum, args[0], args[1]);
+				return -1;
+			}
+			LIST_ADDQ(&curproxy->mon_fail_cond, &cond->list);
+		}
+		else {
+			Alert("parsing [%s:%d] : '%s' only supports 'fail'.\n", file, linenum, args[0]);
 			return -1;
 		}
 	}
