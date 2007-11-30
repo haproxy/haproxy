@@ -22,6 +22,7 @@
 #include <common/eb32tree.h>
 #include <common/time.h>
 
+#include <types/acl.h>
 #include <types/buffers.h>
 #include <types/global.h>
 #include <types/polling.h>
@@ -29,6 +30,7 @@
 #include <types/server.h>
 #include <types/session.h>
 
+#include <proto/acl.h>
 #include <proto/backend.h>
 #include <proto/client.h>
 #include <proto/fd.h>
@@ -1540,6 +1542,51 @@ int backend_parse_balance(const char **args, char *err, int errlen, struct proxy
 	}
 	return 0;
 }
+
+
+/************************************************************************/
+/*             All supported keywords must be declared here.            */
+/************************************************************************/
+
+/* set test->i to the number of enabled servers on the proxy */
+static int
+acl_fetch_nbsrv(struct proxy *px, struct session *l4, void *l7, int dir,
+                struct acl_expr *expr, struct acl_test *test)
+{
+	test->flags = ACL_TEST_F_VOL_TEST;
+	if (expr->arg_len) {
+		/* another proxy was designated, we must look for it */
+		for (px = proxy; px; px = px->next)
+			if ((px->cap & PR_CAP_BE) && !strcmp(px->id, expr->arg.str))
+				break;
+	}
+	if (!px)
+		return 0;
+
+	if (px->srv_act)
+		test->i = px->srv_act;
+	else if (px->lbprm.fbck)
+		test->i = 1;
+	else
+		test->i = px->srv_bck;
+
+	return 1;
+}
+
+
+/* Note: must not be declared <const> as its list will be overwritten */
+static struct acl_kw_list acl_kws = {{ },{
+	{ "nbsrv",   acl_parse_int,   acl_fetch_nbsrv,    acl_match_int },
+	{ NULL, NULL, NULL, NULL },
+}};
+
+
+__attribute__((constructor))
+static void __backend_init(void)
+{
+	acl_register_keywords(&acl_kws);
+}
+
 
 /*
  * Local variables:
