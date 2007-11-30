@@ -703,3 +703,25 @@ option contstats
   it is not enabled by default, as it has small performance impact (~0.5%).
 
 
+2.3) Server options
+-------------------
+
+slowstart <start_time_in_ms>
+  The 'slowstart' parameter for a server accepts a value in milliseconds which
+  indicates after how long a server which has just come back up will run at
+  full speed. The speed grows linearly from 0 to 100% during this time. The
+  limitation applies to two parameters :
+
+  - maxconn: the number of connections accepted by the server will grow from 1
+    to 100% of the usual dynamic limit defined by (minconn,maxconn,fullconn).
+
+  - weight: when the backend uses a dynamic weighted algorithm, the weight
+    grows linearly from 1 to 100%. In this case, the weight is updated at every
+    health-check. For this reason, it is important that the 'inter' parameter
+    is smaller than the 'slowstart', in order to maximize the number of steps.  
+
+  The slowstart never applies when haproxy starts, otherwise it would cause
+  trouble to running servers. It only applies when a server has been previously
+  seen as failed.
+
+
