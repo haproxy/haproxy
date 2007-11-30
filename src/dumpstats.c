@@ -349,12 +349,16 @@ int stats_dump_http(struct session *s, struct uri_auth *uri, int flags)
 			     ".active1	{background: #ffd020;}\n"
 			     ".active2	{background: #ffffa0;}\n"
 			     ".active3	{background: #c0ffc0;}\n"
-			     ".active4	{background: #e0e0e0;}\n"
+			     ".active4	{background: #ffffa0;}\n"  /* NOLB state shows same as going down */
+			     ".active5	{background: #a0e0a0;}\n"  /* NOLB state shows darker than up */
+			     ".active6	{background: #e0e0e0;}\n"
 			     ".backup0	{background: #ff9090;}\n"
 			     ".backup1	{background: #ff80ff;}\n"
 			     ".backup2	{background: #c060ff;}\n"
 			     ".backup3	{background: #b0d0ff;}\n"
-			     ".backup4	{background: #e0e0e0;}\n"
+			     ".backup4	{background: #c060ff;}\n"  /* NOLB state shows same as going down */
+			     ".backup5	{background: #90b0e0;}\n"  /* NOLB state shows same as going down */
+			     ".backup6	{background: #e0e0e0;}\n"
 			     "table.tbl { border-collapse: collapse; border-style: none;}\n"
 			     "table.tbl td { border-width: 1px 1px 1px 1px; border-style: solid solid solid solid; padding: 2px 3px; border-color: gray;}\n"
 			     "table.tbl th { border-width: 1px; border-style: solid solid solid solid; border-color: gray;}\n"
@@ -416,8 +420,9 @@ int stats_dump_http(struct session *s, struct uri_auth *uri, int flags)
 			     "<td class=\"backup1\"></td><td class=\"noborder\">backup DOWN, going up </td>"
 			     "</tr><tr>\n"
 			     "<td class=\"active0\"></td><td class=\"noborder\">active or backup DOWN &nbsp;</td>"
-			     "<td class=\"active4\"></td><td class=\"noborder\">not checked </td>"
+			     "<td class=\"active6\"></td><td class=\"noborder\">not checked </td>"
 			     "</tr></table>\n"
+			     "Note: UP with load-balancing disabled is reported as \"NOLB\"."
 			     "</td>"
 			     "<td align=\"left\" valign=\"top\" nowrap width=\"1%%\">"
 			     "<b>Display option:</b><ul style=\"margin-top: 0.25em;\">"
@@ -685,18 +690,22 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 	case DATA_ST_PX_SV:
 		/* stats.sv has been initialized above */
 		while (s->data_ctx.stats.sv != NULL) {
-			int sv_state; /* 0=DOWN, 1=going up, 2=going down, 3=UP, 4=unchecked */
+			int sv_state; /* 0=DOWN, 1=going up, 2=going down, 3=UP, 4,5=NOLB, 6=unchecked */
 
 			sv = s->data_ctx.stats.sv;
 
 			/* FIXME: produce some small strings for "UP/DOWN x/y &#xxxx;" */
 			if (!(sv->state & SRV_CHECKED))
-				sv_state = 4;
-			else if (sv->state & SRV_RUNNING)
+				sv_state = 6;
+			else if (sv->state & SRV_RUNNING) {
 				if (sv->health == sv->rise + sv->fall - 1)
 					sv_state = 3; /* UP */
 				else
 					sv_state = 2; /* going down */
+
+				if (sv->state & SRV_GOINGDOWN)
+					sv_state += 2;
+			}
 			else
 				if (sv->health)
 					sv_state = 1; /* going up */
@@ -710,8 +719,10 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 			}
 
 			if (flags & STAT_FMT_HTML) {
-				static char *srv_hlt_st[5] = { "DOWN", "DN %d/%d &uarr;", "UP %d/%d &darr;",
-							       "UP", "<i>no check</i>" };
+				static char *srv_hlt_st[7] = { "DOWN", "DN %d/%d &uarr;",
+							       "UP %d/%d &darr;", "UP",
+							       "NOLB %d/%d &darr;", "NOLB",
+							       "<i>no check</i>" };
 				chunk_printf(&msg, sizeof(trash),
 				     /* name */
 				     "<tr align=\"center\" class=\"%s%d\"><td>%s</td>"
@@ -772,8 +783,10 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 					chunk_printf(&msg, sizeof(trash),
 					     "<td colspan=3></td></tr>\n");
 			} else {
-				static char *srv_hlt_st[5] = { "DOWN,", "DOWN %d/%d,", "UP %d/%d,",
-							       "UP,", "no check," };
+				static char *srv_hlt_st[7] = { "DOWN,", "DOWN %d/%d,",
+							       "UP %d/%d,", "UP,",
+							       "NOLB %d/%d,", "NOLB,",
+							       "no check," };
 				chunk_printf(&msg, sizeof(trash),
 				     /* pxid, name */
 				     "%s,%s,"
@@ -871,7 +884,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     px->failed_conns, px->failed_resp,
 				     px->retries, px->redispatches,
 				     human_time(now.tv_sec - px->last_change, 1),
-				     (px->lbprm.tot_weight > 0 || !px->srv) ? "UP" : "DOWN",
+				     (px->lbprm.tot_weight > 0 || !px->srv) ? "UP" :
+					     "<font color=\"red\"><b>DOWN</b></font>",
 				     px->lbprm.tot_weight * px->lbprm.wmult / px->lbprm.wdiv,
 				     px->srv_act, px->srv_bck);
 
