@@ -257,6 +257,7 @@ errorloc302                 X          X         X         X
 errorloc303                 X          X         X         X
 fullconn                    X          -         X         X
 grace                       -          X         X         X
+http-check disable-on-404   X          -         X         X
 log                         X          X         X         X
 maxconn                     X          X         X         -
 mode                        X          X         X         X
@@ -325,15 +326,6 @@ use_backend                 -          X         X         -
 usesrc                      X          -         X         X
 ----------------------+----------+----------+---------+---------
 keyword                 defaults   frontend   listen    backend
-
-option contstats
-  By default, counters used for statistics calculation are incremented
-  only when a session finishes. It works quite well when serving small
-  objects, but with big ones (for example large images or archives) or
-  with A/V streaming, a graph generated from haproxy counters looks like
-  a hedgehog. With this option enabled counters get incremented continuously,
-  during a whole session. Recounting touches a hotpath directly so
-  it is not enabled by default, as it has small performance impact (~0.5%).
 
 
 2.1) using ACLs
@@ -682,3 +674,32 @@ and to every request on the "img", "video", "download" and "ftp" hosts :
    use_backend www    if host_www
 
 See below for the detailed help on the "block" and "use_backend" keywords.
+
+
+2.2) Options
+------------
+
+A handful of options affect the way the load balancing is performed or reaction
+to state changes.
+
+http-check disable-on-404
+  When this option is set, a server which returns an HTTP code 404 will be
+  excluded from further load-balancing, but will still receive persistent
+  connections. This provides a very convenient method for Web administrators
+  to perform a graceful shutdown of their servers. It is also important to note
+  that a server which is detected as failed while it was in this mode will not
+  generate an alert, just a notice. If the server responds 2xx or 3xx again, it
+  will immediately be reinserted into the farm. The status on the stats page
+  reports "NOLB" for a server in this mode. It is important to note that this
+  option only works in conjunction with the "httpchk" option.
+
+option contstats
+  By default, counters used for statistics calculation are incremented
+  only when a session finishes. It works quite well when serving small
+  objects, but with big ones (for example large images or archives) or
+  with A/V streaming, a graph generated from haproxy counters looks like
+  a hedgehog. With this option enabled counters get incremented continuously,
+  during a whole session. Recounting touches a hotpath directly so
+  it is not enabled by default, as it has small performance impact (~0.5%).
+
+
