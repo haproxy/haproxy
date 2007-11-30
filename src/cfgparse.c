@@ -1292,6 +1292,19 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		/* enable reconnections to dispatch */
 		curproxy->options |= PR_O_REDISP;
 	}
+	else if (!strcmp(args[0], "http-check")) {
+		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
+			return 0;
+
+		if (strcmp(args[1], "disable-on-404") == 0) {
+			/* enable a graceful server shutdown on an HTTP 404 response */
+			curproxy->options |= PR_O_DISABLE404;
+		}
+		else {
+			Alert("parsing [%s:%d] : '%s' only supports 'disable-on-404'.\n", file, linenum, args[0]);
+			return -1;
+		}
+	}
 #ifdef TPROXY
 	else if (!strcmp(args[0], "transparent")) {
 		/* enable transparent proxy connections */
@@ -2525,6 +2538,11 @@ int readcfgfile(const char *file)
 				Warning("parsing %s : Layer 7 hash not possible for %s '%s'. Falling back to round robin.\n",
 					file, proxy_type_str(curproxy), curproxy->id);
 			}
+			if (curproxy->options & PR_O_DISABLE404) {
+				curproxy->options &= ~PR_O_DISABLE404;
+				Warning("parsing %s : '%s' will be ignored for %s '%s' (requires HTTP mode).\n",
+					file, "disable-on-404", proxy_type_str(curproxy), curproxy->id);
+			}
 		}
 
 		if (curproxy->mode == PR_MODE_HEALTH) { /* TCP PROXY or HEALTH CHECK */
@@ -2539,6 +2557,11 @@ int readcfgfile(const char *file)
 				Alert("parsing %s : HTTP proxy %s has a cookie but no server list !\n",
 				      file, curproxy->id);
 				cfgerr++;
+			}
+			if ((curproxy->options & PR_O_DISABLE404) && !(curproxy->options & PR_O_HTTP_CHK)) {
+				curproxy->options &= ~PR_O_DISABLE404;
+				Warning("parsing %s : '%s' will be ignored for %s '%s' (requires 'option httpchk').\n",
+					file, "disable-on-404", proxy_type_str(curproxy), curproxy->id);
 			}
 		}
 

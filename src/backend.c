@@ -60,6 +60,8 @@ static inline int srv_is_usable(int state, int weight)
 {
 	if (!weight)
 		return 0;
+	if (state & SRV_GOINGDOWN)
+		return 0;
 	if (!(state & SRV_RUNNING))
 		return 0;
 	return 1;
@@ -193,7 +195,8 @@ void recalc_server_map(struct proxy *px)
 		int max = 0;
 		best = NULL;
 		for (cur = px->srv; cur; cur = cur->next) {
-			if ((cur->state & (SRV_RUNNING | SRV_BACKUP)) == flag) {
+			if (flag == (cur->state &
+				     (SRV_RUNNING | SRV_GOINGDOWN | SRV_BACKUP))) {
 				int v;
 
 				/* If we are forced to return only one server, we don't want to

@@ -41,6 +41,7 @@
 #define SRV_MAPPORTS	0x0004	/* this server uses mapped ports */
 #define SRV_BIND_SRC	0x0008	/* this server uses a specific source address */
 #define SRV_CHECKED	0x0010	/* this server needs to be checked */
+#define SRV_GOINGDOWN	0x0020	/* this server says that it's going down (404) */
 
 #define SRV_TPROXY_ADDR	0x0020	/* bind to this non-local address to reach this server */
 #define SRV_TPROXY_CIP	0x0040	/* bind to the client's IP address to reach this server */

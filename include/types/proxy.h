@@ -102,6 +102,7 @@
 #define PR_O_TCPSPLICE	0x08000000      /* delegate data transfer to linux kernel's tcp_splice */
 #define PR_O_CONTSTATS	0x10000000	/* continous counters */
 #define PR_O_HTTP_PROXY 0x20000000	/* Enable session to use HTTP proxy operations */
+#define PR_O_DISABLE404 0x40000000      /* Disable a server on a 404 response to a health-check */
 
 /* This structure is used to apply fast weighted round robin on a server group */
 struct fwrr_group {

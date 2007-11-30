@@ -45,6 +45,69 @@
 #include <import/ip_tproxy.h>
 #endif
 
+/* sends a log message when a backend goes down, and also sets last
+ * change date.
+ */
+static void set_backend_down(struct proxy *be)
+{
+	be->last_change = now.tv_sec;
+	be->down_trans++;
+
+	Alert("%s '%s' has no server available!\n", proxy_type_str(be), be->id);
+	send_log(be, LOG_EMERG, "%s %s has no server available!\n", proxy_type_str(be), be->id);
+}
+
+/* Redistribute pending connections when a server goes down. The number of
+ * connections redistributed is returned.
+ */
+static int redistribute_pending(struct server *s)
+{
+	struct pendconn *pc, *pc_bck, *pc_end;
+	int xferred = 0;
+
+	FOREACH_ITEM_SAFE(pc, pc_bck, &s->pendconns, pc_end, struct pendconn *, list) {
+		struct session *sess = pc->sess;
+		if (sess->be->options & PR_O_REDISP) {
+			/* The REDISP option was specified. We will ignore
+			 * cookie and force to balance or use the dispatcher.
+			 */
+			sess->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
+			sess->srv = NULL; /* it's left to the dispatcher to choose a server */
+			http_flush_cookie_flags(&sess->txn);
+			pendconn_free(pc);
+			task_wakeup(sess->task);
+			xferred++;
+		}
+	}
+	return xferred;
+}
+
+/* Check for pending connections at the backend, and assign some of them to
+ * the server coming up. The server's weight is checked before being assigned
+ * connections it may not be able to handle. The total number of transferred
+ * connections is returned.
+ */
+static int check_for_pending(struct server *s)
+{
+	int xferred;
+
+	if (!s->eweight)
+		return 0;
+
+	for (xferred = 0; !s->maxconn || xferred < srv_dynamic_maxconn(s); xferred++) {
+		struct session *sess;
+		struct pendconn *p;
+
+		p = pendconn_from_px(s->proxy);
+		if (!p)
+			break;
+		p->sess->srv = s;
+		sess = p->sess;
+		pendconn_free(p);
+		task_wakeup(sess->task);
+	}
+	return xferred;
+}
 
 /* Sets server <s> down, notifies by all available means, recounts the
  * remaining servers on the proxy and transfers queued sessions whenever
@@ -53,36 +116,20 @@
  */
 static void set_server_down(struct server *s)
 {
-	struct pendconn *pc, *pc_bck, *pc_end;
-	struct session *sess;
 	int xferred;
 
 	if (s->health == s->rise) {
+		int srv_was_paused = s->state & SRV_GOINGDOWN;
 
 		s->last_change = now.tv_sec;
-		s->state &= ~SRV_RUNNING;
+		s->state &= ~(SRV_RUNNING | SRV_GOINGDOWN);
 		s->proxy->lbprm.set_server_status_down(s);
 
 		/* we might have sessions queued on this server and waiting for
 		 * a connection. Those which are redispatchable will be queued
 		 * to another server or to the proxy itself.
 		 */
-		xferred = 0;
-		FOREACH_ITEM_SAFE(pc, pc_bck, &s->pendconns, pc_end, struct pendconn *, list) {
-			sess = pc->sess;
-			if ((sess->be->options & PR_O_REDISP)) {
-				/* The REDISP option was specified. We will ignore
-				 * cookie and force to balance or use the dispatcher.
-				 */
-				sess->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
-				sess->srv = NULL; /* it's left to the dispatcher to choose a server */
-				http_flush_cookie_flags(&sess->txn);
-				pendconn_free(pc);
-				task_wakeup(sess->task);
-				xferred++;
-			}
-		}
-
+		xferred = redistribute_pending(s);
 		sprintf(trash, "%sServer %s/%s is DOWN. %d active and %d backup servers left.%s"
 			" %d sessions active, %d requeued, %d remaining in queue.\n",
 			s->state & SRV_BACKUP ? "Backup " : "",
@@ -91,15 +138,16 @@ static void set_server_down(struct server *s)
 			s->cur_sess, xferred, s->nbpend);
 
 		Warning("%s", trash);
-		send_log(s->proxy, LOG_ALERT, "%s", trash);
 
-		if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
-			s->proxy->last_change = now.tv_sec;
-			s->proxy->down_trans++;
+		/* we don't send an alert if the server was previously paused */
+		if (srv_was_paused)
+			send_log(s->proxy, LOG_NOTICE, "%s", trash);
+		else
+			send_log(s->proxy, LOG_ALERT, "%s", trash);
 
-			Alert("%s '%s' has no server available!\n", proxy_type_str(s->proxy), s->proxy->id);
-			send_log(s->proxy, LOG_EMERG, "%s %s has no server available!\n", proxy_type_str(s->proxy), s->proxy->id);
-		}
+		if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
+			set_backend_down(s->proxy);
+
 		s->down_trans++;
 	}
 	s->health = 0; /* failure */
@@ -260,6 +308,12 @@ static int event_srv_chk_r(int fd)
 		/* check the reply : HTTP/1.X 2xx and 3xx are OK */
 		if (trash[9] == '2' || trash[9] == '3')
 			s->result |= SRV_CHK_RUNNING;
+		else if ((s->proxy->options & PR_O_DISABLE404) &&
+			 (s->state & SRV_RUNNING) &&
+			 (memcmp(&trash[9], "404", 3) == 0)) {
+			/* 404 may be accepted as "stopping" only if the server was up */
+			s->result |= SRV_CHK_RUNNING | SRV_CHK_DISABLE;
+		}
 		else
 			s->result |= SRV_CHK_ERROR;
 	}
@@ -301,6 +355,7 @@ void process_chk(struct task *t, struct timeval *next)
 	__label__ new_chk, out;
 	struct server *s = t->context;
 	struct sockaddr_in sa;
+	int xferred;
 	int fd;
 	int rv;
 
@@ -475,12 +530,63 @@ void process_chk(struct task *t, struct timeval *next)
 		if ((s->result & (SRV_CHK_ERROR|SRV_CHK_RUNNING)) == SRV_CHK_RUNNING) { /* good server detected */
 			//fprintf(stderr, "process_chk: 9\n");
 
+			/* we may have to add/remove this server from the LB group */
+			if ((s->state & SRV_RUNNING) && (s->proxy->options & PR_O_DISABLE404)) {
+				if ((s->state & SRV_GOINGDOWN) &&
+				    ((s->result & (SRV_CHK_RUNNING|SRV_CHK_DISABLE)) == SRV_CHK_RUNNING)) {
+					/* server enabled again */
+					s->state &= ~SRV_GOINGDOWN;
+					s->proxy->lbprm.set_server_status_up(s);
+
+					/* check if we can handle some connections queued at the proxy. We
+					 * will take as many as we can handle.
+					 */
+					xferred = check_for_pending(s);
+
+					sprintf(trash,
+						"Load-balancing on %sServer %s/%s is enabled again. %d active and %d backup servers online.%s"
+						" %d sessions requeued, %d total in queue.\n",
+						s->state & SRV_BACKUP ? "Backup " : "",
+						s->proxy->id, s->id, s->proxy->srv_act, s->proxy->srv_bck,
+						(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
+						xferred, s->nbpend);
+
+					Warning("%s", trash);
+					send_log(s->proxy, LOG_NOTICE, "%s", trash);
+				}
+				else if (!(s->state & SRV_GOINGDOWN) &&
+					 ((s->result & (SRV_CHK_RUNNING | SRV_CHK_DISABLE)) ==
+					  (SRV_CHK_RUNNING | SRV_CHK_DISABLE))) {
+					/* server disabled */
+					s->state |= SRV_GOINGDOWN;
+					s->proxy->lbprm.set_server_status_down(s);
+
+					/* we might have sessions queued on this server and waiting for
+					 * a connection. Those which are redispatchable will be queued
+					 * to another server or to the proxy itself.
+					 */
+					xferred = redistribute_pending(s);
+
+					sprintf(trash,
+						"Load-balancing on %sServer %s/%s is disabled. %d active and %d backup servers online.%s"
+						" %d sessions requeued, %d total in queue.\n",
+						s->state & SRV_BACKUP ? "Backup " : "",
+						s->proxy->id, s->id, s->proxy->srv_act, s->proxy->srv_bck,
+						(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
+						xferred, s->nbpend);
+
+					Warning("%s", trash);
+
+					send_log(s->proxy, LOG_NOTICE, "%s", trash);
+					if (!s->proxy->srv_bck && !s->proxy->srv_act)
+						set_backend_down(s->proxy);
+				}
+			}
+
 			if (s->health < s->rise + s->fall - 1) {
 				s->health++; /* was bad, stays for a while */
 
 				if (s->health == s->rise) {
-					int xferred;
-
 					if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
 						if (s->proxy->last_change < now.tv_sec)		// ignore negative times
 							s->proxy->down_time += now.tv_sec - s->proxy->last_change;
@@ -497,18 +603,7 @@ void process_chk(struct task *t, struct timeval *next)
 					/* check if we can handle some connections queued at the proxy. We
 					 * will take as many as we can handle.
 					 */
-					for (xferred = 0; !s->maxconn || xferred < srv_dynamic_maxconn(s); xferred++) {
-						struct session *sess;
-						struct pendconn *p;
-
-						p = pendconn_from_px(s->proxy);
-						if (!p)
-							break;
-						p->sess->srv = s;
-						sess = p->sess;
-						pendconn_free(p);
-						task_wakeup(sess->task);
-					}
+					xferred = check_for_pending(s);
 
 					sprintf(trash,
 						"%sServer %s/%s is UP. %d active and %d backup servers online.%s"
