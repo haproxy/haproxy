@@ -530,6 +530,25 @@ void process_chk(struct task *t, struct timeval *next)
 		if ((s->result & (SRV_CHK_ERROR|SRV_CHK_RUNNING)) == SRV_CHK_RUNNING) { /* good server detected */
 			//fprintf(stderr, "process_chk: 9\n");
 
+			if (s->state & SRV_WARMINGUP) {
+				if (now.tv_sec < s->last_change || now.tv_sec >= s->last_change + s->slowstart) {
+					s->state &= ~SRV_WARMINGUP;
+					if (s->proxy->lbprm.algo & BE_LB_PROP_DYN)
+						s->eweight = s->uweight * BE_WEIGHT_SCALE;
+					if (s->proxy->lbprm.update_server_eweight)
+						s->proxy->lbprm.update_server_eweight(s);
+				}
+				else if (s->proxy->lbprm.algo & BE_LB_PROP_DYN) {
+					/* for dynamic algorithms, let's update the weight */
+					s->eweight = BE_WEIGHT_SCALE * (now.tv_sec - s->last_change) / s->slowstart;
+					s->eweight *= s->uweight;
+					if (s->proxy->lbprm.update_server_eweight)
+						s->proxy->lbprm.update_server_eweight(s);
+				}
+				/* probably that we can refill this server with a bit more connections */
+				check_for_pending(s);
+			}
+
 			/* we may have to add/remove this server from the LB group */
 			if ((s->state & SRV_RUNNING) && (s->proxy->options & PR_O_DISABLE404)) {
 				if ((s->state & SRV_GOINGDOWN) &&
@@ -598,6 +617,17 @@ void process_chk(struct task *t, struct timeval *next)
 
 					s->last_change = now.tv_sec;
 					s->state |= SRV_RUNNING;
+					if (s->slowstart > 0) {
+						s->state |= SRV_WARMINGUP;
+						if (s->proxy->lbprm.algo & BE_LB_PROP_DYN) {
+							/* For dynamic algorithms, start at the first step of the weight,
+							 * without multiplying by BE_WEIGHT_SCALE.
+							 */
+							s->eweight = s->uweight;
+							if (s->proxy->lbprm.update_server_eweight)
+								s->proxy->lbprm.update_server_eweight(s);
+						}
+					}
 					s->proxy->lbprm.set_server_status_up(s);
 
 					/* check if we can handle some connections queued at the proxy. We

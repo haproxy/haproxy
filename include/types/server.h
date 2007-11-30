@@ -42,6 +42,7 @@
 #define SRV_BIND_SRC	0x0008	/* this server uses a specific source address */
 #define SRV_CHECKED	0x0010	/* this server needs to be checked */
 #define SRV_GOINGDOWN	0x0020	/* this server says that it's going down (404) */
+#define SRV_WARMINGUP	0x0040	/* this server is warming up after a failure */
 
 #define SRV_TPROXY_ADDR	0x0020	/* bind to this non-local address to reach this server */
 #define SRV_TPROXY_CIP	0x0040	/* bind to the client's IP address to reach this server */
@@ -87,6 +88,7 @@ struct server {
 	int health;				/* 0->rise-1 = bad; rise->rise+fall-1 = good */
 	int rise, fall;				/* time in iterations */
 	int inter;				/* time in milliseconds */
+	int slowstart;				/* slowstart time in seconds (ms in the conf) */
 	int result;				/* health-check result : SRV_CHK_* */
 	int curfd;				/* file desc used for current test, or -1 if not in test */
 

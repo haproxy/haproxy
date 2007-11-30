@@ -33,20 +33,32 @@ int init_pendconn()
 
 /* returns the effective dynamic maxconn for a server, considering the minconn
  * and the proxy's usage relative to its dynamic connections limit. It is
- * expected that 0 < s->minconn <= s->maxconn when this is called.
+ * expected that 0 < s->minconn <= s->maxconn when this is called. If the
+ * server is currently warming up, the slowstart is also applied to the
+ * resulting value, which can be lower than minconn in this case, but never
+ * less than 1.
  */
 unsigned int srv_dynamic_maxconn(const struct server *s)
 {
+	unsigned int max;
+
 	if (s->proxy->beconn >= s->proxy->fullconn)
 		/* no fullconn or proxy is full */
-		return s->maxconn;
-
-	if (s->minconn == s->maxconn)
+		max = s->maxconn;
+	else if (s->minconn == s->maxconn)
 		/* static limit */
-		return s->maxconn;
+		max = s->maxconn;
+	else max = MAX(s->minconn,
+		       s->proxy->beconn * s->maxconn / s->proxy->fullconn);
 
-	return MAX(s->minconn,
-		   s->proxy->beconn * s->maxconn / s->proxy->fullconn);
+	if ((s->state & SRV_WARMINGUP) &&
+	    now.tv_sec < s->last_change + s->slowstart &&
+	    now.tv_sec >= s->last_change) {
+		unsigned int ratio;
+		ratio = MAX(1, 100 * (now.tv_sec - s->last_change) / s->slowstart);
+		max = max * ratio / 100;
+	}
+	return max;
 }
 
 
