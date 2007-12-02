@@ -62,6 +62,12 @@
 #define SRV_CHK_RUNNING 0x0002   /* server seen as running */
 #define SRV_CHK_DISABLE 0x0004   /* server returned a "disable" code */
 
+/* various constants */
+#define SRV_UWGHT_RANGE 256
+#define SRV_UWGHT_MAX   (SRV_UWGHT_RANGE - 1)
+#define SRV_EWGHT_RANGE (SRV_UWGHT_RANGE * BE_WEIGHT_SCALE)
+#define SRV_EWGHT_MAX   (SRV_UWGHT_MAX   * BE_WEIGHT_SCALE)
+
 struct server {
 	struct server *next;
 	int state;				/* server state (SRV_*) */

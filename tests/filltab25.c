@@ -35,7 +35,7 @@ int p;          /* current position, between sw..2sw-1 */
 /* queue a server in the weights tree */
 void queue_by_weight(struct eb_root *root, struct srv *s) {
 	s->node.key = 255 - s->w;
-	eb32i_insert(root, &s->node);
+	eb32_insert(root, &s->node);
 	s->tree = root;
 }
 
@@ -43,7 +43,7 @@ void queue_by_weight(struct eb_root *root, struct srv *s) {
 void queue_by_weight_0(struct eb_root *root, struct srv *s) {
 	if (s->w) {
 		s->node.key = 255 - s->w;
-		eb32i_insert(root, &s->node);
+		eb32_insert(root, &s->node);
 		s->tree = root;
 	} else {
 		s->tree = NULL;
@@ -62,13 +62,25 @@ void put_srv(struct srv *s) {
 		/* put into next tree */
 		s->next -= sw; // readjust next in case we could finally take this back to current.
 		queue_by_weight_0(next_tree, s);
-	} else { /* FIXME: sw can be smaller than s->rem! */
-		//s->node.key = sw * s->next + s->rem - s->w;
-		//s->node.key = 65536 * s->next + s->rem - s->w;
-		//s->node.key = 256*s->next + (s->rem / 256);
-		//s->node.key = 256*s->next + ((s->rem - s->w) / 256);
-		s->node.key = 16*s->next + ((s->rem - s->w) / 4096);
-		eb32i_insert(&tree_0, &s->node);
+	} else {
+		// The overflow problem is caused by the scale we want to apply to user weight
+		// to turn it into effective weight. Since this is only used to provide a smooth
+		// slowstart on very low weights (1), it is a pure waste. Thus, we just have to
+		// apply a small scaling factor and warn the user that slowstart is not very smooth
+		// on low weights.
+		// The max key is about ((scale*maxw)*(scale*maxw)*nbsrv)/ratio  (where the ratio is
+		// the arbitrary divide we perform in the examples above). Assuming that ratio==scale,
+		// this translates to maxkey=scale*maxw^2*nbsrv, so
+		//    max_nbsrv=2^32/255^2/scale ~= 66051/scale
+		// Using a scale of 16 is enough to support 4000 servers without overflow, providing
+		// 6% steps during slowstart.
+
+		s->node.key = 256 * s->next + (16*255 + s->rem - s->w) / 16;
+
+		/* check for overflows */
+		if ((int)s->node.key < 0)
+			printf(" OV: srv=%p w=%d rem=%d next=%d key=%d", s, s->w, s->rem, s->next, s->node.key);
+		eb32_insert(&tree_0, &s->node);
 		s->tree = &tree_0;
 	}
 }
@@ -122,6 +134,7 @@ struct srv *get_next_server() {
 			get_srv_init(s);
 			if (s->w == 0)
 				node = NULL;
+			s->node.key = 0; // do not display random values
 		}
 	}
 	if (node)
@@ -299,8 +312,8 @@ main(int argc, char **argv) {
 	next_iteration:
 		p++;
 		conns++;
-		if (/*conns == 30*/ /**/random()%1000 == 0/**/) {
-			int w = /*20*//**/random()%10000/**/;
+		if (/*conns == 30*/ /**/random()%100 == 0/**/) {
+			int w = /*20*//**/random()%4096/**/;
 			int num = /*1*//**/random()%nsrv/**/;
 			struct srv *s = &srv[num];
 

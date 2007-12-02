@@ -511,8 +511,7 @@ static inline void fwrr_remove_from_tree(struct server *s)
  */
 static inline void fwrr_queue_by_weight(struct eb_root *root, struct server *s)
 {
-	/* eweight can be as high as 256*255 */
-	s->lb_node.key = BE_WEIGHT_SCALE*255 - s->eweight;
+	s->lb_node.key = SRV_EWGHT_MAX - s->eweight;
 	eb32_insert(root, &s->lb_node);
 	s->lb_tree = root;
 }
@@ -598,17 +597,17 @@ static void fwrr_queue_srv(struct server *s)
 		fwrr_queue_by_weight(grp->next, s);
 	}
 	else {
-		/* FIXME: we want to multiply by a constant to avoid overrides
-		 * after weight changes, but this can easily overflow on 32-bit
-		 * values. We need to change this for a 64-bit tree, and keep
-		 * the 65536 factor for optimal smoothness (both rweight and
-		 * eweight are 16 bit entities). s->npos is bound by the number
-		 * of servers times the maximum eweight (~= nsrv << 16).
+		/* The sorting key is stored in units of s->npos * user_weight
+		 * in order to avoid overflows. As stated in backend.h, the
+		 * lower the scale, the rougher the weights modulation, and the
+		 * higher the scale, the lower the number of servers without
+		 * overflow. With this formula, the result is always positive,
+		 * so we can use eb3é_insert().
 		 */
-		//s->lb_node.key = grp->curr_weight * s->npos + s->rweight - s->eweight;
-		//s->lb_node.key = 65536 * s->npos + s->rweight - s->eweight;
-		s->lb_node.key = 16 * s->npos + (s->rweight - s->eweight) / 4096;
-		eb32i_insert(&grp->curr, &s->lb_node);
+		s->lb_node.key = SRV_UWGHT_RANGE * s->npos +
+			(unsigned)(SRV_EWGHT_MAX + s->rweight - s->eweight) / BE_WEIGHT_SCALE;
+
+		eb32_insert(&grp->curr, &s->lb_node);
 		s->lb_tree = &grp->curr;
 	}
 }
