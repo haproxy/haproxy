@@ -513,7 +513,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 	static struct proxy *curproxy = NULL;
 	struct server *newsrv = NULL;
 	const char *err;
-	int rc, val;
+	int rc;
+	unsigned val;
 
 	if (!strcmp(args[0], "listen"))
 		rc = PR_CAP_LISTEN;
@@ -868,7 +869,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		curproxy->appsession_name = strdup(args[1]);
 		curproxy->appsession_name_len = strlen(curproxy->appsession_name);
 		curproxy->appsession_len = atoi(args[3]);
-		val = atoi(args[5]);
+		err = parse_time_err(args[5], &val, TIME_UNIT_MS);
+		if (err) {
+			Alert("parsing [%s:%d] : unexpected character '%c' in %s timeout.\n",
+			      file, linenum, *err, args[0]);
+			return -1;
+		}
 		if (val > 0)
 			__tv_from_ms(&curproxy->appsession_timeout, val);
 		else
@@ -977,7 +983,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			      file, linenum, args[0]);
 			return -1;
 		}
-		val = atoi(args[1]);
+		err = parse_time_err(args[1], &val, TIME_UNIT_MS);
+		if (err) {
+			Alert("parsing [%s:%d] : unexpected character '%c' in %s.\n",
+			      file, linenum, *err, args[0]);
+			return -1;
+		}
 		if (val > 0)
 			__tv_from_ms(&curproxy->contimeout, val);
 		else
@@ -997,7 +1008,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			      file, linenum, args[0]);
 			return -1;
 		}
-		val = atoi(args[1]);
+		err = parse_time_err(args[1], &val, TIME_UNIT_MS);
+		if (err) {
+			Alert("parsing [%s:%d] : unexpected character '%c' in %s.\n",
+			      file, linenum, *err, args[0]);
+			return -1;
+		}
 		if (val > 0)
 			__tv_from_ms(&curproxy->clitimeout, val);
 		else
@@ -1016,7 +1032,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			      file, linenum, args[0]);
 			return -1;
 		}
-		val = atoi(args[1]);
+		err = parse_time_err(args[1], &val, TIME_UNIT_MS);
+		if (err) {
+			Alert("parsing [%s:%d] : unexpected character '%c' in %s.\n",
+			      file, linenum, *err, args[0]);
+			return -1;
+		}
 		if (val > 0)
 			__tv_from_ms(&curproxy->srvtimeout, val);
 		else
@@ -1118,10 +1139,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 				return -1;
 			}
 		} else if (!strcmp(args[1], "refresh")) {
-			int interval = atoi(args[2]);
-			
-			if (interval < 0) {
-				Alert("parsing [%s:%d] : 'refresh' needs a positive interval in seconds.\n", file, linenum);
+			unsigned interval;
+
+			err = parse_time_err(args[2], &interval, TIME_UNIT_S);
+			if (err) {
+				Alert("parsing [%s:%d] : unexpected character '%c' in stats refresh interval.\n",
+				      file, linenum, *err);
 				return -1;
 			} else if (!stats_set_refresh(&curproxy->uri_auth, interval)) {
 				Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
@@ -1383,7 +1406,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			Alert("parsing [%s:%d] : '%s' expects a time in milliseconds.\n", file, linenum, args[0]);
 			return -1;
 		}
-		curproxy->grace = atol(args[1]);
+		err = parse_time_err(args[1], &val, TIME_UNIT_MS);
+		if (err) {
+			Alert("parsing [%s:%d] : unexpected character '%c' in grace time.\n",
+			      file, linenum, *err);
+			return -1;
+		}
+		curproxy->grace = val;
 	}
 	else if (!strcmp(args[0], "dispatch")) {  /* dispatch address */
 		if (curproxy == &defproxy) {
@@ -1502,7 +1531,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "inter")) {
-				newsrv->inter = atol(args[cur_arg + 1]);
+				const char *err = parse_time_err(args[cur_arg + 1], &val, TIME_UNIT_MS);
+				if (err) {
+					Alert("parsing [%s:%d] : unexpected character '%c' in 'inter' argument of server %s.\n",
+					      file, linenum, *err, newsrv->id);
+					return -1;
+				}
+				newsrv->inter = val;
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "addr")) {
@@ -1542,7 +1577,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			}
 			else if (!strcmp(args[cur_arg], "slowstart")) {
 				/* slowstart is stored in seconds */
-				newsrv->slowstart = (atol(args[cur_arg + 1]) + 999) / 1000;
+				const char *err = parse_time_err(args[cur_arg + 1], &val, TIME_UNIT_S);
+				if (err) {
+					Alert("parsing [%s:%d] : unexpected character '%c' in 'slowstart' argument of server %s.\n",
+					      file, linenum, *err, newsrv->id);
+					return -1;
+				}
+				newsrv->slowstart = val;
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "check")) {

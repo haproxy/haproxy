@@ -127,9 +127,15 @@ int stats_parse_global(const char **args, char *err, int errlen)
 		global.maxsock++;
 	}
 	else if (!strcmp(args[0], "timeout")) {
-		int timeout = atol(args[1]);
+		unsigned timeout;
+		const char *res = parse_time_err(args[1], &timeout, TIME_UNIT_MS);
 
-		if (timeout <= 0) {
+		if (res) {
+			snprintf(err, errlen, "unexpected character '%c' in 'stats timeout' in 'global' section", *res);
+			return -1;
+		}
+
+		if (!timeout) {
 			snprintf(err, errlen, "a positive value is expected for 'stats timeout' in 'global section'");
 			return -1;
 		}
