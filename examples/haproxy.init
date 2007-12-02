@@ -108,7 +108,7 @@ case "$1" in
     ;;
   *)
     echo $"Usage: $BASENAME {start|stop|restart|reload|condrestart|status|check}"
-    RETVAL=1
+    exit 1
 esac
  
-exit $RETVAL
+exit $?
