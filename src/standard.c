@@ -496,6 +496,84 @@ int strl2llrc(const char *s, int len, long long *ret)
 	return 0;
 }
 
+/* This function parses a time value optionally followed by a unit suffix among
+ * "d", "h", "m", "s", "ms" or "us". It converts the value into the unit
+ * expected by the caller. The computation does its best to avoid overflows.
+ * The value is returned in <ret> if everything is fine, and a NULL is returned
+ * by the function. In case of error, a pointer to the error is returned and
+ * <ret> is left untouched. Values are automatically rounded up when needed.
+ */
+const char *parse_time_err(const char *text, unsigned *ret, unsigned unit_flags)
+{
+	unsigned imult, idiv;
+	unsigned omult, odiv;
+	unsigned value;
+
+	omult = odiv = 1;
+
+	switch (unit_flags & TIME_UNIT_MASK) {
+	case TIME_UNIT_US:   omult = 1000000; break;
+	case TIME_UNIT_MS:   omult = 1000; break;
+	case TIME_UNIT_S:    break;
+	case TIME_UNIT_MIN:  odiv = 60; break;
+	case TIME_UNIT_HOUR: odiv = 3600; break;
+	case TIME_UNIT_DAY:  odiv = 86400; break;
+	default: break;
+	}
+
+	value = 0;
+
+	while (1) {
+		unsigned int j;
+
+		j = *text - '0';
+		if (j > 9)
+			break;
+		text++;
+		value *= 10;
+		value += j;
+	}
+
+	imult = idiv = 1;
+	switch (*text) {
+	case '\0': /* no unit = default unit */
+		imult = omult = idiv = odiv = 1;
+		break;
+	case 's': /* second = unscaled unit */
+		break;
+	case 'u': /* microsecond : "us" */
+		if (text[1] == 's') {
+			idiv = 1000000;
+			text++;
+		}
+		break;
+	case 'm': /* millisecond : "ms" or minute: "m" */
+		if (text[1] == 's') {
+			idiv = 1000;
+			text++;
+		} else
+			imult = 60;
+		break;
+	case 'h': /* hour : "h" */
+		imult = 3600;
+		break;
+	case 'd': /* day : "d" */
+		imult = 86400;
+		break;
+	default:
+		return text;
+		break;
+	}
+
+	if (omult % idiv == 0) { omult /= idiv; idiv = 1; }
+	if (idiv % omult == 0) { idiv /= omult; omult = 1; }
+	if (imult % odiv == 0) { imult /= odiv; odiv = 1; }
+	if (odiv % imult == 0) { odiv /= imult; imult = 1; }
+
+	value = (value * (imult * omult) + (idiv * odiv - 1)) / (idiv * odiv);
+	*ret = value;
+	return NULL;
+}
 
 /*
  * Local variables:

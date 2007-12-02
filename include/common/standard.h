@@ -238,4 +238,22 @@ static inline void get_localtime(const time_t now, struct tm *tm)
 	localtime_r(&now, tm);
 }
 
+/* This function parses a time value optionally followed by a unit suffix among
+ * "d", "h", "m", "s", "ms" or "us". It converts the value into the unit
+ * expected by the caller. The computation does its best to avoid overflows.
+ * The value is returned in <ret> if everything is fine, and a NULL is returned
+ * by the function. In case of error, a pointer to the error is returned and
+ * <ret> is left untouched.
+ */
+extern const char *parse_time_err(const char *text, unsigned *ret, unsigned unit_flags);
+
+/* unit flags to pass to parse_time_err */
+#define TIME_UNIT_US   0x0000
+#define TIME_UNIT_MS   0x0001
+#define TIME_UNIT_S    0x0002
+#define TIME_UNIT_MIN  0x0003
+#define TIME_UNIT_HOUR 0x0004
+#define TIME_UNIT_DAY  0x0005
+#define TIME_UNIT_MASK 0x0007
+
 #endif /* _COMMON_STANDARD_H */
