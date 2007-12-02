@@ -534,6 +534,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			return -1;
 		}
 
+		err = invalid_char(args[1]);
+		if (err) {
+			Alert("parsing [%s:%d] : character '%c' is not permitted in '%s' name '%s'.\n",
+			      file, linenum, *err, args[0], args[1]);
+			return -1;
+		}
+
 		for (curproxy = proxy; curproxy != NULL; curproxy = curproxy->next) {
 			/*
 			 * If there are two proxies with the same name only following
@@ -759,6 +766,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		curproxy->state = PR_STNEW;
 	}
 	else if (!strcmp(args[0], "acl")) {  /* add an ACL */
+		err = invalid_char(args[1]);
+		if (err) {
+			Alert("parsing [%s:%d] : character '%c' is not permitted in acl name '%s'.\n",
+			      file, linenum, *err, args[1]);
+			return -1;
+		}
+
 		if (parse_acl((const char **)args + 1, &curproxy->acl) == NULL) {
 			Alert("parsing [%s:%d] : error detected while parsing ACL '%s'.\n",
 			      file, linenum, args[1]);
@@ -1414,6 +1428,14 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			      file, linenum, args[0]);
 			return -1;
 		}
+
+		err = invalid_char(args[1]);
+		if (err) {
+			Alert("parsing [%s:%d] : character '%c' is not permitted in server name '%s'.\n",
+			      file, linenum, *err, args[1]);
+			return -1;
+		}
+
 		if ((newsrv = (struct server *)calloc(1, sizeof(struct server))) == NULL) {
 			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			return -1;

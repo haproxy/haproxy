@@ -580,6 +580,9 @@ struct acl *parse_acl(const char **args, struct list *known_acl)
 	struct acl_expr *acl_expr;
 	char *name;
 
+	if (invalid_char(*args))
+		goto out_return;
+
 	acl_expr = parse_acl_expr(args + 1);
 	if (!acl_expr)
 		goto out_return;

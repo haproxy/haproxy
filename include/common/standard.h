@@ -118,6 +118,13 @@ extern const char *limit_r(unsigned long n, char *buffer, int size, const char *
 extern int ishex(char s);
 
 /*
+ * Checks <name> for invalid characters. Valid chars are [A-Za-z0-9_:.-]. If an
+ * invalid character is found, a pointer to it is returned. If everything is
+ * fine, NULL is returned.
+ */
+extern const char *invalid_char(const char *name);
+
+/*
  * converts <str> to a struct sockaddr_in* which is locally allocated.
  * The format is "addr:port", where "addr" can be a dotted IPv4 address,
  * a host name, or empty or "*" to indicate INADDR_ANY.
