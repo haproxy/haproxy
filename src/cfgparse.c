@@ -502,6 +502,8 @@ static void init_default_instance()
 	tv_eternity(&defproxy.contimeout);
 	tv_eternity(&defproxy.srvtimeout);
 	tv_eternity(&defproxy.appsession_timeout);
+	tv_eternity(&defproxy.timeout.queue);
+	tv_eternity(&defproxy.timeout.tarpit);
 }
 
 /*
@@ -582,6 +584,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		tv_eternity(&curproxy->srvtimeout);
 		tv_eternity(&curproxy->contimeout);
 		tv_eternity(&curproxy->appsession_timeout);
+		tv_eternity(&curproxy->timeout.queue);
+		tv_eternity(&curproxy->timeout.tarpit);
 
 		curproxy->last_change = now.tv_sec;
 		curproxy->id = strdup(args[1]);
@@ -640,6 +644,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 
 		if (curproxy->cap & PR_CAP_FE) {
 			curproxy->clitimeout = defproxy.clitimeout;
+			curproxy->timeout.tarpit = defproxy.timeout.tarpit;
 			curproxy->uri_auth  = defproxy.uri_auth;
 			curproxy->mon_net = defproxy.mon_net;
 			curproxy->mon_mask = defproxy.mon_mask;
@@ -653,6 +658,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		if (curproxy->cap & PR_CAP_BE) {
 			curproxy->contimeout = defproxy.contimeout;
 			curproxy->srvtimeout = defproxy.srvtimeout;
+			curproxy->timeout.queue = defproxy.timeout.queue;
 			curproxy->source_addr = defproxy.source_addr;
 		}
 
@@ -2736,6 +2742,39 @@ int readcfgfile(const char *file)
 				"   | with such a configuration. To fix this, please ensure that all following\n"
 				"   | values are set to a non-zero value: clitimeout, contimeout, srvtimeout.\n",
 				file, proxy_type_str(curproxy), curproxy->id);
+		}
+
+		/* Historically, the tarpit and queue timeouts were inherited from contimeout.
+		 * We must still support older configurations, so let's find out whether those
+		 * parameters have been set or must be copied from contimeouts.
+		 */
+		if (curproxy != &defproxy) {
+			if ((curproxy->cap & PR_CAP_FE) &&
+			    (!tv_isset(&curproxy->timeout.tarpit) ||
+			     __tv_iseq(&curproxy->timeout.tarpit, &defproxy.timeout.tarpit))) {
+				/* tarpit timeout not set. We search in the following order:
+				 * default.tarpit, curr.connect, default.connect.
+				 */
+				if (tv_isset(&defproxy.timeout.tarpit))
+					curproxy->timeout.tarpit = defproxy.timeout.tarpit;
+				else if (tv_isset(&curproxy->contimeout))
+					curproxy->timeout.tarpit = curproxy->contimeout;
+				else if (tv_isset(&defproxy.contimeout))
+					curproxy->timeout.tarpit = defproxy.contimeout;
+			}
+			if ((curproxy->cap & PR_CAP_BE) &&
+			    (!tv_isset(&curproxy->timeout.queue) ||
+			     __tv_iseq(&curproxy->timeout.queue, &defproxy.timeout.queue))) {
+				/* queue timeout not set. We search in the following order:
+				 * default.queue, curr.connect, default.connect.
+				 */
+				if (tv_isset(&defproxy.timeout.queue))
+					curproxy->timeout.queue = defproxy.timeout.queue;
+				else if (tv_isset(&curproxy->contimeout))
+					curproxy->timeout.queue = curproxy->contimeout;
+				else if (tv_isset(&defproxy.contimeout))
+					curproxy->timeout.queue = defproxy.contimeout;
+			}
 		}
 
 		if (curproxy->options & PR_O_SSL3_CHK) {

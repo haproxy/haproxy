@@ -2038,17 +2038,17 @@ int process_cli(struct session *t)
 			tv_eternity(&req->rex);
 		}
 
-		/* When a connection is tarpitted, we use the queue timeout for the
-		 * tarpit delay, which currently happens to be the server's connect
-		 * timeout. If unset, then set it to zero because we really want it
-		 * to expire at one moment.
+		/* When a connection is tarpitted, we use the tarpit timeout,
+		 * which may be the same as the connect timeout if unspecified.
+		 * If unset, then set it to zero because we really want it to
+		 * eventually expire.
 		 */
 		if (txn->flags & TX_CLTARPIT) {
 			t->req->l = 0;
 			/* flush the request so that we can drop the connection early
 			 * if the client closes first.
 			 */
-			if (!tv_add_ifset(&req->cex, &now, &t->be->contimeout))
+			if (!tv_add_ifset(&req->cex, &now, &t->be->timeout.tarpit))
 				req->cex = now;
 		}
 

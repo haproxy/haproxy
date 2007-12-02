@@ -173,6 +173,10 @@ struct proxy {
 	struct timeval srvtimeout;		/* server I/O timeout (in milliseconds) */
 	struct timeval contimeout;		/* connect timeout (in milliseconds) */
 	struct timeval appsession_timeout;
+	struct {
+		struct timeval queue;           /* queue timeout, defaults to contimeout if unspecified */
+		struct timeval tarpit;          /* tarpit timeout, defaults to contimeout if unspecified */
+	} timeout;
 	char *id;				/* proxy id */
 	struct list pendconns;			/* pending connections with no server assigned yet */
 	int nbpend, nbpend_max;			/* number of pending connections with no server assigned yet */

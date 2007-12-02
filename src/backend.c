@@ -1460,8 +1460,8 @@ int srv_redispatch_connect(struct session *t)
 		return 1;
 
 	case SRV_STATUS_QUEUED:
-		/* FIXME-20060503 : we should use the queue timeout instead */
-		if (!tv_add_ifset(&t->req->cex, &now, &t->be->contimeout))
+		/* note: we use the connect expiration date for the queue. */
+		if (!tv_add_ifset(&t->req->cex, &now, &t->be->timeout.queue))
 			tv_eternity(&t->req->cex);
 		t->srv_state = SV_STIDLE;
 		/* do nothing else and do not wake any other session up */
