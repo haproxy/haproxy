@@ -651,7 +651,9 @@ Notes :
     after 3 seconds, a time-out equal to, or lower than 3 seconds cannot
     compensate for a packet loss. A 4 seconds time-out seems a reasonable
     minimum which will considerably reduce connection failures.
-
+  - starting with version 1.3.14, it is possible to specify timeouts in
+    arbitrary time units among { us, ms, s, m, h, d }. For this, the integer
+    value just has to be suffixed with the unit.
 
 2.6) Attempts to reconnect
 --------------------------
@@ -839,6 +841,9 @@ The syntax is:
                 sessions 
 - <holdtime> after this inactivaty time, in ms, the cookie will be deleted 
              from the sessionstore
+- starting with version 1.3.14, it is possible to specify timeouts in
+  arbitrary time units among { us, ms, s, m, h, d }. For this, the integer
+  value just has to be prefixed with the unit.
 
 The appsession is only per 'listen' section possible.
 
@@ -852,7 +857,7 @@ Example :
        cookie ServerID insert nocache indirect
        # Will memorize 52 bytes of the cookie 'JSESSIONID' and keep them
        # for 3 hours. It will match it in the cookie and the URL field.
-       appsession JSESSIONID len 52 timeout 10800000
+       appsession JSESSIONID len 52 timeout 3h
        server first1 10.3.9.2:10805 check inter 3000 cookie first
        server secon1 10.3.9.3:10805 check inter 3000 cookie secon
        server first1 10.3.9.4:10805 check inter 3000 cookie first

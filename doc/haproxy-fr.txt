@@ -689,6 +689,10 @@ Remarques :
     de paquets car la session aura été abandonnée avant la première
     retransmission. Une valeur de 4 secondes réduira considérablement
     le nombre d'échecs de connexion.
+  - A compter de la version 1.3.14, il est possible de spécifier les durées
+    d'expiration dans des unités de temps arbitraires à choisir parmi
+    { us, ms, s, m, h, d }. Pour cela, la valeur entière doit être suffixée
+    de l'unité.
 
 2.6) Tentatives de reconnexion
 ------------------------------

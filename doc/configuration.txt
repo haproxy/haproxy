@@ -127,7 +127,7 @@ stats socket <path> [{uid | user} <uid>] [{gid | group} <gid>] [mode <mode>]
 stats timeout <timeout, in milliseconds>
   The default timeout on the stats socket is set to 10 seconds. It is possible
   to change this value with "stats timeout". The value must be passed in
-  milliseconds.
+  milliseconds, or be suffixed by a time unit among { us, ms, s, m, h, d }.
 
 stats maxconn <connections>
   By default, the stats socket is limited to 10 concurrent connections. It is
@@ -741,8 +741,10 @@ option contstats
 slowstart <start_time_in_ms>
   The 'slowstart' parameter for a server accepts a value in milliseconds which
   indicates after how long a server which has just come back up will run at
-  full speed. The speed grows linearly from 0 to 100% during this time. The
-  limitation applies to two parameters :
+  full speed. Just as with every other time-based parameter, it can be entered
+  in any other explicit unit among { us, ms, s, m, h, d }. The speed grows
+  linearly from 0 to 100% during this time. The limitation applies to two
+  parameters :
 
   - maxconn: the number of connections accepted by the server will grow from 1
     to 100% of the usual dynamic limit defined by (minconn,maxconn,fullconn).
