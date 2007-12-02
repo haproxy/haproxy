@@ -245,6 +245,11 @@ objsize: haproxy
 %.o:	%.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
+src/haproxy.o:	src/haproxy.c
+	$(CC) $(CFLAGS) -DBUILD_TARGET='"$(TARGET)"' -DBUILD_CC='"$(CC)"' \
+	                -DBUILD_CPU='"$(CPU)"' -DBUILD_REGEX='"$(REGEX)"' \
+	                -DBUILD_OPTS='"$(COPTS)"' -c -o $@ $<
+
 src/dlmalloc.o: $(DLMALLOC_SRC)
 	$(CC) $(CFLAGS) -DDEFAULT_MMAP_THRESHOLD=$(DLMALLOC_THRES) -c -o $@ $<
 

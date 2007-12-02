@@ -171,6 +171,27 @@ void display_version()
 	printf("Copyright 2000-2007 Willy Tarreau <w@1wt.eu>\n\n");
 }
 
+void display_build_opts()
+{
+	printf("Build options :"
+#ifdef BUILD_TARGET
+	       "\n  TARGET = " BUILD_TARGET
+#endif
+#ifdef BUILD_CPU
+	       "\n  CPU    = " BUILD_CPU
+#endif
+#ifdef BUILD_REGEX
+	       "\n  REGEX  = " BUILD_REGEX
+#endif
+#ifdef BUILD_CC
+	       "\n  CC     = " BUILD_CC
+#endif
+#ifdef BUILD_OPTS
+	       "\n  COPTS  = " BUILD_OPTS
+#endif
+	       "\n\n");
+}
+
 /*
  * This function prints the command line usage and exits
  */
@@ -181,7 +202,7 @@ void usage(char *name)
 		"Usage : %s -f <cfgfile> [ -vdV"
 		"D ] [ -n <maxconn> ] [ -N <maxpconn> ]\n"
 		"        [ -p <pidfile> ] [ -m <max megs> ]\n"
-		"        -v displays version\n"
+		"        -v displays version ; -vv shows known build options.\n"
 		"        -d enters debug mode ; -db only disables background mode.\n"
 		"        -V enters verbose mode (disables quiet mode)\n"
 		"        -D goes daemon ; implies -q\n"
@@ -432,6 +453,8 @@ void init(int argc, char **argv)
 			/* 1 arg */
 			if (*flag == 'v') {
 				display_version();
+				if (flag[1] == 'v')  /* -vv */
+					display_build_opts();
 				exit(0);
 			}
 #if defined(ENABLE_EPOLL)
