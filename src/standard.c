@@ -288,7 +288,8 @@ int url2sa(const char *url, int ulen, struct sockaddr_in *addr)
 			if (!ret)
 				return -1;
 			curr += ret;
-			addr->sin_port = (*curr == ':') ? htons(str2uic(++curr)) : htons(80);
+			addr->sin_port = (*curr == ':') ? str2uic(++curr) : 80;
+			addr->sin_port = htons(addr->sin_port);
 		}
 		return 0;
 	}
