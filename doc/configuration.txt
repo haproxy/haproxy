@@ -261,6 +261,7 @@ http-check disable-on-404   X          -         X         X
 log                         X          X         X         X
 maxconn                     X          X         X         -
 mode                        X          X         X         X
+monitor fail                -          X         X         -
 monitor-net                 X          X         X         -
 monitor-uri                 X          X         X         -
 option abortonclose         X          -         X         X
@@ -605,6 +606,13 @@ hdr_cnt(header) <integer>
   contain more than one of certain headers. See "hdr" for more information on
   header matching.
 
+nbsrv <integer>
+nbsrv(backend) <integer>
+  Returns true when the number of usable servers of either the current backend
+  or the named backend matches the values or ranges specified. This is used to
+  switch to an alternate backend when the number of servers is too low to
+  to handle some load. It is useful to report a failure when combined with
+  "monitor fail".
 
 2.1.6) Pre-defined ACLs
 -----------------------
@@ -676,7 +684,31 @@ and to every request on the "img", "video", "download" and "ftp" hosts :
 See below for the detailed help on the "block" and "use_backend" keywords.
 
 
-2.2) Options
+2.2) Instance-specific keywords and statements
+----------------------------------------------
+
+monitor fail [if | unless] <condition>
+  [ supported in: frontend, listen ]
+
+  This statement adds a condition which can force the response to a monitor
+  request to report a failure. By default, when an external component queries
+  the URI dedicated to monitoring, a 200 response is returned. When one of the
+  conditions above is met, haproxy will return 503 instead of 200. This is
+  very useful to report a site failure to an external component which may base
+  routing advertisements between multiple sites on the availability reported by
+  haproxy. In this case, one would rely on an ACL involving the "nbsrv"
+  criterion.
+
+  Example:
+
+     frontend www
+        acl site_dead nbsrv(dynamic) lt 2
+        acl site_dead nbsrv(static)  lt 2
+        monitor-uri   /site_alive
+        monitor fail  if site_dead
+
+
+2.3) Options
 ------------
 
 A handful of options affect the way the load balancing is performed or reaction
@@ -703,7 +735,7 @@ option contstats
   it is not enabled by default, as it has small performance impact (~0.5%).
 
 
-2.3) Server options
+2.4) Server options
 -------------------
 
 slowstart <start_time_in_ms>
