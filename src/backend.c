@@ -1329,7 +1329,7 @@ int connect_server(struct session *s)
 			s->srv->cur_sess_max = s->srv->cur_sess;
 	}
 
-	if (!tv_add_ifset(&s->req->cex, &now, &s->be->contimeout))
+	if (!tv_add_ifset(&s->req->cex, &now, &s->be->timeout.connect))
 		tv_eternity(&s->req->cex);
 	return SN_ERR_NONE;  /* connection is OK */
 }

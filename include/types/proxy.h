@@ -169,13 +169,13 @@ struct proxy {
 	char *monitor_uri;			/* a special URI to which we respond with HTTP/200 OK */
 	int monitor_uri_len;			/* length of the string above. 0 if unused */
 	struct list mon_fail_cond;              /* list of conditions to fail monitoring requests (chained) */
-	struct timeval clitimeout;		/* client I/O timeout (in milliseconds) */
-	struct timeval srvtimeout;		/* server I/O timeout (in milliseconds) */
-	struct timeval contimeout;		/* connect timeout (in milliseconds) */
-	struct timeval appsession_timeout;
 	struct {
-		struct timeval queue;           /* queue timeout, defaults to contimeout if unspecified */
-		struct timeval tarpit;          /* tarpit timeout, defaults to contimeout if unspecified */
+		struct timeval client;		/* client I/O timeout (in milliseconds) */
+		struct timeval tarpit;          /* tarpit timeout, defaults to connect if unspecified */
+		struct timeval queue;           /* queue timeout, defaults to connect if unspecified */
+		struct timeval connect;		/* connect timeout (in milliseconds) */
+		struct timeval server;		/* server I/O timeout (in milliseconds) */
+		struct timeval appsession;
 	} timeout;
 	char *id;				/* proxy id */
 	struct list pendconns;			/* pending connections with no server assigned yet */

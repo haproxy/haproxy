@@ -348,17 +348,17 @@ int event_accept(int fd) {
 		if (s->cli_state == CL_STHEADERS) /* reserve some space for header rewriting */
 			s->req->rlim -= MAXREWRITE;
 
-		s->req->rto = s->fe->clitimeout;
-		s->req->wto = s->be->srvtimeout;
-		s->req->cto = s->be->contimeout;
+		s->req->rto = s->fe->timeout.client;
+		s->req->wto = s->be->timeout.server;
+		s->req->cto = s->be->timeout.connect;
 
 		if ((s->rep = pool_alloc2(pool2_buffer)) == NULL)
 			goto out_fail_rep; /* no memory */
 
 		buffer_init(s->rep);
 
-		s->rep->rto = s->be->srvtimeout;
-		s->rep->wto = s->fe->clitimeout;
+		s->rep->rto = s->be->timeout.server;
+		s->rep->wto = s->fe->timeout.client;
 		tv_eternity(&s->rep->cto);
 
 		fd_insert(cfd);
@@ -397,13 +397,13 @@ int event_accept(int fd) {
 		tv_eternity(&s->rep->wex);
 		tv_eternity(&t->expire);
 
-		if (tv_isset(&s->fe->clitimeout)) {
+		if (tv_isset(&s->fe->timeout.client)) {
 			if (EV_FD_ISSET(cfd, DIR_RD)) {
-				tv_add(&s->req->rex, &now, &s->fe->clitimeout);
+				tv_add(&s->req->rex, &now, &s->fe->timeout.client);
 				t->expire = s->req->rex;
 			}
 			if (EV_FD_ISSET(cfd, DIR_WR)) {
-				tv_add(&s->rep->wex, &now, &s->fe->clitimeout);
+				tv_add(&s->rep->wex, &now, &s->fe->timeout.client);
 				t->expire = s->rep->wex;
 			}
 		}

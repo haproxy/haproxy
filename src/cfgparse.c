@@ -498,10 +498,10 @@ static void init_default_instance()
 	defproxy.maxconn = cfg_maxpconn;
 	defproxy.conn_retries = CONN_RETRIES;
 	defproxy.logfac1 = defproxy.logfac2 = -1; /* log disabled */
-	tv_eternity(&defproxy.clitimeout);
-	tv_eternity(&defproxy.contimeout);
-	tv_eternity(&defproxy.srvtimeout);
-	tv_eternity(&defproxy.appsession_timeout);
+	tv_eternity(&defproxy.timeout.client);
+	tv_eternity(&defproxy.timeout.connect);
+	tv_eternity(&defproxy.timeout.server);
+	tv_eternity(&defproxy.timeout.appsession);
 	tv_eternity(&defproxy.timeout.queue);
 	tv_eternity(&defproxy.timeout.tarpit);
 }
@@ -580,10 +580,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		/* Timeouts are defined as -1, so we cannot use the zeroed area
 		 * as a default value.
 		 */
-		tv_eternity(&curproxy->clitimeout);
-		tv_eternity(&curproxy->srvtimeout);
-		tv_eternity(&curproxy->contimeout);
-		tv_eternity(&curproxy->appsession_timeout);
+		tv_eternity(&curproxy->timeout.client);
+		tv_eternity(&curproxy->timeout.server);
+		tv_eternity(&curproxy->timeout.connect);
+		tv_eternity(&curproxy->timeout.appsession);
 		tv_eternity(&curproxy->timeout.queue);
 		tv_eternity(&curproxy->timeout.tarpit);
 
@@ -643,7 +643,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		}
 
 		if (curproxy->cap & PR_CAP_FE) {
-			curproxy->clitimeout = defproxy.clitimeout;
+			curproxy->timeout.client = defproxy.timeout.client;
 			curproxy->timeout.tarpit = defproxy.timeout.tarpit;
 			curproxy->uri_auth  = defproxy.uri_auth;
 			curproxy->mon_net = defproxy.mon_net;
@@ -656,8 +656,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		}
 
 		if (curproxy->cap & PR_CAP_BE) {
-			curproxy->contimeout = defproxy.contimeout;
-			curproxy->srvtimeout = defproxy.srvtimeout;
+			curproxy->timeout.connect = defproxy.timeout.connect;
+			curproxy->timeout.server = defproxy.timeout.server;
 			curproxy->timeout.queue = defproxy.timeout.queue;
 			curproxy->source_addr = defproxy.source_addr;
 		}
@@ -882,9 +882,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			return -1;
 		}
 		if (val > 0)
-			__tv_from_ms(&curproxy->appsession_timeout, val);
+			__tv_from_ms(&curproxy->timeout.appsession, val);
 		else
-			tv_eternity(&curproxy->appsession_timeout);
+			tv_eternity(&curproxy->timeout.appsession);
 
 		if (appsession_hash_init(&(curproxy->htbl_proxy), destroy) == 0) {
 			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
@@ -2682,9 +2682,9 @@ int readcfgfile(const char *file)
 		}
 
 		if ((curproxy->mode == PR_MODE_TCP || curproxy->mode == PR_MODE_HTTP) &&
-		    (((curproxy->cap & PR_CAP_FE) && !tv_isset(&curproxy->clitimeout)) ||
+		    (((curproxy->cap & PR_CAP_FE) && !tv_isset(&curproxy->timeout.client)) ||
 		     ((curproxy->cap & PR_CAP_BE) && (curproxy->srv) &&
-		      (!tv_isset(&curproxy->contimeout) || !tv_isset(&curproxy->srvtimeout))))) {
+		      (!tv_isset(&curproxy->timeout.connect) || !tv_isset(&curproxy->timeout.server))))) {
 			Warning("parsing %s : missing timeouts for %s '%s'.\n"
 				"   | While not properly invalid, you will certainly encounter various problems\n"
 				"   | with such a configuration. To fix this, please ensure that all following\n"
@@ -2705,10 +2705,10 @@ int readcfgfile(const char *file)
 				 */
 				if (tv_isset(&defproxy.timeout.tarpit))
 					curproxy->timeout.tarpit = defproxy.timeout.tarpit;
-				else if (tv_isset(&curproxy->contimeout))
-					curproxy->timeout.tarpit = curproxy->contimeout;
-				else if (tv_isset(&defproxy.contimeout))
-					curproxy->timeout.tarpit = defproxy.contimeout;
+				else if (tv_isset(&curproxy->timeout.connect))
+					curproxy->timeout.tarpit = curproxy->timeout.connect;
+				else if (tv_isset(&defproxy.timeout.connect))
+					curproxy->timeout.tarpit = defproxy.timeout.connect;
 			}
 			if ((curproxy->cap & PR_CAP_BE) &&
 			    (!tv_isset(&curproxy->timeout.queue) ||
@@ -2718,10 +2718,10 @@ int readcfgfile(const char *file)
 				 */
 				if (tv_isset(&defproxy.timeout.queue))
 					curproxy->timeout.queue = defproxy.timeout.queue;
-				else if (tv_isset(&curproxy->contimeout))
-					curproxy->timeout.queue = curproxy->contimeout;
-				else if (tv_isset(&defproxy.contimeout))
-					curproxy->timeout.queue = defproxy.contimeout;
+				else if (tv_isset(&curproxy->timeout.connect))
+					curproxy->timeout.queue = curproxy->timeout.connect;
+				else if (tv_isset(&defproxy.timeout.connect))
+					curproxy->timeout.queue = defproxy.timeout.connect;
 			}
 		}
 
@@ -2826,7 +2826,7 @@ int readcfgfile(const char *file)
 			if (curproxy->options & PR_O_TCP_NOLING)
 				listener->options |= LI_O_NOLINGER;
 			listener->maxconn = curproxy->maxconn;
-			listener->timeout = &curproxy->clitimeout;
+			listener->timeout = &curproxy->timeout.client;
 			listener->accept = event_accept;
 			listener->private = curproxy;
 

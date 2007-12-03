@@ -97,8 +97,8 @@ int proxy_parse_timeout(const char **args, struct proxy *proxy,
 	name = args[0];
 	if (!strcmp(args[0], "client") || !strcmp(args[0], "clitimeout")) {
 		name = "client";
-		tv = &proxy->clitimeout;
-		td = &defpx->clitimeout;
+		tv = &proxy->timeout.client;
+		td = &defpx->timeout.client;
 		cap = PR_CAP_FE;
 	} else if (!strcmp(args[0], "tarpit")) {
 		tv = &proxy->timeout.tarpit;
@@ -106,17 +106,17 @@ int proxy_parse_timeout(const char **args, struct proxy *proxy,
 		cap = PR_CAP_FE;
 	} else if (!strcmp(args[0], "server") || !strcmp(args[0], "srvtimeout")) {
 		name = "server";
-		tv = &proxy->srvtimeout;
-		td = &defpx->srvtimeout;
+		tv = &proxy->timeout.server;
+		td = &defpx->timeout.server;
 		cap = PR_CAP_BE;
 	} else if (!strcmp(args[0], "connect") || !strcmp(args[0], "contimeout")) {
 		name = "connect";
-		tv = &proxy->contimeout;
-		td = &defpx->contimeout;
+		tv = &proxy->timeout.connect;
+		td = &defpx->timeout.connect;
 		cap = PR_CAP_BE;
 	} else if (!strcmp(args[0], "appsession")) {
-		tv = &proxy->appsession_timeout;
-		td = &defpx->appsession_timeout;
+		tv = &proxy->timeout.appsession;
+		td = &defpx->timeout.appsession;
 		cap = PR_CAP_BE;
 	} else if (!strcmp(args[0], "queue")) {
 		tv = &proxy->timeout.queue;
