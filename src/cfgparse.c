@@ -1531,13 +1531,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			}
 			else if (!strcmp(args[cur_arg], "slowstart")) {
 				/* slowstart is stored in seconds */
-				const char *err = parse_time_err(args[cur_arg + 1], &val, TIME_UNIT_S);
+				const char *err = parse_time_err(args[cur_arg + 1], &val, TIME_UNIT_MS);
 				if (err) {
 					Alert("parsing [%s:%d] : unexpected character '%c' in 'slowstart' argument of server %s.\n",
 					      file, linenum, *err, newsrv->id);
 					return -1;
 				}
-				newsrv->slowstart = val;
+				newsrv->slowstart = (val + 999) / 1000;
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "check")) {
