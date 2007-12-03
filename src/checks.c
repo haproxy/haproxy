@@ -540,7 +540,8 @@ void process_chk(struct task *t, struct timeval *next)
 				}
 				else if (s->proxy->lbprm.algo & BE_LB_PROP_DYN) {
 					/* for dynamic algorithms, let's update the weight */
-					s->eweight = BE_WEIGHT_SCALE * (now.tv_sec - s->last_change) / s->slowstart;
+					s->eweight = (BE_WEIGHT_SCALE * (now.tv_sec - s->last_change) +
+						      s->slowstart - 1) / s->slowstart;
 					s->eweight *= s->uweight;
 					if (s->proxy->lbprm.update_server_eweight)
 						s->proxy->lbprm.update_server_eweight(s);

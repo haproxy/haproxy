@@ -767,7 +767,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     /* act, bck */
 				     "<td>%s</td><td>%s</td>"
 				     "",
-				     sv->eweight * px->lbprm.wmult / px->lbprm.wdiv,
+				     (sv->eweight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv,
 				     (sv->state & SRV_BACKUP) ? "-" : "Y",
 				     (sv->state & SRV_BACKUP) ? "Y" : "-");
 
@@ -834,7 +834,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     /* weight, active, backup */
 				     "%d,%d,%d,"
 				     "",
-				     sv->eweight * px->lbprm.wmult / px->lbprm.wdiv,
+				     (sv->eweight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv,
 				     (sv->state & SRV_BACKUP) ? 0 : 1,
 				     (sv->state & SRV_BACKUP) ? 1 : 0);
 
@@ -910,7 +910,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     human_time(now.tv_sec - px->last_change, 1),
 				     (px->lbprm.tot_weight > 0 || !px->srv) ? "UP" :
 					     "<font color=\"red\"><b>DOWN</b></font>",
-				     px->lbprm.tot_weight * px->lbprm.wmult / px->lbprm.wdiv,
+				     (px->lbprm.tot_weight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv,
 				     px->srv_act, px->srv_bck);
 
 				chunk_printf(&msg, sizeof(trash),
@@ -956,7 +956,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     px->failed_conns, px->failed_resp,
 				     px->retries, px->redispatches,
 				     (px->lbprm.tot_weight > 0 || !px->srv) ? "UP" : "DOWN",
-				     px->lbprm.tot_weight * px->lbprm.wmult / px->lbprm.wdiv,
+				     (px->lbprm.tot_weight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv,
 				     px->srv_act, px->srv_bck,
 				     px->down_trans, now.tv_sec - px->last_change,
 				     px->srv?be_downtime(px):0,
