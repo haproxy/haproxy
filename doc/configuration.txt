@@ -244,8 +244,8 @@ block                       -          X         X         X
 capture cookie              X          X         X         X
 capture request header      X          X         X         X
 capture response header     X          X         X         X
-clitimeout                  X          X         X         -
-contimeout                  X          X         X         X
+clitimeout                  X          X         X         -  (deprecated)
+contimeout                  X          X         X         X  (deprecated)
 cookie                      X          -         X         X
 default_backend             -          X         X         -
 disabled                    -          X         X         X
@@ -314,7 +314,7 @@ rspirep                     -          X         X         X
 rsprep                      -          X         X         X
 server                      -          -         X         X
 source                      X          -         X         X
-srvtimeout                  X          -         X         X
+srvtimeout                  X          -         X         X  (deprecated)
 stats auth                  X          -         X         X
 stats enable                X          -         X         X
 stats realm                 X          -         X         X
@@ -322,6 +322,15 @@ stats refresh               X          -         X         X
 stats scope                 X          -         X         X
 stats uri                   X          -         X         X
 stats hide-version          X          -         X         X
+timeout appsession          X          -         X         X
+timeout client              X          X         X         -
+timeout clitimeout          X          X         X         -  (deprecated)
+timeout connect             X          -         X         X
+timeout contimeout          X          -         X         X  (deprecated)
+timeout queue               X          -         X         X
+timeout server              X          -         X         X
+timeout srvtimeout          X          -         X         X  (deprecated)
+timeout tarpit              X          X         X         -
 transparent                 X          X         X         -
 use_backend                 -          X         X         -
 usesrc                      X          -         X         X

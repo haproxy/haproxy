@@ -976,78 +976,26 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			return -1;
 		}
 	}
-	else if (!strcmp(args[0], "contimeout")) {  /* connect timeout */
-		if (!__tv_iseq(&curproxy->contimeout, &defproxy.contimeout)) {
-			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
-			return 0;
-		}
-		else if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
-			return 0;
+	else if (!strcmp(args[0], "contimeout") || !strcmp(args[0], "clitimeout") ||
+		 !strcmp(args[0], "srvtimeout") || !strcmp(args[0], "timeout")) {
 
-		if (*(args[1]) == 0) {
-			Alert("parsing [%s:%d] : '%s' expects an integer <time_in_ms> as argument.\n",
-			      file, linenum, args[0]);
-			return -1;
-		}
-		err = parse_time_err(args[1], &val, TIME_UNIT_MS);
-		if (err) {
-			Alert("parsing [%s:%d] : unexpected character '%c' in %s.\n",
-			      file, linenum, *err, args[0]);
-			return -1;
-		}
-		if (val > 0)
-			__tv_from_ms(&curproxy->contimeout, val);
-		else
-			tv_eternity(&curproxy->contimeout);
-	}
-	else if (!strcmp(args[0], "clitimeout")) {  /*  client timeout */
-		if (!__tv_iseq(&curproxy->clitimeout, &defproxy.clitimeout)) {
-			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n",
-			      file, linenum, args[0]);
-			return 0;
-		}
-		else if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
-			return 0;
+		/* either we have {con|srv|cli}timeout <value> or we have the
+		 * new form: timeout <type> <value>. The parser needs the word
+		 * preceeding the value.
+		 */
+		const char **start_arg = (const char **)args;
 
-		if (*(args[1]) == 0) {
-			Alert("parsing [%s:%d] : '%s' expects an integer <time_in_ms> as argument.\n",
-			      file, linenum, args[0]);
-			return -1;
-		}
-		err = parse_time_err(args[1], &val, TIME_UNIT_MS);
-		if (err) {
-			Alert("parsing [%s:%d] : unexpected character '%c' in %s.\n",
-			      file, linenum, *err, args[0]);
-			return -1;
-		}
-		if (val > 0)
-			__tv_from_ms(&curproxy->clitimeout, val);
-		else
-			tv_eternity(&curproxy->clitimeout);
-	}
-	else if (!strcmp(args[0], "srvtimeout")) {  /*  server timeout */
-		if (!__tv_iseq(&curproxy->srvtimeout, &defproxy.srvtimeout)) {
-			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
-			return 0;
-		}
-		else if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
-			return 0;
+		if (strcmp(args[0], "timeout") == 0)
+			start_arg++;
 
-		if (*(args[1]) == 0) {
-			Alert("parsing [%s:%d] : '%s' expects an integer <time_in_ms> as argument.\n",
-			      file, linenum, args[0]);
+		snprintf(trash, sizeof(trash), "error near '%s'", args[0]);
+		rc = proxy_parse_timeout(start_arg, curproxy, &defproxy, trash, sizeof(trash));
+		if (rc < 0) {
+			Alert("parsing [%s:%d] : %s\n", file, linenum, trash);
 			return -1;
 		}
-		err = parse_time_err(args[1], &val, TIME_UNIT_MS);
-		if (err) {
-			Alert("parsing [%s:%d] : unexpected character '%c' in %s.\n",
-			      file, linenum, *err, args[0]);
-			return -1;
-		}
-		if (val > 0)
-			__tv_from_ms(&curproxy->srvtimeout, val);
-		else
-			tv_eternity(&curproxy->srvtimeout);
+		if (rc > 0)
+			Warning("parsing [%s:%d] : %s\n", file, linenum, trash);
 	}
 	else if (!strcmp(args[0], "retries")) {  /* connection retries */
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))

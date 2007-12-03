@@ -75,6 +75,89 @@ const char *proxy_mode_str(int mode) {
 		return "unknown";
 }
 
+/* This function parses a "timeout" statement in a proxy section. It returns
+ * -1 if there is any error, 1 for a warning, otherwise zero. If it does not
+ * return zero, it may write an error message into the <err> buffer, for at
+ * most <errlen> bytes, trailing zero included. The trailing '\n' must not
+ * be written. The function must be called with <args> pointing to the first
+ * word after "timeout", with <proxy> pointing to the proxy being parsed, and
+ * <defpx> to the default proxy or NULL. As a special case for compatibility
+ * with older configs, it also accepts "{cli|srv|con}timeout" in args[0].
+ */
+int proxy_parse_timeout(const char **args, struct proxy *proxy,
+			struct proxy *defpx, char *err, int errlen)
+{
+	unsigned timeout;
+	int retval, cap;
+	const char *res, *name;
+	struct timeval *tv = NULL;
+	struct timeval *td = NULL;
+
+	retval = 0;
+	name = args[0];
+	if (!strcmp(args[0], "client") || !strcmp(args[0], "clitimeout")) {
+		name = "client";
+		tv = &proxy->clitimeout;
+		td = &defpx->clitimeout;
+		cap = PR_CAP_FE;
+	} else if (!strcmp(args[0], "tarpit")) {
+		tv = &proxy->timeout.tarpit;
+		td = &defpx->timeout.tarpit;
+		cap = PR_CAP_FE;
+	} else if (!strcmp(args[0], "server") || !strcmp(args[0], "srvtimeout")) {
+		name = "server";
+		tv = &proxy->srvtimeout;
+		td = &defpx->srvtimeout;
+		cap = PR_CAP_BE;
+	} else if (!strcmp(args[0], "connect") || !strcmp(args[0], "contimeout")) {
+		name = "connect";
+		tv = &proxy->contimeout;
+		td = &defpx->contimeout;
+		cap = PR_CAP_BE;
+	} else if (!strcmp(args[0], "appsession")) {
+		tv = &proxy->appsession_timeout;
+		td = &defpx->appsession_timeout;
+		cap = PR_CAP_BE;
+	} else if (!strcmp(args[0], "queue")) {
+		tv = &proxy->timeout.queue;
+		td = &defpx->timeout.queue;
+		cap = PR_CAP_BE;
+	} else {
+		snprintf(err, errlen, "timeout '%s': must be 'client', 'server', 'connect', 'appsession', 'queue', or 'tarpit'",
+			 args[0]);
+		return -1;
+	}
+
+	if (*args[1] == 0) {
+		snprintf(err, errlen, "%s timeout expects an integer value (in milliseconds)", name);
+		return -1;
+	}
+
+	res = parse_time_err(args[1], &timeout, TIME_UNIT_MS);
+	if (res) {
+		snprintf(err, errlen, "unexpected character '%c' in %s timeout", *err, name);
+		return -1;
+	}
+
+	if (!(proxy->cap & cap)) {
+		snprintf(err, errlen, "%s timeout will be ignored because %s '%s' has no %s capability",
+			 name, proxy_type_str(proxy), proxy->id,
+			 (cap & PR_CAP_BE) ? "backend" : "frontend");
+		retval = 1;
+	}
+	else if (defpx && !__tv_iseq(tv, td)) {
+		snprintf(err, errlen, "overwriting %s timeout which was already specified", name);
+		retval = 1;
+	}
+
+	if (timeout)
+		__tv_from_ms(tv, timeout);
+	else
+		tv_eternity(tv);
+
+	return retval;
+}
+
 /*
  * This function finds a proxy with matching name, mode and with satisfying
  * capabilities. It also checks if there are more matching proxies with

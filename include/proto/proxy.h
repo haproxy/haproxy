@@ -36,6 +36,8 @@ void listen_proxies(void);
 const char *proxy_cap_str(int cap);
 const char *proxy_mode_str(int mode);
 struct proxy *findproxy(const char *name, int mode, int cap);
+int proxy_parse_timeout(const char **args, struct proxy *proxy,
+			struct proxy *defpx, char *err, int errlen);
 
 /*
  * This function returns a string containing the type of the proxy in a format
