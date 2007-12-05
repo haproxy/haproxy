@@ -955,6 +955,8 @@ int assign_server(struct session *s)
 				/* unknown balancing algorithm */
 				return SRV_STATUS_INTERNAL;
 			}
+			s->be->cum_lbconn++;
+			s->srv->cum_lbconn++;
 		}
 		else if (s->be->options & PR_O_HTTP_PROXY) {
 			if (!s->srv_addr.sin_addr.s_addr)

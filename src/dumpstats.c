@@ -171,7 +171,7 @@ int print_csv_header(struct chunk *msg, int size)
 			    "wretr,wredis,"
 			    "status,weight,act,bck,"
 			    "chkfail,chkdown,lastchg,downtime,qlimit,"
-			    "pid,iid,sid,throttle,"
+			    "pid,iid,sid,throttle,lbtot,"
 			    "\n");
 }
 
@@ -589,21 +589,21 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 		if (flags & STAT_FMT_HTML) {
 			/* print a new table */
 			chunk_printf(&msg, sizeof(trash),
-				     "<table cols=\"25\" class=\"tbl\" width=\"100%%\">\n"
+				     "<table cols=\"26\" class=\"tbl\" width=\"100%%\">\n"
 				     "<tr align=\"center\" class=\"titre\">"
 				     "<th colspan=2 class=\"pxname\">%s</th>"
-				     "<th colspan=22 class=\"empty\"></th>"
+				     "<th colspan=24 class=\"empty\"></th>"
 				     "</tr>\n"
 				     "<tr align=\"center\" class=\"titre\">"
 				     "<th rowspan=2></th>"
-				     "<th colspan=3>Queue</th><th colspan=4>Sessions</th>"
+				     "<th colspan=3>Queue</th><th colspan=5>Sessions</th>"
 				     "<th colspan=2>Bytes</th><th colspan=2>Denied</th>"
 				     "<th colspan=3>Errors</th><th colspan=2>Warnings</th>"
 				     "<th colspan=8>Server</th>"
 				     "</tr>\n"
 				     "<tr align=\"center\" class=\"titre\">"
 				     "<th>Cur</th><th>Max</th><th>Limit</th><th>Cur</th><th>Max</th>"
-				     "<th>Limit</th><th>Cumul</th><th>In</th><th>Out</th>"
+				     "<th>Limit</th><th>Total</th><th>LbTot</th><th>In</th><th>Out</th>"
 				     "<th>Req</th><th>Resp</th><th>Req</th><th>Conn</th>"
 				     "<th>Resp</th><th>Retr</th><th>Redis</th>"
 				     "<th>Status</th><th>Wght</th><th>Act</th>"
@@ -626,9 +626,10 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				chunk_printf(&msg, sizeof(trash),
 				     /* name, queue */
 				     "<tr align=center class=\"frontend\"><td>Frontend</td><td colspan=3></td>"
-				     /* sessions : current, max, limit, cumul */
+				     /* sessions : current, max, limit, total, lbtot */
 				     "<td align=right>%d</td><td align=right>%d</td>"
 				     "<td align=right>%d</td><td align=right>%d</td>"
+				     "<td align=right></td>"
 				     /* bytes : in, out */
 				     "<td align=right>%lld</td><td align=right>%lld</td>"
 				     /* denied: req, resp */
@@ -652,7 +653,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				chunk_printf(&msg, sizeof(trash),
 				     /* pxid, name, queue cur, queue max, */
 				     "%s,FRONTEND,,,"
-				     /* sessions : current, max, limit, cumul */
+				     /* sessions : current, max, limit, total */
 				     "%d,%d,%d,%d,"
 				     /* bytes : in, out */
 				     "%lld,%lld,"
@@ -666,8 +667,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     "%s,"
 				     /* rest of server: nothing */
 				     ",,,,,,,,"
-				     /* pid, iid, sid, throttle, */
-				     "%d,%d,0,,"
+				     /* pid, iid, sid, throttle, lbtot, */
+				     "%d,%d,0,,,"
 				     "\n",
 				     px->id,
 				     px->feconn, px->feconn_max, px->maxconn, px->cum_feconn,
@@ -728,9 +729,10 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     "<tr align=\"center\" class=\"%s%d\"><td>%s</td>"
 				     /* queue : current, max, limit */
 				     "<td align=right>%d</td><td align=right>%d</td><td align=right>%s</td>"
-				     /* sessions : current, max, limit, cumul */
+				     /* sessions : current, max, limit, total, lbtot */
 				     "<td align=right>%d</td><td align=right>%d</td>"
 				     "<td align=right>%s</td><td align=right>%d</td>"
+				     "<td align=right>%d</td>"
 				     /* bytes : in, out */
 				     "<td align=right>%lld</td><td align=right>%lld</td>"
 				     /* denied: req, resp */
@@ -743,7 +745,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     (sv->state & SRV_BACKUP) ? "backup" : "active",
 				     sv_state, sv->id,
 				     sv->nbpend, sv->nbpend_max, LIM2A0(sv->maxqueue, "-"),
-				     sv->cur_sess, sv->cur_sess_max, LIM2A1(sv->maxconn, "-"), sv->cum_sess,
+				     sv->cur_sess, sv->cur_sess_max, LIM2A1(sv->maxconn, "-"),
+				     sv->cum_sess, sv->cum_lbconn,
 				     sv->bytes_in, sv->bytes_out,
 				     sv->failed_secu,
 				     sv->failed_conns, sv->failed_resp,
@@ -805,7 +808,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     "%s,%s,"
 				     /* queue : current, max */
 				     "%d,%d,"
-				     /* sessions : current, max, limit, cumul */
+				     /* sessions : current, max, limit, total */
 				     "%d,%d,%s,%d,"
 				     /* bytes : in, out */
 				     "%lld,%lld,"
@@ -864,6 +867,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 					chunk_printf(&msg, sizeof(trash), "%d", ratio);
 				}
 
+				/* sessions: lbtot */
+				chunk_printf(&msg, sizeof(trash), ",%d", sv->cum_lbconn);
 				/* ',' then EOL */
 				chunk_printf(&msg, sizeof(trash), ",\n");
 			}
@@ -885,8 +890,10 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     "<tr align=center class=\"backend\"><td>Backend</td>"
 				     /* queue : current, max */
 				     "<td align=right>%d</td><td align=right>%d</td><td></td>"
-				     /* sessions : current, max, limit, cumul. */
-				     "<td align=right>%d</td><td align=right>%d</td><td align=right>%d</td><td align=right>%d</td>"
+				     /* sessions : current, max, limit, total, lbtot */
+				     "<td align=right>%d</td><td align=right>%d</td>"
+				     "<td align=right>%d</td><td align=right>%d</td>"
+				     "<td align=right>%d</td>"
 				     /* bytes : in, out */
 				     "<td align=right>%lld</td><td align=right>%lld</td>"
 				     /* denied: req, resp */
@@ -902,7 +909,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     "<td align=center nowrap>%s %s</td><td align=center>%d</td>"
 				     "<td align=center>%d</td><td align=center>%d</td>",
 				     px->nbpend /* or px->totpend ? */, px->nbpend_max,
-				     px->beconn, px->beconn_max, px->fullconn, px->cum_beconn,
+				     px->beconn, px->beconn_max, px->fullconn, px->cum_beconn, px->cum_lbconn,
 				     px->bytes_in, px->bytes_out,
 				     px->denied_req, px->denied_resp,
 				     px->failed_conns, px->failed_resp,
@@ -927,7 +934,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     "%s,BACKEND,"
 				     /* queue : current, max */
 				     "%d,%d,"
-				     /* sessions : current, max, limit, cumul */
+				     /* sessions : current, max, limit, total */
 				     "%d,%d,%d,%d,"
 				     /* bytes : in, out */
 				     "%lld,%lld,"
@@ -945,8 +952,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     "%d,%d,%d,"
 				     /* rest of backend: nothing, down transitions, last change, total downtime */
 				     ",%d,%d,%d,,"
-				     /* pid, iid, sid, throttle, */
-				     "%d,%d,0,,"
+				     /* pid, iid, sid, throttle, lbtot, */
+				     "%d,%d,0,,%d,"
 				     "\n",
 				     px->id,
 				     px->nbpend /* or px->totpend ? */, px->nbpend_max,
@@ -960,7 +967,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     px->srv_act, px->srv_bck,
 				     px->down_trans, now.tv_sec - px->last_change,
 				     px->srv?be_downtime(px):0,
-				     relative_pid, px->uuid);
+				     relative_pid, px->uuid,
+				     px->cum_lbconn);
 			}
 			if (buffer_write_chunk(rep, &msg) != 0)
 				return 0;

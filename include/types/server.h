@@ -116,6 +116,7 @@ struct server {
 	unsigned retries;			/* retried connections */
 	unsigned failed_secu;			/* blocked responses because of security concerns */
 	unsigned cum_sess;			/* cumulated number of sessions really sent to this server */
+	unsigned cum_lbconn;			/* cumulated number of sessions directed by load balancing */
 
 	long long bytes_in;			/* number of bytes transferred from the client to the server */
 	long long bytes_out;			/* number of bytes transferred from the server to the client */
