@@ -22,6 +22,8 @@
 #ifndef _TYPES_LOG_H
 #define _TYPES_LOG_H
 
+#include <sys/un.h>
+#include <netinet/in.h>
 #include <common/config.h>
 
 #define MAX_SYSLOG_LEN          1024
@@ -44,6 +46,15 @@
 #define LW_REQHDR	1024	/* request header(s) */
 #define LW_RSPHDR	2048	/* response header(s) */
 
+struct logsrv {
+	union {
+		struct sockaddr addr;
+		struct sockaddr_un un;	/* AF_UNIX */
+		struct sockaddr_in in;	/* AF_INET */
+	} u;
+};
+
+int logsrv_addrlen(const struct logsrv *logsrv);
 
 #endif /* _TYPES_LOG_H */
 

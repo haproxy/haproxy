@@ -18,6 +18,7 @@
 #include <syslog.h>
 #include <time.h>
 #include <unistd.h>
+#include <errno.h>
 
 #include <sys/time.h>
 
@@ -30,6 +31,9 @@
 #include <types/log.h>
 #include <types/session.h>
 
+#ifndef MSG_NOSIGNAL
+#define MSG_NOSIGNAL	(0)
+#endif /* !MSG_NOSIGNAL */
 
 const char *log_facilities[NB_LOG_FACILITIES] = {
 	"kern", "user", "mail", "daemon",
@@ -140,6 +144,32 @@ int get_log_facility(const char *fac)
 	return facility;
 }
 
+/*
+ * Return the length of the address endpoint, suitable for use with sendto().
+ */
+int logsrv_addrlen(const struct logsrv *logsrv)
+{
+#ifdef __SOCKADDR_COMMON
+	switch (logsrv->u.addr.sa_family) {
+	case AF_UNIX:
+		return sizeof(logsrv->u.un);
+	case AF_INET:
+		return sizeof(logsrv->u.in);
+	default:
+		break;
+	}
+#else  /* !__SOCKADDR_COMMON */
+	switch (logsrv->u.addr.sa_family) {
+	case AF_UNIX:
+		return logsrv->u.un.sun_len;
+	case AF_INET:
+		return logsrv->u.in.sin_len;
+	default:
+		break;
+	}
+#endif /* !__SOCKADDR_COMMON */
+	return -1;
+}
 
 /*
  * This function sends a syslog message to both log servers of a proxy,
@@ -149,29 +179,20 @@ int get_log_facility(const char *fac)
  */
 void send_log(struct proxy *p, int level, const char *message, ...)
 {
-	static int logfd = -1;	/* syslog UDP socket */
+	static int logfdunix = -1;	/* syslog to AF_UNIX socket */
+	static int logfdinet = -1;	/* syslog to AF_INET socket */
 	static long tvsec = -1;	/* to force the string to be initialized */
 	va_list argp;
 	static char logmsg[MAX_SYSLOG_LEN];
 	static char *dataptr = NULL;
 	int fac_level;
 	int hdr_len, data_len;
-	struct sockaddr_in *sa[2];
+	struct logsrv *logsrvs[2];
 	int facilities[2], loglevel[2];
+	int nblogger;
 	int nbloggers = 0;
 	char *log_ptr;
 
-	if (logfd < 0) {
-		if ((logfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
-			return;
-		/* we don't want to receive anything on this socket */
-		setsockopt(logfd, SOL_SOCKET, SO_RCVBUF, &zero, sizeof(zero));
-		/* need for AIX which does not know about MSG_DONTWAIT */
-		if (!MSG_DONTWAIT)
-			fcntl(logfd, F_SETFL, O_NONBLOCK);
-		shutdown(logfd, SHUT_RD); /* does nothing under Linux, maybe needed for others */
-	}
-    
 	if (level < 0 || progname == NULL || message == NULL)
 		return;
 
@@ -210,35 +231,70 @@ void send_log(struct proxy *p, int level, const char *message, ...)
 
 	if (p == NULL) {
 		if (global.logfac1 >= 0) {
-			sa[nbloggers] = &global.logsrv1;
+			logsrvs[nbloggers] = &global.logsrv1;
 			facilities[nbloggers] = global.logfac1;
 			loglevel[nbloggers] = global.loglev1;
 			nbloggers++;
 		}
 		if (global.logfac2 >= 0) {
-			sa[nbloggers] = &global.logsrv2;
+			logsrvs[nbloggers] = &global.logsrv2;
 			facilities[nbloggers] = global.logfac2;
 			loglevel[nbloggers] = global.loglev2;
 			nbloggers++;
 		}
 	} else {
 		if (p->logfac1 >= 0) {
-			sa[nbloggers] = &p->logsrv1;
+			logsrvs[nbloggers] = &p->logsrv1;
 			facilities[nbloggers] = p->logfac1;
 			loglevel[nbloggers] = p->loglev1;
 			nbloggers++;
 		}
 		if (p->logfac2 >= 0) {
-			sa[nbloggers] = &p->logsrv2;
+			logsrvs[nbloggers] = &p->logsrv2;
 			facilities[nbloggers] = p->logfac2;
 			loglevel[nbloggers] = p->loglev2;
 			nbloggers++;
 		}
 	}
 
-	while (nbloggers-- > 0) {
+	/* Lazily set up syslog sockets for protocol families of configured
+	 * syslog servers. */
+	for (nblogger = 0; nblogger < nbloggers; nblogger++) {
+		const struct logsrv *logsrv = logsrvs[nblogger];
+		int proto, *plogfd;
+		if (logsrv->u.addr.sa_family == AF_UNIX) {
+			proto = 0;
+			plogfd = &logfdunix;
+		} else {
+			/* sa_family == AF_INET */
+			proto = IPPROTO_UDP;
+			plogfd = &logfdinet;
+		}
+		if (*plogfd >= 0) {
+			/* socket already created. */
+			continue;
+		}
+		if ((*plogfd = socket(logsrv->u.addr.sa_family, SOCK_DGRAM,
+				proto)) < 0) {
+			Alert("socket for logger #%d failed: %s (errno=%d)\n",
+				nblogger + 1, strerror(errno), errno);
+			return;
+		}
+		/* we don't want to receive anything on this socket */
+		setsockopt(*plogfd, SOL_SOCKET, SO_RCVBUF, &zero, sizeof(zero));
+		/* does nothing under Linux, maybe needed for others */
+		shutdown(*plogfd, SHUT_RD);
+	}
+
+	/* Send log messages to syslog server. */
+	for (nblogger = 0; nblogger < nbloggers; nblogger++) {
+		const struct logsrv *logsrv = logsrvs[nblogger];
+		int *plogfd = logsrv->u.addr.sa_family == AF_UNIX ?
+			&logfdunix : &logfdinet;
+		int sent;
+
 		/* we can filter the level of the messages that are sent to each logger */
-		if (level > loglevel[nbloggers])
+		if (level > loglevel[nblogger])
 			continue;
 	
 		/* For each target, we may have a different facility.
@@ -248,7 +304,7 @@ void send_log(struct proxy *p, int level, const char *message, ...)
 		 * time, we only change the facility in the pre-computed header,
 		 * and we change the pointer to the header accordingly.
 		 */
-		fac_level = (facilities[nbloggers] << 3) + level;
+		fac_level = (facilities[nblogger] << 3) + level;
 		log_ptr = logmsg + 3; /* last digit of the log level */
 		do {
 			*log_ptr = '0' + fac_level % 10;
@@ -258,14 +314,12 @@ void send_log(struct proxy *p, int level, const char *message, ...)
 		*log_ptr = '<';
 	
 		/* the total syslog message now starts at logptr, for dataptr+data_len-logptr */
-
-#ifndef MSG_NOSIGNAL
-		sendto(logfd, log_ptr, dataptr + data_len - log_ptr, MSG_DONTWAIT,
-		       (struct sockaddr *)sa[nbloggers], sizeof(**sa));
-#else
-		sendto(logfd, log_ptr, dataptr + data_len - log_ptr, MSG_DONTWAIT | MSG_NOSIGNAL,
-		       (struct sockaddr *)sa[nbloggers], sizeof(**sa));
-#endif
+		sent = sendto(*plogfd, log_ptr, dataptr + data_len - log_ptr,
+			MSG_DONTWAIT | MSG_NOSIGNAL, &logsrv->u.addr, logsrv_addrlen(logsrv));
+		if (sent < 0) {
+			Alert("sendto logger #%d failed: %s (errno=%d)\n",
+				nblogger, strerror(errno), errno);
+		}
 	}
 }
 

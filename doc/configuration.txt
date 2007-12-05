@@ -84,10 +84,20 @@ group <group name>
 log <address> <facility> [max level]
   Adds a global syslog server. Up to two global servers can be defined. They
   will receive logs for startups and exits, as well as all logs from proxies
-  configured with "log global". <address> is an IPv4 address optionally
-  followed by a colon and an UDP port. If no port is specified, 514 is used
-  by default (the standard syslog port). <facility> must be one of the 24
-  standard syslog facilities :
+  configured with "log global".
+
+  <address> can be one of:
+
+        - An IPv4 address optionally followed by a colon and an UDP port. If
+          no port is specified, 514 is used by default (the standard syslog
+          port).
+
+        - A filesystem path to a UNIX domain socket, keeping in mind
+          considerations for chroot (be sure the path is accessible inside
+          the chroot) and uid/gid (be sure the path is appropriately
+          writeable).
+
+  <facility> must be one of the 24 standard syslog facilities :
 
           kern   user   mail   daemon auth   syslog lpr    news
           uucp   cron   auth2  ftp    ntp    audit  alert  cron2

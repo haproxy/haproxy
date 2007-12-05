@@ -25,6 +25,7 @@
 #include <netinet/in.h>
 
 #include <common/config.h>
+#include <types/log.h>
 #include <types/protocols.h>
 #include <types/task.h>
 
@@ -59,7 +60,7 @@ struct global {
 	char *pidfile;
 	int logfac1, logfac2;
 	int loglev1, loglev2;
-	struct sockaddr_in logsrv1, logsrv2;
+	struct logsrv logsrv1, logsrv2;
 	struct {
 		int maxpollevents; /* max number of poll events at once */
 	} tune;

@@ -77,6 +77,37 @@ const char *limit_r(unsigned long n, char *buffer, int size, const char *alt)
 	return (n) ? ultoa_r(n, buffer, size) : (alt ? alt : "");
 }
 
+/*
+ * converts <str> to a struct sockaddr_un* which is locally allocated.
+ * The format is "/path", where "/path" is a path to a UNIX domain socket.
+ */
+struct sockaddr_un *str2sun(char *str)
+{
+	static struct sockaddr_un sun;
+	int strsz;	/* length included null */
+
+	memset(&sun, 0, sizeof(sun));
+	str = strdup(str);
+	if (str == NULL)
+		goto out_nofree;
+
+	strsz = strlen(str) + 1;
+	if (strsz > sizeof(sun.sun_path)) {
+		Alert("Socket path '%s' too long (max %d)\n",
+			str, sizeof(sun.sun_path) - 1);
+		goto out_nofree;
+	}
+
+#ifndef __SOCKADDR_COMMON
+	sun.sun_len = sizeof(sun);
+#endif  /* !__SOCKADDR_COMMON */
+	sun.sun_family = AF_UNIX;
+	memcpy(sun.sun_path, str, strsz);
+
+	free(str);
+ out_nofree:
+	return &sun;
+}
 
 /*
  * Returns non-zero if character <s> is a hex digit (0-9, a-f, A-F), else zero.
@@ -153,6 +184,9 @@ struct sockaddr_in *str2sa(char *str)
 		else
 			sa.sin_addr = *(struct in_addr *) *(he->h_addr_list);
 	}
+#ifndef __SOCKADDR_COMMON
+	sa.sin_len = sizeof(sa);
+#endif  /* !__SOCKADDR_COMMON */
 	sa.sin_port   = htons(port);
 	sa.sin_family = AF_INET;
 

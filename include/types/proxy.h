@@ -38,6 +38,7 @@
 #include <types/acl.h>
 #include <types/buffers.h>
 #include <types/httperr.h>
+#include <types/log.h>
 #include <types/protocols.h>
 #include <types/session.h>
 #include <types/server.h>
@@ -206,7 +207,7 @@ struct proxy {
 	struct sockaddr_in tproxy_addr;		/* non-local address we want to bind to for connect() */
 #endif
 	struct proxy *next;
-	struct sockaddr_in logsrv1, logsrv2;	/* 2 syslog servers */
+	struct logsrv logsrv1, logsrv2;		/* 2 syslog servers */
 	signed char logfac1, logfac2;		/* log facility for both servers. -1 = disabled */
 	int loglev1, loglev2;			/* log level for each server, 7 by default */
 	int to_log;				/* things to be logged (LW_*) */

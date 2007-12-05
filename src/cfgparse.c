@@ -425,7 +425,7 @@ int cfg_parse_global(const char *file, int linenum, char **args)
 		global.pidfile = strdup(args[1]);
 	}
 	else if (!strcmp(args[0], "log")) {  /* syslog server address */
-		struct sockaddr_in *sa;
+		struct logsrv logsrv;
 		int facility, level;
 	
 		if (*(args[1]) == 0 || *(args[2]) == 0) {
@@ -448,17 +448,23 @@ int cfg_parse_global(const char *file, int linenum, char **args)
 			}
 		}
 
-		sa = str2sa(args[1]);
-		if (!sa->sin_port)
-			sa->sin_port = htons(SYSLOG_PORT);
+		if (args[1][0] == '/') {
+			logsrv.u.addr.sa_family = AF_UNIX;
+			logsrv.u.un = *str2sun(args[1]);
+		} else {
+			logsrv.u.addr.sa_family = AF_INET;
+			logsrv.u.in = *str2sa(args[1]);
+			if (!logsrv.u.in.sin_port)
+				logsrv.u.in.sin_port = htons(SYSLOG_PORT);
+		}
 
 		if (global.logfac1 == -1) {
-			global.logsrv1 = *sa;
+			global.logsrv1 = logsrv;
 			global.logfac1 = facility;
 			global.loglev1 = level;
 		}
 		else if (global.logfac2 == -1) {
-			global.logsrv2 = *sa;
+			global.logsrv2 = logsrv;
 			global.logfac2 = facility;
 			global.loglev2 = level;
 		}
@@ -1639,7 +1645,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 		newsrv->prev_state = newsrv->state;
 	}
 	else if (!strcmp(args[0], "log")) {  /* syslog server address */
-		struct sockaddr_in *sa;
+		struct logsrv logsrv;
 		int facility;
 	
 		if (*(args[1]) && *(args[2]) == 0 && !strcmp(args[1], "global")) {
@@ -1668,17 +1674,25 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 				}
 			}
 
-			sa = str2sa(args[1]);
-			if (!sa->sin_port)
-				sa->sin_port = htons(SYSLOG_PORT);
+			if (args[1][0] == '/') {
+				logsrv.u.addr.sa_family = AF_UNIX;
+				logsrv.u.un = *str2sun(args[1]);
+			} else {
+				logsrv.u.addr.sa_family = AF_INET;
+				logsrv.u.in = *str2sa(args[1]);
+				if (!logsrv.u.in.sin_port) {
+					logsrv.u.in.sin_port =
+						htons(SYSLOG_PORT);
+				}
+			}
 	    
 			if (curproxy->logfac1 == -1) {
-				curproxy->logsrv1 = *sa;
+				curproxy->logsrv1 = logsrv;
 				curproxy->logfac1 = facility;
 				curproxy->loglev1 = level;
 			}
 			else if (curproxy->logfac2 == -1) {
-				curproxy->logsrv2 = *sa;
+				curproxy->logsrv2 = logsrv;
 				curproxy->logfac2 = facility;
 				curproxy->loglev2 = level;
 			}

@@ -125,6 +125,12 @@ extern int ishex(char s);
 extern const char *invalid_char(const char *name);
 
 /*
+ * converts <str> to a struct sockaddr_un* which is locally allocated.
+ * The format is "/path", where "/path" is a path to a UNIX domain socket.
+ */
+struct sockaddr_un *str2sun(char *str);
+
+/*
  * converts <str> to a struct sockaddr_in* which is locally allocated.
  * The format is "addr:port", where "addr" can be a dotted IPv4 address,
  * a host name, or empty or "*" to indicate INADDR_ANY.
