@@ -149,7 +149,6 @@ int get_log_facility(const char *fac)
  */
 static inline int logsrv_addrlen(const struct logsrv *logsrv)
 {
-#ifdef __SOCKADDR_COMMON
 	switch (logsrv->u.addr.sa_family) {
 	case AF_UNIX:
 		return sizeof(logsrv->u.un);
@@ -158,16 +157,6 @@ static inline int logsrv_addrlen(const struct logsrv *logsrv)
 	default:
 		break;
 	}
-#else  /* !__SOCKADDR_COMMON */
-	switch (logsrv->u.addr.sa_family) {
-	case AF_UNIX:
-		return logsrv->u.un.sun_len;
-	case AF_INET:
-		return logsrv->u.in.sin_len;
-	default:
-		break;
-	}
-#endif /* !__SOCKADDR_COMMON */
 	return -1;
 }
 

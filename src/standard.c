@@ -14,6 +14,8 @@
 #include <netdb.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
@@ -83,30 +85,26 @@ const char *limit_r(unsigned long n, char *buffer, int size, const char *alt)
  */
 struct sockaddr_un *str2sun(char *str)
 {
-	static struct sockaddr_un sun;
+	static struct sockaddr_un su;
 	int strsz;	/* length included null */
 
-	memset(&sun, 0, sizeof(sun));
+	memset(&su, 0, sizeof(su));
 	str = strdup(str);
 	if (str == NULL)
 		goto out_nofree;
 
 	strsz = strlen(str) + 1;
-	if (strsz > sizeof(sun.sun_path)) {
+	if (strsz > sizeof(su.sun_path)) {
 		Alert("Socket path '%s' too long (max %d)\n",
-			str, sizeof(sun.sun_path) - 1);
+			str, sizeof(su.sun_path) - 1);
 		goto out_nofree;
 	}
-
-#ifndef __SOCKADDR_COMMON
-	sun.sun_len = sizeof(sun.sun_path);
-#endif  /* !__SOCKADDR_COMMON */
-	sun.sun_family = AF_UNIX;
-	memcpy(sun.sun_path, str, strsz);
+	su.sun_family = AF_UNIX;
+	memcpy(su.sun_path, str, strsz);
 
 	free(str);
  out_nofree:
-	return &sun;
+	return &su;
 }
 
 /*
@@ -141,7 +139,7 @@ const char *invalid_char(const char *name)
 		return name;
 
 	while (*name) {
-		if (!isalnum(*name) && *name != '.' && *name != ':' &&
+		if (!isalnum((int)*name) && *name != '.' && *name != ':' &&
 		    *name != '_' && *name != '-')
 			return name;
 		name++;
@@ -184,9 +182,6 @@ struct sockaddr_in *str2sa(char *str)
 		else
 			sa.sin_addr = *(struct in_addr *) *(he->h_addr_list);
 	}
-#ifndef __SOCKADDR_COMMON
-	sa.sin_len = sizeof(sa);
-#endif  /* !__SOCKADDR_COMMON */
 	sa.sin_port   = htons(port);
 	sa.sin_family = AF_INET;
 
