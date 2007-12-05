@@ -99,7 +99,7 @@ struct sockaddr_un *str2sun(char *str)
 	}
 
 #ifndef __SOCKADDR_COMMON
-	sun.sun_len = sizeof(sun);
+	sun.sun_len = sizeof(sun.sun_path);
 #endif  /* !__SOCKADDR_COMMON */
 	sun.sun_family = AF_UNIX;
 	memcpy(sun.sun_path, str, strsz);

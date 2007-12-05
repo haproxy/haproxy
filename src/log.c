@@ -147,7 +147,7 @@ int get_log_facility(const char *fac)
 /*
  * Return the length of the address endpoint, suitable for use with sendto().
  */
-int logsrv_addrlen(const struct logsrv *logsrv)
+static inline int logsrv_addrlen(const struct logsrv *logsrv)
 {
 #ifdef __SOCKADDR_COMMON
 	switch (logsrv->u.addr.sa_family) {

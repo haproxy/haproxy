@@ -22,6 +22,7 @@
 #ifndef _TYPES_LOG_H
 #define _TYPES_LOG_H
 
+#include <sys/socket.h>
 #include <sys/un.h>
 #include <netinet/in.h>
 #include <common/config.h>
@@ -53,8 +54,6 @@ struct logsrv {
 		struct sockaddr_in in;	/* AF_INET */
 	} u;
 };
-
-int logsrv_addrlen(const struct logsrv *logsrv);
 
 #endif /* _TYPES_LOG_H */
 
