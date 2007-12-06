@@ -1,6 +1,86 @@
 ChangeLog :
 ===========
 
+2007/12/06 : 1.3.14
+    - New option http_proxy (Alexandre Cassen)
+    - add support for "maxqueue" to limit server queue overload (Elijah Epifanov)
+    - Check for duplicated conflicting proxies (Krzysztof Oledzki)
+    - stats: report server and backend cumulated downtime (Krzysztof Oledzki)
+    - use backends only with use_backend directive (Krzysztof Oledzki)
+    - Handle long lines properly (Krzysztof Oledzki)
+    - Implement and use generic findproxy and relax duplicated proxy check (Krzysztof Oledzki)
+    - continous statistics (Krzysztof Oledzki)
+    - add support for logging via a UNIX socket (Robert Tsai)
+    - fix error checking in strl2ic/strl2uic()
+    - fix calls to localtime()
+    - provide easier-to-use ultoa_* functions
+    - provide easy-to-use limit_r and LIM2A* macros
+    - add a simple test for the status page
+    - move error codes to common/errors.h
+    - silent warning about LIST_* being redefined on OpenBSD
+    - add socket address length to the protocols
+    - group PR_O_BALANCE_* bits into a checkable value
+    - externalize the "balance" option parser to backend.c
+    - introduce the "url_param" balance method
+    - make default_backend work in TCP mode too
+    - disable warning about localtime_r on Solaris
+    - adjust error messages about conflicting proxies
+    - avoid calling some layer7 functions if not needed
+    - simplify error path in event_accept()
+    - add an options field to the listeners
+    - added a new state to listeners
+    - unbind_listener() must use fd_delete() and not close()
+    - add a generic unbind_listener() primitive
+    - add a generic delete_listener() primitive
+    - add a generic unbind_all_listeners() primitive
+    - create proto_tcp and move initialization of proxy listeners
+    - stats: report numerical process ID, proxy ID and server ID
+    - relative_pid was not initialized
+    - missing header names in raw stats output
+    - fix missing parenthesis in check_response_for_cacheability
+    - small optimization on session_process_counters()
+    - merge ebtree version 3.0
+    - make ebtree headers multiple-include compatible
+    - ebtree: include config.h for REGPRM*
+    - differentiate between generic LB params and map-specific ones
+    - add a weight divisor to the struct proxy
+    - implement the Fast Weighted Round Robin (FWRR) algo
+    - include filltab25.c to experiment on FWRR for dynamic weights
+    - merge test-fwrr.cfg to validate dynamic weights
+    - move the load balancing algorithm to be->lbprm.algo
+    - change server check result to a bit field
+    - implement "http-check disable-on-404" for graceful shutdown
+    - secure the calling conditions of ->set_server_status_{up,down}
+    - report disabled servers as "NOLB" when they are still UP
+    - document the "http-check disable-on-404" option
+    - http-check disable-on-404 is not limited to HTTP mode
+    - add a test file for disable-on-404
+    - use distinct bits per load-balancing algorithm type
+    - implement the slowstart parameter for servers
+    - document the server's slowstart parameter
+    - stats: report the server warm up status in a "throttle" column
+    - fix 2 minor issues on AIX
+    - add the "nbsrv" ACL verb
+    - add the "fail" condition to monitor requests
+    - remove a warning from gcc due to htons() in standard.c
+    - fwrr: ensure that we never overflow in placements
+    - store the build options to report with -vv
+    - fix the status return of the init script (R.I. Pienaar)
+    - stats: real time monitoring script for unix socket (Prizee) 
+    - document "nbsrv" and "monitor fail"
+    - restrict the set of allowed characters for identifiers
+    - implement a time parsing function
+    - add support for time units in the configuration
+    - add a bit of documentation about timers
+    - introduce separation between contimeout, and tarpit + queue
+    - introduce the "timeout" keyword
+    - grouped all timeouts in one structure
+    - slowstart is in ms, not seconds
+    - slowstart: ensure we don't start with a null weight
+    - report the number of times each server was selected
+    - fix build on AIX due to recent log changes
+    - fix build on Solaris due to recent log changes
+
 2007/10/18 : 1.3.13
     - replace the code under O'Reilly license (Arnaud Cornet)
     - add a small man page (Arnaud Cornet)
