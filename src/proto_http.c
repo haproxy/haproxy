@@ -2508,6 +2508,8 @@ int process_srv(struct session *t)
 					task_wakeup(t->srv->queue_mgt);
 
 				if (t->srv)
+					t->srv->cum_sess++;
+				if (t->srv)
 					t->srv->failed_conns++;
 				t->be->redispatches++;
 
@@ -2560,8 +2562,6 @@ int process_srv(struct session *t)
 					tv_eternity(&rep->rex);
 		
 				t->srv_state = SV_STDATA;
-				if (t->srv)
-					t->srv->cum_sess++;
 				rep->rlim = rep->data + BUFSIZE; /* no rewrite needed */
 
 				/* if the user wants to log as soon as possible, without counting
@@ -2579,8 +2579,6 @@ int process_srv(struct session *t)
 			}
 			else {
 				t->srv_state = SV_STHEADERS;
-				if (t->srv)
-					t->srv->cum_sess++;
 				rep->rlim = rep->data + BUFSIZE - MAXREWRITE; /* rewrite needed */
 				t->txn.rsp.msg_state = HTTP_MSG_RPBEFORE;
 				/* reset hdr_idx which was already initialized by the request.
