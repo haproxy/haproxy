@@ -1357,6 +1357,8 @@ int srv_count_retry_down(struct session *t, int conn_err)
 		srv_close_with_err(t, conn_err, SN_FINST_C,
 				   503, error_message(t, HTTP_ERR_503));
 		if (t->srv)
+			t->srv->cum_sess++;
+		if (t->srv)
 			t->srv->failed_conns++;
 		t->be->failed_conns++;
 
@@ -1392,12 +1394,16 @@ int srv_retryable_connect(struct session *t)
 		case SN_ERR_NONE:
 			//fprintf(stderr,"0: c=%d, s=%d\n", c, s);
 			t->srv_state = SV_STCONN;
+			if (t->srv)
+				t->srv->cum_sess++;
 			return 1;
 	    
 		case SN_ERR_INTERNAL:
 			tv_eternity(&t->req->cex);
 			srv_close_with_err(t, SN_ERR_INTERNAL, SN_FINST_C,
 					   500, error_message(t, HTTP_ERR_500));
+			if (t->srv)
+				t->srv->cum_sess++;
 			if (t->srv)
 				t->srv->failed_conns++;
 			t->be->failed_conns++;
@@ -1419,6 +1425,8 @@ int srv_retryable_connect(struct session *t)
 	if (may_dequeue_tasks(t->srv, t->be))
 		task_wakeup(t->srv->queue_mgt);
 
+	if (t->srv)
+		t->srv->cum_sess++;
 	if (t->srv)
 		t->srv->failed_conns++;
 	t->be->redispatches++;
@@ -1456,6 +1464,8 @@ int srv_redispatch_connect(struct session *t)
 		srv_close_with_err(t, SN_ERR_SRVTO, SN_FINST_C,
 				   503, error_message(t, HTTP_ERR_503));
 		if (t->srv)
+			t->srv->cum_sess++;
+		if (t->srv)
 			t->srv->failed_conns++;
 		t->be->failed_conns++;
 
@@ -1475,6 +1485,8 @@ int srv_redispatch_connect(struct session *t)
 		tv_eternity(&t->req->cex);
 		srv_close_with_err(t, SN_ERR_INTERNAL, SN_FINST_C,
 				   500, error_message(t, HTTP_ERR_500));
+		if (t->srv)
+			t->srv->cum_sess++;
 		if (t->srv)
 			t->srv->failed_conns++;
 		t->be->failed_conns++;
