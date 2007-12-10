@@ -2492,7 +2492,7 @@ int process_srv(struct session *t)
 							   503, error_message(t, HTTP_ERR_503));
 					if (t->srv)
 						t->srv->failed_conns++;
-					t->fe->failed_conns++;
+					t->be->failed_conns++;
 					return 1;
 				}
 			}
