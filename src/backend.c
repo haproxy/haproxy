@@ -1254,8 +1254,8 @@ int connect_server(struct session *s)
 			itp1.op = TPROXY_ASSIGN;
 			switch (s->be->options & PR_O_TPXY_MASK) {
 			case PR_O_TPXY_ADDR:
-				itp1.v.addr.faddr = s->srv->tproxy_addr.sin_addr;
-				itp1.v.addr.fport = s->srv->tproxy_addr.sin_port;
+				itp1.v.addr.faddr = s->be->tproxy_addr.sin_addr;
+				itp1.v.addr.fport = s->be->tproxy_addr.sin_port;
 				break;
 			case PR_O_TPXY_CLI:
 				itp1.v.addr.fport = ((struct sockaddr_in *)&s->cli_addr)->sin_port;
