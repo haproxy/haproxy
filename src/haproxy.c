@@ -817,7 +817,8 @@ int main(int argc, char **argv)
 	while (retry >= 0) {
 		struct timeval w;
 		err = start_proxies(retry == 0 || nb_oldpids == 0);
-		if (err != ERR_RETRYABLE)
+		/* exit the loop on no error or fatal error */
+		if ((err & (ERR_RETRYABLE|ERR_FATAL)) != ERR_RETRYABLE)
 			break;
 		if (nb_oldpids == 0)
 			break;
