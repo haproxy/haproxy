@@ -1,6 +1,11 @@
 ChangeLog :
 ===========
 
+2007/12/24 : 1.3.14.1
+    - transparent proxy address was ignored in backend
+    - hot reconfiguration failed because of a wrong error check
+    - big update to the configuration manual
+
 2007/12/06 : 1.3.14
     - New option http_proxy (Alexandre Cassen)
     - add support for "maxqueue" to limit server queue overload (Elijah Epifanov)
