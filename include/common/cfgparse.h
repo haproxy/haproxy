@@ -32,8 +32,8 @@
 extern int cfg_maxpconn;
 extern int cfg_maxconn;
 
-int cfg_parse_global(const char *file, int linenum, char **args);
-int cfg_parse_listen(const char *file, int linenum, char **args);
+int cfg_parse_global(const char *file, int linenum, char **args, int inv);
+int cfg_parse_listen(const char *file, int linenum, char **args, int inv);
 int readcfgfile(const char *file);
 
 

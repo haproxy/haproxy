@@ -90,29 +90,29 @@ static const struct {
 	unsigned int checks;
 } cfg_opts[] =
 {
-#ifdef TPROXY
-	{ "transparent",  PR_O_TRANSP,     PR_CAP_FE },
-#endif
-	{ "redispatch",   PR_O_REDISP,     PR_CAP_BE, 0 },
-	{ "keepalive",    PR_O_KEEPALIVE,  PR_CAP_NONE, 0 },
-	{ "httpclose",    PR_O_HTTP_CLOSE, PR_CAP_FE | PR_CAP_BE, 0 },
-	{ "nolinger",     PR_O_TCP_NOLING, PR_CAP_FE | PR_CAP_BE, 0 },
-	{ "http_proxy",	  PR_O_HTTP_PROXY, PR_CAP_FE | PR_CAP_BE, 0 },
-	{ "logasap",      PR_O_LOGASAP,    PR_CAP_FE, 0 },
-	{ "contstats",    PR_O_CONTSTATS,  PR_CAP_FE, 0 },
 	{ "abortonclose", PR_O_ABRT_CLOSE, PR_CAP_BE, 0 },
-	{ "checkcache",   PR_O_CHK_CACHE,  PR_CAP_BE, 0 },
-	{ "dontlognull",  PR_O_NULLNOLOG,  PR_CAP_FE, 0 },
-	{ "clitcpka",     PR_O_TCP_CLI_KA, PR_CAP_FE, 0 },
-	{ "srvtcpka",     PR_O_TCP_SRV_KA, PR_CAP_BE, 0 },
 	{ "allbackups",   PR_O_USE_ALL_BK, PR_CAP_BE, 0 },
+	{ "checkcache",   PR_O_CHK_CACHE,  PR_CAP_BE, 0 },
+	{ "clitcpka",     PR_O_TCP_CLI_KA, PR_CAP_FE, 0 },
+	{ "contstats",    PR_O_CONTSTATS,  PR_CAP_FE, 0 },
+	{ "dontlognull",  PR_O_NULLNOLOG,  PR_CAP_FE, 0 },
+	{ "forceclose",   PR_O_FORCE_CLO,  PR_CAP_BE, 0 },
+	{ "http_proxy",	  PR_O_HTTP_PROXY, PR_CAP_FE | PR_CAP_BE, 0 },
+	{ "httpclose",    PR_O_HTTP_CLOSE, PR_CAP_FE | PR_CAP_BE, 0 },
+	{ "keepalive",    PR_O_KEEPALIVE,  PR_CAP_NONE, 0 },
+	{ "logasap",      PR_O_LOGASAP,    PR_CAP_FE, 0 },
+	{ "nolinger",     PR_O_TCP_NOLING, PR_CAP_FE | PR_CAP_BE, 0 },
 	{ "persist",      PR_O_PERSIST,    PR_CAP_BE, 0 },
-	{ "forceclose",   PR_O_FORCE_CLO | PR_O_HTTP_CLOSE, PR_CAP_BE, 0 },
+	{ "redispatch",   PR_O_REDISP,     PR_CAP_BE, 0 },
+	{ "srvtcpka",     PR_O_TCP_SRV_KA, PR_CAP_BE, 0 },
 #ifdef CONFIG_HAP_TCPSPLICE
-	{ "tcpsplice",    PR_O_TCPSPLICE , PR_CAP_BE|PR_CAP_FE, LSTCHK_TCPSPLICE|LSTCHK_NETADM },
+	{ "tcpsplice",    PR_O_TCPSPLICE,  PR_CAP_BE|PR_CAP_FE, LSTCHK_TCPSPLICE|LSTCHK_NETADM },
+#endif
+#ifdef TPROXY
+	{ "transparent",  PR_O_TRANSP,     PR_CAP_FE, 0 },
 #endif
 
-	{ NULL, 0, 0 }
+	{ NULL, 0, 0, 0 }
 };
 
 
@@ -261,7 +261,7 @@ int warnifnotcap(struct proxy *proxy, int cap, const char *file, int line, char 
 /*
  * parse a line in a <global> section. Returns 0 if OK, -1 if error.
  */
-int cfg_parse_global(const char *file, int linenum, char **args)
+int cfg_parse_global(const char *file, int linenum, char **args, int inv)
 {
 
 	if (!strcmp(args[0], "global")) {  /* new section */
@@ -516,7 +516,7 @@ static void init_default_instance()
  * Parse a line in a <listen>, <frontend>, <backend> or <ruleset> section.
  * Returns 0 if OK, -1 if error.
  */
-int cfg_parse_listen(const char *file, int linenum, char **args)
+int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 {
 	static struct proxy *curproxy = NULL;
 	struct server *newsrv = NULL;
@@ -1145,8 +1145,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 	else if (!strcmp(args[0], "option")) {
 		int optnum;
 
-		if (*(args[1]) == 0) {
-			Alert("parsing [%s:%d] : '%s' expects an option name.\n", file, linenum, args[0]);
+		if (*(args[1]) == '\0') {
+			Alert("parsing [%s:%d]: '%s' expects an option name.\n",
+			      file, linenum, args[0]);
 			return -1;
 		}
 
@@ -1154,10 +1155,20 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 			if (!strcmp(args[1], cfg_opts[optnum].name)) {
 				if (warnifnotcap(curproxy, cfg_opts[optnum].cap, file, linenum, args[1], NULL))
 					return 0;
-				curproxy->options |= cfg_opts[optnum].val;
-				global.last_checks |= cfg_opts[optnum].checks;
+
+				if (!inv)
+					curproxy->options |= cfg_opts[optnum].val;
+				else
+					curproxy->options &= ~cfg_opts[optnum].val;
+
 				return 0;
 			}
+		}
+
+		if (inv) {
+			Alert("parsing [%s:%d]: negation is not supported for option '%s'.\n",
+				file, linenum, args[1]);
+			return -1;
 		}
 
 		if (!strcmp(args[1], "httplog"))
@@ -1286,6 +1297,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args)
 	else if (!strcmp(args[0], "redispatch") || !strcmp(args[0], "redisp")) {
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			return 0;
+
+		Warning("parsing [%s:%d]: keyword '%s' is deprecated, please use 'option redispatch' instead.\n",
+				file, linenum, args[0]);
 
 		/* enable reconnections to dispatch */
 		curproxy->options |= PR_O_REDISP;
@@ -2406,7 +2420,7 @@ int readcfgfile(const char *file)
 	init_default_instance();
 
 	while (fgets(thisline, sizeof(thisline), f) != NULL) {
-		int arg;
+		int arg, inv = 0 ;
 		char *end;
 		char *args[MAX_LINE_ARGS + 1];
 		char *line = thisline;
@@ -2502,6 +2516,17 @@ int readcfgfile(const char *file)
 			args[arg] = line;
 		}
 
+		if (!strcmp(args[0], "no")) {
+			inv = 1;
+			for (arg=0; *args[arg+1]; arg++)
+				args[arg] = args[arg+1];		// shift args after inversion
+		}
+
+		if (inv && strcmp(args[0], "option")) {
+			Alert("parsing [%s:%d]: negation currently supported only for options.\n", file, linenum);
+			return -1;
+		}
+
 		if (!strcmp(args[0], "listen") ||
 		    !strcmp(args[0], "frontend") ||
 		    !strcmp(args[0], "backend") ||
@@ -2514,11 +2539,11 @@ int readcfgfile(const char *file)
 
 		switch (confsect) {
 		case CFG_LISTEN:
-			if (cfg_parse_listen(file, linenum, args) < 0)
+			if (cfg_parse_listen(file, linenum, args, inv) < 0)
 				return -1;
 			break;
 		case CFG_GLOBAL:
-			if (cfg_parse_global(file, linenum, args) < 0)
+			if (cfg_parse_global(file, linenum, args, inv) < 0)
 				return -1;
 			break;
 		default:
@@ -2849,12 +2874,28 @@ int readcfgfile(const char *file)
 
 		curproxy = curproxy->next;
 	}
+
 	if (cfgerr > 0) {
 		Alert("Errors found in configuration file, aborting.\n");
 		return -1;
 	}
-	else
-		return 0;
+
+	/*
+	 * Recount currently required checks.
+	 */
+
+	for (curproxy=proxy; curproxy; curproxy=curproxy->next) {
+		int optnum;
+
+		for (optnum = 0; cfg_opts[optnum].name; optnum++) {
+			if (!(curproxy->options & cfg_opts[optnum].val))
+				continue;
+
+			global.last_checks |= cfg_opts[optnum].checks;
+		}
+	}
+
+	return 0;
 }
 
 
