@@ -490,7 +490,10 @@ details.
 The following list of keywords is supported. Most of them may only be used in a
 limited set of section types. Some of them are marked as "deprecated" because
 they are inherited from an old syntax which may be confusing or functionnally
-limited, and there are new recommended keywords to replace them.
+limited, and there are new recommended keywords to replace them. Keywords
+listed with [no] can be optionally inverted using the "no" prefix, ex. "no
+option contstats". This makes sense when the option has been enabled by default
+and must be disabled for a specific instance.
 
 
 keyword                 defaults   frontend   listen    backend
@@ -523,31 +526,31 @@ mode                        X          X         X         X
 monitor fail                -          X         X         -
 monitor-net                 X          X         X         -
 monitor-uri                 X          X         X         -
-option abortonclose         X          -         X         X
-option allbackups           X          -         X         X
-option checkcache           X          -         X         X
-option clitcpka             X          X         X         -
-option contstats            X          X         X         -
-option dontlognull          X          X         X         -
-option forceclose           X          -         X         X
+[no] option abortonclose    X          -         X         X
+[no] option allbackups      X          -         X         X
+[no] option checkcache      X          -         X         X
+[no] option clitcpka        X          X         X         -
+[no] option contstats       X          X         X         -
+[no] option dontlognull     X          X         X         -
+[no] option forceclose      X          -         X         X
 option forwardfor           X          X         X         X
+[no] option http_proxy      X          X         X         X
 option httpchk              X          -         X         X
-option httpclose            X          X         X         X
+[no] option httpclose       X          X         X         X
 option httplog              X          X         X         X
-option logasap              X          X         X         -
-option nolinger             X          X         X         X
-option http_proxy           X          X         X         X
-option persist              X          -         X         X
-option redispatch           X          -         X         X
+[no] option logasap         X          X         X         -
+[no] option nolinger        X          X         X         X
+[no] option persist         X          -         X         X
+[no] option redispatch      X          -         X         X
 option smtpchk              X          -         X         X
-option srvtcpka             X          -         X         X
+[no] option srvtcpka        X          -         X         X
 option ssl-hello-chk        X          -         X         X
 option tcpka                X          X         X         X
 option tcplog               X          X         X         X
-option tcpsplice            X          X         X         X
-option transparent          X          X         X         -
-redisp                      X          -         X         X
-redispatch                  X          -         X         X
+[no] option tcpsplice       X          X         X         X
+[no] option transparent     X          X         X         -
+redisp                      X          -         X         X  (deprecated)
+redispatch                  X          -         X         X  (deprecated)
 reqadd                      -          X         X         X
 reqallow                    -          X         X         X
 reqdel                      -          X         X         X
