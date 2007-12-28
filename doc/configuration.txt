@@ -1467,6 +1467,158 @@ monitor-uri <uri>
   See also : "monitor fail", "monitor-net"
 
 
+option abortonclose
+no option abortonclose
+  Enable or disable early dropping of aborted requests pending in queues.
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |     no   |   yes  |   yes
+  Arguments : none
+
+  In presence of very high loads, the servers will take some time to respond.
+  The per-instance connection queue will inflate, and the response time will
+  increase respective to the size of the queue times the average per-session
+  response time. When clients will wait for more than a few seconds, they will
+  often hit the 'STOP' button on their browser, leaving a useless request in
+  the queue, and slowing down other users, and the servers as well, because the
+  request will eventually be served, then aborted at the first error
+  encountered while delivering the response.
+
+  As there is no way to distinguish between a full STOP and a simple output
+  close on the client side, HTTP agents should be conservative and consider
+  that the client might only have closed its output channel while waiting for
+  the response. However, this introduces risks of congestion when lots of users
+  do the same, and is completely useless nowadays because probably no client at
+  all will close the session while waiting for the response. Some HTTP agents
+  support this behaviour (Squid, Apache, HAProxy), and others do not (TUX, most 
+  hardware-based load balancers). So the probability for a closed input channel
+  to represent a user hitting the 'STOP' button is close to 100%, and the risk
+  of being the single component to break rare but valid traffic is extremely
+  low, which adds to the temptation to be able to abort a session early while
+  still not served and not pollute the servers.
+
+  In HAProxy, the user can choose the desired behaviour using the option
+  "abortonclose". By default (without the option) the behaviour is HTTP
+  compliant and aborted requests will be served. But when the option is
+  specified, a session with an incoming channel closed will be aborted while
+  it is still possible, either pending in the queue for a connection slot, or
+  during the connection establishment if the server has not yet acknowledged
+  the connection request. This considerably reduces the queue size and the load
+  on saturated servers when users are tempted to click on STOP, which in turn
+  reduces the response time for other users. 
+
+  If this option has been enabled in a "defaults" section, it can be disabled
+  in a specific instance by prepending the "no" keyword before it.
+
+  See also : "timeout queue" and server's "maxconn" and "maxqueue" parameters
+
+
+option allbackups
+no option allbackups
+  Use either all backup servers at a time or only the first one
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |     no   |   yes  |   yes
+  Arguments : none
+
+  By default, the first operational backup server gets all traffic when normal
+  servers are all down. Sometimes, it may be preferred to use multiple backups
+  at once, because one will not be enough. When "option allbackups" is enabled,
+  the load balancing will be performed among all backup servers when all normal
+  ones are unavailable. The same load balancing algorithm will be used and the
+  servers' weights will be respected. Thus, there will not be any priority
+  order between the backup servers anymore.
+
+  This option is mostly used with static server farms dedicated to return a
+  "sorry" page when an application is completely offline.
+
+  If this option has been enabled in a "defaults" section, it can be disabled
+  in a specific instance by prepending the "no" keyword before it.
+
+
+option checkcache
+no option checkcache
+  Analyze all server responses and block requests with cachable cookies
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |     no   |   yes  |   yes
+  Arguments : none
+
+  Some high-level frameworks set application cookies everywhere and do not
+  always let enough control to the developer to manage how the responses should
+  be cached. When a session cookie is returned on a cachable object, there is a
+  high risk of session crossing or stealing between users traversing the same
+  caches. In some situations, it is better to block the response than to let
+  some sensible session information go in the wild.
+
+  The option "checkcache" enables deep inspection of all server responses for
+  strict compliance with HTTP specification in terms of cachability. It
+  carefully checks 'Cache-control', 'Pragma' and 'Set-cookie' headers in server
+  response to check if there's a risk of caching a cookie on a client-side
+  proxy. When this option is enabled, the only responses which can be delivered
+  to the client are : 
+    - all those without 'Set-Cookie' header ;
+    - all those with a return code other than 200, 203, 206, 300, 301, 410,
+      provided that the server has not set a 'Cache-control: public' header ;
+    - all those that come from a POST request, provided that the server has not
+      set a 'Cache-Control: public' header ;
+    - those with a 'Pragma: no-cache' header
+    - those with a 'Cache-control: private' header
+    - those with a 'Cache-control: no-store' header
+    - those with a 'Cache-control: max-age=0' header
+    - those with a 'Cache-control: s-maxage=0' header
+    - those with a 'Cache-control: no-cache' header
+    - those with a 'Cache-control: no-cache="set-cookie"' header
+    - those with a 'Cache-control: no-cache="set-cookie,' header
+      (allowing other fields after set-cookie)
+
+  If a response doesn't respect these requirements, then it will be blocked
+  just as if it was from an 'rspdeny' filter, with an "HTTP 502 bad gateway".
+  The session state shows "PH--" meaning that the proxy blocked the response
+  during headers processing. Additionnaly, an alert will be sent in the logs so
+  that admins are informed that there's something to be fixed.
+
+  Due to the high impact on the application, the application should be tested
+  in depth with the option enabled before going to production. It is also a
+  good practise to always activate it during tests, even if it is not used in
+  production, as it will report potentially dangerous application behaviours.
+
+  If this option has been enabled in a "defaults" section, it can be disabled
+  in a specific instance by prepending the "no" keyword before it.
+
+
+option clitcpka
+no option clitcpka
+  Enable or disable the sending of TCP keepalive packets on the client side
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   no
+  Arguments : none
+
+  When there is a firewall or any session-aware component between a client and
+  a server, and when the protocol involves very long sessions with long idle
+  periods (eg: remote desktops), there is a risk that one of the intermediate
+  components decides to expire a session which has remained idle for too long.
+
+  Enabling socket-level TCP keep-alives makes the system regularly send packets
+  to the other end of the connection, leaving it active. The delay between
+  keep-alive probes is controlled by the system only and depends both on the
+  operating system and its tuning parameters.
+
+  It is important to understand that keep-alive packets are neither emitted nor
+  received at the application level. It is only the network stacks which sees
+  them. For this reason, even if one side of the proxy already uses keep-alives
+  to maintain its connection alive, those keep-alive packets will not be
+  forwarded to the other side of the proxy.
+
+  Please note that this has nothing to do with HTTP keep-alive.
+
+  Using option "clitcpka" enables the emission of TCP keep-alive probes on the
+  client side of a connection, which should help when session expirations are
+  noticed between HAProxy and a client.
+
+  If this option has been enabled in a "defaults" section, it can be disabled
+  in a specific instance by prepending the "no" keyword before it.
+
+  See also : "option srvtcpka", "option tcpka"
+
+
 option contstats
   Enable continuous traffic statistics updates
   May be used in sections :   defaults | frontend | listen | backend
@@ -1480,6 +1632,127 @@ option contstats
   a hedgehog. With this option enabled counters get incremented continuously,
   during a whole session. Recounting touches a hotpath directly so
   it is not enabled by default, as it has small performance impact (~0.5%).
+
+
+option dontlognull
+no option dontlognull
+  Enable or disable logging of null connections
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   no
+  Arguments : none
+
+  In certain environments, there are components which will regularly connect to
+  various systems to ensure that they are still alive. It can be the case from
+  another load balancer as well as from monitoring systems. By default, even a
+  simple port probe or scan will produce a log. If those connections pollute
+  the logs too much, it is possible to enable option "dontlognull" to indicate
+  that a connection on which no data has been transferred will not be logged,
+  which typically corresponds to those probes.
+
+  It is generally recommended not to use this option in uncontrolled
+  environments (eg: internet), otherwise scans and other malicious activities
+  would not be logged.
+
+  If this option has been enabled in a "defaults" section, it can be disabled
+  in a specific instance by prepending the "no" keyword before it.
+
+  See also : "log", "monitor-net", "monitor-uri"
+
+
+option forceclose
+no option forceclose
+  Enable or disable active connection closing after response is transferred.
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |     no   |   yes  |   yes
+  Arguments : none
+
+  Some HTTP servers do not necessarily close the connections when they receive
+  the "Connection: close" set by "option httpclose", and if the client does not
+  close either, then the connection remains open till the timeout expires. This
+  causes high number of simultaneous connections on the servers and shows high
+  global session times in the logs.
+
+  When this happens, it is possible to use "option forceclose". It will
+  actively close the outgoing server channel as soon as the server begins to
+  reply and only if the request buffer is empty. Note that this should NOT be
+  used if CONNECT requests are expected between the client and the server. This
+  option implicitly enables the "httpclose" option.
+
+  If this option has been enabled in a "defaults" section, it can be disabled
+  in a specific instance by prepending the "no" keyword before it.
+
+  See also : "option httpclose"
+
+
+option srvtcpka
+no option srvtcpka
+  Enable or disable the sending of TCP keepalive packets on the server side
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments : none
+
+  When there is a firewall or any session-aware component between a client and
+  a server, and when the protocol involves very long sessions with long idle
+  periods (eg: remote desktops), there is a risk that one of the intermediate
+  components decides to expire a session which has remained idle for too long.
+
+  Enabling socket-level TCP keep-alives makes the system regularly send packets
+  to the other end of the connection, leaving it active. The delay between
+  keep-alive probes is controlled by the system only and depends both on the
+  operating system and its tuning parameters.
+
+  It is important to understand that keep-alive packets are neither emitted nor
+  received at the application level. It is only the network stacks which sees
+  them. For this reason, even if one side of the proxy already uses keep-alives
+  to maintain its connection alive, those keep-alive packets will not be
+  forwarded to the other side of the proxy.
+
+  Please note that this has nothing to do with HTTP keep-alive.
+
+  Using option "srvtcpka" enables the emission of TCP keep-alive probes on the
+  server side of a connection, which should help when session expirations are
+  noticed between HAProxy and a server.
+
+  If this option has been enabled in a "defaults" section, it can be disabled
+  in a specific instance by prepending the "no" keyword before it.
+
+  See also : "option clitcpka", "option tcpka"
+
+
+option tcpka
+  Enable or disable the sending of TCP keepalive packets on both sides
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+  Arguments : none
+
+  When there is a firewall or any session-aware component between a client and
+  a server, and when the protocol involves very long sessions with long idle
+  periods (eg: remote desktops), there is a risk that one of the intermediate
+  components decides to expire a session which has remained idle for too long.
+
+  Enabling socket-level TCP keep-alives makes the system regularly send packets
+  to the other end of the connection, leaving it active. The delay between
+  keep-alive probes is controlled by the system only and depends both on the
+  operating system and its tuning parameters.
+
+  It is important to understand that keep-alive packets are neither emitted nor
+  received at the application level. It is only the network stacks which sees
+  them. For this reason, even if one side of the proxy already uses keep-alives
+  to maintain its connection alive, those keep-alive packets will not be
+  forwarded to the other side of the proxy.
+
+  Please note that this has nothing to do with HTTP keep-alive.
+
+  Using option "tcpka" enables the emission of TCP keep-alive probes on both
+  the client and server sides of a connection. Note that this is meaningful
+  only in "defaults" or "listen" sections. If this option is used in a
+  frontend, only the client side will get keep-alives, and if this option is
+  used in a backend, only the server side will get keep-alives. For this
+  reason, it is strongly recommended to explicitly use "option clitcpka" and
+  "option srvtcpka" when the configuration is split between frontends and
+  backends.
+
+  See also : "option clitcpka", "option srvtcpka"
 
 
 timeout client <timeout>
