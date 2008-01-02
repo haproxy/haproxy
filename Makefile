@@ -1,117 +1,241 @@
-# This makefile supports different OS and CPU setups.
+# This GNU Makefile supports different OS and CPU combinations.
+#
 # You should use it this way :
-#   make TARGET=os CPU=cpu REGEX=lib
+#   [g]make TARGET=os CPU=cpu USE_xxx=1 ...
 #
-# Some external components may be build with it, such dlmalloc :
+# Valid USE_* options are the following. Most of them are automatically set by
+# the TARGET, others have to be explictly specified :
+#   USE_CTTPROXY         : enable CTTPROXY on Linux (needs kernel patch).
+#   USE_EPOLL            : enable epoll() on Linux 2.6. Automatic.
+#   USE_EPOLL_WORKAROUND : enable epoll() bug workaround. Automatic.
+#   USE_GETSOCKNAME      : enable getsockname() on Linux 2.2. Automatic.
+#   USE_KQUEUE           : enable kqueue() on BSD. Automatic.
+#   USE_MY_EPOLL         : redefine epoll_* syscalls. Automatic.
+#   USE_NETFILTER        : enable netfilter on Linux. Automatic.
+#   USE_PCRE             : enable use of libpcre for regex. Recommended.
+#   USE_POLL             : enable poll(). Automatic.
+#   USE_REGPARM          : enable regparm optimization. Recommended on x86.
+#   USE_SEPOLL           : enable speculative epoll(). Automatic.
+#   USE_STATIC_PCRE      : enable static libpcre. Recommended.
+#   USE_TCPSPLICE        : enable tcp_splice() on Linux (needs kernel patch).
+#   USE_TPROXY           : enable transparent proxy. Automatic.
 #
-#   make DLMALLOC_SRC=/usr/local/src/dlmalloc.c
+# Options can be forced by specifying "USE_xxx=1" or can be disabled by using
+# "USE_xxx=" (empty string).
+#
+# Variables useful for packagers :
+#   CC is set to "gcc" by default and is used for compilation only.
+#   LD is set to "gcc" by default and is used for linking only.
+#   CFLAGS is automatically set for the specified CPU and may be overridden.
+#   LDFLAGS is automatically set to -g and may be overridden.
+#   SMALL_OPTS may be used to specify some options to shrink memory usage.
+#   DEBUG may be used to set some internal debugging options.
+#   ADDINC may be used to complete the include path in the form -Ipath.
+#   ADDLIB may be used to complete the library list in the form -Lpath -llib.
+#   DEFINE may be used to specify any additional define, which will be reported
+#          by "haproxy -vv" in CFLAGS.
+#   SILENT_DEFINE may be used to specify other defines which will not be
+#     reported by "haproxy -vv".
+#
+# Other variables :
+#   DLMALLOC_SRC   : build with dlmalloc, indicate the location of dlmalloc.c.
+#   DLMALLOC_THRES : should match PAGE_SIZE on every platform (default: 4096).
+#   PCREDIR        : force the path to libpcre.
+#   IGNOREGIT      : ignore GIT commit versions if set.
+#   VERSION        : force haproxy version reporting.
+#   SUBVERS        : add a sub-version (eg: platform, model, ...).
+#   VERDATE        : force haproxy's release date.
 
-# Select target OS. TARGET must match a system for which COPTS and LIBS are
-# correctly defined below.
-#TARGET = linux26
-TARGET = linux24
-#TARGET = linux24e
-#TARGET = linux22
-#TARGET = solaris
 
-USE_POLL = 1
+#### TARGET system
+# Use TARGET=<target_name> to optimize for a specifc target OS among the
+# following list (use the default "generic" if uncertain) :
+#    generic, linux22, linux24, linux24e, linux24eold, linux26, solaris,
+#    freebsd, openbsd, custom
+TARGET = generic
 
-ifeq ($(TARGET),linux24e)
-USE_EPOLL = 1
-USE_SEPOLL = 1
-endif
-
-ifeq ($(TARGET),linux26)
-USE_EPOLL = 1
-USE_SEPOLL = 1
-endif
-
-# pass CPU=<cpu_name> to make to optimize for a particular CPU
+#### TARGET CPU
+# Use CPU=<cpu_name> to optimize for a particular CPU, among the following
+# list :
+#    generic, i586, i686, ultrasparc, custom
 CPU = generic
-#CPU = i586
-#CPU = i686
-#CPU = ultrasparc
 
-# By default, we use libc's regex. WARNING! On Solaris 8/Sparc, group
-# references seem broken using libc ! Use pcre instead.
-REGEX=libc
-#REGEX=pcre
-#REGEX=static-pcre
-
-# tools options
+#### Toolchain options.
+# GCC is normally used both for compiling and linking.
 CC = gcc
 LD = gcc
 
-# This is the directory hosting include/pcre.h and lib/libpcre.* when REGEX=pcre
-PCREDIR	:= $(shell pcre-config --prefix 2>/dev/null || :)
-#PCREDIR=/usr/local
+#### Debug flags (typically "-g").
+# Those flags only feed CFLAGS so it is not mandatory to use this form.
+DEBUG_CFLAGS = -g
 
-# This is the directory hosting libtcpsplice.[ah] when USE_TCPSPLICE is set
-TCPSPLICEDIR :=
-
-# This is for standard Linux 2.6 with netfilter and epoll()
-COPTS.linux26 = -DNETFILTER
-LIBS.linux26 =
-
-# This is for enhanced Linux 2.4 with netfilter and epoll() patch.
-# Warning! If kernel is 2.4 with epoll-lt <= 0.21, then you must add
-# -DEPOLL_CTL_MOD_WORKAROUND to workaround a very rare bug.
-#COPTS.linux24e = -DNETFILTER -DUSE_MY_EPOLL -DEPOLL_CTL_MOD_WORKAROUND
-COPTS.linux24e = -DNETFILTER -DUSE_MY_EPOLL
-LIBS.linux24e =
-
-# This is for standard Linux 2.4 with netfilter but without epoll()
-COPTS.linux24 = -DNETFILTER
-LIBS.linux24 =
-
-# This is for Linux 2.2
-COPTS.linux22 = -DUSE_GETSOCKNAME
-LIBS.linux22 =
-
-# This is for Solaris 8
-COPTS.solaris = -fomit-frame-pointer -DFD_SETSIZE=65536 -D_REENTRANT
-LIBS.solaris = -lnsl -lsocket
-
-# CPU dependant optimizations
-COPTS.generic = -O2
-COPTS.i586 = -O2 -march=i586 -DCONFIG_HAP_USE_REGPARM
-COPTS.i686 = -O2 -march=i686 -DCONFIG_HAP_USE_REGPARM
-COPTS.ultrasparc = -O6 -mcpu=v9 -mtune=ultrasparc
-
-# options for standard regex library
-COPTS.libc=
-LIBS.libc=
-
-# options for libpcre
-COPTS.pcre=-DUSE_PCRE -I$(PCREDIR)/include
-LIBS.pcre=-L$(PCREDIR)/lib -lpcreposix -lpcre
-
-# options for static libpcre
-COPTS.static-pcre=-DUSE_PCRE -I$(PCREDIR)/include
-LIBS.static-pcre=-L$(PCREDIR)/lib -Wl,-Bstatic -lpcreposix -lpcre -Wl,-Bdynamic
-
-# you can enable debug arguments with "DEBUG=-g" or disable them with "DEBUG="
-#DEBUG = -g -DDEBUG_MEMORY -DDEBUG_FULL
-DEBUG = -g
-
-# if small memory footprint is required, you can reduce the buffer size. There
+#### Memory usage tuning
+# If small memory footprint is required, you can reduce the buffer size. There
 # are 2 buffers per concurrent session, so 16 kB buffers will eat 32 MB memory
 # with 1000 concurrent sessions. Putting it slightly lower than a page size
-# will avoid the additionnal paramters to overflow a page. 8030 bytes is
-# exactly 5.5 TCP segments of 1460 bytes.
-#SMALL_OPTS = -DBUFSIZE=8030 -DMAXREWRITE=1030 -DSYSTEM_MAXCONN=1024
+# will prevent the additional parameters to go beyond a page. 8030 bytes is
+# exactly 5.5 TCP segments of 1460 bytes and is generally good. Useful tuning
+# macros include :
+#    SYSTEM_MAXCONN, BUFSIZE, MAXREWRITE, REQURI_LEN, CAPTURE_LEN.
+# Example: SMALL_OPTS = -DBUFSIZE=8030 -DMAXREWRITE=1030 -DSYSTEM_MAXCONN=1024
 SMALL_OPTS =
 
-# redefine this if you want to add some special PATH to include/libs
+#### Debug settings
+# You can enable debugging on specific code parts by setting DEBUG=-DDEBUG_xxx.
+# Currently defined DEBUG macros include DEBUG_FULL, DEBUG_MEMORY, DEBUG_FSM,
+# DEBUG_HASH and DEBUG_PARSE_NO_SPEEDUP. Please consult sources for exact
+# meaning or do not use at all.
+DEBUG =
+
+#### Additional include and library dirs
+# Redefine this if you want to add some special PATH to include/libs
 ADDINC =
 ADDLIB =
 
-# set some defines when needed.
-# - use -DTPROXY to compile with transparent proxy support.
-DEFINE = -DTPROXY
+#### Specific macro definitions
+# Use DEFINE=-Dxxx to set any tunable macro. Anything declared here will appear
+# in the build options reported by "haproxy -vv". Use SILENT_DEFINE if you do
+# not want to pollute the report with complex defines.
+DEFINE =
+SILENT_DEFINE =
 
-# Now let's determine the version, sub-version and release date.
-# If we're in the GIT tree, we can use the last commit's version and date.
+
+#### CPU dependant optimizations
+# Some CFLAGS are set by default depending on the target CPU. Those flags only
+# feed CPU_CFLAGS, which in turn feed CFLAGS, so it is not mandatory to use
+# them. You should not have to change these options. Better use CPU_CFLAGS or
+# even CFLAGS instead.
+CPU_CFLAGS.generic    = -O2
+CPU_CFLAGS.i586       = -O2 -march=i586
+CPU_CFLAGS.i686       = -O2 -march=i686
+CPU_CFLAGS.ultrasparc = -O6 -mcpu=v9 -mtune=ultrasparc
+CPU_CFLAGS            = $(CPU_CFLAGS.$(CPU))
+
+#### Common CFLAGS
+# These CFLAGS contain general optimization options, CPU-specific optimizations
+# and debug flags. They may be overridden by some distributions which prefer to
+# set all of them at once instead of playing with the CPU and DEBUG variables.
+CFLAGS = $(CPU_CFLAGS) $(DEBUG_CFLAGS)
+
+#### Common LDFLAGS
+# These LDFLAGS are used as the first "ld" options, regardless of any library
+# path or any other option. They may be changed to add any linker-specific
+# option at the beginning of the ld command line.
+LDFLAGS = -g
+
+#### Target system options
+# Depending on the target platform, some options are set, as well as some
+# CFLAGS and LDFLAGS. The USE_* values are set to "implicit" so that they are
+# not reported in the build options string. You should not have to change
+# anything there.
+ifeq ($(TARGET),generic)
+  # generic system target has nothing specific
+  USE_POLL   = implicit
+  USE_TPROXY = implicit
+else
+ifeq ($(TARGET),linux22)
+  # This is for Linux 2.2
+  USE_GETSOCKNAME = implicit
+  USE_POLL        = implicit
+  USE_TPROXY      = implicit
+else
+ifeq ($(TARGET),linux24)
+  # This is for standard Linux 2.4 with netfilter but without epoll()
+  USE_GETSOCKNAME = implicit
+  USE_NETFILTER   = implicit
+  USE_POLL        = implicit
+  USE_TPROXY      = implicit
+else
+ifeq ($(TARGET),linux24e)
+  # This is for enhanced Linux 2.4 with netfilter and epoll() patch > 0.21
+  USE_GETSOCKNAME = implicit
+  USE_NETFILTER   = implicit
+  USE_POLL        = implicit
+  USE_EPOLL       = implicit
+  USE_SEPOLL      = implicit
+  USE_MY_EPOLL    = implicit
+  USE_TPROXY      = implicit
+else
+ifeq ($(TARGET),linux24eold)
+  # This is for enhanced Linux 2.4 with netfilter and epoll() patch <= 0.21,
+  # which needs a workaround for a very rare bug.
+  USE_GETSOCKNAME      = implicit
+  USE_NETFILTER        = implicit
+  USE_POLL             = implicit
+  USE_EPOLL            = implicit
+  USE_SEPOLL           = implicit
+  USE_MY_EPOLL         = implicit
+  USE_EPOLL_WORKAROUND = implicit
+  USE_TPROXY           = implicit
+else
+ifeq ($(TARGET),linux26)
+  # This is for standard Linux 2.6 with netfilter and standard epoll()
+  USE_GETSOCKNAME = implicit
+  USE_NETFILTER   = implicit
+  USE_POLL        = implicit
+  USE_EPOLL       = implicit
+  USE_SEPOLL      = implicit
+  USE_TPROXY      = implicit
+else
+ifeq ($(TARGET),solaris)
+  # This is for Solaris 8
+  USE_POLL       = implicit
+  TARGET_CFLAGS  = -fomit-frame-pointer -DFD_SETSIZE=65536 -D_REENTRANT
+  TARGET_LDFLAGS = -lnsl -lsocket
+  USE_TPROXY     = implicit
+else
+ifeq ($(TARGET),freebsd)
+  # This is for FreeBSD
+  USE_POLL       = implicit
+  USE_KQUEUE     = implicit
+  USE_TPROXY     = implicit
+else
+ifeq ($(TARGET),openbsd)
+  # This is for OpenBSD >= 3.0
+  USE_POLL       = implicit
+  USE_KQUEUE     = implicit
+  USE_TPROXY     = implicit
+endif # openbsd
+endif # freebsd
+endif # solaris
+endif # linux26
+endif # linux24eold
+endif # linux24e
+endif # linux24
+endif # linux22
+endif # generic
+
+
+#### Old-style REGEX library settings for compatibility with previous setups.
+# It is still possible to use REGEX=<regex_lib> to select an alternative regex
+# library. By default, we use libc's regex. On Solaris 8/Sparc, grouping seems
+# to be broken using libc, so consider using pcre instead. Supported values are
+# "libc", "pcre", and "static-pcre". Use of this method is deprecated in favor
+# of "USE_PCRE" and "USE_STATIC_PCRE" (see build options below).
+REGEX = libc
+
+ifeq ($(REGEX),pcre)
+USE_PCRE = 1
+$(warning WARNING! use of "REGEX=pcre" is deprecated, consider using "USE_PCRE=1" instead.)
+endif
+
+ifeq ($(REGEX),static-pcre)
+USE_STATIC_PCRE = 1
+$(warning WARNING! use of "REGEX=pcre-static" is deprecated, consider using "USE_STATIC_PCRE=1" instead.)
+endif
+
+#### Old-style TPROXY settings
+ifneq ($(findstring -DTPROXY,$(DEFINE)),)
+USE_TPROXY = 1
+$(warning WARNING! use of "DEFINE=-DTPROXY" is deprecated, consider using "USE_TPROXY=1" instead.)
+endif
+
+
+#### Determine version, sub-version and release date.
+# If GIT is found, and IGNOREGIT is not set, VERSION, SUBVERS and VERDATE are
+# extracted from the last commit. Otherwise, use the contents of the files
+# holding the same names in the current directory.
+
 ifeq ($(IGNOREGIT),)
 VERSION := $(shell [ -d .git/. ] && ref=`(git-describe --tags) 2>/dev/null` && ref=$${ref%-g*} && echo "$${ref\#v}")
 ifneq ($(VERSION),)
@@ -121,8 +245,7 @@ VERDATE := $(shell date +%Y/%m/%d -d "`git-log HEAD^.. 2>/dev/null | grep -m 1 ^
 endif
 endif
 
-# Otherwise, use the hard-coded version of last tag, number of changes
-# since last tag, and release date.
+# Last commit version not found, take it from the files.
 ifeq ($(VERSION),)
 VERSION := $(shell cat VERSION 2>/dev/null || touch VERSION)
 endif
@@ -133,96 +256,139 @@ ifeq ($(VERDATE),)
 VERDATE := $(shell cat VERDATE 2>/dev/null || touch VERDATE)
 endif
 
-#### build options
+#### Build options
+# Do not change these ones, enable USE_* variables instead.
+OPTIONS_CFLAGS  =
+OPTIONS_LDFLAGS =
+OPTIONS_OBJS    =
 
-# do not change this one, enable USE_* variables instead.
-OPTIONS =
-OPT_OBJS =
+# This variable collects all USE_* values except those set to "implicit". This
+# is used to report a list of all flags which were used to build this version.
+# Do not assign anything to it.
+BUILD_OPTIONS =
+
+# Return USE_xxx=$(USE_xxx) unless $(USE_xxx) = "implicit"
+# Usage: 
+#   BUILD_OPTIONS += $(call ignore_implicit,USE_xxx)
+ignore_implicit = $(patsubst %=implicit,,$(1)=$($(1)))
 
 ifneq ($(USE_TCPSPLICE),)
-OPTIONS += -DCONFIG_HAP_TCPSPLICE
+# This is the directory hosting libtcpsplice.[ah]
+TCPSPLICEDIR    :=
+OPTIONS_CFLAGS  += -DCONFIG_HAP_TCPSPLICE -I$(TCPSPLICEDIR)
+OPTIONS_LDFLAGS += -L$(TCPSPLICEDIR) -ltcpsplice
+BUILD_OPTIONS   += $(call ignore_implicit,USE_TCPSPLICE)
 endif
 
-# - set USE_CTTPROXY to enable full transparent proxy support
 ifneq ($(USE_CTTPROXY),)
-OPTIONS += -DCONFIG_HAP_CTTPROXY
-OPT_OBJS += src/cttproxy.o
+OPTIONS_CFLAGS += -DCONFIG_HAP_CTTPROXY
+OPTIONS_OBJS   += src/cttproxy.o
+BUILD_OPTIONS  += $(call ignore_implicit,USE_CTTPROXY)
 endif
 
 ifneq ($(USE_TPROXY),)
-OPTIONS += -DTPROXY
+OPTIONS_CFLAGS += -DTPROXY
+BUILD_OPTIONS  += $(call ignore_implicit,USE_TPROXY)
 endif
 
 ifneq ($(USE_POLL),)
-OPTIONS += -DENABLE_POLL
-OPT_OBJS += src/ev_poll.o
+OPTIONS_CFLAGS += -DENABLE_POLL
+OPTIONS_OBJS   += src/ev_poll.o
+BUILD_OPTIONS  += $(call ignore_implicit,USE_POLL)
 endif
 
 ifneq ($(USE_EPOLL),)
-OPTIONS += -DENABLE_EPOLL
-OPT_OBJS += src/ev_epoll.o
+OPTIONS_CFLAGS += -DENABLE_EPOLL
+OPTIONS_OBJS   += src/ev_epoll.o
+BUILD_OPTIONS  += $(call ignore_implicit,USE_EPOLL)
 endif
 
 ifneq ($(USE_SEPOLL),)
-OPTIONS += -DENABLE_SEPOLL
-OPT_OBJS += src/ev_sepoll.o
+OPTIONS_CFLAGS += -DENABLE_SEPOLL
+OPTIONS_OBJS   += src/ev_sepoll.o
+BUILD_OPTIONS  += $(call ignore_implicit,USE_SEPOLL)
 endif
 
 ifneq ($(USE_MY_EPOLL),)
-OPTIONS += -DUSE_MY_EPOLL
+OPTIONS_CFLAGS += -DUSE_MY_EPOLL
+BUILD_OPTIONS  += $(call ignore_implicit,USE_MY_EPOLL)
+endif
+
+ifneq ($(USE_KQUEUE),)
+OPTIONS_CFLAGS += -DENABLE_KQUEUE
+OPTIONS_OBJS   += src/ev_kqueue.o
+BUILD_OPTIONS  += $(call ignore_implicit,USE_KQUEUE)
 endif
 
 ifneq ($(USE_NETFILTER),)
-OPTIONS += -DNETFILTER
+OPTIONS_CFLAGS += -DNETFILTER
+BUILD_OPTIONS  += $(call ignore_implicit,USE_NETFILTER)
 endif
 
 ifneq ($(USE_EPOLL_WORKAROUND),)
-OPTIONS += -DEPOLL_CTL_MOD_WORKAROUND
+OPTIONS_CFLAGS += -DEPOLL_CTL_MOD_WORKAROUND
+BUILD_OPTIONS  += $(call ignore_implicit,USE_EPOLL_WORKAROUND)
 endif
 
 ifneq ($(USE_GETSOCKNAME),)
-OPTIONS += -DUSE_GETSOCKNAME
+OPTIONS_CFLAGS += -DUSE_GETSOCKNAME
+BUILD_OPTIONS  += $(call ignore_implicit,USE_GETSOCKNAME)
 endif
 
 ifneq ($(USE_REGPARM),)
-OPTIONS += -DCONFIG_HAP_USE_REGPARM
+OPTIONS_CFLAGS += -DCONFIG_HAP_USE_REGPARM
+BUILD_OPTIONS  += $(call ignore_implicit,USE_REGPARM)
 endif
 
 ifneq ($(DLMALLOC_SRC),)
-# May be changed to patch PAGE_SIZE on every platform
-DLMALLOC_THRES=4096
-OPT_OBJS += src/dlmalloc.o
+# May be changed to match PAGE_SIZE on every platform
+DLMALLOC_THRES = 4096
+OPTIONS_OBJS  += src/dlmalloc.o
+BUILD_OPTIONS += DLMALLOC_SRC=$(DLMALLOC_SRC)
 endif
 
-ifneq ($(VERSION),)
-OPTIONS += -DCONFIG_HAPROXY_VERSION=\"$(VERSION)$(SUBVERS)\"
+ifneq ($(USE_PCRE),)
+# PCREDIR is the directory hosting include/pcre.h and lib/libpcre.*. It is
+# automatically detected but can be forced if required.
+ifeq ($(PCREDIR),)
+PCREDIR	        := $(shell pcre-config --prefix 2>/dev/null || echo /usr/local)
+endif
+OPTIONS_CFLAGS  += -DUSE_PCRE -I$(PCREDIR)/include
+OPTIONS_LDFLAGS += -L$(PCREDIR)/lib -lpcreposix -lpcre
+BUILD_OPTIONS   += $(call ignore_implicit,USE_PCRE)
+endif
+
+ifneq ($(USE_STATIC_PCRE),)
+# PCREDIR is the directory hosting include/pcre.h and lib/libpcre.*. It is
+# automatically detected but can be forced if required.
+ifeq ($(PCREDIR),)
+PCREDIR         := $(shell pcre-config --prefix 2>/dev/null || echo /usr/local)
+endif
+OPTIONS_CFLAGS  += -DUSE_PCRE -I$(PCREDIR)/include
+OPTIONS_LDFLAGS += -L$(PCREDIR)/lib -Wl,-Bstatic -lpcreposix -lpcre -Wl,-Bdynamic
+BUILD_OPTIONS   += $(call ignore_implicit,USE_STATIC_PCRE)
+endif
+
+
+#### Global compile options
+VERBOSE_CFLAGS = $(CFLAGS) $(TARGET_CFLAGS) $(SMALL_OPTS) $(DEFINE)
+COPTS  = -Iinclude -Wall
+COPTS += $(CFLAGS) $(TARGET_CFLAGS) $(SMALL_OPTS) $(DEFINE) $(SILENT_DEFINE)
+COPTS += $(DEBUG) $(OPTIONS_CFLAGS) $(ADDINC)
+
+ifneq ($(VERSION)$(SUBVERS),)
+COPTS += -DCONFIG_HAPROXY_VERSION=\"$(VERSION)$(SUBVERS)\"
 endif
 
 ifneq ($(VERDATE),)
-OPTIONS += -DCONFIG_HAPROXY_DATE=\"$(VERDATE)\"
+COPTS += -DCONFIG_HAPROXY_DATE=\"$(VERDATE)\"
 endif
 
-#### end of build options
+#### Global link options
+# These options are added at the end of the "ld" command line. Use LDFLAGS to
+# add options at the beginning of the "ld" command line if needed.
+LDOPTS = $(TARGET_LDFLAGS) $(OPTIONS_LDFLAGS) $(ADDLIB)
 
-
-# global options
-TARGET_OPTS=$(COPTS.$(TARGET))
-REGEX_OPTS=$(COPTS.$(REGEX))
-CPU_OPTS=$(COPTS.$(CPU))
-
-COPTS = -Iinclude $(CPU_OPTS) $(TARGET_OPTS) $(REGEX_OPTS) $(SMALL_OPTS) $(DEFINE) $(OPTIONS)
-LIBS=$(LIBS.$(TARGET)) $(LIBS.$(REGEX))
-
-ifneq ($(USE_TCPSPLICE),)
-COPTS += -I$(TCPSPLICEDIR)
-LIBS  += -L$(TCPSPLICEDIR) -ltcpsplice
-endif
-
-COPTS += $(ADDINC)
-LIBS += $(ADDLIB)
-
-CFLAGS = -Wall $(COPTS) $(DEBUG)
-LDFLAGS = -g
 
 all: haproxy
 
@@ -236,22 +402,26 @@ OBJS = src/haproxy.o src/sessionhash.o src/base64.o src/protocols.o \
        src/acl.o src/memory.o \
        src/ebtree.o src/eb32tree.o
 
-haproxy: $(OBJS) $(OPT_OBJS)
-	$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
+haproxy: $(OBJS) $(OPTIONS_OBJS)
+	$(LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 objsize: haproxy
 	@objdump -t $^|grep ' g '|grep -F '.text'|awk '{print $$5 FS $$6}'|sort
 
 %.o:	%.c
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(COPTS) -c -o $@ $<
 
 src/haproxy.o:	src/haproxy.c
-	$(CC) $(CFLAGS) -DBUILD_TARGET='"$(TARGET)"' -DBUILD_CC='"$(CC)"' \
-	                -DBUILD_CPU='"$(CPU)"' -DBUILD_REGEX='"$(REGEX)"' \
-	                -DBUILD_OPTS='"$(COPTS)"' -c -o $@ $<
+	$(CC) $(COPTS) \
+	      -DBUILD_TARGET='"$(strip $(TARGET))"' \
+	      -DBUILD_CPU='"$(strip $(CPU))"' \
+	      -DBUILD_CC='"$(strip $(CC))"' \
+	      -DBUILD_CFLAGS='"$(strip $(VERBOSE_CFLAGS))"' \
+	      -DBUILD_OPTIONS='"$(strip $(BUILD_OPTIONS))"' \
+	       -c -o $@ $<
 
 src/dlmalloc.o: $(DLMALLOC_SRC)
-	$(CC) $(CFLAGS) -DDEFAULT_MMAP_THRESHOLD=$(DLMALLOC_THRES) -c -o $@ $<
+	$(CC) $(COPTS) -DDEFAULT_MMAP_THRESHOLD=$(DLMALLOC_THRES) -c -o $@ $<
 
 clean:
 	rm -f *.[oas] src/*.[oas] core haproxy test
