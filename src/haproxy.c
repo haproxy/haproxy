@@ -175,19 +175,19 @@ void display_build_opts()
 {
 	printf("Build options :"
 #ifdef BUILD_TARGET
-	       "\n  TARGET = " BUILD_TARGET
+	       "\n  TARGET  = " BUILD_TARGET
 #endif
 #ifdef BUILD_CPU
-	       "\n  CPU    = " BUILD_CPU
-#endif
-#ifdef BUILD_REGEX
-	       "\n  REGEX  = " BUILD_REGEX
+	       "\n  CPU     = " BUILD_CPU
 #endif
 #ifdef BUILD_CC
-	       "\n  CC     = " BUILD_CC
+	       "\n  CC      = " BUILD_CC
 #endif
-#ifdef BUILD_OPTS
-	       "\n  COPTS  = " BUILD_OPTS
+#ifdef BUILD_CFLAGS
+	       "\n  CFLAGS  = " BUILD_CFLAGS
+#endif
+#ifdef BUILD_OPTIONS
+	       "\n  OPTIONS = " BUILD_OPTIONS
 #endif
 	       "\n\n");
 }
