@@ -1386,7 +1386,15 @@ void process_uxst_stats(struct task *t, struct timeval *next)
 		if (s->data_state == DATA_ST_INIT) {
 			if ((s->req->l >= 10) && (memcmp(s->req->data, "show stat\n", 10) == 0)) {
 				/* send the stats, and changes the data_state */
-				if (stats_dump_raw(s, NULL, 0) != 0) {
+				if (stats_dump_raw(s, NULL, STAT_SHOW_STAT) != 0) {
+					s->srv_state = SV_STCLOSE;
+					fsm_resync |= 1;
+					continue;
+				}
+			}
+			if ((s->req->l >= 10) && (memcmp(s->req->data, "show info\n", 10) == 0)) {
+				/* send the stats, and changes the data_state */
+				if (stats_dump_raw(s, NULL, STAT_SHOW_INFO) != 0) {
 					s->srv_state = SV_STCLOSE;
 					fsm_resync |= 1;
 					continue;

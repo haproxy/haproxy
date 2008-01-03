@@ -187,6 +187,7 @@ int stats_dump_raw(struct session *s, struct uri_auth *uri, int flags)
 	struct buffer *rep = s->rep;
 	struct proxy *px;
 	struct chunk msg;
+	unsigned int up;
 
 	msg.len = 0;
 	msg.str = trash;
@@ -201,15 +202,49 @@ int stats_dump_raw(struct session *s, struct uri_auth *uri, int flags)
 		/* fall through */
 
 	case DATA_ST_HEAD:
-		print_csv_header(&msg, sizeof(trash));
-		if (buffer_write_chunk(rep, &msg) != 0)
-			return 0;
+		if (flags & STAT_SHOW_STAT) {
+			print_csv_header(&msg, sizeof(trash));
+			if (buffer_write_chunk(rep, &msg) != 0)
+				return 0;
+		}
 
 		s->data_state = DATA_ST_INFO;
 		/* fall through */
 
 	case DATA_ST_INFO:
+		up = (now.tv_sec - start_date.tv_sec);
 		memset(&s->data_ctx, 0, sizeof(s->data_ctx));
+
+		if (flags & STAT_SHOW_INFO) {
+			chunk_printf(&msg, sizeof(trash),
+				     "Name: " PRODUCT_NAME "\n"
+				     "Version: " HAPROXY_VERSION "\n"
+				     "Release_date: " HAPROXY_DATE "\n"
+				     "Nbproc: %d\n"
+				     "Process_num: %d\n"
+				     "Pid: %d\n"
+				     "Uptime: %dd %dh%02dm%02ds\n"
+				     "Uptime_sec: %d\n"
+				     "Memmax_MB: %d\n"
+				     "Ulimit-n: %d\n"
+				     "Maxsock: %d\n"
+				     "Maxconn: %d\n"
+				     "CurrConns: %d\n"
+				     "",
+				     global.nbproc,
+				     relative_pid,
+				     pid,
+				     up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60),
+				     up,
+				     global.rlimit_memmax,
+				     global.rlimit_nofile,
+				     global.maxsock,
+				     global.maxconn,
+				     actconn
+				     );
+			if (buffer_write_chunk(rep, &msg) != 0)
+				return 0;
+		}
 
 		s->data_ctx.stats.px = proxy;
 		s->data_ctx.stats.px_st = DATA_ST_PX_INIT;
@@ -218,17 +253,20 @@ int stats_dump_raw(struct session *s, struct uri_auth *uri, int flags)
 
 	case DATA_ST_LIST:
 		/* dump proxies */
-		while (s->data_ctx.stats.px) {
-			px = s->data_ctx.stats.px;
-			/* skip the disabled proxies and non-networked ones */
-			if (px->state != PR_STSTOPPED && (px->cap & (PR_CAP_FE | PR_CAP_BE)))
-				if (stats_dump_proxy(s, px, NULL, 0) == 0)
-					return 0;
+		if (flags & STAT_SHOW_STAT) {
+			while (s->data_ctx.stats.px) {
+				px = s->data_ctx.stats.px;
+				/* skip the disabled proxies and non-networked ones */
+				if (px->state != PR_STSTOPPED &&
+				    (px->cap & (PR_CAP_FE | PR_CAP_BE)))
+					if (stats_dump_proxy(s, px, NULL, 0) == 0)
+						return 0;
 
-			s->data_ctx.stats.px = px->next;
-			s->data_ctx.stats.px_st = DATA_ST_PX_INIT;
+				s->data_ctx.stats.px = px->next;
+				s->data_ctx.stats.px_st = DATA_ST_PX_INIT;
+			}
+			/* here, we just have reached the last proxy */
 		}
-		/* here, we just have reached the last proxy */
 
 		s->data_state = DATA_ST_END;
 		/* fall through */
@@ -402,7 +440,7 @@ int stats_dump_http(struct session *s, struct uri_auth *uri, int flags)
 			     "<hr width=\"100%%\" class=\"hr\">\n"
 			     "<h3>&gt; General process information</h3>\n"
 			     "<table border=0 cols=4><tr><td align=\"left\" nowrap width=\"1%%\">\n"
-			     "<p><b>pid = </b> %d (nbproc = %d)<br>\n"
+			     "<p><b>pid = </b> %d (process #%d, nbproc = %d)<br>\n"
 			     "<b>uptime = </b> %dd %dh%02dm%02ds<br>\n"
 			     "<b>system limits :</b> memmax = %s%s ; ulimit-n = %d<br>\n"
 			     "<b>maxsock = </b> %d<br>\n"
@@ -427,7 +465,8 @@ int stats_dump_http(struct session *s, struct uri_auth *uri, int flags)
 			     "<b>Display option:</b><ul style=\"margin-top: 0.25em;\">"
 			     "",
 			     (uri->flags&ST_HIDEVER)?"":(STATS_VERSION_STRING),
-			     pid, pid, global.nbproc,
+			     pid, pid,
+			     relative_pid, global.nbproc,
 			     up / 86400, (up % 86400) / 3600,
 			     (up % 3600) / 60, (up % 60),
 			     global.rlimit_memmax ? ultoa(global.rlimit_memmax) : "unlimited",
