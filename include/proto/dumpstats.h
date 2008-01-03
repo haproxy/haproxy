@@ -27,7 +27,9 @@
 #include <types/buffers.h>
 #include <types/session.h>
 
-#define STAT_FMT_HTML 0x1
+#define STAT_FMT_HTML  0x1
+#define STAT_SHOW_STAT 0x2
+#define STAT_SHOW_INFO 0x4
 
 int stats_parse_global(const char **args, char *err, int errlen);
 int stats_dump_raw(struct session *s, struct uri_auth *uri, int flags);
