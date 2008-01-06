@@ -603,6 +603,7 @@ timeout client              X          X         X         -
 timeout clitimeout          X          X         X         -  (deprecated)
 timeout connect             X          -         X         X
 timeout contimeout          X          -         X         X  (deprecated)
+timeout httpreq             X          X         X         -
 timeout queue               X          -         X         X
 timeout server              X          -         X         X
 timeout srvtimeout          X          -         X         X  (deprecated)
@@ -952,7 +953,8 @@ clitimeout <timeout>
   This parameter is provided for compatibility but is currently deprecated.
   Please use "timeout client" instead.
 
-  See also : "timeout client", "timeout server", "srvtimeout".
+  See also : "timeout client", "timeout http-request", "timeout server", and
+             "srvtimeout".
 
 
 contimeout <timeout>
@@ -2058,6 +2060,40 @@ timeout contimeout <timeout> (deprecated)
   provided only by backwards compatibility but its use is strongly discouraged.
 
   See also : "timeout queue", "timeout server", "contimeout".
+
+
+timeout http-request <timeout>
+  Set the maximum allowed time to wait for a complete HTTP request
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   no
+  Arguments :
+    <timeout> is the timeout value is specified in milliseconds by default, but
+              can be in any other unit if the number is suffixed by the unit,
+              as explained at the top of this document.
+
+  In order to offer DoS protection, it may be required to lower the maximum
+  accepted time to receive a complete HTTP request without affecting the client
+  timeout. This helps protecting against established connections on which
+  nothing is sent. The client timeout cannot offer a good protection against
+  this abuse because it is an inactivity timeout, which means that if the
+  attacker sends one character every now and then, the timeout will not
+  trigger. With the HTTP request timeout, no matter what speed the client
+  types, the request will be aborted if it does not complete in time.
+
+  Note that this timeout only applies to the header part of the request, and
+  not to any data. As soon as the empty line is received, this timeout is not
+  used anymore.
+
+  Generally it is enough to set it to a few seconds, as most clients send the
+  full request immediately upon connection. Add 3 or more seconds to cover TCP
+  retransmits but that's all. Setting it to very low values (eg: 50 ms) will
+  generally work on local networks as long as there are no packet losses. This
+  will prevent people from sending bare HTTP requests using telnet.
+
+  If this parameter is not set, the client timeout still applies between each
+  chunk of the incoming request.
+
+  See also : "timeout client".
 
 
 2.3) Using ACLs

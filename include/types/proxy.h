@@ -176,7 +176,8 @@ struct proxy {
 		struct timeval queue;           /* queue timeout, defaults to connect if unspecified */
 		struct timeval connect;		/* connect timeout (in milliseconds) */
 		struct timeval server;		/* server I/O timeout (in milliseconds) */
-		struct timeval appsession;
+		struct timeval appsession;	/* appsession cookie expiration */
+		struct timeval httpreq;		/* maximum time for complete HTTP request */
 	} timeout;
 	char *id;				/* proxy id */
 	struct list pendconns;			/* pending connections with no server assigned yet */

@@ -521,6 +521,7 @@ static void init_default_instance()
 	tv_eternity(&defproxy.timeout.appsession);
 	tv_eternity(&defproxy.timeout.queue);
 	tv_eternity(&defproxy.timeout.tarpit);
+	tv_eternity(&defproxy.timeout.httpreq);
 }
 
 /*
@@ -603,6 +604,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		tv_eternity(&curproxy->timeout.appsession);
 		tv_eternity(&curproxy->timeout.queue);
 		tv_eternity(&curproxy->timeout.tarpit);
+		tv_eternity(&curproxy->timeout.httpreq);
 
 		curproxy->last_change = now.tv_sec;
 		curproxy->id = strdup(args[1]);
@@ -663,6 +665,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		if (curproxy->cap & PR_CAP_FE) {
 			curproxy->timeout.client = defproxy.timeout.client;
 			curproxy->timeout.tarpit = defproxy.timeout.tarpit;
+			curproxy->timeout.httpreq = defproxy.timeout.httpreq;
 			curproxy->uri_auth  = defproxy.uri_auth;
 			curproxy->mon_net = defproxy.mon_net;
 			curproxy->mon_mask = defproxy.mon_mask;

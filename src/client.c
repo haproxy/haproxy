@@ -390,6 +390,7 @@ int event_accept(int fd) {
 		tv_eternity(&s->req->cex);
 		tv_eternity(&s->rep->rex);
 		tv_eternity(&s->rep->wex);
+		tv_eternity(&s->txn.exp);
 		tv_eternity(&t->expire);
 
 		if (tv_isset(&s->fe->timeout.client)) {
@@ -401,6 +402,11 @@ int event_accept(int fd) {
 				tv_add(&s->rep->wex, &now, &s->fe->timeout.client);
 				t->expire = s->rep->wex;
 			}
+		}
+
+		if (s->cli_state == CL_STHEADERS && tv_isset(&s->fe->timeout.httpreq)) {
+			tv_add(&s->txn.exp, &now, &s->fe->timeout.httpreq);
+			tv_bound(&t->expire, &s->txn.exp);
 		}
 
 		task_queue(t);
