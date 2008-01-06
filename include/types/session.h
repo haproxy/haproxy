@@ -49,7 +49,7 @@
 #define SN_SELF_GEN	0x00000040	/* the proxy generates data for the client (eg: stats) */
 #define SN_FRT_ADDR_SET	0x00000080	/* set if the frontend address has been filled */
 #define SN_REDISP	0x00000100	/* set if this session was redispatched from one server to another */
-/* unused:              0x00000200 */
+#define SN_CONN_TAR	0x00000200	/* set if this session is turning around before reconnecting */
 /* unused:              0x00000400 */
 /* unused:              0x00000800 */
 

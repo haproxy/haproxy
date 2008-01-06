@@ -2488,18 +2488,38 @@ int process_srv(struct session *t)
 			/* timeout, asynchronous connect error or first write error */
 			//fprintf(stderr,"2: c=%d, s=%d\n", c, s);
 
-			fd_delete(t->srv_fd);
-			if (t->srv)
-				t->srv->cur_sess--;
+			if (t->flags & SN_CONN_TAR) {
+				/* We are doing a turn-around waiting for a new connection attempt. */
+				if (!tv_isle(&req->cex, &now))
+					return 0;
+				t->flags &= ~SN_CONN_TAR;
+			}
+			else {
+				fd_delete(t->srv_fd);
+				if (t->srv)
+					t->srv->cur_sess--;
 
-			if (!(req->flags & BF_WRITE_STATUS))
-				conn_err = SN_ERR_SRVTO; // it was a connect timeout.
-			else
-				conn_err = SN_ERR_SRVCL; // it was an asynchronous connect error.
+				if (!(req->flags & BF_WRITE_STATUS))
+					conn_err = SN_ERR_SRVTO; // it was a connect timeout.
+				else
+					conn_err = SN_ERR_SRVCL; // it was an asynchronous connect error.
 
-			/* ensure that we have enough retries left */
-			if (srv_count_retry_down(t, conn_err))
-				return 1;
+				/* ensure that we have enough retries left */
+				if (srv_count_retry_down(t, conn_err))
+					return 1;
+
+				if (req->flags & BF_WRITE_ERROR) {
+					/* we encountered an immediate connection error, and we
+					 * will have to retry connecting to the same server, most
+					 * likely leading to the same result. To avoid this, we
+					 * fake a connection timeout to retry after a turn-around
+					 * time of 1 second. We will wait in the previous if block.
+					 */
+					t->flags |= SN_CONN_TAR;
+					tv_ms_add(&req->cex, &now, 1000);
+					return 0;
+				}
+			}
 
 			if (t->srv && t->conn_retries == 0 && t->be->options & PR_O_REDISP) {
 				/* We're on our last chance, and the REDISP option was specified.
