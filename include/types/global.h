@@ -63,6 +63,7 @@ struct global {
 	struct logsrv logsrv1, logsrv2;
 	struct {
 		int maxpollevents; /* max number of poll events at once */
+		int maxaccept;     /* max number of consecutive accept() */
 	} tune;
 	struct listener stats_sock; /* unix socket listener for statistics */
 	struct timeval stats_timeout;
