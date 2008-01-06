@@ -607,7 +607,7 @@ timeout httpreq             X          X         X         -
 timeout queue               X          -         X         X
 timeout server              X          -         X         X
 timeout srvtimeout          X          -         X         X  (deprecated)
-timeout tarpit              X          X         X         -
+timeout tarpit              X          X         X         X
 transparent                 X          X         X         -
 use_backend                 -          X         X         -
 usesrc                      X          -         X         X
