@@ -78,6 +78,7 @@ struct listener {
 	struct protocol *proto;		/* protocol this listener belongs to */
 	int nbconn;			/* current number of connections on this listener */
 	int maxconn;			/* maximum connections allowed on this listener */
+	unsigned int backlog;		/* if set, listen backlog */
 	struct listener *next;		/* next address for the same proxy, or NULL */
 	struct list proto_list;         /* list in the protocol header */
 	int (*accept)(int fd);		/* accept() function passed to fdtab[] */

@@ -614,6 +614,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 
 		if (curproxy->cap & PR_CAP_FE) {
 			curproxy->maxconn = defproxy.maxconn;
+			curproxy->backlog = defproxy.backlog;
 
 			/* initialize error relocations */
 			for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
@@ -1364,6 +1365,16 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			return -1;
 		}
 		curproxy->maxconn = atol(args[1]);
+	}
+	else if (!strcmp(args[0], "backlog")) {  /* backlog */
+		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
+			return 0;
+
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
+			return -1;
+		}
+		curproxy->backlog = atol(args[1]);
 	}
 	else if (!strcmp(args[0], "fullconn")) {  /* fullconn */
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], " Maybe you want 'maxconn' instead ?"))
@@ -2865,6 +2876,7 @@ int readcfgfile(const char *file)
 			if (curproxy->options & PR_O_TCP_NOLING)
 				listener->options |= LI_O_NOLINGER;
 			listener->maxconn = curproxy->maxconn;
+			listener->backlog = curproxy->backlog;
 			listener->timeout = &curproxy->timeout.client;
 			listener->accept = event_accept;
 			listener->private = curproxy;
