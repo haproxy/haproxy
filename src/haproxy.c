@@ -569,6 +569,13 @@ void init(int argc, char **argv)
 	if (global.tune.maxpollevents <= 0)
 		global.tune.maxpollevents = MAX_POLL_EVENTS;
 
+	if (global.tune.maxaccept <= 0) {
+		if (global.nbproc > 1)
+			global.tune.maxaccept = 8;  /* leave some conns to other processes */
+		else
+			global.tune.maxaccept = -1; /* accept all incoming conns */
+	}
+
 	if (arg_mode & (MODE_DEBUG | MODE_FOREGROUND)) {
 		/* command line debug mode inhibits configuration mode */
 		global.mode &= ~(MODE_DAEMON | MODE_QUIET);

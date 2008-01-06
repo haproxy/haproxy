@@ -67,8 +67,9 @@ The following keywords are supported in the "global" section :
    - nokqueue
    - nopoll
    - nosepoll
-   - tune.maxpollevents
    - spread-checks
+   - tune.maxaccept
+   - tune.maxpollevents
   
  * Debugging
    - debug
@@ -212,19 +213,29 @@ nosepoll
   is equivalent to the command-line argument "-ds". The next polling system
   used will generally be "epoll". See also "nosepoll", and "nopoll".
 
-tune.maxpollevents <number>
-  Sets the maximum amount of events that can be processed at once in a call to
-  the polling system. The default value is adapted to the operating system. It
-  has been noticed that reducing it below 200 tends to slightly decrease
-  latency at the expense of network bandwidth, and increasing it above 200
-  tends to trade latency for slightly increased bandwidth.
-
 spread-checks <0..50, in percent>
   Sometimes it is desirable to avoid sending health checks to servers at exact
   intervals, for instance when many logical servers are located on the same
   physical server. With the help of this parameter, it becomes possible to add
   some randomness in the check interval between 0 and +/- 50%. A value between
   2 and 5 seems to show good results. The default value remains at 0.
+
+tune.maxaccept <number>
+  Sets the maximum number of consecutive accepts that a process may perform on
+  a single wake up. High values give higher priority to high connection rates,
+  while lower values give higher priority to already established connections.
+  This value is unlimited by default in single process mode. However, in
+  multi-process mode (nbproc > 1), it defaults to 8 so that when one process
+  wakes up, it does not take all incoming connections for itself and leaves a
+  part of them to other processes. Setting this value to zero or less disables
+  the limitation. It should normally not be needed to tweak this value.
+
+tune.maxpollevents <number>
+  Sets the maximum amount of events that can be processed at once in a call to
+  the polling system. The default value is adapted to the operating system. It
+  has been noticed that reducing it below 200 tends to slightly decrease
+  latency at the expense of network bandwidth, and increasing it above 200
+  tends to trade latency for slightly increased bandwidth.
 
 
 1.3) Debugging

@@ -74,12 +74,7 @@ int event_accept(int fd) {
 	struct http_txn *txn;
 	struct task *t;
 	int cfd;
-	int max_accept;
-
-	if (global.nbproc > 1)
-		max_accept = 8; /* let other processes catch some connections too */
-	else
-		max_accept = -1;
+	int max_accept = global.tune.maxaccept;
 
 	while (p->feconn < p->maxconn && max_accept--) {
 		struct sockaddr_storage addr;
