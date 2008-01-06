@@ -103,7 +103,7 @@ int proxy_parse_timeout(const char **args, struct proxy *proxy,
 	} else if (!strcmp(args[0], "tarpit")) {
 		tv = &proxy->timeout.tarpit;
 		td = &defpx->timeout.tarpit;
-		cap = PR_CAP_FE;
+		cap = PR_CAP_FE | PR_CAP_BE;
 	} else if (!strcmp(args[0], "http-request")) {
 		tv = &proxy->timeout.httpreq;
 		td = &defpx->timeout.httpreq;

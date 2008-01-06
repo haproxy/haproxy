@@ -680,6 +680,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			curproxy->timeout.connect = defproxy.timeout.connect;
 			curproxy->timeout.server = defproxy.timeout.server;
 			curproxy->timeout.queue = defproxy.timeout.queue;
+			curproxy->timeout.tarpit = defproxy.timeout.tarpit;
 			curproxy->source_addr = defproxy.source_addr;
 		}
 
@@ -2761,9 +2762,8 @@ int readcfgfile(const char *file)
 		 * parameters have been set or must be copied from contimeouts.
 		 */
 		if (curproxy != &defproxy) {
-			if ((curproxy->cap & PR_CAP_FE) &&
-			    (!tv_isset(&curproxy->timeout.tarpit) ||
-			     __tv_iseq(&curproxy->timeout.tarpit, &defproxy.timeout.tarpit))) {
+			if (!tv_isset(&curproxy->timeout.tarpit) ||
+			    __tv_iseq(&curproxy->timeout.tarpit, &defproxy.timeout.tarpit)) {
 				/* tarpit timeout not set. We search in the following order:
 				 * default.tarpit, curr.connect, default.connect.
 				 */
