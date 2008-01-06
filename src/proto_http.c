@@ -2543,7 +2543,7 @@ int process_srv(struct session *t)
 
 				/* first, get a connection */
 				if (srv_redispatch_connect(t))
-					return t->srv_state != SV_STIDLE;
+					return t->srv_state != SV_STCONN;
 			}
 
 			do {
