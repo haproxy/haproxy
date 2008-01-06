@@ -1123,7 +1123,7 @@ errorfile <code> <file>
   The files are read at the same time as the configuration and kept in memory.
   For this reason, the errors continue to be returned even when the process is
   chrooted, and no file change is considered while the process is running. A
-  simple method for developping those files consists in associating them to the
+  simple method for developing those files consists in associating them to the
   403 status code and interrogating a blocked URL.
 
   See also : "errorloc", "errorloc302", "errorloc303"
@@ -1658,7 +1658,7 @@ no option dontlognull
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
 
-  See also : "log", "monitor-net", "monitor-uri"
+  See also : "log", "monitor-net", "monitor-uri" and section 2.4 about logging.
 
 
 option forceclose
@@ -1684,6 +1684,205 @@ no option forceclose
   in a specific instance by prepending the "no" keyword before it.
 
   See also : "option httpclose"
+
+
+option forwardfor [ except <network> ]
+  Enable insertion of the X-Forwarded-For header to requests sent to servers
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+  Arguments :
+    <network> is an optional argument used to disable this option for sources
+              matching <network>
+
+  Since HAProxy works in reverse-proxy mode, the servers see its IP address as
+  their client address. This is sometimes annoying when the client's IP address
+  is expected in server logs. To solve this problem, the well-known HTTP header
+  "X-Forwarded-For" may be added by HAProxy to all requests sent to the server.
+  This header contains a value representing the client's IP address. Since this
+  header is always appended at the end of the existing header list, the server
+  must be configured to always use the last occurrence of this header only. See
+  the server's manual to find how to enable use of this standard header.
+
+  Sometimes, a same HAProxy instance may be shared between a direct client
+  access and a reverse-proxy access (for instance when an SSL reverse-proxy is
+  used to decrypt HTTPS traffic). It is possible to disable the addition of the
+  header for a known source address or network by adding the "except" keyword
+  followed by the network address. In this case, any source IP matching the
+  network will not cause an addition of this header. Most common uses are with
+  private networks or 127.0.0.1.
+
+  This option may be specified either in the frontend or in the backend. If at
+  least one of them uses it, the header will be added.
+
+  It is important to note that as long as HAProxy does not support keep-alive
+  connections, only the first request of a connection will receive the header.
+  For this reason, it is important to ensure that "option httpclose" is set
+  when using this option.
+
+  Example :
+    # Public HTTP address also used by stunnel on the same machine
+    frontend www
+        mode http
+        option forwardfor except 127.0.0.1  # stunnel already adds the header
+
+  See also : "option httpclose"
+
+
+option http_proxy
+no option http_proxy
+  Enable or disable plain HTTP proxy mode
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+  Arguments : none
+
+  It sometimes happens that people need a pure HTTP proxy which understands
+  basic proxy requests without caching nor any fancy feature. In this case,
+  it may be worth setting up an HAProxy instance with the "option http_proxy"
+  set. In this mode, no server is declared, and the connection is forwarded to
+  the IP address and port found in the URL after the "http://" scheme.
+
+  No host address resolution is performed, so this only works when pure IP
+  addresses are passed. Since this option's usage perimeter is rather limited,
+  it will probably be used only by experts who know they need exactly it. Last,
+  if the clients are susceptible of sending keep-alive requests, it will be
+  needed to add "option http_close" to ensure that all requests will correctly
+  be analyzed.
+
+  If this option has been enabled in a "defaults" section, it can be disabled
+  in a specific instance by prepending the "no" keyword before it.
+
+  Example :
+    # this backend understands HTTP proxy requests and forwards them directly.
+    backend direct_forward
+        option httpclose
+        option http_proxy
+
+  See also : "option httpclose"
+
+
+option httpchk
+option httpchk <uri>
+option httpchk <method> <uri>
+option httpchk <method> <uri> <version>
+  Enable HTTP protocol to check on the servers health
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments :
+    <method>  is the optional HTTP method used with the requests. When not set,
+              the "OPTIONS" method is used, as it generally requires low server
+              processing and is easy to filter out from the logs. Any method
+              may be used, though it is not recommended to invent non-standard
+              ones.
+
+    <uri>     is the URI referenced in the HTTP requests. It defaults to " / "
+              which is accessible by default on almost any server, but may be
+              changed to any other URI. Query strings are permitted.
+
+    <version> is the optional HTTP version string. It defaults to "HTTP/1.0"
+              but some servers might behave incorrectly in HTTP 1.0, so turning
+              it to HTTP/1.1 may sometimes help. Note that the Host field is
+              mandatory in HTTP/1.1, and as a trick, it is possible to pass it
+              after "\r\n" following the version string.
+
+  By default, server health checks only consist in trying to establish a TCP
+  connection. When "option httpchk" is specified, a complete HTTP request is
+  sent once the TCP connection is established, and responses 2xx and 3xx are
+  considered valid, while all other ones indicate a server failure, including
+  the lack of any response.
+
+  The port and interval are specified in the server configuration.
+
+  This option does not necessarily require an HTTP backend, it also works with
+  plain TCP backends. This is particularly useful to check simple scripts bound
+  to some dedicated ports using the inetd daemon.
+
+  Examples :
+      # Relay HTTPS traffic to Apache instance and check service availability
+      # using HTTP request "OPTIONS * HTTP/1.1" on port 80.
+      backend https_relay
+          mode tcp
+          option httpchk OPTIONS * HTTP/1.1\r\nHost: www
+          server apache1 192.168.1.1:443 check port 80
+
+  See also : "option ssl-hello-chk", "option smtpchk", "http-check" and the
+             "check", "port" and "interval" server options.
+
+
+option httpclose
+no option httpclose
+  Enable or disable passive HTTP connection closing
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+  Arguments : none
+
+  As stated in section 2.1, HAProxy does not yes support the HTTP keep-alive
+  mode. So by default, if a client communicates with a server in this mode, it
+  will only analyze, log, and process the first request of each connection. To
+  workaround this limitation, it is possible to specify "option httpclose". It
+  will check if a "Connection: close" header is already set in each direction,
+  and will add one if missing. Each end should react to this by actively
+  closing the TCP connection after each transfer, thus resulting in a switch to
+  the HTTP close mode. Any "Connection" header different from "close" will also
+  be removed.
+
+  It seldom happens that some servers incorrectly ignore this header and do not
+  close the connection eventough they reply "Connection: close". For this
+  reason, they are not compatible with older HTTP 1.0 browsers. If this
+  happens it is possible to use the "option forceclose" which actively closes
+  the request connection once the server responds.
+
+  This option may be set both in a frontend and in a backend. It is enabled if
+  at least one of the frontend or backend holding a connection has it enabled.
+  If "option forceclose" is specified too, it has precedence over "httpclose".
+
+  If this option has been enabled in a "defaults" section, it can be disabled
+  in a specific instance by prepending the "no" keyword before it.
+
+  See also : "option forceclose"
+
+
+option httplog
+  Enable logging of HTTP request, session state and timers
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+  Arguments : none
+
+  By default, the log output format is very poor, as it only contains the
+  source and destination addresses, and the instance name. By specifying
+  "option httplog", each log line turns into a much richer format including,
+  but not limited to, the HTTP request, the connection timers, the session
+  status, the connections numbers, the captured headers and cookies, the
+  frontend, backend and server name, and of course the source address and
+  ports.
+
+  This option may be set either in the frontend or the backend.
+
+  If this option has been enabled in a "defaults" section, it can be disabled
+  in a specific instance by prepending the "no" keyword before it.
+
+  See also :  section 2.4 about logging.
+
+
+option logasap
+no option logasap
+  Enable or disable early logging of HTTP requests
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   no
+  Arguments : none
+
+  By default, HTTP requests are logged upon termination so that the total
+  transfer time and the number of bytes appear in the logs. When large objects
+  are being transferred, it may take a while before the request appears in the
+  logs. Using "option logasap", the request gets logged as soon as the server
+  sends the complete headers. The only missing information in the logs will be
+  the total number of bytes which will indicate everything except the amount
+  of data transferred, and the total time which will not take the transfer
+  time into account. In such a situation, it's a good practise to capture the
+  "Content-Length" response header so that the logs at least indicate how many
+  bytes are expected to be transferred.
+
+  See also : "option httplog", "capture response header", and section 2.4 about
+             logging.
 
 
 option srvtcpka
