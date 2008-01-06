@@ -241,6 +241,7 @@ struct http_txn {
 	char *srv_cookie;		/* cookie presented by the server, in capture mode */
 	int status;			/* HTTP status from the server, negative if from proxy */
 	unsigned int flags;             /* transaction flags */
+	struct timeval exp;             /* expiration date for the transaction (generally a request) */
 };
 
 /* This structure is used by http_find_header() to return values of headers.

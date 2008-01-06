@@ -104,6 +104,10 @@ int proxy_parse_timeout(const char **args, struct proxy *proxy,
 		tv = &proxy->timeout.tarpit;
 		td = &defpx->timeout.tarpit;
 		cap = PR_CAP_FE;
+	} else if (!strcmp(args[0], "http-request")) {
+		tv = &proxy->timeout.httpreq;
+		td = &defpx->timeout.httpreq;
+		cap = PR_CAP_FE;
 	} else if (!strcmp(args[0], "server") || !strcmp(args[0], "srvtimeout")) {
 		name = "server";
 		tv = &proxy->timeout.server;
@@ -123,7 +127,9 @@ int proxy_parse_timeout(const char **args, struct proxy *proxy,
 		td = &defpx->timeout.queue;
 		cap = PR_CAP_BE;
 	} else {
-		snprintf(err, errlen, "timeout '%s': must be 'client', 'server', 'connect', 'appsession', 'queue', or 'tarpit'",
+		snprintf(err, errlen,
+			 "timeout '%s': must be 'client', 'server', 'connect', "
+			 "'appsession', 'queue', 'http-request' or 'tarpit'",
 			 args[0]);
 		return -1;
 	}

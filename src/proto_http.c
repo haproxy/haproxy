@@ -620,11 +620,12 @@ void process_session(struct task *t, struct timeval *next)
 		s->req->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE;
 		s->rep->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE;
 
-		t->expire = s->req->rex;
 		tv_min(&t->expire, &s->req->rex, &s->req->wex);
 		tv_bound(&t->expire, &s->req->cex);
 		tv_bound(&t->expire, &s->rep->rex);
 		tv_bound(&t->expire, &s->rep->wex);
+		if (s->cli_state == CL_STHEADERS)
+			tv_bound(&t->expire, &s->txn.exp);
 
 		/* restore t to its place in the task list */
 		task_queue(t);
@@ -1585,7 +1586,8 @@ int process_cli(struct session *t)
 			}
 
 			/* 3: has the read timeout expired ? */
-			else if (unlikely(tv_isle(&req->rex, &now))) {
+			else if (unlikely(tv_isle(&req->rex, &now) ||
+					  tv_isle(&txn->exp, &now))) {
 				/* read timeout : give up with an error message. */
 				txn->status = 408;
 				client_retnclose(t, error_message(t, HTTP_ERR_408));
