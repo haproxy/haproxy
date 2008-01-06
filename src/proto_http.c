@@ -770,7 +770,7 @@ static void http_sess_log(struct session *s)
 	send_log(prx_log, LOG_INFO,
 		 "%s:%d [%02d/%s/%04d:%02d:%02d:%02d.%03d]"
 		 " %s %s/%s %d/%d/%d/%d/%s%d %d %s%lld"
-		 " %s %s %c%c%c%c %d/%d/%d/%d %d/%d%s\n",
+		 " %s %s %c%c%c%c %d/%d/%d/%d/%s%u %d/%d%s\n",
 		 pn,
 		 (s->cli_addr.ss_family == AF_INET) ?
 		 ntohs(((struct sockaddr_in *)&s->cli_addr)->sin_port) :
@@ -792,6 +792,8 @@ static void http_sess_log(struct session *s)
 		 (be->options & PR_O_COOK_ANY) ? sess_cookie[(txn->flags & TX_CK_MASK) >> TX_CK_SHIFT] : '-',
 		 (be->options & PR_O_COOK_ANY) ? sess_set_cookie[(txn->flags & TX_SCK_MASK) >> TX_SCK_SHIFT] : '-',
 		 actconn, fe->feconn, be->beconn, s->srv ? s->srv->cur_sess : 0,
+		 (s->flags & SN_REDISP)?"+":"",
+		 (s->conn_retries>0)?(be->conn_retries - s->conn_retries):be->conn_retries,
 		 s->logs.srv_queue_size, s->logs.prx_queue_size, tmpline);
 
 	s->logs.logwait = 0;
@@ -2507,13 +2509,15 @@ int process_srv(struct session *t)
 				if (may_dequeue_tasks(t->srv, t->be))
 					task_wakeup(t->srv->queue_mgt);
 
-				if (t->srv)
+				if (t->srv) {
 					t->srv->cum_sess++;
-				if (t->srv)
 					t->srv->failed_conns++;
+					t->srv->redispatches++;
+				}
 				t->be->redispatches++;
 
 				t->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
+				t->flags |= SN_REDISP;
 				t->srv = NULL; /* it's left to the dispatcher to choose a server */
 				http_flush_cookie_flags(txn);
 

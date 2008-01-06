@@ -356,7 +356,7 @@ void tcp_sess_log(struct session *s)
 
 	send_log(prx_log, LOG_INFO, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d.%03d]"
 		 " %s %s/%s %d/%d/%s%d %s%lld"
-		 " %c%c %d/%d/%d/%d %d/%d\n",
+		 " %c%c %d/%d/%d/%d/%s%u %d/%d\n",
 		 pn,
 		 (s->cli_addr.ss_family == AF_INET) ?
 		 ntohs(((struct sockaddr_in *)&s->cli_addr)->sin_port) :
@@ -371,6 +371,8 @@ void tcp_sess_log(struct session *s)
 		 sess_term_cond[(s->flags & SN_ERR_MASK) >> SN_ERR_SHIFT],
 		 sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT],
 		 actconn, fe->feconn, be->beconn, s->srv ? s->srv->cur_sess : 0,
+		 (s->flags & SN_REDISP)?"+":"",
+		 (s->conn_retries>0)?(be->conn_retries - s->conn_retries):be->conn_retries,
 		 s->logs.srv_queue_size, s->logs.prx_queue_size);
 
 	s->logs.logwait = 0;

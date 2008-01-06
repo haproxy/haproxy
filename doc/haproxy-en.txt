@@ -1679,32 +1679,36 @@ Example of HTTP logging :
         option dontlognull
         log 192.168.2.200 local3
 
->>> haproxy[674]: 127.0.0.1:33319 [15/Oct/2003:08:31:57] relais-http Srv1 9/0/7/147/723 200 243 - - ---- 2/3/3 0/0 "HEAD / HTTP/1.0"
+>>> haproxy[674]: 127.0.0.1:33319 [15/Oct/2003:08:31:57] relais-http Srv1 9/0/7/147/723 200 243 - - ---- 34/34/15/8/3 0/0 "HEAD / HTTP/1.0"
 
 More complete example
-    haproxy[18989]: 10.0.0.1:34552 [15/Oct/2003:15:26:31] relais-http Srv1 3183/-1/-1/-1/11215 503 0 - - SC-- 137/202/205 0/0 {w.ods.org|Mozilla} {} "HEAD / HTTP/1.0" 
+    haproxy[18989]: 10.0.0.1:34552 [15/Oct/2003:15:26:31] relais-http Srv1 3183/-1/-1/-1/11215 503 0 - - SC-- 205/202/150/137/+4 0/0 {w.ods.org|Mozilla} {} "HEAD / HTTP/1.0" 
 
-    Field  Format                                        Example
+    Field  Format							Example
   
-        1  process_name  '[' pid ']:'                    haproxy[18989]:
-        2  client_ip ':' client_port                     10.0.0.1:34552
-        3  '[' date ']'                                  [15/Oct/2003:15:26:31]
-        4  listener_name                                 relais-http
-        5  server_name                                   Srv1
-        6  Tq '/' Tw '/' Tc '/' Tr '/' Tt                3183/-1/-1/-1/11215
-        7  HTTP_return_code                              503
-        8  bytes_read                                    0
-        9  captured_request_cookie                       -
-       10  captured_response_cookie                      -
-       11  termination_state                             SC--
-       12  srv_conn '/' listener_conn '/' process_conn   137/202/205
-       13  position in srv_queue / listener_queue        0/0
-       14  '{' captured_request_headers '}'              {w.ods.org|Mozilla}
-       15  '{' captured_response_headers '}'             {}
-       16  '"' HTTP_request '"'                          "HEAD / HTTP/1.0"
+        1  process_name  '[' pid ']:'					haproxy[18989]:
+        2  client_ip ':' client_port					10.0.0.1:34552
+        3  '[' date ']'							[15/Oct/2003:15:26:31]
+        4  listener_name						relais-http
+        5  server_name							Srv1
+        6  Tq '/' Tw '/' Tc '/' Tr '/' Tt				3183/-1/-1/-1/11215
+        7  HTTP_return_code						503
+        8  bytes_read							0
+        9  captured_request_cookie					-
+       10  captured_response_cookie					-
+       11  termination_state						SC--
+       12  actconn '/' feconn '/' beconn '/' srv_conn '/' retries 	205/202/150/137/+4
+       13  position in srv_queue / listener_queue			0/0
+       14  '{' captured_request_headers '}'				{w.ods.org|Mozilla}
+       15  '{' captured_response_headers '}'				{}
+       16  '"' HTTP_request '"'						"HEAD / HTTP/1.0"
   
 Note for log parsers: the URI is ALWAYS the end of the line starting with the
                       first double quote '"'.
+
+The retries count may have additional '+' sign means that the connection had been
+redispatched from one server to another shortly before retries limit (retries 4
+in above example) was depleted.
 
 The problem when logging at end of connection is that you have no clue about
 what is happening during very long sessions. To workaround this problem, a
@@ -1716,7 +1720,7 @@ case, the number of bytes reported is the number of header bytes sent to the
 client.
 
 In order to avoid confusion with normal logs, the total time field and the
-number of bytes are prefixed with a '+' sign which mean that real numbers are
+number of bytes are prefixed with a '+' sign which means that real numbers are
 certainly bigger.
 
 Example :
@@ -1729,7 +1733,7 @@ Example :
         option logasap
         log 192.168.2.200 local3
 
->>> haproxy[674]: 127.0.0.1:33320 [15/Oct/2003:08:32:17] relais-http Srv1 9/10/7/14/+30 200 +243 - - ---- 1/1/3 1/0 "GET /image.iso HTTP/1.0"
+>>> haproxy[674]: 127.0.0.1:33320 [15/Oct/2003:08:32:17] relais-http Srv1 9/10/7/14/+30 200 +243 - - ---- 3/1/1/1/0 1/0 "GET /image.iso HTTP/1.0"
 
 4.2.3) Timing events
 --------------------

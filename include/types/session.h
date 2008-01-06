@@ -39,7 +39,7 @@
 #include <types/task.h>
 
 
-/* various session flags, bits values 0x01 to 0x20 (shift 0) */
+/* various session flags, bits values 0x01 to 0x100 (shift 0) */
 #define SN_DIRECT	0x00000001	/* connection made on the server matching the client cookie */
 #define SN_ASSIGNED	0x00000002	/* no need to assign a server to this session */
 #define SN_ADDR_SET	0x00000004	/* this session's server address has been set */
@@ -48,36 +48,40 @@
 #define SN_MONITOR	0x00000020	/* this session comes from a monitoring system */
 #define SN_SELF_GEN	0x00000040	/* the proxy generates data for the client (eg: stats) */
 #define SN_FRT_ADDR_SET	0x00000080	/* set if the frontend address has been filled */
-
-/* session termination conditions, bits values 0x100 to 0x700 (0-7 shift 8) */
-#define SN_ERR_NONE     0x00000000
-#define SN_ERR_CLITO	0x00000100	/* client time-out */
-#define SN_ERR_CLICL	0x00000200	/* client closed (read/write error) */
-#define SN_ERR_SRVTO	0x00000300	/* server time-out, connect time-out */
-#define SN_ERR_SRVCL	0x00000400	/* server closed (connect/read/write error) */
-#define SN_ERR_PRXCOND	0x00000500	/* the proxy decided to close (deny...) */
-#define SN_ERR_RESOURCE	0x00000600	/* the proxy encountered a lack of a local resources (fd, mem, ...) */
-#define SN_ERR_INTERNAL	0x00000700	/* the proxy encountered an internal error */
-#define SN_ERR_MASK	0x00000700	/* mask to get only session error flags */
-#define SN_ERR_SHIFT	8		/* bit shift */
+#define SN_REDISP	0x00000100	/* set if this session was redispatched from one server to another */
+/* unused:              0x00000200 */
+/* unused:              0x00000400 */
 /* unused:              0x00000800 */
 
-/* session state at termination, bits values 0x1000 to 0x7000 (0-7 shift 12) */
-#define SN_FINST_R	0x00001000	/* session ended during client request */
-#define SN_FINST_C	0x00002000	/* session ended during server connect */
-#define SN_FINST_H	0x00003000	/* session ended during server headers */
-#define SN_FINST_D	0x00004000	/* session ended during data phase */
-#define SN_FINST_L	0x00005000	/* session ended while pushing last data to client */
-#define SN_FINST_Q	0x00006000	/* session ended while waiting in queue for a server slot */
-#define SN_FINST_T	0x00007000	/* session ended tarpitted */
-#define SN_FINST_MASK	0x00007000	/* mask to get only final session state flags */
-#define	SN_FINST_SHIFT	12		/* bit shift */
+/* session termination conditions, bits values 0x1000 to 0x7000 (0-7 shift 12) */
+#define SN_ERR_NONE     0x00000000
+#define SN_ERR_CLITO	0x00001000	/* client time-out */
+#define SN_ERR_CLICL	0x00002000	/* client closed (read/write error) */
+#define SN_ERR_SRVTO	0x00003000	/* server time-out, connect time-out */
+#define SN_ERR_SRVCL	0x00004000	/* server closed (connect/read/write error) */
+#define SN_ERR_PRXCOND	0x00005000	/* the proxy decided to close (deny...) */
+#define SN_ERR_RESOURCE	0x00006000	/* the proxy encountered a lack of a local resources (fd, mem, ...) */
+#define SN_ERR_INTERNAL	0x00007000	/* the proxy encountered an internal error */
+#define SN_ERR_MASK	0x00007000	/* mask to get only session error flags */
+#define SN_ERR_SHIFT	12		/* bit shift */
 /* unused:              0x00008000 */
 
+/* session state at termination, bits values 0x10000 to 0x70000 (0-7 shift 16) */
+#define SN_FINST_R	0x00010000	/* session ended during client request */
+#define SN_FINST_C	0x00020000	/* session ended during server connect */
+#define SN_FINST_H	0x00030000	/* session ended during server headers */
+#define SN_FINST_D	0x00040000	/* session ended during data phase */
+#define SN_FINST_L	0x00050000	/* session ended while pushing last data to client */
+#define SN_FINST_Q	0x00060000	/* session ended while waiting in queue for a server slot */
+#define SN_FINST_T	0x00070000	/* session ended tarpitted */
+#define SN_FINST_MASK	0x00070000	/* mask to get only final session state flags */
+#define	SN_FINST_SHIFT	16		/* bit shift */
+/* unused:              0x00080000 */
+
 /* Note: those flags must move to another place */
-#define SN_STAT_HIDEDWN	0x00010000	/* hide 'down' servers in the stats page */
-#define SN_STAT_NORFRSH	0x00020000	/* do not automatically refresh the stats page */
-#define SN_STAT_FMTCSV	0x00040000	/* dump the stats in CSV format instead of HTML */
+#define SN_STAT_HIDEDWN	0x00100000	/* hide 'down' servers in the stats page */
+#define SN_STAT_NORFRSH	0x00200000	/* do not automatically refresh the stats page */
+#define SN_STAT_FMTCSV	0x00400000	/* dump the stats in CSV format instead of HTML */
 
 
 /* WARNING: if new fields are added, they must be initialized in event_accept()

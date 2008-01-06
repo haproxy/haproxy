@@ -113,7 +113,7 @@ struct server {
 	time_t last_change;			/* last time, when the state was changed */
 
 	unsigned failed_conns, failed_resp;	/* failed connect() and responses */
-	unsigned retries;			/* retried connections */
+	unsigned retries, redispatches;		/* retried and redispatched connections */
 	unsigned failed_secu;			/* blocked responses because of security concerns */
 	unsigned cum_sess;			/* cumulated number of sessions really sent to this server */
 	unsigned cum_lbconn;			/* cumulated number of sessions directed by load balancing */

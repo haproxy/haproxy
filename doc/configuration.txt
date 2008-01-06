@@ -1924,6 +1924,33 @@ no option logasap
              logging.
 
 
+option redispatch
+no option redispatch
+  Enable or disable session redistribution in case of connection failure
+  May be used in sections:    defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments: none
+
+  In HTTP mode, if a server designated by a cookie is down, clients may
+  definitely stick to it because they cannot flush the cookie, so they will not
+  be able to access the service anymore.
+
+  Specifying "option redispatch" will allow the proxy to break their
+  persistence and redistribute them to a working server.
+
+  It also allows to retry last connection to another server in case of multiple
+  connection failures. Of course, it requires having "retries" set to a nonzero
+  value.
+  
+  This form is the preferred form, which replaces both the "redispatch" and
+  "redisp" keywords.
+
+  If this option has been enabled in a "defaults" section, it can be disabled
+  in a specific instance by prepending the "no" keyword before it.
+
+  See also : "redispatch", "retries"
+
+
 option srvtcpka
 no option srvtcpka
   Enable or disable the sending of TCP keepalive packets on the server side
@@ -1993,6 +2020,30 @@ option tcpka
   backends.
 
   See also : "option clitcpka", "option srvtcpka"
+
+
+redisp (deprecated)
+redispatch (deprecated)
+  Enable or disable session redistribution in case of connection failure
+  May be used in sections:    defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments: none
+
+  In HTTP mode, if a server designated by a cookie is down, clients may
+  definitely stick to it because they cannot flush the cookie, so they will not
+  be able to access the service anymore.
+
+  Specifying "redispatch" will allow the proxy to break their persistence and
+  redistribute them to a working server.
+
+  It also allows to retry last connection to another server in case of multiple
+  connection failures. Of course, it requires having "retries" set to a nonzero
+  value.
+  
+  This form is deprecated, do not use it in any new configuration, use the new
+  "option redispatch" instead.
+
+  See also : "option redispatch"
 
 
 timeout client <timeout>

@@ -1425,13 +1425,15 @@ int srv_retryable_connect(struct session *t)
 	if (may_dequeue_tasks(t->srv, t->be))
 		task_wakeup(t->srv->queue_mgt);
 
-	if (t->srv)
+	if (t->srv) {
 		t->srv->cum_sess++;
-	if (t->srv)
 		t->srv->failed_conns++;
+		t->srv->redispatches++;
+	}
 	t->be->redispatches++;
 
 	t->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
+	t->flags |= SN_REDISP;
 	t->srv = NULL; /* it's left to the dispatcher to choose a server */
 	http_flush_cookie_flags(&t->txn);
 	return 0;
