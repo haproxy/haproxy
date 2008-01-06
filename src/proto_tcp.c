@@ -160,7 +160,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		goto tcp_close_return;
 	}
 	
-	if (listen(fd, listener->maxconn) == -1) {
+	if (listen(fd, listener->backlog ? listener->backlog : listener->maxconn) == -1) {
 		err |= ERR_RETRYABLE | ERR_ALERT;
 		msg = "cannot listen to socket";
 		goto tcp_close_return;

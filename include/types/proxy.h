@@ -228,6 +228,7 @@ struct proxy {
 	struct chunk errmsg[HTTP_ERR_SIZE];	/* default or customized error messages for known errors */
 	int uuid;				/* universally unique proxy ID, used for SNMP */
 	int next_svid;				/* next server-id, used for SNMP */
+	unsigned int backlog;			/* force the frontend's listen backlog */
 };
 
 struct switching_rule {

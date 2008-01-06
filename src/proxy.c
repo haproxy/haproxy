@@ -369,7 +369,7 @@ void pause_proxy(struct proxy *p)
 	struct listener *l;
 	for (l = p->listen; l != NULL; l = l->next) {
 		if (shutdown(l->fd, SHUT_WR) == 0 &&
-		    listen(l->fd, p->maxconn) == 0 &&
+		    listen(l->fd, p->backlog ? p->backlog : p->maxconn) == 0 &&
 		    shutdown(l->fd, SHUT_RD) == 0) {
 			EV_FD_CLR(l->fd, DIR_RD);
 			if (p->state != PR_STERROR)
@@ -435,7 +435,7 @@ void listen_proxies(void)
 			send_log(p, LOG_WARNING, "Enabling proxy %s.\n", p->id);
 
 			for (l = p->listen; l != NULL; l = l->next) {
-				if (listen(l->fd, p->maxconn) == 0) {
+				if (listen(l->fd, p->backlog ? p->backlog : p->maxconn) == 0) {
 					if (actconn < global.maxconn && p->feconn < p->maxconn) {
 						EV_FD_SET(l->fd, DIR_RD);
 						p->state = PR_STRUN;
