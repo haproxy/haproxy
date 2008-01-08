@@ -1924,6 +1924,62 @@ no option logasap
              logging.
 
 
+option nolinger
+no option nolinger
+  Enable or disable immediate session ressource cleaning after close
+  May be used in sections:    defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+  Arguments: none
+
+  When clients or servers abort connections in a dirty way (eg: they are
+  physically disconnected), the session timeouts triggers and the session is
+  closed. But it will remain in FIN_WAIT1 state for some time in the system,
+  using some resources and possibly limiting the ability to establish newer
+  connections.
+
+  When this happens, it is possible to activate "option nolinger" which forces
+  the system to immediately remove any socket's pending data on close. Thus,
+  the session is instantly purged from the system's tables. This usually has
+  side effects such as increased number of TCP resets due to old retransmits
+  getting immediately rejected. Some firewalls may sometimes complain about
+  this too.
+
+  For this reason, it is not recommended to use this option when not absolutely
+  needed. You know that you need it when you have thousands of FIN_WAIT1
+  sessions on your system (TIME_WAIT ones do not count).
+
+  This option may be used both on frontends and backends, depending on the side
+  where it is required. Use it on the frontend for clients, and on the backend
+  for servers.
+
+  If this option has been enabled in a "defaults" section, it can be disabled
+  in a specific instance by prepending the "no" keyword before it.
+
+
+option persist
+no option persist
+  Enable or disable forced persistence on down servers
+  May be used in sections:    defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments: none
+
+  When an HTTP request reaches a backend with a cookie which references a dead
+  server, by default it is redispatched to another server. It is possible to
+  force the request to be sent to the dead server first using "option persist"
+  if absolutely needed. A common use case is when servers are under extreme
+  load and spend their time flapping. In this case, the users would still be
+  directed to the server they opened the session on, in the hope they would be
+  correctly served. It is recommended to use "option redispatch" in conjunction
+  with this option so that in the event it would not be possible to connect to
+  the server at all (server definitely dead), the client would finally be
+  redirected to another valid server.
+
+  If this option has been enabled in a "defaults" section, it can be disabled
+  in a specific instance by prepending the "no" keyword before it.
+
+  See also : "option redispatch", "retries"
+
+
 option redispatch
 no option redispatch
   Enable or disable session redistribution in case of connection failure
@@ -1949,6 +2005,44 @@ no option redispatch
   in a specific instance by prepending the "no" keyword before it.
 
   See also : "redispatch", "retries"
+
+
+option smtpchk
+option smtpchk <hello> <domain>
+  Use SMTP health checks for server testing
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments : 
+    <hello>   is an optional argument. It is the "hello" command to use. It can
+              be either "HELO" (for SMTP) or "EHLO" (for ESTMP). All other
+              values will be turned into the default command ("HELO").
+
+    <domain>  is the domain name to present to the server. It may only be
+              specified (and is mandatory) if the hello command has been
+              specified. By default, "localhost" is used.
+
+  When "option smtpchk" is set, the health checks will consist in TCP
+  connections followed by an SMTP command. By default, this command is
+  "HELO localhost". The server's return code is analyzed and only return codes
+  starting with a "2" will be considered as valid. All other responses,
+  including a lack of response will constitute an error and will indicate a
+  dead server.
+
+  This test is meant to be used with SMTP servers or relays. Depending on the
+  request, it is possible that some servers do not log each connection attempt,
+  so you may want to experiment to improve the behaviour. Using telnet on port
+  25 is often easier than adjusting the configuration.
+
+  Most often, an incoming SMTP server needs to see the client's IP address for
+  various purposes, including spam filtering, anti-spoofing and logging. When
+  possible, it is often wise to masquerade the client's IP address when
+  connecting to the server using the "usesrc" argument of the "source" keyword,
+  which requires the cttproxy feature to be compiled in.
+
+  Example :
+        option smtpchk HELO mydomain.org
+
+  See also : "option httpchk", "source"
 
 
 option srvtcpka
@@ -1984,6 +2078,27 @@ no option srvtcpka
   in a specific instance by prepending the "no" keyword before it.
 
   See also : "option clitcpka", "option tcpka"
+
+
+option ssl-hello-chk
+  Use SSLv3 client hello health checks for server testing
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments : none
+
+  When some SSL-based protocols are relayed in TCP mode through HAProxy, it is
+  possible to test that the server correctly talks SSL instead of just testing
+  that it accepts the TCP connection. When "option ssl-hello-chk" is set, pure
+  SSLv3 client hello messages are sent once the connection is established to
+  the server, and the response is analyzed to find an SSL server hello message.
+  The server is considered valid only when the response contains this server
+  hello message.
+
+  All servers tested till there correctly reply to SSLv3 client hello messages,
+  and most servers tested do not even log the requests containing only hello
+  messages, which is appreciable.
+
+  See also: "option httpchk"
 
 
 option tcpka
