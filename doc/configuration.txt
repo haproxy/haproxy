@@ -598,19 +598,17 @@ stats refresh               X          -         X         X
 stats scope                 X          -         X         X
 stats uri                   X          -         X         X
 stats hide-version          X          -         X         X
-timeout appsession          X          -         X         X
 timeout client              X          X         X         -
 timeout clitimeout          X          X         X         -  (deprecated)
 timeout connect             X          -         X         X
 timeout contimeout          X          -         X         X  (deprecated)
-timeout httpreq             X          X         X         -
+timeout http-request        X          X         X         -
 timeout queue               X          -         X         X
 timeout server              X          -         X         X
 timeout srvtimeout          X          -         X         X  (deprecated)
 timeout tarpit              X          X         X         X
-transparent                 X          X         X         -
+transparent                 X          X         X         -  (deprecated)
 use_backend                 -          X         X         -
-usesrc                      X          -         X         X
 ----------------------+----------+----------+---------+---------
 keyword                 defaults   frontend   listen    backend
 
@@ -845,7 +843,7 @@ capture cookie <name> len <length>
         capture cookie ASPSESSION len 32
 
   See also : "capture request header", "capture response header" as well as
-            section 2.4 about logging.
+            section 2.5 about logging.
 
 
 capture request header <name> len <length>
@@ -882,7 +880,7 @@ capture request header <name> len <length>
         capture request header X-Forwarded-For len 15
         capture request header Referrer len 15
 
-  See also : "capture cookie", "capture response header" as well as section 2.4
+  See also : "capture cookie", "capture response header" as well as section 2.5
              about logging.
 
 
@@ -918,7 +916,7 @@ capture response header <name> len <length>
         capture response header Content-length len 9
         capture response header Location len 15
 
-  See also : "capture cookie", "capture request header" as well as section 2.4
+  See also : "capture cookie", "capture request header" as well as section 2.5
              about logging.
 
 
@@ -1697,7 +1695,7 @@ no option dontlognull
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
 
-  See also : "log", "monitor-net", "monitor-uri" and section 2.4 about logging.
+  See also : "log", "monitor-net", "monitor-uri" and section 2.5 about logging.
 
 
 option forceclose
@@ -1896,10 +1894,7 @@ option httplog
 
   This option may be set either in the frontend or the backend.
 
-  If this option has been enabled in a "defaults" section, it can be disabled
-  in a specific instance by prepending the "no" keyword before it.
-
-  See also :  section 2.4 about logging.
+  See also :  section 2.5 about logging.
 
 
 option logasap
@@ -1920,7 +1915,7 @@ no option logasap
   "Content-Length" response header so that the logs at least indicate how many
   bytes are expected to be transferred.
 
-  See also : "option httplog", "capture response header", and section 2.4 about
+  See also : "option httplog", "capture response header", and section 2.5 about
              logging.
 
 
@@ -2137,13 +2132,146 @@ option tcpka
   See also : "option clitcpka", "option srvtcpka"
 
 
+option tcplog
+  Enable advanced logging of TCP connections with session state and timers
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+  Arguments : none
+
+  By default, the log output format is very poor, as it only contains the
+  source and destination addresses, and the instance name. By specifying
+  "option tcplog", each log line turns into a much richer format including, but
+  not limited to, the connection timers, the session status, the connections
+  numbers, the frontend, backend and server name, and of course the source
+  address and ports. This option is useful for pure TCP proxies in order to
+  find which of the client or server disconnects or times out. For normal HTTP
+  proxies, it's better to use "option httplog" which is even more complete.
+
+  This option may be set either in the frontend or the backend.
+
+  See also :  "option httplog", and section 2.5 about logging.
+
+
+option tcpsplice  [ experimental ]
+  Enable linux kernel-based acceleration of data relaying
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+  Arguments : none
+
+  This option is only available when HAProxy has been built for use on Linux
+  with USE_TCPSPLICE=1. This option requires a kernel patch which is available
+  on http://www.linux-l7sw.org/.
+
+  When "option tcpsplice" is set, as soon as the server's response headers have
+  been transferred, the session handling is transferred to the kernel which
+  will forward all subsequent data from the server to the client untill the
+  session closes. This leads to much faster data transfers between client and
+  server since the data is not copied twice between kernel and user space, but
+  there are some limitations such as the lack of information about the number
+  of bytes transferred and the total transfer time.
+
+  This is an experimental feature. It happens to reliably work but issues
+  caused by corner cases are to be expected.
+
+  Note that this option requires that the process permanently runs with
+  CAP_NETADMIN privileges, which most often translates into running as root.
+
+
+option transparent
+no option transparent
+  Enable client-side transparent proxying
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |    no
+  Arguments : none
+
+  This option was introduced in order to provide layer 7 persistence to layer 3
+  load balancers. The idea is to use the OS's ability to redirect an incoming
+  connection for a remote address to a local process (here HAProxy), and let
+  this process know what address was initially requested. When this option is
+  used, sessions without cookies will be forwarded to the original destination
+  IP address of the incoming request (which should match that of another
+  equipment), while requests with cookies will still be forwarded to the
+  appropriate server.
+
+  Note that contrary to a common belief, this option does NOT make HAProxy
+  present the client's IP to the server when establishing the connection.
+
+  Use of this option is really discouraged, and since no really valid use of it
+  has been reported for years, it will probably be removed in future versions.
+
+  See also: the "usersrc" argument of the "source" keyword.
+
+
+redisp (deprecated)
+redispatch (deprecated)
+  Enable or disable session redistribution in case of connection failure
+  May be used in sections:    defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments: none
+
+  In HTTP mode, if a server designated by a cookie is down, clients may
+  definitely stick to it because they cannot flush the cookie, so they will not
+  be able to access the service anymore.
+
+  Specifying "redispatch" will allow the proxy to break their persistence and
+  redistribute them to a working server.
+
+  It also allows to retry last connection to another server in case of multiple
+  connection failures. Of course, it requires having "retries" set to a nonzero
+  value.
+  
+  This form is deprecated, do not use it in any new configuration, use the new
+  "option redispatch" instead.
+
+  See also : "option redispatch"
+
+
+srvtimeout <timeout> (deprecated)
+  Set the maximum inactivity time on the server side.
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments :
+    <timeout> is the timeout value specified in milliseconds by default, but
+              can be in any other unit if the number is suffixed by the unit,
+              as explained at the top of this document.
+
+  The inactivity timeout applies when the server is expected to acknowledge or
+  send data. In HTTP mode, this timeout is particularly important to consider
+  during the first phase of the server's response, when it has to send the
+  headers, as it directly represents the server's processing time for the
+  request. To find out what value to put there, it's often good to start with
+  what would be considered as unacceptable response times, then check the logs
+  to observe the response time distribution, and adjust the value accordingly.
+
+  The value is specified in milliseconds by default, but can be in any other
+  unit if the number is suffixed by the unit, as specified at the top of this
+  document. In TCP mode (and to a lesser extent, in HTTP mode), it is highly
+  recommended that the client timeout remains equal to the server timeout in
+  order to avoid complex situations to debug. Whatever the expected server
+  response times, it is a good practise to cover at least one or several TCP
+  packet losses by specifying timeouts that are slightly above multiples of 3
+  seconds (eg: 4 or 5 seconds minimum). 
+
+  This parameter is specific to backends, but can be specified once for all in
+  "defaults" sections. This is in fact one of the easiest solutions not to
+  forget about it. An unspecified timeout results in an infinite timeout, which
+  is not recommended. Such a usage is accepted and works but reports a warning
+  during startup because it may results in accumulation of expired sessions in
+  the system if the system's timeouts are not configured either.
+
+  This parameter is provided for compatibility but is currently deprecated.
+  Please use "timeout server" instead.
+
+  See also : "timeout server", "timeout client" and "clitimeout".
+
+
 timeout client <timeout>
 timeout clitimeout <timeout> (deprecated)
   Set the maximum inactivity time on the client side.
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
   Arguments :
-    <timeout> is the timeout value is specified in milliseconds by default, but
+    <timeout> is the timeout value specified in milliseconds by default, but
               can be in any other unit if the number is suffixed by the unit,
               as explained at the top of this document.
 
@@ -2179,7 +2307,7 @@ timeout contimeout <timeout> (deprecated)
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
   Arguments :
-    <timeout> is the timeout value is specified in milliseconds by default, but
+    <timeout> is the timeout value specified in milliseconds by default, but
               can be in any other unit if the number is suffixed by the unit,
               as explained at the top of this document.
 
@@ -2209,7 +2337,7 @@ timeout http-request <timeout>
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
   Arguments :
-    <timeout> is the timeout value is specified in milliseconds by default, but
+    <timeout> is the timeout value specified in milliseconds by default, but
               can be in any other unit if the number is suffixed by the unit,
               as explained at the top of this document.
 
@@ -2237,6 +2365,147 @@ timeout http-request <timeout>
 
   See also : "timeout client".
 
+
+timeout queue <timeout>
+  Set the maximum time to wait in the queue for a connection slot to be free
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments :
+    <timeout> is the timeout value specified in milliseconds by default, but
+              can be in any other unit if the number is suffixed by the unit,
+              as explained at the top of this document.
+
+  When a server's maxconn is reached, connections are left pending in a queue
+  which may be server-specific or global to the backend. In order not to wait
+  indefinitely, a timeout is applied to requests pending in the queue. If the
+  timeout is reached, it is considered that the request will almost never be
+  served, so it is dropped and a 503 error is returned to the client.
+
+  The "timeout queue" statement allows to fix the maximum time for a request to
+  be left pending in a queue. If unspecified, the same value as the backend's
+  connection timeout ("timeout connect") is used, for backwards compatibility
+  with older versions with no "timeout queue" parameter.
+
+  See also : "timeout connect", "contimeout".
+
+
+timeout server <timeout>
+timeout srvtimeout <timeout> (deprecated)
+  Set the maximum inactivity time on the server side.
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments :
+    <timeout> is the timeout value specified in milliseconds by default, but
+              can be in any other unit if the number is suffixed by the unit,
+              as explained at the top of this document.
+
+  The inactivity timeout applies when the server is expected to acknowledge or
+  send data. In HTTP mode, this timeout is particularly important to consider
+  during the first phase of the server's response, when it has to send the
+  headers, as it directly represents the server's processing time for the
+  request. To find out what value to put there, it's often good to start with
+  what would be considered as unacceptable response times, then check the logs
+  to observe the response time distribution, and adjust the value accordingly.
+
+  The value is specified in milliseconds by default, but can be in any other
+  unit if the number is suffixed by the unit, as specified at the top of this
+  document. In TCP mode (and to a lesser extent, in HTTP mode), it is highly
+  recommended that the client timeout remains equal to the server timeout in
+  order to avoid complex situations to debug. Whatever the expected server
+  response times, it is a good practise to cover at least one or several TCP
+  packet losses by specifying timeouts that are slightly above multiples of 3
+  seconds (eg: 4 or 5 seconds minimum). 
+
+  This parameter is specific to backends, but can be specified once for all in
+  "defaults" sections. This is in fact one of the easiest solutions not to
+  forget about it. An unspecified timeout results in an infinite timeout, which
+  is not recommended. Such a usage is accepted and works but reports a warning
+  during startup because it may results in accumulation of expired sessions in
+  the system if the system's timeouts are not configured either.
+
+  This parameter replaces the old, deprecated "srvtimeout". It is recommended
+  to use it to write new configurations. The form "timeout srvtimeout" is
+  provided only by backwards compatibility but its use is strongly discouraged.
+
+  See also : "srvtimeout", "timeout client".
+
+
+timeout tarpit <timeout>
+  Set the duration for which tapitted connections will be maintained
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+  Arguments :
+    <timeout> is the tarpit duration specified in milliseconds by default, but
+              can be in any other unit if the number is suffixed by the unit,
+              as explained at the top of this document.
+
+  When a connection is tarpitted using "reqtarpit", it is maintained open with
+  no activity for a certain amount of time, then closed. "timeout tarpit"
+  defines how long it will be maintained open.
+
+  The value is specified in milliseconds by default, but can be in any other
+  unit if the number is suffixed by the unit, as specified at the top of this
+  document. If unspecified, the same value as the backend's connection timeout
+  ("timeout connect") is used, for backwards compatibility with older versions
+  with no "timeout tapit" parameter. 
+
+  See also : "timeout connect", "contimeout".
+
+
+transparent (deprecated)
+  Enable client-side transparent proxying
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |    no
+  Arguments : none
+
+  This keyword was introduced in order to provide layer 7 persistence to layer
+  3 load balancers. The idea is to use the OS's ability to redirect an incoming
+  connection for a remote address to a local process (here HAProxy), and let
+  this process know what address was initially requested. When this option is
+  used, sessions without cookies will be forwarded to the original destination
+  IP address of the incoming request (which should match that of another
+  equipment), while requests with cookies will still be forwarded to the
+  appropriate server.
+
+  The "transparent" keyword is deprecated, use "option transparent" instead.
+
+  Note that contrary to a common belief, this option does NOT make HAProxy
+  present the client's IP to the server when establishing the connection.
+
+  Use of this option is really discouraged, and since no really valid use of it
+  has been reported for years, it will probably be removed in future versions.
+
+  See also: "option transparent"
+
+
+use_backend <backend> if <condition>
+use_backend <backend> unless <condition>
+  Switch to a specific backend if/unless a Layer 7 condition is matched.
+  May be used in sections :   defaults | frontend | listen | backend
+                                  no   |    yes   |   yes  |   no
+  Arguments :
+    <backend>   is the name of a valid backend or "listen" section.
+
+    <condition> is a condition composed of ACLs, as described in section 2.3.
+
+  When doing content-switching, connections arrive on a frontend and are then
+  dispatched to various backends depending on a number of conditions. The
+  relation between the conditions and the backends is described with the
+  "use_backend" keyword. This is supported only in HTTP mode.
+
+  There may be as many "use_backend" rules as desired. All of these rules are
+  evaluated in their declaration order, and the first one which matches will
+  assign the backend.
+
+  In the first form, the backend will be used if the condition is met. In the
+  second form, the backend will be used if the condition is not met. If no
+  condition is valid, the backend defined with "default_backend" will be used.
+  If no default backend is defined, either the servers in the same section are
+  used (in case of a "listen" section) or, in case of a frontend, no server is
+  used and a 503 service unavailable response is returned.
+
+  See also: "default_backend" and section 2.3 about ACLs.
+  
 
 2.3) Using ACLs
 ---------------
@@ -2623,7 +2892,7 @@ and to every request on the "img", "video", "download" and "ftp" hosts :
    use_backend static if host_static or host_www url_static
    use_backend www    if host_www
 
-See below for the detailed help on the "block" and "use_backend" keywords.
+See section 2.2 for detailed help on the "block" and "use_backend" keywords.
 
 
 2.4) Server options
@@ -2648,6 +2917,12 @@ slowstart <start_time_in_ms>
   The slowstart never applies when haproxy starts, otherwise it would cause
   trouble to running servers. It only applies when a server has been previously
   seen as failed.
+
+
+2.5) Logging
+------------
+
+[to do]
 
 
 /*
