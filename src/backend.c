@@ -1242,8 +1242,8 @@ int connect_server(struct session *s)
 			Alert("Cannot bind to source address before connect() for proxy %s. Aborting.\n", s->be->id);
 			close(fd);
 			send_log(s->be, LOG_EMERG,
-				 "Cannot bind to source address before connect() for server %s/%s.\n",
-				 s->be->id, s->srv->id);
+				 "Cannot bind to source address before connect() for proxy %s.\n",
+				 s->be->id);
 			return SN_ERR_RESOURCE;
 		}
 #ifdef CONFIG_HAP_CTTPROXY
@@ -1276,8 +1276,8 @@ int connect_server(struct session *s)
 				      s->be->id);
 				close(fd);
 				send_log(s->be, LOG_EMERG,
-					 "Cannot bind to tproxy source address before connect() for server %s/%s.\n",
-					 s->be->id, s->srv->id);
+					 "Cannot bind to tproxy source address before connect() for proxy %s.\n",
+					 s->be->id);
 				return SN_ERR_RESOURCE;
 			}
 		}
