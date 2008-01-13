@@ -154,6 +154,13 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	 */
 	setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, (char *) &one, sizeof(one));
 #endif
+#ifdef CONFIG_HAP_LINUX_TPROXY
+	if ((listener->options & LI_O_FOREIGN) 
+	    && (setsockopt(fd, SOL_IP, IP_TRANSPARENT, (char *) &one, sizeof(one)) == -1)) {
+		msg = "cannot make listening socket transparent";
+		err |= ERR_ALERT;
+	}
+#endif
 	if (bind(fd, (struct sockaddr *)&listener->addr, listener->proto->sock_addrlen) == -1) {
 		err |= ERR_RETRYABLE | ERR_ALERT;
 		msg = "cannot bind socket";

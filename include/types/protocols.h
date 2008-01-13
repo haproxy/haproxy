@@ -2,7 +2,7 @@
   include/types/protocols.h
   This file defines the structures used by generic network protocols.
 
-  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -65,6 +65,7 @@
 /* listener socket options */
 #define LI_O_NONE	0x0000
 #define LI_O_NOLINGER	0x0001	/* disable linger on this socket */
+#define LI_O_FOREIGN	0x0002	/* permit listening on foreing addresses */
 
 /* The listener will be directly referenced by the fdtab[] which holds its
  * socket. The listener provides the protocol-specific accept() function to

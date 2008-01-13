@@ -728,6 +728,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 
 	/* Now let's parse the proxy-specific keywords */
 	if (!strcmp(args[0], "bind")) {  /* new listen addresses */
+		struct listener *last_listen;
 		if (curproxy == &defproxy) {
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			return -1;
@@ -740,9 +741,30 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			      file, linenum, args[0]);
 			return -1;
 		}
-		curproxy->listen = str2listener(args[1], curproxy->listen);
+
+		last_listen = curproxy->listen;
+		curproxy->listen = str2listener(args[1], last_listen);
 		if (!curproxy->listen)
 			return -1;
+		if (*args[2]) {
+#ifdef CONFIG_HAP_LINUX_TPROXY
+			if (!strcmp(args[2], "transparent")) { /* transparently bind to these addresses */
+				struct listener *l;
+
+				for (l = curproxy->listen; l != last_listen; l = l->next)
+					l->options |= LI_O_FOREIGN;
+			}
+			else {
+				Alert("parsing [%s:%d] : '%s' only supports the 'transparent' option.\n",
+				      file, linenum, args[0]);
+				return -1;
+			}
+#else
+			Alert("parsing [%s:%d] : '%s' supports no option after the address list.\n",
+			      file, linenum, args[0]);
+			return -1;
+#endif
+		}
 		global.maxsock++;
 		return 0;
 	}

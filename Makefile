@@ -19,6 +19,7 @@
 #   USE_STATIC_PCRE      : enable static libpcre. Recommended.
 #   USE_TCPSPLICE        : enable tcp_splice() on Linux (needs kernel patch).
 #   USE_TPROXY           : enable transparent proxy. Automatic.
+#   USE_LINUX_TPROXY     : enable full transparent proxy (need kernel patch).
 #
 # Options can be forced by specifying "USE_xxx=1" or can be disabled by using
 # "USE_xxx=" (empty string).
@@ -289,6 +290,11 @@ endif
 ifneq ($(USE_TPROXY),)
 OPTIONS_CFLAGS += -DTPROXY
 BUILD_OPTIONS  += $(call ignore_implicit,USE_TPROXY)
+endif
+
+ifneq ($(USE_LINUX_TPROXY),)
+OPTIONS_CFLAGS += -DCONFIG_HAP_LINUX_TPROXY
+BUILD_OPTIONS  += $(call ignore_implicit,USE_LINUX_TPROXY)
 endif
 
 ifneq ($(USE_POLL),)

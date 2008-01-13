@@ -2,7 +2,7 @@
   include/common/compat.h
   Operating system compatibility interface.
 
-  Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -65,6 +65,13 @@
 #if defined(TPROXY) && defined(NETFILTER)
 #include <linux/netfilter_ipv4.h>
 #endif
+
+/* On Linux, IP_TRANSPARENT generally requires a kernel patch */
+#if defined(CONFIG_HAP_LINUX_TPROXY)
+#if !defined(IP_TRANSPARENT)
+#define IP_TRANSPARENT 19
+#endif /* !IP_TRANSPARENT */
+#endif /* CONFIG_HAP_LINUX_TPROXY */
 
 /* We'll try to enable SO_REUSEPORT on Linux 2.4 and 2.6 if not defined.
  * There are two families of values depending on the architecture. Those
