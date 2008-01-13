@@ -1,7 +1,7 @@
 /*
  * AF_INET/AF_INET6 SOCK_STREAM protocol layer (tcp)
  *
- * Copyright 2000-2007 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -53,6 +53,10 @@
 #include <proto/stream_sock.h>
 #include <proto/task.h>
 
+#ifdef CONFIG_HAP_CTTPROXY
+#include <import/ip_tproxy.h>
+#endif
+
 static int tcp_bind_listeners(struct protocol *proto);
 
 /* Note: must not be declared <const> as its list will be overwritten */
@@ -91,6 +95,85 @@ static struct protocol proto_tcpv6 = {
 	.nb_listeners = 0,
 };
 
+
+/* Binds ipv4 address <local> to socket <fd>, unless <flags> is set, in which
+ * case we try to bind <remote>. <flags> is a 2-bit field consisting of :
+ *  - 0 : ignore remote address (may even be a NULL pointer)
+ *  - 1 : use provided address
+ *  - 2 : use provided port
+ *  - 3 : use both
+ *
+ * The function supports multiple foreign binding methods :
+ *   - linux_tproxy: we directly bind to the foreign address
+ *   - cttproxy: we bind to a local address then nat.
+ * The second one can be used as a fallback for the first one.
+ * This function returns 0 when everything's OK, 1 if it could not bind, to the
+ * local address, 2 if it could not bind to the foreign address.
+ */
+int tcpv4_bind_socket(int fd, int flags, struct sockaddr_in *local, struct sockaddr_in *remote)
+{
+	struct sockaddr_in bind_addr;
+	int foreign_ok = 0;
+	int ret;
+
+#ifdef CONFIG_HAP_LINUX_TPROXY
+	static int ip_transp_working = 1;
+	if (flags && ip_transp_working) {
+		if (setsockopt(fd, SOL_IP, IP_TRANSPARENT, (char *) &one, sizeof(one)) == 0
+		    || setsockopt(fd, SOL_IP, IP_FREEBIND, (char *) &one, sizeof(one)) == 0)
+			foreign_ok = 1;
+		else
+			ip_transp_working = 0;
+	}
+#endif
+	if (flags) {
+		memset(&bind_addr, 0, sizeof(bind_addr));
+		if (flags & 1)
+			bind_addr.sin_addr = remote->sin_addr;
+		if (flags & 2)
+			bind_addr.sin_port = remote->sin_port;
+	}
+
+	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(one));
+	if (foreign_ok) {
+		ret = bind(fd, (struct sockaddr *)&bind_addr, sizeof(bind_addr));
+		if (ret < 0)
+			return 2;
+	}
+	else {
+		ret = bind(fd, (struct sockaddr *)local, sizeof(*local));
+		if (ret < 0)
+			return 1;
+	}
+
+	if (!flags)
+		return 0;
+
+#ifdef CONFIG_HAP_CTTPROXY
+	if (!foreign_ok) {
+		struct in_tproxy itp1, itp2;
+		memset(&itp1, 0, sizeof(itp1));
+
+		itp1.op = TPROXY_ASSIGN;
+		itp1.v.addr.faddr = bind_addr.sin_addr;
+		itp1.v.addr.fport = bind_addr.sin_port;
+
+		/* set connect flag on socket */
+		itp2.op = TPROXY_FLAGS;
+		itp2.v.flags = ITP_CONNECT | ITP_ONCE;
+
+		if (setsockopt(fd, SOL_IP, IP_TPROXY, &itp1, sizeof(itp1)) != -1 &&
+		    setsockopt(fd, SOL_IP, IP_TPROXY, &itp2, sizeof(itp2)) != -1) {
+			foreign_ok = 1;
+		}
+	}
+#endif
+	if (!foreign_ok)
+		/* we could not bind to a foreign address */
+		return 2;
+
+	return 0;
+}
 
 /* This function tries to bind a TCPv4/v6 listener. It may return a warning or
  * an error message in <err> if the message is at most <errlen> bytes long

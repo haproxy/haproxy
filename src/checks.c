@@ -1,7 +1,7 @@
 /*
  * Health-checks functions.
  *
- * Copyright 2000-2007 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -37,13 +37,10 @@
 #include <proto/log.h>
 #include <proto/queue.h>
 #include <proto/proto_http.h>
+#include <proto/proto_tcp.h>
 #include <proto/proxy.h>
 #include <proto/server.h>
 #include <proto/task.h>
-
-#ifdef CONFIG_HAP_CTTPROXY
-#include <import/ip_tproxy.h>
-#endif
 
 /* sends a log message when a backend goes down, and also sets last
  * change date.
@@ -416,62 +413,50 @@ void process_chk(struct task *t, struct timeval *next)
 				 * - proxy-specific next
 				 */
 				if (s->state & SRV_BIND_SRC) {
-					setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(one));
-					if (bind(fd, (struct sockaddr *)&s->source_addr, sizeof(s->source_addr)) == -1) {
-						Alert("Cannot bind to source address before connect() for server %s/%s. Aborting.\n",
-						      s->proxy->id, s->id);
-						s->result |= SRV_CHK_ERROR;
-					}
-#ifdef CONFIG_HAP_CTTPROXY
+					struct sockaddr_in *remote = NULL;
+					int ret, flags = 0;
+
 					if ((s->state & SRV_TPROXY_MASK) == SRV_TPROXY_ADDR) {
-						struct in_tproxy itp1, itp2;
-						memset(&itp1, 0, sizeof(itp1));
-						
-						itp1.op = TPROXY_ASSIGN;
-						itp1.v.addr.faddr = s->tproxy_addr.sin_addr;
-						itp1.v.addr.fport = s->tproxy_addr.sin_port;
-
-						/* set connect flag on socket */
-						itp2.op = TPROXY_FLAGS;
-						itp2.v.flags = ITP_CONNECT | ITP_ONCE;
-
-						if (setsockopt(fd, SOL_IP, IP_TPROXY, &itp1, sizeof(itp1)) == -1 ||
-						    setsockopt(fd, SOL_IP, IP_TPROXY, &itp2, sizeof(itp2)) == -1) {
+						remote = (struct sockaddr_in *)&s->tproxy_addr;
+						flags  = 3;
+					}
+					ret = tcpv4_bind_socket(fd, flags, &s->source_addr, remote);
+					if (ret) {
+						s->result |= SRV_CHK_ERROR;
+						switch (ret) {
+						case 1:
+							Alert("Cannot bind to source address before connect() for server %s/%s. Aborting.\n",
+							      s->proxy->id, s->id);
+							break;
+						case 2:
 							Alert("Cannot bind to tproxy source address before connect() for server %s/%s. Aborting.\n",
 							      s->proxy->id, s->id);
-							s->result |= SRV_CHK_ERROR;
+							break;
 						}
 					}
-#endif
 				}
 				else if (s->proxy->options & PR_O_BIND_SRC) {
-					setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(one));
-					if (bind(fd, (struct sockaddr *)&s->proxy->source_addr, sizeof(s->proxy->source_addr)) == -1) {
-						Alert("Cannot bind to source address before connect() for %s '%s'. Aborting.\n",
-						      proxy_type_str(s->proxy), s->proxy->id);
-						s->result |= SRV_CHK_ERROR;
-					}
-#ifdef CONFIG_HAP_CTTPROXY
+					struct sockaddr_in *remote = NULL;
+					int ret, flags = 0;
+
 					if ((s->proxy->options & PR_O_TPXY_MASK) == PR_O_TPXY_ADDR) {
-						struct in_tproxy itp1, itp2;
-						memset(&itp1, 0, sizeof(itp1));
-						
-						itp1.op = TPROXY_ASSIGN;
-						itp1.v.addr.faddr = s->tproxy_addr.sin_addr;
-						itp1.v.addr.fport = s->tproxy_addr.sin_port;
-						
-						/* set connect flag on socket */
-						itp2.op = TPROXY_FLAGS;
-						itp2.v.flags = ITP_CONNECT | ITP_ONCE;
-						
-						if (setsockopt(fd, SOL_IP, IP_TPROXY, &itp1, sizeof(itp1)) == -1 ||
-						    setsockopt(fd, SOL_IP, IP_TPROXY, &itp2, sizeof(itp2)) == -1) {
+						remote = (struct sockaddr_in *)&s->proxy->tproxy_addr;
+						flags  = 3;
+					}
+					ret = tcpv4_bind_socket(fd, flags, &s->proxy->source_addr, remote);
+					if (ret) {
+						s->result |= SRV_CHK_ERROR;
+						switch (ret) {
+						case 1:
+							Alert("Cannot bind to source address before connect() for %s '%s'. Aborting.\n",
+							      proxy_type_str(s->proxy), s->proxy->id);
+							break;
+						case 2:
 							Alert("Cannot bind to tproxy source address before connect() for %s '%s'. Aborting.\n",
 							      proxy_type_str(s->proxy), s->proxy->id);
-							s->result |= SRV_CHK_ERROR;
+							break;
 						}
 					}
-#endif
 				}
 
 				if (s->result == SRV_CHK_UNKNOWN) {

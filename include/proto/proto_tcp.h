@@ -2,7 +2,7 @@
   include/proto/proto_tcp.h
   This file contains TCP socket protocol definitions.
 
-  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -27,6 +27,7 @@
 #include <types/task.h>
 
 int tcp_event_accept(int fd);
+int tcpv4_bind_socket(int fd, int flags, struct sockaddr_in *local, struct sockaddr_in *remote);
 void tcpv4_add_listener(struct listener *listener);
 void tcpv6_add_listener(struct listener *listener);
 int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen);

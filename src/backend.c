@@ -1,7 +1,7 @@
 /*
  * Backend variables and functions.
  *
- * Copyright 2000-2007 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -37,13 +37,10 @@
 #include <proto/httperr.h>
 #include <proto/log.h>
 #include <proto/proto_http.h>
+#include <proto/proto_tcp.h>
 #include <proto/queue.h>
 #include <proto/stream_sock.h>
 #include <proto/task.h>
-
-#ifdef CONFIG_HAP_CTTPROXY
-#include <import/ip_tproxy.h>
-#endif
 
 #ifdef CONFIG_HAP_TCPSPLICE
 #include <libtcpsplice.h>
@@ -1113,89 +1110,6 @@ int assign_server_and_queue(struct session *s)
 	}
 }
 
-/* Binds ipv4 address <local> to socket <fd>, unless <flags> is set, in which
- * case we try to bind <remote>. <flags> is a 2-bit field consisting of :
- *  - 0 : ignore remote address (may even be a NULL pointer)
- *  - 1 : use provided address
- *  - 2 : use provided port
- *  - 3 : use both
- *
- * The function supports multiple foreign binding methods :
- *   - linux_tproxy: we directly bind to the foreign address
- *   - cttproxy: we bind to a local address then nat.
- * The second one can be used as a fallback for the first one.
- * This function returns 0 when everything's OK, 1 if it could not bind, to the
- * local address, 2 if it could not bind to the foreign address.
- */
-static int bind_ipv4(int fd, int flags, struct sockaddr_in *local, struct sockaddr_in *remote)
-{
-	struct sockaddr_in bind_addr;
-	int foreign_ok = 0;
-	int ret;
-
-#ifdef CONFIG_HAP_LINUX_TPROXY
-	static int ip_transp_working = 1;
-	if (flags && ip_transp_working) {
-		if (setsockopt(fd, SOL_IP, IP_TRANSPARENT, (char *) &one, sizeof(one)) == 0
-		    || setsockopt(fd, SOL_IP, IP_FREEBIND, (char *) &one, sizeof(one)) == 0)
-			foreign_ok = 1;
-		else
-			ip_transp_working = 0;
-	}
-#endif
-
-	if (flags) {
-		memset(&bind_addr, 0, sizeof(bind_addr));
-		if (flags & 1)
-			bind_addr.sin_addr = remote->sin_addr;
-		if (flags & 2)
-			bind_addr.sin_port = remote->sin_port;
-	}
-
-	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(one));
-	if (foreign_ok) {
-		ret = bind(fd, (struct sockaddr *)&bind_addr, sizeof(bind_addr));
-		if (ret < 0)
-			return 2;
-	}
-	else {
-		ret = bind(fd, (struct sockaddr *)local, sizeof(*local));
-		if (ret < 0)
-			return 1;
-	}
-
-	if (!flags)
-		return 0;
-
-#ifdef CONFIG_HAP_CTTPROXY
-	if (!foreign_ok) {
-		struct in_tproxy itp1, itp2;
-		memset(&itp1, 0, sizeof(itp1));
-
-		itp1.op = TPROXY_ASSIGN;
-		itp1.v.addr.faddr = bind_addr.sin_addr;
-		itp1.v.addr.fport = bind_addr.sin_port;
-
-		/* set connect flag on socket */
-		itp2.op = TPROXY_FLAGS;
-		itp2.v.flags = ITP_CONNECT | ITP_ONCE;
-
-		if (setsockopt(fd, SOL_IP, IP_TPROXY, &itp1, sizeof(itp1)) != -1 &&
-		    setsockopt(fd, SOL_IP, IP_TPROXY, &itp2, sizeof(itp2)) != -1) {
-			foreign_ok = 1;
-		}
-	}
-#endif
-
-	if (!foreign_ok) {
-		/* we could not bind to a foreign address */
-		close(fd);
-		return 2;
-	}
-
-	return 0;
-}
-
 /*
  * This function initiates a connection to the server assigned to this session
  * (s->srv, s->srv_addr). It will assign a server if none is assigned yet.
@@ -1288,7 +1202,7 @@ int connect_server(struct session *s)
 			remote = (struct sockaddr_in *)&s->cli_addr;
 			break;
 		}
-		ret = bind_ipv4(fd, flags, &s->srv->source_addr, remote);
+		ret = tcpv4_bind_socket(fd, flags, &s->srv->source_addr, remote);
 		if (ret) {
 			close(fd);
 			if (ret == 1) {
@@ -1326,7 +1240,7 @@ int connect_server(struct session *s)
 			break;
 		}
 
-		ret = bind_ipv4(fd, flags, &s->be->source_addr, remote);
+		ret = tcpv4_bind_socket(fd, flags, &s->be->source_addr, remote);
 		if (ret) {
 			close(fd);
 			if (ret == 1) {
