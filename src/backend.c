@@ -1274,23 +1274,20 @@ int connect_server(struct session *s)
 		struct sockaddr_in *remote = NULL;
 		int ret, flags = 0;
 
-		if (s->srv->state & SRV_TPROXY_MASK) {
-			switch (s->srv->state & SRV_TPROXY_MASK) {
-			case SRV_TPROXY_ADDR:
-				remote = (struct sockaddr_in *)&s->srv->tproxy_addr;
-				flags  = 3;
-				break;
-			case SRV_TPROXY_CLI:
-				flags |= 2;
-				/* fall through */
-			case SRV_TPROXY_CIP:
-				/* FIXME: what can we do if the client connects in IPv6 ? */
-				flags |= 1;
-				remote = (struct sockaddr_in *)&s->cli_addr;
-				break;
-			}
+		switch (s->srv->state & SRV_TPROXY_MASK) {
+		case SRV_TPROXY_ADDR:
+			remote = (struct sockaddr_in *)&s->srv->tproxy_addr;
+			flags  = 3;
+			break;
+		case SRV_TPROXY_CLI:
+			flags |= 2;
+			/* fall through */
+		case SRV_TPROXY_CIP:
+			/* FIXME: what can we do if the client connects in IPv6 ? */
+			flags |= 1;
+			remote = (struct sockaddr_in *)&s->cli_addr;
+			break;
 		}
-
 		ret = bind_ipv4(fd, flags, &s->srv->source_addr, remote);
 		if (ret) {
 			close(fd);
@@ -1314,24 +1311,22 @@ int connect_server(struct session *s)
 		struct sockaddr_in *remote = NULL;
 		int ret, flags = 0;
 
-		if (s->be->options & PR_O_TPXY_MASK) {
-			switch (s->be->options & PR_O_TPXY_MASK) {
-			case PR_O_TPXY_ADDR:
-				remote = (struct sockaddr_in *)&s->be->tproxy_addr;
-				flags  = 3;
-				break;
-			case PR_O_TPXY_CLI:
-				flags |= 2;
-				/* fall through */
-			case PR_O_TPXY_CIP:
-				/* FIXME: what can we do if the client connects in IPv6 ? */
-				flags |= 1;
-				remote = (struct sockaddr_in *)&s->cli_addr;
-				break;
-			}
+		switch (s->be->options & PR_O_TPXY_MASK) {
+		case PR_O_TPXY_ADDR:
+			remote = (struct sockaddr_in *)&s->be->tproxy_addr;
+			flags  = 3;
+			break;
+		case PR_O_TPXY_CLI:
+			flags |= 2;
+			/* fall through */
+		case PR_O_TPXY_CIP:
+			/* FIXME: what can we do if the client connects in IPv6 ? */
+			flags |= 1;
+			remote = (struct sockaddr_in *)&s->cli_addr;
+			break;
 		}
 
-		ret = bind_ipv4(fd, flags, &s->srv->source_addr, remote);
+		ret = bind_ipv4(fd, flags, &s->be->source_addr, remote);
 		if (ret) {
 			close(fd);
 			if (ret == 1) {
