@@ -43,11 +43,11 @@
 #define SRV_CHECKED	0x0010	/* this server needs to be checked */
 #define SRV_GOINGDOWN	0x0020	/* this server says that it's going down (404) */
 #define SRV_WARMINGUP	0x0040	/* this server is warming up after a failure */
-
-#define SRV_TPROXY_ADDR	0x0020	/* bind to this non-local address to reach this server */
-#define SRV_TPROXY_CIP	0x0040	/* bind to the client's IP address to reach this server */
-#define SRV_TPROXY_CLI	0x0060	/* bind to the client's IP+port to reach this server */
-#define SRV_TPROXY_MASK	0x0060	/* bind to a non-local address to reach this server */
+/* unused: 0x0080 */
+#define SRV_TPROXY_ADDR	0x0100	/* bind to this non-local address to reach this server */
+#define SRV_TPROXY_CIP	0x0200	/* bind to the client's IP address to reach this server */
+#define SRV_TPROXY_CLI	0x0300	/* bind to the client's IP+port to reach this server */
+#define SRV_TPROXY_MASK	0x0300	/* bind to a non-local address to reach this server */
 
 /* function which act on servers need to return various errors */
 #define SRV_STATUS_OK       0   /* everything is OK. */
