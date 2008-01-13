@@ -66,8 +66,11 @@
 #include <linux/netfilter_ipv4.h>
 #endif
 
-/* On Linux, IP_TRANSPARENT generally requires a kernel patch */
+/* On Linux, IP_TRANSPARENT and/or IP_FREEBIND generally require a kernel patch */
 #if defined(CONFIG_HAP_LINUX_TPROXY)
+#if !defined(IP_FREEBIND)
+#define IP_FREEBIND 15
+#endif /* !IP_FREEBIND */
 #if !defined(IP_TRANSPARENT)
 #define IP_TRANSPARENT 19
 #endif /* !IP_TRANSPARENT */

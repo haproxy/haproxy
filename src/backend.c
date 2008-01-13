@@ -1136,7 +1136,8 @@ static int bind_ipv4(int fd, int flags, struct sockaddr_in *local, struct sockad
 #ifdef CONFIG_HAP_LINUX_TPROXY
 	static int ip_transp_working = 1;
 	if (flags && ip_transp_working) {
-		if (setsockopt(fd, SOL_IP, IP_TRANSPARENT, (char *) &one, sizeof(one)) == 0)
+		if (setsockopt(fd, SOL_IP, IP_TRANSPARENT, (char *) &one, sizeof(one)) == 0
+		    || setsockopt(fd, SOL_IP, IP_FREEBIND, (char *) &one, sizeof(one)) == 0)
 			foreign_ok = 1;
 		else
 			ip_transp_working = 0;

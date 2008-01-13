@@ -156,7 +156,8 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 #endif
 #ifdef CONFIG_HAP_LINUX_TPROXY
 	if ((listener->options & LI_O_FOREIGN) 
-	    && (setsockopt(fd, SOL_IP, IP_TRANSPARENT, (char *) &one, sizeof(one)) == -1)) {
+	    && (setsockopt(fd, SOL_IP, IP_TRANSPARENT, (char *) &one, sizeof(one)) == -1)
+	    && (setsockopt(fd, SOL_IP, IP_FREEBIND, (char *) &one, sizeof(one)) == -1)) {
 		msg = "cannot make listening socket transparent";
 		err |= ERR_ALERT;
 	}
