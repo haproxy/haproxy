@@ -1113,6 +1113,87 @@ int assign_server_and_queue(struct session *s)
 	}
 }
 
+/* Binds ipv4 address <local> to socket <fd>, unless <flags> is set, in which
+ * case we try to bind <remote>. <flags> is a 2-bit field consisting of :
+ *  - 0 : ignore remote address (may even be a NULL pointer)
+ *  - 1 : use provided address
+ *  - 2 : use provided port
+ *  - 3 : use both
+ *
+ * The function supports multiple foreign binding methods :
+ *   - linux_tproxy: we directly bind to the foreign address
+ *   - cttproxy: we bind to a local address then nat.
+ * The second one can be used as a fallback for the first one.
+ * This function returns 0 when everything's OK, 1 if it could not bind, to the
+ * local address, 2 if it could not bind to the foreign address.
+ */
+static int bind_ipv4(int fd, int flags, struct sockaddr_in *local, struct sockaddr_in *remote)
+{
+	struct sockaddr_in bind_addr;
+	int foreign_ok = 0;
+	int ret;
+
+#ifdef CONFIG_HAP_LINUX_TPROXY
+	static int ip_transp_working = 1;
+	if (flags && ip_transp_working) {
+		if (setsockopt(fd, SOL_IP, IP_TRANSPARENT, (char *) &one, sizeof(one)) == 0)
+			foreign_ok = 1;
+		else
+			ip_transp_working = 0;
+	}
+#endif
+
+	if (flags) {
+		memset(&bind_addr, 0, sizeof(bind_addr));
+		if (flags & 1)
+			bind_addr.sin_addr = remote->sin_addr;
+		if (flags & 2)
+			bind_addr.sin_port = remote->sin_port;
+	}
+
+	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(one));
+	if (foreign_ok) {
+		ret = bind(fd, (struct sockaddr *)&bind_addr, sizeof(bind_addr));
+		if (ret < 0)
+			return 2;
+	}
+	else {
+		ret = bind(fd, (struct sockaddr *)local, sizeof(*local));
+		if (ret < 0)
+			return 1;
+	}
+
+	if (!flags)
+		return 0;
+
+#ifdef CONFIG_HAP_CTTPROXY
+	if (!foreign_ok) {
+		struct in_tproxy itp1, itp2;
+		memset(&itp1, 0, sizeof(itp1));
+
+		itp1.op = TPROXY_ASSIGN;
+		itp1.v.addr.faddr = bind_addr.sin_addr;
+		itp1.v.addr.fport = bind_addr.sin_port;
+
+		/* set connect flag on socket */
+		itp2.op = TPROXY_FLAGS;
+		itp2.v.flags = ITP_CONNECT | ITP_ONCE;
+
+		if (setsockopt(fd, SOL_IP, IP_TPROXY, &itp1, sizeof(itp1)) != -1 &&
+		    setsockopt(fd, SOL_IP, IP_TPROXY, &itp2, sizeof(itp2)) != -1) {
+			foreign_ok = 1;
+		}
+	}
+#endif
+
+	if (!foreign_ok) {
+		/* we could not bind to a foreign address */
+		close(fd);
+		return 2;
+	}
+
+	return 0;
+}
 
 /*
  * This function initiates a connection to the server assigned to this session
@@ -1189,99 +1270,84 @@ int connect_server(struct session *s)
 	 * - proxy-specific next
 	 */
 	if (s->srv != NULL && s->srv->state & SRV_BIND_SRC) {
-		setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(one));
-		if (bind(fd, (struct sockaddr *)&s->srv->source_addr, sizeof(s->srv->source_addr)) == -1) {
-			Alert("Cannot bind to source address before connect() for server %s/%s. Aborting.\n",
-			      s->be->id, s->srv->id);
-			close(fd);
-			send_log(s->be, LOG_EMERG,
-				 "Cannot bind to source address before connect() for server %s/%s.\n",
-				 s->be->id, s->srv->id);
-			return SN_ERR_RESOURCE;
-		}
-#ifdef CONFIG_HAP_CTTPROXY
-		if (s->srv->state & SRV_TPROXY_MASK) {
-			struct in_tproxy itp1, itp2;
-			memset(&itp1, 0, sizeof(itp1));
+		struct sockaddr_in *remote = NULL;
+		int ret, flags = 0;
 
-			itp1.op = TPROXY_ASSIGN;
+		if (s->srv->state & SRV_TPROXY_MASK) {
 			switch (s->srv->state & SRV_TPROXY_MASK) {
 			case SRV_TPROXY_ADDR:
-				itp1.v.addr.faddr = s->srv->tproxy_addr.sin_addr;
-				itp1.v.addr.fport = s->srv->tproxy_addr.sin_port;
+				remote = (struct sockaddr_in *)&s->srv->tproxy_addr;
+				flags  = 3;
 				break;
 			case SRV_TPROXY_CLI:
-				itp1.v.addr.fport = ((struct sockaddr_in *)&s->cli_addr)->sin_port;
+				flags |= 2;
 				/* fall through */
 			case SRV_TPROXY_CIP:
 				/* FIXME: what can we do if the client connects in IPv6 ? */
-				itp1.v.addr.faddr = ((struct sockaddr_in *)&s->cli_addr)->sin_addr;
+				flags |= 1;
+				remote = (struct sockaddr_in *)&s->cli_addr;
 				break;
 			}
+		}
 
-			/* set connect flag on socket */
-			itp2.op = TPROXY_FLAGS;
-			itp2.v.flags = ITP_CONNECT | ITP_ONCE;
-
-			if (setsockopt(fd, SOL_IP, IP_TPROXY, &itp1, sizeof(itp1)) == -1 ||
-			    setsockopt(fd, SOL_IP, IP_TPROXY, &itp2, sizeof(itp2)) == -1) {
+		ret = bind_ipv4(fd, flags, &s->srv->source_addr, remote);
+		if (ret) {
+			close(fd);
+			if (ret == 1) {
+				Alert("Cannot bind to source address before connect() for server %s/%s. Aborting.\n",
+				      s->be->id, s->srv->id);
+				send_log(s->be, LOG_EMERG,
+					 "Cannot bind to source address before connect() for server %s/%s.\n",
+					 s->be->id, s->srv->id);
+			} else {
 				Alert("Cannot bind to tproxy source address before connect() for server %s/%s. Aborting.\n",
 				      s->be->id, s->srv->id);
-				close(fd);
 				send_log(s->be, LOG_EMERG,
 					 "Cannot bind to tproxy source address before connect() for server %s/%s.\n",
 					 s->be->id, s->srv->id);
-				return SN_ERR_RESOURCE;
 			}
-		}
-#endif
-	}
-	else if (s->be->options & PR_O_BIND_SRC) {
-		setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(one));
-		if (bind(fd, (struct sockaddr *)&s->be->source_addr, sizeof(s->be->source_addr)) == -1) {
-			Alert("Cannot bind to source address before connect() for proxy %s. Aborting.\n", s->be->id);
-			close(fd);
-			send_log(s->be, LOG_EMERG,
-				 "Cannot bind to source address before connect() for proxy %s.\n",
-				 s->be->id);
 			return SN_ERR_RESOURCE;
 		}
-#ifdef CONFIG_HAP_CTTPROXY
-		if (s->be->options & PR_O_TPXY_MASK) {
-			struct in_tproxy itp1, itp2;
-			memset(&itp1, 0, sizeof(itp1));
+	}
+	else if (s->be->options & PR_O_BIND_SRC) {
+		struct sockaddr_in *remote = NULL;
+		int ret, flags = 0;
 
-			itp1.op = TPROXY_ASSIGN;
+		if (s->be->options & PR_O_TPXY_MASK) {
 			switch (s->be->options & PR_O_TPXY_MASK) {
 			case PR_O_TPXY_ADDR:
-				itp1.v.addr.faddr = s->be->tproxy_addr.sin_addr;
-				itp1.v.addr.fport = s->be->tproxy_addr.sin_port;
+				remote = (struct sockaddr_in *)&s->be->tproxy_addr;
+				flags  = 3;
 				break;
 			case PR_O_TPXY_CLI:
-				itp1.v.addr.fport = ((struct sockaddr_in *)&s->cli_addr)->sin_port;
+				flags |= 2;
 				/* fall through */
 			case PR_O_TPXY_CIP:
 				/* FIXME: what can we do if the client connects in IPv6 ? */
-				itp1.v.addr.faddr = ((struct sockaddr_in *)&s->cli_addr)->sin_addr;
+				flags |= 1;
+				remote = (struct sockaddr_in *)&s->cli_addr;
 				break;
 			}
+		}
 
-			/* set connect flag on socket */
-			itp2.op = TPROXY_FLAGS;
-			itp2.v.flags = ITP_CONNECT | ITP_ONCE;
-
-			if (setsockopt(fd, SOL_IP, IP_TPROXY, &itp1, sizeof(itp1)) == -1 ||
-			    setsockopt(fd, SOL_IP, IP_TPROXY, &itp2, sizeof(itp2)) == -1) {
+		ret = bind_ipv4(fd, flags, &s->srv->source_addr, remote);
+		if (ret) {
+			close(fd);
+			if (ret == 1) {
+				Alert("Cannot bind to source address before connect() for proxy %s. Aborting.\n",
+				      s->be->id);
+				send_log(s->be, LOG_EMERG,
+					 "Cannot bind to source address before connect() for proxy %s.\n",
+					 s->be->id);
+			} else {
 				Alert("Cannot bind to tproxy source address before connect() for proxy %s. Aborting.\n",
 				      s->be->id);
-				close(fd);
 				send_log(s->be, LOG_EMERG,
 					 "Cannot bind to tproxy source address before connect() for proxy %s.\n",
 					 s->be->id);
-				return SN_ERR_RESOURCE;
 			}
+			return SN_ERR_RESOURCE;
 		}
-#endif
 	}
 	
 	if ((connect(fd, (struct sockaddr *)&s->srv_addr, sizeof(s->srv_addr)) == -1) &&

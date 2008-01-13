@@ -1615,7 +1615,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			}
 			else if (!strcmp(args[cur_arg], "source")) {  /* address to which we bind when connecting */
 				if (!*args[cur_arg + 1]) {
-#ifdef CONFIG_HAP_CTTPROXY
+#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
 					Alert("parsing [%s:%d] : '%s' expects <addr>[:<port>], and optional '%s' <addr> as argument.\n",
 					      file, linenum, "source", "usesrc");
 #else
@@ -1628,12 +1628,14 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 				newsrv->source_addr = *str2sa(args[cur_arg + 1]);
 				cur_arg += 2;
 				if (!strcmp(args[cur_arg], "usesrc")) {  /* address to use outside */
-#ifdef CONFIG_HAP_CTTPROXY
+#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
+#if !defined(CONFIG_HAP_LINUX_TPROXY)
 					if (newsrv->source_addr.sin_addr.s_addr == INADDR_ANY) {
 						Alert("parsing [%s:%d] : '%s' requires an explicit '%s' address.\n",
 						      file, linenum, "usesrc", "source");
 						return -1;
 					}
+#endif
 					if (!*args[cur_arg + 1]) {
 						Alert("parsing [%s:%d] : '%s' expects <addr>[:<port>], 'client', or 'clientip' as argument.\n",
 						      file, linenum, "usesrc");
@@ -1647,22 +1649,23 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 						newsrv->state |= SRV_TPROXY_ADDR;
 						newsrv->tproxy_addr = *str2sa(args[cur_arg + 1]);
 					}
-					global.last_checks |= LSTCHK_CTTPROXY | LSTCHK_NETADM;
+					global.last_checks |= LSTCHK_NETADM;
+#if !defined(CONFIG_HAP_LINUX_TPROXY)
+					global.last_checks |= LSTCHK_CTTPROXY;
+#endif
 					cur_arg += 2;
-#else	/* no CTTPROXY support */
-					Alert("parsing [%s:%d] : '%s' not allowed here because support for cttproxy was not compiled in.\n",
+#else	/* no TPROXY support */
+					Alert("parsing [%s:%d] : '%s' not allowed here because support for TPROXY was not compiled in.\n",
 						      file, linenum, "usesrc");
 						return -1;
 #endif
 				}
 			}
-#ifdef CONFIG_HAP_CTTPROXY
 			else if (!strcmp(args[cur_arg], "usesrc")) {  /* address to use outside: needs "source" first */
 				Alert("parsing [%s:%d] : '%s' only allowed after a '%s' statement.\n",
 				      file, linenum, "usesrc", "source");
 				return -1;
 			}
-#endif
 			else {
 				Alert("parsing [%s:%d] : server %s only supports options 'backup', 'cookie', 'check', 'inter', 'rise', 'fall', 'addr', 'port', 'source', 'minconn', 'maxconn', 'maxqueue', 'slowstart' and 'weight'.\n",
 				      file, linenum, newsrv->id);
@@ -1774,7 +1777,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			return 0;
 
 		if (!*args[1]) {
-#ifdef CONFIG_HAP_CTTPROXY
+#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
 			Alert("parsing [%s:%d] : '%s' expects <addr>[:<port>], and optional '%s' <addr> as argument.\n",
 			      file, linenum, "source", "usesrc");
 #else
@@ -1787,12 +1790,14 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		curproxy->source_addr = *str2sa(args[1]);
 		curproxy->options |= PR_O_BIND_SRC;
 		if (!strcmp(args[2], "usesrc")) {  /* address to use outside */
-#ifdef CONFIG_HAP_CTTPROXY
+#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
+#if !defined(CONFIG_HAP_LINUX_TPROXY)
 			if (curproxy->source_addr.sin_addr.s_addr == INADDR_ANY) {
 				Alert("parsing [%s:%d] : '%s' requires an explicit 'source' address.\n",
 				      file, linenum, "usesrc");
 				return -1;
 			}
+#endif
 			if (!*args[3]) {
 				Alert("parsing [%s:%d] : '%s' expects <addr>[:<port>], 'client', or 'clientip' as argument.\n",
 				      file, linenum, "usesrc");
@@ -1807,21 +1812,22 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 				curproxy->options |= PR_O_TPXY_ADDR;
 				curproxy->tproxy_addr = *str2sa(args[3]);
 			}
-			global.last_checks |= LSTCHK_CTTPROXY | LSTCHK_NETADM;
-#else	/* no CTTPROXY support */
-			Alert("parsing [%s:%d] : '%s' not allowed here because support for cttproxy was not compiled in.\n",
+			global.last_checks |= LSTCHK_NETADM;
+#if !defined(CONFIG_HAP_LINUX_TPROXY)
+			global.last_checks |= LSTCHK_CTTPROXY;
+#endif
+#else	/* no TPROXY support */
+			Alert("parsing [%s:%d] : '%s' not allowed here because support for TPROXY was not compiled in.\n",
 			      file, linenum, "usesrc");
 			return -1;
 #endif
 		}
 	}
-#ifdef CONFIG_HAP_CTTPROXY
 	else if (!strcmp(args[0], "usesrc")) {  /* address to use outside: needs "source" first */
 		Alert("parsing [%s:%d] : '%s' only allowed after a '%s' statement.\n",
 		      file, linenum, "usesrc", "source");
 		return -1;
 	}
-#endif
 	else if (!strcmp(args[0], "cliexp") || !strcmp(args[0], "reqrep")) {  /* replace request header from a regex */
 		regex_t *preg;
 		if (curproxy == &defproxy) {
