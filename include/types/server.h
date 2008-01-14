@@ -85,7 +85,7 @@ struct server {
 
 	struct sockaddr_in addr;		/* the address to connect to */
 	struct sockaddr_in source_addr;		/* the address to which we want to bind for connect() */
-#ifdef CONFIG_HAP_CTTPROXY
+#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
 	struct sockaddr_in tproxy_addr;		/* non-local address we want to bind to for connect() */
 #endif
 

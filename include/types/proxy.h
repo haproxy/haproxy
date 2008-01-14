@@ -204,7 +204,7 @@ struct proxy {
 	int conn_retries;			/* maximum number of connect retries */
 	int cap;				/* supported capabilities (PR_CAP_*) */
 	struct sockaddr_in source_addr;		/* the address to which we want to bind for connect() */
-#ifdef CONFIG_HAP_CTTPROXY
+#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
 	struct sockaddr_in tproxy_addr;		/* non-local address we want to bind to for connect() */
 #endif
 	struct proxy *next;
