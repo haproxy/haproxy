@@ -1924,7 +1924,7 @@ no option nolinger
   Enable or disable immediate session ressource cleaning after close
   May be used in sections:    defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
-  Arguments: none
+  Arguments : none
 
   When clients or servers abort connections in a dirty way (eg: they are
   physically disconnected), the session timeouts triggers and the session is
@@ -1956,7 +1956,7 @@ no option persist
   Enable or disable forced persistence on down servers
   May be used in sections:    defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
-  Arguments: none
+  Arguments : none
 
   When an HTTP request reaches a backend with a cookie which references a dead
   server, by default it is redispatched to another server. It is possible to
@@ -1980,7 +1980,7 @@ no option redispatch
   Enable or disable session redistribution in case of connection failure
   May be used in sections:    defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
-  Arguments: none
+  Arguments : none
 
   In HTTP mode, if a server designated by a cookie is down, clients may
   definitely stick to it because they cannot flush the cookie, so they will not
@@ -2199,7 +2199,8 @@ no option transparent
   Use of this option is really discouraged, and since no really valid use of it
   has been reported for years, it will probably be removed in future versions.
 
-  See also: the "usersrc" argument of the "source" keyword.
+  See also: the "usersrc" argument of the "source" keyword, and the
+            "transparent" option of the "bind" keyword.
 
 
 redisp (deprecated)
@@ -2207,7 +2208,7 @@ redispatch (deprecated)
   Enable or disable session redistribution in case of connection failure
   May be used in sections:    defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
-  Arguments: none
+  Arguments : none
 
   In HTTP mode, if a server designated by a cookie is down, clients may
   definitely stick to it because they cannot flush the cookie, so they will not
@@ -2224,6 +2225,133 @@ redispatch (deprecated)
   "option redispatch" instead.
 
   See also : "option redispatch"
+
+
+server <name> <address>[:port] [param*]
+  Declare a server in a backend
+  May be used in sections :   defaults | frontend | listen | backend
+                                 no    |    no    |   yes  |   yes
+  Arguments :
+    <name>    is the internal name assigned to this server. This name will
+              appear in logs and alerts.
+
+    <address> is the IPv4 address of the server. Alternatively, a resolvable
+              hostname is supported, but this name will be resolved during
+              start-up.
+
+    <ports>   is an optional port specification. If set, all connections will
+              be sent to this port. If unset, the same port the client
+              connected to will be used. The port may also be prefixed by a "+"
+              or a "-". In this case, the server's port will be determined by
+              adding this value to the client's port.
+
+    <param*>  is a list of parameters for this server. The "server" keywords
+              accepts an important number of options and has a complete section
+              dedicated to it. Please refer to section 2.4 for more details.
+
+  Examples :
+        server first  10.1.1.1:1080 cookie first  check inter 1000
+        server second 10.1.1.2:1080 cookie second check inter 1000
+
+  See also : section 2.4 about server options
+
+
+source <addr>[:<port>] [usesrc { <addr2>[:<port2>] | client | clientip } ]
+  Set the source address for outgoing connections
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments :
+    <addr>    is the IPv4 address HAProxy will bind to before connecting to a
+              server. This address is also used as a source for health checks.
+              The default value of 0.0.0.0 means that the system will select
+              the most appropriate address to reach its destination.
+
+    <port>    is an optional port. It is normally not needed but may be useful
+              in some very specific contexts. The default value of zero means
+              the system will select a free port.
+
+    <addr2>   is the IP address to present to the server when connections are
+              forwarded in full transparent proxy mode. This is currently only
+              supported on some patched Linux kernels. When this address is
+              specified, clients connecting to the server will be presented
+              with this address, while health checks will still use the address
+              <addr>.
+
+    <port2>   is the optional port to present to the server when connections
+              are forwarded in full transparent proxy mode (see <addr2> above).
+              The default value of zero means the system will select a free
+              port.
+
+  The "source" keyword is useful in complex environments where a specific
+  address only is allowed to connect to the servers. It may be needed when a
+  private address must be used through a public gateway for instance, and it is
+  known that the system cannot determine the adequate source address by itself.
+
+  An extension which is available on certain patched Linux kernels may be used
+  through the "usesrc" optional keyword. It makes it possible to connect to the
+  servers with an IP address which does not belong to the system itself. This
+  is called "full transparent proxy mode". For this to work, the destination
+  servers have to route their traffic back to this address through the machine
+  running HAProxy, and IP forwarding must generally be enabled on this machine.
+
+  In this "full transparent proxy" mode, it is possible to force a specific IP
+  address to be presented to the servers. This is not much used in fact. A more
+  common use is to tell HAProxy to present the client's IP address. For this,
+  there are two methods :
+
+    - present the client's IP and port addresses. This is the most transparent
+      mode, but it can cause problems when IP connection tracking is enabled on
+      the machine, because a same connection may be seen twice with different
+      states. However, this solution presents the huge advantage of not
+      limiting the system to the 64k outgoing address+port couples, because all
+      of the client ranges may be used.
+
+    - present only the client's IP address and select a spare port. This
+      solution is still quite elegant but slightly less transparent (downstream
+      firewalls logs will not match upstream's). It also presents the downside
+      of limiting the number of concurrent connections to the usual 64k ports.
+      However, since the upstream and downstream ports are different, local IP
+      connection tracking on the machine will not be upset by the reuse of the
+      same session.
+
+  Note that depending on the transparent proxy technology used, it may be
+  required to force the source address. In fact, cttproxy version 2 requires an
+  IP address in <addr> above, and does not support setting of "0.0.0.0" as the
+  IP address because it creates NAT entries which much match the exact outgoing
+  address. Tproxy version 4 and some other kernel patches which work in pure
+  forwarding mode generally will not have this limitation.
+
+  This option sets the default source for all servers in the backend. It may
+  also be specified in a "defaults" section. Finer source address specification
+  is possible at the server level using the "source" server option. Refer to
+  section 2.4 for more information.
+
+  Examples :
+        backend private
+            # Connect to the servers using our 192.168.1.200 source address
+            source 192.168.1.200
+
+        backend transparent_ssl1
+            # Connect to the SSL farm from the client's source address
+            source 192.168.1.200 usesrc clientip
+
+        backend transparent_ssl2
+            # Connect to the SSL farm from the client's source address and port
+            # not recommended if IP conntrack is present on the local machine.
+            source 192.168.1.200 usesrc client
+
+        backend transparent_ssl3
+            # Connect to the SSL farm from the client's source address. It
+            # is more conntrack-friendly.
+            source 192.168.1.200 usesrc clientip
+
+        backend transparent_smtp
+            # Connect to the SMTP farm from the client's source address/port
+            # with Tproxy version 4.
+            source 0.0.0.0 usesrc clientip
+
+  See also : the "source" server option in section 2.4, the Tproxy patches for
+             the Linux kernel on www.balabit.com, the "bind" keyword.
 
 
 srvtimeout <timeout> (deprecated)
@@ -2263,6 +2391,304 @@ srvtimeout <timeout> (deprecated)
   Please use "timeout server" instead.
 
   See also : "timeout server", "timeout client" and "clitimeout".
+
+
+stats auth <user>:<passwd>
+  Enable statistics with authentication and grant access to an account
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments :
+    <user>    is a user name to grant access to
+
+    <passwd>  is the cleartext password associated to this user
+
+  This statement enables statistics with default settings, and restricts access
+  to declared users only. It may be repeated as many times as necessary to
+  allow as many users as desired. When a user tries to access the statistics
+  without a valid account, a "401 Forbidden" response will be returned so that
+  the browser asks the user to provide a valid user and password. The real
+  which will be returned to the browser is configurable using "stats realm".
+
+  Since the authentication method is HTTP Basic Authentication, the passwords
+  circulate in cleartext on the network. Thus, it was decided that the
+  configuration file would also use cleartext passwords to remind the users
+  that those ones should not be sensible and not shared with any other account.
+
+  It is also possible to reduce the scope of the proxies which appear in the
+  report using "stats scope".
+
+  Though this statement alone is enough to enable statistics reporting, it is
+  recommended to set all other settings in order to avoid relying on default
+  unobvious parameters.
+
+  Example :
+    # public access (limited to this backend only)
+    backend public_www
+        server srv1 192.168.0.1:80
+        stats enable
+        stats hide-version
+        stats scope   .
+        stats uri     /admin?stats
+        stats realm   Haproxy\ Statistics
+        stats auth    admin1:AdMiN123
+        stats auth    admin2:AdMiN321
+
+    # internal monitoring access (unlimited)
+    backend private_monitoring
+        stats enable
+        stats uri     /admin?stats
+        stats refresh 5s
+
+  See also : "stats enable", "stats realm", "stats scope", "stats uri"
+
+
+stats enable
+  Enable statistics reporting with default settings
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments : none
+
+  This statement enables statistics reporting with default settings defined
+  at build time. Unless stated otherwise, these settings are used :
+    - stats uri   : /haproxy?stats
+    - stats realm : "HAProxy Statistics"
+    - stats auth  : no authentication
+    - stats scope : no restriction
+
+  Though this statement alone is enough to enable statistics reporting, it is
+  recommended to set all other settings in order to avoid relying on default
+  unobvious parameters.
+
+  Example :
+    # public access (limited to this backend only)
+    backend public_www
+        server srv1 192.168.0.1:80
+        stats enable
+        stats hide-version
+        stats scope   .
+        stats uri     /admin?stats
+        stats realm   Haproxy\ Statistics
+        stats auth    admin1:AdMiN123
+        stats auth    admin2:AdMiN321
+
+    # internal monitoring access (unlimited)
+    backend private_monitoring
+        stats enable
+        stats uri     /admin?stats
+        stats refresh 5s
+
+  See also : "stats auth", "stats realm", "stats uri"
+
+
+stats realm <realm>
+  Enable statistics and set authentication realm
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments :
+    <realm>   is the name of the HTTP Basic Authentication realm reported to
+              the browser. The browser uses it to display it in the pop-up
+              inviting the user to enter a valid username and password.
+
+  The realm is read as a single word, so any spaces in it should be escaped
+  using a backslash ('\').
+
+  This statement is useful only in conjunction with "stats auth" since it is
+  only related to authentication.
+
+  Though this statement alone is enough to enable statistics reporting, it is
+  recommended to set all other settings in order to avoid relying on default
+  unobvious parameters.
+
+  Example :
+    # public access (limited to this backend only)
+    backend public_www
+        server srv1 192.168.0.1:80
+        stats enable
+        stats hide-version
+        stats scope   .
+        stats uri     /admin?stats
+        stats realm   Haproxy\ Statistics
+        stats auth    admin1:AdMiN123
+        stats auth    admin2:AdMiN321
+
+    # internal monitoring access (unlimited)
+    backend private_monitoring
+        stats enable
+        stats uri     /admin?stats
+        stats refresh 5s
+
+  See also : "stats auth", "stats enable", "stats uri"
+
+
+stats refresh <delay>
+  Enable statistics with automatic refresh
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments :
+    <delay>   is the suggested refresh delay, specified in seconds, which will
+              be returned to the browser consulting the report page. While the
+              browser is free to apply any delay, it will generally respect it
+              and refresh the page this every seconds. The refresh interval may
+              be specified in any other non-default time unit, by suffixing the
+              unit after the value, as explained at the top of this document.
+
+  This statement is useful on monitoring displays with a permanent page
+  reporting the load balancer's activity. When set, the HTML report page will
+  include a link "refresh"/"stop refresh" so that the user can select whether
+  he wants automatic refresh of the page or not.
+
+  Though this statement alone is enough to enable statistics reporting, it is
+  recommended to set all other settings in order to avoid relying on default
+  unobvious parameters.
+
+  Example :
+    # public access (limited to this backend only)
+    backend public_www
+        server srv1 192.168.0.1:80
+        stats enable
+        stats hide-version
+        stats scope   .
+        stats uri     /admin?stats
+        stats realm   Haproxy\ Statistics
+        stats auth    admin1:AdMiN123
+        stats auth    admin2:AdMiN321
+
+    # internal monitoring access (unlimited)
+    backend private_monitoring
+        stats enable
+        stats uri     /admin?stats
+        stats refresh 5s
+
+  See also : "stats auth", "stats enable", "stats realm", "stats uri"
+
+
+stats scope { <name> | "." }
+  Enable statistics and limit access scope
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments :
+    <name>    is the name of a listen, frontend or backend section to be
+              reported. The special name "." (a single dot) designates the
+              section in which the statement appears.
+
+  When this statement is specified, only the sections enumerated with this
+  statement will appear in the report. All other ones will be hidden. This
+  statement may appear as many times as needed if multiple sections need to be
+  reported. Please note that the name checking is performed as simple string
+  comparisons, and that it is never checked that a give section name really
+  exists.
+
+  Though this statement alone is enough to enable statistics reporting, it is
+  recommended to set all other settings in order to avoid relying on default
+  unobvious parameters.
+
+  Example :
+    # public access (limited to this backend only)
+    backend public_www
+        server srv1 192.168.0.1:80
+        stats enable
+        stats hide-version
+        stats scope   .
+        stats uri     /admin?stats
+        stats realm   Haproxy\ Statistics
+        stats auth    admin1:AdMiN123
+        stats auth    admin2:AdMiN321
+
+    # internal monitoring access (unlimited)
+    backend private_monitoring
+        stats enable
+        stats uri     /admin?stats
+        stats refresh 5s
+
+  See also : "stats auth", "stats enable", "stats realm", "stats uri"
+
+
+stats uri <prefix>
+  Enable statistics and define the URI prefix to access them
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments :
+    <prefix>  is the prefix of any URI which will be redirected to stats. This
+              prefix may contain a question mark ('?') to indicate part of a
+              query string.
+
+  The statistics URI is intercepted on the relayed traffic, so it appears as a
+  page within the normal application. It is strongly advised to ensure that the
+  selected URI will never appear in the application, otherwise it will never be
+  possible to reach it in the application.
+
+  The default URI compiled in haproxy is "/haproxy?stats", but this may be
+  changed at build time, so it's better to always explictly specify it here.
+  It is generally a good idea to include a question mark in the URI so that
+  intermediate proxies refrain from caching the results. Also, since any string
+  beginning with the prefix will be accepted as a stats request, the question
+  mark helps ensuring that no valid URI will begin with the same words.
+
+  It is sometimes very convenient to use "/" as the URI prefix, and put that
+  statement in a "listen" instance of its own. That makes it easy to dedicate
+  an address or a port to statistics only.
+
+  Though this statement alone is enough to enable statistics reporting, it is
+  recommended to set all other settings in order to avoid relying on default
+  unobvious parameters.
+
+  Example :
+    # public access (limited to this backend only)
+    backend public_www
+        server srv1 192.168.0.1:80
+        stats enable
+        stats hide-version
+        stats scope   .
+        stats uri     /admin?stats
+        stats realm   Haproxy\ Statistics
+        stats auth    admin1:AdMiN123
+        stats auth    admin2:AdMiN321
+
+    # internal monitoring access (unlimited)
+    backend private_monitoring
+        stats enable
+        stats uri     /admin?stats
+        stats refresh 5s
+
+  See also : "stats auth", "stats enable", "stats realm"
+
+
+stats hide-version
+  Enable statistics and hide HAProxy version reporting
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments : none
+
+  By default, the stats page reports some useful status information along with
+  the statistics. Among them is HAProxy's version. However, it is generally
+  considered dangerous to report precise version to anyone, as it can help them
+  target known weaknesses with specific attacks. The "stats hide-version"
+  statement removes the version from the statistics report. This is recommended
+  for public sites or any site with a weak login/password.
+
+  Though this statement alone is enough to enable statistics reporting, it is
+  recommended to set all other settings in order to avoid relying on default
+  unobvious parameters.
+
+  Example :
+    # public access (limited to this backend only)
+    backend public_www
+        server srv1 192.168.0.1:80
+        stats enable
+        stats hide-version
+        stats scope   .
+        stats uri     /admin?stats
+        stats realm   Haproxy\ Statistics
+        stats auth    admin1:AdMiN123
+        stats auth    admin2:AdMiN321
+
+    # internal monitoring access (unlimited)
+    backend private_monitoring
+        stats enable
+        stats uri     /admin?stats
+        stats refresh 5s
+
+  See also : "stats auth", "stats enable", "stats realm", "stats uri"
 
 
 timeout client <timeout>
