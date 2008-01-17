@@ -4,7 +4,7 @@
                          ----------------------
                             version 1.3.14.2
                              willy tarreau
-                               2008/01/05
+                               2008/01/17
 
 
 This document covers the configuration language as implemented in the version
@@ -430,13 +430,13 @@ beginning of the line, immediately followed by a colon (':'). Traditionally,
 an LWS is added after the colon but that's not required. Then come the values.
 Multiple identical headers may be folded into one single line, delimiting the
 values with commas, provided that their order is respected. This is commonly
-encountered in the 'Cookie:' field. A header may span over multiple lines if
+encountered in the "Cookie:" field. A header may span over multiple lines if
 the subsequent lines begin with an LWS. In the example in 2.1.2, lines 4 and 5
-define a total of 3 values for the 'Accept:' header.
+define a total of 3 values for the "Accept:" header.
 
 Contrary to a common mis-conception, header names are not case-sensitive, and
 their values are not either if they refer to other header names (such as the
-'Connection:' header).
+"Connection:" header).
 
 The end of the headers is indicated by the first empty line. People often say
 that it's a double line feed, which is not exact, even if a double line feed
@@ -1231,9 +1231,9 @@ fullconn <conns>
     <conns>   is the number of connections on the backend which will make the
               servers use the maximal number of connections.
 
-  When a server has a 'maxconn' parameter specified, it means that its number
+  When a server has a "maxconn" parameter specified, it means that its number
   of concurrent connections will never go higher. Additionally, if it has a
-  'minconn' parameter, it indicates a dynamic limit following the backend's
+  "minconn" parameter, it indicates a dynamic limit following the backend's
   load. The server will then always accept at least <minconn> connections,
   never more than <maxconn>, and the limit will be on the ramp between both
   values when the backend has less than <conns> concurrent connections. This
@@ -1517,7 +1517,7 @@ no option abortonclose
   The per-instance connection queue will inflate, and the response time will
   increase respective to the size of the queue times the average per-session
   response time. When clients will wait for more than a few seconds, they will
-  often hit the 'STOP' button on their browser, leaving a useless request in
+  often hit the "STOP" button on their browser, leaving a useless request in
   the queue, and slowing down other users, and the servers as well, because the
   request will eventually be served, then aborted at the first error
   encountered while delivering the response.
@@ -1530,7 +1530,7 @@ no option abortonclose
   all will close the session while waiting for the response. Some HTTP agents
   support this behaviour (Squid, Apache, HAProxy), and others do not (TUX, most 
   hardware-based load balancers). So the probability for a closed input channel
-  to represent a user hitting the 'STOP' button is close to 100%, and the risk
+  to represent a user hitting the "STOP" button is close to 100%, and the risk
   of being the single component to break rare but valid traffic is extremely
   low, which adds to the temptation to be able to abort a session early while
   still not served and not pollute the servers.
@@ -1589,13 +1589,13 @@ no option checkcache
 
   The option "checkcache" enables deep inspection of all server responses for
   strict compliance with HTTP specification in terms of cachability. It
-  carefully checks 'Cache-control', 'Pragma' and 'Set-cookie' headers in server
+  carefully checks "Cache-control", "Pragma" and "Set-cookie" headers in server
   response to check if there's a risk of caching a cookie on a client-side
   proxy. When this option is enabled, the only responses which can be delivered
-  to the client are : 
-    - all those without 'Set-Cookie' header ;
+  to the client are :
+    - all those without "Set-Cookie" header ;
     - all those with a return code other than 200, 203, 206, 300, 301, 410,
-      provided that the server has not set a 'Cache-control: public' header ;
+      provided that the server has not set a "Cache-control: public" header ;
     - all those that come from a POST request, provided that the server has not
       set a 'Cache-Control: public' header ;
     - those with a 'Pragma: no-cache' header
@@ -1609,7 +1609,7 @@ no option checkcache
       (allowing other fields after set-cookie)
 
   If a response doesn't respect these requirements, then it will be blocked
-  just as if it was from an 'rspdeny' filter, with an "HTTP 502 bad gateway".
+  just as if it was from an "rspdeny" filter, with an "HTTP 502 bad gateway".
   The session state shows "PH--" meaning that the proxy blocked the response
   during headers processing. Additionnaly, an alert will be sent in the logs so
   that admins are informed that there's something to be fixed.
@@ -3176,12 +3176,12 @@ url_reg <regex>
 url_ip <ip_address>
   Applies to the IP address specified in the absolute URI in an HTTP request.
   It can be used to prevent access to certain resources such as local network.
-  It is useful with option 'http_proxy'.
+  It is useful with option "http_proxy".
 
 url_port <integer>
   Applies to the port specified in the absolute URI in an HTTP request. It can
   be used to prevent access to certain resources. It is useful with option
-  'http_proxy'. Note that if the port is not specified in the request, port 80
+  "http_proxy". Note that if the port is not specified in the request, port 80
   is assumed.
 
 hdr <string> 
@@ -3324,8 +3324,115 @@ See section 2.2 for detailed help on the "block" and "use_backend" keywords.
 2.4) Server options
 -------------------
 
+The "server" keyword supports a certain number of settings which are all passed
+as arguments on the server line. The order in which those arguments appear does
+not count, and they are all optional. Some of those settings are single words
+(booleans) while others expect one or several values after them. In this case,
+the values must immediately follow the setting name. All those settings must be
+specified after the server's address if they are used :
+
+  server <name> <address>[:port] [settings ...]
+
+The currently supported settings are the following ones.
+
+addr <ipv4>
+  Using the "addr" parameter, it becomes possible to use a different IP address
+  to send health-checks. On some servers, it may be desirable to dedicate an IP
+  address to specific component able to perform complex tests which are more
+  suitable to health-checks than the application. This parameter is ignored if
+  the "check" parameter is not set. See also the "port" parameter.
+
+backup
+  When "backup" is present on a server line, the server is only used in load
+  balancing when all other non-backup servers are unavailable. Requests coming
+  with a persistence cookie referencing the server will always be served
+  though. By default, only the first operational backup server is used, unless
+  the "useallbackup" option is set in the backend. See also the "useallbackup"
+  option.
+
+check
+  This option enables health checks on the server. By default, a server is
+  always considered available. If "check" is set, the server will receive
+  periodic health checks to ensure that it is really able to serve requests.
+  The default address and port to send the tests to are those of the server,
+  and the default source is the same as the one defined in the backend. It is
+  possible to change the address using the "addr" parameter, the port using the
+  "port" parameter, the source address using the "source" address, and the
+  interval and timers using the "inter", "rise" and "fall" parameters. The
+  request method is define in the backend using the "httpchk", "smtpchk",
+  and "ssl-hello-chk" options. Please refer to those options and parameters for
+  more information.
+
+cookie <value>
+  The "cookie" parameter sets the cookie value assigned to the server to
+  <value>. This value will be checked in incoming requests, and the first
+  operational server possessing the same value will be selected. In return, in
+  cookie insertion or rewrite modes, this value will be assigned to the cookie
+  sent to the client. There is nothing wrong in having several servers sharing
+  the same cookie value, and it is in fact somewhat common between normal and
+  backup servers. See also the "cookie" keyword in backend section.
+
+fall <count>
+  The "fall" parameter states that a server will be considered as dead after
+  <count> consecutive unsuccessful health checks. This value defaults to 3 if
+  unspecified. See also the "check", "inter" and "rise" parameters.
+
+inter <delay>
+  The "inter" parameter sets the interval between two consecutive health checks
+  to <delay> milliseconds. If left unspecified, the delay defaults to 2000 ms.
+  Just as with every other time-based parameter, it can be entered in any other
+  explicit unit among { us, ms, s, m, h, d }. This parameter also serves as a
+  timeout for health checks sent to servers. In order to reduce "resonance"
+  effects when multiple servers are hosted on the same hardware, the
+  health-checks of all servers are started with a small time offset between
+  them. It is also possible to add some random noise in the health checks
+  interval using the global "spread-checks" keyword. This makes sense for
+  instance when a lot of backends use the same servers.
+
+maxconn <maxconn>
+  The "maxconn" parameter specifies the maximal number of concurrent
+  connections that will be sent to this server. If the number of incoming
+  concurrent requests goes higher than this value, they will be queued, waiting
+  for a connection to be released. This parameter is very important as it can
+  save fragile servers from going down under extreme loads. If a "minconn"
+  parameter is specified, the limit becomes dynamic. The default value is "0"
+  which means unlimited. See also the "minconn" and "maxqueue" parameters, and
+  the backend's "fullconn" keyword.
+
+maxqueue <maxqueue>
+  The "maxqueue" parameter specifies the maximal number of connections which
+  will wait in the queue for this server. If this limit is reached, next
+  requests will be redispatched to other servers instead of indefinitely
+  waiting to be served. This will break persistence but may allow people to
+  quickly re-log in when the server they try to connect to is dying. The
+  default value is "0" which means the queue is unlimited. See also the
+  "maxconn" and "minconn" parameters.
+
+minconn <minconn>
+  When the "minconn" parameter is set, the maxconn limit becomes a dynamic
+  limit following the backend's load. The server will always accept at least
+  <minconn> connections, never more than <maxconn>, and the limit will be on
+  the ramp between both values when the backend has less than <fullconn>
+  concurrent connections. This makes it possible to limit the load on the
+  server during normal loads, but push it further for important loads without
+  overloading the server during exceptionnal loads. See also the "maxconn"
+  and "maxqueue" parameters, as well as the "fullconn" backend keyword.
+  
+port <port>
+  Using the "port" parameter, it becomes possible to use a different port to
+  send health-checks. On some servers, it may be desirable to dedicate a port
+  to a specific component able to perform complex tests which are more suitable
+  to health-checks than the application. It is common to run a simple script in
+  inetd for instance. This parameter is ignored if the "check" parameter is not
+  set. See also the "addr" parameter.
+
+rise <count>
+  The "rise" parameter states that a server will be considered as operational
+  after <count> consecutive successful health checks. This value defaults to 2
+  if unspecified. See also the "check", "inter" and "fall" parameters.
+
 slowstart <start_time_in_ms>
-  The 'slowstart' parameter for a server accepts a value in milliseconds which
+  The "slowstart" parameter for a server accepts a value in milliseconds which
   indicates after how long a server which has just come back up will run at
   full speed. Just as with every other time-based parameter, it can be entered
   in any other explicit unit among { us, ms, s, m, h, d }. The speed grows
@@ -3337,12 +3444,28 @@ slowstart <start_time_in_ms>
 
   - weight: when the backend uses a dynamic weighted algorithm, the weight
     grows linearly from 1 to 100%. In this case, the weight is updated at every
-    health-check. For this reason, it is important that the 'inter' parameter
-    is smaller than the 'slowstart', in order to maximize the number of steps.
+    health-check. For this reason, it is important that the "inter" parameter
+    is smaller than the "slowstart", in order to maximize the number of steps.
 
   The slowstart never applies when haproxy starts, otherwise it would cause
   trouble to running servers. It only applies when a server has been previously
   seen as failed.
+
+source <addr>[:<port>] [usesrc { <addr2>[:<port2>] | client | clientip } ]
+  The "source" parameter sets the source address which will be used when
+  connecting to the server. It follows the exact same parameters and principle
+  as the backend "source" keyword, except that it only applies to the server
+  referencing it. Please consult the "source" keyword for details.
+
+weight <weight>
+  The "weight" parameter is used to adjust the server's weight relative to
+  other servers. All servers will receive a load proportional to their weight
+  relative to the sum of all weights, so the higher the weight, the higher the
+  load. The default weight is 1, and the maximal value is 255. If this
+  parameter is used to distribute the load according to server's capacity, it
+  is recommended to start with values which can both grow and shrink, for
+  instance between 10 and 100 to leave enough room above and below for later
+  adjustments.
 
 
 2.5) Logging
