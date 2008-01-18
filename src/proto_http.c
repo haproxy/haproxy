@@ -634,7 +634,7 @@ void process_session(struct task *t, struct timeval *next)
 		/* DEBUG code : this should never ever happen, otherwise it indicates
 		 * that a task still has something to do and will provoke a quick loop.
 		 */
-		if (tv_remain2(&now, &t->expire) <= 0)
+		if (tv_ms_remain2(&now, &t->expire) <= 0)
 			exit(100);
 #endif
 		*next = t->expire;
