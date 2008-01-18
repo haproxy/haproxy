@@ -180,7 +180,6 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	fdtab[fd].peeraddr = NULL;
 	fdtab[fd].peerlen = 0;
 	fdtab[fd].listener = NULL;
-	fdtab[fd].ev = 0;
  tcp_return:
 	if (msg && errlen)
 		strlcpy2(errmsg, msg, errlen);
