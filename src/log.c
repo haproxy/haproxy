@@ -320,7 +320,7 @@ void tcp_sess_log(struct session *s)
 		 (s->logs.t_queue >= 0) ? s->logs.t_queue : -1,
 		 (s->logs.t_connect >= 0) ? s->logs.t_connect - s->logs.t_queue : -1,
 		 (tolog & LW_BYTES) ? "" : "+", s->logs.t_close,
-		 (tolog & LW_BYTES) ? "" : "+", s->logs.bytes_in,
+		 (tolog & LW_BYTES) ? "" : "+", s->logs.bytes_out,
 		 sess_term_cond[(s->flags & SN_ERR_MASK) >> SN_ERR_SHIFT],
 		 sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT],
 		 actconn, fe->feconn, be->beconn, s->srv ? s->srv->cur_sess : 0,
