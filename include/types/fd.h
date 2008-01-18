@@ -45,16 +45,19 @@ enum {
 	DIR_SIZE
 };
 
-
+/*
+ * FD_POLL_IN remains set as long as some data is pending for read.
+ * FD_POLL_OUT remains set as long as the fd accepts to write data.
+ * FD_POLL_ERR and FD_POLL_ERR remain set forever (until processed).
+ */
 #define FD_POLL_IN	0x01
 #define FD_POLL_PRI	0x02
 #define FD_POLL_OUT	0x04
 #define FD_POLL_ERR	0x08
 #define FD_POLL_HUP	0x10
-#define FD_POLL_ANY	0x1F
 
-#define FD_POLL_RD	(FD_POLL_IN  | FD_POLL_ERR | FD_POLL_HUP)
-#define FD_POLL_WR	(FD_POLL_OUT | FD_POLL_ERR | FD_POLL_HUP)
+#define FD_POLL_DATA    (FD_POLL_IN  | FD_POLL_OUT)
+#define FD_POLL_STICKY  (FD_POLL_ERR | FD_POLL_HUP)
 
 /* info about one given fd */
 struct fdtab {

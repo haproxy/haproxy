@@ -74,9 +74,10 @@ void run_poller();
 #define EV_FD_CLO(fd)        (cur_poller.clo(fd))
 
 
-/* recomputes the maxfd limit from the fd */
+/* Prepares <fd> for being polled */
 static inline void fd_insert(int fd)
 {
+	fdtab[fd].ev = 0;
 	if (fd + 1 > maxfd)
 		maxfd = fd + 1;
 }
