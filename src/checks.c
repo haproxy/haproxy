@@ -240,12 +240,12 @@ static int event_srv_chk_w(int fd)
 	task_wakeup(t);
  out_nowake:
 	EV_FD_CLR(fd, DIR_WR);   /* nothing more to write */
-	fdtab[fd].ev &= ~FD_POLL_WR;
+	fdtab[fd].ev &= ~FD_POLL_OUT;
 	return 1;
  out_poll:
 	/* The connection is still pending. We'll have to poll it
 	 * before attempting to go further. */
-	fdtab[fd].ev &= ~FD_POLL_WR;
+	fdtab[fd].ev &= ~FD_POLL_OUT;
 	return 0;
  out_error:
 	s->result |= SRV_CHK_ERROR;
@@ -296,7 +296,7 @@ static int event_srv_chk_r(int fd)
 #endif
 	if (unlikely(len < 0 && errno == EAGAIN)) {
 		/* we want some polling to happen first */
-		fdtab[fd].ev &= ~FD_POLL_RD;
+		fdtab[fd].ev &= ~FD_POLL_IN;
 		return 0;
 	}
 
@@ -346,7 +346,7 @@ static int event_srv_chk_r(int fd)
 
 	EV_FD_CLR(fd, DIR_RD);
 	task_wakeup(t);
-	fdtab[fd].ev &= ~FD_POLL_RD;
+	fdtab[fd].ev &= ~FD_POLL_IN;
 	return 1;
 }
 
@@ -476,7 +476,6 @@ void process_chk(struct task *t, struct timeval *next)
 						fdtab[fd].peeraddr = (struct sockaddr *)&sa;
 						fdtab[fd].peerlen = sizeof(sa);
 						fdtab[fd].state = FD_STCONN; /* connection in progress */
-						fdtab[fd].ev = 0;
 						EV_FD_SET(fd, DIR_WR);  /* for connect status */
 #ifdef DEBUG_FULL
 						assert (!EV_FD_ISSET(fd, DIR_RD));

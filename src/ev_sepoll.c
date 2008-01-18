@@ -16,6 +16,7 @@
 
 #include <common/compat.h>
 #include <common/config.h>
+#include <common/debug.h>
 #include <common/standard.h>
 #include <common/time.h>
 #include <common/tools.h>
@@ -285,7 +286,7 @@ REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 		 * the WAIT status.
 		 */
 
-		fdtab[fd].ev = 0;
+		fdtab[fd].ev &= FD_POLL_STICKY;
 		if ((eo & FD_EV_MASK_R) == FD_EV_SPEC_R) {
 			/* The owner is interested in reading from this FD */
 			if (fdtab[fd].state != FD_STCLOSE && fdtab[fd].state != FD_STERROR) {
@@ -412,7 +413,12 @@ REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 		/* it looks complicated but gcc can optimize it away when constants
 		 * have same values.
 		 */
-		fdtab[fd].ev = 
+		DPRINTF(stderr, "%s:%d: fd=%d, ev=0x%08x, e=0x%08x\n",
+			__FUNCTION__, __LINE__,
+			fd, fdtab[fd].ev, e);
+
+		fdtab[fd].ev &= FD_POLL_STICKY;
+		fdtab[fd].ev |= 
 			((e & EPOLLIN ) ? FD_POLL_IN  : 0) |
 			((e & EPOLLPRI) ? FD_POLL_PRI : 0) |
 			((e & EPOLLOUT) ? FD_POLL_OUT : 0) |
@@ -422,14 +428,14 @@ REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 		if ((fd_list[fd].e & FD_EV_MASK_R) == FD_EV_WAIT_R) {
 			if (fdtab[fd].state == FD_STCLOSE || fdtab[fd].state == FD_STERROR)
 				continue;
-			if (fdtab[fd].ev & (FD_POLL_RD|FD_POLL_HUP|FD_POLL_ERR))
+			if (fdtab[fd].ev & (FD_POLL_IN|FD_POLL_HUP|FD_POLL_ERR))
 				fdtab[fd].cb[DIR_RD].f(fd);
 		}
 
 		if ((fd_list[fd].e & FD_EV_MASK_W) == FD_EV_WAIT_W) {
 			if (fdtab[fd].state == FD_STCLOSE || fdtab[fd].state == FD_STERROR)
 				continue;
-			if (fdtab[fd].ev & (FD_POLL_WR|FD_POLL_ERR))
+			if (fdtab[fd].ev & (FD_POLL_OUT|FD_POLL_ERR))
 				fdtab[fd].cb[DIR_WR].f(fd);
 		}
 	}

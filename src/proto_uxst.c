@@ -276,7 +276,6 @@ static int uxst_bind_listener(struct listener *listener)
 	fdtab[fd].peeraddr = NULL;
 	fdtab[fd].peerlen = 0;
 	fdtab[fd].listener = NULL;
-	fdtab[fd].ev = 0;
 	return ERR_NONE;
 }
 
@@ -499,8 +498,6 @@ int uxst_event_accept(int fd) {
 		fdtab[cfd].cb[DIR_WR].b = s->rep;
 		fdtab[cfd].peeraddr = (struct sockaddr *)&s->cli_addr;
 		fdtab[cfd].peerlen = sizeof(s->cli_addr);
-		fdtab[cfd].ev = 0;
-
 
 		tv_eternity(&s->req->rex);
 		tv_eternity(&s->req->wex);

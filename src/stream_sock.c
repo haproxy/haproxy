@@ -21,6 +21,7 @@
 
 #include <common/compat.h>
 #include <common/config.h>
+#include <common/debug.h>
 #include <common/standard.h>
 #include <common/time.h>
 
@@ -41,25 +42,24 @@
  * otherwise.
  */
 int stream_sock_read(int fd) {
-	__label__ out_eternity, out_wakeup, out_error;
+	__label__ out_eternity, out_wakeup, out_shutdown_r, out_error;
 	struct buffer *b = fdtab[fd].cb[DIR_RD].b;
 	int ret, max, retval;
 	int read_poll = MAX_READ_POLL_LOOPS;
 
 #ifdef DEBUG_FULL
-	fprintf(stderr,"stream_sock_read : fd=%d, owner=%p\n", fd, fdtab[fd].owner);
+	fprintf(stderr,"stream_sock_read : fd=%d, ev=0x%02x, owner=%p\n", fd, fdtab[fd].ev, fdtab[fd].owner);
 #endif
 
 	retval = 1;
 
-	if (unlikely(fdtab[fd].ev & FD_POLL_HUP)) {
-		/* connection closed */
-		b->flags |= BF_READ_NULL;
-		goto out_eternity;
-	}
-	else if (unlikely(fdtab[fd].state == FD_STERROR || (fdtab[fd].ev & FD_POLL_ERR))) {
+	/* stop immediately on errors */
+	if (fdtab[fd].state == FD_STERROR || (fdtab[fd].ev & FD_POLL_ERR))
 		goto out_error;
-	}
+
+	/* stop here if we reached the end of data */
+	if ((fdtab[fd].ev & (FD_POLL_IN|FD_POLL_HUP)) == FD_POLL_HUP)
+		goto out_shutdown_r;
 
 	while (1) {
 		/*
@@ -128,10 +128,15 @@ int stream_sock_read(int fd) {
 
 			/* if too many bytes were missing from last read, it means that
 			 * it's pointless trying to read again because the system does
-			 * not have them in buffers.
+			 * not have them in buffers. BTW, if FD_POLL_HUP was present,
+			 * it means that we have reached the end and that the connection
+			 * is closed.
 			 */
-			if (ret < max)
+			if (ret < max) {
+				if (fdtab[fd].ev & FD_POLL_HUP)
+					goto out_shutdown_r;
 				break;
+			}
 
 			/* generally if we read something smaller than 1 or 2 MSS,
 			 * it means that it's not worth trying to read again. It may
@@ -147,8 +152,7 @@ int stream_sock_read(int fd) {
 		}
 		else if (ret == 0) {
 			/* connection closed */
-			b->flags |= BF_READ_NULL;
-			goto out_eternity;
+			goto out_shutdown_r;
 		}
 		else if (errno == EAGAIN) {
 			/* Ignore EAGAIN but inform the poller that there is
@@ -180,14 +184,20 @@ int stream_sock_read(int fd) {
  out_wakeup:
 	if (b->flags & BF_READ_STATUS)
 		task_wakeup(fdtab[fd].owner);
-	fdtab[fd].ev &= ~FD_POLL_RD;
+	fdtab[fd].ev &= ~FD_POLL_IN;
 	return retval;
+
+ out_shutdown_r:
+	fdtab[fd].ev &= ~FD_POLL_HUP;
+	b->flags |= BF_READ_NULL;
+	goto out_eternity;
 
  out_error:
 	/* There was an error. we must wakeup the task. No need to clear
 	 * the events, the task will do it.
 	 */
 	fdtab[fd].state = FD_STERROR;
+	fdtab[fd].ev &= ~FD_POLL_STICKY;
 	b->flags |= BF_READ_ERROR;
 	goto out_eternity;
 }
@@ -210,7 +220,7 @@ int stream_sock_write(int fd) {
 #endif
 
 	retval = 1;
-	if (unlikely(fdtab[fd].state == FD_STERROR || (fdtab[fd].ev & FD_POLL_ERR)))
+	if (fdtab[fd].state == FD_STERROR || (fdtab[fd].ev & FD_POLL_ERR))
 		goto out_error;
 
 	while (1) {
@@ -337,7 +347,7 @@ int stream_sock_write(int fd) {
  out_wakeup:
 	if (b->flags & BF_WRITE_STATUS)
 		task_wakeup(fdtab[fd].owner);
-	fdtab[fd].ev &= ~FD_POLL_WR;
+	fdtab[fd].ev &= ~FD_POLL_OUT;
 	return retval;
 
  out_error:
@@ -345,6 +355,7 @@ int stream_sock_write(int fd) {
 	 * the events, the task will do it.
 	 */
 	fdtab[fd].state = FD_STERROR;
+	fdtab[fd].ev &= ~FD_POLL_STICKY;
 	b->flags |= BF_WRITE_ERROR;
 	goto out_eternity;
 
