@@ -784,7 +784,7 @@ static void http_sess_log(struct session *s)
 		 (s->logs.t_data >= 0) ? s->logs.t_data - s->logs.t_connect : -1,
 		 (tolog & LW_BYTES) ? "" : "+", s->logs.t_close,
 		 txn->status,
-		 (tolog & LW_BYTES) ? "" : "+", s->logs.bytes_in,
+		 (tolog & LW_BYTES) ? "" : "+", s->logs.bytes_out,
 		 txn->cli_cookie ? txn->cli_cookie : "-",
 		 txn->srv_cookie ? txn->srv_cookie : "-",
 		 sess_term_cond[(s->flags & SN_ERR_MASK) >> SN_ERR_SHIFT],
@@ -3129,12 +3129,11 @@ int process_srv(struct session *t)
 		   bytes from the server, then this is the right moment. */
 		if (t->fe->to_log && !(t->logs.logwait & LW_BYTES)) {
 			t->logs.t_close = t->logs.t_data; /* to get a valid end date */
-			t->logs.bytes_in = txn->rsp.eoh;
+			t->logs.bytes_out = txn->rsp.eoh;
 			if (t->fe->to_log & LW_REQ)
 				http_sess_log(t);
 			else
 				tcp_sess_log(t);
-			t->logs.bytes_in = 0;
 		}
 
 		/* Note: we must not try to cheat by jumping directly to DATA,
