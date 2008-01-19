@@ -1015,12 +1015,13 @@ int assign_server_address(struct session *s)
 	}
 	else if (s->fe->options & PR_O_TRANSP) {
 		/* in transparent mode, use the original dest addr if no dispatch specified */
-		socklen_t salen = sizeof(s->srv_addr);
+		if (!(s->flags & SN_FRT_ADDR_SET))
+			get_frt_addr(s);
 
-		if (get_original_dst(s->cli_fd, &s->srv_addr, &salen) == -1) {
-			qfprintf(stderr, "Cannot get original server address.\n");
-			return SRV_STATUS_INTERNAL;
-		}
+		memcpy(&s->srv_addr, &s->frt_addr, MIN(sizeof(s->srv_addr), sizeof(s->frt_addr)));
+		/* when we support IPv6 on the backend, we may add other tests */
+		//qfprintf(stderr, "Cannot get original server address.\n");
+		//return SRV_STATUS_INTERNAL;
 	}
 	else if (s->be->options & PR_O_HTTP_PROXY) {
 		/* If HTTP PROXY option is set, then server is already assigned
