@@ -451,8 +451,8 @@ void process_chk(struct task *t, struct timeval *next)
 						memset(&itp1, 0, sizeof(itp1));
 						
 						itp1.op = TPROXY_ASSIGN;
-						itp1.v.addr.faddr = s->tproxy_addr.sin_addr;
-						itp1.v.addr.fport = s->tproxy_addr.sin_port;
+						itp1.v.addr.faddr = s->proxy->tproxy_addr.sin_addr;
+						itp1.v.addr.fport = s->proxy->tproxy_addr.sin_port;
 						
 						/* set connect flag on socket */
 						itp2.op = TPROXY_FLAGS;
