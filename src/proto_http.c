@@ -3102,7 +3102,9 @@ int process_srv(struct session *t)
 		}
 #endif
 		/* if the user wants to log as soon as possible, without counting
-		   bytes from the server, then this is the right moment. */
+		 * bytes from the server, then this is the right moment. We have
+		 * to temporarily assign bytes_out to log what we currently have.
+		 */
 		if (t->fe->to_log && !(t->logs.logwait & LW_BYTES)) {
 			t->logs.t_close = t->logs.t_data; /* to get a valid end date */
 			t->logs.bytes_out = txn->rsp.eoh;
@@ -3110,6 +3112,7 @@ int process_srv(struct session *t)
 				http_sess_log(t);
 			else
 				tcp_sess_log(t);
+			t->logs.bytes_out = 0;
 		}
 
 		/* Note: we must not try to cheat by jumping directly to DATA,
