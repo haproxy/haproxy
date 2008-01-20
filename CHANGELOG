@@ -1,6 +1,25 @@
 ChangeLog :
 ===========
 
+2008/01/21 : 1.3.14.2
+    - bug: increment server connections for each connect()
+    - bug: fix typo in redispatched connection
+    - bug: connect_server: server might not exist when sending error report
+    - bug: use backend's source and not server's source with tproxy
+    - bug: fix overlapping server flags
+    - bug: log response byte count, not request
+    - bug: fix truncated responses with sepoll
+    - large update to the configuration manual
+    - major rework of the GNU Makefile
+    - provide inversion for some options
+    - add support for "show info" on the unix socket
+    - add support for the "backlog" parameter
+    - introduce global parameter "tune.maxaccept"
+    - introduce "timeout http-request" in frontends
+    - tarpit timeout is also allowed in backends
+    - code did not build in full debug mode
+    - fix configuration hint about timeouts
+
 2007/12/24 : 1.3.14.1
     - transparent proxy address was ignored in backend
     - hot reconfiguration failed because of a wrong error check
