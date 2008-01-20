@@ -1,6 +1,17 @@
 ChangeLog :
 ===========
 
+2008/01/21 : 1.3.13.2
+    - assign connection timeouts to backend not frontend
+    - bug: fix missing parenthesis in check_response_for_cacheability
+    - bug: transparent proxy address was ignored in backend
+    - bug: hot reconfiguration failed because of a wrong error check
+    - bug: fix typo in redispatched connection
+    - bug: connect_server: server might not exist when sending error report
+    - bug: use backend's source and not server's source with tproxy
+    - bug: log response byte count, not request
+    - bug: fix truncated responses with sepoll
+
 2007/11/04 : 1.3.13.1
     - Check for duplicated conflicting proxies (Krzysztof Oledzki)
     - adjust error messages about conflicting proxies
