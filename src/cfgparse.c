@@ -2781,7 +2781,7 @@ int readcfgfile(const char *file)
 			Warning("parsing %s : missing timeouts for %s '%s'.\n"
 				"   | While not properly invalid, you will certainly encounter various problems\n"
 				"   | with such a configuration. To fix this, please ensure that all following\n"
-				"   | values are set to a non-zero value: clitimeout, contimeout, srvtimeout.\n",
+				"   | timeouts are set to a non-zero value: 'client', 'connect', 'server'.\n",
 				file, proxy_type_str(curproxy), curproxy->id);
 		}
 
