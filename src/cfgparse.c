@@ -679,6 +679,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		if (curproxy->cap & PR_CAP_BE) {
 			curproxy->timeout.connect = defproxy.timeout.connect;
 			curproxy->timeout.server = defproxy.timeout.server;
+			curproxy->timeout.check = defproxy.timeout.check;
 			curproxy->timeout.queue = defproxy.timeout.queue;
 			curproxy->timeout.tarpit = defproxy.timeout.tarpit;
 			curproxy->source_addr = defproxy.source_addr;
@@ -1529,6 +1530,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 
 		newsrv->curfd = -1; /* no health-check in progress */
 		newsrv->inter = DEF_CHKINTR;
+		newsrv->fastinter = 0;		/* 0 => use newsrv->inter instead */
+		newsrv->downinter = 0;		/* 0 => use newsrv->inter instead */
 		newsrv->rise = DEF_RISETIME;
 		newsrv->fall = DEF_FALLTIME;
 		newsrv->health = newsrv->rise; /* up, but will fall down at first failure */
@@ -1560,6 +1563,26 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 					return -1;
 				}
 				newsrv->inter = val;
+				cur_arg += 2;
+			}
+			else if (!strcmp(args[cur_arg], "fastinter")) {
+				const char *err = parse_time_err(args[cur_arg + 1], &val, TIME_UNIT_MS);
+				if (err) {
+					Alert("parsing [%s:%d]: unexpected character '%c' in 'fastinter' argument of server %s.\n",
+					      file, linenum, *err, newsrv->id);
+					return -1;
+				}
+				newsrv->fastinter = val;
+				cur_arg += 2;
+			}
+			else if (!strcmp(args[cur_arg], "downinter")) {
+				const char *err = parse_time_err(args[cur_arg + 1], &val, TIME_UNIT_MS);
+				if (err) {
+					Alert("parsing [%s:%d]: unexpected character '%c' in 'downinter' argument of server %s.\n",
+					      file, linenum, *err, newsrv->id);
+					return -1;
+				}
+				newsrv->downinter = val;
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "addr")) {
@@ -1667,7 +1690,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 				return -1;
 			}
 			else {
-				Alert("parsing [%s:%d] : server %s only supports options 'backup', 'cookie', 'check', 'inter', 'rise', 'fall', 'addr', 'port', 'source', 'minconn', 'maxconn', 'maxqueue', 'slowstart' and 'weight'.\n",
+				Alert("parsing [%s:%d] : server %s only supports options 'backup', 'cookie', 'check', 'inter', 'fastinter', 'downinter', 'rise', 'fall', 'addr', 'port', 'source', 'minconn', 'maxconn', 'maxqueue', 'slowstart' and 'weight'.\n",
 				      file, linenum, newsrv->id);
 				return -1;
 			}

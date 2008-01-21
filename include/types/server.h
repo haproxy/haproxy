@@ -93,7 +93,7 @@ struct server {
 	short check_port;			/* the port to use for the health checks */
 	int health;				/* 0->rise-1 = bad; rise->rise+fall-1 = good */
 	int rise, fall;				/* time in iterations */
-	int inter;				/* time in milliseconds */
+	int inter, fastinter, downinter;	/* checks: time in milliseconds */
 	int slowstart;				/* slowstart time in seconds (ms in the conf) */
 	int result;				/* health-check result : SRV_CHK_* */
 	int curfd;				/* file desc used for current test, or -1 if not in test */

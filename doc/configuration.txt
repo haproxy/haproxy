@@ -598,6 +598,7 @@ stats refresh               X          -         X         X
 stats scope                 X          -         X         X
 stats uri                   X          -         X         X
 stats hide-version          X          -         X         X
+timeout check               X          -         X         X
 timeout client              X          X         X         -
 timeout clitimeout          X          X         X         -  (deprecated)
 timeout connect             X          -         X         X
@@ -3052,6 +3053,38 @@ stats hide-version
   See also : "stats auth", "stats enable", "stats realm", "stats uri"
 
 
+timeout check <timeout>
+  Set additional check timeout, but only after a connection has been already
+  established.
+
+  May be used in sections:    defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments:
+    <timeout> is the timeout value specified in milliseconds by default, but
+              can be in any other unit if the number is suffixed by the unit,
+              as explained at the top of this document.
+
+  If set, haproxy uses min("timeout connect", "inter") as a connect timeout
+  for check and "timeout check" as an additional read timeout. The "min" is
+  used so that people running with *very* long "timeout connect" (eg. those
+  who needed this due to the queue or tarpit) do not slow down their checks.
+  Of course it is better to use "check queue" and "check tarpit" instead of
+  long "timeout connect".
+
+  If "timeout check" is not set haproxy uses "inter" for complete check
+  timeout (connect + read) exactly like all <1.3.15 version.
+
+  In most cases check request is much simpler and faster to handle than normal
+  requests and people may want to kick out laggy servers so this timeout should
+  be smaller than "timeout server". 
+
+  This parameter is specific to backends, but can be specified once for all in
+  "defaults" sections. This is in fact one of the easiest solutions not to
+  forget about it.
+
+  See also: "timeout connect", "timeout queue", "timeout server", "timeout tarpit".
+
+
 timeout client <timeout>
 timeout clitimeout <timeout> (deprecated)
   Set the maximum inactivity time on the client side.
@@ -3102,8 +3135,8 @@ timeout contimeout <timeout> (deprecated)
   immediate (less than a few milliseconds). Anyway, it is a good practise to
   cover one or several TCP packet losses by specifying timeouts that are 
   slightly above multiples of 3 seconds (eg: 4 or 5 seconds). By default, the
-  connect timeout also presets the queue timeout to the same value if this one
-  has not been specified.
+  connect timeout also presets both queue and tarpit timeouts to the same value
+  if these have not been specified.
 
   This parameter is specific to backends, but can be specified once for all in
   "defaults" sections. This is in fact one of the easiest solutions not to
@@ -3116,7 +3149,7 @@ timeout contimeout <timeout> (deprecated)
   to use it to write new configurations. The form "timeout contimeout" is
   provided only by backwards compatibility but its use is strongly discouraged.
 
-  See also : "timeout queue", "timeout server", "contimeout".
+  See also: "timeout check", "timeout queue", "timeout server", "timeout tarpit" "contimeout".
 
 
 timeout http-request <timeout>
@@ -3739,16 +3772,24 @@ fall <count>
   unspecified. See also the "check", "inter" and "rise" parameters.
 
 inter <delay>
+fastinter <delay>
+downinter <delay>
   The "inter" parameter sets the interval between two consecutive health checks
   to <delay> milliseconds. If left unspecified, the delay defaults to 2000 ms.
-  Just as with every other time-based parameter, it can be entered in any other
-  explicit unit among { us, ms, s, m, h, d }. This parameter also serves as a
-  timeout for health checks sent to servers. In order to reduce "resonance"
-  effects when multiple servers are hosted on the same hardware, the
-  health-checks of all servers are started with a small time offset between
-  them. It is also possible to add some random noise in the health checks
-  interval using the global "spread-checks" keyword. This makes sense for
-  instance when a lot of backends use the same servers.
+  It is also possible to use "fastinter" and "downinter" to optimize delays
+  between checks. When server state is:
+   - non-transitionally UP -> haproxy uses inter,
+   - transitionally UP (going down), unchecked or transitionally DOWN (going up)
+        -> haproxy uses "fastinter" if set or "inter" otherwise,
+   - down -> haproxy uses downinter if set or "inter" otherwise.
+  Just as with every other time-based parameter, they can be entered in any other
+  explicit unit among { us, ms, s, m, h, d }. The "inter" parameter also serves
+  as a timeout for health checks sent to servers if "timeout check" is not set.
+  In order to reduce "resonance" effects when multiple servers are hosted on
+  the same hardware, the health-checks of all servers are started with a small
+  time offset between them. It is also possible to add some random noise in the
+  health checks interval using the global "spread-checks" keyword. This makes
+  sense for instance when a lot of backends use the same servers.
 
 maxconn <maxconn>
   The "maxconn" parameter specifies the maximal number of concurrent

@@ -32,6 +32,7 @@
 #include <proto/queue.h>
 
 int srv_downtime(struct server *s);
+int srv_getinter(struct server *s);
 
 #endif /* _PROTO_SERVER_H */
 

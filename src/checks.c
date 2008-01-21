@@ -171,6 +171,7 @@ static int event_srv_chk_w(int fd)
 	struct task *t = fdtab[fd].owner;
 	struct server *s = t->context;
 
+	//fprintf(stderr, "event_srv_chk_w, state=%ld\n", unlikely(fdtab[fd].state));
 	if (unlikely(fdtab[fd].state == FD_STERROR || (fdtab[fd].ev & FD_POLL_ERR)))
 		goto out_error;
 
@@ -198,6 +199,10 @@ static int event_srv_chk_w(int fd)
 			ret = send(fd, s->proxy->check_req, s->proxy->check_len, MSG_DONTWAIT | MSG_NOSIGNAL);
 #endif
 			if (ret == s->proxy->check_len) {
+				/* we allow up to <timeout.check> if nonzero for a responce */
+				//fprintf(stderr, "event_srv_chk_w, ms=%lu\n", __tv_to_ms(&s->proxy->timeout.check));
+				tv_add_ifset(&t->expire, &now, &s->proxy->timeout.check);
+
 				EV_FD_SET(fd, DIR_RD);   /* prepare for reading reply */
 				goto out_nowake;
 			}
@@ -462,6 +467,8 @@ void process_chk(struct task *t, struct timeval *next)
 
 				if (s->result == SRV_CHK_UNKNOWN) {
 					if ((connect(fd, (struct sockaddr *)&sa, sizeof(sa)) != -1) || (errno == EINPROGRESS)) {
+						struct timeval tv_con;
+
 						/* OK, connection in progress or established */
 			
 						//fprintf(stderr, "process_chk: 4\n");
@@ -480,8 +487,17 @@ void process_chk(struct task *t, struct timeval *next)
 #ifdef DEBUG_FULL
 						assert (!EV_FD_ISSET(fd, DIR_RD));
 #endif
-						/* FIXME: we allow up to <inter> for a connection to establish, but we should use another parameter */
+						//fprintf(stderr, "process_chk: 4+, %lu\n", __tv_to_ms(&s->proxy->timeout.connect));
+						/* we allow up to min(inter, timeout.connect) for a connection
+						 * to establish but only when timeout.check is set
+						 * as it may be to short for a full check otherwise
+						 */
+						tv_add(&tv_con, &now, &s->proxy->timeout.connect);
 						tv_ms_add(&t->expire, &now, s->inter);
+
+						if (tv_isset(&s->proxy->timeout.check))
+							tv_bound(&t->expire, &tv_con);
+
 						task_queue(t);	/* restore t to its place in the task list */
 						*next = t->expire;
 						return;
@@ -509,10 +525,20 @@ void process_chk(struct task *t, struct timeval *next)
 		else
 			set_server_down(s);
 
-		//fprintf(stderr, "process_chk: 7\n");
-		/* FIXME: we allow up to <inter> for a connection to establish, but we should use another parameter */
-		while (tv_isle(&t->expire, &now))
+		//fprintf(stderr, "process_chk: 7, %lu\n", __tv_to_ms(&s->proxy->timeout.connect));
+		/* we allow up to min(inter, timeout.connect) for a connection
+		 * to establish but only when timeout.check is set
+		 * as it may be to short for a full check otherwise
+		 */
+		while (tv_isle(&t->expire, &now)) {
+			struct timeval tv_con;
+
+			tv_add(&tv_con, &t->expire, &s->proxy->timeout.connect);
 			tv_ms_add(&t->expire, &t->expire, s->inter);
+
+			if (tv_isset(&s->proxy->timeout.check))
+				tv_bound(&t->expire, &tv_con);
+		}
 		goto new_chk;
 	}
 	else {
@@ -647,11 +673,11 @@ void process_chk(struct task *t, struct timeval *next)
 
 			rv = 0;
 			if (global.spread_checks > 0) {
-				rv = s->inter * global.spread_checks / 100;
+				rv = srv_getinter(s) * global.spread_checks / 100;
 				rv -= (int) (2 * rv * (rand() / (RAND_MAX + 1.0)));
-				//fprintf(stderr, "process_chk(%p): (%d+/-%d%%) random=%d\n", s, s->inter, global.spread_checks, rv);
+				//fprintf(stderr, "process_chk(%p): (%d+/-%d%%) random=%d\n", s, srv_getinter(s), global.spread_checks, rv);
 			}
-			tv_ms_add(&t->expire, &now, s->inter + rv);
+			tv_ms_add(&t->expire, &now, srv_getinter(s) + rv);
 			goto new_chk;
 		}
 		else if ((s->result & SRV_CHK_ERROR) || tv_isle(&t->expire, &now)) {
@@ -668,11 +694,11 @@ void process_chk(struct task *t, struct timeval *next)
 
 			rv = 0;
 			if (global.spread_checks > 0) {
-				rv = s->inter * global.spread_checks / 100;
+				rv = srv_getinter(s) * global.spread_checks / 100;
 				rv -= (int) (2 * rv * (rand() / (RAND_MAX + 1.0)));
-				//fprintf(stderr, "process_chk(%p): (%d+/-%d%%) random=%d\n", s, s->inter, global.spread_checks, rv);
+				//fprintf(stderr, "process_chk(%p): (%d+/-%d%%) random=%d\n", s, srv_getinter(s), global.spread_checks, rv);
 			}
-			tv_ms_add(&t->expire, &now, s->inter + rv);
+			tv_ms_add(&t->expire, &now, srv_getinter(s) + rv);
 			goto new_chk;
 		}
 		/* if result is unknown and there's no timeout, we have to wait again */
@@ -708,9 +734,9 @@ int start_checks() {
 			if (!(s->state & SRV_CHECKED))
 				continue;
 
-			if ((s->inter >= SRV_CHK_INTER_THRES) &&
-			    (!mininter || mininter > s->inter))
-				mininter = s->inter;
+			if ((srv_getinter(s) >= SRV_CHK_INTER_THRES) &&
+			    (!mininter || mininter > srv_getinter(s)))
+				mininter = srv_getinter(s);
 
 			nbchk++;
 		}
@@ -744,7 +770,7 @@ int start_checks() {
 
 			/* check this every ms */
 			tv_ms_add(&t->expire, &now,
-				  ((mininter && mininter >= s->inter) ? mininter : s->inter) * srvpos / nbchk);
+				  ((mininter && mininter >= srv_getinter(s)) ? mininter : srv_getinter(s)) * srvpos / nbchk);
 			task_queue(t);
 
 			srvpos++;

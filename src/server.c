@@ -2,6 +2,7 @@
  * Server management functions.
  *
  * Copyright 2000-2006 Willy Tarreau <w@1wt.eu>
+ * Copyright 2007-2008 Krzysztof Piotr Oledzki <ole@ans.pl>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -24,6 +25,18 @@ int srv_downtime(struct server *s) {
 
 	return now.tv_sec - s->last_change + s->down_time;
 }
+
+int srv_getinter(struct server *s) {
+
+	if ((s->state & SRV_CHECKED) && (s->health == s->rise + s->fall - 1))
+		return s->inter;
+
+	if (!(s->state & SRV_RUNNING) && s->health==0)
+		return (s->downinter)?(s->downinter):(s->inter);
+
+	return (s->fastinter)?(s->fastinter):(s->inter);
+}
+
 
 /*
  * Local variables:
