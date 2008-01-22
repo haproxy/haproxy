@@ -116,6 +116,7 @@ static const struct {
 };
 
 
+static char *cursection = NULL;
 static struct proxy defproxy;		/* fake proxy used to assign default values on all instances */
 int cfg_maxpconn = DEFAULT_MAXCONN;	/* # of simultaneous connections per proxy (-N) */
 int cfg_maxconn = 0;		/* # of simultaneous connections, (-n) */
@@ -2469,7 +2470,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		}
 	}
 	else {
-		Alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section\n", file, linenum, args[0], "listen");
+		Alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section\n", file, linenum, args[0], cursection);
 		return -1;
 	}
 	return 0;
@@ -2512,7 +2513,7 @@ int readcfgfile(const char *file)
 			 */
 			Alert("parsing [%s:%d]: line too long, limit: %d.\n",
 				file, linenum, sizeof(thisline)-1);
-			return -1;
+			goto err;
 		}
 
 		/* skip leading spaces */
@@ -2556,7 +2557,7 @@ int readcfgfile(const char *file)
 					}
 					else {
 						Alert("parsing [%s:%d] : invalid or incomplete '\\x' sequence in '%s'.\n", file, linenum, args[0]);
-						return -1;
+						goto err;
 					}
 				}
 				if (skip) {
@@ -2601,33 +2602,44 @@ int readcfgfile(const char *file)
 
 		if (inv && strcmp(args[0], "option")) {
 			Alert("parsing [%s:%d]: negation currently supported only for options.\n", file, linenum);
-			return -1;
+			goto err;
 		}
 
 		if (!strcmp(args[0], "listen") ||
 		    !strcmp(args[0], "frontend") ||
 		    !strcmp(args[0], "backend") ||
 		    !strcmp(args[0], "ruleset") ||
-		    !strcmp(args[0], "defaults"))  /* new proxy */
+		    !strcmp(args[0], "defaults")) { /* new proxy */
 			confsect = CFG_LISTEN;
-		else if (!strcmp(args[0], "global"))  /* global config */
+			if (cursection)
+				free(cursection);
+			cursection = strdup(args[0]);
+		}
+		else if (!strcmp(args[0], "global")) { /* global config */
 			confsect = CFG_GLOBAL;
+			if (cursection)
+				free(cursection);
+			cursection = strdup(args[0]);
+		}
 		/* else it's a section keyword */
 
 		switch (confsect) {
 		case CFG_LISTEN:
 			if (cfg_parse_listen(file, linenum, args, inv) < 0)
-				return -1;
+				goto err;
 			break;
 		case CFG_GLOBAL:
 			if (cfg_parse_global(file, linenum, args, inv) < 0)
-				return -1;
+				goto err;
 			break;
 		default:
 			Alert("parsing [%s:%d] : unknown keyword '%s' out of section.\n", file, linenum, args[0]);
-			return -1;
+			goto err;
 		}
 	}
+	if (cursection)
+		free(cursection);
+	cursection = NULL;
 	fclose(f);
 
 	/*
@@ -2640,7 +2652,7 @@ int readcfgfile(const char *file)
 	if ((curproxy = proxy) == NULL) {
 		Alert("parsing %s : no <listen> line. Nothing to do !\n",
 		      file);
-		return -1;
+		goto err;
 	}
 
 	while (curproxy != NULL) {
@@ -2910,7 +2922,7 @@ int readcfgfile(const char *file)
 			} else if (newsrv->minconn != newsrv->maxconn && !curproxy->fullconn) {
 				Alert("parsing %s, %s '%s' : fullconn is mandatory when minconn is set on a server.\n",
 				      file, proxy_type_str(curproxy), curproxy->id, linenum);
-				return -1;
+				goto err;
 			}
 
 			if (newsrv->maxconn > 0) {
@@ -2918,7 +2930,7 @@ int readcfgfile(const char *file)
 
 				if ((t = pool_alloc2(pool2_task)) == NULL) {
 					Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
-					return -1;
+					goto err;
 				}
 		
 				t->qlist.p = NULL;
@@ -2954,7 +2966,7 @@ int readcfgfile(const char *file)
 
 	if (cfgerr > 0) {
 		Alert("Errors found in configuration file, aborting.\n");
-		return -1;
+		goto err;
 	}
 
 	/*
@@ -2972,7 +2984,16 @@ int readcfgfile(const char *file)
 		}
 	}
 
+	if (cursection)
+		free(cursection);
+	cursection = NULL;
 	return 0;
+
+ err:
+	if (cursection)
+		free(cursection);
+	cursection = NULL;
+	return -1;
 }
 
 
