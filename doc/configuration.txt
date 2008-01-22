@@ -4,13 +4,18 @@
                          ----------------------
                             version 1.3.15
                              willy tarreau
-                               2008/01/17
+                              2008/01/22
 
 
 This document covers the configuration language as implemented in the version
 specified above. It does not provide any hint, example or advice. For such
 documentation, please refer to the Reference Manual or the Architecture Manual.
 
+Note to documentation contributors : this document is formated with 80 columns
+per line, with even number of spaces for indentation and without tabs. Please
+follow these rules strictly so that it remains easily printable everywhere. If
+a line needs to be printed verbatim and does not fit, please end each line with
+a backslash ('\') and continue on next line.
 
 HAProxy's configuration process involves 3 major sources of parameters :
 
@@ -3076,13 +3081,14 @@ timeout check <timeout>
 
   In most cases check request is much simpler and faster to handle than normal
   requests and people may want to kick out laggy servers so this timeout should
-  be smaller than "timeout server". 
+  be smaller than "timeout server".
 
   This parameter is specific to backends, but can be specified once for all in
   "defaults" sections. This is in fact one of the easiest solutions not to
   forget about it.
 
-  See also: "timeout connect", "timeout queue", "timeout server", "timeout tarpit".
+  See also: "timeout connect", "timeout queue", "timeout server",
+            "timeout tarpit".
 
 
 timeout client <timeout>
@@ -3149,7 +3155,8 @@ timeout contimeout <timeout> (deprecated)
   to use it to write new configurations. The form "timeout contimeout" is
   provided only by backwards compatibility but its use is strongly discouraged.
 
-  See also: "timeout check", "timeout queue", "timeout server", "timeout tarpit" "contimeout".
+  See also: "timeout check", "timeout queue", "timeout server", "contimeout",
+            "timeout tarpit".
 
 
 timeout http-request <timeout>
@@ -3777,19 +3784,28 @@ downinter <delay>
   The "inter" parameter sets the interval between two consecutive health checks
   to <delay> milliseconds. If left unspecified, the delay defaults to 2000 ms.
   It is also possible to use "fastinter" and "downinter" to optimize delays
-  between checks. When server state is:
-   - non-transitionally UP -> haproxy uses inter,
-   - transitionally UP (going down), unchecked or transitionally DOWN (going up)
-        -> haproxy uses "fastinter" if set or "inter" otherwise,
-   - down -> haproxy uses downinter if set or "inter" otherwise.
-  Just as with every other time-based parameter, they can be entered in any other
-  explicit unit among { us, ms, s, m, h, d }. The "inter" parameter also serves
-  as a timeout for health checks sent to servers if "timeout check" is not set.
-  In order to reduce "resonance" effects when multiple servers are hosted on
-  the same hardware, the health-checks of all servers are started with a small
-  time offset between them. It is also possible to add some random noise in the
-  health checks interval using the global "spread-checks" keyword. This makes
-  sense for instance when a lot of backends use the same servers.
+  between checks depending on the server state :
+
+             Server state            |             Interval used
+    ---------------------------------+-----------------------------------------
+     UP 100% (non-transitional)      | "inter"
+    ---------------------------------+-----------------------------------------
+     Transitionally UP (going down), |
+     Transitionally DOWN (going up), | "fastinter" if set, "inter" otherwise.
+     or yet unchecked.               |
+    ---------------------------------+-----------------------------------------
+     DOWN 100% (non-transitional)    | "downinter" if set, "inter" otherwise.
+    ---------------------------------+-----------------------------------------
+    
+  Just as with every other time-based parameter, they can be entered in any
+  other explicit unit among { us, ms, s, m, h, d }. The "inter" parameter also
+  serves as a timeout for health checks sent to servers if "timeout check" is
+  not set. In order to reduce "resonance" effects when multiple servers are
+  hosted on the same hardware, the health-checks of all servers are started
+  with a small time offset between them. It is also possible to add some random
+  noise in the health checks interval using the global "spread-checks"
+  keyword. This makes sense for instance when a lot of backends use the same
+  servers.
 
 maxconn <maxconn>
   The "maxconn" parameter specifies the maximal number of concurrent
