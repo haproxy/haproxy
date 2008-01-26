@@ -204,12 +204,12 @@ typedef enum {
  *                             which marks the end of the line (LF or CRLF).
  */
 struct http_msg {
-	int msg_state;                  /* where we are in the current message parsing */
+	unsigned int msg_state;         /* where we are in the current message parsing */
 	char *sol;                      /* start of line, also start of message when fully parsed */
 	char *eol;                      /* end of line */
-	int som;			/* Start Of Message, relative to buffer */
-	int col, sov;			/* current header: colon, start of value */
-	int eoh;			/* End Of Headers, relative to buffer */
+	unsigned int som;		/* Start Of Message, relative to buffer */
+	unsigned int col, sov;		/* current header: colon, start of value */
+	unsigned int eoh;		/* End Of Headers, relative to buffer */
 	char **cap;			/* array of captured headers (may be NULL) */
 	union {				/* useful start line pointers, relative to buffer */
 		struct {

@@ -937,9 +937,9 @@ void capture_headers(char *som, struct hdr_idx *idx,
  * within its state machine and use the same macros, hence the need for same
  * labels and variable names. Note that msg->sol is left unchanged.
  */
-const char *http_parse_stsline(struct http_msg *msg, const char *msg_buf, int state,
-			       const char *ptr, const char *end,
-			       char **ret_ptr, int *ret_state)
+const char *http_parse_stsline(struct http_msg *msg, const char *msg_buf,
+			       unsigned int state, const char *ptr, const char *end,
+			       char **ret_ptr, unsigned int *ret_state)
 {
 	__label__
 		http_msg_rpver,
@@ -1060,9 +1060,9 @@ const char *http_parse_stsline(struct http_msg *msg, const char *msg_buf, int st
  * within its state machine and use the same macros, hence the need for same
  * labels and variable names. Note that msg->sol is left unchanged.
  */
-const char *http_parse_reqline(struct http_msg *msg, const char *msg_buf, int state,
-			       const char *ptr, const char *end,
-			       char **ret_ptr, int *ret_state)
+const char *http_parse_reqline(struct http_msg *msg, const char *msg_buf,
+			       unsigned int state, const char *ptr, const char *end,
+			       char **ret_ptr, unsigned int *ret_state)
 {
 	__label__
 		http_msg_rqmeth,
@@ -1206,7 +1206,7 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 		http_msg_ood,     /* out of data */
 		http_msg_invalid;
 
-	int state;                /* updated only when leaving the FSM */
+	unsigned int state;       /* updated only when leaving the FSM */
 	register char *ptr, *end; /* request pointers, to avoid dereferences */
 
 	state = msg->msg_state;
