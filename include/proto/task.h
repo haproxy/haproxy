@@ -55,7 +55,7 @@ static inline struct task *__task_wakeup(struct task *t)
 	DLIST_ADD(run_queue, &t->qlist);
 	t->state = TASK_RUNNING;
 
-	if (likely(t->wq)) {
+	if (likely(t->wq != NULL)) {
 		tree_delete(t->wq);
 		t->wq = NULL;
 	}

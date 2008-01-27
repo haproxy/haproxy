@@ -786,7 +786,7 @@ static struct server *fwrr_get_next_server(struct proxy *p)
 	fwrr_queue_srv(srv);
 
  requeue_servers:
-	if (unlikely(full)) {
+	if (unlikely(full != NULL)) {
 		if (switched) {
 			/* the tree has switched, requeue all extracted servers
 			 * into "init", because their place was lost, and only

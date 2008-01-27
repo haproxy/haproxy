@@ -1,6 +1,6 @@
 /*
  * Elastic Binary Trees - generic macros and structures.
- * (C) 2002-2007 - Willy Tarreau <w@1wt.eu>
+ * (C) 2002-2008 - Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -307,13 +307,23 @@ static inline int fls64(unsigned long long x)
  * this in inline functions, because the code reordering it causes very often
  * has a negative impact on the calling functions.
  */
-#if __GNUC__ < 3 && !defined(__builtin_expect)
+#if !defined(likely)
+#if __GNUC__ < 3
 #define __builtin_expect(x,y) (x)
-#endif
-
-#ifndef likely
+#define likely(x) (x)
+#define unlikely(x) (x)
+#elif __GNUC__ < 4
+/* gcc 3.x does the best job at this */
 #define likely(x) (__builtin_expect((x) != 0, 1))
 #define unlikely(x) (__builtin_expect((x) != 0, 0))
+#else
+/* GCC 4.x is stupid, it performs the comparison then compares it to 1,
+ * so we cheat in a dirty way to prevent it from doing this. This will
+ * only work with ints and booleans though.
+ */
+#define likely(x) (x)
+#define unlikely(x) (__builtin_expect((x), 0))
+#endif
 #endif
 
 /* Support passing function parameters in registers. For this, the

@@ -68,7 +68,7 @@ struct task *task_queue(struct task *task)
 		task->qlist.p = NULL;
 	}
 
-	if (unlikely(task->wq)) {
+	if (unlikely(task->wq != NULL)) {
 		tree_delete(task->wq);
 		task->wq = NULL;
 	}

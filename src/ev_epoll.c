@@ -142,7 +142,7 @@ REGPRM2 static void alloc_chg_list(const int fd, int old_evt)
 {
 	struct fd_chg *ptr;
 
-	if (unlikely(chg_ptr[fd]))
+	if (unlikely(chg_ptr[fd] != NULL))
 		return;
 
 #if LIMIT_NUMBER_OF_CHANGES

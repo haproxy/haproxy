@@ -2,7 +2,7 @@
   include/common/standard.h
   This files contains some general purpose functions and macros.
 
-  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -46,13 +46,24 @@
  * helps the compiler produce the most compact critical paths, which is
  * generally better for the cache and to reduce the number of jumps.
  */
+#if !defined(likely)
 #if __GNUC__ < 3
 #define __builtin_expect(x,y) (x)
-#endif
-
+#define likely(x) (x)
+#define unlikely(x) (x)
+#elif __GNUC__ < 4
+/* gcc 3.x does the best job at this */
 #define likely(x) (__builtin_expect((x) != 0, 1))
 #define unlikely(x) (__builtin_expect((x) != 0, 0))
-
+#else
+/* GCC 4.x is stupid, it performs the comparison then compares it to 1,
+ * so we cheat in a dirty way to prevent it from doing this. This will
+ * only work with ints and booleans though.
+ */
+#define likely(x) (x)
+#define unlikely(x) (__builtin_expect((x), 0))
+#endif
+#endif
 
 /*
  * copies at most <size-1> chars from <src> to <dst>. Last char is always
