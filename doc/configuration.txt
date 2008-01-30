@@ -3697,7 +3697,7 @@ backup
   balancing when all other non-backup servers are unavailable. Requests coming
   with a persistence cookie referencing the server will always be served
   though. By default, only the first operational backup server is used, unless
-  the "useallbackup" option is set in the backend. See also the "useallbackup"
+  the "allbackups" option is set in the backend. See also the "allbackups"
   option.
 
 check
