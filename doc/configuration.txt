@@ -449,7 +449,7 @@ is one valid form of empty line.
 
 Fortunately, HAProxy takes care of all these complex combinations when indexing
 headers, checking values and counting them, so there is no reason to worry
-about the way they could be written, but it is important not to accusate an
+about the way they could be written, but it is important not to accuse an
 application of being buggy if it does unusual, valid things.
 
 Important note:
@@ -489,7 +489,7 @@ The status code is always 3-digit. The first digit indicates a general status :
 
 Please refer to RFC2616 for the detailed meaning of all such codes. The
 "reason" field is just a hint, but is not parsed by clients. Anything can be 
-found there, but it's a common practise to respect the well-established
+found there, but it's a common practice to respect the well-established
 messages. It can be composed of one or multiple words, such as "OK", "Found",
 or "Authentication Required".
 
@@ -507,7 +507,7 @@ details.
 
 The following list of keywords is supported. Most of them may only be used in a
 limited set of section types. Some of them are marked as "deprecated" because
-they are inherited from an old syntax which may be confusing or functionnally
+they are inherited from an old syntax which may be confusing or functionally
 limited, and there are new recommended keywords to replace them. Keywords
 listed with [no] can be optionally inverted using the "no" prefix, ex. "no
 option contstats". This makes sense when the option has been enabled by default
@@ -869,7 +869,7 @@ capture request header <name> len <length>
                                   no   |    yes   |   yes  |   no
   Arguments :
     <name>    is the name of the header to capture. The header names are not
-              case-sensitive, but it is a common practise to write them as they
+              case-sensitive, but it is a common practice to write them as they
               appear in the requests, with the first letter of each word in
               upper case. The header name will not appear in the logs, only the
               value is reported, but the position in the logs is respected.
@@ -907,7 +907,7 @@ capture response header <name> len <length>
                                   no   |    yes   |   yes  |   no
   Arguments :
     <name>    is the name of the header to capture. The header names are not
-              case-sensitive, but it is a common practise to write them as they
+              case-sensitive, but it is a common practice to write them as they
               appear in the response, with the first letter of each word in
               upper case. The header name will not appear in the logs, only the
               value is reported, but the position in the logs is respected.
@@ -954,7 +954,7 @@ clitimeout <timeout>
   suffixed by the unit, as specified at the top of this document. In TCP mode
   (and to a lesser extent, in HTTP mode), it is highly recommended that the
   client timeout remains equal to the server timeout in order to avoid complex
-  situations to debug. It is a good practise to cover one or several TCP packet
+  situations to debug. It is a good practice to cover one or several TCP packet
   losses by specifying timeouts that are slightly above multiples of 3 seconds
   (eg: 4 or 5 seconds).
 
@@ -982,7 +982,7 @@ contimeout <timeout>
               as explained at the top of this document.
 
   If the server is located on the same LAN as haproxy, the connection should be
-  immediate (less than a few milliseconds). Anyway, it is a good practise to
+  immediate (less than a few milliseconds). Anyway, it is a good practice to
   cover one or several TCP packet losses by specifying timeouts that are 
   slightly above multiples of 3 seconds (eg: 4 or 5 seconds). By default, the
   connect timeout also presets the queue timeout to the same value if this one
@@ -1161,7 +1161,7 @@ errorfile <code> <file>
               generating codes 400, 403, 408, 500, 502, 503, and 504.
 
     <file>    designates a file containing the full HTTP response. It is
-              recommended to follow the common practise of appending ".http" to
+              recommended to follow the common practice of appending ".http" to
               the filename so that people do not confuse the response with HTML
               error pages.
 
@@ -1235,7 +1235,7 @@ errorloc303 <code> <url>
   client to fetch the designated URL using the same HTTP GET method. This
   solves the usual problems associated with "errorloc" and the 302 code. It is
   possible that some very old browsers designed before HTTP/1.1 do not support
-  it, but no such problem have been reported till now.
+  it, but no such problem has been reported till now.
 
   See also : "errorfile", "errorloc", "errorloc302"
 
@@ -1633,7 +1633,7 @@ no option checkcache
 
   Due to the high impact on the application, the application should be tested
   in depth with the option enabled before going to production. It is also a
-  good practise to always activate it during tests, even if it is not used in
+  good practice to always activate it during tests, even if it is not used in
   production, as it will report potentially dangerous application behaviours.
 
   If this option has been enabled in a "defaults" section, it can be disabled
@@ -1928,7 +1928,7 @@ no option logasap
   sends the complete headers. The only missing information in the logs will be
   the total number of bytes which will indicate everything except the amount
   of data transferred, and the total time which will not take the transfer
-  time into account. In such a situation, it's a good practise to capture the
+  time into account. In such a situation, it's a good practice to capture the
   "Content-Length" response header so that the logs at least indicate how many
   bytes are expected to be transferred.
 
@@ -2347,7 +2347,7 @@ reqideny <search>  (ignore case)
   header names are not. 
 
   A denied request will generate an "HTTP 403 forbidden" response once the
-  complete request has been parsed. This is consistent with what is practised
+  complete request has been parsed. This is consistent with what is practiced
   using ACLs. 
 
   It is easier, faster and more powerful to use ACLs to write access policies.
@@ -2743,7 +2743,7 @@ srvtimeout <timeout> (deprecated)
   document. In TCP mode (and to a lesser extent, in HTTP mode), it is highly
   recommended that the client timeout remains equal to the server timeout in
   order to avoid complex situations to debug. Whatever the expected server
-  response times, it is a good practise to cover at least one or several TCP
+  response times, it is a good practice to cover at least one or several TCP
   packet losses by specifying timeouts that are slightly above multiples of 3
   seconds (eg: 4 or 5 seconds minimum). 
 
@@ -3109,7 +3109,7 @@ timeout clitimeout <timeout> (deprecated)
   suffixed by the unit, as specified at the top of this document. In TCP mode
   (and to a lesser extent, in HTTP mode), it is highly recommended that the
   client timeout remains equal to the server timeout in order to avoid complex
-  situations to debug. It is a good practise to cover one or several TCP packet
+  situations to debug. It is a good practice to cover one or several TCP packet
   losses by specifying timeouts that are slightly above multiples of 3 seconds
   (eg: 4 or 5 seconds).
 
@@ -3138,7 +3138,7 @@ timeout contimeout <timeout> (deprecated)
               as explained at the top of this document.
 
   If the server is located on the same LAN as haproxy, the connection should be
-  immediate (less than a few milliseconds). Anyway, it is a good practise to
+  immediate (less than a few milliseconds). Anyway, it is a good practice to
   cover one or several TCP packet losses by specifying timeouts that are 
   slightly above multiples of 3 seconds (eg: 4 or 5 seconds). By default, the
   connect timeout also presets both queue and tarpit timeouts to the same value
@@ -3239,7 +3239,7 @@ timeout srvtimeout <timeout> (deprecated)
   document. In TCP mode (and to a lesser extent, in HTTP mode), it is highly
   recommended that the client timeout remains equal to the server timeout in
   order to avoid complex situations to debug. Whatever the expected server
-  response times, it is a good practise to cover at least one or several TCP
+  response times, it is a good practice to cover at least one or several TCP
   packet losses by specifying timeouts that are slightly above multiples of 3
   seconds (eg: 4 or 5 seconds minimum). 
 
@@ -3436,7 +3436,7 @@ match the string "--".
 IPv4 addresses values can be specified either as plain addresses or with a
 netmask appended, in which case the IPv4 address matches whenever it is
 within the network. Plain addresses may also be replaced with a resolvable
-host name, but this practise is generally discouraged as it makes it more
+host name, but this practice is generally discouraged as it makes it more
 difficult to read and debug configurations. If hostnames are used, you should
 at least ensure that they are present in /etc/hosts so that the configuration
 does not depend on any random DNS match at the moment the configuration is
@@ -3942,7 +3942,7 @@ The <replace> parameter contains the string to be used to replace the largest
 portion of text matching the regex. It can make use of the special characters
 above, and can reference a substring which is delimited by parenthesis in the
 regex, by writing a backslash ('\') immediately followed by one digit from 0 to
-9 indicating the group position (0 designating the entire line). This practise
+9 indicating the group position (0 designating the entire line). This practice
 is very common to users of the "sed" program.
 
 The <string> parameter represents the string which will systematically be added
