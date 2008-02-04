@@ -1347,17 +1347,12 @@ int srv_count_retry_down(struct session *t, int conn_err)
 {
 	/* we are in front of a retryable error */
 	t->conn_retries--;
-	if (t->srv)
-		t->srv->retries++;
-	t->be->retries++;
 
 	if (t->conn_retries < 0) {
 		/* if not retryable anymore, let's abort */
 		tv_eternity(&t->req->cex);
 		srv_close_with_err(t, conn_err, SN_FINST_C,
 				   503, error_message(t, HTTP_ERR_503));
-		if (t->srv)
-			t->srv->cum_sess++;
 		if (t->srv)
 			t->srv->failed_conns++;
 		t->be->failed_conns++;
