@@ -2628,7 +2628,6 @@ int process_srv(struct session *t)
 					task_wakeup(t->srv->queue_mgt);
 
 				if (t->srv) {
-					t->srv->cum_sess++;
 					t->srv->failed_conns++;
 					t->srv->redispatches++;
 				}
@@ -2642,6 +2641,10 @@ int process_srv(struct session *t)
 				/* first, get a connection */
 				if (srv_redispatch_connect(t))
 					return t->srv_state != SV_STCONN;
+			} else {
+				if (t->srv)
+					t->srv->retries++;
+				t->be->retries++;
 			}
 
 			do {
