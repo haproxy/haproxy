@@ -592,6 +592,54 @@ static http_meth_t find_http_meth(const char *str, const int len)
 
 }
 
+/* Parse the URI from the given transaction (which is assumed to be in request
+ * phase) and look for the "/" beginning the PATH. If not found, return NULL.
+ * It is returned otherwise.
+ */
+static char *
+http_get_path(struct http_txn *txn)
+{
+	char *ptr, *end;
+
+	ptr = txn->req.sol + txn->req.sl.rq.u;
+	end = ptr + txn->req.sl.rq.u_l;
+
+	if (ptr >= end)
+		return NULL;
+
+	/* RFC2616, par. 5.1.2 :
+	 * Request-URI = "*" | absuri | abspath | authority
+	 */
+
+	if (*ptr == '*')
+		return NULL;
+
+	if (isalpha((unsigned char)*ptr)) {
+		/* this is a scheme as described by RFC3986, par. 3.1 */
+		ptr++;
+		while (ptr < end &&
+		       (isalnum((unsigned char)*ptr) || *ptr == '+' || *ptr == '-' || *ptr == '.'))
+			ptr++;
+		/* skip '://' */
+		if (ptr == end || *ptr++ != ':')
+			return NULL;
+		if (ptr == end || *ptr++ != '/')
+			return NULL;
+		if (ptr == end || *ptr++ != '/')
+			return NULL;
+	}
+	/* skip [user[:passwd]@]host[:[port]] */
+
+	while (ptr < end && *ptr != '/')
+		ptr++;
+
+	if (ptr == end)
+		return NULL;
+
+	/* OK, we got the '/' ! */
+	return ptr;
+}
+
 /* Processes the client and server jobs of a session task, then
  * puts it back to the wait queue in a clean state, or
  * cleans up its resources if it must be deleted. Returns
@@ -2451,8 +2499,58 @@ int process_srv(struct session *t)
 
 			do {
 				/* first, get a connection */
+				if (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)
+					t->flags |= SN_REDIRECTABLE;
+
 				if (srv_redispatch_connect(t))
 					return t->srv_state != SV_STIDLE;
+
+				if ((t->flags & SN_REDIRECTABLE) && t->srv && t->srv->rdr_len) {
+					/* Server supporting redirection and it is possible.
+					 * Invalid requests are reported as such. It concerns all
+					 * the largest ones.
+					 */
+					struct chunk rdr;
+					char *path;
+					int len;
+
+					/* 1: create the response header */
+					rdr.len = strlen(HTTP_302);
+					rdr.str = trash;
+					memcpy(rdr.str, HTTP_302, rdr.len);
+
+					/* 2: add the server's prefix */
+					if (rdr.len + t->srv->rdr_len > sizeof(trash))
+						goto cancel_redir;
+
+					memcpy(rdr.str + rdr.len, t->srv->rdr_pfx, t->srv->rdr_len);
+					rdr.len += t->srv->rdr_len;
+
+					/* 3: add the request URI */
+					path = http_get_path(txn);
+					if (!path)
+						goto cancel_redir;
+					len = txn->req.sl.rq.u_l + (txn->req.sol+txn->req.sl.rq.u) - path;
+					if (rdr.len + len > sizeof(trash) - 4) /* 4 for CRLF-CRLF */
+						goto cancel_redir;
+
+					memcpy(rdr.str + rdr.len, path, len);
+					rdr.len += len;
+					memcpy(rdr.str + rdr.len, "\r\n\r\n", 4);
+					rdr.len += 4;
+
+					srv_close_with_err(t, SN_ERR_PRXCOND, SN_FINST_C, 302, &rdr);
+					/* FIXME: we should increase a counter of redirects per server and per backend. */
+					if (t->srv)
+						t->srv->cum_sess++;
+					return 1;
+				cancel_redir:
+					txn->status = 400;
+					t->fe->failed_req++;
+					srv_close_with_err(t, SN_ERR_PRXCOND, SN_FINST_C,
+							   400, error_message(t, HTTP_ERR_400));
+					return 1;
+				}
 
 				/* try to (re-)connect to the server, and fail if we expire the
 				 * number of retries.
@@ -5226,39 +5324,9 @@ acl_fetch_path(struct proxy *px, struct session *l4, void *l7, int dir,
 		/* ensure the indexes are not affected */
 		return 0;
 
-	ptr = txn->req.sol + txn->req.sl.rq.u;
-	end = ptr + txn->req.sl.rq.u_l;
-
-	if (ptr >= end)
-		return 0;
-
-	/* RFC2616, par. 5.1.2 :
-	 * Request-URI = "*" | absuri | abspath | authority
-	 */
-
-	if (*ptr == '*')
-		return 0;
-
-	if (isalpha((unsigned char)*ptr)) {
-		/* this is a scheme as described by RFC3986, par. 3.1 */
-		ptr++;
-		while (ptr < end &&
-		       (isalnum((unsigned char)*ptr) || *ptr == '+' || *ptr == '-' || *ptr == '.'))
-			ptr++;
-		/* skip '://' */
-		if (ptr == end || *ptr++ != ':')
-			return 0;
-		if (ptr == end || *ptr++ != '/')
-			return 0;
-		if (ptr == end || *ptr++ != '/')
-			return 0;
-	}
-	/* skip [user[:passwd]@]host[:[port]] */
-
-	while (ptr < end && *ptr != '/')
-		ptr++;
-
-	if (ptr == end)
+	end = txn->req.sol + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
+	ptr = http_get_path(txn);
+	if (!ptr)
 		return 0;
 
 	/* OK, we got the '/' ! */

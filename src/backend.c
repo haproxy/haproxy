@@ -1059,6 +1059,13 @@ int assign_server_and_queue(struct session *s)
 		return SRV_STATUS_INTERNAL;
 
 	if (s->flags & SN_ASSIGNED) {
+		if ((s->flags & SN_REDIRECTABLE) && s->srv && s->srv->rdr_len) {
+			/* server scheduled for redirection, and already assigned. We
+			 * don't want to go further nor check the queue.
+			 */
+			return SRV_STATUS_OK;
+		}
+
 		if (s->srv && s->srv->maxqueue > 0 && s->srv->nbpend >= s->srv->maxqueue) {
 			s->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
 			s->srv = NULL;
@@ -1084,6 +1091,13 @@ int assign_server_and_queue(struct session *s)
 	err = assign_server(s);
 	switch (err) {
 	case SRV_STATUS_OK:
+		if ((s->flags & SN_REDIRECTABLE) && s->srv && s->srv->rdr_len) {
+			/* server supporting redirection and it is possible.
+			 * Let's report that and ignore maxconn !
+			 */
+			return SRV_STATUS_OK;
+		}
+
 		/* in balance mode, we might have servers with connection limits */
 		if (s->srv &&
 		    s->srv->maxconn && s->srv->cur_sess >= srv_dynamic_maxconn(s->srv)) {
