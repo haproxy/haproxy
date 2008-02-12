@@ -2,7 +2,7 @@
   include/types/server.h
   This file defines everything related to servers.
 
-  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -73,7 +73,9 @@ struct server {
 	int state;				/* server state (SRV_*) */
 	int prev_state;				/* server state before last change (SRV_*) */
 	int  cklen;				/* the len of the cookie, to speed up checks */
+	int rdr_len;				/* the length of the redirection prefix */
 	char *cookie;				/* the id set in the cookie */
+	char *rdr_pfx;				/* the redirection prefix */
 
 	struct proxy *proxy;			/* the proxy this server belongs to */
 	int cur_sess, cur_sess_max;		/* number of currently active sessions (including syn_sent) */
