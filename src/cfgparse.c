@@ -1547,11 +1547,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 				newsrv->cklen = strlen(args[cur_arg + 1]);
 				cur_arg += 2;
 			}
-			else if (!strcmp(args[cur_arg], "redir")) {
-				newsrv->rdr_pfx = strdup(args[cur_arg + 1]);
-				newsrv->rdr_len = strlen(args[cur_arg + 1]);
-				cur_arg += 2;
-			}
 			else if (!strcmp(args[cur_arg], "rise")) {
 				newsrv->rise = atol(args[cur_arg + 1]);
 				newsrv->health = newsrv->rise;
@@ -1696,7 +1691,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 				return -1;
 			}
 			else {
-				Alert("parsing [%s:%d] : server %s only supports options 'backup', 'cookie', 'redir', 'check', 'inter', 'fastinter', 'downinter', 'rise', 'fall', 'addr', 'port', 'source', 'minconn', 'maxconn', 'maxqueue', 'slowstart' and 'weight'.\n",
+				Alert("parsing [%s:%d] : server %s only supports options 'backup', 'cookie', 'check', 'inter', 'fastinter', 'downinter', 'rise', 'fall', 'addr', 'port', 'source', 'minconn', 'maxconn', 'maxqueue', 'slowstart' and 'weight'.\n",
 				      file, linenum, newsrv->id);
 				return -1;
 			}
@@ -2908,19 +2903,6 @@ int readcfgfile(const char *file)
 
 		if (curproxy->options & PR_O_LOGASAP)
 			curproxy->to_log &= ~LW_BYTES;
-
-		/*
-		 * ensure that we're not cross-dressing a TCP server into HTTP.
-		 */
-		newsrv = curproxy->srv;
-		while (newsrv != NULL) {
-			if ((curproxy->mode != PR_MODE_HTTP) && (newsrv->rdr_len || newsrv->cklen)) {
-				Alert("parsing %s, %s '%s' : server cannot have cookie or redirect prefix in non-HTTP mode.\n",
-				      file, proxy_type_str(curproxy), curproxy->id, linenum);
-				goto err;
-			}
-			newsrv = newsrv->next;
-		}
 
 		/*
 		 * If this server supports a maxconn parameter, it needs a dedicated

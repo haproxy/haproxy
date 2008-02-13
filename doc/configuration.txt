@@ -3844,24 +3844,6 @@ port <port>
   inetd for instance. This parameter is ignored if the "check" parameter is not
   set. See also the "addr" parameter.
 
-redir <prefix>
-  The "redir" parameter enables the redirection mode for all GET and HEAD
-  requests addressing this server. This means that instead of having HAProxy
-  forward the request to the server, it will send an "HTTP 302" response with
-  the "Location" header composed of this prefix immediately followed by the
-  requested URI beginning at the leading '/' of the path component. That means
-  that no trailing slash should be used after <prefix>. All invalid requests
-  will be rejected, and all non-GET or HEAD requests will be normally served by
-  the server. Note that since the response is completely forged, no header
-  mangling nor cookie insertion is possible in the respose. However, cookies in
-  requests are still analysed, making this solution completely usable to direct
-  users to a remote location in case of local disaster. Main use consists in
-  increasing bandwidth for static servers by having the clients directly
-  connect to them. Note: never use a relative location here, it would cause a
-  loop between the client and HAProxy!
-
-  Example :  server srv1 192.168.1.1:80 redir http://image1.mydomain.com check
-
 rise <count>
   The "rise" parameter states that a server will be considered as operational
   after <count> consecutive successful health checks. This value defaults to 2

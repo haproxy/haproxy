@@ -50,7 +50,7 @@
 #define SN_FRT_ADDR_SET	0x00000080	/* set if the frontend address has been filled */
 #define SN_REDISP	0x00000100	/* set if this session was redispatched from one server to another */
 #define SN_CONN_TAR	0x00000200	/* set if this session is turning around before reconnecting */
-#define SN_REDIRECTABLE	0x00000400	/* set if this session is redirectable (GET or HEAD) */
+/* unused:              0x00000400 */
 /* unused:              0x00000800 */
 
 /* session termination conditions, bits values 0x1000 to 0x7000 (0-7 shift 12) */
