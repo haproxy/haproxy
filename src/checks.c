@@ -422,12 +422,10 @@ void process_chk(struct task *t, struct timeval *next)
 					struct sockaddr_in *remote = NULL;
 					int ret, flags = 0;
 
-#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
 					if ((s->state & SRV_TPROXY_MASK) == SRV_TPROXY_ADDR) {
 						remote = (struct sockaddr_in *)&s->tproxy_addr;
 						flags  = 3;
 					}
-#endif
 					ret = tcpv4_bind_socket(fd, flags, &s->source_addr, remote);
 					if (ret) {
 						s->result |= SRV_CHK_ERROR;
@@ -447,12 +445,10 @@ void process_chk(struct task *t, struct timeval *next)
 					struct sockaddr_in *remote = NULL;
 					int ret, flags = 0;
 
-#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
 					if ((s->proxy->options & PR_O_TPXY_MASK) == PR_O_TPXY_ADDR) {
 						remote = (struct sockaddr_in *)&s->proxy->tproxy_addr;
 						flags  = 3;
 					}
-#endif
 					ret = tcpv4_bind_socket(fd, flags, &s->proxy->source_addr, remote);
 					if (ret) {
 						s->result |= SRV_CHK_ERROR;
