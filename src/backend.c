@@ -1203,6 +1203,7 @@ int connect_server(struct session *s)
 		struct sockaddr_in *remote = NULL;
 		int ret, flags = 0;
 
+#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
 		switch (s->srv->state & SRV_TPROXY_MASK) {
 		case SRV_TPROXY_ADDR:
 			remote = (struct sockaddr_in *)&s->srv->tproxy_addr;
@@ -1217,6 +1218,7 @@ int connect_server(struct session *s)
 			remote = (struct sockaddr_in *)&s->cli_addr;
 			break;
 		}
+#endif
 		ret = tcpv4_bind_socket(fd, flags, &s->srv->source_addr, remote);
 		if (ret) {
 			close(fd);
@@ -1240,6 +1242,7 @@ int connect_server(struct session *s)
 		struct sockaddr_in *remote = NULL;
 		int ret, flags = 0;
 
+#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
 		switch (s->be->options & PR_O_TPXY_MASK) {
 		case PR_O_TPXY_ADDR:
 			remote = (struct sockaddr_in *)&s->be->tproxy_addr;
@@ -1254,7 +1257,7 @@ int connect_server(struct session *s)
 			remote = (struct sockaddr_in *)&s->cli_addr;
 			break;
 		}
-
+#endif
 		ret = tcpv4_bind_socket(fd, flags, &s->be->source_addr, remote);
 		if (ret) {
 			close(fd);
