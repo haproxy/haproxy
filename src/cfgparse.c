@@ -516,13 +516,7 @@ static void init_default_instance()
 	defproxy.maxconn = cfg_maxpconn;
 	defproxy.conn_retries = CONN_RETRIES;
 	defproxy.logfac1 = defproxy.logfac2 = -1; /* log disabled */
-	tv_eternity(&defproxy.timeout.client);
-	tv_eternity(&defproxy.timeout.connect);
-	tv_eternity(&defproxy.timeout.server);
-	tv_eternity(&defproxy.timeout.appsession);
-	tv_eternity(&defproxy.timeout.queue);
-	tv_eternity(&defproxy.timeout.tarpit);
-	tv_eternity(&defproxy.timeout.httpreq);
+	proxy_reset_timeouts(&defproxy);
 }
 
 /*
@@ -599,13 +593,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		/* Timeouts are defined as -1, so we cannot use the zeroed area
 		 * as a default value.
 		 */
-		tv_eternity(&curproxy->timeout.client);
-		tv_eternity(&curproxy->timeout.server);
-		tv_eternity(&curproxy->timeout.connect);
-		tv_eternity(&curproxy->timeout.appsession);
-		tv_eternity(&curproxy->timeout.queue);
-		tv_eternity(&curproxy->timeout.tarpit);
-		tv_eternity(&curproxy->timeout.httpreq);
+		proxy_reset_timeouts(curproxy);
 
 		curproxy->last_change = now.tv_sec;
 		curproxy->id = strdup(args[1]);

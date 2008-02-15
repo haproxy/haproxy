@@ -2,7 +2,7 @@
   include/proto/proxy.h
   This file defines function prototypes for proxy management.
 
-  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -46,6 +46,19 @@ int proxy_parse_timeout(const char **args, struct proxy *proxy,
 static inline const char *proxy_type_str(struct proxy *proxy)
 {
 	return proxy_cap_str(proxy->cap);
+}
+
+/* this function initializes all timeouts for proxy p */
+static inline void proxy_reset_timeouts(struct proxy *proxy)
+{
+	tv_eternity(&proxy->timeout.client);
+	tv_eternity(&proxy->timeout.tarpit);
+	tv_eternity(&proxy->timeout.queue);
+	tv_eternity(&proxy->timeout.connect);
+	tv_eternity(&proxy->timeout.server);
+	tv_eternity(&proxy->timeout.appsession);
+	tv_eternity(&proxy->timeout.httpreq);
+	tv_eternity(&proxy->timeout.check);
 }
 
 #endif /* _PROTO_PROXY_H */
