@@ -496,11 +496,12 @@ void process_chk(struct task *t, struct timeval *next)
 						 * to establish but only when timeout.check is set
 						 * as it may be to short for a full check otherwise
 						 */
-						tv_add(&tv_con, &now, &s->proxy->timeout.connect);
 						tv_ms_add(&t->expire, &now, s->inter);
 
-						if (tv_isset(&s->proxy->timeout.check))
+						if (tv_isset(&s->proxy->timeout.check) && tv_isset(&s->proxy->timeout.connect)) {
+							tv_add(&tv_con, &now, &s->proxy->timeout.connect);
 							tv_bound(&t->expire, &tv_con);
+						}
 
 						task_queue(t);	/* restore t to its place in the task list */
 						*next = t->expire;
