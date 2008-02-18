@@ -1625,6 +1625,18 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 				newsrv->slowstart = (val + 999) / 1000;
 				cur_arg += 2;
 			}
+			else if (!strcmp(args[cur_arg], "track")) {
+
+				if (!*args[cur_arg + 1]) {
+					Alert("parsing [%s:%d]: 'track' expects [<proxy>/]<server> as argument.\n",
+						file, linenum);
+					return -1;
+				}
+
+				newsrv->trackit = strdup(args[cur_arg + 1]);
+
+				cur_arg += 2;
+			}
 			else if (!strcmp(args[cur_arg], "check")) {
 				global.maxsock++;
 				do_check = 1;
@@ -1684,13 +1696,19 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 				return -1;
 			}
 			else {
-				Alert("parsing [%s:%d] : server %s only supports options 'backup', 'cookie', 'redir', 'check', 'inter', 'fastinter', 'downinter', 'rise', 'fall', 'addr', 'port', 'source', 'minconn', 'maxconn', 'maxqueue', 'slowstart' and 'weight'.\n",
+				Alert("parsing [%s:%d] : server %s only supports options 'backup', 'cookie', 'redir', 'check', 'track', 'inter', 'fastinter', 'downinter', 'rise', 'fall', 'addr', 'port', 'source', 'minconn', 'maxconn', 'maxqueue', 'slowstart' and 'weight'.\n",
 				      file, linenum, newsrv->id);
 				return -1;
 			}
 		}
 
 		if (do_check) {
+			if (newsrv->trackit) {
+				Alert("parsing [%s:%d]: unable to enable checks and tracking at the same time!\n",
+					file, linenum);
+				return -1;
+			}
+
 			if (!newsrv->check_port && newsrv->check_addr.sin_port)
 				newsrv->check_port = newsrv->check_addr.sin_port;
 
@@ -2913,6 +2931,7 @@ int readcfgfile(const char *file)
 		/*
 		 * If this server supports a maxconn parameter, it needs a dedicated
 		 * tasks to fill the emptied slots when a connection leaves.
+		 * Also, resolve deferred tracking dependency if needed.
 		 */
 		newsrv = curproxy->srv;
 		while (newsrv != NULL) {
@@ -2950,6 +2969,65 @@ int readcfgfile(const char *file)
 				tv_eternity(&t->expire);
 				task_queue(t);
 			}
+
+			if (newsrv->trackit) {
+				struct proxy *px;
+				struct server *srv;
+				char *pname, *sname;
+
+				pname = newsrv->trackit;
+				sname = strrchr(pname, '/');
+
+				if (sname)
+					*sname++ = '\0';
+				else {
+					sname = pname;
+					pname = NULL;
+				}
+
+				if (pname) {
+					px = findproxy(pname, curproxy->mode, PR_CAP_BE);
+					if (!px) {
+						Alert("parsing %s, %s '%s', server '%s': unable to find required proxy '%s' for tracking.\n",
+							file, proxy_type_str(curproxy), curproxy->id,
+							newsrv->id, pname);
+						return -1;
+					}
+				} else
+					px = curproxy;
+
+				srv = findserver(px, sname);
+				if (!srv) {
+					Alert("parsing %s, %s '%s', server '%s': unable to find required server '%s' for tracking.\n",
+						file, proxy_type_str(curproxy), curproxy->id,
+						newsrv->id, sname);
+					return -1;
+				}
+
+				if (!(srv->state & SRV_CHECKED)) {
+					Alert("parsing %s, %s '%s', server '%s': unable to use %s/%s for "
+						"tracing as it does not have checks enabled.\n",
+						file, proxy_type_str(curproxy), curproxy->id,
+						newsrv->id, px->id, srv->id);
+					return -1;
+				}
+
+				if (curproxy != px &&
+					(curproxy->options & PR_O_DISABLE404) != (px->options & PR_O_DISABLE404)) {
+					Alert("parsing %s, %s '%s', server '%s': unable to use %s/%s for"
+						"tracing: disable-on-404 option inconsistency.\n",
+						file, proxy_type_str(curproxy), curproxy->id,
+						newsrv->id, px->id, srv->id);
+					return -1;
+				}
+
+				newsrv->tracked = srv;
+				newsrv->tracknext = srv->tracknext;
+				srv->tracknext = newsrv;
+
+				free(newsrv->trackit);
+			}
+
 			newsrv = newsrv->next;
 		}
 

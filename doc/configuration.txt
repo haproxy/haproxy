@@ -3893,6 +3893,13 @@ source <addr>[:<port>] [usesrc { <addr2>[:<port2>] | client | clientip } ]
   as the backend "source" keyword, except that it only applies to the server
   referencing it. Please consult the "source" keyword for details.
 
+track [<proxy>/]<server>
+  This option enables ability to set the current state of the server by
+  tracking another one. Only a server with checks enabled can be tracked
+  so it is not possible for example to track a server that tracks another
+  one. If <proxy> is omitted the current one is used. If disable-on-404 is
+  used, it has to be enabled on both proxies.
+
 weight <weight>
   The "weight" parameter is used to adjust the server's weight relative to
   other servers. All servers will receive a load proportional to their weight

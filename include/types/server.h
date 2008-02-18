@@ -91,6 +91,8 @@ struct server {
 	struct sockaddr_in tproxy_addr;		/* non-local address we want to bind to for connect() */
 #endif
 
+	struct server *tracknext, *tracked;	/* next server in a tracking list, tracked server */
+	char *trackit;				/* temporary variable to make assignment deferrable */
 	struct sockaddr_in check_addr;		/* the address to check, if different from <addr> */
 	short check_port;			/* the port to use for the health checks */
 	int health;				/* 0->rise-1 = bad; rise->rise+fall-1 = good */

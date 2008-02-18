@@ -171,7 +171,7 @@ int print_csv_header(struct chunk *msg, int size)
 			    "wretr,wredis,"
 			    "status,weight,act,bck,"
 			    "chkfail,chkdown,lastchg,downtime,qlimit,"
-			    "pid,iid,sid,throttle,lbtot,"
+			    "pid,iid,sid,throttle,lbtot,tracked,"
 			    "\n");
 }
 
@@ -587,7 +587,7 @@ int stats_dump_http(struct session *s, struct uri_auth *uri, int flags)
 int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, int flags)
 {
 	struct buffer *rep = s->rep;
-	struct server *sv;
+	struct server *sv, *svs;	/* server and server-state, server-state=server or server->tracked */
 	struct chunk msg;
 
 	msg.len = 0;
@@ -706,8 +706,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     "%s,"
 				     /* rest of server: nothing */
 				     ",,,,,,,,"
-				     /* pid, iid, sid, throttle, lbtot, */
-				     "%d,%d,0,,,"
+				     /* pid, iid, sid, throttle, lbtot, tracked*/
+				     "%d,%d,0,,,,"
 				     "\n",
 				     px->id,
 				     px->feconn, px->feconn_max, px->maxconn, px->cum_feconn,
@@ -734,20 +734,25 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 
 			sv = s->data_ctx.stats.sv;
 
+			if (sv->tracked)
+				svs = sv->tracked;
+			else
+				svs = sv;
+
 			/* FIXME: produce some small strings for "UP/DOWN x/y &#xxxx;" */
-			if (!(sv->state & SRV_CHECKED))
+			if (!(svs->state & SRV_CHECKED))
 				sv_state = 6;
-			else if (sv->state & SRV_RUNNING) {
-				if (sv->health == sv->rise + sv->fall - 1)
+			else if (svs->state & SRV_RUNNING) {
+				if (svs->health == svs->rise + svs->fall - 1)
 					sv_state = 3; /* UP */
 				else
 					sv_state = 2; /* going down */
 
-				if (sv->state & SRV_GOINGDOWN)
+				if (svs->state & SRV_GOINGDOWN)
 					sv_state += 2;
 			}
 			else
-				if (sv->health)
+				if (svs->health)
 					sv_state = 1; /* going up */
 				else
 					sv_state = 0; /* DOWN */
@@ -800,8 +805,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 
 				chunk_printf(&msg, sizeof(trash),
 				     srv_hlt_st[sv_state],
-				     (sv->state & SRV_RUNNING) ? (sv->health - sv->rise + 1) : (sv->health),
-				     (sv->state & SRV_RUNNING) ? (sv->fall) : (sv->rise));
+				     (svs->state & SRV_RUNNING) ? (svs->health - svs->rise + 1) : (svs->health),
+				     (svs->state & SRV_RUNNING) ? (svs->fall) : (svs->rise));
 
 				chunk_printf(&msg, sizeof(trash),
 				     /* weight */
@@ -819,8 +824,11 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 					     "<td align=right>%d</td><td align=right>%d</td>"
 					     "<td nowrap align=right>%s</td>"
 					     "",
-					     sv->failed_checks, sv->down_trans,
+					     svs->failed_checks, svs->down_trans,
 					     human_time(srv_downtime(sv), 1));
+				else if (sv != svs)
+					chunk_printf(&msg, sizeof(trash),
+					     "<td nowrap colspan=3>via %s/%s</td>", svs->proxy->id, svs->id );
 				else
 					chunk_printf(&msg, sizeof(trash),
 					     "<td colspan=3></td>");
@@ -908,6 +916,14 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 
 				/* sessions: lbtot */
 				chunk_printf(&msg, sizeof(trash), ",%d", sv->cum_lbconn);
+
+				/* tracked */
+				if (sv->tracked)
+					chunk_printf(&msg, sizeof(trash), ",%s/%s",
+						sv->tracked->proxy->id, sv->tracked->id);
+				else
+					chunk_printf(&msg, sizeof(trash), ",");
+
 				/* ',' then EOL */
 				chunk_printf(&msg, sizeof(trash), ",\n");
 			}
@@ -991,8 +1007,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     "%d,%d,%d,"
 				     /* rest of backend: nothing, down transitions, last change, total downtime */
 				     ",%d,%d,%d,,"
-				     /* pid, iid, sid, throttle, lbtot, */
-				     "%d,%d,0,,%d,"
+				     /* pid, iid, sid, throttle, lbtot, tracked,*/
+				     "%d,%d,0,,%d,,"
 				     "\n",
 				     px->id,
 				     px->nbpend /* or px->totpend ? */, px->nbpend_max,

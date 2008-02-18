@@ -2,6 +2,7 @@
  * Health-checks functions.
  *
  * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
+ * Copyright 2007-2008 Krzysztof Piotr Oledzki <ole@ans.pl>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -34,6 +35,7 @@
 #include <types/session.h>
 
 #include <proto/backend.h>
+#include <proto/buffers.h>
 #include <proto/fd.h>
 #include <proto/log.h>
 #include <proto/queue.h>
@@ -120,9 +122,11 @@ static int check_for_pending(struct server *s)
  */
 static void set_server_down(struct server *s)
 {
+	struct server *srv;
+	struct chunk msg;
 	int xferred;
 
-	if (s->health == s->rise) {
+	if (s->health == s->rise || s->tracked) {
 		int srv_was_paused = s->state & SRV_GOINGDOWN;
 
 		s->last_change = now.tv_sec;
@@ -134,10 +138,21 @@ static void set_server_down(struct server *s)
 		 * to another server or to the proxy itself.
 		 */
 		xferred = redistribute_pending(s);
-		sprintf(trash, "%sServer %s/%s is DOWN. %d active and %d backup servers left.%s"
+
+		msg.len = 0;
+		msg.str = trash;
+
+		chunk_printf(&msg, sizeof(trash),
+			"%sServer %s/%s is DOWN", s->state & SRV_BACKUP ? "Backup " : "",
+			s->proxy->id, s->id);
+
+		if (s->tracked)
+			chunk_printf(&msg, sizeof(trash), " via %s/%s",
+				s->tracked->proxy->id, s->tracked->id);
+
+		chunk_printf(&msg, sizeof(trash), ". %d active and %d backup servers left.%s"
 			" %d sessions active, %d requeued, %d remaining in queue.\n",
-			s->state & SRV_BACKUP ? "Backup " : "",
-			s->proxy->id, s->id, s->proxy->srv_act, s->proxy->srv_bck,
+			s->proxy->srv_act, s->proxy->srv_bck,
 			(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
 			s->cur_sess, xferred, s->nbpend);
 
@@ -153,10 +168,167 @@ static void set_server_down(struct server *s)
 			set_backend_down(s->proxy);
 
 		s->down_trans++;
+
+		if (s->state && SRV_CHECKED)
+			for(srv = s->tracknext; srv; srv = srv->tracknext)
+				set_server_down(srv);
 	}
+
 	s->health = 0; /* failure */
 }
 
+static void set_server_up(struct server *s) {
+
+	struct server *srv;
+	struct chunk msg;
+	int xferred;
+
+	if (s->health == s->rise || s->tracked) {
+		if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
+			if (s->proxy->last_change < now.tv_sec)		// ignore negative times
+				s->proxy->down_time += now.tv_sec - s->proxy->last_change;
+			s->proxy->last_change = now.tv_sec;
+		}
+
+		if (s->last_change < now.tv_sec)			// ignore negative times
+			s->down_time += now.tv_sec - s->last_change;
+
+		s->last_change = now.tv_sec;
+		s->state |= SRV_RUNNING;
+
+		if (s->slowstart > 0) {
+			s->state |= SRV_WARMINGUP;
+			if (s->proxy->lbprm.algo & BE_LB_PROP_DYN) {
+				/* For dynamic algorithms, start at the first step of the weight,
+				 * without multiplying by BE_WEIGHT_SCALE.
+				 */
+				s->eweight = s->uweight;
+				if (s->proxy->lbprm.update_server_eweight)
+					s->proxy->lbprm.update_server_eweight(s);
+			}
+		}
+		s->proxy->lbprm.set_server_status_up(s);
+
+		/* check if we can handle some connections queued at the proxy. We
+		 * will take as many as we can handle.
+		 */
+		xferred = check_for_pending(s);
+
+		msg.len = 0;
+		msg.str = trash;
+
+		chunk_printf(&msg, sizeof(trash),
+			"%sServer %s/%s is UP", s->state & SRV_BACKUP ? "Backup " : "",
+			s->proxy->id, s->id);
+
+		if (s->tracked)
+			chunk_printf(&msg, sizeof(trash), " via %s/%s",
+				s->tracked->proxy->id, s->tracked->id);
+
+		chunk_printf(&msg, sizeof(trash), ". %d active and %d backup servers online.%s"
+			" %d sessions requeued, %d total in queue.\n",
+			s->proxy->srv_act, s->proxy->srv_bck,
+			(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
+			s->cur_sess, xferred, s->nbpend);
+
+		Warning("%s", trash);
+		send_log(s->proxy, LOG_NOTICE, "%s", trash);
+
+		if (s->state && SRV_CHECKED)
+			for(srv = s->tracknext; srv; srv = srv->tracknext)
+				set_server_up(srv);
+	}
+
+	if (s->health >= s->rise)
+		s->health = s->rise + s->fall - 1; /* OK now */
+
+}
+
+static void set_server_disabled(struct server *s) {
+
+	struct server *srv;
+	struct chunk msg;
+	int xferred;
+
+	s->state |= SRV_GOINGDOWN;
+	s->proxy->lbprm.set_server_status_down(s);
+
+	/* we might have sessions queued on this server and waiting for
+	 * a connection. Those which are redispatchable will be queued
+	 * to another server or to the proxy itself.
+	 */
+	xferred = redistribute_pending(s);
+
+	msg.len = 0;
+	msg.str = trash;
+
+	chunk_printf(&msg, sizeof(trash),
+		"Load-balancing on %sServer %s/%s is disabled",
+		s->state & SRV_BACKUP ? "Backup " : "",
+		s->proxy->id, s->id);
+
+	if (s->tracked)
+		chunk_printf(&msg, sizeof(trash), " via %s/%s",
+			s->tracked->proxy->id, s->tracked->id);
+
+
+	chunk_printf(&msg, sizeof(trash),". %d active and %d backup servers online.%s"
+		" %d sessions requeued, %d total in queue.\n",
+		s->proxy->srv_act, s->proxy->srv_bck,
+		(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
+		xferred, s->nbpend);
+
+	Warning("%s", trash);
+
+	send_log(s->proxy, LOG_NOTICE, "%s", trash);
+
+	if (!s->proxy->srv_bck && !s->proxy->srv_act)
+		set_backend_down(s->proxy);
+
+	if (s->state && SRV_CHECKED)
+		for(srv = s->tracknext; srv; srv = srv->tracknext)
+			set_server_disabled(srv);
+}
+
+static void set_server_enabled(struct server *s) {
+
+	struct server *srv;
+	struct chunk msg;
+	int xferred;
+
+	s->state &= ~SRV_GOINGDOWN;
+	s->proxy->lbprm.set_server_status_up(s);
+
+	/* check if we can handle some connections queued at the proxy. We
+	 * will take as many as we can handle.
+	 */
+	xferred = check_for_pending(s);
+
+	msg.len = 0;
+	msg.str = trash;
+
+	chunk_printf(&msg, sizeof(trash),
+		"Load-balancing on %sServer %s/%s is enabled again",
+		s->state & SRV_BACKUP ? "Backup " : "",
+		s->proxy->id, s->id);
+
+	if (s->tracked)
+		chunk_printf(&msg, sizeof(trash), " via %s/%s",
+			s->tracked->proxy->id, s->tracked->id);
+
+	chunk_printf(&msg, sizeof(trash), ". %d active and %d backup servers online.%s"
+		" %d sessions requeued, %d total in queue.\n",
+		s->proxy->srv_act, s->proxy->srv_bck,
+		(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
+		xferred, s->nbpend);
+
+	Warning("%s", trash);
+	send_log(s->proxy, LOG_NOTICE, "%s", trash);
+
+	if (s->state && SRV_CHECKED)
+		for(srv = s->tracknext; srv; srv = srv->tracknext)
+			set_server_enabled(srv);
+}
 
 /*
  * This function is used only for server health-checks. It handles
@@ -364,7 +536,6 @@ void process_chk(struct task *t, struct timeval *next)
 	__label__ new_chk, out;
 	struct server *s = t->context;
 	struct sockaddr_in sa;
-	int xferred;
 	int fd;
 	int rv;
 
@@ -575,103 +746,18 @@ void process_chk(struct task *t, struct timeval *next)
 			/* we may have to add/remove this server from the LB group */
 			if ((s->state & SRV_RUNNING) && (s->proxy->options & PR_O_DISABLE404)) {
 				if ((s->state & SRV_GOINGDOWN) &&
-				    ((s->result & (SRV_CHK_RUNNING|SRV_CHK_DISABLE)) == SRV_CHK_RUNNING)) {
-					/* server enabled again */
-					s->state &= ~SRV_GOINGDOWN;
-					s->proxy->lbprm.set_server_status_up(s);
-
-					/* check if we can handle some connections queued at the proxy. We
-					 * will take as many as we can handle.
-					 */
-					xferred = check_for_pending(s);
-
-					sprintf(trash,
-						"Load-balancing on %sServer %s/%s is enabled again. %d active and %d backup servers online.%s"
-						" %d sessions requeued, %d total in queue.\n",
-						s->state & SRV_BACKUP ? "Backup " : "",
-						s->proxy->id, s->id, s->proxy->srv_act, s->proxy->srv_bck,
-						(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
-						xferred, s->nbpend);
-
-					Warning("%s", trash);
-					send_log(s->proxy, LOG_NOTICE, "%s", trash);
-				}
+				    ((s->result & (SRV_CHK_RUNNING|SRV_CHK_DISABLE)) == SRV_CHK_RUNNING))
+					set_server_enabled(s);
 				else if (!(s->state & SRV_GOINGDOWN) &&
 					 ((s->result & (SRV_CHK_RUNNING | SRV_CHK_DISABLE)) ==
-					  (SRV_CHK_RUNNING | SRV_CHK_DISABLE))) {
-					/* server disabled */
-					s->state |= SRV_GOINGDOWN;
-					s->proxy->lbprm.set_server_status_down(s);
-
-					/* we might have sessions queued on this server and waiting for
-					 * a connection. Those which are redispatchable will be queued
-					 * to another server or to the proxy itself.
-					 */
-					xferred = redistribute_pending(s);
-
-					sprintf(trash,
-						"Load-balancing on %sServer %s/%s is disabled. %d active and %d backup servers online.%s"
-						" %d sessions requeued, %d total in queue.\n",
-						s->state & SRV_BACKUP ? "Backup " : "",
-						s->proxy->id, s->id, s->proxy->srv_act, s->proxy->srv_bck,
-						(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
-						xferred, s->nbpend);
-
-					Warning("%s", trash);
-
-					send_log(s->proxy, LOG_NOTICE, "%s", trash);
-					if (!s->proxy->srv_bck && !s->proxy->srv_act)
-						set_backend_down(s->proxy);
-				}
+					  (SRV_CHK_RUNNING | SRV_CHK_DISABLE)))
+					set_server_disabled(s);
 			}
 
 			if (s->health < s->rise + s->fall - 1) {
 				s->health++; /* was bad, stays for a while */
 
-				if (s->health == s->rise) {
-					if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
-						if (s->proxy->last_change < now.tv_sec)		// ignore negative times
-							s->proxy->down_time += now.tv_sec - s->proxy->last_change;
-						s->proxy->last_change = now.tv_sec;
-					}
-
-					if (s->last_change < now.tv_sec)			// ignore negative times
-						s->down_time += now.tv_sec - s->last_change;
-
-					s->last_change = now.tv_sec;
-					s->state |= SRV_RUNNING;
-					if (s->slowstart > 0) {
-						s->state |= SRV_WARMINGUP;
-						if (s->proxy->lbprm.algo & BE_LB_PROP_DYN) {
-							/* For dynamic algorithms, start at the first step of the weight,
-							 * without multiplying by BE_WEIGHT_SCALE.
-							 */
-							s->eweight = s->uweight;
-							if (s->proxy->lbprm.update_server_eweight)
-								s->proxy->lbprm.update_server_eweight(s);
-						}
-					}
-					s->proxy->lbprm.set_server_status_up(s);
-
-					/* check if we can handle some connections queued at the proxy. We
-					 * will take as many as we can handle.
-					 */
-					xferred = check_for_pending(s);
-
-					sprintf(trash,
-						"%sServer %s/%s is UP. %d active and %d backup servers online.%s"
-						" %d sessions requeued, %d total in queue.\n",
-						s->state & SRV_BACKUP ? "Backup " : "",
-						s->proxy->id, s->id, s->proxy->srv_act, s->proxy->srv_bck,
-						(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
-						xferred, s->nbpend);
-
-					Warning("%s", trash);
-					send_log(s->proxy, LOG_NOTICE, "%s", trash);
-				}
-
-				if (s->health >= s->rise)
-					s->health = s->rise + s->fall - 1; /* OK now */
+				set_server_up(s);
 			}
 			s->curfd = -1; /* no check running anymore */
 			fd_delete(fd);

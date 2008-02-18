@@ -176,7 +176,7 @@ int proxy_parse_timeout(const char **args, struct proxy *proxy,
 
 struct proxy *findproxy(const char *name, int mode, int cap) {
 
-	struct proxy *curproxy, *target=NULL;
+	struct proxy *curproxy, *target = NULL;
 
 	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
 		if ((curproxy->cap & cap)!=cap || strcmp(curproxy->id, name))
@@ -196,6 +196,37 @@ struct proxy *findproxy(const char *name, int mode, int cap) {
 
 		Alert("Refusing to use duplicated proxy '%s' with overlapping capabilities: %s/%s!\n",
 			name, proxy_type_str(curproxy), proxy_type_str(target));
+
+		return NULL;
+	}
+
+	return target;
+}
+
+/*
+ * This function finds a server with matching name within selected proxy.
+ * It also checks if there are more matching servers with
+ * requested name as this often leads into unexpected situations.
+ */
+
+struct server *findserver(const struct proxy *px, const char *name) {
+
+	struct server *cursrv, *target = NULL;
+
+	if (!px)
+		return NULL;
+
+	for (cursrv = px->srv; cursrv; cursrv = cursrv->next) {
+		if (strcmp(cursrv->id, name))
+			continue;
+
+		if (!target) {
+			target = cursrv;
+			continue;
+		}
+
+		Alert("Refusing to use duplicated server '%s' fould in proxy: %s!\n",
+			name, px->id);
 
 		return NULL;
 	}
