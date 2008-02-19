@@ -6,6 +6,7 @@
 # Valid USE_* options are the following. Most of them are automatically set by
 # the TARGET, others have to be explictly specified :
 #   USE_CTTPROXY         : enable CTTPROXY on Linux (needs kernel patch).
+#   USE_DLMALLOC         : enable use of dlmalloc (see DLMALLOC_SRC)
 #   USE_EPOLL            : enable epoll() on Linux 2.6. Automatic.
 #   USE_EPOLL_WORKAROUND : enable epoll() bug workaround. Automatic.
 #   USE_GETSOCKNAME      : enable getsockname() on Linux 2.2. Automatic.
@@ -338,6 +339,13 @@ endif
 ifneq ($(USE_REGPARM),)
 OPTIONS_CFLAGS += -DCONFIG_HAP_USE_REGPARM
 BUILD_OPTIONS  += $(call ignore_implicit,USE_REGPARM)
+endif
+
+ifneq ($(USE_DLMALLOC),)
+BUILD_OPTIONS  += $(call ignore_implicit,USE_DLMALLOC)
+ifeq ($(DLMALLOC_SRC),)
+DLMALLOC_SRC=src/dlmalloc.c
+endif
 endif
 
 ifneq ($(DLMALLOC_SRC),)
