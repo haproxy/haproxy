@@ -72,14 +72,9 @@ static int redistribute_pending(struct server *s)
 			 * cookie and force to balance or use the dispatcher.
 			 */
 
-			sess->srv->redispatches++;
-			sess->be->redispatches++;
-
+			/* it's left to the dispatcher to choose a server */
 			sess->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
-			sess->flags |= SN_REDISP;
 
-			sess->srv = NULL; /* it's left to the dispatcher to choose a server */
-			http_flush_cookie_flags(&sess->txn);
 			pendconn_free(pc);
 			task_wakeup(sess->task);
 			xferred++;

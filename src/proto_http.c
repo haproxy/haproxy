@@ -2627,16 +2627,8 @@ int process_srv(struct session *t)
 				if (may_dequeue_tasks(t->srv, t->be))
 					task_wakeup(t->srv->queue_mgt);
 
-				if (t->srv) {
-					t->srv->failed_conns++;
-					t->srv->redispatches++;
-				}
-				t->be->redispatches++;
-
+				/* it's left to the dispatcher to choose a server */
 				t->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
-				t->flags |= SN_REDISP;
-				t->srv = NULL; /* it's left to the dispatcher to choose a server */
-				http_flush_cookie_flags(txn);
 
 				/* first, get a connection */
 				if (srv_redispatch_connect(t))

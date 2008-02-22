@@ -50,10 +50,10 @@ void fwrr_init_server_groups(struct proxy *p);
  * If any server is found, it will be returned and px->lbprm.map.rr_idx will be updated
  * to point to the next server. If no valid server is found, NULL is returned.
  */
-static inline struct server *get_server_rr_with_conns(struct proxy *px)
+static inline struct server *get_server_rr_with_conns(struct proxy *px, struct server *srvtoavoid)
 {
-	int newidx;
-	struct server *srv;
+	int newidx, avoididx;
+	struct server *srv, *avoided;
 
 	if (px->lbprm.tot_weight == 0)
 		return NULL;
@@ -65,17 +65,28 @@ static inline struct server *get_server_rr_with_conns(struct proxy *px)
 		px->lbprm.map.rr_idx = 0;
 	newidx = px->lbprm.map.rr_idx;
 
+	avoided = NULL;
 	do {
 		srv = px->lbprm.map.srv[newidx++];
 		if (!srv->maxconn || srv->cur_sess < srv_dynamic_maxconn(srv)) {
-			px->lbprm.map.rr_idx = newidx;
-			return srv;
+			/* make sure it is not the server we are try to exclude... */
+			if (srv != srvtoavoid) {
+				px->lbprm.map.rr_idx = newidx;
+				return srv;
+			}
+
+			avoided = srv;	/* ...but remember that is was selected yet avoided */
+			avoididx = newidx;
 		}
 		if (newidx == px->lbprm.tot_weight)
 			newidx = 0;
 	} while (newidx != px->lbprm.map.rr_idx);
 
-	return NULL;
+	if (avoided)
+		px->lbprm.map.rr_idx = avoididx;
+
+	/* return NULL or srvtoavoid if found */
+	return avoided;
 }
 
 

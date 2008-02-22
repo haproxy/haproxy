@@ -727,11 +727,10 @@ static inline void fwrr_update_position(struct fwrr_group *grp, struct server *s
  * the init tree if appropriate. If both trees are empty, return NULL.
  * Saturated servers are skipped and requeued.
  */
-static struct server *fwrr_get_next_server(struct proxy *p)
+static struct server *fwrr_get_next_server(struct proxy *p, struct server *srvtoavoid)
 {
-	struct server *srv;
+	struct server *srv, *full, *avoided;
 	struct fwrr_group *grp;
-	struct server *full;
 	int switched;
 
 	if (p->srv_act)
@@ -744,6 +743,7 @@ static struct server *fwrr_get_next_server(struct proxy *p)
 		return NULL;
 
 	switched = 0;
+	avoided = NULL;
 	full = NULL; /* NULL-terminated list of saturated servers */
 	while (1) {
 		/* if we see an empty group, let's first try to collect weights
@@ -759,8 +759,13 @@ static struct server *fwrr_get_next_server(struct proxy *p)
 			srv = fwrr_get_server_from_group(grp);
 			if (srv)
 				break;
-			if (switched)
+			if (switched) {
+				if (avoided) {
+					srv = avoided;
+					break;
+				}
 				goto requeue_servers;
+			}
 			switched = 1;
 			fwrr_switch_trees(grp);
 
@@ -774,10 +779,15 @@ static struct server *fwrr_get_next_server(struct proxy *p)
 		fwrr_update_position(grp, srv);
 		fwrr_dequeue_srv(srv);
 		grp->curr_pos++;
-		if (!srv->maxconn || srv->cur_sess < srv_dynamic_maxconn(srv))
-			break;
+		if (!srv->maxconn || srv->cur_sess < srv_dynamic_maxconn(srv)) {
+			/* make sure it is not the server we are trying to exclude... */
+			if (srv != srvtoavoid || avoided)
+				break;
 
-		/* the server is saturated, let's chain it for later reinsertion */
+			avoided = srv; /* ...but remember that is was selected yet avoided */
+		}
+
+		/* the server is saturated or avoided, let's chain it for later reinsertion */
 		srv->next_full = full;
 		full = srv;
 	}
@@ -786,6 +796,9 @@ static struct server *fwrr_get_next_server(struct proxy *p)
 	fwrr_queue_srv(srv);
 
  requeue_servers:
+	/* Requeue all extracted servers. If full==srv then it was
+	 * avoided (unsucessfully) and chained, omit it now.
+	 */
 	if (unlikely(full != NULL)) {
 		if (switched) {
 			/* the tree has switched, requeue all extracted servers
@@ -793,7 +806,8 @@ static struct server *fwrr_get_next_server(struct proxy *p)
 			 * their weight matters.
 			 */
 			do {
-				fwrr_queue_by_weight(grp->init, full);
+				if (likely(full != srv))
+					fwrr_queue_by_weight(grp->init, full);
 				full = full->next_full;
 			} while (full);
 		} else {
@@ -801,7 +815,8 @@ static struct server *fwrr_get_next_server(struct proxy *p)
 			 * so that they regain their expected place.
 			 */
 			do {
-				fwrr_queue_srv(full);
+				if (likely(full != srv))
+					fwrr_queue_srv(full);
 				full = full->next_full;
 			} while (full);
 		}
@@ -893,9 +908,15 @@ struct server *get_server_ph(struct proxy *px, const char *uri, int uri_len)
 
 int assign_server(struct session *s)
 {
+
+	struct server *srvtoavoid;
+
 #ifdef DEBUG_FULL
 	fprintf(stderr,"assign_server : s=%p\n",s);
 #endif
+
+	srvtoavoid = s->srv;
+	s->srv = NULL;
 
 	if (s->pend_pos)
 		return SRV_STATUS_INTERNAL;
@@ -914,7 +935,7 @@ int assign_server(struct session *s)
 
 			switch (s->be->lbprm.algo & BE_LB_ALGO) {
 			case BE_LB_ALGO_RR:
-				s->srv = fwrr_get_next_server(s->be);
+				s->srv = fwrr_get_next_server(s->be, srvtoavoid);
 				if (!s->srv)
 					return SRV_STATUS_FULL;
 				break;
@@ -943,7 +964,7 @@ int assign_server(struct session *s)
 						       s->txn.req.sl.rq.u_l);
 				if (!s->srv) {
 					/* parameter not found, fall back to round robin on the map */
-					s->srv = get_server_rr_with_conns(s->be);
+					s->srv = get_server_rr_with_conns(s->be, srvtoavoid);
 					if (!s->srv)
 						return SRV_STATUS_FULL;
 				}
@@ -952,8 +973,10 @@ int assign_server(struct session *s)
 				/* unknown balancing algorithm */
 				return SRV_STATUS_INTERNAL;
 			}
-			s->be->cum_lbconn++;
-			s->srv->cum_lbconn++;
+			if (s->srv != srvtoavoid) {
+				s->be->cum_lbconn++;
+				s->srv->cum_lbconn++;
+			}
 		}
 		else if (s->be->options & PR_O_HTTP_PROXY) {
 			if (!s->srv_addr.sin_addr.s_addr)
@@ -1053,6 +1076,7 @@ int assign_server_address(struct session *s)
 int assign_server_and_queue(struct session *s)
 {
 	struct pendconn *p;
+	struct server *srv;
 	int err;
 
 	if (s->pend_pos)
@@ -1067,9 +1091,8 @@ int assign_server_and_queue(struct session *s)
 		}
 
 		if (s->srv && s->srv->maxqueue > 0 && s->srv->nbpend >= s->srv->maxqueue) {
+			/* it's left to the dispatcher to choose a server */
 			s->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
-			s->srv = NULL;
-			http_flush_cookie_flags(&s->txn);
 		} else {
 			/* a server does not need to be assigned, perhaps because we're in
 			 * direct mode, or in dispatch or transparent modes where the server
@@ -1088,7 +1111,32 @@ int assign_server_and_queue(struct session *s)
 	}
 
 	/* a server needs to be assigned */
+	srv = s->srv;
 	err = assign_server(s);
+
+	if (srv) {
+		if (srv != s->srv) {
+			/* This session was previously dispatched to another server:
+			 *  - set TX_CK_DOWN if txn.flags was TX_CK_VALID
+			 *  - set SN_REDISP if it was successfully redispatched
+			 *  - increment srv->redispatches and be->redispatches
+			 */
+
+			if ((s->txn.flags & TX_CK_MASK) == TX_CK_VALID) {
+				s->txn.flags &= ~TX_CK_MASK;
+				s->txn.flags |= TX_CK_DOWN;
+			}
+
+			s->flags |= SN_REDISP;
+
+			srv->redispatches++;
+			s->be->redispatches++;
+		} else {
+			srv->retries++;
+			s->be->retries++;
+		}
+	}
+
 	switch (err) {
 	case SRV_STATUS_OK:
 		if ((s->flags & SN_REDIRECTABLE) && s->srv && s->srv->rdr_len) {
@@ -1414,17 +1462,11 @@ int srv_retryable_connect(struct session *t)
 	if (may_dequeue_tasks(t->srv, t->be))
 		task_wakeup(t->srv->queue_mgt);
 
-	if (t->srv) {
-		t->srv->cum_sess++;
-		t->srv->failed_conns++;
-		t->srv->redispatches++;
-	}
-	t->be->redispatches++;
+	if (t->srv)
+		t->srv->cum_sess++;		//FIXME?
 
+	/* it's left to the dispatcher to choose a server */
 	t->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
-	t->flags |= SN_REDISP;
-	t->srv = NULL; /* it's left to the dispatcher to choose a server */
-	http_flush_cookie_flags(&t->txn);
 	return 0;
 }
 
@@ -1454,10 +1496,7 @@ int srv_redispatch_connect(struct session *t)
 		tv_eternity(&t->req->cex);
 		srv_close_with_err(t, SN_ERR_SRVTO, SN_FINST_C,
 				   503, error_message(t, HTTP_ERR_503));
-		if (t->srv)
-			t->srv->cum_sess++;
-		if (t->srv)
-			t->srv->failed_conns++;
+
 		t->be->failed_conns++;
 
 		return 1;
