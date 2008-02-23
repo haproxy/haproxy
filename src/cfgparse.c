@@ -800,6 +800,36 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			return -1;
 		}
 	}
+	else if (!strcmp(args[0], "id")) {
+		struct proxy *target;
+
+		if (curproxy == &defproxy) {
+			Alert("parsing [%s:%d]: '%s' not allowed in 'defaults' section.\n",
+				 file, linenum, args[0]);
+			return -1;
+		}
+
+		if (!*args[1]) {
+			Alert("parsing [%s:%d]: '%s' expects an integer argument.\n",
+				file, linenum, args[0]);
+			return -1;
+		}
+
+		curproxy->uuid = atol(args[1]);
+
+		if (curproxy->uuid < 1001) {
+			Alert("parsing [%s:%d]: custom id has to be > 1000",
+				file, linenum);
+			return -1;
+		}
+
+		for (target = proxy; target; target = target->next)
+			if (curproxy != target && curproxy->uuid == target->uuid) {
+				Alert("parsing [%s:%d]: custom id has to be unique but is duplicated in %s and %s.\n",
+					file, linenum, curproxy->id, target->id);
+				return -1;
+			}
+	}
 	else if (!strcmp(args[0], "disabled")) {  /* disables this proxy */
 		curproxy->state = PR_STSTOPPED;
 	}
@@ -1530,7 +1560,32 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 
 		cur_arg = 3;
 		while (*args[cur_arg]) {
-			if (!strcmp(args[cur_arg], "cookie")) {
+			if (!strcmp(args[cur_arg], "id")) {
+				struct server *target;
+
+				if (!*args[cur_arg + 1]) {
+					Alert("parsing [%s:%d]: '%s' expects an integer argument.\n",
+						file, linenum, args[cur_arg]);
+					return -1;
+				}
+
+				newsrv->puid = atol(args[cur_arg + 1]);
+
+				if (newsrv->puid< 1001) {
+					Alert("parsing [%s:%d]: custom id has to be > 1000",
+						file, linenum);
+					return -1;
+				}
+
+				for (target = proxy->srv; target; target = target->next)
+					if (newsrv != target && newsrv->puid == target->puid) {
+						Alert("parsing [%s:%d]: custom id has to be unique but is duplicated in %s and %s.\n",
+							file, linenum, newsrv->id, target->id);
+						return -1;
+					}
+				cur_arg += 2;
+			}
+			else if (!strcmp(args[cur_arg], "cookie")) {
 				newsrv->cookie = strdup(args[cur_arg + 1]);
 				newsrv->cklen = strlen(args[cur_arg + 1]);
 				cur_arg += 2;
@@ -1696,7 +1751,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 				return -1;
 			}
 			else {
-				Alert("parsing [%s:%d] : server %s only supports options 'backup', 'cookie', 'redir', 'check', 'track', 'inter', 'fastinter', 'downinter', 'rise', 'fall', 'addr', 'port', 'source', 'minconn', 'maxconn', 'maxqueue', 'slowstart' and 'weight'.\n",
+				Alert("parsing [%s:%d] : server %s only supports options 'backup', 'cookie', 'redir', 'check', 'track', 'id', 'inter', 'fastinter', 'downinter', 'rise', 'fall', 'addr', 'port', 'source', 'minconn', 'maxconn', 'maxqueue', 'slowstart' and 'weight'.\n",
 				      file, linenum, newsrv->id);
 				return -1;
 			}

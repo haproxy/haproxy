@@ -1308,6 +1308,11 @@ http-check disable-on-404
   See also : "option httpchk"
 
 
+id <value>
+  Set a persistent value for proxy ID. Must be unique and larger than 1000, as
+  smaller values are reserved for auto-assigned ids.
+
+
 log global
 log <address> <facility> [<level>]
   Enable per-instance logging of events and traffic.
@@ -3778,6 +3783,10 @@ fall <count>
   <count> consecutive unsuccessful health checks. This value defaults to 3 if
   unspecified. See also the "check", "inter" and "rise" parameters.
 
+id <value>
+  Set a persistent value for server ID. Must be unique and larger than 1000, as
+  smaller values are reserved for auto-assigned ids.
+
 inter <delay>
 fastinter <delay>
 downinter <delay>
@@ -4012,6 +4021,42 @@ Notes related to these keywords :
 
 [to do]
 
+2.7) CSV format
+
+  0. pxname: proxy name
+  1. svname: service name (FRONTEND for frontend, BACKEND for backend, any name
+    for server)
+  2. qcur: current queued requests
+  3. qmax: max queued requests
+  4. scur: current sessions
+  5. smax: max sessions
+  6. slim: sessions limit
+  7. stot: total sessions
+  8. bin: bytes in
+  9. bout: bytes out
+ 10. dreq: denied requests
+ 11. dresp: denied responces
+ 12. ereq: request errors
+ 13. econ: connection errors
+ 14. eresp: responce errors
+ 15. wretr: retries (warning)
+ 16. wredis: redispatches (warning)
+ 17. status: status (UP/DOWN/...)
+ 18. weight: server weight (server), total weight (backend)
+ 19. act: server is active (server), number of active servers (backend)
+ 20. bck: server is backup (server), number of backup servers (backend)
+ 21. chkfail: number of failed checks
+ 22. chkdown: number of UP->DOWN transitions
+ 23. lastchg: last status change (in seconds)
+ 24. downtime: total downtime (in seconds)
+ 25. qlimit: queue limit
+ 26. pid: process id (0 for first instance, 1 for second, ...)
+ 27. iid: unique proxy id
+ 28. sid: service id (unique inside a proxy)
+ 29. throttle: warm up status
+ 30. lbtot: total number of times a server was selected
+ 31. tracked: id of proxy/server if tracking is enabled
+ 32. type (0=frontend, 1=backend, 2=server)
 
 /*
  * Local variables:

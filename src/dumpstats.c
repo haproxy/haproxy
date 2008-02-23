@@ -171,7 +171,7 @@ int print_csv_header(struct chunk *msg, int size)
 			    "wretr,wredis,"
 			    "status,weight,act,bck,"
 			    "chkfail,chkdown,lastchg,downtime,qlimit,"
-			    "pid,iid,sid,throttle,lbtot,tracked,"
+			    "pid,iid,sid,throttle,lbtot,tracked,type,"
 			    "\n");
 }
 
@@ -706,8 +706,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     "%s,"
 				     /* rest of server: nothing */
 				     ",,,,,,,,"
-				     /* pid, iid, sid, throttle, lbtot, tracked*/
-				     "%d,%d,0,,,,"
+				     /* pid, iid, sid, throttle, lbtot, tracked, type (0=server)*/
+				     "%d,%d,0,,,,0,"
 				     "\n",
 				     px->id,
 				     px->feconn, px->feconn_max, px->maxconn, px->cum_feconn,
@@ -911,21 +911,21 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				    now.tv_sec >= sv->last_change) {
 					unsigned int ratio;
 					ratio = MAX(1, 100 * (now.tv_sec - sv->last_change) / sv->slowstart);
-					chunk_printf(&msg, sizeof(trash), "%d", ratio);
+					chunk_printf(&msg, sizeof(trash), "%d,", ratio);
 				}
 
 				/* sessions: lbtot */
-				chunk_printf(&msg, sizeof(trash), ",%d", sv->cum_lbconn);
+				chunk_printf(&msg, sizeof(trash), "%d,", sv->cum_lbconn);
 
 				/* tracked */
 				if (sv->tracked)
-					chunk_printf(&msg, sizeof(trash), ",%s/%s",
+					chunk_printf(&msg, sizeof(trash), "%s/%s,",
 						sv->tracked->proxy->id, sv->tracked->id);
 				else
 					chunk_printf(&msg, sizeof(trash), ",");
 
-				/* ',' then EOL */
-				chunk_printf(&msg, sizeof(trash), ",\n");
+				/* type (2=server), then EOL */
+				chunk_printf(&msg, sizeof(trash), "2,\n");
 			}
 			if (buffer_write_chunk(rep, &msg) != 0)
 				return 0;
@@ -1007,8 +1007,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     "%d,%d,%d,"
 				     /* rest of backend: nothing, down transitions, last change, total downtime */
 				     ",%d,%d,%d,,"
-				     /* pid, iid, sid, throttle, lbtot, tracked,*/
-				     "%d,%d,0,,%d,,"
+				     /* pid, iid, sid, throttle, lbtot, tracked, type (1=backend) */
+				     "%d,%d,0,,%d,,1,"
 				     "\n",
 				     px->id,
 				     px->nbpend /* or px->totpend ? */, px->nbpend_max,
