@@ -213,7 +213,6 @@ int stats_dump_raw(struct session *s, struct uri_auth *uri, int flags)
 
 	case DATA_ST_INFO:
 		up = (now.tv_sec - start_date.tv_sec);
-		memset(&s->data_ctx, 0, sizeof(s->data_ctx));
 
 		if (flags & STAT_SHOW_INFO) {
 			chunk_printf(&msg, sizeof(trash),
@@ -248,6 +247,10 @@ int stats_dump_raw(struct session *s, struct uri_auth *uri, int flags)
 
 		s->data_ctx.stats.px = proxy;
 		s->data_ctx.stats.px_st = DATA_ST_PX_INIT;
+
+		s->data_ctx.stats.sv = NULL;
+		s->data_ctx.stats.sv_st = 0;
+
 		s->data_state = DATA_ST_LIST;
 		/* fall through */
 
@@ -621,6 +624,10 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				return 1;
 		}
 
+		if ((s->flags & SN_STAT_BOUND) && (s->data_ctx.stats.iid != -1) &&
+			(px->uuid != s->data_ctx.stats.iid))
+			return 1;
+
 		s->data_ctx.stats.px_st = DATA_ST_PX_TH;
 		/* fall through */
 
@@ -660,7 +667,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 
 	case DATA_ST_PX_FE:
 		/* print the frontend */
-		if (px->cap & PR_CAP_FE) {
+		if ((px->cap & PR_CAP_FE) && (!(s->flags & SN_STAT_BOUND) || (s->data_ctx.stats.type & (1 << STATS_TYPE_FE)))) {
 			if (flags & STAT_FMT_HTML) {
 				chunk_printf(&msg, sizeof(trash),
 				     /* name, queue */
@@ -706,8 +713,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     "%s,"
 				     /* rest of server: nothing */
 				     ",,,,,,,,"
-				     /* pid, iid, sid, throttle, lbtot, tracked, type (0=server)*/
-				     "%d,%d,0,,,,0,"
+				     /* pid, iid, sid, throttle, lbtot, tracked, type */
+				     "%d,%d,0,,,,%d,"
 				     "\n",
 				     px->id,
 				     px->feconn, px->feconn_max, px->maxconn, px->cum_feconn,
@@ -716,7 +723,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     px->failed_req,
 				     px->state == PR_STRUN ? "OPEN" :
 				     px->state == PR_STIDLE ? "FULL" : "STOP",
-				     relative_pid, px->uuid);
+				     relative_pid, px->uuid, STATS_TYPE_FE);
 			}
 
 			if (buffer_write_chunk(rep, &msg) != 0)
@@ -729,10 +736,19 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 
 	case DATA_ST_PX_SV:
 		/* stats.sv has been initialized above */
-		while (s->data_ctx.stats.sv != NULL) {
+		for (; s->data_ctx.stats.sv != NULL; s->data_ctx.stats.sv = sv->next) {
+
 			int sv_state; /* 0=DOWN, 1=going up, 2=going down, 3=UP, 4,5=NOLB, 6=unchecked */
 
 			sv = s->data_ctx.stats.sv;
+
+			if (s->flags & SN_STAT_BOUND) {
+				if (!(s->data_ctx.stats.type & (1 << STATS_TYPE_SV)))
+					break;
+
+				if (s->data_ctx.stats.sid != -1 && sv->puid != s->data_ctx.stats.sid)
+					continue;
+			}
 
 			if (sv->tracked)
 				svs = sv->tracked;
@@ -911,11 +927,11 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				    now.tv_sec >= sv->last_change) {
 					unsigned int ratio;
 					ratio = MAX(1, 100 * (now.tv_sec - sv->last_change) / sv->slowstart);
-					chunk_printf(&msg, sizeof(trash), "%d,", ratio);
+					chunk_printf(&msg, sizeof(trash), "%d", ratio);
 				}
 
 				/* sessions: lbtot */
-				chunk_printf(&msg, sizeof(trash), "%d,", sv->cum_lbconn);
+				chunk_printf(&msg, sizeof(trash), ",%d,", sv->cum_lbconn);
 
 				/* tracked */
 				if (sv->tracked)
@@ -924,21 +940,19 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				else
 					chunk_printf(&msg, sizeof(trash), ",");
 
-				/* type (2=server), then EOL */
-				chunk_printf(&msg, sizeof(trash), "2,\n");
+				/* type, then EOL */
+				chunk_printf(&msg, sizeof(trash), "%d,\n", STATS_TYPE_SV);
 			}
 			if (buffer_write_chunk(rep, &msg) != 0)
 				return 0;
-
-			s->data_ctx.stats.sv = sv->next;
-		} /* while sv */
+		} /* for sv */
 
 		s->data_ctx.stats.px_st = DATA_ST_PX_BE;
 		/* fall through */
 
 	case DATA_ST_PX_BE:
 		/* print the backend */
-		if (px->cap & PR_CAP_BE) {
+		if ((px->cap & PR_CAP_BE) && (!(s->flags & SN_STAT_BOUND) || (s->data_ctx.stats.type & (1 << STATS_TYPE_BE)))) {
 			if (flags & STAT_FMT_HTML) {
 				chunk_printf(&msg, sizeof(trash),
 				     /* name */
@@ -1007,8 +1021,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     "%d,%d,%d,"
 				     /* rest of backend: nothing, down transitions, last change, total downtime */
 				     ",%d,%d,%d,,"
-				     /* pid, iid, sid, throttle, lbtot, tracked, type (1=backend) */
-				     "%d,%d,0,,%d,,1,"
+				     /* pid, iid, sid, throttle, lbtot, tracked, type */
+				     "%d,%d,0,,%d,,%d,"
 				     "\n",
 				     px->id,
 				     px->nbpend /* or px->totpend ? */, px->nbpend_max,
@@ -1023,7 +1037,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				     px->down_trans, now.tv_sec - px->last_change,
 				     px->srv?be_downtime(px):0,
 				     relative_pid, px->uuid,
-				     px->cum_lbconn);
+				     px->cum_lbconn, STATS_TYPE_BE);
 			}
 			if (buffer_write_chunk(rep, &msg) != 0)
 				return 0;

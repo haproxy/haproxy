@@ -82,6 +82,7 @@
 #define SN_STAT_HIDEDWN	0x00100000	/* hide 'down' servers in the stats page */
 #define SN_STAT_NORFRSH	0x00200000	/* do not automatically refresh the stats page */
 #define SN_STAT_FMTCSV	0x00400000	/* dump the stats in CSV format instead of HTML */
+#define SN_STAT_BOUND	0x00800000	/* bound statistics to selected proxies/types/services */
 
 
 /* WARNING: if new fields are added, they must be initialized in event_accept()
@@ -126,6 +127,7 @@ struct session {
 			struct proxy *px;
 			struct server *sv;
 			short px_st, sv_st;	/* DATA_ST_INIT or DATA_ST_DATA */
+			int iid, type, sid;	/* proxy id, type and service id if bounding of stats is enabled */
 		} stats;
 	} data_ctx;				/* used by produce_content to dump the stats right now */
 	unsigned int uniq_id;			/* unique ID used for the traces */

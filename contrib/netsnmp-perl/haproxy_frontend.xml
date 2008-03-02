@@ -1,0 +1,62 @@
+<interface>
+	<name>Haproxy - frontend</name>
+	<oid_index>.1.3.6.1.4.1.29385.106.1.0.10001</oid_index>
+	<fields>
+		<feIID>
+			<name>Proxy ID</name>
+			<method>get</method>
+			<source>value</source>
+			<direction>input</direction>
+			<oid>.1.3.6.1.4.1.29385.106.1.0.27</oid>
+		</feIID>
+		<feSID>
+			<name>Service ID</name>
+			<method>get</method>
+			<source>value</source>
+			<direction>input</direction>
+			<oid>.1.3.6.1.4.1.29385.106.1.0.28</oid>
+		</feSID>
+		<fePxName>
+			<name>Proxy Name</name>
+			<method>get</method>
+			<source>value</source>
+			<direction>input</direction>
+			<oid>.1.3.6.1.4.1.29385.106.1.0.0</oid>
+		</fePxName>
+		<feSvName>
+			<name>Service Name</name>
+			<method>get</method>
+			<source>value</source>
+			<direction>input</direction>
+			<oid>.1.3.6.1.4.1.29385.106.1.0.1</oid>
+		</feSvName>
+		<feSTot>
+			<name>Total Sessions</name>
+			<method>get</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.4.1.29385.106.1.0.7</oid>
+		</feSTot>
+		<feEReq>
+			<name>Request Errors</name>
+			<method>get</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.4.1.29385.106.1.0.12</oid>
+		</feEReq>
+		<feBIn>
+			<name>Bytes In</name>
+			<method>get</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.4.1.29385.106.1.0.8</oid>
+		</feBIn>
+		<feBOut>
+			<name>Bytes Out</name>
+			<method>get</method>
+			<source>value</source>
+			<direction>output</direction>
+			<oid>.1.3.6.1.4.1.29385.106.1.0.9</oid>
+		</feBOut>
+	</fields>
+</interface>

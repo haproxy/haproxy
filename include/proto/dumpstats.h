@@ -31,6 +31,10 @@
 #define STAT_SHOW_STAT 0x2
 #define STAT_SHOW_INFO 0x4
 
+#define STATS_TYPE_FE  0
+#define STATS_TYPE_BE  1
+#define STATS_TYPE_SV  2
+
 int stats_parse_global(const char **args, char *err, int errlen);
 int stats_dump_raw(struct session *s, struct uri_auth *uri, int flags);
 int stats_dump_http(struct session *s, struct uri_auth *uri, int flags);

@@ -416,6 +416,8 @@ int uxst_event_accept(int fd) {
 			return 0;
 		}
 
+		s->flags = 0;
+
 		if ((t = pool_alloc2(pool2_task)) == NULL) {
 			Alert("out of memory in uxst_event_accept().\n");
 			close(cfd);
@@ -1381,31 +1383,75 @@ void process_uxst_stats(struct task *t, struct timeval *next)
 		}
 
 		if (s->data_state == DATA_ST_INIT) {
-			if ((s->req->l >= 10) && (memcmp(s->req->data, "show stat\n", 10) == 0)) {
-				/* send the stats, and changes the data_state */
-				if (stats_dump_raw(s, NULL, STAT_SHOW_STAT) != 0) {
-					s->srv_state = SV_STCLOSE;
-					fsm_resync |= 1;
-					continue;
-				}
-			}
-			if ((s->req->l >= 10) && (memcmp(s->req->data, "show info\n", 10) == 0)) {
-				/* send the stats, and changes the data_state */
-				if (stats_dump_raw(s, NULL, STAT_SHOW_INFO) != 0) {
-					s->srv_state = SV_STCLOSE;
-					fsm_resync |= 1;
-					continue;
-				}
-			}
-			else if (s->cli_state == CL_STSHUTR || (s->req->l >= s->req->rlim - s->req->data)) {
-				s->srv_state = SV_STCLOSE;
-				fsm_resync |= 1;
-				continue;
-			}
-		}
 
-		if (s->data_state == DATA_ST_INIT)
+			char *args[MAX_UXST_ARGS + 1];
+			char *line, *p;
+			int arg;
+
+			line = s->req->data;
+			p = memchr(line, '\n', s->req->l);
+
+			if (!p)
+				continue;
+
+			*p = '\0';
+
+			while (isspace((unsigned char)*line))
+				line++;
+
+			arg = 0;
+			args[arg] = line;
+
+			while (*line && arg < MAX_UXST_ARGS) {
+				if (isspace((unsigned char)*line)) {
+					*line++ = '\0';
+
+					while (isspace((unsigned char)*line))
+						line++;
+
+					args[++arg] = line;
+					continue;
+				}
+
+				line++;
+			}
+
+			while (++arg <= MAX_UXST_ARGS)
+				args[arg] = line;
+
+			if (!strcmp(args[0], "show")) {
+				if (!strcmp(args[1], "stat")) {
+					if (*args[2] && *args[3] && *args[4]) {
+						s->flags |= SN_STAT_BOUND;
+						s->data_ctx.stats.iid	= atoi(args[2]);
+						s->data_ctx.stats.type	= atoi(args[3]);
+						s->data_ctx.stats.sid	= atoi(args[4]);
+					}
+
+					/* send the stats, and changes the data_state */
+					if (stats_dump_raw(s, NULL, STAT_SHOW_STAT) != 0) {
+						s->srv_state = SV_STCLOSE;
+						fsm_resync |= 1;
+					}
+
+					continue;
+				}
+
+				if (!strcmp(args[1], "info")) {
+					/* send the stats, and changes the data_state */
+					if (stats_dump_raw(s, NULL, STAT_SHOW_INFO) != 0) {
+						s->srv_state = SV_STCLOSE;
+						fsm_resync |= 1;
+					}
+
+					continue;
+				}
+			}
+
+			s->srv_state = SV_STCLOSE;
+			fsm_resync |= 1;
 			continue;
+		}
 
 		/* OK we have some remaining data to process. Just for the
 		 * sake of an exercice, we copy the req into the resp,

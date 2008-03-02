@@ -4035,10 +4035,10 @@ Notes related to these keywords :
   8. bin: bytes in
   9. bout: bytes out
  10. dreq: denied requests
- 11. dresp: denied responces
+ 11. dresp: denied responses
  12. ereq: request errors
  13. econ: connection errors
- 14. eresp: responce errors
+ 14. eresp: response errors
  15. wretr: retries (warning)
  16. wredis: redispatches (warning)
  17. status: status (UP/DOWN/...)
@@ -4057,6 +4057,19 @@ Notes related to these keywords :
  30. lbtot: total number of times a server was selected
  31. tracked: id of proxy/server if tracking is enabled
  32. type (0=frontend, 1=backend, 2=server)
+
+2.8) Unix Socket commands
+
+ - "show stat [<iid> <type> <sid>]": dump statistics in the cvs format. By
+   passing id, type and sid it is possible to dump only selected items:
+     - iid is a proxy id, -1 to dump everything
+     - type selects type of dumpable objects: 1 for frontend, 2 for backend, 4 for
+       server, -1 for everything. Values can be ORed, for example:
+          1+2=3   -> frontend+backend.
+          1+2+4=7 -> frontend+backend+server.
+     - sid is a service id, -1 to dump everything from the selected proxy.
+
+ - "show info": dump info about current haproxy status.
 
 /*
  * Local variables:

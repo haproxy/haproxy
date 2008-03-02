@@ -1,0 +1,111 @@
+SNMP support for HAProxy
+Copyright 2007-2008 Krzysztof Piotr Oledzki <ole@ans.pl>
+
+Root OID: 1.3.6.1.4.1.29385.106
+
+Files:
+ - README: this file
+ - haproxy.pl: Net-SNMP embedded perl module
+ - haproxy_backend.xml: Cacti snmp-query definition for backends
+ - haproxy_frontend.xml: Cacti snmp-query definition for frontends
+
+Install:
+ cp haproxy.pl /etc/snmp/
+ grep -q "disablePerl false" /etc/snmp/snmpd.conf || echo "disablePerl false" >> /etc/snmp/snmpd.conf
+ echo "perl do '/etc/snmp/haproxy.pl';" >> /etc/snmp/snmpd.conf
+
+Supported commands:
+ - GET (snmpget, snmpbulkget): quite fast.
+ - GETNEXT (snmpwalk, snmpbulkwalk): not so fast as requires to transfer
+    and parse a lot of data during each step. Always use "get" instead of "walk"
+    if that's possible.
+
+Supported OIDs:
+ - 1.3.6.1.4.1.29385.106.1: get a variable from stats
+    Usage: 1.3.6.1.4.1.29385.106.1.$type.$field.$iid.$sid
+
+     - type is one of:
+       0) frontend
+       1) backend
+       2) server
+
+     - field is one of:
+       0..32) CSV format variable
+       10001) index
+       10002) unique name
+
+     - iid is a proxy id 
+
+     - sid is a service id (sid): 0 for frontends and backends, >= 1 for servers
+
+ - 1.3.6.1.4.1.29385.106.2: get a variable from info
+    Usage: 1.3.6.1.4.1.29385.106.2.$req.$varnr
+
+      - req is one of:
+        0) get variable name
+        1) gat variable value
+
+Examples:
+
+- Get a list of frontends (type: 0) with status (field: 17):
+$ snmpbulkwalk -c public -v2c 192.168.0.1 1.3.6.1.4.1.29385.106.1.0.17
+SNMPv2-SMI::enterprises.29385.106.1.0.17.1.0 = STRING: "OPEN"
+SNMPv2-SMI::enterprises.29385.106.1.0.17.47.0 = STRING: "OPEN"
+
+- Get a list of backends (type: 1) with index (field: 10001):
+$ snmpbulkwalk -c public -v2c 192.168.0.1 1.3.6.1.4.1.29385.106.1.1.10001
+SNMPv2-SMI::enterprises.29385.106.1.1.10001.1.0 = STRING: "1.0"
+SNMPv2-SMI::enterprises.29385.106.1.1.10001.1100.0 = STRING: "1100.0"
+SNMPv2-SMI::enterprises.29385.106.1.1.10001.1101.0 = STRING: "1101.0"
+SNMPv2-SMI::enterprises.29385.106.1.1.10001.1200.0 = STRING: "1200.0"
+SNMPv2-SMI::enterprises.29385.106.1.1.10001.1201.0 = STRING: "1201.0"
+SNMPv2-SMI::enterprises.29385.106.1.1.10001.1300.0 = STRING: "1300.0"
+SNMPv2-SMI::enterprises.29385.106.1.1.10001.1400.0 = STRING: "1400.0"
+SNMPv2-SMI::enterprises.29385.106.1.1.10001.1401.0 = STRING: "1401.0"
+SNMPv2-SMI::enterprises.29385.106.1.1.10001.1500.0 = STRING: "1500.0"
+(...)
+
+- Get a list of servers (type: 2) with unique name (field: 10002):
+$ snmpbulkwalk -c public -v2c 192.168.0.1 1.3.6.1.4.1.29385.106.1.2.10002
+SNMPv2-SMI::enterprises.29385.106.1.2.10002.1100.1001 = STRING: "backend1/s2"
+SNMPv2-SMI::enterprises.29385.106.1.2.10002.1100.1002 = STRING: "backend1/s5"
+SNMPv2-SMI::enterprises.29385.106.1.2.10002.1100.1003 = STRING: "backend1/s6"
+SNMPv2-SMI::enterprises.29385.106.1.2.10002.1100.1012 = STRING: "backend1/s7"
+SNMPv2-SMI::enterprises.29385.106.1.2.10002.1101.1001 = STRING: "backend2/s9"
+SNMPv2-SMI::enterprises.29385.106.1.2.10002.1101.1002 = STRING: "backend2/s10"
+SNMPv2-SMI::enterprises.29385.106.1.2.10002.1101.1003 = STRING: "backend2/s11"
+SNMPv2-SMI::enterprises.29385.106.1.2.10002.1101.1012 = STRING: "backend2/s12"
+SNMPv2-SMI::enterprises.29385.106.1.2.10002.1200.1001 = STRING: "backend3/s8"
+(...)
+
+- Get a list of servers (type: 2) with weight (field: 18) in proxy 4300:
+$ snmpbulkwalk -c public -v2c 192.168.0.1 1.3.6.1.4.1.29385.106.1.2.18.4300
+SNMPv2-SMI::enterprises.29385.106.1.2.18.4300.1001 = STRING: "40"
+SNMPv2-SMI::enterprises.29385.106.1.2.18.4300.1002 = STRING: "25"
+SNMPv2-SMI::enterprises.29385.106.1.2.18.4300.1003 = STRING: "40"
+SNMPv2-SMI::enterprises.29385.106.1.2.18.4300.1012 = STRING: "80"
+
+- Get total sessions count (field: 7) in frontend (type: 1), sid.iid: 47.0 (proxy #47):
+snmpget -c public -v2c 192.168.0.1 enterprises.29385.106.1.0.7.47.0
+SNMPv2-SMI::enterprises.29385.106.1.0.7.47.0 = STRING: "1014019"
+
+- Get a list of available variables (req: 0):
+$ snmpbulkwalk -c public -v2c 192.168.0.1 1.3.6.1.4.1.29385.106.2.0
+SNMPv2-SMI::enterprises.29385.106.2.0.0 = STRING: "Name"
+SNMPv2-SMI::enterprises.29385.106.2.0.1 = STRING: "Version"
+SNMPv2-SMI::enterprises.29385.106.2.0.2 = STRING: "Release_date"
+SNMPv2-SMI::enterprises.29385.106.2.0.3 = STRING: "Nbproc"
+SNMPv2-SMI::enterprises.29385.106.2.0.4 = STRING: "Process_num"
+SNMPv2-SMI::enterprises.29385.106.2.0.5 = STRING: "Pid"
+SNMPv2-SMI::enterprises.29385.106.2.0.6 = STRING: "Uptime"
+SNMPv2-SMI::enterprises.29385.106.2.0.7 = STRING: "Uptime_sec"
+SNMPv2-SMI::enterprises.29385.106.2.0.8 = STRING: "Memmax_MB"
+SNMPv2-SMI::enterprises.29385.106.2.0.9 = STRING: "Ulimit-n"
+SNMPv2-SMI::enterprises.29385.106.2.0.10 = STRING: "Maxsock"
+SNMPv2-SMI::enterprises.29385.106.2.0.11 = STRING: "Maxconn"
+SNMPv2-SMI::enterprises.29385.106.2.0.12 = STRING: "CurrConns"
+
+- Get a variable (req: 1), varnr: 7 (Uptime_sec):
+$ snmpget -c public -v2c 192.168.0.1 1.3.6.1.4.1.29385.106.2.1.7
+SNMPv2-SMI::enterprises.29385.106.2.1.7 = STRING: "18761"
+ 
