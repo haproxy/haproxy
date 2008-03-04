@@ -66,6 +66,7 @@ static inline struct server *get_server_rr_with_conns(struct proxy *px, struct s
 	newidx = px->lbprm.map.rr_idx;
 
 	avoided = NULL;
+	avoididx = 0; /* shut a gcc warning */
 	do {
 		srv = px->lbprm.map.srv[newidx++];
 		if (!srv->maxconn || srv->cur_sess < srv_dynamic_maxconn(srv)) {
