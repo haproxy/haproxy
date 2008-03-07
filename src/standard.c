@@ -83,27 +83,20 @@ const char *limit_r(unsigned long n, char *buffer, int size, const char *alt)
  * converts <str> to a struct sockaddr_un* which is locally allocated.
  * The format is "/path", where "/path" is a path to a UNIX domain socket.
  */
-struct sockaddr_un *str2sun(char *str)
+struct sockaddr_un *str2sun(const char *str)
 {
 	static struct sockaddr_un su;
 	int strsz;	/* length included null */
 
 	memset(&su, 0, sizeof(su));
-	str = strdup(str);
-	if (str == NULL)
-		goto out_nofree;
-
 	strsz = strlen(str) + 1;
 	if (strsz > sizeof(su.sun_path)) {
 		Alert("Socket path '%s' too long (max %d)\n",
 			str, sizeof(su.sun_path) - 1);
-		goto out_nofree;
+	} else {
+		su.sun_family = AF_UNIX;
+		memcpy(su.sun_path, str, strsz);
 	}
-	su.sun_family = AF_UNIX;
-	memcpy(su.sun_path, str, strsz);
-
-	free(str);
- out_nofree:
 	return &su;
 }
 
