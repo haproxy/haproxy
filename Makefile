@@ -341,6 +341,11 @@ OPTIONS_CFLAGS += -DCONFIG_HAP_USE_REGPARM
 BUILD_OPTIONS  += $(call ignore_implicit,USE_REGPARM)
 endif
 
+# report DLMALLOC_SRC only if explicitly specified
+ifneq ($(DLMALLOC_SRC),)
+BUILD_OPTIONS += DLMALLOC_SRC=$(DLMALLOC_SRC)
+endif
+
 ifneq ($(USE_DLMALLOC),)
 BUILD_OPTIONS  += $(call ignore_implicit,USE_DLMALLOC)
 ifeq ($(DLMALLOC_SRC),)
@@ -349,10 +354,9 @@ endif
 endif
 
 ifneq ($(DLMALLOC_SRC),)
-# May be changed to match PAGE_SIZE on every platform
+# DLMALLOC_THRES may be changed to match PAGE_SIZE on every platform
 DLMALLOC_THRES = 4096
 OPTIONS_OBJS  += src/dlmalloc.o
-BUILD_OPTIONS += DLMALLOC_SRC=$(DLMALLOC_SRC)
 endif
 
 ifneq ($(USE_PCRE),)
