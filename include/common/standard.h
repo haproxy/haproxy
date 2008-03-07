@@ -139,7 +139,7 @@ extern const char *invalid_char(const char *name);
  * converts <str> to a struct sockaddr_un* which is locally allocated.
  * The format is "/path", where "/path" is a path to a UNIX domain socket.
  */
-struct sockaddr_un *str2sun(char *str);
+struct sockaddr_un *str2sun(const char *str);
 
 /*
  * converts <str> to a struct sockaddr_in* which is locally allocated.
