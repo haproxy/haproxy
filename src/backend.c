@@ -70,7 +70,7 @@ static inline int srv_is_usable(int state, int weight)
  * This function recounts the number of usable active and backup servers for
  * proxy <p>. These numbers are returned into the p->srv_act and p->srv_bck.
  * This function also recomputes the total active and backup weights. However,
- * it does nout update tot_weight nor tot_used. Use update_backend_weight() for
+ * it does not update tot_weight nor tot_used. Use update_backend_weight() for
  * this.
  */
 static void recount_servers(struct proxy *px)
@@ -86,7 +86,7 @@ static void recount_servers(struct proxy *px)
 
 		if (srv->state & SRV_BACKUP) {
 			if (!px->srv_bck &&
-			    !(px->lbprm.algo & PR_O_USE_ALL_BK))
+			    !(px->options & PR_O_USE_ALL_BK))
 				px->lbprm.fbck = srv;
 			px->srv_bck++;
 			px->lbprm.tot_wbck += srv->eweight;
@@ -376,16 +376,21 @@ static void fwrr_set_server_status_up(struct server *srv)
 		p->lbprm.tot_wbck = p->lbprm.fwrr.bck.next_weight;
 		p->srv_bck++;
 
-		if (p->lbprm.fbck) {
-			/* we may have restored a backup server prior to fbck,
-			 * in which case it should replace it.
-			 */
-			struct server *srv2 = srv;
-			do {
-				srv2 = srv2->next;
-			} while (srv2 && (srv2 != p->lbprm.fbck));
-			if (srv2)
+		if (!(p->options & PR_O_USE_ALL_BK)) {
+			if (!p->lbprm.fbck) {
+				/* there was no backup server anymore */
 				p->lbprm.fbck = srv;
+			} else {
+				/* we may have restored a backup server prior to fbck,
+				 * in which case it should replace it.
+				 */
+				struct server *srv2 = srv;
+				do {
+					srv2 = srv2->next;
+				} while (srv2 && (srv2 != p->lbprm.fbck));
+				if (srv2)
+					p->lbprm.fbck = srv;
+			}
 		}
 	} else {
 		p->lbprm.tot_wact = p->lbprm.fwrr.act.next_weight;
