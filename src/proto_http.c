@@ -2569,8 +2569,11 @@ int process_srv(struct session *t)
 		      t->be->options & PR_O_ABRT_CLOSE))) { /* give up */
 			tv_eternity(&req->cex);
 			fd_delete(t->srv_fd);
-			if (t->srv)
+			if (t->srv) {
 				t->srv->cur_sess--;
+				if (t->srv->proxy->lbprm.server_drop_conn)
+					t->srv->proxy->lbprm.server_drop_conn(t->srv);
+			}
 
 			/* note that this must not return any error because it would be able to
 			 * overwrite the client_retnclose() output.
@@ -2594,8 +2597,11 @@ int process_srv(struct session *t)
 			}
 			else {
 				fd_delete(t->srv_fd);
-				if (t->srv)
+				if (t->srv) {
 					t->srv->cur_sess--;
+					if (t->srv->proxy->lbprm.server_drop_conn)
+						t->srv->proxy->lbprm.server_drop_conn(t->srv);
+				}
 
 				if (!(req->flags & BF_WRITE_STATUS))
 					conn_err = SN_ERR_SRVTO; // it was a connect timeout.
@@ -2788,6 +2794,8 @@ int process_srv(struct session *t)
 				if (t->srv) {
 					t->srv->cur_sess--;
 					t->srv->failed_resp++;
+					if (t->srv->proxy->lbprm.server_drop_conn)
+						t->srv->proxy->lbprm.server_drop_conn(t->srv);
 				}
 				t->be->failed_resp++;
 				t->srv_state = SV_STCLOSE;
@@ -2830,6 +2838,8 @@ int process_srv(struct session *t)
 				if (t->srv) {
 					t->srv->cur_sess--;
 					t->srv->failed_resp++;
+					if (t->srv->proxy->lbprm.server_drop_conn)
+						t->srv->proxy->lbprm.server_drop_conn(t->srv);
 				}
 				t->be->failed_resp++;
 				t->srv_state = SV_STCLOSE;
@@ -2998,6 +3008,8 @@ int process_srv(struct session *t)
 					if (t->srv) {
 						t->srv->cur_sess--;
 						t->srv->failed_resp++;
+						if (t->srv->proxy->lbprm.server_drop_conn)
+							t->srv->proxy->lbprm.server_drop_conn(t->srv);
 					}
 					cur_proxy->failed_resp++;
 				return_srv_prx_502:
@@ -3025,6 +3037,8 @@ int process_srv(struct session *t)
 				if (t->srv) {
 					t->srv->cur_sess--;
 					t->srv->failed_secu++;
+					if (t->srv->proxy->lbprm.server_drop_conn)
+						t->srv->proxy->lbprm.server_drop_conn(t->srv);
 				}
 				cur_proxy->denied_resp++;
 				goto return_srv_prx_502;
@@ -3160,6 +3174,8 @@ int process_srv(struct session *t)
 			if (t->srv) {
 				t->srv->cur_sess--;
 				t->srv->failed_secu++;
+				if (t->srv->proxy->lbprm.server_drop_conn)
+					t->srv->proxy->lbprm.server_drop_conn(t->srv);
 			}
 			t->be->denied_resp++;
 
@@ -3247,6 +3263,8 @@ int process_srv(struct session *t)
 			if (t->srv) {
 				t->srv->cur_sess--;
 				t->srv->failed_resp++;
+				if (t->srv->proxy->lbprm.server_drop_conn)
+					t->srv->proxy->lbprm.server_drop_conn(t->srv);
 			}
 			t->be->failed_resp++;
 			t->srv_state = SV_STCLOSE;
@@ -3354,6 +3372,8 @@ int process_srv(struct session *t)
 			if (t->srv) {
 				t->srv->cur_sess--;
 				t->srv->failed_resp++;
+				if (t->srv->proxy->lbprm.server_drop_conn)
+					t->srv->proxy->lbprm.server_drop_conn(t->srv);
 			}
 			t->be->failed_resp++;
 			//close(t->srv_fd);
@@ -3374,8 +3394,11 @@ int process_srv(struct session *t)
 			//EV_FD_CLR(t->srv_fd, DIR_WR);
 			buffer_shutw(req);
 			fd_delete(t->srv_fd);
-			if (t->srv)
+			if (t->srv) {
 				t->srv->cur_sess--;
+				if (t->srv->proxy->lbprm.server_drop_conn)
+					t->srv->proxy->lbprm.server_drop_conn(t->srv);
+			}
 			//close(t->srv_fd);
 			t->srv_state = SV_STCLOSE;
 			/* We used to have a free connection slot. Since we'll never use it,
@@ -3390,8 +3413,11 @@ int process_srv(struct session *t)
 			//EV_FD_CLR(t->srv_fd, DIR_WR);
 			buffer_shutw(req);
 			fd_delete(t->srv_fd);
-			if (t->srv)
+			if (t->srv) {
 				t->srv->cur_sess--;
+				if (t->srv->proxy->lbprm.server_drop_conn)
+					t->srv->proxy->lbprm.server_drop_conn(t->srv);
+			}
 			//close(t->srv_fd);
 			t->srv_state = SV_STCLOSE;
 			if (!(t->flags & SN_ERR_MASK))
@@ -3429,6 +3455,8 @@ int process_srv(struct session *t)
 			if (t->srv) {
 				t->srv->cur_sess--;
 				t->srv->failed_resp++;
+				if (t->srv->proxy->lbprm.server_drop_conn)
+					t->srv->proxy->lbprm.server_drop_conn(t->srv);
 			}
 			t->be->failed_resp++;
 			//close(t->srv_fd);
@@ -3449,8 +3477,11 @@ int process_srv(struct session *t)
 			//EV_FD_CLR(t->srv_fd, DIR_RD);
 			buffer_shutr(rep);
 			fd_delete(t->srv_fd);
-			if (t->srv)
+			if (t->srv) {
 				t->srv->cur_sess--;
+				if (t->srv->proxy->lbprm.server_drop_conn)
+					t->srv->proxy->lbprm.server_drop_conn(t->srv);
+			}
 			//close(t->srv_fd);
 			t->srv_state = SV_STCLOSE;
 			/* We used to have a free connection slot. Since we'll never use it,
@@ -3465,8 +3496,11 @@ int process_srv(struct session *t)
 			//EV_FD_CLR(t->srv_fd, DIR_RD);
 			buffer_shutr(rep);
 			fd_delete(t->srv_fd);
-			if (t->srv)
+			if (t->srv) {
 				t->srv->cur_sess--;
+				if (t->srv->proxy->lbprm.server_drop_conn)
+					t->srv->proxy->lbprm.server_drop_conn(t->srv);
+			}
 			//close(t->srv_fd);
 			t->srv_state = SV_STCLOSE;
 			if (!(t->flags & SN_ERR_MASK))

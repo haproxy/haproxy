@@ -150,9 +150,15 @@ struct proxy {
 			struct fwrr_group act;	/* weighted round robin on the active servers */
 			struct fwrr_group bck;	/* weighted round robin on the backup servers */
 		} fwrr;
+		struct {
+			struct eb_root act;	/* weighted least conns on the active servers */
+			struct eb_root bck;	/* weighted least conns on the backup servers */
+		} fwlc;
 		void (*update_server_eweight)(struct server *);/* if non-NULL, to be called after eweight change */
 		void (*set_server_status_up)(struct server *);/* to be called after status changes to UP */
 		void (*set_server_status_down)(struct server *);/* to be called after status changes to DOWN */
+		void (*server_take_conn)(struct server *);/* to be called when connection is assigned */
+		void (*server_drop_conn)(struct server *);/* to be called when connection is dropped */
 	} lbprm;				/* LB parameters for all algorithms */
 
 	char *cookie_name;			/* name of the cookie to look for */

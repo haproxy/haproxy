@@ -2,7 +2,7 @@
   include/types/backend.h
   This file rassembles definitions for backends
 
-  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -42,6 +42,7 @@
 #define BE_LB_ALGO_SH	(BE_LB_PROP_L4  | 0x02) /* balance on source IP hash */
 #define BE_LB_ALGO_UH	(BE_LB_PROP_L7  | 0x03) /* balance on URI hash */
 #define BE_LB_ALGO_PH	(BE_LB_PROP_L7  | 0x04) /* balance on URL parameter hash */
+#define BE_LB_ALGO_LC	(BE_LB_PROP_DYN | 0x05) /* fast weighted round-robin mode (dynamic) */
 
 /* various constants */
 

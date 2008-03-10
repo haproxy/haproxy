@@ -43,6 +43,7 @@ void recalc_server_map(struct proxy *px);
 int be_downtime(struct proxy *px);
 void init_server_map(struct proxy *p);
 void fwrr_init_server_groups(struct proxy *p);
+void fwlc_init_server_tree(struct proxy *p);
 
 /*
  * This function tries to find a running server with free connection slots for

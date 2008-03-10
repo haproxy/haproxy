@@ -2964,6 +2964,8 @@ int readcfgfile(const char *file)
 		/* round robin relies on a weight tree */
 		if ((curproxy->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_RR)
 			fwrr_init_server_groups(curproxy);
+		else if ((curproxy->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_LC)
+			fwlc_init_server_tree(curproxy);
 		else
 			init_server_map(curproxy);
 
