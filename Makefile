@@ -54,7 +54,7 @@
 # following list (use the default "generic" if uncertain) :
 #    generic, linux22, linux24, linux24e, linux24eold, linux26, solaris,
 #    freebsd, openbsd, custom
-TARGET = generic
+TARGET =
 
 #### TARGET CPU
 # Use CPU=<cpu_name> to optimize for a particular CPU, among the following
@@ -407,8 +407,29 @@ endif
 # add options at the beginning of the "ld" command line if needed.
 LDOPTS = $(TARGET_LDFLAGS) $(OPTIONS_LDFLAGS) $(ADDLIB)
 
-
+ifeq ($(TARGET),)
+all:
+	@echo
+	@echo "Due to too many reports of suboptimized setups, building without"
+	@echo "specifying the target is no longer supported. Please specify the"
+	@echo "target OS in the TARGET variable, in the following form:"
+	@echo
+	@echo "   $ make TARGET=xxx"
+	@echo
+	@echo "Please choose the target among the following supported list :"
+	@echo
+	@echo "   linux26, linux24, linux24e, linux24eold, linux22, solaris"
+	@echo "   freebsd, openbsd, custom, generic"
+	@echo
+	@echo "Use \"generic\" if you don't want any optimization, \"custom\" if you"
+	@echo "want to precisely tweak every option, or choose the target which"
+	@echo "matches your OS the most in order to gain the maximum performance"
+	@echo "out of it. Please check the Makefile in case of doubts."
+	@echo
+	@exit 1
+else
 all: haproxy
+endif
 
 OBJS = src/haproxy.o src/sessionhash.o src/base64.o src/protocols.o \
        src/uri_auth.o src/standard.o src/buffers.o src/log.o src/task.o \
