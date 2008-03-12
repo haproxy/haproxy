@@ -492,7 +492,7 @@ install-bin: all
 	install -d $(DESTDIR)$(SBINDIR)
 	install haproxy $(DESTDIR)$(SBINDIR)
 
-install: install-doc install-man install-bin
+install: install-bin install-man install-doc
 
 clean:
 	rm -f *.[oas] src/*.[oas] core haproxy test
