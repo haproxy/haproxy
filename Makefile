@@ -37,6 +37,12 @@
 #          by "haproxy -vv" in CFLAGS.
 #   SILENT_DEFINE may be used to specify other defines which will not be
 #     reported by "haproxy -vv".
+#   DESTDIR is not set by default and is used for installation only.
+#           It might be useful to set DESTDIR if you want to install haproxy
+#           in a sandbox.
+#   PREFIX  is set to "/usr/local" by default and is used for installation only.
+#   SBINDIR is set to "$(PREFIX)/sbin" by default and is used for installation
+#           only.
 #
 # Other variables :
 #   DLMALLOC_SRC   : build with dlmalloc, indicate the location of dlmalloc.c.
@@ -47,6 +53,10 @@
 #   SUBVERS        : add a sub-version (eg: platform, model, ...).
 #   VERDATE        : force haproxy's release date.
 
+#### Installation options.
+DESTDIR =
+PREFIX = /usr/local
+SBINDIR = $(PREFIX)/sbin
 
 #### TARGET system
 # Use TARGET=<target_name> to optimize for a specifc target OS among the
@@ -434,6 +444,10 @@ src/haproxy.o:	src/haproxy.c
 
 src/dlmalloc.o: $(DLMALLOC_SRC)
 	$(CC) $(COPTS) -DDEFAULT_MMAP_THRESHOLD=$(DLMALLOC_THRES) -c -o $@ $<
+
+install: all
+	install -d $(DESTDIR)/$(SBINDIR)
+	install haproxy $(DESTDIR)/$(SBINDIR)
 
 clean:
 	rm -f *.[oas] src/*.[oas] core haproxy test
