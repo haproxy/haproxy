@@ -45,6 +45,8 @@
 #           only.
 #   MANDIR  is set to "$(PREFIX)/share/man" by default and is used for
 #           installation only.
+#   DOCDIR  is set to "$(PREFIX)/doc/haproxy" by default and is used for
+#           installation only.
 #
 # Other variables :
 #   DLMALLOC_SRC   : build with dlmalloc, indicate the location of dlmalloc.c.
@@ -60,6 +62,7 @@ DESTDIR =
 PREFIX = /usr/local
 SBINDIR = $(PREFIX)/sbin
 MANDIR = $(PREFIX)/man
+DOCDIR = $(PREFIX)/doc/haproxy
 
 #### TARGET system
 # Use TARGET=<target_name> to optimize for a specifc target OS among the
@@ -452,11 +455,17 @@ install-man:
 	install -d $(DESTDIR)/$(MANDIR)/man1
 	install -m 644 doc/haproxy.1 $(DESTDIR)/$(MANDIR)/man1
 
+install-doc:
+	install -d $(DESTDIR)/$(DOCDIR)
+	for x in configuration architecture haproxy-en haproxy-fr; do \
+		install -m 644 doc/$$x.txt $(DESTDIR)/$(DOCDIR) ; \
+	done
+
 install-bin: all
 	install -d $(DESTDIR)/$(SBINDIR)
 	install haproxy $(DESTDIR)/$(SBINDIR)
 
-install: install-man install-bin
+install: install-doc install-man install-bin
 
 clean:
 	rm -f *.[oas] src/*.[oas] core haproxy test
