@@ -452,18 +452,18 @@ src/dlmalloc.o: $(DLMALLOC_SRC)
 	$(CC) $(COPTS) -DDEFAULT_MMAP_THRESHOLD=$(DLMALLOC_THRES) -c -o $@ $<
 
 install-man:
-	install -d $(DESTDIR)/$(MANDIR)/man1
-	install -m 644 doc/haproxy.1 $(DESTDIR)/$(MANDIR)/man1
+	install -d $(DESTDIR)$(MANDIR)/man1
+	install -m 644 doc/haproxy.1 $(DESTDIR)$(MANDIR)/man1
 
 install-doc:
-	install -d $(DESTDIR)/$(DOCDIR)
+	install -d $(DESTDIR)$(DOCDIR)
 	for x in configuration architecture haproxy-en haproxy-fr; do \
-		install -m 644 doc/$$x.txt $(DESTDIR)/$(DOCDIR) ; \
+		install -m 644 doc/$$x.txt $(DESTDIR)$(DOCDIR) ; \
 	done
 
 install-bin: all
-	install -d $(DESTDIR)/$(SBINDIR)
-	install haproxy $(DESTDIR)/$(SBINDIR)
+	install -d $(DESTDIR)$(SBINDIR)
+	install haproxy $(DESTDIR)$(SBINDIR)
 
 install: install-doc install-man install-bin
 
