@@ -43,6 +43,8 @@
 #   PREFIX  is set to "/usr/local" by default and is used for installation only.
 #   SBINDIR is set to "$(PREFIX)/sbin" by default and is used for installation
 #           only.
+#   MANDIR  is set to "$(PREFIX)/share/man" by default and is used for
+#           installation only.
 #
 # Other variables :
 #   DLMALLOC_SRC   : build with dlmalloc, indicate the location of dlmalloc.c.
@@ -57,6 +59,7 @@
 DESTDIR =
 PREFIX = /usr/local
 SBINDIR = $(PREFIX)/sbin
+MANDIR = $(PREFIX)/man
 
 #### TARGET system
 # Use TARGET=<target_name> to optimize for a specifc target OS among the
@@ -445,7 +448,11 @@ src/haproxy.o:	src/haproxy.c
 src/dlmalloc.o: $(DLMALLOC_SRC)
 	$(CC) $(COPTS) -DDEFAULT_MMAP_THRESHOLD=$(DLMALLOC_THRES) -c -o $@ $<
 
-install: all
+install-man:
+	install -d $(DESTDIR)/$(MANDIR)/man1
+	install -m 644 doc/haproxy.1 $(DESTDIR)/$(MANDIR)/man1
+
+install: install-man all
 	install -d $(DESTDIR)/$(SBINDIR)
 	install haproxy $(DESTDIR)/$(SBINDIR)
 
