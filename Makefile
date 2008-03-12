@@ -479,9 +479,11 @@ install-man:
 	install -d $(DESTDIR)/$(MANDIR)/man1
 	install -m 644 doc/haproxy.1 $(DESTDIR)/$(MANDIR)/man1
 
-install: install-man all
+install-bin: all
 	install -d $(DESTDIR)/$(SBINDIR)
 	install haproxy $(DESTDIR)/$(SBINDIR)
+
+install: install-man install-bin
 
 clean:
 	rm -f *.[oas] src/*.[oas] core haproxy test
