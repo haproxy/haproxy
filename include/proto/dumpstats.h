@@ -27,14 +27,17 @@
 #include <types/buffers.h>
 #include <types/session.h>
 
-#define STAT_FMT_HTML  0x1
-#define STAT_SHOW_STAT 0x2
-#define STAT_SHOW_INFO 0x4
+/* Flags for session->data_ctx.stats.flags */
+#define STAT_FMT_CSV    0x00000001	/* dump the stats in CSV format instead of HTML */
+#define STAT_SHOW_STAT  0x00000002	/* dump the stats part */
+#define STAT_SHOW_INFO  0x00000004	/* dump the info part */
+#define STAT_HIDE_DOWN  0x00000008	/* hide 'down' servers in the stats page */
+#define STAT_NO_REFRESH 0x00000010	/* do not automatically refresh the stats page */
 
 int stats_parse_global(const char **args, char *err, int errlen);
-int stats_dump_raw(struct session *s, struct uri_auth *uri, int flags);
-int stats_dump_http(struct session *s, struct uri_auth *uri, int flags);
-int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, int flags);
+int stats_dump_raw(struct session *s, struct uri_auth *uri);
+int stats_dump_http(struct session *s, struct uri_auth *uri);
+int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri);
 
 
 #endif /* _PROTO_DUMPSTATS_H */

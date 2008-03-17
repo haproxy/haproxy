@@ -177,12 +177,12 @@ int print_csv_header(struct chunk *msg, int size)
 
 /*
  * Produces statistics data for the session <s>. Expects to be called with
- * s->cli_state == CL_STSHUTR. It *may* make use of informations from <uri>
- * and <flags>.
+ * s->cli_state == CL_STSHUTR. It *may* make use of informations from <uri>.
+ * s->data_ctx must have been zeroed first, and the flags properly set.
  * It returns 0 if it had to stop writing data and an I/O is needed, 1 if the
  * dump is finished and the session must be closed, or -1 in case of any error.
  */
-int stats_dump_raw(struct session *s, struct uri_auth *uri, int flags)
+int stats_dump_raw(struct session *s, struct uri_auth *uri)
 {
 	struct buffer *rep = s->rep;
 	struct proxy *px;
@@ -202,7 +202,7 @@ int stats_dump_raw(struct session *s, struct uri_auth *uri, int flags)
 		/* fall through */
 
 	case DATA_ST_HEAD:
-		if (flags & STAT_SHOW_STAT) {
+		if (s->data_ctx.stats.flags & STAT_SHOW_STAT) {
 			print_csv_header(&msg, sizeof(trash));
 			if (buffer_write_chunk(rep, &msg) != 0)
 				return 0;
@@ -213,9 +213,7 @@ int stats_dump_raw(struct session *s, struct uri_auth *uri, int flags)
 
 	case DATA_ST_INFO:
 		up = (now.tv_sec - start_date.tv_sec);
-		memset(&s->data_ctx, 0, sizeof(s->data_ctx));
-
-		if (flags & STAT_SHOW_INFO) {
+		if (s->data_ctx.stats.flags & STAT_SHOW_INFO) {
 			chunk_printf(&msg, sizeof(trash),
 				     "Name: " PRODUCT_NAME "\n"
 				     "Version: " HAPROXY_VERSION "\n"
@@ -253,13 +251,13 @@ int stats_dump_raw(struct session *s, struct uri_auth *uri, int flags)
 
 	case DATA_ST_LIST:
 		/* dump proxies */
-		if (flags & STAT_SHOW_STAT) {
+		if (s->data_ctx.stats.flags & STAT_SHOW_STAT) {
 			while (s->data_ctx.stats.px) {
 				px = s->data_ctx.stats.px;
 				/* skip the disabled proxies and non-networked ones */
 				if (px->state != PR_STSTOPPED &&
 				    (px->cap & (PR_CAP_FE | PR_CAP_BE)))
-					if (stats_dump_proxy(s, px, NULL, 0) == 0)
+					if (stats_dump_proxy(s, px, NULL) == 0)
 						return 0;
 
 				s->data_ctx.stats.px = px->next;
@@ -290,10 +288,11 @@ int stats_dump_raw(struct session *s, struct uri_auth *uri, int flags)
  * s->cli_state == CL_STSHUTR. It stops by itself by unsetting the SN_SELF_GEN
  * flag from the session, which it uses to keep on being called when there is
  * free space in the buffer, of simply by letting an empty buffer upon return.
+ * s->data_ctx must have been zeroed before the first call, and the flags set.
  * It returns 0 if it had to stop writing data and an I/O is needed, 1 if the
  * dump is finished and the session must be closed, or -1 in case of any error.
  */
-int stats_dump_http(struct session *s, struct uri_auth *uri, int flags)
+int stats_dump_http(struct session *s, struct uri_auth *uri)
 {
 	struct buffer *rep = s->rep;
 	struct proxy *px;
@@ -313,9 +312,9 @@ int stats_dump_http(struct session *s, struct uri_auth *uri, int flags)
 			     "Cache-Control: no-cache\r\n"
 			     "Connection: close\r\n"
 			     "Content-Type: %s\r\n",
-			     (flags & STAT_FMT_HTML) ? "text/html" : "text/plain");
+			     (s->data_ctx.stats.flags & STAT_FMT_CSV) ? "text/plain" : "text/html");
 
-		if (uri->refresh > 0 && !(s->flags & SN_STAT_NORFRSH))
+		if (uri->refresh > 0 && !(s->data_ctx.stats.flags & STAT_NO_REFRESH))
 			chunk_printf(&msg, sizeof(trash), "Refresh: %d\r\n",
 				     uri->refresh);
 
@@ -341,7 +340,7 @@ int stats_dump_http(struct session *s, struct uri_auth *uri, int flags)
 		/* fall through */
 
 	case DATA_ST_HEAD:
-		if (flags & STAT_FMT_HTML) {
+		if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
 			/* WARNING! This must fit in the first buffer !!! */	    
 			chunk_printf(&msg, sizeof(trash),
 			     "<html><head><title>Statistics Report for " PRODUCT_NAME "</title>\n"
@@ -432,7 +431,7 @@ int stats_dump_http(struct session *s, struct uri_auth *uri, int flags)
 			 * We are around 3.5 kB, add adding entries will
 			 * become tricky if we want to support 4kB buffers !
 			 */
-		if (flags & STAT_FMT_HTML) {
+		if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
 			chunk_printf(&msg, sizeof(trash),
 			     "<body><h1><a href=\"" PRODUCT_URL "\" style=\"text-decoration: none;\">"
 			     PRODUCT_NAME "%s</a></h1>\n"
@@ -477,39 +476,39 @@ int stats_dump_http(struct session *s, struct uri_auth *uri, int flags)
 			     actconn
 			     );
 	    
-			if (s->flags & SN_STAT_HIDEDWN)
+			if (s->data_ctx.stats.flags & STAT_HIDE_DOWN)
 				chunk_printf(&msg, sizeof(trash),
 				     "<li><a href=\"%s%s%s\">Show all servers</a><br>\n",
 				     uri->uri_prefix,
 				     "",
-				     (s->flags & SN_STAT_NORFRSH) ? ";norefresh" : "");
+				     (s->data_ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "");
 			else
 				chunk_printf(&msg, sizeof(trash),
 				     "<li><a href=\"%s%s%s\">Hide 'DOWN' servers</a><br>\n",
 				     uri->uri_prefix,
 				     ";up",
-				     (s->flags & SN_STAT_NORFRSH) ? ";norefresh" : "");
+				     (s->data_ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "");
 
 			if (uri->refresh > 0) {
-				if (s->flags & SN_STAT_NORFRSH)
+				if (s->data_ctx.stats.flags & STAT_NO_REFRESH)
 					chunk_printf(&msg, sizeof(trash),
 					     "<li><a href=\"%s%s%s\">Enable refresh</a><br>\n",
 					     uri->uri_prefix,
-					     (s->flags & SN_STAT_HIDEDWN) ? ";up" : "",
+					     (s->data_ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
 					     "");
 				else
 					chunk_printf(&msg, sizeof(trash),
 					     "<li><a href=\"%s%s%s\">Disable refresh</a><br>\n",
 					     uri->uri_prefix,
-					     (s->flags & SN_STAT_HIDEDWN) ? ";up" : "",
+					     (s->data_ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
 					     ";norefresh");
 			}
 
 			chunk_printf(&msg, sizeof(trash),
 			     "<li><a href=\"%s%s%s\">Refresh now</a><br>\n",
 			     uri->uri_prefix,
-			     (s->flags & SN_STAT_HIDEDWN) ? ";up" : "",
-			     (s->flags & SN_STAT_NORFRSH) ? ";norefresh" : "");
+			     (s->data_ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
+			     (s->data_ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "");
 
 			chunk_printf(&msg, sizeof(trash),
 			     "<li><a href=\"%s;csv%s\">CSV export</a><br>\n",
@@ -533,8 +532,6 @@ int stats_dump_http(struct session *s, struct uri_auth *uri, int flags)
 				return 0;
 		}
 
-		memset(&s->data_ctx, 0, sizeof(s->data_ctx));
-
 		s->data_ctx.stats.px = proxy;
 		s->data_ctx.stats.px_st = DATA_ST_PX_INIT;
 		s->data_state = DATA_ST_LIST;
@@ -546,7 +543,7 @@ int stats_dump_http(struct session *s, struct uri_auth *uri, int flags)
 			px = s->data_ctx.stats.px;
 			/* skip the disabled proxies and non-networked ones */
 			if (px->state != PR_STSTOPPED && (px->cap & (PR_CAP_FE | PR_CAP_BE)))
-				if (stats_dump_proxy(s, px, uri, flags) == 0)
+				if (stats_dump_proxy(s, px, uri) == 0)
 					return 0;
 
 			s->data_ctx.stats.px = px->next;
@@ -558,7 +555,7 @@ int stats_dump_http(struct session *s, struct uri_auth *uri, int flags)
 		/* fall through */
 
 	case DATA_ST_END:
-		if (flags & STAT_FMT_HTML) {
+		if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
 			chunk_printf(&msg, sizeof(trash), "</body></html>\n");
 			if (buffer_write_chunk(rep, &msg) != 0)
 				return 0;
@@ -584,7 +581,7 @@ int stats_dump_http(struct session *s, struct uri_auth *uri, int flags)
  * Returns 0 if it had to stop dumping data because of lack of buffer space,
  * ot non-zero if everything completed.
  */
-int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, int flags)
+int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 {
 	struct buffer *rep = s->rep;
 	struct server *sv;
@@ -625,7 +622,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 		/* fall through */
 
 	case DATA_ST_PX_TH:
-		if (flags & STAT_FMT_HTML) {
+		if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
 			/* print a new table */
 			chunk_printf(&msg, sizeof(trash),
 				     "<table cols=\"26\" class=\"tbl\" width=\"100%%\">\n"
@@ -661,7 +658,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 	case DATA_ST_PX_FE:
 		/* print the frontend */
 		if (px->cap & PR_CAP_FE) {
-			if (flags & STAT_FMT_HTML) {
+			if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
 				chunk_printf(&msg, sizeof(trash),
 				     /* name, queue */
 				     "<tr align=center class=\"frontend\"><td>Frontend</td><td colspan=3></td>"
@@ -752,13 +749,13 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 				else
 					sv_state = 0; /* DOWN */
 
-			if ((sv_state == 0) && (s->flags & SN_STAT_HIDEDWN)) {
+			if ((sv_state == 0) && (s->data_ctx.stats.flags & STAT_HIDE_DOWN)) {
 				/* do not report servers which are DOWN */
 				s->data_ctx.stats.sv = sv->next;
 				continue;
 			}
 
-			if (flags & STAT_FMT_HTML) {
+			if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
 				static char *srv_hlt_st[7] = { "DOWN", "DN %d/%d &uarr;",
 							       "UP %d/%d &darr;", "UP",
 							       "NOLB %d/%d &darr;", "NOLB",
@@ -923,7 +920,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 	case DATA_ST_PX_BE:
 		/* print the backend */
 		if (px->cap & PR_CAP_BE) {
-			if (flags & STAT_FMT_HTML) {
+			if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
 				chunk_printf(&msg, sizeof(trash),
 				     /* name */
 				     "<tr align=center class=\"backend\"><td>Backend</td>"
@@ -1017,7 +1014,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri, 
 		/* fall through */
 
 	case DATA_ST_PX_END:
-		if (flags & STAT_FMT_HTML) {
+		if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
 			chunk_printf(&msg, sizeof(trash), "</table><p>\n");
 
 			if (buffer_write_chunk(rep, &msg) != 0)
