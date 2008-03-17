@@ -711,6 +711,15 @@ balance <algorithm> [ <arguments> ]
                   is dynamic, which means that server weights may be adjusted
                   on the fly for slow starts for instance.
 
+      leastconn   The server with the lowest number of connections receives the
+                  connection. Round-robin is performed within groups of servers
+                  of the same load to ensure that all servers will be used. Use
+                  of this algorithm is recommended where very long sessions are
+                  expected, such as LDAP, SQL, TSE, etc... but is not very well
+                  suited for protocols using short sessions such as HTTP. This
+                  algorithm is dynamic, which means that server weights may be
+                  adjusted on the fly for slow starts for instance.
+
       source      The source IP address is hashed and divided by the total
                   weight of the running servers to designate which server will
                   receive the request. This ensures that the same client IP
