@@ -2,7 +2,7 @@
   include/types/session.h
   This file defines everything related to sessions.
 
-  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -78,13 +78,6 @@
 #define	SN_FINST_SHIFT	16		/* bit shift */
 /* unused:              0x00080000 */
 
-/* Note: those flags must move to another place */
-#define SN_STAT_HIDEDWN	0x00100000	/* hide 'down' servers in the stats page */
-#define SN_STAT_NORFRSH	0x00200000	/* do not automatically refresh the stats page */
-#define SN_STAT_FMTCSV	0x00400000	/* dump the stats in CSV format instead of HTML */
-#define SN_STAT_BOUND	0x00800000	/* bound statistics to selected proxies/types/services */
-
-
 /* WARNING: if new fields are added, they must be initialized in event_accept()
  * and freed in session_free() !
  */
@@ -127,6 +120,7 @@ struct session {
 			struct proxy *px;
 			struct server *sv;
 			short px_st, sv_st;	/* DATA_ST_INIT or DATA_ST_DATA */
+			unsigned int flags;	/* STAT_* */
 			int iid, type, sid;	/* proxy id, type and service id if bounding of stats is enabled */
 		} stats;
 	} data_ctx;				/* used by produce_content to dump the stats right now */

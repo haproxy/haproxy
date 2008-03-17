@@ -3557,8 +3557,7 @@ int produce_content(struct session *s)
 	}
 	else if (s->data_source == DATA_SRC_STATS) {
 		/* dump server statistics */
-		int ret = stats_dump_http(s, s->be->uri_auth,
-					  (s->flags & SN_STAT_FMTCSV) ? 0 : STAT_FMT_HTML);
+		int ret = stats_dump_http(s, s->be->uri_auth);
 		if (ret >= 0)
 			return ret;
 		/* -1 indicates an error */
@@ -4828,6 +4827,8 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 	int authenticated, cur_idx;
 	char *h;
 
+	memset(&t->data_ctx.stats, 0, sizeof(t->data_ctx.stats));
+
 	/* check URI size */
 	if (uri_auth->uri_len > txn->req.sl.rq.u_l)
 		return 0;
@@ -4841,7 +4842,7 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 	h += uri_auth->uri_len;
 	while (h <= t->req->data + txn->req.sl.rq.u + txn->req.sl.rq.u_l - 3) {
 		if (memcmp(h, ";up", 3) == 0) {
-			t->flags |= SN_STAT_HIDEDWN;
+			t->data_ctx.stats.flags |= STAT_HIDE_DOWN;
 			break;
 		}
 		h++;
@@ -4851,7 +4852,7 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 		h = t->req->data + txn->req.sl.rq.u + uri_auth->uri_len;
 		while (h <= t->req->data + txn->req.sl.rq.u + txn->req.sl.rq.u_l - 10) {
 			if (memcmp(h, ";norefresh", 10) == 0) {
-				t->flags |= SN_STAT_NORFRSH;
+				t->data_ctx.stats.flags |= STAT_NO_REFRESH;
 				break;
 			}
 			h++;
@@ -4861,11 +4862,13 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 	h = t->req->data + txn->req.sl.rq.u + uri_auth->uri_len;
 	while (h <= t->req->data + txn->req.sl.rq.u + txn->req.sl.rq.u_l - 4) {
 		if (memcmp(h, ";csv", 4) == 0) {
-			t->flags |= SN_STAT_FMTCSV;
+			t->data_ctx.stats.flags |= STAT_FMT_CSV;
 			break;
 		}
 		h++;
 	}
+
+	t->data_ctx.stats.flags |= STAT_SHOW_STAT | STAT_SHOW_INFO;
 
 	/* we are in front of a interceptable URI. Let's check
 	 * if there's an authentication and if it's valid.
@@ -4925,7 +4928,7 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 		return 1;
 	}
 
-	/* The request is valid, the user is authenticate. Let's start sending
+	/* The request is valid, the user is authenticated. Let's start sending
 	 * data.
 	 */
 	t->cli_state = CL_STSHUTR;

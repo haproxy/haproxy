@@ -1356,38 +1356,39 @@ void process_uxst_session(struct task *t, struct timeval *next)
 /* Processes data exchanges on the statistics socket. The client processing
  * is called and the task is put back in the wait queue or it is cleared.
  * In order to ease the transition, we simply simulate the server status
- * for now. It only knows states SV_STIDLE, SV_STDATA and SV_STCLOSE. Returns
- * in <next> the task's expiration date.
+ * for now. It only knows states SV_STIDLE, SV_STCONN, SV_STDATA, and
+ * SV_STCLOSE. Returns in <next> the task's expiration date.
  */
 void process_uxst_stats(struct task *t, struct timeval *next)
 {
 	struct session *s = t->context;
 	struct listener *listener;
 	int fsm_resync = 0;
+	int last_rep_l;
 
-	/* we need to be in DATA phase on the "server" side */
-	if (s->srv_state == SV_STIDLE) {
-		s->srv_state = SV_STDATA;
-		s->data_source = DATA_SRC_STATS;
-	}
-			
 	do {
+		char *args[MAX_UXST_ARGS + 1];
+		char *line, *p;
+		int arg;
+
 		fsm_resync = process_uxst_cli(s);
-		if (s->srv_state != SV_STDATA)
-			continue;
 
 		if (s->cli_state == CL_STCLOSE || s->cli_state == CL_STSHUTW) {
 			s->srv_state = SV_STCLOSE;
-			fsm_resync |= 1;
-			continue;
+			break;
 		}
 
-		if (s->data_state == DATA_ST_INIT) {
+		switch (s->srv_state) {
+		case SV_STIDLE:
+			/* stats output not initialized yet */
+			memset(&s->data_ctx.stats, 0, sizeof(s->data_ctx.stats));
+			s->data_source = DATA_SRC_STATS;
+			s->srv_state = SV_STCONN;
+			fsm_resync |= 1;
+			break;
 
-			char *args[MAX_UXST_ARGS + 1];
-			char *line, *p;
-			int arg;
-
+		case SV_STCONN: /* will change to SV_STANALYZE */
+			/* stats initialized, but waiting for the command */
 			line = s->req->data;
 			p = memchr(line, '\n', s->req->l);
 
@@ -1422,28 +1423,24 @@ void process_uxst_stats(struct task *t, struct timeval *next)
 			if (!strcmp(args[0], "show")) {
 				if (!strcmp(args[1], "stat")) {
 					if (*args[2] && *args[3] && *args[4]) {
-						s->flags |= SN_STAT_BOUND;
+						s->data_ctx.stats.flags |= STAT_BOUND;
 						s->data_ctx.stats.iid	= atoi(args[2]);
 						s->data_ctx.stats.type	= atoi(args[3]);
 						s->data_ctx.stats.sid	= atoi(args[4]);
 					}
 
-					/* send the stats, and changes the data_state */
-					if (stats_dump_raw(s, NULL, STAT_SHOW_STAT) != 0) {
-						s->srv_state = SV_STCLOSE;
-						fsm_resync |= 1;
-					}
-
+					s->data_ctx.stats.flags |= STAT_SHOW_STAT;
+					s->data_ctx.stats.flags |= STAT_FMT_CSV;
+					s->srv_state = SV_STDATA;
+					fsm_resync |= 1;
 					continue;
 				}
 
 				if (!strcmp(args[1], "info")) {
-					/* send the stats, and changes the data_state */
-					if (stats_dump_raw(s, NULL, STAT_SHOW_INFO) != 0) {
-						s->srv_state = SV_STCLOSE;
-						fsm_resync |= 1;
-					}
-
+					s->data_ctx.stats.flags |= STAT_SHOW_INFO;
+					s->data_ctx.stats.flags |= STAT_FMT_CSV;
+					s->srv_state = SV_STDATA;
+					fsm_resync |= 1;
 					continue;
 				}
 			}
@@ -1451,16 +1448,21 @@ void process_uxst_stats(struct task *t, struct timeval *next)
 			s->srv_state = SV_STCLOSE;
 			fsm_resync |= 1;
 			continue;
-		}
 
-		/* OK we have some remaining data to process. Just for the
-		 * sake of an exercice, we copy the req into the resp,
-		 * and flush the req. This produces a simple echo function.
-		 */
-		if (stats_dump_raw(s, NULL, 0) != 0) {
-			s->srv_state = SV_STCLOSE;
-			fsm_resync |= 1;
-			continue;
+		case SV_STDATA:
+			/* OK we have to process the request. Since it is possible
+			 * that we get there with the client output paused, we
+			 * will simply check that we have really sent some data
+			 * and wake the client up if needed.
+			 */
+			last_rep_l = s->rep->l;
+			if (stats_dump_raw(s, NULL) != 0) {
+				s->srv_state = SV_STCLOSE;
+				fsm_resync |= 1;
+			}
+			if (s->rep->l != last_rep_l)
+				fsm_resync |= 1;
+			break;
 		}
 	} while (fsm_resync);
 
