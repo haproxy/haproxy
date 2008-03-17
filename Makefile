@@ -81,7 +81,7 @@ CPU = generic
 #### Toolchain options.
 # GCC is normally used both for compiling and linking.
 CC = gcc
-LD = gcc
+LD = $(CC)
 
 #### Debug flags (typically "-g").
 # Those flags only feed CFLAGS so it is not mandatory to use this form.
