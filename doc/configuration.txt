@@ -1869,7 +1869,7 @@ option httpchk <method> <uri> <version>
       # using HTTP request "OPTIONS * HTTP/1.1" on port 80.
       backend https_relay
           mode tcp
-          option httpchk OPTIONS * HTTP/1.1\r\nHost: www
+          option httpchk OPTIONS * HTTP/1.1\r\nHost:\ www
           server apache1 192.168.1.1:443 check port 80
 
   See also : "option ssl-hello-chk", "option smtpchk", "http-check" and the
