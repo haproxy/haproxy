@@ -2568,11 +2568,14 @@ int process_srv(struct session *t)
 		     ((t->req->l == 0 && !(req->flags & BF_WRITE_STATUS)) ||
 		      t->be->options & PR_O_ABRT_CLOSE))) { /* give up */
 			tv_eternity(&req->cex);
-			fd_delete(t->srv_fd);
-			if (t->srv) {
-				t->srv->cur_sess--;
-				if (t->srv->proxy->lbprm.server_drop_conn)
-					t->srv->proxy->lbprm.server_drop_conn(t->srv);
+			if (!(t->flags & SN_CONN_TAR)) {
+				/* if we are in turn-around, we have already closed the FD */
+				fd_delete(t->srv_fd);
+				if (t->srv) {
+					t->srv->cur_sess--;
+					if (t->srv->proxy->lbprm.server_drop_conn)
+						t->srv->proxy->lbprm.server_drop_conn(t->srv);
+				}
 			}
 
 			/* note that this must not return any error because it would be able to
