@@ -84,6 +84,7 @@ uint32_t hash_tw3(uint32_t a)
  * About 0x50 bytes, 6 shifts.
  */
 int counts_bj6[NSERV][NSERV];
+int counts_bj6x[NSERV][NSERV];
 uint32_t hash_bj6(uint32_t a)
 {
 	a = (a+0x7ed55d16) + (a<<12);
@@ -100,6 +101,7 @@ uint32_t hash_bj6(uint32_t a)
  * About 0x40 bytes, 7 shifts.
  */
 int counts_bj7[NSERV][NSERV];
+int counts_bj7x[NSERV][NSERV];
 uint32_t hash_bj7(uint32_t a)
 {
 	a -= (a<<6);
@@ -134,7 +136,8 @@ void dump_hash_results(char *name, int counts[NSERV][NSERV]) {
 		for (srv = 0; srv <= nsrv; srv++) {
 			err = 100.0*(counts[nsrv][srv] - (double)counts[0][0]/(nsrv+1)) / (double)counts[0][0];
 			//printf("%6d ", counts[nsrv][srv]);
-			printf("% 3.1f%% ", err);
+			printf("% 3.1f%%%c ", err,
+			       counts[nsrv][srv]?' ':'*');  /* display '*' when a server is never selected */
 			err = fabs(err);
 			total_err += err;
 			if (err > max_err)
@@ -142,7 +145,7 @@ void dump_hash_results(char *name, int counts[NSERV][NSERV]) {
 		}
 		total_err /= (double)(nsrv+1);
 		for (srv = nsrv+1; srv < NSERV; srv++)
-			printf("      ");
+			printf("       ");
 		printf("  avg_err=%3.1f, max_err=%3.1f\n", total_err, max_err);
 	}
 	printf("\n");
@@ -160,10 +163,13 @@ int main() {
 	memset(counts_bj6, 0, sizeof(counts_bj6));
 	memset(counts_bj7, 0, sizeof(counts_bj7));
 
-	mask = 0xFFF00F00;  // user mask to apply to addresses
-	for (nr = 0; nr < 100000; nr++) {
-		address += ~nr;  // semi-random addresses.
+	address = 0x10000000;
+	mask = 0xffffff00;  // user mask to apply to addresses
+	for (nr = 0; nr < 0x10; nr++) {
+		//address += ~nr;  // semi-random addresses.
 		//address += 1;
+		address += 0x00000100;
+		//address += 0x11111111;
 		//address += 7;
 		//address += 8;
 		//address += 256;
@@ -176,6 +182,12 @@ int main() {
 		count_hash_results(hash_tw3(address & mask), counts_tw3);  // 1.01s / 100M
 		count_hash_results(hash_bj6(address & mask), counts_bj6);  // 1.07s / 100M
 		count_hash_results(hash_bj7(address & mask), counts_bj7);  // 1.20s / 100M
+		/* adding the original address after the hash reduces the error
+		 * rate in in presence of very small data sets (eg: 16 source
+		 * addresses for 8 servers). In this case, bj7 is very good.
+		 */
+		count_hash_results(hash_bj6(address & mask)+(address&mask), counts_bj6x); // 1.07s / 100M
+		count_hash_results(hash_bj7(address & mask)+(address&mask), counts_bj7x); // 1.20s / 100M
 	}
 
 	dump_hash_results("hash_id", counts_id);
@@ -183,6 +195,8 @@ int main() {
 	dump_hash_results("hash_tw2", counts_tw2);
 	dump_hash_results("hash_tw3", counts_tw3);
 	dump_hash_results("hash_bj6", counts_bj6);
+	dump_hash_results("hash_bj6x", counts_bj6x);
 	dump_hash_results("hash_bj7", counts_bj7);
+	dump_hash_results("hash_bj7x", counts_bj7x);
 	return 0;
 }
