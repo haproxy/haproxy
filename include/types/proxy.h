@@ -165,6 +165,7 @@ struct proxy {
 	int  cookie_len;			/* strlen(cookie_name), computed only once */
 	char *url_param_name;			/* name of the URL parameter used for hashing */
 	int  url_param_len;			/* strlen(url_param_name), computed only once */
+	unsigned url_param_post_limit;		/* if checking POST body for URI parameter, max body to wait for */
 	char *appsession_name;			/* name of the cookie to look for */
 	int  appsession_name_len;		/* strlen(appsession_name), computed only once */
 	int  appsession_len;			/* length of the appsession cookie value to be used */

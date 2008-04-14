@@ -1,6 +1,6 @@
 /*
   include/types/backend.h
-  This file rassembles definitions for backends
+  This file assembles definitions for backends
 
   Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
   
@@ -46,7 +46,7 @@
 
 /* various constants */
 
-/* The scale factor between user weight an effective weight allows smooth
+/* The scale factor between user weight and effective weight allows smooth
  * weight modulation even with small weights (eg: 1). It should not be too high
  * though because it limits the number of servers in FWRR mode in order to
  * prevent any integer overflow. The max number of servers per backend is

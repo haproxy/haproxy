@@ -102,8 +102,8 @@ REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 #define FDSETS_ARE_INT_ALIGNED
 #ifdef FDSETS_ARE_INT_ALIGNED
 
-#define WE_REALLY_NOW_THAT_FDSETS_ARE_INTS
-#ifdef WE_REALLY_NOW_THAT_FDSETS_ARE_INTS
+#define WE_REALLY_KNOW_THAT_FDSETS_ARE_INTS
+#ifdef WE_REALLY_KNOW_THAT_FDSETS_ARE_INTS
 				sr = (rn >> count) & 1;
 				sw = (wn >> count) & 1;
 #else

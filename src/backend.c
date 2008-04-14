@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <syslog.h>
 #include <string.h>
+#include <ctype.h>
 
 #include <common/compat.h>
 #include <common/config.h>
@@ -1122,42 +1123,41 @@ static struct server *fwlc_get_next_server(struct proxy *p, struct server *srvto
  * are shared but cookies are not usable. If the parameter is not found, NULL
  * is returned. If any server is found, it will be returned. If no valid server
  * is found, NULL is returned.
- *
  */
 struct server *get_server_ph(struct proxy *px, const char *uri, int uri_len)
 {
 	unsigned long hash = 0;
-	char *p;
+	const char *p;
+	const char *params;
 	int plen;
 
+	/* when tot_weight is 0 then so is srv_count */
 	if (px->lbprm.tot_weight == 0)
+		return NULL;
+
+	if ((p = memchr(uri, '?', uri_len)) == NULL)
 		return NULL;
 
 	if (px->lbprm.map.state & PR_MAP_RECALC)
 		recalc_server_map(px);
 
-	p = memchr(uri, '?', uri_len);
-	if (!p)
-		return NULL;
 	p++;
 
 	uri_len -= (p - uri);
 	plen = px->url_param_len;
-
-	if (uri_len <= plen)
-		return NULL;
+	params = p;
 
 	while (uri_len > plen) {
 		/* Look for the parameter name followed by an equal symbol */
-		if (p[plen] == '=') {
-			/* skip the equal symbol */
-			uri = p;
-			p += plen + 1;
-			uri_len -= plen + 1;
-			if (memcmp(uri, px->url_param_name, plen) == 0) {
-				/* OK, we have the parameter here at <uri>, and
+		if (params[plen] == '=') {
+			if (memcmp(params, px->url_param_name, plen) == 0) {
+				/* OK, we have the parameter here at <params>, and
 				 * the value after the equal sign, at <p>
+				 * skip the equal symbol
 				 */
+				p += plen + 1;
+				uri_len -= plen + 1;
+
 				while (uri_len && *p != '&') {
 					hash = *p + (hash << 6) + (hash << 16) - hash;
 					uri_len--;
@@ -1166,17 +1166,115 @@ struct server *get_server_ph(struct proxy *px, const char *uri, int uri_len)
 				return px->lbprm.map.srv[hash % px->lbprm.tot_weight];
 			}
 		}
-
 		/* skip to next parameter */
-		uri = p;
-		p = memchr(uri, '&', uri_len);
+		p = memchr(params, '&', uri_len);
 		if (!p)
 			return NULL;
 		p++;
-		uri_len -= (p - uri);
+		uri_len -= (p - params);
+		params = p;
 	}
 	return NULL;
 }
+
+/*
+ * this does the same as the previous server_ph, but check the body contents
+ */
+struct server *get_server_ph_post(struct session *s)
+{
+	unsigned long    hash = 0;
+	struct http_txn *txn  = &s->txn;
+	struct buffer   *req  = s->req;
+	struct http_msg *msg  = &txn->req;
+	struct proxy    *px   = s->be;
+	unsigned int     plen = px->url_param_len;
+
+	/* tot_weight appears to mean srv_count */
+	if (px->lbprm.tot_weight == 0)
+		return NULL;
+
+        unsigned long body = msg->sol[msg->eoh] == '\r' ? msg->eoh + 2 : msg->eoh + 1;
+        unsigned long len  = req->total - body;
+        const char *params = req->data + body;
+
+	if ( len == 0 )
+		return NULL;
+
+	if (px->lbprm.map.state & PR_MAP_RECALC)
+		recalc_server_map(px);
+
+	struct hdr_ctx ctx;
+	ctx.idx = 0;
+
+	/* if the message is chunked, we skip the chunk size, but use the value as len */
+	http_find_header2("Transfer-Encoding", 17, msg->sol, &txn->hdr_idx, &ctx);
+	if ( ctx.idx && strncasecmp(ctx.line+ctx.val,"chunked",ctx.vlen)==0) {
+		unsigned int chunk = 0;
+		while ( params < req->rlim && !HTTP_IS_CRLF(*params)) {
+			char c = *params;
+			if (ishex(c)) {
+				unsigned int hex = toupper(c) - '0';
+				if ( hex > 9 )
+					hex -= 'A' - '9' - 1;
+				chunk = (chunk << 4) | hex;
+			}
+			else
+				return NULL;
+			params++;
+			len--;
+		}
+		/* spec says we get CRLF */
+		if (HTTP_IS_CRLF(*params) && HTTP_IS_CRLF(params[1]))
+			params += 2;
+		else
+			return NULL;
+		/* ok we have some encoded length, just inspect the first chunk */
+		len = chunk;
+	}
+
+	const char   *p = params;
+
+	while (len > plen) {
+		/* Look for the parameter name followed by an equal symbol */
+		if (params[plen] == '=') {
+			if (memcmp(params, px->url_param_name, plen) == 0) {
+				/* OK, we have the parameter here at <params>, and
+				 * the value after the equal sign, at <p>
+				 * skip the equal symbol
+				 */
+				p += plen + 1;
+				len -= plen + 1;
+
+				while (len && *p != '&') {
+					if (unlikely(!HTTP_IS_TOKEN(*p))) {
+					/* if in a POST, body must be URI encoded or its not a URI.
+					 * Do not interprete any possible binary data as a parameter.
+					 */
+						if (likely(HTTP_IS_LWS(*p))) /* eol, uncertain uri len */
+							break;
+						return NULL;                 /* oh, no; this is not uri-encoded.
+									      * This body does not contain parameters.
+									      */
+					}
+					hash = *p + (hash << 6) + (hash << 16) - hash;
+					len--;
+					p++;
+					/* should we break if vlen exceeds limit? */
+				}
+				return px->lbprm.map.srv[hash % px->lbprm.tot_weight];
+			}
+		}
+		/* skip to next parameter */
+		p = memchr(params, '&', len);
+		if (!p)
+			return NULL;
+		p++;
+		len -= (p - params);
+		params = p;
+	}
+	return NULL;
+}
+
 
 /*
  * This function marks the session as 'assigned' in direct or dispatch modes,
@@ -1254,9 +1352,15 @@ int assign_server(struct session *s)
 				break;
 			case BE_LB_ALGO_PH:
 				/* URL Parameter hashing */
-				s->srv = get_server_ph(s->be,
-						       s->txn.req.sol + s->txn.req.sl.rq.u,
-						       s->txn.req.sl.rq.u_l);
+				if (s->txn.meth == HTTP_METH_POST &&
+                                    memchr(s->txn.req.sol + s->txn.req.sl.rq.u, '&',
+                                           s->txn.req.sl.rq.u_l ) == NULL)
+					s->srv = get_server_ph_post(s);
+				else
+					s->srv = get_server_ph(s->be,
+							       s->txn.req.sol + s->txn.req.sl.rq.u,
+							       s->txn.req.sl.rq.u_l);
+
 				if (!s->srv) {
 					/* parameter not found, fall back to round robin on the map */
 					s->srv = get_server_rr_with_conns(s->be, srvtoavoid);
@@ -1620,7 +1724,7 @@ int connect_server(struct session *s)
 			return SN_ERR_RESOURCE;
 		}
 	}
-	
+
 	if ((connect(fd, (struct sockaddr *)&s->srv_addr, sizeof(s->srv_addr)) == -1) &&
 	    (errno != EINPROGRESS) && (errno != EALREADY) && (errno != EISCONN)) {
 
@@ -1879,6 +1983,21 @@ int backend_parse_balance(const char **args, char *err, int errlen, struct proxy
 			free(curproxy->url_param_name);
 		curproxy->url_param_name = strdup(args[1]);
 		curproxy->url_param_len = strlen(args[1]);
+		if ( *args[2] ) {
+			if (strcmp(args[2], "check_post")) {
+				snprintf(err, errlen, "'balance url_param' only accepts check_post modifier.");
+				return -1;
+			}
+			if (*args[3]) {
+				/* TODO: maybe issue a warning if there is no value, no digits or too long */
+				curproxy->url_param_post_limit = str2ui(args[3]);
+			}
+			/* if no limit, or faul value in args[3], then default to a moderate wordlen */
+			if (!curproxy->url_param_post_limit)
+				curproxy->url_param_post_limit = 48;
+			else if ( curproxy->url_param_post_limit < 3 )
+				curproxy->url_param_post_limit = 3; /* minimum example: S=3 or \r\nS=6& */
+		}
 	}
 	else {
 		snprintf(err, errlen, "'balance' only supports 'roundrobin', 'leastconn', 'source', 'uri' and 'url_param' options.");

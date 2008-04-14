@@ -999,6 +999,48 @@ Some of these applications may not be able to use a cookie for whatever reason,
 but may be able to look for a parameter passed in the URL. If the parameter is
 missing from the URL, then the 'round robin' method applies.
 
+A modifier may be added to specify that parameters in POST requests may be
+found in the messsage body if the URL lacks a '?' separator character.
+A wait limit may also be applied, if no limit is requested then
+the default value is 48 octets, the minimum is 3.  HAProxy may wait, until 48
+octets are received. If Content-Length is missing, or zero it need not
+wait for more data then the client promissed to send. When Content-Length is
+present, and more than <max_wait>; then waiting is limited and it is assumed this
+will be enough data to search for the presence of a parameter.  If
+Transfer-Encoding: chunked is used (unlikely), then the length of the first chunk
+is the maximum number of bytes to wait for.
+
+balance url_param <param> [check_post [<max_wait>]]
+
+Caveats for using the check_post extension:
+
+  - all POST requests are eligable for consideration, because there is
+    no way to determine if the parameters will be found in the body or
+    entity which may contain binary data. Therefore another method may be
+    required to restrict consideration of POST requests that have no URL
+    parameters in the body. (see acl reqideny http_end)
+
+Limitations on inspecting the entity body of a POST:
+
+  - Content-Encoding is not supported, the parameter search will probably fail;
+    and load balancing will fall back to Round Robin.
+
+  - Expect: 100-continue is not supported, load balancing will fall back to
+    Round Robin.
+
+  - Transfer-Encoding(RFC2616 3.6.1) is only supported in the first chunk. If
+    the entire parameter value is not present in the first chunk, the selection
+    of server is undefined (actually, defined by how little actually appeared in
+    the first chunk).
+
+  - This feature does not support generation of a 100, 411 or 501 response.
+
+  - In some cases, requesting check_post MAY attempt to scan the entire contents
+    of a message body.  Scaning normally terminates when linear white space or
+    control characters are found, indicating the end of what might be a URL parameter
+    list.  This is probably not a concern with SGML type message bodies.
+
+
 Example :
 ---------
 

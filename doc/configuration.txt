@@ -696,6 +696,7 @@ backlog <conns>
 
 
 balance <algorithm> [ <arguments> ]
+balance url_param <param> [check_post [<max_wait>]]
   Define the load balancing algorithm to be used in a backend.
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
@@ -745,22 +746,47 @@ balance <algorithm> [ <arguments> ]
                   effect.
 
       url_param   The URL parameter specified in argument will be looked up in
-                  the query string of each HTTP request. If it is found
-                  followed by an equal sign ('=') and a value, then the value
-                  is hashed and divided by the total weight of the running
-                  servers. The result designates which server will receive the
-                  request. This is used to track user identifiers in requests
-                  and ensure that a same user ID will always be sent to the
-                  same server as long as no server goes up or down. If no value
-                  is found or if the parameter is not found, then a round robin
-                  algorithm is applied. Note that this algorithm may only be
-                  used in an HTTP backend. This algorithm is static, which
-                  means that changing a server's weight on the fly will have no
-                  effect.
+                  the query string of each HTTP GET request.
+
+                  If the modifier "check_post" is used, then an HTTP POST
+		  request entity will be searched for the parameter argument,
+		  when the question mark indicating a query string ('?') is not
+		  present in the URL. Optionally, specify a number of octets to
+		  wait for before attempting to search the message body. If the
+		  entity can not be searched, then round robin is used for each
+		  request. For instance, if your clients always send the LB
+		  parameter in the first 128 bytes, then specify that. The
+		  default is 48. The entity data will not be scanned until the
+		  required number of octets have arrived at the gateway, this
+		  is the minimum of: (default/max_wait, Content-Length or first
+		  chunk length). If Content-Length is missing or zero, it does
+		  not need to wait for more data than the client promised to
+		  send. When Content-Length is present and larger than
+		  <max_wait>, then waiting is limited to <max_wait> and it is
+		  assumed that this will be enough data to search for the
+		  presence of the parameter. In the unlikely event that
+		  Transfer-Encoding: chunked is used, only the first chunk is
+		  scanned. Parameter values separated by a chunk boundary, may
+		  be randomly balanced if at all.
+
+                  If the parameter is found followed by an equal sign ('=') and
+                  a value, then the value is hashed and divided by the total
+                  weight of the running servers. The result designates which
+                  server will receive the request.
+
+                  This is used to track user identifiers in requests and ensure
+                  that a same user ID will always be sent to the same server as
+                  long as no server goes up or down. If no value is found or if
+                  the parameter is not found, then a round robin algorithm is
+                  applied. Note that this algorithm may only be used in an HTTP
+                  backend. This algorithm is static, which means that changing a
+                  server's weight on the fly will have no effect.
 
     <arguments> is an optional list of arguments which may be needed by some
                 algorithms. Right now, only the "url_param" algorithm supports
-                a mandatory argument.
+                an optional argument.
+
+                balance url_param <param> [check_post [<max_wait>]]
 
   The definition of the load balancing algorithm is mandatory for a backend
   and limited to one per backend.
@@ -768,6 +794,39 @@ balance <algorithm> [ <arguments> ]
   Examples :
         balance roundrobin
         balance url_param userid
+        balance url_param session_id check_post 64
+
+  Note: the following caveats and limitations on using the "check_post"
+  extension with "url_param" must be considered :
+
+    - all POST requests are eligable for consideration, because there is no way
+      to determine if the parameters will be found in the body or entity which
+      may contain binary data. Therefore another method may be required to
+      restrict consideration of POST requests that have no URL parameters in
+      the body. (see acl reqideny http_end)
+
+    - using a <max_wait> value larger than the request buffer size does not
+      make sense and is useless. The buffer size is set at build time, and
+      defaults to 16 kB.
+
+    - Content-Encoding is not supported, the parameter search will probably
+      fail; and load balancing will fall back to Round Robin.
+
+    - Expect: 100-continue is not supported, load balancing will fall back to
+      Round Robin.
+
+    - Transfer-Encoding (RFC2616 3.6.1) is only supported in the first chunk.
+      If the entire parameter value is not present in the first chunk, the
+      selection of server is undefined (actually, defined by how little
+      actually appeared in the first chunk).
+
+    - This feature does not support generation of a 100, 411 or 501 response.
+
+    - In some cases, requesting "check_post" MAY attempt to scan the entire
+      contents of a message body. Scaning normally terminates when linear
+      white space or control characters are found, indicating the end of what
+      might be a URL parameter list. This is probably not a concern with SGML
+      type message bodies.
 
   See also : "dispatch", "cookie", "appsession", "transparent" and "http_proxy".
 

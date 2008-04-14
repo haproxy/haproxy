@@ -287,7 +287,7 @@ const struct http_method_desc http_methods[26][3] = {
 };
 
 /* It is about twice as fast on recent architectures to lookup a byte in a
- * table than two perform a boolean AND or OR between two tests. Refer to
+ * table than to perform a boolean AND or OR between two tests. Refer to
  * RFC2616 for those chars.
  */
 
@@ -2065,6 +2065,83 @@ int process_cli(struct session *t)
 				goto return_bad_req;
 			t->flags |= SN_CONN_CLOSED;
 		}
+		/* Before we switch to data, was assignment set in manage_client_side_cookie?
+		 * If not assigned, perhaps we are balancing on url_param, but this is a
+		 * POST; and the parameters are in the body, maybe scan there to find our server.
+		 * (unless headers overflowed the buffer?)
+                 */
+		if (!(t->flags & (SN_ASSIGNED|SN_DIRECT)) &&
+		     t->txn.meth == HTTP_METH_POST && t->be->url_param_name != NULL &&
+		     t->be->url_param_post_limit != 0 && req->total < BUFSIZE &&
+		     memchr(msg->sol + msg->sl.rq.u, '?', msg->sl.rq.u_l) == NULL) {
+			/* are there enough bytes here? total == l || r || rlim ?
+			 * len is unsigned, but eoh is int,
+			 * how many bytes of body have we received?
+			 * eoh is the first empty line of the header
+			 */
+                        /* already established CRLF or LF at eoh, move to start of message, find message length in buffer */
+			unsigned long len = req->total - (msg->sol[msg->eoh] == '\r' ? msg->eoh + 2 : msg->eoh + 1);
+
+			/* If we have HTTP/1.1 and Expect: 100-continue, then abort.
+			 * We can't assume responsibility for the server's decision,
+			 * on this URI and header set. See rfc2616: 14.20, 8.2.3,
+			 * We also can't change our mind later, about which server to choose, so round robin.
+			 */
+			if ((likely(msg->sl.rq.v_l == 8) && req->data[msg->som + msg->sl.rq.v + 7] == '1')) {
+				struct hdr_ctx ctx;
+				ctx.idx = 0;
+				/* Expect is allowed in 1.1, look for it */
+				http_find_header2("Expect", 6, msg->sol, &txn->hdr_idx, &ctx);
+				if (ctx.idx != 0  &&
+                                    unlikely(ctx.vlen == 12 && strncasecmp(ctx.line+ctx.val,"100-continue",12)==0))
+					/* We can't reliablly stall and wait for data, because of
+					 * .NET clients that don't conform to rfc2616; so, no need for
+					 * the next block to check length expectations.
+                                         * We could send 100 status back to the client, but then we need to
+                                         * re-write headers, and send the message. And this isn't the right
+                                         * place for that action.
+                                         * TODO: support Expect elsewhere and delete this block.
+					 */
+					goto end_check_maybe_wait_for_body;
+			}
+			if ( likely(len > t->be->url_param_post_limit) ) {
+				/* nothing to do, we got enough */
+			} else {
+				/* limit implies we are supposed to need this many bytes
+				 * to find the parameter. Let's see how many bytes we can wait for.
+				 */
+				long long hint = len;
+				struct hdr_ctx ctx;
+				ctx.idx = 0;
+				http_find_header2("Transfer-Encoding", 17, msg->sol, &txn->hdr_idx, &ctx);
+				if (unlikely(ctx.idx && strncasecmp(ctx.line+ctx.val,"chunked",7)==0)) {
+					t->srv_state = SV_STANALYZE;
+				} else {
+					ctx.idx = 0;
+					http_find_header2("Content-Length", 14, msg->sol, &txn->hdr_idx, &ctx);
+					/* now if we have a length, we'll take the hint */
+					if ( ctx.idx ) {
+						/* We have Content-Length */
+						if ( strl2llrc(ctx.line+ctx.val,ctx.vlen, &hint) )
+							hint = 0;         /* parse failure, untrusted client */
+						else {
+							if ( hint > 0 )
+								msg->hdr_content_len = hint;
+							else
+								hint = 0; /* bad client, sent negative length */
+						}
+					}
+					/* but limited to what we care about, maybe we don't expect any entity data (hint == 0) */
+					if ( t->be->url_param_post_limit < hint )
+						hint = t->be->url_param_post_limit;
+					/* now do we really need to buffer more data? */
+					if ( len < hint )
+						t->srv_state = SV_STANALYZE;
+					/* else... There are no body bytes to wait for */
+				}
+			}
+		}
+        end_check_maybe_wait_for_body:
 
 		/*************************************************************
 		 * OK, that's finished for the headers. We have done what we *
@@ -2436,7 +2513,12 @@ int process_srv(struct session *t)
 	//EV_FD_ISSET(t->srv_fd, DIR_RD), EV_FD_ISSET(t->srv_fd, DIR_WR)
 	//);
 	if (s == SV_STIDLE) {
-		if (c == CL_STHEADERS)
+		/* NOTE: The client processor may switch to SV_STANALYZE, which switches back SV_STIDLE.
+		 *       This is logcially after CL_STHEADERS completed, CL_STDATA has started, but
+		 *       we need to defer server selection until more data arrives, if possible.
+                 *       This is rare, and only if balancing on parameter hash with values in the entity of a POST
+                 */
+		if (c == CL_STHEADERS )
 			return 0;	/* stay in idle, waiting for data to reach the client side */
 		else if (c == CL_STCLOSE || c == CL_STSHUTW ||
 			 (c == CL_STSHUTR &&
@@ -3531,6 +3613,60 @@ int process_srv(struct session *t)
 		}
 		return 0;
 	}
+	else if (s == SV_STANALYZE){
+		/* this server state is set by the client to study the body for server assignment */
+
+		/* Have we been through this long enough to timeout? */
+		if (!tv_isle(&req->rex, &now)) {
+			/* balance url_param check_post should have been the only to get into this.
+			 * just wait for data, check to compare how much
+			 */
+			struct http_msg * msg = &t->txn.req;
+                        unsigned long body = msg->sol[msg->eoh] == '\r' ? msg->eoh + 2 :msg->eoh + 1;
+                        unsigned long len  = req->total - body;
+			long long limit = t->be->url_param_post_limit;
+			struct hdr_ctx ctx;
+			ctx.idx = 0;
+			/* now if we have a length, we'll take the hint */
+			http_find_header2("Transfer-Encoding", 17, msg->sol, &txn->hdr_idx, &ctx);
+			if ( ctx.idx && strncasecmp(ctx.line+ctx.val,"chunked",ctx.vlen)==0) {
+				unsigned int chunk = 0;
+			        while ( body < req->total && !HTTP_IS_CRLF(msg->sol[body])) {
+					char c = msg->sol[body];
+					if (ishex(c)) {
+						unsigned int hex = toupper(c) - '0';
+						if ( hex > 9 )
+							hex -= 'A' - '9' - 1;
+						chunk = (chunk << 4) | hex;
+					}
+					else break;
+					body++;
+					len--;
+				}
+				if ( body == req->total )
+					return 0; /* end of buffer? data missing! */
+
+				if ( memcmp(msg->sol+body, "\r\n", 2) != 0 )
+					return 0; /* chunked encoding len ends with CRLF, and we don't have it yet */
+
+				/* if we support more then one chunk here, we have to do it again when assigning server
+				   1. how much entity data do we have? new var
+				   2. should save entity_start, entity_cursor, elen & rlen in req; so we don't repeat scanning here
+				   3. test if elen > limit, or set new limit to elen if 0 (end of entity found)
+				*/
+
+				if ( chunk < limit )
+					limit = chunk;                  /* only reading one chunk */
+			} else {
+				if ( msg->hdr_content_len < limit )
+					limit = msg->hdr_content_len;
+			}
+			if ( len < limit )
+				return 0;
+		}
+		t->srv_state=SV_STIDLE;
+		return 1;
+	}
 	else { /* SV_STCLOSE : nothing to do */
 		if ((global.mode & MODE_DEBUG) && (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))) {
 			int len;
@@ -3549,7 +3685,7 @@ int process_srv(struct session *t)
  * called with s->cli_state == CL_STSHUTR. Right now, only statistics can be
  * produced. It stops by itself by unsetting the SN_SELF_GEN flag from the
  * session, which it uses to keep on being called when there is free space in
- * the buffer, of simply by letting an empty buffer upon return. It returns 1
+ * the buffer, or simply by letting an empty buffer upon return. It returns 1
  * if it changes the session state from CL_STSHUTR, otherwise 0.
  */
 int produce_content(struct session *s)
@@ -3640,7 +3776,7 @@ int apply_filter_to_req_headers(struct session *t, struct buffer *req, struct hd
 				/* Swithing Proxy */
 				t->be = (struct proxy *) exp->replace;
 
-				/* right now, the backend switch is not too much complicated
+				/* right now, the backend switch is not overly complicated
 				 * because we have associated req_cap and rsp_cap to the
 				 * frontend, and the beconn will be updated later.
 				 */

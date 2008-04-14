@@ -232,7 +232,8 @@ int event_accept(int fd) {
 
 		if (p->mode == PR_MODE_HTTP) {
 			txn->status = -1;
-
+			txn->req.hdr_content_len = 0LL;
+			txn->rsp.hdr_content_len = 0LL;
 			txn->req.msg_state = HTTP_MSG_RQBEFORE; /* at the very beginning of the request */
 			txn->rsp.msg_state = HTTP_MSG_RPBEFORE; /* at the very beginning of the response */
 			txn->req.sol = txn->req.eol = NULL;

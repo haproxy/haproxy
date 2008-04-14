@@ -29,29 +29,18 @@
 
 /*
  * FIXME: break this into HTTP state and TCP socket state.
- * See server.h for the other end.
- */
-
-/* different possible states for the client side */
-#define CL_STHEADERS	0
-#define CL_STDATA	1
-#define CL_STSHUTR	2
-#define CL_STSHUTW	3
-#define CL_STCLOSE	4
-
-/*
- * FIXME: break this into HTTP state and TCP socket state.
  * See client.h for the other end.
  */
 
 /* different possible states for the server side */
 #define SV_STIDLE	0
-#define SV_STCONN	1
-#define SV_STHEADERS	2
-#define SV_STDATA	3
-#define SV_STSHUTR	4
-#define SV_STSHUTW	5
-#define SV_STCLOSE	6
+#define SV_STANALYZE	1  /* this server state is set by the client to study the body for server assignment */
+#define SV_STCONN	2
+#define SV_STHEADERS	3
+#define SV_STDATA	4
+#define SV_STSHUTR	5
+#define SV_STSHUTW	6
+#define SV_STCLOSE	7
 
 /*
  * Transaction flags moved from session
@@ -204,27 +193,28 @@ typedef enum {
  *                             which marks the end of the line (LF or CRLF).
  */
 struct http_msg {
-	unsigned int msg_state;         /* where we are in the current message parsing */
-	char *sol;                      /* start of line, also start of message when fully parsed */
-	char *eol;                      /* end of line */
-	unsigned int som;		/* Start Of Message, relative to buffer */
-	unsigned int col, sov;		/* current header: colon, start of value */
-	unsigned int eoh;		/* End Of Headers, relative to buffer */
-	char **cap;			/* array of captured headers (may be NULL) */
-	union {				/* useful start line pointers, relative to buffer */
+	unsigned int msg_state;                /* where we are in the current message parsing */
+	char *sol;                             /* start of line, also start of message when fully parsed */
+	char *eol;                             /* end of line */
+	unsigned int som;                      /* Start Of Message, relative to buffer */
+	unsigned int col, sov;                 /* current header: colon, start of value */
+	unsigned int eoh;                      /* End Of Headers, relative to buffer */
+	char **cap;                            /* array of captured headers (may be NULL) */
+	union {                                /* useful start line pointers, relative to buffer */
 		struct {
-			int l;		/* request line length (not including CR) */
-			int m_l;	/* METHOD length (method starts at ->som) */
-			int u, u_l;	/* URI, length */
-			int v, v_l;	/* VERSION, length */
-		} rq;			/* request line : field, length */
+			int l;                 /* request line length (not including CR) */
+			int m_l;               /* METHOD length (method starts at ->som) */
+			int u, u_l;            /* URI, length */
+			int v, v_l;            /* VERSION, length */
+		} rq;                          /* request line : field, length */
 		struct {
-			int l;		/* status line length (not including CR) */
-			int v_l;	/* VERSION length (version starts at ->som) */
-			int c, c_l;	/* CODE, length */
-			int r, r_l;	/* REASON, length */
-		} st;			/* status line : field, length */
-	} sl;				/* start line */
+			int l;                 /* status line length (not including CR) */
+			int v_l;               /* VERSION length (version starts at ->som) */
+			int c, c_l;            /* CODE, length */
+			int r, r_l;            /* REASON, length */
+		} st;                          /* status line : field, length */
+	} sl;                                  /* start line */
+	unsigned long long hdr_content_len;    /* cache for parsed header value */
 };
 
 /* This is an HTTP transaction. It contains both a request message and a
