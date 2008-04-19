@@ -1188,14 +1188,19 @@ struct server *get_server_ph_post(struct session *s)
 	struct http_msg *msg  = &txn->req;
 	struct proxy    *px   = s->be;
 	unsigned int     plen = px->url_param_len;
+	unsigned long body;
+	unsigned long len;
+	const char *params;
+	struct hdr_ctx ctx;
+	const char   *p;
 
 	/* tot_weight appears to mean srv_count */
 	if (px->lbprm.tot_weight == 0)
 		return NULL;
 
-        unsigned long body = msg->sol[msg->eoh] == '\r' ? msg->eoh + 2 : msg->eoh + 1;
-        unsigned long len  = req->total - body;
-        const char *params = req->data + body;
+        body = msg->sol[msg->eoh] == '\r' ? msg->eoh + 2 : msg->eoh + 1;
+        len  = req->total - body;
+        params = req->data + body;
 
 	if ( len == 0 )
 		return NULL;
@@ -1203,7 +1208,6 @@ struct server *get_server_ph_post(struct session *s)
 	if (px->lbprm.map.state & PR_MAP_RECALC)
 		recalc_server_map(px);
 
-	struct hdr_ctx ctx;
 	ctx.idx = 0;
 
 	/* if the message is chunked, we skip the chunk size, but use the value as len */
@@ -1232,7 +1236,7 @@ struct server *get_server_ph_post(struct session *s)
 		len = chunk;
 	}
 
-	const char   *p = params;
+	p = params;
 
 	while (len > plen) {
 		/* Look for the parameter name followed by an equal symbol */
