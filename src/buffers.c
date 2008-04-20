@@ -29,7 +29,7 @@ int init_buffer()
 }
 
 
-/* writes <len> bytes from message <msg> to buffer <buf>. Returns 0 in case of
+/* writes <len> bytes from message <msg> to buffer <buf>. Returns -1 in case of
  * success, or the number of bytes available otherwise.
  * FIXME-20060521: handle unaligned data.
  */
@@ -48,10 +48,11 @@ int buffer_write(struct buffer *buf, const char *msg, int len)
 	buf->total += len;
 	if (buf->r == buf->data + BUFSIZE)
 		buf->r = buf->data;
-	return 0;
+
+	return -1;
 }
 
-/* writes the chunk <chunk> to buffer <buf>. Returns 0 in case of
+/* writes the chunk <chunk> to buffer <buf>. Returns -1 in case of
  * success, or the number of bytes available otherwise. If the chunk
  * has been written, its size is automatically reset to zero.
  */
@@ -60,7 +61,7 @@ int buffer_write_chunk(struct buffer *buf, struct chunk *chunk)
 	int max;
 
 	if (chunk->len == 0)
-		return 0;
+		return -1;
 
 	max = buffer_realign(buf);
 
@@ -74,7 +75,8 @@ int buffer_write_chunk(struct buffer *buf, struct chunk *chunk)
 	if (buf->r == buf->data + BUFSIZE)
 		buf->r = buf->data;
 	chunk->len = 0;
-	return 0;
+
+	return -1;
 }
 
 /*

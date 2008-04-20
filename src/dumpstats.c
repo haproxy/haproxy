@@ -204,7 +204,7 @@ int stats_dump_raw(struct session *s, struct uri_auth *uri)
 	case DATA_ST_HEAD:
 		if (s->data_ctx.stats.flags & STAT_SHOW_STAT) {
 			print_csv_header(&msg, sizeof(trash));
-			if (buffer_write_chunk(rep, &msg) != 0)
+			if (buffer_write_chunk(rep, &msg) >= 0)
 				return 0;
 		}
 
@@ -240,7 +240,7 @@ int stats_dump_raw(struct session *s, struct uri_auth *uri)
 				     global.maxconn,
 				     actconn
 				     );
-			if (buffer_write_chunk(rep, &msg) != 0)
+			if (buffer_write_chunk(rep, &msg) >= 0)
 				return 0;
 		}
 
@@ -418,7 +418,7 @@ int stats_dump_http(struct session *s, struct uri_auth *uri)
 		} else {
 			print_csv_header(&msg, sizeof(trash));
 		}
-		if (buffer_write_chunk(rep, &msg) != 0)
+		if (buffer_write_chunk(rep, &msg) >= 0)
 			return 0;
 
 		s->data_state = DATA_ST_INFO;
@@ -528,7 +528,7 @@ int stats_dump_http(struct session *s, struct uri_auth *uri)
 			     ""
 			     );
 	    
-			if (buffer_write_chunk(rep, &msg) != 0)
+			if (buffer_write_chunk(rep, &msg) >= 0)
 				return 0;
 		}
 
@@ -557,7 +557,7 @@ int stats_dump_http(struct session *s, struct uri_auth *uri)
 	case DATA_ST_END:
 		if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
 			chunk_printf(&msg, sizeof(trash), "</body></html>\n");
-			if (buffer_write_chunk(rep, &msg) != 0)
+			if (buffer_write_chunk(rep, &msg) >= 0)
 				return 0;
 		}
 
@@ -648,7 +648,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     "</tr>",
 				     px->id);
 
-			if (buffer_write_chunk(rep, &msg) != 0)
+			if (buffer_write_chunk(rep, &msg) >= 0)
 				return 0;
 		}
 
@@ -716,7 +716,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     relative_pid, px->uuid);
 			}
 
-			if (buffer_write_chunk(rep, &msg) != 0)
+			if (buffer_write_chunk(rep, &msg) >= 0)
 				return 0;
 		}
 
@@ -908,7 +908,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				/* ',' then EOL */
 				chunk_printf(&msg, sizeof(trash), ",\n");
 			}
-			if (buffer_write_chunk(rep, &msg) != 0)
+			if (buffer_write_chunk(rep, &msg) >= 0)
 				return 0;
 
 			s->data_ctx.stats.sv = sv->next;
@@ -1006,7 +1006,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     relative_pid, px->uuid,
 				     px->cum_lbconn);
 			}
-			if (buffer_write_chunk(rep, &msg) != 0)
+			if (buffer_write_chunk(rep, &msg) >= 0)
 				return 0;
 		}
 		
@@ -1017,7 +1017,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 		if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
 			chunk_printf(&msg, sizeof(trash), "</table><p>\n");
 
-			if (buffer_write_chunk(rep, &msg) != 0)
+			if (buffer_write_chunk(rep, &msg) >= 0)
 				return 0;
 		}
 
