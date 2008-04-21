@@ -1,0 +1,54 @@
+From: Krzysztof Oledzki <ole@ans.pl>
+Date: Sun, 20 Apr 2008 22:19:09 +0200 (CEST)
+Subject: Re: [PATCH]  Flush buffers also where there are exactly 0 bytes left
+
+I'm also attaching a debug patch that helps to trigger this bug.
+
+Without the fix:
+# echo -ne "GET /haproxy?stats;csv;norefresh HTTP/1.0\r\n\r\n"|nc 127.0.0.1=
+ 801|wc -c
+16384
+
+With the fix:
+# echo -ne "GET /haproxy?stats;csv;norefresh HTTP/1.0\r\n\r\n"|nc 127.0.0.1=
+ 801|wc -c
+33089
+
+Best regards,
+
+diff --git a/src/dumpstats.c b/src/dumpstats.c
+index ddadddd..28bbfce 100644
+--- a/src/dumpstats.c
++++ b/src/dumpstats.c
+@@ -593,6 +593,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
+ 
+ 	msg.len = 0;
+ 	msg.str = trash;
++	int i;
+ 
+ 	switch (s->data_ctx.stats.px_st) {
+ 	case DATA_ST_PX_INIT:
+@@ -667,6 +668,13 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
+ 		/* print the frontend */
+ 		if ((px->cap & PR_CAP_FE) &&
+ 		    (!(s->data_ctx.stats.flags & STAT_BOUND) || (s->data_ctx.stats.type & (1 << STATS_TYPE_FE)))) {
++
++			if (1) {
++				for (i=0; i<16096; i++)
++					chunk_printf(&msg, sizeof(trash), "*");
++
++				chunk_printf(&msg, sizeof(trash), "\n");
++#if 0
+ 			if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
+ 				chunk_printf(&msg, sizeof(trash),
+ 				     /* name, queue */
+@@ -694,6 +702,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
+ 				     px->failed_req,
+ 				     px->state == PR_STRUN ? "OPEN" :
+ 				     px->state == PR_STIDLE ? "FULL" : "STOP");
++#endif
+ 			} else {
+ 				chunk_printf(&msg, sizeof(trash),
+ 				     /* pxid, name, queue cur, queue max, */
+
+
