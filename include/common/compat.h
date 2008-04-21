@@ -35,6 +35,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <common/config.h>
+#include <common/standard.h>
 
 /* INTBITS
  * how many bits are needed to code the size of an int on the target platform.
@@ -63,6 +64,8 @@
 #endif
 
 #if defined(TPROXY) && defined(NETFILTER)
+#include <linux/types.h>
+#include <linux/netfilter_ipv6.h>
 #include <linux/netfilter_ipv4.h>
 #endif
 
