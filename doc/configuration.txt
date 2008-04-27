@@ -745,6 +745,20 @@ balance url_param <param> [check_post [<max_wait>]]
                   that changing a server's weight on the fly will have no
                   effect.
 
+                  This algorithm support two optional parameters "len" and
+                  "depth", both followed by a positive integer number. These
+                  options may be helpful when it is needed to balance servers
+                  based on the beginning of the URI only. The "len" parameter
+                  indicates that the algorithm should only consider that many
+                  characters at the beginning of the URI to compute the hash.
+                  Note that having "len" set to 1 rarely makes sense since most
+                  URIs start with a leading "/".
+
+                  The "depth" parameter indicates the maximum directory depth
+                  to be used to compute the hash. One level is counted for each
+                  slash in the request. If both parameters are specified, the
+                  evaluation stops when either is reached.
+
       url_param   The URL parameter specified in argument will be looked up in
                   the query string of each HTTP GET request.
 
@@ -783,9 +797,10 @@ balance url_param <param> [check_post [<max_wait>]]
                   server's weight on the fly will have no effect.
 
     <arguments> is an optional list of arguments which may be needed by some
-                algorithms. Right now, only the "url_param" algorithm supports
-                an optional argument.
+                algorithms. Right now, only "url_param" and "uri" support an
+                optional argument.
 
+                balance uri [len <len>] [depth <depth>]
                 balance url_param <param> [check_post [<max_wait>]]
 
   The definition of the load balancing algorithm is mandatory for a backend

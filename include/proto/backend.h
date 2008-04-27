@@ -159,6 +159,7 @@ static inline struct server *get_server_uh(struct proxy *px, char *uri, int uri_
 {
 	unsigned long hash = 0;
 	int c;
+	int slashes = 0;
 
 	if (px->lbprm.tot_weight == 0)
 		return NULL;
@@ -166,10 +167,19 @@ static inline struct server *get_server_uh(struct proxy *px, char *uri, int uri_
 	if (px->lbprm.map.state & PR_MAP_RECALC)
 		recalc_server_map(px);
 
+	if (px->uri_len_limit)
+		uri_len = MIN(uri_len, px->uri_len_limit);
+
 	while (uri_len--) {
 		c = *uri++;
-		if (c == '?')
+		if (c == '/') {
+			slashes++;
+			if (slashes == px->uri_dirs_depth1) /* depth+1 */
+				break;
+		}
+		else if (c == '?')
 			break;
+
 		hash = c + (hash << 6) + (hash << 16) - hash;
 	}
 

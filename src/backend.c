@@ -1973,8 +1973,36 @@ int backend_parse_balance(const char **args, char *err, int errlen, struct proxy
 		curproxy->lbprm.algo |= BE_LB_ALGO_SH;
 	}
 	else if (!strcmp(args[0], "uri")) {
+		int arg = 1;
+
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
 		curproxy->lbprm.algo |= BE_LB_ALGO_UH;
+
+		while (*args[arg]) {
+			if (!strcmp(args[arg], "len")) {
+				if (!*args[arg+1] || (atoi(args[arg+1]) <= 0)) {
+					snprintf(err, errlen, "'balance uri len' expects a positive integer (got '%s').", args[arg+1]);
+					return -1;
+				}
+				curproxy->uri_len_limit = atoi(args[arg+1]);
+				arg += 2;
+			}
+			else if (!strcmp(args[arg], "depth")) {
+				if (!*args[arg+1] || (atoi(args[arg+1]) <= 0)) {
+					snprintf(err, errlen, "'balance uri depth' expects a positive integer (got '%s').", args[arg+1]);
+					return -1;
+				}
+				/* hint: we store the position of the ending '/' (depth+1) so
+				 * that we avoid a comparison while computing the hash.
+				 */
+				curproxy->uri_dirs_depth1 = atoi(args[arg+1]) + 1;
+				arg += 2;
+			}
+			else {
+				snprintf(err, errlen, "'balance uri' only accepts parameters 'len' and 'depth' (got '%s').", args[arg]);
+				return -1;
+			}
+		}
 	}
 	else if (!strcmp(args[0], "url_param")) {
 		if (!*args[1]) {
@@ -1987,7 +2015,7 @@ int backend_parse_balance(const char **args, char *err, int errlen, struct proxy
 			free(curproxy->url_param_name);
 		curproxy->url_param_name = strdup(args[1]);
 		curproxy->url_param_len = strlen(args[1]);
-		if ( *args[2] ) {
+		if (*args[2]) {
 			if (strcmp(args[2], "check_post")) {
 				snprintf(err, errlen, "'balance url_param' only accepts check_post modifier.");
 				return -1;
