@@ -53,6 +53,8 @@
 #define BF_WRITE_STATUS       (BF_PARTIAL_WRITE|BF_COMPLETE_WRITE|BF_WRITE_ERROR|BF_WRITE_NULL)
 #define BF_CLEAR_WRITE        (~BF_WRITE_STATUS)
 
+#define BF_STREAMER           4096
+#define BF_STREAMER_FAST      8192
 
 
 /* describes a chunk of string */
@@ -72,6 +74,8 @@ struct buffer {
 	unsigned int l;                 /* data length */
 	char *r, *w, *lr;               /* read ptr, write ptr, last read */
 	char *rlim;                     /* read limit, used for header rewriting */
+	unsigned char xfer_large;       /* number of consecutive large xfers */
+	unsigned char xfer_small;       /* number of consecutive small xfers */
 	unsigned long long total;       /* total data read */
 	char data[BUFSIZE];
 };

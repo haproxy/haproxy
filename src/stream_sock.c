@@ -44,7 +44,7 @@
 int stream_sock_read(int fd) {
 	__label__ out_eternity, out_wakeup, out_shutdown_r, out_error;
 	struct buffer *b = fdtab[fd].cb[DIR_RD].b;
-	int ret, max, retval;
+	int ret, max, retval, cur_read;
 	int read_poll = MAX_READ_POLL_LOOPS;
 
 #ifdef DEBUG_FULL
@@ -61,6 +61,7 @@ int stream_sock_read(int fd) {
 	if ((fdtab[fd].ev & (FD_POLL_IN|FD_POLL_HUP)) == FD_POLL_HUP)
 		goto out_shutdown_r;
 
+	cur_read = 0;
 	while (1) {
 		/*
 		 * 1. compute the maximum block size we can read at once.
@@ -110,6 +111,7 @@ int stream_sock_read(int fd) {
 		if (ret > 0) {
 			b->r += ret;
 			b->l += ret;
+			cur_read += ret;
 			b->flags |= BF_PARTIAL_READ;
 	
 			if (b->r == b->data + BUFSIZE) {
@@ -122,6 +124,35 @@ int stream_sock_read(int fd) {
 				/* The buffer is now full, there's no point in going through
 				 * the loop again.
 				 */
+				if (!(b->flags & BF_STREAMER_FAST) && (cur_read == b->l)) {
+					b->xfer_small = 0;
+					b->xfer_large++;
+					if (b->xfer_large >= 3) {
+						/* we call this buffer a fast streamer if it manages
+						 * to be filled in one call 3 consecutive times.
+						 */
+						b->flags |= (BF_STREAMER | BF_STREAMER_FAST);
+						//fputc('+', stderr);
+					}
+				}
+				else if ((b->flags & (BF_STREAMER | BF_STREAMER_FAST)) &&
+					 (cur_read <= BUFSIZE / 2)) {
+					b->xfer_large = 0;
+					b->xfer_small++;
+					if (b->xfer_small >= 2) {
+						/* if the buffer has been at least half full twice,
+						 * we receive faster than we send, so at least it
+						 * is not a "fast streamer".
+						 */
+						b->flags &= ~BF_STREAMER_FAST;
+						//fputc('-', stderr);
+					}
+				}
+				else {
+					b->xfer_small = 0;
+					b->xfer_large = 0;
+				}
+
 				EV_FD_CLR(fd, DIR_RD);
 				goto out_eternity;
 			}
@@ -133,6 +164,19 @@ int stream_sock_read(int fd) {
 			 * is closed.
 			 */
 			if (ret < max) {
+				if ((b->flags & (BF_STREAMER | BF_STREAMER_FAST)) &&
+				    (cur_read <= BUFSIZE / 2)) {
+					b->xfer_large = 0;
+					b->xfer_small++;
+					if (b->xfer_small >= 3) {
+						/* we have read less than half of the buffer in
+						 * one pass, and this happened at least 3 times.
+						 * This is definitely not a streamer.
+						 */
+						b->flags &= ~(BF_STREAMER | BF_STREAMER_FAST);
+						//fputc('!', stderr);
+					}
+				}
 				if (fdtab[fd].ev & FD_POLL_HUP)
 					goto out_shutdown_r;
 				break;
