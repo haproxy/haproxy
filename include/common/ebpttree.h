@@ -1,6 +1,7 @@
 /*
  * Elastic Binary Trees - macros and structures for operations on pointer nodes.
- * (C) 2002-2007 - Willy Tarreau <w@1wt.eu>
+ * Version 4.0
+ * (C) 2002-2008 - Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -160,6 +161,7 @@ static inline struct ebpt_node *__ebpt_lookup(struct eb_root *root, void *x)
 
 /* Insert ebpt_node <new> into subtree starting at node root <root>.
  * Only new->key needs be set with the key. The ebpt_node is returned.
+ * If root->b[EB_RGHT]==1, the tree may only contain unique keys.
  */
 static inline struct ebpt_node *
 __ebpt_insert(struct eb_root *root, struct ebpt_node *new) {
@@ -167,9 +169,11 @@ __ebpt_insert(struct eb_root *root, struct ebpt_node *new) {
 	unsigned int side;
 	eb_troot_t *troot;
 	void *newkey; /* caching the key saves approximately one cycle */
+	eb_troot_t *root_right = root;
 
 	side = EB_LEFT;
 	troot = root->b[EB_LEFT];
+	root_right = root->b[EB_RGHT];
 	if (unlikely(troot == NULL)) {
 		/* Tree is empty, insert the leaf part below the left branch */
 		root->b[EB_LEFT] = eb_dotag(&new->node.branches, EB_LEAF);
@@ -228,6 +232,12 @@ __ebpt_insert(struct eb_root *root, struct ebpt_node *new) {
 				new->node.branches.b[EB_LEFT] = new_leaf;
 				new->node.branches.b[EB_RGHT] = old_leaf;
 			} else {
+				/* we may refuse to duplicate this key if the tree is
+				 * tagged as containing only unique keys.
+				 */
+				if ((new->key == old->key) && eb_gettag(root_right))
+					return old;
+
 				/* new->key >= old->key, new goes the right */
 				old->node.leaf_p = new_left;
 				new->node.leaf_p = new_rght;

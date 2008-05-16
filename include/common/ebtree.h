@@ -1,5 +1,6 @@
 /*
  * Elastic Binary Trees - generic macros and structures.
+ * Version 4.0
  * (C) 2002-2008 - Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -205,7 +206,8 @@
        root, it is not possible to see a NULL left branch when walking up a
        tree. Thus, an empty tree is immediately identified by a NULL left
        branch at the root. Conversely, the one and only way to identify the
-       root node is to check that it right branch is NULL.
+       root node is to check that it right branch is NULL. Note that the
+       NULL pointer may have a few low-order bits set.
 
      - a node connected to its own leaf will have branch[0|1] pointing to
        itself, and leaf_p pointing to itself.
@@ -243,6 +245,11 @@
      - the "eb_prev" primitive walks from right to left, which means from
        higher to lower keys. It returns duplicates in the opposite order they
        were inserted. The "eb_last" primitive returns the right-most entry.
+
+     - a tree which has 1 in the lower bit of its root's right branch is a
+       tree with unique nodes. This means that when a node is inserted with
+       a key which already exists will not be inserted, and the previous
+       entry will be returned.
 
  */
 
@@ -369,6 +376,13 @@ static inline int fls64(unsigned long long x)
 #define EB_LEAF     0
 #define EB_NODE     1
 
+/* Tags to set in root->b[EB_RGHT] :
+ * - EB_NORMAL is a normal tree which stores duplicate keys.
+ * - EB_UNIQUE is a tree which stores unique keys.
+ */
+#define EB_NORMAL   0
+#define EB_UNIQUE   1
+
 /* This is the same as an eb_node pointer, except that the lower bit embeds
  * a tag. See eb_dotag()/eb_untag()/eb_gettag(). This tag has two meanings :
  *  - 0=left, 1=right to designate the parent's branch for leaf_p/node_p
@@ -378,7 +392,7 @@ typedef void eb_troot_t;
 
 /* The eb_root connects the node which contains it, to two nodes below it, one
  * of which may be the same node. At the top of the tree, we use an eb_root
- * too, which always has its right branch NULL.
+ * too, which always has its right branch NULL (+/1 low-order bits).
  */
 struct eb_root {
 	eb_troot_t    *b[EB_NODE_BRANCHES]; /* left and right branches */
@@ -406,6 +420,11 @@ struct eb_node {
 #define EB_ROOT						\
 	(struct eb_root) {				\
 		.b = {[0] = NULL, [1] = NULL },		\
+	}
+
+#define EB_ROOT_UNIQUE					\
+	(struct eb_root) {				\
+		.b = {[0] = NULL, [1] = (void *)1 },	\
 	}
 
 #define EB_TREE_HEAD(name)				\
@@ -552,7 +571,7 @@ static inline struct eb_node *eb_prev(struct eb_node *node)
 		/* Walking up from left branch. We must ensure that we never
 		 * walk beyond root.
 		 */
-		if (unlikely((eb_untag(t, EB_LEFT))->b[EB_RGHT] == NULL))
+		if (unlikely(eb_clrtag((eb_untag(t, EB_LEFT))->b[EB_RGHT]) == NULL))
 			return NULL;
 		t = (eb_root_to_node(eb_untag(t, EB_LEFT)))->node_p;
 	}
@@ -572,6 +591,8 @@ static inline struct eb_node *eb_next(struct eb_node *node)
 
 	/* Note that <t> cannot be NULL at this stage */
 	t = (eb_untag(t, EB_LEFT))->b[EB_RGHT];
+	if (eb_clrtag(t) == NULL)
+		return NULL;
 	return eb_walk_down(t, EB_LEFT);
 }
 
@@ -593,7 +614,7 @@ static inline struct eb_node *eb_prev_unique(struct eb_node *node)
 			/* Walking up from left branch. We must ensure that we never
 			 * walk beyond root.
 			 */
-			if (unlikely((eb_untag(t, EB_LEFT))->b[EB_RGHT] == NULL))
+			if (unlikely(eb_clrtag((eb_untag(t, EB_LEFT))->b[EB_RGHT]) == NULL))
 				return NULL;
 			t = (eb_root_to_node(eb_untag(t, EB_LEFT)))->node_p;
 		}
@@ -612,7 +633,7 @@ static inline struct eb_node *eb_next_unique(struct eb_node *node)
 
 	while (1) {
 		if (eb_gettag(t) == EB_LEFT) {
-			if (unlikely((eb_untag(t, EB_LEFT))->b[EB_RGHT] == NULL))
+			if (unlikely(eb_clrtag((eb_untag(t, EB_LEFT))->b[EB_RGHT]) == NULL))
 				return NULL;	/* we reached root */
 			node = eb_root_to_node(eb_untag(t, EB_LEFT));
 			/* if we're left and not in duplicates, stop here */
@@ -628,6 +649,8 @@ static inline struct eb_node *eb_next_unique(struct eb_node *node)
 
 	/* Note that <t> cannot be NULL at this stage */
 	t = (eb_untag(t, EB_LEFT))->b[EB_RGHT];
+	if (eb_clrtag(t) == NULL)
+		return NULL;
 	return eb_walk_down(t, EB_LEFT);
 }
 
@@ -654,7 +677,7 @@ static inline void __eb_delete(struct eb_node *node)
 	 * only be attached to the root by its left branch.
 	 */
 
-	if (parent->branches.b[EB_RGHT] == NULL) {
+	if (eb_clrtag(parent->branches.b[EB_RGHT]) == NULL) {
 		/* we're just below the root, it's trivial. */
 		parent->branches.b[EB_LEFT] = NULL;
 		goto delete_unlink;

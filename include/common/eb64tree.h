@@ -1,6 +1,7 @@
 /*
  * Elastic Binary Trees - macros and structures for operations on 64bit nodes.
- * (C) 2002-2007 - Willy Tarreau <w@1wt.eu>
+ * Version 4.0
+ * (C) 2002-2008 - Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -204,6 +205,7 @@ static inline struct eb64_node *__eb64i_lookup(struct eb_root *root, s64 x)
 
 /* Insert eb64_node <new> into subtree starting at node root <root>.
  * Only new->key needs be set with the key. The eb64_node is returned.
+ * If root->b[EB_RGHT]==1, the tree may only contain unique keys.
  */
 static inline struct eb64_node *
 __eb64_insert(struct eb_root *root, struct eb64_node *new) {
@@ -211,9 +213,11 @@ __eb64_insert(struct eb_root *root, struct eb64_node *new) {
 	unsigned int side;
 	eb_troot_t *troot;
 	u64 newkey; /* caching the key saves approximately one cycle */
+	eb_troot_t *root_right = root;
 
 	side = EB_LEFT;
 	troot = root->b[EB_LEFT];
+	root_right = root->b[EB_RGHT];
 	if (unlikely(troot == NULL)) {
 		/* Tree is empty, insert the leaf part below the left branch */
 		root->b[EB_LEFT] = eb_dotag(&new->node.branches, EB_LEAF);
@@ -272,6 +276,12 @@ __eb64_insert(struct eb_root *root, struct eb64_node *new) {
 				new->node.branches.b[EB_LEFT] = new_leaf;
 				new->node.branches.b[EB_RGHT] = old_leaf;
 			} else {
+				/* we may refuse to duplicate this key if the tree is
+				 * tagged as containing only unique keys.
+				 */
+				if ((new->key == old->key) && eb_gettag(root_right))
+					return old;
+
 				/* new->key >= old->key, new goes the right */
 				old->node.leaf_p = new_left;
 				new->node.leaf_p = new_rght;
@@ -369,7 +379,7 @@ __eb64_insert(struct eb_root *root, struct eb64_node *new) {
 
 /* Insert eb64_node <new> into subtree starting at node root <root>, using
  * signed keys. Only new->key needs be set with the key. The eb64_node
- * is returned.
+ * is returned. If root->b[EB_RGHT]==1, the tree may only contain unique keys.
  */
 static inline struct eb64_node *
 __eb64i_insert(struct eb_root *root, struct eb64_node *new) {
@@ -377,9 +387,11 @@ __eb64i_insert(struct eb_root *root, struct eb64_node *new) {
 	unsigned int side;
 	eb_troot_t *troot;
 	u64 newkey; /* caching the key saves approximately one cycle */
+	eb_troot_t *root_right = root;
 
 	side = EB_LEFT;
 	troot = root->b[EB_LEFT];
+	root_right = root->b[EB_RGHT];
 	if (unlikely(troot == NULL)) {
 		/* Tree is empty, insert the leaf part below the left branch */
 		root->b[EB_LEFT] = eb_dotag(&new->node.branches, EB_LEAF);
@@ -440,6 +452,12 @@ __eb64i_insert(struct eb_root *root, struct eb64_node *new) {
 				new->node.branches.b[EB_LEFT] = new_leaf;
 				new->node.branches.b[EB_RGHT] = old_leaf;
 			} else {
+				/* we may refuse to duplicate this key if the tree is
+				 * tagged as containing only unique keys.
+				 */
+				if ((new->key == old->key) && eb_gettag(root_right))
+					return old;
+
 				/* new->key >= old->key, new goes the right */
 				old->node.leaf_p = new_left;
 				new->node.leaf_p = new_rght;
