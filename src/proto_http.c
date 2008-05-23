@@ -3222,6 +3222,9 @@ int process_srv(struct session *t)
 				      t->be->cookie_name,
 				      t->srv->cookie ? t->srv->cookie : "; Expires=Thu, 01-Jan-1970 00:00:01 GMT");
 
+			if (t->be->cookiedomain)
+				len += sprintf(trash+len, "; domain=%s", t->be->cookiedomain);
+
 			if (unlikely(http_header_add_tail2(rep, &txn->rsp, &txn->hdr_idx,
 							   trash, len)) < 0)
 				goto return_bad_resp;

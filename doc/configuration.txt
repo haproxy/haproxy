@@ -1087,7 +1087,7 @@ contimeout <timeout>
              "timeout server", "contimeout".
 
 
-cookie <name> [ rewrite|insert|prefix ] [ indirect ] [ nocache ] [ postonly ]
+cookie <name> [ rewrite|insert|prefix ] [ indirect ] [ nocache ] [ postonly ] [domain <domain>]
   Enable cookie-based persistence in a backend.
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
@@ -1166,6 +1166,10 @@ cookie <name> [ rewrite|insert|prefix ] [ indirect ] [ nocache ] [ postonly ]
               efficient method to optimize caching without risking to find a
               persistence cookie in the cache.
               See also the "insert" and "nocache" options.
+
+    domain    This option allows to specify the domain at which a cookie is
+              inserted. It requires exactly one paramater: a valid domain
+              name.
 
   There can be only one persistence cookie per HTTP backend, and it can be
   declared in a defaults section. The value of the cookie will be the value

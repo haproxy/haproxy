@@ -136,6 +136,13 @@ extern int ishex(char s);
 extern const char *invalid_char(const char *name);
 
 /*
+ * Checks <domainname> for invalid characters. Valid chars are [A-Za-z0-9_.-].
+ * If an invalid character is found, a pointer to it is returned.
+ * If everything is fine, NULL is returned.
+ */
+extern const char *invalid_domainchar(const char *name);
+
+/*
  * converts <str> to a struct sockaddr_un* which is locally allocated.
  * The format is "/path", where "/path" is a path to a UNIX domain socket.
  */

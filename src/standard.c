@@ -141,6 +141,27 @@ const char *invalid_char(const char *name)
 }
 
 /*
+ * Checks <domainname> for invalid characters. Valid chars are [A-Za-z0-9_.-].
+ * If an invalid character is found, a pointer to it is returned.
+ * If everything is fine, NULL is returned.
+ */
+const char *invalid_domainchar(const char *name) {
+
+	if (!*name)
+		return name;
+
+	while (*name) {
+		if (!isalnum((int)*name) && *name != '.' &&
+		    *name != '_' && *name != '-')
+			return name;
+
+		name++;
+	}
+
+	return NULL;
+}
+
+/*
  * converts <str> to a struct sockaddr_in* which is locally allocated.
  * The format is "addr:port", where "addr" can be a dotted IPv4 address,
  * a host name, or empty or "*" to indicate INADDR_ANY.

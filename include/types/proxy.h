@@ -161,6 +161,7 @@ struct proxy {
 		void (*server_drop_conn)(struct server *);/* to be called when connection is dropped */
 	} lbprm;				/* LB parameters for all algorithms */
 
+	char *cookiedomain;			/* domain used to insert the cookie */
 	char *cookie_name;			/* name of the cookie to look for */
 	int  cookie_len;			/* strlen(cookie_name), computed only once */
 	char *url_param_name;			/* name of the URL parameter used for hashing */

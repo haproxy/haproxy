@@ -895,8 +895,33 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			else if (!strcmp(args[cur_arg], "prefix")) {
 				curproxy->options |= PR_O_COOK_PFX;
 			}
+			else if (!strcmp(args[cur_arg], "domain")) {
+				if (!*args[cur_arg + 1]) {
+					Alert("parsing [%s:%d]: '%s' expects <domain> as argument.\n",
+						file, linenum, args[cur_arg]);
+					return -1;
+				}
+
+				if (*args[cur_arg + 1] != '.' || !strchr(args[cur_arg + 1] + 1, '.')) {
+					/* rfc2109, 4.3.2 Rejecting Cookies */
+					Alert("parsing [%s:%d]: domain '%s' contains no embedded"
+						" dots or does not start with a dot.\n",
+						file, linenum, args[cur_arg + 1]);
+					return -1;
+				}
+
+				err = invalid_domainchar(args[cur_arg + 1]);
+				if (err) {
+					Alert("parsing [%s:%d]: character '%c' is not permitted in domain name '%s'.\n",
+						file, linenum, *err, args[cur_arg + 1]);
+					return -1;
+				}
+
+				curproxy->cookiedomain = strdup(args[cur_arg + 1]);
+				cur_arg++;
+			}
 			else {
-				Alert("parsing [%s:%d] : '%s' supports 'rewrite', 'insert', 'prefix', 'indirect', 'nocache' and 'postonly' options.\n",
+				Alert("parsing [%s:%d] : '%s' supports 'rewrite', 'insert', 'prefix', 'indirect', 'nocache' and 'postonly', 'domain' options.\n",
 				      file, linenum, args[0]);
 				return -1;
 			}
