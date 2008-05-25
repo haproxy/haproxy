@@ -1,6 +1,14 @@
 ChangeLog :
 ===========
 
+2008/05/25 : 1.3.14.5
+    - [BUILD] fix build with gcc 4.3
+    - [TESTS] add a debug patch to help trigger the stats bug
+    - [BUG] Flush buffers also where there are exactly 0 bytes left
+    - [DOC] fix unescaped space in httpchk example.
+    - [DOC] update the README file with new build options
+    - [MEDIUM] reduce risk of event starvation in ev_sepoll
+
 2008/03/20 : 1.3.14.4
     - [BUILD] Replace hardcoded 'LD = gcc' with 'LD = $(CC)'
     - [BUILD] Added support for 'make install'
