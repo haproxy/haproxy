@@ -2,14 +2,15 @@
                              H A - P r o x y
                              How to build it
                            -------------------
-                              version 1.2.7
+                              version 1.3.15
                               willy tarreau
-                                2005/10/25
+                                2008/05/25
 
 
 To build haproxy, you will need :
   - GNU make. Neither Solaris nor OpenBSD's make work with this makefile.
-  - GCC between 2.91 and 3.4. Others may work, but not tested.
+    However, specific Makefiles for BSD and OSX are provided.
+  - GCC between 2.91 and 4.3. Others may work, but not tested.
   - GNU ld
 
 Also, you might want to build with libpcre support, which will provide a very
@@ -18,13 +19,16 @@ efficient regex implementation and will also fix some badness on Solaris's one.
 To build haproxy, you have to choose your target OS amongst the following ones
 and assign it to the TARGET variable :
 
-  - linux24  for Linux 2.4 and above (default)
-  - linux24e for Linux 2.4 with support for epoll
-  - linux26  for Linux 2.6 and above
-  - linux22  for Linux 2.2
-  - solaris  for Solaris 8 or 10 (others untested)
-  - openbsd  for OpenBSD 3.1 to 3.7 (others untested)
-  - generic  for any other OS.
+  - linux22     for Linux 2.2
+  - linux24     for Linux 2.4 and above (default)
+  - linux24e    for Linux 2.4 with support for a working epoll (> 0.21)
+  - linux24eold for Linux 2.4 with support for a broken  epoll (<= 0.21)
+  - linux26     for Linux 2.6 and above
+  - solaris     for Solaris 8 or 10 (others untested)
+  - freebsd     for FreeBSD 5 to 6.2 (others untested)
+  - openbsd     for OpenBSD 3.1 to 3.7 (others untested)
+  - generic     for any other OS.
+  - custom      to manually adjust every setting
 
 You may also choose your CPU to benefit from some optimizations. This is
 particularly important on UltraSparc machines. For this, you can assign
@@ -35,6 +39,9 @@ one of the following choices to the CPU variable :
   - ultrasparc : Sun UltraSparc I/II/III/IV processor
   - generic : any other processor or no specific optimization. (default)
 
+Alternatively, you may just set the CPU_CFLAGS value to the optimal GCC options
+for your platform.
+
 If your system supports PCRE (Perl Compatible Regular Expressions), then you
 really should build with libpcre which is between 2 and 10 times faster than
 other libc implementations. Regex are used for header processing (deletion,
@@ -42,17 +49,17 @@ rewriting, allow, deny). The only inconvenient of libpcre is that it is not
 yet widely spread, so if you build for other systems, you might get into
 trouble if they don't have the dynamic library. In this situation, you should
 statically link libpcre into haproxy so that it will not be necessary to
-install it on target systems. Available options for the REGEX variable are :
+install it on target systems. Available build options for PCRE are :
 
-  - libc to use your OS libc's standard regex implemntation (default).
-    Warning! group references on Solaris seem broken. Use static-pcre whenever
-    possible.
-
-  - pcre to use libpcre, in whatever form it is available on your system
+  - USE_PCRE=1 to use libpcre, in whatever form is available on your system
     (shared or static)
 
-  - static-pcre to use a static version of libpcre even if the dynamic one is
-    available. This will enhance portability.
+  - USE_STATIC_PCRE=1 to use a static version of libpcre even if the dynamic
+    one is available. This will enhance portability.
+
+  - with no option, use your OS libc's standard regex implemntation (default).
+    Warning! group references on Solaris seem broken. Use static-pcre whenever
+    possible.
 
 By default, the DEBUG variable is set to '-g' to enable debug symbols. It is
 not wise to disable it on uncommon systems, because it's often the only way to
@@ -61,14 +68,15 @@ strip the binary.
 
 For example, I use this to build for Solaris 8 :
 
-    $ make TARGET=solaris CPU=ultrasparc REGEX=static-pcre
+    $ make TARGET=solaris CPU=ultrasparc USE_STATIC_PCRE=1
 
-And I build it this way on OpenBSD :
+And I build it this way on OpenBSD or FreeBSD :
 
     $ make -f Makefile.bsd REGEX=pcre DEBUG= COPTS.generic="-Os -fomit-frame-pointer -mgnu"
 
 If you need to pass other defines, includes, libraries, etc... then please
 check the Makefile to see which ones will be available in your case, and
-use the ADDINC, ADDLIB, and DEFINE variables for this.
+use the USE_* variables in the GNU Makefile, or ADDINC, ADDLIB, and DEFINE
+variables in the BSD makefiles.
 
 -- end
