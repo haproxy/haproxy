@@ -1,12 +1,46 @@
 /*
  * FD polling functions for Speculative I/O combined with Linux epoll()
  *
- * Copyright 2000-2007 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version
  * 2 of the License, or (at your option) any later version.
+ *
+ *
+ * This code implements "speculative I/O" under Linux. The principle is to
+ * try to perform expected I/O before registering the events in the poller.
+ * Each time this succeeds, it saves an expensive epoll_ctl(). It generally
+ * succeeds for all reads after an accept(), and for writes after a connect().
+ * It also improves performance for streaming connections because even if only
+ * one side is polled, the other one may react accordingly depending on the
+ * level of the buffer.
+ *
+ * It has a presents drawbacks though. If too many events are set for spec I/O,
+ * those ones can starve the polled events. Experiments show that when polled
+ * events starve, they quickly turn into spec I/O, making the situation even
+ * worse. While we can reduce the number of polled events processed at once,
+ * we cannot do this on speculative events because most of them are new ones
+ * (avg 2/3 new - 1/3 old from experiments).
+ *
+ * The solution against this problem relies on those two factors :
+ *   1) one FD registered as a spec event cannot be polled at the same time
+ *   2) even during very high loads, we will almost never be interested in
+ *      simultaneous read and write streaming on the same FD.
+ *
+ * The first point implies that during starvation, we will not have more than
+ * half of our FDs in the poll list, otherwise it means there is less than that
+ * in the spec list, implying there is no starvation.
+ *
+ * The second point implies that we're statically only interested in half of
+ * the maximum number of file descriptors at once, because we will unlikely
+ * have simultaneous read and writes for a same buffer during long periods.
+ *
+ * So, if we make it possible to drain maxsock/2/2 during peak loads, then we
+ * can ensure that there will be no starvation effect. This means that we must
+ * always allocate maxsock/4 events for the poller.
+ *
  *
  */
 
@@ -120,6 +154,7 @@ struct fd_status {
 };
 
 static int nbspec = 0;          // current size of the spec list
+static int absmaxevents = 0;    // absolute maximum amounts of polled events
 
 static struct fd_status *fd_list = NULL;	// list of FDs
 static unsigned int *spec_list = NULL;	// speculative I/O list
@@ -255,6 +290,7 @@ REGPRM1 static void __fd_clo(int fd)
 REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 {
 	static unsigned int last_skipped;
+	static unsigned int spec_processed;
 	int status, eo;
 	int fd, opcode;
 	int count;
@@ -370,9 +406,14 @@ REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 	 * succeeded. This reduces the number of unsucessful calls to
 	 * epoll_wait() by a factor of about 3, and the total number of calls
 	 * by about 2.
+	 * However, when we do that after having processed too many events,
+	 * events waiting in epoll() starve for too long a time and tend to
+	 * become themselves eligible for speculative polling. So we try to
+	 * limit this practise to reasonable situations.
 	 */
 
-	if (status >= MIN_RETURN_EVENTS) {
+	spec_processed += status;
+	if (status >= MIN_RETURN_EVENTS && spec_processed < absmaxevents) {
 		/* We have processed at least MIN_RETURN_EVENTS, it's worth
 		 * returning now without checking epoll_wait().
 		 */
@@ -400,8 +441,14 @@ REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 			wait_time = __tv_ms_elapsed(&now, exp) + 1;
 	}
 
-	/* now let's wait for real events */
-	fd = MIN(maxfd, global.tune.maxpollevents);
+	/* now let's wait for real events. We normally use maxpollevents as a
+	 * high limit, unless <nbspec> is already big, in which case we need
+	 * to compensate for the high number of events processed there.
+	 */
+	fd = MIN(absmaxevents, spec_processed);
+	fd = MAX(global.tune.maxpollevents, fd);
+	fd = MIN(maxfd, fd);
+	spec_processed = 0;
 	status = epoll_wait(epoll_fd, epoll_events, fd, wait_time);
 
 	tv_now(&now);
@@ -456,8 +503,10 @@ REGPRM1 static int _do_init(struct poller *p)
 	if (epoll_fd < 0)
 		goto fail_fd;
 
+	/* See comments at the top of the file about this formula. */
+	absmaxevents = MAX(global.tune.maxpollevents, global.maxsock/4);
 	epoll_events = (struct epoll_event*)
-		calloc(1, sizeof(struct epoll_event) * global.tune.maxpollevents);
+		calloc(1, sizeof(struct epoll_event) * absmaxevents);
 
 	if (epoll_events == NULL)
 		goto fail_ee;
