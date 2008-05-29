@@ -46,6 +46,11 @@ void disable_poller(const char *poller_name);
 int init_pollers();
 
 /*
+ * Deinitialize the pollers.
+ */
+void deinit_pollers();
+
+/*
  * Some pollers may lose their connection after a fork(). It may be necessary
  * to create initialize part of them again. Returns 0 in case of failure,
  * otherwise 1. The fork() function may be NULL if unused. In case of error,

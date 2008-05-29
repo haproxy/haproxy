@@ -84,6 +84,7 @@ struct server {
 	int maxqueue;				/* maximum number of pending connections allowed */
 	struct list pendconns;			/* pending connections */
 	struct task *queue_mgt;			/* the task associated to the queue processing */
+	struct task *check;                     /* the task associated to the health check processing */
 
 	struct sockaddr_in addr;		/* the address to connect to */
 	struct sockaddr_in source_addr;		/* the address to which we want to bind for connect() */

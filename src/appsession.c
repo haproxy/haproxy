@@ -27,7 +27,7 @@
 
 #include <proto/task.h>
 
-
+static struct task *appsess_refresh = NULL;
 struct pool_head *pool2_appsess;
 struct app_pool apools;
 int have_appsession;
@@ -87,17 +87,17 @@ int appsession_init(void)
 int appsession_task_init(void)
 {
 	static int initialized = 0;
-	struct task *t;
 	if (!initialized) {
-		if ((t = pool_alloc2(pool2_task)) == NULL)
+		if ((appsess_refresh = pool_alloc2(pool2_task)) == NULL)
 			return -1;
-		t->wq = NULL;
-		t->qlist.p = NULL;
-		t->state = TASK_IDLE;
-		t->context = NULL;
-		tv_ms_add(&t->expire, &now, TBLCHKINT);
-		t->process = appsession_refresh;
-		task_queue(t);
+
+		appsess_refresh->wq = NULL;
+		appsess_refresh->qlist.p = NULL;
+		appsess_refresh->state = TASK_IDLE;
+		appsess_refresh->context = NULL;
+		tv_ms_add(&appsess_refresh->expire, &now, TBLCHKINT);
+		appsess_refresh->process = appsession_refresh;
+		task_queue(appsess_refresh);
 		initialized ++;
 	}
 	return 0;
@@ -168,6 +168,13 @@ void appsession_cleanup( void )
 		appsession_hash_destroy(&(p->htbl_proxy));
 		p = p->next;
 	}
+
+	if (appsess_refresh) {
+		task_delete(appsess_refresh);
+		task_free(appsess_refresh);
+		appsess_refresh = NULL;
+	}
+
 }/* end appsession_cleanup() */
 
 

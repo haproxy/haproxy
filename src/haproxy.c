@@ -646,6 +646,7 @@ void deinit(void)
 	struct listener *l,*l_next;
 	struct acl_cond *cond, *condb;
 	struct hdr_exp *exp, *expb;
+	struct acl *acl, *aclb;
 	int i;
   
 	while (p) {
@@ -718,9 +719,14 @@ void deinit(void)
 		}
 
 		/* FIXME: this must also be freed :
-		 *  - ACLs
 		 *  - uri_auth (but it's shared)
 		 */
+
+		list_for_each_entry_safe(acl, aclb, &p->acl, list) {
+			LIST_DEL(&acl->list);
+			prune_acl(acl);
+			free(acl);
+		}
 
 		if (p->appsession_name)
 			free(p->appsession_name);
@@ -745,10 +751,21 @@ void deinit(void)
 			free(h);
 			h = h_next;
 		}/* end while(h) */
-	
+
 		s = p->srv;
 		while (s) {
 			s_next = s->next;
+
+			if (s->check) {
+				task_delete(s->check);
+				task_free(s->check);
+			}
+
+			if (s->queue_mgt) {
+				task_delete(s->queue_mgt);
+				task_free(s->queue_mgt);
+			}
+
 			if (s->id)
 				free(s->id);
 	    
@@ -758,16 +775,17 @@ void deinit(void)
 			free(s);
 			s = s_next;
 		}/* end while(s) */
-	
+
 		l = p->listen;
 		while (l) {
 			l_next = l->next;
 			free(l);
 			l = l_next;
 		}/* end while(l) */
-	
+
 		pool_destroy2(p->req_cap_pool);
 		pool_destroy2(p->rsp_cap_pool);
+		pool_destroy2(p->hdr_idx_pool);
 		p0 = p;
 		p = p->next;
 		free(p0);
@@ -783,11 +801,12 @@ void deinit(void)
     
 	if (fdtab)            free(fdtab);
 	fdtab = NULL;
-    
+
 	pool_destroy2(pool2_session);
 	pool_destroy2(pool2_buffer);
 	pool_destroy2(pool2_requri);
 	pool_destroy2(pool2_task);
+	pool_destroy2(pool2_tree64);
 	pool_destroy2(pool2_capture);
 	pool_destroy2(pool2_appsess);
 	pool_destroy2(pool2_pendconn);
@@ -796,6 +815,9 @@ void deinit(void)
 		pool_destroy2(apools.serverid);
 		pool_destroy2(apools.sessid);
 	}
+
+	deinit_pollers();
+
 } /* end deinit() */
 
 /* sends the signal <sig> to all pids found in <oldpids> */

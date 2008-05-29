@@ -567,6 +567,22 @@ struct acl_expr *parse_acl_expr(const char **args)
 	return NULL;
 }
 
+/* Purge everything in the acl <acl>, then return <acl>. */
+struct acl *prune_acl(struct acl *acl) {
+
+	struct acl_expr *expr, *exprb;
+
+	free(acl->name);
+
+	list_for_each_entry_safe(expr, exprb, &acl->expr, list) {
+		LIST_DEL(&expr->list);
+		prune_acl_expr(expr);
+		free(expr);
+	}
+
+	return acl;
+}
+
 /* Parse an ACL with the name starting at <args>[0], and with a list of already
  * known ACLs in <acl>. If the ACL was not in the list, it will be added.
  * A pointer to that ACL is returned.

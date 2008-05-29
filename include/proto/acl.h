@@ -47,6 +47,9 @@ struct acl_keyword *find_acl_kw(const char *kw);
  */
 struct acl_expr *parse_acl_expr(const char **args);
 
+/* Purge everything in the acl <acl>, then return <acl>. */
+struct acl *prune_acl(struct acl *acl);
+
 /* Parse an ACL with the name starting at <args>[0], and with a list of already
  * known ACLs in <acl>. If the ACL was not in the list, it will be added.
  * A pointer to that ACL is returned.

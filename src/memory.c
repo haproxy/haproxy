@@ -11,6 +11,7 @@
  */
 
 #include <common/config.h>
+#include <common/debug.h>
 #include <common/memory.h>
 #include <common/mini-clist.h>
 #include <common/standard.h>
@@ -51,6 +52,7 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 			if (flags & entry->flags & MEM_F_SHARED) {
 				/* we can share this one */
 				pool = entry;
+				DPRINTF(stderr, "Sharing %s with %s\n", name, pool->name);
 				break;
 			}
 		}

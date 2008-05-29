@@ -848,6 +848,8 @@ int start_checks() {
 				return -1;
 			}
 
+			s->check = t;
+
 			t->wq = NULL;
 			t->qlist.p = NULL;
 			t->state = TASK_IDLE;
