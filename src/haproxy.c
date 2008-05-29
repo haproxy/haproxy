@@ -651,6 +651,9 @@ void deinit(void)
 		if (p->cookie_name)
 			free(p->cookie_name);
 
+		if (p->cookie_domain)
+			free(p->cookie_domain);
+
 		if (p->url_param_name)
 			free(p->url_param_name);
 
