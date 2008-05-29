@@ -917,7 +917,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 					return -1;
 				}
 
-				curproxy->cookiedomain = strdup(args[cur_arg + 1]);
+				curproxy->cookie_domain = strdup(args[cur_arg + 1]);
 				cur_arg++;
 			}
 			else {
