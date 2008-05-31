@@ -285,6 +285,12 @@ int acl_parse_str(const char **text, struct acl_pattern *pattern, int *opaque)
 	return 1;
 }
 
+/* Free data allocated by acl_parse_reg */
+static void acl_free_reg(void *ptr) {
+
+	regfree((regex_t *)ptr);
+}
+
 /* Parse a regex. It is allocated. */
 int acl_parse_reg(const char **text, struct acl_pattern *pattern, int *opaque)
 {
@@ -303,6 +309,7 @@ int acl_parse_reg(const char **text, struct acl_pattern *pattern, int *opaque)
 	}
 
 	pattern->ptr.reg = preg;
+	pattern->freeptrbuf = &acl_free_reg;
 	return 1;
 }
 
@@ -452,8 +459,14 @@ struct acl_keyword *find_acl_kw(const char *kw)
 
 static void free_pattern(struct acl_pattern *pat)
 {
-	if (pat->ptr.ptr)
+
+	if (pat->ptr.ptr) {
+		if (pat->freeptrbuf)
+			pat->freeptrbuf(pat->ptr.ptr);
+
 		free(pat->ptr.ptr);
+	}
+
 	free(pat);
 }
 

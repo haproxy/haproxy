@@ -101,6 +101,7 @@ struct acl_pattern {
 		char *str;              /* any string  */
 		regex_t *reg;           /* a compiled regex */
 	} ptr;                          /* indirect values, allocated */
+	void(*freeptrbuf)(void *ptr);	/* a destructor able to free objects from the ptr */
 	int len;                        /* data length when required  */
 	int flags;                      /* expr or pattern flags. */
 };

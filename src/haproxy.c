@@ -647,8 +647,11 @@ void deinit(void)
 	struct acl_cond *cond, *condb;
 	struct hdr_exp *exp, *expb;
 	struct acl *acl, *aclb;
+	struct switching_rule *rule, *ruleb;
+	struct uri_auth *uap, *ua = NULL;
+	struct user_auth *user;
 	int i;
-  
+
 	while (p) {
 		if (p->id)
 			free(p->id);
@@ -699,8 +702,11 @@ void deinit(void)
 		}
 
 		for (exp = p->req_exp; exp != NULL; ) {
-			if (exp->preg)
+			if (exp->preg) {
 				regfree((regex_t *)exp->preg);
+				free((regex_t *)exp->preg);
+			}
+
 			if (exp->replace && exp->action != ACT_SETBE)
 				free((char *)exp->replace);
 			expb = exp;
@@ -709,8 +715,11 @@ void deinit(void)
 		}
 
 		for (exp = p->rsp_exp; exp != NULL; ) {
-			if (exp->preg)
+			if (exp->preg) {
 				regfree((regex_t *)exp->preg);
+				free((regex_t *)exp->preg);
+			}
+
 			if (exp->replace && exp->action != ACT_SETBE)
 				free((char *)exp->replace);
 			expb = exp;
@@ -718,14 +727,35 @@ void deinit(void)
 			free(expb);
 		}
 
-		/* FIXME: this must also be freed :
-		 *  - uri_auth (but it's shared)
-		 */
+		/* build a list of unique uri_auths */
+		if (!ua)
+			ua = p->uri_auth;
+		else {
+			/* check if p->uri_auth is unique */
+			for (uap = ua; uap; uap=uap->next)
+				if (uap == p->uri_auth)
+					break;
+
+			if (!uap) {
+				/* add it, if it is */
+				p->uri_auth->next = ua;
+				ua = p->uri_auth;
+			}
+		}
 
 		list_for_each_entry_safe(acl, aclb, &p->acl, list) {
 			LIST_DEL(&acl->list);
 			prune_acl(acl);
 			free(acl);
+		}
+
+		list_for_each_entry_safe(rule, ruleb, &p->switching_rules, list) {
+			LIST_DEL(&rule->list);
+
+			prune_acl_cond(rule->cond);
+			free(rule->cond);
+
+			free(rule);
 		}
 
 		if (p->appsession_name)
@@ -791,6 +821,27 @@ void deinit(void)
 		free(p0);
 	}/* end while(p) */
 
+	while (ua) {
+		uap = ua;
+		ua = ua->next;
+
+		if (uap->uri_prefix)
+			free(uap->uri_prefix);
+
+		if (uap->auth_realm)
+			free(uap->auth_realm);
+
+		while (uap->users) {
+			user = uap->users;
+			uap->users = uap->users->next;
+
+			free(user->user_pwd);
+			free(user);
+		}
+
+		free(uap);
+	}
+
 	protocol_unbind_all();
 
 	if (global.chroot)    free(global.chroot);
@@ -801,6 +852,9 @@ void deinit(void)
     
 	if (fdtab)            free(fdtab);
 	fdtab = NULL;
+
+	if (oldpids)
+		free(oldpids);
 
 	pool_destroy2(pool2_session);
 	pool_destroy2(pool2_buffer);

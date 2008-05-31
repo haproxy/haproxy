@@ -42,6 +42,7 @@ struct uri_auth {
 	int flags;			/* some flags describing the statistics page */
 	struct user_auth *users;	/* linked list of valid user:passwd couples */
 	struct stat_scope *scope;	/* linked list of authorized proxies */
+	struct uri_auth *next;		/* Used at deinit() to build a list of unique elements */
 };
 
 /* This is the default statistics URI */
