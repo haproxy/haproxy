@@ -568,6 +568,7 @@ option tcpka                X          X         X         X
 option tcplog               X          X         X         X
 [no] option tcpsplice       X          X         X         X
 [no] option transparent     X          X         X         -
+redirect                    -          X         X         X
 redisp                      X          -         X         X  (deprecated)
 redispatch                  X          -         X         X  (deprecated)
 reqadd                      -          X         X         X
@@ -2310,6 +2311,32 @@ no option transparent
 
   See also: the "usersrc" argument of the "source" keyword, and the
             "transparent" option of the "bind" keyword.
+
+
+redirect {location | prefix} <to> [code <code>] {if | unless} <condition>
+  Return an HTTP redirection if/unless a condition is matched
+  May be used in sections :   defaults | frontend | listen | backend
+                                 no    |    yes   |   yes  |   yes
+
+  If/unless the condition is matched, the HTTP request will lead to a redirect
+  response. There are currently two types of redirections : "location" and
+  "prefix". With "location", the exact value in <to> is placed into the HTTP
+  "Location" header. With "prefix", the "Location" header is built from the
+  concatenation of <to> and the URI. It is particularly suited for global site
+  redirections.
+
+  The code is optional. It indicates in <code> which type of HTTP redirection
+  is desired. Only codes 301, 302 and 303 are supported. 302 is used if no code
+  is specified.
+
+  Example: move the login URL only to HTTPS.
+        acl clear      dst_port  80
+        acl secure     dst_port  8080
+        acl login_page url_beg   /login
+        redirect prefix   https://mysite.com  if login_page !secure
+        redirect location http://mysite.com/  if !login_page secure
+
+  See section 2.3 about ACL usage.
 
 
 redisp (deprecated)

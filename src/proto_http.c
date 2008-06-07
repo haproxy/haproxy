@@ -88,6 +88,12 @@ const struct chunk http_200_chunk = {
 	.len = sizeof(HTTP_200)-1
 };
 
+const char *HTTP_301 =
+	"HTTP/1.0 301 Moved Permantenly\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Location: "; /* not terminated since it will be concatenated with the URL */
+
 const char *HTTP_302 =
 	"HTTP/1.0 302 Found\r\n"
 	"Cache-Control: no-cache\r\n"
@@ -1800,8 +1806,89 @@ int process_cli(struct session *t)
 
 		do {
 			struct acl_cond *cond;
+			struct redirect_rule *rule;
 			struct proxy *rule_set = t->be;
 			cur_proxy = t->be;
+
+			/* first check whether we have some ACLs set to redirect this request */
+			list_for_each_entry(rule, &cur_proxy->redirect_rules, list) {
+				int ret = acl_exec_cond(rule->cond, cur_proxy, t, txn, ACL_DIR_REQ);
+				if (rule->cond->pol == ACL_COND_UNLESS)
+					ret = !ret;
+
+				if (ret) {
+					struct chunk rdr = { trash, 0 };
+					const char *msg_fmt;
+
+					/* build redirect message */
+					switch(rule->code) {
+						case 303:
+							rdr.len = strlen(HTTP_303);
+							msg_fmt = HTTP_303;
+							break;
+						case 301:
+							rdr.len = strlen(HTTP_301);
+							msg_fmt = HTTP_301;
+							break;
+						case 302:
+						default:
+							rdr.len = strlen(HTTP_302);
+							msg_fmt = HTTP_302;
+							break;
+					}
+
+					if (unlikely(rdr.len > sizeof(trash)))
+						goto return_bad_req;
+					memcpy(rdr.str, msg_fmt, rdr.len);
+
+					switch(rule->type) {
+						case REDIRECT_TYPE_PREFIX: {
+							const char *path;
+							int pathlen;
+
+							path = http_get_path(txn);
+							/* build message using path */
+							if (path) {
+								pathlen = txn->req.sl.rq.u_l + (txn->req.sol+txn->req.sl.rq.u) - path;
+							} else {
+								path = "/";
+								pathlen = 1;
+							}
+
+							if (rdr.len + rule->rdr_len + pathlen > sizeof(trash) - 4)
+								goto return_bad_req;
+
+							/* add prefix */
+							memcpy(rdr.str + rdr.len, rule->rdr_str, rule->rdr_len);
+							rdr.len += rule->rdr_len;
+
+							/* add path */
+							memcpy(rdr.str + rdr.len, path, pathlen);
+							rdr.len += pathlen;
+							break;
+						}
+						case REDIRECT_TYPE_LOCATION:
+						default:
+							if (rdr.len + rule->rdr_len > sizeof(trash) - 4)
+								goto return_bad_req;
+
+							/* add location */
+							memcpy(rdr.str + rdr.len, rule->rdr_str, rule->rdr_len);
+							rdr.len += rule->rdr_len;
+							break;
+					}
+
+					/* add end of headers */
+					memcpy(rdr.str + rdr.len, "\r\n\r\n", 4);
+					rdr.len += 4;
+
+					txn->status = rule->code;
+					/* let's log the request time */
+					t->logs.t_request = tv_ms_elapsed(&t->logs.tv_accept, &now);
+					client_retnclose(t, &rdr);
+					goto return_prx_cond;
+				}
+			}
 
 			/* first check whether we have some ACLs set to block this request */
 			list_for_each_entry(cond, &cur_proxy->block_cond, list) {

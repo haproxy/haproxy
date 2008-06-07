@@ -648,6 +648,7 @@ void deinit(void)
 	struct hdr_exp *exp, *expb;
 	struct acl *acl, *aclb;
 	struct switching_rule *rule, *ruleb;
+	struct redirect_rule *rdr, *rdrb;
 	struct uri_auth *uap, *ua = NULL;
 	struct user_auth *user;
 	int i;
@@ -756,6 +757,14 @@ void deinit(void)
 			free(rule->cond);
 
 			free(rule);
+		}
+
+		list_for_each_entry_safe(rdr, rdrb, &p->redirect_rules, list) {
+			LIST_DEL(&rdr->list);
+			prune_acl_cond(rdr->cond);
+			free(rdr->cond);
+			free(rdr->rdr_str);
+			free(rdr);
 		}
 
 		if (p->appsession_name)

@@ -162,6 +162,15 @@ enum {
 	DATA_ST_PX_FIN,
 };
 
+
+
+/* Redirect types (location, prefix, extended ) */
+enum {
+	REDIRECT_TYPE_NONE = 0,         /* no redirection */
+	REDIRECT_TYPE_LOCATION,         /* location redirect */
+	REDIRECT_TYPE_PREFIX,           /* prefix redirect */
+};
+
 /* Known HTTP methods */
 typedef enum {
 	HTTP_METH_NONE = 0,

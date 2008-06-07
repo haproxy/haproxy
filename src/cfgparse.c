@@ -587,6 +587,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		LIST_INIT(&curproxy->pendconns);
 		LIST_INIT(&curproxy->acl);
 		LIST_INIT(&curproxy->block_cond);
+		LIST_INIT(&curproxy->redirect_rules);
 		LIST_INIT(&curproxy->mon_fail_cond);
 		LIST_INIT(&curproxy->switching_rules);
 
@@ -1118,6 +1119,98 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			return -1;
 		}
 		LIST_ADDQ(&curproxy->block_cond, &cond->list);
+	}
+	else if (!strcmp(args[0], "redirect")) {
+		int pol = ACL_COND_NONE;
+		struct acl_cond *cond;
+		struct redirect_rule *rule;
+		int cur_arg;
+		int type = REDIRECT_TYPE_NONE;
+		int code = 302;
+		char *destination = NULL;
+
+		cur_arg = 1;
+		while (*(args[cur_arg])) {
+			if (!strcmp(args[cur_arg], "location")) {
+				if (!*args[cur_arg + 1]) {
+					Alert("parsing [%s:%d] : '%s': missing argument for '%s'.\n",
+					      file, linenum, args[0], args[cur_arg]);
+					return -1;
+				}
+
+				type = REDIRECT_TYPE_LOCATION;
+				cur_arg++;
+				destination = args[cur_arg];
+			}
+			else if (!strcmp(args[cur_arg], "prefix")) {
+				if (!*args[cur_arg + 1]) {
+					Alert("parsing [%s:%d] : '%s': missing argument for '%s'.\n",
+					      file, linenum, args[0], args[cur_arg]);
+					return -1;
+				}
+
+				type = REDIRECT_TYPE_PREFIX;
+				cur_arg++;
+				destination = args[cur_arg];
+			}
+			else if (!strcmp(args[cur_arg],"code")) {
+				if (!*args[cur_arg + 1]) {
+					Alert("parsing [%s:%d] : '%s': missing HTTP code.\n",
+					      file, linenum, args[0]);
+					return -1;
+				}
+				cur_arg++;
+				code = atol(args[cur_arg]);
+				if (code < 301 || code > 303) {
+					Alert("parsing [%s:%d] : '%s': unsupported HTTP code '%d'.\n",
+					      file, linenum, args[0], code);
+					return -1;
+				}
+			}
+			else if (!strcmp(args[cur_arg], "if")) {
+				pol = ACL_COND_IF;
+				cur_arg++;
+				break;
+			}
+			else if (!strcmp(args[cur_arg], "unless")) {
+				pol = ACL_COND_UNLESS;
+				cur_arg++;
+				break;
+			}
+			else {
+				Alert("parsing [%s:%d] : '%s' expects 'code', 'prefix' or 'location' (was '%s').\n",
+				      file, linenum, args[0], args[cur_arg]);
+				return -1;
+			}
+			cur_arg++;
+		}
+
+		if (type == REDIRECT_TYPE_NONE) {
+			Alert("parsing [%s:%d] : '%s' expects a redirection type ('prefix' or 'location').\n",
+			      file, linenum, args[0]);
+			return -1;
+		}
+
+		if (pol == ACL_COND_NONE) {
+			Alert("parsing [%s:%d] : '%s' requires either 'if' or 'unless' followed by a condition.\n",
+			      file, linenum, args[0]);
+			return -1;
+		}
+
+		if ((cond = parse_acl_cond((const char **)args + cur_arg, &curproxy->acl, pol)) == NULL) {
+			Alert("parsing [%s:%d] : '%s': error detected while parsing condition.\n",
+			      file, linenum, args[0]);
+			return -1;
+		}
+
+		rule = (struct redirect_rule *)calloc(1, sizeof(*rule));
+		rule->cond = cond;
+		rule->rdr_str = strdup(destination);
+		rule->rdr_len = strlen(destination);
+		rule->type = type;
+		rule->code = code;
+		LIST_INIT(&rule->list);
+		LIST_ADDQ(&curproxy->redirect_rules, &rule->list);
 	}
 	else if (!strcmp(args[0], "use_backend")) {  /* early blocking based on ACLs */
 		int pol = ACL_COND_NONE;
