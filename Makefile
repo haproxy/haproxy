@@ -488,7 +488,7 @@ install-doc:
 		install -m 644 doc/$$x.txt $(DESTDIR)$(DOCDIR) ; \
 	done
 
-install-bin: all
+install-bin: haproxy
 	install -d $(DESTDIR)$(SBINDIR)
 	install haproxy $(DESTDIR)$(SBINDIR)
 
