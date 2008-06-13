@@ -424,9 +424,10 @@ REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 	}
 	last_skipped = 0;
 
-	if (nbspec || status) {
+	if (nbspec || status || run_queue) {
 		/* Maybe we have processed some events that we must report, or
-		 * maybe we still have events in the spec list, so we must not
+		 * maybe we still have events in the spec list, or there are
+		 * some tasks left pending in the run_queue, so we must not
 		 * wait in epoll() otherwise we will delay their delivery by
 		 * the next timeout.
 		 */

@@ -106,7 +106,11 @@ REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 	struct timespec timeout, *to_ptr;
 
 	to_ptr = NULL;	// no timeout
-	if (tv_isset(exp)) {
+	if (run_queue) {
+		timeout.tv_sec = timeout.tv_nsec = 0;
+		to_ptr = &timeout;
+	}
+	else if (tv_isset(exp)) {
 		struct timeval delta;
 
 		if (tv_isge(&now, exp))
