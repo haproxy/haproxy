@@ -232,7 +232,9 @@ REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 		fd_flush_changes();
 
 	/* now let's wait for events */
-	if (tv_iseternity(exp))
+	if (run_queue)
+		wait_time = 0;
+	else if (tv_iseternity(exp))
 		wait_time = -1;
 	else if (tv_isge(&now, exp))
 		wait_time = 0;
