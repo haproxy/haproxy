@@ -103,7 +103,7 @@ struct session {
 	struct {
 		int logwait;			/* log fields waiting to be collected : LW_* */
 		struct timeval tv_accept;	/* date of the accept() (beginning of the session) */
-		long  t_request;		/* delay before the end of the request arrives, -1 if never occurs */
+		struct timeval tv_request;	/* date the request arrives, {0,0} if never occurs */
 		long  t_queue;			/* delay before the session gets out of the connect queue, -1 if never occurs */
 		long  t_connect;		/* delay before the connect() to the server succeeds, -1 if never occurs */
 		long  t_data;			/* delay before the first data byte from the server ... */

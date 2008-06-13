@@ -202,7 +202,7 @@ int event_accept(int fd) {
 			s->logs.logwait = p->to_log;
 
 		s->logs.tv_accept = now;
-		s->logs.t_request = -1;
+		tv_zero(&s->logs.tv_request);
 		s->logs.t_queue = -1;
 		s->logs.t_connect = -1;
 		s->logs.t_data = -1;
