@@ -91,21 +91,29 @@ void process_srv_queue(struct task *t, struct timeval *next)
 /* Detaches the next pending connection from either a server or a proxy, and
  * returns its associated session. If no pending connection is found, NULL is
  * returned. Note that neither <srv> nor <px> can be NULL.
+ * Priority is given to the oldest request in the queue if both <srv> and <px>
+ * have pending requests. This ensures that no request will be left unserved.
  */
 struct session *pendconn_get_next_sess(struct server *srv, struct proxy *px)
 {
-	struct pendconn *p;
+	struct pendconn *ps, *pp;
 	struct session *sess;
 
-	p = pendconn_from_srv(srv);
-	if (!p) {
-		p = pendconn_from_px(px);
-		if (!p)
+	ps = pendconn_from_srv(srv);
+	pp = pendconn_from_px(px);
+	/* we want to get the definitive pendconn in <ps> */
+	if (!pp) {
+		if (!ps)
 			return NULL;
-		p->sess->srv = srv;
+	} else {
+		/* pendconn exists in the proxy queue */
+		if (!ps || tv_islt(&pp->sess->logs.tv_request, &ps->sess->logs.tv_request)) {
+			ps = pp;
+			ps->sess->srv = srv;
+		}
 	}
-	sess = p->sess;
-	pendconn_free(p);
+	sess = ps->sess;
+	pendconn_free(ps);
 	return sess;
 }
 

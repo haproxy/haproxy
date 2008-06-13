@@ -702,6 +702,7 @@ static void http_sess_log(struct session *s)
 	char *svid;
 	struct tm tm;
 	static char tmpline[MAX_SYSLOG_LEN];
+	int t_request;
 	int hdr;
 
 	if (fe->logfac1 < 0 && fe->logfac2 < 0)
@@ -767,6 +768,10 @@ static void http_sess_log(struct session *s)
 		(s->data_source != DATA_SRC_STATS) ?
 		(s->srv != NULL) ? s->srv->id : "<NOSRV>" : "<STATS>" : "-";
 
+	t_request = -1;
+	if (tv_isge(&s->logs.tv_request, &s->logs.tv_accept))
+		t_request = tv_ms_elapsed(&s->logs.tv_accept, &s->logs.tv_request);
+
 	send_log(prx_log, LOG_INFO,
 		 "%s:%d [%02d/%s/%04d:%02d:%02d:%02d.%03d]"
 		 " %s %s/%s %d/%d/%d/%d/%s%d %d %s%lld"
@@ -778,8 +783,8 @@ static void http_sess_log(struct session *s)
 		 tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
 		 tm.tm_hour, tm.tm_min, tm.tm_sec, s->logs.tv_accept.tv_usec/1000,
 		 fe->id, be->id, svid,
-		 s->logs.t_request,
-		 (s->logs.t_queue >= 0) ? s->logs.t_queue - s->logs.t_request : -1,
+		 t_request,
+		 (s->logs.t_queue >= 0) ? s->logs.t_queue - t_request : -1,
 		 (s->logs.t_connect >= 0) ? s->logs.t_connect - s->logs.t_queue : -1,
 		 (s->logs.t_data >= 0) ? s->logs.t_data - s->logs.t_connect : -1,
 		 (tolog & LW_BYTES) ? "" : "+", s->logs.t_close,
@@ -1762,7 +1767,7 @@ int process_cli(struct session *t)
 				if (ret) {
 					txn->status = 403;
 					/* let's log the request time */
-					t->logs.t_request = tv_ms_elapsed(&t->logs.tv_accept, &now);
+					t->logs.tv_request = now;
 					client_retnclose(t, error_message(t, HTTP_ERR_403));
 					goto return_prx_cond;
 				}
@@ -1791,7 +1796,7 @@ int process_cli(struct session *t)
 				/* no need to go further */
 				txn->status = 403;
 				/* let's log the request time */
-				t->logs.t_request = tv_ms_elapsed(&t->logs.tv_accept, &now);
+				t->logs.tv_request = now;
 				client_retnclose(t, error_message(t, HTTP_ERR_403));
 				goto return_prx_cond;
 			}
@@ -2024,7 +2029,7 @@ int process_cli(struct session *t)
 		t->cli_state = CL_STDATA;
 		req->rlim = req->data + BUFSIZE; /* no more rewrite needed */
 
-		t->logs.t_request = tv_ms_elapsed(&t->logs.tv_accept, &now);
+		t->logs.tv_request = now;
 
 		if (!tv_isset(&t->fe->timeout.client) ||
 		    (t->srv_state < SV_STDATA && tv_isset(&t->be->timeout.server))) {
@@ -4784,7 +4789,7 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 	 */
 	t->cli_state = CL_STSHUTR;
 	t->req->rlim = t->req->data + BUFSIZE; /* no more rewrite needed */
-	t->logs.t_request = tv_ms_elapsed(&t->logs.tv_accept, &now);
+	t->logs.tv_request = now;
 	t->data_source = DATA_SRC_STATS;
 	t->data_state  = DATA_ST_INIT;
 	produce_content(t);
