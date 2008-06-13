@@ -36,4 +36,18 @@
 #define FSM_PRINTF(x...)
 #endif
 
+/* this one is provided for easy code tracing.
+ * Usage: TRACE(sess||0, fmt, args...);
+ *        TRACE(sess, "");
+ */
+#define TRACE(sess, fmt, args...) do {                            \
+	fprintf(stderr,                                           \
+		"%d.%06d [%s:%d %s] [sess %p(%x)] " fmt "\n",      \
+		(int)now.tv_sec, (int)now.tv_usec,                \
+		__FILE__, __LINE__, __FUNCTION__,                 \
+		sess, sess?((struct session *)sess)->uniq_id:~0U, \
+		##args);                                           \
+        } while (0)
+
+
 #endif /* _COMMON_DEBUG_H */
