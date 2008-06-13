@@ -135,14 +135,14 @@ struct pendconn *pendconn_add(struct session *sess)
 	p->srv  = sess->srv;
 	if (sess->srv) {
 		LIST_ADDQ(&sess->srv->pendconns, &p->list);
-		sess->logs.srv_queue_size += sess->srv->nbpend;
 		sess->srv->nbpend++;
+		sess->logs.srv_queue_size += sess->srv->nbpend;
 		if (sess->srv->nbpend > sess->srv->nbpend_max)
 			sess->srv->nbpend_max = sess->srv->nbpend;
 	} else {
 		LIST_ADDQ(&sess->be->pendconns, &p->list);
-		sess->logs.prx_queue_size += sess->be->nbpend;
 		sess->be->nbpend++;
+		sess->logs.prx_queue_size += sess->be->nbpend;
 		if (sess->be->nbpend > sess->be->nbpend_max)
 			sess->be->nbpend_max = sess->be->nbpend;
 	}
