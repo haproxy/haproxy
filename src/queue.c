@@ -1,7 +1,7 @@
 /*
  * Queue management functions.
  *
- * Copyright 2000-2007 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -63,36 +63,34 @@ unsigned int srv_dynamic_maxconn(const struct server *s)
 
 
 /*
- * Manages a server's connection queue. If woken up, will try to dequeue as
- * many pending sessions as possible, and wake them up. The task has nothing
- * else to do, so it always returns ETERNITY.
+ * Manages a server's connection queue. This function will try to dequeue as
+ * many pending sessions as possible, and wake them up.
  */
-void process_srv_queue(struct task *t, struct timeval *next)
+void process_srv_queue(struct server *s)
 {
-	struct server *s = (struct server*)t->context;
 	struct proxy  *p = s->proxy;
-	int xferred;
+	int maxconn;
 
 	/* First, check if we can handle some connections queued at the proxy. We
 	 * will take as many as we can handle.
 	 */
-	for (xferred = 0; s->cur_sess + xferred < srv_dynamic_maxconn(s); xferred++) {
-		struct session *sess;
 
-		sess = pendconn_get_next_sess(s, p);
+	maxconn = srv_dynamic_maxconn(s);
+	while (s->served < maxconn) {
+		struct session *sess = pendconn_get_next_sess(s, p);
 		if (sess == NULL)
 			break;
 		task_wakeup(sess->task);
 	}
-
-	tv_eternity(next);
 }
 
 /* Detaches the next pending connection from either a server or a proxy, and
  * returns its associated session. If no pending connection is found, NULL is
- * returned. Note that neither <srv> nor <px> can be NULL.
+ * returned. Note that neither <srv> nor <px> may be NULL.
  * Priority is given to the oldest request in the queue if both <srv> and <px>
  * have pending requests. This ensures that no request will be left unserved.
+ * The session is immediately marked as "assigned", and both its <srv> and
+ * <srv_conn> are set to <srv>,
  */
 struct session *pendconn_get_next_sess(struct server *srv, struct proxy *px)
 {
@@ -114,13 +112,23 @@ struct session *pendconn_get_next_sess(struct server *srv, struct proxy *px)
 	}
 	sess = ps->sess;
 	pendconn_free(ps);
+
+	/* we want to note that the session has now been assigned a server */
+	sess->flags |= SN_ASSIGNED;
+	sess->srv = srv;
+	sess->srv_conn = srv;
+	srv->served++;
+	if (px->lbprm.server_take_conn)
+		px->lbprm.server_take_conn(srv);
+
 	return sess;
 }
 
 /* Adds the session <sess> to the pending connection list of server <sess>->srv
  * or to the one of <sess>->proxy if srv is NULL. All counters and back pointers
  * are updated accordingly. Returns NULL if no memory is available, otherwise the
- * pendconn itself.
+ * pendconn itself. If the session was already marked as served, its flag is
+ * cleared. It is illegal to call this function with a non-NULL sess->srv_conn.
  */
 struct pendconn *pendconn_add(struct session *sess)
 {
@@ -133,7 +141,8 @@ struct pendconn *pendconn_add(struct session *sess)
 	sess->pend_pos = p;
 	p->sess = sess;
 	p->srv  = sess->srv;
-	if (sess->srv) {
+
+	if (sess->flags & SN_ASSIGNED && sess->srv) {
 		LIST_ADDQ(&sess->srv->pendconns, &p->list);
 		sess->srv->nbpend++;
 		sess->logs.srv_queue_size += sess->srv->nbpend;

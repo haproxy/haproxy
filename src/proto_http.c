@@ -1,7 +1,7 @@
 /*
  * HTTP protocol analyzer
  *
- * Copyright 2000-2007 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -2569,9 +2569,9 @@ int process_srv(struct session *t)
 			 * to any other session to release it and wake us up again.
 			 */
 			if (t->pend_pos) {
-				if (!tv_isle(&req->cex, &now))
+				if (!tv_isle(&req->cex, &now)) {
 					return 0;
-				else {
+				} else {
 					/* we've been waiting too long here */
 					tv_eternity(&req->cex);
 					t->logs.t_queue = tv_ms_elapsed(&t->logs.tv_accept, &now);
@@ -2660,8 +2660,7 @@ int process_srv(struct session *t)
 				fd_delete(t->srv_fd);
 				if (t->srv) {
 					t->srv->cur_sess--;
-					if (t->srv->proxy->lbprm.server_drop_conn)
-						t->srv->proxy->lbprm.server_drop_conn(t->srv);
+					sess_change_server(t, NULL);
 				}
 			}
 
@@ -2689,8 +2688,7 @@ int process_srv(struct session *t)
 				fd_delete(t->srv_fd);
 				if (t->srv) {
 					t->srv->cur_sess--;
-					if (t->srv->proxy->lbprm.server_drop_conn)
-						t->srv->proxy->lbprm.server_drop_conn(t->srv);
+					sess_change_server(t, NULL);
 				}
 
 				if (!(req->flags & BF_WRITE_STATUS))
@@ -2721,10 +2719,11 @@ int process_srv(struct session *t)
 				 */
 				/* let's try to offer this slot to anybody */
 				if (may_dequeue_tasks(t->srv, t->be))
-					task_wakeup(t->srv->queue_mgt);
+					process_srv_queue(t->srv);
 
 				/* it's left to the dispatcher to choose a server */
 				t->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
+				t->prev_srv = t->srv;
 
 				/* first, get a connection */
 				if (srv_redispatch_connect(t))
@@ -2884,8 +2883,7 @@ int process_srv(struct session *t)
 				if (t->srv) {
 					t->srv->cur_sess--;
 					t->srv->failed_resp++;
-					if (t->srv->proxy->lbprm.server_drop_conn)
-						t->srv->proxy->lbprm.server_drop_conn(t->srv);
+					sess_change_server(t, NULL);
 				}
 				t->be->failed_resp++;
 				t->srv_state = SV_STCLOSE;
@@ -2899,7 +2897,7 @@ int process_srv(struct session *t)
 				 * we have to inform the server that it may be used by another session.
 				 */
 				if (t->srv && may_dequeue_tasks(t->srv, t->be))
-					task_wakeup(t->srv->queue_mgt);
+					process_srv_queue(t->srv);
 
 				return 1;
 			}
@@ -2928,8 +2926,7 @@ int process_srv(struct session *t)
 				if (t->srv) {
 					t->srv->cur_sess--;
 					t->srv->failed_resp++;
-					if (t->srv->proxy->lbprm.server_drop_conn)
-						t->srv->proxy->lbprm.server_drop_conn(t->srv);
+					sess_change_server(t, NULL);
 				}
 				t->be->failed_resp++;
 				t->srv_state = SV_STCLOSE;
@@ -2943,7 +2940,7 @@ int process_srv(struct session *t)
 				 * we have to inform the server that it may be used by another session.
 				 */
 				if (t->srv && may_dequeue_tasks(t->srv, t->be))
-					task_wakeup(t->srv->queue_mgt);
+					process_srv_queue(t->srv);
 				return 1;
 			}
 
@@ -3098,8 +3095,7 @@ int process_srv(struct session *t)
 					if (t->srv) {
 						t->srv->cur_sess--;
 						t->srv->failed_resp++;
-						if (t->srv->proxy->lbprm.server_drop_conn)
-							t->srv->proxy->lbprm.server_drop_conn(t->srv);
+						sess_change_server(t, NULL);
 					}
 					cur_proxy->failed_resp++;
 				return_srv_prx_502:
@@ -3117,7 +3113,7 @@ int process_srv(struct session *t)
 					 * we have to inform the server that it may be used by another session.
 					 */
 					if (t->srv && may_dequeue_tasks(t->srv, cur_proxy))
-						task_wakeup(t->srv->queue_mgt);
+						process_srv_queue(t->srv);
 					return 1;
 				}
 			}
@@ -3127,8 +3123,7 @@ int process_srv(struct session *t)
 				if (t->srv) {
 					t->srv->cur_sess--;
 					t->srv->failed_secu++;
-					if (t->srv->proxy->lbprm.server_drop_conn)
-						t->srv->proxy->lbprm.server_drop_conn(t->srv);
+					sess_change_server(t, NULL);
 				}
 				cur_proxy->denied_resp++;
 				goto return_srv_prx_502;
@@ -3264,8 +3259,7 @@ int process_srv(struct session *t)
 			if (t->srv) {
 				t->srv->cur_sess--;
 				t->srv->failed_secu++;
-				if (t->srv->proxy->lbprm.server_drop_conn)
-					t->srv->proxy->lbprm.server_drop_conn(t->srv);
+				sess_change_server(t, NULL);
 			}
 			t->be->denied_resp++;
 
@@ -3353,8 +3347,7 @@ int process_srv(struct session *t)
 			if (t->srv) {
 				t->srv->cur_sess--;
 				t->srv->failed_resp++;
-				if (t->srv->proxy->lbprm.server_drop_conn)
-					t->srv->proxy->lbprm.server_drop_conn(t->srv);
+				sess_change_server(t, NULL);
 			}
 			t->be->failed_resp++;
 			t->srv_state = SV_STCLOSE;
@@ -3366,7 +3359,7 @@ int process_srv(struct session *t)
 			 * we have to inform the server that it may be used by another session.
 			 */
 			if (may_dequeue_tasks(t->srv, t->be))
-				task_wakeup(t->srv->queue_mgt);
+				process_srv_queue(t->srv);
 
 			return 1;
 		}
@@ -3462,8 +3455,7 @@ int process_srv(struct session *t)
 			if (t->srv) {
 				t->srv->cur_sess--;
 				t->srv->failed_resp++;
-				if (t->srv->proxy->lbprm.server_drop_conn)
-					t->srv->proxy->lbprm.server_drop_conn(t->srv);
+				sess_change_server(t, NULL);
 			}
 			t->be->failed_resp++;
 			//close(t->srv_fd);
@@ -3476,7 +3468,7 @@ int process_srv(struct session *t)
 			 * we have to inform the server that it may be used by another session.
 			 */
 			if (may_dequeue_tasks(t->srv, t->be))
-				task_wakeup(t->srv->queue_mgt);
+				process_srv_queue(t->srv);
 
 			return 1;
 		}
@@ -3486,8 +3478,7 @@ int process_srv(struct session *t)
 			fd_delete(t->srv_fd);
 			if (t->srv) {
 				t->srv->cur_sess--;
-				if (t->srv->proxy->lbprm.server_drop_conn)
-					t->srv->proxy->lbprm.server_drop_conn(t->srv);
+				sess_change_server(t, NULL);
 			}
 			//close(t->srv_fd);
 			t->srv_state = SV_STCLOSE;
@@ -3495,7 +3486,7 @@ int process_srv(struct session *t)
 			 * we have to inform the server that it may be used by another session.
 			 */
 			if (may_dequeue_tasks(t->srv, t->be))
-				task_wakeup(t->srv->queue_mgt);
+				process_srv_queue(t->srv);
 
 			return 1;
 		}
@@ -3505,8 +3496,7 @@ int process_srv(struct session *t)
 			fd_delete(t->srv_fd);
 			if (t->srv) {
 				t->srv->cur_sess--;
-				if (t->srv->proxy->lbprm.server_drop_conn)
-					t->srv->proxy->lbprm.server_drop_conn(t->srv);
+				sess_change_server(t, NULL);
 			}
 			//close(t->srv_fd);
 			t->srv_state = SV_STCLOSE;
@@ -3518,7 +3508,7 @@ int process_srv(struct session *t)
 			 * we have to inform the server that it may be used by another session.
 			 */
 			if (may_dequeue_tasks(t->srv, t->be))
-				task_wakeup(t->srv->queue_mgt);
+				process_srv_queue(t->srv);
 
 			return 1;
 		}
@@ -3545,8 +3535,7 @@ int process_srv(struct session *t)
 			if (t->srv) {
 				t->srv->cur_sess--;
 				t->srv->failed_resp++;
-				if (t->srv->proxy->lbprm.server_drop_conn)
-					t->srv->proxy->lbprm.server_drop_conn(t->srv);
+				sess_change_server(t, NULL);
 			}
 			t->be->failed_resp++;
 			//close(t->srv_fd);
@@ -3559,7 +3548,7 @@ int process_srv(struct session *t)
 			 * we have to inform the server that it may be used by another session.
 			 */
 			if (may_dequeue_tasks(t->srv, t->be))
-				task_wakeup(t->srv->queue_mgt);
+				process_srv_queue(t->srv);
 
 			return 1;
 		}
@@ -3569,8 +3558,7 @@ int process_srv(struct session *t)
 			fd_delete(t->srv_fd);
 			if (t->srv) {
 				t->srv->cur_sess--;
-				if (t->srv->proxy->lbprm.server_drop_conn)
-					t->srv->proxy->lbprm.server_drop_conn(t->srv);
+				sess_change_server(t, NULL);
 			}
 			//close(t->srv_fd);
 			t->srv_state = SV_STCLOSE;
@@ -3578,7 +3566,7 @@ int process_srv(struct session *t)
 			 * we have to inform the server that it may be used by another session.
 			 */
 			if (may_dequeue_tasks(t->srv, t->be))
-				task_wakeup(t->srv->queue_mgt);
+				process_srv_queue(t->srv);
 
 			return 1;
 		}
@@ -3588,8 +3576,7 @@ int process_srv(struct session *t)
 			fd_delete(t->srv_fd);
 			if (t->srv) {
 				t->srv->cur_sess--;
-				if (t->srv->proxy->lbprm.server_drop_conn)
-					t->srv->proxy->lbprm.server_drop_conn(t->srv);
+				sess_change_server(t, NULL);
 			}
 			//close(t->srv_fd);
 			t->srv_state = SV_STCLOSE;
@@ -3601,7 +3588,7 @@ int process_srv(struct session *t)
 			 * we have to inform the server that it may be used by another session.
 			 */
 			if (may_dequeue_tasks(t->srv, t->be))
-				task_wakeup(t->srv->queue_mgt);
+				process_srv_queue(t->srv);
 
 			return 1;
 		}

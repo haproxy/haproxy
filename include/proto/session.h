@@ -2,7 +2,7 @@
   include/proto/session.h
   This file defines everything related to sessions.
 
-  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -34,6 +34,7 @@ void session_free(struct session *s);
 int init_session();
 
 void session_process_counters(struct session *s);
+void sess_change_server(struct session *sess, struct server *newsrv);
 
 #endif /* _PROTO_SESSION_H */
 

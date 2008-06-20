@@ -78,12 +78,12 @@ struct server {
 	char *rdr_pfx;				/* the redirection prefix */
 
 	struct proxy *proxy;			/* the proxy this server belongs to */
+	int served;				/* # of active sessions currently being served (ie not pending) */
 	int cur_sess, cur_sess_max;		/* number of currently active sessions (including syn_sent) */
 	unsigned maxconn, minconn;		/* max # of active sessions (0 = unlimited), min# for dynamic limit. */
 	int nbpend, nbpend_max;			/* number of pending connections */
 	int maxqueue;				/* maximum number of pending connections allowed */
 	struct list pendconns;			/* pending connections */
-	struct task *queue_mgt;			/* the task associated to the queue processing */
 
 	struct sockaddr_in addr;		/* the address to connect to */
 	struct sockaddr_in source_addr;		/* the address to which we want to bind for connect() */
