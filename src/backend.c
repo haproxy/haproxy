@@ -19,6 +19,7 @@
 
 #include <common/compat.h>
 #include <common/config.h>
+#include <common/debug.h>
 #include <common/eb32tree.h>
 #include <common/time.h>
 
@@ -38,6 +39,7 @@
 #include <proto/log.h>
 #include <proto/proto_http.h>
 #include <proto/queue.h>
+#include <proto/session.h>
 #include <proto/stream_sock.h>
 #include <proto/task.h>
 
@@ -782,7 +784,7 @@ static struct server *fwrr_get_next_server(struct proxy *p)
 		fwrr_update_position(grp, srv);
 		fwrr_dequeue_srv(srv);
 		grp->curr_pos++;
-		if (!srv->maxconn || srv->cur_sess < srv_dynamic_maxconn(srv))
+		if (!srv->maxconn || (!srv->nbpend && srv->served < srv_dynamic_maxconn(srv)))
 			break;
 
 		/* the server is saturated, let's chain it for later reinsertion */
@@ -882,98 +884,150 @@ struct server *get_server_ph(struct proxy *px, const char *uri, int uri_len)
 }
 
 /*
- * This function marks the session as 'assigned' in direct or dispatch modes,
- * or tries to assign one in balance mode, according to the algorithm. It does
- * nothing if the session had already been assigned a server.
+ * This function applies the load-balancing algorithm to the session, as
+ * defined by the backend it is assigned to. The session is then marked as
+ * 'assigned'.
+ *
+ * This function MAY NOT be called with SN_ASSIGNED already set. If the session
+ * had a server previously assigned, it is rebalanced, trying to avoid the same
+ * server.
+ * The function tries to keep the original connection slot if it reconnects to
+ * the same server, otherwise it releases it and tries to offer it.
+ *
+ * It is illegal to call this function with a session in a queue.
  *
  * It may return :
- *   SRV_STATUS_OK       if everything is OK. s->srv will be valid.
- *   SRV_STATUS_NOSRV    if no server is available. s->srv = NULL.
- *   SRV_STATUS_FULL     if all servers are saturated. s->srv = NULL.
+ *   SRV_STATUS_OK       if everything is OK. Session assigned to ->srv
+ *   SRV_STATUS_NOSRV    if no server is available. Session is not ASSIGNED
+ *   SRV_STATUS_FULL     if all servers are saturated. Session is not ASSIGNED
  *   SRV_STATUS_INTERNAL for other unrecoverable errors.
  *
- * Upon successful return, the session flag SN_ASSIGNED to indicate that it does
- * not need to be called anymore. This usually means that s->srv can be trusted
- * in balance and direct modes. This flag is not cleared, so it's to the caller
- * to clear it if required (eg: redispatch).
+ * Upon successful return, the session flag SN_ASSIGNED is set to indicate that
+ * it does not need to be called anymore. This means that s->srv can be trusted
+ * in balance and direct modes.
  *
  */
 
 int assign_server(struct session *s)
 {
+	struct server *conn_slot;
+	int err;
+
 #ifdef DEBUG_FULL
 	fprintf(stderr,"assign_server : s=%p\n",s);
 #endif
 
-	if (s->pend_pos)
-		return SRV_STATUS_INTERNAL;
+	err = SRV_STATUS_INTERNAL;
+	if (unlikely(s->pend_pos || s->flags & SN_ASSIGNED))
+		goto out_err;
 
-	if (!(s->flags & SN_ASSIGNED)) {
-		if (s->be->lbprm.algo & BE_LB_ALGO) {
-			int len;
-		
-			if (s->flags & SN_DIRECT) {
-				s->flags |= SN_ASSIGNED;
-				return SRV_STATUS_OK;
+	s->prev_srv = s->prev_srv;
+	conn_slot = s->srv_conn;
+
+	/* We have to release any connection slot before applying any LB algo,
+	 * otherwise we may erroneously end up with no available slot.
+	 */
+	if (conn_slot)
+		sess_change_server(s, NULL);
+
+	/* We will now try to find the good server and store it into <s->srv>.
+	 * Note that <s->srv> may be NULL in case of dispatch or proxy mode,
+	 * as well as if no server is available (check error code).
+	 */
+
+	s->srv = NULL;
+	if (s->be->lbprm.algo & BE_LB_ALGO) {
+		int len;
+		/* we must check if we have at least one server available */
+		if (!s->be->lbprm.tot_weight) {
+			err = SRV_STATUS_NOSRV;
+			goto out;
+		}
+
+		switch (s->be->lbprm.algo & BE_LB_ALGO) {
+		case BE_LB_ALGO_RR:
+			s->srv = fwrr_get_next_server(s->be);
+			if (!s->srv) {
+				err = SRV_STATUS_FULL;
+				goto out;
 			}
-
-			if (!s->be->lbprm.tot_weight)
-				return SRV_STATUS_NOSRV;
-
-			switch (s->be->lbprm.algo & BE_LB_ALGO) {
-			case BE_LB_ALGO_RR:
-				s->srv = fwrr_get_next_server(s->be);
-				if (!s->srv)
-					return SRV_STATUS_FULL;
-				break;
-			case BE_LB_ALGO_SH:
-				if (s->cli_addr.ss_family == AF_INET)
-					len = 4;
-				else if (s->cli_addr.ss_family == AF_INET6)
-					len = 16;
-				else /* unknown IP family */
-					return SRV_STATUS_INTERNAL;
+			break;
+		case BE_LB_ALGO_SH:
+			if (s->cli_addr.ss_family == AF_INET)
+				len = 4;
+			else if (s->cli_addr.ss_family == AF_INET6)
+				len = 16;
+			else {
+				/* unknown IP family */
+				err = SRV_STATUS_INTERNAL;
+				goto out;
+			}
 		
-				s->srv = get_server_sh(s->be,
-						       (void *)&((struct sockaddr_in *)&s->cli_addr)->sin_addr,
-						       len);
-				break;
-			case BE_LB_ALGO_UH:
-				/* URI hashing */
-				s->srv = get_server_uh(s->be,
-						       s->txn.req.sol + s->txn.req.sl.rq.u,
-						       s->txn.req.sl.rq.u_l);
-				break;
-			case BE_LB_ALGO_PH:
-				/* URL Parameter hashing */
-				s->srv = get_server_ph(s->be,
-						       s->txn.req.sol + s->txn.req.sl.rq.u,
-						       s->txn.req.sl.rq.u_l);
+			s->srv = get_server_sh(s->be,
+					       (void *)&((struct sockaddr_in *)&s->cli_addr)->sin_addr,
+					       len);
+			break;
+		case BE_LB_ALGO_UH:
+			/* URI hashing */
+			s->srv = get_server_uh(s->be,
+					       s->txn.req.sol + s->txn.req.sl.rq.u,
+					       s->txn.req.sl.rq.u_l);
+			break;
+		case BE_LB_ALGO_PH:
+			/* URL Parameter hashing */
+			s->srv = get_server_ph(s->be,
+					       s->txn.req.sol + s->txn.req.sl.rq.u,
+					       s->txn.req.sl.rq.u_l);
+
+			if (!s->srv) {
+				/* parameter not found, fall back to round robin on the map */
+				s->srv = get_server_rr_with_conns(s->be);
 				if (!s->srv) {
-					/* parameter not found, fall back to round robin on the map */
-					s->srv = get_server_rr_with_conns(s->be);
-					if (!s->srv)
-						return SRV_STATUS_FULL;
+					err = SRV_STATUS_FULL;
+					goto out;
 				}
-				break;
-			default:
-				/* unknown balancing algorithm */
-				return SRV_STATUS_INTERNAL;
 			}
+			break;
+		default:
+			/* unknown balancing algorithm */
+			err = SRV_STATUS_INTERNAL;
+			goto out;
+		}
+		if (s->srv != s->prev_srv) {
 			s->be->cum_lbconn++;
 			s->srv->cum_lbconn++;
 		}
-		else if (s->be->options & PR_O_HTTP_PROXY) {
-			if (!s->srv_addr.sin_addr.s_addr)
-				return SRV_STATUS_NOSRV;
-		}
-		else if (!*(int *)&s->be->dispatch_addr.sin_addr &&
-			 !(s->fe->options & PR_O_TRANSP)) {
-			return SRV_STATUS_NOSRV;
-		}
-		s->flags |= SN_ASSIGNED;
 	}
-	return SRV_STATUS_OK;
+	else if (s->be->options & PR_O_HTTP_PROXY) {
+		if (!s->srv_addr.sin_addr.s_addr) {
+			err = SRV_STATUS_NOSRV;
+			goto out;
+		}
+	}
+	else if (!*(int *)&s->be->dispatch_addr.sin_addr &&
+		 !(s->fe->options & PR_O_TRANSP)) {
+		err = SRV_STATUS_NOSRV;
+		goto out;
+	}
+
+	s->flags |= SN_ASSIGNED;
+	err = SRV_STATUS_OK;
+ out:
+
+	/* Either we take back our connection slot, or we offer it to someone
+	 * else if we don't need it anymore.
+	 */
+	if (conn_slot) {
+		if (conn_slot == s->srv) {
+			sess_change_server(s, s->srv);
+		} else {
+			if (may_dequeue_tasks(conn_slot, s->be))
+				process_srv_queue(conn_slot);
+		}
+	}
+
+ out_err:
+	return err;
 }
 
 
@@ -1046,6 +1100,11 @@ int assign_server_address(struct session *s)
 
 /* This function assigns a server to session <s> if required, and can add the
  * connection to either the assigned server's queue or to the proxy's queue.
+ * If ->srv_conn is set, the session is first released from the server.
+ * It may also be called with SN_DIRECT and/or SN_ASSIGNED though. It will
+ * be called before any connection and after any retry or redispatch occurs.
+ *
+ * It is not allowed to call this function with a session in a queue.
  *
  * Returns :
  *
@@ -1053,7 +1112,8 @@ int assign_server_address(struct session *s)
  *   SRV_STATUS_NOSRV    if no server is available. s->srv = NULL.
  *   SRV_STATUS_QUEUED   if the connection has been queued.
  *   SRV_STATUS_FULL     if the server(s) is/are saturated and the
- *                       connection could not be queued.
+ *                       connection could not be queued in s->srv,
+ *                       which may be NULL if we queue on the backend.
  *   SRV_STATUS_INTERNAL for other unrecoverable errors.
  *
  */
@@ -1065,41 +1125,65 @@ int assign_server_and_queue(struct session *s)
 	if (s->pend_pos)
 		return SRV_STATUS_INTERNAL;
 
-	if (s->flags & SN_ASSIGNED) {
-		if (s->srv && s->srv->maxqueue > 0 && s->srv->nbpend >= s->srv->maxqueue) {
-			s->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
-			s->srv = NULL;
-			http_flush_cookie_flags(&s->txn);
-		} else {
-			/* a server does not need to be assigned, perhaps because we're in
-			 * direct mode, or in dispatch or transparent modes where the server
-			 * is not needed.
+	err = SRV_STATUS_OK;
+	if (!(s->flags & SN_ASSIGNED)) {
+		err = assign_server(s);
+		if (s->prev_srv) {
+			/* This session was previously assigned to a server. We have to
+			 * update the session's and the server's stats :
+			 *  - if the server changed :
+			 *    - set TX_CK_DOWN if txn.flags was TX_CK_VALID
+			 *    - increment srv->redispatches and be->redispatches
+			 *  - if the server remained the same : update retries.
 			 */
-			if (s->srv &&
-			    s->srv->maxconn && s->srv->cur_sess >= srv_dynamic_maxconn(s->srv)) {
-				p = pendconn_add(s);
-				if (p)
-					return SRV_STATUS_QUEUED;
-				else
-					return SRV_STATUS_FULL;
+			if (s->prev_srv != s->srv) {
+				if ((s->txn.flags & TX_CK_MASK) == TX_CK_VALID) {
+					s->txn.flags &= ~TX_CK_MASK;
+					s->txn.flags |= TX_CK_DOWN;
+				}
+				s->be->redispatches++;
+			} else {
+				s->prev_srv->retries++;
+				s->be->retries++;
 			}
-			return SRV_STATUS_OK;
 		}
 	}
 
-	/* a server needs to be assigned */
-	err = assign_server(s);
 	switch (err) {
 	case SRV_STATUS_OK:
-		/* in balance mode, we might have servers with connection limits */
-		if (s->srv &&
-		    s->srv->maxconn && s->srv->cur_sess >= srv_dynamic_maxconn(s->srv)) {
+		/* we have SN_ASSIGNED set */
+		if (!s->srv)
+			return SRV_STATUS_OK;   /* dispatch or proxy mode */
+
+		/* If we already have a connection slot, no need to check any queue */
+		if (s->srv_conn == s->srv)
+			return SRV_STATUS_OK;
+
+		/* OK, this session already has an assigned server, but no
+		 * connection slot yet. Either it is a redispatch, or it was
+		 * assigned from persistence information (direct mode).
+		 */
+
+		/* We might have to queue this session if the assigned server is full.
+		 * We know we have to queue it into the server's queue, so if a maxqueue
+		 * is set on the server, we must also check that the server's queue is
+		 * not full, in which case we have to return FULL.
+		 */
+		if (s->srv->maxconn &&
+		    (s->srv->nbpend || s->srv->served >= srv_dynamic_maxconn(s->srv))) {
+
+			if (s->srv->maxqueue > 0 && s->srv->nbpend >= s->srv->maxqueue)
+				return SRV_STATUS_FULL;
+
 			p = pendconn_add(s);
 			if (p)
 				return SRV_STATUS_QUEUED;
 			else
-				return SRV_STATUS_FULL;
+				return SRV_STATUS_INTERNAL;
 		}
+
+		/* OK, we can use this server. Let's reserve our place */
+		sess_change_server(s, s->srv);
 		return SRV_STATUS_OK;
 
 	case SRV_STATUS_FULL:
@@ -1108,7 +1192,7 @@ int assign_server_and_queue(struct session *s)
 		if (p)
 			return SRV_STATUS_QUEUED;
 		else
-			return SRV_STATUS_FULL;
+			return SRV_STATUS_INTERNAL;
 
 	case SRV_STATUS_NOSRV:
 	case SRV_STATUS_INTERNAL:
@@ -1366,7 +1450,7 @@ int srv_count_retry_down(struct session *t, int conn_err)
 		 * we have to inform the server that it may be used by another session.
 		 */
 		if (may_dequeue_tasks(t->srv, t->be))
-			task_wakeup(t->srv->queue_mgt);
+			process_srv_queue(t->srv);
 		return 1;
 	}
 	return 0;
@@ -1409,7 +1493,7 @@ int srv_retryable_connect(struct session *t)
 			t->be->failed_conns++;
 			/* release other sessions waiting for this server */
 			if (may_dequeue_tasks(t->srv, t->be))
-				task_wakeup(t->srv->queue_mgt);
+				process_srv_queue(t->srv);
 			return 1;
 		}
 		/* ensure that we have enough retries left */
@@ -1423,7 +1507,7 @@ int srv_retryable_connect(struct session *t)
 	 */
 	/* let's try to offer this slot to anybody */
 	if (may_dequeue_tasks(t->srv, t->be))
-		task_wakeup(t->srv->queue_mgt);
+		process_srv_queue(t->srv);
 
 	if (t->srv)
 		t->srv->cum_sess++;
@@ -1432,8 +1516,7 @@ int srv_retryable_connect(struct session *t)
 	t->be->redispatches++;
 
 	t->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
-	t->srv = NULL; /* it's left to the dispatcher to choose a server */
-	http_flush_cookie_flags(&t->txn);
+	t->prev_srv = t->srv;
 	return 0;
 }
 
@@ -1453,10 +1536,33 @@ int srv_redispatch_connect(struct session *t)
 	/* We know that we don't have any connection pending, so we will
 	 * try to get a new one, and wait in this state if it's queued
 	 */
+ redispatch:
 	conn_err = assign_server_and_queue(t);
 	switch (conn_err) {
 	case SRV_STATUS_OK:
 		break;
+
+	case SRV_STATUS_FULL:
+		/* The server has reached its maxqueue limit. Either PR_O_REDISP is set
+		 * and we can redispatch to another server, or it is not and we return
+		 * 503. This only makes sense in DIRECT mode however, because normal LB
+		 * algorithms would never select such a server, and hash algorithms
+		 * would bring us on the same server again. Note that t->srv is set in
+		 * this case.
+		 */
+		if ((t->flags & SN_DIRECT) && (t->be->options & PR_O_REDISP)) {
+			t->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
+			t->prev_srv = t->srv;
+			goto redispatch;
+		}
+
+		tv_eternity(&t->req->cex);
+		srv_close_with_err(t, SN_ERR_SRVTO, SN_FINST_Q,
+				   503, error_message(t, HTTP_ERR_503));
+
+		t->srv->failed_conns++;
+		t->be->failed_conns++;
+		return 1;
 
 	case SRV_STATUS_NOSRV:
 		/* note: it is guaranteed that t->srv == NULL here */
@@ -1479,7 +1585,6 @@ int srv_redispatch_connect(struct session *t)
 		/* do nothing else and do not wake any other session up */
 		return 1;
 
-	case SRV_STATUS_FULL:
 	case SRV_STATUS_INTERNAL:
 	default:
 		tv_eternity(&t->req->cex);
@@ -1493,7 +1598,7 @@ int srv_redispatch_connect(struct session *t)
 
 		/* release other sessions waiting for this server */
 		if (may_dequeue_tasks(t->srv, t->be))
-			task_wakeup(t->srv->queue_mgt);
+			process_srv_queue(t->srv);
 		return 1;
 	}
 	/* if we get here, it's because we got SRV_STATUS_OK, which also

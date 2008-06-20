@@ -1,7 +1,7 @@
 /*
  * Server management functions.
  *
- * Copyright 2000-2007 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -13,6 +13,7 @@
 #include <stdlib.h>
 
 #include <common/config.h>
+#include <common/debug.h>
 #include <common/memory.h>
 
 #include <types/backend.h>
@@ -40,6 +41,16 @@ void session_free(struct session *s)
 
 	if (s->pend_pos)
 		pendconn_free(s->pend_pos);
+	if (s->srv)  /* there may be requests left pending in queue */
+		process_srv_queue(s->srv);
+	if (unlikely(s->srv_conn)) {
+		/* the session still has a reserved slot on a server, but
+		 * it should normally be only the same as the one above,
+		 * so this should not happen in fact.
+		 */
+		sess_change_server(s, NULL);
+	}
+
 	if (s->req)
 		pool_free2(pool2_buffer, s->req);
 	if (s->rep)
@@ -134,6 +145,30 @@ void session_process_counters(struct session *s)
 		}
 	}
 }
+
+/*
+ * This function adjusts sess->srv_conn and maintains the previous and new
+ * server's served session counts. Setting newsrv to NULL is enough to release
+ * current connection slot. This function also notifies any LB algo which might
+ * expect to be informed about any change in the number of active sessions on a
+ * server.
+ */
+void sess_change_server(struct session *sess, struct server *newsrv)
+{
+	if (sess->srv_conn == newsrv)
+		return;
+
+	if (sess->srv_conn) {
+		sess->srv_conn->served--;
+		sess->srv_conn = NULL;
+	}
+
+	if (newsrv) {
+		newsrv->served++;
+		sess->srv_conn = newsrv;
+	}
+}
+
 
 /*
  * Local variables:

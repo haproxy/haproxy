@@ -188,7 +188,7 @@ int event_accept(int fd) {
 
 		s->cli_fd = cfd;
 		s->srv_fd = -1;
-		s->srv = NULL;
+		s->srv = s->prev_srv = s->srv_conn = NULL;
 		s->pend_pos = NULL;
 		s->conn_retries = s->be->conn_retries;
 

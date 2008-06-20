@@ -1,7 +1,7 @@
 /*
  * UNIX SOCK_STREAM protocol layer (uxst)
  *
- * Copyright 2000-2007 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -915,7 +915,7 @@ static int process_uxst_srv(struct session *t)
 				 */
 				/* let's try to offer this slot to anybody */
 				if (may_dequeue_tasks(t->srv, t->be))
-					task_wakeup(t->srv->queue_mgt);
+					process_srv_queue(t->srv);
 
 				if (t->srv)
 					t->srv->failed_conns++;
@@ -1002,7 +1002,7 @@ static int process_uxst_srv(struct session *t)
 			 * we have to inform the server that it may be used by another session.
 			 */
 			if (may_dequeue_tasks(t->srv, t->be))
-				task_wakeup(t->srv->queue_mgt);
+				process_srv_queue(t->srv);
 
 			return 1;
 		}
@@ -1110,7 +1110,7 @@ static int process_uxst_srv(struct session *t)
 			 * we have to inform the server that it may be used by another session.
 			 */
 			if (may_dequeue_tasks(t->srv, t->be))
-				task_wakeup(t->srv->queue_mgt);
+				process_srv_queue(t->srv);
 
 			return 1;
 		}
@@ -1126,7 +1126,7 @@ static int process_uxst_srv(struct session *t)
 			 * we have to inform the server that it may be used by another session.
 			 */
 			if (may_dequeue_tasks(t->srv, t->be))
-				task_wakeup(t->srv->queue_mgt);
+				process_srv_queue(t->srv);
 
 			return 1;
 		}
@@ -1146,7 +1146,7 @@ static int process_uxst_srv(struct session *t)
 			 * we have to inform the server that it may be used by another session.
 			 */
 			if (may_dequeue_tasks(t->srv, t->be))
-				task_wakeup(t->srv->queue_mgt);
+				process_srv_queue(t->srv);
 
 			return 1;
 		}
@@ -1185,7 +1185,7 @@ static int process_uxst_srv(struct session *t)
 			 * we have to inform the server that it may be used by another session.
 			 */
 			if (may_dequeue_tasks(t->srv, t->be))
-				task_wakeup(t->srv->queue_mgt);
+				process_srv_queue(t->srv);
 
 			return 1;
 		}
@@ -1201,7 +1201,7 @@ static int process_uxst_srv(struct session *t)
 			 * we have to inform the server that it may be used by another session.
 			 */
 			if (may_dequeue_tasks(t->srv, t->be))
-				task_wakeup(t->srv->queue_mgt);
+				process_srv_queue(t->srv);
 
 			return 1;
 		}
@@ -1221,7 +1221,7 @@ static int process_uxst_srv(struct session *t)
 			 * we have to inform the server that it may be used by another session.
 			 */
 			if (may_dequeue_tasks(t->srv, t->be))
-				task_wakeup(t->srv->queue_mgt);
+				process_srv_queue(t->srv);
 
 			return 1;
 		}

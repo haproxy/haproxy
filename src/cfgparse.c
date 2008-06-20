@@ -1,7 +1,7 @@
 /*
  * Configuration parser
  *
- * Copyright 2000-2007 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -2872,26 +2872,6 @@ int readcfgfile(const char *file)
 				Alert("parsing %s, %s '%s' : fullconn is mandatory when minconn is set on a server.\n",
 				      file, proxy_type_str(curproxy), curproxy->id, linenum);
 				goto err;
-			}
-
-			if (newsrv->maxconn > 0) {
-				struct task *t;
-
-				if ((t = pool_alloc2(pool2_task)) == NULL) {
-					Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
-					goto err;
-				}
-		
-				t->qlist.p = NULL;
-				t->wq = NULL;
-				t->state = TASK_IDLE;
-				t->process = process_srv_queue;
-				t->context = newsrv;
-				newsrv->queue_mgt = t;
-
-				/* never run it unless specifically woken up */
-				tv_eternity(&t->expire);
-				task_queue(t);
 			}
 			newsrv = newsrv->next;
 		}

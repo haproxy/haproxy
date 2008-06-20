@@ -77,6 +77,19 @@
 /* WARNING: if new fields are added, they must be initialized in event_accept()
  * and freed in session_free() !
  */
+
+/*
+ * Note: some session flags have dependencies :
+ *  - SN_DIRECT cannot exist without SN_ASSIGNED, because a server is
+ *    immediately assigned when SN_DIRECT is determined. Both must be cleared
+ *    when clearing SN_DIRECT (eg: redispatch).
+ *  - ->srv has no meaning without SN_ASSIGNED and must not be checked without
+ *    it. ->prev_srv should be used to check previous ->srv. If SN_ASSIGNED is
+ *    set and sess->srv is NULL, then it is a dispatch or proxy mode.
+ *  - a session being processed has srv_conn set.
+ *  - srv_conn might remain after SN_DIRECT has been reset, but the assigned
+ *    server should eventually be released.
+ */
 struct session {
 	struct task *task;			/* the task associated with this session */
 	/* application specific below */
@@ -93,7 +106,9 @@ struct session {
 	struct sockaddr_storage cli_addr;	/* the client address */
 	struct sockaddr_storage frt_addr;	/* the frontend address reached by the client if SN_FRT_ADDR_SET is set */
 	struct sockaddr_in srv_addr;		/* the address to connect to */
-	struct server *srv;			/* the server being used */
+	struct server *srv;			/* the server the session will be running or has been running on */
+	struct server *srv_conn;		/* session already has a slot on a server and is not in queue */
+	struct server *prev_srv;		/* the server the was running on, after a redispatch, otherwise NULL */
 	struct pendconn *pend_pos;		/* if not NULL, points to the position in the pending queue */
 	struct http_txn txn;			/* current HTTP transaction being processed. Should become a list. */
 	struct {
