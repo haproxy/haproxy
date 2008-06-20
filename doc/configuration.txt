@@ -2454,6 +2454,25 @@ reqitarpit <search>  (ignore case)
             manipulation
 
 
+retries <value>
+  Set the number of retries to perform on a server after a connection failure
+  May be used in sections:    defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments :
+    <value>   is the number of times a connection attempt should be retried on
+              a server when a connection either is refused or times out. The
+              default value is 3.
+
+  It is important to understand that this value applies to the number of
+  connection attempts, not full requests. When a connection has effectively
+  been established to a server, there will be no more retry.
+
+  When "option redispatch" is set, the last retry may be performed on another
+  server even if a cookie references a different server.
+
+  See also : "option redispatch"
+
+
 rspadd <string>
   Add a header at the end of the HTTP response
   May be used in sections :   defaults | frontend | listen | backend
