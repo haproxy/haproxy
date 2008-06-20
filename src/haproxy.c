@@ -1,6 +1,6 @@
 /*
  * HA-Proxy : High Availability-enabled HTTP/TCP proxy
- * Copyright 2000-2007  Willy Tarreau <w@1wt.eu>.
+ * Copyright 2000-2008  Willy Tarreau <w@1wt.eu>.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -798,11 +798,6 @@ void deinit(void)
 			if (s->check) {
 				task_delete(s->check);
 				task_free(s->check);
-			}
-
-			if (s->queue_mgt) {
-				task_delete(s->queue_mgt);
-				task_free(s->queue_mgt);
 			}
 
 			if (s->id)
