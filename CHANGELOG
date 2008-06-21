@@ -1,6 +1,14 @@
 ChangeLog :
 ===========
 
+2008/06/21 : 1.3.15.2
+    - [BUILD] make install should depend on haproxy not "all"
+    - [BUG] event pollers must not wait if a task exists in the run queue
+    - [BUG] queue management: wake oldest request in queues
+    - [BUG] log: reported queue position was offed-by-one
+    - [BUG] fix the dequeuing logic to ensure that all requests get served
+    - [DOC] documentation for the "retries" parameter was missing.
+
 2008/05/25 : 1.3.15.1
     - [BUILD] fix build with gcc 4.3
     - [TESTS] add a debug patch to help trigger the stats bug
