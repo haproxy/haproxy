@@ -1,7 +1,7 @@
 /*
  * Client-side variables and functions.
  *
- * Copyright 2000-2007 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -201,7 +201,8 @@ int event_accept(int fd) {
 		else
 			s->logs.logwait = p->to_log;
 
-		s->logs.tv_accept = now;
+		s->logs.accept_date = date; /* user-visible date for logging */
+		s->logs.tv_accept = now;  /* corrected date for internal use */
 		tv_zero(&s->logs.tv_request);
 		s->logs.t_queue = -1;
 		s->logs.t_connect = -1;

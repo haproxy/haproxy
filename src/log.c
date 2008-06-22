@@ -1,7 +1,7 @@
 /*
  * General logging functions.
  *
- * Copyright 2000-2006 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -70,7 +70,7 @@ void Alert(const char *fmt, ...)
 	if (!(global.mode & MODE_QUIET) || (global.mode & (MODE_VERBOSE | MODE_STARTING))) {
 		va_start(argp, fmt);
 
-		get_localtime(now.tv_sec, &tm);
+		get_localtime(date.tv_sec, &tm);
 		fprintf(stderr, "[ALERT] %03d/%02d%02d%02d (%d) : ",
 			tm.tm_yday, tm.tm_hour, tm.tm_min, tm.tm_sec, (int)getpid());
 		vfprintf(stderr, fmt, argp);
@@ -91,7 +91,7 @@ void Warning(const char *fmt, ...)
 	if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) {
 		va_start(argp, fmt);
 
-		get_localtime(now.tv_sec, &tm);
+		get_localtime(date.tv_sec, &tm);
 		fprintf(stderr, "[WARNING] %03d/%02d%02d%02d (%d) : ",
 			tm.tm_yday, tm.tm_hour, tm.tm_min, tm.tm_sec, (int)getpid());
 		vfprintf(stderr, fmt, argp);
@@ -185,11 +185,11 @@ void send_log(struct proxy *p, int level, const char *message, ...)
 	if (level < 0 || progname == NULL || message == NULL)
 		return;
 
-	if (now.tv_sec != tvsec || dataptr == NULL) {
+	if (unlikely(date.tv_sec != tvsec || dataptr == NULL)) {
 		/* this string is rebuild only once a second */
 		struct tm tm;
 
-		tvsec = now.tv_sec;
+		tvsec = date.tv_sec;
 		get_localtime(tvsec, &tm);
 
 		hdr_len = snprintf(logmsg, sizeof(logmsg),

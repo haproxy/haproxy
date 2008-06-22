@@ -415,7 +415,7 @@ void init(int argc, char **argv)
 	global.rlimit_memmax = HAPROXY_MEMMAX;
 #endif
 
-	tv_now(&now);
+	tv_now_mono(&now, &date);
 	start_date = now;
 
 	init_task();
@@ -897,7 +897,7 @@ void run_poll_loop()
 {
 	struct timeval next;
 
-	tv_now(&now);
+	tv_now_mono(&now, &date);
 	while (1) {
 		process_runnable_tasks(&next);
 

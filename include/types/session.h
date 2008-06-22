@@ -117,7 +117,8 @@ struct session {
 	struct http_txn txn;			/* current HTTP transaction being processed. Should become a list. */
 	struct {
 		int logwait;			/* log fields waiting to be collected : LW_* */
-		struct timeval tv_accept;	/* date of the accept() (beginning of the session) */
+		struct timeval accept_date;	/* date of the accept() in user date */
+		struct timeval tv_accept;	/* date of the accept() in internal date (monotonic) */
 		struct timeval tv_request;	/* date the request arrives, {0,0} if never occurs */
 		long  t_queue;			/* delay before the session gets out of the connect queue, -1 if never occurs */
 		long  t_connect;		/* delay before the connect() to the server succeeds, -1 if never occurs */

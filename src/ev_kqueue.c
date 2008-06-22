@@ -1,7 +1,7 @@
 /*
  * FD polling functions for FreeBSD kqueue()
  *
- * Copyright 2000-2007 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -130,7 +130,7 @@ REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 			kev,       // struct kevent *eventlist
 			fd,        // int nevents
 			to_ptr);   // const struct timespec *timeout
-	tv_now(&now);
+	tv_now_mono(&now, &date);
 
 	for (count = 0; count < status; count++) {
 		fd = kev[count].ident;

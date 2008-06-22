@@ -1,7 +1,7 @@
 /*
  * FD polling functions for generic select()
  *
- * Copyright 2000-2007 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -124,7 +124,7 @@ REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 			NULL,
 			tv_isset(exp) ? &delta : NULL);
       
-	tv_now(&now);
+	tv_now_mono(&now, &date);
 
 	if (status <= 0)
 		return;

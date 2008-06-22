@@ -356,7 +356,7 @@ static int event_srv_chk_w(int fd)
 
 			if (s->proxy->options & PR_O_SSL3_CHK) {
 				/* SSL requires that we put Unix time in the request */
-				int gmt_time = htonl(now.tv_sec);
+				int gmt_time = htonl(date.tv_sec);
 				memcpy(s->proxy->check_req + 11, &gmt_time, 4);
 			}
 

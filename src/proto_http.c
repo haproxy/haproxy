@@ -772,7 +772,7 @@ static void http_sess_log(struct session *s)
 			  (const void *)&((struct sockaddr_in6 *)(&s->cli_addr))->sin6_addr,
 			  pn, sizeof(pn));
 
-	get_localtime(s->logs.tv_accept.tv_sec, &tm);
+	get_localtime(s->logs.accept_date.tv_sec, &tm);
 
 	/* FIXME: let's limit ourselves to frontend logging for now. */
 	tolog = fe->to_log;
@@ -835,7 +835,7 @@ static void http_sess_log(struct session *s)
 		 ntohs(((struct sockaddr_in *)&s->cli_addr)->sin_port) :
 		 ntohs(((struct sockaddr_in6 *)&s->cli_addr)->sin6_port),
 		 tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
-		 tm.tm_hour, tm.tm_min, tm.tm_sec, s->logs.tv_accept.tv_usec/1000,
+		 tm.tm_hour, tm.tm_min, tm.tm_sec, s->logs.accept_date.tv_usec/1000,
 		 fe->id, be->id, svid,
 		 t_request,
 		 (s->logs.t_queue >= 0) ? s->logs.t_queue - t_request : -1,

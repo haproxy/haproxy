@@ -418,7 +418,7 @@ REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 		 * returning now without checking epoll_wait().
 		 */
 		if (++last_skipped <= 1) {
-			tv_now(&now);
+			tv_now_mono(&now, &date);
 			return;
 		}
 	}
@@ -452,7 +452,7 @@ REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 	spec_processed = 0;
 	status = epoll_wait(epoll_fd, epoll_events, fd, wait_time);
 
-	tv_now(&now);
+	tv_now_mono(&now, &date);
 
 	for (count = 0; count < status; count++) {
 		int e = epoll_events[count].events;

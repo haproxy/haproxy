@@ -1,7 +1,7 @@
 /*
  * Time calculation functions.
  *
- * Copyright 2000-2007 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -16,7 +16,8 @@
 #include <common/standard.h>
 #include <common/time.h>
 
-struct timeval now;             /* the current date at any moment */
+struct timeval now;             /* internal date is a monotonic function of real clock */
+struct timeval date;            /* the real current date */
 struct timeval start_date;      /* the process's start date */
 
 /*
@@ -140,6 +141,27 @@ REGPRM2 int _tv_isle(const struct timeval *tv1, const struct timeval *tv2)
 REGPRM2 int _tv_isgt(const struct timeval *tv1, const struct timeval *tv2)
 {
 	return __tv_isgt(tv1, tv2);
+}
+
+/* tv_now_mono: sets <date> to the current time (wall clock), <mono> to a value
+ * following a monotonic function, and applies any required correction if the
+ * time goes backwards. Note that while we could improve it a bit by checking
+ * that the new date is not too far in the future, it is not much necessary to
+ * do so. 
+ */
+REGPRM2 struct timeval *tv_now_mono(struct timeval *mono, struct timeval *wall)
+{
+	static struct timeval tv_offset;
+	struct timeval adjusted;
+
+	gettimeofday(wall, NULL);
+	__tv_add(&adjusted, wall, &tv_offset);
+	if (unlikely(__tv_islt(&adjusted, mono))) {
+		__tv_remain(wall, mono, &tv_offset);
+		return mono;
+	}
+	*mono = adjusted;
+	return mono;
 }
 
 char *human_time(int t, short hz_div) {

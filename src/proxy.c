@@ -1,7 +1,7 @@
 /*
  * Proxy variables and functions.
  *
- * Copyright 2000-2007 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -385,7 +385,7 @@ void soft_stop(void)
 
 	stopping = 1;
 	p = proxy;
-	tv_now(&now); /* else, the old time before select will be used */
+	tv_now_mono(&now, &date); /* else, the old time before select will be used */
 	while (p) {
 		if (p->state != PR_STSTOPPED) {
 			Warning("Stopping proxy %s in %d ms.\n", p->id, p->grace);
@@ -434,7 +434,7 @@ void pause_proxies(void)
 
 	err = 0;
 	p = proxy;
-	tv_now(&now); /* else, the old time before select will be used */
+	tv_now_mono(&now, &date); /* else, the old time before select will be used */
 	while (p) {
 		if (p->state != PR_STERROR &&
 		    p->state != PR_STSTOPPED &&
@@ -469,7 +469,7 @@ void listen_proxies(void)
 	struct listener *l;
 
 	p = proxy;
-	tv_now(&now); /* else, the old time before select will be used */
+	tv_now_mono(&now, &date); /* else, the old time before select will be used */
 	while (p) {
 		if (p->state == PR_STPAUSED) {
 			Warning("Enabling proxy %s.\n", p->id);

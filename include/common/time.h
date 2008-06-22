@@ -2,7 +2,7 @@
   include/common/time.h
   Time calculation functions and macros.
 
-  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -49,7 +49,8 @@
 #define MINTIME(old, new)	(((new)<0)?(old):(((old)<0||(new)<(old))?(new):(old)))
 #define SETNOW(a)		(*a=now)
 
-extern struct timeval now;              /* the current date at any moment */
+extern struct timeval now;              /* internal date is a monotonic function of real clock */
+extern struct timeval date;             /* the real current date */
 extern struct timeval start_date;       /* the process's start date */
 
 
@@ -83,13 +84,19 @@ REGPRM1 static inline struct timeval *tv_now(struct timeval *tv)
 	return tv;
 }
 
+/* tv_now_mono: sets <date> to the current time (wall clock), <mono> to a value
+ * following a monotonic function, and applies any required correction if the
+ * time goes backwards. Note that while we could improve it a bit by checking
+ * that the new date is not too far in the future, it is not much necessary to
+ * do so. 
+ */
+REGPRM2 struct timeval *tv_now_mono(struct timeval *mono, struct timeval *wall);
+
 /*
  * sets a struct timeval to its highest value so that it can never happen
  * note that only tv_usec is necessary to detect it since a tv_usec > 999999
  * is normally not possible.
- *
  */
-
 REGPRM1 static inline struct timeval *tv_eternity(struct timeval *tv)
 {
 	tv->tv_sec = tv->tv_usec = TV_ETERNITY;
