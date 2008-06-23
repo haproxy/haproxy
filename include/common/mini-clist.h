@@ -1,6 +1,6 @@
 /*
  * list.h : list manipulation macros and structures.
- * Copyright 2002-2007 Willy Tarreau <w@1wt.eu>
+ * Copyright 2002-2008 Willy Tarreau <w@1wt.eu>
  *
  */
 
@@ -41,10 +41,10 @@ struct list {
  */
 
 /* adds an element at the beginning of a dual-linked list ; returns the element */
-#define DLIST_ADD(lh, el) ({ typeof(el) __ret = (el); __ret->n = (void *)(lh); __ret->p = (void *)&(lh); if (__ret->n != NULL) __ret->n->p = __ret; (lh) = (typeof(lh))&__ret->n; __ret; })
+#define DLIST_ADD(lh, el) ({ typeof(el) __ret = (el); __ret->n = (void *)(lh); __ret->p = (void *)&(lh); if (likely(__ret->n != NULL)) __ret->n->p = __ret; (lh) = (typeof(lh))&__ret->n; __ret; })
 
 /* removes an element from a dual-linked list and returns it */
-#define DLIST_DEL(el) ({ typeof(el) __ret = (el); if (__ret->n != NULL) __ret->n->p = __ret->p; __ret->p->n = __ret->n; __ret; })
+#define DLIST_DEL(el) ({ typeof(el) __ret = (el); if (likely(__ret->n != NULL)) __ret->n->p = __ret->p; __ret->p->n = __ret->n; __ret; })
 
 /*
  * iterates through a list of items of type "<struct_type>" which are
