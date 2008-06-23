@@ -102,25 +102,41 @@ REGPRM1 static void __fd_clo(int fd)
 REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 {
 	int status;
-	int count, fd;
-	struct timespec timeout, *to_ptr;
+	int count, fd, delta_ms;
+	struct timespec timeout;
 
-	to_ptr = NULL;	// no timeout
 	if (run_queue) {
 		timeout.tv_sec = timeout.tv_nsec = 0;
-		to_ptr = &timeout;
+		delta_ms = 0;
 	}
 	else if (tv_isset(exp)) {
+		const struct timeval max_delay = {
+			.tv_sec  = MAX_DELAY_MS / 1000,
+			.tv_usec = (MAX_DELAY_MS % 1000) * 1000
+		};
 		struct timeval delta;
 
-		if (tv_isge(&now, exp))
+		if (tv_isge(&now, exp)) {
 			delta.tv_sec = delta.tv_usec = 0;
-		else
+			delta_ms = 0;
+		}
+		else {
 			tv_remain(&now, exp, &delta);
+			if (__tv_isgt(&delta, &max_delay)) {
+				delta    = max_delay;
+				delta_ms = MAX_DELAY_MS;
+			} else {
+				delta_ms = delta.tv_sec * 1000 + delta.tv_usec / 1000;
+			}
+		}
 
 		timeout.tv_sec  = delta.tv_sec;
 		timeout.tv_nsec = delta.tv_usec * 1000;
-		to_ptr = &timeout;
+	}
+	else {
+		delta_ms = MAX_DELAY_MS;
+		timeout.tv_sec  = MAX_DELAY_MS / 1000;
+		timeout.tv_nsec = (MAX_DELAY_MS % 1000) * 1000000;
 	}
 
 	fd = MIN(maxfd, global.tune.maxpollevents);
@@ -129,8 +145,8 @@ REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 			0,         // int nchanges
 			kev,       // struct kevent *eventlist
 			fd,        // int nevents
-			to_ptr);   // const struct timespec *timeout
-	tv_now_mono(&now, &date);
+			&timeout); // const struct timespec *timeout
+	tv_update_date(delta_ms, status);
 
 	for (count = 0; count < status; count++) {
 		fd = kev[count].ident;

@@ -2831,7 +2831,7 @@ int readcfgfile(const char *file)
 	 */
 
 	/* will be needed further to delay some tasks */
-	tv_now_mono(&now, &date);
+	tv_update_date(0,1);
 
 	if ((curproxy = proxy) == NULL) {
 		Alert("parsing %s : no <listen> line. Nothing to do !\n",

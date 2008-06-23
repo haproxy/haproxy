@@ -80,23 +80,39 @@ REGPRM1 static void __fd_rem(int fd)
  */
 REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 {
+	const struct timeval max_delay = {
+		.tv_sec  = MAX_DELAY_MS / 1000,
+		.tv_usec = (MAX_DELAY_MS % 1000) * 1000
+	};
 	int status;
 	int fd, i;
 	struct timeval delta;
+	int delta_ms;
 	int readnotnull, writenotnull;
 	int fds;
 	char count;
 		
 	/* allow select to return immediately when needed */
 	delta.tv_sec = delta.tv_usec = 0;
-	if (!run_queue && tv_isset(exp)) {
-		if (tv_islt(&now, exp)) {
+	delta_ms = 0;
+	if (!run_queue) {
+		if (!tv_isset(exp)) {
+			delta = max_delay;
+			delta_ms = MAX_DELAY_MS;
+		}
+		else if (tv_islt(&now, exp)) {
 			tv_remain(&now, exp, &delta);
 			/* To avoid eventual select loops due to timer precision */
 			delta.tv_usec += SCHEDULER_RESOLUTION * 1000;
 			if (delta.tv_usec >= 1000000) {
 				delta.tv_usec -= 1000000;
 				delta.tv_sec ++;
+			}
+			if (__tv_isge(&delta, &max_delay)) {
+				delta = max_delay;
+				delta_ms = MAX_DELAY_MS;
+			} else {
+				delta_ms = delta.tv_sec * 1000 + delta.tv_usec / 1000;
 			}
 		}
 	}
@@ -122,9 +138,9 @@ REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 			readnotnull ? tmp_evts[DIR_RD] : NULL,
 			writenotnull ? tmp_evts[DIR_WR] : NULL,
 			NULL,
-			tv_isset(exp) ? &delta : NULL);
+			&delta);
       
-	tv_now_mono(&now, &date);
+	tv_update_date(delta_ms, status);
 
 	if (status <= 0)
 		return;

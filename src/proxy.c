@@ -385,7 +385,7 @@ void soft_stop(void)
 
 	stopping = 1;
 	p = proxy;
-	tv_now_mono(&now, &date); /* else, the old time before select will be used */
+	tv_update_date(0,1); /* else, the old time before select will be used */
 	while (p) {
 		if (p->state != PR_STSTOPPED) {
 			Warning("Stopping proxy %s in %d ms.\n", p->id, p->grace);
@@ -434,7 +434,7 @@ void pause_proxies(void)
 
 	err = 0;
 	p = proxy;
-	tv_now_mono(&now, &date); /* else, the old time before select will be used */
+	tv_update_date(0,1); /* else, the old time before select will be used */
 	while (p) {
 		if (p->state != PR_STERROR &&
 		    p->state != PR_STSTOPPED &&
@@ -469,7 +469,7 @@ void listen_proxies(void)
 	struct listener *l;
 
 	p = proxy;
-	tv_now_mono(&now, &date); /* else, the old time before select will be used */
+	tv_update_date(0,1); /* else, the old time before select will be used */
 	while (p) {
 		if (p->state == PR_STPAUSED) {
 			Warning("Enabling proxy %s.\n", p->id);

@@ -418,7 +418,7 @@ REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 		 * returning now without checking epoll_wait().
 		 */
 		if (++last_skipped <= 1) {
-			tv_now_mono(&now, &date);
+			tv_update_date(0, 1);
 			return;
 		}
 	}
@@ -435,11 +435,14 @@ REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 	}
 	else {
 		if (tv_iseternity(exp))
-			wait_time = -1;
+			wait_time = MAX_DELAY_MS;
 		else if (tv_isge(&now, exp))
 			wait_time = 0;
-		else
+		else {
 			wait_time = __tv_ms_elapsed(&now, exp) + 1;
+			if (wait_time > MAX_DELAY_MS)
+				wait_time = MAX_DELAY_MS;
+		}
 	}
 
 	/* now let's wait for real events. We normally use maxpollevents as a
@@ -451,8 +454,7 @@ REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 	fd = MIN(maxfd, fd);
 	spec_processed = 0;
 	status = epoll_wait(epoll_fd, epoll_events, fd, wait_time);
-
-	tv_now_mono(&now, &date);
+	tv_update_date(wait_time, status);
 
 	for (count = 0; count < status; count++) {
 		int e = epoll_events[count].events;

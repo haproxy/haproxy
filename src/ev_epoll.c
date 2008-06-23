@@ -235,15 +235,18 @@ REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 	if (run_queue)
 		wait_time = 0;
 	else if (tv_iseternity(exp))
-		wait_time = -1;
+		wait_time = MAX_DELAY_MS;
 	else if (tv_isge(&now, exp))
 		wait_time = 0;
-	else
+	else {
 		wait_time = __tv_ms_elapsed(&now, exp) + 1;
+		if (wait_time > MAX_DELAY_MS)
+			wait_time = MAX_DELAY_MS;
+	}
 
 	fd = MIN(maxfd, global.tune.maxpollevents);
 	status = epoll_wait(epoll_fd, epoll_events, fd, wait_time);
-	tv_now_mono(&now, &date);
+	tv_update_date(wait_time, status);
 
 	for (count = 0; count < status; count++) {
 		fd = epoll_events[count].data.fd;

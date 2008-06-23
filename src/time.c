@@ -143,25 +143,56 @@ REGPRM2 int _tv_isgt(const struct timeval *tv1, const struct timeval *tv2)
 	return __tv_isgt(tv1, tv2);
 }
 
-/* tv_now_mono: sets <date> to the current time (wall clock), <mono> to a value
- * following a monotonic function, and applies any required correction if the
- * time goes backwards. Note that while we could improve it a bit by checking
- * that the new date is not too far in the future, it is not much necessary to
- * do so. 
+/* tv_udpate_date: sets <date> to system time, and sets <now> to something as
+ * close as possible to real time, following a monotonic function. The main
+ * principle consists in detecting backwards and forwards time jumps and adjust
+ * an offset to correct them. This function should be called once after each
+ * poll, and never farther apart than MAX_DELAY_MS*2. The poll's timeout should
+ * be passed in <max_wait>, and the return value in <interrupted> (a non-zero
+ * value means that we have not expired the timeout). Calling it with (-1,*)
+ * sets both <date> and <now> to current date, and calling it with (0,1) simply
+ * updates the values.
  */
-REGPRM2 struct timeval *tv_now_mono(struct timeval *mono, struct timeval *wall)
+REGPRM2 void tv_update_date(int max_wait, int interrupted)
 {
-	static struct timeval tv_offset;
-	struct timeval adjusted;
+	static struct timeval tv_offset; /* warning: signed offset! */
+	struct timeval adjusted, deadline;
 
-	gettimeofday(wall, NULL);
-	__tv_add(&adjusted, wall, &tv_offset);
-	if (unlikely(__tv_islt(&adjusted, mono))) {
-		__tv_remain(wall, mono, &tv_offset);
-		return mono;
+	gettimeofday(&date, NULL);
+	if (unlikely(max_wait < 0)) {
+		tv_zero(&tv_offset);
+		now = date;
+		return;
 	}
-	*mono = adjusted;
-	return mono;
+	__tv_add(&adjusted, &date, &tv_offset);
+	if (unlikely(__tv_islt(&adjusted, &now))) {
+		goto fixup; /* jump in the past */
+	}
+
+	/* OK we did not jump backwards, let's see if we have jumped too far
+	 * forwards. The poll value was in <max_wait>, we accept that plus
+	 * MAX_DELAY_MS to cover additional time.
+	 */
+	_tv_ms_add(&deadline, &now, max_wait + MAX_DELAY_MS);
+	if (unlikely(__tv_isge(&adjusted, &deadline))) {
+		goto fixup; /* jump in the future */
+	}
+	now = adjusted;
+	return;
+ fixup:
+	/* Large jump. If the poll was interrupted, we consider that the date
+	 * has not changed (immediate wake-up), otherwise we add the poll
+	 * time-out to the previous date. The new offset is recomputed.
+	 */
+	if (!interrupted)
+		_tv_ms_add(&now, &now, max_wait);
+	tv_offset.tv_sec  = now.tv_sec  - date.tv_sec;
+	tv_offset.tv_usec = now.tv_usec - date.tv_usec;
+	if (tv_offset.tv_usec < 0) {
+		tv_offset.tv_usec += 1000000;
+		tv_offset.tv_sec--;
+	}
+	return;
 }
 
 char *human_time(int t, short hz_div) {

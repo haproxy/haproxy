@@ -44,6 +44,11 @@
 
 #define TIME_ETERNITY   (TV_ETERNITY_MS)
 
+/* we want to be able to detect time jumps. Fix the maximum wait time to a low
+ * value so that we know the time has changed if we wait longer.
+ */
+#define MAX_DELAY_MS    1000
+
 
 /* returns the lowest delay amongst <old> and <new>, and respects TIME_ETERNITY */
 #define MINTIME(old, new)	(((new)<0)?(old):(((old)<0||(new)<(old))?(new):(old)))
@@ -84,13 +89,15 @@ REGPRM1 static inline struct timeval *tv_now(struct timeval *tv)
 	return tv;
 }
 
-/* tv_now_mono: sets <date> to the current time (wall clock), <mono> to a value
- * following a monotonic function, and applies any required correction if the
- * time goes backwards. Note that while we could improve it a bit by checking
- * that the new date is not too far in the future, it is not much necessary to
- * do so. 
+/* tv_udpate_date: sets <date> to system time, and sets <now> to something as
+ * close as possible to real time, following a monotonic function. The main
+ * principle consists in detecting backwards and forwards time jumps and adjust
+ * an offset to correct them. This function should be called only once after
+ * each poll. The poll's timeout should be passed in <max_wait>, and the return
+ * value in <interrupted> (a non-zero value means that we have not expired the
+ * timeout).
  */
-REGPRM2 struct timeval *tv_now_mono(struct timeval *mono, struct timeval *wall);
+REGPRM2 void tv_update_date(int max_wait, int interrupted);
 
 /*
  * sets a struct timeval to its highest value so that it can never happen
