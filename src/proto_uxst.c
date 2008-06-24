@@ -444,9 +444,7 @@ int uxst_event_accept(int fd) {
 			return 0;
 		}
 
-		t->wq = NULL;
-		t->qlist.p = NULL;
-		t->state = TASK_IDLE;
+		task_init(t);
 		t->process = l->handler;
 		t->context = s;
 
@@ -527,7 +525,6 @@ int uxst_event_accept(int fd) {
 			t->expire = s->req->rex;
 		}
 
-		task_queue(t);
 		task_wakeup(t);
 
 		l->nbconn++; /* warning! right now, it's up to the handler to decrease this */

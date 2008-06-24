@@ -2,7 +2,7 @@
   include/proto/task.h
   Functions for task management.
 
-  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -35,11 +35,8 @@
 extern void *run_queue;
 extern struct pool_head *pool2_task;
 
-/* perform minimal intializations, report 0 in case of error, 1 if OK. */
+/* perform minimal initializations, report 0 in case of error, 1 if OK. */
 int init_task();
-
-/* needed later */
-void *tree_delete(void *node);
 
 /* puts the task <t> in run queue <q>, and returns <t> */
 #define task_wakeup _task_wakeup
@@ -49,16 +46,11 @@ static inline struct task *__task_wakeup(struct task *t)
 	if (t->state == TASK_RUNNING)
 		return t;
 
-	if (t->qlist.p != NULL)
-		DLIST_DEL(&t->qlist);
+	if (likely(t->eb.node.leaf_p))
+		eb32_delete(&t->eb);
 
 	DLIST_ADD(run_queue, &t->qlist);
 	t->state = TASK_RUNNING;
-
-	if (likely(t->wq != NULL)) {
-		tree_delete(t->wq);
-		t->wq = NULL;
-	}
 
 	return t;
 }
@@ -79,7 +71,7 @@ static inline struct task *task_sleep(struct task *t)
 /*
  * unlinks the task from wherever it is queued :
  *  - eternity_queue, run_queue
- *  - wait queue : wq not null => remove carrier node too
+ *  - wait queue
  * A pointer to the task itself is returned.
  */
 static inline struct task *task_delete(struct task *t)
@@ -89,10 +81,21 @@ static inline struct task *task_delete(struct task *t)
 		t->qlist.p = NULL;
 	}
 
-	if (t->wq) {
-		tree_delete(t->wq);
-		t->wq = NULL;
-	}
+	if (t->eb.node.leaf_p)
+		eb32_delete(&t->eb);
+
+	return t;
+}
+
+/*
+ * Initialize a new task. The bare minimum is performed (queue pointers and state).
+ * The task is returned.
+ */
+static inline struct task *task_init(struct task *t)
+{
+	t->qlist.p = NULL;
+	t->eb.node.leaf_p = NULL;
+	t->state = TASK_IDLE;
 	return t;
 }
 

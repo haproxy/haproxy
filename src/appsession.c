@@ -91,9 +91,7 @@ int appsession_task_init(void)
 		if ((appsess_refresh = pool_alloc2(pool2_task)) == NULL)
 			return -1;
 
-		appsess_refresh->wq = NULL;
-		appsess_refresh->qlist.p = NULL;
-		appsess_refresh->state = TASK_IDLE;
+		task_init(appsess_refresh);
 		appsess_refresh->context = NULL;
 		tv_ms_add(&appsess_refresh->expire, &now, TBLCHKINT);
 		appsess_refresh->process = appsession_refresh;

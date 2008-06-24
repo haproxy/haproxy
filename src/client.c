@@ -155,9 +155,7 @@ int event_accept(int fd) {
 		if (p->options & PR_O_TCP_NOLING)
 			setsockopt(cfd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
 
-		t->wq = NULL;
-		t->qlist.p = NULL;
-		t->state = TASK_IDLE;
+		task_init(t);
 		t->process = process_session;
 		t->context = s;
 
@@ -409,8 +407,6 @@ int event_accept(int fd) {
 			tv_add(&s->txn.exp, &now, &s->fe->timeout.httpreq);
 			tv_bound(&t->expire, &s->txn.exp);
 		}
-
-		task_queue(t);
 
 		if (p->mode != PR_MODE_HEALTH)
 			task_wakeup(t);

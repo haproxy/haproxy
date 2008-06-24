@@ -850,9 +850,7 @@ int start_checks() {
 
 			s->check = t;
 
-			t->wq = NULL;
-			t->qlist.p = NULL;
-			t->state = TASK_IDLE;
+			task_init(t);
 			t->process = process_chk;
 			t->context = s;
 
