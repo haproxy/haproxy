@@ -737,7 +737,7 @@ void deinit(void)
 				if (uap == p->uri_auth)
 					break;
 
-			if (!uap) {
+			if (!uap && p->uri_auth) {
 				/* add it, if it is */
 				p->uri_auth->next = ua;
 				ua = p->uri_auth;
