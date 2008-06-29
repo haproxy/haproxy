@@ -1,7 +1,7 @@
 /*
  * Ascii to Base64 conversion as described in RFC1421.
  *
- * Copyright 2006 Willy Tarreau <w@1wt.eu>
+ * Copyright 2006-2008 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -13,7 +13,7 @@
 #include <common/base64.h>
 #include <common/config.h>
 
-const char base64tab[64]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+const char base64tab[65]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 /* Encodes <ilen> bytes from <in> to <out> for at most <olen> chars (including
  * the trailing zero). Returns the number of bytes written. No check is made
