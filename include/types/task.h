@@ -34,7 +34,6 @@
 
 /* The base for all tasks */
 struct task {
-	struct list qlist;              /* chaining in the same queue; bidirectionnal but not circular */
 	struct eb32_node eb;		/* ebtree node used to hold the task in the wait queue */
 	int state;			/* task state : IDLE or RUNNING */
 	struct timeval expire;		/* next expiration time for this task, use only for fast sorting */

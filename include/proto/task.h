@@ -32,28 +32,14 @@
 
 #include <types/task.h>
 
-extern void *run_queue;
+extern unsigned int run_queue;  /* run queue size */
 extern struct pool_head *pool2_task;
 
 /* perform minimal initializations, report 0 in case of error, 1 if OK. */
 int init_task();
 
 /* puts the task <t> in run queue <q>, and returns <t> */
-#define task_wakeup _task_wakeup
-struct task *_task_wakeup(struct task *t);
-static inline struct task *__task_wakeup(struct task *t)
-{
-	if (t->state == TASK_RUNNING)
-		return t;
-
-	if (likely(t->eb.node.leaf_p))
-		eb32_delete(&t->eb);
-
-	DLIST_ADD(run_queue, &t->qlist);
-	t->state = TASK_RUNNING;
-
-	return t;
-}
+struct task *task_wakeup(struct task *t);
 
 /* removes the task <t> from the run queue if it was in it.
  * returns <t>.
@@ -61,28 +47,26 @@ static inline struct task *__task_wakeup(struct task *t)
 static inline struct task *task_sleep(struct task *t)
 {
 	if (t->state == TASK_RUNNING) {
-		DLIST_DEL(&t->qlist);
-		t->qlist.p = NULL;
 		t->state = TASK_IDLE;
+		eb32_delete(&t->eb);
+		run_queue--;
 	}
 	return t;
 }
 
 /*
  * unlinks the task from wherever it is queued :
- *  - eternity_queue, run_queue
+ *  - run_queue
  *  - wait queue
  * A pointer to the task itself is returned.
  */
 static inline struct task *task_delete(struct task *t)
 {
-	if (t->qlist.p != NULL) {
-		DLIST_DEL(&t->qlist);
-		t->qlist.p = NULL;
-	}
-
 	if (t->eb.node.leaf_p)
 		eb32_delete(&t->eb);
+
+	if (t->state == TASK_RUNNING)
+		run_queue--;
 
 	return t;
 }
@@ -93,7 +77,6 @@ static inline struct task *task_delete(struct task *t)
  */
 static inline struct task *task_init(struct task *t)
 {
-	t->qlist.p = NULL;
 	t->eb.node.leaf_p = NULL;
 	t->state = TASK_IDLE;
 	return t;
@@ -122,6 +105,12 @@ struct task *task_queue(struct task *task);
  */
 
 void process_runnable_tasks(struct timeval *next);
+
+/*
+ * Extract all expired timers from the timer queue, and wakes up all
+ * associated tasks. Returns the date of next event (or eternity).
+ */
+void wake_expired_tasks(struct timeval *next);
 
 
 #endif /* _PROTO_TASK_H */

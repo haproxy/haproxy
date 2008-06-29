@@ -300,8 +300,8 @@ int start_proxies(int verbose)
 /*
  * this function enables proxies when there are enough free sessions,
  * or stops them when the table is full. It is designed to be called from the
- * select_loop(). It returns the date of next expiration event during stop
- * time, ETERNITY otherwise.
+ * select_loop(). It adjusts the date of next expiration event during stop
+ * time if appropriate.
  */
 void maintain_proxies(struct timeval *next)
 {
@@ -309,7 +309,6 @@ void maintain_proxies(struct timeval *next)
 	struct listener *l;
 
 	p = proxy;
-	tv_eternity(next);
 
 	/* if there are enough free sessions, we'll activate proxies */
 	if (actconn < global.maxconn) {

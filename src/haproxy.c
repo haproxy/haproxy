@@ -898,12 +898,22 @@ void run_poll_loop()
 
 	tv_update_date(0,1);
 	while (1) {
+		/* Check if we can expire some tasks */
+		wake_expired_tasks(&next);
+
+		/* Process a few tasks */
 		process_runnable_tasks(&next);
+
+		/* maintain all proxies in a consistent state. This should quickly
+		 * become a task because it becomes expensive when there are huge
+		 * numbers of proxies. */
+		maintain_proxies(&next);
 
 		/* stop when there's no connection left and we don't allow them anymore */
 		if (!actconn && listeners == 0)
 			break;
 
+		/* The poller will ensure it returns around <next> */
 		cur_poller.poll(&cur_poller, &next);
 	}
 }
