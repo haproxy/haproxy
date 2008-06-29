@@ -148,7 +148,7 @@ void wake_expired_tasks(struct timeval *next)
 			struct eb32_node *next_eb;
 
 			task = eb32_entry(eb, struct task, eb);
-			if (eb->key > now_key) {
+			if ((signed)(eb->key - now_key) > 0) {
 				*next = task->expire;
 				timers.first = task->expire;
 				return;
