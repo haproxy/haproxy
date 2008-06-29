@@ -16,6 +16,7 @@
 #include <common/standard.h>
 #include <common/time.h>
 
+unsigned int   now_ms;          /* internal date in milliseconds (may wrap) */
 struct timeval now;             /* internal date is a monotonic function of real clock */
 struct timeval date;            /* the real current date */
 struct timeval start_date;      /* the process's start date */
@@ -162,7 +163,7 @@ REGPRM2 void tv_update_date(int max_wait, int interrupted)
 	if (unlikely(max_wait < 0)) {
 		tv_zero(&tv_offset);
 		now = date;
-		return;
+		goto to_ms;
 	}
 	__tv_add(&adjusted, &date, &tv_offset);
 	if (unlikely(__tv_islt(&adjusted, &now))) {
@@ -178,7 +179,7 @@ REGPRM2 void tv_update_date(int max_wait, int interrupted)
 		goto fixup; /* jump in the future */
 	}
 	now = adjusted;
-	return;
+	goto to_ms;
  fixup:
 	/* Large jump. If the poll was interrupted, we consider that the date
 	 * has not changed (immediate wake-up), otherwise we add the poll
@@ -192,6 +193,8 @@ REGPRM2 void tv_update_date(int max_wait, int interrupted)
 		tv_offset.tv_usec += 1000000;
 		tv_offset.tv_sec--;
 	}
+ to_ms:
+	now_ms = now.tv_sec * 1000 + now.tv_usec / 1000;
 	return;
 }
 

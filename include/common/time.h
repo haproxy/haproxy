@@ -54,6 +54,7 @@
 #define MINTIME(old, new)	(((new)<0)?(old):(((old)<0||(new)<(old))?(new):(old)))
 #define SETNOW(a)		(*a=now)
 
+extern unsigned int   now_ms;           /* internal date in milliseconds (may wrap) */
 extern struct timeval now;              /* internal date is a monotonic function of real clock */
 extern struct timeval date;             /* the real current date */
 extern struct timeval start_date;       /* the process's start date */
