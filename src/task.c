@@ -179,8 +179,6 @@ void wake_expired_tasks(struct timeval *next)
 	do {
 		eb = eb32_first(&timers[tree]);
 		while (eb) {
-			struct eb32_node *next_eb;
-
 			task = eb32_entry(eb, struct task, eb);
 			if ((now_ms - eb->key) & TIMER_SIGN_BIT) {
 				/* note that we don't need this check for the <previous>
@@ -190,14 +188,9 @@ void wake_expired_tasks(struct timeval *next)
 				return;
 			}
 
-			/* detach the task from the queue */
-			next_eb = eb32_next(eb);
-			eb32_delete(eb);
-			eb = next_eb;
-
-			/* and add the task to the run queue */
-			DLIST_ADD(run_queue, &task->qlist);
-			task->state = TASK_RUNNING;
+			/* detach the task from the queue and add the task to the run queue */
+			eb = eb32_next(eb);
+			_task_wakeup(task);
 		}
 		tree = (tree + 1) & TIMER_TREE_MASK;
 	} while (((tree - now_tree) & TIMER_TREE_MASK) < TIMER_TREES/2);
