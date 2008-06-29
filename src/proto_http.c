@@ -5062,6 +5062,9 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 	/* The request is valid, the user is authenticated. Let's start sending
 	 * data.
 	 */
+	EV_FD_CLR(t->cli_fd, DIR_RD);
+	buffer_shutr(t->req);
+	buffer_shutr(t->rep);
 	t->cli_state = CL_STSHUTR;
 	t->req->rlim = t->req->data + BUFSIZE; /* no more rewrite needed */
 	t->logs.tv_request = now;
