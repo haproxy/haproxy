@@ -39,6 +39,7 @@ struct task {
 	struct timeval expire;		/* next expiration time for this task, use only for fast sorting */
 	void (*process)(struct task *t, struct timeval *next);	/* the function which processes the task */
 	void *context;			/* the task's context */
+	int nice;			/* the task's current nice value from -1024 to +1024 */
 };
 
 #endif /* _TYPES_TASK_H */

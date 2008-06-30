@@ -5160,6 +5160,7 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 	t->logs.tv_request = now;
 	t->data_source = DATA_SRC_STATS;
 	t->data_state  = DATA_ST_INIT;
+	t->task->nice = -32; /* small boost for HTTP statistics */
 	produce_content(t);
 	return 1;
 }

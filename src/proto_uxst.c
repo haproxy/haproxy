@@ -447,6 +447,7 @@ int uxst_event_accept(int fd) {
 		task_init(t);
 		t->process = l->handler;
 		t->context = s;
+		t->nice = -64;  /* we want to boost priority for local stats */
 
 		s->task = t;
 		s->fe = NULL;

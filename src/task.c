@@ -24,6 +24,7 @@
 struct pool_head *pool2_task;
 
 unsigned int run_queue = 0;
+unsigned int niced_tasks = 0; /* number of niced tasks in the run queue */
 
 /* Principle of the wait queue.
  *
@@ -125,7 +126,11 @@ int init_task()
 	return pool2_task != NULL;
 }
 
-/* puts the task <t> in run queue <q>, and returns <t> */
+/* Puts the task <t> in run queue at a position depending on t->nice.
+ * <t> is returned. The nice value assigns boosts in 32th of the run queue
+ * size. A nice value of -1024 sets the task to -run_queue*32, while a nice
+ * value of 1024 sets the task to run_queue*32.
+ */
 struct task *task_wakeup(struct task *t)
 {
 	if (t->state == TASK_RUNNING)
@@ -136,6 +141,18 @@ struct task *task_wakeup(struct task *t)
 
 	run_queue++;
 	t->eb.key = ++rqueue_ticks;
+
+	if (likely(t->nice)) {
+		int offset;
+
+		niced_tasks++;
+		if (likely(t->nice > 0))
+			offset = (unsigned)((run_queue * (unsigned int)t->nice) / 32U);
+		else
+			offset = -(unsigned)((run_queue * (unsigned int)-t->nice) / 32U);
+		t->eb.key += offset;
+	}
+
 	t->state  = TASK_RUNNING;
 
 	eb32_insert(&rqueue[ticks_to_tree(t->eb.key)], &t->eb);
@@ -218,10 +235,10 @@ void wake_expired_tasks(struct timeval *next)
  * used to assign a position to each task. This counter may be combined with
  * other variables (eg: nice value) to set the final position in the tree. The
  * counter may wrap without a problem, of course. We then limit the number of
- * tasks processed at once to 1/8 of the number of tasks in the queue, so that
- * general latency remains low and so that task positions have a chance to be
- * considered. It also reduces the number of trees to be evaluated when no task
- * remains.
+ * tasks processed at once to 1/4 of the number of tasks in the queue, and to
+ * 200 max in any case, so that general latency remains low and so that task
+ * positions have a chance to be considered. It also reduces the number of
+ * trees to be evaluated when no task remains.
  *
  * Just like with timers, we start with tree[(current - 1)], which holds past
  * values, and stop when we reach the middle of the list. In practise, we visit
@@ -240,7 +257,12 @@ void process_runnable_tasks(struct timeval *next)
 	if (!run_queue)
 		return;
 
-	max_processed = (run_queue + 7) / 8;
+	max_processed = run_queue;
+	if (max_processed > 200)
+		max_processed = 200;
+
+	if (likely(niced_tasks))
+		max_processed /= 4;
 
 	tree = ticks_to_tree(rqueue_ticks);
 	stop = (tree + TIMER_TREES / 2) & TIMER_TREE_MASK;
@@ -255,6 +277,8 @@ void process_runnable_tasks(struct timeval *next)
 			eb = eb32_next(eb);
 
 			run_queue--;
+			if (likely(t->nice))
+				niced_tasks--;
 			t->state = TASK_IDLE;
 			eb32_delete(&t->eb);
 

@@ -32,7 +32,8 @@
 
 #include <types/task.h>
 
-extern unsigned int run_queue;  /* run queue size */
+extern unsigned int run_queue;    /* run queue size */
+extern unsigned int niced_tasks;  /* number of niced tasks in the run queue */
 extern struct pool_head *pool2_task;
 
 /* perform minimal initializations, report 0 in case of error, 1 if OK. */
@@ -50,6 +51,8 @@ static inline struct task *task_sleep(struct task *t)
 		t->state = TASK_IDLE;
 		eb32_delete(&t->eb);
 		run_queue--;
+		if (likely(t->nice))
+			niced_tasks--;
 	}
 	return t;
 }
@@ -65,9 +68,11 @@ static inline struct task *task_delete(struct task *t)
 	if (t->eb.node.leaf_p)
 		eb32_delete(&t->eb);
 
-	if (t->state == TASK_RUNNING)
+	if (t->state == TASK_RUNNING) {
 		run_queue--;
-
+		if (likely(t->nice))
+			niced_tasks--;
+	}
 	return t;
 }
 
@@ -79,6 +84,7 @@ static inline struct task *task_init(struct task *t)
 {
 	t->eb.node.leaf_p = NULL;
 	t->state = TASK_IDLE;
+	t->nice = 0;
 	return t;
 }
 
