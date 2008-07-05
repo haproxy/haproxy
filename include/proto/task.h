@@ -35,6 +35,7 @@
 extern unsigned int run_queue;    /* run queue size */
 extern unsigned int niced_tasks;  /* number of niced tasks in the run queue */
 extern struct pool_head *pool2_task;
+extern struct task *last_timer;   /* optimization: last queued timer */
 
 /* perform minimal initializations, report 0 in case of error, 1 if OK. */
 int init_task();
@@ -63,11 +64,23 @@ static inline struct task *task_sleep(struct task *t)
  *  - wait queue
  * A pointer to the task itself is returned.
  */
+static inline struct task *task_dequeue(struct task *t)
+{
+	if (likely(t->eb.node.leaf_p)) {
+		if (last_timer == t)
+			last_timer = NULL;
+		eb32_delete(&t->eb);
+	}
+	return t;
+}
+
+/*
+ * Unlinks the task and adjusts run queue stats.
+ * A pointer to the task itself is returned.
+ */
 static inline struct task *task_delete(struct task *t)
 {
-	if (t->eb.node.leaf_p)
-		eb32_delete(&t->eb);
-
+	task_dequeue(t);
 	if (t->state == TASK_RUNNING) {
 		run_queue--;
 		if (likely(t->nice))

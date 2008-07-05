@@ -25,6 +25,7 @@ struct pool_head *pool2_task;
 
 unsigned int run_queue = 0;
 unsigned int niced_tasks = 0; /* number of niced tasks in the run queue */
+struct task *last_timer = NULL;  /* optimization: last queued timer */
 
 /* Principle of the wait queue.
  *
@@ -136,8 +137,7 @@ struct task *task_wakeup(struct task *t)
 	if (t->state == TASK_RUNNING)
 		return t;
 
-	if (likely(t->eb.node.leaf_p))
-		eb32_delete(&t->eb);
+	task_dequeue(t);
 
 	run_queue++;
 	t->eb.key = ++rqueue_ticks;
@@ -180,7 +180,18 @@ struct task *task_queue(struct task *task)
 		/* we're queuing too far away or in the past (most likely) */
 		return task;
 #endif
+
+	if (likely(last_timer &&
+		   last_timer->eb.key == task->eb.key &&
+		   last_timer->eb.node.node_p)) {
+		/* Most often, last queued timer has the same expiration date, so
+		 * if it's not queued at the root, let's queue a dup directly there.
+		 */
+		eb_insert_dup(&last_timer->eb.node, &task->eb.node);
+		return task;
+	}
 	eb32_insert(&timers[ticks_to_tree(task->eb.key)], &task->eb);
+	last_timer = task;
 	return task;
 }
 
@@ -280,7 +291,7 @@ void process_runnable_tasks(struct timeval *next)
 			if (likely(t->nice))
 				niced_tasks--;
 			t->state = TASK_IDLE;
-			eb32_delete(&t->eb);
+			task_dequeue(t);
 
 			t->process(t, &temp);
 			tv_bound(next, &temp);
