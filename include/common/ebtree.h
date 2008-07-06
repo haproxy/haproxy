@@ -329,7 +329,7 @@ static inline int fls64(unsigned long long x)
  * only work with ints and booleans though.
  */
 #define likely(x) (x)
-#define unlikely(x) (__builtin_expect((x), 0))
+#define unlikely(x) (__builtin_expect((unsigned long)(x), 0))
 #endif
 #endif
 
