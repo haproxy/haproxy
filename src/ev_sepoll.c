@@ -52,6 +52,7 @@
 #include <common/config.h>
 #include <common/debug.h>
 #include <common/standard.h>
+#include <common/ticks.h>
 #include <common/time.h>
 #include <common/tools.h>
 
@@ -287,7 +288,7 @@ REGPRM1 static void __fd_clo(int fd)
 /*
  * speculative epoll() poller
  */
-REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
+REGPRM2 static void _do_poll(struct poller *p, int exp)
 {
 	static unsigned int last_skipped;
 	static unsigned int spec_processed;
@@ -434,12 +435,12 @@ REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 		wait_time = 0;
 	}
 	else {
-		if (tv_iseternity(exp))
+		if (!exp)
 			wait_time = MAX_DELAY_MS;
-		else if (tv_isge(&now, exp))
+		else if (tick_is_expired(exp, now_ms))
 			wait_time = 0;
 		else {
-			wait_time = __tv_ms_elapsed(&now, exp) + 1;
+			wait_time = TICKS_TO_MS(tick_remain(now_ms, exp)) + 1;
 			if (wait_time > MAX_DELAY_MS)
 				wait_time = MAX_DELAY_MS;
 		}

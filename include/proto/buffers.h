@@ -28,6 +28,7 @@
 
 #include <common/config.h>
 #include <common/memory.h>
+#include <common/ticks.h>
 #include <common/time.h>
 
 #include <types/buffers.h>
@@ -68,14 +69,14 @@ static inline void buffer_flush(struct buffer *buf)
 /* marks the buffer as "shutdown pending" for reads and cancels the timeout */
 static inline void buffer_shutr(struct buffer *buf)
 {
-	tv_eternity(&buf->rex);
+	buf->rex = TICK_ETERNITY;
 	buf->flags |= BF_SHUTR_PENDING;
 }
 
 /* marks the buffer as "shutdown pending" for writes and cancels the timeout */
 static inline void buffer_shutw(struct buffer *buf)
 {
-	tv_eternity(&buf->wex);
+	buf->wex = TICK_ETERNITY;
 	buf->flags |= BF_SHUTW_PENDING;
 }
 

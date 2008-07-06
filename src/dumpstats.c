@@ -1,7 +1,7 @@
 /*
  * Functions dedicated to statistics output
  *
- * Copyright 2000-2007 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -29,6 +29,7 @@
 #include <common/memory.h>
 #include <common/mini-clist.h>
 #include <common/standard.h>
+#include <common/ticks.h>
 #include <common/time.h>
 #include <common/uri_auth.h>
 #include <common/version.h>
@@ -139,7 +140,7 @@ int stats_parse_global(const char **args, char *err, int errlen)
 			snprintf(err, errlen, "a positive value is expected for 'stats timeout' in 'global section'");
 			return -1;
 		}
-		__tv_from_ms(&global.stats_timeout, timeout);
+		global.stats_timeout = MS_TO_TICKS(timeout);
 	}
 	else if (!strcmp(args[0], "maxconn")) {
 		int maxconn = atol(args[1]);

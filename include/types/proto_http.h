@@ -2,7 +2,7 @@
   include/types/proto_http.h
   This file contains HTTP protocol definitions.
 
-  Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -240,7 +240,7 @@ struct http_txn {
 	char *srv_cookie;		/* cookie presented by the server, in capture mode */
 	int status;			/* HTTP status from the server, negative if from proxy */
 	unsigned int flags;             /* transaction flags */
-	struct timeval exp;             /* expiration date for the transaction (generally a request) */
+	int exp;                        /* expiration date for the transaction (generally a request), int ticks */
 };
 
 /* This structure is used by http_find_header() to return values of headers.

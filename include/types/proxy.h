@@ -182,14 +182,14 @@ struct proxy {
 	int monitor_uri_len;			/* length of the string above. 0 if unused */
 	struct list mon_fail_cond;              /* list of conditions to fail monitoring requests (chained) */
 	struct {				/* WARNING! check proxy_reset_timeouts() in proxy.h !!! */
-		struct timeval client;		/* client I/O timeout (in milliseconds) */
-		struct timeval tarpit;          /* tarpit timeout, defaults to connect if unspecified */
-		struct timeval queue;           /* queue timeout, defaults to connect if unspecified */
-		struct timeval connect;		/* connect timeout (in milliseconds) */
-		struct timeval server;		/* server I/O timeout (in milliseconds) */
-		struct timeval appsession;	/* appsession cookie expiration */
-		struct timeval httpreq;		/* maximum time for complete HTTP request */
-		struct timeval check;		/* maximum time for complete check */
+		int client;                     /* client I/O timeout (in ticks) */
+		int tarpit;                     /* tarpit timeout, defaults to connect if unspecified */
+		int queue;                      /* queue timeout, defaults to connect if unspecified */
+		int connect;                    /* connect timeout (in ticks) */
+		int server;                     /* server I/O timeout (in ticks) */
+		int appsession;                 /* appsession cookie expiration */
+		int httpreq;                    /* maximum time for complete HTTP request */
+		int check;                      /* maximum time for complete check */
 	} timeout;
 	char *id;				/* proxy id */
 	struct list pendconns;			/* pending connections with no server assigned yet */
@@ -224,7 +224,7 @@ struct proxy {
 	signed char logfac1, logfac2;		/* log facility for both servers. -1 = disabled */
 	int loglev1, loglev2;			/* log level for each server, 7 by default */
 	int to_log;				/* things to be logged (LW_*) */
-	struct timeval stop_time;		/* date to stop listening, when stopping != 0 */
+	int stop_time;                          /* date to stop listening, when stopping != 0 (int ticks) */
 	int nb_reqadd, nb_rspadd;
 	struct hdr_exp *req_exp;		/* regular expressions for request headers */
 	struct hdr_exp *rsp_exp;		/* regular expressions for response headers */

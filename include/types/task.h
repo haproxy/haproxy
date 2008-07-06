@@ -36,8 +36,8 @@
 struct task {
 	struct eb32_node eb;		/* ebtree node used to hold the task in the wait queue */
 	int state;			/* task state : IDLE or RUNNING */
-	struct timeval expire;		/* next expiration time for this task, use only for fast sorting */
-	void (*process)(struct task *t, struct timeval *next);	/* the function which processes the task */
+	unsigned int expire;		/* next expiration time for this task */
+	void (*process)(struct task *t, int *next);  /* the function which processes the task */
 	void *context;			/* the task's context */
 	int nice;			/* the task's current nice value from -1024 to +1024 */
 };

@@ -2,7 +2,7 @@
   include/types/fd.h
   File descriptors states.
 
-  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -100,7 +100,7 @@ struct poller {
 	int  REGPRM2 (*cond_c)(const int fd, int dir);       /* clear polling on <fd> for <dir> if set */
 	void REGPRM1    (*rem)(const int fd);                /* remove any polling on <fd> */
 	void REGPRM1    (*clo)(const int fd);                /* mark <fd> as closed */
-    	void REGPRM2   (*poll)(struct poller *p, struct timeval *exp); /* the poller itself */
+    	void REGPRM2   (*poll)(struct poller *p, int exp);   /* the poller itself */
 	int  REGPRM1   (*init)(struct poller *p);            /* poller initialization */
 	void REGPRM1   (*term)(struct poller *p);            /* termination of this poller */
 	int  REGPRM1   (*test)(struct poller *p);            /* pre-init check of the poller */

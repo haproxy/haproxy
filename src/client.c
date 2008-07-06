@@ -354,7 +354,7 @@ int event_accept(int fd) {
 
 		s->rep->rto = s->be->timeout.server;
 		s->rep->wto = s->fe->timeout.client;
-		tv_eternity(&s->rep->cto);
+		s->rep->cto = TICK_ETERNITY;
 
 		fd_insert(cfd);
 		fdtab[cfd].owner = t;
@@ -384,28 +384,28 @@ int event_accept(int fd) {
 			EV_FD_SET(cfd, DIR_RD);
 		}
 
-		tv_eternity(&s->req->rex);
-		tv_eternity(&s->req->wex);
-		tv_eternity(&s->req->cex);
-		tv_eternity(&s->rep->rex);
-		tv_eternity(&s->rep->wex);
-		tv_eternity(&s->txn.exp);
-		tv_eternity(&t->expire);
+		s->req->rex = TICK_ETERNITY;
+		s->req->wex = TICK_ETERNITY;
+		s->req->cex = TICK_ETERNITY;
+		s->rep->rex = TICK_ETERNITY;
+		s->rep->wex = TICK_ETERNITY;
+		s->txn.exp = TICK_ETERNITY;
+		t->expire = TICK_ETERNITY;
 
-		if (tv_isset(&s->fe->timeout.client)) {
+		if (s->fe->timeout.client) {
 			if (EV_FD_ISSET(cfd, DIR_RD)) {
-				tv_add(&s->req->rex, &now, &s->fe->timeout.client);
+				s->req->rex = tick_add(now_ms, s->fe->timeout.client);
 				t->expire = s->req->rex;
 			}
 			if (EV_FD_ISSET(cfd, DIR_WR)) {
-				tv_add(&s->rep->wex, &now, &s->fe->timeout.client);
+				s->rep->wex = tick_add(now_ms, s->fe->timeout.client);
 				t->expire = s->rep->wex;
 			}
 		}
 
-		if (s->cli_state == CL_STHEADERS && tv_isset(&s->fe->timeout.httpreq)) {
-			tv_add(&s->txn.exp, &now, &s->fe->timeout.httpreq);
-			tv_bound(&t->expire, &s->txn.exp);
+		if (s->cli_state == CL_STHEADERS && s->fe->timeout.httpreq) {
+			s->txn.exp = tick_add(now_ms, s->fe->timeout.httpreq);
+			t->expire = tick_first(t->expire, s->txn.exp);
 		}
 
 		if (p->mode != PR_MODE_HEALTH)

@@ -16,7 +16,7 @@
 typedef struct appsessions {
 	char *sessid;
 	char *serverid;
-	struct timeval expire;		/* next expiration time for this application session */
+	int   expire;		/* next expiration time for this application session (in tick) */
 	unsigned long int request_count;
 	struct list hash_list;
 } appsess;
@@ -38,7 +38,7 @@ int match_str(const void *key1, const void *key2);
 /* Callback for destroy */
 void destroy(appsess *data);
 
-void appsession_refresh(struct task *t, struct timeval *next);
+void appsession_refresh(struct task *t, int *next);
 int appsession_task_init(void);
 int appsession_init(void);
 void appsession_cleanup(void);

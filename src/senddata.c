@@ -2,7 +2,7 @@
  * Helper functions to send data over a socket and buffer.
  * Should probably move somewhere else, but where ?
  *
- * Copyright 2000-2007 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -28,6 +28,7 @@
 #include <common/debug.h>
 #include <common/memory.h>
 #include <common/standard.h>
+#include <common/ticks.h>
 #include <common/time.h>
 #include <common/version.h>
 
@@ -56,8 +57,7 @@ void client_retnclose(struct session *s, const struct chunk *msg)
 	EV_FD_CLR(s->cli_fd, DIR_RD);
 	EV_FD_SET(s->cli_fd, DIR_WR);
 	buffer_shutr(s->req);
-	if (!tv_add_ifset(&s->rep->wex, &now, &s->rep->wto))
-		tv_eternity(&s->rep->wex);
+	s->rep->wex = tick_add_ifset(now_ms, s->rep->wto);
 	s->cli_state = CL_STSHUTR;
 	buffer_flush(s->rep);
 	if (msg && msg->len)

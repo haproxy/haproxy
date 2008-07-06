@@ -171,10 +171,10 @@ struct task *task_wakeup(struct task *t)
  */
 struct task *task_queue(struct task *task)
 {
-	if (unlikely(tv_iseternity(&task->expire)))
+	if (unlikely(!task->expire))
 		return task;
 
-	task->eb.key = timeval_to_ticks(&task->expire);
+	task->eb.key = task->expire;
 #ifdef DEBUG_CHECK_INVALID_EXPIRATION_DATES
 	if ((task->eb.key - now_ms) & TIMER_SIGN_BIT)
 		/* we're queuing too far away or in the past (most likely) */
@@ -200,7 +200,7 @@ struct task *task_queue(struct task *task)
  * Extract all expired timers from the timer queue, and wakes up all
  * associated tasks. Returns the date of next event (or eternity).
  */
-void wake_expired_tasks(struct timeval *next)
+void wake_expired_tasks(int *next)
 {
 	struct task *task;
 	struct eb32_node *eb;
@@ -238,7 +238,7 @@ void wake_expired_tasks(struct timeval *next)
 	} while (((tree - now_tree) & TIMER_TREE_MASK) < TIMER_TREES/2);
 
 	/* We have found no task to expire in any tree */
-	tv_eternity(next);
+	*next = TICK_ETERNITY;
 	return;
 }
 
@@ -257,9 +257,9 @@ void wake_expired_tasks(struct timeval *next)
  *
  * The function adjusts <next> if a new event is closer.
  */
-void process_runnable_tasks(struct timeval *next)
+void process_runnable_tasks(int *next)
 {
-	struct timeval temp;
+	int temp;
 	struct task *t;
 	struct eb32_node *eb;
 	unsigned int tree, stop;
@@ -294,7 +294,7 @@ void process_runnable_tasks(struct timeval *next)
 			task_dequeue(t);
 
 			t->process(t, &temp);
-			tv_bound(next, &temp);
+			*next = tick_first(*next, temp);
 
 			if (!--max_processed)
 				return;

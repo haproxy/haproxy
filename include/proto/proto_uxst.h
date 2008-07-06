@@ -2,7 +2,7 @@
   include/proto/proto_uxst.h
   This file contains UNIX-stream socket protocol definitions.
 
-  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -28,7 +28,7 @@
 
 int uxst_event_accept(int fd);
 void uxst_add_listener(struct listener *listener);
-void process_uxst_stats(struct task *t, struct timeval *next);
+void process_uxst_stats(struct task *t, int *next);
 
 #endif /* _PROTO_PROTO_UXST_H */
 

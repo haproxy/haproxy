@@ -16,6 +16,7 @@
 
 #include <common/compat.h>
 #include <common/config.h>
+#include <common/ticks.h>
 #include <common/time.h>
 
 #include <types/fd.h>
@@ -78,12 +79,8 @@ REGPRM1 static void __fd_rem(int fd)
 /*
  * Select() poller
  */
-REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
+REGPRM2 static void _do_poll(struct poller *p, int exp)
 {
-	const struct timeval max_delay = {
-		.tv_sec  = MAX_DELAY_MS / 1000,
-		.tv_usec = (MAX_DELAY_MS % 1000) * 1000
-	};
 	int status;
 	int fd, i;
 	struct timeval delta;
@@ -92,28 +89,22 @@ REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 	int fds;
 	char count;
 		
-	/* allow select to return immediately when needed */
-	delta.tv_sec = delta.tv_usec = 0;
-	delta_ms = 0;
+	delta_ms      = 0;
+	delta.tv_sec  = 0;
+	delta.tv_usec = 0;
+
 	if (!run_queue) {
-		if (!tv_isset(exp)) {
-			delta = max_delay;
-			delta_ms = MAX_DELAY_MS;
+		if (!exp) {
+			delta_ms      = MAX_DELAY_MS;
+			delta.tv_sec  = (MAX_DELAY_MS / 1000);
+			delta.tv_usec = (MAX_DELAY_MS % 1000) * 1000;
 		}
-		else if (tv_islt(&now, exp)) {
-			tv_remain(&now, exp, &delta);
-			/* To avoid eventual select loops due to timer precision */
-			delta.tv_usec += SCHEDULER_RESOLUTION * 1000;
-			if (delta.tv_usec >= 1000000) {
-				delta.tv_usec -= 1000000;
-				delta.tv_sec ++;
-			}
-			if (__tv_isge(&delta, &max_delay)) {
-				delta = max_delay;
+		else if (!tick_is_expired(exp, now_ms)) {
+			delta_ms = TICKS_TO_MS(tick_remain(now_ms, exp)) + SCHEDULER_RESOLUTION;
+			if (delta_ms > MAX_DELAY_MS)
 				delta_ms = MAX_DELAY_MS;
-			} else {
-				delta_ms = delta.tv_sec * 1000 + delta.tv_usec / 1000;
-			}
+			delta.tv_sec  = (delta_ms / 1000);
+			delta.tv_usec = (delta_ms % 1000) * 1000;
 		}
 	}
 

@@ -23,6 +23,7 @@
 
 #include <common/compat.h>
 #include <common/config.h>
+#include <common/ticks.h>
 #include <common/time.h>
 #include <common/tools.h>
 
@@ -99,44 +100,29 @@ REGPRM1 static void __fd_clo(int fd)
 /*
  * kqueue() poller
  */
-REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
+REGPRM2 static void _do_poll(struct poller *p, int exp)
 {
 	int status;
 	int count, fd, delta_ms;
 	struct timespec timeout;
 
-	if (run_queue) {
-		timeout.tv_sec = timeout.tv_nsec = 0;
-		delta_ms = 0;
-	}
-	else if (tv_isset(exp)) {
-		const struct timeval max_delay = {
-			.tv_sec  = MAX_DELAY_MS / 1000,
-			.tv_usec = (MAX_DELAY_MS % 1000) * 1000
-		};
-		struct timeval delta;
+	delta_ms        = 0;
+	timeout.tv_sec  = 0;
+	timeout.tv_nsec = 0;
 
-		if (tv_isge(&now, exp)) {
-			delta.tv_sec = delta.tv_usec = 0;
-			delta_ms = 0;
+	if (!run_queue) {
+		if (!exp) {
+			delta_ms        = MAX_DELAY_MS;
+			timeout.tv_sec  = (MAX_DELAY_MS / 1000);
+			timeout.tv_nsec = (MAX_DELAY_MS % 1000) * 1000000;
 		}
-		else {
-			tv_remain(&now, exp, &delta);
-			if (__tv_isgt(&delta, &max_delay)) {
-				delta    = max_delay;
+		else if (!tick_is_expired(exp, now_ms)) {
+			delta_ms = TICKS_TO_MS(tick_remain(now_ms, exp)) + 1;
+			if (delta_ms > MAX_DELAY_MS)
 				delta_ms = MAX_DELAY_MS;
-			} else {
-				delta_ms = delta.tv_sec * 1000 + delta.tv_usec / 1000;
-			}
+			timeout.tv_sec  = (delta_ms / 1000);
+			timeout.tv_nsec = (delta_ms % 1000) * 1000000;
 		}
-
-		timeout.tv_sec  = delta.tv_sec;
-		timeout.tv_nsec = delta.tv_usec * 1000;
-	}
-	else {
-		delta_ms = MAX_DELAY_MS;
-		timeout.tv_sec  = MAX_DELAY_MS / 1000;
-		timeout.tv_nsec = (MAX_DELAY_MS % 1000) * 1000000;
 	}
 
 	fd = MIN(maxfd, global.tune.maxpollevents);

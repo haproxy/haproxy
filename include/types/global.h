@@ -66,7 +66,7 @@ struct global {
 		int maxaccept;     /* max number of consecutive accept() */
 	} tune;
 	struct listener stats_sock; /* unix socket listener for statistics */
-	struct timeval stats_timeout;
+	int stats_timeout;          /* in ticks */
 };
 
 extern struct global global;

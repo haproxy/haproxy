@@ -22,6 +22,7 @@
 #include <common/config.h>
 #include <common/debug.h>
 #include <common/eb32tree.h>
+#include <common/ticks.h>
 #include <common/time.h>
 
 #include <types/acl.h>
@@ -1831,8 +1832,7 @@ int connect_server(struct session *s)
 			s->be->lbprm.server_take_conn(s->srv);
 	}
 
-	if (!tv_add_ifset(&s->req->cex, &now, &s->be->timeout.connect))
-		tv_eternity(&s->req->cex);
+	s->req->cex = tick_add_ifset(now_ms, s->be->timeout.connect);
 	return SN_ERR_NONE;  /* connection is OK */
 }
 
@@ -1850,7 +1850,7 @@ int srv_count_retry_down(struct session *t, int conn_err)
 
 	if (t->conn_retries < 0) {
 		/* if not retryable anymore, let's abort */
-		tv_eternity(&t->req->cex);
+		t->req->cex = TICK_ETERNITY;
 		srv_close_with_err(t, conn_err, SN_FINST_C,
 				   503, error_message(t, HTTP_ERR_503));
 		if (t->srv)
@@ -1894,7 +1894,7 @@ int srv_retryable_connect(struct session *t)
 			return 1;
 	    
 		case SN_ERR_INTERNAL:
-			tv_eternity(&t->req->cex);
+			t->req->cex = TICK_ETERNITY;
 			srv_close_with_err(t, SN_ERR_INTERNAL, SN_FINST_C,
 					   500, error_message(t, HTTP_ERR_500));
 			if (t->srv)
@@ -1965,7 +1965,7 @@ int srv_redispatch_connect(struct session *t)
 			goto redispatch;
 		}
 
-		tv_eternity(&t->req->cex);
+		t->req->cex = TICK_ETERNITY;
 		srv_close_with_err(t, SN_ERR_SRVTO, SN_FINST_Q,
 				   503, error_message(t, HTTP_ERR_503));
 
@@ -1975,7 +1975,7 @@ int srv_redispatch_connect(struct session *t)
 
 	case SRV_STATUS_NOSRV:
 		/* note: it is guaranteed that t->srv == NULL here */
-		tv_eternity(&t->req->cex);
+		t->req->cex = TICK_ETERNITY;
 		srv_close_with_err(t, SN_ERR_SRVTO, SN_FINST_C,
 				   503, error_message(t, HTTP_ERR_503));
 
@@ -1983,15 +1983,14 @@ int srv_redispatch_connect(struct session *t)
 		return 1;
 
 	case SRV_STATUS_QUEUED:
-		if (!tv_add_ifset(&t->req->cex, &now, &t->be->timeout.queue))
-			tv_eternity(&t->req->cex);
+		t->req->cex = tick_add_ifset(now_ms, t->be->timeout.queue);
 		t->srv_state = SV_STIDLE;
 		/* do nothing else and do not wake any other session up */
 		return 1;
 
 	case SRV_STATUS_INTERNAL:
 	default:
-		tv_eternity(&t->req->cex);
+		t->req->cex = TICK_ETERNITY;
 		srv_close_with_err(t, SN_ERR_INTERNAL, SN_FINST_C,
 				   500, error_message(t, HTTP_ERR_500));
 		if (t->srv)

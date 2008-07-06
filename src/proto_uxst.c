@@ -32,6 +32,7 @@
 #include <common/memory.h>
 #include <common/mini-clist.h>
 #include <common/standard.h>
+#include <common/ticks.h>
 #include <common/time.h>
 #include <common/version.h>
 
@@ -500,18 +501,18 @@ int uxst_event_accept(int fd) {
 		fdtab[cfd].peeraddr = (struct sockaddr *)&s->cli_addr;
 		fdtab[cfd].peerlen = sizeof(s->cli_addr);
 
-		tv_eternity(&s->req->rex);
-		tv_eternity(&s->req->wex);
-		tv_eternity(&s->req->cex);
-		tv_eternity(&s->rep->rex);
-		tv_eternity(&s->rep->wex);
+		s->req->rex = TICK_ETERNITY;
+		s->req->wex = TICK_ETERNITY;
+		s->req->cex = TICK_ETERNITY;
+		s->rep->rex = TICK_ETERNITY;
+		s->rep->wex = TICK_ETERNITY;
 
-		tv_eternity(&s->req->wto);
-		tv_eternity(&s->req->cto);
-		tv_eternity(&s->req->rto);
-		tv_eternity(&s->rep->rto);
-		tv_eternity(&s->rep->cto);
-		tv_eternity(&s->rep->wto);
+		s->req->wto = TICK_ETERNITY;
+		s->req->cto = TICK_ETERNITY;
+		s->req->rto = TICK_ETERNITY;
+		s->rep->rto = TICK_ETERNITY;
+		s->rep->cto = TICK_ETERNITY;
+		s->rep->wto = TICK_ETERNITY;
 
 		if (l->timeout)
 			s->req->rto = *l->timeout;
@@ -519,10 +520,10 @@ int uxst_event_accept(int fd) {
 		if (l->timeout)
 			s->rep->wto = *l->timeout;
 
-		tv_eternity(&t->expire);
-		if (l->timeout && tv_isset(l->timeout)) {
+		t->expire = TICK_ETERNITY;
+		if (l->timeout && *l->timeout) {
 			EV_FD_SET(cfd, DIR_RD);
-			tv_add(&s->req->rex, &now, &s->req->rto);
+			s->req->rex = tick_add(now_ms, s->req->rto);
 			t->expire = s->req->rex;
 		}
 
@@ -592,13 +593,13 @@ static int process_uxst_cli(struct session *t)
 			/* We must ensure that the read part is still alive when switching
 			 * to shutw */
 			EV_FD_SET(t->cli_fd, DIR_RD);
-			tv_add_ifset(&req->rex, &now, &req->rto);
+			req->rex = tick_add_ifset(now_ms, req->rto);
 			t->cli_state = CL_STSHUTW;
 			//fprintf(stderr,"%p:%s(%d), c=%d, s=%d\n", t, __FUNCTION__, __LINE__, t->cli_state, t->cli_state);
 			return 1;
 		}
 		/* read timeout */
-		else if (tv_isle(&req->rex, &now)) {
+		else if (tick_is_expired(req->rex, now_ms)) {
 			EV_FD_CLR(t->cli_fd, DIR_RD);
 			buffer_shutr(req);
 			t->cli_state = CL_STSHUTR;
@@ -615,14 +616,14 @@ static int process_uxst_cli(struct session *t)
 			return 1;
 		}	
 		/* write timeout */
-		else if (tv_isle(&rep->wex, &now)) {
+		else if (tick_is_expired(rep->wex, now_ms)) {
 			EV_FD_CLR(t->cli_fd, DIR_WR);
 			buffer_shutw(rep);
 			shutdown(t->cli_fd, SHUT_WR);
 			/* We must ensure that the read part is still alive when switching
 			 * to shutw */
 			EV_FD_SET(t->cli_fd, DIR_RD);
-			tv_add_ifset(&req->rex, &now, &req->rto);
+			req->rex = tick_add_ifset(now_ms, req->rto);
 
 			t->cli_state = CL_STSHUTW;
 			if (!(t->flags & SN_ERR_MASK))
@@ -642,21 +643,21 @@ static int process_uxst_cli(struct session *t)
 			/* no room to read more data */
 			if (EV_FD_COND_C(t->cli_fd, DIR_RD)) {
 				/* stop reading until we get some space */
-				tv_eternity(&req->rex);
+				req->rex = TICK_ETERNITY;
 			}
 		} else {
 			/* there's still some space in the buffer */
 			if (EV_FD_COND_S(t->cli_fd, DIR_RD)) {
-				if (!tv_isset(&req->rto) ||
-				    (t->srv_state < SV_STDATA && tv_isset(&req->wto)))
+				if (!req->rto ||
+				    (t->srv_state < SV_STDATA && req->wto))
 					/* If the client has no timeout, or if the server not ready yet, and we
 					 * know for sure that it can expire, then it's cleaner to disable the
 					 * timeout on the client side so that too low values cannot make the
 					 * sessions abort too early.
 					 */
-					tv_eternity(&req->rex);
+					req->rex = TICK_ETERNITY;
 				else
-					tv_add(&req->rex, &now, &req->rto);
+					req->rex = tick_add(now_ms, req->rto);
 			}
 		}
 
@@ -664,19 +665,18 @@ static int process_uxst_cli(struct session *t)
 		    ((s < SV_STDATA) /* FIXME: this may be optimized && (rep->w == rep->h)*/)) {
 			if (EV_FD_COND_C(t->cli_fd, DIR_WR)) {
 				/* stop writing */
-				tv_eternity(&rep->wex);
+				rep->wex = TICK_ETERNITY;
 			}
 		} else {
 			/* buffer not empty */
 			if (EV_FD_COND_S(t->cli_fd, DIR_WR)) {
 				/* restart writing */
-				if (tv_add_ifset(&rep->wex, &now, &rep->wto)) {
+				rep->wex = tick_add_ifset(now_ms, rep->wto);
+				if (rep->wex) {
 					/* FIXME: to prevent the client from expiring read timeouts during writes,
 					 * we refresh it. */
 					req->rex = rep->wex;
 				}
-				else
-					tv_eternity(&rep->wex);
 			}
 		}
 		return 0; /* other cases change nothing */
@@ -704,7 +704,7 @@ static int process_uxst_cli(struct session *t)
 			t->cli_state = CL_STCLOSE;
 			return 1;
 		}
-		else if (tv_isle(&rep->wex, &now)) {
+		else if (tick_is_expired(rep->wex, now_ms)) {
 			buffer_shutw(rep);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
@@ -724,14 +724,13 @@ static int process_uxst_cli(struct session *t)
 		if (rep->l == 0) {
 			if (EV_FD_COND_C(t->cli_fd, DIR_WR)) {
 				/* stop writing */
-				tv_eternity(&rep->wex);
+				rep->wex = TICK_ETERNITY;
 			}
 		} else {
 			/* buffer not empty */
 			if (EV_FD_COND_S(t->cli_fd, DIR_WR)) {
 				/* restart writing */
-				if (!tv_add_ifset(&rep->wex, &now, &rep->wto))
-					tv_eternity(&rep->wex);
+				rep->wex = tick_add_ifset(now_ms, rep->wto);
 			}
 		}
 		return 0;
@@ -759,7 +758,7 @@ static int process_uxst_cli(struct session *t)
 			t->cli_state = CL_STCLOSE;
 			return 1;
 		}
-		else if (tv_isle(&req->rex, &now)) {
+		else if (tick_is_expired(req->rex, now_ms)) {
 			buffer_shutr(req);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
@@ -784,15 +783,12 @@ static int process_uxst_cli(struct session *t)
 
 			if (EV_FD_COND_C(t->cli_fd, DIR_RD)) {
 				/* stop reading until we get some space */
-				tv_eternity(&req->rex);
-				//fprintf(stderr,"%p:%s(%d), c=%d, s=%d\n", t, __FUNCTION__, __LINE__, t->cli_state, t->cli_state);
+				req->rex = TICK_ETERNITY;
 			}
 		} else {
 			/* there's still some space in the buffer */
 			if (EV_FD_COND_S(t->cli_fd, DIR_RD)) {
-				if (!tv_add_ifset(&req->rex, &now, &req->rto))
-					tv_eternity(&req->rex);
-				//fprintf(stderr,"%p:%s(%d), c=%d, s=%d\n", t, __FUNCTION__, __LINE__, t->cli_state, t->cli_state);
+				req->rex = tick_add_ifset(now_ms, req->rto);
 			}
 		}
 		return 0;
@@ -1256,7 +1252,7 @@ static int process_uxst_srv(struct session *t)
  * the time the task accepts to wait, or TIME_ETERNITY for
  * infinity.
  */
-void process_uxst_session(struct task *t, struct timeval *next)
+void process_uxst_session(struct task *t, int *next)
 {
 	struct session *s = t->context;
 	int fsm_resync = 0;
@@ -1357,7 +1353,7 @@ void process_uxst_session(struct task *t, struct timeval *next)
  * for now. It only knows states SV_STIDLE, SV_STCONN, SV_STDATA, and
  * SV_STCLOSE. Returns in <next> the task's expiration date.
  */
-void process_uxst_stats(struct task *t, struct timeval *next)
+void process_uxst_stats(struct task *t, int *next)
 {
 	struct session *s = t->context;
 	struct listener *listener;
@@ -1468,11 +1464,9 @@ void process_uxst_stats(struct task *t, struct timeval *next)
 		s->req->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE;
 		s->rep->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE;
 
-		t->expire = s->req->rex;
-		tv_min(&t->expire, &s->req->rex, &s->req->wex);
-		tv_bound(&t->expire, &s->req->cex);
-		tv_bound(&t->expire, &s->rep->rex);
-		tv_bound(&t->expire, &s->rep->wex);
+		t->expire = tick_first(tick_first(s->req->rex, s->req->wex),
+				       tick_first(s->rep->rex, s->rep->wex));
+		t->expire = tick_first(t->expire, s->req->cex);
 
 		/* restore t to its place in the task list */
 		task_queue(t);
@@ -1497,7 +1491,7 @@ void process_uxst_stats(struct task *t, struct timeval *next)
 	task_delete(t);
 	session_free(s);
 	task_free(t);
-	tv_eternity(next);
+	*next = TICK_ETERNITY;
 }
 
 __attribute__((constructor))

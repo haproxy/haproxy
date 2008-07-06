@@ -83,8 +83,8 @@ struct listener {
 	struct listener *next;		/* next address for the same proxy, or NULL */
 	struct list proto_list;         /* list in the protocol header */
 	int (*accept)(int fd);		/* accept() function passed to fdtab[] */
-	void (*handler)(struct task *t, struct timeval *next); /* protocol handler */
-	struct timeval *timeout;	/* pointer to client-side timeout */
+	void (*handler)(struct task *t, int *next); /* protocol handler */
+	int  *timeout;                  /* pointer to client-side timeout */
 	void *private;			/* any private data which may be used by accept() */
 	union {				/* protocol-dependant access restrictions */
 		struct {		/* UNIX socket permissions */

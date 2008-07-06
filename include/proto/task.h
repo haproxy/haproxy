@@ -123,13 +123,13 @@ struct task *task_queue(struct task *task);
  *   - return the date of next event in <next> or eternity.
  */
 
-void process_runnable_tasks(struct timeval *next);
+void process_runnable_tasks(int *next);
 
 /*
  * Extract all expired timers from the timer queue, and wakes up all
  * associated tasks. Returns the date of next event (or eternity).
  */
-void wake_expired_tasks(struct timeval *next);
+void wake_expired_tasks(int *next);
 
 
 #endif /* _PROTO_TASK_H */

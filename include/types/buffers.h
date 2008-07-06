@@ -2,7 +2,7 @@
   include/types/buffers.h
   Buffer management definitions, macros and inline functions.
 
-  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -24,9 +24,6 @@
 
 #include <common/config.h>
 #include <common/memory.h>
-
-#include <sys/time.h>
-#include <sys/types.h>
 
 /* The BF_* macros designate Buffer Flags, which may be ORed in the bit field
  * member 'flags' in struct buffer.
@@ -65,12 +62,12 @@ struct chunk {
 
 struct buffer {
 	unsigned int flags;             /* BF_* */
-	struct timeval rex;             /* expiration date for a read  */
-	struct timeval wex;             /* expiration date for a write */
-	struct timeval cex;             /* expiration date for a connect */
-	struct timeval rto;             /* read timeout */
-	struct timeval wto;             /* write timeout */
-	struct timeval cto;             /* connect timeout */
+	int rex;                        /* expiration date for a read, in ticks */
+	int wex;                        /* expiration date for a write, in ticks */
+	int cex;                        /* expiration date for a connect, in ticks */
+	int rto;                        /* read timeout, in ticks */
+	int wto;                        /* write timeout, in ticks */
+	int cto;                        /* connect timeout, in ticks */
 	unsigned int l;                 /* data length */
 	char *r, *w, *lr;               /* read ptr, write ptr, last read */
 	char *rlim;                     /* read limit, used for header rewriting */

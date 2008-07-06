@@ -18,6 +18,7 @@
 #include <common/config.h>
 #include <common/memory.h>
 #include <common/sessionhash.h>
+#include <common/ticks.h>
 #include <common/time.h>
 
 #include <types/buffers.h>
@@ -93,7 +94,7 @@ int appsession_task_init(void)
 
 		task_init(appsess_refresh);
 		appsess_refresh->context = NULL;
-		tv_ms_add(&appsess_refresh->expire, &now, TBLCHKINT);
+		appsess_refresh->expire = tick_add(now_ms, MS_TO_TICKS(TBLCHKINT));
 		appsess_refresh->process = appsession_refresh;
 		task_queue(appsess_refresh);
 		initialized ++;
@@ -101,7 +102,7 @@ int appsession_task_init(void)
 	return 0;
 }
 
-void appsession_refresh(struct task *t, struct timeval *next)
+void appsession_refresh(struct task *t, int *next)
 {
 	struct proxy           *p = proxy;
 	struct appsession_hash *htbl;
@@ -112,7 +113,7 @@ void appsession_refresh(struct task *t, struct timeval *next)
 		if (p->appsession_name != NULL) {
 			htbl = &p->htbl_proxy;
 			as_hash_for_each_entry_safe(i, element, back, &p->htbl_proxy, hash_list) {
-				if (tv_isle(&element->expire, &now)) {
+				if (tick_is_expired(element->expire, now_ms)) {
 					if ((global.mode & MODE_DEBUG) &&
 					    (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))) {
 						int len;
@@ -131,7 +132,7 @@ void appsession_refresh(struct task *t, struct timeval *next)
 		}
 		p = p->next;
 	}
-	tv_ms_add(&t->expire, &now, TBLCHKINT); /* check expiration every 5 seconds */
+	t->expire = tick_add(now_ms, MS_TO_TICKS(TBLCHKINT)); /* check expiration every 5 seconds */
 	task_queue(t);
 	*next = t->expire;
 } /* end appsession_refresh */

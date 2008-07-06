@@ -1,7 +1,7 @@
 /*
  * Functions operating on SOCK_STREAM and buffers.
  *
- * Copyright 2000-2007 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -23,6 +23,7 @@
 #include <common/config.h>
 #include <common/debug.h>
 #include <common/standard.h>
+#include <common/ticks.h>
 #include <common/time.h>
 
 #include <types/buffers.h>
@@ -42,7 +43,7 @@
  * otherwise.
  */
 int stream_sock_read(int fd) {
-	__label__ out_eternity, out_wakeup, out_shutdown_r, out_error;
+	__label__ out_wakeup, out_shutdown_r, out_error;
 	struct buffer *b = fdtab[fd].cb[DIR_RD].b;
 	int ret, max, retval, cur_read;
 	int read_poll = MAX_READ_POLL_LOOPS;
@@ -88,7 +89,8 @@ int stream_sock_read(int fd) {
 			 * never happen, but better safe than sorry !
 			 */
 			EV_FD_CLR(fd, DIR_RD);
-			goto out_eternity;
+			b->rex = TICK_ETERNITY;
+			goto out_wakeup;
 		}
 
 		/*
@@ -154,7 +156,8 @@ int stream_sock_read(int fd) {
 				}
 
 				EV_FD_CLR(fd, DIR_RD);
-				goto out_eternity;
+				b->rex = TICK_ETERNITY;
+				goto out_wakeup;
 			}
 
 			/* if too many bytes were missing from last read, it means that
@@ -218,12 +221,8 @@ int stream_sock_read(int fd) {
 	 * have at least read something.
 	 */
 
-	if (b->flags & BF_PARTIAL_READ) {
-		if (tv_add_ifset(&b->rex, &now, &b->rto))
-			goto out_wakeup;
-	out_eternity:
-		tv_eternity(&b->rex);
-	}
+	if (b->flags & BF_PARTIAL_READ)
+		b->rex = tick_add_ifset(now_ms, b->rto);
 
  out_wakeup:
 	if (b->flags & BF_READ_STATUS)
@@ -234,7 +233,8 @@ int stream_sock_read(int fd) {
  out_shutdown_r:
 	fdtab[fd].ev &= ~FD_POLL_HUP;
 	b->flags |= BF_READ_NULL;
-	goto out_eternity;
+	b->rex = TICK_ETERNITY;
+	goto out_wakeup;
 
  out_error:
 	/* There was an error. we must wakeup the task. No need to clear
@@ -243,7 +243,8 @@ int stream_sock_read(int fd) {
 	fdtab[fd].state = FD_STERROR;
 	fdtab[fd].ev &= ~FD_POLL_STICKY;
 	b->flags |= BF_READ_ERROR;
-	goto out_eternity;
+	b->rex = TICK_ETERNITY;
+	goto out_wakeup;
 }
 
 
@@ -254,7 +255,7 @@ int stream_sock_read(int fd) {
  * otherwise.
  */
 int stream_sock_write(int fd) {
-	__label__ out_eternity, out_wakeup, out_error;
+	__label__ out_wakeup, out_error;
 	struct buffer *b = fdtab[fd].cb[DIR_WR].b;
 	int ret, max, retval;
 	int write_poll = MAX_WRITE_POLL_LOOPS;
@@ -314,7 +315,8 @@ int stream_sock_write(int fd) {
 			 * let's disable the write event and pretend we never came there.
 			 */
 			EV_FD_CLR(fd, DIR_WR);
-			goto out_eternity;
+			b->wex = TICK_ETERNITY;
+			goto out_wakeup;
 		}
 
 #ifndef MSG_NOSIGNAL
@@ -344,7 +346,8 @@ int stream_sock_write(int fd) {
 
 			if (!b->l) {
 				EV_FD_CLR(fd, DIR_WR);
-				goto out_eternity;
+				b->wex = TICK_ETERNITY;
+				goto out_wakeup;
 			}
 
 			/* if the system buffer is full, don't insist */
@@ -375,17 +378,15 @@ int stream_sock_write(int fd) {
 	 */
 
 	if (b->flags & BF_PARTIAL_WRITE) {
-		if (tv_add_ifset(&b->wex, &now, &b->wto)) {
+		b->wex = tick_add_ifset(now_ms, b->wto);
+		if (b->wex) {
 			/* FIXME: to prevent the client from expiring read timeouts during writes,
 			 * we refresh it. A solution would be to merge read+write timeouts into a
 			 * unique one, although that needs some study particularly on full-duplex
 			 * TCP connections. */
 			if (!(b->flags & BF_SHUTR_STATUS))
 				b->rex = b->wex;
-			goto out_wakeup;
 		}
-	out_eternity:
-		tv_eternity(&b->wex);
 	}
 
  out_wakeup:
@@ -401,9 +402,8 @@ int stream_sock_write(int fd) {
 	fdtab[fd].state = FD_STERROR;
 	fdtab[fd].ev &= ~FD_POLL_STICKY;
 	b->flags |= BF_WRITE_ERROR;
-	goto out_eternity;
-
-
+	b->wex = TICK_ETERNITY;
+	goto out_wakeup;
 }
 
 

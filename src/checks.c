@@ -367,9 +367,7 @@ static int event_srv_chk_w(int fd)
 #endif
 			if (ret == s->proxy->check_len) {
 				/* we allow up to <timeout.check> if nonzero for a responce */
-				//fprintf(stderr, "event_srv_chk_w, ms=%lu\n", __tv_to_ms(&s->proxy->timeout.check));
-				tv_add_ifset(&t->expire, &now, &s->proxy->timeout.check);
-
+				t->expire = tick_add_ifset(now_ms, s->proxy->timeout.check);
 				EV_FD_SET(fd, DIR_RD);   /* prepare for reading reply */
 				goto out_nowake;
 			}
@@ -526,7 +524,7 @@ static int event_srv_chk_r(int fd)
  * manages a server health-check. Returns
  * the time the task accepts to wait, or TIME_ETERNITY for infinity.
  */
-void process_chk(struct task *t, struct timeval *next)
+void process_chk(struct task *t, int *next)
 {
 	__label__ new_chk, out;
 	struct server *s = t->context;
@@ -540,7 +538,7 @@ void process_chk(struct task *t, struct timeval *next)
 	fd = s->curfd;
 	if (fd < 0) {   /* no check currently running */
 		//fprintf(stderr, "process_chk: 2\n");
-		if (!tv_isle(&t->expire, &now)) { /* not good time yet */
+		if (!tick_is_expired(t->expire, now_ms)) { /* not good time yet */
 			task_queue(t);	/* restore t to its place in the task list */
 			*next = t->expire;
 			goto out;
@@ -550,8 +548,8 @@ void process_chk(struct task *t, struct timeval *next)
 		 * the server should not be checked.
 		 */
 		if (!(s->state & SRV_CHECKED) || s->proxy->state == PR_STSTOPPED) {
-			while (tv_isle(&t->expire, &now))
-				tv_ms_add(&t->expire, &t->expire, s->inter);
+			while (tick_is_expired(t->expire, now_ms))
+				t->expire = tick_add(t->expire, MS_TO_TICKS(s->inter));
 			task_queue(t);	/* restore t to its place in the task list */
 			*next = t->expire;
 			goto out;
@@ -637,8 +635,6 @@ void process_chk(struct task *t, struct timeval *next)
 
 				if (s->result == SRV_CHK_UNKNOWN) {
 					if ((connect(fd, (struct sockaddr *)&sa, sizeof(sa)) != -1) || (errno == EINPROGRESS)) {
-						struct timeval tv_con;
-
 						/* OK, connection in progress or established */
 			
 						//fprintf(stderr, "process_chk: 4\n");
@@ -662,11 +658,11 @@ void process_chk(struct task *t, struct timeval *next)
 						 * to establish but only when timeout.check is set
 						 * as it may be to short for a full check otherwise
 						 */
-						tv_ms_add(&t->expire, &now, s->inter);
+						t->expire = tick_add(now_ms, MS_TO_TICKS(s->inter));
 
-						if (tv_isset(&s->proxy->timeout.check) && tv_isset(&s->proxy->timeout.connect)) {
-							tv_add(&tv_con, &now, &s->proxy->timeout.connect);
-							tv_bound(&t->expire, &tv_con);
+						if (s->proxy->timeout.check && s->proxy->timeout.connect) {
+							int t_con = tick_add(now_ms, s->proxy->timeout.connect);
+							t->expire = tick_first(t->expire, t_con);
 						}
 
 						task_queue(t);	/* restore t to its place in the task list */
@@ -683,8 +679,8 @@ void process_chk(struct task *t, struct timeval *next)
 
 		if (s->result == SRV_CHK_UNKNOWN) { /* nothing done */
 			//fprintf(stderr, "process_chk: 6\n");
-			while (tv_isle(&t->expire, &now))
-				tv_ms_add(&t->expire, &t->expire, s->inter);
+			while (tick_is_expired(t->expire, now_ms))
+				t->expire = tick_add(t->expire, MS_TO_TICKS(s->inter));
 			goto new_chk; /* may be we should initialize a new check */
 		}
 
@@ -701,14 +697,14 @@ void process_chk(struct task *t, struct timeval *next)
 		 * to establish but only when timeout.check is set
 		 * as it may be to short for a full check otherwise
 		 */
-		while (tv_isle(&t->expire, &now)) {
-			struct timeval tv_con;
+		while (tick_is_expired(t->expire, now_ms)) {
+			int t_con;
 
-			tv_add(&tv_con, &t->expire, &s->proxy->timeout.connect);
-			tv_ms_add(&t->expire, &t->expire, s->inter);
+			t_con = tick_add(t->expire, s->proxy->timeout.connect);
+			t->expire = tick_add(t->expire, MS_TO_TICKS(s->inter));
 
-			if (tv_isset(&s->proxy->timeout.check))
-				tv_bound(&t->expire, &tv_con);
+			if (s->proxy->timeout.check)
+				t->expire = tick_first(t->expire, t_con);
 		}
 		goto new_chk;
 	}
@@ -763,10 +759,10 @@ void process_chk(struct task *t, struct timeval *next)
 				rv -= (int) (2 * rv * (rand() / (RAND_MAX + 1.0)));
 				//fprintf(stderr, "process_chk(%p): (%d+/-%d%%) random=%d\n", s, srv_getinter(s), global.spread_checks, rv);
 			}
-			tv_ms_add(&t->expire, &now, srv_getinter(s) + rv);
+			t->expire = tick_add(now_ms, MS_TO_TICKS(srv_getinter(s) + rv));
 			goto new_chk;
 		}
-		else if ((s->result & SRV_CHK_ERROR) || tv_isle(&t->expire, &now)) {
+		else if ((s->result & SRV_CHK_ERROR) || tick_is_expired(t->expire, now_ms)) {
 			//fprintf(stderr, "process_chk: 10\n");
 			/* failure or timeout detected */
 			if (s->health > s->rise) {
@@ -784,7 +780,7 @@ void process_chk(struct task *t, struct timeval *next)
 				rv -= (int) (2 * rv * (rand() / (RAND_MAX + 1.0)));
 				//fprintf(stderr, "process_chk(%p): (%d+/-%d%%) random=%d\n", s, srv_getinter(s), global.spread_checks, rv);
 			}
-			tv_ms_add(&t->expire, &now, srv_getinter(s) + rv);
+			t->expire = tick_add(now_ms, MS_TO_TICKS(srv_getinter(s) + rv));
 			goto new_chk;
 		}
 		/* if result is unknown and there's no timeout, we have to wait again */
@@ -855,8 +851,9 @@ int start_checks() {
 			t->context = s;
 
 			/* check this every ms */
-			tv_ms_add(&t->expire, &now,
-				  ((mininter && mininter >= srv_getinter(s)) ? mininter : srv_getinter(s)) * srvpos / nbchk);
+			t->expire = tick_add(now_ms,
+					     MS_TO_TICKS(((mininter && mininter >= srv_getinter(s)) ?
+							  mininter : srv_getinter(s)) * srvpos / nbchk));
 			task_queue(t);
 
 			srvpos++;

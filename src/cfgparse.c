@@ -971,10 +971,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			      file, linenum, *err, args[0]);
 			return -1;
 		}
-		if (val > 0)
-			__tv_from_ms(&curproxy->timeout.appsession, val);
-		else
-			tv_eternity(&curproxy->timeout.appsession);
+		curproxy->timeout.appsession = val;
 
 		if (appsession_hash_init(&(curproxy->htbl_proxy), destroy) == 0) {
 			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
@@ -2994,9 +2991,9 @@ int readcfgfile(const char *file)
 		}
 
 		if ((curproxy->mode == PR_MODE_TCP || curproxy->mode == PR_MODE_HTTP) &&
-		    (((curproxy->cap & PR_CAP_FE) && !tv_isset(&curproxy->timeout.client)) ||
+		    (((curproxy->cap & PR_CAP_FE) && !curproxy->timeout.client) ||
 		     ((curproxy->cap & PR_CAP_BE) && (curproxy->srv) &&
-		      (!tv_isset(&curproxy->timeout.connect) || !tv_isset(&curproxy->timeout.server))))) {
+		      (!curproxy->timeout.connect || !curproxy->timeout.server)))) {
 			Warning("parsing %s : missing timeouts for %s '%s'.\n"
 				"   | While not properly invalid, you will certainly encounter various problems\n"
 				"   | with such a configuration. To fix this, please ensure that all following\n"
@@ -3009,29 +3006,29 @@ int readcfgfile(const char *file)
 		 * parameters have been set or must be copied from contimeouts.
 		 */
 		if (curproxy != &defproxy) {
-			if (!tv_isset(&curproxy->timeout.tarpit) ||
-			    __tv_iseq(&curproxy->timeout.tarpit, &defproxy.timeout.tarpit)) {
+			if (!curproxy->timeout.tarpit ||
+			    curproxy->timeout.tarpit == defproxy.timeout.tarpit) {
 				/* tarpit timeout not set. We search in the following order:
 				 * default.tarpit, curr.connect, default.connect.
 				 */
-				if (tv_isset(&defproxy.timeout.tarpit))
+				if (defproxy.timeout.tarpit)
 					curproxy->timeout.tarpit = defproxy.timeout.tarpit;
-				else if (tv_isset(&curproxy->timeout.connect))
+				else if (curproxy->timeout.connect)
 					curproxy->timeout.tarpit = curproxy->timeout.connect;
-				else if (tv_isset(&defproxy.timeout.connect))
+				else if (defproxy.timeout.connect)
 					curproxy->timeout.tarpit = defproxy.timeout.connect;
 			}
 			if ((curproxy->cap & PR_CAP_BE) &&
-			    (!tv_isset(&curproxy->timeout.queue) ||
-			     __tv_iseq(&curproxy->timeout.queue, &defproxy.timeout.queue))) {
+			    (!curproxy->timeout.queue ||
+			     curproxy->timeout.queue == defproxy.timeout.queue)) {
 				/* queue timeout not set. We search in the following order:
 				 * default.queue, curr.connect, default.connect.
 				 */
-				if (tv_isset(&defproxy.timeout.queue))
+				if (defproxy.timeout.queue)
 					curproxy->timeout.queue = defproxy.timeout.queue;
-				else if (tv_isset(&curproxy->timeout.connect))
+				else if (curproxy->timeout.connect)
 					curproxy->timeout.queue = curproxy->timeout.connect;
-				else if (tv_isset(&defproxy.timeout.connect))
+				else if (defproxy.timeout.connect)
 					curproxy->timeout.queue = defproxy.timeout.connect;
 			}
 		}

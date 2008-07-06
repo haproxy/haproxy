@@ -90,8 +90,8 @@ int proxy_parse_timeout(const char **args, struct proxy *proxy,
 	unsigned timeout;
 	int retval, cap;
 	const char *res, *name;
-	struct timeval *tv = NULL;
-	struct timeval *td = NULL;
+	int *tv = NULL;
+	int *td = NULL;
 
 	retval = 0;
 	name = args[0];
@@ -155,16 +155,12 @@ int proxy_parse_timeout(const char **args, struct proxy *proxy,
 			 (cap & PR_CAP_BE) ? "backend" : "frontend");
 		retval = 1;
 	}
-	else if (defpx && !__tv_iseq(tv, td)) {
+	else if (defpx && *tv != *td) {
 		snprintf(err, errlen, "overwriting %s timeout which was already specified", name);
 		retval = 1;
 	}
 
-	if (timeout)
-		__tv_from_ms(tv, timeout);
-	else
-		tv_eternity(tv);
-
+	*tv = MS_TO_TICKS(timeout);
 	return retval;
 }
 
@@ -303,7 +299,7 @@ int start_proxies(int verbose)
  * select_loop(). It adjusts the date of next expiration event during stop
  * time if appropriate.
  */
-void maintain_proxies(struct timeval *next)
+void maintain_proxies(int *next)
 {
 	struct proxy *p;
 	struct listener *l;
@@ -346,7 +342,7 @@ void maintain_proxies(struct timeval *next)
 		while (p) {
 			if (p->state != PR_STSTOPPED) {
 				int t;
-				t = tv_ms_remain2(&now, &p->stop_time);
+				t = tick_remain(now_ms, p->stop_time);
 				if (t == 0) {
 					Warning("Proxy %s stopped.\n", p->id);
 					send_log(p, LOG_WARNING, "Proxy %s stopped.\n", p->id);
@@ -363,7 +359,7 @@ void maintain_proxies(struct timeval *next)
 					pool_gc2();
 				}
 				else {
-					tv_bound(next, &p->stop_time);
+					*next = tick_first(*next, p->stop_time);
 				}
 			}
 			p = p->next;
@@ -389,7 +385,7 @@ void soft_stop(void)
 		if (p->state != PR_STSTOPPED) {
 			Warning("Stopping proxy %s in %d ms.\n", p->id, p->grace);
 			send_log(p, LOG_WARNING, "Stopping proxy %s in %d ms.\n", p->id, p->grace);
-			tv_ms_add(&p->stop_time, &now, p->grace);
+			p->stop_time = tick_add(now_ms, p->grace);
 		}
 		p = p->next;
 	}

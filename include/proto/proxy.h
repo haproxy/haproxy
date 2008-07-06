@@ -23,11 +23,12 @@
 #define _PROTO_PROXY_H
 
 #include <common/config.h>
+#include <common/ticks.h>
 #include <common/time.h>
 #include <types/proxy.h>
 
 int start_proxies(int verbose);
-void maintain_proxies(struct timeval *next);
+void maintain_proxies(int *next);
 void soft_stop(void);
 void pause_proxy(struct proxy *p);
 void pause_proxies(void);
@@ -52,14 +53,14 @@ static inline const char *proxy_type_str(struct proxy *proxy)
 /* this function initializes all timeouts for proxy p */
 static inline void proxy_reset_timeouts(struct proxy *proxy)
 {
-	tv_eternity(&proxy->timeout.client);
-	tv_eternity(&proxy->timeout.tarpit);
-	tv_eternity(&proxy->timeout.queue);
-	tv_eternity(&proxy->timeout.connect);
-	tv_eternity(&proxy->timeout.server);
-	tv_eternity(&proxy->timeout.appsession);
-	tv_eternity(&proxy->timeout.httpreq);
-	tv_eternity(&proxy->timeout.check);
+	proxy->timeout.client = TICK_ETERNITY;
+	proxy->timeout.tarpit = TICK_ETERNITY;
+	proxy->timeout.queue = TICK_ETERNITY;
+	proxy->timeout.connect = TICK_ETERNITY;
+	proxy->timeout.server = TICK_ETERNITY;
+	proxy->timeout.appsession = TICK_ETERNITY;
+	proxy->timeout.httpreq = TICK_ETERNITY;
+	proxy->timeout.check = TICK_ETERNITY;
 }
 
 #endif /* _PROTO_PROXY_H */

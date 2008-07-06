@@ -118,7 +118,7 @@ struct global global = {
 	logfac2 : -1,
 	loglev1 : 7, /* max syslog level : debug */
 	loglev2 : 7,
-	.stats_timeout = { .tv_sec = 10, .tv_usec = 0 }, /* stats timeout = 10 seconds */
+	.stats_timeout = MS_TO_TICKS(10000), /* stats timeout = 10 seconds */
 	.stats_sock = {
 		.timeout = &global.stats_timeout,
 		.maxconn = 10, /* 10 concurrent stats connections */
@@ -894,7 +894,7 @@ static void tell_old_pids(int sig)
  */
 void run_poll_loop()
 {
-	struct timeval next;
+	int next;
 
 	tv_update_date(0,1);
 	while (1) {
@@ -914,7 +914,7 @@ void run_poll_loop()
 			break;
 
 		/* The poller will ensure it returns around <next> */
-		cur_poller.poll(&cur_poller, &next);
+		cur_poller.poll(&cur_poller, next);
 	}
 }
 

@@ -17,6 +17,7 @@
 
 #include <common/compat.h>
 #include <common/config.h>
+#include <common/ticks.h>
 #include <common/time.h>
 
 #include <types/fd.h>
@@ -81,7 +82,7 @@ REGPRM1 static void __fd_rem(const int fd)
 /*
  * Poll() poller
  */
-REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
+REGPRM2 static void _do_poll(struct poller *p, int exp)
 {
 	int status;
 	int fd, nbfd;
@@ -126,12 +127,12 @@ REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 	/* now let's wait for events */
 	if (run_queue)
 		wait_time = 0;
-	else if (tv_iseternity(exp))
+	else if (!exp)
 		wait_time = MAX_DELAY_MS;
-	else if (tv_isge(&now, exp))
+	else if (tick_is_expired(exp, now_ms))
 		wait_time = 0;
 	else {
-		wait_time = __tv_ms_elapsed(&now, exp) + 1;
+		wait_time = TICKS_TO_MS(tick_remain(now_ms, exp)) + 1;
 		if (wait_time > MAX_DELAY_MS)
 			wait_time = MAX_DELAY_MS;
 	}
