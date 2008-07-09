@@ -121,6 +121,11 @@ static struct proxy defproxy;		/* fake proxy used to assign default values on al
 int cfg_maxpconn = DEFAULT_MAXCONN;	/* # of simultaneous connections per proxy (-N) */
 int cfg_maxconn = 0;		/* # of simultaneous connections, (-n) */
 
+/* List head of all known configuration keywords */
+static struct cfg_kw_list cfg_keywords = {
+	.list = LIST_HEAD_INIT(cfg_keywords.list)
+};
+
 /*
  * converts <str> to a list of listeners which are dynamically allocated.
  * The format is "{addr|'*'}:port[-end][,{addr|'*'}:port[-end]]*", where :
@@ -501,6 +506,26 @@ int cfg_parse_global(const char *file, int linenum, char **args, int inv)
 		}
 	}
 	else {
+		struct cfg_kw_list *kwl;
+		int index;
+
+		list_for_each_entry(kwl, &cfg_keywords.list, list) {
+			for (index = 0; kwl->kw[index].kw != NULL; index++) {
+				if (kwl->kw[index].section != CFG_GLOBAL)
+					continue;
+				if (strcmp(kwl->kw[index].kw, args[0]) == 0) {
+					/* prepare error message just in case */
+					snprintf(trash, sizeof(trash),
+						 "error near '%s' in '%s' section", args[0], "global");
+					if (kwl->kw[index].parse(args, CFG_GLOBAL, NULL, NULL, trash, sizeof(trash)) < 0) {
+						Alert("parsing [%s:%d] : %s\n", file, linenum, trash);
+						return -1;
+					}
+					return 0;
+				}
+			}
+		}
+		
 		Alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section\n", file, linenum, args[0], "global");
 		return -1;
 	}
@@ -2651,6 +2676,26 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		}
 	}
 	else {
+		struct cfg_kw_list *kwl;
+		int index;
+
+		list_for_each_entry(kwl, &cfg_keywords.list, list) {
+			for (index = 0; kwl->kw[index].kw != NULL; index++) {
+				if (kwl->kw[index].section != CFG_LISTEN)
+					continue;
+				if (strcmp(kwl->kw[index].kw, args[0]) == 0) {
+					/* prepare error message just in case */
+					snprintf(trash, sizeof(trash),
+						 "error near '%s' in %s section", args[0], cursection);
+					if (kwl->kw[index].parse(args, CFG_LISTEN, curproxy, &defproxy, trash, sizeof(trash)) < 0) {
+						Alert("parsing [%s:%d] : %s\n", file, linenum, trash);
+						return -1;
+					}
+					return 0;
+				}
+			}
+		}
+		
 		Alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section\n", file, linenum, args[0], cursection);
 		return -1;
 	}
@@ -3232,7 +3277,23 @@ int readcfgfile(const char *file)
 	return -1;
 }
 
+/*
+ * Registers the CFG keyword list <kwl> as a list of valid keywords for next
+ * parsing sessions.
+ */
+void cfg_register_keywords(struct cfg_kw_list *kwl)
+{
+	LIST_ADDQ(&cfg_keywords.list, &kwl->list);
+}
 
+/*
+ * Unregisters the CFG keyword list <kwl> from the list of valid keywords.
+ */
+void cfg_unregister_keywords(struct cfg_kw_list *kwl)
+{
+	LIST_DEL(&kwl->list);
+	LIST_INIT(&kwl->list);
+}
 
 /*
  * Local variables:
