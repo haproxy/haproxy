@@ -36,7 +36,8 @@
 struct cfg_keyword {
 	int section;                            /* section type for this keyword */
 	const char *kw;                         /* the keyword itself */
-	int (*parse)(char **args,               /* command line and arguments */
+	int (*parse)(                           /* 0=OK, <0=Alert, >0=Warning */
+		     char **args,               /* command line and arguments */
 		     int section_type,          /* current section CFG_{GLOBAL|LISTEN} */
 		     struct proxy *curpx,       /* current proxy (NULL in GLOBAL) */
 		     struct proxy *defpx,       /* default proxy (NULL in GLOBAL) */

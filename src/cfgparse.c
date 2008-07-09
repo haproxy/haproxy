@@ -501,6 +501,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int inv)
 	else {
 		struct cfg_kw_list *kwl;
 		int index;
+		int rc;
 
 		list_for_each_entry(kwl, &cfg_keywords.list, list) {
 			for (index = 0; kwl->kw[index].kw != NULL; index++) {
@@ -510,9 +511,14 @@ int cfg_parse_global(const char *file, int linenum, char **args, int inv)
 					/* prepare error message just in case */
 					snprintf(trash, sizeof(trash),
 						 "error near '%s' in '%s' section", args[0], "global");
-					if (kwl->kw[index].parse(args, CFG_GLOBAL, NULL, NULL, trash, sizeof(trash)) < 0) {
+					rc = kwl->kw[index].parse(args, CFG_GLOBAL, NULL, NULL, trash, sizeof(trash));
+					if (rc < 0) {
 						Alert("parsing [%s:%d] : %s\n", file, linenum, trash);
 						return -1;
+					}
+					else if (rc > 0) {
+						Warning("parsing [%s:%d] : %s\n", file, linenum, trash);
+						return 0;
 					}
 					return 0;
 				}
@@ -2680,9 +2686,14 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 					/* prepare error message just in case */
 					snprintf(trash, sizeof(trash),
 						 "error near '%s' in %s section", args[0], cursection);
-					if (kwl->kw[index].parse(args, CFG_LISTEN, curproxy, &defproxy, trash, sizeof(trash)) < 0) {
+					rc = kwl->kw[index].parse(args, CFG_LISTEN, curproxy, &defproxy, trash, sizeof(trash));
+					if (rc < 0) {
 						Alert("parsing [%s:%d] : %s\n", file, linenum, trash);
 						return -1;
+					}
+					else if (rc > 0) {
+						Warning("parsing [%s:%d] : %s\n", file, linenum, trash);
+						return 0;
 					}
 					return 0;
 				}
