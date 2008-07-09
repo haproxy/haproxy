@@ -18,6 +18,7 @@
 #include <sys/stat.h>
 
 #include <common/defaults.h>
+#include <common/cfgparse.h>
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/errors.h>
@@ -80,12 +81,12 @@ const char *proxy_mode_str(int mode) {
  * return zero, it may write an error message into the <err> buffer, for at
  * most <errlen> bytes, trailing zero included. The trailing '\n' must not
  * be written. The function must be called with <args> pointing to the first
- * word after "timeout", with <proxy> pointing to the proxy being parsed, and
+ * command line word, with <proxy> pointing to the proxy being parsed, and
  * <defpx> to the default proxy or NULL. As a special case for compatibility
  * with older configs, it also accepts "{cli|srv|con}timeout" in args[0].
  */
-int proxy_parse_timeout(const char **args, struct proxy *proxy,
-			struct proxy *defpx, char *err, int errlen)
+static int proxy_parse_timeout(char **args, int section, struct proxy *proxy,
+			       struct proxy *defpx, char *err, int errlen)
 {
 	unsigned timeout;
 	int retval, cap;
@@ -94,6 +95,11 @@ int proxy_parse_timeout(const char **args, struct proxy *proxy,
 	int *td = NULL;
 
 	retval = 0;
+
+	/* simply skip "timeout" but remain compatible with old form */
+	if (strcmp(args[0], "timeout") == 0)
+		args++;
+
 	name = args[0];
 	if (!strcmp(args[0], "client") || !strcmp(args[0], "clitimeout")) {
 		name = "client";
@@ -500,6 +506,19 @@ void listen_proxies(void)
 	}
 }
 
+static struct cfg_kw_list cfg_kws = {{ },{
+	{ CFG_LISTEN, "timeout", proxy_parse_timeout },
+	{ CFG_LISTEN, "clitimeout", proxy_parse_timeout },
+	{ CFG_LISTEN, "contimeout", proxy_parse_timeout },
+	{ CFG_LISTEN, "srvtimeout", proxy_parse_timeout },
+	{ 0, NULL, NULL },
+}};
+
+__attribute__((constructor))
+static void __proxy_module_init(void)
+{
+	cfg_register_keywords(&cfg_kws);
+}
 
 /*
  * Local variables:

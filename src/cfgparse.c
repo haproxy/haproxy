@@ -1087,27 +1087,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			return -1;
 		}
 	}
-	else if (!strcmp(args[0], "contimeout") || !strcmp(args[0], "clitimeout") ||
-		 !strcmp(args[0], "srvtimeout") || !strcmp(args[0], "timeout")) {
-
-		/* either we have {con|srv|cli}timeout <value> or we have the
-		 * new form: timeout <type> <value>. The parser needs the word
-		 * preceeding the value.
-		 */
-		const char **start_arg = (const char **)args;
-
-		if (strcmp(args[0], "timeout") == 0)
-			start_arg++;
-
-		snprintf(trash, sizeof(trash), "error near '%s'", args[0]);
-		rc = proxy_parse_timeout(start_arg, curproxy, &defproxy, trash, sizeof(trash));
-		if (rc < 0) {
-			Alert("parsing [%s:%d] : %s\n", file, linenum, trash);
-			return -1;
-		}
-		if (rc > 0)
-			Warning("parsing [%s:%d] : %s\n", file, linenum, trash);
-	}
 	else if (!strcmp(args[0], "retries")) {  /* connection retries */
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			return 0;
