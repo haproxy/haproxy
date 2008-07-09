@@ -1875,7 +1875,7 @@ int process_cli(struct session *t)
 					int ret;
 
 					ret = acl_exec_cond(rule->cond, cur_proxy, t, txn, ACL_DIR_REQ);
-					if (cond->pol == ACL_COND_UNLESS)
+					if (rule->cond->pol == ACL_COND_UNLESS)
 						ret = !ret;
 
 					if (ret) {
