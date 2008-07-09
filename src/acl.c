@@ -1,7 +1,7 @@
 /*
  * ACL management functions.
  *
- * Copyright 2000-2007 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -53,14 +53,14 @@ acl_fetch_nothing(struct proxy *px, struct session *l4, void *l7, int dir,
 static int
 acl_match_true(struct acl_test *test, struct acl_pattern *pattern)
 {
-	return 1;
+	return ACL_PAT_PASS;
 }
 
 /* always return false */
 static int
 acl_match_false(struct acl_test *test, struct acl_pattern *pattern)
 {
-	return 0;
+	return ACL_PAT_FAIL;
 }
 
 
@@ -70,13 +70,13 @@ int acl_match_str(struct acl_test *test, struct acl_pattern *pattern)
 	int icase;
 
 	if (pattern->len != test->len)
-		return 0;
+		return ACL_PAT_FAIL;
 
 	icase = pattern->flags & ACL_PAT_F_IGNORE_CASE;
 	if ((icase && strncasecmp(pattern->ptr.str, test->ptr, test->len) == 0) ||
 	    (!icase && strncmp(pattern->ptr.str, test->ptr, test->len) == 0))
-		return 1;
-	return 0;
+		return ACL_PAT_PASS;
+	return ACL_PAT_FAIL;
 }
 
 /* Executes a regex. It needs to change the data. If it is marked READ_ONLY
@@ -94,7 +94,7 @@ int acl_match_reg(struct acl_test *test, struct acl_pattern *pattern)
 
 		new_str = calloc(1, test->len + 1);
 		if (!new_str)
-			return 0;
+			return ACL_PAT_FAIL;
 
 		memcpy(new_str, test->ptr, test->len);
 		new_str[test->len] = 0;
@@ -109,9 +109,9 @@ int acl_match_reg(struct acl_test *test, struct acl_pattern *pattern)
 	test->ptr[test->len] = 0;
 
 	if (regexec(pattern->ptr.reg, test->ptr, 0, NULL, 0) == 0)
-		ret = 1;
+		ret = ACL_PAT_PASS;
 	else
-		ret = 0;
+		ret = ACL_PAT_FAIL;
 
 	test->ptr[test->len] = old_char;
 	return ret;
@@ -123,13 +123,13 @@ int acl_match_beg(struct acl_test *test, struct acl_pattern *pattern)
 	int icase;
 
 	if (pattern->len > test->len)
-		return 0;
+		return ACL_PAT_FAIL;
 
 	icase = pattern->flags & ACL_PAT_F_IGNORE_CASE;
 	if ((icase && strncasecmp(pattern->ptr.str, test->ptr, pattern->len) != 0) ||
 	    (!icase && strncmp(pattern->ptr.str, test->ptr, pattern->len) != 0))
-		return 0;
-	return 1;
+		return ACL_PAT_FAIL;
+	return ACL_PAT_PASS;
 }
 
 /* Checks that the pattern matches the end of the tested string. */
@@ -138,12 +138,12 @@ int acl_match_end(struct acl_test *test, struct acl_pattern *pattern)
 	int icase;
 
 	if (pattern->len > test->len)
-		return 0;
+		return ACL_PAT_FAIL;
 	icase = pattern->flags & ACL_PAT_F_IGNORE_CASE;
 	if ((icase && strncasecmp(pattern->ptr.str, test->ptr + test->len - pattern->len, pattern->len) != 0) ||
 	    (!icase && strncmp(pattern->ptr.str, test->ptr + test->len - pattern->len, pattern->len) != 0))
-		return 0;
-	return 1;
+		return ACL_PAT_FAIL;
+	return ACL_PAT_PASS;
 }
 
 /* Checks that the pattern is included inside the tested string.
@@ -156,7 +156,7 @@ int acl_match_sub(struct acl_test *test, struct acl_pattern *pattern)
 	char *c;
 
 	if (pattern->len > test->len)
-		return 0;
+		return ACL_PAT_FAIL;
 
 	end = test->ptr + test->len - pattern->len;
 	icase = pattern->flags & ACL_PAT_F_IGNORE_CASE;
@@ -165,17 +165,17 @@ int acl_match_sub(struct acl_test *test, struct acl_pattern *pattern)
 			if (tolower(*c) != tolower(*pattern->ptr.str))
 				continue;
 			if (strncasecmp(pattern->ptr.str, c, pattern->len) == 0)
-				return 1;
+				return ACL_PAT_PASS;
 		}
 	} else {
 		for (c = test->ptr; c <= end; c++) {
 			if (*c != *pattern->ptr.str)
 				continue;
 			if (strncmp(pattern->ptr.str, c, pattern->len) == 0)
-				return 1;
+				return ACL_PAT_PASS;
 		}
 	}
-	return 0;
+	return ACL_PAT_FAIL;
 }
 
 /* This one is used by other real functions. It checks that the pattern is
@@ -202,7 +202,7 @@ static int match_word(struct acl_test *test, struct acl_pattern *pattern, char d
 		pl--;
 
 	if (pl > test->len)
-		return 0;
+		return ACL_PAT_FAIL;
 
 	may_match = 1;
 	icase = pattern->flags & ACL_PAT_F_IGNORE_CASE;
@@ -220,16 +220,16 @@ static int match_word(struct acl_test *test, struct acl_pattern *pattern, char d
 			if ((tolower(*c) == tolower(*ps)) &&
 			    (strncasecmp(ps, c, pl) == 0) &&
 			    (c == end || c[pl] == '/' || c[pl] == delim || c[pl] == '?'))
-				return 1;
+				return ACL_PAT_PASS;
 		} else {
 			if ((*c == *ps) &&
 			    (strncmp(ps, c, pl) == 0) &&
 			    (c == end || c[pl] == '/' || c[pl] == delim || c[pl] == '?'))
-				return 1;
+				return ACL_PAT_PASS;
 		}
 		may_match = 0;
 	}
-	return 0;
+	return ACL_PAT_FAIL;
 }
 
 /* Checks that the pattern is included inside the tested string, but enclosed
@@ -255,8 +255,8 @@ int acl_match_int(struct acl_test *test, struct acl_pattern *pattern)
 {
 	if ((!pattern->val.range.min_set || pattern->val.range.min <= test->i) &&
 	    (!pattern->val.range.max_set || test->i <= pattern->val.range.max))
-		return 1;
-	return 0;
+		return ACL_PAT_PASS;
+	return ACL_PAT_FAIL;
 }
 
 int acl_match_ip(struct acl_test *test, struct acl_pattern *pattern)
@@ -264,12 +264,12 @@ int acl_match_ip(struct acl_test *test, struct acl_pattern *pattern)
 	struct in_addr *s;
 
 	if (test->i != AF_INET)
-		return 0;
+		return ACL_PAT_FAIL;
 
 	s = (void *)test->ptr;
 	if (((s->s_addr ^ pattern->val.ipv4.addr.s_addr) & pattern->val.ipv4.mask.s_addr) == 0)
-		return 1;
-	return 0;
+		return ACL_PAT_PASS;
+	return ACL_PAT_FAIL;
 }
 
 /* Parse a string. It is allocated and duplicated. */
@@ -817,9 +817,14 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int p
 	return NULL;
 }
 
-/* Execute condition <cond> and return 0 if test fails or 1 if test succeeds.
- * This function only computes the condition, it does not apply the polarity
- * required by IF/UNLESS, it's up to the caller to do this.
+/* Execute condition <cond> and return either ACL_PAT_FAIL, ACL_PAT_MISS or
+ * ACL_PAT_PASS depending on the test results. This function only computes the
+ * condition, it does not apply the polarity required by IF/UNLESS, it's up to
+ * the caller to do this using something like this :
+ *
+ *     res = acl_pass(res);
+ *     if (cond->pol == ACL_COND_UNLESS)
+ *         res = !res;
  */
 int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, void *l7, int dir)
 {
@@ -830,13 +835,16 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 	struct acl *acl;
 	struct acl_pattern *pattern;
 	struct acl_test test;
-	int acl_res, pat_res, suite_res, cond_res;
+	int acl_res, suite_res, cond_res;
 
-	/* we're doing a logical OR between conditions so we initialize to FAIL */
+	/* We're doing a logical OR between conditions so we initialize to FAIL.
+	 * The MISS status is propagated down from the suites.
+	 */
 	cond_res = ACL_PAT_FAIL;
 	list_for_each_entry(suite, &cond->suites, list) {
-		/* evaluate condition suite <suite>. We stop at the first term
-		 * which does not return ACL_PAT_PASS.
+		/* Evaluate condition suite <suite>. We stop at the first term
+		 * which returns ACL_PAT_FAIL. The MISS status is still propagated
+		 * in case of uncertainty in the result.
 		 */
 
 		/* we're doing a logical AND between terms, so we must set the
@@ -863,25 +871,15 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 
 				/* apply all tests to this value */
 				list_for_each_entry(pattern, &expr->patterns, list) {
-					pat_res = expr->kw->match(&test, pattern);
-
-					if (pat_res & ACL_PAT_MISS) {
-						/* there is at least one test which might be worth retrying later. */
-						acl_res |= ACL_PAT_MISS;
-						continue;
-					} else if (pat_res & ACL_PAT_PASS) {
-						/* we found one ! */
-						acl_res |= ACL_PAT_PASS;
+					acl_res |= expr->kw->match(&test, pattern);
+					if (acl_res == ACL_PAT_PASS)
 						break;
-					}
 				}
 				/*
-				 * OK now we have the result of this expression in acl_res.
-				 *  - we have the PASS bit set if at least one pattern matched ;
-				 *  - we have the MISS bit set if at least one pattern may match
-				 *    later so that we should not cache a failure ;
+				 * OK now acl_res holds the result of this expression
+				 * as one of ACL_PAT_FAIL, ACL_PAT_MISS or ACL_PAT_PASS.
 				 *
-				 * Then if (PASS || !MISS) we can cache the result, and put
+				 * Then if (!MISS) we can cache the result, and put
 				 * (test.flags & ACL_TEST_F_VOLATILE) in the cache flags.
 				 *
 				 * FIXME: implement cache.
@@ -894,11 +892,9 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 					test.len = 0;
 				}
 
-				if (acl_res & ACL_PAT_PASS)
+				/* we're ORing these terms, so a single PASS is enough */
+				if (acl_res == ACL_PAT_PASS)
 					break;
-
-				/* prepare to test another expression */
-				acl_res = ACL_PAT_FAIL;
 
 				if (test.flags & ACL_TEST_F_FETCH_MORE)
 					goto fetch_next;
@@ -908,20 +904,22 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 			 * ACLs are combined, negated or not, to form conditions.
 			 */
 
-			acl_res &= ACL_PAT_PASS;
 			if (term->neg)
-				acl_res ^= ACL_PAT_PASS;
+				acl_res = acl_neg(acl_res);
 
 			suite_res &= acl_res;
-			if (!(suite_res & ACL_PAT_PASS))
+
+			/* we're ANDing these terms, so a single FAIL is enough */
+			if (suite_res == ACL_PAT_FAIL)
 				break;
 		}
 		cond_res |= suite_res;
-		if (cond_res & ACL_PAT_PASS)
+
+		/* we're ORing these terms, so a single PASS is enough */
+		if (cond_res == ACL_PAT_PASS)
 			break;
 	}
-
-	return (cond_res & ACL_PAT_PASS) ? 1 : 0;
+	return cond_res;
 }
 
 

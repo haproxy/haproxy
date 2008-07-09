@@ -1700,6 +1700,8 @@ int process_cli(struct session *t)
 			/* Check if we want to fail this monitor request or not */
 			list_for_each_entry(cond, &cur_proxy->mon_fail_cond, list) {
 				int ret = acl_exec_cond(cond, cur_proxy, t, txn, ACL_DIR_REQ);
+
+				ret = acl_pass(ret);
 				if (cond->pol == ACL_COND_UNLESS)
 					ret = !ret;
 
@@ -1810,6 +1812,8 @@ int process_cli(struct session *t)
 			/* first check whether we have some ACLs set to redirect this request */
 			list_for_each_entry(rule, &cur_proxy->redirect_rules, list) {
 				int ret = acl_exec_cond(rule->cond, cur_proxy, t, txn, ACL_DIR_REQ);
+
+				ret = acl_pass(ret);
 				if (rule->cond->pol == ACL_COND_UNLESS)
 					ret = !ret;
 
@@ -1890,6 +1894,8 @@ int process_cli(struct session *t)
 			/* first check whether we have some ACLs set to block this request */
 			list_for_each_entry(cond, &cur_proxy->block_cond, list) {
 				int ret = acl_exec_cond(cond, cur_proxy, t, txn, ACL_DIR_REQ);
+
+				ret = acl_pass(ret);
 				if (cond->pol == ACL_COND_UNLESS)
 					ret = !ret;
 
@@ -2004,6 +2010,8 @@ int process_cli(struct session *t)
 					int ret;
 
 					ret = acl_exec_cond(rule->cond, cur_proxy, t, txn, ACL_DIR_REQ);
+
+					ret = acl_pass(ret);
 					if (rule->cond->pol == ACL_COND_UNLESS)
 						ret = !ret;
 
@@ -5215,20 +5223,20 @@ static int acl_match_meth(struct acl_test *test, struct acl_pattern *pattern)
 	int icase;
 
 	if (test->i != pattern->val.i)
-		return 0;
+		return ACL_PAT_FAIL;
 
 	if (test->i != HTTP_METH_OTHER)
-		return 1;
+		return ACL_PAT_PASS;
 
 	/* Other method, we must compare the strings */
 	if (pattern->len != test->len)
-		return 0;
+		return ACL_PAT_FAIL;
 
 	icase = pattern->flags & ACL_PAT_F_IGNORE_CASE;
 	if ((icase && strncasecmp(pattern->ptr.str, test->ptr, test->len) != 0) ||
 	    (!icase && strncmp(pattern->ptr.str, test->ptr, test->len) != 0))
-		return 0;
-	return 1;
+		return ACL_PAT_FAIL;
+	return ACL_PAT_PASS;
 }
 
 /* 2. Check on Request/Status Version

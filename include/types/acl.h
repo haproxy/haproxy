@@ -2,7 +2,7 @@
   include/types/acl.h
   This file provides structures and types for ACLs.
 
-  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -30,15 +30,35 @@
 #include <types/session.h>
 
 
-/* pattern matching function result */
+/* Pattern matching function result.
+ *
+ * We're using a 3-state matching system :
+ *   - PASS : at least one pattern already matches
+ *   - MISS : some data is missing to decide if some rules may finally match.
+ *   - FAIL : no mattern may ever match
+ *
+ * We assign values 0, 1 and 3 to FAIL, MISS and PASS respectively, so that we
+ * can make use of standard arithmetics for the truth tables below :
+ *
+ *      x  | !x          x&y | F(0) | M(1) | P(3)     x|y | F(0) | M(1) | P(3)
+ *   ------+-----       -----+------+------+-----    -----+------+------+-----
+ *    F(0) | P(3)        F(0)| F(0) | F(0) | F(0)     F(0)| F(0) | M(1) | P(3)
+ *    M(1) | M(1)        M(1)| F(0) | M(1) | M(1)     M(1)| M(1) | M(1) | P(3)
+ *    P(3) | F(0)        P(3)| F(0) | M(1) | P(3)     P(3)| P(3) | P(3) | P(3)
+ *
+ *  neg(x) = (3 >> x)       and(x,y) = (x & y)           or(x,y) = (x | y)
+ *
+ */
+
 enum {
 	ACL_PAT_FAIL = 0,           /* test failed */
-	ACL_PAT_PASS = (1 << 0),    /* test passed */
-	ACL_PAT_MISS = (1 << 1),    /* failed because of missing info (do not cache) */
+	ACL_PAT_MISS = 1,           /* test may pass with more info */
+	ACL_PAT_PASS = 3,           /* test passed */
 };
 
 /* Condition polarity. It makes it easier for any option to choose between
  * IF/UNLESS if it can store that information within the condition itself.
+ * Those should be interpreted as "IF/UNLESS result == PASS".
  */
 enum {
 	ACL_COND_NONE,		/* no polarity set yet */

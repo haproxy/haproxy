@@ -2,7 +2,7 @@
   include/proto/acl.h
   This file provides interface definitions for ACL manipulation.
 
-  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -29,6 +29,19 @@
  * FIXME: we need destructor functions too !
  */
 
+/* Negate an acl result. This turns (ACL_PAT_FAIL, ACL_PAT_MISS, ACL_PAT_PASS)
+ * into (ACL_PAT_PASS, ACL_PAT_MISS, ACL_PAT_FAIL).
+ */
+static inline int acl_neg(int res)
+{
+	return (3 >> res);
+}
+
+/* Convert an acl result to a boolean. Only ACL_PAT_PASS returns 1. */
+static inline int acl_pass(int res)
+{
+	return (res >> 1);
+}
 
 /* Return a pointer to the ACL <name> within the list starting at <head>, or
  * NULL if not found.
@@ -67,9 +80,10 @@ struct acl_cond *prune_acl_cond(struct acl_cond *cond);
  */
 struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int pol);
 
-/* Execute condition <cond> and return 0 if test fails or 1 if test succeeds.
- * This function only computes the condition, it does not apply the polarity
- * required by IF/UNLESS, it's up to the caller to do this.
+/* Execute condition <cond> and return either ACL_PAT_FAIL, ACL_PAT_MISS or
+ * ACL_PAT_PASS depending on the test results. This function only computes the
+ * condition, it does not apply the polarity required by IF/UNLESS, it's up to
+ * the caller to do this.
  */
 int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, void *l7, int dir);
 
