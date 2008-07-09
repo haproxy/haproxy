@@ -23,6 +23,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <common/cfgparse.h>
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/debug.h>
@@ -55,8 +56,10 @@
  * zero included. The trailing '\n' must not be written. The function must be
  * called with <args> pointing to the first word after "stats".
  */
-int stats_parse_global(const char **args, char *err, int errlen)
+static int stats_parse_global(char **args, int section_type, struct proxy *curpx,
+			      struct proxy *defpx, char *err, int errlen)
 {
+	args++;
 	if (!strcmp(args[0], "socket")) {
 		struct sockaddr_un su;
 		int cur_arg;
@@ -1065,6 +1068,17 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 		/* unknown state, we should put an abort() here ! */
 		return 1;
 	}
+}
+
+static struct cfg_kw_list cfg_kws = {{ },{
+	{ CFG_GLOBAL, "stats", stats_parse_global },
+	{ 0, NULL, NULL },
+}};
+
+__attribute__((constructor))
+static void __dumpstats_module_init(void)
+{
+	cfg_register_keywords(&cfg_kws);
 }
 
 /*

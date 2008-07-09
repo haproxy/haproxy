@@ -3,7 +3,7 @@
   This file contains definitions of some primitives to dedicated to
   statistics output.
 
-  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -39,7 +39,6 @@
 #define STATS_TYPE_BE  1
 #define STATS_TYPE_SV  2
 
-int stats_parse_global(const char **args, char *err, int errlen);
 int stats_dump_raw(struct session *s, struct uri_auth *uri);
 int stats_dump_http(struct session *s, struct uri_auth *uri);
 int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri);

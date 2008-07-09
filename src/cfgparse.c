@@ -295,13 +295,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int inv)
 	else if (!strcmp(args[0], "quiet")) {
 		global.mode |= MODE_QUIET;
 	}
-	else if (!strcmp(args[0], "stats")) {
-		memcpy(trash, "error near 'stats'", 19);
-		if (stats_parse_global((const char **)args + 1, trash, sizeof(trash)) < 0) {
-			Alert("parsing [%s:%d] : %s\n", file, linenum, trash);
-			return -1;
-		}
-	}
 	else if (!strcmp(args[0], "tune.maxpollevents")) {
 		if (global.tune.maxpollevents != 0) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
