@@ -92,13 +92,13 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	unsigned rn, wn; /* read new, write new */
 
 	nbfd = 0;
-	for (fds = 0; (fds << INTBITS) < maxfd; fds++) {
+	for (fds = 0; (fds * BITS_PER_INT) < maxfd; fds++) {
 
 		rn = ((int*)fd_evts[DIR_RD])[fds];
 		wn = ((int*)fd_evts[DIR_WR])[fds];
 	  
 		if ((rn|wn)) {
-			for (count = 0, fd = fds << INTBITS; count < (1<<INTBITS) && fd < maxfd; count++, fd++) {
+			for (count = 0, fd = fds * BITS_PER_INT; count < BITS_PER_INT && fd < maxfd; count++, fd++) {
 #define FDSETS_ARE_INT_ALIGNED
 #ifdef FDSETS_ARE_INT_ALIGNED
 
@@ -107,8 +107,8 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 				sr = (rn >> count) & 1;
 				sw = (wn >> count) & 1;
 #else
-				sr = FD_ISSET(fd&((1<<INTBITS)-1), (typeof(fd_set*))&rn);
-				sw = FD_ISSET(fd&((1<<INTBITS)-1), (typeof(fd_set*))&wn);
+				sr = FD_ISSET(fd&(BITS_PER_INT-1), (typeof(fd_set*))&rn);
+				sw = FD_ISSET(fd&(BITS_PER_INT-1), (typeof(fd_set*))&wn);
 #endif
 #else
 				sr = FD_ISSET(fd, fd_evts[DIR_RD]);

@@ -395,13 +395,6 @@ void init(int argc, char **argv)
 	char *tmp;
 	char *cfg_pidfile = NULL;
 
-	if (1<<INTBITS != sizeof(int)*8) {
-		fprintf(stderr,
-			"Error: wrong architecture. Recompile so that sizeof(int)=%d\n",
-			(int)(sizeof(int)*8));
-		exit(1);
-	}
-
 	/*
 	 * Initialize the previously static variables.
 	 */
