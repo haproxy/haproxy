@@ -129,11 +129,11 @@ REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 	if (status <= 0)
 		return;
 
-	for (fds = 0; (fds << INTBITS) < maxfd; fds++) {
+	for (fds = 0; (fds * BITS_PER_INT) < maxfd; fds++) {
 		if ((((int *)(tmp_evts[DIR_RD]))[fds] | ((int *)(tmp_evts[DIR_WR]))[fds]) == 0)
 			continue;
 
-		for (count = 1<<INTBITS, fd = fds << INTBITS; count && fd < maxfd; count--, fd++) {
+		for (count = BITS_PER_INT, fd = fds * BITS_PER_INT; count && fd < maxfd; count--, fd++) {
 			/* if we specify read first, the accepts and zero reads will be
 			 * seen first. Moreover, system buffers will be flushed faster.
 			 */

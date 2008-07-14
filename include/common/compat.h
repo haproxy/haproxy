@@ -37,11 +37,9 @@
 #include <common/config.h>
 #include <common/standard.h>
 
-/* INTBITS
- * how many bits are needed to code the size of an int on the target platform.
- * (eg: 32bits -> 5)
- */
-#define	INTBITS	        5
+#ifndef BITS_PER_INT
+#define BITS_PER_INT    (8*sizeof(int))
+#endif
 
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
