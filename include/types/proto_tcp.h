@@ -1,8 +1,8 @@
 /*
-  include/types/client.h
-  This file contains client-side definitions.
+  include/types/proto_tcp.h
+  This file contains TCP protocol definitions.
 
-  Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -19,12 +19,27 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#ifndef _TYPES_CLIENT_H
-#define _TYPES_CLIENT_H
+#ifndef _TYPES_PROTO_TCP_H
+#define _TYPES_PROTO_TCP_H
 
 #include <common/config.h>
+#include <common/mini-clist.h>
 
-#endif /* _TYPES_CLIENT_H */
+#include <types/acl.h>
+
+/* Layer4 accept/reject rules */
+enum {
+	TCP_ACT_ACCEPT = 1,
+	TCP_ACT_REJECT = 2,
+};
+
+struct tcp_rule {
+	struct list list;
+	struct acl_cond *cond;
+	int action;
+};
+
+#endif /* _TYPES_PROTO_TCP_H */
 
 /*
  * Local variables:

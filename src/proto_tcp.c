@@ -24,6 +24,7 @@
 #include <sys/types.h>
 #include <sys/un.h>
 
+#include <common/cfgparse.h>
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/debug.h>
@@ -47,6 +48,7 @@
 #include <proto/fd.h>
 #include <proto/protocols.h>
 #include <proto/proto_tcp.h>
+#include <proto/proxy.h>
 #include <proto/queue.h>
 #include <proto/senddata.h>
 #include <proto/session.h>
@@ -329,11 +331,139 @@ void tcpv6_add_listener(struct listener *listener)
 	proto_tcpv6.nb_listeners++;
 }
 
+/* This function should be called to parse a line starting with the "tcp-request"
+ * keyword.
+ */
+static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
+			     struct proxy *defpx, char *err, int errlen)
+{
+	const char *ptr = NULL;
+	int val;
+	int retlen;
+
+	if (!*args[1]) {
+		snprintf(err, errlen, "missing argument for '%s' in %s '%s'",
+			 args[0], proxy_type_str(proxy), curpx->id);
+		return -1;
+	}
+
+	if (!strcmp(args[1], "inspect-delay")) {
+		if (curpx == defpx) {
+			snprintf(err, errlen, "%s %s is not allowed in 'defaults' sections",
+				 args[0], args[1]);
+			return -1;
+		}
+
+		if (!(curpx->cap & PR_CAP_FE)) {
+			snprintf(err, errlen, "%s %s will be ignored because %s '%s' has no %s capability",
+				 args[0], args[1], proxy_type_str(proxy), curpx->id,
+				 "frontend");
+			return 1;
+		}
+
+		if (!*args[2] || (ptr = parse_time_err(args[2], &val, TIME_UNIT_MS))) {
+			retlen = snprintf(err, errlen,
+					  "'%s %s' expects a positive delay in milliseconds, in %s '%s'",
+					  args[0], args[1], proxy_type_str(proxy), curpx->id);
+			if (ptr && retlen < errlen)
+				retlen += snprintf(err+retlen, errlen - retlen,
+						   " (unexpected character '%c')", *ptr);
+			return -1;
+		}
+
+		if (curpx->tcp_req.inspect_delay) {
+			snprintf(err, errlen, "ignoring %s %s (was already defined) in %s '%s'",
+				 args[0], args[1], proxy_type_str(proxy), curpx->id);
+			return 1;
+		}
+		curpx->tcp_req.inspect_delay = val;
+		return 0;
+	}
+
+	if (!strcmp(args[1], "content")) {
+		int action;
+		int pol = ACL_COND_NONE;
+		struct acl_cond *cond;
+		struct tcp_rule *rule;
+
+		if (curpx == defpx) {
+			snprintf(err, errlen, "%s %s is not allowed in 'defaults' sections",
+				 args[0], args[1]);
+			return -1;
+		}
+
+		if (!strcmp(args[2], "accept"))
+			action = TCP_ACT_ACCEPT;
+		else if (!strcmp(args[2], "reject"))
+			action = TCP_ACT_REJECT;
+		else {
+			retlen = snprintf(err, errlen,
+					  "'%s %s' expects 'accept' or 'reject', in %s '%s' (was '%s')",
+					  args[0], args[1], proxy_type_str(curpx), curpx->id, args[2]);
+			return -1;
+		}
+
+		pol = ACL_COND_NONE;
+		cond = NULL;
+
+		if (!strcmp(args[3], "if"))
+			pol = ACL_COND_IF;
+		else if (!strcmp(args[3], "unless"))
+			pol = ACL_COND_UNLESS;
+
+		/* Note: we consider "if TRUE" when there is no condition */
+		if (pol != ACL_COND_NONE &&
+		    (cond = parse_acl_cond((const char **)args+4, &curpx->acl, pol)) == NULL) {
+			retlen = snprintf(err, errlen,
+					  "Error detected in %s '%s' while parsing '%s' condition",
+					  proxy_type_str(curpx), curpx->id, args[3]);
+			return -1;
+		}
+
+		rule = (struct tcp_rule *)calloc(1, sizeof(*rule));
+		rule->cond = cond;
+		rule->action = action;
+		LIST_INIT(&rule->list);
+		LIST_ADDQ(&curpx->tcp_req.inspect_rules, &rule->list);
+		return 0;
+	}
+
+	snprintf(err, errlen, "unknown argument '%s' after '%s' in %s '%s'",
+		 args[1], args[0], proxy_type_str(proxy), curpx->id);
+	return -1;
+}
+
+/* return the number of bytes in the request buffer */
+static int
+acl_fetch_req_len(struct proxy *px, struct session *l4, void *l7, int dir,
+		  struct acl_expr *expr, struct acl_test *test)
+{
+	if (!l4 || !l4->req)
+		return 0;
+
+	test->i = l4->req->l;
+	test->flags = ACL_TEST_F_VOLATILE | ACL_TEST_F_MAY_CHANGE;
+	return 1;
+}
+
+
+static struct cfg_kw_list cfg_kws = {{ },{
+	{ CFG_LISTEN, "tcp-request", tcp_parse_tcp_req },
+	{ 0, NULL, NULL },
+}};
+
+static struct acl_kw_list acl_kws = {{ },{
+	{ "req_len",    acl_parse_int, acl_fetch_req_len, acl_match_int },
+	{ NULL, NULL, NULL, NULL },
+}};
+
 __attribute__((constructor))
 static void __tcp_protocol_init(void)
 {
 	protocol_register(&proto_tcpv4);
 	protocol_register(&proto_tcpv6);
+	cfg_register_keywords(&cfg_kws);
+	acl_register_keywords(&acl_kws);
 }
 
 

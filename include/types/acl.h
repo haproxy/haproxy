@@ -78,13 +78,16 @@ enum {
 	ACL_TEST_F_VOL_TXN    = 1 << 5, /* result sensitive to new transaction (eg: persist) */
 	ACL_TEST_F_VOL_SESS   = 1 << 6, /* result sensitive to new session (eg: IP) */
 	ACL_TEST_F_VOLATILE   = (1<<2)|(1<<3)|(1<<4)|(1<<5)|(1<<6),
-	ACL_TEST_F_FETCH_MORE = 1 << 7, /* if test does not match, retry with next entry */
+	ACL_TEST_F_FETCH_MORE = 1 << 7, /* if test does not match, retry with next entry (for multi-match) */
+	ACL_TEST_F_MAY_CHANGE = 1 << 8, /* if test does not match, retry later (eg: request size) */
 };
 
-/* ACLs can be evaluated on requests and on responses. */
+/* ACLs can be evaluated on requests and on responses, and on partial or complete data */
 enum {
 	ACL_DIR_REQ = 0,        /* ACL evaluated on request */
-	ACL_DIR_RTR,            /* ACL evaluated on response */
+	ACL_DIR_RTR = (1 << 0), /* ACL evaluated on response */
+	ACL_DIR_MASK = (ACL_DIR_REQ | ACL_DIR_RTR),
+	ACL_PARTIAL = (1 << 1), /* partial data, return MISS if data are missing */
 };
 
 /* possible flags for expressions or patterns */

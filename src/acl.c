@@ -818,11 +818,16 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int p
 }
 
 /* Execute condition <cond> and return either ACL_PAT_FAIL, ACL_PAT_MISS or
- * ACL_PAT_PASS depending on the test results. This function only computes the
- * condition, it does not apply the polarity required by IF/UNLESS, it's up to
- * the caller to do this using something like this :
+ * ACL_PAT_PASS depending on the test results. ACL_PAT_MISS may only be
+ * returned if <dir> contains ACL_PARTIAL, indicating that incomplete data
+ * is being examined.
+ * This function only computes the condition, it does not apply the polarity
+ * required by IF/UNLESS, it's up to the caller to do this using something like
+ * this :
  *
  *     res = acl_pass(res);
+ *     if (res == ACL_PAT_MISS)
+ *         return 0;
  *     if (cond->pol == ACL_COND_UNLESS)
  *         res = !res;
  */
@@ -866,8 +871,12 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 				/* we need to reset context and flags */
 				memset(&test, 0, sizeof(test));
 			fetch_next:
-				if (!expr->kw->fetch(px, l4, l7, dir, expr, &test))
+				if (!expr->kw->fetch(px, l4, l7, dir, expr, &test)) {
+					/* maybe we could not fetch because of missing data */
+					if (test.flags & ACL_TEST_F_MAY_CHANGE && dir & ACL_PARTIAL)
+						acl_res |= ACL_PAT_MISS;
 					continue;
+				}
 
 				/* apply all tests to this value */
 				list_for_each_entry(pattern, &expr->patterns, list) {
@@ -898,6 +907,13 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 
 				if (test.flags & ACL_TEST_F_FETCH_MORE)
 					goto fetch_next;
+
+				/* sometimes we know the fetched data is subject to change
+				 * later and give another chance for a new match (eg: request
+				 * size, time, ...)
+				 */
+				if (test.flags & ACL_TEST_F_MAY_CHANGE && dir & ACL_PARTIAL)
+					acl_res |= ACL_PAT_MISS;
 			}
 			/*
 			 * Here we have the result of an ACL (cached or not).

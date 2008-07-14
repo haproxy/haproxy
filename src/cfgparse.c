@@ -614,6 +614,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		LIST_INIT(&curproxy->redirect_rules);
 		LIST_INIT(&curproxy->mon_fail_cond);
 		LIST_INIT(&curproxy->switching_rules);
+		LIST_INIT(&curproxy->tcp_req.inspect_rules);
 
 		/* Timeouts are defined as -1, so we cannot use the zeroed area
 		 * as a default value.

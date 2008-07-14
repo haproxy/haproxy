@@ -168,7 +168,10 @@ int event_accept(int fd) {
 		 * backend must be assigned if set.
 		 */
 		if (p->mode == PR_MODE_HTTP) {
-			s->cli_state = CL_STHEADERS;
+			if (s->fe->tcp_req.inspect_delay)
+				s->cli_state = CL_STINSPECT;
+			else
+				s->cli_state = CL_STHEADERS;
 		} else {
 			/* We must assign any default backend now since
 			 * there will be no header processing.
@@ -178,7 +181,10 @@ int event_accept(int fd) {
 					s->be = p->defbe.be;
 				s->flags |= SN_BE_ASSIGNED;
 			}
-			s->cli_state = CL_STDATA; /* no HTTP headers for non-HTTP proxies */
+			if (s->fe->tcp_req.inspect_delay)
+				s->cli_state = CL_STINSPECT;
+			else
+				s->cli_state = CL_STDATA; /* no HTTP headers for non-HTTP proxies */
 		}
 
 		s->srv_state = SV_STIDLE;
@@ -340,7 +346,7 @@ int event_accept(int fd) {
 
 		buffer_init(s->req);
 		s->req->rlim += BUFSIZE;
-		if (s->cli_state == CL_STHEADERS) /* reserve some space for header rewriting */
+		if (p->mode == PR_MODE_HTTP) /* reserve some space for header rewriting */
 			s->req->rlim -= MAXREWRITE;
 
 		s->req->rto = s->fe->timeout.client;
@@ -390,6 +396,7 @@ int event_accept(int fd) {
 		s->rep->rex = TICK_ETERNITY;
 		s->rep->wex = TICK_ETERNITY;
 		s->txn.exp = TICK_ETERNITY;
+		s->inspect_exp = TICK_ETERNITY;
 		t->expire = TICK_ETERNITY;
 
 		if (s->fe->timeout.client) {
@@ -406,6 +413,10 @@ int event_accept(int fd) {
 		if (s->cli_state == CL_STHEADERS && s->fe->timeout.httpreq) {
 			s->txn.exp = tick_add(now_ms, s->fe->timeout.httpreq);
 			t->expire = tick_first(t->expire, s->txn.exp);
+		}
+		else if (s->cli_state == CL_STINSPECT && s->fe->tcp_req.inspect_delay) {
+			s->inspect_exp = tick_add(now_ms, s->fe->tcp_req.inspect_delay);
+			t->expire = tick_first(t->expire, s->inspect_exp);
 		}
 
 		if (p->mode != PR_MODE_HEALTH)

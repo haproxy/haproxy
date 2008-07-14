@@ -23,6 +23,7 @@
 #define _PROTO_PROTO_TCP_H
 
 #include <common/config.h>
+#include <types/proto_tcp.h>
 #include <types/session.h>
 #include <types/task.h>
 

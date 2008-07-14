@@ -51,6 +51,7 @@
 #include <proto/fd.h>
 #include <proto/log.h>
 #include <proto/hdr_idx.h>
+#include <proto/proto_tcp.h>
 #include <proto/proto_http.h>
 #include <proto/queue.h>
 #include <proto/senddata.h>
@@ -680,6 +681,8 @@ void process_session(struct task *t, int *next)
 		t->expire = tick_first(t->expire, s->req->cex);
 		if (s->cli_state == CL_STHEADERS)
 			t->expire = tick_first(t->expire, s->txn.exp);
+		else if (s->cli_state == CL_STINSPECT)
+			t->expire = tick_first(t->expire, s->inspect_exp);
 
 		/* restore t to its place in the task list */
 		task_queue(t);
@@ -1550,7 +1553,104 @@ int process_cli(struct session *t)
 		req->rex.tv_sec, req->rex.tv_usec,
 		rep->wex.tv_sec, rep->wex.tv_usec);
 
-	if (c == CL_STHEADERS) {
+	if (c == CL_STINSPECT) {
+		struct tcp_rule *rule;
+		int partial;
+
+		/* We will abort if we encounter a read error. In theory,
+		 * we should not abort if we get a close, it might be
+		 * valid, also very unlikely. FIXME: we'll abort for now,
+		 * this will be easier to change later.
+		 */
+		if (unlikely(req->flags & (BF_READ_ERROR | BF_READ_NULL))) {
+			t->inspect_exp = TICK_ETERNITY;
+			buffer_shutr(req);
+			fd_delete(t->cli_fd);
+			t->cli_state = CL_STCLOSE;
+			t->fe->failed_req++;
+			if (!(t->flags & SN_ERR_MASK))
+				t->flags |= SN_ERR_CLICL;
+			if (!(t->flags & SN_FINST_MASK))
+				t->flags |= SN_FINST_R;
+			return 1;
+		}
+
+		/* Abort if client read timeout has expired */
+		else if (unlikely(tick_is_expired(req->rex, now_ms))) {
+			t->inspect_exp = TICK_ETERNITY;
+			buffer_shutr(req);
+			fd_delete(t->cli_fd);
+			t->cli_state = CL_STCLOSE;
+			t->fe->failed_req++;
+			if (!(t->flags & SN_ERR_MASK))
+				t->flags |= SN_ERR_CLITO;
+			if (!(t->flags & SN_FINST_MASK))
+				t->flags |= SN_FINST_R;
+			return 1;
+		}
+
+		/* We don't know whether we have enough data, so must proceed
+		 * this way :
+		 * - iterate through all rules in their declaration order
+		 * - if one rule returns MISS, it means the inspect delay is
+		 *   not over yet, then return immediately, otherwise consider
+		 *   it as a non-match.
+		 * - if one rule returns OK, then return OK
+		 * - if one rule returns KO, then return KO
+		 */
+
+		if (tick_is_expired(t->inspect_exp, now_ms))
+			partial = 0;
+		else
+			partial = ACL_PARTIAL;
+
+		list_for_each_entry(rule, &t->fe->tcp_req.inspect_rules, list) {
+			int ret = ACL_PAT_PASS;
+
+			if (rule->cond) {
+				ret = acl_exec_cond(rule->cond, t->fe, t, NULL, ACL_DIR_REQ | partial);
+				if (ret == ACL_PAT_MISS) {
+					req->rex = tick_add_ifset(now_ms, t->fe->timeout.client);
+					return 0;
+				}
+				ret = acl_pass(ret);
+				if (rule->cond->pol == ACL_COND_UNLESS)
+					ret = !ret;
+			}
+
+			if (ret) {
+				/* we have a matching rule. */
+				if (rule->action == TCP_ACT_REJECT) {
+					buffer_shutr(req);
+					fd_delete(t->cli_fd);
+					t->cli_state = CL_STCLOSE;
+					t->fe->failed_req++;
+					if (!(t->flags & SN_ERR_MASK))
+						t->flags |= SN_ERR_PRXCOND;
+					if (!(t->flags & SN_FINST_MASK))
+						t->flags |= SN_FINST_R;
+					t->inspect_exp = TICK_ETERNITY;
+					return 1;
+				}
+				/* otherwise accept */
+				break;
+			}
+		}
+		
+		/* if we get there, it means we have no rule which matches, so
+		 * we apply the default accept.
+		 */
+		req->rex = tick_add_ifset(now_ms, t->fe->timeout.client);
+		if (t->fe->mode == PR_MODE_HTTP) {
+			t->cli_state = CL_STHEADERS;
+			t->txn.exp = tick_add_ifset(now_ms, t->fe->timeout.httpreq);
+		} else {
+			t->cli_state = CL_STDATA;
+		}
+		t->inspect_exp = TICK_ETERNITY;
+		return 1;
+	}
+	else if (c == CL_STHEADERS) {
 		/*
 		 * Now parse the partial (or complete) lines.
 		 * We will check the request syntax, and also join multi-line
@@ -2606,7 +2706,7 @@ int process_srv(struct session *t)
 		 *       we need to defer server selection until more data arrives, if possible.
                  *       This is rare, and only if balancing on parameter hash with values in the entity of a POST
                  */
-		if (c == CL_STHEADERS )
+		if (c == CL_STHEADERS || c == CL_STINSPECT)
 			return 0;	/* stay in idle, waiting for data to reach the client side */
 		else if (c == CL_STCLOSE || c == CL_STSHUTW ||
 			 (c == CL_STSHUTR &&
@@ -5202,6 +5302,9 @@ acl_fetch_meth(struct proxy *px, struct session *l4, void *l7, int dir,
 	int meth;
 	struct http_txn *txn = l7;
 
+	if (!txn)
+		return 0;
+
 	if (txn->req.msg_state != HTTP_MSG_BODY)
 		return 0;
 
@@ -5259,6 +5362,9 @@ acl_fetch_rqver(struct proxy *px, struct session *l4, void *l7, int dir,
 	char *ptr;
 	int len;
 
+	if (!txn)
+		return 0;
+
 	if (txn->req.msg_state != HTTP_MSG_BODY)
 		return 0;
 
@@ -5283,6 +5389,9 @@ acl_fetch_stver(struct proxy *px, struct session *l4, void *l7, int dir,
 	struct http_txn *txn = l7;
 	char *ptr;
 	int len;
+
+	if (!txn)
+		return 0;
 
 	if (txn->rsp.msg_state != HTTP_MSG_BODY)
 		return 0;
@@ -5310,6 +5419,9 @@ acl_fetch_stcode(struct proxy *px, struct session *l4, void *l7, int dir,
 	char *ptr;
 	int len;
 
+	if (!txn)
+		return 0;
+
 	if (txn->rsp.msg_state != HTTP_MSG_BODY)
 		return 0;
 
@@ -5328,8 +5440,12 @@ acl_fetch_url(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	struct http_txn *txn = l7;
 
+	if (!txn)
+		return 0;
+
 	if (txn->req.msg_state != HTTP_MSG_BODY)
 		return 0;
+
 	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
 		/* ensure the indexes are not affected */
 		return 0;
@@ -5348,8 +5464,12 @@ acl_fetch_url_ip(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	struct http_txn *txn = l7;
 
+	if (!txn)
+		return 0;
+
 	if (txn->req.msg_state != HTTP_MSG_BODY)
 		return 0;
+
 	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
 		/* ensure the indexes are not affected */
 		return 0;
@@ -5376,8 +5496,12 @@ acl_fetch_url_port(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	struct http_txn *txn = l7;
 
+	if (!txn)
+		return 0;
+
 	if (txn->req.msg_state != HTTP_MSG_BODY)
 		return 0;
+
 	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
 		/* ensure the indexes are not affected */
 		return 0;
@@ -5404,6 +5528,9 @@ acl_fetch_hdr(struct proxy *px, struct session *l4, void *l7, char *sol,
 	struct hdr_idx *idx = &txn->hdr_idx;
 	struct hdr_ctx *ctx = (struct hdr_ctx *)test->ctx.a;
 
+	if (!txn)
+		return 0;
+
 	if (!(test->flags & ACL_TEST_F_FETCH_MORE))
 		/* search for header from the beginning */
 		ctx->idx = 0;
@@ -5427,8 +5554,12 @@ acl_fetch_chdr(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	struct http_txn *txn = l7;
 
+	if (!txn)
+		return 0;
+
 	if (txn->req.msg_state != HTTP_MSG_BODY)
 		return 0;
+
 	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
 		/* ensure the indexes are not affected */
 		return 0;
@@ -5441,6 +5572,9 @@ acl_fetch_shdr(struct proxy *px, struct session *l4, void *l7, int dir,
 	       struct acl_expr *expr, struct acl_test *test)
 {
 	struct http_txn *txn = l7;
+
+	if (!txn)
+		return 0;
 
 	if (txn->rsp.msg_state != HTTP_MSG_BODY)
 		return 0;
@@ -5460,6 +5594,9 @@ acl_fetch_hdr_cnt(struct proxy *px, struct session *l4, void *l7, char *sol,
 	struct hdr_ctx ctx;
 	int cnt;
 
+	if (!txn)
+		return 0;
+
 	ctx.idx = 0;
 	cnt = 0;
 	while (http_find_header2(expr->arg.str, expr->arg_len, sol, idx, &ctx))
@@ -5476,8 +5613,12 @@ acl_fetch_chdr_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	struct http_txn *txn = l7;
 
+	if (!txn)
+		return 0;
+
 	if (txn->req.msg_state != HTTP_MSG_BODY)
 		return 0;
+
 	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
 		/* ensure the indexes are not affected */
 		return 0;
@@ -5490,6 +5631,9 @@ acl_fetch_shdr_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 		   struct acl_expr *expr, struct acl_test *test)
 {
 	struct http_txn *txn = l7;
+
+	if (!txn)
+		return 0;
 
 	if (txn->rsp.msg_state != HTTP_MSG_BODY)
 		return 0;
@@ -5508,6 +5652,9 @@ acl_fetch_hdr_val(struct proxy *px, struct session *l4, void *l7, char *sol,
 	struct http_txn *txn = l7;
 	struct hdr_idx *idx = &txn->hdr_idx;
 	struct hdr_ctx *ctx = (struct hdr_ctx *)test->ctx.a;
+
+	if (!txn)
+		return 0;
 
 	if (!(test->flags & ACL_TEST_F_FETCH_MORE))
 		/* search for header from the beginning */
@@ -5531,8 +5678,12 @@ acl_fetch_chdr_val(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	struct http_txn *txn = l7;
 
+	if (!txn)
+		return 0;
+
 	if (txn->req.msg_state != HTTP_MSG_BODY)
 		return 0;
+
 	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
 		/* ensure the indexes are not affected */
 		return 0;
@@ -5545,6 +5696,9 @@ acl_fetch_shdr_val(struct proxy *px, struct session *l4, void *l7, int dir,
 		   struct acl_expr *expr, struct acl_test *test)
 {
 	struct http_txn *txn = l7;
+
+	if (!txn)
+		return 0;
 
 	if (txn->rsp.msg_state != HTTP_MSG_BODY)
 		return 0;
@@ -5562,8 +5716,12 @@ acl_fetch_path(struct proxy *px, struct session *l4, void *l7, int dir,
 	struct http_txn *txn = l7;
 	char *ptr, *end;
 
+	if (!txn)
+		return 0;
+
 	if (txn->req.msg_state != HTTP_MSG_BODY)
 		return 0;
+
 	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
 		/* ensure the indexes are not affected */
 		return 0;

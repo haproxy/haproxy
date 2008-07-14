@@ -115,6 +115,7 @@ struct session {
 	struct server *prev_srv;		/* the server the was running on, after a redispatch, otherwise NULL */
 	struct pendconn *pend_pos;		/* if not NULL, points to the position in the pending queue */
 	struct http_txn txn;			/* current HTTP transaction being processed. Should become a list. */
+	int inspect_exp;                        /* expiration date for data to be inspected, in ticks */
 	struct {
 		int logwait;			/* log fields waiting to be collected : LW_* */
 		struct timeval accept_date;	/* date of the accept() in user date */

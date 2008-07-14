@@ -131,6 +131,10 @@ struct proxy {
 	struct list block_cond;                 /* early blocking conditions (chained) */
 	struct list redirect_rules;             /* content redirecting rules (chained) */
 	struct list switching_rules;            /* content switching rules (chained) */
+	struct {                                /* TCP request processing */
+		int inspect_delay;              /* inspection delay */
+		struct list inspect_rules;      /* inspection rules */
+	} tcp_req;
 	struct server *srv;			/* known servers */
 	int srv_act, srv_bck;			/* # of servers eligible for LB (UP|!checked) AND (enabled+weight!=0) */
 

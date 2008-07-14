@@ -29,8 +29,15 @@
 
 /*
  * FIXME: break this into HTTP state and TCP socket state.
- * See client.h for the other end.
  */
+
+/* different possible states for the client side */
+#define CL_STINSPECT	0
+#define CL_STHEADERS	1
+#define CL_STDATA	2
+#define CL_STSHUTR	3
+#define CL_STSHUTW	4
+#define CL_STCLOSE	5
 
 /* different possible states for the server side */
 #define SV_STIDLE	0
