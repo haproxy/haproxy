@@ -37,7 +37,6 @@
 
 #include <types/acl.h>
 #include <types/capture.h>
-#include <types/client.h>
 #include <types/global.h>
 #include <types/httperr.h>
 #include <types/polling.h>

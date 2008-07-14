@@ -35,7 +35,6 @@
 #include <common/uri_auth.h>
 #include <common/version.h>
 
-#include <types/client.h>
 #include <types/global.h>
 #include <types/polling.h>
 #include <types/proxy.h>

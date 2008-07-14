@@ -36,7 +36,6 @@
 #include <common/version.h>
 
 #include <types/acl.h>
-#include <types/client.h>
 #include <types/global.h>
 #include <types/polling.h>
 #include <types/proxy.h>
