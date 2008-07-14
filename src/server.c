@@ -14,9 +14,7 @@
 #include <common/config.h>
 #include <common/time.h>
 
-#include <types/backend.h>
-#include <types/proxy.h>
-#include <types/server.h>
+#include <proto/server.h>
 
 int srv_downtime(struct server *s) {
 

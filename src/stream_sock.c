@@ -26,10 +26,6 @@
 #include <common/ticks.h>
 #include <common/time.h>
 
-#include <types/buffers.h>
-#include <types/global.h>
-#include <types/polling.h>
-
 #include <proto/client.h>
 #include <proto/fd.h>
 #include <proto/stream_sock.h>

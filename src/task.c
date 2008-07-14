@@ -19,7 +19,6 @@
 
 #include <proto/proxy.h>
 #include <proto/task.h>
-#include <types/task.h>
 
 struct pool_head *pool2_task;
 

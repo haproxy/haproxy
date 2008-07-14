@@ -14,9 +14,6 @@
 #include <common/memory.h>
 #include <common/time.h>
 
-#include <types/proxy.h>
-#include <types/session.h>
-
 #include <proto/queue.h>
 #include <proto/server.h>
 #include <proto/task.h>

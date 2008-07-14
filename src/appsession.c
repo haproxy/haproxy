@@ -21,11 +21,9 @@
 #include <common/ticks.h>
 #include <common/time.h>
 
-#include <types/buffers.h>
 #include <types/global.h>
-#include <types/proxy.h>
-#include <types/server.h>
 
+#include <proto/proxy.h>
 #include <proto/task.h>
 
 static struct task *appsess_refresh = NULL;

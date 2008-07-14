@@ -16,11 +16,7 @@
 #include <common/debug.h>
 #include <common/memory.h>
 
-#include <types/backend.h>
 #include <types/capture.h>
-#include <types/log.h>
-#include <types/proxy.h>
-#include <types/server.h>
 
 #include <proto/buffers.h>
 #include <proto/hdr_idx.h>

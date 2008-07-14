@@ -2,7 +2,7 @@
  * Functions for managing transparent proxying with CTTPROXY.
  * This file should be compiled only if CTTPROXY is enabled.
  *
- * Copyright 2000-2007 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -24,8 +24,6 @@
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/time.h>
-
-#include <types/global.h>
 
 #include <import/ip_tproxy.h>
 

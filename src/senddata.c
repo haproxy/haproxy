@@ -32,11 +32,6 @@
 #include <common/time.h>
 #include <common/version.h>
 
-#include <types/global.h>
-#include <types/polling.h>
-#include <types/proxy.h>
-#include <types/server.h>
-
 #include <proto/backend.h>
 #include <proto/buffers.h>
 #include <proto/fd.h>

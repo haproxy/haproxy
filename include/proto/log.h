@@ -3,7 +3,7 @@
   This file contains definitions of log-related functions, structures,
   and macros.
 
-  Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -38,17 +38,17 @@ extern struct pool_head *pool2_requri;
  * Displays the message on stderr with the date and pid. Overrides the quiet
  * mode during startup.
  */
-void Alert(char *fmt, ...);
+void Alert(const char *fmt, ...);
 
 /*
  * Displays the message on stderr with the date and pid.
  */
-void Warning(char *fmt, ...);
+void Warning(const char *fmt, ...);
 
 /*
  * Displays the message on <out> only if quiet mode is not set.
  */
-void qfprintf(FILE *out, char *fmt, ...);
+void qfprintf(FILE *out, const char *fmt, ...);
 
 /*
  * This function sends a syslog message to both log servers of a proxy,
@@ -56,7 +56,7 @@ void qfprintf(FILE *out, char *fmt, ...);
  * It also tries not to waste too much time computing the message header.
  * It doesn't care about errors nor does it report them.
  */
-void send_log(struct proxy *p, int level, char *message, ...);
+void send_log(struct proxy *p, int level, const char *message, ...);
 
 /*
  * send a log for the session when we have enough info about it

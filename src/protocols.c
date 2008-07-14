@@ -1,7 +1,7 @@
 /*
  * Protocol registration functions.
  *
- * Copyright 2000-2007 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -17,8 +17,6 @@
 #include <common/errors.h>
 #include <common/mini-clist.h>
 #include <common/standard.h>
-
-#include <types/protocols.h>
 
 #include <proto/fd.h>
 

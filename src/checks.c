@@ -30,9 +30,6 @@
 #include <common/time.h>
 
 #include <types/global.h>
-#include <types/polling.h>
-#include <types/proxy.h>
-#include <types/session.h>
 
 #include <proto/backend.h>
 #include <proto/buffers.h>

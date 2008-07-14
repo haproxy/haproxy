@@ -25,13 +25,7 @@
 #include <common/ticks.h>
 #include <common/time.h>
 
-#include <types/acl.h>
-#include <types/buffers.h>
 #include <types/global.h>
-#include <types/polling.h>
-#include <types/proxy.h>
-#include <types/server.h>
-#include <types/session.h>
 
 #include <proto/acl.h>
 #include <proto/backend.h>

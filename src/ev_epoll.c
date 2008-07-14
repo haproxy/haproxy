@@ -24,7 +24,6 @@
 #include <types/fd.h>
 #include <types/global.h>
 
-#include <proto/fd.h>
 #include <proto/task.h>
 
 #if defined(USE_MY_EPOLL)

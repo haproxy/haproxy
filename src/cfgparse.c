@@ -32,10 +32,7 @@
 
 #include <types/capture.h>
 #include <types/global.h>
-#include <types/httperr.h>
 #include <types/polling.h>
-#include <types/proxy.h>
-#include <types/queue.h>
 
 #include <proto/acl.h>
 #include <proto/backend.h>

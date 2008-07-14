@@ -26,7 +26,6 @@
 #include <common/time.h>
 
 #include <types/global.h>
-#include <types/polling.h>
 
 #include <proto/client.h>
 #include <proto/backend.h>

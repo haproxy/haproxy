@@ -19,7 +19,6 @@
 #include <common/ticks.h>
 #include <common/time.h>
 
-#include <types/fd.h>
 #include <types/global.h>
 
 #include <proto/fd.h>

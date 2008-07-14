@@ -56,7 +56,6 @@
 #include <common/time.h>
 #include <common/tools.h>
 
-#include <types/fd.h>
 #include <types/global.h>
 
 #include <proto/fd.h>

@@ -20,10 +20,6 @@
 
 #include <proto/acl.h>
 
-#include <types/acl.h>
-#include <types/proxy.h>
-#include <types/session.h>
-
 /* List head of all known ACL keywords */
 static struct acl_kw_list acl_keywords = {
 	.list = LIST_HEAD_INIT(acl_keywords.list)

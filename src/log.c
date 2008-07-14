@@ -26,10 +26,9 @@
 #include <common/standard.h>
 #include <common/time.h>
 
-#include <types/backend.h>
 #include <types/global.h>
-#include <types/log.h>
-#include <types/session.h>
+
+#include <proto/log.h>
 
 #ifndef MSG_NOSIGNAL
 #define MSG_NOSIGNAL	(0)

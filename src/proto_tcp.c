@@ -35,11 +35,7 @@
 #include <common/time.h>
 #include <common/version.h>
 
-#include <types/acl.h>
 #include <types/global.h>
-#include <types/polling.h>
-#include <types/proxy.h>
-#include <types/server.h>
 
 #include <proto/acl.h>
 #include <proto/backend.h>
