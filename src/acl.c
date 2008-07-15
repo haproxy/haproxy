@@ -390,6 +390,105 @@ int acl_parse_int(const char **text, struct acl_pattern *pattern, int *opaque)
 	return skip + 1;
 }
 
+/* Parse a range of positive 2-component versions delimited by either ':' or
+ * '-'. The version consists in a major and a minor, both of which must be
+ * smaller than 65536, because internally they will be represented as a 32-bit
+ * integer.
+ * If only one version is read, it is set as both min and max. Just like for
+ * pure integers, an operator may be specified as the prefix, among this list
+ * of 5 :
+ *
+ *    0:eq, 1:gt, 2:ge, 3:lt, 4:le
+ *
+ * The default operator is "eq". It supports range matching. Ranges are
+ * rejected for other operators. The operator may be changed at any time.
+ * The operator is stored in the 'opaque' argument. This allows constructs
+ * such as the following one :
+ *
+ *    acl obsolete_ssl    ssl_req_proto lt 3
+ *    acl unsupported_ssl ssl_req_proto gt 3.1
+ *    acl valid_ssl       ssl_req_proto 3.0-3.1
+ *
+ */
+int acl_parse_dotted_ver(const char **text, struct acl_pattern *pattern, int *opaque)
+{
+	signed long long i;
+	unsigned int j, last, skip = 0;
+	const char *ptr = *text;
+
+
+	while (!isdigit((unsigned char)*ptr)) {
+		if      (strcmp(ptr, "eq") == 0) *opaque = 0;
+		else if (strcmp(ptr, "gt") == 0) *opaque = 1;
+		else if (strcmp(ptr, "ge") == 0) *opaque = 2;
+		else if (strcmp(ptr, "lt") == 0) *opaque = 3;
+		else if (strcmp(ptr, "le") == 0) *opaque = 4;
+		else
+			return 0;
+
+		skip++;
+		ptr = text[skip];
+	}
+
+	last = i = 0;
+	while (1) {
+                j = *ptr++;
+		if (j == '.') {
+			/* minor part */
+			if (i >= 65536)
+				return 0;
+			i <<= 16;
+			continue;
+		}
+		if ((j == '-' || j == ':') && !last) {
+			last++;
+			if (i < 65536)
+				i <<= 16;
+			pattern->val.range.min = i;
+			i = 0;
+			continue;
+		}
+		j -= '0';
+                if (j > 9)
+			// also catches the terminating zero
+                        break;
+                i = (i & 0xFFFF0000) + (i & 0xFFFF) * 10;
+                i += j;
+        }
+
+	/* if we only got a major version, let's shift it now */
+	if (i < 65536)
+		i <<= 16;
+
+	if (last && *opaque >= 1 && *opaque <= 4)
+		/* having a range with a min or a max is absurd */
+		return 0;
+
+	if (!last)
+		pattern->val.range.min = i;
+	pattern->val.range.max = i;
+
+	switch (*opaque) {
+	case 0: /* eq */
+		pattern->val.range.min_set = 1;
+		pattern->val.range.max_set = 1;
+		break;
+	case 1: /* gt */
+		pattern->val.range.min++; /* gt = ge + 1 */
+	case 2: /* ge */
+		pattern->val.range.min_set = 1;
+		pattern->val.range.max_set = 0;
+		break;
+	case 3: /* lt */
+		pattern->val.range.max--; /* lt = le - 1 */
+	case 4: /* le */
+		pattern->val.range.min_set = 0;
+		pattern->val.range.max_set = 1;
+		break;
+	}
+	return skip + 1;
+}
+
 /* Parse an IP address and an optional mask in the form addr[/mask].
  * The addr may either be an IPv4 address or a hostname. The mask
  * may either be a dotted mask or a number of bits. Returns 1 if OK,

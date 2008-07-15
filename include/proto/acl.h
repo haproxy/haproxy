@@ -120,6 +120,9 @@ int acl_match_int(struct acl_test *test, struct acl_pattern *pattern);
 /* Parse an integer. It is put both in min and max. */
 int acl_parse_int(const char **text, struct acl_pattern *pattern, int *opaque);
 
+/* Parse an version. It is put both in min and max. */
+int acl_parse_dotted_ver(const char **text, struct acl_pattern *pattern, int *opaque);
+
 /* Parse a range of integers delimited by either ':' or '-'. If only one
  * integer is read, it is set as both min and max.
  */
