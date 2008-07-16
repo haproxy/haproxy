@@ -604,6 +604,9 @@ stats refresh               X          -         X         X
 stats scope                 X          -         X         X
 stats uri                   X          -         X         X
 stats hide-version          X          -         X         X
+tcp-request content accept  -          X         X         -
+tcp-request content reject  -          X         X         -
+tcp-request inspect-delay   -          X         X         -
 timeout check               X          -         X         X
 timeout client              X          X         X         -
 timeout clitimeout          X          X         X         -  (deprecated)
@@ -3199,6 +3202,106 @@ stats hide-version
   See also : "stats auth", "stats enable", "stats realm", "stats uri"
 
 
+tcp-request content accept [{if | unless} <condition>]
+  Accept a connection if/unless a content inspection condition is matched
+  May be used in sections :   defaults | frontend | listen | backend
+                                 no    |    yes   |   yes  |   no
+
+  During TCP content inspection, the connection is immediately validated if the
+  condition is true (when used with "if") or false (when used with "unless").
+  Most of the time during content inspection, a condition will be in an
+  uncertain state which is neither true nor false. The evaluation immediately
+  stops when such a condition is encountered. It is important to understand
+  that "accept" and "reject" rules are evaluated in their exact declaration
+  order, so that it is possible to build complex rules from them. There is no
+  specific limit to the number of rules which may be inserted.
+
+  Note that the "if/unless" condition is optionnal. If no condition is set on
+  the action, it is simply performed unconditionally.
+
+  If no "tcp-request content" rules are matched, the default action already is
+  "accept". Thus, this statement alone does not bring anything without another
+  "reject" statement.
+
+  See section 2.3 about ACL usage.
+
+  See also : "tcp-request content-reject", "tcp-request inspect-delay"
+
+
+tcp-request content reject [{if | unless} <condition>]
+  Reject a connection if/unless a content inspection condition is matched
+  May be used in sections :   defaults | frontend | listen | backend
+                                 no    |    yes   |   yes  |   no
+
+  During TCP content inspection, the connection is immediately rejected if the
+  condition is true (when used with "if") or false (when used with "unless").
+  Most of the time during content inspection, a condition will be in an
+  uncertain state which is neither true nor false. The evaluation immediately
+  stops when such a condition is encountered. It is important to understand
+  that "accept" and "reject" rules are evaluated in their exact declaration
+  order, so that it is possible to build complex rules from them. There is no
+  specific limit to the number of rules which may be inserted.
+
+  Note that the "if/unless" condition is optionnal. If no condition is set on
+  the action, it is simply performed unconditionally.
+
+  If no "tcp-request content" rules are matched, the default action is set to
+  "accept".
+
+  Example:
+        # reject SMTP connection if client speaks first
+        tcp-request inspect-delay 30s
+        acl content_present req_len gt 0
+        tcp-request reject if content_present
+
+        # Forward HTTPS connection only if client speaks
+        tcp-request inspect-delay 30s
+        acl content_present req_len gt 0
+        tcp-request accept if content_present
+        tcp-request reject
+
+  See section 2.3 about ACL usage.
+
+  See also : "tcp-request content-accept", "tcp-request inspect-delay"
+
+
+tcp-request inspect-delay <timeout>
+  Set the maximum allowed time to wait for data during content inspection
+  May be used in sections :   defaults | frontend | listen | backend
+                                 no    |    yes   |   yes  |   no
+  Arguments :
+    <timeout> is the timeout value specified in milliseconds by default, but
+              can be in any other unit if the number is suffixed by the unit,
+              as explained at the top of this document.
+
+  People using haproxy primarily as a TCP relay are often worried about the
+  risk of passing any type of protocol to a server without any analysis. In
+  order to be able to analyze the request contents, we must first withhold
+  the data then analyze them. This statement simply enables withholding of
+  data for at most the specified amount of time.
+
+  Note that when performing content inspection, haproxy will evaluate the whole
+  rules for every new chunk which gets in, taking into account the fact that
+  those data are partial. If no rule matches before the aforementionned delay,
+  a last check is performed upon expiration, this time considering that the
+  contents are definitive.
+
+  As soon as a rule matches, the request is released and continues as usual. If
+  the timeout is reached and no rule matches, the default policy will be to let
+  it pass through unaffected.
+
+  For most protocols, it is enough to set it to a few seconds, as most clients
+  send the full request immediately upon connection. Add 3 or more seconds to
+  cover TCP retransmits but that's all. For some protocols, it may make sense
+  to use large values, for instance to ensure that the client never talks 
+  before the server (eg: SMTP), or to wait for a client to talk before passing
+  data to the server (eg: SSL). Note that the client timeout must cover at
+  least the inspection delay, otherwise it will expire first.
+
+  See also : "tcp-request content accept", "tcp-request content-reject",
+             "timeout client".
+
+
 timeout check <timeout>
   Set additional check timeout, but only after a connection has been already
   established.
@@ -3530,6 +3633,11 @@ For instance, "1024:65535" is a valid range to represent a range of
 unprivileged ports, and "1024:" would also work. "0:1023" is a valid
 representation of privileged ports, and ":1023" would also work.
 
+As a special case, some ACL functions support decimal numbers which are in fact
+two integers separated by a dot. This is used with some version checks for
+instance. All integer properties apply to those decimal numbers, including
+ranges and operators.
+
 For an easier usage, comparison operators are also supported. Note that using
 operators with ranges does not make much sense and is strongly discouraged.
 Similarly, it does not make much sense to perform order comparisons with a set
@@ -3546,6 +3654,10 @@ Available operators for integer matching are :
 For instance, the following ACL matches any negative Content-Length header :
 
   acl negative-length hdr_val(content-length) lt 0
+
+This one matches SSL versions between 3.0 and 3.1 (inclusive) :
+
+  acl sslv3 req_ssl_ver 3:3.1
 
 
 2.3.2) Matching strings
@@ -3633,10 +3745,37 @@ nbsrv(backend) <integer>
   "monitor fail".
 
 
-2.3.5.2) Matching at Layer 7
+2.3.5.2) Matching contents at Layer 4
+-------------------------------------
+
+A second set of criteria depends on data found in buffers, but which can change
+during analysis. This requires that some data has been buffered, for instance
+through TCP request content inspection. Please see the "tcp-request" keyword
+for more detailed information on the subject.
+
+req_len <integer>
+  Returns true when the lenght of the data in the request buffer matches the
+  specified range. It is important to understand that this test does not
+  return false as long as the buffer is changing. This means that a check with
+  equality to zero will almost always immediately match at the beginning of the
+  session, while a test for more data will wait for that data to come in and
+  return false only when haproxy is certain that no more data will come in.
+  This test was designed to be used with TCP request content inspection.
+
+req_ssl_ver <decimal>
+  Returns true when data in the request buffer look like SSL, with a protocol
+  version matching the specified range. Both SSLv2 hello messages and SSLv3
+  messages are supported. The test tries to be strict enough to avoid being
+  easily fooled. In particular, it waits for as many bytes as announced in the
+  message header if this header looks valid (bound to the buffer size). Note
+  that TLSv1 is announced as SSL version 3.1. This test was designed to be used
+  with TCP request content inspection.
+
+
+2.3.5.3) Matching at Layer 7
 ----------------------------
 
-A second set of criteria applies to information which can be found at the
+A third set of criteria applies to information which can be found at the
 application layer (layer 7). Those require that a full HTTP request has been
 read, and are only evaluated then. They may require slightly more CPU resources
 than the layer 4 ones, but not much since the request and response are indexed.
