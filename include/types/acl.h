@@ -80,6 +80,10 @@ enum {
 	ACL_TEST_F_VOLATILE   = (1<<2)|(1<<3)|(1<<4)|(1<<5)|(1<<6),
 	ACL_TEST_F_FETCH_MORE = 1 << 7, /* if test does not match, retry with next entry (for multi-match) */
 	ACL_TEST_F_MAY_CHANGE = 1 << 8, /* if test does not match, retry later (eg: request size) */
+	ACL_TEST_F_RES_SET    = 1 << 9, /* for fetch() function to assign the result without calling match() */
+	ACL_TEST_F_RES_PASS   = 1 << 10,/* with SET_RESULT, sets result to PASS (defaults to FAIL) */
+	ACL_TEST_F_SET_RES_PASS = (ACL_TEST_F_RES_SET|ACL_TEST_F_RES_PASS),  /* sets result to PASS */
+	ACL_TEST_F_SET_RES_FAIL = (ACL_TEST_F_RES_SET),                      /* sets result to FAIL */
 };
 
 /* ACLs can be evaluated on requests and on responses, and on partial or complete data */

@@ -974,11 +974,19 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 					continue;
 				}
 
-				/* apply all tests to this value */
-				list_for_each_entry(pattern, &expr->patterns, list) {
-					acl_res |= expr->kw->match(&test, pattern);
-					if (acl_res == ACL_PAT_PASS)
-						break;
+				if (test.flags & ACL_TEST_F_RES_SET) {
+					if (test.flags & ACL_TEST_F_RES_PASS)
+						acl_res |= ACL_PAT_PASS;
+					else
+						acl_res |= ACL_PAT_FAIL;
+				}
+				else {
+					/* call the match() function for all tests on this value */
+					list_for_each_entry(pattern, &expr->patterns, list) {
+						acl_res |= expr->kw->match(&test, pattern);
+						if (acl_res == ACL_PAT_PASS)
+							break;
+					}
 				}
 				/*
 				 * OK now acl_res holds the result of this expression
