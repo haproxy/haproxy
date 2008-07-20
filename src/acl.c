@@ -758,6 +758,7 @@ const struct {
 	{ .name = "HTTP_URL_SLASH", .expr = {"url_beg","/",""}},
 	{ .name = "HTTP_URL_STAR",  .expr = {"url","*",""}},
 	{ .name = "HTTP_CONTENT",   .expr = {"hdr_val(content-length)","gt","0",""}},
+	{ .name = "REQ_CONTENT",    .expr = {"req_len","gt","0",""}},
 	{ .name = NULL, .expr = {""}}
 };
 

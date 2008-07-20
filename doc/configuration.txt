@@ -3956,6 +3956,7 @@ HTTP_URL_ABS     url_reg ^[^/:]*://            match absolute URL with scheme
 HTTP_URL_SLASH   url_beg /                     match URL begining with "/"
 HTTP_URL_STAR    url     *                     match URL equal to "*"
 HTTP_CONTENT     hdr_val(content-length) gt 0  match an existing content-length
+REQ_CONTENT      req_len gt 0                  match data in the request buffer
 ---------------+-----------------------------+---------------------------------
 
 
