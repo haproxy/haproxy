@@ -39,6 +39,21 @@ acl_fetch_true(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 1;
 }
 
+/* wait for more data as long as possible, then return TRUE. This should be
+ * used with content inspection.
+ */
+static int
+acl_fetch_wait_end(struct proxy *px, struct session *l4, void *l7, int dir,
+		   struct acl_expr *expr, struct acl_test *test)
+{
+	if (dir & ACL_PARTIAL) {
+		test->flags |= ACL_TEST_F_MAY_CHANGE;
+		return 0;
+	}
+	test->flags |= ACL_TEST_F_SET_RES_PASS;
+	return 1;
+}
+
 /* force FALSE to be returned at the fetch level */
 static int
 acl_fetch_false(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -772,6 +787,7 @@ const struct {
 	{ .name = "HTTP_URL_STAR",  .expr = {"url","*",""}},
 	{ .name = "HTTP_CONTENT",   .expr = {"hdr_val(content-length)","gt","0",""}},
 	{ .name = "REQ_CONTENT",    .expr = {"req_len","gt","0",""}},
+	{ .name = "WAIT_END",       .expr = {"wait_end",""}},
 	{ .name = NULL, .expr = {""}}
 };
 
@@ -1064,6 +1080,7 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 static struct acl_kw_list acl_kws = {{ },{
 	{ "always_true", acl_parse_nothing, acl_fetch_true, acl_match_nothing },
 	{ "always_false", acl_parse_nothing, acl_fetch_false, acl_match_nothing },
+	{ "wait_end", acl_parse_nothing, acl_fetch_wait_end, acl_match_nothing },
 #if 0
 	{ "time",       acl_parse_time,  acl_fetch_time,   acl_match_time  },
 #endif

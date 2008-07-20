@@ -3771,6 +3771,29 @@ req_ssl_ver <decimal>
   that TLSv1 is announced as SSL version 3.1. This test was designed to be used
   with TCP request content inspection.
 
+wait_end
+  Waits for the end of the analysis period to return true. This may be used in
+  conjunction with content analysis to avoid returning a wrong verdict early.
+  It may also be used to delay some actions, such as a delayed reject for some
+  special addresses. Since it either stops the rules evaluation or immediately
+  returns true, it is recommended to use this acl as the last one in a rule.
+  Please note that the default ACL "WAIT_END" is always usable without prior
+  declaration. This test was designed to be used with TCP request content
+  inspection.
+
+  Examples :
+     # delay every incoming request by 2 seconds
+     tcp-request inspect-delay 2s
+     tcp-request content accept if WAIT_END
+
+     # don't immediately tell bad guys they are rejected
+     tcp-request inspect-delay 10s
+     acl goodguys src 10.0.0.0/24
+     acl badguys  src 10.0.1.0/24
+     tcp-request content accept if goodguys
+     tcp-request content reject if badguys WAIT_END
+     tcp-request content reject
+
 
 2.3.5.3) Matching at Layer 7
 ----------------------------
@@ -3957,6 +3980,7 @@ HTTP_URL_SLASH   url_beg /                     match URL begining with "/"
 HTTP_URL_STAR    url     *                     match URL equal to "*"
 HTTP_CONTENT     hdr_val(content-length) gt 0  match an existing content-length
 REQ_CONTENT      req_len gt 0                  match data in the request buffer
+WAIT_END         wait_end                      wait for end of content analysis
 ---------------+-----------------------------+---------------------------------
 
 
