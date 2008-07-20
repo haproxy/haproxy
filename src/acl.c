@@ -30,31 +30,44 @@ static struct acl_kw_list acl_keywords = {
  * These functions are only used for debugging complex configurations.
  */
 
-/* ignore the current line */
+/* force TRUE to be returned at the fetch level */
 static int
-acl_parse_nothing(const char **text, struct acl_pattern *pattern, int *opaque)
+acl_fetch_true(struct proxy *px, struct session *l4, void *l7, int dir,
+	       struct acl_expr *expr, struct acl_test *test)
+{
+	test->flags |= ACL_TEST_F_SET_RES_PASS;
+	return 1;
+}
+
+/* force FALSE to be returned at the fetch level */
+static int
+acl_fetch_false(struct proxy *px, struct session *l4, void *l7, int dir,
+		struct acl_expr *expr, struct acl_test *test)
+{
+	test->flags |= ACL_TEST_F_SET_RES_FAIL;
+	return 1;
+}
+
+
+/*
+ * These functions are exported and may be used by any other component.
+ */
+
+/* ignore the current line */
+int acl_parse_nothing(const char **text, struct acl_pattern *pattern, int *opaque)
 {
 	return 1;
 }
 
 /* always fake a data retrieval */
-static int
-acl_fetch_nothing(struct proxy *px, struct session *l4, void *l7, int dir,
-		  struct acl_expr *expr, struct acl_test *test)
+int acl_fetch_nothing(struct proxy *px, struct session *l4, void *l7, int dir,
+		      struct acl_expr *expr, struct acl_test *test)
 {
 	return 1;
 }
 
-/* always return true */
-static int
-acl_match_true(struct acl_test *test, struct acl_pattern *pattern)
-{
-	return ACL_PAT_PASS;
-}
-
 /* always return false */
-static int
-acl_match_false(struct acl_test *test, struct acl_pattern *pattern)
+int acl_match_nothing(struct acl_test *test, struct acl_pattern *pattern)
 {
 	return ACL_PAT_FAIL;
 }
@@ -743,8 +756,8 @@ const struct {
 	const char *name;
 	const char *expr[4]; /* put enough for longest expression */
 } default_acl_list[] = {
-	{ .name = "TRUE",           .expr = {"always_true","1",""}},
-	{ .name = "FALSE",          .expr = {"always_false","0",""}},
+	{ .name = "TRUE",           .expr = {"always_true",""}},
+	{ .name = "FALSE",          .expr = {"always_false",""}},
 	{ .name = "LOCALHOST",      .expr = {"src","127.0.0.1/8",""}},
 	{ .name = "HTTP_1.0",       .expr = {"req_ver","1.0",""}},
 	{ .name = "HTTP_1.1",       .expr = {"req_ver","1.1",""}},
@@ -1049,8 +1062,8 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct acl_kw_list acl_kws = {{ },{
-	{ "always_true", acl_parse_nothing, acl_fetch_nothing, acl_match_true },
-	{ "always_false", acl_parse_nothing, acl_fetch_nothing, acl_match_false },
+	{ "always_true", acl_parse_nothing, acl_fetch_true, acl_match_nothing },
+	{ "always_false", acl_parse_nothing, acl_fetch_false, acl_match_nothing },
 #if 0
 	{ "time",       acl_parse_time,  acl_fetch_time,   acl_match_time  },
 #endif

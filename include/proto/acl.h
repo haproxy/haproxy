@@ -111,6 +111,9 @@ void acl_unregister_keywords(struct acl_kw_list *kwl);
  */
 
 
+/* ignore the current line */
+int acl_parse_nothing(const char **text, struct acl_pattern *pattern, int *opaque);
+
 /* NB: For two strings to be identical, it is required that their lengths match */
 int acl_match_str(struct acl_test *test, struct acl_pattern *pattern);
 
@@ -140,6 +143,13 @@ int acl_parse_reg(const char **text, struct acl_pattern *pattern, int *opaque);
  * otherwise 0.
  */
 int acl_parse_ip(const char **text, struct acl_pattern *pattern, int *opaque);
+
+/* always fake a data retrieval */
+int acl_fetch_nothing(struct proxy *px, struct session *l4, void *l7, int dir,
+		      struct acl_expr *expr, struct acl_test *test);
+
+/* always return false */
+int acl_match_nothing(struct acl_test *test, struct acl_pattern *pattern);
 
 /* Checks that the pattern matches the end of the tested string. */
 int acl_match_end(struct acl_test *test, struct acl_pattern *pattern);

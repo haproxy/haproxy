@@ -3941,8 +3941,8 @@ only the first three ones are not layer 7 based.
 
 ACL name          Equivalent to                Usage
 ---------------+-----------------------------+---------------------------------
-TRUE             always_true  1                always match
-FALSE            always_false 0                never match
+TRUE             always_true                   always match
+FALSE            always_false                  never match
 LOCALHOST        src 127.0.0.1/8               match connection from local host
 HTTP_1.0         req_ver 1.0                   match HTTP version 1.0
 HTTP_1.1         req_ver 1.1                   match HTTP version 1.1
