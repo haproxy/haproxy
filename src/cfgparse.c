@@ -1116,6 +1116,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			      file, linenum);
 			return -1;
 		}
+		cond->line = linenum;
 		LIST_ADDQ(&curproxy->block_cond, &cond->list);
 	}
 	else if (!strcmp(args[0], "redirect")) {
@@ -1201,6 +1202,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			return -1;
 		}
 
+		cond->line = linenum;
 		rule = (struct redirect_rule *)calloc(1, sizeof(*rule));
 		rule->cond = cond;
 		rule->rdr_str = strdup(destination);
@@ -1235,9 +1237,15 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		}
 
 		if ((cond = parse_acl_cond((const char **)args + 3, &curproxy->acl, pol)) == NULL) {
-			Alert("parsing [%s:%d] : error detected while parsing blocking condition.\n",
+			Alert("parsing [%s:%d] : error detected while parsing switching rule.\n",
 			      file, linenum);
 			return -1;
+		}
+
+		cond->line = linenum;
+		if (cond->requires & ACL_USE_RTR_ANY) {
+			Warning("parsing [%s:%d] : switching rule involves some response-only criteria which will be ignored.\n",
+				file, linenum);
 		}
 
 		rule = (struct switching_rule *)calloc(1, sizeof(*rule));
@@ -1516,6 +1524,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 				      file, linenum, args[0], args[1]);
 				return -1;
 			}
+			cond->line = linenum;
 			LIST_ADDQ(&curproxy->mon_fail_cond, &cond->list);
 		}
 		else {

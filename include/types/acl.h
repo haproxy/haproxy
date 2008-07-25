@@ -100,6 +100,91 @@ enum {
 	ACL_PAT_F_FROM_FILE   = 1 << 1,       /* pattern comes from a file */
 };
 
+/* what capabilities an ACL uses. These flags are set during parsing, which
+ * allows for flexible ACLs typed by their contents.
+ */
+enum {
+	ACL_USE_TCP4_PERMANENT  = 1 <<  0,      /* unchanged TCPv4 data (eg: source IP) */
+	ACL_USE_TCP4_CACHEABLE  = 1 <<  1,      /* cacheable TCPv4 data (eg: src conns) */
+	ACL_USE_TCP4_VOLATILE   = 1 <<  2,      /* volatile  TCPv4 data (eg: RTT) */
+	ACL_USE_TCP4_ANY        = (ACL_USE_TCP4_PERMANENT | ACL_USE_TCP4_CACHEABLE | ACL_USE_TCP4_VOLATILE),
+
+	ACL_USE_TCP6_PERMANENT  = 1 <<  3,      /* unchanged TCPv6 data (eg: source IP) */
+	ACL_USE_TCP6_CACHEABLE  = 1 <<  4,      /* cacheable TCPv6 data (eg: src conns) */
+	ACL_USE_TCP6_VOLATILE   = 1 <<  5,      /* volatile  TCPv6 data (eg: RTT) */
+	ACL_USE_TCP6_ANY        = (ACL_USE_TCP6_PERMANENT | ACL_USE_TCP6_CACHEABLE | ACL_USE_TCP6_VOLATILE),
+
+	ACL_USE_TCP_PERMANENT   = 1 <<  6,      /* unchanged TCPv4/v6 data (eg: source IP) */
+	ACL_USE_TCP_CACHEABLE   = 1 <<  7,      /* cacheable TCPv4/v6 data (eg: src conns) */
+	ACL_USE_TCP_VOLATILE    = 1 <<  8,      /* volatile  TCPv4/v6 data (eg: RTT) */
+	ACL_USE_TCP_ANY         = (ACL_USE_TCP_PERMANENT | ACL_USE_TCP_CACHEABLE | ACL_USE_TCP_VOLATILE),
+
+	ACL_USE_L4REQ_PERMANENT = 1 <<  9,      /* unchanged layer4 request data */
+	ACL_USE_L4REQ_CACHEABLE = 1 << 10,      /* cacheable layer4 request data (eg: length) */
+	ACL_USE_L4REQ_VOLATILE  = 1 << 11,      /* volatile  layer4 request data (eg: contents) */
+	ACL_USE_L4REQ_ANY       = (ACL_USE_L4REQ_PERMANENT | ACL_USE_L4REQ_CACHEABLE | ACL_USE_L4REQ_VOLATILE),
+
+	ACL_USE_L4RTR_PERMANENT = 1 << 12,      /* unchanged layer4 response data */
+	ACL_USE_L4RTR_CACHEABLE = 1 << 13,      /* cacheable layer4 response data (eg: length) */
+	ACL_USE_L4RTR_VOLATILE  = 1 << 14,      /* volatile  layer4 response data (eg: contents) */
+	ACL_USE_L4RTR_ANY       = (ACL_USE_L4RTR_PERMANENT | ACL_USE_L4RTR_CACHEABLE | ACL_USE_L4RTR_VOLATILE),
+
+	ACL_USE_L7REQ_PERMANENT = 1 << 15,      /* unchanged layer7 request data (eg: method) */
+	ACL_USE_L7REQ_CACHEABLE = 1 << 16,      /* cacheable layer7 request data (eg: content-length) */
+	ACL_USE_L7REQ_VOLATILE  = 1 << 17,      /* volatile  layer7 request data (eg: cookie) */
+	ACL_USE_L7REQ_ANY       = (ACL_USE_L7REQ_PERMANENT | ACL_USE_L7REQ_CACHEABLE | ACL_USE_L7REQ_VOLATILE),
+
+	ACL_USE_L7RTR_PERMANENT = 1 << 18,      /* unchanged layer7 response data (eg: status) */
+	ACL_USE_L7RTR_CACHEABLE = 1 << 19,      /* cacheable layer7 response data (eg: content-length) */
+	ACL_USE_L7RTR_VOLATILE  = 1 << 20,      /* volatile  layer7 response data (eg: cookie) */
+	ACL_USE_L7RTR_ANY       = (ACL_USE_L7RTR_PERMANENT | ACL_USE_L7RTR_CACHEABLE | ACL_USE_L7RTR_VOLATILE),
+
+	/* those ones are used for ambiguous "hdr_xxx" verbs */
+	ACL_USE_HDR_CACHEABLE   = 1 << 21,      /* cacheable request or response header (eg: content-length) */
+	ACL_USE_HDR_VOLATILE    = 1 << 22,      /* volatile  request or response header (eg: cookie) */
+	ACL_USE_HDR_ANY = (ACL_USE_HDR_CACHEABLE | ACL_USE_HDR_VOLATILE),
+
+	/* information which remains during response */
+	ACL_USE_REQ_PERMANENT   = (ACL_USE_TCP4_PERMANENT | ACL_USE_TCP6_PERMANENT | ACL_USE_TCP_PERMANENT |
+				   ACL_USE_L4REQ_PERMANENT | ACL_USE_L7REQ_PERMANENT),
+	ACL_USE_REQ_CACHEABLE   = (ACL_USE_TCP4_CACHEABLE | ACL_USE_TCP6_CACHEABLE | ACL_USE_TCP_CACHEABLE |
+				   ACL_USE_L4REQ_CACHEABLE | ACL_USE_L7REQ_CACHEABLE | ACL_USE_HDR_CACHEABLE),
+
+	/* information which does not remain during response */
+	ACL_USE_REQ_VOLATILE    = (ACL_USE_TCP4_VOLATILE | ACL_USE_TCP6_VOLATILE | ACL_USE_TCP_VOLATILE |
+				   ACL_USE_L4REQ_VOLATILE | ACL_USE_L7REQ_VOLATILE),
+
+	/* any type of layer 4 contents information */
+	ACL_USE_L4_ANY          = (ACL_USE_L4REQ_ANY | ACL_USE_L4RTR_ANY),
+
+	/* any type of layer 7 information */
+	ACL_USE_L7_ANY          = (ACL_USE_L7REQ_ANY | ACL_USE_L7RTR_ANY | ACL_USE_HDR_ANY),
+
+	/* any type of response information */
+	ACL_USE_RTR_ANY         = (ACL_USE_L4RTR_ANY | ACL_USE_L7RTR_ANY),
+};
+
+/* filtering hooks */
+enum {
+	/* hooks on the request path */
+	ACL_HOOK_REQ_FE_TCP = 0,
+	ACL_HOOK_REQ_FE_TCP_CONTENT,
+	ACL_HOOK_REQ_FE_HTTP_IN,
+	ACL_HOOK_REQ_FE_SWITCH,
+	ACL_HOOK_REQ_BE_TCP_CONTENT,
+	ACL_HOOK_REQ_BE_HTTP_IN,
+	ACL_HOOK_REQ_BE_SWITCH,
+	ACL_HOOK_REQ_FE_HTTP_OUT,
+	ACL_HOOK_REQ_BE_HTTP_OUT,
+	/* hooks on the response path */
+	ACL_HOOK_RTR_BE_TCP_CONTENT,
+	ACL_HOOK_RTR_BE_HTTP_IN,
+	ACL_HOOK_RTR_FE_TCP_CONTENT,
+	ACL_HOOK_RTR_FE_HTTP_IN,
+	ACL_HOOK_RTR_BE_HTTP_OUT,
+	ACL_HOOK_RTR_FE_HTTP_OUT,
+};
+
 /* How to store a time range and the valid days in 29 bits */
 struct acl_time {
 	int dow:7;              /* 1 bit per day of week: 0-6 */
@@ -175,6 +260,7 @@ struct acl_keyword {
 	int (*fetch)(struct proxy *px, struct session *l4, void *l7, int dir,
 	             struct acl_expr *expr, struct acl_test *test);
 	int (*match)(struct acl_test *test, struct acl_pattern *pattern);
+	unsigned int requires;   /* bit mask of all ACL_USE_* required to evaluate this keyword */
 	int use_cnt;
 };
 
@@ -213,6 +299,7 @@ struct acl {
 	char *name;		    /* acl name */
 	struct list expr;	    /* list of acl_exprs */
 	int cache_idx;              /* ACL index in cache */
+	unsigned int requires;      /* or'ed bit mask of all acl_expr's ACL_USE_* */
 };
 
 /* the condition will be linked to from an action in a proxy */
@@ -231,6 +318,8 @@ struct acl_cond {
 	struct list list;           /* Some specific tests may use multiple conditions */
 	struct list suites;         /* list of acl_term_suites */
 	int pol;                    /* polarity: ACL_COND_IF / ACL_COND_UNLESS */
+	unsigned int requires;      /* or'ed bit mask of all acl's ACL_USE_* */
+	int line;                   /* line in the config file where the condition is declared */
 };
 
 
