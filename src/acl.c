@@ -1102,9 +1102,9 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct acl_kw_list acl_kws = {{ },{
-	{ "always_true", acl_parse_nothing, acl_fetch_true, acl_match_nothing },
-	{ "always_false", acl_parse_nothing, acl_fetch_false, acl_match_nothing },
-	{ "wait_end", acl_parse_nothing, acl_fetch_wait_end, acl_match_nothing },
+	{ "always_true", acl_parse_nothing, acl_fetch_true, acl_match_nothing,   ACL_USE_NOTHING },
+	{ "always_false", acl_parse_nothing, acl_fetch_false, acl_match_nothing, ACL_USE_NOTHING },
+	{ "wait_end", acl_parse_nothing, acl_fetch_wait_end, acl_match_nothing,  ACL_USE_NOTHING },
 #if 0
 	{ "time",       acl_parse_time,  acl_fetch_time,   acl_match_time  },
 #endif

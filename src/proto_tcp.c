@@ -558,8 +558,8 @@ static struct cfg_kw_list cfg_kws = {{ },{
 }};
 
 static struct acl_kw_list acl_kws = {{ },{
-	{ "req_len",      acl_parse_int,        acl_fetch_req_len,     acl_match_int },
-	{ "req_ssl_ver",  acl_parse_dotted_ver, acl_fetch_req_ssl_ver, acl_match_int },
+	{ "req_len",      acl_parse_int,        acl_fetch_req_len,     acl_match_int, ACL_USE_L4REQ_VOLATILE },
+	{ "req_ssl_ver",  acl_parse_dotted_ver, acl_fetch_req_ssl_ver, acl_match_int, ACL_USE_L4REQ_VOLATILE },
 	{ NULL, NULL, NULL, NULL },
 }};
 

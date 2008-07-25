@@ -104,6 +104,7 @@ enum {
  * allows for flexible ACLs typed by their contents.
  */
 enum {
+	ACL_USE_NOTHING         = 0,            /* no need for anything beyond internal information */
 	ACL_USE_TCP4_PERMANENT  = 1 <<  0,      /* unchanged TCPv4 data (eg: source IP) */
 	ACL_USE_TCP4_CACHEABLE  = 1 <<  1,      /* cacheable TCPv4 data (eg: src conns) */
 	ACL_USE_TCP4_VOLATILE   = 1 <<  2,      /* volatile  TCPv4 data (eg: RTT) */
