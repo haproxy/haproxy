@@ -1096,6 +1096,30 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 }
 
 
+/* Reports a pointer to the first ACL used in condition <cond> which requires
+ * at least one of the USE_FLAGS in <require>. Returns NULL if none matches.
+ * The construct is almost the same as for acl_exec_cond() since we're walking
+ * down the ACL tree as well. It is important that the tree is really walked
+ * through and never cached, because that way, this function can be used as a
+ * late check.
+ */
+struct acl *cond_find_require(struct acl_cond *cond, unsigned int require)
+{
+	struct acl_term_suite *suite;
+	struct acl_term *term;
+	struct acl *acl;
+
+	list_for_each_entry(suite, &cond->suites, list) {
+		list_for_each_entry(term, &suite->terms, list) {
+			acl = term->acl;
+			if (acl->requires & require)
+				return acl;
+		}
+	}
+	return NULL;
+}
+
+
 /************************************************************************/
 /*             All supported keywords must be declared here.            */
 /************************************************************************/

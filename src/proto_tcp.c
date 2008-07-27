@@ -377,6 +377,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 
 	if (!strcmp(args[1], "content")) {
 		int action;
+		int warn = 0;
 		int pol = ACL_COND_NONE;
 		struct acl_cond *cond;
 		struct tcp_rule *rule;
@@ -410,17 +411,32 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 		if (pol != ACL_COND_NONE &&
 		    (cond = parse_acl_cond((const char **)args+4, &curpx->acl, pol)) == NULL) {
 			retlen = snprintf(err, errlen,
-					  "Error detected in %s '%s' while parsing '%s' condition",
+					  "error detected in %s '%s' while parsing '%s' condition",
 					  proxy_type_str(curpx), curpx->id, args[3]);
 			return -1;
 		}
 
+		// FIXME: how to set this ?
+		// cond->line = linenum;
+		if (cond->requires & (ACL_USE_RTR_ANY | ACL_USE_L7_ANY)) {
+			struct acl *acl;
+			const char *name;
+
+			acl = cond_find_require(cond, ACL_USE_RTR_ANY|ACL_USE_L7_ANY);
+			name = acl ? acl->name : "(unknown)";
+
+			retlen = snprintf(err, errlen,
+					  "acl '%s' involves some %s criteria which will be ignored.",
+					  name,
+					  (acl->requires & ACL_USE_RTR_ANY) ? "response-only" : "layer 7");
+			warn++;
+		}
 		rule = (struct tcp_rule *)calloc(1, sizeof(*rule));
 		rule->cond = cond;
 		rule->action = action;
 		LIST_INIT(&rule->list);
 		LIST_ADDQ(&curpx->tcp_req.inspect_rules, &rule->list);
-		return 0;
+		return warn;
 	}
 
 	snprintf(err, errlen, "unknown argument '%s' after '%s' in %s '%s'",

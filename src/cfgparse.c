@@ -1244,8 +1244,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 
 		cond->line = linenum;
 		if (cond->requires & ACL_USE_RTR_ANY) {
-			Warning("parsing [%s:%d] : switching rule involves some response-only criteria which will be ignored.\n",
-				file, linenum);
+			struct acl *acl;
+			const char *name;
+
+			acl = cond_find_require(cond, ACL_USE_RTR_ANY);
+			name = acl ? acl->name : "(unknown)";
+			Warning("parsing [%s:%d] : acl '%s' involves some response-only criteria which will be ignored.\n",
+				file, linenum, name);
 		}
 
 		rule = (struct switching_rule *)calloc(1, sizeof(*rule));
