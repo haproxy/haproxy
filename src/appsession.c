@@ -148,13 +148,9 @@ int match_str(const void *key1, const void *key2)
 }/* end match_str */
 
 void destroy(appsess *temp1) {
-    if (temp1->sessid)
 	pool_free2(apools.sessid, temp1->sessid);
-
-    if (temp1->serverid)
 	pool_free2(apools.serverid, temp1->serverid);
-
-    pool_free2(pool2_appsess, temp1);
+	pool_free2(pool2_appsess, temp1);
 } /* end destroy */
 
 void appsession_cleanup( void )

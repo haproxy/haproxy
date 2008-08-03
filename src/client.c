@@ -433,17 +433,13 @@ int event_accept(int fd) {
 
 	/* Error unrolling */
  out_fail_rep:
-	if (s->req)
-		pool_free2(pool2_buffer, s->req);
+	pool_free2(pool2_buffer, s->req);
  out_fail_req:
-	if (txn->hdr_idx.v != NULL)
-		pool_free2(p->hdr_idx_pool, txn->hdr_idx.v);
+	pool_free2(p->hdr_idx_pool, txn->hdr_idx.v);
  out_fail_idx:
-	if (txn->rsp.cap != NULL)
-		pool_free2(p->rsp_cap_pool, txn->rsp.cap);
+	pool_free2(p->rsp_cap_pool, txn->rsp.cap);
  out_fail_rspcap:
-	if (txn->req.cap != NULL)
-		pool_free2(p->req_cap_pool, txn->req.cap);
+	pool_free2(p->req_cap_pool, txn->req.cap);
  out_fail_reqcap:
  out_free_task:
 	pool_free2(pool2_task, t);

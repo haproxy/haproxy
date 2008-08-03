@@ -47,57 +47,39 @@ void session_free(struct session *s)
 		sess_change_server(s, NULL);
 	}
 
-	if (s->req)
-		pool_free2(pool2_buffer, s->req);
-	if (s->rep)
-		pool_free2(pool2_buffer, s->rep);
+	pool_free2(pool2_buffer, s->req);
+	pool_free2(pool2_buffer, s->rep);
 
 	if (fe) {
-		if (txn->hdr_idx.v != NULL)
-			pool_free2(fe->hdr_idx_pool, txn->hdr_idx.v);
+		pool_free2(fe->hdr_idx_pool, txn->hdr_idx.v);
 
 		if (txn->rsp.cap != NULL) {
 			struct cap_hdr *h;
-			for (h = fe->rsp_cap; h; h = h->next) {
-				if (txn->rsp.cap[h->index] != NULL)
-					pool_free2(h->pool, txn->rsp.cap[h->index]);
-			}
+			for (h = fe->rsp_cap; h; h = h->next)
+				pool_free2(h->pool, txn->rsp.cap[h->index]);
 			pool_free2(fe->rsp_cap_pool, txn->rsp.cap);
 		}
 		if (txn->req.cap != NULL) {
 			struct cap_hdr *h;
-			for (h = fe->req_cap; h; h = h->next) {
-				if (txn->req.cap[h->index] != NULL)
-					pool_free2(h->pool, txn->req.cap[h->index]);
-			}
+			for (h = fe->req_cap; h; h = h->next)
+				pool_free2(h->pool, txn->req.cap[h->index]);
 			pool_free2(fe->req_cap_pool, txn->req.cap);
 		}
 	}
-	if (txn->uri)
-		pool_free2(pool2_requri, txn->uri);
-	if (txn->cli_cookie)
-		pool_free2(pool2_capture, txn->cli_cookie);
-	if (txn->srv_cookie)
-		pool_free2(pool2_capture, txn->srv_cookie);
-
+	pool_free2(pool2_requri, txn->uri);
+	pool_free2(pool2_capture, txn->cli_cookie);
+	pool_free2(pool2_capture, txn->srv_cookie);
 	pool_free2(pool2_session, s);
 
 	/* We may want to free the maximum amount of pools if the proxy is stopping */
 	if (fe && unlikely(fe->state == PR_STSTOPPED)) {
-		if (pool2_buffer)
-			pool_flush2(pool2_buffer);
-		if (fe->hdr_idx_pool)
-			pool_flush2(fe->hdr_idx_pool);
-		if (pool2_requri)
-			pool_flush2(pool2_requri);
-		if (pool2_capture)
-			pool_flush2(pool2_capture);
-		if (pool2_session)
-			pool_flush2(pool2_session);
-		if (fe->req_cap_pool)
-			pool_flush2(fe->req_cap_pool);
-		if (fe->rsp_cap_pool)
-			pool_flush2(fe->rsp_cap_pool);
+		pool_flush2(pool2_buffer);
+		pool_flush2(fe->hdr_idx_pool);
+		pool_flush2(pool2_requri);
+		pool_flush2(pool2_capture);
+		pool_flush2(pool2_session);
+		pool_flush2(fe->req_cap_pool);
+		pool_flush2(fe->rsp_cap_pool);
 	}
 }
 

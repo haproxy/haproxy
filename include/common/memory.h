@@ -2,7 +2,7 @@
   include/common/memory.h
   Memory management definitions..
 
-  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -186,13 +186,16 @@ void *pool_destroy2(struct pool_head *pool);
  * is written in the beginning of the memory area, so
  * there's no need for any carrier cell. This implies
  * that each memory area is at least as big as one
- * pointer.
+ * pointer. Just like with the libc's free(), nothing
+ * is done if <ptr> is NULL.
  */
 #define pool_free2(pool, ptr)                           \
 ({                                                      \
-        *(void **)ptr = (void *)pool->free_list;        \
-        pool->free_list = (void *)ptr;                  \
-        pool->used--;                                   \
+        if (likely((ptr) != NULL)) {                    \
+                *(void **)ptr = (void *)pool->free_list;\
+                pool->free_list = (void *)ptr;          \
+                pool->used--;                           \
+        }                                               \
 })
 
 
