@@ -365,8 +365,8 @@ const char http_is_ver_token[256] = {
 
 
 #ifdef DEBUG_FULL
-static char *cli_stnames[5] = {"HDR", "DAT", "SHR", "SHW", "CLS" };
-static char *srv_stnames[7] = {"IDL", "CON", "HDR", "DAT", "SHR", "SHW", "CLS" };
+static char *cli_stnames[6] = {"INS", "HDR", "DAT", "SHR", "SHW", "CLS" };
+static char *srv_stnames[8] = {"IDL", "ANA", "CON", "HDR", "DAT", "SHR", "SHW", "CLS" };
 #endif
 
 static void http_sess_log(struct session *s);
@@ -1543,11 +1543,10 @@ int process_cli(struct session *t)
 	struct buffer *req = t->req;
 	struct buffer *rep = t->rep;
 
-	DPRINTF(stderr,"process_cli: c=%s s=%s set(r,w)=%d,%d exp(r,w)=%d.%d,%d.%d\n",
+	DPRINTF(stderr,"process_cli: c=%s s=%s set(r,w)=%d,%d exp(r,w)=%u,%u\n",
 		cli_stnames[c], srv_stnames[s],
 		EV_FD_ISSET(t->cli_fd, DIR_RD), EV_FD_ISSET(t->cli_fd, DIR_WR),
-		req->rex.tv_sec, req->rex.tv_usec,
-		rep->wex.tv_sec, rep->wex.tv_usec);
+		req->rex, rep->wex);
 
 	if (c == CL_STINSPECT) {
 		struct tcp_rule *rule;
@@ -2692,9 +2691,10 @@ int process_srv(struct session *t)
 	struct buffer *rep = t->rep;
 	int conn_err;
 
-#ifdef DEBUG_FULL
-	fprintf(stderr,"process_srv: c=%s, s=%s\n", cli_stnames[c], srv_stnames[s]);
-#endif
+	DPRINTF(stderr,"process_srv: c=%s s=%s set(r,w)=%d,%d exp(r,w)=%u,%u\n",
+		cli_stnames[c], srv_stnames[s],
+		EV_FD_ISSET(t->srv_fd, DIR_RD), EV_FD_ISSET(t->srv_fd, DIR_WR),
+		rep->rex, req->wex);
 
 #if 0
 	fprintf(stderr,"%s:%d  fe->clito=%d.%d, fe->conto=%d.%d, fe->srvto=%d.%d\n",
@@ -2733,9 +2733,9 @@ int process_srv(struct session *t)
                  */
 		if (c == CL_STHEADERS || c == CL_STINSPECT)
 			return 0;	/* stay in idle, waiting for data to reach the client side */
-		else if (c == CL_STCLOSE || c == CL_STSHUTW ||
-			 (c == CL_STSHUTR &&
-			  (t->req->l == 0 || t->be->options & PR_O_ABRT_CLOSE))) { /* give up */
+		else if ((rep->flags & BF_SHUTW_STATUS) ||
+			 ((req->flags & BF_SHUTR_STATUS) &&
+			  (req->l == 0 || t->be->options & PR_O_ABRT_CLOSE))) { /* give up */
 			req->cex = TICK_ETERNITY;
 			if (t->pend_pos)
 				t->logs.t_queue = tv_ms_elapsed(&t->logs.tv_accept, &now);
@@ -2858,9 +2858,9 @@ int process_srv(struct session *t)
 		}
 	}
 	else if (s == SV_STCONN) { /* connection in progress */
-		if (c == CL_STCLOSE || c == CL_STSHUTW ||
-		    (c == CL_STSHUTR &&
-		     ((t->req->l == 0 && !(req->flags & BF_WRITE_STATUS)) ||
+		if ((rep->flags & BF_SHUTW_STATUS) ||
+		    ((req->flags & BF_SHUTR_STATUS) &&
+		     ((req->l == 0 && !(req->flags & BF_WRITE_STATUS)) ||
 		      t->be->options & PR_O_ABRT_CLOSE))) { /* give up */
 			req->cex = TICK_ETERNITY;
 			if (!(t->flags & SN_CONN_TAR)) {
@@ -3109,8 +3109,7 @@ int process_srv(struct session *t)
 			 * since we are in header mode, if there's no space left for headers, we
 			 * won't be able to free more later, so the session will never terminate.
 			 */
-			else if (unlikely(rep->flags & BF_READ_NULL ||
-			                  c == CL_STSHUTW || c == CL_STCLOSE ||
+			else if (unlikely(rep->flags & (BF_READ_NULL | BF_SHUTW_STATUS) ||
 			                  rep->l >= rep->rlim - rep->data)) {
 				EV_FD_CLR(t->srv_fd, DIR_RD);
 				buffer_shutr_done(rep);
@@ -3153,11 +3152,10 @@ int process_srv(struct session *t)
 			 * The side-effect is that if the client completely closes its
 			 * connection during SV_STHEADER, the connection to the server
 			 * is kept until a response comes back or the timeout is reached.
-			 * FIXME!!! this code can never be called because the condition is
-			 * caught earlier (CL_STCLOSE).
 			 */
-			else if (unlikely((/*c == CL_STSHUTR ||*/ c == CL_STCLOSE) &&
-			                  (req->l == 0))) {
+			else if (0 && /* we don't want to switch to shutw for now */
+				 unlikely(req->flags & BF_SHUTR_STATUS && (req->l == 0))) {
+
 				EV_FD_CLR(t->srv_fd, DIR_WR);
 				buffer_shutw_done(req);
 
@@ -3505,7 +3503,7 @@ int process_srv(struct session *t)
 		 * we close the server's outgoing connection right now.
 		 */
 		if ((req->l == 0) &&
-		    (c == CL_STSHUTR || c == CL_STCLOSE || t->be->options & PR_O_FORCE_CLO)) {
+		    (req->flags & BF_SHUTR_STATUS || t->be->options & PR_O_FORCE_CLO)) {
 			EV_FD_CLR(t->srv_fd, DIR_WR);
 			buffer_shutw_done(req);
 
@@ -3570,7 +3568,7 @@ int process_srv(struct session *t)
 			return 1;
 		}
 		/* last read, or end of client write */
-		else if (rep->flags & BF_READ_NULL || c == CL_STSHUTW || c == CL_STCLOSE) {
+		else if (rep->flags & (BF_READ_NULL | BF_SHUTW_STATUS)) {
 			EV_FD_CLR(t->srv_fd, DIR_RD);
 			buffer_shutr(rep);
 			t->srv_state = SV_STSHUTR;
@@ -3578,7 +3576,7 @@ int process_srv(struct session *t)
 			return 1;
 		}
 		/* end of client read and no more data to send */
-		else if ((c == CL_STSHUTR || c == CL_STCLOSE) && (req->l == 0)) {
+		else if (req->flags & BF_SHUTR_STATUS && (req->l == 0)) {
 			EV_FD_CLR(t->srv_fd, DIR_WR);
 			buffer_shutw_done(req);
 			shutdown(t->srv_fd, SHUT_WR);
@@ -3676,7 +3674,7 @@ int process_srv(struct session *t)
 
 			return 1;
 		}
-		else if ((c == CL_STSHUTR || c == CL_STCLOSE) && (req->l == 0)) {
+		else if (req->flags & BF_SHUTR_STATUS && (req->l == 0)) {
 			//EV_FD_CLR(t->srv_fd, DIR_WR);
 			buffer_shutw_done(req);
 			fd_delete(t->srv_fd);
@@ -3755,7 +3753,7 @@ int process_srv(struct session *t)
 
 			return 1;
 		}
-		else if (rep->flags & BF_READ_NULL || c == CL_STSHUTW || c == CL_STCLOSE) {
+		else if (rep->flags & (BF_READ_NULL | BF_SHUTW_STATUS)) {
 			//EV_FD_CLR(t->srv_fd, DIR_RD);
 			buffer_shutr_done(rep);
 			fd_delete(t->srv_fd);
