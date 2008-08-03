@@ -2214,10 +2214,21 @@ int process_cli(struct session *t)
 					unsigned char *pn;
 					pn = (unsigned char *)&((struct sockaddr_in *)&t->cli_addr)->sin_addr;
 
-					len = sprintf(trash, "X-Forwarded-For: %d.%d.%d.%d",
-						      pn[0], pn[1], pn[2], pn[3]);
+					/* Note: we rely on the backend to get the header name to be used for
+					 * x-forwarded-for, because the header is really meant for the backends.
+					 * However, if the backend did not specify any option, we have to rely
+					 * on the frontend's header name.
+					 */
+					if (t->be->fwdfor_hdr_len) {
+						len = t->be->fwdfor_hdr_len;
+						memcpy(trash, t->be->fwdfor_hdr_name, len);
+					} else {
+						len = t->fe->fwdfor_hdr_len;
+						memcpy(trash, t->fe->fwdfor_hdr_name, len);
+					}
+					len += sprintf(trash + len, ": %d.%d.%d.%d", pn[0], pn[1], pn[2], pn[3]);
 
-					if (unlikely(http_header_add_tail2(req, &txn->req,
+ 					if (unlikely(http_header_add_tail2(req, &txn->req,
 									   &txn->hdr_idx, trash, len)) < 0)
 						goto return_bad_req;
 				}
@@ -2231,7 +2242,21 @@ int process_cli(struct session *t)
 				inet_ntop(AF_INET6,
 					  (const void *)&((struct sockaddr_in6 *)(&t->cli_addr))->sin6_addr,
 					  pn, sizeof(pn));
-				len = sprintf(trash, "X-Forwarded-For: %s", pn);
+
+				/* Note: we rely on the backend to get the header name to be used for
+				 * x-forwarded-for, because the header is really meant for the backends.
+				 * However, if the backend did not specify any option, we have to rely
+				 * on the frontend's header name.
+				 */
+				if (t->be->fwdfor_hdr_len) {
+					len = t->be->fwdfor_hdr_len;
+					memcpy(trash, t->be->fwdfor_hdr_name, len);
+				} else {
+					len = t->fe->fwdfor_hdr_len;
+					memcpy(trash, t->fe->fwdfor_hdr_name, len);
+				}
+				len += sprintf(trash + len, ": %s", pn);
+ 
 				if (unlikely(http_header_add_tail2(req, &txn->req,
 								   &txn->hdr_idx, trash, len)) < 0)
 					goto return_bad_req;

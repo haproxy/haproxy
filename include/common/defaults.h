@@ -108,6 +108,9 @@
 #define DEF_CHECK_REQ   "OPTIONS / HTTP/1.0\r\n\r\n"
 #define DEF_SMTP_CHECK_REQ   "HELO localhost\r\n"
 
+// X-Forwarded-For header default
+#define DEF_XFORWARDFOR_HDR	"X-Forwarded-For"
+
 /* Default connections limit.
  *
  * A system limit can be enforced at build time in order to avoid using haproxy

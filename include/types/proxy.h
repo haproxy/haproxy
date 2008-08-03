@@ -206,6 +206,8 @@ struct proxy {
 	unsigned int maxconn;			/* max # of active sessions on the frontend */
 	unsigned int fullconn;			/* #conns on backend above which servers are used at full load */
 	struct in_addr except_net, except_mask; /* don't x-forward-for for this address. FIXME: should support IPv6 */
+	char *fwdfor_hdr_name;			/* header to use - default: "x-forwarded-for" */
+	int fwdfor_hdr_len;			/* length of "x-forwarded-for" header */
 
 	unsigned down_trans;			/* up-down transitions */
 	unsigned down_time;			/* total time the proxy was down */

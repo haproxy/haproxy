@@ -1836,13 +1836,15 @@ no option forceclose
   See also : "option httpclose"
 
 
-option forwardfor [ except <network> ]
+option forwardfor [ except <network> ] [ header <name> ]
   Enable insertion of the X-Forwarded-For header to requests sent to servers
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
   Arguments :
     <network> is an optional argument used to disable this option for sources
               matching <network>
+    <name>    an optional argument to specify a different "X-Forwarded-For"
+              header name.  
 
   Since HAProxy works in reverse-proxy mode, the servers see its IP address as
   their client address. This is sometimes annoying when the client's IP address
@@ -1851,7 +1853,16 @@ option forwardfor [ except <network> ]
   This header contains a value representing the client's IP address. Since this
   header is always appended at the end of the existing header list, the server
   must be configured to always use the last occurrence of this header only. See
-  the server's manual to find how to enable use of this standard header.
+  the server's manual to find how to enable use of this standard header. Note
+  that only the last occurrence of the header must be used, since it is really
+  possible that the client has already brought one.
+
+  The keyword "header" may be used to supply a different header name to replace 
+  the default "X-Forwarded-For". This can be useful where you might already
+  have a "X-Forwarded-For" header from a different application (eg: stunnel), 
+  and you need preserve it. Also if your backend server doesn't use the 
+  "X-Forwarded-For" header and requires different one (eg: Zeus Web Servers
+  require "X-Cluster-Client-IP").
 
   Sometimes, a same HAProxy instance may be shared between a direct client
   access and a reverse-proxy access (for instance when an SSL reverse-proxy is
@@ -1862,18 +1873,25 @@ option forwardfor [ except <network> ]
   private networks or 127.0.0.1.
 
   This option may be specified either in the frontend or in the backend. If at
-  least one of them uses it, the header will be added.
+  least one of them uses it, the header will be added. Note that the backend's
+  setting of the header subargument takes precedence over the frontend's if
+  both are defined.
 
   It is important to note that as long as HAProxy does not support keep-alive
   connections, only the first request of a connection will receive the header.
   For this reason, it is important to ensure that "option httpclose" is set
   when using this option.
 
-  Example :
+  Examples :
     # Public HTTP address also used by stunnel on the same machine
     frontend www
         mode http
         option forwardfor except 127.0.0.1  # stunnel already adds the header
+
+    # Those servers want the IP Address in X-Client
+    backend www
+        mode http
+        option forwardfor header X-Client
 
   See also : "option httpclose"
 

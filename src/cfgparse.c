@@ -1443,25 +1443,49 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			}
 		}
 		else if (!strcmp(args[1], "forwardfor")) {
-			/* insert x-forwarded-for field, but not for the
-			 * IP address listed as an except.
+			int cur_arg;
+
+			/* insert x-forwarded-for field, but not for the IP address listed as an except.
+			 * set default options (ie: bitfield, header name, etc) 
 			 */
-			if (*(args[2])) {
-				if (!strcmp(args[2], "except")) {
-					if (!*args[3] || !str2net(args[3], &curproxy->except_net, &curproxy->except_mask)) {
-						Alert("parsing [%s:%d] : '%s' only supports optional 'except' address[/mask].\n",
-						      file, linenum, args[0]);
+
+			curproxy->options |= PR_O_FWDFOR;
+
+			free(curproxy->fwdfor_hdr_name);
+			curproxy->fwdfor_hdr_name = strdup(DEF_XFORWARDFOR_HDR);
+			curproxy->fwdfor_hdr_len  = strlen(DEF_XFORWARDFOR_HDR);
+
+			/* loop to go through arguments - start at 2, since 0+1 = "option" "forwardfor" */
+			cur_arg = 2;
+			while (*(args[cur_arg])) {
+				if (!strcmp(args[cur_arg], "except")) {
+					/* suboption except - needs additional argument for it */
+					if (!*(args[cur_arg+1]) || !str2net(args[cur_arg+1], &curproxy->except_net, &curproxy->except_mask)) {
+						Alert("parsing [%s:%d] : '%s %s %s' expects <address>[/mask] as argument.\n",
+						      file, linenum, args[0], args[1], args[cur_arg]);
 						return -1;
 					}
 					/* flush useless bits */
 					curproxy->except_net.s_addr &= curproxy->except_mask.s_addr;
+					cur_arg += 2;
+				} else if (!strcmp(args[cur_arg], "header")) {
+					/* suboption header - needs additional argument for it */
+					if (*(args[cur_arg+1]) == 0) {
+						Alert("parsing [%s:%d] : '%s %s %s' expects <header_name> as argument.\n",
+						      file, linenum, args[0], args[1], args[cur_arg]);
+						return -1;
+					}
+					free(curproxy->fwdfor_hdr_name);
+					curproxy->fwdfor_hdr_name = strdup(args[cur_arg+1]);
+					curproxy->fwdfor_hdr_len  = strlen(curproxy->fwdfor_hdr_name);
+					cur_arg += 2;
 				} else {
-					Alert("parsing [%s:%d] : '%s' only supports optional 'except' address[/mask].\n",
-					      file, linenum, args[0]);
+					/* unknown suboption - catchall */
+					Alert("parsing [%s:%d] : '%s %s' only supports optional values: 'except' and 'header'.\n",
+					      file, linenum, args[0], args[1]);
 					return -1;
 				}
-			}
-			curproxy->options |= PR_O_FWDFOR;
+			} /* end while loop */
 		}
 		else {
 			Alert("parsing [%s:%d] : unknown option '%s'.\n", file, linenum, args[1]);
