@@ -556,8 +556,8 @@ static int process_uxst_cli(struct session *t)
 		 */
 		/* read or write error */
 		if (rep->flags & BF_WRITE_ERROR || req->flags & BF_READ_ERROR) {
-			buffer_shutr(req);
-			buffer_shutw(rep);
+			buffer_shutr_done(req);
+			buffer_shutw_done(rep);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
 			if (!(t->flags & SN_ERR_MASK))
@@ -582,7 +582,7 @@ static int process_uxst_cli(struct session *t)
 		/* last server read and buffer empty */
 		else if ((s == SV_STSHUTR || s == SV_STCLOSE) && (rep->l == 0)) {
 			EV_FD_CLR(t->cli_fd, DIR_WR);
-			buffer_shutw(rep);
+			buffer_shutw_done(rep);
 			shutdown(t->cli_fd, SHUT_WR);
 			/* We must ensure that the read part is still alive when switching
 			 * to shutw */
@@ -612,7 +612,7 @@ static int process_uxst_cli(struct session *t)
 		/* write timeout */
 		else if (tick_is_expired(rep->wex, now_ms)) {
 			EV_FD_CLR(t->cli_fd, DIR_WR);
-			buffer_shutw(rep);
+			buffer_shutw_done(rep);
 			shutdown(t->cli_fd, SHUT_WR);
 			/* We must ensure that the read part is still alive when switching
 			 * to shutw */
@@ -677,7 +677,7 @@ static int process_uxst_cli(struct session *t)
 	}
 	else if (c == CL_STSHUTR) {
 		if (rep->flags & BF_WRITE_ERROR) {
-			buffer_shutw(rep);
+			buffer_shutw_done(rep);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
 			if (!(t->flags & SN_ERR_MASK))
@@ -693,13 +693,13 @@ static int process_uxst_cli(struct session *t)
 			return 1;
 		}
 		else if ((s == SV_STSHUTR || s == SV_STCLOSE) && (rep->l == 0)) {
-			buffer_shutw(rep);
+			buffer_shutw_done(rep);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
 			return 1;
 		}
 		else if (tick_is_expired(rep->wex, now_ms)) {
-			buffer_shutw(rep);
+			buffer_shutw_done(rep);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
 			if (!(t->flags & SN_ERR_MASK))
@@ -731,7 +731,7 @@ static int process_uxst_cli(struct session *t)
 	}
 	else if (c == CL_STSHUTW) {
 		if (req->flags & BF_READ_ERROR) {
-			buffer_shutr(req);
+			buffer_shutr_done(req);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
 			if (!(t->flags & SN_ERR_MASK))
@@ -747,13 +747,13 @@ static int process_uxst_cli(struct session *t)
 			return 1;
 		}
 		else if (req->flags & BF_READ_NULL || s == SV_STSHUTW || s == SV_STCLOSE) {
-			buffer_shutr(req);
+			buffer_shutr_done(req);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
 			return 1;
 		}
 		else if (tick_is_expired(req->rex, now_ms)) {
-			buffer_shutr(req);
+			buffer_shutr_done(req);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
 			if (!(t->flags & SN_ERR_MASK))
@@ -975,8 +975,8 @@ static int process_uxst_srv(struct session *t)
 	else if (s == SV_STDATA) {
 		/* read or write error */
 		if (req->flags & BF_WRITE_ERROR || rep->flags & BF_READ_ERROR) {
-			buffer_shutr(rep);
-			buffer_shutw(req);
+			buffer_shutr_done(rep);
+			buffer_shutw_done(req);
 			fd_delete(t->srv_fd);
 			if (t->srv) {
 				t->srv->cur_sess--;
@@ -1007,7 +1007,7 @@ static int process_uxst_srv(struct session *t)
 		/* end of client read and no more data to send */
 		else if ((c == CL_STSHUTR || c == CL_STCLOSE) && (req->l == 0)) {
 			EV_FD_CLR(t->srv_fd, DIR_WR);
-			buffer_shutw(req);
+			buffer_shutw_done(req);
 			shutdown(t->srv_fd, SHUT_WR);
 			/* We must ensure that the read part is still alive when switching
 			 * to shutw */
@@ -1031,7 +1031,7 @@ static int process_uxst_srv(struct session *t)
 		/* write timeout */
 		else if (tv_isle(&req->wex, &now)) {
 			EV_FD_CLR(t->srv_fd, DIR_WR);
-			buffer_shutw(req);
+			buffer_shutw_done(req);
 			shutdown(t->srv_fd, SHUT_WR);
 			/* We must ensure that the read part is still alive when switching
 			 * to shutw */
@@ -1083,7 +1083,7 @@ static int process_uxst_srv(struct session *t)
 	else if (s == SV_STSHUTR) {
 		if (req->flags & BF_WRITE_ERROR) {
 			//EV_FD_CLR(t->srv_fd, DIR_WR);
-			buffer_shutw(req);
+			buffer_shutw_done(req);
 			fd_delete(t->srv_fd);
 			if (t->srv) {
 				t->srv->cur_sess--;
@@ -1106,7 +1106,7 @@ static int process_uxst_srv(struct session *t)
 		}
 		else if ((c == CL_STSHUTR || c == CL_STCLOSE) && (req->l == 0)) {
 			//EV_FD_CLR(t->srv_fd, DIR_WR);
-			buffer_shutw(req);
+			buffer_shutw_done(req);
 			fd_delete(t->srv_fd);
 			if (t->srv)
 				t->srv->cur_sess--;
@@ -1122,7 +1122,7 @@ static int process_uxst_srv(struct session *t)
 		}
 		else if (tv_isle(&req->wex, &now)) {
 			//EV_FD_CLR(t->srv_fd, DIR_WR);
-			buffer_shutw(req);
+			buffer_shutw_done(req);
 			fd_delete(t->srv_fd);
 			if (t->srv)
 				t->srv->cur_sess--;
@@ -1158,7 +1158,7 @@ static int process_uxst_srv(struct session *t)
 	else if (s == SV_STSHUTW) {
 		if (rep->flags & BF_READ_ERROR) {
 			//EV_FD_CLR(t->srv_fd, DIR_RD);
-			buffer_shutr(rep);
+			buffer_shutr_done(rep);
 			fd_delete(t->srv_fd);
 			if (t->srv) {
 				t->srv->cur_sess--;
@@ -1181,7 +1181,7 @@ static int process_uxst_srv(struct session *t)
 		}
 		else if (rep->flags & BF_READ_NULL || c == CL_STSHUTW || c == CL_STCLOSE) {
 			//EV_FD_CLR(t->srv_fd, DIR_RD);
-			buffer_shutr(rep);
+			buffer_shutr_done(rep);
 			fd_delete(t->srv_fd);
 			if (t->srv)
 				t->srv->cur_sess--;
@@ -1197,7 +1197,7 @@ static int process_uxst_srv(struct session *t)
 		}
 		else if (tv_isle(&rep->rex, &now)) {
 			//EV_FD_CLR(t->srv_fd, DIR_RD);
-			buffer_shutr(rep);
+			buffer_shutr_done(rep);
 			fd_delete(t->srv_fd);
 			if (t->srv)
 				t->srv->cur_sess--;

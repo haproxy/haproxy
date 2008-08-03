@@ -545,6 +545,8 @@ void srv_close_with_err(struct session *t, int err, int finst,
 			int status, const struct chunk *msg)
 {
 	t->srv_state = SV_STCLOSE;
+	buffer_shutw_done(t->req);
+	buffer_shutr_done(t->rep);
 	if (status > 0 && msg) {
 		t->txn.status = status;
 		if (t->fe->mode == PR_MODE_HTTP)
@@ -1558,7 +1560,8 @@ int process_cli(struct session *t)
 		 */
 		if (unlikely(req->flags & (BF_READ_ERROR | BF_READ_NULL))) {
 			t->inspect_exp = TICK_ETERNITY;
-			buffer_shutr(req);
+			buffer_shutr_done(req);
+			buffer_shutw_done(rep);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
 			t->fe->failed_req++;
@@ -1572,7 +1575,8 @@ int process_cli(struct session *t)
 		/* Abort if client read timeout has expired */
 		else if (unlikely(tick_is_expired(req->rex, now_ms))) {
 			t->inspect_exp = TICK_ETERNITY;
-			buffer_shutr(req);
+			buffer_shutr_done(req);
+			buffer_shutw_done(rep);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
 			t->fe->failed_req++;
@@ -1615,7 +1619,8 @@ int process_cli(struct session *t)
 			if (ret) {
 				/* we have a matching rule. */
 				if (rule->action == TCP_ACT_REJECT) {
-					buffer_shutr(req);
+					buffer_shutr_done(req);
+					buffer_shutw_done(rep);
 					fd_delete(t->cli_fd);
 					t->cli_state = CL_STCLOSE;
 					t->fe->failed_req++;
@@ -1722,7 +1727,8 @@ int process_cli(struct session *t)
 			/* 2: have we encountered a read error or a close ? */
 			else if (unlikely(req->flags & (BF_READ_ERROR | BF_READ_NULL))) {
 				/* read error, or last read : give up. */
-				buffer_shutr(req);
+				buffer_shutr_done(req);
+				buffer_shutw_done(rep);
 				fd_delete(t->cli_fd);
 				t->cli_state = CL_STCLOSE;
 				t->fe->failed_req++;
@@ -2418,8 +2424,8 @@ int process_cli(struct session *t)
 		 */
 		/* read or write error */
 		if (rep->flags & BF_WRITE_ERROR || req->flags & BF_READ_ERROR) {
-			buffer_shutr(req);
-			buffer_shutw(rep);
+			buffer_shutr_done(req);
+			buffer_shutw_done(rep);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
 			if (!(t->flags & SN_ERR_MASK))
@@ -2444,7 +2450,7 @@ int process_cli(struct session *t)
 		/* last server read and buffer empty */
 		else if ((s == SV_STSHUTR || s == SV_STCLOSE) && (rep->l == 0)) {
 			EV_FD_CLR(t->cli_fd, DIR_WR);
-			buffer_shutw(rep);
+			buffer_shutw_done(rep);
 			shutdown(t->cli_fd, SHUT_WR);
 			/* We must ensure that the read part is still alive when switching
 			 * to shutw */
@@ -2474,7 +2480,7 @@ int process_cli(struct session *t)
 		/* write timeout */
 		else if (tick_is_expired(rep->wex, now_ms)) {
 			EV_FD_CLR(t->cli_fd, DIR_WR);
-			buffer_shutw(rep);
+			buffer_shutw_done(rep);
 			shutdown(t->cli_fd, SHUT_WR);
 			/* We must ensure that the read part is still alive when switching
 			 * to shutw */
@@ -2539,7 +2545,7 @@ int process_cli(struct session *t)
 	}
 	else if (c == CL_STSHUTR) {
 		if (rep->flags & BF_WRITE_ERROR) {
-			buffer_shutw(rep);
+			buffer_shutw_done(rep);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
 			if (!(t->flags & SN_ERR_MASK))
@@ -2556,13 +2562,13 @@ int process_cli(struct session *t)
 		}
 		else if ((s == SV_STSHUTR || s == SV_STCLOSE) && (rep->l == 0)
 			 && !(t->flags & SN_SELF_GEN)) {
-			buffer_shutw(rep);
+			buffer_shutw_done(rep);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
 			return 1;
 		}
 		else if (tick_is_expired(rep->wex, now_ms)) {
-			buffer_shutw(rep);
+			buffer_shutw_done(rep);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
 			if (!(t->flags & SN_ERR_MASK))
@@ -2581,7 +2587,7 @@ int process_cli(struct session *t)
 		if (t->flags & SN_SELF_GEN) {
 			produce_content(t);
 			if (rep->l == 0) {
-				buffer_shutw(rep);
+				buffer_shutw_done(rep);
 				fd_delete(t->cli_fd);
 				t->cli_state = CL_STCLOSE;
 				return 1;
@@ -2605,7 +2611,7 @@ int process_cli(struct session *t)
 	}
 	else if (c == CL_STSHUTW) {
 		if (req->flags & BF_READ_ERROR) {
-			buffer_shutr(req);
+			buffer_shutr_done(req);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
 			if (!(t->flags & SN_ERR_MASK))
@@ -2621,13 +2627,13 @@ int process_cli(struct session *t)
 			return 1;
 		}
 		else if (req->flags & BF_READ_NULL || s == SV_STSHUTW || s == SV_STCLOSE) {
-			buffer_shutr(req);
+			buffer_shutr_done(req);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
 			return 1;
 		}
 		else if (tick_is_expired(req->rex, now_ms)) {
-			buffer_shutr(req);
+			buffer_shutr_done(req);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
 			if (!(t->flags & SN_ERR_MASK))
@@ -3074,8 +3080,8 @@ int process_srv(struct session *t)
 			if (unlikely((msg->msg_state == HTTP_MSG_ERROR) ||
 			             (req->flags & BF_WRITE_ERROR) ||
 			             (rep->flags & BF_READ_ERROR))) {
-				buffer_shutr(rep);
-				buffer_shutw(req);
+				buffer_shutr_done(rep);
+				buffer_shutw_done(req);
 				fd_delete(t->srv_fd);
 				if (t->srv) {
 					t->srv->cur_sess--;
@@ -3107,7 +3113,7 @@ int process_srv(struct session *t)
 			                  c == CL_STSHUTW || c == CL_STCLOSE ||
 			                  rep->l >= rep->rlim - rep->data)) {
 				EV_FD_CLR(t->srv_fd, DIR_RD);
-				buffer_shutr(rep);
+				buffer_shutr_done(rep);
 				t->srv_state = SV_STSHUTR;
 				//fprintf(stderr,"%p:%s(%d), c=%d, s=%d\n", t, __FUNCTION__, __LINE__, t->cli_state, t->cli_state);
 				return 1;
@@ -3116,8 +3122,8 @@ int process_srv(struct session *t)
 			/* read timeout : return a 504 to the client. */
 			else if (unlikely(EV_FD_ISSET(t->srv_fd, DIR_RD) &&
 			                  tick_is_expired(rep->rex, now_ms))) {
-				buffer_shutr(rep);
-				buffer_shutw(req);
+				buffer_shutr_done(rep);
+				buffer_shutw_done(req);
 				fd_delete(t->srv_fd);
 				if (t->srv) {
 					t->srv->cur_sess--;
@@ -3147,11 +3153,13 @@ int process_srv(struct session *t)
 			 * The side-effect is that if the client completely closes its
 			 * connection during SV_STHEADER, the connection to the server
 			 * is kept until a response comes back or the timeout is reached.
+			 * FIXME!!! this code can never be called because the condition is
+			 * caught earlier (CL_STCLOSE).
 			 */
 			else if (unlikely((/*c == CL_STSHUTR ||*/ c == CL_STCLOSE) &&
 			                  (req->l == 0))) {
 				EV_FD_CLR(t->srv_fd, DIR_WR);
-				buffer_shutw(req);
+				buffer_shutw_done(req);
 
 				/* We must ensure that the read part is still
 				 * alive when switching to shutw */
@@ -3171,7 +3179,7 @@ int process_srv(struct session *t)
 			else if (unlikely(EV_FD_ISSET(t->srv_fd, DIR_WR) &&
 					  tick_is_expired(req->wex, now_ms))) {
 				EV_FD_CLR(t->srv_fd, DIR_WR);
-				buffer_shutw(req);
+				buffer_shutw_done(req);
 				shutdown(t->srv_fd, SHUT_WR);
 				/* We must ensure that the read part is still alive
 				 * when switching to shutw */
@@ -3294,8 +3302,8 @@ int process_srv(struct session *t)
 					}
 					cur_proxy->failed_resp++;
 				return_srv_prx_502:
-					buffer_shutr(rep);
-					buffer_shutw(req);
+					buffer_shutr_done(rep);
+					buffer_shutw_done(req);
 					fd_delete(t->srv_fd);
 					t->srv_state = SV_STCLOSE;
 					txn->status = 502;
@@ -3499,7 +3507,7 @@ int process_srv(struct session *t)
 		if ((req->l == 0) &&
 		    (c == CL_STSHUTR || c == CL_STCLOSE || t->be->options & PR_O_FORCE_CLO)) {
 			EV_FD_CLR(t->srv_fd, DIR_WR);
-			buffer_shutw(req);
+			buffer_shutw_done(req);
 
 			/* We must ensure that the read part is still alive when switching
 			 * to shutw */
@@ -3539,8 +3547,8 @@ int process_srv(struct session *t)
 	else if (s == SV_STDATA) {
 		/* read or write error */
 		if (req->flags & BF_WRITE_ERROR || rep->flags & BF_READ_ERROR) {
-			buffer_shutr(rep);
-			buffer_shutw(req);
+			buffer_shutr_done(rep);
+			buffer_shutw_done(req);
 			fd_delete(t->srv_fd);
 			if (t->srv) {
 				t->srv->cur_sess--;
@@ -3572,7 +3580,7 @@ int process_srv(struct session *t)
 		/* end of client read and no more data to send */
 		else if ((c == CL_STSHUTR || c == CL_STCLOSE) && (req->l == 0)) {
 			EV_FD_CLR(t->srv_fd, DIR_WR);
-			buffer_shutw(req);
+			buffer_shutw_done(req);
 			shutdown(t->srv_fd, SHUT_WR);
 			/* We must ensure that the read part is still alive when switching
 			 * to shutw */
@@ -3596,7 +3604,7 @@ int process_srv(struct session *t)
 		/* write timeout */
 		else if (tick_is_expired(req->wex, now_ms)) {
 			EV_FD_CLR(t->srv_fd, DIR_WR);
-			buffer_shutw(req);
+			buffer_shutw_done(req);
 			shutdown(t->srv_fd, SHUT_WR);
 			/* We must ensure that the read part is still alive when switching
 			 * to shutw */
@@ -3646,7 +3654,7 @@ int process_srv(struct session *t)
 	else if (s == SV_STSHUTR) {
 		if (req->flags & BF_WRITE_ERROR) {
 			//EV_FD_CLR(t->srv_fd, DIR_WR);
-			buffer_shutw(req);
+			buffer_shutw_done(req);
 			fd_delete(t->srv_fd);
 			if (t->srv) {
 				t->srv->cur_sess--;
@@ -3670,7 +3678,7 @@ int process_srv(struct session *t)
 		}
 		else if ((c == CL_STSHUTR || c == CL_STCLOSE) && (req->l == 0)) {
 			//EV_FD_CLR(t->srv_fd, DIR_WR);
-			buffer_shutw(req);
+			buffer_shutw_done(req);
 			fd_delete(t->srv_fd);
 			if (t->srv) {
 				t->srv->cur_sess--;
@@ -3688,7 +3696,7 @@ int process_srv(struct session *t)
 		}
 		else if (tick_is_expired(req->wex, now_ms)) {
 			//EV_FD_CLR(t->srv_fd, DIR_WR);
-			buffer_shutw(req);
+			buffer_shutw_done(req);
 			fd_delete(t->srv_fd);
 			if (t->srv) {
 				t->srv->cur_sess--;
@@ -3725,7 +3733,7 @@ int process_srv(struct session *t)
 	else if (s == SV_STSHUTW) {
 		if (rep->flags & BF_READ_ERROR) {
 			//EV_FD_CLR(t->srv_fd, DIR_RD);
-			buffer_shutr(rep);
+			buffer_shutr_done(rep);
 			fd_delete(t->srv_fd);
 			if (t->srv) {
 				t->srv->cur_sess--;
@@ -3749,7 +3757,7 @@ int process_srv(struct session *t)
 		}
 		else if (rep->flags & BF_READ_NULL || c == CL_STSHUTW || c == CL_STCLOSE) {
 			//EV_FD_CLR(t->srv_fd, DIR_RD);
-			buffer_shutr(rep);
+			buffer_shutr_done(rep);
 			fd_delete(t->srv_fd);
 			if (t->srv) {
 				t->srv->cur_sess--;
@@ -3767,7 +3775,7 @@ int process_srv(struct session *t)
 		}
 		else if (tick_is_expired(rep->rex, now_ms)) {
 			//EV_FD_CLR(t->srv_fd, DIR_RD);
-			buffer_shutr(rep);
+			buffer_shutr_done(rep);
 			fd_delete(t->srv_fd);
 			if (t->srv) {
 				t->srv->cur_sess--;

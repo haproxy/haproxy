@@ -73,11 +73,25 @@ static inline void buffer_shutr(struct buffer *buf)
 	buf->flags |= BF_SHUTR_PENDING;
 }
 
+/* marks the buffer as "shutdown done" for reads and cancels the timeout */
+static inline void buffer_shutr_done(struct buffer *buf)
+{
+	buf->rex = TICK_ETERNITY;
+	buf->flags |= BF_SHUTR_DONE;
+}
+
 /* marks the buffer as "shutdown pending" for writes and cancels the timeout */
 static inline void buffer_shutw(struct buffer *buf)
 {
 	buf->wex = TICK_ETERNITY;
 	buf->flags |= BF_SHUTW_PENDING;
+}
+
+/* marks the buffer as "shutdown done" for writes and cancels the timeout */
+static inline void buffer_shutw_done(struct buffer *buf)
+{
+	buf->wex = TICK_ETERNITY;
+	buf->flags |= BF_SHUTW_DONE;
 }
 
 
