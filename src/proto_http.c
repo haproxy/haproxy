@@ -1644,6 +1644,7 @@ int process_cli(struct session *t)
 			t->txn.exp = tick_add_ifset(now_ms, t->fe->timeout.httpreq);
 		} else {
 			t->cli_state = CL_STDATA;
+			req->flags |= BF_MAY_CONNECT;
 		}
 		t->inspect_exp = TICK_ETERNITY;
 		return 1;
@@ -2365,6 +2366,8 @@ int process_cli(struct session *t)
 		 ************************************************************/
 
 		t->cli_state = CL_STDATA;
+		req->flags |= BF_MAY_CONNECT;
+
 		req->rlim = req->data + BUFSIZE; /* no more rewrite needed */
 
 		t->logs.tv_request = now;
@@ -2685,7 +2688,6 @@ int process_cli(struct session *t)
 int process_srv(struct session *t)
 {
 	int s = t->srv_state;
-	int c = t->cli_state;
 	struct http_txn *txn = &t->txn;
 	struct buffer *req = t->req;
 	struct buffer *rep = t->rep;
@@ -2696,44 +2698,13 @@ int process_srv(struct session *t)
 		EV_FD_ISSET(t->srv_fd, DIR_RD), EV_FD_ISSET(t->srv_fd, DIR_WR),
 		rep->rex, req->wex);
 
-#if 0
-	fprintf(stderr,"%s:%d  fe->clito=%d.%d, fe->conto=%d.%d, fe->srvto=%d.%d\n",
-		__FUNCTION__, __LINE__,
-		t->fe->timeout.client.tv_sec, t->fe->timeout.client.tv_usec, 
-		t->fe->timeout.connect.tv_sec, t->fe->timeout.connect.tv_usec, 
-		t->fe->timeout.server.tv_sec, t->fe->timeout.server.tv_usec);
-	fprintf(stderr,"%s:%d  be->clito=%d.%d, be->conto=%d.%d, be->srvto=%d.%d\n",
-		__FUNCTION__, __LINE__,
-		t->be->timeout.client.tv_sec, t->be->timeout.client.tv_usec, 
-		t->be->timeout.connect.tv_sec, t->be->timeout.connect.tv_usec, 
-		t->be->timeout.server.tv_sec, t->be->timeout.server.tv_usec);
-
-	fprintf(stderr,"%s:%d  req->cto=%d.%d, req->rto=%d.%d, req->wto=%d.%d\n",
-		__FUNCTION__, __LINE__,
-		req->cto.tv_sec, req->cto.tv_usec, 
-		req->rto.tv_sec, req->rto.tv_usec, 
-		req->wto.tv_sec, req->wto.tv_usec);
-
-	fprintf(stderr,"%s:%d  rep->cto=%d.%d, rep->rto=%d.%d, rep->wto=%d.%d\n",
-		__FUNCTION__, __LINE__,
-		rep->cto.tv_sec, rep->cto.tv_usec, 
-		rep->rto.tv_sec, rep->rto.tv_usec, 
-		rep->wto.tv_sec, rep->wto.tv_usec);
-#endif
-
-	//fprintf(stderr,"process_srv: c=%d, s=%d, cr=%d, cw=%d, sr=%d, sw=%d\n", c, s,
-	//EV_FD_ISSET(t->cli_fd, DIR_RD), EV_FD_ISSET(t->cli_fd, DIR_WR),
-	//EV_FD_ISSET(t->srv_fd, DIR_RD), EV_FD_ISSET(t->srv_fd, DIR_WR)
-	//);
 	if (s == SV_STIDLE) {
 		/* NOTE: The client processor may switch to SV_STANALYZE, which switches back SV_STIDLE.
 		 *       This is logcially after CL_STHEADERS completed, CL_STDATA has started, but
 		 *       we need to defer server selection until more data arrives, if possible.
                  *       This is rare, and only if balancing on parameter hash with values in the entity of a POST
                  */
-		if (c == CL_STHEADERS || c == CL_STINSPECT)
-			return 0;	/* stay in idle, waiting for data to reach the client side */
-		else if ((rep->flags & BF_SHUTW_STATUS) ||
+		if ((rep->flags & BF_SHUTW_STATUS) ||
 			 ((req->flags & BF_SHUTR_STATUS) &&
 			  (req->l == 0 || t->be->options & PR_O_ABRT_CLOSE))) { /* give up */
 			req->cex = TICK_ETERNITY;
@@ -2749,7 +2720,8 @@ int process_srv(struct session *t)
 
 			return 1;
 		}
-		else {
+		else if (req->flags & BF_MAY_CONNECT) {
+			/* the client allows the server to connect */
 			if (txn->flags & TX_CLTARPIT) {
 				/* This connection is being tarpitted. The CLIENT side has
 				 * already set the connect expiration date to the right

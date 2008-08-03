@@ -341,6 +341,9 @@ int event_accept(int fd) {
 		if (p->mode == PR_MODE_HTTP) /* reserve some space for header rewriting */
 			s->req->rlim -= MAXREWRITE;
 
+		if (s->cli_state == CL_STDATA)
+			s->req->flags |= BF_MAY_CONNECT;  /* don't wait to establish connection */
+
 		s->req->rto = s->fe->timeout.client;
 		s->req->wto = s->be->timeout.server;
 		s->req->cto = s->be->timeout.connect;

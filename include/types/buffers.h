@@ -45,14 +45,15 @@
 
 #define BF_PARTIAL_WRITE      256
 #define BF_COMPLETE_WRITE     512
-#define BF_WRITE_ERROR        1024
-#define BF_WRITE_NULL         2048
-#define BF_WRITE_STATUS       (BF_PARTIAL_WRITE|BF_COMPLETE_WRITE|BF_WRITE_ERROR|BF_WRITE_NULL)
-#define BF_CLEAR_WRITE        (~BF_WRITE_STATUS)
+#define BF_WRITE_ERROR       1024
+#define BF_WRITE_NULL        2048
+#define BF_WRITE_STATUS      (BF_PARTIAL_WRITE|BF_COMPLETE_WRITE|BF_WRITE_ERROR|BF_WRITE_NULL)
+#define BF_CLEAR_WRITE       (~BF_WRITE_STATUS)
 
-#define BF_STREAMER           4096
-#define BF_STREAMER_FAST      8192
+#define BF_STREAMER          4096
+#define BF_STREAMER_FAST     8192
 
+#define BF_MAY_CONNECT      16384  /* consumer side is allowed to forward the connection */
 
 /* describes a chunk of string */
 struct chunk {
