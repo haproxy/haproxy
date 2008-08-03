@@ -207,12 +207,9 @@ REGPRM1 static int _do_init(struct poller *p)
  */
 REGPRM1 static void _do_term(struct poller *p)
 {
-	if (fd_evts[DIR_WR])
-		free(fd_evts[DIR_WR]);
-	if (fd_evts[DIR_RD])
-		free(fd_evts[DIR_RD]);
-	if (poll_events)
-		free(poll_events);
+	free(fd_evts[DIR_WR]);
+	free(fd_evts[DIR_RD]);
+	free(poll_events);
 	p->private = NULL;
 	p->pref = 0;
 }

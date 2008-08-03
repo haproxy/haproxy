@@ -547,8 +547,7 @@ void init(int argc, char **argv)
 		global.maxconn = cfg_maxconn;
 
 	if (cfg_pidfile) {
-		if (global.pidfile)
-			free(global.pidfile);
+		free(global.pidfile);
 		global.pidfile = strdup(cfg_pidfile);
 	}
 
@@ -645,41 +644,22 @@ void deinit(void)
 	int i;
 
 	while (p) {
-		if (p->id)
-			free(p->id);
+		free(p->id);
+		free(p->check_req);
+		free(p->cookie_name);
+		free(p->cookie_domain);
+		free(p->url_param_name);
+		free(p->capture_name);
+		free(p->monitor_uri);
 
-		if (p->check_req)
-			free(p->check_req);
+		for (i = 0; i < HTTP_ERR_SIZE; i++)
+			free(p->errmsg[i].str);
 
-		if (p->cookie_name)
-			free(p->cookie_name);
+		for (i = 0; i < p->nb_reqadd; i++)
+			free(p->req_add[i]);
 
-		if (p->cookie_domain)
-			free(p->cookie_domain);
-
-		if (p->url_param_name)
-			free(p->url_param_name);
-
-		if (p->capture_name)
-			free(p->capture_name);
-
-		if (p->monitor_uri)
-			free(p->monitor_uri);
-
-		for (i = 0; i < HTTP_ERR_SIZE; i++) {
-			if (p->errmsg[i].len)
-				free(p->errmsg[i].str);
-		}
-
-		for (i = 0; i < p->nb_reqadd; i++) {
-			if (p->req_add[i])
-				free(p->req_add[i]);
-		}
-
-		for (i = 0; i < p->nb_rspadd; i++) {
-			if (p->rsp_add[i])
-				free(p->rsp_add[i]);
-		}
+		for (i = 0; i < p->nb_rspadd; i++)
+			free(p->rsp_add[i]);
 
 		list_for_each_entry_safe(cond, condb, &p->block_cond, list) {
 			LIST_DEL(&cond->list);
@@ -743,10 +723,8 @@ void deinit(void)
 
 		list_for_each_entry_safe(rule, ruleb, &p->switching_rules, list) {
 			LIST_DEL(&rule->list);
-
 			prune_acl_cond(rule->cond);
 			free(rule->cond);
-
 			free(rule);
 		}
 
@@ -758,14 +736,12 @@ void deinit(void)
 			free(rdr);
 		}
 
-		if (p->appsession_name)
-			free(p->appsession_name);
+		free(p->appsession_name);
 
 		h = p->req_cap;
 		while (h) {
 			h_next = h->next;
-			if (h->name)
-				free(h->name);
+			free(h->name);
 			pool_destroy2(h->pool);
 			free(h);
 			h = h_next;
@@ -774,9 +750,7 @@ void deinit(void)
 		h = p->rsp_cap;
 		while (h) {
 			h_next = h->next;
-			if (h->name)
-				free(h->name);
-	    
+			free(h->name);
 			pool_destroy2(h->pool);
 			free(h);
 			h = h_next;
@@ -791,12 +765,8 @@ void deinit(void)
 				task_free(s->check);
 			}
 
-			if (s->id)
-				free(s->id);
-	    
-			if (s->cookie)
-				free(s->cookie);
-	    
+			free(s->id);
+			free(s->cookie);
 			free(s);
 			s = s_next;
 		}/* end while(s) */
@@ -820,36 +790,24 @@ void deinit(void)
 		uap = ua;
 		ua = ua->next;
 
-		if (uap->uri_prefix)
-			free(uap->uri_prefix);
-
-		if (uap->auth_realm)
-			free(uap->auth_realm);
+		free(uap->uri_prefix);
+		free(uap->auth_realm);
 
 		while (uap->users) {
 			user = uap->users;
 			uap->users = uap->users->next;
-
 			free(user->user_pwd);
 			free(user);
 		}
-
 		free(uap);
 	}
 
 	protocol_unbind_all();
 
-	if (global.chroot)    free(global.chroot);
-	global.chroot = NULL;
-
-	if (global.pidfile)   free(global.pidfile);
-	global.pidfile = NULL;
-    
-	if (fdtab)            free(fdtab);
-	fdtab = NULL;
-
-	if (oldpids)
-		free(oldpids);
+	free(global.chroot);  global.chroot = NULL;
+	free(global.pidfile); global.pidfile = NULL;
+	free(fdtab);          fdtab   = NULL;
+	free(oldpids);        oldpids = NULL;
 
 	pool_destroy2(pool2_session);
 	pool_destroy2(pool2_buffer);

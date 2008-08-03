@@ -541,12 +541,9 @@ REGPRM1 static int _do_init(struct poller *p)
  */
 REGPRM1 static void _do_term(struct poller *p)
 {
-	if (fd_list)
-		free(fd_list);
-	if (spec_list)
-		free(spec_list);
-	if (epoll_events)
-		free(epoll_events);
+	free(fd_list);
+	free(spec_list);
+	free(epoll_events);
 
 	close(epoll_fd);
 	epoll_fd = 0;

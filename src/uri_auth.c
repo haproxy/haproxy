@@ -73,11 +73,9 @@ struct uri_auth *stats_set_uri(struct uri_auth **root, char *uri)
 	if ((u = stats_check_init_uri_auth(root)) == NULL)
 		goto out_u;
 	
-	if (u->uri_prefix)
-		free(u->uri_prefix);
-
-	u->uri_len = uri_len;
+	free(u->uri_prefix);
 	u->uri_prefix = uri_copy;
+	u->uri_len = uri_len;
 	return u;
 
  out_u:
@@ -101,9 +99,7 @@ struct uri_auth *stats_set_realm(struct uri_auth **root, char *realm)
 	if ((u = stats_check_init_uri_auth(root)) == NULL)
 		goto out_u;
 	
-	if (u->auth_realm)
-		free(u->auth_realm);
-
+	free(u->auth_realm);
 	u->auth_realm = realm_copy;
 	return u;
 

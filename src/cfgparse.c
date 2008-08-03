@@ -715,17 +715,15 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		/* FIXME-20070101: we should do this too at the end of the
 		 * config parsing to free all default values.
 		 */
-		if (defproxy.check_req)     free(defproxy.check_req);
-		if (defproxy.cookie_name)   free(defproxy.cookie_name);
-		if (defproxy.url_param_name) free(defproxy.url_param_name);
-		if (defproxy.capture_name)  free(defproxy.capture_name);
-		if (defproxy.monitor_uri)   free(defproxy.monitor_uri);
-		if (defproxy.defbe.name)    free(defproxy.defbe.name);
+		free(defproxy.check_req);
+		free(defproxy.cookie_name);
+		free(defproxy.url_param_name);
+		free(defproxy.capture_name);
+		free(defproxy.monitor_uri);
+		free(defproxy.defbe.name);
 
-		for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
-			if (defproxy.errmsg[rc].len)
-				free(defproxy.errmsg[rc].str);
-		}
+		for (rc = 0; rc < HTTP_ERR_SIZE; rc++)
+			free(defproxy.errmsg[rc].str);
 
 		/* we cannot free uri_auth because it might already be used */
 		init_default_instance();
@@ -804,9 +802,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			return -1;
 		}
 
-		if (curproxy->monitor_uri != NULL)
-			free(curproxy->monitor_uri);
-
+		free(curproxy->monitor_uri);
 		curproxy->monitor_uri_len = strlen(args[1]);
 		curproxy->monitor_uri = (char *)calloc(1, curproxy->monitor_uri_len + 1);
 		memcpy(curproxy->monitor_uri, args[1], curproxy->monitor_uri_len);
@@ -875,26 +871,17 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 	}
 	else if (!strcmp(args[0], "cookie")) {  /* cookie name */
 		int cur_arg;
-		//	  if (curproxy == &defproxy) {
-		//	      Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-		//	      return -1;
-		//	  }
 
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			return 0;
 
-		if (curproxy->cookie_name != NULL) {
-			//	      Alert("parsing [%s:%d] : cookie name already specified. Continuing.\n",
-			//		    file, linenum);
-			//	      return 0;
-			free(curproxy->cookie_name);
-		}
-	
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects <cookie_name> as argument.\n",
 			      file, linenum, args[0]);
 			return -1;
 		}
+
+		free(curproxy->cookie_name);
 		curproxy->cookie_name = strdup(args[1]);
 		curproxy->cookie_len = strlen(curproxy->cookie_name);
 	
@@ -963,27 +950,17 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		}
 	}/* end else if (!strcmp(args[0], "cookie"))  */
 	else if (!strcmp(args[0], "appsession")) {  /* cookie name */
-		//	  if (curproxy == &defproxy) {
-		//	      Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-		//	      return -1;
-		//	  }
 
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			return 0;
 
-		if (curproxy->appsession_name != NULL) {
-			//	      Alert("parsing [%s:%d] : cookie name already specified. Continuing.\n",
-			//		    file, linenum);
-			//	      return 0;
-			free(curproxy->appsession_name);
-		}
-	
 		if (*(args[5]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects 'appsession' <cookie_name> 'len' <len> 'timeout' <timeout>.\n",
 			      file, linenum, args[0]);
 			return -1;
 		}
 		have_appsession = 1;
+		free(curproxy->appsession_name);
 		curproxy->appsession_name = strdup(args[1]);
 		curproxy->appsession_name_len = strlen(curproxy->appsession_name);
 		curproxy->appsession_len = atoi(args[3]);
@@ -1005,23 +982,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			return 0;
 
 		if (!strcmp(args[1], "cookie")) {  /* name of a cookie to capture */
-			//	  if (curproxy == &defproxy) {
-			//	      Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-			//	      return -1;
-			//	  }
-
-			if (curproxy->capture_name != NULL) {
-				//     Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n",
-				//           file, linenum, args[0]);
-				//     return 0;
-				free(curproxy->capture_name);
-			}
-	
 			if (*(args[4]) == 0) {
 				Alert("parsing [%s:%d] : '%s' expects 'cookie' <cookie_name> 'len' <len>.\n",
 				      file, linenum, args[0]);
 				return -1;
 			}
+			free(curproxy->capture_name);
 			curproxy->capture_name = strdup(args[2]);
 			curproxy->capture_namelen = strlen(curproxy->capture_name);
 			curproxy->capture_len = atol(args[4]);
@@ -1378,9 +1344,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[1], NULL))
 				return 0;
 			/* use HTTP request to check servers' health */
-			if (curproxy->check_req != NULL) {
-				free(curproxy->check_req);
-			}
+			free(curproxy->check_req);
 			curproxy->options &= ~PR_O_SSL3_CHK;
 			curproxy->options &= ~PR_O_SMTP_CHK;
 			curproxy->options |= PR_O_HTTP_CHK;
@@ -1409,18 +1373,14 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[1], NULL))
 				return 0;
 
-			if (curproxy->check_req != NULL) {
-				free(curproxy->check_req);
-			}
+			free(curproxy->check_req);
 			curproxy->options &= ~PR_O_HTTP_CHK;
 			curproxy->options &= ~PR_O_SMTP_CHK;
 			curproxy->options |= PR_O_SSL3_CHK;
 		}
 		else if (!strcmp(args[1], "smtpchk")) {
 			/* use SMTP request to check servers' health */
-			if (curproxy->check_req != NULL) {
-				free(curproxy->check_req);
-			}
+			free(curproxy->check_req);
 			curproxy->options &= ~PR_O_HTTP_CHK;
 			curproxy->options &= ~PR_O_SSL3_CHK;
 			curproxy->options |= PR_O_SMTP_CHK;
@@ -1501,8 +1461,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			Alert("parsing [%s:%d] : '%s' expects a backend name.\n", file, linenum, args[0]);
 			return -1;
 		}
-		if (curproxy->defbe.name)
-			free(curproxy->defbe.name);
+		free(curproxy->defbe.name);
 		curproxy->defbe.name = strdup(args[1]);
 	}
 	else if (!strcmp(args[0], "redispatch") || !strcmp(args[0], "redisp")) {
@@ -2617,8 +2576,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 
 		for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
 			if (http_err_codes[rc] == errnum) {
-				if (curproxy->errmsg[rc].str)
-					free(curproxy->errmsg[rc].str);
+				free(curproxy->errmsg[rc].str);
 				curproxy->errmsg[rc].str = err;
 				curproxy->errmsg[rc].len = errlen;
 				break;
@@ -2675,8 +2633,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		errnum = atol(args[1]);
 		for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
 			if (http_err_codes[rc] == errnum) {
-				if (curproxy->errmsg[rc].str)
-					free(curproxy->errmsg[rc].str);
+				free(curproxy->errmsg[rc].str);
 				curproxy->errmsg[rc].str = err;
 				curproxy->errmsg[rc].len = errlen;
 				break;
@@ -2856,14 +2813,12 @@ int readcfgfile(const char *file)
 		    !strcmp(args[0], "ruleset") ||
 		    !strcmp(args[0], "defaults")) { /* new proxy */
 			confsect = CFG_LISTEN;
-			if (cursection)
-				free(cursection);
+			free(cursection);
 			cursection = strdup(args[0]);
 		}
 		else if (!strcmp(args[0], "global")) { /* global config */
 			confsect = CFG_GLOBAL;
-			if (cursection)
-				free(cursection);
+			free(cursection);
 			cursection = strdup(args[0]);
 		}
 		/* else it's a section keyword */
@@ -2882,8 +2837,7 @@ int readcfgfile(const char *file)
 			goto err;
 		}
 	}
-	if (cursection)
-		free(cursection);
+	free(cursection);
 	cursection = NULL;
 	fclose(f);
 
@@ -3284,14 +3238,12 @@ int readcfgfile(const char *file)
 		}
 	}
 
-	if (cursection)
-		free(cursection);
+	free(cursection);
 	cursection = NULL;
 	return 0;
 
  err:
-	if (cursection)
-		free(cursection);
+	free(cursection);
 	cursection = NULL;
 	return -1;
 }

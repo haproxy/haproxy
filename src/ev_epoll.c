@@ -325,14 +325,10 @@ REGPRM1 static void _do_term(struct poller *p)
 {
 	fd_flush_changes();
 
-	if (chg_ptr)
-		free(chg_ptr);
-	if (chg_list)
-		free(chg_list);
-	if (fd_evts)
-		free(fd_evts);
-	if (epoll_events)
-		free(epoll_events);
+	free(chg_ptr);
+	free(chg_list);
+	free(fd_evts);
+	free(epoll_events);
 
 	close(epoll_fd);
 	epoll_fd = 0;

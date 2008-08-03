@@ -2078,10 +2078,10 @@ int backend_parse_balance(const char **args, char *err, int errlen, struct proxy
 		}
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
 		curproxy->lbprm.algo |= BE_LB_ALGO_PH;
-		if (curproxy->url_param_name)
-			free(curproxy->url_param_name);
+
+		free(curproxy->url_param_name);
 		curproxy->url_param_name = strdup(args[1]);
-		curproxy->url_param_len = strlen(args[1]);
+		curproxy->url_param_len  = strlen(args[1]);
 		if (*args[2]) {
 			if (strcmp(args[2], "check_post")) {
 				snprintf(err, errlen, "'balance url_param' only accepts check_post modifier.");
