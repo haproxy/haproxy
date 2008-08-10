@@ -547,6 +547,7 @@ void srv_close_with_err(struct session *t, int err, int finst,
 	t->srv_state = SV_STCLOSE;
 	buffer_shutw_done(t->req);
 	buffer_shutr_done(t->rep);
+	t->rep->flags |= BF_MAY_FORWARD;
 	if (status > 0 && msg) {
 		t->txn.status = status;
 		if (t->fe->mode == PR_MODE_HTTP)
@@ -1644,7 +1645,7 @@ int process_cli(struct session *t)
 			t->txn.exp = tick_add_ifset(now_ms, t->fe->timeout.httpreq);
 		} else {
 			t->cli_state = CL_STDATA;
-			req->flags |= BF_MAY_CONNECT;
+			req->flags |= BF_MAY_CONNECT | BF_MAY_FORWARD;
 		}
 		t->inspect_exp = TICK_ETERNITY;
 		return 1;
@@ -2366,14 +2367,14 @@ int process_cli(struct session *t)
 		 ************************************************************/
 
 		t->cli_state = CL_STDATA;
-		req->flags |= BF_MAY_CONNECT;
+		req->flags |= BF_MAY_CONNECT | BF_MAY_FORWARD;
 
 		req->rlim = req->data + BUFSIZE; /* no more rewrite needed */
 
 		t->logs.tv_request = now;
 
 		if (!t->fe->timeout.client ||
-		    (t->srv_state < SV_STDATA && t->be->timeout.server)) {
+		    (!(rep->flags & BF_MAY_FORWARD) && t->be->timeout.server)) {
 			/* If the client has no timeout, or if the server is not ready yet,
 			 * and we know for sure that it can expire, then it's cleaner to
 			 * disable the timeout on the client side so that too low values
@@ -2443,14 +2444,14 @@ int process_cli(struct session *t)
 			return 1;
 		}
 		/* last read, or end of server write */
-		else if (req->flags & BF_READ_NULL || s == SV_STSHUTW || s == SV_STCLOSE) {
+		else if (req->flags & (BF_READ_NULL | BF_SHUTW_STATUS)) {
 			EV_FD_CLR(t->cli_fd, DIR_RD);
 			buffer_shutr(req);
 			t->cli_state = CL_STSHUTR;
 			return 1;
 		}	
 		/* last server read and buffer empty */
-		else if ((s == SV_STSHUTR || s == SV_STCLOSE) && (rep->l == 0)) {
+		else if (rep->flags & BF_SHUTR_STATUS && rep->l == 0) {
 			EV_FD_CLR(t->cli_fd, DIR_WR);
 			buffer_shutw_done(rep);
 			shutdown(t->cli_fd, SHUT_WR);
@@ -2513,11 +2514,12 @@ int process_cli(struct session *t)
 			/* there's still some space in the buffer */
 			if (EV_FD_COND_S(t->cli_fd, DIR_RD)) {
 				if (!t->fe->timeout.client ||
-				    (t->srv_state < SV_STDATA && t->be->timeout.server))
+				    (!(rep->flags & BF_MAY_FORWARD) && t->be->timeout.server))
 					/* If the client has no timeout, or if the server not ready yet, and we
 					 * know for sure that it can expire, then it's cleaner to disable the
 					 * timeout on the client side so that too low values cannot make the
-					 * sessions abort too early.
+					 * sessions abort too early. NB: we should only do this in HTTP states
+					 * before HEADERS.
 					 */
 					req->rex = TICK_ETERNITY;
 				else
@@ -2525,8 +2527,8 @@ int process_cli(struct session *t)
 			}
 		}
 
-		if ((rep->l == 0) ||
-		    ((s < SV_STDATA) /* FIXME: this may be optimized && (rep->w == rep->h)*/)) {
+		/* we don't enable client write if the buffer is empty, nor if the server has to analyze it */
+		if ((rep->l == 0) || !(rep->flags & BF_MAY_FORWARD)) {
 			if (EV_FD_COND_C(t->cli_fd, DIR_WR)) {
 				/* stop writing */
 				rep->wex = TICK_ETERNITY;
@@ -2562,7 +2564,7 @@ int process_cli(struct session *t)
 			}
 			return 1;
 		}
-		else if ((s == SV_STSHUTR || s == SV_STCLOSE) && (rep->l == 0)
+		else if ((rep->flags & BF_SHUTR_STATUS) && (rep->l == 0)
 			 && !(t->flags & SN_SELF_GEN)) {
 			buffer_shutw_done(rep);
 			fd_delete(t->cli_fd);
@@ -2596,8 +2598,7 @@ int process_cli(struct session *t)
 			}
 		}
 
-		if ((rep->l == 0)
-		    || ((s == SV_STHEADERS) /* FIXME: this may be optimized && (rep->w == rep->h)*/)) {
+		if ((rep->l == 0) || !(rep->flags & BF_MAY_FORWARD)) {
 			if (EV_FD_COND_C(t->cli_fd, DIR_WR)) {
 				/* stop writing */
 				rep->wex = TICK_ETERNITY;
@@ -2628,7 +2629,7 @@ int process_cli(struct session *t)
 			}
 			return 1;
 		}
-		else if (req->flags & BF_READ_NULL || s == SV_STSHUTW || s == SV_STCLOSE) {
+		else if (req->flags & (BF_READ_NULL | BF_SHUTW_STATUS)) {
 			buffer_shutr_done(req);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
@@ -2950,6 +2951,7 @@ int process_srv(struct session *t)
 				EV_FD_SET(t->srv_fd, DIR_RD);
 				rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
 				t->srv_state = SV_STDATA;
+				rep->flags |= BF_MAY_FORWARD;
 				rep->rlim = rep->data + BUFSIZE; /* no rewrite needed */
 
 				/* if the user wants to log as soon as possible, without counting
@@ -3468,6 +3470,7 @@ int process_srv(struct session *t)
 		 ************************************************************/
 
 		t->srv_state = SV_STDATA;
+		rep->flags |= BF_MAY_FORWARD;
 		rep->rlim = rep->data + BUFSIZE; /* no more rewrite needed */
 		t->logs.t_data = tv_ms_elapsed(&t->logs.tv_accept, &now);
 

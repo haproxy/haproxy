@@ -54,6 +54,7 @@
 #define BF_STREAMER_FAST     8192
 
 #define BF_MAY_CONNECT      16384  /* consumer side is allowed to forward the connection */
+#define BF_MAY_FORWARD      32768  /* consumer side is allowed to forward the data */
 
 /* describes a chunk of string */
 struct chunk {
