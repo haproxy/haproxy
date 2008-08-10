@@ -2077,7 +2077,7 @@ int process_cli(struct session *t)
                  */
 		if (!(t->flags & (SN_ASSIGNED|SN_DIRECT)) &&
 		     t->txn.meth == HTTP_METH_POST && t->be->url_param_name != NULL &&
-		     t->be->url_param_post_limit != 0 && req->total < BUFSIZE &&
+		     t->be->url_param_post_limit != 0 && req->l < BUFSIZE &&
 		     memchr(msg->sol + msg->sl.rq.u, '?', msg->sl.rq.u_l) == NULL) {
 			/* are there enough bytes here? total == l || r || rlim ?
 			 * len is unsigned, but eoh is int,
@@ -2085,7 +2085,7 @@ int process_cli(struct session *t)
 			 * eoh is the first empty line of the header
 			 */
                         /* already established CRLF or LF at eoh, move to start of message, find message length in buffer */
-			unsigned long len = req->total - (msg->sol[msg->eoh] == '\r' ? msg->eoh + 2 : msg->eoh + 1);
+			unsigned long len = req->l - (msg->sol[msg->eoh] == '\r' ? msg->eoh + 2 : msg->eoh + 1);
 
 			/* If we have HTTP/1.1 and Expect: 100-continue, then abort.
 			 * We can't assume responsibility for the server's decision,
@@ -3615,7 +3615,7 @@ int process_srv(struct session *t)
 			 */
 			struct http_msg * msg = &t->txn.req;
                         unsigned long body = msg->sol[msg->eoh] == '\r' ? msg->eoh + 2 :msg->eoh + 1;
-                        unsigned long len  = req->total - body;
+                        unsigned long len  = req->l - body;
 			long long limit = t->be->url_param_post_limit;
 			struct hdr_ctx ctx;
 			ctx.idx = 0;
@@ -3623,7 +3623,7 @@ int process_srv(struct session *t)
 			http_find_header2("Transfer-Encoding", 17, msg->sol, &txn->hdr_idx, &ctx);
 			if ( ctx.idx && strncasecmp(ctx.line+ctx.val,"chunked",ctx.vlen)==0) {
 				unsigned int chunk = 0;
-			        while ( body < req->total && !HTTP_IS_CRLF(msg->sol[body])) {
+			        while ( body < req->l && !HTTP_IS_CRLF(msg->sol[body])) {
 					char c = msg->sol[body];
 					if (ishex(c)) {
 						unsigned int hex = toupper(c) - '0';
@@ -3635,7 +3635,7 @@ int process_srv(struct session *t)
 					body++;
 					len--;
 				}
-				if ( body == req->total )
+				if ( body + 2 >= req->l )
 					return 0; /* end of buffer? data missing! */
 
 				if ( memcmp(msg->sol+body, "\r\n", 2) != 0 )

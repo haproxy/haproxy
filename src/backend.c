@@ -1201,7 +1201,7 @@ struct server *get_server_ph_post(struct session *s)
 		return NULL;
 
         body = msg->sol[msg->eoh] == '\r' ? msg->eoh + 2 : msg->eoh + 1;
-        len  = req->total - body;
+        len  = req->l - body;
         params = req->data + body;
 
 	if ( len == 0 )
