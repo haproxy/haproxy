@@ -106,10 +106,12 @@ int event_accept(int fd) {
 			goto out_close;
 		}
 
+		s->flags = 0;
+		s->analysis = 0;
+
 		/* if this session comes from a known monitoring system, we want to ignore
 		 * it as soon as possible, which means closing it immediately for TCP.
 		 */
-		s->flags = 0;
 		if (addr.ss_family == AF_INET &&
 		    p->mon_mask.s_addr &&
 		    (((struct sockaddr_in *)&addr)->sin_addr.s_addr & p->mon_mask.s_addr) == p->mon_net.s_addr) {
@@ -159,26 +161,19 @@ int event_accept(int fd) {
 		 * TCP mode there will be no header processing so any default
 		 * backend must be assigned if set.
 		 */
-		if (p->mode == PR_MODE_HTTP) {
-			if (s->fe->tcp_req.inspect_delay)
-				s->cli_state = CL_STINSPECT;
-			else
-				s->cli_state = CL_STHEADERS;
-		} else {
-			/* We must assign any default backend now since
-			 * there will be no header processing.
-			 */
-			if (p->mode == PR_MODE_TCP) {
-				if (p->defbe.be)
-					s->be = p->defbe.be;
-				s->flags |= SN_BE_ASSIGNED;
-			}
-			if (s->fe->tcp_req.inspect_delay)
-				s->cli_state = CL_STINSPECT;
-			else
-				s->cli_state = CL_STDATA; /* no HTTP headers for non-HTTP proxies */
+		if (p->mode == PR_MODE_TCP) {
+			if (p->defbe.be)
+				s->be = p->defbe.be;
+			s->flags |= SN_BE_ASSIGNED;
 		}
 
+		if (p->mode == PR_MODE_HTTP)
+			s->analysis |= AN_REQ_HTTP_HDR;
+
+		if (s->fe->tcp_req.inspect_delay)
+			s->analysis |= AN_REQ_INSPECT;
+
+		s->cli_state = CL_STDATA;
 		s->srv_state = SV_STIDLE;
 		s->req = s->rep = NULL; /* will be allocated later */
 
@@ -341,7 +336,7 @@ int event_accept(int fd) {
 		if (p->mode == PR_MODE_HTTP) /* reserve some space for header rewriting */
 			s->req->rlim -= MAXREWRITE;
 
-		if (s->cli_state == CL_STDATA)
+		if (!(s->analysis & AN_REQ_ANY))
 			s->req->flags |= BF_MAY_CONNECT;  /* don't wait to establish connection */
 
 		s->req->rto = s->fe->timeout.client;
@@ -405,13 +400,15 @@ int event_accept(int fd) {
 			}
 		}
 
-		if (s->cli_state == CL_STHEADERS && s->fe->timeout.httpreq) {
-			s->txn.exp = tick_add(now_ms, s->fe->timeout.httpreq);
-			t->expire = tick_first(t->expire, s->txn.exp);
-		}
-		else if (s->cli_state == CL_STINSPECT && s->fe->tcp_req.inspect_delay) {
-			s->inspect_exp = tick_add(now_ms, s->fe->tcp_req.inspect_delay);
-			t->expire = tick_first(t->expire, s->inspect_exp);
+		if (s->analysis & AN_REQ_ANY) {
+			if (s->analysis & AN_REQ_INSPECT) {
+				s->inspect_exp = tick_add_ifset(now_ms, s->fe->tcp_req.inspect_delay);
+				t->expire = tick_first(t->expire, s->inspect_exp);
+			}
+			else if (s->analysis & AN_REQ_HTTP_HDR) {
+				s->txn.exp = tick_add_ifset(now_ms, s->fe->timeout.httpreq);
+				t->expire = tick_first(t->expire, s->txn.exp);
+			}
 		}
 
 		if (p->mode != PR_MODE_HEALTH)

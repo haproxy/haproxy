@@ -365,8 +365,8 @@ const char http_is_ver_token[256] = {
 
 
 #ifdef DEBUG_FULL
-static char *cli_stnames[6] = {"INS", "HDR", "DAT", "SHR", "SHW", "CLS" };
-static char *srv_stnames[8] = {"IDL", "ANA", "CON", "HDR", "DAT", "SHR", "SHW", "CLS" };
+static char *cli_stnames[4] = { "DAT", "SHR", "SHW", "CLS" };
+static char *srv_stnames[8] = { "IDL", "ANA", "CON", "HDR", "DAT", "SHR", "SHW", "CLS" };
 #endif
 
 static void http_sess_log(struct session *s);
@@ -676,10 +676,12 @@ void process_session(struct task *t, int *next)
 		t->expire = tick_first(tick_first(s->req->rex, s->req->wex),
 				       tick_first(s->rep->rex, s->rep->wex));
 		t->expire = tick_first(t->expire, s->req->cex);
-		if (s->cli_state == CL_STHEADERS)
-			t->expire = tick_first(t->expire, s->txn.exp);
-		else if (s->cli_state == CL_STINSPECT)
-			t->expire = tick_first(t->expire, s->inspect_exp);
+		if (s->analysis & AN_REQ_ANY) {
+			if (s->analysis & AN_REQ_INSPECT)
+				t->expire = tick_first(t->expire, s->inspect_exp);
+			else if (s->analysis & AN_REQ_HTTP_HDR)
+				t->expire = tick_first(t->expire, s->txn.exp);
+		}
 
 		/* restore t to its place in the task list */
 		task_queue(t);
@@ -1549,7 +1551,7 @@ int process_cli(struct session *t)
 		EV_FD_ISSET(t->cli_fd, DIR_RD), EV_FD_ISSET(t->cli_fd, DIR_WR),
 		req->rex, rep->wex);
 
-	if (c == CL_STINSPECT) {
+	if (t->analysis & AN_REQ_INSPECT) {
 		struct tcp_rule *rule;
 		int partial;
 
@@ -1564,6 +1566,7 @@ int process_cli(struct session *t)
 			buffer_shutw_done(rep);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
+			t->analysis &= ~AN_REQ_ANY;
 			t->fe->failed_req++;
 			if (!(t->flags & SN_ERR_MASK))
 				t->flags |= SN_ERR_CLICL;
@@ -1579,6 +1582,7 @@ int process_cli(struct session *t)
 			buffer_shutw_done(rep);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
+			t->analysis &= ~AN_REQ_ANY;
 			t->fe->failed_req++;
 			if (!(t->flags & SN_ERR_MASK))
 				t->flags |= SN_ERR_CLITO;
@@ -1623,6 +1627,7 @@ int process_cli(struct session *t)
 					buffer_shutw_done(rep);
 					fd_delete(t->cli_fd);
 					t->cli_state = CL_STCLOSE;
+					t->analysis &= ~AN_REQ_ANY;
 					t->fe->failed_req++;
 					if (!(t->flags & SN_ERR_MASK))
 						t->flags |= SN_ERR_PRXCOND;
@@ -1636,21 +1641,21 @@ int process_cli(struct session *t)
 			}
 		}
 		
-		/* if we get there, it means we have no rule which matches, so
-		 * we apply the default accept.
+		/* if we get there, it means we have no rule which matches, or
+		 * we have an explicit accept, so we apply the default accept.
 		 */
 		req->rex = tick_add_ifset(now_ms, t->fe->timeout.client);
-		if (t->fe->mode == PR_MODE_HTTP) {
-			t->cli_state = CL_STHEADERS;
+		t->analysis &= ~AN_REQ_INSPECT;
+		if (t->analysis & AN_REQ_HTTP_HDR)
 			t->txn.exp = tick_add_ifset(now_ms, t->fe->timeout.httpreq);
-		} else {
-			t->cli_state = CL_STDATA;
+		else
 			req->flags |= BF_MAY_CONNECT | BF_MAY_FORWARD;
-		}
+
 		t->inspect_exp = TICK_ETERNITY;
 		return 1;
 	}
-	else if (c == CL_STHEADERS) {
+
+	if (t->analysis & AN_REQ_HTTP_HDR) {
 		/*
 		 * Now parse the partial (or complete) lines.
 		 * We will check the request syntax, and also join multi-line
@@ -1732,6 +1737,7 @@ int process_cli(struct session *t)
 				buffer_shutw_done(rep);
 				fd_delete(t->cli_fd);
 				t->cli_state = CL_STCLOSE;
+				t->analysis &= ~AN_REQ_ANY;
 				t->fe->failed_req++;
 				if (!(t->flags & SN_ERR_MASK))
 					t->flags |= SN_ERR_CLICL;
@@ -1746,6 +1752,7 @@ int process_cli(struct session *t)
 				/* read timeout : give up with an error message. */
 				txn->status = 408;
 				client_retnclose(t, error_message(t, HTTP_ERR_408));
+				t->analysis &= ~AN_REQ_ANY;
 				t->fe->failed_req++;
 				if (!(t->flags & SN_ERR_MASK))
 					t->flags |= SN_ERR_CLITO;
@@ -1762,7 +1769,8 @@ int process_cli(struct session *t)
 				 */
 				req->rex = tick_add_ifset(now_ms, t->fe->timeout.client);
 			}
-			return t->cli_state != CL_STHEADERS;
+			/* we don't need to resync if the state has not changed */
+			return !(t->analysis & AN_REQ_HTTP_HDR);
 		}
 
 
@@ -1771,6 +1779,8 @@ int process_cli(struct session *t)
 		 * request which at least looks like HTTP. We have an indicator *
 		 * of each header's length, so we can parse them quickly.       *
 		 ****************************************************************/
+
+		t->analysis &= ~AN_REQ_HTTP_HDR;
 
 		/* ensure we keep this pointer to the beginning of the message */
 		msg->sol = req->data + msg->som;
@@ -2334,6 +2344,7 @@ int process_cli(struct session *t)
 				http_find_header2("Transfer-Encoding", 17, msg->sol, &txn->hdr_idx, &ctx);
 				if (unlikely(ctx.idx && strncasecmp(ctx.line+ctx.val,"chunked",7)==0)) {
 					t->srv_state = SV_STANALYZE;
+					t->analysis |= AN_REQ_HTTP_BODY;
 				} else {
 					ctx.idx = 0;
 					http_find_header2("Content-Length", 14, msg->sol, &txn->hdr_idx, &ctx);
@@ -2353,8 +2364,10 @@ int process_cli(struct session *t)
 					if ( t->be->url_param_post_limit < hint )
 						hint = t->be->url_param_post_limit;
 					/* now do we really need to buffer more data? */
-					if ( len < hint )
+					if ( len < hint ) {
 						t->srv_state = SV_STANALYZE;
+						t->analysis |= AN_REQ_HTTP_BODY;
+					}
 					/* else... There are no body bytes to wait for */
 				}
 			}
@@ -2366,9 +2379,7 @@ int process_cli(struct session *t)
 		 * could. Let's switch to the DATA state.                    *
 		 ************************************************************/
 
-		t->cli_state = CL_STDATA;
 		req->flags |= BF_MAY_CONNECT | BF_MAY_FORWARD;
-
 		req->rlim = req->data + BUFSIZE; /* no more rewrite needed */
 
 		t->logs.tv_request = now;
@@ -2416,9 +2427,9 @@ int process_cli(struct session *t)
 		if (!(t->flags & SN_FINST_MASK))
 			t->flags |= SN_FINST_R;
 		return 1;
-
 	}
-	else if (c == CL_STDATA) {
+
+	if (c == CL_STDATA) {
 	process_data:
 		/* FIXME: this error handling is partly buggy because we always report
 		 * a 'DATA' phase while we don't know if the server was in IDLE, CONN
@@ -5239,6 +5250,7 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 		msg.len = sprintf(trash, HTTP_401_fmt, uri_auth->auth_realm);
 		txn->status = 401;
 		client_retnclose(t, &msg);
+		t->analysis &= ~AN_REQ_ANY;
 		if (!(t->flags & SN_ERR_MASK))
 			t->flags |= SN_ERR_PRXCOND;
 		if (!(t->flags & SN_FINST_MASK))

@@ -412,6 +412,7 @@ int uxst_event_accept(int fd) {
 		}
 
 		s->flags = 0;
+		s->analysis = 0;
 
 		if ((t = pool_alloc2(pool2_task)) == NULL) {
 			Alert("out of memory in uxst_event_accept().\n");
