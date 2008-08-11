@@ -366,7 +366,7 @@ const char http_is_ver_token[256] = {
 
 #ifdef DEBUG_FULL
 static char *cli_stnames[4] = { "DAT", "SHR", "SHW", "CLS" };
-static char *srv_stnames[8] = { "IDL", "ANA", "CON", "HDR", "DAT", "SHR", "SHW", "CLS" };
+static char *srv_stnames[7] = { "IDL", "CON", "HDR", "DAT", "SHR", "SHW", "CLS" };
 #endif
 
 static void http_sess_log(struct session *s);
@@ -545,9 +545,9 @@ void srv_close_with_err(struct session *t, int err, int finst,
 			int status, const struct chunk *msg)
 {
 	t->srv_state = SV_STCLOSE;
+	t->rep->flags |= BF_MAY_FORWARD;
 	buffer_shutw_done(t->req);
 	buffer_shutr_done(t->rep);
-	t->rep->flags |= BF_MAY_FORWARD;
 	if (status > 0 && msg) {
 		t->txn.status = status;
 		if (t->fe->mode == PR_MODE_HTTP)
@@ -1762,7 +1762,8 @@ int process_cli(struct session *t)
 			}
 
 			/* 4: do we need to re-enable the read socket ? */
-			else if (unlikely(EV_FD_COND_S(t->cli_fd, DIR_RD))) {
+			else if (!tick_isset(req->rex)) {
+				EV_FD_COND_S(t->cli_fd, DIR_RD);
 				/* fd in DIR_RD was disabled, perhaps because of a previous buffer
 				 * full. We cannot loop here since stream_sock_read will disable it only if
 				 * req->l == rlim-data
@@ -2321,7 +2322,7 @@ int process_cli(struct session *t)
 				/* Expect is allowed in 1.1, look for it */
 				http_find_header2("Expect", 6, msg->sol, &txn->hdr_idx, &ctx);
 				if (ctx.idx != 0  &&
-                                    unlikely(ctx.vlen == 12 && strncasecmp(ctx.line+ctx.val,"100-continue",12)==0))
+                                    unlikely(ctx.vlen == 12 && strncasecmp(ctx.line+ctx.val, "100-continue", 12) == 0))
 					/* We can't reliablly stall and wait for data, because of
 					 * .NET clients that don't conform to rfc2616; so, no need for
 					 * the next block to check length expectations.
@@ -2332,7 +2333,8 @@ int process_cli(struct session *t)
 					 */
 					goto end_check_maybe_wait_for_body;
 			}
-			if ( likely(len > t->be->url_param_post_limit) ) {
+
+			if (likely(len > t->be->url_param_post_limit)) {
 				/* nothing to do, we got enough */
 			} else {
 				/* limit implies we are supposed to need this many bytes
@@ -2342,32 +2344,29 @@ int process_cli(struct session *t)
 				struct hdr_ctx ctx;
 				ctx.idx = 0;
 				http_find_header2("Transfer-Encoding", 17, msg->sol, &txn->hdr_idx, &ctx);
-				if (unlikely(ctx.idx && strncasecmp(ctx.line+ctx.val,"chunked",7)==0)) {
-					t->srv_state = SV_STANALYZE;
+				if (ctx.idx && ctx.vlen >= 7 && strncasecmp(ctx.line+ctx.val, "chunked", 7) == 0)
 					t->analysis |= AN_REQ_HTTP_BODY;
-				} else {
+				else {
 					ctx.idx = 0;
 					http_find_header2("Content-Length", 14, msg->sol, &txn->hdr_idx, &ctx);
 					/* now if we have a length, we'll take the hint */
-					if ( ctx.idx ) {
+					if (ctx.idx) {
 						/* We have Content-Length */
-						if ( strl2llrc(ctx.line+ctx.val,ctx.vlen, &hint) )
+						if (strl2llrc(ctx.line+ctx.val,ctx.vlen, &hint))
 							hint = 0;         /* parse failure, untrusted client */
 						else {
-							if ( hint > 0 )
+							if (hint > 0)
 								msg->hdr_content_len = hint;
 							else
 								hint = 0; /* bad client, sent negative length */
 						}
 					}
 					/* but limited to what we care about, maybe we don't expect any entity data (hint == 0) */
-					if ( t->be->url_param_post_limit < hint )
+					if (t->be->url_param_post_limit < hint)
 						hint = t->be->url_param_post_limit;
 					/* now do we really need to buffer more data? */
-					if ( len < hint ) {
-						t->srv_state = SV_STANALYZE;
+					if (len < hint)
 						t->analysis |= AN_REQ_HTTP_BODY;
-					}
 					/* else... There are no body bytes to wait for */
 				}
 			}
@@ -2379,24 +2378,23 @@ int process_cli(struct session *t)
 		 * could. Let's switch to the DATA state.                    *
 		 ************************************************************/
 
-		req->flags |= BF_MAY_CONNECT | BF_MAY_FORWARD;
-		req->rlim = req->data + BUFSIZE; /* no more rewrite needed */
+		if (!(t->analysis & AN_REQ_ANY))
+			req->flags |= BF_MAY_CONNECT | BF_MAY_FORWARD;
 
+		req->rlim = req->data + BUFSIZE; /* no more rewrite needed */
 		t->logs.tv_request = now;
 
-		if (!t->fe->timeout.client ||
-		    (!(rep->flags & BF_MAY_FORWARD) && t->be->timeout.server)) {
-			/* If the client has no timeout, or if the server is not ready yet,
-			 * and we know for sure that it can expire, then it's cleaner to
-			 * disable the timeout on the client side so that too low values
-			 * cannot make the sessions abort too early.
-			 *
-			 * FIXME-20050705: the server needs a way to re-enable this time-out
-			 * when it switches its state, otherwise a client can stay connected
-			 * indefinitely. This now seems to be OK.
-			 */
+		/* This is a bit tricky. We don't want the client timeout to strike
+		 * while intially waiting for the server to respond. So we rely
+		 * entirely on the server timeout to ensure that we cannot wait
+		 * indefinitely.
+		 */
+		if (t->fe->timeout.client || req->l >= req->rlim - req->data)
 			req->rex = TICK_ETERNITY;
-		}
+		else if (t->analysis || !t->be->timeout.server || rep->flags & BF_MAY_FORWARD)
+			req->rex = tick_add(now_ms, t->fe->timeout.client);
+		else
+			req->rex = TICK_ETERNITY;
 
 		/* When a connection is tarpitted, we use the tarpit timeout,
 		 * which may be the same as the connect timeout if unspecified.
@@ -2414,11 +2412,12 @@ int process_cli(struct session *t)
 		}
 
 		/* OK let's go on with the BODY now */
-		goto process_data;
+		goto end_of_headers;
 
 	return_bad_req: /* let's centralize all bad requests */
 		txn->req.msg_state = HTTP_MSG_ERROR;
 		txn->status = 400;
+		t->analysis &= ~AN_REQ_ANY;
 		client_retnclose(t, error_message(t, HTTP_ERR_400));
 		t->fe->failed_req++;
 	return_prx_cond:
@@ -2427,10 +2426,110 @@ int process_cli(struct session *t)
 		if (!(t->flags & SN_FINST_MASK))
 			t->flags |= SN_FINST_R;
 		return 1;
+	end_of_headers:
+		; // to make gcc happy
+	}
+
+	if (t->analysis & AN_REQ_HTTP_BODY) {
+		/* We have to parse the HTTP request body to find any required data.
+		 * "balance url_param check_post" should have been the only way to get
+		 * into this. We were brought here after HTTP header analysis, so all
+		 * related structures are ready.
+		 */
+		struct http_msg *msg = &t->txn.req;
+		unsigned long body = msg->sol[msg->eoh] == '\r' ? msg->eoh + 2 : msg->eoh + 1;
+		long long limit = t->be->url_param_post_limit;
+		struct hdr_ctx ctx;
+
+		ctx.idx = 0;
+
+		/* now if we have a length, we'll take the hint */
+		http_find_header2("Transfer-Encoding", 17, msg->sol, &t->txn.hdr_idx, &ctx);
+		if (ctx.idx && ctx.vlen >= 7 && strncasecmp(ctx.line+ctx.val, "chunked", 7) == 0) {
+			unsigned int chunk = 0;
+			while (body < req->l && !HTTP_IS_CRLF(msg->sol[body])) {
+				char c = msg->sol[body];
+				if (ishex(c)) {
+					unsigned int hex = toupper(c) - '0';
+					if (hex > 9)
+						hex -= 'A' - '9' - 1;
+					chunk = (chunk << 4) | hex;
+				} else
+					break;
+				body++;
+			}
+			if (body + 2 >= req->l) /* we want CRLF too */
+				goto http_body_incomplete; /* end of buffer? data missing! */
+
+			if (memcmp(msg->sol+body, "\r\n", 2) != 0)
+				goto http_body_incomplete; /* chunked encoding len ends with CRLF, and we don't have it yet */
+
+			body += 2; // skip CRLF
+
+			/* if we support more then one chunk here, we have to do it again when assigning server
+			 * 1. how much entity data do we have? new var
+			 * 2. should save entity_start, entity_cursor, elen & rlen in req; so we don't repeat scanning here
+			 * 3. test if elen > limit, or set new limit to elen if 0 (end of entity found)
+			 */
+
+			if (chunk < limit)
+				limit = chunk;                  /* only reading one chunk */
+		} else {
+			if (msg->hdr_content_len < limit)
+				limit = msg->hdr_content_len;
+		}
+
+		if (req->l - body >= limit) {
+			/* we have enough bytes ! */
+			t->logs.tv_request = now;  /* update the request timer to reflect full request */
+			t->analysis &= ~AN_REQ_HTTP_BODY;
+			req->flags |= BF_MAY_CONNECT | BF_MAY_FORWARD;
+
+			/* This is a bit tricky. We don't want the client timeout to strike
+			 * while intially waiting for the server to respond. So we rely
+			 * entirely on the server timeout to ensure that we cannot wait
+			 * indefinitely.
+			 */
+			if (t->fe->timeout.client || req->l >= req->rlim - req->data)
+				req->rex = TICK_ETERNITY;
+			else if (t->analysis || !t->be->timeout.server || rep->flags & BF_MAY_FORWARD)
+				req->rex = tick_add(now_ms, t->fe->timeout.client);
+			else
+				req->rex = TICK_ETERNITY;
+			return 1;
+		}
+
+	http_body_incomplete:
+		if (req->l >= req->rlim - req->data ||
+		    req->flags & (BF_READ_ERROR | BF_READ_NULL) ||
+		    tick_is_expired(req->rex, now_ms)) {
+			/* The situation will not evolve, so let's give up on the analysis. */
+			t->logs.tv_request = now;  /* update the request timer to reflect full request */
+			t->analysis &= ~AN_REQ_HTTP_BODY;
+			req->flags |= BF_MAY_CONNECT | BF_MAY_FORWARD;
+
+			/* This is a bit tricky. We don't want the client timeout to strike
+			 * while intially waiting for the server to respond. So we rely
+			 * entirely on the server timeout to ensure that we cannot wait
+			 * indefinitely.
+			 */
+			if (t->fe->timeout.client || req->l >= req->rlim - req->data)
+				req->rex = TICK_ETERNITY;
+			else if (t->analysis || !t->be->timeout.server || rep->flags & BF_MAY_FORWARD)
+				req->rex = tick_add(now_ms, t->fe->timeout.client);
+			else
+				req->rex = TICK_ETERNITY;
+			return 1;
+		}
+
+		if (!tick_isset(req->rex)) {
+			EV_FD_COND_S(t->cli_fd, DIR_RD);
+			req->rex = tick_add_ifset(now_ms, t->fe->timeout.client);
+		}
+		return 0;
 	}
 
 	if (c == CL_STDATA) {
-	process_data:
 		/* FIXME: this error handling is partly buggy because we always report
 		 * a 'DATA' phase while we don't know if the server was in IDLE, CONN
 		 * or HEADER phase. BTW, it's not logical to expire the client while
@@ -2459,6 +2558,9 @@ int process_cli(struct session *t)
 			EV_FD_CLR(t->cli_fd, DIR_RD);
 			buffer_shutr(req);
 			t->cli_state = CL_STSHUTR;
+			/* we must allow immediate connection if not already done */
+			if (!req->flags & (BF_MAY_CONNECT | BF_MAY_FORWARD))
+				req->flags |= BF_MAY_CONNECT | BF_MAY_FORWARD;
 			return 1;
 		}	
 		/* last server read and buffer empty */
@@ -2523,18 +2625,19 @@ int process_cli(struct session *t)
 			}
 		} else {
 			/* there's still some space in the buffer */
-			if (EV_FD_COND_S(t->cli_fd, DIR_RD)) {
-				if (!t->fe->timeout.client ||
-				    (!(rep->flags & BF_MAY_FORWARD) && t->be->timeout.server))
-					/* If the client has no timeout, or if the server not ready yet, and we
-					 * know for sure that it can expire, then it's cleaner to disable the
-					 * timeout on the client side so that too low values cannot make the
-					 * sessions abort too early. NB: we should only do this in HTTP states
-					 * before HEADERS.
-					 */
+			if (!tick_isset(req->rex)) {
+				EV_FD_COND_S(t->cli_fd, DIR_RD);
+				/* This is a bit tricky. We don't want the client timeout to strike
+				 * while intially waiting for the server to respond. So we rely
+				 * entirely on the server timeout to ensure that we cannot wait
+				 * indefinitely.
+				 */
+				if (t->fe->timeout.client)
 					req->rex = TICK_ETERNITY;
-				else
+				else if (t->analysis || !t->be->timeout.server || rep->flags & BF_MAY_FORWARD)
 					req->rex = tick_add(now_ms, t->fe->timeout.client);
+				else
+					req->rex = TICK_ETERNITY;
 			}
 		}
 
@@ -2546,10 +2649,11 @@ int process_cli(struct session *t)
 			}
 		} else {
 			/* buffer not empty */
-			if (EV_FD_COND_S(t->cli_fd, DIR_WR)) {
+			if (!tick_isset(rep->wex)) {
+				EV_FD_COND_S(t->cli_fd, DIR_WR);
 				/* restart writing */
 				rep->wex = tick_add_ifset(now_ms, t->fe->timeout.client);
-				if (rep->wex) {
+				if (tick_isset(rep->wex)) {
 					/* FIXME: to prevent the client from expiring read timeouts during writes,
 					 * we refresh it. */
 					req->rex = rep->wex;
@@ -2616,7 +2720,8 @@ int process_cli(struct session *t)
 			}
 		} else {
 			/* buffer not empty */
-			if (EV_FD_COND_S(t->cli_fd, DIR_WR)) {
+			if (!tick_isset(rep->wex)) {
+				EV_FD_COND_S(t->cli_fd, DIR_WR);
 				/* restart writing */
 				rep->wex = tick_add_ifset(now_ms, t->fe->timeout.client);
 			}
@@ -2675,7 +2780,8 @@ int process_cli(struct session *t)
 			}
 		} else {
 			/* there's still some space in the buffer */
-			if (EV_FD_COND_S(t->cli_fd, DIR_RD)) {
+			if (!tick_isset(req->rex)) {
+				EV_FD_COND_S(t->cli_fd, DIR_RD);
 				req->rex = tick_add_ifset(now_ms, t->fe->timeout.client);
 			}
 		}
@@ -2711,11 +2817,6 @@ int process_srv(struct session *t)
 		rep->rex, req->wex);
 
 	if (s == SV_STIDLE) {
-		/* NOTE: The client processor may switch to SV_STANALYZE, which switches back SV_STIDLE.
-		 *       This is logcially after CL_STHEADERS completed, CL_STDATA has started, but
-		 *       we need to defer server selection until more data arrives, if possible.
-                 *       This is rare, and only if balancing on parameter hash with values in the entity of a POST
-                 */
 		if ((rep->flags & BF_SHUTW_STATUS) ||
 			 ((req->flags & BF_SHUTR_STATUS) &&
 			  (req->l == 0 || t->be->options & PR_O_ABRT_CLOSE))) { /* give up */
@@ -2951,7 +3052,7 @@ int process_srv(struct session *t)
 			} else  /* need the right to write */ {
 				EV_FD_SET(t->srv_fd, DIR_WR);
 				req->wex = tick_add_ifset(now_ms, t->be->timeout.server);
-				if (req->wex) {
+				if (tick_isset(req->wex)) {
 					/* FIXME: to prevent the server from expiring read timeouts during writes,
 					 * we refresh it. */
 					rep->rex = req->wex;
@@ -3037,7 +3138,8 @@ int process_srv(struct session *t)
 		}
 
 
-		if ((rep->l < rep->rlim - rep->data) && EV_FD_COND_S(t->srv_fd, DIR_RD)) {
+		if ((rep->l < rep->rlim - rep->data) && !tick_isset(rep->rex)) {
+			EV_FD_COND_S(t->srv_fd, DIR_RD);
 			/* fd in DIR_RD was disabled, perhaps because of a previous buffer
 			 * full. We cannot loop here since stream_sock_read will disable it only if
 			 * rep->l == rlim-data
@@ -3075,6 +3177,7 @@ int process_srv(struct session *t)
 				}
 				t->be->failed_resp++;
 				t->srv_state = SV_STCLOSE;
+				rep->flags |= BF_MAY_FORWARD;
 				txn->status = 502;
 				client_return(t, error_message(t, HTTP_ERR_502));
 				if (!(t->flags & SN_ERR_MASK))
@@ -3116,6 +3219,7 @@ int process_srv(struct session *t)
 				}
 				t->be->failed_resp++;
 				t->srv_state = SV_STCLOSE;
+				rep->flags |= BF_MAY_FORWARD;
 				txn->status = 504;
 				client_return(t, error_message(t, HTTP_ERR_504));
 				if (!(t->flags & SN_ERR_MASK))
@@ -3186,10 +3290,11 @@ int process_srv(struct session *t)
 			 * long posts.
 			 */
 			else if (likely(req->l)) {
-				if (EV_FD_COND_S(t->srv_fd, DIR_WR)) {
+				if (!tick_isset(req->wex)) {
+					EV_FD_COND_S(t->srv_fd, DIR_WR);
 					/* restart writing */
 					req->wex = tick_add_ifset(now_ms, t->be->timeout.server);
-					if (req->wex) {
+					if (tick_isset(req->wex)) {
 						/* FIXME: to prevent the server from expiring read timeouts during writes,
 						 * we refresh it. */
 						rep->rex = req->wex;
@@ -3289,6 +3394,7 @@ int process_srv(struct session *t)
 					buffer_shutw_done(req);
 					fd_delete(t->srv_fd);
 					t->srv_state = SV_STCLOSE;
+					rep->flags |= BF_MAY_FORWARD;
 					txn->status = 502;
 					client_return(t, error_message(t, HTTP_ERR_502));
 					if (!(t->flags & SN_ERR_MASK))
@@ -3541,6 +3647,7 @@ int process_srv(struct session *t)
 			}
 			t->be->failed_resp++;
 			t->srv_state = SV_STCLOSE;
+			rep->flags |= BF_MAY_FORWARD;
 			if (!(t->flags & SN_ERR_MASK))
 				t->flags |= SN_ERR_SRVCL;
 			if (!(t->flags & SN_FINST_MASK))
@@ -3610,10 +3717,11 @@ int process_srv(struct session *t)
 			}
 		}
 		else { /* buffer not empty, there are still data to be transferred */
-			if (EV_FD_COND_S(t->srv_fd, DIR_WR)) {
+			if (!tick_isset(req->wex)) {
+				EV_FD_COND_S(t->srv_fd, DIR_WR);
 				/* restart writing */
 				req->wex = tick_add_ifset(now_ms, t->be->timeout.server);
-				if (req->wex) {
+				if (tick_isset(req->wex)) {
 					/* FIXME: to prevent the server from expiring read timeouts during writes,
 					 * we refresh it. */
 					rep->rex = req->wex;
@@ -3628,7 +3736,8 @@ int process_srv(struct session *t)
 			}
 		}
 		else {
-			if (EV_FD_COND_S(t->srv_fd, DIR_RD)) {
+			if (!tick_isset(rep->rex)) {
+				EV_FD_COND_S(t->srv_fd, DIR_RD);
 				rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
 			}
 		}
@@ -3648,6 +3757,7 @@ int process_srv(struct session *t)
 			t->be->failed_resp++;
 			//close(t->srv_fd);
 			t->srv_state = SV_STCLOSE;
+			rep->flags |= BF_MAY_FORWARD;
 			if (!(t->flags & SN_ERR_MASK))
 				t->flags |= SN_ERR_SRVCL;
 			if (!(t->flags & SN_FINST_MASK))
@@ -3670,6 +3780,7 @@ int process_srv(struct session *t)
 			}
 			//close(t->srv_fd);
 			t->srv_state = SV_STCLOSE;
+			rep->flags |= BF_MAY_FORWARD;
 			/* We used to have a free connection slot. Since we'll never use it,
 			 * we have to inform the server that it may be used by another session.
 			 */
@@ -3688,6 +3799,7 @@ int process_srv(struct session *t)
 			}
 			//close(t->srv_fd);
 			t->srv_state = SV_STCLOSE;
+			rep->flags |= BF_MAY_FORWARD;
 			if (!(t->flags & SN_ERR_MASK))
 				t->flags |= SN_ERR_SRVTO;
 			if (!(t->flags & SN_FINST_MASK))
@@ -3707,7 +3819,8 @@ int process_srv(struct session *t)
 			}
 		}
 		else { /* buffer not empty */
-			if (EV_FD_COND_S(t->srv_fd, DIR_WR)) {
+			if (!tick_isset(req->wex)) {
+				EV_FD_COND_S(t->srv_fd, DIR_WR);
 				/* restart writing */
 				req->wex = tick_add_ifset(now_ms, t->be->timeout.server);
 			}
@@ -3727,6 +3840,7 @@ int process_srv(struct session *t)
 			t->be->failed_resp++;
 			//close(t->srv_fd);
 			t->srv_state = SV_STCLOSE;
+			rep->flags |= BF_MAY_FORWARD;
 			if (!(t->flags & SN_ERR_MASK))
 				t->flags |= SN_ERR_SRVCL;
 			if (!(t->flags & SN_FINST_MASK))
@@ -3749,6 +3863,7 @@ int process_srv(struct session *t)
 			}
 			//close(t->srv_fd);
 			t->srv_state = SV_STCLOSE;
+			rep->flags |= BF_MAY_FORWARD;
 			/* We used to have a free connection slot. Since we'll never use it,
 			 * we have to inform the server that it may be used by another session.
 			 */
@@ -3767,6 +3882,7 @@ int process_srv(struct session *t)
 			}
 			//close(t->srv_fd);
 			t->srv_state = SV_STCLOSE;
+			rep->flags |= BF_MAY_FORWARD;
 			if (!(t->flags & SN_ERR_MASK))
 				t->flags |= SN_ERR_SRVTO;
 			if (!(t->flags & SN_FINST_MASK))
@@ -3785,65 +3901,12 @@ int process_srv(struct session *t)
 			}
 		}
 		else {
-			if (EV_FD_COND_S(t->srv_fd, DIR_RD)) {
+			if (!tick_isset(rep->rex)) {
+				EV_FD_COND_S(t->srv_fd, DIR_RD);
 				rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
 			}
 		}
 		return 0;
-	}
-	else if (s == SV_STANALYZE){
-		/* this server state is set by the client to study the body for server assignment */
-
-		/* Have we been through this long enough to timeout? */
-		if (!tick_is_expired(req->rex, now_ms)) {
-			/* balance url_param check_post should have been the only to get into this.
-			 * just wait for data, check to compare how much
-			 */
-			struct http_msg * msg = &t->txn.req;
-                        unsigned long body = msg->sol[msg->eoh] == '\r' ? msg->eoh + 2 :msg->eoh + 1;
-                        unsigned long len  = req->l - body;
-			long long limit = t->be->url_param_post_limit;
-			struct hdr_ctx ctx;
-			ctx.idx = 0;
-			/* now if we have a length, we'll take the hint */
-			http_find_header2("Transfer-Encoding", 17, msg->sol, &txn->hdr_idx, &ctx);
-			if ( ctx.idx && strncasecmp(ctx.line+ctx.val,"chunked",ctx.vlen)==0) {
-				unsigned int chunk = 0;
-			        while ( body < req->l && !HTTP_IS_CRLF(msg->sol[body])) {
-					char c = msg->sol[body];
-					if (ishex(c)) {
-						unsigned int hex = toupper(c) - '0';
-						if ( hex > 9 )
-							hex -= 'A' - '9' - 1;
-						chunk = (chunk << 4) | hex;
-					}
-					else break;
-					body++;
-					len--;
-				}
-				if ( body + 2 >= req->l )
-					return 0; /* end of buffer? data missing! */
-
-				if ( memcmp(msg->sol+body, "\r\n", 2) != 0 )
-					return 0; /* chunked encoding len ends with CRLF, and we don't have it yet */
-
-				/* if we support more then one chunk here, we have to do it again when assigning server
-				   1. how much entity data do we have? new var
-				   2. should save entity_start, entity_cursor, elen & rlen in req; so we don't repeat scanning here
-				   3. test if elen > limit, or set new limit to elen if 0 (end of entity found)
-				*/
-
-				if ( chunk < limit )
-					limit = chunk;                  /* only reading one chunk */
-			} else {
-				if ( msg->hdr_content_len < limit )
-					limit = msg->hdr_content_len;
-			}
-			if ( len < limit )
-				return 0;
-		}
-		t->srv_state = SV_STIDLE;
-		return 1;
 	}
 	else { /* SV_STCLOSE : nothing to do */
 		if ((global.mode & MODE_DEBUG) && (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))) {

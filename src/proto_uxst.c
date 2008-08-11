@@ -1376,7 +1376,7 @@ void process_uxst_stats(struct task *t, int *next)
 			fsm_resync |= 1;
 			break;
 
-		case SV_STCONN: /* will change to SV_STANALYZE */
+		case SV_STCONN: /* should be changed to SV_STHEADERS or something more obvious */
 			/* stats initialized, but waiting for the command */
 			line = s->req->data;
 			p = memchr(line, '\n', s->req->l);

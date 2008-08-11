@@ -52,6 +52,7 @@ void client_retnclose(struct session *s, const struct chunk *msg)
 	EV_FD_SET(s->cli_fd, DIR_WR);
 	buffer_shutr(s->req);
 	s->rep->wex = tick_add_ifset(now_ms, s->rep->wto);
+	s->rep->flags |= BF_MAY_FORWARD;
 	s->cli_state = CL_STSHUTR;
 	buffer_flush(s->rep);
 	if (msg && msg->len)
