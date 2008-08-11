@@ -2695,7 +2695,7 @@ int process_srv(struct session *t)
 	int conn_err;
 
 	DPRINTF(stderr,"process_srv: c=%s s=%s set(r,w)=%d,%d exp(r,w)=%u,%u\n",
-		cli_stnames[c], srv_stnames[s],
+		cli_stnames[t->cli_state], srv_stnames[t->srv_state],
 		EV_FD_ISSET(t->srv_fd, DIR_RD), EV_FD_ISSET(t->srv_fd, DIR_WR),
 		rep->rex, req->wex);
 
