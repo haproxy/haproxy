@@ -673,6 +673,18 @@ void process_session(struct task *t, int *next)
 		s->req->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE;
 		s->rep->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE;
 
+		/* Trick: if a request is being waiting for the server to respond,
+		 * and if we know the server can timeout, we don't want the timeout
+		 * to expire on the client side first, but we're still interested
+		 * in passing data from the client to the server (eg: POST). Thus,
+		 * we can cancel the client's request timeout if the server's
+		 * request timeout is set and the server has not yet sent a response.
+		 */
+
+		if ((s->rep->flags & (BF_MAY_FORWARD|BF_SHUTR_STATUS)) == 0 &&
+		    (tick_isset(s->req->cex) || tick_isset(s->req->wex) || tick_isset(s->rep->rex)))
+			s->req->rex = TICK_ETERNITY;
+
 		t->expire = tick_first(tick_first(s->req->rex, s->req->wex),
 				       tick_first(s->rep->rex, s->rep->wex));
 		t->expire = tick_first(t->expire, s->req->cex);
@@ -1648,8 +1660,6 @@ int process_cli(struct session *t)
 		t->analysis &= ~AN_REQ_INSPECT;
 		if (t->analysis & AN_REQ_HTTP_HDR)
 			t->txn.exp = tick_add_ifset(now_ms, t->fe->timeout.httpreq);
-		else
-			req->flags |= BF_MAY_CONNECT | BF_MAY_FORWARD;
 
 		t->inspect_exp = TICK_ETERNITY;
 		return 1;
@@ -2378,23 +2388,19 @@ int process_cli(struct session *t)
 		 * could. Let's switch to the DATA state.                    *
 		 ************************************************************/
 
-		if (!(t->analysis & AN_REQ_ANY))
-			req->flags |= BF_MAY_CONNECT | BF_MAY_FORWARD;
-
 		req->rlim = req->data + BUFSIZE; /* no more rewrite needed */
 		t->logs.tv_request = now;
 
-		/* This is a bit tricky. We don't want the client timeout to strike
-		 * while intially waiting for the server to respond. So we rely
-		 * entirely on the server timeout to ensure that we cannot wait
-		 * indefinitely.
-		 */
-		if (t->fe->timeout.client || req->l >= req->rlim - req->data)
-			req->rex = TICK_ETERNITY;
-		else if (t->analysis || !t->be->timeout.server || rep->flags & BF_MAY_FORWARD)
-			req->rex = tick_add(now_ms, t->fe->timeout.client);
-		else
-			req->rex = TICK_ETERNITY;
+		if (req->l >= req->rlim - req->data) {
+			/* no room to read more data */
+			if (EV_FD_COND_C(t->cli_fd, DIR_RD)) {
+				/* stop reading until we get some space */
+				req->rex = TICK_ETERNITY;
+			}
+		} else {
+			EV_FD_COND_S(t->cli_fd, DIR_RD);
+			req->rex = tick_add_ifset(now_ms, t->fe->timeout.client);
+		}
 
 		/* When a connection is tarpitted, we use the tarpit timeout,
 		 * which may be the same as the connect timeout if unspecified.
@@ -2483,19 +2489,17 @@ int process_cli(struct session *t)
 			/* we have enough bytes ! */
 			t->logs.tv_request = now;  /* update the request timer to reflect full request */
 			t->analysis &= ~AN_REQ_HTTP_BODY;
-			req->flags |= BF_MAY_CONNECT | BF_MAY_FORWARD;
 
-			/* This is a bit tricky. We don't want the client timeout to strike
-			 * while intially waiting for the server to respond. So we rely
-			 * entirely on the server timeout to ensure that we cannot wait
-			 * indefinitely.
-			 */
-			if (t->fe->timeout.client || req->l >= req->rlim - req->data)
-				req->rex = TICK_ETERNITY;
-			else if (t->analysis || !t->be->timeout.server || rep->flags & BF_MAY_FORWARD)
-				req->rex = tick_add(now_ms, t->fe->timeout.client);
-			else
-				req->rex = TICK_ETERNITY;
+			if (req->l >= req->rlim - req->data) {
+				/* no room to read more data */
+				if (EV_FD_COND_C(t->cli_fd, DIR_RD)) {
+					/* stop reading until we get some space */
+					req->rex = TICK_ETERNITY;
+				}
+			} else {
+				EV_FD_COND_S(t->cli_fd, DIR_RD);
+				req->rex = tick_add_ifset(now_ms, t->fe->timeout.client);
+			}
 			return 1;
 		}
 
@@ -2506,28 +2510,28 @@ int process_cli(struct session *t)
 			/* The situation will not evolve, so let's give up on the analysis. */
 			t->logs.tv_request = now;  /* update the request timer to reflect full request */
 			t->analysis &= ~AN_REQ_HTTP_BODY;
-			req->flags |= BF_MAY_CONNECT | BF_MAY_FORWARD;
 
-			/* This is a bit tricky. We don't want the client timeout to strike
-			 * while intially waiting for the server to respond. So we rely
-			 * entirely on the server timeout to ensure that we cannot wait
-			 * indefinitely.
-			 */
-			if (t->fe->timeout.client || req->l >= req->rlim - req->data)
-				req->rex = TICK_ETERNITY;
-			else if (t->analysis || !t->be->timeout.server || rep->flags & BF_MAY_FORWARD)
-				req->rex = tick_add(now_ms, t->fe->timeout.client);
-			else
-				req->rex = TICK_ETERNITY;
+			if (req->l >= req->rlim - req->data) {
+				/* no room to read more data */
+				if (EV_FD_COND_C(t->cli_fd, DIR_RD)) {
+					/* stop reading until we get some space */
+					req->rex = TICK_ETERNITY;
+				}
+			} else {
+				EV_FD_COND_S(t->cli_fd, DIR_RD);
+				req->rex = tick_add_ifset(now_ms, t->fe->timeout.client);
+			}
 			return 1;
 		}
 
-		if (!tick_isset(req->rex)) {
-			EV_FD_COND_S(t->cli_fd, DIR_RD);
-			req->rex = tick_add_ifset(now_ms, t->fe->timeout.client);
-		}
+		EV_FD_COND_S(t->cli_fd, DIR_RD);
+		req->rex = tick_add_ifset(now_ms, t->fe->timeout.client);
 		return 0;
 	}
+
+	/* if no analysis remains, it's time to forward the connection */
+	if (!(t->analysis & AN_REQ_ANY) && !(req->flags & (BF_MAY_CONNECT|BF_MAY_FORWARD)))
+		req->flags |= BF_MAY_CONNECT | BF_MAY_FORWARD;
 
 	if (c == CL_STDATA) {
 		/* FIXME: this error handling is partly buggy because we always report
@@ -2558,9 +2562,6 @@ int process_cli(struct session *t)
 			EV_FD_CLR(t->cli_fd, DIR_RD);
 			buffer_shutr(req);
 			t->cli_state = CL_STSHUTR;
-			/* we must allow immediate connection if not already done */
-			if (!req->flags & (BF_MAY_CONNECT | BF_MAY_FORWARD))
-				req->flags |= BF_MAY_CONNECT | BF_MAY_FORWARD;
 			return 1;
 		}	
 		/* last server read and buffer empty */
@@ -2624,21 +2625,8 @@ int process_cli(struct session *t)
 				req->rex = TICK_ETERNITY;
 			}
 		} else {
-			/* there's still some space in the buffer */
-			if (!tick_isset(req->rex)) {
-				EV_FD_COND_S(t->cli_fd, DIR_RD);
-				/* This is a bit tricky. We don't want the client timeout to strike
-				 * while intially waiting for the server to respond. So we rely
-				 * entirely on the server timeout to ensure that we cannot wait
-				 * indefinitely.
-				 */
-				if (t->fe->timeout.client)
-					req->rex = TICK_ETERNITY;
-				else if (t->analysis || !t->be->timeout.server || rep->flags & BF_MAY_FORWARD)
-					req->rex = tick_add(now_ms, t->fe->timeout.client);
-				else
-					req->rex = TICK_ETERNITY;
-			}
+			EV_FD_COND_S(t->cli_fd, DIR_RD);
+			req->rex = tick_add_ifset(now_ms, t->fe->timeout.client);
 		}
 
 		/* we don't enable client write if the buffer is empty, nor if the server has to analyze it */
@@ -2769,21 +2757,13 @@ int process_cli(struct session *t)
 		}
 		else if (req->l >= req->rlim - req->data) {
 			/* no room to read more data */
-
-			/* FIXME-20050705: is it possible for a client to maintain a session
-			 * after the timeout by sending more data after it receives a close ?
-			 */
-
 			if (EV_FD_COND_C(t->cli_fd, DIR_RD)) {
 				/* stop reading until we get some space */
 				req->rex = TICK_ETERNITY;
 			}
 		} else {
-			/* there's still some space in the buffer */
-			if (!tick_isset(req->rex)) {
-				EV_FD_COND_S(t->cli_fd, DIR_RD);
-				req->rex = tick_add_ifset(now_ms, t->fe->timeout.client);
-			}
+			EV_FD_COND_S(t->cli_fd, DIR_RD);
+			req->rex = tick_add_ifset(now_ms, t->fe->timeout.client);
 		}
 		return 0;
 	}
