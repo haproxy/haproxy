@@ -3031,7 +3031,7 @@ int process_srv(struct session *t)
 			 * full. We cannot loop here since stream_sock_read will disable it only if
 			 * rep->l == rlim-data
 			 */
-			req->rex = tick_add_ifset(now_ms, t->be->timeout.server);
+			rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
 		}
 
 
