@@ -2,7 +2,7 @@
   include/proto/proto_http.h
   This file contains HTTP protocol definitions.
 
-  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -61,6 +61,7 @@ int event_accept(int fd);
 void process_session(struct task *t, int *next);
 int process_cli(struct session *t);
 int process_srv(struct session *t);
+int process_request(struct session *t);
 
 void client_retnclose(struct session *s, const struct chunk *msg);
 void client_return(struct session *s, const struct chunk *msg);

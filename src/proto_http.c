@@ -658,11 +658,18 @@ void process_session(struct task *t, int *next)
 
 	do {
 		fsm_resync = 0;
-		//fprintf(stderr,"before_cli:cli=%d, srv=%d\n", s->cli_state, s->srv_state);
+
+		//fprintf(stderr,"before_cli:cli=%d, srv=%d, resync=%d\n", s->cli_state, s->srv_state, fsm_resync);
 		fsm_resync |= process_cli(s);
-		//fprintf(stderr,"cli/srv:cli=%d, srv=%d\n", s->cli_state, s->srv_state);
+
+		//fprintf(stderr,"before_req:cli=%d, srv=%d, resync=%d\n", s->cli_state, s->srv_state, fsm_resync);
+		if (s->analysis & AN_REQ_ANY)
+			fsm_resync |= process_request(s);
+
+		//fprintf(stderr,"before_srv:cli=%d, srv=%d, resync=%d\n", s->cli_state, s->srv_state, fsm_resync);
 		fsm_resync |= process_srv(s);
-		//fprintf(stderr,"after_srv:cli=%d, srv=%d\n", s->cli_state, s->srv_state);
+
+		//fprintf(stderr,"endof_loop:cli=%d, srv=%d, resync=%d\n", s->cli_state, s->srv_state, fsm_resync);
 	} while (fsm_resync);
 
 	if (likely(s->cli_state != CL_STCLOSE || s->srv_state != SV_STCLOSE)) {
@@ -1546,22 +1553,21 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 	return;
 }
 
-/*
- * manages the client FSM and its socket. BTW, it also tries to handle the
- * cookie. It returns 1 if a state has changed (and a resync may be needed),
- * 0 else.
+/* This function performs all the processing enabled for the current request.
+ * It returns 1 if it changes its state and it believes that another function
+ * must be updated, otherwise zero. It might make sense to explode it into
+ * several other functions.
  */
-int process_cli(struct session *t)
+int process_request(struct session *t)
 {
-	int s = t->srv_state;
-	int c = t->cli_state;
 	struct buffer *req = t->req;
 	struct buffer *rep = t->rep;
+	int fsm_resync = 0;
 
-	DPRINTF(stderr,"process_cli: c=%s s=%s set(r,w)=%d,%d exp(r,w)=%u,%u\n",
-		cli_stnames[c], srv_stnames[s],
+	DPRINTF(stderr,"process_req: c=%s s=%s set(r,w)=%d,%d exp(r,w)=%u,%u req=%08x rep=%08x analysis=%02x\n",
+		cli_stnames[t->cli_state], srv_stnames[t->srv_state],
 		EV_FD_ISSET(t->cli_fd, DIR_RD), EV_FD_ISSET(t->cli_fd, DIR_WR),
-		req->rex, rep->wex);
+		req->rex, rep->wex, req->flags, rep->flags, t->analysis);
 
 	if (t->analysis & AN_REQ_INSPECT) {
 		struct tcp_rule *rule;
@@ -1572,12 +1578,8 @@ int process_cli(struct session *t)
 		 * valid, also very unlikely. FIXME: we'll abort for now,
 		 * this will be easier to change later.
 		 */
-		if (unlikely(req->flags & (BF_READ_ERROR | BF_READ_NULL))) {
+		if (req->flags & BF_READ_ERROR) {
 			t->inspect_exp = TICK_ETERNITY;
-			buffer_shutr_done(req);
-			buffer_shutw_done(rep);
-			fd_delete(t->cli_fd);
-			t->cli_state = CL_STCLOSE;
 			t->analysis &= ~AN_REQ_ANY;
 			t->fe->failed_req++;
 			if (!(t->flags & SN_ERR_MASK))
@@ -1588,12 +1590,8 @@ int process_cli(struct session *t)
 		}
 
 		/* Abort if client read timeout has expired */
-		else if (unlikely(tick_is_expired(req->rex, now_ms))) {
+		else if (req->flags & BF_READ_TIMEOUT) {
 			t->inspect_exp = TICK_ETERNITY;
-			buffer_shutr_done(req);
-			buffer_shutw_done(rep);
-			fd_delete(t->cli_fd);
-			t->cli_state = CL_STCLOSE;
 			t->analysis &= ~AN_REQ_ANY;
 			t->fe->failed_req++;
 			if (!(t->flags & SN_ERR_MASK))
@@ -1613,7 +1611,8 @@ int process_cli(struct session *t)
 		 * - if one rule returns KO, then return KO
 		 */
 
-		if (tick_is_expired(t->inspect_exp, now_ms))
+		if (req->flags & (BF_READ_NULL | BF_SHUTR_STATUS) ||
+		    tick_is_expired(t->inspect_exp, now_ms))
 			partial = 0;
 		else
 			partial = ACL_PARTIAL;
@@ -1624,9 +1623,13 @@ int process_cli(struct session *t)
 			if (rule->cond) {
 				ret = acl_exec_cond(rule->cond, t->fe, t, NULL, ACL_DIR_REQ | partial);
 				if (ret == ACL_PAT_MISS) {
-					req->rex = tick_add_ifset(now_ms, t->fe->timeout.client);
-					return 0;
+					/* just set the request timeout once at the beginning of the request */
+					if (!tick_isset(t->inspect_exp))
+						t->inspect_exp = tick_add_ifset(now_ms, t->fe->tcp_req.inspect_delay);
+
+					return fsm_resync;
 				}
+
 				ret = acl_pass(ret);
 				if (rule->cond->pol == ACL_COND_UNLESS)
 					ret = !ret;
@@ -1656,13 +1659,9 @@ int process_cli(struct session *t)
 		/* if we get there, it means we have no rule which matches, or
 		 * we have an explicit accept, so we apply the default accept.
 		 */
-		req->rex = tick_add_ifset(now_ms, t->fe->timeout.client);
 		t->analysis &= ~AN_REQ_INSPECT;
-		if (t->analysis & AN_REQ_HTTP_HDR)
-			t->txn.exp = tick_add_ifset(now_ms, t->fe->timeout.httpreq);
-
 		t->inspect_exp = TICK_ETERNITY;
-		return 1;
+		fsm_resync = 1;
 	}
 
 	if (t->analysis & AN_REQ_HTTP_HDR) {
@@ -1740,15 +1739,14 @@ int process_cli(struct session *t)
 				goto return_bad_req;
 			}
 
-			/* 2: have we encountered a read error or a close ? */
-			else if (unlikely(req->flags & (BF_READ_ERROR | BF_READ_NULL))) {
-				/* read error, or last read : give up. */
-				buffer_shutr_done(req);
-				buffer_shutw_done(rep);
-				fd_delete(t->cli_fd);
-				t->cli_state = CL_STCLOSE;
+			/* 2: have we encountered a close ? */
+			else if (req->flags & BF_READ_NULL) {
+				txn->status = 400;
+				client_retnclose(t, error_message(t, HTTP_ERR_400));
+				msg->msg_state = HTTP_MSG_ERROR;
 				t->analysis &= ~AN_REQ_ANY;
 				t->fe->failed_req++;
+
 				if (!(t->flags & SN_ERR_MASK))
 					t->flags |= SN_ERR_CLICL;
 				if (!(t->flags & SN_FINST_MASK))
@@ -1757,11 +1755,11 @@ int process_cli(struct session *t)
 			}
 
 			/* 3: has the read timeout expired ? */
-			else if (unlikely(tick_is_expired(req->rex, now_ms) ||
-					  tick_is_expired(txn->exp, now_ms))) {
+			else if (req->flags & BF_READ_TIMEOUT || tick_is_expired(txn->exp, now_ms)) {
 				/* read timeout : give up with an error message. */
 				txn->status = 408;
 				client_retnclose(t, error_message(t, HTTP_ERR_408));
+				msg->msg_state = HTTP_MSG_ERROR;
 				t->analysis &= ~AN_REQ_ANY;
 				t->fe->failed_req++;
 				if (!(t->flags & SN_ERR_MASK))
@@ -1771,17 +1769,25 @@ int process_cli(struct session *t)
 				return 1;
 			}
 
-			/* 4: do we need to re-enable the read socket ? */
-			else if (!tick_isset(req->rex)) {
-				EV_FD_COND_S(t->cli_fd, DIR_RD);
-				/* fd in DIR_RD was disabled, perhaps because of a previous buffer
-				 * full. We cannot loop here since stream_sock_read will disable it only if
-				 * req->l == rlim-data
-				 */
-				req->rex = tick_add_ifset(now_ms, t->fe->timeout.client);
+			/* 4: have we encountered a read error or did we have to shutdown ? */
+			else if (req->flags & (BF_READ_ERROR | BF_SHUTR_STATUS)) {
+				/* we cannot return any message on error */
+				msg->msg_state = HTTP_MSG_ERROR;
+				t->analysis &= ~AN_REQ_ANY;
+				t->fe->failed_req++;
+				if (!(t->flags & SN_ERR_MASK))
+					t->flags |= SN_ERR_CLICL;
+				if (!(t->flags & SN_FINST_MASK))
+					t->flags |= SN_FINST_R;
+				return 1;
 			}
-			/* we don't need to resync if the state has not changed */
-			return !(t->analysis & AN_REQ_HTTP_HDR);
+
+			/* just set the request timeout once at the beginning of the request */
+			if (!tick_isset(t->txn.exp))
+				t->txn.exp = tick_add_ifset(now_ms, t->fe->timeout.httpreq);
+
+			/* we're not ready yet */
+			return fsm_resync;
 		}
 
 
@@ -2119,7 +2125,10 @@ int process_cli(struct session *t)
 			/* check if stats URI was requested, and if an auth is needed */
 			if (rule_set->uri_auth != NULL &&
 			    (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)) {
-				/* we have to check the URI and auth for this request */
+				/* we have to check the URI and auth for this request.
+				 * FIXME!!! that one is rather dangerous, we want to
+				 * make it follow standard rules (eg: clear t->analysis).
+				 */
 				if (stats_check_uri_auth(t, rule_set))
 					return 1;
 			}
@@ -2391,21 +2400,11 @@ int process_cli(struct session *t)
 		req->rlim = req->data + BUFSIZE; /* no more rewrite needed */
 		t->logs.tv_request = now;
 
-		if (req->l >= req->rlim - req->data) {
-			/* no room to read more data */
-			if (EV_FD_COND_C(t->cli_fd, DIR_RD)) {
-				/* stop reading until we get some space */
-				req->rex = TICK_ETERNITY;
-			}
-		} else {
-			EV_FD_COND_S(t->cli_fd, DIR_RD);
-			req->rex = tick_add_ifset(now_ms, t->fe->timeout.client);
-		}
-
 		/* When a connection is tarpitted, we use the tarpit timeout,
 		 * which may be the same as the connect timeout if unspecified.
 		 * If unset, then set it to zero because we really want it to
 		 * eventually expire.
+		 * FIXME: this part should be moved elsewhere (eg: on the server side)
 		 */
 		if (txn->flags & TX_CLTARPIT) {
 			t->req->l = 0;
@@ -2418,6 +2417,7 @@ int process_cli(struct session *t)
 		}
 
 		/* OK let's go on with the BODY now */
+		fsm_resync = 1;
 		goto end_of_headers;
 
 	return_bad_req: /* let's centralize all bad requests */
@@ -2433,7 +2433,7 @@ int process_cli(struct session *t)
 			t->flags |= SN_FINST_R;
 		return 1;
 	end_of_headers:
-		; // to make gcc happy
+		; // to keep gcc happy
 	}
 
 	if (t->analysis & AN_REQ_HTTP_BODY) {
@@ -2465,10 +2465,10 @@ int process_cli(struct session *t)
 				body++;
 			}
 			if (body + 2 >= req->l) /* we want CRLF too */
-				goto http_body_incomplete; /* end of buffer? data missing! */
+				goto http_body_end; /* end of buffer? data missing! */
 
 			if (memcmp(msg->sol+body, "\r\n", 2) != 0)
-				goto http_body_incomplete; /* chunked encoding len ends with CRLF, and we don't have it yet */
+				goto http_body_end; /* chunked encoding len ends with CRLF, and we don't have it yet */
 
 			body += 2; // skip CRLF
 
@@ -2485,60 +2485,47 @@ int process_cli(struct session *t)
 				limit = msg->hdr_content_len;
 		}
 
-		if (req->l - body >= limit) {
-			/* we have enough bytes ! */
-			t->logs.tv_request = now;  /* update the request timer to reflect full request */
-			t->analysis &= ~AN_REQ_HTTP_BODY;
-
-			if (req->l >= req->rlim - req->data) {
-				/* no room to read more data */
-				if (EV_FD_COND_C(t->cli_fd, DIR_RD)) {
-					/* stop reading until we get some space */
-					req->rex = TICK_ETERNITY;
-				}
-			} else {
-				EV_FD_COND_S(t->cli_fd, DIR_RD);
-				req->rex = tick_add_ifset(now_ms, t->fe->timeout.client);
-			}
-			return 1;
-		}
-
-	http_body_incomplete:
-		if (req->l >= req->rlim - req->data ||
-		    req->flags & (BF_READ_ERROR | BF_READ_NULL) ||
-		    tick_is_expired(req->rex, now_ms)) {
+	http_body_end:
+		/* we leave once we know we have nothing left to do. This means that we have
+		 * enough bytes, or that we know we'll not get any more (buffer full, read
+		 * buffer closed).
+		 */
+		if (req->l - body >= limit ||             /* enough bytes! */
+		    req->l >= req->rlim - req->data ||    /* full */
+		    req->flags & (BF_READ_ERROR | BF_READ_NULL | BF_READ_TIMEOUT)) {
 			/* The situation will not evolve, so let's give up on the analysis. */
 			t->logs.tv_request = now;  /* update the request timer to reflect full request */
 			t->analysis &= ~AN_REQ_HTTP_BODY;
-
-			if (req->l >= req->rlim - req->data) {
-				/* no room to read more data */
-				if (EV_FD_COND_C(t->cli_fd, DIR_RD)) {
-					/* stop reading until we get some space */
-					req->rex = TICK_ETERNITY;
-				}
-			} else {
-				EV_FD_COND_S(t->cli_fd, DIR_RD);
-				req->rex = tick_add_ifset(now_ms, t->fe->timeout.client);
-			}
-			return 1;
+			fsm_resync = 1;
 		}
-
-		EV_FD_COND_S(t->cli_fd, DIR_RD);
-		req->rex = tick_add_ifset(now_ms, t->fe->timeout.client);
-		return 0;
 	}
+
+	return fsm_resync;
+}
+
+/*
+ * manages the client FSM and its socket. BTW, it also tries to handle the
+ * cookie. It returns 1 if a state has changed (and a resync may be needed),
+ * 0 else.
+ */
+int process_cli(struct session *t)
+{
+	int s = t->srv_state;
+	int c = t->cli_state;
+	struct buffer *req = t->req;
+	struct buffer *rep = t->rep;
+
+	DPRINTF(stderr,"process_cli: c=%s s=%s set(r,w)=%d,%d exp(r,w)=%u,%u req=%08x rep=%08x\n",
+		cli_stnames[t->cli_state], srv_stnames[t->srv_state],
+		EV_FD_ISSET(t->cli_fd, DIR_RD), EV_FD_ISSET(t->cli_fd, DIR_WR),
+		req->rex, rep->wex,
+		req->flags, rep->flags);
 
 	/* if no analysis remains, it's time to forward the connection */
 	if (!(t->analysis & AN_REQ_ANY) && !(req->flags & (BF_MAY_CONNECT|BF_MAY_FORWARD)))
 		req->flags |= BF_MAY_CONNECT | BF_MAY_FORWARD;
 
-	if (c == CL_STDATA) {
-		/* FIXME: this error handling is partly buggy because we always report
-		 * a 'DATA' phase while we don't know if the server was in IDLE, CONN
-		 * or HEADER phase. BTW, it's not logical to expire the client while
-		 * we're waiting for the server to connect.
-		 */
+	if (c == CL_STDATA || c == CL_STSHUTR || c == CL_STSHUTW) {
 		/* read or write error */
 		if (rep->flags & BF_WRITE_ERROR || req->flags & BF_READ_ERROR) {
 			buffer_shutr_done(req);
@@ -2548,7 +2535,9 @@ int process_cli(struct session *t)
 			if (!(t->flags & SN_ERR_MASK))
 				t->flags |= SN_ERR_CLICL;
 			if (!(t->flags & SN_FINST_MASK)) {
-				if (t->pend_pos)
+				if (t->analysis & AN_REQ_ANY)
+					t->flags |= SN_FINST_R;
+				else if (t->pend_pos)
 					t->flags |= SN_FINST_Q;
 				else if (s == SV_STCONN)
 					t->flags |= SN_FINST_C;
@@ -2558,34 +2547,55 @@ int process_cli(struct session *t)
 			return 1;
 		}
 		/* last read, or end of server write */
-		else if (req->flags & (BF_READ_NULL | BF_SHUTW_STATUS)) {
-			EV_FD_CLR(t->cli_fd, DIR_RD);
-			buffer_shutr(req);
-			t->cli_state = CL_STSHUTR;
+		else if (!(req->flags & BF_SHUTR_STATUS) &&   /* already done */
+			 req->flags & (BF_READ_NULL | BF_SHUTW_STATUS)) {
+			buffer_shutr_done(req);
+			if (!(rep->flags & BF_SHUTW_STATUS)) {
+				EV_FD_CLR(t->cli_fd, DIR_RD);
+				t->cli_state = CL_STSHUTR;
+			} else {
+				/* output was already closed */
+				fd_delete(t->cli_fd);
+				t->cli_state = CL_STCLOSE;
+			}
 			return 1;
 		}	
 		/* last server read and buffer empty */
-		else if (rep->flags & BF_SHUTR_STATUS && rep->l == 0) {
-			EV_FD_CLR(t->cli_fd, DIR_WR);
+		else if (!(rep->flags & BF_SHUTW_STATUS) &&   /* already done */
+			 rep->l == 0 && rep->flags & BF_SHUTR_STATUS && !(t->flags & SN_SELF_GEN)) {
 			buffer_shutw_done(rep);
-			shutdown(t->cli_fd, SHUT_WR);
-			/* We must ensure that the read part is still alive when switching
-			 * to shutw */
-			EV_FD_SET(t->cli_fd, DIR_RD);
-			req->rex = tick_add_ifset(now_ms, t->fe->timeout.client);
-			t->cli_state = CL_STSHUTW;
-			//fprintf(stderr,"%p:%s(%d), c=%d, s=%d\n", t, __FUNCTION__, __LINE__, t->cli_state, t->cli_state);
+			if (!(req->flags & BF_SHUTR_STATUS)) {
+				EV_FD_CLR(t->cli_fd, DIR_WR);
+				shutdown(t->cli_fd, SHUT_WR);
+				/* We must ensure that the read part is still alive when switching to shutw */
+				/* FIXME: is this still true ? */
+				EV_FD_SET(t->cli_fd, DIR_RD);
+				req->rex = tick_add_ifset(now_ms, t->fe->timeout.client);
+				t->cli_state = CL_STSHUTW;
+			} else {
+				fd_delete(t->cli_fd);
+				t->cli_state = CL_STCLOSE;
+			}
 			return 1;
 		}
 		/* read timeout */
 		else if (tick_is_expired(req->rex, now_ms)) {
-			EV_FD_CLR(t->cli_fd, DIR_RD);
-			buffer_shutr(req);
-			t->cli_state = CL_STSHUTR;
+			buffer_shutr_done(req);
+			req->flags |= BF_READ_TIMEOUT;
+			if (!(rep->flags & BF_SHUTW_STATUS)) {
+				EV_FD_CLR(t->cli_fd, DIR_RD);
+				t->cli_state = CL_STSHUTR;
+			} else {
+				/* output was already closed */
+				fd_delete(t->cli_fd);
+				t->cli_state = CL_STCLOSE;
+			}
 			if (!(t->flags & SN_ERR_MASK))
 				t->flags |= SN_ERR_CLITO;
 			if (!(t->flags & SN_FINST_MASK)) {
-				if (t->pend_pos)
+				if (t->analysis & AN_REQ_ANY)
+					t->flags |= SN_FINST_R;
+				else if (t->pend_pos)
 					t->flags |= SN_FINST_Q;
 				else if (s == SV_STCONN)
 					t->flags |= SN_FINST_C;
@@ -2596,19 +2606,27 @@ int process_cli(struct session *t)
 		}	
 		/* write timeout */
 		else if (tick_is_expired(rep->wex, now_ms)) {
-			EV_FD_CLR(t->cli_fd, DIR_WR);
 			buffer_shutw_done(rep);
-			shutdown(t->cli_fd, SHUT_WR);
-			/* We must ensure that the read part is still alive when switching
-			 * to shutw */
-			EV_FD_SET(t->cli_fd, DIR_RD);
-			req->rex = tick_add_ifset(now_ms, t->fe->timeout.client);
+			rep->flags |= BF_WRITE_TIMEOUT;
+			if (!(req->flags & BF_SHUTR_STATUS)) {
+				EV_FD_CLR(t->cli_fd, DIR_WR);
+				shutdown(t->cli_fd, SHUT_WR);
+				/* We must ensure that the read part is still alive when switching to shutw */
+				/* FIXME: is this still true ? */
+				EV_FD_SET(t->cli_fd, DIR_RD);
+				req->rex = tick_add_ifset(now_ms, t->fe->timeout.client);
+				t->cli_state = CL_STSHUTW;
+			} else {
+				fd_delete(t->cli_fd);
+				t->cli_state = CL_STCLOSE;
+			}
 
-			t->cli_state = CL_STSHUTW;
 			if (!(t->flags & SN_ERR_MASK))
 				t->flags |= SN_ERR_CLITO;
 			if (!(t->flags & SN_FINST_MASK)) {
-				if (t->pend_pos)
+				if (t->analysis & AN_REQ_ANY)
+					t->flags |= SN_FINST_R;
+				else if (t->pend_pos)
 					t->flags |= SN_FINST_Q;
 				else if (s == SV_STCONN)
 					t->flags |= SN_FINST_C;
@@ -2618,154 +2636,56 @@ int process_cli(struct session *t)
 			return 1;
 		}
 
-		if (req->l >= req->rlim - req->data) {
-			/* no room to read more data */
-			if (EV_FD_COND_C(t->cli_fd, DIR_RD)) {
-				/* stop reading until we get some space */
-				req->rex = TICK_ETERNITY;
+		/* manage read timeout */
+		if (!(req->flags & BF_SHUTR_STATUS)) {
+			if (req->l >= req->rlim - req->data) {
+				/* no room to read more data */
+				if (EV_FD_COND_C(t->cli_fd, DIR_RD)) {
+					/* stop reading until we get some space */
+					req->rex = TICK_ETERNITY;
+				}
+			} else {
+				EV_FD_COND_S(t->cli_fd, DIR_RD);
+				req->rex = tick_add_ifset(now_ms, t->fe->timeout.client);
 			}
-		} else {
-			EV_FD_COND_S(t->cli_fd, DIR_RD);
-			req->rex = tick_add_ifset(now_ms, t->fe->timeout.client);
 		}
 
-		/* we don't enable client write if the buffer is empty, nor if the server has to analyze it */
-		if ((rep->l == 0) || !(rep->flags & BF_MAY_FORWARD)) {
-			if (EV_FD_COND_C(t->cli_fd, DIR_WR)) {
-				/* stop writing */
-				rep->wex = TICK_ETERNITY;
+		/* manage write timeout */
+		if (!(rep->flags & BF_SHUTW_STATUS)) {
+			/* first, we may have to produce data (eg: stats).
+			 * right now, this is limited to the SHUTR state.
+			 */
+			if (req->flags & BF_SHUTR_STATUS && t->flags & SN_SELF_GEN) {
+				produce_content(t);
+				if (rep->l == 0) {
+					buffer_shutw_done(rep);
+					fd_delete(t->cli_fd);
+					t->cli_state = CL_STCLOSE;
+					return 1;
+				}
 			}
-		} else {
-			/* buffer not empty */
-			if (!tick_isset(rep->wex)) {
-				EV_FD_COND_S(t->cli_fd, DIR_WR);
-				/* restart writing */
-				rep->wex = tick_add_ifset(now_ms, t->fe->timeout.client);
-				if (tick_isset(rep->wex)) {
-					/* FIXME: to prevent the client from expiring read timeouts during writes,
-					 * we refresh it. */
-					req->rex = rep->wex;
+
+			/* we don't enable client write if the buffer is empty, nor if the server has to analyze it */
+			if ((rep->l == 0) || !(rep->flags & BF_MAY_FORWARD)) {
+				if (EV_FD_COND_C(t->cli_fd, DIR_WR)) {
+					/* stop writing */
+					rep->wex = TICK_ETERNITY;
+				}
+			} else {
+				/* buffer not empty */
+				if (!tick_isset(rep->wex)) {
+					EV_FD_COND_S(t->cli_fd, DIR_WR);
+					/* restart writing */
+					rep->wex = tick_add_ifset(now_ms, t->fe->timeout.client);
+					if (!(req->flags & BF_SHUTR_STATUS) && tick_isset(rep->wex) && tick_isset(req->rex)) {
+						/* FIXME: to prevent the client from expiring read timeouts during writes,
+						 * we refresh it, except if it was already infinite. */
+						req->rex = rep->wex;
+					}
 				}
 			}
 		}
 		return 0; /* other cases change nothing */
-	}
-	else if (c == CL_STSHUTR) {
-		if (rep->flags & BF_WRITE_ERROR) {
-			buffer_shutw_done(rep);
-			fd_delete(t->cli_fd);
-			t->cli_state = CL_STCLOSE;
-			if (!(t->flags & SN_ERR_MASK))
-				t->flags |= SN_ERR_CLICL;
-			if (!(t->flags & SN_FINST_MASK)) {
-				if (t->pend_pos)
-					t->flags |= SN_FINST_Q;
-				else if (s == SV_STCONN)
-					t->flags |= SN_FINST_C;
-				else
-					t->flags |= SN_FINST_D;
-			}
-			return 1;
-		}
-		else if ((rep->flags & BF_SHUTR_STATUS) && (rep->l == 0)
-			 && !(t->flags & SN_SELF_GEN)) {
-			buffer_shutw_done(rep);
-			fd_delete(t->cli_fd);
-			t->cli_state = CL_STCLOSE;
-			return 1;
-		}
-		else if (tick_is_expired(rep->wex, now_ms)) {
-			buffer_shutw_done(rep);
-			fd_delete(t->cli_fd);
-			t->cli_state = CL_STCLOSE;
-			if (!(t->flags & SN_ERR_MASK))
-				t->flags |= SN_ERR_CLITO;
-			if (!(t->flags & SN_FINST_MASK)) {
-				if (t->pend_pos)
-					t->flags |= SN_FINST_Q;
-				else if (s == SV_STCONN)
-					t->flags |= SN_FINST_C;
-				else
-					t->flags |= SN_FINST_D;
-			}
-			return 1;
-		}
-
-		if (t->flags & SN_SELF_GEN) {
-			produce_content(t);
-			if (rep->l == 0) {
-				buffer_shutw_done(rep);
-				fd_delete(t->cli_fd);
-				t->cli_state = CL_STCLOSE;
-				return 1;
-			}
-		}
-
-		if ((rep->l == 0) || !(rep->flags & BF_MAY_FORWARD)) {
-			if (EV_FD_COND_C(t->cli_fd, DIR_WR)) {
-				/* stop writing */
-				rep->wex = TICK_ETERNITY;
-			}
-		} else {
-			/* buffer not empty */
-			if (!tick_isset(rep->wex)) {
-				EV_FD_COND_S(t->cli_fd, DIR_WR);
-				/* restart writing */
-				rep->wex = tick_add_ifset(now_ms, t->fe->timeout.client);
-			}
-		}
-		return 0;
-	}
-	else if (c == CL_STSHUTW) {
-		if (req->flags & BF_READ_ERROR) {
-			buffer_shutr_done(req);
-			fd_delete(t->cli_fd);
-			t->cli_state = CL_STCLOSE;
-			if (!(t->flags & SN_ERR_MASK))
-				t->flags |= SN_ERR_CLICL;
-			if (!(t->flags & SN_FINST_MASK)) {
-				if (t->pend_pos)
-					t->flags |= SN_FINST_Q;
-				else if (s == SV_STCONN)
-					t->flags |= SN_FINST_C;
-				else
-					t->flags |= SN_FINST_D;
-			}
-			return 1;
-		}
-		else if (req->flags & (BF_READ_NULL | BF_SHUTW_STATUS)) {
-			buffer_shutr_done(req);
-			fd_delete(t->cli_fd);
-			t->cli_state = CL_STCLOSE;
-			return 1;
-		}
-		else if (tick_is_expired(req->rex, now_ms)) {
-			buffer_shutr_done(req);
-			fd_delete(t->cli_fd);
-			t->cli_state = CL_STCLOSE;
-			if (!(t->flags & SN_ERR_MASK))
-				t->flags |= SN_ERR_CLITO;
-			if (!(t->flags & SN_FINST_MASK)) {
-				if (t->pend_pos)
-					t->flags |= SN_FINST_Q;
-				else if (s == SV_STCONN)
-					t->flags |= SN_FINST_C;
-				else
-					t->flags |= SN_FINST_D;
-			}
-			return 1;
-		}
-		else if (req->l >= req->rlim - req->data) {
-			/* no room to read more data */
-			if (EV_FD_COND_C(t->cli_fd, DIR_RD)) {
-				/* stop reading until we get some space */
-				req->rex = TICK_ETERNITY;
-			}
-		} else {
-			EV_FD_COND_S(t->cli_fd, DIR_RD);
-			req->rex = tick_add_ifset(now_ms, t->fe->timeout.client);
-		}
-		return 0;
 	}
 	else { /* CL_STCLOSE: nothing to do */
 		if ((global.mode & MODE_DEBUG) && (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))) {
@@ -2791,10 +2711,11 @@ int process_srv(struct session *t)
 	struct buffer *rep = t->rep;
 	int conn_err;
 
-	DPRINTF(stderr,"process_srv: c=%s s=%s set(r,w)=%d,%d exp(r,w)=%u,%u\n",
+	DPRINTF(stderr,"process_srv: c=%s s=%s set(r,w)=%d,%d exp(r,w)=%u,%u req=%08x rep=%08x\n",
 		cli_stnames[t->cli_state], srv_stnames[t->srv_state],
 		EV_FD_ISSET(t->srv_fd, DIR_RD), EV_FD_ISSET(t->srv_fd, DIR_WR),
-		rep->rex, req->wex);
+		rep->rex, req->wex,
+		req->flags, rep->flags);
 
 	if (s == SV_STIDLE) {
 		if ((rep->flags & BF_SHUTW_STATUS) ||

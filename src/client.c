@@ -352,6 +352,15 @@ int event_accept(int fd) {
 		s->rep->wto = s->fe->timeout.client;
 		s->rep->cto = TICK_ETERNITY;
 
+		s->req->rex = TICK_ETERNITY;
+		s->req->wex = TICK_ETERNITY;
+		s->req->cex = TICK_ETERNITY;
+		s->rep->rex = TICK_ETERNITY;
+		s->rep->wex = TICK_ETERNITY;
+		s->txn.exp = TICK_ETERNITY;
+		s->inspect_exp = TICK_ETERNITY;
+		t->expire = TICK_ETERNITY;
+
 		fd_insert(cfd);
 		fdtab[cfd].owner = t;
 		fdtab[cfd].listener = l;
@@ -371,46 +380,21 @@ int event_accept(int fd) {
 			 */
 			struct chunk msg = { .str = "HTTP/1.0 200 OK\r\n\r\n", .len = 19 };
 			client_retnclose(s, &msg); /* forge a 200 response */
+			t->expire = s->rep->wex;
 		}
 		else if (p->mode == PR_MODE_HEALTH) {  /* health check mode, no client reading */
 			struct chunk msg = { .str = "OK\n", .len = 3 };
 			client_retnclose(s, &msg); /* forge an "OK" response */
+			t->expire = s->rep->wex;
 		}
 		else {
 			EV_FD_SET(cfd, DIR_RD);
 		}
 
-		s->req->rex = TICK_ETERNITY;
-		s->req->wex = TICK_ETERNITY;
-		s->req->cex = TICK_ETERNITY;
-		s->rep->rex = TICK_ETERNITY;
-		s->rep->wex = TICK_ETERNITY;
-		s->txn.exp = TICK_ETERNITY;
-		s->inspect_exp = TICK_ETERNITY;
-		t->expire = TICK_ETERNITY;
-
-		if (s->fe->timeout.client) {
-			if (EV_FD_ISSET(cfd, DIR_RD)) {
-				s->req->rex = tick_add(now_ms, s->fe->timeout.client);
-				t->expire = s->req->rex;
-			}
-			if (EV_FD_ISSET(cfd, DIR_WR)) {
-				s->rep->wex = tick_add(now_ms, s->fe->timeout.client);
-				t->expire = s->rep->wex;
-			}
-		}
-
-		if (s->analysis & AN_REQ_ANY) {
-			if (s->analysis & AN_REQ_INSPECT) {
-				s->inspect_exp = tick_add_ifset(now_ms, s->fe->tcp_req.inspect_delay);
-				t->expire = tick_first(t->expire, s->inspect_exp);
-			}
-			else if (s->analysis & AN_REQ_HTTP_HDR) {
-				s->txn.exp = tick_add_ifset(now_ms, s->fe->timeout.httpreq);
-				t->expire = tick_first(t->expire, s->txn.exp);
-			}
-		}
-
+		/* it is important not to call the wakeup function directly but to
+		 * pass through task_wakeup(), because this one knows how to apply
+		 * priorities to tasks.
+		 */
 		if (p->mode != PR_MODE_HEALTH)
 			task_wakeup(t);
 
