@@ -4412,7 +4412,7 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 				if ((t->be->appsession_name != NULL) &&
 				    (memcmp(p1, t->be->appsession_name, p2 - p1) == 0)) {
 					/* first, let's see if the cookie is our appcookie*/
-			    
+
 					/* Cool... it's the right one */
 
 					asession_temp = &local_asession;
@@ -4440,12 +4440,14 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 
 						asession_temp->sessid = local_asession.sessid;
 						asession_temp->serverid = local_asession.serverid;
+						asession_temp->request_count = 0;
 						appsession_hash_insert(&(t->be->htbl_proxy), asession_temp);
 					} else {
 						/* free previously allocated memory */
 						pool_free2(apools.sessid, local_asession.sessid);
 					}
 					if (asession_temp->serverid == NULL) {
+						/* TODO redispatch request */
 						Alert("Found Application Session without matching server.\n");
 					} else {
 						struct server *srv = t->be->srv;
@@ -4468,6 +4470,11 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 					}/* end else if server == NULL */
 
 					asession_temp->expire = tick_add_ifset(now_ms, t->be->timeout.appsession);
+					asession_temp->request_count++;
+#if defined(DEBUG_HASH)
+					Alert("manage_client_side_cookies\n");
+					appsession_hash_dump(&(t->be->htbl_proxy));
+#endif
 				}/* end if ((t->proxy->appsession_name != NULL) ... */
 			}
 
@@ -4904,6 +4911,7 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 					}
 					asession_temp->sessid = local_asession.sessid;
 					asession_temp->serverid = local_asession.serverid;
+					asession_temp->request_count = 0;
 					appsession_hash_insert(&(t->be->htbl_proxy), asession_temp);
 				} else {
 					/* free wasted memory */
@@ -4923,8 +4931,9 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 					memcpy(asession_temp->serverid, t->srv->id, server_id_len);
 		      
 				asession_temp->expire = tick_add_ifset(now_ms, t->be->timeout.appsession);
-
+				asession_temp->request_count++;
 #if defined(DEBUG_HASH)
+				Alert("manage_server_side_cookies\n");
 				appsession_hash_dump(&(t->be->htbl_proxy));
 #endif
 			}/* end if ((t->proxy->appsession_name != NULL) ... */
@@ -5078,6 +5087,7 @@ void get_srv_from_appsession(struct session *t, const char *begin, int len)
 		}
 		asession_temp->sessid = local_asession.sessid;
 		asession_temp->serverid = local_asession.serverid;
+		asession_temp->request_count=0;
 		appsession_hash_insert(&(t->be->htbl_proxy), asession_temp);
 	}
 	else {
@@ -5089,9 +5099,11 @@ void get_srv_from_appsession(struct session *t, const char *begin, int len)
 	asession_temp->request_count++;
 
 #if defined(DEBUG_HASH)
+	Alert("get_srv_from_appsession\n");
 	appsession_hash_dump(&(t->be->htbl_proxy));
 #endif
 	if (asession_temp->serverid == NULL) {
+		/* TODO redispatch request */
 		Alert("Found Application Session without matching server.\n");
 	} else {
 		struct server *srv = t->be->srv;

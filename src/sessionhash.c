@@ -15,7 +15,7 @@
 
 #include <common/sessionhash.h>
 #include <string.h>
-#ifdef TEST
+#ifdef DEBUG_HASH
 #include <stdio.h>
 #endif
 
@@ -112,14 +112,14 @@ void appsession_hash_destroy(struct appsession_hash *hash)
 void appsession_hash_dump(struct appsession_hash *hash)
 {
 	unsigned int idx;
-	appsess *sess_head, *item;
+	appsess *item;
 
-	printf("Dumping hashtable 0x%x\n", hash);
+	printf("Dumping hashtable 0x%p\n", hash);
 	for (idx = 0; idx < TABLESIZE; idx++) {
 		/* we don't even need to call _safe because we return at once */
 		list_for_each_entry(item, &hash->table[idx], hash_list) {
-			printf("\ttable[%d]:\t%s\t-> 0x%x\n", idx, item->sessid,
-					item);
+			printf("\ttable[%d]:\t%s\t-> %s request_count %lu\n", idx, item->sessid,
+					item->serverid, item->request_count);
 		}
 	}
 	printf(".\n");
