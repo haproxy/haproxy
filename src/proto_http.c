@@ -1564,7 +1564,8 @@ int process_request(struct session *t)
 	struct buffer *rep = t->rep;
 	int fsm_resync = 0;
 
-	DPRINTF(stderr,"process_req: c=%s s=%s set(r,w)=%d,%d exp(r,w)=%u,%u req=%08x rep=%08x analysis=%02x\n",
+	DPRINTF(stderr,"[%u] process_req: c=%s s=%s set(r,w)=%d,%d exp(r,w)=%u,%u req=%08x rep=%08x analysis=%02x\n",
+		now_ms,
 		cli_stnames[t->cli_state], srv_stnames[t->srv_state],
 		EV_FD_ISSET(t->cli_fd, DIR_RD), EV_FD_ISSET(t->cli_fd, DIR_WR),
 		req->rex, rep->wex, req->flags, rep->flags, t->analysis);
@@ -2515,7 +2516,8 @@ int process_cli(struct session *t)
 	struct buffer *req = t->req;
 	struct buffer *rep = t->rep;
 
-	DPRINTF(stderr,"process_cli: c=%s s=%s set(r,w)=%d,%d exp(r,w)=%u,%u req=%08x rep=%08x\n",
+	DPRINTF(stderr,"[%u] process_cli: c=%s s=%s set(r,w)=%d,%d exp(r,w)=%u,%u req=%08x rep=%08x\n",
+		now_ms,
 		cli_stnames[t->cli_state], srv_stnames[t->srv_state],
 		EV_FD_ISSET(t->cli_fd, DIR_RD), EV_FD_ISSET(t->cli_fd, DIR_WR),
 		req->rex, rep->wex,
@@ -2711,7 +2713,8 @@ int process_srv(struct session *t)
 	struct buffer *rep = t->rep;
 	int conn_err;
 
-	DPRINTF(stderr,"process_srv: c=%s s=%s set(r,w)=%d,%d exp(r,w)=%u,%u req=%08x rep=%08x\n",
+	DPRINTF(stderr,"[%u] process_srv: c=%s s=%s set(r,w)=%d,%d exp(r,w)=%u,%u req=%08x rep=%08x\n",
+		now_ms,
 		cli_stnames[t->cli_state], srv_stnames[t->srv_state],
 		EV_FD_ISSET(t->srv_fd, DIR_RD), EV_FD_ISSET(t->srv_fd, DIR_WR),
 		rep->rex, req->wex,
@@ -3142,9 +3145,11 @@ int process_srv(struct session *t)
 			 * The side-effect is that if the client completely closes its
 			 * connection during SV_STHEADER, the connection to the server
 			 * is kept until a response comes back or the timeout is reached.
+			 * This sometimes causes fast loops when the request buffer is
+			 * full, so we still perform the transition right now. It will
+			 * make sense later anyway.
 			 */
-			else if (0 && /* we don't want to switch to shutw for now */
-				 unlikely(req->flags & BF_SHUTR_STATUS && (req->l == 0))) {
+			else if (unlikely(req->flags & BF_SHUTR_STATUS && (req->l == 0))) {
 
 				EV_FD_CLR(t->srv_fd, DIR_WR);
 				buffer_shutw_done(req);
