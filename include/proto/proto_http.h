@@ -62,6 +62,7 @@ void process_session(struct task *t, int *next);
 int process_cli(struct session *t);
 int process_srv(struct session *t);
 int process_request(struct session *t);
+int process_response(struct session *t);
 
 void client_retnclose(struct session *s, const struct chunk *msg);
 void client_return(struct session *s, const struct chunk *msg);

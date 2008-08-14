@@ -366,7 +366,7 @@ const char http_is_ver_token[256] = {
 
 #ifdef DEBUG_FULL
 static char *cli_stnames[4] = { "DAT", "SHR", "SHW", "CLS" };
-static char *srv_stnames[7] = { "IDL", "CON", "HDR", "DAT", "SHR", "SHW", "CLS" };
+static char *srv_stnames[6] = { "IDL", "CON", "DAT", "SHR", "SHW", "CLS" };
 #endif
 
 static void http_sess_log(struct session *s);
@@ -668,6 +668,10 @@ void process_session(struct task *t, int *next)
 
 		//fprintf(stderr,"before_srv:cli=%d, srv=%d, resync=%d\n", s->cli_state, s->srv_state, fsm_resync);
 		fsm_resync |= process_srv(s);
+
+		//fprintf(stderr,"before_rep:cli=%d, srv=%d, resync=%d\n", s->cli_state, s->srv_state, fsm_resync);
+		if (s->analysis & AN_RTR_ANY)
+			fsm_resync |= process_response(s);
 
 		//fprintf(stderr,"endof_loop:cli=%d, srv=%d, resync=%d\n", s->cli_state, s->srv_state, fsm_resync);
 	} while (fsm_resync);
@@ -2504,6 +2508,579 @@ int process_request(struct session *t)
 	return fsm_resync;
 }
 
+/* This function performs all the processing enabled for the current response.
+ * It returns 1 if it changes its state and it believes that another function
+ * must be updated, otherwise zero. It might make sense to explode it into
+ * several other functions.
+ */
+int process_response(struct session *t)
+{
+	struct http_txn *txn = &t->txn;
+	struct buffer *req = t->req;
+	struct buffer *rep = t->rep;
+
+	DPRINTF(stderr,"[%u] process_rep: c=%s s=%s set(r,w)=%d,%d exp(r,w)=%u,%u req=%08x rep=%08x analysis=%02x\n",
+		now_ms,
+		cli_stnames[t->cli_state], srv_stnames[t->srv_state],
+		EV_FD_ISSET(t->srv_fd, DIR_RD), EV_FD_ISSET(t->srv_fd, DIR_WR),
+		req->rex, rep->wex, req->flags, rep->flags, t->analysis);
+
+	if (t->analysis & AN_RTR_HTTP_HDR) { /* receiving server headers */
+		/*
+		 * Now parse the partial (or complete) lines.
+		 * We will check the response syntax, and also join multi-line
+		 * headers. An index of all the lines will be elaborated while
+		 * parsing.
+		 *
+		 * For the parsing, we use a 28 states FSM.
+		 *
+		 * Here is the information we currently have :
+		 *   rep->data + req->som  = beginning of response
+		 *   rep->data + req->eoh  = end of processed headers / start of current one
+		 *   rep->data + req->eol  = end of current header or line (LF or CRLF)
+		 *   rep->lr = first non-visited byte
+		 *   rep->r  = end of data
+		 */
+
+		int cur_idx;
+		struct http_msg *msg = &txn->rsp;
+		struct proxy *cur_proxy;
+
+		if (likely(rep->lr < rep->r))
+			http_msg_analyzer(rep, msg, &txn->hdr_idx);
+
+		/* 1: we might have to print this header in debug mode */
+		if (unlikely((global.mode & MODE_DEBUG) &&
+			     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) &&
+			     (msg->msg_state == HTTP_MSG_BODY || msg->msg_state == HTTP_MSG_ERROR))) {
+			char *eol, *sol;
+
+			sol = rep->data + msg->som;
+			eol = sol + msg->sl.rq.l;
+			debug_hdr("srvrep", t, sol, eol);
+
+			sol += hdr_idx_first_pos(&txn->hdr_idx);
+			cur_idx = hdr_idx_first_idx(&txn->hdr_idx);
+
+			while (cur_idx) {
+				eol = sol + txn->hdr_idx.v[cur_idx].len;
+				debug_hdr("srvhdr", t, sol, eol);
+				sol = eol + txn->hdr_idx.v[cur_idx].cr + 1;
+				cur_idx = txn->hdr_idx.v[cur_idx].next;
+			}
+		}
+
+
+		if ((rep->l < rep->rlim - rep->data) && !tick_isset(rep->rex)) {
+			EV_FD_COND_S(t->srv_fd, DIR_RD);
+			/* fd in DIR_RD was disabled, perhaps because of a previous buffer
+			 * full. We cannot loop here since stream_sock_read will disable it only if
+			 * rep->l == rlim-data
+			 */
+			rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
+		}
+
+
+		/*
+		 * Now we quickly check if we have found a full valid response.
+		 * If not so, we check the FD and buffer states before leaving.
+		 * A full response is indicated by the fact that we have seen
+		 * the double LF/CRLF, so the state is HTTP_MSG_BODY. Invalid
+		 * responses are checked first.
+		 *
+		 * Depending on whether the client is still there or not, we
+		 * may send an error response back or not. Note that normally
+		 * we should only check for HTTP status there, and check I/O
+		 * errors somewhere else.
+		 */
+
+		if (unlikely(msg->msg_state != HTTP_MSG_BODY)) {
+
+			/* Invalid response, or read error or write error */
+			if (unlikely((msg->msg_state == HTTP_MSG_ERROR) ||
+			             (req->flags & BF_WRITE_ERROR) ||
+			             (rep->flags & BF_READ_ERROR))) {
+				buffer_shutr_done(rep);
+				buffer_shutw_done(req);
+				fd_delete(t->srv_fd);
+				if (t->srv) {
+					t->srv->cur_sess--;
+					t->srv->failed_resp++;
+					sess_change_server(t, NULL);
+				}
+				t->be->failed_resp++;
+				t->srv_state = SV_STCLOSE;
+				t->analysis &= ~AN_RTR_ANY;
+				rep->flags |= BF_MAY_FORWARD;
+				txn->status = 502;
+				client_return(t, error_message(t, HTTP_ERR_502));
+				if (!(t->flags & SN_ERR_MASK))
+					t->flags |= SN_ERR_SRVCL;
+				if (!(t->flags & SN_FINST_MASK))
+					t->flags |= SN_FINST_H;
+				/* We used to have a free connection slot. Since we'll never use it,
+				 * we have to inform the server that it may be used by another session.
+				 */
+				if (t->srv && may_dequeue_tasks(t->srv, t->be))
+					process_srv_queue(t->srv);
+
+				return 1;
+			}
+
+			/* end of client write or end of server read.
+			 * since we are in header mode, if there's no space left for headers, we
+			 * won't be able to free more later, so the session will never terminate.
+			 */
+			else if (unlikely(rep->flags & (BF_READ_NULL | BF_SHUTW_STATUS) ||
+			                  rep->l >= rep->rlim - rep->data)) {
+				EV_FD_CLR(t->srv_fd, DIR_RD);
+				buffer_shutr_done(rep);
+				t->srv_state = SV_STSHUTR;
+				t->analysis &= ~AN_RTR_ANY;
+				//fprintf(stderr,"%p:%s(%d), c=%d, s=%d\n", t, __FUNCTION__, __LINE__, t->cli_state, t->cli_state);
+				return 1;
+			}
+
+			/* read timeout : return a 504 to the client. */
+			else if (unlikely(EV_FD_ISSET(t->srv_fd, DIR_RD) &&
+			                  tick_is_expired(rep->rex, now_ms))) {
+				buffer_shutr_done(rep);
+				buffer_shutw_done(req);
+				fd_delete(t->srv_fd);
+				if (t->srv) {
+					t->srv->cur_sess--;
+					t->srv->failed_resp++;
+					sess_change_server(t, NULL);
+				}
+				t->be->failed_resp++;
+				t->srv_state = SV_STCLOSE;
+				t->analysis &= ~AN_RTR_ANY;
+				rep->flags |= BF_MAY_FORWARD;
+				txn->status = 504;
+				client_return(t, error_message(t, HTTP_ERR_504));
+				if (!(t->flags & SN_ERR_MASK))
+					t->flags |= SN_ERR_SRVTO;
+				if (!(t->flags & SN_FINST_MASK))
+					t->flags |= SN_FINST_H;
+				/* We used to have a free connection slot. Since we'll never use it,
+				 * we have to inform the server that it may be used by another session.
+				 */
+				if (t->srv && may_dequeue_tasks(t->srv, t->be))
+					process_srv_queue(t->srv);
+				return 1;
+			}
+
+			/* last client read and buffer empty */
+			/* FIXME!!! here, we don't want to switch to SHUTW if the
+			 * client shuts read too early, because we may still have
+			 * some work to do on the headers.
+			 * The side-effect is that if the client completely closes its
+			 * connection during SV_STHEADER, the connection to the server
+			 * is kept until a response comes back or the timeout is reached.
+			 * This sometimes causes fast loops when the request buffer is
+			 * full, so we still perform the transition right now. It will
+			 * make sense later anyway.
+			 */
+			else if (unlikely(req->flags & BF_SHUTR_STATUS && (req->l == 0))) {
+
+				EV_FD_CLR(t->srv_fd, DIR_WR);
+				buffer_shutw_done(req);
+
+				/* We must ensure that the read part is still
+				 * alive when switching to shutw */
+				EV_FD_SET(t->srv_fd, DIR_RD);
+				rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
+
+				shutdown(t->srv_fd, SHUT_WR);
+				t->srv_state = SV_STSHUTW;
+				t->analysis &= ~AN_RTR_ANY;
+				return 1;
+			}
+
+			/* write timeout */
+			/* FIXME!!! here, we don't want to switch to SHUTW if the
+			 * client shuts read too early, because we may still have
+			 * some work to do on the headers.
+			 */
+			else if (unlikely(EV_FD_ISSET(t->srv_fd, DIR_WR) &&
+					  tick_is_expired(req->wex, now_ms))) {
+				EV_FD_CLR(t->srv_fd, DIR_WR);
+				buffer_shutw_done(req);
+				shutdown(t->srv_fd, SHUT_WR);
+				/* We must ensure that the read part is still alive
+				 * when switching to shutw */
+				EV_FD_SET(t->srv_fd, DIR_RD);
+				rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
+
+				t->srv_state = SV_STSHUTW;
+				t->analysis &= ~AN_RTR_ANY;
+				if (!(t->flags & SN_ERR_MASK))
+					t->flags |= SN_ERR_SRVTO;
+				if (!(t->flags & SN_FINST_MASK))
+					t->flags |= SN_FINST_H;
+				return 1;
+			}
+
+			/*
+			 * And now the non-error cases.
+			 */
+
+			/* Data remaining in the request buffer.
+			 * This happens during the first pass here, and during
+			 * long posts.
+			 */
+			else if (likely(req->l)) {
+				if (!tick_isset(req->wex)) {
+					EV_FD_COND_S(t->srv_fd, DIR_WR);
+					/* restart writing */
+					req->wex = tick_add_ifset(now_ms, t->be->timeout.server);
+					if (tick_isset(req->wex)) {
+						/* FIXME: to prevent the server from expiring read timeouts during writes,
+						 * we refresh it. */
+						rep->rex = req->wex;
+					}
+				}
+			}
+
+			/* nothing left in the request buffer */
+			else {
+				if (EV_FD_COND_C(t->srv_fd, DIR_WR)) {
+					/* stop writing */
+					req->wex = TICK_ETERNITY;
+				}
+			}
+
+			/* return 0 if nothing changed */
+			return !(t->analysis & AN_RTR_ANY);
+		}
+
+
+		/*****************************************************************
+		 * More interesting part now : we know that we have a complete   *
+		 * response which at least looks like HTTP. We have an indicator *
+		 * of each header's length, so we can parse them quickly.        *
+		 ****************************************************************/
+
+		/* ensure we keep this pointer to the beginning of the message */
+		msg->sol = rep->data + msg->som;
+
+		/*
+		 * 1: get the status code and check for cacheability.
+		 */
+
+		t->logs.logwait &= ~LW_RESP;
+		txn->status = strl2ui(rep->data + msg->sl.st.c, msg->sl.st.c_l);
+
+		switch (txn->status) {
+		case 200:
+		case 203:
+		case 206:
+		case 300:
+		case 301:
+		case 410:
+			/* RFC2616 @13.4:
+			 *   "A response received with a status code of
+			 *    200, 203, 206, 300, 301 or 410 MAY be stored
+			 *    by a cache (...) unless a cache-control
+			 *    directive prohibits caching."
+			 *   
+			 * RFC2616 @9.5: POST method :
+			 *   "Responses to this method are not cacheable,
+			 *    unless the response includes appropriate
+			 *    Cache-Control or Expires header fields."
+			 */
+			if (likely(txn->meth != HTTP_METH_POST) &&
+			    (t->be->options & (PR_O_CHK_CACHE|PR_O_COOK_NOC)))
+				txn->flags |= TX_CACHEABLE | TX_CACHE_COOK;
+			break;
+		default:
+			break;
+		}
+
+		/*
+		 * 2: we may need to capture headers
+		 */
+		if (unlikely((t->logs.logwait & LW_RSPHDR) && t->fe->rsp_cap))
+			capture_headers(rep->data + msg->som, &txn->hdr_idx,
+					txn->rsp.cap, t->fe->rsp_cap);
+
+		/*
+		 * 3: we will have to evaluate the filters.
+		 * As opposed to version 1.2, now they will be evaluated in the
+		 * filters order and not in the header order. This means that
+		 * each filter has to be validated among all headers.
+		 *
+		 * Filters are tried with ->be first, then with ->fe if it is
+		 * different from ->be.
+		 */
+
+		t->flags &= ~SN_CONN_CLOSED; /* prepare for inspection */
+
+		cur_proxy = t->be;
+		while (1) {
+			struct proxy *rule_set = cur_proxy;
+
+			/* try headers filters */
+			if (rule_set->rsp_exp != NULL) {
+				if (apply_filters_to_response(t, rep, rule_set->rsp_exp) < 0) {
+				return_bad_resp:
+					if (t->srv) {
+						t->srv->cur_sess--;
+						t->srv->failed_resp++;
+						sess_change_server(t, NULL);
+					}
+					cur_proxy->failed_resp++;
+				return_srv_prx_502:
+					buffer_shutr_done(rep);
+					buffer_shutw_done(req);
+					fd_delete(t->srv_fd);
+					t->srv_state = SV_STCLOSE;
+					t->analysis &= ~AN_RTR_ANY;
+					rep->flags |= BF_MAY_FORWARD;
+					txn->status = 502;
+					client_return(t, error_message(t, HTTP_ERR_502));
+					if (!(t->flags & SN_ERR_MASK))
+						t->flags |= SN_ERR_PRXCOND;
+					if (!(t->flags & SN_FINST_MASK))
+						t->flags |= SN_FINST_H;
+					/* We used to have a free connection slot. Since we'll never use it,
+					 * we have to inform the server that it may be used by another session.
+					 */
+					if (t->srv && may_dequeue_tasks(t->srv, cur_proxy))
+						process_srv_queue(t->srv);
+					return 1;
+				}
+			}
+
+			/* has the response been denied ? */
+			if (txn->flags & TX_SVDENY) {
+				if (t->srv) {
+					t->srv->cur_sess--;
+					t->srv->failed_secu++;
+					sess_change_server(t, NULL);
+				}
+				cur_proxy->denied_resp++;
+				goto return_srv_prx_502;
+			}
+
+			/* We might have to check for "Connection:" */
+			if (((t->fe->options | t->be->options) & (PR_O_HTTP_CLOSE|PR_O_FORCE_CLO)) &&
+			    !(t->flags & SN_CONN_CLOSED)) {
+				char *cur_ptr, *cur_end, *cur_next;
+				int cur_idx, old_idx, delta, val;
+				struct hdr_idx_elem *cur_hdr;
+
+				cur_next = rep->data + txn->rsp.som + hdr_idx_first_pos(&txn->hdr_idx);
+				old_idx = 0;
+
+				while ((cur_idx = txn->hdr_idx.v[old_idx].next)) {
+					cur_hdr  = &txn->hdr_idx.v[cur_idx];
+					cur_ptr  = cur_next;
+					cur_end  = cur_ptr + cur_hdr->len;
+					cur_next = cur_end + cur_hdr->cr + 1;
+
+					val = http_header_match2(cur_ptr, cur_end, "Connection", 10);
+					if (val) {
+						/* 3 possibilities :
+						 * - we have already set Connection: close,
+						 *   so we remove this line.
+						 * - we have not yet set Connection: close,
+						 *   but this line indicates close. We leave
+						 *   it untouched and set the flag.
+						 * - we have not yet set Connection: close,
+						 *   and this line indicates non-close. We
+						 *   replace it.
+						 */
+						if (t->flags & SN_CONN_CLOSED) {
+							delta = buffer_replace2(rep, cur_ptr, cur_next, NULL, 0);
+							txn->rsp.eoh += delta;
+							cur_next += delta;
+							txn->hdr_idx.v[old_idx].next = cur_hdr->next;
+							txn->hdr_idx.used--;
+							cur_hdr->len = 0;
+						} else {
+							if (strncasecmp(cur_ptr + val, "close", 5) != 0) {
+								delta = buffer_replace2(rep, cur_ptr + val, cur_end,
+											"close", 5);
+								cur_next += delta;
+								cur_hdr->len += delta;
+								txn->rsp.eoh += delta;
+							}
+							t->flags |= SN_CONN_CLOSED;
+						}
+					}
+					old_idx = cur_idx;
+				}
+			}
+
+			/* add response headers from the rule sets in the same order */
+			for (cur_idx = 0; cur_idx < rule_set->nb_rspadd; cur_idx++) {
+				if (unlikely(http_header_add_tail(rep, &txn->rsp, &txn->hdr_idx,
+								  rule_set->rsp_add[cur_idx])) < 0)
+					goto return_bad_resp;
+			}
+
+			/* check whether we're already working on the frontend */
+			if (cur_proxy == t->fe)
+				break;
+			cur_proxy = t->fe;
+		}
+
+		/*
+		 * 4: check for server cookie.
+		 */
+		if (t->be->cookie_name || t->be->appsession_name || t->be->capture_name
+		    || (t->be->options & PR_O_CHK_CACHE))
+			manage_server_side_cookies(t, rep);
+
+
+		/*
+		 * 5: check for cache-control or pragma headers if required.
+		 */
+		if ((t->be->options & (PR_O_COOK_NOC | PR_O_CHK_CACHE)) != 0)
+			check_response_for_cacheability(t, rep);
+
+		/*
+		 * 6: add server cookie in the response if needed
+		 */
+		if ((t->srv) && !(t->flags & SN_DIRECT) && (t->be->options & PR_O_COOK_INS) &&
+		    (!(t->be->options & PR_O_COOK_POST) || (txn->meth == HTTP_METH_POST))) {
+			int len;
+
+			/* the server is known, it's not the one the client requested, we have to
+			 * insert a set-cookie here, except if we want to insert only on POST
+			 * requests and this one isn't. Note that servers which don't have cookies
+			 * (eg: some backup servers) will return a full cookie removal request.
+			 */
+			len = sprintf(trash, "Set-Cookie: %s=%s; path=/",
+				      t->be->cookie_name,
+				      t->srv->cookie ? t->srv->cookie : "; Expires=Thu, 01-Jan-1970 00:00:01 GMT");
+
+			if (t->be->cookie_domain)
+				len += sprintf(trash+len, "; domain=%s", t->be->cookie_domain);
+
+			if (unlikely(http_header_add_tail2(rep, &txn->rsp, &txn->hdr_idx,
+							   trash, len)) < 0)
+				goto return_bad_resp;
+			txn->flags |= TX_SCK_INSERTED;
+
+			/* Here, we will tell an eventual cache on the client side that we don't
+			 * want it to cache this reply because HTTP/1.0 caches also cache cookies !
+			 * Some caches understand the correct form: 'no-cache="set-cookie"', but
+			 * others don't (eg: apache <= 1.3.26). So we use 'private' instead.
+			 */
+			if ((t->be->options & PR_O_COOK_NOC) && (txn->flags & TX_CACHEABLE)) {
+
+				txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
+
+				if (unlikely(http_header_add_tail2(rep, &txn->rsp, &txn->hdr_idx,
+								   "Cache-control: private", 22)) < 0)
+					goto return_bad_resp;
+			}
+		}
+
+
+		/*
+		 * 7: check if result will be cacheable with a cookie.
+		 * We'll block the response if security checks have caught
+		 * nasty things such as a cacheable cookie.
+		 */
+		if (((txn->flags & (TX_CACHEABLE | TX_CACHE_COOK | TX_SCK_ANY)) ==
+		     (TX_CACHEABLE | TX_CACHE_COOK | TX_SCK_ANY)) &&
+		    (t->be->options & PR_O_CHK_CACHE)) {
+
+			/* we're in presence of a cacheable response containing
+			 * a set-cookie header. We'll block it as requested by
+			 * the 'checkcache' option, and send an alert.
+			 */
+			if (t->srv) {
+				t->srv->cur_sess--;
+				t->srv->failed_secu++;
+				sess_change_server(t, NULL);
+			}
+			t->be->denied_resp++;
+
+			Alert("Blocking cacheable cookie in response from instance %s, server %s.\n",
+			      t->be->id, t->srv?t->srv->id:"<dispatch>");
+			send_log(t->be, LOG_ALERT,
+				 "Blocking cacheable cookie in response from instance %s, server %s.\n",
+				 t->be->id, t->srv?t->srv->id:"<dispatch>");
+			goto return_srv_prx_502;
+		}
+
+		/*
+		 * 8: add "Connection: close" if needed and not yet set.
+		 * Note that we do not need to add it in case of HTTP/1.0.
+		 */
+		if (!(t->flags & SN_CONN_CLOSED) &&
+		    ((t->fe->options | t->be->options) & (PR_O_HTTP_CLOSE|PR_O_FORCE_CLO))) {
+			if ((unlikely(msg->sl.st.v_l != 8) ||
+			     unlikely(req->data[msg->som + 7] != '0')) &&
+			    unlikely(http_header_add_tail2(rep, &txn->rsp, &txn->hdr_idx,
+							   "Connection: close", 17)) < 0)
+				goto return_bad_resp;
+			t->flags |= SN_CONN_CLOSED;
+		}
+
+
+		/*************************************************************
+		 * OK, that's finished for the headers. We have done what we *
+		 * could. Let's switch to the DATA state.                    *
+		 ************************************************************/
+
+		t->srv_state = SV_STDATA;
+		t->analysis &= ~AN_RTR_ANY;
+		rep->flags |= BF_MAY_FORWARD;
+		rep->rlim = rep->data + BUFSIZE; /* no more rewrite needed */
+		t->logs.t_data = tv_ms_elapsed(&t->logs.tv_accept, &now);
+
+		/* client connection already closed or option 'forceclose' required :
+		 * we close the server's outgoing connection right now.
+		 */
+		if ((req->l == 0) &&
+		    (req->flags & BF_SHUTR_STATUS || t->be->options & PR_O_FORCE_CLO)) {
+			EV_FD_CLR(t->srv_fd, DIR_WR);
+			buffer_shutw_done(req);
+
+			/* We must ensure that the read part is still alive when switching
+			 * to shutw */
+			EV_FD_SET(t->srv_fd, DIR_RD);
+			rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
+
+			shutdown(t->srv_fd, SHUT_WR);
+			t->srv_state = SV_STSHUTW;
+			t->analysis &= ~AN_RTR_ANY;
+		}
+
+#ifdef CONFIG_HAP_TCPSPLICE
+		if ((t->fe->options & t->be->options) & PR_O_TCPSPLICE) {
+			/* TCP splicing supported by both FE and BE */
+			tcp_splice_splicefd(t->cli_fd, t->srv_fd, 0);
+		}
+#endif
+		/* if the user wants to log as soon as possible, without counting
+		 * bytes from the server, then this is the right moment. We have
+		 * to temporarily assign bytes_out to log what we currently have.
+		 */
+		if (t->fe->to_log && !(t->logs.logwait & LW_BYTES)) {
+			t->logs.t_close = t->logs.t_data; /* to get a valid end date */
+			t->logs.bytes_out = txn->rsp.eoh;
+			if (t->fe->to_log & LW_REQ)
+				http_sess_log(t);
+			else
+				tcp_sess_log(t);
+			t->logs.bytes_out = 0;
+		}
+
+		/* Note: we must not try to cheat by jumping directly to DATA,
+		 * otherwise we would not let the client side wake up.
+		 */
+
+		return 1;
+	}
+	return 0;
+}
+
 /*
  * manages the client FSM and its socket. BTW, it also tries to handle the
  * cookie. It returns 1 if a state has changed (and a resync may be needed),
@@ -2984,7 +3561,8 @@ int process_srv(struct session *t)
 #endif
 			}
 			else {
-				t->srv_state = SV_STHEADERS;
+				t->srv_state = SV_STDATA;
+				t->analysis |= AN_RTR_HTTP_HDR;
 				rep->rlim = rep->data + BUFSIZE - MAXREWRITE; /* rewrite needed */
 				t->txn.rsp.msg_state = HTTP_MSG_RPBEFORE;
 				/* reset hdr_idx which was already initialized by the request.
@@ -2995,550 +3573,6 @@ int process_srv(struct session *t)
 			req->cex = TICK_ETERNITY;
 			return 1;
 		}
-	}
-	else if (s == SV_STHEADERS) { /* receiving server headers */
-		/*
-		 * Now parse the partial (or complete) lines.
-		 * We will check the response syntax, and also join multi-line
-		 * headers. An index of all the lines will be elaborated while
-		 * parsing.
-		 *
-		 * For the parsing, we use a 28 states FSM.
-		 *
-		 * Here is the information we currently have :
-		 *   rep->data + req->som  = beginning of response
-		 *   rep->data + req->eoh  = end of processed headers / start of current one
-		 *   rep->data + req->eol  = end of current header or line (LF or CRLF)
-		 *   rep->lr = first non-visited byte
-		 *   rep->r  = end of data
-		 */
-
-		int cur_idx;
-		struct http_msg *msg = &txn->rsp;
-		struct proxy *cur_proxy;
-
-		if (likely(rep->lr < rep->r))
-			http_msg_analyzer(rep, msg, &txn->hdr_idx);
-
-		/* 1: we might have to print this header in debug mode */
-		if (unlikely((global.mode & MODE_DEBUG) &&
-			     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) &&
-			     (msg->msg_state == HTTP_MSG_BODY || msg->msg_state == HTTP_MSG_ERROR))) {
-			char *eol, *sol;
-
-			sol = rep->data + msg->som;
-			eol = sol + msg->sl.rq.l;
-			debug_hdr("srvrep", t, sol, eol);
-
-			sol += hdr_idx_first_pos(&txn->hdr_idx);
-			cur_idx = hdr_idx_first_idx(&txn->hdr_idx);
-
-			while (cur_idx) {
-				eol = sol + txn->hdr_idx.v[cur_idx].len;
-				debug_hdr("srvhdr", t, sol, eol);
-				sol = eol + txn->hdr_idx.v[cur_idx].cr + 1;
-				cur_idx = txn->hdr_idx.v[cur_idx].next;
-			}
-		}
-
-
-		if ((rep->l < rep->rlim - rep->data) && !tick_isset(rep->rex)) {
-			EV_FD_COND_S(t->srv_fd, DIR_RD);
-			/* fd in DIR_RD was disabled, perhaps because of a previous buffer
-			 * full. We cannot loop here since stream_sock_read will disable it only if
-			 * rep->l == rlim-data
-			 */
-			rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
-		}
-
-
-		/*
-		 * Now we quickly check if we have found a full valid response.
-		 * If not so, we check the FD and buffer states before leaving.
-		 * A full response is indicated by the fact that we have seen
-		 * the double LF/CRLF, so the state is HTTP_MSG_BODY. Invalid
-		 * responses are checked first.
-		 *
-		 * Depending on whether the client is still there or not, we
-		 * may send an error response back or not. Note that normally
-		 * we should only check for HTTP status there, and check I/O
-		 * errors somewhere else.
-		 */
-
-		if (unlikely(msg->msg_state != HTTP_MSG_BODY)) {
-
-			/* Invalid response, or read error or write error */
-			if (unlikely((msg->msg_state == HTTP_MSG_ERROR) ||
-			             (req->flags & BF_WRITE_ERROR) ||
-			             (rep->flags & BF_READ_ERROR))) {
-				buffer_shutr_done(rep);
-				buffer_shutw_done(req);
-				fd_delete(t->srv_fd);
-				if (t->srv) {
-					t->srv->cur_sess--;
-					t->srv->failed_resp++;
-					sess_change_server(t, NULL);
-				}
-				t->be->failed_resp++;
-				t->srv_state = SV_STCLOSE;
-				rep->flags |= BF_MAY_FORWARD;
-				txn->status = 502;
-				client_return(t, error_message(t, HTTP_ERR_502));
-				if (!(t->flags & SN_ERR_MASK))
-					t->flags |= SN_ERR_SRVCL;
-				if (!(t->flags & SN_FINST_MASK))
-					t->flags |= SN_FINST_H;
-				/* We used to have a free connection slot. Since we'll never use it,
-				 * we have to inform the server that it may be used by another session.
-				 */
-				if (t->srv && may_dequeue_tasks(t->srv, t->be))
-					process_srv_queue(t->srv);
-
-				return 1;
-			}
-
-			/* end of client write or end of server read.
-			 * since we are in header mode, if there's no space left for headers, we
-			 * won't be able to free more later, so the session will never terminate.
-			 */
-			else if (unlikely(rep->flags & (BF_READ_NULL | BF_SHUTW_STATUS) ||
-			                  rep->l >= rep->rlim - rep->data)) {
-				EV_FD_CLR(t->srv_fd, DIR_RD);
-				buffer_shutr_done(rep);
-				t->srv_state = SV_STSHUTR;
-				//fprintf(stderr,"%p:%s(%d), c=%d, s=%d\n", t, __FUNCTION__, __LINE__, t->cli_state, t->cli_state);
-				return 1;
-			}
-
-			/* read timeout : return a 504 to the client. */
-			else if (unlikely(EV_FD_ISSET(t->srv_fd, DIR_RD) &&
-			                  tick_is_expired(rep->rex, now_ms))) {
-				buffer_shutr_done(rep);
-				buffer_shutw_done(req);
-				fd_delete(t->srv_fd);
-				if (t->srv) {
-					t->srv->cur_sess--;
-					t->srv->failed_resp++;
-					sess_change_server(t, NULL);
-				}
-				t->be->failed_resp++;
-				t->srv_state = SV_STCLOSE;
-				rep->flags |= BF_MAY_FORWARD;
-				txn->status = 504;
-				client_return(t, error_message(t, HTTP_ERR_504));
-				if (!(t->flags & SN_ERR_MASK))
-					t->flags |= SN_ERR_SRVTO;
-				if (!(t->flags & SN_FINST_MASK))
-					t->flags |= SN_FINST_H;
-				/* We used to have a free connection slot. Since we'll never use it,
-				 * we have to inform the server that it may be used by another session.
-				 */
-				if (t->srv && may_dequeue_tasks(t->srv, t->be))
-					process_srv_queue(t->srv);
-				return 1;
-			}
-
-			/* last client read and buffer empty */
-			/* FIXME!!! here, we don't want to switch to SHUTW if the
-			 * client shuts read too early, because we may still have
-			 * some work to do on the headers.
-			 * The side-effect is that if the client completely closes its
-			 * connection during SV_STHEADER, the connection to the server
-			 * is kept until a response comes back or the timeout is reached.
-			 * This sometimes causes fast loops when the request buffer is
-			 * full, so we still perform the transition right now. It will
-			 * make sense later anyway.
-			 */
-			else if (unlikely(req->flags & BF_SHUTR_STATUS && (req->l == 0))) {
-
-				EV_FD_CLR(t->srv_fd, DIR_WR);
-				buffer_shutw_done(req);
-
-				/* We must ensure that the read part is still
-				 * alive when switching to shutw */
-				EV_FD_SET(t->srv_fd, DIR_RD);
-				rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
-
-				shutdown(t->srv_fd, SHUT_WR);
-				t->srv_state = SV_STSHUTW;
-				return 1;
-			}
-
-			/* write timeout */
-			/* FIXME!!! here, we don't want to switch to SHUTW if the
-			 * client shuts read too early, because we may still have
-			 * some work to do on the headers.
-			 */
-			else if (unlikely(EV_FD_ISSET(t->srv_fd, DIR_WR) &&
-					  tick_is_expired(req->wex, now_ms))) {
-				EV_FD_CLR(t->srv_fd, DIR_WR);
-				buffer_shutw_done(req);
-				shutdown(t->srv_fd, SHUT_WR);
-				/* We must ensure that the read part is still alive
-				 * when switching to shutw */
-				EV_FD_SET(t->srv_fd, DIR_RD);
-				rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
-
-				t->srv_state = SV_STSHUTW;
-				if (!(t->flags & SN_ERR_MASK))
-					t->flags |= SN_ERR_SRVTO;
-				if (!(t->flags & SN_FINST_MASK))
-					t->flags |= SN_FINST_H;
-				return 1;
-			}
-
-			/*
-			 * And now the non-error cases.
-			 */
-
-			/* Data remaining in the request buffer.
-			 * This happens during the first pass here, and during
-			 * long posts.
-			 */
-			else if (likely(req->l)) {
-				if (!tick_isset(req->wex)) {
-					EV_FD_COND_S(t->srv_fd, DIR_WR);
-					/* restart writing */
-					req->wex = tick_add_ifset(now_ms, t->be->timeout.server);
-					if (tick_isset(req->wex)) {
-						/* FIXME: to prevent the server from expiring read timeouts during writes,
-						 * we refresh it. */
-						rep->rex = req->wex;
-					}
-				}
-			}
-
-			/* nothing left in the request buffer */
-			else {
-				if (EV_FD_COND_C(t->srv_fd, DIR_WR)) {
-					/* stop writing */
-					req->wex = TICK_ETERNITY;
-				}
-			}
-
-			return t->srv_state != SV_STHEADERS;
-		}
-
-
-		/*****************************************************************
-		 * More interesting part now : we know that we have a complete   *
-		 * response which at least looks like HTTP. We have an indicator *
-		 * of each header's length, so we can parse them quickly.        *
-		 ****************************************************************/
-
-		/* ensure we keep this pointer to the beginning of the message */
-		msg->sol = rep->data + msg->som;
-
-		/*
-		 * 1: get the status code and check for cacheability.
-		 */
-
-		t->logs.logwait &= ~LW_RESP;
-		txn->status = strl2ui(rep->data + msg->sl.st.c, msg->sl.st.c_l);
-
-		switch (txn->status) {
-		case 200:
-		case 203:
-		case 206:
-		case 300:
-		case 301:
-		case 410:
-			/* RFC2616 @13.4:
-			 *   "A response received with a status code of
-			 *    200, 203, 206, 300, 301 or 410 MAY be stored
-			 *    by a cache (...) unless a cache-control
-			 *    directive prohibits caching."
-			 *   
-			 * RFC2616 @9.5: POST method :
-			 *   "Responses to this method are not cacheable,
-			 *    unless the response includes appropriate
-			 *    Cache-Control or Expires header fields."
-			 */
-			if (likely(txn->meth != HTTP_METH_POST) &&
-			    (t->be->options & (PR_O_CHK_CACHE|PR_O_COOK_NOC)))
-				txn->flags |= TX_CACHEABLE | TX_CACHE_COOK;
-			break;
-		default:
-			break;
-		}
-
-		/*
-		 * 2: we may need to capture headers
-		 */
-		if (unlikely((t->logs.logwait & LW_RSPHDR) && t->fe->rsp_cap))
-			capture_headers(rep->data + msg->som, &txn->hdr_idx,
-					txn->rsp.cap, t->fe->rsp_cap);
-
-		/*
-		 * 3: we will have to evaluate the filters.
-		 * As opposed to version 1.2, now they will be evaluated in the
-		 * filters order and not in the header order. This means that
-		 * each filter has to be validated among all headers.
-		 *
-		 * Filters are tried with ->be first, then with ->fe if it is
-		 * different from ->be.
-		 */
-
-		t->flags &= ~SN_CONN_CLOSED; /* prepare for inspection */
-
-		cur_proxy = t->be;
-		while (1) {
-			struct proxy *rule_set = cur_proxy;
-
-			/* try headers filters */
-			if (rule_set->rsp_exp != NULL) {
-				if (apply_filters_to_response(t, rep, rule_set->rsp_exp) < 0) {
-				return_bad_resp:
-					if (t->srv) {
-						t->srv->cur_sess--;
-						t->srv->failed_resp++;
-						sess_change_server(t, NULL);
-					}
-					cur_proxy->failed_resp++;
-				return_srv_prx_502:
-					buffer_shutr_done(rep);
-					buffer_shutw_done(req);
-					fd_delete(t->srv_fd);
-					t->srv_state = SV_STCLOSE;
-					rep->flags |= BF_MAY_FORWARD;
-					txn->status = 502;
-					client_return(t, error_message(t, HTTP_ERR_502));
-					if (!(t->flags & SN_ERR_MASK))
-						t->flags |= SN_ERR_PRXCOND;
-					if (!(t->flags & SN_FINST_MASK))
-						t->flags |= SN_FINST_H;
-					/* We used to have a free connection slot. Since we'll never use it,
-					 * we have to inform the server that it may be used by another session.
-					 */
-					if (t->srv && may_dequeue_tasks(t->srv, cur_proxy))
-						process_srv_queue(t->srv);
-					return 1;
-				}
-			}
-
-			/* has the response been denied ? */
-			if (txn->flags & TX_SVDENY) {
-				if (t->srv) {
-					t->srv->cur_sess--;
-					t->srv->failed_secu++;
-					sess_change_server(t, NULL);
-				}
-				cur_proxy->denied_resp++;
-				goto return_srv_prx_502;
-			}
-
-			/* We might have to check for "Connection:" */
-			if (((t->fe->options | t->be->options) & (PR_O_HTTP_CLOSE|PR_O_FORCE_CLO)) &&
-			    !(t->flags & SN_CONN_CLOSED)) {
-				char *cur_ptr, *cur_end, *cur_next;
-				int cur_idx, old_idx, delta, val;
-				struct hdr_idx_elem *cur_hdr;
-
-				cur_next = rep->data + txn->rsp.som + hdr_idx_first_pos(&txn->hdr_idx);
-				old_idx = 0;
-
-				while ((cur_idx = txn->hdr_idx.v[old_idx].next)) {
-					cur_hdr  = &txn->hdr_idx.v[cur_idx];
-					cur_ptr  = cur_next;
-					cur_end  = cur_ptr + cur_hdr->len;
-					cur_next = cur_end + cur_hdr->cr + 1;
-
-					val = http_header_match2(cur_ptr, cur_end, "Connection", 10);
-					if (val) {
-						/* 3 possibilities :
-						 * - we have already set Connection: close,
-						 *   so we remove this line.
-						 * - we have not yet set Connection: close,
-						 *   but this line indicates close. We leave
-						 *   it untouched and set the flag.
-						 * - we have not yet set Connection: close,
-						 *   and this line indicates non-close. We
-						 *   replace it.
-						 */
-						if (t->flags & SN_CONN_CLOSED) {
-							delta = buffer_replace2(rep, cur_ptr, cur_next, NULL, 0);
-							txn->rsp.eoh += delta;
-							cur_next += delta;
-							txn->hdr_idx.v[old_idx].next = cur_hdr->next;
-							txn->hdr_idx.used--;
-							cur_hdr->len = 0;
-						} else {
-							if (strncasecmp(cur_ptr + val, "close", 5) != 0) {
-								delta = buffer_replace2(rep, cur_ptr + val, cur_end,
-											"close", 5);
-								cur_next += delta;
-								cur_hdr->len += delta;
-								txn->rsp.eoh += delta;
-							}
-							t->flags |= SN_CONN_CLOSED;
-						}
-					}
-					old_idx = cur_idx;
-				}
-			}
-
-			/* add response headers from the rule sets in the same order */
-			for (cur_idx = 0; cur_idx < rule_set->nb_rspadd; cur_idx++) {
-				if (unlikely(http_header_add_tail(rep, &txn->rsp, &txn->hdr_idx,
-								  rule_set->rsp_add[cur_idx])) < 0)
-					goto return_bad_resp;
-			}
-
-			/* check whether we're already working on the frontend */
-			if (cur_proxy == t->fe)
-				break;
-			cur_proxy = t->fe;
-		}
-
-		/*
-		 * 4: check for server cookie.
-		 */
-		if (t->be->cookie_name || t->be->appsession_name || t->be->capture_name
-		    || (t->be->options & PR_O_CHK_CACHE))
-			manage_server_side_cookies(t, rep);
-
-
-		/*
-		 * 5: check for cache-control or pragma headers if required.
-		 */
-		if ((t->be->options & (PR_O_COOK_NOC | PR_O_CHK_CACHE)) != 0)
-			check_response_for_cacheability(t, rep);
-
-		/*
-		 * 6: add server cookie in the response if needed
-		 */
-		if ((t->srv) && !(t->flags & SN_DIRECT) && (t->be->options & PR_O_COOK_INS) &&
-		    (!(t->be->options & PR_O_COOK_POST) || (txn->meth == HTTP_METH_POST))) {
-			int len;
-
-			/* the server is known, it's not the one the client requested, we have to
-			 * insert a set-cookie here, except if we want to insert only on POST
-			 * requests and this one isn't. Note that servers which don't have cookies
-			 * (eg: some backup servers) will return a full cookie removal request.
-			 */
-			len = sprintf(trash, "Set-Cookie: %s=%s; path=/",
-				      t->be->cookie_name,
-				      t->srv->cookie ? t->srv->cookie : "; Expires=Thu, 01-Jan-1970 00:00:01 GMT");
-
-			if (t->be->cookie_domain)
-				len += sprintf(trash+len, "; domain=%s", t->be->cookie_domain);
-
-			if (unlikely(http_header_add_tail2(rep, &txn->rsp, &txn->hdr_idx,
-							   trash, len)) < 0)
-				goto return_bad_resp;
-			txn->flags |= TX_SCK_INSERTED;
-
-			/* Here, we will tell an eventual cache on the client side that we don't
-			 * want it to cache this reply because HTTP/1.0 caches also cache cookies !
-			 * Some caches understand the correct form: 'no-cache="set-cookie"', but
-			 * others don't (eg: apache <= 1.3.26). So we use 'private' instead.
-			 */
-			if ((t->be->options & PR_O_COOK_NOC) && (txn->flags & TX_CACHEABLE)) {
-
-				txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
-
-				if (unlikely(http_header_add_tail2(rep, &txn->rsp, &txn->hdr_idx,
-								   "Cache-control: private", 22)) < 0)
-					goto return_bad_resp;
-			}
-		}
-
-
-		/*
-		 * 7: check if result will be cacheable with a cookie.
-		 * We'll block the response if security checks have caught
-		 * nasty things such as a cacheable cookie.
-		 */
-		if (((txn->flags & (TX_CACHEABLE | TX_CACHE_COOK | TX_SCK_ANY)) ==
-		     (TX_CACHEABLE | TX_CACHE_COOK | TX_SCK_ANY)) &&
-		    (t->be->options & PR_O_CHK_CACHE)) {
-
-			/* we're in presence of a cacheable response containing
-			 * a set-cookie header. We'll block it as requested by
-			 * the 'checkcache' option, and send an alert.
-			 */
-			if (t->srv) {
-				t->srv->cur_sess--;
-				t->srv->failed_secu++;
-				sess_change_server(t, NULL);
-			}
-			t->be->denied_resp++;
-
-			Alert("Blocking cacheable cookie in response from instance %s, server %s.\n",
-			      t->be->id, t->srv?t->srv->id:"<dispatch>");
-			send_log(t->be, LOG_ALERT,
-				 "Blocking cacheable cookie in response from instance %s, server %s.\n",
-				 t->be->id, t->srv?t->srv->id:"<dispatch>");
-			goto return_srv_prx_502;
-		}
-
-		/*
-		 * 8: add "Connection: close" if needed and not yet set.
-		 * Note that we do not need to add it in case of HTTP/1.0.
-		 */
-		if (!(t->flags & SN_CONN_CLOSED) &&
-		    ((t->fe->options | t->be->options) & (PR_O_HTTP_CLOSE|PR_O_FORCE_CLO))) {
-			if ((unlikely(msg->sl.st.v_l != 8) ||
-			     unlikely(req->data[msg->som + 7] != '0')) &&
-			    unlikely(http_header_add_tail2(rep, &txn->rsp, &txn->hdr_idx,
-							   "Connection: close", 17)) < 0)
-				goto return_bad_resp;
-			t->flags |= SN_CONN_CLOSED;
-		}
-
-
-		/*************************************************************
-		 * OK, that's finished for the headers. We have done what we *
-		 * could. Let's switch to the DATA state.                    *
-		 ************************************************************/
-
-		t->srv_state = SV_STDATA;
-		rep->flags |= BF_MAY_FORWARD;
-		rep->rlim = rep->data + BUFSIZE; /* no more rewrite needed */
-		t->logs.t_data = tv_ms_elapsed(&t->logs.tv_accept, &now);
-
-		/* client connection already closed or option 'forceclose' required :
-		 * we close the server's outgoing connection right now.
-		 */
-		if ((req->l == 0) &&
-		    (req->flags & BF_SHUTR_STATUS || t->be->options & PR_O_FORCE_CLO)) {
-			EV_FD_CLR(t->srv_fd, DIR_WR);
-			buffer_shutw_done(req);
-
-			/* We must ensure that the read part is still alive when switching
-			 * to shutw */
-			EV_FD_SET(t->srv_fd, DIR_RD);
-			rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
-
-			shutdown(t->srv_fd, SHUT_WR);
-			t->srv_state = SV_STSHUTW;
-		}
-
-#ifdef CONFIG_HAP_TCPSPLICE
-		if ((t->fe->options & t->be->options) & PR_O_TCPSPLICE) {
-			/* TCP splicing supported by both FE and BE */
-			tcp_splice_splicefd(t->cli_fd, t->srv_fd, 0);
-		}
-#endif
-		/* if the user wants to log as soon as possible, without counting
-		 * bytes from the server, then this is the right moment. We have
-		 * to temporarily assign bytes_out to log what we currently have.
-		 */
-		if (t->fe->to_log && !(t->logs.logwait & LW_BYTES)) {
-			t->logs.t_close = t->logs.t_data; /* to get a valid end date */
-			t->logs.bytes_out = txn->rsp.eoh;
-			if (t->fe->to_log & LW_REQ)
-				http_sess_log(t);
-			else
-				tcp_sess_log(t);
-			t->logs.bytes_out = 0;
-		}
-
-		/* Note: we must not try to cheat by jumping directly to DATA,
-		 * otherwise we would not let the client side wake up.
-		 */
-
-		return 1;
 	}
 	else if (s == SV_STDATA) {
 		/* read or write error */

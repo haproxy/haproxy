@@ -40,11 +40,10 @@
 /* different possible states for the server side */
 #define SV_STIDLE	0
 #define SV_STCONN	1
-#define SV_STHEADERS	2
-#define SV_STDATA	3
-#define SV_STSHUTR	4
-#define SV_STSHUTW	5
-#define SV_STCLOSE	6
+#define SV_STDATA	2
+#define SV_STSHUTR	3
+#define SV_STSHUTW	4
+#define SV_STCLOSE	5
 
 /*
  * Transaction flags moved from session
