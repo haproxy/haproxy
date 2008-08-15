@@ -2595,7 +2595,6 @@ int process_response(struct session *t)
 		 */
 
 		if (unlikely(msg->msg_state != HTTP_MSG_BODY)) {
-
 			/* Invalid response */
 			if (unlikely(msg->msg_state == HTTP_MSG_ERROR)) {
 			hdr_response_bad:
@@ -2610,22 +2609,18 @@ int process_response(struct session *t)
 				t->be->failed_resp++;
 				t->srv_state = SV_STCLOSE;
 				t->analysis &= ~AN_RTR_ANY;
-				rep->flags |= BF_MAY_FORWARD;
 				txn->status = 502;
 				client_return(t, error_message(t, HTTP_ERR_502));
 				if (!(t->flags & SN_ERR_MASK))
 					t->flags |= SN_ERR_PRXCOND;
 				if (!(t->flags & SN_FINST_MASK))
 					t->flags |= SN_FINST_H;
-				/* We used to have a free connection slot. Since we'll never use it,
-				 * we have to inform the server that it may be used by another session.
-				 */
+
 				if (t->srv && may_dequeue_tasks(t->srv, t->be))
 					process_srv_queue(t->srv);
 
 				return 1;
 			}
-
 			/* write error to client, read error or close from server */
 			if (req->flags & BF_WRITE_ERROR ||
 			    rep->flags & (BF_READ_ERROR | BF_READ_NULL | BF_SHUTW_STATUS)) {
@@ -2640,26 +2635,22 @@ int process_response(struct session *t)
 				t->be->failed_resp++;
 				t->srv_state = SV_STCLOSE;
 				t->analysis &= ~AN_RTR_ANY;
-				rep->flags |= BF_MAY_FORWARD;
 				txn->status = 502;
 				client_return(t, error_message(t, HTTP_ERR_502));
 				if (!(t->flags & SN_ERR_MASK))
 					t->flags |= SN_ERR_SRVCL;
 				if (!(t->flags & SN_FINST_MASK))
 					t->flags |= SN_FINST_H;
-				/* We used to have a free connection slot. Since we'll never use it,
-				 * we have to inform the server that it may be used by another session.
-				 */
+
 				if (t->srv && may_dequeue_tasks(t->srv, t->be))
 					process_srv_queue(t->srv);
 
 				return 1;
 			}
-
 			/* too large response does not fit in buffer. */
-			else if (rep->l >= rep->rlim - rep->data)
+			else if (rep->l >= rep->rlim - rep->data) {
 				goto hdr_response_bad;
-
+			}
 			/* read timeout : return a 504 to the client. */
 			else if (rep->flags & BF_READ_TIMEOUT) {
 				buffer_shutr_done(rep);
@@ -2673,92 +2664,17 @@ int process_response(struct session *t)
 				t->be->failed_resp++;
 				t->srv_state = SV_STCLOSE;
 				t->analysis &= ~AN_RTR_ANY;
-				rep->flags |= BF_MAY_FORWARD;
 				txn->status = 504;
 				client_return(t, error_message(t, HTTP_ERR_504));
 				if (!(t->flags & SN_ERR_MASK))
 					t->flags |= SN_ERR_SRVTO;
 				if (!(t->flags & SN_FINST_MASK))
 					t->flags |= SN_FINST_H;
-				/* We used to have a free connection slot. Since we'll never use it,
-				 * we have to inform the server that it may be used by another session.
-				 */
+
 				if (t->srv && may_dequeue_tasks(t->srv, t->be))
 					process_srv_queue(t->srv);
 				return 1;
 			}
-
-			///* last client read and buffer empty */
-			//else if (unlikely(req->flags & BF_SHUTR_STATUS && (req->l == 0))) {
-			//	EV_FD_CLR(t->srv_fd, DIR_WR);
-			//	buffer_shutw_done(req);
-			//
-			//	/* We must ensure that the read part is still
-			//	 * alive when switching to shutw */
-			//	EV_FD_SET(t->srv_fd, DIR_RD);
-			//	rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
-			//
-			//	shutdown(t->srv_fd, SHUT_WR);
-			//	t->srv_state = SV_STSHUTW;
-			//	t->analysis &= ~AN_RTR_ANY;
-			//	return 1;
-			//}
-
-			/* write timeout */
-			/* FIXME!!! here, we don't want to switch to SHUTW if the
-			 * client shuts read too early, because we may still have
-			 * some work to do on the headers.
-			 */
-			//else if (unlikely(EV_FD_ISSET(t->srv_fd, DIR_WR) &&
-			//		  tick_is_expired(req->wex, now_ms))) {
-			//	EV_FD_CLR(t->srv_fd, DIR_WR);
-			//	buffer_shutw_done(req);
-			//	shutdown(t->srv_fd, SHUT_WR);
-			//	/* We must ensure that the read part is still alive
-			//	 * when switching to shutw */
-			//	EV_FD_SET(t->srv_fd, DIR_RD);
-			//	rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
-			//
-			//	t->srv_state = SV_STSHUTW;
-			//	t->analysis &= ~AN_RTR_ANY;
-			//	if (!(t->flags & SN_ERR_MASK))
-			//		t->flags |= SN_ERR_SRVTO;
-			//	if (!(t->flags & SN_FINST_MASK))
-			//		t->flags |= SN_FINST_H;
-			//	return 1;
-			//}
-
-			/*
-			 * And now the non-error cases.
-			 */
-
-			/* Data remaining in the request buffer.
-			 * This happens during the first pass here, and during
-			 * long posts.
-			 */
-			//else if (likely(req->l)) {
-			//	if (!tick_isset(req->wex)) {
-			//		EV_FD_COND_S(t->srv_fd, DIR_WR);
-			//		/* restart writing */
-			//		req->wex = tick_add_ifset(now_ms, t->be->timeout.server);
-			//		if (tick_isset(req->wex)) {
-			//			/* FIXME: to prevent the server from expiring read timeouts during writes,
-			//			 * we refresh it. */
-			//			rep->rex = req->wex;
-			//		}
-			//	}
-			//}
-			//
-			///* nothing left in the request buffer */
-			//else {
-			//	if (EV_FD_COND_C(t->srv_fd, DIR_WR)) {
-			//		/* stop writing */
-			//		req->wex = TICK_ETERNITY;
-			//	}
-			//}
-			//
-			///* return 0 if nothing changed */
-			//return !(t->analysis & AN_RTR_ANY);
 			return 0;
 		}
 
@@ -2844,7 +2760,6 @@ int process_response(struct session *t)
 					fd_delete(t->srv_fd);
 					t->srv_state = SV_STCLOSE;
 					t->analysis &= ~AN_RTR_ANY;
-					rep->flags |= BF_MAY_FORWARD;
 					txn->status = 502;
 					client_return(t, error_message(t, HTTP_ERR_502));
 					if (!(t->flags & SN_ERR_MASK))
@@ -3030,7 +2945,6 @@ int process_response(struct session *t)
 			t->flags |= SN_CONN_CLOSED;
 		}
 
-
 		/*************************************************************
 		 * OK, that's finished for the headers. We have done what we *
 		 * could. Let's switch to the DATA state.                    *
@@ -3038,27 +2952,8 @@ int process_response(struct session *t)
 
 		t->srv_state = SV_STDATA;
 		t->analysis &= ~AN_RTR_ANY;
-		rep->flags |= BF_MAY_FORWARD;
 		rep->rlim = rep->data + BUFSIZE; /* no more rewrite needed */
 		t->logs.t_data = tv_ms_elapsed(&t->logs.tv_accept, &now);
-
-		/* client connection already closed or option 'forceclose' required :
-		 * we close the server's outgoing connection right now.
-		 */
-		//if ((req->l == 0) &&
-		//    (req->flags & BF_SHUTR_STATUS || t->be->options & PR_O_FORCE_CLO)) {
-		//	EV_FD_CLR(t->srv_fd, DIR_WR);
-		//	buffer_shutw_done(req);
-		//
-		//	/* We must ensure that the read part is still alive when switching
-		//	 * to shutw */
-		//	EV_FD_SET(t->srv_fd, DIR_RD);
-		//	rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
-		//
-		//	shutdown(t->srv_fd, SHUT_WR);
-		//	t->srv_state = SV_STSHUTW;
-		//	t->analysis &= ~AN_RTR_ANY;
-		//}
 
 #ifdef CONFIG_HAP_TCPSPLICE
 		if ((t->fe->options & t->be->options) & PR_O_TCPSPLICE) {
@@ -3310,6 +3205,10 @@ int process_srv(struct session *t)
 		req->flags, rep->flags,
 		req->l, rep->l);
 
+	/* if no analysis remains, we have to let the data pass */
+	if (!(t->analysis & AN_RTR_ANY) && !(rep->flags & BF_MAY_FORWARD))
+		rep->flags |= BF_MAY_FORWARD;
+
 	if (s == SV_STIDLE) {
 		if ((rep->flags & BF_SHUTW_STATUS) ||
 			 ((req->flags & BF_SHUTR_STATUS) &&
@@ -3462,8 +3361,6 @@ int process_srv(struct session *t)
 		}
 		else if (!(req->flags & BF_WRITE_STATUS) || (req->flags & BF_WRITE_ERROR)) {
 			/* timeout, asynchronous connect error or first write error */
-			//fprintf(stderr,"2: c=%d, s=%d\n", c, s);
-
 			if (t->flags & SN_CONN_TAR) {
 				/* We are doing a turn-around waiting for a new connection attempt. */
 				if (!tick_is_expired(req->cex, now_ms))
@@ -3539,7 +3436,6 @@ int process_srv(struct session *t)
 		else { /* no error or write 0 */
 			t->logs.t_connect = tv_ms_elapsed(&t->logs.tv_accept, &now);
 
-			//fprintf(stderr,"3: c=%d, s=%d\n", c, s);
 			if (req->l == 0) /* nothing to write */ {
 				EV_FD_CLR(t->srv_fd, DIR_WR);
 				req->wex = TICK_ETERNITY;
@@ -3557,7 +3453,6 @@ int process_srv(struct session *t)
 				EV_FD_SET(t->srv_fd, DIR_RD);
 				rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
 				t->srv_state = SV_STDATA;
-				rep->flags |= BF_MAY_FORWARD;
 				rep->rlim = rep->data + BUFSIZE; /* no rewrite needed */
 
 				/* if the user wants to log as soon as possible, without counting
@@ -3587,8 +3482,9 @@ int process_srv(struct session *t)
 			return 1;
 		}
 	}
-	else if (s == SV_STDATA) {
+	else if (s == SV_STDATA || s == SV_STSHUTR || s == SV_STSHUTW) {
 		/* read or write error */
+		/* FIXME: what happens when we have to deal with HTTP ??? */
 		if (req->flags & BF_WRITE_ERROR || rep->flags & BF_READ_ERROR) {
 			buffer_shutr_done(rep);
 			buffer_shutw_done(req);
@@ -3600,45 +3496,87 @@ int process_srv(struct session *t)
 			}
 			t->be->failed_resp++;
 			t->srv_state = SV_STCLOSE;
-			rep->flags |= BF_MAY_FORWARD;
 			if (!(t->flags & SN_ERR_MASK))
 				t->flags |= SN_ERR_SRVCL;
 			if (!(t->flags & SN_FINST_MASK))
 				t->flags |= SN_FINST_D;
-			/* We used to have a free connection slot. Since we'll never use it,
-			 * we have to inform the server that it may be used by another session.
-			 */
+
 			if (may_dequeue_tasks(t->srv, t->be))
 				process_srv_queue(t->srv);
 
 			return 1;
 		}
 		/* last read, or end of client write */
-		else if (rep->flags & (BF_READ_NULL | BF_SHUTW_STATUS)) {
-			EV_FD_CLR(t->srv_fd, DIR_RD);
+		else if (!(rep->flags & BF_SHUTR_STATUS) &&   /* not already done */
+			 rep->flags & (BF_READ_NULL | BF_SHUTW_STATUS)) {
 			buffer_shutr(rep);
-			t->srv_state = SV_STSHUTR;
-			//fprintf(stderr,"%p:%s(%d), c=%d, s=%d\n", t, __FUNCTION__, __LINE__, t->cli_state, t->cli_state);
+			if (!(req->flags & BF_SHUTW_STATUS)) {
+				EV_FD_CLR(t->srv_fd, DIR_RD);
+				t->srv_state = SV_STSHUTR;
+			} else {
+				/* output was already closed */
+				fd_delete(t->srv_fd);
+				if (t->srv) {
+					t->srv->cur_sess--;
+					sess_change_server(t, NULL);
+				}
+				t->srv_state = SV_STCLOSE;
+
+				if (may_dequeue_tasks(t->srv, t->be))
+					process_srv_queue(t->srv);
+			}
 			return 1;
 		}
-		/* end of client read and no more data to send */
-		else if (req->flags & BF_SHUTR_STATUS && (req->l == 0)) {
-			EV_FD_CLR(t->srv_fd, DIR_WR);
+		/* end of client read and no more data to send. We can forward
+		 * the close when we're allowed to forward data (anytime right
+		 * now). If we're using option forceclose, then we may also
+		 * shutdown the outgoing write channel once the response starts
+		 * coming from the server.
+		 */
+		else if (!(req->flags & BF_SHUTW_STATUS) && /* not already done */
+			 req->l == 0 && req->flags & BF_MAY_FORWARD &&
+			 (req->flags & BF_SHUTR_STATUS ||
+			  (t->be->options & PR_O_FORCE_CLO && rep->flags & BF_READ_STATUS))) {
 			buffer_shutw_done(req);
-			shutdown(t->srv_fd, SHUT_WR);
-			/* We must ensure that the read part is still alive when switching
-			 * to shutw */
-			EV_FD_SET(t->srv_fd, DIR_RD);
-			rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
+			if (!(rep->flags & BF_SHUTR_STATUS)) {
+				EV_FD_CLR(t->srv_fd, DIR_WR);
+				shutdown(t->srv_fd, SHUT_WR);
+				/* We must ensure that the read part is still alive when switching to shutw */
+				/* FIXME: is this still true ? */
+				EV_FD_SET(t->srv_fd, DIR_RD);
+				rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
+				t->srv_state = SV_STSHUTW;
+			} else {
+				fd_delete(t->srv_fd);
+				if (t->srv) {
+					t->srv->cur_sess--;
+					sess_change_server(t, NULL);
+				}
+				t->srv_state = SV_STCLOSE;
 
-			t->srv_state = SV_STSHUTW;
+				if (may_dequeue_tasks(t->srv, t->be))
+					process_srv_queue(t->srv);
+			}
 			return 1;
 		}
 		/* read timeout */
 		else if (tick_is_expired(rep->rex, now_ms)) {
-			EV_FD_CLR(t->srv_fd, DIR_RD);
-			buffer_shutr(rep);
-			t->srv_state = SV_STSHUTR;
+			buffer_shutr_done(rep);
+			rep->flags |= BF_READ_TIMEOUT;
+			if (!(req->flags & BF_SHUTW_STATUS)) {
+				EV_FD_CLR(t->srv_fd, DIR_RD);
+				t->srv_state = SV_STSHUTR;
+			} else {
+				fd_delete(t->srv_fd);
+				if (t->srv) {
+					t->srv->cur_sess--;
+					sess_change_server(t, NULL);
+				}
+				t->srv_state = SV_STCLOSE;
+
+				if (may_dequeue_tasks(t->srv, t->be))
+					process_srv_queue(t->srv);
+			}
 			if (!(t->flags & SN_ERR_MASK))
 				t->flags |= SN_ERR_SRVTO;
 			if (!(t->flags & SN_FINST_MASK))
@@ -3647,217 +3585,67 @@ int process_srv(struct session *t)
 		}	
 		/* write timeout */
 		else if (tick_is_expired(req->wex, now_ms)) {
-			EV_FD_CLR(t->srv_fd, DIR_WR);
 			buffer_shutw_done(req);
-			shutdown(t->srv_fd, SHUT_WR);
-			/* We must ensure that the read part is still alive when switching
-			 * to shutw */
-			EV_FD_SET(t->srv_fd, DIR_RD);
-			rep->cex = tick_add_ifset(now_ms, t->be->timeout.server);
-			t->srv_state = SV_STSHUTW;
-			if (!(t->flags & SN_ERR_MASK))
-				t->flags |= SN_ERR_SRVTO;
-			if (!(t->flags & SN_FINST_MASK))
-				t->flags |= SN_FINST_D;
-			return 1;
-		}
-
-		/* recompute request time-outs */
-		if (req->l == 0) {
-			if (EV_FD_COND_C(t->srv_fd, DIR_WR)) {
-				/* stop writing */
-				req->wex = TICK_ETERNITY;
-			}
-		}
-		else { /* buffer not empty, there are still data to be transferred */
-			EV_FD_COND_S(t->srv_fd, DIR_WR);
-			if (!tick_isset(req->wex)) {
-				/* restart writing */
-				req->wex = tick_add_ifset(now_ms, t->be->timeout.server);
-				if (tick_isset(req->wex)) {
-					/* FIXME: to prevent the server from expiring read timeouts during writes,
-					 * we refresh it. */
-					rep->rex = req->wex;
+			req->flags |= BF_WRITE_TIMEOUT;
+			if (!(rep->flags & BF_SHUTR_STATUS)) {
+				EV_FD_CLR(t->srv_fd, DIR_WR);
+				shutdown(t->srv_fd, SHUT_WR);
+				/* We must ensure that the read part is still alive when switching to shutw */
+				/* FIXME: is this still needed ? */
+				EV_FD_SET(t->srv_fd, DIR_RD);
+				rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
+				t->srv_state = SV_STSHUTW;
+			} else {
+				fd_delete(t->srv_fd);
+				if (t->srv) {
+					t->srv->cur_sess--;
+					sess_change_server(t, NULL);
 				}
-			}
-		}
+				t->srv_state = SV_STCLOSE;
 
-		/* recompute response time-outs */
-		if (rep->l == BUFSIZE) { /* no room to read more data */
-			if (EV_FD_COND_C(t->srv_fd, DIR_RD)) {
-				rep->rex = TICK_ETERNITY;
+				if (may_dequeue_tasks(t->srv, t->be))
+					process_srv_queue(t->srv);
 			}
-		}
-		else {
-			EV_FD_COND_S(t->srv_fd, DIR_RD);
-			rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
-		}
-
-		return 0; /* other cases change nothing */
-	}
-	else if (s == SV_STSHUTR) {
-		if (req->flags & BF_WRITE_ERROR) {
-			//EV_FD_CLR(t->srv_fd, DIR_WR);
-			buffer_shutw_done(req);
-			fd_delete(t->srv_fd);
-			if (t->srv) {
-				t->srv->cur_sess--;
-				t->srv->failed_resp++;
-				sess_change_server(t, NULL);
-			}
-			t->be->failed_resp++;
-			//close(t->srv_fd);
-			t->srv_state = SV_STCLOSE;
-			rep->flags |= BF_MAY_FORWARD;
-			if (!(t->flags & SN_ERR_MASK))
-				t->flags |= SN_ERR_SRVCL;
-			if (!(t->flags & SN_FINST_MASK))
-				t->flags |= SN_FINST_D;
-			/* We used to have a free connection slot. Since we'll never use it,
-			 * we have to inform the server that it may be used by another session.
-			 */
-			if (may_dequeue_tasks(t->srv, t->be))
-				process_srv_queue(t->srv);
-
-			return 1;
-		}
-		else if (req->flags & BF_SHUTR_STATUS && (req->l == 0)) {
-			//EV_FD_CLR(t->srv_fd, DIR_WR);
-			buffer_shutw_done(req);
-			fd_delete(t->srv_fd);
-			if (t->srv) {
-				t->srv->cur_sess--;
-				sess_change_server(t, NULL);
-			}
-			//close(t->srv_fd);
-			t->srv_state = SV_STCLOSE;
-			rep->flags |= BF_MAY_FORWARD;
-			/* We used to have a free connection slot. Since we'll never use it,
-			 * we have to inform the server that it may be used by another session.
-			 */
-			if (may_dequeue_tasks(t->srv, t->be))
-				process_srv_queue(t->srv);
-
-			return 1;
-		}
-		else if (tick_is_expired(req->wex, now_ms)) {
-			//EV_FD_CLR(t->srv_fd, DIR_WR);
-			buffer_shutw_done(req);
-			fd_delete(t->srv_fd);
-			if (t->srv) {
-				t->srv->cur_sess--;
-				sess_change_server(t, NULL);
-			}
-			//close(t->srv_fd);
-			t->srv_state = SV_STCLOSE;
-			rep->flags |= BF_MAY_FORWARD;
 			if (!(t->flags & SN_ERR_MASK))
 				t->flags |= SN_ERR_SRVTO;
 			if (!(t->flags & SN_FINST_MASK))
 				t->flags |= SN_FINST_D;
-			/* We used to have a free connection slot. Since we'll never use it,
-			 * we have to inform the server that it may be used by another session.
-			 */
-			if (may_dequeue_tasks(t->srv, t->be))
-				process_srv_queue(t->srv);
-
 			return 1;
 		}
-		else if (req->l == 0) {
-			if (EV_FD_COND_C(t->srv_fd, DIR_WR)) {
-				/* stop writing */
-				req->wex = TICK_ETERNITY;
-			}
-		}
-		else { /* buffer not empty */
-			if (!tick_isset(req->wex)) {
-				EV_FD_COND_S(t->srv_fd, DIR_WR);
-				/* restart writing */
-				req->wex = tick_add_ifset(now_ms, t->be->timeout.server);
-			}
-		}
-		return 0;
-	}
-	else if (s == SV_STSHUTW) {
-		if (rep->flags & BF_READ_ERROR) {
-			//EV_FD_CLR(t->srv_fd, DIR_RD);
-			buffer_shutr_done(rep);
-			fd_delete(t->srv_fd);
-			if (t->srv) {
-				t->srv->cur_sess--;
-				t->srv->failed_resp++;
-				sess_change_server(t, NULL);
-			}
-			t->be->failed_resp++;
-			//close(t->srv_fd);
-			t->srv_state = SV_STCLOSE;
-			rep->flags |= BF_MAY_FORWARD;
-			if (!(t->flags & SN_ERR_MASK))
-				t->flags |= SN_ERR_SRVCL;
-			if (!(t->flags & SN_FINST_MASK))
-				t->flags |= SN_FINST_D;
-			/* We used to have a free connection slot. Since we'll never use it,
-			 * we have to inform the server that it may be used by another session.
-			 */
-			if (may_dequeue_tasks(t->srv, t->be))
-				process_srv_queue(t->srv);
 
-			return 1;
-		}
-		else if (rep->flags & (BF_READ_NULL | BF_SHUTW_STATUS)) {
-			//EV_FD_CLR(t->srv_fd, DIR_RD);
-			buffer_shutr_done(rep);
-			fd_delete(t->srv_fd);
-			if (t->srv) {
-				t->srv->cur_sess--;
-				sess_change_server(t, NULL);
-			}
-			//close(t->srv_fd);
-			t->srv_state = SV_STCLOSE;
-			rep->flags |= BF_MAY_FORWARD;
-			/* We used to have a free connection slot. Since we'll never use it,
-			 * we have to inform the server that it may be used by another session.
-			 */
-			if (may_dequeue_tasks(t->srv, t->be))
-				process_srv_queue(t->srv);
-
-			return 1;
-		}
-		else if (tick_is_expired(rep->rex, now_ms)) {
-			//EV_FD_CLR(t->srv_fd, DIR_RD);
-			buffer_shutr_done(rep);
-			fd_delete(t->srv_fd);
-			if (t->srv) {
-				t->srv->cur_sess--;
-				sess_change_server(t, NULL);
-			}
-			//close(t->srv_fd);
-			t->srv_state = SV_STCLOSE;
-			rep->flags |= BF_MAY_FORWARD;
-			if (!(t->flags & SN_ERR_MASK))
-				t->flags |= SN_ERR_SRVTO;
-			if (!(t->flags & SN_FINST_MASK))
-				t->flags |= SN_FINST_D;
-			/* We used to have a free connection slot. Since we'll never use it,
-			 * we have to inform the server that it may be used by another session.
-			 */
-			if (may_dequeue_tasks(t->srv, t->be))
-				process_srv_queue(t->srv);
-
-			return 1;
-		}
-		else if (rep->l == BUFSIZE) { /* no room to read more data */
-			if (EV_FD_COND_C(t->srv_fd, DIR_RD)) {
-				rep->rex = TICK_ETERNITY;
-			}
-		}
-		else {
-			if (!tick_isset(rep->rex)) {
+		/* manage read timeout */
+		if (!(rep->flags & BF_SHUTR_STATUS)) {
+			if (rep->l >= rep->rlim - rep->data) {
+				if (EV_FD_COND_C(t->srv_fd, DIR_RD))
+					rep->rex = TICK_ETERNITY;
+			} else {
 				EV_FD_COND_S(t->srv_fd, DIR_RD);
 				rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
 			}
 		}
-		return 0;
+
+		/* manage write timeout */
+		if (!(req->flags & BF_SHUTW_STATUS)) {
+			if (req->l == 0 || !(req->flags & BF_MAY_FORWARD)) {
+				/* stop writing */
+				if (EV_FD_COND_C(t->srv_fd, DIR_WR))
+					req->wex = TICK_ETERNITY;
+			} else {
+				/* buffer not empty, there are still data to be transferred */
+				EV_FD_COND_S(t->srv_fd, DIR_WR);
+				if (!tick_isset(req->wex)) {
+					/* restart writing */
+					req->wex = tick_add_ifset(now_ms, t->be->timeout.server);
+					if (!(rep->flags & BF_SHUTR_STATUS) && tick_isset(req->wex) && tick_isset(rep->rex)) {
+						/* FIXME: to prevent the server from expiring read timeouts during writes,
+						 * we refresh it, except if it was already infinite.
+						 */
+						rep->rex = req->wex;
+					}
+				}
+			}
+		}
+		return 0; /* other cases change nothing */
 	}
 	else { /* SV_STCLOSE : nothing to do */
 		if ((global.mode & MODE_DEBUG) && (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))) {
