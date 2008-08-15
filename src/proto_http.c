@@ -2596,10 +2596,39 @@ int process_response(struct session *t)
 
 		if (unlikely(msg->msg_state != HTTP_MSG_BODY)) {
 
-			/* Invalid response, or read error or write error */
-			if (unlikely((msg->msg_state == HTTP_MSG_ERROR) ||
-			             (req->flags & BF_WRITE_ERROR) ||
-			             (rep->flags & BF_READ_ERROR))) {
+			/* Invalid response */
+			if (unlikely(msg->msg_state == HTTP_MSG_ERROR)) {
+			hdr_response_bad:
+				buffer_shutr_done(rep);
+				buffer_shutw_done(req);
+				fd_delete(t->srv_fd);
+				if (t->srv) {
+					t->srv->cur_sess--;
+					t->srv->failed_resp++;
+					sess_change_server(t, NULL);
+				}
+				t->be->failed_resp++;
+				t->srv_state = SV_STCLOSE;
+				t->analysis &= ~AN_RTR_ANY;
+				rep->flags |= BF_MAY_FORWARD;
+				txn->status = 502;
+				client_return(t, error_message(t, HTTP_ERR_502));
+				if (!(t->flags & SN_ERR_MASK))
+					t->flags |= SN_ERR_PRXCOND;
+				if (!(t->flags & SN_FINST_MASK))
+					t->flags |= SN_FINST_H;
+				/* We used to have a free connection slot. Since we'll never use it,
+				 * we have to inform the server that it may be used by another session.
+				 */
+				if (t->srv && may_dequeue_tasks(t->srv, t->be))
+					process_srv_queue(t->srv);
+
+				return 1;
+			}
+
+			/* write error to client, read error or close from server */
+			if (req->flags & BF_WRITE_ERROR ||
+			    rep->flags & (BF_READ_ERROR | BF_READ_NULL | BF_SHUTW_STATUS)) {
 				buffer_shutr_done(rep);
 				buffer_shutw_done(req);
 				fd_delete(t->srv_fd);
@@ -2627,23 +2656,12 @@ int process_response(struct session *t)
 				return 1;
 			}
 
-			/* end of client write or end of server read.
-			 * since we are in header mode, if there's no space left for headers, we
-			 * won't be able to free more later, so the session will never terminate.
-			 */
-			else if (unlikely(rep->flags & (BF_READ_NULL | BF_SHUTW_STATUS) ||
-			                  rep->l >= rep->rlim - rep->data)) {
-				EV_FD_CLR(t->srv_fd, DIR_RD);
-				buffer_shutr_done(rep);
-				t->srv_state = SV_STSHUTR;
-				t->analysis &= ~AN_RTR_ANY;
-				//fprintf(stderr,"%p:%s(%d), c=%d, s=%d\n", t, __FUNCTION__, __LINE__, t->cli_state, t->cli_state);
-				return 1;
-			}
+			/* too large response does not fit in buffer. */
+			else if (rep->l >= rep->rlim - rep->data)
+				goto hdr_response_bad;
 
 			/* read timeout : return a 504 to the client. */
-			else if (unlikely(EV_FD_ISSET(t->srv_fd, DIR_RD) &&
-			                  tick_is_expired(rep->rex, now_ms))) {
+			else if (rep->flags & BF_READ_TIMEOUT) {
 				buffer_shutr_done(rep);
 				buffer_shutw_done(req);
 				fd_delete(t->srv_fd);
@@ -2670,56 +2688,45 @@ int process_response(struct session *t)
 				return 1;
 			}
 
-			/* last client read and buffer empty */
-			/* FIXME!!! here, we don't want to switch to SHUTW if the
-			 * client shuts read too early, because we may still have
-			 * some work to do on the headers.
-			 * The side-effect is that if the client completely closes its
-			 * connection during SV_STHEADER, the connection to the server
-			 * is kept until a response comes back or the timeout is reached.
-			 * This sometimes causes fast loops when the request buffer is
-			 * full, so we still perform the transition right now. It will
-			 * make sense later anyway.
-			 */
-			else if (unlikely(req->flags & BF_SHUTR_STATUS && (req->l == 0))) {
-
-				EV_FD_CLR(t->srv_fd, DIR_WR);
-				buffer_shutw_done(req);
-
-				/* We must ensure that the read part is still
-				 * alive when switching to shutw */
-				EV_FD_SET(t->srv_fd, DIR_RD);
-				rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
-
-				shutdown(t->srv_fd, SHUT_WR);
-				t->srv_state = SV_STSHUTW;
-				t->analysis &= ~AN_RTR_ANY;
-				return 1;
-			}
+			///* last client read and buffer empty */
+			//else if (unlikely(req->flags & BF_SHUTR_STATUS && (req->l == 0))) {
+			//	EV_FD_CLR(t->srv_fd, DIR_WR);
+			//	buffer_shutw_done(req);
+			//
+			//	/* We must ensure that the read part is still
+			//	 * alive when switching to shutw */
+			//	EV_FD_SET(t->srv_fd, DIR_RD);
+			//	rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
+			//
+			//	shutdown(t->srv_fd, SHUT_WR);
+			//	t->srv_state = SV_STSHUTW;
+			//	t->analysis &= ~AN_RTR_ANY;
+			//	return 1;
+			//}
 
 			/* write timeout */
 			/* FIXME!!! here, we don't want to switch to SHUTW if the
 			 * client shuts read too early, because we may still have
 			 * some work to do on the headers.
 			 */
-			else if (unlikely(EV_FD_ISSET(t->srv_fd, DIR_WR) &&
-					  tick_is_expired(req->wex, now_ms))) {
-				EV_FD_CLR(t->srv_fd, DIR_WR);
-				buffer_shutw_done(req);
-				shutdown(t->srv_fd, SHUT_WR);
-				/* We must ensure that the read part is still alive
-				 * when switching to shutw */
-				EV_FD_SET(t->srv_fd, DIR_RD);
-				rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
-
-				t->srv_state = SV_STSHUTW;
-				t->analysis &= ~AN_RTR_ANY;
-				if (!(t->flags & SN_ERR_MASK))
-					t->flags |= SN_ERR_SRVTO;
-				if (!(t->flags & SN_FINST_MASK))
-					t->flags |= SN_FINST_H;
-				return 1;
-			}
+			//else if (unlikely(EV_FD_ISSET(t->srv_fd, DIR_WR) &&
+			//		  tick_is_expired(req->wex, now_ms))) {
+			//	EV_FD_CLR(t->srv_fd, DIR_WR);
+			//	buffer_shutw_done(req);
+			//	shutdown(t->srv_fd, SHUT_WR);
+			//	/* We must ensure that the read part is still alive
+			//	 * when switching to shutw */
+			//	EV_FD_SET(t->srv_fd, DIR_RD);
+			//	rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
+			//
+			//	t->srv_state = SV_STSHUTW;
+			//	t->analysis &= ~AN_RTR_ANY;
+			//	if (!(t->flags & SN_ERR_MASK))
+			//		t->flags |= SN_ERR_SRVTO;
+			//	if (!(t->flags & SN_FINST_MASK))
+			//		t->flags |= SN_FINST_H;
+			//	return 1;
+			//}
 
 			/*
 			 * And now the non-error cases.
@@ -2729,29 +2736,30 @@ int process_response(struct session *t)
 			 * This happens during the first pass here, and during
 			 * long posts.
 			 */
-			else if (likely(req->l)) {
-				if (!tick_isset(req->wex)) {
-					EV_FD_COND_S(t->srv_fd, DIR_WR);
-					/* restart writing */
-					req->wex = tick_add_ifset(now_ms, t->be->timeout.server);
-					if (tick_isset(req->wex)) {
-						/* FIXME: to prevent the server from expiring read timeouts during writes,
-						 * we refresh it. */
-						rep->rex = req->wex;
-					}
-				}
-			}
-
-			/* nothing left in the request buffer */
-			else {
-				if (EV_FD_COND_C(t->srv_fd, DIR_WR)) {
-					/* stop writing */
-					req->wex = TICK_ETERNITY;
-				}
-			}
-
-			/* return 0 if nothing changed */
-			return !(t->analysis & AN_RTR_ANY);
+			//else if (likely(req->l)) {
+			//	if (!tick_isset(req->wex)) {
+			//		EV_FD_COND_S(t->srv_fd, DIR_WR);
+			//		/* restart writing */
+			//		req->wex = tick_add_ifset(now_ms, t->be->timeout.server);
+			//		if (tick_isset(req->wex)) {
+			//			/* FIXME: to prevent the server from expiring read timeouts during writes,
+			//			 * we refresh it. */
+			//			rep->rex = req->wex;
+			//		}
+			//	}
+			//}
+			//
+			///* nothing left in the request buffer */
+			//else {
+			//	if (EV_FD_COND_C(t->srv_fd, DIR_WR)) {
+			//		/* stop writing */
+			//		req->wex = TICK_ETERNITY;
+			//	}
+			//}
+			//
+			///* return 0 if nothing changed */
+			//return !(t->analysis & AN_RTR_ANY);
+			return 0;
 		}
 
 
@@ -3037,20 +3045,20 @@ int process_response(struct session *t)
 		/* client connection already closed or option 'forceclose' required :
 		 * we close the server's outgoing connection right now.
 		 */
-		if ((req->l == 0) &&
-		    (req->flags & BF_SHUTR_STATUS || t->be->options & PR_O_FORCE_CLO)) {
-			EV_FD_CLR(t->srv_fd, DIR_WR);
-			buffer_shutw_done(req);
-
-			/* We must ensure that the read part is still alive when switching
-			 * to shutw */
-			EV_FD_SET(t->srv_fd, DIR_RD);
-			rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
-
-			shutdown(t->srv_fd, SHUT_WR);
-			t->srv_state = SV_STSHUTW;
-			t->analysis &= ~AN_RTR_ANY;
-		}
+		//if ((req->l == 0) &&
+		//    (req->flags & BF_SHUTR_STATUS || t->be->options & PR_O_FORCE_CLO)) {
+		//	EV_FD_CLR(t->srv_fd, DIR_WR);
+		//	buffer_shutw_done(req);
+		//
+		//	/* We must ensure that the read part is still alive when switching
+		//	 * to shutw */
+		//	EV_FD_SET(t->srv_fd, DIR_RD);
+		//	rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
+		//
+		//	shutdown(t->srv_fd, SHUT_WR);
+		//	t->srv_state = SV_STSHUTW;
+		//	t->analysis &= ~AN_RTR_ANY;
+		//}
 
 #ifdef CONFIG_HAP_TCPSPLICE
 		if ((t->fe->options & t->be->options) & PR_O_TCPSPLICE) {
@@ -3093,12 +3101,13 @@ int process_cli(struct session *t)
 	struct buffer *req = t->req;
 	struct buffer *rep = t->rep;
 
-	DPRINTF(stderr,"[%u] process_cli: c=%s s=%s set(r,w)=%d,%d exp(r,w)=%u,%u req=%08x rep=%08x\n",
+	DPRINTF(stderr,"[%u] process_cli: c=%s s=%s set(r,w)=%d,%d exp(r,w)=%u,%u req=%08x rep=%08x rql=%d rpl=%d\n",
 		now_ms,
 		cli_stnames[t->cli_state], srv_stnames[t->srv_state],
 		EV_FD_ISSET(t->cli_fd, DIR_RD), EV_FD_ISSET(t->cli_fd, DIR_WR),
 		req->rex, rep->wex,
-		req->flags, rep->flags);
+		req->flags, rep->flags,
+		req->l, rep->l);
 
 	/* if no analysis remains, it's time to forward the connection */
 	if (!(t->analysis & AN_REQ_ANY) && !(req->flags & (BF_MAY_CONNECT|BF_MAY_FORWARD)))
@@ -3139,9 +3148,12 @@ int process_cli(struct session *t)
 			}
 			return 1;
 		}	
-		/* last server read and buffer empty */
+		/* last server read and buffer empty : we only check them when we're
+		 * allowed to forward the data.
+		 */
 		else if (!(rep->flags & BF_SHUTW_STATUS) &&   /* already done */
-			 rep->l == 0 && rep->flags & BF_SHUTR_STATUS && !(t->flags & SN_SELF_GEN)) {
+			 rep->l == 0 && rep->flags & BF_MAY_FORWARD &&
+			 rep->flags & BF_SHUTR_STATUS && !(t->flags & SN_SELF_GEN)) {
 			buffer_shutw_done(rep);
 			if (!(req->flags & BF_SHUTR_STATUS)) {
 				EV_FD_CLR(t->cli_fd, DIR_WR);
@@ -3252,8 +3264,8 @@ int process_cli(struct session *t)
 				}
 			} else {
 				/* buffer not empty */
+				EV_FD_COND_S(t->cli_fd, DIR_WR);
 				if (!tick_isset(rep->wex)) {
-					EV_FD_COND_S(t->cli_fd, DIR_WR);
 					/* restart writing */
 					rep->wex = tick_add_ifset(now_ms, t->fe->timeout.client);
 					if (!(req->flags & BF_SHUTR_STATUS) && tick_isset(rep->wex) && tick_isset(req->rex)) {
@@ -3290,12 +3302,13 @@ int process_srv(struct session *t)
 	struct buffer *rep = t->rep;
 	int conn_err;
 
-	DPRINTF(stderr,"[%u] process_srv: c=%s s=%s set(r,w)=%d,%d exp(r,w)=%u,%u req=%08x rep=%08x\n",
+	DPRINTF(stderr,"[%u] process_srv: c=%s s=%s set(r,w)=%d,%d exp(r,w)=%u,%u req=%08x rep=%08x rql=%d rpl=%d\n",
 		now_ms,
 		cli_stnames[t->cli_state], srv_stnames[t->srv_state],
 		EV_FD_ISSET(t->srv_fd, DIR_RD), EV_FD_ISSET(t->srv_fd, DIR_WR),
 		rep->rex, req->wex,
-		req->flags, rep->flags);
+		req->flags, rep->flags,
+		req->l, rep->l);
 
 	if (s == SV_STIDLE) {
 		if ((rep->flags & BF_SHUTW_STATUS) ||
@@ -3657,8 +3670,8 @@ int process_srv(struct session *t)
 			}
 		}
 		else { /* buffer not empty, there are still data to be transferred */
+			EV_FD_COND_S(t->srv_fd, DIR_WR);
 			if (!tick_isset(req->wex)) {
-				EV_FD_COND_S(t->srv_fd, DIR_WR);
 				/* restart writing */
 				req->wex = tick_add_ifset(now_ms, t->be->timeout.server);
 				if (tick_isset(req->wex)) {
@@ -3676,10 +3689,8 @@ int process_srv(struct session *t)
 			}
 		}
 		else {
-			if (!tick_isset(rep->rex)) {
-				EV_FD_COND_S(t->srv_fd, DIR_RD);
-				rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
-			}
+			EV_FD_COND_S(t->srv_fd, DIR_RD);
+			rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
 		}
 
 		return 0; /* other cases change nothing */
