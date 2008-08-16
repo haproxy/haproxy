@@ -314,7 +314,7 @@ void maintain_proxies(struct timeval *next)
 	/* if there are enough free sessions, we'll activate proxies */
 	if (actconn < global.maxconn) {
 		while (p) {
-			if (p->feconn < p->maxconn) {
+			if (!p->maxconn || p->feconn < p->maxconn) {
 				if (p->state == PR_STIDLE) {
 					for (l = p->listen; l != NULL; l = l->next)
 						enable_listener(l);
