@@ -338,7 +338,7 @@ int event_accept(int fd) {
 			s->req->rlim -= MAXREWRITE;
 
 		if (!(s->analysis & AN_REQ_ANY))
-			s->req->flags |= BF_MAY_CONNECT;  /* don't wait to establish connection */
+			s->req->flags |= BF_MAY_FORWARD;  /* don't wait to establish connection */
 
 		s->req->rto = s->fe->timeout.client;
 		s->req->wto = s->be->timeout.server;

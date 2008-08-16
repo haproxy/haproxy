@@ -53,10 +53,9 @@
 #define BF_STREAMER          4096
 #define BF_STREAMER_FAST     8192
 
-#define BF_MAY_CONNECT      16384  /* consumer side is allowed to forward the connection */
-#define BF_MAY_FORWARD      32768  /* consumer side is allowed to forward the data */
-#define BF_READ_TIMEOUT     65536  /* timeout while waiting for producer */
-#define BF_WRITE_TIMEOUT   131072  /* timeout while waiting for consumer */
+#define BF_MAY_FORWARD      16384  /* consumer side is allowed to forward the data */
+#define BF_READ_TIMEOUT     32768  /* timeout while waiting for producer */
+#define BF_WRITE_TIMEOUT    65536  /* timeout while waiting for consumer */
 
 /* describes a chunk of string */
 struct chunk {

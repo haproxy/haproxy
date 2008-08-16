@@ -2992,8 +2992,8 @@ int process_cli(struct session *t)
 		req->l, rep->l);
 
 	/* if no analysis remains, it's time to forward the connection */
-	if (!(t->analysis & AN_REQ_ANY) && !(req->flags & (BF_MAY_CONNECT|BF_MAY_FORWARD)))
-		req->flags |= BF_MAY_CONNECT | BF_MAY_FORWARD;
+	if (!(t->analysis & AN_REQ_ANY) && !(req->flags & BF_MAY_FORWARD))
+		req->flags |= BF_MAY_FORWARD;
 
 	/* FIXME: we still have to check for CL_STSHUTR because client_retnclose
 	 * still set this state (and will do until unix sockets are converted).
@@ -3228,7 +3228,7 @@ int process_srv(struct session *t)
 			trace_term(t, TT_HTTP_SRV_1);
 			return 1;
 		}
-		else if (req->flags & BF_MAY_CONNECT) {
+		else if (req->flags & BF_MAY_FORWARD) {
 			/* the client allows the server to connect */
 			if (txn->flags & TX_CLTARPIT) {
 				/* This connection is being tarpitted. The CLIENT side has
