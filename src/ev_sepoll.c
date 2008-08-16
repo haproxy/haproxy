@@ -85,7 +85,9 @@ static _syscall4 (int, epoll_wait, int, epfd, struct epoll_event *, events, int,
  *
  * Since we do not want to scan all the FD list to find speculative I/O events,
  * we store them in a list consisting in a linear array holding only the FD
- * indexes right now.
+ * indexes right now. Note that a closed FD cannot exist in the spec list,
+ * because it is closed by fd_delete() which in turn calls __fd_clo() which
+ * always removes it from the list.
  *
  * The STOP state requires the event to be present in the spec list so that
  * it can be detected and flushed upon next scan without having to scan the
@@ -211,6 +213,12 @@ REGPRM2 static int __fd_is_set(const int fd, int dir)
 {
 	int ret;
 
+#if DEBUG_DEV
+	if (fdtab[fd].state == FD_STCLOSE) {
+		fprintf(stderr, "sepoll.fd_isset called on closed fd #%d.\n", fd);
+		ABORT_NOW();
+	}
+#endif
 	ret = ((unsigned)fd_list[fd].e >> dir) & FD_EV_MASK_DIR;
 	return (ret == FD_EV_SPEC || ret == FD_EV_WAIT);
 }
@@ -224,6 +232,12 @@ REGPRM2 static int __fd_set(const int fd, int dir)
 	__label__ switch_state;
 	unsigned int i;
 
+#if DEBUG_DEV
+	if (fdtab[fd].state == FD_STCLOSE) {
+		fprintf(stderr, "sepoll.fd_set called on closed fd #%d.\n", fd);
+		ABORT_NOW();
+	}
+#endif
 	i = ((unsigned)fd_list[fd].e >> dir) & FD_EV_MASK_DIR;
 
 	if (i == FD_EV_IDLE) {
@@ -246,6 +260,12 @@ REGPRM2 static int __fd_clr(const int fd, int dir)
 	__label__ switch_state;
 	unsigned int i;
 
+#if DEBUG_DEV
+	if (fdtab[fd].state == FD_STCLOSE) {
+		fprintf(stderr, "sepoll.fd_clr called on closed fd #%d.\n", fd);
+		ABORT_NOW();
+	}
+#endif
 	i = ((unsigned)fd_list[fd].e >> dir) & FD_EV_MASK_DIR;
 
 	if (i == FD_EV_SPEC) {
@@ -279,8 +299,7 @@ REGPRM1 static void __fd_rem(int fd)
  */
 REGPRM1 static void __fd_clo(int fd)
 {
-	if (fd_list[fd].e & FD_EV_RW_SL)
-		release_spec_entry(fd);
+	release_spec_entry(fd);
 	fd_list[fd].e &= ~(FD_EV_MASK);
 }
 
@@ -322,10 +341,16 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		 * the WAIT status.
 		 */
 
+#ifdef DEBUG_DEV
+		if (fdtab[fd].state == FD_STCLOSE) {
+			fprintf(stderr,"fd=%d, fdtab[].ev=%x, fd_list[].e=%x, .s=%d, idx=%d\n",
+				fd, fdtab[fd].ev, fd_list[fd].e, fd_list[fd].s1, spec_idx);
+		}
+#endif
 		fdtab[fd].ev &= FD_POLL_STICKY;
 		if ((eo & FD_EV_MASK_R) == FD_EV_SPEC_R) {
 			/* The owner is interested in reading from this FD */
-			if (fdtab[fd].state != FD_STCLOSE && fdtab[fd].state != FD_STERROR) {
+			if (fdtab[fd].state != FD_STERROR) {
 				/* Pretend there is something to read */
 				fdtab[fd].ev |= FD_POLL_IN;
 				if (!fdtab[fd].cb[DIR_RD].f(fd))
@@ -341,7 +366,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		
 		if ((eo & FD_EV_MASK_W) == FD_EV_SPEC_W) {
 			/* The owner is interested in writing to this FD */
-			if (fdtab[fd].state != FD_STCLOSE && fdtab[fd].state != FD_STERROR) {
+			if (fdtab[fd].state != FD_STERROR) {
 				/* Pretend there is something to write */
 				fdtab[fd].ev |= FD_POLL_OUT;
 				if (!fdtab[fd].cb[DIR_WR].f(fd))
