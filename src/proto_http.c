@@ -709,6 +709,11 @@ void process_session(struct task *t, int *next)
 		/* restore t to its place in the task list */
 		task_queue(t);
 
+#ifdef DEBUG_DEV
+		/* this may only happen when no timeout is set or in case of an FSM bug */
+		if (!t->expire)
+			ABORT_NOW();
+#endif
 		*next = t->expire;
 		return; /* nothing more to do */
 	}
@@ -1571,7 +1576,8 @@ int process_request(struct session *t)
 	DPRINTF(stderr,"[%u] process_req: c=%s s=%s set(r,w)=%d,%d exp(r,w)=%u,%u req=%08x rep=%08x analysis=%02x\n",
 		now_ms,
 		cli_stnames[t->cli_state], srv_stnames[t->srv_state],
-		EV_FD_ISSET(t->cli_fd, DIR_RD), EV_FD_ISSET(t->cli_fd, DIR_WR),
+		t->cli_fd >= 0 && fdtab[t->cli_fd].state != FD_STCLOSE ? EV_FD_ISSET(t->cli_fd, DIR_RD) : 0,
+		t->cli_fd >= 0 && fdtab[t->cli_fd].state != FD_STCLOSE ? EV_FD_ISSET(t->cli_fd, DIR_WR) : 0,
 		req->rex, rep->wex, req->flags, rep->flags, t->analysis);
 
 	if (t->analysis & AN_REQ_INSPECT) {
@@ -2522,7 +2528,8 @@ int process_response(struct session *t)
 	DPRINTF(stderr,"[%u] process_rep: c=%s s=%s set(r,w)=%d,%d exp(r,w)=%u,%u req=%08x rep=%08x analysis=%02x\n",
 		now_ms,
 		cli_stnames[t->cli_state], srv_stnames[t->srv_state],
-		EV_FD_ISSET(t->srv_fd, DIR_RD), EV_FD_ISSET(t->srv_fd, DIR_WR),
+		t->srv_fd >= 0 && fdtab[t->srv_fd].state != FD_STCLOSE ? EV_FD_ISSET(t->srv_fd, DIR_RD) : 0,
+		t->srv_fd >= 0 && fdtab[t->srv_fd].state != FD_STCLOSE ? EV_FD_ISSET(t->srv_fd, DIR_WR) : 0,
 		req->rex, rep->wex, req->flags, rep->flags, t->analysis);
 
 	if (t->analysis & AN_RTR_HTTP_HDR) { /* receiving server headers */
@@ -2673,6 +2680,8 @@ int process_response(struct session *t)
 		 * response which at least looks like HTTP. We have an indicator *
 		 * of each header's length, so we can parse them quickly.        *
 		 ****************************************************************/
+
+		t->analysis &= ~AN_RTR_HTTP_HDR;
 
 		/* ensure we keep this pointer to the beginning of the message */
 		msg->sol = rep->data + msg->som;
@@ -2939,8 +2948,6 @@ int process_response(struct session *t)
 		 * could. Let's switch to the DATA state.                    *
 		 ************************************************************/
 
-		t->srv_state = SV_STDATA;
-		t->analysis &= ~AN_RTR_ANY;
 		rep->rlim = rep->data + BUFSIZE; /* no more rewrite needed */
 		t->logs.t_data = tv_ms_elapsed(&t->logs.tv_accept, &now);
 
@@ -2977,6 +2984,8 @@ int process_response(struct session *t)
  * manages the client FSM and its socket. BTW, it also tries to handle the
  * cookie. It returns 1 if a state has changed (and a resync may be needed),
  * 0 else.
+ * Note: process_srv is the ONLY function allowed to set cli_state to anything
+ *       but CL_STCLOSE.
  */
 int process_cli(struct session *t)
 {
@@ -2986,7 +2995,8 @@ int process_cli(struct session *t)
 	DPRINTF(stderr,"[%u] process_cli: c=%s s=%s set(r,w)=%d,%d exp(r,w)=%u,%u req=%08x rep=%08x rql=%d rpl=%d\n",
 		now_ms,
 		cli_stnames[t->cli_state], srv_stnames[t->srv_state],
-		EV_FD_ISSET(t->cli_fd, DIR_RD), EV_FD_ISSET(t->cli_fd, DIR_WR),
+		t->cli_fd >= 0 && fdtab[t->cli_fd].state != FD_STCLOSE ? EV_FD_ISSET(t->cli_fd, DIR_RD) : 0,
+		t->cli_fd >= 0 && fdtab[t->cli_fd].state != FD_STCLOSE ? EV_FD_ISSET(t->cli_fd, DIR_WR) : 0,
 		req->rex, rep->wex,
 		req->flags, rep->flags,
 		req->l, rep->l);
@@ -3190,6 +3200,9 @@ int process_cli(struct session *t)
 /*
  * manages the server FSM and its socket. It returns 1 if a state has changed
  * (and a resync may be needed), 0 else.
+ * Note: process_srv is the ONLY function allowed to set srv_state to anything
+ *       but SV_STCLOSE. The only exception is for functions called from this
+ *       one (eg: those in backend.c).
  */
 int process_srv(struct session *t)
 {
@@ -3201,7 +3214,8 @@ int process_srv(struct session *t)
 	DPRINTF(stderr,"[%u] process_srv: c=%s s=%s set(r,w)=%d,%d exp(r,w)=%u,%u req=%08x rep=%08x rql=%d rpl=%d\n",
 		now_ms,
 		cli_stnames[t->cli_state], srv_stnames[t->srv_state],
-		EV_FD_ISSET(t->srv_fd, DIR_RD), EV_FD_ISSET(t->srv_fd, DIR_WR),
+		t->srv_fd >= 0 && fdtab[t->srv_fd].state != FD_STCLOSE ? EV_FD_ISSET(t->srv_fd, DIR_RD) : 0,
+		t->srv_fd >= 0 && fdtab[t->srv_fd].state != FD_STCLOSE ? EV_FD_ISSET(t->srv_fd, DIR_WR) : 0,
 		rep->rex, req->wex,
 		req->flags, rep->flags,
 		req->l, rep->l);
