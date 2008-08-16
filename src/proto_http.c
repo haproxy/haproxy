@@ -645,36 +645,88 @@ http_get_path(struct http_txn *txn)
 	return ptr;
 }
 
-/* Processes the client and server jobs of a session task, then
- * puts it back to the wait queue in a clean state, or
- * cleans up its resources if it must be deleted. Returns
- * the time the task accepts to wait, or TIME_ETERNITY for
- * infinity.
+/* Processes the client, server, request and response jobs of a session task,
+ * then puts it back to the wait queue in a clean state, or cleans up its
+ * resources if it must be deleted. Returns in <next> the date the task wants
+ * to be woken up, or TICK_ETERNITY. In order not to call all functions for
+ * nothing too many times, the request and response buffers flags are monitored
+ * and each function is called only if at least another function has changed at
+ * least one flag. If one of the functions called returns non-zero, then it
+ * will be called once again after all other functions. This permits explicit
+ * external loops which may be useful for complex state machines.
  */
+#define PROCESS_CLI 0x1
+#define PROCESS_SRV 0x2
+#define PROCESS_REQ 0x4
+#define PROCESS_RTR 0x8
+#define PROCESS_ALL (PROCESS_CLI|PROCESS_SRV|PROCESS_REQ|PROCESS_RTR)
+
 void process_session(struct task *t, int *next)
 {
 	struct session *s = t->context;
-	int fsm_resync = 0;
+	unsigned resync = PROCESS_ALL;
+	unsigned int rqf;
+	unsigned int rpf;
 
 	do {
-		fsm_resync = 0;
+		if (resync & PROCESS_REQ) {
+			resync &= ~PROCESS_REQ;
+			if (s->analysis & AN_REQ_ANY) {
+				rqf = s->req->flags;
+				rpf = s->rep->flags;
 
-		//fprintf(stderr,"before_cli:cli=%d, srv=%d, resync=%d\n", s->cli_state, s->srv_state, fsm_resync);
-		fsm_resync |= process_cli(s);
+				if (process_request(s))
+					resync |= PROCESS_REQ;
 
-		//fprintf(stderr,"before_req:cli=%d, srv=%d, resync=%d\n", s->cli_state, s->srv_state, fsm_resync);
-		if (s->analysis & AN_REQ_ANY)
-			fsm_resync |= process_request(s);
+				if (!(s->analysis & AN_REQ_ANY) && !(s->req->flags & BF_MAY_FORWARD))
+					s->req->flags |= BF_MAY_FORWARD;
 
-		//fprintf(stderr,"before_srv:cli=%d, srv=%d, resync=%d\n", s->cli_state, s->srv_state, fsm_resync);
-		fsm_resync |= process_srv(s);
+				if (rqf != s->req->flags || rpf != s->rep->flags)
+					resync |= PROCESS_ALL & ~PROCESS_REQ;
+			}
+		}
 
-		//fprintf(stderr,"before_rep:cli=%d, srv=%d, resync=%d\n", s->cli_state, s->srv_state, fsm_resync);
-		if (s->analysis & AN_RTR_ANY)
-			fsm_resync |= process_response(s);
+		if (resync & PROCESS_RTR) {
+			resync &= ~PROCESS_RTR;
+			if (s->analysis & AN_RTR_ANY) {
+				rqf = s->req->flags;
+				rpf = s->rep->flags;
 
-		//fprintf(stderr,"endof_loop:cli=%d, srv=%d, resync=%d\n", s->cli_state, s->srv_state, fsm_resync);
-	} while (fsm_resync);
+				if (process_response(s))
+					resync |= PROCESS_RTR;
+
+				if (!(s->analysis & AN_RTR_ANY) && !(s->rep->flags & BF_MAY_FORWARD))
+					s->rep->flags |= BF_MAY_FORWARD;
+
+				if (rqf != s->req->flags || rpf != s->rep->flags)
+					resync |= PROCESS_ALL & ~PROCESS_RTR;
+			}
+		}
+
+		if (resync & PROCESS_CLI) {
+			rqf = s->req->flags;
+			rpf = s->rep->flags;
+
+			resync &= ~PROCESS_CLI;
+			if (process_cli(s))
+				resync |= PROCESS_CLI;
+
+			if (rqf != s->req->flags || rpf != s->rep->flags)
+				resync |= PROCESS_ALL & ~PROCESS_CLI;
+		}
+
+		if (resync & PROCESS_SRV) {
+			rqf = s->req->flags;
+			rpf = s->rep->flags;
+
+			resync &= ~PROCESS_SRV;
+			if (process_srv(s))
+				resync |= PROCESS_SRV;
+
+			if (rqf != s->req->flags || rpf != s->rep->flags)
+				resync |= PROCESS_ALL & ~PROCESS_SRV;
+		}
+	} while (resync);
 
 	if (likely(s->cli_state != CL_STCLOSE || s->srv_state != SV_STCLOSE)) {
 
@@ -1563,15 +1615,14 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 }
 
 /* This function performs all the processing enabled for the current request.
- * It returns 1 if it changes its state and it believes that another function
- * must be updated, otherwise zero. It might make sense to explode it into
- * several other functions.
+ * It normally returns zero, but may return 1 if it absolutely needs to be
+ * called again after other functions. It relies on buffers flags, and updates
+ * t->analysis. It might make sense to explode it into several other functions.
  */
 int process_request(struct session *t)
 {
 	struct buffer *req = t->req;
 	struct buffer *rep = t->rep;
-	int fsm_resync = 0;
 
 	DPRINTF(stderr,"[%u] process_req: c=%s s=%s set(r,w)=%d,%d exp(r,w)=%u,%u req=%08x rep=%08x analysis=%02x\n",
 		now_ms,
@@ -1580,6 +1631,7 @@ int process_request(struct session *t)
 		t->cli_fd >= 0 && fdtab[t->cli_fd].state != FD_STCLOSE ? EV_FD_ISSET(t->cli_fd, DIR_WR) : 0,
 		req->rex, rep->wex, req->flags, rep->flags, t->analysis);
 
+ update_state:
 	if (t->analysis & AN_REQ_INSPECT) {
 		struct tcp_rule *rule;
 		int partial;
@@ -1597,7 +1649,7 @@ int process_request(struct session *t)
 				t->flags |= SN_ERR_CLICL;
 			if (!(t->flags & SN_FINST_MASK))
 				t->flags |= SN_FINST_R;
-			return 1;
+			return 0;
 		}
 
 		/* Abort if client read timeout has expired */
@@ -1609,7 +1661,7 @@ int process_request(struct session *t)
 				t->flags |= SN_ERR_CLITO;
 			if (!(t->flags & SN_FINST_MASK))
 				t->flags |= SN_FINST_R;
-			return 1;
+			return 0;
 		}
 
 		/* We don't know whether we have enough data, so must proceed
@@ -1637,8 +1689,7 @@ int process_request(struct session *t)
 					/* just set the request timeout once at the beginning of the request */
 					if (!tick_isset(t->inspect_exp))
 						t->inspect_exp = tick_add_ifset(now_ms, t->fe->tcp_req.inspect_delay);
-
-					return fsm_resync;
+					return 0;
 				}
 
 				ret = acl_pass(ret);
@@ -1660,7 +1711,7 @@ int process_request(struct session *t)
 					if (!(t->flags & SN_FINST_MASK))
 						t->flags |= SN_FINST_R;
 					t->inspect_exp = TICK_ETERNITY;
-					return 1;
+					return 0;
 				}
 				/* otherwise accept */
 				break;
@@ -1672,7 +1723,6 @@ int process_request(struct session *t)
 		 */
 		t->analysis &= ~AN_REQ_INSPECT;
 		t->inspect_exp = TICK_ETERNITY;
-		fsm_resync = 1;
 	}
 
 	if (t->analysis & AN_REQ_HTTP_HDR) {
@@ -1762,7 +1812,7 @@ int process_request(struct session *t)
 					t->flags |= SN_ERR_CLICL;
 				if (!(t->flags & SN_FINST_MASK))
 					t->flags |= SN_FINST_R;
-				return 1;
+				return 0;
 			}
 
 			/* 3: has the read timeout expired ? */
@@ -1777,7 +1827,7 @@ int process_request(struct session *t)
 					t->flags |= SN_ERR_CLITO;
 				if (!(t->flags & SN_FINST_MASK))
 					t->flags |= SN_FINST_R;
-				return 1;
+				return 0;
 			}
 
 			/* 4: have we encountered a read error or did we have to shutdown ? */
@@ -1790,7 +1840,7 @@ int process_request(struct session *t)
 					t->flags |= SN_ERR_CLICL;
 				if (!(t->flags & SN_FINST_MASK))
 					t->flags |= SN_FINST_R;
-				return 1;
+				return 0;
 			}
 
 			/* just set the request timeout once at the beginning of the request */
@@ -1798,7 +1848,7 @@ int process_request(struct session *t)
 				t->txn.exp = tick_add_ifset(now_ms, t->fe->timeout.httpreq);
 
 			/* we're not ready yet */
-			return fsm_resync;
+			return 0;
 		}
 
 
@@ -2428,7 +2478,6 @@ int process_request(struct session *t)
 		}
 
 		/* OK let's go on with the BODY now */
-		fsm_resync = 1;
 		goto end_of_headers;
 
 	return_bad_req: /* let's centralize all bad requests */
@@ -2442,7 +2491,7 @@ int process_request(struct session *t)
 			t->flags |= SN_ERR_PRXCOND;
 		if (!(t->flags & SN_FINST_MASK))
 			t->flags |= SN_FINST_R;
-		return 1;
+		return 0;
 	end_of_headers:
 		; // to keep gcc happy
 	}
@@ -2506,17 +2555,19 @@ int process_request(struct session *t)
 			/* The situation will not evolve, so let's give up on the analysis. */
 			t->logs.tv_request = now;  /* update the request timer to reflect full request */
 			t->analysis &= ~AN_REQ_HTTP_BODY;
-			fsm_resync = 1;
 		}
 	}
 
-	return fsm_resync;
+	/* we want to leave with that clean */
+	if (unlikely(t->analysis & AN_REQ_ANY))
+		goto update_state;
+	return 0;
 }
 
 /* This function performs all the processing enabled for the current response.
- * It returns 1 if it changes its state and it believes that another function
- * must be updated, otherwise zero. It might make sense to explode it into
- * several other functions.
+ * It normally returns zero, but may return 1 if it absolutely needs to be
+ * called again after other functions. It relies on buffers flags, and updates
+ * t->analysis. It might make sense to explode it into several other functions.
  */
 int process_response(struct session *t)
 {
@@ -2531,6 +2582,7 @@ int process_response(struct session *t)
 		t->srv_fd >= 0 && fdtab[t->srv_fd].state != FD_STCLOSE ? EV_FD_ISSET(t->srv_fd, DIR_WR) : 0,
 		req->rex, rep->wex, req->flags, rep->flags, t->analysis);
 
+ update_state:
 	if (t->analysis & AN_RTR_HTTP_HDR) { /* receiving server headers */
 		/*
 		 * Now parse the partial (or complete) lines.
@@ -2614,7 +2666,7 @@ int process_response(struct session *t)
 				if (t->srv && may_dequeue_tasks(t->srv, t->be))
 					process_srv_queue(t->srv);
 
-				return 1;
+				return 0;
 			}
 			/* write error to client, read error or close from server */
 			if (req->flags & BF_WRITE_ERROR ||
@@ -2640,7 +2692,7 @@ int process_response(struct session *t)
 				if (t->srv && may_dequeue_tasks(t->srv, t->be))
 					process_srv_queue(t->srv);
 
-				return 1;
+				return 0;
 			}
 			/* too large response does not fit in buffer. */
 			else if (rep->flags & BF_FULL) {
@@ -2668,7 +2720,7 @@ int process_response(struct session *t)
 
 				if (t->srv && may_dequeue_tasks(t->srv, t->be))
 					process_srv_queue(t->srv);
-				return 1;
+				return 0;
 			}
 			return 0;
 		}
@@ -2768,7 +2820,7 @@ int process_response(struct session *t)
 					 */
 					if (t->srv && may_dequeue_tasks(t->srv, cur_proxy))
 						process_srv_queue(t->srv);
-					return 1;
+					return 0;
 				}
 			}
 
@@ -2974,16 +3026,20 @@ int process_response(struct session *t)
 		 * otherwise we would not let the client side wake up.
 		 */
 
-		return 1;
+		return 0;
 	}
+
+	/* we want to leave with that clean */
+	if (unlikely(t->analysis & AN_RTR_ANY))
+		goto update_state;
 	return 0;
 }
 
 /*
- * manages the client FSM and its socket. BTW, it also tries to handle the
- * cookie. It returns 1 if a state has changed (and a resync may be needed),
- * 0 else.
- * Note: process_srv is the ONLY function allowed to set cli_state to anything
+ * Manages the client FSM and its socket. It normally returns zero, but may
+ * return 1 if it absolutely wants to be called again.
+ *
+ * Note: process_cli is the ONLY function allowed to set cli_state to anything
  *       but CL_STCLOSE.
  */
 int process_cli(struct session *t)
@@ -3000,10 +3056,7 @@ int process_cli(struct session *t)
 		req->flags, rep->flags,
 		req->l, rep->l);
 
-	/* if no analysis remains, it's time to forward the connection */
-	if (!(t->analysis & AN_REQ_ANY) && !(req->flags & BF_MAY_FORWARD))
-		req->flags |= BF_MAY_FORWARD;
-
+ update_state:
 	/* FIXME: we still have to check for CL_STSHUTR because client_retnclose
 	 * still set this state (and will do until unix sockets are converted).
 	 */
@@ -3027,7 +3080,7 @@ int process_cli(struct session *t)
 				else
 					t->flags |= SN_FINST_D;
 			}
-			return 1;
+			goto update_state;
 		}
 		/* last read, or end of server write */
 		else if (!(req->flags & BF_SHUTR) &&   /* already done */
@@ -3042,7 +3095,7 @@ int process_cli(struct session *t)
 				t->cli_state = CL_STCLOSE;
 				trace_term(t, TT_HTTP_CLI_3);
 			}
-			return 1;
+			goto update_state;
 		}	
 		/* last server read and buffer empty : we only check them when we're
 		 * allowed to forward the data.
@@ -3064,7 +3117,7 @@ int process_cli(struct session *t)
 				t->cli_state = CL_STCLOSE;
 				trace_term(t, TT_HTTP_CLI_5);
 			}
-			return 1;
+			goto update_state;
 		}
 		/* read timeout */
 		else if (tick_is_expired(req->rex, now_ms)) {
@@ -3091,7 +3144,7 @@ int process_cli(struct session *t)
 				else
 					t->flags |= SN_FINST_D;
 			}
-			return 1;
+			goto update_state;
 		}	
 		/* write timeout */
 		else if (tick_is_expired(rep->wex, now_ms)) {
@@ -3123,7 +3176,7 @@ int process_cli(struct session *t)
 				else
 					t->flags |= SN_FINST_D;
 			}
-			return 1;
+			goto update_state;
 		}
 
 		/* manage read timeout */
@@ -3152,7 +3205,7 @@ int process_cli(struct session *t)
 					fd_delete(t->cli_fd);
 					t->cli_state = CL_STCLOSE;
 					trace_term(t, TT_HTTP_CLI_10);
-					return 1;
+					goto update_state;
 				}
 			}
 
@@ -3186,19 +3239,18 @@ int process_cli(struct session *t)
 		}
 		return 0;
 	}
-#ifdef DEBUG_FULL
-	else {
-		fprintf(stderr, "FIXME !!!! impossible state at %s:%d = %d\n", __FILE__, __LINE__, t->cli_state);
-		exit(1);
-	}
+#ifdef DEBUG_DEV
+	fprintf(stderr, "FIXME !!!! impossible state at %s:%d = %d\n", __FILE__, __LINE__, t->cli_state);
+	ABORT_NOW();
 #endif
 	return 0;
 }
 
 
 /*
- * manages the server FSM and its socket. It returns 1 if a state has changed
- * (and a resync may be needed), 0 else.
+ * Manages the server FSM and its socket. It normally returns zero, but may
+ * return 1 if it absolutely wants to be called again.
+ *
  * Note: process_srv is the ONLY function allowed to set srv_state to anything
  *       but SV_STCLOSE. The only exception is for functions called from this
  *       one (eg: those in backend.c).
@@ -3219,10 +3271,7 @@ int process_srv(struct session *t)
 		req->flags, rep->flags,
 		req->l, rep->l);
 
-	/* if no analysis remains, we have to let the data pass */
-	if (!(t->analysis & AN_RTR_ANY) && !(rep->flags & BF_MAY_FORWARD))
-		rep->flags |= BF_MAY_FORWARD;
-
+ update_state:
 	if (t->srv_state == SV_STIDLE) {
 		if ((rep->flags & BF_SHUTW) ||
 			 ((req->flags & BF_SHUTR) &&
@@ -3239,7 +3288,7 @@ int process_srv(struct session *t)
 				srv_close_with_err(t, SN_ERR_CLICL, t->pend_pos ? SN_FINST_Q : SN_FINST_C, 0, NULL);
 
 			trace_term(t, TT_HTTP_SRV_1);
-			return 1;
+			goto update_state;
 		}
 		else if (req->flags & BF_MAY_FORWARD) {
 			/* the client allows the server to connect */
@@ -3262,7 +3311,7 @@ int process_srv(struct session *t)
 				srv_close_with_err(t, SN_ERR_PRXCOND, SN_FINST_T,
 						   500, error_message(t, HTTP_ERR_500));
 				trace_term(t, TT_HTTP_SRV_2);
-				return 1;
+				goto update_state;
 			}
 
 			/* Right now, we will need to create a connection to the server.
@@ -3283,7 +3332,7 @@ int process_srv(struct session *t)
 					if (t->srv)
 						t->srv->failed_conns++;
 					t->be->failed_conns++;
-					return 1;
+					goto update_state;
 				}
 			}
 
@@ -3292,8 +3341,11 @@ int process_srv(struct session *t)
 				if (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)
 					t->flags |= SN_REDIRECTABLE;
 
-				if (srv_redispatch_connect(t))
-					return t->srv_state != SV_STIDLE;
+				if (srv_redispatch_connect(t)) {
+					if (t->srv_state == SV_STIDLE)
+						return 0;
+					goto update_state;
+				}
 
 				if ((t->flags & SN_REDIRECTABLE) && t->srv && t->srv->rdr_len) {
 					/* Server supporting redirection and it is possible.
@@ -3335,14 +3387,14 @@ int process_srv(struct session *t)
 					/* FIXME: we should increase a counter of redirects per server and per backend. */
 					if (t->srv)
 						t->srv->cum_sess++;
-					return 1;
+					goto update_state;
 				cancel_redir:
 					txn->status = 400;
 					t->fe->failed_req++;
 					srv_close_with_err(t, SN_ERR_PRXCOND, SN_FINST_C,
 							   400, error_message(t, HTTP_ERR_400));
 					trace_term(t, TT_HTTP_SRV_4);
-					return 1;
+					goto update_state;
 				}
 
 				/* try to (re-)connect to the server, and fail if we expire the
@@ -3350,10 +3402,13 @@ int process_srv(struct session *t)
 				 */
 				if (srv_retryable_connect(t)) {
 					t->logs.t_queue = tv_ms_elapsed(&t->logs.tv_accept, &now);
-					return t->srv_state != SV_STIDLE;
+					if (t->srv_state == SV_STIDLE)
+						return 0;
+					goto update_state;
 				}
 			} while (1);
-		}
+		} /* end if may_forward */
+		return 0;
 	}
 	else if (t->srv_state == SV_STCONN) { /* connection in progress */
 		if ((rep->flags & BF_SHUTW) ||
@@ -3375,7 +3430,7 @@ int process_srv(struct session *t)
 			 */
 			srv_close_with_err(t, SN_ERR_CLICL, SN_FINST_C, 0, NULL);
 			trace_term(t, TT_HTTP_SRV_5);
-			return 1;
+			goto update_state;
 		}
 		if (!(req->flags & BF_WRITE_STATUS) && !tick_is_expired(req->cex, now_ms)) {
 			return 0; /* nothing changed */
@@ -3401,8 +3456,9 @@ int process_srv(struct session *t)
 					conn_err = SN_ERR_SRVCL; // it was an asynchronous connect error.
 
 				/* ensure that we have enough retries left */
-				if (srv_count_retry_down(t, conn_err))
-					return 1;
+				if (srv_count_retry_down(t, conn_err)) {
+					goto update_state;
+				}
 
 				if (req->flags & BF_WRITE_ERROR) {
 					/* we encountered an immediate connection error, and we
@@ -3430,8 +3486,11 @@ int process_srv(struct session *t)
 				t->prev_srv = t->srv;
 
 				/* first, get a connection */
-				if (srv_redispatch_connect(t))
-					return t->srv_state != SV_STCONN;
+				if (srv_redispatch_connect(t)) {
+					if (t->srv_state == SV_STCONN)
+						return 0;
+					goto update_state;
+				}
 			} else {
 				if (t->srv)
 					t->srv->retries++;
@@ -3446,12 +3505,17 @@ int process_srv(struct session *t)
 				 */
 				if (srv_retryable_connect(t)) {
 					t->logs.t_queue = tv_ms_elapsed(&t->logs.tv_accept, &now);
-					return t->srv_state != SV_STCONN;
+					if (t->srv_state == SV_STCONN)
+						return 0;
+					goto update_state;
 				}
 
 				/* we need to redispatch the connection to another server */
-				if (srv_redispatch_connect(t))
-					return t->srv_state != SV_STCONN;
+				if (srv_redispatch_connect(t)) {
+					if (t->srv_state == SV_STCONN)
+						return 0;
+					goto update_state;
+				}
 			} while (1);
 		}
 		else { /* no error or write 0 */
@@ -3473,7 +3537,6 @@ int process_srv(struct session *t)
 			if (t->be->mode == PR_MODE_TCP) { /* let's allow immediate data connection in this case */
 				EV_FD_SET(t->srv_fd, DIR_RD);
 				rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
-				t->srv_state = SV_STDATA;
 				buffer_set_rlim(rep, BUFSIZE); /* no rewrite needed */
 
 				/* if the user wants to log as soon as possible, without counting
@@ -3490,7 +3553,6 @@ int process_srv(struct session *t)
 #endif
 			}
 			else {
-				t->srv_state = SV_STDATA;
 				t->analysis |= AN_RTR_HTTP_HDR;
 				buffer_set_rlim(rep, BUFSIZE - MAXREWRITE); /* rewrite needed */
 				t->txn.rsp.msg_state = HTTP_MSG_RPBEFORE;
@@ -3499,9 +3561,13 @@ int process_srv(struct session *t)
 				 * hdr_idx_init(&t->txn.hdr_idx);
 				 */
 			}
+
+			t->srv_state = SV_STDATA;
+			if (!(t->analysis & AN_RTR_ANY))
+				t->rep->flags |= BF_MAY_FORWARD;
 			req->cex = TICK_ETERNITY;
-			return 1;
-		}
+			goto update_state;
+		} /* else no error or write 0 */
 	}
 	else if (t->srv_state == SV_STDATA) {
 		/* read or write error */
@@ -3526,7 +3592,7 @@ int process_srv(struct session *t)
 			if (may_dequeue_tasks(t->srv, t->be))
 				process_srv_queue(t->srv);
 
-			return 1;
+			goto update_state;
 		}
 		/* last read, or end of client write */
 		else if (!(rep->flags & BF_SHUTR) &&   /* not already done */
@@ -3548,7 +3614,7 @@ int process_srv(struct session *t)
 				if (may_dequeue_tasks(t->srv, t->be))
 					process_srv_queue(t->srv);
 			}
-			return 1;
+			goto update_state;
 		}
 		/* end of client read and no more data to send. We can forward
 		 * the close when we're allowed to forward data (anytime right
@@ -3581,7 +3647,7 @@ int process_srv(struct session *t)
 				if (may_dequeue_tasks(t->srv, t->be))
 					process_srv_queue(t->srv);
 			}
-			return 1;
+			goto update_state;
 		}
 		/* read timeout */
 		else if (tick_is_expired(rep->rex, now_ms)) {
@@ -3606,7 +3672,8 @@ int process_srv(struct session *t)
 				t->flags |= SN_ERR_SRVTO;
 			if (!(t->flags & SN_FINST_MASK))
 				t->flags |= SN_FINST_D;
-			return 1;
+
+			goto update_state;
 		}	
 		/* write timeout */
 		else if (tick_is_expired(req->wex, now_ms)) {
@@ -3636,7 +3703,8 @@ int process_srv(struct session *t)
 				t->flags |= SN_ERR_SRVTO;
 			if (!(t->flags & SN_FINST_MASK))
 				t->flags |= SN_FINST_D;
-			return 1;
+
+			goto update_state;
 		}
 
 		/* manage read timeout */
@@ -3682,11 +3750,9 @@ int process_srv(struct session *t)
 		}
 		return 0;
 	}
-#ifdef DEBUG_FULL
-	else {
-		fprintf(stderr, "FIXME !!!! impossible state at %s:%d = %d\n", __FILE__, __LINE__, t->srv_state);
-		exit(1);
-	}
+#ifdef DEBUG_DEV
+	fprintf(stderr, "FIXME !!!! impossible state at %s:%d = %d\n", __FILE__, __LINE__, t->srv_state);
+	ABORT_NOW();
 #endif
 	return 0;
 }
