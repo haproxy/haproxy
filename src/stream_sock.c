@@ -380,7 +380,7 @@ int stream_sock_write(int fd) {
 			 * we refresh it. A solution would be to merge read+write timeouts into a
 			 * unique one, although that needs some study particularly on full-duplex
 			 * TCP connections. */
-			if (tick_isset(b->rex) && !(b->flags & BF_SHUTR_STATUS))
+			if (tick_isset(b->rex) && !(b->flags & BF_SHUTR))
 				b->rex = b->wex;
 		}
 	}

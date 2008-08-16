@@ -546,8 +546,8 @@ void srv_close_with_err(struct session *t, int err, int finst,
 {
 	t->srv_state = SV_STCLOSE;
 	t->rep->flags |= BF_MAY_FORWARD;
-	buffer_shutw_done(t->req);
-	buffer_shutr_done(t->rep);
+	buffer_shutw(t->req);
+	buffer_shutr(t->rep);
 	if (status > 0 && msg) {
 		t->txn.status = status;
 		if (t->fe->mode == PR_MODE_HTTP)
@@ -692,7 +692,7 @@ void process_session(struct task *t, int *next)
 		 * request timeout is set and the server has not yet sent a response.
 		 */
 
-		if ((s->rep->flags & (BF_MAY_FORWARD|BF_SHUTR_STATUS)) == 0 &&
+		if ((s->rep->flags & (BF_MAY_FORWARD|BF_SHUTR)) == 0 &&
 		    (tick_isset(s->req->cex) || tick_isset(s->req->wex) || tick_isset(s->rep->rex)))
 			s->req->rex = TICK_ETERNITY;
 
@@ -1622,7 +1622,7 @@ int process_request(struct session *t)
 		 * - if one rule returns KO, then return KO
 		 */
 
-		if (req->flags & (BF_READ_NULL | BF_SHUTR_STATUS) ||
+		if (req->flags & (BF_READ_NULL | BF_SHUTR) ||
 		    tick_is_expired(t->inspect_exp, now_ms))
 			partial = 0;
 		else
@@ -1649,8 +1649,8 @@ int process_request(struct session *t)
 			if (ret) {
 				/* we have a matching rule. */
 				if (rule->action == TCP_ACT_REJECT) {
-					buffer_shutr_done(req);
-					buffer_shutw_done(rep);
+					buffer_shutr(req);
+					buffer_shutw(rep);
 					fd_delete(t->cli_fd);
 					t->cli_state = CL_STCLOSE;
 					t->analysis &= ~AN_REQ_ANY;
@@ -1781,7 +1781,7 @@ int process_request(struct session *t)
 			}
 
 			/* 4: have we encountered a read error or did we have to shutdown ? */
-			else if (req->flags & (BF_READ_ERROR | BF_SHUTR_STATUS)) {
+			else if (req->flags & (BF_READ_ERROR | BF_SHUTR)) {
 				/* we cannot return any message on error */
 				msg->msg_state = HTTP_MSG_ERROR;
 				t->analysis &= ~AN_REQ_ANY;
@@ -2594,8 +2594,8 @@ int process_response(struct session *t)
 			/* Invalid response */
 			if (unlikely(msg->msg_state == HTTP_MSG_ERROR)) {
 			hdr_response_bad:
-				buffer_shutr_done(rep);
-				buffer_shutw_done(req);
+				buffer_shutr(rep);
+				buffer_shutw(req);
 				fd_delete(t->srv_fd);
 				if (t->srv) {
 					t->srv->cur_sess--;
@@ -2619,9 +2619,9 @@ int process_response(struct session *t)
 			}
 			/* write error to client, read error or close from server */
 			if (req->flags & BF_WRITE_ERROR ||
-			    rep->flags & (BF_READ_ERROR | BF_READ_NULL | BF_SHUTW_STATUS)) {
-				buffer_shutr_done(rep);
-				buffer_shutw_done(req);
+			    rep->flags & (BF_READ_ERROR | BF_READ_NULL | BF_SHUTW)) {
+				buffer_shutr(rep);
+				buffer_shutw(req);
 				fd_delete(t->srv_fd);
 				if (t->srv) {
 					t->srv->cur_sess--;
@@ -2649,8 +2649,8 @@ int process_response(struct session *t)
 			}
 			/* read timeout : return a 504 to the client. */
 			else if (rep->flags & BF_READ_TIMEOUT) {
-				buffer_shutr_done(rep);
-				buffer_shutw_done(req);
+				buffer_shutr(rep);
+				buffer_shutw(req);
 				fd_delete(t->srv_fd);
 				if (t->srv) {
 					t->srv->cur_sess--;
@@ -2753,8 +2753,8 @@ int process_response(struct session *t)
 					}
 					cur_proxy->failed_resp++;
 				return_srv_prx_502:
-					buffer_shutr_done(rep);
-					buffer_shutw_done(req);
+					buffer_shutr(rep);
+					buffer_shutw(req);
 					fd_delete(t->srv_fd);
 					t->srv_state = SV_STCLOSE;
 					t->analysis &= ~AN_RTR_ANY;
@@ -3011,8 +3011,8 @@ int process_cli(struct session *t)
 	if (t->cli_state == CL_STDATA || t->cli_state == CL_STSHUTR) {
 		/* read or write error */
 		if (rep->flags & BF_WRITE_ERROR || req->flags & BF_READ_ERROR) {
-			buffer_shutr_done(req);
-			buffer_shutw_done(rep);
+			buffer_shutr(req);
+			buffer_shutw(rep);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
 			trace_term(t, TT_HTTP_CLI_1);
@@ -3031,10 +3031,10 @@ int process_cli(struct session *t)
 			return 1;
 		}
 		/* last read, or end of server write */
-		else if (!(req->flags & BF_SHUTR_STATUS) &&   /* already done */
-			 req->flags & (BF_READ_NULL | BF_SHUTW_STATUS)) {
-			buffer_shutr_done(req);
-			if (!(rep->flags & BF_SHUTW_STATUS)) {
+		else if (!(req->flags & BF_SHUTR) &&   /* already done */
+			 req->flags & (BF_READ_NULL | BF_SHUTW)) {
+			buffer_shutr(req);
+			if (!(rep->flags & BF_SHUTW)) {
 				EV_FD_CLR(t->cli_fd, DIR_RD);
 				trace_term(t, TT_HTTP_CLI_2);
 			} else {
@@ -3048,11 +3048,11 @@ int process_cli(struct session *t)
 		/* last server read and buffer empty : we only check them when we're
 		 * allowed to forward the data.
 		 */
-		else if (!(rep->flags & BF_SHUTW_STATUS) &&   /* already done */
+		else if (!(rep->flags & BF_SHUTW) &&   /* already done */
 			 rep->l == 0 && rep->flags & BF_MAY_FORWARD &&
-			 rep->flags & BF_SHUTR_STATUS && !(t->flags & SN_SELF_GEN)) {
-			buffer_shutw_done(rep);
-			if (!(req->flags & BF_SHUTR_STATUS)) {
+			 rep->flags & BF_SHUTR && !(t->flags & SN_SELF_GEN)) {
+			buffer_shutw(rep);
+			if (!(req->flags & BF_SHUTR)) {
 				EV_FD_CLR(t->cli_fd, DIR_WR);
 				shutdown(t->cli_fd, SHUT_WR);
 				/* We must ensure that the read part is still alive when switching to shutw */
@@ -3069,9 +3069,9 @@ int process_cli(struct session *t)
 		}
 		/* read timeout */
 		else if (tick_is_expired(req->rex, now_ms)) {
-			buffer_shutr_done(req);
+			buffer_shutr(req);
 			req->flags |= BF_READ_TIMEOUT;
-			if (!(rep->flags & BF_SHUTW_STATUS)) {
+			if (!(rep->flags & BF_SHUTW)) {
 				EV_FD_CLR(t->cli_fd, DIR_RD);
 				trace_term(t, TT_HTTP_CLI_6);
 			} else {
@@ -3096,9 +3096,9 @@ int process_cli(struct session *t)
 		}	
 		/* write timeout */
 		else if (tick_is_expired(rep->wex, now_ms)) {
-			buffer_shutw_done(rep);
+			buffer_shutw(rep);
 			rep->flags |= BF_WRITE_TIMEOUT;
-			if (!(req->flags & BF_SHUTR_STATUS)) {
+			if (!(req->flags & BF_SHUTR)) {
 				EV_FD_CLR(t->cli_fd, DIR_WR);
 				shutdown(t->cli_fd, SHUT_WR);
 				/* We must ensure that the read part is still alive when switching to shutw */
@@ -3128,7 +3128,7 @@ int process_cli(struct session *t)
 		}
 
 		/* manage read timeout */
-		if (!(req->flags & BF_SHUTR_STATUS)) {
+		if (!(req->flags & BF_SHUTR)) {
 			if (req->l >= req->rlim - req->data) {
 				/* no room to read more data */
 				if (EV_FD_COND_C(t->cli_fd, DIR_RD)) {
@@ -3142,14 +3142,14 @@ int process_cli(struct session *t)
 		}
 
 		/* manage write timeout */
-		if (!(rep->flags & BF_SHUTW_STATUS)) {
+		if (!(rep->flags & BF_SHUTW)) {
 			/* first, we may have to produce data (eg: stats).
 			 * right now, this is limited to the SHUTR state.
 			 */
-			if (req->flags & BF_SHUTR_STATUS && t->flags & SN_SELF_GEN) {
+			if (req->flags & BF_SHUTR && t->flags & SN_SELF_GEN) {
 				produce_content(t);
 				if (rep->l == 0) {
-					buffer_shutw_done(rep);
+					buffer_shutw(rep);
 					fd_delete(t->cli_fd);
 					t->cli_state = CL_STCLOSE;
 					trace_term(t, TT_HTTP_CLI_10);
@@ -3169,7 +3169,7 @@ int process_cli(struct session *t)
 				if (!tick_isset(rep->wex)) {
 					/* restart writing */
 					rep->wex = tick_add_ifset(now_ms, t->fe->timeout.client);
-					if (!(req->flags & BF_SHUTR_STATUS) && tick_isset(rep->wex) && tick_isset(req->rex)) {
+					if (!(req->flags & BF_SHUTR) && tick_isset(rep->wex) && tick_isset(req->rex)) {
 						/* FIXME: to prevent the client from expiring read timeouts during writes,
 						 * we refresh it, except if it was already infinite. */
 						req->rex = rep->wex;
@@ -3225,8 +3225,8 @@ int process_srv(struct session *t)
 		rep->flags |= BF_MAY_FORWARD;
 
 	if (t->srv_state == SV_STIDLE) {
-		if ((rep->flags & BF_SHUTW_STATUS) ||
-			 ((req->flags & BF_SHUTR_STATUS) &&
+		if ((rep->flags & BF_SHUTW) ||
+			 ((req->flags & BF_SHUTR) &&
 			  (req->l == 0 || t->be->options & PR_O_ABRT_CLOSE))) { /* give up */
 			req->cex = TICK_ETERNITY;
 			if (t->pend_pos)
@@ -3357,8 +3357,8 @@ int process_srv(struct session *t)
 		}
 	}
 	else if (t->srv_state == SV_STCONN) { /* connection in progress */
-		if ((rep->flags & BF_SHUTW_STATUS) ||
-		    ((req->flags & BF_SHUTR_STATUS) &&
+		if ((rep->flags & BF_SHUTW) ||
+		    ((req->flags & BF_SHUTR) &&
 		     ((req->l == 0 && !(req->flags & BF_WRITE_STATUS)) ||
 		      t->be->options & PR_O_ABRT_CLOSE))) { /* give up */
 			req->cex = TICK_ETERNITY;
@@ -3508,8 +3508,8 @@ int process_srv(struct session *t)
 		/* read or write error */
 		/* FIXME: what happens when we have to deal with HTTP ??? */
 		if (req->flags & BF_WRITE_ERROR || rep->flags & BF_READ_ERROR) {
-			buffer_shutr_done(rep);
-			buffer_shutw_done(req);
+			buffer_shutr(rep);
+			buffer_shutw(req);
 			fd_delete(t->srv_fd);
 			if (t->srv) {
 				t->srv->cur_sess--;
@@ -3530,10 +3530,10 @@ int process_srv(struct session *t)
 			return 1;
 		}
 		/* last read, or end of client write */
-		else if (!(rep->flags & BF_SHUTR_STATUS) &&   /* not already done */
-			 rep->flags & (BF_READ_NULL | BF_SHUTW_STATUS)) {
-			buffer_shutr_done(rep);
-			if (!(req->flags & BF_SHUTW_STATUS)) {
+		else if (!(rep->flags & BF_SHUTR) &&   /* not already done */
+			 rep->flags & (BF_READ_NULL | BF_SHUTW)) {
+			buffer_shutr(rep);
+			if (!(req->flags & BF_SHUTW)) {
 				EV_FD_CLR(t->srv_fd, DIR_RD);
 				trace_term(t, TT_HTTP_SRV_7);
 			} else {
@@ -3557,12 +3557,12 @@ int process_srv(struct session *t)
 		 * shutdown the outgoing write channel once the response starts
 		 * coming from the server.
 		 */
-		else if (!(req->flags & BF_SHUTW_STATUS) && /* not already done */
+		else if (!(req->flags & BF_SHUTW) && /* not already done */
 			 req->l == 0 && req->flags & BF_MAY_FORWARD &&
-			 (req->flags & BF_SHUTR_STATUS ||
+			 (req->flags & BF_SHUTR ||
 			  (t->be->options & PR_O_FORCE_CLO && rep->flags & BF_READ_STATUS))) {
-			buffer_shutw_done(req);
-			if (!(rep->flags & BF_SHUTR_STATUS)) {
+			buffer_shutw(req);
+			if (!(rep->flags & BF_SHUTR)) {
 				EV_FD_CLR(t->srv_fd, DIR_WR);
 				shutdown(t->srv_fd, SHUT_WR);
 				trace_term(t, TT_HTTP_SRV_9);
@@ -3586,9 +3586,9 @@ int process_srv(struct session *t)
 		}
 		/* read timeout */
 		else if (tick_is_expired(rep->rex, now_ms)) {
-			buffer_shutr_done(rep);
+			buffer_shutr(rep);
 			rep->flags |= BF_READ_TIMEOUT;
-			if (!(req->flags & BF_SHUTW_STATUS)) {
+			if (!(req->flags & BF_SHUTW)) {
 				EV_FD_CLR(t->srv_fd, DIR_RD);
 				trace_term(t, TT_HTTP_SRV_11);
 			} else {
@@ -3611,9 +3611,9 @@ int process_srv(struct session *t)
 		}	
 		/* write timeout */
 		else if (tick_is_expired(req->wex, now_ms)) {
-			buffer_shutw_done(req);
+			buffer_shutw(req);
 			req->flags |= BF_WRITE_TIMEOUT;
-			if (!(rep->flags & BF_SHUTR_STATUS)) {
+			if (!(rep->flags & BF_SHUTR)) {
 				EV_FD_CLR(t->srv_fd, DIR_WR);
 				shutdown(t->srv_fd, SHUT_WR);
 				trace_term(t, TT_HTTP_SRV_13);
@@ -3641,7 +3641,7 @@ int process_srv(struct session *t)
 		}
 
 		/* manage read timeout */
-		if (!(rep->flags & BF_SHUTR_STATUS)) {
+		if (!(rep->flags & BF_SHUTR)) {
 			if (rep->l >= rep->rlim - rep->data) {
 				if (EV_FD_COND_C(t->srv_fd, DIR_RD))
 					rep->rex = TICK_ETERNITY;
@@ -3652,7 +3652,7 @@ int process_srv(struct session *t)
 		}
 
 		/* manage write timeout */
-		if (!(req->flags & BF_SHUTW_STATUS)) {
+		if (!(req->flags & BF_SHUTW)) {
 			if (req->l == 0 || !(req->flags & BF_MAY_FORWARD)) {
 				/* stop writing */
 				if (EV_FD_COND_C(t->srv_fd, DIR_WR))
@@ -3663,7 +3663,7 @@ int process_srv(struct session *t)
 				if (!tick_isset(req->wex)) {
 					/* restart writing */
 					req->wex = tick_add_ifset(now_ms, t->be->timeout.server);
-					if (!(rep->flags & BF_SHUTR_STATUS) && tick_isset(req->wex) && tick_isset(rep->rex)) {
+					if (!(rep->flags & BF_SHUTR) && tick_isset(req->wex) && tick_isset(rep->rex)) {
 						/* FIXME: to prevent the server from expiring read timeouts during writes,
 						 * we refresh it, except if it was already infinite.
 						 */

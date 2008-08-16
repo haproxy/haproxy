@@ -28,13 +28,8 @@
 /* The BF_* macros designate Buffer Flags, which may be ORed in the bit field
  * member 'flags' in struct buffer.
  */
-#define BF_SHUTR_PENDING        1  /* ignored if BF_SHUTW_DONE */
-#define BF_SHUTR_DONE           2  /* takes precedence over BF_SHUTR_PENDING */
-#define BF_SHUTR_STATUS         (BF_SHUTR_PENDING|BF_SHUTR_DONE)
-
-#define BF_SHUTW_PENDING        4  /* ignored if BF_SHUTW_DONE */
-#define BF_SHUTW_DONE           8  /* takes precedence over BF_SHUTW_PENDING */
-#define BF_SHUTW_STATUS         (BF_SHUTW_PENDING|BF_SHUTW_DONE)
+#define BF_SHUTR                4  /* producer has already shut down */
+#define BF_SHUTW                8  /* consumer has already shut down */
 
 #define BF_PARTIAL_READ        16
 #define BF_COMPLETE_READ       32

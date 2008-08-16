@@ -2,7 +2,7 @@
   include/proto/buffers.h
   Buffer management definitions, macros and inline functions.
 
-  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -66,34 +66,19 @@ static inline void buffer_flush(struct buffer *buf)
 	buf->l = 0;
 }
 
-/* marks the buffer as "shutdown pending" for reads and cancels the timeout */
+/* marks the buffer as "shutdown" for reads and cancels the timeout */
 static inline void buffer_shutr(struct buffer *buf)
 {
 	buf->rex = TICK_ETERNITY;
-	buf->flags |= BF_SHUTR_PENDING;
+	buf->flags |= BF_SHUTR;
 }
 
-/* marks the buffer as "shutdown done" for reads and cancels the timeout */
-static inline void buffer_shutr_done(struct buffer *buf)
-{
-	buf->rex = TICK_ETERNITY;
-	buf->flags |= BF_SHUTR_DONE;
-}
-
-/* marks the buffer as "shutdown pending" for writes and cancels the timeout */
+/* marks the buffer as "shutdown" for writes and cancels the timeout */
 static inline void buffer_shutw(struct buffer *buf)
 {
 	buf->wex = TICK_ETERNITY;
-	buf->flags |= BF_SHUTW_PENDING;
+	buf->flags |= BF_SHUTW;
 }
-
-/* marks the buffer as "shutdown done" for writes and cancels the timeout */
-static inline void buffer_shutw_done(struct buffer *buf)
-{
-	buf->wex = TICK_ETERNITY;
-	buf->flags |= BF_SHUTW_DONE;
-}
-
 
 /* returns the maximum number of bytes writable at once in this buffer */
 static inline int buffer_max(const struct buffer *buf)
