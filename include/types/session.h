@@ -94,6 +94,62 @@
 #define AN_RTR_ANY              (AN_RTR_INSPECT|AN_RTR_HTTP_HDR|AN_RTR_HTTP_BODY)
 
 
+/* Termination sequence tracing.
+ *
+ * These values have to be set into the field term_trace of a session when
+ * closing a session (half or full). They are only meant for post-mortem
+ * analysis. The value must be assigned this way :
+ *    trace_term(s, TT_XXX);
+ *
+ * One TT_XXX value is assigned to each location in the code which may be
+ * involved in a connection closing. Since a full session close generally
+ * involves 4 steps, we will be able to read these steps afterwards by simply
+ * checking the code. Value TT_NONE is zero and must never be set, as it means
+ * the connection was not closed. Value TT_ANON must be used when no value was
+ * assigned to a specific code part. Never ever reuse an already assigned code
+ * as it will defeat the purpose of this trace. It is wise to use a per-file
+ * anonymous value though.
+ */
+#define TT_BIT_SHIFT 8
+enum {
+	TT_NONE     = 0,
+	TT_ANON     = 1,
+	TT_CLIENT   = 0x10,
+	TT_CLIENT_1,
+	TT_CLIENT_2,
+	TT_HTTP_CLI = 0x20,
+	TT_HTTP_CLI_1,
+	TT_HTTP_CLI_2,
+	TT_HTTP_CLI_3,
+	TT_HTTP_CLI_4,
+	TT_HTTP_CLI_5,
+	TT_HTTP_CLI_6,
+	TT_HTTP_CLI_7,
+	TT_HTTP_CLI_8,
+	TT_HTTP_CLI_9,
+	TT_HTTP_CLI_10,
+	TT_HTTP_SRV = 0x30,
+	TT_HTTP_SRV_1,
+	TT_HTTP_SRV_2,
+	TT_HTTP_SRV_3,
+	TT_HTTP_SRV_4,
+	TT_HTTP_SRV_5,
+	TT_HTTP_SRV_6,
+	TT_HTTP_SRV_7,
+	TT_HTTP_SRV_8,
+	TT_HTTP_SRV_9,
+	TT_HTTP_SRV_10,
+	TT_HTTP_SRV_11,
+	TT_HTTP_SRV_12,
+	TT_HTTP_SRV_13,
+	TT_HTTP_SRV_14,
+	TT_HTTP_CNT = 0x40,
+	TT_HTTP_CNT_1,
+	TT_HTTP_URI = 0x50,
+	TT_HTTP_URI_1,
+};
+
+
 /*
  * Note: some session flags have dependencies :
  *  - SN_DIRECT cannot exist without SN_ASSIGNED, because a server is
@@ -117,6 +173,7 @@ struct session {
 	int srv_state;				/* state of the server side */
 	int conn_retries;			/* number of connect retries left */
 	int flags;				/* some flags describing the session */
+	unsigned term_trace;			/* term trace: 4*8 bits indicating which part of the code closed */
 	unsigned int analysis;			/* bit field indicating remaining analysis to perform on data */
 	struct buffer *req;			/* request buffer */
 	struct buffer *rep;			/* response buffer */

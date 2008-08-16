@@ -3016,6 +3016,7 @@ int process_cli(struct session *t)
 			buffer_shutw_done(rep);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
+			trace_term(t, TT_HTTP_CLI_1);
 			if (!(t->flags & SN_ERR_MASK))
 				t->flags |= SN_ERR_CLICL;
 			if (!(t->flags & SN_FINST_MASK)) {
@@ -3036,10 +3037,12 @@ int process_cli(struct session *t)
 			buffer_shutr_done(req);
 			if (!(rep->flags & BF_SHUTW_STATUS)) {
 				EV_FD_CLR(t->cli_fd, DIR_RD);
+				trace_term(t, TT_HTTP_CLI_2);
 			} else {
 				/* output was already closed */
 				fd_delete(t->cli_fd);
 				t->cli_state = CL_STCLOSE;
+				trace_term(t, TT_HTTP_CLI_3);
 			}
 			return 1;
 		}	
@@ -3057,9 +3060,11 @@ int process_cli(struct session *t)
 				/* FIXME: is this still true ? */
 				EV_FD_SET(t->cli_fd, DIR_RD);
 				req->rex = tick_add_ifset(now_ms, t->fe->timeout.client);
+				trace_term(t, TT_HTTP_CLI_4);
 			} else {
 				fd_delete(t->cli_fd);
 				t->cli_state = CL_STCLOSE;
+				trace_term(t, TT_HTTP_CLI_5);
 			}
 			return 1;
 		}
@@ -3069,10 +3074,12 @@ int process_cli(struct session *t)
 			req->flags |= BF_READ_TIMEOUT;
 			if (!(rep->flags & BF_SHUTW_STATUS)) {
 				EV_FD_CLR(t->cli_fd, DIR_RD);
+				trace_term(t, TT_HTTP_CLI_6);
 			} else {
 				/* output was already closed */
 				fd_delete(t->cli_fd);
 				t->cli_state = CL_STCLOSE;
+				trace_term(t, TT_HTTP_CLI_7);
 			}
 			if (!(t->flags & SN_ERR_MASK))
 				t->flags |= SN_ERR_CLITO;
@@ -3099,9 +3106,11 @@ int process_cli(struct session *t)
 				/* FIXME: is this still true ? */
 				EV_FD_SET(t->cli_fd, DIR_RD);
 				req->rex = tick_add_ifset(now_ms, t->fe->timeout.client);
+				trace_term(t, TT_HTTP_CLI_8);
 			} else {
 				fd_delete(t->cli_fd);
 				t->cli_state = CL_STCLOSE;
+				trace_term(t, TT_HTTP_CLI_9);
 			}
 
 			if (!(t->flags & SN_ERR_MASK))
@@ -3144,6 +3153,7 @@ int process_cli(struct session *t)
 					buffer_shutw_done(rep);
 					fd_delete(t->cli_fd);
 					t->cli_state = CL_STCLOSE;
+					trace_term(t, TT_HTTP_CLI_10);
 					return 1;
 				}
 			}
@@ -3226,6 +3236,7 @@ int process_srv(struct session *t)
 			else
 				srv_close_with_err(t, SN_ERR_CLICL, t->pend_pos ? SN_FINST_Q : SN_FINST_C, 0, NULL);
 
+			trace_term(t, TT_HTTP_SRV_1);
 			return 1;
 		}
 		else if (req->flags & BF_MAY_CONNECT) {
@@ -3248,6 +3259,7 @@ int process_srv(struct session *t)
 				t->logs.t_queue = tv_ms_elapsed(&t->logs.tv_accept, &now);
 				srv_close_with_err(t, SN_ERR_PRXCOND, SN_FINST_T,
 						   500, error_message(t, HTTP_ERR_500));
+				trace_term(t, TT_HTTP_SRV_2);
 				return 1;
 			}
 
@@ -3265,6 +3277,7 @@ int process_srv(struct session *t)
 					t->logs.t_queue = tv_ms_elapsed(&t->logs.tv_accept, &now);
 					srv_close_with_err(t, SN_ERR_SRVTO, SN_FINST_Q,
 							   503, error_message(t, HTTP_ERR_503));
+					trace_term(t, TT_HTTP_SRV_3);
 					if (t->srv)
 						t->srv->failed_conns++;
 					t->be->failed_conns++;
@@ -3315,6 +3328,8 @@ int process_srv(struct session *t)
 					rdr.len += 4;
 
 					srv_close_with_err(t, SN_ERR_PRXCOND, SN_FINST_C, 302, &rdr);
+					trace_term(t, TT_HTTP_SRV_3);
+
 					/* FIXME: we should increase a counter of redirects per server and per backend. */
 					if (t->srv)
 						t->srv->cum_sess++;
@@ -3324,6 +3339,7 @@ int process_srv(struct session *t)
 					t->fe->failed_req++;
 					srv_close_with_err(t, SN_ERR_PRXCOND, SN_FINST_C,
 							   400, error_message(t, HTTP_ERR_400));
+					trace_term(t, TT_HTTP_SRV_4);
 					return 1;
 				}
 
@@ -3356,6 +3372,7 @@ int process_srv(struct session *t)
 			 * overwrite the client_retnclose() output.
 			 */
 			srv_close_with_err(t, SN_ERR_CLICL, SN_FINST_C, 0, NULL);
+			trace_term(t, TT_HTTP_SRV_5);
 			return 1;
 		}
 		if (!(req->flags & BF_WRITE_STATUS) && !tick_is_expired(req->cex, now_ms)) {
@@ -3498,6 +3515,7 @@ int process_srv(struct session *t)
 			}
 			t->be->failed_resp++;
 			t->srv_state = SV_STCLOSE;
+			trace_term(t, TT_HTTP_SRV_6);
 			if (!(t->flags & SN_ERR_MASK))
 				t->flags |= SN_ERR_SRVCL;
 			if (!(t->flags & SN_FINST_MASK))
@@ -3514,6 +3532,7 @@ int process_srv(struct session *t)
 			buffer_shutr_done(rep);
 			if (!(req->flags & BF_SHUTW_STATUS)) {
 				EV_FD_CLR(t->srv_fd, DIR_RD);
+				trace_term(t, TT_HTTP_SRV_7);
 			} else {
 				/* output was already closed */
 				fd_delete(t->srv_fd);
@@ -3522,6 +3541,7 @@ int process_srv(struct session *t)
 					sess_change_server(t, NULL);
 				}
 				t->srv_state = SV_STCLOSE;
+				trace_term(t, TT_HTTP_SRV_8);
 
 				if (may_dequeue_tasks(t->srv, t->be))
 					process_srv_queue(t->srv);
@@ -3542,6 +3562,7 @@ int process_srv(struct session *t)
 			if (!(rep->flags & BF_SHUTR_STATUS)) {
 				EV_FD_CLR(t->srv_fd, DIR_WR);
 				shutdown(t->srv_fd, SHUT_WR);
+				trace_term(t, TT_HTTP_SRV_9);
 				/* We must ensure that the read part is still alive when switching to shutw */
 				/* FIXME: is this still true ? */
 				EV_FD_SET(t->srv_fd, DIR_RD);
@@ -3553,6 +3574,7 @@ int process_srv(struct session *t)
 					sess_change_server(t, NULL);
 				}
 				t->srv_state = SV_STCLOSE;
+				trace_term(t, TT_HTTP_SRV_10);
 
 				if (may_dequeue_tasks(t->srv, t->be))
 					process_srv_queue(t->srv);
@@ -3565,6 +3587,7 @@ int process_srv(struct session *t)
 			rep->flags |= BF_READ_TIMEOUT;
 			if (!(req->flags & BF_SHUTW_STATUS)) {
 				EV_FD_CLR(t->srv_fd, DIR_RD);
+				trace_term(t, TT_HTTP_SRV_11);
 			} else {
 				fd_delete(t->srv_fd);
 				if (t->srv) {
@@ -3572,6 +3595,7 @@ int process_srv(struct session *t)
 					sess_change_server(t, NULL);
 				}
 				t->srv_state = SV_STCLOSE;
+				trace_term(t, TT_HTTP_SRV_12);
 
 				if (may_dequeue_tasks(t->srv, t->be))
 					process_srv_queue(t->srv);
@@ -3589,6 +3613,7 @@ int process_srv(struct session *t)
 			if (!(rep->flags & BF_SHUTR_STATUS)) {
 				EV_FD_CLR(t->srv_fd, DIR_WR);
 				shutdown(t->srv_fd, SHUT_WR);
+				trace_term(t, TT_HTTP_SRV_13);
 				/* We must ensure that the read part is still alive when switching to shutw */
 				/* FIXME: is this still needed ? */
 				EV_FD_SET(t->srv_fd, DIR_RD);
@@ -3600,6 +3625,7 @@ int process_srv(struct session *t)
 					sess_change_server(t, NULL);
 				}
 				t->srv_state = SV_STCLOSE;
+				trace_term(t, TT_HTTP_SRV_14);
 
 				if (may_dequeue_tasks(t->srv, t->be))
 					process_srv_queue(t->srv);
@@ -3689,6 +3715,7 @@ int produce_content(struct session *s)
 	/* unknown data source or internal error */
 	s->txn.status = 500;
 	client_retnclose(s, error_message(s, HTTP_ERR_500));
+	trace_term(s, TT_HTTP_CNT_1);
 	if (!(s->flags & SN_ERR_MASK))
 		s->flags |= SN_ERR_PRXCOND;
 	if (!(s->flags & SN_FINST_MASK))
@@ -5056,6 +5083,7 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 		msg.len = sprintf(trash, HTTP_401_fmt, uri_auth->auth_realm);
 		txn->status = 401;
 		client_retnclose(t, &msg);
+		trace_term(t, TT_HTTP_URI_1);
 		t->analysis &= ~AN_REQ_ANY;
 		if (!(t->flags & SN_ERR_MASK))
 			t->flags |= SN_ERR_PRXCOND;

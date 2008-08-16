@@ -36,6 +36,11 @@
 #define FSM_PRINTF(x...)
 #endif
 
+/* This abort is more efficient than abort() because it does not mangle the
+ * stack and stops at the exact location we need.
+ */
+#define ABORT_NOW() (*(int*)0=0)
+
 /* this one is provided for easy code tracing.
  * Usage: TRACE(sess||0, fmt, args...);
  *        TRACE(sess, "");

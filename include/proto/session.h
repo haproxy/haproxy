@@ -36,6 +36,12 @@ int init_session();
 void session_process_counters(struct session *s);
 void sess_change_server(struct session *sess, struct server *newsrv);
 
+static void inline trace_term(struct session *s, unsigned int code)
+{
+	s->term_trace <<= TT_BIT_SHIFT;
+	s->term_trace |= code;
+}
+
 #endif /* _PROTO_SESSION_H */
 
 /*

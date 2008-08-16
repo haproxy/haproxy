@@ -108,6 +108,7 @@ int event_accept(int fd) {
 
 		s->flags = 0;
 		s->analysis = 0;
+		s->term_trace = 0;
 
 		/* if this session comes from a known monitoring system, we want to ignore
 		 * it as soon as possible, which means closing it immediately for TCP.
@@ -380,11 +381,13 @@ int event_accept(int fd) {
 			 */
 			struct chunk msg = { .str = "HTTP/1.0 200 OK\r\n\r\n", .len = 19 };
 			client_retnclose(s, &msg); /* forge a 200 response */
+			trace_term(s, TT_CLIENT_1);
 			t->expire = s->rep->wex;
 		}
 		else if (p->mode == PR_MODE_HEALTH) {  /* health check mode, no client reading */
 			struct chunk msg = { .str = "OK\n", .len = 3 };
 			client_retnclose(s, &msg); /* forge an "OK" response */
+			trace_term(s, TT_CLIENT_2);
 			t->expire = s->rep->wex;
 		}
 		else {
