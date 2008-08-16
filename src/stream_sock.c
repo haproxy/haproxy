@@ -84,6 +84,7 @@ int stream_sock_read(int fd) {
 			/* Not anymore room to store data. This should theorically
 			 * never happen, but better safe than sorry !
 			 */
+			b->flags |= BF_FULL;
 			EV_FD_CLR(fd, DIR_RD);
 			b->rex = TICK_ETERNITY;
 			goto out_wakeup;
@@ -111,6 +112,7 @@ int stream_sock_read(int fd) {
 			b->l += ret;
 			cur_read += ret;
 			b->flags |= BF_PARTIAL_READ;
+			b->flags &= ~BF_EMPTY;
 	
 			if (b->r == b->data + BUFSIZE) {
 				b->r = b->data; /* wrap around the buffer */
@@ -118,7 +120,7 @@ int stream_sock_read(int fd) {
 
 			b->total += ret;
 
-			if (b->l == b->rlim - b->data) {
+			if (b->l >= b->rlim - b->data) {
 				/* The buffer is now full, there's no point in going through
 				 * the loop again.
 				 */
@@ -151,6 +153,7 @@ int stream_sock_read(int fd) {
 					b->xfer_large = 0;
 				}
 
+				b->flags |= BF_FULL;
 				EV_FD_CLR(fd, DIR_RD);
 				b->rex = TICK_ETERNITY;
 				goto out_wakeup;
@@ -335,12 +338,16 @@ int stream_sock_write(int fd) {
 			b->w += ret;
 	    
 			b->flags |= BF_PARTIAL_WRITE;
+
+			if (b->l < b->rlim - b->data)
+				b->flags &= ~BF_FULL;
 	    
 			if (b->w == b->data + BUFSIZE) {
 				b->w = b->data; /* wrap around the buffer */
 			}
 
 			if (!b->l) {
+				b->flags |= BF_EMPTY;
 				EV_FD_CLR(fd, DIR_WR);
 				b->wex = TICK_ETERNITY;
 				goto out_wakeup;

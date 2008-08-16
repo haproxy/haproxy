@@ -1743,7 +1743,7 @@ int process_request(struct session *t)
 			 *    later, so the session will never terminate. We
 			 *    must terminate it now.
 			 */
-			if (unlikely(req->l >= req->rlim - req->data)) {
+			if (unlikely(req->flags & BF_FULL)) {
 				/* FIXME: check if URI is set and return Status
 				 * 414 Request URI too long instead.
 				 */
@@ -2331,7 +2331,7 @@ int process_request(struct session *t)
                  */
 		if (!(t->flags & (SN_ASSIGNED|SN_DIRECT)) &&
 		     t->txn.meth == HTTP_METH_POST && t->be->url_param_name != NULL &&
-		     t->be->url_param_post_limit != 0 && req->l < BUFSIZE &&
+		     t->be->url_param_post_limit != 0 && !(req->flags & BF_FULL) &&
 		     memchr(msg->sol + msg->sl.rq.u, '?', msg->sl.rq.u_l) == NULL) {
 			/* are there enough bytes here? total == l || r || rlim ?
 			 * len is unsigned, but eoh is int,
@@ -2408,7 +2408,7 @@ int process_request(struct session *t)
 		 * could. Let's switch to the DATA state.                    *
 		 ************************************************************/
 
-		req->rlim = req->data + BUFSIZE; /* no more rewrite needed */
+		buffer_set_rlim(req, BUFSIZE); /* no more rewrite needed */
 		t->logs.tv_request = now;
 
 		/* When a connection is tarpitted, we use the tarpit timeout,
@@ -2418,7 +2418,7 @@ int process_request(struct session *t)
 		 * FIXME: this part should be moved elsewhere (eg: on the server side)
 		 */
 		if (txn->flags & TX_CLTARPIT) {
-			t->req->l = 0;
+			buffer_flush(t->req);
 			/* flush the request so that we can drop the connection early
 			 * if the client closes first.
 			 */
@@ -2502,8 +2502,7 @@ int process_request(struct session *t)
 		 * buffer closed).
 		 */
 		if (req->l - body >= limit ||             /* enough bytes! */
-		    req->l >= req->rlim - req->data ||    /* full */
-		    req->flags & (BF_READ_ERROR | BF_READ_NULL | BF_READ_TIMEOUT)) {
+		    req->flags & (BF_FULL | BF_READ_ERROR | BF_READ_NULL | BF_READ_TIMEOUT)) {
 			/* The situation will not evolve, so let's give up on the analysis. */
 			t->logs.tv_request = now;  /* update the request timer to reflect full request */
 			t->analysis &= ~AN_REQ_HTTP_BODY;
@@ -2542,9 +2541,9 @@ int process_response(struct session *t)
 		 * For the parsing, we use a 28 states FSM.
 		 *
 		 * Here is the information we currently have :
-		 *   rep->data + req->som  = beginning of response
-		 *   rep->data + req->eoh  = end of processed headers / start of current one
-		 *   rep->data + req->eol  = end of current header or line (LF or CRLF)
+		 *   rep->data + rep->som  = beginning of response
+		 *   rep->data + rep->eoh  = end of processed headers / start of current one
+		 *   rep->data + rep->eol  = end of current header or line (LF or CRLF)
 		 *   rep->lr = first non-visited byte
 		 *   rep->r  = end of data
 		 */
@@ -2644,7 +2643,7 @@ int process_response(struct session *t)
 				return 1;
 			}
 			/* too large response does not fit in buffer. */
-			else if (rep->l >= rep->rlim - rep->data) {
+			else if (rep->flags & BF_FULL) {
 				goto hdr_response_bad;
 			}
 			/* read timeout : return a 504 to the client. */
@@ -2948,7 +2947,7 @@ int process_response(struct session *t)
 		 * could. Let's switch to the DATA state.                    *
 		 ************************************************************/
 
-		rep->rlim = rep->data + BUFSIZE; /* no more rewrite needed */
+		buffer_set_rlim(rep, BUFSIZE); /* no more rewrite needed */
 		t->logs.t_data = tv_ms_elapsed(&t->logs.tv_accept, &now);
 
 #ifdef CONFIG_HAP_TCPSPLICE
@@ -3049,7 +3048,7 @@ int process_cli(struct session *t)
 		 * allowed to forward the data.
 		 */
 		else if (!(rep->flags & BF_SHUTW) &&   /* already done */
-			 rep->l == 0 && rep->flags & BF_MAY_FORWARD &&
+			 rep->flags & BF_EMPTY && rep->flags & BF_MAY_FORWARD &&
 			 rep->flags & BF_SHUTR && !(t->flags & SN_SELF_GEN)) {
 			buffer_shutw(rep);
 			if (!(req->flags & BF_SHUTR)) {
@@ -3129,7 +3128,7 @@ int process_cli(struct session *t)
 
 		/* manage read timeout */
 		if (!(req->flags & BF_SHUTR)) {
-			if (req->l >= req->rlim - req->data) {
+			if (req->flags & BF_FULL) {
 				/* no room to read more data */
 				if (EV_FD_COND_C(t->cli_fd, DIR_RD)) {
 					/* stop reading until we get some space */
@@ -3148,7 +3147,7 @@ int process_cli(struct session *t)
 			 */
 			if (req->flags & BF_SHUTR && t->flags & SN_SELF_GEN) {
 				produce_content(t);
-				if (rep->l == 0) {
+				if (rep->flags & BF_EMPTY) {
 					buffer_shutw(rep);
 					fd_delete(t->cli_fd);
 					t->cli_state = CL_STCLOSE;
@@ -3158,7 +3157,7 @@ int process_cli(struct session *t)
 			}
 
 			/* we don't enable client write if the buffer is empty, nor if the server has to analyze it */
-			if ((rep->l == 0) || !(rep->flags & BF_MAY_FORWARD)) {
+			if ((rep->flags & BF_EMPTY) || !(rep->flags & BF_MAY_FORWARD)) {
 				if (EV_FD_COND_C(t->cli_fd, DIR_WR)) {
 					/* stop writing */
 					rep->wex = TICK_ETERNITY;
@@ -3227,7 +3226,7 @@ int process_srv(struct session *t)
 	if (t->srv_state == SV_STIDLE) {
 		if ((rep->flags & BF_SHUTW) ||
 			 ((req->flags & BF_SHUTR) &&
-			  (req->l == 0 || t->be->options & PR_O_ABRT_CLOSE))) { /* give up */
+			  (req->flags & BF_EMPTY || t->be->options & PR_O_ABRT_CLOSE))) { /* give up */
 			req->cex = TICK_ETERNITY;
 			if (t->pend_pos)
 				t->logs.t_queue = tv_ms_elapsed(&t->logs.tv_accept, &now);
@@ -3359,7 +3358,7 @@ int process_srv(struct session *t)
 	else if (t->srv_state == SV_STCONN) { /* connection in progress */
 		if ((rep->flags & BF_SHUTW) ||
 		    ((req->flags & BF_SHUTR) &&
-		     ((req->l == 0 && !(req->flags & BF_WRITE_STATUS)) ||
+		     ((req->flags & BF_EMPTY && !(req->flags & BF_WRITE_STATUS)) ||
 		      t->be->options & PR_O_ABRT_CLOSE))) { /* give up */
 			req->cex = TICK_ETERNITY;
 			if (!(t->flags & SN_CONN_TAR)) {
@@ -3458,10 +3457,10 @@ int process_srv(struct session *t)
 		else { /* no error or write 0 */
 			t->logs.t_connect = tv_ms_elapsed(&t->logs.tv_accept, &now);
 
-			if (req->l == 0) /* nothing to write */ {
+			if (req->flags & BF_EMPTY) {
 				EV_FD_CLR(t->srv_fd, DIR_WR);
 				req->wex = TICK_ETERNITY;
-			} else  /* need the right to write */ {
+			} else {
 				EV_FD_SET(t->srv_fd, DIR_WR);
 				req->wex = tick_add_ifset(now_ms, t->be->timeout.server);
 				if (tick_isset(req->wex)) {
@@ -3475,7 +3474,7 @@ int process_srv(struct session *t)
 				EV_FD_SET(t->srv_fd, DIR_RD);
 				rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
 				t->srv_state = SV_STDATA;
-				rep->rlim = rep->data + BUFSIZE; /* no rewrite needed */
+				buffer_set_rlim(rep, BUFSIZE); /* no rewrite needed */
 
 				/* if the user wants to log as soon as possible, without counting
 				   bytes from the server, then this is the right moment. */
@@ -3493,7 +3492,7 @@ int process_srv(struct session *t)
 			else {
 				t->srv_state = SV_STDATA;
 				t->analysis |= AN_RTR_HTTP_HDR;
-				rep->rlim = rep->data + BUFSIZE - MAXREWRITE; /* rewrite needed */
+				buffer_set_rlim(rep, BUFSIZE - MAXREWRITE); /* rewrite needed */
 				t->txn.rsp.msg_state = HTTP_MSG_RPBEFORE;
 				/* reset hdr_idx which was already initialized by the request.
 				 * right now, the http parser does it.
@@ -3558,7 +3557,7 @@ int process_srv(struct session *t)
 		 * coming from the server.
 		 */
 		else if (!(req->flags & BF_SHUTW) && /* not already done */
-			 req->l == 0 && req->flags & BF_MAY_FORWARD &&
+			 req->flags & BF_EMPTY && req->flags & BF_MAY_FORWARD &&
 			 (req->flags & BF_SHUTR ||
 			  (t->be->options & PR_O_FORCE_CLO && rep->flags & BF_READ_STATUS))) {
 			buffer_shutw(req);
@@ -3642,7 +3641,7 @@ int process_srv(struct session *t)
 
 		/* manage read timeout */
 		if (!(rep->flags & BF_SHUTR)) {
-			if (rep->l >= rep->rlim - rep->data) {
+			if (rep->flags & BF_FULL) {
 				if (EV_FD_COND_C(t->srv_fd, DIR_RD))
 					rep->rex = TICK_ETERNITY;
 			} else {
@@ -3653,7 +3652,7 @@ int process_srv(struct session *t)
 
 		/* manage write timeout */
 		if (!(req->flags & BF_SHUTW)) {
-			if (req->l == 0 || !(req->flags & BF_MAY_FORWARD)) {
+			if (req->flags & BF_EMPTY || !(req->flags & BF_MAY_FORWARD)) {
 				/* stop writing */
 				if (EV_FD_COND_C(t->srv_fd, DIR_WR))
 					req->wex = TICK_ETERNITY;
@@ -5101,7 +5100,7 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 	EV_FD_CLR(t->cli_fd, DIR_RD);
 	buffer_shutr(t->req);
 	buffer_shutr(t->rep);
-	t->req->rlim = t->req->data + BUFSIZE; /* no more rewrite needed */
+	buffer_set_rlim(t->req, BUFSIZE); /* no more rewrite needed */
 	t->logs.tv_request = now;
 	t->data_source = DATA_SRC_STATS;
 	t->data_state  = DATA_ST_INIT;

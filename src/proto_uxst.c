@@ -483,8 +483,6 @@ int uxst_event_accept(int fd) {
 
 		buffer_init(s->req);
 		buffer_init(s->rep);
-		s->req->rlim += BUFSIZE;
-		s->rep->rlim += BUFSIZE;
 
 		fd_insert(cfd);
 		fdtab[cfd].owner = t;
@@ -582,7 +580,7 @@ static int process_uxst_cli(struct session *t)
 			return 1;
 		}	
 		/* last server read and buffer empty */
-		else if ((s == SV_STSHUTR || s == SV_STCLOSE) && (rep->l == 0)) {
+		else if ((s == SV_STSHUTR || s == SV_STCLOSE) && (rep->flags & BF_EMPTY)) {
 			EV_FD_CLR(t->cli_fd, DIR_WR);
 			buffer_shutw(rep);
 			shutdown(t->cli_fd, SHUT_WR);
@@ -635,7 +633,7 @@ static int process_uxst_cli(struct session *t)
 			return 1;
 		}
 
-		if (req->l >= req->rlim - req->data) {
+		if (req->flags & BF_FULL) {
 			/* no room to read more data */
 			if (EV_FD_COND_C(t->cli_fd, DIR_RD)) {
 				/* stop reading until we get some space */
@@ -657,7 +655,7 @@ static int process_uxst_cli(struct session *t)
 			}
 		}
 
-		if ((rep->l == 0) ||
+		if ((rep->flags & BF_EMPTY) ||
 		    ((s < SV_STDATA) /* FIXME: this may be optimized && (rep->w == rep->h)*/)) {
 			if (EV_FD_COND_C(t->cli_fd, DIR_WR)) {
 				/* stop writing */
@@ -694,7 +692,7 @@ static int process_uxst_cli(struct session *t)
 			}
 			return 1;
 		}
-		else if ((s == SV_STSHUTR || s == SV_STCLOSE) && (rep->l == 0)) {
+		else if ((s == SV_STSHUTR || s == SV_STCLOSE) && (rep->flags & BF_EMPTY)) {
 			buffer_shutw(rep);
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
@@ -717,7 +715,7 @@ static int process_uxst_cli(struct session *t)
 			return 1;
 		}
 
-		if (rep->l == 0) {
+		if (rep->flags & BF_EMPTY) {
 			if (EV_FD_COND_C(t->cli_fd, DIR_WR)) {
 				/* stop writing */
 				rep->wex = TICK_ETERNITY;
@@ -770,7 +768,7 @@ static int process_uxst_cli(struct session *t)
 			}
 			return 1;
 		}
-		else if (req->l >= req->rlim - req->data) {
+		else if (req->flags & BF_FULL) {
 			/* no room to read more data */
 
 			/* FIXME-20050705: is it possible for a client to maintain a session
@@ -821,7 +819,7 @@ static int process_uxst_srv(struct session *t)
 	if (s == SV_STIDLE) {
 		if (c == CL_STCLOSE || c == CL_STSHUTW ||
 			 (c == CL_STSHUTR &&
-			  (t->req->l == 0 || t->be->options & PR_O_ABRT_CLOSE))) { /* give up */
+			  (t->req->flags & BF_EMPTY || t->be->options & PR_O_ABRT_CLOSE))) { /* give up */
 			tv_eternity(&req->cex);
 			if (t->pend_pos)
 				t->logs.t_queue = tv_ms_elapsed(&t->logs.tv_accept, &now);
@@ -870,7 +868,7 @@ static int process_uxst_srv(struct session *t)
 	else if (s == SV_STCONN) { /* connection in progress */
 		if (c == CL_STCLOSE || c == CL_STSHUTW ||
 		    (c == CL_STSHUTR &&
-		     ((t->req->l == 0 && !(req->flags & BF_WRITE_STATUS)) ||
+		     ((t->req->flags & BF_EMPTY && !(req->flags & BF_WRITE_STATUS)) ||
 		      t->be->options & PR_O_ABRT_CLOSE))) { /* give up */
 			tv_eternity(&req->cex);
 			fd_delete(t->srv_fd);
@@ -941,7 +939,7 @@ static int process_uxst_srv(struct session *t)
 			t->logs.t_connect = tv_ms_elapsed(&t->logs.tv_accept, &now);
 
 			//fprintf(stderr,"3: c=%d, s=%d\n", c, s);
-			if (req->l == 0) /* nothing to write */ {
+			if (req->flags & BF_EMPTY) /* nothing to write */ {
 				EV_FD_CLR(t->srv_fd, DIR_WR);
 				tv_eternity(&req->wex);
 			} else  /* need the right to write */ {
@@ -962,7 +960,7 @@ static int process_uxst_srv(struct session *t)
 			t->srv_state = SV_STDATA;
 			if (t->srv)
 				t->srv->cum_sess++;
-			rep->rlim = rep->data + BUFSIZE; /* no rewrite needed */
+			buffer_set_rlim(rep, BUFSIZE); /* no rewrite needed */
 
 			/* if the user wants to log as soon as possible, without counting
 			   bytes from the server, then this is the right moment. */
@@ -1007,7 +1005,7 @@ static int process_uxst_srv(struct session *t)
 			return 1;
 		}
 		/* end of client read and no more data to send */
-		else if ((c == CL_STSHUTR || c == CL_STCLOSE) && (req->l == 0)) {
+		else if ((c == CL_STSHUTR || c == CL_STCLOSE) && (req->flags & BF_EMPTY)) {
 			EV_FD_CLR(t->srv_fd, DIR_WR);
 			buffer_shutw(req);
 			shutdown(t->srv_fd, SHUT_WR);
@@ -1048,7 +1046,7 @@ static int process_uxst_srv(struct session *t)
 		}
 
 		/* recompute request time-outs */
-		if (req->l == 0) {
+		if (req->flags & BF_EMPTY) {
 			if (EV_FD_COND_C(t->srv_fd, DIR_WR)) {
 				/* stop writing */
 				tv_eternity(&req->wex);
@@ -1106,7 +1104,7 @@ static int process_uxst_srv(struct session *t)
 
 			return 1;
 		}
-		else if ((c == CL_STSHUTR || c == CL_STCLOSE) && (req->l == 0)) {
+		else if ((c == CL_STSHUTR || c == CL_STCLOSE) && (req->flags & BF_EMPTY)) {
 			//EV_FD_CLR(t->srv_fd, DIR_WR);
 			buffer_shutw(req);
 			fd_delete(t->srv_fd);
@@ -1142,7 +1140,7 @@ static int process_uxst_srv(struct session *t)
 
 			return 1;
 		}
-		else if (req->l == 0) {
+		else if (req->flags & BF_EMPTY) {
 			if (EV_FD_COND_C(t->srv_fd, DIR_WR)) {
 				/* stop writing */
 				tv_eternity(&req->wex);
@@ -1263,8 +1261,8 @@ void process_uxst_session(struct task *t, int *next)
 				continue;
 			}
 			if (s->cli_state == CL_STSHUTR ||
-			    (s->req->l >= s->req->rlim - s->req->data)) {
-				if (s->req->l == 0) {
+			    (s->req->flags & BF_FULL)) {
+				if (s->req->flags & BF_EMPTY) {
 					s->srv_state = SV_STCLOSE;
 					fsm_resync |= 1;
 					continue;
@@ -1275,7 +1273,7 @@ void process_uxst_session(struct task *t, int *next)
 				 */
 				memcpy(s->rep->data, s->req->data, sizeof(s->rep->data));
 				s->rep->l = s->req->l;
-				s->rep->rlim = s->rep->data + BUFSIZE;
+				buffer_set_rlim(s->rep, BUFSIZE);
 				s->rep->w = s->rep->data;
 				s->rep->lr = s->rep->r = s->rep->data + s->rep->l;
 

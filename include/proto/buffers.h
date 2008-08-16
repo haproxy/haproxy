@@ -40,12 +40,15 @@ int init_buffer();
 
 /* Initializes all fields in the buffer. The ->rlim field is initialized last
  * so that the compiler can optimize it away if changed immediately after the
- * call to this function.
+ * call to this function. By default, it is set to the full size of the buffer.
+ * The BF_EMPTY flags is set.
  */
 static inline void buffer_init(struct buffer *buf)
 {
-	buf->l = buf->total = buf->flags = 0;
-	buf->rlim = buf->r = buf->lr = buf->w = buf->data;
+	buf->l = buf->total = 0;
+	buf->r = buf->lr = buf->w = buf->data;
+	buf->flags = BF_EMPTY;
+	buf->rlim = buf->data + BUFSIZE;
 }
 
 /* returns 1 if the buffer is empty, 0 otherwise */
@@ -59,11 +62,16 @@ static inline int buffer_isfull(const struct buffer *buf) {
 	return buf->l == BUFSIZE;
 }
 
-/* flushes any content from buffer <buf> */
+/* flushes any content from buffer <buf> and adjusts flags
+ * accordingly.
+ */
 static inline void buffer_flush(struct buffer *buf)
 {
 	buf->r = buf->lr = buf->w = buf->data;
 	buf->l = 0;
+	buf->flags |= BF_EMPTY | BF_FULL;
+	if (buf->rlim)
+		buf->flags &= ~BF_FULL;
 }
 
 /* marks the buffer as "shutdown" for reads and cancels the timeout */
@@ -91,6 +99,17 @@ static inline int buffer_max(const struct buffer *buf)
 		return buf->w - buf->r;
 }
 
+/* sets the buffer read limit to <size> bytes, and adjusts the FULL
+ * flag accordingly.
+ */
+static inline void buffer_set_rlim(struct buffer *buf, int size)
+{
+	buf->rlim = buf->data + size;
+	if (buf->l < size)
+		buf->flags &= ~BF_FULL;
+	else
+		buf->flags |= BF_FULL;
+}
 
 /*
  * Tries to realign the given buffer, and returns how many bytes can be written

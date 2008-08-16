@@ -26,8 +26,13 @@
 #include <common/memory.h>
 
 /* The BF_* macros designate Buffer Flags, which may be ORed in the bit field
- * member 'flags' in struct buffer.
+ * member 'flags' in struct buffer. Some of them are persistent (BF_SHUT*),
+ * some of them (BF_EMPTY,BF_FULL) may only be set by the low-level read/write
+ * functions as well as those who change the buffer's read limit.
  */
+#define BF_EMPTY                1  /* buffer is empty */
+#define BF_FULL                 2  /* buffer cannot accept any more data (l >= rlim-data) */
+
 #define BF_SHUTR                4  /* producer has already shut down */
 #define BF_SHUTW                8  /* consumer has already shut down */
 

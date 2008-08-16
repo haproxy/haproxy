@@ -333,7 +333,6 @@ int event_accept(int fd) {
 			goto out_fail_req; /* no memory */
 
 		buffer_init(s->req);
-		s->req->rlim += BUFSIZE;
 		if (p->mode == PR_MODE_HTTP) /* reserve some space for header rewriting */
 			s->req->rlim -= MAXREWRITE;
 
