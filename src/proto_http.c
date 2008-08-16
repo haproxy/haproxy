@@ -2570,17 +2570,6 @@ int process_response(struct session *t)
 			}
 		}
 
-
-		if ((rep->l < rep->rlim - rep->data) && !tick_isset(rep->rex)) {
-			EV_FD_COND_S(t->srv_fd, DIR_RD);
-			/* fd in DIR_RD was disabled, perhaps because of a previous buffer
-			 * full. We cannot loop here since stream_sock_read will disable it only if
-			 * rep->l == rlim-data
-			 */
-			rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
-		}
-
-
 		/*
 		 * Now we quickly check if we have found a full valid response.
 		 * If not so, we check the FD and buffer states before leaving.
