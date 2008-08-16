@@ -279,8 +279,7 @@ REGPRM1 static void __fd_rem(int fd)
  */
 REGPRM1 static void __fd_clo(int fd)
 {
-	if (fd_list[fd].e & FD_EV_RW_SL)
-		release_spec_entry(fd);
+	release_spec_entry(fd);
 	fd_list[fd].e &= ~(FD_EV_MASK);
 }
 
@@ -325,7 +324,7 @@ REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 		fdtab[fd].ev &= FD_POLL_STICKY;
 		if ((eo & FD_EV_MASK_R) == FD_EV_SPEC_R) {
 			/* The owner is interested in reading from this FD */
-			if (fdtab[fd].state != FD_STCLOSE && fdtab[fd].state != FD_STERROR) {
+			if (fdtab[fd].state != FD_STERROR) {
 				/* Pretend there is something to read */
 				fdtab[fd].ev |= FD_POLL_IN;
 				if (!fdtab[fd].cb[DIR_RD].f(fd))
@@ -341,7 +340,7 @@ REGPRM2 static void _do_poll(struct poller *p, struct timeval *exp)
 		
 		if ((eo & FD_EV_MASK_W) == FD_EV_SPEC_W) {
 			/* The owner is interested in writing to this FD */
-			if (fdtab[fd].state != FD_STCLOSE && fdtab[fd].state != FD_STERROR) {
+			if (fdtab[fd].state != FD_STERROR) {
 				/* Pretend there is something to write */
 				fdtab[fd].ev |= FD_POLL_OUT;
 				if (!fdtab[fd].cb[DIR_WR].f(fd))
