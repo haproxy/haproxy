@@ -177,8 +177,8 @@ int print_csv_header(struct chunk *msg, int size)
 
 /*
  * Produces statistics data for the session <s>. Expects to be called with
- * s->cli_state == CL_STSHUTR. It *may* make use of informations from <uri>.
- * s->data_ctx must have been zeroed first, and the flags properly set.
+ * client socket shut down on input. It *may* make use of informations from
+ * <uri>. s->data_ctx must have been zeroed first, and the flags properly set.
  * It returns 0 if it had to stop writing data and an I/O is needed, 1 if the
  * dump is finished and the session must be closed, or -1 in case of any error.
  */
@@ -289,12 +289,13 @@ int stats_dump_raw(struct session *s, struct uri_auth *uri)
 
 /*
  * Produces statistics data for the session <s>. Expects to be called with
- * s->cli_state == CL_STSHUTR. It stops by itself by unsetting the SN_SELF_GEN
- * flag from the session, which it uses to keep on being called when there is
- * free space in the buffer, of simply by letting an empty buffer upon return.
- * s->data_ctx must have been zeroed before the first call, and the flags set.
- * It returns 0 if it had to stop writing data and an I/O is needed, 1 if the
- * dump is finished and the session must be closed, or -1 in case of any error.
+ * client socket shut down on input. It stops by itself by unsetting the
+ * SN_SELF_GEN flag from the session, which it uses to keep on being called
+ * when there is free space in the buffer, of simply by letting an empty buffer
+ * upon return.s->data_ctx must have been zeroed before the first call, and the
+ * flags set. It returns 0 if it had to stop writing data and an I/O is needed,
+ * 1 if the dump is finished and the session must be closed, or -1 in case of
+ * any error.
  */
 int stats_dump_http(struct session *s, struct uri_auth *uri)
 {

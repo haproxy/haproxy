@@ -53,7 +53,7 @@ void client_retnclose(struct session *s, const struct chunk *msg)
 	buffer_shutr(s->req);
 	s->rep->wex = tick_add_ifset(now_ms, s->rep->wto);
 	s->rep->flags |= BF_MAY_FORWARD;
-	s->cli_state = CL_STSHUTR;
+	s->cli_state = CL_STSHUTR; // FIXME: still used by unix sockets
 	buffer_flush(s->rep);
 	if (msg && msg->len)
 		buffer_write(s->rep, msg->str, msg->len);

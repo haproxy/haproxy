@@ -2991,8 +2991,6 @@ int process_response(struct session *t)
  */
 int process_cli(struct session *t)
 {
-	int s = t->srv_state;
-	int c = t->cli_state;
 	struct buffer *req = t->req;
 	struct buffer *rep = t->rep;
 
@@ -3008,7 +3006,10 @@ int process_cli(struct session *t)
 	if (!(t->analysis & AN_REQ_ANY) && !(req->flags & (BF_MAY_CONNECT|BF_MAY_FORWARD)))
 		req->flags |= BF_MAY_CONNECT | BF_MAY_FORWARD;
 
-	if (c == CL_STDATA || c == CL_STSHUTR || c == CL_STSHUTW) {
+	/* FIXME: we still have to check for CL_STSHUTR because client_retnclose
+	 * still set this state (and will do until unix sockets are converted).
+	 */
+	if (t->cli_state == CL_STDATA || t->cli_state == CL_STSHUTR) {
 		/* read or write error */
 		if (rep->flags & BF_WRITE_ERROR || req->flags & BF_READ_ERROR) {
 			buffer_shutr_done(req);
@@ -3022,7 +3023,7 @@ int process_cli(struct session *t)
 					t->flags |= SN_FINST_R;
 				else if (t->pend_pos)
 					t->flags |= SN_FINST_Q;
-				else if (s == SV_STCONN)
+				else if (t->srv_state == SV_STCONN)
 					t->flags |= SN_FINST_C;
 				else
 					t->flags |= SN_FINST_D;
@@ -3035,7 +3036,6 @@ int process_cli(struct session *t)
 			buffer_shutr_done(req);
 			if (!(rep->flags & BF_SHUTW_STATUS)) {
 				EV_FD_CLR(t->cli_fd, DIR_RD);
-				t->cli_state = CL_STSHUTR;
 			} else {
 				/* output was already closed */
 				fd_delete(t->cli_fd);
@@ -3057,7 +3057,6 @@ int process_cli(struct session *t)
 				/* FIXME: is this still true ? */
 				EV_FD_SET(t->cli_fd, DIR_RD);
 				req->rex = tick_add_ifset(now_ms, t->fe->timeout.client);
-				t->cli_state = CL_STSHUTW;
 			} else {
 				fd_delete(t->cli_fd);
 				t->cli_state = CL_STCLOSE;
@@ -3070,7 +3069,6 @@ int process_cli(struct session *t)
 			req->flags |= BF_READ_TIMEOUT;
 			if (!(rep->flags & BF_SHUTW_STATUS)) {
 				EV_FD_CLR(t->cli_fd, DIR_RD);
-				t->cli_state = CL_STSHUTR;
 			} else {
 				/* output was already closed */
 				fd_delete(t->cli_fd);
@@ -3083,7 +3081,7 @@ int process_cli(struct session *t)
 					t->flags |= SN_FINST_R;
 				else if (t->pend_pos)
 					t->flags |= SN_FINST_Q;
-				else if (s == SV_STCONN)
+				else if (t->srv_state == SV_STCONN)
 					t->flags |= SN_FINST_C;
 				else
 					t->flags |= SN_FINST_D;
@@ -3101,7 +3099,6 @@ int process_cli(struct session *t)
 				/* FIXME: is this still true ? */
 				EV_FD_SET(t->cli_fd, DIR_RD);
 				req->rex = tick_add_ifset(now_ms, t->fe->timeout.client);
-				t->cli_state = CL_STSHUTW;
 			} else {
 				fd_delete(t->cli_fd);
 				t->cli_state = CL_STCLOSE;
@@ -3114,7 +3111,7 @@ int process_cli(struct session *t)
 					t->flags |= SN_FINST_R;
 				else if (t->pend_pos)
 					t->flags |= SN_FINST_Q;
-				else if (s == SV_STCONN)
+				else if (t->srv_state == SV_STCONN)
 					t->flags |= SN_FINST_C;
 				else
 					t->flags |= SN_FINST_D;
@@ -3173,7 +3170,7 @@ int process_cli(struct session *t)
 		}
 		return 0; /* other cases change nothing */
 	}
-	else { /* CL_STCLOSE: nothing to do */
+	else if (t->cli_state == CL_STCLOSE) { /* CL_STCLOSE: nothing to do */
 		if ((global.mode & MODE_DEBUG) && (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))) {
 			int len;
 			len = sprintf(trash, "%08x:%s.clicls[%04x:%04x]\n", t->uniq_id, t->be->id, (unsigned short)t->cli_fd, (unsigned short)t->srv_fd);
@@ -3181,6 +3178,12 @@ int process_cli(struct session *t)
 		}
 		return 0;
 	}
+#ifdef DEBUG_FULL
+	else {
+		fprintf(stderr, "FIXME !!!! impossible state at %s:%d = %d\n", __FILE__, __LINE__, t->cli_state);
+		exit(1);
+	}
+#endif
 	return 0;
 }
 
@@ -3191,7 +3194,6 @@ int process_cli(struct session *t)
  */
 int process_srv(struct session *t)
 {
-	int s = t->srv_state;
 	struct http_txn *txn = &t->txn;
 	struct buffer *req = t->req;
 	struct buffer *rep = t->rep;
@@ -3209,7 +3211,7 @@ int process_srv(struct session *t)
 	if (!(t->analysis & AN_RTR_ANY) && !(rep->flags & BF_MAY_FORWARD))
 		rep->flags |= BF_MAY_FORWARD;
 
-	if (s == SV_STIDLE) {
+	if (t->srv_state == SV_STIDLE) {
 		if ((rep->flags & BF_SHUTW_STATUS) ||
 			 ((req->flags & BF_SHUTR_STATUS) &&
 			  (req->l == 0 || t->be->options & PR_O_ABRT_CLOSE))) { /* give up */
@@ -3335,7 +3337,7 @@ int process_srv(struct session *t)
 			} while (1);
 		}
 	}
-	else if (s == SV_STCONN) { /* connection in progress */
+	else if (t->srv_state == SV_STCONN) { /* connection in progress */
 		if ((rep->flags & BF_SHUTW_STATUS) ||
 		    ((req->flags & BF_SHUTR_STATUS) &&
 		     ((req->l == 0 && !(req->flags & BF_WRITE_STATUS)) ||
@@ -3482,7 +3484,7 @@ int process_srv(struct session *t)
 			return 1;
 		}
 	}
-	else if (s == SV_STDATA || s == SV_STSHUTR || s == SV_STSHUTW) {
+	else if (t->srv_state == SV_STDATA) {
 		/* read or write error */
 		/* FIXME: what happens when we have to deal with HTTP ??? */
 		if (req->flags & BF_WRITE_ERROR || rep->flags & BF_READ_ERROR) {
@@ -3509,10 +3511,9 @@ int process_srv(struct session *t)
 		/* last read, or end of client write */
 		else if (!(rep->flags & BF_SHUTR_STATUS) &&   /* not already done */
 			 rep->flags & (BF_READ_NULL | BF_SHUTW_STATUS)) {
-			buffer_shutr(rep);
+			buffer_shutr_done(rep);
 			if (!(req->flags & BF_SHUTW_STATUS)) {
 				EV_FD_CLR(t->srv_fd, DIR_RD);
-				t->srv_state = SV_STSHUTR;
 			} else {
 				/* output was already closed */
 				fd_delete(t->srv_fd);
@@ -3545,7 +3546,6 @@ int process_srv(struct session *t)
 				/* FIXME: is this still true ? */
 				EV_FD_SET(t->srv_fd, DIR_RD);
 				rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
-				t->srv_state = SV_STSHUTW;
 			} else {
 				fd_delete(t->srv_fd);
 				if (t->srv) {
@@ -3565,7 +3565,6 @@ int process_srv(struct session *t)
 			rep->flags |= BF_READ_TIMEOUT;
 			if (!(req->flags & BF_SHUTW_STATUS)) {
 				EV_FD_CLR(t->srv_fd, DIR_RD);
-				t->srv_state = SV_STSHUTR;
 			} else {
 				fd_delete(t->srv_fd);
 				if (t->srv) {
@@ -3594,7 +3593,6 @@ int process_srv(struct session *t)
 				/* FIXME: is this still needed ? */
 				EV_FD_SET(t->srv_fd, DIR_RD);
 				rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
-				t->srv_state = SV_STSHUTW;
 			} else {
 				fd_delete(t->srv_fd);
 				if (t->srv) {
@@ -3647,7 +3645,7 @@ int process_srv(struct session *t)
 		}
 		return 0; /* other cases change nothing */
 	}
-	else { /* SV_STCLOSE : nothing to do */
+	else if (t->srv_state == SV_STCLOSE) { /* SV_STCLOSE : nothing to do */
 		if ((global.mode & MODE_DEBUG) && (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))) {
 			int len;
 			len = sprintf(trash, "%08x:%s.srvcls[%04x:%04x]\n",
@@ -3656,17 +3654,23 @@ int process_srv(struct session *t)
 		}
 		return 0;
 	}
+#ifdef DEBUG_FULL
+	else {
+		fprintf(stderr, "FIXME !!!! impossible state at %s:%d = %d\n", __FILE__, __LINE__, t->srv_state);
+		exit(1);
+	}
+#endif
 	return 0;
 }
 
 
 /*
  * Produces data for the session <s> depending on its source. Expects to be
- * called with s->cli_state == CL_STSHUTR. Right now, only statistics can be
- * produced. It stops by itself by unsetting the SN_SELF_GEN flag from the
+ * called with client socket shut down on input. Right now, only statistics can
+ * be produced. It stops by itself by unsetting the SN_SELF_GEN flag from the
  * session, which it uses to keep on being called when there is free space in
  * the buffer, or simply by letting an empty buffer upon return. It returns 1
- * if it changes the session state from CL_STSHUTR, otherwise 0.
+ * when it wants to stop sending data, otherwise 0.
  */
 int produce_content(struct session *s)
 {
@@ -5066,7 +5070,6 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 	EV_FD_CLR(t->cli_fd, DIR_RD);
 	buffer_shutr(t->req);
 	buffer_shutr(t->rep);
-	t->cli_state = CL_STSHUTR;
 	t->req->rlim = t->req->data + BUFSIZE; /* no more rewrite needed */
 	t->logs.tv_request = now;
 	t->data_source = DATA_SRC_STATS;
