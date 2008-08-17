@@ -82,18 +82,6 @@
  * and freed in session_free() !
  */
 
-/* analysis flags */
-#define AN_REQ_INSPECT          0x00000001  /* inspect request contents */
-#define AN_REQ_HTTP_HDR         0x00000002  /* inspect HTTP request headers */
-#define AN_REQ_HTTP_BODY        0x00000004  /* inspect HTTP request body */
-#define AN_REQ_ANY              (AN_REQ_INSPECT|AN_REQ_HTTP_HDR|AN_REQ_HTTP_BODY)
-
-#define AN_RTR_INSPECT          0x00000008  /* inspect response contents */
-#define AN_RTR_HTTP_HDR         0x00000010  /* inspect HTTP response headers */
-#define AN_RTR_HTTP_BODY        0x00000020  /* inspect HTTP response body */
-#define AN_RTR_ANY              (AN_RTR_INSPECT|AN_RTR_HTTP_HDR|AN_RTR_HTTP_BODY)
-
-
 /* Termination sequence tracing.
  *
  * These values have to be set into the field term_trace of a session when
@@ -174,7 +162,6 @@ struct session {
 	int conn_retries;			/* number of connect retries left */
 	int flags;				/* some flags describing the session */
 	unsigned term_trace;			/* term trace: 4*8 bits indicating which part of the code closed */
-	unsigned int analysis;			/* bit field indicating remaining analysis to perform on data */
 	struct buffer *req;			/* request buffer */
 	struct buffer *rep;			/* response buffer */
 	struct sockaddr_storage cli_addr;	/* the client address */

@@ -46,8 +46,9 @@ int init_buffer();
 static inline void buffer_init(struct buffer *buf)
 {
 	buf->l = buf->total = 0;
-	buf->r = buf->lr = buf->w = buf->data;
+	buf->analysers = 0;
 	buf->flags = BF_EMPTY;
+	buf->r = buf->lr = buf->w = buf->data;
 	buf->rlim = buf->data + BUFSIZE;
 }
 

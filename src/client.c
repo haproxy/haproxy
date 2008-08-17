@@ -107,7 +107,6 @@ int event_accept(int fd) {
 		}
 
 		s->flags = 0;
-		s->analysis = 0;
 		s->term_trace = 0;
 
 		/* if this session comes from a known monitoring system, we want to ignore
@@ -167,12 +166,6 @@ int event_accept(int fd) {
 				s->be = p->defbe.be;
 			s->flags |= SN_BE_ASSIGNED;
 		}
-
-		if (p->mode == PR_MODE_HTTP)
-			s->analysis |= AN_REQ_HTTP_HDR;
-
-		if (s->fe->tcp_req.inspect_delay)
-			s->analysis |= AN_REQ_INSPECT;
 
 		s->cli_state = CL_STDATA;
 		s->srv_state = SV_STIDLE;
@@ -336,7 +329,13 @@ int event_accept(int fd) {
 		if (p->mode == PR_MODE_HTTP) /* reserve some space for header rewriting */
 			s->req->rlim -= MAXREWRITE;
 
-		if (!(s->analysis & AN_REQ_ANY))
+		if (s->fe->tcp_req.inspect_delay)
+			s->req->analysers |= AN_REQ_INSPECT;
+
+		if (p->mode == PR_MODE_HTTP)
+			s->req->analysers |= AN_REQ_HTTP_HDR;
+
+		if (!s->req->analysers)
 			s->req->flags |= BF_MAY_FORWARD;  /* don't wait to establish connection */
 
 		s->req->rto = s->fe->timeout.client;

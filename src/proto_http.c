@@ -688,14 +688,14 @@ void process_session(struct task *t, int *next)
 	do {
 		if (resync & PROCESS_REQ) {
 			resync &= ~PROCESS_REQ;
-			if (s->analysis & AN_REQ_ANY) {
+			if (s->req->analysers) {
 				rqf = s->req->flags;
 				rpf = s->rep->flags;
 
 				if (process_request(s))
 					resync |= PROCESS_REQ;
 
-				if (!(s->analysis & AN_REQ_ANY) && !(s->req->flags & BF_MAY_FORWARD))
+				if (!s->req->analysers && !(s->req->flags & BF_MAY_FORWARD))
 					s->req->flags |= BF_MAY_FORWARD;
 
 				if (rqf != s->req->flags || rpf != s->rep->flags)
@@ -705,14 +705,14 @@ void process_session(struct task *t, int *next)
 
 		if (resync & PROCESS_RTR) {
 			resync &= ~PROCESS_RTR;
-			if (s->analysis & AN_RTR_ANY) {
+			if (s->rep->analysers) {
 				rqf = s->req->flags;
 				rpf = s->rep->flags;
 
 				if (process_response(s))
 					resync |= PROCESS_RTR;
 
-				if (!(s->analysis & AN_RTR_ANY) && !(s->rep->flags & BF_MAY_FORWARD))
+				if (!s->rep->analysers && !(s->rep->flags & BF_MAY_FORWARD))
 					s->rep->flags |= BF_MAY_FORWARD;
 
 				if (rqf != s->req->flags || rpf != s->rep->flags)
@@ -767,10 +767,10 @@ void process_session(struct task *t, int *next)
 
 		t->expire = tick_first(tick_first(s->req->rex, s->req->wex),
 				       tick_first(s->rep->rex, s->rep->wex));
-		if (s->analysis & AN_REQ_ANY) {
-			if (s->analysis & AN_REQ_INSPECT)
+		if (s->req->analysers) {
+			if (s->req->analysers & AN_REQ_INSPECT)
 				t->expire = tick_first(t->expire, s->inspect_exp);
-			else if (s->analysis & AN_REQ_HTTP_HDR)
+			else if (s->req->analysers & AN_REQ_HTTP_HDR)
 				t->expire = tick_first(t->expire, s->txn.exp);
 		}
 
@@ -1634,22 +1634,23 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 /* This function performs all the processing enabled for the current request.
  * It normally returns zero, but may return 1 if it absolutely needs to be
  * called again after other functions. It relies on buffers flags, and updates
- * t->analysis. It might make sense to explode it into several other functions.
+ * t->req->analysers. It might make sense to explode it into several other
+ * functions.
  */
 int process_request(struct session *t)
 {
 	struct buffer *req = t->req;
 	struct buffer *rep = t->rep;
 
-	DPRINTF(stderr,"[%u] process_req: c=%s s=%s set(r,w)=%d,%d exp(r,w)=%u,%u req=%08x rep=%08x analysis=%02x\n",
+	DPRINTF(stderr,"[%u] process_req: c=%s s=%s set(r,w)=%d,%d exp(r,w)=%u,%u req=%08x rep=%08x analysers=%02x\n",
 		now_ms,
 		cli_stnames[t->cli_state], srv_stnames[t->srv_state],
 		t->cli_fd >= 0 && fdtab[t->cli_fd].state != FD_STCLOSE ? EV_FD_ISSET(t->cli_fd, DIR_RD) : 0,
 		t->cli_fd >= 0 && fdtab[t->cli_fd].state != FD_STCLOSE ? EV_FD_ISSET(t->cli_fd, DIR_WR) : 0,
-		req->rex, rep->wex, req->flags, rep->flags, t->analysis);
+		req->rex, rep->wex, req->flags, rep->flags, req->analysers);
 
  update_state:
-	if (t->analysis & AN_REQ_INSPECT) {
+	if (req->analysers & AN_REQ_INSPECT) {
 		struct tcp_rule *rule;
 		int partial;
 
@@ -1659,8 +1660,8 @@ int process_request(struct session *t)
 		 * will be easier to change later.
 		 */
 		if (req->flags & BF_READ_ERROR) {
+			req->analysers = 0;
 			t->inspect_exp = TICK_ETERNITY;
-			t->analysis &= ~AN_REQ_ANY;
 			t->fe->failed_req++;
 			if (!(t->flags & SN_ERR_MASK))
 				t->flags |= SN_ERR_CLICL;
@@ -1671,8 +1672,8 @@ int process_request(struct session *t)
 
 		/* Abort if client read timeout has expired */
 		else if (req->flags & BF_READ_TIMEOUT) {
+			req->analysers = 0;
 			t->inspect_exp = TICK_ETERNITY;
-			t->analysis &= ~AN_REQ_ANY;
 			t->fe->failed_req++;
 			if (!(t->flags & SN_ERR_MASK))
 				t->flags |= SN_ERR_CLITO;
@@ -1721,7 +1722,7 @@ int process_request(struct session *t)
 					buffer_shutw(rep);
 					fd_delete(t->cli_fd);
 					t->cli_state = CL_STCLOSE;
-					t->analysis &= ~AN_REQ_ANY;
+					req->analysers = 0;
 					t->fe->failed_req++;
 					if (!(t->flags & SN_ERR_MASK))
 						t->flags |= SN_ERR_PRXCOND;
@@ -1738,11 +1739,11 @@ int process_request(struct session *t)
 		/* if we get there, it means we have no rule which matches, or
 		 * we have an explicit accept, so we apply the default accept.
 		 */
-		t->analysis &= ~AN_REQ_INSPECT;
+		req->analysers &= ~AN_REQ_INSPECT;
 		t->inspect_exp = TICK_ETERNITY;
 	}
 
-	if (t->analysis & AN_REQ_HTTP_HDR) {
+	if (req->analysers & AN_REQ_HTTP_HDR) {
 		/*
 		 * Now parse the partial (or complete) lines.
 		 * We will check the request syntax, and also join multi-line
@@ -1822,7 +1823,7 @@ int process_request(struct session *t)
 				txn->status = 400;
 				client_retnclose(t, error_message(t, HTTP_ERR_400));
 				msg->msg_state = HTTP_MSG_ERROR;
-				t->analysis &= ~AN_REQ_ANY;
+				req->analysers = 0;
 				t->fe->failed_req++;
 
 				if (!(t->flags & SN_ERR_MASK))
@@ -1838,7 +1839,7 @@ int process_request(struct session *t)
 				txn->status = 408;
 				client_retnclose(t, error_message(t, HTTP_ERR_408));
 				msg->msg_state = HTTP_MSG_ERROR;
-				t->analysis &= ~AN_REQ_ANY;
+				req->analysers = 0;
 				t->fe->failed_req++;
 				if (!(t->flags & SN_ERR_MASK))
 					t->flags |= SN_ERR_CLITO;
@@ -1851,7 +1852,7 @@ int process_request(struct session *t)
 			else if (req->flags & (BF_READ_ERROR | BF_SHUTR)) {
 				/* we cannot return any message on error */
 				msg->msg_state = HTTP_MSG_ERROR;
-				t->analysis &= ~AN_REQ_ANY;
+				req->analysers = 0;
 				t->fe->failed_req++;
 				if (!(t->flags & SN_ERR_MASK))
 					t->flags |= SN_ERR_CLICL;
@@ -1875,7 +1876,7 @@ int process_request(struct session *t)
 		 * of each header's length, so we can parse them quickly.       *
 		 ****************************************************************/
 
-		t->analysis &= ~AN_REQ_HTTP_HDR;
+		req->analysers &= ~AN_REQ_HTTP_HDR;
 
 		/* ensure we keep this pointer to the beginning of the message */
 		msg->sol = req->data + msg->som;
@@ -2205,7 +2206,7 @@ int process_request(struct session *t)
 			    (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)) {
 				/* we have to check the URI and auth for this request.
 				 * FIXME!!! that one is rather dangerous, we want to
-				 * make it follow standard rules (eg: clear t->analysis).
+				 * make it follow standard rules (eg: clear req->analysers).
 				 */
 				if (stats_check_uri_auth(t, rule_set))
 					return 1;
@@ -2442,7 +2443,7 @@ int process_request(struct session *t)
 				ctx.idx = 0;
 				http_find_header2("Transfer-Encoding", 17, msg->sol, &txn->hdr_idx, &ctx);
 				if (ctx.idx && ctx.vlen >= 7 && strncasecmp(ctx.line+ctx.val, "chunked", 7) == 0)
-					t->analysis |= AN_REQ_HTTP_BODY;
+					req->analysers |= AN_REQ_HTTP_BODY;
 				else {
 					ctx.idx = 0;
 					http_find_header2("Content-Length", 14, msg->sol, &txn->hdr_idx, &ctx);
@@ -2463,7 +2464,7 @@ int process_request(struct session *t)
 						hint = t->be->url_param_post_limit;
 					/* now do we really need to buffer more data? */
 					if (len < hint)
-						t->analysis |= AN_REQ_HTTP_BODY;
+						req->analysers |= AN_REQ_HTTP_BODY;
 					/* else... There are no body bytes to wait for */
 				}
 			}
@@ -2500,7 +2501,7 @@ int process_request(struct session *t)
 	return_bad_req: /* let's centralize all bad requests */
 		txn->req.msg_state = HTTP_MSG_ERROR;
 		txn->status = 400;
-		t->analysis &= ~AN_REQ_ANY;
+		req->analysers = 0;
 		client_retnclose(t, error_message(t, HTTP_ERR_400));
 		t->fe->failed_req++;
 	return_prx_cond:
@@ -2513,7 +2514,7 @@ int process_request(struct session *t)
 		; // to keep gcc happy
 	}
 
-	if (t->analysis & AN_REQ_HTTP_BODY) {
+	if (req->analysers & AN_REQ_HTTP_BODY) {
 		/* We have to parse the HTTP request body to find any required data.
 		 * "balance url_param check_post" should have been the only way to get
 		 * into this. We were brought here after HTTP header analysis, so all
@@ -2571,12 +2572,24 @@ int process_request(struct session *t)
 		    req->flags & (BF_FULL | BF_READ_ERROR | BF_READ_NULL | BF_READ_TIMEOUT)) {
 			/* The situation will not evolve, so let's give up on the analysis. */
 			t->logs.tv_request = now;  /* update the request timer to reflect full request */
-			t->analysis &= ~AN_REQ_HTTP_BODY;
+			req->analysers &= ~AN_REQ_HTTP_BODY;
 		}
 	}
 
+	/* Note: eventhough nobody should set an unknown flag, clearing them right now will
+	 * probably reduce one day's debugging session.
+	 */
+#ifdef DEBUG_DEV
+	if (req->analysers & ~(AN_REQ_INSPECT | AN_REQ_HTTP_HDR | AN_REQ_HTTP_BODY)) {
+		fprintf(stderr, "FIXME !!!! unknown analysers flags %s:%d = 0x%08X\n",
+			__FILE__, __LINE__, req->analysers);
+		ABORT_NOW();
+	}
+#endif
+	req->analysers &= AN_REQ_INSPECT | AN_REQ_HTTP_HDR | AN_REQ_HTTP_BODY;
+
 	/* we want to leave with that clean */
-	if (unlikely(t->analysis & AN_REQ_ANY))
+	if (unlikely(req->analysers != 0))
 		goto update_state;
 	return 0;
 }
@@ -2584,7 +2597,8 @@ int process_request(struct session *t)
 /* This function performs all the processing enabled for the current response.
  * It normally returns zero, but may return 1 if it absolutely needs to be
  * called again after other functions. It relies on buffers flags, and updates
- * t->analysis. It might make sense to explode it into several other functions.
+ * t->rep->analysers. It might make sense to explode it into several other
+ * functions.
  */
 int process_response(struct session *t)
 {
@@ -2592,15 +2606,15 @@ int process_response(struct session *t)
 	struct buffer *req = t->req;
 	struct buffer *rep = t->rep;
 
-	DPRINTF(stderr,"[%u] process_rep: c=%s s=%s set(r,w)=%d,%d exp(r,w)=%u,%u req=%08x rep=%08x analysis=%02x\n",
+	DPRINTF(stderr,"[%u] process_rep: c=%s s=%s set(r,w)=%d,%d exp(r,w)=%u,%u req=%08x rep=%08x analysers=%02x\n",
 		now_ms,
 		cli_stnames[t->cli_state], srv_stnames[t->srv_state],
 		t->srv_fd >= 0 && fdtab[t->srv_fd].state != FD_STCLOSE ? EV_FD_ISSET(t->srv_fd, DIR_RD) : 0,
 		t->srv_fd >= 0 && fdtab[t->srv_fd].state != FD_STCLOSE ? EV_FD_ISSET(t->srv_fd, DIR_WR) : 0,
-		req->rex, rep->wex, req->flags, rep->flags, t->analysis);
+		req->rex, rep->wex, req->flags, rep->flags, rep->analysers);
 
  update_state:
-	if (t->analysis & AN_RTR_HTTP_HDR) { /* receiving server headers */
+	if (rep->analysers & AN_RTR_HTTP_HDR) { /* receiving server headers */
 		/*
 		 * Now parse the partial (or complete) lines.
 		 * We will check the response syntax, and also join multi-line
@@ -2672,7 +2686,7 @@ int process_response(struct session *t)
 				}
 				t->be->failed_resp++;
 				t->srv_state = SV_STCLOSE;
-				t->analysis &= ~AN_RTR_ANY;
+				rep->analysers = 0;
 				txn->status = 502;
 				client_return(t, error_message(t, HTTP_ERR_502));
 				if (!(t->flags & SN_ERR_MASK))
@@ -2698,7 +2712,7 @@ int process_response(struct session *t)
 				}
 				t->be->failed_resp++;
 				t->srv_state = SV_STCLOSE;
-				t->analysis &= ~AN_RTR_ANY;
+				rep->analysers = 0;
 				txn->status = 502;
 				client_return(t, error_message(t, HTTP_ERR_502));
 				if (!(t->flags & SN_ERR_MASK))
@@ -2727,7 +2741,7 @@ int process_response(struct session *t)
 				}
 				t->be->failed_resp++;
 				t->srv_state = SV_STCLOSE;
-				t->analysis &= ~AN_RTR_ANY;
+				rep->analysers = 0;
 				txn->status = 504;
 				client_return(t, error_message(t, HTTP_ERR_504));
 				if (!(t->flags & SN_ERR_MASK))
@@ -2749,7 +2763,7 @@ int process_response(struct session *t)
 		 * of each header's length, so we can parse them quickly.        *
 		 ****************************************************************/
 
-		t->analysis &= ~AN_RTR_HTTP_HDR;
+		rep->analysers &= ~AN_RTR_HTTP_HDR;
 
 		/* ensure we keep this pointer to the beginning of the message */
 		msg->sol = rep->data + msg->som;
@@ -2825,7 +2839,7 @@ int process_response(struct session *t)
 					buffer_shutw(req);
 					fd_delete(t->srv_fd);
 					t->srv_state = SV_STCLOSE;
-					t->analysis &= ~AN_RTR_ANY;
+					rep->analysers = 0;
 					txn->status = 502;
 					client_return(t, error_message(t, HTTP_ERR_502));
 					if (!(t->flags & SN_ERR_MASK))
@@ -3046,8 +3060,20 @@ int process_response(struct session *t)
 		return 0;
 	}
 
+	/* Note: eventhough nobody should set an unknown flag, clearing them right now will
+	 * probably reduce one day's debugging session.
+	 */
+#ifdef DEBUG_DEV
+	if (rep->analysers & ~(AN_RTR_HTTP_HDR)) {
+		fprintf(stderr, "FIXME !!!! unknown analysers flags %s:%d = 0x%08X\n",
+			__FILE__, __LINE__, rep->analysers);
+		ABORT_NOW();
+	}
+#endif
+	rep->analysers &= AN_RTR_HTTP_HDR;
+
 	/* we want to leave with that clean */
-	if (unlikely(t->analysis & AN_RTR_ANY))
+	if (unlikely(rep->analysers != 0))
 		goto update_state;
 	return 0;
 }
@@ -3085,7 +3111,7 @@ int process_cli(struct session *t)
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
 			trace_term(t, TT_HTTP_CLI_1);
-			if (!(t->analysis & AN_REQ_ANY)) {
+			if (!req->analysers) {
 				if (!(t->flags & SN_ERR_MASK))
 					t->flags |= SN_ERR_CLICL;
 				if (!(t->flags & SN_FINST_MASK)) {
@@ -3148,7 +3174,7 @@ int process_cli(struct session *t)
 				t->cli_state = CL_STCLOSE;
 				trace_term(t, TT_HTTP_CLI_7);
 			}
-			if (!(t->analysis & AN_REQ_ANY)) {
+			if (!req->analysers) {
 				if (!(t->flags & SN_ERR_MASK))
 					t->flags |= SN_ERR_CLITO;
 				if (!(t->flags & SN_FINST_MASK)) {
@@ -3178,7 +3204,7 @@ int process_cli(struct session *t)
 				t->cli_state = CL_STCLOSE;
 				trace_term(t, TT_HTTP_CLI_9);
 			}
-			if (!(t->analysis & AN_REQ_ANY)) {
+			if (!req->analysers) {
 				if (!(t->flags & SN_ERR_MASK))
 					t->flags |= SN_ERR_CLITO;
 				if (!(t->flags & SN_FINST_MASK)) {
@@ -3567,7 +3593,7 @@ int process_srv(struct session *t)
 #endif
 			}
 			else {
-				t->analysis |= AN_RTR_HTTP_HDR;
+				rep->analysers |= AN_RTR_HTTP_HDR;
 				buffer_set_rlim(rep, BUFSIZE - MAXREWRITE); /* rewrite needed */
 				t->txn.rsp.msg_state = HTTP_MSG_RPBEFORE;
 				/* reset hdr_idx which was already initialized by the request.
@@ -3577,7 +3603,7 @@ int process_srv(struct session *t)
 			}
 
 			t->srv_state = SV_STDATA;
-			if (!(t->analysis & AN_RTR_ANY))
+			if (!rep->analysers)
 				t->rep->flags |= BF_MAY_FORWARD;
 			req->wex = TICK_ETERNITY;
 			goto update_state;
@@ -3598,7 +3624,7 @@ int process_srv(struct session *t)
 			t->be->failed_resp++;
 			t->srv_state = SV_STCLOSE;
 			trace_term(t, TT_HTTP_SRV_6);
-			if (!(t->analysis & AN_RTR_ANY)) {
+			if (!rep->analysers) {
 				if (!(t->flags & SN_ERR_MASK))
 					t->flags |= SN_ERR_SRVCL;
 				if (!(t->flags & SN_FINST_MASK))
@@ -3682,7 +3708,7 @@ int process_srv(struct session *t)
 				if (may_dequeue_tasks(t->srv, t->be))
 					process_srv_queue(t->srv);
 			}
-			if (!(t->analysis & AN_RTR_ANY)) {
+			if (!rep->analysers) {
 				if (!(t->flags & SN_ERR_MASK))
 					t->flags |= SN_ERR_SRVTO;
 				if (!(t->flags & SN_FINST_MASK))
@@ -3714,7 +3740,7 @@ int process_srv(struct session *t)
 				if (may_dequeue_tasks(t->srv, t->be))
 					process_srv_queue(t->srv);
 			}
-			if (!(t->analysis & AN_RTR_ANY)) {
+			if (!rep->analysers) {
 				if (!(t->flags & SN_ERR_MASK))
 					t->flags |= SN_ERR_SRVTO;
 				if (!(t->flags & SN_FINST_MASK))
@@ -5168,7 +5194,7 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 		txn->status = 401;
 		client_retnclose(t, &msg);
 		trace_term(t, TT_HTTP_URI_1);
-		t->analysis &= ~AN_REQ_ANY;
+		t->req->analysers = 0;
 		if (!(t->flags & SN_ERR_MASK))
 			t->flags |= SN_ERR_PRXCOND;
 		if (!(t->flags & SN_FINST_MASK))

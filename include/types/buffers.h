@@ -57,6 +57,19 @@
 #define BF_READ_TIMEOUT     32768  /* timeout while waiting for producer */
 #define BF_WRITE_TIMEOUT    65536  /* timeout while waiting for consumer */
 
+
+/* Analysers (buffer->analysers).
+ * Those bits indicate that there are some processing to do on the buffer
+ * contents. It will probably evolved into a linked list later. Those
+ * analysers could be compared to higher level processors.
+ * The field is blanked by buffer_init() and only by analysers themselves
+ * afterwards.
+ */
+#define AN_REQ_INSPECT          0x00000001  /* inspect request contents */
+#define AN_REQ_HTTP_HDR         0x00000002  /* inspect HTTP request headers */
+#define AN_REQ_HTTP_BODY        0x00000004  /* inspect HTTP request body */
+#define AN_RTR_HTTP_HDR         0x00000008  /* inspect HTTP response headers */
+
 /* describes a chunk of string */
 struct chunk {
 	char *str;	/* beginning of the string itself. Might not be 0-terminated */
@@ -73,6 +86,7 @@ struct buffer {
 	unsigned int l;                 /* data length */
 	char *r, *w, *lr;               /* read ptr, write ptr, last read */
 	char *rlim;                     /* read limit, used for header rewriting */
+	unsigned int analysers;         /* bit field indicating what to do on the buffer */
 	unsigned char xfer_large;       /* number of consecutive large xfers */
 	unsigned char xfer_small;       /* number of consecutive small xfers */
 	unsigned long long total;       /* total data read */
