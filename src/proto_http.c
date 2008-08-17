@@ -794,9 +794,10 @@ void process_session(struct task *t, int *next)
 	if (unlikely((global.mode & MODE_DEBUG) &&
 		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
 		int len;
-		len = sprintf(trash, "%08x:%s.closed[%04x:%04x]\n",
+		len = sprintf(trash, "%08x:%s.closed[%04x:%04x] (term_trace=0x%08x)\n",
 			      s->uniq_id, s->be->id,
-			      (unsigned short)s->cli_fd, (unsigned short)s->srv_fd);
+			      (unsigned short)s->cli_fd, (unsigned short)s->srv_fd,
+			      s->term_trace);
 		write(1, trash, len);
 	}
 
@@ -1652,10 +1653,10 @@ int process_request(struct session *t)
 		struct tcp_rule *rule;
 		int partial;
 
-		/* We will abort if we encounter a read error. In theory,
-		 * we should not abort if we get a close, it might be
-		 * valid, also very unlikely. FIXME: we'll abort for now,
-		 * this will be easier to change later.
+		/* We will abort if we encounter a read error. In theory, we
+		 * should not abort if we get a close, it might be valid,
+		 * although very unlikely. FIXME: we'll abort for now, this
+		 * will be easier to change later.
 		 */
 		if (req->flags & BF_READ_ERROR) {
 			t->inspect_exp = TICK_ETERNITY;
@@ -3084,22 +3085,22 @@ int process_cli(struct session *t)
 			fd_delete(t->cli_fd);
 			t->cli_state = CL_STCLOSE;
 			trace_term(t, TT_HTTP_CLI_1);
-			if (!(t->flags & SN_ERR_MASK))
-				t->flags |= SN_ERR_CLICL;
-			if (!(t->flags & SN_FINST_MASK)) {
-				if (t->analysis & AN_REQ_ANY)
-					t->flags |= SN_FINST_R;
-				else if (t->pend_pos)
-					t->flags |= SN_FINST_Q;
-				else if (t->srv_state == SV_STCONN)
-					t->flags |= SN_FINST_C;
-				else
-					t->flags |= SN_FINST_D;
+			if (!(t->analysis & AN_REQ_ANY)) {
+				if (!(t->flags & SN_ERR_MASK))
+					t->flags |= SN_ERR_CLICL;
+				if (!(t->flags & SN_FINST_MASK)) {
+					if (t->pend_pos)
+						t->flags |= SN_FINST_Q;
+					else if (t->srv_state == SV_STCONN)
+						t->flags |= SN_FINST_C;
+					else
+						t->flags |= SN_FINST_D;
+				}
 			}
 			goto update_state;
 		}
 		/* last read, or end of server write */
-		else if (!(req->flags & BF_SHUTR) &&   /* already done */
+		else if (!(req->flags & BF_SHUTR) &&   /* not already done */
 			 req->flags & (BF_READ_NULL | BF_SHUTW)) {
 			buffer_shutr(req);
 			if (!(rep->flags & BF_SHUTW)) {
@@ -3116,7 +3117,7 @@ int process_cli(struct session *t)
 		/* last server read and buffer empty : we only check them when we're
 		 * allowed to forward the data.
 		 */
-		else if (!(rep->flags & BF_SHUTW) &&   /* already done */
+		else if (!(rep->flags & BF_SHUTW) &&   /* not already done */
 			 rep->flags & BF_EMPTY && rep->flags & BF_MAY_FORWARD &&
 			 rep->flags & BF_SHUTR && !(t->flags & SN_SELF_GEN)) {
 			buffer_shutw(rep);
@@ -3147,17 +3148,17 @@ int process_cli(struct session *t)
 				t->cli_state = CL_STCLOSE;
 				trace_term(t, TT_HTTP_CLI_7);
 			}
-			if (!(t->flags & SN_ERR_MASK))
-				t->flags |= SN_ERR_CLITO;
-			if (!(t->flags & SN_FINST_MASK)) {
-				if (t->analysis & AN_REQ_ANY)
-					t->flags |= SN_FINST_R;
-				else if (t->pend_pos)
-					t->flags |= SN_FINST_Q;
-				else if (t->srv_state == SV_STCONN)
-					t->flags |= SN_FINST_C;
-				else
-					t->flags |= SN_FINST_D;
+			if (!(t->analysis & AN_REQ_ANY)) {
+				if (!(t->flags & SN_ERR_MASK))
+					t->flags |= SN_ERR_CLITO;
+				if (!(t->flags & SN_FINST_MASK)) {
+					if (t->pend_pos)
+						t->flags |= SN_FINST_Q;
+					else if (t->srv_state == SV_STCONN)
+						t->flags |= SN_FINST_C;
+					else
+						t->flags |= SN_FINST_D;
+				}
 			}
 			goto update_state;
 		}	
@@ -3177,18 +3178,17 @@ int process_cli(struct session *t)
 				t->cli_state = CL_STCLOSE;
 				trace_term(t, TT_HTTP_CLI_9);
 			}
-
-			if (!(t->flags & SN_ERR_MASK))
-				t->flags |= SN_ERR_CLITO;
-			if (!(t->flags & SN_FINST_MASK)) {
-				if (t->analysis & AN_REQ_ANY)
-					t->flags |= SN_FINST_R;
-				else if (t->pend_pos)
-					t->flags |= SN_FINST_Q;
-				else if (t->srv_state == SV_STCONN)
-					t->flags |= SN_FINST_C;
-				else
-					t->flags |= SN_FINST_D;
+			if (!(t->analysis & AN_REQ_ANY)) {
+				if (!(t->flags & SN_ERR_MASK))
+					t->flags |= SN_ERR_CLITO;
+				if (!(t->flags & SN_FINST_MASK)) {
+					if (t->pend_pos)
+						t->flags |= SN_FINST_Q;
+					else if (t->srv_state == SV_STCONN)
+						t->flags |= SN_FINST_C;
+					else
+						t->flags |= SN_FINST_D;
+				}
 			}
 			goto update_state;
 		}
@@ -3598,11 +3598,12 @@ int process_srv(struct session *t)
 			t->be->failed_resp++;
 			t->srv_state = SV_STCLOSE;
 			trace_term(t, TT_HTTP_SRV_6);
-			if (!(t->flags & SN_ERR_MASK))
-				t->flags |= SN_ERR_SRVCL;
-			if (!(t->flags & SN_FINST_MASK))
-				t->flags |= SN_FINST_D;
-
+			if (!(t->analysis & AN_RTR_ANY)) {
+				if (!(t->flags & SN_ERR_MASK))
+					t->flags |= SN_ERR_SRVCL;
+				if (!(t->flags & SN_FINST_MASK))
+					t->flags |= SN_FINST_D;
+			}
 			if (may_dequeue_tasks(t->srv, t->be))
 				process_srv_queue(t->srv);
 
@@ -3681,10 +3682,12 @@ int process_srv(struct session *t)
 				if (may_dequeue_tasks(t->srv, t->be))
 					process_srv_queue(t->srv);
 			}
-			if (!(t->flags & SN_ERR_MASK))
-				t->flags |= SN_ERR_SRVTO;
-			if (!(t->flags & SN_FINST_MASK))
-				t->flags |= SN_FINST_D;
+			if (!(t->analysis & AN_RTR_ANY)) {
+				if (!(t->flags & SN_ERR_MASK))
+					t->flags |= SN_ERR_SRVTO;
+				if (!(t->flags & SN_FINST_MASK))
+					t->flags |= SN_FINST_D;
+			}
 
 			goto update_state;
 		}	
@@ -3711,11 +3714,12 @@ int process_srv(struct session *t)
 				if (may_dequeue_tasks(t->srv, t->be))
 					process_srv_queue(t->srv);
 			}
-			if (!(t->flags & SN_ERR_MASK))
-				t->flags |= SN_ERR_SRVTO;
-			if (!(t->flags & SN_FINST_MASK))
-				t->flags |= SN_FINST_D;
-
+			if (!(t->analysis & AN_RTR_ANY)) {
+				if (!(t->flags & SN_ERR_MASK))
+					t->flags |= SN_ERR_SRVTO;
+				if (!(t->flags & SN_FINST_MASK))
+					t->flags |= SN_FINST_D;
+			}
 			goto update_state;
 		}
 
