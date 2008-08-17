@@ -767,12 +767,8 @@ void process_session(struct task *t, int *next)
 
 		t->expire = tick_first(tick_first(s->req->rex, s->req->wex),
 				       tick_first(s->rep->rex, s->rep->wex));
-		if (s->req->analysers) {
-			if (s->req->analysers & AN_REQ_INSPECT)
-				t->expire = tick_first(t->expire, s->inspect_exp);
-			else if (s->req->analysers & AN_REQ_HTTP_HDR)
-				t->expire = tick_first(t->expire, s->txn.exp);
-		}
+		if (s->req->analysers)
+			t->expire = tick_first(t->expire, s->req->analyse_exp);
 
 		/* restore t to its place in the task list */
 		task_queue(t);
@@ -1661,7 +1657,6 @@ int process_request(struct session *t)
 		 */
 		if (req->flags & BF_READ_ERROR) {
 			req->analysers = 0;
-			t->inspect_exp = TICK_ETERNITY;
 			t->fe->failed_req++;
 			if (!(t->flags & SN_ERR_MASK))
 				t->flags |= SN_ERR_CLICL;
@@ -1673,7 +1668,6 @@ int process_request(struct session *t)
 		/* Abort if client read timeout has expired */
 		else if (req->flags & BF_READ_TIMEOUT) {
 			req->analysers = 0;
-			t->inspect_exp = TICK_ETERNITY;
 			t->fe->failed_req++;
 			if (!(t->flags & SN_ERR_MASK))
 				t->flags |= SN_ERR_CLITO;
@@ -1692,8 +1686,7 @@ int process_request(struct session *t)
 		 * - if one rule returns KO, then return KO
 		 */
 
-		if (req->flags & (BF_READ_NULL | BF_SHUTR) ||
-		    tick_is_expired(t->inspect_exp, now_ms))
+		if (req->flags & (BF_READ_NULL | BF_SHUTR) || tick_is_expired(req->analyse_exp, now_ms))
 			partial = 0;
 		else
 			partial = ACL_PARTIAL;
@@ -1705,8 +1698,8 @@ int process_request(struct session *t)
 				ret = acl_exec_cond(rule->cond, t->fe, t, NULL, ACL_DIR_REQ | partial);
 				if (ret == ACL_PAT_MISS) {
 					/* just set the request timeout once at the beginning of the request */
-					if (!tick_isset(t->inspect_exp))
-						t->inspect_exp = tick_add_ifset(now_ms, t->fe->tcp_req.inspect_delay);
+					if (!tick_isset(req->analyse_exp))
+						req->analyse_exp = tick_add_ifset(now_ms, t->fe->tcp_req.inspect_delay);
 					return 0;
 				}
 
@@ -1728,7 +1721,6 @@ int process_request(struct session *t)
 						t->flags |= SN_ERR_PRXCOND;
 					if (!(t->flags & SN_FINST_MASK))
 						t->flags |= SN_FINST_R;
-					t->inspect_exp = TICK_ETERNITY;
 					return 0;
 				}
 				/* otherwise accept */
@@ -1740,7 +1732,7 @@ int process_request(struct session *t)
 		 * we have an explicit accept, so we apply the default accept.
 		 */
 		req->analysers &= ~AN_REQ_INSPECT;
-		t->inspect_exp = TICK_ETERNITY;
+		req->analyse_exp = TICK_ETERNITY;
 	}
 
 	if (req->analysers & AN_REQ_HTTP_HDR) {
@@ -1834,7 +1826,7 @@ int process_request(struct session *t)
 			}
 
 			/* 3: has the read timeout expired ? */
-			else if (req->flags & BF_READ_TIMEOUT || tick_is_expired(txn->exp, now_ms)) {
+			else if (req->flags & BF_READ_TIMEOUT || tick_is_expired(req->analyse_exp, now_ms)) {
 				/* read timeout : give up with an error message. */
 				txn->status = 408;
 				client_retnclose(t, error_message(t, HTTP_ERR_408));
@@ -1862,8 +1854,8 @@ int process_request(struct session *t)
 			}
 
 			/* just set the request timeout once at the beginning of the request */
-			if (!tick_isset(t->txn.exp))
-				t->txn.exp = tick_add_ifset(now_ms, t->fe->timeout.httpreq);
+			if (!tick_isset(req->analyse_exp))
+				req->analyse_exp = tick_add_ifset(now_ms, t->fe->timeout.httpreq);
 
 			/* we're not ready yet */
 			return 0;
@@ -1877,6 +1869,7 @@ int process_request(struct session *t)
 		 ****************************************************************/
 
 		req->analysers &= ~AN_REQ_HTTP_HDR;
+		req->analyse_exp = TICK_ETERNITY;
 
 		/* ensure we keep this pointer to the beginning of the message */
 		msg->sol = req->data + msg->som;
@@ -2573,6 +2566,7 @@ int process_request(struct session *t)
 			/* The situation will not evolve, so let's give up on the analysis. */
 			t->logs.tv_request = now;  /* update the request timer to reflect full request */
 			req->analysers &= ~AN_REQ_HTTP_BODY;
+			req->analyse_exp = TICK_ETERNITY;
 		}
 	}
 

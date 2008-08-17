@@ -496,8 +496,10 @@ int uxst_event_accept(int fd) {
 
 		s->req->rex = TICK_ETERNITY;
 		s->req->wex = TICK_ETERNITY;
+		s->req->analyse_exp = TICK_ETERNITY;
 		s->rep->rex = TICK_ETERNITY;
 		s->rep->wex = TICK_ETERNITY;
+		s->rep->analyse_exp = TICK_ETERNITY;
 
 		s->req->wto = TICK_ETERNITY;
 		s->req->cto = TICK_ETERNITY;

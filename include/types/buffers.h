@@ -87,6 +87,7 @@ struct buffer {
 	char *r, *w, *lr;               /* read ptr, write ptr, last read */
 	char *rlim;                     /* read limit, used for header rewriting */
 	unsigned int analysers;         /* bit field indicating what to do on the buffer */
+	int analyse_exp;                /* expiration date for current analysers (if set) */
 	unsigned char xfer_large;       /* number of consecutive large xfers */
 	unsigned char xfer_small;       /* number of consecutive small xfers */
 	unsigned long long total;       /* total data read */
