@@ -668,6 +668,23 @@ void process_session(struct task *t, int *next)
 	unsigned int rqf;
 	unsigned int rpf;
 
+	/* check timeout expiration only once and adjust buffer flags
+	 * accordingly.
+	 */
+	if (unlikely(tick_is_expired(t->expire, now_ms))) {
+		if (tick_is_expired(s->req->rex, now_ms))
+			s->req->flags |= BF_READ_TIMEOUT;
+	
+		if (tick_is_expired(s->req->wex, now_ms))
+			s->req->flags |= BF_WRITE_TIMEOUT;
+	
+		if (tick_is_expired(s->rep->rex, now_ms))
+			s->rep->flags |= BF_READ_TIMEOUT;
+	
+		if (tick_is_expired(s->rep->wex, now_ms))
+			s->rep->flags |= BF_WRITE_TIMEOUT;
+	}
+
 	do {
 		if (resync & PROCESS_REQ) {
 			resync &= ~PROCESS_REQ;
@@ -3119,9 +3136,8 @@ int process_cli(struct session *t)
 			goto update_state;
 		}
 		/* read timeout */
-		else if (tick_is_expired(req->rex, now_ms)) {
+		else if (req->flags & BF_READ_TIMEOUT) {
 			buffer_shutr(req);
-			req->flags |= BF_READ_TIMEOUT;
 			if (!(rep->flags & BF_SHUTW)) {
 				EV_FD_CLR(t->cli_fd, DIR_RD);
 				trace_term(t, TT_HTTP_CLI_6);
@@ -3146,9 +3162,8 @@ int process_cli(struct session *t)
 			goto update_state;
 		}	
 		/* write timeout */
-		else if (tick_is_expired(rep->wex, now_ms)) {
+		else if (rep->flags & BF_WRITE_TIMEOUT) {
 			buffer_shutw(rep);
-			rep->flags |= BF_WRITE_TIMEOUT;
 			if (!(req->flags & BF_SHUTR)) {
 				EV_FD_CLR(t->cli_fd, DIR_WR);
 				shutdown(t->cli_fd, SHUT_WR);
@@ -3296,7 +3311,7 @@ int process_srv(struct session *t)
 				 * already set the connect expiration date to the right
 				 * timeout. We just have to check that it has not expired.
 				 */
-				if (!tick_is_expired(req->wex, now_ms))
+				if (!(req->flags & BF_WRITE_TIMEOUT))
 					return 0;
 
 				/* We will set the queue timer to the time spent, just for
@@ -3319,7 +3334,7 @@ int process_srv(struct session *t)
 			 * to any other session to release it and wake us up again.
 			 */
 			if (t->pend_pos) {
-				if (!tick_is_expired(req->wex, now_ms)) {
+				if (!(req->flags & BF_WRITE_TIMEOUT)) {
 					return 0;
 				} else {
 					/* we've been waiting too long here */
@@ -3431,14 +3446,14 @@ int process_srv(struct session *t)
 			trace_term(t, TT_HTTP_SRV_5);
 			goto update_state;
 		}
-		if (!(req->flags & BF_WRITE_STATUS) && !tick_is_expired(req->wex, now_ms)) {
+		if (!(req->flags & (BF_WRITE_STATUS | BF_WRITE_TIMEOUT))) {
 			return 0; /* nothing changed */
 		}
 		else if (!(req->flags & BF_WRITE_STATUS) || (req->flags & BF_WRITE_ERROR)) {
 			/* timeout, asynchronous connect error or first write error */
 			if (t->flags & SN_CONN_TAR) {
 				/* We are doing a turn-around waiting for a new connection attempt. */
-				if (!tick_is_expired(req->wex, now_ms))
+				if (!(req->flags & BF_WRITE_TIMEOUT))
 					return 0;
 				t->flags &= ~SN_CONN_TAR;
 			}
@@ -3649,9 +3664,8 @@ int process_srv(struct session *t)
 			goto update_state;
 		}
 		/* read timeout */
-		else if (tick_is_expired(rep->rex, now_ms)) {
+		else if (rep->flags & BF_READ_TIMEOUT) {
 			buffer_shutr(rep);
-			rep->flags |= BF_READ_TIMEOUT;
 			if (!(req->flags & BF_SHUTW)) {
 				EV_FD_CLR(t->srv_fd, DIR_RD);
 				trace_term(t, TT_HTTP_SRV_11);
@@ -3675,9 +3689,8 @@ int process_srv(struct session *t)
 			goto update_state;
 		}	
 		/* write timeout */
-		else if (tick_is_expired(req->wex, now_ms)) {
+		else if (req->flags & BF_WRITE_TIMEOUT) {
 			buffer_shutw(req);
-			req->flags |= BF_WRITE_TIMEOUT;
 			if (!(rep->flags & BF_SHUTR)) {
 				EV_FD_CLR(t->srv_fd, DIR_WR);
 				shutdown(t->srv_fd, SHUT_WR);
