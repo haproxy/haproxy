@@ -70,9 +70,10 @@
 
 /* CONFIG_HAP_USE_REGPARM
  * This enables the use of register parameters for some functions where
- * it may improve performance by a measurable factor.
+ * it may improve performance by a measurable factor. This MUST NOT be
+ * enabled on gcc < 3 because it is ignored for function pointers.
  */
-#ifdef CONFIG_HAP_USE_REGPARM
+#if CONFIG_HAP_USE_REGPARM && __GNUC__ >= 3
 #define REGPRM1 __attribute__((regparm(1)))
 #define REGPRM2 __attribute__((regparm(2)))
 #define REGPRM3 __attribute__((regparm(3)))
