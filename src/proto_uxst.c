@@ -497,7 +497,6 @@ int uxst_event_accept(int fd) {
 
 		s->req->rex = TICK_ETERNITY;
 		s->req->wex = TICK_ETERNITY;
-		s->req->cex = TICK_ETERNITY;
 		s->rep->rex = TICK_ETERNITY;
 		s->rep->wex = TICK_ETERNITY;
 
@@ -1460,7 +1459,6 @@ void process_uxst_stats(struct task *t, int *next)
 
 		t->expire = tick_first(tick_first(s->req->rex, s->req->wex),
 				       tick_first(s->rep->rex, s->rep->wex));
-		t->expire = tick_first(t->expire, s->req->cex);
 
 		/* restore t to its place in the task list */
 		task_queue(t);

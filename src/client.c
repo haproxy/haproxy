@@ -354,7 +354,6 @@ int event_accept(int fd) {
 
 		s->req->rex = TICK_ETERNITY;
 		s->req->wex = TICK_ETERNITY;
-		s->req->cex = TICK_ETERNITY;
 		s->rep->rex = TICK_ETERNITY;
 		s->rep->wex = TICK_ETERNITY;
 		s->txn.exp = TICK_ETERNITY;

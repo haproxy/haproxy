@@ -66,8 +66,7 @@ struct chunk {
 struct buffer {
 	unsigned int flags;             /* BF_* */
 	int rex;                        /* expiration date for a read, in ticks */
-	int wex;                        /* expiration date for a write, in ticks */
-	int cex;                        /* expiration date for a connect, in ticks */
+	int wex;                        /* expiration date for a write or connect, in ticks */
 	int rto;                        /* read timeout, in ticks */
 	int wto;                        /* write timeout, in ticks */
 	int cto;                        /* connect timeout, in ticks */

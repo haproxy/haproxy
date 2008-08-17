@@ -1826,7 +1826,7 @@ int connect_server(struct session *s)
 			s->be->lbprm.server_take_conn(s->srv);
 	}
 
-	s->req->cex = tick_add_ifset(now_ms, s->be->timeout.connect);
+	s->req->wex = tick_add_ifset(now_ms, s->be->timeout.connect);
 	return SN_ERR_NONE;  /* connection is OK */
 }
 
@@ -1844,7 +1844,7 @@ int srv_count_retry_down(struct session *t, int conn_err)
 
 	if (t->conn_retries < 0) {
 		/* if not retryable anymore, let's abort */
-		t->req->cex = TICK_ETERNITY;
+		t->req->wex = TICK_ETERNITY;
 		srv_close_with_err(t, conn_err, SN_FINST_C,
 				   503, error_message(t, HTTP_ERR_503));
 		if (t->srv)
@@ -1888,7 +1888,7 @@ int srv_retryable_connect(struct session *t)
 			return 1;
 	    
 		case SN_ERR_INTERNAL:
-			t->req->cex = TICK_ETERNITY;
+			t->req->wex = TICK_ETERNITY;
 			srv_close_with_err(t, SN_ERR_INTERNAL, SN_FINST_C,
 					   500, error_message(t, HTTP_ERR_500));
 			if (t->srv)
@@ -1959,7 +1959,7 @@ int srv_redispatch_connect(struct session *t)
 			goto redispatch;
 		}
 
-		t->req->cex = TICK_ETERNITY;
+		t->req->wex = TICK_ETERNITY;
 		srv_close_with_err(t, SN_ERR_SRVTO, SN_FINST_Q,
 				   503, error_message(t, HTTP_ERR_503));
 
@@ -1969,7 +1969,7 @@ int srv_redispatch_connect(struct session *t)
 
 	case SRV_STATUS_NOSRV:
 		/* note: it is guaranteed that t->srv == NULL here */
-		t->req->cex = TICK_ETERNITY;
+		t->req->wex = TICK_ETERNITY;
 		srv_close_with_err(t, SN_ERR_SRVTO, SN_FINST_C,
 				   503, error_message(t, HTTP_ERR_503));
 
@@ -1977,14 +1977,14 @@ int srv_redispatch_connect(struct session *t)
 		return 1;
 
 	case SRV_STATUS_QUEUED:
-		t->req->cex = tick_add_ifset(now_ms, t->be->timeout.queue);
+		t->req->wex = tick_add_ifset(now_ms, t->be->timeout.queue);
 		t->srv_state = SV_STIDLE;
 		/* do nothing else and do not wake any other session up */
 		return 1;
 
 	case SRV_STATUS_INTERNAL:
 	default:
-		t->req->cex = TICK_ETERNITY;
+		t->req->wex = TICK_ETERNITY;
 		srv_close_with_err(t, SN_ERR_INTERNAL, SN_FINST_C,
 				   500, error_message(t, HTTP_ERR_500));
 		if (t->srv)

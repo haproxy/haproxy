@@ -745,12 +745,11 @@ void process_session(struct task *t, int *next)
 		 */
 
 		if ((s->rep->flags & (BF_MAY_FORWARD|BF_SHUTR)) == 0 &&
-		    (tick_isset(s->req->cex) || tick_isset(s->req->wex) || tick_isset(s->rep->rex)))
+		    (tick_isset(s->req->wex) || tick_isset(s->rep->rex)))
 			s->req->rex = TICK_ETERNITY;
 
 		t->expire = tick_first(tick_first(s->req->rex, s->req->wex),
 				       tick_first(s->rep->rex, s->rep->wex));
-		t->expire = tick_first(t->expire, s->req->cex);
 		if (s->analysis & AN_REQ_ANY) {
 			if (s->analysis & AN_REQ_INSPECT)
 				t->expire = tick_first(t->expire, s->inspect_exp);
@@ -2472,9 +2471,9 @@ int process_request(struct session *t)
 			/* flush the request so that we can drop the connection early
 			 * if the client closes first.
 			 */
-			req->cex = tick_add_ifset(now_ms, t->be->timeout.tarpit);
-			if (!req->cex)
-				req->cex = now_ms;
+			req->wex = tick_add_ifset(now_ms, t->be->timeout.tarpit);
+			if (!req->wex)
+				req->wex = now_ms;
 		}
 
 		/* OK let's go on with the BODY now */
@@ -3276,7 +3275,7 @@ int process_srv(struct session *t)
 		if ((rep->flags & BF_SHUTW) ||
 			 ((req->flags & BF_SHUTR) &&
 			  (req->flags & BF_EMPTY || t->be->options & PR_O_ABRT_CLOSE))) { /* give up */
-			req->cex = TICK_ETERNITY;
+			req->wex = TICK_ETERNITY;
 			if (t->pend_pos)
 				t->logs.t_queue = tv_ms_elapsed(&t->logs.tv_accept, &now);
 			/* note that this must not return any error because it would be able to
@@ -3297,7 +3296,7 @@ int process_srv(struct session *t)
 				 * already set the connect expiration date to the right
 				 * timeout. We just have to check that it has not expired.
 				 */
-				if (!tick_is_expired(req->cex, now_ms))
+				if (!tick_is_expired(req->wex, now_ms))
 					return 0;
 
 				/* We will set the queue timer to the time spent, just for
@@ -3306,7 +3305,7 @@ int process_srv(struct session *t)
 				 * It will not cause trouble to the logs because we can exclude
 				 * the tarpitted connections by filtering on the 'PT' status flags.
 				 */
-				req->cex = TICK_ETERNITY;
+				req->wex = TICK_ETERNITY;
 				t->logs.t_queue = tv_ms_elapsed(&t->logs.tv_accept, &now);
 				srv_close_with_err(t, SN_ERR_PRXCOND, SN_FINST_T,
 						   500, error_message(t, HTTP_ERR_500));
@@ -3320,11 +3319,11 @@ int process_srv(struct session *t)
 			 * to any other session to release it and wake us up again.
 			 */
 			if (t->pend_pos) {
-				if (!tick_is_expired(req->cex, now_ms)) {
+				if (!tick_is_expired(req->wex, now_ms)) {
 					return 0;
 				} else {
 					/* we've been waiting too long here */
-					req->cex = TICK_ETERNITY;
+					req->wex = TICK_ETERNITY;
 					t->logs.t_queue = tv_ms_elapsed(&t->logs.tv_accept, &now);
 					srv_close_with_err(t, SN_ERR_SRVTO, SN_FINST_Q,
 							   503, error_message(t, HTTP_ERR_503));
@@ -3415,7 +3414,7 @@ int process_srv(struct session *t)
 		    ((req->flags & BF_SHUTR) &&
 		     ((req->flags & BF_EMPTY && !(req->flags & BF_WRITE_STATUS)) ||
 		      t->be->options & PR_O_ABRT_CLOSE))) { /* give up */
-			req->cex = TICK_ETERNITY;
+			req->wex = TICK_ETERNITY;
 			if (!(t->flags & SN_CONN_TAR)) {
 				/* if we are in turn-around, we have already closed the FD */
 				fd_delete(t->srv_fd);
@@ -3432,14 +3431,14 @@ int process_srv(struct session *t)
 			trace_term(t, TT_HTTP_SRV_5);
 			goto update_state;
 		}
-		if (!(req->flags & BF_WRITE_STATUS) && !tick_is_expired(req->cex, now_ms)) {
+		if (!(req->flags & BF_WRITE_STATUS) && !tick_is_expired(req->wex, now_ms)) {
 			return 0; /* nothing changed */
 		}
 		else if (!(req->flags & BF_WRITE_STATUS) || (req->flags & BF_WRITE_ERROR)) {
 			/* timeout, asynchronous connect error or first write error */
 			if (t->flags & SN_CONN_TAR) {
 				/* We are doing a turn-around waiting for a new connection attempt. */
-				if (!tick_is_expired(req->cex, now_ms))
+				if (!tick_is_expired(req->wex, now_ms))
 					return 0;
 				t->flags &= ~SN_CONN_TAR;
 			}
@@ -3468,7 +3467,7 @@ int process_srv(struct session *t)
 					 * time of 1 second. We will wait in the previous if block.
 					 */
 					t->flags |= SN_CONN_TAR;
-					req->cex = tick_add(now_ms, MS_TO_TICKS(1000));
+					req->wex = tick_add(now_ms, MS_TO_TICKS(1000));
 					return 0;
 				}
 			}
@@ -3565,7 +3564,7 @@ int process_srv(struct session *t)
 			t->srv_state = SV_STDATA;
 			if (!(t->analysis & AN_RTR_ANY))
 				t->rep->flags |= BF_MAY_FORWARD;
-			req->cex = TICK_ETERNITY;
+			req->wex = TICK_ETERNITY;
 			goto update_state;
 		} /* else no error or write 0 */
 	}
