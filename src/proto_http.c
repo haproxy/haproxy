@@ -2562,11 +2562,23 @@ int process_request(struct session *t)
 		 * buffer closed).
 		 */
 		if (req->l - body >= limit ||             /* enough bytes! */
-		    req->flags & (BF_FULL | BF_READ_ERROR | BF_READ_NULL | BF_READ_TIMEOUT)) {
+		    req->flags & (BF_FULL | BF_READ_ERROR | BF_READ_NULL | BF_READ_TIMEOUT) ||
+		    tick_is_expired(req->analyse_exp, now_ms)) {
 			/* The situation will not evolve, so let's give up on the analysis. */
 			t->logs.tv_request = now;  /* update the request timer to reflect full request */
 			req->analysers &= ~AN_REQ_HTTP_BODY;
 			req->analyse_exp = TICK_ETERNITY;
+		}
+		else {
+			/* Not enough data. We'll re-use the http-request
+			 * timeout here. Ideally, we should set the timeout
+			 * relative to the accept() date. We just set the
+			 * request timeout once at the beginning of the
+			 * request.
+			 */
+			if (!tick_isset(req->analyse_exp))
+				req->analyse_exp = tick_add_ifset(now_ms, t->fe->timeout.httpreq);
+			return 0;
 		}
 	}
 
