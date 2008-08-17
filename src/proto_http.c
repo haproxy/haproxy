@@ -3165,7 +3165,7 @@ int process_cli(struct session *t)
 			goto update_state;
 		}
 		/* read timeout */
-		else if (req->flags & BF_READ_TIMEOUT) {
+		else if ((req->flags & (BF_SHUTR|BF_READ_TIMEOUT)) == BF_READ_TIMEOUT) {
 			buffer_shutr(req);
 			if (!(rep->flags & BF_SHUTW)) {
 				EV_FD_CLR(t->cli_fd, DIR_RD);
@@ -3191,7 +3191,7 @@ int process_cli(struct session *t)
 			goto update_state;
 		}	
 		/* write timeout */
-		else if (rep->flags & BF_WRITE_TIMEOUT) {
+		else if ((rep->flags & (BF_SHUTW|BF_WRITE_TIMEOUT)) == BF_WRITE_TIMEOUT) {
 			buffer_shutw(rep);
 			if (!(req->flags & BF_SHUTR)) {
 				EV_FD_CLR(t->cli_fd, DIR_WR);
@@ -3702,7 +3702,7 @@ int process_srv(struct session *t)
 			goto update_state;
 		}
 		/* read timeout */
-		else if (rep->flags & BF_READ_TIMEOUT) {
+		else if ((rep->flags & (BF_SHUTR|BF_READ_TIMEOUT)) == BF_READ_TIMEOUT) {
 			buffer_shutr(rep);
 			if (!(req->flags & BF_SHUTW)) {
 				EV_FD_CLR(t->srv_fd, DIR_RD);
@@ -3729,7 +3729,7 @@ int process_srv(struct session *t)
 			goto update_state;
 		}	
 		/* write timeout */
-		else if (req->flags & BF_WRITE_TIMEOUT) {
+		else if ((req->flags & (BF_SHUTW|BF_WRITE_TIMEOUT)) == BF_WRITE_TIMEOUT) {
 			buffer_shutw(req);
 			if (!(rep->flags & BF_SHUTR)) {
 				EV_FD_CLR(t->srv_fd, DIR_WR);
