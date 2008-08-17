@@ -3104,6 +3104,14 @@ int process_cli(struct session *t)
 	 * still set this state (and will do until unix sockets are converted).
 	 */
 	if (t->cli_state == CL_STDATA || t->cli_state == CL_STSHUTR) {
+		/* we can skip most of the tests at once if some conditions are not met */
+		if (!((req->flags & (BF_READ_TIMEOUT|BF_READ_ERROR))   ||
+		      (rep->flags & (BF_WRITE_TIMEOUT|BF_WRITE_ERROR)) ||
+		      (!(req->flags & BF_SHUTR) && req->flags & (BF_READ_NULL|BF_SHUTW)) ||
+		      (!(rep->flags & BF_SHUTW) &&
+		       (rep->flags & (BF_EMPTY|BF_MAY_FORWARD|BF_SHUTR)) == (BF_EMPTY|BF_MAY_FORWARD|BF_SHUTR))))
+			goto update_timeouts;
+
 		/* read or write error */
 		if (rep->flags & BF_WRITE_ERROR || req->flags & BF_READ_ERROR) {
 			buffer_shutr(req);
@@ -3219,6 +3227,7 @@ int process_cli(struct session *t)
 			goto update_state;
 		}
 
+	update_timeouts:
 		/* manage read timeout */
 		if (!(req->flags & BF_SHUTR)) {
 			if (req->flags & BF_FULL) {
@@ -3610,6 +3619,14 @@ int process_srv(struct session *t)
 		} /* else no error or write 0 */
 	}
 	else if (t->srv_state == SV_STDATA) {
+		/* we can skip most of the tests at once if some conditions are not met */
+		if (!((req->flags & (BF_WRITE_TIMEOUT|BF_WRITE_ERROR)) ||
+		      (!(req->flags & BF_SHUTW) &&
+		       (req->flags & (BF_EMPTY|BF_MAY_FORWARD)) == (BF_EMPTY|BF_MAY_FORWARD)) ||
+		      (rep->flags & (BF_READ_TIMEOUT|BF_READ_ERROR)) ||
+		      (!(rep->flags & BF_SHUTR) && rep->flags & (BF_READ_NULL|BF_SHUTW))))
+			goto update_timeouts;
+
 		/* read or write error */
 		/* FIXME: what happens when we have to deal with HTTP ??? */
 		if (req->flags & BF_WRITE_ERROR || rep->flags & BF_READ_ERROR) {
@@ -3723,11 +3740,11 @@ int process_srv(struct session *t)
 			if (!(rep->flags & BF_SHUTR)) {
 				EV_FD_CLR(t->srv_fd, DIR_WR);
 				shutdown(t->srv_fd, SHUT_WR);
-				trace_term(t, TT_HTTP_SRV_13);
 				/* We must ensure that the read part is still alive when switching to shutw */
 				/* FIXME: is this still needed ? */
 				EV_FD_SET(t->srv_fd, DIR_RD);
 				rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
+				trace_term(t, TT_HTTP_SRV_13);
 			} else {
 				fd_delete(t->srv_fd);
 				if (t->srv) {
@@ -3749,6 +3766,7 @@ int process_srv(struct session *t)
 			goto update_state;
 		}
 
+	update_timeouts:
 		/* manage read timeout */
 		if (!(rep->flags & BF_SHUTR)) {
 			if (rep->flags & BF_FULL) {
