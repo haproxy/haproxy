@@ -333,7 +333,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 			     struct proxy *defpx, char *err, int errlen)
 {
 	const char *ptr = NULL;
-	int val;
+	unsigned int val;
 	int retlen;
 
 	if (!*args[1]) {
@@ -480,7 +480,7 @@ acl_fetch_req_ssl_ver(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!bleft)
 		goto too_short;
 
-	data = l4->req->w;
+	data = (const unsigned char *)l4->req->w;
 	if ((*data >= 0x14 && *data <= 0x17) || (*data == 0xFF)) {
 		/* SSLv3 header format */
 		if (bleft < 5)

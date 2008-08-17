@@ -132,7 +132,7 @@ struct proxy {
 	struct list redirect_rules;             /* content redirecting rules (chained) */
 	struct list switching_rules;            /* content switching rules (chained) */
 	struct {                                /* TCP request processing */
-		int inspect_delay;              /* inspection delay */
+		unsigned int inspect_delay;     /* inspection delay */
 		struct list inspect_rules;      /* inspection rules */
 	} tcp_req;
 	struct server *srv;			/* known servers */
