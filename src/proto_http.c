@@ -688,15 +688,15 @@ void process_session(struct task *t, int *next)
 	do {
 		if (resync & PROCESS_REQ) {
 			resync &= ~PROCESS_REQ;
-			if (s->req->analysers) {
-				rqf = s->req->flags;
-				rpf = s->rep->flags;
+			rqf = s->req->flags;
+			rpf = s->rep->flags;
 
+			/* the analysers must block it themselves */
+			s->req->flags |= BF_MAY_FORWARD;
+
+			if (s->req->analysers) {
 				if (process_request(s))
 					resync |= PROCESS_REQ;
-
-				if (!s->req->analysers && !(s->req->flags & BF_MAY_FORWARD))
-					s->req->flags |= BF_MAY_FORWARD;
 
 				if (rqf != s->req->flags || rpf != s->rep->flags)
 					resync |= PROCESS_ALL & ~PROCESS_REQ;
@@ -705,15 +705,15 @@ void process_session(struct task *t, int *next)
 
 		if (resync & PROCESS_RTR) {
 			resync &= ~PROCESS_RTR;
-			if (s->rep->analysers) {
-				rqf = s->req->flags;
-				rpf = s->rep->flags;
+			rqf = s->req->flags;
+			rpf = s->rep->flags;
 
+			/* the analysers must block it themselves */
+			s->rep->flags |= BF_MAY_FORWARD;
+
+			if (s->rep->analysers) {
 				if (process_response(s))
 					resync |= PROCESS_RTR;
-
-				if (!s->rep->analysers && !(s->rep->flags & BF_MAY_FORWARD))
-					s->rep->flags |= BF_MAY_FORWARD;
 
 				if (rqf != s->req->flags || rpf != s->rep->flags)
 					resync |= PROCESS_ALL & ~PROCESS_RTR;
@@ -1631,7 +1631,24 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
  * It normally returns zero, but may return 1 if it absolutely needs to be
  * called again after other functions. It relies on buffers flags, and updates
  * t->req->analysers. It might make sense to explode it into several other
- * functions.
+ * functions. Its behaviour is rather simple :
+ *  - all enabled analysers are called in turn from the lower to the higher
+ *    bit.
+ *  - if an analyser does not have enough data, it must return without calling
+ *    other ones. It should also probably reset the BF_MAY_FORWARD bit to ensure
+ *    that unprocessed data will not be forwarded. But that probably depends on
+ *    the protocol. Generally it is not reset in case of errors.
+ *  - if an analyser has enough data, it just has to pass on to the next
+ *    analyser without touching BF_MAY_FORWARD (it is enabled prior to
+ *    analysis).
+ *  - if an analyser thinks it has no added value anymore staying here, it must
+ *    reset its bit from the analysers flags in order not to be called anymore.
+ *
+ * In the future, analysers should be able to indicate that they want to be
+ * called after XXX bytes have been received (or transfered), and the min of
+ * all's wishes will be used to ring back (unless a special condition occurs).
+ *
+ *
  */
 int process_request(struct session *t)
 {
@@ -1645,7 +1662,7 @@ int process_request(struct session *t)
 		t->cli_fd >= 0 && fdtab[t->cli_fd].state != FD_STCLOSE ? EV_FD_ISSET(t->cli_fd, DIR_WR) : 0,
 		req->rex, rep->wex, req->flags, rep->flags, req->analysers);
 
- update_state:
+	/* The tcp-inspect analyser is always called alone */
 	if (req->analysers & AN_REQ_INSPECT) {
 		struct tcp_rule *rule;
 		int partial;
@@ -1697,6 +1714,7 @@ int process_request(struct session *t)
 			if (rule->cond) {
 				ret = acl_exec_cond(rule->cond, t->fe, t, NULL, ACL_DIR_REQ | partial);
 				if (ret == ACL_PAT_MISS) {
+					req->flags &= ~BF_MAY_FORWARD;
 					/* just set the request timeout once at the beginning of the request */
 					if (!tick_isset(req->analyse_exp))
 						req->analyse_exp = tick_add_ifset(now_ms, t->fe->tcp_req.inspect_delay);
@@ -1853,6 +1871,7 @@ int process_request(struct session *t)
 				return 0;
 			}
 
+			req->flags &= ~BF_MAY_FORWARD;
 			/* just set the request timeout once at the beginning of the request */
 			if (!tick_isset(req->analyse_exp))
 				req->analyse_exp = tick_add_ifset(now_ms, t->fe->timeout.httpreq);
@@ -2435,8 +2454,10 @@ int process_request(struct session *t)
 				struct hdr_ctx ctx;
 				ctx.idx = 0;
 				http_find_header2("Transfer-Encoding", 17, msg->sol, &txn->hdr_idx, &ctx);
-				if (ctx.idx && ctx.vlen >= 7 && strncasecmp(ctx.line+ctx.val, "chunked", 7) == 0)
+				if (ctx.idx && ctx.vlen >= 7 && strncasecmp(ctx.line+ctx.val, "chunked", 7) == 0) {
+					req->flags &= ~BF_MAY_FORWARD;
 					req->analysers |= AN_REQ_HTTP_BODY;
+				}
 				else {
 					ctx.idx = 0;
 					http_find_header2("Content-Length", 14, msg->sol, &txn->hdr_idx, &ctx);
@@ -2456,8 +2477,10 @@ int process_request(struct session *t)
 					if (t->be->url_param_post_limit < hint)
 						hint = t->be->url_param_post_limit;
 					/* now do we really need to buffer more data? */
-					if (len < hint)
+					if (len < hint) {
+						req->flags &= ~BF_MAY_FORWARD;
 						req->analysers |= AN_REQ_HTTP_BODY;
+					}
 					/* else... There are no body bytes to wait for */
 				}
 			}
@@ -2576,6 +2599,7 @@ int process_request(struct session *t)
 			 * request timeout once at the beginning of the
 			 * request.
 			 */
+			req->flags &= ~BF_MAY_FORWARD;
 			if (!tick_isset(req->analyse_exp))
 				req->analyse_exp = tick_add_ifset(now_ms, t->fe->timeout.httpreq);
 			return 0;
@@ -2593,10 +2617,6 @@ int process_request(struct session *t)
 	}
 #endif
 	req->analysers &= AN_REQ_INSPECT | AN_REQ_HTTP_HDR | AN_REQ_HTTP_BODY;
-
-	/* we want to leave with that clean */
-	if (unlikely(req->analysers != 0))
-		goto update_state;
 	return 0;
 }
 
@@ -2604,7 +2624,7 @@ int process_request(struct session *t)
  * It normally returns zero, but may return 1 if it absolutely needs to be
  * called again after other functions. It relies on buffers flags, and updates
  * t->rep->analysers. It might make sense to explode it into several other
- * functions.
+ * functions. It works like process_request (see indications above).
  */
 int process_response(struct session *t)
 {
@@ -2619,7 +2639,6 @@ int process_response(struct session *t)
 		t->srv_fd >= 0 && fdtab[t->srv_fd].state != FD_STCLOSE ? EV_FD_ISSET(t->srv_fd, DIR_WR) : 0,
 		req->rex, rep->wex, req->flags, rep->flags, rep->analysers);
 
- update_state:
 	if (rep->analysers & AN_RTR_HTTP_HDR) { /* receiving server headers */
 		/*
 		 * Now parse the partial (or complete) lines.
@@ -2759,6 +2778,8 @@ int process_response(struct session *t)
 					process_srv_queue(t->srv);
 				return 0;
 			}
+
+			rep->flags &= ~BF_MAY_FORWARD;
 			return 0;
 		}
 
@@ -3077,10 +3098,6 @@ int process_response(struct session *t)
 	}
 #endif
 	rep->analysers &= AN_RTR_HTTP_HDR;
-
-	/* we want to leave with that clean */
-	if (unlikely(rep->analysers != 0))
-		goto update_state;
 	return 0;
 }
 
@@ -3618,6 +3635,7 @@ int process_srv(struct session *t)
 			}
 
 			t->srv_state = SV_STDATA;
+			/* FIXME: this should be turned into t->rep->flags |= BF_PROD_READY */
 			if (!rep->analysers)
 				t->rep->flags |= BF_MAY_FORWARD;
 			req->wex = TICK_ETERNITY;
