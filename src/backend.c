@@ -1815,9 +1815,9 @@ int connect_server(struct session *s)
 	fdtab[fd].peeraddr = (struct sockaddr *)&s->srv_addr;
 	fdtab[fd].peerlen = sizeof(s->srv_addr);
 
-	EV_FD_SET(fd, DIR_WR);  /* for connect status */
-    
 	fd_insert(fd);
+	EV_FD_SET(fd, DIR_WR);  /* for connect status */
+
 	if (s->srv) {
 		s->srv->cur_sess++;
 		if (s->srv->cur_sess > s->srv->cur_sess_max)
