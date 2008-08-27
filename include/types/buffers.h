@@ -66,6 +66,12 @@
 #define BF_SHUTW_NOW       262144  /* the consumer must shut down for writes ASAP */
 #define BF_HIJACK          524288  /* the producer is temporarily replaced */
 
+/* masks which define input bits for stream interfaces and stream analysers */
+#define BF_MASK_INTERFACE_I     (BF_FULL|BF_HIJACK|BF_READ_NULL|BF_SHUTR|BF_SHUTR_NOW|BF_SHUTW)
+#define BF_MASK_INTERFACE_O     (BF_EMPTY|BF_HIJACK|BF_MAY_FORWARD|BF_SHUTR|BF_SHUTW|BF_SHUTW_NOW)
+#define BF_MASK_INTERFACE       (BF_MASK_INTF_I | BF_MASK_INTF_O)
+
+#define BF_MASK_ANALYSER        (BF_FULL|BF_READ_ERROR|BF_READ_TIMEOUT|BF_WRITE_ERROR|BF_SHUTW|BF_SHUTR|BF_READ_NULL)
 
 /* Analysers (buffer->analysers).
  * Those bits indicate that there are some processing to do on the buffer
