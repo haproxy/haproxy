@@ -3924,12 +3924,18 @@ int process_srv_data(struct session *t)
 		}
 		/* Read not closed, update FD status and timeout for reads */
 		else if (rep->flags & (BF_FULL|BF_HIJACK)) {
-			if (EV_FD_COND_C(fd, DIR_RD))
-				rep->rex = TICK_ETERNITY;
+			/* stop reading */
+			EV_FD_COND_C(fd, DIR_RD);
+			rep->rex = TICK_ETERNITY;
 		}
 		else {
+			/* (re)start reading and update timeout. Note: we don't recompute the timeout
+			 * everytime we get here, otherwise it would risk never to expire. We only
+			 * update it if is was not yet set, or if we already got some read status.
+			 */
 			EV_FD_COND_S(fd, DIR_RD);
-			rep->rex = tick_add_ifset(now_ms, rep->rto);
+			if (!tick_isset(rep->rex) || rep->flags & BF_READ_STATUS)
+				rep->rex = tick_add_ifset(now_ms, rep->rto);
 		}
 	}
 
@@ -3960,16 +3966,18 @@ int process_srv_data(struct session *t)
 		/* Write not closed, update FD status and timeout for writes */
 		else if ((req->flags & (BF_EMPTY|BF_MAY_FORWARD)) != BF_MAY_FORWARD) {
 			/* stop writing */
-			if (EV_FD_COND_C(fd, DIR_WR))
-				req->wex = TICK_ETERNITY;
+			EV_FD_COND_C(fd, DIR_WR);
+			req->wex = TICK_ETERNITY;
 		}
 		else {
-			/* buffer not empty, there are still data to be transferred */
+			/* (re)start writing and update timeout. Note: we don't recompute the timeout
+			 * everytime we get here, otherwise it would risk never to expire. We only
+			 * update it if is was not yet set, or if we already got some write status.
+			 */
 			EV_FD_COND_S(fd, DIR_WR);
-			if (!tick_isset(req->wex)) {
-				/* restart writing */
+			if (!tick_isset(req->wex) || req->flags & BF_WRITE_STATUS) {
 				req->wex = tick_add_ifset(now_ms, req->wto);
-				if (!(rep->flags & BF_SHUTR) && tick_isset(req->wex) && tick_isset(rep->rex)) {
+				if (tick_isset(req->wex) && !(rep->flags & BF_SHUTR) && tick_isset(rep->rex)) {
 					/* Note: depending on the protocol, we don't know if we're waiting
 					 * for incoming data or not. So in order to prevent the socket from
 					 * expiring read timeouts during writes, we refresh the read timeout,
