@@ -3247,10 +3247,6 @@ int process_cli(struct session *t)
 			if (!(req->flags & BF_SHUTR)) {
 				EV_FD_CLR(t->cli_fd, DIR_WR);
 				shutdown(t->cli_fd, SHUT_WR);
-				/* We must ensure that the read part is still alive when switching to shutw */
-				/* FIXME: is this still true ? */
-				EV_FD_SET(t->cli_fd, DIR_RD);
-				req->rex = tick_add_ifset(now_ms, t->fe->timeout.client);
 				trace_term(t, TT_HTTP_CLI_4);
 			} else {
 				fd_delete(t->cli_fd);
@@ -3291,10 +3287,6 @@ int process_cli(struct session *t)
 			if (!(req->flags & BF_SHUTR)) {
 				EV_FD_CLR(t->cli_fd, DIR_WR);
 				shutdown(t->cli_fd, SHUT_WR);
-				/* We must ensure that the read part is still alive when switching to shutw */
-				/* FIXME: is this still true ? */
-				EV_FD_SET(t->cli_fd, DIR_RD);
-				req->rex = tick_add_ifset(now_ms, t->fe->timeout.client);
 				trace_term(t, TT_HTTP_CLI_8);
 			} else {
 				fd_delete(t->cli_fd);
@@ -3949,10 +3941,6 @@ int process_srv_data(struct session *t)
 			trace_term(t, TT_HTTP_SRV_9);
 			EV_FD_CLR(fd, DIR_WR);
 			shutdown(fd, SHUT_WR);
-			/* We must ensure that the read part is still alive when switching to shutw */
-			/* FIXME: is this still true ? */
-			EV_FD_SET(fd, DIR_RD);
-			rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
 		} else {
 			trace_term(t, TT_HTTP_SRV_10);
 			fd_delete(fd);
@@ -4012,10 +4000,6 @@ int process_srv_data(struct session *t)
 			trace_term(t, TT_HTTP_SRV_13);
 			EV_FD_CLR(fd, DIR_WR);
 			shutdown(fd, SHUT_WR);
-			/* We must ensure that the read part is still alive when switching to shutw */
-			/* FIXME: is this still needed ? */
-			EV_FD_SET(fd, DIR_RD);
-			rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
 		} else {
 			trace_term(t, TT_HTTP_SRV_14);
 			fd_delete(fd);
