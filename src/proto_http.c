@@ -3900,83 +3900,70 @@ int process_srv_data(struct session *t)
 		return 0;
 	}
 
-	/* Last read, forced read-shutdown, or other end closed */
-	if (!(rep->flags & BF_SHUTR) &&
-	    rep->flags & (BF_READ_NULL|BF_SHUTR_NOW|BF_SHUTW)) {
-		trace_term(t, TT_HTTP_SRV_10);
-		buffer_shutr(rep);
-		if (req->flags & BF_SHUTW)
-			goto do_close_and_return;
-
-		EV_FD_CLR(fd, DIR_RD);
-	}
-
-	/* Forced write-shutdown or other end closed with empty buffer.
-	 * We have to forward the shutdown request if allowed to.
-	 */
-	if (!(req->flags & BF_SHUTW) && /* not already done */
-	    (req->flags & BF_SHUTW_NOW ||
-	     (req->flags & (BF_EMPTY|BF_MAY_FORWARD|BF_SHUTR)) == (BF_EMPTY|BF_MAY_FORWARD|BF_SHUTR))) {
-		trace_term(t, TT_HTTP_SRV_11);
-		buffer_shutw(req);
-		if (rep->flags & BF_SHUTR)
-			goto do_close_and_return;
-
-		EV_FD_CLR(fd, DIR_WR);
-		shutdown(fd, SHUT_WR);
-	}
-
-	/* Read timeout */
-	if (unlikely((rep->flags & (BF_SHUTR|BF_READ_TIMEOUT)) == 0 &&
-		     tick_is_expired(rep->rex, now_ms))) {
-		trace_term(t, TT_HTTP_SRV_12);
-		rep->flags |= BF_READ_TIMEOUT;
-		if (!req->cons->err_type) {
-			req->cons->err_loc = t->srv;
-			req->cons->err_type = SI_ET_DATA_TO;
-		}
-		buffer_shutr(rep);
-		if (req->flags & BF_SHUTW)
-			goto do_close_and_return;
-
-		EV_FD_CLR(fd, DIR_RD);
-	}
-
-	/* Write timeout */
-	if (unlikely((req->flags & (BF_SHUTW|BF_WRITE_TIMEOUT)) == 0 &&
-		     tick_is_expired(req->wex, now_ms))) {
-		trace_term(t, TT_HTTP_SRV_13);
-		req->flags |= BF_WRITE_TIMEOUT;
-		if (!req->cons->err_type) {
-			req->cons->err_loc = t->srv;
-			req->cons->err_type = SI_ET_DATA_TO;
-		}
-		buffer_shutw(req);
-		if (rep->flags & BF_SHUTR)
-			goto do_close_and_return;
-
-		EV_FD_CLR(fd, DIR_WR);
-		shutdown(fd, SHUT_WR);
-	}
-
-	/* Update FD status and timeout for reads */
+	/* Check if we need to close the read side */
 	if (!(rep->flags & BF_SHUTR)) {
-		if (rep->flags & (BF_FULL|BF_HIJACK)) {
+		/* Last read, forced read-shutdown, or other end closed */
+		if (rep->flags & (BF_READ_NULL|BF_SHUTR_NOW|BF_SHUTW)) {
+			trace_term(t, TT_HTTP_SRV_10);
+		do_close_read:
+			buffer_shutr(rep);
+			if (req->flags & BF_SHUTW)
+				goto do_close_and_return;
+
+			EV_FD_CLR(fd, DIR_RD);
+		}
+		/* Read timeout */
+		else if (unlikely(!(rep->flags & BF_READ_TIMEOUT) && tick_is_expired(rep->rex, now_ms))) {
+			trace_term(t, TT_HTTP_SRV_12);
+			rep->flags |= BF_READ_TIMEOUT;
+			if (!req->cons->err_type) {
+				req->cons->err_loc = t->srv;
+				req->cons->err_type = SI_ET_DATA_TO;
+			}
+			goto do_close_read;
+		}
+		/* Read not closed, update FD status and timeout for reads */
+		else if (rep->flags & (BF_FULL|BF_HIJACK)) {
 			if (EV_FD_COND_C(fd, DIR_RD))
 				rep->rex = TICK_ETERNITY;
-		} else {
+		}
+		else {
 			EV_FD_COND_S(fd, DIR_RD);
 			rep->rex = tick_add_ifset(now_ms, rep->rto);
 		}
 	}
 
-	/* Update FD status and timeout for writes */
+	/* Check if we need to close the write side */
 	if (!(req->flags & BF_SHUTW)) {
-		if ((req->flags & (BF_EMPTY|BF_MAY_FORWARD)) != BF_MAY_FORWARD) {
+		/* Forced write-shutdown or other end closed with empty buffer. */
+		if ((req->flags & BF_SHUTW_NOW) ||
+		    (req->flags & (BF_EMPTY|BF_MAY_FORWARD|BF_SHUTR)) == (BF_EMPTY|BF_MAY_FORWARD|BF_SHUTR)) {
+			trace_term(t, TT_HTTP_SRV_11);
+		do_close_write:
+			buffer_shutw(req);
+			if (rep->flags & BF_SHUTR)
+				goto do_close_and_return;
+
+			EV_FD_CLR(fd, DIR_WR);
+			shutdown(fd, SHUT_WR);
+		}
+		/* Write timeout */
+		else if (unlikely(!(req->flags & BF_WRITE_TIMEOUT) && tick_is_expired(req->wex, now_ms))) {
+			trace_term(t, TT_HTTP_SRV_13);
+			req->flags |= BF_WRITE_TIMEOUT;
+			if (!req->cons->err_type) {
+				req->cons->err_loc = t->srv;
+				req->cons->err_type = SI_ET_DATA_TO;
+			}
+			goto do_close_write;
+		}
+		/* Write not closed, update FD status and timeout for writes */
+		else if ((req->flags & (BF_EMPTY|BF_MAY_FORWARD)) != BF_MAY_FORWARD) {
 			/* stop writing */
 			if (EV_FD_COND_C(fd, DIR_WR))
 				req->wex = TICK_ETERNITY;
-		} else {
+		}
+		else {
 			/* buffer not empty, there are still data to be transferred */
 			EV_FD_COND_S(fd, DIR_WR);
 			if (!tick_isset(req->wex)) {
