@@ -26,6 +26,7 @@
 #include <common/ticks.h>
 #include <common/time.h>
 
+#include <proto/buffers.h>
 #include <proto/client.h>
 #include <proto/fd.h>
 #include <proto/stream_sock.h>
@@ -414,6 +415,134 @@ int stream_sock_write(int fd) {
 	goto out_wakeup;
 }
 
+
+/*
+ * Manages a stream_sock connection during its data phase. The file descriptor
+ * status is checked, and the read and write timeouts are controlled. The
+ * buffers are examined for special shutdown cases and finally the timeouts,
+ * file descriptor and buffers' flags are updated accordingly.
+ */
+int stream_sock_process_data(int fd)
+{
+	struct buffer *ib = fdtab[fd].cb[DIR_RD].b;
+	struct buffer *ob = fdtab[fd].cb[DIR_WR].b;
+
+	DPRINTF(stderr,"[%u] %s: fd=%d owner=%p ib=%p, ob=%p, exp(r,w)=%u,%u ibf=%08x obf=%08x ibl=%d obl=%d\n",
+		now_ms, __FUNCTION__,
+		fd, fdtab[fd].owner,
+		ib, ob,
+		ib->rex, ob->wex,
+		ib->flags, ob->flags,
+		ib->l, ob->l);
+
+	/* Read or write error on the file descriptor */
+	if (fdtab[fd].state == FD_STERROR) {
+		//trace_term(t, TT_HTTP_SRV_6);
+		if (!ob->cons->err_type) {
+			//ob->cons->err_loc = t->srv;
+			ob->cons->err_type = SI_ET_DATA_ERR;
+		}
+		buffer_shutw(ob);
+		ob->flags |= BF_WRITE_ERROR;
+		buffer_shutr(ib);
+		ib->flags |= BF_READ_ERROR;
+
+	do_close_and_return:
+		fd_delete(fd);
+		ob->cons->state = SI_ST_CLO;
+		return 0;
+	}
+
+	/* Check if we need to close the read side */
+	if (!(ib->flags & BF_SHUTR)) {
+		/* Last read, forced read-shutdown, or other end closed */
+		if (ib->flags & (BF_READ_NULL|BF_SHUTR_NOW|BF_SHUTW)) {
+			//trace_term(t, TT_HTTP_SRV_10);
+		do_close_read:
+			buffer_shutr(ib);
+			if (ob->flags & BF_SHUTW)
+				goto do_close_and_return;
+
+			EV_FD_CLR(fd, DIR_RD);
+		}
+		/* Read timeout */
+		else if (unlikely(!(ib->flags & BF_READ_TIMEOUT) && tick_is_expired(ib->rex, now_ms))) {
+			//trace_term(t, TT_HTTP_SRV_12);
+			ib->flags |= BF_READ_TIMEOUT;
+			if (!ob->cons->err_type) {
+				//ob->cons->err_loc = t->srv;
+				ob->cons->err_type = SI_ET_DATA_TO;
+			}
+			goto do_close_read;
+		}
+		/* Read not closed, update FD status and timeout for reads */
+		else if (ib->flags & (BF_FULL|BF_HIJACK)) {
+			/* stop reading */
+			EV_FD_COND_C(fd, DIR_RD);
+			ib->rex = TICK_ETERNITY;
+		}
+		else {
+			/* (re)start reading and update timeout. Note: we don't recompute the timeout
+			 * everytime we get here, otherwise it would risk never to expire. We only
+			 * update it if is was not yet set, or if we already got some read status.
+			 */
+			EV_FD_COND_S(fd, DIR_RD);
+			if (!tick_isset(ib->rex) || ib->flags & BF_READ_STATUS)
+				ib->rex = tick_add_ifset(now_ms, ib->rto);
+		}
+	}
+
+	/* Check if we need to close the write side */
+	if (!(ob->flags & BF_SHUTW)) {
+		/* Forced write-shutdown or other end closed with empty buffer. */
+		if ((ob->flags & BF_SHUTW_NOW) ||
+		    (ob->flags & (BF_EMPTY|BF_MAY_FORWARD|BF_SHUTR)) == (BF_EMPTY|BF_MAY_FORWARD|BF_SHUTR)) {
+			//trace_term(t, TT_HTTP_SRV_11);
+		do_close_write:
+			buffer_shutw(ob);
+			if (ib->flags & BF_SHUTR)
+				goto do_close_and_return;
+
+			EV_FD_CLR(fd, DIR_WR);
+			shutdown(fd, SHUT_WR);
+		}
+		/* Write timeout */
+		else if (unlikely(!(ob->flags & BF_WRITE_TIMEOUT) && tick_is_expired(ob->wex, now_ms))) {
+			//trace_term(t, TT_HTTP_SRV_13);
+			ob->flags |= BF_WRITE_TIMEOUT;
+			if (!ob->cons->err_type) {
+				//ob->cons->err_loc = t->srv;
+				ob->cons->err_type = SI_ET_DATA_TO;
+			}
+			goto do_close_write;
+		}
+		/* Write not closed, update FD status and timeout for writes */
+		else if ((ob->flags & (BF_EMPTY|BF_MAY_FORWARD)) != BF_MAY_FORWARD) {
+			/* stop writing */
+			EV_FD_COND_C(fd, DIR_WR);
+			ob->wex = TICK_ETERNITY;
+		}
+		else {
+			/* (re)start writing and update timeout. Note: we don't recompute the timeout
+			 * everytime we get here, otherwise it would risk never to expire. We only
+			 * update it if is was not yet set, or if we already got some write status.
+			 */
+			EV_FD_COND_S(fd, DIR_WR);
+			if (!tick_isset(ob->wex) || ob->flags & BF_WRITE_STATUS) {
+				ob->wex = tick_add_ifset(now_ms, ob->wto);
+				if (tick_isset(ob->wex) && !(ib->flags & BF_SHUTR) && tick_isset(ib->rex)) {
+					/* Note: depending on the protocol, we don't know if we're waiting
+					 * for incoming data or not. So in order to prevent the socket from
+					 * expiring read timeouts during writes, we refresh the read timeout,
+					 * except if it was already infinite.
+					 */
+					ib->rex = ob->wex;
+				}
+			}
+		}
+	}
+	return 0; /* other cases change nothing */
+}
 
 
 /*

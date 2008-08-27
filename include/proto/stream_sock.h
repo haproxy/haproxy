@@ -33,6 +33,7 @@
 /* main event functions used to move data between sockets and buffers */
 int stream_sock_read(int fd);
 int stream_sock_write(int fd);
+int stream_sock_process_data(int fd);
 
 
 /* This either returns the sockname or the original destination address. Code
