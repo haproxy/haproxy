@@ -746,8 +746,37 @@ void process_session(struct task *t, int *next)
 					process_srv_conn(s);
 
 				if (s->req->cons->state == SI_ST_EST) {
+					if ((s->req->flags & (BF_SHUTW|BF_EMPTY|BF_MAY_FORWARD)) == (BF_EMPTY|BF_MAY_FORWARD) &&
+					    s->be->options & PR_O_FORCE_CLO &&
+					    s->rep->flags & BF_READ_STATUS) {
+						/* We want to force the connection to the server to close,
+						 * and the server has begun to respond. That's the right
+						 * time.
+						 */
+						buffer_shutw_now(s->req);
+					}
+
 					if (process_srv_data(s))
 						resync |= PROCESS_SRV;
+
+					/* Count server-side errors (but not timeouts). */
+					if (s->req->flags & BF_WRITE_ERROR) {
+						s->be->failed_resp++;
+						if (s->srv)
+							s->srv->failed_resp++;
+					}
+
+					/* When a server-side connection is released, we have to
+					 * count it and check for pending connections on this server.
+					 */
+					if (s->req->cons->state == SI_ST_CLO) {
+						if (s->srv) {
+							s->srv->cur_sess--;
+							sess_change_server(s, NULL);
+							if (may_dequeue_tasks(s->srv, s->be))
+								process_srv_queue(s->srv);
+						}
+					}
 				}
 
 				if (unlikely((s->req->cons->state == SI_ST_CLO) &&
@@ -3872,7 +3901,6 @@ int process_srv_data(struct session *t)
 	//	goto update_timeouts;
 
 	/* read or write error */
-	/* FIXME: what happens when we have to deal with HTTP ??? */
 	if (fdtab[fd].state == FD_STERROR) {
 		trace_term(t, TT_HTTP_SRV_6);
 		buffer_shutw(req);
@@ -3881,23 +3909,10 @@ int process_srv_data(struct session *t)
 		rep->flags |= BF_READ_ERROR;
 		fd_delete(fd);
 		req->cons->state = SI_ST_CLO;
-		if (t->srv) {
-			t->srv->cur_sess--;
-			//t->srv->failed_resp++;
-			//FIXME: si on ne traite pas l'erreur ici, le serveur est perdu et on ne la comptabilisera plus ensuite.
-			//il va donc falloir stocker l'info du dernier serveur en erreur pour que les couches du dessus traitent.
-			sess_change_server(t, NULL);
+		if (!req->cons->err_type) {
+			req->cons->err_loc = t->srv;
+			req->cons->err_type = SI_ET_DATA_ERR;
 		}
-		//t->be->failed_resp++;
-		//if (!rep->analysers) {
-		//	if (!(t->flags & SN_ERR_MASK))
-		//		t->flags |= SN_ERR_SRVCL;
-		//	if (!(t->flags & SN_FINST_MASK))
-		//		t->flags |= SN_FINST_D;
-		//}
-		if (may_dequeue_tasks(t->srv, t->be))
-			process_srv_queue(t->srv);
-
 		return 0;
 	}
 
@@ -3905,22 +3920,15 @@ int process_srv_data(struct session *t)
 	if (!(rep->flags & BF_SHUTR) &&   /* not already done */
 	    rep->flags & (BF_READ_NULL|BF_SHUTR_NOW|BF_SHUTW)) {
 		buffer_shutr(rep);
-		if (!(req->flags & BF_SHUTW)) {
-			EV_FD_CLR(fd, DIR_RD);
-			trace_term(t, TT_HTTP_SRV_7);
-		} else {
+		if (req->flags & BF_SHUTW) {
 			/* output was already closed */
 			trace_term(t, TT_HTTP_SRV_8);
 			fd_delete(fd);
 			req->cons->state = SI_ST_CLO;
-			if (t->srv) {
-				t->srv->cur_sess--;
-				sess_change_server(t, NULL);
-			}
-
-			if (may_dequeue_tasks(t->srv, t->be))
-				process_srv_queue(t->srv);
 			return 0;
+		} else {
+			EV_FD_CLR(fd, DIR_RD);
+			trace_term(t, TT_HTTP_SRV_7);
 		}
 	}
 	/* end of client read and no more data to send. We can forward
@@ -3930,29 +3938,20 @@ int process_srv_data(struct session *t)
 	 * coming from the server.
 	 */
 
-	// FIXME: option FORCE_CLOSE should move to upper layer.
 	if (!(req->flags & BF_SHUTW) && /* not already done */
 	    (req->flags & BF_SHUTW_NOW ||
-	     (req->flags & BF_EMPTY && req->flags & BF_MAY_FORWARD &&
-	      (req->flags & BF_SHUTR ||
-	       (t->be->options & PR_O_FORCE_CLO && rep->flags & BF_READ_STATUS))))) {
+	     (req->flags & (BF_EMPTY|BF_MAY_FORWARD|BF_SHUTR)) == (BF_EMPTY|BF_MAY_FORWARD|BF_SHUTR))) {
 		buffer_shutw(req);
-		if (!(rep->flags & BF_SHUTR)) {
-			trace_term(t, TT_HTTP_SRV_9);
-			EV_FD_CLR(fd, DIR_WR);
-			shutdown(fd, SHUT_WR);
-		} else {
+		if (rep->flags & BF_SHUTR) {
+			/* input was already closed */
 			trace_term(t, TT_HTTP_SRV_10);
 			fd_delete(fd);
 			req->cons->state = SI_ST_CLO;
-			if (t->srv) {
-				t->srv->cur_sess--;
-				sess_change_server(t, NULL);
-			}
-
-			if (may_dequeue_tasks(t->srv, t->be))
-				process_srv_queue(t->srv);
 			return 0;
+		} else {
+			trace_term(t, TT_HTTP_SRV_9);
+			EV_FD_CLR(fd, DIR_WR);
+			shutdown(fd, SHUT_WR);
 		}
 	}
 
@@ -3960,28 +3959,20 @@ int process_srv_data(struct session *t)
 	if ((rep->flags & (BF_SHUTR|BF_READ_TIMEOUT)) == 0 &&
 	    tick_is_expired(rep->rex, now_ms)) {
 		rep->flags |= BF_READ_TIMEOUT;
-		//if (!rep->analysers) {
-		//	if (!(t->flags & SN_ERR_MASK))
-		//		t->flags |= SN_ERR_SRVTO;
-		//	if (!(t->flags & SN_FINST_MASK))
-		//		t->flags |= SN_FINST_D;
-		//}
+		if (!req->cons->err_type) {
+			req->cons->err_loc = t->srv;
+			req->cons->err_type = SI_ET_DATA_TO;
+		}
+
 		buffer_shutr(rep);
-		if (!(req->flags & BF_SHUTW)) {
-			trace_term(t, TT_HTTP_SRV_11);
-			EV_FD_CLR(fd, DIR_RD);
-		} else {
+		if (req->flags & BF_SHUTW) {
 			trace_term(t, TT_HTTP_SRV_12);
 			fd_delete(fd);
 			req->cons->state = SI_ST_CLO;
-			if (t->srv) {
-				t->srv->cur_sess--;
-				sess_change_server(t, NULL);
-			}
-
-			if (may_dequeue_tasks(t->srv, t->be))
-				process_srv_queue(t->srv);
 			return 0;
+		} else {
+			trace_term(t, TT_HTTP_SRV_11);
+			EV_FD_CLR(fd, DIR_RD);
 		}
 	}
 
@@ -3989,29 +3980,21 @@ int process_srv_data(struct session *t)
 	if ((req->flags & (BF_SHUTW|BF_WRITE_TIMEOUT)) == 0 &&
 	    tick_is_expired(req->wex, now_ms)) {
 		req->flags |= BF_WRITE_TIMEOUT;
-		//if (!rep->analysers) {
-		//	if (!(t->flags & SN_ERR_MASK))
-		//		t->flags |= SN_ERR_SRVTO;
-		//	if (!(t->flags & SN_FINST_MASK))
-		//		t->flags |= SN_FINST_D;
-		//}
+		if (!req->cons->err_type) {
+			req->cons->err_loc = t->srv;
+			req->cons->err_type = SI_ET_DATA_TO;
+		}
+
 		buffer_shutw(req);
-		if (!(rep->flags & BF_SHUTR)) {
-			trace_term(t, TT_HTTP_SRV_13);
-			EV_FD_CLR(fd, DIR_WR);
-			shutdown(fd, SHUT_WR);
-		} else {
+		if (rep->flags & BF_SHUTR) {
 			trace_term(t, TT_HTTP_SRV_14);
 			fd_delete(fd);
 			req->cons->state = SI_ST_CLO;
-			if (t->srv) {
-				t->srv->cur_sess--;
-				sess_change_server(t, NULL);
-			}
-
-			if (may_dequeue_tasks(t->srv, t->be))
-				process_srv_queue(t->srv);
 			return 0;
+		} else {
+			trace_term(t, TT_HTTP_SRV_13);
+			EV_FD_CLR(fd, DIR_WR);
+			shutdown(fd, SHUT_WR);
 		}
 	}
 
