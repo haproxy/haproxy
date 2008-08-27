@@ -3863,7 +3863,6 @@ int process_srv_conn(struct session *t)
 	return 0;
 }
 
-
 /*
  * Manages the server FSM and its socket during the DATA phase. It must not be
  * called when a file descriptor is not attached to the buffer. It must only be
@@ -3883,134 +3882,95 @@ int process_srv_data(struct session *t)
 		req->flags, rep->flags,
 		req->l, rep->l);
 
-	if (req->flags & (BF_WRITE_ERROR | BF_WRITE_TIMEOUT) ||
-	    rep->flags & (BF_READ_ERROR | BF_READ_TIMEOUT)) {
-		/* nothing more to be done here */
-		fprintf(stderr, "Hey what are you doing there? t=%p fd=%d state=%d\n",
-			t, t->req->cons->fd, t->req->cons->state);
-		return 0;
-	}
-
-	/* we can skip most of the tests at once if some conditions are not met */
-	/* FIXME: place req->BF_SHUTW_NOW here */
-	//if (!((fdtab[fd].state == FD_STERROR) ||
-	//      (!(req->flags & BF_SHUTW) &&
-	//       (req->flags & (BF_EMPTY|BF_MAY_FORWARD)) == (BF_EMPTY|BF_MAY_FORWARD)) ||
-	//      (rep->flags & (BF_READ_TIMEOUT|BF_READ_ERROR)) ||
-	//      (!(rep->flags & BF_SHUTR) && rep->flags & (BF_READ_NULL|BF_SHUTR_NOW|BF_SHUTW))))
-	//	goto update_timeouts;
-
-	/* read or write error */
+	/* Read or write error on the file descriptor */
 	if (fdtab[fd].state == FD_STERROR) {
 		trace_term(t, TT_HTTP_SRV_6);
-		buffer_shutw(req);
-		req->flags |= BF_WRITE_ERROR;
-		buffer_shutr(rep);
-		rep->flags |= BF_READ_ERROR;
-		fd_delete(fd);
-		req->cons->state = SI_ST_CLO;
 		if (!req->cons->err_type) {
 			req->cons->err_loc = t->srv;
 			req->cons->err_type = SI_ET_DATA_ERR;
 		}
+		buffer_shutw(req);
+		req->flags |= BF_WRITE_ERROR;
+		buffer_shutr(rep);
+		rep->flags |= BF_READ_ERROR;
+
+	do_close_and_return:
+		fd_delete(fd);
+		req->cons->state = SI_ST_CLO;
 		return 0;
 	}
 
-	/* last read, or end of client write */
-	if (!(rep->flags & BF_SHUTR) &&   /* not already done */
+	/* Last read, forced read-shutdown, or other end closed */
+	if (!(rep->flags & BF_SHUTR) &&
 	    rep->flags & (BF_READ_NULL|BF_SHUTR_NOW|BF_SHUTW)) {
+		trace_term(t, TT_HTTP_SRV_10);
 		buffer_shutr(rep);
-		if (req->flags & BF_SHUTW) {
-			/* output was already closed */
-			trace_term(t, TT_HTTP_SRV_8);
-			fd_delete(fd);
-			req->cons->state = SI_ST_CLO;
-			return 0;
-		} else {
-			EV_FD_CLR(fd, DIR_RD);
-			trace_term(t, TT_HTTP_SRV_7);
-		}
-	}
-	/* end of client read and no more data to send. We can forward
-	 * the close when we're allowed to forward data (anytime right
-	 * now). If we're using option forceclose, then we may also
-	 * shutdown the outgoing write channel once the response starts
-	 * coming from the server.
-	 */
+		if (req->flags & BF_SHUTW)
+			goto do_close_and_return;
 
+		EV_FD_CLR(fd, DIR_RD);
+	}
+
+	/* Forced write-shutdown or other end closed with empty buffer.
+	 * We have to forward the shutdown request if allowed to.
+	 */
 	if (!(req->flags & BF_SHUTW) && /* not already done */
 	    (req->flags & BF_SHUTW_NOW ||
 	     (req->flags & (BF_EMPTY|BF_MAY_FORWARD|BF_SHUTR)) == (BF_EMPTY|BF_MAY_FORWARD|BF_SHUTR))) {
+		trace_term(t, TT_HTTP_SRV_11);
 		buffer_shutw(req);
-		if (rep->flags & BF_SHUTR) {
-			/* input was already closed */
-			trace_term(t, TT_HTTP_SRV_10);
-			fd_delete(fd);
-			req->cons->state = SI_ST_CLO;
-			return 0;
-		} else {
-			trace_term(t, TT_HTTP_SRV_9);
-			EV_FD_CLR(fd, DIR_WR);
-			shutdown(fd, SHUT_WR);
-		}
+		if (rep->flags & BF_SHUTR)
+			goto do_close_and_return;
+
+		EV_FD_CLR(fd, DIR_WR);
+		shutdown(fd, SHUT_WR);
 	}
 
-	/* read timeout */
-	if ((rep->flags & (BF_SHUTR|BF_READ_TIMEOUT)) == 0 &&
-	    tick_is_expired(rep->rex, now_ms)) {
+	/* Read timeout */
+	if (unlikely((rep->flags & (BF_SHUTR|BF_READ_TIMEOUT)) == 0 &&
+		     tick_is_expired(rep->rex, now_ms))) {
+		trace_term(t, TT_HTTP_SRV_12);
 		rep->flags |= BF_READ_TIMEOUT;
 		if (!req->cons->err_type) {
 			req->cons->err_loc = t->srv;
 			req->cons->err_type = SI_ET_DATA_TO;
 		}
-
 		buffer_shutr(rep);
-		if (req->flags & BF_SHUTW) {
-			trace_term(t, TT_HTTP_SRV_12);
-			fd_delete(fd);
-			req->cons->state = SI_ST_CLO;
-			return 0;
-		} else {
-			trace_term(t, TT_HTTP_SRV_11);
-			EV_FD_CLR(fd, DIR_RD);
-		}
+		if (req->flags & BF_SHUTW)
+			goto do_close_and_return;
+
+		EV_FD_CLR(fd, DIR_RD);
 	}
 
-	/* write timeout */
-	if ((req->flags & (BF_SHUTW|BF_WRITE_TIMEOUT)) == 0 &&
-	    tick_is_expired(req->wex, now_ms)) {
+	/* Write timeout */
+	if (unlikely((req->flags & (BF_SHUTW|BF_WRITE_TIMEOUT)) == 0 &&
+		     tick_is_expired(req->wex, now_ms))) {
+		trace_term(t, TT_HTTP_SRV_13);
 		req->flags |= BF_WRITE_TIMEOUT;
 		if (!req->cons->err_type) {
 			req->cons->err_loc = t->srv;
 			req->cons->err_type = SI_ET_DATA_TO;
 		}
-
 		buffer_shutw(req);
-		if (rep->flags & BF_SHUTR) {
-			trace_term(t, TT_HTTP_SRV_14);
-			fd_delete(fd);
-			req->cons->state = SI_ST_CLO;
-			return 0;
-		} else {
-			trace_term(t, TT_HTTP_SRV_13);
-			EV_FD_CLR(fd, DIR_WR);
-			shutdown(fd, SHUT_WR);
-		}
+		if (rep->flags & BF_SHUTR)
+			goto do_close_and_return;
+
+		EV_FD_CLR(fd, DIR_WR);
+		shutdown(fd, SHUT_WR);
 	}
 
- update_timeouts:
-	/* manage read timeout */
+	/* Update FD status and timeout for reads */
 	if (!(rep->flags & BF_SHUTR)) {
 		if (rep->flags & (BF_FULL|BF_HIJACK)) {
 			if (EV_FD_COND_C(fd, DIR_RD))
 				rep->rex = TICK_ETERNITY;
 		} else {
 			EV_FD_COND_S(fd, DIR_RD);
-			rep->rex = tick_add_ifset(now_ms, t->be->timeout.server);
+			rep->rex = tick_add_ifset(now_ms, rep->rto);
 		}
 	}
 
-	/* manage write timeout */
+	/* Update FD status and timeout for writes */
 	if (!(req->flags & BF_SHUTW)) {
 		if ((req->flags & (BF_EMPTY|BF_MAY_FORWARD)) != BF_MAY_FORWARD) {
 			/* stop writing */
@@ -4021,10 +3981,12 @@ int process_srv_data(struct session *t)
 			EV_FD_COND_S(fd, DIR_WR);
 			if (!tick_isset(req->wex)) {
 				/* restart writing */
-				req->wex = tick_add_ifset(now_ms, t->be->timeout.server);
+				req->wex = tick_add_ifset(now_ms, req->wto);
 				if (!(rep->flags & BF_SHUTR) && tick_isset(req->wex) && tick_isset(rep->rex)) {
-					/* FIXME: to prevent the server from expiring read timeouts during writes,
-					 * we refresh it, except if it was already infinite.
+					/* Note: depending on the protocol, we don't know if we're waiting
+					 * for incoming data or not. So in order to prevent the socket from
+					 * expiring read timeouts during writes, we refresh the read timeout,
+					 * except if it was already infinite.
 					 */
 					rep->rex = req->wex;
 				}
