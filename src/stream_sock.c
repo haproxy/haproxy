@@ -180,22 +180,34 @@ int stream_sock_read(int fd) {
 						//fputc('!', stderr);
 					}
 				}
+				/* unfortunately, on level-triggered events, POLL_HUP
+				 * is generally delivered AFTER the system buffer is
+				 * empty, so this one might never match.
+				 */
 				if (fdtab[fd].ev & FD_POLL_HUP)
 					goto out_shutdown_r;
-				break;
+
+				/* if a streamer has read few data, it may be because we
+				 * have exhausted system buffers. It's not worth trying
+				 * again.
+				 */
+				if (b->flags & BF_STREAMER)
+					break;
 			}
 
 			/* generally if we read something smaller than 1 or 2 MSS,
-			 * it means that it's not worth trying to read again. It may
-			 * also happen on headers, but the application then can stop
-			 * reading before we start polling.
+			 * it means that either we have exhausted the system's
+			 * buffers (streamer or question-response protocol) or that
+			 * the connection will be closed. Streamers are easily
+			 * detected so we return early. For other cases, it's still
+			 * better to perform a last read to be sure, because it may
+			 * save one complete poll/read/wakeup cycle in case of shutdown.
 			 */
-			if (ret < MIN_RET_FOR_READ_LOOP)
+			if (ret < MIN_RET_FOR_READ_LOOP && b->flags & BF_STREAMER)
 				break;
 
 			if (--read_poll <= 0)
 				break;
-
 		}
 		else if (ret == 0) {
 			/* connection closed */
