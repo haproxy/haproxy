@@ -417,12 +417,11 @@ int stream_sock_write(int fd) {
 
 
 /*
- * Manages a stream_sock connection during its data phase. The file descriptor
- * status is checked, and the read and write timeouts are controlled. The
- * buffers are examined for special shutdown cases and finally the timeouts,
- * file descriptor and buffers' flags are updated accordingly.
+ * This function only has to be called once after a wakeup event during a data
+ * phase. It controls the file descriptor's status, as well as read and write
+ * timeouts.
  */
-int stream_sock_process_data(int fd)
+int stream_sock_data_check_errors(int fd)
 {
 	struct buffer *ib = fdtab[fd].cb[DIR_RD].b;
 	struct buffer *ob = fdtab[fd].cb[DIR_WR].b;
@@ -436,7 +435,7 @@ int stream_sock_process_data(int fd)
 		ib->l, ob->l);
 
 	/* Read or write error on the file descriptor */
-	if (fdtab[fd].state == FD_STERROR) {
+	if (unlikely(fdtab[fd].state == FD_STERROR)) {
 		//trace_term(t, TT_HTTP_SRV_6);
 		if (!ob->cons->err_type) {
 			//ob->cons->err_loc = t->srv;
@@ -453,30 +452,114 @@ int stream_sock_process_data(int fd)
 		return 0;
 	}
 
+	/* Read timeout */
+	if (unlikely(!(ib->flags & (BF_SHUTR|BF_READ_TIMEOUT)) && tick_is_expired(ib->rex, now_ms))) {
+		//trace_term(t, TT_HTTP_SRV_12);
+		ib->flags |= BF_READ_TIMEOUT;
+		if (!ob->cons->err_type) {
+			//ob->cons->err_loc = t->srv;
+			ob->cons->err_type = SI_ET_DATA_TO;
+		}
+		buffer_shutr(ib);
+		if (ob->flags & BF_SHUTW)
+			goto do_close_and_return;
+		EV_FD_CLR(fd, DIR_RD);
+	}
+
+	/* Write timeout */
+	if (unlikely(!(ob->flags & (BF_SHUTW|BF_WRITE_TIMEOUT)) && tick_is_expired(ob->wex, now_ms))) {
+		//trace_term(t, TT_HTTP_SRV_13);
+		ob->flags |= BF_WRITE_TIMEOUT;
+		if (!ob->cons->err_type) {
+			//ob->cons->err_loc = t->srv;
+			ob->cons->err_type = SI_ET_DATA_TO;
+		}
+		buffer_shutw(ob);
+		if (ib->flags & BF_SHUTR)
+			goto do_close_and_return;
+
+		EV_FD_CLR(fd, DIR_WR);
+		shutdown(fd, SHUT_WR);
+	}
+	return 0;
+}
+
+/*
+ * Manages a stream_sock connection during its data phase. The buffers are
+ * examined for various cases of shutdown, then file descriptor and buffers'
+ * flags are updated accordingly.
+ */
+int stream_sock_data_update(int fd)
+{
+	struct buffer *ib = fdtab[fd].cb[DIR_RD].b;
+	struct buffer *ob = fdtab[fd].cb[DIR_WR].b;
+
+	DPRINTF(stderr,"[%u] %s: fd=%d owner=%p ib=%p, ob=%p, exp(r,w)=%u,%u ibf=%08x obf=%08x ibl=%d obl=%d\n",
+		now_ms, __FUNCTION__,
+		fd, fdtab[fd].owner,
+		ib, ob,
+		ib->rex, ob->wex,
+		ib->flags, ob->flags,
+		ib->l, ob->l);
+
 	/* Check if we need to close the read side */
 	if (!(ib->flags & BF_SHUTR)) {
 		/* Last read, forced read-shutdown, or other end closed */
 		if (ib->flags & (BF_READ_NULL|BF_SHUTR_NOW|BF_SHUTW)) {
 			//trace_term(t, TT_HTTP_SRV_10);
-		do_close_read:
 			buffer_shutr(ib);
-			if (ob->flags & BF_SHUTW)
-				goto do_close_and_return;
-
+			if (ob->flags & BF_SHUTW) {
+				fd_delete(fd);
+				ob->cons->state = SI_ST_CLO;
+				return 0;
+			}
 			EV_FD_CLR(fd, DIR_RD);
 		}
-		/* Read timeout */
-		else if (unlikely(!(ib->flags & BF_READ_TIMEOUT) && tick_is_expired(ib->rex, now_ms))) {
-			//trace_term(t, TT_HTTP_SRV_12);
-			ib->flags |= BF_READ_TIMEOUT;
-			if (!ob->cons->err_type) {
-				//ob->cons->err_loc = t->srv;
-				ob->cons->err_type = SI_ET_DATA_TO;
+	}
+
+	/* Check if we need to close the write side */
+	if (!(ob->flags & BF_SHUTW)) {
+		/* Forced write-shutdown or other end closed with empty buffer. */
+		if ((ob->flags & BF_SHUTW_NOW) ||
+		    (ob->flags & (BF_EMPTY|BF_HIJACK|BF_MAY_FORWARD|BF_SHUTR)) == (BF_EMPTY|BF_MAY_FORWARD|BF_SHUTR)) {
+			//trace_term(t, TT_HTTP_SRV_11);
+			buffer_shutw(ob);
+			if (ib->flags & BF_SHUTR) {
+				fd_delete(fd);
+				ob->cons->state = SI_ST_CLO;
+				return 0;
 			}
-			goto do_close_read;
+			EV_FD_CLR(fd, DIR_WR);
+			shutdown(fd, SHUT_WR);
 		}
+	}
+	return 0; /* other cases change nothing */
+}
+
+
+/*
+ * Updates a connected stream_sock file descriptor status and timeouts
+ * according to the buffers' flags. It should only be called once after the
+ * buffer flags have settled down, and before they are cleared. It doesn't
+ * harm to call it as often as desired (it just slightly hurts performance).
+ */
+int stream_sock_data_finish(int fd)
+{
+	struct buffer *ib = fdtab[fd].cb[DIR_RD].b;
+	struct buffer *ob = fdtab[fd].cb[DIR_WR].b;
+
+	DPRINTF(stderr,"[%u] %s: fd=%d owner=%p ib=%p, ob=%p, exp(r,w)=%u,%u ibf=%08x obf=%08x ibl=%d obl=%d\n",
+		now_ms, __FUNCTION__,
+		fd, fdtab[fd].owner,
+		ib, ob,
+		ib->rex, ob->wex,
+		ib->flags, ob->flags,
+		ib->l, ob->l);
+
+	/* Check if we need to close the read side */
+	if (!(ib->flags & BF_SHUTR)) {
 		/* Read not closed, update FD status and timeout for reads */
-		else if (ib->flags & (BF_FULL|BF_HIJACK)) {
+		if (ib->flags & (BF_FULL|BF_HIJACK)) {
 			/* stop reading */
 			EV_FD_COND_C(fd, DIR_RD);
 			ib->rex = TICK_ETERNITY;
@@ -494,30 +577,9 @@ int stream_sock_process_data(int fd)
 
 	/* Check if we need to close the write side */
 	if (!(ob->flags & BF_SHUTW)) {
-		/* Forced write-shutdown or other end closed with empty buffer. */
-		if ((ob->flags & BF_SHUTW_NOW) ||
-		    (ob->flags & (BF_EMPTY|BF_MAY_FORWARD|BF_SHUTR)) == (BF_EMPTY|BF_MAY_FORWARD|BF_SHUTR)) {
-			//trace_term(t, TT_HTTP_SRV_11);
-		do_close_write:
-			buffer_shutw(ob);
-			if (ib->flags & BF_SHUTR)
-				goto do_close_and_return;
-
-			EV_FD_CLR(fd, DIR_WR);
-			shutdown(fd, SHUT_WR);
-		}
-		/* Write timeout */
-		else if (unlikely(!(ob->flags & BF_WRITE_TIMEOUT) && tick_is_expired(ob->wex, now_ms))) {
-			//trace_term(t, TT_HTTP_SRV_13);
-			ob->flags |= BF_WRITE_TIMEOUT;
-			if (!ob->cons->err_type) {
-				//ob->cons->err_loc = t->srv;
-				ob->cons->err_type = SI_ET_DATA_TO;
-			}
-			goto do_close_write;
-		}
 		/* Write not closed, update FD status and timeout for writes */
-		else if ((ob->flags & (BF_EMPTY|BF_MAY_FORWARD)) != BF_MAY_FORWARD) {
+		if ((ob->flags & BF_EMPTY) ||
+		    (ob->flags & (BF_HIJACK|BF_MAY_FORWARD)) == 0) {
 			/* stop writing */
 			EV_FD_COND_C(fd, DIR_WR);
 			ob->wex = TICK_ETERNITY;
@@ -541,7 +603,7 @@ int stream_sock_process_data(int fd)
 			}
 		}
 	}
-	return 0; /* other cases change nothing */
+	return 0;
 }
 
 
