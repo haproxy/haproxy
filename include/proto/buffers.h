@@ -108,6 +108,18 @@ static inline void buffer_abort(struct buffer *buf)
 	buf->flags |= BF_SHUTR_NOW | BF_SHUTW_NOW;
 }
 
+/* set the buffer to hijacking mode */
+static inline void buffer_start_hijack(struct buffer *buf)
+{
+	buf->flags |= BF_HIJACK;
+}
+
+/* releases the buffer from hijacking mode */
+static inline void buffer_stop_hijack(struct buffer *buf)
+{
+	buf->flags &= ~BF_HIJACK;
+}
+
 /* returns the maximum number of bytes writable at once in this buffer */
 static inline int buffer_max(const struct buffer *buf)
 {

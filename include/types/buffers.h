@@ -72,6 +72,7 @@
 #define BF_MASK_INTERFACE       (BF_MASK_INTF_I | BF_MASK_INTF_O)
 
 #define BF_MASK_ANALYSER        (BF_FULL|BF_READ_NULL|BF_READ_ERROR|BF_READ_TIMEOUT|BF_SHUTR|BF_WRITE_ERROR)
+#define BF_MASK_INJECTER        (BF_FULL|BF_WRITE_STATUS|BF_WRITE_TIMEOUT|BF_SHUTW)
 
 /* Analysers (buffer->analysers).
  * Those bits indicate that there are some processing to do on the buffer

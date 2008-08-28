@@ -290,7 +290,7 @@ int stats_dump_raw(struct session *s, struct uri_auth *uri)
 /*
  * Produces statistics data for the session <s>. Expects to be called with
  * client socket shut down on input. It stops by itself by unsetting the
- * SN_SELF_GEN flag from the session, which it uses to keep on being called
+ * BF_HIJACK flag from the buffer, which it uses to keep on being called
  * when there is free space in the buffer, of simply by letting an empty buffer
  * upon return.s->data_ctx must have been zeroed before the first call, and the
  * flags set. It returns 0 if it had to stop writing data and an I/O is needed,
@@ -310,7 +310,7 @@ int stats_dump_http(struct session *s, struct uri_auth *uri)
 	switch (s->data_state) {
 	case DATA_ST_INIT:
 		/* the function had not been called yet */
-		s->flags |= SN_SELF_GEN;  // more data will follow
+		buffer_start_hijack(rep);
 
 		chunk_printf(&msg, sizeof(trash),
 			     "HTTP/1.0 200 OK\r\n"
@@ -337,7 +337,7 @@ int stats_dump_http(struct session *s, struct uri_auth *uri)
 		if (s->txn.meth == HTTP_METH_HEAD) {
 			/* that's all we return in case of HEAD request */
 			s->data_state = DATA_ST_FIN;
-			s->flags &= ~SN_SELF_GEN;
+			buffer_stop_hijack(rep);
 			return 1;
 		}
 
@@ -570,12 +570,12 @@ int stats_dump_http(struct session *s, struct uri_auth *uri)
 		/* fall through */
 
 	case DATA_ST_FIN:
-		s->flags &= ~SN_SELF_GEN;
+		buffer_stop_hijack(rep);
 		return 1;
 
 	default:
 		/* unknown state ! */
-		s->flags &= ~SN_SELF_GEN;
+		buffer_stop_hijack(rep);
 		return -1;
 	}
 }

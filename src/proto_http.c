@@ -772,15 +772,25 @@ void process_session(struct task *t, int *next)
 			rqf_req = s->req->flags;
 		}
 
-		if ((rpf_rep ^ s->rep->flags) & BF_MASK_ANALYSER) {
-			/* the analysers must block it themselves */
-			if (s->rep->prod->state >= SI_ST_EST) {
+		if (unlikely(s->rep->flags & BF_HIJACK)) {
+			/* In inject mode, we wake up everytime something has
+			 * happened on the write side of the buffer.
+			 */
+			if ((s->rep->flags & (BF_PARTIAL_WRITE|BF_WRITE_ERROR|BF_SHUTW)) &&
+			    !(s->rep->flags & BF_FULL)) {
+				if (produce_content(s) != 0)
+					resync = 1; /* completed, better re-check flags */
+			}
+		}
+		else if (s->rep->prod->state >= SI_ST_EST) {
+			if ((rpf_rep ^ s->rep->flags) & BF_MASK_ANALYSER) {
+				/* the analysers must block it themselves */
 				resync = 1;
 				s->rep->flags |= BF_MAY_FORWARD;
 				if (s->rep->analysers)
 					process_response(s);
+				rpf_rep = s->rep->flags;
 			}
-			rpf_rep = s->rep->flags;
 		}
 
 	} while (resync);
@@ -3895,15 +3905,15 @@ int process_srv_conn(struct session *t)
 /*
  * Produces data for the session <s> depending on its source. Expects to be
  * called with client socket shut down on input. Right now, only statistics can
- * be produced. It stops by itself by unsetting the SN_SELF_GEN flag from the
- * session, which it uses to keep on being called when there is free space in
+ * be produced. It stops by itself by unsetting the BF_HIJACK flag from the
+ * buffer, which it uses to keep on being called when there is free space in
  * the buffer, or simply by letting an empty buffer upon return. It returns 1
  * when it wants to stop sending data, otherwise 0.
  */
 int produce_content(struct session *s)
 {
 	if (s->data_source == DATA_SRC_NONE) {
-		s->flags &= ~SN_SELF_GEN;
+		buffer_stop_hijack(s->rep);
 		return 1;
 	}
 	else if (s->data_source == DATA_SRC_STATS) {
@@ -3922,7 +3932,7 @@ int produce_content(struct session *s)
 		s->flags |= SN_ERR_PRXCOND;
 	if (!(s->flags & SN_FINST_MASK))
 		s->flags |= SN_FINST_R;
-	s->flags &= ~SN_SELF_GEN;
+	buffer_stop_hijack(s->rep);
 	return 1;
 }
 
@@ -5297,10 +5307,9 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 	/* The request is valid, the user is authenticated. Let's start sending
 	 * data.
 	 */
-	EV_FD_CLR(t->req->prod->fd, DIR_RD);
-	buffer_shutr(t->req);
-	buffer_shutr(t->rep);
-	buffer_set_rlim(t->req, BUFSIZE); /* no more rewrite needed */
+	buffer_shutw_now(t->req);
+	buffer_shutr_now(t->rep);
+	buffer_start_hijack(t->rep);
 	t->logs.tv_request = now;
 	t->data_source = DATA_SRC_STATS;
 	t->data_state  = DATA_ST_INIT;

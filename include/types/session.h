@@ -47,7 +47,7 @@
 #define SN_BE_ASSIGNED	0x00000008	/* a backend was assigned. Conns are accounted. */
 #define SN_CONN_CLOSED	0x00000010	/* "Connection: close" was present or added */
 #define SN_MONITOR	0x00000020	/* this session comes from a monitoring system */
-#define SN_SELF_GEN	0x00000040	/* the proxy generates data for the client (eg: stats) */
+/* unused:              0x00000040 */
 #define SN_FRT_ADDR_SET	0x00000080	/* set if the frontend address has been filled */
 #define SN_REDISP	0x00000100	/* set if this session was redispatched from one server to another */
 #define SN_CONN_TAR	0x00000200	/* set if this session is turning around before reconnecting */
