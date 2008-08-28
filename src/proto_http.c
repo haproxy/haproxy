@@ -762,23 +762,23 @@ void process_session(struct task *t, int *next)
 		}
 
 		if ((rqf_req ^ s->req->flags) & BF_MASK_ANALYSER) {
-			resync = 1;
 			/* the analysers must block it themselves */
-			s->req->flags |= BF_MAY_FORWARD;
-			if (s->req->analysers) {
-				process_request(s);
+			if (s->req->prod->state >= SI_ST_EST) {
+				resync = 1;
+				s->req->flags |= BF_MAY_FORWARD;
+				if (s->req->analysers)
+					process_request(s);
 			}
 			rqf_req = s->req->flags;
 		}
 
 		if ((rpf_rep ^ s->rep->flags) & BF_MASK_ANALYSER) {
-			resync = 1;
 			/* the analysers must block it themselves */
-			if (s->req->cons->state >= SI_ST_EST)
+			if (s->rep->prod->state >= SI_ST_EST) {
+				resync = 1;
 				s->rep->flags |= BF_MAY_FORWARD;
-
-			if (s->rep->analysers) {
-				process_response(s);
+				if (s->rep->analysers)
+					process_response(s);
 			}
 			rpf_rep = s->rep->flags;
 		}
