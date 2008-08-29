@@ -109,7 +109,7 @@ REGPRM2 struct eb32_node *eb32i_insert(struct eb_root *root, struct eb32_node *n
  */
 
 /* Delete node from the tree if it was linked in. Mark the node unused. */
-static inline void __eb32_delete(struct eb32_node *eb32)
+static forceinline void __eb32_delete(struct eb32_node *eb32)
 {
 	__eb_delete(&eb32->node);
 }
@@ -118,7 +118,7 @@ static inline void __eb32_delete(struct eb32_node *eb32)
  * Find the first occurence of a key in the tree <root>. If none can be
  * found, return NULL.
  */
-static inline struct eb32_node *__eb32_lookup(struct eb_root *root, u32 x)
+static forceinline struct eb32_node *__eb32_lookup(struct eb_root *root, u32 x)
 {
 	struct eb32_node *node;
 	eb_troot_t *troot;
@@ -162,7 +162,7 @@ static inline struct eb32_node *__eb32_lookup(struct eb_root *root, u32 x)
  * Find the first occurence of a signed key in the tree <root>. If none can
  * be found, return NULL.
  */
-static inline struct eb32_node *__eb32i_lookup(struct eb_root *root, s32 x)
+static forceinline struct eb32_node *__eb32i_lookup(struct eb_root *root, s32 x)
 {
 	struct eb32_node *node;
 	eb_troot_t *troot;
@@ -207,7 +207,7 @@ static inline struct eb32_node *__eb32i_lookup(struct eb_root *root, s32 x)
  * Only new->key needs be set with the key. The eb32_node is returned.
  * If root->b[EB_RGHT]==1, the tree may only contain unique keys.
  */
-static inline struct eb32_node *
+static forceinline struct eb32_node *
 __eb32_insert(struct eb_root *root, struct eb32_node *new) {
 	struct eb32_node *old;
 	unsigned int side;
@@ -371,7 +371,7 @@ __eb32_insert(struct eb_root *root, struct eb32_node *new) {
  * signed keys. Only new->key needs be set with the key. The eb32_node
  * is returned. If root->b[EB_RGHT]==1, the tree may only contain unique keys.
  */
-static inline struct eb32_node *
+static forceinline struct eb32_node *
 __eb32i_insert(struct eb_root *root, struct eb32_node *new) {
 	struct eb32_node *old;
 	unsigned int side;

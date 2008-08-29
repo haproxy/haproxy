@@ -110,7 +110,7 @@ REGPRM2 struct ebpt_node *ebpt_insert(struct eb_root *root, struct ebpt_node *ne
  */
 
 /* Delete node from the tree if it was linked in. Mark the node unused. */
-static inline void __ebpt_delete(struct ebpt_node *ebpt)
+static forceinline void __ebpt_delete(struct ebpt_node *ebpt)
 {
 	__eb_delete(&ebpt->node);
 }
@@ -119,7 +119,7 @@ static inline void __ebpt_delete(struct ebpt_node *ebpt)
  * Find the first occurence of a key in the tree <root>. If none can be
  * found, return NULL.
  */
-static inline struct ebpt_node *__ebpt_lookup(struct eb_root *root, void *x)
+static forceinline struct ebpt_node *__ebpt_lookup(struct eb_root *root, void *x)
 {
 	struct ebpt_node *node;
 	eb_troot_t *troot;
@@ -163,7 +163,7 @@ static inline struct ebpt_node *__ebpt_lookup(struct eb_root *root, void *x)
  * Only new->key needs be set with the key. The ebpt_node is returned.
  * If root->b[EB_RGHT]==1, the tree may only contain unique keys.
  */
-static inline struct ebpt_node *
+static forceinline struct ebpt_node *
 __ebpt_insert(struct eb_root *root, struct ebpt_node *new) {
 	struct ebpt_node *old;
 	unsigned int side;

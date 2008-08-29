@@ -109,7 +109,7 @@ REGPRM2 struct eb64_node *eb64i_insert(struct eb_root *root, struct eb64_node *n
  */
 
 /* Delete node from the tree if it was linked in. Mark the node unused. */
-static inline void __eb64_delete(struct eb64_node *eb64)
+static forceinline void __eb64_delete(struct eb64_node *eb64)
 {
 	__eb_delete(&eb64->node);
 }
@@ -118,7 +118,7 @@ static inline void __eb64_delete(struct eb64_node *eb64)
  * Find the first occurence of a key in the tree <root>. If none can be
  * found, return NULL.
  */
-static inline struct eb64_node *__eb64_lookup(struct eb_root *root, u64 x)
+static forceinline struct eb64_node *__eb64_lookup(struct eb_root *root, u64 x)
 {
 	struct eb64_node *node;
 	eb_troot_t *troot;
@@ -162,7 +162,7 @@ static inline struct eb64_node *__eb64_lookup(struct eb_root *root, u64 x)
  * Find the first occurence of a signed key in the tree <root>. If none can
  * be found, return NULL.
  */
-static inline struct eb64_node *__eb64i_lookup(struct eb_root *root, s64 x)
+static forceinline struct eb64_node *__eb64i_lookup(struct eb_root *root, s64 x)
 {
 	struct eb64_node *node;
 	eb_troot_t *troot;
@@ -207,7 +207,7 @@ static inline struct eb64_node *__eb64i_lookup(struct eb_root *root, s64 x)
  * Only new->key needs be set with the key. The eb64_node is returned.
  * If root->b[EB_RGHT]==1, the tree may only contain unique keys.
  */
-static inline struct eb64_node *
+static forceinline struct eb64_node *
 __eb64_insert(struct eb_root *root, struct eb64_node *new) {
 	struct eb64_node *old;
 	unsigned int side;
@@ -381,7 +381,7 @@ __eb64_insert(struct eb_root *root, struct eb64_node *new) {
  * signed keys. Only new->key needs be set with the key. The eb64_node
  * is returned. If root->b[EB_RGHT]==1, the tree may only contain unique keys.
  */
-static inline struct eb64_node *
+static forceinline struct eb64_node *
 __eb64i_insert(struct eb_root *root, struct eb64_node *new) {
 	struct eb64_node *old;
 	unsigned int side;
