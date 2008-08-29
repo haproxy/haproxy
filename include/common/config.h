@@ -83,4 +83,15 @@
 #define REGPRM3
 #endif
 
+/* By default, gcc does not inline large chunks of code, but we want it to
+ * respect our choices.
+ */
+#if !defined(forceinline)
+#if __GNUC__ < 3
+#define forceinline inline
+#else
+#define forceinline inline __attribute__((always_inline))
+#endif
+#endif
+
 #endif /* _COMMON_CONFIG_H */
