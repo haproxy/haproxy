@@ -604,7 +604,7 @@ int stream_sock_data_finish(int fd)
 			EV_FD_COND_S(fd, DIR_WR);
 			if (!tick_isset(ob->wex) || ob->flags & BF_WRITE_ACTIVITY) {
 				ob->wex = tick_add_ifset(now_ms, ob->wto);
-				if (tick_isset(ob->wex) && !(ib->flags & BF_SHUTR) && tick_isset(ib->rex)) {
+				if (tick_isset(ob->wex) && tick_isset(ib->rex)) {
 					/* Note: depending on the protocol, we don't know if we're waiting
 					 * for incoming data or not. So in order to prevent the socket from
 					 * expiring read timeouts during writes, we refresh the read timeout,
