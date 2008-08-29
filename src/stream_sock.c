@@ -239,7 +239,7 @@ int stream_sock_read(int fd) {
 	if (!(b->flags & BF_READ_ACTIVITY))
 		goto out_skip_wakeup;
  out_wakeup:
-	task_wakeup(fdtab[fd].owner);
+	task_wakeup(fdtab[fd].owner, TASK_WOKEN_IO);
 
  out_skip_wakeup:
 	fdtab[fd].ev &= ~FD_POLL_IN;
@@ -411,7 +411,7 @@ int stream_sock_write(int fd) {
 	if (!(b->flags & BF_WRITE_ACTIVITY))
 		goto out_skip_wakeup;
  out_wakeup:
-	task_wakeup(fdtab[fd].owner);
+	task_wakeup(fdtab[fd].owner, TASK_WOKEN_IO);
 
  out_skip_wakeup:
 	fdtab[fd].ev &= ~FD_POLL_OUT;

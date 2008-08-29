@@ -520,7 +520,7 @@ int uxst_event_accept(int fd) {
 			t->expire = s->req->rex;
 		}
 
-		task_wakeup(t);
+		task_wakeup(t, TASK_WOKEN_INIT);
 
 		l->nbconn++; /* warning! right now, it's up to the handler to decrease this */
 		if (l->nbconn >= l->maxconn) {

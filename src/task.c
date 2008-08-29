@@ -149,7 +149,8 @@ struct task *__task_wakeup(struct task *t)
 		t->eb.key += offset;
 	}
 
-	t->state  = TASK_RUNNING;
+	/* clear state flags at the same time */
+	t->state = TASK_IN_RUNQUEUE;
 
 	eb32_insert(&rqueue[ticks_to_tree(t->eb.key)], &t->eb);
 	return t;
@@ -229,6 +230,7 @@ void wake_expired_tasks(int *next)
 			/* detach the task from the queue and add the task to the run queue */
 			eb = eb32_next(eb);
 			__task_wakeup(task);
+			task->state |= TASK_WOKEN_TIMER;
 		}
 		tree = (tree + 1) & TIMER_TREE_MASK;
 	} while (((tree - now_tree) & TIMER_TREE_MASK) < TIMER_TREES/2);
@@ -286,7 +288,7 @@ void process_runnable_tasks(int *next)
 			run_queue--;
 			if (likely(t->nice))
 				niced_tasks--;
-			t->state = TASK_IDLE;
+			t->state &= ~TASK_IN_RUNQUEUE;
 			task_dequeue(t);
 
 			t->process(t, &temp);

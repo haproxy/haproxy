@@ -40,13 +40,14 @@ extern struct task *last_timer;   /* optimization: last queued timer */
 /* perform minimal initializations, report 0 in case of error, 1 if OK. */
 int init_task();
 
-/* puts the task <t> in run queue <q>, and returns <t> */
+/* puts the task <t> in run queue with reason flags <f>, and returns <t> */
 struct task *__task_wakeup(struct task *t);
-static inline struct task *task_wakeup(struct task *t)
+static inline struct task *task_wakeup(struct task *t, unsigned int f)
 {
-	if (t->state == TASK_RUNNING)
-		return t;
-	return __task_wakeup(t);
+	if (likely(!(t->state & TASK_IN_RUNQUEUE)))
+		__task_wakeup(t);
+	t->state |= f;
+	return t;
 }
 
 /* removes the task <t> from the run queue if it was in it.
@@ -54,8 +55,8 @@ static inline struct task *task_wakeup(struct task *t)
  */
 static inline struct task *task_sleep(struct task *t)
 {
-	if (t->state == TASK_RUNNING) {
-		t->state = TASK_IDLE;
+	if (t->state & TASK_IN_RUNQUEUE) {
+		t->state = TASK_SLEEPING;
 		eb32_delete(&t->eb);
 		run_queue--;
 		if (likely(t->nice))
@@ -87,7 +88,7 @@ static inline struct task *task_dequeue(struct task *t)
 static inline struct task *task_delete(struct task *t)
 {
 	task_dequeue(t);
-	if (t->state == TASK_RUNNING) {
+	if (t->state & TASK_IN_RUNQUEUE) {
 		run_queue--;
 		if (likely(t->nice))
 			niced_tasks--;
@@ -102,7 +103,7 @@ static inline struct task *task_delete(struct task *t)
 static inline struct task *task_init(struct task *t)
 {
 	t->eb.node.leaf_p = NULL;
-	t->state = TASK_IDLE;
+	t->state = TASK_SLEEPING;
 	t->nice = 0;
 	return t;
 }

@@ -409,7 +409,7 @@ int event_accept(int fd) {
 		 * priorities to tasks.
 		 */
 		if (p->mode != PR_MODE_HEALTH)
-			task_wakeup(t);
+			task_wakeup(t, TASK_WOKEN_INIT);
 
 		p->feconn++;  /* beconn will be increased later */
 		if (p->feconn > p->feconn_max)

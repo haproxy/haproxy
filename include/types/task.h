@@ -29,13 +29,25 @@
 #include <common/mini-clist.h>
 
 /* values for task->state */
-#define TASK_IDLE	0
-#define TASK_RUNNING	1
+#define TASK_SLEEPING     0x00  /* task sleeping */
+#define TASK_IN_RUNQUEUE  0x01  /* the task is in the run queue */
+#define TASK_WOKEN_INIT   0x02  /* woken up for initialisation purposes */
+#define TASK_WOKEN_TIMER  0x04  /* woken up because of expired timer */
+#define TASK_WOKEN_IO     0x08  /* woken up because of completed I/O */
+#define TASK_WOKEN_SIGNAL 0x10  /* woken up by a system signal */
+#define TASK_WOKEN_MSG    0x20  /* woken up by another task's message */
+#define TASK_WOKEN_RES    0x40  /* woken up because of available resource */
+#define TASK_WOKEN_OTHER  0x80  /* woken up for an unspecified reason */
+
+/* use this to check a task state or to clean it up before queueing */
+#define TASK_WOKEN_ANY    (TASK_WOKEN_OTHER|TASK_WOKEN_INIT|TASK_WOKEN_TIMER| \
+                           TASK_WOKEN_IO|TASK_WOKEN_SIGNAL|TASK_WOKEN_MSG| \
+                           TASK_WOKEN_RES)
 
 /* The base for all tasks */
 struct task {
 	struct eb32_node eb;		/* ebtree node used to hold the task in the wait queue */
-	int state;			/* task state : IDLE or RUNNING */
+	int state;			/* task state : bit field of TASK_* */
 	unsigned int expire;		/* next expiration time for this task */
 	void (*process)(struct task *t, int *next);  /* the function which processes the task */
 	void *context;			/* the task's context */

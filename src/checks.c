@@ -73,7 +73,7 @@ static int redistribute_pending(struct server *s)
 			sess->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
 
 			pendconn_free(pc);
-			task_wakeup(sess->task);
+			task_wakeup(sess->task, TASK_WOKEN_RES);
 			xferred++;
 		}
 	}
@@ -102,7 +102,7 @@ static int check_for_pending(struct server *s)
 		p->sess->srv = s;
 		sess = p->sess;
 		pendconn_free(p);
-		task_wakeup(sess->task);
+		task_wakeup(sess->task, TASK_WOKEN_RES);
 	}
 	return xferred;
 }
@@ -404,7 +404,7 @@ static int event_srv_chk_w(int fd)
 		}
 	}
  out_wakeup:
-	task_wakeup(t);
+	task_wakeup(t, TASK_WOKEN_IO);
  out_nowake:
 	EV_FD_CLR(fd, DIR_WR);   /* nothing more to write */
 	fdtab[fd].ev &= ~FD_POLL_OUT;
@@ -512,7 +512,7 @@ static int event_srv_chk_r(int fd)
 		fdtab[fd].state = FD_STERROR;
 
 	EV_FD_CLR(fd, DIR_RD);
-	task_wakeup(t);
+	task_wakeup(t, TASK_WOKEN_IO);
 	fdtab[fd].ev &= ~FD_POLL_IN;
 	return 1;
 }

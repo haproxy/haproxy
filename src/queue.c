@@ -77,7 +77,7 @@ void process_srv_queue(struct server *s)
 		struct session *sess = pendconn_get_next_sess(s, p);
 		if (sess == NULL)
 			break;
-		task_wakeup(sess->task);
+		task_wakeup(sess->task, TASK_WOKEN_RES);
 	}
 }
 
