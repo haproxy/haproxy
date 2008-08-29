@@ -544,7 +544,7 @@ int http_find_header(const char *name,
 void srv_close_with_err(struct session *t, int err, int finst,
 			int status, const struct chunk *msg)
 {
-	t->rep->flags |= BF_MAY_FORWARD;
+	buffer_write_ena(t->rep);
 	buffer_shutw(t->req);
 	buffer_shutr(t->rep);
 	if (status > 0 && msg) {
@@ -719,13 +719,13 @@ void process_session(struct task *t, int *next)
 			    ((rqf_srv ^ s->req->flags) & BF_MASK_INTERFACE_O)) {
 				resync = 1;
 
-				if (s->req->cons->state < SI_ST_EST && s->req->flags & BF_MAY_FORWARD)
+				if (s->req->cons->state < SI_ST_EST && s->req->flags & BF_WRITE_ENA)
 					process_srv_conn(s);
 
 				if (s->req->cons->state == SI_ST_EST) {
-					if ((s->req->flags & (BF_SHUTW|BF_EMPTY|BF_MAY_FORWARD)) == (BF_EMPTY|BF_MAY_FORWARD) &&
+					if ((s->req->flags & (BF_SHUTW|BF_EMPTY|BF_WRITE_ENA)) == (BF_EMPTY|BF_WRITE_ENA) &&
 					    s->be->options & PR_O_FORCE_CLO &&
-					    s->rep->flags & BF_READ_STATUS) {
+					    s->rep->flags & BF_READ_ACTIVITY) {
 						/* We want to force the connection to the server to close,
 						 * and the server has begun to respond. That's the right
 						 * time.
@@ -765,7 +765,7 @@ void process_session(struct task *t, int *next)
 			/* the analysers must block it themselves */
 			if (s->req->prod->state >= SI_ST_EST) {
 				resync = 1;
-				s->req->flags |= BF_MAY_FORWARD;
+				buffer_write_ena(s->req);
 				if (s->req->analysers)
 					process_request(s);
 			}
@@ -776,7 +776,7 @@ void process_session(struct task *t, int *next)
 			/* In inject mode, we wake up everytime something has
 			 * happened on the write side of the buffer.
 			 */
-			if ((s->rep->flags & (BF_PARTIAL_WRITE|BF_WRITE_ERROR|BF_SHUTW)) &&
+			if ((s->rep->flags & (BF_WRITE_PARTIAL|BF_WRITE_ERROR|BF_SHUTW)) &&
 			    !(s->rep->flags & BF_FULL)) {
 				if (produce_content(s) != 0)
 					resync = 1; /* completed, better re-check flags */
@@ -786,7 +786,7 @@ void process_session(struct task *t, int *next)
 			if ((rpf_rep ^ s->rep->flags) & BF_MASK_ANALYSER) {
 				/* the analysers must block it themselves */
 				resync = 1;
-				s->rep->flags |= BF_MAY_FORWARD;
+				buffer_write_ena(s->rep);
 				if (s->rep->analysers)
 					process_response(s);
 				rpf_rep = s->rep->flags;
@@ -818,7 +818,7 @@ void process_session(struct task *t, int *next)
 		 * request timeout is set and the server has not yet sent a response.
 		 */
 
-		if ((s->rep->flags & (BF_MAY_FORWARD|BF_SHUTR)) == 0 &&
+		if ((s->rep->flags & (BF_WRITE_ENA|BF_SHUTR)) == 0 &&
 		    (tick_isset(s->req->wex) || tick_isset(s->rep->rex)))
 			s->req->rex = TICK_ETERNITY;
 
@@ -1692,11 +1692,11 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
  *  - all enabled analysers are called in turn from the lower to the higher
  *    bit.
  *  - if an analyser does not have enough data, it must return without calling
- *    other ones. It should also probably reset the BF_MAY_FORWARD bit to ensure
+ *    other ones. It should also probably reset the BF_WRITE_ENA bit to ensure
  *    that unprocessed data will not be forwarded. But that probably depends on
  *    the protocol. Generally it is not reset in case of errors.
  *  - if an analyser has enough data, it just has to pass on to the next
- *    analyser without touching BF_MAY_FORWARD (it is enabled prior to
+ *    analyser without touching BF_WRITE_ENA (it is enabled prior to
  *    analysis).
  *  - if an analyser thinks it has no added value anymore staying here, it must
  *    reset its bit from the analysers flags in order not to be called anymore.
@@ -1773,7 +1773,7 @@ int process_request(struct session *t)
 			if (rule->cond) {
 				ret = acl_exec_cond(rule->cond, t->fe, t, NULL, ACL_DIR_REQ | partial);
 				if (ret == ACL_PAT_MISS) {
-					req->flags &= ~BF_MAY_FORWARD;
+					buffer_write_dis(req);
 					/* just set the request timeout once at the beginning of the request */
 					if (!tick_isset(req->analyse_exp))
 						req->analyse_exp = tick_add_ifset(now_ms, t->fe->tcp_req.inspect_delay);
@@ -1931,7 +1931,7 @@ int process_request(struct session *t)
 				return 0;
 			}
 
-			req->flags &= ~BF_MAY_FORWARD;
+			buffer_write_dis(req);
 			/* just set the request timeout once at the beginning of the request */
 			if (!tick_isset(req->analyse_exp))
 				req->analyse_exp = tick_add_ifset(now_ms, t->fe->timeout.httpreq);
@@ -2519,7 +2519,7 @@ int process_request(struct session *t)
 				ctx.idx = 0;
 				http_find_header2("Transfer-Encoding", 17, msg->sol, &txn->hdr_idx, &ctx);
 				if (ctx.idx && ctx.vlen >= 7 && strncasecmp(ctx.line+ctx.val, "chunked", 7) == 0) {
-					req->flags &= ~BF_MAY_FORWARD;
+					buffer_write_dis(req);
 					req->analysers |= AN_REQ_HTTP_BODY;
 				}
 				else {
@@ -2542,7 +2542,7 @@ int process_request(struct session *t)
 						hint = t->be->url_param_post_limit;
 					/* now do we really need to buffer more data? */
 					if (len < hint) {
-						req->flags &= ~BF_MAY_FORWARD;
+						buffer_write_dis(req);
 						req->analysers |= AN_REQ_HTTP_BODY;
 					}
 					/* else... There are no body bytes to wait for */
@@ -2569,7 +2569,7 @@ int process_request(struct session *t)
 			/* flush the request so that we can drop the connection early
 			 * if the client closes first.
 			 */
-			req->flags &= ~BF_MAY_FORWARD;
+			buffer_write_dis(req);
 			req->analysers |= AN_REQ_HTTP_TARPIT;
 			req->analyse_exp = tick_add_ifset(now_ms,  t->be->timeout.tarpit);
 			if (!req->analyse_exp)
@@ -2700,7 +2700,7 @@ int process_request(struct session *t)
 			 * request timeout once at the beginning of the
 			 * request.
 			 */
-			req->flags &= ~BF_MAY_FORWARD;
+			buffer_write_dis(req);
 			if (!tick_isset(req->analyse_exp))
 				req->analyse_exp = tick_add_ifset(now_ms, t->fe->timeout.httpreq);
 			return 0;
@@ -2907,7 +2907,7 @@ int process_response(struct session *t)
 
 				return 0;
 			}
-			rep->flags &= ~BF_MAY_FORWARD;
+			buffer_write_dis(rep);
 			return 0;
 		}
 
@@ -3464,7 +3464,7 @@ int tcp_connection_status(struct session *t)
 	if ((req->flags & BF_SHUTW_NOW) ||
 	    (rep->flags & BF_SHUTW) ||
 	    ((req->flags & BF_SHUTR) && /* FIXME: this should not prevent a connection from establishing */
-	     ((req->flags & BF_EMPTY && !(req->flags & BF_WRITE_STATUS)) ||
+	     ((req->flags & BF_EMPTY && !(req->flags & BF_WRITE_ACTIVITY)) ||
 	      t->be->options & PR_O_ABRT_CLOSE))) { /* give up */
 
 		trace_term(t, TT_HTTP_SRV_5);
@@ -3495,7 +3495,7 @@ int tcp_connection_status(struct session *t)
 		if (!req->cons->err_type)
 			req->cons->err_type = SI_ET_CONN_ERR;
 	}
-	else if (!(req->flags & BF_WRITE_STATUS)) {
+	else if (!(req->flags & BF_WRITE_ACTIVITY)) {
 		/* nothing happened, maybe we timed out */
 		if (tick_is_expired(req->wex, now_ms)) {
 			conn_err = SI_ET_CONN_TO;
@@ -3616,7 +3616,7 @@ int tcp_connection_status(struct session *t)
 		}
 
 		if (!rep->analysers)
-			t->rep->flags |= BF_MAY_FORWARD;
+			buffer_write_ena(t->rep);
 		req->wex = TICK_ETERNITY;
 		return 0;
 	}
@@ -3809,7 +3809,7 @@ int stream_sock_connect_server(struct session *t)
 /*
  * Tries to establish a connection to the server and associate it to the
  * request buffer's consumer side. It is assumed that this function will not be
- * be called with SI_ST_EST nor with BF_MAY_FORWARD cleared. It normally
+ * be called with SI_ST_EST nor with BF_WRITE_ENA cleared. It normally
  * returns zero, but may return 1 if it absolutely wants to be called again.
  */
 int process_srv_conn(struct session *t)

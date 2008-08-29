@@ -60,7 +60,7 @@ void client_retnclose(struct session *s, const struct chunk *msg)
 		buffer_write(s->rep, msg->str, msg->len);
 
 	s->rep->wex = tick_add_ifset(now_ms, s->rep->wto);
-	s->rep->flags |= BF_MAY_FORWARD;
+	buffer_write_ena(s->rep);
 }
 
 

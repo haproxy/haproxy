@@ -26,53 +26,73 @@
 #include <common/memory.h>
 
 /* The BF_* macros designate Buffer Flags, which may be ORed in the bit field
- * member 'flags' in struct buffer. Some of them are persistent (BF_SHUT*),
- * some of them (BF_EMPTY,BF_FULL) may only be set by the low-level read/write
- * functions as well as those who change the buffer's read limit.
+ * member 'flags' in struct buffer. Here we have several types of flags :
+ *
+ *   - pure status flags, reported by the lower layer, which must be cleared
+ *     before doing further I/O :
+ *     BF_*_NULL, BF_*_PARTIAL
+ *
+ *   - pure status flags, reported by mid-layer, which must also be cleared
+ *     before doing further I/O :
+ *     BF_*_TIMEOUT, BF_*_ERROR
+ *
+ *   - read-only indicators reported by lower levels :
+ *     BF_STREAMER, BF_STREAMER_FAST
+ *
+ *   - write-once status flags reported by the mid-level : BF_SHUTR, BF_SHUTW
+ *
+ *   - persistent control flags managed only by higher level :
+ *     BF_SHUT*_NOW, BF_*_ENA, BF_HIJACK
+ *
+ * The flags have been arranged for readability, so that the read and write
+ * bits have se same position in a byte (read being the lower byte and write
+ * the second one).
  */
-#define BF_EMPTY                1  /* buffer is empty */
-#define BF_FULL                 2  /* buffer cannot accept any more data (l >= rlim-data) */
 
-#define BF_SHUTR                4  /* producer has already shut down */
-#define BF_SHUTW                8  /* consumer has already shut down */
+#define BF_READ_NULL      0x000001  /* last read detected on producer side */
+#define BF_READ_PARTIAL   0x000002  /* some data were read from producer */
+#define BF_READ_TIMEOUT   0x000004  /* timeout while waiting for producer */
+#define BF_READ_ERROR     0x000008  /* unrecoverable error on producer side */
+#define BF_READ_ACTIVITY  (BF_READ_NULL|BF_READ_PARTIAL|BF_READ_ERROR)
+#define BF_READ_STATUS    (BF_READ_NULL|BF_READ_PARTIAL|BF_READ_ERROR|BF_READ_TIMEOUT)
+#define BF_CLEAR_READ     (~BF_READ_STATUS)
 
-#define BF_PARTIAL_READ        16
-#define BF_COMPLETE_READ       32
-#define BF_READ_ERROR          64
-#define BF_READ_NULL          128
-#define BF_READ_STATUS        (BF_PARTIAL_READ|BF_COMPLETE_READ|BF_READ_ERROR|BF_READ_NULL)
-#define BF_CLEAR_READ         (~BF_READ_STATUS)
+#define BF_FULL           0x000010  /* buffer cannot accept any more data (l >= rlim-data) */
+#define BF_SHUTR          0x000020  /* producer has already shut down */
+#define BF_SHUTR_NOW      0x000040  /* the producer must shut down for reads immediately */
+#define BF_READ_ENA       0x000080  /* producer is allowed to feed data into the buffer */
 
-#define BF_PARTIAL_WRITE      256
-#define BF_COMPLETE_WRITE     512
-#define BF_WRITE_ERROR       1024
-#define BF_WRITE_NULL        2048
-#define BF_WRITE_STATUS      (BF_PARTIAL_WRITE|BF_COMPLETE_WRITE|BF_WRITE_ERROR|BF_WRITE_NULL)
-#define BF_CLEAR_WRITE       (~BF_WRITE_STATUS)
+#define BF_WRITE_NULL     0x000100  /* write(0) or connect() succeeded on consumer side */
+#define BF_WRITE_PARTIAL  0x000200  /* some data were written to the consumer */
+#define BF_WRITE_TIMEOUT  0x000400  /* timeout while waiting for consumer */
+#define BF_WRITE_ERROR    0x000800  /* unrecoverable error on consumer side */
+#define BF_WRITE_ACTIVITY (BF_WRITE_NULL|BF_WRITE_PARTIAL|BF_WRITE_ERROR)
+#define BF_WRITE_STATUS   (BF_WRITE_NULL|BF_WRITE_PARTIAL|BF_WRITE_ERROR|BF_WRITE_TIMEOUT)
+#define BF_CLEAR_WRITE    (~BF_WRITE_STATUS)
 
-#define BF_STREAMER          4096
-#define BF_STREAMER_FAST     8192
+#define BF_EMPTY          0x001000  /* buffer is empty */
+#define BF_SHUTW          0x002000  /* consumer has already shut down */
+#define BF_SHUTW_NOW      0x004000  /* the consumer must shut down for writes immediately */
+#define BF_WRITE_ENA      0x008000  /* consumer is allowed to forward all buffer contents */
 
-#define BF_MAY_FORWARD      16384  /* consumer side is allowed to forward the data */
-#define BF_READ_TIMEOUT     32768  /* timeout while waiting for producer */
-#define BF_WRITE_TIMEOUT    65536  /* timeout while waiting for consumer */
+#define BF_STREAMER       0x010000  /* the producer is identified as streaming data */
+#define BF_STREAMER_FAST  0x020000  /* the consumer seems to eat the stream very fast */
 
 /* When either BF_SHUTR_NOW or BF_HIJACK is set, it is strictly forbidden for
  * the stream interface to alter the buffer contents. When BF_SHUTW_NOW is set,
  * it is strictly forbidden for the stream interface to send anything from the
  * buffer.
  */
-#define BF_SHUTR_NOW       131072  /* the producer must shut down for reads ASAP */
-#define BF_SHUTW_NOW       262144  /* the consumer must shut down for writes ASAP */
-#define BF_HIJACK          524288  /* the producer is temporarily replaced */
+#define BF_HIJACK         0x040000  /* the producer is temporarily replaced */
 
-/* masks which define input bits for stream interfaces and stream analysers */
-#define BF_MASK_INTERFACE_I     (BF_FULL|BF_HIJACK|BF_READ_NULL|BF_SHUTR|BF_SHUTR_NOW|BF_SHUTW)
-#define BF_MASK_INTERFACE_O     (BF_EMPTY|BF_HIJACK|BF_MAY_FORWARD|BF_SHUTR|BF_SHUTW|BF_SHUTW_NOW)
+/* Masks which define input bits for stream interfaces and stream analysers */
+#define BF_MASK_INTERFACE_I     (BF_FULL|BF_HIJACK|BF_READ_ENA|BF_READ_STATUS|BF_SHUTR_NOW|BF_SHUTR|BF_SHUTW)
+#define BF_MASK_INTERFACE_O     (BF_EMPTY|BF_HIJACK|BF_WRITE_ENA|BF_WRITE_STATUS|BF_SHUTW_NOW|BF_SHUTR|BF_SHUTW)
 #define BF_MASK_INTERFACE       (BF_MASK_INTF_I | BF_MASK_INTF_O)
 
-#define BF_MASK_ANALYSER        (BF_FULL|BF_READ_NULL|BF_READ_ERROR|BF_READ_TIMEOUT|BF_SHUTR|BF_WRITE_ERROR)
-#define BF_MASK_INJECTER        (BF_FULL|BF_WRITE_STATUS|BF_WRITE_TIMEOUT|BF_SHUTW)
+#define BF_MASK_ANALYSER        (BF_FULL|BF_READ_STATUS|BF_SHUTR|BF_WRITE_ERROR)
+#define BF_MASK_HIJACKER        (BF_FULL|BF_WRITE_STATUS|BF_WRITE_TIMEOUT|BF_SHUTW)
+
 
 /* Analysers (buffer->analysers).
  * Those bits indicate that there are some processing to do on the buffer

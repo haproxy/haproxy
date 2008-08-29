@@ -347,7 +347,7 @@ int event_accept(int fd) {
 			s->req->analysers |= AN_REQ_HTTP_HDR;
 
 		if (!s->req->analysers)
-			s->req->flags |= BF_MAY_FORWARD;  /* don't wait to establish connection */
+			buffer_write_ena(s->req);  /* don't wait to establish connection */
 
 		s->req->rto = s->fe->timeout.client;
 		s->req->wto = s->be->timeout.server;

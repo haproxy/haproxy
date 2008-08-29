@@ -120,6 +120,18 @@ static inline void buffer_stop_hijack(struct buffer *buf)
 	buf->flags &= ~BF_HIJACK;
 }
 
+/* allows the consumer to send the buffer contents */
+static inline void buffer_write_ena(struct buffer *buf)
+{
+	buf->flags |= BF_WRITE_ENA;
+}
+
+/* prevents the consumer from sending the buffer contents */
+static inline void buffer_write_dis(struct buffer *buf)
+{
+	buf->flags &= ~BF_WRITE_ENA;
+}
+
 /* returns the maximum number of bytes writable at once in this buffer */
 static inline int buffer_max(const struct buffer *buf)
 {

@@ -112,7 +112,7 @@ int stream_sock_read(int fd) {
 			b->r += ret;
 			b->l += ret;
 			cur_read += ret;
-			b->flags |= BF_PARTIAL_READ;
+			b->flags |= BF_READ_PARTIAL;
 			b->flags &= ~BF_EMPTY;
 	
 			if (b->r == b->data + BUFSIZE) {
@@ -233,10 +233,10 @@ int stream_sock_read(int fd) {
 	 * have at least read something.
 	 */
 
-	if (tick_isset(b->rex) && b->flags & BF_PARTIAL_READ)
+	if (tick_isset(b->rex) && b->flags & BF_READ_PARTIAL)
 		b->rex = tick_add_ifset(now_ms, b->rto);
 
-	if (!(b->flags & BF_READ_STATUS))
+	if (!(b->flags & BF_READ_ACTIVITY))
 		goto out_skip_wakeup;
  out_wakeup:
 	task_wakeup(fdtab[fd].owner);
@@ -352,7 +352,7 @@ int stream_sock_write(int fd) {
 			b->l -= ret;
 			b->w += ret;
 	    
-			b->flags |= BF_PARTIAL_WRITE;
+			b->flags |= BF_WRITE_PARTIAL;
 
 			if (b->l < b->rlim - b->data)
 				b->flags &= ~BF_FULL;
@@ -395,7 +395,7 @@ int stream_sock_write(int fd) {
 	 * written something.
 	 */
 
-	if (tick_isset(b->wex) && b->flags & BF_PARTIAL_WRITE) {
+	if (tick_isset(b->wex) && b->flags & BF_WRITE_PARTIAL) {
 		b->wex = tick_add_ifset(now_ms, b->wto);
 		if (tick_isset(b->wex)) {
 			/* FIXME: to prevent the client from expiring read timeouts during writes,
@@ -408,7 +408,7 @@ int stream_sock_write(int fd) {
 	}
 
  out_may_wakeup:
-	if (!(b->flags & BF_WRITE_STATUS))
+	if (!(b->flags & BF_WRITE_ACTIVITY))
 		goto out_skip_wakeup;
  out_wakeup:
 	task_wakeup(fdtab[fd].owner);
@@ -533,7 +533,7 @@ int stream_sock_data_update(int fd)
 	if (!(ob->flags & BF_SHUTW)) {
 		/* Forced write-shutdown or other end closed with empty buffer. */
 		if ((ob->flags & BF_SHUTW_NOW) ||
-		    (ob->flags & (BF_EMPTY|BF_HIJACK|BF_MAY_FORWARD|BF_SHUTR)) == (BF_EMPTY|BF_MAY_FORWARD|BF_SHUTR)) {
+		    (ob->flags & (BF_EMPTY|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) == (BF_EMPTY|BF_WRITE_ENA|BF_SHUTR)) {
 			//trace_term(t, TT_HTTP_SRV_11);
 			buffer_shutw(ob);
 			if (ib->flags & BF_SHUTR) {
@@ -582,7 +582,7 @@ int stream_sock_data_finish(int fd)
 			 * update it if is was not yet set, or if we already got some read status.
 			 */
 			EV_FD_COND_S(fd, DIR_RD);
-			if (!tick_isset(ib->rex) || ib->flags & BF_READ_STATUS)
+			if (!tick_isset(ib->rex) || ib->flags & BF_READ_ACTIVITY)
 				ib->rex = tick_add_ifset(now_ms, ib->rto);
 		}
 	}
@@ -591,7 +591,7 @@ int stream_sock_data_finish(int fd)
 	if (!(ob->flags & BF_SHUTW)) {
 		/* Write not closed, update FD status and timeout for writes */
 		if ((ob->flags & BF_EMPTY) ||
-		    (ob->flags & (BF_HIJACK|BF_MAY_FORWARD)) == 0) {
+		    (ob->flags & (BF_HIJACK|BF_WRITE_ENA)) == 0) {
 			/* stop writing */
 			EV_FD_COND_C(fd, DIR_WR);
 			ob->wex = TICK_ETERNITY;
@@ -602,7 +602,7 @@ int stream_sock_data_finish(int fd)
 			 * update it if is was not yet set, or if we already got some write status.
 			 */
 			EV_FD_COND_S(fd, DIR_WR);
-			if (!tick_isset(ob->wex) || ob->flags & BF_WRITE_STATUS) {
+			if (!tick_isset(ob->wex) || ob->flags & BF_WRITE_ACTIVITY) {
 				ob->wex = tick_add_ifset(now_ms, ob->wto);
 				if (tick_isset(ob->wex) && !(ib->flags & BF_SHUTR) && tick_isset(ib->rex)) {
 					/* Note: depending on the protocol, we don't know if we're waiting

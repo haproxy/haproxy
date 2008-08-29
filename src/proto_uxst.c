@@ -867,7 +867,7 @@ static int process_uxst_srv(struct session *t)
 	else if (s == SV_STCONN) { /* connection in progress */
 		if (c == CL_STCLOSE || c == CL_STSHUTW ||
 		    (c == CL_STSHUTR &&
-		     ((t->req->flags & BF_EMPTY && !(req->flags & BF_WRITE_STATUS)) ||
+		     ((t->req->flags & BF_EMPTY && !(req->flags & BF_WRITE_ACTIVITY)) ||
 		      t->be->options & PR_O_ABRT_CLOSE))) { /* give up */
 			tv_eternity(&req->cex);
 			fd_delete(t->srv_fd);
@@ -877,11 +877,11 @@ static int process_uxst_srv(struct session *t)
 			srv_close_with_err(t, SN_ERR_CLICL, SN_FINST_C);
 			return 1;
 		}
-		if (!(req->flags & BF_WRITE_STATUS) && !tv_isle(&req->cex, &now)) {
+		if (!(req->flags & BF_WRITE_ACTIVITY) && !tv_isle(&req->cex, &now)) {
 			//fprintf(stderr,"1: c=%d, s=%d, now=%d.%06d, exp=%d.%06d\n", c, s, now.tv_sec, now.tv_usec, req->cex.tv_sec, req->cex.tv_usec);
 			return 0; /* nothing changed */
 		}
-		else if (!(req->flags & BF_WRITE_STATUS) || (req->flags & BF_WRITE_ERROR)) {
+		else if (!(req->flags & BF_WRITE_ACTIVITY) || (req->flags & BF_WRITE_ERROR)) {
 			/* timeout, asynchronous connect error or first write error */
 			//fprintf(stderr,"2: c=%d, s=%d\n", c, s);
 
@@ -889,7 +889,7 @@ static int process_uxst_srv(struct session *t)
 			if (t->srv)
 				t->srv->cur_sess--;
 
-			if (!(req->flags & BF_WRITE_STATUS))
+			if (!(req->flags & BF_WRITE_ACTIVITY))
 				conn_err = SN_ERR_SRVTO; // it was a connect timeout.
 			else
 				conn_err = SN_ERR_SRVCL; // it was an asynchronous connect error.
