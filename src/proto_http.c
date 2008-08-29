@@ -827,6 +827,10 @@ void process_session(struct task *t, int *next)
 		if (s->req->analysers)
 			t->expire = tick_first(t->expire, s->req->analyse_exp);
 
+#ifdef DEBUG_FULL
+		fprintf(stderr, "[%u] queuing with exp=%u req->rex=%u req->wex=%u req->ana_exp=%u rep->rex=%u rep->wex=%u\n",
+			now_ms, t->expire, s->req->rex, s->req->wex, s->req->analyse_exp, s->rep->rex, s->rep->wex);
+#endif
 		/* restore t to its place in the task list */
 		task_queue(t);
 

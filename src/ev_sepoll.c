@@ -157,6 +157,7 @@ struct fd_status {
 
 static int nbspec = 0;          // current size of the spec list
 static int absmaxevents = 0;    // absolute maximum amounts of polled events
+static int fd_created = 0;      // fd creation detector, reset upon poll() entry.
 
 static struct fd_status *fd_list = NULL;	// list of FDs
 static unsigned int *spec_list = NULL;	// speculative I/O list
@@ -242,6 +243,7 @@ REGPRM2 static int __fd_set(const int fd, int dir)
 
 	if (i == FD_EV_IDLE) {
 		// switch to SPEC state and allocate a SPEC entry.
+		fd_created = 1;
 		alloc_spec_entry(fd);
 	switch_state:
 		fd_list[fd].e ^= (unsigned int)(FD_EV_IN_SL << dir);
@@ -315,8 +317,10 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	int count;
 	int spec_idx;
 	int wait_time;
+	int looping = 0;
 
 
+ re_poll_once:
 	/* Here we have two options :
 	 * - either walk the list forwards and hope to match more events
 	 * - or walk it backwards to minimize the number of changes and
@@ -438,6 +442,12 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	 */
 
 	spec_processed += status;
+
+	if (looping) {
+		last_skipped++;
+		return;
+	}
+
 	if (status >= MIN_RETURN_EVENTS && spec_processed < absmaxevents) {
 		/* We have processed at least MIN_RETURN_EVENTS, it's worth
 		 * returning now without checking epoll_wait().
@@ -477,6 +487,8 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	fd = MIN(absmaxevents, spec_processed);
 	fd = MAX(global.tune.maxpollevents, fd);
 	fd = MIN(maxfd, fd);
+	/* we want to detect if an accept() will create new speculative FDs here */
+	fd_created = 0;
 	spec_processed = 0;
 	status = epoll_wait(epoll_fd, epoll_events, fd, wait_time);
 	tv_update_date(wait_time, status);
@@ -513,6 +525,19 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			if (fdtab[fd].ev & (FD_POLL_OUT|FD_POLL_ERR))
 				fdtab[fd].cb[DIR_WR].f(fd);
 		}
+	}
+
+	if (fd_created) {
+		/* we have created some fds, certainly in return of an accept(),
+		 * and they're marked as speculative. If we can manage to perform
+		 * a read(), we're almost sure to collect all the request at once
+		 * and avoid several expensive wakeups. So let's try now. Anyway,
+		 * if we fail, the tasks are still woken up, and the FD gets marked
+		 * for poll mode.
+		 */
+		fd_created = 0;
+		looping = 1;
+		goto re_poll_once;
 	}
 }
 
