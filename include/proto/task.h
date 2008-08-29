@@ -41,7 +41,13 @@ extern struct task *last_timer;   /* optimization: last queued timer */
 int init_task();
 
 /* puts the task <t> in run queue <q>, and returns <t> */
-struct task *task_wakeup(struct task *t);
+struct task *__task_wakeup(struct task *t);
+static inline struct task *task_wakeup(struct task *t)
+{
+	if (t->state == TASK_RUNNING)
+		return t;
+	return __task_wakeup(t);
+}
 
 /* removes the task <t> from the run queue if it was in it.
  * returns <t>.

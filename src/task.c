@@ -131,11 +131,8 @@ int init_task()
  * size. A nice value of -1024 sets the task to -run_queue*32, while a nice
  * value of 1024 sets the task to run_queue*32.
  */
-struct task *task_wakeup(struct task *t)
+struct task *__task_wakeup(struct task *t)
 {
-	if (t->state == TASK_RUNNING)
-		return t;
-
 	task_dequeue(t);
 
 	run_queue++;
@@ -231,7 +228,7 @@ void wake_expired_tasks(int *next)
 
 			/* detach the task from the queue and add the task to the run queue */
 			eb = eb32_next(eb);
-			task_wakeup(task);
+			__task_wakeup(task);
 		}
 		tree = (tree + 1) & TIMER_TREE_MASK;
 	} while (((tree - now_tree) & TIMER_TREE_MASK) < TIMER_TREES/2);
