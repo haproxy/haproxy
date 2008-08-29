@@ -316,6 +316,17 @@ static inline int fls64(unsigned long long x)
 #define unlikely(x) (__builtin_expect((x) != 0, 0))
 #endif
 
+/* By default, gcc does not inline large chunks of code, but we want it to
+ * respect our choices.
+ */
+#if !defined(forceinline)
+#if __GNUC__ < 3
+#define forceinline inline
+#else
+#define forceinline inline __attribute__((always_inline))
+#endif
+#endif
+
 /* Support passing function parameters in registers. For this, the
  * CONFIG_EBTREE_REGPARM macro has to be set to the maximal number of registers
  * allowed. Some functions have intentionally received a regparm lower than
@@ -463,7 +474,7 @@ static inline struct eb_node *eb_walk_down(eb_troot_t *start, unsigned int side)
  * a subtree of at least 2 entries. It will probably never be needed inlined,
  * and it is not for end-user.
  */
-static inline struct eb_node *
+static forceinline struct eb_node *
 __eb_insert_dup(struct eb_node *sub, struct eb_node *new)
 {
 	struct eb_node *head = sub;
@@ -625,7 +636,7 @@ static inline struct eb_node *eb_next_unique(struct eb_node *node)
 /* Removes a leaf node from the tree if it was still in it. Marks the node
  * as unlinked.
  */
-static inline void __eb_delete(struct eb_node *node)
+static forceinline void __eb_delete(struct eb_node *node)
 {
 	__label__ delete_unlink;
 	unsigned int pside, gpside, sibtype;
