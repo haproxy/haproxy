@@ -263,7 +263,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	fdtab[fd].cb[DIR_RD].f = listener->accept;
 	fdtab[fd].cb[DIR_WR].f = NULL; /* never called */
 	fdtab[fd].cb[DIR_RD].b = fdtab[fd].cb[DIR_WR].b = NULL;
-	fdtab[fd].owner = (struct task *)listener; /* reference the listener instead of a task */
+	fdtab[fd].owner = listener; /* reference the listener instead of a task */
 	fdtab[fd].state = FD_STLISTEN;
 	fdtab[fd].peeraddr = NULL;
 	fdtab[fd].peerlen = 0;

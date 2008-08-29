@@ -266,7 +266,7 @@ static int uxst_bind_listener(struct listener *listener)
 	fdtab[fd].cb[DIR_RD].f = listener->accept;
 	fdtab[fd].cb[DIR_WR].f = NULL; /* never called */
 	fdtab[fd].cb[DIR_RD].b = fdtab[fd].cb[DIR_WR].b = NULL;
-	fdtab[fd].owner = (struct task *)listener; /* reference the listener instead of a task */
+	fdtab[fd].owner = listener; /* reference the listener instead of a task */
 	fdtab[fd].state = FD_STLISTEN;
 	fdtab[fd].peeraddr = NULL;
 	fdtab[fd].peerlen = 0;
@@ -358,7 +358,7 @@ static int uxst_unbind_listeners(struct protocol *proto)
  * as with TCP which can fall under attack.
  */
 int uxst_event_accept(int fd) {
-	struct listener *l = (struct listener *)fdtab[fd].owner;
+	struct listener *l = fdtab[fd].owner;
 	struct session *s;
 	struct task *t;
 	int cfd;

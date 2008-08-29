@@ -60,7 +60,7 @@ void get_frt_addr(struct session *s)
  * It returns 0.
  */
 int event_accept(int fd) {
-	struct listener *l = (struct listener *)fdtab[fd].owner;
+	struct listener *l = fdtab[fd].owner;
 	struct proxy *p = (struct proxy *)l->private; /* attached frontend */
 	struct session *s;
 	struct http_txn *txn;
