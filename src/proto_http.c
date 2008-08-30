@@ -658,15 +658,19 @@ void process_session(struct task *t, int *next)
 	int resync;
 	unsigned int rqf_cli, rpf_cli;
 	unsigned int rqf_srv, rpf_srv;
-	unsigned int rqf_req, rpf_rep;
 
 	/* Check timeouts only during data phase for now */
 	if (unlikely(t->state & TASK_WOKEN_TIMER)) {
-		if (s->rep->cons->state == SI_ST_EST)
+		if (s->rep->cons->state == SI_ST_EST) {
 			stream_sock_data_check_timeouts(s->rep->cons->fd);
-
-		if (s->req->cons->state == SI_ST_EST)
+			if (tick_is_expired(s->rep->analyse_exp, now_ms))
+				s->rep->flags |= BF_ANA_TIMEOUT;
+		}
+		if (s->req->cons->state == SI_ST_EST) {
 			stream_sock_data_check_timeouts(s->req->cons->fd);
+			if (tick_is_expired(s->req->analyse_exp, now_ms))
+				s->req->flags |= BF_ANA_TIMEOUT;
+		}
 	}
 
 	/* Check if we need to close the write side. This can only happen
@@ -727,8 +731,8 @@ void process_session(struct task *t, int *next)
 	}
 
 	/* Dirty trick: force one first pass everywhere */
-	rqf_cli = rqf_srv = rqf_req = ~s->req->flags;
-	rpf_cli = rpf_srv = rpf_rep = ~s->rep->flags;
+	rqf_cli = rqf_srv = ~s->req->flags;
+	rpf_cli = rpf_srv = ~s->rep->flags;
 
 	/* well, the ST_CONN state is already handled properly */
 	if (s->req->prod->state == SI_ST_EST) {
@@ -752,46 +756,10 @@ void process_session(struct task *t, int *next)
 
 		resync = 0;
 
-		/* Analyse request */
-		if ((rqf_req ^ s->req->flags) & BF_MASK_ANALYSER) {
-			if (s->req->prod->state >= SI_ST_EST) {
-				resync = 1;
-				/* it's up to the analysers to reset write_ena */
-				buffer_write_ena(s->req);
-				if (s->req->analysers)
-					process_request(s);
-				rqf_req = s->req->flags;
-			}
-
-		}
-
-		/* Analyse response */
-		if (unlikely(s->rep->flags & BF_HIJACK)) {
-			/* In inject mode, we wake up everytime something has
-			 * happened on the write side of the buffer.
-			 */
-			if ((s->rep->flags & (BF_WRITE_PARTIAL|BF_WRITE_ERROR|BF_SHUTW)) &&
-			    !(s->rep->flags & BF_FULL)) {
-				if (produce_content(s) != 0)
-					resync = 1; /* completed, better re-check flags */
-			}
-		}
-		else if (s->rep->prod->state >= SI_ST_EST) {
-			if ((rpf_rep ^ s->rep->flags) & BF_MASK_ANALYSER) {
-				resync = 1;
-				/* it's up to the analysers to reset write_ena */
-				buffer_write_ena(s->rep);
-				if (s->rep->analysers)
-					process_response(s);
-				rpf_rep = s->rep->flags;
-			}
-		}
-
 		/* Maybe resync client FD state */
 		if (s->rep->cons->state != SI_ST_CLO) {
 			if (((rqf_cli ^ s->req->flags) & BF_MASK_INTERFACE_I) ||
 			    ((rpf_cli ^ s->rep->flags) & BF_MASK_INTERFACE_O)) {
-				resync = 1;
 				stream_sock_data_update(s->rep->cons->fd);
 				rqf_cli = s->req->flags;
 				rpf_cli = s->rep->flags;
@@ -811,10 +779,10 @@ void process_session(struct task *t, int *next)
 		if (s->req->cons->state != SI_ST_CLO) {
 			if (((rpf_srv ^ s->rep->flags) & BF_MASK_INTERFACE_I) ||
 			    ((rqf_srv ^ s->req->flags) & BF_MASK_INTERFACE_O)) {
-				resync = 1;
-
-				if (s->req->cons->state < SI_ST_EST && s->req->flags & BF_WRITE_ENA)
+				if (s->req->cons->state < SI_ST_EST && s->req->flags & BF_WRITE_ENA) {
 					process_srv_conn(s);
+					resync = 1; /* we might have to resync */
+				}
 
 				if (s->req->cons->state == SI_ST_EST) {
 					if ((s->req->flags & (BF_SHUTW|BF_EMPTY|BF_WRITE_ENA)) == (BF_EMPTY|BF_WRITE_ENA) &&
@@ -855,6 +823,66 @@ void process_session(struct task *t, int *next)
 			}
 		}
 
+		/* we may have to resync because of pending connections */
+		if (resync)
+			continue;
+
+		/**** Process layer 7 below ****/
+
+		/* Analyse request */
+		if (s->req->flags & BF_MASK_ANALYSER) {
+			unsigned int flags = s->req->flags;
+
+			if (s->req->prod->state >= SI_ST_EST) {
+				/* it's up to the analysers to reset write_ena */
+				buffer_write_ena(s->req);
+				if (s->req->analysers)
+					process_request(s);
+			}
+			s->req->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
+			flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
+			if (s->req->flags != flags)
+				resync = 1;
+		}
+
+		/* Analyse response */
+		if (unlikely(s->rep->flags & BF_HIJACK)) {
+			/* In inject mode, we wake up everytime something has
+			 * happened on the write side of the buffer.
+			 */
+			unsigned int flags = s->rep->flags;
+
+			if ((s->rep->flags & (BF_WRITE_PARTIAL|BF_WRITE_ERROR|BF_SHUTW)) &&
+			    !(s->rep->flags & BF_FULL)) {
+				produce_content(s);
+			}
+			s->rep->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
+			flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
+			if (s->rep->flags != flags)
+				resync = 1;
+		}
+		else if (s->rep->flags & BF_MASK_ANALYSER) {
+			unsigned int flags = s->rep->flags;
+
+			if (s->rep->prod->state >= SI_ST_EST) {
+				/* it's up to the analysers to reset write_ena */
+				buffer_write_ena(s->rep);
+				if (s->rep->analysers)
+					process_response(s);
+			}
+			s->rep->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
+			flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
+			if (s->rep->flags != flags)
+				resync = 1;
+		}
+
+		/* For the moment, we need to clean the client and server flags that
+		 * have vanished. This is just a temporary measure though.
+		 */
+		rqf_cli &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
+		rqf_srv &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
+		rpf_cli &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
+		rpf_srv &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
 	} while (resync);
 
 	if (likely((s->rep->cons->state != SI_ST_CLO) ||
