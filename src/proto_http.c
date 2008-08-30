@@ -669,6 +669,21 @@ void process_session(struct task *t, int *next)
 			stream_sock_data_check_timeouts(s->req->cons->fd);
 	}
 
+	/* Check if we need to close the write side. This can only happen
+	 * when either SHUTR or EMPTY appears, because WRITE_ENA cannot appear
+	 * from low level, and neither HIJACK nor SHUTW can disappear from low
+	 * level.
+	 */
+	if (unlikely((s->req->flags & (BF_SHUTW|BF_EMPTY|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) == (BF_EMPTY|BF_WRITE_ENA|BF_SHUTR))) {
+		buffer_shutw(s->req);
+		s->req->cons->shutw(s->req->cons);
+	}
+
+	if (unlikely((s->rep->flags & (BF_SHUTW|BF_EMPTY|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) == (BF_EMPTY|BF_WRITE_ENA|BF_SHUTR))) {
+		buffer_shutw(s->rep);
+		s->rep->cons->shutw(s->rep->cons);
+	}
+
 	/* When a server-side connection is released, we have to
 	 * count it and check for pending connections on this server.
 	 */
@@ -698,6 +713,7 @@ void process_session(struct task *t, int *next)
 		}
 	}
 
+	/* This is needed when debugging is enabled, to indicate client-side close */
 	if (unlikely(s->rep->cons->state == SI_ST_CLO &&
 		     s->rep->cons->prev_state == SI_ST_EST)) {
 		if (unlikely((s->rep->cons->state == SI_ST_CLO) &&
@@ -709,39 +725,6 @@ void process_session(struct task *t, int *next)
 			write(1, trash, len);
 		}
 	}
-
-
-	/* Check if we need to close the write side. This can only happen
-	 * when either SHUTR or EMPTY appears, because WRITE_ENA cannot appear
-	 * from low level, and neither HIJACK nor SHUTW can disappear from low
-	 * level. Later, this should move to stream_sock_{read,write}.
-	 */
-	if ((s->req->flags & (BF_SHUTW|BF_EMPTY|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) == (BF_EMPTY|BF_WRITE_ENA|BF_SHUTR)) {
-		buffer_shutw(s->req);
-		if (s->rep->flags & BF_SHUTR) {
-			fd_delete(s->req->cons->fd);
-			s->req->cons->state = SI_ST_CLO;
-		}
-		else {
-			EV_FD_CLR(s->req->cons->fd, DIR_WR);
-			shutdown(s->req->cons->fd, SHUT_WR);
-		}
-	}
-
-	/* Check if we need to close the write side */
-	if ((s->rep->flags & (BF_SHUTW|BF_EMPTY|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) == (BF_EMPTY|BF_WRITE_ENA|BF_SHUTR)) {
-		buffer_shutw(s->rep);
-		if (s->req->flags & BF_SHUTR) {
-			fd_delete(s->rep->cons->fd);
-			s->rep->cons->state = SI_ST_CLO;
-		}
-		else {
-			EV_FD_CLR(s->rep->cons->fd, DIR_WR);
-			shutdown(s->rep->cons->fd, SHUT_WR);
-		}
-	}
-
-
 
 	/* Dirty trick: force one first pass everywhere */
 	rqf_cli = rqf_srv = rqf_req = ~s->req->flags;

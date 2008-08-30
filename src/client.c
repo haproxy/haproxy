@@ -174,6 +174,7 @@ int event_accept(int fd) {
 		s->si[0].err_type = SI_ET_NONE;
 		s->si[0].err_loc = NULL;
 		s->si[0].owner = t;
+		s->si[0].shutw = stream_sock_shutw;
 		s->si[0].fd = cfd;
 		s->cli_fd = cfd;
 
@@ -181,6 +182,7 @@ int event_accept(int fd) {
 		s->si[1].err_type = SI_ET_NONE;
 		s->si[1].err_loc = NULL;
 		s->si[1].owner = t;
+		s->si[1].shutw = stream_sock_shutw;
 		s->si[1].fd = -1; /* just to help with debugging */
 
 		s->srv = s->prev_srv = s->srv_conn = NULL;
@@ -338,6 +340,7 @@ int event_accept(int fd) {
 		buffer_init(s->req);
 		s->req->prod = &s->si[0];
 		s->req->cons = &s->si[1];
+		s->si[0].ib = s->si[1].ob = s->req;
 
 		if (p->mode == PR_MODE_HTTP) /* reserve some space for header rewriting */
 			s->req->rlim -= MAXREWRITE;
@@ -361,6 +364,7 @@ int event_accept(int fd) {
 		buffer_init(s->rep);
 		s->rep->prod = &s->si[1];
 		s->rep->cons = &s->si[0];
+		s->si[0].ob = s->si[1].ib = s->rep;
 
 		s->rep->rto = s->be->timeout.server;
 		s->rep->wto = s->fe->timeout.client;

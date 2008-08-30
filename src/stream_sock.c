@@ -41,8 +41,8 @@
  */
 int stream_sock_read(int fd) {
 	__label__ out_wakeup, out_shutdown_r, out_error;
-	struct buffer *b = fdtab[fd].cb[DIR_RD].b;
 	struct stream_interface *si = fdtab[fd].owner;
+	struct buffer *b = si->ib;
 	int ret, max, retval, cur_read;
 	int read_poll = MAX_READ_POLL_LOOPS;
 
@@ -251,8 +251,9 @@ int stream_sock_read(int fd) {
 	fdtab[fd].ev &= ~FD_POLL_HUP;
 	b->flags |= BF_READ_NULL;
 	buffer_shutr(b);
-	/* Maybe we have to completely close the socket */
-	if (fdtab[fd].cb[DIR_WR].b->flags & BF_SHUTW)
+
+	/* Maybe we have to completely close the local socket */
+	if (si->ob->flags & BF_SHUTW)
 		goto do_close_and_return;
 	EV_FD_CLR(fd, DIR_RD);
 	goto out_wakeup;
@@ -275,10 +276,10 @@ int stream_sock_read(int fd) {
 	if (!si->err_type)
 		si->err_type = SI_ET_DATA_ERR;
 
-	buffer_shutr(fdtab[fd].cb[DIR_RD].b);
-	fdtab[fd].cb[DIR_RD].b->flags |= BF_READ_ERROR;
-	buffer_shutw(fdtab[fd].cb[DIR_WR].b);
-	fdtab[fd].cb[DIR_WR].b->flags |= BF_WRITE_ERROR;
+	buffer_shutr(b);
+	b->flags |= BF_READ_ERROR;
+	buffer_shutw(si->ob);
+	si->ob->flags |= BF_WRITE_ERROR;
 
  do_close_and_return:
 	fd_delete(fd);
@@ -296,8 +297,8 @@ int stream_sock_read(int fd) {
  */
 int stream_sock_write(int fd) {
 	__label__ out_wakeup, out_error;
-	struct buffer *b = fdtab[fd].cb[DIR_WR].b;
 	struct stream_interface *si = fdtab[fd].owner;
+	struct buffer *b = si->ob;
 	int ret, max, retval;
 	int write_poll = MAX_WRITE_POLL_LOOPS;
 
@@ -390,6 +391,17 @@ int stream_sock_write(int fd) {
 
 			if (!b->l) {
 				b->flags |= BF_EMPTY;
+
+				/* Maybe we just wrote the last chunk and need to close ? */
+				if ((b->flags & (BF_SHUTW|BF_EMPTY|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) == (BF_EMPTY|BF_WRITE_ENA|BF_SHUTR)) {
+					if (si->state == SI_ST_EST) {
+						buffer_shutw(b);
+						if (si->ib->flags & BF_SHUTR)
+							goto do_close_and_return;
+						shutdown(fd, SHUT_WR);
+					}
+				}
+
 				EV_FD_CLR(fd, DIR_WR);
 				b->wex = TICK_ETERNITY;
 				goto out_wakeup;
@@ -461,17 +473,41 @@ int stream_sock_write(int fd) {
 	if (!si->err_type)
 		si->err_type = SI_ET_DATA_ERR;
 
-	buffer_shutr(fdtab[fd].cb[DIR_RD].b);
-	fdtab[fd].cb[DIR_RD].b->flags |= BF_READ_ERROR;
-	buffer_shutw(fdtab[fd].cb[DIR_WR].b);
-	fdtab[fd].cb[DIR_WR].b->flags |= BF_WRITE_ERROR;
-
+	buffer_shutw(b);
+	b->flags |= BF_WRITE_ERROR;
+	buffer_shutr(si->ib);
+	si->ib->flags |= BF_READ_ERROR;
+ do_close_and_return:
 	fd_delete(fd);
 	si->state = SI_ST_CLO;
 	task_wakeup(si->owner, TASK_WOKEN_IO);
 	return 1;
 }
 
+/*
+ * This function performs a shutdown-write on a stream interface in a connected
+ * state (it does nothing for other states). It either shuts the write side or
+ * closes the file descriptor and marks itself as closed. No buffer flags are
+ * changed, it's up to the caller to adjust them. The sole purpose of this
+ * function is to be called from the other stream interface to notify of a
+ * close_read, or by itself upon a full write leading to an empty buffer.
+ * It normally returns zero, unless it has completely closed the socket, in
+ * which case it returns 1.
+ */
+int stream_sock_shutw(struct stream_interface *si)
+{
+	if (si->state != SI_ST_EST)
+		return 0;
+
+	if (si->ib->flags & BF_SHUTR) {
+		fd_delete(si->fd);
+		si->state = SI_ST_CLO;
+		return 1;
+	}
+	EV_FD_CLR(si->fd, DIR_WR);
+	shutdown(si->fd, SHUT_WR);
+	return 0;
+}
 
 /*
  * This function only has to be called once after a wakeup event during a data
