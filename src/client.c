@@ -342,6 +342,8 @@ int event_accept(int fd) {
 		s->req->cons = &s->si[1];
 		s->si[0].ib = s->si[1].ob = s->req;
 
+		s->req->flags |= BF_READ_ATTACHED; /* the producer is already connected */
+
 		if (p->mode == PR_MODE_HTTP) /* reserve some space for header rewriting */
 			s->req->rlim -= MAXREWRITE;
 

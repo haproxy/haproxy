@@ -869,8 +869,8 @@ void process_session(struct task *t, int *next)
 		if (s->req->cons->state == SI_ST_EST)
 			stream_sock_data_finish(s->req->cons->fd);
 
-		s->req->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE;
-		s->rep->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE;
+		s->req->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
+		s->rep->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
 		s->si[0].prev_state = s->si[0].state;
 		s->si[1].prev_state = s->si[1].state;
 
@@ -3683,8 +3683,7 @@ int tcp_connection_status(struct session *t)
 			 */
 		}
 
-		if (!rep->analysers)
-			buffer_write_ena(t->rep);
+		rep->flags |= BF_READ_ATTACHED; /* producer is now attached */
 		req->wex = TICK_ETERNITY;
 		return 0;
 	}

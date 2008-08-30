@@ -54,8 +54,6 @@
 #define BF_READ_TIMEOUT   0x000004  /* timeout while waiting for producer */
 #define BF_READ_ERROR     0x000008  /* unrecoverable error on producer side */
 #define BF_READ_ACTIVITY  (BF_READ_NULL|BF_READ_PARTIAL|BF_READ_ERROR)
-#define BF_READ_STATUS    (BF_READ_NULL|BF_READ_PARTIAL|BF_READ_ERROR|BF_READ_TIMEOUT)
-#define BF_CLEAR_READ     (~BF_READ_STATUS)
 
 #define BF_FULL           0x000010  /* buffer cannot accept any more data (l >= rlim-data) */
 #define BF_SHUTR          0x000020  /* producer has already shut down */
@@ -67,8 +65,6 @@
 #define BF_WRITE_TIMEOUT  0x000400  /* timeout while waiting for consumer */
 #define BF_WRITE_ERROR    0x000800  /* unrecoverable error on consumer side */
 #define BF_WRITE_ACTIVITY (BF_WRITE_NULL|BF_WRITE_PARTIAL|BF_WRITE_ERROR)
-#define BF_WRITE_STATUS   (BF_WRITE_NULL|BF_WRITE_PARTIAL|BF_WRITE_ERROR|BF_WRITE_TIMEOUT)
-#define BF_CLEAR_WRITE    (~BF_WRITE_STATUS)
 
 #define BF_EMPTY          0x001000  /* buffer is empty */
 #define BF_SHUTW          0x002000  /* consumer has already shut down */
@@ -84,14 +80,21 @@
  * buffer.
  */
 #define BF_HIJACK         0x040000  /* the producer is temporarily replaced */
+#define BF_ANA_TIMEOUT    0x080000  /* the analyser timeout has expired */
+#define BF_READ_ATTACHED  0x100000  /* the read side is attached for the first time */
+
+/* Use these masks to clear the flags before going back to lower layers */
+#define BF_CLEAR_READ     (~(BF_READ_NULL|BF_READ_PARTIAL|BF_READ_ERROR|BF_READ_ATTACHED))
+#define BF_CLEAR_WRITE    (~(BF_WRITE_NULL|BF_WRITE_PARTIAL|BF_WRITE_ERROR))
+#define BF_CLEAR_TIMEOUT  (~(BF_READ_TIMEOUT|BF_WRITE_TIMEOUT|BF_ANA_TIMEOUT))
 
 /* Masks which define input bits for stream interfaces and stream analysers */
-#define BF_MASK_INTERFACE_I     (BF_FULL|BF_HIJACK|BF_READ_ENA|BF_READ_STATUS|BF_SHUTR_NOW|BF_SHUTR|BF_SHUTW)
-#define BF_MASK_INTERFACE_O     (BF_EMPTY|BF_HIJACK|BF_WRITE_ENA|BF_WRITE_STATUS|BF_SHUTW_NOW|BF_SHUTR|BF_SHUTW)
+#define BF_MASK_INTERFACE_I     (BF_FULL|BF_HIJACK|BF_READ_ENA|BF_READ_ACTIVITY|BF_READ_TIMEOUT|BF_SHUTR_NOW|BF_SHUTR|BF_SHUTW)
+#define BF_MASK_INTERFACE_O     (BF_EMPTY|BF_HIJACK|BF_WRITE_ENA|BF_WRITE_ACTIVITY|BF_WRITE_TIMEOUT|BF_SHUTW_NOW|BF_SHUTR|BF_SHUTW)
 #define BF_MASK_INTERFACE       (BF_MASK_INTF_I | BF_MASK_INTF_O)
 
-#define BF_MASK_ANALYSER        (BF_FULL|BF_READ_STATUS|BF_SHUTR|BF_WRITE_ERROR)
-#define BF_MASK_HIJACKER        (BF_FULL|BF_WRITE_STATUS|BF_WRITE_TIMEOUT|BF_SHUTW)
+#define BF_MASK_ANALYSER        (BF_FULL|BF_READ_ACTIVITY|BF_READ_TIMEOUT|BF_ANA_TIMEOUT|BF_SHUTR|BF_READ_ATTACHED|BF_WRITE_ERROR)
+#define BF_MASK_HIJACKER        (BF_FULL|BF_WRITE_ACTIVITY|BF_WRITE_TIMEOUT|BF_SHUTW)
 
 
 /* Analysers (buffer->analysers).
