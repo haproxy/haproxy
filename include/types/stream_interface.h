@@ -42,24 +42,26 @@ enum {
 
 /* error types reported on the streams interface for more accurate reporting */
 enum {
-	SI_ET_NONE = 0,         /* no error yet, leave it to zero */
-	SI_ET_QUEUE_TO,         /* queue timeout */
-	SI_ET_QUEUE_ERR,        /* queue error (eg: full) */
-	SI_ET_QUEUE_ABRT,       /* aborted in queue by external cause */
-	SI_ET_CONN_TO,          /* connection timeout */
-	SI_ET_CONN_ERR,         /* connection error (eg: no server available) */
-	SI_ET_CONN_ABRT,        /* connection aborted by external cause (eg: abort) */
-	SI_ET_CONN_OTHER,       /* connection aborted for other reason (eg: 500) */
-	SI_ET_DATA_TO,          /* timeout during data phase */
-	SI_ET_DATA_ERR,         /* error during data phase */
-	SI_ET_DATA_ABRT,        /* data phase aborted by external cause */
+	SI_ET_NONE       = 0x0000,  /* no error yet, leave it to zero */
+	SI_ET_QUEUE_TO   = 0x0001,  /* queue timeout */
+	SI_ET_QUEUE_ERR  = 0x0002,  /* queue error (eg: full) */
+	SI_ET_QUEUE_ABRT = 0x0004,  /* aborted in queue by external cause */
+	SI_ET_CONN_TO    = 0x0008,  /* connection timeout */
+	SI_ET_CONN_ERR   = 0x0010,  /* connection error (eg: no server available) */
+	SI_ET_CONN_ABRT  = 0x0020,  /* connection aborted by external cause (eg: abort) */
+	SI_ET_CONN_OTHER = 0x0040,  /* connection aborted for other reason (eg: 500) */
+	SI_ET_DATA_TO    = 0x0080,  /* timeout during data phase */
+	SI_ET_DATA_ERR   = 0x0100,  /* error during data phase */
+	SI_ET_DATA_ABRT  = 0x0200,  /* data phase aborted by external cause */
 };
 
 struct stream_interface {
 	unsigned int state;     /* SI_ST* */
-	int err_type;           /* first error detected, one of SI_ET_* */
-	void *err_loc;          /* commonly the server, NULL when SI_ET_NONE */
+	unsigned int prev_state;/* SI_ST*, copy of previous state */
+	void *owner;            /* generally a (struct task*) */
 	int fd;                 /* file descriptor for a stream driver when known */
+	unsigned int err_type;  /* first error detected, one of SI_ET_* */
+	void *err_loc;          /* commonly the server, NULL when SI_ET_NONE */
 };
 
 

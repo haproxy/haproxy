@@ -33,7 +33,7 @@
 /* main event functions used to move data between sockets and buffers */
 int stream_sock_read(int fd);
 int stream_sock_write(int fd);
-int stream_sock_data_check_errors(int fd);
+int stream_sock_data_check_timeouts(int fd);
 int stream_sock_data_update(int fd);
 int stream_sock_data_finish(int fd);
 

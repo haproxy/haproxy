@@ -660,40 +660,151 @@ void process_session(struct task *t, int *next)
 	unsigned int rqf_srv, rpf_srv;
 	unsigned int rqf_req, rpf_rep;
 
-	/* check server-side errors during data phase */
-	if (s->req->cons->state == SI_ST_EST) {
-		stream_sock_data_check_errors(s->req->cons->fd);
-		/* When a server-side connection is released, we have to
-		 * count it and check for pending connections on this server.
-		 */
-		if (unlikely(s->req->cons->state == SI_ST_CLO)) {
-			/* Count server-side errors (but not timeouts). */
-			if (s->req->flags & BF_WRITE_ERROR) {
-				s->be->failed_resp++;
-				if (s->srv)
-					s->srv->failed_resp++;
-			}
+	/* Check timeouts only during data phase for now */
+	if (unlikely(t->state & TASK_WOKEN_TIMER)) {
+		if (s->rep->cons->state == SI_ST_EST)
+			stream_sock_data_check_timeouts(s->rep->cons->fd);
 
-			if (s->srv) {
-				s->srv->cur_sess--;
-				sess_change_server(s, NULL);
-				if (may_dequeue_tasks(s->srv, s->be))
-					process_srv_queue(s->srv);
-			}
+		if (s->req->cons->state == SI_ST_EST)
+			stream_sock_data_check_timeouts(s->req->cons->fd);
+	}
+
+	/* When a server-side connection is released, we have to
+	 * count it and check for pending connections on this server.
+	 */
+	if (unlikely(s->req->cons->state == SI_ST_CLO &&
+		     s->req->cons->prev_state == SI_ST_EST)) {
+		/* Count server-side errors (but not timeouts). */
+		if (s->req->flags & BF_WRITE_ERROR) {
+			s->be->failed_resp++;
+			if (s->srv)
+				s->srv->failed_resp++;
+		}
+
+		if (s->srv) {
+			s->srv->cur_sess--;
+			sess_change_server(s, NULL);
+			if (may_dequeue_tasks(s->srv, s->be))
+				process_srv_queue(s->srv);
+		}
+
+		if (unlikely((s->req->cons->state == SI_ST_CLO) &&
+			     (global.mode & MODE_DEBUG) &&
+			     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
+			int len;
+			len = sprintf(trash, "%08x:%s.srvcls[%04x:%04x]\n",
+				      s->uniq_id, s->be->id, (unsigned short)s->req->prod->fd, (unsigned short)s->req->cons->fd);
+			write(1, trash, len);
 		}
 	}
 
-	/* check client-side errors during data phase */
-	if (s->rep->cons->state == SI_ST_EST)
-		stream_sock_data_check_errors(s->rep->cons->fd);
+	if (unlikely(s->rep->cons->state == SI_ST_CLO &&
+		     s->rep->cons->prev_state == SI_ST_EST)) {
+		if (unlikely((s->rep->cons->state == SI_ST_CLO) &&
+			     (global.mode & MODE_DEBUG) &&
+			     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
+			int len;
+			len = sprintf(trash, "%08x:%s.clicls[%04x:%04x]\n",
+				      s->uniq_id, s->be->id, (unsigned short)s->rep->prod->fd, (unsigned short)s->req->cons->fd);
+			write(1, trash, len);
+		}
+	}
 
-	/* force one first pass everywhere */
+
+	/* Check if we need to close the write side. This can only happen
+	 * when either SHUTR or EMPTY appears, because WRITE_ENA cannot appear
+	 * from low level, and neither HIJACK nor SHUTW can disappear from low
+	 * level. Later, this should move to stream_sock_{read,write}.
+	 */
+	if ((s->req->flags & (BF_SHUTW|BF_EMPTY|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) == (BF_EMPTY|BF_WRITE_ENA|BF_SHUTR)) {
+		buffer_shutw(s->req);
+		if (s->rep->flags & BF_SHUTR) {
+			fd_delete(s->req->cons->fd);
+			s->req->cons->state = SI_ST_CLO;
+		}
+		else {
+			EV_FD_CLR(s->req->cons->fd, DIR_WR);
+			shutdown(s->req->cons->fd, SHUT_WR);
+		}
+	}
+
+	/* Check if we need to close the write side */
+	if ((s->rep->flags & (BF_SHUTW|BF_EMPTY|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) == (BF_EMPTY|BF_WRITE_ENA|BF_SHUTR)) {
+		buffer_shutw(s->rep);
+		if (s->req->flags & BF_SHUTR) {
+			fd_delete(s->rep->cons->fd);
+			s->rep->cons->state = SI_ST_CLO;
+		}
+		else {
+			EV_FD_CLR(s->rep->cons->fd, DIR_WR);
+			shutdown(s->rep->cons->fd, SHUT_WR);
+		}
+	}
+
+
+
+	/* Dirty trick: force one first pass everywhere */
 	rqf_cli = rqf_srv = rqf_req = ~s->req->flags;
 	rpf_cli = rpf_srv = rpf_rep = ~s->rep->flags;
 
+	/* well, the ST_CONN state is already handled properly */
+	if (s->req->prod->state == SI_ST_EST) {
+		rqf_cli = s->req->flags;
+		rpf_cli = s->rep->flags;
+	}
+
+	if (s->req->cons->state == SI_ST_EST) {
+		rqf_srv = s->req->flags;
+		rpf_srv = s->rep->flags;
+	}
+
 	do {
+		DPRINTF(stderr,"[%u] %s: task=%p rq=%p, rp=%p, exp(r,w)=%u,%u rqf=%08x rpf=%08x rql=%d rpl=%d cs=%d ss=%d\n",
+			now_ms, __FUNCTION__,
+			t,
+			s->req, s->rep,
+			s->req->rex, s->rep->wex,
+			s->req->flags, s->rep->flags,
+			s->req->l, s->rep->l, s->rep->cons->state, s->req->cons->state);
+
 		resync = 0;
 
+		/* Analyse request */
+		if ((rqf_req ^ s->req->flags) & BF_MASK_ANALYSER) {
+			if (s->req->prod->state >= SI_ST_EST) {
+				resync = 1;
+				/* it's up to the analysers to reset write_ena */
+				buffer_write_ena(s->req);
+				if (s->req->analysers)
+					process_request(s);
+				rqf_req = s->req->flags;
+			}
+
+		}
+
+		/* Analyse response */
+		if (unlikely(s->rep->flags & BF_HIJACK)) {
+			/* In inject mode, we wake up everytime something has
+			 * happened on the write side of the buffer.
+			 */
+			if ((s->rep->flags & (BF_WRITE_PARTIAL|BF_WRITE_ERROR|BF_SHUTW)) &&
+			    !(s->rep->flags & BF_FULL)) {
+				if (produce_content(s) != 0)
+					resync = 1; /* completed, better re-check flags */
+			}
+		}
+		else if (s->rep->prod->state >= SI_ST_EST) {
+			if ((rpf_rep ^ s->rep->flags) & BF_MASK_ANALYSER) {
+				resync = 1;
+				/* it's up to the analysers to reset write_ena */
+				buffer_write_ena(s->rep);
+				if (s->rep->analysers)
+					process_response(s);
+				rpf_rep = s->rep->flags;
+			}
+		}
+
+		/* Maybe resync client FD state */
 		if (s->rep->cons->state != SI_ST_CLO) {
 			if (((rqf_cli ^ s->req->flags) & BF_MASK_INTERFACE_I) ||
 			    ((rpf_cli ^ s->rep->flags) & BF_MASK_INTERFACE_O)) {
@@ -713,7 +824,7 @@ void process_session(struct task *t, int *next)
 			}
 		}
 
-
+		/* Maybe resync server FD state */
 		if (s->req->cons->state != SI_ST_CLO) {
 			if (((rpf_srv ^ s->rep->flags) & BF_MASK_INTERFACE_I) ||
 			    ((rqf_srv ^ s->req->flags) & BF_MASK_INTERFACE_O)) {
@@ -761,38 +872,6 @@ void process_session(struct task *t, int *next)
 			}
 		}
 
-		if ((rqf_req ^ s->req->flags) & BF_MASK_ANALYSER) {
-			/* the analysers must block it themselves */
-			if (s->req->prod->state >= SI_ST_EST) {
-				resync = 1;
-				buffer_write_ena(s->req);
-				if (s->req->analysers)
-					process_request(s);
-			}
-			rqf_req = s->req->flags;
-		}
-
-		if (unlikely(s->rep->flags & BF_HIJACK)) {
-			/* In inject mode, we wake up everytime something has
-			 * happened on the write side of the buffer.
-			 */
-			if ((s->rep->flags & (BF_WRITE_PARTIAL|BF_WRITE_ERROR|BF_SHUTW)) &&
-			    !(s->rep->flags & BF_FULL)) {
-				if (produce_content(s) != 0)
-					resync = 1; /* completed, better re-check flags */
-			}
-		}
-		else if (s->rep->prod->state >= SI_ST_EST) {
-			if ((rpf_rep ^ s->rep->flags) & BF_MASK_ANALYSER) {
-				/* the analysers must block it themselves */
-				resync = 1;
-				buffer_write_ena(s->rep);
-				if (s->rep->analysers)
-					process_response(s);
-				rpf_rep = s->rep->flags;
-			}
-		}
-
 	} while (resync);
 
 	if (likely((s->rep->cons->state != SI_ST_CLO) ||
@@ -809,6 +888,8 @@ void process_session(struct task *t, int *next)
 
 		s->req->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE;
 		s->rep->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE;
+		s->si[0].prev_state = s->si[0].state;
+		s->si[1].prev_state = s->si[1].state;
 
 		/* Trick: if a request is being waiting for the server to respond,
 		 * and if we know the server can timeout, we don't want the timeout
@@ -1766,7 +1847,7 @@ int process_request(struct session *t)
 		 * - if one rule returns KO, then return KO
 		 */
 
-		if (req->flags & (BF_READ_NULL | BF_SHUTR) || tick_is_expired(req->analyse_exp, now_ms))
+		if (req->flags & BF_SHUTR || tick_is_expired(req->analyse_exp, now_ms))
 			partial = 0;
 		else
 			partial = ACL_PARTIAL;
@@ -1921,7 +2002,7 @@ int process_request(struct session *t)
 			}
 
 			/* 4: have we encountered a close ? */
-			else if (req->flags & (BF_READ_NULL | BF_SHUTR)) {
+			else if (req->flags & BF_SHUTR) {
 				txn->status = 400;
 				client_retnclose(t, error_message(t, HTTP_ERR_400));
 				msg->msg_state = HTTP_MSG_ERROR;
@@ -2607,7 +2688,7 @@ int process_request(struct session *t)
 		 * timeout. We just have to check that the client is still
 		 * there and that the timeout has not expired.
 		 */
-		if ((req->flags & (BF_READ_NULL|BF_READ_ERROR)) == 0 &&
+		if ((req->flags & (BF_SHUTR|BF_READ_ERROR)) == 0 &&
 		    !tick_is_expired(req->analyse_exp, now_ms))
 			return 0;
 
@@ -2690,7 +2771,7 @@ int process_request(struct session *t)
 		 * buffer closed).
 		 */
 		if (req->l - body >= limit ||             /* enough bytes! */
-		    req->flags & (BF_FULL | BF_READ_ERROR | BF_SHUTR | BF_READ_NULL | BF_READ_TIMEOUT) ||
+		    req->flags & (BF_FULL | BF_READ_ERROR | BF_SHUTR | BF_READ_TIMEOUT) ||
 		    tick_is_expired(req->analyse_exp, now_ms)) {
 			/* The situation will not evolve, so let's give up on the analysis. */
 			t->logs.tv_request = now;  /* update the request timer to reflect full request */
@@ -2887,7 +2968,7 @@ int process_response(struct session *t)
 				return 0;
 			}
 			/* write error to client, or close from server */
-			else if (rep->flags & (BF_WRITE_ERROR|BF_SHUTR|BF_READ_NULL)) {
+			else if (rep->flags & (BF_WRITE_ERROR|BF_SHUTR)) {
 				buffer_shutr_now(rep);
 				buffer_shutw_now(req);
 				//fd_delete(req->cons->fd);

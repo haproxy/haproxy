@@ -42,6 +42,7 @@
 int stream_sock_read(int fd) {
 	__label__ out_wakeup, out_shutdown_r, out_error;
 	struct buffer *b = fdtab[fd].cb[DIR_RD].b;
+	struct stream_interface *si = fdtab[fd].owner;
 	int ret, max, retval, cur_read;
 	int read_poll = MAX_READ_POLL_LOOPS;
 
@@ -239,16 +240,21 @@ int stream_sock_read(int fd) {
 	if (!(b->flags & BF_READ_ACTIVITY))
 		goto out_skip_wakeup;
  out_wakeup:
-	task_wakeup(fdtab[fd].owner, TASK_WOKEN_IO);
+	task_wakeup(si->owner, TASK_WOKEN_IO);
 
  out_skip_wakeup:
 	fdtab[fd].ev &= ~FD_POLL_IN;
 	return retval;
 
  out_shutdown_r:
+	/* we received a shutdown */
 	fdtab[fd].ev &= ~FD_POLL_HUP;
 	b->flags |= BF_READ_NULL;
-	b->rex = TICK_ETERNITY;
+	buffer_shutr(b);
+	/* Maybe we have to completely close the socket */
+	if (fdtab[fd].cb[DIR_WR].b->flags & BF_SHUTW)
+		goto do_close_and_return;
+	EV_FD_CLR(fd, DIR_RD);
 	goto out_wakeup;
 
  out_error:
@@ -258,7 +264,27 @@ int stream_sock_read(int fd) {
 	fdtab[fd].state = FD_STERROR;
 	fdtab[fd].ev &= ~FD_POLL_STICKY;
 	b->rex = TICK_ETERNITY;
-	goto out_wakeup;
+
+	/* Read error on the file descriptor. We close the FD and set
+	 * the error on both buffers.
+	 * Note: right now we only support connected sockets.
+	 */
+	if (si->state != SI_ST_EST)
+		goto out_wakeup;
+
+	if (!si->err_type)
+		si->err_type = SI_ET_DATA_ERR;
+
+	buffer_shutr(fdtab[fd].cb[DIR_RD].b);
+	fdtab[fd].cb[DIR_RD].b->flags |= BF_READ_ERROR;
+	buffer_shutw(fdtab[fd].cb[DIR_WR].b);
+	fdtab[fd].cb[DIR_WR].b->flags |= BF_WRITE_ERROR;
+
+ do_close_and_return:
+	fd_delete(fd);
+	si->state = SI_ST_CLO;
+	task_wakeup(si->owner, TASK_WOKEN_IO);
+	return 1;
 }
 
 
@@ -271,6 +297,7 @@ int stream_sock_read(int fd) {
 int stream_sock_write(int fd) {
 	__label__ out_wakeup, out_error;
 	struct buffer *b = fdtab[fd].cb[DIR_WR].b;
+	struct stream_interface *si = fdtab[fd].owner;
 	int ret, max, retval;
 	int write_poll = MAX_WRITE_POLL_LOOPS;
 
@@ -411,7 +438,7 @@ int stream_sock_write(int fd) {
 	if (!(b->flags & BF_WRITE_ACTIVITY))
 		goto out_skip_wakeup;
  out_wakeup:
-	task_wakeup(fdtab[fd].owner, TASK_WOKEN_IO);
+	task_wakeup(si->owner, TASK_WOKEN_IO);
 
  out_skip_wakeup:
 	fdtab[fd].ev &= ~FD_POLL_OUT;
@@ -424,7 +451,25 @@ int stream_sock_write(int fd) {
 	fdtab[fd].state = FD_STERROR;
 	fdtab[fd].ev &= ~FD_POLL_STICKY;
 	b->wex = TICK_ETERNITY;
-	goto out_wakeup;
+	/* Read error on the file descriptor. We close the FD and set
+	 * the error on both buffers.
+	 * Note: right now we only support connected sockets.
+	 */
+	if (si->state != SI_ST_EST)
+		goto out_wakeup;
+
+	if (!si->err_type)
+		si->err_type = SI_ET_DATA_ERR;
+
+	buffer_shutr(fdtab[fd].cb[DIR_RD].b);
+	fdtab[fd].cb[DIR_RD].b->flags |= BF_READ_ERROR;
+	buffer_shutw(fdtab[fd].cb[DIR_WR].b);
+	fdtab[fd].cb[DIR_WR].b->flags |= BF_WRITE_ERROR;
+
+	fd_delete(fd);
+	si->state = SI_ST_CLO;
+	task_wakeup(si->owner, TASK_WOKEN_IO);
+	return 1;
 }
 
 
@@ -433,7 +478,7 @@ int stream_sock_write(int fd) {
  * phase. It controls the file descriptor's status, as well as read and write
  * timeouts.
  */
-int stream_sock_data_check_errors(int fd)
+int stream_sock_data_check_timeouts(int fd)
 {
 	struct buffer *ib = fdtab[fd].cb[DIR_RD].b;
 	struct buffer *ob = fdtab[fd].cb[DIR_WR].b;
@@ -446,24 +491,6 @@ int stream_sock_data_check_errors(int fd)
 		ib->flags, ob->flags,
 		ib->l, ob->l);
 
-	/* Read or write error on the file descriptor */
-	if (unlikely(fdtab[fd].state == FD_STERROR)) {
-		//trace_term(t, TT_HTTP_SRV_6);
-		if (!ob->cons->err_type) {
-			//ob->cons->err_loc = t->srv;
-			ob->cons->err_type = SI_ET_DATA_ERR;
-		}
-		buffer_shutw(ob);
-		ob->flags |= BF_WRITE_ERROR;
-		buffer_shutr(ib);
-		ib->flags |= BF_READ_ERROR;
-
-	do_close_and_return:
-		fd_delete(fd);
-		ob->cons->state = SI_ST_CLO;
-		return 0;
-	}
-
 	/* Read timeout */
 	if (unlikely(!(ib->flags & (BF_SHUTR|BF_READ_TIMEOUT)) && tick_is_expired(ib->rex, now_ms))) {
 		//trace_term(t, TT_HTTP_SRV_12);
@@ -473,8 +500,13 @@ int stream_sock_data_check_errors(int fd)
 			ob->cons->err_type = SI_ET_DATA_TO;
 		}
 		buffer_shutr(ib);
-		if (ob->flags & BF_SHUTW)
-			goto do_close_and_return;
+		if (ob->flags & BF_SHUTW) {
+		do_close_and_return:
+			fd_delete(fd);
+			ob->cons->state = SI_ST_CLO;
+			return 0;
+		}
+
 		EV_FD_CLR(fd, DIR_RD);
 	}
 
@@ -506,18 +538,18 @@ int stream_sock_data_update(int fd)
 	struct buffer *ib = fdtab[fd].cb[DIR_RD].b;
 	struct buffer *ob = fdtab[fd].cb[DIR_WR].b;
 
-	DPRINTF(stderr,"[%u] %s: fd=%d owner=%p ib=%p, ob=%p, exp(r,w)=%u,%u ibf=%08x obf=%08x ibl=%d obl=%d\n",
+	DPRINTF(stderr,"[%u] %s: fd=%d owner=%p ib=%p, ob=%p, exp(r,w)=%u,%u ibf=%08x obf=%08x ibl=%d obl=%d si=%d\n",
 		now_ms, __FUNCTION__,
 		fd, fdtab[fd].owner,
 		ib, ob,
 		ib->rex, ob->wex,
 		ib->flags, ob->flags,
-		ib->l, ob->l);
+		ib->l, ob->l, ob->cons->state);
 
 	/* Check if we need to close the read side */
 	if (!(ib->flags & BF_SHUTR)) {
 		/* Last read, forced read-shutdown, or other end closed */
-		if (ib->flags & (BF_READ_NULL|BF_SHUTR_NOW|BF_SHUTW)) {
+		if (ib->flags & (BF_SHUTR_NOW|BF_SHUTW)) {
 			//trace_term(t, TT_HTTP_SRV_10);
 			buffer_shutr(ib);
 			if (ob->flags & BF_SHUTW) {
@@ -560,13 +592,13 @@ int stream_sock_data_finish(int fd)
 	struct buffer *ib = fdtab[fd].cb[DIR_RD].b;
 	struct buffer *ob = fdtab[fd].cb[DIR_WR].b;
 
-	DPRINTF(stderr,"[%u] %s: fd=%d owner=%p ib=%p, ob=%p, exp(r,w)=%u,%u ibf=%08x obf=%08x ibl=%d obl=%d\n",
+	DPRINTF(stderr,"[%u] %s: fd=%d owner=%p ib=%p, ob=%p, exp(r,w)=%u,%u ibf=%08x obf=%08x ibl=%d obl=%d si=%d\n",
 		now_ms, __FUNCTION__,
 		fd, fdtab[fd].owner,
 		ib, ob,
 		ib->rex, ob->wex,
 		ib->flags, ob->flags,
-		ib->l, ob->l);
+		ib->l, ob->l, ob->cons->state);
 
 	/* Check if we need to close the read side */
 	if (!(ib->flags & BF_SHUTR)) {

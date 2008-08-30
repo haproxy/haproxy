@@ -1805,7 +1805,7 @@ int connect_server(struct session *s)
 		}
 	}
 
-	fdtab[fd].owner = s->task;
+	fdtab[fd].owner = s->req->cons;
 	fdtab[fd].state = FD_STCONN; /* connection in progress */
 	fdtab[fd].cb[DIR_RD].f = &stream_sock_read;
 	fdtab[fd].cb[DIR_RD].b = s->rep;

@@ -173,12 +173,14 @@ int event_accept(int fd) {
 		s->si[0].state = SI_ST_EST;
 		s->si[0].err_type = SI_ET_NONE;
 		s->si[0].err_loc = NULL;
+		s->si[0].owner = t;
 		s->si[0].fd = cfd;
 		s->cli_fd = cfd;
 
 		s->si[1].state = SI_ST_INI;
 		s->si[1].err_type = SI_ET_NONE;
 		s->si[1].err_loc = NULL;
+		s->si[1].owner = t;
 		s->si[1].fd = -1; /* just to help with debugging */
 
 		s->srv = s->prev_srv = s->srv_conn = NULL;
@@ -373,7 +375,7 @@ int event_accept(int fd) {
 		t->expire = TICK_ETERNITY;
 
 		fd_insert(cfd);
-		fdtab[cfd].owner = t;
+		fdtab[cfd].owner = &s->si[0];
 		fdtab[cfd].listener = l;
 		fdtab[cfd].state = FD_STREADY;
 		fdtab[cfd].cb[DIR_RD].f = l->proto->read;
