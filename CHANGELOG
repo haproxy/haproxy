@@ -1,6 +1,19 @@
 ChangeLog :
 ===========
 
+2008/09/02 : 1.3.15.3
+    - [BUG] disable buffer read timeout when reading stats
+    - [BUILD] change declaration of base64tab to fix build with Intel C++
+    - [BUILD] silent a warning in unlikely() with gcc 4.x
+    - [BUG] use_backend would not correctly consider "unless"
+    - [CLEANUP] remove dependency on obsolete INTBITS macro
+    - [BUG] fix segfault with url_param + check_post
+    - [BUG] server timeout was not considered in some circumstances
+    - [BUG] ev_sepoll: closed file descriptors could persist in the spec list
+    - [BUG] maintain_proxies must not disable backends
+    - [BUG] regparm is broken on gcc < 3
+    - [OPTIM] force inlining of large functions with gcc >= 3
+
 2008/06/21 : 1.3.15.2
     - [BUILD] make install should depend on haproxy not "all"
     - [BUG] event pollers must not wait if a task exists in the run queue
