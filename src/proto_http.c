@@ -706,28 +706,6 @@ void process_session(struct task *t, int *next)
 			if (may_dequeue_tasks(s->srv, s->be))
 				process_srv_queue(s->srv);
 		}
-
-		if (unlikely((s->req->cons->state == SI_ST_CLO) &&
-			     (global.mode & MODE_DEBUG) &&
-			     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
-			int len;
-			len = sprintf(trash, "%08x:%s.srvcls[%04x:%04x]\n",
-				      s->uniq_id, s->be->id, (unsigned short)s->req->prod->fd, (unsigned short)s->req->cons->fd);
-			write(1, trash, len);
-		}
-	}
-
-	/* This is needed when debugging is enabled, to indicate client-side close */
-	if (unlikely(s->rep->cons->state == SI_ST_CLO &&
-		     s->rep->cons->prev_state == SI_ST_EST)) {
-		if (unlikely((s->rep->cons->state == SI_ST_CLO) &&
-			     (global.mode & MODE_DEBUG) &&
-			     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
-			int len;
-			len = sprintf(trash, "%08x:%s.clicls[%04x:%04x]\n",
-				      s->uniq_id, s->be->id, (unsigned short)s->rep->prod->fd, (unsigned short)s->req->cons->fd);
-			write(1, trash, len);
-		}
 	}
 
 	/* Dirty trick: force one first pass everywhere */
@@ -763,15 +741,6 @@ void process_session(struct task *t, int *next)
 				stream_sock_data_update(s->rep->cons->fd);
 				rqf_cli = s->req->flags;
 				rpf_cli = s->rep->flags;
-
-				if (unlikely((s->rep->cons->state == SI_ST_CLO) &&
-					     (global.mode & MODE_DEBUG) &&
-					     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
-						int len;
-						len = sprintf(trash, "%08x:%s.clicls[%04x:%04x]\n",
-							      s->uniq_id, s->be->id, (unsigned short)s->rep->prod->fd, (unsigned short)s->req->cons->fd);
-						write(1, trash, len);
-				}
 			}
 		}
 
@@ -811,15 +780,6 @@ void process_session(struct task *t, int *next)
 				}
 				rqf_srv = s->req->flags;
 				rpf_srv = s->rep->flags;
-
-				if (unlikely((s->req->cons->state == SI_ST_CLO) &&
-					     (global.mode & MODE_DEBUG) &&
-					     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
-						int len;
-						len = sprintf(trash, "%08x:%s.srvcls[%04x:%04x]\n",
-							      s->uniq_id, s->be->id, (unsigned short)s->req->prod->fd, (unsigned short)s->req->cons->fd);
-						write(1, trash, len);
-				}
 			}
 		}
 
@@ -884,6 +844,35 @@ void process_session(struct task *t, int *next)
 		rpf_cli &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
 		rpf_srv &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
 	} while (resync);
+
+	/* This is needed only when debugging is enabled, to indicate
+	 * client-side or server-side close. Please note that in the unlikely
+	 * event where both sides would close at once, the sequence is reported
+	 * on the server side first.
+	 */
+	if (unlikely((global.mode & MODE_DEBUG) &&
+		     (!(global.mode & MODE_QUIET) ||
+		      (global.mode & MODE_VERBOSE)))) {
+		int len;
+
+		if (s->si[1].state == SI_ST_CLO &&
+		    s->si[1].prev_state == SI_ST_EST) {
+			len = sprintf(trash, "%08x:%s.srvcls[%04x:%04x]\n",
+				      s->uniq_id, s->be->id,
+				      (unsigned short)s->si[0].fd,
+				      (unsigned short)s->si[1].fd);
+			write(1, trash, len);
+		}
+
+		if (s->si[0].state == SI_ST_CLO &&
+		    s->si[0].prev_state == SI_ST_EST) {
+			len = sprintf(trash, "%08x:%s.clicls[%04x:%04x]\n",
+				      s->uniq_id, s->be->id,
+				      (unsigned short)s->si[0].fd,
+				      (unsigned short)s->si[1].fd);
+			write(1, trash, len);
+		}
+	}
 
 	if (likely((s->rep->cons->state != SI_ST_CLO) ||
 		   (s->req->cons->state != SI_ST_CLO && s->req->cons->state != SI_ST_INI))) {
