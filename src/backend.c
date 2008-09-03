@@ -2048,10 +2048,47 @@ acl_fetch_nbsrv(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 1;
 }
 
+/* set test->i to the number of enabled servers on the proxy */
+static int
+acl_fetch_connslots(struct proxy *px, struct session *l4, void *l7, int dir,
+		    struct acl_expr *expr, struct acl_test *test)
+{
+	struct server *iterator;
+	test->flags = ACL_TEST_F_VOL_TEST;
+	if (expr->arg_len) {
+		/* another proxy was designated, we must look for it */
+		for (px = proxy; px; px = px->next)
+			if ((px->cap & PR_CAP_BE) && !strcmp(px->id, expr->arg.str))
+				break;
+	}
+	if (!px)
+		return 0;
+
+	test->i = 0;
+	iterator = px->srv;
+	while (iterator) {
+		if ((iterator->state & 1) == 0) {
+			iterator = iterator->next;
+			continue;
+		}
+		if (iterator->maxconn == 0 || iterator->maxqueue == 0) {
+			test->i = -1;
+			return 1;
+		}
+
+		test->i += (iterator->maxconn - iterator->cur_sess)
+			+  (iterator->maxqueue - iterator->nbpend);
+		iterator = iterator->next;
+	}
+
+	return 1;
+}
+
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct acl_kw_list acl_kws = {{ },{
-	{ "nbsrv",   acl_parse_int,   acl_fetch_nbsrv,    acl_match_int, ACL_USE_NOTHING },
+	{ "nbsrv",    acl_parse_int,   acl_fetch_nbsrv,     acl_match_int, ACL_USE_NOTHING },
+	{ "connlots", acl_parse_int,   acl_fetch_connslots, acl_match_int, ACL_USE_NOTHING },
 	{ NULL, NULL, NULL, NULL },
 }};
 

@@ -3764,6 +3764,27 @@ nbsrv(backend) <integer>
   to handle some load. It is useful to report a failure when combined with
   "monitor fail".
 
+connslots <integer>
+connslots(backend) <integer>
+  The basic idea here is to be able to measure the number of connection "slots"
+  still available (connection, + queue) - so that anything beyond that (intended
+  usage; see "use_backend" keyword) can be redirected to a different backend.
+
+  'connslots' = number of available server connection slots, + number of available
+  server queue slots.
+
+  *Note that while "dst_conn" may be used, "connslots" comes in especially useful
+  when you have a case of traffic going to one single ip, splitting into multiple
+  backends (perhaps using acls to do name-based load balancing) - and you want to
+  be able to differentiate between different backends, and their "connslots"
+  available.  Also, whereas "nbsrv" only measures servers that are actually *down*,
+  this acl is more fine-grained - and looks into the number of conn slots available
+  as well.
+
+  *OTHER CAVEATS AND NOTES: at this point in time, the code does not take care of
+  dynamic connections. Also, if any of the server maxconn, or maxqueue is 0, then
+  this acl clearly does not make sense - in which case the value returned will be -1.
+
 
 2.3.5.2) Matching contents at Layer 4
 -------------------------------------
