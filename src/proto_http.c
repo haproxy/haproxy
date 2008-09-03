@@ -671,6 +671,9 @@ void process_session(struct task *t, int *next)
 			if (tick_is_expired(s->req->analyse_exp, now_ms))
 				s->req->flags |= BF_ANA_TIMEOUT;
 		}
+		/* Note that we don't check nor indicate if we wake up because
+		 * of a timeout on a stream interface.
+		 */
 	}
 
 	/* Check if we need to close the write side. This can only happen
@@ -907,6 +910,12 @@ void process_session(struct task *t, int *next)
 				       tick_first(s->rep->rex, s->rep->wex));
 		if (s->req->analysers)
 			t->expire = tick_first(t->expire, s->req->analyse_exp);
+
+		if (s->si[0].exp)
+			t->expire = tick_first(t->expire, s->si[0].exp);
+
+		if (s->si[1].exp)
+			t->expire = tick_first(t->expire, s->si[1].exp);
 
 #ifdef DEBUG_FULL
 		fprintf(stderr, "[%u] queuing with exp=%u req->rex=%u req->wex=%u req->ana_exp=%u rep->rex=%u rep->wex=%u\n",
@@ -3613,7 +3622,7 @@ int tcp_connection_status(struct session *t)
 			 * time of 1 second. We will wait in the previous if block.
 			 */
 			req->cons->state = SI_ST_TAR;
-			req->wex = tick_add(now_ms, MS_TO_TICKS(1000));
+			req->cons->exp = tick_add(now_ms, MS_TO_TICKS(1000));
 			return 0;
 		}
 
@@ -3731,7 +3740,7 @@ int stream_sock_assign_server(struct session *t)
 		     (t->req->flags & BF_EMPTY || t->be->options & PR_O_ABRT_CLOSE))) { /* give up */
 
 			trace_term(t, TT_HTTP_SRV_1);
-			t->req->wex = TICK_ETERNITY;
+			t->req->cons->exp = TICK_ETERNITY;
 
 			// FIXME: should we set rep->MAY_FORWARD ?
 			buffer_shutr(t->rep);
@@ -3742,18 +3751,19 @@ int stream_sock_assign_server(struct session *t)
 			return 0;
 		}
 
-		if (!tick_is_expired(t->req->wex, now_ms))
+		if (!tick_is_expired(t->req->cons->exp, now_ms))
 			return 0;  /* still in turn-around */
 
 		t->req->cons->state = SI_ST_INI;
+		t->req->cons->exp = TICK_ETERNITY;
 	}
 	else if (t->req->cons->state == SI_ST_QUE) {
 		if (t->pend_pos) {
 			/* request still in queue... */
-			if (tick_is_expired(t->req->wex, now_ms)) {
+			if (tick_is_expired(t->req->cons->exp, now_ms)) {
 				/* ... and timeout expired */
 				trace_term(t, TT_HTTP_SRV_3);
-				t->req->wex = TICK_ETERNITY;
+				t->req->cons->exp = TICK_ETERNITY;
 				t->logs.t_queue = tv_ms_elapsed(&t->logs.tv_accept, &now);
 				if (t->srv)
 					t->srv->failed_conns++;
@@ -3775,7 +3785,7 @@ int stream_sock_assign_server(struct session *t)
 			     (t->req->flags & BF_EMPTY || t->be->options & PR_O_ABRT_CLOSE))) {
 				/* give up */
 				trace_term(t, TT_HTTP_SRV_1);
-				t->req->wex = TICK_ETERNITY;
+				t->req->cons->exp = TICK_ETERNITY;
 				t->logs.t_queue = tv_ms_elapsed(&t->logs.tv_accept, &now);
 
 				// FIXME: should we set rep->MAY_FORWARD ?
@@ -3789,6 +3799,7 @@ int stream_sock_assign_server(struct session *t)
 		}
 		/* The connection is not in the queue anymore */
 		t->req->cons->state = SI_ST_INI;
+		t->req->cons->exp = TICK_ETERNITY;
 	}
 
 	/* we may get here from above */
@@ -3802,7 +3813,6 @@ int stream_sock_assign_server(struct session *t)
 		     (t->req->flags & BF_EMPTY || t->be->options & PR_O_ABRT_CLOSE))) { /* give up */
 
 			trace_term(t, TT_HTTP_SRV_1);
-			t->req->wex = TICK_ETERNITY;
 
 			// FIXME: should we set rep->MAY_FORWARD ?
 			buffer_shutr(t->rep);
@@ -3822,7 +3832,6 @@ int stream_sock_assign_server(struct session *t)
 			}
 
 			trace_term(t, TT_HTTP_SRV_2);
-			t->req->wex = TICK_ETERNITY;
 
 			// FIXME: should we set rep->MAY_FORWARD ?
 			buffer_shutr(t->rep);
@@ -3866,7 +3875,6 @@ int stream_sock_connect_server(struct session *t)
 		if (t->req->cons->state != SI_ST_CON) {
 			/* it was an error */
 			trace_term(t, TT_HTTP_SRV_4);
-			t->req->wex = TICK_ETERNITY;
 
 			// FIXME: should we set rep->MAY_FORWARD ?
 			buffer_shutr(t->rep);

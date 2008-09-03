@@ -1997,7 +1997,7 @@ int srv_redispatch_connect(struct session *t)
 		return 1;
 
 	case SRV_STATUS_QUEUED:
-		t->req->wex = tick_add_ifset(now_ms, t->be->timeout.queue);
+		t->req->cons->exp = tick_add_ifset(now_ms, t->be->timeout.queue);
 		t->req->cons->state = SI_ST_QUE;
 		/* do nothing else and do not wake any other session up */
 		return 1;
