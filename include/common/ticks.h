@@ -82,9 +82,11 @@ static inline int tick_add_ifset(int now, int timeout)
 /* return 1 if timer <timer> is expired at date <now>, otherwise zero */
 static inline int tick_is_expired(int timer, int now)
 {
-	if (!tick_isset(timer))
+	if (unlikely(!tick_isset(timer)))
 		return 0;
-	return (timer - now) <= 0;
+	if (unlikely((timer - now) <= 0))
+		return 1;
+	return 0;
 }
 
 /* return the first one of the two timers, both of which may be infinite */
