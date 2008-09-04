@@ -64,6 +64,24 @@ static inline int buffer_isfull(const struct buffer *buf) {
 	return buf->l == BUFSIZE;
 }
 
+/* Check buffer timeouts, and set the corresponding flags. The
+ * likely/unlikely have been optimized for fastest normal path.
+ */
+static inline void buffer_check_timeouts(struct buffer *b)
+{
+	if (likely(!(b->flags & (BF_SHUTR|BF_READ_TIMEOUT))) &&
+	    unlikely(tick_is_expired(b->rex, now_ms)))
+		b->flags |= BF_READ_TIMEOUT;
+
+	if (likely(!(b->flags & (BF_SHUTW|BF_WRITE_TIMEOUT))) &&
+	    unlikely(tick_is_expired(b->wex, now_ms)))
+		b->flags |= BF_WRITE_TIMEOUT;
+
+	if (likely(!(b->flags & BF_ANA_TIMEOUT)) &&
+	    unlikely(tick_is_expired(b->analyse_exp, now_ms)))
+		b->flags |= BF_ANA_TIMEOUT;
+}
+
 /* flushes any content from buffer <buf> and adjusts flags
  * accordingly.
  */
