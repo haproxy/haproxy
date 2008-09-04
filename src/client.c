@@ -174,6 +174,7 @@ int event_accept(int fd) {
 		s->si[0].err_type = SI_ET_NONE;
 		s->si[0].err_loc = NULL;
 		s->si[0].owner = t;
+		s->si[0].shutr = stream_sock_shutr;
 		s->si[0].shutw = stream_sock_shutw;
 		s->si[0].fd = cfd;
 		s->si[0].exp = TICK_ETERNITY;
@@ -183,6 +184,7 @@ int event_accept(int fd) {
 		s->si[1].err_type = SI_ET_NONE;
 		s->si[1].err_loc = NULL;
 		s->si[1].owner = t;
+		s->si[1].shutr = stream_sock_shutr;
 		s->si[1].shutw = stream_sock_shutw;
 		s->si[1].exp = TICK_ETERNITY;
 		s->si[1].fd = -1; /* just to help with debugging */

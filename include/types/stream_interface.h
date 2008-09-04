@@ -62,6 +62,7 @@ struct stream_interface {
 	void *owner;            /* generally a (struct task*) */
 	int fd;                 /* file descriptor for a stream driver when known */
 	unsigned int exp;       /* wake up time for connect, queue, turn-around, ... */
+	int (*shutr)(struct stream_interface *);  /* shutr function */
 	int (*shutw)(struct stream_interface *);  /* shutw function */
 	struct buffer *ib, *ob; /* input and output buffers */
 	unsigned int err_type;  /* first error detected, one of SI_ET_* */

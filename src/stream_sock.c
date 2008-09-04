@@ -485,8 +485,8 @@ int stream_sock_write(int fd) {
 }
 
 /*
- * This function performs a shutdown-write on a stream interface in a connected
- * state (it does nothing for other states). It either shuts the write side or
+ * This function performs a shutdown-write on a stream interface in a connected or
+ * init state (it does nothing for other states). It either shuts the write side
  * closes the file descriptor and marks itself as closed. No buffer flags are
  * changed, it's up to the caller to adjust them. The sole purpose of this
  * function is to be called from the other stream interface to notify of a
@@ -496,7 +496,7 @@ int stream_sock_write(int fd) {
  */
 int stream_sock_shutw(struct stream_interface *si)
 {
-	if (si->state != SI_ST_EST)
+	if (si->state != SI_ST_EST && si->state != SI_ST_CON)
 		return 0;
 
 	if (si->ib->flags & BF_SHUTR) {
@@ -506,6 +506,30 @@ int stream_sock_shutw(struct stream_interface *si)
 	}
 	EV_FD_CLR(si->fd, DIR_WR);
 	shutdown(si->fd, SHUT_WR);
+	return 0;
+}
+
+/*
+ * This function performs a shutdown-read on a stream interface in a connected or
+ * init state (it does nothing for other states). It either shuts the read side or
+ * closes the file descriptor and marks itself as closed. No buffer flags are
+ * changed, it's up to the caller to adjust them. The sole purpose of this
+ * function is to be called from the other stream interface to notify of a
+ * close_read, or by itself upon a full write leading to an empty buffer.
+ * It normally returns zero, unless it has completely closed the socket, in
+ * which case it returns 1.
+ */
+int stream_sock_shutr(struct stream_interface *si)
+{
+	if (si->state != SI_ST_EST && si->state != SI_ST_CON)
+		return 0;
+
+	if (si->ib->flags & BF_SHUTW) {
+		fd_delete(si->fd);
+		si->state = SI_ST_CLO;
+		return 1;
+	}
+	EV_FD_CLR(si->fd, DIR_RD);
 	return 0;
 }
 

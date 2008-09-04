@@ -661,15 +661,29 @@ void process_session(struct task *t, int *next)
 
 	/* Check timeouts only during data phase for now */
 	if (unlikely(t->state & TASK_WOKEN_TIMER)) {
-		if (s->rep->cons->state == SI_ST_EST) {
-			stream_sock_data_check_timeouts(s->rep->cons->fd);
-			if (tick_is_expired(s->rep->analyse_exp, now_ms))
-				s->rep->flags |= BF_ANA_TIMEOUT;
+		buffer_check_timeouts(s->req);
+		buffer_check_timeouts(s->rep);
+
+		if (unlikely(s->req->flags & (BF_READ_TIMEOUT|BF_WRITE_TIMEOUT))) {
+			if (s->req->flags & BF_READ_TIMEOUT) {
+				buffer_shutw(s->req);
+				s->req->cons->shutr(s->req->prod);
+			}
+			if (s->req->flags & BF_WRITE_TIMEOUT) {
+				buffer_shutw(s->req);
+				s->req->cons->shutw(s->req->cons);
+			}
 		}
-		if (s->req->cons->state == SI_ST_EST) {
-			stream_sock_data_check_timeouts(s->req->cons->fd);
-			if (tick_is_expired(s->req->analyse_exp, now_ms))
-				s->req->flags |= BF_ANA_TIMEOUT;
+
+		if (unlikely(s->rep->flags & (BF_READ_TIMEOUT|BF_WRITE_TIMEOUT))) {
+			if (s->rep->flags & BF_READ_TIMEOUT) {
+				buffer_shutw(s->rep);
+				s->rep->cons->shutr(s->rep->prod);
+			}
+			if (s->rep->flags & BF_WRITE_TIMEOUT) {
+				buffer_shutw(s->rep);
+				s->rep->cons->shutw(s->rep->cons);
+			}
 		}
 		/* Note that we don't check nor indicate if we wake up because
 		 * of a timeout on a stream interface.
