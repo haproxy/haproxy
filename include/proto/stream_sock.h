@@ -33,11 +33,11 @@
 /* main event functions used to move data between sockets and buffers */
 int stream_sock_read(int fd);
 int stream_sock_write(int fd);
-int stream_sock_data_check_timeouts(int fd);
 int stream_sock_data_update(int fd);
 int stream_sock_data_finish(int fd);
 int stream_sock_shutr(struct stream_interface *si);
 int stream_sock_shutw(struct stream_interface *si);
+int stream_sock_check_timeouts(struct stream_interface *si);
 
 
 /* This either returns the sockname or the original destination address. Code

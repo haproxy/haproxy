@@ -56,11 +56,18 @@ enum {
 	SI_ET_DATA_ABRT  = 0x0200,  /* data phase aborted by external cause */
 };
 
+/* flags set after I/O */
+enum {
+	SI_FL_NONE       = 0x0000,  /* nothing */
+	SI_FL_EXP        = 0x0001,  /* timeout has expired */
+};
+
 struct stream_interface {
 	unsigned int state;     /* SI_ST* */
 	unsigned int prev_state;/* SI_ST*, copy of previous state */
 	void *owner;            /* generally a (struct task*) */
 	int fd;                 /* file descriptor for a stream driver when known */
+	unsigned int flags;     /* SI_FL_*, must be cleared before I/O */
 	unsigned int exp;       /* wake up time for connect, queue, turn-around, ... */
 	int (*shutr)(struct stream_interface *);  /* shutr function */
 	int (*shutw)(struct stream_interface *);  /* shutw function */

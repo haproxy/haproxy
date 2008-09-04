@@ -534,56 +534,17 @@ int stream_sock_shutr(struct stream_interface *si)
 }
 
 /*
- * This function only has to be called once after a wakeup event during a data
- * phase. It controls the file descriptor's status, as well as read and write
- * timeouts.
+ * This function only has to be called once after a wakeup event in case of
+ * suspected timeout. It controls the stream interface timeouts and sets
+ * si->flags accordingly. It does NOT close anything, as this timeout may
+ * be used for any purpose. It returns 1 if the timeout fired, otherwise
+ * zero.
  */
-int stream_sock_data_check_timeouts(int fd)
+int stream_sock_check_timeouts(struct stream_interface *si)
 {
-	struct buffer *ib = fdtab[fd].cb[DIR_RD].b;
-	struct buffer *ob = fdtab[fd].cb[DIR_WR].b;
-
-	DPRINTF(stderr,"[%u] %s: fd=%d owner=%p ib=%p, ob=%p, exp(r,w)=%u,%u ibf=%08x obf=%08x ibl=%d obl=%d\n",
-		now_ms, __FUNCTION__,
-		fd, fdtab[fd].owner,
-		ib, ob,
-		ib->rex, ob->wex,
-		ib->flags, ob->flags,
-		ib->l, ob->l);
-
-	/* Read timeout */
-	if (unlikely(!(ib->flags & (BF_SHUTR|BF_READ_TIMEOUT)) && tick_is_expired(ib->rex, now_ms))) {
-		//trace_term(t, TT_HTTP_SRV_12);
-		ib->flags |= BF_READ_TIMEOUT;
-		if (!ob->cons->err_type) {
-			//ob->cons->err_loc = t->srv;
-			ob->cons->err_type = SI_ET_DATA_TO;
-		}
-		buffer_shutr(ib);
-		if (ob->flags & BF_SHUTW) {
-		do_close_and_return:
-			fd_delete(fd);
-			ob->cons->state = SI_ST_CLO;
-			return 0;
-		}
-
-		EV_FD_CLR(fd, DIR_RD);
-	}
-
-	/* Write timeout */
-	if (unlikely(!(ob->flags & (BF_SHUTW|BF_WRITE_TIMEOUT)) && tick_is_expired(ob->wex, now_ms))) {
-		//trace_term(t, TT_HTTP_SRV_13);
-		ob->flags |= BF_WRITE_TIMEOUT;
-		if (!ob->cons->err_type) {
-			//ob->cons->err_loc = t->srv;
-			ob->cons->err_type = SI_ET_DATA_TO;
-		}
-		buffer_shutw(ob);
-		if (ib->flags & BF_SHUTR)
-			goto do_close_and_return;
-
-		EV_FD_CLR(fd, DIR_WR);
-		shutdown(fd, SHUT_WR);
+	if (tick_is_expired(si->exp, now_ms)) {
+		si->flags |= SI_FL_EXP;
+		return 1;
 	}
 	return 0;
 }

@@ -177,6 +177,7 @@ int event_accept(int fd) {
 		s->si[0].shutr = stream_sock_shutr;
 		s->si[0].shutw = stream_sock_shutw;
 		s->si[0].fd = cfd;
+		s->si[0].flags = SI_FL_NONE;
 		s->si[0].exp = TICK_ETERNITY;
 		s->cli_fd = cfd;
 
@@ -188,6 +189,7 @@ int event_accept(int fd) {
 		s->si[1].shutw = stream_sock_shutw;
 		s->si[1].exp = TICK_ETERNITY;
 		s->si[1].fd = -1; /* just to help with debugging */
+		s->si[1].flags = SI_FL_NONE;
 
 		s->srv = s->prev_srv = s->srv_conn = NULL;
 		s->pend_pos = NULL;

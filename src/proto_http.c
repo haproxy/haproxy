@@ -659,10 +659,12 @@ void process_session(struct task *t, int *next)
 	unsigned int rqf_cli, rpf_cli;
 	unsigned int rqf_srv, rpf_srv;
 
-	/* Check timeouts only during data phase for now */
+	/* 1: Check timeouts only during data phase for now */
 	if (unlikely(t->state & TASK_WOKEN_TIMER)) {
 		buffer_check_timeouts(s->req);
 		buffer_check_timeouts(s->rep);
+		stream_sock_check_timeouts(&s->si[0]);
+		stream_sock_check_timeouts(&s->si[1]);
 
 		if (unlikely(s->req->flags & (BF_READ_TIMEOUT|BF_WRITE_TIMEOUT))) {
 			if (s->req->flags & BF_READ_TIMEOUT) {
@@ -690,7 +692,7 @@ void process_session(struct task *t, int *next)
 		 */
 	}
 
-	/* Check if we need to close the write side. This can only happen
+	/* 2: Check if we need to close the write side. This can only happen
 	 * when either SHUTR or EMPTY appears, because WRITE_ENA cannot appear
 	 * from low level, and neither HIJACK nor SHUTW can disappear from low
 	 * level.
@@ -705,7 +707,7 @@ void process_session(struct task *t, int *next)
 		s->rep->cons->shutw(s->rep->cons);
 	}
 
-	/* When a server-side connection is released, we have to
+	/* 3: When a server-side connection is released, we have to
 	 * count it and check for pending connections on this server.
 	 */
 	if (unlikely(s->req->cons->state == SI_ST_CLO &&
@@ -907,6 +909,7 @@ void process_session(struct task *t, int *next)
 		s->rep->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
 		s->si[0].prev_state = s->si[0].state;
 		s->si[1].prev_state = s->si[1].state;
+		s->si[0].flags = s->si[1].flags = 0;
 
 		/* Trick: if a request is being waiting for the server to respond,
 		 * and if we know the server can timeout, we don't want the timeout
