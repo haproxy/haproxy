@@ -2494,10 +2494,8 @@ int process_srv(struct session *t)
 			//fprintf(stderr,"2: c=%d, s=%d\n", c, s);
 
 			fd_delete(t->srv_fd);
-			if (t->srv) {
+			if (t->srv)
 				t->srv->cur_sess--;
-				sess_change_server(t, NULL);
-			}
 
 			if (!(req->flags & BF_WRITE_STATUS))
 				conn_err = SN_ERR_SRVTO; // it was a connect timeout.
