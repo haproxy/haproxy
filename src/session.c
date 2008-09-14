@@ -221,7 +221,6 @@ int sess_update_st_cer(struct session *s, struct stream_interface *si)
 			s->flags &= ~SN_CURR_SESS;
 			s->srv->cur_sess--;
 		}
-		sess_change_server(s, NULL);
 	}
 
 	/* ensure that we have enough retries left */
