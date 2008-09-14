@@ -52,8 +52,8 @@ unsigned int srv_dynamic_maxconn(const struct server *s)
 	    now.tv_sec < s->last_change + s->slowstart &&
 	    now.tv_sec >= s->last_change) {
 		unsigned int ratio;
-		ratio = MAX(1, 100 * (now.tv_sec - s->last_change) / s->slowstart);
-		max = max * ratio / 100;
+		ratio = 100 * (now.tv_sec - s->last_change) / s->slowstart;
+		max = MAX(1, max * ratio / 100);
 	}
 	return max;
 }
