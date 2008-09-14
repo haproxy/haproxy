@@ -1,6 +1,10 @@
 ChangeLog :
 ===========
 
+2008/09/14 : 1.3.14.8
+    - [BUG] do not release the connection slot during a retry
+    - [BUG] dynamic connection throttling could return a max of zero conns
+
 2008/09/02 : 1.3.14.7
     - [BUG] use_backend would not correctly consider "unless"
     - [BUG] disable buffer read timeout when reading stats
