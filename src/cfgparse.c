@@ -1501,7 +1501,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			return 0;
 
-		memcpy(trash, "error near 'balance'", 19);
+		memcpy(trash, "error near 'balance'", 21);
 		if (backend_parse_balance((const char **)args + 1, trash, sizeof(trash), curproxy) < 0) {
 			Alert("parsing [%s:%d] : %s\n", file, linenum, trash);
 			return -1;
