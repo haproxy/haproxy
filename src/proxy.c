@@ -388,8 +388,8 @@ void soft_stop(void)
 	tv_update_date(0,1); /* else, the old time before select will be used */
 	while (p) {
 		if (p->state != PR_STSTOPPED) {
-			Warning("Stopping proxy %s in %d ms.\n", p->id, p->grace);
-			send_log(p, LOG_WARNING, "Stopping proxy %s in %d ms.\n", p->id, p->grace);
+			Warning("Stopping %s %s in %d ms.\n", proxy_cap_str(p->cap), p->id, p->grace);
+			send_log(p, LOG_WARNING, "Stopping %s %s in %d ms.\n", proxy_cap_str(p->cap), p->id, p->grace);
 			p->stop_time = tick_add(now_ms, p->grace);
 		}
 		p = p->next;
@@ -436,16 +436,17 @@ void pause_proxies(void)
 	p = proxy;
 	tv_update_date(0,1); /* else, the old time before select will be used */
 	while (p) {
-		if (p->state != PR_STERROR &&
+		if (p->cap & PR_CAP_FE &&
+		    p->state != PR_STERROR &&
 		    p->state != PR_STSTOPPED &&
 		    p->state != PR_STPAUSED) {
-			Warning("Pausing proxy %s.\n", p->id);
-			send_log(p, LOG_WARNING, "Pausing proxy %s.\n", p->id);
+			Warning("Pausing %s %s.\n", proxy_cap_str(p->cap), p->id);
+			send_log(p, LOG_WARNING, "Pausing %s %s.\n", proxy_cap_str(p->cap), p->id);
 			pause_proxy(p);
 			if (p->state != PR_STPAUSED) {
 				err |= 1;
-				Warning("Proxy %s failed to enter pause mode.\n", p->id);
-				send_log(p, LOG_WARNING, "Proxy %s failed to enter pause mode.\n", p->id);
+				Warning("%s %s failed to enter pause mode.\n", proxy_cap_str(p->cap), p->id);
+				send_log(p, LOG_WARNING, "%s %s failed to enter pause mode.\n", proxy_cap_str(p->cap), p->id);
 			}
 		}
 		p = p->next;
@@ -472,8 +473,8 @@ void listen_proxies(void)
 	tv_update_date(0,1); /* else, the old time before select will be used */
 	while (p) {
 		if (p->state == PR_STPAUSED) {
-			Warning("Enabling proxy %s.\n", p->id);
-			send_log(p, LOG_WARNING, "Enabling proxy %s.\n", p->id);
+			Warning("Enabling %s %s.\n", proxy_cap_str(p->cap), p->id);
+			send_log(p, LOG_WARNING, "Enabling %s %s.\n", proxy_cap_str(p->cap), p->id);
 
 			for (l = p->listen; l != NULL; l = l->next) {
 				if (listen(l->fd, p->backlog ? p->backlog : p->maxconn) == 0) {
@@ -491,10 +492,10 @@ void listen_proxies(void)
 					else
 						port = ntohs(((struct sockaddr_in *)(&l->addr))->sin_port);
 
-					Warning("Port %d busy while trying to enable proxy %s.\n",
-						port, p->id);
-					send_log(p, LOG_WARNING, "Port %d busy while trying to enable proxy %s.\n",
-						 port, p->id);
+					Warning("Port %d busy while trying to enable %s %s.\n",
+						port, proxy_cap_str(p->cap), p->id);
+					send_log(p, LOG_WARNING, "Port %d busy while trying to enable %s %s.\n",
+						 port, proxy_cap_str(p->cap), p->id);
 					/* Another port might have been enabled. Let's stop everything. */
 					pause_proxy(p);
 					break;
