@@ -2867,6 +2867,8 @@ int readcfgfile(const char *file)
 		struct listener *listener;
 
 		if (curproxy->state == PR_STSTOPPED) {
+			/* ensure we don't keep listeners uselessly bound */
+			stop_proxy(curproxy);
 			curproxy = curproxy->next;
 			continue;
 		}

@@ -31,6 +31,7 @@ int start_proxies(int verbose);
 void maintain_proxies(int *next);
 void soft_stop(void);
 void pause_proxy(struct proxy *p);
+void stop_proxy(struct proxy *p);
 void pause_proxies(void);
 void listen_proxies(void);
 

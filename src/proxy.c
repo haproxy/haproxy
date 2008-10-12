@@ -351,15 +351,7 @@ void maintain_proxies(int *next)
 				if (t == 0) {
 					Warning("Proxy %s stopped.\n", p->id);
 					send_log(p, LOG_WARNING, "Proxy %s stopped.\n", p->id);
-
-					for (l = p->listen; l != NULL; l = l->next) {
-						unbind_listener(l);
-						if (l->state >= LI_ASSIGNED) {
-							delete_listener(l);
-							listeners--;
-						}
-					}
-					p->state = PR_STSTOPPED;
+					stop_proxy(p);
 					/* try to free more memory */
 					pool_gc2();
 				}
@@ -419,6 +411,28 @@ void pause_proxy(struct proxy *p)
 		else
 			p->state = PR_STERROR;
 	}
+}
+
+
+/*
+ * This function completely stops a proxy and releases its listeners. It has
+ * to be called when going down in order to release the ports so that another
+ * process may bind to them. It must also be called on disabled proxies at the
+ * end of start-up. When all listeners are closed, the proxy is set to the
+ * PR_STSTOPPED state.
+ */
+void stop_proxy(struct proxy *p)
+{
+	struct listener *l;
+
+	for (l = p->listen; l != NULL; l = l->next) {
+		unbind_listener(l);
+		if (l->state >= LI_ASSIGNED) {
+			delete_listener(l);
+			listeners--;
+		}
+	}
+	p->state = PR_STSTOPPED;
 }
 
 /*
