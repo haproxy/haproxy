@@ -1,6 +1,11 @@
 ChangeLog :
 ===========
 
+2008/10/12 : 1.3.14.9
+    - [BUG] do not try to pause backends during reload
+    - [BUG] ensure that listeners from disabled proxies are correctly unbound.
+    - [BUG] acl-related keywords are not allowed in defaults sections
+
 2008/09/14 : 1.3.14.8
     - [BUG] do not release the connection slot during a retry
     - [BUG] dynamic connection throttling could return a max of zero conns
