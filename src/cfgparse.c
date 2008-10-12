@@ -516,6 +516,13 @@ static void init_default_instance()
 	defproxy.maxconn = cfg_maxpconn;
 	defproxy.conn_retries = CONN_RETRIES;
 	defproxy.logfac1 = defproxy.logfac2 = -1; /* log disabled */
+
+	LIST_INIT(&defproxy.pendconns);
+	LIST_INIT(&defproxy.acl);
+	LIST_INIT(&defproxy.block_cond);
+	LIST_INIT(&defproxy.mon_fail_cond);
+	LIST_INIT(&defproxy.switching_rules);
+
 	proxy_reset_timeouts(&defproxy);
 }
 
@@ -837,6 +844,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		curproxy->state = PR_STNEW;
 	}
 	else if (!strcmp(args[0], "acl")) {  /* add an ACL */
+		if (curproxy == &defproxy) {
+			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+			return -1;
+		}
+
 		err = invalid_char(args[1]);
 		if (err) {
 			Alert("parsing [%s:%d] : character '%c' is not permitted in acl name '%s'.\n",
@@ -1076,6 +1088,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		int pol = ACL_COND_NONE;
 		struct acl_cond *cond;
 
+		if (curproxy == &defproxy) {
+			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+			return -1;
+		}
+
 		if (!strcmp(args[1], "if"))
 			pol = ACL_COND_IF;
 		else if (!strcmp(args[1], "unless"))
@@ -1098,6 +1115,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		int pol = ACL_COND_NONE;
 		struct acl_cond *cond;
 		struct switching_rule *rule;
+
+		if (curproxy == &defproxy) {
+			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+			return -1;
+		}
 
 		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
 			return 0;
@@ -1376,6 +1398,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		}
 	}
 	else if (!strcmp(args[0], "monitor")) {
+		if (curproxy == &defproxy) {
+			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+			return -1;
+		}
+
 		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
 			return 0;
 
