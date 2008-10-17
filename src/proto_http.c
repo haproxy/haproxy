@@ -2142,7 +2142,7 @@ int http_process_request(struct session *s, struct buffer *req)
 	 * the fields will stay coherent and the URI will not move.
 	 * This should only be performed in the backend.
 	 */
-	if ((s->be->cookie_name || s->be->appsession_name || s->be->capture_name)
+	if ((s->be->cookie_name || s->be->appsession_name || s->fe->capture_name)
 	    && !(txn->flags & (TX_CLDENY|TX_CLTARPIT)))
 		manage_client_side_cookies(s, req);
 
@@ -2845,7 +2845,7 @@ int process_response(struct session *t)
 		/*
 		 * 4: check for server cookie.
 		 */
-		if (t->be->cookie_name || t->be->appsession_name || t->be->capture_name
+		if (t->be->cookie_name || t->be->appsession_name || t->fe->capture_name
 		    || (t->be->options & PR_O_CHK_CACHE))
 			manage_server_side_cookies(t, rep);
 
@@ -3921,10 +3921,12 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 		txn->flags |= TX_SCK_ANY;
 
 
-		/* maybe we only wanted to see if there was a set-cookie */
+		/* maybe we only wanted to see if there was a set-cookie. Note that
+		 * the cookie capture is declared in the fronend.
+		 */
 		if (t->be->cookie_name == NULL &&
 		    t->be->appsession_name == NULL &&
-		    t->be->capture_name == NULL)
+		    t->fe->capture_name == NULL)
 			return;
 
 		p1 = cur_ptr + val; /* first non-space char after 'Set-Cookie:' */
@@ -3956,18 +3958,18 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 			 */
 
 			/* first, let's see if we want to capture it */
-			if (t->be->capture_name != NULL &&
+			if (t->fe->capture_name != NULL &&
 			    txn->srv_cookie == NULL &&
-			    (p4 - p1 >= t->be->capture_namelen) &&
-			    memcmp(p1, t->be->capture_name, t->be->capture_namelen) == 0) {
+			    (p4 - p1 >= t->fe->capture_namelen) &&
+			    memcmp(p1, t->fe->capture_name, t->fe->capture_namelen) == 0) {
 				int log_len = p4 - p1;
 
 				if ((txn->srv_cookie = pool_alloc2(pool2_capture)) == NULL) {
 					Alert("HTTP logging : out of memory.\n");
 				}
 
-				if (log_len > t->be->capture_len)
-					log_len = t->be->capture_len;
+				if (log_len > t->fe->capture_len)
+					log_len = t->fe->capture_len;
 				memcpy(txn->srv_cookie, p1, log_len);
 				txn->srv_cookie[log_len] = 0;
 			}
