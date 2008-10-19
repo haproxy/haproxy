@@ -48,16 +48,19 @@
  */
 void client_retnclose(struct session *s, const struct chunk *msg)
 {
-	EV_FD_CLR(s->cli_fd, DIR_RD);
-	EV_FD_SET(s->cli_fd, DIR_WR);
-	buffer_shutr(s->req);
-	buffer_flush(s->req);
-	s->rep->wex = tick_add_ifset(now_ms, s->rep->wto);
-	s->rep->flags |= BF_MAY_FORWARD;
+	//FIXME: must move to lower level
+	//EV_FD_CLR(s->cli_fd, DIR_RD);
+	//EV_FD_SET(s->cli_fd, DIR_WR);
+	buffer_abort(s->req);
+
 	s->cli_state = CL_STSHUTR; // FIXME: still used by unix sockets
 	buffer_flush(s->rep);
+	buffer_shutr_now(s->rep);
 	if (msg && msg->len)
 		buffer_write(s->rep, msg->str, msg->len);
+
+	s->rep->wex = tick_add_ifset(now_ms, s->rep->wto);
+	s->rep->flags |= BF_MAY_FORWARD;
 }
 
 

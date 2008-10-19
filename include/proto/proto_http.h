@@ -60,7 +60,8 @@ extern const char http_is_ver_token[256];
 int event_accept(int fd);
 void process_session(struct task *t, int *next);
 int process_cli(struct session *t);
-int process_srv(struct session *t);
+int process_srv_data(struct session *t);
+int process_srv_conn(struct session *t);
 int process_request(struct session *t);
 int process_response(struct session *t);
 

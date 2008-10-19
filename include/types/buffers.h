@@ -57,6 +57,15 @@
 #define BF_READ_TIMEOUT     32768  /* timeout while waiting for producer */
 #define BF_WRITE_TIMEOUT    65536  /* timeout while waiting for consumer */
 
+/* When either BF_SHUTR_NOW or BF_HIJACK is set, it is strictly forbidden for
+ * the stream interface to alter the buffer contents. When BF_SHUTW_NOW is set,
+ * it is strictly forbidden for the stream interface to send anything from the
+ * buffer.
+ */
+#define BF_SHUTR_NOW       131072  /* the producer must shut down for reads ASAP */
+#define BF_SHUTW_NOW       262144  /* the consumer must shut down for writes ASAP */
+#define BF_HIJACK          524288  /* the producer is temporarily replaced */
+
 
 /* Analysers (buffer->analysers).
  * Those bits indicate that there are some processing to do on the buffer
@@ -68,7 +77,8 @@
 #define AN_REQ_INSPECT          0x00000001  /* inspect request contents */
 #define AN_REQ_HTTP_HDR         0x00000002  /* inspect HTTP request headers */
 #define AN_REQ_HTTP_BODY        0x00000004  /* inspect HTTP request body */
-#define AN_RTR_HTTP_HDR         0x00000008  /* inspect HTTP response headers */
+#define AN_REQ_HTTP_TARPIT      0x00000008  /* wait for end of HTTP tarpit */
+#define AN_RTR_HTTP_HDR         0x00000010  /* inspect HTTP response headers */
 
 /* describes a chunk of string */
 struct chunk {
@@ -91,6 +101,8 @@ struct buffer {
 	unsigned char xfer_large;       /* number of consecutive large xfers */
 	unsigned char xfer_small;       /* number of consecutive small xfers */
 	unsigned long long total;       /* total data read */
+	struct stream_interface *prod;  /* producer attached to this buffer */
+	struct stream_interface *cons;  /* consumer attached to this buffer */
 	char data[BUFSIZE];
 };
 

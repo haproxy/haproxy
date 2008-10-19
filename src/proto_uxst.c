@@ -454,7 +454,6 @@ int uxst_event_accept(int fd) {
 		s->req = s->rep = NULL; /* will be allocated later */
 
 		s->cli_fd = cfd;
-		s->srv_fd = -1;
 		s->srv = NULL;
 		s->pend_pos = NULL;
 
@@ -791,7 +790,7 @@ static int process_uxst_cli(struct session *t)
 		if ((global.mode & MODE_DEBUG) && (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))) {
 			int len;
 			len = sprintf(trash, "%08x:%s.clicls[%04x:%04x]\n", t->uniq_id, t->be?t->be->id:"",
-				      (unsigned short)t->cli_fd, (unsigned short)t->srv_fd);
+				      (unsigned short)t->cli_fd, (unsigned short)t->req->cons->fd);
 			write(1, trash, len);
 		}
 		return 0;

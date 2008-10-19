@@ -47,6 +47,7 @@ static inline void buffer_init(struct buffer *buf)
 {
 	buf->l = buf->total = 0;
 	buf->analysers = 0;
+	buf->cons = NULL;
 	buf->flags = BF_EMPTY;
 	buf->r = buf->lr = buf->w = buf->data;
 	buf->rlim = buf->data + BUFSIZE;
@@ -87,6 +88,24 @@ static inline void buffer_shutw(struct buffer *buf)
 {
 	buf->wex = TICK_ETERNITY;
 	buf->flags |= BF_SHUTW;
+}
+
+/* marks the buffer as "shutdown" ASAP for reads */
+static inline void buffer_shutr_now(struct buffer *buf)
+{
+	buf->flags |= BF_SHUTR_NOW;
+}
+
+/* marks the buffer as "shutdown" ASAP for writes */
+static inline void buffer_shutw_now(struct buffer *buf)
+{
+	buf->flags |= BF_SHUTW_NOW;
+}
+
+/* marks the buffer as "shutdown" ASAP in both directions */
+static inline void buffer_abort(struct buffer *buf)
+{
+	buf->flags |= BF_SHUTR_NOW | BF_SHUTW_NOW;
 }
 
 /* returns the maximum number of bytes writable at once in this buffer */

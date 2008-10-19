@@ -2,7 +2,7 @@
   include/proto/stream_sock.h
   This file contains client-side definitions.
 
-  Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -27,6 +27,7 @@
 #include <sys/types.h>
 
 #include <common/config.h>
+#include <types/stream_interface.h>
 
 
 /* main event functions used to move data between sockets and buffers */

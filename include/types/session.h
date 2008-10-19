@@ -36,6 +36,7 @@
 #include <types/proxy.h>
 #include <types/queue.h>
 #include <types/server.h>
+#include <types/stream_interface.h>
 #include <types/task.h>
 
 
@@ -156,7 +157,6 @@ struct session {
 	struct proxy *fe;			/* the proxy this session depends on for the client side */
 	struct proxy *be;			/* the proxy this session depends on for the server side */
 	int cli_fd;				/* the client side fd */
-	int srv_fd;				/* the server side fd */
 	int cli_state;				/* state of the client side */
 	int srv_state;				/* state of the server side */
 	int conn_retries;			/* number of connect retries left */
@@ -164,6 +164,7 @@ struct session {
 	unsigned term_trace;			/* term trace: 4*8 bits indicating which part of the code closed */
 	struct buffer *req;			/* request buffer */
 	struct buffer *rep;			/* response buffer */
+	struct stream_interface si[2];          /* client and server stream interfaces */
 	struct sockaddr_storage cli_addr;	/* the client address */
 	struct sockaddr_storage frt_addr;	/* the frontend address reached by the client if SN_FRT_ADDR_SET is set */
 	struct sockaddr_in srv_addr;		/* the address to connect to */

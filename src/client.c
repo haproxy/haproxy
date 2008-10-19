@@ -168,11 +168,19 @@ int event_accept(int fd) {
 		}
 
 		s->cli_state = CL_STDATA;
-		s->srv_state = SV_STIDLE;
 		s->req = s->rep = NULL; /* will be allocated later */
 
+		s->si[0].state = SI_ST_EST;
+		s->si[0].err_type = SI_ET_NONE;
+		s->si[0].err_loc = NULL;
+		s->si[0].fd = cfd;
 		s->cli_fd = cfd;
-		s->srv_fd = -1;
+
+		s->si[1].state = SI_ST_INI;
+		s->si[1].err_type = SI_ET_NONE;
+		s->si[1].err_loc = NULL;
+		s->si[1].fd = -1; /* just to help with debugging */
+
 		s->srv = s->prev_srv = s->srv_conn = NULL;
 		s->pend_pos = NULL;
 		s->conn_retries = s->be->conn_retries;
@@ -326,6 +334,9 @@ int event_accept(int fd) {
 			goto out_fail_req; /* no memory */
 
 		buffer_init(s->req);
+		s->req->prod = &s->si[0];
+		s->req->cons = &s->si[1];
+
 		if (p->mode == PR_MODE_HTTP) /* reserve some space for header rewriting */
 			s->req->rlim -= MAXREWRITE;
 
@@ -346,6 +357,8 @@ int event_accept(int fd) {
 			goto out_fail_rep; /* no memory */
 
 		buffer_init(s->rep);
+		s->rep->prod = &s->si[1];
+		s->rep->cons = &s->si[0];
 
 		s->rep->rto = s->be->timeout.server;
 		s->rep->wto = s->fe->timeout.client;

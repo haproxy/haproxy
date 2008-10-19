@@ -223,9 +223,12 @@ int stream_sock_read(int fd) {
 	if (tick_isset(b->rex) && b->flags & BF_PARTIAL_READ)
 		b->rex = tick_add_ifset(now_ms, b->rto);
 
+	if (!(b->flags & BF_READ_STATUS))
+		goto out_skip_wakeup;
  out_wakeup:
-	if (b->flags & BF_READ_STATUS)
-		task_wakeup(fdtab[fd].owner);
+	task_wakeup(fdtab[fd].owner);
+
+ out_skip_wakeup:
 	fdtab[fd].ev &= ~FD_POLL_IN;
 	return retval;
 
@@ -241,7 +244,6 @@ int stream_sock_read(int fd) {
 	 */
 	fdtab[fd].state = FD_STERROR;
 	fdtab[fd].ev &= ~FD_POLL_STICKY;
-	b->flags |= BF_READ_ERROR;
 	b->rex = TICK_ETERNITY;
 	goto out_wakeup;
 }
@@ -296,7 +298,7 @@ int stream_sock_write(int fd) {
 
 				if (errno == EALREADY || errno == EINPROGRESS) {
 					retval = 0;
-					goto out_wakeup;
+					goto out_may_wakeup;
 				}
 
 				if (errno && errno != EISCONN)
@@ -392,9 +394,13 @@ int stream_sock_write(int fd) {
 		}
 	}
 
+ out_may_wakeup:
+	if (!(b->flags & BF_WRITE_STATUS))
+		goto out_skip_wakeup;
  out_wakeup:
-	if (b->flags & BF_WRITE_STATUS)
-		task_wakeup(fdtab[fd].owner);
+	task_wakeup(fdtab[fd].owner);
+
+ out_skip_wakeup:
 	fdtab[fd].ev &= ~FD_POLL_OUT;
 	return retval;
 
@@ -404,7 +410,6 @@ int stream_sock_write(int fd) {
 	 */
 	fdtab[fd].state = FD_STERROR;
 	fdtab[fd].ev &= ~FD_POLL_STICKY;
-	b->flags |= BF_WRITE_ERROR;
 	b->wex = TICK_ETERNITY;
 	goto out_wakeup;
 }

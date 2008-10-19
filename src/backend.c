@@ -1646,7 +1646,7 @@ int connect_server(struct session *s)
 			return SN_ERR_INTERNAL;
 	}
 
-	if ((fd = s->srv_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {
+	if ((fd = s->req->cons->fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {
 		qfprintf(stderr, "Cannot get a server socket.\n");
 
 		if (errno == ENFILE)
@@ -1818,6 +1818,7 @@ int connect_server(struct session *s)
 	fd_insert(fd);
 	EV_FD_SET(fd, DIR_WR);  /* for connect status */
 
+	s->req->cons->state = SI_ST_CON;
 	if (s->srv) {
 		s->srv->cur_sess++;
 		if (s->srv->cur_sess > s->srv->cur_sess_max)
@@ -1833,8 +1834,8 @@ int connect_server(struct session *s)
 
 /*
  * This function checks the retry count during the connect() job.
- * It updates the session's srv_state and retries, so that the caller knows
- * what it has to do. It uses the last connection error to set the log when
+ * It updates the session's retries, so that the caller knows what it
+ * has to do. It uses the last connection error to set the log when
  * it expires. It returns 1 when it has expired, and 0 otherwise.
  */
 int srv_count_retry_down(struct session *t, int conn_err)
@@ -1844,9 +1845,15 @@ int srv_count_retry_down(struct session *t, int conn_err)
 
 	if (t->conn_retries < 0) {
 		/* if not retryable anymore, let's abort */
-		t->req->wex = TICK_ETERNITY;
-		srv_close_with_err(t, conn_err, SN_FINST_C,
-				   503, error_message(t, HTTP_ERR_503));
+		//t->req->wex = TICK_ETERNITY;
+		//srv_close_with_err(t, conn_err, SN_FINST_C,
+		//		   503, error_message(t, HTTP_ERR_503));
+
+		if (!t->req->cons->err_type) {
+			t->req->cons->err_type = SI_ET_CONN_ERR;
+			t->req->cons->err_loc = t->srv;
+		}
+
 		if (t->srv)
 			t->srv->failed_conns++;
 		t->be->failed_conns++;
@@ -1864,9 +1871,9 @@ int srv_count_retry_down(struct session *t, int conn_err)
     
 /*
  * This function performs the retryable part of the connect() job.
- * It updates the session's srv_state and retries, so that the caller knows
- * what it has to do. It returns 1 when it breaks out of the loop, or 0 if
- * it needs to redispatch.
+ * It updates the session's and retries, so that the caller knows
+ * what it has to do. It returns 1 when it breaks out of the loop,
+ * or 0 if it needs to redispatch.
  */
 int srv_retryable_connect(struct session *t)
 {
@@ -1882,15 +1889,19 @@ int srv_retryable_connect(struct session *t)
 	
 		case SN_ERR_NONE:
 			//fprintf(stderr,"0: c=%d, s=%d\n", c, s);
-			t->srv_state = SV_STCONN;
 			if (t->srv)
 				t->srv->cum_sess++;
 			return 1;
 	    
 		case SN_ERR_INTERNAL:
-			t->req->wex = TICK_ETERNITY;
-			srv_close_with_err(t, SN_ERR_INTERNAL, SN_FINST_C,
-					   500, error_message(t, HTTP_ERR_500));
+			if (!t->req->cons->err_type) {
+				t->req->cons->err_type = SI_ET_CONN_OTHER;
+				t->req->cons->err_loc = t->srv;
+			}
+
+			//t->req->wex = TICK_ETERNITY;
+			//srv_close_with_err(t, SN_ERR_INTERNAL, SN_FINST_C,
+			//		   500, error_message(t, HTTP_ERR_500));
 			if (t->srv)
 				t->srv->cum_sess++;
 			if (t->srv)
@@ -1902,9 +1913,8 @@ int srv_retryable_connect(struct session *t)
 			return 1;
 		}
 		/* ensure that we have enough retries left */
-		if (srv_count_retry_down(t, conn_err)) {
+		if (srv_count_retry_down(t, conn_err))
 			return 1;
-		}
 	} while (t->srv == NULL || t->conn_retries > 0 || !(t->be->options & PR_O_REDISP));
 
 	/* We're on our last chance, and the REDISP option was specified.
@@ -1959,9 +1969,14 @@ int srv_redispatch_connect(struct session *t)
 			goto redispatch;
 		}
 
-		t->req->wex = TICK_ETERNITY;
-		srv_close_with_err(t, SN_ERR_SRVTO, SN_FINST_Q,
-				   503, error_message(t, HTTP_ERR_503));
+		//t->req->wex = TICK_ETERNITY;
+		//srv_close_with_err(t, SN_ERR_SRVTO, SN_FINST_Q,
+		//		   503, error_message(t, HTTP_ERR_503));
+
+		if (!t->req->cons->err_type) {
+			t->req->cons->err_type = SI_ET_QUEUE_ERR;
+			t->req->cons->err_loc = t->srv;
+		}
 
 		t->srv->failed_conns++;
 		t->be->failed_conns++;
@@ -1969,24 +1984,35 @@ int srv_redispatch_connect(struct session *t)
 
 	case SRV_STATUS_NOSRV:
 		/* note: it is guaranteed that t->srv == NULL here */
-		t->req->wex = TICK_ETERNITY;
-		srv_close_with_err(t, SN_ERR_SRVTO, SN_FINST_C,
-				   503, error_message(t, HTTP_ERR_503));
+		//t->req->wex = TICK_ETERNITY;
+		//srv_close_with_err(t, SN_ERR_SRVTO, SN_FINST_C,
+		//		   503, error_message(t, HTTP_ERR_503));
+
+		if (!t->req->cons->err_type) {
+			t->req->cons->err_type = SI_ET_CONN_ERR;
+			t->req->cons->err_loc = NULL;
+		}
 
 		t->be->failed_conns++;
 		return 1;
 
 	case SRV_STATUS_QUEUED:
 		t->req->wex = tick_add_ifset(now_ms, t->be->timeout.queue);
-		t->srv_state = SV_STIDLE;
+		t->req->cons->state = SI_ST_QUE;
 		/* do nothing else and do not wake any other session up */
 		return 1;
 
 	case SRV_STATUS_INTERNAL:
 	default:
-		t->req->wex = TICK_ETERNITY;
-		srv_close_with_err(t, SN_ERR_INTERNAL, SN_FINST_C,
-				   500, error_message(t, HTTP_ERR_500));
+		//t->req->wex = TICK_ETERNITY;
+		//srv_close_with_err(t, SN_ERR_INTERNAL, SN_FINST_C,
+		//		   500, error_message(t, HTTP_ERR_500));
+
+		if (!t->req->cons->err_type) {
+			t->req->cons->err_type = SI_ET_CONN_OTHER;
+			t->req->cons->err_loc = t->srv;
+		}
+
 		if (t->srv)
 			t->srv->cum_sess++;
 		if (t->srv)
