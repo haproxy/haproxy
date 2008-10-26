@@ -32,7 +32,8 @@
  * interface is performing some retries (eg: connection error).
  */
 enum {
-	SI_ST_INI = 0,           /* interface not initialized yet and might not exist */
+	SI_ST_INI = 0,           /* interface not sollicitated yet */
+	SI_ST_REQ,               /* connection initiation desired and not started yet */
 	SI_ST_QUE,               /* interface waiting in queue */
 	SI_ST_TAR,               /* interface in turn-around state after failed connect attempt */
 	SI_ST_ASS,               /* server just assigned to this interface */
