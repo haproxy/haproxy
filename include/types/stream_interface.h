@@ -38,8 +38,9 @@ enum {
 	SI_ST_TAR,               /* interface in turn-around state after failed connect attempt */
 	SI_ST_ASS,               /* server just assigned to this interface */
 	SI_ST_CON,               /* initiated connection request (resource exists) */
+	SI_ST_CER,               /* previous connection attempt failed (resource released) */
 	SI_ST_EST,               /* connection established (resource exists) */
-	SI_ST_CLO,               /* stream interface closed, might not existing anymore */
+	SI_ST_CLO,               /* stream intf closed, might not existing anymore. Buffers shut. */
 };
 
 /* error types reported on the streams interface for more accurate reporting */
@@ -61,6 +62,7 @@ enum {
 enum {
 	SI_FL_NONE       = 0x0000,  /* nothing */
 	SI_FL_EXP        = 0x0001,  /* timeout has expired */
+	SI_FL_ERR        = 0x0002,  /* a non-recoverable error has occurred */
 };
 
 struct stream_interface {

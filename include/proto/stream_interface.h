@@ -1,6 +1,6 @@
 /*
-  include/proto/stream_sock.h
-  This file contains client-side definitions.
+  include/proto/stream_interface.h
+  This file contains stream_interface function prototypes
 
   Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
   
@@ -19,43 +19,20 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#ifndef _PROTO_STREAM_SOCK_H
-#define _PROTO_STREAM_SOCK_H
+#ifndef _PROTO_STREAM_INTERFACE_H
+#define _PROTO_STREAM_INTERFACE_H
 
 #include <stdlib.h>
-#include <sys/socket.h>
-#include <sys/types.h>
 
 #include <common/config.h>
 #include <types/stream_interface.h>
 
 
 /* main event functions used to move data between sockets and buffers */
-int stream_sock_read(int fd);
-int stream_sock_write(int fd);
-int stream_sock_data_update(int fd);
-int stream_sock_data_finish(int fd);
-int stream_sock_shutr(struct stream_interface *si);
-int stream_sock_shutw(struct stream_interface *si);
+void stream_int_check_timeouts(struct stream_interface *si);
+void stream_int_report_error(struct stream_interface *si);
 
-
-/* This either returns the sockname or the original destination address. Code
- * inspired from Patrick Schaaf's example of nf_getsockname() implementation.
- */
-static inline int get_original_dst(int fd, struct sockaddr_in *sa, socklen_t *salen) {
-#if defined(TPROXY) && defined(SO_ORIGINAL_DST)
-    return getsockopt(fd, SOL_IP, SO_ORIGINAL_DST, (void *)sa, salen);
-#else
-#if defined(TPROXY) && defined(USE_GETSOCKNAME)
-    return getsockname(fd, (struct sockaddr *)sa, salen);
-#else
-    return -1;
-#endif
-#endif
-}
-
-
-#endif /* _PROTO_STREAM_SOCK_H */
+#endif /* _PROTO_STREAM_INTERFACE_H */
 
 /*
  * Local variables:

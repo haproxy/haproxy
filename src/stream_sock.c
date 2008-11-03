@@ -259,31 +259,22 @@ int stream_sock_read(int fd) {
 	goto out_wakeup;
 
  out_error:
-	/* There was an error. we must wakeup the task. No need to clear
-	 * the events, the task will do it.
+	/* Read error on the file descriptor. We mark the FD as STERROR so
+	 * that we don't use it anymore. The error is reported to the stream
+	 * interface which will take proper action. We must not perturbate the
+	 * buffer because the stream interface wants to ensure transparent
+	 * connection retries.
 	 */
+
 	fdtab[fd].state = FD_STERROR;
 	fdtab[fd].ev &= ~FD_POLL_STICKY;
-	b->rex = TICK_ETERNITY;
-
-	/* Read error on the file descriptor. We close the FD and set
-	 * the error on both buffers.
-	 * Note: right now we only support connected sockets.
-	 */
-	if (si->state != SI_ST_EST)
-		goto out_wakeup;
-
-	if (!si->err_type)
-		si->err_type = SI_ET_DATA_ERR;
-
-	buffer_shutr(b);
-	b->flags |= BF_READ_ERROR;
-	buffer_shutw(si->ob);
-	si->ob->flags |= BF_WRITE_ERROR;
+	si->flags |= SI_FL_ERR;
+	goto wakeup_return;
 
  do_close_and_return:
-	fd_delete(fd);
 	si->state = SI_ST_CLO;
+	fd_delete(fd);
+ wakeup_return:
 	task_wakeup(si->owner, TASK_WOKEN_IO);
 	return 1;
 }
@@ -457,29 +448,22 @@ int stream_sock_write(int fd) {
 	return retval;
 
  out_error:
-	/* There was an error. we must wakeup the task. No need to clear
-	 * the events, the task will do it.
+	/* Write error on the file descriptor. We mark the FD as STERROR so
+	 * that we don't use it anymore. The error is reported to the stream
+	 * interface which will take proper action. We must not perturbate the
+	 * buffer because the stream interface wants to ensure transparent
+	 * connection retries.
 	 */
+
 	fdtab[fd].state = FD_STERROR;
 	fdtab[fd].ev &= ~FD_POLL_STICKY;
-	b->wex = TICK_ETERNITY;
-	/* Read error on the file descriptor. We close the FD and set
-	 * the error on both buffers.
-	 * Note: right now we only support connected sockets.
-	 */
-	if (si->state != SI_ST_EST)
-		goto out_wakeup;
+	si->flags |= SI_FL_ERR;
+	goto wakeup_return;
 
-	if (!si->err_type)
-		si->err_type = SI_ET_DATA_ERR;
-
-	buffer_shutw(b);
-	b->flags |= BF_WRITE_ERROR;
-	buffer_shutr(si->ib);
-	si->ib->flags |= BF_READ_ERROR;
  do_close_and_return:
-	fd_delete(fd);
 	si->state = SI_ST_CLO;
+	fd_delete(fd);
+ wakeup_return:
 	task_wakeup(si->owner, TASK_WOKEN_IO);
 	return 1;
 }
@@ -524,28 +508,12 @@ int stream_sock_shutr(struct stream_interface *si)
 	if (si->state != SI_ST_EST && si->state != SI_ST_CON)
 		return 0;
 
-	if (si->ib->flags & BF_SHUTW) {
+	if (si->ob->flags & BF_SHUTW) {
 		fd_delete(si->fd);
 		si->state = SI_ST_CLO;
 		return 1;
 	}
 	EV_FD_CLR(si->fd, DIR_RD);
-	return 0;
-}
-
-/*
- * This function only has to be called once after a wakeup event in case of
- * suspected timeout. It controls the stream interface timeouts and sets
- * si->flags accordingly. It does NOT close anything, as this timeout may
- * be used for any purpose. It returns 1 if the timeout fired, otherwise
- * zero.
- */
-int stream_sock_check_timeouts(struct stream_interface *si)
-{
-	if (tick_is_expired(si->exp, now_ms)) {
-		si->flags |= SI_FL_EXP;
-		return 1;
-	}
 	return 0;
 }
 
