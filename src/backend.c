@@ -1820,6 +1820,7 @@ int connect_server(struct session *s)
 
 	s->req->cons->state = SI_ST_CON;
 	if (s->srv) {
+		s->flags |= SN_CURR_SESS;
 		s->srv->cur_sess++;
 		if (s->srv->cur_sess > s->srv->cur_sess_max)
 			s->srv->cur_sess_max = s->srv->cur_sess;

@@ -963,8 +963,8 @@ void process_session(struct task *t, int *next)
 	 * upper by setting flags into the buffers. Note that the side towards
 	 * the client cannot have connect (hence retryable) errors.
 	 */
-	if (unlikely(s->si[0].state == SI_ST_EST)) {
-		if (s->si[0].flags & SI_FL_ERR) {
+	if (s->si[0].state == SI_ST_EST) {
+		if (unlikely(s->si[0].flags & SI_FL_ERR)) {
 			s->si[0].state = SI_ST_CLO;
 			fd_delete(s->si[0].fd);
 			stream_int_report_error(&s->si[0]);
@@ -972,10 +972,13 @@ void process_session(struct task *t, int *next)
 	}
 
 	if (s->si[1].state == SI_ST_EST) {
-		if (s->si[1].flags & SI_FL_ERR) {
+		if (unlikely(s->si[1].flags & SI_FL_ERR)) {
 			s->si[1].state = SI_ST_CLO;
 			fd_delete(s->si[1].fd);
 			stream_int_report_error(&s->si[1]);
+			s->be->failed_resp++;
+			if (s->srv)
+				s->srv->failed_resp++;
 		}
 	}
 	else if (s->si[1].state != SI_ST_INI && s->si[1].state != SI_ST_CLO) {
@@ -1044,35 +1047,33 @@ void process_session(struct task *t, int *next)
 		s->req->cons->shutw(s->req->cons);
 	}
 
+	if (unlikely((s->req->flags & (BF_SHUTW|BF_SHUTR|BF_SHUTR_NOW)) == BF_SHUTW)) {
+		/* write closed on server side, let's forward it to the client */
+		buffer_shutr_now(s->req);
+		s->req->prod->shutr(s->req->prod);
+	}
+
 	if (unlikely((s->rep->flags & (BF_SHUTW|BF_EMPTY|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) == (BF_EMPTY|BF_WRITE_ENA|BF_SHUTR)) ||
 	    unlikely((s->rep->flags & (BF_SHUTW|BF_SHUTW_NOW)) == BF_SHUTW_NOW)) {
 		buffer_shutw(s->rep);
 		s->rep->cons->shutw(s->rep->cons);
 	}
 
+	if (unlikely((s->rep->flags & (BF_SHUTW|BF_SHUTR|BF_SHUTR_NOW)) == BF_SHUTW)) {
+		/* write closed on client side, let's forward it to the server */
+		buffer_shutr_now(s->rep);
+		s->rep->prod->shutr(s->rep->prod);
+	}
+
 	/* 3: When a server-side connection is released, we have to
 	 * count it and check for pending connections on this server.
-	 * FIXME: the test below is not accurate. An audit is needed
-	 * to find all uncaught transitions. We need a way to ensure
-	 * that shutdowns called right after connect() after TAR will
-	 * correctly be caught for instance. In fact we need a way to
-	 * track when the connection is assigned to the server.
 	 */
-	if (unlikely(s->req->cons->state == SI_ST_CLO &&
-		     (s->req->cons->prev_state == SI_ST_EST || s->req->cons->prev_state == SI_ST_CON))) {
-		/* Count server-side errors (but not timeouts). */
-		if (s->req->flags & BF_WRITE_ERROR) {
-			s->be->failed_resp++;
-			if (s->srv)
-				s->srv->failed_resp++;
-		}
-
-		if (s->srv) {
-			s->srv->cur_sess--;
-			sess_change_server(s, NULL);
-			if (may_dequeue_tasks(s->srv, s->be))
-				process_srv_queue(s->srv);
-		}
+	if (unlikely(s->req->cons->state == SI_ST_CLO && s->srv && (s->flags & SN_CURR_SESS))) {
+		s->flags &= ~SN_CURR_SESS;
+		s->srv->cur_sess--;
+		sess_change_server(s, NULL);
+		if (may_dequeue_tasks(s->srv, s->be))
+			process_srv_queue(s->srv);
 	}
 
 	/* Dirty trick: force one first pass everywhere */
@@ -1153,7 +1154,8 @@ void process_session(struct task *t, int *next)
 					 * count it and check for pending connections on this server.
 					 */
 					if (s->req->cons->state == SI_ST_CLO) {
-						if (s->srv) {
+						if (s->srv && (s->flags & SN_CURR_SESS)) {
+							s->flags &= ~SN_CURR_SESS;
 							s->srv->cur_sess--;
 							sess_change_server(s, NULL);
 							if (may_dequeue_tasks(s->srv, s->be))
@@ -3734,7 +3736,8 @@ int sess_update_st_con_tcp(struct session *s, struct stream_interface *si)
 		si->state = SI_ST_CER;
 		fd_delete(si->fd);
 
-		if (s->srv) {
+		if (s->srv && (s->flags & SN_CURR_SESS)) {
+			s->flags &= ~SN_CURR_SESS;
 			s->srv->cur_sess--;
 			sess_change_server(s, NULL);
 			si->err_loc = s->srv;
@@ -3759,7 +3762,8 @@ int sess_update_st_con_tcp(struct session *s, struct stream_interface *si)
 		/* give up */
 		req->wex = TICK_ETERNITY;
 		fd_delete(si->fd);
-		if (s->srv) {
+		if (s->srv && (s->flags & SN_CURR_SESS)) {
+			s->flags &= ~SN_CURR_SESS;
 			s->srv->cur_sess--;
 			sess_change_server(s, NULL);
 		}
