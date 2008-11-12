@@ -208,6 +208,7 @@ fd_set url_encode_map[(sizeof(fd_set) > (256/8)) ? 1 : ((256/8) / sizeof(fd_set)
 
 int sess_update_st_con_tcp(struct session *s, struct stream_interface *si);
 int sess_update_st_cer(struct session *s, struct stream_interface *si);
+void sess_establish(struct session *s, struct stream_interface *si);
 
 void init_proto_http()
 {
@@ -947,14 +948,11 @@ void process_session(struct task *t, int *next)
 	//        s->si[0].state, s->si[1].state, s->si[1].err_type, s->req->flags, s->rep->flags);
 
 	/* 1a: Check for low level timeouts if needed. We just set a flag on
-	 * buffers and/or stream interfaces when their timeouts have expired.
+	 * stream interfaces when their timeouts have expired.
 	 */
 	if (unlikely(t->state & TASK_WOKEN_TIMER)) {
 		stream_int_check_timeouts(&s->si[0]);
 		stream_int_check_timeouts(&s->si[1]);
-
-		buffer_check_timeouts(s->req);
-		buffer_check_timeouts(s->rep);
 	}
 
 	/* 1b: check for low-level errors reported at the stream interface.
@@ -976,6 +974,7 @@ void process_session(struct task *t, int *next)
 			s->si[1].state = SI_ST_CLO;
 			fd_delete(s->si[1].fd);
 			stream_int_report_error(&s->si[1]);
+			/////////// FIXME: the following must move somewhere else
 			s->be->failed_resp++;
 			if (s->srv)
 				s->srv->failed_resp++;
@@ -983,11 +982,12 @@ void process_session(struct task *t, int *next)
 	}
 	else if (s->si[1].state != SI_ST_INI && s->si[1].state != SI_ST_CLO) {
 		/* Maybe we were trying to establish a connection on the server side ? */
-		if (s->si[1].state == SI_ST_CON)
-			sess_update_st_con_tcp(s, &s->si[1]);
-
-		if (s->si[1].state == SI_ST_CER)
-			sess_update_st_cer(s, &s->si[1]);
+		if (s->si[1].state == SI_ST_CON) {
+			if (unlikely(!sess_update_st_con_tcp(s, &s->si[1])))
+				sess_update_st_cer(s, &s->si[1]);
+			else if (s->si[1].state == SI_ST_EST)
+				sess_establish(s, &s->si[1]);
+		}
 
 		/* now try to complete any initiated connection setup */
 		if (s->si[1].state >= SI_ST_REQ && s->si[1].state < SI_ST_CON) {
@@ -999,6 +999,7 @@ void process_session(struct task *t, int *next)
 				if (s->si[1].state == SI_ST_REQ)
 					sess_prepare_conn_req(s, &s->si[1]);
 
+				///// FIXME: redirect should be handled later
 				if (s->si[1].state == SI_ST_ASS && s->srv &&
 				    s->srv->rdr_len && (s->flags & SN_REDIRECTABLE))
 					perform_http_redirect(s, &s->si[1]);
@@ -1007,11 +1008,20 @@ void process_session(struct task *t, int *next)
 		}
 	}
 
-	/* FIXME: we might have got an error above, and we should process them below */
+	/////// FIXME: do that later
+	/* FIXME: we might have got errors above, and we should process them below */
 	if (s->si[1].state == SI_ST_CLO && s->si[1].prev_state != SI_ST_CLO &&
 	    s->si[1].err_type != SI_ET_NONE)
 		return_srv_error(s, s->si[1].err_type);
 
+
+	/* 1a: Check for low level timeouts if needed. We just set a flag on
+	 * buffers and/or stream interfaces when their timeouts have expired.
+	 */
+	if (unlikely(t->state & TASK_WOKEN_TIMER)) {
+		buffer_check_timeouts(s->req);
+		buffer_check_timeouts(s->rep);
+	}
 
 	/* 1c: Manage buffer timeouts. */
 	if (unlikely(s->req->flags & (BF_READ_TIMEOUT|BF_WRITE_TIMEOUT))) {
@@ -1154,9 +1164,11 @@ void process_session(struct task *t, int *next)
 					 * count it and check for pending connections on this server.
 					 */
 					if (s->req->cons->state == SI_ST_CLO) {
-						if (s->srv && (s->flags & SN_CURR_SESS)) {
-							s->flags &= ~SN_CURR_SESS;
-							s->srv->cur_sess--;
+						if (s->srv) {
+							if (s->flags & SN_CURR_SESS) {
+								s->flags &= ~SN_CURR_SESS;
+								s->srv->cur_sess--;
+							}
 							sess_change_server(s, NULL);
 							if (may_dequeue_tasks(s->srv, s->be))
 								process_srv_queue(s->srv);
@@ -3736,16 +3748,10 @@ int sess_update_st_con_tcp(struct session *s, struct stream_interface *si)
 		si->state = SI_ST_CER;
 		fd_delete(si->fd);
 
-		if (s->srv && (s->flags & SN_CURR_SESS)) {
-			s->flags &= ~SN_CURR_SESS;
-			s->srv->cur_sess--;
-			sess_change_server(s, NULL);
-			si->err_loc = s->srv;
-		}
-
 		if (si->err_type)
 			return 0;
 
+		si->err_loc = s->srv;
 		if (si->flags & SI_FL_ERR)
 			si->err_type = SI_ET_CONN_ERR;
 		else
@@ -3762,11 +3768,6 @@ int sess_update_st_con_tcp(struct session *s, struct stream_interface *si)
 		/* give up */
 		req->wex = TICK_ETERNITY;
 		fd_delete(si->fd);
-		if (s->srv && (s->flags & SN_CURR_SESS)) {
-			s->flags &= ~SN_CURR_SESS;
-			s->srv->cur_sess--;
-			sess_change_server(s, NULL);
-		}
 		buffer_shutw(req);
 		buffer_shutr(rep);
 		si->state = SI_ST_CLO;
@@ -3779,11 +3780,26 @@ int sess_update_st_con_tcp(struct session *s, struct stream_interface *si)
 	if (!(req->flags & BF_WRITE_ACTIVITY))
 		return 1;
 
-	/* OK, this means that a connection succeeded */
+	/* OK, this means that a connection succeeded. The caller will be
+	 * responsible for handling the transition from CON to EST.
+	 */
 	s->logs.t_connect = tv_ms_elapsed(&s->logs.tv_accept, &now);
 	si->state    = SI_ST_EST;
 	si->err_type = SI_ET_NONE;
 	si->err_loc  = NULL;
+	return 1;
+}
+
+
+/*
+ * This function handles the transition between the SI_ST_CON state and the
+ * SI_ST_EST state. It must only be called after switching from SI_ST_CON to
+ * SI_ST_EST.
+ */
+void sess_establish(struct session *s, struct stream_interface *si)
+{
+	struct buffer *req = si->ob;
+	struct buffer *rep = si->ib;
 
 	if (req->flags & BF_EMPTY) {
 		EV_FD_CLR(si->fd, DIR_WR);
@@ -3830,7 +3846,6 @@ int sess_update_st_con_tcp(struct session *s, struct stream_interface *si)
 
 	rep->flags |= BF_READ_ATTACHED; /* producer is now attached */
 	req->wex = TICK_ETERNITY;
-	return 1;
 }
 
 
@@ -3845,6 +3860,15 @@ int sess_update_st_con_tcp(struct session *s, struct stream_interface *si)
  */
 int sess_update_st_cer(struct session *s, struct stream_interface *si)
 {
+	/* we probably have to release last session from the server */
+	if (s->srv) {
+		if (s->flags & SN_CURR_SESS) {
+			s->flags &= ~SN_CURR_SESS;
+			s->srv->cur_sess--;
+		}
+		sess_change_server(s, NULL);
+	}
+
 	/* ensure that we have enough retries left */
 	s->conn_retries--;
 	if (s->conn_retries < 0) {
