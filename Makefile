@@ -61,7 +61,7 @@
 DESTDIR =
 PREFIX = /usr/local
 SBINDIR = $(PREFIX)/sbin
-MANDIR = $(PREFIX)/man
+MANDIR = $(PREFIX)/share/man
 DOCDIR = $(PREFIX)/doc/haproxy
 
 #### TARGET system
