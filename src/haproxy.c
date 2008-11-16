@@ -895,11 +895,6 @@ int main(int argc, char **argv)
 	signal(SIGTTOU, sig_pause);
 	signal(SIGTTIN, sig_listen);
 
-	if (global.mode & MODE_DAEMON) {
-		global.mode &= ~MODE_VERBOSE;
-		global.mode |= MODE_QUIET;
-	}
-
 	/* MODE_QUIET can inhibit alerts and warnings below this line */
 
 	global.mode &= ~MODE_STARTING;
@@ -1061,10 +1056,11 @@ int main(int argc, char **argv)
 		 * it would have already be done, and 0-2 would have been affected to listening
 		 * sockets
 		 */
-		if (!(global.mode & MODE_QUIET)) {
+		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) {
 			/* detach from the tty */
 			fclose(stdin); fclose(stdout); fclose(stderr);
 			close(0); close(1); close(2); /* close all fd's */
+			global.mode &= ~MODE_VERBOSE;
 			global.mode |= MODE_QUIET; /* ensure that we won't say anything from now */
 		}
 		pid = getpid(); /* update child's pid */
