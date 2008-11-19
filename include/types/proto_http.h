@@ -165,7 +165,11 @@ enum {
 	DATA_ST_PX_FIN,
 };
 
-
+/* Redirect flags */
+enum {
+	REDIRECT_FLAG_NONE = 0,
+	REDIRECT_FLAG_DROP_QS = 1,	/* drop query string */
+};
 
 /* Redirect types (location, prefix, extended ) */
 enum {

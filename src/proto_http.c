@@ -1894,6 +1894,16 @@ int http_process_request(struct session *s, struct buffer *req)
 					/* build message using path */
 					if (path) {
 						pathlen = txn->req.sl.rq.u_l + (txn->req.sol+txn->req.sl.rq.u) - path;
+						if (rule->flags & REDIRECT_FLAG_DROP_QS) {
+							int qs = 0;
+							while (qs < pathlen) {
+								if (path[qs] == '?') {
+									pathlen = qs;
+									break;
+								}
+								qs++;
+							}
+						}
 					} else {
 						path = "/";
 						pathlen = 1;

@@ -1118,6 +1118,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		int type = REDIRECT_TYPE_NONE;
 		int code = 302;
 		char *destination = NULL;
+		unsigned int flags = REDIRECT_FLAG_NONE;
 
 		cur_arg = 1;
 		while (*(args[cur_arg])) {
@@ -1156,6 +1157,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 					      file, linenum, args[0], code);
 					return -1;
 				}
+			}
+			else if (!strcmp(args[cur_arg],"drop-query")) {
+				flags |= REDIRECT_FLAG_DROP_QS;
 			}
 			else if (!strcmp(args[cur_arg], "if")) {
 				pol = ACL_COND_IF;
@@ -1200,6 +1204,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		rule->rdr_len = strlen(destination);
 		rule->type = type;
 		rule->code = code;
+		rule->flags = flags;
 		LIST_INIT(&rule->list);
 		LIST_ADDQ(&curproxy->redirect_rules, &rule->list);
 	}

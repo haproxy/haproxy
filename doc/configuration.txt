@@ -2336,7 +2336,8 @@ no option transparent
             "transparent" option of the "bind" keyword.
 
 
-redirect {location | prefix} <to> [code <code>] {if | unless} <condition>
+redirect location <to> [code <code>] {if | unless} <condition>
+redirect prefix <to> [drop-query] [code <code>] {if | unless} <condition>
   Return an HTTP redirection if/unless a condition is matched
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   yes
@@ -2345,7 +2346,10 @@ redirect {location | prefix} <to> [code <code>] {if | unless} <condition>
   response. There are currently two types of redirections : "location" and
   "prefix". With "location", the exact value in <to> is placed into the HTTP
   "Location" header. With "prefix", the "Location" header is built from the
-  concatenation of <to> and the URI. It is particularly suited for global site
+  concatenation of <to> and the URI. If the optional "drop-query" keyword is
+  used in a prefix-based redirection, then the location will be set without any
+  possible query-string, which is useful for directing users to a non-secure
+  page for instance. The "prefix" mode is particularly suited for global site
   redirections.
 
   The code is optional. It indicates in <code> which type of HTTP redirection
@@ -2356,8 +2360,10 @@ redirect {location | prefix} <to> [code <code>] {if | unless} <condition>
         acl clear      dst_port  80
         acl secure     dst_port  8080
         acl login_page url_beg   /login
-        redirect prefix   https://mysite.com  if login_page !secure
-        redirect location http://mysite.com/  if !login_page secure
+        acl uid_given  url_reg   /login?userid=[^&]+
+        redirect prefix   https://mysite.com           if login_page !secure
+        redirect prefix   http://mysite.com drop-query if login_page !uid_given
+        redirect location http://mysite.com/           if !login_page secure
 
   See section 2.3 about ACL usage.
 
