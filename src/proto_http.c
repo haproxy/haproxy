@@ -1912,9 +1912,14 @@ int http_process_request(struct session *s, struct buffer *req)
 					if (rdr.len + rule->rdr_len + pathlen > sizeof(trash) - 4)
 						goto return_bad_req;
 
-					/* add prefix */
-					memcpy(rdr.str + rdr.len, rule->rdr_str, rule->rdr_len);
-					rdr.len += rule->rdr_len;
+					/* add prefix. Note that if prefix == "/", we don't want to
+					 * add anything, otherwise it makes it hard for the user to
+					 * configure a self-redirection.
+					 */
+					if (rule->rdr_len != 1 || *rule->rdr_str != '/') {
+						memcpy(rdr.str + rdr.len, rule->rdr_str, rule->rdr_len);
+						rdr.len += rule->rdr_len;
+					}
 
 					/* add path */
 					memcpy(rdr.str + rdr.len, path, pathlen);

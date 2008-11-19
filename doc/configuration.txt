@@ -2350,7 +2350,10 @@ redirect prefix   <to> [code <code>] <option> {if | unless} <condition>
               the HTTP "Location" header. In case of "redirect prefix", the
               "Location" header is built from the concatenation of <to> and the
               complete URI, including the query string, unless the "drop-query"
-              option is specified (see below).
+              option is specified (see below). As a special case, if <to>
+              equals exactly "/" in prefix mode, then nothing is inserted
+              before the original URI. It allows one to redirect to the same
+              URL.
 
     <code>    The code is optional. It indicates which type of HTTP redirection
               is desired. Only codes 301, 302 and 303 are supported, and 302 is
