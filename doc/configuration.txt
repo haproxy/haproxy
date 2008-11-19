@@ -2336,34 +2336,68 @@ no option transparent
             "transparent" option of the "bind" keyword.
 
 
-redirect location <to> [code <code>] {if | unless} <condition>
-redirect prefix <to> [drop-query] [code <code>] {if | unless} <condition>
+redirect location <to> [code <code>] <option> {if | unless} <condition>
+redirect prefix   <to> [code <code>] <option> {if | unless} <condition>
   Return an HTTP redirection if/unless a condition is matched
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   yes
 
   If/unless the condition is matched, the HTTP request will lead to a redirect
-  response. There are currently two types of redirections : "location" and
-  "prefix". With "location", the exact value in <to> is placed into the HTTP
-  "Location" header. With "prefix", the "Location" header is built from the
-  concatenation of <to> and the URI. If the optional "drop-query" keyword is
-  used in a prefix-based redirection, then the location will be set without any
-  possible query-string, which is useful for directing users to a non-secure
-  page for instance. The "prefix" mode is particularly suited for global site
-  redirections.
+  response.
 
-  The code is optional. It indicates in <code> which type of HTTP redirection
-  is desired. Only codes 301, 302 and 303 are supported. 302 is used if no code
-  is specified.
+  Arguments :
+    <to>      With "redirect location", the exact value in <to> is placed into
+              the HTTP "Location" header. In case of "redirect prefix", the
+              "Location" header is built from the concatenation of <to> and the
+              complete URI, including the query string, unless the "drop-query"
+              option is specified (see below).
+
+    <code>    The code is optional. It indicates which type of HTTP redirection
+              is desired. Only codes 301, 302 and 303 are supported, and 302 is
+              used if no code is specified. 301 means "Moved permanently", and
+              a browser may cache the Location. 302 means "Moved permanently"
+              and means that the browser should not cache the redirection. 303
+              is equivalent to 302 except that the browser will fetch the
+              location with a GET method.
+
+    <option>  There are several options which can be specified to adjust the
+              expected behaviour of a redirection :
+
+      - "drop-query"
+        When this keyword is used in a prefix-based redirection, then the
+        location will be set without any possible query-string, which is useful
+        for directing users to a non-secure page for instance. It has no effect
+        with a location-type redirect.
+
+      - "set-cookie NAME[=value]"
+        A "Set-Cookie" header will be added with NAME (and optionally "=value")
+        to the response. This is sometimes used to indicate that a user has
+        been seen, for instance to protect against some types of DoS. No other
+        cookie option is added, so the cookie will be a session cookie. Note
+        that for a browser, a sole cookie name without an equal sign is
+        different from a cookie with an equal sign.
+
+      - "clear-cookie NAME[=]"
+        A "Set-Cookie" header will be added with NAME (and optionally "="), but
+        with the "Max-Age" attribute set to zero. This will tell the browser to
+        delete this cookie. It is useful for instance on logout pages. It is
+        important to note that clearing the cookie "NAME" will not remove a
+        cookie set with "NAME=value". You have to clear the cookie "NAME=" for
+        that, because the browser makes the difference.
 
   Example: move the login URL only to HTTPS.
         acl clear      dst_port  80
         acl secure     dst_port  8080
         acl login_page url_beg   /login
+        acl logout     url_beg   /logout
         acl uid_given  url_reg   /login?userid=[^&]+
+        acl cookie_set hdr_sub(cookie) SEEN=1
+
+        redirect prefix   https://mysite.com set-cookie SEEN=1 if !cookie_set
         redirect prefix   https://mysite.com           if login_page !secure
         redirect prefix   http://mysite.com drop-query if login_page !uid_given
         redirect location http://mysite.com/           if !login_page secure
+        redirect location / clear-cookie USERID=       if logout
 
   See section 2.3 about ACL usage.
 

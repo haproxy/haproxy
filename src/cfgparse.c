@@ -1118,6 +1118,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		int type = REDIRECT_TYPE_NONE;
 		int code = 302;
 		char *destination = NULL;
+		char *cookie = NULL;
+		int cookie_set = 0;
 		unsigned int flags = REDIRECT_FLAG_NONE;
 
 		cur_arg = 1;
@@ -1143,6 +1145,28 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 				type = REDIRECT_TYPE_PREFIX;
 				cur_arg++;
 				destination = args[cur_arg];
+			}
+			else if (!strcmp(args[cur_arg], "set-cookie")) {
+				if (!*args[cur_arg + 1]) {
+					Alert("parsing [%s:%d] : '%s': missing argument for '%s'.\n",
+					      file, linenum, args[0], args[cur_arg]);
+					return -1;
+				}
+
+				cur_arg++;
+				cookie = args[cur_arg];
+				cookie_set = 1;
+			}
+			else if (!strcmp(args[cur_arg], "clear-cookie")) {
+				if (!*args[cur_arg + 1]) {
+					Alert("parsing [%s:%d] : '%s': missing argument for '%s'.\n",
+					      file, linenum, args[0], args[cur_arg]);
+					return -1;
+				}
+
+				cur_arg++;
+				cookie = args[cur_arg];
+				cookie_set = 0;
 			}
 			else if (!strcmp(args[cur_arg],"code")) {
 				if (!*args[cur_arg + 1]) {
@@ -1202,6 +1226,20 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		rule->cond = cond;
 		rule->rdr_str = strdup(destination);
 		rule->rdr_len = strlen(destination);
+		if (cookie) {
+			/* depending on cookie_set, either we want to set the cookie, or to clear it.
+			 * a clear consists in appending "; Max-Age=0" at the end.
+			 */
+			rule->cookie_len = strlen(cookie);
+			if (cookie_set)
+				rule->cookie_str = strdup(cookie);
+			else {
+				rule->cookie_str = malloc(rule->cookie_len + 12);
+				memcpy(rule->cookie_str, cookie, rule->cookie_len);
+				memcpy(rule->cookie_str + rule->cookie_len, "; Max-Age=0", 12);
+				rule->cookie_len += 11;
+			}
+		}
 		rule->type = type;
 		rule->code = code;
 		rule->flags = flags;

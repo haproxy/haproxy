@@ -267,6 +267,8 @@ struct redirect_rule {
 	char *rdr_str;
 	int code;
 	unsigned int flags;
+	int cookie_len;
+	char *cookie_str;
 };
 
 extern struct proxy *proxy;

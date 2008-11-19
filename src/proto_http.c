@@ -1932,6 +1932,15 @@ int http_process_request(struct session *s, struct buffer *req)
 					break;
 				}
 
+				if (rule->cookie_len) {
+					memcpy(rdr.str + rdr.len, "\r\nSet-Cookie: ", 14);
+					rdr.len += 14;
+					memcpy(rdr.str + rdr.len, rule->cookie_str, rule->cookie_len);
+					rdr.len += rule->cookie_len;
+					memcpy(rdr.str + rdr.len, "\r\n", 2);
+					rdr.len += 2;
+				}
+
 				/* add end of headers */
 				memcpy(rdr.str + rdr.len, "\r\n\r\n", 4);
 				rdr.len += 4;
