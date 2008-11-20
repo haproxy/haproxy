@@ -393,8 +393,10 @@ ifneq ($(USE_PCRE),)
 ifeq ($(PCREDIR),)
 PCREDIR	        := $(shell pcre-config --prefix 2>/dev/null || echo /usr/local)
 endif
+ifeq ($(USE_STATIC_PCRE),)
 OPTIONS_CFLAGS  += -DUSE_PCRE -I$(PCREDIR)/include
 OPTIONS_LDFLAGS += -L$(PCREDIR)/lib -lpcreposix -lpcre
+endif
 BUILD_OPTIONS   += $(call ignore_implicit,USE_PCRE)
 endif
 
