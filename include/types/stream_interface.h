@@ -29,17 +29,19 @@
 
 /* A stream interface must have its own errors independantly of the buffer's,
  * so that applications can rely on what the buffer reports while the stream
- * interface is performing some retries (eg: connection error).
+ * interface is performing some retries (eg: connection error). Some states are
+ * transient and do not last beyond process_session().
  */
 enum {
 	SI_ST_INI = 0,           /* interface not sollicitated yet */
-	SI_ST_REQ,               /* connection initiation desired and not started yet */
+	SI_ST_REQ,               /* [transient] connection initiation desired and not started yet */
 	SI_ST_QUE,               /* interface waiting in queue */
 	SI_ST_TAR,               /* interface in turn-around state after failed connect attempt */
 	SI_ST_ASS,               /* server just assigned to this interface */
 	SI_ST_CON,               /* initiated connection request (resource exists) */
-	SI_ST_CER,               /* previous connection attempt failed (resource released) */
+	SI_ST_CER,               /* [transient] previous connection attempt failed (resource released) */
 	SI_ST_EST,               /* connection established (resource exists) */
+	SI_ST_DIS,               /* [transient] disconnected from other side, but cleanup not done yet */
 	SI_ST_CLO,               /* stream intf closed, might not existing anymore. Buffers shut. */
 };
 

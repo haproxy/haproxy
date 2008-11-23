@@ -81,7 +81,7 @@ int stream_sock_read(int fd) {
 			if (max > b->rlim - b->data)
 				max = b->rlim - b->data;
 		}
-	    
+
 		if (unlikely(max == 0)) {
 			/* Not anymore room to store data. This should theorically
 			 * never happen, but better safe than sorry !
@@ -115,7 +115,7 @@ int stream_sock_read(int fd) {
 			cur_read += ret;
 			b->flags |= BF_READ_PARTIAL;
 			b->flags &= ~BF_EMPTY;
-	
+
 			if (b->r == b->data + BUFSIZE) {
 				b->r = b->data; /* wrap around the buffer */
 			}
@@ -272,7 +272,7 @@ int stream_sock_read(int fd) {
 	goto wakeup_return;
 
  do_close_and_return:
-	si->state = SI_ST_CLO;
+	si->state = SI_ST_DIS;
 	fd_delete(fd);
  wakeup_return:
 	task_wakeup(si->owner, TASK_WOKEN_IO);
@@ -370,12 +370,12 @@ int stream_sock_write(int fd) {
 		if (ret > 0) {
 			b->l -= ret;
 			b->w += ret;
-	    
+
 			b->flags |= BF_WRITE_PARTIAL;
 
 			if (b->l < b->rlim - b->data)
 				b->flags &= ~BF_FULL;
-	    
+
 			if (b->w == b->data + BUFSIZE) {
 				b->w = b->data; /* wrap around the buffer */
 			}
@@ -461,7 +461,7 @@ int stream_sock_write(int fd) {
 	goto wakeup_return;
 
  do_close_and_return:
-	si->state = SI_ST_CLO;
+	si->state = SI_ST_DIS;
 	fd_delete(fd);
  wakeup_return:
 	task_wakeup(si->owner, TASK_WOKEN_IO);
@@ -485,7 +485,7 @@ int stream_sock_shutw(struct stream_interface *si)
 
 	if (si->ib->flags & BF_SHUTR) {
 		fd_delete(si->fd);
-		si->state = SI_ST_CLO;
+		si->state = SI_ST_DIS;
 		return 1;
 	}
 	EV_FD_CLR(si->fd, DIR_WR);
@@ -510,7 +510,7 @@ int stream_sock_shutr(struct stream_interface *si)
 
 	if (si->ob->flags & BF_SHUTW) {
 		fd_delete(si->fd);
-		si->state = SI_ST_CLO;
+		si->state = SI_ST_DIS;
 		return 1;
 	}
 	EV_FD_CLR(si->fd, DIR_RD);
@@ -543,7 +543,7 @@ int stream_sock_data_update(int fd)
 			buffer_shutr(ib);
 			if (ob->flags & BF_SHUTW) {
 				fd_delete(fd);
-				ob->cons->state = SI_ST_CLO;
+				ob->cons->state = SI_ST_DIS;
 				return 0;
 			}
 			EV_FD_CLR(fd, DIR_RD);
@@ -559,7 +559,7 @@ int stream_sock_data_update(int fd)
 			buffer_shutw(ob);
 			if (ib->flags & BF_SHUTR) {
 				fd_delete(fd);
-				ob->cons->state = SI_ST_CLO;
+				ob->cons->state = SI_ST_DIS;
 				return 0;
 			}
 			EV_FD_CLR(fd, DIR_WR);

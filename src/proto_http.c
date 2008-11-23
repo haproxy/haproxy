@@ -700,6 +700,8 @@ void sess_update_stream_int(struct session *s, struct stream_interface *si)
 			si->ob->flags |= BF_WRITE_ERROR;
 
 			s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
+
+			/* no session was ever accounted for this server */
 			si->state = SI_ST_CLO;
 			return;
 		}
@@ -963,7 +965,7 @@ void process_session(struct task *t, int *next)
 	 */
 	if (s->si[0].state == SI_ST_EST) {
 		if (unlikely(s->si[0].flags & SI_FL_ERR)) {
-			s->si[0].state = SI_ST_CLO;
+			s->si[0].state = SI_ST_DIS;
 			fd_delete(s->si[0].fd);
 			stream_int_report_error(&s->si[0]);
 		}
@@ -971,7 +973,7 @@ void process_session(struct task *t, int *next)
 
 	if (s->si[1].state == SI_ST_EST) {
 		if (unlikely(s->si[1].flags & SI_FL_ERR)) {
-			s->si[1].state = SI_ST_CLO;
+			s->si[1].state = SI_ST_DIS;
 			fd_delete(s->si[1].fd);
 			stream_int_report_error(&s->si[1]);
 			/////////// FIXME: the following must move somewhere else
@@ -980,7 +982,7 @@ void process_session(struct task *t, int *next)
 				s->srv->failed_resp++;
 		}
 	}
-	else if (s->si[1].state != SI_ST_INI && s->si[1].state != SI_ST_CLO) {
+	else if (s->si[1].state >= SI_ST_QUE && s->si[1].state <= SI_ST_CON) {
 		/* Maybe we were trying to establish a connection on the server side ? */
 		if (s->si[1].state == SI_ST_CON) {
 			if (unlikely(!sess_update_st_con_tcp(s, &s->si[1])))
@@ -1010,8 +1012,8 @@ void process_session(struct task *t, int *next)
 
 	/////// FIXME: do that later
 	/* FIXME: we might have got errors above, and we should process them below */
-	if (s->si[1].state == SI_ST_CLO && s->si[1].prev_state != SI_ST_CLO &&
-	    s->si[1].err_type != SI_ET_NONE)
+	if ((s->si[1].state == SI_ST_DIS || s->si[1].state == SI_ST_CLO) &&
+	    s->si[1].prev_state != SI_ST_CLO && s->si[1].err_type != SI_ET_NONE)
 		return_srv_error(s, s->si[1].err_type);
 
 
@@ -1078,13 +1080,28 @@ void process_session(struct task *t, int *next)
 	/* 3: When a server-side connection is released, we have to
 	 * count it and check for pending connections on this server.
 	 */
-	if (unlikely(s->req->cons->state == SI_ST_CLO && s->srv && (s->flags & SN_CURR_SESS))) {
-		s->flags &= ~SN_CURR_SESS;
-		s->srv->cur_sess--;
-		sess_change_server(s, NULL);
-		if (may_dequeue_tasks(s->srv, s->be))
-			process_srv_queue(s->srv);
+	if (unlikely(s->req->cons->state == SI_ST_DIS)) {
+		s->req->cons->state = SI_ST_CLO;
+		if (s->srv) {
+			if (s->flags & SN_CURR_SESS) {
+				s->flags &= ~SN_CURR_SESS;
+				s->srv->cur_sess--;
+			}
+			sess_change_server(s, NULL);
+			if (may_dequeue_tasks(s->srv, s->be))
+				process_srv_queue(s->srv);
+		}
 	}
+
+	/* nothing special to be done on client side */
+	if (unlikely(s->req->prod->state == SI_ST_DIS))
+		s->req->prod->state = SI_ST_CLO;
+
+	/*
+	 * Note: all transient states (REQ, CER, DIS) have been eliminated at
+	 * this point.
+	 */
+
 
 	/* Dirty trick: force one first pass everywhere */
 	rqf_cli = rqf_srv = ~s->req->flags;
@@ -1163,7 +1180,8 @@ void process_session(struct task *t, int *next)
 					/* When a server-side connection is released, we have to
 					 * count it and check for pending connections on this server.
 					 */
-					if (s->req->cons->state == SI_ST_CLO) {
+					if (s->req->cons->state == SI_ST_DIS) {
+						s->req->cons->state = SI_ST_CLO;
 						if (s->srv) {
 							if (s->flags & SN_CURR_SESS) {
 								s->flags &= ~SN_CURR_SESS;
@@ -3722,7 +3740,7 @@ int process_response(struct session *t)
 /* This function is called with (si->state == SI_ST_CON) meaning that a
  * connection was attempted and that the file descriptor is already allocated.
  * We must check for establishment, error and abort. Possible output states
- * are SI_ST_EST (established), SI_ST_CER (error), SI_ST_CLO (abort), and
+ * are SI_ST_EST (established), SI_ST_CER (error), SI_ST_DIS (abort), and
  * SI_ST_CON (no change). The function returns 0 if it switches to SI_ST_CER,
  * otherwise 1.
  */
@@ -3770,7 +3788,7 @@ int sess_update_st_con_tcp(struct session *s, struct stream_interface *si)
 		fd_delete(si->fd);
 		buffer_shutw(req);
 		buffer_shutr(rep);
-		si->state = SI_ST_CLO;
+		si->state = SI_ST_DIS;
 		si->err_type |= SI_ET_CONN_ABRT;
 		si->err_loc  = s->srv;
 		return 1;
