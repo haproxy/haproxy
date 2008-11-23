@@ -3,7 +3,7 @@
   Buffer management definitions, macros and inline functions.
 
   Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
-  
+
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
   License as published by the Free Software Foundation, version 2.1
@@ -148,6 +148,46 @@ static inline void buffer_write_ena(struct buffer *buf)
 static inline void buffer_write_dis(struct buffer *buf)
 {
 	buf->flags &= ~BF_WRITE_ENA;
+}
+
+/* check if the buffer needs to be shut down for read, and perform the shutdown
+ * at the stream_interface level if needed. This must not be used with a buffer
+ * for which a connection is currently in queue or turn-around.
+ */
+static inline void buffer_check_shutr(struct buffer *b)
+{
+	if (b->flags & BF_SHUTR)
+		return;
+
+	if (!(b->flags & (BF_SHUTR_NOW|BF_SHUTW)))
+		return;
+
+	/* Last read, forced read-shutdown, or other end closed. We have to
+	 * close our read side and inform the stream_interface.
+	 */
+	buffer_shutr(b);
+	b->prod->shutr(b->prod);
+}
+
+/* check if the buffer needs to be shut down for write, and perform the shutdown
+ * at the stream_interface level if needed. This must not be used with a buffer
+ * for which a connection is currently in queue or turn-around.
+ */
+static inline void buffer_check_shutw(struct buffer *b)
+{
+	if (b->flags & BF_SHUTW)
+		return;
+
+	if ((b->flags & BF_SHUTW_NOW) ||
+	    (b->flags & (BF_EMPTY|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) ==
+	    (BF_EMPTY|BF_WRITE_ENA|BF_SHUTR)) {
+		/* Application requested write-shutdown, or other end closed
+		 * with empty buffer. We have to close our write side and
+		 * inform the stream_interface.
+		 */
+		buffer_shutw(b);
+		b->cons->shutw(b->cons);
+	}
 }
 
 /* returns the maximum number of bytes writable at once in this buffer */

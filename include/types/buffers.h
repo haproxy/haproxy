@@ -3,7 +3,7 @@
   Buffer management definitions, macros and inline functions.
 
   Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
-  
+
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
   License as published by the Free Software Foundation, version 2.1
@@ -24,6 +24,7 @@
 
 #include <common/config.h>
 #include <common/memory.h>
+#include <types/stream_interface.h>
 
 /* The BF_* macros designate Buffer Flags, which may be ORed in the bit field
  * member 'flags' in struct buffer. Here we have several types of flags :

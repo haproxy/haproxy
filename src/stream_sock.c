@@ -471,104 +471,53 @@ int stream_sock_write(int fd) {
 /*
  * This function performs a shutdown-write on a stream interface in a connected or
  * init state (it does nothing for other states). It either shuts the write side
- * closes the file descriptor and marks itself as closed. No buffer flags are
+ * or closes the file descriptor and marks itself as closed. No buffer flags are
  * changed, it's up to the caller to adjust them. The sole purpose of this
  * function is to be called from the other stream interface to notify of a
  * close_read, or by itself upon a full write leading to an empty buffer.
- * It normally returns zero, unless it has completely closed the socket, in
- * which case it returns 1.
  */
-int stream_sock_shutw(struct stream_interface *si)
+void stream_sock_shutw(struct stream_interface *si)
 {
-	if (si->state != SI_ST_EST && si->state != SI_ST_CON)
-		return 0;
+	if (si->state != SI_ST_EST && si->state != SI_ST_CON) {
+		if (likely(si->state == SI_ST_INI))
+			si->state = SI_ST_CLO;
+		return;
+	}
 
 	if (si->ib->flags & BF_SHUTR) {
 		fd_delete(si->fd);
 		si->state = SI_ST_DIS;
-		return 1;
+		return;
 	}
 	EV_FD_CLR(si->fd, DIR_WR);
 	shutdown(si->fd, SHUT_WR);
-	return 0;
+	return;
 }
 
 /*
  * This function performs a shutdown-read on a stream interface in a connected or
- * init state (it does nothing for other states). It either shuts the read side or
- * closes the file descriptor and marks itself as closed. No buffer flags are
+ * init state (it does nothing for other states). It either shuts the read side
+ * or closes the file descriptor and marks itself as closed. No buffer flags are
  * changed, it's up to the caller to adjust them. The sole purpose of this
  * function is to be called from the other stream interface to notify of a
  * close_read, or by itself upon a full write leading to an empty buffer.
- * It normally returns zero, unless it has completely closed the socket, in
- * which case it returns 1.
  */
-int stream_sock_shutr(struct stream_interface *si)
+void stream_sock_shutr(struct stream_interface *si)
 {
-	if (si->state != SI_ST_EST && si->state != SI_ST_CON)
-		return 0;
+	if (si->state != SI_ST_EST && si->state != SI_ST_CON) {
+		if (likely(si->state == SI_ST_INI))
+			si->state = SI_ST_CLO;
+		return;
+	}
 
 	if (si->ob->flags & BF_SHUTW) {
 		fd_delete(si->fd);
 		si->state = SI_ST_DIS;
-		return 1;
+		return;
 	}
 	EV_FD_CLR(si->fd, DIR_RD);
-	return 0;
+	return;
 }
-
-/*
- * Manages a stream_sock connection during its data phase. The buffers are
- * examined for various cases of shutdown, then file descriptor and buffers'
- * flags are updated accordingly.
- */
-int stream_sock_data_update(int fd)
-{
-	struct buffer *ib = fdtab[fd].cb[DIR_RD].b;
-	struct buffer *ob = fdtab[fd].cb[DIR_WR].b;
-
-	DPRINTF(stderr,"[%u] %s: fd=%d owner=%p ib=%p, ob=%p, exp(r,w)=%u,%u ibf=%08x obf=%08x ibl=%d obl=%d si=%d\n",
-		now_ms, __FUNCTION__,
-		fd, fdtab[fd].owner,
-		ib, ob,
-		ib->rex, ob->wex,
-		ib->flags, ob->flags,
-		ib->l, ob->l, ob->cons->state);
-
-	/* Check if we need to close the read side */
-	if (!(ib->flags & BF_SHUTR)) {
-		/* Last read, forced read-shutdown, or other end closed */
-		if (ib->flags & (BF_SHUTR_NOW|BF_SHUTW)) {
-			//trace_term(t, TT_HTTP_SRV_10);
-			buffer_shutr(ib);
-			if (ob->flags & BF_SHUTW) {
-				fd_delete(fd);
-				ob->cons->state = SI_ST_DIS;
-				return 0;
-			}
-			EV_FD_CLR(fd, DIR_RD);
-		}
-	}
-
-	/* Check if we need to close the write side */
-	if (!(ob->flags & BF_SHUTW)) {
-		/* Forced write-shutdown or other end closed with empty buffer. */
-		if ((ob->flags & BF_SHUTW_NOW) ||
-		    (ob->flags & (BF_EMPTY|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) == (BF_EMPTY|BF_WRITE_ENA|BF_SHUTR)) {
-			//trace_term(t, TT_HTTP_SRV_11);
-			buffer_shutw(ob);
-			if (ib->flags & BF_SHUTR) {
-				fd_delete(fd);
-				ob->cons->state = SI_ST_DIS;
-				return 0;
-			}
-			EV_FD_CLR(fd, DIR_WR);
-			shutdown(fd, SHUT_WR);
-		}
-	}
-	return 0; /* other cases change nothing */
-}
-
 
 /*
  * Updates a connected stream_sock file descriptor status and timeouts

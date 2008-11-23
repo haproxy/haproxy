@@ -1136,7 +1136,12 @@ void process_session(struct task *t, int *next)
 		if (s->rep->cons->state != SI_ST_CLO) {
 			if (((rqf_cli ^ s->req->flags) & BF_MASK_INTERFACE_I) ||
 			    ((rpf_cli ^ s->rep->flags) & BF_MASK_INTERFACE_O)) {
-				stream_sock_data_update(s->rep->cons->fd);
+
+				if (!(s->rep->flags & BF_SHUTW))
+					buffer_check_shutw(s->rep);
+				if (!(s->req->flags & BF_SHUTR))
+					buffer_check_shutr(s->req);
+
 				rqf_cli = s->req->flags;
 				rpf_cli = s->rep->flags;
 			}
@@ -1175,7 +1180,10 @@ void process_session(struct task *t, int *next)
 						buffer_shutw_now(s->req);
 					}
 
-					stream_sock_data_update(s->req->cons->fd);
+					if (!(s->req->flags & BF_SHUTW))
+						buffer_check_shutw(s->req);
+					if (!(s->rep->flags & BF_SHUTR))
+						buffer_check_shutr(s->rep);
 
 					/* When a server-side connection is released, we have to
 					 * count it and check for pending connections on this server.
