@@ -113,6 +113,10 @@ int stream_sock_read(int fd) {
 			b->r += ret;
 			b->l += ret;
 			cur_read += ret;
+
+			if (fdtab[fd].state == FD_STCONN)
+				fdtab[fd].state = FD_STREADY;
+
 			b->flags |= BF_READ_PARTIAL;
 			b->flags &= ~BF_EMPTY;
 
@@ -371,6 +375,9 @@ int stream_sock_write(int fd) {
 			b->l -= ret;
 			b->w += ret;
 
+			if (fdtab[fd].state == FD_STCONN)
+				fdtab[fd].state = FD_STREADY;
+
 			b->flags |= BF_WRITE_PARTIAL;
 
 			if (b->l < b->rlim - b->data)
@@ -478,20 +485,22 @@ int stream_sock_write(int fd) {
  */
 void stream_sock_shutw(struct stream_interface *si)
 {
-	if (si->state != SI_ST_EST && si->state != SI_ST_CON) {
-		if (likely(si->state == SI_ST_INI))
-			si->state = SI_ST_CLO;
+	switch (si->state) {
+	case SI_ST_INI:
+		si->state = SI_ST_CLO;
 		return;
-	}
-
-	if (si->ib->flags & BF_SHUTR) {
+	case SI_ST_EST:
+		if (!(si->ib->flags & BF_SHUTR)) {
+			EV_FD_CLR(si->fd, DIR_WR);
+			shutdown(si->fd, SHUT_WR);
+			return;
+		}
+		/* fall through */
+	case SI_ST_CON:
 		fd_delete(si->fd);
 		si->state = SI_ST_DIS;
 		return;
 	}
-	EV_FD_CLR(si->fd, DIR_WR);
-	shutdown(si->fd, SHUT_WR);
-	return;
 }
 
 /*
