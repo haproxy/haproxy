@@ -26,6 +26,7 @@
 
 
 struct pool_head *pool2_session;
+struct list sessions;
 
 /*
  * frees  the context associated to a session. It must have been removed first.
@@ -74,6 +75,7 @@ void session_free(struct session *s)
 	pool_free2(pool2_requri, txn->uri);
 	pool_free2(pool2_capture, txn->cli_cookie);
 	pool_free2(pool2_capture, txn->srv_cookie);
+	LIST_DEL(&s->list);
 	pool_free2(pool2_session, s);
 
 	/* We may want to free the maximum amount of pools if the proxy is stopping */
@@ -92,6 +94,7 @@ void session_free(struct session *s)
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_session()
 {
+	LIST_INIT(&sessions);
 	pool2_session = create_pool("session", sizeof(struct session), MEM_F_SHARED);
 	return pool2_session != NULL;
 }

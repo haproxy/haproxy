@@ -53,7 +53,7 @@ void get_frt_addr(struct session *s)
 /*
  * FIXME: This should move to the STREAM_SOCK code then split into TCP and HTTP.
  */
-    
+
 /*
  * this function is called on a read event from a listen socket, corresponding
  * to an accept. It tries to accept as many connections as possible.
@@ -105,6 +105,8 @@ int event_accept(int fd) {
 			p->state = PR_STIDLE;
 			goto out_close;
 		}
+
+		LIST_ADDQ(&sessions, &s->list);
 
 		s->flags = 0;
 		s->term_trace = 0;
@@ -455,6 +457,7 @@ int event_accept(int fd) {
  out_free_task:
 	pool_free2(pool2_task, t);
  out_free_session:
+	LIST_DEL(&s->list);
 	pool_free2(pool2_session, s);
  out_close:
 	close(cfd);

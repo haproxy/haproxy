@@ -3,7 +3,7 @@
   This file defines everything related to sessions.
 
   Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
-  
+
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
   License as published by the Free Software Foundation, version 2.1
@@ -152,6 +152,7 @@ enum {
  *    server should eventually be released.
  */
 struct session {
+	struct list list;			/* position in global sessions list */
 	struct task *task;			/* the task associated with this session */
 	/* application specific below */
 	struct proxy *fe;			/* the proxy this session depends on for the client side */

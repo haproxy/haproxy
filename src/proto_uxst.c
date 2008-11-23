@@ -411,12 +411,15 @@ int uxst_event_accept(int fd) {
 			return 0;
 		}
 
+		LIST_ADDQ(&sessions, &s->list);
+
 		s->flags = 0;
 		s->term_trace = 0;
 
 		if ((t = pool_alloc2(pool2_task)) == NULL) {
 			Alert("out of memory in uxst_event_accept().\n");
 			close(cfd);
+			LIST_DEL(&s->list);
 			pool_free2(pool2_session, s);
 			return 0;
 		}
@@ -428,6 +431,7 @@ int uxst_event_accept(int fd) {
 			Alert("accept(): not enough free sockets. Raise -n argument. Giving up.\n");
 			close(cfd);
 			pool_free2(pool2_task, t);
+			LIST_DEL(&s->list);
 			pool_free2(pool2_session, s);
 			return 0;
 		}
@@ -436,6 +440,7 @@ int uxst_event_accept(int fd) {
 			Alert("accept(): cannot set the socket in non blocking mode. Giving up\n");
 			close(cfd);
 			pool_free2(pool2_task, t);
+			LIST_DEL(&s->list);
 			pool_free2(pool2_session, s);
 			return 0;
 		}
@@ -467,6 +472,7 @@ int uxst_event_accept(int fd) {
 		if ((s->req = pool_alloc2(pool2_buffer)) == NULL) { /* no memory */
 			close(cfd); /* nothing can be done for this fd without memory */
 			pool_free2(pool2_task, t);
+			LIST_DEL(&s->list);
 			pool_free2(pool2_session, s);
 			return 0;
 		}
@@ -475,6 +481,7 @@ int uxst_event_accept(int fd) {
 			pool_free2(pool2_buffer, s->req);
 			close(cfd); /* nothing can be done for this fd without memory */
 			pool_free2(pool2_task, t);
+			LIST_DEL(&s->list);
 			pool_free2(pool2_session, s);
 			return 0;
 		}
@@ -577,7 +584,7 @@ static int process_uxst_cli(struct session *t)
 			buffer_shutr(req);
 			t->cli_state = CL_STSHUTR;
 			return 1;
-		}	
+		}
 		/* last server read and buffer empty */
 		else if ((s == SV_STSHUTR || s == SV_STCLOSE) && (rep->flags & BF_EMPTY)) {
 			EV_FD_CLR(t->cli_fd, DIR_WR);
@@ -607,7 +614,7 @@ static int process_uxst_cli(struct session *t)
 					t->flags |= SN_FINST_D;
 			}
 			return 1;
-		}	
+		}
 		/* write timeout */
 		else if (tick_is_expired(rep->wex, now_ms)) {
 			EV_FD_CLR(t->cli_fd, DIR_WR);

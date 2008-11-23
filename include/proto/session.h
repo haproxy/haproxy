@@ -3,7 +3,7 @@
   This file defines everything related to sessions.
 
   Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
-  
+
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
   License as published by the Free Software Foundation, version 2.1
@@ -27,6 +27,7 @@
 #include <types/session.h>
 
 extern struct pool_head *pool2_session;
+extern struct list sessions;
 
 void session_free(struct session *s);
 
