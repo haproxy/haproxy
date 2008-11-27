@@ -254,12 +254,7 @@ int stream_sock_read(int fd) {
 	/* we received a shutdown */
 	fdtab[fd].ev &= ~FD_POLL_HUP;
 	b->flags |= BF_READ_NULL;
-	buffer_shutr(b);
-
-	/* Maybe we have to completely close the local socket */
-	if (si->ob->flags & BF_SHUTW)
-		goto do_close_and_return;
-	EV_FD_CLR(fd, DIR_RD);
+	stream_sock_shutr(si);
 	goto out_wakeup;
 
  out_error:
@@ -273,12 +268,6 @@ int stream_sock_read(int fd) {
 	fdtab[fd].state = FD_STERROR;
 	fdtab[fd].ev &= ~FD_POLL_STICKY;
 	si->flags |= SI_FL_ERR;
-	goto wakeup_return;
-
- do_close_and_return:
-	si->state = SI_ST_DIS;
-	fd_delete(fd);
- wakeup_return:
 	task_wakeup(si->owner, TASK_WOKEN_IO);
 	return 1;
 }
@@ -393,10 +382,9 @@ int stream_sock_write(int fd) {
 				/* Maybe we just wrote the last chunk and need to close ? */
 				if ((b->flags & (BF_SHUTW|BF_EMPTY|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) == (BF_EMPTY|BF_WRITE_ENA|BF_SHUTR)) {
 					if (si->state == SI_ST_EST) {
-						buffer_shutw(b);
-						if (si->ib->flags & BF_SHUTR)
-							goto do_close_and_return;
-						shutdown(fd, SHUT_WR);
+						stream_sock_shutw(si);
+						b->wex = TICK_ETERNITY;
+						goto out_wakeup;
 					}
 				}
 
@@ -465,12 +453,6 @@ int stream_sock_write(int fd) {
 	fdtab[fd].state = FD_STERROR;
 	fdtab[fd].ev &= ~FD_POLL_STICKY;
 	si->flags |= SI_FL_ERR;
-	goto wakeup_return;
-
- do_close_and_return:
-	si->state = SI_ST_DIS;
-	fd_delete(fd);
- wakeup_return:
 	task_wakeup(si->owner, TASK_WOKEN_IO);
 	return 1;
 }
@@ -478,13 +460,16 @@ int stream_sock_write(int fd) {
 /*
  * This function performs a shutdown-write on a stream interface in a connected or
  * init state (it does nothing for other states). It either shuts the write side
- * or closes the file descriptor and marks itself as closed. No buffer flags are
- * changed, it's up to the caller to adjust them. The sole purpose of this
- * function is to be called from the other stream interface to notify of a
- * close_read, or by itself upon a full write leading to an empty buffer.
+ * or closes the file descriptor and marks itself as closed. The buffer flags are
+ * updated to reflect the new state.
  */
 void stream_sock_shutw(struct stream_interface *si)
 {
+	if (si->ob->flags & BF_SHUTW)
+		return;
+	si->ob->flags |= BF_SHUTW;
+	si->ob->wex = TICK_ETERNITY;
+
 	switch (si->state) {
 	case SI_ST_EST:
 		if (!(si->ib->flags & BF_SHUTR)) {
@@ -498,7 +483,7 @@ void stream_sock_shutw(struct stream_interface *si)
 		 * response buffer as shutr
 		 */
 		fd_delete(si->fd);
-		buffer_shutr(si->ib);
+		si->ib->flags |= BF_SHUTR;
 		si->state = SI_ST_DIS;
 		return;
 	}
@@ -507,13 +492,16 @@ void stream_sock_shutw(struct stream_interface *si)
 /*
  * This function performs a shutdown-read on a stream interface in a connected or
  * init state (it does nothing for other states). It either shuts the read side
- * or closes the file descriptor and marks itself as closed. No buffer flags are
- * changed, it's up to the caller to adjust them. The sole purpose of this
- * function is to be called from the other stream interface to notify of a
- * close_read, or by itself upon a full write leading to an empty buffer.
+ * or closes the file descriptor and marks itself as closed. The buffer flags are
+ * updated to reflect the new state.
  */
 void stream_sock_shutr(struct stream_interface *si)
 {
+	if (si->ib->flags & BF_SHUTR)
+		return;
+	si->ib->flags |= BF_SHUTR;
+	si->ib->rex = TICK_ETERNITY;
+
 	if (si->state != SI_ST_EST && si->state != SI_ST_CON)
 		return;
 

@@ -550,8 +550,8 @@ void srv_close_with_err(struct session *t, int err, int finst,
 			int status, const struct chunk *msg)
 {
 	buffer_write_ena(t->rep);
-	buffer_shutw(t->req);
-	buffer_shutr(t->rep);
+	t->req->cons->shutw(t->req->cons);
+	t->req->cons->shutr(t->req->cons);
 	if (status > 0 && msg) {
 		t->txn.status = status;
 		if (t->fe->mode == PR_MODE_HTTP)
@@ -695,8 +695,8 @@ void sess_update_stream_int(struct session *s, struct stream_interface *si)
 				process_srv_queue(s->srv);
 
 			/* Failed and not retryable. */
-			buffer_shutr(si->ib);
-			buffer_shutw(si->ob);
+			si->shutr(si);
+			si->shutw(si);
 			si->ob->flags |= BF_WRITE_ERROR;
 
 			s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
@@ -742,8 +742,8 @@ void sess_update_stream_int(struct session *s, struct stream_interface *si)
 			if (s->srv)
 				s->srv->failed_conns++;
 			s->be->failed_conns++;
-			buffer_shutr(si->ib);
-			buffer_shutw(si->ob);
+			si->shutr(si);
+			si->shutw(si);
 			si->ob->flags |= BF_WRITE_TIMEOUT;
 			if (!si->err_type)
 				si->err_type = SI_ET_QUEUE_TO;
@@ -758,8 +758,8 @@ void sess_update_stream_int(struct session *s, struct stream_interface *si)
 			/* give up */
 			si->exp = TICK_ETERNITY;
 			s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
-			buffer_shutr(si->ib);
-			buffer_shutw(si->ob);
+			si->shutr(si);
+			si->shutw(si);
 			si->err_type |= SI_ET_QUEUE_ABRT;
 			si->state = SI_ST_CLO;
 			return;
@@ -775,8 +775,8 @@ void sess_update_stream_int(struct session *s, struct stream_interface *si)
 		     (si->ob->flags & BF_EMPTY || s->be->options & PR_O_ABRT_CLOSE))) {
 			/* give up */
 			si->exp = TICK_ETERNITY;
-			buffer_shutr(si->ib);
-			buffer_shutw(si->ob);
+			si->shutr(si);
+			si->shutw(si);
 			si->err_type |= SI_ET_CONN_ABRT;
 			si->state = SI_ST_CLO;
 			return;
@@ -839,8 +839,8 @@ static void perform_http_redirect(struct session *s, struct stream_interface *si
 	rdr.len += 4;
 
 	/* prepare to return without error. */
-	buffer_shutr(si->ib);
-	buffer_shutw(si->ob);
+	si->shutr(si);
+	si->shutw(si);
 	si->err_type = SI_ET_NONE;
 	si->err_loc  = NULL;
 	si->state    = SI_ST_CLO;
@@ -880,8 +880,8 @@ static void sess_prepare_conn_req(struct session *s, struct stream_interface *si
 			return;
 
 		/* we did not get any server, let's check the cause */
-		buffer_shutr(si->ib);
-		buffer_shutw(si->ob);
+		si->shutr(si);
+		si->shutw(si);
 		si->ob->flags |= BF_WRITE_ERROR;
 		if (!si->err_type)
 			si->err_type = SI_ET_CONN_OTHER;
@@ -1028,22 +1028,22 @@ void process_session(struct task *t, int *next)
 	/* 1c: Manage buffer timeouts. */
 	if (unlikely(s->req->flags & (BF_READ_TIMEOUT|BF_WRITE_TIMEOUT))) {
 		if (s->req->flags & BF_READ_TIMEOUT) {
-			buffer_shutr(s->req);
+			//buffer_shutr(s->req);
 			s->req->cons->shutr(s->req->prod);
 		}
 		if (s->req->flags & BF_WRITE_TIMEOUT) {
-			buffer_shutw(s->req);
+			//buffer_shutw(s->req);
 			s->req->cons->shutw(s->req->cons);
 		}
 	}
 
 	if (unlikely(s->rep->flags & (BF_READ_TIMEOUT|BF_WRITE_TIMEOUT))) {
 		if (s->rep->flags & BF_READ_TIMEOUT) {
-			buffer_shutr(s->rep);
+			//buffer_shutr(s->rep);
 			s->rep->cons->shutr(s->rep->prod);
 		}
 		if (s->rep->flags & BF_WRITE_TIMEOUT) {
-			buffer_shutw(s->rep);
+			//buffer_shutw(s->rep);
 			s->rep->cons->shutw(s->rep->cons);
 		}
 	}
@@ -1055,25 +1055,25 @@ void process_session(struct task *t, int *next)
 	 */
 	if (unlikely((s->req->flags & (BF_SHUTW|BF_EMPTY|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) == (BF_EMPTY|BF_WRITE_ENA|BF_SHUTR)) ||
 	    unlikely((s->req->flags & (BF_SHUTW|BF_SHUTW_NOW)) == BF_SHUTW_NOW)) {
-		buffer_shutw(s->req);
+		//buffer_shutw(s->req);
 		s->req->cons->shutw(s->req->cons);
 	}
 
 	if (unlikely((s->req->flags & (BF_SHUTW|BF_SHUTR|BF_SHUTR_NOW)) == BF_SHUTW)) {
 		/* write closed on server side, let's forward it to the client */
-		buffer_shutr_now(s->req);
+		//buffer_shutr_now(s->req);
 		s->req->prod->shutr(s->req->prod);
 	}
 
 	if (unlikely((s->rep->flags & (BF_SHUTW|BF_EMPTY|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) == (BF_EMPTY|BF_WRITE_ENA|BF_SHUTR)) ||
 	    unlikely((s->rep->flags & (BF_SHUTW|BF_SHUTW_NOW)) == BF_SHUTW_NOW)) {
-		buffer_shutw(s->rep);
+		//buffer_shutw(s->rep);
 		s->rep->cons->shutw(s->rep->cons);
 	}
 
 	if (unlikely((s->rep->flags & (BF_SHUTW|BF_SHUTR|BF_SHUTR_NOW)) == BF_SHUTW)) {
 		/* write closed on client side, let's forward it to the server */
-		buffer_shutr_now(s->rep);
+		//buffer_shutr_now(s->rep);
 		s->rep->prod->shutr(s->rep->prod);
 	}
 
@@ -3792,11 +3792,7 @@ int sess_update_st_con_tcp(struct session *s, struct stream_interface *si)
 		      ((req->flags & BF_EMPTY && !(req->flags & BF_WRITE_ACTIVITY)) ||
 		       s->be->options & PR_O_ABRT_CLOSE)))) {
 		/* give up */
-		req->wex = TICK_ETERNITY;
-		fd_delete(si->fd);
-		buffer_shutw(req);
-		buffer_shutr(rep);
-		si->state = SI_ST_DIS;
+		si->shutw(si);
 		si->err_type |= SI_ET_CONN_ABRT;
 		si->err_loc  = s->srv;
 		return 1;
@@ -3909,10 +3905,10 @@ int sess_update_st_cer(struct session *s, struct stream_interface *si)
 		if (may_dequeue_tasks(s->srv, s->be))
 			process_srv_queue(s->srv);
 
-		buffer_shutw(si->ob);
+		si->shutw(si);
 		si->ob->flags |= BF_WRITE_ERROR;
 
-		buffer_shutr(si->ib);
+		si->shutr(si);
 		si->ib->flags |= BF_READ_ERROR;
 
 		si->state = SI_ST_CLO;
