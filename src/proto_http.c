@@ -1298,7 +1298,7 @@ void process_session(struct task *t, int *next)
 	}
 
 	if (likely((s->rep->cons->state != SI_ST_CLO) ||
-		   (s->req->cons->state != SI_ST_CLO && s->req->cons->state != SI_ST_INI))) {
+		   (s->req->cons->state > SI_ST_INI && s->req->cons->state < SI_ST_CLO))) {
 
 		if ((s->fe->options & PR_O_CONTSTATS) && (s->flags & SN_BE_ASSIGNED))
 			session_process_counters(s);

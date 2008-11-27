@@ -486,9 +486,6 @@ int stream_sock_write(int fd) {
 void stream_sock_shutw(struct stream_interface *si)
 {
 	switch (si->state) {
-	case SI_ST_INI:
-		si->state = SI_ST_CLO;
-		return;
 	case SI_ST_EST:
 		if (!(si->ib->flags & BF_SHUTR)) {
 			EV_FD_CLR(si->fd, DIR_WR);
@@ -497,7 +494,11 @@ void stream_sock_shutw(struct stream_interface *si)
 		}
 		/* fall through */
 	case SI_ST_CON:
+		/* we may have to close a pending connection, and mark the
+		 * response buffer as shutr
+		 */
 		fd_delete(si->fd);
+		buffer_shutr(si->ib);
 		si->state = SI_ST_DIS;
 		return;
 	}
@@ -513,11 +514,8 @@ void stream_sock_shutw(struct stream_interface *si)
  */
 void stream_sock_shutr(struct stream_interface *si)
 {
-	if (si->state != SI_ST_EST && si->state != SI_ST_CON) {
-		if (likely(si->state == SI_ST_INI))
-			si->state = SI_ST_CLO;
+	if (si->state != SI_ST_EST && si->state != SI_ST_CON)
 		return;
-	}
 
 	if (si->ob->flags & BF_SHUTW) {
 		fd_delete(si->fd);
