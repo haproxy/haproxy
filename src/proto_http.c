@@ -1858,7 +1858,7 @@ int process_request(struct session *t)
 			client_retnclose(t, &http_200_chunk);
 			goto return_prx_cond;
 		}
-			
+
 		/*
 		 * 3: Maybe we have to copy the original REQURI for the logs ?
 		 * Note: we cannot log anymore if the request has been
@@ -1875,7 +1875,7 @@ int process_request(struct session *t)
 				txn->uri[urilen] = 0;
 
 				if (!(t->logs.logwait &= ~LW_REQ))
-					http_sess_log(t);
+					t->do_log(t);
 			} else {
 				Alert("HTTP logging : out of memory.\n");
 			}
@@ -3058,10 +3058,7 @@ int process_response(struct session *t)
 		if (t->fe->to_log && !(t->logs.logwait & LW_BYTES)) {
 			t->logs.t_close = t->logs.t_data; /* to get a valid end date */
 			t->logs.bytes_out = txn->rsp.eoh;
-			if (t->fe->to_log & LW_REQ)
-				http_sess_log(t);
-			else
-				tcp_sess_log(t);
+			t->do_log(t);
 			t->logs.bytes_out = 0;
 		}
 

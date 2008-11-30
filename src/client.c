@@ -206,6 +206,11 @@ int event_accept(int fd) {
 		else
 			s->logs.logwait = p->to_log;
 
+		if (s->logs.logwait & LW_REQ)
+			s->do_log = http_sess_log;
+		else
+			s->do_log = tcp_sess_log;
+
 		s->logs.accept_date = date; /* user-visible date for logging */
 		s->logs.tv_accept = now;  /* corrected date for internal use */
 		tv_zero(&s->logs.tv_request);
@@ -276,7 +281,7 @@ int event_accept(int fd) {
 				/* we have the client ip */
 				if (s->logs.logwait & LW_CLIP)
 					if (!(s->logs.logwait &= ~LW_CLIP))
-						tcp_sess_log(s);
+						s->do_log(s);
 			}
 			else if (s->cli_addr.ss_family == AF_INET) {
 				char pn[INET_ADDRSTRLEN], sn[INET_ADDRSTRLEN];

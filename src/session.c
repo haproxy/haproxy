@@ -321,7 +321,7 @@ void sess_establish(struct session *s, struct stream_interface *si)
 		 * bytes from the server, then this is the right moment. */
 		if (s->fe->to_log && !(s->logs.logwait & LW_BYTES)) {
 			s->logs.t_close = s->logs.t_connect; /* to get a valid end date */
-			tcp_sess_log(s);
+			s->do_log(s);
 		}
 #ifdef CONFIG_HAP_TCPSPLICE
 		if ((s->fe->options & s->be->options) & PR_O_TCPSPLICE) {
@@ -965,10 +965,7 @@ resync_stream_interface:
 	if (s->logs.logwait &&
 	    !(s->flags & SN_MONITOR) &&
 	    (!(s->fe->options & PR_O_NULLNOLOG) || s->req->total)) {
-		if (s->fe->to_log & LW_REQ)
-			http_sess_log(s);
-		else
-			tcp_sess_log(s);
+		s->do_log(s);
 	}
 
 	/* the task MUST not be in the run queue anymore */
