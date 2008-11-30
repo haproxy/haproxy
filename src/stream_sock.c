@@ -483,7 +483,10 @@ void stream_sock_shutw(struct stream_interface *si)
 		 * response buffer as shutr
 		 */
 		fd_delete(si->fd);
+		/* fall through */
+	case SI_ST_CER:
 		si->ib->flags |= BF_SHUTR;
+		si->ib->rex = TICK_ETERNITY;
 		si->state = SI_ST_DIS;
 		return;
 	}

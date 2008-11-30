@@ -111,7 +111,7 @@ static inline void buffer_shutw(struct buffer *buf)
 /* marks the buffer as "shutdown" ASAP for reads */
 static inline void buffer_shutr_now(struct buffer *buf)
 {
-	buf->flags |= BF_SHUTR_NOW | BF_SHUTR;
+	buf->flags |= BF_SHUTR_NOW;
 }
 
 /* marks the buffer as "shutdown" ASAP for writes */
@@ -123,7 +123,7 @@ static inline void buffer_shutw_now(struct buffer *buf)
 /* marks the buffer as "shutdown" ASAP in both directions */
 static inline void buffer_abort(struct buffer *buf)
 {
-	buf->flags |= BF_SHUTR_NOW | BF_SHUTR | BF_SHUTW_NOW;
+	buf->flags |= BF_SHUTR_NOW | BF_SHUTW_NOW;
 }
 
 /* set the buffer to hijacking mode */
@@ -165,7 +165,6 @@ static inline void buffer_check_shutr(struct buffer *b)
 	/* Last read, forced read-shutdown, or other end closed. We have to
 	 * close our read side and inform the stream_interface.
 	 */
-	buffer_shutr(b);
 	b->prod->shutr(b->prod);
 }
 
@@ -185,7 +184,6 @@ static inline void buffer_check_shutw(struct buffer *b)
 		 * with empty buffer. We have to close our write side and
 		 * inform the stream_interface.
 		 */
-		buffer_shutw(b);
 		b->cons->shutw(b->cons);
 	}
 }

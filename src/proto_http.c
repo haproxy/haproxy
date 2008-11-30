@@ -209,6 +209,7 @@ fd_set url_encode_map[(sizeof(fd_set) > (256/8)) ? 1 : ((256/8) / sizeof(fd_set)
 int sess_update_st_con_tcp(struct session *s, struct stream_interface *si);
 int sess_update_st_cer(struct session *s, struct stream_interface *si);
 void sess_establish(struct session *s, struct stream_interface *si);
+void return_srv_error(struct session *s, int err_type);
 
 void init_proto_http()
 {
@@ -703,6 +704,7 @@ void sess_update_stream_int(struct session *s, struct stream_interface *si)
 
 			/* no session was ever accounted for this server */
 			si->state = SI_ST_CLO;
+			return_srv_error(s, si->err_type);
 			return;
 		}
 
@@ -748,6 +750,7 @@ void sess_update_stream_int(struct session *s, struct stream_interface *si)
 			if (!si->err_type)
 				si->err_type = SI_ET_QUEUE_TO;
 			si->state = SI_ST_CLO;
+			return_srv_error(s, si->err_type);
 			return;
 		}
 
@@ -762,6 +765,7 @@ void sess_update_stream_int(struct session *s, struct stream_interface *si)
 			si->shutw(si);
 			si->err_type |= SI_ET_QUEUE_ABRT;
 			si->state = SI_ST_CLO;
+			return_srv_error(s, si->err_type);
 			return;
 		}
 
@@ -779,6 +783,7 @@ void sess_update_stream_int(struct session *s, struct stream_interface *si)
 			si->shutw(si);
 			si->err_type |= SI_ET_CONN_ABRT;
 			si->state = SI_ST_CLO;
+			return_srv_error(s, si->err_type);
 			return;
 		}
 
@@ -886,6 +891,7 @@ static void sess_prepare_conn_req(struct session *s, struct stream_interface *si
 		if (!si->err_type)
 			si->err_type = SI_ET_CONN_OTHER;
 		si->state = SI_ST_CLO;
+		return_srv_error(s, si->err_type);
 		return;
 	}
 
@@ -943,8 +949,7 @@ void process_session(struct task *t, int *next)
 {
 	struct session *s = t->context;
 	int resync;
-	unsigned int rqf_cli, rpf_cli;
-	unsigned int rqf_srv, rpf_srv;
+	unsigned int rqf_last, rpf_last;
 
 	//DPRINTF(stderr, "%s:%d: cs=%d ss=%d(%d) rqf=0x%08x rpf=0x%08x\n", __FUNCTION__, __LINE__,
 	//        s->si[0].state, s->si[1].state, s->si[1].err_type, s->req->flags, s->rep->flags);
@@ -955,130 +960,118 @@ void process_session(struct task *t, int *next)
 	if (unlikely(t->state & TASK_WOKEN_TIMER)) {
 		stream_int_check_timeouts(&s->si[0]);
 		stream_int_check_timeouts(&s->si[1]);
+		buffer_check_timeouts(s->req);
+		buffer_check_timeouts(s->rep);
 	}
+
+	/* copy req/rep flags so that we can detect shutdowns */
+	rqf_last = s->req->flags;
+	rpf_last = s->rep->flags;
 
 	/* 1b: check for low-level errors reported at the stream interface.
 	 * First we check if it's a retryable error (in which case we don't
 	 * want to tell the buffer). Otherwise we report the error one level
 	 * upper by setting flags into the buffers. Note that the side towards
-	 * the client cannot have connect (hence retryable) errors.
+	 * the client cannot have connect (hence retryable) errors. Also, the
+	 * connection setup code must be able to deal with any type of abort.
 	 */
-	if (s->si[0].state == SI_ST_EST) {
-		if (unlikely(s->si[0].flags & SI_FL_ERR)) {
-			s->si[0].state = SI_ST_DIS;
-			fd_delete(s->si[0].fd);
+	if (unlikely(s->si[0].flags & SI_FL_ERR)) {
+		if (s->si[0].state == SI_ST_EST || s->si[0].state == SI_ST_DIS) {
+			s->si[0].shutr(&s->si[0]);
+			s->si[0].shutw(&s->si[0]);
 			stream_int_report_error(&s->si[0]);
 		}
 	}
 
-	if (s->si[1].state == SI_ST_EST) {
-		if (unlikely(s->si[1].flags & SI_FL_ERR)) {
-			s->si[1].state = SI_ST_DIS;
-			fd_delete(s->si[1].fd);
+	if (unlikely(s->si[1].flags & SI_FL_ERR)) {
+		if (s->si[1].state == SI_ST_EST || s->si[1].state == SI_ST_DIS) {
+			s->si[1].shutr(&s->si[1]);
+			s->si[1].shutw(&s->si[1]);
 			stream_int_report_error(&s->si[1]);
-			/////////// FIXME: the following must move somewhere else
 			s->be->failed_resp++;
 			if (s->srv)
 				s->srv->failed_resp++;
 		}
-	}
-	else if (s->si[1].state >= SI_ST_QUE && s->si[1].state <= SI_ST_CON) {
-		/* Maybe we were trying to establish a connection on the server side ? */
-		if (s->si[1].state == SI_ST_CON) {
-			if (unlikely(!sess_update_st_con_tcp(s, &s->si[1])))
-				sess_update_st_cer(s, &s->si[1]);
-			else if (s->si[1].state == SI_ST_EST)
-				sess_establish(s, &s->si[1]);
-		}
-
-		/* now try to complete any initiated connection setup */
-		if (s->si[1].state >= SI_ST_REQ && s->si[1].state < SI_ST_CON) {
-			do {
-				/* nb: step 1 might switch from QUE to ASS, but we first want
-				 * to give a chance to step 2 to perform a redirect if needed.
-				 */
-				sess_update_stream_int(s, &s->si[1]);
-				if (s->si[1].state == SI_ST_REQ)
-					sess_prepare_conn_req(s, &s->si[1]);
-
-				///// FIXME: redirect should be handled later
-				if (s->si[1].state == SI_ST_ASS && s->srv &&
-				    s->srv->rdr_len && (s->flags & SN_REDIRECTABLE))
-					perform_http_redirect(s, &s->si[1]);
-
-			} while (s->si[1].state == SI_ST_ASS);
-		}
+		/* note: maybe we should process connection errors here ? */
 	}
 
-	/////// FIXME: do that later
-	/* FIXME: we might have got errors above, and we should process them below */
-	if ((s->si[1].state == SI_ST_DIS || s->si[1].state == SI_ST_CLO) &&
-	    s->si[1].prev_state != SI_ST_CLO && s->si[1].err_type != SI_ET_NONE)
-		return_srv_error(s, s->si[1].err_type);
+	if (s->si[1].state == SI_ST_CON) {
+		/* we were trying to establish a connection on the server side,
+		 * maybe it succeeded, maybe it failed, maybe we timed out, ...
+		 */
+		if (unlikely(!sess_update_st_con_tcp(s, &s->si[1])))
+			sess_update_st_cer(s, &s->si[1]);
+		else if (s->si[1].state == SI_ST_EST)
+			sess_establish(s, &s->si[1]);
 
+		/* state is now one of SI_ST_CON (still in progress), SI_ST_EST
+		 * (established), SI_ST_DIS (abort), SI_ST_CLO (last error),
+		 * SI_ST_ASS/SI_ST_TAR/SI_ST_REQ for retryable errors.
+		 */
+	}
 
-	/* 1a: Check for low level timeouts if needed. We just set a flag on
-	 * buffers and/or stream interfaces when their timeouts have expired.
+	/* check buffer timeouts, and close the corresponding stream interfaces
+	 * for future reads or writes. Note: this will also concern upper layers
+	 * but we do not touch any other flag. We must be careful and correctly
+	 * detect state changes when calling them.
 	 */
-	if (unlikely(t->state & TASK_WOKEN_TIMER)) {
-		buffer_check_timeouts(s->req);
-		buffer_check_timeouts(s->rep);
-	}
-
-	/* 1c: Manage buffer timeouts. */
 	if (unlikely(s->req->flags & (BF_READ_TIMEOUT|BF_WRITE_TIMEOUT))) {
-		if (s->req->flags & BF_READ_TIMEOUT) {
-			//buffer_shutr(s->req);
-			s->req->cons->shutr(s->req->prod);
-		}
-		if (s->req->flags & BF_WRITE_TIMEOUT) {
-			//buffer_shutw(s->req);
+		if (s->req->flags & BF_READ_TIMEOUT)
+			s->req->prod->shutr(s->req->prod);
+		if (s->req->flags & BF_WRITE_TIMEOUT)
 			s->req->cons->shutw(s->req->cons);
-		}
+		DPRINTF(stderr,
+			"[%u] %s:%d: task=%p s=%p, sfl=0x%08x, rq=%p, rp=%p, exp(r,w)=%u,%u rqf=%08x rpf=%08x rql=%d rpl=%d cs=%d ss=%d, cet=0x%x set=0x%x retr=%d\n",
+			now_ms, __FUNCTION__, __LINE__,
+			t,
+			s, s->flags,
+			s->req, s->rep,
+			s->req->rex, s->rep->wex,
+			s->req->flags, s->rep->flags,
+			s->req->l, s->rep->l, s->rep->cons->state, s->req->cons->state,
+			s->rep->cons->err_type, s->req->cons->err_type,
+			s->conn_retries);
 	}
 
 	if (unlikely(s->rep->flags & (BF_READ_TIMEOUT|BF_WRITE_TIMEOUT))) {
-		if (s->rep->flags & BF_READ_TIMEOUT) {
-			//buffer_shutr(s->rep);
-			s->rep->cons->shutr(s->rep->prod);
-		}
-		if (s->rep->flags & BF_WRITE_TIMEOUT) {
-			//buffer_shutw(s->rep);
+		if (s->rep->flags & BF_READ_TIMEOUT)
+			s->rep->prod->shutr(s->rep->prod);
+		if (s->rep->flags & BF_WRITE_TIMEOUT)
 			s->rep->cons->shutw(s->rep->cons);
-		}
+		DPRINTF(stderr,
+			"[%u] %s:%d: task=%p s=%p, sfl=0x%08x, rq=%p, rp=%p, exp(r,w)=%u,%u rqf=%08x rpf=%08x rql=%d rpl=%d cs=%d ss=%d, cet=0x%x set=0x%x retr=%d\n",
+			now_ms, __FUNCTION__, __LINE__,
+			t,
+			s, s->flags,
+			s->req, s->rep,
+			s->req->rex, s->rep->wex,
+			s->req->flags, s->rep->flags,
+			s->req->l, s->rep->l, s->rep->cons->state, s->req->cons->state,
+			s->rep->cons->err_type, s->req->cons->err_type,
+			s->conn_retries);
 	}
 
-	/* 2: Check if we need to close the write side. This can only happen
-	 * when either SHUTR or EMPTY appears, because WRITE_ENA cannot appear
-	 * from low level, and neither HIJACK nor SHUTW can disappear from low
-	 * level.
-	 */
-	if (unlikely((s->req->flags & (BF_SHUTW|BF_EMPTY|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) == (BF_EMPTY|BF_WRITE_ENA|BF_SHUTR)) ||
-	    unlikely((s->req->flags & (BF_SHUTW|BF_SHUTW_NOW)) == BF_SHUTW_NOW)) {
-		//buffer_shutw(s->req);
-		s->req->cons->shutw(s->req->cons);
-	}
+	/* Check for connection closure */
 
-	if (unlikely((s->req->flags & (BF_SHUTW|BF_SHUTR|BF_SHUTR_NOW)) == BF_SHUTW)) {
-		/* write closed on server side, let's forward it to the client */
-		//buffer_shutr_now(s->req);
-		s->req->prod->shutr(s->req->prod);
-	}
+resync_stream_interface:
+	DPRINTF(stderr,
+		"[%u] %s:%d: task=%p s=%p, sfl=0x%08x, rq=%p, rp=%p, exp(r,w)=%u,%u rqf=%08x rpf=%08x rql=%d rpl=%d cs=%d ss=%d, cet=0x%x set=0x%x retr=%d\n",
+		now_ms, __FUNCTION__, __LINE__,
+		t,
+		s, s->flags,
+		s->req, s->rep,
+		s->req->rex, s->rep->wex,
+		s->req->flags, s->rep->flags,
+		s->req->l, s->rep->l, s->rep->cons->state, s->req->cons->state,
+		s->rep->cons->err_type, s->req->cons->err_type,
+		s->conn_retries);
 
-	if (unlikely((s->rep->flags & (BF_SHUTW|BF_EMPTY|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) == (BF_EMPTY|BF_WRITE_ENA|BF_SHUTR)) ||
-	    unlikely((s->rep->flags & (BF_SHUTW|BF_SHUTW_NOW)) == BF_SHUTW_NOW)) {
-		//buffer_shutw(s->rep);
-		s->rep->cons->shutw(s->rep->cons);
-	}
+	/* nothing special to be done on client side */
+	if (unlikely(s->req->prod->state == SI_ST_DIS))
+		s->req->prod->state = SI_ST_CLO;
 
-	if (unlikely((s->rep->flags & (BF_SHUTW|BF_SHUTR|BF_SHUTR_NOW)) == BF_SHUTW)) {
-		/* write closed on client side, let's forward it to the server */
-		//buffer_shutr_now(s->rep);
-		s->rep->prod->shutr(s->rep->prod);
-	}
-
-	/* 3: When a server-side connection is released, we have to
-	 * count it and check for pending connections on this server.
+	/* When a server-side connection is released, we have to count it and
+	 * check for pending connections on this server.
 	 */
 	if (unlikely(s->req->cons->state == SI_ST_DIS)) {
 		s->req->cons->state = SI_ST_CLO;
@@ -1093,180 +1086,175 @@ void process_session(struct task *t, int *next)
 		}
 	}
 
-	/* nothing special to be done on client side */
-	if (unlikely(s->req->prod->state == SI_ST_DIS))
-		s->req->prod->state = SI_ST_CLO;
-
 	/*
-	 * Note: all transient states (REQ, CER, DIS) have been eliminated at
-	 * this point.
+	 * Note: of the transient states (REQ, CER, DIS), only REQ may remain
+	 * at this point.
 	 */
 
+	/**** Process layer 7 below ****/
 
-	/* Dirty trick: force one first pass everywhere */
-	rqf_cli = rqf_srv = ~s->req->flags;
-	rpf_cli = rpf_srv = ~s->rep->flags;
+	resync = 0;
 
-	/* well, SI_ST_EST state is already handled properly */
-	if (s->req->prod->state == SI_ST_EST) {
-		rqf_cli = s->req->flags;
-		rpf_cli = s->rep->flags;
+	/* Analyse request */
+	if ((s->req->flags & BF_MASK_ANALYSER) ||
+	    (s->req->flags ^ rqf_last) & BF_MASK_STATIC) {
+		unsigned int flags = s->req->flags;
+
+		if (s->req->prod->state >= SI_ST_EST) {
+			/* it's up to the analysers to reset write_ena */
+			buffer_write_ena(s->req);
+			if (s->req->analysers)
+				process_request(s);
+		}
+		s->req->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
+		flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
+		if (s->req->flags != flags)
+			resync = 1;
 	}
 
-	if (s->req->cons->state == SI_ST_EST) {
-		rqf_srv = s->req->flags;
-		rpf_srv = s->rep->flags;
-	}
+	/* reflect what the L7 analysers have seen last */
+	rqf_last = s->req->flags;
 
-	do {
-		DPRINTF(stderr,"[%u] %s: task=%p s=%p, sfl=0x%08x, rq=%p, rp=%p, exp(r,w)=%u,%u rqf=%08x rpf=%08x rql=%d rpl=%d cs=%d ss=%d, cet=0x%x set=0x%x retr=%d\n",
-			now_ms, __FUNCTION__,
-			t,
-			s, s->flags,
-			s->req, s->rep,
-			s->req->rex, s->rep->wex,
-			s->req->flags, s->rep->flags,
-			s->req->l, s->rep->l, s->rep->cons->state, s->req->cons->state,
-			s->rep->cons->err_type, s->req->cons->err_type,
-			s->conn_retries);
+	/*
+	 * Now forward all shutdown requests between both sides of the buffer
+	 */
 
-		resync = 0;
-
-		/* Maybe resync client FD state */
-		if (s->rep->cons->state != SI_ST_CLO) {
-			if (((rqf_cli ^ s->req->flags) & BF_MASK_INTERFACE_I) ||
-			    ((rpf_cli ^ s->rep->flags) & BF_MASK_INTERFACE_O)) {
-
-				if (!(s->rep->flags & BF_SHUTW))
-					buffer_check_shutw(s->rep);
-				if (!(s->req->flags & BF_SHUTR))
-					buffer_check_shutr(s->req);
-
-				rqf_cli = s->req->flags;
-				rpf_cli = s->rep->flags;
-			}
-		}
-
-		/* Maybe resync server FD state */
-		if (s->req->cons->state != SI_ST_CLO) {
-			if (((rpf_srv ^ s->rep->flags) & BF_MASK_INTERFACE_I) ||
-			    ((rqf_srv ^ s->req->flags) & BF_MASK_INTERFACE_O)) {
-				if (s->req->cons->state == SI_ST_INI &&
-				    (s->req->flags & (BF_WRITE_ENA|BF_SHUTW|BF_SHUTW_NOW)) == BF_WRITE_ENA) {
-					s->req->cons->state = SI_ST_REQ;
-					do {
-						sess_prepare_conn_req(s, &s->si[1]);
-						if (s->si[1].state != SI_ST_ASS)
-							break;
-						if (s->srv && s->srv->rdr_len && (s->flags & SN_REDIRECTABLE))
-							perform_http_redirect(s, &s->si[1]);
-						sess_update_stream_int(s, &s->si[1]);
-					} while (s->si[1].state == SI_ST_REQ || s->si[1].state == SI_ST_ASS);
-
-					/* FIXME: how to process this type of errors ? */
-					if (s->si[1].state == SI_ST_CLO && s->si[1].err_type != SI_ET_NONE)
-						return_srv_error(s, s->si[1].err_type);
-					resync = 1;
-				}
-
-				if (s->req->cons->state == SI_ST_EST) {
-					if ((s->req->flags & (BF_SHUTW|BF_EMPTY|BF_WRITE_ENA)) == (BF_EMPTY|BF_WRITE_ENA) &&
-					    s->be->options & PR_O_FORCE_CLO &&
-					    s->rep->flags & BF_READ_ACTIVITY) {
-						/* We want to force the connection to the server to close,
-						 * and the server has begun to respond. That's the right
-						 * time.
-						 */
-						buffer_shutw_now(s->req);
-					}
-
-					if (!(s->req->flags & BF_SHUTW))
-						buffer_check_shutw(s->req);
-					if (!(s->rep->flags & BF_SHUTR))
-						buffer_check_shutr(s->rep);
-
-					/* When a server-side connection is released, we have to
-					 * count it and check for pending connections on this server.
-					 */
-					if (s->req->cons->state == SI_ST_DIS) {
-						s->req->cons->state = SI_ST_CLO;
-						if (s->srv) {
-							if (s->flags & SN_CURR_SESS) {
-								s->flags &= ~SN_CURR_SESS;
-								s->srv->cur_sess--;
-							}
-							sess_change_server(s, NULL);
-							if (may_dequeue_tasks(s->srv, s->be))
-								process_srv_queue(s->srv);
-						}
-					}
-				}
-				rqf_srv = s->req->flags;
-				rpf_srv = s->rep->flags;
-			}
-		}
-
-		/* we may have to resync because of pending connections */
-		if (resync)
-			continue;
-
-		/**** Process layer 7 below ****/
-
-		/* Analyse request */
-		if (s->req->flags & BF_MASK_ANALYSER) {
-			unsigned int flags = s->req->flags;
-
-			if (s->req->prod->state >= SI_ST_EST) {
-				/* it's up to the analysers to reset write_ena */
-				buffer_write_ena(s->req);
-				if (s->req->analysers)
-					process_request(s);
-			}
-			s->req->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
-			flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
-			if (s->req->flags != flags)
-				resync = 1;
-		}
-
-		/* Analyse response */
-		if (unlikely(s->rep->flags & BF_HIJACK)) {
-			/* In inject mode, we wake up everytime something has
-			 * happened on the write side of the buffer.
-			 */
-			unsigned int flags = s->rep->flags;
-
-			if ((s->rep->flags & (BF_WRITE_PARTIAL|BF_WRITE_ERROR|BF_SHUTW)) &&
-			    !(s->rep->flags & BF_FULL)) {
-				produce_content(s);
-			}
-			s->rep->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
-			flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
-			if (s->rep->flags != flags)
-				resync = 1;
-		}
-		else if (s->rep->flags & BF_MASK_ANALYSER) {
-			unsigned int flags = s->rep->flags;
-
-			if (s->rep->prod->state >= SI_ST_EST) {
-				/* it's up to the analysers to reset write_ena */
-				buffer_write_ena(s->rep);
-				if (s->rep->analysers)
-					process_response(s);
-			}
-			s->rep->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
-			flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
-			if (s->rep->flags != flags)
-				resync = 1;
-		}
-
-		/* For the moment, we need to clean the client and server flags that
-		 * have vanished. This is just a temporary measure though.
+	/* first, let's check if the request buffer needs to shutdown(write) */
+	if (unlikely((s->req->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_EMPTY|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) ==
+		     (BF_EMPTY|BF_WRITE_ENA|BF_SHUTR)))
+		buffer_shutw_now(s->req);
+	else if ((s->req->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_EMPTY|BF_WRITE_ENA)) == (BF_EMPTY|BF_WRITE_ENA) &&
+		 (s->req->cons->state == SI_ST_EST) &&
+		 s->be->options & PR_O_FORCE_CLO &&
+		 s->rep->flags & BF_READ_ACTIVITY) {
+		/* We want to force the connection to the server to close,
+		 * and the server has begun to respond. That's the right
+		 * time.
 		 */
-		rqf_cli &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
-		rqf_srv &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
-		rpf_cli &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
-		rpf_srv &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
-	} while (resync);
+		buffer_shutw_now(s->req);
+	}
+
+	/* shutdown(write) pending */
+	if (unlikely((s->req->flags & (BF_SHUTW|BF_SHUTW_NOW)) == BF_SHUTW_NOW))
+		s->req->cons->shutw(s->req->cons);
+
+	/* shutdown(write) done on server side, we must stop the client too */
+	if (unlikely((s->req->flags & (BF_SHUTW|BF_SHUTR|BF_SHUTR_NOW)) == BF_SHUTW))
+		buffer_shutr_now(s->req);
+
+	/* shutdown(read) pending */
+	if (unlikely((s->req->flags & (BF_SHUTR|BF_SHUTR_NOW)) == BF_SHUTR_NOW))
+		s->req->prod->shutr(s->req->prod);
+
+	/* it's possible that an upper layer has requested a connection setup */
+	if (s->req->cons->state == SI_ST_INI &&
+	    (s->req->flags & (BF_WRITE_ENA|BF_SHUTW|BF_SHUTW_NOW)) == BF_WRITE_ENA)
+		s->req->cons->state = SI_ST_REQ;
+
+	/* we may have a pending connection request, or a connection waiting
+	 * for completion.
+	 */
+	if (s->si[1].state >= SI_ST_REQ && s->si[1].state < SI_ST_CON) {
+		do {
+			/* nb: step 1 might switch from QUE to ASS, but we first want
+			 * to give a chance to step 2 to perform a redirect if needed.
+			 */
+			if (s->si[1].state != SI_ST_REQ)
+				sess_update_stream_int(s, &s->si[1]);
+			if (s->si[1].state == SI_ST_REQ)
+				sess_prepare_conn_req(s, &s->si[1]);
+
+			if (s->si[1].state == SI_ST_ASS && s->srv &&
+			    s->srv->rdr_len && (s->flags & SN_REDIRECTABLE))
+				perform_http_redirect(s, &s->si[1]);
+		} while (s->si[1].state == SI_ST_ASS);
+	}
+
+	/*
+	 * Here we want to check if we need to resync or not.
+	 */
+	if ((s->req->flags ^ rqf_last) & BF_MASK_STATIC)
+		resync = 1;
+
+	s->req->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
+
+	/* according to benchmarks, it makes sense to resync now */
+	if (resync)
+		goto resync_stream_interface;
+
+
+	/* Analyse response */
+
+	if (unlikely(s->rep->flags & BF_HIJACK)) {
+		/* In inject mode, we wake up everytime something has
+		 * happened on the write side of the buffer.
+		 */
+		unsigned int flags = s->rep->flags;
+
+		if ((s->rep->flags & (BF_WRITE_PARTIAL|BF_WRITE_ERROR|BF_SHUTW)) &&
+		    !(s->rep->flags & BF_FULL)) {
+			produce_content(s);
+		}
+		s->rep->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
+		flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
+		if (s->rep->flags != flags)
+			resync = 1;
+	}
+	else if ((s->rep->flags & BF_MASK_ANALYSER) ||
+		 (s->rep->flags ^ rpf_last) & BF_MASK_STATIC) {
+		unsigned int flags = s->rep->flags;
+
+		if (s->rep->prod->state >= SI_ST_EST) {
+			/* it's up to the analysers to reset write_ena */
+			buffer_write_ena(s->rep);
+			if (s->rep->analysers)
+				process_response(s);
+		}
+		s->rep->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
+		flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
+		if (s->rep->flags != flags)
+			resync = 1;
+	}
+
+	/* reflect what the L7 analysers have seen last */
+	rpf_last = s->rep->flags;
+
+	/*
+	 * Now forward all shutdown requests between both sides of the buffer
+	 */
+
+	/*
+	 * FIXME: this is probably where we should produce error responses.
+	 */
+
+	/* first, let's check if the request buffer needs to shutdown(write) */
+	if (unlikely((s->rep->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_EMPTY|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) ==
+		     (BF_EMPTY|BF_WRITE_ENA|BF_SHUTR)))
+		buffer_shutw_now(s->rep);
+
+	/* shutdown(write) pending */
+	if (unlikely((s->rep->flags & (BF_SHUTW|BF_SHUTW_NOW)) == BF_SHUTW_NOW))
+		s->rep->cons->shutw(s->rep->cons);
+
+	/* shutdown(write) done on the client side, we must stop the server too */
+	if (unlikely((s->rep->flags & (BF_SHUTW|BF_SHUTR|BF_SHUTR_NOW)) == BF_SHUTW))
+		buffer_shutr_now(s->rep);
+
+	/* shutdown(read) pending */
+	if (unlikely((s->rep->flags & (BF_SHUTR|BF_SHUTR_NOW)) == BF_SHUTR_NOW))
+		s->rep->prod->shutr(s->rep->prod);
+
+	/*
+	 * Here we want to check if we need to resync or not.
+	 */
+	if ((s->rep->flags ^ rpf_last) & BF_MASK_STATIC)
+		resync = 1;
+
+	s->rep->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
+
+	if (resync)
+		goto resync_stream_interface;
+
 
 	/* This is needed only when debugging is enabled, to indicate
 	 * client-side or server-side close. Please note that in the unlikely
@@ -1358,7 +1346,7 @@ void process_session(struct task *t, int *next)
 	if (s->flags & SN_BE_ASSIGNED)
 		s->be->beconn--;
 	actconn--;
-    
+
 	if (unlikely((global.mode & MODE_DEBUG) &&
 		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
 		int len;
@@ -1373,7 +1361,7 @@ void process_session(struct task *t, int *next)
 	session_process_counters(s);
 
 	/* let's do a final log if we need it */
-	if (s->logs.logwait && 
+	if (s->logs.logwait &&
 	    !(s->flags & SN_MONITOR) &&
 	    (!(s->fe->options & PR_O_NULLNOLOG) || s->req->total)) {
 		if (s->fe->to_log & LW_REQ)
@@ -3905,13 +3893,13 @@ int sess_update_st_cer(struct session *s, struct stream_interface *si)
 		if (may_dequeue_tasks(s->srv, s->be))
 			process_srv_queue(s->srv);
 
+		/* shutw is enough so stop a connecting socket */
 		si->shutw(si);
 		si->ob->flags |= BF_WRITE_ERROR;
-
-		si->shutr(si);
 		si->ib->flags |= BF_READ_ERROR;
 
 		si->state = SI_ST_CLO;
+		return_srv_error(s, si->err_type);
 		return 0;
 	}
 

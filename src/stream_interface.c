@@ -48,14 +48,13 @@ int stream_int_check_timeouts(struct stream_interface *si)
 	return 0;
 }
 
+/* to be called only when in SI_ST_DIS with SI_FL_ERR */
 void stream_int_report_error(struct stream_interface *si)
 {
 	if (!si->err_type)
 		si->err_type = SI_ET_DATA_ERR;
 
-	buffer_shutw(si->ob);
 	si->ob->flags |= BF_WRITE_ERROR;
-	buffer_shutr(si->ib);
 	si->ib->flags |= BF_READ_ERROR;
 }
 
