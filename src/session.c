@@ -693,8 +693,28 @@ resync_stream_interface:
 		if (s->req->prod->state >= SI_ST_EST) {
 			/* it's up to the analysers to reset write_ena */
 			buffer_write_ena(s->req);
-			if (s->req->analysers)
-				process_request(s);
+
+			/* We will call all analysers for which a bit is set in
+			 * s->req->analysers, following the bit order from LSB
+			 * to MSB. The analysers must remove themselves from
+			 * the list when not needed. This while() loop is in
+			 * fact a cleaner if().
+			 */
+			while (s->req->analysers) {
+				if (s->req->analysers & AN_REQ_INSPECT)
+					if (!tcp_inspect_request(s, s->req))
+						break;
+
+				if (s->req->analysers)
+					if (!process_request(s))
+						break;
+
+				/* Just make sure that nobody set a wrong flag causing an endless loop */
+				s->req->analysers &= AN_REQ_INSPECT | AN_REQ_HTTP_HDR | AN_REQ_HTTP_TARPIT | AN_REQ_HTTP_BODY;
+
+				/* we don't want to loop anyway */
+				break;
+			}
 		}
 		s->req->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
 		flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;

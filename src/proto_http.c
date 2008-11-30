@@ -1542,32 +1542,30 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 }
 
 /* This function performs all the processing enabled for the current request.
- * It normally returns zero, but may return 1 if it absolutely needs to be
- * called again after other functions. It relies on buffers flags, and updates
- * t->req->analysers. It might make sense to explode it into several other
- * functions. Its behaviour is rather simple :
+ * It returns 1 if the processing can continue on next analysers, or zero if it
+ * needs more data, encounters an error, or wants to immediately abort the
+ * request. It relies on buffers flags, and updates s->req->analysers. Its
+ * behaviour is rather simple:
  *  - all enabled analysers are called in turn from the lower to the higher
  *    bit.
- *  - if an analyser does not have enough data, it must return without calling
- *    other ones. It should also probably reset the BF_WRITE_ENA bit to ensure
+ *  - the analyser must check for errors and timeouts, and react as expected.
+ *    It does not have to close anything upon error, the caller will.
+ *  - if the analyser does not have enough data, it must return 0without calling
+ *    other ones. It should also probably do a buffer_write_dis() to ensure
  *    that unprocessed data will not be forwarded. But that probably depends on
- *    the protocol. Generally it is not reset in case of errors.
+ *    the protocol.
  *  - if an analyser has enough data, it just has to pass on to the next
- *    analyser without touching BF_WRITE_ENA (it is enabled prior to
- *    analysis).
+ *    analyser without using buffer_write_dis() (enabled by default).
  *  - if an analyser thinks it has no added value anymore staying here, it must
  *    reset its bit from the analysers flags in order not to be called anymore.
  *
  * In the future, analysers should be able to indicate that they want to be
  * called after XXX bytes have been received (or transfered), and the min of
  * all's wishes will be used to ring back (unless a special condition occurs).
- *
- *
  */
 int process_request(struct session *t)
 {
 	struct buffer *req = t->req;
-	struct buffer *rep = t->rep;
 
 	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
@@ -1577,98 +1575,6 @@ int process_request(struct session *t)
 		req->flags,
 		req->l,
 		req->analysers);
-
-	/* The tcp-inspect analyser is always called alone */
-	if (req->analysers & AN_REQ_INSPECT) {
-		struct tcp_rule *rule;
-		int partial;
-
-		/* We will abort if we encounter a read error. In theory, we
-		 * should not abort if we get a close, it might be valid,
-		 * although very unlikely. FIXME: we'll abort for now, this
-		 * will be easier to change later.
-		 */
-		if (req->flags & BF_READ_ERROR) {
-			req->analysers = 0;
-			//t->fe->failed_req++;
-			if (!(t->flags & SN_ERR_MASK))
-				t->flags |= SN_ERR_CLICL;
-			if (!(t->flags & SN_FINST_MASK))
-				t->flags |= SN_FINST_R;
-			return 0;
-		}
-
-		/* Abort if client read timeout has expired */
-		else if (req->flags & BF_READ_TIMEOUT) {
-			req->analysers = 0;
-			t->fe->failed_req++;
-			if (!(t->flags & SN_ERR_MASK))
-				t->flags |= SN_ERR_CLITO;
-			if (!(t->flags & SN_FINST_MASK))
-				t->flags |= SN_FINST_R;
-			return 0;
-		}
-
-		/* We don't know whether we have enough data, so must proceed
-		 * this way :
-		 * - iterate through all rules in their declaration order
-		 * - if one rule returns MISS, it means the inspect delay is
-		 *   not over yet, then return immediately, otherwise consider
-		 *   it as a non-match.
-		 * - if one rule returns OK, then return OK
-		 * - if one rule returns KO, then return KO
-		 */
-
-		if (req->flags & BF_SHUTR || tick_is_expired(req->analyse_exp, now_ms))
-			partial = 0;
-		else
-			partial = ACL_PARTIAL;
-
-		list_for_each_entry(rule, &t->fe->tcp_req.inspect_rules, list) {
-			int ret = ACL_PAT_PASS;
-
-			if (rule->cond) {
-				ret = acl_exec_cond(rule->cond, t->fe, t, NULL, ACL_DIR_REQ | partial);
-				if (ret == ACL_PAT_MISS) {
-					buffer_write_dis(req);
-					/* just set the request timeout once at the beginning of the request */
-					if (!tick_isset(req->analyse_exp))
-						req->analyse_exp = tick_add_ifset(now_ms, t->fe->tcp_req.inspect_delay);
-					return 0;
-				}
-
-				ret = acl_pass(ret);
-				if (rule->cond->pol == ACL_COND_UNLESS)
-					ret = !ret;
-			}
-
-			if (ret) {
-				/* we have a matching rule. */
-				if (rule->action == TCP_ACT_REJECT) {
-					buffer_abort(req);
-					buffer_abort(rep);
-					//FIXME: this delete this
-					//fd_delete(t->cli_fd);
-					//t->cli_state = CL_STCLOSE;
-					req->analysers = 0;
-					t->fe->failed_req++;
-					if (!(t->flags & SN_ERR_MASK))
-						t->flags |= SN_ERR_PRXCOND;
-					if (!(t->flags & SN_FINST_MASK))
-						t->flags |= SN_FINST_R;
-					return 0;
-				}
-				/* otherwise accept */
-				break;
-			}
-		}
-		
-		/* if we get there, it means we have no rule which matches, or
-		 * we have an explicit accept, so we apply the default accept.
-		 */
-		req->analysers &= ~AN_REQ_INSPECT;
-		req->analyse_exp = TICK_ETERNITY;
-	}
 
 	if (req->analysers & AN_REQ_HTTP_HDR) {
 		/*
@@ -2141,8 +2047,10 @@ int process_request(struct session *t)
 				 * FIXME!!! that one is rather dangerous, we want to
 				 * make it follow standard rules (eg: clear req->analysers).
 				 */
-				if (stats_check_uri_auth(t, rule_set))
-					return 1;
+				if (stats_check_uri_auth(t, rule_set)) {
+					req->analysers = 0;
+					return 0;
+				}
 			}
 
 			/* now check whether we have some switching rules for this request */
@@ -2193,7 +2101,6 @@ int process_request(struct session *t)
 				t->flags |= SN_BE_ASSIGNED;
 			}
 		} while (t->be != cur_proxy);  /* we loop only if t->be has changed */
-		
 
 		if (!(t->flags & SN_BE_ASSIGNED)) {
 			/* To ensure correct connection accounting on
@@ -2305,7 +2212,7 @@ int process_request(struct session *t)
 					memcpy(trash, t->fe->fwdfor_hdr_name, len);
 				}
 				len += sprintf(trash + len, ": %s", pn);
- 
+
 				if (unlikely(http_header_add_tail2(req, &txn->req,
 								   &txn->hdr_idx, trash, len)) < 0)
 					goto return_bad_req;
@@ -2574,7 +2481,6 @@ int process_request(struct session *t)
 		ABORT_NOW();
 	}
 #endif
-	req->analysers &= AN_REQ_INSPECT | AN_REQ_HTTP_HDR | AN_REQ_HTTP_TARPIT | AN_REQ_HTTP_BODY;
 	return 0;
 }
 

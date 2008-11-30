@@ -203,7 +203,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		msg = "cannot create listening socket";
 		goto tcp_return;
 	}
-	
+
 	if (fd >= global.maxsock) {
 		err |= ERR_FATAL | ERR_ABORT | ERR_ALERT;
 		msg = "not enough free sockets (raise '-n' parameter)";
@@ -226,7 +226,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 
 	if (listener->options & LI_O_NOLINGER)
 		setsockopt(fd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
-	
+
 #ifdef SO_REUSEPORT
 	/* OpenBSD supports this. As it's present in old libc versions of Linux,
 	 * it might return an error that we will silently ignore.
@@ -234,7 +234,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, (char *) &one, sizeof(one));
 #endif
 #ifdef CONFIG_HAP_LINUX_TPROXY
-	if ((listener->options & LI_O_FOREIGN) 
+	if ((listener->options & LI_O_FOREIGN)
 	    && (setsockopt(fd, SOL_IP, IP_TRANSPARENT, (char *) &one, sizeof(one)) == -1)
 	    && (setsockopt(fd, SOL_IP, IP_FREEBIND, (char *) &one, sizeof(one)) == -1)) {
 		msg = "cannot make listening socket transparent";
@@ -246,13 +246,13 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		msg = "cannot bind socket";
 		goto tcp_close_return;
 	}
-	
+
 	if (listen(fd, listener->backlog ? listener->backlog : listener->maxconn) == -1) {
 		err |= ERR_RETRYABLE | ERR_ALERT;
 		msg = "cannot listen to socket";
 		goto tcp_close_return;
 	}
-	
+
 	/* the socket is ready */
 	listener->fd = fd;
 	listener->state = LI_LISTEN;
@@ -324,6 +324,126 @@ void tcpv6_add_listener(struct listener *listener)
 	LIST_ADDQ(&proto_tcpv6.listeners, &listener->proto_list);
 	proto_tcpv6.nb_listeners++;
 }
+
+/* This function performs the TCP request analysis on the current request. It
+ * returns 1 if the processing can continue on next analysers, or zero if it
+ * needs more data, encounters an error, or wants to immediately abort the
+ * request. It relies on buffers flags, and updates s->req->analysers. Its
+ * behaviour is rather simple:
+ *  - the analyser must check for errors and timeouts, and react as expected.
+ *    It does not have to close anything upon error, the caller will.
+ *  - if the analyser does not have enough data, it must return 0without calling
+ *    other ones. It should also probably do a buffer_write_dis() to ensure
+ *    that unprocessed data will not be forwarded. But that probably depends on
+ *    the protocol.
+ *  - if an analyser has enough data, it just has to pass on to the next
+ *    analyser without using buffer_write_dis() (enabled by default).
+ *  - if an analyser thinks it has no added value anymore staying here, it must
+ *    reset its bit from the analysers flags in order not to be called anymore.
+ *
+ * In the future, analysers should be able to indicate that they want to be
+ * called after XXX bytes have been received (or transfered), and the min of
+ * all's wishes will be used to ring back (unless a special condition occurs).
+ */
+int tcp_inspect_request(struct session *s, struct buffer *req)
+{
+	struct tcp_rule *rule;
+	int partial;
+
+	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
+		now_ms, __FUNCTION__,
+		s,
+		req,
+		req->rex, req->wex,
+		req->flags,
+		req->l,
+		req->analysers);
+
+	/* We will abort if we encounter a read error. In theory, we
+	 * should not abort if we get a close, it might be valid,
+	 * although very unlikely. FIXME: we'll abort for now, this
+	 * will be easier to change later.
+	 */
+	if (req->flags & BF_READ_ERROR) {
+		req->analysers = 0;
+		s->fe->failed_req++;
+		if (!(s->flags & SN_ERR_MASK))
+			s->flags |= SN_ERR_CLICL;
+		if (!(s->flags & SN_FINST_MASK))
+			s->flags |= SN_FINST_R;
+		return 0;
+	}
+
+	/* Abort if client read timeout has expired */
+	else if (req->flags & BF_READ_TIMEOUT) {
+		req->analysers = 0;
+		s->fe->failed_req++;
+		if (!(s->flags & SN_ERR_MASK))
+			s->flags |= SN_ERR_CLITO;
+		if (!(s->flags & SN_FINST_MASK))
+			s->flags |= SN_FINST_R;
+		return 0;
+	}
+
+	/* We don't know whether we have enough data, so must proceed
+	 * this way :
+	 * - iterate through all rules in their declaration order
+	 * - if one rule returns MISS, it means the inspect delay is
+	 *   not over yet, then return immediately, otherwise consider
+	 *   it as a non-match.
+	 * - if one rule returns OK, then return OK
+	 * - if one rule returns KO, then return KO
+	 */
+
+	if (req->flags & BF_SHUTR || tick_is_expired(req->analyse_exp, now_ms))
+		partial = 0;
+	else
+		partial = ACL_PARTIAL;
+
+	list_for_each_entry(rule, &s->fe->tcp_req.inspect_rules, list) {
+		int ret = ACL_PAT_PASS;
+
+		if (rule->cond) {
+			ret = acl_exec_cond(rule->cond, s->fe, s, NULL, ACL_DIR_REQ | partial);
+			if (ret == ACL_PAT_MISS) {
+				buffer_write_dis(req);
+				/* just set the request timeout once at the beginning of the request */
+				if (!tick_isset(req->analyse_exp))
+					req->analyse_exp = tick_add_ifset(now_ms, s->fe->tcp_req.inspect_delay);
+				return 0;
+			}
+
+			ret = acl_pass(ret);
+			if (rule->cond->pol == ACL_COND_UNLESS)
+				ret = !ret;
+		}
+
+		if (ret) {
+			/* we have a matching rule. */
+			if (rule->action == TCP_ACT_REJECT) {
+				buffer_abort(req);
+				buffer_abort(s->rep);
+				req->analysers = 0;
+				s->fe->failed_req++;
+				if (!(s->flags & SN_ERR_MASK))
+					s->flags |= SN_ERR_PRXCOND;
+				if (!(s->flags & SN_FINST_MASK))
+					s->flags |= SN_FINST_R;
+				return 0;
+			}
+				/* otherwise accept */
+			break;
+		}
+	}
+
+	/* if we get there, it means we have no rule which matches, or
+	 * we have an explicit accept, so we apply the default accept.
+	 */
+	req->analysers &= ~AN_REQ_INSPECT;
+	req->analyse_exp = TICK_ETERNITY;
+	return 1;
+}
+
 
 /* This function should be called to parse a line starting with the "tcp-request"
  * keyword.

@@ -32,6 +32,7 @@ int tcpv4_bind_socket(int fd, int flags, struct sockaddr_in *local, struct socka
 void tcpv4_add_listener(struct listener *listener);
 void tcpv6_add_listener(struct listener *listener);
 int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen);
+int tcp_inspect_request(struct session *s, struct buffer *req);
 
 #endif /* _PROTO_PROTO_TCP_H */
 
