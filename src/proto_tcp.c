@@ -45,7 +45,6 @@
 #include <proto/proto_tcp.h>
 #include <proto/proxy.h>
 #include <proto/queue.h>
-#include <proto/senddata.h>
 #include <proto/session.h>
 #include <proto/stream_sock.h>
 #include <proto/task.h>

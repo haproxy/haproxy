@@ -72,6 +72,27 @@ void stream_int_return(struct stream_interface *si, const struct chunk *msg)
 }
 
 /*
+ * Returns a message to the client ; the connection is shut down for read,
+ * and the request is cleared so that no server connection can be initiated.
+ * The buffer is marked for read shutdown on the other side to protect the
+ * message, and the buffer write is enabled. The message is contained in a
+ * "chunk". If it is null, then an empty message is used. The reply buffer
+ * doesn't need to be empty before this. The goal of this function is to
+ * return error messages to a client.
+ */
+void stream_int_retnclose(struct stream_interface *si, const struct chunk *msg)
+{
+	buffer_abort(si->ib);
+	buffer_flush(si->ob);
+	buffer_shutr_now(si->ob);
+	if (msg && msg->len)
+		buffer_write(si->ob, msg->str, msg->len);
+
+	si->ob->wex = tick_add_ifset(now_ms, si->ob->wto);
+	buffer_write_ena(si->ob);
+}
+
+/*
  * Local variables:
  *  c-indent-level: 8
  *  c-basic-offset: 8

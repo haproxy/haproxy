@@ -34,6 +34,7 @@
 #include <proto/hdr_idx.h>
 #include <proto/proto_http.h>
 #include <proto/session.h>
+#include <proto/stream_interface.h>
 #include <proto/stream_sock.h>
 #include <proto/task.h>
 
@@ -411,13 +412,13 @@ int event_accept(int fd) {
 			 * both cases, we return a fake "HTTP/1.0 200 OK" response and we exit.
 			 */
 			struct chunk msg = { .str = "HTTP/1.0 200 OK\r\n\r\n", .len = 19 };
-			client_retnclose(s, &msg); /* forge a 200 response */
+			stream_int_retnclose(&s->si[0], &msg); /* forge a 200 response */
 			trace_term(s, TT_CLIENT_1);
 			t->expire = s->rep->wex;
 		}
 		else if (p->mode == PR_MODE_HEALTH) {  /* health check mode, no client reading */
 			struct chunk msg = { .str = "OK\n", .len = 3 };
-			client_retnclose(s, &msg); /* forge an "OK" response */
+			stream_int_retnclose(&s->si[0], &msg); /* forge an "OK" response */
 			trace_term(s, TT_CLIENT_2);
 			t->expire = s->rep->wex;
 		}

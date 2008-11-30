@@ -65,7 +65,6 @@ int process_srv_conn(struct session *t);
 int process_request(struct session *t);
 int process_response(struct session *t);
 
-void client_retnclose(struct session *s, const struct chunk *msg);
 void srv_close_with_err(struct session *t, int err, int finst,
 			int status, const struct chunk *msg);
 

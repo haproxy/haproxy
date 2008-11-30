@@ -42,9 +42,9 @@
 #include <proto/dumpstats.h>
 #include <proto/fd.h>
 #include <proto/proto_uxst.h>
-#include <proto/senddata.h>
 #include <proto/session.h>
 #include <proto/server.h>
+#include <proto/stream_interface.h>
 
 /* This function parses a "stats" statement in the "global" section. It returns
  * -1 if there is any error, otherwise zero. If it returns -1, it may write an
@@ -197,7 +197,7 @@ int stats_dump_raw(struct session *s, struct uri_auth *uri)
 		/* the function had not been called yet, let's prepare the
 		 * buffer for a response.
 		 */
-		client_retnclose(s, &msg);
+		stream_int_retnclose(rep->cons, &msg);
 		s->data_state = DATA_ST_HEAD;
 		/* fall through */
 
@@ -326,7 +326,7 @@ int stats_dump_http(struct session *s, struct uri_auth *uri)
 		chunk_printf(&msg, sizeof(trash), "\r\n");
 
 		s->txn.status = 200;
-		client_retnclose(s, &msg); // send the start of the response.
+		stream_int_retnclose(rep->cons, &msg); // send the start of the response.
 		msg.len = 0;
 
 		if (!(s->flags & SN_ERR_MASK))  // this is not really an error but it is

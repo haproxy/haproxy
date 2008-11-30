@@ -48,7 +48,6 @@
 #include <proto/proto_tcp.h>
 #include <proto/proto_http.h>
 #include <proto/queue.h>
-#include <proto/senddata.h>
 #include <proto/session.h>
 #include <proto/stream_interface.h>
 #include <proto/stream_sock.h>
@@ -1762,7 +1761,7 @@ int process_request(struct session *t)
 			else if (req->flags & BF_READ_TIMEOUT || tick_is_expired(req->analyse_exp, now_ms)) {
 				/* read timeout : give up with an error message. */
 				txn->status = 408;
-				client_retnclose(t, error_message(t, HTTP_ERR_408));
+				stream_int_retnclose(req->prod, error_message(t, HTTP_ERR_408));
 				msg->msg_state = HTTP_MSG_ERROR;
 				req->analysers = 0;
 				t->fe->failed_req++;
@@ -1776,7 +1775,7 @@ int process_request(struct session *t)
 			/* 4: have we encountered a close ? */
 			else if (req->flags & BF_SHUTR) {
 				txn->status = 400;
-				client_retnclose(t, error_message(t, HTTP_ERR_400));
+				stream_int_retnclose(req->prod, error_message(t, HTTP_ERR_400));
 				msg->msg_state = HTTP_MSG_ERROR;
 				req->analysers = 0;
 				t->fe->failed_req++;
@@ -1848,14 +1847,14 @@ int process_request(struct session *t)
 				if (ret) {
 					/* we fail this request, let's return 503 service unavail */
 					txn->status = 503;
-					client_retnclose(t, error_message(t, HTTP_ERR_503));
+					stream_int_retnclose(req->prod, error_message(t, HTTP_ERR_503));
 					goto return_prx_cond;
 				}
 			}
 
 			/* nothing to fail, let's reply normaly */
 			txn->status = 200;
-			client_retnclose(t, &http_200_chunk);
+			stream_int_retnclose(req->prod, &http_200_chunk);
 			goto return_prx_cond;
 		}
 
@@ -2026,7 +2025,7 @@ int process_request(struct session *t)
 					txn->status = rule->code;
 					/* let's log the request time */
 					t->logs.tv_request = now;
-					client_retnclose(t, &rdr);
+					stream_int_retnclose(req->prod, &rdr);
 					goto return_prx_cond;
 				}
 			}
@@ -2043,7 +2042,7 @@ int process_request(struct session *t)
 					txn->status = 403;
 					/* let's log the request time */
 					t->logs.tv_request = now;
-					client_retnclose(t, error_message(t, HTTP_ERR_403));
+					stream_int_retnclose(req->prod, error_message(t, HTTP_ERR_403));
 					goto return_prx_cond;
 				}
 			}
@@ -2072,7 +2071,7 @@ int process_request(struct session *t)
 				txn->status = 403;
 				/* let's log the request time */
 				t->logs.tv_request = now;
-				client_retnclose(t, error_message(t, HTTP_ERR_403));
+				stream_int_retnclose(req->prod, error_message(t, HTTP_ERR_403));
 				goto return_prx_cond;
 			}
 
@@ -2440,7 +2439,7 @@ int process_request(struct session *t)
 		txn->req.msg_state = HTTP_MSG_ERROR;
 		txn->status = 400;
 		req->analysers = 0;
-		client_retnclose(t, error_message(t, HTTP_ERR_400));
+		stream_int_retnclose(req->prod, error_message(t, HTTP_ERR_400));
 		t->fe->failed_req++;
 	return_prx_cond:
 		if (!(t->flags & SN_ERR_MASK))
@@ -2475,7 +2474,7 @@ int process_request(struct session *t)
 
 		txn->status = 500;
 		if (req->flags != BF_READ_ERROR)
-			client_retnclose(t, error_message(t, HTTP_ERR_500));
+			stream_int_retnclose(req->prod, error_message(t, HTTP_ERR_500));
 
 		req->analysers = 0;
 		req->analyse_exp = TICK_ETERNITY;
@@ -3107,7 +3106,7 @@ int produce_content(struct session *s)
 
 	/* unknown data source or internal error */
 	s->txn.status = 500;
-	client_retnclose(s, error_message(s, HTTP_ERR_500));
+	stream_int_retnclose(s->rep->cons, error_message(s, HTTP_ERR_500));
 	trace_term(s, TT_HTTP_CNT_1);
 	if (!(s->flags & SN_ERR_MASK))
 		s->flags |= SN_ERR_PRXCOND;
@@ -4475,7 +4474,7 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 		msg.str = trash;
 		msg.len = sprintf(trash, HTTP_401_fmt, uri_auth->auth_realm);
 		txn->status = 401;
-		client_retnclose(t, &msg);
+		stream_int_retnclose(t->req->prod, &msg);
 		trace_term(t, TT_HTTP_URI_1);
 		t->req->analysers = 0;
 		if (!(t->flags & SN_ERR_MASK))
