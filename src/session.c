@@ -709,6 +709,10 @@ resync_stream_interface:
 					if (!process_request(s))
 						break;
 
+				if (s->req->analysers & AN_REQ_HTTP_TARPIT)
+					if (!http_process_tarpit(s, s->req))
+						break;
+
 				/* Just make sure that nobody set a wrong flag causing an endless loop */
 				s->req->analysers &= AN_REQ_INSPECT | AN_REQ_HTTP_HDR | AN_REQ_HTTP_TARPIT | AN_REQ_HTTP_BODY;
 

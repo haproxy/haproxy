@@ -2359,42 +2359,6 @@ int process_request(struct session *t)
 		; // to keep gcc happy
 	}
 
-	if (req->analysers & AN_REQ_HTTP_TARPIT) {
-		struct http_txn *txn = &t->txn;
-
-		/* This connection is being tarpitted. The CLIENT side has
-		 * already set the connect expiration date to the right
-		 * timeout. We just have to check that the client is still
-		 * there and that the timeout has not expired.
-		 */
-		if ((req->flags & (BF_SHUTR|BF_READ_ERROR)) == 0 &&
-		    !tick_is_expired(req->analyse_exp, now_ms))
-			return 0;
-
-		/* We will set the queue timer to the time spent, just for
-		 * logging purposes. We fake a 500 server error, so that the
-		 * attacker will not suspect his connection has been tarpitted.
-		 * It will not cause trouble to the logs because we can exclude
-		 * the tarpitted connections by filtering on the 'PT' status flags.
-		 */
-		trace_term(t, TT_HTTP_SRV_2);
-		t->logs.t_queue = tv_ms_elapsed(&t->logs.tv_accept, &now);
-
-		txn->status = 500;
-		if (req->flags != BF_READ_ERROR)
-			stream_int_retnclose(req->prod, error_message(t, HTTP_ERR_500));
-
-		req->analysers = 0;
-		req->analyse_exp = TICK_ETERNITY;
-
-		t->fe->failed_req++;
-		if (!(t->flags & SN_ERR_MASK))
-			t->flags |= SN_ERR_PRXCOND;
-		if (!(t->flags & SN_FINST_MASK))
-			t->flags |= SN_FINST_T;
-		return 0;
-	}
-
 	if (req->analysers & AN_REQ_HTTP_BODY) {
 		/* We have to parse the HTTP request body to find any required data.
 		 * "balance url_param check_post" should have been the only way to get
@@ -2481,6 +2445,47 @@ int process_request(struct session *t)
 		ABORT_NOW();
 	}
 #endif
+	return 0;
+}
+
+/* This function is an analyser which processes the HTTP tarpit. It always
+ * returns zero, at the beginning because it prevents any other processing
+ * from occurring, and at the end because it terminates the request.
+ */
+int http_process_tarpit(struct session *s, struct buffer *req)
+{
+	struct http_txn *txn = &s->txn;
+
+	/* This connection is being tarpitted. The CLIENT side has
+	 * already set the connect expiration date to the right
+	 * timeout. We just have to check that the client is still
+	 * there and that the timeout has not expired.
+	 */
+	if ((req->flags & (BF_SHUTR|BF_READ_ERROR)) == 0 &&
+	    !tick_is_expired(req->analyse_exp, now_ms))
+		return 0;
+
+	/* We will set the queue timer to the time spent, just for
+	 * logging purposes. We fake a 500 server error, so that the
+	 * attacker will not suspect his connection has been tarpitted.
+	 * It will not cause trouble to the logs because we can exclude
+	 * the tarpitted connections by filtering on the 'PT' status flags.
+	 */
+	trace_term(s, TT_HTTP_SRV_2);
+	s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
+
+	txn->status = 500;
+	if (req->flags != BF_READ_ERROR)
+		stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_500));
+
+	req->analysers = 0;
+	req->analyse_exp = TICK_ETERNITY;
+
+	s->fe->failed_req++;
+	if (!(s->flags & SN_ERR_MASK))
+		s->flags |= SN_ERR_PRXCOND;
+	if (!(s->flags & SN_FINST_MASK))
+		s->flags |= SN_FINST_T;
 	return 0;
 }
 
