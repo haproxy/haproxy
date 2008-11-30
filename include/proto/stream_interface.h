@@ -3,7 +3,7 @@
   This file contains stream_interface function prototypes
 
   Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
-  
+
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
   License as published by the Free Software Foundation, version 2.1
@@ -31,6 +31,7 @@
 /* main event functions used to move data between sockets and buffers */
 void stream_int_check_timeouts(struct stream_interface *si);
 void stream_int_report_error(struct stream_interface *si);
+void stream_int_return(struct stream_interface *si, const struct chunk *msg);
 
 #endif /* _PROTO_STREAM_INTERFACE_H */
 

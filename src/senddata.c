@@ -63,21 +63,6 @@ void client_retnclose(struct session *s, const struct chunk *msg)
 	buffer_write_ena(s->rep);
 }
 
-
-/*
- * returns a message into the rep buffer, and flushes the req buffer.
- * The reply buffer doesn't need to be empty before this. The message
- * is contained in a "chunk". If it is null, then an empty message is
- * used.
- */
-void client_return(struct session *s, const struct chunk *msg)
-{
-	buffer_flush(s->req);
-	buffer_flush(s->rep);
-	if (msg && msg->len)
-		buffer_write(s->rep, msg->str, msg->len);
-}
-
 /*
  * Local variables:
  *  c-indent-level: 8

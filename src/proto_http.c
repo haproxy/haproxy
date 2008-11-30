@@ -549,7 +549,7 @@ void srv_close_with_err(struct session *t, int err, int finst,
 	if (status > 0 && msg) {
 		t->txn.status = status;
 		if (t->fe->mode == PR_MODE_HTTP)
-			client_return(t, msg);
+			stream_int_return(t->rep->cons, msg);
 	}
 	if (!(t->flags & SN_ERR_MASK))
 		t->flags |= err;
@@ -2675,7 +2675,7 @@ int process_response(struct session *t)
 				t->be->failed_resp++;
 				rep->analysers = 0;
 				txn->status = 502;
-				client_return(t, error_message(t, HTTP_ERR_502));
+				stream_int_return(rep->cons, error_message(t, HTTP_ERR_502));
 				if (!(t->flags & SN_ERR_MASK))
 					t->flags |= SN_ERR_PRXCOND;
 				if (!(t->flags & SN_FINST_MASK))
@@ -2704,7 +2704,7 @@ int process_response(struct session *t)
 				//t->be->failed_resp++;
 				rep->analysers = 0;
 				txn->status = 502;
-				client_return(t, error_message(t, HTTP_ERR_502));
+				stream_int_return(rep->cons, error_message(t, HTTP_ERR_502));
 				if (!(t->flags & SN_ERR_MASK))
 					t->flags |= SN_ERR_SRVCL;
 				if (!(t->flags & SN_FINST_MASK))
@@ -2729,7 +2729,7 @@ int process_response(struct session *t)
 				t->be->failed_resp++;
 				rep->analysers = 0;
 				txn->status = 504;
-				client_return(t, error_message(t, HTTP_ERR_504));
+				stream_int_return(rep->cons, error_message(t, HTTP_ERR_504));
 				if (!(t->flags & SN_ERR_MASK))
 					t->flags |= SN_ERR_SRVTO;
 				if (!(t->flags & SN_FINST_MASK))
@@ -2753,7 +2753,7 @@ int process_response(struct session *t)
 				t->be->failed_resp++;
 				rep->analysers = 0;
 				txn->status = 502;
-				client_return(t, error_message(t, HTTP_ERR_502));
+				stream_int_return(rep->cons, error_message(t, HTTP_ERR_502));
 				if (!(t->flags & SN_ERR_MASK))
 					t->flags |= SN_ERR_SRVCL;
 				if (!(t->flags & SN_FINST_MASK))
@@ -2853,7 +2853,7 @@ int process_response(struct session *t)
 					//req->cons->state = SI_ST_CLO;
 					rep->analysers = 0;
 					txn->status = 502;
-					client_return(t, error_message(t, HTTP_ERR_502));
+					stream_int_return(rep->cons, error_message(t, HTTP_ERR_502));
 					if (!(t->flags & SN_ERR_MASK))
 						t->flags |= SN_ERR_PRXCOND;
 					if (!(t->flags & SN_FINST_MASK))

@@ -28,7 +28,6 @@
 #include <types/session.h>
 
 void client_retnclose(struct session *s, const struct chunk *msg);
-void client_return(struct session *s, const struct chunk *msg);
 
 #endif /* _PROTO_SENDDATA_H */
 
