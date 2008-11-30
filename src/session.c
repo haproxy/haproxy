@@ -705,8 +705,8 @@ resync_stream_interface:
 					if (!tcp_inspect_request(s, s->req))
 						break;
 
-				if (s->req->analysers)
-					if (!process_request(s))
+				if (s->req->analysers & AN_REQ_HTTP_HDR)
+					if (!http_process_request(s, s->req))
 						break;
 
 				if (s->req->analysers & AN_REQ_HTTP_TARPIT)

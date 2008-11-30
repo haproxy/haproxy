@@ -1563,812 +1563,793 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
  * called after XXX bytes have been received (or transfered), and the min of
  * all's wishes will be used to ring back (unless a special condition occurs).
  */
-int process_request(struct session *t)
+int http_process_request(struct session *s, struct buffer *req)
 {
-	struct buffer *req = t->req;
 
 	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
-		t,
+		s,
 		req,
 		req->rex, req->wex,
 		req->flags,
 		req->l,
 		req->analysers);
 
-	if (req->analysers & AN_REQ_HTTP_HDR) {
+	/*
+	 * We will parse the partial (or complete) lines.
+	 * We will check the request syntax, and also join multi-line
+	 * headers. An index of all the lines will be elaborated while
+	 * parsing.
+	 *
+	 * For the parsing, we use a 28 states FSM.
+	 *
+	 * Here is the information we currently have :
+	 *   req->data + req->som  = beginning of request
+	 *   req->data + req->eoh  = end of processed headers / start of current one
+	 *   req->data + req->eol  = end of current header or line (LF or CRLF)
+	 *   req->lr = first non-visited byte
+	 *   req->r  = end of data
+	 */
+
+	int cur_idx;
+	struct http_txn *txn = &s->txn;
+	struct http_msg *msg = &txn->req;
+	struct proxy *cur_proxy;
+
+	if (likely(req->lr < req->r))
+		http_msg_analyzer(req, msg, &txn->hdr_idx);
+
+	/* 1: we might have to print this header in debug mode */
+	if (unlikely((global.mode & MODE_DEBUG) &&
+		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) &&
+		     (msg->msg_state == HTTP_MSG_BODY || msg->msg_state == HTTP_MSG_ERROR))) {
+		char *eol, *sol;
+
+		sol = req->data + msg->som;
+		eol = sol + msg->sl.rq.l;
+		debug_hdr("clireq", s, sol, eol);
+
+		sol += hdr_idx_first_pos(&txn->hdr_idx);
+		cur_idx = hdr_idx_first_idx(&txn->hdr_idx);
+
+		while (cur_idx) {
+			eol = sol + txn->hdr_idx.v[cur_idx].len;
+			debug_hdr("clihdr", s, sol, eol);
+			sol = eol + txn->hdr_idx.v[cur_idx].cr + 1;
+			cur_idx = txn->hdr_idx.v[cur_idx].next;
+		}
+	}
+
+
+	/*
+	 * Now we quickly check if we have found a full valid request.
+	 * If not so, we check the FD and buffer states before leaving.
+	 * A full request is indicated by the fact that we have seen
+	 * the double LF/CRLF, so the state is HTTP_MSG_BODY. Invalid
+	 * requests are checked first.
+	 *
+	 */
+
+	if (unlikely(msg->msg_state != HTTP_MSG_BODY)) {
 		/*
-		 * Now parse the partial (or complete) lines.
-		 * We will check the request syntax, and also join multi-line
-		 * headers. An index of all the lines will be elaborated while
-		 * parsing.
-		 *
-		 * For the parsing, we use a 28 states FSM.
-		 *
-		 * Here is the information we currently have :
-		 *   req->data + req->som  = beginning of request
-		 *   req->data + req->eoh  = end of processed headers / start of current one
-		 *   req->data + req->eol  = end of current header or line (LF or CRLF)
-		 *   req->lr = first non-visited byte
-		 *   req->r  = end of data
+		 * First, let's catch bad requests.
 		 */
+		if (unlikely(msg->msg_state == HTTP_MSG_ERROR))
+			goto return_bad_req;
 
-		int cur_idx;
-		struct http_txn *txn = &t->txn;
-		struct http_msg *msg = &txn->req;
-		struct proxy *cur_proxy;
-
-		if (likely(req->lr < req->r))
-			http_msg_analyzer(req, msg, &txn->hdr_idx);
-
-		/* 1: we might have to print this header in debug mode */
-		if (unlikely((global.mode & MODE_DEBUG) &&
-			     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) &&
-			     (msg->msg_state == HTTP_MSG_BODY || msg->msg_state == HTTP_MSG_ERROR))) {
-			char *eol, *sol;
-
-			sol = req->data + msg->som;
-			eol = sol + msg->sl.rq.l;
-			debug_hdr("clireq", t, sol, eol);
-
-			sol += hdr_idx_first_pos(&txn->hdr_idx);
-			cur_idx = hdr_idx_first_idx(&txn->hdr_idx);
-
-			while (cur_idx) {
-				eol = sol + txn->hdr_idx.v[cur_idx].len;
-				debug_hdr("clihdr", t, sol, eol);
-				sol = eol + txn->hdr_idx.v[cur_idx].cr + 1;
-				cur_idx = txn->hdr_idx.v[cur_idx].next;
-			}
+		/* 1: Since we are in header mode, if there's no space
+		 *    left for headers, we won't be able to free more
+		 *    later, so the session will never terminate. We
+		 *    must terminate it now.
+		 */
+		if (unlikely(req->flags & BF_FULL)) {
+			/* FIXME: check if URI is set and return Status
+			 * 414 Request URI too long instead.
+			 */
+			goto return_bad_req;
 		}
 
-
-		/*
-		 * Now we quickly check if we have found a full valid request.
-		 * If not so, we check the FD and buffer states before leaving.
-		 * A full request is indicated by the fact that we have seen
-		 * the double LF/CRLF, so the state is HTTP_MSG_BODY. Invalid
-		 * requests are checked first.
-		 *
-		 */
-
-		if (unlikely(msg->msg_state != HTTP_MSG_BODY)) {
-			/*
-			 * First, let's catch bad requests.
-			 */
-			if (unlikely(msg->msg_state == HTTP_MSG_ERROR))
-				goto return_bad_req;
-
-			/* 1: Since we are in header mode, if there's no space
-			 *    left for headers, we won't be able to free more
-			 *    later, so the session will never terminate. We
-			 *    must terminate it now.
-			 */
-			if (unlikely(req->flags & BF_FULL)) {
-				/* FIXME: check if URI is set and return Status
-				 * 414 Request URI too long instead.
-				 */
-				goto return_bad_req;
-			}
-
-			/* 2: have we encountered a read error ? */
-			else if (req->flags & BF_READ_ERROR) {
-				/* we cannot return any message on error */
-				msg->msg_state = HTTP_MSG_ERROR;
-				req->analysers = 0;
-				//t->fe->failed_req++;
-				if (!(t->flags & SN_ERR_MASK))
-					t->flags |= SN_ERR_CLICL;
-				if (!(t->flags & SN_FINST_MASK))
-					t->flags |= SN_FINST_R;
-				return 0;
-			}
-
-			/* 3: has the read timeout expired ? */
-			else if (req->flags & BF_READ_TIMEOUT || tick_is_expired(req->analyse_exp, now_ms)) {
-				/* read timeout : give up with an error message. */
-				txn->status = 408;
-				stream_int_retnclose(req->prod, error_message(t, HTTP_ERR_408));
-				msg->msg_state = HTTP_MSG_ERROR;
-				req->analysers = 0;
-				t->fe->failed_req++;
-				if (!(t->flags & SN_ERR_MASK))
-					t->flags |= SN_ERR_CLITO;
-				if (!(t->flags & SN_FINST_MASK))
-					t->flags |= SN_FINST_R;
-				return 0;
-			}
-
-			/* 4: have we encountered a close ? */
-			else if (req->flags & BF_SHUTR) {
-				txn->status = 400;
-				stream_int_retnclose(req->prod, error_message(t, HTTP_ERR_400));
-				msg->msg_state = HTTP_MSG_ERROR;
-				req->analysers = 0;
-				t->fe->failed_req++;
-
-				if (!(t->flags & SN_ERR_MASK))
-					t->flags |= SN_ERR_CLICL;
-				if (!(t->flags & SN_FINST_MASK))
-					t->flags |= SN_FINST_R;
-				return 0;
-			}
-
-			buffer_write_dis(req);
-			/* just set the request timeout once at the beginning of the request */
-			if (!tick_isset(req->analyse_exp))
-				req->analyse_exp = tick_add_ifset(now_ms, t->fe->timeout.httpreq);
-
-			/* we're not ready yet */
+		/* 2: have we encountered a read error ? */
+		else if (req->flags & BF_READ_ERROR) {
+			/* we cannot return any message on error */
+			msg->msg_state = HTTP_MSG_ERROR;
+			req->analysers = 0;
+			s->fe->failed_req++;
+			if (!(s->flags & SN_ERR_MASK))
+				s->flags |= SN_ERR_CLICL;
+			if (!(s->flags & SN_FINST_MASK))
+				s->flags |= SN_FINST_R;
 			return 0;
 		}
 
+		/* 3: has the read timeout expired ? */
+		else if (req->flags & BF_READ_TIMEOUT || tick_is_expired(req->analyse_exp, now_ms)) {
+			/* read timeout : give up with an error message. */
+			txn->status = 408;
+			stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_408));
+			msg->msg_state = HTTP_MSG_ERROR;
+			req->analysers = 0;
+			s->fe->failed_req++;
+			if (!(s->flags & SN_ERR_MASK))
+				s->flags |= SN_ERR_CLITO;
+			if (!(s->flags & SN_FINST_MASK))
+				s->flags |= SN_FINST_R;
+			return 0;
+		}
 
-		/****************************************************************
-		 * More interesting part now : we know that we have a complete  *
-		 * request which at least looks like HTTP. We have an indicator *
-		 * of each header's length, so we can parse them quickly.       *
-		 ****************************************************************/
+		/* 4: have we encountered a close ? */
+		else if (req->flags & BF_SHUTR) {
+			txn->status = 400;
+			stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_400));
+			msg->msg_state = HTTP_MSG_ERROR;
+			req->analysers = 0;
+			s->fe->failed_req++;
 
-		req->analysers &= ~AN_REQ_HTTP_HDR;
-		req->analyse_exp = TICK_ETERNITY;
+			if (!(s->flags & SN_ERR_MASK))
+				s->flags |= SN_ERR_CLICL;
+			if (!(s->flags & SN_FINST_MASK))
+				s->flags |= SN_FINST_R;
+			return 0;
+		}
 
-		/* ensure we keep this pointer to the beginning of the message */
-		msg->sol = req->data + msg->som;
+		buffer_write_dis(req);
+		/* just set the request timeout once at the beginning of the request */
+		if (!tick_isset(req->analyse_exp))
+			req->analyse_exp = tick_add_ifset(now_ms, s->fe->timeout.httpreq);
 
+		/* we're not ready yet */
+		return 0;
+	}
+
+
+	/****************************************************************
+	 * More interesting part now : we know that we have a complete  *
+	 * request which at least looks like HTTP. We have an indicator *
+	 * of each header's length, so we can parse them quickly.       *
+	 ****************************************************************/
+
+	req->analysers &= ~AN_REQ_HTTP_HDR;
+	req->analyse_exp = TICK_ETERNITY;
+
+	/* ensure we keep this pointer to the beginning of the message */
+	msg->sol = req->data + msg->som;
+
+	/*
+	 * 1: identify the method
+	 */
+	txn->meth = find_http_meth(&req->data[msg->som], msg->sl.rq.m_l);
+
+	/* we can make use of server redirect on GET and HEAD */
+	if (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)
+		s->flags |= SN_REDIRECTABLE;
+
+	/*
+	 * 2: check if the URI matches the monitor_uri.
+	 * We have to do this for every request which gets in, because
+	 * the monitor-uri is defined by the frontend.
+	 */
+	if (unlikely((s->fe->monitor_uri_len != 0) &&
+		     (s->fe->monitor_uri_len == msg->sl.rq.u_l) &&
+		     !memcmp(&req->data[msg->sl.rq.u],
+			     s->fe->monitor_uri,
+			     s->fe->monitor_uri_len))) {
 		/*
-		 * 1: identify the method
+		 * We have found the monitor URI
 		 */
-		txn->meth = find_http_meth(&req->data[msg->som], msg->sl.rq.m_l);
+		struct acl_cond *cond;
+		cur_proxy = s->fe;
 
-		/* we can make use of server redirect on GET and HEAD */
-		if (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)
-			t->flags |= SN_REDIRECTABLE;
+		s->flags |= SN_MONITOR;
 
-		/*
-		 * 2: check if the URI matches the monitor_uri.
-		 * We have to do this for every request which gets in, because
-		 * the monitor-uri is defined by the frontend.
-		 */
-		if (unlikely((t->fe->monitor_uri_len != 0) &&
-			     (t->fe->monitor_uri_len == msg->sl.rq.u_l) &&
-			     !memcmp(&req->data[msg->sl.rq.u],
-				     t->fe->monitor_uri,
-				     t->fe->monitor_uri_len))) {
-			/*
-			 * We have found the monitor URI
-			 */
-			struct acl_cond *cond;
-			cur_proxy = t->fe;
+		/* Check if we want to fail this monitor request or not */
+		list_for_each_entry(cond, &cur_proxy->mon_fail_cond, list) {
+			int ret = acl_exec_cond(cond, cur_proxy, s, txn, ACL_DIR_REQ);
 
-			t->flags |= SN_MONITOR;
+			ret = acl_pass(ret);
+			if (cond->pol == ACL_COND_UNLESS)
+				ret = !ret;
 
-			/* Check if we want to fail this monitor request or not */
-			list_for_each_entry(cond, &cur_proxy->mon_fail_cond, list) {
-				int ret = acl_exec_cond(cond, cur_proxy, t, txn, ACL_DIR_REQ);
-
-				ret = acl_pass(ret);
-				if (cond->pol == ACL_COND_UNLESS)
-					ret = !ret;
-
-				if (ret) {
-					/* we fail this request, let's return 503 service unavail */
-					txn->status = 503;
-					stream_int_retnclose(req->prod, error_message(t, HTTP_ERR_503));
-					goto return_prx_cond;
-				}
+			if (ret) {
+				/* we fail this request, let's return 503 service unavail */
+				txn->status = 503;
+				stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_503));
+				goto return_prx_cond;
 			}
+		}
 
-			/* nothing to fail, let's reply normaly */
-			txn->status = 200;
-			stream_int_retnclose(req->prod, &http_200_chunk);
+		/* nothing to fail, let's reply normaly */
+		txn->status = 200;
+		stream_int_retnclose(req->prod, &http_200_chunk);
+		goto return_prx_cond;
+	}
+
+	/*
+	 * 3: Maybe we have to copy the original REQURI for the logs ?
+	 * Note: we cannot log anymore if the request has been
+	 * classified as invalid.
+	 */
+	if (unlikely(s->logs.logwait & LW_REQ)) {
+		/* we have a complete HTTP request that we must log */
+		if ((txn->uri = pool_alloc2(pool2_requri)) != NULL) {
+			int urilen = msg->sl.rq.l;
+
+			if (urilen >= REQURI_LEN)
+				urilen = REQURI_LEN - 1;
+			memcpy(txn->uri, &req->data[msg->som], urilen);
+			txn->uri[urilen] = 0;
+
+			if (!(s->logs.logwait &= ~LW_REQ))
+				s->do_log(s);
+		} else {
+			Alert("HTTP logging : out of memory.\n");
+		}
+	}
+
+	/* 4. We may have to convert HTTP/0.9 requests to HTTP/1.0 */
+	if (unlikely(msg->sl.rq.v_l == 0)) {
+		int delta;
+		char *cur_end;
+		msg->sol = req->data + msg->som;
+		cur_end = msg->sol + msg->sl.rq.l;
+		delta = 0;
+
+		if (msg->sl.rq.u_l == 0) {
+			/* if no URI was set, add "/" */
+			delta = buffer_replace2(req, cur_end, cur_end, " /", 2);
+			cur_end += delta;
+			msg->eoh += delta;
+		}
+		/* add HTTP version */
+		delta = buffer_replace2(req, cur_end, cur_end, " HTTP/1.0\r\n", 11);
+		msg->eoh += delta;
+		cur_end += delta;
+		cur_end = (char *)http_parse_reqline(msg, req->data,
+						     HTTP_MSG_RQMETH,
+						     msg->sol, cur_end + 1,
+						     NULL, NULL);
+		if (unlikely(!cur_end))
+			goto return_bad_req;
+
+		/* we have a full HTTP/1.0 request now and we know that
+		 * we have either a CR or an LF at <ptr>.
+		 */
+		hdr_idx_set_start(&txn->hdr_idx, msg->sl.rq.l, *cur_end == '\r');
+	}
+
+
+	/* 5: we may need to capture headers */
+	if (unlikely((s->logs.logwait & LW_REQHDR) && s->fe->req_cap))
+		capture_headers(req->data + msg->som, &txn->hdr_idx,
+				txn->req.cap, s->fe->req_cap);
+
+	/*
+	 * 6: we will have to evaluate the filters.
+	 * As opposed to version 1.2, now they will be evaluated in the
+	 * filters order and not in the header order. This means that
+	 * each filter has to be validated among all headers.
+	 *
+	 * We can now check whether we want to switch to another
+	 * backend, in which case we will re-check the backend's
+	 * filters and various options. In order to support 3-level
+	 * switching, here's how we should proceed :
+	 *
+	 *  a) run be.
+	 *     if (switch) then switch ->be to the new backend.
+	 *  b) run be if (be != fe).
+	 *     There cannot be any switch from there, so ->be cannot be
+	 *     changed anymore.
+	 *
+	 * => filters always apply to ->be, then ->be may change.
+	 *
+	 * The response path will be able to apply either ->be, or
+	 * ->be then ->fe filters in order to match the reverse of
+	 * the forward sequence.
+	 */
+
+	do {
+		struct acl_cond *cond;
+		struct redirect_rule *rule;
+		struct proxy *rule_set = s->be;
+		cur_proxy = s->be;
+
+		/* first check whether we have some ACLs set to redirect this request */
+		list_for_each_entry(rule, &cur_proxy->redirect_rules, list) {
+			int ret = acl_exec_cond(rule->cond, cur_proxy, s, txn, ACL_DIR_REQ);
+
+			ret = acl_pass(ret);
+			if (rule->cond->pol == ACL_COND_UNLESS)
+				ret = !ret;
+
+			if (ret) {
+				struct chunk rdr = { trash, 0 };
+				const char *msg_fmt;
+
+				/* build redirect message */
+				switch(rule->code) {
+				case 303:
+					rdr.len = strlen(HTTP_303);
+					msg_fmt = HTTP_303;
+					break;
+				case 301:
+					rdr.len = strlen(HTTP_301);
+					msg_fmt = HTTP_301;
+					break;
+				case 302:
+				default:
+					rdr.len = strlen(HTTP_302);
+					msg_fmt = HTTP_302;
+					break;
+				}
+
+				if (unlikely(rdr.len > sizeof(trash)))
+					goto return_bad_req;
+				memcpy(rdr.str, msg_fmt, rdr.len);
+
+				switch(rule->type) {
+				case REDIRECT_TYPE_PREFIX: {
+					const char *path;
+					int pathlen;
+
+					path = http_get_path(txn);
+					/* build message using path */
+					if (path) {
+						pathlen = txn->req.sl.rq.u_l + (txn->req.sol+txn->req.sl.rq.u) - path;
+					} else {
+						path = "/";
+						pathlen = 1;
+					}
+
+					if (rdr.len + rule->rdr_len + pathlen > sizeof(trash) - 4)
+						goto return_bad_req;
+
+					/* add prefix */
+					memcpy(rdr.str + rdr.len, rule->rdr_str, rule->rdr_len);
+					rdr.len += rule->rdr_len;
+
+					/* add path */
+					memcpy(rdr.str + rdr.len, path, pathlen);
+					rdr.len += pathlen;
+					break;
+				}
+				case REDIRECT_TYPE_LOCATION:
+				default:
+					if (rdr.len + rule->rdr_len > sizeof(trash) - 4)
+						goto return_bad_req;
+
+					/* add location */
+					memcpy(rdr.str + rdr.len, rule->rdr_str, rule->rdr_len);
+					rdr.len += rule->rdr_len;
+					break;
+				}
+
+				/* add end of headers */
+				memcpy(rdr.str + rdr.len, "\r\n\r\n", 4);
+				rdr.len += 4;
+
+				txn->status = rule->code;
+				/* let's log the request time */
+				s->logs.tv_request = now;
+				stream_int_retnclose(req->prod, &rdr);
+				goto return_prx_cond;
+			}
+		}
+
+		/* first check whether we have some ACLs set to block this request */
+		list_for_each_entry(cond, &cur_proxy->block_cond, list) {
+			int ret = acl_exec_cond(cond, cur_proxy, s, txn, ACL_DIR_REQ);
+
+			ret = acl_pass(ret);
+			if (cond->pol == ACL_COND_UNLESS)
+				ret = !ret;
+
+			if (ret) {
+				txn->status = 403;
+				/* let's log the request time */
+				s->logs.tv_request = now;
+				stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_403));
+				goto return_prx_cond;
+			}
+		}
+
+		/* try headers filters */
+		if (rule_set->req_exp != NULL) {
+			if (apply_filters_to_request(s, req, rule_set->req_exp) < 0)
+				goto return_bad_req;
+		}
+
+		if (!(s->flags & SN_BE_ASSIGNED) && (s->be != cur_proxy)) {
+			/* to ensure correct connection accounting on
+			 * the backend, we count the connection for the
+			 * one managing the queue.
+			 */
+			s->be->beconn++;
+			if (s->be->beconn > s->be->beconn_max)
+				s->be->beconn_max = s->be->beconn;
+			s->be->cum_beconn++;
+			s->flags |= SN_BE_ASSIGNED;
+		}
+
+		/* has the request been denied ? */
+		if (txn->flags & TX_CLDENY) {
+			/* no need to go further */
+			txn->status = 403;
+			/* let's log the request time */
+			s->logs.tv_request = now;
+			stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_403));
 			goto return_prx_cond;
 		}
 
-		/*
-		 * 3: Maybe we have to copy the original REQURI for the logs ?
-		 * Note: we cannot log anymore if the request has been
-		 * classified as invalid.
-		 */
-		if (unlikely(t->logs.logwait & LW_REQ)) {
-			/* we have a complete HTTP request that we must log */
-			if ((txn->uri = pool_alloc2(pool2_requri)) != NULL) {
-				int urilen = msg->sl.rq.l;
+		/* We might have to check for "Connection:" */
+		if (((s->fe->options | s->be->options) & (PR_O_HTTP_CLOSE|PR_O_FORCE_CLO)) &&
+		    !(s->flags & SN_CONN_CLOSED)) {
+			char *cur_ptr, *cur_end, *cur_next;
+			int cur_idx, old_idx, delta, val;
+			struct hdr_idx_elem *cur_hdr;
 
-				if (urilen >= REQURI_LEN)
-					urilen = REQURI_LEN - 1;
-				memcpy(txn->uri, &req->data[msg->som], urilen);
-				txn->uri[urilen] = 0;
+			cur_next = req->data + txn->req.som + hdr_idx_first_pos(&txn->hdr_idx);
+			old_idx = 0;
 
-				if (!(t->logs.logwait &= ~LW_REQ))
-					t->do_log(t);
-			} else {
-				Alert("HTTP logging : out of memory.\n");
+			while ((cur_idx = txn->hdr_idx.v[old_idx].next)) {
+				cur_hdr  = &txn->hdr_idx.v[cur_idx];
+				cur_ptr  = cur_next;
+				cur_end  = cur_ptr + cur_hdr->len;
+				cur_next = cur_end + cur_hdr->cr + 1;
+
+				val = http_header_match2(cur_ptr, cur_end, "Connection", 10);
+				if (val) {
+					/* 3 possibilities :
+					 * - we have already set Connection: close,
+					 *   so we remove this line.
+					 * - we have not yet set Connection: close,
+					 *   but this line indicates close. We leave
+					 *   it untouched and set the flag.
+					 * - we have not yet set Connection: close,
+					 *   and this line indicates non-close. We
+					 *   replace it.
+					 */
+					if (s->flags & SN_CONN_CLOSED) {
+						delta = buffer_replace2(req, cur_ptr, cur_next, NULL, 0);
+						txn->req.eoh += delta;
+						cur_next += delta;
+						txn->hdr_idx.v[old_idx].next = cur_hdr->next;
+						txn->hdr_idx.used--;
+						cur_hdr->len = 0;
+					} else {
+						if (strncasecmp(cur_ptr + val, "close", 5) != 0) {
+							delta = buffer_replace2(req, cur_ptr + val, cur_end,
+										"close", 5);
+							cur_next += delta;
+							cur_hdr->len += delta;
+							txn->req.eoh += delta;
+						}
+						s->flags |= SN_CONN_CLOSED;
+					}
+				}
+				old_idx = cur_idx;
 			}
 		}
-
-
-		/* 4. We may have to convert HTTP/0.9 requests to HTTP/1.0 */
-		if (unlikely(msg->sl.rq.v_l == 0)) {
-			int delta;
-			char *cur_end;
-			msg->sol = req->data + msg->som;
-			cur_end = msg->sol + msg->sl.rq.l;
-			delta = 0;
-
-			if (msg->sl.rq.u_l == 0) {
-				/* if no URI was set, add "/" */
-				delta = buffer_replace2(req, cur_end, cur_end, " /", 2);
-				cur_end += delta;
-				msg->eoh += delta;
-			}
-			/* add HTTP version */
-			delta = buffer_replace2(req, cur_end, cur_end, " HTTP/1.0\r\n", 11);
-			msg->eoh += delta;
-			cur_end += delta;
-			cur_end = (char *)http_parse_reqline(msg, req->data,
-							     HTTP_MSG_RQMETH,
-							     msg->sol, cur_end + 1,
-							     NULL, NULL);
-			if (unlikely(!cur_end))
+		/* add request headers from the rule sets in the same order */
+		for (cur_idx = 0; cur_idx < rule_set->nb_reqadd; cur_idx++) {
+			if (unlikely(http_header_add_tail(req,
+							  &txn->req,
+							  &txn->hdr_idx,
+							  rule_set->req_add[cur_idx])) < 0)
 				goto return_bad_req;
-
-			/* we have a full HTTP/1.0 request now and we know that
-			 * we have either a CR or an LF at <ptr>.
-			 */
-			hdr_idx_set_start(&txn->hdr_idx, msg->sl.rq.l, *cur_end == '\r');
 		}
 
+		/* check if stats URI was requested, and if an auth is needed */
+		if (rule_set->uri_auth != NULL &&
+		    (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)) {
+			/* we have to check the URI and auth for this request.
+			 * FIXME!!! that one is rather dangerous, we want to
+			 * make it follow standard rules (eg: clear req->analysers).
+			 */
+			if (stats_check_uri_auth(s, rule_set)) {
+				req->analysers = 0;
+				return 0;
+			}
+		}
 
-		/* 5: we may need to capture headers */
-		if (unlikely((t->logs.logwait & LW_REQHDR) && t->fe->req_cap))
-			capture_headers(req->data + msg->som, &txn->hdr_idx,
-					txn->req.cap, t->fe->req_cap);
+		/* now check whether we have some switching rules for this request */
+		if (!(s->flags & SN_BE_ASSIGNED)) {
+			struct switching_rule *rule;
 
-		/*
-		 * 6: we will have to evaluate the filters.
-		 * As opposed to version 1.2, now they will be evaluated in the
-		 * filters order and not in the header order. This means that
-		 * each filter has to be validated among all headers.
-		 *
-		 * We can now check whether we want to switch to another
-		 * backend, in which case we will re-check the backend's
-		 * filters and various options. In order to support 3-level
-		 * switching, here's how we should proceed :
-		 *
-		 *  a) run be.
-		 *     if (switch) then switch ->be to the new backend.
-		 *  b) run be if (be != fe).
-		 *     There cannot be any switch from there, so ->be cannot be
-		 *     changed anymore.
-		 *
-		 * => filters always apply to ->be, then ->be may change.
-		 *
-		 * The response path will be able to apply either ->be, or
-		 * ->be then ->fe filters in order to match the reverse of
-		 * the forward sequence.
-		 */
+			list_for_each_entry(rule, &cur_proxy->switching_rules, list) {
+				int ret;
 
-		do {
-			struct acl_cond *cond;
-			struct redirect_rule *rule;
-			struct proxy *rule_set = t->be;
-			cur_proxy = t->be;
-
-			/* first check whether we have some ACLs set to redirect this request */
-			list_for_each_entry(rule, &cur_proxy->redirect_rules, list) {
-				int ret = acl_exec_cond(rule->cond, cur_proxy, t, txn, ACL_DIR_REQ);
+				ret = acl_exec_cond(rule->cond, cur_proxy, s, txn, ACL_DIR_REQ);
 
 				ret = acl_pass(ret);
 				if (rule->cond->pol == ACL_COND_UNLESS)
 					ret = !ret;
 
 				if (ret) {
-					struct chunk rdr = { trash, 0 };
-					const char *msg_fmt;
+					s->be = rule->be.backend;
+					s->be->beconn++;
+					if (s->be->beconn > s->be->beconn_max)
+						s->be->beconn_max = s->be->beconn;
+					s->be->cum_beconn++;
 
-					/* build redirect message */
-					switch(rule->code) {
-						case 303:
-							rdr.len = strlen(HTTP_303);
-							msg_fmt = HTTP_303;
-							break;
-						case 301:
-							rdr.len = strlen(HTTP_301);
-							msg_fmt = HTTP_301;
-							break;
-						case 302:
-						default:
-							rdr.len = strlen(HTTP_302);
-							msg_fmt = HTTP_302;
-							break;
-					}
-
-					if (unlikely(rdr.len > sizeof(trash)))
-						goto return_bad_req;
-					memcpy(rdr.str, msg_fmt, rdr.len);
-
-					switch(rule->type) {
-						case REDIRECT_TYPE_PREFIX: {
-							const char *path;
-							int pathlen;
-
-							path = http_get_path(txn);
-							/* build message using path */
-							if (path) {
-								pathlen = txn->req.sl.rq.u_l + (txn->req.sol+txn->req.sl.rq.u) - path;
-							} else {
-								path = "/";
-								pathlen = 1;
-							}
-
-							if (rdr.len + rule->rdr_len + pathlen > sizeof(trash) - 4)
-								goto return_bad_req;
-
-							/* add prefix */
-							memcpy(rdr.str + rdr.len, rule->rdr_str, rule->rdr_len);
-							rdr.len += rule->rdr_len;
-
-							/* add path */
-							memcpy(rdr.str + rdr.len, path, pathlen);
-							rdr.len += pathlen;
-							break;
-						}
-						case REDIRECT_TYPE_LOCATION:
-						default:
-							if (rdr.len + rule->rdr_len > sizeof(trash) - 4)
-								goto return_bad_req;
-
-							/* add location */
-							memcpy(rdr.str + rdr.len, rule->rdr_str, rule->rdr_len);
-							rdr.len += rule->rdr_len;
-							break;
-					}
-
-					/* add end of headers */
-					memcpy(rdr.str + rdr.len, "\r\n\r\n", 4);
-					rdr.len += 4;
-
-					txn->status = rule->code;
-					/* let's log the request time */
-					t->logs.tv_request = now;
-					stream_int_retnclose(req->prod, &rdr);
-					goto return_prx_cond;
+					/* assign new parameters to the session from the new backend */
+					s->rep->rto = s->req->wto = s->be->timeout.server;
+					s->req->cto = s->be->timeout.connect;
+					s->conn_retries = s->be->conn_retries;
+					s->flags |= SN_BE_ASSIGNED;
+					break;
 				}
 			}
+		}
 
-			/* first check whether we have some ACLs set to block this request */
-			list_for_each_entry(cond, &cur_proxy->block_cond, list) {
-				int ret = acl_exec_cond(cond, cur_proxy, t, txn, ACL_DIR_REQ);
-
-				ret = acl_pass(ret);
-				if (cond->pol == ACL_COND_UNLESS)
-					ret = !ret;
-
-				if (ret) {
-					txn->status = 403;
-					/* let's log the request time */
-					t->logs.tv_request = now;
-					stream_int_retnclose(req->prod, error_message(t, HTTP_ERR_403));
-					goto return_prx_cond;
-				}
-			}
-
-			/* try headers filters */
-			if (rule_set->req_exp != NULL) {
-				if (apply_filters_to_request(t, req, rule_set->req_exp) < 0)
-					goto return_bad_req;
-			}
-
-			if (!(t->flags & SN_BE_ASSIGNED) && (t->be != cur_proxy)) {
-				/* to ensure correct connection accounting on
-				 * the backend, we count the connection for the
-				 * one managing the queue.
-				 */
-				t->be->beconn++;
-				if (t->be->beconn > t->be->beconn_max)
-					t->be->beconn_max = t->be->beconn;
-				t->be->cum_beconn++;
-				t->flags |= SN_BE_ASSIGNED;
-			}
-
-			/* has the request been denied ? */
-			if (txn->flags & TX_CLDENY) {
-				/* no need to go further */
-				txn->status = 403;
-				/* let's log the request time */
-				t->logs.tv_request = now;
-				stream_int_retnclose(req->prod, error_message(t, HTTP_ERR_403));
-				goto return_prx_cond;
-			}
-
-			/* We might have to check for "Connection:" */
-			if (((t->fe->options | t->be->options) & (PR_O_HTTP_CLOSE|PR_O_FORCE_CLO)) &&
-			    !(t->flags & SN_CONN_CLOSED)) {
-				char *cur_ptr, *cur_end, *cur_next;
-				int cur_idx, old_idx, delta, val;
-				struct hdr_idx_elem *cur_hdr;
-
-				cur_next = req->data + txn->req.som + hdr_idx_first_pos(&txn->hdr_idx);
-				old_idx = 0;
-
-				while ((cur_idx = txn->hdr_idx.v[old_idx].next)) {
-					cur_hdr  = &txn->hdr_idx.v[cur_idx];
-					cur_ptr  = cur_next;
-					cur_end  = cur_ptr + cur_hdr->len;
-					cur_next = cur_end + cur_hdr->cr + 1;
-
-					val = http_header_match2(cur_ptr, cur_end, "Connection", 10);
-					if (val) {
-						/* 3 possibilities :
-						 * - we have already set Connection: close,
-						 *   so we remove this line.
-						 * - we have not yet set Connection: close,
-						 *   but this line indicates close. We leave
-						 *   it untouched and set the flag.
-						 * - we have not yet set Connection: close,
-						 *   and this line indicates non-close. We
-						 *   replace it.
-						 */
-						if (t->flags & SN_CONN_CLOSED) {
-							delta = buffer_replace2(req, cur_ptr, cur_next, NULL, 0);
-							txn->req.eoh += delta;
-							cur_next += delta;
-							txn->hdr_idx.v[old_idx].next = cur_hdr->next;
-							txn->hdr_idx.used--;
-							cur_hdr->len = 0;
-						} else {
-							if (strncasecmp(cur_ptr + val, "close", 5) != 0) {
-								delta = buffer_replace2(req, cur_ptr + val, cur_end,
-											"close", 5);
-								cur_next += delta;
-								cur_hdr->len += delta;
-								txn->req.eoh += delta;
-							}
-							t->flags |= SN_CONN_CLOSED;
-						}
-					}
-					old_idx = cur_idx;
-				}
-			}
-			/* add request headers from the rule sets in the same order */
-			for (cur_idx = 0; cur_idx < rule_set->nb_reqadd; cur_idx++) {
-				if (unlikely(http_header_add_tail(req,
-								  &txn->req,
-								  &txn->hdr_idx,
-								  rule_set->req_add[cur_idx])) < 0)
-					goto return_bad_req;
-			}
-
-			/* check if stats URI was requested, and if an auth is needed */
-			if (rule_set->uri_auth != NULL &&
-			    (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)) {
-				/* we have to check the URI and auth for this request.
-				 * FIXME!!! that one is rather dangerous, we want to
-				 * make it follow standard rules (eg: clear req->analysers).
-				 */
-				if (stats_check_uri_auth(t, rule_set)) {
-					req->analysers = 0;
-					return 0;
-				}
-			}
-
-			/* now check whether we have some switching rules for this request */
-			if (!(t->flags & SN_BE_ASSIGNED)) {
-				struct switching_rule *rule;
-
-				list_for_each_entry(rule, &cur_proxy->switching_rules, list) {
-					int ret;
-
-					ret = acl_exec_cond(rule->cond, cur_proxy, t, txn, ACL_DIR_REQ);
-
-					ret = acl_pass(ret);
-					if (rule->cond->pol == ACL_COND_UNLESS)
-						ret = !ret;
-
-					if (ret) {
-						t->be = rule->be.backend;
-						t->be->beconn++;
-						if (t->be->beconn > t->be->beconn_max)
-							t->be->beconn_max = t->be->beconn;
-						t->be->cum_beconn++;
-
-						/* assign new parameters to the session from the new backend */
-						t->rep->rto = t->req->wto = t->be->timeout.server;
-						t->req->cto = t->be->timeout.connect;
-						t->conn_retries = t->be->conn_retries;
-						t->flags |= SN_BE_ASSIGNED;
-						break;
-					}
-				}
-			}
-
-			if (!(t->flags & SN_BE_ASSIGNED) && cur_proxy->defbe.be) {
-				/* No backend was set, but there was a default
-				 * backend set in the frontend, so we use it and
-				 * loop again.
-				 */
-				t->be = cur_proxy->defbe.be;
-				t->be->beconn++;
-				if (t->be->beconn > t->be->beconn_max)
-					t->be->beconn_max = t->be->beconn;
-				t->be->cum_beconn++;
-
-				/* assign new parameters to the session from the new backend */
-				t->rep->rto = t->req->wto = t->be->timeout.server;
-				t->req->cto = t->be->timeout.connect;
-				t->conn_retries = t->be->conn_retries;
-				t->flags |= SN_BE_ASSIGNED;
-			}
-		} while (t->be != cur_proxy);  /* we loop only if t->be has changed */
-
-		if (!(t->flags & SN_BE_ASSIGNED)) {
-			/* To ensure correct connection accounting on
-			 * the backend, we count the connection for the
-			 * one managing the queue.
+		if (!(s->flags & SN_BE_ASSIGNED) && cur_proxy->defbe.be) {
+			/* No backend was set, but there was a default
+			 * backend set in the frontend, so we use it and
+			 * loop again.
 			 */
-			t->be->beconn++;
-			if (t->be->beconn > t->be->beconn_max)
-				t->be->beconn_max = t->be->beconn;
-			t->be->cum_beconn++;
-			t->flags |= SN_BE_ASSIGNED;
+			s->be = cur_proxy->defbe.be;
+			s->be->beconn++;
+			if (s->be->beconn > s->be->beconn_max)
+				s->be->beconn_max = s->be->beconn;
+			s->be->cum_beconn++;
+
+			/* assign new parameters to the session from the new backend */
+			s->rep->rto = s->req->wto = s->be->timeout.server;
+			s->req->cto = s->be->timeout.connect;
+			s->conn_retries = s->be->conn_retries;
+			s->flags |= SN_BE_ASSIGNED;
 		}
+	} while (s->be != cur_proxy);  /* we loop only if s->be has changed */
 
-		/*
-		 * Right now, we know that we have processed the entire headers
-		 * and that unwanted requests have been filtered out. We can do
-		 * whatever we want with the remaining request. Also, now we
-		 * may have separate values for ->fe, ->be.
+	if (!(s->flags & SN_BE_ASSIGNED)) {
+		/* To ensure correct connection accounting on
+		 * the backend, we count the connection for the
+		 * one managing the queue.
 		 */
+		s->be->beconn++;
+		if (s->be->beconn > s->be->beconn_max)
+			s->be->beconn_max = s->be->beconn;
+		s->be->cum_beconn++;
+		s->flags |= SN_BE_ASSIGNED;
+	}
 
-		/*
-		 * If HTTP PROXY is set we simply get remote server address
-		 * parsing incoming request.
-		 */
-		if ((t->be->options & PR_O_HTTP_PROXY) && !(t->flags & SN_ADDR_SET)) {
-			url2sa(req->data + msg->sl.rq.u, msg->sl.rq.u_l, &t->srv_addr);
-		}
+	/*
+	 * Right now, we know that we have processed the entire headers
+	 * and that unwanted requests have been filtered out. We can do
+	 * whatever we want with the remaining request. Also, now we
+	 * may have separate values for ->fe, ->be.
+	 */
 
-		/*
-		 * 7: the appsession cookie was looked up very early in 1.2,
-		 * so let's do the same now.
-		 */
+	/*
+	 * If HTTP PROXY is set we simply get remote server address
+	 * parsing incoming request.
+	 */
+	if ((s->be->options & PR_O_HTTP_PROXY) && !(s->flags & SN_ADDR_SET)) {
+		url2sa(req->data + msg->sl.rq.u, msg->sl.rq.u_l, &s->srv_addr);
+	}
 
-		/* It needs to look into the URI */
-		if (t->be->appsession_name) {
-			get_srv_from_appsession(t, &req->data[msg->som], msg->sl.rq.l);
-		}
+	/*
+	 * 7: the appsession cookie was looked up very early in 1.2,
+	 * so let's do the same now.
+	 */
 
+	/* It needs to look into the URI */
+	if (s->be->appsession_name) {
+		get_srv_from_appsession(s, &req->data[msg->som], msg->sl.rq.l);
+	}
 
-		/*
-		 * 8: Now we can work with the cookies.
-		 * Note that doing so might move headers in the request, but
-		 * the fields will stay coherent and the URI will not move.
-		 * This should only be performed in the backend.
-		 */
-		if ((t->be->cookie_name || t->be->appsession_name || t->be->capture_name)
-		    && !(txn->flags & (TX_CLDENY|TX_CLTARPIT)))
-			manage_client_side_cookies(t, req);
+	/*
+	 * 8: Now we can work with the cookies.
+	 * Note that doing so might move headers in the request, but
+	 * the fields will stay coherent and the URI will not move.
+	 * This should only be performed in the backend.
+	 */
+	if ((s->be->cookie_name || s->be->appsession_name || s->be->capture_name)
+	    && !(txn->flags & (TX_CLDENY|TX_CLTARPIT)))
+		manage_client_side_cookies(s, req);
 
-
-		/*
-		 * 9: add X-Forwarded-For if either the frontend or the backend
-		 * asks for it.
-		 */
-		if ((t->fe->options | t->be->options) & PR_O_FWDFOR) {
-			if (t->cli_addr.ss_family == AF_INET) {
-				/* Add an X-Forwarded-For header unless the source IP is
-				 * in the 'except' network range.
-				 */
-				if ((!t->fe->except_mask.s_addr ||
-				     (((struct sockaddr_in *)&t->cli_addr)->sin_addr.s_addr & t->fe->except_mask.s_addr)
-				     != t->fe->except_net.s_addr) &&
-				    (!t->be->except_mask.s_addr ||
-				     (((struct sockaddr_in *)&t->cli_addr)->sin_addr.s_addr & t->be->except_mask.s_addr)
-				     != t->be->except_net.s_addr)) {
-					int len;
-					unsigned char *pn;
-					pn = (unsigned char *)&((struct sockaddr_in *)&t->cli_addr)->sin_addr;
-
-					/* Note: we rely on the backend to get the header name to be used for
-					 * x-forwarded-for, because the header is really meant for the backends.
-					 * However, if the backend did not specify any option, we have to rely
-					 * on the frontend's header name.
-					 */
-					if (t->be->fwdfor_hdr_len) {
-						len = t->be->fwdfor_hdr_len;
-						memcpy(trash, t->be->fwdfor_hdr_name, len);
-					} else {
-						len = t->fe->fwdfor_hdr_len;
-						memcpy(trash, t->fe->fwdfor_hdr_name, len);
-					}
-					len += sprintf(trash + len, ": %d.%d.%d.%d", pn[0], pn[1], pn[2], pn[3]);
-
- 					if (unlikely(http_header_add_tail2(req, &txn->req,
-									   &txn->hdr_idx, trash, len)) < 0)
-						goto return_bad_req;
-				}
-			}
-			else if (t->cli_addr.ss_family == AF_INET6) {
-				/* FIXME: for the sake of completeness, we should also support
-				 * 'except' here, although it is mostly useless in this case.
-				 */
+	/*
+	 * 9: add X-Forwarded-For if either the frontend or the backend
+	 * asks for it.
+	 */
+	if ((s->fe->options | s->be->options) & PR_O_FWDFOR) {
+		if (s->cli_addr.ss_family == AF_INET) {
+			/* Add an X-Forwarded-For header unless the source IP is
+			 * in the 'except' network range.
+			 */
+			if ((!s->fe->except_mask.s_addr ||
+			     (((struct sockaddr_in *)&s->cli_addr)->sin_addr.s_addr & s->fe->except_mask.s_addr)
+			     != s->fe->except_net.s_addr) &&
+			    (!s->be->except_mask.s_addr ||
+			     (((struct sockaddr_in *)&s->cli_addr)->sin_addr.s_addr & s->be->except_mask.s_addr)
+			     != s->be->except_net.s_addr)) {
 				int len;
-				char pn[INET6_ADDRSTRLEN];
-				inet_ntop(AF_INET6,
-					  (const void *)&((struct sockaddr_in6 *)(&t->cli_addr))->sin6_addr,
-					  pn, sizeof(pn));
+				unsigned char *pn;
+				pn = (unsigned char *)&((struct sockaddr_in *)&s->cli_addr)->sin_addr;
 
 				/* Note: we rely on the backend to get the header name to be used for
 				 * x-forwarded-for, because the header is really meant for the backends.
 				 * However, if the backend did not specify any option, we have to rely
 				 * on the frontend's header name.
 				 */
-				if (t->be->fwdfor_hdr_len) {
-					len = t->be->fwdfor_hdr_len;
-					memcpy(trash, t->be->fwdfor_hdr_name, len);
+				if (s->be->fwdfor_hdr_len) {
+					len = s->be->fwdfor_hdr_len;
+					memcpy(trash, s->be->fwdfor_hdr_name, len);
 				} else {
-					len = t->fe->fwdfor_hdr_len;
-					memcpy(trash, t->fe->fwdfor_hdr_name, len);
-				}
-				len += sprintf(trash + len, ": %s", pn);
+					len = s->fe->fwdfor_hdr_len;
+					memcpy(trash, s->fe->fwdfor_hdr_name, len);
+					}
+				len += sprintf(trash + len, ": %d.%d.%d.%d", pn[0], pn[1], pn[2], pn[3]);
 
 				if (unlikely(http_header_add_tail2(req, &txn->req,
 								   &txn->hdr_idx, trash, len)) < 0)
 					goto return_bad_req;
 			}
 		}
-
-		/*
-		 * 10: add "Connection: close" if needed and not yet set.
-		 * Note that we do not need to add it in case of HTTP/1.0.
-		 */
-		if (!(t->flags & SN_CONN_CLOSED) &&
-		    ((t->fe->options | t->be->options) & (PR_O_HTTP_CLOSE|PR_O_FORCE_CLO))) {
-			if ((unlikely(msg->sl.rq.v_l != 8) ||
-			     unlikely(req->data[msg->som + msg->sl.rq.v + 7] != '0')) &&
-			    unlikely(http_header_add_tail2(req, &txn->req, &txn->hdr_idx,
-							   "Connection: close", 17)) < 0)
-				goto return_bad_req;
-			t->flags |= SN_CONN_CLOSED;
-		}
-		/* Before we switch to data, was assignment set in manage_client_side_cookie?
-		 * If not assigned, perhaps we are balancing on url_param, but this is a
-		 * POST; and the parameters are in the body, maybe scan there to find our server.
-		 * (unless headers overflowed the buffer?)
-                 */
-		if (!(t->flags & (SN_ASSIGNED|SN_DIRECT)) &&
-		     t->txn.meth == HTTP_METH_POST && t->be->url_param_name != NULL &&
-		     t->be->url_param_post_limit != 0 && !(req->flags & BF_FULL) &&
-		     memchr(msg->sol + msg->sl.rq.u, '?', msg->sl.rq.u_l) == NULL) {
-			/* are there enough bytes here? total == l || r || rlim ?
-			 * len is unsigned, but eoh is int,
-			 * how many bytes of body have we received?
-			 * eoh is the first empty line of the header
+		else if (s->cli_addr.ss_family == AF_INET6) {
+			/* FIXME: for the sake of completeness, we should also support
+			 * 'except' here, although it is mostly useless in this case.
 			 */
-                        /* already established CRLF or LF at eoh, move to start of message, find message length in buffer */
-			unsigned long len = req->l - (msg->sol[msg->eoh] == '\r' ? msg->eoh + 2 : msg->eoh + 1);
+			int len;
+			char pn[INET6_ADDRSTRLEN];
+			inet_ntop(AF_INET6,
+				  (const void *)&((struct sockaddr_in6 *)(&s->cli_addr))->sin6_addr,
+				  pn, sizeof(pn));
 
-			/* If we have HTTP/1.1 and Expect: 100-continue, then abort.
-			 * We can't assume responsibility for the server's decision,
-			 * on this URI and header set. See rfc2616: 14.20, 8.2.3,
-			 * We also can't change our mind later, about which server to choose, so round robin.
+			/* Note: we rely on the backend to get the header name to be used for
+			 * x-forwarded-for, because the header is really meant for the backends.
+			 * However, if the backend did not specify any option, we have to rely
+			 * on the frontend's header name.
 			 */
-			if ((likely(msg->sl.rq.v_l == 8) && req->data[msg->som + msg->sl.rq.v + 7] == '1')) {
-				struct hdr_ctx ctx;
-				ctx.idx = 0;
-				/* Expect is allowed in 1.1, look for it */
-				http_find_header2("Expect", 6, msg->sol, &txn->hdr_idx, &ctx);
-				if (ctx.idx != 0  &&
-                                    unlikely(ctx.vlen == 12 && strncasecmp(ctx.line+ctx.val, "100-continue", 12) == 0))
-					/* We can't reliablly stall and wait for data, because of
-					 * .NET clients that don't conform to rfc2616; so, no need for
-					 * the next block to check length expectations.
-                                         * We could send 100 status back to the client, but then we need to
-                                         * re-write headers, and send the message. And this isn't the right
-                                         * place for that action.
-                                         * TODO: support Expect elsewhere and delete this block.
-					 */
-					goto end_check_maybe_wait_for_body;
-			}
-
-			if (likely(len > t->be->url_param_post_limit)) {
-				/* nothing to do, we got enough */
+			if (s->be->fwdfor_hdr_len) {
+				len = s->be->fwdfor_hdr_len;
+				memcpy(trash, s->be->fwdfor_hdr_name, len);
 			} else {
-				/* limit implies we are supposed to need this many bytes
-				 * to find the parameter. Let's see how many bytes we can wait for.
+				len = s->fe->fwdfor_hdr_len;
+				memcpy(trash, s->fe->fwdfor_hdr_name, len);
+			}
+			len += sprintf(trash + len, ": %s", pn);
+
+			if (unlikely(http_header_add_tail2(req, &txn->req,
+							   &txn->hdr_idx, trash, len)) < 0)
+				goto return_bad_req;
+		}
+	}
+
+	/*
+	 * 10: add "Connection: close" if needed and not yet set.
+	 * Note that we do not need to add it in case of HTTP/1.0.
+	 */
+	if (!(s->flags & SN_CONN_CLOSED) &&
+	    ((s->fe->options | s->be->options) & (PR_O_HTTP_CLOSE|PR_O_FORCE_CLO))) {
+		if ((unlikely(msg->sl.rq.v_l != 8) ||
+		     unlikely(req->data[msg->som + msg->sl.rq.v + 7] != '0')) &&
+		    unlikely(http_header_add_tail2(req, &txn->req, &txn->hdr_idx,
+						   "Connection: close", 17)) < 0)
+			goto return_bad_req;
+		s->flags |= SN_CONN_CLOSED;
+	}
+	/* Before we switch to data, was assignment set in manage_client_side_cookie?
+	 * If not assigned, perhaps we are balancing on url_param, but this is a
+	 * POST; and the parameters are in the body, maybe scan there to find our server.
+	 * (unless headers overflowed the buffer?)
+	 */
+	if (!(s->flags & (SN_ASSIGNED|SN_DIRECT)) &&
+	    s->txn.meth == HTTP_METH_POST && s->be->url_param_name != NULL &&
+	    s->be->url_param_post_limit != 0 && !(req->flags & BF_FULL) &&
+	    memchr(msg->sol + msg->sl.rq.u, '?', msg->sl.rq.u_l) == NULL) {
+		/* are there enough bytes here? total == l || r || rlim ?
+		 * len is unsigned, but eoh is int,
+		 * how many bytes of body have we received?
+		 * eoh is the first empty line of the header
+		 */
+		/* already established CRLF or LF at eoh, move to start of message, find message length in buffer */
+		unsigned long len = req->l - (msg->sol[msg->eoh] == '\r' ? msg->eoh + 2 : msg->eoh + 1);
+
+		/* If we have HTTP/1.1 and Expect: 100-continue, then abort.
+		 * We can't assume responsibility for the server's decision,
+		 * on this URI and header set. See rfc2616: 14.20, 8.2.3,
+		 * We also can't change our mind later, about which server to choose, so round robin.
+		 */
+		if ((likely(msg->sl.rq.v_l == 8) && req->data[msg->som + msg->sl.rq.v + 7] == '1')) {
+			struct hdr_ctx ctx;
+			ctx.idx = 0;
+			/* Expect is allowed in 1.1, look for it */
+			http_find_header2("Expect", 6, msg->sol, &txn->hdr_idx, &ctx);
+			if (ctx.idx != 0  &&
+			    unlikely(ctx.vlen == 12 && strncasecmp(ctx.line+ctx.val, "100-continue", 12) == 0))
+				/* We can't reliablly stall and wait for data, because of
+				 * .NET clients that don't conform to rfc2616; so, no need for
+				 * the next block to check length expectations.
+				 * We could send 100 status back to the client, but then we need to
+				 * re-write headers, and send the message. And this isn't the right
+				 * place for that action.
+				 * TODO: support Expect elsewhere and delete this block.
 				 */
-				long long hint = len;
-				struct hdr_ctx ctx;
+				goto end_check_maybe_wait_for_body;
+		}
+
+		if (likely(len > s->be->url_param_post_limit)) {
+			/* nothing to do, we got enough */
+		} else {
+			/* limit implies we are supposed to need this many bytes
+			 * to find the parameter. Let's see how many bytes we can wait for.
+			 */
+			long long hint = len;
+			struct hdr_ctx ctx;
+			ctx.idx = 0;
+			http_find_header2("Transfer-Encoding", 17, msg->sol, &txn->hdr_idx, &ctx);
+			if (ctx.idx && ctx.vlen >= 7 && strncasecmp(ctx.line+ctx.val, "chunked", 7) == 0) {
+				buffer_write_dis(req);
+				req->analysers |= AN_REQ_HTTP_BODY;
+			}
+			else {
 				ctx.idx = 0;
-				http_find_header2("Transfer-Encoding", 17, msg->sol, &txn->hdr_idx, &ctx);
-				if (ctx.idx && ctx.vlen >= 7 && strncasecmp(ctx.line+ctx.val, "chunked", 7) == 0) {
+				http_find_header2("Content-Length", 14, msg->sol, &txn->hdr_idx, &ctx);
+				/* now if we have a length, we'll take the hint */
+				if (ctx.idx) {
+					/* We have Content-Length */
+					if (strl2llrc(ctx.line+ctx.val,ctx.vlen, &hint))
+						hint = 0;         /* parse failure, untrusted client */
+					else {
+						if (hint > 0)
+							msg->hdr_content_len = hint;
+						else
+							hint = 0; /* bad client, sent negative length */
+					}
+				}
+				/* but limited to what we care about, maybe we don't expect any entity data (hint == 0) */
+				if (s->be->url_param_post_limit < hint)
+					hint = s->be->url_param_post_limit;
+				/* now do we really need to buffer more data? */
+				if (len < hint) {
 					buffer_write_dis(req);
 					req->analysers |= AN_REQ_HTTP_BODY;
 				}
-				else {
-					ctx.idx = 0;
-					http_find_header2("Content-Length", 14, msg->sol, &txn->hdr_idx, &ctx);
-					/* now if we have a length, we'll take the hint */
-					if (ctx.idx) {
-						/* We have Content-Length */
-						if (strl2llrc(ctx.line+ctx.val,ctx.vlen, &hint))
-							hint = 0;         /* parse failure, untrusted client */
-						else {
-							if (hint > 0)
-								msg->hdr_content_len = hint;
-							else
-								hint = 0; /* bad client, sent negative length */
-						}
-					}
-					/* but limited to what we care about, maybe we don't expect any entity data (hint == 0) */
-					if (t->be->url_param_post_limit < hint)
-						hint = t->be->url_param_post_limit;
-					/* now do we really need to buffer more data? */
-					if (len < hint) {
-						buffer_write_dis(req);
-						req->analysers |= AN_REQ_HTTP_BODY;
-					}
-					/* else... There are no body bytes to wait for */
-				}
+				/* else... There are no body bytes to wait for */
 			}
 		}
-        end_check_maybe_wait_for_body:
-
-		/*************************************************************
-		 * OK, that's finished for the headers. We have done what we *
-		 * could. Let's switch to the DATA state.                    *
-		 ************************************************************/
-
-		buffer_set_rlim(req, BUFSIZE); /* no more rewrite needed */
-		t->logs.tv_request = now;
-
-		/* When a connection is tarpitted, we use the tarpit timeout,
-		 * which may be the same as the connect timeout if unspecified.
-		 * If unset, then set it to zero because we really want it to
-		 * eventually expire. We build the tarpit as an analyser.
-		 */
-		if (txn->flags & TX_CLTARPIT) {
-			buffer_flush(t->req);
-			/* flush the request so that we can drop the connection early
-			 * if the client closes first.
-			 */
-			buffer_write_dis(req);
-			req->analysers |= AN_REQ_HTTP_TARPIT;
-			req->analyse_exp = tick_add_ifset(now_ms,  t->be->timeout.tarpit);
-			if (!req->analyse_exp)
-				req->analyse_exp = now_ms;
-		}
-
-		/* OK let's go on with the BODY now */
-		goto end_of_headers;
-
-	return_bad_req: /* let's centralize all bad requests */
-		txn->req.msg_state = HTTP_MSG_ERROR;
-		txn->status = 400;
-		req->analysers = 0;
-		stream_int_retnclose(req->prod, error_message(t, HTTP_ERR_400));
-		t->fe->failed_req++;
-	return_prx_cond:
-		if (!(t->flags & SN_ERR_MASK))
-			t->flags |= SN_ERR_PRXCOND;
-		if (!(t->flags & SN_FINST_MASK))
-			t->flags |= SN_FINST_R;
-		return 0;
-	end_of_headers:
-		; // to keep gcc happy
 	}
+ end_check_maybe_wait_for_body:
 
-	/* Note: eventhough nobody should set an unknown flag, clearing them right now will
-	 * probably reduce one day's debugging session.
+	/*************************************************************
+	 * OK, that's finished for the headers. We have done what we *
+	 * could. Let's switch to the DATA state.                    *
+	 ************************************************************/
+
+	buffer_set_rlim(req, BUFSIZE); /* no more rewrite needed */
+	s->logs.tv_request = now;
+
+	/* When a connection is tarpitted, we use the tarpit timeout,
+	 * which may be the same as the connect timeout if unspecified.
+	 * If unset, then set it to zero because we really want it to
+	 * eventually expire. We build the tarpit as an analyser.
 	 */
-#ifdef DEBUG_DEV
-	if (req->analysers & ~(AN_REQ_INSPECT | AN_REQ_HTTP_HDR | AN_REQ_HTTP_TARPIT | AN_REQ_HTTP_BODY)) {
-		fprintf(stderr, "FIXME !!!! unknown analysers flags %s:%d = 0x%08X\n",
-			__FILE__, __LINE__, req->analysers);
-		ABORT_NOW();
+	if (txn->flags & TX_CLTARPIT) {
+		buffer_flush(s->req);
+		/* flush the request so that we can drop the connection early
+		 * if the client closes first.
+		 */
+		buffer_write_dis(req);
+		req->analysers |= AN_REQ_HTTP_TARPIT;
+		req->analyse_exp = tick_add_ifset(now_ms,  s->be->timeout.tarpit);
+		if (!req->analyse_exp)
+			req->analyse_exp = now_ms;
 	}
-#endif
+
+	/* OK let's go on with the BODY now */
+	return 1;
+
+ return_bad_req: /* let's centralize all bad requests */
+	txn->req.msg_state = HTTP_MSG_ERROR;
+	txn->status = 400;
+	req->analysers = 0;
+	stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_400));
+	s->fe->failed_req++;
+
+ return_prx_cond:
+	if (!(s->flags & SN_ERR_MASK))
+		s->flags |= SN_ERR_PRXCOND;
+	if (!(s->flags & SN_FINST_MASK))
+		s->flags |= SN_FINST_R;
 	return 0;
 }
 
