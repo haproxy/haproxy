@@ -3,7 +3,7 @@
   This file contains HTTP protocol definitions.
 
   Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
-  
+
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
   License as published by the Free Software Foundation, version 2.1
@@ -87,6 +87,9 @@ void init_proto_http();
 int http_find_header2(const char *name, int len,
 		      const char *sol, struct hdr_idx *idx,
 		      struct hdr_ctx *ctx);
+void http_sess_log(struct session *s);
+void perform_http_redirect(struct session *s, struct stream_interface *si);
+void return_srv_error(struct session *s, int err_type);
 
 #endif /* _PROTO_PROTO_HTTP_H */
 

@@ -3,7 +3,7 @@
   This file defines the structures used by generic network protocols.
 
   Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
-  
+
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
   License as published by the Free Software Foundation, version 2.1
@@ -29,6 +29,8 @@
 
 #include <common/config.h>
 #include <common/mini-clist.h>
+
+#include <types/task.h>
 
 /* max length of a protcol name, including trailing zero */
 #define PROTO_NAME_LEN 16
