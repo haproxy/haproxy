@@ -298,24 +298,7 @@ void sess_establish(struct session *s, struct stream_interface *si)
 	struct buffer *req = si->ob;
 	struct buffer *rep = si->ib;
 
-	if (req->flags & BF_EMPTY) {
-		EV_FD_CLR(si->fd, DIR_WR);
-		req->wex = TICK_ETERNITY;
-	} else {
-		EV_FD_SET(si->fd, DIR_WR);
-		req->wex = tick_add_ifset(now_ms, s->be->timeout.server);
-		if (tick_isset(req->wex)) {
-			/* FIXME: to prevent the server from expiring read
-			 * timeouts during writes, we refresh it. */
-			rep->rex = req->wex;
-		}
-	}
-
 	if (s->be->mode == PR_MODE_TCP) { /* let's allow immediate data connection in this case */
-		if (!(rep->flags & BF_HIJACK)) {
-			EV_FD_SET(si->fd, DIR_RD);
-			rep->rex = tick_add_ifset(now_ms, s->be->timeout.server);
-		}
 		buffer_set_rlim(rep, BUFSIZE); /* no rewrite needed */
 
 		/* if the user wants to log as soon as possible, without counting
