@@ -1868,10 +1868,6 @@ int srv_redispatch_connect(struct session *t)
 			goto redispatch;
 		}
 
-		//t->req->wex = TICK_ETERNITY;
-		//srv_close_with_err(t, SN_ERR_SRVTO, SN_FINST_Q,
-		//		   503, error_message(t, HTTP_ERR_503));
-
 		if (!t->req->cons->err_type) {
 			t->req->cons->err_type = SI_ET_QUEUE_ERR;
 			t->req->cons->err_loc = t->srv;
@@ -1883,10 +1879,6 @@ int srv_redispatch_connect(struct session *t)
 
 	case SRV_STATUS_NOSRV:
 		/* note: it is guaranteed that t->srv == NULL here */
-		//t->req->wex = TICK_ETERNITY;
-		//srv_close_with_err(t, SN_ERR_SRVTO, SN_FINST_C,
-		//		   503, error_message(t, HTTP_ERR_503));
-
 		if (!t->req->cons->err_type) {
 			t->req->cons->err_type = SI_ET_CONN_ERR;
 			t->req->cons->err_loc = NULL;
@@ -1903,10 +1895,6 @@ int srv_redispatch_connect(struct session *t)
 
 	case SRV_STATUS_INTERNAL:
 	default:
-		//t->req->wex = TICK_ETERNITY;
-		//srv_close_with_err(t, SN_ERR_INTERNAL, SN_FINST_C,
-		//		   500, error_message(t, HTTP_ERR_500));
-
 		if (!t->req->cons->err_type) {
 			t->req->cons->err_type = SI_ET_CONN_OTHER;
 			t->req->cons->err_loc = t->srv;

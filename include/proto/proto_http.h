@@ -65,9 +65,6 @@ int process_srv_conn(struct session *t);
 int process_request(struct session *t);
 int process_response(struct session *t);
 
-void srv_close_with_err(struct session *t, int err, int finst,
-			int status, const struct chunk *msg);
-
 int produce_content(struct session *s);
 int produce_content_stats(struct session *s);
 int produce_content_stats_proxy(struct session *s, struct proxy *px);

@@ -535,20 +535,21 @@ int http_find_header(const char *name,
 	return http_find_header2(name, strlen(name), sol, idx, ctx);
 }
 
-/* This function shuts down the buffers on the server side, and sets indicators
- * accordingly. The server's fd is supposed to already be closed. Note that if
- * <status> is 0, or if the message pointer is NULL, then no message is returned.
+/* This function handles a server error at the stream interface level. The
+ * stream interface is assumed to be already in a closed state. An optional
+ * message is copied into the input buffer, and an HTTP status code stored.
+ * The error flags are set to the values in arguments. Any pending request
+ * is flushed.
  */
-void srv_close_with_err(struct session *t, int err, int finst,
-			int status, const struct chunk *msg)
+static void http_server_error(struct session *t, struct stream_interface *si,
+			      int err, int finst, int status, const struct chunk *msg)
 {
-	buffer_write_ena(t->rep);
-	t->req->cons->shutw(t->req->cons);
-	t->req->cons->shutr(t->req->cons);
+	buffer_flush(si->ob);
+	buffer_flush(si->ib);
+	buffer_write_ena(si->ib);
 	if (status > 0 && msg) {
 		t->txn.status = status;
-		if (t->fe->mode == PR_MODE_HTTP)
-			stream_int_return(t->rep->cons, msg);
+		buffer_write(si->ib, msg->str, msg->len);
 	}
 	if (!(t->flags & SN_ERR_MASK))
 		t->flags |= err;
@@ -688,7 +689,7 @@ void perform_http_redirect(struct session *s, struct stream_interface *si)
 	si->state    = SI_ST_CLO;
 
 	/* send the message */
-	srv_close_with_err(s, SN_ERR_PRXCOND, SN_FINST_C, 302, &rdr);
+	http_server_error(s, si, SN_ERR_PRXCOND, SN_FINST_C, 302, &rdr);
 
 	/* FIXME: we should increase a counter of redirects per server and per backend. */
 	if (s->srv)
@@ -706,29 +707,29 @@ void perform_http_redirect(struct session *s, struct stream_interface *si)
  */
 void return_srv_error(struct session *s, int err_type)
 {
-	s->req->wex = TICK_ETERNITY;
+	struct stream_interface *si = &s->si[1];
 
 	if (err_type & SI_ET_QUEUE_ABRT)
-		srv_close_with_err(s, SN_ERR_CLICL, SN_FINST_Q,
-				   503, error_message(s, HTTP_ERR_503));
+		http_server_error(s, si, SN_ERR_CLICL, SN_FINST_Q,
+				  503, error_message(s, HTTP_ERR_503));
 	else if (err_type & SI_ET_CONN_ABRT)
-		srv_close_with_err(s, SN_ERR_CLICL, SN_FINST_C,
-				   503, error_message(s, HTTP_ERR_503));
+		http_server_error(s, si, SN_ERR_CLICL, SN_FINST_C,
+				  503, error_message(s, HTTP_ERR_503));
 	else if (err_type & SI_ET_QUEUE_TO)
-		srv_close_with_err(s, SN_ERR_SRVTO, SN_FINST_Q,
-				   503, error_message(s, HTTP_ERR_503));
+		http_server_error(s, si, SN_ERR_SRVTO, SN_FINST_Q,
+				  503, error_message(s, HTTP_ERR_503));
 	else if (err_type & SI_ET_QUEUE_ERR)
-		srv_close_with_err(s, SN_ERR_SRVCL, SN_FINST_Q,
-				   503, error_message(s, HTTP_ERR_503));
+		http_server_error(s, si, SN_ERR_SRVCL, SN_FINST_Q,
+				  503, error_message(s, HTTP_ERR_503));
 	else if (err_type & SI_ET_CONN_TO)
-		srv_close_with_err(s, SN_ERR_SRVTO, SN_FINST_C,
-				   503, error_message(s, HTTP_ERR_503));
+		http_server_error(s, si, SN_ERR_SRVTO, SN_FINST_C,
+				  503, error_message(s, HTTP_ERR_503));
 	else if (err_type & SI_ET_CONN_ERR)
-		srv_close_with_err(s, SN_ERR_SRVCL, SN_FINST_C,
-				   503, error_message(s, HTTP_ERR_503));
+		http_server_error(s, si, SN_ERR_SRVCL, SN_FINST_C,
+				  503, error_message(s, HTTP_ERR_503));
 	else /* SI_ET_CONN_OTHER and others */
-		srv_close_with_err(s, SN_ERR_INTERNAL, SN_FINST_C,
-				   500, error_message(s, HTTP_ERR_500));
+		http_server_error(s, si, SN_ERR_INTERNAL, SN_FINST_C,
+				  500, error_message(s, HTTP_ERR_500));
 }
 
 extern const char sess_term_cond[8];
