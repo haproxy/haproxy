@@ -64,10 +64,11 @@ static inline struct pendconn *pendconn_from_px(const struct proxy *px) {
 }
 
 /* returns 0 if nothing has to be done for server <s> regarding queued connections,
- * and non-zero otherwise. Suited for and if/else usage.
+ * and non-zero otherwise. If the server is down, we always return zero. Suited for
+ * and if/else usage.
  */
 static inline int may_dequeue_tasks(const struct server *s, const struct proxy *p) {
-	return (s && (s->nbpend || p->nbpend) &&
+	return (s && (s->state & SRV_RUNNING) && (s->nbpend || p->nbpend) &&
 		(!s->maxconn || s->cur_sess < srv_dynamic_maxconn(s)));
 }
 
