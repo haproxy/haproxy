@@ -523,10 +523,11 @@ void stream_sock_shutr(struct stream_interface *si)
  * buffer flags have settled down, and before they are cleared. It doesn't
  * harm to call it as often as desired (it just slightly hurts performance).
  */
-int stream_sock_data_finish(int fd)
+void stream_sock_data_finish(struct stream_interface *si)
 {
-	struct buffer *ib = fdtab[fd].cb[DIR_RD].b;
-	struct buffer *ob = fdtab[fd].cb[DIR_WR].b;
+	struct buffer *ib = si->ib;
+	struct buffer *ob = si->ob;
+	int fd = si->fd;
 
 	DPRINTF(stderr,"[%u] %s: fd=%d owner=%p ib=%p, ob=%p, exp(r,w)=%u,%u ibf=%08x obf=%08x ibl=%d obl=%d si=%d\n",
 		now_ms, __FUNCTION__,
@@ -534,7 +535,7 @@ int stream_sock_data_finish(int fd)
 		ib, ob,
 		ib->rex, ob->wex,
 		ib->flags, ob->flags,
-		ib->l, ob->l, ob->cons->state);
+		ib->l, ob->l, si->state);
 
 	/* Check if we need to close the read side */
 	if (!(ib->flags & BF_SHUTR)) {
@@ -583,7 +584,6 @@ int stream_sock_data_finish(int fd)
 			}
 		}
 	}
-	return 0;
 }
 
 

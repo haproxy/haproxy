@@ -882,10 +882,10 @@ resync_stream_interface:
 			session_process_counters(s);
 
 		if (s->rep->cons->state == SI_ST_EST)
-			stream_sock_data_finish(s->rep->cons->fd);
+			stream_sock_data_finish(s->rep->cons);
 
 		if (s->req->cons->state == SI_ST_EST)
-			stream_sock_data_finish(s->req->cons->fd);
+			stream_sock_data_finish(s->req->cons);
 
 		s->req->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
 		s->rep->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;

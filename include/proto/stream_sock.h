@@ -33,7 +33,7 @@
 /* main event functions used to move data between sockets and buffers */
 int stream_sock_read(int fd);
 int stream_sock_write(int fd);
-int stream_sock_data_finish(int fd);
+void stream_sock_data_finish(struct stream_interface *si);
 void stream_sock_shutr(struct stream_interface *si);
 void stream_sock_shutw(struct stream_interface *si);
 
