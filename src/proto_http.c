@@ -2359,82 +2359,6 @@ int process_request(struct session *t)
 		; // to keep gcc happy
 	}
 
-	if (req->analysers & AN_REQ_HTTP_BODY) {
-		/* We have to parse the HTTP request body to find any required data.
-		 * "balance url_param check_post" should have been the only way to get
-		 * into this. We were brought here after HTTP header analysis, so all
-		 * related structures are ready.
-		 */
-		struct http_msg *msg = &t->txn.req;
-		unsigned long body = msg->sol[msg->eoh] == '\r' ? msg->eoh + 2 : msg->eoh + 1;
-		long long limit = t->be->url_param_post_limit;
-		struct hdr_ctx ctx;
-
-		ctx.idx = 0;
-
-		/* now if we have a length, we'll take the hint */
-		http_find_header2("Transfer-Encoding", 17, msg->sol, &t->txn.hdr_idx, &ctx);
-		if (ctx.idx && ctx.vlen >= 7 && strncasecmp(ctx.line+ctx.val, "chunked", 7) == 0) {
-			unsigned int chunk = 0;
-			while (body < req->l && !HTTP_IS_CRLF(msg->sol[body])) {
-				char c = msg->sol[body];
-				if (ishex(c)) {
-					unsigned int hex = toupper(c) - '0';
-					if (hex > 9)
-						hex -= 'A' - '9' - 1;
-					chunk = (chunk << 4) | hex;
-				} else
-					break;
-				body++;
-			}
-			if (body + 2 >= req->l) /* we want CRLF too */
-				goto http_body_end; /* end of buffer? data missing! */
-
-			if (memcmp(msg->sol+body, "\r\n", 2) != 0)
-				goto http_body_end; /* chunked encoding len ends with CRLF, and we don't have it yet */
-
-			body += 2; // skip CRLF
-
-			/* if we support more then one chunk here, we have to do it again when assigning server
-			 * 1. how much entity data do we have? new var
-			 * 2. should save entity_start, entity_cursor, elen & rlen in req; so we don't repeat scanning here
-			 * 3. test if elen > limit, or set new limit to elen if 0 (end of entity found)
-			 */
-
-			if (chunk < limit)
-				limit = chunk;                  /* only reading one chunk */
-		} else {
-			if (msg->hdr_content_len < limit)
-				limit = msg->hdr_content_len;
-		}
-
-	http_body_end:
-		/* we leave once we know we have nothing left to do. This means that we have
-		 * enough bytes, or that we know we'll not get any more (buffer full, read
-		 * buffer closed).
-		 */
-		if (req->l - body >= limit ||             /* enough bytes! */
-		    req->flags & (BF_FULL | BF_READ_ERROR | BF_SHUTR | BF_READ_TIMEOUT) ||
-		    tick_is_expired(req->analyse_exp, now_ms)) {
-			/* The situation will not evolve, so let's give up on the analysis. */
-			t->logs.tv_request = now;  /* update the request timer to reflect full request */
-			req->analysers &= ~AN_REQ_HTTP_BODY;
-			req->analyse_exp = TICK_ETERNITY;
-		}
-		else {
-			/* Not enough data. We'll re-use the http-request
-			 * timeout here. Ideally, we should set the timeout
-			 * relative to the accept() date. We just set the
-			 * request timeout once at the beginning of the
-			 * request.
-			 */
-			buffer_write_dis(req);
-			if (!tick_isset(req->analyse_exp))
-				req->analyse_exp = tick_add_ifset(now_ms, t->fe->timeout.httpreq);
-			return 0;
-		}
-	}
-
 	/* Note: eventhough nobody should set an unknown flag, clearing them right now will
 	 * probably reduce one day's debugging session.
 	 */
@@ -2487,6 +2411,91 @@ int http_process_tarpit(struct session *s, struct buffer *req)
 	if (!(s->flags & SN_FINST_MASK))
 		s->flags |= SN_FINST_T;
 	return 0;
+}
+
+/* This function is an analyser which processes the HTTP request body. It looks
+ * for parameters to be used for the load balancing algorithm (url_param). It
+ * must only be called after the standard HTTP request processing has occurred,
+ * because it expects the request to be parsed. It returns zero if it needs to
+ * read more data, or 1 once it has completed its analysis.
+ */
+int http_process_request_body(struct session *s, struct buffer *req)
+{
+	struct http_msg *msg = &s->txn.req;
+	unsigned long body = msg->sol[msg->eoh] == '\r' ? msg->eoh + 2 : msg->eoh + 1;
+	long long limit = s->be->url_param_post_limit;
+	struct hdr_ctx ctx;
+
+	/* We have to parse the HTTP request body to find any required data.
+	 * "balance url_param check_post" should have been the only way to get
+	 * into this. We were brought here after HTTP header analysis, so all
+	 * related structures are ready.
+	 */
+
+	ctx.idx = 0;
+
+	/* now if we have a length, we'll take the hint */
+	http_find_header2("Transfer-Encoding", 17, msg->sol, &s->txn.hdr_idx, &ctx);
+	if (ctx.idx && ctx.vlen >= 7 && strncasecmp(ctx.line+ctx.val, "chunked", 7) == 0) {
+		unsigned int chunk = 0;
+		while (body < req->l && !HTTP_IS_CRLF(msg->sol[body])) {
+			char c = msg->sol[body];
+			if (ishex(c)) {
+				unsigned int hex = toupper(c) - '0';
+				if (hex > 9)
+					hex -= 'A' - '9' - 1;
+				chunk = (chunk << 4) | hex;
+			} else
+				break;
+			body++;
+		}
+		if (body + 2 >= req->l) /* we want CRLF too */
+			goto http_body_end; /* end of buffer? data missing! */
+
+		if (memcmp(msg->sol+body, "\r\n", 2) != 0)
+			goto http_body_end; /* chunked encoding len ends with CRLF, and we don't have it yet */
+
+		body += 2; // skip CRLF
+
+		/* if we support more then one chunk here, we have to do it again when assigning server
+		 * 1. how much entity data do we have? new var
+		 * 2. should save entity_start, entity_cursor, elen & rlen in req; so we don't repeat scanning here
+		 * 3. test if elen > limit, or set new limit to elen if 0 (end of entity found)
+		 */
+
+		if (chunk < limit)
+			limit = chunk;                  /* only reading one chunk */
+	} else {
+		if (msg->hdr_content_len < limit)
+			limit = msg->hdr_content_len;
+	}
+
+ http_body_end:
+	/* we leave once we know we have nothing left to do. This means that we have
+	 * enough bytes, or that we know we'll not get any more (buffer full, read
+	 * buffer closed).
+	 */
+	if (req->l - body >= limit ||             /* enough bytes! */
+	    req->flags & (BF_FULL | BF_READ_ERROR | BF_SHUTR | BF_READ_TIMEOUT) ||
+	    tick_is_expired(req->analyse_exp, now_ms)) {
+		/* The situation will not evolve, so let's give up on the analysis. */
+		s->logs.tv_request = now;  /* update the request timer to reflect full request */
+		req->analysers &= ~AN_REQ_HTTP_BODY;
+		req->analyse_exp = TICK_ETERNITY;
+		return 1;
+	}
+	else {
+		/* Not enough data. We'll re-use the http-request
+		 * timeout here. Ideally, we should set the timeout
+		 * relative to the accept() date. We just set the
+		 * request timeout once at the beginning of the
+		 * request.
+		 */
+		buffer_write_dis(req);
+		if (!tick_isset(req->analyse_exp))
+			req->analyse_exp = tick_add_ifset(now_ms, s->fe->timeout.httpreq);
+		return 0;
+	}
 }
 
 /* This function performs all the processing enabled for the current response.
