@@ -696,7 +696,7 @@ void perform_http_redirect(struct session *s, struct stream_interface *si)
 		s->srv->cum_sess++;
 }
 
-/* Return the error message corresponding to err_type. It is assumed
+/* Return the error message corresponding to si->err_type. It is assumed
  * that the server side is closed. Note that err_type is actually a
  * bitmask, where almost only aborts may be cumulated with other
  * values. We consider that aborted operations are more important
@@ -705,9 +705,9 @@ void perform_http_redirect(struct session *s, struct stream_interface *si)
  * being cumulated. It should normally not be possible to have multiple
  * aborts at once, but just in case, the first one in sequence is reported.
  */
-void return_srv_error(struct session *s, int err_type)
+void http_return_srv_error(struct session *s, struct stream_interface *si)
 {
-	struct stream_interface *si = &s->si[1];
+	int err_type = si->err_type;
 
 	if (err_type & SI_ET_QUEUE_ABRT)
 		http_server_error(s, si, SN_ERR_CLICL, SN_FINST_Q,

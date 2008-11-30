@@ -212,6 +212,11 @@ int event_accept(int fd) {
 		else
 			s->do_log = tcp_sess_log;
 
+		if (p->mode == PR_MODE_HTTP)
+			s->srv_error = http_return_srv_error;
+		else
+			s->srv_error = NULL;
+
 		s->logs.accept_date = date; /* user-visible date for logging */
 		s->logs.tv_accept = now;  /* corrected date for internal use */
 		tv_zero(&s->logs.tv_request);

@@ -246,7 +246,8 @@ int sess_update_st_cer(struct session *s, struct stream_interface *si)
 		si->ib->flags |= BF_READ_ERROR;
 
 		si->state = SI_ST_CLO;
-		return_srv_error(s, si->err_type);
+		if (s->srv_error)
+			s->srv_error(s, si);
 		return 0;
 	}
 
@@ -397,7 +398,8 @@ void sess_update_stream_int(struct session *s, struct stream_interface *si)
 
 			/* no session was ever accounted for this server */
 			si->state = SI_ST_CLO;
-			return_srv_error(s, si->err_type);
+			if (s->srv_error)
+				s->srv_error(s, si);
 			return;
 		}
 
@@ -443,7 +445,8 @@ void sess_update_stream_int(struct session *s, struct stream_interface *si)
 			if (!si->err_type)
 				si->err_type = SI_ET_QUEUE_TO;
 			si->state = SI_ST_CLO;
-			return_srv_error(s, si->err_type);
+			if (s->srv_error)
+				s->srv_error(s, si);
 			return;
 		}
 
@@ -458,7 +461,8 @@ void sess_update_stream_int(struct session *s, struct stream_interface *si)
 			si->shutw(si);
 			si->err_type |= SI_ET_QUEUE_ABRT;
 			si->state = SI_ST_CLO;
-			return_srv_error(s, si->err_type);
+			if (s->srv_error)
+				s->srv_error(s, si);
 			return;
 		}
 
@@ -476,7 +480,8 @@ void sess_update_stream_int(struct session *s, struct stream_interface *si)
 			si->shutw(si);
 			si->err_type |= SI_ET_CONN_ABRT;
 			si->state = SI_ST_CLO;
-			return_srv_error(s, si->err_type);
+			if (s->srv_error)
+				s->srv_error(s, si);
 			return;
 		}
 
@@ -529,7 +534,8 @@ static void sess_prepare_conn_req(struct session *s, struct stream_interface *si
 		if (!si->err_type)
 			si->err_type = SI_ET_CONN_OTHER;
 		si->state = SI_ST_CLO;
-		return_srv_error(s, si->err_type);
+		if (s->srv_error)
+			s->srv_error(s, si);
 		return;
 	}
 

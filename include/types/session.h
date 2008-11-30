@@ -188,7 +188,9 @@ struct session {
 		long long bytes_in;		/* number of bytes transferred from the client to the server */
 		long long bytes_out;		/* number of bytes transferred from the server to the client */
 	} logs;
-	void (*do_log)(struct session *s);	/* the function to call in order to log */
+	void (*do_log)(struct session *s);	/* the function to call in order to log (or NULL) */
+	void (*srv_error)(struct session *s,	/* the function to call upon unrecoverable server errors (or NULL) */
+			  struct stream_interface *si);
 	short int data_source;			/* where to get the data we generate ourselves */
 	short int data_state;			/* where to get the data we generate ourselves */
 	union {
