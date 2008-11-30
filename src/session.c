@@ -350,6 +350,8 @@ void sess_update_stream_int(struct session *s, struct stream_interface *si)
 		conn_err = connect_server(s);
 		if (conn_err == SN_ERR_NONE) {
 			/* state = SI_ST_CON now */
+			if (s->srv)
+				s->srv->cum_sess++;
 			return;
 		}
 
