@@ -58,7 +58,6 @@ extern const char http_is_ver_token[256];
 #define HTTP_IS_VER_TOKEN(x) (http_is_ver_token[(unsigned char)(x)])
 
 int event_accept(int fd);
-void process_session(struct task *t, int *next);
 int process_cli(struct session *t);
 int process_srv_data(struct session *t);
 int process_srv_conn(struct session *t);
