@@ -400,14 +400,12 @@ int uxst_event_accept(int fd) {
 			 * it upon fd_delete(), but this requires all protocols to
 			 * be switched.
 			 */
-			close(cfd);
-			return 0;
+			goto out_close;
 		}
 
 		if ((s = pool_alloc2(pool2_session)) == NULL) {
 			Alert("out of memory in uxst_event_accept().\n");
-			close(cfd);
-			return 0;
+			goto out_close;
 		}
 
 		LIST_ADDQ(&sessions, &s->list);
@@ -417,10 +415,7 @@ int uxst_event_accept(int fd) {
 
 		if ((t = pool_alloc2(pool2_task)) == NULL) {
 			Alert("out of memory in uxst_event_accept().\n");
-			close(cfd);
-			LIST_DEL(&s->list);
-			pool_free2(pool2_session, s);
-			return 0;
+			goto out_free_session;
 		}
 
 		s->cli_addr = addr;
@@ -428,20 +423,12 @@ int uxst_event_accept(int fd) {
 		/* FIXME: should be checked earlier */
 		if (cfd >= global.maxsock) {
 			Alert("accept(): not enough free sockets. Raise -n argument. Giving up.\n");
-			close(cfd);
-			pool_free2(pool2_task, t);
-			LIST_DEL(&s->list);
-			pool_free2(pool2_session, s);
-			return 0;
+			goto out_free_task;
 		}
 
 		if (fcntl(cfd, F_SETFL, O_NONBLOCK) == -1) {
 			Alert("accept(): cannot set the socket in non blocking mode. Giving up\n");
-			close(cfd);
-			pool_free2(pool2_task, t);
-			LIST_DEL(&s->list);
-			pool_free2(pool2_session, s);
-			return 0;
+			goto out_free_task;
 		}
 
 		task_init(t);
@@ -457,8 +444,28 @@ int uxst_event_accept(int fd) {
 		s->srv_state = SV_STIDLE;
 		s->req = s->rep = NULL; /* will be allocated later */
 
+		s->si[0].state = s->si[0].prev_state = SI_ST_EST;
+		s->si[0].err_type = SI_ET_NONE;
+		s->si[0].err_loc = NULL;
+		s->si[0].owner = t;
+		s->si[0].shutr = stream_sock_shutr;
+		s->si[0].shutw = stream_sock_shutw;
+		s->si[0].fd = cfd;
+		s->si[0].flags = SI_FL_NONE;
+		s->si[0].exp = TICK_ETERNITY;
 		s->cli_fd = cfd;
-		s->srv = NULL;
+
+		s->si[1].state = s->si[1].prev_state = SI_ST_INI;
+		s->si[1].err_type = SI_ET_NONE;
+		s->si[1].err_loc = NULL;
+		s->si[1].owner = t;
+		s->si[1].shutr = stream_sock_shutr;
+		s->si[1].shutw = stream_sock_shutw;
+		s->si[1].exp = TICK_ETERNITY;
+		s->si[1].fd = -1; /* just to help with debugging */
+		s->si[1].flags = SI_FL_NONE;
+
+		s->srv = s->prev_srv = s->srv_conn = NULL;
 		s->pend_pos = NULL;
 
 		memset(&s->logs, 0, sizeof(s->logs));
@@ -468,28 +475,50 @@ int uxst_event_accept(int fd) {
 		s->data_source = DATA_SRC_NONE;
 		s->uniq_id = totalconn;
 
-		if ((s->req = pool_alloc2(pool2_buffer)) == NULL) { /* no memory */
-			close(cfd); /* nothing can be done for this fd without memory */
-			pool_free2(pool2_task, t);
-			LIST_DEL(&s->list);
-			pool_free2(pool2_session, s);
-			return 0;
-		}
+		if ((s->req = pool_alloc2(pool2_buffer)) == NULL)
+			goto out_free_task;
 
-		if ((s->rep = pool_alloc2(pool2_buffer)) == NULL) { /* no memory */
-			pool_free2(pool2_buffer, s->req);
-			close(cfd); /* nothing can be done for this fd without memory */
-			pool_free2(pool2_task, t);
-			LIST_DEL(&s->list);
-			pool_free2(pool2_session, s);
-			return 0;
-		}
+		s->req->prod = &s->si[0];
+		s->req->cons = &s->si[1];
+		s->si[0].ib = s->si[1].ob = s->req;
+		s->req->flags |= BF_READ_ATTACHED; /* the producer is already connected */
 
-		buffer_init(s->req);
+		if (!s->req->analysers)
+			buffer_write_ena(s->req);  /* don't wait to establish connection */
+
+		s->req->wto = TICK_ETERNITY;
+		s->req->cto = TICK_ETERNITY;
+		s->req->rto = TICK_ETERNITY;
+
+		if ((s->rep = pool_alloc2(pool2_buffer)) == NULL)
+			goto out_free_req;
+
 		buffer_init(s->rep);
 
+		s->rep->prod = &s->si[1];
+		s->rep->cons = &s->si[0];
+		s->si[0].ob = s->si[1].ib = s->rep;
+
+		s->rep->rto = TICK_ETERNITY;
+		s->rep->cto = TICK_ETERNITY;
+		s->rep->wto = TICK_ETERNITY;
+
+		s->req->rex = TICK_ETERNITY;
+		s->req->wex = TICK_ETERNITY;
+		s->req->analyse_exp = TICK_ETERNITY;
+		s->rep->rex = TICK_ETERNITY;
+		s->rep->wex = TICK_ETERNITY;
+		s->rep->analyse_exp = TICK_ETERNITY;
+
+		t->expire = TICK_ETERNITY;
+
+		if (l->timeout) {
+			s->req->rto = *l->timeout;
+			s->rep->wto = *l->timeout;
+		}
+
 		fd_insert(cfd);
-		fdtab[cfd].owner = t;
+		fdtab[cfd].owner = &s->si[0];
 		fdtab[cfd].listener = l;
 		fdtab[cfd].state = FD_STREADY;
 		fdtab[cfd].cb[DIR_RD].f = l->proto->read;
@@ -499,32 +528,7 @@ int uxst_event_accept(int fd) {
 		fdtab[cfd].peeraddr = (struct sockaddr *)&s->cli_addr;
 		fdtab[cfd].peerlen = sizeof(s->cli_addr);
 
-		s->req->rex = TICK_ETERNITY;
-		s->req->wex = TICK_ETERNITY;
-		s->req->analyse_exp = TICK_ETERNITY;
-		s->rep->rex = TICK_ETERNITY;
-		s->rep->wex = TICK_ETERNITY;
-		s->rep->analyse_exp = TICK_ETERNITY;
-
-		s->req->wto = TICK_ETERNITY;
-		s->req->cto = TICK_ETERNITY;
-		s->req->rto = TICK_ETERNITY;
-		s->rep->rto = TICK_ETERNITY;
-		s->rep->cto = TICK_ETERNITY;
-		s->rep->wto = TICK_ETERNITY;
-
-		if (l->timeout)
-			s->req->rto = *l->timeout;
-
-		if (l->timeout)
-			s->rep->wto = *l->timeout;
-
-		t->expire = TICK_ETERNITY;
-		if (l->timeout && *l->timeout) {
-			EV_FD_SET(cfd, DIR_RD);
-			s->req->rex = tick_add(now_ms, s->req->rto);
-			t->expire = s->req->rex;
-		}
+		EV_FD_SET(cfd, DIR_RD);
 
 		task_wakeup(t, TASK_WOKEN_INIT);
 
@@ -539,6 +543,17 @@ int uxst_event_accept(int fd) {
 		//fprintf(stderr, "accepting from %p => %d conn, %d total, task=%p, cfd=%d, maxfd=%d\n", p, actconn, totalconn, t, cfd, maxfd);
 	} /* end of while (p->feconn < p->maxconn) */
 	//fprintf(stderr,"fct %s:%d\n", __FUNCTION__, __LINE__);
+	return 0;
+
+ out_free_req:
+	pool_free2(pool2_buffer, s->req);
+ out_free_task:
+	pool_free2(pool2_task, t);
+ out_free_session:
+	LIST_DEL(&s->list);
+	pool_free2(pool2_session, s);
+ out_close:
+	close(cfd);
 	return 0;
 }
 
