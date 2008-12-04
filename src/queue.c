@@ -89,6 +89,10 @@ void process_srv_queue(struct server *s)
  * returned. Note that neither <srv> nor <px> may be NULL.
  * Priority is given to the oldest request in the queue if both <srv> and <px>
  * have pending requests. This ensures that no request will be left unserved.
+ * The <px> queue is not considered if the server is not RUNNING. The <srv>
+ * queue is still considered in this case, because if some connections remain
+ * there, it means that some requests have been forced there after it was seen
+ * down (eg: due to option persist).
  * The session is immediately marked as "assigned", and both its <srv> and
  * <srv_conn> are set to <srv>,
  */
@@ -100,7 +104,7 @@ struct session *pendconn_get_next_sess(struct server *srv, struct proxy *px)
 	ps = pendconn_from_srv(srv);
 	pp = pendconn_from_px(px);
 	/* we want to get the definitive pendconn in <ps> */
-	if (!pp) {
+	if (!pp || !(srv->state & SRV_RUNNING)) {
 		if (!ps)
 			return NULL;
 	} else {
