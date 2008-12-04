@@ -41,8 +41,9 @@ void session_free(struct session *s)
 
 	if (s->pend_pos)
 		pendconn_free(s->pend_pos);
-	if (s->srv)  /* there may be requests left pending in queue */
+	if (s->srv && may_dequeue_tasks(s->srv, s->be))  /* there may be requests left pending in queue */
 		process_srv_queue(s->srv);
+
 	if (unlikely(s->srv_conn)) {
 		/* the session still has a reserved slot on a server, but
 		 * it should normally be only the same as the one above,
