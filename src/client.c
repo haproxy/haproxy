@@ -153,7 +153,7 @@ int event_accept(int fd) {
 			setsockopt(cfd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
 
 		task_init(t);
-		t->process = process_session;
+		t->process = l->handler;
 		t->context = s;
 
 		s->task = t;
@@ -366,11 +366,8 @@ int event_accept(int fd) {
 		if (p->mode == PR_MODE_HTTP) /* reserve some space for header rewriting */
 			s->req->rlim -= MAXREWRITE;
 
-		if (s->fe->tcp_req.inspect_delay)
-			s->req->analysers |= AN_REQ_INSPECT;
-
-		if (p->mode == PR_MODE_HTTP)
-			s->req->analysers |= AN_REQ_HTTP_HDR;
+		/* activate default analysers enabled for this listener */
+		s->req->analysers = l->analysers;
 
 		if (!s->req->analysers)
 			buffer_write_ena(s->req);  /* don't wait to establish connection */

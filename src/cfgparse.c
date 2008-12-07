@@ -46,6 +46,7 @@
 #include <proto/proto_http.h>
 #include <proto/proxy.h>
 #include <proto/server.h>
+#include <proto/session.h>
 #include <proto/task.h>
 
 
@@ -3218,6 +3219,13 @@ int readcfgfile(const char *file)
 			listener->timeout = &curproxy->timeout.client;
 			listener->accept = event_accept;
 			listener->private = curproxy;
+			listener->handler = process_session;
+
+			if (curproxy->mode == PR_MODE_HTTP)
+				listener->analysers |= AN_REQ_HTTP_HDR;
+
+			if (curproxy->tcp_req.inspect_delay)
+				listener->analysers |= AN_REQ_INSPECT;
 
 			listener = listener->next;
 		}

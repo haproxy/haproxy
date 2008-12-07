@@ -88,6 +88,7 @@ struct listener {
 	void (*handler)(struct task *t, int *next); /* protocol handler */
 	int  *timeout;                  /* pointer to client-side timeout */
 	void *private;			/* any private data which may be used by accept() */
+	unsigned int analysers;		/* bitmap of required protocol analysers */
 	union {				/* protocol-dependant access restrictions */
 		struct {		/* UNIX socket permissions */
 			uid_t uid;	/* -1 to leave unchanged */
