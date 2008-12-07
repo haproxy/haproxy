@@ -759,7 +759,8 @@ resync_stream_interface:
 		s->req->cons->shutw(s->req->cons);
 
 	/* shutdown(write) done on server side, we must stop the client too */
-	if (unlikely((s->req->flags & (BF_SHUTW|BF_SHUTR|BF_SHUTR_NOW)) == BF_SHUTW))
+	if (unlikely((s->req->flags & (BF_SHUTW|BF_SHUTR|BF_SHUTR_NOW)) == BF_SHUTW &&
+		     !s->req->analysers))
 		buffer_shutr_now(s->req);
 
 	/* shutdown(read) pending */
@@ -857,7 +858,8 @@ resync_stream_interface:
 		s->rep->cons->shutw(s->rep->cons);
 
 	/* shutdown(write) done on the client side, we must stop the server too */
-	if (unlikely((s->rep->flags & (BF_SHUTW|BF_SHUTR|BF_SHUTR_NOW)) == BF_SHUTW))
+	if (unlikely((s->rep->flags & (BF_SHUTW|BF_SHUTR|BF_SHUTR_NOW)) == BF_SHUTW) &&
+	    !s->rep->analysers)
 		buffer_shutr_now(s->rep);
 
 	/* shutdown(read) pending */
