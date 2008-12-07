@@ -42,6 +42,7 @@ void session_free(struct session *s)
 {
 	struct http_txn *txn = &s->txn;
 	struct proxy *fe = s->fe;
+	struct bref *bref, *back;
 
 	if (s->pend_pos)
 		pendconn_free(s->pend_pos);
@@ -82,6 +83,12 @@ void session_free(struct session *s)
 	pool_free2(pool2_requri, txn->uri);
 	pool_free2(pool2_capture, txn->cli_cookie);
 	pool_free2(pool2_capture, txn->srv_cookie);
+
+	list_for_each_entry_safe(bref, back, &s->back_refs, users) {
+		LIST_DEL(&bref->users);
+		LIST_ADDQ(&LIST_ELEM(s->list.n, struct session *, list)->back_refs, &bref->users);
+		bref->ref = s->list.n;
+	}
 	LIST_DEL(&s->list);
 	pool_free2(pool2_session, s);
 
