@@ -171,6 +171,7 @@ int event_accept(int fd) {
 		}
 
 		s->cli_state = CL_STDATA;
+		s->ana_state = 0;  /* analysers may change it but must reset it upon exit */
 		s->req = s->rep = NULL; /* will be allocated later */
 
 		s->si[0].state = s->si[0].prev_state = SI_ST_EST;
