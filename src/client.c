@@ -46,8 +46,8 @@ void get_frt_addr(struct session *s)
 {
 	socklen_t namelen = sizeof(s->frt_addr);
 
-	if (get_original_dst(s->cli_fd, (struct sockaddr_in *)&s->frt_addr, &namelen) == -1)
-		getsockname(s->cli_fd, (struct sockaddr *)&s->frt_addr, &namelen);
+	if (get_original_dst(s->si[0].fd, (struct sockaddr_in *)&s->frt_addr, &namelen) == -1)
+		getsockname(s->si[0].fd, (struct sockaddr *)&s->frt_addr, &namelen);
 	s->flags |= SN_FRT_ADDR_SET;
 }
 
@@ -170,7 +170,6 @@ int event_accept(int fd) {
 			s->flags |= SN_BE_ASSIGNED;
 		}
 
-		s->cli_state = CL_STDATA;
 		s->ana_state = 0;  /* analysers may change it but must reset it upon exit */
 		s->req = s->rep = NULL; /* will be allocated later */
 
@@ -183,7 +182,6 @@ int event_accept(int fd) {
 		s->si[0].fd = cfd;
 		s->si[0].flags = SI_FL_NONE;
 		s->si[0].exp = TICK_ETERNITY;
-		s->cli_fd = cfd;
 
 		s->si[1].state = s->si[1].prev_state = SI_ST_INI;
 		s->si[1].err_type = SI_ET_NONE;

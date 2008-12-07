@@ -151,15 +151,6 @@ int sess_update_st_con_tcp(struct session *s, struct stream_interface *si)
 	struct buffer *req = si->ob;
 	struct buffer *rep = si->ib;
 
-	DPRINTF(stderr,"[%u] %s: c=%s exp(r,w)=%u,%u req=%08x rep=%08x rql=%d rpl=%d, fds=%d\n",
-		now_ms, __FUNCTION__,
-		cli_stnames[s->cli_state],
-		rep->rex, req->wex,
-		req->flags, rep->flags,
-		req->l, rep->l,
-		fdtab[si->fd].state);
-
-
 	/* If we got an error, or if nothing happened and the connection timed
 	 * out, we must give up. The CER state handler will take care of retry
 	 * attempts and error reports.

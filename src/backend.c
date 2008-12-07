@@ -1664,7 +1664,7 @@ int connect_server(struct session *s)
 		/* this is a resource error */
 		return SN_ERR_RESOURCE;
 	}
-	
+
 	if (fd >= global.maxsock) {
 		/* do not log anything there, it's a normal condition when this option
 		 * is used to serialize connections to a server !
@@ -1677,7 +1677,7 @@ int connect_server(struct session *s)
 #ifdef CONFIG_HAP_TCPSPLICE
 	if ((s->fe->options & s->be->options) & PR_O_TCPSPLICE) {
 		/* TCP splicing supported by both FE and BE */
-		tcp_splice_initfd(s->cli_fd, fd);
+		tcp_splice_initfd(s->req->prod->fd, fd);
 	}
 #endif
 

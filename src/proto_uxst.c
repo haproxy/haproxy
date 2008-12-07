@@ -441,7 +441,6 @@ int uxst_event_accept(int fd) {
 		s->fe = NULL;
 		s->be = NULL;
 
-		s->cli_state = CL_STDATA;
 		s->ana_state = 0;
 		s->req = s->rep = NULL; /* will be allocated later */
 
@@ -454,7 +453,6 @@ int uxst_event_accept(int fd) {
 		s->si[0].fd = cfd;
 		s->si[0].flags = SI_FL_NONE;
 		s->si[0].exp = TICK_ETERNITY;
-		s->cli_fd = cfd;
 
 		s->si[1].state = s->si[1].prev_state = SI_ST_INI;
 		s->si[1].err_type = SI_ET_NONE;
@@ -939,7 +937,7 @@ void uxst_process_session(struct task *t, int *next)
 	}
 
 	actconn--;
-	listener = fdtab[s->cli_fd].listener;
+	listener = fdtab[s->si[0].fd].listener;
 	if (listener) {
 		listener->nbconn--;
 		if (listener->state == LI_FULL &&

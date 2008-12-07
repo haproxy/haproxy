@@ -325,17 +325,11 @@ void dump(int sig)
 		t = rb_entry(node, struct task, rb_node);
 		s = t->context;
 		qfprintf(stderr,"[dump] wq: task %p, still %ld ms, "
-			 "cli=%d, srv=%d, cr=%d, cw=%d, sr=%d, sw=%d, "
-			 "req=%d, rep=%d, clifd=%d\n",
+			 "cli=%d, srv=%d, req=%d, rep=%d\n",
 			 s, tv_ms_remain(&now, &t->expire),
-			 s->cli_state,
-			 s->srv_state,
-			 EV_FD_ISSET(s->cli_fd, DIR_RD),
-			 EV_FD_ISSET(s->cli_fd, DIR_WR),
-			 EV_FD_ISSET(s->srv_fd, DIR_RD),
-			 EV_FD_ISSET(s->srv_fd, DIR_WR),
-			 s->req->l, s->rep?s->rep->l:0, s->cli_fd
-			 );
+			 s->si[0].state,
+			 s->si[1].state,
+			 s->req->l, s->rep?s->rep->l:0);
 	}
 #endif
 	/* dump memory usage then free everything possible */
