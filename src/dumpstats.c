@@ -1176,16 +1176,20 @@ void stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 			}
 
 			chunk_printf(&msg, sizeof(trash),
-				     " si=(%d,%d) as=%d age=%s",
+				     " si=(%d,%d) as=%d ts=%02x age=%s",
 				     curr_sess->si[0].state, curr_sess->si[1].state,
-				     curr_sess->ana_state,
+				     curr_sess->ana_state, curr_sess->task->state,
 				     human_time(now.tv_sec - curr_sess->logs.tv_accept.tv_sec, 1));
 
-			chunk_printf(&msg, sizeof(trash),
-				     " exp=%s\n",
-				     curr_sess->task->expire ?
-				     human_time(TICKS_TO_MS(tick_remain(now_ms, curr_sess->task->expire)),
-						TICKS_TO_MS(1000)) : "never");
+			if (curr_sess->task->state & TASK_IN_RUNQUEUE)
+				chunk_printf(&msg, sizeof(trash), " run(nice=%d)\n", curr_sess->task->nice);
+			else
+				chunk_printf(&msg, sizeof(trash),
+					     " exp=%s\n",
+					     curr_sess->task->expire ?
+					     human_time(TICKS_TO_MS(tick_remain(now_ms, curr_sess->task->expire)),
+							TICKS_TO_MS(1000))
+					     : "never");
 
 			if (buffer_write_chunk(rep, &msg) >= 0) {
 				/* let's try again later */
