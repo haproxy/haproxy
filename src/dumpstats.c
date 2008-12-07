@@ -1081,6 +1081,132 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 	}
 }
 
+
+/* This function is called to send output to the response buffer.
+ * It dumps the sessions states onto the output buffer <rep>.
+ * Expects to be called with client socket shut down on input.
+ * s->data_ctx must have been zeroed first, and the flags properly set.
+ * It automatically clears the HIJACK bit from the response buffer.
+ */
+void stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
+{
+	struct chunk msg;
+
+	if (unlikely(rep->flags & (BF_WRITE_ERROR|BF_SHUTW))) {
+		/* If we're forced to shut down, we might have to remove our
+		 * reference to the last session being dumped.
+		 */
+		if (s->data_state == DATA_ST_LIST) {
+			if (!LIST_ISEMPTY(&s->data_ctx.sess.bref.users))
+				LIST_DEL(&s->data_ctx.sess.bref.users);
+		}
+		s->data_state = DATA_ST_FIN;
+		buffer_stop_hijack(rep);
+		s->ana_state = STATS_ST_CLOSE;
+		return;
+	}
+
+	if (s->ana_state != STATS_ST_REP)
+		return;
+
+	msg.len = 0;
+	msg.str = trash;
+
+	switch (s->data_state) {
+	case DATA_ST_INIT:
+		/* the function had not been called yet, let's prepare the
+		 * buffer for a response. We initialize the current session
+		 * pointer to the first in the global list.
+		 */
+		stream_int_retnclose(rep->cons, &msg);
+		LIST_INIT(&s->data_ctx.sess.bref.users);
+		s->data_ctx.sess.bref.ref = sessions.n;
+		s->data_state = DATA_ST_LIST;
+		/* fall through */
+
+	case DATA_ST_LIST:
+		while (s->data_ctx.sess.bref.ref != &sessions) {
+			char pn[INET6_ADDRSTRLEN + strlen(":65535")];
+			struct session *curr_sess;
+
+			curr_sess = LIST_ELEM(s->data_ctx.sess.bref.ref, struct session *, list);
+
+			/* first, let's detach the back-ref from a possible previous session */
+			if (!LIST_ISEMPTY(&s->data_ctx.sess.bref.users))
+				LIST_DEL(&s->data_ctx.sess.bref.users);
+
+			chunk_printf(&msg, sizeof(trash),
+				     "%p: proto=%s",
+				     curr_sess,
+				     curr_sess->listener->proto->name);
+
+			switch (curr_sess->listener->proto->sock_family) {
+			case AF_INET:
+				inet_ntop(AF_INET,
+					  (const void *)&((struct sockaddr_in *)&curr_sess->cli_addr)->sin_addr,
+					  pn, sizeof(pn));
+
+				chunk_printf(&msg, sizeof(trash),
+					     " src=%s:%d fe=%s be=%s srv=%s",
+					     pn,
+					     ntohs(((struct sockaddr_in *)&curr_sess->cli_addr)->sin_port),
+					     curr_sess->fe->id,
+					     curr_sess->be->id,
+					     curr_sess->srv ? curr_sess->srv->id : "<none>"
+					     );
+				break;
+			case AF_INET6:
+				inet_ntop(AF_INET6,
+					  (const void *)&((struct sockaddr_in6 *)(&curr_sess->cli_addr))->sin6_addr,
+					  pn, sizeof(pn));
+
+				chunk_printf(&msg, sizeof(trash),
+					     " src=%s:%d fe=%s be=%s srv=%s",
+					     pn,
+					     ntohs(((struct sockaddr_in6 *)&curr_sess->cli_addr)->sin6_port),
+					     curr_sess->fe->id,
+					     curr_sess->be->id,
+					     curr_sess->srv ? curr_sess->srv->id : "<none>"
+					     );
+
+				break;
+			case AF_UNIX:
+				/* no more information to print right now */
+				break;
+			}
+
+			chunk_printf(&msg, sizeof(trash),
+				     " si=(%d,%d) as=%d age=%s",
+				     curr_sess->si[0].state, curr_sess->si[1].state,
+				     curr_sess->ana_state,
+				     human_time(now.tv_sec - curr_sess->logs.tv_accept.tv_sec, 1));
+
+			chunk_printf(&msg, sizeof(trash),
+				     " exp=%s\n",
+				     curr_sess->task->expire ?
+				     human_time(TICKS_TO_MS(tick_remain(now_ms, curr_sess->task->expire)),
+						TICKS_TO_MS(1000)) : "never");
+
+			if (buffer_write_chunk(rep, &msg) >= 0) {
+				/* let's try again later */
+				LIST_ADDQ(&curr_sess->back_refs, &s->data_ctx.sess.bref.users);
+				return;
+			}
+
+			s->data_ctx.sess.bref.ref = curr_sess->list.n;
+		}
+		s->data_state = DATA_ST_FIN;
+		/* fall through */
+
+	default:
+		s->data_state = DATA_ST_FIN;
+		buffer_stop_hijack(rep);
+		s->ana_state = STATS_ST_CLOSE;
+		return;
+	}
+}
+
+
 static struct cfg_kw_list cfg_kws = {{ },{
 	{ CFG_GLOBAL, "stats", stats_parse_global },
 	{ 0, NULL, NULL },

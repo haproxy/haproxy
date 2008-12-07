@@ -201,6 +201,9 @@ struct session {
 			unsigned int flags;	/* STAT_* */
 			int iid, type, sid;	/* proxy id, type and service id if bounding of stats is enabled */
 		} stats;
+		struct {
+			struct bref bref;
+		} sess;
 	} data_ctx;				/* used by produce_content to dump the stats right now */
 	unsigned int uniq_id;			/* unique ID used for the traces */
 };

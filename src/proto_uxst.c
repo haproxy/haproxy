@@ -472,6 +472,8 @@ int uxst_event_accept(int fd) {
 		memset(&s->logs, 0, sizeof(s->logs));
 		memset(&s->txn, 0, sizeof(s->txn));
 
+		s->logs.tv_accept = now;  /* corrected date for internal use */
+
 		s->data_state = DATA_ST_INIT;
 		s->data_source = DATA_SRC_NONE;
 		s->uniq_id = totalconn;
@@ -611,7 +613,11 @@ int unix_sock_parse_request(struct session *s, char *line)
 			s->ana_state = STATS_ST_REP;
 			buffer_install_hijacker(s, s->rep, stats_dump_raw_to_buffer);
 		}
-		else { /* neither "stat" nor "info" */
+		else if (strcmp(args[1], "sess") == 0) {
+			s->ana_state = STATS_ST_REP;
+			buffer_install_hijacker(s, s->rep, stats_dump_sess_to_buffer);
+		}
+		else { /* neither "stat" nor "info" nor "sess" */
 			return 0;
 		}
 	}

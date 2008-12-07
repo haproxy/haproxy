@@ -151,8 +151,10 @@ stats socket <path> [{uid | user} <uid>] [{gid | group} <gid>] [mode <mode>]
   Creates a UNIX socket in stream mode at location <path>. Any previously
   existing socket will be backed up then replaced. Connections to this socket
   will get a CSV-formated output of the process statistics in response to the
-  "show stat" command followed by a line feed, and more general process
-  information in response to the "show info" command followed by a line feed.
+  "show stat" command followed by a line feed, more general process information
+  in response to the "show info" command followed by a line feed, and a
+  complete list of all existing sessions in response to the "show sess" command
+  followed by a line feed.
 
   On platforms which support it, it is possible to restrict access to this
   socket by specifying numerical IDs after "uid" and "gid", or valid user and
@@ -4339,7 +4341,9 @@ Notes related to these keywords :
 
 [to do]
 
+
 2.7) CSV format
+---------------
 
   0. pxname: proxy name
   1. svname: service name (FRONTEND for frontend, BACKEND for backend, any name
@@ -4376,18 +4380,33 @@ Notes related to these keywords :
  31. tracked: id of proxy/server if tracking is enabled
  32. type (0=frontend, 1=backend, 2=server)
 
+
 2.8) Unix Socket commands
+-------------------------
 
- - "show stat [<iid> <type> <sid>]": dump statistics in the cvs format. By
-   passing id, type and sid it is possible to dump only selected items:
-     - iid is a proxy id, -1 to dump everything
-     - type selects type of dumpable objects: 1 for frontend, 2 for backend, 4 for
-       server, -1 for everything. Values can be ORed, for example:
-          1+2=3   -> frontend+backend.
-          1+2+4=7 -> frontend+backend+server.
-     - sid is a service id, -1 to dump everything from the selected proxy.
+The following commands are supported on the UNIX stats socket ; all of them
+must be terminated by a line feed. It is important to understand that when
+multiple haproxy processes are started on the same sockets, any process may
+pick up the request and will output its own stats.
 
- - "show info": dump info about current haproxy status.
+show stat [<iid> <type> <sid>]
+  Dump statistics in the CSV format. By passing <id>, <type> and <sid>, it is
+  possible to dump only selected items :
+    - <iid> is a proxy ID, -1 to dump everything
+    - <type> selects the type of dumpable objects : 1 for frontends, 2 for
+       backends, 4 for servers, -1 for everything. These values can be ORed,
+       for example:
+          1 + 2     = 3   -> frontend + backend.
+          1 + 2 + 4 = 7   -> frontend + backend + server.
+    - <sid> is a server ID, -1 to dump everything from the selected proxy.
+
+show info
+  Dump info about haproxy status on current process.
+
+show sess
+  Dump all known sessions. Avoid doing this on slow connections as this can
+  be huge.
+
 
 /*
  * Local variables:
