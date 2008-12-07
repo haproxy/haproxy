@@ -2989,33 +2989,32 @@ int process_response(struct session *t)
  * called with client socket shut down on input. Right now, only statistics can
  * be produced. It stops by itself by unsetting the BF_HIJACK flag from the
  * buffer, which it uses to keep on being called when there is free space in
- * the buffer, or simply by letting an empty buffer upon return. It returns 1
- * when it wants to stop sending data, otherwise 0.
+ * the buffer, or simply by letting an empty buffer upon return.
  */
-int produce_content(struct session *s)
+void produce_content(struct session *s, struct buffer *rep)
 {
 	if (s->data_source == DATA_SRC_NONE) {
-		buffer_stop_hijack(s->rep);
-		return 1;
+		buffer_stop_hijack(rep);
+		return;
 	}
 	else if (s->data_source == DATA_SRC_STATS) {
 		/* dump server statistics */
 		int ret = stats_dump_http(s, s->be->uri_auth);
 		if (ret >= 0)
-			return ret;
+			return;
 		/* -1 indicates an error */
 	}
 
 	/* unknown data source or internal error */
 	s->txn.status = 500;
-	stream_int_retnclose(s->rep->cons, error_message(s, HTTP_ERR_500));
+	stream_int_retnclose(rep->cons, error_message(s, HTTP_ERR_500));
 	trace_term(s, TT_HTTP_CNT_1);
 	if (!(s->flags & SN_ERR_MASK))
 		s->flags |= SN_ERR_PRXCOND;
 	if (!(s->flags & SN_FINST_MASK))
 		s->flags |= SN_FINST_R;
-	buffer_stop_hijack(s->rep);
-	return 1;
+	buffer_stop_hijack(rep);
+	return;
 }
 
 
@@ -4392,12 +4391,11 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 	buffer_write_dis(t->req);
 	buffer_shutw_now(t->req);
 	buffer_shutr_now(t->rep);
-	buffer_start_hijack(t->rep);
 	t->logs.tv_request = now;
 	t->data_source = DATA_SRC_STATS;
 	t->data_state  = DATA_ST_INIT;
 	t->task->nice = -32; /* small boost for HTTP statistics */
-	produce_content(t);
+	buffer_install_hijacker(t, t->rep, produce_content);
 	return 1;
 }
 

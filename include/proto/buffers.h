@@ -126,13 +126,21 @@ static inline void buffer_abort(struct buffer *buf)
 	buf->flags |= BF_SHUTR_NOW | BF_SHUTW_NOW;
 }
 
-/* set the buffer to hijacking mode */
-static inline void buffer_start_hijack(struct buffer *buf)
+/* Installs <func> as a hijacker on the buffer <b> for session <s>. The hijack
+ * flag is set, and the function called once. The function is responsible for
+ * clearing the hijack bit. It is possible that the function clears the flag
+ * during this first call.
+ */
+static inline void buffer_install_hijacker(struct session *s,
+					   struct buffer *b,
+					   void (*func)(struct session *, struct buffer *))
 {
-	buf->flags |= BF_HIJACK;
+	b->hijacker = func;
+	b->flags |= BF_HIJACK;
+	func(s, b);
 }
 
-/* releases the buffer from hijacking mode */
+/* Releases the buffer from hijacking mode. Often used by the hijack function */
 static inline void buffer_stop_hijack(struct buffer *buf)
 {
 	buf->flags &= ~BF_HIJACK;

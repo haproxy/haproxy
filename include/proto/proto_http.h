@@ -66,7 +66,7 @@ int http_process_tarpit(struct session *s, struct buffer *req);
 int http_process_request_body(struct session *s, struct buffer *req);
 int process_response(struct session *t);
 
-int produce_content(struct session *s);
+void produce_content(struct session *s, struct buffer *rep);
 int produce_content_stats(struct session *s);
 int produce_content_stats_proxy(struct session *s, struct proxy *px);
 void debug_hdr(const char *dir, struct session *t, const char *start, const char *end);

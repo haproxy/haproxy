@@ -805,7 +805,7 @@ resync_stream_interface:
 
 		if ((s->rep->flags & (BF_WRITE_PARTIAL|BF_WRITE_ERROR|BF_SHUTW)) &&
 		    !(s->rep->flags & BF_FULL)) {
-			produce_content(s);
+			s->rep->hijacker(s, s->rep);
 		}
 		s->rep->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
 		flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;

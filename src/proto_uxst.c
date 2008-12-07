@@ -596,15 +596,13 @@ int unix_sock_parse_request(struct session *s, char *line)
 			s->data_ctx.stats.flags |= STAT_SHOW_STAT;
 			s->data_ctx.stats.flags |= STAT_FMT_CSV;
 			s->ana_state = STATS_ST_REP;
-			buffer_start_hijack(s->rep);
-			stats_dump_raw_to_buffer(s, s->rep);
+			buffer_install_hijacker(s, s->rep, stats_dump_raw_to_buffer);
 		}
 		else if (strcmp(args[1], "info") == 0) {
 			s->data_ctx.stats.flags |= STAT_SHOW_INFO;
 			s->data_ctx.stats.flags |= STAT_FMT_CSV;
 			s->ana_state = STATS_ST_REP;
-			buffer_start_hijack(s->rep);
-			stats_dump_raw_to_buffer(s, s->rep);
+			buffer_install_hijacker(s, s->rep, stats_dump_raw_to_buffer);
 		}
 		else { /* neither "stat" nor "info" */
 			return 0;
@@ -837,8 +835,7 @@ void uxst_process_session(struct task *t, int *next)
 
 		if ((s->rep->flags & (BF_WRITE_PARTIAL|BF_WRITE_ERROR|BF_SHUTW)) &&
 		    !(s->rep->flags & BF_FULL)) {
-			/* it is the only hijacker right now */
-			stats_dump_raw_to_buffer(s, s->rep);
+			s->rep->hijacker(s, s->rep);
 		}
 		s->rep->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
 		flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;

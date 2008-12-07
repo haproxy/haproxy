@@ -80,7 +80,7 @@
  * it is strictly forbidden for the stream interface to send anything from the
  * buffer.
  */
-#define BF_HIJACK         0x040000  /* the producer is temporarily replaced */
+#define BF_HIJACK         0x040000  /* the producer is temporarily replaced by ->hijacker */
 #define BF_ANA_TIMEOUT    0x080000  /* the analyser timeout has expired */
 #define BF_READ_ATTACHED  0x100000  /* the read side is attached for the first time */
 
@@ -116,6 +116,9 @@ struct chunk {
 	int len;	/* size of the string from first to last char. <0 = uninit. */
 };
 
+/* needed for a declaration below */
+struct session;
+
 struct buffer {
 	unsigned int flags;             /* BF_* */
 	int rex;                        /* expiration date for a read, in ticks */
@@ -128,6 +131,7 @@ struct buffer {
 	char *rlim;                     /* read limit, used for header rewriting */
 	unsigned int analysers;         /* bit field indicating what to do on the buffer */
 	int analyse_exp;                /* expiration date for current analysers (if set) */
+	void (*hijacker)(struct session *, struct buffer *); /* alternative content producer */
 	unsigned char xfer_large;       /* number of consecutive large xfers */
 	unsigned char xfer_small;       /* number of consecutive small xfers */
 	unsigned long long total;       /* total data read */

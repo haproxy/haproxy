@@ -290,18 +290,18 @@ int stats_dump_raw(struct session *s, struct uri_auth *uri)
 
 /* This function is called to send output to the response buffer. It simply
  * calls stats_dump_raw(), and releases the buffer's hijack bit when the dump
- * is finished. It always returns 0.
+ * is finished.
  */
-int stats_dump_raw_to_buffer(struct session *s, struct buffer *req)
+void stats_dump_raw_to_buffer(struct session *s, struct buffer *req)
 {
 	if (s->ana_state != STATS_ST_REP)
-		return 0;
+		return;
 
 	if (stats_dump_raw(s, NULL) != 0) {
 		buffer_stop_hijack(s->rep);
 		s->ana_state = STATS_ST_CLOSE;
 	}
-	return 0;
+	return;
 }
 
 
@@ -327,9 +327,6 @@ int stats_dump_http(struct session *s, struct uri_auth *uri)
 
 	switch (s->data_state) {
 	case DATA_ST_INIT:
-		/* the function had not been called yet */
-		buffer_start_hijack(rep);
-
 		chunk_printf(&msg, sizeof(trash),
 			     "HTTP/1.0 200 OK\r\n"
 			     "Cache-Control: no-cache\r\n"
