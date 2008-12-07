@@ -78,7 +78,8 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 		global.stats_sock.state = LI_INIT;
 		global.stats_sock.options = LI_O_NONE;
 		global.stats_sock.accept = uxst_event_accept;
-		global.stats_sock.handler = process_uxst_stats;
+		global.stats_sock.handler = uxst_process_session;
+		global.stats_sock.analysers = AN_REQ_UNIX_STATS;
 		global.stats_sock.private = NULL;
 
 		cur_arg = 2;
@@ -122,7 +123,7 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 				return -1;
 			}
 		}
-			
+
 		uxst_add_listener(&global.stats_sock);
 		global.maxsock++;
 	}
@@ -284,6 +285,23 @@ int stats_dump_raw(struct session *s, struct uri_auth *uri)
 		/* unknown state ! */
 		return -1;
 	}
+}
+
+
+/* This function is called to send output to the response buffer. It simply
+ * calls stats_dump_raw(), and releases the buffer's hijack bit when the dump
+ * is finished. It always returns 0.
+ */
+int stats_dump_raw_to_buffer(struct session *s, struct buffer *req)
+{
+	if (s->ana_state != STATS_ST_REP)
+		return 0;
+
+	if (stats_dump_raw(s, NULL) != 0) {
+		buffer_stop_hijack(s->rep);
+		s->ana_state = STATS_ST_CLOSE;
+	}
+	return 0;
 }
 
 
@@ -480,7 +498,7 @@ int stats_dump_http(struct session *s, struct uri_auth *uri)
 			     global.maxconn,
 			     actconn
 			     );
-	    
+
 			if (s->data_ctx.stats.flags & STAT_HIDE_DOWN)
 				chunk_printf(&msg, sizeof(trash),
 				     "<li><a href=\"%s%s%s\">Show all servers</a><br>\n",
@@ -532,7 +550,7 @@ int stats_dump_http(struct session *s, struct uri_auth *uri)
 			     "</tr></table>\n"
 			     ""
 			     );
-	    
+
 			if (buffer_write_chunk(rep, &msg) >= 0)
 				return 0;
 		}
@@ -811,7 +829,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     sv->failed_secu,
 				     sv->failed_conns, sv->failed_resp,
 				     sv->retries, sv->redispatches);
-				     
+
 				/* status */
 				chunk_printf(&msg, sizeof(trash), "<td nowrap>");
 
@@ -889,7 +907,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     sv->failed_secu,
 				     sv->failed_conns, sv->failed_resp,
 				     sv->retries, sv->redispatches);
-				     
+
 				/* status */
 				chunk_printf(&msg, sizeof(trash),
 				     srv_hlt_st[sv_state],
@@ -1043,7 +1061,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 			if (buffer_write_chunk(rep, &msg) >= 0)
 				return 0;
 		}
-		
+
 		s->data_ctx.stats.px_st = DATA_ST_PX_END;
 		/* fall through */
 

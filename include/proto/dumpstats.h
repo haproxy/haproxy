@@ -4,7 +4,7 @@
   statistics output.
 
   Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
-  
+
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
   License as published by the Free Software Foundation, version 2.1
@@ -39,7 +39,13 @@
 #define STATS_TYPE_BE  1
 #define STATS_TYPE_SV  2
 
+#define STATS_ST_INIT  0
+#define STATS_ST_REQ   1
+#define STATS_ST_REP   2
+#define STATS_ST_CLOSE 3
+
 int stats_dump_raw(struct session *s, struct uri_auth *uri);
+int stats_dump_raw_to_buffer(struct session *s, struct buffer *req);
 int stats_dump_http(struct session *s, struct uri_auth *uri);
 int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri);
 
