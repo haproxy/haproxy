@@ -3,7 +3,7 @@
   File descriptors states.
 
   Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
-  
+
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
   License as published by the Free Software Foundation, version 2.1
@@ -70,7 +70,6 @@ struct fdtab {
 	unsigned char ev;                    /* event seen in return of poll() : FD_POLL_* */
 	struct sockaddr *peeraddr;           /* pointer to peer's network address, or NULL if unset */
 	socklen_t peerlen;                   /* peer's address length, or 0 if unset */
-	struct listener *listener;           /* the listener which created this fd, or NULL if unset */
 };
 
 /*

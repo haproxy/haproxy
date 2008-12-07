@@ -155,6 +155,7 @@ struct session {
 	struct list list;			/* position in global sessions list */
 	struct task *task;			/* the task associated with this session */
 	/* application specific below */
+	struct listener *listener;		/* the listener by which the request arrived */
 	struct proxy *fe;			/* the proxy this session depends on for the client side */
 	struct proxy *be;			/* the proxy this session depends on for the server side */
 	int conn_retries;			/* number of connect retries left */

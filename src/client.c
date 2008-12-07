@@ -157,6 +157,7 @@ int event_accept(int fd) {
 		t->context = s;
 
 		s->task = t;
+		s->listener = l;
 		s->be = s->fe = p;
 
 		/* in HTTP mode, content switching requires that the backend
@@ -397,7 +398,6 @@ int event_accept(int fd) {
 
 		fd_insert(cfd);
 		fdtab[cfd].owner = &s->si[0];
-		fdtab[cfd].listener = l;
 		fdtab[cfd].state = FD_STREADY;
 		fdtab[cfd].cb[DIR_RD].f = l->proto->read;
 		fdtab[cfd].cb[DIR_RD].b = s->req;

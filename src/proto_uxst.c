@@ -270,7 +270,6 @@ static int uxst_bind_listener(struct listener *listener)
 	fdtab[fd].state = FD_STLISTEN;
 	fdtab[fd].peeraddr = NULL;
 	fdtab[fd].peerlen = 0;
-	fdtab[fd].listener = NULL;
 	return ERR_NONE;
 }
 
@@ -438,6 +437,7 @@ int uxst_event_accept(int fd) {
 		t->nice = -64;  /* we want to boost priority for local stats */
 
 		s->task = t;
+		s->listener = l;
 		s->fe = NULL;
 		s->be = NULL;
 
@@ -518,7 +518,6 @@ int uxst_event_accept(int fd) {
 
 		fd_insert(cfd);
 		fdtab[cfd].owner = &s->si[0];
-		fdtab[cfd].listener = l;
 		fdtab[cfd].state = FD_STREADY;
 		fdtab[cfd].cb[DIR_RD].f = l->proto->read;
 		fdtab[cfd].cb[DIR_RD].b = s->req;
@@ -695,7 +694,6 @@ int uxst_req_analyser_stats(struct session *s, struct buffer *req)
 void uxst_process_session(struct task *t, int *next)
 {
 	struct session *s = t->context;
-	struct listener *listener;
 	int resync;
 	unsigned int rqf_last, rpf_last;
 
@@ -937,14 +935,13 @@ void uxst_process_session(struct task *t, int *next)
 	}
 
 	actconn--;
-	listener = fdtab[s->si[0].fd].listener;
-	if (listener) {
-		listener->nbconn--;
-		if (listener->state == LI_FULL &&
-		    listener->nbconn < listener->maxconn) {
+	if (s->listener) {
+		s->listener->nbconn--;
+		if (s->listener->state == LI_FULL &&
+		    s->listener->nbconn < s->listener->maxconn) {
 			/* we should reactivate the listener */
-			EV_FD_SET(listener->fd, DIR_RD);
-			listener->state = LI_READY;
+			EV_FD_SET(s->listener->fd, DIR_RD);
+			s->listener->state = LI_READY;
 		}
 	}
 
