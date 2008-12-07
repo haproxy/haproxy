@@ -98,7 +98,7 @@
 
 /* Analysers (buffer->analysers).
  * Those bits indicate that there are some processing to do on the buffer
- * contents. It will probably evolved into a linked list later. Those
+ * contents. It will probably evolve into a linked list later. Those
  * analysers could be compared to higher level processors.
  * The field is blanked by buffer_init() and only by analysers themselves
  * afterwards.
@@ -108,6 +108,7 @@
 #define AN_REQ_HTTP_BODY        0x00000004  /* inspect HTTP request body */
 #define AN_REQ_HTTP_TARPIT      0x00000008  /* wait for end of HTTP tarpit */
 #define AN_RTR_HTTP_HDR         0x00000010  /* inspect HTTP response headers */
+#define AN_REQ_UNIX_STATS       0x00000020  /* process unix stats socket request */
 
 /* describes a chunk of string */
 struct chunk {
