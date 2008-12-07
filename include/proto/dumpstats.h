@@ -44,9 +44,9 @@
 #define STATS_ST_REP   2
 #define STATS_ST_CLOSE 3
 
-int stats_dump_raw(struct session *s, struct uri_auth *uri);
+int stats_dump_raw(struct session *s, struct buffer *rep, struct uri_auth *uri);
 void stats_dump_raw_to_buffer(struct session *s, struct buffer *req);
-int stats_dump_http(struct session *s, struct uri_auth *uri);
+int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri);
 int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri);
 
 

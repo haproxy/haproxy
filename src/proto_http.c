@@ -2999,7 +2999,7 @@ void produce_content(struct session *s, struct buffer *rep)
 	}
 	else if (s->data_source == DATA_SRC_STATS) {
 		/* dump server statistics */
-		int ret = stats_dump_http(s, s->be->uri_auth);
+		int ret = stats_dump_http(s, rep, s->be->uri_auth);
 		if (ret >= 0)
 			return;
 		/* -1 indicates an error */

@@ -182,10 +182,10 @@ int print_csv_header(struct chunk *msg, int size)
  * <uri>. s->data_ctx must have been zeroed first, and the flags properly set.
  * It returns 0 if it had to stop writing data and an I/O is needed, 1 if the
  * dump is finished and the session must be closed, or -1 in case of any error.
+ * It automatically clears the HIJACK bit from the response buffer.
  */
-int stats_dump_raw(struct session *s, struct uri_auth *uri)
+int stats_dump_raw(struct session *s, struct buffer *rep, struct uri_auth *uri)
 {
-	struct buffer *rep = s->rep;
 	struct proxy *px;
 	struct chunk msg;
 	unsigned int up;
@@ -276,13 +276,15 @@ int stats_dump_raw(struct session *s, struct uri_auth *uri)
 
 	case DATA_ST_END:
 		s->data_state = DATA_ST_FIN;
-		return 1;
+		/* fall through */
 
 	case DATA_ST_FIN:
+		buffer_stop_hijack(rep);
 		return 1;
 
 	default:
 		/* unknown state ! */
+		buffer_stop_hijack(rep);
 		return -1;
 	}
 }
@@ -292,15 +294,13 @@ int stats_dump_raw(struct session *s, struct uri_auth *uri)
  * calls stats_dump_raw(), and releases the buffer's hijack bit when the dump
  * is finished.
  */
-void stats_dump_raw_to_buffer(struct session *s, struct buffer *req)
+void stats_dump_raw_to_buffer(struct session *s, struct buffer *rep)
 {
 	if (s->ana_state != STATS_ST_REP)
 		return;
 
-	if (stats_dump_raw(s, NULL) != 0) {
-		buffer_stop_hijack(s->rep);
+	if (stats_dump_raw(s, rep, NULL) != 0)
 		s->ana_state = STATS_ST_CLOSE;
-	}
 	return;
 }
 
@@ -315,9 +315,8 @@ void stats_dump_raw_to_buffer(struct session *s, struct buffer *req)
  * 1 if the dump is finished and the session must be closed, or -1 in case of
  * any error.
  */
-int stats_dump_http(struct session *s, struct uri_auth *uri)
+int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 {
-	struct buffer *rep = s->rep;
 	struct proxy *px;
 	struct chunk msg;
 	unsigned int up;
