@@ -30,7 +30,8 @@ int init_buffer()
 
 
 /* writes <len> bytes from message <msg> to buffer <buf>. Returns -1 in case of
- * success, or the number of bytes available otherwise.
+ * success, or the number of bytes available otherwise. The send limit is
+ * automatically adjusted with the amount of data written.
  * FIXME-20060521: handle unaligned data.
  */
 int buffer_write(struct buffer *buf, const char *msg, int len)
@@ -44,6 +45,7 @@ int buffer_write(struct buffer *buf, const char *msg, int len)
 
 	memcpy(buf->r, msg, len);
 	buf->l += len;
+	buf->send_max += len;
 	buf->r += len;
 	buf->total += len;
 	if (buf->r == buf->data + BUFSIZE)
@@ -60,7 +62,8 @@ int buffer_write(struct buffer *buf, const char *msg, int len)
 
 /* writes the chunk <chunk> to buffer <buf>. Returns -1 in case of
  * success, or the number of bytes available otherwise. If the chunk
- * has been written, its size is automatically reset to zero.
+ * has been written, its size is automatically reset to zero. The send limit is
+ * automatically adjusted with the amount of data written.
  */
 int buffer_write_chunk(struct buffer *buf, struct chunk *chunk)
 {
@@ -76,6 +79,7 @@ int buffer_write_chunk(struct buffer *buf, struct chunk *chunk)
 
 	memcpy(buf->r, chunk->str, chunk->len);
 	buf->l += chunk->len;
+	buf->send_max += chunk->len;
 	buf->r += chunk->len;
 	buf->total += chunk->len;
 	if (buf->r == buf->data + BUFSIZE)
@@ -133,7 +137,7 @@ int buffer_replace(struct buffer *b, char *pos, char *end, const char *str)
 
 /*
  * same except that the string length is given, which allows str to be NULL if
- * len is 0.
+ * len is 0. The send limit is *not* adjusted.
  */
 int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int len)
 {
@@ -178,7 +182,7 @@ int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int
  * argument informs about the length of string <str> so that we don't have to
  * measure it. It does not include the "\r\n". If <str> is NULL, then the buffer
  * is only opened for len+2 bytes but nothing is copied in. It may be useful in
- * some circumstances.
+ * some circumstances. The send limit is *not* adjusted.
  *
  * The number of bytes added is returned on success. 0 is returned on failure.
  */

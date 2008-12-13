@@ -114,6 +114,10 @@ int stream_sock_read(int fd) {
 			b->l += ret;
 			cur_read += ret;
 
+			/* if noone is interested in analysing data, let's forward everything */
+			if (!b->analysers)
+				b->send_max += ret;
+
 			if (fdtab[fd].state == FD_STCONN)
 				fdtab[fd].state = FD_STREADY;
 
@@ -306,6 +310,10 @@ int stream_sock_write(int fd) {
 			max = b->data + BUFSIZE - b->w;
 		}
 
+		/* limit the amount of outgoing data if required */
+		if (max > b->send_max)
+			max = b->send_max;
+
 		if (max == 0) {
 			/* may be we have received a connection acknowledgement in TCP mode without data */
 			if (likely(fdtab[fd].state == FD_STCONN)) {
@@ -363,6 +371,7 @@ int stream_sock_write(int fd) {
 		if (ret > 0) {
 			b->l -= ret;
 			b->w += ret;
+			b->send_max -= ret;
 
 			if (fdtab[fd].state == FD_STCONN)
 				fdtab[fd].state = FD_STREADY;

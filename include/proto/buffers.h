@@ -45,6 +45,7 @@ int init_buffer();
  */
 static inline void buffer_init(struct buffer *buf)
 {
+	buf->send_max = 0;
 	buf->l = buf->total = 0;
 	buf->analysers = 0;
 	buf->cons = NULL;
@@ -87,6 +88,7 @@ static inline void buffer_check_timeouts(struct buffer *b)
  */
 static inline void buffer_flush(struct buffer *buf)
 {
+	buf->send_max = 0;
 	buf->r = buf->lr = buf->w = buf->data;
 	buf->l = 0;
 	buf->flags |= BF_EMPTY | BF_FULL;

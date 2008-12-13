@@ -744,6 +744,10 @@ resync_stream_interface:
 			resync = 1;
 	}
 
+	/* if noone is interested in analysing data, let's forward everything */
+	if (!s->req->analysers && !(s->req->flags & BF_HIJACK))
+		s->req->send_max = s->req->l;
+
 	/* reflect what the L7 analysers have seen last */
 	rqf_last = s->req->flags;
 
@@ -848,6 +852,10 @@ resync_stream_interface:
 		if (s->rep->flags != flags)
 			resync = 1;
 	}
+
+	/* if noone is interested in analysing data, let's forward everything */
+	if (!s->rep->analysers && !(s->rep->flags & BF_HIJACK))
+		s->rep->send_max = s->rep->l;
 
 	/* reflect what the L7 analysers have seen last */
 	rpf_last = s->rep->flags;
