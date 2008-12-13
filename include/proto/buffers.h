@@ -67,14 +67,17 @@ static inline int buffer_isfull(const struct buffer *buf) {
 
 /* Check buffer timeouts, and set the corresponding flags. The
  * likely/unlikely have been optimized for fastest normal path.
+ * The read/write timeouts are not set if there was activity on the buffer.
+ * That way, we don't have to update the timeout on every I/O. Note that the
+ * analyser timeout is always checked.
  */
 static inline void buffer_check_timeouts(struct buffer *b)
 {
-	if (likely(!(b->flags & (BF_SHUTR|BF_READ_TIMEOUT))) &&
+	if (likely(!(b->flags & (BF_SHUTR|BF_READ_TIMEOUT|BF_READ_ACTIVITY))) &&
 	    unlikely(tick_is_expired(b->rex, now_ms)))
 		b->flags |= BF_READ_TIMEOUT;
 
-	if (likely(!(b->flags & (BF_SHUTW|BF_WRITE_TIMEOUT))) &&
+	if (likely(!(b->flags & (BF_SHUTW|BF_WRITE_TIMEOUT|BF_WRITE_ACTIVITY))) &&
 	    unlikely(tick_is_expired(b->wex, now_ms)))
 		b->flags |= BF_WRITE_TIMEOUT;
 
