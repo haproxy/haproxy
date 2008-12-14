@@ -572,6 +572,12 @@ void process_session(struct task *t, int *next)
 			s->si[0].shutr(&s->si[0]);
 			s->si[0].shutw(&s->si[0]);
 			stream_int_report_error(&s->si[0]);
+			if (!(s->req->analysers) && !(s->rep->analysers)) {
+				if (!(s->flags & SN_ERR_MASK))
+					s->flags |= SN_ERR_CLICL;
+				if (!(s->flags & SN_FINST_MASK))
+					s->flags |= SN_FINST_D;
+			}
 		}
 	}
 
@@ -583,6 +589,12 @@ void process_session(struct task *t, int *next)
 			s->be->failed_resp++;
 			if (s->srv)
 				s->srv->failed_resp++;
+			if (!(s->req->analysers) && !(s->rep->analysers)) {
+				if (!(s->flags & SN_ERR_MASK))
+					s->flags |= SN_ERR_SRVCL;
+				if (!(s->flags & SN_FINST_MASK))
+					s->flags |= SN_FINST_D;
+			}
 		}
 		/* note: maybe we should process connection errors here ? */
 	}
