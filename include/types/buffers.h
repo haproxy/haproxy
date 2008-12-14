@@ -130,6 +130,7 @@ struct buffer {
 	char *r, *w, *lr;               /* read ptr, write ptr, last read */
 	char *rlim;                     /* read limit, used for header rewriting */
 	unsigned int send_max;          /* number of bytes the sender can consume */
+	unsigned int to_forward;        /* number of bytes that can send without a wake-up, >= send_max */
 	unsigned int analysers;         /* bit field indicating what to do on the buffer */
 	int analyse_exp;                /* expiration date for current analysers (if set) */
 	void (*hijacker)(struct session *, struct buffer *); /* alternative content producer */

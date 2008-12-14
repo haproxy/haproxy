@@ -2,8 +2,8 @@
   include/common/defaults.h
   Miscellaneous default values.
 
-  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
-  
+  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
+
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
   License as published by the Free Software Foundation, version 2.1
@@ -39,6 +39,16 @@
 #ifndef MAXREWRITE
 #define MAXREWRITE      (BUFSIZE / 2)
 #endif
+
+/* FORWARD_DEFAULT_SIZE
+ * Indicates how many bytes may be forwarded at once in low-level stream-socks
+ * without waking the owner task up. This should be much larger than the buffer
+ * size. A few megabytes seem appropriate.
+ */
+#ifndef FORWARD_DEFAULT_SIZE
+#define FORWARD_DEFAULT_SIZE (16*1024*1024)
+#endif
+
 
 #define REQURI_LEN      1024
 #define CAPTURE_LEN     64

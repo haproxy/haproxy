@@ -746,9 +746,16 @@ resync_stream_interface:
 			resync = 1;
 	}
 
-	/* if noone is interested in analysing data, let's forward everything */
-	if (!s->req->analysers && !(s->req->flags & BF_HIJACK))
+	/* if noone is interested in analysing data, let's forward everything
+	 * and only wake up every 1-2 MB. We still wake up when send_max is
+	 * reached though.
+	 */
+	if (!s->req->send_max && s->req->prod->state >= SI_ST_EST &&
+	    !s->req->analysers && !(s->req->flags & BF_HIJACK)) {
+		if (s->req->to_forward < FORWARD_DEFAULT_SIZE)
+			s->req->to_forward += FORWARD_DEFAULT_SIZE;
 		s->req->send_max = s->req->l;
+	}
 
 	/* reflect what the L7 analysers have seen last */
 	rqf_last = s->req->flags;
@@ -855,9 +862,17 @@ resync_stream_interface:
 			resync = 1;
 	}
 
-	/* if noone is interested in analysing data, let's forward everything */
-	if (!s->rep->analysers && !(s->rep->flags & BF_HIJACK))
+	/* if noone is interested in analysing data, let's forward everything
+	 * and only wake up every 1-2 MB. We still wake up when send_max is
+	 * reached though.
+	 */
+	if (!s->rep->send_max && s->rep->prod->state >= SI_ST_EST &&
+	    !s->rep->analysers && !(s->rep->flags & BF_HIJACK)) {
+		if (s->rep->to_forward < FORWARD_DEFAULT_SIZE) {
+			s->rep->to_forward += FORWARD_DEFAULT_SIZE;
+		}
 		s->rep->send_max = s->rep->l;
+	}
 
 	/* reflect what the L7 analysers have seen last */
 	rpf_last = s->rep->flags;
@@ -870,7 +885,7 @@ resync_stream_interface:
 	 * FIXME: this is probably where we should produce error responses.
 	 */
 
-	/* first, let's check if the request buffer needs to shutdown(write) */
+	/* first, let's check if the response buffer needs to shutdown(write) */
 	if (unlikely((s->rep->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_EMPTY|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) ==
 		     (BF_EMPTY|BF_WRITE_ENA|BF_SHUTR)))
 		buffer_shutw_now(s->rep);

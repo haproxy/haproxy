@@ -809,6 +809,17 @@ void uxst_process_session(struct task *t, int *next)
 	if (!s->req->analysers && !(s->req->flags & BF_HIJACK))
 		s->req->send_max = s->req->l;
 
+	/* if noone is interested in analysing data, let's forward everything
+	 * and only wake up every 1-2 MB. We still wake up when send_max is
+	 * reached though.
+	 */
+	if (!s->req->send_max && s->req->prod->state >= SI_ST_EST &&
+	    !s->req->analysers && !(s->req->flags & BF_HIJACK)) {
+		if (s->req->to_forward < FORWARD_DEFAULT_SIZE)
+			s->req->to_forward += FORWARD_DEFAULT_SIZE;
+		s->req->send_max = s->req->l;
+	}
+
 	/* reflect what the L7 analysers have seen last */
 	rqf_last = s->req->flags;
 
@@ -879,9 +890,17 @@ void uxst_process_session(struct task *t, int *next)
 			resync = 1;
 	}
 
-	/* if noone is interested in analysing data, let's forward everything */
-	if (!s->rep->analysers && !(s->rep->flags & BF_HIJACK))
+	/* if noone is interested in analysing data, let's forward everything
+	 * and only wake up every 1-2 MB. We still wake up when send_max is
+	 * reached though.
+	 */
+	if (!s->rep->send_max && s->rep->prod->state >= SI_ST_EST &&
+	    !s->rep->analysers && !(s->rep->flags & BF_HIJACK)) {
+		if (s->rep->to_forward < FORWARD_DEFAULT_SIZE) {
+			s->rep->to_forward += FORWARD_DEFAULT_SIZE;
+		}
 		s->rep->send_max = s->rep->l;
+	}
 
 	/* reflect what the L7 analysers have seen last */
 	rpf_last = s->rep->flags;

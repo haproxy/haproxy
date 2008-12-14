@@ -116,8 +116,8 @@ int stream_sock_read(int fd) {
 			cur_read += ret;
 
 			/* if noone is interested in analysing data, let's forward everything */
-			if (!b->analysers)
-				b->send_max += ret;
+			if (b->to_forward > b->send_max)
+				b->send_max = MIN(b->to_forward, b->l);
 
 			if (fdtab[fd].state == FD_STCONN)
 				fdtab[fd].state = FD_STREADY;
@@ -251,10 +251,17 @@ int stream_sock_read(int fd) {
 		goto out_skip_wakeup;
  out_wakeup:
 	/* the consumer might be waiting for data */
-	if (b->cons->flags & SI_FL_WAIT_DATA && (b->flags & BF_READ_PARTIAL))
+	if (b->cons->flags & SI_FL_WAIT_DATA && (b->flags & BF_READ_PARTIAL) && !(b->flags & BF_EMPTY))
 		b->cons->chk_snd(b->cons);
 
-	task_wakeup(si->owner, TASK_WOKEN_IO);
+	/* we have to wake up if there is a special event or if we don't have
+	 * any more data to forward.
+	 */
+	if ((b->flags & (BF_READ_NULL|BF_READ_ERROR|BF_SHUTR)) ||
+	    !b->to_forward ||
+	    si->state != SI_ST_EST ||
+	    b->cons->state != SI_ST_EST)
+		task_wakeup(si->owner, TASK_WOKEN_IO);
 
  out_skip_wakeup:
 	fdtab[fd].ev &= ~FD_POLL_IN;
@@ -379,6 +386,13 @@ int stream_sock_write(int fd) {
 			b->l -= ret;
 			b->w += ret;
 			b->send_max -= ret;
+			/* we can send up to send_max, we just want to know when
+			 * to_forward has been reached.
+			 */
+			if ((signed)(b->to_forward - ret) >= 0)
+				b->to_forward -= ret;
+			else
+				b->to_forward = 0;
 
 			if (fdtab[fd].state == FD_STCONN)
 				fdtab[fd].state = FD_STREADY;
@@ -453,10 +467,17 @@ int stream_sock_write(int fd) {
 		goto out_skip_wakeup;
  out_wakeup:
 	/* the producer might be waiting for more room to store data */
-	if ((b->prod->flags & SI_FL_WAIT_ROOM) && (b->flags & BF_WRITE_PARTIAL))
+	if ((b->prod->flags & SI_FL_WAIT_ROOM) && (b->flags & BF_WRITE_PARTIAL) && !(b->flags & BF_FULL))
 		b->prod->chk_rcv(b->prod);
 
-	task_wakeup(si->owner, TASK_WOKEN_IO);
+	/* we have to wake up if there is a special event or if we don't have
+	 * any more data to forward.
+	 */
+	if ((b->flags & (BF_WRITE_NULL|BF_WRITE_ERROR|BF_SHUTW)) ||
+	    !b->to_forward ||
+	    si->state != SI_ST_EST ||
+	    b->prod->state != SI_ST_EST)
+		task_wakeup(si->owner, TASK_WOKEN_IO);
 
  out_skip_wakeup:
 	fdtab[fd].ev &= ~FD_POLL_OUT;
