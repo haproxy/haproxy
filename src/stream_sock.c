@@ -86,6 +86,7 @@ int stream_sock_read(int fd) {
 			/* Not anymore room to store data. This should theorically
 			 * never happen, but better safe than sorry !
 			 */
+			si->flags |= SI_FL_WAIT_ROOM;
 			b->flags |= BF_FULL;
 			EV_FD_CLR(fd, DIR_RD);
 			b->rex = TICK_ETERNITY;
@@ -163,6 +164,7 @@ int stream_sock_read(int fd) {
 					b->xfer_large = 0;
 				}
 
+				si->flags |= SI_FL_WAIT_ROOM;
 				b->flags |= BF_FULL;
 				EV_FD_CLR(fd, DIR_RD);
 				b->rex = TICK_ETERNITY;
@@ -348,6 +350,7 @@ int stream_sock_write(int fd) {
 			 * anything. Theorically we cannot get there, but just in case,
 			 * let's disable the write event and pretend we never came there.
 			 */
+			si->flags |= SI_FL_WAIT_DATA;
 			EV_FD_CLR(fd, DIR_WR);
 			b->wex = TICK_ETERNITY;
 			goto out_wakeup;
@@ -397,6 +400,7 @@ int stream_sock_write(int fd) {
 					}
 				}
 
+				si->flags |= SI_FL_WAIT_DATA;
 				EV_FD_CLR(fd, DIR_WR);
 				b->wex = TICK_ETERNITY;
 				goto out_wakeup;
@@ -477,6 +481,7 @@ void stream_sock_shutw(struct stream_interface *si)
 		return;
 	si->ob->flags |= BF_SHUTW;
 	si->ob->wex = TICK_ETERNITY;
+	si->flags &= ~SI_FL_WAIT_DATA;
 
 	switch (si->state) {
 	case SI_ST_EST:
@@ -487,6 +492,7 @@ void stream_sock_shutw(struct stream_interface *si)
 		}
 		/* fall through */
 	case SI_ST_CON:
+		si->flags &= ~SI_FL_WAIT_ROOM;
 		/* we may have to close a pending connection, and mark the
 		 * response buffer as shutr
 		 */
@@ -513,6 +519,7 @@ void stream_sock_shutr(struct stream_interface *si)
 		return;
 	si->ib->flags |= BF_SHUTR;
 	si->ib->rex = TICK_ETERNITY;
+	si->flags &= ~SI_FL_WAIT_ROOM;
 
 	if (si->state != SI_ST_EST && si->state != SI_ST_CON)
 		return;
@@ -551,6 +558,8 @@ void stream_sock_data_finish(struct stream_interface *si)
 		/* Read not closed, update FD status and timeout for reads */
 		if (ib->flags & (BF_FULL|BF_HIJACK)) {
 			/* stop reading */
+			if ((ib->flags & (BF_FULL|BF_HIJACK)) == BF_FULL)
+				si->flags |= SI_FL_WAIT_ROOM;
 			EV_FD_COND_C(fd, DIR_RD);
 			ib->rex = TICK_ETERNITY;
 		}
@@ -559,6 +568,7 @@ void stream_sock_data_finish(struct stream_interface *si)
 			 * everytime we get here, otherwise it would risk never to expire. We only
 			 * update it if is was not yet set, or if we already got some read status.
 			 */
+			si->flags &= ~SI_FL_WAIT_ROOM;
 			EV_FD_COND_S(fd, DIR_RD);
 			if (!(ib->flags & BF_READ_NOEXP) &&
 			    (!tick_isset(ib->rex) || ib->flags & BF_READ_ACTIVITY))
@@ -572,6 +582,8 @@ void stream_sock_data_finish(struct stream_interface *si)
 		if ((ob->flags & BF_EMPTY) ||
 		    (ob->flags & (BF_HIJACK|BF_WRITE_ENA)) == 0) {
 			/* stop writing */
+			if ((ob->flags & (BF_EMPTY|BF_HIJACK|BF_WRITE_ENA)) == (BF_EMPTY|BF_WRITE_ENA))
+				si->flags |= SI_FL_WAIT_DATA;
 			EV_FD_COND_C(fd, DIR_WR);
 			ob->wex = TICK_ETERNITY;
 		}
@@ -580,6 +592,7 @@ void stream_sock_data_finish(struct stream_interface *si)
 			 * everytime we get here, otherwise it would risk never to expire. We only
 			 * update it if is was not yet set, or if we already got some write status.
 			 */
+			si->flags &= ~SI_FL_WAIT_DATA;
 			EV_FD_COND_S(fd, DIR_WR);
 			if (!tick_isset(ob->wex) || ob->flags & BF_WRITE_ACTIVITY) {
 				ob->wex = tick_add_ifset(now_ms, ob->wto);

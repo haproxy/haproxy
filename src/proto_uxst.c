@@ -925,7 +925,7 @@ void uxst_process_session(struct task *t, int *next)
 		s->req->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
 		s->rep->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
 		s->si[0].prev_state = s->si[0].state;
-		s->si[0].flags = SI_FL_NONE;
+		s->si[0].flags &= ~(SI_FL_ERR|SI_FL_EXP);
 
 		/* Trick: if a request is being waiting for the server to respond,
 		 * and if we know the server can timeout, we don't want the timeout

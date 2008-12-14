@@ -65,6 +65,8 @@ enum {
 	SI_FL_NONE       = 0x0000,  /* nothing */
 	SI_FL_EXP        = 0x0001,  /* timeout has expired */
 	SI_FL_ERR        = 0x0002,  /* a non-recoverable error has occurred */
+	SI_FL_WAIT_ROOM  = 0x0004,  /* waiting for space to store incoming data */
+	SI_FL_WAIT_DATA  = 0x0008,  /* waiting for more data to send */
 };
 
 struct stream_interface {
