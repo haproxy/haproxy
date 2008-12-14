@@ -73,7 +73,7 @@ static inline int buffer_isfull(const struct buffer *buf) {
  */
 static inline void buffer_check_timeouts(struct buffer *b)
 {
-	if (likely(!(b->flags & (BF_SHUTR|BF_READ_TIMEOUT|BF_READ_ACTIVITY))) &&
+	if (likely(!(b->flags & (BF_SHUTR|BF_READ_TIMEOUT|BF_READ_ACTIVITY|BF_READ_NOEXP))) &&
 	    unlikely(tick_is_expired(b->rex, now_ms)))
 		b->flags |= BF_READ_TIMEOUT;
 

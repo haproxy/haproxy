@@ -431,13 +431,12 @@ int stream_sock_write(int fd) {
 
 	if (tick_isset(b->wex) && b->flags & BF_WRITE_PARTIAL) {
 		b->wex = tick_add_ifset(now_ms, b->wto);
-		if (tick_isset(b->wex)) {
+		if (tick_isset(b->wex) & tick_isset(si->ib->rex)) {
 			/* FIXME: to prevent the client from expiring read timeouts during writes,
 			 * we refresh it. A solution would be to merge read+write timeouts into a
 			 * unique one, although that needs some study particularly on full-duplex
 			 * TCP connections. */
-			if (tick_isset(b->rex) && !(b->flags & BF_SHUTR))
-				b->rex = b->wex;
+			si->ib->rex = b->wex;
 		}
 	}
 
@@ -561,7 +560,8 @@ void stream_sock_data_finish(struct stream_interface *si)
 			 * update it if is was not yet set, or if we already got some read status.
 			 */
 			EV_FD_COND_S(fd, DIR_RD);
-			if (!tick_isset(ib->rex) || ib->flags & BF_READ_ACTIVITY)
+			if (!(ib->flags & BF_READ_NOEXP) &&
+			    (!tick_isset(ib->rex) || ib->flags & BF_READ_ACTIVITY))
 				ib->rex = tick_add_ifset(now_ms, ib->rto);
 		}
 	}

@@ -59,7 +59,7 @@
 #define BF_FULL           0x000010  /* buffer cannot accept any more data (l >= rlim-data) */
 #define BF_SHUTR          0x000020  /* producer has already shut down */
 #define BF_SHUTR_NOW      0x000040  /* the producer must shut down for reads immediately */
-#define BF_READ_ENA       0x000080  /* producer is allowed to feed data into the buffer */
+#define BF_READ_NOEXP     0x000080  /* producer should not expire */
 
 #define BF_WRITE_NULL     0x000100  /* write(0) or connect() succeeded on consumer side */
 #define BF_WRITE_PARTIAL  0x000200  /* some data were written to the consumer */
@@ -93,7 +93,7 @@
 #define BF_MASK_ANALYSER        (BF_READ_ATTACHED|BF_READ_ACTIVITY|BF_READ_TIMEOUT|BF_ANA_TIMEOUT|BF_WRITE_ACTIVITY)
 
 /* Mask for static flags which are not events, but might change during processing */
-#define BF_MASK_STATIC          (BF_EMPTY|BF_FULL|BF_HIJACK|BF_WRITE_ENA|BF_READ_ENA|BF_SHUTR|BF_SHUTW|BF_SHUTR_NOW|BF_SHUTW_NOW)
+#define BF_MASK_STATIC          (BF_EMPTY|BF_FULL|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR|BF_SHUTW|BF_SHUTR_NOW|BF_SHUTW_NOW)
 
 
 /* Analysers (buffer->analysers).

@@ -556,6 +556,8 @@ void process_session(struct task *t, int *next)
 		buffer_check_timeouts(s->rep);
 	}
 
+	s->req->flags &= ~BF_READ_NOEXP;
+
 	/* copy req/rep flags so that we can detect shutdowns */
 	rqf_last = s->req->flags;
 	rpf_last = s->rep->flags;
@@ -954,8 +956,10 @@ resync_stream_interface:
 		 */
 
 		if ((s->rep->flags & (BF_WRITE_ENA|BF_SHUTR)) == 0 &&
-		    (tick_isset(s->req->wex) || tick_isset(s->rep->rex)))
+		    (tick_isset(s->req->wex) || tick_isset(s->rep->rex))) {
+			s->req->flags |= BF_READ_NOEXP;
 			s->req->rex = TICK_ETERNITY;
+		}
 
 		t->expire = tick_first(tick_first(s->req->rex, s->req->wex),
 				       tick_first(s->rep->rex, s->rep->wex));
