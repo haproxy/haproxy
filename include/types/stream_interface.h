@@ -78,6 +78,8 @@ struct stream_interface {
 	unsigned int exp;       /* wake up time for connect, queue, turn-around, ... */
 	void (*shutr)(struct stream_interface *);  /* shutr function */
 	void (*shutw)(struct stream_interface *);  /* shutw function */
+	void (*chk_rcv)(struct stream_interface *);/* chk_rcv function */
+	void (*chk_snd)(struct stream_interface *);/* chk_snd function */
 	struct buffer *ib, *ob; /* input and output buffers */
 	unsigned int err_type;  /* first error detected, one of SI_ET_* */
 	void *err_loc;          /* commonly the server, NULL when SI_ET_NONE */

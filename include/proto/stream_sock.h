@@ -3,7 +3,7 @@
   This file contains client-side definitions.
 
   Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
-  
+
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
   License as published by the Free Software Foundation, version 2.1
@@ -36,6 +36,8 @@ int stream_sock_write(int fd);
 void stream_sock_data_finish(struct stream_interface *si);
 void stream_sock_shutr(struct stream_interface *si);
 void stream_sock_shutw(struct stream_interface *si);
+void stream_sock_chk_rcv(struct stream_interface *si);
+void stream_sock_chk_snd(struct stream_interface *si);
 
 
 /* This either returns the sockname or the original destination address. Code
