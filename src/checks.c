@@ -364,7 +364,8 @@ static int event_srv_chk_w(int fd)
 #endif
 			if (ret == s->proxy->check_len) {
 				/* we allow up to <timeout.check> if nonzero for a responce */
-				t->expire = tick_add_ifset(now_ms, s->proxy->timeout.check);
+				if (s->proxy->timeout.check)
+					t->expire = tick_add_ifset(now_ms, s->proxy->timeout.check);
 				EV_FD_SET(fd, DIR_RD);   /* prepare for reading reply */
 				goto out_nowake;
 			}
