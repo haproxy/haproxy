@@ -1417,7 +1417,7 @@ int assign_server(struct session *s)
 		}
 	}
 	else if (!*(int *)&s->be->dispatch_addr.sin_addr &&
-		 !(s->fe->options & PR_O_TRANSP)) {
+		 !(s->be->options & PR_O_TRANSP)) {
 		err = SRV_STATUS_NOSRV;
 		goto out;
 	}
@@ -1472,7 +1472,7 @@ int assign_server_address(struct session *s)
 		/* if this server remaps proxied ports, we'll use
 		 * the port the client connected to with an offset. */
 		if (s->srv->state & SRV_MAPPORTS) {
-			if (!(s->fe->options & PR_O_TRANSP) && !(s->flags & SN_FRT_ADDR_SET))
+			if (!(s->be->options & PR_O_TRANSP) && !(s->flags & SN_FRT_ADDR_SET))
 				get_frt_addr(s);
 			if (s->frt_addr.ss_family == AF_INET) {
 				s->srv_addr.sin_port = htons(ntohs(s->srv_addr.sin_port) +
@@ -1487,7 +1487,7 @@ int assign_server_address(struct session *s)
 		/* connect to the defined dispatch addr */
 		s->srv_addr = s->be->dispatch_addr;
 	}
-	else if (s->fe->options & PR_O_TRANSP) {
+	else if (s->be->options & PR_O_TRANSP) {
 		/* in transparent mode, use the original dest addr if no dispatch specified */
 		if (!(s->flags & SN_FRT_ADDR_SET))
 			get_frt_addr(s);

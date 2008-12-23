@@ -567,7 +567,7 @@ option ssl-hello-chk        X          -         X         X
 option tcpka                X          X         X         X
 option tcplog               X          X         X         X
 [no] option tcpsplice       X          X         X         X
-[no] option transparent     X          X         X         -
+[no] option transparent     X          -         X         X
 redisp                      X          -         X         X  (deprecated)
 redispatch                  X          -         X         X  (deprecated)
 reqadd                      -          X         X         X
@@ -613,7 +613,7 @@ timeout queue               X          -         X         X
 timeout server              X          -         X         X
 timeout srvtimeout          X          -         X         X  (deprecated)
 timeout tarpit              X          X         X         X
-transparent                 X          X         X         -  (deprecated)
+transparent                 X          -         X         X  (deprecated)
 use_backend                 -          X         X         -
 ----------------------+----------+----------+---------+---------
 keyword                 defaults   frontend   listen    backend
@@ -2271,7 +2271,7 @@ option transparent
 no option transparent
   Enable client-side transparent proxying
   May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    yes   |   yes  |    no
+                                 yes   |    no    |   yes  |   yes
   Arguments : none
 
   This option was introduced in order to provide layer 7 persistence to layer 3
@@ -2285,9 +2285,6 @@ no option transparent
 
   Note that contrary to a common belief, this option does NOT make HAProxy
   present the client's IP to the server when establishing the connection.
-
-  Use of this option is really discouraged, and since no really valid use of it
-  has been reported for years, it will probably be removed in future versions.
 
   See also: the "usersrc" argument of the "source" keyword, and the
             "transparent" option of the "bind" keyword.
@@ -3377,7 +3374,7 @@ timeout tarpit <timeout>
 transparent (deprecated)
   Enable client-side transparent proxying
   May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    yes   |   yes  |    no
+                                 yes   |    no    |   yes  |   yes
   Arguments : none
 
   This keyword was introduced in order to provide layer 7 persistence to layer
@@ -3393,9 +3390,6 @@ transparent (deprecated)
 
   Note that contrary to a common belief, this option does NOT make HAProxy
   present the client's IP to the server when establishing the connection.
-
-  Use of this option is really discouraged, and since no really valid use of it
-  has been reported for years, it will probably be removed in future versions.
 
   See also: "option transparent"
 
