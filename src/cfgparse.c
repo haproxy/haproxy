@@ -107,7 +107,7 @@ static const struct {
 	{ "tcpsplice",    PR_O_TCPSPLICE,  PR_CAP_BE|PR_CAP_FE, LSTCHK_TCPSPLICE|LSTCHK_NETADM },
 #endif
 #ifdef TPROXY
-	{ "transparent",  PR_O_TRANSP,     PR_CAP_FE, 0 },
+	{ "transparent",  PR_O_TRANSP,     PR_CAP_BE, 0 },
 #endif
 
 	{ NULL, 0, 0, 0 }
