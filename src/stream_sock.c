@@ -116,8 +116,8 @@ int stream_sock_read(int fd) {
 			cur_read += ret;
 
 			/* if noone is interested in analysing data, let's forward everything */
-			if (b->to_forward > b->send_max)
-				b->send_max = MIN(b->to_forward, b->l);
+			if (b->to_forward - b->splice_len > b->send_max)
+				b->send_max = MIN(b->to_forward - b->splice_len, b->l);
 
 			if (fdtab[fd].state == FD_STCONN)
 				fdtab[fd].state = FD_STREADY;
@@ -406,7 +406,7 @@ int stream_sock_write(int fd) {
 				b->w = b->data; /* wrap around the buffer */
 			}
 
-			if (!b->l) {
+			if (!b->l && !b->splice_len) {
 				b->flags |= BF_EMPTY;
 
 				/* Maybe we just wrote the last chunk and need to close ? */
@@ -608,7 +608,7 @@ void stream_sock_data_finish(struct stream_interface *si)
 	/* Check if we need to close the write side */
 	if (!(ob->flags & BF_SHUTW)) {
 		/* Write not closed, update FD status and timeout for writes */
-		if ((ob->send_max == 0) ||
+		if ((ob->send_max == 0 && ob->splice_len == 0) ||
 		    (ob->flags & BF_EMPTY) ||
 		    (ob->flags & (BF_HIJACK|BF_WRITE_ENA)) == 0) {
 			/* stop writing */
@@ -693,7 +693,7 @@ void stream_sock_chk_snd(struct stream_interface *si)
 	if (unlikely(si->state != SI_ST_EST || (ob->flags & BF_SHUTW)))
 		return;
 
-	if ((ob->send_max == 0) ||
+	if ((ob->send_max == 0 && ob->splice_len == 0) ||
 	    (ob->flags & BF_EMPTY) ||
 	    (ob->flags & (BF_HIJACK|BF_WRITE_ENA)) == 0) {
 		/* stop writing */

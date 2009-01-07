@@ -127,6 +127,7 @@ struct buffer {
 	int wto;                        /* write timeout, in ticks */
 	int cto;                        /* connect timeout, in ticks */
 	unsigned int l;                 /* data length */
+	unsigned int splice_len;        /* number of bytes remaining in splice, out of buffer */
 	char *r, *w, *lr;               /* read ptr, write ptr, last read */
 	char *rlim;                     /* read limit, used for header rewriting */
 	unsigned int send_max;          /* number of bytes the sender can consume */

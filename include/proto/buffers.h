@@ -48,6 +48,7 @@ static inline void buffer_init(struct buffer *buf)
 	buf->send_max = 0;
 	buf->to_forward = 0;
 	buf->l = buf->total = 0;
+	buf->splice_len = 0;
 	buf->analysers = 0;
 	buf->cons = NULL;
 	buf->flags = BF_EMPTY;
