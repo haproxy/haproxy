@@ -358,13 +358,12 @@ int stream_sock_write(int fd) {
 			}
 
 			/* Funny, we were called to write something but there wasn't
-			 * anything. Theorically we cannot get there, but just in case,
-			 * let's disable the write event and pretend we never came there.
+			 * anything. We can get there, for example if we were woken up
+			 * on a write event to finish the splice, but the send_max is 0
+			 * so we cannot write anything from the buffer. Let's disable
+			 * the write event and pretend we never came there.
 			 */
-			si->flags |= SI_FL_WAIT_DATA;
-			EV_FD_CLR(fd, DIR_WR);
-			b->wex = TICK_ETERNITY;
-			goto out_wakeup;
+			goto write_nothing;
 		}
 
 #ifndef MSG_NOSIGNAL
@@ -409,6 +408,7 @@ int stream_sock_write(int fd) {
 			if (!b->l && !b->splice_len) {
 				b->flags |= BF_EMPTY;
 
+			write_nothing:
 				/* Maybe we just wrote the last chunk and need to close ? */
 				if ((b->flags & (BF_SHUTW|BF_EMPTY|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) == (BF_EMPTY|BF_WRITE_ENA|BF_SHUTR)) {
 					if (si->state == SI_ST_EST) {
@@ -418,7 +418,11 @@ int stream_sock_write(int fd) {
 					}
 				}
 
-				si->flags |= SI_FL_WAIT_DATA;
+				/* we may either get there when the buffer is empty or when
+				 * we refrain from sending due to send_max reached.
+				 */
+				if (!b->l && !b->splice_len)
+					si->flags |= SI_FL_WAIT_DATA;
 				EV_FD_CLR(fd, DIR_WR);
 				b->wex = TICK_ETERNITY;
 				goto out_wakeup;
