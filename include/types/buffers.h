@@ -130,8 +130,8 @@ struct buffer {
 	unsigned int splice_len;        /* number of bytes remaining in splice, out of buffer */
 	char *r, *w, *lr;               /* read ptr, write ptr, last read */
 	char *rlim;                     /* read limit, used for header rewriting */
-	unsigned int send_max;          /* number of bytes the sender can consume */
-	unsigned int to_forward;        /* number of bytes that can send without a wake-up, >= send_max */
+	unsigned int send_max;          /* number of bytes the sender can consume om this buffer, <= l */
+	unsigned int to_forward;        /* number of bytes to forward after send_max without a wake-up */
 	unsigned int analysers;         /* bit field indicating what to do on the buffer */
 	int analyse_exp;                /* expiration date for current analysers (if set) */
 	void (*hijacker)(struct session *, struct buffer *); /* alternative content producer */
@@ -143,6 +143,56 @@ struct buffer {
 	char data[BUFSIZE];
 };
 
+
+/* Note about the buffer structure
+
+   The buffer contains two length indicators, one to_forward counter and one
+   send_max limit. First, it must be understood that the buffer is in fact
+   split in two parts :
+     - the visible data (->data, for ->l bytes)
+     - the invisible data, typically in kernel buffers forwarded directly from
+       the source stream sock to the destination stream sock (->splice_len
+       bytes). Those are used only during forward.
+
+   In order not to mix data streams, the producer may only feed the invisible
+   data with data to forward, and only when the visible buffer is empty. The
+   consumer may not always be able to feed the invisible buffer due to platform
+   limitations (lack of kernel support).
+
+   Conversely, the consumer must always take data from the invisible data first
+   before ever considering visible data. There is no limit to the size of data
+   to consume from the invisible buffer, as platform-specific implementations
+   will rarely leave enough control on this. So any byte fed into the invisible
+   buffer is expected to reach the destination file descriptor, by any means.
+   However, it's the consumer's responsibility to ensure that the invisible
+   data has been entirely consumed before consuming visible data. This must be
+   reflected by ->splice_len. This is very important as this and only this can
+   ensure strict ordering of data between buffers.
+
+   The producer is responsible for decreasing ->to_forward and increasing
+   ->send_max. The ->to_forward parameter indicates how many bytes may be fed
+   into either data buffer without waking the parent up. The ->send_max
+   parameter says how many bytes may be read from the visible buffer. Thus it
+   may never exceed ->l. This parameter is updated by any buffer_write() as
+   well as any data forwarded through the visible buffer.
+
+   The consumer is responsible for decreasing ->send_max when it sends data
+   from the visible buffer, and ->splice_len when it sends data from the
+   invisible buffer.
+
+   A real-world example consists in part in an HTTP response waiting in a
+   buffer to be forwarded. We know the header length (300) and the amount of
+   data to forward (content-length=9000). The buffer already contains 1000
+   bytes of data after the 300 bytes of headers. Thus the caller will set
+   ->send_max to 300 indicating that it explicitly wants to send those data,
+   and set ->to_forward to 9000 (content-length). This value must be normalised
+   immediately after updating ->to_forward : since there are already 1300 bytes
+   in the buffer, 300 of which are already counted in ->send_max, and that size
+   is smaller than ->to_forward, we must update ->send_max to 1300 to flush the
+   whole buffer, and reduce ->to_forward to 8000. After that, the producer may
+   try to feed the additional data through the invisible buffer using a
+   platform-specific method such as splice().
+ */
 
 #endif /* _TYPES_BUFFERS_H */
 

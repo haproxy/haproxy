@@ -115,9 +115,12 @@ int stream_sock_read(int fd) {
 			b->l += ret;
 			cur_read += ret;
 
-			/* if noone is interested in analysing data, let's forward everything */
-			if (b->to_forward - b->splice_len > b->send_max)
-				b->send_max = MIN(b->to_forward - b->splice_len, b->l);
+			/* if we're allowed to directly forward data, we must update send_max */
+			if (b->to_forward > 0) {
+				int fwd = MIN(b->to_forward, ret);
+				b->send_max   += fwd;
+				b->to_forward -= fwd;
+			}
 
 			if (fdtab[fd].state == FD_STCONN)
 				fdtab[fd].state = FD_STREADY;
@@ -385,13 +388,6 @@ int stream_sock_write(int fd) {
 			b->l -= ret;
 			b->w += ret;
 			b->send_max -= ret;
-			/* we can send up to send_max, we just want to know when
-			 * to_forward has been reached.
-			 */
-			if ((signed)(b->to_forward - ret) >= 0)
-				b->to_forward -= ret;
-			else
-				b->to_forward = 0;
 
 			if (fdtab[fd].state == FD_STCONN)
 				fdtab[fd].state = FD_STREADY;
@@ -475,10 +471,10 @@ int stream_sock_write(int fd) {
 		b->prod->chk_rcv(b->prod);
 
 	/* we have to wake up if there is a special event or if we don't have
-	 * any more data to forward.
+	 * any more data to forward and it's not planned to send any more.
 	 */
 	if ((b->flags & (BF_WRITE_NULL|BF_WRITE_ERROR|BF_SHUTW)) ||
-	    !b->to_forward ||
+	    (!b->to_forward && !b->send_max && !b->splice_len) ||
 	    si->state != SI_ST_EST ||
 	    b->prod->state != SI_ST_EST)
 		task_wakeup(si->owner, TASK_WOKEN_IO);

@@ -753,8 +753,7 @@ resync_stream_interface:
 	if (!s->req->send_max && s->req->prod->state >= SI_ST_EST &&
 	    !s->req->analysers && !(s->req->flags & BF_HIJACK)) {
 		if (s->req->to_forward < FORWARD_DEFAULT_SIZE)
-			s->req->to_forward += FORWARD_DEFAULT_SIZE;
-		s->req->send_max = s->req->l;
+			buffer_forward(s->req, FORWARD_DEFAULT_SIZE);
 	}
 
 	/* reflect what the L7 analysers have seen last */
@@ -868,10 +867,8 @@ resync_stream_interface:
 	 */
 	if (!s->rep->send_max && s->rep->prod->state >= SI_ST_EST &&
 	    !s->rep->analysers && !(s->rep->flags & BF_HIJACK)) {
-		if (s->rep->to_forward < FORWARD_DEFAULT_SIZE) {
-			s->rep->to_forward += FORWARD_DEFAULT_SIZE;
-		}
-		s->rep->send_max = s->rep->l;
+		if (s->rep->to_forward < FORWARD_DEFAULT_SIZE)
+			buffer_forward(s->rep, FORWARD_DEFAULT_SIZE);
 	}
 
 	/* reflect what the L7 analysers have seen last */

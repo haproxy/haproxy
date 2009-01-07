@@ -88,8 +88,29 @@ static inline void buffer_check_timeouts(struct buffer *b)
 		b->flags |= BF_ANA_TIMEOUT;
 }
 
-/* flushes any content from buffer <buf> and adjusts flags
- * accordingly.
+/* Schedule <bytes> more bytes to be forwarded by the buffer without notifying
+ * the task. Any pending data in the buffer is scheduled to be sent as well,
+ * in the limit of the number of bytes to forward. This must be the only method
+ * to use to schedule bytes to be sent. Directly touching ->to_forward will
+ * cause lockups when send_max goes down to zero if nobody is ready to push the
+ * remaining data.
+ */
+static inline void buffer_forward(struct buffer *buf, unsigned int bytes)
+{
+	unsigned int data_left;
+
+	buf->to_forward += bytes;
+	data_left = buf->l - buf->send_max;
+	if (data_left > buf->to_forward)
+		data_left = buf->to_forward;
+
+	buf->to_forward -= data_left;
+	buf->send_max += data_left;
+}
+
+/* Flush any content from buffer <buf> and adjusts flags accordingly. Note
+ * that any spliced data is not affected since we may not have any access to
+ * it.
  */
 static inline void buffer_flush(struct buffer *buf)
 {
