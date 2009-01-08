@@ -229,10 +229,13 @@ int stream_sock_read(int fd) {
 		}
 		else if (errno == EAGAIN) {
 			/* Ignore EAGAIN but inform the poller that there is
-			 * nothing to read left. But we may have done some work
-			 * justifying to notify the task.
+			 * nothing to read left if we did not read much, ie
+			 * less than what we were still expecting to read.
+			 * But we may have done some work justifying to notify
+			 * the task.
 			 */
-			retval = 0;
+			if (cur_read < MIN_RET_FOR_READ_LOOP)
+				retval = 0;
 			break;
 		}
 		else {
