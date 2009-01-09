@@ -241,16 +241,17 @@ int stream_sock_read(int fd) {
 		goto out_skip_wakeup;
  out_wakeup:
 	/* the consumer might be waiting for data */
-	if (b->cons->flags & SI_FL_WAIT_DATA && (b->flags & BF_READ_PARTIAL) && !(b->flags & BF_EMPTY))
+	if (likely((b->flags & (BF_READ_PARTIAL|BF_EMPTY)) == BF_READ_PARTIAL &&
+		   (b->cons->flags & SI_FL_WAIT_DATA)))
 		b->cons->chk_snd(b->cons);
 
 	/* we have to wake up if there is a special event or if we don't have
 	 * any more data to forward.
 	 */
-	if ((b->flags & (BF_READ_NULL|BF_READ_ERROR|BF_SHUTR)) ||
-	    !b->to_forward ||
-	    si->state != SI_ST_EST ||
-	    b->cons->state != SI_ST_EST)
+	if (likely((b->flags & (BF_READ_NULL|BF_READ_ERROR|BF_SHUTR)) ||
+		   !b->to_forward ||
+		   si->state != SI_ST_EST ||
+		   b->cons->state != SI_ST_EST))
 		task_wakeup(si->owner, TASK_WOKEN_IO);
 
  out_skip_wakeup:
@@ -461,16 +462,17 @@ int stream_sock_write(int fd) {
 		goto out_skip_wakeup;
  out_wakeup:
 	/* the producer might be waiting for more room to store data */
-	if ((b->prod->flags & SI_FL_WAIT_ROOM) && (b->flags & BF_WRITE_PARTIAL) && !(b->flags & BF_FULL))
+	if (likely((b->flags & (BF_WRITE_PARTIAL|BF_FULL)) == BF_WRITE_PARTIAL &&
+		   (b->prod->flags & SI_FL_WAIT_ROOM)))
 		b->prod->chk_rcv(b->prod);
 
 	/* we have to wake up if there is a special event or if we don't have
 	 * any more data to forward and it's not planned to send any more.
 	 */
-	if ((b->flags & (BF_WRITE_NULL|BF_WRITE_ERROR|BF_SHUTW)) ||
-	    (!b->to_forward && !b->send_max && !b->splice_len) ||
-	    si->state != SI_ST_EST ||
-	    b->prod->state != SI_ST_EST)
+	if (likely((b->flags & (BF_WRITE_NULL|BF_WRITE_ERROR|BF_SHUTW)) ||
+		   (!b->to_forward && !b->send_max && !b->splice_len) ||
+		   si->state != SI_ST_EST ||
+		   b->prod->state != SI_ST_EST))
 		task_wakeup(si->owner, TASK_WOKEN_IO);
 
  out_skip_wakeup:

@@ -184,7 +184,7 @@ int sess_update_st_con_tcp(struct session *s, struct stream_interface *si)
 	if (unlikely((req->flags & BF_SHUTW_NOW) ||
 		     (rep->flags & BF_SHUTW) ||
 		     ((req->flags & BF_SHUTR) && /* FIXME: this should not prevent a connection from establishing */
-		      ((req->flags & BF_EMPTY && !(req->flags & BF_WRITE_ACTIVITY)) ||
+		      (((req->flags & (BF_EMPTY|BF_WRITE_ACTIVITY)) == BF_EMPTY) ||
 		       s->be->options & PR_O_ABRT_CLOSE)))) {
 		/* give up */
 		si->shutw(si);
