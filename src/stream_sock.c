@@ -361,7 +361,7 @@ int stream_sock_write(int fd) {
 			 * so we cannot write anything from the buffer. Let's disable
 			 * the write event and pretend we never came there.
 			 */
-			goto write_nothing;
+			goto out_stop_write;
 		}
 
 #ifndef MSG_NOSIGNAL
@@ -398,25 +398,7 @@ int stream_sock_write(int fd) {
 
 			if (!b->l && !b->splice_len) {
 				b->flags |= BF_EMPTY;
-
-			write_nothing:
-				/* Maybe we just wrote the last chunk and need to close ? */
-				if ((b->flags & (BF_SHUTW|BF_EMPTY|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) == (BF_EMPTY|BF_WRITE_ENA|BF_SHUTR)) {
-					if (si->state == SI_ST_EST) {
-						stream_sock_shutw(si);
-						b->wex = TICK_ETERNITY;
-						goto out_wakeup;
-					}
-				}
-
-				/* we may either get there when the buffer is empty or when
-				 * we refrain from sending due to send_max reached.
-				 */
-				if (!b->l && !b->splice_len)
-					si->flags |= SI_FL_WAIT_DATA;
-				EV_FD_CLR(fd, DIR_WR);
-				b->wex = TICK_ETERNITY;
-				goto out_wakeup;
+				goto out_stop_write;
 			}
 
 			/* if the system buffer is full, don't insist */
@@ -478,6 +460,22 @@ int stream_sock_write(int fd) {
  out_skip_wakeup:
 	fdtab[fd].ev &= ~FD_POLL_OUT;
 	return retval;
+
+ out_stop_write:
+	/* We can't write anymore. Either the buffer is empty, or we just
+	 * refrain from sending because send_max is reached. Maybe we just
+	 * wrote the last chunk and need to close.
+	 */
+	if ((b->flags & (BF_SHUTW|BF_EMPTY|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) == (BF_EMPTY|BF_WRITE_ENA|BF_SHUTR) &&
+	    (si->state == SI_ST_EST)) {
+		stream_sock_shutw(si);
+	} else {
+		if (!b->l && !b->splice_len)
+			si->flags |= SI_FL_WAIT_DATA;
+		EV_FD_CLR(fd, DIR_WR);
+	}
+	b->wex = TICK_ETERNITY;
+	goto out_wakeup;
 
  out_error:
 	/* Write error on the file descriptor. We mark the FD as STERROR so
