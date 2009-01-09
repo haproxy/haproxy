@@ -56,7 +56,7 @@
 #define BF_READ_ERROR     0x000008  /* unrecoverable error on producer side */
 #define BF_READ_ACTIVITY  (BF_READ_NULL|BF_READ_PARTIAL|BF_READ_ERROR)
 
-#define BF_FULL           0x000010  /* buffer cannot accept any more data (l >= rlim-data) */
+#define BF_FULL           0x000010  /* buffer cannot accept any more data (l >= max_len) */
 #define BF_SHUTR          0x000020  /* producer has already shut down */
 #define BF_SHUTR_NOW      0x000040  /* the producer must shut down for reads immediately */
 #define BF_READ_NOEXP     0x000080  /* producer should not expire */
@@ -129,7 +129,7 @@ struct buffer {
 	unsigned int l;                 /* data length */
 	unsigned int splice_len;        /* number of bytes remaining in splice, out of buffer */
 	char *r, *w, *lr;               /* read ptr, write ptr, last read */
-	char *rlim;                     /* read limit, used for header rewriting */
+	unsigned int max_len;           /* read limit, used to keep room for header rewriting */
 	unsigned int send_max;          /* number of bytes the sender can consume om this buffer, <= l */
 	unsigned int to_forward;        /* number of bytes to forward after send_max without a wake-up */
 	unsigned int analysers;         /* bit field indicating what to do on the buffer */

@@ -65,21 +65,18 @@ int stream_sock_read(int fd) {
 		/*
 		 * 1. compute the maximum block size we can read at once.
 		 */
-		if (b->l == 0) { /* let's realign the buffer to optimize I/O */
-			b->r = b->w = b->lr  = b->data;
-			max = b->rlim - b->data;
+		if (b->l == 0) {
+			/* let's realign the buffer to optimize I/O */
+			b->r = b->w = b->lr = b->data;
+			max = b->max_len;
 		}
 		else if (b->r > b->w) {
-			max = b->rlim - b->r;
+			max = b->data + b->max_len - b->r;
 		}
 		else {
 			max = b->w - b->r;
-			/* FIXME: theorically, if w>0, we shouldn't have rlim < data+size anymore
-			 * since it means that the rewrite protection has been removed. This
-			 * implies that the if statement can be removed.
-			 */
-			if (max > b->rlim - b->data)
-				max = b->rlim - b->data;
+			if (max > b->max_len)
+				max = b->max_len;
 		}
 
 		if (unlikely(max == 0)) {
@@ -134,7 +131,7 @@ int stream_sock_read(int fd) {
 
 			b->total += ret;
 
-			if (b->l >= b->rlim - b->data) {
+			if (b->l >= b->max_len) {
 				/* The buffer is now full, there's no point in going through
 				 * the loop again.
 				 */
@@ -397,7 +394,7 @@ int stream_sock_write(int fd) {
 
 			b->flags |= BF_WRITE_PARTIAL;
 
-			if (b->l < b->rlim - b->data)
+			if (b->l < b->max_len)
 				b->flags &= ~BF_FULL;
 
 			if (b->w == b->data + BUFSIZE) {

@@ -370,7 +370,7 @@ int event_accept(int fd) {
 		s->req->flags |= BF_READ_ATTACHED; /* the producer is already connected */
 
 		if (p->mode == PR_MODE_HTTP) /* reserve some space for header rewriting */
-			s->req->rlim -= MAXREWRITE;
+			s->req->max_len -= MAXREWRITE;
 
 		/* activate default analysers enabled for this listener */
 		s->req->analysers = l->analysers;

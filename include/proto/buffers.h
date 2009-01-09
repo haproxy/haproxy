@@ -38,7 +38,7 @@ extern struct pool_head *pool2_buffer;
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_buffer();
 
-/* Initializes all fields in the buffer. The ->rlim field is initialized last
+/* Initializes all fields in the buffer. The ->max_len field is initialized last
  * so that the compiler can optimize it away if changed immediately after the
  * call to this function. By default, it is set to the full size of the buffer.
  * The BF_EMPTY flags is set.
@@ -53,7 +53,7 @@ static inline void buffer_init(struct buffer *buf)
 	buf->cons = NULL;
 	buf->flags = BF_EMPTY;
 	buf->r = buf->lr = buf->w = buf->data;
-	buf->rlim = buf->data + BUFSIZE;
+	buf->max_len = BUFSIZE;
 }
 
 /* returns 1 if the buffer is empty, 0 otherwise */
@@ -119,7 +119,7 @@ static inline void buffer_flush(struct buffer *buf)
 	buf->r = buf->lr = buf->w = buf->data;
 	buf->l = 0;
 	buf->flags |= BF_EMPTY | BF_FULL;
-	if (buf->rlim)
+	if (buf->max_len)
 		buf->flags &= ~BF_FULL;
 }
 
@@ -241,7 +241,7 @@ static inline int buffer_max(const struct buffer *buf)
  */
 static inline void buffer_set_rlim(struct buffer *buf, int size)
 {
-	buf->rlim = buf->data + size;
+	buf->max_len = size;
 	if (buf->l < size)
 		buf->flags &= ~BF_FULL;
 	else

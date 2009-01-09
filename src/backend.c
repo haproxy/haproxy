@@ -1211,7 +1211,7 @@ struct server *get_server_ph_post(struct session *s)
 	http_find_header2("Transfer-Encoding", 17, msg->sol, &txn->hdr_idx, &ctx);
 	if (ctx.idx && ctx.vlen >= 7 && strncasecmp(ctx.line+ctx.val, "chunked", 7) == 0) {
 		unsigned int chunk = 0;
-		while ( params < req->rlim && !HTTP_IS_CRLF(*params)) {
+		while ( params < (req->data+req->max_len) && !HTTP_IS_CRLF(*params)) {
 			char c = *params;
 			if (ishex(c)) {
 				unsigned int hex = toupper(c) - '0';

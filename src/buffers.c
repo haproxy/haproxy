@@ -54,7 +54,7 @@ int buffer_write(struct buffer *buf, const char *msg, int len)
 	buf->flags &= ~(BF_EMPTY|BF_FULL);
 	if (buf->l == 0)
 		buf->flags |= BF_EMPTY;
-	if (buf->l >= buf->rlim - buf->data)
+	if (buf->l >= buf->max_len)
 		buf->flags |= BF_FULL;
 
 	return -1;
@@ -88,7 +88,7 @@ int buffer_write_chunk(struct buffer *buf, struct chunk *chunk)
 	buf->flags &= ~(BF_EMPTY|BF_FULL);
 	if (buf->l == 0)
 		buf->flags |= BF_EMPTY;
-	if (buf->l >= buf->rlim - buf->data)
+	if (buf->l >= buf->max_len)
 		buf->flags |= BF_FULL;
 
 	chunk->len = 0;
@@ -129,7 +129,7 @@ int buffer_replace(struct buffer *b, char *pos, char *end, const char *str)
 	b->flags &= ~(BF_EMPTY|BF_FULL);
 	if (b->l == 0)
 		b->flags |= BF_EMPTY;
-	if (b->l >= b->rlim - b->data)
+	if (b->l >= b->max_len)
 		b->flags |= BF_FULL;
 
 	return delta;
@@ -170,7 +170,7 @@ int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int
 	b->flags &= ~(BF_EMPTY|BF_FULL);
 	if (b->l == 0)
 		b->flags |= BF_EMPTY;
-	if (b->l >= b->rlim - b->data)
+	if (b->l >= b->max_len)
 		b->flags |= BF_FULL;
 
 	return delta;
@@ -214,7 +214,7 @@ int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len)
 	b->flags &= ~(BF_EMPTY|BF_FULL);
 	if (b->l == 0)
 		b->flags |= BF_EMPTY;
-	if (b->l >= b->rlim - b->data)
+	if (b->l >= b->max_len)
 		b->flags |= BF_FULL;
 
 	return delta;
