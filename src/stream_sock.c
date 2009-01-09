@@ -79,16 +79,8 @@ int stream_sock_read(int fd) {
 				max = b->max_len;
 		}
 
-		if (unlikely(max == 0)) {
-			/* Not anymore room to store data. This should theorically
-			 * never happen, but better safe than sorry !
-			 */
-			si->flags |= SI_FL_WAIT_ROOM;
-			b->flags |= BF_FULL;
-			EV_FD_CLR(fd, DIR_RD);
-			b->rex = TICK_ETERNITY;
-			goto out_wakeup;
-		}
+		if (max == 0)
+			goto out_full;
 
 		/*
 		 * 2. read the largest possible block
@@ -163,12 +155,7 @@ int stream_sock_read(int fd) {
 					b->xfer_small = 0;
 					b->xfer_large = 0;
 				}
-
-				si->flags |= SI_FL_WAIT_ROOM;
-				b->flags |= BF_FULL;
-				EV_FD_CLR(fd, DIR_RD);
-				b->rex = TICK_ETERNITY;
-				goto out_wakeup;
+				goto out_full;
 			}
 
 			/* if too many bytes were missing from last read, it means that
@@ -269,6 +256,13 @@ int stream_sock_read(int fd) {
  out_skip_wakeup:
 	fdtab[fd].ev &= ~FD_POLL_IN;
 	return retval;
+
+ out_full:
+	si->flags |= SI_FL_WAIT_ROOM;
+	b->flags |= BF_FULL;
+	EV_FD_CLR(fd, DIR_RD);
+	b->rex = TICK_ETERNITY;
+	goto out_wakeup;
 
  out_shutdown_r:
 	/* we received a shutdown */
