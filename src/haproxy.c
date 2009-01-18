@@ -548,6 +548,27 @@ void init(int argc, char **argv)
 	if (global.maxconn == 0)
 		global.maxconn = DEFAULT_MAXCONN;
 
+	if (!global.maxpipes) {
+		/* maxpipes not specified. Count how many frontends and backends
+		 * may be using splicing, and bound that to maxconn.
+		 */
+		struct proxy *cur;
+		int nbfe = 0, nbbe = 0;
+
+		for (cur = proxy; cur; cur = cur->next) {
+			if (cur->options2 & (PR_O2_SPLIC_ANY)) {
+				if (cur->cap & PR_CAP_FE)
+					nbfe += cur->maxconn;
+				if (cur->cap & PR_CAP_BE)
+					nbbe += cur->fullconn;
+			}
+		}
+		global.maxpipes = MAX(nbfe, nbbe);
+		if (global.maxpipes > global.maxconn)
+			global.maxpipes = global.maxconn;
+	}
+
+
 	global.maxsock += global.maxconn * 2; /* each connection needs two sockets */
 	global.maxsock += global.maxpipes * 2; /* each pipe needs two FDs */
 

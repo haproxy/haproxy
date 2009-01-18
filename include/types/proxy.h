@@ -104,6 +104,13 @@
 #define PR_O_CONTSTATS	0x10000000	/* continous counters */
 #define PR_O_HTTP_PROXY 0x20000000	/* Enable session to use HTTP proxy operations */
 #define PR_O_DISABLE404 0x40000000      /* Disable a server on a 404 response to a health-check */
+/* unused: 0x80000000 */
+
+/* bits for proxy->options2 */
+#define PR_O2_SPLIC_REQ	0x00000001      /* transfer requests using linux kernel's splice() */
+#define PR_O2_SPLIC_RTR	0x00000002      /* transfer responses using linux kernel's splice() */
+#define PR_O2_SPLIC_AUT	0x00000004      /* automatically use linux kernel's splice() */
+#define PR_O2_SPLIC_ANY	(PR_O2_SPLIC_REQ|PR_O2_SPLIC_RTR|PR_O2_SPLIC_AUT)
 
 /* This structure is used to apply fast weighted round robin on a server group */
 struct fwrr_group {
@@ -121,6 +128,7 @@ struct proxy {
 	struct in_addr mon_net, mon_mask;	/* don't forward connections from this net (network order) FIXME: should support IPv6 */
 	int state;				/* proxy state */
 	int options;				/* PR_O_REDISP, PR_O_TRANSP, ... */
+	int options2;				/* PR_O2_* */
 	int mode;				/* mode = PR_MODE_TCP, PR_MODE_HTTP or PR_MODE_HEALTH */
 	struct sockaddr_in dispatch_addr;	/* the default address to connect to */
 	union {

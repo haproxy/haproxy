@@ -81,12 +81,15 @@ const char sslv3_client_hello_pkt[] = {
 };
 
 /* some of the most common options which are also the easiest to handle */
-static const struct {
+struct cfg_opt {
 	const char *name;
 	unsigned int val;
 	unsigned int cap;
 	unsigned int checks;
-} cfg_opts[] =
+};
+
+/* proxy->options */
+static const struct cfg_opt cfg_opts[] =
 {
 	{ "abortonclose", PR_O_ABRT_CLOSE, PR_CAP_BE, 0 },
 	{ "allbackups",   PR_O_USE_ALL_BK, PR_CAP_BE, 0 },
@@ -113,6 +116,16 @@ static const struct {
 	{ NULL, 0, 0, 0 }
 };
 
+/* proxy->options2 */
+static const struct cfg_opt cfg_opts2[] =
+{
+#ifdef CONFIG_HAP_LINUX_SPLICE
+	{ "splice-request",  PR_O2_SPLIC_REQ, PR_CAP_FE|PR_CAP_BE, 0 },
+	{ "splice-response", PR_O2_SPLIC_RTR, PR_CAP_FE|PR_CAP_BE, 0 },
+	{ "splice-auto",     PR_O2_SPLIC_AUT, PR_CAP_FE|PR_CAP_BE, 0 },
+#endif
+	{ NULL, 0, 0, 0 }
+};
 
 static char *cursection = NULL;
 static struct proxy defproxy;		/* fake proxy used to assign default values on all instances */
@@ -652,6 +665,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		/* set default values */
 		curproxy->state = defproxy.state;
 		curproxy->options = defproxy.options;
+		curproxy->options2 = defproxy.options2;
 		curproxy->lbprm.algo = defproxy.lbprm.algo;
 		curproxy->except_net = defproxy.except_net;
 		curproxy->except_mask = defproxy.except_mask;
@@ -1397,6 +1411,20 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 					curproxy->options |= cfg_opts[optnum].val;
 				else
 					curproxy->options &= ~cfg_opts[optnum].val;
+
+				return 0;
+			}
+		}
+
+		for (optnum = 0; cfg_opts2[optnum].name; optnum++) {
+			if (!strcmp(args[1], cfg_opts2[optnum].name)) {
+				if (warnifnotcap(curproxy, cfg_opts2[optnum].cap, file, linenum, args[1], NULL))
+					return 0;
+
+				if (!inv)
+					curproxy->options2 |= cfg_opts2[optnum].val;
+				else
+					curproxy->options2 &= ~cfg_opts2[optnum].val;
 
 				return 0;
 			}
@@ -3328,12 +3356,13 @@ int readcfgfile(const char *file)
 	for (curproxy=proxy; curproxy; curproxy=curproxy->next) {
 		int optnum;
 
-		for (optnum = 0; cfg_opts[optnum].name; optnum++) {
-			if (!(curproxy->options & cfg_opts[optnum].val))
-				continue;
+		for (optnum = 0; cfg_opts[optnum].name; optnum++)
+			if (curproxy->options & cfg_opts[optnum].val)
+				global.last_checks |= cfg_opts[optnum].checks;
 
-			global.last_checks |= cfg_opts[optnum].checks;
-		}
+		for (optnum = 0; cfg_opts2[optnum].name; optnum++)
+			if (curproxy->options2 & cfg_opts2[optnum].val)
+				global.last_checks |= cfg_opts2[optnum].checks;
 	}
 
 	free(cursection);
