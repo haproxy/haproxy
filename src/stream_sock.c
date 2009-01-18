@@ -292,7 +292,7 @@ int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 	int retval = 1;
 	int ret, max;
 
-	if (!b->l || !b->send_max)
+	if (!b->send_max)
 		return retval;
 
 	/* when we're in this loop, we already know that there is no spliced
@@ -434,7 +434,7 @@ int stream_sock_write(int fd)
 		 */
 	}
 
-	if ((b->flags & BF_EMPTY) || !b->send_max) {
+	if (!b->splice_len && !b->send_max) {
 		/* the connection is established but we can't write. Either the
 		 * buffer is empty, or we just refrain from sending because the
 		 * send_max limit was reached. Maybe we just wrote the last
@@ -457,8 +457,8 @@ int stream_sock_write(int fd)
  out_may_wakeup:
 	if (b->flags & BF_WRITE_ACTIVITY) {
 		/* update timeout if we have written something */
-		if (b->send_max &&
-		    (b->flags & (BF_EMPTY|BF_SHUTW|BF_WRITE_PARTIAL)) == BF_WRITE_PARTIAL)
+		if ((b->send_max || b->splice_len) &&
+		    (b->flags & (BF_SHUTW|BF_WRITE_PARTIAL)) == BF_WRITE_PARTIAL)
 			b->wex = tick_add_ifset(now_ms, b->wto);
 
 	out_wakeup:
