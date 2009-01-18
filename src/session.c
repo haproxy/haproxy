@@ -64,6 +64,24 @@ void session_free(struct session *s)
 		sess_change_server(s, NULL);
 	}
 
+#if defined(CONFIG_HAP_LINUX_SPLICE)
+	if (s->req->splice.prod >= 0)
+		close(s->req->splice.prod);
+	if (s->req->splice.cons >= 0)
+		close(s->req->splice.cons);
+	
+	if (s->req->splice.prod >= 0 || s->req->splice.cons >= 0)
+		usedpipes--;
+
+	if (s->rep->splice.prod >= 0)
+		close(s->rep->splice.prod);
+	if (s->rep->splice.cons >= 0)
+		close(s->rep->splice.cons);
+
+	if (s->rep->splice.prod >= 0 || s->rep->splice.cons >= 0)
+		usedpipes--;
+#endif
+
 	pool_free2(pool2_buffer, s->req);
 	pool_free2(pool2_buffer, s->rep);
 

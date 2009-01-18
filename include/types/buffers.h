@@ -83,6 +83,7 @@
 #define BF_HIJACK         0x040000  /* the producer is temporarily replaced by ->hijacker */
 #define BF_ANA_TIMEOUT    0x080000  /* the analyser timeout has expired */
 #define BF_READ_ATTACHED  0x100000  /* the read side is attached for the first time */
+#define BF_KERN_SPLICING  0x200000  /* kernel splicing desired for this buffer */
 
 /* Use these masks to clear the flags before going back to lower layers */
 #define BF_CLEAR_READ     (~(BF_READ_NULL|BF_READ_PARTIAL|BF_READ_ERROR|BF_READ_ATTACHED))
@@ -140,6 +141,12 @@ struct buffer {
 	unsigned long long total;       /* total data read */
 	struct stream_interface *prod;  /* producer attached to this buffer */
 	struct stream_interface *cons;  /* consumer attached to this buffer */
+	struct {
+#if defined(CONFIG_HAP_LINUX_SPLICE)
+		int prod;               /* -1 or fd of the pipe's end towards the producer */
+		int cons;               /* -1 or fd of the pipe's end towards the consumer */
+#endif
+	} splice;
 	char data[BUFSIZE];
 };
 
