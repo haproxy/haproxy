@@ -399,6 +399,17 @@ int cfg_parse_global(const char *file, int linenum, char **args, int inv)
 		}
 #endif /* SYSTEM_MAXCONN */
 	}
+	else if (!strcmp(args[0], "maxpipes")) {
+		if (global.maxpipes != 0) {
+			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
+			return 0;
+		}
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
+			return -1;
+		}
+		global.maxpipes = atol(args[1]);
+	}
 	else if (!strcmp(args[0], "ulimit-n")) {
 		if (global.rlimit_nofile != 0) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);

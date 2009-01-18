@@ -393,7 +393,7 @@ void init(int argc, char **argv)
 	 * Initialize the previously static variables.
 	 */
     
-	totalconn = actconn = maxfd = listeners = stopping = 0;
+	usedpipes = totalconn = actconn = maxfd = listeners = stopping = 0;
     
 
 #ifdef HAPROXY_MEMMAX
@@ -549,6 +549,7 @@ void init(int argc, char **argv)
 		global.maxconn = DEFAULT_MAXCONN;
 
 	global.maxsock += global.maxconn * 2; /* each connection needs two sockets */
+	global.maxsock += global.maxpipes * 2; /* each pipe needs two FDs */
 
 	if (global.tune.maxpollevents <= 0)
 		global.tune.maxpollevents = MAX_POLL_EVENTS;
