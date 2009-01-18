@@ -33,6 +33,7 @@
 #include <proto/stream_sock.h>
 #include <proto/task.h>
 
+#include <types/global.h>
 
 /* On recent Linux kernels, the splice() syscall may be used for faster data copy.
  * But it's not always defined on some OS versions, and it even happens that some
@@ -74,6 +75,171 @@
 _syscall6(int, splice, int, fdin, loff_t *, off_in, int, fdout, loff_t *, off_out, size_t, len, unsigned long, flags)
 
 #endif /* __NR_splice */
+
+/* A pipe contains 16 segments max, and it's common to see segments of 1448 bytes
+ * because of timestamps. Use this as a hint for not looping on splice().
+ */
+#define SPLICE_FULL_HINT	16*1448
+
+/* Returns :
+ *   -1 if splice is not possible or not possible anymore and we must switch to
+ *      user-land copy (eg: to_forward reached)
+ *    0 when we know that polling is required to get more data (EAGAIN)
+ *    1 for all other cases (we can safely try again, or if an activity has been
+ *      detected (DATA/NULL/ERR))
+ * Sets :
+ *   BF_READ_NULL
+ *   BF_READ_PARTIAL
+ *   BF_WRITE_PARTIAL (during copy)
+ *   BF_EMPTY (during copy)
+ *   SI_FL_ERR
+ *   SI_FL_WAIT_ROOM
+ *   (SI_FL_WAIT_RECV)
+ */
+static int stream_sock_splice_in(struct buffer *b, struct stream_interface *si)
+{
+	int fd = si->fd;
+	int ret, max, total = 0;
+	int retval = 1;
+
+	if (!b->to_forward)
+		return -1;
+
+	if (!(b->flags & BF_KERN_SPLICING))
+		return -1;
+
+	if (b->l) {
+		/* We're embarrassed, there are already data pending in
+		 * the buffer and we don't want to have them at two
+		 * locations at a time. Let's indicate we need some
+		 * place and ask the consumer to hurry.
+		 */
+		si->flags |= SI_FL_WAIT_ROOM;
+		EV_FD_CLR(fd, DIR_RD);
+		b->rex = TICK_ETERNITY;
+		b->cons->chk_snd(b->cons);
+		return 1;
+	}
+
+	if (unlikely(b->splice.prod == -1)) {
+		int pipefd[2];
+		if (usedpipes >= global.maxpipes || pipe(pipefd) < 0) {
+			b->flags &= ~BF_KERN_SPLICING;
+			return -1;
+		}
+		usedpipes++;
+		b->splice.prod = pipefd[1];
+		b->splice.cons = pipefd[0];
+	}
+
+	while (1) {
+		max = b->to_forward;
+		if (max <= 0) {
+			/* It looks like the buffer + the pipe already contain
+			 * the maximum amount of data to be transferred. Try to
+			 * send those data immediately on the other side if it
+			 * is currently waiting.
+			 */
+			retval = -1; /* end of forwarding */
+			break;
+		}
+
+		ret = splice(fd, NULL, b->splice.prod, NULL, max,
+			     SPLICE_F_MOVE|SPLICE_F_NONBLOCK);
+
+		if (ret <= 0) {
+#ifdef SPLICE_OLD_KERNEL_WORKAROUND
+			/* This part contains a lot of tricks for kernels before 2.6.29-rc1
+			 * where splice() did erroneously return -EAGAIN upon shutdown.
+			 */
+			if (ret == 0) {
+				si->flags |= SI_FL_WAIT_ROOM;
+				retval = 1;
+				break;
+			}
+
+			if (errno == EAGAIN) {
+				char dummy;
+				/* it can mean either that the socket got a shutdown read,
+				 * or that it has no available data to read.
+				 */
+				ret = recv(fd, &dummy, sizeof dummy,
+					   MSG_PEEK|MSG_DONTWAIT|MSG_NOSIGNAL);
+				if (!ret) {
+					/* connection closed */
+					b->flags |= BF_READ_NULL;
+					si->flags &= ~SI_FL_WAIT_ROOM;
+					retval = 1; /* no need for further polling */
+					break;
+				}
+				/* sometimes, splice() will return -1/EAGAIN while recv() will return 1.
+				 * Thus, it means we have to wait for more room to be left in the pipe
+				 * by the other end.
+				 */
+				if (ret > 0) {
+					si->flags |= SI_FL_WAIT_ROOM;
+					retval = 1;
+					break;
+				}
+
+				/* we need a new flag : SI_FL_WAIT_RECV */
+				retval = 0;
+				break;
+			}
+#else
+			/* this part is OK with kernel >= 2.6.29-rc1 */
+
+			if (ret == 0) {
+				/* connection closed */
+				b->flags |= BF_READ_NULL;
+				si->flags &= ~SI_FL_WAIT_ROOM;
+				retval = 1; /* no need for further polling */
+				break;
+			}
+
+			if (errno == EAGAIN) {
+				/* there are two reasons for EAGAIN :
+				 *   - nothing in the socket buffer (standard)
+				 *   - pipe is full
+				 * Since we don't know if pipe is full, we'll
+				 * stop if the pipe is not empty. Anyway, we
+				 * will almost always fill/empty the pipe.
+				 */
+
+				if (b->splice_len > 0) {
+					si->flags |= SI_FL_WAIT_ROOM;
+					retval = 1;
+					break;
+				}
+
+				/* note that we'd need a new flag : SI_FL_WAIT_RECV */
+				retval = 0;
+				break;
+			}
+#endif
+			/* here we have another error */
+			si->flags |= SI_FL_ERR;
+			retval = 1;
+			break;
+		} /* ret <= 0 */
+
+		b->to_forward -= ret;
+		total += ret;
+		b->total += ret;
+		b->splice_len += ret;
+		b->flags |= BF_READ_PARTIAL;
+		b->flags &= ~BF_EMPTY; /* to prevent shutdowns */
+
+		if (b->splice_len >= SPLICE_FULL_HINT) {
+			/* We've read enough of it for this time. */
+			retval = 1;
+			break;
+		}
+	} /* while */
+
+	return retval;
+}
+
 #endif /* CONFIG_HAP_LINUX_SPLICE */
 
 
@@ -103,6 +269,20 @@ int stream_sock_read(int fd) {
 	if ((fdtab[fd].ev & (FD_POLL_IN|FD_POLL_HUP)) == FD_POLL_HUP)
 		goto out_shutdown_r;
 
+#if defined(CONFIG_HAP_LINUX_SPLICE)
+	if (b->to_forward && b->flags & BF_KERN_SPLICING) {
+		retval = stream_sock_splice_in(b, si);
+
+		if (retval >= 0) {
+			if (si->flags & SI_FL_ERR)
+				goto out_error;
+			if (b->flags & BF_READ_NULL)
+				goto out_shutdown_r;
+			goto out_wakeup;
+		}
+		/* splice not possible (anymore), let's go on on standard copy */
+	}
+#endif
 	cur_read = 0;
 	while (1) {
 		/*
@@ -342,6 +522,38 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 	int retval = 1;
 	int ret, max;
 
+#if defined(CONFIG_HAP_LINUX_SPLICE)
+	while (b->splice_len) {
+		ret = splice(b->splice.cons, NULL, si->fd, NULL, b->splice_len,
+			     SPLICE_F_MOVE|SPLICE_F_NONBLOCK);
+		if (ret <= 0) {
+			if (ret == 0 || errno == EAGAIN) {
+				retval = 0;
+				return retval;
+			}
+			/* here we have another error */
+			retval = -1;
+			return retval;
+		}
+
+		b->flags |= BF_WRITE_PARTIAL;
+		b->splice_len -= ret;
+
+		if (!b->splice_len)
+			break;
+
+		if (--write_poll <= 0)
+			return retval;
+	}
+
+	/* At this point, the pipe is empty, but we may still have data pending
+	 * in the normal buffer.
+	 */
+	if (!b->l) {
+		b->flags |= BF_EMPTY;
+		return retval;
+	}
+#endif
 	if (!b->send_max)
 		return retval;
 

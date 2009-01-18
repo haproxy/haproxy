@@ -770,6 +770,14 @@ resync_stream_interface:
 	 */
 	if (!s->req->send_max && s->req->prod->state >= SI_ST_EST &&
 	    !s->req->analysers && !(s->req->flags & BF_HIJACK)) {
+		/* check if it is wise to enable kernel splicing on the request buffer */
+		if (!(s->req->flags & BF_KERN_SPLICING) &&
+		    (usedpipes < global.maxpipes) &&
+		    (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_REQ) ||
+		     (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_AUT) &&
+		      (s->req->flags & BF_STREAMER_FAST))))
+			s->req->flags |= BF_KERN_SPLICING;
+
 		if (s->req->to_forward < FORWARD_DEFAULT_SIZE)
 			buffer_forward(s->req, FORWARD_DEFAULT_SIZE);
 	}
@@ -885,6 +893,14 @@ resync_stream_interface:
 	 */
 	if (!s->rep->send_max && s->rep->prod->state >= SI_ST_EST &&
 	    !s->rep->analysers && !(s->rep->flags & BF_HIJACK)) {
+		/* check if it is wise to enable kernel splicing on the response buffer */
+		if (!(s->rep->flags & BF_KERN_SPLICING) &&
+		    (usedpipes < global.maxpipes) &&
+		    (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_RTR) ||
+		     (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_AUT) &&
+		      (s->rep->flags & BF_STREAMER_FAST))))
+			s->rep->flags |= BF_KERN_SPLICING;
+
 		if (s->rep->to_forward < FORWARD_DEFAULT_SIZE)
 			buffer_forward(s->rep, FORWARD_DEFAULT_SIZE);
 	}
