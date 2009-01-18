@@ -40,7 +40,6 @@
  * otherwise.
  */
 int stream_sock_read(int fd) {
-	__label__ out_wakeup, out_shutdown_r, out_error;
 	struct stream_interface *si = fdtab[fd].owner;
 	struct buffer *b = si->ib;
 	int ret, max, retval, cur_read;
@@ -79,8 +78,10 @@ int stream_sock_read(int fd) {
 				max = b->max_len;
 		}
 
-		if (max == 0)
-			goto out_full;
+		if (max == 0) {
+			b->flags |= BF_FULL;
+			break;
+		}
 
 		/*
 		 * 2. read the largest possible block
@@ -155,7 +156,9 @@ int stream_sock_read(int fd) {
 					b->xfer_small = 0;
 					b->xfer_large = 0;
 				}
-				goto out_full;
+
+				b->flags |= BF_FULL;
+				break;
 			}
 
 			/* if too many bytes were missing from last read, it means that
@@ -227,23 +230,20 @@ int stream_sock_read(int fd) {
 		}
 	} /* while (1) */
 
-	/*
-	 * The only way to get out of this loop is to have stopped reading
-	 * without any error nor close, either by limiting the number of
-	 * loops, or because of an EAGAIN. We only rearm the timer if we
-	 * have at least read something.
-	 */
-
-	if ((b->flags & (BF_READ_PARTIAL|BF_FULL|BF_READ_NOEXP)) == BF_READ_PARTIAL)
-		b->rex = tick_add_ifset(now_ms, b->rto);
-
-	if (!(b->flags & BF_READ_ACTIVITY))
-		goto out_skip_wakeup;
  out_wakeup:
-	/* the consumer might be waiting for data */
-	if (likely((b->flags & (BF_READ_PARTIAL|BF_EMPTY)) == BF_READ_PARTIAL &&
+	/* We might have some data the consumer is waiting for */
+	if (likely((b->send_max || b->splice_len) &&
 		   (b->cons->flags & SI_FL_WAIT_DATA)))
 		b->cons->chk_snd(b->cons);
+
+	/* note that the consumer might have cleared BF_FULL */
+	if ((b->flags & (BF_READ_PARTIAL|BF_FULL|BF_READ_NOEXP)) == BF_READ_PARTIAL)
+		b->rex = tick_add_ifset(now_ms, b->rto);
+	else if (b->flags & BF_FULL) {
+		si->flags |= SI_FL_WAIT_ROOM;
+		EV_FD_CLR(fd, DIR_RD);
+		b->rex = TICK_ETERNITY;
+	}
 
 	/* we have to wake up if there is a special event or if we don't have
 	 * any more data to forward.
@@ -251,19 +251,12 @@ int stream_sock_read(int fd) {
 	if (likely((b->flags & (BF_READ_NULL|BF_READ_ERROR|BF_SHUTR)) ||
 		   !b->to_forward ||
 		   si->state != SI_ST_EST ||
-		   b->cons->state != SI_ST_EST))
+		   b->cons->state != SI_ST_EST ||
+		   (si->flags & SI_FL_ERR)))
 		task_wakeup(si->owner, TASK_WOKEN_IO);
 
- out_skip_wakeup:
 	fdtab[fd].ev &= ~FD_POLL_IN;
 	return retval;
-
- out_full:
-	si->flags |= SI_FL_WAIT_ROOM;
-	b->flags |= BF_FULL;
-	EV_FD_CLR(fd, DIR_RD);
-	b->rex = TICK_ETERNITY;
-	goto out_wakeup;
 
  out_shutdown_r:
 	/* we received a shutdown */
@@ -283,8 +276,8 @@ int stream_sock_read(int fd) {
 	fdtab[fd].state = FD_STERROR;
 	fdtab[fd].ev &= ~FD_POLL_STICKY;
 	si->flags |= SI_FL_ERR;
-	task_wakeup(si->owner, TASK_WOKEN_IO);
-	return 1;
+	retval = 1;
+	goto out_wakeup;
 }
 
 
