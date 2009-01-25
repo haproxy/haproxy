@@ -1,7 +1,7 @@
 /*
  * Functions dedicated to statistics output
  *
- * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2009 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -41,6 +41,7 @@
 #include <proto/buffers.h>
 #include <proto/dumpstats.h>
 #include <proto/fd.h>
+#include <proto/pipe.h>
 #include <proto/proto_uxst.h>
 #include <proto/session.h>
 #include <proto/server.h>
@@ -228,7 +229,10 @@ int stats_dump_raw(struct session *s, struct buffer *rep, struct uri_auth *uri)
 				     "Ulimit-n: %d\n"
 				     "Maxsock: %d\n"
 				     "Maxconn: %d\n"
+				     "Maxpipes: %d\n"
 				     "CurrConns: %d\n"
+				     "PipesUsed: %d\n"
+				     "PipesFree: %d\n"
 				     "",
 				     global.nbproc,
 				     relative_pid,
@@ -237,9 +241,8 @@ int stats_dump_raw(struct session *s, struct buffer *rep, struct uri_auth *uri)
 				     up,
 				     global.rlimit_memmax,
 				     global.rlimit_nofile,
-				     global.maxsock,
-				     global.maxconn,
-				     actconn
+				     global.maxsock, global.maxconn, global.maxpipes,
+				     actconn, pipes_used, pipes_free
 				     );
 			if (buffer_write_chunk(rep, &msg) >= 0)
 				return 0;
@@ -461,8 +464,8 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 			     "<p><b>pid = </b> %d (process #%d, nbproc = %d)<br>\n"
 			     "<b>uptime = </b> %dd %dh%02dm%02ds<br>\n"
 			     "<b>system limits :</b> memmax = %s%s ; ulimit-n = %d<br>\n"
-			     "<b>maxsock = </b> %d<br>\n"
-			     "<b>maxconn = </b> %d (current conns = %d)<br>\n"
+			     "<b>maxsock = </b> %d ; <b>maxconn = </b> %d ; <b>maxpipes = </b> %d<br>\n"
+			     "current conns = %d ; current pipes = %d/%d<br>\n"
 			     "</td><td align=\"center\" nowrap>\n"
 			     "<table class=\"lgd\"><tr>\n"
 			     "<td class=\"active3\">&nbsp;</td><td class=\"noborder\">active UP </td>"
@@ -490,9 +493,8 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 			     global.rlimit_memmax ? ultoa(global.rlimit_memmax) : "unlimited",
 			     global.rlimit_memmax ? " MB" : "",
 			     global.rlimit_nofile,
-			     global.maxsock,
-			     global.maxconn,
-			     actconn
+			     global.maxsock, global.maxconn, global.maxpipes,
+			     actconn, pipes_used, pipes_used+pipes_free
 			     );
 
 			if (s->data_ctx.stats.flags & STAT_HIDE_DOWN)
