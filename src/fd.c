@@ -25,8 +25,6 @@ int maxfd;                      /* # of the highest fd + 1 */
 int totalconn;                  /* total # of terminated sessions */
 int actconn;                    /* # of active sessions */
 
-int cfg_polling_mechanism = 0;  /* POLL_USE_{SELECT|POLL|EPOLL} */
-
 struct poller pollers[MAX_POLLERS];
 struct poller cur_poller;
 int nbpollers = 0;

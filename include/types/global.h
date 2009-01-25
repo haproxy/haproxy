@@ -44,6 +44,15 @@
 #define LSTCHK_NETADM	0x00000004	/* check that we have CAP_NET_ADMIN */
 #define LSTCHK_TCPSPLICE	0x00000008	/* check that linux tcp_splice is enabled */
 
+/* Global tuning options */
+/* available polling mechanisms */
+#define GTUNE_USE_SELECT         (1<<0)
+#define GTUNE_USE_POLL           (1<<1)
+#define GTUNE_USE_EPOLL          (1<<2)
+#define GTUNE_USE_KQUEUE         (1<<3)
+#define GTUNE_USE_SEPOLL         (1<<4)
+
+
 /* FIXME : this will have to be redefined correctly */
 struct global {
 	int uid;
@@ -65,6 +74,7 @@ struct global {
 	struct {
 		int maxpollevents; /* max number of poll events at once */
 		int maxaccept;     /* max number of consecutive accept() */
+		int options;       /* various tuning options */
 	} tune;
 	struct listener stats_sock; /* unix socket listener for statistics */
 	int stats_timeout;          /* in ticks */

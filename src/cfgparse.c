@@ -32,7 +32,6 @@
 
 #include <types/capture.h>
 #include <types/global.h>
-#include <types/polling.h>
 
 #include <proto/acl.h>
 #include <proto/backend.h>
@@ -292,16 +291,16 @@ int cfg_parse_global(const char *file, int linenum, char **args, int inv)
 		global.mode |= MODE_DEBUG;
 	}
 	else if (!strcmp(args[0], "noepoll")) {
-		cfg_polling_mechanism &= ~POLL_USE_EPOLL;
+		global.tune.options &= ~GTUNE_USE_EPOLL;
 	}
 	else if (!strcmp(args[0], "nosepoll")) {
-		cfg_polling_mechanism &= ~POLL_USE_SEPOLL;
+		global.tune.options &= ~GTUNE_USE_SEPOLL;
 	}
 	else if (!strcmp(args[0], "nokqueue")) {
-		cfg_polling_mechanism &= ~POLL_USE_KQUEUE;
+		global.tune.options &= ~GTUNE_USE_KQUEUE;
 	}
 	else if (!strcmp(args[0], "nopoll")) {
-		cfg_polling_mechanism &= ~POLL_USE_POLL;
+		global.tune.options &= ~GTUNE_USE_POLL;
 	}
 	else if (!strcmp(args[0], "quiet")) {
 		global.mode |= MODE_QUIET;

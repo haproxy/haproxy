@@ -75,7 +75,6 @@
 
 #include <types/capture.h>
 #include <types/global.h>
-#include <types/polling.h>
 
 #include <proto/acl.h>
 #include <proto/backend.h>
@@ -409,18 +408,18 @@ void init(int argc, char **argv)
 	init_pendconn();
 	init_proto_http();
 
-	cfg_polling_mechanism = POLL_USE_SELECT;  /* select() is always available */
+	global.tune.options |= GTUNE_USE_SELECT;  /* select() is always available */
 #if defined(ENABLE_POLL)
-	cfg_polling_mechanism |= POLL_USE_POLL;
+	global.tune.options |= GTUNE_USE_POLL;
 #endif
 #if defined(ENABLE_EPOLL)
-	cfg_polling_mechanism |= POLL_USE_EPOLL;
+	global.tune.options |= GTUNE_USE_EPOLL;
 #endif
 #if defined(ENABLE_SEPOLL)
-	cfg_polling_mechanism |= POLL_USE_SEPOLL;
+	global.tune.options |= GTUNE_USE_SEPOLL;
 #endif
 #if defined(ENABLE_KQUEUE)
-	cfg_polling_mechanism |= POLL_USE_KQUEUE;
+	global.tune.options |= GTUNE_USE_KQUEUE;
 #endif
 
 	pid = getpid();
@@ -444,19 +443,19 @@ void init(int argc, char **argv)
 			}
 #if defined(ENABLE_EPOLL)
 			else if (*flag == 'd' && flag[1] == 'e')
-				cfg_polling_mechanism &= ~POLL_USE_EPOLL;
+				global.tune.options &= ~GTUNE_USE_EPOLL;
 #endif
 #if defined(ENABLE_SEPOLL)
 			else if (*flag == 'd' && flag[1] == 's')
-				cfg_polling_mechanism &= ~POLL_USE_SEPOLL;
+				global.tune.options &= ~GTUNE_USE_SEPOLL;
 #endif
 #if defined(ENABLE_POLL)
 			else if (*flag == 'd' && flag[1] == 'p')
-				cfg_polling_mechanism &= ~POLL_USE_POLL;
+				global.tune.options &= ~GTUNE_USE_POLL;
 #endif
 #if defined(ENABLE_KQUEUE)
 			else if (*flag == 'd' && flag[1] == 'k')
-				cfg_polling_mechanism &= ~POLL_USE_KQUEUE;
+				global.tune.options &= ~GTUNE_USE_KQUEUE;
 #endif
 			else if (*flag == 'V')
 				arg_mode |= MODE_VERBOSE;
@@ -615,19 +614,19 @@ void init(int argc, char **argv)
 	 * Built-in pollers have been registered before main().
 	 */
 
-	if (!(cfg_polling_mechanism & POLL_USE_KQUEUE))
+	if (!(global.tune.options & GTUNE_USE_KQUEUE))
 		disable_poller("kqueue");
 
-	if (!(cfg_polling_mechanism & POLL_USE_EPOLL))
+	if (!(global.tune.options & GTUNE_USE_EPOLL))
 		disable_poller("epoll");
 
-	if (!(cfg_polling_mechanism & POLL_USE_SEPOLL))
+	if (!(global.tune.options & GTUNE_USE_SEPOLL))
 		disable_poller("sepoll");
 
-	if (!(cfg_polling_mechanism & POLL_USE_POLL))
+	if (!(global.tune.options & GTUNE_USE_POLL))
 		disable_poller("poll");
 
-	if (!(cfg_polling_mechanism & POLL_USE_SELECT))
+	if (!(global.tune.options & GTUNE_USE_SELECT))
 		disable_poller("select");
 
 	/* Note: we could disable any poller by name here */
