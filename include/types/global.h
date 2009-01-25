@@ -51,6 +51,8 @@
 #define GTUNE_USE_EPOLL          (1<<2)
 #define GTUNE_USE_KQUEUE         (1<<3)
 #define GTUNE_USE_SEPOLL         (1<<4)
+/* platform-specific options */
+#define GTUNE_USE_SPLICE         (1<<5)
 
 
 /* FIXME : this will have to be redefined correctly */

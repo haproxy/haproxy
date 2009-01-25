@@ -32,6 +32,9 @@
 #include <proto/stream_sock.h>
 #include <proto/task.h>
 
+#ifdef CONFIG_HAP_TCPSPLICE
+#include <libtcpsplice.h>
+#endif
 
 struct pool_head *pool2_session;
 struct list sessions;
@@ -315,7 +318,8 @@ void sess_establish(struct session *s, struct stream_interface *si)
 			s->do_log(s);
 		}
 #ifdef CONFIG_HAP_TCPSPLICE
-		if ((s->fe->options & s->be->options) & PR_O_TCPSPLICE) {
+		if ((global.tune.options & GTUNE_USE_SPLICE) &&
+		    (s->fe->options & s->be->options) & PR_O_TCPSPLICE) {
 			/* TCP splicing supported by both FE and BE */
 			tcp_splice_splicefd(req->prod->fd, si->fd, 0);
 		}
@@ -761,6 +765,7 @@ resync_stream_interface:
 	    !s->req->analysers && !(s->req->flags & BF_HIJACK)) {
 		/* check if it is wise to enable kernel splicing on the request buffer */
 		if (!(s->req->flags & BF_KERN_SPLICING) &&
+		    (global.tune.options & GTUNE_USE_SPLICE) &&
 		    (pipes_used < global.maxpipes) &&
 		    (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_REQ) ||
 		     (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_AUT) &&
@@ -884,6 +889,7 @@ resync_stream_interface:
 	    !s->rep->analysers && !(s->rep->flags & BF_HIJACK)) {
 		/* check if it is wise to enable kernel splicing on the response buffer */
 		if (!(s->rep->flags & BF_KERN_SPLICING) &&
+		    (global.tune.options & GTUNE_USE_SPLICE) &&
 		    (pipes_used < global.maxpipes) &&
 		    (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_RTR) ||
 		     (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_AUT) &&

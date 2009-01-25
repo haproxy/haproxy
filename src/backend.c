@@ -1675,7 +1675,8 @@ int connect_server(struct session *s)
 	}
 
 #ifdef CONFIG_HAP_TCPSPLICE
-	if ((s->fe->options & s->be->options) & PR_O_TCPSPLICE) {
+	if ((global.tune.options & GTUNE_USE_SPLICE) &&
+	    (s->fe->options & s->be->options) & PR_O_TCPSPLICE) {
 		/* TCP splicing supported by both FE and BE */
 		tcp_splice_initfd(s->req->prod->fd, fd);
 	}
