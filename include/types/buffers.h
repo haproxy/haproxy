@@ -128,7 +128,6 @@ struct buffer {
 	int wto;                        /* write timeout, in ticks */
 	int cto;                        /* connect timeout, in ticks */
 	unsigned int l;                 /* data length */
-	unsigned int splice_len;        /* number of bytes remaining in splice, out of buffer */
 	char *r, *w, *lr;               /* read ptr, write ptr, last read */
 	unsigned int max_len;           /* read limit, used to keep room for header rewriting */
 	unsigned int send_max;          /* number of bytes the sender can consume om this buffer, <= l */
@@ -141,12 +140,7 @@ struct buffer {
 	unsigned long long total;       /* total data read */
 	struct stream_interface *prod;  /* producer attached to this buffer */
 	struct stream_interface *cons;  /* consumer attached to this buffer */
-	struct {
-#if defined(CONFIG_HAP_LINUX_SPLICE)
-		int prod;               /* -1 or fd of the pipe's end towards the producer */
-		int cons;               /* -1 or fd of the pipe's end towards the consumer */
-#endif
-	} splice;
+	struct pipe *pipe;		/* non-NULL only when data present */
 	char data[BUFSIZE];
 };
 
@@ -158,7 +152,7 @@ struct buffer {
    split in two parts :
      - the visible data (->data, for ->l bytes)
      - the invisible data, typically in kernel buffers forwarded directly from
-       the source stream sock to the destination stream sock (->splice_len
+       the source stream sock to the destination stream sock (->pipe->data
        bytes). Those are used only during forward.
 
    In order not to mix data streams, the producer may only feed the invisible
@@ -173,7 +167,7 @@ struct buffer {
    buffer is expected to reach the destination file descriptor, by any means.
    However, it's the consumer's responsibility to ensure that the invisible
    data has been entirely consumed before consuming visible data. This must be
-   reflected by ->splice_len. This is very important as this and only this can
+   reflected by ->pipe->data. This is very important as this and only this can
    ensure strict ordering of data between buffers.
 
    The producer is responsible for decreasing ->to_forward and increasing
@@ -184,7 +178,7 @@ struct buffer {
    well as any data forwarded through the visible buffer.
 
    The consumer is responsible for decreasing ->send_max when it sends data
-   from the visible buffer, and ->splice_len when it sends data from the
+   from the visible buffer, and ->pipe->data when it sends data from the
    invisible buffer.
 
    A real-world example consists in part in an HTTP response waiting in a

@@ -24,6 +24,7 @@
 #include <proto/hdr_idx.h>
 #include <proto/log.h>
 #include <proto/session.h>
+#include <proto/pipe.h>
 #include <proto/proto_http.h>
 #include <proto/proto_tcp.h>
 #include <proto/queue.h>
@@ -64,23 +65,11 @@ void session_free(struct session *s)
 		sess_change_server(s, NULL);
 	}
 
-#if defined(CONFIG_HAP_LINUX_SPLICE)
-	if (s->req->splice.prod >= 0)
-		close(s->req->splice.prod);
-	if (s->req->splice.cons >= 0)
-		close(s->req->splice.cons);
-	
-	if (s->req->splice.prod >= 0 || s->req->splice.cons >= 0)
-		usedpipes--;
+	if (s->req->pipe)
+		put_pipe(s->req->pipe);
 
-	if (s->rep->splice.prod >= 0)
-		close(s->rep->splice.prod);
-	if (s->rep->splice.cons >= 0)
-		close(s->rep->splice.cons);
-
-	if (s->rep->splice.prod >= 0 || s->rep->splice.cons >= 0)
-		usedpipes--;
-#endif
+	if (s->rep->pipe)
+		put_pipe(s->rep->pipe);
 
 	pool_free2(pool2_buffer, s->req);
 	pool_free2(pool2_buffer, s->rep);
@@ -772,7 +761,7 @@ resync_stream_interface:
 	    !s->req->analysers && !(s->req->flags & BF_HIJACK)) {
 		/* check if it is wise to enable kernel splicing on the request buffer */
 		if (!(s->req->flags & BF_KERN_SPLICING) &&
-		    (usedpipes < global.maxpipes) &&
+		    (pipes_used < global.maxpipes) &&
 		    (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_REQ) ||
 		     (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_AUT) &&
 		      (s->req->flags & BF_STREAMER_FAST))))
@@ -895,7 +884,7 @@ resync_stream_interface:
 	    !s->rep->analysers && !(s->rep->flags & BF_HIJACK)) {
 		/* check if it is wise to enable kernel splicing on the response buffer */
 		if (!(s->rep->flags & BF_KERN_SPLICING) &&
-		    (usedpipes < global.maxpipes) &&
+		    (pipes_used < global.maxpipes) &&
 		    (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_RTR) ||
 		     (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_AUT) &&
 		      (s->rep->flags & BF_STREAMER_FAST))))

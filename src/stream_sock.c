@@ -1,7 +1,7 @@
 /*
  * Functions operating on SOCK_STREAM and buffers.
  *
- * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2009 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -30,6 +30,7 @@
 #include <proto/buffers.h>
 #include <proto/client.h>
 #include <proto/fd.h>
+#include <proto/pipe.h>
 #include <proto/stream_sock.h>
 #include <proto/task.h>
 
@@ -95,6 +96,9 @@ _syscall6(int, splice, int, fdin, loff_t *, off_in, int, fdout, loff_t *, off_ou
  *   SI_FL_ERR
  *   SI_FL_WAIT_ROOM
  *   (SI_FL_WAIT_RECV)
+ *
+ * This function automatically allocates a pipe from the pipe pool. It also
+ * carefully ensures to clear b->pipe whenever it leaves the pipe empty.
  */
 static int stream_sock_splice_in(struct buffer *b, struct stream_interface *si)
 {
@@ -121,16 +125,14 @@ static int stream_sock_splice_in(struct buffer *b, struct stream_interface *si)
 		return 1;
 	}
 
-	if (unlikely(b->splice.prod == -1)) {
-		int pipefd[2];
-		if (usedpipes >= global.maxpipes || pipe(pipefd) < 0) {
+	if (unlikely(b->pipe == NULL)) {
+		if (pipes_used >= global.maxpipes || !(b->pipe = get_pipe())) {
 			b->flags &= ~BF_KERN_SPLICING;
 			return -1;
 		}
-		usedpipes++;
-		b->splice.prod = pipefd[1];
-		b->splice.cons = pipefd[0];
 	}
+
+	/* At this point, b->pipe is valid */
 
 	while (1) {
 		max = b->to_forward;
@@ -144,7 +146,7 @@ static int stream_sock_splice_in(struct buffer *b, struct stream_interface *si)
 			break;
 		}
 
-		ret = splice(fd, NULL, b->splice.prod, NULL, max,
+		ret = splice(fd, NULL, b->pipe->prod, NULL, max,
 			     SPLICE_F_MOVE|SPLICE_F_NONBLOCK);
 
 		if (ret <= 0) {
@@ -167,7 +169,7 @@ static int stream_sock_splice_in(struct buffer *b, struct stream_interface *si)
 				 * will almost always fill/empty the pipe.
 				 */
 
-				if (b->splice_len > 0) {
+				if (b->pipe->data) {
 					si->flags |= SI_FL_WAIT_ROOM;
 					retval = 1;
 					break;
@@ -191,16 +193,21 @@ static int stream_sock_splice_in(struct buffer *b, struct stream_interface *si)
 		b->to_forward -= ret;
 		total += ret;
 		b->total += ret;
-		b->splice_len += ret;
+		b->pipe->data += ret;
 		b->flags |= BF_READ_PARTIAL;
 		b->flags &= ~BF_EMPTY; /* to prevent shutdowns */
 
-		if (b->splice_len >= SPLICE_FULL_HINT) {
+		if (b->pipe->data >= SPLICE_FULL_HINT) {
 			/* We've read enough of it for this time. */
 			retval = 1;
 			break;
 		}
 	} /* while */
+
+	if (unlikely(!b->pipe->data)) {
+		put_pipe(b->pipe);
+		b->pipe = NULL;
+	}
 
 	return retval;
 }
@@ -431,13 +438,14 @@ int stream_sock_read(int fd) {
 
  out_wakeup:
 	/* We might have some data the consumer is waiting for */
-	if ((b->send_max || b->splice_len) && (b->cons->flags & SI_FL_WAIT_DATA)) {
-		int last_len = b->splice_len;
+	if ((b->send_max || b->pipe) && (b->cons->flags & SI_FL_WAIT_DATA)) {
+		int last_len = b->pipe ? b->pipe->data : 0;
 
 		b->cons->chk_snd(b->cons);
 
 		/* check if the consumer has freed some space */
-		if (!(b->flags & BF_FULL) && (!last_len || b->splice_len < last_len))
+		if (!(b->flags & BF_FULL) &&
+		    (!last_len || !b->pipe || b->pipe->data < last_len))
 			si->flags &= ~SI_FL_WAIT_ROOM;
 	}
 
@@ -487,7 +495,8 @@ int stream_sock_read(int fd) {
 /*
  * This function is called to send buffer data to a stream socket.
  * It returns -1 in case of unrecoverable error, 0 if the caller needs to poll
- * before calling it again, otherwise 1.
+ * before calling it again, otherwise 1. If a pipe was associated with the
+ * buffer and it empties it, it releases it as well.
  */
 static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 {
@@ -496,8 +505,8 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 	int ret, max;
 
 #if defined(CONFIG_HAP_LINUX_SPLICE)
-	while (b->splice_len) {
-		ret = splice(b->splice.cons, NULL, si->fd, NULL, b->splice_len,
+	while (b->pipe) {
+		ret = splice(b->pipe->cons, NULL, si->fd, NULL, b->pipe->data,
 			     SPLICE_F_MOVE|SPLICE_F_NONBLOCK);
 		if (ret <= 0) {
 			if (ret == 0 || errno == EAGAIN) {
@@ -510,10 +519,13 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 		}
 
 		b->flags |= BF_WRITE_PARTIAL;
-		b->splice_len -= ret;
+		b->pipe->data -= ret;
 
-		if (!b->splice_len)
+		if (!b->pipe->data) {
+			put_pipe(b->pipe);
+			b->pipe = NULL;
 			break;
+		}
 
 		if (--write_poll <= 0)
 			return retval;
@@ -575,7 +587,7 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 			if (likely(!b->l)) {
 				/* optimize data alignment in the buffer */
 				b->r = b->w = b->lr = b->data;
-				if (likely(!b->splice_len))
+				if (likely(!b->pipe))
 					b->flags |= BF_EMPTY;
 			}
 
@@ -669,7 +681,7 @@ int stream_sock_write(int fd)
 		 */
 	}
 
-	if (!b->splice_len && !b->send_max) {
+	if (!b->pipe && !b->send_max) {
 		/* the connection is established but we can't write. Either the
 		 * buffer is empty, or we just refrain from sending because the
 		 * send_max limit was reached. Maybe we just wrote the last
@@ -692,7 +704,7 @@ int stream_sock_write(int fd)
  out_may_wakeup:
 	if (b->flags & BF_WRITE_ACTIVITY) {
 		/* update timeout if we have written something */
-		if ((b->send_max || b->splice_len) &&
+		if ((b->send_max || b->pipe) &&
 		    (b->flags & (BF_SHUTW|BF_WRITE_PARTIAL)) == BF_WRITE_PARTIAL)
 			b->wex = tick_add_ifset(now_ms, b->wto);
 
@@ -716,7 +728,7 @@ int stream_sock_write(int fd)
 		 * any more data to forward and it's not planned to send any more.
 		 */
 		if (likely((b->flags & (BF_WRITE_NULL|BF_WRITE_ERROR|BF_SHUTW)) ||
-			   (!b->to_forward && !b->send_max && !b->splice_len) ||
+			   (!b->to_forward && !b->send_max && !b->pipe) ||
 			   si->state != SI_ST_EST ||
 			   b->prod->state != SI_ST_EST))
 			task_wakeup(si->owner, TASK_WOKEN_IO);
@@ -850,7 +862,7 @@ void stream_sock_data_finish(struct stream_interface *si)
 	/* Check if we need to close the write side */
 	if (!(ob->flags & BF_SHUTW)) {
 		/* Write not closed, update FD status and timeout for writes */
-		if ((ob->send_max == 0 && ob->splice_len == 0) ||
+		if ((ob->send_max == 0 && !ob->pipe) ||
 		    (ob->flags & BF_EMPTY) ||
 		    (ob->flags & (BF_HIJACK|BF_WRITE_ENA)) == 0) {
 			/* stop writing */
@@ -938,7 +950,7 @@ void stream_sock_chk_snd(struct stream_interface *si)
 
 	if (!(si->flags & SI_FL_WAIT_DATA) ||        /* not waiting for data */
 	    (fdtab[si->fd].ev & FD_POLL_OUT) ||      /* we'll be called anyway */
-	    !(ob->send_max || ob->splice_len) ||     /* called with nothing to send ! */
+	    !(ob->send_max || ob->pipe) ||           /* called with nothing to send ! */
 	    !(ob->flags & (BF_HIJACK|BF_WRITE_ENA))) /* we may not write */
 		return;
 
@@ -953,7 +965,7 @@ void stream_sock_chk_snd(struct stream_interface *si)
 		goto out_wakeup;
 	}
 
-	if (retval > 0 || (ob->send_max == 0 && ob->splice_len == 0)) {
+	if (retval > 0 || (ob->send_max == 0 && !ob->pipe)) {
 		/* the connection is established but we can't write. Either the
 		 * buffer is empty, or we just refrain from sending because the
 		 * send_max limit was reached. Maybe we just wrote the last
@@ -980,7 +992,7 @@ void stream_sock_chk_snd(struct stream_interface *si)
 	 * have to notify the task.
 	 */
 	if (likely((ob->flags & (BF_WRITE_NULL|BF_WRITE_ERROR|BF_SHUTW)) ||
-		   (!ob->to_forward && !ob->send_max && !ob->splice_len) ||
+		   (!ob->to_forward && !ob->send_max && !ob->pipe) ||
 		   si->state != SI_ST_EST)) {
 	out_wakeup:
 		task_wakeup(si->owner, TASK_WOKEN_IO);

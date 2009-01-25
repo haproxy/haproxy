@@ -393,7 +393,7 @@ void init(int argc, char **argv)
 	 * Initialize the previously static variables.
 	 */
     
-	usedpipes = totalconn = actconn = maxfd = listeners = stopping = 0;
+	totalconn = actconn = maxfd = listeners = stopping = 0;
     
 
 #ifdef HAPROXY_MEMMAX

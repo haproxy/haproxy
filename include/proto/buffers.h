@@ -48,15 +48,12 @@ static inline void buffer_init(struct buffer *buf)
 	buf->send_max = 0;
 	buf->to_forward = 0;
 	buf->l = buf->total = 0;
-	buf->splice_len = 0;
+	buf->pipe = NULL;
 	buf->analysers = 0;
 	buf->cons = NULL;
 	buf->flags = BF_EMPTY;
 	buf->r = buf->lr = buf->w = buf->data;
 	buf->max_len = BUFSIZE;
-#if defined(CONFIG_HAP_LINUX_SPLICE)
-	buf->splice.prod = buf->splice.cons = -1; /* closed */
-#endif
 }
 
 /* returns 1 if the buffer is empty, 0 otherwise */

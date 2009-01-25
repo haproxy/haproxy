@@ -75,7 +75,6 @@ extern char *progname;          /* program name */
 extern int  pid;                /* current process id */
 extern int  relative_pid;       /* process id starting at 1 */
 extern int  actconn;            /* # of active sessions */
-extern int  usedpipes;          /* # of used pipes */
 extern int listeners;
 extern char trash[BUFSIZE];
 extern const int zero;

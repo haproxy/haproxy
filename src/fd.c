@@ -18,15 +18,12 @@
 #include <common/compat.h>
 #include <common/config.h>
 
-//#include <types/global.h>
-
 #include <proto/fd.h>
 
 struct fdtab *fdtab = NULL;     /* array of all the file descriptors */
 int maxfd;                      /* # of the highest fd + 1 */
 int totalconn;                  /* total # of terminated sessions */
 int actconn;                    /* # of active sessions */
-int usedpipes;                  /* # of pipes in use (2 fds each) */
 
 int cfg_polling_mechanism = 0;  /* POLL_USE_{SELECT|POLL|EPOLL} */
 
