@@ -560,7 +560,7 @@ void init(int argc, char **argv)
 				if (cur->cap & PR_CAP_FE)
 					nbfe += cur->maxconn;
 				if (cur->cap & PR_CAP_BE)
-					nbbe += cur->fullconn;
+					nbbe += cur->fullconn ? cur->fullconn : global.maxconn;
 			}
 		}
 		global.maxpipes = MAX(nbfe, nbbe);
