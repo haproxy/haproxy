@@ -148,51 +148,11 @@ static int stream_sock_splice_in(struct buffer *b, struct stream_interface *si)
 			     SPLICE_F_MOVE|SPLICE_F_NONBLOCK);
 
 		if (ret <= 0) {
-#ifdef SPLICE_OLD_KERNEL_WORKAROUND
-			/* This part contains a lot of tricks for kernels before 2.6.29-rc1
-			 * where splice() did erroneously return -EAGAIN upon shutdown.
-			 */
 			if (ret == 0) {
-				si->flags |= SI_FL_WAIT_ROOM;
-				retval = 1;
-				break;
-			}
-
-			if (errno == EAGAIN) {
-				char dummy;
-				/* it can mean either that the socket got a shutdown read,
-				 * or that it has no available data to read.
+				/* connection closed. This is only detected by
+				 * recent kernels (>= 2.6.27.13).
 				 */
-				ret = recv(fd, &dummy, sizeof dummy,
-					   MSG_PEEK|MSG_DONTWAIT|MSG_NOSIGNAL);
-				if (!ret) {
-					/* connection closed */
-					b->flags |= BF_READ_NULL;
-					si->flags &= ~SI_FL_WAIT_ROOM;
-					retval = 1; /* no need for further polling */
-					break;
-				}
-				/* sometimes, splice() will return -1/EAGAIN while recv() will return 1.
-				 * Thus, it means we have to wait for more room to be left in the pipe
-				 * by the other end.
-				 */
-				if (ret > 0) {
-					si->flags |= SI_FL_WAIT_ROOM;
-					retval = 1;
-					break;
-				}
-
-				/* we need a new flag : SI_FL_WAIT_RECV */
-				retval = 0;
-				break;
-			}
-#else
-			/* this part is OK with kernel >= 2.6.29-rc1 */
-
-			if (ret == 0) {
-				/* connection closed */
 				b->flags |= BF_READ_NULL;
-				si->flags &= ~SI_FL_WAIT_ROOM;
 				retval = 1; /* no need for further polling */
 				break;
 			}
@@ -201,6 +161,7 @@ static int stream_sock_splice_in(struct buffer *b, struct stream_interface *si)
 				/* there are two reasons for EAGAIN :
 				 *   - nothing in the socket buffer (standard)
 				 *   - pipe is full
+				 *   - the connection is closed (kernel < 2.6.27.13)
 				 * Since we don't know if pipe is full, we'll
 				 * stop if the pipe is not empty. Anyway, we
 				 * will almost always fill/empty the pipe.
@@ -212,11 +173,15 @@ static int stream_sock_splice_in(struct buffer *b, struct stream_interface *si)
 					break;
 				}
 
-				/* note that we'd need a new flag : SI_FL_WAIT_RECV */
-				retval = 0;
+				/* We don't know if the connection was closed.
+				 * But if we're called upon POLLIN with an empty
+				 * pipe and get EAGAIN, it is suspect enought to
+				 * try to fall back to the normal recv scheme
+				 * which will be able to deal with the situation.
+				 */
+				retval = -1;
 				break;
 			}
-#endif
 			/* here we have another error */
 			si->flags |= SI_FL_ERR;
 			retval = 1;
@@ -271,6 +236,14 @@ int stream_sock_read(int fd) {
 
 #if defined(CONFIG_HAP_LINUX_SPLICE)
 	if (b->to_forward && b->flags & BF_KERN_SPLICING) {
+
+		/* Under Linux, if FD_POLL_HUP is set, we have reached the end.
+		 * Since older splice() implementations were buggy and returned
+		 * EAGAIN on end of read, let's bypass the call to splice() now.
+		 */
+		if (fdtab[fd].ev & FD_POLL_HUP)
+			goto out_shutdown_r;
+
 		retval = stream_sock_splice_in(b, si);
 
 		if (retval >= 0) {
