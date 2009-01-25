@@ -566,6 +566,7 @@ void init(int argc, char **argv)
 		global.maxpipes = MAX(nbfe, nbbe);
 		if (global.maxpipes > global.maxconn)
 			global.maxpipes = global.maxconn;
+		global.maxpipes /= 4;
 	}
 
 
