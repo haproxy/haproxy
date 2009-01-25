@@ -21,6 +21,7 @@
 #   USE_TCPSPLICE        : enable tcp_splice() on Linux (needs kernel patch).
 #   USE_TPROXY           : enable transparent proxy. Automatic.
 #   USE_LINUX_TPROXY     : enable full transparent proxy (need kernel patch).
+#   USE_LINUX_SPLICE     : enable kernel 2.6 splicing (broken on old kernels)
 #
 # Options can be forced by specifying "USE_xxx=1" or can be disabled by using
 # "USE_xxx=" (empty string).
@@ -296,6 +297,11 @@ TCPSPLICEDIR    :=
 OPTIONS_CFLAGS  += -DCONFIG_HAP_TCPSPLICE -I$(TCPSPLICEDIR)
 OPTIONS_LDFLAGS += -L$(TCPSPLICEDIR) -ltcpsplice
 BUILD_OPTIONS   += $(call ignore_implicit,USE_TCPSPLICE)
+endif
+
+ifneq ($(USE_LINUX_SPLICE),)
+OPTIONS_CFLAGS += -DCONFIG_HAP_LINUX_SPLICE
+BUILD_OPTIONS  += $(call ignore_implicit,USE_LINUX_SPLICE)
 endif
 
 ifneq ($(USE_CTTPROXY),)
