@@ -144,7 +144,7 @@ static struct listener *str2listener(char *str, struct listener *tail)
 
 		str = next;
 		/* 1) look for the end of the first address */
-		if ((next = strrchr(str, ',')) != NULL) {
+		if ((next = strchr(str, ',')) != NULL) {
 			*next++ = 0;
 		}
 
