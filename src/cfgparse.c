@@ -1070,7 +1070,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		}
 		LIST_ADDQ(&curproxy->block_cond, &cond->list);
 	}
-	else if (!strcmp(args[0], "use_backend")) {  /* early blocking based on ACLs */
+	else if (!strcmp(args[0], "use_backend")) {
 		int pol = ACL_COND_NONE;
 		struct acl_cond *cond;
 		struct switching_rule *rule;
