@@ -164,7 +164,7 @@ static void set_server_down(struct server *s)
 
 		s->down_trans++;
 
-		if (s->state && SRV_CHECKED)
+		if (s->state & SRV_CHECKED)
 			for(srv = s->tracknext; srv; srv = srv->tracknext)
 				set_server_down(srv);
 	}
@@ -229,7 +229,7 @@ static void set_server_up(struct server *s) {
 		Warning("%s", trash);
 		send_log(s->proxy, LOG_NOTICE, "%s", trash);
 
-		if (s->state && SRV_CHECKED)
+		if (s->state & SRV_CHECKED)
 			for(srv = s->tracknext; srv; srv = srv->tracknext)
 				set_server_up(srv);
 	}
@@ -280,7 +280,7 @@ static void set_server_disabled(struct server *s) {
 	if (!s->proxy->srv_bck && !s->proxy->srv_act)
 		set_backend_down(s->proxy);
 
-	if (s->state && SRV_CHECKED)
+	if (s->state & SRV_CHECKED)
 		for(srv = s->tracknext; srv; srv = srv->tracknext)
 			set_server_disabled(srv);
 }
@@ -320,7 +320,7 @@ static void set_server_enabled(struct server *s) {
 	Warning("%s", trash);
 	send_log(s->proxy, LOG_NOTICE, "%s", trash);
 
-	if (s->state && SRV_CHECKED)
+	if (s->state & SRV_CHECKED)
 		for(srv = s->tracknext; srv; srv = srv->tracknext)
 			set_server_enabled(srv);
 }
