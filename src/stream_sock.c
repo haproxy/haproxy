@@ -904,11 +904,11 @@ void stream_sock_chk_rcv(struct stream_interface *si)
 
 	DPRINTF(stderr,"[%u] %s: fd=%d owner=%p ib=%p, ob=%p, exp(r,w)=%u,%u ibf=%08x obf=%08x ibl=%d obl=%d si=%d\n",
 		now_ms, __FUNCTION__,
-		fd, fdtab[fd].owner,
-		ib, ob,
-		ib->rex, ob->wex,
-		ib->flags, ob->flags,
-		ib->l, ob->l, si->state);
+		si->fd, fdtab[si->fd].owner,
+		ib, si->ob,
+		ib->rex, si->ob->wex,
+		ib->flags, si->ob->flags,
+		ib->l, si->ob->l, si->state);
 
 	if (unlikely(si->state != SI_ST_EST || (ib->flags & BF_SHUTR)))
 		return;
@@ -939,11 +939,11 @@ void stream_sock_chk_snd(struct stream_interface *si)
 
 	DPRINTF(stderr,"[%u] %s: fd=%d owner=%p ib=%p, ob=%p, exp(r,w)=%u,%u ibf=%08x obf=%08x ibl=%d obl=%d si=%d\n",
 		now_ms, __FUNCTION__,
-		fd, fdtab[fd].owner,
-		ib, ob,
-		ib->rex, ob->wex,
-		ib->flags, ob->flags,
-		ib->l, ob->l, si->state);
+		si->fd, fdtab[si->fd].owner,
+		si->ib, ob,
+		si->ib->rex, ob->wex,
+		si->ib->flags, ob->flags,
+		si->ib->l, ob->l, si->state);
 
 	if (unlikely(si->state != SI_ST_EST || (ob->flags & BF_SHUTW)))
 		return;
