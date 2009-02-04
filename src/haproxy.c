@@ -1106,6 +1106,7 @@ int main(int argc, char **argv)
 	}
 
 	if (global.mode & MODE_DAEMON) {
+		struct proxy *px;
 		int ret = 0;
 		int proc;
 
@@ -1130,6 +1131,16 @@ int main(int argc, char **argv)
 			fclose(pidfile);
 		free(global.pidfile);
 		global.pidfile = NULL;
+
+		/* we might have to unbind some proxies from some processes */
+		px = proxy;
+		while (px != NULL) {
+			if (px->bind_proc && px->state != PR_STSTOPPED) {
+				if (!(px->bind_proc & (1 << proc)))
+					stop_proxy(px);
+			}
+			px = px->next;
+		}
 
 		if (proc == global.nbproc)
 			exit(0); /* parent must leave */

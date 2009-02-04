@@ -668,6 +668,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		curproxy->state = defproxy.state;
 		curproxy->options = defproxy.options;
 		curproxy->options2 = defproxy.options2;
+		curproxy->bind_proc = defproxy.bind_proc;
 		curproxy->lbprm.algo = defproxy.lbprm.algo;
 		curproxy->except_net = defproxy.except_net;
 		curproxy->except_mask = defproxy.except_mask;
@@ -929,6 +930,39 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 	}
 	else if (!strcmp(args[0], "enabled")) {  /* enables this proxy (used to revert a disabled default) */
 		curproxy->state = PR_STNEW;
+	}
+	else if (!strcmp(args[0], "bind-process")) {  /* enable this proxy only on some processes */
+		int cur_arg = 1;
+		unsigned int set = 0;
+
+		while (*args[cur_arg]) {
+			int u;
+			if (strcmp(args[cur_arg], "all") == 0) {
+				set = 0;
+				break;
+			}
+			else if (strcmp(args[cur_arg], "odd") == 0) {
+				set |= 0x55555555;
+			}
+			else if (strcmp(args[cur_arg], "even") == 0) {
+				set |= 0xAAAAAAAA;
+			}
+			else {
+				u = str2uic(args[cur_arg]);
+				if (u < 1 || u > 32) {
+					Alert("parsing [%s:%d]: %s expects 'all', 'odd', 'even', or process numbers from 1 to 32.\n",
+					      file, linenum, args[0]);
+					return -1;
+				}
+				if (u > global.nbproc) {
+					Warning("parsing [%s:%d]: %s references process number higher than global.nbproc.\n",
+						file, linenum, args[0]);
+				}
+				set |= 1 << (u - 1);
+			}
+			cur_arg++;
+		}
+		curproxy->bind_proc = set;
 	}
 	else if (!strcmp(args[0], "acl")) {  /* add an ACL */
 		if (curproxy == &defproxy) {
@@ -3168,6 +3202,11 @@ int readcfgfile(const char *file)
 			} else {
 				free(curproxy->defbe.name);
 				curproxy->defbe.be = target;
+				/* we force the backend to be present on at least all of
+				 * the frontend's processes.
+				 */
+				target->bind_proc = curproxy->bind_proc ?
+					(target->bind_proc | curproxy->bind_proc) : 0;
 			}
 		}
 
@@ -3193,6 +3232,11 @@ int readcfgfile(const char *file)
 				} else {
 					free((void *)exp->replace);
 					exp->replace = (const char *)target;
+					/* we force the backend to be present on at least all of
+					 * the frontend's processes.
+					 */
+					target->bind_proc = curproxy->bind_proc ?
+						(target->bind_proc | curproxy->bind_proc) : 0;
 				}
 			}
 		}
@@ -3214,6 +3258,11 @@ int readcfgfile(const char *file)
 			} else {
 				free((void *)rule->be.name);
 				rule->be.backend = target;
+				/* we force the backend to be present on at least all of
+				 * the frontend's processes.
+				 */
+				target->bind_proc = curproxy->bind_proc ?
+					(target->bind_proc | curproxy->bind_proc) : 0;
 			}
 		}
 

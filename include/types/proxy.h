@@ -258,6 +258,7 @@ struct proxy {
 	int uuid;				/* universally unique proxy ID, used for SNMP */
 	int next_svid;				/* next server-id, used for SNMP */
 	unsigned int backlog;			/* force the frontend's listen backlog */
+	unsigned int bind_proc;			/* bitmask of processes using this proxy. 0 = all. */
 };
 
 struct switching_rule {

@@ -523,6 +523,7 @@ appsession                  -          -         X         X
 backlog                     X          X         X         -
 balance                     X          -         X         X   
 bind                        -          X         X         -   
+bind-process                X          X         X         X   
 block                       -          X         X         X
 capture cookie              -          X         X         -
 capture request header      -          X         X         -
@@ -901,6 +902,57 @@ bind [<address>]:<port> [, ...] transparent
             bind 10.0.0.1:10080,10.0.0.1:10443
 
   See also : "source".
+
+
+bind-process [ all | odd | even | <number 1-32> ] ...
+  Limit visibility of an instance to a certain set of processes numbers.
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+  Arguments :
+    all           All process will see this instance. This is the default. It
+                  may be used to override a default value.
+
+    odd           This instance will be enabled on processes 1,3,5,...31. This
+                  option may be combined with other numbers.
+
+    even          This instance will be enabled on processes 2,4,6,...32. This
+                  option may be combined with other numbers. Do not use it
+                  with less than 2 processes otherwise some instances might be
+                  missing from all processes.
+
+    number        The instance will be enabled on this process number, between
+                  1 and 32. You must be careful not to reference a process
+                  number greater than the configured global.nbproc, otherwise
+                  some instances might be missing from all processes.
+
+  This keyword limits binding of certain instances to certain processes. This
+  is useful in order not to have too many processes listening to the same
+  ports. For instance, on a dual-core machine, it might make sense to set
+  'nbproc 2' in the global section, then distributes the listeners among 'odd'
+  and 'even' instances.
+
+  At the moment, it is not possible to reference more than 32 processes using
+  this keyword, but this should be more than enough for most setups. Please
+  note that 'all' really means all processes and is not limited to the first
+  32.
+
+  If some backends are referenced by frontends bound to other processes, the
+  backend automatically inherits the frontend's processes.
+
+  Example :
+        listen app_ip1
+            bind 10.0.0.1:80
+            bind_process odd
+
+        listen app_ip2
+            bind 10.0.0.2:80
+            bind_process even
+
+        listen management
+            bind 10.0.0.3:80
+            bind_process 1 2 3 4
+
+  See also : "nbproc" in global section.
 
 
 block { if | unless } <condition>
