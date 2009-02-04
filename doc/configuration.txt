@@ -853,6 +853,7 @@ balance url_param <param> [check_post [<max_wait>]]
 
 
 bind [<address>]:<port> [, ...]
+bind [<address>]:<port> [, ...] interface <interface>
 bind [<address>]:<port> [, ...] transparent
   Define one or several listening addresses and/or ports in a frontend.
   May be used in sections :   defaults | frontend | listen | backend
@@ -867,6 +868,16 @@ bind [<address>]:<port> [, ...] transparent
     <port>        is the TCP port number the proxy will listen on. The port is
                   mandatory. Note that in the case of an IPv6 address, the port
                   is always the number after the last colon (':').
+
+    <interface>   is an optional physical interface name. This is currently
+                  only supported on Linux. The interface must be a physical
+                  interface, not an aliased interface. When specified, all
+                  addresses on the same line will only be accepted if the
+                  incoming packet physically come through the designated
+                  interface. It is also possible to bind multiple frontends to
+                  the same address if they are bound to different interfaces.
+                  Note that binding to a physical interface requires root
+                  privileges.
 
     transparent   is an optional keyword which is supported only on certain
                   Linux kernels. It indicates that the addresses will be bound

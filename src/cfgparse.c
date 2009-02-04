@@ -782,6 +782,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 	/* Now let's parse the proxy-specific keywords */
 	if (!strcmp(args[0], "bind")) {  /* new listen addresses */
 		struct listener *last_listen;
+		int cur_arg;
+
 		if (curproxy == &defproxy) {
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			return -1;
@@ -799,24 +801,50 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		curproxy->listen = str2listener(args[1], last_listen);
 		if (!curproxy->listen)
 			return -1;
-		if (*args[2]) {
+
+		cur_arg = 2;
+		while (*(args[cur_arg])) {
+			if (!strcmp(args[cur_arg], "interface")) { /* specifically bind to this interface */
+#ifdef SO_BINDTODEVICE
+				struct listener *l;
+
+				if (!*args[cur_arg + 1]) {
+					Alert("parsing [%s:%d] : '%s' : missing interface name.\n",
+					      file, linenum, args[0]);
+					return -1;
+				}
+				
+				for (l = curproxy->listen; l != last_listen; l = l->next)
+					l->interface = strdup(args[cur_arg + 1]);
+
+				global.last_checks |= LSTCHK_NETADM;
+
+				cur_arg += 2;
+				continue;
+#else
+				Alert("parsing [%s:%d] : '%s' : '%s' option not implemented.\n",
+				      file, linenum, args[0], args[cur_arg]);
+				return -1;
+#endif
+			}
+			if (!strcmp(args[cur_arg], "transparent")) { /* transparently bind to these addresses */
 #ifdef CONFIG_HAP_LINUX_TPROXY
-			if (!strcmp(args[2], "transparent")) { /* transparently bind to these addresses */
 				struct listener *l;
 
 				for (l = curproxy->listen; l != last_listen; l = l->next)
 					l->options |= LI_O_FOREIGN;
-			}
-			else {
-				Alert("parsing [%s:%d] : '%s' only supports the 'transparent' option.\n",
-				      file, linenum, args[0]);
-				return -1;
-			}
+
+				cur_arg ++;
+				continue;
 #else
-			Alert("parsing [%s:%d] : '%s' supports no option after the address list.\n",
+				Alert("parsing [%s:%d] : '%s' : '%s' option not implemented.\n",
+				      file, linenum, args[0], args[cur_arg]);
+				return -1;
+#endif
+			}
+			Alert("parsing [%s:%d] : '%s' only supports the 'transparent' and 'interface' options.\n",
 			      file, linenum, args[0]);
 			return -1;
-#endif
 		}
 		global.maxsock++;
 		return 0;

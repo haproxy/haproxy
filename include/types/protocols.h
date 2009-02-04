@@ -96,6 +96,7 @@ struct listener {
 			mode_t mode;	/* 0 to leave unchanged */
 		} ux;
 	} perm;
+	char *interface;		/* interface name or NULL */
 };
 
 /* This structure contains all information needed to easily handle a protocol.
