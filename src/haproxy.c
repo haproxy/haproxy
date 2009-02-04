@@ -944,7 +944,7 @@ int main(int argc, char **argv)
 	}
 
 	/* Note: start_proxies() sends an alert when it fails. */
-	if (err != ERR_NONE) {
+	if ((err & ~ERR_WARN) != ERR_NONE) {
 		if (retry != MAX_START_RETRIES && nb_oldpids)
 			tell_old_pids(SIGTTIN);
 		exit(1);
@@ -957,7 +957,7 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
-	if (protocol_bind_all() != ERR_NONE) {
+	if ((protocol_bind_all() & ~ERR_WARN) != ERR_NONE) {
 		Alert("[%s.main()] Some protocols failed to start their listeners! Exiting.\n", argv[0]);
 		protocol_unbind_all(); /* cleanup everything we can */
 		if (nb_oldpids)
