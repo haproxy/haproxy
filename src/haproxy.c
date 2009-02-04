@@ -1052,10 +1052,18 @@ int main(int argc, char **argv)
 
 	if ((global.last_checks & LSTCHK_NETADM) && global.uid) {
 		Alert("[%s.main()] Some configuration options require full privileges, so global.uid cannot be changed.\n"
-		      "", argv[0], global.gid);
+		      "", argv[0]);
 		protocol_unbind_all();
 		exit(1);
 	}
+
+	/* If the user is not root, we'll still let him try the configuration
+	 * but we inform him that unexpected behaviour may occur.
+	 */
+	if ((global.last_checks & LSTCHK_NETADM) && getuid())
+		Warning("[%s.main()] Some options which require full privileges"
+			" might not work well.\n"
+			"", argv[0]);
 
 	/* chroot if needed */
 	if (global.chroot != NULL) {
