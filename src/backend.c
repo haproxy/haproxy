@@ -1719,6 +1719,11 @@ int connect_server(struct session *s)
 			break;
 		}
 #endif
+#ifdef SO_BINDTODEVICE
+		/* Note: this might fail if not CAP_NET_RAW */
+		if (s->srv->iface_name)
+			setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, s->srv->iface_name, s->srv->iface_len);
+#endif
 		ret = tcpv4_bind_socket(fd, flags, &s->srv->source_addr, remote);
 		if (ret) {
 			close(fd);

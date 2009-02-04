@@ -4294,6 +4294,7 @@ slowstart <start_time_in_ms>
   seen as failed.
 
 source <addr>[:<port>] [usesrc { <addr2>[:<port2>] | client | clientip } ]
+source <addr>[:<port>] [interface <name>] ...
   The "source" parameter sets the source address which will be used when
   connecting to the server. It follows the exact same parameters and principle
   as the backend "source" keyword, except that it only applies to the server

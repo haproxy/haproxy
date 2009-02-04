@@ -91,6 +91,8 @@ struct server {
 #if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
 	struct sockaddr_in tproxy_addr;		/* non-local address we want to bind to for connect() */
 #endif
+	int iface_len;				/* bind interface name length */
+	char *iface_name;			/* bind interface name or NULL */
 
 	struct server *tracknext, *tracked;	/* next server in a tracking list, tracked server */
 	char *trackit;				/* temporary variable to make assignment deferrable */

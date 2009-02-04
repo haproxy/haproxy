@@ -1976,39 +1976,66 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 				newsrv->state |= SRV_BIND_SRC;
 				newsrv->source_addr = *str2sa(args[cur_arg + 1]);
 				cur_arg += 2;
-				if (!strcmp(args[cur_arg], "usesrc")) {  /* address to use outside */
+				while (*(args[cur_arg])) {
+					if (!strcmp(args[cur_arg], "usesrc")) {  /* address to use outside */
 #if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
 #if !defined(CONFIG_HAP_LINUX_TPROXY)
-					if (newsrv->source_addr.sin_addr.s_addr == INADDR_ANY) {
-						Alert("parsing [%s:%d] : '%s' requires an explicit '%s' address.\n",
-						      file, linenum, "usesrc", "source");
-						return -1;
-					}
+						if (newsrv->source_addr.sin_addr.s_addr == INADDR_ANY) {
+							Alert("parsing [%s:%d] : '%s' requires an explicit '%s' address.\n",
+							      file, linenum, "usesrc", "source");
+							return -1;
+						}
 #endif
-					if (!*args[cur_arg + 1]) {
-						Alert("parsing [%s:%d] : '%s' expects <addr>[:<port>], 'client', or 'clientip' as argument.\n",
-						      file, linenum, "usesrc");
-						return -1;
-					}
-					if (!strcmp(args[cur_arg + 1], "client")) {
-						newsrv->state |= SRV_TPROXY_CLI;
-					} else if (!strcmp(args[cur_arg + 1], "clientip")) {
-						newsrv->state |= SRV_TPROXY_CIP;
-					} else {
-						newsrv->state |= SRV_TPROXY_ADDR;
-						newsrv->tproxy_addr = *str2sa(args[cur_arg + 1]);
-					}
-					global.last_checks |= LSTCHK_NETADM;
+						if (!*args[cur_arg + 1]) {
+							Alert("parsing [%s:%d] : '%s' expects <addr>[:<port>], 'client', or 'clientip' as argument.\n",
+							      file, linenum, "usesrc");
+							return -1;
+						}
+						if (!strcmp(args[cur_arg + 1], "client")) {
+							newsrv->state |= SRV_TPROXY_CLI;
+						} else if (!strcmp(args[cur_arg + 1], "clientip")) {
+							newsrv->state |= SRV_TPROXY_CIP;
+						} else {
+							newsrv->state |= SRV_TPROXY_ADDR;
+							newsrv->tproxy_addr = *str2sa(args[cur_arg + 1]);
+						}
+						global.last_checks |= LSTCHK_NETADM;
 #if !defined(CONFIG_HAP_LINUX_TPROXY)
-					global.last_checks |= LSTCHK_CTTPROXY;
+						global.last_checks |= LSTCHK_CTTPROXY;
 #endif
-					cur_arg += 2;
+						cur_arg += 2;
+						continue;
 #else	/* no TPROXY support */
-					Alert("parsing [%s:%d] : '%s' not allowed here because support for TPROXY was not compiled in.\n",
+						Alert("parsing [%s:%d] : '%s' not allowed here because support for TPROXY was not compiled in.\n",
 						      file, linenum, "usesrc");
 						return -1;
+#endif /* defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY) */
+					} /* "usesrc" */
+
+					if (!strcmp(args[cur_arg], "interface")) { /* specifically bind to this interface */
+#ifdef SO_BINDTODEVICE
+						if (!*args[cur_arg + 1]) {
+							Alert("parsing [%s:%d] : '%s' : missing interface name.\n",
+							      file, linenum, args[0]);
+							return -1;
+						}
+						if (newsrv->iface_name)
+							free(newsrv->iface_name);
+
+						newsrv->iface_name = strdup(args[cur_arg + 1]);
+						newsrv->iface_len  = strlen(newsrv->iface_name);
+						global.last_checks |= LSTCHK_NETADM;
+#else
+						Alert("parsing [%s:%d] : '%s' : '%s' option not implemented.\n",
+						      file, linenum, args[0], args[cur_arg]);
+						return -1;
 #endif
-				}
+						cur_arg += 2;
+						continue;
+					}
+					/* this keyword in not an option of "source" */
+					break;
+				} /* while */
 			}
 			else if (!strcmp(args[cur_arg], "usesrc")) {  /* address to use outside: needs "source" first */
 				Alert("parsing [%s:%d] : '%s' only allowed after a '%s' statement.\n",

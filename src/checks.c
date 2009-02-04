@@ -590,6 +590,12 @@ void process_chk(struct task *t, int *next)
 						flags  = 3;
 					}
 #endif
+#ifdef SO_BINDTODEVICE
+					/* Note: this might fail if not CAP_NET_RAW */
+					if (s->iface_name)
+						setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE,
+							   s->iface_name, s->iface_len);
+#endif
 					ret = tcpv4_bind_socket(fd, flags, &s->source_addr, remote);
 					if (ret) {
 						s->result |= SRV_CHK_ERROR;
