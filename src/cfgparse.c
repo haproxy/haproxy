@@ -705,6 +705,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			if (defproxy.url_param_name)
 				curproxy->url_param_name = strdup(defproxy.url_param_name);
 			curproxy->url_param_len = defproxy.url_param_len;
+
+			if (defproxy.iface_name)
+				curproxy->iface_name = strdup(defproxy.iface_name);
+			curproxy->iface_len  = defproxy.iface_len;
 		}
 
 		if (curproxy->cap & PR_CAP_RS) {
@@ -761,6 +765,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		free(defproxy.capture_name);
 		free(defproxy.monitor_uri);
 		free(defproxy.defbe.name);
+		free(defproxy.iface_name);
 		free(defproxy.fwdfor_hdr_name);
 		defproxy.fwdfor_hdr_len = 0;
 
@@ -2123,54 +2128,82 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		}
 	}
 	else if (!strcmp(args[0], "source")) {  /* address to which we bind when connecting */
+		int cur_arg;
+
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			return 0;
 
 		if (!*args[1]) {
-#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
-			Alert("parsing [%s:%d] : '%s' expects <addr>[:<port>], and optional '%s' <addr> as argument.\n",
-			      file, linenum, "source", "usesrc");
-#else
-			Alert("parsing [%s:%d] : '%s' expects <addr>[:<port>] as argument.\n",
-			      file, linenum, "source");
-#endif
+			Alert("parsing [%s:%d] : '%s' expects <addr>[:<port>], and optionally '%s' <addr>, and '%s' <name>.\n",
+			      file, linenum, "source", "usesrc", "interface");
 			return -1;
 		}
 	
 		curproxy->source_addr = *str2sa(args[1]);
 		curproxy->options |= PR_O_BIND_SRC;
-		if (!strcmp(args[2], "usesrc")) {  /* address to use outside */
+
+		cur_arg = 2;
+		while (*(args[cur_arg])) {
+			if (!strcmp(args[cur_arg], "usesrc")) {  /* address to use outside */
 #if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
 #if !defined(CONFIG_HAP_LINUX_TPROXY)
-			if (curproxy->source_addr.sin_addr.s_addr == INADDR_ANY) {
-				Alert("parsing [%s:%d] : '%s' requires an explicit 'source' address.\n",
-				      file, linenum, "usesrc");
-				return -1;
-			}
+				if (curproxy->source_addr.sin_addr.s_addr == INADDR_ANY) {
+					Alert("parsing [%s:%d] : '%s' requires an explicit 'source' address.\n",
+					      file, linenum, "usesrc");
+					return -1;
+				}
 #endif
-			if (!*args[3]) {
-				Alert("parsing [%s:%d] : '%s' expects <addr>[:<port>], 'client', or 'clientip' as argument.\n",
-				      file, linenum, "usesrc");
-				return -1;
-			}
+				if (!*args[cur_arg + 1]) {
+					Alert("parsing [%s:%d] : '%s' expects <addr>[:<port>], 'client', or 'clientip' as argument.\n",
+					      file, linenum, "usesrc");
+					return -1;
+				}
 
-			if (!strcmp(args[3], "client")) {
-				curproxy->options |= PR_O_TPXY_CLI;
-			} else if (!strcmp(args[3], "clientip")) {
-				curproxy->options |= PR_O_TPXY_CIP;
-			} else {
-				curproxy->options |= PR_O_TPXY_ADDR;
-				curproxy->tproxy_addr = *str2sa(args[3]);
-			}
-			global.last_checks |= LSTCHK_NETADM;
+				if (!strcmp(args[cur_arg + 1], "client")) {
+					curproxy->options |= PR_O_TPXY_CLI;
+				} else if (!strcmp(args[cur_arg + 1], "clientip")) {
+					curproxy->options |= PR_O_TPXY_CIP;
+				} else {
+					curproxy->options |= PR_O_TPXY_ADDR;
+					curproxy->tproxy_addr = *str2sa(args[cur_arg + 1]);
+				}
+				global.last_checks |= LSTCHK_NETADM;
 #if !defined(CONFIG_HAP_LINUX_TPROXY)
-			global.last_checks |= LSTCHK_CTTPROXY;
+				global.last_checks |= LSTCHK_CTTPROXY;
 #endif
 #else	/* no TPROXY support */
-			Alert("parsing [%s:%d] : '%s' not allowed here because support for TPROXY was not compiled in.\n",
-			      file, linenum, "usesrc");
-			return -1;
+				Alert("parsing [%s:%d] : '%s' not allowed here because support for TPROXY was not compiled in.\n",
+				      file, linenum, "usesrc");
+				return -1;
 #endif
+				cur_arg += 2;
+				continue;
+			}
+
+			if (!strcmp(args[cur_arg], "interface")) { /* specifically bind to this interface */
+#ifdef SO_BINDTODEVICE
+				if (!*args[cur_arg + 1]) {
+					Alert("parsing [%s:%d] : '%s' : missing interface name.\n",
+					      file, linenum, args[0]);
+					return -1;
+				}
+				if (curproxy->iface_name)
+					free(curproxy->iface_name);
+
+				curproxy->iface_name = strdup(args[cur_arg + 1]);
+				curproxy->iface_len  = strlen(curproxy->iface_name);
+				global.last_checks |= LSTCHK_NETADM;
+#else
+				Alert("parsing [%s:%d] : '%s' : '%s' option not implemented.\n",
+				      file, linenum, args[0], args[cur_arg]);
+				return -1;
+#endif
+				cur_arg += 2;
+				continue;
+			}
+			Alert("parsing [%s:%d] : '%s' only supports optional keywords '%s' and '%s'.\n",
+			      file, linenum, args[0], "inteface", "usesrc");
+			return -1;
 		}
 	}
 	else if (!strcmp(args[0], "usesrc")) {  /* address to use outside: needs "source" first */

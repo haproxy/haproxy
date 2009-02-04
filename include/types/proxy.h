@@ -233,6 +233,8 @@ struct proxy {
 #if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
 	struct sockaddr_in tproxy_addr;		/* non-local address we want to bind to for connect() */
 #endif
+	int iface_len;				/* bind interface name length */
+	char *iface_name;			/* bind interface name or NULL */
 	struct proxy *next;
 	struct logsrv logsrv1, logsrv2;		/* 2 syslog servers */
 	signed char logfac1, logfac2;		/* log facility for both servers. -1 = disabled */

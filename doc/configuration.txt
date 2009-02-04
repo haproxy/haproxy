@@ -2839,6 +2839,7 @@ server <name> <address>[:port] [param*]
 
 
 source <addr>[:<port>] [usesrc { <addr2>[:<port2>] | client | clientip } ]
+source <addr>[:<port>] [interface <name>]
   Set the source address for outgoing connections
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
@@ -2863,6 +2864,13 @@ source <addr>[:<port>] [usesrc { <addr2>[:<port2>] | client | clientip } ]
               are forwarded in full transparent proxy mode (see <addr2> above).
               The default value of zero means the system will select a free
               port.
+
+    <name>    is an optional interface name to which to bind to for outgoing
+              traffic. On systems supporting this features (currently, only
+              Linux), this allows one to bind all traffic to the server to
+              this interface even if it is not the one the system would select
+              based on routing tables. This should be used with extreme care.
+              Note that using this option requires root privileges.
 
   The "source" keyword is useful in complex environments where a specific
   address only is allowed to connect to the servers. It may be needed when a
