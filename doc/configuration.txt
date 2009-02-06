@@ -68,10 +68,12 @@ The following keywords are supported in the "global" section :
   
  * Performance tuning
    - maxconn
+   - maxpipes
    - noepoll
    - nokqueue
    - nopoll
    - nosepoll
+   - nosplice
    - spread-checks
    - tune.maxaccept
    - tune.maxpollevents
@@ -198,6 +200,14 @@ maxconn <number>
   connections when this limit is reached. The "ulimit-n" parameter is
   automatically adjusted according to this value. See also "ulimit-n".
 
+maxpipes <number>
+  Sets the maximum per-process number of pipes to <number>. Currently, pipes
+  are only used by kernel-based tcp splicing. Since a pipe contains two file
+  descriptors, the "ulimit-n" value will be increased accordingly. The default
+  value is maxconn/4, which seems to be more than enough for most heavy usages.
+  The splice code dynamically allocates and releases pipes, and can fall back
+  to standard copy, so setting this value too low may only impact performance.
+
 noepoll
   Disables the use of the "epoll" event polling system on Linux. It is
   equivalent to the command-line argument "-de". The next polling system
@@ -219,6 +229,16 @@ nosepoll
   Disables the use of the "speculative epoll" event polling system on Linux. It
   is equivalent to the command-line argument "-ds". The next polling system
   used will generally be "epoll". See also "nosepoll", and "nopoll".
+
+nosplice
+  Disables the use of kernel tcp splicing between sockets on Linux. It is
+  equivalent to the command line argument "-dS".  Data will then be copied
+  using conventional and more portable recv/send calls. Kernel tcp splicing is
+  limited to some very recent instances of kernel 2.6. Most verstions between
+  2.6.25 and 2.6.28 are buggy and will forward corrupted data, so they must not
+  be used. This option makes it easier to globally disable kernel splicing in
+  case of doubt. See also "option splice-auto", "option splice-request" and
+  "option splice-response".
 
 spread-checks <0..50, in percent>
   Sometimes it is desirable to avoid sending health checks to servers at exact
@@ -565,6 +585,9 @@ option httplog              X          X         X         X
 [no] option persist         X          -         X         X
 [no] option redispatch      X          -         X         X
 option smtpchk              X          -         X         X
+[no] option splice-auto     X          X         X         X
+[no] option splice-request  X          X         X         X
+[no] option splice-response X          X         X         X
 [no] option srvtcpka        X          -         X         X
 option ssl-hello-chk        X          -         X         X
 option tcpka                X          X         X         X
@@ -2234,6 +2257,96 @@ option smtpchk <hello> <domain>
         option smtpchk HELO mydomain.org
 
   See also : "option httpchk", "source"
+
+
+option splice-auto
+no option splice-auto
+  Enable or disable automatic kernel acceleration on sockets in both directions
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+  Arguments : none
+
+  When this option is enabled either on a frontend or on a backend, haproxy
+  will automatically evaluate the opportunity to use kernel tcp splicing to
+  forward data between the client and the server, in either direction. Haproxy
+  uses heuristics to estimate if kernel splicing might improve performance or
+  not. Both directions are handled independantly. Note that the heuristics used
+  are not much aggressive in order to limit excessive use of splicing. This
+  option requires splicing to be enabled at compile time, and may be globally
+  disabled with the global option "nosplice". Since splice uses pipes, using it
+  requires that there are enough spare pipes.
+
+  Important note: kernel-based TCP splicing is a Linux-specific feature which
+  first appeared in kernel 2.6.25. It offers kernel-based acceleration to
+  transfer data between sockets without copying these data to user-space, thus
+  providing noticeable performance gains and CPU cycles savings. Since many
+  early implementations are buggy, corrupt data and/or are inefficient, this
+  feature is not enabled by default, and it should be used with extreme care.
+  While it is not possible to detect the correctness of an implementation,
+  2.6.29 is the first version offering a properly working implementation. In
+  case of doubt, splicing may be globally disabled using the global "nosplice"
+  keyword.
+
+  Example :
+        option splice-auto
+
+  If this option has been enabled in a "defaults" section, it can be disabled
+  in a specific instance by prepending the "no" keyword before it.
+
+  See also : "option splice-request", "option splice-response", and global
+             options "nosplice" and "maxpipes"
+
+
+option splice-request
+no option splice-request
+  Enable or disable automatic kernel acceleration on sockets for requests
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+  Arguments : none
+
+  When this option is enabled either on a frontend or on a backend, haproxy
+  will user kernel tcp splicing whenever possible to forward data going from
+  the client to the server. It might still use the recv/send scheme if there
+  are no spare pipes left. This option requires splicing to be enabled at
+  compile time, and may be globally disabled with the global option "nosplice".
+  Since splice uses pipes, using it requires that there are enough spare pipes.
+
+  Important note: see "option splice-auto" for usage limitations.
+
+  Example :
+        option splice-request
+
+  If this option has been enabled in a "defaults" section, it can be disabled
+  in a specific instance by prepending the "no" keyword before it.
+
+  See also : "option splice-auto", "option splice-response", and global options
+             "nosplice" and "maxpipes"
+
+
+option splice-response
+no option splice-response
+  Enable or disable automatic kernel acceleration on sockets for responses
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+  Arguments : none
+
+  When this option is enabled either on a frontend or on a backend, haproxy
+  will user kernel tcp splicing whenever possible to forward data going from
+  the server to the client. It might still use the recv/send scheme if there
+  are no spare pipes left. This option requires splicing to be enabled at
+  compile time, and may be globally disabled with the global option "nosplice".
+  Since splice uses pipes, using it requires that there are enough spare pipes.
+
+  Important note: see "option splice-auto" for usage limitations.
+
+  Example :
+        option splice-response
+
+  If this option has been enabled in a "defaults" section, it can be disabled
+  in a specific instance by prepending the "no" keyword before it.
+
+  See also : "option splice-auto", "option splice-request", and global options
+             "nosplice" and "maxpipes"
 
 
 option srvtcpka
