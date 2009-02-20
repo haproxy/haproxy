@@ -11,7 +11,7 @@
  */
 
 /*
- * gcc -O2 -o halog halog.c -Iinclude src/ebtree.c src/eb32tree.c
+ * gcc -O2 -o halog2 halog2.c -Iinclude src/ebtree.c src/eb32tree.c fgets2.c
  *
  * Usage:
  *    $0 [ min_delay [ min_count [ field_shift ]]] < haproxy.log
@@ -57,17 +57,19 @@ struct timer {
 #define FILT_ACC_DELAY		0x10
 #define FILT_ACC_COUNT		0x20
 #define FILT_GRAPH_TIMERS	0x40
+#define FILT_PERCENTILE		0x80
 
 unsigned int filter = 0;
 unsigned int filter_invert = 0;
-char line[MAXLINE];
+const char *line;
 
+const char *fgets2(FILE *stream);
 
 void die(const char *msg)
 {
 	fprintf(stderr,
 		"%s"
-		"Usage: halog [-c] [-v] [-gt] [-s <skip>] [-e] [-ad <delay>] [-ac <count>] < file.log\n"
+		"Usage: halog [-c] [-v] [-gt] [-pct] [-s <skip>] [-e] [-ad <delay>] [-ac <count>] < file.log\n"
 		"\n",
 		msg ? msg : ""
 		);
@@ -385,6 +387,8 @@ int main(int argc, char **argv)
 			filter_invert = !filter_invert;
 		else if (strcmp(argv[0], "-gt") == 0)
 			filter |= FILT_GRAPH_TIMERS;
+		else if (strcmp(argv[0], "-pct") == 0)
+			filter |= FILT_PERCENTILE;
 		else if (strcmp(argv[0], "-o") == 0) {
 			if (output_file)
 				die("Fatal: output file name already specified.\n");
@@ -409,7 +413,7 @@ int main(int argc, char **argv)
 	tot = 0;
 	parse_err = 0;
 
-	while (fgets(line, MAXLINE, stdin) != NULL) {
+	while ((line = fgets2(stdin)) != NULL) {
 		linenum++;
 
 		if (filter & FILT_ERRORS_ONLY) {
@@ -429,7 +433,7 @@ int main(int argc, char **argv)
 			if (test) {
 				tot++;
 				if (!(filter & FILT_COUNT_ONLY))
-					printf("%s", line);
+					puts(line);
 			}
 			continue;
 		}
@@ -441,6 +445,7 @@ int main(int argc, char **argv)
 				continue;
 			}
 
+			tot++;
 			val = convert_date(b);
 			//printf("date=%s => %d\n", b, val);
 			if (val < 0) {
@@ -453,7 +458,7 @@ int main(int argc, char **argv)
 			continue;
 		}
 
-		if (filter & FILT_GRAPH_TIMERS) {
+		if (filter & (FILT_GRAPH_TIMERS|FILT_PERCENTILE)) {
 			int f;
 
 			b = field_start(line, TIME_FIELD + skip_fields);
@@ -489,23 +494,47 @@ int main(int argc, char **argv)
 			 * that the total time is negative, hence the reason to reset
 			 * it.
 			 */
-			if (err) {
-				if (array[4] < 0)
-					array[4] = -1;
-				t2 = insert_timer(&timers[0], &t, array[4]);  // total time
-				t2->count++;
-			} else {
-				int v;
 
-				t2 = insert_timer(&timers[1], &t, array[0]); t2->count++;  // req
-				t2 = insert_timer(&timers[2], &t, array[2]); t2->count++;  // conn
-				t2 = insert_timer(&timers[3], &t, array[3]); t2->count++;  // resp
+			if (filter & FILT_GRAPH_TIMERS) {
+				if (err) {
+					if (array[4] < 0)
+						array[4] = -1;
+					t2 = insert_timer(&timers[0], &t, array[4]);  // total time
+					t2->count++;
+				} else {
+					int v;
 
-				v = array[4] - array[0] - array[1] - array[2] - array[3]; // data time
-				if (v < 0 && !(filter & FILT_QUIET))
-					fprintf(stderr, "ERR: %s (%d %d %d %d %d => %d)\n",
-						line, array[0], array[1], array[2], array[3], array[4], v);
-				t2 = insert_timer(&timers[4], &t, v); t2->count++;
+					t2 = insert_timer(&timers[1], &t, array[0]); t2->count++;  // req
+					t2 = insert_timer(&timers[2], &t, array[2]); t2->count++;  // conn
+					t2 = insert_timer(&timers[3], &t, array[3]); t2->count++;  // resp
+
+					v = array[4] - array[0] - array[1] - array[2] - array[3]; // data time
+					if (v < 0 && !(filter & FILT_QUIET))
+						fprintf(stderr, "ERR: %s (%d %d %d %d %d => %d)\n",
+							line, array[0], array[1], array[2], array[3], array[4], v);
+					t2 = insert_timer(&timers[4], &t, v); t2->count++;
+					tot++;
+				}
+			} else { /* percentile */
+				if (err) {
+					if (array[4] < 0)
+						array[4] = -1;
+					t2 = insert_value(&timers[0], &t, array[4]);  // total time
+					t2->count++;
+				} else {
+					int v;
+
+					t2 = insert_value(&timers[1], &t, array[0]); t2->count++;  // req
+					t2 = insert_value(&timers[2], &t, array[2]); t2->count++;  // conn
+					t2 = insert_value(&timers[3], &t, array[3]); t2->count++;  // resp
+
+					v = array[4] - array[0] - array[1] - array[2] - array[3]; // data time
+					if (v < 0 && !(filter & FILT_QUIET))
+						fprintf(stderr, "ERR: %s (%d %d %d %d %d => %d)\n",
+							line, array[0], array[1], array[2], array[3], array[4], v);
+					t2 = insert_value(&timers[4], &t, v); t2->count++;
+					tot++;
+				}
 			}
 			continue;
 		}
@@ -582,6 +611,47 @@ int main(int argc, char **argv)
 
 				n = eb32_next(n);
 			}
+		}
+	}
+	else if (filter & FILT_PERCENTILE) {
+		/* report timers by percentile :
+		 *    <percent> <total> <max_req_time> <max_conn_time> <max_resp_time> <max_data_time>
+		 * We don't count errs.
+		 */
+		struct eb32_node *n[5];
+		unsigned long cum[5];
+		double step;
+
+		for (f = 1; f < 5; f++) {
+			n[f] = eb32_first(&timers[f]);
+			cum[f] = container_of(n[f], struct timer, node)->count;
+		}
+
+		for (step = 1; step <= 1000;) {
+			unsigned int thres = tot * (step / 1000.0);
+
+			printf("%3.1f %d ", step/10.0, thres);
+			for (f = 1; f < 5; f++) {
+				struct eb32_node *next;
+				while (cum[f] < thres) {
+					/* need to find other keys */
+					next = eb32_next(n[f]);
+					if (!next)
+						break;
+					n[f] = next;
+					cum[f] += container_of(next, struct timer, node)->count;
+				}
+
+				/* value still within $step % of total */
+				printf("%d ", n[f]->key);
+			}
+			putchar('\n');
+			if (step >= 100 && step < 900)
+				step += 50;  // jump 5% by 5% between those steps.
+			else if (step >= 20 && step < 980)
+				step += 10;
+			else
+				step += 1;
 		}
 	}
 
