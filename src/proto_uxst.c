@@ -641,6 +641,8 @@ int uxst_req_analyser_stats(struct session *s, struct buffer *req)
 		memset(&s->data_ctx.stats, 0, sizeof(s->data_ctx.stats));
 		s->data_source = DATA_SRC_STATS;
 		s->ana_state = STATS_ST_REQ;
+		buffer_write_dis(s->req);
+		buffer_shutw_now(s->req);
 		/* fall through */
 
 	case STATS_ST_REQ:
@@ -655,7 +657,7 @@ int uxst_req_analyser_stats(struct session *s, struct buffer *req)
 			*p = '\0';
 			if (!unix_sock_parse_request(s, line)) {
 				/* invalid request */
-				buffer_shutw_now(s->req);
+				buffer_shutw_now(s->rep);
 				s->ana_state = 0;
 				req->analysers = 0;
 				return 0;
@@ -668,19 +670,16 @@ int uxst_req_analyser_stats(struct session *s, struct buffer *req)
 		    (req->flags & BF_READ_TIMEOUT)            || /* read timeout */
 		    tick_is_expired(req->analyse_exp, now_ms) || /* request timeout */
 		    (req->flags & BF_SHUTR)) {                   /* input closed */
-			buffer_shutw_now(s->req);
+			buffer_shutw_now(s->rep);
 			s->ana_state = 0;
 			req->analysers = 0;
 			return 0;
 		}
-
 		/* don't forward nor abort */
-		buffer_write_dis(req);
 		return 0;
 
 	case STATS_ST_REP:
 		/* do nothing while response is being processed */
-		buffer_write_dis(s->req);
 		return 0;
 
 	case STATS_ST_CLOSE:
@@ -852,8 +851,6 @@ void uxst_process_session(struct task *t, int *next)
 
 
 	/* Analyse response */
-
-	buffer_write_ena(s->rep);
 	if (unlikely(s->rep->flags & BF_HIJACK)) {
 		/* In inject mode, we wake up everytime something has
 		 * happened on the write side of the buffer.
