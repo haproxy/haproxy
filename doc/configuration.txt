@@ -1372,7 +1372,8 @@ errorfile <code> <file>
     <file>    designates a file containing the full HTTP response. It is
               recommended to follow the common practice of appending ".http" to
               the filename so that people do not confuse the response with HTML
-              error pages.
+              error pages, and to use absolute paths, since files are read
+              before any chroot is performed.
 
   It is important to understand that this keyword is not meant to rewrite
   errors returned by the server, but errors detected and returned by HAProxy.
@@ -1383,6 +1384,13 @@ errorfile <code> <file>
   force enable or disable caching, etc... The package provides default error
   files returning the same contents as default errors.
 
+  The files should not exceed the configured buffer size (BUFSIZE), which
+  generally is 8 or 16 kB, otherwise they will be truncated. It is also wise
+  not to put any reference to local contents (eg: images) in order to avoid
+  loops between the client and HAProxy when all servers are down, causing an
+  error to be returned instead of an image. For better HTTP compliance, it is
+  recommended that all header lines end with CR-LF and not LF alone.
+
   The files are read at the same time as the configuration and kept in memory.
   For this reason, the errors continue to be returned even when the process is
   chrooted, and no file change is considered while the process is running. A
@@ -1390,6 +1398,11 @@ errorfile <code> <file>
   403 status code and interrogating a blocked URL.
 
   See also : "errorloc", "errorloc302", "errorloc303"
+
+  Example :
+        errorfile 400 /etc/haproxy/errorfiles/400badreq.http
+        errorfile 403 /etc/haproxy/errorfiles/403forbid.http
+        errorfile 503 /etc/haproxy/errorfiles/503sorry.http
 
 
 errorloc <code> <url>
