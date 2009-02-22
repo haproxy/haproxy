@@ -1099,8 +1099,10 @@ void stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 		 * reference to the last session being dumped.
 		 */
 		if (s->data_state == DATA_ST_LIST) {
-			if (!LIST_ISEMPTY(&s->data_ctx.sess.bref.users))
+			if (!LIST_ISEMPTY(&s->data_ctx.sess.bref.users)) {
 				LIST_DEL(&s->data_ctx.sess.bref.users);
+				LIST_INIT(&s->data_ctx.sess.bref.users);
+			}
 		}
 		s->data_state = DATA_ST_FIN;
 		buffer_stop_hijack(rep);
@@ -1118,7 +1120,10 @@ void stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 	case DATA_ST_INIT:
 		/* the function had not been called yet, let's prepare the
 		 * buffer for a response. We initialize the current session
-		 * pointer to the first in the global list.
+		 * pointer to the first in the global list. When a target
+		 * session is being destroyed, it is responsible for updating
+		 * this pointer. We know we have reached the end when this
+		 * pointer points back to the head of the sessions list.
 		 */
 		stream_int_retnclose(rep->cons, &msg);
 		LIST_INIT(&s->data_ctx.sess.bref.users);
@@ -1127,15 +1132,18 @@ void stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 		/* fall through */
 
 	case DATA_ST_LIST:
+		/* first, let's detach the back-ref from a possible previous session */
+		if (!LIST_ISEMPTY(&s->data_ctx.sess.bref.users)) {
+			LIST_DEL(&s->data_ctx.sess.bref.users);
+			LIST_INIT(&s->data_ctx.sess.bref.users);
+		}
+
+		/* and start from where we stopped */
 		while (s->data_ctx.sess.bref.ref != &sessions) {
 			char pn[INET6_ADDRSTRLEN + strlen(":65535")];
 			struct session *curr_sess;
 
 			curr_sess = LIST_ELEM(s->data_ctx.sess.bref.ref, struct session *, list);
-
-			/* first, let's detach the back-ref from a possible previous session */
-			if (!LIST_ISEMPTY(&s->data_ctx.sess.bref.users))
-				LIST_DEL(&s->data_ctx.sess.bref.users);
 
 			chunk_printf(&msg, sizeof(trash),
 				     "%p: proto=%s",
@@ -1194,7 +1202,9 @@ void stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 					     : "never");
 
 			if (buffer_write_chunk(rep, &msg) >= 0) {
-				/* let's try again later */
+				/* let's try again later from this session. We add ourselves into
+				 * this session's users so that it can remove us upon termination.
+				 */
 				LIST_ADDQ(&curr_sess->back_refs, &s->data_ctx.sess.bref.users);
 				return;
 			}

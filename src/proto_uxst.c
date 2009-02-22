@@ -360,7 +360,6 @@ int uxst_event_accept(int fd) {
 	struct listener *l = fdtab[fd].owner;
 	struct session *s;
 	struct task *t;
-	struct bref *bref, *back;
 	int cfd;
 	int max_accept;
 
@@ -553,11 +552,6 @@ int uxst_event_accept(int fd) {
  out_free_task:
 	pool_free2(pool2_task, t);
  out_free_session:
-	list_for_each_entry_safe(bref, back, &s->back_refs, users) {
-		LIST_DEL(&bref->users);
-		LIST_ADDQ(&LIST_ELEM(s->list.n, struct session *, list)->back_refs, &bref->users);
-		bref->ref = s->list.n;
-	}
 	LIST_DEL(&s->list);
 	pool_free2(pool2_session, s);
  out_close:

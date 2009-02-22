@@ -98,8 +98,13 @@ void session_free(struct session *s)
 	pool_free2(pool2_capture, txn->srv_cookie);
 
 	list_for_each_entry_safe(bref, back, &s->back_refs, users) {
+		/* we have to unlink all watchers. We must not relink them if
+		 * this session was the last one in the list.
+		 */
 		LIST_DEL(&bref->users);
-		LIST_ADDQ(&LIST_ELEM(s->list.n, struct session *, list)->back_refs, &bref->users);
+		LIST_INIT(&bref->users);
+		if (s->list.n != &sessions)
+			LIST_ADDQ(&LIST_ELEM(s->list.n, struct session *, list)->back_refs, &bref->users);
 		bref->ref = s->list.n;
 	}
 	LIST_DEL(&s->list);
