@@ -1521,16 +1521,6 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
  */
 int http_process_request(struct session *s, struct buffer *req)
 {
-
-	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
-		now_ms, __FUNCTION__,
-		s,
-		req,
-		req->rex, req->wex,
-		req->flags,
-		req->l,
-		req->analysers);
-
 	/*
 	 * We will parse the partial (or complete) lines.
 	 * We will check the request syntax, and also join multi-line
@@ -1551,6 +1541,15 @@ int http_process_request(struct session *s, struct buffer *req)
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->req;
 	struct proxy *cur_proxy;
+
+	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
+		now_ms, __FUNCTION__,
+		s,
+		req,
+		req->rex, req->wex,
+		req->flags,
+		req->l,
+		req->analysers);
 
 	if (likely(req->lr < req->r))
 		http_msg_analyzer(req, msg, &txn->hdr_idx);
