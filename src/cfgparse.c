@@ -2199,7 +2199,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			      file, linenum, "source", "usesrc", "interface");
 			return -1;
 		}
-	
+
+		/* we must first clear any optional default setting */	
+		curproxy->options &= ~PR_O_TPXY_MASK;
+		free(curproxy->iface_name);
+		curproxy->iface_name = NULL;
+		curproxy->iface_len = 0;
+
 		curproxy->source_addr = *str2sa(args[1]);
 		curproxy->options |= PR_O_BIND_SRC;
 
