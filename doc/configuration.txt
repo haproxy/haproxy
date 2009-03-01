@@ -493,6 +493,28 @@ found there, but it's a common practice to respect the well-established
 messages. It can be composed of one or multiple words, such as "OK", "Found",
 or "Authentication Required".
 
+Haproxy may emit the following status codes by itself :
+
+  Code  When / reason
+   200  access to stats page, and when replying to monitoring requests
+   302  when performing a redirection, depending on the configured code
+   303  when performing a redirection, depending on the configured code
+   400  for an invalid or too large request
+   401  when an authentication is required to perform the action (when
+        accessing the stats page)
+   403  when a request is forbidden by a "block" ACL or "reqdeny" filter
+   408  when the request timeout strikes before the request is complete
+   500  when haproxy encounters an unrecoverable internal error, such as a
+        memory allocation failure, which should never happen
+   502  when the server returns an empty, invalid or incomplete response, or
+        when an "rspdeny" filter blocks the response.
+   503  when no server was available to handle the request, or in response to
+        monitoring requests which match the "monitor fail" condition
+   504  when the response timeout strikes before the server responds
+
+The error 4xx and 5xx codes above may be customized (see "errorloc" in section
+2.2).
+
 
 2.1.3.2) The response headers
 -----------------------------
@@ -503,7 +525,7 @@ details.
 
 
 2.2) Proxy keywords matrix
-----------------------------
+--------------------------
 
 The following list of keywords is supported. Most of them may only be used in a
 limited set of section types. Some of them are marked as "deprecated" because
@@ -745,6 +767,20 @@ balance url_param <param> [check_post [<max_wait>]]
                   that changing a server's weight on the fly will have no
                   effect.
 
+                  This algorithm support two optional parameters "len" and
+                  "depth", both followed by a positive integer number. These
+                  options may be helpful when it is needed to balance servers
+                  based on the beginning of the URI only. The "len" parameter
+                  indicates that the algorithm should only consider that many
+                  characters at the beginning of the URI to compute the hash.
+                  Note that having "len" set to 1 rarely makes sense since most
+                  URIs start with a leading "/".
+
+                  The "depth" parameter indicates the maximum directory depth
+                  to be used to compute the hash. One level is counted for each
+                  slash in the request. If both parameters are specified, the
+                  evaluation stops when either is reached.
+
       url_param   The URL parameter specified in argument will be looked up in
                   the query string of each HTTP GET request.
 
@@ -783,9 +819,10 @@ balance url_param <param> [check_post [<max_wait>]]
                   server's weight on the fly will have no effect.
 
     <arguments> is an optional list of arguments which may be needed by some
-                algorithms. Right now, only the "url_param" algorithm supports
-                an optional argument.
+                algorithms. Right now, only "url_param" and "uri" support an
+                optional argument.
 
+                balance uri [len <len>] [depth <depth>]
                 balance url_param <param> [check_post [<max_wait>]]
 
   The definition of the load balancing algorithm is mandatory for a backend
@@ -946,14 +983,20 @@ capture request header <name> len <length>
               report in the logs. The string will be truncated on the right if
               it exceeds <length>.
 
-  Only the first value of the first occurrence of the header is captured. The
+  Only the first value of the last occurrence of the header is captured. The
   value will be added to the logs between braces ('{}'). If multiple headers
   are captured, they will be delimited by a vertical bar ('|') and will appear
-  in the same order they were declared in the configuration. Common uses for
-  request header captures include the "Host" field in virtual hosting
-  environments, the "Content-length" when uploads are supported, "User-agent"
-  to quickly differenciate between real users and robots, and "X-Forwarded-For"
-  in proxied environments to find where the request came from.
+  in the same order they were declared in the configuration. Non-existent
+  headers will be logged just as an empty string. Common uses for request
+  header captures include the "Host" field in virtual hosting environments, the
+  "Content-length" when uploads are supported, "User-agent" to quickly
+  differenciate between real users and robots, and "X-Forwarded-For" in proxied
+  environments to find where the request came from.
+
+  Note that when capturing headers such as "User-agent", some spaces may be
+  logged, making the log analysis more difficult. Thus be careful about what
+  you log if you know your log parser is not smart enough to rely on the
+  braces.
 
   There is no limit to the number of captured request headers, but each capture
   is limited to 64 characters. In order to keep log format consistent for a
@@ -984,13 +1027,14 @@ capture response header <name> len <length>
               report in the logs. The string will be truncated on the right if
               it exceeds <length>.
 
-  Only the first value of the first occurrence of the header is captured. The
+  Only the first value of the last occurrence of the header is captured. The
   result will be added to the logs between braces ('{}') after the captured
   request headers. If multiple headers are captured, they will be delimited by
   a vertical bar ('|') and will appear in the same order they were declared in
-  the configuration. Common uses for response header captures include the
-  "Content-length" header which indicates how many bytes are expected to be
-  returned, the "Location" header to track redirections.
+  the configuration. Non-existent headers will be logged just as an empty
+  string. Common uses for response header captures include the "Content-length"
+  header which indicates how many bytes are expected to be returned, the
+  "Location" header to track redirections.
 
   There is no limit to the number of captured response headers, but each
   capture is limited to 64 characters. In order to keep log format consistent
@@ -1231,7 +1275,8 @@ errorfile <code> <file>
     <file>    designates a file containing the full HTTP response. It is
               recommended to follow the common practice of appending ".http" to
               the filename so that people do not confuse the response with HTML
-              error pages.
+              error pages, and to use absolute paths, since files are read
+              before any chroot is performed.
 
   It is important to understand that this keyword is not meant to rewrite
   errors returned by the server, but errors detected and returned by HAProxy.
@@ -1242,6 +1287,13 @@ errorfile <code> <file>
   force enable or disable caching, etc... The package provides default error
   files returning the same contents as default errors.
 
+  The files should not exceed the configured buffer size (BUFSIZE), which
+  generally is 8 or 16 kB, otherwise they will be truncated. It is also wise
+  not to put any reference to local contents (eg: images) in order to avoid
+  loops between the client and HAProxy when all servers are down, causing an
+  error to be returned instead of an image. For better HTTP compliance, it is
+  recommended that all header lines end with CR-LF and not LF alone.
+
   The files are read at the same time as the configuration and kept in memory.
   For this reason, the errors continue to be returned even when the process is
   chrooted, and no file change is considered while the process is running. A
@@ -1249,6 +1301,11 @@ errorfile <code> <file>
   403 status code and interrogating a blocked URL.
 
   See also : "errorloc", "errorloc302", "errorloc303"
+
+  Example :
+        errorfile 400 /etc/haproxy/errorfiles/400badreq.http
+        errorfile 403 /etc/haproxy/errorfiles/403forbid.http
+        errorfile 503 /etc/haproxy/errorfiles/503sorry.http
 
 
 errorloc <code> <url>
@@ -1424,8 +1481,17 @@ log <address> <facility> [<level>]
   entries, then additional log entries will be ignored.
 
   Also, it is important to keep in mind that it is the frontend which decides
-  what to log, and that in case of content switching, the log entries from the
-  backend will be ignored.
+  what to log from a connection, and that in case of content switching, the log
+  entries from the backend will be ignored. Connections are logged at level
+  "info".
+
+  However, backend log declaration define how and where servers status changes
+  will be logged. Level "notice" will be used to indicate a server going up,
+  "warning" will be used for termination signals and definitive service
+  termination, and "alert" will be used for when a server goes down.
+
+  Note : According to RFC3164, messages are truncated to 1024 bytes before
+         being emitted.
 
   Example :
     log global
@@ -1828,7 +1894,9 @@ option forwardfor [ except <network> ]
   This header contains a value representing the client's IP address. Since this
   header is always appended at the end of the existing header list, the server
   must be configured to always use the last occurrence of this header only. See
-  the server's manual to find how to enable use of this standard header.
+  the server's manual to find how to enable use of this standard header. Note
+  that only the last occurrence of the header must be used, since it is really
+  possible that the client has already brought one.
 
   Sometimes, a same HAProxy instance may be shared between a direct client
   access and a reverse-proxy access (for instance when an SSL reverse-proxy is
@@ -2004,6 +2072,18 @@ no option logasap
   time into account. In such a situation, it's a good practice to capture the
   "Content-Length" response header so that the logs at least indicate how many
   bytes are expected to be transferred.
+
+  Examples :
+      listen http_proxy 0.0.0.0:80
+          mode http
+          option httplog
+          option logasap
+          log 192.168.2.200 local3
+
+    >>> Feb  6 12:14:14 localhost \
+          haproxy[14389]: 10.0.1.2:33317 [06/Feb/2009:12:14:14.655] http-in \
+          static/srv1 9/10/7/14/+30 200 +243 - - ---- 3/1/1/1/0 1/0 \
+          "GET /image.iso HTTP/1.0"
 
   See also : "option httplog", "capture response header", and section 2.6 about
              logging.
@@ -4103,9 +4183,1137 @@ Notes related to these keywords :
 2.6) Logging
 ------------
 
-[to do]
+One of HAProxy's strong points certainly lies is its precise logs. It probably
+provides the finest level of information available for such a product, which is
+very important for troubleshooting complex environments. Standard information
+provided in logs include client ports, TCP/HTTP state timers, precise session
+state at termination and precise termination cause, information about decisions
+to direct trafic to a server, and of course the ability to capture arbitrary
+headers.
+
+In order to improve administrators reactivity, it offers a great transparency
+about encountered problems, both internal and external, and it is possible to
+send logs to different sources at the same time with different level filters :
+
+  - global process-level logs (system errors, start/stop, etc..)
+  - per-instance system and internal errors (lack of resource, bugs, ...)
+  - per-instance external troubles (servers up/down, max connections)
+  - per-instance activity (client connections), either at the establishment or
+    at the termination.
+
+The ability to distribute different levels of logs to different log servers
+allow several production teams to interact and to fix their problems as soon
+as possible. For example, the system team might monitor system-wide errors,
+while the application team might be monitoring the up/down for their servers in
+real time, and the security team might analyze the activity logs with one hour
+delay.
+
+
+2.6.1) Log levels
+-----------------
+
+TCP and HTTP connections can be logged with informations such as date, time,
+source IP address, destination address, connection duration, response times,
+HTTP request, the HTTP return code, number of bytes transmitted, the conditions
+in which the session ended, and even exchanged cookies values, to track a
+particular user's problems for example. All messages are sent to up to two
+syslog servers. Check the "log" keyword in section 2.2 for more info about log
+facilities.
+
+
+2.6.2) Log formats
+------------------
+
+HAProxy supports 3 log formats. Several fields are common between these formats
+and will be detailed in the next sections. A few of them may slightly vary with
+the configuration, due to indicators specific to certain options. The supported
+formats are the following ones :
+
+  - the default format, which is very basic and very rarely used. It only
+    provides very basic information about the incoming connection at the moment
+    it is accepted : source IP:port, destination IP:port, and frontend-name.
+    This mode will eventually disappear so it will not be described to great
+    extents.
+
+  - the TCP format, which is more advanced. This format is enabled when "option
+    tcplog" is set on the frontend. HAProxy will then usually wait for the
+    connection to terminate before logging. This format provides much richer
+    information, such as timers, connection counts, queue size, etc... This
+    format is recommended for pure TCP proxies.
+
+  - the HTTP format, which is the most advanced for HTTP proxying. This format
+    is enabled when "option httplog" is set on the frontend. It provides the
+    same information as the TCP format with some HTTP-specific fields such as
+    the request, the status code, and captures of headers and cookies. This
+    format is recommended for HTTP proxies.
+
+Next sections will go deeper into details for each of these formats. Format
+specification will be performed on a "field" basis. Unless stated otherwise, a
+field is a portion of text delimited by any number of spaces. Since syslog
+servers are susceptible of inserting fields at the beginning of a line, it is
+always assumed that the first field is the one containing the process name and
+identifier.
+
+Note : Since log lines may be quite long, the log examples in sections below
+       might be broken into multiple lines. The example log lines will be
+       prefixed with 3 closing angle brackets ('>>>') and each time a log is
+       broken into multiple lines, each non-final line will end with a
+       backslash ('\') and the next line will start indented by two characters.
+
+
+2.6.2.1) Default log format
+---------------------------
+
+This format is used when no specific option is set. The log is emitted as soon
+as the connection is accepted. One should note that this currently is the only
+format which logs the request's destination IP and ports.
+
+  Example :
+        listen www
+            mode http
+            log global
+            server srv1 127.0.0.1:8000
+
+    >>> Feb  6 12:12:09 localhost \
+          haproxy[14385]: Connect from 10.0.1.2:33312 to 10.0.3.31:8012 \
+          (www/HTTP)
+
+  Field   Format                                Extract from the example above
+      1   process_name '[' pid ']:'                            haproxy[14385]:
+      2   'Connect from'                                          Connect from
+      3   source_ip ':' source_port                             10.0.1.2:33312
+      4   'to'                                                              to
+      5   destination_ip ':' destination_port                   10.0.3.31:8012
+      6   '(' frontend_name '/' mode ')'                            (www/HTTP)
+
+Detailed fields description :
+  - "source_ip" is the IP address of the client which initiated the connection.
+  - "source_port" is the TCP port of the client which initiated the connection.
+  - "destination_ip" is the IP address the client connected to.
+  - "destination_port" is the TCP port the client connected to.
+  - "frontend_name" is the name of the frontend (or listener) which received
+    and processed the connection.
+  - "mode is the mode the frontend is operating (TCP or HTTP).
+
+It is advised not to use this deprecated format for newer installations as it
+will eventually disappear.
+
+
+2.6.2.2) TCP log format
+-----------------------
+
+The TCP format is used when "option tcplog" is specified in the frontend, and
+is the recommended format for pure TCP proxies. It provides a lot of precious
+information for troubleshooting. Since this format includes timers and byte
+counts, the log is normally emitted at the end of the session. It can be
+emitted earlier if "option logasap" is specified, which makes sense in most
+environments with long sessions such as remote terminals. Sessions which match
+the "monitor" rules are never logged. It is also possible not to emit logs for
+sessions for which no data were exchanged between the client and the server, by
+specifying "option dontlognull" in the frontend. A few fields may slightly vary
+depending on some configuration options, those are marked with a star ('*')
+after the field name below.
+
+  Example :
+        frontend fnt
+            mode tcp
+            option tcplog
+            log global
+            default_backend bck
+
+        backend bck
+            server srv1 127.0.0.1:8000
+
+    >>> Feb  6 12:12:56 localhost \
+          haproxy[14387]: 10.0.1.2:33313 [06/Feb/2009:12:12:51.443] fnt \
+          bck/srv1 0/0/5007 212 -- 0/0/0/0/3 0/0
+
+  Field   Format                                Extract from the example above
+      1   process_name '[' pid ']:'                            haproxy[14387]:
+      2   client_ip ':' client_port                             10.0.1.2:33313
+      3   '[' accept_date ']'                       [06/Feb/2009:12:12:51.443]
+      4   frontend_name                                                    fnt
+      5   backend_name '/' server_name                                bck/srv1
+      6   Tw '/' Tc '/' Tt*                                           0/0/5007
+      7   bytes_read*                                                      212
+      8   termination_state                                                 --
+      9   actconn '/' feconn '/' beconn '/' srv_conn '/' retries*    0/0/0/0/3
+     10   srv_queue '/' backend_queue                                      0/0
+
+Detailed fields description :
+  - "client_ip" is the IP address of the client which initiated the TCP
+    connection to haproxy.
+
+  - "client_port" is the TCP port of the client which initiated the connection.
+
+  - "accept_date" is the exact date when the connection was received by haproxy
+    (which might be very slightly different from the date observed on the
+    network if there was some queuing in the system's backlog). This is usually
+    the same date which may appear in any upstream firewall's log.
+
+  - "frontend_name" is the name of the frontend (or listener) which received
+    and processed the connection.
+
+  - "backend_name" is the name of the backend (or listener) which was selected
+    to manage the connection to the server. This will be the same as the
+    frontend if no switching rule has been applied, which is common for TCP
+    applications.
+
+  - "server_name" is the name of the last server to which the connection was
+    sent, which might differ from the first one if there were connection errors
+    and a redispatch occurred. Note that this server belongs to the backend
+    which processed the request. If the connection was aborted before reaching
+    a server, "<NOSRV>" is indicated instead of a server name.
+
+  - "Tw" is the total time in milliseconds spent waiting in the various queues.
+    It can be "-1" if the connection was aborted before reaching the queue.
+    See "Timers" below for more details.
+
+  - "Tc" is the total time in milliseconds spent waiting for the connection to
+    establish to the final server, including retries. It can be "-1" if the
+    connection was aborted before a connection could be established. See
+    "Timers" below for more details.
+
+  - "Tt" is the total time in milliseconds elapsed between the accept and the
+    last close. It covers all possible processings. There is one exception, if
+    "option logasap" was specified, then the time counting stops at the moment
+    the log is emitted. In this case, a '+' sign is prepended before the value,
+    indicating that the final one will be larger. See "Timers" below for more
+    details.
+
+  - "bytes_read" is the total number of bytes transmitted from the server to
+    the client when the log is emitted. If "option logasap" is specified, the
+    this value will be prefixed with a '+' sign indicating that the final one
+    may be larger. Please note that this value is a 64-bit counter, so log
+    analysis tools must be able to handle it without overflowing.
+
+  - "termination_state" is the condition the session was in when the session
+    ended. This indicates the session state, which side caused the end of
+    session to happen, and for what reason (timeout, error, ...). The normal
+    flags should be "--", indicating the session was closed by either end with
+    no data remaining in buffers. See below "Session state at disconnection"
+    for more details.
+
+  - "actconn" is the total number of concurrent connections on the process when
+    the session was logged. It it useful to detect when some per-process system
+    limits have been reached. For instance, if actconn is close to 512 when
+    multiple connection errors occur, chances are high that the system limits
+    the process to use a maximum of 1024 file descriptors and that all of them
+    are used. See section 1 "Global parameters" to find how to tune the system.
+
+  - "feconn" is the total number of concurrent connections on the frontend when
+    the session was logged. It is useful to estimate the amount of resource
+    required to sustain high loads, and to detect when the frontend's "maxconn"
+    has been reached. Most often when this value increases by huge jumps, it is
+    because there is congestion on the backend servers, but sometimes it can be
+    caused by a denial of service attack.
+
+  - "beconn" is the total number of concurrent connections handled by the
+    backend when the session was logged. It includes the total number of
+    concurrent connections active on servers as well as the number of
+    connections pending in queues. It is useful to estimate the amount of
+    additional servers needed to support high loads for a given application.
+    Most often when this value increases by huge jumps, it is because there is
+    congestion on the backend servers, but sometimes it can be caused by a
+    denial of service attack.
+
+  - "srv_conn" is the total number of concurrent connections still active on
+    the server when the session was logged. It can never exceed the server's
+    configured "maxconn" parameter. If this value is very often close or equal
+    to the server's "maxconn", it means that traffic regulation is involved a
+    lot, meaning that either the server's maxconn value is too low, or that
+    there aren't enough servers to process the load with an optimal response
+    time. When only one of the server's "srv_conn" is high, it usually means
+    that this server has some trouble causing the connections to take longer to
+    be processed than on other servers.
+
+  - "retries" is the number of connection retries experienced by this session
+    when trying to connect to the server. It must normally be zero, unless a
+    server is being stopped at the same moment the connection was attempted.
+    Frequent retries generally indicate either a network problem between
+    haproxy and the server, or a misconfigured system backlog on the server
+    preventing new connections from being queued. This field may optionally be
+    prefixed with a '+' sign, indicating that the session has experienced a
+    redispatch after the maximal retry count has been reached on the initial
+    server. In this case, the server name appearing in the log is the one the
+    connection was redispatched to, and not the first one, though both may
+    sometimes be the same in case of hashing for instance. So as a general rule
+    of thumb, when a '+' is present in front of the retry count, this count
+    should not be attributed to the logged server.
+
+  - "srv_queue" is the total number of requests which were processed before
+    this one in the server queue. It is zero when the request has not gone
+    through the server queue. It makes it possible to estimate the approximate
+    server's response time by dividing the time spent in queue by the number of
+    requests in the queue. It is worth noting that if a session experiences a
+    redispatch and passes through two server queues, their positions will be
+    cumulated. A request should not pass through both the server queue and the
+    backend queue unless a redispatch occurs.
+
+  - "backend_queue" is the total number of requests which were processed before
+    this one in the backend's global queue. It is zero when the request has not
+    gone through the global queue. It makes it possible to estimate the average
+    queue length, which easily translates into a number of missing servers when
+    divided by a server's "maxconn" parameter. It is worth noting that if a
+    session experiences a redispatch, it may pass twice in the backend's queue,
+    and then both positions will be cumulated. A request should not pass
+    through both the server queue and the backend queue unless a redispatch
+    occurs.
+
+
+2.6.2.3) HTTP log format
+------------------------
+
+The HTTP format is the most complete and the best suited for HTTP proxies. It
+is enabled by when "option httplog" is specified in the frontend. It provides
+the same level of information as the TCP format with additional features which
+are specific to the HTTP protocol. Just like the TCP format, the log is usually
+emitted at the end of the session, unless "option logasap" is specified, which
+generally only makes sense for download sites. A session which matches the
+"monitor" rules will never logged. It is also possible not to log sessions for
+which no data were sent by the client by specifying "option dontlognull" in the
+frontend.
+
+Most fields are shared with the TCP log, some being different. A few fields may
+slightly vary depending on some configuration options. Those ones are marked
+with a star ('*') after the field name below.
+
+  Example :
+        frontend http-in
+            mode http
+            option httplog
+            log global
+            default_backend bck
+
+        backend static
+            server srv1 127.0.0.1:8000
+
+    >>> Feb  6 12:14:14 localhost \
+          haproxy[14389]: 10.0.1.2:33317 [06/Feb/2009:12:14:14.655] http-in \
+          static/srv1 10/0/30/69/109 200 2750 - - ---- 1/1/1/1/0 0/0 {1wt.eu} \
+          {} "GET /index.html HTTP/1.1" 
+
+  Field   Format                                Extract from the example above
+      1   process_name '[' pid ']:'                            haproxy[14389]:
+      2   client_ip ':' client_port                             10.0.1.2:33317
+      3   '[' accept_date ']'                       [06/Feb/2009:12:14:14.655]
+      4   frontend_name                                                http-in
+      5   backend_name '/' server_name                             static/srv1
+      6   Tq '/' Tw '/' Tc '/' Tr '/' Tt*                       10/0/30/69/109
+      7   status_code                                                      200
+      8   bytes_read*                                                     2750
+      9   captured_request_cookie                                            -
+     10   captured_response_cookie                                           -
+     11   termination_state                                               ----
+     12   actconn '/' feconn '/' beconn '/' srv_conn '/' retries*    1/1/1/1/0
+     13   srv_queue '/' backend_queue                                      0/0
+     14   '{' captured_request_headers* '}'                   {haproxy.1wt.eu}
+     15   '{' captured_response_headers* '}'                                {}
+     16   '"' http_request '"'                      "GET /index.html HTTP/1.1"
+  
+
+Detailed fields description :
+  - "client_ip" is the IP address of the client which initiated the TCP
+    connection to haproxy.
+
+  - "client_port" is the TCP port of the client which initiated the connection.
+
+  - "accept_date" is the exact date when the TCP connection was received by
+    haproxy (which might be very slightly different from the date observed on
+    the network if there was some queuing in the system's backlog). This is
+    usually the same date which may appear in any upstream firewall's log. This
+    does not depend on the fact that the client has sent the request or not.
+
+  - "frontend_name" is the name of the frontend (or listener) which received
+    and processed the connection.
+
+  - "backend_name" is the name of the backend (or listener) which was selected
+    to manage the connection to the server. This will be the same as the
+    frontend if no switching rule has been applied.
+
+  - "server_name" is the name of the last server to which the connection was
+    sent, which might differ from the first one if there were connection errors
+    and a redispatch occurred. Note that this server belongs to the backend
+    which processed the request. If the request was aborted before reaching a
+    server, "<NOSRV>" is indicated instead of a server name. If the request was
+    intercepted by the stats subsystem, "<STATS>" is indicated instead.
+
+  - "Tq" is the total time in milliseconds spent waiting for the client to send
+    a full HTTP request, not counting data. It can be "-1" if the connection
+    was aborted before a complete request could be received. It should always
+    be very small because a request generally fits in one single packet. Large
+    times here generally indicate network trouble between the client and
+    haproxy. See "Timers" below for more details.
+
+  - "Tw" is the total time in milliseconds spent waiting in the various queues.
+    It can be "-1" if the connection was aborted before reaching the queue.
+    See "Timers" below for more details.
+
+  - "Tc" is the total time in milliseconds spent waiting for the connection to
+    establish to the final server, including retries. It can be "-1" if the
+    request was aborted before a connection could be established. See "Timers"
+    below for more details.
+
+  - "Tr" is the total time in milliseconds spent waiting for the server to send
+    a full HTTP response, not counting data. It can be "-1" if the request was
+    aborted before a complete response could be received. It generally matches
+    the server's processing time for the request, though it may be altered by
+    the amount of data sent by the client to the server. Large times here on
+    "GET" requests generally indicate an overloaded server. See "Timers" below
+    for more details.
+
+  - "Tt" is the total time in milliseconds elapsed between the accept and the
+    last close. It covers all possible processings. There is one exception, if
+    "option logasap" was specified, then the time counting stops at the moment
+    the log is emitted. In this case, a '+' sign is prepended before the value,
+    indicating that the final one will be larger. See "Timers" below for more
+    details.
+
+  - "status_code" is the HTTP status code returned to the client. This status
+    is generally set by the server, but it might also be set by haproxy when
+    the server cannot be reached or when its response is blocked by haproxy.
+
+  - "bytes_read" is the total number of bytes transmitted to the client when
+    the log is emitted. This does include HTTP headers. If "option logasap" is
+    specified, the this value will be prefixed with a '+' sign indicating that
+    the final one may be larger. Please note that this value is a 64-bit
+    counter, so log analysis tools must be able to handle it without
+    overflowing.
+
+  - "captured_request_cookie" is an optional "name=value" entry indicating that
+    the client had this cookie in the request. The cookie name and its maximum
+    length are defined by the "capture cookie" statement in the frontend
+    configuration. The field is a single dash ('-') when the option is not
+    set. Only one cookie may be captured, it is generally used to track session
+    ID exchanges between a client and a server to detect session crossing
+    between clients due to application bugs. For more details, please consult
+    the section "Capturing HTTP headers and cookies" below.
+
+  - "captured_response_cookie" is an optional "name=value" entry indicating
+    that the server has returned a cookie with its response. The cookie name
+    and its maximum length are defined by the "capture cookie" statement in the
+    frontend configuration. The field is a single dash ('-') when the option is
+    not set. Only one cookie may be captured, it is generally used to track
+    session ID exchanges between a client and a server to detect session
+    crossing between clients due to application bugs. For more details, please
+    consult the section "Capturing HTTP headers and cookies" below.
+
+  - "termination_state" is the condition the session was in when the session
+    ended. This indicates the session state, which side caused the end of
+    session to happen, for what reason (timeout, error, ...), just like in TCP
+    logs, and information about persistence operations on cookies in the last
+    two characters. The normal flags should begin with "--", indicating the
+    session was closed by either end with no data remaining in buffers. See
+    below "Session state at disconnection" for more details.
+
+  - "actconn" is the total number of concurrent connections on the process when
+    the session was logged. It it useful to detect when some per-process system
+    limits have been reached. For instance, if actconn is close to 512 or 1024
+    when multiple connection errors occur, chances are high that the system
+    limits the process to use a maximum of 1024 file descriptors and that all
+    of them are used. See section 1 "Global parameters" to find how to tune the
+    system.
+
+  - "feconn" is the total number of concurrent connections on the frontend when
+    the session was logged. It is useful to estimate the amount of resource
+    required to sustain high loads, and to detect when the frontend's "maxconn"
+    has been reached. Most often when this value increases by huge jumps, it is
+    because there is congestion on the backend servers, but sometimes it can be
+    caused by a denial of service attack.
+
+  - "beconn" is the total number of concurrent connections handled by the
+    backend when the session was logged. It includes the total number of
+    concurrent connections active on servers as well as the number of
+    connections pending in queues. It is useful to estimate the amount of
+    additional servers needed to support high loads for a given application.
+    Most often when this value increases by huge jumps, it is because there is
+    congestion on the backend servers, but sometimes it can be caused by a
+    denial of service attack.
+
+  - "srv_conn" is the total number of concurrent connections still active on
+    the server when the session was logged. It can never exceed the server's
+    configured "maxconn" parameter. If this value is very often close or equal
+    to the server's "maxconn", it means that traffic regulation is involved a
+    lot, meaning that either the server's maxconn value is too low, or that
+    there aren't enough servers to process the load with an optimal response
+    time. When only one of the server's "srv_conn" is high, it usually means
+    that this server has some trouble causing the requests to take longer to be
+    processed than on other servers.
+
+  - "retries" is the number of connection retries experienced by this session
+    when trying to connect to the server. It must normally be zero, unless a
+    server is being stopped at the same moment the connection was attempted.
+    Frequent retries generally indicate either a network problem between
+    haproxy and the server, or a misconfigured system backlog on the server
+    preventing new connections from being queued. This field may optionally be
+    prefixed with a '+' sign, indicating that the session has experienced a
+    redispatch after the maximal retry count has been reached on the initial
+    server. In this case, the server name appearing in the log is the one the
+    connection was redispatched to, and not the first one, though both may
+    sometimes be the same in case of hashing for instance. So as a general rule
+    of thumb, when a '+' is present in front of the retry count, this count
+    should not be attributed to the logged server.
+
+  - "srv_queue" is the total number of requests which were processed before
+    this one in the server queue. It is zero when the request has not gone
+    through the server queue. It makes it possible to estimate the approximate
+    server's response time by dividing the time spent in queue by the number of
+    requests in the queue. It is worth noting that if a session experiences a
+    redispatch and passes through two server queues, their positions will be
+    cumulated. A request should not pass through both the server queue and the
+    backend queue unless a redispatch occurs.
+
+  - "backend_queue" is the total number of requests which were processed before
+    this one in the backend's global queue. It is zero when the request has not
+    gone through the global queue. It makes it possible to estimate the average
+    queue length, which easily translates into a number of missing servers when
+    divided by a server's "maxconn" parameter. It is worth noting that if a
+    session experiences a redispatch, it may pass twice in the backend's queue,
+    and then both positions will be cumulated. A request should not pass
+    through both the server queue and the backend queue unless a redispatch
+    occurs.
+
+  - "captured_request_headers" is a list of headers captured in the request due
+    to the presence of the "capture request header" statement in the frontend.
+    Multiple headers can be captured, they will be delimited by a vertical bar
+    ('|'). When no capture is enabled, the braces do not appear, causing a
+    shift of remaining fields. It is important to note that this field may
+    contain spaces, and that using it requires a smarter log parser than when
+    it's not used. Please consult the section "Capturing HTTP headers and
+    cookies" below for more details.
+
+  - "captured_response_headers" is a list of headers captured in the response
+    due to the presence of the "capture response header" statement in the
+    frontend. Multiple headers can be captured, they will be delimited by a
+    vertical bar ('|'). When no capture is enabled, the braces do not appear,
+    causing a shift of remaining fields. It is important to note that this
+    field may contain spaces, and that using it requires a smarter log parser
+    than when it's not used. Please consult the section "Capturing HTTP headers
+    and cookies" below for more details.
+
+  - "http_request" is the complete HTTP request line, including the method,
+    request and HTTP version string. Non-printable characters are encoded (see
+    below the section "Non-printable characters"). This is always the last
+    field, and it is always delimited by quotes and is the only one which can
+    contain quotes. If new fields are added to the log format, they will be
+    added before this field. This field might be truncated if the request is
+    huge and does not fit in the standard syslog buffer (1024 characters). This
+    is the reason why this field must always remain the last one.
+
+
+2.6.3) Advanced logging options
+-------------------------------
+
+Some advanced logging options are often looked for but are not easy to find out
+just by looking at the various options. Here is an entry point for the few
+options which can enable better logging. Please refer to the keywords reference
+for more information about their usage.
+
+
+2.6.3.1) Disabling logging of external tests
+--------------------------------------------
+
+It is quite common to have some monitoring tools perform health checks on
+haproxy. Sometimes it will be a layer 3 load-balancer such as LVS or any
+commercial load-balancer, and sometimes it will simply be a more complete
+monitoring system such as Nagios. When the tests are very frequent, users often
+ask how to disable logging for those checks. There are three possibilities :
+
+  - if connections come from everywhere and are just TCP probes, it is often
+    desired to simply disable logging of connections without data exchange, by
+    setting "option dontlognull" in the frontend. It also disables logging of
+    port scans, which may or may not be desired.
+
+  - if the connection come from a known source network, use "monitor-net" to
+    declare this network as monitoring only. Any host in this network will then
+    only be able to perform health checks, and their requests will not be
+    logged. This is generally appropriate to designate a list of equipments
+    such as other load-balancers.
+
+  - if the tests are performed on a known URI, use "monitor-uri" to declare
+    this URI as dedicated to monitoring. Any host sending this request will
+    only get the result of a health-check, and the request will not be logged.
+
+
+2.6.3.2) Logging before waiting for the session to terminate
+------------------------------------------------------------
+
+The problem with logging at end of connection is that you have no clue about
+what is happening during very long sessions, such as remote terminal sessions
+or large file downloads. This problem can be worked around by specifying
+"option logasap" in the frontend. Haproxy will then log as soon as possible,
+just before data transfer begins. This means that in case of TCP, it will still
+log the connection status to the server, and in case of HTTP, it will log just
+after processing the server headers. In this case, the number of bytes reported
+is the number of header bytes sent to the client. In order to avoid confusion
+with normal logs, the total time field and the number of bytes are prefixed
+with a '+' sign which means that real numbers are certainly larger.
+
+
+2.6.4) Timing events
+--------------------
+
+Timers provide a great help in troubleshooting network problems. All values are
+reported in milliseconds (ms). These timers should be used in conjunction with
+the session termination flags. In TCP mode with "option tcplog" set on the
+frontend, 3 control points are reported under the form "Tw/Tc/Tt", and in HTTP
+mode, 5 control points are reported under the form "Tq/Tw/Tc/Tr/Tt" :
+
+  - Tq: total time to get the client request (HTTP mode only). It's the time
+    elapsed between the moment the client connection was accepted and the
+    moment the proxy received the last HTTP header. The value "-1" indicates
+    that the end of headers (empty line) has never been seen. This happens when
+    the client closes prematurely or times out.
+
+  - Tw: total time spent in the queues waiting for a connection slot. It
+    accounts for backend queue as well as the server queues, and depends on the
+    queue size, and the time needed for the server to complete previous
+    requests. The value "-1" means that the request was killed before reaching
+    the queue, which is generally what happens with invalid or denied requests.
+
+  - Tc: total time to establish the TCP connection to the server. It's the time
+    elapsed between the moment the proxy sent the connection request, and the
+    moment it was acknowledged by the server, or between the TCP SYN packet and
+    the matching SYN/ACK packet in return. The value "-1" means that the
+    connection never established.
+
+  - Tr: server response time (HTTP mode only). It's the time elapsed between
+    the moment the TCP connection was established to the server and the moment
+    the server sent its complete response headers. It purely shows its request
+    processing time, without the network overhead due to the data transmission.
+    It is worth noting that when the client has data to send to the server, for
+    instance during a POST request, the time already runs, and this can distort
+    apparent response time. For this reason, it's generally wise not to trust
+    too much this field for POST requests initiated from clients behind an
+    untrusted network. A value of "-1" here means that the last the response
+    header (empty line) was never seen, most likely because the server timeout
+    stroke before the server managed to process the request.
+
+  - Tt: total session duration time, between the moment the proxy accepted it
+    and the moment both ends were closed. The exception is when the "logasap"
+    option is specified. In this case, it only equals (Tq+Tw+Tc+Tr), and is
+    prefixed with a '+' sign. From this field, we can deduce "Td", the data
+    transmission time, by substracting other timers when valid :
+
+        Td = Tt - (Tq + Tw + Tc + Tr)
+
+    Timers with "-1" values have to be excluded from this equation. In TCP
+    mode, "Tq" and "Tr" have to be excluded too. Note that "Tt" can never be
+    negative.
+
+These timers provide precious indications on trouble causes. Since the TCP
+protocol defines retransmit delays of 3, 6, 12... seconds, we know for sure
+that timers close to multiples of 3s are nearly always related to lost packets
+due to network problems (wires, negociation, congestion). Moreover, if "Tt" is
+close to a timeout value specified in the configuration, it often means that a
+session has been aborted on timeout.
+
+Most common cases :
+
+  - If "Tq" is close to 3000, a packet has probably been lost between the
+    client and the proxy. This is very rare on local networks but might happen
+    when clients are on far remote networks and send large requests. It may
+    happen that values larger than usual appear here without any network cause.
+    Sometimes, during an attack or just after a resource starvation has ended,
+    haproxy may accept thousands of connections in a few milliseconds. The time
+    spent accepting these connections will inevitably slightly delay processing
+    of other connections, and it can happen that request times in the order of
+    a few tens of milliseconds are measured after a few thousands of new
+    connections have been accepted at once.
+
+  - If "Tc" is close to 3000, a packet has probably been lost between the
+    server and the proxy during the server connection phase. This value should
+    always be very low, such as 1 ms on local networks and less than a few tens
+    of ms on remote networks.
+
+  - If "Tr" is nearly always lower than 3000 except some rare values which seem to
+    be the average majored by 3000, there are probably some packets lost between
+    the proxy and the server.
+
+  - If "Tt" is large even for small byte counts, it generally is because
+    neither the client nor the server decides to close the connection, for
+    instance because both have agreed on a keep-alive connection mode. In order
+    to solve this issue, it will be needed to specify "option httpclose" on
+    either the frontend or the backend. If the problem persists, it means that
+    the server ignores the "close" connection mode and expects the client to
+    close. Then it will be required to use "option forceclose". Having the
+    smallest possible 'Tt' is important when connection regulation is used with
+    the "maxconn" option on the servers, since no new connection will be sent
+    to the server until another one is released.
+
+Other noticeable HTTP log cases ('xx' means any value to be ignored) :
+
+  Tq/Tw/Tc/Tr/+Tt  The "option logasap" is present on the frontend and the log
+                   was emitted before the data phase. All the timers are valid
+                   except "Tt" which is shorter than reality.
+
+  -1/xx/xx/xx/Tt   The client was not able to send a complete request in time
+                   or it aborted too early. Check the session termination flags
+                   then "timeout http-request" and "timeout client" settings.
+
+  Tq/-1/xx/xx/Tt   It was not possible to process the request, maybe because
+                   servers were out of order, because the request was invalid
+                   or forbidden by ACL rules. Check the session termination
+                   flags.
+
+  Tq/Tw/-1/xx/Tt   The connection could not establish on the server. Either it
+                   actively refused it or it timed out after Tt-(Tq+Tw) ms.
+                   Check the session termination flags, then check the
+                   "timeout connect" setting. Note that the tarpit action might
+                   return similar-looking patterns, with "Tw" equal to the time
+                   the client connection was maintained open.
+
+  Tq/Tw/Tc/-1/Tt   The server has accepted the connection but did not return
+                   a complete response in time, or it closed its connexion
+                   unexpectedly after Tt-(Tq+Tw+Tc) ms. Check the session
+                   termination flags, then check the "timeout server" setting.
+
+
+2.6.5) Session state at disconnection
+-------------------------------------
+
+TCP and HTTP logs provide a session termination indicator in the
+"termination_state" field, just before the number of active connections. It is
+2-characters long in TCP mode, and is extended to 4 characters in HTTP mode,
+each of which has a special meaning :
+
+  - On the first character, a code reporting the first event which caused the
+    session to terminate :
+
+        C : the TCP session was unexpectedly aborted by the client.
+
+        S : the TCP session was unexpectedly aborted by the server, or the
+            server explicitly refused it.
+
+        P : the session was prematurely aborted by the proxy, because of a
+            connection limit enforcement, because a DENY filter was matched,
+            because of a security check which detected and blocked a dangerous
+            error in server response which might have caused information leak
+            (eg: cacheable cookie), or because the response was processed by
+            the proxy (redirect, stats, etc...).
+
+        R : a resource on the proxy has been exhausted (memory, sockets, source
+            ports, ...). Usually, this appears during the connection phase, and
+            system logs should contain a copy of the precise error. If this
+            happens, it must be considered as a very serious anomaly which
+            should be fixed as soon as possible by any means.
+
+        I : an internal error was identified by the proxy during a self-check.
+            This should NEVER happen, and you are encouraged to report any log
+            containing this, because this would almost certainly be a bug. It
+            would be wise to preventively restart the process after such an
+            event too, in case it would be caused by memory corruption.
+
+        c : the client-side timeout expired while waiting for the client to
+            send or receive data.
+
+        s : the server-side timeout expired while waiting for the server to
+            send or receive data.
+
+        - : normal session completion, both the client and the server closed
+            with nothing left in the buffers.
+
+  - on the second character, the TCP or HTTP session state when it was closed :
+
+        R : th proxy was waiting for a complete, valid REQUEST from the client
+            (HTTP mode only). Nothing was sent to any server.
+
+        Q : the proxy was waiting in the QUEUE for a connection slot. This can
+            only happen when servers have a 'maxconn' parameter set. It can
+            also happen in the global queue after a redispatch consecutive to
+            a failed attempt to connect to a dying server. If no redispatch is
+            reported, then no connection attempt was made to any server.
+
+        C : the proxy was waiting for the CONNECTION to establish on the
+            server. The server might at most have noticed a connection attempt.
+
+        H : the proxy was waiting for complete, valid response HEADERS from the
+            server (HTTP only).
+
+        D : the session was in the DATA phase.
+
+        L : the proxy was still transmitting LAST data to the client while the
+            server had already finished. This one is very rare as it can only
+            happen when the client dies while receiving the last packets.
+
+        T : the request was tarpitted. It has been held open with the client
+            during the whole "timeout tarpit" duration or until the client
+            closed, both of which will be reported in the "Tw" timer.
+
+        - : normal session completion after end of data transfer.
+
+  - the third character tells whether the persistence cookie was provided by
+    the client (only in HTTP mode) :
+
+        N : the client provided NO cookie. This is usually the case for new
+            visitors, so counting the number of occurrences of this flag in the
+            logs generally indicate a valid trend for the site frequentation.
+
+        I : the client provided an INVALID cookie matching no known server.
+            This might be caused by a recent configuration change, mixed
+            cookies between HTTP/HTTPS sites, or an attack.
+
+        D : the client provided a cookie designating a server which was DOWN,
+            so either "option persist" was used and the client was sent to
+            this server, or it was not set and the client was redispatched to
+            another server.
+
+        V : the client provided a valid cookie, and was sent to the associated
+            server.
+
+        - : does not apply (no cookie set in configuration).
+
+  - the last character reports what operations were performed on the persistence
+    cookie returned by the server (only in HTTP mode) :
+
+        N : NO cookie was provided by the server, and none was inserted either.
+
+        I : no cookie was provided by the server, and the proxy INSERTED one.
+            Note that in "cookie insert" mode, if the server provides a cookie,
+            it will still be overwritten and reported as "I" here.
+
+        P : a cookie was PROVIDED by the server and transmitted as-is.
+
+        R : the cookie provided by the server was REWRITTEN by the proxy, which
+            happens in "cookie rewrite" or "cookie prefix" modes.
+
+        D : the cookie provided by the server was DELETED by the proxy.
+
+        - : does not apply (no cookie set in configuration).
+
+The combination of the two first flags give a lot of information about what was
+happening when the session terminated, and why it did terminate. It can be
+helpful to detect server saturation, network troubles, local system resource
+starvation, attacks, etc...
+
+The most common termination flags combinations are indicated below. They are
+alphabetically sorted, with the lowercase set just after the upper case for
+easier finding and understanding.
+
+  Flags   Reason
+
+     --   Normal termination.
+
+     CC   The client aborted before the connection could be established to the
+          server. This can happen when haproxy tries to connect to a recently
+          dead (or unchecked) server, and the client aborts while haproxy is
+          waiting for the server to respond or for "timeout connect" to expire.
+
+     CD   The client unexpectedly aborted during data transfer. This can be
+          caused by a browser crash, by an intermediate equipment between the
+          client and haproxy which decided to actively break the connection,
+          by network routing issues between the client and haproxy, or by a
+          keep-alive session between the server and the client terminated first
+          by the client.
+	  
+     cD   The client did not send nor acknowledge any data for as long as the
+          "timeout client" delay. This is often caused by network failures on
+	  the client side, or the client simply leaving the net uncleanly.
+
+     CH   The client aborted while waiting for the server to start responding.
+          It might be the server taking too long to respond or the client
+          clicking the 'Stop' button too fast.
+
+     cH   The "timeout client" stroke while waiting for client data during a
+          POST request. This is sometimes caused by too large TCP MSS values
+          for PPPoE networks which cannot transport full-sized packets. It can
+          also happen when client timeout is smaller than server timeout and
+          the server takes too long to respond.
+
+     CQ   The client aborted while its session was queued, waiting for a server
+          with enough empty slots to accept it. It might be that either all the
+          servers were saturated or that the assigned server was taking too
+          long a time to respond.
+
+     CR   The client aborted before sending a full HTTP request. Most likely
+          the request was typed by hand using a telnet client, and aborted
+          too early. The HTTP status code is likely a 400 here. Sometimes this
+          might also be caused by an IDS killing the connection between haproxy
+          and the client.
+
+     cR   The "timeout http-request" stroke before the client sent a full HTTP
+          request. This is sometimes caused by too large TCP MSS values on the
+          client side for PPPoE networks which cannot transport full-sized
+          packets, or by clients sending requests by hand and not typing fast
+          enough, or forgetting to enter the empty line at the end of the
+          request. The HTTP status code is likely a 408 here.
+
+     CT   The client aborted while its session was tarpitted. It is important to
+          check if this happens on valid requests, in order to be sure that no
+          wrong tarpit rules have been written. If a lot of them happen, it might
+          make sense to lower the "timeout tarpit" value to something closer to
+          the average reported "Tw" timer, in order not to consume resources for
+          just a few attackers.
+
+     SC   The server or an equipement between it and haproxy explicitly refused
+          the TCP connection (the proxy received a TCP RST or an ICMP message
+          in return). Under some circumstances, it can also be the network
+          stack telling the proxy that the server is unreachable (eg: no route,
+          or no ARP response on local network). When this happens in HTTP mode,
+          the status code is likely a 502 or 503 here.
+
+     sC   The "timeout connect" stroke before a connection to the server could
+          complete. When this happens in HTTP mode, the status code is likely a
+          503 or 504 here.
+
+     SD   The connection to the server died with an error during the data
+          transfer. This usually means that haproxy has received an RST from
+          the server or an ICMP message from an intermediate equipment while
+          exchanging data with the server. This can be caused by a server crash
+          or by a network issue on an intermediate equipment.
+
+     sD   The server did not send nor acknowledge any data for as long as the
+          "timeout server" setting during the data phase. This is often caused
+          by too short timeouts on L4 equipements before the server (firewalls,
+          load-balancers, ...), as well as keep-alive sessions maintained
+          between the client and the server expiring first on haproxy.
+
+     SH   The server aborted before sending its full HTTP response headers, or
+          it crashed while processing the request. Since a server aborting at
+          this moment is very rare, it would be wise to inspect its logs to
+          control whether it crashed and why. The logged request may indicate a
+          small set of faulty requests, demonstrating bugs in the application.
+          Sometimes this might also be caused by an IDS killing the connection
+          between haproxy and the server.
+
+     sH   The "timeout server" stroke before the server could return its
+          response headers. This is the most common anomaly, indicating too
+          long transactions, probably caused by server or database saturation.
+          The immediate workaround consists in increasing the "timeout server"
+          setting, but it is important to keep in mind that the user experience
+          will suffer from these long response times. The only long term
+          solution is to fix the application.
+
+     sQ   The session spent too much time in queue and has been expired. See
+          the "timeout queue" and "timeout connect" settings to find out how to
+          fix this if it happens too often. If it often happens massively in
+          short periods, it may indicate general problems on the affected
+          servers due to I/O or database congestion, or saturation caused by
+          external attacks.
+
+     PC   The proxy refused to establish a connection to the server because the
+          process' socket limit has been reached while attempting to connect.
+	  The global "maxconn" parameter may be increased in the configuration
+          so that it does not happen anymore. This status is very rare and
+          might happen when the global "ulimit-n" parameter is forced by hand.
+
+     PH   The proxy blocked the server's response, because it was invalid,
+          incomplete, dangerous (cache control), or matched a security filter.
+          In any case, an HTTP 502 error is sent to the client. One possible
+          cause for this error is an invalid syntax in an HTTP header name
+          containing unauthorized characters.
+
+     PR   The proxy blocked the client's HTTP request, either because of an
+          invalid HTTP syntax, in which case it returned an HTTP 400 error to
+          the client, or because a deny filter matched, in which case it
+          returned an HTTP 403 error.
+
+     PT   The proxy blocked the client's request and has tarpitted its
+          connection before returning it a 500 server error. Nothing was sent
+          to the server. The connection was maintained open for as long as
+          reported by the "Tw" timer field.
+
+     RC   A local resource has been exhausted (memory, sockets, source ports)
+          preventing the connection to the server from establishing. The error
+          logs will tell precisely what was missing. This is very rare and can
+          only be solved by proper system tuning.
+
+
+2.6.6) Non-printable characters
+-------------------------------
+
+In order not to cause trouble to log analysis tools or terminals during log
+consulting, non-printable characters are not sent as-is into log files, but are
+converted to the two-digits hexadecimal representation of their ASCII code,
+prefixed by the character '#'. The only characters that can be logged without
+being escaped are comprised between 32 and 126 (inclusive). Obviously, the
+escape character '#' itself is also encoded to avoid any ambiguity ("#23"). It
+is the same for the character '"' which becomes "#22", as well as '{', '|' and
+'}' when logging headers.
+
+Note that the space character (' ') is not encoded in headers, which can cause
+issues for tools relying on space count to locate fields. A typical header
+containing spaces is "User-Agent".
+
+Last, it has been observed that some syslog daemons such as syslog-ng escape
+the quote ('"') with a backslash ('\'). The reverse operation can safely be
+performed since no quote may appear anywhere else in the logs.
+
+
+2.6.7) Capturing HTTP cookies
+-----------------------------
+
+Cookie capture simplifies the tracking a complete user session. This can be
+achieved using the "capture cookie" statement in the frontend. Please refer to
+section 2.2 for more details. Only one cookie can be captured, and the same
+cookie will simultaneously be checked in the request ("Cookie:" header) and in
+the response ("Set-Cookie:" header). The respective values will be reported in
+the HTTP logs at the "captured_request_cookie" and "captured_response_cookie"
+locations (see section 2.6.2.3 about HTTP log format). When either cookie is
+not seen, a dash ('-') replaces the value. This way, it's easy to detect when a
+user switches to a new session for example, because the server will reassign it
+a new cookie. It is also possible to detect if a server unexpectedly sets a
+wrong cookie to a client, leading to session crossing.
+
+  Examples :
+        # capture the first cookie whose name starts with "ASPSESSION"
+        capture cookie ASPSESSION len 32
+
+        # capture the first cookie whose name is exactly "vgnvisitor"
+        capture cookie vgnvisitor= len 32
+
+
+2.6.8) Capturing HTTP headers
+-----------------------------
+
+Header captures are useful to track unique request identifiers set by an upper
+proxy, virtual host names, user-agents, POST content-length, referrers, etc. In
+the response, one can search for information about the response length, how the
+server asked the cache to behave, or an object location during a redirection.
+
+Header captures are performed using the "capture request header" and "capture
+response header" statements in the frontend. Please consult their definition in
+section 2.2 for more details.
+
+It is possible to include both request headers and response headers at the same
+time. Non-existant headers are logged as empty strings, and if one header
+appears more than once, only its last occurence will be logged. Request headers
+are grouped within braces '{' and '}' in the same order as they were declared,
+and delimited with a vertical bar '|' without any space. Response headers
+follow the same representation, but are displayed after a space following the
+request headers block. These blocks are displayed just before the HTTP request
+in the logs.
+
+  Example :
+        # This instance chains to the outgoing proxy
+        listen proxy-out
+            mode http
+            option httplog
+            option logasap
+            log global
+            server cache1 192.168.1.1:3128
+
+            # log the name of the virtual server
+            capture request  header Host len 20
+
+            # log the amount of data uploaded during a POST
+            capture request  header Content-Length len 10
+
+            # log the beginning of the referrer
+            capture request  header Referer len 20
+
+            # server name (useful for outgoing proxies only)
+            capture response header Server len 20
+
+            # logging the content-length is useful with "option logasap"
+            capture response header Content-Length len 10
+
+            # log the expected cache behaviour on the response
+            capture response header Cache-Control len 8
+
+            # the Via header will report the next proxy's name
+            capture response header Via len 20
+
+            # log the URL location during a redirection
+            capture response header Location len 20
+
+    >>> Aug  9 20:26:09 localhost \
+          haproxy[2022]: 127.0.0.1:34014 [09/Aug/2004:20:26:09] proxy-out \
+          proxy-out/cache1 0/0/0/162/+162 200 +350 - - ---- 0/0/0/0/0 0/0 \
+          {fr.adserver.yahoo.co||http://fr.f416.mail.} {|864|private||} \
+          "GET http://fr.adserver.yahoo.com/"
+
+    >>> Aug  9 20:30:46 localhost \
+          haproxy[2022]: 127.0.0.1:34020 [09/Aug/2004:20:30:46] proxy-out \
+          proxy-out/cache1 0/0/0/182/+182 200 +279 - - ---- 0/0/0/0/0 0/0 \
+          {w.ods.org||} {Formilux/0.1.8|3495|||} \
+          "GET http://trafic.1wt.eu/ HTTP/1.1" 
+
+    >>> Aug  9 20:30:46 localhost \
+          haproxy[2022]: 127.0.0.1:34028 [09/Aug/2004:20:30:46] proxy-out \
+          proxy-out/cache1 0/0/2/126/+128 301 +223 - - ---- 0/0/0/0/0 0/0 \
+          {www.sytadin.equipement.gouv.fr||http://trafic.1wt.eu/} \
+          {Apache|230|||http://www.sytadin.} \
+          "GET http://www.sytadin.equipement.gouv.fr/ HTTP/1.1" 
+
+
+2.6.9) Examples of logs
+-----------------------
+
+These are real-world examples of logs accompanied with an explanation. Some of
+them have been made up by hand. The syslog part has been removed for better
+reading. Their sole purpose is to explain how to decipher them.
+
+    >>> haproxy[674]: 127.0.0.1:33318 [15/Oct/2003:08:31:57.130] px-http \
+          px-http/srv1 6559/0/7/147/6723 200 243 - - ---- 5/3/3/1/0 0/0 \
+          "HEAD / HTTP/1.0"
+
+    => long request (6.5s) entered by hand through 'telnet'. The server replied
+       in 147 ms, and the session ended normally ('----')
+
+    >>> haproxy[674]: 127.0.0.1:33319 [15/Oct/2003:08:31:57.149] px-http \
+          px-http/srv1 6559/1230/7/147/6870 200 243 - - ---- 324/239/239/99/0 \
+          0/9 "HEAD / HTTP/1.0"
+
+    => Idem, but the request was queued in the global queue behind 9 other
+       requests, and waited there for 1230 ms.
+
+    >>> haproxy[674]: 127.0.0.1:33320 [15/Oct/2003:08:32:17.654] px-http \
+          px-http/srv1 9/0/7/14/+30 200 +243 - - ---- 3/3/3/1/0 0/0 \
+          "GET /image.iso HTTP/1.0"
+
+    => request for a long data transfer. The "logasap" option was specified, so
+       the log was produced just before transfering data. The server replied in
+       14 ms, 243 bytes of headers were sent to the client, and total time from
+       accept to first data byte is 30 ms.
+
+    >>> haproxy[674]: 127.0.0.1:33320 [15/Oct/2003:08:32:17.925] px-http \
+          px-http/srv1 9/0/7/14/30 502 243 - - PH-- 3/2/2/0/0 0/0 \
+          "GET /cgi-bin/bug.cgi? HTTP/1.0"
+
+    => the proxy blocked a server response either because of an "rspdeny" or
+       "rspideny" filter, or because the response was improperly formatted and
+       not HTTP-compliant, or because it blocked sensible information which
+       risked being cached. In this case, the response is replaced with a "502
+       bad gateway". The flags ("PH--") tell us that it was haproxy who decided
+       to return the 502 and not the server.
+
+    >>> haproxy[18113]: 127.0.0.1:34548 [15/Oct/2003:15:18:55.798] px-http \
+          px-http/<NOSRV> -1/-1/-1/-1/8490 -1 0 - - CR-- 2/2/2/0/0 0/0 "" 
+
+    => the client never completed its request and aborted itself ("C---") after
+       8.5s, while the proxy was waiting for the request headers ("-R--").
+       Nothing was sent to any server.
+
+    >>> haproxy[18113]: 127.0.0.1:34549 [15/Oct/2003:15:19:06.103] px-http \
+         px-http/<NOSRV> -1/-1/-1/-1/50001 408 0 - - cR-- 2/2/2/0/0 0/0 ""
+
+    => The client never completed its request, which was aborted by the
+       time-out ("c---") after 50s, while the proxy was waiting for the request
+       headers ("-R--").  Nothing was sent to any server, but the proxy could
+       send a 408 return code to the client.
+
+    >>> haproxy[18989]: 127.0.0.1:34550 [15/Oct/2003:15:24:28.312] px-tcp \
+          px-tcp/srv1 0/0/5007 0 cD 0/0/0/0/0 0/0
+
+    => This log was produced with "option tcplog". The client timed out after
+       5 seconds ("c----").
+
+    >>> haproxy[18989]: 10.0.0.1:34552 [15/Oct/2003:15:26:31.462] px-http \
+          px-http/srv1 3183/-1/-1/-1/11215 503 0 - - SC-- 205/202/202/115/3 \
+          0/0 "HEAD / HTTP/1.0" 
+
+    => The request took 3s to complete (probably a network problem), and the
+       connection to the server failed ('SC--') after 4 attemps of 2 seconds
+       (config says 'retries 3'), and no redispatch (otherwise we would have
+       seen "/+3"). Status code 503 was returned to the client. There were 115
+       connections on this server, 202 connections on this proxy, and 205 on
+       the global process. It is possible that the server refused the
+       connection because of too many already established.
+
 
 2.7) CSV format
+---------------
 
   0. pxname: proxy name
   1. svname: service name (FRONTEND for frontend, BACKEND for backend, any name
@@ -4142,18 +5350,29 @@ Notes related to these keywords :
  31. tracked: id of proxy/server if tracking is enabled
  32. type (0=frontend, 1=backend, 2=server)
 
+
 2.8) Unix Socket commands
+-------------------------
 
- - "show stat [<iid> <type> <sid>]": dump statistics in the cvs format. By
-   passing id, type and sid it is possible to dump only selected items:
-     - iid is a proxy id, -1 to dump everything
-     - type selects type of dumpable objects: 1 for frontend, 2 for backend, 4 for
-       server, -1 for everything. Values can be ORed, for example:
-          1+2=3   -> frontend+backend.
-          1+2+4=7 -> frontend+backend+server.
-     - sid is a service id, -1 to dump everything from the selected proxy.
+The following commands are supported on the UNIX stats socket ; all of them
+must be terminated by a line feed. It is important to understand that when
+multiple haproxy processes are started on the same sockets, any process may
+pick up the request and will output its own stats.
 
- - "show info": dump info about current haproxy status.
+show stat [<iid> <type> <sid>]
+  Dump statistics in the CSV format. By passing <id>, <type> and <sid>, it is
+  possible to dump only selected items :
+    - <iid> is a proxy ID, -1 to dump everything
+    - <type> selects the type of dumpable objects : 1 for frontends, 2 for
+       backends, 4 for servers, -1 for everything. These values can be ORed,
+       for example:
+          1 + 2     = 3   -> frontend + backend.
+          1 + 2 + 4 = 7   -> frontend + backend + server.
+    - <sid> is a server ID, -1 to dump everything from the selected proxy.
+
+show info
+  Dump info about haproxy status on current process.
+
 
 /*
  * Local variables:
