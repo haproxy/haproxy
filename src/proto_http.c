@@ -1538,7 +1538,7 @@ int http_process_request(struct session *s, struct buffer *req)
 	 * For the parsing, we use a 28 states FSM.
 	 *
 	 * Here is the information we currently have :
-	 *   req->data + req->som  = beginning of request
+	 *   req->data + msg->som  = beginning of request
 	 *   req->data + req->eoh  = end of processed headers / start of current one
 	 *   req->data + req->eol  = end of current header or line (LF or CRLF)
 	 *   req->lr = first non-visited byte
@@ -2317,6 +2317,21 @@ int http_process_request(struct session *s, struct buffer *req)
 	return 1;
 
  return_bad_req: /* let's centralize all bad requests */
+	if (unlikely(msg->msg_state == HTTP_MSG_ERROR)) {
+		/* we detected a parsing error. We want to archive this request
+		 * in the dedicated proxy area for later troubleshooting.
+		 */
+		struct error_snapshot *es = &s->fe->invalid_req;
+		int maxlen = MIN(req->r - req->data + msg->som, sizeof(es->buf));
+		memcpy(es->buf, req->data + msg->som, maxlen);
+		es->pos  = req->lr - req->data + msg->som;
+		es->len  = req->r - req->data + msg->som;
+		es->when = now;
+		es->sid  = s->uniq_id;
+		es->srv  = s->srv;
+		es->oe   = s->be;
+		es->src  = s->cli_addr;
+	}
 	txn->req.msg_state = HTTP_MSG_ERROR;
 	txn->status = 400;
 	req->analysers = 0;
@@ -2539,6 +2554,20 @@ int process_response(struct session *t)
 		if (unlikely(msg->msg_state != HTTP_MSG_BODY)) {
 			/* Invalid response */
 			if (unlikely(msg->msg_state == HTTP_MSG_ERROR)) {
+				/* we detected a parsing error. We want to archive this response
+				 * in the dedicated proxy area for later troubleshooting.
+				 */
+				struct error_snapshot *es = &t->be->invalid_rep;
+				int maxlen = MIN(rep->r - rep->data + msg->som, sizeof(es->buf));
+				memcpy(es->buf, rep->data + msg->som, maxlen);
+				es->pos = rep->lr - rep->data + msg->som;
+				es->len = rep->r - rep->data + msg->som;
+				es->when = now;
+				es->sid = t->uniq_id;
+				es->srv = t->srv;
+				es->oe = t->fe;
+				es->src = t->cli_addr;
+
 			hdr_response_bad:
 				//buffer_shutr(rep);
 				//buffer_shutw(req);

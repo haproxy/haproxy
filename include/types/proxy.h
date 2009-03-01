@@ -123,6 +123,17 @@ struct fwrr_group {
 	int next_weight;        /* total weight of the next time range */
 }; 
 
+struct error_snapshot {
+	struct timeval when;		/* date of this event, (tv_sec == 0) means "never" */
+	unsigned int len;		/* original length of the last invalid request/response */
+	unsigned int pos;		/* position of the first invalid character */
+	unsigned int sid;		/* ID of the faulty session */
+	struct server *srv;		/* server associated with the error (or NULL) */
+	struct proxy *oe;		/* other end = frontend or backend involved */
+	struct sockaddr_storage src;	/* client's address */
+	char buf[BUFSIZE];		/* copy of the beginning of the message */
+};
+
 struct proxy {
 	struct listener *listen;		/* the listen addresses and sockets */
 	struct in_addr mon_net, mon_mask;	/* don't forward connections from this net (network order) FIXME: should support IPv6 */
@@ -259,6 +270,7 @@ struct proxy {
 	int next_svid;				/* next server-id, used for SNMP */
 	unsigned int backlog;			/* force the frontend's listen backlog */
 	unsigned int bind_proc;			/* bitmask of processes using this proxy. 0 = all. */
+	struct error_snapshot invalid_req, invalid_rep; /* captures of last errors */
 };
 
 struct switching_rule {
