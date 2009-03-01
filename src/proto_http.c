@@ -465,7 +465,6 @@ int http_find_header2(const char *name, int len,
 		      const char *sol, struct hdr_idx *idx,
 		      struct hdr_ctx *ctx)
 {
-	__label__ return_hdr, next_hdr;
 	const char *eol, *sov;
 	int cur_idx;
 
@@ -954,16 +953,6 @@ const char *http_parse_stsline(struct http_msg *msg, const char *msg_buf,
 			       unsigned int state, const char *ptr, const char *end,
 			       char **ret_ptr, unsigned int *ret_state)
 {
-	__label__
-		http_msg_rpver,
-		http_msg_rpver_sp,
-		http_msg_rpcode,
-		http_msg_rpcode_sp,
-		http_msg_rpreason,
-		http_msg_rpline_eol,
-		http_msg_ood,     /* out of data */
-		http_msg_invalid;
-
 	switch (state)	{
 	http_msg_rpver:
 	case HTTP_MSG_RPVER:
@@ -974,8 +963,9 @@ const char *http_parse_stsline(struct http_msg *msg, const char *msg_buf,
 			msg->sl.st.v_l = (ptr - msg_buf) - msg->som;
 			EAT_AND_JUMP_OR_RETURN(http_msg_rpver_sp, HTTP_MSG_RPVER_SP);
 		}
-		goto http_msg_invalid;
-		
+		state = HTTP_MSG_ERROR;
+		break;
+
 	http_msg_rpver_sp:
 	case HTTP_MSG_RPVER_SP:
 		if (likely(!HTTP_IS_LWS(*ptr))) {
@@ -985,7 +975,8 @@ const char *http_parse_stsline(struct http_msg *msg, const char *msg_buf,
 		if (likely(HTTP_IS_SPHT(*ptr)))
 			EAT_AND_JUMP_OR_RETURN(http_msg_rpver_sp, HTTP_MSG_RPVER_SP);
 		/* so it's a CR/LF, this is invalid */
-		goto http_msg_invalid;
+		state = HTTP_MSG_ERROR;
+		break;
 
 	http_msg_rpcode:
 	case HTTP_MSG_RPCODE:
@@ -1039,17 +1030,11 @@ const char *http_parse_stsline(struct http_msg *msg, const char *msg_buf,
 	}
 
  http_msg_ood:
-	/* out of data */
+	/* out of valid data */
 	if (ret_state)
 		*ret_state = state;
 	if (ret_ptr)
 		*ret_ptr = (char *)ptr;
-	return NULL;
-
- http_msg_invalid:
-	/* invalid message */
-	if (ret_state)
-		*ret_state = HTTP_MSG_ERROR;
 	return NULL;
 }
 
@@ -1077,16 +1062,6 @@ const char *http_parse_reqline(struct http_msg *msg, const char *msg_buf,
 			       unsigned int state, const char *ptr, const char *end,
 			       char **ret_ptr, unsigned int *ret_state)
 {
-	__label__
-		http_msg_rqmeth,
-		http_msg_rqmeth_sp,
-		http_msg_rquri,
-		http_msg_rquri_sp,
-		http_msg_rqver,
-		http_msg_rqline_eol,
-		http_msg_ood,     /* out of data */
-		http_msg_invalid;
-
 	switch (state)	{
 	http_msg_rqmeth:
 	case HTTP_MSG_RQMETH:
@@ -1110,8 +1085,9 @@ const char *http_parse_reqline(struct http_msg *msg, const char *msg_buf,
 			msg->sl.rq.v_l = 0;
 			goto http_msg_rqline_eol;
 		}
-		goto http_msg_invalid;
-		
+		state = HTTP_MSG_ERROR;
+		break;
+
 	http_msg_rqmeth_sp:
 	case HTTP_MSG_RQMETH_SP:
 		if (likely(!HTTP_IS_LWS(*ptr))) {
@@ -1166,7 +1142,8 @@ const char *http_parse_reqline(struct http_msg *msg, const char *msg_buf,
 		}
 
 		/* neither an HTTP_VER token nor a CRLF */
-		goto http_msg_invalid;
+		state = HTTP_MSG_ERROR;
+		break;
 
 #ifdef DEBUG_FULL
 	default:
@@ -1176,17 +1153,11 @@ const char *http_parse_reqline(struct http_msg *msg, const char *msg_buf,
 	}
 
  http_msg_ood:
-	/* out of data */
+	/* out of valid data */
 	if (ret_state)
 		*ret_state = state;
 	if (ret_ptr)
 		*ret_ptr = (char *)ptr;
-	return NULL;
-
- http_msg_invalid:
-	/* invalid message */
-	if (ret_state)
-		*ret_state = HTTP_MSG_ERROR;
 	return NULL;
 }
 
@@ -1201,24 +1172,6 @@ const char *http_parse_reqline(struct http_msg *msg, const char *msg_buf,
  */
 void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx *idx)
 {
-	__label__
-		http_msg_rqbefore,
-		http_msg_rqbefore_cr,
-		http_msg_rqmeth,
-		http_msg_rqline_end,
-		http_msg_hdr_first,
-		http_msg_hdr_name,
-		http_msg_hdr_l1_sp,
-		http_msg_hdr_l1_lf,
-		http_msg_hdr_l1_lws,
-		http_msg_hdr_val,
-		http_msg_hdr_l2_lf,
-		http_msg_hdr_l2_lws,
-		http_msg_complete_header,
-		http_msg_last_lf,
-		http_msg_ood,     /* out of data */
-		http_msg_invalid;
-
 	unsigned int state;       /* updated only when leaving the FSM */
 	register char *ptr, *end; /* request pointers, to avoid dereferences */
 
@@ -1538,6 +1491,7 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
  http_msg_invalid:
 	/* invalid message */
 	msg->msg_state = HTTP_MSG_ERROR;
+	buf->lr = ptr;
 	return;
 }
 
@@ -1565,6 +1519,16 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
  */
 int http_process_request(struct session *s, struct buffer *req)
 {
+
+	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
+		now_ms, __FUNCTION__,
+		s,
+		req,
+		req->rex, req->wex,
+		req->flags,
+		req->l,
+		req->analysers);
+
 	/*
 	 * We will parse the partial (or complete) lines.
 	 * We will check the request syntax, and also join multi-line
@@ -1585,15 +1549,6 @@ int http_process_request(struct session *s, struct buffer *req)
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->req;
 	struct proxy *cur_proxy;
-
-	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
-		now_ms, __FUNCTION__,
-		s,
-		req,
-		req->rex, req->wex,
-		req->flags,
-		req->l,
-		req->analysers);
 
 	if (likely(req->lr < req->r))
 		http_msg_analyzer(req, msg, &txn->hdr_idx);
