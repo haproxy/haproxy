@@ -251,10 +251,10 @@ tune.maxaccept <number>
   Sets the maximum number of consecutive accepts that a process may perform on
   a single wake up. High values give higher priority to high connection rates,
   while lower values give higher priority to already established connections.
-  This value is unlimited by default in single process mode. However, in
+  This value is limited to 100 by default in single process mode. However, in
   multi-process mode (nbproc > 1), it defaults to 8 so that when one process
   wakes up, it does not take all incoming connections for itself and leaves a
-  part of them to other processes. Setting this value to zero or less disables
+  part of them to other processes. Setting this value to -1 completely disables
   the limitation. It should normally not be needed to tweak this value.
 
 tune.maxpollevents <number>
