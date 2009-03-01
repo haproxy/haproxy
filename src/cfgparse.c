@@ -1789,7 +1789,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 #endif
 			return -1;
 		}
-	
+
+		/* we must first clear any optional default setting */	
+		curproxy->options &= ~PR_O_TPXY_MASK;
+
 		curproxy->source_addr = *str2sa(args[1]);
 		curproxy->options |= PR_O_BIND_SRC;
 		if (!strcmp(args[2], "usesrc")) {  /* address to use outside */
