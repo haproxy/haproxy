@@ -5840,6 +5840,56 @@ show sess
   Dump all known sessions. Avoid doing this on slow connections as this can
   be huge.
 
+show errors [<iid>]
+  Dump last known request and response errors collected by frontends and
+  backends. If <iid> is specified, the limit the dump to errors concerning
+  either frontend or backend whose ID is <iid>.
+
+  The errors which may be collected are the last request and response errors
+  caused by protocol violations, often due to invalid characters in header
+  names. The report precisely indicates what exact character violated the
+  protocol. Other important information such as the exact date the error was
+  detected, frontend and backend names, the server name (when known), the
+  internal session ID and the source address which has initiated the session
+  are reported too.
+
+  All characters are returned, and non-printable characters are encoded. The
+  most common ones (\t = 9, \n = 10, \r = 13 and \e = 27) are encoded as one
+  letter following a backslash. The backslash itself is encoded as '\\' to
+  avoid confusion. Other non-printable characters are encoded '\xNN' where
+  NN is the two-digits hexadecimal representation of the character's ASCII
+  code.
+
+  Lines are prefixed with the position of their first character, starting at 0
+  for the beginning of the buffer. At most one input line is printed per line,
+  and large lines will be broken into multiple consecutive output lines so that
+  the output never goes beyond 79 characters wide. It is easy to detect if a
+  line was broken, because it will not end with '\n' and the next line's offset
+  will be followed by a '+' sign, indicating it is a continuation of previous
+  line.
+
+  Example :
+    >>> $ echo "show errors" | socat stdio /tmp/sock1
+        [04/Mar/2009:15:46:56.081] backend http-in (#2) : invalid response
+          src 127.0.0.1, session #54, frontend fe-eth0 (#1), server s2 (#1)
+          response length 213 bytes, error at position 23:
+
+          00000  HTTP/1.0 200 OK\r\n
+          00017  header/bizarre:blah\r\n
+          00038  Location: blah\r\n
+          00054  Long-line: this is a very long line which should b
+          00104+ e broken into multiple lines on the output buffer,
+          00154+  otherwise it would be too large to print in a ter
+          00204+ minal\r\n
+          00211  \r\n
+
+    In the example above, we know that the backend "http-in" which has internal
+    ID 2 has blocked an invalid response from its server s2 which has internal
+    ID 1. The request was on session 54 initiated by source 127.0.0.1 and
+    received by frontend fe-eth0 whose ID is 1. The total response length was
+    213 bytes when the error was detected, and the error was at byte 23. This
+    is the slash ('/') in header name "header/bizarre", which is not a valid
+    HTTP character for a header name.
 
 /*
  * Local variables:
