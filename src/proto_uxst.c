@@ -615,6 +615,15 @@ int unix_sock_parse_request(struct session *s, char *line)
 			s->ana_state = STATS_ST_REP;
 			buffer_install_hijacker(s, s->rep, stats_dump_sess_to_buffer);
 		}
+		else if (strcmp(args[1], "errors") == 0) {
+			if (*args[2])
+				s->data_ctx.errors.iid	= atoi(args[2]);
+			else
+				s->data_ctx.errors.iid	= -1;
+			s->data_ctx.errors.px = NULL;
+			s->ana_state = STATS_ST_REP;
+			buffer_install_hijacker(s, s->rep, stats_dump_errors_to_buffer);
+		}
 		else { /* neither "stat" nor "info" nor "sess" */
 			return 0;
 		}

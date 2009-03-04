@@ -49,6 +49,7 @@ void stats_dump_raw_to_buffer(struct session *s, struct buffer *req);
 int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri);
 int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri);
 void stats_dump_sess_to_buffer(struct session *s, struct buffer *rep);
+void stats_dump_errors_to_buffer(struct session *s, struct buffer *rep);
 
 
 #endif /* _PROTO_DUMPSTATS_H */

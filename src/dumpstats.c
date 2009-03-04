@@ -1222,6 +1222,212 @@ void stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 	}
 }
 
+/* print a line of error buffer (limited to 70 bytes) to <out>. The format is :
+ * <2 spaces> <offset=5 digits> <space or plus> <space> <70 chars max> <\n>
+ * which is 60 chars per line. Non-printable chars \t, \n, \r and \e are
+ * encoded in C format. Other non-printable chars are encoded "\xHH". Original
+ * lines are respected within the limit of 70 output chars. Lines that are
+ * continuation of a previous truncated line begin with "+" instead of " "
+ * after the offset. The new pointer is returned.
+ */
+static int dump_error_line(struct chunk *out, int size,
+                          struct error_snapshot *err, int *line, int ptr)
+{
+	int end;
+	unsigned char c;
+
+	end = out->len + 80;
+	if (end > size)
+		return ptr;
+
+	chunk_printf(out, size, "  %05d%c ", ptr, (ptr == *line) ? ' ' : '+');
+
+	while (ptr < err->len) {
+		c = err->buf[ptr];
+		if (isprint(c)) {
+			if (out->len > end - 2)
+				break;
+			out->str[out->len++] = c;
+		} else if (c == '\t' || c == '\n' || c == '\r' || c == '\e') {
+			if (out->len > end - 3)
+				break;
+			out->str[out->len++] = '\\';
+			switch (c) {
+			case '\t': c = 't'; break;
+			case '\n': c = 'n'; break;
+			case '\r': c = 'r'; break;
+			case '\e': c = 'e'; break;
+			}
+			out->str[out->len++] = c;
+		} else {
+			if (out->len > end - 5)
+				break;
+			out->str[out->len++] = '\\';
+			out->str[out->len++] = 'x';
+			out->str[out->len++] = hextab[(c >> 4) & 0xF];
+			out->str[out->len++] = hextab[c & 0xF];
+		}
+		if (err->buf[ptr++] == '\n') {
+			/* we had a line break, let's return now */
+			out->str[out->len++] = '\n';
+			*line = ptr;
+			return ptr;
+		}
+	}
+	/* we have an incomplete line, we return it as-is */
+	out->str[out->len++] = '\n';
+	return ptr;
+}
+
+/* This function is called to send output to the response buffer.
+ * It dumps the errors logged in proxies onto the output buffer <rep>.
+ * Expects to be called with client socket shut down on input.
+ * s->data_ctx must have been zeroed first, and the flags properly set.
+ * It automatically clears the HIJACK bit from the response buffer.
+ */
+void stats_dump_errors_to_buffer(struct session *s, struct buffer *rep)
+{
+	extern const char *monthname[12];
+	struct chunk msg;
+
+	if (unlikely(rep->flags & (BF_WRITE_ERROR|BF_SHUTW))) {
+		s->data_state = DATA_ST_FIN;
+		buffer_stop_hijack(rep);
+		s->ana_state = STATS_ST_CLOSE;
+		return;
+	}
+
+	if (s->ana_state != STATS_ST_REP)
+		return;
+
+	msg.len = 0;
+	msg.str = trash;
+
+	if (!s->data_ctx.errors.px) {
+		/* the function had not been called yet, let's prepare the
+		 * buffer for a response.
+		 */
+		stream_int_retnclose(rep->cons, &msg);
+		s->data_ctx.errors.px = proxy;
+		s->data_ctx.errors.buf = 0;
+		s->data_ctx.errors.bol = 0;
+		s->data_ctx.errors.ptr = -1;
+	}
+
+	/* we have two inner loops here, one for the proxy, the other one for
+	 * the buffer.
+	 */
+	while (s->data_ctx.errors.px) {
+		struct error_snapshot *es;
+
+		if (s->data_ctx.errors.buf == 0)
+			es = &s->data_ctx.errors.px->invalid_req;
+		else
+			es = &s->data_ctx.errors.px->invalid_rep;
+
+		if (!es->when.tv_sec)
+			goto next;
+
+		if (s->data_ctx.errors.iid >= 0 &&
+		    s->data_ctx.errors.px->uuid != s->data_ctx.errors.iid &&
+		    es->oe->uuid != s->data_ctx.errors.iid)
+			goto next;
+
+		if (s->data_ctx.errors.ptr < 0) {
+			/* just print headers now */
+
+			char pn[INET6_ADDRSTRLEN];
+			struct tm tm;
+
+			get_localtime(es->when.tv_sec, &tm);
+			chunk_printf(&msg, sizeof(trash), "\n[%02d/%s/%04d:%02d:%02d:%02d.%03d]",
+				     tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
+				     tm.tm_hour, tm.tm_min, tm.tm_sec, es->when.tv_usec/1000);
+
+
+			if (es->src.ss_family == AF_INET)
+				inet_ntop(AF_INET,
+					  (const void *)&((struct sockaddr_in *)&es->src)->sin_addr,
+					  pn, sizeof(pn));
+			else
+				inet_ntop(AF_INET6,
+					  (const void *)&((struct sockaddr_in6 *)(&es->src))->sin6_addr,
+					  pn, sizeof(pn));
+
+			switch (s->data_ctx.errors.buf) {
+			case 0:
+				chunk_printf(&msg, sizeof(trash),
+					     " frontend %s (#%d): invalid request\n"
+					     "  src %s, session #%d, backend %s (#%d), server %s (#%d)\n"
+					     "  request length %d bytes, error at position %d:\n\n",
+					     s->data_ctx.errors.px->id, s->data_ctx.errors.px->uuid,
+					     pn, es->sid, es->oe->id, es->oe->uuid,
+					     es->srv ? es->srv->id : "<NONE>",
+					     es->srv ? es->srv->puid : -1,
+					     es->len, es->pos);
+				break;
+			case 1:
+				chunk_printf(&msg, sizeof(trash),
+					     " backend %s (#%d) : invalid response\n"
+					     "  src %s, session #%d, frontend %s (#%d), server %s (#%d)\n"
+					     "  response length %d bytes, error at position %d:\n\n",
+					     s->data_ctx.errors.px->id, s->data_ctx.errors.px->uuid,
+					     pn, es->sid, es->oe->id, es->oe->uuid,
+					     es->srv ? es->srv->id : "<NONE>",
+					     es->srv ? es->srv->puid : -1,
+					     es->len, es->pos);
+				break;
+			}
+
+			if (buffer_write_chunk(rep, &msg) >= 0) {
+				/* Socket buffer full. Let's try again later from the same point */
+				return;
+			}
+			s->data_ctx.errors.ptr = 0;
+			s->data_ctx.errors.sid = es->sid;
+		}
+
+		if (s->data_ctx.errors.sid != es->sid) {
+			/* the snapshot changed while we were dumping it */
+			chunk_printf(&msg, sizeof(trash),
+				     "  WARNING! update detected on this snapshot, dump interrupted. Please re-check!\n");
+			if (buffer_write_chunk(rep, &msg) >= 0)
+				return;
+			goto next;
+		}
+
+		/* OK, ptr >= 0, so we have to dump the current line */
+		while (s->data_ctx.errors.ptr < es->len) {
+			int newptr;
+			int newline;
+
+			newline = s->data_ctx.errors.bol;
+			newptr = dump_error_line(&msg, sizeof(trash), es, &newline, s->data_ctx.errors.ptr);
+			if (newptr == s->data_ctx.errors.ptr)
+				return;
+
+			if (buffer_write_chunk(rep, &msg) >= 0) {
+				/* Socket buffer full. Let's try again later from the same point */
+				return;
+			}
+			s->data_ctx.errors.ptr = newptr;
+			s->data_ctx.errors.bol = newline;
+		};
+	next:
+		s->data_ctx.errors.bol = 0;
+		s->data_ctx.errors.ptr = -1;
+		s->data_ctx.errors.buf++;
+		if (s->data_ctx.errors.buf > 1) {
+			s->data_ctx.errors.buf = 0;
+			s->data_ctx.errors.px = s->data_ctx.errors.px->next;
+		}
+	}
+
+	/* dump complete */
+	buffer_stop_hijack(rep);
+	s->ana_state = STATS_ST_CLOSE;
+}
+
 
 static struct cfg_kw_list cfg_kws = {{ },{
 	{ CFG_GLOBAL, "stats", stats_parse_global },

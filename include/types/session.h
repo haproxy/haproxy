@@ -204,6 +204,14 @@ struct session {
 		struct {
 			struct bref bref;
 		} sess;
+		struct {
+			int iid;		/* if >= 0, ID of the proxy to filter on */
+			struct proxy *px;	/* current proxy being dumped, NULL = not started yet. */
+			unsigned int buf;	/* buffer being dumped, 0 = req, 1 = rep */
+			unsigned int sid;	/* session ID of error being dumped */
+			int ptr;		/* <0: headers, >=0 : text pointer to restart from */
+			int bol;		/* pointer to beginning of current line */
+		} errors;
 	} data_ctx;				/* used by produce_content to dump the stats right now */
 	unsigned int uniq_id;			/* unique ID used for the traces */
 };
