@@ -157,6 +157,18 @@ REGPRM2 static inline struct timeval * __tv_from_ms(struct timeval *tv, unsigned
 	return tv;
 }
 
+/* Return a number of 1024Hz ticks between 0 and 1023 for input number of
+ * usecs between 0 and 999999. This function has been optimized to remove
+ * any divide and multiply, as it is completely optimized away by the compiler
+ * on CPUs which don't have a fast multiply. Its avg error rate is 305 ppm,
+ * which is almost twice as low as a direct usec to ms conversion. This version
+ * also has the benefit of returning 1024 for 1000000.
+ */
+REGPRM1 static inline unsigned int __usec_to_1024th(unsigned int usec)
+{
+	return (usec * 1073 + 742516) >> 20;
+}
+
 
 /**** comparison functions and macros ***********************************/
 
