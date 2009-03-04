@@ -2326,7 +2326,7 @@ int http_process_request(struct session *s, struct buffer *req)
 		memcpy(es->buf, req->data + msg->som, maxlen);
 		es->pos  = req->lr - req->data + msg->som;
 		es->len  = req->r - req->data + msg->som;
-		es->when = now;
+		es->when = date; // user-visible date
 		es->sid  = s->uniq_id;
 		es->srv  = s->srv;
 		es->oe   = s->be;
@@ -2562,7 +2562,7 @@ int process_response(struct session *t)
 				memcpy(es->buf, rep->data + msg->som, maxlen);
 				es->pos = rep->lr - rep->data + msg->som;
 				es->len = rep->r - rep->data + msg->som;
-				es->when = now;
+				es->when = date; // user-visible date
 				es->sid = t->uniq_id;
 				es->srv = t->srv;
 				es->oe = t->fe;
