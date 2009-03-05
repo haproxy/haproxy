@@ -280,4 +280,13 @@ extern const char *parse_time_err(const char *text, unsigned *ret, unsigned unit
 #define TIME_UNIT_DAY  0x0005
 #define TIME_UNIT_MASK 0x0007
 
+/* Multiply the two 32-bit operands and shift the 64-bit result right 32 bits.
+ * This is used to compute fixed ratios by setting one of the operands to
+ * (2^32*ratio).
+ */
+static inline unsigned int mul32hi(unsigned int a, unsigned int b)
+{
+	return ((unsigned long long)a * b) >> 32;
+}
+
 #endif /* _COMMON_STANDARD_H */

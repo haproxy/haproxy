@@ -28,6 +28,7 @@
 #include <proto/proto_http.h>
 #include <proto/proto_tcp.h>
 #include <proto/queue.h>
+#include <proto/server.h>
 #include <proto/stream_interface.h>
 #include <proto/stream_sock.h>
 #include <proto/task.h>
@@ -367,7 +368,7 @@ void sess_update_stream_int(struct session *s, struct stream_interface *si)
 		if (conn_err == SN_ERR_NONE) {
 			/* state = SI_ST_CON now */
 			if (s->srv)
-				s->srv->cum_sess++;
+				srv_inc_sess_ctr(s->srv);
 			return;
 		}
 
@@ -381,7 +382,7 @@ void sess_update_stream_int(struct session *s, struct stream_interface *si)
 			}
 
 			if (s->srv)
-				s->srv->cum_sess++;
+				srv_inc_sess_ctr(s->srv);
 			if (s->srv)
 				s->srv->failed_conns++;
 			s->be->failed_conns++;

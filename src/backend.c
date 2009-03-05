@@ -36,6 +36,7 @@
 #include <proto/proto_http.h>
 #include <proto/proto_tcp.h>
 #include <proto/queue.h>
+#include <proto/server.h>
 #include <proto/session.h>
 #include <proto/stream_sock.h>
 #include <proto/task.h>
@@ -1912,7 +1913,7 @@ int srv_redispatch_connect(struct session *t)
 		}
 
 		if (t->srv)
-			t->srv->cum_sess++;
+			srv_inc_sess_ctr(t->srv);
 		if (t->srv)
 			t->srv->failed_conns++;
 		t->be->failed_conns++;

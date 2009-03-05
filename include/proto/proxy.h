@@ -26,6 +26,7 @@
 #include <common/ticks.h>
 #include <common/time.h>
 #include <types/proxy.h>
+#include <proto/freq_ctr.h>
 
 int start_proxies(int verbose);
 void maintain_proxies(int *next);
@@ -60,6 +61,20 @@ static inline void proxy_reset_timeouts(struct proxy *proxy)
 	proxy->timeout.appsession = TICK_ETERNITY;
 	proxy->timeout.httpreq = TICK_ETERNITY;
 	proxy->timeout.check = TICK_ETERNITY;
+}
+
+/* increase the number of cumulated connections on the designated frontend */
+static void inline proxy_inc_fe_ctr(struct proxy *fe)
+{
+	fe->cum_feconn++;
+	update_freq_ctr(&fe->fe_sess_per_sec, 1);
+}
+
+/* increase the number of cumulated connections on the designated backend */
+static void inline proxy_inc_be_ctr(struct proxy *be)
+{
+	be->cum_beconn++;
+	update_freq_ctr(&be->be_sess_per_sec, 1);
 }
 
 #endif /* _PROTO_PROXY_H */

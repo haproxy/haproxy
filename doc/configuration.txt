@@ -5778,6 +5778,9 @@ reading. Their sole purpose is to explain how to decipher them.
 2.7) CSV format
 ---------------
 
+The statistics may be consulted either from the unix socket or from the HTTP
+page. Both means provide a CSV format whose fields follow.
+
   0. pxname: proxy name
   1. svname: service name (FRONTEND for frontend, BACKEND for backend, any name
     for server)
@@ -5812,6 +5815,7 @@ reading. Their sole purpose is to explain how to decipher them.
  30. lbtot: total number of times a server was selected
  31. tracked: id of proxy/server if tracking is enabled
  32. type (0=frontend, 1=backend, 2=server)
+ 33. rate (number of sessions per second over last elapsed second)
 
 
 2.8) Unix Socket commands

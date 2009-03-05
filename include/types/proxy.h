@@ -2,7 +2,7 @@
   include/types/proxy.h
   This file defines everything related to proxies.
 
-  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -37,6 +37,7 @@
 
 #include <types/acl.h>
 #include <types/buffers.h>
+#include <types/freq_ctr.h>
 #include <types/httperr.h>
 #include <types/log.h>
 #include <types/protocols.h>
@@ -220,6 +221,8 @@ struct proxy {
 	int totpend;				/* total number of pending connections on this instance (for stats) */
 	unsigned int feconn, feconn_max;	/* # of active frontend sessions */
 	unsigned int beconn, beconn_max;	/* # of active backend sessions */
+	struct freq_ctr fe_sess_per_sec;	/* sessions per second on the frontend */
+	struct freq_ctr be_sess_per_sec;	/* sessions per second on the backend */
 	unsigned int cum_feconn, cum_beconn;	/* cumulated number of processed sessions */
 	unsigned int cum_lbconn;		/* cumulated number of sessions processed by load balancing */
 	unsigned int maxconn;			/* max # of active sessions on the frontend */

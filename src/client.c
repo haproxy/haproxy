@@ -33,6 +33,7 @@
 #include <proto/log.h>
 #include <proto/hdr_idx.h>
 #include <proto/proto_http.h>
+#include <proto/proxy.h>
 #include <proto/session.h>
 #include <proto/stream_interface.h>
 #include <proto/stream_sock.h>
@@ -236,7 +237,7 @@ int event_accept(int fd) {
 		s->data_source = DATA_SRC_NONE;
 
 		s->uniq_id = totalconn;
-		p->cum_feconn++;	/* cum_beconn will be increased once assigned */
+		proxy_inc_fe_ctr(p);	/* note: cum_beconn will be increased once assigned */
 
 		txn = &s->txn;
 		txn->flags = 0;
@@ -444,7 +445,7 @@ int event_accept(int fd) {
 			p->feconn_max = p->feconn;
 
 		if (s->flags & SN_BE_ASSIGNED) {
-			s->be->cum_beconn++;
+			proxy_inc_be_ctr(s->be);
 			s->be->beconn++;
 			if (s->be->beconn > s->be->beconn_max)
 				s->be->beconn_max = s->be->beconn;

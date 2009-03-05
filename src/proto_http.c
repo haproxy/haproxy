@@ -47,7 +47,9 @@
 #include <proto/hdr_idx.h>
 #include <proto/proto_tcp.h>
 #include <proto/proto_http.h>
+#include <proto/proxy.h>
 #include <proto/queue.h>
+#include <proto/server.h>
 #include <proto/session.h>
 #include <proto/stream_interface.h>
 #include <proto/stream_sock.h>
@@ -692,7 +694,7 @@ void perform_http_redirect(struct session *s, struct stream_interface *si)
 
 	/* FIXME: we should increase a counter of redirects per server and per backend. */
 	if (s->srv)
-		s->srv->cum_sess++;
+		srv_inc_sess_ctr(s->srv);
 }
 
 /* Return the error message corresponding to si->err_type. It is assumed
@@ -1943,7 +1945,7 @@ int http_process_request(struct session *s, struct buffer *req)
 			s->be->beconn++;
 			if (s->be->beconn > s->be->beconn_max)
 				s->be->beconn_max = s->be->beconn;
-			s->be->cum_beconn++;
+			proxy_inc_be_ctr(s->be);
 			s->flags |= SN_BE_ASSIGNED;
 		}
 
@@ -2046,7 +2048,7 @@ int http_process_request(struct session *s, struct buffer *req)
 					s->be->beconn++;
 					if (s->be->beconn > s->be->beconn_max)
 						s->be->beconn_max = s->be->beconn;
-					s->be->cum_beconn++;
+					proxy_inc_be_ctr(s->be);
 
 					/* assign new parameters to the session from the new backend */
 					s->rep->rto = s->req->wto = s->be->timeout.server;
@@ -2067,7 +2069,7 @@ int http_process_request(struct session *s, struct buffer *req)
 			s->be->beconn++;
 			if (s->be->beconn > s->be->beconn_max)
 				s->be->beconn_max = s->be->beconn;
-			s->be->cum_beconn++;
+			proxy_inc_be_ctr(s->be);
 
 			/* assign new parameters to the session from the new backend */
 			s->rep->rto = s->req->wto = s->be->timeout.server;
@@ -2085,7 +2087,7 @@ int http_process_request(struct session *s, struct buffer *req)
 		s->be->beconn++;
 		if (s->be->beconn > s->be->beconn_max)
 			s->be->beconn_max = s->be->beconn;
-		s->be->cum_beconn++;
+		proxy_inc_be_ctr(s->be);
 		s->flags |= SN_BE_ASSIGNED;
 	}
 

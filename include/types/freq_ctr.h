@@ -1,6 +1,6 @@
 /*
-  include/proto/server.h
-  This file defines everything related to servers.
+  include/types/freq_ctr.h
+  This file contains structure declarations for frequency counters.
 
   Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
   
@@ -19,30 +19,18 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#ifndef _PROTO_SERVER_H
-#define _PROTO_SERVER_H
-
-#include <unistd.h>
+#ifndef _TYPES_FREQ_CTR_H
+#define _TYPES_FREQ_CTR_H
 
 #include <common/config.h>
-#include <types/proxy.h>
-#include <types/queue.h>
-#include <types/server.h>
 
-#include <proto/queue.h>
-#include <proto/freq_ctr.h>
+struct freq_ctr {
+	unsigned int curr_sec; /* start date of current period (seconds from now.tv_sec) */
+	unsigned int curr_ctr; /* cumulated value for current period */
+	unsigned int prev_ctr; /* value for last period */
+};
 
-int srv_downtime(struct server *s);
-int srv_getinter(struct server *s);
-
-/* increase the number of cumulated connections on the designated server */
-static void inline srv_inc_sess_ctr(struct server *s)
-{
-	s->cum_sess++;
-	update_freq_ctr(&s->sess_per_sec, 1);
-}
-
-#endif /* _PROTO_SERVER_H */
+#endif /* _TYPES_FREQ_CTR_H */
 
 /*
  * Local variables:

@@ -2,7 +2,7 @@
   include/types/server.h
   This file defines everything related to servers.
 
-  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -30,6 +30,7 @@
 #include <common/mini-clist.h>
 
 #include <types/buffers.h>
+#include <types/freq_ctr.h>
 #include <types/proxy.h>
 #include <types/queue.h>
 #include <types/task.h>
@@ -122,6 +123,7 @@ struct server {
 	unsigned failed_conns, failed_resp;	/* failed connect() and responses */
 	unsigned retries, redispatches;		/* retried and redispatched connections */
 	unsigned failed_secu;			/* blocked responses because of security concerns */
+	struct freq_ctr sess_per_sec;		/* sessions per second on this server */
 	unsigned cum_sess;			/* cumulated number of sessions really sent to this server */
 	unsigned cum_lbconn;			/* cumulated number of sessions directed by load balancing */
 
