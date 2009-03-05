@@ -1,7 +1,7 @@
 /*
  * Time calculation functions.
  *
- * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2009 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -16,6 +16,8 @@
 #include <common/standard.h>
 #include <common/time.h>
 
+unsigned int   curr_sec_ms;      /* millisecond of current second (0..999) */
+unsigned int   curr_sec_ms_scaled;  /* millisecond of current second (0..2^32-1) */
 unsigned int   now_ms;          /* internal date in milliseconds (may wrap) */
 struct timeval now;             /* internal date is a monotonic function of real clock */
 struct timeval date;            /* the real current date */
@@ -162,7 +164,7 @@ REGPRM2 void tv_update_date(int max_wait, int interrupted)
 	gettimeofday(&date, NULL);
 	if (unlikely(max_wait < 0)) {
 		tv_zero(&tv_offset);
-		now = date;
+		adjusted = date;
 		goto to_ms;
 	}
 	__tv_add(&adjusted, &date, &tv_offset);
@@ -175,26 +177,26 @@ REGPRM2 void tv_update_date(int max_wait, int interrupted)
 	 * MAX_DELAY_MS to cover additional time.
 	 */
 	_tv_ms_add(&deadline, &now, max_wait + MAX_DELAY_MS);
-	if (unlikely(__tv_isge(&adjusted, &deadline))) {
-		goto fixup; /* jump in the future */
-	}
-	now = adjusted;
-	goto to_ms;
+	if (likely(__tv_islt(&adjusted, &deadline)))
+		goto to_ms; /* OK time is within expected range */
  fixup:
 	/* Large jump. If the poll was interrupted, we consider that the date
 	 * has not changed (immediate wake-up), otherwise we add the poll
 	 * time-out to the previous date. The new offset is recomputed.
 	 */
-	if (!interrupted)
-		_tv_ms_add(&now, &now, max_wait);
-	tv_offset.tv_sec  = now.tv_sec  - date.tv_sec;
-	tv_offset.tv_usec = now.tv_usec - date.tv_usec;
+	_tv_ms_add(&adjusted, &now, interrupted ? 0 : max_wait);
+
+	tv_offset.tv_sec  = adjusted.tv_sec  - date.tv_sec;
+	tv_offset.tv_usec = adjusted.tv_usec - date.tv_usec;
 	if (tv_offset.tv_usec < 0) {
 		tv_offset.tv_usec += 1000000;
 		tv_offset.tv_sec--;
 	}
  to_ms:
-	now_ms = now.tv_sec * 1000 + now.tv_usec / 1000;
+	now = adjusted;
+	curr_sec_ms = now.tv_usec / 1000;            /* ms of current second */
+	curr_sec_ms_scaled = curr_sec_ms * 4294971;  /* ms * 2^32 / 1000 */
+	now_ms = now.tv_sec * 1000 + curr_sec_ms;
 	return;
 }
 
