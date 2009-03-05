@@ -4070,6 +4070,44 @@ connslots(backend) <integer>
   dynamic connections. Also, if any of the server maxconn, or maxqueue is 0, then
   this acl clearly does not make sense - in which case the value returned will be -1.
 
+fe_sess_rate <integer>
+fe_sess_rate(frontend) <integer>
+  Returns true when the session creation rate on the current or the named
+  frontend matches the specified values or ranges, expressed in new sessions
+  per second. This is used to limit the connection rate to acceptable ranges in
+  order to prevent abuse of service at the earliest moment. This can be
+  combined with layer 4 ACLs in order to force the clients to wait a bit for
+  the rate to go down below the limit.
+
+  Example :
+        # This frontend limits incoming mails to 10/s with a max of 100
+        # concurrent connections. We accept any connection below 10/s, and
+        # force excess clients to wait for 100 ms. Since clients are limited to
+        # 100 max, there cannot be more than 10 incoming mails per second.
+        frontend mail
+            bind :25
+            mode tcp
+            maxconn 100
+            acl too_fast fe_sess_rate ge 10
+            tcp-request inspect-delay 100ms
+            tcp-request content accept if ! too_fast
+            tcp-request content accept if WAIT_END
+  
+be_sess_rate <integer>
+be_sess_rate(backend) <integer>
+  Returns true when the sessions creation rate on the backend matches the
+  specified values or ranges, in number of new sessions per second. This is
+  used to switch to an alternate backend when an expensive or fragile one
+  reaches too high a session rate, or to limite abuse of service (eg. prevent
+  sucking of an online dictionary).
+
+  Example :
+        # Redirect to an error page if the dictionary is requested too often
+        backend dynamic
+            mode http
+            acl being_scanned be_sess_rate gt 100
+            redirect location /denied.html if being_scanned
+
 
 2.3.5.2) Matching contents at Layer 4
 -------------------------------------
