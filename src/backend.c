@@ -2100,7 +2100,7 @@ acl_fetch_connslots(struct proxy *px, struct session *l4, void *l7, int dir,
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct acl_kw_list acl_kws = {{ },{
 	{ "nbsrv",    acl_parse_int,   acl_fetch_nbsrv,     acl_match_int, ACL_USE_NOTHING },
-	{ "connlots", acl_parse_int,   acl_fetch_connslots, acl_match_int, ACL_USE_NOTHING },
+	{ "connslots", acl_parse_int,   acl_fetch_connslots, acl_match_int, ACL_USE_NOTHING },
 	{ NULL, NULL, NULL, NULL },
 }};
 
