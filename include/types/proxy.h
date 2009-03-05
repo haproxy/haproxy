@@ -226,6 +226,7 @@ struct proxy {
 	unsigned int cum_feconn, cum_beconn;	/* cumulated number of processed sessions */
 	unsigned int cum_lbconn;		/* cumulated number of sessions processed by load balancing */
 	unsigned int maxconn;			/* max # of active sessions on the frontend */
+	unsigned int fe_maxsps;			/* max # of new sessions per second on the frontend */
 	unsigned int fullconn;			/* #conns on backend above which servers are used at full load */
 	struct in_addr except_net, except_mask; /* don't x-forward-for for this address. FIXME: should support IPv6 */
 	char *fwdfor_hdr_name;			/* header to use - default: "x-forwarded-for" */

@@ -617,6 +617,7 @@ option tcpka                X          X         X         X
 option tcplog               X          X         X         X
 [no] option tcpsplice       X          X         X         X
 [no] option transparent     X          -         X         X
+rate-limit sessions         X          X         X         -
 redirect                    -          X         X         X
 redisp                      X          -         X         X  (deprecated)
 redispatch                  X          -         X         X  (deprecated)
@@ -2571,6 +2572,39 @@ no option transparent
 
   See also: the "usersrc" argument of the "source" keyword, and the
             "transparent" option of the "bind" keyword.
+
+
+rate-limit sessions <rate>
+  Set a limit on the number of new sessions accepted per second on a frontend
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   no
+  Arguments :
+    <rate>    The <rate> parameter is an integer designating the maximum number
+              of new sessions per second to accept on the frontend.
+
+  When the frontend reaches the specified number of new sessions per second, it
+  stops accepting new connections until the rate drops below the limit again.
+  During this time, the pending sessions will be kept in the socket's backlog
+  (in system buffers) and haproxy will not even be aware that sessions are
+  pending. When applying very low limit on a highly loaded service, it may make
+  sense to increase the socket's backlog using the "backlog" keyword.
+
+  This feature is particularly efficient at blocking connection-based attacks
+  or service abuse on fragile servers. Since the session rate is measured every
+  millisecond, it is extremely accurate. Also, the limit applies immediately,
+  no delay is needed at all to detect the threshold.
+
+  Example : limit the connection rate on SMTP to 10 per second max
+        listen smtp
+            mode tcp
+            bind :25
+            rate-limit sessions 10
+            server 127.0.0.1:1025
+
+  Note : when the maximum rate is reached, the frontend's status appears as
+         "FULL" in the statistics, exactly as when it is saturated.
+
+  See also : the "backlog" keyword and the "fe_sess_rate" ACL criterion.
 
 
 redirect location <to> [code <code>] <option> {if | unless} <condition>

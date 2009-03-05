@@ -1,7 +1,7 @@
 /*
  * Proxy variables and functions.
  *
- * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2009 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -169,6 +169,68 @@ static int proxy_parse_timeout(char **args, int section, struct proxy *proxy,
 	return retval;
 }
 
+/* This function parses a "rate-limit" statement in a proxy section. It returns
+ * -1 if there is any error, 1 for a warning, otherwise zero. If it does not
+ * return zero, it may write an error message into the <err> buffer, for at
+ * most <errlen> bytes, trailing zero included. The trailing '\n' must not
+ * be written. The function must be called with <args> pointing to the first
+ * command line word, with <proxy> pointing to the proxy being parsed, and
+ * <defpx> to the default proxy or NULL.
+ */
+static int proxy_parse_rate_limit(char **args, int section, struct proxy *proxy,
+			          struct proxy *defpx, char *err, int errlen)
+{
+	int retval, cap;
+	char *res, *name;
+	unsigned int *tv = NULL;
+	unsigned int *td = NULL;
+	unsigned int val;
+
+	retval = 0;
+
+	/* simply skip "rate-limit" */
+	if (strcmp(args[0], "rate-limit") == 0)
+		args++;
+
+	name = args[0];
+	if (!strcmp(args[0], "sessions")) {
+		name = "sessions";
+		tv = &proxy->fe_maxsps;
+		td = &defpx->fe_maxsps;
+		cap = PR_CAP_FE;
+	} else {
+		snprintf(err, errlen,
+			 "%s '%s': must be 'sessions'",
+			 "rate-limit", args[0]);
+		return -1;
+	}
+
+	if (*args[1] == 0) {
+		snprintf(err, errlen, "%s %s expects expects an integer value (in sessions/second)", "rate-limit", name);
+		return -1;
+	}
+
+	val = strtoul(args[1], &res, 0);
+	if (*res) {
+		snprintf(err, errlen, "%s %s: unexpected character '%c' in integer value '%s'", "rate-limit", name, *res, args[1]);
+		return -1;
+	}
+
+	if (!(proxy->cap & cap)) {
+		snprintf(err, errlen, "%s %s will be ignored because %s '%s' has no %s capability",
+			 "rate-limit", name, proxy_type_str(proxy), proxy->id,
+			 (cap & PR_CAP_BE) ? "backend" : "frontend");
+		retval = 1;
+	}
+	else if (defpx && *tv != *td) {
+		snprintf(err, errlen, "overwriting %s %s which was already specified", "rate-limit", name);
+		retval = 1;
+	}
+
+	*tv = val;
+	return retval;
+}
+
 /*
  * This function finds a proxy with matching name, mode and with satisfying
  * capabilities. It also checks if there are more matching proxies with
@@ -313,22 +375,35 @@ void maintain_proxies(int *next)
 
 	/* if there are enough free sessions, we'll activate proxies */
 	if (actconn < global.maxconn) {
-		while (p) {
-			if (!p->maxconn || p->feconn < p->maxconn) {
-				if (p->state == PR_STIDLE) {
-					for (l = p->listen; l != NULL; l = l->next)
-						enable_listener(l);
-					p->state = PR_STRUN;
-				}
+		for (; p; p = p->next) {
+			/* check the various reasons we may find to block the frontend */
+			if (p->feconn >= p->maxconn)
+				goto do_block;
+
+			if (p->fe_maxsps && read_freq_ctr(&p->fe_sess_per_sec) >= p->fe_maxsps) {
+				/* we're blocking because a limit was reached on the number of
+				 * requests/s on the frontend. We want to re-check ASAP, which
+				 * means in 1 ms because the timer will have settled down. Note
+				 * that we may already be in IDLE state here.
+				 */
+				*next = tick_first(*next, tick_add(now_ms, 1));
+				goto do_block;
 			}
-			else {
-				if (p->state == PR_STRUN) {
-					for (l = p->listen; l != NULL; l = l->next)
-						disable_listener(l);
-					p->state = PR_STIDLE;
-				}
+
+			/* OK we have no reason to block, so let's unblock if we were blocking */
+			if (p->state == PR_STIDLE) {
+				for (l = p->listen; l != NULL; l = l->next)
+					enable_listener(l);
+				p->state = PR_STRUN;
 			}
-			p = p->next;
+			continue;
+
+		do_block:
+			if (p->state == PR_STRUN) {
+				for (l = p->listen; l != NULL; l = l->next)
+					disable_listener(l);
+				p->state = PR_STIDLE;
+			}
 		}
 	}
 	else {  /* block all proxies */
@@ -525,6 +600,7 @@ static struct cfg_kw_list cfg_kws = {{ },{
 	{ CFG_LISTEN, "clitimeout", proxy_parse_timeout },
 	{ CFG_LISTEN, "contimeout", proxy_parse_timeout },
 	{ CFG_LISTEN, "srvtimeout", proxy_parse_timeout },
+	{ CFG_LISTEN, "rate-limit", proxy_parse_rate_limit },
 	{ 0, NULL, NULL },
 }};
 
