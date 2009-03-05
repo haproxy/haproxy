@@ -1723,7 +1723,7 @@ int connect_server(struct session *s)
 #ifdef SO_BINDTODEVICE
 		/* Note: this might fail if not CAP_NET_RAW */
 		if (s->srv->iface_name)
-			setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, s->srv->iface_name, s->srv->iface_len);
+			setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, s->srv->iface_name, s->srv->iface_len + 1);
 #endif
 		ret = tcpv4_bind_socket(fd, flags, &s->srv->source_addr, remote);
 		if (ret) {
@@ -1767,7 +1767,7 @@ int connect_server(struct session *s)
 #ifdef SO_BINDTODEVICE
 		/* Note: this might fail if not CAP_NET_RAW */
 		if (s->be->iface_name)
-			setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, s->be->iface_name, s->be->iface_len);
+			setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, s->be->iface_name, s->be->iface_len + 1);
 #endif
 		ret = tcpv4_bind_socket(fd, flags, &s->be->source_addr, remote);
 		if (ret) {

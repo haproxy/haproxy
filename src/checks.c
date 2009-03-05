@@ -594,7 +594,7 @@ void process_chk(struct task *t, int *next)
 					/* Note: this might fail if not CAP_NET_RAW */
 					if (s->iface_name)
 						setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE,
-							   s->iface_name, s->iface_len);
+							   s->iface_name, s->iface_len + 1);
 #endif
 					ret = tcpv4_bind_socket(fd, flags, &s->source_addr, remote);
 					if (ret) {
@@ -625,7 +625,7 @@ void process_chk(struct task *t, int *next)
 					/* Note: this might fail if not CAP_NET_RAW */
 					if (s->proxy->iface_name)
 						setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE,
-							   s->proxy->iface_name, s->proxy->iface_len);
+							   s->proxy->iface_name, s->proxy->iface_len + 1);
 #endif
 					ret = tcpv4_bind_socket(fd, flags, &s->proxy->source_addr, remote);
 					if (ret) {
