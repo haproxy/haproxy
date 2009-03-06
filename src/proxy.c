@@ -141,7 +141,7 @@ int proxy_parse_timeout(const char **args, struct proxy *proxy,
 
 	res = parse_time_err(args[1], &timeout, TIME_UNIT_MS);
 	if (res) {
-		snprintf(err, errlen, "unexpected character '%c' in %s timeout", *err, name);
+		snprintf(err, errlen, "unexpected character '%c' in %s timeout", *res, name);
 		return -1;
 	}
 
