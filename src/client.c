@@ -70,9 +70,13 @@ int event_accept(int fd) {
 	int cfd;
 	int max_accept = global.tune.maxaccept;
 
-	while (p->feconn < p->maxconn &&
-	       (!p->fe_maxsps || read_freq_ctr(&p->fe_sess_per_sec) < p->fe_maxsps) &&
-	       max_accept--) {
+	if (p->fe_maxsps) {
+		int max = freq_ctr_remain(&p->fe_sess_per_sec, p->fe_maxsps, 0);
+		if (max_accept > max)
+			max_accept = max;
+	}
+
+	while (p->feconn < p->maxconn && max_accept--) {
 		struct sockaddr_storage addr;
 		socklen_t laddr = sizeof(addr);
 

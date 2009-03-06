@@ -60,6 +60,20 @@ static inline void update_freq_ctr(struct freq_ctr *ctr, unsigned int inc)
  */
 unsigned int read_freq_ctr(struct freq_ctr *ctr);
 
+/* returns the number of remaining events that can occur on this freq counter
+ * while respecting <freq> and taking into account that <pend> events are
+ * already known to be pending. Returns 0 if limit was reached.
+ */
+unsigned int freq_ctr_remain(struct freq_ctr *ctr, unsigned int freq, unsigned int pend);
+
+/* return the expected wait time in ms before the next event may occur,
+ * respecting frequency <freq>, and assuming there may already be some pending
+ * events. It returns zero if we can proceed immediately, otherwise the wait
+ * time, which will be rounded down 1ms for better accuracy, with a minimum
+ * of one ms.
+ */
+unsigned int next_event_delay(struct freq_ctr *ctr, unsigned int freq, unsigned int pend);
+
 #endif /* _PROTO_FREQ_CTR_H */
 
 /*
