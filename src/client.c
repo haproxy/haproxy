@@ -426,11 +426,13 @@ int event_accept(int fd) {
 			 */
 			struct chunk msg = { .str = "HTTP/1.0 200 OK\r\n\r\n", .len = 19 };
 			stream_int_retnclose(&s->si[0], &msg); /* forge a 200 response */
+			s->req->analysers = 0;
 			t->expire = s->rep->wex;
 		}
 		else if (p->mode == PR_MODE_HEALTH) {  /* health check mode, no client reading */
 			struct chunk msg = { .str = "OK\n", .len = 3 };
 			stream_int_retnclose(&s->si[0], &msg); /* forge an "OK" response */
+			s->req->analysers = 0;
 			t->expire = s->rep->wex;
 		}
 		else {
