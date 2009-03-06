@@ -30,15 +30,24 @@
  */
 unsigned int read_freq_ctr(struct freq_ctr *ctr)
 {
-	unsigned int cur;
-	if (unlikely(ctr->curr_sec != now.tv_sec))
-		rotate_freq_ctr(ctr);
+	unsigned int curr, past;
+	unsigned int age;
 
-	cur = ctr->curr_ctr;
-	if (ctr->prev_ctr <= 1 && !ctr->curr_ctr)
-		return ctr->prev_ctr; /* very low rate, avoid flapping */
+	age = now.tv_sec - ctr->curr_sec;
+	if (unlikely(age > 1))
+		return 0;
 
-	return cur + mul32hi(ctr->prev_ctr, ~curr_sec_ms_scaled);
+	curr = 0;		
+	past = ctr->curr_ctr;
+	if (likely(!age)) {
+		curr = past;
+		past = ctr->prev_ctr;
+	}
+
+	if (past <= 1 && !curr)
+		return past; /* very low rate, avoid flapping */
+
+	return curr + mul32hi(past, ~curr_sec_ms_scaled);
 }
 
 /* returns the number of remaining events that can occur on this freq counter
@@ -47,16 +56,26 @@ unsigned int read_freq_ctr(struct freq_ctr *ctr)
  */
 unsigned int freq_ctr_remain(struct freq_ctr *ctr, unsigned int freq, unsigned int pend)
 {
-	unsigned int cur;
-	if (unlikely(ctr->curr_sec != now.tv_sec))
-		rotate_freq_ctr(ctr);
+	unsigned int curr, past;
+	unsigned int age;
 
-	cur = mul32hi(ctr->prev_ctr, ~curr_sec_ms_scaled);
-	cur += ctr->curr_ctr + pend;
+	past = 0;
+	curr = 0;		
+	age = now.tv_sec - ctr->curr_sec;
 
-	if (cur >= freq)
+	if (likely(age <= 1)) {
+		past = ctr->curr_ctr;
+		if (likely(!age)) {
+			curr = past;
+			past = ctr->prev_ctr;
+		}
+		curr += mul32hi(past, ~curr_sec_ms_scaled);
+	}
+	curr += pend;
+
+	if (curr >= freq)
 		return 0;
-	return freq - cur;
+	return freq - curr;
 }
 
 /* return the expected wait time in ms before the next event may occur,
@@ -67,18 +86,27 @@ unsigned int freq_ctr_remain(struct freq_ctr *ctr, unsigned int freq, unsigned i
  */
 unsigned int next_event_delay(struct freq_ctr *ctr, unsigned int freq, unsigned int pend)
 {
-	unsigned int cur, wait;
+	unsigned int curr, past;
+	unsigned int wait, age;
 
-	if (unlikely(ctr->curr_sec != now.tv_sec))
-		rotate_freq_ctr(ctr);
+	past = 0;
+	curr = 0;		
+	age = now.tv_sec - ctr->curr_sec;
 
-	cur = mul32hi(ctr->prev_ctr, ~curr_sec_ms_scaled);
-	cur += ctr->curr_ctr + pend;
+	if (likely(age <= 1)) {
+		past = ctr->curr_ctr;
+		if (likely(!age)) {
+			curr = past;
+			past = ctr->prev_ctr;
+		}
+		curr += mul32hi(past, ~curr_sec_ms_scaled);
+	}
+	curr += pend;
 
-	if (cur < freq)
+	if (curr < freq)
 		return 0;
 
-	wait = 999 / cur;
+	wait = 999 / curr;
 	return MAX(wait, 1);
 }
 
