@@ -817,10 +817,15 @@ resync_stream_interface:
 	if (unlikely((s->req->flags & (BF_SHUTR|BF_SHUTR_NOW)) == BF_SHUTR_NOW))
 		s->req->prod->shutr(s->req->prod);
 
-	/* it's possible that an upper layer has requested a connection setup */
+	/* it's possible that an upper layer has requested a connection setup or abort */
 	if (s->req->cons->state == SI_ST_INI &&
-	    (s->req->flags & (BF_WRITE_ENA|BF_SHUTW|BF_SHUTW_NOW)) == BF_WRITE_ENA)
-		s->req->cons->state = SI_ST_REQ;
+	    (s->req->flags & (BF_WRITE_ENA|BF_SHUTW|BF_SHUTW_NOW))) {
+		if ((s->req->flags & (BF_WRITE_ENA|BF_SHUTW|BF_SHUTW_NOW)) == BF_WRITE_ENA)
+			s->req->cons->state = SI_ST_REQ; /* new connection requested */
+		else
+			s->req->cons->state = SI_ST_CLO; /* shutw+ini = abort */
+	}
+
 
 	/* we may have a pending connection request, or a connection waiting
 	 * for completion.
