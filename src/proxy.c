@@ -383,10 +383,13 @@ void maintain_proxies(int *next)
 			if (p->fe_maxsps && read_freq_ctr(&p->fe_sess_per_sec) >= p->fe_maxsps) {
 				/* we're blocking because a limit was reached on the number of
 				 * requests/s on the frontend. We want to re-check ASAP, which
-				 * means in 1 ms because the timer will have settled down. Note
-				 * that we may already be in IDLE state here.
+				 * means in 1 ms before estimated expiration date, because the
+				 * timer will have settled down. Note that we may already be in
+				 * IDLE state here.
 				 */
-				*next = tick_first(*next, tick_add(now_ms, 1));
+				int wait = 1000 / p->fe_maxsps - 1;
+				wait = MAX(wait, 1);
+				*next = tick_first(*next, tick_add(now_ms, wait));
 				goto do_block;
 			}
 
