@@ -2371,7 +2371,6 @@ int http_process_tarpit(struct session *s, struct buffer *req)
 	 * It will not cause trouble to the logs because we can exclude
 	 * the tarpitted connections by filtering on the 'PT' status flags.
 	 */
-	trace_term(s, TT_HTTP_SRV_2);
 	s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
 
 	txn->status = 500;
@@ -3017,7 +3016,6 @@ void produce_content(struct session *s, struct buffer *rep)
 	/* unknown data source or internal error */
 	s->txn.status = 500;
 	stream_int_retnclose(rep->cons, error_message(s, HTTP_ERR_500));
-	trace_term(s, TT_HTTP_CNT_1);
 	if (!(s->flags & SN_ERR_MASK))
 		s->flags |= SN_ERR_PRXCOND;
 	if (!(s->flags & SN_FINST_MASK))
@@ -4387,7 +4385,6 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 		msg.len = sprintf(trash, HTTP_401_fmt, uri_auth->auth_realm);
 		txn->status = 401;
 		stream_int_retnclose(t->req->prod, &msg);
-		trace_term(t, TT_HTTP_URI_1);
 		t->req->analysers = 0;
 		if (!(t->flags & SN_ERR_MASK))
 			t->flags |= SN_ERR_PRXCOND;

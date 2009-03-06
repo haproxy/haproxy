@@ -1049,10 +1049,9 @@ resync_stream_interface:
 	if (unlikely((global.mode & MODE_DEBUG) &&
 		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
 		int len;
-		len = sprintf(trash, "%08x:%s.closed[%04x:%04x] (term_trace=0x%08x)\n",
+		len = sprintf(trash, "%08x:%s.closed[%04x:%04x]\n",
 			      s->uniq_id, s->be->id,
-			      (unsigned short)s->req->prod->fd, (unsigned short)s->req->cons->fd,
-			      s->term_trace);
+			      (unsigned short)s->req->prod->fd, (unsigned short)s->req->cons->fd);
 		write(1, trash, len);
 	}
 
