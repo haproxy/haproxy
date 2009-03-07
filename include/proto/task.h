@@ -2,7 +2,7 @@
   include/proto/task.h
   Functions for task management.
 
-  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -40,44 +40,68 @@ extern struct task *last_timer;   /* optimization: last queued timer */
 /* perform minimal initializations, report 0 in case of error, 1 if OK. */
 int init_task();
 
+/* return 0 if task is in run queue, otherwise non-zero */
+static inline int task_in_rq(struct task *t)
+{
+	return t->rq.node.leaf_p != NULL;
+}
+
+/* return 0 if task is in wait queue, otherwise non-zero */
+static inline int task_in_wq(struct task *t)
+{
+	return t->wq.node.leaf_p != NULL;
+}
+
 /* puts the task <t> in run queue with reason flags <f>, and returns <t> */
 struct task *__task_wakeup(struct task *t);
 static inline struct task *task_wakeup(struct task *t, unsigned int f)
 {
-	if (likely(!(t->state & TASK_IN_RUNQUEUE)))
+	if (likely(!task_in_rq(t)))
 		__task_wakeup(t);
 	t->state |= f;
 	return t;
 }
 
-/* removes the task <t> from the run queue if it was in it.
- * returns <t>.
+/*
+ * Unlink the task from the wait queue, and possibly update the last_timer
+ * pointer. A pointer to the task itself is returned. The task *must* already
+ * be in the wait queue before calling this function. If unsure, use the safer
+ * task_unlink_wq() function.
  */
-static inline struct task *task_sleep(struct task *t)
+static inline struct task *__task_unlink_wq(struct task *t)
 {
-	if (t->state & TASK_IN_RUNQUEUE) {
-		t->state = TASK_SLEEPING;
-		eb32_delete(&t->eb);
-		run_queue--;
-		if (likely(t->nice))
-			niced_tasks--;
-	}
+	eb32_delete(&t->wq);
+	if (last_timer == t)
+		last_timer = NULL;
+	return t;
+}
+
+static inline struct task *task_unlink_wq(struct task *t)
+{
+	if (likely(task_in_wq(t)))
+		__task_unlink_wq(t);
 	return t;
 }
 
 /*
- * unlinks the task from wherever it is queued :
- *  - run_queue
- *  - wait queue
- * A pointer to the task itself is returned.
+ * Unlink the task from the run queue. The run_queue size and number of niced
+ * tasks are updated too. A pointer to the task itself is returned. The task
+ * *must* already be in the wait queue before calling this function. If unsure,
+ * use the safer task_unlink_rq() function.
  */
-static inline struct task *task_dequeue(struct task *t)
+static inline struct task *__task_unlink_rq(struct task *t)
 {
-	if (likely(t->eb.node.leaf_p)) {
-		if (last_timer == t)
-			last_timer = NULL;
-		eb32_delete(&t->eb);
-	}
+	eb32_delete(&t->rq);
+	run_queue--;
+	if (likely(t->nice))
+		niced_tasks--;
+	return t;
+}
+
+static inline struct task *task_unlink_rq(struct task *t)
+{
+	if (likely(task_in_rq(t)))
+		__task_unlink_rq(t);
 	return t;
 }
 
@@ -87,12 +111,8 @@ static inline struct task *task_dequeue(struct task *t)
  */
 static inline struct task *task_delete(struct task *t)
 {
-	task_dequeue(t);
-	if (t->state & TASK_IN_RUNQUEUE) {
-		run_queue--;
-		if (likely(t->nice))
-			niced_tasks--;
-	}
+	task_unlink_wq(t);
+	task_unlink_rq(t);
 	return t;
 }
 
@@ -102,7 +122,8 @@ static inline struct task *task_delete(struct task *t)
  */
 static inline struct task *task_init(struct task *t)
 {
-	t->eb.node.leaf_p = NULL;
+	t->wq.node.leaf_p = NULL;
+	t->rq.node.leaf_p = NULL;
 	t->state = TASK_SLEEPING;
 	t->nice = 0;
 	return t;
@@ -116,11 +137,10 @@ static inline void task_free(struct task *t)
 	pool_free2(pool2_task, t);
 }
 
-/* inserts <task> into its assigned wait queue, where it may already be. In this case, it
- * may be only moved or left where it was, depending on its timing requirements.
- * <task> is returned.
+/* Place <task> into the wait queue, where it may already be. If the expiration
+ * timer is infinite, the task is dequeued.
  */
-struct task *task_queue(struct task *task);
+void task_queue(struct task *task);
 
 /*
  * This does 4 things :

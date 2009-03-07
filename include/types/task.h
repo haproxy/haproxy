@@ -2,7 +2,7 @@
   include/types/task.h
   Macros, variables and structures for task management.
 
-  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -30,7 +30,7 @@
 
 /* values for task->state */
 #define TASK_SLEEPING     0x00  /* task sleeping */
-#define TASK_IN_RUNQUEUE  0x01  /* the task is in the run queue */
+#define TASK_RUNNING      0x01  /* the task is currently running */
 #define TASK_WOKEN_INIT   0x02  /* woken up for initialisation purposes */
 #define TASK_WOKEN_TIMER  0x04  /* woken up because of expired timer */
 #define TASK_WOKEN_IO     0x08  /* woken up because of completed I/O */
@@ -46,7 +46,8 @@
 
 /* The base for all tasks */
 struct task {
-	struct eb32_node eb;		/* ebtree node used to hold the task in the wait queue */
+	struct eb32_node wq;		/* ebtree node used to hold the task in the wait queue */
+	struct eb32_node rq;		/* ebtree node used to hold the task in the run queue */
 	int state;			/* task state : bit field of TASK_* */
 	unsigned int expire;		/* next expiration time for this task */
 	void (*process)(struct task *t, int *next);  /* the function which processes the task */

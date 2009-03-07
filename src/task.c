@@ -1,7 +1,7 @@
 /*
  * Task management functions.
  *
- * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2009 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -117,26 +117,18 @@ static inline unsigned int timeval_to_tree(const struct timeval *t)
 	return ticks_to_tree(timeval_to_ticks(t));
 }       
 
-/* perform minimal intializations, report 0 in case of error, 1 if OK. */
-int init_task()
-{
-	memset(&timers, 0, sizeof(timers));
-	memset(&rqueue, 0, sizeof(rqueue));
-	pool2_task = create_pool("task", sizeof(struct task), MEM_F_SHARED);
-	return pool2_task != NULL;
-}
-
-/* Puts the task <t> in run queue at a position depending on t->nice.
- * <t> is returned. The nice value assigns boosts in 32th of the run queue
- * size. A nice value of -1024 sets the task to -run_queue*32, while a nice
- * value of 1024 sets the task to run_queue*32.
+/* Puts the task <t> in run queue at a position depending on t->nice. <t> is
+ * returned. The nice value assigns boosts in 32th of the run queue size. A
+ * nice value of -1024 sets the task to -run_queue*32, while a nice value of
+ * 1024 sets the task to run_queue*32. The state flags are cleared, so the
+ * caller will have to set its flags after this call.
+ * The task must not already be in the run queue. If unsure, use the safer
+ * task_wakeup() function.
  */
 struct task *__task_wakeup(struct task *t)
 {
-	task_dequeue(t);
-
 	run_queue++;
-	t->eb.key = ++rqueue_ticks;
+	t->rq.key = ++rqueue_ticks;
 
 	if (likely(t->nice)) {
 		int offset;
@@ -146,13 +138,13 @@ struct task *__task_wakeup(struct task *t)
 			offset = (unsigned)((run_queue * (unsigned int)t->nice) / 32U);
 		else
 			offset = -(unsigned)((run_queue * (unsigned int)-t->nice) / 32U);
-		t->eb.key += offset;
+		t->rq.key += offset;
 	}
 
 	/* clear state flags at the same time */
-	t->state = TASK_IN_RUNQUEUE;
+	t->state &= ~TASK_WOKEN_ANY;
 
-	eb32_insert(&rqueue[ticks_to_tree(t->eb.key)], &t->eb);
+	eb32_insert(&rqueue[ticks_to_tree(t->rq.key)], &t->rq);
 	return t;
 }
 
@@ -160,41 +152,51 @@ struct task *__task_wakeup(struct task *t)
  * task_queue()
  *
  * Inserts a task into the wait queue at the position given by its expiration
- * date. Note that the task must *not* already be in the wait queue nor in the
- * run queue, otherwise unpredictable results may happen. Tasks queued with an
- * eternity expiration date are simply returned. Last, tasks must not be queued
- * further than the end of the next tree, which is between <now_ms> and
- * <now_ms> + TIMER_SIGN_BIT ms (now+12days..24days in 32bit).
+ * date. It does not matter if the task was already in the wait queue or not,
+ * and it may even help if its position has not changed because we'll be able
+ * to return without doing anything. Tasks queued with an eternity expiration
+ * are just unlinked from the WQ. Last, tasks must not be queued further than
+ * the end of the next tree, which is between <now_ms> and <now_ms> +
+ * TIMER_SIGN_BIT ms (now+12days..24days in 32bit).
  */
-struct task *task_queue(struct task *task)
+void task_queue(struct task *task)
 {
-	if (unlikely(!task->expire))
-		return task;
+	/* if the task is already in the wait queue, we may reuse its position
+	 * or we will at least have to unlink it first.
+	 */
+	if (task_in_wq(task)) {
+		if (task->wq.key == task->expire)
+			return;
+		__task_unlink_wq(task);
+	}
 
-	task->eb.key = task->expire;
+	/* the task is not in the queue now */
+	if (unlikely(!task->expire))
+		return;
+
+	task->wq.key = task->expire;
 #ifdef DEBUG_CHECK_INVALID_EXPIRATION_DATES
-	if ((task->eb.key - now_ms) & TIMER_SIGN_BIT)
+	if ((task->wq.key - now_ms) & TIMER_SIGN_BIT)
 		/* we're queuing too far away or in the past (most likely) */
-		return task;
+		return;
 #endif
 
 	if (likely(last_timer &&
-		   last_timer->eb.key == task->eb.key &&
-		   last_timer->eb.node.node_p &&
-		   last_timer->eb.node.bit == -1)) {
+		   last_timer->wq.key == task->wq.key &&
+		   last_timer->wq.node.node_p &&
+		   last_timer->wq.node.bit == -1)) {
 		/* Most often, last queued timer has the same expiration date, so
 		 * if it's not queued at the root, let's queue a dup directly there.
 		 * Note that we can only use dups at the dup tree's root (bit==-1).
 		 */
-		eb_insert_dup(&last_timer->eb.node, &task->eb.node);
-		return task;
+		eb_insert_dup(&last_timer->wq.node, &task->wq.node);
+		return;
 	}
-	eb32_insert(&timers[ticks_to_tree(task->eb.key)], &task->eb);
-	if (task->eb.node.bit == -1)
+	eb32_insert(&timers[ticks_to_tree(task->wq.key)], &task->wq);
+	if (task->wq.node.bit == -1)
 		last_timer = task; /* we only want dup a tree's root */
-	return task;
+	return;
 }
-
 
 /*
  * Extract all expired timers from the timer queue, and wakes up all
@@ -221,7 +223,7 @@ void wake_expired_tasks(int *next)
 	do {
 		eb = eb32_first(&timers[tree]);
 		while (eb) {
-			task = eb32_entry(eb, struct task, eb);
+			task = eb32_entry(eb, struct task, wq);
 			if ((now_ms - eb->key) & TIMER_SIGN_BIT) {
 				/* note that we don't need this check for the <previous>
 				 * tree, but it's cheaper than duplicating the code.
@@ -232,8 +234,8 @@ void wake_expired_tasks(int *next)
 
 			/* detach the task from the queue and add the task to the run queue */
 			eb = eb32_next(eb);
-			__task_wakeup(task);
-			task->state |= TASK_WOKEN_TIMER;
+			__task_unlink_wq(task);
+			task_wakeup(task, TASK_WOKEN_TIMER);
 		}
 		tree = (tree + 1) & TIMER_TREE_MASK;
 	} while (((tree - now_tree) & TIMER_TREE_MASK) < TIMER_TREES/2);
@@ -283,18 +285,15 @@ void process_runnable_tasks(int *next)
 	do {
 		eb = eb32_first(&rqueue[tree]);
 		while (eb) {
-			t = eb32_entry(eb, struct task, eb);
+			t = eb32_entry(eb, struct task, rq);
 
 			/* detach the task from the queue and add the task to the run queue */
 			eb = eb32_next(eb);
+			__task_unlink_rq(t);
 
-			run_queue--;
-			if (likely(t->nice))
-				niced_tasks--;
-			t->state &= ~TASK_IN_RUNQUEUE;
-			task_dequeue(t);
-
+			t->state |= TASK_RUNNING;
 			t->process(t, &temp);
+			t->state &= ~TASK_RUNNING;
 			*next = tick_first(*next, temp);
 
 			if (!--max_processed)
@@ -302,6 +301,15 @@ void process_runnable_tasks(int *next)
 		}
 		tree = (tree + 1) & TIMER_TREE_MASK;
 	} while (tree != stop);
+}
+
+/* perform minimal intializations, report 0 in case of error, 1 if OK. */
+int init_task()
+{
+	memset(&timers, 0, sizeof(timers));
+	memset(&rqueue, 0, sizeof(rqueue));
+	pool2_task = create_pool("task", sizeof(struct task), MEM_F_SHARED);
+	return pool2_task != NULL;
 }
 
 /*

@@ -47,6 +47,7 @@
 #include <proto/session.h>
 #include <proto/server.h>
 #include <proto/stream_interface.h>
+#include <proto/task.h>
 
 /* This function parses a "stats" statement in the "global" section. It returns
  * -1 if there is any error, otherwise zero. If it returns -1, it may write an
@@ -1208,7 +1209,7 @@ void stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 				     curr_sess->ana_state, curr_sess->task->state,
 				     human_time(now.tv_sec - curr_sess->logs.tv_accept.tv_sec, 1));
 
-			if (curr_sess->task->state & TASK_IN_RUNQUEUE)
+			if (task_in_rq(curr_sess->task))
 				chunk_printf(&msg, sizeof(trash), " run(nice=%d)\n", curr_sess->task->nice);
 			else
 				chunk_printf(&msg, sizeof(trash),
