@@ -180,15 +180,18 @@ struct task *task_queue(struct task *task)
 
 	if (likely(last_timer &&
 		   last_timer->eb.key == task->eb.key &&
-		   last_timer->eb.node.node_p)) {
+		   last_timer->eb.node.node_p &&
+		   last_timer->eb.node.bit == -1)) {
 		/* Most often, last queued timer has the same expiration date, so
 		 * if it's not queued at the root, let's queue a dup directly there.
+		 * Note that we can only use dups at the dup tree's root (bit==-1).
 		 */
 		eb_insert_dup(&last_timer->eb.node, &task->eb.node);
 		return task;
 	}
 	eb32_insert(&timers[ticks_to_tree(task->eb.key)], &task->eb);
-	last_timer = task;
+	if (task->eb.node.bit == -1)
+		last_timer = task; /* we only want dup a tree's root */
 	return task;
 }
 
