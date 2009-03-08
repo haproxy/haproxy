@@ -295,11 +295,11 @@ void wake_expired_tasks(int *next)
  */
 void process_runnable_tasks(int *next)
 {
-	int temp;
 	struct task *t;
 	struct eb32_node *eb;
 	unsigned int tree, stop;
 	unsigned int max_processed;
+	int expire;
 
 	if (!run_queue)
 		return;
@@ -315,6 +315,7 @@ void process_runnable_tasks(int *next)
 	stop = (tree + TIMER_TREES / 2) & TIMER_TREE_MASK;
 	tree = (tree - 1) & TIMER_TREE_MASK;
 
+	expire = *next;
 	do {
 		eb = eb32_first(&rqueue[tree]);
 		while (eb) {
@@ -325,15 +326,19 @@ void process_runnable_tasks(int *next)
 			__task_unlink_rq(t);
 
 			t->state |= TASK_RUNNING;
-			t->process(t, &temp);
-			t->state &= ~TASK_RUNNING;
-			*next = tick_first(*next, temp);
+			if (likely(t->process(t) != NULL)) {
+				t->state &= ~TASK_RUNNING;
+				expire = tick_first(expire, t->expire);
+				task_queue(t);
+			}
 
 			if (!--max_processed)
-				return;
+				goto out;
 		}
 		tree = (tree + 1) & TIMER_TREE_MASK;
 	} while (tree != stop);
+ out:
+	*next = expire;
 }
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */

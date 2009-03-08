@@ -708,7 +708,7 @@ int uxst_req_analyser_stats(struct session *s, struct buffer *req)
  * still exists but remains in SI_ST_INI state forever, so that any call is a
  * NOP.
  */
-void uxst_process_session(struct task *t, int *next)
+struct task *uxst_process_session(struct task *t)
 {
 	struct session *s = t->context;
 	int resync;
@@ -969,11 +969,7 @@ void uxst_process_session(struct task *t, int *next)
 		if (s->si[0].exp)
 			t->expire = tick_first(t->expire, s->si[0].exp);
 
-		/* restore t to its place in the task list */
-		task_queue(t);
-
-		*next = t->expire;
-		return; /* nothing more to do */
+		return t;
 	}
 
 	actconn--;
@@ -988,10 +984,10 @@ void uxst_process_session(struct task *t, int *next)
 	}
 
 	/* the task MUST not be in the run queue anymore */
-	task_delete(t);
 	session_free(s);
+	task_delete(t);
 	task_free(t);
-	*next = TICK_ETERNITY;
+	return NULL;
 }
 
 __attribute__((constructor))

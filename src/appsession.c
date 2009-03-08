@@ -2,7 +2,7 @@
  * AppSession functions.
  *
  * Copyright 2004-2006 Alexander Lazic, Klaus Wagner
- * Copyright 2006-2007 Willy Tarreau
+ * Copyright 2006-2009 Willy Tarreau
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -100,7 +100,7 @@ int appsession_task_init(void)
 	return 0;
 }
 
-void appsession_refresh(struct task *t, int *next)
+struct task *appsession_refresh(struct task *t)
 {
 	struct proxy           *p = proxy;
 	struct appsession_hash *htbl;
@@ -131,8 +131,7 @@ void appsession_refresh(struct task *t, int *next)
 		p = p->next;
 	}
 	t->expire = tick_add(now_ms, MS_TO_TICKS(TBLCHKINT)); /* check expiration every 5 seconds */
-	task_queue(t);
-	*next = t->expire;
+	return t;
 } /* end appsession_refresh */
 
 int match_str(const void *key1, const void *key2)

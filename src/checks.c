@@ -1,7 +1,7 @@
 /*
  * Health-checks functions.
  *
- * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2009 Willy Tarreau <w@1wt.eu>
  * Copyright 2007-2008 Krzysztof Piotr Oledzki <ole@ans.pl>
  *
  * This program is free software; you can redistribute it and/or
@@ -522,9 +522,8 @@ static int event_srv_chk_r(int fd)
  * manages a server health-check. Returns
  * the time the task accepts to wait, or TIME_ETERNITY for infinity.
  */
-void process_chk(struct task *t, int *next)
+struct task *process_chk(struct task *t)
 {
-	__label__ new_chk, out;
 	struct server *s = t->context;
 	struct sockaddr_in sa;
 	int fd;
@@ -536,11 +535,8 @@ void process_chk(struct task *t, int *next)
 	fd = s->curfd;
 	if (fd < 0) {   /* no check currently running */
 		//fprintf(stderr, "process_chk: 2\n");
-		if (!tick_is_expired(t->expire, now_ms)) { /* not good time yet */
-			task_queue(t);	/* restore t to its place in the task list */
-			*next = t->expire;
-			goto out;
-		}
+		if (!tick_is_expired(t->expire, now_ms)) /* woke up too early */
+			return t;
 
 		/* we don't send any health-checks when the proxy is stopped or when
 		 * the server should not be checked.
@@ -548,9 +544,7 @@ void process_chk(struct task *t, int *next)
 		if (!(s->state & SRV_CHECKED) || s->proxy->state == PR_STSTOPPED) {
 			while (tick_is_expired(t->expire, now_ms))
 				t->expire = tick_add(t->expire, MS_TO_TICKS(s->inter));
-			task_queue(t);	/* restore t to its place in the task list */
-			*next = t->expire;
-			goto out;
+			return t;
 		}
 
 		/* we'll initiate a new check */
@@ -674,10 +668,7 @@ void process_chk(struct task *t, int *next)
 							int t_con = tick_add(now_ms, s->proxy->timeout.connect);
 							t->expire = tick_first(t->expire, t_con);
 						}
-
-						task_queue(t);	/* restore t to its place in the task list */
-						*next = t->expire;
-						return;
+						return t;
 					}
 					else if (errno != EALREADY && errno != EISCONN && errno != EAGAIN) {
 						s->result |= SRV_CHK_ERROR;    /* a real error */
@@ -797,10 +788,7 @@ void process_chk(struct task *t, int *next)
 	}
 	//fprintf(stderr, "process_chk: 11\n");
 	s->result = SRV_CHK_UNKNOWN;
-	task_queue(t);	/* restore t to its place in the task list */
-	*next = t->expire;
- out:
-	return;
+	return t;
 }
 
 /*

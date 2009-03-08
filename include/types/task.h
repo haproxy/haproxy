@@ -50,10 +50,17 @@ struct task {
 	struct eb32_node rq;		/* ebtree node used to hold the task in the run queue */
 	int state;			/* task state : bit field of TASK_* */
 	unsigned int expire;		/* next expiration time for this task */
-	void (*process)(struct task *t, int *next);  /* the function which processes the task */
+	struct task * (*process)(struct task *t);  /* the function which processes the task */
 	void *context;			/* the task's context */
 	int nice;			/* the task's current nice value from -1024 to +1024 */
 };
+
+/*
+ * The task callback (->process) is responsible for updating ->expire. It must
+ * return a pointer to the task itself, except if the task has been deleted, in
+ * which case it returns NULL so that the scheduler knows it must not check the
+ * expire timer. The scheduler will requeue the task at the proper location.
+ */
 
 #endif /* _TYPES_TASK_H */
 

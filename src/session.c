@@ -554,7 +554,7 @@ static void sess_prepare_conn_req(struct session *s, struct stream_interface *si
  * and each function is called only if at least another function has changed at
  * least one flag it is interested in.
  */
-void process_session(struct task *t, int *next)
+struct task *process_session(struct task *t)
 {
 	struct session *s = t->context;
 	int resync;
@@ -1029,16 +1029,13 @@ resync_stream_interface:
 		fprintf(stderr, "[%u] queuing with exp=%u req->rex=%u req->wex=%u req->ana_exp=%u rep->rex=%u rep->wex=%u, cs=%d, ss=%d\n",
 			now_ms, t->expire, s->req->rex, s->req->wex, s->req->analyse_exp, s->rep->rex, s->rep->wex, s->si[0].state, s->si[1].state);
 #endif
-		/* restore t to its place in the task list */
-		task_queue(t);
 
 #ifdef DEBUG_DEV
 		/* this may only happen when no timeout is set or in case of an FSM bug */
 		if (!t->expire)
 			ABORT_NOW();
 #endif
-		*next = t->expire;
-		return; /* nothing more to do */
+		return t; /* nothing more to do */
 	}
 
 	s->fe->feconn--;
@@ -1066,10 +1063,10 @@ resync_stream_interface:
 	}
 
 	/* the task MUST not be in the run queue anymore */
-	task_delete(t);
 	session_free(s);
+	task_delete(t);
 	task_free(t);
-	*next = TICK_ETERNITY;
+	return NULL;
 }
 
 /*

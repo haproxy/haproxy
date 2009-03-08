@@ -85,7 +85,7 @@ struct listener {
 	struct listener *next;		/* next address for the same proxy, or NULL */
 	struct list proto_list;         /* list in the protocol header */
 	int (*accept)(int fd);		/* accept() function passed to fdtab[] */
-	void (*handler)(struct task *t, int *next); /* protocol handler */
+	struct task * (*handler)(struct task *t); /* protocol handler. It is a task */
 	int  *timeout;                  /* pointer to client-side timeout */
 	void *private;			/* any private data which may be used by accept() */
 	unsigned int analysers;		/* bitmap of required protocol analysers */
