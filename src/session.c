@@ -771,7 +771,7 @@ resync_stream_interface:
 	if (!s->req->send_max && s->req->prod->state >= SI_ST_EST &&
 	    !s->req->analysers && !(s->req->flags & BF_HIJACK)) {
 		/* check if it is wise to enable kernel splicing on the request buffer */
-		if (!(s->req->flags & BF_KERN_SPLICING) &&
+		if (!(s->req->flags & (BF_KERN_SPLICING|BF_SHUTR)) &&
 		    (global.tune.options & GTUNE_USE_SPLICE) &&
 		    (pipes_used < global.maxpipes) &&
 		    (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_REQ) ||
@@ -905,7 +905,7 @@ resync_stream_interface:
 	if (!s->rep->send_max && s->rep->prod->state >= SI_ST_EST &&
 	    !s->rep->analysers && !(s->rep->flags & BF_HIJACK)) {
 		/* check if it is wise to enable kernel splicing on the response buffer */
-		if (!(s->rep->flags & BF_KERN_SPLICING) &&
+		if (!(s->rep->flags & (BF_KERN_SPLICING|BF_SHUTR)) &&
 		    (global.tune.options & GTUNE_USE_SPLICE) &&
 		    (pipes_used < global.maxpipes) &&
 		    (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_RTR) ||
