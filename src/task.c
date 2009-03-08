@@ -81,6 +81,18 @@ struct task *last_timer = NULL;  /* optimization: last queued timer */
  * can't do real computations on it. Future evolutions could make use of 1024th
  * of seconds instead of milliseconds, with the special value 0 avoided (and
  * replaced with 1), so that zero indicates the timer is not set.
+ *
+ * Another nice optimisation is to allow a timer to stay at an old place in the
+ * queue as long as it's not further than the real expected timeout. We really
+ * use the tree as a place holder for a minorant of the real expiration date.
+ * Since we have very low chance of hitting a timeout anyway, we can bounce the
+ * nodes to their right place when we scan the tree and encounter a misplaced
+ * node once in a while. This even allows us not to remove the infinite timers.
+ *
+ * So, to summarize, we have :
+ *   - node->key always defines current position in the tree
+ *   - timer is the real expiration date (possibly infinite)
+ *   - node->key <= timer
  */
 
 #define TIMER_TICK_BITS       32
@@ -165,7 +177,14 @@ void task_queue(struct task *task)
 	 * or we will at least have to unlink it first.
 	 */
 	if (task_in_wq(task)) {
-		if (task->wq.key == task->expire)
+		/* If we already have a place in the wait queue no later than the
+		 * timeout we're trying to set, we'll stay there, because it is very
+		 * unlikely that we will reach the timeout anyway. If the timeout
+		 * has been disabled, it's useless to leave the queue as well. We'll
+		 * rely on wake_expired_tasks() to catch the node and move it to the
+		 * proper place should it ever happen.
+		 */
+		if (!task->expire || ((task->wq.key - task->expire) & TIMER_SIGN_BIT))
 			return;
 		__task_unlink_wq(task);
 	}
@@ -228,13 +247,27 @@ void wake_expired_tasks(int *next)
 				/* note that we don't need this check for the <previous>
 				 * tree, but it's cheaper than duplicating the code.
 				 */
-				*next = task->expire;
+				*next = eb->key;  /* when we want to revisit the tree */
 				return;
 			}
 
 			/* detach the task from the queue and add the task to the run queue */
 			eb = eb32_next(eb);
 			__task_unlink_wq(task);
+
+			/* It is possible that this task was left at an earlier place in the
+			 * tree because a recent call to task_queue() has not moved it. This
+			 * happens when the new expiration date is later than the old one.
+			 * Since it is very unlikely that we reach a timeout anyway, it's a
+			 * lot cheaper to proceed like this because we almost never update
+			 * the tree. We may also find disabled expiration dates there. Since
+			 * we have detached the task from the tree, we simply call task_queue
+			 * to take care of this.
+			 */
+			if (!tick_is_expired(task->expire, now_ms)) {
+				task_queue(task);
+				continue;
+			}
 			task_wakeup(task, TASK_WOKEN_TIMER);
 		}
 		tree = (tree + 1) & TIMER_TREE_MASK;
