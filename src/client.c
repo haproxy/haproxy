@@ -443,8 +443,7 @@ int event_accept(int fd) {
 		 * pass through task_wakeup(), because this one knows how to apply
 		 * priorities to tasks.
 		 */
-		if (p->mode != PR_MODE_HEALTH)
-			task_wakeup(t, TASK_WOKEN_INIT);
+		task_wakeup(t, TASK_WOKEN_INIT);
 
 		p->feconn++;  /* beconn will be increased later */
 		if (p->feconn > p->feconn_max)
