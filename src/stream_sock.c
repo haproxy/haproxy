@@ -560,11 +560,11 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 			int skerr;
 			socklen_t lskerr = sizeof(skerr);
 
-			ret = getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
+			ret = getsockopt(si->fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
 			if (ret == -1 || skerr)
 				ret = -1;
 			else
-				ret = send(fd, b->w, max, MSG_DONTWAIT);
+				ret = send(si->fd, b->w, max, MSG_DONTWAIT);
 		}
 #else
 		ret = send(si->fd, b->w, max, MSG_DONTWAIT | MSG_NOSIGNAL);
