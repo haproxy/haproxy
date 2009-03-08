@@ -59,14 +59,14 @@ void stream_int_report_error(struct stream_interface *si)
 }
 
 /*
- * Returns a message into the output buffer, and flushes the input buffer. The
- * output buffer doesn't need to be empty before this. The message is contained
- * in a "chunk". If it is null, then an empty message is used.
+ * Erase any content from input and output buffers, and return a message into
+ * the output buffer. The message is provided as a "chunk". If it is null,
+ * then an empty message is used.
  */
 void stream_int_return(struct stream_interface *si, const struct chunk *msg)
 {
-	buffer_flush(si->ib);
-	buffer_flush(si->ob);
+	buffer_erase(si->ib);
+	buffer_erase(si->ob);
 	if (msg && msg->len)
 		buffer_write(si->ob, msg->str, msg->len);
 }
@@ -83,7 +83,7 @@ void stream_int_return(struct stream_interface *si, const struct chunk *msg)
 void stream_int_retnclose(struct stream_interface *si, const struct chunk *msg)
 {
 	buffer_abort(si->ib);
-	buffer_flush(si->ob);
+	buffer_erase(si->ob);
 	buffer_shutr_now(si->ob);
 	if (msg && msg->len)
 		buffer_write(si->ob, msg->str, msg->len);

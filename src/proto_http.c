@@ -540,13 +540,13 @@ int http_find_header(const char *name,
  * stream interface is assumed to be already in a closed state. An optional
  * message is copied into the input buffer, and an HTTP status code stored.
  * The error flags are set to the values in arguments. Any pending request
- * is flushed.
+ * in this buffer will be lost.
  */
 static void http_server_error(struct session *t, struct stream_interface *si,
 			      int err, int finst, int status, const struct chunk *msg)
 {
-	buffer_flush(si->ob);
-	buffer_flush(si->ib);
+	buffer_erase(si->ob);
+	buffer_erase(si->ib);
 	buffer_write_ena(si->ib);
 	if (status > 0 && msg) {
 		t->txn.status = status;
@@ -2304,8 +2304,8 @@ int http_process_request(struct session *s, struct buffer *req)
 	 * eventually expire. We build the tarpit as an analyser.
 	 */
 	if (txn->flags & TX_CLTARPIT) {
-		buffer_flush(s->req);
-		/* flush the request so that we can drop the connection early
+		buffer_erase(s->req);
+		/* wipe the request out so that we can drop the connection early
 		 * if the client closes first.
 		 */
 		buffer_write_dis(req);

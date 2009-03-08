@@ -108,11 +108,11 @@ static inline void buffer_forward(struct buffer *buf, unsigned int bytes)
 	buf->send_max += data_left;
 }
 
-/* Flush any content from buffer <buf> and adjusts flags accordingly. Note
+/* Erase any content from buffer <buf> and adjusts flags accordingly. Note
  * that any spliced data is not affected since we may not have any access to
  * it.
  */
-static inline void buffer_flush(struct buffer *buf)
+static inline void buffer_erase(struct buffer *buf)
 {
 	buf->send_max = 0;
 	buf->to_forward = 0;
