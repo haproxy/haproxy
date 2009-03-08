@@ -770,6 +770,7 @@ struct task *uxst_process_session(struct task *t)
 	 * at this point.
 	 */
 
+ resync_request:
 	/**** Process layer 7 below ****/
 
 	resync = 0;
@@ -855,9 +856,14 @@ struct task *uxst_process_session(struct task *t)
 	s->req->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
 
 	/* according to benchmarks, it makes sense to resync now */
-	if (resync)
+	if (s->req->prod->state == SI_ST_DIS)
 		goto resync_stream_interface;
 
+	if (resync)
+		goto resync_request;
+
+ resync_response:
+	resync = 0;
 
 	/* Analyse response */
 	if (unlikely(s->rep->flags & BF_HIJACK)) {
@@ -935,8 +941,14 @@ struct task *uxst_process_session(struct task *t)
 
 	s->rep->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
 
-	if (resync)
+	if (s->req->prod->state == SI_ST_DIS)
 		goto resync_stream_interface;
+
+	if (s->req->flags != rqf_last)
+		goto resync_request;
+
+	if (resync)
+		goto resync_response;
 
 	if (likely(s->rep->cons->state != SI_ST_CLO)) {
 		if (s->rep->cons->state == SI_ST_EST)

@@ -714,6 +714,7 @@ resync_stream_interface:
 	 * at this point.
 	 */
 
+ resync_request:
 	/**** Process layer 7 below ****/
 
 	resync = 0;
@@ -855,9 +856,14 @@ resync_stream_interface:
 	s->req->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
 
 	/* according to benchmarks, it makes sense to resync now */
-	if (resync)
+	if (s->req->prod->state == SI_ST_DIS || s->req->cons->state == SI_ST_DIS)
 		goto resync_stream_interface;
 
+	if (resync)
+		goto resync_request;
+
+ resync_response:
+	resync = 0;
 
 	/* Analyse response */
 
@@ -948,9 +954,14 @@ resync_stream_interface:
 
 	s->rep->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
 
-	if (resync)
+	if (s->req->prod->state == SI_ST_DIS || s->req->cons->state == SI_ST_DIS)
 		goto resync_stream_interface;
 
+	if (s->req->flags != rqf_last)
+		goto resync_request;
+
+	if (resync)
+		goto resync_response;
 
 	/* This is needed only when debugging is enabled, to indicate
 	 * client-side or server-side close. Please note that in the unlikely
