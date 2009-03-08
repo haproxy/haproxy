@@ -26,108 +26,9 @@ unsigned int run_queue = 0;
 unsigned int niced_tasks = 0; /* number of niced tasks in the run queue */
 struct task *last_timer = NULL;  /* optimization: last queued timer */
 
-/* Principle of the wait queue.
- *
- * We want to be able to tell whether an expiration date is before of after the
- * current time <now>. We KNOW that expiration dates are never too far apart,
- * because they are already computed by adding integer numbers of milliseconds
- * to the current date.
- * We also know that almost all dates will be in the future, and that a very
- * small part of them will be in the past, they are the ones which have expired
- * since last time we checked them.
- *
- * The current implementation uses a wrapping time cut into 3 ranges :
- *   - previous : those ones are expired by definition
- *   - current  : some are expired, some are not
- *   - next     : none are expired
- *
- * We use the higher two bits of the timers expressed in ticks (milliseconds)
- * to determine which range a timer is in, compared to <now> :
- *
- *   now     previous     current      next0     next1
- * [31:30]   [31:30]      [31:30]     [31:30]   [31:30]
- *    00        11           00          01        10
- *    01        00           01          10        11
- *    10        01           10          11        00
- *    11        10           11          00        01
- *
- * By definition, <current> is the range containing <now> as well as all timers
- * which have the same 2 high bits as <now>, <previous> is the range just
- * before, which contains all timers whose high bits equal those of <now> minus
- * 1. Last, <next> is composed of the two remaining ranges.
- *
- * For ease of implementation, the timers will then be stored into 4 queues 0-3
- * determined by the 2 higher bits of the timer. The expiration algorithm is
- * very simple :
- *  - expire everything in <previous>=queue[((now>>30)-1)&3]
- *  - expire from <current>=queue[(now>>30)&3] everything where timer >= now
- *
- * With this algorithm, it's possible to queue tasks meant to expire 24.8 days
- * in the future, and still be able to detect events remaining unprocessed for
- * the last 12.4 days! Note that the principle might be extended to any number
- * of higher bits as long as there is only one range for expired tasks. For
- * instance, using the 8 higher bits to index the range, we would have one past
- * range of 4.6 hours (24 bits in ms), and 254 ranges in the future totalizing
- * 49.3 days. This would eat more memory for a very little added benefit.
- *
- * Also, in order to maintain the ability to perform time comparisons, it is
- * recommended to avoid using the <next1> range above, as values in this range
- * may not easily be compared to <now> outside of these functions as it is the
- * opposite of the <current> range, and <timer>-<now> may randomly be positive
- * or negative. That means we're left with +/- 12 days timers.
- *
- * To keep timers ordered, we use 4 ebtrees [0..3]. To keep computation low, we
- * may use (seconds*1024)+milliseconds, which preserves ordering eventhough we
- * can't do real computations on it. Future evolutions could make use of 1024th
- * of seconds instead of milliseconds, with the special value 0 avoided (and
- * replaced with 1), so that zero indicates the timer is not set.
- *
- * Another nice optimisation is to allow a timer to stay at an old place in the
- * queue as long as it's not further than the real expected timeout. We really
- * use the tree as a place holder for a minorant of the real expiration date.
- * Since we have very low chance of hitting a timeout anyway, we can bounce the
- * nodes to their right place when we scan the tree and encounter a misplaced
- * node once in a while. This even allows us not to remove the infinite timers.
- *
- * So, to summarize, we have :
- *   - node->key always defines current position in the tree
- *   - timer is the real expiration date (possibly infinite)
- *   - node->key <= timer
- */
-
-#define TIMER_TICK_BITS       32
-#define TIMER_TREE_BITS        2
-#define TIMER_TREES           (1 << TIMER_TREE_BITS)
-#define TIMER_TREE_SHIFT      (TIMER_TICK_BITS - TIMER_TREE_BITS)
-#define TIMER_TREE_MASK       (TIMER_TREES - 1)
-#define TIMER_TICK_MASK       ((1U << (TIMER_TICK_BITS-1)) * 2 - 1)
-#define TIMER_SIGN_BIT        (1 << (TIMER_TICK_BITS - 1))
-
 static struct eb_root timers[TIMER_TREES];  /* trees with MSB 00, 01, 10 and 11 */
 static struct eb_root rqueue[TIMER_TREES];  /* trees constituting the run queue */
 static unsigned int rqueue_ticks;           /* insertion count */
-
-/* returns an ordered key based on an expiration date. */
-static inline unsigned int timeval_to_ticks(const struct timeval *t)
-{
-	unsigned int key;
-
-	key  = ((unsigned int)t->tv_sec  * 1000) + ((unsigned int)t->tv_usec / 1000);
-	key &= TIMER_TICK_MASK;
-	return key;
-}       
-
-/* returns a tree number based on a ticks value */
-static inline unsigned int ticks_to_tree(unsigned int ticks)
-{
-	return (ticks >> TIMER_TREE_SHIFT) & TIMER_TREE_MASK;
-}       
-
-/* returns a tree number based on an expiration date. */
-static inline unsigned int timeval_to_tree(const struct timeval *t)
-{
-	return ticks_to_tree(timeval_to_ticks(t));
-}       
 
 /* Puts the task <t> in run queue at a position depending on t->nice. <t> is
  * returned. The nice value assigns boosts in 32th of the run queue size. A
@@ -156,7 +57,7 @@ struct task *__task_wakeup(struct task *t)
 	/* clear state flags at the same time */
 	t->state &= ~TASK_WOKEN_ANY;
 
-	eb32_insert(&rqueue[ticks_to_tree(t->rq.key)], &t->rq);
+	eb32_insert(&rqueue[timer_to_tree(t->rq.key)], &t->rq);
 	return t;
 }
 
@@ -184,18 +85,19 @@ void task_queue(struct task *task)
 		 * rely on wake_expired_tasks() to catch the node and move it to the
 		 * proper place should it ever happen.
 		 */
-		if (!task->expire || ((task->wq.key - task->expire) & TIMER_SIGN_BIT))
+		if (!tick_isset(task->expire) ||
+		    ((task->wq.key - tick_to_timer(task->expire)) & TIMER_SIGN_BIT))
 			return;
 		__task_unlink_wq(task);
 	}
 
 	/* the task is not in the queue now */
-	if (unlikely(!task->expire))
+	if (unlikely(!tick_isset(task->expire)))
 		return;
 
-	task->wq.key = task->expire;
+	task->wq.key = tick_to_timer(task->expire);
 #ifdef DEBUG_CHECK_INVALID_EXPIRATION_DATES
-	if ((task->wq.key - now_ms) & TIMER_SIGN_BIT)
+	if ((task->wq.key - tick_to_timer(now_ms)) & TIMER_SIGN_BIT)
 		/* we're queuing too far away or in the past (most likely) */
 		return;
 #endif
@@ -211,7 +113,7 @@ void task_queue(struct task *task)
 		eb_insert_dup(&last_timer->wq.node, &task->wq.node);
 		return;
 	}
-	eb32_insert(&timers[ticks_to_tree(task->wq.key)], &task->wq);
+	eb32_insert(&timers[timer_to_tree(task->wq.key)], &task->wq);
 	if (task->wq.node.bit == -1)
 		last_timer = task; /* we only want dup a tree's root */
 	return;
@@ -237,17 +139,17 @@ void wake_expired_tasks(int *next)
 	 * non-expired entry.
 	 */
 
-	now_tree = ticks_to_tree(now_ms);
+	now_tree = timer_to_tree(tick_to_timer(now_ms));
 	tree = (now_tree - 1) & TIMER_TREE_MASK;
 	do {
 		eb = eb32_first(&timers[tree]);
 		while (eb) {
 			task = eb32_entry(eb, struct task, wq);
-			if ((now_ms - eb->key) & TIMER_SIGN_BIT) {
+			if ((tick_to_timer(now_ms) - eb->key) & TIMER_SIGN_BIT) {
 				/* note that we don't need this check for the <previous>
 				 * tree, but it's cheaper than duplicating the code.
 				 */
-				*next = eb->key;  /* when we want to revisit the tree */
+				*next = timer_to_tick(eb->key);
 				return;
 			}
 
@@ -311,7 +213,7 @@ void process_runnable_tasks(int *next)
 	if (likely(niced_tasks))
 		max_processed /= 4;
 
-	tree = ticks_to_tree(rqueue_ticks);
+	tree = timer_to_tree(rqueue_ticks);
 	stop = (tree + TIMER_TREES / 2) & TIMER_TREE_MASK;
 	tree = (tree - 1) & TIMER_TREE_MASK;
 

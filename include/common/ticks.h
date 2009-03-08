@@ -2,7 +2,7 @@
   include/common/ticks.h
   Functions and macros for manipulation of expiration timers
 
-  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -22,20 +22,31 @@
 /*
  * Using a mix of milliseconds and timeval for internal timers is expensive and
  * overkill, because we don't need such a precision to compute timeouts.
- * So we're converting them to "ticks". Right now, one tick equals one
- * millisecond, but that might change in the future. Ticks are stored as 32bit
- * values, and sorted in four 30bit-wide rotating arrays, which means that any
- * timer may be 2^30 ms in the future, or 12.4 days. The ticks are designed to
- * wrap after they pass 2^32. That means that we cannot directly compare them,
- * but we can check the sign of their difference.
+ * So we're converting them to "ticks".
  *
+ * A tick is a representation of a date relative to another one, and is
+ * measured in milliseconds. The natural usage is to represent an absolute date
+ * relative to the current date. Since it is not practical to update all values
+ * each time the current date changes, instead we use the absolute date rounded
+ * down to fit in a tick. We then have to compare a tick to the current date to
+ * know whether it is in the future or in the past. If a tick is below the
+ * current date, it is in the past. If it is above, it is in the future. The
+ * values will wrap so we can't compare that easily, instead we check the sign
+ * of the difference between a tick and the current date.
+ *
+ * Proceeding like this allows us to manipulate dates that are stored in
+ * scalars with enough precision and range. For this reason, we store ticks in
+ * 32-bit integers. This is enough to handle dates that are between 24.85 days
+ * in the past and as much in the future.
+ * 
  * We must both support absolute dates (well in fact, dates relative to now+/-
  * 12 days), and intervals (for timeouts). Both types need an "eternity" magic
  * value. For optimal code generation, we'll use zero as the magic value
  * indicating that an expiration timer or a timeout is not set. We have to
  * check that we don't return this value when adding timeouts to <now>. If a
  * computation returns 0, we must increase it to 1 (which will push the timeout
- * 1 ms further).
+ * 1 ms further). For this reason, timeouts must not be added by hand but via
+ * the dedicated tick_add() function.
  */
 
 #ifndef _COMMON_TICKS_H

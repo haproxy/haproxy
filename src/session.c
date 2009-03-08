@@ -1032,7 +1032,7 @@ resync_stream_interface:
 
 #ifdef DEBUG_DEV
 		/* this may only happen when no timeout is set or in case of an FSM bug */
-		if (!t->expire)
+		if (!tick_isset(t->expire))
 			ABORT_NOW();
 #endif
 		return t; /* nothing more to do */
