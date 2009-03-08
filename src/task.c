@@ -18,6 +18,7 @@
 #include <common/time.h>
 
 #include <proto/proxy.h>
+#include <proto/session.h>
 #include <proto/task.h>
 
 struct pool_head *pool2_task;
@@ -62,34 +63,23 @@ struct task *__task_wakeup(struct task *t)
 }
 
 /*
- * task_queue()
+ * __task_queue()
  *
  * Inserts a task into the wait queue at the position given by its expiration
  * date. It does not matter if the task was already in the wait queue or not,
- * and it may even help if its position has not changed because we'll be able
- * to return without doing anything. Tasks queued with an eternity expiration
- * are just unlinked from the WQ. Last, tasks must not be queued further than
- * the end of the next tree, which is between <now_ms> and <now_ms> +
- * TIMER_SIGN_BIT ms (now+12days..24days in 32bit).
+ * as it will be unlinked. The task must not have an infinite expiration timer.
+ * Last, tasks must not be queued further than the end of the next tree, which
+ * is between <now_ms> and <now_ms> + TIMER_SIGN_BIT ms (now+12days..24days in
+ * 32bit).
+ *
+ * This function should not be used directly, it is meant to be called by the
+ * inline version of task_queue() which performs a few cheap preliminary tests
+ * before deciding to call __task_queue().
  */
-void task_queue(struct task *task)
+void __task_queue(struct task *task)
 {
-	/* if the task is already in the wait queue, we may reuse its position
-	 * or we will at least have to unlink it first.
-	 */
-	if (task_in_wq(task)) {
-		/* If we already have a place in the wait queue no later than the
-		 * timeout we're trying to set, we'll stay there, because it is very
-		 * unlikely that we will reach the timeout anyway. If the timeout
-		 * has been disabled, it's useless to leave the queue as well. We'll
-		 * rely on wake_expired_tasks() to catch the node and move it to the
-		 * proper place should it ever happen.
-		 */
-		if (!tick_isset(task->expire) ||
-		    ((task->wq.key - tick_to_timer(task->expire)) & TIMER_SIGN_BIT))
-			return;
+	if (likely(task_in_wq(task)))
 		__task_unlink_wq(task);
-	}
 
 	/* the task is not in the queue now */
 	if (unlikely(!tick_isset(task->expire)))
@@ -104,8 +94,8 @@ void task_queue(struct task *task)
 
 	if (likely(last_timer &&
 		   last_timer->wq.key == task->wq.key &&
-		   last_timer->wq.node.node_p &&
-		   last_timer->wq.node.bit == -1)) {
+		   last_timer->wq.node.bit == -1 &&
+		   last_timer->wq.node.node_p)) {
 		/* Most often, last queued timer has the same expiration date, so
 		 * if it's not queued at the root, let's queue a dup directly there.
 		 * Note that we can only use dups at the dup tree's root (bit==-1).
@@ -145,7 +135,7 @@ void wake_expired_tasks(int *next)
 		eb = eb32_first(&timers[tree]);
 		while (eb) {
 			task = eb32_entry(eb, struct task, wq);
-			if ((tick_to_timer(now_ms) - eb->key) & TIMER_SIGN_BIT) {
+			if (likely((tick_to_timer(now_ms) - eb->key) & TIMER_SIGN_BIT)) {
 				/* note that we don't need this check for the <previous>
 				 * tree, but it's cheaper than duplicating the code.
 				 */
@@ -221,6 +211,10 @@ void process_runnable_tasks(int *next)
 	do {
 		eb = eb32_first(&rqueue[tree]);
 		while (eb) {
+			/* Note: this loop is one of the fastest code path in
+			 * the whole program. It should not be re-arranged
+			 * without a good reason.
+			 */
 			t = eb32_entry(eb, struct task, rq);
 
 			/* detach the task from the queue and add the task to the run queue */
@@ -228,10 +222,20 @@ void process_runnable_tasks(int *next)
 			__task_unlink_rq(t);
 
 			t->state |= TASK_RUNNING;
-			if (likely(t->process(t) != NULL)) {
+			/* This is an optimisation to help the processor's branch
+			 * predictor take this most common call.
+			 */
+			if (likely(t->process == process_session))
+				t = process_session(t);
+			else
+				t = t->process(t);
+
+			if (likely(t != NULL)) {
 				t->state &= ~TASK_RUNNING;
-				expire = tick_first(expire, t->expire);
-				task_queue(t);
+				if (t->expire) {
+					task_queue(t);
+					expire = tick_first_2nz(expire, t->expire);
+				}
 			}
 
 			if (!--max_processed)

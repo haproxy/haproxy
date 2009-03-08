@@ -246,9 +246,27 @@ static inline void task_free(struct task *t)
 }
 
 /* Place <task> into the wait queue, where it may already be. If the expiration
- * timer is infinite, the task is dequeued.
+ * timer is infinite, do nothing and rely on wake_expired_task to clean up.
  */
-void task_queue(struct task *task);
+void __task_queue(struct task *task);
+static inline void task_queue(struct task *task)
+{
+	/* If we already have a place in the wait queue no later than the
+	 * timeout we're trying to set, we'll stay there, because it is very
+	 * unlikely that we will reach the timeout anyway. If the timeout
+	 * has been disabled, it's useless to leave the queue as well. We'll
+	 * rely on wake_expired_tasks() to catch the node and move it to the
+	 * proper place should it ever happen. Finally we only add the task
+	 * to the queue if it was not there or if it was further than what
+	 * we want.
+	 */
+	if (!tick_isset(task->expire))
+		return;
+
+	if (((tick_to_timer(task->expire) - task->wq.key) & TIMER_SIGN_BIT)
+		|| !task_in_wq(task))
+		__task_queue(task);
+}
 
 /*
  * This does 4 things :

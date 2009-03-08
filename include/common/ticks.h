@@ -113,6 +113,17 @@ static inline int tick_first(int t1, int t2)
 		return t2;
 }
 
+/* return the first one of the two timers, where only the first one may be infinite */
+static inline int tick_first_2nz(int t1, int t2)
+{
+	if (!tick_isset(t1))
+		return t2;
+	if ((t1 - t2) <= 0)
+		return t1;
+	else
+		return t2;
+}
+
 /* return the number of ticks remaining from <now> to <exp>, or zero if expired */
 static inline int tick_remain(int now, int exp)
 {
