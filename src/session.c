@@ -764,23 +764,37 @@ resync_stream_interface:
 			resync = 1;
 	}
 
-	/* if noone is interested in analysing data, let's forward everything
-	 * and only wake up every 1-2 MB. We still wake up when send_max is
-	 * reached though.
+	/* If noone is interested in analysing data, it's time to forward
+	 * everything. We will wake up from time to time when either send_max
+	 * or to_forward are reached.
 	 */
-	if (!s->req->send_max && s->req->prod->state >= SI_ST_EST &&
-	    !s->req->analysers && !(s->req->flags & BF_HIJACK)) {
-		/* check if it is wise to enable kernel splicing on the request buffer */
-		if (!(s->req->flags & (BF_KERN_SPLICING|BF_SHUTR)) &&
-		    (global.tune.options & GTUNE_USE_SPLICE) &&
-		    (pipes_used < global.maxpipes) &&
-		    (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_REQ) ||
-		     (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_AUT) &&
-		      (s->req->flags & BF_STREAMER_FAST))))
-			s->req->flags |= BF_KERN_SPLICING;
+	if (!s->req->analysers &&
+	    !(s->req->flags & (BF_HIJACK|BF_SHUTW)) &&
+	    (s->req->prod->state >= SI_ST_EST)) {
+		/* This buffer is freewheeling, there's no analyser nor hijacker
+		 * attached to it. If any data are left in, we'll permit them to
+		 * move.
+		 */
+		buffer_flush(s->req);
 
-		if (s->req->to_forward < FORWARD_DEFAULT_SIZE)
+		/* If the producer is still connected, we'll schedule large blocks
+		 * of data to be forwarded from the producer to the consumer (which
+		 * might possibly not be connected yet).
+		 */
+		if (!(s->req->flags & BF_SHUTR) &&
+		    s->req->to_forward < FORWARD_DEFAULT_SIZE)
 			buffer_forward(s->req, FORWARD_DEFAULT_SIZE);
+	}
+
+	/* check if it is wise to enable kernel splicing to forward request data */
+	if (!(s->req->flags & (BF_KERN_SPLICING|BF_SHUTR)) &&
+	    s->req->to_forward &&
+	    (global.tune.options & GTUNE_USE_SPLICE) &&
+	    (pipes_used < global.maxpipes) &&
+	    (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_REQ) ||
+	     (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_AUT) &&
+	      (s->req->flags & BF_STREAMER_FAST)))) {
+		s->req->flags |= BF_KERN_SPLICING;
 	}
 
 	/* reflect what the L7 analysers have seen last */
@@ -898,23 +912,37 @@ resync_stream_interface:
 			resync = 1;
 	}
 
-	/* if noone is interested in analysing data, let's forward everything
-	 * and only wake up every 1-2 MB. We still wake up when send_max is
-	 * reached though.
+	/* If noone is interested in analysing data, it's time to forward
+	 * everything. We will wake up from time to time when either send_max
+	 * or to_forward are reached.
 	 */
-	if (!s->rep->send_max && s->rep->prod->state >= SI_ST_EST &&
-	    !s->rep->analysers && !(s->rep->flags & BF_HIJACK)) {
-		/* check if it is wise to enable kernel splicing on the response buffer */
-		if (!(s->rep->flags & (BF_KERN_SPLICING|BF_SHUTR)) &&
-		    (global.tune.options & GTUNE_USE_SPLICE) &&
-		    (pipes_used < global.maxpipes) &&
-		    (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_RTR) ||
-		     (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_AUT) &&
-		      (s->rep->flags & BF_STREAMER_FAST))))
-			s->rep->flags |= BF_KERN_SPLICING;
+	if (!s->rep->analysers &&
+	    !(s->rep->flags & (BF_HIJACK|BF_SHUTW)) &&
+	    (s->rep->prod->state >= SI_ST_EST)) {
+		/* This buffer is freewheeling, there's no analyser nor hijacker
+		 * attached to it. If any data are left in, we'll permit them to
+		 * move.
+		 */
+		buffer_flush(s->rep);
 
-		if (s->rep->to_forward < FORWARD_DEFAULT_SIZE)
+		/* If the producer is still connected, we'll schedule large blocks
+		 * of data to be forwarded from the producer to the consumer (which
+		 * might possibly not be connected yet).
+		 */
+		if (!(s->rep->flags & BF_SHUTR) &&
+		    s->rep->to_forward < FORWARD_DEFAULT_SIZE)
 			buffer_forward(s->rep, FORWARD_DEFAULT_SIZE);
+	}
+
+	/* check if it is wise to enable kernel splicing to forward response data */
+	if (!(s->rep->flags & (BF_KERN_SPLICING|BF_SHUTR)) &&
+	    s->rep->to_forward &&
+	    (global.tune.options & GTUNE_USE_SPLICE) &&
+	    (pipes_used < global.maxpipes) &&
+	    (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_RTR) ||
+	     (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_AUT) &&
+	      (s->rep->flags & BF_STREAMER_FAST)))) {
+		s->rep->flags |= BF_KERN_SPLICING;
 	}
 
 	/* reflect what the L7 analysers have seen last */

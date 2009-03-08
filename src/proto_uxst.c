@@ -812,13 +812,25 @@ struct task *uxst_process_session(struct task *t)
 	if (!s->req->analysers && !(s->req->flags & BF_HIJACK))
 		s->req->send_max = s->req->l;
 
-	/* if noone is interested in analysing data, let's forward everything
-	 * and only wake up every 1-2 MB. We still wake up when send_max is
-	 * reached though.
+	/* If noone is interested in analysing data, it's time to forward
+	 * everything. We will wake up from time to time when either send_max
+	 * or to_forward are reached.
 	 */
-	if (!s->req->send_max && s->req->prod->state >= SI_ST_EST &&
-	    !s->req->analysers && !(s->req->flags & BF_HIJACK)) {
-		if (s->req->to_forward < FORWARD_DEFAULT_SIZE)
+	if (!s->req->analysers &&
+	    !(s->req->flags & (BF_HIJACK|BF_SHUTW)) &&
+	    (s->req->prod->state >= SI_ST_EST)) {
+		/* This buffer is freewheeling, there's no analyser nor hijacker
+		 * attached to it. If any data are left in, we'll permit them to
+		 * move.
+		 */
+		buffer_flush(s->req);
+
+		/* If the producer is still connected, we'll schedule large blocks
+		 * of data to be forwarded from the producer to the consumer (which
+		 * might possibly not be connected yet).
+		 */
+		if (!(s->req->flags & BF_SHUTR) &&
+		    s->req->to_forward < FORWARD_DEFAULT_SIZE)
 			buffer_forward(s->req, FORWARD_DEFAULT_SIZE);
 	}
 
@@ -895,13 +907,25 @@ struct task *uxst_process_session(struct task *t)
 			resync = 1;
 	}
 
-	/* if noone is interested in analysing data, let's forward everything
-	 * and only wake up every 1-2 MB. We still wake up when send_max is
-	 * reached though.
+	/* If noone is interested in analysing data, it's time to forward
+	 * everything. We will wake up from time to time when either send_max
+	 * or to_forward are reached.
 	 */
-	if (!s->rep->send_max && s->rep->prod->state >= SI_ST_EST &&
-	    !s->rep->analysers && !(s->rep->flags & BF_HIJACK)) {
-		if (s->rep->to_forward < FORWARD_DEFAULT_SIZE)
+	if (!s->rep->analysers &&
+	    !(s->rep->flags & (BF_HIJACK|BF_SHUTW)) &&
+	    (s->rep->prod->state >= SI_ST_EST)) {
+		/* This buffer is freewheeling, there's no analyser nor hijacker
+		 * attached to it. If any data are left in, we'll permit them to
+		 * move.
+		 */
+		buffer_flush(s->rep);
+
+		/* If the producer is still connected, we'll schedule large blocks
+		 * of data to be forwarded from the producer to the consumer (which
+		 * might possibly not be connected yet).
+		 */
+		if (!(s->rep->flags & BF_SHUTR) &&
+		    s->rep->to_forward < FORWARD_DEFAULT_SIZE)
 			buffer_forward(s->rep, FORWARD_DEFAULT_SIZE);
 	}
 
