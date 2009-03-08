@@ -108,6 +108,16 @@ static inline void buffer_forward(struct buffer *buf, unsigned int bytes)
 	buf->send_max += data_left;
 }
 
+/* Schedule all remaining buffer data to be sent. send_max is not touched if it
+ * already covers those data. That permits doing a flush even after a forward,
+ * although not recommended.
+ */
+static inline void buffer_flush(struct buffer *buf)
+{
+	if (buf->send_max < buf->l)
+		buf->send_max = buf->l;
+}
+
 /* Erase any content from buffer <buf> and adjusts flags accordingly. Note
  * that any spliced data is not affected since we may not have any access to
  * it.
