@@ -988,6 +988,23 @@ void stream_sock_chk_snd(struct stream_interface *si)
 		EV_FD_COND_S(si->fd, DIR_WR);
 	}
 
+	if (likely(ob->flags & BF_WRITE_ACTIVITY)) {
+		/* update timeout if we have written something */
+		if ((ob->send_max || ob->pipe) &&
+		    (ob->flags & (BF_SHUTW|BF_WRITE_PARTIAL)) == BF_WRITE_PARTIAL)
+			ob->wex = tick_add_ifset(now_ms, ob->wto);
+
+		if (tick_isset(si->ib->rex)) {
+			/* Note: to prevent the client from expiring read timeouts
+			 * during writes, we refresh it. A better solution would be
+			 * to merge read+write timeouts into a unique one, although
+			 * that needs some study particularly on full-duplex TCP
+			 * connections.
+			 */
+			si->ib->rex = tick_add_ifset(now_ms, si->ib->rto);
+		}
+	}
+
 	/* in case of special condition (error, shutdown, end of write...), we
 	 * have to notify the task.
 	 */
