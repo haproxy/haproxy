@@ -1,6 +1,284 @@
 ChangeLog :
 ===========
 
+2009/03/09 : 1.3.16-rc1
+    - appsessions: cleanup DEBUG_HASH and initialize request_counter
+    - [MINOR] acl: add new keyword "connslots"
+    - [MINOR] cfgparse: fix off-by 2 in error message size
+    - [BUILD] fix build with gcc 4.3
+    - [BUILD] fix MANDIR default location to match documentation
+    - [TESTS] add a debug patch to help trigger the stats bug
+    - [BUG] Flush buffers also where there are exactly 0 bytes left
+    - [MINOR] Allow to specify a domain for a cookie
+    - [BUG/CLEANUP] cookiedomain -> cookie_domain rename + free(p->cookie_domain)
+    - [MEDIUM] Fix memory freeing at exit
+    - [MEDIUM] Fix memory freeing at exit, part 2
+    - [BUG] Fix listen & more of 2 couples <ip>:<port>
+    - [DOC] remove buggy comment for use_backend
+    - [CRITICAL] fix server state tracking: it was O(n!) instead of O(n)
+    - [MEDIUM] add support for URI hash depth and length limits
+    - [MINOR] permit renaming of x-forwarded-for header
+    - [BUILD] fix Makefile.bsd and Makefile.osx for stream_interface
+    - [BUILD] Haproxy won't compile if DEBUG_FULL is defined
+    - [MEDIUM] upgrade to ebtree v4.0
+    - [DOC] update the README file with new build options
+    - [MEDIUM] reduce risk of event starvation in ev_sepoll
+    - [MEDIUM] detect streaming buffers and tag them as such
+    - [MEDIUM] add support for conditional HTTP redirection
+    - [BUILD] make install should depend on haproxy not "all"
+    - [DEBUG] add a TRACE macro to facilitate runtime data extraction
+    - [BUG] event pollers must not wait if a task exists in the run queue
+    - [BUG] queue management: wake oldest request in queues
+    - [BUG] log: reported queue position was offed-by-one
+    - [BUG] fix the dequeuing logic to ensure that all requests get served
+    - [DOC] documentation for the "retries" parameter was missing.
+    - [MEDIUM] implement a monotonic internal clock
+    - [MEDIUM] further improve monotonic clock by check forward jumps
+    - [OPTIM] add branch prediction hints in list manipulations
+    - [MAJOR] replace ultree with ebtree in wait-queues
+    - [BUG] we could segfault during exit while freeing uri_auths
+    - [BUG] wqueue: perform proper timeout comparisons with wrapping values
+    - [MINOR] introduce now_ms, the current date in milliseconds
+    - [BUG] disable buffer read timeout when reading stats
+    - [MEDIUM] rework the wait queue mechanism
+    - [BUILD] change declaration of base64tab to fix build with Intel C++
+    - [OPTIM] shrink wake_expired_tasks() by using task_wakeup()
+    - [MAJOR] use an ebtree instead of a list for the run queue
+    - [MEDIUM] introduce task->nice and boot access to statistics
+    - [OPTIM] task_queue: assume most consecutive timers are equal
+    - [BUILD] silent a warning in unlikely() with gcc 4.x
+    - [MAJOR] convert all expiration timers from timeval to ticks
+    - [BUG] use_backend would not correctly consider "unless"
+    - [TESTS] added test-acl.cfg to test some ACL combinations
+    - [MEDIUM] add support for configuration keyword registration
+    - [MEDIUM] modularize the global "stats" keyword configuration parser
+    - [MINOR] cfgparse: add support for warnings in external functions
+    - [MEDIUM] modularize the "timeout" keyword configuration parser
+    - [MAJOR] implement tcp request content inspection
+    - [MINOR] acl: add a new parsing function: parse_dotted_ver
+    - [MINOR] acl: add req_ssl_ver in TCP, to match an SSL version
+    - [CLEANUP] remove unused include/types/client.h
+    - [CLEANUP] remove many #include <types/xxx> from C files
+    - [CLEANUP] remove dependency on obsolete INTBITS macro
+    - [DOC] document the new "tcp-request" keyword and associated ACLs
+    - [MINOR] acl: add REQ_CONTENT to the list of default acls
+    - [MEDIUM] acl: permit fetch() functions to set the result themselves
+    - [MEDIUM] acl: get rid of dummy values in always_true/always_false
+    - [MINOR] acl: add the "wait_end" acl verb
+    - [MEDIUM] acl: enforce ACL type checking
+    - [MEDIUM] acl: set types on all currently known ACL verbs
+    - [MEDIUM] acl: when possible, report the name and requirements of ACLs in warnings
+    - [CLEANUP] remove 65 useless NULL checks before free
+    - [MEDIUM] memory: update pool_free2() to support NULL pointers
+    - [MEDIUM] buffers: ensure buffer_shut* are properly called upon shutdowns
+    - [MEDIUM] process_srv: rely on buffer flags for client shutdown
+    - [MEDIUM] process_srv: don't rely at all on client state
+    - [MEDIUM] process_cli: don't rely at all on server state
+    - [BUG] fix segfault with url_param + check_post
+    - [BUG] server timeout was not considered in some circumstances
+    - [BUG] client timeout incorrectly rearmed while waiting for server
+    - [MAJOR] kill CL_STINSPECT and CL_STHEADERS (step 1)
+    - [MAJOR] get rid of SV_STANALYZE (step 2)
+    - [MEDIUM] simplify and centralize request timeout cancellation and request forwarding
+    - [MAJOR] completely separate HTTP and TCP states on the request path
+    - [BUG] fix recently introduced loop when client closes early
+    - [MAJOR] get rid of the SV_STHEADERS state
+    - [MAJOR] better separation of response processing and server state
+    - [MAJOR] clearly separate HTTP response processing from TCP server state
+    - [MEDIUM] remove unused references to {CL|SV}_STSHUT*
+    - [MINOR] term_trace: add better instrumentations to trace the code
+    - [BUG] ev_sepoll: closed file descriptors could persist in the spec list
+    - [BUG] process_response must not enable the read FD
+    - [BUG] buffers: remove BF_MAY_CONNECT and fix forwarding issue
+    - [BUG] process_response: do not touch srv_state
+    - [BUG] maintain_proxies must not disable backends
+    - [CLEANUP] get rid of BF_SHUT*_PENDING
+    - [MEDIUM] buffers: add BF_EMPTY and BF_FULL to remove dependency on req/rep->l
+    - [MAJOR] process_session: rely only on buffer flags
+    - [MEDIUM] use buffer->wex instead of buffer->cex for connect timeout
+    - [MEDIUM] centralize buffer timeout checks at the top of process_session
+    - [MINOR] ensure the termination flags are set by process_xxx
+    - [MEDIUM] session: move the analysis bit field to the buffer
+    - [OPTIM] process_cli/process_srv:  reduce the number of tests
+    - [BUG] regparm is broken on gcc < 3
+    - [BUILD] fix warning in proto_tcp.c with gcc >= 4
+    - [MEDIUM] merge inspect_exp and txn->exp into request buffer
+    - [BUG] process_cli/process_srv: don't call shutdown when already done
+    - [BUG] process_request: HTTP body analysis must return zero if missing data
+    - [TESTS] test-fsm: 22 regression tests for state machines
+    - [BUG] Fix empty X-Forwarded-For header name when set in defaults section
+    - [BUG] fix harmless but wrong fd insertion sequence
+    - [MEDIUM] make it possible for analysers to follow the whole session
+    - [MAJOR] rework of the server FSM
+    - [OPTIM] remove useless fd_set(read) upon shutdown(write)
+    - [MEDIUM] massive cleanup of process_srv()
+    - [MEDIUM] second level of code cleanup for process_srv_data
+    - [MEDIUM] third cleanup and optimization of process_srv_data()
+    - [MEDIUM] process_srv_data: ensure that we always correctly re-arm timeouts
+    - [MEDIUM] stream_sock_process_data moved to stream_sock.c
+    - [MAJOR] make the client side use stream_sock_process_data()
+    - [MEDIUM] split stream_sock_process_data
+    - [OPTIM] stream_sock_read must check for null-reads more often
+    - [MINOR] only call flow analysers when their read side is connected.
+    - [MEDIUM] reintroduce BF_HIJACK with produce_content
+    - [MINOR] re-arrange buffer flags and rename some of them
+    - [MINOR] do not check for BF_SHUTR when computing write timeout
+    - [OPTIM] ev_sepoll: detect newly created FDs and check them once
+    - [OPTIM] reduce the number of calls to task_wakeup()
+    - [OPTIM] force inlining of large functions with gcc >= 3
+    - [MEDIUM] indicate a reason for a task wakeup
+    - [MINOR] change type of fdtab[]->owner to void*
+    - [MAJOR] make stream sockets aware of the stream interface
+    - [MEDIUM] stream interface: add the ->shutw method as well as in and out buffers
+    - [MEDIUM] buffers: add BF_READ_ATTACHED and BF_ANA_TIMEOUT
+    - [MEDIUM] process_session: make use of the new buffer flags
+    - [CLEANUP] process_session: move debug outputs out of the critical loop
+    - [MEDIUM] move QUEUE and TAR timers to stream interfaces
+    - [OPTIM] add compiler hints in tick_is_expired()
+    - [MINOR] add buffer_check_timeouts() to check what timeouts have fired.
+    - [MEDIUM] use buffer_check_timeouts instead of stream_sock_check_timeouts()
+    - [MINOR] add an expiration flag to the stream_sock_interface
+    - [MAJOR] migrate the connection logic to stream interface
+    - [MAJOR] add a connection error state to the stream_interface
+    - [MEDIUM] add the SN_CURR_SESS flag to the session to track open sessions
+    - [MEDIUM] continue layering cleanups.
+    - [MEDIUM] stream_interface: added a DISconnected state between CON/EST and CLO
+    - [MEDIUM] remove stream_sock_update_data()
+    - [MINOR] maintain a global session list in order to ease debugging
+    - [BUG] shutw must imply close during a connect
+    - [MEDIUM] process shutw during connection attempt
+    - [MEDIUM] make the stream interface control the SHUT{R,W} bits
+    - [MAJOR] complete layer4/7 separation
+    - [CLEANUP] move the session-related functions to session.c
+    - [MINOR] call session->do_log() for logging
+    - [MINOR] replace the ambiguous client_return function by stream_int_return
+    - [MINOR] replace client_retnclose() with stream_int_retnclose()
+    - [MINOR] replace srv_close_with_err() with http_server_error()
+    - [MEDIUM] make the http server error function a pointer in the session
+    - [CLEANUP] session.c: removed some migration left-overs in sess_establish()
+    - [MINOR] stream_sock_data_finish() should not expose fd
+    - [MEDIUM] extract TCP request processing from HTTP
+    - [MEDIUM] extract the HTTP tarpit code from process_request().
+    - [MEDIUM] move the HTTP request body analyser out of process_request().
+    - [MEDIUM] rename process_request to http_process_request
+    - [BUG] fix forgotten server session counter
+    - [MINOR] declare process_session in session.h, not proto_http.h
+    - [MEDIUM] first pass of lifting to proto_uxst.c:uxst_event_accept()
+    - [MINOR] add an analyser code for UNIX stats request
+    - [MINOR] pre-set analyser flags on the listener at registration time
+    - [BUG] do not forward close from cons to prod with analysers
+    - [MEDIUM] ensure that sock->shutw() also closes read for init states
+    - [MINOR] add an analyser state in struct session
+    - [MAJOR] make unix sockets work again with stats
+    - [MEDIUM] remove cli_fd, srv_fd, cli_state and srv_state from the session
+    - [MINOR] move the listener reference from fd to session
+    - [MEDIUM] reference the current hijack function in the buffer itself
+    - [MINOR] slightly rebalance stats_dump_{raw,http}
+    - [MINOR] add a new back-reference type : struct bref
+    - [MINOR] add back-references to sessions for later use by a dumper.
+    - [MEDIUM] add support for "show sess" in unix stats socket
+    - [BUG] do not release the connection slot during a retry
+    - [BUG] dynamic connection throttling could return a max of zero conns
+    - [BUG] do not try to pause backends during reload
+    - [BUG] ensure that listeners from disabled proxies are correctly unbound.
+    - [BUG] acl-related keywords are not allowed in defaults sections
+    - [BUG] cookie capture is declared in the frontend but checked on the backend
+    - [BUG] critical errors should be reported even in daemon mode
+    - [MINOR] redirect: add support for the "drop-query" option
+    - [MINOR] redirect: add support for "set-cookie" and "clear-cookie"
+    - [MINOR] redirect: in prefix mode a "/" means not to change the URI
+    - [BUG] do not dequeue requests on a dead server
+    - [BUG] do not dequeue the backend's pending connections on a dead server
+    - [MINOR] stats: indicate if a task is running in "show sess"
+    - [BUG] check timeout must not be changed if timeout.check is not set
+    - [BUG] "option transparent" is for backend, not frontend !
+    - [MINOR] transfer errors were not reported anymore in data phase
+    - [MEDIUM] add a send limit to a buffer
+    - [MEDIUM] don't report buffer timeout when there is I/O activity
+    - [MEDIUM] indicate when we don't care about read timeout
+    - [MINOR] add flags to indicate when a stream interface is waiting for space/data
+    - [MEDIUM] enable inter-stream_interface wakeup calls
+    - [MAJOR] implement autonomous inter-socket forwarding
+    - [MINOR] add the splice_len member to the buffer struct in preparation of splice support
+    - [MEDIUM] stream_sock: factor out the return path in case of no-writes
+    - [MEDIUM] i/o: rework ->to_forward and ->send_max
+    - [OPTIM] stream_sock: do not ask for polling on EAGAIN if we have read
+    - [OPTIM] buffer: replace rlim by max_len
+    - [OPTIM] stream_sock: factor out the buffer full handling out of the loop
+    - [CLEANUP] replace a few occurrences of (flags & X) && !(flags & Y)
+    - [CLEANUP] stream_sock: move the write-nothing condition out of the loop
+    - [MEDIUM] split stream_sock_write() into callback and core functions
+    - [MEDIUM] stream_sock_read: call ->chk_snd whenever there are data pending
+    - [MINOR] stream_sock: fix a few wrong empty calculations
+    - [MEDIUM] stream_sock: try to send pending data on chk_snd()
+    - [MINOR] global.maxpipes: add the ability to reserve file descriptors for pipes
+    - [MEDIUM] splice: add configuration options and set global.maxpipes
+    - [MINOR] introduce structures required to support Linux kernel splicing
+    - [MEDIUM] add definitions for Linux kernel splicing
+    - [MAJOR] complete support for linux 2.6 kernel splicing
+    - [BUG] reserve some pipes for backends with splice enabled
+    - [MEDIUM] splice: add hints to support older buggy kernels
+    - [MEDIUM] introduce pipe pools
+    - [MEDIUM] splice: make use of pipe pools
+    - [STATS] report pipe usage in the statistics
+    - [OPTIM] make global.maxpipes default to global.maxconn/4 when not specified
+    - [BUILD] fix snapshot date extraction with negative timezones
+    - [MEDIUM] move global tuning options to the global structure
+    - [MEDIUM] splice: add the global "nosplice" option
+    - [BUILD] add USE_LINUX_SPLICE to enable LINUX_SPLICE on linux 2.6
+    - [BUG] we must not exit if protocol binding only returns a warning
+    - [MINOR] add support for bind interface name
+    - [BUG] inform the user when root is expected but not set
+    - [MEDIUM] add support for source interface binding
+    - [MEDIUM] add support for source interface binding at the server level
+    - [MEDIUM] implement bind-process to limit service presence by process
+    - [DOC] document maxpipes, nosplice, option splice-{auto,request,response}
+    - [DOC] filled the logging section of the configuration manual
+    - [DOC] document HTTP status codes
+    - [DOC] document a few missing info about errorfile
+    - [BUG] fix random memory corruption using "show sess"
+    - [BUG] fix unix socket processing of interrupted output
+    - [DOC] add diagrams of queuing and future ACL design
+    - [BUILD] proto_http did not build on gcc-2.95
+    - [BUG] the "source" keyword must first clear optional settings
+    - [BUG] global.tune.maxaccept must be limited even in mono-process mode
+    - [MINOR] ensure that http_msg_analyzer updates pointer to invalid char
+    - [MEDIUM] store a complete dump of request and response errors in proxies
+    - [MEDIUM] implement error dump on unix socket with "show errors"
+    - [DOC] document "show errors"
+    - [MINOR] errors dump must use user-visible date, not internal date.
+    - [MINOR] time: add __usec_to_1024th to convert usecs to 1024th of second
+    - [MINOR] add curr_sec_ms and curr_sec_ms_scaled for current second.
+    - [MEDIUM] measure and report session rate on frontend, backends and servers
+    - [BUG] the "connslots" keyword was matched as "connlots"
+    - [MINOR] acl: add 2 new verbs: fe_sess_rate and be_sess_rate
+    - [MEDIUM] implement "rate-limit sessions" for the frontend
+    - [BUG] interface binding: length must include the trailing zero
+    - [BUG] typo in timeout error reporting : report *res and not *err
+    - [OPTIM] maintain_proxies: only wake up when the frontend will be ready
+    - [OPTIM] rate-limit: cleaner behaviour on low rates and reduce consumption
+    - [BUG] switch server-side stream interface to close in case of abort
+    - [CLEANUP] remove last references to term_trace
+    - [OPTIM] freq_ctr: do not rotate the counters when reading
+    - [BUG] disable any analysers for monitoring requests
+    - [BUG] rate-limit in defaults section was ignored
+    - [BUG] task: fix handling of duplicate keys
+    - [OPTIM] task: don't unlink a task from a wait queue when waking it up
+    - [OPTIM] displace tasks in the wait queue only if absolutely needed
+    - [MEDIUM] minor update to the task api: let the scheduler queue itself
+    - [BUG] event_accept() must always wake the task up, even in health mode
+    - [CLEANUP] task: distinguish between clock ticks and timers
+    - [OPTIM] task: reduce the number of calls to task_queue()
+    - [OPTIM] do not re-check req buffer when only response has changed
+    - [CLEANUP] don't enable kernel splicing when socket is closed
+    - [CLEANUP] buffer_flush() was misleading, rename it as buffer_erase
+    - [MINOR] buffers: implement buffer_flush()
+    - [MEDIUM] rearrange forwarding condition to enable splice during analysis
+    - [BUILD] build fixes for Solaris
+    - [BUILD] proto_http did not build on gcc-2.95 (again)
+    - [CONTRIB] halog: fast log parser for haproxy
+    - [CONTRIB] halog: faster fgets() and add support for percentile reporting
+
 2008/04/19 : 1.3.15
     - [BUILD] Added support for 'make install'
     - [BUILD] Added 'install-man' make target for installing the man page
