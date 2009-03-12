@@ -1262,11 +1262,11 @@ static int dump_error_line(struct chunk *out, int size,
 
 	while (ptr < err->len) {
 		c = err->buf[ptr];
-		if (isprint(c)) {
+		if (isprint(c) && isascii(c) && c != '\\') {
 			if (out->len > end - 2)
 				break;
 			out->str[out->len++] = c;
-		} else if (c == '\t' || c == '\n' || c == '\r' || c == '\e') {
+		} else if (c == '\t' || c == '\n' || c == '\r' || c == '\e' || c == '\\') {
 			if (out->len > end - 3)
 				break;
 			out->str[out->len++] = '\\';
@@ -1275,6 +1275,7 @@ static int dump_error_line(struct chunk *out, int size,
 			case '\n': c = 'n'; break;
 			case '\r': c = 'r'; break;
 			case '\e': c = 'e'; break;
+			case '\\': c = '\\'; break;
 			}
 			out->str[out->len++] = c;
 		} else {
