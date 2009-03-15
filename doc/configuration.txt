@@ -857,8 +857,9 @@ balance url_param <param> [check_post [<max_wait>]]
                 balance uri [len <len>] [depth <depth>]
                 balance url_param <param> [check_post [<max_wait>]]
 
-  The definition of the load balancing algorithm is mandatory for a backend
-  and limited to one per backend.
+  The load balancing algorithm of a backend is set to roundrobin when no other
+  algorithm, mode nor option have been set. The algorithm may only be set once
+  for each backend.
 
   Examples :
         balance roundrobin

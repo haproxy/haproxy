@@ -3146,32 +3146,33 @@ int readcfgfile(const char *file)
 			cfgerr++;
 		}
 
-		if (curproxy->cap & PR_CAP_BE &&
-		    ((curproxy->mode != PR_MODE_HEALTH) &&
-		     !(curproxy->options & (PR_O_TRANSP | PR_O_HTTP_PROXY)) &&
-		     !(curproxy->lbprm.algo & BE_LB_ALGO) &&
-		     (*(int *)&curproxy->dispatch_addr.sin_addr == 0))) {
-			Alert("parsing %s : %s '%s' has no dispatch address and is not in transparent or balance mode.\n",
-			      file, proxy_type_str(curproxy), curproxy->id);
-			cfgerr++;
-		}
-
-		if ((curproxy->mode != PR_MODE_HEALTH) && (curproxy->lbprm.algo & BE_LB_ALGO)) {
-			if (curproxy->options & PR_O_TRANSP) {
-				Alert("parsing %s : %s '%s' cannot use both transparent and balance mode.\n",
-				      file, proxy_type_str(curproxy), curproxy->id);
-				cfgerr++;
-			}
+		if ((curproxy->cap & PR_CAP_BE) && (curproxy->mode != PR_MODE_HEALTH)) {
+			if (curproxy->lbprm.algo & BE_LB_ALGO) {
+				if (curproxy->options & PR_O_TRANSP) {
+					Alert("parsing %s : %s '%s' cannot use both transparent and balance mode.\n",
+					      file, proxy_type_str(curproxy), curproxy->id);
+					cfgerr++;
+				}
 #ifdef WE_DONT_SUPPORT_SERVERLESS_LISTENERS
-			else if (curproxy->srv == NULL) {
-				Alert("parsing %s : %s '%s' needs at least 1 server in balance mode.\n",
-				      file, proxy_type_str(curproxy), curproxy->id);
-				cfgerr++;
-			}
+				else if (curproxy->srv == NULL) {
+					Alert("parsing %s : %s '%s' needs at least 1 server in balance mode.\n",
+					      file, proxy_type_str(curproxy), curproxy->id);
+					cfgerr++;
+				}
 #endif
-			else if (*(int *)&curproxy->dispatch_addr.sin_addr != 0) {
-				Warning("parsing %s : dispatch address of %s '%s' will be ignored in balance mode.\n",
-					file, proxy_type_str(curproxy), curproxy->id);
+				else if (*(int *)&curproxy->dispatch_addr.sin_addr != 0) {
+					Warning("parsing %s : dispatch address of %s '%s' will be ignored in balance mode.\n",
+						file, proxy_type_str(curproxy), curproxy->id);
+				}
+			}
+			else if (!(curproxy->options & (PR_O_TRANSP | PR_O_HTTP_PROXY)) &&
+				 (*(int *)&curproxy->dispatch_addr.sin_addr == 0)) {
+				/* If no LB algo is set in a backend, and we're not in
+				 * transparent mode, dispatch mode nor proxy mode, we
+				 * want to use balance roundrobin by default.
+				 */
+				curproxy->lbprm.algo &= ~BE_LB_ALGO;
+				curproxy->lbprm.algo |= BE_LB_ALGO_RR;
 			}
 		}
 
