@@ -206,6 +206,8 @@ int sess_update_st_con_tcp(struct session *s, struct stream_interface *si)
 		si->shutw(si);
 		si->err_type |= SI_ET_CONN_ABRT;
 		si->err_loc  = s->srv;
+		if (s->srv_error)
+			s->srv_error(s, si);
 		return 1;
 	}
 
@@ -758,10 +760,40 @@ resync_stream_interface:
 				break;
 			}
 		}
+
+		/* Report it if the client got an error or a read timeout expired */
+		if (unlikely(s->req->flags & (BF_READ_ERROR|BF_READ_TIMEOUT|BF_WRITE_ERROR|BF_WRITE_TIMEOUT)) &&
+		    !(s->flags & SN_ERR_MASK)) {
+			s->req->analysers = 0;
+			if (s->req->flags & BF_READ_ERROR)
+				s->flags |= SN_ERR_CLICL;
+			else if (s->req->flags & BF_READ_TIMEOUT)
+				s->flags |= SN_ERR_CLITO;
+			else if (s->req->flags & BF_WRITE_ERROR)
+				s->flags |= SN_ERR_SRVCL;
+			else
+				s->flags |= SN_ERR_SRVTO;
+			sess_set_term_flags(s);
+		}
+
 		s->req->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
 		flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
 		if (s->req->flags != flags)
 			resync = 1;
+	}
+
+	/* Report it if the client got an error or a read timeout expired */
+	if (unlikely(s->req->flags & (BF_READ_ERROR|BF_READ_TIMEOUT|BF_WRITE_ERROR|BF_WRITE_TIMEOUT)) &&
+	    !(s->flags & SN_ERR_MASK)) {
+		if (s->req->flags & BF_READ_ERROR)
+			s->flags |= SN_ERR_CLICL;
+		else if (s->req->flags & BF_READ_TIMEOUT)
+			s->flags |= SN_ERR_CLITO;
+		else if (s->req->flags & BF_WRITE_ERROR)
+			s->flags |= SN_ERR_SRVCL;
+		else
+			s->flags |= SN_ERR_SRVTO;
+		sess_set_term_flags(s);
 	}
 
 	/* If noone is interested in analysing data, it's time to forward
@@ -906,10 +938,40 @@ resync_stream_interface:
 			if (s->rep->analysers)
 				process_response(s);
 		}
+
+		/* Report it if the server got an error or a read timeout expired */
+		if (unlikely(s->rep->flags & (BF_READ_ERROR|BF_READ_TIMEOUT|BF_WRITE_ERROR|BF_WRITE_TIMEOUT)) &&
+		    !(s->flags & SN_ERR_MASK)) {
+			s->rep->analysers = 0;
+			if (s->rep->flags & BF_READ_ERROR)
+				s->flags |= SN_ERR_SRVCL;
+			else if (s->rep->flags & BF_READ_TIMEOUT)
+				s->flags |= SN_ERR_SRVTO;
+			else if (s->rep->flags & BF_WRITE_ERROR)
+				s->flags |= SN_ERR_CLICL;
+			else
+				s->flags |= SN_ERR_CLITO;
+			sess_set_term_flags(s);
+		}
+
 		s->rep->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
 		flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
 		if (s->rep->flags != flags)
 			resync = 1;
+	}
+
+	/* Report it if the server got an error or a read timeout expired */
+	if (unlikely(s->rep->flags & (BF_READ_ERROR|BF_READ_TIMEOUT|BF_WRITE_ERROR|BF_WRITE_TIMEOUT)) &&
+	    !(s->flags & SN_ERR_MASK)) {
+		if (s->rep->flags & BF_READ_ERROR)
+			s->flags |= SN_ERR_SRVCL;
+		else if (s->rep->flags & BF_READ_TIMEOUT)
+			s->flags |= SN_ERR_SRVTO;
+		else if (s->rep->flags & BF_WRITE_ERROR)
+			s->flags |= SN_ERR_CLICL;
+		else
+			s->flags |= SN_ERR_CLITO;
+		sess_set_term_flags(s);
 	}
 
 	/* If noone is interested in analysing data, it's time to forward
@@ -1135,6 +1197,72 @@ void sess_change_server(struct session *sess, struct server *newsrv)
 	}
 }
 
+/* Set correct session termination flags in case no analyser has done it. It
+ * also counts a failed request if the server state has not reached the request
+ * stage.
+ */
+void sess_set_term_flags(struct session *s)
+{
+	if (!(s->flags & SN_FINST_MASK)) {
+		if (s->si[1].state < SI_ST_REQ) {
+			s->fe->failed_req++;
+			s->flags |= SN_FINST_R;
+		}
+		else if (s->si[1].state == SI_ST_QUE)
+			s->flags |= SN_FINST_Q;
+		else if (s->si[1].state < SI_ST_EST)
+			s->flags |= SN_FINST_C;
+		else if (s->si[1].state == SI_ST_EST)
+			s->flags |= SN_FINST_D;
+		else
+			s->flags |= SN_FINST_L;
+	}
+}
+
+/* Handle server-side errors for default protocols. It is called whenever a a
+ * connection setup is aborted or a request is aborted in queue. It sets the
+ * session termination flags so that the caller does not have to worry about
+ * them. It's installed as ->srv_error for the server-side stream_interface.
+ */
+void default_srv_error(struct session *s, struct stream_interface *si)
+{
+	int err_type = si->err_type;
+	int err = 0, fin = 0;
+
+	if (err_type & SI_ET_QUEUE_ABRT) {
+		err = SN_ERR_CLICL;
+		fin = SN_FINST_Q;
+	}
+	else if (err_type & SI_ET_CONN_ABRT) {
+		err = SN_ERR_CLICL;
+		fin = SN_FINST_C;
+	}
+	else if (err_type & SI_ET_QUEUE_TO) {
+		err = SN_ERR_SRVTO;
+		fin = SN_FINST_Q;
+	}
+	else if (err_type & SI_ET_QUEUE_ERR) {
+		err = SN_ERR_SRVCL;
+		fin = SN_FINST_Q;
+	}
+	else if (err_type & SI_ET_CONN_TO) {
+		err = SN_ERR_SRVTO;
+		fin = SN_FINST_C;
+	}
+	else if (err_type & SI_ET_CONN_ERR) {
+		err = SN_ERR_SRVCL;
+		fin = SN_FINST_C;
+	}
+	else /* SI_ET_CONN_OTHER and others */ {
+		err = SN_ERR_INTERNAL;
+		fin = SN_FINST_C;
+	}
+
+	if (!(s->flags & SN_ERR_MASK))
+		s->flags |= err;
+	if (!(s->flags & SN_FINST_MASK))
+		s->flags |= fin;
+}
 
 /*
  * Local variables:

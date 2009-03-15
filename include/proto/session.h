@@ -37,6 +37,8 @@ int init_session();
 void session_process_counters(struct session *s);
 void sess_change_server(struct session *sess, struct server *newsrv);
 struct task *process_session(struct task *t);
+void sess_set_term_flags(struct session *s);
+void default_srv_error(struct session *s, struct stream_interface *si);
 
 static void inline trace_term(struct session *s, unsigned int code)
 {

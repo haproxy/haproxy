@@ -227,7 +227,7 @@ int event_accept(int fd) {
 		if (p->mode == PR_MODE_HTTP)
 			s->srv_error = http_return_srv_error;
 		else
-			s->srv_error = NULL;
+			s->srv_error = default_srv_error;
 
 		s->logs.accept_date = date; /* user-visible date for logging */
 		s->logs.tv_accept = now;  /* corrected date for internal use */
