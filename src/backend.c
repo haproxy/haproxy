@@ -1840,7 +1840,7 @@ int connect_server(struct session *s)
 			s->be->lbprm.server_take_conn(s->srv);
 	}
 
-	s->req->wex = tick_add_ifset(now_ms, s->be->timeout.connect);
+	s->req->cons->exp = tick_add_ifset(now_ms, s->be->timeout.connect);
 	return SN_ERR_NONE;  /* connection is OK */
 }
 
