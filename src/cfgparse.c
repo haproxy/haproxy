@@ -3113,16 +3113,44 @@ int readcfgfile(const char *file)
 			continue;
 		}
 
-		if (curproxy->cap & PR_CAP_FE && curproxy->listen == NULL)  {
+		switch (curproxy->mode) {
+		case PR_MODE_HEALTH:
+			cfgerr += proxy_cfg_ensure_no_http(curproxy, file);
+			if (!(curproxy->cap & PR_CAP_FE)) {
+				Alert("parsing %s : %s '%s' cannot be in health mode as it has no frontend capability.\n",
+				      file, proxy_type_str(curproxy), curproxy->id);
+				cfgerr++;
+			}
+
+			if (curproxy->srv != NULL)
+				Warning("parsing %s : servers will be ignored for %s '%s'.\n",
+					file, proxy_type_str(curproxy), curproxy->id);
+			break;
+
+		case PR_MODE_TCP:
+			cfgerr += proxy_cfg_ensure_no_http(curproxy, file);
+			break;
+
+		case PR_MODE_HTTP:
+			if ((curproxy->cookie_name != NULL) && (curproxy->srv == NULL)) {
+				Alert("parsing %s : HTTP proxy %s has a cookie but no server list !\n",
+				      file, curproxy->id);
+				cfgerr++;
+			}
+			break;
+		}
+
+		if ((curproxy->cap & PR_CAP_FE) && (curproxy->listen == NULL))  {
 			Alert("parsing %s : %s '%s' has no listen address. Please either specify a valid address on the <listen> line, or use the <bind> keyword.\n",
 			      file, proxy_type_str(curproxy), curproxy->id);
 			cfgerr++;
 		}
-		else if (curproxy->cap & PR_CAP_BE &&
-			 ((curproxy->mode != PR_MODE_HEALTH) &&
-			  !(curproxy->options & (PR_O_TRANSP | PR_O_HTTP_PROXY)) &&
-			  !(curproxy->lbprm.algo & BE_LB_ALGO) &&
-			  (*(int *)&curproxy->dispatch_addr.sin_addr == 0))) {
+
+		if (curproxy->cap & PR_CAP_BE &&
+		    ((curproxy->mode != PR_MODE_HEALTH) &&
+		     !(curproxy->options & (PR_O_TRANSP | PR_O_HTTP_PROXY)) &&
+		     !(curproxy->lbprm.algo & BE_LB_ALGO) &&
+		     (*(int *)&curproxy->dispatch_addr.sin_addr == 0))) {
 			Alert("parsing %s : %s '%s' has no dispatch address and is not in transparent or balance mode.\n",
 			      file, proxy_type_str(curproxy), curproxy->id);
 			cfgerr++;
@@ -3144,47 +3172,6 @@ int readcfgfile(const char *file)
 			else if (*(int *)&curproxy->dispatch_addr.sin_addr != 0) {
 				Warning("parsing %s : dispatch address of %s '%s' will be ignored in balance mode.\n",
 					file, proxy_type_str(curproxy), curproxy->id);
-			}
-		}
-
-		if (curproxy->mode == PR_MODE_TCP || curproxy->mode == PR_MODE_HEALTH) { /* TCP PROXY or HEALTH CHECK */
-			if (curproxy->cookie_name != NULL) {
-				Warning("parsing %s : cookie will be ignored for %s '%s'.\n",
-					file, proxy_type_str(curproxy), curproxy->id);
-			}
-			if (curproxy->rsp_exp != NULL) {
-				Warning("parsing %s : server regular expressions will be ignored for %s '%s'.\n",
-					file, proxy_type_str(curproxy), curproxy->id);
-			}
-			if (curproxy->req_exp != NULL) {
-				Warning("parsing %s : client regular expressions will be ignored for %s '%s'.\n",
-					file, proxy_type_str(curproxy), curproxy->id);
-			}
-			if (curproxy->monitor_uri != NULL) {
-				Warning("parsing %s : monitor-uri will be ignored for %s '%s'.\n",
-					file, proxy_type_str(curproxy), curproxy->id);
-			}
-			if (curproxy->lbprm.algo & BE_LB_PROP_L7) {
-				curproxy->lbprm.algo &= ~BE_LB_ALGO;
-				curproxy->lbprm.algo |= BE_LB_ALGO_RR;
-
-				Warning("parsing %s : Layer 7 hash not possible for %s '%s'. Falling back to round robin.\n",
-					file, proxy_type_str(curproxy), curproxy->id);
-			}
-		}
-
-		if (curproxy->mode == PR_MODE_HEALTH) { /* TCP PROXY or HEALTH CHECK */
-			if ((newsrv = curproxy->srv) != NULL) {
-				Warning("parsing %s : servers will be ignored for %s '%s'.\n",
-					file, proxy_type_str(curproxy), curproxy->id);
-			}
-		}
-
-		if (curproxy->mode == PR_MODE_HTTP) { /* HTTP PROXY */
-			if ((curproxy->cookie_name != NULL) && ((newsrv = curproxy->srv) == NULL)) {
-				Alert("parsing %s : HTTP proxy %s has a cookie but no server list !\n",
-				      file, curproxy->id);
-				cfgerr++;
 			}
 		}
 

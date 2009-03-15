@@ -297,6 +297,39 @@ struct server *findserver(const struct proxy *px, const char *name) {
 	return target;
 }
 
+/* This function checks that the designated proxy has no http directives
+ * enabled. It will output a warning if there are, and will fix some of them.
+ * It returns the number of fatal errors encountered. This should be called
+ * at the end of the configuration parsing if the proxy is not in http mode.
+ * The <file> argument is used to construct the error message.
+ */
+int proxy_cfg_ensure_no_http(struct proxy *curproxy, const char *file)
+{
+	if (curproxy->cookie_name != NULL) {
+		Warning("parsing %s : cookie will be ignored for %s '%s' (needs 'mode http').\n",
+			file, proxy_type_str(curproxy), curproxy->id);
+	}
+	if (curproxy->rsp_exp != NULL) {
+		Warning("parsing %s : server regular expressions will be ignored for %s '%s' (needs 'mode http').\n",
+			file, proxy_type_str(curproxy), curproxy->id);
+	}
+	if (curproxy->req_exp != NULL) {
+		Warning("parsing %s : client regular expressions will be ignored for %s '%s' (needs 'mode http').\n",
+			file, proxy_type_str(curproxy), curproxy->id);
+	}
+	if (curproxy->monitor_uri != NULL) {
+		Warning("parsing %s : monitor-uri will be ignored for %s '%s' (needs 'mode http').\n",
+			file, proxy_type_str(curproxy), curproxy->id);
+	}
+	if (curproxy->lbprm.algo & BE_LB_PROP_L7) {
+		curproxy->lbprm.algo &= ~BE_LB_ALGO;
+		curproxy->lbprm.algo |= BE_LB_ALGO_RR;
+		Warning("parsing %s : Layer 7 hash not possible for %s '%s' (needs 'mode http'). Falling back to round robin.\n",
+			file, proxy_type_str(curproxy), curproxy->id);
+	}
+	return 0;
+}
+
 /*
  * This function creates all proxy sockets. It should be done very early,
  * typically before privileges are dropped. The sockets will be registered
