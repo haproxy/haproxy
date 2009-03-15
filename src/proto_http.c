@@ -2569,17 +2569,10 @@ int process_response(struct session *t)
 				es->src = t->cli_addr;
 
 			hdr_response_bad:
-				//buffer_shutr(rep);
-				//buffer_shutw(req);
-				//fd_delete(req->cons->fd);
-				//req->cons->state = SI_ST_CLO;
 				buffer_shutr_now(rep);
 				buffer_shutw_now(req);
-				if (t->srv) {
-					//t->srv->cur_sess--;
+				if (t->srv)
 					t->srv->failed_resp++;
-					//sess_change_server(t, NULL);
-				}
 				t->be->failed_resp++;
 				rep->analysers = 0;
 				txn->status = 502;
@@ -2588,9 +2581,6 @@ int process_response(struct session *t)
 					t->flags |= SN_ERR_PRXCOND;
 				if (!(t->flags & SN_FINST_MASK))
 					t->flags |= SN_FINST_H;
-
-				//if (t->srv && may_dequeue_tasks(t->srv, t->be))
-				//	process_srv_queue(t->srv);
 
 				return 0;
 			}
@@ -2602,14 +2592,9 @@ int process_response(struct session *t)
 			else if (rep->flags & BF_READ_ERROR) {
 				buffer_shutr_now(rep);
 				buffer_shutw_now(req);
-				//fd_delete(req->cons->fd);
-				//req->cons->state = SI_ST_CLO;
-				//if (t->srv) {
-					//t->srv->cur_sess--;
-					//t->srv->failed_resp++;
-					//sess_change_server(t, NULL);
-				//}
-				//t->be->failed_resp++;
+				if (t->srv)
+					t->srv->failed_resp++;
+				t->be->failed_resp++;
 				rep->analysers = 0;
 				txn->status = 502;
 				stream_int_return(rep->cons, error_message(t, HTTP_ERR_502));
@@ -2617,23 +2602,14 @@ int process_response(struct session *t)
 					t->flags |= SN_ERR_SRVCL;
 				if (!(t->flags & SN_FINST_MASK))
 					t->flags |= SN_FINST_H;
-
-				//if (t->srv && may_dequeue_tasks(t->srv, t->be))
-				//	process_srv_queue(t->srv);
-
 				return 0;
 			}
 			/* read timeout : return a 504 to the client. */
 			else if (rep->flags & BF_READ_TIMEOUT) {
 				buffer_shutr_now(rep);
 				buffer_shutw_now(req);
-				//fd_delete(req->cons->fd);
-				//req->cons->state = SI_ST_CLO;
-				if (t->srv) {
-					//t->srv->cur_sess--;
+				if (t->srv)
 					t->srv->failed_resp++;
-					//sess_change_server(t, NULL);
-				}
 				t->be->failed_resp++;
 				rep->analysers = 0;
 				txn->status = 504;
@@ -2642,22 +2618,13 @@ int process_response(struct session *t)
 					t->flags |= SN_ERR_SRVTO;
 				if (!(t->flags & SN_FINST_MASK))
 					t->flags |= SN_FINST_H;
-
-				//if (t->srv && may_dequeue_tasks(t->srv, t->be))
-				//	process_srv_queue(t->srv);
 				return 0;
 			}
-			/* write error to client, or close from server */
-			else if (rep->flags & (BF_WRITE_ERROR|BF_SHUTR)) {
-				buffer_shutr_now(rep);
+			/* close from server */
+			else if (rep->flags & BF_SHUTR) {
 				buffer_shutw_now(req);
-				//fd_delete(req->cons->fd);
-				//req->cons->state = SI_ST_CLO;
-				if (t->srv) {
-					//t->srv->cur_sess--;
+				if (t->srv)
 					t->srv->failed_resp++;
-					//sess_change_server(t, NULL);
-				}
 				t->be->failed_resp++;
 				rep->analysers = 0;
 				txn->status = 502;
@@ -2666,10 +2633,17 @@ int process_response(struct session *t)
 					t->flags |= SN_ERR_SRVCL;
 				if (!(t->flags & SN_FINST_MASK))
 					t->flags |= SN_FINST_H;
-
-				//if (t->srv && may_dequeue_tasks(t->srv, t->be))
-				//	process_srv_queue(t->srv);
-
+				return 0;
+			}
+			/* write error to client (we don't send any message then) */
+			else if (rep->flags & BF_WRITE_ERROR) {
+				buffer_shutr_now(rep);
+				t->be->failed_resp++;
+				rep->analysers = 0;
+				if (!(t->flags & SN_ERR_MASK))
+					t->flags |= SN_ERR_CLICL;
+				if (!(t->flags & SN_FINST_MASK))
+					t->flags |= SN_FINST_H;
 				return 0;
 			}
 			buffer_write_dis(rep);
@@ -2748,17 +2722,12 @@ int process_response(struct session *t)
 			if (rule_set->rsp_exp != NULL) {
 				if (apply_filters_to_response(t, rep, rule_set->rsp_exp) < 0) {
 				return_bad_resp:
-					if (t->srv) {
-						//t->srv->cur_sess--;
+					if (t->srv)
 						t->srv->failed_resp++;
-						//sess_change_server(t, NULL);
-					}
 					cur_proxy->failed_resp++;
 				return_srv_prx_502:
 					buffer_shutr_now(rep);
 					buffer_shutw_now(req);
-					//fd_delete(req->cons->fd);
-					//req->cons->state = SI_ST_CLO;
 					rep->analysers = 0;
 					txn->status = 502;
 					stream_int_return(rep->cons, error_message(t, HTTP_ERR_502));
@@ -2766,22 +2735,14 @@ int process_response(struct session *t)
 						t->flags |= SN_ERR_PRXCOND;
 					if (!(t->flags & SN_FINST_MASK))
 						t->flags |= SN_FINST_H;
-					/* We used to have a free connection slot. Since we'll never use it,
-					 * we have to inform the server that it may be used by another session.
-					 */
-					//if (t->srv && may_dequeue_tasks(t->srv, cur_proxy))
-					//	process_srv_queue(t->srv);
 					return 0;
 				}
 			}
 
 			/* has the response been denied ? */
 			if (txn->flags & TX_SVDENY) {
-				if (t->srv) {
-					//t->srv->cur_sess--;
+				if (t->srv)
 					t->srv->failed_secu++;
-					//sess_change_server(t, NULL);
-				}
 				cur_proxy->denied_resp++;
 				goto return_srv_prx_502;
 			}
@@ -2916,11 +2877,8 @@ int process_response(struct session *t)
 			 * a set-cookie header. We'll block it as requested by
 			 * the 'checkcache' option, and send an alert.
 			 */
-			if (t->srv) {
-				//t->srv->cur_sess--;
+			if (t->srv)
 				t->srv->failed_secu++;
-				//sess_change_server(t, NULL);
-			}
 			t->be->denied_resp++;
 
 			Alert("Blocking cacheable cookie in response from instance %s, server %s.\n",
