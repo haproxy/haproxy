@@ -3096,6 +3096,19 @@ int readcfgfile(const char *file)
 	/* will be needed further to delay some tasks */
 	tv_update_date(0,1);
 
+	/* first, we will invert the proxy list order */
+	curproxy = NULL;
+	while (proxy) {
+		struct proxy *next;
+
+		next = proxy->next;
+		proxy->next = curproxy;
+		curproxy = proxy;
+		if (!next)
+			break;
+		proxy = next;
+	}
+
 	if ((curproxy = proxy) == NULL) {
 		Alert("parsing %s : no <listen> line. Nothing to do !\n",
 		      file);
