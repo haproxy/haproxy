@@ -3469,7 +3469,8 @@ int readcfgfile(const char *file)
 			if (curproxy->mode == PR_MODE_HTTP)
 				listener->analysers |= AN_REQ_HTTP_HDR;
 
-			if (curproxy->tcp_req.inspect_delay)
+			if (curproxy->tcp_req.inspect_delay ||
+			    !LIST_ISEMPTY(&curproxy->tcp_req.inspect_rules))
 				listener->analysers |= AN_REQ_INSPECT;
 
 			listener = listener->next;

@@ -3627,7 +3627,10 @@ tcp-request inspect-delay <timeout>
   rules for every new chunk which gets in, taking into account the fact that
   those data are partial. If no rule matches before the aforementionned delay,
   a last check is performed upon expiration, this time considering that the
-  contents are definitive.
+  contents are definitive. If no delay is set, haproxy will not wait at all
+  and will immediately apply a verdict based on the available information.
+  Obviously this is unlikely to be very useful and might even be racy, so such
+  setups are not recommended.
 
   As soon as a rule matches, the request is released and continues as usual. If
   the timeout is reached and no rule matches, the default policy will be to let
