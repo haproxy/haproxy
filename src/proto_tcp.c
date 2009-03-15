@@ -339,9 +339,10 @@ void tcpv6_add_listener(struct listener *listener)
  * needs more data, encounters an error, or wants to immediately abort the
  * request. It relies on buffers flags, and updates s->req->analysers. Its
  * behaviour is rather simple:
- *  - the analyser must check for errors and timeouts, and react as expected.
- *    It does not have to close anything upon error, the caller will.
- *  - if the analyser does not have enough data, it must return 0without calling
+ *  - the analyser should check for errors and timeouts, and react as expected.
+ *    It does not have to close anything upon error, the caller will. Note that
+ *    the caller also knows how to report errors and timeouts.
+ *  - if the analyser does not have enough data, it must return 0 without calling
  *    other ones. It should also probably do a buffer_write_dis() to ensure
  *    that unprocessed data will not be forwarded. But that probably depends on
  *    the protocol.
@@ -367,32 +368,6 @@ int tcp_inspect_request(struct session *s, struct buffer *req)
 		req->flags,
 		req->l,
 		req->analysers);
-
-	/* We will abort if we encounter a read error. In theory, we
-	 * should not abort if we get a close, it might be valid,
-	 * although very unlikely. FIXME: we'll abort for now, this
-	 * will be easier to change later.
-	 */
-	if (req->flags & BF_READ_ERROR) {
-		req->analysers = 0;
-		s->fe->failed_req++;
-		if (!(s->flags & SN_ERR_MASK))
-			s->flags |= SN_ERR_CLICL;
-		if (!(s->flags & SN_FINST_MASK))
-			s->flags |= SN_FINST_R;
-		return 0;
-	}
-
-	/* Abort if client read timeout has expired */
-	else if (req->flags & BF_READ_TIMEOUT) {
-		req->analysers = 0;
-		s->fe->failed_req++;
-		if (!(s->flags & SN_ERR_MASK))
-			s->flags |= SN_ERR_CLITO;
-		if (!(s->flags & SN_FINST_MASK))
-			s->flags |= SN_FINST_R;
-		return 0;
-	}
 
 	/* We don't know whether we have enough data, so must proceed
 	 * this way :
