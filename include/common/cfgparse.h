@@ -33,6 +33,14 @@
 #define CFG_GLOBAL	1
 #define CFG_LISTEN	2
 
+/* list of overlapping ACL rules that we can detect */
+enum {
+	CFG_ACL_TCP = 1,
+	CFG_ACL_BLOCK = 2,
+	CFG_ACL_REDIR = 4,
+	CFG_ACL_BACKEND = 8,
+};
+
 struct cfg_keyword {
 	int section;                            /* section type for this keyword */
 	const char *kw;                         /* the keyword itself */
@@ -58,6 +66,7 @@ struct cfg_kw_list {
 
 extern int cfg_maxpconn;
 extern int cfg_maxconn;
+extern unsigned int acl_seen;	/* CFG_ACL_* for current proxy being parsed */
 
 int cfg_parse_global(const char *file, int linenum, char **args, int inv);
 int cfg_parse_listen(const char *file, int linenum, char **args, int inv);

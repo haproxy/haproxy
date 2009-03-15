@@ -129,7 +129,8 @@ static const struct cfg_opt cfg_opts2[] =
 static char *cursection = NULL;
 static struct proxy defproxy;		/* fake proxy used to assign default values on all instances */
 int cfg_maxpconn = DEFAULT_MAXCONN;	/* # of simultaneous connections per proxy (-N) */
-int cfg_maxconn = 0;		/* # of simultaneous connections, (-n) */
+int cfg_maxconn = 0;			/* # of simultaneous connections, (-n) */
+unsigned int acl_seen = 0;		/* CFG_ACL_* */
 
 /* List head of all known configuration keywords */
 static struct cfg_kw_list cfg_keywords = {
@@ -636,7 +637,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			return -1;
 		}
-	
+
+		acl_seen = 0;	
 		curproxy->next = proxy;
 		proxy = curproxy;
 		LIST_INIT(&curproxy->pendconns);
@@ -1204,6 +1206,16 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		}
 		cond->line = linenum;
 		LIST_ADDQ(&curproxy->block_cond, &cond->list);
+
+		if (!(acl_seen & CFG_ACL_BLOCK)) {
+			if (acl_seen & CFG_ACL_REDIR)
+				Warning("parsing [%s:%d] : a '%s' rule placed after a 'redirect' rule will still be processed before.\n",
+					file, linenum, args[0]);
+			if (acl_seen & CFG_ACL_BACKEND)
+				Warning("parsing [%s:%d] : a '%s' rule placed after a 'use_backend' rule will still be processed before.\n",
+					file, linenum, args[0]);
+			acl_seen |= CFG_ACL_BLOCK;
+		}
 	}
 	else if (!strcmp(args[0], "redirect")) {
 		int pol = ACL_COND_NONE;
@@ -1340,6 +1352,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		rule->flags = flags;
 		LIST_INIT(&rule->list);
 		LIST_ADDQ(&curproxy->redirect_rules, &rule->list);
+
+		if (!(acl_seen & CFG_ACL_REDIR)) {
+			if (acl_seen & CFG_ACL_BACKEND)
+				Warning("parsing [%s:%d] : a '%s' rule placed after a 'use_backend' rule will still be processed before.\n",
+					file, linenum, args[0]);
+			acl_seen |= CFG_ACL_REDIR;
+		}
 	}
 	else if (!strcmp(args[0], "use_backend")) {
 		int pol = ACL_COND_NONE;
@@ -1392,6 +1411,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		rule->be.name = strdup(args[1]);
 		LIST_INIT(&rule->list);
 		LIST_ADDQ(&curproxy->switching_rules, &rule->list);
+		acl_seen |= CFG_ACL_BACKEND;
 	}
 	else if (!strcmp(args[0], "stats")) {
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))

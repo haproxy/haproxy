@@ -564,6 +564,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 		rule->action = action;
 		LIST_INIT(&rule->list);
 		LIST_ADDQ(&curpx->tcp_req.inspect_rules, &rule->list);
+		acl_seen |= CFG_ACL_TCP;
 		return warn;
 	}
 
