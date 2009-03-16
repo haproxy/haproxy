@@ -2640,6 +2640,7 @@ Example :
     listen stats :8080
         mode http
         stats uri /
+        balance roundrobin
 
 
 L'option "stats auth <user:password>" active l'authentification "Basic" et

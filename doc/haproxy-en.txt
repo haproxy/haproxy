@@ -2586,6 +2586,7 @@ Example :
     listen stats :8080
         mode http
         stats uri /
+        balance roundrobin
 
 The "stats auth <user:password>" option enables Basic authentication and adds a
 valid user:password combination to the list of authorized accounts. The user
