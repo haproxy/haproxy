@@ -1,0 +1,6 @@
+# haproxy labeling policy
+# file: haproxy.fc
+/usr/sbin/haproxy           -- gen_context(system_u:object_r:haproxy_exec_t, s0)
+/etc/haproxy/haproxy\.cfg   -- gen_context(system_u:object_r:haproxy_conf_t, s0)
+/var/run/haproxy\.pid       -- gen_context(system_u:object_r:haproxy_var_run_t, s0)
+/var/run/haproxy\.sock(.*)  -- gen_context(system_u:object_r:haproxy_var_run_t, s0)
