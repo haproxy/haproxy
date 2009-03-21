@@ -100,6 +100,7 @@ static inline void eb32_delete(struct eb32_node *eb32)
  */
 REGPRM2 struct eb32_node *eb32_lookup(struct eb_root *root, u32 x);
 REGPRM2 struct eb32_node *eb32i_lookup(struct eb_root *root, s32 x);
+REGPRM2 struct eb32_node *eb32_lookup_ge(struct eb_root *root, u32 x);
 REGPRM2 struct eb32_node *eb32_insert(struct eb_root *root, struct eb32_node *new);
 REGPRM2 struct eb32_node *eb32i_insert(struct eb_root *root, struct eb32_node *new);
 
@@ -122,6 +123,7 @@ static forceinline struct eb32_node *__eb32_lookup(struct eb_root *root, u32 x)
 {
 	struct eb32_node *node;
 	eb_troot_t *troot;
+	u32 y;
 
 	troot = root->b[EB_LEFT];
 	if (unlikely(troot == NULL))
@@ -139,7 +141,8 @@ static forceinline struct eb32_node *__eb32_lookup(struct eb_root *root, u32 x)
 		node = container_of(eb_untag(troot, EB_NODE),
 				    struct eb32_node, node.branches);
 
-		if (x == node->key) {
+		y = node->key ^ x;
+		if (!y) {
 			/* Either we found the node which holds the key, or
 			 * we have a dup tree. In the later case, we have to
 			 * walk it down left to get the first entry.
@@ -153,6 +156,9 @@ static forceinline struct eb32_node *__eb32_lookup(struct eb_root *root, u32 x)
 			}
 			return node;
 		}
+
+		if ((y >> node->node.bit) >= EB_NODE_BRANCHES)
+			return NULL; /* no more common bits */
 
 		troot = node->node.branches.b[(x >> node->node.bit) & EB_NODE_BRANCH_MASK];
 	}
@@ -167,6 +173,7 @@ static forceinline struct eb32_node *__eb32i_lookup(struct eb_root *root, s32 x)
 	struct eb32_node *node;
 	eb_troot_t *troot;
 	u32 key = x ^ 0x80000000;
+	u32 y;
 
 	troot = root->b[EB_LEFT];
 	if (unlikely(troot == NULL))
@@ -184,7 +191,8 @@ static forceinline struct eb32_node *__eb32i_lookup(struct eb_root *root, s32 x)
 		node = container_of(eb_untag(troot, EB_NODE),
 				    struct eb32_node, node.branches);
 
-		if (x == node->key) {
+		y = node->key ^ x;
+		if (!y) {
 			/* Either we found the node which holds the key, or
 			 * we have a dup tree. In the later case, we have to
 			 * walk it down left to get the first entry.
@@ -198,6 +206,9 @@ static forceinline struct eb32_node *__eb32i_lookup(struct eb_root *root, s32 x)
 			}
 			return node;
 		}
+
+		if ((y >> node->node.bit) >= EB_NODE_BRANCHES)
+			return NULL; /* no more common bits */
 
 		troot = node->node.branches.b[(key >> node->node.bit) & EB_NODE_BRANCH_MASK];
 	}
