@@ -27,6 +27,8 @@ struct pool_head *pool2_task;
 
 unsigned int nb_tasks = 0;
 unsigned int run_queue = 0;
+unsigned int run_queue_cur = 0;    /* copy of the run queue size */
+unsigned int nb_tasks_cur = 0;     /* copy of the tasks count */
 unsigned int niced_tasks = 0;      /* number of niced tasks in the run queue */
 struct eb32_node *last_timer = NULL;  /* optimization: last queued timer */
 
@@ -181,6 +183,8 @@ void process_runnable_tasks(int *next)
 	unsigned int max_processed;
 	int expire;
 
+	run_queue_cur = run_queue; /* keep a copy for reporting */
+	nb_tasks_cur = nb_tasks;
 	max_processed = run_queue;
 	if (max_processed > 200)
 		max_processed = 200;

@@ -80,6 +80,8 @@
 /* a few exported variables */
 extern unsigned int nb_tasks;     /* total number of tasks */
 extern unsigned int run_queue;    /* run queue size */
+extern unsigned int run_queue_cur;
+extern unsigned int nb_tasks_cur;
 extern unsigned int niced_tasks;  /* number of niced tasks in the run queue */
 extern struct pool_head *pool2_task;
 extern struct eb32_node *last_timer;   /* optimization: last queued timer */

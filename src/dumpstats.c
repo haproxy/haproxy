@@ -235,6 +235,8 @@ int stats_dump_raw(struct session *s, struct buffer *rep, struct uri_auth *uri)
 				     "CurrConns: %d\n"
 				     "PipesUsed: %d\n"
 				     "PipesFree: %d\n"
+				     "Tasks: %d\n"
+				     "Run_queue: %d\n"
 				     "",
 				     global.nbproc,
 				     relative_pid,
@@ -244,7 +246,8 @@ int stats_dump_raw(struct session *s, struct buffer *rep, struct uri_auth *uri)
 				     global.rlimit_memmax,
 				     global.rlimit_nofile,
 				     global.maxsock, global.maxconn, global.maxpipes,
-				     actconn, pipes_used, pipes_free
+				     actconn, pipes_used, pipes_free,
+				     nb_tasks_cur, run_queue_cur
 				     );
 			if (buffer_write_chunk(rep, &msg) >= 0)
 				return 0;
@@ -468,6 +471,7 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 			     "<b>system limits :</b> memmax = %s%s ; ulimit-n = %d<br>\n"
 			     "<b>maxsock = </b> %d ; <b>maxconn = </b> %d ; <b>maxpipes = </b> %d<br>\n"
 			     "current conns = %d ; current pipes = %d/%d<br>\n"
+			     "Running tasks : %d/%d<br>\n"
 			     "</td><td align=\"center\" nowrap>\n"
 			     "<table class=\"lgd\"><tr>\n"
 			     "<td class=\"active3\">&nbsp;</td><td class=\"noborder\">active UP </td>"
@@ -496,7 +500,8 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 			     global.rlimit_memmax ? " MB" : "",
 			     global.rlimit_nofile,
 			     global.maxsock, global.maxconn, global.maxpipes,
-			     actconn, pipes_used, pipes_used+pipes_free
+			     actconn, pipes_used, pipes_used+pipes_free,
+			     run_queue_cur, nb_tasks_cur
 			     );
 
 			if (s->data_ctx.stats.flags & STAT_HIDE_DOWN)
