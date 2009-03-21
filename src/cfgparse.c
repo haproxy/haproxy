@@ -1638,6 +1638,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 					      file, linenum, *err, newsrv->id);
 					return -1;
 				}
+				if (val <= 0) {
+					Alert("parsing [%s:%d]: invalid value %d for argument '%s' of server %s.\n",
+					      file, linenum, val, args[cur_arg], newsrv->id);
+					return -1;
+				}
 				newsrv->inter = val;
 				cur_arg += 2;
 			}
@@ -1648,6 +1653,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 					      file, linenum, *err, newsrv->id);
 					return -1;
 				}
+				if (val <= 0) {
+					Alert("parsing [%s:%d]: invalid value %d for argument '%s' of server %s.\n",
+					      file, linenum, val, args[cur_arg], newsrv->id);
+					return -1;
+				}
 				newsrv->fastinter = val;
 				cur_arg += 2;
 			}
@@ -1656,6 +1666,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 				if (err) {
 					Alert("parsing [%s:%d]: unexpected character '%c' in 'downinter' argument of server %s.\n",
 					      file, linenum, *err, newsrv->id);
+					return -1;
+				}
+				if (val <= 0) {
+					Alert("parsing [%s:%d]: invalid value %d for argument '%s' of server %s.\n",
+					      file, linenum, val, args[cur_arg], newsrv->id);
 					return -1;
 				}
 				newsrv->downinter = val;
@@ -1702,6 +1717,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 				if (err) {
 					Alert("parsing [%s:%d] : unexpected character '%c' in 'slowstart' argument of server %s.\n",
 					      file, linenum, *err, newsrv->id);
+					return -1;
+				}
+				if (val <= 0) {
+					Alert("parsing [%s:%d]: invalid value %d for argument '%s' of server %s.\n",
+					      file, linenum, val, args[cur_arg], newsrv->id);
 					return -1;
 				}
 				newsrv->slowstart = (val + 999) / 1000;

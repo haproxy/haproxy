@@ -529,6 +529,7 @@ static int event_srv_chk_r(int fd)
 void process_chk(struct task *t, struct timeval *next)
 {
 	__label__ new_chk, out;
+	int attempts = 0;
 	struct server *s = t->context;
 	struct sockaddr_in sa;
 	int fd;
@@ -537,6 +538,14 @@ void process_chk(struct task *t, struct timeval *next)
 	//fprintf(stderr, "process_chk: task=%p\n", t);
 
  new_chk:
+	if (attempts++ > 0) {
+		/* we always fail to create a server, let's stop insisting... */
+		while (tv_isle(&t->expire, &now))
+			tv_ms_add(&t->expire, &t->expire, s->inter);
+		task_queue(t);	/* restore t to its place in the task list */
+		*next = t->expire;
+		goto out;
+	}
 	fd = s->curfd;
 	if (fd < 0) {   /* no check currently running */
 		//fprintf(stderr, "process_chk: 2\n");
