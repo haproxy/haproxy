@@ -27,7 +27,7 @@ struct pool_head *pool2_task;
 
 unsigned int run_queue = 0;
 unsigned int niced_tasks = 0;      /* number of niced tasks in the run queue */
-struct task *last_timer = NULL;    /* optimization: last queued timer */
+struct eb32_node *last_timer = NULL;  /* optimization: last queued timer */
 
 static struct eb_root timers;      /* sorted timers tree */
 static struct eb_root rqueue;      /* tree constituting the run queue */
@@ -91,19 +91,22 @@ void __task_queue(struct task *task)
 #endif
 
 	if (likely(last_timer &&
-		   last_timer->wq.key == task->wq.key &&
-		   last_timer->wq.node.bit == -1 &&
-		   last_timer->wq.node.node_p)) {
+		   last_timer->node.bit < 0 &&
+		   last_timer->key == task->wq.key &&
+		   last_timer->node.node_p)) {
 		/* Most often, last queued timer has the same expiration date, so
 		 * if it's not queued at the root, let's queue a dup directly there.
-		 * Note that we can only use dups at the dup tree's root (bit==-1).
+		 * Note that we can only use dups at the dup tree's root (most
+		 * negative bit).
 		 */
-		eb_insert_dup(&last_timer->wq.node, &task->wq.node);
+		eb_insert_dup(&last_timer->node, &task->wq.node);
+		if (task->wq.node.bit < last_timer->node.bit)
+			last_timer = &task->wq;
 		return;
 	}
 	eb32_insert(&timers, &task->wq);
-	if (task->wq.node.bit == -1)
-		last_timer = task; /* we only want a dup tree's root */
+	if (!last_timer || (task->wq.node.bit < last_timer->node.bit))
+		last_timer = &task->wq;
 	return;
 }
 

@@ -26,6 +26,7 @@
 #include <sys/time.h>
 
 #include <common/config.h>
+#include <common/eb32tree.h>
 #include <common/memory.h>
 #include <common/mini-clist.h>
 #include <common/standard.h>
@@ -80,7 +81,7 @@
 extern unsigned int run_queue;    /* run queue size */
 extern unsigned int niced_tasks;  /* number of niced tasks in the run queue */
 extern struct pool_head *pool2_task;
-extern struct task *last_timer;   /* optimization: last queued timer */
+extern struct eb32_node *last_timer;   /* optimization: last queued timer */
 
 /* return 0 if task is in run queue, otherwise non-zero */
 static inline int task_in_rq(struct task *t)
@@ -113,7 +114,7 @@ static inline struct task *task_wakeup(struct task *t, unsigned int f)
 static inline struct task *__task_unlink_wq(struct task *t)
 {
 	eb32_delete(&t->wq);
-	if (last_timer == t)
+	if (last_timer == &t->wq)
 		last_timer = NULL;
 	return t;
 }
