@@ -44,52 +44,17 @@
  * cannot use that to store sorted information because that reference changes
  * all the time.
  *
- * So we cut the time in 3 ranges, only one of which <now> can be. The base of
- * the range holding <now> serves as a reference for as long as <now> remains
- * in this range :
- *   - previous : those ones are expired by definition (all before <now>)
- *   - current  : some are expired, some are not (holds <now>)
- *   - next     : none are expired (all after <now>)
+ * We'll use the fact that the time wraps to sort timers. Timers above <now>
+ * are in the future, timers below <now> are in the past. Here, "above" and
+ * "below" are to be considered modulo 2^31.
  *
- * We use the higher two bits of the timers expressed in ticks to determine
- * which range a timer is in, compared to <now> :
- *
- *   now     previous     current      next0     next1
- * [31:30]   [31:30]      [31:30]     [31:30]   [31:30]
- *    00        11           00          01        10
- *    01        00           01          10        11
- *    10        01           10          11        00
- *    11        10           11          00        01
- *
- * By definition, <current> is the range containing <now> as well as all timers
- * which have the same 2 high bits as <now>, <previous> is the range just
- * before, which contains all timers whose high bits equal those of <now> minus
- * 1. Last, <next> is composed of the two remaining ranges.
- *
- * For ease of implementation, the timers will then be stored into 4 queues 0-3
- * determined by the 2 higher bits of the timer. The expiration algorithm is
- * very simple :
- *  - expire everything in <previous>=queue[((now>>30)-1)&3]
- *  - expire from <current>=queue[(now>>30)&3] everything where timer >= now
- *
- * With this algorithm, it's possible to queue tasks meant to expire 24.8 days
- * in the future, and still be able to detect events remaining unprocessed for
- * the last 12.4 days! Note that the principle might be extended to any number
- * of higher bits as long as there is only one range for expired tasks. For
- * instance, using the 8 higher bits to index the range, we would have one past
- * range of 4.6 hours (24 bits in ms), and 254 ranges in the future totalizing
- * 49.3 days. This would eat more memory for very little added benefit though.
- *
- * Also, in order to maintain the ability to perform time comparisons, it is
- * preferable to avoid using the <next1> range above, as values in this range
- * may not easily be compared to <now> outside of these functions as it is the
- * opposite of the <current> range, and <timer>-<now> may randomly be positive
- * or negative. That means we're left with +/- 12.4 days timers.
- *
- * To keep timers ordered, we use 4 ebtrees [0..3]. We could have used instead
- * of ticks, (seconds*1024)+milliseconds, as well as 1024th of seconds, but
- * that makes comparisons with ticks more difficult, so in the end it's better
- * to stick to the ticks.
+ * Timers are stored sorted in an ebtree. We use the new ability for ebtrees to
+ * lookup values starting from X to only expire tasks between <now> - 2^31 and
+ * <now>. If the end of the tree is reached while walking over it, we simply
+ * loop back to the beginning. That way, we have no problem keeping sorted
+ * wrapping timers in a tree, between (now - 24 days) and (now + 24 days). The
+ * keys in the tree always reflect their real position, none can be infinite.
+ * This reduces the number of checks to be performed.
  *
  * Another nice optimisation is to allow a timer to stay at an old place in the
  * queue as long as it's not further than the real expiration date. That way,
@@ -102,51 +67,20 @@
  * So, to summarize, we have :
  *   - node->key always defines current position in the wait queue
  *   - timer is the real expiration date (possibly infinite)
- *   - node->key <= timer
+ *   - node->key is always before or equal to timer
  *
  * The run queue works similarly to the wait queue except that the current date
  * is replaced by an insertion counter which can also wrap without any problem.
  */
 
-/* the timers are stored as 32-bit values in the queues */
-#define TIMER_TICK_BITS       32
-#define TIMER_TREE_BITS        2
-#define TIMER_TREES           (1 << TIMER_TREE_BITS)
-#define TIMER_TREE_SHIFT      (TIMER_TICK_BITS - TIMER_TREE_BITS)
-#define TIMER_TREE_MASK       (TIMER_TREES - 1)
-#define TIMER_TICK_MASK       ((1U << (TIMER_TICK_BITS-1)) * 2 - 1)
-#define TIMER_SIGN_BIT        (1 << (TIMER_TICK_BITS - 1))
+/* The farthest we can look back in a timer tree */
+#define TIMER_LOOK_BACK       (1U << 31)
 
 /* a few exported variables */
 extern unsigned int run_queue;    /* run queue size */
 extern unsigned int niced_tasks;  /* number of niced tasks in the run queue */
 extern struct pool_head *pool2_task;
 extern struct task *last_timer;   /* optimization: last queued timer */
-
-/* Convert ticks to timers. Must not be called with TICK_ETERNITY, which is not
- * a problem inside tree scanning functions. Note that ticks are signed while
- * timers are not.
- */
-static inline unsigned int tick_to_timer(int tick)
-{
-	return tick & TIMER_TICK_MASK;
-}
-
-/* Convert timer to ticks. This operation will be correct only as long as
- * timers are stored on a minimum of 32-bit. We take care of not returning zero
- * which would mean "eternity" for a tick. Also note that ticks are signed and
- * timers are not.
- */
-static inline int timer_to_tick(unsigned int timer)
-{
-	return timer ? timer : 1;
-}
-
-/* returns a tree number based on a ticks value */
-static inline unsigned int timer_to_tree(unsigned int timer)
-{
-	return (timer >> TIMER_TREE_SHIFT) & TIMER_TREE_MASK;
-}       
 
 /* return 0 if task is in run queue, otherwise non-zero */
 static inline int task_in_rq(struct task *t)
@@ -263,8 +197,7 @@ static inline void task_queue(struct task *task)
 	if (!tick_isset(task->expire))
 		return;
 
-	if (((tick_to_timer(task->expire) - task->wq.key) & TIMER_SIGN_BIT)
-		|| !task_in_wq(task))
+	if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key))
 		__task_queue(task);
 }
 

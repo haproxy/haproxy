@@ -40,7 +40,7 @@
  * in the past and as much in the future.
  * 
  * We must both support absolute dates (well in fact, dates relative to now+/-
- * 12 days), and intervals (for timeouts). Both types need an "eternity" magic
+ * 24 days), and intervals (for timeouts). Both types need an "eternity" magic
  * value. For optimal code generation, we'll use zero as the magic value
  * indicating that an expiration timer or a timeout is not set. We have to
  * check that we don't return this value when adding timeouts to <now>. If a
@@ -88,6 +88,18 @@ static inline int tick_add_ifset(int now, int timeout)
 	if (!timeout)
 		return TICK_ETERNITY;
 	return tick_add(now, timeout);
+}
+
+/* return 1 if timer <t1> is before <t2>, none of which can be infinite. */
+static inline int tick_is_lt(int t1, int t2)
+{
+	return (t1 - t2) < 0;
+}
+
+/* return 1 if timer <t1> is before or equal to <t2>, none of which can be infinite. */
+static inline int tick_is_le(int t1, int t2)
+{
+	return (t1 - t2) <= 0;
 }
 
 /* return 1 if timer <timer> is expired at date <now>, otherwise zero */

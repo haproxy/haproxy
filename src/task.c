@@ -26,12 +26,12 @@
 struct pool_head *pool2_task;
 
 unsigned int run_queue = 0;
-unsigned int niced_tasks = 0; /* number of niced tasks in the run queue */
-struct task *last_timer = NULL;  /* optimization: last queued timer */
+unsigned int niced_tasks = 0;      /* number of niced tasks in the run queue */
+struct task *last_timer = NULL;    /* optimization: last queued timer */
 
-static struct eb_root timers[TIMER_TREES];  /* trees with MSB 00, 01, 10 and 11 */
-static struct eb_root rqueue[TIMER_TREES];  /* trees constituting the run queue */
-static unsigned int rqueue_ticks;           /* insertion count */
+static struct eb_root timers;      /* sorted timers tree */
+static struct eb_root rqueue;      /* tree constituting the run queue */
+static unsigned int rqueue_ticks;  /* insertion count */
 
 /* Puts the task <t> in run queue at a position depending on t->nice. <t> is
  * returned. The nice value assigns boosts in 32th of the run queue size. A
@@ -60,7 +60,7 @@ struct task *__task_wakeup(struct task *t)
 	/* clear state flags at the same time */
 	t->state &= ~TASK_WOKEN_ANY;
 
-	eb32_insert(&rqueue[timer_to_tree(t->rq.key)], &t->rq);
+	eb32_insert(&rqueue, &t->rq);
 	return t;
 }
 
@@ -70,9 +70,8 @@ struct task *__task_wakeup(struct task *t)
  * Inserts a task into the wait queue at the position given by its expiration
  * date. It does not matter if the task was already in the wait queue or not,
  * as it will be unlinked. The task must not have an infinite expiration timer.
- * Last, tasks must not be queued further than the end of the next tree, which
- * is between <now_ms> and <now_ms> + TIMER_SIGN_BIT ms (now+12days..24days in
- * 32bit).
+ * Last, tasks must not be queued further than the end of the tree, which is
+ * between <now_ms> and <now_ms> + 2^31 ms (now+24days in 32bit).
  *
  * This function should not be used directly, it is meant to be called by the
  * inline version of task_queue() which performs a few cheap preliminary tests
@@ -84,12 +83,9 @@ void __task_queue(struct task *task)
 		__task_unlink_wq(task);
 
 	/* the task is not in the queue now */
-	if (unlikely(!tick_isset(task->expire)))
-		return;
-
-	task->wq.key = tick_to_timer(task->expire);
+	task->wq.key = task->expire;
 #ifdef DEBUG_CHECK_INVALID_EXPIRATION_DATES
-	if ((task->wq.key - tick_to_timer(now_ms)) & TIMER_SIGN_BIT)
+	if (tick_is_lt(task->wq.key, now_ms))
 		/* we're queuing too far away or in the past (most likely) */
 		return;
 #endif
@@ -105,67 +101,59 @@ void __task_queue(struct task *task)
 		eb_insert_dup(&last_timer->wq.node, &task->wq.node);
 		return;
 	}
-	eb32_insert(&timers[timer_to_tree(task->wq.key)], &task->wq);
+	eb32_insert(&timers, &task->wq);
 	if (task->wq.node.bit == -1)
-		last_timer = task; /* we only want dup a tree's root */
+		last_timer = task; /* we only want a dup tree's root */
 	return;
 }
 
 /*
  * Extract all expired timers from the timer queue, and wakes up all
- * associated tasks. Returns the date of next event (or eternity).
+ * associated tasks. Returns the date of next event (or eternity) in <next>.
  */
 void wake_expired_tasks(int *next)
 {
 	struct task *task;
 	struct eb32_node *eb;
-	unsigned int now_tree;
-	unsigned int tree;
 
-	/* In theory, we should :
-	 *   - wake all tasks from the <previous> tree
-	 *   - wake all expired tasks from the <current> tree
-	 *   - scan <next> trees for next expiration date if not found earlier.
-	 * But we can do all this more easily : we scan all 3 trees before we
-	 * wrap, and wake everything expired from there, then stop on the first
-	 * non-expired entry.
-	 */
-
-	now_tree = timer_to_tree(tick_to_timer(now_ms));
-	tree = (now_tree - 1) & TIMER_TREE_MASK;
-	do {
-		eb = eb32_first(&timers[tree]);
-		while (eb) {
-			task = eb32_entry(eb, struct task, wq);
-			if (likely((tick_to_timer(now_ms) - eb->key) & TIMER_SIGN_BIT)) {
-				/* note that we don't need this check for the <previous>
-				 * tree, but it's cheaper than duplicating the code.
-				 */
-				*next = timer_to_tick(eb->key);
-				return;
-			}
-
-			/* detach the task from the queue and add the task to the run queue */
-			eb = eb32_next(eb);
-			__task_unlink_wq(task);
-
-			/* It is possible that this task was left at an earlier place in the
-			 * tree because a recent call to task_queue() has not moved it. This
-			 * happens when the new expiration date is later than the old one.
-			 * Since it is very unlikely that we reach a timeout anyway, it's a
-			 * lot cheaper to proceed like this because we almost never update
-			 * the tree. We may also find disabled expiration dates there. Since
-			 * we have detached the task from the tree, we simply call task_queue
-			 * to take care of this.
-			 */
-			if (!tick_is_expired(task->expire, now_ms)) {
-				task_queue(task);
-				continue;
-			}
-			task_wakeup(task, TASK_WOKEN_TIMER);
+	eb = eb32_lookup_ge(&timers, now_ms - TIMER_LOOK_BACK);
+	while (1) {
+		if (unlikely(!eb)) {
+			/* we might have reached the end of the tree, typically because
+			* <now_ms> is in the first half and we're first scanning the last
+			* half. Let's loop back to the beginning of the tree now.
+			*/
+			eb = eb32_first(&timers);
+			if (likely(!eb))
+				break;
 		}
-		tree = (tree + 1) & TIMER_TREE_MASK;
-	} while (((tree - now_tree) & TIMER_TREE_MASK) < TIMER_TREES/2);
+
+		if (likely(tick_is_lt(now_ms, eb->key))) {
+			/* timer not expired yet, revisit it later */
+			*next = eb->key;
+			return;
+		}
+
+		/* timer looks expired, detach it from the queue */
+		task = eb32_entry(eb, struct task, wq);
+		eb = eb32_next(eb);
+		__task_unlink_wq(task);
+
+		/* It is possible that this task was left at an earlier place in the
+		 * tree because a recent call to task_queue() has not moved it. This
+		 * happens when the new expiration date is later than the old one.
+		 * Since it is very unlikely that we reach a timeout anyway, it's a
+		 * lot cheaper to proceed like this because we almost never update
+		 * the tree. We may also find disabled expiration dates there. Since
+		 * we have detached the task from the tree, we simply call task_queue
+		 * to take care of this.
+		 */
+		if (!tick_is_expired(task->expire, now_ms)) {
+			task_queue(task);
+			continue;
+		}
+		task_wakeup(task, TASK_WOKEN_TIMER);
+	}
 
 	/* We have found no task to expire in any tree */
 	*next = TICK_ETERNITY;
@@ -178,12 +166,7 @@ void wake_expired_tasks(int *next)
  * counter may wrap without a problem, of course. We then limit the number of
  * tasks processed at once to 1/4 of the number of tasks in the queue, and to
  * 200 max in any case, so that general latency remains low and so that task
- * positions have a chance to be considered. It also reduces the number of
- * trees to be evaluated when no task remains.
- *
- * Just like with timers, we start with tree[(current - 1)], which holds past
- * values, and stop when we reach the middle of the list. In practise, we visit
- * 3 out of 4 trees.
+ * positions have a chance to be considered.
  *
  * The function adjusts <next> if a new event is closer.
  */
@@ -191,12 +174,8 @@ void process_runnable_tasks(int *next)
 {
 	struct task *t;
 	struct eb32_node *eb;
-	unsigned int tree, stop;
 	unsigned int max_processed;
 	int expire;
-
-	if (!run_queue)
-		return;
 
 	max_processed = run_queue;
 	if (max_processed > 200)
@@ -205,47 +184,46 @@ void process_runnable_tasks(int *next)
 	if (likely(niced_tasks))
 		max_processed /= 4;
 
-	tree = timer_to_tree(rqueue_ticks);
-	stop = (tree + TIMER_TREES / 2) & TIMER_TREE_MASK;
-	tree = (tree - 1) & TIMER_TREE_MASK;
-
 	expire = *next;
-	do {
-		eb = eb32_first(&rqueue[tree]);
-		while (eb) {
-			/* Note: this loop is one of the fastest code path in
-			 * the whole program. It should not be re-arranged
-			 * without a good reason.
-			 */
-			t = eb32_entry(eb, struct task, rq);
+	eb = eb32_lookup_ge(&rqueue, rqueue_ticks - TIMER_LOOK_BACK);
+	while (max_processed--) {
+		/* Note: this loop is one of the fastest code path in
+		 * the whole program. It should not be re-arranged
+		 * without a good reason.
+		 */
 
-			/* detach the task from the queue and add the task to the run queue */
-			eb = eb32_next(eb);
-			__task_unlink_rq(t);
-
-			t->state |= TASK_RUNNING;
-			/* This is an optimisation to help the processor's branch
-			 * predictor take this most common call.
-			 */
-			if (likely(t->process == process_session))
-				t = process_session(t);
-			else
-				t = t->process(t);
-
-			if (likely(t != NULL)) {
-				t->state &= ~TASK_RUNNING;
-				if (t->expire) {
-					task_queue(t);
-					expire = tick_first_2nz(expire, t->expire);
-				}
-			}
-
-			if (!--max_processed)
-				goto out;
+		if (unlikely(!eb)) {
+			/* we might have reached the end of the tree, typically because
+			* <rqueue_ticks> is in the first half and we're first scanning
+			* the last half. Let's loop back to the beginning of the tree now.
+			*/
+			eb = eb32_first(&rqueue);
+			if (likely(!eb))
+				break;
 		}
-		tree = (tree + 1) & TIMER_TREE_MASK;
-	} while (tree != stop);
- out:
+
+		/* detach the task from the queue */
+		t = eb32_entry(eb, struct task, rq);
+		eb = eb32_next(eb);
+		__task_unlink_rq(t);
+
+		t->state |= TASK_RUNNING;
+		/* This is an optimisation to help the processor's branch
+		 * predictor take this most common call.
+		 */
+		if (likely(t->process == process_session))
+			t = process_session(t);
+		else
+			t = t->process(t);
+
+		if (likely(t != NULL)) {
+			t->state &= ~TASK_RUNNING;
+			if (t->expire) {
+				task_queue(t);
+				expire = tick_first_2nz(expire, t->expire);
+			}
+		}
+	}
 	*next = expire;
 }
 
