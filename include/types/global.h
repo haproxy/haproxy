@@ -77,6 +77,7 @@ struct global {
 		int maxpollevents; /* max number of poll events at once */
 		int maxaccept;     /* max number of consecutive accept() */
 		int options;       /* various tuning options */
+		int recv_enough;   /* how many input bytes at once are "enough" */
 	} tune;
 	struct listener stats_sock; /* unix socket listener for statistics */
 	int stats_timeout;          /* in ticks */

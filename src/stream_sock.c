@@ -197,7 +197,8 @@ static int stream_sock_splice_in(struct buffer *b, struct stream_interface *si)
 		b->flags |= BF_READ_PARTIAL;
 		b->flags &= ~BF_EMPTY; /* to prevent shutdowns */
 
-		if (b->pipe->data >= SPLICE_FULL_HINT) {
+		if (b->pipe->data >= SPLICE_FULL_HINT ||
+		    ret >= global.tune.recv_enough) {
 			/* We've read enough of it for this time. */
 			retval = 1;
 			break;
@@ -400,18 +401,25 @@ int stream_sock_read(int fd) {
 				 */
 				if (b->flags & BF_STREAMER)
 					break;
-			}
 
-			/* generally if we read something smaller than 1 or 2 MSS,
-			 * it means that either we have exhausted the system's
-			 * buffers (streamer or question-response protocol) or that
-			 * the connection will be closed. Streamers are easily
-			 * detected so we return early. For other cases, it's still
-			 * better to perform a last read to be sure, because it may
-			 * save one complete poll/read/wakeup cycle in case of shutdown.
-			 */
-			if (ret < MIN_RET_FOR_READ_LOOP && b->flags & BF_STREAMER)
-				break;
+				/* generally if we read something smaller than 1 or 2 MSS,
+				 * it means that either we have exhausted the system's
+				 * buffers (streamer or question-response protocol) or
+				 * that the connection will be closed. Streamers are
+				 * easily detected so we return early. For other cases,
+				 * it's still better to perform a last read to be sure,
+				 * because it may save one complete poll/read/wakeup cycle
+				 * in case of shutdown.
+				 */
+				if (ret < MIN_RET_FOR_READ_LOOP && b->flags & BF_STREAMER)
+					break;
+
+				/* if we read a large block smaller than what we requested,
+				 * it's almost certain we'll never get anything more.
+				 */
+				if (ret >= global.tune.recv_enough)
+					break;
+			}
 
 			if (--read_poll <= 0)
 				break;

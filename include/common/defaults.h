@@ -82,6 +82,15 @@
 #define MAX_READ_POLL_LOOPS 4
 #endif
 
+// minimum number of bytes read at once above which we don't try to read
+// more, in order not to risk facing an EAGAIN. Most often, if we read
+// at least 10 kB, we can consider that the system has tried to read a
+// full buffer and got multiple segments (>1 MSS for jumbo frames, >7 MSS
+// for normal frames) did not bother truncating the last segment.
+#ifndef MIN_RECV_AT_ONCE_ENOUGH
+#define MIN_RECV_AT_ONCE_ENOUGH (7*1448)
+#endif
+
 // same, but for writes. Generally, it's enough to write twice: one time for
 // first half of the buffer, and a second time for the last half after a
 // wrap-around.

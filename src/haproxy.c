@@ -592,6 +592,9 @@ void init(int argc, char **argv)
 			global.tune.maxaccept = 100; /* accept many incoming conns at once */
 	}
 
+	if (global.tune.recv_enough == 0)
+		global.tune.recv_enough = MIN_RECV_AT_ONCE_ENOUGH;
+
 	if (arg_mode & (MODE_DEBUG | MODE_FOREGROUND)) {
 		/* command line debug mode inhibits configuration mode */
 		global.mode &= ~(MODE_DAEMON | MODE_QUIET);
