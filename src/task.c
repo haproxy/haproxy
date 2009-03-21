@@ -182,7 +182,7 @@ void process_runnable_tasks(int *next)
 		max_processed = 200;
 
 	if (likely(niced_tasks))
-		max_processed /= 4;
+		max_processed = (max_processed + 3) / 4;
 
 	expire = *next;
 	eb = eb32_lookup_ge(&rqueue, rqueue_ticks - TIMER_LOOK_BACK);
