@@ -837,14 +837,12 @@ int start_checks() {
 			if (!(s->state & SRV_CHECKED))
 				continue;
 
-			if ((t = pool_alloc2(pool2_task)) == NULL) {
+			if ((t = task_new()) == NULL) {
 				Alert("Starting [%s:%s] check: out of memory.\n", px->id, s->id);
 				return -1;
 			}
 
 			s->check = t;
-
-			task_init(t);
 			t->process = process_chk;
 			t->context = s;
 

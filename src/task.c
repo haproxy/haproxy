@@ -25,6 +25,7 @@
 
 struct pool_head *pool2_task;
 
+unsigned int nb_tasks = 0;
 unsigned int run_queue = 0;
 unsigned int niced_tasks = 0;      /* number of niced tasks in the run queue */
 struct eb32_node *last_timer = NULL;  /* optimization: last queued timer */

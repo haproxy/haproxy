@@ -414,7 +414,7 @@ int uxst_event_accept(int fd) {
 		s->flags = 0;
 		s->term_trace = 0;
 
-		if ((t = pool_alloc2(pool2_task)) == NULL) {
+		if ((t = task_new()) == NULL) {
 			Alert("out of memory in uxst_event_accept().\n");
 			goto out_free_session;
 		}
@@ -432,7 +432,6 @@ int uxst_event_accept(int fd) {
 			goto out_free_task;
 		}
 
-		task_init(t);
 		t->process = l->handler;
 		t->context = s;
 		t->nice = -64;  /* we want to boost priority for local stats */
@@ -550,7 +549,7 @@ int uxst_event_accept(int fd) {
  out_free_req:
 	pool_free2(pool2_buffer, s->req);
  out_free_task:
-	pool_free2(pool2_task, t);
+	task_free(t);
  out_free_session:
 	LIST_DEL(&s->list);
 	pool_free2(pool2_session, s);

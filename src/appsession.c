@@ -87,10 +87,9 @@ int appsession_task_init(void)
 {
 	static int initialized = 0;
 	if (!initialized) {
-		if ((appsess_refresh = pool_alloc2(pool2_task)) == NULL)
+		if ((appsess_refresh = task_new()) == NULL)
 			return -1;
 
-		task_init(appsess_refresh);
 		appsess_refresh->context = NULL;
 		appsess_refresh->expire = tick_add(now_ms, MS_TO_TICKS(TBLCHKINT));
 		appsess_refresh->process = appsession_refresh;

@@ -134,7 +134,7 @@ int event_accept(int fd) {
 			s->flags |= SN_MONITOR;
 		}
 
-		if ((t = pool_alloc2(pool2_task)) == NULL) { /* disable this proxy for a while */
+		if ((t = task_new()) == NULL) { /* disable this proxy for a while */
 			Alert("out of memory in event_accept().\n");
 			EV_FD_CLR(fd, DIR_RD);
 			p->state = PR_STIDLE;
@@ -160,7 +160,6 @@ int event_accept(int fd) {
 		if (p->options & PR_O_TCP_NOLING)
 			setsockopt(cfd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
 
-		task_init(t);
 		t->process = l->handler;
 		t->context = s;
 
@@ -473,7 +472,7 @@ int event_accept(int fd) {
 	pool_free2(p->req_cap_pool, txn->req.cap);
  out_fail_reqcap:
  out_free_task:
-	pool_free2(pool2_task, t);
+	task_free(t);
  out_free_session:
 	LIST_DEL(&s->list);
 	pool_free2(pool2_session, s);

@@ -78,6 +78,7 @@
 #define TIMER_LOOK_BACK       (1U << 31)
 
 /* a few exported variables */
+extern unsigned int nb_tasks;     /* total number of tasks */
 extern unsigned int run_queue;    /* run queue size */
 extern unsigned int niced_tasks;  /* number of niced tasks in the run queue */
 extern struct pool_head *pool2_task;
@@ -160,8 +161,9 @@ static inline struct task *task_delete(struct task *t)
 }
 
 /*
- * Initialize a new task. The bare minimum is performed (queue pointers and state).
- * The task is returned.
+ * Initialize a new task. The bare minimum is performed (queue pointers and
+ * state).  The task is returned. This function should not be used outside of
+ * task_new().
  */
 static inline struct task *task_init(struct task *t)
 {
@@ -173,11 +175,28 @@ static inline struct task *task_init(struct task *t)
 }
 
 /*
- * frees a task. Its context must have been freed since it will be lost.
+ * Allocate and initialise a new task. The new task is returned, or NULL in
+ * case of lack of memory. The task count is incremented. Tasks should only
+ * be allocated this way, and must be freed using task_free().
+ */
+static inline struct task *task_new(void)
+{
+	struct task *t = pool_alloc2(pool2_task);
+	if (t) {
+		nb_tasks++;
+		task_init(t);
+	}
+	return t;
+}
+
+/*
+ * Free a task. Its context must have been freed since it will be lost.
+ * The task count is decremented.
  */
 static inline void task_free(struct task *t)
 {
 	pool_free2(pool2_task, t);
+	nb_tasks--;
 }
 
 /* Place <task> into the wait queue, where it may already be. If the expiration
