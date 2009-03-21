@@ -805,7 +805,7 @@ struct task *uxst_process_session(struct task *t)
 		}
 		s->req->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
 		flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
-		if (s->req->flags != flags)
+		if ((s->req->flags ^ flags) & BF_MASK_STATIC)
 			resync = 1;
 	}
 
@@ -891,7 +891,7 @@ struct task *uxst_process_session(struct task *t)
 		}
 		s->rep->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
 		flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
-		if (s->rep->flags != flags)
+		if ((s->rep->flags ^ flags) & BF_MASK_STATIC)
 			resync = 1;
 	}
 	else if ((s->rep->flags & BF_MASK_ANALYSER) ||
@@ -904,7 +904,7 @@ struct task *uxst_process_session(struct task *t)
 		}
 		s->rep->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
 		flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
-		if (s->rep->flags != flags)
+		if ((s->rep->flags ^ flags) & BF_MASK_STATIC)
 			resync = 1;
 	}
 
