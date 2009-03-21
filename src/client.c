@@ -76,7 +76,7 @@ int event_accept(int fd) {
 			max_accept = max;
 	}
 
-	while (p->feconn < p->maxconn && max_accept--) {
+	while (p->feconn < p->maxconn && actconn < global.maxconn && max_accept--) {
 		struct sockaddr_storage addr;
 		socklen_t laddr = sizeof(addr);
 

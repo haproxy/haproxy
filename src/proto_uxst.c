@@ -368,7 +368,7 @@ int uxst_event_accept(int fd) {
 	else
 		max_accept = -1;
 
-	while (max_accept--) {
+	while (actconn < global.maxconn && max_accept--) {
 		struct sockaddr_storage addr;
 		socklen_t laddr = sizeof(addr);
 
