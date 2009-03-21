@@ -421,7 +421,7 @@ int stream_sock_read(int fd) {
 					break;
 			}
 
-			if (--read_poll <= 0)
+			if ((b->flags & BF_READ_DONTWAIT) || --read_poll <= 0)
 				break;
 		}
 		else if (ret == 0) {
@@ -467,13 +467,14 @@ int stream_sock_read(int fd) {
 	/* we have to wake up if there is a special event or if we don't have
 	 * any more data to forward.
 	 */
-	if ((b->flags & (BF_READ_NULL|BF_READ_ERROR|BF_SHUTR)) ||
+	if ((b->flags & (BF_READ_NULL|BF_READ_ERROR|BF_SHUTR|BF_READ_DONTWAIT)) ||
 	    !b->to_forward ||
 	    si->state != SI_ST_EST ||
 	    b->cons->state != SI_ST_EST ||
 	    (si->flags & SI_FL_ERR))
 		task_wakeup(si->owner, TASK_WOKEN_IO);
 	
+	b->flags &= ~BF_READ_DONTWAIT;
 	fdtab[fd].ev &= ~FD_POLL_IN;
 	return retval;
 

@@ -1648,6 +1648,8 @@ int http_process_request(struct session *s, struct buffer *req)
 		}
 
 		buffer_write_dis(req);
+		req->flags |= BF_READ_DONTWAIT; /* try to get back here ASAP */
+
 		/* just set the request timeout once at the beginning of the request */
 		if (!tick_isset(req->analyse_exp))
 			req->analyse_exp = tick_add_ifset(now_ms, s->fe->timeout.httpreq);

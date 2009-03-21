@@ -84,6 +84,7 @@
 #define BF_ANA_TIMEOUT    0x080000  /* the analyser timeout has expired */
 #define BF_READ_ATTACHED  0x100000  /* the read side is attached for the first time */
 #define BF_KERN_SPLICING  0x200000  /* kernel splicing desired for this buffer */
+#define BF_READ_DONTWAIT  0x400000  /* wake the task up after every read (eg: HTTP request) */
 
 /* Use these masks to clear the flags before going back to lower layers */
 #define BF_CLEAR_READ     (~(BF_READ_NULL|BF_READ_PARTIAL|BF_READ_ERROR|BF_READ_ATTACHED))

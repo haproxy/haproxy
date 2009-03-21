@@ -488,6 +488,7 @@ int uxst_event_accept(int fd) {
 		s->req->cons = &s->si[1];
 		s->si[0].ib = s->si[1].ob = s->req;
 		s->req->flags |= BF_READ_ATTACHED; /* the producer is already connected */
+		s->req->flags |= BF_READ_DONTWAIT; /* we plan to read small requests */
 
 		s->req->analysers = l->analysers;
 
@@ -684,6 +685,7 @@ int uxst_req_analyser_stats(struct session *s, struct buffer *req)
 			return 0;
 		}
 		/* don't forward nor abort */
+		req->flags |= BF_READ_DONTWAIT; /* we plan to read small requests */
 		return 0;
 
 	case STATS_ST_REP:
