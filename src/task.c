@@ -225,6 +225,13 @@ void process_runnable_tasks(int *next)
 				task_queue(t);
 				expire = tick_first_2nz(expire, t->expire);
 			}
+
+			/* if the task has put itself back into the run queue, we want to ensure
+			 * it will be served at the proper time, especially if it's reniced.
+			 */
+			if (unlikely(task_in_rq(t)) && (!eb || tick_is_lt(t->rq.key, eb->key))) {
+				eb = eb32_lookup_ge(&rqueue, rqueue_ticks - TIMER_LOOK_BACK);
+			}
 		}
 	}
 	*next = expire;
