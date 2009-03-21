@@ -524,6 +524,7 @@ static int event_srv_chk_r(int fd)
  */
 struct task *process_chk(struct task *t)
 {
+	int attempts = 0;
 	struct server *s = t->context;
 	struct sockaddr_in sa;
 	int fd;
@@ -532,6 +533,12 @@ struct task *process_chk(struct task *t)
 	//fprintf(stderr, "process_chk: task=%p\n", t);
 
  new_chk:
+	if (attempts++ > 0) {
+		/* we always fail to create a server, let's stop insisting... */
+		while (tick_is_expired(t->expire, now_ms))
+			t->expire = tick_add(t->expire, MS_TO_TICKS(s->inter));
+		return t;
+	}
 	fd = s->curfd;
 	if (fd < 0) {   /* no check currently running */
 		//fprintf(stderr, "process_chk: 2\n");
