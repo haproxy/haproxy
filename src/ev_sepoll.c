@@ -243,7 +243,7 @@ REGPRM2 static int __fd_set(const int fd, int dir)
 
 	if (i == FD_EV_IDLE) {
 		// switch to SPEC state and allocate a SPEC entry.
-		fd_created = 1;
+		fd_created++;
 		alloc_spec_entry(fd);
 	switch_state:
 		fd_list[fd].e ^= (unsigned int)(FD_EV_IN_SL << dir);
@@ -335,6 +335,10 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		fd = spec_list[spec_idx];
 		eo = fd_list[fd].e;  /* save old events */
 
+		if (looping && --fd_created < 0) {
+			/* we were just checking the newly created FDs */
+			break;
+		}
 		/*
 		 * Process the speculative events.
 		 *
@@ -535,7 +539,6 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		 * if we fail, the tasks are still woken up, and the FD gets marked
 		 * for poll mode.
 		 */
-		fd_created = 0;
 		looping = 1;
 		goto re_poll_once;
 	}
