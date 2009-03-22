@@ -1,6 +1,33 @@
 ChangeLog :
 ===========
 
+2009/03/22 : 1.3.16
+    - [BUILD] Fixed Makefile for linking pcre
+    - [CONTRIB] selinux policy for haproxy
+    - [MINOR] show errors: encode backslash as well as non-ascii characters
+    - [MINOR] cfgparse: some cleanups in the consistency checks
+    - [MINOR] cfgparse: set backends to "balance roundrobin" by default
+    - [MINOR] tcp-inspect: permit the use of no-delay inspection
+    - [MEDIUM] reverse internal proxy declaration order to match configuration
+    - [CLEANUP] config: catch and report some possibly wrong rule ordering
+    - [BUG] connect timeout is in the stream interface, not the buffer
+    - [BUG] session: errors were not reported in termination flags in TCP mode
+    - [MINOR] tcp_request: let the caller take care of errors and timeouts
+    - [CLEANUP] http: remove some commented out obsolete code in process_response
+    - [MINOR] update ebtree to version 4.1
+    - [MEDIUM] scheduler: get rid of the 4 trees thanks and use ebtree v4.1
+    - [BUG] sched: don't leave 3 lasts tasks unprocessed when niced tasks are present
+    - [BUG] scheduler: fix improper handling of duplicates __task_queue()
+    - [MINOR] sched: permit a task to stay up between calls
+    - [MINOR] task: keep a task count and clean up task creators
+    - [MINOR] stats: report number of tasks (active and running)
+    - [BUG] server check intervals must not be null
+    - [OPTIM] stream_sock: don't retry to read after a large read
+    - [OPTIM] buffer: new BF_READ_DONTWAIT flag reduces EAGAIN rates
+    - [MEDIUM] session: don't resync FSMs on non-interesting changes
+    - [BUG] check for global.maxconn before doing accept()
+    - [OPTIM] sepoll: do not re-check whole list upon accepts
+
 2009/03/09 : 1.3.16-rc2
     - [BUG] stream_sock: write timeout must be updated when forwarding !
 
