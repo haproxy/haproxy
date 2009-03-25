@@ -42,7 +42,8 @@
 #define BE_LB_ALGO_SH	(BE_LB_PROP_L4  | 0x02) /* balance on source IP hash */
 #define BE_LB_ALGO_UH	(BE_LB_PROP_L7  | 0x03) /* balance on URI hash */
 #define BE_LB_ALGO_PH	(BE_LB_PROP_L7  | 0x04) /* balance on URL parameter hash */
-#define BE_LB_ALGO_LC	(BE_LB_PROP_DYN | 0x05) /* fast weighted round-robin mode (dynamic) */
+#define BE_LB_ALGO_LC	(BE_LB_PROP_DYN | 0x05) /* fast weighted leastconn mode (dynamic) */
+#define BE_LB_ALGO_HH	(BE_LB_PROP_L7  | 0x06) /* balance on Http Header value */
 
 /* various constants */
 

@@ -937,6 +937,17 @@ balance url_param <param> [check_post [<max_wait>]]
                   backend. This algorithm is static, which means that changing a
                   server's weight on the fly will have no effect.
 
+      hdr(name)   The HTTP header <name> will be looked up in each HTTP request.
+                  Just as with the equivalent ACL 'hdr()' function, the header
+                  name in parenthesis is not case sensitive. If the header is
+                  absent or if it does not contain any value, the round-robin
+                  algorithm is applied instead.
+
+                  An optionnal 'use_domain_only' parameter is available, for
+                  reducing the hash algorithm to the main domain part with some
+                  specific headers such as 'Host'. For instance, in the Host
+                  value "haproxy.1wt.eu", only "1wt" will be considered.
+
     <arguments> is an optional list of arguments which may be needed by some
                 algorithms. Right now, only "url_param" and "uri" support an
                 optional argument.
@@ -952,6 +963,9 @@ balance url_param <param> [check_post [<max_wait>]]
         balance roundrobin
         balance url_param userid
         balance url_param session_id check_post 64
+        balance hdr(User-Agent)
+        balance hdr(host)
+        balance hdr(Host) use_domain_only
 
   Note: the following caveats and limitations on using the "check_post"
   extension with "url_param" must be considered :

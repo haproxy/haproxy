@@ -1279,6 +1279,80 @@ struct server *get_server_ph_post(struct session *s)
 
 
 /*
+ * This function tries to find a running server for the proxy <px> following
+ * the Header parameter hash method. It looks for a specific parameter in the
+ * URL and hashes it to compute the server ID. This is useful to optimize
+ * performance by avoiding bounces between servers in contexts where sessions
+ * are shared but cookies are not usable. If the parameter is not found, NULL
+ * is returned. If any server is found, it will be returned. If no valid server
+ * is found, NULL is returned.
+ */
+struct server *get_server_hh(struct session *s)
+{
+	unsigned long    hash = 0;
+	struct http_txn *txn  = &s->txn;
+	struct http_msg *msg  = &txn->req;
+	struct proxy    *px   = s->be;
+	unsigned int     plen = px->hh_len;
+	unsigned long    len;
+	struct hdr_ctx   ctx;
+	const char      *p;
+
+	/* tot_weight appears to mean srv_count */
+	if (px->lbprm.tot_weight == 0)
+		return NULL;
+
+	if (px->lbprm.map.state & PR_MAP_RECALC)
+		recalc_server_map(px);
+
+	ctx.idx = 0;
+
+	/* if the message is chunked, we skip the chunk size, but use the value as len */
+	http_find_header2(px->hh_name, plen, msg->sol, &txn->hdr_idx, &ctx);
+
+	/* if the header is not found or empty, let's fallback to round robin */
+	if (!ctx.idx || !ctx.vlen)
+		return NULL;
+
+	/* Found a the hh_name in the headers.
+	 * we will compute the hash based on this value ctx.val.
+	 */
+	len = ctx.vlen;
+	p = (char *)ctx.line + ctx.val;
+	if (!px->hh_match_domain) {
+		while (len) {
+			hash = *p + (hash << 6) + (hash << 16) - hash;
+			len--;
+			p++;
+		}
+	} else {
+		int dohash = 0;
+		p += len - 1;
+		/* special computation, use only main domain name, not tld/host
+		 * going back from the end of string, start hashing at first
+		 * dot stop at next.
+		 * This is designed to work with the 'Host' header, and requires
+		 * a special option to activate this.
+		 */
+		while (len) {
+			if (*p == '.') {
+				if (!dohash)
+					dohash = 1;
+				else
+					break;
+			} else {
+				if (dohash)
+					hash = *p + (hash << 6) + (hash << 16) - hash;
+			}
+			len--;
+			p--;
+		}
+	}
+	return px->lbprm.map.srv[hash % px->lbprm.tot_weight];
+}
+
+ 
+/*
  * This function applies the load-balancing algorithm to the session, as
  * defined by the backend it is assigned to. The session is then marked as
  * 'assigned'.
@@ -1386,6 +1460,19 @@ int assign_server(struct session *s)
 				s->srv = get_server_ph(s->be,
 						       s->txn.req.sol + s->txn.req.sl.rq.u,
 						       s->txn.req.sl.rq.u_l);
+
+			if (!s->srv) {
+				/* parameter not found, fall back to round robin on the map */
+				s->srv = get_server_rr_with_conns(s->be, s->prev_srv);
+				if (!s->srv) {
+					err = SRV_STATUS_FULL;
+					goto out;
+				}
+			}
+			break;
+		case BE_LB_ALGO_HH:
+			/* Header Parameter hashing */
+			s->srv = get_server_hh(s);
 
 			if (!s->srv) {
 				/* parameter not found, fall back to round robin on the map */
@@ -2023,8 +2110,36 @@ int backend_parse_balance(const char **args, char *err, int errlen, struct proxy
 				curproxy->url_param_post_limit = 3; /* minimum example: S=3 or \r\nS=6& */
 		}
 	}
+	else if (!strncmp(args[0], "hdr(", 4)) {
+		const char *beg, *end;
+
+		beg = args[0] + 4;
+		end = strchr(beg, ')');
+
+		if (!end || end == beg) {
+			snprintf(err, errlen, "'balance hdr(name)' requires an http header field name.");
+			return -1;
+		}
+
+		curproxy->lbprm.algo &= ~BE_LB_ALGO;
+		curproxy->lbprm.algo |= BE_LB_ALGO_HH;
+
+		free(curproxy->hh_name);
+		curproxy->hh_len  = end - beg;
+		curproxy->hh_name = my_strndup(beg, end - beg);
+		curproxy->hh_match_domain = 0;
+
+		if (*args[1]) {
+			if (strcmp(args[1], "use_domain_only")) {
+				snprintf(err, errlen, "'balance hdr(name)' only accepts 'use_domain_only' modifier.");
+				return -1;
+			}
+			curproxy->hh_match_domain = 1;
+		}
+
+	}
 	else {
-		snprintf(err, errlen, "'balance' only supports 'roundrobin', 'leastconn', 'source', 'uri' and 'url_param' options.");
+		snprintf(err, errlen, "'balance' only supports 'roundrobin', 'leastconn', 'source', 'uri', 'url_param' and 'hdr(name)' options.");
 		return -1;
 	}
 	return 0;

@@ -199,6 +199,9 @@ struct proxy {
 	unsigned url_param_post_limit;		/* if checking POST body for URI parameter, max body to wait for */
 	int  uri_len_limit;			/* character limit for uri balancing algorithm */
 	int  uri_dirs_depth1;			/* directories+1 (slashes) limit for uri balancing algorithm */
+	char *hh_name;				/* name of the header parameter used for hashing */
+	int  hh_len;				/* strlen(hh_name), computed only once */
+	int  hh_match_domain;			/* toggle use of special match function */
 	char *appsession_name;			/* name of the cookie to look for */
 	int  appsession_name_len;		/* strlen(appsession_name), computed only once */
 	int  appsession_len;			/* length of the appsession cookie value to be used */
