@@ -29,8 +29,11 @@ risking the system's stability.
 %prep
 %setup -q
 
+# We don't want any perl dependecies in this RPM:
+%define __perl_requires /bin/true
+
 %build
-%{__make} REGEX="pcre" "COPTS.pcre=-DUSE_PCRE $(pcre-config --cflags)" DEBUG="" TARGET=linux24e
+%{__make} USE_PCRE=1 "COPTS.pcre=-DUSE_PCRE $(pcre-config --cflags)" DEBUG="" TARGET=linux26
 #%{__make} REGEX=pcre DEBUG="" LIBS.pcre="-L\$(PCREDIR)/lib -Wl,-Bstatic -lpcreposix -lpcre -Wl,-Bdynamic"
 
 
@@ -71,7 +74,7 @@ fi
 %attr(0755,root,root) %config %{_sysconfdir}/rc.d/init.d/%{name}
 
 %changelog
-* Sun Mar 22 2008 Willy Tarreau <w@1wt.eu>
+* Sun Mar 22 2009 Willy Tarreau <w@1wt.eu>
 - updated to 1.3.16
 
 * Sat Apr 19 2008 Willy Tarreau <w@1wt.eu>
