@@ -495,6 +495,7 @@ int stream_sock_read(int fd) {
 
 	fdtab[fd].state = FD_STERROR;
 	fdtab[fd].ev &= ~FD_POLL_STICKY;
+	EV_FD_REM(fd);
 	si->flags |= SI_FL_ERR;
 	retval = 1;
 	goto out_wakeup;
@@ -756,6 +757,7 @@ int stream_sock_write(int fd)
 
 	fdtab[fd].state = FD_STERROR;
 	fdtab[fd].ev &= ~FD_POLL_STICKY;
+	EV_FD_REM(fd);
 	si->flags |= SI_FL_ERR;
 	task_wakeup(si->owner, TASK_WOKEN_IO);
 	return 1;
@@ -972,6 +974,7 @@ void stream_sock_chk_snd(struct stream_interface *si)
 		 */
 		fdtab[si->fd].state = FD_STERROR;
 		fdtab[si->fd].ev &= ~FD_POLL_STICKY;
+		EV_FD_REM(si->fd);
 		si->flags |= SI_FL_ERR;
 		goto out_wakeup;
 	}
