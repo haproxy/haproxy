@@ -1209,21 +1209,80 @@ void stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 			}
 
 			chunk_printf(&msg, sizeof(trash),
-				     " si=(%d,%d) as=%d ts=%02x age=%s calls=%d",
-				     curr_sess->si[0].state, curr_sess->si[1].state,
+				     " as=%d ts=%02x age=%s calls=%d",
 				     curr_sess->ana_state, curr_sess->task->state,
 				     human_time(now.tv_sec - curr_sess->logs.tv_accept.tv_sec, 1),
 				     curr_sess->task->calls);
 
+			chunk_printf(&msg, sizeof(trash),
+				     " rq[f=%06xh,l=%d,an=%02xh,rx=%s",
+				     curr_sess->req->flags,
+				     curr_sess->req->l,
+				     curr_sess->req->analysers,
+				     curr_sess->req->rex ?
+				     human_time(TICKS_TO_MS(curr_sess->req->rex - now_ms),
+						TICKS_TO_MS(1000)) : "");
+
+			chunk_printf(&msg, sizeof(trash),
+				     ",wx=%s",
+				     curr_sess->req->wex ?
+				     human_time(TICKS_TO_MS(curr_sess->req->wex - now_ms),
+						TICKS_TO_MS(1000)) : "");
+
+			chunk_printf(&msg, sizeof(trash),
+				     ",ax=%s]",
+				     curr_sess->req->analyse_exp ?
+				     human_time(TICKS_TO_MS(curr_sess->req->analyse_exp - now_ms),
+						TICKS_TO_MS(1000)) : "");
+
+			chunk_printf(&msg, sizeof(trash),
+				     " rp[f=%06xh,l=%d,an=%02xh,rx=%s",
+				     curr_sess->rep->flags,
+				     curr_sess->rep->l,
+				     curr_sess->rep->analysers,
+				     curr_sess->rep->rex ?
+				     human_time(TICKS_TO_MS(curr_sess->rep->rex - now_ms),
+						TICKS_TO_MS(1000)) : "");
+
+			chunk_printf(&msg, sizeof(trash),
+				     ",wx=%s",
+				     curr_sess->rep->wex ?
+				     human_time(TICKS_TO_MS(curr_sess->rep->wex - now_ms),
+						TICKS_TO_MS(1000)) : "");
+
+			chunk_printf(&msg, sizeof(trash),
+				     ",ax=%s]",
+				     curr_sess->rep->analyse_exp ?
+				     human_time(TICKS_TO_MS(curr_sess->rep->analyse_exp - now_ms),
+						TICKS_TO_MS(1000)) : "");
+
+			chunk_printf(&msg, sizeof(trash),
+				     " s0=[%d,%1xh,fd=%d,ex=%s]",
+				     curr_sess->si[0].state,
+				     curr_sess->si[0].flags,
+				     curr_sess->si[0].fd,
+				     curr_sess->si[0].exp ?
+				     human_time(TICKS_TO_MS(curr_sess->si[0].exp - now_ms),
+						TICKS_TO_MS(1000)) : "");
+
+			chunk_printf(&msg, sizeof(trash),
+				     " s1=[%d,%1xh,fd=%d,ex=%s]",
+				     curr_sess->si[1].state,
+				     curr_sess->si[1].flags,
+				     curr_sess->si[1].fd,
+				     curr_sess->si[1].exp ?
+				     human_time(TICKS_TO_MS(curr_sess->si[1].exp - now_ms),
+						TICKS_TO_MS(1000)) : "");
+
+			chunk_printf(&msg, sizeof(trash),
+				     " exp=%s",
+				     curr_sess->task->expire ?
+				     human_time(TICKS_TO_MS(curr_sess->task->expire - now_ms),
+						TICKS_TO_MS(1000)) : "");
 			if (task_in_rq(curr_sess->task))
-				chunk_printf(&msg, sizeof(trash), " run(nice=%d)\n", curr_sess->task->nice);
-			else
-				chunk_printf(&msg, sizeof(trash),
-					     " exp=%s\n",
-					     curr_sess->task->expire ?
-					     human_time(TICKS_TO_MS(tick_remain(now_ms, curr_sess->task->expire)),
-							TICKS_TO_MS(1000))
-					     : "never");
+				chunk_printf(&msg, sizeof(trash), " run(nice=%d)", curr_sess->task->nice);
+
+			chunk_printf(&msg, sizeof(trash), "\n");
 
 			if (buffer_write_chunk(rep, &msg) >= 0) {
 				/* let's try again later from this session. We add ourselves into
