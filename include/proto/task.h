@@ -173,6 +173,7 @@ static inline struct task *task_init(struct task *t)
 	t->rq.node.leaf_p = NULL;
 	t->state = TASK_SLEEPING;
 	t->nice = 0;
+	t->calls = 0;
 	return t;
 }
 

@@ -219,6 +219,7 @@ void process_runnable_tasks(int *next)
 		/* This is an optimisation to help the processor's branch
 		 * predictor take this most common call.
 		 */
+		t->calls++;
 		if (likely(t->process == process_session))
 			t = process_session(t);
 		else

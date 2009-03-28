@@ -1209,10 +1209,11 @@ void stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 			}
 
 			chunk_printf(&msg, sizeof(trash),
-				     " si=(%d,%d) as=%d ts=%02x age=%s",
+				     " si=(%d,%d) as=%d ts=%02x age=%s calls=%d",
 				     curr_sess->si[0].state, curr_sess->si[1].state,
 				     curr_sess->ana_state, curr_sess->task->state,
-				     human_time(now.tv_sec - curr_sess->logs.tv_accept.tv_sec, 1));
+				     human_time(now.tv_sec - curr_sess->logs.tv_accept.tv_sec, 1),
+				     curr_sess->task->calls);
 
 			if (task_in_rq(curr_sess->task))
 				chunk_printf(&msg, sizeof(trash), " run(nice=%d)\n", curr_sess->task->nice);

@@ -50,6 +50,7 @@ struct task {
 	struct eb32_node rq;		/* ebtree node used to hold the task in the run queue */
 	int state;			/* task state : bit field of TASK_* */
 	int expire;			/* next expiration date for this task, in ticks */
+	unsigned int calls;		/* number of times ->process() was called */
 	struct task * (*process)(struct task *t);  /* the function which processes the task */
 	void *context;			/* the task's context */
 	int nice;			/* the task's current nice value from -1024 to +1024 */
