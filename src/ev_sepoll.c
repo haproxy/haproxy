@@ -388,6 +388,10 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			fd_list[fd].e &= ~FD_EV_MASK_W;
 		}
 
+		/* one callback might already have closed the fd by itself */
+		if (fdtab[fd].state == FD_STCLOSE)
+			continue;
+
 		/* Now, we will adjust the event in the poll list. Indeed, it
 		 * is possible that an event which was previously in the poll
 		 * list now goes out, and the opposite is possible too. We can
