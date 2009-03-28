@@ -368,7 +368,7 @@ int uxst_event_accept(int fd) {
 	else
 		max_accept = -1;
 
-	while (actconn < global.maxconn && max_accept--) {
+	while (max_accept--) {
 		struct sockaddr_storage addr;
 		socklen_t laddr = sizeof(addr);
 
@@ -393,7 +393,7 @@ int uxst_event_accept(int fd) {
 			}
 		}
 
-		if (l->nbconn >= l->maxconn) {
+		if (l->nbconn >= l->maxconn || actconn >= global.maxconn) {
 			/* too many connections, we shoot this one and return.
 			 * FIXME: it would be better to simply switch the listener's
 			 * state to LI_FULL and disable the FD. We could re-enable
