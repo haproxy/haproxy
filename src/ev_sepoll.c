@@ -331,6 +331,8 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	status = 0;
 	spec_idx = nbspec;
 	while (likely(spec_idx > 0)) {
+		int done;
+
 		spec_idx--;
 		fd = spec_list[spec_idx];
 		eo = fd_list[fd].e;  /* save old events */
@@ -355,6 +357,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 				fd, fdtab[fd].ev, fd_list[fd].e, fd_list[fd].s1, spec_idx);
 		}
 #endif
+		done = 0;
 		fdtab[fd].ev &= FD_POLL_STICKY;
 		if ((eo & FD_EV_MASK_R) == FD_EV_SPEC_R) {
 			/* The owner is interested in reading from this FD */
@@ -364,7 +367,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 				if (!fdtab[fd].cb[DIR_RD].f(fd))
 					fd_list[fd].e ^= (FD_EV_WAIT_R ^ FD_EV_SPEC_R);
 				else
-					status++;
+					done = 1;
 			}
 		}
 		else if ((eo & FD_EV_MASK_R) == FD_EV_STOP_R) {
@@ -380,7 +383,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 				if (!fdtab[fd].cb[DIR_WR].f(fd))
 					fd_list[fd].e ^= (FD_EV_WAIT_W ^ FD_EV_SPEC_W);
 				else
-					status++;
+					done = 1;
 			}
 		}
 		else if ((eo & FD_EV_MASK_W) == FD_EV_STOP_W) {
@@ -388,6 +391,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			fd_list[fd].e &= ~FD_EV_MASK_W;
 		}
 
+		status += done;
 		/* one callback might already have closed the fd by itself */
 		if (fdtab[fd].state == FD_STCLOSE)
 			continue;
