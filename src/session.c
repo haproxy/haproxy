@@ -182,6 +182,7 @@ int sess_update_st_con_tcp(struct session *s, struct stream_interface *si)
 	 * attempts and error reports.
 	 */
 	if (unlikely(si->flags & (SI_FL_EXP|SI_FL_ERR))) {
+		si->exp   = TICK_ETERNITY;
 		si->state = SI_ST_CER;
 		fd_delete(si->fd);
 
@@ -219,6 +220,7 @@ int sess_update_st_con_tcp(struct session *s, struct stream_interface *si)
 	 * responsible for handling the transition from CON to EST.
 	 */
 	s->logs.t_connect = tv_ms_elapsed(&s->logs.tv_accept, &now);
+	si->exp      = TICK_ETERNITY;
 	si->state    = SI_ST_EST;
 	si->err_type = SI_ET_NONE;
 	si->err_loc  = NULL;
@@ -1127,8 +1129,11 @@ resync_stream_interface:
 			t->expire = tick_first(t->expire, s->si[1].exp);
 
 #ifdef DEBUG_FULL
-		fprintf(stderr, "[%u] queuing with exp=%u req->rex=%u req->wex=%u req->ana_exp=%u rep->rex=%u rep->wex=%u, cs=%d, ss=%d\n",
-			now_ms, t->expire, s->req->rex, s->req->wex, s->req->analyse_exp, s->rep->rex, s->rep->wex, s->si[0].state, s->si[1].state);
+		fprintf(stderr,
+			"[%u] queuing with exp=%u req->rex=%u req->wex=%u req->ana_exp=%u"
+			" rep->rex=%u rep->wex=%u, si[0].exp=%u, si[1].exp=%u, cs=%d, ss=%d\n",
+			now_ms, t->expire, s->req->rex, s->req->wex, s->req->analyse_exp,
+			s->rep->rex, s->rep->wex, s->si[0].exp, s->si[1].exp, s->si[0].state, s->si[1].state);
 #endif
 
 #ifdef DEBUG_DEV

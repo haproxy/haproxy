@@ -795,6 +795,7 @@ void stream_sock_shutw(struct stream_interface *si)
 	default:
 		si->ib->flags |= BF_SHUTR;
 		si->ib->rex = TICK_ETERNITY;
+		si->exp = TICK_ETERNITY;
 		return;
 	}
 }
@@ -819,6 +820,7 @@ void stream_sock_shutr(struct stream_interface *si)
 	if (si->ob->flags & BF_SHUTW) {
 		fd_delete(si->fd);
 		si->state = SI_ST_DIS;
+		si->exp = TICK_ETERNITY;
 		return;
 	}
 	EV_FD_CLR(si->fd, DIR_RD);
