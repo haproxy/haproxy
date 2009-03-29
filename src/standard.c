@@ -26,8 +26,12 @@
 /* enough to store 10 integers of :
  *   2^64-1 = 18446744073709551615 or
  *    -2^63 = -9223372036854775808
+ *
+ * The HTML version needs room for adding the 25 characters
+ * '<span class="rls"></span>' around digits at positions 3N+1 in order
+ * to add spacing at up to 6 positions : 18 446 744 073 709 551 615
  */
-char itoa_str[10][21];
+char itoa_str[10][171];
 
 /*
  * copies at most <size-1> chars from <src> to <dst>. Last char is always
@@ -64,6 +68,38 @@ const char *ultoa_r(unsigned long n, char *buffer, int size)
 		n /= 10;
 	} while (n && pos >= buffer);
 	return pos + 1;
+}
+
+/*
+ * This function simply returns a locally allocated string containing
+ * the ascii representation for number 'n' in decimal, formatted for
+ * HTML output with tags to create visual grouping by 3 digits. The
+ * output needs to support at least 171 characters.
+ */
+const char *ulltoh_r(unsigned long long n, char *buffer, int size)
+{
+	char *start;
+	int digit = 0;
+	
+	start = buffer + size;
+	*--start = '\0';
+	
+	do {
+		if (digit == 3 && start >= buffer + 7)
+			memcpy(start -= 7, "</span>", 7);
+
+		if (start >= buffer + 1) {
+			*--start = '0' + n % 10;
+			n /= 10;
+		}
+
+		if (digit == 3 && start >= buffer + 18)
+			memcpy(start -= 18, "<span class=\"rls\">", 18);
+
+		if (digit++ == 3)
+			digit = 1;
+	} while (n && start > buffer);
+	return start;
 }
 
 /*
