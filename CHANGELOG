@@ -1,6 +1,22 @@
 ChangeLog :
 ===========
 
+2009/03/29 : 1.3.17
+    - Update specfile to build for v2.6 kernel.
+    - [BUG] reset the stream_interface connect timeout upon connect or error
+    - [BUG] reject unix accepts when connection limit is reached
+    - [MINOR] show sess: report number of calls to each task
+    - [BUG] don't call epoll_ctl() on closed sockets
+    - [BUG] stream_sock: disable I/O on fds reporting an error
+    - [MINOR] sepoll: don't count two events on the same FD.
+    - [MINOR] show sess: report a lot more information about sessions
+    - [BUG] stream_sock: check for shut{r,w} before refreshing some timeouts
+    - [BUG] don't set an expiration date directly from now_ms
+    - [MINOR] implement ulltoh() to write HTML-formatted numbers
+    - [MINOR] stats/html: group digits by 3 to clarify numbers
+    - [BUILD] remove haproxy-small.spec
+    - [BUILD] makefile: remove unused references to linux24eold and EPOLL_CTL_WORKAROUND
+
 2009/03/22 : 1.3.16
     - [BUILD] Fixed Makefile for linking pcre
     - [CONTRIB] selinux policy for haproxy
