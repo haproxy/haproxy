@@ -2313,7 +2313,7 @@ int http_process_request(struct session *s, struct buffer *req)
 		req->analysers |= AN_REQ_HTTP_TARPIT;
 		req->analyse_exp = tick_add_ifset(now_ms,  s->be->timeout.tarpit);
 		if (!req->analyse_exp)
-			req->analyse_exp = now_ms;
+			req->analyse_exp = tick_add(now_ms, 0);
 	}
 
 	/* OK let's go on with the BODY now */
