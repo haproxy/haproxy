@@ -8,7 +8,6 @@
 #   USE_CTTPROXY         : enable CTTPROXY on Linux (needs kernel patch).
 #   USE_DLMALLOC         : enable use of dlmalloc (see DLMALLOC_SRC)
 #   USE_EPOLL            : enable epoll() on Linux 2.6. Automatic.
-#   USE_EPOLL_WORKAROUND : enable epoll() bug workaround. Automatic.
 #   USE_GETSOCKNAME      : enable getsockname() on Linux 2.2. Automatic.
 #   USE_KQUEUE           : enable kqueue() on BSD. Automatic.
 #   USE_MY_EPOLL         : redefine epoll_* syscalls. Automatic.
@@ -69,7 +68,7 @@ DOCDIR = $(PREFIX)/doc/haproxy
 #### TARGET system
 # Use TARGET=<target_name> to optimize for a specifc target OS among the
 # following list (use the default "generic" if uncertain) :
-#    generic, linux22, linux24, linux24e, linux24eold, linux26, solaris,
+#    generic, linux22, linux24, linux24e, linux26, solaris,
 #    freebsd, openbsd, custom
 TARGET =
 
@@ -175,18 +174,6 @@ ifeq ($(TARGET),linux24e)
   USE_MY_EPOLL    = implicit
   USE_TPROXY      = implicit
 else
-ifeq ($(TARGET),linux24eold)
-  # This is for enhanced Linux 2.4 with netfilter and epoll() patch <= 0.21,
-  # which needs a workaround for a very rare bug.
-  USE_GETSOCKNAME      = implicit
-  USE_NETFILTER        = implicit
-  USE_POLL             = implicit
-  USE_EPOLL            = implicit
-  USE_SEPOLL           = implicit
-  USE_MY_EPOLL         = implicit
-  USE_EPOLL_WORKAROUND = implicit
-  USE_TPROXY           = implicit
-else
 ifeq ($(TARGET),linux26)
   # This is for standard Linux 2.6 with netfilter and standard epoll()
   USE_GETSOCKNAME = implicit
@@ -218,7 +205,6 @@ endif # openbsd
 endif # freebsd
 endif # solaris
 endif # linux26
-endif # linux24eold
 endif # linux24e
 endif # linux24
 endif # linux22
@@ -354,11 +340,6 @@ OPTIONS_CFLAGS += -DNETFILTER
 BUILD_OPTIONS  += $(call ignore_implicit,USE_NETFILTER)
 endif
 
-ifneq ($(USE_EPOLL_WORKAROUND),)
-OPTIONS_CFLAGS += -DEPOLL_CTL_MOD_WORKAROUND
-BUILD_OPTIONS  += $(call ignore_implicit,USE_EPOLL_WORKAROUND)
-endif
-
 ifneq ($(USE_GETSOCKNAME),)
 OPTIONS_CFLAGS += -DUSE_GETSOCKNAME
 BUILD_OPTIONS  += $(call ignore_implicit,USE_GETSOCKNAME)
@@ -442,7 +423,7 @@ all:
 	@echo
 	@echo "Please choose the target among the following supported list :"
 	@echo
-	@echo "   linux26, linux24, linux24e, linux24eold, linux22, solaris"
+	@echo "   linux26, linux24, linux24e, linux22, solaris"
 	@echo "   freebsd, openbsd, custom, generic"
 	@echo
 	@echo "Use \"generic\" if you don't want any optimization, \"custom\" if you"
