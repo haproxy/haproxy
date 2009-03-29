@@ -242,6 +242,10 @@ int stream_sock_read(int fd) {
 	if ((fdtab[fd].ev & (FD_POLL_IN|FD_POLL_HUP)) == FD_POLL_HUP)
 		goto out_shutdown_r;
 
+	/* maybe we were called immediately after an asynchronous shutr */
+	if (b->flags & BF_SHUTR)
+		goto out_wakeup;
+
 #if defined(CONFIG_HAP_LINUX_SPLICE)
 	if (b->to_forward && b->flags & BF_KERN_SPLICING) {
 
@@ -461,7 +465,7 @@ int stream_sock_read(int fd) {
 		EV_FD_CLR(fd, DIR_RD);
 		b->rex = TICK_ETERNITY;
 	}
-	else if ((b->flags & (BF_READ_PARTIAL|BF_FULL|BF_READ_NOEXP)) == BF_READ_PARTIAL)
+	else if ((b->flags & (BF_SHUTR|BF_READ_PARTIAL|BF_FULL|BF_READ_NOEXP)) == BF_READ_PARTIAL)
 		b->rex = tick_add_ifset(now_ms, b->rto);
 
 	/* we have to wake up if there is a special event or if we don't have
@@ -647,6 +651,10 @@ int stream_sock_write(int fd)
 	if (fdtab[fd].state == FD_STERROR || (fdtab[fd].ev & FD_POLL_ERR))
 		goto out_error;
 
+	/* we might have been called just after an asynchronous shutw */
+	if (b->flags & BF_SHUTW)
+		goto out_wakeup;
+
 	if (likely(!(b->flags & BF_EMPTY))) {
 		/* OK there are data waiting to be sent */
 		retval = stream_sock_write_loop(si, b);
@@ -704,7 +712,7 @@ int stream_sock_write(int fd)
 			goto out_wakeup;
 		}
 		
-		if (b->flags & BF_EMPTY)
+		if ((b->flags & (BF_EMPTY|BF_SHUTW)) == BF_EMPTY)
 			si->flags |= SI_FL_WAIT_DATA;
 
 		EV_FD_CLR(fd, DIR_WR);
@@ -730,7 +738,7 @@ int stream_sock_write(int fd)
 		}
 
 		/* the producer might be waiting for more room to store data */
-		if (likely((b->flags & (BF_WRITE_PARTIAL|BF_FULL)) == BF_WRITE_PARTIAL &&
+		if (likely((b->flags & (BF_SHUTW|BF_WRITE_PARTIAL|BF_FULL)) == BF_WRITE_PARTIAL &&
 			   (b->prod->flags & SI_FL_WAIT_ROOM)))
 			b->prod->chk_rcv(b->prod);
 
@@ -786,7 +794,6 @@ void stream_sock_shutw(struct stream_interface *si)
 		}
 		/* fall through */
 	case SI_ST_CON:
-		si->flags &= ~SI_FL_WAIT_ROOM;
 		/* we may have to close a pending connection, and mark the
 		 * response buffer as shutr
 		 */
@@ -795,6 +802,7 @@ void stream_sock_shutw(struct stream_interface *si)
 	case SI_ST_CER:
 		si->state = SI_ST_DIS;
 	default:
+		si->flags &= ~SI_FL_WAIT_ROOM;
 		si->ib->flags |= BF_SHUTR;
 		si->ib->rex = TICK_ETERNITY;
 		si->exp = TICK_ETERNITY;
@@ -893,13 +901,13 @@ void stream_sock_data_finish(struct stream_interface *si)
 			EV_FD_COND_S(fd, DIR_WR);
 			if (!tick_isset(ob->wex) || ob->flags & BF_WRITE_ACTIVITY) {
 				ob->wex = tick_add_ifset(now_ms, ob->wto);
-				if (tick_isset(ob->wex) && tick_isset(ib->rex)) {
+				if (tick_isset(ib->rex)) {
 					/* Note: depending on the protocol, we don't know if we're waiting
 					 * for incoming data or not. So in order to prevent the socket from
 					 * expiring read timeouts during writes, we refresh the read timeout,
 					 * except if it was already infinite.
 					 */
-					ib->rex = ob->wex;
+					ib->rex = tick_add_ifset(now_ms, ib->rto);
 				}
 			}
 		}
@@ -991,8 +999,8 @@ void stream_sock_chk_snd(struct stream_interface *si)
 			stream_sock_shutw(si);
 			goto out_wakeup;
 		}
-		
-		if ((ob->flags & (BF_EMPTY|BF_HIJACK|BF_WRITE_ENA)) == (BF_EMPTY|BF_WRITE_ENA))
+
+		if ((ob->flags & (BF_SHUTW|BF_EMPTY|BF_HIJACK|BF_WRITE_ENA)) == (BF_EMPTY|BF_WRITE_ENA))
 			si->flags |= SI_FL_WAIT_DATA;
 		ob->wex = TICK_ETERNITY;
 	}
