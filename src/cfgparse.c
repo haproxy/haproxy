@@ -130,7 +130,6 @@ static char *cursection = NULL;
 static struct proxy defproxy;		/* fake proxy used to assign default values on all instances */
 int cfg_maxpconn = DEFAULT_MAXCONN;	/* # of simultaneous connections per proxy (-N) */
 int cfg_maxconn = 0;			/* # of simultaneous connections, (-n) */
-unsigned int acl_seen = 0;		/* CFG_ACL_* */
 
 /* List head of all known configuration keywords */
 static struct cfg_kw_list cfg_keywords = {
@@ -273,6 +272,95 @@ int warnifnotcap(struct proxy *proxy, int cap, const char *file, int line, char 
 		return 1;
 	}
 	return 0;
+}
+
+/* Report a warning if a rule is placed after a 'block' rule.
+ * Return 1 if the warning has been emitted, otherwise 0.
+ */
+int warnif_rule_after_block(struct proxy *proxy, const char *file, int line, char *arg)
+{
+	if (!LIST_ISEMPTY(&proxy->block_cond)) {
+		Warning("parsing [%s:%d] : a '%s' rule placed after a 'block' rule will still be processed before.\n",
+			file, line, arg);
+		return 1;
+	}
+	return 0;
+}
+
+/* Report a warning if a rule is placed after a reqrewrite rule.
+ * Return 1 if the warning has been emitted, otherwise 0.
+ */
+int warnif_rule_after_reqxxx(struct proxy *proxy, const char *file, int line, char *arg)
+{
+	if (proxy->req_exp) {
+		Warning("parsing [%s:%d] : a '%s' rule placed after a 'reqxxx' rule will still be processed before.\n",
+			file, line, arg);
+		return 1;
+	}
+	return 0;
+}
+
+/* Report a warning if a rule is placed after a reqadd rule.
+ * Return 1 if the warning has been emitted, otherwise 0.
+ */
+int warnif_rule_after_reqadd(struct proxy *proxy, const char *file, int line, char *arg)
+{
+	if (proxy->nb_reqadd) {
+		Warning("parsing [%s:%d] : a '%s' rule placed after a 'reqadd' rule will still be processed before.\n",
+			file, line, arg);
+		return 1;
+	}
+	return 0;
+}
+
+/* Report a warning if a rule is placed after a redirect rule.
+ * Return 1 if the warning has been emitted, otherwise 0.
+ */
+int warnif_rule_after_redirect(struct proxy *proxy, const char *file, int line, char *arg)
+{
+	if (!LIST_ISEMPTY(&proxy->redirect_rules)) {
+		Warning("parsing [%s:%d] : a '%s' rule placed after a 'redirect' rule will still be processed before.\n",
+			file, line, arg);
+		return 1;
+	}
+	return 0;
+}
+
+/* Report a warning if a rule is placed after a 'use_backend' rule.
+ * Return 1 if the warning has been emitted, otherwise 0.
+ */
+int warnif_rule_after_use_backend(struct proxy *proxy, const char *file, int line, char *arg)
+{
+	if (!LIST_ISEMPTY(&proxy->switching_rules)) {
+		Warning("parsing [%s:%d] : a '%s' rule placed after a 'use_backend' rule will still be processed before.\n",
+			file, line, arg);
+		return 1;
+	}
+	return 0;
+}
+
+/* report a warning if a block rule is dangerously placed */
+int warnif_misplaced_block(struct proxy *proxy, const char *file, int line, char *arg)
+{
+	return	warnif_rule_after_reqxxx(proxy, file, line, arg) ||
+		warnif_rule_after_reqadd(proxy, file, line, arg) ||
+		warnif_rule_after_redirect(proxy, file, line, arg) ||
+		warnif_rule_after_use_backend(proxy, file, line, arg);
+}
+
+/* report a warning if a reqxxx rule is dangerously placed */
+int warnif_misplaced_reqxxx(struct proxy *proxy, const char *file, int line, char *arg)
+{
+	return	warnif_rule_after_reqadd(proxy, file, line, arg) ||
+		warnif_rule_after_redirect(proxy, file, line, arg) ||
+		warnif_rule_after_use_backend(proxy, file, line, arg);
+}
+
+/* report a warning if a reqadd rule is dangerously placed */
+int warnif_misplaced_reqadd(struct proxy *proxy, const char *file, int line, char *arg)
+{
+	return	warnif_rule_after_redirect(proxy, file, line, arg) ||
+		warnif_rule_after_use_backend(proxy, file, line, arg);
 }
 
 /*
@@ -638,7 +726,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			return -1;
 		}
 
-		acl_seen = 0;	
 		curproxy->next = proxy;
 		proxy = curproxy;
 		LIST_INIT(&curproxy->pendconns);
@@ -1206,16 +1293,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		}
 		cond->line = linenum;
 		LIST_ADDQ(&curproxy->block_cond, &cond->list);
-
-		if (!(acl_seen & CFG_ACL_BLOCK)) {
-			if (acl_seen & CFG_ACL_REDIR)
-				Warning("parsing [%s:%d] : a '%s' rule placed after a 'redirect' rule will still be processed before.\n",
-					file, linenum, args[0]);
-			if (acl_seen & CFG_ACL_BACKEND)
-				Warning("parsing [%s:%d] : a '%s' rule placed after a 'use_backend' rule will still be processed before.\n",
-					file, linenum, args[0]);
-			acl_seen |= CFG_ACL_BLOCK;
-		}
+		warnif_misplaced_block(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "redirect")) {
 		int pol = ACL_COND_NONE;
@@ -1352,13 +1430,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		rule->flags = flags;
 		LIST_INIT(&rule->list);
 		LIST_ADDQ(&curproxy->redirect_rules, &rule->list);
-
-		if (!(acl_seen & CFG_ACL_REDIR)) {
-			if (acl_seen & CFG_ACL_BACKEND)
-				Warning("parsing [%s:%d] : a '%s' rule placed after a 'use_backend' rule will still be processed before.\n",
-					file, linenum, args[0]);
-			acl_seen |= CFG_ACL_REDIR;
-		}
+		warnif_rule_after_use_backend(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "use_backend")) {
 		int pol = ACL_COND_NONE;
@@ -1411,7 +1483,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		rule->be.name = strdup(args[1]);
 		LIST_INIT(&rule->list);
 		LIST_ADDQ(&curproxy->switching_rules, &rule->list);
-		acl_seen |= CFG_ACL_BACKEND;
 	}
 	else if (!strcmp(args[0], "stats")) {
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
@@ -2346,6 +2417,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			      file, linenum, *err);
 			return -1;
 		}
+		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqdel")) {  /* delete request header from a regex */
 		regex_t *preg;
@@ -2368,6 +2440,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		}
 	
 		chain_regex(&curproxy->req_exp, preg, ACT_REMOVE, NULL);
+		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqdeny")) {  /* deny a request if a header matches this regex */
 		regex_t *preg;
@@ -2390,6 +2463,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		}
 	
 		chain_regex(&curproxy->req_exp, preg, ACT_DENY, NULL);
+		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqpass")) {  /* pass this header without allowing or denying the request */
 		regex_t *preg;
@@ -2412,6 +2486,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		}
 	
 		chain_regex(&curproxy->req_exp, preg, ACT_PASS, NULL);
+		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqallow")) {  /* allow a request if a header matches this regex */
 		regex_t *preg;
@@ -2434,6 +2509,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		}
 	
 		chain_regex(&curproxy->req_exp, preg, ACT_ALLOW, NULL);
+		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqtarpit")) {  /* tarpit a request if a header matches this regex */
 		regex_t *preg;
@@ -2456,6 +2532,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		}
 	
 		chain_regex(&curproxy->req_exp, preg, ACT_TARPIT, NULL);
+		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqsetbe")) { /* switch the backend from a regex, respecting case */
 		regex_t *preg;
@@ -2478,6 +2555,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		}
 
 		chain_regex(&curproxy->req_exp, preg, ACT_SETBE, strdup(args[2]));
+		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqisetbe")) { /* switch the backend from a regex, ignoring case */
 		regex_t *preg;
@@ -2500,6 +2578,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		}
 
 		chain_regex(&curproxy->req_exp, preg, ACT_SETBE, strdup(args[2]));
+		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqirep")) {  /* replace request header from a regex, ignoring case */
 		regex_t *preg;
@@ -2528,6 +2607,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			      file, linenum, *err);
 			return -1;
 		}
+		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqidel")) {  /* delete request header from a regex ignoring case */
 		regex_t *preg;
@@ -2550,6 +2630,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		}
 	
 		chain_regex(&curproxy->req_exp, preg, ACT_REMOVE, NULL);
+		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqideny")) {  /* deny a request if a header matches this regex ignoring case */
 		regex_t *preg;
@@ -2572,6 +2653,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		}
 	
 		chain_regex(&curproxy->req_exp, preg, ACT_DENY, NULL);
+		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqipass")) {  /* pass this header without allowing or denying the request */
 		regex_t *preg;
@@ -2594,6 +2676,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		}
 	
 		chain_regex(&curproxy->req_exp, preg, ACT_PASS, NULL);
+		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqiallow")) {  /* allow a request if a header matches this regex ignoring case */
 		regex_t *preg;
@@ -2616,6 +2699,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		}
 	
 		chain_regex(&curproxy->req_exp, preg, ACT_ALLOW, NULL);
+		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqitarpit")) {  /* tarpit a request if a header matches this regex ignoring case */
 		regex_t *preg;
@@ -2638,6 +2722,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		}
 	
 		chain_regex(&curproxy->req_exp, preg, ACT_TARPIT, NULL);
+		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqadd")) {  /* add request header */
 		if (curproxy == &defproxy) {
@@ -2658,6 +2743,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		}
 	
 		curproxy->req_add[curproxy->nb_reqadd++] = strdup(args[1]);
+		warnif_misplaced_reqadd(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "srvexp") || !strcmp(args[0], "rsprep")) {  /* replace response header from a regex */
 		regex_t *preg;
@@ -2682,6 +2768,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			      file, linenum, *err);
 			return -1;
 		}
+		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "rspdel")) {  /* delete response header from a regex */
 		regex_t *preg;
