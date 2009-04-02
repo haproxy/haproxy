@@ -123,6 +123,8 @@ static const struct cfg_opt cfg_opts2[] =
 	{ "splice-response", PR_O2_SPLIC_RTR, PR_CAP_FE|PR_CAP_BE, 0 },
 	{ "splice-auto",     PR_O2_SPLIC_AUT, PR_CAP_FE|PR_CAP_BE, 0 },
 #endif
+	{ "accept-invalid-http-request",  PR_O2_REQBUG_OK, PR_CAP_FE, 0 },
+	{ "accept-invalid-http-response", PR_O2_RSPBUG_OK, PR_CAP_BE, 0 },
 	{ NULL, 0, 0, 0 }
 };
 

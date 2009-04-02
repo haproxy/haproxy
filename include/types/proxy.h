@@ -112,6 +112,8 @@
 #define PR_O2_SPLIC_RTR	0x00000002      /* transfer responses using linux kernel's splice() */
 #define PR_O2_SPLIC_AUT	0x00000004      /* automatically use linux kernel's splice() */
 #define PR_O2_SPLIC_ANY	(PR_O2_SPLIC_REQ|PR_O2_SPLIC_RTR|PR_O2_SPLIC_AUT)
+#define PR_O2_REQBUG_OK	0x00000008      /* let buggy requests pass through */
+#define PR_O2_RSPBUG_OK	0x00000010      /* let buggy responses pass through */
 
 /* This structure is used to apply fast weighted round robin on a server group */
 struct fwrr_group {

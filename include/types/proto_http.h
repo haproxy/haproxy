@@ -231,6 +231,7 @@ struct http_msg {
 		} st;                          /* status line : field, length */
 	} sl;                                  /* start line */
 	unsigned long long hdr_content_len;    /* cache for parsed header value */
+	int err_pos;                           /* err handling: -2=block, -1=pass, 0+=detected */
 };
 
 /* This is an HTTP transaction. It contains both a request message and a

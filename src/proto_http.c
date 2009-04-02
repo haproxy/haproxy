@@ -1375,7 +1375,14 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 			EAT_AND_JUMP_OR_RETURN(http_msg_hdr_l1_sp, HTTP_MSG_HDR_L1_SP);
 		}
 
-		goto http_msg_invalid;
+		if (likely(msg->err_pos < -1) || *ptr == '\n')
+			goto http_msg_invalid;
+
+		if (msg->err_pos == -1) /* capture error pointer */
+			msg->err_pos = ptr - buf->data; /* >= 0 now */
+
+		/* and we still accept this non-token character */
+		EAT_AND_JUMP_OR_RETURN(http_msg_hdr_name, HTTP_MSG_HDR_NAME);
 
 	http_msg_hdr_l1_sp:
 	case HTTP_MSG_HDR_L1_SP:
@@ -2055,6 +2062,8 @@ int http_process_request(struct session *s, struct buffer *req)
 					s->rep->rto = s->req->wto = s->be->timeout.server;
 					s->req->cto = s->be->timeout.connect;
 					s->conn_retries = s->be->conn_retries;
+					if (s->be->options2 & PR_O2_RSPBUG_OK)
+						s->txn.rsp.err_pos = -1; /* let buggy responses pass */
 					s->flags |= SN_BE_ASSIGNED;
 					break;
 				}
@@ -2076,6 +2085,8 @@ int http_process_request(struct session *s, struct buffer *req)
 			s->rep->rto = s->req->wto = s->be->timeout.server;
 			s->req->cto = s->be->timeout.connect;
 			s->conn_retries = s->be->conn_retries;
+			if (s->be->options2 & PR_O2_RSPBUG_OK)
+				s->txn.rsp.err_pos = -1; /* let buggy responses pass */
 			s->flags |= SN_BE_ASSIGNED;
 		}
 	} while (s->be != cur_proxy);  /* we loop only if s->be has changed */
@@ -3054,6 +3065,8 @@ int apply_filter_to_req_headers(struct session *t, struct buffer *req, struct hd
 				t->rep->rto = t->req->wto = t->be->timeout.server;
 				t->req->cto = t->be->timeout.connect;
 				t->conn_retries = t->be->conn_retries;
+				if (t->be->options2 & PR_O2_RSPBUG_OK)
+					t->txn.rsp.err_pos = -1; /* let buggy responses pass */
 				last_hdr = 1;
 				break;
 
@@ -3175,6 +3188,8 @@ int apply_filter_to_req_line(struct session *t, struct buffer *req, struct hdr_e
 			t->rep->rto = t->req->wto = t->be->timeout.server;
 			t->req->cto = t->be->timeout.connect;
 			t->conn_retries = t->be->conn_retries;
+			if (t->be->options2 & PR_O2_RSPBUG_OK)
+				t->txn.rsp.err_pos = -1; /* let buggy responses pass */
 			done = 1;
 			break;
 
