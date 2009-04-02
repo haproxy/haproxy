@@ -1403,7 +1403,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		}
 
 		if ((cond = parse_acl_cond((const char **)args + cur_arg, &curproxy->acl, pol)) == NULL) {
-			Alert("parsing [%s:%d] : '%s': error detected while parsing condition.\n",
+			Alert("parsing [%s:%d] : '%s': error detected while parsing redirect condition.\n",
 			      file, linenum, args[0]);
 			return -1;
 		}
