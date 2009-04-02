@@ -86,6 +86,9 @@ int http_find_header2(const char *name, int len,
 void http_sess_log(struct session *s);
 void perform_http_redirect(struct session *s, struct stream_interface *si);
 void http_return_srv_error(struct session *s, struct stream_interface *si);
+void http_capture_bad_message(struct error_snapshot *es, struct session *s,
+                              struct buffer *buf, struct http_msg *msg,
+			      struct proxy *other_end);
 
 #endif /* _PROTO_PROTO_HTTP_H */
 

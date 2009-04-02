@@ -1614,6 +1614,8 @@ int http_process_request(struct session *s, struct buffer *req)
 		/* 2: have we encountered a read error ? */
 		else if (req->flags & BF_READ_ERROR) {
 			/* we cannot return any message on error */
+			if (msg->err_pos >= 0)
+				http_capture_bad_message(&s->fe->invalid_req, s, req, msg, s->fe);
 			msg->msg_state = HTTP_MSG_ERROR;
 			req->analysers = 0;
 			s->fe->failed_req++;
@@ -1627,6 +1629,8 @@ int http_process_request(struct session *s, struct buffer *req)
 		/* 3: has the read timeout expired ? */
 		else if (req->flags & BF_READ_TIMEOUT || tick_is_expired(req->analyse_exp, now_ms)) {
 			/* read timeout : give up with an error message. */
+			if (msg->err_pos >= 0)
+				http_capture_bad_message(&s->fe->invalid_req, s, req, msg, s->fe);
 			txn->status = 408;
 			stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_408));
 			msg->msg_state = HTTP_MSG_ERROR;
@@ -1641,6 +1645,8 @@ int http_process_request(struct session *s, struct buffer *req)
 
 		/* 4: have we encountered a close ? */
 		else if (req->flags & BF_SHUTR) {
+			if (msg->err_pos >= 0)
+				http_capture_bad_message(&s->fe->invalid_req, s, req, msg, s->fe);
 			txn->status = 400;
 			stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_400));
 			msg->msg_state = HTTP_MSG_ERROR;
@@ -1671,6 +1677,9 @@ int http_process_request(struct session *s, struct buffer *req)
 	 * request which at least looks like HTTP. We have an indicator *
 	 * of each header's length, so we can parse them quickly.       *
 	 ****************************************************************/
+
+	if (msg->err_pos >= 0)
+		http_capture_bad_message(&s->fe->invalid_req, s, req, msg, s->fe);
 
 	req->analysers &= ~AN_REQ_HTTP_HDR;
 	req->analyse_exp = TICK_ETERNITY;
@@ -2331,21 +2340,13 @@ int http_process_request(struct session *s, struct buffer *req)
 	return 1;
 
  return_bad_req: /* let's centralize all bad requests */
-	if (unlikely(msg->msg_state == HTTP_MSG_ERROR)) {
+	if (unlikely(msg->msg_state == HTTP_MSG_ERROR) || msg->err_pos >= 0) {
 		/* we detected a parsing error. We want to archive this request
 		 * in the dedicated proxy area for later troubleshooting.
 		 */
-		struct error_snapshot *es = &s->fe->invalid_req;
-		int maxlen = MIN(req->r - req->data + msg->som, sizeof(es->buf));
-		memcpy(es->buf, req->data + msg->som, maxlen);
-		es->pos  = req->lr - req->data + msg->som;
-		es->len  = req->r - req->data + msg->som;
-		es->when = date; // user-visible date
-		es->sid  = s->uniq_id;
-		es->srv  = s->srv;
-		es->oe   = s->be;
-		es->src  = s->cli_addr;
+		http_capture_bad_message(&s->fe->invalid_req, s, req, msg, s->fe);
 	}
+
 	txn->req.msg_state = HTTP_MSG_ERROR;
 	txn->status = 400;
 	req->analysers = 0;
@@ -2570,18 +2571,10 @@ int process_response(struct session *t)
 				/* we detected a parsing error. We want to archive this response
 				 * in the dedicated proxy area for later troubleshooting.
 				 */
-				struct error_snapshot *es = &t->be->invalid_rep;
-				int maxlen = MIN(rep->r - rep->data + msg->som, sizeof(es->buf));
-				memcpy(es->buf, rep->data + msg->som, maxlen);
-				es->pos = rep->lr - rep->data + msg->som;
-				es->len = rep->r - rep->data + msg->som;
-				es->when = date; // user-visible date
-				es->sid = t->uniq_id;
-				es->srv = t->srv;
-				es->oe = t->fe;
-				es->src = t->cli_addr;
-
 			hdr_response_bad:
+				if (msg->msg_state == HTTP_MSG_ERROR || msg->err_pos >= 0)
+					http_capture_bad_message(&t->be->invalid_rep, t, rep, msg, t->fe);
+
 				buffer_shutr_now(rep);
 				buffer_shutw_now(req);
 				if (t->srv)
@@ -2603,6 +2596,8 @@ int process_response(struct session *t)
 			}
 			/* read error */
 			else if (rep->flags & BF_READ_ERROR) {
+				if (msg->err_pos >= 0)
+					http_capture_bad_message(&t->be->invalid_rep, t, rep, msg, t->fe);
 				buffer_shutr_now(rep);
 				buffer_shutw_now(req);
 				if (t->srv)
@@ -2619,6 +2614,8 @@ int process_response(struct session *t)
 			}
 			/* read timeout : return a 504 to the client. */
 			else if (rep->flags & BF_READ_TIMEOUT) {
+				if (msg->err_pos >= 0)
+					http_capture_bad_message(&t->be->invalid_rep, t, rep, msg, t->fe);
 				buffer_shutr_now(rep);
 				buffer_shutw_now(req);
 				if (t->srv)
@@ -2635,6 +2632,8 @@ int process_response(struct session *t)
 			}
 			/* close from server */
 			else if (rep->flags & BF_SHUTR) {
+				if (msg->err_pos >= 0)
+					http_capture_bad_message(&t->be->invalid_rep, t, rep, msg, t->fe);
 				buffer_shutw_now(req);
 				if (t->srv)
 					t->srv->failed_resp++;
@@ -2650,6 +2649,8 @@ int process_response(struct session *t)
 			}
 			/* write error to client (we don't send any message then) */
 			else if (rep->flags & BF_WRITE_ERROR) {
+				if (msg->err_pos >= 0)
+					http_capture_bad_message(&t->be->invalid_rep, t, rep, msg, t->fe);
 				buffer_shutr_now(rep);
 				t->be->failed_resp++;
 				rep->analysers = 0;
@@ -2669,6 +2670,9 @@ int process_response(struct session *t)
 		 * response which at least looks like HTTP. We have an indicator *
 		 * of each header's length, so we can parse them quickly.        *
 		 ****************************************************************/
+
+		if (msg->err_pos >= 0)
+			http_capture_bad_message(&t->be->invalid_rep, t, rep, msg, t->fe);
 
 		rep->analysers &= ~AN_RTR_HTTP_HDR;
 
@@ -4381,6 +4385,27 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 	return 1;
 }
 
+/*
+ * Capture a bad request or response and archive it in the proxy's structure.
+ */
+void http_capture_bad_message(struct error_snapshot *es, struct session *s,
+                              struct buffer *buf, struct http_msg *msg,
+			      struct proxy *other_end)
+{
+	int maxlen = MIN(buf->r - buf->data + msg->som, sizeof(es->buf));
+
+	memcpy(es->buf, buf->data + msg->som, maxlen);
+	if (msg->err_pos >= 0)
+		es->pos  = msg->err_pos + msg->som;
+	else
+		es->pos  = buf->lr - buf->data + msg->som;
+	es->len  = buf->r - buf->data + msg->som;
+	es->when = date; // user-visible date
+	es->sid  = s->uniq_id;
+	es->srv  = s->srv;
+	es->oe   = other_end;
+	es->src  = s->cli_addr;
+}
 
 /*
  * Print a debug line with a header

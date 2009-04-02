@@ -592,6 +592,10 @@ monitor fail                -          X         X         -
 monitor-net                 X          X         X         -
 monitor-uri                 X          X         X         -
 [no] option abortonclose    X          -         X         X
+[no] option accept-invalid-
+            http-request    X          X         X         -
+[no] option accept-invalid-
+            http-response   X          -         X         X
 [no] option allbackups      X          -         X         X
 [no] option checkcache      X          -         X         X
 [no] option clitcpka        X          X         X         -
@@ -1804,6 +1808,72 @@ no option abortonclose
   in a specific instance by prepending the "no" keyword before it.
 
   See also : "timeout queue" and server's "maxconn" and "maxqueue" parameters
+
+
+option accept-invalid-http-request
+no option accept-invalid-http-request
+  Enable or disable relaxing of HTTP request parsing
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   no
+  Arguments : none
+
+  By default, HAProxy complies with RFC2616 in terms of message parsing. This
+  means that invalid characters in header names are not permitted and cause an
+  error to be returned to the client. This is the desired behaviour as such
+  forbidden characters are essentially used to build attacks exploiting server
+  weaknesses, and bypass security filtering. Sometimes, a buggy browser or
+  server will emit invalid header names for whatever reason (configuration,
+  implementation) and the issue will not be immediately fixed. In such a case,
+  it is possible to relax HAProxy's header name parser to accept any character
+  even if that does not make sense, by specifying this option.
+
+  This option should never be enabled by default as it hides application bugs
+  and open security breaches. It should only be deployed after a problem has
+  been confirmed.
+
+  When this option is enabled, erroneous header names will still be accepted in
+  requests, but the complete request will be captured in order to permit later
+  analysis using the "show errors" request on the UNIX stats socket. Doing this
+  also helps confirming that the issue has been solved.
+
+  If this option has been enabled in a "defaults" section, it can be disabled
+  in a specific instance by prepending the "no" keyword before it.
+
+  See also : "option accept-invalid-http-response" and "show errors" on the
+             stats socket.
+
+
+option accept-invalid-http-response
+no option accept-invalid-http-response
+  Enable or disable relaxing of HTTP response parsing
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |     no   |   yes  |   yes
+  Arguments : none
+
+  By default, HAProxy complies with RFC2616 in terms of message parsing. This
+  means that invalid characters in header names are not permitted and cause an
+  error to be returned to the client. This is the desired behaviour as such
+  forbidden characters are essentially used to build attacks exploiting server
+  weaknesses, and bypass security filtering. Sometimes, a buggy browser or
+  server will emit invalid header names for whatever reason (configuration,
+  implementation) and the issue will not be immediately fixed. In such a case,
+  it is possible to relax HAProxy's header name parser to accept any character
+  even if that does not make sense, by specifying this option.
+
+  This option should never be enabled by default as it hides application bugs
+  and open security breaches. It should only be deployed after a problem has
+  been confirmed.
+
+  When this option is enabled, erroneous header names will still be accepted in
+  responses, but the complete response will be captured in order to permit
+  later analysis using the "show errors" request on the UNIX stats socket.
+  Doing this also helps confirming that the issue has been solved.
+
+  If this option has been enabled in a "defaults" section, it can be disabled
+  in a specific instance by prepending the "no" keyword before it.
+
+  See also : "option accept-invalid-http-request" and "show errors" on the
+             stats socket.
 
 
 option allbackups
