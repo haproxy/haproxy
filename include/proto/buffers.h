@@ -111,7 +111,8 @@ int buffer_write_chunk(struct buffer *buf, struct chunk *chunk);
 int buffer_replace(struct buffer *b, char *pos, char *end, const char *str);
 int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int len);
 int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len);
-int chunk_printf(struct chunk *chk, int size, const char *fmt, ...);
+int chunk_printf(struct chunk *chk, int size, const char *fmt, ...)
+	__attribute__ ((format(printf, 3, 4)));
 void buffer_dump(FILE *o, struct buffer *b, int from, int to);
 
 /*
