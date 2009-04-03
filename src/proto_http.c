@@ -774,14 +774,14 @@ static void http_sess_log(struct session *s)
 
 	send_log(prx_log, LOG_INFO,
 		 "%s:%d [%02d/%s/%04d:%02d:%02d:%02d.%03d]"
-		 " %s %s/%s %d/%d/%d/%d/%s%d %d %s%lld"
-		 " %s %s %c%c%c%c %d/%d/%d/%d %d/%d%s\n",
+		 " %s %s/%s %d/%ld/%ld/%ld/%s%ld %d %s%lld"
+		 " %s %s %c%c%c%c %d/%d/%d/%d %ld/%ld%s\n",
 		 pn,
 		 (s->cli_addr.ss_family == AF_INET) ?
 		 ntohs(((struct sockaddr_in *)&s->cli_addr)->sin_port) :
 		 ntohs(((struct sockaddr_in6 *)&s->cli_addr)->sin6_port),
 		 tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
-		 tm.tm_hour, tm.tm_min, tm.tm_sec, s->logs.tv_accept.tv_usec/1000,
+		 tm.tm_hour, tm.tm_min, tm.tm_sec, (int)s->logs.tv_accept.tv_usec/1000,
 		 fe->id, be->id, svid,
 		 t_request,
 		 (s->logs.t_queue >= 0) ? s->logs.t_queue - t_request : -1,

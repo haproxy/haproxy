@@ -361,7 +361,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int inv)
 	else if (!strcmp(args[0], "group")) {
 		struct group *ha_group;
 		if (global.gid != 0) {
-			Alert("parsing [%s:%d] : gid/group was already specified. Continuing.\n", file, linenum, args[0]);
+			Alert("parsing [%s:%d] : gid/group was already specified. Continuing.\n", file, linenum);
 			return 0;
 		}
 		errno = 0;
@@ -2361,7 +2361,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			return 0;
 
 		if (*(args[2]) == 0) {
-			Alert("parsing [%s:%d] : <%s> expects <status_code> and <url> as arguments.\n", file, linenum);
+			Alert("parsing [%s:%d] : <%s> expects <status_code> and <url> as arguments.\n", file, linenum, args[0]);
 			return -1;
 		}
 
@@ -2399,7 +2399,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			return 0;
 
 		if (*(args[2]) == 0) {
-			Alert("parsing [%s:%d] : <%s> expects <status_code> and <file> as arguments.\n", file, linenum);
+			Alert("parsing [%s:%d] : <%s> expects <status_code> and <file> as arguments.\n", file, linenum, args[0]);
 			return -1;
 		}
 
@@ -2901,8 +2901,8 @@ int readcfgfile(const char *file)
 				/* minconn was not specified, so we set it to maxconn */
 				newsrv->minconn = newsrv->maxconn;
 			} else if (newsrv->minconn != newsrv->maxconn && !curproxy->fullconn) {
-				Alert("parsing %s, %s '%s' : fullconn is mandatory when minconn is set on a server.\n",
-				      file, proxy_type_str(curproxy), curproxy->id, linenum);
+				Alert("parsing [%s:%d] : %s '%s' : fullconn is mandatory when minconn is set on a server.\n",
+				      file, linenum, proxy_type_str(curproxy), curproxy->id);
 				goto err;
 			}
 			newsrv = newsrv->next;

@@ -355,14 +355,14 @@ void tcp_sess_log(struct session *s)
 	svid = (tolog & LW_SVID) ? (s->srv != NULL) ? s->srv->id : "<NOSRV>" : "-";
 
 	send_log(prx_log, LOG_INFO, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d.%03d]"
-		 " %s %s/%s %d/%d/%s%d %s%lld"
-		 " %c%c %d/%d/%d/%d %d/%d\n",
+		 " %s %s/%s %ld/%ld/%s%ld %s%lld"
+		 " %c%c %d/%d/%d/%d %ld/%ld\n",
 		 pn,
 		 (s->cli_addr.ss_family == AF_INET) ?
 		 ntohs(((struct sockaddr_in *)&s->cli_addr)->sin_port) :
 		 ntohs(((struct sockaddr_in6 *)&s->cli_addr)->sin6_port),
 		 tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
-		 tm.tm_hour, tm.tm_min, tm.tm_sec, s->logs.tv_accept.tv_usec/1000,
+		 tm.tm_hour, tm.tm_min, tm.tm_sec, (int)s->logs.tv_accept.tv_usec/1000,
 		 fe->id, be->id, svid,
 		 (s->logs.t_queue >= 0) ? s->logs.t_queue : -1,
 		 (s->logs.t_connect >= 0) ? s->logs.t_connect - s->logs.t_queue : -1,
