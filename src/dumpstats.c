@@ -944,7 +944,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 					chunk_printf(&msg, sizeof(trash),
 					     "%d,%d,%d,%d,",
 					     sv->failed_checks, sv->down_trans,
-					     now.tv_sec - sv->last_change, srv_downtime(sv));
+					     (int)(now.tv_sec - sv->last_change), srv_downtime(sv));
 				else
 					chunk_printf(&msg, sizeof(trash),
 					     ",,,,");
@@ -1084,7 +1084,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     (px->lbprm.tot_weight > 0 || !px->srv) ? "UP" : "DOWN",
 				     (px->lbprm.tot_weight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv,
 				     px->srv_act, px->srv_bck,
-				     px->down_trans, now.tv_sec - px->last_change,
+				     px->down_trans, (int)(now.tv_sec - px->last_change),
 				     px->srv?be_downtime(px):0,
 				     relative_pid, px->uuid,
 				     px->cum_lbconn, STATS_TYPE_BE,
@@ -1437,7 +1437,7 @@ void stats_dump_errors_to_buffer(struct session *s, struct buffer *rep)
 			get_localtime(es->when.tv_sec, &tm);
 			chunk_printf(&msg, sizeof(trash), "\n[%02d/%s/%04d:%02d:%02d:%02d.%03d]",
 				     tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
-				     tm.tm_hour, tm.tm_min, tm.tm_sec, es->when.tv_usec/1000);
+				     tm.tm_hour, tm.tm_min, tm.tm_sec, (int)(es->when.tv_usec/1000));
 
 
 			if (es->src.ss_family == AF_INET)

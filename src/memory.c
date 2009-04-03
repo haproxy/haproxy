@@ -176,7 +176,7 @@ void dump_pools(void)
 	allocated = used = nbpools = 0;
 	qfprintf(stderr, "Dumping pools usage.\n");
 	list_for_each_entry(entry, &pools, list) {
-		qfprintf(stderr, "  - Pool %s (%d bytes) : %d allocated (%lu bytes), %d used, %d users%s\n",
+		qfprintf(stderr, "  - Pool %s (%d bytes) : %d allocated (%u bytes), %d used, %d users%s\n",
 			 entry->name, entry->size, entry->allocated,
 			 entry->size * entry->allocated, entry->used,
 			 entry->users, (entry->flags & MEM_F_SHARED) ? " [SHARED]" : "");

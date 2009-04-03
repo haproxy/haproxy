@@ -1105,7 +1105,7 @@ int main(int argc, char **argv)
 	getrlimit(RLIMIT_NOFILE, &limit);
 	if (limit.rlim_cur < global.maxsock) {
 		Warning("[%s.main()] FD limit (%d) too low for maxconn=%d/maxsock=%d. Please raise 'ulimit-n' to %d or more to avoid any trouble.\n",
-			argv[0], limit.rlim_cur, global.maxconn, global.maxsock, global.maxsock);
+			argv[0], (int)limit.rlim_cur, global.maxconn, global.maxsock, global.maxsock);
 	}
 
 	if (global.mode & MODE_DAEMON) {
