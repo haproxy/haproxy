@@ -224,7 +224,7 @@ static void set_server_up(struct server *s) {
 			" %d sessions requeued, %d total in queue.\n",
 			s->proxy->srv_act, s->proxy->srv_bck,
 			(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
-			s->cur_sess, xferred, s->nbpend);
+			xferred, s->nbpend);
 
 		Warning("%s", trash);
 		send_log(s->proxy, LOG_NOTICE, "%s", trash);
