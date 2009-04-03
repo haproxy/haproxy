@@ -38,17 +38,20 @@ extern struct pool_head *pool2_requri;
  * Displays the message on stderr with the date and pid. Overrides the quiet
  * mode during startup.
  */
-void Alert(const char *fmt, ...);
+void Alert(const char *fmt, ...)
+	__attribute__ ((format(printf, 1, 2)));
 
 /*
  * Displays the message on stderr with the date and pid.
  */
-void Warning(const char *fmt, ...);
+void Warning(const char *fmt, ...)
+	__attribute__ ((format(printf, 1, 2)));
 
 /*
  * Displays the message on <out> only if quiet mode is not set.
  */
-void qfprintf(FILE *out, const char *fmt, ...);
+void qfprintf(FILE *out, const char *fmt, ...)
+	__attribute__ ((format(printf, 2, 3)));
 
 /*
  * This function sends a syslog message to both log servers of a proxy,
@@ -56,7 +59,8 @@ void qfprintf(FILE *out, const char *fmt, ...);
  * It also tries not to waste too much time computing the message header.
  * It doesn't care about errors nor does it report them.
  */
-void send_log(struct proxy *p, int level, const char *message, ...);
+void send_log(struct proxy *p, int level, const char *message, ...)
+	__attribute__ ((format(printf, 3, 4)));
 
 /*
  * send a log for the session when we have enough info about it
