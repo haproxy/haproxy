@@ -690,7 +690,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     /* pxid, name, queue cur, queue max, */
 				     "%s,FRONTEND,,,"
 				     /* sessions : current, max, limit, total */
-				     "%d,%d,%d,%d,"
+				     "%d,%d,%d,%u,"
 				     /* bytes : in, out */
 				     "%lld,%lld,"
 				     /* denied: req, resp */
@@ -845,7 +845,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     /* queue : current, max */
 				     "%d,%d,"
 				     /* sessions : current, max, limit, total */
-				     "%d,%d,%s,%d,"
+				     "%d,%d,%s,%u,"
 				     /* bytes : in, out */
 				     "%lld,%lld,"
 				     /* denied: req, resp */
@@ -904,7 +904,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				}
 
 				/* sessions: lbtot */
-				chunk_printf(&msg, sizeof(trash), ",%d", sv->cum_lbconn);
+				chunk_printf(&msg, sizeof(trash), ",%u", sv->cum_lbconn);
 				/* ',' then EOL */
 				chunk_printf(&msg, sizeof(trash), ",\n");
 			}
@@ -971,7 +971,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     /* queue : current, max */
 				     "%d,%d,"
 				     /* sessions : current, max, limit, total */
-				     "%d,%d,%d,%d,"
+				     "%d,%d,%d,%u,"
 				     /* bytes : in, out */
 				     "%lld,%lld,"
 				     /* denied: req, resp */
@@ -989,7 +989,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     /* rest of backend: nothing, down transitions, last change, total downtime */
 				     ",%d,%d,%d,,"
 				     /* pid, iid, sid, throttle, lbtot, */
-				     "%d,%d,0,,%d,"
+				     "%d,%d,0,,%u,"
 				     "\n",
 				     px->id,
 				     px->nbpend /* or px->totpend ? */, px->nbpend_max,
