@@ -116,16 +116,16 @@ struct server {
 	struct eb_root *lb_tree;                /* we want to know in what tree the server is */
 	struct server *next_full;               /* next server in the temporary full list */
 
-	unsigned failed_checks, down_trans;	/* failed checks and up-down transitions */
+	long long failed_checks, down_trans;	/* failed checks and up-down transitions */
 	unsigned down_time;			/* total time the server was down */
 	time_t last_change;			/* last time, when the state was changed */
 
-	unsigned failed_conns, failed_resp;	/* failed connect() and responses */
-	unsigned retries, redispatches;		/* retried and redispatched connections */
-	unsigned failed_secu;			/* blocked responses because of security concerns */
+	long long failed_conns, failed_resp;	/* failed connect() and responses */
+	long long retries, redispatches;		/* retried and redispatched connections */
+	long long failed_secu;			/* blocked responses because of security concerns */
 	struct freq_ctr sess_per_sec;		/* sessions per second on this server */
-	unsigned cum_sess;			/* cumulated number of sessions really sent to this server */
-	unsigned cum_lbconn;			/* cumulated number of sessions directed by load balancing */
+	long long cum_sess;			/* cumulated number of sessions really sent to this server */
+	long long cum_lbconn;			/* cumulated number of sessions directed by load balancing */
 
 	long long bytes_in;			/* number of bytes transferred from the client to the server */
 	long long bytes_out;			/* number of bytes transferred from the server to the client */

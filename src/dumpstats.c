@@ -728,13 +728,13 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     /* pxid, name, queue cur, queue max, */
 				     "%s,FRONTEND,,,"
 				     /* sessions : current, max, limit, total */
-				     "%d,%d,%d,%u,"
+				     "%d,%d,%d,%lld,"
 				     /* bytes : in, out */
 				     "%lld,%lld,"
 				     /* denied: req, resp */
-				     "%d,%d,"
+				     "%lld,%lld,"
 				     /* errors : request, connect, response */
-				     "%d,,,"
+				     "%lld,,,"
 				     /* warnings: retries, redispatches */
 				     ",,"
 				     /* server status : reflect frontend status */
@@ -840,7 +840,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     /* errors : request, connect, response */
 				     "<td align=right></td><td align=right>%s</td><td align=right>%s</td>\n"
 				     /* warnings: retries, redispatches */
-				     "<td align=right>%u</td><td align=right>%u</td>"
+				     "<td align=right>%lld</td><td align=right>%lld</td>"
 				     "",
 				     U2H0(sv->bytes_in), U2H1(sv->bytes_out),
 				     U2H2(sv->failed_secu),
@@ -872,7 +872,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				/* check failures: unique, fatal, down time */
 				if (sv->state & SRV_CHECKED)
 					chunk_printf(&msg, sizeof(trash),
-					     "<td align=right>%d</td><td align=right>%d</td>"
+					     "<td align=right>%lld</td><td align=right>%lld</td>"
 					     "<td nowrap align=right>%s</td>"
 					     "",
 					     svs->failed_checks, svs->down_trans,
@@ -907,15 +907,15 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     /* queue : current, max */
 				     "%d,%d,"
 				     /* sessions : current, max, limit, total */
-				     "%d,%d,%s,%u,"
+				     "%d,%d,%s,%lld,"
 				     /* bytes : in, out */
 				     "%lld,%lld,"
 				     /* denied: req, resp */
-				     ",%d,"
+				     ",%lld,"
 				     /* errors : request, connect, response */
-				     ",%d,%d,"
+				     ",%lld,%lld,"
 				     /* warnings: retries, redispatches */
-				     "%u,%u,"
+				     "%lld,%lld,"
 				     "",
 				     px->id, sv->id,
 				     sv->nbpend, sv->nbpend_max,
@@ -942,7 +942,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				/* check failures: unique, fatal; last change, total downtime */
 				if (sv->state & SRV_CHECKED)
 					chunk_printf(&msg, sizeof(trash),
-					     "%d,%d,%d,%d,",
+					     "%lld,%lld,%d,%d,",
 					     sv->failed_checks, sv->down_trans,
 					     (int)(now.tv_sec - sv->last_change), srv_downtime(sv));
 				else
@@ -966,7 +966,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				}
 
 				/* sessions: lbtot */
-				chunk_printf(&msg, sizeof(trash), ",%u,", sv->cum_lbconn);
+				chunk_printf(&msg, sizeof(trash), ",%lld,", sv->cum_lbconn);
 
 				/* tracked */
 				if (sv->tracked)
@@ -1020,7 +1020,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     /* errors : request, connect, response */
 				     "<td align=right></td><td align=right>%s</td><td align=right>%s</td>\n"
 				     /* warnings: retries, redispatches */
-				     "<td align=right>%u</td><td align=right>%u</td>"
+				     "<td align=right>%lld</td><td align=right>%lld</td>"
 				     /* backend status: reflect backend status (up/down): we display UP
 				      * if the backend has known working servers or if it has no server at
 				      * all (eg: for stats). Then we display the total weight, number of
@@ -1052,15 +1052,15 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     /* queue : current, max */
 				     "%d,%d,"
 				     /* sessions : current, max, limit, total */
-				     "%d,%d,%d,%u,"
+				     "%d,%d,%d,%lld,"
 				     /* bytes : in, out */
 				     "%lld,%lld,"
 				     /* denied: req, resp */
-				     "%d,%d,"
+				     "%lld,%lld,"
 				     /* errors : request, connect, response */
-				     ",%d,%d,"
+				     ",%lld,%lld,"
 				     /* warnings: retries, redispatches */
-				     "%u,%u,"
+				     "%lld,%lld,"
 				     /* backend status: reflect backend status (up/down): we display UP
 				      * if the backend has known working servers or if it has no server at
 				      * all (eg: for stats). Then we display the total weight, number of
@@ -1070,7 +1070,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     /* rest of backend: nothing, down transitions, last change, total downtime */
 				     ",%d,%d,%d,,"
 				     /* pid, iid, sid, throttle, lbtot, tracked, type */
-				     "%d,%d,0,,%u,,%d,"
+				     "%d,%d,0,,%lld,,%d,"
 				     /* rate */
 				     "%u,"
 				     "\n",

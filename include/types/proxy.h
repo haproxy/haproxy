@@ -225,8 +225,8 @@ struct proxy {
 	unsigned int beconn, beconn_max;	/* # of active backend sessions */
 	struct freq_ctr fe_sess_per_sec;	/* sessions per second on the frontend */
 	struct freq_ctr be_sess_per_sec;	/* sessions per second on the backend */
-	unsigned int cum_feconn, cum_beconn;	/* cumulated number of processed sessions */
-	unsigned int cum_lbconn;		/* cumulated number of sessions processed by load balancing */
+	long long cum_feconn, cum_beconn;	/* cumulated number of processed sessions */
+	long long cum_lbconn;			/* cumulated number of sessions processed by load balancing */
 	unsigned int maxconn;			/* max # of active sessions on the frontend */
 	unsigned int fe_maxsps;			/* max # of new sessions per second on the frontend */
 	unsigned int fullconn;			/* #conns on backend above which servers are used at full load */
@@ -238,10 +238,10 @@ struct proxy {
 	unsigned down_time;			/* total time the proxy was down */
 	time_t last_change;			/* last time, when the state was changed */
 
-	unsigned failed_conns, failed_resp;	/* failed connect() and responses */
-	unsigned retries, redispatches;		/* retried and redispatched connections */
-	unsigned denied_req, denied_resp;	/* blocked requests/responses because of security concerns */
-	unsigned failed_req;			/* failed requests (eg: invalid or timeout) */
+	long long failed_conns, failed_resp;	/* failed connect() and responses */
+	long long retries, redispatches;	/* retried and redispatched connections */
+	long long denied_req, denied_resp;	/* blocked requests/responses because of security concerns */
+	long long failed_req;			/* failed requests (eg: invalid or timeout) */
 	long long bytes_in;			/* number of bytes transferred from the client to the server */
 	long long bytes_out;			/* number of bytes transferred from the server to the client */
 	int conn_retries;			/* maximum number of connect retries */

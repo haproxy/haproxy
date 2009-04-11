@@ -279,7 +279,7 @@ void sig_dump_state(int sig)
 		send_log(p, LOG_NOTICE, "SIGHUP received, dumping servers states for proxy %s.\n", p->id);
 		while (s) {
 			snprintf(trash, sizeof(trash),
-				 "SIGHUP: Server %s/%s is %s. Conn: %d act, %d pend, %d tot.",
+				 "SIGHUP: Server %s/%s is %s. Conn: %d act, %d pend, %lld tot.",
 				 p->id, s->id,
 				 (s->state & SRV_RUNNING) ? "UP" : "DOWN",
 				 s->cur_sess, s->nbpend, s->cum_sess);
@@ -291,19 +291,19 @@ void sig_dump_state(int sig)
 		/* FIXME: those info are a bit outdated. We should be able to distinguish between FE and BE. */
 		if (!p->srv) {
 			snprintf(trash, sizeof(trash),
-				 "SIGHUP: Proxy %s has no servers. Conn: act(FE+BE): %d+%d, %d pend (%d unass), tot(FE+BE): %d+%d.",
+				 "SIGHUP: Proxy %s has no servers. Conn: act(FE+BE): %d+%d, %d pend (%d unass), tot(FE+BE): %lld+%lld.",
 				 p->id,
 				 p->feconn, p->beconn, p->totpend, p->nbpend, p->cum_feconn, p->cum_beconn);
 		} else if (p->srv_act == 0) {
 			snprintf(trash, sizeof(trash),
-				 "SIGHUP: Proxy %s %s ! Conn: act(FE+BE): %d+%d, %d pend (%d unass), tot(FE+BE): %d+%d.",
+				 "SIGHUP: Proxy %s %s ! Conn: act(FE+BE): %d+%d, %d pend (%d unass), tot(FE+BE): %lld+%lld.",
 				 p->id,
 				 (p->srv_bck) ? "is running on backup servers" : "has no server available",
 				 p->feconn, p->beconn, p->totpend, p->nbpend, p->cum_feconn, p->cum_beconn);
 		} else {
 			snprintf(trash, sizeof(trash),
 				 "SIGHUP: Proxy %s has %d active servers and %d backup servers available."
-				 " Conn: act(FE+BE): %d+%d, %d pend (%d unass), tot(FE+BE): %d+%d.",
+				 " Conn: act(FE+BE): %d+%d, %d pend (%d unass), tot(FE+BE): %lld+%lld.",
 				 p->id, p->srv_act, p->srv_bck,
 				 p->feconn, p->beconn, p->totpend, p->nbpend, p->cum_feconn, p->cum_beconn);
 		}
