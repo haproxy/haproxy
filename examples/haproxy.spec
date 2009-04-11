@@ -33,7 +33,7 @@ risking the system's stability.
 %define __perl_requires /bin/true
 
 %build
-%{__make} USE_PCRE=1 DEBUG="" TARGET=linux26
+%{__make} USE_PCRE=1 DEBUG="" ARCH=%{_target_cpu} TARGET=linux26
 
 %install
 [ "%{buildroot}" != "/" ] && %{__rm} -rf %{buildroot}

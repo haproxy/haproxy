@@ -1,7 +1,7 @@
 # This GNU Makefile supports different OS and CPU combinations.
 #
 # You should use it this way :
-#   [g]make TARGET=os CPU=cpu USE_xxx=1 ...
+#   [g]make TARGET=os ARCH=arch CPU=cpu USE_xxx=1 ...
 #
 # Valid USE_* options are the following. Most of them are automatically set by
 # the TARGET, others have to be explictly specified :
@@ -28,6 +28,7 @@
 # Variables useful for packagers :
 #   CC is set to "gcc" by default and is used for compilation only.
 #   LD is set to "gcc" by default and is used for linking only.
+#   ARCH may be useful to force build of 32-bit binary on 64-bit systems
 #   CFLAGS is automatically set for the specified CPU and may be overridden.
 #   LDFLAGS is automatically set to -g and may be overridden.
 #   SMALL_OPTS may be used to specify some options to shrink memory usage.
@@ -77,6 +78,13 @@ TARGET =
 # list :
 #    generic, i586, i686, ultrasparc, custom
 CPU = generic
+
+#### Architecture, used when not building for native architecture
+# Use ARCH=<arch_name> to force build for a specific architecture. Known
+# architectures will lead to "-m32" or "-m64" being added to CFLAGS and
+# LDFLAGS. This can be required to build 32-bit binaries on 64-bit targets.
+# Currently, only x86_64, i386, i486, i586 and i686 are understood.
+ARCH =
 
 #### Toolchain options.
 # GCC is normally used both for compiling and linking.
@@ -129,17 +137,25 @@ CPU_CFLAGS.i686       = -O2 -march=i686
 CPU_CFLAGS.ultrasparc = -O6 -mcpu=v9 -mtune=ultrasparc
 CPU_CFLAGS            = $(CPU_CFLAGS.$(CPU))
 
+#### ARCH dependant flags, may be overriden by CPU flags
+ARCH_FLAGS.i386   = -m32 -march=i386
+ARCH_FLAGS.i486   = -m32 -march=i486
+ARCH_FLAGS.i586   = -m32 -march=i586
+ARCH_FLAGS.i686   = -m32 -march=i686
+ARCH_FLAGS.x86_64 = -m64 -march=x86-64
+ARCH_FLAGS        = $(ARCH_FLAGS.$(ARCH))
+
 #### Common CFLAGS
 # These CFLAGS contain general optimization options, CPU-specific optimizations
 # and debug flags. They may be overridden by some distributions which prefer to
 # set all of them at once instead of playing with the CPU and DEBUG variables.
-CFLAGS = $(CPU_CFLAGS) $(DEBUG_CFLAGS)
+CFLAGS = $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS)
 
 #### Common LDFLAGS
 # These LDFLAGS are used as the first "ld" options, regardless of any library
 # path or any other option. They may be changed to add any linker-specific
 # option at the beginning of the ld command line.
-LDFLAGS = -g
+LDFLAGS = $(ARCH_FLAGS) -g
 
 #### Target system options
 # Depending on the target platform, some options are set, as well as some
@@ -458,6 +474,7 @@ objsize: haproxy
 src/haproxy.o:	src/haproxy.c
 	$(CC) $(COPTS) \
 	      -DBUILD_TARGET='"$(strip $(TARGET))"' \
+	      -DBUILD_ARCH='"$(strip $(ARCH))"' \
 	      -DBUILD_CPU='"$(strip $(CPU))"' \
 	      -DBUILD_CC='"$(strip $(CC))"' \
 	      -DBUILD_CFLAGS='"$(strip $(VERBOSE_CFLAGS))"' \

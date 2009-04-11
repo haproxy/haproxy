@@ -22,7 +22,6 @@ and assign it to the TARGET variable :
   - linux22     for Linux 2.2
   - linux24     for Linux 2.4 and above (default)
   - linux24e    for Linux 2.4 with support for a working epoll (> 0.21)
-  - linux24eold for Linux 2.4 with support for a broken  epoll (<= 0.21)
   - linux26     for Linux 2.6 and above
   - solaris     for Solaris 8 or 10 (others untested)
   - freebsd     for FreeBSD 5 to 6.2 (others untested)
@@ -41,6 +40,12 @@ one of the following choices to the CPU variable :
 
 Alternatively, you may just set the CPU_CFLAGS value to the optimal GCC options
 for your platform.
+
+You may want to build specific target binaries which do not match your native
+compiler's target. This is particularly true on 64-bit systems when you want
+to build a 32-bit binary. Use the ARCH variable for this purpose. Right now
+it only knows about a few x86 variants (i386,i486,i586,i686,x86_64) and sets
+-m32/-m64 as well as -march=<arch> accordingly.
 
 If your system supports PCRE (Perl Compatible Regular Expressions), then you
 really should build with libpcre which is between 2 and 10 times faster than
@@ -73,6 +78,10 @@ For example, I use this to build for Solaris 8 :
 And I build it this way on OpenBSD or FreeBSD :
 
     $ make -f Makefile.bsd REGEX=pcre DEBUG= COPTS.generic="-Os -fomit-frame-pointer -mgnu"
+
+In order to build a 32-bit binary on an x86_64 Linux system :
+
+    $ make TARGET=linux26 ARCH=i386
 
 If you need to pass other defines, includes, libraries, etc... then please
 check the Makefile to see which ones will be available in your case, and
