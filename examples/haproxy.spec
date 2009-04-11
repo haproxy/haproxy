@@ -33,9 +33,7 @@ risking the system's stability.
 %define __perl_requires /bin/true
 
 %build
-%{__make} USE_PCRE=1 "COPTS.pcre=-DUSE_PCRE $(pcre-config --cflags)" DEBUG="" TARGET=linux26
-#%{__make} REGEX=pcre DEBUG="" LIBS.pcre="-L\$(PCREDIR)/lib -Wl,-Bstatic -lpcreposix -lpcre -Wl,-Bdynamic"
-
+%{__make} USE_PCRE=1 DEBUG="" TARGET=linux26
 
 %install
 [ "%{buildroot}" != "/" ] && %{__rm} -rf %{buildroot}
