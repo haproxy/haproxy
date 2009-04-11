@@ -3091,7 +3091,7 @@ int readcfgfile(const char *file)
 			 * Watch out for the last line without the terminating '\n'!
 			 */
 			Alert("parsing [%s:%d]: line too long, limit: %d.\n",
-				file, linenum, sizeof(thisline)-1);
+			      file, linenum, (int)sizeof(thisline)-1);
 			goto err;
 		}
 
