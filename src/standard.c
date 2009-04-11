@@ -92,7 +92,7 @@ struct sockaddr_un *str2sun(const char *str)
 	strsz = strlen(str) + 1;
 	if (strsz > sizeof(su.sun_path)) {
 		Alert("Socket path '%s' too long (max %d)\n",
-			str, sizeof(su.sun_path) - 1);
+		      str, (int)sizeof(su.sun_path) - 1);
 	} else {
 		su.sun_family = AF_UNIX;
 		memcpy(su.sun_path, str, strsz);
