@@ -41,6 +41,7 @@
 #include <proto/acl.h>
 #include <proto/backend.h>
 #include <proto/buffers.h>
+#include <proto/client.h>
 #include <proto/dumpstats.h>
 #include <proto/fd.h>
 #include <proto/log.h>
@@ -2216,7 +2217,52 @@ int http_process_request(struct session *s, struct buffer *req)
 	}
 
 	/*
-	 * 10: add "Connection: close" if needed and not yet set.
+	 * 10: add X-Original-To if either the frontend or the backend
+	 * asks for it.
+	 */
+	if ((s->fe->options | s->be->options) & PR_O_ORGTO) {
+
+		/* FIXME: don't know if IPv6 can handle that case too. */
+		if (s->cli_addr.ss_family == AF_INET) {
+			/* Add an X-Original-To header unless the destination IP is
+			 * in the 'except' network range.
+			 */
+			if (!(s->flags & SN_FRT_ADDR_SET))
+				get_frt_addr(s);
+
+			if ((!s->fe->except_mask_to.s_addr ||
+			     (((struct sockaddr_in *)&s->frt_addr)->sin_addr.s_addr & s->fe->except_mask_to.s_addr)
+			     != s->fe->except_to.s_addr) &&
+			    (!s->be->except_mask_to.s_addr ||
+			     (((struct sockaddr_in *)&s->frt_addr)->sin_addr.s_addr & s->be->except_mask_to.s_addr)
+			     != s->be->except_to.s_addr)) {
+				int len;
+				unsigned char *pn;
+				pn = (unsigned char *)&((struct sockaddr_in *)&s->frt_addr)->sin_addr;
+
+				/* Note: we rely on the backend to get the header name to be used for
+				 * x-original-to, because the header is really meant for the backends.
+				 * However, if the backend did not specify any option, we have to rely
+				 * on the frontend's header name.
+				 */
+				if (s->be->orgto_hdr_len) {
+					len = s->be->orgto_hdr_len;
+					memcpy(trash, s->be->orgto_hdr_name, len);
+				} else {
+					len = s->fe->orgto_hdr_len;
+					memcpy(trash, s->fe->orgto_hdr_name, len);
+					}
+				len += sprintf(trash + len, ": %d.%d.%d.%d", pn[0], pn[1], pn[2], pn[3]);
+
+				if (unlikely(http_header_add_tail2(req, &txn->req,
+								   &txn->hdr_idx, trash, len)) < 0)
+					goto return_bad_req;
+			}
+		}
+	}
+
+	/*
+	 * 11: add "Connection: close" if needed and not yet set.
 	 * Note that we do not need to add it in case of HTTP/1.0.
 	 */
 	if (!(s->flags & SN_CONN_CLOSED) &&

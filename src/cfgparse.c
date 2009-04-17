@@ -763,6 +763,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		curproxy->lbprm.algo = defproxy.lbprm.algo;
 		curproxy->except_net = defproxy.except_net;
 		curproxy->except_mask = defproxy.except_mask;
+		curproxy->except_mask_to = defproxy.except_mask_to;
 
 		if (defproxy.fwdfor_hdr_len) {
 			curproxy->fwdfor_hdr_len  = defproxy.fwdfor_hdr_len;
@@ -1713,6 +1714,51 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 					free(curproxy->fwdfor_hdr_name);
 					curproxy->fwdfor_hdr_name = strdup(args[cur_arg+1]);
 					curproxy->fwdfor_hdr_len  = strlen(curproxy->fwdfor_hdr_name);
+					cur_arg += 2;
+				} else {
+					/* unknown suboption - catchall */
+					Alert("parsing [%s:%d] : '%s %s' only supports optional values: 'except' and 'header'.\n",
+					      file, linenum, args[0], args[1]);
+					return -1;
+				}
+			} /* end while loop */
+		}
+		else if (!strcmp(args[1], "originalto")) {
+			int cur_arg;
+
+			/* insert x-original-to field, but not for the IP address listed as an except.
+			 * set default options (ie: bitfield, header name, etc)
+			 */
+
+			curproxy->options |= PR_O_ORGTO;
+
+			free(curproxy->orgto_hdr_name);
+			curproxy->orgto_hdr_name = strdup(DEF_XORIGINALTO_HDR);
+			curproxy->orgto_hdr_len  = strlen(DEF_XORIGINALTO_HDR);
+
+			/* loop to go through arguments - start at 2, since 0+1 = "option" "forwardfor" */
+			cur_arg = 2;
+			while (*(args[cur_arg])) {
+				if (!strcmp(args[cur_arg], "except")) {
+					/* suboption except - needs additional argument for it */
+					if (!*(args[cur_arg+1]) || !str2net(args[cur_arg+1], &curproxy->except_to, &curproxy->except_mask_to)) {
+						Alert("parsing [%s:%d] : '%s %s %s' expects <address>[/mask] as argument.\n",
+						      file, linenum, args[0], args[1], args[cur_arg]);
+						return -1;
+					}
+					/* flush useless bits */
+					curproxy->except_to.s_addr &= curproxy->except_mask_to.s_addr;
+					cur_arg += 2;
+				} else if (!strcmp(args[cur_arg], "header")) {
+					/* suboption header - needs additional argument for it */
+					if (*(args[cur_arg+1]) == 0) {
+						Alert("parsing [%s:%d] : '%s %s %s' expects <header_name> as argument.\n",
+						      file, linenum, args[0], args[1], args[cur_arg]);
+						return -1;
+					}
+					free(curproxy->orgto_hdr_name);
+					curproxy->orgto_hdr_name = strdup(args[cur_arg+1]);
+					curproxy->orgto_hdr_len  = strlen(curproxy->orgto_hdr_name);
 					cur_arg += 2;
 				} else {
 					/* unknown suboption - catchall */

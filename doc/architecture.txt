@@ -128,6 +128,15 @@ Limits :
         option httpclose
         option forwardfor
 
+ - if the application needs to log the original destination IP, use the
+   "originalto" option which will add an "X-Original-To" header with the
+   original destination IP address. You must also use "httpclose" to ensure
+   that you will rewrite every requests and not only the first one of each
+   session :
+
+        option httpclose
+        option originalto
+
    The web server will have to be configured to use this header instead.
    For example, on apache, you can use LogFormat for this :
 

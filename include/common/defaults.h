@@ -130,6 +130,9 @@
 // X-Forwarded-For header default
 #define DEF_XFORWARDFOR_HDR	"X-Forwarded-For"
 
+// X-Original-To header default
+#define DEF_XORIGINALTO_HDR	"X-Original-To"
+
 /* Default connections limit.
  *
  * A system limit can be enforced at build time in order to avoid using haproxy

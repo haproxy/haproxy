@@ -105,7 +105,8 @@
 #define PR_O_CONTSTATS	0x10000000	/* continous counters */
 #define PR_O_HTTP_PROXY 0x20000000	/* Enable session to use HTTP proxy operations */
 #define PR_O_DISABLE404 0x40000000      /* Disable a server on a 404 response to a health-check */
-/* unused: 0x80000000 */
+#define PR_O_ORGTO      0x80000000      /* insert x-original-to with destination address */
+/* unused: 0x80000000 - now used by PR_O_ORGTO */
 
 /* bits for proxy->options2 */
 #define PR_O2_SPLIC_REQ	0x00000001      /* transfer requests using linux kernel's splice() */
@@ -231,8 +232,12 @@ struct proxy {
 	unsigned int fe_maxsps;			/* max # of new sessions per second on the frontend */
 	unsigned int fullconn;			/* #conns on backend above which servers are used at full load */
 	struct in_addr except_net, except_mask; /* don't x-forward-for for this address. FIXME: should support IPv6 */
+	struct in_addr except_to;		/* don't x-original-to for this address. */
+	struct in_addr except_mask_to;		/* the netmask for except_to. */
 	char *fwdfor_hdr_name;			/* header to use - default: "x-forwarded-for" */
 	int fwdfor_hdr_len;			/* length of "x-forwarded-for" header */
+	char *orgto_hdr_name;			/* header to use - default: "x-original-to" */
+	int orgto_hdr_len;			/* length of "x-original-to" header */
 
 	unsigned down_trans;			/* up-down transitions */
 	unsigned down_time;			/* total time the proxy was down */

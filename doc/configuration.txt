@@ -603,6 +603,7 @@ monitor-uri                 X          X         X         -
 [no] option dontlognull     X          X         X         -
 [no] option forceclose      X          -         X         X
 option forwardfor           X          X         X         X
+option originalto           X          X         X         X
 [no] option http_proxy      X          X         X         X
 option httpchk              X          -         X         X
 [no] option httpclose       X          X         X         X
@@ -2104,6 +2105,65 @@ option forwardfor [ except <network> ] [ header <name> ]
     backend www
         mode http
         option forwardfor header X-Client
+
+  See also : "option httpclose"
+
+
+option originalto [ except <network> ] [ header <name> ]
+  Enable insertion of the X-Original-To header to requests sent to servers
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+  Arguments :
+    <network> is an optional argument used to disable this option for sources
+              matching <network>
+    <name>    an optional argument to specify a different "X-Original-To"
+              header name.
+
+  Since HAProxy can work in transparent mode, every request from a client can
+  be redirected to the proxy and HAProxy itself can proxy every request to a
+  complex SQUID environment and the destination host from SO_ORIGINAL_DST will
+  be lost. This is annoying when you want access rules based on destination ip
+  addresses. To solve this problem, a new HTTP header "X-Original-To" may be
+  added by HAProxy to all requests sent to the server. This header contains a
+  value representing the original destination IP address. Since this must be
+  configured to always use the last occurrence of this header only. Note that
+  only the last occurrence of the header must be used, since it is really
+  possible that the client has already brought one.
+
+  The keyword "header" may be used to supply a different header name to replace
+  the default "X-Original-To". This can be useful where you might already
+  have a "X-Original-To" header from a different application, and you need
+  preserve it. Also if your backend server doesn't use the "X-Original-To"
+  header and requires different one.
+
+  Sometimes, a same HAProxy instance may be shared between a direct client
+  access and a reverse-proxy access (for instance when an SSL reverse-proxy is
+  used to decrypt HTTPS traffic). It is possible to disable the addition of the
+  header for a known source address or network by adding the "except" keyword
+  followed by the network address. In this case, any source IP matching the
+  network will not cause an addition of this header. Most common uses are with
+  private networks or 127.0.0.1.
+
+  This option may be specified either in the frontend or in the backend. If at
+  least one of them uses it, the header will be added. Note that the backend's
+  setting of the header subargument takes precedence over the frontend's if
+  both are defined.
+
+  It is important to note that as long as HAProxy does not support keep-alive
+  connections, only the first request of a connection will receive the header.
+  For this reason, it is important to ensure that "option httpclose" is set
+  when using this option.
+
+  Examples :
+    # Original Destination address
+    frontend www
+        mode http
+        option originalto except 127.0.0.1
+
+    # Those servers want the IP Address in X-Client-Dst
+    backend www
+        mode http
+        option originalto header X-Client-Dst
 
   See also : "option httpclose"
 
