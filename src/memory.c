@@ -122,11 +122,17 @@ void pool_flush2(struct pool_head *pool)
 
 /*
  * This function frees whatever can be freed in all pools, but respecting
- * the minimum thresholds imposed by owners.
+ * the minimum thresholds imposed by owners. It takes care of avoiding
+ * recursion because it may be called from a signal handler.
  */
 void pool_gc2()
 {
+	static int recurse;
 	struct pool_head *entry;
+
+	if (recurse++)
+		goto out;
+
 	list_for_each_entry(entry, &pools, list) {
 		void *temp, *next;
 		//qfprintf(stderr, "Flushing pool %s\n", entry->name);
@@ -141,6 +147,8 @@ void pool_gc2()
 		}
 		entry->free_list = next;
 	}
+ out:
+	recurse--;
 }
 
 /*
