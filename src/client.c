@@ -266,6 +266,8 @@ int event_accept(int fd) {
 			txn->rsp.msg_state = HTTP_MSG_RPBEFORE; /* at the very beginning of the response */
 			txn->req.sol = txn->req.eol = NULL;
 			txn->req.som = txn->req.eoh = 0; /* relative to the buffer */
+			txn->rsp.sol = txn->rsp.eol = NULL;
+			txn->rsp.som = txn->rsp.eoh = 0; /* relative to the buffer */
 			txn->req.err_pos = txn->rsp.err_pos = -2; /* block buggy requests/responses */
 			if (p->options2 & PR_O2_REQBUG_OK)
 				txn->req.err_pos = -1; /* let buggy requests pass */
