@@ -4392,14 +4392,12 @@ void http_capture_bad_message(struct error_snapshot *es, struct session *s,
                               struct buffer *buf, struct http_msg *msg,
 			      struct proxy *other_end)
 {
-	int maxlen = MIN(buf->r - buf->data + msg->som, sizeof(es->buf));
-
-	memcpy(es->buf, buf->data + msg->som, maxlen);
+	es->len = buf->r - (buf->data + msg->som);
+	memcpy(es->buf, buf->data + msg->som, MIN(es->len, sizeof(es->buf)));
 	if (msg->err_pos >= 0)
-		es->pos  = msg->err_pos + msg->som;
+		es->pos  = msg->err_pos - msg->som;
 	else
-		es->pos  = buf->lr - buf->data + msg->som;
-	es->len  = buf->r - buf->data + msg->som;
+		es->pos  = buf->lr - (buf->data + msg->som);
 	es->when = date; // user-visible date
 	es->sid  = s->uniq_id;
 	es->srv  = s->srv;
