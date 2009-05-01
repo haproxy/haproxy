@@ -71,6 +71,15 @@ restart() {
   start
 }
 
+reload() {
+  /usr/sbin/$BASENAME -c -q -f /etc/$BASENAME/$BASENAME.cfg
+  if [ $? -ne 0 ]; then
+    echo "Errors found in configuration file, check it with '$BASENAME check'."
+    return 1
+  fi
+  /usr/sbin/$BASENAME -D -f /etc/$BASENAME/$BASENAME.cfg -p /var/run/$BASENAME.pid -sf $(cat /var/run/$BASENAME.pid)
+}
+
 check() {
   /usr/sbin/$BASENAME -c -q -V -f /etc/$BASENAME/$BASENAME.cfg
 }
@@ -95,7 +104,7 @@ case "$1" in
     restart
     ;;
   reload)
-    restart
+    reload
     ;;
   condrestart)
     condrestart
