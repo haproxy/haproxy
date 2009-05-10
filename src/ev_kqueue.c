@@ -30,6 +30,7 @@
 #include <types/global.h>
 
 #include <proto/fd.h>
+#include <proto/signal.h>
 #include <proto/task.h>
 
 /* private data */
@@ -109,7 +110,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	timeout.tv_sec  = 0;
 	timeout.tv_nsec = 0;
 
-	if (!run_queue) {
+	if (!run_queue && !signal_queue_len) {
 		if (!exp) {
 			delta_ms        = MAX_DELAY_MS;
 			timeout.tv_sec  = (MAX_DELAY_MS / 1000);

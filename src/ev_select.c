@@ -22,6 +22,7 @@
 #include <types/global.h>
 
 #include <proto/fd.h>
+#include <proto/signal.h>
 #include <proto/task.h>
 
 
@@ -92,7 +93,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	delta.tv_sec  = 0;
 	delta.tv_usec = 0;
 
-	if (!run_queue) {
+	if (!run_queue && !signal_queue_len) {
 		if (!exp) {
 			delta_ms      = MAX_DELAY_MS;
 			delta.tv_sec  = (MAX_DELAY_MS / 1000);

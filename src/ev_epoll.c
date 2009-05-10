@@ -24,6 +24,7 @@
 #include <types/fd.h>
 #include <types/global.h>
 
+#include <proto/signal.h>
 #include <proto/task.h>
 
 #if defined(USE_MY_EPOLL)
@@ -232,7 +233,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		fd_flush_changes();
 
 	/* now let's wait for events */
-	if (run_queue)
+	if (run_queue || signal_queue_len)
 		wait_time = 0;
 	else if (!exp)
 		wait_time = MAX_DELAY_MS;

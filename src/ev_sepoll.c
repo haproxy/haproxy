@@ -59,6 +59,7 @@
 #include <types/global.h>
 
 #include <proto/fd.h>
+#include <proto/signal.h>
 #include <proto/task.h>
 
 #if defined(USE_MY_EPOLL)
@@ -471,7 +472,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	}
 	last_skipped = 0;
 
-	if (nbspec || status || run_queue) {
+	if (nbspec || status || run_queue || signal_queue_len) {
 		/* Maybe we have processed some events that we must report, or
 		 * maybe we still have events in the spec list, or there are
 		 * some tasks left pending in the run_queue, so we must not
