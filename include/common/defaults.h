@@ -166,4 +166,11 @@
 #define STATS_VERSION_STRING " version " HAPROXY_VERSION ", released " HAPROXY_DATE
 #endif
 
+/* Maximum signal queue size, and also number of different signals we can
+ * handle.
+ */
+#ifndef MAX_SIGNAL
+#define MAX_SIGNAL 256
+#endif
+
 #endif /* _COMMON_DEFAULTS_H */
