@@ -1,6 +1,44 @@
 ChangeLog :
 ===========
 
+2009/05/10 : 1.3.18
+    - [MEDIUM] add support for "balance hdr(name)"
+    - [CLEANUP] give a little bit more information in error message
+    - [MINOR] add X-Original-To: header
+    - [BUG] x-original-to: fix missing initialization to default value
+    - [BUILD] spec file: fix broken pipe during rpmbuild and add man file
+    - [MINOR] improve reporting of misplaced acl/reqxxx rules
+    - [MEDIUM] http: add options to ignore invalid header names
+    - [MEDIUM] http: capture invalid requests/responses even if accepted
+    - [BUILD] add format(printf) to printf-like functions
+    - [MINOR] fix several printf formats and missing arguments
+    - [BUG] stats: total and lbtot are unsigned
+    - [MINOR] fix a few remaining printf-like formats on 64-bit platforms
+    - [CLEANUP] remove unused make option from haproxy.spec
+    - [BUILD] make it possible to pass alternative arch at build time
+    - [MINOR] switch all stat counters to 64-bit
+    - [MEDIUM] ensure we don't recursively call pool_gc2()
+    - [CRITICAL] uninitialized response field can sometimes cause crashes
+    - [BUG] fix wrong pointer arithmetics in HTTP message captures
+    - [MINOR] rhel init script : support the reload operation
+    - [MINOR] add basic signal handling functions
+    - [BUILD] add signal.o to all makefiles
+    - [MEDIUM] call signal_process_queue from run_poll_loop
+    - [MEDIUM] pollers: don't wait if a signal is pending
+    - [MEDIUM] convert all signals to asynchronous signals
+    - [BUG] O(1) pollers should check their FD before closing it
+    - [MINOR] don't close stdio fds twice
+    - [MINOR] add options dontlog-normal and log-separate-errors
+    - [DOC] minor fixes and rearrangements
+    - [BUG] fix parser crash on unconditional tcp content rules
+    - [DOC] rearrange the configuration manual and add a summary
+    - [MINOR] standard: provide a new 'my_strndup' function
+    - [MINOR] implement per-logger log level limitation
+    - [MINOR] compute the max of sessions/s on fe/be/srv
+    - [MINOR] stats: report max sessions/s and limit in CSV export
+    - [MINOR] stats: report max sessions/s and limit in HTML stats
+    - [MINOR] stats/html: use the arial font before helvetica
+
 2009/03/29 : 1.3.17
     - Update specfile to build for v2.6 kernel.
     - [BUG] reset the stream_interface connect timeout upon connect or error
