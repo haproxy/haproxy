@@ -244,7 +244,7 @@ void sig_soft_stop(int sig)
 {
 	soft_stop();
 	pool_gc2();
-	signal(sig, SIG_IGN);
+	signal_register(sig, SIG_IGN);
 }
 
 /*
@@ -254,7 +254,6 @@ void sig_pause(int sig)
 {
 	pause_proxies();
 	pool_gc2();
-	signal(sig, sig_pause);
 }
 
 /*
@@ -263,7 +262,6 @@ void sig_pause(int sig)
 void sig_listen(int sig)
 {
 	listen_proxies();
-	signal(sig, sig_listen);
 }
 
 /*
@@ -313,7 +311,6 @@ void sig_dump_state(int sig)
 
 		p = p->next;
 	}
-	signal(sig, sig_dump_state);
 }
 
 void dump(int sig)
@@ -361,8 +358,8 @@ void sig_int(int sig)
 	*/
 	fast_stop();
 	pool_gc2();
-	/* If we are killed twice, we decide to die*/
-	signal(sig, SIG_DFL);
+	/* If we are killed twice, we decide to die */
+	signal_register(sig, SIG_DFL);
 }
 
 void sig_term(int sig)
@@ -374,8 +371,8 @@ void sig_term(int sig)
 	*/
 	fast_stop();
 	pool_gc2();
-	/* If we are killed twice, we decide to die*/
-	signal(sig, SIG_DFL);
+	/* If we are killed twice, we decide to die */
+	signal_register(sig, SIG_DFL);
 }
 #endif
 
@@ -909,12 +906,12 @@ int main(int argc, char **argv)
 	FILE *pidfile = NULL;
 	init(argc, argv);
 
-	signal(SIGQUIT, dump);
-	signal(SIGUSR1, sig_soft_stop);
-	signal(SIGHUP, sig_dump_state);
+	signal_register(SIGQUIT, dump);
+	signal_register(SIGUSR1, sig_soft_stop);
+	signal_register(SIGHUP, sig_dump_state);
 #ifdef DEBUG_MEMORY
-	signal(SIGINT, sig_int);
-	signal(SIGTERM, sig_term);
+	signal_register(SIGINT, sig_int);
+	signal_register(SIGTERM, sig_term);
 #endif
 
 	/* on very high loads, a sigpipe sometimes happen just between the
@@ -974,8 +971,8 @@ int main(int argc, char **argv)
 	}
 
 	/* prepare pause/play signals */
-	signal(SIGTTOU, sig_pause);
-	signal(SIGTTIN, sig_listen);
+	signal_register(SIGTTOU, sig_pause);
+	signal_register(SIGTTIN, sig_listen);
 
 	/* MODE_QUIET can inhibit alerts and warnings below this line */
 
