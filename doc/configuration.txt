@@ -10,12 +10,314 @@
 This document covers the configuration language as implemented in the version
 specified above. It does not provide any hint, example or advice. For such
 documentation, please refer to the Reference Manual or the Architecture Manual.
+The summary below is meant to help you search sections by name and navigate
+through the document.
 
-Note to documentation contributors : this document is formated with 80 columns
-per line, with even number of spaces for indentation and without tabs. Please
-follow these rules strictly so that it remains easily printable everywhere. If
-a line needs to be printed verbatim and does not fit, please end each line with
-a backslash ('\') and continue on next line.
+Note to documentation contributors :
+    This document is formated with 80 columns per line, with even number of
+    spaces for indentation and without tabs. Please follow these rules strictly
+    so that it remains easily printable everywhere. If a line needs to be
+    printed verbatim and does not fit, please end each line with a backslash
+    ('\') and continue on next line. If you add sections, please update the
+    summary below for easier searching.
+
+
+Summary
+-------
+
+1.    Quick reminder about HTTP
+1.1.      The HTTP transaction model
+1.2.      HTTP request
+1.2.1.        The Request line
+1.2.2.        The request headers
+1.3.      HTTP response
+1.3.1.        The Response line
+1.3.2.        The response headers
+
+2.    Configuring HAProxy
+2.1.      Configuration file format
+2.2.      Time format
+
+3.    Global parameters
+3.1.      Process management and security
+3.2.      Performance tuning
+3.3.      Debugging
+
+4.    Proxies
+4.1.      Proxy keywords matrix
+4.2.      Alphabetically sorted keywords reference
+
+5.    Server options
+
+6.    HTTP header manipulation
+
+7.    Using ACLs
+7.1.      Matching integers
+7.2.      Matching strings
+7.3.      Matching regular expressions (regexes)
+7.4.      Matching IPv4 addresses
+7.5.      Available matching criteria
+7.5.1.        Matching at Layer 4 and below
+7.5.2.        Matching contents at Layer 4
+7.5.3.        Matching at Layer 7
+7.6.      Pre-defined ACLs
+7.7.      Using ACLs to form conditions
+
+8.    Logging
+8.1.      Log levels
+8.2.      Log formats
+8.2.1.        Default log format
+8.2.2.        TCP log format
+8.2.3.        HTTP log format
+8.3.      Advanced logging options
+8.3.1.        Disabling logging of external tests
+8.3.2.        Logging before waiting for the session to terminate
+8.3.3.        Raising log level upon errors
+8.3.4.        Disabling logging of successful connections
+8.4.      Timing events
+8.5.      Session state at disconnection
+8.6.      Non-printable characters
+8.7.      Capturing HTTP cookies
+8.8.      Capturing HTTP headers
+8.9.      Examples of logs
+
+9.    Statistics and monitoring
+9.1.      CSV format
+9.2.      Unix Socket commands
+
+
+1. Quick reminder about HTTP
+----------------------------
+
+When haproxy is running in HTTP mode, both the request and the response are
+fully analyzed and indexed, thus it becomes possible to build matching criteria
+on almost anything found in the contents.
+
+However, it is important to understand how HTTP requests and responses are
+formed, and how HAProxy decomposes them. It will then become easier to write
+correct rules and to debug existing configurations.
+
+
+1.1. The HTTP transaction model
+-------------------------------
+
+The HTTP protocol is transaction-driven. This means that each request will lead
+to one and only one response. Traditionnally, a TCP connection is established
+from the client to the server, a request is sent by the client on the
+connection, the server responds and the connection is closed. A new request
+will involve a new connection :
+
+  [CON1] [REQ1] ... [RESP1] [CLO1] [CON2] [REQ2] ... [RESP2] [CLO2] ...
+
+In this mode, called the "HTTP close" mode, there are as many connection
+establishments as there are HTTP transactions. Since the connection is closed
+by the server after the response, the client does not need to know the content
+length.
+
+Due to the transactional nature of the protocol, it was possible to improve it
+to avoid closing a connection between two subsequent transactions. In this mode
+however, it is mandatory that the server indicates the content length for each
+response so that the client does not wait indefinitely. For this, a special
+header is used: "Content-length". This mode is called the "keep-alive" mode :
+
+  [CON] [REQ1] ... [RESP1] [REQ2] ... [RESP2] [CLO] ...
+
+Its advantages are a reduced latency between transactions, and less processing
+power required on the server side. It is generally better than the close mode,
+but not always because the clients often limit their concurrent connections to
+a smaller value. HAProxy currently does not support the HTTP keep-alive mode,
+but knows how to transform it to the close mode.
+
+A last improvement in the communications is the pipelining mode. It still uses
+keep-alive, but the client does not wait for the first response to send the
+second request. This is useful for fetching large number of images composing a
+page :
+
+  [CON] [REQ1] [REQ2] ... [RESP1] [RESP2] [CLO] ...
+
+This can obviously have a tremendous benefit on performance because the network
+latency is eliminated between subsequent requests. Many HTTP agents do not
+correctly support pipelining since there is no way to associate a response with
+the corresponding request in HTTP. For this reason, it is mandatory for the
+server to reply in the exact same order as the requests were received.
+
+Right now, HAProxy only supports the first mode (HTTP close) if it needs to
+process the request. This means that for each request, there will be one TCP
+connection. If keep-alive or pipelining are required, HAProxy will still
+support them, but will only see the first request and the first response of
+each transaction. While this is generally problematic with regards to logs,
+content switching or filtering, it most often causes no problem for persistence
+with cookie insertion.
+
+
+1.2. HTTP request
+-----------------
+
+First, let's consider this HTTP request :
+
+  Line     Contents
+  number 
+     1     GET /serv/login.php?lang=en&profile=2 HTTP/1.1
+     2     Host: www.mydomain.com
+     3     User-agent: my small browser
+     4     Accept: image/jpeg, image/gif
+     5     Accept: image/png
+
+
+1.2.1. The Request line
+-----------------------
+
+Line 1 is the "request line". It is always composed of 3 fields :
+
+  - a METHOD      : GET
+  - a URI         : /serv/login.php?lang=en&profile=2
+  - a version tag : HTTP/1.1
+
+All of them are delimited by what the standard calls LWS (linear white spaces),
+which are commonly spaces, but can also be tabs or line feeds/carriage returns
+followed by spaces/tabs. The method itself cannot contain any colon (':') and
+is limited to alphabetic letters. All those various combinations make it
+desirable that HAProxy performs the splitting itself rather than leaving it to
+the user to write a complex or inaccurate regular expression.
+
+The URI itself can have several forms :
+
+  - A "relative URI" :
+
+      /serv/login.php?lang=en&profile=2
+
+    It is a complete URL without the host part. This is generally what is
+    received by servers, reverse proxies and transparent proxies.
+
+  - An "absolute URI", also called a "URL" :
+
+      http://192.168.0.12:8080/serv/login.php?lang=en&profile=2
+
+    It is composed of a "scheme" (the protocol name followed by '://'), a host
+    name or address, optionally a colon (':') followed by a port number, then
+    a relative URI beginning at the first slash ('/') after the address part.
+    This is generally what proxies receive, but a server supporting HTTP/1.1
+    must accept this form too.
+
+  - a star ('*') : this form is only accepted in association with the OPTIONS
+    method and is not relayable. It is used to inquiry a next hop's
+    capabilities.
+        
+  - an address:port combination : 192.168.0.12:80
+    This is used with the CONNECT method, which is used to establish TCP
+    tunnels through HTTP proxies, generally for HTTPS, but sometimes for
+    other protocols too.
+
+In a relative URI, two sub-parts are identified. The part before the question
+mark is called the "path". It is typically the relative path to static objects
+on the server. The part after the question mark is called the "query string".
+It is mostly used with GET requests sent to dynamic scripts and is very
+specific to the language, framework or application in use.
+
+
+1.2.2. The request headers
+--------------------------
+
+The headers start at the second line. They are composed of a name at the
+beginning of the line, immediately followed by a colon (':'). Traditionally,
+an LWS is added after the colon but that's not required. Then come the values.
+Multiple identical headers may be folded into one single line, delimiting the
+values with commas, provided that their order is respected. This is commonly
+encountered in the "Cookie:" field. A header may span over multiple lines if
+the subsequent lines begin with an LWS. In the example in 1.2, lines 4 and 5
+define a total of 3 values for the "Accept:" header.
+
+Contrary to a common mis-conception, header names are not case-sensitive, and
+their values are not either if they refer to other header names (such as the
+"Connection:" header).
+
+The end of the headers is indicated by the first empty line. People often say
+that it's a double line feed, which is not exact, even if a double line feed
+is one valid form of empty line.
+
+Fortunately, HAProxy takes care of all these complex combinations when indexing
+headers, checking values and counting them, so there is no reason to worry
+about the way they could be written, but it is important not to accuse an
+application of being buggy if it does unusual, valid things.
+
+Important note:
+   As suggested by RFC2616, HAProxy normalizes headers by replacing line breaks
+   in the middle of headers by LWS in order to join multi-line headers. This
+   is necessary for proper analysis and helps less capable HTTP parsers to work
+   correctly and not to be fooled by such complex constructs.
+
+
+1.3. HTTP response
+------------------
+
+An HTTP response looks very much like an HTTP request. Both are called HTTP
+messages. Let's consider this HTTP response :
+
+  Line     Contents
+  number 
+     1     HTTP/1.1 200 OK
+     2     Content-length: 350
+     3     Content-Type: text/html
+
+
+1.3.1. The Response line
+------------------------
+
+Line 1 is the "response line". It is always composed of 3 fields :
+
+  - a version tag : HTTP/1.1
+  - a status code : 200
+  - a reason      : OK
+
+The status code is always 3-digit. The first digit indicates a general status :
+ - 2xx = OK, content is following   (eg: 200, 206)
+ - 3xx = OK, no content following   (eg: 302, 304)
+ - 4xx = error caused by the client (eg: 401, 403, 404)
+ - 5xx = error caused by the server (eg: 500, 502, 503)
+
+Please refer to RFC2616 for the detailed meaning of all such codes. The
+"reason" field is just a hint, but is not parsed by clients. Anything can be 
+found there, but it's a common practice to respect the well-established
+messages. It can be composed of one or multiple words, such as "OK", "Found",
+or "Authentication Required".
+
+Haproxy may emit the following status codes by itself :
+
+  Code  When / reason
+   200  access to stats page, and when replying to monitoring requests
+   301  when performing a redirection, depending on the configured code
+   302  when performing a redirection, depending on the configured code
+   303  when performing a redirection, depending on the configured code
+   400  for an invalid or too large request
+   401  when an authentication is required to perform the action (when
+        accessing the stats page)
+   403  when a request is forbidden by a "block" ACL or "reqdeny" filter
+   408  when the request timeout strikes before the request is complete
+   500  when haproxy encounters an unrecoverable internal error, such as a
+        memory allocation failure, which should never happen
+   502  when the server returns an empty, invalid or incomplete response, or
+        when an "rspdeny" filter blocks the response.
+   503  when no server was available to handle the request, or in response to
+        monitoring requests which match the "monitor fail" condition
+   504  when the response timeout strikes before the server responds
+
+The error 4xx and 5xx codes above may be customized (see "errorloc" in section
+4.2).
+
+
+1.3.2. The response headers
+---------------------------
+
+Response headers work exactly like request headers, and as such, HAProxy uses
+the same parsing function for both. Please refer to paragraph 1.2.2 for more
+details.
+
+
+2. Configuring HAProxy
+----------------------
+
+2.1. Configuration file format
+------------------------------
 
 HAProxy's configuration process involves 3 major sources of parameters :
 
@@ -29,6 +331,10 @@ referenced in this manual, optionally followed by one or several parameters
 delimited by spaces. If spaces have to be entered in strings, then they must be
 preceeded by a backslash ('\') to be escaped. Backslashes also have to be
 escaped by doubling them.
+
+
+2.2. Time format
+----------------
 
 Some parameters involve values representating time, such as timeouts. These
 values are generally expressed in milliseconds (unless explicitly stated
@@ -44,7 +350,7 @@ for every keyword. Supported units are :
   - d  : days.    1d = 24h = 1440m = 86400s = 86400000ms
 
 
-1. Global parameters
+3. Global parameters
 --------------------
 
 Parameters in the "global" section are process-wide and often OS-specific. They
@@ -83,7 +389,7 @@ The following keywords are supported in the "global" section :
    - quiet
 
 
-1.1) Process management and security
+3.1. Process management and security
 ------------------------------------
 
 chroot <jail dir>
@@ -191,7 +497,7 @@ user <user name>
   See also "uid" and "group".
 
 
-1.2) Performance tuning
+3.2. Performance tuning
 -----------------------
 
 maxconn <number>
@@ -265,8 +571,8 @@ tune.maxpollevents <number>
   tends to trade latency for slightly increased bandwidth.
 
 
-1.3) Debugging
----------------
+3.3. Debugging
+--------------
 
 debug
   Enables debug mode which dumps to stdout all exchanges, and disables forking
@@ -279,7 +585,7 @@ quiet
   line argument "-q".
 
 
-2) Proxies
+4. Proxies
 ----------
 
 Proxy configuration can be located in a set of sections :
@@ -320,234 +626,7 @@ modifying, or removing arbitrary contents in requests or responses, based on
 arbitrary criteria.
 
 
-2.1) Quick reminder about HTTP
-------------------------------
-
-When a proxy is running in HTTP mode, both the request and the response are
-fully analyzed and indexed, thus it becomes possible to build matching criteria
-on almost anything found in the contents.
-
-However, it is important to understand how HTTP requests and responses are
-formed, and how HAProxy decomposes them. It will then become easier to write
-correct rules and to debug existing configurations.
-
-
-2.1.1) The HTTP transaction model
----------------------------------
-
-The HTTP protocol is transaction-driven. This means that each request will lead
-to one and only one response. Traditionnally, a TCP connection is established
-from the client to the server, a request is sent by the client on the
-connection, the server responds and the connection is closed. A new request
-will involve a new connection :
-
-  [CON1] [REQ1] ... [RESP1] [CLO1] [CON2] [REQ2] ... [RESP2] [CLO2] ...
-
-In this mode, called the "HTTP close" mode, there are as many connection
-establishments as there are HTTP transactions. Since the connection is closed
-by the server after the response, the client does not need to know the content
-length.
-
-Due to the transactional nature of the protocol, it was possible to improve it
-to avoid closing a connection between two subsequent transactions. In this mode
-however, it is mandatory that the server indicates the content length for each
-response so that the client does not wait indefinitely. For this, a special
-header is used: "Content-length". This mode is called the "keep-alive" mode :
-
-  [CON] [REQ1] ... [RESP1] [REQ2] ... [RESP2] [CLO] ...
-
-Its advantages are a reduced latency between transactions, and less processing
-power required on the server side. It is generally better than the close mode,
-but not always because the clients often limit their concurrent connections to
-a smaller value. HAProxy currently does not support the HTTP keep-alive mode,
-but knows how to transform it to the close mode.
-
-A last improvement in the communications is the pipelining mode. It still uses
-keep-alive, but the client does not wait for the first response to send the
-second request. This is useful for fetching large number of images composing a
-page :
-
-  [CON] [REQ1] [REQ2] ... [RESP1] [RESP2] [CLO] ...
-
-This can obviously have a tremendous benefit on performance because the network
-latency is eliminated between subsequent requests. Many HTTP agents do not
-correctly support pipelining since there is no way to associate a response with
-the corresponding request in HTTP. For this reason, it is mandatory for the
-server to reply in the exact same order as the requests were received.
-
-Right now, HAProxy only supports the first mode (HTTP close) if it needs to
-process the request. This means that for each request, there will be one TCP
-connection. If keep-alive or pipelining are required, HAProxy will still
-support them, but will only see the first request and the first response of
-each transaction. While this is generally problematic with regards to logs,
-content switching or filtering, it most often causes no problem for persistence
-with cookie insertion.
-
-
-2.1.2) HTTP request
--------------------
-
-First, let's consider this HTTP request :
-
-  Line     Contents
-  number 
-     1     GET /serv/login.php?lang=en&profile=2 HTTP/1.1
-     2     Host: www.mydomain.com
-     3     User-agent: my small browser
-     4     Accept: image/jpeg, image/gif
-     5     Accept: image/png
-
-
-2.1.2.1) The Request line
--------------------------
-
-Line 1 is the "request line". It is always composed of 3 fields :
-
-  - a METHOD      : GET
-  - a URI         : /serv/login.php?lang=en&profile=2
-  - a version tag : HTTP/1.1
-
-All of them are delimited by what the standard calls LWS (linear white spaces),
-which are commonly spaces, but can also be tabs or line feeds/carriage returns
-followed by spaces/tabs. The method itself cannot contain any colon (':') and
-is limited to alphabetic letters. All those various combinations make it
-desirable that HAProxy performs the splitting itself rather than leaving it to
-the user to write a complex or inaccurate regular expression.
-
-The URI itself can have several forms :
-
-  - A "relative URI" :
-
-      /serv/login.php?lang=en&profile=2
-
-    It is a complete URL without the host part. This is generally what is
-    received by servers, reverse proxies and transparent proxies.
-
-  - An "absolute URI", also called a "URL" :
-
-      http://192.168.0.12:8080/serv/login.php?lang=en&profile=2
-
-    It is composed of a "scheme" (the protocol name followed by '://'), a host
-    name or address, optionally a colon (':') followed by a port number, then
-    a relative URI beginning at the first slash ('/') after the address part.
-    This is generally what proxies receive, but a server supporting HTTP/1.1
-    must accept this form too.
-
-  - a star ('*') : this form is only accepted in association with the OPTIONS
-    method and is not relayable. It is used to inquiry a next hop's
-    capabilities.
-        
-  - an address:port combination : 192.168.0.12:80
-    This is used with the CONNECT method, which is used to establish TCP
-    tunnels through HTTP proxies, generally for HTTPS, but sometimes for
-    other protocols too.
-
-In a relative URI, two sub-parts are identified. The part before the question
-mark is called the "path". It is typically the relative path to static objects
-on the server. The part after the question mark is called the "query string".
-It is mostly used with GET requests sent to dynamic scripts and is very
-specific to the language, framework or application in use.
-
-
-2.1.2.2) The request headers
-----------------------------
-
-The headers start at the second line. They are composed of a name at the
-beginning of the line, immediately followed by a colon (':'). Traditionally,
-an LWS is added after the colon but that's not required. Then come the values.
-Multiple identical headers may be folded into one single line, delimiting the
-values with commas, provided that their order is respected. This is commonly
-encountered in the "Cookie:" field. A header may span over multiple lines if
-the subsequent lines begin with an LWS. In the example in 2.1.2, lines 4 and 5
-define a total of 3 values for the "Accept:" header.
-
-Contrary to a common mis-conception, header names are not case-sensitive, and
-their values are not either if they refer to other header names (such as the
-"Connection:" header).
-
-The end of the headers is indicated by the first empty line. People often say
-that it's a double line feed, which is not exact, even if a double line feed
-is one valid form of empty line.
-
-Fortunately, HAProxy takes care of all these complex combinations when indexing
-headers, checking values and counting them, so there is no reason to worry
-about the way they could be written, but it is important not to accuse an
-application of being buggy if it does unusual, valid things.
-
-Important note:
-   As suggested by RFC2616, HAProxy normalizes headers by replacing line breaks
-   in the middle of headers by LWS in order to join multi-line headers. This
-   is necessary for proper analysis and helps less capable HTTP parsers to work
-   correctly and not to be fooled by such complex constructs.
-
-
-2.1.3) HTTP response
---------------------
-
-An HTTP response looks very much like an HTTP request. Both are called HTTP
-messages. Let's consider this HTTP response :
-
-  Line     Contents
-  number 
-     1     HTTP/1.1 200 OK
-     2     Content-length: 350
-     3     Content-Type: text/html
-
-
-2.1.3.1) The Response line
---------------------------
-
-Line 1 is the "response line". It is always composed of 3 fields :
-
-  - a version tag : HTTP/1.1
-  - a status code : 200
-  - a reason      : OK
-
-The status code is always 3-digit. The first digit indicates a general status :
- - 2xx = OK, content is following   (eg: 200, 206)
- - 3xx = OK, no content following   (eg: 302, 304)
- - 4xx = error caused by the client (eg: 401, 403, 404)
- - 5xx = error caused by the server (eg: 500, 502, 503)
-
-Please refer to RFC2616 for the detailed meaning of all such codes. The
-"reason" field is just a hint, but is not parsed by clients. Anything can be 
-found there, but it's a common practice to respect the well-established
-messages. It can be composed of one or multiple words, such as "OK", "Found",
-or "Authentication Required".
-
-Haproxy may emit the following status codes by itself :
-
-  Code  When / reason
-   200  access to stats page, and when replying to monitoring requests
-   301  when performing a redirection, depending on the configured code
-   302  when performing a redirection, depending on the configured code
-   303  when performing a redirection, depending on the configured code
-   400  for an invalid or too large request
-   401  when an authentication is required to perform the action (when
-        accessing the stats page)
-   403  when a request is forbidden by a "block" ACL or "reqdeny" filter
-   408  when the request timeout strikes before the request is complete
-   500  when haproxy encounters an unrecoverable internal error, such as a
-        memory allocation failure, which should never happen
-   502  when the server returns an empty, invalid or incomplete response, or
-        when an "rspdeny" filter blocks the response.
-   503  when no server was available to handle the request, or in response to
-        monitoring requests which match the "monitor fail" condition
-   504  when the response timeout strikes before the server responds
-
-The error 4xx and 5xx codes above may be customized (see "errorloc" in section
-2.2).
-
-
-2.1.3.2) The response headers
------------------------------
-
-Response headers work exactly like request headers, and as such, HAProxy uses
-the same parsing function for both. Please refer to paragraph 2.1.2.2 for more
-details.
-
-
-2.2) Proxy keywords matrix
+4.1. Proxy keywords matrix
 --------------------------
 
 The following list of keywords is supported. Most of them may only be used in a
@@ -681,8 +760,8 @@ use_backend                 -          X         X         -
 keyword                 defaults   frontend   listen    backend
 
 
-2.2.1) Alphabetically sorted keywords reference
------------------------------------------------
+4.2. Alphabetically sorted keywords reference
+---------------------------------------------
 
 This section provides a description of each keyword and its usage.
 
@@ -696,7 +775,7 @@ acl <aclname> <criterion> [flags] [operator] <value> ...
         acl invalid_src  src_port     0:1023
         acl local_dst    hdr(host) -i localhost
 
-  See section 2.3 about ACL usage.
+  See section 7 about ACL usage.
 
 
 appsession <cookie> len <length> timeout <holdtime>
@@ -1018,7 +1097,7 @@ block { if | unless } <condition>
 
   The HTTP request will be blocked very early in the layer 7 processing
   if/unless <condition> is matched. A 403 error will be returned if the request
-  is blocked. The condition has to reference ACLs (see section 2.3). This is
+  is blocked. The condition has to reference ACLs (see section 7). This is
   typically used to deny access to certain sensible resources if some
   conditions are met or not met. There is no fixed limit to the number of
   "block" statements per instance.
@@ -1029,7 +1108,7 @@ block { if | unless } <condition>
         acl local_dst    hdr(host) -i localhost
         block if invalid_src || local_dst
 
-  See section 2.3 about ACL usage.
+  See section 7 about ACL usage.
 
 
 capture cookie <name> len <length>
@@ -1068,7 +1147,7 @@ capture cookie <name> len <length>
         capture cookie ASPSESSION len 32
 
   See also : "capture request header", "capture response header" as well as
-            section 2.6 about logging.
+            section 8 about logging.
 
 
 capture request header <name> len <length>
@@ -1111,7 +1190,7 @@ capture request header <name> len <length>
         capture request header X-Forwarded-For len 15
         capture request header Referrer len 15
 
-  See also : "capture cookie", "capture response header" as well as section 2.6
+  See also : "capture cookie", "capture response header" as well as section 8
              about logging.
 
 
@@ -1148,7 +1227,7 @@ capture response header <name> len <length>
         capture response header Content-length len 9
         capture response header Location len 15
 
-  See also : "capture cookie", "capture request header" as well as section 2.6
+  See also : "capture cookie", "capture request header" as well as section 8
              about logging.
 
 
@@ -2022,7 +2101,7 @@ no option dontlog-normal
   complex issues is in the normal logs which will not be logged here. If you
   need to separate logs, see the "log-separate-errors" option instead.
 
-  See also : "log", "dontlognull", "log-separate-errors" and section 2.6 about
+  See also : "log", "dontlognull", "log-separate-errors" and section 8 about
              logging.
 
 
@@ -2048,7 +2127,7 @@ no option dontlognull
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
 
-  See also : "log", "monitor-net", "monitor-uri" and section 2.6 about logging.
+  See also : "log", "monitor-net", "monitor-uri" and section 8 about logging.
 
 
 option forceclose
@@ -2191,7 +2270,7 @@ no option httpclose
                                  yes   |    yes   |   yes  |   yes
   Arguments : none
 
-  As stated in section 2.1, HAProxy does not yes support the HTTP keep-alive
+  As stated in section 1, HAProxy does not yes support the HTTP keep-alive
   mode. So by default, if a client communicates with a server in this mode, it
   will only analyze, log, and process the first request of each connection. To
   workaround this limitation, it is possible to specify "option httpclose". It
@@ -2233,7 +2312,7 @@ option httplog
 
   This option may be set either in the frontend or the backend.
 
-  See also :  section 2.6 about logging.
+  See also :  section 8 about logging.
 
 
 option http_proxy
@@ -2287,7 +2366,7 @@ no option log-separate-errors
   second may log normal traffic to a rotating buffer and only archive smaller
   error logs.
 
-  See also : "log", "dontlognull", "dontlog-normal" and section 2.6 about
+  See also : "log", "dontlognull", "dontlog-normal" and section 8 about
              logging.
 
 
@@ -2321,7 +2400,7 @@ no option logasap
           static/srv1 9/10/7/14/+30 200 +243 - - ---- 3/1/1/1/0 1/0 \
           "GET /image.iso HTTP/1.0"
 
-  See also : "option httplog", "capture response header", and section 2.6 about
+  See also : "option httplog", "capture response header", and section 8 about
              logging.
 
 
@@ -2704,7 +2783,7 @@ option tcplog
 
   This option may be set either in the frontend or the backend.
 
-  See also :  "option httplog", and section 2.6 about logging.
+  See also :  "option httplog", and section 8 about logging.
 
 
 option tcpsplice  [ experimental ]
@@ -2854,7 +2933,7 @@ redirect prefix   <to> [code <code>] <option> {if | unless} <condition>
         redirect location http://mysite.com/           if !login_page secure
         redirect location / clear-cookie USERID=       if logout
 
-  See section 2.3 about ACL usage.
+  See section 7 about ACL usage.
 
 
 redisp (deprecated)
@@ -2888,7 +2967,7 @@ reqadd  <string>
   Arguments :
     <string>  is the complete line to be added. Any space or known delimiter
               must be escaped using a backslash ('\'). Please refer to section
-              2.5 about HTTP header manipulation for more information.
+              6 about HTTP header manipulation for more information.
 
   A new line consisting in <string> followed by a line feed will be added after
   the last header of an HTTP request.
@@ -2897,7 +2976,7 @@ reqadd  <string>
   and not to traffic generated by HAProxy, such as health-checks or error
   responses.
 
-  See also: "rspadd" and section 2.5 about HTTP header manipulation
+  See also: "rspadd" and section 6 about HTTP header manipulation
 
 
 reqallow  <search>
@@ -2928,7 +3007,7 @@ reqiallow <search>  (ignore case)
      reqiallow ^Host:\ www\.
      reqideny  ^Host:\ .*\.local
 
-  See also: "reqdeny", "acl", "block" and section 2.5 about HTTP header
+  See also: "reqdeny", "acl", "block" and section 6 about HTTP header
             manipulation
 
 
@@ -2959,7 +3038,7 @@ reqidel <search>  (ignore case)
      reqidel ^X-Forwarded-For:.*
      reqidel ^Cookie:.*SERVER=
 
-  See also: "reqadd", "reqrep", "rspdel" and section 2.5 about HTTP header
+  See also: "reqadd", "reqrep", "rspdel" and section 6 about HTTP header
             manipulation
 
 
@@ -2995,7 +3074,7 @@ reqideny <search>  (ignore case)
      reqideny  ^Host:\ .*\.local
      reqiallow ^Host:\ www\.
 
-  See also: "reqallow", "rspdeny", "acl", "block" and section 2.5 about HTTP
+  See also: "reqallow", "rspdeny", "acl", "block" and section 6 about HTTP
             header manipulation
 
 
@@ -3027,7 +3106,7 @@ reqipass <search>  (ignore case)
      reqideny  ^Host:\ .*\.local
      reqiallow ^Host:\ www\.
 
-  See also: "reqallow", "reqdeny", "acl", "block" and section 2.5 about HTTP
+  See also: "reqallow", "reqdeny", "acl", "block" and section 6 about HTTP
             header manipulation
 
 
@@ -3048,7 +3127,7 @@ reqirep <search> <string>   (ignore case)
               must be escaped using a backslash ('\'). References to matched
               pattern groups are possible using the common \N form, with N
               being a single digit between 0 and 9. Please refer to section
-              2.5 about HTTP header manipulation for more information.
+              6 about HTTP header manipulation for more information.
 
   Any line matching extended regular expression <search> in the request (both
   the request line and header lines) will be completely replaced with <string>.
@@ -3066,7 +3145,7 @@ reqirep <search> <string>   (ignore case)
      # replace "www.mydomain.com" with "www" in the host name.
      reqirep ^Host:\ www.mydomain.com   Host:\ www
 
-  See also: "reqadd", "reqdel", "rsprep" and section 2.5 about HTTP header
+  See also: "reqadd", "reqdel", "rsprep" and section 6 about HTTP header
             manipulation
 
 
@@ -3104,7 +3183,7 @@ reqitarpit <search>  (ignore case)
      reqipass   ^User-Agent:\.*(Mozilla|MSIE)
      reqitarpit ^User-Agent:
 
-  See also: "reqallow", "reqdeny", "reqpass", and section 2.5 about HTTP header
+  See also: "reqallow", "reqdeny", "reqpass", and section 6 about HTTP header
             manipulation
 
 
@@ -3137,7 +3216,7 @@ rspadd <string>
   Arguments :
     <string>  is the complete line to be added. Any space or known delimiter
               must be escaped using a backslash ('\'). Please refer to section
-              2.5 about HTTP header manipulation for more information.
+              6 about HTTP header manipulation for more information.
 
   A new line consisting in <string> followed by a line feed will be added after
   the last header of an HTTP response.
@@ -3146,7 +3225,7 @@ rspadd <string>
   and not to traffic generated by HAProxy, such as health-checks or error
   responses.
 
-  See also: "reqadd" and section 2.5 about HTTP header manipulation
+  See also: "reqadd" and section 6 about HTTP header manipulation
 
 
 rspdel  <search>
@@ -3176,7 +3255,7 @@ rspidel <search>  (ignore case)
      # remove the Server header from responses
      reqidel ^Server:.*
 
-  See also: "rspadd", "rsprep", "reqdel" and section 2.5 about HTTP header
+  See also: "rspadd", "rsprep", "reqdel" and section 6 about HTTP header
             manipulation
 
 
@@ -3211,7 +3290,7 @@ rspideny <search>  (ignore case)
      # Ensure that no content type matching ms-word will leak
      rspideny  ^Content-type:\.*/ms-word
 
-  See also: "reqdeny", "acl", "block" and section 2.5 about HTTP header
+  See also: "reqdeny", "acl", "block" and section 6 about HTTP header
             manipulation
 
 
@@ -3233,7 +3312,7 @@ rspirep <search> <string>  (ignore case)
               must be escaped using a backslash ('\'). References to matched
               pattern groups are possible using the common \N form, with N
               being a single digit between 0 and 9. Please refer to section
-              2.5 about HTTP header manipulation for more information.
+              6 about HTTP header manipulation for more information.
 
   Any line matching extended regular expression <search> in the response (both
   the response line and header lines) will be completely replaced with
@@ -3249,7 +3328,7 @@ rspirep <search> <string>  (ignore case)
      # replace "Location: 127.0.0.1:8080" with "Location: www.mydomain.com"
      rspirep ^Location:\ 127.0.0.1:8080    Location:\ www.mydomain.com
 
-  See also: "rspadd", "rspdel", "reqrep" and section 2.5 about HTTP header
+  See also: "rspadd", "rspdel", "reqrep" and section 6 about HTTP header
             manipulation
 
 
@@ -3273,13 +3352,13 @@ server <name> <address>[:port] [param*]
 
     <param*>  is a list of parameters for this server. The "server" keywords
               accepts an important number of options and has a complete section
-              dedicated to it. Please refer to section 2.4 for more details.
+              dedicated to it. Please refer to section 5 for more details.
 
   Examples :
         server first  10.1.1.1:1080 cookie first  check inter 1000
         server second 10.1.1.2:1080 cookie second check inter 1000
 
-  See also : section 2.4 about server options
+  See also : section 5 about server options
 
 
 source <addr>[:<port>] [usesrc { <addr2>[:<port2>] | client | clientip } ]
@@ -3358,7 +3437,7 @@ source <addr>[:<port>] [interface <name>]
   This option sets the default source for all servers in the backend. It may
   also be specified in a "defaults" section. Finer source address specification
   is possible at the server level using the "source" server option. Refer to
-  section 2.4 for more information.
+  section 5 for more information.
 
   Examples :
         backend private
@@ -3384,7 +3463,7 @@ source <addr>[:<port>] [interface <name>]
             # with Tproxy version 4.
             source 0.0.0.0 usesrc clientip
 
-  See also : the "source" server option in section 2.4, the Tproxy patches for
+  See also : the "source" server option in section 5, the Tproxy patches for
              the Linux kernel on www.balabit.com, the "bind" keyword.
 
 
@@ -3746,7 +3825,7 @@ tcp-request content accept [{if | unless} <condition>]
   "accept". Thus, this statement alone does not bring anything without another
   "reject" statement.
 
-  See section 2.3 about ACL usage.
+  See section 7 about ACL usage.
 
   See also : "tcp-request content reject", "tcp-request inspect-delay"
 
@@ -3783,7 +3862,7 @@ tcp-request content reject [{if | unless} <condition>]
         tcp-request accept if content_present
         tcp-request reject
 
-  See section 2.3 about ACL usage.
+  See section 7 about ACL usage.
 
   See also : "tcp-request content accept", "tcp-request inspect-delay"
 
@@ -4080,7 +4159,7 @@ use_backend <backend> unless <condition>
   Arguments :
     <backend>   is the name of a valid backend or "listen" section.
 
-    <condition> is a condition composed of ACLs, as described in section 2.3.
+    <condition> is a condition composed of ACLs, as described in section 7.
 
   When doing content-switching, connections arrive on a frontend and are then
   dispatched to various backends depending on a number of conditions. The
@@ -4098,520 +4177,11 @@ use_backend <backend> unless <condition>
   used (in case of a "listen" section) or, in case of a frontend, no server is
   used and a 503 service unavailable response is returned.
 
-  See also: "default_backend" and section 2.3 about ACLs.
+  See also: "default_backend" and section 7 about ACLs.
   
 
-2.3) Using ACLs
----------------
-
-The use of Access Control Lists (ACL) provides a flexible solution to perform
-content switching and generally to take decisions based on content extracted
-from the request, the response or any environmental status. The principle is
-simple :
-
-  - define test criteria with sets of values
-  - perform actions only if a set of tests is valid
-
-The actions generally consist in blocking the request, or selecting a backend.
-
-In order to define a test, the "acl" keyword is used. The syntax is :
-
-   acl <aclname> <criterion> [flags] [operator] <value> ...
-
-This creates a new ACL <aclname> or completes an existing one with new tests.
-Those tests apply to the portion of request/response specified in <criterion>
-and may be adjusted with optional flags [flags]. Some criteria also support
-an operator which may be specified before the set of values. The values are
-of the type supported by the criterion, and are separated by spaces.
-
-ACL names must be formed from upper and lower case letters, digits, '-' (dash),
-'_' (underscore) , '.' (dot) and ':' (colon). ACL names are case-sensitive,
-which means that "my_acl" and "My_Acl" are two different ACLs.
-
-There is no enforced limit to the number of ACLs. The unused ones do not affect
-performance, they just consume a small amount of memory.
-
-The following ACL flags are currently supported :
-
-   -i : ignore case during matching.
-   -- : force end of flags. Useful when a string looks like one of the flags.
-
-Supported types of values are :
-
-  - integers or integer ranges
-  - strings
-  - regular expressions
-  - IP addresses and networks
-
-
-2.3.1) Matching integers
-------------------------
-
-Matching integers is special in that ranges and operators are permitted. Note
-that integer matching only applies to positive values. A range is a value
-expressed with a lower and an upper bound separated with a colon, both of which
-may be omitted.
-
-For instance, "1024:65535" is a valid range to represent a range of
-unprivileged ports, and "1024:" would also work. "0:1023" is a valid
-representation of privileged ports, and ":1023" would also work.
-
-As a special case, some ACL functions support decimal numbers which are in fact
-two integers separated by a dot. This is used with some version checks for
-instance. All integer properties apply to those decimal numbers, including
-ranges and operators.
-
-For an easier usage, comparison operators are also supported. Note that using
-operators with ranges does not make much sense and is strongly discouraged.
-Similarly, it does not make much sense to perform order comparisons with a set
-of values.
-
-Available operators for integer matching are :
-
-  eq : true if the tested value equals at least one value
-  ge : true if the tested value is greater than or equal to at least one value
-  gt : true if the tested value is greater than at least one value
-  le : true if the tested value is less than or equal to at least one value
-  lt : true if the tested value is less than at least one value
-
-For instance, the following ACL matches any negative Content-Length header :
-
-  acl negative-length hdr_val(content-length) lt 0
-
-This one matches SSL versions between 3.0 and 3.1 (inclusive) :
-
-  acl sslv3 req_ssl_ver 3:3.1
-
-
-2.3.2) Matching strings
------------------------
-
-String matching applies to verbatim strings as they are passed, with the
-exception of the backslash ("\") which makes it possible to escape some
-characters such as the space. If the "-i" flag is passed before the first
-string, then the matching will be performed ignoring the case. In order
-to match the string "-i", either set it second, or pass the "--" flag
-before the first string. Same applies of course to match the string "--".
-
-
-2.3.3) Matching regular expressions (regexes)
----------------------------------------------
-
-Just like with string matching, regex matching applies to verbatim strings as
-they are passed, with the exception of the backslash ("\") which makes it
-possible to escape some characters such as the space. If the "-i" flag is
-passed before the first regex, then the matching will be performed ignoring
-the case. In order to match the string "-i", either set it second, or pass
-the "--" flag before the first string. Same principle applies of course to
-match the string "--".
-
-
-2.3.4) Matching IPv4 addresses
-------------------------------
-
-IPv4 addresses values can be specified either as plain addresses or with a
-netmask appended, in which case the IPv4 address matches whenever it is
-within the network. Plain addresses may also be replaced with a resolvable
-host name, but this practice is generally discouraged as it makes it more
-difficult to read and debug configurations. If hostnames are used, you should
-at least ensure that they are present in /etc/hosts so that the configuration
-does not depend on any random DNS match at the moment the configuration is
-parsed.
-
-
-2.3.5) Available matching criteria
-----------------------------------
-
-2.3.5.1) Matching at Layer 4 and below
---------------------------------------
-
-A first set of criteria applies to information which does not require any
-analysis of the request or response contents. Those generally include TCP/IP
-addresses and ports, as well as internal values independant on the stream.
-
-always_false
-  This one never matches. All values and flags are ignored. It may be used as
-  a temporary replacement for another one when adjusting configurations.
-
-always_true
-  This one always matches. All values and flags are ignored. It may be used as
-  a temporary replacement for another one when adjusting configurations.
-
-src <ip_address>
-  Applies to the client's IPv4 address. It is usually used to limit access to
-  certain resources such as statistics. Note that it is the TCP-level source
-  address which is used, and not the address of a client behind a proxy.
-
-src_port <integer>
-  Applies to the client's TCP source port. This has a very limited usage.
-
-dst <ip_address>
-  Applies to the local IPv4 address the client connected to. It can be used to
-  switch to a different backend for some alternative addresses.
-
-dst_port <integer>
-  Applies to the local port the client connected to. It can be used to switch
-  to a different backend for some alternative ports.
-
-dst_conn <integer>
-  Applies to the number of currently established connections on the frontend,
-  including the one being evaluated. It can be used to either return a sorry
-  page before hard-blocking, or to use a specific backend to drain new requests
-  when the farm is considered saturated.
-
-nbsrv <integer>
-nbsrv(backend) <integer>
-  Returns true when the number of usable servers of either the current backend
-  or the named backend matches the values or ranges specified. This is used to
-  switch to an alternate backend when the number of servers is too low to
-  to handle some load. It is useful to report a failure when combined with
-  "monitor fail".
-
-connslots <integer>
-connslots(backend) <integer>
-  The basic idea here is to be able to measure the number of connection "slots"
-  still available (connection + queue), so that anything beyond that (intended
-  usage; see "use_backend" keyword) can be redirected to a different backend.
-
-  'connslots' = number of available server connection slots, + number of
-  available server queue slots.
-
-  Note that while "dst_conn" may be used, "connslots" comes in especially
-  useful when you have a case of traffic going to one single ip, splitting into
-  multiple backends (perhaps using acls to do name-based load balancing) and
-  you want to be able to differentiate between different backends, and their
-  available "connslots".  Also, whereas "nbsrv" only measures servers that are
-  actually *down*, this acl is more fine-grained and looks into the number of
-  available connection slots as well.
-
-  OTHER CAVEATS AND NOTES: at this point in time, the code does not take care
-  of dynamic connections. Also, if any of the server maxconn, or maxqueue is 0,
-  then this acl clearly does not make sense, in which case the value returned
-  will be -1.
-
-fe_sess_rate <integer>
-fe_sess_rate(frontend) <integer>
-  Returns true when the session creation rate on the current or the named
-  frontend matches the specified values or ranges, expressed in new sessions
-  per second. This is used to limit the connection rate to acceptable ranges in
-  order to prevent abuse of service at the earliest moment. This can be
-  combined with layer 4 ACLs in order to force the clients to wait a bit for
-  the rate to go down below the limit.
-
-  Example :
-        # This frontend limits incoming mails to 10/s with a max of 100
-        # concurrent connections. We accept any connection below 10/s, and
-        # force excess clients to wait for 100 ms. Since clients are limited to
-        # 100 max, there cannot be more than 10 incoming mails per second.
-        frontend mail
-            bind :25
-            mode tcp
-            maxconn 100
-            acl too_fast fe_sess_rate ge 10
-            tcp-request inspect-delay 100ms
-            tcp-request content accept if ! too_fast
-            tcp-request content accept if WAIT_END
-  
-be_sess_rate <integer>
-be_sess_rate(backend) <integer>
-  Returns true when the sessions creation rate on the backend matches the
-  specified values or ranges, in number of new sessions per second. This is
-  used to switch to an alternate backend when an expensive or fragile one
-  reaches too high a session rate, or to limite abuse of service (eg. prevent
-  sucking of an online dictionary).
-
-  Example :
-        # Redirect to an error page if the dictionary is requested too often
-        backend dynamic
-            mode http
-            acl being_scanned be_sess_rate gt 100
-            redirect location /denied.html if being_scanned
-
-
-2.3.5.2) Matching contents at Layer 4
--------------------------------------
-
-A second set of criteria depends on data found in buffers, but which can change
-during analysis. This requires that some data has been buffered, for instance
-through TCP request content inspection. Please see the "tcp-request" keyword
-for more detailed information on the subject.
-
-req_len <integer>
-  Returns true when the lenght of the data in the request buffer matches the
-  specified range. It is important to understand that this test does not
-  return false as long as the buffer is changing. This means that a check with
-  equality to zero will almost always immediately match at the beginning of the
-  session, while a test for more data will wait for that data to come in and
-  return false only when haproxy is certain that no more data will come in.
-  This test was designed to be used with TCP request content inspection.
-
-req_ssl_ver <decimal>
-  Returns true when data in the request buffer look like SSL, with a protocol
-  version matching the specified range. Both SSLv2 hello messages and SSLv3
-  messages are supported. The test tries to be strict enough to avoid being
-  easily fooled. In particular, it waits for as many bytes as announced in the
-  message header if this header looks valid (bound to the buffer size). Note
-  that TLSv1 is announced as SSL version 3.1. This test was designed to be used
-  with TCP request content inspection.
-
-wait_end
-  Waits for the end of the analysis period to return true. This may be used in
-  conjunction with content analysis to avoid returning a wrong verdict early.
-  It may also be used to delay some actions, such as a delayed reject for some
-  special addresses. Since it either stops the rules evaluation or immediately
-  returns true, it is recommended to use this acl as the last one in a rule.
-  Please note that the default ACL "WAIT_END" is always usable without prior
-  declaration. This test was designed to be used with TCP request content
-  inspection.
-
-  Examples :
-     # delay every incoming request by 2 seconds
-     tcp-request inspect-delay 2s
-     tcp-request content accept if WAIT_END
-
-     # don't immediately tell bad guys they are rejected
-     tcp-request inspect-delay 10s
-     acl goodguys src 10.0.0.0/24
-     acl badguys  src 10.0.1.0/24
-     tcp-request content accept if goodguys
-     tcp-request content reject if badguys WAIT_END
-     tcp-request content reject
-
-
-2.3.5.3) Matching at Layer 7
-----------------------------
-
-A third set of criteria applies to information which can be found at the
-application layer (layer 7). Those require that a full HTTP request has been
-read, and are only evaluated then. They may require slightly more CPU resources
-than the layer 4 ones, but not much since the request and response are indexed.
-
-method <string>
-  Applies to the method in the HTTP request, eg: "GET". Some predefined ACL
-  already check for most common methods.
-
-req_ver <string>
-  Applies to the version string in the HTTP request, eg: "1.0". Some predefined
-  ACL already check for versions 1.0 and 1.1.
-
-path <string>
-  Returns true when the path part of the request, which starts at the first
-  slash and ends before the question mark, equals one of the strings. It may be
-  used to match known files, such as /favicon.ico.
-
-path_beg <string>
-  Returns true when the path begins with one of the strings. This can be used
-  to send certain directory names to alternative backends.
-
-path_end <string>
-  Returns true when the path ends with one of the strings. This may be used to
-  control file name extension.
-
-path_sub <string>
-  Returns true when the path contains one of the strings. It can be used to
-  detect particular patterns in paths, such as "../" for example. See also
-  "path_dir".
-
-path_dir <string>
-  Returns true when one of the strings is found isolated or delimited with
-  slashes in the path. This is used to perform filename or directory name
-  matching without the risk of wrong match due to colliding prefixes. See also
-  "url_dir" and "path_sub".
-
-path_dom <string>
-  Returns true when one of the strings is found isolated or delimited with dots
-  in the path. This may be used to perform domain name matching in proxy
-  requests. See also "path_sub" and "url_dom".
-
-path_reg <regex>
-  Returns true when the path matches one of the regular expressions. It can be
-  used any time, but it is important to remember that regex matching is slower
-  than other methods. See also "url_reg" and all "path_" criteria.
-
-url <string>
-  Applies to the whole URL passed in the request. The only real use is to match
-  "*", for which there already is a predefined ACL.
-
-url_beg <string>
-  Returns true when the URL begins with one of the strings. This can be used to
-  check whether a URL begins with a slash or with a protocol scheme.
-
-url_end <string>
-  Returns true when the URL ends with one of the strings. It has very limited
-  use. "path_end" should be used instead for filename matching.
-
-url_sub <string>
-  Returns true when the URL contains one of the strings. It can be used to
-  detect particular patterns in query strings for example. See also "path_sub".
-
-url_dir <string>
-  Returns true when one of the strings is found isolated or delimited with
-  slashes in the URL. This is used to perform filename or directory name
-  matching without the risk of wrong match due to colliding prefixes. See also
-  "path_dir" and "url_sub".
-
-url_dom <string>
-  Returns true when one of the strings is found isolated or delimited with dots
-  in the URL. This is used to perform domain name matching without the risk of
-  wrong match due to colliding prefixes. See also "url_sub".
-
-url_reg <regex>
-  Returns true when the URL matches one of the regular expressions. It can be
-  used any time, but it is important to remember that regex matching is slower
-  than other methods. See also "path_reg" and all "url_" criteria.
-
-url_ip <ip_address>
-  Applies to the IP address specified in the absolute URI in an HTTP request.
-  It can be used to prevent access to certain resources such as local network.
-  It is useful with option "http_proxy".
-
-url_port <integer>
-  Applies to the port specified in the absolute URI in an HTTP request. It can
-  be used to prevent access to certain resources. It is useful with option
-  "http_proxy". Note that if the port is not specified in the request, port 80
-  is assumed.
-
-hdr <string> 
-hdr(header) <string>
-  Note: all the "hdr*" matching criteria either apply to all headers, or to a
-  particular header whose name is passed between parenthesis and without any
-  space. The header name is not case-sensitive. The header matching complies
-  with RFC2616, and treats as separate headers all values delimited by commas.
-
-  The "hdr" criteria returns true if any of the headers matching the criteria
-  match any of the strings. This can be used to check exact for values. For
-  instance, checking that "connection: close" is set :
-
-     hdr(Connection) -i close
-
-hdr_beg <string>
-hdr_beg(header) <string>
-  Returns true when one of the headers begins with one of the strings. See
-  "hdr" for more information on header matching.
-
-hdr_end <string>
-hdr_end(header) <string>
-  Returns true when one of the headers ends with one of the strings. See "hdr"
-  for more information on header matching.
-
-hdr_sub <string>
-hdr_sub(header) <string>
-  Returns true when one of the headers contains one of the strings. See "hdr"
-  for more information on header matching.
-
-hdr_dir <string>
-hdr_dir(header) <string>
-  Returns true when one of the headers contains one of the strings either
-  isolated or delimited by slashes. This is used to perform filename or
-  directory name matching, and may be used with Referer. See "hdr" for more
-  information on header matching.
-
-hdr_dom <string>
-hdr_dom(header) <string>
-  Returns true when one of the headers contains one of the strings either
-  isolated or delimited by dots. This is used to perform domain name matching,
-  and may be used with the Host header. See "hdr" for more information on
-  header matching.
-
-hdr_reg <regex>
-hdr_reg(header) <regex>
-  Returns true when one of the headers matches of the regular expressions. It
-  can be used at any time, but it is important to remember that regex matching
-  is slower than other methods. See also other "hdr_" criteria, as well as
-  "hdr" for more information on header matching.
-
-hdr_val <integer>
-hdr_val(header) <integer>
-  Returns true when one of the headers starts with a number which matches the
-  values or ranges specified. This may be used to limit content-length to
-  acceptable values for example. See "hdr" for more information on header
-  matching.
-
-hdr_cnt <integer>
-hdr_cnt(header) <integer>
-  Returns true when the number of occurrence of the specified header matches
-  the values or ranges specified. It is important to remember that one header
-  line may count as several headers if it has several values. This is used to
-  detect presence, absence or abuse of a specific header, as well as to block
-  request smugling attacks by rejecting requests which contain more than one
-  of certain headers. See "hdr" for more information on header matching.
-
-
-2.3.6) Pre-defined ACLs
------------------------
-
-Some predefined ACLs are hard-coded so that they do not have to be declared in
-every frontend which needs them. They all have their names in upper case in
-order to avoid confusion. Their equivalence is provided below. Please note that
-only the first three ones are not layer 7 based.
-
-ACL name          Equivalent to                Usage
----------------+-----------------------------+---------------------------------
-TRUE             always_true                   always match
-FALSE            always_false                  never match
-LOCALHOST        src 127.0.0.1/8               match connection from local host
-HTTP_1.0         req_ver 1.0                   match HTTP version 1.0
-HTTP_1.1         req_ver 1.1                   match HTTP version 1.1
-METH_CONNECT     method  CONNECT               match HTTP CONNECT method
-METH_GET         method  GET HEAD              match HTTP GET or HEAD method
-METH_HEAD        method  HEAD                  match HTTP HEAD method
-METH_OPTIONS     method  OPTIONS               match HTTP OPTIONS method
-METH_POST        method  POST                  match HTTP POST method
-METH_TRACE       method  TRACE                 match HTTP TRACE method
-HTTP_URL_ABS     url_reg ^[^/:]*://            match absolute URL with scheme
-HTTP_URL_SLASH   url_beg /                     match URL begining with "/"
-HTTP_URL_STAR    url     *                     match URL equal to "*"
-HTTP_CONTENT     hdr_val(content-length) gt 0  match an existing content-length
-REQ_CONTENT      req_len gt 0                  match data in the request buffer
-WAIT_END         wait_end                      wait for end of content analysis
----------------+-----------------------------+---------------------------------
-
-
-2.3.7) Using ACLs to form conditions
-------------------------------------
-
-Some actions are only performed upon a valid condition. A condition is a
-combination of ACLs with operators. 3 operators are supported :
-
-  - AND (implicit)
-  - OR  (explicit with the "or" keyword or the "||" operator)
-  - Negation with the exclamation mark ("!")
-
-A condition is formed as a disjonctive form :
-
-   [!]acl1 [!]acl2 ... [!]acln  { or [!]acl1 [!]acl2 ... [!]acln } ...
-
-Such conditions are generally used after an "if" or "unless" statement,
-indicating when the condition will trigger the action.
-
-For instance, to block HTTP requests to the "*" URL with methods other than
-"OPTIONS", as well as POST requests without content-length, and GET or HEAD
-requests with a content-length greater than 0, and finally every request which
-is not either GET/HEAD/POST/OPTIONS !
-
-   acl missing_cl hdr_cnt(Content-length) eq 0
-   block if HTTP_URL_STAR !METH_OPTIONS || METH_POST missing_cl
-   block if METH_GET HTTP_CONTENT
-   block unless METH_GET or METH_POST or METH_OPTIONS
-
-To select a different backend for requests to static contents on the "www" site
-and to every request on the "img", "video", "download" and "ftp" hosts :
-
-   acl url_static  path_beg         /static /images /img /css
-   acl url_static  path_end         .gif .png .jpg .css .js
-   acl host_www    hdr_beg(host) -i www
-   acl host_static hdr_beg(host) -i img. video. download. ftp.
-
-   # now use backend "static" for all static-only hosts, and for static urls
-   # of host "www". Use backend "www" for the rest.
-   use_backend static if host_static or host_www url_static
-   use_backend www    if host_www
-
-See section 2.2 for detailed help on the "block" and "use_backend" keywords.
-
-
-2.4) Server options
--------------------
+5. Server options
+-----------------
 
 The "server" keyword supports a certain number of settings which are all passed
 as arguments on the server line. The order in which those arguments appear does
@@ -4804,8 +4374,8 @@ weight <weight>
   adjustments.
 
 
-2.5) HTTP header manipulation
------------------------------
+6. HTTP header manipulation
+---------------------------
 
 In HTTP mode, it is possible to rewrite, add or delete some of the request and
 response headers based on regular expressions. It is also possible to block a
@@ -4818,7 +4388,7 @@ headers will be considered data only and not analyzed. Furthermore, HAProxy
 never touches data contents, it stops analysis at the end of headers.
 
 This section covers common usage of the following keywords, described in detail
-in section 2.2.1 :
+in section 4.2 :
 
   - reqadd     <string>
   - reqallow   <search>
@@ -4900,8 +4470,517 @@ Notes related to these keywords :
     before switching. 
 
 
-2.6) Logging
-------------
+7. Using ACLs
+-------------
+
+The use of Access Control Lists (ACL) provides a flexible solution to perform
+content switching and generally to take decisions based on content extracted
+from the request, the response or any environmental status. The principle is
+simple :
+
+  - define test criteria with sets of values
+  - perform actions only if a set of tests is valid
+
+The actions generally consist in blocking the request, or selecting a backend.
+
+In order to define a test, the "acl" keyword is used. The syntax is :
+
+   acl <aclname> <criterion> [flags] [operator] <value> ...
+
+This creates a new ACL <aclname> or completes an existing one with new tests.
+Those tests apply to the portion of request/response specified in <criterion>
+and may be adjusted with optional flags [flags]. Some criteria also support
+an operator which may be specified before the set of values. The values are
+of the type supported by the criterion, and are separated by spaces.
+
+ACL names must be formed from upper and lower case letters, digits, '-' (dash),
+'_' (underscore) , '.' (dot) and ':' (colon). ACL names are case-sensitive,
+which means that "my_acl" and "My_Acl" are two different ACLs.
+
+There is no enforced limit to the number of ACLs. The unused ones do not affect
+performance, they just consume a small amount of memory.
+
+The following ACL flags are currently supported :
+
+   -i : ignore case during matching.
+   -- : force end of flags. Useful when a string looks like one of the flags.
+
+Supported types of values are :
+
+  - integers or integer ranges
+  - strings
+  - regular expressions
+  - IP addresses and networks
+
+
+7.1. Matching integers
+----------------------
+
+Matching integers is special in that ranges and operators are permitted. Note
+that integer matching only applies to positive values. A range is a value
+expressed with a lower and an upper bound separated with a colon, both of which
+may be omitted.
+
+For instance, "1024:65535" is a valid range to represent a range of
+unprivileged ports, and "1024:" would also work. "0:1023" is a valid
+representation of privileged ports, and ":1023" would also work.
+
+As a special case, some ACL functions support decimal numbers which are in fact
+two integers separated by a dot. This is used with some version checks for
+instance. All integer properties apply to those decimal numbers, including
+ranges and operators.
+
+For an easier usage, comparison operators are also supported. Note that using
+operators with ranges does not make much sense and is strongly discouraged.
+Similarly, it does not make much sense to perform order comparisons with a set
+of values.
+
+Available operators for integer matching are :
+
+  eq : true if the tested value equals at least one value
+  ge : true if the tested value is greater than or equal to at least one value
+  gt : true if the tested value is greater than at least one value
+  le : true if the tested value is less than or equal to at least one value
+  lt : true if the tested value is less than at least one value
+
+For instance, the following ACL matches any negative Content-Length header :
+
+  acl negative-length hdr_val(content-length) lt 0
+
+This one matches SSL versions between 3.0 and 3.1 (inclusive) :
+
+  acl sslv3 req_ssl_ver 3:3.1
+
+
+7.2. Matching strings
+---------------------
+
+String matching applies to verbatim strings as they are passed, with the
+exception of the backslash ("\") which makes it possible to escape some
+characters such as the space. If the "-i" flag is passed before the first
+string, then the matching will be performed ignoring the case. In order
+to match the string "-i", either set it second, or pass the "--" flag
+before the first string. Same applies of course to match the string "--".
+
+
+7.3. Matching regular expressions (regexes)
+-------------------------------------------
+
+Just like with string matching, regex matching applies to verbatim strings as
+they are passed, with the exception of the backslash ("\") which makes it
+possible to escape some characters such as the space. If the "-i" flag is
+passed before the first regex, then the matching will be performed ignoring
+the case. In order to match the string "-i", either set it second, or pass
+the "--" flag before the first string. Same principle applies of course to
+match the string "--".
+
+
+7.4. Matching IPv4 addresses
+----------------------------
+
+IPv4 addresses values can be specified either as plain addresses or with a
+netmask appended, in which case the IPv4 address matches whenever it is
+within the network. Plain addresses may also be replaced with a resolvable
+host name, but this practice is generally discouraged as it makes it more
+difficult to read and debug configurations. If hostnames are used, you should
+at least ensure that they are present in /etc/hosts so that the configuration
+does not depend on any random DNS match at the moment the configuration is
+parsed.
+
+
+7.5. Available matching criteria
+--------------------------------
+
+7.5.1. Matching at Layer 4 and below
+------------------------------------
+
+A first set of criteria applies to information which does not require any
+analysis of the request or response contents. Those generally include TCP/IP
+addresses and ports, as well as internal values independant on the stream.
+
+always_false
+  This one never matches. All values and flags are ignored. It may be used as
+  a temporary replacement for another one when adjusting configurations.
+
+always_true
+  This one always matches. All values and flags are ignored. It may be used as
+  a temporary replacement for another one when adjusting configurations.
+
+src <ip_address>
+  Applies to the client's IPv4 address. It is usually used to limit access to
+  certain resources such as statistics. Note that it is the TCP-level source
+  address which is used, and not the address of a client behind a proxy.
+
+src_port <integer>
+  Applies to the client's TCP source port. This has a very limited usage.
+
+dst <ip_address>
+  Applies to the local IPv4 address the client connected to. It can be used to
+  switch to a different backend for some alternative addresses.
+
+dst_port <integer>
+  Applies to the local port the client connected to. It can be used to switch
+  to a different backend for some alternative ports.
+
+dst_conn <integer>
+  Applies to the number of currently established connections on the frontend,
+  including the one being evaluated. It can be used to either return a sorry
+  page before hard-blocking, or to use a specific backend to drain new requests
+  when the farm is considered saturated.
+
+nbsrv <integer>
+nbsrv(backend) <integer>
+  Returns true when the number of usable servers of either the current backend
+  or the named backend matches the values or ranges specified. This is used to
+  switch to an alternate backend when the number of servers is too low to
+  to handle some load. It is useful to report a failure when combined with
+  "monitor fail".
+
+connslots <integer>
+connslots(backend) <integer>
+  The basic idea here is to be able to measure the number of connection "slots"
+  still available (connection + queue), so that anything beyond that (intended
+  usage; see "use_backend" keyword) can be redirected to a different backend.
+
+  'connslots' = number of available server connection slots, + number of
+  available server queue slots.
+
+  Note that while "dst_conn" may be used, "connslots" comes in especially
+  useful when you have a case of traffic going to one single ip, splitting into
+  multiple backends (perhaps using acls to do name-based load balancing) and
+  you want to be able to differentiate between different backends, and their
+  available "connslots".  Also, whereas "nbsrv" only measures servers that are
+  actually *down*, this acl is more fine-grained and looks into the number of
+  available connection slots as well.
+
+  OTHER CAVEATS AND NOTES: at this point in time, the code does not take care
+  of dynamic connections. Also, if any of the server maxconn, or maxqueue is 0,
+  then this acl clearly does not make sense, in which case the value returned
+  will be -1.
+
+fe_sess_rate <integer>
+fe_sess_rate(frontend) <integer>
+  Returns true when the session creation rate on the current or the named
+  frontend matches the specified values or ranges, expressed in new sessions
+  per second. This is used to limit the connection rate to acceptable ranges in
+  order to prevent abuse of service at the earliest moment. This can be
+  combined with layer 4 ACLs in order to force the clients to wait a bit for
+  the rate to go down below the limit.
+
+  Example :
+        # This frontend limits incoming mails to 10/s with a max of 100
+        # concurrent connections. We accept any connection below 10/s, and
+        # force excess clients to wait for 100 ms. Since clients are limited to
+        # 100 max, there cannot be more than 10 incoming mails per second.
+        frontend mail
+            bind :25
+            mode tcp
+            maxconn 100
+            acl too_fast fe_sess_rate ge 10
+            tcp-request inspect-delay 100ms
+            tcp-request content accept if ! too_fast
+            tcp-request content accept if WAIT_END
+  
+be_sess_rate <integer>
+be_sess_rate(backend) <integer>
+  Returns true when the sessions creation rate on the backend matches the
+  specified values or ranges, in number of new sessions per second. This is
+  used to switch to an alternate backend when an expensive or fragile one
+  reaches too high a session rate, or to limite abuse of service (eg. prevent
+  sucking of an online dictionary).
+
+  Example :
+        # Redirect to an error page if the dictionary is requested too often
+        backend dynamic
+            mode http
+            acl being_scanned be_sess_rate gt 100
+            redirect location /denied.html if being_scanned
+
+
+7.5.2. Matching contents at Layer 4
+-----------------------------------
+
+A second set of criteria depends on data found in buffers, but which can change
+during analysis. This requires that some data has been buffered, for instance
+through TCP request content inspection. Please see the "tcp-request" keyword
+for more detailed information on the subject.
+
+req_len <integer>
+  Returns true when the lenght of the data in the request buffer matches the
+  specified range. It is important to understand that this test does not
+  return false as long as the buffer is changing. This means that a check with
+  equality to zero will almost always immediately match at the beginning of the
+  session, while a test for more data will wait for that data to come in and
+  return false only when haproxy is certain that no more data will come in.
+  This test was designed to be used with TCP request content inspection.
+
+req_ssl_ver <decimal>
+  Returns true when data in the request buffer look like SSL, with a protocol
+  version matching the specified range. Both SSLv2 hello messages and SSLv3
+  messages are supported. The test tries to be strict enough to avoid being
+  easily fooled. In particular, it waits for as many bytes as announced in the
+  message header if this header looks valid (bound to the buffer size). Note
+  that TLSv1 is announced as SSL version 3.1. This test was designed to be used
+  with TCP request content inspection.
+
+wait_end
+  Waits for the end of the analysis period to return true. This may be used in
+  conjunction with content analysis to avoid returning a wrong verdict early.
+  It may also be used to delay some actions, such as a delayed reject for some
+  special addresses. Since it either stops the rules evaluation or immediately
+  returns true, it is recommended to use this acl as the last one in a rule.
+  Please note that the default ACL "WAIT_END" is always usable without prior
+  declaration. This test was designed to be used with TCP request content
+  inspection.
+
+  Examples :
+     # delay every incoming request by 2 seconds
+     tcp-request inspect-delay 2s
+     tcp-request content accept if WAIT_END
+
+     # don't immediately tell bad guys they are rejected
+     tcp-request inspect-delay 10s
+     acl goodguys src 10.0.0.0/24
+     acl badguys  src 10.0.1.0/24
+     tcp-request content accept if goodguys
+     tcp-request content reject if badguys WAIT_END
+     tcp-request content reject
+
+
+7.5.3. Matching at Layer 7
+--------------------------
+
+A third set of criteria applies to information which can be found at the
+application layer (layer 7). Those require that a full HTTP request has been
+read, and are only evaluated then. They may require slightly more CPU resources
+than the layer 4 ones, but not much since the request and response are indexed.
+
+method <string>
+  Applies to the method in the HTTP request, eg: "GET". Some predefined ACL
+  already check for most common methods.
+
+req_ver <string>
+  Applies to the version string in the HTTP request, eg: "1.0". Some predefined
+  ACL already check for versions 1.0 and 1.1.
+
+path <string>
+  Returns true when the path part of the request, which starts at the first
+  slash and ends before the question mark, equals one of the strings. It may be
+  used to match known files, such as /favicon.ico.
+
+path_beg <string>
+  Returns true when the path begins with one of the strings. This can be used
+  to send certain directory names to alternative backends.
+
+path_end <string>
+  Returns true when the path ends with one of the strings. This may be used to
+  control file name extension.
+
+path_sub <string>
+  Returns true when the path contains one of the strings. It can be used to
+  detect particular patterns in paths, such as "../" for example. See also
+  "path_dir".
+
+path_dir <string>
+  Returns true when one of the strings is found isolated or delimited with
+  slashes in the path. This is used to perform filename or directory name
+  matching without the risk of wrong match due to colliding prefixes. See also
+  "url_dir" and "path_sub".
+
+path_dom <string>
+  Returns true when one of the strings is found isolated or delimited with dots
+  in the path. This may be used to perform domain name matching in proxy
+  requests. See also "path_sub" and "url_dom".
+
+path_reg <regex>
+  Returns true when the path matches one of the regular expressions. It can be
+  used any time, but it is important to remember that regex matching is slower
+  than other methods. See also "url_reg" and all "path_" criteria.
+
+url <string>
+  Applies to the whole URL passed in the request. The only real use is to match
+  "*", for which there already is a predefined ACL.
+
+url_beg <string>
+  Returns true when the URL begins with one of the strings. This can be used to
+  check whether a URL begins with a slash or with a protocol scheme.
+
+url_end <string>
+  Returns true when the URL ends with one of the strings. It has very limited
+  use. "path_end" should be used instead for filename matching.
+
+url_sub <string>
+  Returns true when the URL contains one of the strings. It can be used to
+  detect particular patterns in query strings for example. See also "path_sub".
+
+url_dir <string>
+  Returns true when one of the strings is found isolated or delimited with
+  slashes in the URL. This is used to perform filename or directory name
+  matching without the risk of wrong match due to colliding prefixes. See also
+  "path_dir" and "url_sub".
+
+url_dom <string>
+  Returns true when one of the strings is found isolated or delimited with dots
+  in the URL. This is used to perform domain name matching without the risk of
+  wrong match due to colliding prefixes. See also "url_sub".
+
+url_reg <regex>
+  Returns true when the URL matches one of the regular expressions. It can be
+  used any time, but it is important to remember that regex matching is slower
+  than other methods. See also "path_reg" and all "url_" criteria.
+
+url_ip <ip_address>
+  Applies to the IP address specified in the absolute URI in an HTTP request.
+  It can be used to prevent access to certain resources such as local network.
+  It is useful with option "http_proxy".
+
+url_port <integer>
+  Applies to the port specified in the absolute URI in an HTTP request. It can
+  be used to prevent access to certain resources. It is useful with option
+  "http_proxy". Note that if the port is not specified in the request, port 80
+  is assumed.
+
+hdr <string> 
+hdr(header) <string>
+  Note: all the "hdr*" matching criteria either apply to all headers, or to a
+  particular header whose name is passed between parenthesis and without any
+  space. The header name is not case-sensitive. The header matching complies
+  with RFC2616, and treats as separate headers all values delimited by commas.
+
+  The "hdr" criteria returns true if any of the headers matching the criteria
+  match any of the strings. This can be used to check exact for values. For
+  instance, checking that "connection: close" is set :
+
+     hdr(Connection) -i close
+
+hdr_beg <string>
+hdr_beg(header) <string>
+  Returns true when one of the headers begins with one of the strings. See
+  "hdr" for more information on header matching.
+
+hdr_end <string>
+hdr_end(header) <string>
+  Returns true when one of the headers ends with one of the strings. See "hdr"
+  for more information on header matching.
+
+hdr_sub <string>
+hdr_sub(header) <string>
+  Returns true when one of the headers contains one of the strings. See "hdr"
+  for more information on header matching.
+
+hdr_dir <string>
+hdr_dir(header) <string>
+  Returns true when one of the headers contains one of the strings either
+  isolated or delimited by slashes. This is used to perform filename or
+  directory name matching, and may be used with Referer. See "hdr" for more
+  information on header matching.
+
+hdr_dom <string>
+hdr_dom(header) <string>
+  Returns true when one of the headers contains one of the strings either
+  isolated or delimited by dots. This is used to perform domain name matching,
+  and may be used with the Host header. See "hdr" for more information on
+  header matching.
+
+hdr_reg <regex>
+hdr_reg(header) <regex>
+  Returns true when one of the headers matches of the regular expressions. It
+  can be used at any time, but it is important to remember that regex matching
+  is slower than other methods. See also other "hdr_" criteria, as well as
+  "hdr" for more information on header matching.
+
+hdr_val <integer>
+hdr_val(header) <integer>
+  Returns true when one of the headers starts with a number which matches the
+  values or ranges specified. This may be used to limit content-length to
+  acceptable values for example. See "hdr" for more information on header
+  matching.
+
+hdr_cnt <integer>
+hdr_cnt(header) <integer>
+  Returns true when the number of occurrence of the specified header matches
+  the values or ranges specified. It is important to remember that one header
+  line may count as several headers if it has several values. This is used to
+  detect presence, absence or abuse of a specific header, as well as to block
+  request smugling attacks by rejecting requests which contain more than one
+  of certain headers. See "hdr" for more information on header matching.
+
+
+7.6. Pre-defined ACLs
+---------------------
+
+Some predefined ACLs are hard-coded so that they do not have to be declared in
+every frontend which needs them. They all have their names in upper case in
+order to avoid confusion. Their equivalence is provided below. Please note that
+only the first three ones are not layer 7 based.
+
+ACL name          Equivalent to                Usage
+---------------+-----------------------------+---------------------------------
+TRUE             always_true                   always match
+FALSE            always_false                  never match
+LOCALHOST        src 127.0.0.1/8               match connection from local host
+HTTP_1.0         req_ver 1.0                   match HTTP version 1.0
+HTTP_1.1         req_ver 1.1                   match HTTP version 1.1
+METH_CONNECT     method  CONNECT               match HTTP CONNECT method
+METH_GET         method  GET HEAD              match HTTP GET or HEAD method
+METH_HEAD        method  HEAD                  match HTTP HEAD method
+METH_OPTIONS     method  OPTIONS               match HTTP OPTIONS method
+METH_POST        method  POST                  match HTTP POST method
+METH_TRACE       method  TRACE                 match HTTP TRACE method
+HTTP_URL_ABS     url_reg ^[^/:]*://            match absolute URL with scheme
+HTTP_URL_SLASH   url_beg /                     match URL begining with "/"
+HTTP_URL_STAR    url     *                     match URL equal to "*"
+HTTP_CONTENT     hdr_val(content-length) gt 0  match an existing content-length
+REQ_CONTENT      req_len gt 0                  match data in the request buffer
+WAIT_END         wait_end                      wait for end of content analysis
+---------------+-----------------------------+---------------------------------
+
+
+7.7. Using ACLs to form conditions
+----------------------------------
+
+Some actions are only performed upon a valid condition. A condition is a
+combination of ACLs with operators. 3 operators are supported :
+
+  - AND (implicit)
+  - OR  (explicit with the "or" keyword or the "||" operator)
+  - Negation with the exclamation mark ("!")
+
+A condition is formed as a disjonctive form :
+
+   [!]acl1 [!]acl2 ... [!]acln  { or [!]acl1 [!]acl2 ... [!]acln } ...
+
+Such conditions are generally used after an "if" or "unless" statement,
+indicating when the condition will trigger the action.
+
+For instance, to block HTTP requests to the "*" URL with methods other than
+"OPTIONS", as well as POST requests without content-length, and GET or HEAD
+requests with a content-length greater than 0, and finally every request which
+is not either GET/HEAD/POST/OPTIONS !
+
+   acl missing_cl hdr_cnt(Content-length) eq 0
+   block if HTTP_URL_STAR !METH_OPTIONS || METH_POST missing_cl
+   block if METH_GET HTTP_CONTENT
+   block unless METH_GET or METH_POST or METH_OPTIONS
+
+To select a different backend for requests to static contents on the "www" site
+and to every request on the "img", "video", "download" and "ftp" hosts :
+
+   acl url_static  path_beg         /static /images /img /css
+   acl url_static  path_end         .gif .png .jpg .css .js
+   acl host_www    hdr_beg(host) -i www
+   acl host_static hdr_beg(host) -i img. video. download. ftp.
+
+   # now use backend "static" for all static-only hosts, and for static urls
+   # of host "www". Use backend "www" for the rest.
+   use_backend static if host_static or host_www url_static
+   use_backend www    if host_www
+
+See section 4.2 for detailed help on the "block" and "use_backend" keywords.
+
+
+8. Logging
+----------
 
 One of HAProxy's strong points certainly lies is its precise logs. It probably
 provides the finest level of information available for such a product, which is
@@ -4929,20 +5008,20 @@ real time, and the security team might analyze the activity logs with one hour
 delay.
 
 
-2.6.1) Log levels
------------------
+8.1. Log levels
+---------------
 
 TCP and HTTP connections can be logged with informations such as date, time,
 source IP address, destination address, connection duration, response times,
 HTTP request, the HTTP return code, number of bytes transmitted, the conditions
 in which the session ended, and even exchanged cookies values, to track a
 particular user's problems for example. All messages are sent to up to two
-syslog servers. Check the "log" keyword in section 2.2 for more info about log
+syslog servers. Check the "log" keyword in section 4.2 for more info about log
 facilities.
 
 
-2.6.2) Log formats
-------------------
+8.2. Log formats
+----------------
 
 HAProxy supports 3 log formats. Several fields are common between these formats
 and will be detailed in the next sections. A few of them may slightly vary with
@@ -4981,8 +5060,8 @@ Note : Since log lines may be quite long, the log examples in sections below
        backslash ('\') and the next line will start indented by two characters.
 
 
-2.6.2.1) Default log format
----------------------------
+8.2.1. Default log format
+-------------------------
 
 This format is used when no specific option is set. The log is emitted as soon
 as the connection is accepted. One should note that this currently is the only
@@ -5019,8 +5098,8 @@ It is advised not to use this deprecated format for newer installations as it
 will eventually disappear.
 
 
-2.6.2.2) TCP log format
------------------------
+8.2.2. TCP log format
+---------------------
 
 The TCP format is used when "option tcplog" is specified in the frontend, and
 is the recommended format for pure TCP proxies. It provides a lot of precious
@@ -5120,7 +5199,7 @@ Detailed fields description :
     limits have been reached. For instance, if actconn is close to 512 when
     multiple connection errors occur, chances are high that the system limits
     the process to use a maximum of 1024 file descriptors and that all of them
-    are used. See section 1 "Global parameters" to find how to tune the system.
+    are used. See section 3 "Global parameters" to find how to tune the system.
 
   - "feconn" is the total number of concurrent connections on the frontend when
     the session was logged. It is useful to estimate the amount of resource
@@ -5182,8 +5261,8 @@ Detailed fields description :
     occurs.
 
 
-2.6.2.3) HTTP log format
-------------------------
+8.2.3. HTTP log format
+----------------------
 
 The HTTP format is the most complete and the best suited for HTTP proxies. It
 is enabled by when "option httplog" is specified in the frontend. It provides
@@ -5333,7 +5412,7 @@ Detailed fields description :
     limits have been reached. For instance, if actconn is close to 512 or 1024
     when multiple connection errors occur, chances are high that the system
     limits the process to use a maximum of 1024 file descriptors and that all
-    of them are used. See section 1 "Global parameters" to find how to tune the
+    of them are used. See section 3 "Global parameters" to find how to tune the
     system.
 
   - "feconn" is the total number of concurrent connections on the frontend when
@@ -5423,8 +5502,8 @@ Detailed fields description :
     is the reason why this field must always remain the last one.
 
 
-2.6.3) Advanced logging options
--------------------------------
+8.3. Advanced logging options
+-----------------------------
 
 Some advanced logging options are often looked for but are not easy to find out
 just by looking at the various options. Here is an entry point for the few
@@ -5432,8 +5511,8 @@ options which can enable better logging. Please refer to the keywords reference
 for more information about their usage.
 
 
-2.6.3.1) Disabling logging of external tests
---------------------------------------------
+8.3.1. Disabling logging of external tests
+------------------------------------------
 
 It is quite common to have some monitoring tools perform health checks on
 haproxy. Sometimes it will be a layer 3 load-balancer such as LVS or any
@@ -5457,8 +5536,8 @@ ask how to disable logging for those checks. There are three possibilities :
     only get the result of a health-check, and the request will not be logged.
 
 
-2.6.3.2) Logging before waiting for the session to terminate
-------------------------------------------------------------
+8.3.2. Logging before waiting for the session to terminate
+----------------------------------------------------------
 
 The problem with logging at end of connection is that you have no clue about
 what is happening during very long sessions, such as remote terminal sessions
@@ -5472,8 +5551,8 @@ with normal logs, the total time field and the number of bytes are prefixed
 with a '+' sign which means that real numbers are certainly larger.
 
 
-2.6.3.3) Raising log level upon errors
---------------------------------------
+8.3.3. Raising log level upon errors
+------------------------------------
 
 Sometimes it is more convenient to separate normal traffic from errors logs,
 for instance in order to ease error monitoring from log files. When the option
@@ -5486,8 +5565,8 @@ you already have configured your syslog daemon to store all logs higher than
 "notice" in an "admin" file, because the "err" level is higher than "notice".
 
 
-2.6.3.4) Disabling logging of successful connections
-----------------------------------------------------
+8.3.4. Disabling logging of successful connections
+--------------------------------------------------
 
 Although this may sound strange at first, some large sites have to deal with
 multiple thousands of logs per second and are experiencing difficulties keeping
@@ -5501,8 +5580,8 @@ useful information from the logs. Do this only if you have no other
 alternative.
 
 
-2.6.4) Timing events
---------------------
+8.4. Timing events
+------------------
 
 Timers provide a great help in troubleshooting network problems. All values are
 reported in milliseconds (ms). These timers should be used in conjunction with
@@ -5620,8 +5699,8 @@ Other noticeable HTTP log cases ('xx' means any value to be ignored) :
                    termination flags, then check the "timeout server" setting.
 
 
-2.6.5) Session state at disconnection
--------------------------------------
+8.5. Session state at disconnection
+-----------------------------------
 
 TCP and HTTP logs provide a session termination indicator in the
 "termination_state" field, just before the number of active connections. It is
@@ -5870,8 +5949,8 @@ easier finding and understanding.
           only be solved by proper system tuning.
 
 
-2.6.6) Non-printable characters
--------------------------------
+8.6. Non-printable characters
+-----------------------------
 
 In order not to cause trouble to log analysis tools or terminals during log
 consulting, non-printable characters are not sent as-is into log files, but are
@@ -5891,16 +5970,16 @@ the quote ('"') with a backslash ('\'). The reverse operation can safely be
 performed since no quote may appear anywhere else in the logs.
 
 
-2.6.7) Capturing HTTP cookies
------------------------------
+8.7. Capturing HTTP cookies
+---------------------------
 
 Cookie capture simplifies the tracking a complete user session. This can be
 achieved using the "capture cookie" statement in the frontend. Please refer to
-section 2.2 for more details. Only one cookie can be captured, and the same
+section 4.2 for more details. Only one cookie can be captured, and the same
 cookie will simultaneously be checked in the request ("Cookie:" header) and in
 the response ("Set-Cookie:" header). The respective values will be reported in
 the HTTP logs at the "captured_request_cookie" and "captured_response_cookie"
-locations (see section 2.6.2.3 about HTTP log format). When either cookie is
+locations (see section 8.2.3 about HTTP log format). When either cookie is
 not seen, a dash ('-') replaces the value. This way, it's easy to detect when a
 user switches to a new session for example, because the server will reassign it
 a new cookie. It is also possible to detect if a server unexpectedly sets a
@@ -5914,8 +5993,8 @@ wrong cookie to a client, leading to session crossing.
         capture cookie vgnvisitor= len 32
 
 
-2.6.8) Capturing HTTP headers
------------------------------
+8.8. Capturing HTTP headers
+---------------------------
 
 Header captures are useful to track unique request identifiers set by an upper
 proxy, virtual host names, user-agents, POST content-length, referrers, etc. In
@@ -5924,7 +6003,7 @@ server asked the cache to behave, or an object location during a redirection.
 
 Header captures are performed using the "capture request header" and "capture
 response header" statements in the frontend. Please consult their definition in
-section 2.2 for more details.
+section 4.2 for more details.
 
 It is possible to include both request headers and response headers at the same
 time. Non-existant headers are logged as empty strings, and if one header
@@ -5988,8 +6067,8 @@ in the logs.
           "GET http://www.sytadin.equipement.gouv.fr/ HTTP/1.1" 
 
 
-2.6.9) Examples of logs
------------------------
+8.9. Examples of logs
+---------------------
 
 These are real-world examples of logs accompanied with an explanation. Some of
 them have been made up by hand. The syslog part has been removed for better
@@ -6055,7 +6134,7 @@ reading. Their sole purpose is to explain how to decipher them.
           0/0 "HEAD / HTTP/1.0" 
 
     => The request took 3s to complete (probably a network problem), and the
-       connection to the server failed ('SC--') after 4 attemps of 2 seconds
+       connection to the server failed ('SC--') after 4 attempts of 2 seconds
        (config says 'retries 3'), and no redispatch (otherwise we would have
        seen "/+3"). Status code 503 was returned to the client. There were 115
        connections on this server, 202 connections on this proxy, and 205 on
@@ -6063,7 +6142,16 @@ reading. Their sole purpose is to explain how to decipher them.
        connection because of too many already established.
 
 
-2.7) CSV format
+9. Statistics and monitoring
+----------------------------
+
+It is possible to query HAProxy about its status. The most commonly used
+mechanism is the HTTP statistics page. This page also exposes an alternative
+CSV output format for monitoring tools. The same format is provided on the
+Unix socket.
+
+
+9.1. CSV format
 ---------------
 
 The statistics may be consulted either from the unix socket or from the HTTP
@@ -6106,7 +6194,7 @@ page. Both means provide a CSV format whose fields follow.
  33. rate (number of sessions per second over last elapsed second)
 
 
-2.8) Unix Socket commands
+9.2. Unix Socket commands
 -------------------------
 
 The following commands are supported on the UNIX stats socket ; all of them
@@ -6175,7 +6263,7 @@ show errors [<iid>]
           00204+ minal\r\n
           00211  \r\n
 
-    In the example above, we know that the backend "http-in" which has internal
+    In the example above, we see that the backend "http-in" which has internal
     ID 2 has blocked an invalid response from its server s2 which has internal
     ID 1. The request was on session 54 initiated by source 127.0.0.1 and
     received by frontend fe-eth0 whose ID is 1. The total response length was
