@@ -175,7 +175,8 @@ int print_csv_header(struct chunk *msg, int size)
 			    "wretr,wredis,"
 			    "status,weight,act,bck,"
 			    "chkfail,chkdown,lastchg,downtime,qlimit,"
-			    "pid,iid,sid,throttle,lbtot,tracked,type,rate,"
+			    "pid,iid,sid,throttle,lbtot,tracked,type,"
+			    "rate,rate_lim,rate_max,"
 			    "\n");
 }
 
@@ -743,8 +744,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     ",,,,,,,,"
 				     /* pid, iid, sid, throttle, lbtot, tracked, type */
 				     "%d,%d,0,,,,%d,"
-				     /* rate */
-				     "%u,"
+				     /* rate, rate_lim, rate_max, */
+				     "%u,%u,%u,"
 				     "\n",
 				     px->id,
 				     px->feconn, px->feconn_max, px->maxconn, px->cum_feconn,
@@ -754,7 +755,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     px->state == PR_STRUN ? "OPEN" :
 				     px->state == PR_STIDLE ? "FULL" : "STOP",
 				     relative_pid, px->uuid, STATS_TYPE_FE,
-				     read_freq_ctr(&px->fe_sess_per_sec));
+				     read_freq_ctr(&px->fe_sess_per_sec),
+				     px->fe_sps_lim, px->fe_sps_max);
 			}
 
 			if (buffer_write_chunk(rep, &msg) >= 0)
@@ -979,7 +981,9 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				chunk_printf(&msg, sizeof(trash), "%d,", STATS_TYPE_SV);
 
 				/* rate */
-				chunk_printf(&msg, sizeof(trash), "%u,", read_freq_ctr(&sv->sess_per_sec));
+				chunk_printf(&msg, sizeof(trash), "%u,,%u,",
+					     read_freq_ctr(&sv->sess_per_sec),
+					     sv->sps_max);
 
 				/* finish with EOL */
 				chunk_printf(&msg, sizeof(trash), "\n");
@@ -1071,8 +1075,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     ",%d,%d,%d,,"
 				     /* pid, iid, sid, throttle, lbtot, tracked, type */
 				     "%d,%d,0,,%lld,,%d,"
-				     /* rate */
-				     "%u,"
+				     /* rate, rate_lim, rate_max, */
+				     "%u,,%u,"
 				     "\n",
 				     px->id,
 				     px->nbpend /* or px->totpend ? */, px->nbpend_max,
@@ -1088,7 +1092,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     px->srv?be_downtime(px):0,
 				     relative_pid, px->uuid,
 				     px->cum_lbconn, STATS_TYPE_BE,
-				     read_freq_ctr(&px->be_sess_per_sec));
+				     read_freq_ctr(&px->be_sess_per_sec),
+				     px->be_sps_max);
 			}
 			if (buffer_write_chunk(rep, &msg) >= 0)
 				return 0;
