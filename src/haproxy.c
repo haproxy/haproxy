@@ -901,7 +901,6 @@ int main(int argc, char **argv)
 	if ((global.mode & MODE_QUIET) && !(global.mode & MODE_VERBOSE)) {
 		/* detach from the tty */
 		fclose(stdin); fclose(stdout); fclose(stderr);
-		close(0); close(1); close(2);
 	}
 
 	/* open log & pid files before the chroot */
@@ -1067,7 +1066,6 @@ int main(int argc, char **argv)
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) {
 			/* detach from the tty */
 			fclose(stdin); fclose(stdout); fclose(stderr);
-			close(0); close(1); close(2); /* close all fd's */
 			global.mode &= ~MODE_VERBOSE;
 			global.mode |= MODE_QUIET; /* ensure that we won't say anything from now */
 		}
