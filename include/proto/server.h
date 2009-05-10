@@ -40,6 +40,8 @@ static void inline srv_inc_sess_ctr(struct server *s)
 {
 	s->cum_sess++;
 	update_freq_ctr(&s->sess_per_sec, 1);
+	if (s->sess_per_sec.curr_ctr > s->sps_max)
+		s->sps_max = s->sess_per_sec.curr_ctr;
 }
 
 #endif /* _PROTO_SERVER_H */

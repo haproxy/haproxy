@@ -70,8 +70,8 @@ int event_accept(int fd) {
 	int cfd;
 	int max_accept = global.tune.maxaccept;
 
-	if (p->fe_maxsps) {
-		int max = freq_ctr_remain(&p->fe_sess_per_sec, p->fe_maxsps, 0);
+	if (p->fe_sps_lim) {
+		int max = freq_ctr_remain(&p->fe_sess_per_sec, p->fe_sps_lim, 0);
 		if (max_accept > max)
 			max_accept = max;
 	}

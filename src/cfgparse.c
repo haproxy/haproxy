@@ -787,7 +787,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		if (curproxy->cap & PR_CAP_FE) {
 			curproxy->maxconn = defproxy.maxconn;
 			curproxy->backlog = defproxy.backlog;
-			curproxy->fe_maxsps = defproxy.fe_maxsps;
+			curproxy->fe_sps_lim = defproxy.fe_sps_lim;
 
 			/* initialize error relocations */
 			for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {

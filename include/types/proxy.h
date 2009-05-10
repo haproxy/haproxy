@@ -230,11 +230,13 @@ struct proxy {
 	unsigned int feconn, feconn_max;	/* # of active frontend sessions */
 	unsigned int beconn, beconn_max;	/* # of active backend sessions */
 	struct freq_ctr fe_sess_per_sec;	/* sessions per second on the frontend */
+	unsigned int fe_sps_max;		/* maximum of new sessions per second seen on the frontend */
 	struct freq_ctr be_sess_per_sec;	/* sessions per second on the backend */
+	unsigned int be_sps_max;		/* maximum of new sessions per second seen on the backend */
 	long long cum_feconn, cum_beconn;	/* cumulated number of processed sessions */
 	long long cum_lbconn;			/* cumulated number of sessions processed by load balancing */
 	unsigned int maxconn;			/* max # of active sessions on the frontend */
-	unsigned int fe_maxsps;			/* max # of new sessions per second on the frontend */
+	unsigned int fe_sps_lim;		/* limit on new sessions per second on the frontend */
 	unsigned int fullconn;			/* #conns on backend above which servers are used at full load */
 	struct in_addr except_net, except_mask; /* don't x-forward-for for this address. FIXME: should support IPv6 */
 	struct in_addr except_to;		/* don't x-original-to for this address. */

@@ -124,6 +124,7 @@ struct server {
 	long long retries, redispatches;		/* retried and redispatched connections */
 	long long failed_secu;			/* blocked responses because of security concerns */
 	struct freq_ctr sess_per_sec;		/* sessions per second on this server */
+	unsigned int sps_max;			/* maximum of new sessions per second seen on this server */
 	long long cum_sess;			/* cumulated number of sessions really sent to this server */
 	long long cum_lbconn;			/* cumulated number of sessions directed by load balancing */
 

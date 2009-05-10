@@ -69,6 +69,8 @@ static void inline proxy_inc_fe_ctr(struct proxy *fe)
 {
 	fe->cum_feconn++;
 	update_freq_ctr(&fe->fe_sess_per_sec, 1);
+	if (fe->fe_sess_per_sec.curr_ctr > fe->fe_sps_max)
+		fe->fe_sps_max = fe->fe_sess_per_sec.curr_ctr;
 }
 
 /* increase the number of cumulated connections on the designated backend */
@@ -76,6 +78,8 @@ static void inline proxy_inc_be_ctr(struct proxy *be)
 {
 	be->cum_beconn++;
 	update_freq_ctr(&be->be_sess_per_sec, 1);
+	if (be->be_sess_per_sec.curr_ctr > be->be_sps_max)
+		be->be_sps_max = be->be_sess_per_sec.curr_ctr;
 }
 
 #endif /* _PROTO_PROXY_H */
