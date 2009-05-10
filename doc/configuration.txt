@@ -604,15 +604,15 @@ monitor-uri                 X          X         X         -
 [no] option dontlognull     X          X         X         -
 [no] option forceclose      X          -         X         X
 option forwardfor           X          X         X         X
-option originalto           X          X         X         X
-[no] option http_proxy      X          X         X         X
 option httpchk              X          -         X         X
 [no] option httpclose       X          X         X         X
 option httplog              X          X         X         X
+[no] option http_proxy      X          X         X         X
 [no] option log-separate-
             errors          X          X         X         -
 [no] option logasap         X          X         X         -
 [no] option nolinger        X          X         X         X
+option originalto           X          X         X         X
 [no] option persist         X          -         X         X
 [no] option redispatch      X          -         X         X
 option smtpchk              X          -         X         X
@@ -1219,7 +1219,8 @@ contimeout <timeout>
              "timeout server", "contimeout".
 
 
-cookie <name> [ rewrite|insert|prefix ] [ indirect ] [ nocache ] [ postonly ] [domain <domain>]
+cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
+              [ postonly ] [ domain <domain> ]
   Enable cookie-based persistence in a backend.
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
@@ -2135,97 +2136,6 @@ option forwardfor [ except <network> ] [ header <name> ]
   See also : "option httpclose"
 
 
-option originalto [ except <network> ] [ header <name> ]
-  Enable insertion of the X-Original-To header to requests sent to servers
-  May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    yes   |   yes  |   yes
-  Arguments :
-    <network> is an optional argument used to disable this option for sources
-              matching <network>
-    <name>    an optional argument to specify a different "X-Original-To"
-              header name.
-
-  Since HAProxy can work in transparent mode, every request from a client can
-  be redirected to the proxy and HAProxy itself can proxy every request to a
-  complex SQUID environment and the destination host from SO_ORIGINAL_DST will
-  be lost. This is annoying when you want access rules based on destination ip
-  addresses. To solve this problem, a new HTTP header "X-Original-To" may be
-  added by HAProxy to all requests sent to the server. This header contains a
-  value representing the original destination IP address. Since this must be
-  configured to always use the last occurrence of this header only. Note that
-  only the last occurrence of the header must be used, since it is really
-  possible that the client has already brought one.
-
-  The keyword "header" may be used to supply a different header name to replace
-  the default "X-Original-To". This can be useful where you might already
-  have a "X-Original-To" header from a different application, and you need
-  preserve it. Also if your backend server doesn't use the "X-Original-To"
-  header and requires different one.
-
-  Sometimes, a same HAProxy instance may be shared between a direct client
-  access and a reverse-proxy access (for instance when an SSL reverse-proxy is
-  used to decrypt HTTPS traffic). It is possible to disable the addition of the
-  header for a known source address or network by adding the "except" keyword
-  followed by the network address. In this case, any source IP matching the
-  network will not cause an addition of this header. Most common uses are with
-  private networks or 127.0.0.1.
-
-  This option may be specified either in the frontend or in the backend. If at
-  least one of them uses it, the header will be added. Note that the backend's
-  setting of the header subargument takes precedence over the frontend's if
-  both are defined.
-
-  It is important to note that as long as HAProxy does not support keep-alive
-  connections, only the first request of a connection will receive the header.
-  For this reason, it is important to ensure that "option httpclose" is set
-  when using this option.
-
-  Examples :
-    # Original Destination address
-    frontend www
-        mode http
-        option originalto except 127.0.0.1
-
-    # Those servers want the IP Address in X-Client-Dst
-    backend www
-        mode http
-        option originalto header X-Client-Dst
-
-  See also : "option httpclose"
-
-
-option http_proxy
-no option http_proxy
-  Enable or disable plain HTTP proxy mode
-  May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    yes   |   yes  |   yes
-  Arguments : none
-
-  It sometimes happens that people need a pure HTTP proxy which understands
-  basic proxy requests without caching nor any fancy feature. In this case,
-  it may be worth setting up an HAProxy instance with the "option http_proxy"
-  set. In this mode, no server is declared, and the connection is forwarded to
-  the IP address and port found in the URL after the "http://" scheme.
-
-  No host address resolution is performed, so this only works when pure IP
-  addresses are passed. Since this option's usage perimeter is rather limited,
-  it will probably be used only by experts who know they need exactly it. Last,
-  if the clients are susceptible of sending keep-alive requests, it will be
-  needed to add "option http_close" to ensure that all requests will correctly
-  be analyzed.
-
-  If this option has been enabled in a "defaults" section, it can be disabled
-  in a specific instance by prepending the "no" keyword before it.
-
-  Example :
-    # this backend understands HTTP proxy requests and forwards them directly.
-    backend direct_forward
-        option httpclose
-        option http_proxy
-
-  See also : "option httpclose"
-
-
 option httpchk
 option httpchk <uri>
 option httpchk <method> <uri>
@@ -2326,6 +2236,38 @@ option httplog
   See also :  section 2.6 about logging.
 
 
+option http_proxy
+no option http_proxy
+  Enable or disable plain HTTP proxy mode
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+  Arguments : none
+
+  It sometimes happens that people need a pure HTTP proxy which understands
+  basic proxy requests without caching nor any fancy feature. In this case,
+  it may be worth setting up an HAProxy instance with the "option http_proxy"
+  set. In this mode, no server is declared, and the connection is forwarded to
+  the IP address and port found in the URL after the "http://" scheme.
+
+  No host address resolution is performed, so this only works when pure IP
+  addresses are passed. Since this option's usage perimeter is rather limited,
+  it will probably be used only by experts who know they need exactly it. Last,
+  if the clients are susceptible of sending keep-alive requests, it will be
+  needed to add "option http_close" to ensure that all requests will correctly
+  be analyzed.
+
+  If this option has been enabled in a "defaults" section, it can be disabled
+  in a specific instance by prepending the "no" keyword before it.
+
+  Example :
+    # this backend understands HTTP proxy requests and forwards them directly.
+    backend direct_forward
+        option httpclose
+        option http_proxy
+
+  See also : "option httpclose"
+
+
 option log-separate-errors
 no option log-separate-errors
   Change log level for non-completely successful connections
@@ -2413,6 +2355,65 @@ no option nolinger
 
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
+
+
+option originalto [ except <network> ] [ header <name> ]
+  Enable insertion of the X-Original-To header to requests sent to servers
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+  Arguments :
+    <network> is an optional argument used to disable this option for sources
+              matching <network>
+    <name>    an optional argument to specify a different "X-Original-To"
+              header name.
+
+  Since HAProxy can work in transparent mode, every request from a client can
+  be redirected to the proxy and HAProxy itself can proxy every request to a
+  complex SQUID environment and the destination host from SO_ORIGINAL_DST will
+  be lost. This is annoying when you want access rules based on destination ip
+  addresses. To solve this problem, a new HTTP header "X-Original-To" may be
+  added by HAProxy to all requests sent to the server. This header contains a
+  value representing the original destination IP address. Since this must be
+  configured to always use the last occurrence of this header only. Note that
+  only the last occurrence of the header must be used, since it is really
+  possible that the client has already brought one.
+
+  The keyword "header" may be used to supply a different header name to replace
+  the default "X-Original-To". This can be useful where you might already
+  have a "X-Original-To" header from a different application, and you need
+  preserve it. Also if your backend server doesn't use the "X-Original-To"
+  header and requires different one.
+
+  Sometimes, a same HAProxy instance may be shared between a direct client
+  access and a reverse-proxy access (for instance when an SSL reverse-proxy is
+  used to decrypt HTTPS traffic). It is possible to disable the addition of the
+  header for a known source address or network by adding the "except" keyword
+  followed by the network address. In this case, any source IP matching the
+  network will not cause an addition of this header. Most common uses are with
+  private networks or 127.0.0.1.
+
+  This option may be specified either in the frontend or in the backend. If at
+  least one of them uses it, the header will be added. Note that the backend's
+  setting of the header subargument takes precedence over the frontend's if
+  both are defined.
+
+  It is important to note that as long as HAProxy does not support keep-alive
+  connections, only the first request of a connection will receive the header.
+  For this reason, it is important to ensure that "option httpclose" is set
+  when using this option.
+
+  Examples :
+    # Original Destination address
+    frontend www
+        mode http
+        option originalto except 127.0.0.1
+
+    # Those servers want the IP Address in X-Client-Dst
+    backend www
+        mode http
+        option originalto header X-Client-Dst
+
+  See also : "option httpclose"
 
 
 option persist
@@ -3747,7 +3748,7 @@ tcp-request content accept [{if | unless} <condition>]
 
   See section 2.3 about ACL usage.
 
-  See also : "tcp-request content-reject", "tcp-request inspect-delay"
+  See also : "tcp-request content reject", "tcp-request inspect-delay"
 
 
 tcp-request content reject [{if | unless} <condition>]
@@ -3784,7 +3785,7 @@ tcp-request content reject [{if | unless} <condition>]
 
   See section 2.3 about ACL usage.
 
-  See also : "tcp-request content-accept", "tcp-request inspect-delay"
+  See also : "tcp-request content accept", "tcp-request inspect-delay"
 
 
 tcp-request inspect-delay <timeout>
@@ -3823,7 +3824,7 @@ tcp-request inspect-delay <timeout>
   data to the server (eg: SSL). Note that the client timeout must cover at
   least the inspection delay, otherwise it will expire first.
 
-  See also : "tcp-request content accept", "tcp-request content-reject",
+  See also : "tcp-request content accept", "tcp-request content reject",
              "timeout client".
 
 
@@ -4269,23 +4270,24 @@ nbsrv(backend) <integer>
 connslots <integer>
 connslots(backend) <integer>
   The basic idea here is to be able to measure the number of connection "slots"
-  still available (connection, + queue) - so that anything beyond that (intended
+  still available (connection + queue), so that anything beyond that (intended
   usage; see "use_backend" keyword) can be redirected to a different backend.
 
-  'connslots' = number of available server connection slots, + number of available
-  server queue slots.
+  'connslots' = number of available server connection slots, + number of
+  available server queue slots.
 
-  *Note that while "dst_conn" may be used, "connslots" comes in especially useful
-  when you have a case of traffic going to one single ip, splitting into multiple
-  backends (perhaps using acls to do name-based load balancing) - and you want to
-  be able to differentiate between different backends, and their "connslots"
-  available.  Also, whereas "nbsrv" only measures servers that are actually *down*,
-  this acl is more fine-grained - and looks into the number of conn slots available
-  as well.
+  Note that while "dst_conn" may be used, "connslots" comes in especially
+  useful when you have a case of traffic going to one single ip, splitting into
+  multiple backends (perhaps using acls to do name-based load balancing) and
+  you want to be able to differentiate between different backends, and their
+  available "connslots".  Also, whereas "nbsrv" only measures servers that are
+  actually *down*, this acl is more fine-grained and looks into the number of
+  available connection slots as well.
 
-  *OTHER CAVEATS AND NOTES: at this point in time, the code does not take care of
-  dynamic connections. Also, if any of the server maxconn, or maxqueue is 0, then
-  this acl clearly does not make sense - in which case the value returned will be -1.
+  OTHER CAVEATS AND NOTES: at this point in time, the code does not take care
+  of dynamic connections. Also, if any of the server maxconn, or maxqueue is 0,
+  then this acl clearly does not make sense, in which case the value returned
+  will be -1.
 
 fe_sess_rate <integer>
 fe_sess_rate(frontend) <integer>
@@ -5575,9 +5577,9 @@ Most common cases :
     always be very low, such as 1 ms on local networks and less than a few tens
     of ms on remote networks.
 
-  - If "Tr" is nearly always lower than 3000 except some rare values which seem to
-    be the average majored by 3000, there are probably some packets lost between
-    the proxy and the server.
+  - If "Tr" is nearly always lower than 3000 except some rare values which seem
+    to be the average majored by 3000, there are probably some packets lost
+    between the proxy and the server.
 
   - If "Tt" is large even for small byte counts, it generally is because
     neither the client nor the server decides to close the connection, for
@@ -5789,10 +5791,10 @@ easier finding and understanding.
 
      CT   The client aborted while its session was tarpitted. It is important to
           check if this happens on valid requests, in order to be sure that no
-          wrong tarpit rules have been written. If a lot of them happen, it might
-          make sense to lower the "timeout tarpit" value to something closer to
-          the average reported "Tw" timer, in order not to consume resources for
-          just a few attackers.
+          wrong tarpit rules have been written. If a lot of them happen, it
+          might make sense to lower the "timeout tarpit" value to something
+          closer to the average reported "Tw" timer, in order not to consume
+          resources for just a few attackers.
 
      SC   The server or an equipement between it and haproxy explicitly refused
           the TCP connection (the proxy received a TCP RST or an ICMP message
