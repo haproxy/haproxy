@@ -115,6 +115,8 @@
 #define PR_O2_SPLIC_ANY	(PR_O2_SPLIC_REQ|PR_O2_SPLIC_RTR|PR_O2_SPLIC_AUT)
 #define PR_O2_REQBUG_OK	0x00000008      /* let buggy requests pass through */
 #define PR_O2_RSPBUG_OK	0x00000010      /* let buggy responses pass through */
+#define PR_O2_NOLOGNORM	0x00000020      /* don't log normal traffic, only errors and retries */
+#define PR_O2_LOGERRORS	0x00000040      /* log errors and retries at level LOG_ERR */
 
 /* This structure is used to apply fast weighted round robin on a server group */
 struct fwrr_group {

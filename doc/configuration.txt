@@ -600,6 +600,7 @@ monitor-uri                 X          X         X         -
 [no] option checkcache      X          -         X         X
 [no] option clitcpka        X          X         X         -
 [no] option contstats       X          X         X         -
+[no] option dontlog-normal  X          X         X         -
 [no] option dontlognull     X          X         X         -
 [no] option forceclose      X          -         X         X
 option forwardfor           X          X         X         X
@@ -608,6 +609,8 @@ option originalto           X          X         X         X
 option httpchk              X          -         X         X
 [no] option httpclose       X          X         X         X
 option httplog              X          X         X         X
+[no] option log-separate-
+            errors          X          X         X         -
 [no] option logasap         X          X         X         -
 [no] option nolinger        X          X         X         X
 [no] option persist         X          -         X         X
@@ -1999,6 +2002,29 @@ option contstats
   it is not enabled by default, as it has small performance impact (~0.5%).
 
 
+option dontlog-normal
+no option dontlog-normal
+  Enable or disable logging of normal, successful connections
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   no
+  Arguments : none
+
+  There are large sites dealing with several thousand connections per second
+  and for which logging is a major pain. Some of them are even forced to turn
+  logs off and cannot debug production issues. Setting this option ensures that
+  normal connections, those which experience no error, no timeout, no retry nor
+  redispatch, will not be logged. This leaves disk space for anomalies. In HTTP
+  mode, the response status code is checked and return codes 5xx will still be
+  logged.
+
+  It is strongly discouraged to use this option as most of the time, the key to
+  complex issues is in the normal logs which will not be logged here. If you
+  need to separate logs, see the "log-separate-errors" option instead.
+
+  See also : "log", "dontlognull", "log-separate-errors" and section 2.6 about
+             logging.
+
+
 option dontlognull
 no option dontlognull
   Enable or disable logging of null connections
@@ -2298,6 +2324,29 @@ option httplog
   This option may be set either in the frontend or the backend.
 
   See also :  section 2.6 about logging.
+
+
+option log-separate-errors
+no option log-separate-errors
+  Change log level for non-completely successful connections
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   no
+  Arguments : none
+
+  Sometimes looking for errors in logs is not easy. This option makes haproxy
+  raise the level of logs containing potentially interesting information such
+  as errors, timeouts, retries, redispatches, or HTTP status codes 5xx. The
+  level changes from "info" to "err". This makes it possible to log them
+  separately to a different file with most syslog daemons. Be careful not to
+  remove them from the original file, otherwise you would lose ordering which
+  provides very important information.
+
+  Using this option, large sites dealing with several thousand connections per
+  second may log normal traffic to a rotating buffer and only archive smaller
+  error logs.
+
+  See also : "log", "dontlognull", "dontlog-normal" and section 2.6 about
+             logging.
 
 
 option logasap
@@ -4979,9 +5028,10 @@ emitted earlier if "option logasap" is specified, which makes sense in most
 environments with long sessions such as remote terminals. Sessions which match
 the "monitor" rules are never logged. It is also possible not to emit logs for
 sessions for which no data were exchanged between the client and the server, by
-specifying "option dontlognull" in the frontend. A few fields may slightly vary
-depending on some configuration options, those are marked with a star ('*')
-after the field name below.
+specifying "option dontlognull" in the frontend. Successful connections will
+not be logged if "option dontlog-normal" is specified in the frontend. A few
+fields may slightly vary depending on some configuration options, those are
+marked with a star ('*') after the field name below.
 
   Example :
         frontend fnt
@@ -5141,7 +5191,8 @@ emitted at the end of the session, unless "option logasap" is specified, which
 generally only makes sense for download sites. A session which matches the
 "monitor" rules will never logged. It is also possible not to log sessions for
 which no data were sent by the client by specifying "option dontlognull" in the
-frontend.
+frontend. Successful connections will not be logged if "option dontlog-normal"
+is specified in the frontend.
 
 Most fields are shared with the TCP log, some being different. A few fields may
 slightly vary depending on some configuration options. Those ones are marked
@@ -5417,6 +5468,35 @@ after processing the server headers. In this case, the number of bytes reported
 is the number of header bytes sent to the client. In order to avoid confusion
 with normal logs, the total time field and the number of bytes are prefixed
 with a '+' sign which means that real numbers are certainly larger.
+
+
+2.6.3.3) Raising log level upon errors
+--------------------------------------
+
+Sometimes it is more convenient to separate normal traffic from errors logs,
+for instance in order to ease error monitoring from log files. When the option
+"log-separate-errors" is used, connections which experience errors, timeouts,
+retries, redispatches or HTTP status codes 5xx will see their syslog level
+raised from "info" to "err". This will help a syslog daemon store the log in
+a separate file. It is very important to keep the errors in the normal traffic
+file too, so that log ordering is not altered. You should also be careful if
+you already have configured your syslog daemon to store all logs higher than
+"notice" in an "admin" file, because the "err" level is higher than "notice".
+
+
+2.6.3.4) Disabling logging of successful connections
+----------------------------------------------------
+
+Although this may sound strange at first, some large sites have to deal with
+multiple thousands of logs per second and are experiencing difficulties keeping
+them intact for a long time or detecting errors within them. If the option
+"dontlog-normal" is set on the frontend, all normal connections will not be
+logged. In this regard, a normal connection is defined as one without any
+error, timeout, retry nor redispatch. In HTTP, the status code is checked too,
+and a response with a status 5xx is not considered normal and will be logged
+too. Of course, doing is is really discouraged as it will remove most of the
+useful information from the logs. Do this only if you have no other
+alternative.
 
 
 2.6.4) Timing events

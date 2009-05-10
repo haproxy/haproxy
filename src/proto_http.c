@@ -755,13 +755,20 @@ void http_sess_log(struct session *s)
 	struct proxy *be = s->be;
 	struct proxy *prx_log;
 	struct http_txn *txn = &s->txn;
-	int tolog;
+	int tolog, level, err;
 	char *uri, *h;
 	char *svid;
 	struct tm tm;
 	static char tmpline[MAX_SYSLOG_LEN];
 	int t_request;
 	int hdr;
+
+	/* if we don't want to log normal traffic, return now */
+	err = (s->flags & (SN_ERR_MASK | SN_REDISP)) ||
+		(s->conn_retries != be->conn_retries) ||
+		txn->status >= 500;
+	if (!err && (fe->options2 & PR_O2_NOLOGNORM))
+		return;
 
 	if (fe->logfac1 < 0 && fe->logfac2 < 0)
 		return;
@@ -830,7 +837,11 @@ void http_sess_log(struct session *s)
 	if (tv_isge(&s->logs.tv_request, &s->logs.tv_accept))
 		t_request = tv_ms_elapsed(&s->logs.tv_accept, &s->logs.tv_request);
 
-	send_log(prx_log, LOG_INFO,
+	level = LOG_INFO;
+	if (err && (fe->options2 & PR_O2_LOGERRORS))
+		level = LOG_ERR;
+
+	send_log(prx_log, level,
 		 "%s:%d [%02d/%s/%04d:%02d:%02d:%02d.%03d]"
 		 " %s %s/%s %d/%ld/%ld/%ld/%s%ld %d %s%lld"
 		 " %s %s %c%c%c%c %d/%d/%d/%d/%s%u %ld/%ld%s\n",

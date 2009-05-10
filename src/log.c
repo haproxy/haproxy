@@ -321,9 +321,14 @@ void tcp_sess_log(struct session *s)
 	struct proxy *fe = s->fe;
 	struct proxy *be = s->be;
 	struct proxy *prx_log;
-	int tolog;
+	int tolog, level, err;
 	char *svid;
 	struct tm tm;
+
+	/* if we don't want to log normal traffic, return now */
+	err = (s->flags & (SN_ERR_MASK | SN_REDISP)) || (s->conn_retries != be->conn_retries);
+	if (!err && (fe->options2 & PR_O2_NOLOGNORM))
+		return;
 
 	if (s->cli_addr.ss_family == AF_INET)
 		inet_ntop(AF_INET,
@@ -353,7 +358,11 @@ void tcp_sess_log(struct session *s)
 	tolog = fe->to_log;
 	svid = (tolog & LW_SVID) ? (s->srv != NULL) ? s->srv->id : "<NOSRV>" : "-";
 
-	send_log(prx_log, LOG_INFO, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d.%03d]"
+	level = LOG_INFO;
+	if (err && (fe->options2 & PR_O2_LOGERRORS))
+		level = LOG_ERR;
+
+	send_log(prx_log, level, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d.%03d]"
 		 " %s %s/%s %ld/%ld/%s%ld %s%lld"
 		 " %c%c %d/%d/%d/%d/%s%u %ld/%ld\n",
 		 pn,
