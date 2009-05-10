@@ -188,7 +188,7 @@ REGPRM1 static int _do_init(struct poller *p)
 	free(kev);
  fail_kev:
 	close(kqueue_fd);
-	kqueue_fd = 0;
+	kqueue_fd = -1;
  fail_fd:
 	p->pref = 0;
 	return 0;
@@ -203,8 +203,11 @@ REGPRM1 static void _do_term(struct poller *p)
 	free(fd_evts[DIR_WR]);
 	free(fd_evts[DIR_RD]);
 	free(kev);
-	close(kqueue_fd);
-	kqueue_fd = 0;
+
+	if (kqueue_fd >= 0) {
+		close(kqueue_fd);
+		kqueue_fd = -1;
+	}
 
 	p->private = NULL;
 	p->pref = 0;
@@ -232,7 +235,8 @@ REGPRM1 static int _do_test(struct poller *p)
  */
 REGPRM1 static int _do_fork(struct poller *p)
 {
-	close(kqueue_fd);
+	if (kqueue_fd >= 0)
+		close(kqueue_fd);
 	kqueue_fd = kqueue();
 	if (kqueue_fd < 0)
 		return 0;
@@ -251,6 +255,8 @@ static void _do_register(void)
 
 	if (nbpollers >= MAX_POLLERS)
 		return;
+
+	kqueue_fd = -1;
 	p = &pollers[nbpollers++];
 
 	p->name = "kqueue";

@@ -591,7 +591,7 @@ REGPRM1 static int _do_init(struct poller *p)
 	free(epoll_events);
  fail_ee:
 	close(epoll_fd);
-	epoll_fd = 0;
+	epoll_fd = -1;
  fail_fd:
 	p->pref = 0;
 	return 0;
@@ -607,8 +607,10 @@ REGPRM1 static void _do_term(struct poller *p)
 	free(spec_list);
 	free(epoll_events);
 
-	close(epoll_fd);
-	epoll_fd = 0;
+	if (epoll_fd >= 0) {
+		close(epoll_fd);
+		epoll_fd = -1;
+	}
 
 	fd_list = NULL;
 	spec_list = NULL;
@@ -641,7 +643,8 @@ REGPRM1 static int _do_test(struct poller *p)
  */
 REGPRM1 static int _do_fork(struct poller *p)
 {
-	close(epoll_fd);
+	if (epoll_fd >= 0)
+		close(epoll_fd);
 	epoll_fd = epoll_create(global.maxsock + 1);
 	if (epoll_fd < 0)
 		return 0;
@@ -660,6 +663,8 @@ static void _do_register(void)
 
 	if (nbpollers >= MAX_POLLERS)
 		return;
+
+	epoll_fd = -1;
 	p = &pollers[nbpollers++];
 
 	p->name = "sepoll";
