@@ -89,6 +89,7 @@
 #include <proto/queue.h>
 #include <proto/server.h>
 #include <proto/session.h>
+#include <proto/signal.h>
 #include <proto/stream_sock.h>
 #include <proto/task.h>
 
@@ -405,6 +406,7 @@ void init(int argc, char **argv)
 	tv_update_date(-1,-1);
 	start_date = now;
 
+	signal_init();
 	init_task();
 	init_session();
 	init_buffer();
@@ -876,6 +878,9 @@ void run_poll_loop()
 
 	tv_update_date(0,1);
 	while (1) {
+		/* check if we caught some signals and process them */
+		signal_process_queue();
+
 		/* Check if we can expire some tasks */
 		wake_expired_tasks(&next);
 
