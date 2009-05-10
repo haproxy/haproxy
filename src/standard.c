@@ -654,6 +654,23 @@ const char *parse_time_err(const char *text, unsigned *ret, unsigned unit_flags)
 	return NULL;
 }
 
+/* copies at most <n> characters from <src> and always terminates with '\0' */
+char *my_strndup(const char *src, int n)
+{
+	int len = 0;
+	char *ret;
+
+	while (len < n && src[len])
+		len++;
+
+	ret = (char *)malloc(len + 1);
+	if (!ret)
+		return ret;
+	memcpy(ret, src, len);
+	ret[len] = '\0';
+	return ret;
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8

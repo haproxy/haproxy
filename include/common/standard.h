@@ -302,4 +302,7 @@ static inline unsigned int mul32hi(unsigned int a, unsigned int b)
 	return ((unsigned long long)a * b) >> 32;
 }
 
+/* copies at most <n> characters from <src> and always terminates with '\0' */
+char *my_strndup(const char *src, int n);
+
 #endif /* _COMMON_STANDARD_H */
