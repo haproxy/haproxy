@@ -553,7 +553,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int inv)
 	}
 	else if (!strcmp(args[0], "log")) {  /* syslog server address */
 		struct logsrv logsrv;
-		int facility, level;
+		int facility, level, minlvl;
 	
 		if (*(args[1]) == 0 || *(args[2]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects <address> and <facility> as arguments.\n", file, linenum, args[0]);
@@ -575,6 +575,15 @@ int cfg_parse_global(const char *file, int linenum, char **args, int inv)
 			}
 		}
 
+		minlvl = 0; /* limit syslog level to this level (emerg) */
+		if (*(args[4])) {
+			minlvl = get_log_level(args[4]);
+			if (level < 0) {
+				Alert("parsing [%s:%d] : unknown optional minimum log level '%s'\n", file, linenum, args[4]);
+				exit(1);
+			}
+		}
+
 		if (args[1][0] == '/') {
 			logsrv.u.addr.sa_family = AF_UNIX;
 			logsrv.u.un = *str2sun(args[1]);
@@ -589,11 +598,13 @@ int cfg_parse_global(const char *file, int linenum, char **args, int inv)
 			global.logsrv1 = logsrv;
 			global.logfac1 = facility;
 			global.loglev1 = level;
+			global.minlvl1 = minlvl;
 		}
 		else if (global.logfac2 == -1) {
 			global.logsrv2 = logsrv;
 			global.logfac2 = facility;
 			global.loglev2 = level;
+			global.minlvl2 = minlvl;
 		}
 		else {
 			Alert("parsing [%s:%d] : too many syslog servers\n", file, linenum);
@@ -847,9 +858,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		curproxy->logfac1 = defproxy.logfac1;
 		curproxy->logsrv1 = defproxy.logsrv1;
 		curproxy->loglev1 = defproxy.loglev1;
+		curproxy->minlvl1 = defproxy.minlvl1;
 		curproxy->logfac2 = defproxy.logfac2;
 		curproxy->logsrv2 = defproxy.logsrv2;
 		curproxy->loglev2 = defproxy.loglev2;
+		curproxy->minlvl2 = defproxy.minlvl2;
 		curproxy->grace  = defproxy.grace;
 		curproxy->uuid = next_pxid++;   /* generate a uuid for this proxy */
 		curproxy->next_svid = 1;        /* server id 0 is reserved */
@@ -2302,12 +2315,14 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			curproxy->logfac1 = global.logfac1;
 			curproxy->logsrv1 = global.logsrv1;
 			curproxy->loglev1 = global.loglev1;
+			curproxy->minlvl1 = global.minlvl1;
 			curproxy->logfac2 = global.logfac2;
 			curproxy->logsrv2 = global.logsrv2;
 			curproxy->loglev2 = global.loglev2;
+			curproxy->minlvl2 = global.minlvl2;
 		}
 		else if (*(args[1]) && *(args[2])) {
-			int level;
+			int level, minlvl;
 
 			facility = get_log_facility(args[2]);
 			if (facility < 0) {
@@ -2320,6 +2335,15 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 				level = get_log_level(args[3]);
 				if (level < 0) {
 					Alert("parsing [%s:%d] : unknown optional log level '%s'\n", file, linenum, args[3]);
+					exit(1);
+				}
+			}
+
+			minlvl = 0; /* limit syslog level to this level (emerg) */
+			if (*(args[4])) {
+				minlvl = get_log_level(args[4]);
+				if (level < 0) {
+					Alert("parsing [%s:%d] : unknown optional minimum log level '%s'\n", file, linenum, args[4]);
 					exit(1);
 				}
 			}
@@ -2340,11 +2364,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 				curproxy->logsrv1 = logsrv;
 				curproxy->logfac1 = facility;
 				curproxy->loglev1 = level;
+				curproxy->minlvl1 = minlvl;
 			}
 			else if (curproxy->logfac2 == -1) {
 				curproxy->logsrv2 = logsrv;
 				curproxy->logfac2 = facility;
 				curproxy->loglev2 = level;
+				curproxy->minlvl2 = minlvl;
 			}
 			else {
 				Alert("parsing [%s:%d] : too many syslog servers\n", file, linenum);

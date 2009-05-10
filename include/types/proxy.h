@@ -266,6 +266,7 @@ struct proxy {
 	struct logsrv logsrv1, logsrv2;		/* 2 syslog servers */
 	signed char logfac1, logfac2;		/* log facility for both servers. -1 = disabled */
 	int loglev1, loglev2;			/* log level for each server, 7 by default */
+	int minlvl1, minlvl2;			/* minimum log level for each server, 0 by default */
 	int to_log;				/* things to be logged (LW_*) */
 	int stop_time;                          /* date to stop listening, when stopping != 0 (int ticks) */
 	int nb_reqadd, nb_rspadd;

@@ -176,7 +176,7 @@ void send_log(struct proxy *p, int level, const char *message, ...)
 	int fac_level;
 	int hdr_len, data_len;
 	struct logsrv *logsrvs[2];
-	int facilities[2], loglevel[2];
+	int facilities[2], loglevel[2], minlvl[2];
 	int nblogger;
 	int nbloggers = 0;
 	char *log_ptr;
@@ -222,12 +222,14 @@ void send_log(struct proxy *p, int level, const char *message, ...)
 			logsrvs[nbloggers] = &global.logsrv1;
 			facilities[nbloggers] = global.logfac1;
 			loglevel[nbloggers] = global.loglev1;
+			minlvl[nbloggers] = global.minlvl1;
 			nbloggers++;
 		}
 		if (global.logfac2 >= 0) {
 			logsrvs[nbloggers] = &global.logsrv2;
 			facilities[nbloggers] = global.logfac2;
 			loglevel[nbloggers] = global.loglev2;
+			minlvl[nbloggers] = global.minlvl2;
 			nbloggers++;
 		}
 	} else {
@@ -235,12 +237,14 @@ void send_log(struct proxy *p, int level, const char *message, ...)
 			logsrvs[nbloggers] = &p->logsrv1;
 			facilities[nbloggers] = p->logfac1;
 			loglevel[nbloggers] = p->loglev1;
+			minlvl[nbloggers] = p->minlvl1;
 			nbloggers++;
 		}
 		if (p->logfac2 >= 0) {
 			logsrvs[nbloggers] = &p->logsrv2;
 			facilities[nbloggers] = p->logfac2;
 			loglevel[nbloggers] = p->loglev2;
+			minlvl[nbloggers] = p->minlvl2;
 			nbloggers++;
 		}
 	}
@@ -292,7 +296,7 @@ void send_log(struct proxy *p, int level, const char *message, ...)
 		 * time, we only change the facility in the pre-computed header,
 		 * and we change the pointer to the header accordingly.
 		 */
-		fac_level = (facilities[nblogger] << 3) + level;
+		fac_level = (facilities[nblogger] << 3) + MAX(level, minlvl[nblogger]);
 		log_ptr = logmsg + 3; /* last digit of the log level */
 		do {
 			*log_ptr = '0' + fac_level % 10;

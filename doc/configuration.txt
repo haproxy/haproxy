@@ -415,7 +415,7 @@ group <group name>
   Similar to "gid" but uses the GID of group name <group name> from /etc/group.
   See also "gid" and "user".
   
-log <address> <facility> [max level]
+log <address> <facility> [max level [min level]]
   Adds a global syslog server. Up to two global servers can be defined. They
   will receive logs for startups and exits, as well as all logs from proxies
   configured with "log global".
@@ -438,8 +438,12 @@ log <address> <facility> [max level]
           local0 local1 local2 local3 local4 local5 local6 local7
 
   An optional level can be specified to filter outgoing messages. By default,
-  all messages are sent. If a level is specified, only messages with a severity
-  at least as important as this level will be sent. 8 levels are known :
+  all messages are sent. If a maximum level is specified, only messages with a
+  severity at least as important as this level will be sent. An optional minimum
+  level can be specified. If it is set, logs emitted with a more severe level
+  than this one will be capped to this level. This is used to avoid sending
+  "emerg" messages on all terminals on some default syslog configurations.
+  Eight levels are known :
 
 	  emerg  alert  crit   err    warning notice info  debug
 
@@ -1640,7 +1644,7 @@ id <value>
 
 
 log global
-log <address> <facility> [<level>]
+log <address> <facility> [<level> [<minlevel>]]
   Enable per-instance logging of events and traffic.
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
@@ -1673,7 +1677,11 @@ log <address> <facility> [<level>]
     <level>    is optional and can be specified to filter outgoing messages. By
                default, all messages are sent. If a level is specified, only
                messages with a severity at least as important as this level
-               will be sent. 8 levels are known :
+               will be sent. An optional minimum level can be specified. If it
+               is set, logs emitted with a more severe level than this one will
+               be capped to this level. This is used to avoid sending "emerg"
+               messages on all terminals on some default syslog configurations.
+               Eight levels are known :
 
                  emerg  alert  crit   err    warning notice info  debug
 
@@ -1696,7 +1704,8 @@ log <address> <facility> [<level>]
 
   Example :
     log global
-    log 127.0.0.1:514 local0 notice
+    log 127.0.0.1:514 local0 notice         # only send important events
+    log 127.0.0.1:514 local0 notice notice  # same but limit output level
 
 
 maxconn <conns>
