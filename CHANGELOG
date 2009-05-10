@@ -1,6 +1,22 @@
 ChangeLog :
 ===========
 
+2009/05/10 : 1.3.14.13
+    - [BUILD] Fixed Makefile for linking pcre
+    - [DOC] Make the status listener example complete.
+    - [BUILD] spec file: fix broken pipe during rpmbuild and add man file
+    - [BUG] check for global.maxconn before doing accept()
+    - [BUILD] add format(printf) to printf-like functions
+    - [MINOR] fix several printf formats and missing arguments
+    - [BUG] stats: total and lbtot are unsigned
+    - [MINOR] fix a few remaining printf-like formats on 64-bit platforms
+    - [MEDIUM] ensure we don't recursively call pool_gc2()
+    - [CRITICAL] uninitialized response field can sometimes cause crashes
+    - [MINOR] rhel init script : support the reload operation
+    - [BUG] O(1) pollers should check their FD before closing it
+    - [MINOR] don't close stdio fds twice
+    - [MINOR] stats/html: use the arial font before helvetica
+
 2009/03/08 : 1.3.14.12
     - [BUG] Fix listen & more of 2 couples <ip>:<port>
     - [DOC] remove buggy comment for use_backend
