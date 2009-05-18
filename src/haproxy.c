@@ -203,7 +203,7 @@ void usage(char *name)
 		"        -v displays version ; -vv shows known build options.\n"
 		"        -d enters debug mode ; -db only disables background mode.\n"
 		"        -V enters verbose mode (disables quiet mode)\n"
-		"        -D goes daemon ; implies -q\n"
+		"        -D goes daemon\n"
 		"        -q quiet mode : don't display messages\n"
 		"        -c check mode : only check config file and exit\n"
 		"        -n sets the maximum total # of connections (%d)\n"
@@ -475,7 +475,7 @@ void init(int argc, char **argv)
 			else if (*flag == 'c')
 				arg_mode |= MODE_CHECK;
 			else if (*flag == 'D')
-				arg_mode |= MODE_DAEMON | MODE_QUIET;
+				arg_mode |= MODE_DAEMON;
 			else if (*flag == 'q')
 				arg_mode |= MODE_QUIET;
 			else if (*flag == 's' && (flag[1] == 'f' || flag[1] == 't')) {
