@@ -871,8 +871,10 @@ int main(int argc, char **argv)
 
 	/* Note: start_proxies() sends an alert when it fails. */
 	if ((err & ~ERR_WARN) != ERR_NONE) {
-		if (retry != MAX_START_RETRIES && nb_oldpids)
+		if (retry != MAX_START_RETRIES && nb_oldpids) {
+			protocol_unbind_all(); /* cleanup everything we can */
 			tell_old_pids(SIGTTIN);
+		}
 		exit(1);
 	}
 
