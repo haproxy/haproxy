@@ -3397,7 +3397,9 @@ source <addr>[:<port>] [interface <name>]
 
     <port>    is an optional port. It is normally not needed but may be useful
               in some very specific contexts. The default value of zero means
-              the system will select a free port.
+              the system will select a free port. Note that port ranges are not
+              supported in the backend. If you want to force port ranges, you
+              have to specify them on each "server" line.
 
     <addr2>   is the IP address to present to the server when connections are
               forwarded in full transparent proxy mode. This is currently only
@@ -4372,12 +4374,20 @@ slowstart <start_time_in_ms>
   trouble to running servers. It only applies when a server has been previously
   seen as failed.
 
-source <addr>[:<port>] [usesrc { <addr2>[:<port2>] | client | clientip } ]
-source <addr>[:<port>] [interface <name>] ...
+source <addr>[:<pl>[-<ph>]] [usesrc { <addr2>[:<port2>] | client | clientip } ]
+source <addr>[:<pl>[-<ph>]] [interface <name>] ...
   The "source" parameter sets the source address which will be used when
   connecting to the server. It follows the exact same parameters and principle
   as the backend "source" keyword, except that it only applies to the server
   referencing it. Please consult the "source" keyword for details.
+
+  Additionally, the "source" statement on a server line allows one to specify a
+  source port range by indicating the lower and higher bounds delimited by a
+  dash ('-'). Some operating systems might require a valid IP address when a
+  source port range is specified. It is permitted to have the same IP/range for
+  several servers. Doing so makes it possible to bypass the maximum of 64k
+  total concurrent connections. The limit will then reach 64k connections per
+  server.
 
 track [<proxy>/]<server>
   This option enables ability to set the current state of the server by

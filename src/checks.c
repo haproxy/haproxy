@@ -36,6 +36,7 @@
 #include <proto/fd.h>
 #include <proto/log.h>
 #include <proto/queue.h>
+#include <proto/port_range.h>
 #include <proto/proto_http.h>
 #include <proto/proto_tcp.h>
 #include <proto/proxy.h>
@@ -597,7 +598,38 @@ struct task *process_chk(struct task *t)
 						setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE,
 							   s->iface_name, s->iface_len + 1);
 #endif
-					ret = tcpv4_bind_socket(fd, flags, &s->source_addr, remote);
+					if (s->sport_range) {
+						int bind_attempts = 10; /* should be more than enough to find a spare port */
+						struct sockaddr_in src;
+
+						ret = 1;
+						src = s->source_addr;
+
+						do {
+							/* note: in case of retry, we may have to release a previously
+							 * allocated port, hence this loop's construct.
+							 */
+							port_range_release_port(fdtab[fd].port_range, fdtab[fd].local_port);
+							fdtab[fd].port_range = NULL;
+
+							if (!bind_attempts)
+								break;
+							bind_attempts--;
+
+							fdtab[fd].local_port = port_range_alloc_port(s->sport_range);
+							if (!fdtab[fd].local_port)
+								break;
+
+							fdtab[fd].port_range = s->sport_range;
+							src.sin_port = htons(fdtab[fd].local_port);
+
+							ret = tcpv4_bind_socket(fd, flags, &src, remote);
+						} while (ret != 0); /* binding NOK */
+					}
+					else {
+						ret = tcpv4_bind_socket(fd, flags, &s->source_addr, remote);
+					}
+
 					if (ret) {
 						s->result |= SRV_CHK_ERROR;
 						switch (ret) {
@@ -682,6 +714,8 @@ struct task *process_chk(struct task *t)
 					}
 				}
 			}
+			port_range_release_port(fdtab[fd].port_range, fdtab[fd].local_port);
+			fdtab[fd].port_range = NULL;
 			close(fd); /* socket creation error */
 		}
 

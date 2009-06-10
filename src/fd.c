@@ -19,6 +19,7 @@
 #include <common/config.h>
 
 #include <proto/fd.h>
+#include <proto/port_range.h>
 
 struct fdtab *fdtab = NULL;     /* array of all the file descriptors */
 int maxfd;                      /* # of the highest fd + 1 */
@@ -36,6 +37,8 @@ int nbpollers = 0;
 void fd_delete(int fd)
 {
 	EV_FD_CLO(fd);
+	port_range_release_port(fdtab[fd].port_range, fdtab[fd].local_port);
+	fdtab[fd].port_range = NULL;
 	close(fd);
 	fdtab[fd].state = FD_STCLOSE;
 

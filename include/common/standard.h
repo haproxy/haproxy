@@ -2,7 +2,7 @@
   include/common/standard.h
   This files contains some general purpose functions and macros.
 
-  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -167,6 +167,17 @@ struct sockaddr_un *str2sun(const char *str);
  * a host name, or empty or "*" to indicate INADDR_ANY.
  */
 struct sockaddr_in *str2sa(char *str);
+
+/*
+ * converts <str> to a struct sockaddr_in* which is locally allocated, and a
+ * port range consisting in two integers. The low and high end are always set
+ * even if the port is unspecified, in which case (0,0) is returned. The low
+ * port is set in the sockaddr_in. Thus, it is enough to check the size of the
+ * returned range to know if an array must be allocated or not. The format is
+ * "addr[:port[-port]]", where "addr" can be a dotted IPv4 address, a host
+ * name, or empty or "*" to indicate INADDR_ANY.
+ */
+struct sockaddr_in *str2sa_range(char *str, int *low, int *high);
 
 /*
  * converts <str> to two struct in_addr* which must be pre-allocated.
