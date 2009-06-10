@@ -1,7 +1,7 @@
 /*
  * General purpose functions.
  *
- * Copyright 2000-2007 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2009 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -234,6 +234,65 @@ struct sockaddr_in *str2sa(char *str)
 	}
 	sa.sin_port   = htons(port);
 	sa.sin_family = AF_INET;
+
+	free(str);
+ out_nofree:
+	return &sa;
+}
+
+/*
+ * converts <str> to a struct sockaddr_in* which is locally allocated, and a
+ * port range consisting in two integers. The low and high end are always set
+ * even if the port is unspecified, in which case (0,0) is returned. The low
+ * port is set in the sockaddr_in. Thus, it is enough to check the size of the
+ * returned range to know if an array must be allocated or not. The format is
+ * "addr[:port[-port]]", where "addr" can be a dotted IPv4 address, a host
+ * name, or empty or "*" to indicate INADDR_ANY.
+ */
+struct sockaddr_in *str2sa_range(char *str, int *low, int *high)
+{
+	static struct sockaddr_in sa;
+	char *c;
+	int portl, porth;
+
+	memset(&sa, 0, sizeof(sa));
+	str = strdup(str);
+	if (str == NULL)
+		goto out_nofree;
+
+	if ((c = strrchr(str,':')) != NULL) {
+		char *sep;
+		*c++ = '\0';
+		sep = strchr(c, '-');
+		if (sep)
+			*sep++ = '\0';
+		else
+			sep = c;
+		portl = atol(c);
+		porth = atol(sep);
+	}
+	else {
+		portl = 0;
+		porth = 0;
+	}
+
+	if (*str == '*' || *str == '\0') { /* INADDR_ANY */
+		sa.sin_addr.s_addr = INADDR_ANY;
+	}
+	else if (!inet_pton(AF_INET, str, &sa.sin_addr)) {
+		struct hostent *he;
+
+		if ((he = gethostbyname(str)) == NULL) {
+			Alert("Invalid server name: '%s'\n", str);
+		}
+		else
+			sa.sin_addr = *(struct in_addr *) *(he->h_addr_list);
+	}
+	sa.sin_port   = htons(portl);
+	sa.sin_family = AF_INET;
+
+	*low = portl;
+	*high = porth;
 
 	free(str);
  out_nofree:

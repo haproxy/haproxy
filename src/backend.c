@@ -33,6 +33,7 @@
 #include <proto/fd.h>
 #include <proto/httperr.h>
 #include <proto/log.h>
+#include <proto/port_range.h>
 #include <proto/proto_http.h>
 #include <proto/proto_tcp.h>
 #include <proto/queue.h>
@@ -1812,9 +1813,44 @@ int connect_server(struct session *s)
 		if (s->srv->iface_name)
 			setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, s->srv->iface_name, s->srv->iface_len + 1);
 #endif
-		ret = tcpv4_bind_socket(fd, flags, &s->srv->source_addr, remote);
+
+		if (s->srv->sport_range) {
+			int attempts = 10; /* should be more than enough to find a spare port */
+			struct sockaddr_in src;
+
+			ret = 1;
+			src = s->srv->source_addr;
+
+			do {
+				/* note: in case of retry, we may have to release a previously
+				 * allocated port, hence this loop's construct.
+				 */
+				port_range_release_port(fdtab[fd].port_range, fdtab[fd].local_port);
+				fdtab[fd].port_range = NULL;
+
+				if (!attempts)
+					break;
+				attempts--;
+
+				fdtab[fd].local_port = port_range_alloc_port(s->srv->sport_range);
+				if (!fdtab[fd].local_port)
+					break;
+
+				fdtab[fd].port_range = s->srv->sport_range;
+				src.sin_port = htons(fdtab[fd].local_port);
+
+				ret = tcpv4_bind_socket(fd, flags, &src, remote);
+			} while (ret != 0); /* binding NOK */
+		}
+		else {
+			ret = tcpv4_bind_socket(fd, flags, &s->srv->source_addr, remote);
+		}
+
 		if (ret) {
+			port_range_release_port(fdtab[fd].port_range, fdtab[fd].local_port);
+			fdtab[fd].port_range = NULL;
 			close(fd);
+
 			if (ret == 1) {
 				Alert("Cannot bind to source address before connect() for server %s/%s. Aborting.\n",
 				      s->be->id, s->srv->id);
@@ -1887,6 +1923,8 @@ int connect_server(struct session *s)
 				msg = "local address already in use";
 
 			qfprintf(stderr,"Cannot connect: %s.\n",msg);
+			port_range_release_port(fdtab[fd].port_range, fdtab[fd].local_port);
+			fdtab[fd].port_range = NULL;
 			close(fd);
 			send_log(s->be, LOG_EMERG,
 				 "Connect() failed for server %s/%s: %s.\n",
@@ -1894,11 +1932,15 @@ int connect_server(struct session *s)
 			return SN_ERR_RESOURCE;
 		} else if (errno == ETIMEDOUT) {
 			//qfprintf(stderr,"Connect(): ETIMEDOUT");
+			port_range_release_port(fdtab[fd].port_range, fdtab[fd].local_port);
+			fdtab[fd].port_range = NULL;
 			close(fd);
 			return SN_ERR_SRVTO;
 		} else {
 			// (errno == ECONNREFUSED || errno == ENETUNREACH || errno == EACCES || errno == EPERM)
 			//qfprintf(stderr,"Connect(): %d", errno);
+			port_range_release_port(fdtab[fd].port_range, fdtab[fd].local_port);
+			fdtab[fd].port_range = NULL;
 			close(fd);
 			return SN_ERR_SRVCL;
 		}

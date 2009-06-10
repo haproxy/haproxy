@@ -31,6 +31,7 @@
 
 #include <types/buffers.h>
 #include <types/freq_ctr.h>
+#include <types/port_range.h>
 #include <types/proxy.h>
 #include <types/queue.h>
 #include <types/task.h>
@@ -94,6 +95,7 @@ struct server {
 #endif
 	int iface_len;				/* bind interface name length */
 	char *iface_name;			/* bind interface name or NULL */
+	struct port_range *sport_range;		/* optional per-server TCP source ports */
 
 	struct server *tracknext, *tracked;	/* next server in a tracking list, tracked server */
 	char *trackit;				/* temporary variable to make assignment deferrable */

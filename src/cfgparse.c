@@ -40,6 +40,7 @@
 #include <proto/dumpstats.h>
 #include <proto/httperr.h>
 #include <proto/log.h>
+#include <proto/port_range.h>
 #include <proto/protocols.h>
 #include <proto/proto_tcp.h>
 #include <proto/proto_http.h>
@@ -2179,18 +2180,34 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 				cur_arg += 1;
 			}
 			else if (!strcmp(args[cur_arg], "source")) {  /* address to which we bind when connecting */
+				int port_low, port_high;
 				if (!*args[cur_arg + 1]) {
 #if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
-					Alert("parsing [%s:%d] : '%s' expects <addr>[:<port>], and optional '%s' <addr> as argument.\n",
+					Alert("parsing [%s:%d] : '%s' expects <addr>[:<port>[-<port>]], and optional '%s' <addr> as argument.\n",
 					      file, linenum, "source", "usesrc");
 #else
-					Alert("parsing [%s:%d] : '%s' expects <addr>[:<port>] as argument.\n",
+					Alert("parsing [%s:%d] : '%s' expects <addr>[:<port>[-<port>]] as argument.\n",
 					      file, linenum, "source");
 #endif
 					return -1;
 				}
 				newsrv->state |= SRV_BIND_SRC;
-				newsrv->source_addr = *str2sa(args[cur_arg + 1]);
+				newsrv->source_addr = *str2sa_range(args[cur_arg + 1], &port_low, &port_high);
+
+				if (port_low != port_high) {
+					int i;
+					if (port_low  <= 0 || port_low > 65535 ||
+					    port_high <= 0 || port_high > 65535 ||
+					    port_low > port_high) {
+						Alert("parsing [%s:%d] : invalid source port range %d-%d.\n",
+						      file, linenum, port_low, port_high);
+						return -1;
+					}
+					newsrv->sport_range = port_range_alloc_range(port_high - port_low + 1);
+					for (i = 0; i < newsrv->sport_range->size; i++)
+						newsrv->sport_range->ports[i] = port_low + i;
+				}
+
 				cur_arg += 2;
 				while (*(args[cur_arg])) {
 					if (!strcmp(args[cur_arg], "usesrc")) {  /* address to use outside */

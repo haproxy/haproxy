@@ -70,6 +70,8 @@ struct fdtab {
 	unsigned char ev;                    /* event seen in return of poll() : FD_POLL_* */
 	struct sockaddr *peeraddr;           /* pointer to peer's network address, or NULL if unset */
 	socklen_t peerlen;                   /* peer's address length, or 0 if unset */
+	int local_port;                      /* optional local port */
+	struct port_range *port_range;       /* optional port range to bind to */
 };
 
 /*
