@@ -136,6 +136,7 @@ static const struct cfg_opt cfg_opts2[] =
 	{ "dontlog-normal",               PR_O2_NOLOGNORM, PR_CAP_FE, 0 },
 	{ "log-separate-errors",          PR_O2_LOGERRORS, PR_CAP_FE, 0 },
 	{ "tcp-smart-accept",             PR_O2_SMARTACC,  PR_CAP_FE, 0 },
+	{ "tcp-smart-connect",            PR_O2_SMARTCON,  PR_CAP_BE, 0 },
 	{ NULL, 0, 0, 0 }
 };
 

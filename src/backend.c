@@ -18,6 +18,8 @@
 #include <string.h>
 #include <ctype.h>
 
+#include <netinet/tcp.h>
+
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/debug.h>
@@ -1911,6 +1913,15 @@ int connect_server(struct session *s)
 			return SN_ERR_RESOURCE;
 		}
 	}
+
+#ifdef TCP_QUICKACK
+	/* disabling tcp quick ack now allows the first request to leave the
+	 * machine with the first ACK. We only do this if there are pending
+	 * data in the buffer.
+	 */
+	if ((s->be->options2 & PR_O2_SMARTCON) && s->req->send_max)
+                setsockopt(fd, SOL_TCP, TCP_QUICKACK, (char *) &zero, sizeof(zero));
+#endif
 
 	if ((connect(fd, (struct sockaddr *)&s->srv_addr, sizeof(s->srv_addr)) == -1) &&
 	    (errno != EINPROGRESS) && (errno != EALREADY) && (errno != EISCONN)) {

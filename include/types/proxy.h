@@ -118,6 +118,7 @@
 #define PR_O2_NOLOGNORM	0x00000020      /* don't log normal traffic, only errors and retries */
 #define PR_O2_LOGERRORS	0x00000040      /* log errors and retries at level LOG_ERR */
 #define PR_O2_SMARTACC 	0x00000080      /* don't immediately ACK request after accept */
+#define PR_O2_SMARTCON 	0x00000100      /* don't immediately send empty ACK after connect */
 
 /* This structure is used to apply fast weighted round robin on a server group */
 struct fwrr_group {

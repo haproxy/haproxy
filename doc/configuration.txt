@@ -2789,6 +2789,35 @@ no option tcp-smart-accept
   of doubt, consider setting it back to automatic values by prepending the
   "default" keyword before it, or disabling it using the "no" keyword.
 
+  See also : "option tcp-smart-connect"
+
+
+option tcp-smart-connect
+no option tcp-smart-connect
+  Enable or disable the saving of one ACK packet during the connect sequence
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments : none
+
+  On certain systems (at least Linux), HAProxy can ask the kernel not to
+  immediately send an empty ACK upon a connection request, but to directly
+  send the buffer request instead. This saves one packet on the network and
+  thus boosts performance. It can also be useful for some servers, because they
+  immediately get the request along with the incoming connection.
+
+  This feature is enabled when "option tcp-smart-connect" is set in a backend.
+  It is not enabled by default because it makes network troubleshooting more
+  complex.
+
+  It only makes sense to enable it with protocols where the client speaks first
+  such as HTTP. In other situations, if there is no data to send in place of
+  the ACK, a normal ACK is sent.
+
+  If this option has been enabled in a "defaults" section, it can be disabled
+  in a specific instance by prepending the "no" keyword before it.
+
+  See also : "option tcp-smart-accept"
+
 
 option tcpka
   Enable or disable the sending of TCP keepalive packets on both sides
