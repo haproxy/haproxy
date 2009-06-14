@@ -135,6 +135,7 @@ static const struct cfg_opt cfg_opts2[] =
 	{ "accept-invalid-http-response", PR_O2_RSPBUG_OK, PR_CAP_BE, 0 },
 	{ "dontlog-normal",               PR_O2_NOLOGNORM, PR_CAP_FE, 0 },
 	{ "log-separate-errors",          PR_O2_LOGERRORS, PR_CAP_FE, 0 },
+	{ "tcp-smart-accept",             PR_O2_SMARTACC,  PR_CAP_FE, 0 },
 	{ NULL, 0, 0, 0 }
 };
 
@@ -3740,6 +3741,12 @@ int readcfgfile(const char *file)
 
 			if (curproxy->mode == PR_MODE_HTTP)
 				listener->analysers |= AN_REQ_HTTP_HDR;
+
+			/* smart accept mode is automatic in HTTP mode */
+			if ((curproxy->options2 & PR_O2_SMARTACC) ||
+			    (curproxy->mode == PR_MODE_HTTP &&
+			     !(curproxy->no_options2 & PR_O2_SMARTACC)))
+				listener->options |= LI_O_NOQUICKACK;
 
 			if (curproxy->tcp_req.inspect_delay ||
 			    !LIST_ISEMPTY(&curproxy->tcp_req.inspect_rules))

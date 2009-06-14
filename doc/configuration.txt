@@ -706,6 +706,8 @@ option smtpchk              X          -         X         X
 [no] option splice-response X          X         X         X
 [no] option srvtcpka        X          -         X         X
 option ssl-hello-chk        X          -         X         X
+[no] option tcp-smart-
+            accept          X          X         X         -
 option tcpka                X          X         X         X
 option tcplog               X          X         X         X
 [no] option tcpsplice       X          X         X         X
@@ -2753,6 +2755,39 @@ option ssl-hello-chk
   messages, which is appreciable.
 
   See also: "option httpchk"
+
+
+option tcp-smart-accept
+no option tcp-smart-accept
+  Enable or disable the saving of one ACK packet during the accept sequence
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |    no
+  Arguments : none
+
+  When an HTTP connection request comes in, the system acknowledges it on
+  behalf of HAProxy, then the client immediately sends its request, and the
+  system acknowledges it too while it is notifying HAProxy about the new
+  connection. HAProxy then reads the request and responds. This means that we
+  have one TCP ACK sent by the system for nothing, because the request could
+  very well be acknowledged by HAProxy when it sends its response.
+
+  For this reason, in HTTP mode, HAProxy automatically asks the system to avoid
+  sending this useless ACK on platforms which support it (currently at least
+  Linux). It must not cause any problem, because the system will send it anyway
+  after 40 ms if the response takes more time than expected to come.
+
+  During complex network debugging sessions, it may be desirable to disable
+  this optimization because delayed ACKs can make troubleshooting more complex
+  when trying to identify where packets are delayed. It is then possible to
+  fall back to normal behaviour by specifying "no option tcp-smart-accept".
+
+  It is also possible to force it for non-HTTP proxies by simply specifying
+  "option tcp-smart-accept". For instance, it can make sense with some services
+  such as SMTP where the server speaks first.
+
+  It is recommended to avoid forcing this option in a defaults section. In case
+  of doubt, consider setting it back to automatic values by prepending the
+  "default" keyword before it, or disabling it using the "no" keyword.
 
 
 option tcpka

@@ -18,6 +18,8 @@
 #include <string.h>
 #include <time.h>
 
+#include <netinet/tcp.h>
+
 #include <sys/param.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -262,6 +264,11 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		msg = "cannot listen to socket";
 		goto tcp_close_return;
 	}
+
+#ifdef TCP_QUICKACK
+	if (listener->options & LI_O_NOQUICKACK)
+		setsockopt(fd, SOL_TCP, TCP_QUICKACK, (char *) &zero, sizeof(zero));
+#endif
 
 	/* the socket is ready */
 	listener->fd = fd;
