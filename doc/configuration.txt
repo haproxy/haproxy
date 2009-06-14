@@ -637,9 +637,11 @@ The following list of keywords is supported. Most of them may only be used in a
 limited set of section types. Some of them are marked as "deprecated" because
 they are inherited from an old syntax which may be confusing or functionally
 limited, and there are new recommended keywords to replace them. Keywords
-listed with [no] can be optionally inverted using the "no" prefix, ex. "no
+listed with [no] can be optionally inverted using the "no" prefix, eg. "no
 option contstats". This makes sense when the option has been enabled by default
-and must be disabled for a specific instance.
+and must be disabled for a specific instance. Such options may also be prefixed
+with "default" in order to restore default settings regardless of what has been
+specified in a previous "defaults" section.
 
 
 keyword                 defaults   frontend   listen    backend

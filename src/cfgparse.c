@@ -80,6 +80,13 @@ const char sslv3_client_hello_pkt[] = {
 	"\x00"                /* Compression Type    : 0x00 = NULL compression   */
 };
 
+/* various keyword modifiers */
+enum kw_mod {
+	KWM_STD = 0,  /* normal */
+	KWM_NO,       /* "no" prefixed before the keyword */
+	KWM_DEF,      /* "default" prefixed before the keyword */
+};
+
 /* some of the most common options which are also the easiest to handle */
 struct cfg_opt {
 	const char *name;
@@ -371,7 +378,7 @@ int warnif_misplaced_reqadd(struct proxy *proxy, const char *file, int line, cha
 /*
  * parse a line in a <global> section. Returns 0 if OK, -1 if error.
  */
-int cfg_parse_global(const char *file, int linenum, char **args, int inv)
+int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 {
 
 	if (!strcmp(args[0], "global")) {  /* new section */
@@ -683,7 +690,7 @@ static void init_default_instance()
  * Parse a line in a <listen>, <frontend>, <backend> or <ruleset> section.
  * Returns 0 if OK, -1 if error.
  */
-int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
+int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 {
 	static struct proxy *curproxy = NULL;
 	struct server *newsrv = NULL;
@@ -1596,12 +1603,18 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 				if (warnifnotcap(curproxy, cfg_opts[optnum].cap, file, linenum, args[1], NULL))
 					return 0;
 
-				if (!inv) {
-					curproxy->no_options &= ~cfg_opts[optnum].val;
-					curproxy->options    |=  cfg_opts[optnum].val;
-				} else {
-					curproxy->options    &= ~cfg_opts[optnum].val;
-					curproxy->no_options |=  cfg_opts[optnum].val;
+				curproxy->no_options &= ~cfg_opts[optnum].val;
+				curproxy->options    &= ~cfg_opts[optnum].val;
+
+				switch (kwm) {
+				case KWM_STD:
+					curproxy->options |= cfg_opts[optnum].val;
+					break;
+				case KWM_NO:
+					curproxy->no_options |= cfg_opts[optnum].val;
+					break;
+				case KWM_DEF: /* already cleared */
+					break;
 				}
 
 				return 0;
@@ -1613,19 +1626,25 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 				if (warnifnotcap(curproxy, cfg_opts2[optnum].cap, file, linenum, args[1], NULL))
 					return 0;
 
-				if (!inv) {
-					curproxy->no_options2 &= ~cfg_opts2[optnum].val;
-					curproxy->options2    |=  cfg_opts2[optnum].val;
-				} else {
-					curproxy->options2    &= ~cfg_opts2[optnum].val;
-					curproxy->no_options2 |=  cfg_opts2[optnum].val;
+				curproxy->no_options2 &= ~cfg_opts2[optnum].val;
+				curproxy->options2    &= ~cfg_opts2[optnum].val;
+
+				switch (kwm) {
+				case KWM_STD:
+					curproxy->options2 |= cfg_opts2[optnum].val;
+					break;
+				case KWM_NO:
+					curproxy->no_options2 |= cfg_opts2[optnum].val;
+					break;
+				case KWM_DEF: /* already cleared */
+					break;
 				}
 				return 0;
 			}
 		}
 
-		if (inv) {
-			Alert("parsing [%s:%d]: negation is not supported for option '%s'.\n",
+		if (kwm != KWM_STD) {
+			Alert("parsing [%s:%d]: negation/default is not supported for option '%s'.\n",
 				file, linenum, args[1]);
 			return -1;
 		}
@@ -3182,7 +3201,7 @@ int readcfgfile(const char *file)
 	init_default_instance();
 
 	while (fgets(thisline, sizeof(thisline), f) != NULL) {
-		int arg, inv = 0 ;
+		int arg, kwm = KWM_STD;
 		char *end;
 		char *args[MAX_LINE_ARGS + 1];
 		char *line = thisline;
@@ -3278,14 +3297,20 @@ int readcfgfile(const char *file)
 			args[arg] = line;
 		}
 
+		/* check for keyword modifiers "no" and "default" */
 		if (!strcmp(args[0], "no")) {
-			inv = 1;
+			kwm = KWM_NO;
+			for (arg=0; *args[arg+1]; arg++)
+				args[arg] = args[arg+1];		// shift args after inversion
+		}
+		else if (!strcmp(args[0], "default")) {
+			kwm = KWM_DEF;
 			for (arg=0; *args[arg+1]; arg++)
 				args[arg] = args[arg+1];		// shift args after inversion
 		}
 
-		if (inv && strcmp(args[0], "option")) {
-			Alert("parsing [%s:%d]: negation currently supported only for options.\n", file, linenum);
+		if (kwm != KWM_STD && strcmp(args[0], "option") != 0) {
+			Alert("parsing [%s:%d]: negation/default currently supported only for options.\n", file, linenum);
 			goto err;
 		}
 
@@ -3307,11 +3332,11 @@ int readcfgfile(const char *file)
 
 		switch (confsect) {
 		case CFG_LISTEN:
-			if (cfg_parse_listen(file, linenum, args, inv) < 0)
+			if (cfg_parse_listen(file, linenum, args, kwm) < 0)
 				goto err;
 			break;
 		case CFG_GLOBAL:
-			if (cfg_parse_global(file, linenum, args, inv) < 0)
+			if (cfg_parse_global(file, linenum, args, kwm) < 0)
 				goto err;
 			break;
 		default:
