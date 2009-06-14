@@ -290,6 +290,10 @@ struct proxy {
 	unsigned int backlog;			/* force the frontend's listen backlog */
 	unsigned int bind_proc;			/* bitmask of processes using this proxy. 0 = all. */
 	struct error_snapshot invalid_req, invalid_rep; /* captures of last errors */
+
+	/* used only during configuration parsing */
+	int no_options;				/* PR_O_REDISP, PR_O_TRANSP, ... */
+	int no_options2;			/* PR_O2_* */
 };
 
 struct switching_rule {

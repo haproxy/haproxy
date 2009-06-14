@@ -773,6 +773,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		curproxy->state = defproxy.state;
 		curproxy->options = defproxy.options;
 		curproxy->options2 = defproxy.options2;
+		curproxy->no_options = defproxy.no_options;
+		curproxy->no_options2 = defproxy.no_options2;
 		curproxy->bind_proc = defproxy.bind_proc;
 		curproxy->lbprm.algo = defproxy.lbprm.algo;
 		curproxy->except_net = defproxy.except_net;
@@ -1594,10 +1596,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 				if (warnifnotcap(curproxy, cfg_opts[optnum].cap, file, linenum, args[1], NULL))
 					return 0;
 
-				if (!inv)
-					curproxy->options |= cfg_opts[optnum].val;
-				else
-					curproxy->options &= ~cfg_opts[optnum].val;
+				if (!inv) {
+					curproxy->no_options &= ~cfg_opts[optnum].val;
+					curproxy->options    |=  cfg_opts[optnum].val;
+				} else {
+					curproxy->options    &= ~cfg_opts[optnum].val;
+					curproxy->no_options |=  cfg_opts[optnum].val;
+				}
 
 				return 0;
 			}
@@ -1608,11 +1613,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 				if (warnifnotcap(curproxy, cfg_opts2[optnum].cap, file, linenum, args[1], NULL))
 					return 0;
 
-				if (!inv)
-					curproxy->options2 |= cfg_opts2[optnum].val;
-				else
-					curproxy->options2 &= ~cfg_opts2[optnum].val;
-
+				if (!inv) {
+					curproxy->no_options2 &= ~cfg_opts2[optnum].val;
+					curproxy->options2    |=  cfg_opts2[optnum].val;
+				} else {
+					curproxy->options2    &= ~cfg_opts2[optnum].val;
+					curproxy->no_options2 |=  cfg_opts2[optnum].val;
+				}
 				return 0;
 			}
 		}
