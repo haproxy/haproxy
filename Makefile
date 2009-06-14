@@ -70,7 +70,7 @@ DOCDIR = $(PREFIX)/doc/haproxy
 # Use TARGET=<target_name> to optimize for a specifc target OS among the
 # following list (use the default "generic" if uncertain) :
 #    generic, linux22, linux24, linux24e, linux26, solaris,
-#    freebsd, openbsd, custom
+#    freebsd, openbsd, cygwin, custom
 TARGET =
 
 #### TARGET CPU
@@ -217,6 +217,14 @@ ifeq ($(TARGET),openbsd)
   USE_POLL       = implicit
   USE_KQUEUE     = implicit
   USE_TPROXY     = implicit
+else
+ifeq ($(TARGET),cygwin)
+  # This is for Cygwin
+  # Cygwin adds IPv6 support only in version 1.7 (in beta right now). 
+  USE_POLL   = implicit
+  USE_TPROXY = implicit
+  TARGET_CFLAGS  = $(if $(filter 1.5.%, $(shell uname -r)), -DUSE_IPV6 -DAF_INET6=23 -DINET6_ADDRSTRLEN=46, )
+endif # cygwin
 endif # openbsd
 endif # freebsd
 endif # solaris
@@ -440,7 +448,7 @@ all:
 	@echo "Please choose the target among the following supported list :"
 	@echo
 	@echo "   linux26, linux24, linux24e, linux22, solaris"
-	@echo "   freebsd, openbsd, custom, generic"
+	@echo "   freebsd, openbsd, cygwin, custom, generic"
 	@echo
 	@echo "Use \"generic\" if you don't want any optimization, \"custom\" if you"
 	@echo "want to precisely tweak every option, or choose the target which"

@@ -26,6 +26,7 @@ and assign it to the TARGET variable :
   - solaris     for Solaris 8 or 10 (others untested)
   - freebsd     for FreeBSD 5 to 6.2 (others untested)
   - openbsd     for OpenBSD 3.1 to 3.7 (others untested)
+  - cygwin      for Cygwin
   - generic     for any other OS.
   - custom      to manually adjust every setting
 
