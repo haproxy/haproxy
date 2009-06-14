@@ -1012,6 +1012,7 @@ balance url_param <param> [check_post [<max_wait>]]
 
 bind [<address>]:<port> [, ...]
 bind [<address>]:<port> [, ...] interface <interface>
+bind [<address>]:<port> [, ...] mss <maxseg>
 bind [<address>]:<port> [, ...] transparent
   Define one or several listening addresses and/or ports in a frontend.
   May be used in sections :   defaults | frontend | listen | backend
@@ -1036,6 +1037,15 @@ bind [<address>]:<port> [, ...] transparent
                   the same address if they are bound to different interfaces.
                   Note that binding to a physical interface requires root
                   privileges.
+
+    <maxseg>      is an optional TCP Maximum Segment Size (MSS) value to be
+                  advertised on incoming connections. This can be used to force
+                  a lower MSS for certain specific ports, for instance for
+                  connections passing through a VPN. Note that this relies on a
+                  kernel feature which is theorically supported under Linux but
+                  was buggy in all versions prior to 2.6.28. It may or may not
+                  work on other operating systems. The commonly advertised
+                  value on Ethernet networks is 1460 = 1500(MTU) - 40(IP+TCP).
 
     transparent   is an optional keyword which is supported only on certain
                   Linux kernels. It indicates that the addresses will be bound

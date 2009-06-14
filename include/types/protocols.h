@@ -98,6 +98,7 @@ struct listener {
 		} ux;
 	} perm;
 	char *interface;		/* interface name or NULL */
+	int maxseg;			/* for TCP, advertised MSS */
 };
 
 /* This structure contains all information needed to easily handle a protocol.

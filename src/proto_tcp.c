@@ -251,6 +251,15 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		}
 	}
 #endif
+#ifdef TCP_MAXSEG
+	if (listener->maxseg) {
+		if (setsockopt(fd, SOL_TCP, TCP_MAXSEG,
+			       &listener->maxseg, sizeof(listener->maxseg)) == -1) {
+			msg = "cannot set MSS";
+			err |= ERR_WARN;
+		}
+	}
+#endif
 	if (bind(fd, (struct sockaddr *)&listener->addr, listener->proto->sock_addrlen) == -1) {
 		err |= ERR_RETRYABLE | ERR_ALERT;
 		msg = "cannot bind socket";

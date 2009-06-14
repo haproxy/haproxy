@@ -23,6 +23,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#include <netinet/tcp.h>
+
 #include <common/cfgparse.h>
 #include <common/config.h>
 #include <common/memory.h>
@@ -951,6 +953,35 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 					l->interface = strdup(args[cur_arg + 1]);
 
 				global.last_checks |= LSTCHK_NETADM;
+
+				cur_arg += 2;
+				continue;
+#else
+				Alert("parsing [%s:%d] : '%s' : '%s' option not implemented.\n",
+				      file, linenum, args[0], args[cur_arg]);
+				return -1;
+#endif
+			}
+			if (!strcmp(args[cur_arg], "mss")) { /* set MSS of listening socket */
+#ifdef TCP_MAXSEG
+				struct listener *l;
+				int mss;
+
+				if (!*args[cur_arg + 1]) {
+					Alert("parsing [%s:%d] : '%s' : missing MSS value.\n",
+					      file, linenum, args[0]);
+					return -1;
+				}
+
+				mss = str2uic(args[cur_arg + 1]);
+				if (mss < 1 || mss > 65535) {
+					Alert("parsing [%s:%d]: %s expects an MSS value between 1 and 65535.\n",
+					      file, linenum, args[0]);
+					return -1;
+				}
+
+				for (l = curproxy->listen; l != last_listen; l = l->next)
+					l->maxseg = mss;
 
 				cur_arg += 2;
 				continue;
