@@ -59,6 +59,13 @@ enum {
 #define FD_POLL_DATA    (FD_POLL_IN  | FD_POLL_OUT)
 #define FD_POLL_STICKY  (FD_POLL_ERR | FD_POLL_HUP)
 
+/* bit values for fdtab[fd]->flags. Most of them are used to hold a value
+ * consecutive to a behaviour change.
+ */
+#define FD_FL_TCP               0x0001       /* socket is TCP */
+#define FD_FL_TCP_NODELAY       0x0002
+#define FD_FL_TCP_CORK          0x0004
+
 /* info about one given fd */
 struct fdtab {
 	struct {
@@ -66,6 +73,7 @@ struct fdtab {
 		struct buffer *b;            /* read/write buffer */
 	} cb[DIR_SIZE];
 	void *owner;                         /* the session (or proxy) associated with this fd */
+	unsigned short flags;                /* various flags precising the exact status of this fd */
 	unsigned char state;                 /* the state of this fd */
 	unsigned char ev;                    /* event seen in return of poll() : FD_POLL_* */
 	struct sockaddr *peeraddr;           /* pointer to peer's network address, or NULL if unset */

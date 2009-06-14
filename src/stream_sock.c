@@ -16,6 +16,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <netinet/tcp.h>
+
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -569,6 +571,26 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 		if (max > b->send_max)
 			max = b->send_max;
 
+
+#ifdef TCP_CORK
+		/*
+		 * Check if we want to cork output before sending. This typically occurs
+		 * when there are data left in the buffer, or when we reached the end of
+		 * buffer but we know we will close, so we try to merge the ongoing FIN
+		 * with the last data segment.
+		 */
+		if ((fdtab[si->fd].flags & (FD_FL_TCP|FD_FL_TCP_CORK)) == FD_FL_TCP) {
+			if (unlikely((b->send_max == b->l && 
+				      (b->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) ==
+				      (BF_WRITE_ENA|BF_SHUTR)))) {
+				/* we have to unconditionally reset TCP_NODELAY for CORK */
+				setsockopt(si->fd, IPPROTO_TCP, TCP_NODELAY, (char *) &zero, sizeof(zero));
+				setsockopt(si->fd, SOL_TCP, TCP_CORK, (char *) &one, sizeof(one));
+				fdtab[si->fd].flags = (fdtab[si->fd].flags & ~FD_FL_TCP_NODELAY) | FD_FL_TCP_CORK;
+			}
+		}
+#endif
+
 #ifndef MSG_NOSIGNAL
 		{
 			int skerr;
@@ -627,6 +649,21 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 			break;
 		}
 	} /* while (1) */
+
+	/* check if we need to uncork the output, for instance when the
+	 * output buffer is empty but not shutr().
+	 */
+	if (unlikely((fdtab[si->fd].flags & (FD_FL_TCP|FD_FL_TCP_NODELAY)) == FD_FL_TCP && (b->flags & BF_EMPTY))) {
+		if ((b->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) != (BF_WRITE_ENA|BF_SHUTR)) {
+#ifdef TCP_CORK
+			if (fdtab[si->fd].flags & FD_FL_TCP_CORK)
+				setsockopt(si->fd, SOL_TCP, TCP_CORK, (char *) &zero, sizeof(zero));
+#endif
+			setsockopt(si->fd, IPPROTO_TCP, TCP_NODELAY, (char *) &one, sizeof(one));
+			fdtab[si->fd].flags = (fdtab[si->fd].flags & ~FD_FL_TCP_CORK) | FD_FL_TCP_NODELAY;
+		}
+	}
+
 
 	return retval;
 }

@@ -692,6 +692,7 @@ struct task *process_chk(struct task *t)
 						fdtab[fd].peeraddr = (struct sockaddr *)&sa;
 						fdtab[fd].peerlen = sizeof(sa);
 						fdtab[fd].state = FD_STCONN; /* connection in progress */
+						fdtab[fd].flags = FD_FL_TCP | FD_FL_TCP_NODELAY;
 						EV_FD_SET(fd, DIR_WR);  /* for connect status */
 #ifdef DEBUG_FULL
 						assert (!EV_FD_ISSET(fd, DIR_RD));

@@ -417,6 +417,7 @@ int event_accept(int fd) {
 		fd_insert(cfd);
 		fdtab[cfd].owner = &s->si[0];
 		fdtab[cfd].state = FD_STREADY;
+		fdtab[cfd].flags = FD_FL_TCP | FD_FL_TCP_NODELAY;
 		fdtab[cfd].cb[DIR_RD].f = l->proto->read;
 		fdtab[cfd].cb[DIR_RD].b = s->req;
 		fdtab[cfd].cb[DIR_WR].f = l->proto->write;

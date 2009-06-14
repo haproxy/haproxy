@@ -212,9 +212,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		goto tcp_close_return;
 	}
 
-	if ((fcntl(fd, F_SETFL, O_NONBLOCK) == -1) ||
-	    (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY,
-			(char *) &one, sizeof(one)) == -1)) {
+	if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1) {
 		err |= ERR_FATAL | ERR_ALERT;
 		msg = "cannot make socket non-blocking";
 		goto tcp_close_return;
@@ -281,6 +279,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	fdtab[fd].cb[DIR_RD].b = fdtab[fd].cb[DIR_WR].b = NULL;
 	fdtab[fd].owner = listener; /* reference the listener instead of a task */
 	fdtab[fd].state = FD_STLISTEN;
+	fdtab[fd].flags = FD_FL_TCP;
 	fdtab[fd].peeraddr = NULL;
 	fdtab[fd].peerlen = 0;
  tcp_return:
