@@ -2185,8 +2185,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			else if (!strcmp(args[cur_arg], "weight")) {
 				int w;
 				w = atol(args[cur_arg + 1]);
-				if (w < 1 || w > 256) {
-					Alert("parsing [%s:%d] : weight of server %s is not within 1 and 256 (%d).\n",
+				if (w < 0 || w > 256) {
+					Alert("parsing [%s:%d] : weight of server %s is not within 0 and 256 (%d).\n",
 					      file, linenum, newsrv->id, w);
 					return -1;
 				}
