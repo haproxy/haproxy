@@ -201,7 +201,8 @@ void recalc_server_map(struct proxy *px)
 		int max = 0;
 		best = NULL;
 		for (cur = px->srv; cur; cur = cur->next) {
-			if (flag == (cur->state &
+			if (cur->eweight &&
+			    flag == (cur->state &
 				     (SRV_RUNNING | SRV_GOINGDOWN | SRV_BACKUP))) {
 				int v;
 
@@ -248,15 +249,24 @@ void init_server_map(struct proxy *p)
 		return;
 
 	/* We will factor the weights to reduce the table,
-	 * using Euclide's largest common divisor algorithm
+	 * using Euclide's largest common divisor algorithm.
+	 * Since we may have zero weights, we have to first
+	 * find a non-zero weight server.
 	 */
-	pgcd = p->srv->uweight;
-	for (srv = p->srv->next; srv && pgcd > 1; srv = srv->next) {
-		int w = srv->uweight;
-		while (w) {
-			int t = pgcd % w;
-			pgcd = w;
-			w = t;
+	pgcd = 1;
+	srv = p->srv;
+	while (srv && !srv->uweight)
+		srv = srv->next;
+
+	if (srv) {
+		pgcd = srv->uweight; /* note: cannot be zero */
+		while (pgcd > 1 && (srv = srv->next)) {
+			int w = srv->uweight;
+			while (w) {
+				int t = pgcd % w;
+				pgcd = w;
+				w = t;
+			}
 		}
 	}
 
@@ -280,6 +290,9 @@ void init_server_map(struct proxy *p)
 	/* this is the largest map we will ever need for this servers list */
 	if (act < bck)
 		act = bck;
+
+	if (!act)
+		act = 1;
 
 	p->lbprm.map.srv = (struct server **)calloc(act, sizeof(struct server *));
 	/* recounts servers and their weights */
