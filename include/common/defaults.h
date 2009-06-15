@@ -143,8 +143,11 @@
  * command-line '-n' argument.
  */
 #ifndef SYSTEM_MAXCONN
+#ifndef DEFAULT_MAXCONN
 #define DEFAULT_MAXCONN 2000
+#endif
 #else
+#undef  DEFAULT_MAXCONN
 #define DEFAULT_MAXCONN SYSTEM_MAXCONN
 #endif
 
