@@ -567,21 +567,42 @@ struct task *process_session(struct task *t)
 	//DPRINTF(stderr, "%s:%d: cs=%d ss=%d(%d) rqf=0x%08x rpf=0x%08x\n", __FUNCTION__, __LINE__,
 	//        s->si[0].state, s->si[1].state, s->si[1].err_type, s->req->flags, s->rep->flags);
 
+	/* This flag must explicitly be set every time */
+	s->req->flags &= ~BF_READ_NOEXP;
+
+	/* Keep a copy of req/rep flags so that we can detect shutdowns */
+	rqf_last = s->req->flags;
+	rpf_last = s->rep->flags;
+
 	/* 1a: Check for low level timeouts if needed. We just set a flag on
 	 * stream interfaces when their timeouts have expired.
 	 */
 	if (unlikely(t->state & TASK_WOKEN_TIMER)) {
 		stream_int_check_timeouts(&s->si[0]);
 		stream_int_check_timeouts(&s->si[1]);
+
+		/* check buffer timeouts, and close the corresponding stream interfaces
+		 * for future reads or writes. Note: this will also concern upper layers
+		 * but we do not touch any other flag. We must be careful and correctly
+		 * detect state changes when calling them.
+		 */
+
 		buffer_check_timeouts(s->req);
+
+		if (unlikely((s->req->flags & (BF_SHUTR|BF_READ_TIMEOUT)) == BF_READ_TIMEOUT))
+			s->req->prod->shutr(s->req->prod);
+
+		if (unlikely((s->req->flags & (BF_SHUTW|BF_WRITE_TIMEOUT)) == BF_WRITE_TIMEOUT))
+			s->req->cons->shutw(s->req->cons);
+
 		buffer_check_timeouts(s->rep);
+
+		if (unlikely((s->rep->flags & (BF_SHUTR|BF_READ_TIMEOUT)) == BF_READ_TIMEOUT))
+			s->rep->prod->shutr(s->rep->prod);
+
+		if (unlikely((s->rep->flags & (BF_SHUTW|BF_WRITE_TIMEOUT)) == BF_WRITE_TIMEOUT))
+			s->rep->cons->shutw(s->rep->cons);
 	}
-
-	s->req->flags &= ~BF_READ_NOEXP;
-
-	/* copy req/rep flags so that we can detect shutdowns */
-	rqf_last = s->req->flags;
-	rpf_last = s->rep->flags;
 
 	/* 1b: check for low-level errors reported at the stream interface.
 	 * First we check if it's a retryable error (in which case we don't
@@ -637,50 +658,9 @@ struct task *process_session(struct task *t)
 		 */
 	}
 
-	/* check buffer timeouts, and close the corresponding stream interfaces
-	 * for future reads or writes. Note: this will also concern upper layers
-	 * but we do not touch any other flag. We must be careful and correctly
-	 * detect state changes when calling them.
-	 */
-	if (unlikely(s->req->flags & (BF_READ_TIMEOUT|BF_WRITE_TIMEOUT))) {
-		if (s->req->flags & BF_READ_TIMEOUT)
-			s->req->prod->shutr(s->req->prod);
-		if (s->req->flags & BF_WRITE_TIMEOUT)
-			s->req->cons->shutw(s->req->cons);
-		DPRINTF(stderr,
-			"[%u] %s:%d: task=%p s=%p, sfl=0x%08x, rq=%p, rp=%p, exp(r,w)=%u,%u rqf=%08x rpf=%08x rql=%d rpl=%d cs=%d ss=%d, cet=0x%x set=0x%x retr=%d\n",
-			now_ms, __FUNCTION__, __LINE__,
-			t,
-			s, s->flags,
-			s->req, s->rep,
-			s->req->rex, s->rep->wex,
-			s->req->flags, s->rep->flags,
-			s->req->l, s->rep->l, s->rep->cons->state, s->req->cons->state,
-			s->rep->cons->err_type, s->req->cons->err_type,
-			s->conn_retries);
-	}
-
-	if (unlikely(s->rep->flags & (BF_READ_TIMEOUT|BF_WRITE_TIMEOUT))) {
-		if (s->rep->flags & BF_READ_TIMEOUT)
-			s->rep->prod->shutr(s->rep->prod);
-		if (s->rep->flags & BF_WRITE_TIMEOUT)
-			s->rep->cons->shutw(s->rep->cons);
-		DPRINTF(stderr,
-			"[%u] %s:%d: task=%p s=%p, sfl=0x%08x, rq=%p, rp=%p, exp(r,w)=%u,%u rqf=%08x rpf=%08x rql=%d rpl=%d cs=%d ss=%d, cet=0x%x set=0x%x retr=%d\n",
-			now_ms, __FUNCTION__, __LINE__,
-			t,
-			s, s->flags,
-			s->req, s->rep,
-			s->req->rex, s->rep->wex,
-			s->req->flags, s->rep->flags,
-			s->req->l, s->rep->l, s->rep->cons->state, s->req->cons->state,
-			s->rep->cons->err_type, s->req->cons->err_type,
-			s->conn_retries);
-	}
-
+resync_stream_interface:
 	/* Check for connection closure */
 
-resync_stream_interface:
 	DPRINTF(stderr,
 		"[%u] %s:%d: task=%p s=%p, sfl=0x%08x, rq=%p, rp=%p, exp(r,w)=%u,%u rqf=%08x rpf=%08x rql=%d rpl=%d cs=%d ss=%d, cet=0x%x set=0x%x retr=%d\n",
 		now_ms, __FUNCTION__, __LINE__,
