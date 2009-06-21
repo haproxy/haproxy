@@ -561,7 +561,6 @@ static void sess_prepare_conn_req(struct session *s, struct stream_interface *si
 struct task *process_session(struct task *t)
 {
 	struct session *s = t->context;
-	int resync;
 	unsigned int rqf_last, rpf_last;
 
 	//DPRINTF(stderr, "%s:%d: cs=%d ss=%d(%d) rqf=0x%08x rpf=0x%08x\n", __FUNCTION__, __LINE__,
@@ -699,10 +698,6 @@ resync_stream_interface:
 	 */
 
  resync_request:
-	/**** Process layer 7 below ****/
-
-	resync = 0;
-
 	/* Analyse request */
 	if ((s->req->flags & BF_MASK_ANALYSER) ||
 	    (s->req->flags ^ rqf_last) & BF_MASK_STATIC) {
@@ -743,9 +738,59 @@ resync_stream_interface:
 			}
 		}
 
-		/* Report it if the client got an error or a read timeout expired */
-		if (unlikely(s->req->flags & (BF_READ_ERROR|BF_READ_TIMEOUT|BF_WRITE_ERROR|BF_WRITE_TIMEOUT)) &&
-		    !(s->flags & SN_ERR_MASK)) {
+		if ((s->req->flags ^ flags) & BF_MASK_STATIC) {
+			rqf_last = s->req->flags;
+			goto resync_request;
+		}
+	}
+
+ resync_response:
+	/* Analyse response */
+
+	if (unlikely(s->rep->flags & BF_HIJACK)) {
+		/* In inject mode, we wake up everytime something has
+		 * happened on the write side of the buffer.
+		 */
+		unsigned int flags = s->rep->flags;
+
+		if ((s->rep->flags & (BF_WRITE_PARTIAL|BF_WRITE_ERROR|BF_SHUTW)) &&
+		    !(s->rep->flags & BF_FULL)) {
+			s->rep->hijacker(s, s->rep);
+		}
+
+		if ((s->rep->flags ^ flags) & BF_MASK_STATIC) {
+			rpf_last = s->rep->flags;
+			goto resync_response;
+		}
+	}
+	else if ((s->rep->flags & BF_MASK_ANALYSER) ||
+		 (s->rep->flags ^ rpf_last) & BF_MASK_STATIC) {
+		unsigned int flags = s->rep->flags;
+
+		if (s->rep->prod->state >= SI_ST_EST) {
+			/* it's up to the analysers to reset write_ena */
+			buffer_write_ena(s->rep);
+			if (s->rep->analysers)
+				process_response(s);
+		}
+
+		if ((s->rep->flags ^ flags) & BF_MASK_STATIC) {
+			rpf_last = s->rep->flags;
+			goto resync_response;
+		}
+	}
+
+	/* FIXME: here we should call protocol handlers which rely on
+	 * both buffers.
+	 */
+
+
+	/*
+	 * Now we propagate unhandled errors to the session
+	 */
+	if (!(s->flags & SN_ERR_MASK)) {
+		if (s->req->flags & (BF_READ_ERROR|BF_READ_TIMEOUT|BF_WRITE_ERROR|BF_WRITE_TIMEOUT)) {
+			/* Report it if the client got an error or a read timeout expired */
 			s->req->analysers = 0;
 			if (s->req->flags & BF_READ_ERROR)
 				s->flags |= SN_ERR_CLICL;
@@ -757,24 +802,26 @@ resync_stream_interface:
 				s->flags |= SN_ERR_SRVTO;
 			sess_set_term_flags(s);
 		}
-
-		if ((s->req->flags ^ flags) & BF_MASK_STATIC)
-			resync = 1;
-	}
-
-	/* Report it if the client got an error or a read timeout expired */
-	if (unlikely(s->req->flags & (BF_READ_ERROR|BF_READ_TIMEOUT|BF_WRITE_ERROR|BF_WRITE_TIMEOUT)) &&
-	    !(s->flags & SN_ERR_MASK)) {
-		if (s->req->flags & BF_READ_ERROR)
-			s->flags |= SN_ERR_CLICL;
-		else if (s->req->flags & BF_READ_TIMEOUT)
+		else if (s->rep->flags & (BF_READ_ERROR|BF_READ_TIMEOUT|BF_WRITE_ERROR|BF_WRITE_TIMEOUT)) {
+			/* Report it if the server got an error or a read timeout expired */
+			s->rep->analysers = 0;
+			if (s->rep->flags & BF_READ_ERROR)
+				s->flags |= SN_ERR_SRVCL;
+			else if (s->rep->flags & BF_READ_TIMEOUT)
+				s->flags |= SN_ERR_SRVTO;
+			else if (s->rep->flags & BF_WRITE_ERROR)
+				s->flags |= SN_ERR_CLICL;
+			else
 			s->flags |= SN_ERR_CLITO;
-		else if (s->req->flags & BF_WRITE_ERROR)
-			s->flags |= SN_ERR_SRVCL;
-		else
-			s->flags |= SN_ERR_SRVTO;
-		sess_set_term_flags(s);
+			sess_set_term_flags(s);
+		}
 	}
+
+	/*
+	 * Here we take care of forwarding unhandled data. This also includes
+	 * connection establishments and shutdown requests.
+	 */
+
 
 	/* If noone is interested in analysing data, it's time to forward
 	 * everything. We will wake up from time to time when either send_max
@@ -873,81 +920,15 @@ resync_stream_interface:
 		} while (s->si[1].state == SI_ST_ASS);
 	}
 
-	/*
-	 * Here we want to check if we need to resync or not.
-	 */
-	if ((s->req->flags ^ rqf_last) & BF_MASK_STATIC)
-		resync = 1;
-
-	/* according to benchmarks, it makes sense to resync now */
+	/* Benchmarks have shown that it's optimal to do a full resync now */
 	if (s->req->prod->state == SI_ST_DIS || s->req->cons->state == SI_ST_DIS)
 		goto resync_stream_interface;
 
-	if (resync)
+	/* otherwise wewant to check if we need to resync the req buffer or not */
+	if ((s->req->flags ^ rqf_last) & BF_MASK_STATIC)
 		goto resync_request;
 
- resync_response:
-	resync = 0;
-
-	/* Analyse response */
-
-	if (unlikely(s->rep->flags & BF_HIJACK)) {
-		/* In inject mode, we wake up everytime something has
-		 * happened on the write side of the buffer.
-		 */
-		unsigned int flags = s->rep->flags;
-
-		if ((s->rep->flags & (BF_WRITE_PARTIAL|BF_WRITE_ERROR|BF_SHUTW)) &&
-		    !(s->rep->flags & BF_FULL)) {
-			s->rep->hijacker(s, s->rep);
-		}
-
-		if ((s->rep->flags ^ flags) & BF_MASK_STATIC)
-			resync = 1;
-	}
-	else if ((s->rep->flags & BF_MASK_ANALYSER) ||
-		 (s->rep->flags ^ rpf_last) & BF_MASK_STATIC) {
-		unsigned int flags = s->rep->flags;
-
-		if (s->rep->prod->state >= SI_ST_EST) {
-			/* it's up to the analysers to reset write_ena */
-			buffer_write_ena(s->rep);
-			if (s->rep->analysers)
-				process_response(s);
-		}
-
-		/* Report it if the server got an error or a read timeout expired */
-		if (unlikely(s->rep->flags & (BF_READ_ERROR|BF_READ_TIMEOUT|BF_WRITE_ERROR|BF_WRITE_TIMEOUT)) &&
-		    !(s->flags & SN_ERR_MASK)) {
-			s->rep->analysers = 0;
-			if (s->rep->flags & BF_READ_ERROR)
-				s->flags |= SN_ERR_SRVCL;
-			else if (s->rep->flags & BF_READ_TIMEOUT)
-				s->flags |= SN_ERR_SRVTO;
-			else if (s->rep->flags & BF_WRITE_ERROR)
-				s->flags |= SN_ERR_CLICL;
-			else
-				s->flags |= SN_ERR_CLITO;
-			sess_set_term_flags(s);
-		}
-
-		if ((s->rep->flags ^ flags) & BF_MASK_STATIC)
-			resync = 1;
-	}
-
-	/* Report it if the server got an error or a read timeout expired */
-	if (unlikely(s->rep->flags & (BF_READ_ERROR|BF_READ_TIMEOUT|BF_WRITE_ERROR|BF_WRITE_TIMEOUT)) &&
-	    !(s->flags & SN_ERR_MASK)) {
-		if (s->rep->flags & BF_READ_ERROR)
-			s->flags |= SN_ERR_SRVCL;
-		else if (s->rep->flags & BF_READ_TIMEOUT)
-			s->flags |= SN_ERR_SRVTO;
-		else if (s->rep->flags & BF_WRITE_ERROR)
-			s->flags |= SN_ERR_CLICL;
-		else
-			s->flags |= SN_ERR_CLITO;
-		sess_set_term_flags(s);
-	}
+	/* perform output updates to the response buffer */
 
 	/* If noone is interested in analysing data, it's time to forward
 	 * everything. We will wake up from time to time when either send_max
@@ -1011,19 +992,13 @@ resync_stream_interface:
 	if (unlikely((s->rep->flags & (BF_SHUTR|BF_SHUTR_NOW)) == BF_SHUTR_NOW))
 		s->rep->prod->shutr(s->rep->prod);
 
-	/*
-	 * Here we want to check if we need to resync or not.
-	 */
-	if ((s->rep->flags ^ rpf_last) & BF_MASK_STATIC)
-		resync = 1;
-
 	if (s->req->prod->state == SI_ST_DIS || s->req->cons->state == SI_ST_DIS)
 		goto resync_stream_interface;
 
 	if (s->req->flags != rqf_last)
 		goto resync_request;
 
-	if (resync)
+	if ((s->rep->flags ^ rpf_last) & BF_MASK_STATIC)
 		goto resync_response;
 
 	/* This is needed only when debugging is enabled, to indicate
