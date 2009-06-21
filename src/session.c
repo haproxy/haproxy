@@ -778,8 +778,6 @@ resync_stream_interface:
 			sess_set_term_flags(s);
 		}
 
-		s->req->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
-		flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
 		if ((s->req->flags ^ flags) & BF_MASK_STATIC)
 			resync = 1;
 	}
@@ -901,8 +899,6 @@ resync_stream_interface:
 	if ((s->req->flags ^ rqf_last) & BF_MASK_STATIC)
 		resync = 1;
 
-	s->req->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
-
 	/* according to benchmarks, it makes sense to resync now */
 	if (s->req->prod->state == SI_ST_DIS || s->req->cons->state == SI_ST_DIS)
 		goto resync_stream_interface;
@@ -925,8 +921,7 @@ resync_stream_interface:
 		    !(s->rep->flags & BF_FULL)) {
 			s->rep->hijacker(s, s->rep);
 		}
-		s->rep->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
-		flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
+
 		if ((s->rep->flags ^ flags) & BF_MASK_STATIC)
 			resync = 1;
 	}
@@ -956,8 +951,6 @@ resync_stream_interface:
 			sess_set_term_flags(s);
 		}
 
-		s->rep->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
-		flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
 		if ((s->rep->flags ^ flags) & BF_MASK_STATIC)
 			resync = 1;
 	}
@@ -1044,8 +1037,6 @@ resync_stream_interface:
 	if ((s->rep->flags ^ rpf_last) & BF_MASK_STATIC)
 		resync = 1;
 
-	s->rep->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
-
 	if (s->req->prod->state == SI_ST_DIS || s->req->cons->state == SI_ST_DIS)
 		goto resync_stream_interface;
 
@@ -1096,8 +1087,8 @@ resync_stream_interface:
 		if (s->req->cons->state == SI_ST_EST)
 			stream_sock_data_finish(s->req->cons);
 
-		s->req->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
-		s->rep->flags &= BF_CLEAR_READ & BF_CLEAR_WRITE & BF_CLEAR_TIMEOUT;
+		s->req->flags &= ~(BF_READ_NULL|BF_READ_PARTIAL|BF_WRITE_NULL|BF_WRITE_PARTIAL);
+		s->rep->flags &= ~(BF_READ_NULL|BF_READ_PARTIAL|BF_WRITE_NULL|BF_WRITE_PARTIAL);
 		s->si[0].prev_state = s->si[0].state;
 		s->si[1].prev_state = s->si[1].state;
 		s->si[0].flags &= ~(SI_FL_ERR|SI_FL_EXP);
