@@ -64,6 +64,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv);
 int readcfgfile(const char *file);
 void cfg_register_keywords(struct cfg_kw_list *kwl);
 void cfg_unregister_keywords(struct cfg_kw_list *kwl);
+void init_default_instance();
+int check_config_validity();
 
 #endif /* _COMMON_CFGPARSE_H */
 

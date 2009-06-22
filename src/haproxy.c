@@ -529,18 +529,26 @@ void init(int argc, char **argv)
 
 	have_appsession = 0;
 	global.maxsock = 10; /* reserve 10 fds ; will be incremented by socket eaters */
+
+	init_default_instance();
+
 	if (readcfgfile(cfg_cfgfile) < 0) {
 		Alert("Error reading configuration file : %s\n", cfg_cfgfile);
 		exit(1);
 	}
 
-	if (have_appsession)
-		appsession_init();
+	if (check_config_validity() < 0) {
+		Alert("Errors found in configuration.\n");
+		exit(1);
+	}
 
 	if (global.mode & MODE_CHECK) {
-		qfprintf(stdout, "Configuration file is valid : %s\n", cfg_cfgfile);
+		qfprintf(stdout, "Configuration file is valid\n");
 		exit(0);
 	}
+
+	if (have_appsession)
+		appsession_init();
 
 	if (start_checks() < 0)
 		exit(1);
