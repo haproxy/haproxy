@@ -303,29 +303,29 @@ struct server *findserver(const struct proxy *px, const char *name) {
  * at the end of the configuration parsing if the proxy is not in http mode.
  * The <file> argument is used to construct the error message.
  */
-int proxy_cfg_ensure_no_http(struct proxy *curproxy, const char *file)
+int proxy_cfg_ensure_no_http(struct proxy *curproxy)
 {
 	if (curproxy->cookie_name != NULL) {
-		Warning("parsing %s : cookie will be ignored for %s '%s' (needs 'mode http').\n",
-			file, proxy_type_str(curproxy), curproxy->id);
+		Warning("config : cookie will be ignored for %s '%s' (needs 'mode http').\n",
+			proxy_type_str(curproxy), curproxy->id);
 	}
 	if (curproxy->rsp_exp != NULL) {
-		Warning("parsing %s : server regular expressions will be ignored for %s '%s' (needs 'mode http').\n",
-			file, proxy_type_str(curproxy), curproxy->id);
+		Warning("config : server regular expressions will be ignored for %s '%s' (needs 'mode http').\n",
+			proxy_type_str(curproxy), curproxy->id);
 	}
 	if (curproxy->req_exp != NULL) {
-		Warning("parsing %s : client regular expressions will be ignored for %s '%s' (needs 'mode http').\n",
-			file, proxy_type_str(curproxy), curproxy->id);
+		Warning("config : client regular expressions will be ignored for %s '%s' (needs 'mode http').\n",
+			proxy_type_str(curproxy), curproxy->id);
 	}
 	if (curproxy->monitor_uri != NULL) {
-		Warning("parsing %s : monitor-uri will be ignored for %s '%s' (needs 'mode http').\n",
-			file, proxy_type_str(curproxy), curproxy->id);
+		Warning("config : monitor-uri will be ignored for %s '%s' (needs 'mode http').\n",
+			proxy_type_str(curproxy), curproxy->id);
 	}
 	if (curproxy->lbprm.algo & BE_LB_PROP_L7) {
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
 		curproxy->lbprm.algo |= BE_LB_ALGO_RR;
-		Warning("parsing %s : Layer 7 hash not possible for %s '%s' (needs 'mode http'). Falling back to round robin.\n",
-			file, proxy_type_str(curproxy), curproxy->id);
+		Warning("config : Layer 7 hash not possible for %s '%s' (needs 'mode http'). Falling back to round robin.\n",
+			proxy_type_str(curproxy), curproxy->id);
 	}
 	return 0;
 }

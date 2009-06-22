@@ -661,7 +661,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int inv)
 }
 
 
-static void init_default_instance()
+void init_default_instance()
 {
 	memset(&defproxy, 0, sizeof(defproxy));
 	defproxy.mode = PR_MODE_TCP;
@@ -3163,16 +3163,10 @@ int readcfgfile(const char *file)
 	char thisline[LINESIZE];
 	FILE *f;
 	int linenum = 0;
-	int cfgerr = 0;
 	int confsect = CFG_NONE;
-
-	struct proxy *curproxy = NULL;
-	struct server *newsrv = NULL;
 
 	if ((f=fopen(file,"r")) == NULL)
 		return -1;
-
-	init_default_instance();
 
 	while (fgets(thisline, sizeof(thisline), f) != NULL) {
 		int arg, inv = 0 ;
@@ -3315,6 +3309,18 @@ int readcfgfile(const char *file)
 	free(cursection);
 	cursection = NULL;
 	fclose(f);
+	return 0;
+ err:
+	free(cursection);
+	cursection = NULL;
+	return -1;
+}
+
+int check_config_validity()
+{
+	int cfgerr = 0;
+	struct proxy *curproxy = NULL;
+	struct server *newsrv = NULL;
 
 	/*
 	 * Now, check for the integrity of all that we have collected.
@@ -3337,8 +3343,7 @@ int readcfgfile(const char *file)
 	}
 
 	if ((curproxy = proxy) == NULL) {
-		Alert("parsing %s : no <listen> line. Nothing to do !\n",
-		      file);
+		Alert("config : no <listen> line. Nothing to do !\n");
 		goto err;
 	}
 
@@ -3355,54 +3360,54 @@ int readcfgfile(const char *file)
 
 		switch (curproxy->mode) {
 		case PR_MODE_HEALTH:
-			cfgerr += proxy_cfg_ensure_no_http(curproxy, file);
+			cfgerr += proxy_cfg_ensure_no_http(curproxy);
 			if (!(curproxy->cap & PR_CAP_FE)) {
-				Alert("parsing %s : %s '%s' cannot be in health mode as it has no frontend capability.\n",
-				      file, proxy_type_str(curproxy), curproxy->id);
+				Alert("config : %s '%s' cannot be in health mode as it has no frontend capability.\n",
+				      proxy_type_str(curproxy), curproxy->id);
 				cfgerr++;
 			}
 
 			if (curproxy->srv != NULL)
-				Warning("parsing %s : servers will be ignored for %s '%s'.\n",
-					file, proxy_type_str(curproxy), curproxy->id);
+				Warning("config : servers will be ignored for %s '%s'.\n",
+					proxy_type_str(curproxy), curproxy->id);
 			break;
 
 		case PR_MODE_TCP:
-			cfgerr += proxy_cfg_ensure_no_http(curproxy, file);
+			cfgerr += proxy_cfg_ensure_no_http(curproxy);
 			break;
 
 		case PR_MODE_HTTP:
 			if ((curproxy->cookie_name != NULL) && (curproxy->srv == NULL)) {
-				Alert("parsing %s : HTTP proxy %s has a cookie but no server list !\n",
-				      file, curproxy->id);
+				Alert("config : HTTP proxy %s has a cookie but no server list !\n",
+				      curproxy->id);
 				cfgerr++;
 			}
 			break;
 		}
 
 		if ((curproxy->cap & PR_CAP_FE) && (curproxy->listen == NULL))  {
-			Alert("parsing %s : %s '%s' has no listen address. Please either specify a valid address on the <listen> line, or use the <bind> keyword.\n",
-			      file, proxy_type_str(curproxy), curproxy->id);
+			Alert("config : %s '%s' has no listen address. Please either specify a valid address on the <listen> line, or use the <bind> keyword.\n",
+			      proxy_type_str(curproxy), curproxy->id);
 			cfgerr++;
 		}
 
 		if ((curproxy->cap & PR_CAP_BE) && (curproxy->mode != PR_MODE_HEALTH)) {
 			if (curproxy->lbprm.algo & BE_LB_ALGO) {
 				if (curproxy->options & PR_O_TRANSP) {
-					Alert("parsing %s : %s '%s' cannot use both transparent and balance mode.\n",
-					      file, proxy_type_str(curproxy), curproxy->id);
+					Alert("config : %s '%s' cannot use both transparent and balance mode.\n",
+					      proxy_type_str(curproxy), curproxy->id);
 					cfgerr++;
 				}
 #ifdef WE_DONT_SUPPORT_SERVERLESS_LISTENERS
 				else if (curproxy->srv == NULL) {
-					Alert("parsing %s : %s '%s' needs at least 1 server in balance mode.\n",
-					      file, proxy_type_str(curproxy), curproxy->id);
+					Alert("config : %s '%s' needs at least 1 server in balance mode.\n",
+					      proxy_type_str(curproxy), curproxy->id);
 					cfgerr++;
 				}
 #endif
 				else if (*(int *)&curproxy->dispatch_addr.sin_addr != 0) {
-					Warning("parsing %s : dispatch address of %s '%s' will be ignored in balance mode.\n",
-						file, proxy_type_str(curproxy), curproxy->id);
+					Warning("config : dispatch address of %s '%s' will be ignored in balance mode.\n",
+						proxy_type_str(curproxy), curproxy->id);
 				}
 			}
 			else if (!(curproxy->options & (PR_O_TRANSP | PR_O_HTTP_PROXY)) &&
@@ -3418,8 +3423,8 @@ int readcfgfile(const char *file)
 
 		if ((curproxy->options & PR_O_DISABLE404) && !(curproxy->options & PR_O_HTTP_CHK)) {
 			curproxy->options &= ~PR_O_DISABLE404;
-			Warning("parsing %s : '%s' will be ignored for %s '%s' (requires 'option httpchk').\n",
-				file, "disable-on-404", proxy_type_str(curproxy), curproxy->id);
+			Warning("config : '%s' will be ignored for %s '%s' (requires 'option httpchk').\n",
+				"disable-on-404", proxy_type_str(curproxy), curproxy->id);
 		}
 
 		/* if a default backend was specified, let's find it */
@@ -3505,11 +3510,11 @@ int readcfgfile(const char *file)
 		    (((curproxy->cap & PR_CAP_FE) && !curproxy->timeout.client) ||
 		     ((curproxy->cap & PR_CAP_BE) && (curproxy->srv) &&
 		      (!curproxy->timeout.connect || !curproxy->timeout.server)))) {
-			Warning("parsing %s : missing timeouts for %s '%s'.\n"
+			Warning("config : missing timeouts for %s '%s'.\n"
 				"   | While not properly invalid, you will certainly encounter various problems\n"
 				"   | with such a configuration. To fix this, please ensure that all following\n"
 				"   | timeouts are set to a non-zero value: 'client', 'connect', 'server'.\n",
-				file, proxy_type_str(curproxy), curproxy->id);
+				proxy_type_str(curproxy), curproxy->id);
 		}
 
 		/* Historically, the tarpit and queue timeouts were inherited from contimeout.
@@ -3604,8 +3609,8 @@ int readcfgfile(const char *file)
 		newsrv = curproxy->srv;
 		while (newsrv != NULL) {
 			if ((curproxy->mode != PR_MODE_HTTP) && (newsrv->rdr_len || newsrv->cklen)) {
-				Alert("parsing [%s:%d] : %s '%s' : server cannot have cookie or redirect prefix in non-HTTP mode.\n",
-				      file, linenum, proxy_type_str(curproxy), curproxy->id);
+				Alert("config : %s '%s' : server cannot have cookie or redirect prefix in non-HTTP mode.\n",
+				      proxy_type_str(curproxy), curproxy->id);
 				goto err;
 			}
 			newsrv = newsrv->next;
@@ -3628,8 +3633,8 @@ int readcfgfile(const char *file)
 				/* minconn was not specified, so we set it to maxconn */
 				newsrv->minconn = newsrv->maxconn;
 			} else if (newsrv->minconn != newsrv->maxconn && !curproxy->fullconn) {
-				Alert("parsing [%s:%d] : %s '%s' : fullconn is mandatory when minconn is set on a server.\n",
-				      file, linenum, proxy_type_str(curproxy), curproxy->id);
+				Alert("config : %s '%s' : fullconn is mandatory when minconn is set on a server.\n",
+				      proxy_type_str(curproxy), curproxy->id);
 				goto err;
 			}
 
@@ -3651,8 +3656,8 @@ int readcfgfile(const char *file)
 				if (pname) {
 					px = findproxy(pname, curproxy->mode, PR_CAP_BE);
 					if (!px) {
-						Alert("parsing %s, %s '%s', server '%s': unable to find required proxy '%s' for tracking.\n",
-							file, proxy_type_str(curproxy), curproxy->id,
+						Alert("config : %s '%s', server '%s': unable to find required proxy '%s' for tracking.\n",
+							proxy_type_str(curproxy), curproxy->id,
 							newsrv->id, pname);
 						return -1;
 					}
@@ -3661,25 +3666,25 @@ int readcfgfile(const char *file)
 
 				srv = findserver(px, sname);
 				if (!srv) {
-					Alert("parsing %s, %s '%s', server '%s': unable to find required server '%s' for tracking.\n",
-						file, proxy_type_str(curproxy), curproxy->id,
+					Alert("config : %s '%s', server '%s': unable to find required server '%s' for tracking.\n",
+						proxy_type_str(curproxy), curproxy->id,
 						newsrv->id, sname);
 					return -1;
 				}
 
 				if (!(srv->state & SRV_CHECKED)) {
-					Alert("parsing %s, %s '%s', server '%s': unable to use %s/%s for "
+					Alert("config : %s '%s', server '%s': unable to use %s/%s for "
 						"tracing as it does not have checks enabled.\n",
-						file, proxy_type_str(curproxy), curproxy->id,
+						proxy_type_str(curproxy), curproxy->id,
 						newsrv->id, px->id, srv->id);
 					return -1;
 				}
 
 				if (curproxy != px &&
 					(curproxy->options & PR_O_DISABLE404) != (px->options & PR_O_DISABLE404)) {
-					Alert("parsing %s, %s '%s', server '%s': unable to use %s/%s for"
+					Alert("config : %s '%s', server '%s': unable to use %s/%s for"
 						"tracing: disable-on-404 option inconsistency.\n",
-						file, proxy_type_str(curproxy), curproxy->id,
+						proxy_type_str(curproxy), curproxy->id,
 						newsrv->id, px->id, srv->id);
 					return -1;
 				}
@@ -3720,7 +3725,7 @@ int readcfgfile(const char *file)
 	}
 
 	if (cfgerr > 0) {
-		Alert("Errors found in configuration file, aborting.\n");
+		Alert("Errors found in configuration, aborting.\n");
 		goto err;
 	}
 
@@ -3740,13 +3745,8 @@ int readcfgfile(const char *file)
 				global.last_checks |= cfg_opts2[optnum].checks;
 	}
 
-	free(cursection);
-	cursection = NULL;
 	return 0;
-
  err:
-	free(cursection);
-	cursection = NULL;
 	return -1;
 }
 
