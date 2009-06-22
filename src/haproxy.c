@@ -105,7 +105,8 @@
 
 /*********************************************************************/
 
-char *cfg_cfgfile = NULL;	/* configuration file */
+static int cfg_nbcfgfiles;      /* number of config files */
+static char *cfg_cfgfile[10];	/* configuration files, stop at NULL */
 char *progname = NULL;		/* program name */
 int  pid;			/* current process id */
 int  relative_pid = 1;		/* process id starting at 1 */
@@ -197,7 +198,7 @@ void usage(char *name)
 {
 	display_version();
 	fprintf(stderr,
-		"Usage : %s -f <cfgfile> [ -vdV"
+		"Usage : %s [-f <cfgfile>]* [ -vdV"
 		"D ] [ -n <maxconn> ] [ -N <maxpconn> ]\n"
 		"        [ -p <pidfile> ] [ -m <max megs> ]\n"
 		"        -v displays version ; -vv shows known build options.\n"
@@ -205,7 +206,7 @@ void usage(char *name)
 		"        -V enters verbose mode (disables quiet mode)\n"
 		"        -D goes daemon\n"
 		"        -q quiet mode : don't display messages\n"
-		"        -c check mode : only check config file and exit\n"
+		"        -c check mode : only check config files and exit\n"
 		"        -n sets the maximum total # of connections (%d)\n"
 		"        -m limits the usable amount of memory (in MB)\n"
 		"        -N sets the default, per-proxy maximum # of connections (%d)\n"
@@ -507,7 +508,14 @@ void init(int argc, char **argv)
 				case 'n' : cfg_maxconn = atol(*argv); break;
 				case 'm' : global.rlimit_memmax = atol(*argv); break;
 				case 'N' : cfg_maxpconn = atol(*argv); break;
-				case 'f' : cfg_cfgfile = *argv; break;
+				case 'f' :
+					if (cfg_nbcfgfiles > MAX_CFG_FILES) {
+						Alert("Cannot load configuration file %s : too many configuration files (max %d).\n",
+						      *argv, MAX_CFG_FILES);
+						exit(1);
+					}
+					cfg_cfgfile[cfg_nbcfgfiles++] = *argv;
+					break;
 				case 'p' : cfg_pidfile = *argv; break;
 				default: usage(old_argv);
 				}
@@ -522,7 +530,7 @@ void init(int argc, char **argv)
 		(arg_mode & (MODE_DAEMON | MODE_FOREGROUND | MODE_VERBOSE
 			     | MODE_QUIET | MODE_CHECK | MODE_DEBUG));
 
-	if (!cfg_cfgfile)
+	if (!cfg_nbcfgfiles)
 		usage(old_argv);
 
 	gethostname(hostname, MAX_HOSTNAME_LEN);
@@ -532,9 +540,11 @@ void init(int argc, char **argv)
 
 	init_default_instance();
 
-	if (readcfgfile(cfg_cfgfile) < 0) {
-		Alert("Error reading configuration file : %s\n", cfg_cfgfile);
-		exit(1);
+	for (i = 0; i < cfg_nbcfgfiles; i++) {
+		if (readcfgfile(cfg_cfgfile[i]) < 0) {
+			Alert("Error reading configuration file : %s\n", cfg_cfgfile[i]);
+			exit(1);
+		}
 	}
 
 	if (check_config_validity() < 0) {
