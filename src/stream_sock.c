@@ -579,7 +579,7 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 		 * buffer but we know we will close, so we try to merge the ongoing FIN
 		 * with the last data segment.
 		 */
-		if ((fdtab[si->fd].flags & (FD_FL_TCP|FD_FL_TCP_CORK)) == FD_FL_TCP) {
+		if ((fdtab[si->fd].flags & (FD_FL_TCP|FD_FL_TCP_NOLING|FD_FL_TCP_CORK)) == FD_FL_TCP) {
 			if (unlikely((b->send_max == b->l && 
 				      (b->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) ==
 				      (BF_WRITE_ENA|BF_SHUTR)))) {
@@ -828,6 +828,12 @@ void stream_sock_shutw(struct stream_interface *si)
 			EV_FD_CLR(si->fd, DIR_WR);
 			shutdown(si->fd, SHUT_WR);
 			return;
+		}
+
+		if (fdtab[si->fd].flags & FD_FL_TCP_NOLING) {
+			/* we have to shut before closing if we disable lingering */
+			EV_FD_CLR(si->fd, DIR_WR);
+			shutdown(si->fd, SHUT_WR);
 		}
 		/* fall through */
 	case SI_ST_CON:

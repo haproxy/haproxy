@@ -289,6 +289,9 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	fdtab[fd].owner = listener; /* reference the listener instead of a task */
 	fdtab[fd].state = FD_STLISTEN;
 	fdtab[fd].flags = FD_FL_TCP;
+	if (listener->options & LI_O_NOLINGER)
+		fdtab[fd].flags |= FD_FL_TCP_NOLING;
+
 	fdtab[fd].peeraddr = NULL;
 	fdtab[fd].peerlen = 0;
  tcp_return:
