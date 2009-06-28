@@ -186,6 +186,16 @@ static int stream_sock_splice_in(struct buffer *b, struct stream_interface *si)
 				retval = -1;
 				break;
 			}
+
+			if (errno == ENOSYS) {
+				/* splice not supported on this end, disable it */
+				b->flags &= ~BF_KERN_SPLICING;
+				si->flags &= ~SI_FL_CAP_SPLICE;
+				put_pipe(b->pipe);
+				b->pipe = NULL;
+				return -1;
+			}
+
 			/* here we have another error */
 			si->flags |= SI_FL_ERR;
 			retval = 1;

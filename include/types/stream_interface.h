@@ -67,14 +67,17 @@ enum {
 	SI_FL_ERR        = 0x0002,  /* a non-recoverable error has occurred */
 	SI_FL_WAIT_ROOM  = 0x0004,  /* waiting for space to store incoming data */
 	SI_FL_WAIT_DATA  = 0x0008,  /* waiting for more data to send */
+	SI_FL_CAP_SPLTCP = 0x0010,  /* splicing possible from/to TCP */
 };
+
+#define SI_FL_CAP_SPLICE (SI_FL_CAP_SPLTCP)
 
 struct stream_interface {
 	unsigned int state;     /* SI_ST* */
 	unsigned int prev_state;/* SI_ST*, copy of previous state */
 	void *owner;            /* generally a (struct task*) */
 	int fd;                 /* file descriptor for a stream driver when known */
-	unsigned int flags;     /* SI_FL_*, must be cleared before I/O */
+	unsigned int flags;
 	unsigned int exp;       /* wake up time for connect, queue, turn-around, ... */
 	void (*shutr)(struct stream_interface *);  /* shutr function */
 	void (*shutw)(struct stream_interface *);  /* shutw function */

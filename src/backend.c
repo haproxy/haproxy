@@ -1985,6 +1985,7 @@ int connect_server(struct session *s)
 	EV_FD_SET(fd, DIR_WR);  /* for connect status */
 
 	s->req->cons->state = SI_ST_CON;
+	s->req->cons->flags |= SI_FL_CAP_SPLTCP; /* TCP supports splicing */
 	if (s->srv) {
 		s->flags |= SN_CURR_SESS;
 		s->srv->cur_sess++;

@@ -184,6 +184,7 @@ int sess_update_st_con_tcp(struct session *s, struct stream_interface *si)
 	if (unlikely(si->flags & (SI_FL_EXP|SI_FL_ERR))) {
 		si->exp   = TICK_ETERNITY;
 		si->state = SI_ST_CER;
+		si->flags &= ~SI_FL_CAP_SPLICE;
 		fd_delete(si->fd);
 
 		if (si->err_type)
@@ -207,6 +208,7 @@ int sess_update_st_con_tcp(struct session *s, struct stream_interface *si)
 		si->shutw(si);
 		si->err_type |= SI_ET_CONN_ABRT;
 		si->err_loc  = s->srv;
+		si->flags &= ~SI_FL_CAP_SPLICE;
 		if (s->srv_error)
 			s->srv_error(s, si);
 		return 1;
@@ -859,6 +861,7 @@ resync_stream_interface:
 	if (!(s->req->flags & (BF_KERN_SPLICING|BF_SHUTR)) &&
 	    s->req->to_forward &&
 	    (global.tune.options & GTUNE_USE_SPLICE) &&
+	    (s->si[0].flags & s->si[1].flags & SI_FL_CAP_SPLICE) &&
 	    (pipes_used < global.maxpipes) &&
 	    (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_REQ) ||
 	     (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_AUT) &&
@@ -966,6 +969,7 @@ resync_stream_interface:
 	if (!(s->rep->flags & (BF_KERN_SPLICING|BF_SHUTR)) &&
 	    s->rep->to_forward &&
 	    (global.tune.options & GTUNE_USE_SPLICE) &&
+	    (s->si[0].flags & s->si[1].flags & SI_FL_CAP_SPLICE) &&
 	    (pipes_used < global.maxpipes) &&
 	    (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_RTR) ||
 	     (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_AUT) &&
