@@ -704,37 +704,47 @@ resync_stream_interface:
 		unsigned int flags = s->req->flags;
 
 		if (s->req->prod->state >= SI_ST_EST) {
+			unsigned int last_ana = 0;
+
 			/* it's up to the analysers to reset write_ena */
 			buffer_write_ena(s->req);
 
 			/* We will call all analysers for which a bit is set in
 			 * s->req->analysers, following the bit order from LSB
 			 * to MSB. The analysers must remove themselves from
-			 * the list when not needed. This while() loop is in
-			 * fact a cleaner if().
+			 * the list when not needed. Any analyser may return 0
+			 * to break out of the loop, either because of missing
+			 * data to take a decision, or because it decides to
+			 * kill the session. We loop at least once through each
+			 * analyser, and we may loop again if other analysers
+			 * are added in the middle.
 			 */
-			while (s->req->analysers) {
-				if (s->req->analysers & AN_REQ_INSPECT)
+			while (s->req->analysers & ~last_ana) {
+				last_ana = s->req->analysers;
+
+				if (s->req->analysers & AN_REQ_INSPECT) {
+					last_ana |= AN_REQ_INSPECT;
 					if (!tcp_inspect_request(s, s->req))
 						break;
+				}
 
-				if (s->req->analysers & AN_REQ_HTTP_HDR)
+				if (s->req->analysers & AN_REQ_HTTP_HDR) {
+					last_ana |= AN_REQ_HTTP_HDR;
 					if (!http_process_request(s, s->req))
 						break;
+				}
 
-				if (s->req->analysers & AN_REQ_HTTP_TARPIT)
+				if (s->req->analysers & AN_REQ_HTTP_TARPIT) {
+					last_ana |= AN_REQ_HTTP_TARPIT;
 					if (!http_process_tarpit(s, s->req))
 						break;
+				}
 
-				if (s->req->analysers & AN_REQ_HTTP_BODY)
+				if (s->req->analysers & AN_REQ_HTTP_BODY) {
+					last_ana |= AN_REQ_HTTP_BODY;
 					if (!http_process_request_body(s, s->req))
 						break;
-
-				/* Just make sure that nobody set a wrong flag causing an endless loop */
-				s->req->analysers &= AN_REQ_INSPECT | AN_REQ_HTTP_HDR | AN_REQ_HTTP_TARPIT | AN_REQ_HTTP_BODY;
-
-				/* we don't want to loop anyway */
-				break;
+				}
 			}
 		}
 
