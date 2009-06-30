@@ -810,6 +810,7 @@ const struct {
 	{ .name = "HTTP_URL_SLASH", .expr = {"url_beg","/",""}},
 	{ .name = "HTTP_URL_STAR",  .expr = {"url","*",""}},
 	{ .name = "HTTP_CONTENT",   .expr = {"hdr_val(content-length)","gt","0",""}},
+	{ .name = "RDP_COOKIE",     .expr = {"req_rdp_cookie_cnt","gt","0",""}},
 	{ .name = "REQ_CONTENT",    .expr = {"req_len","gt","0",""}},
 	{ .name = "WAIT_END",       .expr = {"wait_end",""}},
 	{ .name = NULL, .expr = {""}}

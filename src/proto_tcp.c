@@ -690,6 +690,112 @@ acl_fetch_req_ssl_ver(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 0;
 }
 
+int
+acl_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir,
+                     struct acl_expr *expr, struct acl_test *test)
+{
+	int bleft;
+	const unsigned char *data;
+
+	if (!l4 || !l4->req)
+		return 0;
+
+	test->flags = 0;
+
+	bleft = l4->req->l;
+	if (bleft <= 11)
+		goto too_short;
+
+	data = (const unsigned char *)l4->req->w + 11;
+	bleft -= 11;
+
+	if (bleft <= 7)
+		goto too_short;
+
+	if (strncasecmp((const char *)data, "Cookie:", 7) != 0)
+		goto not_cookie;
+
+	data += 7;
+	bleft -= 7;
+
+	while (bleft > 0 && *data == ' ') {
+		data++;
+		bleft--;
+	}
+
+	if (expr->arg_len) {
+
+		if (bleft <= expr->arg_len)
+			goto too_short;
+
+		if ((data[expr->arg_len] != '=') ||
+		    strncasecmp(expr->arg.str, (const char *)data, expr->arg_len) != 0)
+			goto not_cookie;
+
+		data += expr->arg_len + 1;
+		bleft -= expr->arg_len + 1;
+	} else {
+		while (bleft > 0 && *data != '=') {
+			if (*data == '\r' || *data == '\n')
+				goto not_cookie;
+			data++;
+			bleft--;
+		}
+
+		if (bleft < 1)
+			goto too_short;
+
+		if (*data != '=')
+			goto not_cookie;
+
+		data++;
+		bleft--;
+	}
+
+	/* data points to cookie value */
+	test->ptr = (char *)data;
+	test->len = 0;
+
+	while (bleft > 0 && *data != '\r') {
+		data++;
+		bleft--;
+	}
+
+	if (bleft < 2)
+		goto too_short;
+
+	if (data[0] != '\r' || data[1] != '\n')
+		goto not_cookie;
+
+	test->len = (char *)data - test->ptr;
+	test->flags = ACL_TEST_F_VOLATILE;
+	return 1;
+
+ too_short:
+	test->flags = ACL_TEST_F_MAY_CHANGE;
+ not_cookie:
+	return 0;
+}
+
+static int
+acl_fetch_rdp_cookie_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+			struct acl_expr *expr, struct acl_test *test)
+{
+	int ret;
+
+	ret = acl_fetch_rdp_cookie(px, l4, l7, dir, expr, test);
+
+	test->ptr = NULL;
+	test->len = 0;
+
+	if (test->flags & ACL_TEST_F_MAY_CHANGE)
+		return 0;
+
+	test->flags = ACL_TEST_F_VOLATILE;
+	test->i = ret;
+
+	return 1;
+}
 
 static struct cfg_kw_list cfg_kws = {{ },{
 	{ CFG_LISTEN, "tcp-request", tcp_parse_tcp_req },
@@ -699,6 +805,8 @@ static struct cfg_kw_list cfg_kws = {{ },{
 static struct acl_kw_list acl_kws = {{ },{
 	{ "req_len",      acl_parse_int,        acl_fetch_req_len,     acl_match_int, ACL_USE_L4REQ_VOLATILE },
 	{ "req_ssl_ver",  acl_parse_dotted_ver, acl_fetch_req_ssl_ver, acl_match_int, ACL_USE_L4REQ_VOLATILE },
+	{ "req_rdp_cookie",     acl_parse_str,  acl_fetch_rdp_cookie,     acl_match_str, ACL_USE_L4REQ_VOLATILE },
+	{ "req_rdp_cookie_cnt", acl_parse_int,  acl_fetch_rdp_cookie_cnt, acl_match_int, ACL_USE_L4REQ_VOLATILE },
 	{ NULL, NULL, NULL, NULL },
 }};
 

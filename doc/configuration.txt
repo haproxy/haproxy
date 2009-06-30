@@ -4822,7 +4822,7 @@ through TCP request content inspection. Please see the "tcp-request" keyword
 for more detailed information on the subject.
 
 req_len <integer>
-  Returns true when the lenght of the data in the request buffer matches the
+  Returns true when the length of the data in the request buffer matches the
   specified range. It is important to understand that this test does not
   return false as long as the buffer is changing. This means that a check with
   equality to zero will almost always immediately match at the beginning of the
@@ -4836,6 +4836,25 @@ req_proto_http
   is used so there should be no surprizes. This test can be used for instance
   to direct HTTP traffic to a given port and HTTPS traffic to another one
   using TCP request content inspection rules.
+
+req_rdp_cookie       <string>
+req_rdp_cookie(name) <string>
+  Returns true when data in the request buffer look like the RDP protocol, and
+  a cookie is present and equal to <string>. By default, any cookie name is
+  checked, but a specific cookie name can be specified in parenthesis. The
+  parser only checks for the first cookie, as illustrated in the RDP protocol
+  specification. The cookie name is case insensitive. This ACL can be useful
+  with the "MSTS" cookie, as it can contain the user name of the client
+  connecting to the server if properly configured on the client. This can be
+  used to restrict access to certain servers to certain users.
+
+req_rdp_cookie_cnt       <integer>
+req_rdp_cookie_cnt(name) <integer>
+  Returns true when the data in the request buffer look like the RDP protocol
+  and the number of RDP cookies matches the specified range (typically zero or
+  one). Optionally a specific cookie name can be checked. This is a simple way
+  of detecting the RDP protocol, as clients generally send the MSTS or MSTSHASH
+  cookies.
 
 req_ssl_ver <decimal>
   Returns true when data in the request buffer look like SSL, with a protocol
@@ -5055,6 +5074,7 @@ HTTP_URL_ABS     url_reg ^[^/:]*://            match absolute URL with scheme
 HTTP_URL_SLASH   url_beg /                     match URL begining with "/"
 HTTP_URL_STAR    url     *                     match URL equal to "*"
 HTTP_CONTENT     hdr_val(content-length) gt 0  match an existing content-length
+RDP_COOKIE       req_rdp_cookie_cnt gt 0       match presence of an RDP cookie
 REQ_CONTENT      req_len gt 0                  match data in the request buffer
 WAIT_END         wait_end                      wait for end of content analysis
 ---------------+-----------------------------+---------------------------------
