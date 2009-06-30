@@ -116,6 +116,7 @@
 #define AN_REQ_UNIX_STATS       0x00000100  /* process unix stats socket request */
 
 #define AN_RTR_HTTP_HDR         0x00000200  /* inspect HTTP response headers */
+#define AN_REQ_PRST_RDP_COOKIE  0x00000400  /* persistence on rdp cookie */
 
 /* describes a chunk of string */
 struct chunk {

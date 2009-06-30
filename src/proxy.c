@@ -677,6 +677,12 @@ int session_set_backend(struct session *s, struct proxy *be)
 		s->req->analysers |= AN_REQ_WAIT_HTTP | AN_REQ_HTTP_PROCESS_BE | AN_REQ_HTTP_INNER;
 	}
 
+	/* If the backend does requires RDP cookie persistence, we have to
+	 * enable the corresponding analyser.
+	 */
+	if (s->be->options2 & PR_O2_RDPC_PRST)
+		s->req->analysers |= AN_REQ_PRST_RDP_COOKIE;
+
 	return 1;
 }
 

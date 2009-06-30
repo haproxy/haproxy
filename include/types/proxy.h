@@ -119,6 +119,7 @@
 #define PR_O2_LOGERRORS	0x00000040      /* log errors and retries at level LOG_ERR */
 #define PR_O2_SMARTACC 	0x00000080      /* don't immediately ACK request after accept */
 #define PR_O2_SMARTCON 	0x00000100      /* don't immediately send empty ACK after connect */
+#define PR_O2_RDPC_PRST	0x00000200      /* Actvate rdp cookie analyser */
 
 /* This structure is used to apply fast weighted round robin on a server group */
 struct fwrr_group {
@@ -197,6 +198,8 @@ struct proxy {
 	char *cookie_domain;			/* domain used to insert the cookie */
 	char *cookie_name;			/* name of the cookie to look for */
 	int  cookie_len;			/* strlen(cookie_name), computed only once */
+	char *rdp_cookie_name;			/* name of the RDP cookie to look for */
+	int  rdp_cookie_len;			/* strlen(rdp_cookie_name), computed only once */
 	char *url_param_name;			/* name of the URL parameter used for hashing */
 	int  url_param_len;			/* strlen(url_param_name), computed only once */
 	unsigned url_param_post_limit;		/* if checking POST body for URI parameter, max body to wait for */

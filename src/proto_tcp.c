@@ -446,6 +446,74 @@ int tcp_inspect_request(struct session *s, struct buffer *req, int an_bit)
 	return 1;
 }
 
+/* Apply RDP cookie persistence to the current session. For this, the function
+ * tries to extract an RDP cookie from the request buffer, and look for the
+ * matching server in the list. If the server is found, it is assigned to the
+ * session. This always returns 1, and the analyser removes itself from the
+ * list. Nothing is performed if a server was already assigned.
+ */
+int tcp_persist_rdp_cookie(struct session *s, struct buffer *req, int an_bit)
+{
+	struct proxy    *px   = s->be;
+	int              ret;
+	struct acl_expr  expr;
+	struct acl_test  test;
+	struct server *srv = px->srv;
+	struct sockaddr_in addr;
+	char *p;
+
+	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
+		now_ms, __FUNCTION__,
+		s,
+		req,
+		req->rex, req->wex,
+		req->flags,
+		req->l,
+		req->analysers);
+
+	if (s->flags & SN_ASSIGNED)
+		goto no_cookie;
+
+	memset(&expr, 0, sizeof(expr));
+	memset(&test, 0, sizeof(test));
+
+	expr.arg.str = s->be->rdp_cookie_name;
+	expr.arg_len = s->be->rdp_cookie_len;
+
+	ret = acl_fetch_rdp_cookie(px, s, NULL, ACL_DIR_REQ, &expr, &test);
+	if (ret == 0 || (test.flags & ACL_TEST_F_MAY_CHANGE) || test.len == 0)
+		goto no_cookie;
+
+	memset(&addr, 0, sizeof(addr));
+	addr.sin_family = AF_INET;
+
+	/* Considering an rdp cookie detected using acl, test.ptr ended with <cr><lf> and should return */
+	addr.sin_addr.s_addr = strtoul(test.ptr, &p, 10);
+	if (*p != '.')
+		goto no_cookie;
+	p++;
+	addr.sin_port = (unsigned short)strtoul(p, &p, 10);
+	if (*p != '.')
+		goto no_cookie;
+
+	while (srv) {
+		if (memcmp(&addr, &(srv->addr), sizeof(addr)) == 0) {
+			if ((srv->state & SRV_RUNNING) || (px->options & PR_O_PERSIST)) {
+				/* we found the server and it is usable */
+				s->flags |= SN_DIRECT | SN_ASSIGNED;
+				s->srv = srv;
+				break;
+			}
+		}
+		srv = srv->next;
+	}
+
+no_cookie:
+	req->analysers &= ~an_bit;
+	req->analyse_exp = TICK_ETERNITY;
+	return 1;
+}
+
 
 /* This function should be called to parse a line starting with the "tcp-request"
  * keyword.

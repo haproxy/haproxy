@@ -824,6 +824,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				curproxy->cookie_name = strdup(defproxy.cookie_name);
 			curproxy->cookie_len = defproxy.cookie_len;
 
+			if (defproxy.rdp_cookie_name)
+				 curproxy->rdp_cookie_name = strdup(defproxy.rdp_cookie_name);
+			curproxy->rdp_cookie_len = defproxy.rdp_cookie_len;
+
 			if (defproxy.url_param_name)
 				curproxy->url_param_name = strdup(defproxy.url_param_name);
 			curproxy->url_param_len = defproxy.url_param_len;
@@ -891,6 +895,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		 */
 		free(defproxy.check_req);
 		free(defproxy.cookie_name);
+		free(defproxy.rdp_cookie_name);
 		free(defproxy.url_param_name);
 		free(defproxy.hh_name);
 		free(defproxy.capture_name);
@@ -1222,6 +1227,49 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			return -1;
 		}
 	}/* end else if (!strcmp(args[0], "cookie"))  */
+	else if (!strcmp(args[0], "persist")) {  /* persist */
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : missing persist method.\n",
+				file, linenum);
+                        return -1;
+                }
+
+		if (!strncmp(args[1], "rdp-cookie", 10)) {
+			curproxy->options2 |= PR_O2_RDPC_PRST;
+
+	                if (*(args[1] + 10 ) == '(') { /* cookie name */
+				const char *beg, *end;
+
+				beg = args[1] + 11;
+				end = strchr(beg, ')');
+
+				if (!end || end == beg) {
+					Alert("parsing [%s:%d] : persist rdp-cookie(name)' requires an rdp cookie name.\n",
+					      file, linenum);
+					return -1;
+				}
+
+				free(curproxy->rdp_cookie_name);
+				curproxy->rdp_cookie_name = my_strndup(beg, end - beg);
+				curproxy->rdp_cookie_len = end-beg;
+			}
+			else if (*(args[1] + 10 ) == '\0') { /* default cookie name 'msts' */
+				free(curproxy->rdp_cookie_name);
+				curproxy->rdp_cookie_name = strdup("msts");
+				curproxy->rdp_cookie_len = strlen(curproxy->rdp_cookie_name);
+			}
+			else { /* syntax */
+				Alert("parsing [%s:%d] : persist rdp-cookie(name)' requires an rdp cookie name.\n",
+				      file, linenum);
+				return -1;
+			}
+		}
+		else {
+			Alert("parsing [%s:%d] : unknown persist method.\n",
+			      file, linenum);
+			return -1;
+		}
+	}
 	else if (!strcmp(args[0], "appsession")) {  /* cookie name */
 
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))

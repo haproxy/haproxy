@@ -712,6 +712,7 @@ option tcpka                X          X         X         X
 option tcplog               X          X         X         X
 [no] option tcpsplice       X          X         X         X
 [no] option transparent     X          -         X         X
+persist rdp-cookie          X          -         X         X
 rate-limit sessions         X          X         X         -
 redirect                    -          X         X         X
 redisp                      X          -         X         X  (deprecated)
@@ -2942,6 +2943,46 @@ no option transparent
 
   See also: the "usersrc" argument of the "source" keyword, and the
             "transparent" option of the "bind" keyword.
+
+
+persist rdp-cookie
+persist rdp-cookie(name)
+  Enable RDP cookie-based persistence
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments :
+    <name>    is the optional name of the RDP cookie to check. If omitted, the
+              default cookie name "mstshash" will be used. There currently is
+              no valid reason to change this name.
+
+  This statement enables persistence based on an RDP cookie. The RDP cookie
+  contains all information required to find the server in the list of known
+  servers. So when this option is set in the backend, the request is analysed
+  and if an RDP cookie is found, it is decoded. If it matches a known server
+  which is still UP (or if "option persist" is set), then the connection is
+  forwarded to this server.
+
+  Note that this only makes sense in a TCP backend, but for this to work, the
+  frontend must have waited long enough to ensure that an RDP cookie is present
+  in the request buffer. This is the same requirement as with the "rdp-cookie"
+  load-balancing method. Thus it is higly recommended to put all statements in
+  a single "listen" section.
+
+  Example :
+        listen tse-farm
+            bind :3389
+            # wait up to 5s for an RDP cookie in the request
+            tcp-request inspect-delay 5s
+            tcp-request content accept if RDP_COOKIE
+            # apply RDP cookie persistence
+            persist rdp-cookie
+            # if server is unknown, let's balance on the same cookie.
+	    # alternatively, "balance leastconn" may be useful too.
+            balance rdp-cookie
+            server srv1 1.1.1.1:3389
+            server srv2 1.1.1.2:3389
+
+  See also : "balance rdp-cookie", "tcp-request" and the "req_rdp_cookie" ACL.
 
 
 rate-limit sessions <rate>
