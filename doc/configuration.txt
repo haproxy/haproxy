@@ -2345,11 +2345,16 @@ no option httpclose
   See also : "option forceclose"
 
 
-option httplog
+option httplog [ clf ]
   Enable logging of HTTP request, session state and timers
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
-  Arguments : none
+  Arguments :
+    clf       if the "clf" argument is added, then the output format will be
+              the CLF format instead of HAProxy's default HTTP format. You can
+              use this when you need to feed HAProxy's logs through a specific
+              log analyser which only support the CLF format and which is not
+              extensible.
 
   By default, the log output format is very poor, as it only contains the
   source and destination addresses, and the instance name. By specifying
@@ -2360,6 +2365,11 @@ option httplog
   ports.
 
   This option may be set either in the frontend or the backend.
+
+  If this option has been enabled in a "defaults" section, it can be disabled
+  in a specific instance by prepending the "no" keyword before it. Specifying
+  only "option httplog" will automatically clear the 'clf' mode if it was set
+  by default.
 
   See also :  section 8 about logging.
 
@@ -5224,7 +5234,7 @@ facilities.
 8.2. Log formats
 ----------------
 
-HAProxy supports 3 log formats. Several fields are common between these formats
+HAProxy supports 4 log formats. Several fields are common between these formats
 and will be detailed in the next sections. A few of them may slightly vary with
 the configuration, due to indicators specific to certain options. The supported
 formats are the following ones :
@@ -5246,6 +5256,11 @@ formats are the following ones :
     same information as the TCP format with some HTTP-specific fields such as
     the request, the status code, and captures of headers and cookies. This
     format is recommended for HTTP proxies.
+
+  - the CLF HTTP format, which is equivalent to the HTTP format, but with the
+    fields arranged in the same order as the CLF format. In this mode, all
+    timers, captures, flags, etc... appear one per field after the end of the
+    common fields, in the same order they appear in the standard HTTP format.
 
 Next sections will go deeper into details for each of these formats. Format
 specification will be performed on a "field" basis. Unless stated otherwise, a

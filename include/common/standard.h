@@ -286,6 +286,16 @@ static inline void get_localtime(const time_t now, struct tm *tm)
 	localtime_r(&now, tm);
 }
 
+/* This function converts the time_t value <now> into a broken out struct tm
+ * which must be allocated by the caller. It is highly recommended to use this
+ * function intead of gmtime() because that one requires a time_t* which
+ * is not always compatible with tv_sec depending on OS/hardware combinations.
+ */
+static inline void get_gmtime(const time_t now, struct tm *tm)
+{
+	gmtime_r(&now, tm);
+}
+
 /* This function parses a time value optionally followed by a unit suffix among
  * "d", "h", "m", "s", "ms" or "us". It converts the value into the unit
  * expected by the caller. The computation does its best to avoid overflows.

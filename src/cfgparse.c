@@ -1734,9 +1734,19 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			return -1;
 		}
 
-		if (!strcmp(args[1], "httplog"))
+		if (!strcmp(args[1], "httplog")) {
 			/* generate a complete HTTP log */
+			curproxy->options2 &= ~PR_O2_CLFLOG;
 			curproxy->to_log |= LW_DATE | LW_CLIP | LW_SVID | LW_REQ | LW_PXID | LW_RESP | LW_BYTES;
+			if (*(args[2]) != '\0') {
+				if (!strcmp(args[2], "clf")) {
+					curproxy->options2 |= PR_O2_CLFLOG;
+				} else {
+					Alert("parsing [%s:%d] : keyword '%s' only supports option 'clf'.\n", file, linenum, args[2]);
+					return -1;
+				}
+			}
+		}
 		else if (!strcmp(args[1], "tcplog"))
 			/* generate a detailed TCP log */
 			curproxy->to_log |= LW_DATE | LW_CLIP | LW_SVID | LW_PXID | LW_BYTES;
