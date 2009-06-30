@@ -1367,6 +1367,46 @@ struct server *get_server_hh(struct session *s)
 	return px->lbprm.map.srv[hash % px->lbprm.tot_weight];
 }
 
+struct server *get_server_rch(struct session *s)
+{
+	unsigned long    hash = 0;
+	struct proxy    *px   = s->be;
+	unsigned long    len;
+	const char      *p;
+	int              ret;
+	struct acl_expr  expr;
+	struct acl_test  test;
+
+	/* tot_weight appears to mean srv_count */
+	if (px->lbprm.tot_weight == 0)
+		return NULL;
+
+	if (px->lbprm.map.state & PR_MAP_RECALC)
+		recalc_server_map(px);
+
+	memset(&expr, 0, sizeof(expr));
+	memset(&test, 0, sizeof(test));
+
+	expr.arg.str = px->hh_name;
+	expr.arg_len = px->hh_len;
+
+	ret = acl_fetch_rdp_cookie(px, s, NULL, ACL_DIR_REQ, &expr, &test);
+	if (ret == 0 || (test.flags & ACL_TEST_F_MAY_CHANGE) || test.len == 0)
+		return NULL;
+
+	/* Found a the hh_name in the headers.
+	 * we will compute the hash based on this value ctx.val.
+	 */
+	len = test.len;
+	p = (char *)test.ptr;
+	while (len) {
+		hash = *p + (hash << 6) + (hash << 16) - hash;
+		len--;
+		p++;
+	}
+
+	return px->lbprm.map.srv[hash % px->lbprm.tot_weight];
+}
  
 /*
  * This function applies the load-balancing algorithm to the session, as
@@ -1489,6 +1529,19 @@ int assign_server(struct session *s)
 		case BE_LB_ALGO_HH:
 			/* Header Parameter hashing */
 			s->srv = get_server_hh(s);
+
+			if (!s->srv) {
+				/* parameter not found, fall back to round robin on the map */
+				s->srv = get_server_rr_with_conns(s->be, s->prev_srv);
+				if (!s->srv) {
+					err = SRV_STATUS_FULL;
+					goto out;
+				}
+			}
+			break;
+		case BE_LB_ALGO_RCH:
+			/* RDP Cookie hashing */
+			s->srv = get_server_rch(s);
 
 			if (!s->srv) {
 				/* parameter not found, fall back to round robin on the map */
@@ -2206,8 +2259,37 @@ int backend_parse_balance(const char **args, char *err, int errlen, struct proxy
 		}
 
 	}
+	else if (!strncmp(args[0], "rdp-cookie", 10)) {
+		curproxy->lbprm.algo &= ~BE_LB_ALGO;
+		curproxy->lbprm.algo |= BE_LB_ALGO_RCH;
+
+		if ( *(args[0] + 10 ) == '(' ) { /* cookie name */
+			const char *beg, *end;
+
+			beg = args[0] + 11;
+			end = strchr(beg, ')');
+
+			if (!end || end == beg) {
+				snprintf(err, errlen, "'balance rdp-cookie(name)' requires an rdp cookie name.");
+				return -1;
+			}
+
+			free(curproxy->hh_name);
+			curproxy->hh_name = my_strndup(beg, end - beg);
+			curproxy->hh_len  = end - beg;
+		}
+		else if ( *(args[0] + 10 ) == '\0' ) { /* default cookie name 'mstshash' */
+			free(curproxy->hh_name);
+			curproxy->hh_name = strdup("mstshash");
+			curproxy->hh_len  = strlen(curproxy->hh_name);
+		}
+		else { /* syntax */
+			snprintf(err, errlen, "'balance rdp-cookie(name)' requires an rdp cookie name.");
+			return -1;
+		}
+	}
 	else {
-		snprintf(err, errlen, "'balance' only supports 'roundrobin', 'leastconn', 'source', 'uri', 'url_param' and 'hdr(name)' options.");
+		snprintf(err, errlen, "'balance' only supports 'roundrobin', 'leastconn', 'source', 'uri', 'url_param', 'hdr(name)' and 'rdp-cookie(name)' options.");
 		return -1;
 	}
 	return 0;

@@ -956,6 +956,22 @@ balance url_param <param> [check_post [<max_wait>]]
                   specific headers such as 'Host'. For instance, in the Host
                   value "haproxy.1wt.eu", only "1wt" will be considered.
 
+      rdp-cookie
+      rdp-cookie(name)
+                  The RDP cookie <name> (or "mstshash" if omitted) will be
+                  looked up and hashed for each incoming TCP request. Just as
+                  with the equivalent ACL 'req_rdp_cookie()' function, the name
+                  is not case-sensitive. This mechanism is useful as a degraded
+                  persistence mode, as it makes it possible to always send the
+                  same user (or the same session ID) to the same server. If the
+                  cookie is not found, the normal round-robind algorithm is
+                  used instead.
+
+                  Note that for this to work, the frontend must ensure that an
+                  RDP cookie is already present in the request buffer. For this
+                  you must use 'tcp-request content accept' rule combined with
+                  a 'req_rdp_cookie_cnt' ACL.
+
     <arguments> is an optional list of arguments which may be needed by some
                 algorithms. Right now, only "url_param" and "uri" support an
                 optional argument.

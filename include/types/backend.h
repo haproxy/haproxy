@@ -44,6 +44,7 @@
 #define BE_LB_ALGO_PH	(BE_LB_PROP_L7  | 0x04) /* balance on URL parameter hash */
 #define BE_LB_ALGO_LC	(BE_LB_PROP_DYN | 0x05) /* fast weighted leastconn mode (dynamic) */
 #define BE_LB_ALGO_HH	(BE_LB_PROP_L7  | 0x06) /* balance on Http Header value */
+#define BE_LB_ALGO_RCH	(BE_LB_PROP_L4  | 0x07) /* balance on RDP Cookie value */
 
 /* various constants */
 
