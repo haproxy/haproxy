@@ -1837,112 +1837,6 @@ int http_process_request(struct session *s, struct buffer *req)
 		struct proxy *rule_set = s->be;
 		cur_proxy = s->be;
 
-		/* first check whether we have some ACLs set to redirect this request */
-		list_for_each_entry(rule, &cur_proxy->redirect_rules, list) {
-			int ret = acl_exec_cond(rule->cond, cur_proxy, s, txn, ACL_DIR_REQ);
-
-			ret = acl_pass(ret);
-			if (rule->cond->pol == ACL_COND_UNLESS)
-				ret = !ret;
-
-			if (ret) {
-				struct chunk rdr = { trash, 0 };
-				const char *msg_fmt;
-
-				/* build redirect message */
-				switch(rule->code) {
-				case 303:
-					rdr.len = strlen(HTTP_303);
-					msg_fmt = HTTP_303;
-					break;
-				case 301:
-					rdr.len = strlen(HTTP_301);
-					msg_fmt = HTTP_301;
-					break;
-				case 302:
-				default:
-					rdr.len = strlen(HTTP_302);
-					msg_fmt = HTTP_302;
-					break;
-				}
-
-				if (unlikely(rdr.len > sizeof(trash)))
-					goto return_bad_req;
-				memcpy(rdr.str, msg_fmt, rdr.len);
-
-				switch(rule->type) {
-				case REDIRECT_TYPE_PREFIX: {
-					const char *path;
-					int pathlen;
-
-					path = http_get_path(txn);
-					/* build message using path */
-					if (path) {
-						pathlen = txn->req.sl.rq.u_l + (txn->req.sol+txn->req.sl.rq.u) - path;
-						if (rule->flags & REDIRECT_FLAG_DROP_QS) {
-							int qs = 0;
-							while (qs < pathlen) {
-								if (path[qs] == '?') {
-									pathlen = qs;
-									break;
-								}
-								qs++;
-							}
-						}
-					} else {
-						path = "/";
-						pathlen = 1;
-					}
-
-					if (rdr.len + rule->rdr_len + pathlen > sizeof(trash) - 4)
-						goto return_bad_req;
-
-					/* add prefix. Note that if prefix == "/", we don't want to
-					 * add anything, otherwise it makes it hard for the user to
-					 * configure a self-redirection.
-					 */
-					if (rule->rdr_len != 1 || *rule->rdr_str != '/') {
-						memcpy(rdr.str + rdr.len, rule->rdr_str, rule->rdr_len);
-						rdr.len += rule->rdr_len;
-					}
-
-					/* add path */
-					memcpy(rdr.str + rdr.len, path, pathlen);
-					rdr.len += pathlen;
-					break;
-				}
-				case REDIRECT_TYPE_LOCATION:
-				default:
-					if (rdr.len + rule->rdr_len > sizeof(trash) - 4)
-						goto return_bad_req;
-
-					/* add location */
-					memcpy(rdr.str + rdr.len, rule->rdr_str, rule->rdr_len);
-					rdr.len += rule->rdr_len;
-					break;
-				}
-
-				if (rule->cookie_len) {
-					memcpy(rdr.str + rdr.len, "\r\nSet-Cookie: ", 14);
-					rdr.len += 14;
-					memcpy(rdr.str + rdr.len, rule->cookie_str, rule->cookie_len);
-					rdr.len += rule->cookie_len;
-					memcpy(rdr.str + rdr.len, "\r\n", 2);
-					rdr.len += 2;
-				}
-
-				/* add end of headers */
-				memcpy(rdr.str + rdr.len, "\r\n\r\n", 4);
-				rdr.len += 4;
-
-				txn->status = rule->code;
-				/* let's log the request time */
-				s->logs.tv_request = now;
-				stream_int_retnclose(req->prod, &rdr);
-				goto return_prx_cond;
-			}
-		}
-
 		/* first check whether we have some ACLs set to block this request */
 		list_for_each_entry(cond, &cur_proxy->block_cond, list) {
 			int ret = acl_exec_cond(cond, cur_proxy, s, txn, ACL_DIR_REQ);
@@ -2056,6 +1950,112 @@ int http_process_request(struct session *s, struct buffer *req)
 			if (stats_check_uri_auth(s, rule_set)) {
 				req->analysers = 0;
 				return 0;
+			}
+		}
+
+		/* first check whether we have some ACLs set to redirect this request */
+		list_for_each_entry(rule, &cur_proxy->redirect_rules, list) {
+			int ret = acl_exec_cond(rule->cond, cur_proxy, s, txn, ACL_DIR_REQ);
+
+			ret = acl_pass(ret);
+			if (rule->cond->pol == ACL_COND_UNLESS)
+				ret = !ret;
+
+			if (ret) {
+				struct chunk rdr = { trash, 0 };
+				const char *msg_fmt;
+
+				/* build redirect message */
+				switch(rule->code) {
+				case 303:
+					rdr.len = strlen(HTTP_303);
+					msg_fmt = HTTP_303;
+					break;
+				case 301:
+					rdr.len = strlen(HTTP_301);
+					msg_fmt = HTTP_301;
+					break;
+				case 302:
+				default:
+					rdr.len = strlen(HTTP_302);
+					msg_fmt = HTTP_302;
+					break;
+				}
+
+				if (unlikely(rdr.len > sizeof(trash)))
+					goto return_bad_req;
+				memcpy(rdr.str, msg_fmt, rdr.len);
+
+				switch(rule->type) {
+				case REDIRECT_TYPE_PREFIX: {
+					const char *path;
+					int pathlen;
+
+					path = http_get_path(txn);
+					/* build message using path */
+					if (path) {
+						pathlen = txn->req.sl.rq.u_l + (txn->req.sol+txn->req.sl.rq.u) - path;
+						if (rule->flags & REDIRECT_FLAG_DROP_QS) {
+							int qs = 0;
+							while (qs < pathlen) {
+								if (path[qs] == '?') {
+									pathlen = qs;
+									break;
+								}
+								qs++;
+							}
+						}
+					} else {
+						path = "/";
+						pathlen = 1;
+					}
+
+					if (rdr.len + rule->rdr_len + pathlen > sizeof(trash) - 4)
+						goto return_bad_req;
+
+					/* add prefix. Note that if prefix == "/", we don't want to
+					 * add anything, otherwise it makes it hard for the user to
+					 * configure a self-redirection.
+					 */
+					if (rule->rdr_len != 1 || *rule->rdr_str != '/') {
+						memcpy(rdr.str + rdr.len, rule->rdr_str, rule->rdr_len);
+						rdr.len += rule->rdr_len;
+					}
+
+					/* add path */
+					memcpy(rdr.str + rdr.len, path, pathlen);
+					rdr.len += pathlen;
+					break;
+				}
+				case REDIRECT_TYPE_LOCATION:
+				default:
+					if (rdr.len + rule->rdr_len > sizeof(trash) - 4)
+						goto return_bad_req;
+
+					/* add location */
+					memcpy(rdr.str + rdr.len, rule->rdr_str, rule->rdr_len);
+					rdr.len += rule->rdr_len;
+					break;
+				}
+
+				if (rule->cookie_len) {
+					memcpy(rdr.str + rdr.len, "\r\nSet-Cookie: ", 14);
+					rdr.len += 14;
+					memcpy(rdr.str + rdr.len, rule->cookie_str, rule->cookie_len);
+					rdr.len += rule->cookie_len;
+					memcpy(rdr.str + rdr.len, "\r\n", 2);
+					rdr.len += 2;
+				}
+
+				/* add end of headers */
+				memcpy(rdr.str + rdr.len, "\r\n\r\n", 4);
+				rdr.len += 4;
+
+				txn->status = rule->code;
+				/* let's log the request time */
+				s->logs.tv_request = now;
+				stream_int_retnclose(req->prod, &rdr);
+				goto return_prx_cond;
 			}
 		}
 
