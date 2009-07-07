@@ -3775,9 +3775,11 @@ int check_config_validity()
 			listener->accept = event_accept;
 			listener->private = curproxy;
 			listener->handler = process_session;
+			/* both TCP and HTTP must check switching rules */
+			listener->analysers |= AN_REQ_SWITCHING_RULES;
 
 			if (curproxy->mode == PR_MODE_HTTP)
-				listener->analysers |= AN_REQ_WAIT_HTTP | AN_REQ_HTTP_HDR;
+				listener->analysers |= AN_REQ_WAIT_HTTP | AN_REQ_HTTP_PROCESS_FE | AN_REQ_HTTP_INNER | AN_REQ_HTTP_PROCESS_BE;
 
 			/* smart accept mode is automatic in HTTP mode */
 			if ((curproxy->options2 & PR_O2_SMARTACC) ||
@@ -3789,6 +3791,7 @@ int check_config_validity()
 			    !LIST_ISEMPTY(&curproxy->tcp_req.inspect_rules))
 				listener->analysers |= AN_REQ_INSPECT;
 
+			/* We want the use_backend and default_backend rules to apply */
 			listener = listener->next;
 		}
 

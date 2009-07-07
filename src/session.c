@@ -19,6 +19,7 @@
 #include <types/capture.h>
 #include <types/global.h>
 
+#include <proto/acl.h>
 #include <proto/backend.h>
 #include <proto/buffers.h>
 #include <proto/hdr_idx.h>
@@ -27,6 +28,7 @@
 #include <proto/pipe.h>
 #include <proto/proto_http.h>
 #include <proto/proto_tcp.h>
+#include <proto/proxy.h>
 #include <proto/queue.h>
 #include <proto/server.h>
 #include <proto/stream_interface.h>
@@ -552,6 +554,59 @@ static void sess_prepare_conn_req(struct session *s, struct stream_interface *si
 	si->state = SI_ST_ASS;
 }
 
+/* This stream analyser checks the switching rules and changes the backend
+ * if appropriate. The default_backend rule is also considered.
+ * It returns 1 if the processing can continue on next analysers, or zero if it
+ * either needs more data or wants to immediately abort the request.
+ */
+int process_switching_rules(struct session *s, struct buffer *req, int an_bit)
+{
+	req->analysers &= ~an_bit;
+	req->analyse_exp = TICK_ETERNITY;
+
+	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
+		now_ms, __FUNCTION__,
+		s,
+		req,
+		req->rex, req->wex,
+		req->flags,
+		req->l,
+		req->analysers);
+
+	/* now check whether we have some switching rules for this request */
+	if (!(s->flags & SN_BE_ASSIGNED)) {
+		struct switching_rule *rule;
+
+		list_for_each_entry(rule, &s->fe->switching_rules, list) {
+			int ret;
+
+			ret = acl_exec_cond(rule->cond, s->fe, s, &s->txn, ACL_DIR_REQ);
+			ret = acl_pass(ret);
+			if (rule->cond->pol == ACL_COND_UNLESS)
+				ret = !ret;
+
+			if (ret) {
+				session_set_backend(s, rule->be.backend);
+				break;
+			}
+		}
+
+		/* To ensure correct connection accounting on the backend, we
+		 * have to assign one if it was not set (eg: a listen). This
+		 * measure also takes care of correctly setting the default
+		 * backend if any.
+		 */
+		if (!(s->flags & SN_BE_ASSIGNED))
+			session_set_backend(s, s->fe->defbe.be ? s->fe->defbe.be : s->be);
+	}
+
+	/* we don't want to run the HTTP filters again if the backend has not changed */
+	if (s->fe == s->be)
+		s->req->analysers &= ~AN_REQ_HTTP_PROCESS_BE;
+
+	return 1;
+}
+
 /* Processes the client, server, request and response jobs of a session task,
  * then puts it back to the wait queue in a clean state, or cleans up its
  * resources if it must be deleted. Returns in <next> the date the task wants
@@ -736,9 +791,27 @@ resync_stream_interface:
 						break;
 				}
 
-				if (s->req->analysers & AN_REQ_HTTP_HDR) {
-					last_ana |= AN_REQ_HTTP_HDR;
-					if (!http_process_request(s, s->req, AN_REQ_HTTP_HDR))
+				if (s->req->analysers & AN_REQ_HTTP_PROCESS_FE) {
+					last_ana |= AN_REQ_HTTP_PROCESS_FE;
+					if (!http_process_req_common(s, s->req, AN_REQ_HTTP_PROCESS_FE, s->fe))
+						break;
+				}
+
+				if (s->req->analysers & AN_REQ_SWITCHING_RULES) {
+					last_ana |= AN_REQ_SWITCHING_RULES;
+					if (!process_switching_rules(s, s->req, AN_REQ_SWITCHING_RULES))
+						break;
+				}
+
+				if (s->req->analysers & AN_REQ_HTTP_PROCESS_BE) {
+					last_ana |= AN_REQ_HTTP_PROCESS_BE;
+					if (!http_process_req_common(s, s->req, AN_REQ_HTTP_PROCESS_BE, s->be))
+						break;
+				}
+
+				if (s->req->analysers & AN_REQ_HTTP_INNER) {
+					last_ana |= AN_REQ_HTTP_INNER;
+					if (!http_process_request(s, s->req, AN_REQ_HTTP_INNER))
 						break;
 				}
 

@@ -106,12 +106,16 @@
  * afterwards.
  */
 #define AN_REQ_INSPECT          0x00000001  /* inspect request contents */
-#define AN_REQ_HTTP_HDR         0x00000002  /* inspect HTTP request headers */
-#define AN_REQ_HTTP_BODY        0x00000004  /* inspect HTTP request body */
-#define AN_REQ_HTTP_TARPIT      0x00000008  /* wait for end of HTTP tarpit */
-#define AN_RTR_HTTP_HDR         0x00000010  /* inspect HTTP response headers */
-#define AN_REQ_UNIX_STATS       0x00000020  /* process unix stats socket request */
-#define AN_REQ_WAIT_HTTP        0x00000040  /* wait for an HTTP request */
+#define AN_REQ_WAIT_HTTP        0x00000002  /* wait for an HTTP request */
+#define AN_REQ_HTTP_PROCESS_FE  0x00000004  /* process the frontend's HTTP part */
+#define AN_REQ_SWITCHING_RULES  0x00000008  /* apply the switching rules */
+#define AN_REQ_HTTP_PROCESS_BE  0x00000010  /* process the backend's HTTP part */
+#define AN_REQ_HTTP_INNER       0x00000020  /* inner processing of HTTP request */
+#define AN_REQ_HTTP_TARPIT      0x00000040  /* wait for end of HTTP tarpit */
+#define AN_REQ_HTTP_BODY        0x00000080  /* inspect HTTP request body */
+#define AN_REQ_UNIX_STATS       0x00000100  /* process unix stats socket request */
+
+#define AN_RTR_HTTP_HDR         0x00000200  /* inspect HTTP response headers */
 
 /* describes a chunk of string */
 struct chunk {

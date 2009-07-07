@@ -354,10 +354,6 @@ const char http_is_ver_token[256] = {
 };
 
 
-#ifdef DEBUG_FULL
-static char *cli_stnames[4] = { "DAT", "SHR", "SHW", "CLS" };
-#endif
-
 /*
  * Adds a header and its CRLF at the tail of buffer <b>, just before the last
  * CRLF. Text length is measured first, so it cannot be NULL.
@@ -1809,17 +1805,20 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	return 0;
 }
 
-/* This function performs all the processing enabled for the current request.
+/* This stream analyser runs all HTTP request processing which is common to
+ * frontends and backends, which means blocking ACLs, filters, connection-close,
+ * reqadd, stats and redirects. This is performed for the designated proxy.
  * It returns 1 if the processing can continue on next analysers, or zero if it
- * needs more data, encounters an error, or wants to immediately abort the
- * request. It relies on buffers flags, and updates s->req->analysers.
+ * either needs more data or wants to immediately abort the request (eg: deny,
+ * error, ...).
  */
-int http_process_request(struct session *s, struct buffer *req, int an_bit)
+int http_process_req_common(struct session *s, struct buffer *req, int an_bit, struct proxy *px)
 {
-	int cur_idx;
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->req;
-	struct proxy *cur_proxy;
+	struct acl_cond *cond;
+	struct redirect_rule *rule;
+	int cur_idx;
 
 	req->analysers &= ~an_bit;
 	req->analyse_exp = TICK_ETERNITY;
@@ -1833,70 +1832,27 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 		req->l,
 		req->analysers);
 
-	/*
-	 * 6: we will have to evaluate the filters.
-	 * As opposed to version 1.2, now they will be evaluated in the
-	 * filters order and not in the header order. This means that
-	 * each filter has to be validated among all headers.
-	 *
-	 * We can now check whether we want to switch to another
-	 * backend, in which case we will re-check the backend's
-	 * filters and various options. In order to support 3-level
-	 * switching, here's how we should proceed :
-	 *
-	 *  a) run be.
-	 *     if (switch) then switch ->be to the new backend.
-	 *  b) run be if (be != fe).
-	 *     There cannot be any switch from there, so ->be cannot be
-	 *     changed anymore.
-	 *
-	 * => filters always apply to ->be, then ->be may change.
-	 *
-	 * The response path will be able to apply either ->be, or
-	 * ->be then ->fe filters in order to match the reverse of
-	 * the forward sequence.
-	 */
+	/* first check whether we have some ACLs set to block this request */
+	list_for_each_entry(cond, &px->block_cond, list) {
+		int ret = acl_exec_cond(cond, px, s, txn, ACL_DIR_REQ);
 
-	do {
-		struct acl_cond *cond;
-		struct redirect_rule *rule;
-		struct proxy *rule_set = s->be;
-		cur_proxy = s->be;
+		ret = acl_pass(ret);
+		if (cond->pol == ACL_COND_UNLESS)
+			ret = !ret;
 
-		/* first check whether we have some ACLs set to block this request */
-		list_for_each_entry(cond, &cur_proxy->block_cond, list) {
-			int ret = acl_exec_cond(cond, cur_proxy, s, txn, ACL_DIR_REQ);
-
-			ret = acl_pass(ret);
-			if (cond->pol == ACL_COND_UNLESS)
-				ret = !ret;
-
-			if (ret) {
-				txn->status = 403;
-				/* let's log the request time */
-				s->logs.tv_request = now;
-				stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_403));
-				goto return_prx_cond;
-			}
+		if (ret) {
+			txn->status = 403;
+			/* let's log the request time */
+			s->logs.tv_request = now;
+			stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_403));
+			goto return_prx_cond;
 		}
+	}
 
-		/* try headers filters */
-		if (rule_set->req_exp != NULL) {
-			if (apply_filters_to_request(s, req, rule_set->req_exp) < 0)
-				goto return_bad_req;
-		}
-
-		if (!(s->flags & SN_BE_ASSIGNED) && (s->be != cur_proxy)) {
-			/* to ensure correct connection accounting on
-			 * the backend, we count the connection for the
-			 * one managing the queue.
-			 */
-			s->be->beconn++;
-			if (s->be->beconn > s->be->beconn_max)
-				s->be->beconn_max = s->be->beconn;
-			proxy_inc_be_ctr(s->be);
-			s->flags |= SN_BE_ASSIGNED;
-		}
+	/* try headers filters */
+	if (px->req_exp != NULL) {
+		if (apply_filters_to_request(s, req, px->req_exp) < 0)
+			goto return_bad_req;
 
 		/* has the request been denied ? */
 		if (txn->flags & TX_CLDENY) {
@@ -1907,248 +1863,234 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 			stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_403));
 			goto return_prx_cond;
 		}
+	}
 
-		/* We might have to check for "Connection:" */
-		if (((s->fe->options | s->be->options) & (PR_O_HTTP_CLOSE|PR_O_FORCE_CLO)) &&
-		    !(s->flags & SN_CONN_CLOSED)) {
-			char *cur_ptr, *cur_end, *cur_next;
-			int cur_idx, old_idx, delta, val;
-			struct hdr_idx_elem *cur_hdr;
+	/* We might have to check for "Connection:" */
+	if (((s->fe->options | s->be->options) & (PR_O_HTTP_CLOSE|PR_O_FORCE_CLO)) &&
+	    !(s->flags & SN_CONN_CLOSED)) {
+		char *cur_ptr, *cur_end, *cur_next;
+		int old_idx, delta, val;
+		struct hdr_idx_elem *cur_hdr;
 
-			cur_next = req->data + txn->req.som + hdr_idx_first_pos(&txn->hdr_idx);
-			old_idx = 0;
+		cur_next = req->data + txn->req.som + hdr_idx_first_pos(&txn->hdr_idx);
+		old_idx = 0;
 
-			while ((cur_idx = txn->hdr_idx.v[old_idx].next)) {
-				cur_hdr  = &txn->hdr_idx.v[cur_idx];
-				cur_ptr  = cur_next;
-				cur_end  = cur_ptr + cur_hdr->len;
-				cur_next = cur_end + cur_hdr->cr + 1;
+		while ((cur_idx = txn->hdr_idx.v[old_idx].next)) {
+			cur_hdr  = &txn->hdr_idx.v[cur_idx];
+			cur_ptr  = cur_next;
+			cur_end  = cur_ptr + cur_hdr->len;
+			cur_next = cur_end + cur_hdr->cr + 1;
 
-				val = http_header_match2(cur_ptr, cur_end, "Connection", 10);
-				if (val) {
-					/* 3 possibilities :
-					 * - we have already set Connection: close,
-					 *   so we remove this line.
-					 * - we have not yet set Connection: close,
-					 *   but this line indicates close. We leave
-					 *   it untouched and set the flag.
-					 * - we have not yet set Connection: close,
-					 *   and this line indicates non-close. We
-					 *   replace it.
-					 */
-					if (s->flags & SN_CONN_CLOSED) {
-						delta = buffer_replace2(req, cur_ptr, cur_next, NULL, 0);
-						txn->req.eoh += delta;
+			val = http_header_match2(cur_ptr, cur_end, "Connection", 10);
+			if (val) {
+				/* 3 possibilities :
+				 * - we have already set Connection: close,
+				 *   so we remove this line.
+				 * - we have not yet set Connection: close,
+				 *   but this line indicates close. We leave
+				 *   it untouched and set the flag.
+				 * - we have not yet set Connection: close,
+				 *   and this line indicates non-close. We
+				 *   replace it.
+				 */
+				if (s->flags & SN_CONN_CLOSED) {
+					delta = buffer_replace2(req, cur_ptr, cur_next, NULL, 0);
+					txn->req.eoh += delta;
+					cur_next += delta;
+					txn->hdr_idx.v[old_idx].next = cur_hdr->next;
+					txn->hdr_idx.used--;
+					cur_hdr->len = 0;
+				} else {
+					if (strncasecmp(cur_ptr + val, "close", 5) != 0) {
+						delta = buffer_replace2(req, cur_ptr + val, cur_end,
+									"close", 5);
 						cur_next += delta;
-						txn->hdr_idx.v[old_idx].next = cur_hdr->next;
-						txn->hdr_idx.used--;
-						cur_hdr->len = 0;
-					} else {
-						if (strncasecmp(cur_ptr + val, "close", 5) != 0) {
-							delta = buffer_replace2(req, cur_ptr + val, cur_end,
-										"close", 5);
-							cur_next += delta;
-							cur_hdr->len += delta;
-							txn->req.eoh += delta;
-						}
-						s->flags |= SN_CONN_CLOSED;
+						cur_hdr->len += delta;
+						txn->req.eoh += delta;
 					}
+					s->flags |= SN_CONN_CLOSED;
 				}
-				old_idx = cur_idx;
 			}
+			old_idx = cur_idx;
 		}
-		/* add request headers from the rule sets in the same order */
-		for (cur_idx = 0; cur_idx < rule_set->nb_reqadd; cur_idx++) {
-			if (unlikely(http_header_add_tail(req,
-							  &txn->req,
-							  &txn->hdr_idx,
-							  rule_set->req_add[cur_idx])) < 0)
+	}
+	/* add request headers from the rule sets in the same order */
+	for (cur_idx = 0; cur_idx < px->nb_reqadd; cur_idx++) {
+		if (unlikely(http_header_add_tail(req,
+						  &txn->req,
+						  &txn->hdr_idx,
+						  px->req_add[cur_idx])) < 0)
+			goto return_bad_req;
+	}
+
+	/* check if stats URI was requested, and if an auth is needed */
+	if (px->uri_auth != NULL &&
+	    (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)) {
+		/* we have to check the URI and auth for this request.
+		 * FIXME!!! that one is rather dangerous, we want to
+		 * make it follow standard rules (eg: clear req->analysers).
+		 */
+		if (stats_check_uri_auth(s, px)) {
+			req->analysers = 0;
+			return 0;
+		}
+	}
+
+	/* check whether we have some ACLs set to redirect this request */
+	list_for_each_entry(rule, &px->redirect_rules, list) {
+		int ret = acl_exec_cond(rule->cond, px, s, txn, ACL_DIR_REQ);
+
+		ret = acl_pass(ret);
+		if (rule->cond->pol == ACL_COND_UNLESS)
+			ret = !ret;
+
+		if (ret) {
+			struct chunk rdr = { trash, 0 };
+			const char *msg_fmt;
+
+			/* build redirect message */
+			switch(rule->code) {
+			case 303:
+				rdr.len = strlen(HTTP_303);
+				msg_fmt = HTTP_303;
+				break;
+			case 301:
+				rdr.len = strlen(HTTP_301);
+				msg_fmt = HTTP_301;
+				break;
+			case 302:
+			default:
+				rdr.len = strlen(HTTP_302);
+				msg_fmt = HTTP_302;
+				break;
+			}
+
+			if (unlikely(rdr.len > sizeof(trash)))
 				goto return_bad_req;
-		}
+			memcpy(rdr.str, msg_fmt, rdr.len);
 
-		/* check if stats URI was requested, and if an auth is needed */
-		if (rule_set->uri_auth != NULL &&
-		    (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)) {
-			/* we have to check the URI and auth for this request.
-			 * FIXME!!! that one is rather dangerous, we want to
-			 * make it follow standard rules (eg: clear req->analysers).
-			 */
-			if (stats_check_uri_auth(s, rule_set)) {
-				req->analysers = 0;
-				return 0;
-			}
-		}
+			switch(rule->type) {
+			case REDIRECT_TYPE_PREFIX: {
+				const char *path;
+				int pathlen;
 
-		/* first check whether we have some ACLs set to redirect this request */
-		list_for_each_entry(rule, &cur_proxy->redirect_rules, list) {
-			int ret = acl_exec_cond(rule->cond, cur_proxy, s, txn, ACL_DIR_REQ);
-
-			ret = acl_pass(ret);
-			if (rule->cond->pol == ACL_COND_UNLESS)
-				ret = !ret;
-
-			if (ret) {
-				struct chunk rdr = { trash, 0 };
-				const char *msg_fmt;
-
-				/* build redirect message */
-				switch(rule->code) {
-				case 303:
-					rdr.len = strlen(HTTP_303);
-					msg_fmt = HTTP_303;
-					break;
-				case 301:
-					rdr.len = strlen(HTTP_301);
-					msg_fmt = HTTP_301;
-					break;
-				case 302:
-				default:
-					rdr.len = strlen(HTTP_302);
-					msg_fmt = HTTP_302;
-					break;
-				}
-
-				if (unlikely(rdr.len > sizeof(trash)))
-					goto return_bad_req;
-				memcpy(rdr.str, msg_fmt, rdr.len);
-
-				switch(rule->type) {
-				case REDIRECT_TYPE_PREFIX: {
-					const char *path;
-					int pathlen;
-
-					path = http_get_path(txn);
-					/* build message using path */
-					if (path) {
-						pathlen = txn->req.sl.rq.u_l + (txn->req.sol+txn->req.sl.rq.u) - path;
-						if (rule->flags & REDIRECT_FLAG_DROP_QS) {
-							int qs = 0;
-							while (qs < pathlen) {
-								if (path[qs] == '?') {
-									pathlen = qs;
-									break;
-								}
-								qs++;
+				path = http_get_path(txn);
+				/* build message using path */
+				if (path) {
+					pathlen = txn->req.sl.rq.u_l + (txn->req.sol+txn->req.sl.rq.u) - path;
+					if (rule->flags & REDIRECT_FLAG_DROP_QS) {
+						int qs = 0;
+						while (qs < pathlen) {
+							if (path[qs] == '?') {
+								pathlen = qs;
+								break;
 							}
+							qs++;
 						}
-					} else {
-						path = "/";
-						pathlen = 1;
 					}
-
-					if (rdr.len + rule->rdr_len + pathlen > sizeof(trash) - 4)
-						goto return_bad_req;
-
-					/* add prefix. Note that if prefix == "/", we don't want to
-					 * add anything, otherwise it makes it hard for the user to
-					 * configure a self-redirection.
-					 */
-					if (rule->rdr_len != 1 || *rule->rdr_str != '/') {
-						memcpy(rdr.str + rdr.len, rule->rdr_str, rule->rdr_len);
-						rdr.len += rule->rdr_len;
-					}
-
-					/* add path */
-					memcpy(rdr.str + rdr.len, path, pathlen);
-					rdr.len += pathlen;
-					break;
+				} else {
+					path = "/";
+					pathlen = 1;
 				}
-				case REDIRECT_TYPE_LOCATION:
-				default:
-					if (rdr.len + rule->rdr_len > sizeof(trash) - 4)
-						goto return_bad_req;
 
-					/* add location */
+				if (rdr.len + rule->rdr_len + pathlen > sizeof(trash) - 4)
+					goto return_bad_req;
+
+				/* add prefix. Note that if prefix == "/", we don't want to
+				 * add anything, otherwise it makes it hard for the user to
+				 * configure a self-redirection.
+				 */
+				if (rule->rdr_len != 1 || *rule->rdr_str != '/') {
 					memcpy(rdr.str + rdr.len, rule->rdr_str, rule->rdr_len);
 					rdr.len += rule->rdr_len;
-					break;
 				}
 
-				if (rule->cookie_len) {
-					memcpy(rdr.str + rdr.len, "\r\nSet-Cookie: ", 14);
-					rdr.len += 14;
-					memcpy(rdr.str + rdr.len, rule->cookie_str, rule->cookie_len);
-					rdr.len += rule->cookie_len;
-					memcpy(rdr.str + rdr.len, "\r\n", 2);
-					rdr.len += 2;
-				}
-
-				/* add end of headers */
-				memcpy(rdr.str + rdr.len, "\r\n\r\n", 4);
-				rdr.len += 4;
-
-				txn->status = rule->code;
-				/* let's log the request time */
-				s->logs.tv_request = now;
-				stream_int_retnclose(req->prod, &rdr);
-				goto return_prx_cond;
+				/* add path */
+				memcpy(rdr.str + rdr.len, path, pathlen);
+				rdr.len += pathlen;
+				break;
 			}
-		}
+			case REDIRECT_TYPE_LOCATION:
+			default:
+				if (rdr.len + rule->rdr_len > sizeof(trash) - 4)
+					goto return_bad_req;
 
-		/* now check whether we have some switching rules for this request */
-		if (!(s->flags & SN_BE_ASSIGNED)) {
-			struct switching_rule *rule;
-
-			list_for_each_entry(rule, &cur_proxy->switching_rules, list) {
-				int ret;
-
-				ret = acl_exec_cond(rule->cond, cur_proxy, s, txn, ACL_DIR_REQ);
-
-				ret = acl_pass(ret);
-				if (rule->cond->pol == ACL_COND_UNLESS)
-					ret = !ret;
-
-				if (ret) {
-					s->be = rule->be.backend;
-					s->be->beconn++;
-					if (s->be->beconn > s->be->beconn_max)
-						s->be->beconn_max = s->be->beconn;
-					proxy_inc_be_ctr(s->be);
-
-					/* assign new parameters to the session from the new backend */
-					s->rep->rto = s->req->wto = s->be->timeout.server;
-					s->req->cto = s->be->timeout.connect;
-					s->conn_retries = s->be->conn_retries;
-					if (s->be->options2 & PR_O2_RSPBUG_OK)
-						s->txn.rsp.err_pos = -1; /* let buggy responses pass */
-					s->flags |= SN_BE_ASSIGNED;
-					break;
-				}
+				/* add location */
+				memcpy(rdr.str + rdr.len, rule->rdr_str, rule->rdr_len);
+				rdr.len += rule->rdr_len;
+				break;
 			}
+
+			if (rule->cookie_len) {
+				memcpy(rdr.str + rdr.len, "\r\nSet-Cookie: ", 14);
+				rdr.len += 14;
+				memcpy(rdr.str + rdr.len, rule->cookie_str, rule->cookie_len);
+				rdr.len += rule->cookie_len;
+				memcpy(rdr.str + rdr.len, "\r\n", 2);
+				rdr.len += 2;
+			}
+
+			/* add end of headers */
+			memcpy(rdr.str + rdr.len, "\r\n\r\n", 4);
+			rdr.len += 4;
+
+			txn->status = rule->code;
+			/* let's log the request time */
+			s->logs.tv_request = now;
+			stream_int_retnclose(req->prod, &rdr);
+			goto return_prx_cond;
 		}
-
-		if (!(s->flags & SN_BE_ASSIGNED) && cur_proxy->defbe.be) {
-			/* No backend was set, but there was a default
-			 * backend set in the frontend, so we use it and
-			 * loop again.
-			 */
-			s->be = cur_proxy->defbe.be;
-			s->be->beconn++;
-			if (s->be->beconn > s->be->beconn_max)
-				s->be->beconn_max = s->be->beconn;
-			proxy_inc_be_ctr(s->be);
-
-			/* assign new parameters to the session from the new backend */
-			s->rep->rto = s->req->wto = s->be->timeout.server;
-			s->req->cto = s->be->timeout.connect;
-			s->conn_retries = s->be->conn_retries;
-			if (s->be->options2 & PR_O2_RSPBUG_OK)
-				s->txn.rsp.err_pos = -1; /* let buggy responses pass */
-			s->flags |= SN_BE_ASSIGNED;
-		}
-	} while (s->be != cur_proxy);  /* we loop only if s->be has changed */
-
-	if (!(s->flags & SN_BE_ASSIGNED)) {
-		/* To ensure correct connection accounting on
-		 * the backend, we count the connection for the
-		 * one managing the queue.
-		 */
-		s->be->beconn++;
-		if (s->be->beconn > s->be->beconn_max)
-			s->be->beconn_max = s->be->beconn;
-		proxy_inc_be_ctr(s->be);
-		s->flags |= SN_BE_ASSIGNED;
 	}
+
+	/* that's OK for us now, let's move on to next analysers */
+	return 1;
+
+ return_bad_req:
+	/* We centralize bad requests processing here */
+	if (unlikely(msg->msg_state == HTTP_MSG_ERROR) || msg->err_pos >= 0) {
+		/* we detected a parsing error. We want to archive this request
+		 * in the dedicated proxy area for later troubleshooting.
+		 */
+		http_capture_bad_message(&s->fe->invalid_req, s, req, msg, s->fe);
+	}
+
+	txn->req.msg_state = HTTP_MSG_ERROR;
+	txn->status = 400;
+	stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_400));
+	s->fe->failed_req++;
+
+ return_prx_cond:
+	if (!(s->flags & SN_ERR_MASK))
+		s->flags |= SN_ERR_PRXCOND;
+	if (!(s->flags & SN_FINST_MASK))
+		s->flags |= SN_FINST_R;
+
+	req->analysers = 0;
+	req->analyse_exp = TICK_ETERNITY;
+	return 0;
+}
+
+/* This function performs all the processing enabled for the current request.
+ * It returns 1 if the processing can continue on next analysers, or zero if it
+ * needs more data, encounters an error, or wants to immediately abort the
+ * request. It relies on buffers flags, and updates s->req->analysers.
+ */
+int http_process_request(struct session *s, struct buffer *req, int an_bit)
+{
+	struct http_txn *txn = &s->txn;
+	struct http_msg *msg = &txn->req;
+
+	req->analysers &= ~an_bit;
+	req->analyse_exp = TICK_ETERNITY;
+
+	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
+		now_ms, __FUNCTION__,
+		s,
+		req,
+		req->rex, req->wex,
+		req->flags,
+		req->l,
+		req->analysers);
 
 	/*
 	 * Right now, we know that we have processed the entire headers
@@ -2436,7 +2378,6 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 	stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_400));
 	s->fe->failed_req++;
 
- return_prx_cond:
 	if (!(s->flags & SN_ERR_MASK))
 		s->flags |= SN_ERR_PRXCOND;
 	if (!(s->flags & SN_FINST_MASK))
@@ -3142,18 +3083,7 @@ int apply_filter_to_req_headers(struct session *t, struct buffer *req, struct hd
 					break;
 
 				/* Swithing Proxy */
-				t->be = (struct proxy *) exp->replace;
-
-				/* right now, the backend switch is not overly complicated
-				 * because we have associated req_cap and rsp_cap to the
-				 * frontend, and the beconn will be updated later.
-				 */
-
-				t->rep->rto = t->req->wto = t->be->timeout.server;
-				t->req->cto = t->be->timeout.connect;
-				t->conn_retries = t->be->conn_retries;
-				if (t->be->options2 & PR_O2_RSPBUG_OK)
-					t->txn.rsp.err_pos = -1; /* let buggy responses pass */
+				session_set_backend(t, (struct proxy *)exp->replace);
 				last_hdr = 1;
 				break;
 
@@ -3265,18 +3195,7 @@ int apply_filter_to_req_line(struct session *t, struct buffer *req, struct hdr_e
 				break;
 
 			/* Swithing Proxy */
-			t->be = (struct proxy *) exp->replace;
-
-			/* right now, the backend switch is not too much complicated
-			 * because we have associated req_cap and rsp_cap to the
-			 * frontend, and the beconn will be updated later.
-			 */
-
-			t->rep->rto = t->req->wto = t->be->timeout.server;
-			t->req->cto = t->be->timeout.connect;
-			t->conn_retries = t->be->conn_retries;
-			if (t->be->options2 & PR_O2_RSPBUG_OK)
-				t->txn.rsp.err_pos = -1; /* let buggy responses pass */
+			session_set_backend(t, (struct proxy *)exp->replace);
 			done = 1;
 			break;
 

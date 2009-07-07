@@ -631,6 +631,30 @@ void listen_proxies(void)
 	}
 }
 
+/* Set current session's backend to <be>. Nothing is done if the
+ * session already had a backend assigned, which is indicated by
+ * s->flags & SN_BE_ASSIGNED.
+ * All flags, stats and counters which need be updated are updated.
+ */
+void session_set_backend(struct session *s, struct proxy *be)
+{
+	if (s->flags & SN_BE_ASSIGNED)
+		return;
+	s->be = be;
+	be->beconn++;
+	if (be->beconn > be->beconn_max)
+		be->beconn_max = be->beconn;
+	proxy_inc_be_ctr(be);
+
+	/* assign new parameters to the session from the new backend */
+	s->rep->rto = s->req->wto = be->timeout.server;
+	s->req->cto = be->timeout.connect;
+	s->conn_retries = be->conn_retries;
+	if (be->options2 & PR_O2_RSPBUG_OK)
+		s->txn.rsp.err_pos = -1; /* let buggy responses pass */
+	s->flags |= SN_BE_ASSIGNED;
+}
+
 static struct cfg_kw_list cfg_kws = {{ },{
 	{ CFG_LISTEN, "timeout", proxy_parse_timeout },
 	{ CFG_LISTEN, "clitimeout", proxy_parse_timeout },

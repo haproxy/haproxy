@@ -1440,11 +1440,6 @@ default_backend <backend>
   used when no rule has matched. It generally is the dynamic backend which
   will catch all undetermined requests.
 
-  The "default_backend" keyword is also supported in TCP mode frontends to
-  facilitate the ordering of configurations in frontends and backends,
-  eventhough it does not make much more sense in case of TCP due to the fact
-  that use_backend currently does not work in TCP mode.
-
   Example :
 
         use_backend     dynamic  if  url_dyn
@@ -4254,7 +4249,7 @@ transparent (deprecated)
 
 use_backend <backend> if <condition>
 use_backend <backend> unless <condition>
-  Switch to a specific backend if/unless a Layer 7 condition is matched.
+  Switch to a specific backend if/unless an ACL-based condition is matched.
   May be used in sections :   defaults | frontend | listen | backend
                                   no   |    yes   |   yes  |   no
   Arguments :
@@ -4265,7 +4260,10 @@ use_backend <backend> unless <condition>
   When doing content-switching, connections arrive on a frontend and are then
   dispatched to various backends depending on a number of conditions. The
   relation between the conditions and the backends is described with the
-  "use_backend" keyword. This is supported only in HTTP mode.
+  "use_backend" keyword. While it is normally used with HTTP processing, it can
+  also be used in pure TCP, either without content using stateless ACLs (eg:
+  source address validation) or combined with a "tcp-request" rule to wait for
+  some payload.
 
   There may be as many "use_backend" rules as desired. All of these rules are
   evaluated in their declaration order, and the first one which matches will
@@ -4278,7 +4276,7 @@ use_backend <backend> unless <condition>
   used (in case of a "listen" section) or, in case of a frontend, no server is
   used and a 503 service unavailable response is returned.
 
-  See also: "default_backend" and section 7 about ACLs.
+  See also: "default_backend", "tcp-request", and section 7 about ACLs.
   
 
 5. Server options

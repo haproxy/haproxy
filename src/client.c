@@ -165,18 +165,12 @@ int event_accept(int fd) {
 
 		s->task = t;
 		s->listener = l;
-		s->be = s->fe = p;
 
-		/* in HTTP mode, content switching requires that the backend
-		 * first points to the same proxy as the frontend. However, in
-		 * TCP mode there will be no header processing so any default
-		 * backend must be assigned if set.
+		/* Note: initially, the session's backend points to the frontend.
+		 * This changes later when switching rules are executed or
+		 * when the default backend is assigned.
 		 */
-		if (p->mode == PR_MODE_TCP) {
-			if (p->defbe.be)
-				s->be = p->defbe.be;
-			s->flags |= SN_BE_ASSIGNED;
-		}
+		s->be = s->fe = p;
 
 		s->ana_state = 0;  /* analysers may change it but must reset it upon exit */
 		s->req = s->rep = NULL; /* will be allocated later */
@@ -459,12 +453,6 @@ int event_accept(int fd) {
 		if (p->feconn > p->feconn_max)
 			p->feconn_max = p->feconn;
 
-		if (s->flags & SN_BE_ASSIGNED) {
-			proxy_inc_be_ctr(s->be);
-			s->be->beconn++;
-			if (s->be->beconn > s->be->beconn_max)
-				s->be->beconn_max = s->be->beconn;
-		}
 		actconn++;
 		totalconn++;
 
