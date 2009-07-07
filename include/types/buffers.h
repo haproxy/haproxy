@@ -111,6 +111,7 @@
 #define AN_REQ_HTTP_TARPIT      0x00000008  /* wait for end of HTTP tarpit */
 #define AN_RTR_HTTP_HDR         0x00000010  /* inspect HTTP response headers */
 #define AN_REQ_UNIX_STATS       0x00000020  /* process unix stats socket request */
+#define AN_REQ_WAIT_HTTP        0x00000040  /* wait for an HTTP request */
 
 /* describes a chunk of string */
 struct chunk {

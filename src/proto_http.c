@@ -1502,29 +1502,14 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 	return;
 }
 
-/* This function performs all the processing enabled for the current request.
- * It returns 1 if the processing can continue on next analysers, or zero if it
- * needs more data, encounters an error, or wants to immediately abort the
- * request. It relies on buffers flags, and updates s->req->analysers. Its
- * behaviour is rather simple:
- *  - all enabled analysers are called in turn from the lower to the higher
- *    bit.
- *  - the analyser must check for errors and timeouts, and react as expected.
- *    It does not have to close anything upon error, the caller will.
- *  - if the analyser does not have enough data, it must return 0without calling
- *    other ones. It should also probably do a buffer_write_dis() to ensure
- *    that unprocessed data will not be forwarded. But that probably depends on
- *    the protocol.
- *  - if an analyser has enough data, it just has to pass on to the next
- *    analyser without using buffer_write_dis() (enabled by default).
- *  - if an analyser thinks it has no added value anymore staying here, it must
- *    reset its bit from the analysers flags in order not to be called anymore.
- *
- * In the future, analysers should be able to indicate that they want to be
- * called after XXX bytes have been received (or transfered), and the min of
- * all's wishes will be used to ring back (unless a special condition occurs).
+/* This stream analyser waits for a complete HTTP request. It returns 1 if the
+ * processing can continue on next analysers, or zero if it either needs more
+ * data or wants to immediately abort the request (eg: timeout, error, ...). It
+ * is tied to AN_REQ_WAIT_HTTP and may may remove itself from s->req->analysers
+ * when it has nothing left to do, and may remove any analyser when it wants to
+ * abort.
  */
-int http_process_request(struct session *s, struct buffer *req)
+int http_wait_for_request(struct session *s, struct buffer *req)
 {
 	/*
 	 * We will parse the partial (or complete) lines.
@@ -1540,12 +1525,16 @@ int http_process_request(struct session *s, struct buffer *req)
 	 *   req->data + req->eol  = end of current header or line (LF or CRLF)
 	 *   req->lr = first non-visited byte
 	 *   req->r  = end of data
+	 *
+	 * At end of parsing, we may perform a capture of the error (if any), and
+	 * we will set a few fields (msg->sol, txn->meth, sn->flags/SN_REDIRECTABLE).
+	 * We also check for monitor-uri, logging, HTTP/0.9 to 1.0 conversion, and
+	 * finally headers capture.
 	 */
 
 	int cur_idx;
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->req;
-	struct proxy *cur_proxy;
 
 	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
@@ -1669,18 +1658,16 @@ int http_process_request(struct session *s, struct buffer *req)
 		return 0;
 	}
 
+	/* OK now we have a complete HTTP request with indexed headers. Let's
+	 * complete the request parsing by setting a few fields we will need
+	 * later.
+	 */
 
-	/****************************************************************
-	 * More interesting part now : we know that we have a complete  *
-	 * request which at least looks like HTTP. We have an indicator *
-	 * of each header's length, so we can parse them quickly.       *
-	 ****************************************************************/
-
-	if (msg->err_pos >= 0)
+	/* Maybe we found in invalid header name while we were configured not
+	 * to block on that, so we have to capture it now.
+	 */
+	if (unlikely(msg->err_pos >= 0))
 		http_capture_bad_message(&s->fe->invalid_req, s, req, msg, s->fe);
-
-	req->analysers &= ~AN_REQ_HTTP_HDR;
-	req->analyse_exp = TICK_ETERNITY;
 
 	/* ensure we keep this pointer to the beginning of the message */
 	msg->sol = req->data + msg->som;
@@ -1708,13 +1695,12 @@ int http_process_request(struct session *s, struct buffer *req)
 		 * We have found the monitor URI
 		 */
 		struct acl_cond *cond;
-		cur_proxy = s->fe;
 
 		s->flags |= SN_MONITOR;
 
 		/* Check if we want to fail this monitor request or not */
-		list_for_each_entry(cond, &cur_proxy->mon_fail_cond, list) {
-			int ret = acl_exec_cond(cond, cur_proxy, s, txn, ACL_DIR_REQ);
+		list_for_each_entry(cond, &s->fe->mon_fail_cond, list) {
+			int ret = acl_exec_cond(cond, s->fe, s, txn, ACL_DIR_REQ);
 
 			ret = acl_pass(ret);
 			if (cond->pol == ACL_COND_UNLESS)
@@ -1792,6 +1778,60 @@ int http_process_request(struct session *s, struct buffer *req)
 	if (unlikely((s->logs.logwait & LW_REQHDR) && s->fe->req_cap))
 		capture_headers(req->data + msg->som, &txn->hdr_idx,
 				txn->req.cap, s->fe->req_cap);
+
+	/* end of job, return OK */
+	req->analysers &= ~AN_REQ_WAIT_HTTP;
+	req->analyse_exp = TICK_ETERNITY;
+	return 1;
+
+ return_bad_req:
+	/* We centralize bad requests processing here */
+	if (unlikely(msg->msg_state == HTTP_MSG_ERROR) || msg->err_pos >= 0) {
+		/* we detected a parsing error. We want to archive this request
+		 * in the dedicated proxy area for later troubleshooting.
+		 */
+		http_capture_bad_message(&s->fe->invalid_req, s, req, msg, s->fe);
+	}
+
+	txn->req.msg_state = HTTP_MSG_ERROR;
+	txn->status = 400;
+	stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_400));
+	s->fe->failed_req++;
+
+ return_prx_cond:
+	if (!(s->flags & SN_ERR_MASK))
+		s->flags |= SN_ERR_PRXCOND;
+	if (!(s->flags & SN_FINST_MASK))
+		s->flags |= SN_FINST_R;
+
+	req->analysers = 0;
+	req->analyse_exp = TICK_ETERNITY;
+	return 0;
+}
+
+/* This function performs all the processing enabled for the current request.
+ * It returns 1 if the processing can continue on next analysers, or zero if it
+ * needs more data, encounters an error, or wants to immediately abort the
+ * request. It relies on buffers flags, and updates s->req->analysers.
+ */
+int http_process_request(struct session *s, struct buffer *req)
+{
+	int cur_idx;
+	struct http_txn *txn = &s->txn;
+	struct http_msg *msg = &txn->req;
+	struct proxy *cur_proxy;
+
+	req->analysers &= ~AN_REQ_HTTP_HDR;
+	req->analyse_exp = TICK_ETERNITY;
+
+	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
+		now_ms, __FUNCTION__,
+		s,
+		req,
+		req->rex, req->wex,
+		req->flags,
+		req->l,
+		req->analysers);
 
 	/*
 	 * 6: we will have to evaluate the filters.

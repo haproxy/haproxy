@@ -3777,7 +3777,7 @@ int check_config_validity()
 			listener->handler = process_session;
 
 			if (curproxy->mode == PR_MODE_HTTP)
-				listener->analysers |= AN_REQ_HTTP_HDR;
+				listener->analysers |= AN_REQ_WAIT_HTTP | AN_REQ_HTTP_HDR;
 
 			/* smart accept mode is automatic in HTTP mode */
 			if ((curproxy->options2 & PR_O2_SMARTACC) ||

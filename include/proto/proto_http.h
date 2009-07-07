@@ -61,6 +61,7 @@ int event_accept(int fd);
 int process_cli(struct session *t);
 int process_srv_data(struct session *t);
 int process_srv_conn(struct session *t);
+int http_wait_for_request(struct session *s, struct buffer *req);
 int http_process_request(struct session *t, struct buffer *req);
 int http_process_tarpit(struct session *s, struct buffer *req);
 int http_process_request_body(struct session *s, struct buffer *req);

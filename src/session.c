@@ -730,6 +730,12 @@ resync_stream_interface:
 						break;
 				}
 
+				if (s->req->analysers & AN_REQ_WAIT_HTTP) {
+					last_ana |= AN_REQ_WAIT_HTTP;
+					if (!http_wait_for_request(s, s->req))
+						break;
+				}
+
 				if (s->req->analysers & AN_REQ_HTTP_HDR) {
 					last_ana |= AN_REQ_HTTP_HDR;
 					if (!http_process_request(s, s->req))
