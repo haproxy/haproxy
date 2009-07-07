@@ -60,20 +60,6 @@
 #include <libtcpsplice.h>
 #endif
 
-#define DEBUG_PARSE_NO_SPEEDUP
-#undef DEBUG_PARSE_NO_SPEEDUP
-
-/* This is used to perform a quick jump as an alternative to a break/continue
- * instruction. The first argument is the label for normal operation, and the
- * second one is the break/continue instruction in the no_speedup mode.
- */
-
-#ifdef DEBUG_PARSE_NO_SPEEDUP
-#define QUICK_JUMP(x,y) y
-#else
-#define QUICK_JUMP(x,y) goto x
-#endif
-
 /* This is used by remote monitoring */
 const char HTTP_200[] =
 	"HTTP/1.0 200 OK\r\n"
