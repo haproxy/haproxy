@@ -726,31 +726,31 @@ resync_stream_interface:
 
 				if (s->req->analysers & AN_REQ_INSPECT) {
 					last_ana |= AN_REQ_INSPECT;
-					if (!tcp_inspect_request(s, s->req))
+					if (!tcp_inspect_request(s, s->req, AN_REQ_INSPECT))
 						break;
 				}
 
 				if (s->req->analysers & AN_REQ_WAIT_HTTP) {
 					last_ana |= AN_REQ_WAIT_HTTP;
-					if (!http_wait_for_request(s, s->req))
+					if (!http_wait_for_request(s, s->req, AN_REQ_WAIT_HTTP))
 						break;
 				}
 
 				if (s->req->analysers & AN_REQ_HTTP_HDR) {
 					last_ana |= AN_REQ_HTTP_HDR;
-					if (!http_process_request(s, s->req))
+					if (!http_process_request(s, s->req, AN_REQ_HTTP_HDR))
 						break;
 				}
 
 				if (s->req->analysers & AN_REQ_HTTP_TARPIT) {
 					last_ana |= AN_REQ_HTTP_TARPIT;
-					if (!http_process_tarpit(s, s->req))
+					if (!http_process_tarpit(s, s->req, AN_REQ_HTTP_TARPIT))
 						break;
 				}
 
 				if (s->req->analysers & AN_REQ_HTTP_BODY) {
 					last_ana |= AN_REQ_HTTP_BODY;
-					if (!http_process_request_body(s, s->req))
+					if (!http_process_request_body(s, s->req, AN_REQ_HTTP_BODY))
 						break;
 				}
 			}

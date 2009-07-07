@@ -373,7 +373,7 @@ void tcpv6_add_listener(struct listener *listener)
  * called after XXX bytes have been received (or transfered), and the min of
  * all's wishes will be used to ring back (unless a special condition occurs).
  */
-int tcp_inspect_request(struct session *s, struct buffer *req)
+int tcp_inspect_request(struct session *s, struct buffer *req, int an_bit)
 {
 	struct tcp_rule *rule;
 	int partial;
@@ -441,7 +441,7 @@ int tcp_inspect_request(struct session *s, struct buffer *req)
 	/* if we get there, it means we have no rule which matches, or
 	 * we have an explicit accept, so we apply the default accept.
 	 */
-	req->analysers &= ~AN_REQ_INSPECT;
+	req->analysers &= ~an_bit;
 	req->analyse_exp = TICK_ETERNITY;
 	return 1;
 }

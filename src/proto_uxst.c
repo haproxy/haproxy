@@ -640,7 +640,7 @@ int unix_sock_parse_request(struct session *s, char *line)
  * STATS_ST_CLOSE. It removes the AN_REQ_UNIX_STATS bit from req->analysers
  * once done. It always returns 0.
  */
-int uxst_req_analyser_stats(struct session *s, struct buffer *req)
+int uxst_req_analyser_stats(struct session *s, struct buffer *req, int an_bit)
 {
 	char *line, *p;
 
@@ -694,7 +694,7 @@ int uxst_req_analyser_stats(struct session *s, struct buffer *req)
 
 	case STATS_ST_CLOSE:
 		/* end of dump */
-		s->req->analysers &= ~AN_REQ_UNIX_STATS;
+		s->req->analysers &= ~an_bit;
 		s->ana_state = 0;
 		break;
 	}
@@ -793,7 +793,7 @@ struct task *uxst_process_session(struct task *t)
 			 */
 			while (s->req->analysers) {
 				if (s->req->analysers & AN_REQ_UNIX_STATS)
-					if (!uxst_req_analyser_stats(s, s->req))
+					if (!uxst_req_analyser_stats(s, s->req, AN_REQ_UNIX_STATS))
 						break;
 
 				/* Just make sure that nobody set a wrong flag causing an endless loop */

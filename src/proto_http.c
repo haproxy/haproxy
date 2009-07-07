@@ -1509,7 +1509,7 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
  * when it has nothing left to do, and may remove any analyser when it wants to
  * abort.
  */
-int http_wait_for_request(struct session *s, struct buffer *req)
+int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 {
 	/*
 	 * We will parse the partial (or complete) lines.
@@ -1780,7 +1780,7 @@ int http_wait_for_request(struct session *s, struct buffer *req)
 				txn->req.cap, s->fe->req_cap);
 
 	/* end of job, return OK */
-	req->analysers &= ~AN_REQ_WAIT_HTTP;
+	req->analysers &= ~an_bit;
 	req->analyse_exp = TICK_ETERNITY;
 	return 1;
 
@@ -1814,14 +1814,14 @@ int http_wait_for_request(struct session *s, struct buffer *req)
  * needs more data, encounters an error, or wants to immediately abort the
  * request. It relies on buffers flags, and updates s->req->analysers.
  */
-int http_process_request(struct session *s, struct buffer *req)
+int http_process_request(struct session *s, struct buffer *req, int an_bit)
 {
 	int cur_idx;
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->req;
 	struct proxy *cur_proxy;
 
-	req->analysers &= ~AN_REQ_HTTP_HDR;
+	req->analysers &= ~an_bit;
 	req->analyse_exp = TICK_ETERNITY;
 
 	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
@@ -2448,7 +2448,7 @@ int http_process_request(struct session *s, struct buffer *req)
  * returns zero, at the beginning because it prevents any other processing
  * from occurring, and at the end because it terminates the request.
  */
-int http_process_tarpit(struct session *s, struct buffer *req)
+int http_process_tarpit(struct session *s, struct buffer *req, int an_bit)
 {
 	struct http_txn *txn = &s->txn;
 
@@ -2490,7 +2490,7 @@ int http_process_tarpit(struct session *s, struct buffer *req)
  * because it expects the request to be parsed. It returns zero if it needs to
  * read more data, or 1 once it has completed its analysis.
  */
-int http_process_request_body(struct session *s, struct buffer *req)
+int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 {
 	struct http_msg *msg = &s->txn.req;
 	unsigned long body = msg->sol[msg->eoh] == '\r' ? msg->eoh + 2 : msg->eoh + 1;
@@ -2551,7 +2551,7 @@ int http_process_request_body(struct session *s, struct buffer *req)
 	    tick_is_expired(req->analyse_exp, now_ms)) {
 		/* The situation will not evolve, so let's give up on the analysis. */
 		s->logs.tv_request = now;  /* update the request timer to reflect full request */
-		req->analysers &= ~AN_REQ_HTTP_BODY;
+		req->analysers &= ~an_bit;
 		req->analyse_exp = TICK_ETERNITY;
 		return 1;
 	}
