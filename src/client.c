@@ -281,8 +281,13 @@ int event_accept(int fd) {
 
 				memset(txn->rsp.cap, 0, p->nb_rsp_cap*sizeof(char *));
 			}
+		}
 
-
+		if (p->acl_requires & ACL_USE_L7_ANY) {
+			/* we have to allocate header indexes only if we know
+			 * that we may make use of them. This of course includes
+			 * (mode == PR_MODE_HTTP).
+			 */
 			txn->hdr_idx.size = MAX_HTTP_HDR;
 
 			if ((txn->hdr_idx.v = pool_alloc2(p->hdr_idx_pool)) == NULL)
