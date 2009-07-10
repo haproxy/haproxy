@@ -1360,6 +1360,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			return -1;
 		}
 		cond->line = linenum;
+		curproxy->acl_requires |= cond->requires;
 		LIST_ADDQ(&curproxy->block_cond, &cond->list);
 		warnif_misplaced_block(curproxy, file, linenum, args[0]);
 	}
@@ -1475,6 +1476,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		cond->line = linenum;
+		curproxy->acl_requires |= cond->requires;
 		rule = (struct redirect_rule *)calloc(1, sizeof(*rule));
 		rule->cond = cond;
 		rule->rdr_str = strdup(destination);
@@ -1536,6 +1538,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		cond->line = linenum;
+		curproxy->acl_requires |= cond->requires;
 		if (cond->requires & ACL_USE_RTR_ANY) {
 			struct acl *acl;
 			const char *name;
@@ -1921,6 +1924,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				return -1;
 			}
 			cond->line = linenum;
+			curproxy->acl_requires |= cond->requires;
 			LIST_ADDQ(&curproxy->mon_fail_cond, &cond->list);
 		}
 		else {
@@ -3442,6 +3446,7 @@ int check_config_validity()
 			break;
 
 		case PR_MODE_HTTP:
+			curproxy->acl_requires |= ACL_USE_L7_ANY;
 			if ((curproxy->cookie_name != NULL) && (curproxy->srv == NULL)) {
 				Alert("config : HTTP proxy %s has a cookie but no server list !\n",
 				      curproxy->id);

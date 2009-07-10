@@ -539,6 +539,8 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 
 		// FIXME: how to set this ?
 		// cond->line = linenum;
+		if (cond)
+			curpx->acl_requires |= cond->requires;
 		if (cond && cond->requires & (ACL_USE_RTR_ANY | ACL_USE_L7_ANY)) {
 			struct acl *acl;
 			const char *name;
