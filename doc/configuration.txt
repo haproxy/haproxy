@@ -4822,6 +4822,13 @@ req_len <integer>
   return false only when haproxy is certain that no more data will come in.
   This test was designed to be used with TCP request content inspection.
 
+req_proto_http
+  Returns true when data in the request buffer look like HTTP and correctly
+  parses as such. It is the same parser as the common HTTP request parser which
+  is used so there should be no surprizes. This test can be used for instance
+  to direct HTTP traffic to a given port and HTTPS traffic to another one
+  using TCP request content inspection rules.
+
 req_ssl_ver <decimal>
   Returns true when data in the request buffer look like SSL, with a protocol
   version matching the specified range. Both SSLv2 hello messages and SSLv3
@@ -5027,6 +5034,7 @@ ACL name          Equivalent to                Usage
 TRUE             always_true                   always match
 FALSE            always_false                  never match
 LOCALHOST        src 127.0.0.1/8               match connection from local host
+HTTP             req_proto_http                match if protocol is valid HTTP
 HTTP_1.0         req_ver 1.0                   match HTTP version 1.0
 HTTP_1.1         req_ver 1.1                   match HTTP version 1.1
 METH_CONNECT     method  CONNECT               match HTTP CONNECT method

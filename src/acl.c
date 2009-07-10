@@ -797,6 +797,7 @@ const struct {
 	{ .name = "TRUE",           .expr = {"always_true",""}},
 	{ .name = "FALSE",          .expr = {"always_false",""}},
 	{ .name = "LOCALHOST",      .expr = {"src","127.0.0.1/8",""}},
+	{ .name = "HTTP",           .expr = {"req_proto_http",""}},
 	{ .name = "HTTP_1.0",       .expr = {"req_ver","1.0",""}},
 	{ .name = "HTTP_1.1",       .expr = {"req_ver","1.1",""}},
 	{ .name = "METH_CONNECT",   .expr = {"method","CONNECT",""}},

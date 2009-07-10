@@ -1498,6 +1498,46 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 	return;
 }
 
+/* convert an HTTP/0.9 request into an HTTP/1.0 request. Returns 1 if the
+ * conversion succeeded, 0 in case of error. If the request was already 1.X,
+ * nothing is done and 1 is returned.
+ */
+static int http_upgrade_v09_to_v10(struct buffer *req, struct http_msg *msg, struct http_txn *txn)
+{
+	int delta;
+	char *cur_end;
+
+	if (msg->sl.rq.v_l != 0)
+		return 1;
+
+	msg->sol = req->data + msg->som;
+	cur_end = msg->sol + msg->sl.rq.l;
+	delta = 0;
+
+	if (msg->sl.rq.u_l == 0) {
+		/* if no URI was set, add "/" */
+		delta = buffer_replace2(req, cur_end, cur_end, " /", 2);
+		cur_end += delta;
+		msg->eoh += delta;
+	}
+	/* add HTTP version */
+	delta = buffer_replace2(req, cur_end, cur_end, " HTTP/1.0\r\n", 11);
+	msg->eoh += delta;
+	cur_end += delta;
+	cur_end = (char *)http_parse_reqline(msg, req->data,
+					     HTTP_MSG_RQMETH,
+					     msg->sol, cur_end + 1,
+					     NULL, NULL);
+	if (unlikely(!cur_end))
+		return 0;
+
+	/* we have a full HTTP/1.0 request now and we know that
+	 * we have either a CR or an LF at <ptr>.
+	 */
+	hdr_idx_set_start(&txn->hdr_idx, msg->sl.rq.l, *cur_end == '\r');
+	return 1;
+}
+
 /* This stream analyser waits for a complete HTTP request. It returns 1 if the
  * processing can continue on next analysers, or zero if it either needs more
  * data or wants to immediately abort the request (eg: timeout, error, ...). It
@@ -1739,36 +1779,8 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	}
 
 	/* 4. We may have to convert HTTP/0.9 requests to HTTP/1.0 */
-	if (unlikely(msg->sl.rq.v_l == 0)) {
-		int delta;
-		char *cur_end;
-		msg->sol = req->data + msg->som;
-		cur_end = msg->sol + msg->sl.rq.l;
-		delta = 0;
-
-		if (msg->sl.rq.u_l == 0) {
-			/* if no URI was set, add "/" */
-			delta = buffer_replace2(req, cur_end, cur_end, " /", 2);
-			cur_end += delta;
-			msg->eoh += delta;
-		}
-		/* add HTTP version */
-		delta = buffer_replace2(req, cur_end, cur_end, " HTTP/1.0\r\n", 11);
-		msg->eoh += delta;
-		cur_end += delta;
-		cur_end = (char *)http_parse_reqline(msg, req->data,
-						     HTTP_MSG_RQMETH,
-						     msg->sol, cur_end + 1,
-						     NULL, NULL);
-		if (unlikely(!cur_end))
-			goto return_bad_req;
-
-		/* we have a full HTTP/1.0 request now and we know that
-		 * we have either a CR or an LF at <ptr>.
-		 */
-		hdr_idx_set_start(&txn->hdr_idx, msg->sl.rq.l, *cur_end == '\r');
-	}
-
+	if (unlikely(msg->sl.rq.v_l == 0) && !http_upgrade_v09_to_v10(req, msg, txn))
+		goto return_bad_req;
 
 	/* 5: we may need to capture headers */
 	if (unlikely((s->logs.logwait & LW_REQHDR) && s->fe->req_cap))
@@ -4900,6 +4912,57 @@ acl_fetch_path(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 1;
 }
 
+static int
+acl_fetch_proto_http(struct proxy *px, struct session *s, void *l7, int dir,
+		     struct acl_expr *expr, struct acl_test *test)
+{
+	struct buffer *req = s->req;
+	struct http_txn *txn = &s->txn;
+	struct http_msg *msg = &txn->req;
+
+	/* Note: hdr_idx.v cannot be NULL in this ACL because the ACL is tagged
+	 * as a layer7 ACL, which involves automatic allocation of hdr_idx.
+	 */
+
+	if (!s || !req)
+		return 0;
+
+	if (unlikely(msg->msg_state == HTTP_MSG_BODY)) {
+		/* Already decoded as OK */
+		test->flags |= ACL_TEST_F_SET_RES_PASS;
+		return 1;
+	}
+
+	/* Try to decode HTTP request */
+	if (likely(req->lr < req->r))
+		http_msg_analyzer(req, msg, &txn->hdr_idx);
+
+	if (unlikely(msg->msg_state != HTTP_MSG_BODY)) {
+		if ((msg->msg_state == HTTP_MSG_ERROR) || (req->flags & BF_FULL)) {
+			test->flags |= ACL_TEST_F_SET_RES_FAIL;
+			return 1;
+		}
+		/* wait for final state */
+		test->flags |= ACL_TEST_F_MAY_CHANGE;
+		return 0;
+	}
+
+	/* OK we got a valid HTTP request. We have some minor preparation to
+	 * perform so that further checks can rely on HTTP tests.
+	 */
+	msg->sol = req->data + msg->som;
+	txn->meth = find_http_meth(&req->data[msg->som], msg->sl.rq.m_l);
+	if (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)
+		s->flags |= SN_REDIRECTABLE;
+
+	if (unlikely(msg->sl.rq.v_l == 0) && !http_upgrade_v09_to_v10(req, msg, txn)) {
+		test->flags |= ACL_TEST_F_SET_RES_FAIL;
+		return 1;
+	}
+
+	test->flags |= ACL_TEST_F_SET_RES_PASS;
+	return 1;
+}
 
 
 /************************************************************************/
@@ -4908,6 +4971,8 @@ acl_fetch_path(struct proxy *px, struct session *l4, void *l7, int dir,
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct acl_kw_list acl_kws = {{ },{
+	{ "req_proto_http", acl_parse_nothing, acl_fetch_proto_http, acl_match_nothing, ACL_USE_L7REQ_PERMANENT },
+
 	{ "method",     acl_parse_meth,  acl_fetch_meth,   acl_match_meth, ACL_USE_L7REQ_PERMANENT },
 	{ "req_ver",    acl_parse_ver,   acl_fetch_rqver,  acl_match_str,  ACL_USE_L7REQ_VOLATILE  },
 	{ "resp_ver",   acl_parse_ver,   acl_fetch_stver,  acl_match_str,  ACL_USE_L7RTR_VOLATILE  },

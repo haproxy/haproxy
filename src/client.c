@@ -252,28 +252,29 @@ int event_accept(int fd) {
 		txn->hdr_idx.v = NULL;
 		txn->hdr_idx.size = txn->hdr_idx.used = 0;
 
-		if (p->mode == PR_MODE_HTTP) {
-			txn->status = -1;
-			txn->req.hdr_content_len = 0LL;
-			txn->rsp.hdr_content_len = 0LL;
-			txn->req.msg_state = HTTP_MSG_RQBEFORE; /* at the very beginning of the request */
-			txn->rsp.msg_state = HTTP_MSG_RPBEFORE; /* at the very beginning of the response */
-			txn->req.sol = txn->req.eol = NULL;
-			txn->req.som = txn->req.eoh = 0; /* relative to the buffer */
-			txn->rsp.sol = txn->rsp.eol = NULL;
-			txn->rsp.som = txn->rsp.eoh = 0; /* relative to the buffer */
-			txn->req.err_pos = txn->rsp.err_pos = -2; /* block buggy requests/responses */
-			if (p->options2 & PR_O2_REQBUG_OK)
-				txn->req.err_pos = -1; /* let buggy requests pass */
-			txn->auth_hdr.len = -1;
+		/* we always initialize the HTTP structure because we may use it later */
+		txn->status = -1;
+		txn->req.hdr_content_len = 0LL;
+		txn->rsp.hdr_content_len = 0LL;
+		txn->req.msg_state = HTTP_MSG_RQBEFORE; /* at the very beginning of the request */
+		txn->rsp.msg_state = HTTP_MSG_RPBEFORE; /* at the very beginning of the response */
+		txn->req.sol = txn->req.eol = NULL;
+		txn->req.som = txn->req.eoh = 0; /* relative to the buffer */
+		txn->rsp.sol = txn->rsp.eol = NULL;
+		txn->rsp.som = txn->rsp.eoh = 0; /* relative to the buffer */
+		txn->req.err_pos = txn->rsp.err_pos = -2; /* block buggy requests/responses */
+		txn->auth_hdr.len = -1;
+		if (p->options2 & PR_O2_REQBUG_OK)
+			txn->req.err_pos = -1; /* let buggy requests pass */
 
+		if (p->mode == PR_MODE_HTTP) {
+			/* the captures are only used in HTTP frontends */
 			if (p->nb_req_cap > 0) {
 				if ((txn->req.cap = pool_alloc2(p->req_cap_pool)) == NULL)
 					goto out_fail_reqcap;	/* no memory */
 
 				memset(txn->req.cap, 0, p->nb_req_cap*sizeof(char *));
 			}
-
 
 			if (p->nb_rsp_cap > 0) {
 				if ((txn->rsp.cap = pool_alloc2(p->rsp_cap_pool)) == NULL)
