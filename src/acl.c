@@ -847,6 +847,7 @@ struct acl *find_acl_default(const char *acl_name, struct list *known_acl)
 		goto out_free_name;
 
 	cur_acl->name = name;
+	cur_acl->requires |= acl_expr->kw->requires;
 	LIST_INIT(&cur_acl->expr);
 	LIST_ADDQ(&cur_acl->expr, &acl_expr->list);
 	if (known_acl)
