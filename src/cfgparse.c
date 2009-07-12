@@ -865,6 +865,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curproxy->timeout.check = defproxy.timeout.check;
 			curproxy->timeout.queue = defproxy.timeout.queue;
 			curproxy->timeout.tarpit = defproxy.timeout.tarpit;
+			curproxy->timeout.httpreq = defproxy.timeout.httpreq;
 			curproxy->source_addr = defproxy.source_addr;
 		}
 

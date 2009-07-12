@@ -1688,7 +1688,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 
 		/* just set the request timeout once at the beginning of the request */
 		if (!tick_isset(req->analyse_exp))
-			req->analyse_exp = tick_add_ifset(now_ms, s->fe->timeout.httpreq);
+			req->analyse_exp = tick_add_ifset(now_ms, s->be->timeout.httpreq);
 
 		/* we're not ready yet */
 		return 0;
@@ -2535,7 +2535,7 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 		 */
 		buffer_write_dis(req);
 		if (!tick_isset(req->analyse_exp))
-			req->analyse_exp = tick_add_ifset(now_ms, s->fe->timeout.httpreq);
+			req->analyse_exp = tick_add_ifset(now_ms, s->be->timeout.httpreq);
 		return 0;
 	}
 }

@@ -113,7 +113,7 @@ static int proxy_parse_timeout(char **args, int section, struct proxy *proxy,
 	} else if (!strcmp(args[0], "http-request")) {
 		tv = &proxy->timeout.httpreq;
 		td = &defpx->timeout.httpreq;
-		cap = PR_CAP_FE;
+		cap = PR_CAP_FE | PR_CAP_BE;
 	} else if (!strcmp(args[0], "server") || !strcmp(args[0], "srvtimeout")) {
 		name = "server";
 		tv = &proxy->timeout.server;

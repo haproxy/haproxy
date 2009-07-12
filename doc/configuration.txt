@@ -757,7 +757,7 @@ timeout client              X          X         X         -
 timeout clitimeout          X          X         X         -  (deprecated)
 timeout connect             X          -         X         X
 timeout contimeout          X          -         X         X  (deprecated)
-timeout http-request        X          X         X         -
+timeout http-request        X          X         X         X
 timeout queue               X          -         X         X
 timeout server              X          -         X         X
 timeout srvtimeout          X          -         X         X  (deprecated)
@@ -4107,7 +4107,7 @@ timeout contimeout <timeout> (deprecated)
 timeout http-request <timeout>
   Set the maximum allowed time to wait for a complete HTTP request
   May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    yes   |   yes  |   no
+                                 yes   |    yes   |   yes  |   yes
   Arguments :
     <timeout> is the timeout value specified in milliseconds by default, but
               can be in any other unit if the number is suffixed by the unit,
@@ -4133,7 +4133,9 @@ timeout http-request <timeout>
   will prevent people from sending bare HTTP requests using telnet.
 
   If this parameter is not set, the client timeout still applies between each
-  chunk of the incoming request.
+  chunk of the incoming request. It should be set in the frontend to take
+  effect, unless the frontend is in TCP mode, in which case the HTTP backend's
+  timeout will be used.
 
   See also : "timeout client".
 
