@@ -1832,6 +1832,12 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 	struct redirect_rule *rule;
 	int cur_idx;
 
+	if (unlikely(msg->msg_state != HTTP_MSG_BODY)) {
+		/* we need more data */
+		buffer_write_dis(req);
+		return 0;
+	}
+
 	req->analysers &= ~an_bit;
 	req->analyse_exp = TICK_ETERNITY;
 
@@ -2091,6 +2097,12 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 {
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->req;
+
+	if (unlikely(msg->msg_state != HTTP_MSG_BODY)) {
+		/* we need more data */
+		buffer_write_dis(req);
+		return 0;
+	}
 
 	req->analysers &= ~an_bit;
 	req->analyse_exp = TICK_ETERNITY;
@@ -2449,6 +2461,12 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 	unsigned long body = msg->sol[msg->eoh] == '\r' ? msg->eoh + 2 : msg->eoh + 1;
 	long long limit = s->be->url_param_post_limit;
 	struct hdr_ctx ctx;
+
+	if (unlikely(msg->msg_state != HTTP_MSG_BODY)) {
+		/* we need more data */
+		buffer_write_dis(req);
+		return 0;
+	}
 
 	/* We have to parse the HTTP request body to find any required data.
 	 * "balance url_param check_post" should have been the only way to get

@@ -30,6 +30,7 @@
 #include <proto/client.h>
 #include <proto/backend.h>
 #include <proto/fd.h>
+#include <proto/hdr_idx.h>
 #include <proto/log.h>
 #include <proto/protocols.h>
 #include <proto/proto_tcp.h>
@@ -245,7 +246,8 @@ struct proxy *findproxy(const char *name, int mode, int cap) {
 		if ((curproxy->cap & cap)!=cap || strcmp(curproxy->id, name))
 			continue;
 
-		if (curproxy->mode != mode) {
+		if (curproxy->mode != mode &&
+		    !(curproxy->mode == PR_MODE_HTTP && mode == PR_MODE_TCP)) {
 			Alert("Unable to use proxy '%s' with wrong mode, required: %s, has: %s.\n", 
 				name, proxy_mode_str(mode), proxy_mode_str(curproxy->mode));
 			Alert("You may want to use 'mode %s'.\n", proxy_mode_str(mode));
@@ -654,6 +656,27 @@ int session_set_backend(struct session *s, struct proxy *be)
 	if (be->options2 & PR_O2_RSPBUG_OK)
 		s->txn.rsp.err_pos = -1; /* let buggy responses pass */
 	s->flags |= SN_BE_ASSIGNED;
+
+	/* If the target backend requires HTTP processing, we have to allocate
+	 * a struct hdr_idx for it if we did not have one.
+	 */
+	if (unlikely(!s->txn.hdr_idx.v && (be->acl_requires & ACL_USE_L7_ANY))) {
+		if ((s->txn.hdr_idx.v = pool_alloc2(s->fe->hdr_idx_pool)) == NULL)
+			return 0; /* not enough memory */
+		s->txn.hdr_idx.size = MAX_HTTP_HDR;
+		hdr_idx_init(&s->txn.hdr_idx);
+	}
+
+	/* If we're switching from TCP mode to HTTP mode, we need to
+	 * enable several analysers on the backend.
+	 */
+	if (unlikely(s->fe->mode != PR_MODE_HTTP && s->be->mode == PR_MODE_HTTP)) {
+		/* We want to wait for a complete HTTP request and process the
+		 * backend parts.
+		 */
+		s->req->analysers |= AN_REQ_WAIT_HTTP | AN_REQ_HTTP_PROCESS_BE | AN_REQ_HTTP_INNER;
+	}
+
 	return 1;
 }
 

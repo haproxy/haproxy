@@ -4276,6 +4276,12 @@ use_backend <backend> unless <condition>
   used (in case of a "listen" section) or, in case of a frontend, no server is
   used and a 503 service unavailable response is returned.
 
+  Note that it is possible to switch from a TCP frontend to an HTTP backend. In
+  this case, etiher the frontend has already checked that the protocol is HTTP,
+  and backend processing will immediately follow, or the backend will wait for
+  a complete HTTP request to get in. This feature is useful when a frontend
+  must decode several protocols on a unique port, one of them being HTTP.
+
   See also: "default_backend", "tcp-request", and section 7 about ACLs.
   
 
