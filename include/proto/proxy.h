@@ -35,7 +35,7 @@ void pause_proxy(struct proxy *p);
 void stop_proxy(struct proxy *p);
 void pause_proxies(void);
 void listen_proxies(void);
-void session_set_backend(struct session *s, struct proxy *be);
+int  session_set_backend(struct session *s, struct proxy *be);
 
 const char *proxy_cap_str(int cap);
 const char *proxy_mode_str(int mode);

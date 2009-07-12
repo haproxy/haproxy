@@ -586,7 +586,8 @@ int process_switching_rules(struct session *s, struct buffer *req, int an_bit)
 				ret = !ret;
 
 			if (ret) {
-				session_set_backend(s, rule->be.backend);
+				if (!session_set_backend(s, rule->be.backend))
+					goto sw_failed;
 				break;
 			}
 		}
@@ -597,7 +598,8 @@ int process_switching_rules(struct session *s, struct buffer *req, int an_bit)
 		 * backend if any.
 		 */
 		if (!(s->flags & SN_BE_ASSIGNED))
-			session_set_backend(s, s->fe->defbe.be ? s->fe->defbe.be : s->be);
+			if (!session_set_backend(s, s->fe->defbe.be ? s->fe->defbe.be : s->be))
+				goto sw_failed;
 	}
 
 	/* we don't want to run the HTTP filters again if the backend has not changed */
@@ -605,6 +607,21 @@ int process_switching_rules(struct session *s, struct buffer *req, int an_bit)
 		s->req->analysers &= ~AN_REQ_HTTP_PROCESS_BE;
 
 	return 1;
+
+ sw_failed:
+	/* immediately abort this request in case of allocation failure */
+	buffer_abort(s->req);
+	buffer_abort(s->rep);
+
+	if (!(s->flags & SN_ERR_MASK))
+		s->flags |= SN_ERR_RESOURCE;
+	if (!(s->flags & SN_FINST_MASK))
+		s->flags |= SN_FINST_R;
+
+	s->txn.status = 500;
+	s->req->analysers = 0;
+	s->req->analyse_exp = TICK_ETERNITY;
+	return 0;
 }
 
 /* Processes the client, server, request and response jobs of a session task,

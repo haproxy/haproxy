@@ -635,11 +635,12 @@ void listen_proxies(void)
  * session already had a backend assigned, which is indicated by
  * s->flags & SN_BE_ASSIGNED.
  * All flags, stats and counters which need be updated are updated.
+ * Returns 1 if done, 0 in case of internal error, eg: lack of resource.
  */
-void session_set_backend(struct session *s, struct proxy *be)
+int session_set_backend(struct session *s, struct proxy *be)
 {
 	if (s->flags & SN_BE_ASSIGNED)
-		return;
+		return 1;
 	s->be = be;
 	be->beconn++;
 	if (be->beconn > be->beconn_max)
@@ -653,6 +654,7 @@ void session_set_backend(struct session *s, struct proxy *be)
 	if (be->options2 & PR_O2_RSPBUG_OK)
 		s->txn.rsp.err_pos = -1; /* let buggy responses pass */
 	s->flags |= SN_BE_ASSIGNED;
+	return 1;
 }
 
 static struct cfg_kw_list cfg_kws = {{ },{
