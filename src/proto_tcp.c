@@ -406,7 +406,7 @@ int tcp_inspect_request(struct session *s, struct buffer *req, int an_bit)
 		int ret = ACL_PAT_PASS;
 
 		if (rule->cond) {
-			ret = acl_exec_cond(rule->cond, s->fe, s, NULL, ACL_DIR_REQ | partial);
+			ret = acl_exec_cond(rule->cond, s->fe, s, &s->txn, ACL_DIR_REQ | partial);
 			if (ret == ACL_PAT_MISS) {
 				buffer_write_dis(req);
 				/* just set the request timeout once at the beginning of the request */
