@@ -818,6 +818,13 @@ resync_stream_interface:
 					last_ana |= AN_REQ_SWITCHING_RULES;
 					if (!process_switching_rules(s, s->req, AN_REQ_SWITCHING_RULES))
 						break;
+					/* FIXME: we mait switch from TCP to HTTP and want to
+					 * immediately loop back to the top. This is a dirty way
+					 * of doing it, and we should find a cleaner method relying
+					 * on a circular list of function pointers.
+					 */
+					if ((s->req->analysers & ~last_ana) & AN_REQ_WAIT_HTTP)
+						continue;
 				}
 
 				if (s->req->analysers & AN_REQ_HTTP_PROCESS_BE) {
