@@ -505,10 +505,18 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 		pol = ACL_COND_NONE;
 		cond = NULL;
 
-		if (!strcmp(args[3], "if"))
+		if (!*args[3])
+			pol = ACL_COND_NONE;
+		else if (!strcmp(args[3], "if"))
 			pol = ACL_COND_IF;
 		else if (!strcmp(args[3], "unless"))
 			pol = ACL_COND_UNLESS;
+		else {
+			retlen = snprintf(err, errlen,
+					  "'%s %s %s' only accepts 'if' or 'unless', in %s '%s' (was '%s')",
+					  args[0], args[1], args[2], proxy_type_str(curpx), curpx->id, args[3]);
+			return -1;
+		}
 
 		/* Note: we consider "if TRUE" when there is no condition */
 		if (pol != ACL_COND_NONE &&
