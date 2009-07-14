@@ -834,17 +834,16 @@ void stream_sock_shutw(struct stream_interface *si)
 
 	switch (si->state) {
 	case SI_ST_EST:
-		if (!(si->ib->flags & BF_SHUTR)) {
-			EV_FD_CLR(si->fd, DIR_WR);
-			shutdown(si->fd, SHUT_WR);
-			return;
-		}
+		/* we have to shut before closing, otherwise some short messages
+		 * may never leave the system, especially when there are remaining
+		 * unread data in the socket input buffer, or when nolinger is set.
+		 */
+		EV_FD_CLR(si->fd, DIR_WR);
+		shutdown(si->fd, SHUT_WR);
 
-		if (fdtab[si->fd].flags & FD_FL_TCP_NOLING) {
-			/* we have to shut before closing if we disable lingering */
-			EV_FD_CLR(si->fd, DIR_WR);
-			shutdown(si->fd, SHUT_WR);
-		}
+		if (!(si->ib->flags & BF_SHUTR))
+			return;
+
 		/* fall through */
 	case SI_ST_CON:
 		/* we may have to close a pending connection, and mark the
