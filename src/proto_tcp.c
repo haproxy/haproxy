@@ -609,17 +609,16 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 		// cond->line = linenum;
 		if (cond)
 			curpx->acl_requires |= cond->requires;
-		if (cond && cond->requires & (ACL_USE_RTR_ANY | ACL_USE_L7_ANY)) {
+		if (cond && (cond->requires & ACL_USE_RTR_ANY)) {
 			struct acl *acl;
 			const char *name;
 
-			acl = cond_find_require(cond, ACL_USE_RTR_ANY|ACL_USE_L7_ANY);
+			acl = cond_find_require(cond, ACL_USE_RTR_ANY);
 			name = acl ? acl->name : "(unknown)";
 
 			retlen = snprintf(err, errlen,
-					  "acl '%s' involves some %s criteria which will be ignored.",
-					  name,
-					  (acl->requires & ACL_USE_RTR_ANY) ? "response-only" : "layer 7");
+					  "acl '%s' involves some response-only criteria which will be ignored.",
+					  name);
 			warn++;
 		}
 		rule = (struct tcp_rule *)calloc(1, sizeof(*rule));
