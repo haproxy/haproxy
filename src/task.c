@@ -152,10 +152,14 @@ void wake_expired_tasks(int *next)
 		 * lot cheaper to proceed like this because we almost never update
 		 * the tree. We may also find disabled expiration dates there. Since
 		 * we have detached the task from the tree, we simply call task_queue
-		 * to take care of this.
+		 * to take care of this. Note that we might occasionally requeue it at
+		 * the same place, before <eb>, so we have to check if this happens,
+		 * and adjust <eb>, otherwise we may skip it which is not what we want.
 		 */
 		if (!tick_is_expired(task->expire, now_ms)) {
 			task_queue(task);
+			if (!eb || eb->key > task->wq.key)
+				eb = &task->wq;
 			continue;
 		}
 		task_wakeup(task, TASK_WOKEN_TIMER);
