@@ -257,8 +257,8 @@ ifeq ($(IGNOREGIT),)
 VERSION := $(shell [ -d .git/. ] && ref=`(git-describe --tags) 2>/dev/null` && ref=$${ref%-g*} && echo "$${ref\#v}")
 ifneq ($(VERSION),)
 # OK git is there and works.
-SUBVERS := $(shell comms=`git-log --no-merges v$(VERSION).. 2>/dev/null |grep -c ^commit `; [ $$comms -gt 0 ] && echo "-$$comms" )
-VERDATE := $(shell date +%Y/%m/%d -d "`git-log HEAD^.. 2>/dev/null | grep -m 1 ^Date: | cut -f2- -d: | cut -f1 -d+`" )
+SUBVERS := $(shell comms=`git log --no-merges v$(VERSION).. 2>/dev/null |grep -c ^commit `; [ $$comms -gt 0 ] && echo "-$$comms" )
+VERDATE := $(shell date +%Y/%m/%d -d "`git log --pretty=fuller HEAD^.. 2>/dev/null | sed -ne '/^CommitDate:/{s/\(^[^ ]*:\)\|\( [-+].*\)//gp;q}'`" )
 endif
 endif
 
