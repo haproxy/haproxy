@@ -234,8 +234,13 @@ int stream_sock_read(int fd) {
 
 	retval = 1;
 
-	/* stop immediately on errors */
-	if (fdtab[fd].state == FD_STERROR || (fdtab[fd].ev & FD_POLL_ERR))
+	/* stop immediately on errors. Note that we DON'T want to stop on
+	 * POLL_ERR, as the poller might report a write error while there
+	 * are still data available in the recv buffer. This typically
+	 * happens when we send too large a request to a backend server
+	 * which rejects it before reading it all.
+	 */
+	if (fdtab[fd].state == FD_STERROR)
 		goto out_error;
 
 	/* stop here if we reached the end of data */
@@ -648,7 +653,7 @@ int stream_sock_write(int fd)
 #endif
 
 	retval = 1;
-	if (fdtab[fd].state == FD_STERROR || (fdtab[fd].ev & FD_POLL_ERR))
+	if (fdtab[fd].state == FD_STERROR)
 		goto out_error;
 
 	/* we might have been called just after an asynchronous shutw */
