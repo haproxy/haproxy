@@ -386,7 +386,7 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 			     " align: center;"
 			     "}\n"
 			     "h1 {"
-			     " font-size: xx-large;"
+			     " font-size: x-large;"
 			     " margin-bottom: 0.5em;"
 			     "}\n"
 			     "h2 {"
@@ -434,11 +434,11 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 			     ".backup4	{background: #c060ff;}\n"  /* NOLB state shows same as going down */
 			     ".backup5	{background: #90b0e0;}\n"  /* NOLB state shows same as going down */
 			     ".backup6	{background: #e0e0e0;}\n"
-			     ".rls      {letter-spacing: 0.3em;}\n" /* right letter spacing (used for grouping digits) */
+			     ".rls      {letter-spacing: 0.2em; margin-right: 1px;}\n" /* right letter spacing (used for grouping digits) */
 			     "table.tbl { border-collapse: collapse; border-style: none;}\n"
 			     "table.tbl td { border-width: 1px 1px 1px 1px; border-style: solid solid solid solid; padding: 2px 3px; border-color: gray;}\n"
 			     "table.tbl th { border-width: 1px; border-style: solid solid solid solid; border-color: gray;}\n"
-			     "table.tbl th.empty { border-style: none; empty-cells: hide;}\n"
+			     "table.tbl th.empty { border-style: none; empty-cells: hide; background: white;}\n"
 			     "table.lgd { border-collapse: collapse; border-width: 1px; border-style: none none none solid; border-color: black;}\n"
 			     "table.lgd td { border-width: 1px; border-style: solid solid solid solid; border-color: gray; padding: 2px;}\n"
 			     "table.lgd td.noborder { border-style: none; padding: 2px; white-space: nowrap;}\n"
