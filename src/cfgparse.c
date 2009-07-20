@@ -27,6 +27,7 @@
 
 #include <common/cfgparse.h>
 #include <common/config.h>
+#include <common/errors.h>
 #include <common/memory.h>
 #include <common/standard.h>
 #include <common/time.h>
@@ -380,14 +381,22 @@ int warnif_misplaced_reqadd(struct proxy *proxy, const char *file, int line, cha
 }
 
 /*
- * parse a line in a <global> section. Returns 0 if OK, -1 if error.
+ * parse a line in a <global> section. Returns the error code, 0 if OK, or
+ * any combination of :
+ *  - ERR_ABORT: must abort ASAP
+ *  - ERR_FATAL: we can continue parsing but not start the service
+ *  - ERR_WARN: a warning has been emitted
+ *  - ERR_ALERT: an alert has been emitted
+ * Only the two first ones can stop processing, the two others are just
+ * indicators.
  */
 int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 {
+	int err_code = 0;
 
 	if (!strcmp(args[0], "global")) {  /* new section */
 		/* no option, nothing special to do */
-		return 0;
+		goto out;
 	}
 	else if (!strcmp(args[0], "daemon")) {
 		global.mode |= MODE_DAEMON;
@@ -416,44 +425,52 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	else if (!strcmp(args[0], "tune.maxpollevents")) {
 		if (global.tune.maxpollevents != 0) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
-			return 0;
+			err_code |= ERR_ALERT;
+			goto out;
 		}
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			return -1;
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
 		}
 		global.tune.maxpollevents = atol(args[1]);
 	}
 	else if (!strcmp(args[0], "tune.maxaccept")) {
 		if (global.tune.maxaccept != 0) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
-			return 0;
+			err_code |= ERR_ALERT;
+			goto out;
 		}
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			return -1;
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
 		}
 		global.tune.maxaccept = atol(args[1]);
 	}
 	else if (!strcmp(args[0], "uid")) {
 		if (global.uid != 0) {
 			Alert("parsing [%s:%d] : user/uid already specified. Continuing.\n", file, linenum);
-			return 0;
+			err_code |= ERR_ALERT;
+			goto out;
 		}
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			return -1;
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
 		}
 		global.uid = atol(args[1]);
 	}
 	else if (!strcmp(args[0], "gid")) {
 		if (global.gid != 0) {
 			Alert("parsing [%s:%d] : group/gid already specified. Continuing.\n", file, linenum);
-			return 0;
+			err_code |= ERR_ALERT;
+			goto out;
 		}
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			return -1;
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
 		}
 		global.gid = atol(args[1]);
 	}
@@ -462,7 +479,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		struct passwd *ha_user;
 		if (global.uid != 0) {
 			Alert("parsing [%s:%d] : user/uid already specified. Continuing.\n", file, linenum);
-			return 0;
+			err_code |= ERR_ALERT;
+			goto out;
 		}
 		errno = 0;
 		ha_user = getpwnam(args[1]);
@@ -471,14 +489,15 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		else {
 			Alert("parsing [%s:%d] : cannot find user id for '%s' (%d:%s)\n", file, linenum, args[1], errno, strerror(errno));
-			exit(1);
+			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 	}
 	else if (!strcmp(args[0], "group")) {
 		struct group *ha_group;
 		if (global.gid != 0) {
 			Alert("parsing [%s:%d] : gid/group was already specified. Continuing.\n", file, linenum);
-			return 0;
+			err_code |= ERR_ALERT;
+			goto out;
 		}
 		errno = 0;
 		ha_group = getgrnam(args[1]);
@@ -487,79 +506,92 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		else {
 			Alert("parsing [%s:%d] : cannot find group id for '%s' (%d:%s)\n", file, linenum, args[1], errno, strerror(errno));
-			exit(1);
+			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 	}
 	/* end of user/group name handling*/
 	else if (!strcmp(args[0], "nbproc")) {
 		if (global.nbproc != 0) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
-			return 0;
+			err_code |= ERR_ALERT;
+			goto out;
 		}
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			return -1;
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
 		}
 		global.nbproc = atol(args[1]);
 	}
 	else if (!strcmp(args[0], "maxconn")) {
 		if (global.maxconn != 0) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
-			return 0;
+			err_code |= ERR_ALERT;
+			goto out;
 		}
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			return -1;
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
 		}
 		global.maxconn = atol(args[1]);
 #ifdef SYSTEM_MAXCONN
 		if (global.maxconn > DEFAULT_MAXCONN && cfg_maxconn <= DEFAULT_MAXCONN) {
 			Alert("parsing [%s:%d] : maxconn value %d too high for this system.\nLimiting to %d. Please use '-n' to force the value.\n", file, linenum, global.maxconn, DEFAULT_MAXCONN);
 			global.maxconn = DEFAULT_MAXCONN;
+			err_code |= ERR_ALERT;
 		}
 #endif /* SYSTEM_MAXCONN */
 	}
 	else if (!strcmp(args[0], "maxpipes")) {
 		if (global.maxpipes != 0) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
-			return 0;
+			err_code |= ERR_ALERT;
+			goto out;
 		}
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			return -1;
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
 		}
 		global.maxpipes = atol(args[1]);
 	}
 	else if (!strcmp(args[0], "ulimit-n")) {
 		if (global.rlimit_nofile != 0) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
-			return 0;
+			err_code |= ERR_ALERT;
+			goto out;
 		}
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			return -1;
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
 		}
 		global.rlimit_nofile = atol(args[1]);
 	}
 	else if (!strcmp(args[0], "chroot")) {
 		if (global.chroot != NULL) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
-			return 0;
+			err_code |= ERR_ALERT;
+			goto out;
 		}
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects a directory as an argument.\n", file, linenum, args[0]);
-			return -1;
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
 		}
 		global.chroot = strdup(args[1]);
 	}
 	else if (!strcmp(args[0], "pidfile")) {
 		if (global.pidfile != NULL) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
-			return 0;
+			err_code |= ERR_ALERT;
+			goto out;
 		}
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects a file name as an argument.\n", file, linenum, args[0]);
-			return -1;
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
 		}
 		global.pidfile = strdup(args[1]);
 	}
@@ -569,13 +601,15 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	
 		if (*(args[1]) == 0 || *(args[2]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects <address> and <facility> as arguments.\n", file, linenum, args[0]);
-			return -1;
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
 		}
 	
 		facility = get_log_facility(args[2]);
 		if (facility < 0) {
 			Alert("parsing [%s:%d] : unknown log facility '%s'\n", file, linenum, args[2]);
-			exit(1);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			facility = 0;
 		}
 
 		level = 7; /* max syslog level = debug */
@@ -583,16 +617,18 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			level = get_log_level(args[3]);
 			if (level < 0) {
 				Alert("parsing [%s:%d] : unknown optional log level '%s'\n", file, linenum, args[3]);
-				exit(1);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				level = 0;
 			}
 		}
 
 		minlvl = 0; /* limit syslog level to this level (emerg) */
 		if (*(args[4])) {
 			minlvl = get_log_level(args[4]);
-			if (level < 0) {
+			if (minlvl < 0) {
 				Alert("parsing [%s:%d] : unknown optional minimum log level '%s'\n", file, linenum, args[4]);
-				exit(1);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				minlvl = 0;
 			}
 		}
 
@@ -620,22 +656,24 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		else {
 			Alert("parsing [%s:%d] : too many syslog servers\n", file, linenum);
-			return -1;
+			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 	}
 	else if (!strcmp(args[0], "spread-checks")) {  /* random time between checks (0-50) */
 		if (global.spread_checks != 0) {
 			Alert("parsing [%s:%d]: spread-checks already specified. Continuing.\n", file, linenum);
-			return 0;
+			err_code |= ERR_ALERT;
+			goto out;
 		}
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d]: '%s' expects an integer argument (0..50).\n", file, linenum, args[0]);
-			return -1;
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
 		}
 		global.spread_checks = atol(args[1]);
 		if (global.spread_checks < 0 || global.spread_checks > 50) {
 			Alert("parsing [%s:%d]: 'spread-checks' needs a positive value in range 0..50.\n", file, linenum);
-			return -1;
+			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 	}
 	else {
@@ -654,21 +692,23 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 					rc = kwl->kw[index].parse(args, CFG_GLOBAL, NULL, NULL, trash, sizeof(trash));
 					if (rc < 0) {
 						Alert("parsing [%s:%d] : %s\n", file, linenum, trash);
-						return -1;
+						err_code |= ERR_ALERT | ERR_FATAL;
 					}
 					else if (rc > 0) {
 						Warning("parsing [%s:%d] : %s\n", file, linenum, trash);
-						return 0;
+						err_code |= ERR_WARN;
+						goto out;
 					}
-					return 0;
+					goto out;
 				}
 			}
 		}
 		
 		Alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section\n", file, linenum, args[0], "global");
-		return -1;
+		err_code |= ERR_ALERT | ERR_FATAL;
 	}
-	return 0;
+ out:
+	return err_code;
 }
 
 
@@ -3278,7 +3318,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 /*
  * This function reads and parses the configuration file given in the argument.
- * returns 0 if OK, -1 if error.
+ * Returns the error code, 0 if OK, or any combination of :
+ *  - ERR_ABORT: must abort ASAP
+ *  - ERR_FATAL: we can continue parsing but not start the service
+ *  - ERR_WARN: a warning has been emitted
+ *  - ERR_ALERT: an alert has been emitted
+ * Only the two first ones can stop processing, the two others are just
+ * indicators.
  */
 int readcfgfile(const char *file)
 {
@@ -3286,6 +3332,7 @@ int readcfgfile(const char *file)
 	FILE *f;
 	int linenum = 0;
 	int confsect = CFG_NONE;
+	int err_code = 0;
 
 	if ((f=fopen(file,"r")) == NULL)
 		return -1;
@@ -3306,7 +3353,7 @@ int readcfgfile(const char *file)
 			 */
 			Alert("parsing [%s:%d]: line too long, limit: %d.\n",
 			      file, linenum, (int)sizeof(thisline)-1);
-			goto err;
+			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 
 		/* skip leading spaces */
@@ -3350,7 +3397,7 @@ int readcfgfile(const char *file)
 					}
 					else {
 						Alert("parsing [%s:%d] : invalid or incomplete '\\x' sequence in '%s'.\n", file, linenum, args[0]);
-						goto err;
+						err_code |= ERR_ALERT | ERR_FATAL;
 					}
 				}
 				if (skip) {
@@ -3401,7 +3448,7 @@ int readcfgfile(const char *file)
 
 		if (kwm != KWM_STD && strcmp(args[0], "option") != 0) {
 			Alert("parsing [%s:%d]: negation/default currently supported only for options.\n", file, linenum);
-			goto err;
+			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 
 		if (!strcmp(args[0], "listen") ||
@@ -3423,25 +3470,23 @@ int readcfgfile(const char *file)
 		switch (confsect) {
 		case CFG_LISTEN:
 			if (cfg_parse_listen(file, linenum, args, kwm) < 0)
-				goto err;
+				err_code |= ERR_ABORT;
 			break;
 		case CFG_GLOBAL:
-			if (cfg_parse_global(file, linenum, args, kwm) < 0)
-				goto err;
+			err_code |= cfg_parse_global(file, linenum, args, kwm);
 			break;
 		default:
 			Alert("parsing [%s:%d] : unknown keyword '%s' out of section.\n", file, linenum, args[0]);
-			goto err;
+			err_code |= ERR_ALERT | ERR_FATAL;
 		}
+
+		if (err_code & ERR_ABORT)
+			break;
 	}
 	free(cursection);
 	cursection = NULL;
 	fclose(f);
-	return 0;
- err:
-	free(cursection);
-	cursection = NULL;
-	return -1;
+	return err_code;
 }
 
 int check_config_validity()
