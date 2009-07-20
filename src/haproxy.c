@@ -389,6 +389,7 @@ void init(int argc, char **argv)
 	char *old_argv = *argv;
 	char *tmp;
 	char *cfg_pidfile = NULL;
+	int err_code = 0;
 
 	/*
 	 * Initialize the previously static variables.
@@ -541,10 +542,11 @@ void init(int argc, char **argv)
 	init_default_instance();
 
 	for (i = 0; i < cfg_nbcfgfiles; i++) {
-		if (readcfgfile(cfg_cfgfile[i]) < 0) {
-			Alert("Error reading configuration file : %s\n", cfg_cfgfile[i]);
+		err_code |= readcfgfile(cfg_cfgfile[i]);
+		if (err_code & (ERR_ABORT|ERR_FATAL))
+			Alert("Error(s) found in configuration file : %s\n", cfg_cfgfile[i]);
+		if (err_code & ERR_ABORT)
 			exit(1);
-		}
 	}
 
 	if (check_config_validity() < 0) {
