@@ -255,7 +255,7 @@ endif
 # holding the same names in the current directory.
 
 ifeq ($(IGNOREGIT),)
-VERSION := $(shell [ -d .git/. ] && ref=`(git-describe --tags) 2>/dev/null` && ref=$${ref%-g*} && echo "$${ref\#v}")
+VERSION := $(shell [ -d .git/. ] && ref=`(git describe --tags) 2>/dev/null` && ref=$${ref%-g*} && echo "$${ref\#v}")
 ifneq ($(VERSION),)
 # OK git is there and works.
 SUBVERS := $(shell comms=`git log --no-merges v$(VERSION).. 2>/dev/null |grep -c ^commit `; [ $$comms -gt 0 ] && echo "-$$comms" )
@@ -511,7 +511,7 @@ tar:	clean
 	rm -f haproxy-$(VERSION)
 
 git-tar: clean
-	git-tar-tree HEAD haproxy-$(VERSION) | gzip -9 > haproxy-$(VERSION)$(SUBVERS).tar.gz
+	git archive --format=tar --prefix="haproxy-$(VERSION)/" HEAD | gzip -9 > haproxy-$(VERSION)$(SUBVERS).tar.gz
 
 version:
 	@echo "VERSION: $(VERSION)"
