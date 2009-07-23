@@ -894,7 +894,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curproxy->iface_len  = defproxy.iface_len;
 		}
 
-		if (curproxy->cap & PR_CAP_RS) {
+		if (curproxy->cap & PR_CAP_FE) {
 			if (defproxy.capture_name)
 				curproxy->capture_name = strdup(defproxy.capture_name);
 			curproxy->capture_namelen = defproxy.capture_namelen;
@@ -1386,7 +1386,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 	} /* Url App Session */
 	else if (!strcmp(args[0], "capture")) {
-		if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
+		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
 		if (!strcmp(args[1], "cookie")) {  /* name of a cookie to capture */
