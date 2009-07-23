@@ -3726,11 +3726,21 @@ int readcfgfile(const char *file)
 	return err_code;
 }
 
+/*
+ * Returns the error code, 0 if OK, or any combination of :
+ *  - ERR_ABORT: must abort ASAP
+ *  - ERR_FATAL: we can continue parsing but not start the service
+ *  - ERR_WARN: a warning has been emitted
+ *  - ERR_ALERT: an alert has been emitted
+ * Only the two first ones can stop processing, the two others are just
+ * indicators.
+ */
 int check_config_validity()
 {
 	int cfgerr = 0;
 	struct proxy *curproxy = NULL;
 	struct server *newsrv = NULL;
+	int err_code = 0;
 
 	/*
 	 * Now, check for the integrity of all that we have collected.
@@ -3754,7 +3764,8 @@ int check_config_validity()
 
 	if ((curproxy = proxy) == NULL) {
 		Alert("config : no <listen> line. Nothing to do !\n");
-		goto err;
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
 	}
 
 	while (curproxy != NULL) {
@@ -3819,6 +3830,7 @@ int check_config_validity()
 				else if (*(int *)&curproxy->dispatch_addr.sin_addr != 0) {
 					Warning("config : dispatch address of %s '%s' will be ignored in balance mode.\n",
 						proxy_type_str(curproxy), curproxy->id);
+					err_code |= ERR_WARN;
 				}
 			}
 			else if (!(curproxy->options & (PR_O_TRANSP | PR_O_HTTP_PROXY)) &&
@@ -3836,6 +3848,7 @@ int check_config_validity()
 			curproxy->options &= ~PR_O_DISABLE404;
 			Warning("config : '%s' will be ignored for %s '%s' (requires 'option httpchk').\n",
 				"disable-on-404", proxy_type_str(curproxy), curproxy->id);
+			err_code |= ERR_WARN;
 		}
 
 		/* if a default backend was specified, let's find it */
@@ -3850,6 +3863,7 @@ int check_config_validity()
 			} else if (target == curproxy) {
 				Alert("Proxy '%s': loop detected for default_backend: '%s'.\n",
 					curproxy->id, curproxy->defbe.name);
+				cfgerr++;
 			} else {
 				free(curproxy->defbe.name);
 				curproxy->defbe.be = target;
@@ -3926,6 +3940,7 @@ int check_config_validity()
 				"   | with such a configuration. To fix this, please ensure that all following\n"
 				"   | timeouts are set to a non-zero value: 'client', 'connect', 'server'.\n",
 				proxy_type_str(curproxy), curproxy->id);
+			err_code |= ERR_WARN;
 		}
 
 		/* Historically, the tarpit and queue timeouts were inherited from contimeout.
@@ -4022,7 +4037,7 @@ int check_config_validity()
 			if ((curproxy->mode != PR_MODE_HTTP) && (newsrv->rdr_len || newsrv->cklen)) {
 				Alert("config : %s '%s' : server cannot have cookie or redirect prefix in non-HTTP mode.\n",
 				      proxy_type_str(curproxy), curproxy->id);
-				goto err;
+				cfgerr++;
 			}
 			newsrv = newsrv->next;
 		}
@@ -4046,7 +4061,7 @@ int check_config_validity()
 			} else if (newsrv->minconn != newsrv->maxconn && !curproxy->fullconn) {
 				Alert("config : %s '%s' : fullconn is mandatory when minconn is set on a server.\n",
 				      proxy_type_str(curproxy), curproxy->id);
-				goto err;
+				cfgerr++;
 			}
 
 			if (newsrv->trackit) {
@@ -4070,7 +4085,8 @@ int check_config_validity()
 						Alert("config : %s '%s', server '%s': unable to find required proxy '%s' for tracking.\n",
 							proxy_type_str(curproxy), curproxy->id,
 							newsrv->id, pname);
-						return -1;
+						cfgerr++;
+						goto next_srv;
 					}
 				} else
 					px = curproxy;
@@ -4080,7 +4096,8 @@ int check_config_validity()
 					Alert("config : %s '%s', server '%s': unable to find required server '%s' for tracking.\n",
 						proxy_type_str(curproxy), curproxy->id,
 						newsrv->id, sname);
-					return -1;
+					cfgerr++;
+					goto next_srv;
 				}
 
 				if (!(srv->state & SRV_CHECKED)) {
@@ -4088,7 +4105,8 @@ int check_config_validity()
 						"tracing as it does not have checks enabled.\n",
 						proxy_type_str(curproxy), curproxy->id,
 						newsrv->id, px->id, srv->id);
-					return -1;
+					cfgerr++;
+					goto next_srv;
 				}
 
 				if (curproxy != px &&
@@ -4097,7 +4115,8 @@ int check_config_validity()
 						"tracing: disable-on-404 option inconsistency.\n",
 						proxy_type_str(curproxy), curproxy->id,
 						newsrv->id, px->id, srv->id);
-					return -1;
+					cfgerr++;
+					goto next_srv;
 				}
 
 				newsrv->tracked = srv;
@@ -4106,7 +4125,7 @@ int check_config_validity()
 
 				free(newsrv->trackit);
 			}
-
+		next_srv:
 			newsrv = newsrv->next;
 		}
 
@@ -4144,11 +4163,6 @@ int check_config_validity()
 		curproxy = curproxy->next;
 	}
 
-	if (cfgerr > 0) {
-		Alert("Errors found in configuration, aborting.\n");
-		goto err;
-	}
-
 	/*
 	 * Recount currently required checks.
 	 */
@@ -4165,9 +4179,10 @@ int check_config_validity()
 				global.last_checks |= cfg_opts2[optnum].checks;
 	}
 
-	return 0;
- err:
-	return -1;
+	if (cfgerr > 0)
+		err_code |= ERR_ALERT | ERR_FATAL;
+ out:
+	return err_code;
 }
 
 /*

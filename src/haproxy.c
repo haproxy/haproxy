@@ -549,8 +549,9 @@ void init(int argc, char **argv)
 			exit(1);
 	}
 
-	if (check_config_validity() < 0) {
-		Alert("Errors found in configuration.\n");
+	err_code |= check_config_validity();
+	if (err_code & (ERR_ABORT|ERR_FATAL)) {
+		Alert("Fatal errors found in configuration.\n");
 		exit(1);
 	}
 
