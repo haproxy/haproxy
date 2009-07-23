@@ -11,6 +11,8 @@
  */
 
 #include <signal.h>
+#include <string.h>
+
 #include <proto/signal.h>
 #include <proto/log.h>
 
