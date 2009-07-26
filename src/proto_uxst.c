@@ -78,6 +78,18 @@ static struct protocol proto_unix = {
 	.nb_listeners = 0,
 };
 
+const char unix_sock_usage_msg[] =
+        "Unknown command. Please enter one of the following commands only :\n"
+        "  show info   : report information about the running process\n"
+        "  show stat   : report counters for each proxy and server\n"
+        "  show errors : report last request and response errors for each proxy\n"
+        "  show sess   : report the list of current sessions\n"
+	"\n";
+
+const struct chunk unix_sock_usage = {
+        .str = (char *)&unix_sock_usage_msg,
+        .len = sizeof(unix_sock_usage_msg)-1
+};
 
 /********************************
  * 1) low-level socket functions
@@ -666,7 +678,7 @@ int uxst_req_analyser_stats(struct session *s, struct buffer *req)
 			*p = '\0';
 			if (!unix_sock_parse_request(s, line)) {
 				/* invalid request */
-				buffer_shutw_now(s->rep);
+				stream_int_retnclose(s->req->prod, &unix_sock_usage);
 				s->ana_state = 0;
 				req->analysers = 0;
 				return 0;
