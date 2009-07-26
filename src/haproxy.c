@@ -1054,7 +1054,7 @@ int main(int argc, char **argv)
 			      "  Make sure you have enough permissions and that the module is loadable.\n"
 			      "  Alternatively, you may disable the 'tcpsplice' options in the configuration\n"
 			      "  or add 'nosplice' in the global section, or start with '-dS'.\n"
-			      "", argv[0], global.gid);
+			      "", argv[0]);
 			protocol_unbind_all();
 			exit(1);
 		}
