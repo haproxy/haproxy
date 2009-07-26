@@ -19,6 +19,7 @@
 #include <common/standard.h>
 
 #include <proto/acl.h>
+#include <proto/log.h>
 
 /* The capabilities of filtering hooks describe the type of information
  * available to each of them.
@@ -760,6 +761,18 @@ struct acl *parse_acl(const char **args, struct list *known_acl)
 	acl_expr = parse_acl_expr(args + 1);
 	if (!acl_expr)
 		goto out_return;
+
+	/* Check for args beginning with an opening parenthesis just after the
+	 * subject, as this is almost certainly a typo. Right now we can only
+	 * emit a warning, so let's do so.
+	 */
+	if (*args[2] == '(')
+		Warning("parsing acl '%s' :\n"
+			"  matching '%s' for pattern '%s' is likely a mistake and probably\n"
+			"  not what you want. Maybe you need to remove the extraneous space before '('.\n"
+			"  If you are really sure this is not an error, please insert '--' between the\n"
+			"  match and the pattern to make this warning message disappear.\n",
+			args[0], args[1], args[2]);
 
 	cur_acl = find_acl_by_name(args[0], known_acl);
 	if (!cur_acl) {
