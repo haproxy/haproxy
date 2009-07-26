@@ -953,7 +953,7 @@ int main(int argc, char **argv)
 			Alert("[%s.main()] Cannot enable tcp_splice.\n"
 			      "  Make sure you have enough permissions and that the module is loadable.\n"
 			      "  Alternatively, you may disable the 'tcpsplice' options in the configuration.\n"
-			      "", argv[0], global.gid);
+			      "", argv[0]);
 			protocol_unbind_all();
 			exit(1);
 		}
