@@ -1,6 +1,36 @@
 ChangeLog :
 ===========
 
+2009/07/27 : 1.3.19
+    - [MINOR] startup: don't imply -q with -D
+    - [BUG] ensure that we correctly re-start old process in case of error
+    - [MEDIUM] add support for binding to source port ranges during connect
+    - [MEDIUM] support setting a server weight to zero
+    - [MINOR] make DEFAULT_MAXCONN user-configurable at build time
+    - [MEDIUM] config: split parser and checker in two functions
+    - [MEDIUM] config: support loading multiple configuration files
+    - [BUG] http: redirect rules were processed too early
+    - [CLEANUP] remove unused DEBUG_PARSE_NO_SPEEDUP define
+    - [BUG] default ACLs did not properly set the ->requires flag
+    - [BUILD] report commit date and not author's date as build date
+    - [BUG] stream_sock: always shutdown(SHUT_WR) before closing
+    - [BUG] stream_sock: don't stop reading when the poller reports an error
+    - [BUG] config: tcp-request content only accepts "if" or "unless"
+    - [BUG] task: fix possible timer drift after update
+    - [MINOR] stats: better displaying in MSIE
+    - [MINOR] config: improve error reporting in global section
+    - [MINOR] config: improve error reporting in listen sections
+    - [MINOR] config: the "capture" keyword is not allowed in backends
+    - [MINOR] config: improve error reporting when checking configuration
+    - [BUILD] fix a minor build warning on AIX
+    - [BUILD] use "git cmd" instead of "git-cmd"
+    - [CLEANUP] report 2009 not 2008 in the copyright banner.
+    - [MINOR] print usage on the stats sockets upon invalid commands
+    - [MINOR] acl: detect and report potential mistakes in ACLs
+    - [BUILD] fix incorrect printf arg count with tcp_splice
+    - [BUG] fix random pauses on last segment of a series
+    - [BUILD] add support for build under Cygwin
+
 2009/05/10 : 1.3.18
     - [MEDIUM] add support for "balance hdr(name)"
     - [CLEANUP] give a little bit more information in error message
