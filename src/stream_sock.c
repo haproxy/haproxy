@@ -1033,6 +1033,11 @@ void stream_sock_chk_snd(struct stream_interface *si)
 		return;
 
 	retval = stream_sock_write_loop(si, ob);
+	/* here, we have :
+	 *   retval < 0 if an error was encountered during write.
+	 *   retval = 0 if we can't write anymore without polling
+	 *   retval = 1 if we're invited to come back when desired
+	 */
 	if (retval < 0) {
 		/* Write error on the file descriptor. We mark the FD as STERROR so
 		 * that we don't use it anymore and we notify the task.
@@ -1044,7 +1049,11 @@ void stream_sock_chk_snd(struct stream_interface *si)
 		goto out_wakeup;
 	}
 
-	if (retval > 0 || (ob->send_max == 0 && !ob->pipe)) {
+	/* OK, so now we know that retval >= 0 means that some data might have
+	 * been sent, and that we may have to poll first. We have to do that
+	 * too if the buffer is not empty.
+	 */
+	if (ob->send_max == 0 && !ob->pipe) {
 		/* the connection is established but we can't write. Either the
 		 * buffer is empty, or we just refrain from sending because the
 		 * send_max limit was reached. Maybe we just wrote the last
@@ -1062,9 +1071,13 @@ void stream_sock_chk_snd(struct stream_interface *si)
 		ob->wex = TICK_ETERNITY;
 	}
 	else {
-		/* (re)start writing. */
-		si->flags &= ~SI_FL_WAIT_DATA;
+		/* Otherwise there are remaining data to be sent in the buffer,
+		 * which means we have to poll before doing so.
+		 */
 		EV_FD_COND_S(si->fd, DIR_WR);
+		si->flags &= ~SI_FL_WAIT_DATA;
+		if (!tick_isset(ob->wex))
+			ob->wex = tick_add_ifset(now_ms, ob->wto);
 	}
 
 	if (likely(ob->flags & BF_WRITE_ACTIVITY)) {
