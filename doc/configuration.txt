@@ -2,9 +2,9 @@
                                  HAProxy
                           Configuration Manual
                          ----------------------
-                            version 1.3.14.6
+                            version 1.3.14.14
                              willy tarreau
-                               2008/06/21
+                               2009/07/27
 
 
 This document covers the configuration language as implemented in the version
