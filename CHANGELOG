@@ -1,6 +1,65 @@
 ChangeLog :
 ===========
 
+2009/07/29 : 1.4-dev1
+    - [MINOR] acl: add support for matching of RDP cookies
+    - [MEDIUM] add support for RDP cookie load-balancing
+    - [MEDIUM] add support for RDP cookie persistence
+    - [MINOR] add a new CLF log format
+    - [MINOR] startup: don't imply -q with -D
+    - [BUG] ensure that we correctly re-start old process in case of error
+    - [MEDIUM] add support for binding to source port ranges during connect
+    - [MINOR] config: track "no option"/"option" changes
+    - [MINOR] config: support resetting options do default values
+    - [MEDIUM] implement option tcp-smart-accept at the frontend
+    - [MEDIUM] stream_sock: implement tcp-cork for use during shutdowns on Linux
+    - [MEDIUM] implement tcp-smart-connect option at the backend
+    - [MEDIUM] add support for TCP MSS adjustment for listeners
+    - [MEDIUM] support setting a server weight to zero
+    - [MINOR] make DEFAULT_MAXCONN user-configurable at build time
+    - [MAJOR] session: don't clear buffer status flags anymore
+    - [MAJOR] session: only check for timeouts when they have just occurred.
+    - [MAJOR] session: simplify buffer error handling
+    - [MEDIUM] config: split parser and checker in two functions
+    - [MEDIUM] config: support loading multiple configuration files
+    - [MEDIUM] stream_sock: don't close prematurely when nolinger is set
+    - [MEDIUM] session: rework buffer analysis to permit permanent analysers
+    - [MEDIUM] splice: set the capability on each stream_interface
+    - [BUG] http: redirect rules were processed too early
+    - [CLEANUP] remove unused DEBUG_PARSE_NO_SPEEDUP define
+    - [MEDIUM] http: split request waiter from request processor
+    - [MEDIUM] session: tell analysers what bit they were called for
+    - [MAJOR] http: complete splitting of the remaining stages
+    - [MINOR] report in the proxies the requirements for ACLs
+    - [MINOR] http: rely on proxy->acl_requires to allocate hdr_idx
+    - [MINOR] acl: add HTTP protocol detection (req_proto_http)
+    - [MINOR] prepare callers of session_set_backend to handle errors
+    - [BUG] default ACLs did not properly set the ->requires flag
+    - [MEDIUM] allow a TCP frontend to switch to an HTTP backend
+    - [MINOR] ensure we can jump from swiching rules to http without data
+    - [MINOR] http: take http request timeout from the backend
+    - [MINOR] allow TCP inspection rules to make use of HTTP ACLs
+    - [BUILD] report commit date and not author's date as build date
+    - [MINOR] acl: don't complain anymore when using L7 acls in TCP
+    - [BUG] stream_sock: always shutdown(SHUT_WR) before closing
+    - [BUG] stream_sock: don't stop reading when the poller reports an error
+    - [BUG] config: tcp-request content only accepts "if" or "unless"
+    - [BUG] task: fix possible timer drift after update
+    - [MINOR] apply tcp-smart-connect option for the checks too
+    - [MINOR] stats: better displaying in MSIE
+    - [MINOR] config: improve error reporting in global section
+    - [MINOR] config: improve error reporting in listen sections
+    - [MINOR] config: the "capture" keyword is not allowed in backends
+    - [MINOR] config: improve error reporting when checking configuration
+    - [BUILD] fix a minor build warning on AIX
+    - [BUILD] use "git cmd" instead of "git-cmd"
+    - [CLEANUP] report 2009 not 2008 in the copyright banner.
+    - [MINOR] print usage on the stats sockets upon invalid commands
+    - [MINOR] acl: detect and report potential mistakes in ACLs
+    - [BUILD] fix incorrect printf arg count with tcp_splice
+    - [BUG] fix random pauses on last segment of a series
+    - [BUILD] add support for build under Cygwin
+
 2009/06/09 : 1.4-dev0
     - exact copy of 1.3.18
 
