@@ -345,20 +345,10 @@ void tcp_sess_log(struct session *s)
 
 	get_localtime(s->logs.tv_accept.tv_sec, &tm);
 
-	if (fe->logfac1 >= 0)
-		prx_log = fe;
-	/*
-	 * FIXME: should we fall back to the backend if the frontend did not
-	 * define any log ? It seems like we should not permit such complex
-	 * setups because they would induce a debugging nightmare for the
-	 * admin.
-	 */
-	// else if (be->logfac1 >= 0)
-	// prx_log = be;
-	else
-		prx_log = NULL; /* global */
+	if (fe->logfac1 < 0 && fe->logfac2 < 0)
+		return;
 
-	/* FIXME: let's limit ourselves to frontend logging for now. */
+	prx_log = fe;
 	tolog = fe->to_log;
 	svid = (tolog & LW_SVID) ? (s->srv != NULL) ? s->srv->id : "<NOSRV>" : "-";
 
