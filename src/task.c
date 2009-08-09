@@ -155,9 +155,13 @@ void wake_expired_tasks(int *next)
 		 * to take care of this. Note that we might occasionally requeue it at
 		 * the same place, before <eb>, so we have to check if this happens,
 		 * and adjust <eb>, otherwise we may skip it which is not what we want.
+		 * We may also not requeue the task (and not point eb at it) if its
+		 * expiration time is not set.
 		 */
 		if (!tick_is_expired(task->expire, now_ms)) {
-			task_queue(task);
+			if (!tick_isset(task->expire))
+				continue;
+			__task_queue(task);
 			if (!eb || eb->key > task->wq.key)
 				eb = &task->wq;
 			continue;
