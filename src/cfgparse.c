@@ -4029,6 +4029,13 @@ int check_config_validity()
 		if (curproxy->options & PR_O_LOGASAP)
 			curproxy->to_log &= ~LW_BYTES;
 
+		if ((curproxy->mode == PR_MODE_TCP || curproxy->mode == PR_MODE_HTTP) &&
+		    (curproxy->cap & PR_CAP_FE) && curproxy->to_log && curproxy->logfac1 < 0) {
+			Warning("config : log format ignored for %s '%s' since it has no log address.\n",
+				proxy_type_str(curproxy), curproxy->id);
+			err_code |= ERR_WARN;
+		}
+
 		/*
 		 * ensure that we're not cross-dressing a TCP server into HTTP.
 		 */
