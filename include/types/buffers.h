@@ -2,7 +2,7 @@
   include/types/buffers.h
   Buffer management definitions, macros and inline functions.
 
-  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -136,6 +136,7 @@ struct buffer {
 	int cto;                        /* connect timeout, in ticks */
 	unsigned int l;                 /* data length */
 	char *r, *w, *lr;               /* read ptr, write ptr, last read */
+	unsigned int size;              /* buffer size in bytes */
 	unsigned int max_len;           /* read limit, used to keep room for header rewriting */
 	unsigned int send_max;          /* number of bytes the sender can consume om this buffer, <= l */
 	unsigned int to_forward;        /* number of bytes to forward after send_max without a wake-up */
@@ -148,7 +149,7 @@ struct buffer {
 	struct stream_interface *prod;  /* producer attached to this buffer */
 	struct stream_interface *cons;  /* consumer attached to this buffer */
 	struct pipe *pipe;		/* non-NULL only when data present */
-	char data[BUFSIZE];
+	char data[0];                   /* <size> bytes */
 };
 
 

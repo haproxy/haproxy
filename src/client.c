@@ -384,6 +384,7 @@ int event_accept(int fd) {
 		if ((s->req = pool_alloc2(pool2_buffer)) == NULL)
 			goto out_fail_req; /* no memory */
 
+		s->req->size = BUFSIZE;
 		buffer_init(s->req);
 		s->req->prod = &s->si[0];
 		s->req->cons = &s->si[1];
@@ -410,6 +411,7 @@ int event_accept(int fd) {
 		if ((s->rep = pool_alloc2(pool2_buffer)) == NULL)
 			goto out_fail_rep; /* no memory */
 
+		s->rep->size = BUFSIZE;
 		buffer_init(s->rep);
 		s->rep->prod = &s->si[1];
 		s->rep->cons = &s->si[0];

@@ -24,7 +24,7 @@ struct pool_head *pool2_buffer;
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_buffer()
 {
-	pool2_buffer = create_pool("buffer", sizeof(struct buffer), MEM_F_SHARED);
+	pool2_buffer = create_pool("buffer", sizeof(struct buffer) + BUFSIZE, MEM_F_SHARED);
 	return pool2_buffer != NULL;
 }
 
@@ -48,7 +48,7 @@ int buffer_write(struct buffer *buf, const char *msg, int len)
 	buf->send_max += len;
 	buf->r += len;
 	buf->total += len;
-	if (buf->r == buf->data + BUFSIZE)
+	if (buf->r == buf->data + buf->size)
 		buf->r = buf->data;
 
 	buf->flags &= ~(BF_EMPTY|BF_FULL);
@@ -82,7 +82,7 @@ int buffer_write_chunk(struct buffer *buf, struct chunk *chunk)
 	buf->send_max += chunk->len;
 	buf->r += chunk->len;
 	buf->total += chunk->len;
-	if (buf->r == buf->data + BUFSIZE)
+	if (buf->r == buf->data + buf->size)
 		buf->r = buf->data;
 
 	buf->flags &= ~(BF_EMPTY|BF_FULL);
@@ -111,7 +111,7 @@ int buffer_replace(struct buffer *b, char *pos, char *end, const char *str)
 	len = strlen(str);
 	delta = len - (end - pos);
 
-	if (delta + b->r >= b->data + BUFSIZE)
+	if (delta + b->r >= b->data + b->size)
 		return 0;  /* no space left */
 
 	/* first, protect the end of the buffer */
@@ -145,7 +145,7 @@ int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int
 
 	delta = len - (end - pos);
 
-	if (delta + b->r >= b->data + BUFSIZE)
+	if (delta + b->r >= b->data + b->size)
 		return 0;  /* no space left */
 
 	if (b->data + b->l < end) {
@@ -192,7 +192,7 @@ int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len)
 
 	delta = len + 2;
 
-	if (delta + b->r >= b->data + BUFSIZE)
+	if (delta + b->r >= b->data + b->size)
 		return 0;  /* no space left */
 
 	/* first, protect the end of the buffer */

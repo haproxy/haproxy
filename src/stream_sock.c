@@ -345,7 +345,7 @@ int stream_sock_read(int fd) {
 			b->flags |= BF_READ_PARTIAL;
 			b->flags &= ~BF_EMPTY;
 
-			if (b->r == b->data + BUFSIZE) {
+			if (b->r == b->data + b->size) {
 				b->r = b->data; /* wrap around the buffer */
 			}
 
@@ -367,7 +367,7 @@ int stream_sock_read(int fd) {
 					}
 				}
 				else if ((b->flags & (BF_STREAMER | BF_STREAMER_FAST)) &&
-					 (cur_read <= BUFSIZE / 2)) {
+					 (cur_read <= b->size / 2)) {
 					b->xfer_large = 0;
 					b->xfer_small++;
 					if (b->xfer_small >= 2) {
@@ -397,7 +397,7 @@ int stream_sock_read(int fd) {
 			 */
 			if (ret < max) {
 				if ((b->flags & (BF_STREAMER | BF_STREAMER_FAST)) &&
-				    (cur_read <= BUFSIZE / 2)) {
+				    (cur_read <= b->size / 2)) {
 					b->xfer_large = 0;
 					b->xfer_small++;
 					if (b->xfer_small >= 3) {
@@ -580,7 +580,7 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 		if (b->r > b->w)
 			max = b->r - b->w;
 		else
-			max = b->data + BUFSIZE - b->w;
+			max = b->data + b->size - b->w;
 
 		/* limit the amount of outgoing data if required */
 		if (max > b->send_max)
@@ -628,7 +628,7 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 			b->flags |= BF_WRITE_PARTIAL;
 
 			b->w += ret;
-			if (b->w == b->data + BUFSIZE)
+			if (b->w == b->data + b->size)
 				b->w = b->data; /* wrap around the buffer */
 
 			b->l -= ret;

@@ -2576,7 +2576,7 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 	 * could. Let's switch to the DATA state.                    *
 	 ************************************************************/
 
-	buffer_set_rlim(req, BUFSIZE); /* no more rewrite needed */
+	buffer_set_rlim(req, req->size); /* no more rewrite needed */
 	s->logs.tv_request = now;
 
 	/* When a connection is tarpitted, we use the tarpit timeout,
@@ -3190,7 +3190,7 @@ int process_response(struct session *t)
 		 * could. Let's switch to the DATA state.                    *
 		 ************************************************************/
 
-		buffer_set_rlim(rep, BUFSIZE); /* no more rewrite needed */
+		buffer_set_rlim(rep, rep->size); /* no more rewrite needed */
 		t->logs.t_data = tv_ms_elapsed(&t->logs.tv_accept, &now);
 
 		/* if the user wants to log as soon as possible, without counting

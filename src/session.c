@@ -320,7 +320,7 @@ void sess_establish(struct session *s, struct stream_interface *si)
 	struct buffer *rep = si->ib;
 
 	if (s->be->mode == PR_MODE_TCP) { /* let's allow immediate data connection in this case */
-		buffer_set_rlim(rep, BUFSIZE); /* no rewrite needed */
+		buffer_set_rlim(rep, rep->size); /* no rewrite needed */
 
 		/* if the user wants to log as soon as possible, without counting
 		 * bytes from the server, then this is the right moment. */
@@ -330,7 +330,7 @@ void sess_establish(struct session *s, struct stream_interface *si)
 		}
 	}
 	else {
-		buffer_set_rlim(rep, BUFSIZE - MAXREWRITE); /* rewrite needed */
+		buffer_set_rlim(rep, req->size - MAXREWRITE); /* rewrite needed */
 		s->txn.rsp.msg_state = HTTP_MSG_RPBEFORE;
 		/* reset hdr_idx which was already initialized by the request.
 		 * right now, the http parser does it.

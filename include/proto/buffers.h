@@ -41,6 +41,7 @@ int init_buffer();
 /* Initializes all fields in the buffer. The ->max_len field is initialized last
  * so that the compiler can optimize it away if changed immediately after the
  * call to this function. By default, it is set to the full size of the buffer.
+ * This implies that buffer_init() must only be called once ->size is set !
  * The BF_EMPTY flags is set.
  */
 static inline void buffer_init(struct buffer *buf)
@@ -53,7 +54,7 @@ static inline void buffer_init(struct buffer *buf)
 	buf->cons = NULL;
 	buf->flags = BF_EMPTY;
 	buf->r = buf->lr = buf->w = buf->data;
-	buf->max_len = BUFSIZE;
+	buf->max_len = buf->size;
 }
 
 /* returns 1 if the buffer is empty, 0 otherwise */
@@ -64,7 +65,7 @@ static inline int buffer_isempty(const struct buffer *buf)
 
 /* returns 1 if the buffer is full, 0 otherwise */
 static inline int buffer_isfull(const struct buffer *buf) {
-	return buf->l == BUFSIZE;
+	return buf->l == buf->size;
 }
 
 /* Check buffer timeouts, and set the corresponding flags. The
@@ -238,10 +239,10 @@ static inline void buffer_check_shutw(struct buffer *b)
 /* returns the maximum number of bytes writable at once in this buffer */
 static inline int buffer_max(const struct buffer *buf)
 {
-	if (buf->l == BUFSIZE)
+	if (buf->l == buf->size)
 		return 0;
 	else if (buf->r >= buf->w)
-		return buf->data + BUFSIZE - buf->r;
+		return buf->data + buf->size - buf->r;
 	else
 		return buf->w - buf->r;
 }
