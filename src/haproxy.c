@@ -152,12 +152,7 @@ const int zero = 0;
 const int one = 1;
 const struct linger nolinger = { .l_onoff = 1, .l_linger = 0 };
 
-/*
- * Syslog facilities and levels. Conforming to RFC3164.
- */
-
-#define MAX_HOSTNAME_LEN	32
-static char hostname[MAX_HOSTNAME_LEN] = "";
+char hostname[MAX_HOSTNAME_LEN] = "";
 
 
 /*********************************************************************/

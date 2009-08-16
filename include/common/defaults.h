@@ -179,4 +179,9 @@
 #define MAX_SIGNAL 256
 #endif
 
+/* Maximum host name length */
+#ifndef MAX_HOSTNAME_LEN
+#define MAX_HOSTNAME_LEN	32
+#endif
+
 #endif /* _COMMON_DEFAULTS_H */
