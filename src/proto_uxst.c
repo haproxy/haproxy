@@ -450,8 +450,7 @@ int uxst_event_accept(int fd) {
 
 		s->task = t;
 		s->listener = l;
-		s->fe = NULL;
-		s->be = NULL;
+		s->fe = s->be = l->private;
 
 		s->ana_state = 0;
 		s->req = s->rep = NULL; /* will be allocated later */

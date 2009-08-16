@@ -44,6 +44,7 @@
 #include <proto/freq_ctr.h>
 #include <proto/pipe.h>
 #include <proto/proto_uxst.h>
+#include <proto/proxy.h>
 #include <proto/session.h>
 #include <proto/server.h>
 #include <proto/stream_interface.h>
@@ -78,12 +79,42 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 		su.sun_path[sizeof(su.sun_path) - 1] = 0;
 		memcpy(&global.stats_sock.addr, &su, sizeof(su)); // guaranteed to fit
 
+		if (!global.stats_fe) {
+			if ((global.stats_fe = (struct proxy *)calloc(1, sizeof(struct proxy))) == NULL) {
+				snprintf(err, errlen, "out of memory");
+				return -1;
+			}
+
+			LIST_INIT(&global.stats_fe->pendconns);
+			LIST_INIT(&global.stats_fe->acl);
+			LIST_INIT(&global.stats_fe->block_cond);
+			LIST_INIT(&global.stats_fe->redirect_rules);
+			LIST_INIT(&global.stats_fe->mon_fail_cond);
+			LIST_INIT(&global.stats_fe->switching_rules);
+			LIST_INIT(&global.stats_fe->tcp_req.inspect_rules);
+
+			/* Timeouts are defined as -1, so we cannot use the zeroed area
+			 * as a default value.
+			 */
+			proxy_reset_timeouts(global.stats_fe);
+
+			global.stats_fe->last_change = now.tv_sec;
+			global.stats_fe->id = strdup("GLOBAL");
+			global.stats_fe->cap = PR_CAP_FE;
+		}
+
 		global.stats_sock.state = LI_INIT;
 		global.stats_sock.options = LI_O_NONE;
 		global.stats_sock.accept = uxst_event_accept;
 		global.stats_sock.handler = uxst_process_session;
 		global.stats_sock.analysers = AN_REQ_UNIX_STATS;
-		global.stats_sock.private = NULL;
+		global.stats_sock.private = global.stats_fe; /* must point to the frontend */
+
+		global.stats_fe->timeout.client = MS_TO_TICKS(10000); /* default timeout of 10 seconds */
+		global.stats_sock.timeout = &global.stats_fe->timeout.client;
+
+		global.stats_sock.next  = global.stats_fe->listen;
+		global.stats_fe->listen = &global.stats_sock;
 
 		cur_arg = 2;
 		while (*args[cur_arg]) {
@@ -143,7 +174,7 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 			snprintf(err, errlen, "a positive value is expected for 'stats timeout' in 'global section'");
 			return -1;
 		}
-		global.stats_timeout = MS_TO_TICKS(timeout);
+		global.stats_fe->timeout.client = MS_TO_TICKS(timeout);
 	}
 	else if (!strcmp(args[0], "maxconn")) {
 		int maxconn = atol(args[1]);

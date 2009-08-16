@@ -113,9 +113,7 @@ struct global global = {
 	logfac2 : -1,
 	loglev1 : 7, /* max syslog level : debug */
 	loglev2 : 7,
-	.stats_timeout = MS_TO_TICKS(10000), /* stats timeout = 10 seconds */
 	.stats_sock = {
-		.timeout = &global.stats_timeout,
 		.maxconn = 10, /* 10 concurrent stats connections */
 		.perm = {
 			 .ux = {

@@ -27,6 +27,7 @@
 #include <common/config.h>
 #include <types/log.h>
 #include <types/protocols.h>
+#include <types/proxy.h>
 #include <types/task.h>
 
 /* modes of operation (global.mode) */
@@ -80,7 +81,7 @@ struct global {
 		int recv_enough;   /* how many input bytes at once are "enough" */
 	} tune;
 	struct listener stats_sock; /* unix socket listener for statistics */
-	int stats_timeout;          /* in ticks */
+	struct proxy *stats_fe;     /* the frontend holding the stats settings */
 };
 
 extern struct global global;
