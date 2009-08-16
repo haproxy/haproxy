@@ -44,6 +44,8 @@
 #define STATS_ST_REP   2
 #define STATS_ST_CLOSE 3
 
+int stats_sock_parse_request(struct session *s, char *line);
+int stats_sock_req_analyser(struct session *s, struct buffer *req, int an_bit);
 int stats_dump_raw(struct session *s, struct buffer *rep, struct uri_auth *uri);
 void stats_dump_raw_to_buffer(struct session *s, struct buffer *req);
 int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri);

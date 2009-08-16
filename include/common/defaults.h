@@ -64,8 +64,8 @@
 // max # args on a configuration line
 #define MAX_LINE_ARGS   64
 
-// max # args on a uxts socket
-#define MAX_UXST_ARGS   16
+// max # args on a stats socket
+#define MAX_STATS_ARGS  16
 
 // max # of added headers per request
 #define MAX_NEWHDR      10

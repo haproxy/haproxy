@@ -22,13 +22,13 @@
 #include <proto/acl.h>
 #include <proto/backend.h>
 #include <proto/buffers.h>
+#include <proto/dumpstats.h>
 #include <proto/hdr_idx.h>
 #include <proto/log.h>
 #include <proto/session.h>
 #include <proto/pipe.h>
 #include <proto/proto_http.h>
 #include <proto/proto_tcp.h>
-#include <proto/proto_uxst.h>
 #include <proto/proxy.h>
 #include <proto/queue.h>
 #include <proto/server.h>
@@ -841,9 +841,9 @@ resync_stream_interface:
 						break;
 				}
 
-				if (s->req->analysers & AN_REQ_UNIX_STATS) {
-					last_ana |= AN_REQ_UNIX_STATS;
-					if (!uxst_req_analyser_stats(s, s->req, AN_REQ_UNIX_STATS))
+				if (s->req->analysers & AN_REQ_STATS_SOCK) {
+					last_ana |= AN_REQ_STATS_SOCK;
+					if (!stats_sock_req_analyser(s, s->req, AN_REQ_STATS_SOCK))
 						break;
 				}
 

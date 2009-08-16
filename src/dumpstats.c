@@ -50,6 +50,19 @@
 #include <proto/stream_interface.h>
 #include <proto/task.h>
 
+const char stats_sock_usage_msg[] =
+        "Unknown command. Please enter one of the following commands only :\n"
+        "  show info   : report information about the running process\n"
+        "  show stat   : report counters for each proxy and server\n"
+        "  show errors : report last request and response errors for each proxy\n"
+        "  show sess   : report the list of current sessions\n"
+	"\n";
+
+const struct chunk stats_sock_usage = {
+        .str = (char *)&stats_sock_usage_msg,
+        .len = sizeof(stats_sock_usage_msg)-1
+};
+
 /* This function parses a "stats" statement in the "global" section. It returns
  * -1 if there is any error, otherwise zero. If it returns -1, it may write an
  * error message into ther <err> buffer, for at most <errlen> bytes, trailing
@@ -107,7 +120,7 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 		global.stats_sock.options = LI_O_NONE;
 		global.stats_sock.accept = uxst_event_accept;
 		global.stats_sock.handler = process_session;
-		global.stats_sock.analysers = AN_REQ_UNIX_STATS;
+		global.stats_sock.analysers = AN_REQ_STATS_SOCK;
 		global.stats_sock.private = global.stats_fe; /* must point to the frontend */
 
 		global.stats_fe->timeout.client = MS_TO_TICKS(10000); /* default timeout of 10 seconds */
@@ -209,6 +222,147 @@ int print_csv_header(struct chunk *msg, int size)
 			    "pid,iid,sid,throttle,lbtot,tracked,type,"
 			    "rate,rate_lim,rate_max,"
 			    "\n");
+}
+
+/* Parses the request line in <cmd> and possibly starts dumping stats on
+ * s->rep with the hijack bit set. Returns 1 if OK, 0 in case of any error.
+ * The line is modified after parsing.
+ */
+int stats_sock_parse_request(struct session *s, char *line)
+{
+	char *args[MAX_STATS_ARGS + 1];
+	int arg;
+
+	while (isspace((unsigned char)*line))
+		line++;
+
+	arg = 0;
+	args[arg] = line;
+
+	while (*line && arg < MAX_STATS_ARGS) {
+		if (isspace((unsigned char)*line)) {
+			*line++ = '\0';
+
+			while (isspace((unsigned char)*line))
+				line++;
+
+			args[++arg] = line;
+			continue;
+		}
+
+		line++;
+	}
+
+	while (++arg <= MAX_STATS_ARGS)
+		args[arg] = line;
+
+	if (strcmp(args[0], "show") == 0) {
+		if (strcmp(args[1], "stat") == 0) {
+			if (*args[2] && *args[3] && *args[4]) {
+				s->data_ctx.stats.flags |= STAT_BOUND;
+				s->data_ctx.stats.iid	= atoi(args[2]);
+				s->data_ctx.stats.type	= atoi(args[3]);
+				s->data_ctx.stats.sid	= atoi(args[4]);
+			}
+
+			s->data_ctx.stats.flags |= STAT_SHOW_STAT;
+			s->data_ctx.stats.flags |= STAT_FMT_CSV;
+			s->ana_state = STATS_ST_REP;
+			buffer_install_hijacker(s, s->rep, stats_dump_raw_to_buffer);
+		}
+		else if (strcmp(args[1], "info") == 0) {
+			s->data_ctx.stats.flags |= STAT_SHOW_INFO;
+			s->data_ctx.stats.flags |= STAT_FMT_CSV;
+			s->ana_state = STATS_ST_REP;
+			buffer_install_hijacker(s, s->rep, stats_dump_raw_to_buffer);
+		}
+		else if (strcmp(args[1], "sess") == 0) {
+			s->ana_state = STATS_ST_REP;
+			buffer_install_hijacker(s, s->rep, stats_dump_sess_to_buffer);
+		}
+		else if (strcmp(args[1], "errors") == 0) {
+			if (*args[2])
+				s->data_ctx.errors.iid	= atoi(args[2]);
+			else
+				s->data_ctx.errors.iid	= -1;
+			s->data_ctx.errors.px = NULL;
+			s->ana_state = STATS_ST_REP;
+			buffer_install_hijacker(s, s->rep, stats_dump_errors_to_buffer);
+		}
+		else { /* neither "stat" nor "info" nor "sess" */
+			return 0;
+		}
+	}
+	else { /* not "show" */
+		return 0;
+	}
+	return 1;
+}
+
+/* Processes the stats interpreter on the statistics socket.
+ * In order to ease the transition, we simply simulate the server status
+ * for now. It only knows states STATS_ST_INIT, STATS_ST_REQ, STATS_ST_REP, and
+ * STATS_ST_CLOSE. It removes its analyser bit from req->analysers once done.
+ * It always returns 0.
+ */
+int stats_sock_req_analyser(struct session *s, struct buffer *req, int an_bit)
+{
+	char *line, *p;
+
+	switch (s->ana_state) {
+	case STATS_ST_INIT:
+		/* Stats output not initialized yet */
+		memset(&s->data_ctx.stats, 0, sizeof(s->data_ctx.stats));
+		s->data_source = DATA_SRC_STATS;
+		s->ana_state = STATS_ST_REQ;
+		buffer_write_dis(s->req);
+		/* fall through */
+
+	case STATS_ST_REQ:
+		/* Now, stats are initialized, hijack is not set, and
+		 * we are waiting for a complete request line.
+		 */
+
+		line = s->req->data;
+		p = memchr(line, '\n', s->req->l);
+
+		if (p) {
+			*p = '\0';
+			if (!stats_sock_parse_request(s, line)) {
+				/* invalid request */
+				stream_int_retnclose(s->req->prod, &stats_sock_usage);
+				s->ana_state = 0;
+				req->analysers = 0;
+				return 0;
+			}
+		}
+
+		/* processing a valid or incomplete request */
+		if ((req->flags & BF_FULL)                    || /* invalid request */
+		    (req->flags & BF_READ_ERROR)              || /* input error */
+		    (req->flags & BF_READ_TIMEOUT)            || /* read timeout */
+		    tick_is_expired(req->analyse_exp, now_ms) || /* request timeout */
+		    (req->flags & BF_SHUTR)) {                   /* input closed */
+			buffer_shutw_now(s->rep);
+			s->ana_state = 0;
+			req->analysers = 0;
+			return 0;
+		}
+		/* don't forward nor abort */
+		req->flags |= BF_READ_DONTWAIT; /* we plan to read small requests */
+		return 0;
+
+	case STATS_ST_REP:
+		/* do nothing while response is being processed */
+		return 0;
+
+	case STATS_ST_CLOSE:
+		/* end of dump */
+		s->req->analysers &= ~an_bit;
+		s->ana_state = 0;
+		break;
+	}
+	return 0;
 }
 
 /*
