@@ -1005,8 +1005,15 @@ resync_stream_interface:
 	/* it's possible that an upper layer has requested a connection setup or abort */
 	if (s->req->cons->state == SI_ST_INI &&
 	    (s->req->flags & (BF_WRITE_ENA|BF_SHUTW|BF_SHUTW_NOW))) {
-		if ((s->req->flags & (BF_WRITE_ENA|BF_SHUTW|BF_SHUTW_NOW)) == BF_WRITE_ENA)
-			s->req->cons->state = SI_ST_REQ; /* new connection requested */
+		if ((s->req->flags & (BF_WRITE_ENA|BF_SHUTW|BF_SHUTW_NOW)) == BF_WRITE_ENA) {
+			/* If we have a ->connect method, we need to perform a connection request,
+			 * otherwise we immediately switch to the connected state.
+			 */
+			if (s->req->cons->connect)
+				s->req->cons->state = SI_ST_REQ; /* new connection requested */
+			else
+				s->req->cons->state = SI_ST_EST; /* connection established */
+		}
 		else
 			s->req->cons->state = SI_ST_CLO; /* shutw+ini = abort */
 	}
