@@ -1789,6 +1789,9 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 		req->l,
 		req->analysers);
 
+	/* we're speaking HTTP here, so let's speak HTTP to the client */
+	s->srv_error = http_return_srv_error;
+
 	if (likely(req->lr < req->r))
 		http_msg_analyzer(req, msg, &txn->hdr_idx);
 
