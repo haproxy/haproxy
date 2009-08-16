@@ -2,7 +2,7 @@
   include/types/protocols.h
   This file defines the structures used by generic network protocols.
 
-  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -90,6 +90,7 @@ struct listener {
 	int  *timeout;                  /* pointer to client-side timeout */
 	void *private;			/* any private data which may be used by accept() */
 	unsigned int analysers;		/* bitmap of required protocol analysers */
+	int nice;			/* nice value to assign to the instanciated tasks */
 	union {				/* protocol-dependant access restrictions */
 		struct {		/* UNIX socket permissions */
 			uid_t uid;	/* -1 to leave unchanged */

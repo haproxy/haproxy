@@ -1,7 +1,7 @@
 /*
  * Client-side variables and functions.
  *
- * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2009 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -173,6 +173,7 @@ int event_accept(int fd) {
 
 		t->process = l->handler;
 		t->context = s;
+		t->nice = l->nice;
 
 		s->task = t;
 		s->listener = l;

@@ -121,6 +121,7 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 		global.stats_sock.accept = uxst_event_accept;
 		global.stats_sock.handler = process_session;
 		global.stats_sock.analysers = AN_REQ_STATS_SOCK;
+		global.stats_sock.nice = -64;  /* we want to boost priority for local stats */
 		global.stats_sock.private = global.stats_fe; /* must point to the frontend */
 
 		global.stats_fe->timeout.client = MS_TO_TICKS(10000); /* default timeout of 10 seconds */
