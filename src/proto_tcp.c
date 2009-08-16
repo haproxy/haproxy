@@ -251,7 +251,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		}
 	}
 #endif
-#ifdef TCP_MAXSEG
+#if defined(TCP_MAXSEG) && defined(SOL_TCP)
 	if (listener->maxseg) {
 		if (setsockopt(fd, SOL_TCP, TCP_MAXSEG,
 			       &listener->maxseg, sizeof(listener->maxseg)) == -1) {
@@ -272,7 +272,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		goto tcp_close_return;
 	}
 
-#ifdef TCP_QUICKACK
+#if defined(TCP_QUICKACK) && defined(SOL_TCP)
 	if (listener->options & LI_O_NOQUICKACK)
 		setsockopt(fd, SOL_TCP, TCP_QUICKACK, (char *) &zero, sizeof(zero));
 #endif

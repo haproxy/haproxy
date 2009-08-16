@@ -678,7 +678,7 @@ struct task *process_chk(struct task *t)
 				}
 
 				if (s->result == SRV_CHK_UNKNOWN) {
-#ifdef TCP_QUICKACK
+#if defined(TCP_QUICKACK) && defined(SOL_TCP)
 					/* disabling tcp quick ack now allows
 					 * the request to leave the machine with
 					 * the first ACK.

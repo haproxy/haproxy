@@ -1968,7 +1968,7 @@ int connect_server(struct session *s)
 		}
 	}
 
-#ifdef TCP_QUICKACK
+#if defined(TCP_QUICKACK) && defined(SOL_TCP)
 	/* disabling tcp quick ack now allows the first request to leave the
 	 * machine with the first ACK. We only do this if there are pending
 	 * data in the buffer.

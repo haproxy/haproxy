@@ -587,7 +587,7 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 			max = b->send_max;
 
 
-#ifdef TCP_CORK
+#if defined(TCP_CORK) && defined(SOL_TCP)
 		/*
 		 * Check if we want to cork output before sending. This typically occurs
 		 * when there are data left in the buffer, or when we reached the end of
@@ -670,7 +670,7 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 	 */
 	if (unlikely((fdtab[si->fd].flags & (FD_FL_TCP|FD_FL_TCP_NODELAY)) == FD_FL_TCP && (b->flags & BF_EMPTY))) {
 		if ((b->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) != (BF_WRITE_ENA|BF_SHUTR)) {
-#ifdef TCP_CORK
+#if defined(TCP_CORK) && defined(SOL_TCP)
 			if (fdtab[si->fd].flags & FD_FL_TCP_CORK)
 				setsockopt(si->fd, SOL_TCP, TCP_CORK, (char *) &zero, sizeof(zero));
 #endif
