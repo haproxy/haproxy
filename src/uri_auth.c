@@ -110,6 +110,31 @@ struct uri_auth *stats_set_realm(struct uri_auth **root, char *realm)
 }
 
 /*
+ * Returns a default uri_auth with <node-name> set as the node name.
+ * Uses the pointer provided if not NULL and not initialized.
+ */
+struct uri_auth *stats_set_node_name(struct uri_auth **root, char *name)
+{
+	struct uri_auth *u;
+	char *name_copy;
+
+	if ((name_copy = strdup(name)) == NULL)
+		goto out_realm;
+	
+	if ((u = stats_check_init_uri_auth(root)) == NULL)
+		goto out_u;
+	
+	free(u->node_name);
+	u->node_name = name_copy;
+	return u;
+
+ out_u:
+	free(name_copy);
+ out_realm:
+	return NULL;
+}
+
+/*
  * Returns a default uri_auth with the <refresh> refresh interval.
  * Uses the pointer provided if not NULL and not initialized.
  */
