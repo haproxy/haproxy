@@ -4139,6 +4139,29 @@ int check_config_validity()
 			newsrv = newsrv->next;
 		}
 
+		if (curproxy->cap & PR_CAP_FE) {
+			if (curproxy->tcp_req.inspect_delay ||
+			    !LIST_ISEMPTY(&curproxy->tcp_req.inspect_rules))
+				curproxy->fe_req_ana |= AN_REQ_INSPECT;
+
+			if (curproxy->mode == PR_MODE_HTTP)
+				curproxy->fe_req_ana |= AN_REQ_WAIT_HTTP | AN_REQ_HTTP_PROCESS_FE;
+
+			/* both TCP and HTTP must check switching rules */
+			curproxy->fe_req_ana |= AN_REQ_SWITCHING_RULES;
+		}
+
+		if (curproxy->cap & PR_CAP_BE) {
+			if (curproxy->mode == PR_MODE_HTTP)
+				curproxy->be_req_ana |= AN_REQ_WAIT_HTTP | AN_REQ_HTTP_INNER | AN_REQ_HTTP_PROCESS_BE;
+
+			/* If the backend does requires RDP cookie persistence, we have to
+			 * enable the corresponding analyser.
+			 */
+			if (curproxy->options2 & PR_O2_RDPC_PRST)
+				curproxy->be_req_ana |= AN_REQ_PRST_RDP_COOKIE;
+		}
+
 		/* adjust this proxy's listeners */
 		listener = curproxy->listen;
 		while (listener) {
@@ -4150,21 +4173,13 @@ int check_config_validity()
 			listener->accept = event_accept;
 			listener->private = curproxy;
 			listener->handler = process_session;
-			/* both TCP and HTTP must check switching rules */
-			listener->analysers |= AN_REQ_SWITCHING_RULES;
-
-			if (curproxy->mode == PR_MODE_HTTP)
-				listener->analysers |= AN_REQ_WAIT_HTTP | AN_REQ_HTTP_PROCESS_FE | AN_REQ_HTTP_INNER | AN_REQ_HTTP_PROCESS_BE;
+			listener->analysers |= curproxy->fe_req_ana;
 
 			/* smart accept mode is automatic in HTTP mode */
 			if ((curproxy->options2 & PR_O2_SMARTACC) ||
 			    (curproxy->mode == PR_MODE_HTTP &&
 			     !(curproxy->no_options2 & PR_O2_SMARTACC)))
 				listener->options |= LI_O_NOQUICKACK;
-
-			if (curproxy->tcp_req.inspect_delay ||
-			    !LIST_ISEMPTY(&curproxy->tcp_req.inspect_rules))
-				listener->analysers |= AN_REQ_INSPECT;
 
 			/* We want the use_backend and default_backend rules to apply */
 			listener = listener->next;

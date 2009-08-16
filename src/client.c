@@ -401,6 +401,7 @@ int event_accept(int fd) {
 		/* activate default analysers enabled for this listener */
 		s->req->analysers = l->analysers;
 
+		/* note: this should not happen anymore since there's always at least the switching rules */
 		if (!s->req->analysers)
 			buffer_write_ena(s->req);  /* don't wait to establish connection */
 

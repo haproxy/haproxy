@@ -667,21 +667,12 @@ int session_set_backend(struct session *s, struct proxy *be)
 		hdr_idx_init(&s->txn.hdr_idx);
 	}
 
-	/* If we're switching from TCP mode to HTTP mode, we need to
-	 * enable several analysers on the backend.
+	/* We want to enable the backend-specific analysers except those which
+	 * were already run as part of the frontend/listener. Note that it would
+	 * be more reliable to store the list of analysers that have been run,
+	 * but what we do here is OK for now.
 	 */
-	if (unlikely(s->fe->mode != PR_MODE_HTTP && s->be->mode == PR_MODE_HTTP)) {
-		/* We want to wait for a complete HTTP request and process the
-		 * backend parts.
-		 */
-		s->req->analysers |= AN_REQ_WAIT_HTTP | AN_REQ_HTTP_PROCESS_BE | AN_REQ_HTTP_INNER;
-	}
-
-	/* If the backend does requires RDP cookie persistence, we have to
-	 * enable the corresponding analyser.
-	 */
-	if (s->be->options2 & PR_O2_RDPC_PRST)
-		s->req->analysers |= AN_REQ_PRST_RDP_COOKIE;
+	s->req->analysers |= be->be_req_ana & ~(s->listener->analysers);
 
 	return 1;
 }
