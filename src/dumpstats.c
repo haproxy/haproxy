@@ -371,7 +371,7 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 		if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
 			/* WARNING! This must fit in the first buffer !!! */	    
 			chunk_printf(&msg, sizeof(trash),
-			     "<html><head><title>Statistics Report for " PRODUCT_NAME "</title>\n"
+			     "<html><head><title>Statistics Report for " PRODUCT_NAME "%s%s</title>\n"
 			     "<meta http-equiv=\"content-type\" content=\"text/html; charset=iso-8859-1\">\n"
 			     "<style type=\"text/css\"><!--\n"
 			     "body {"
@@ -443,7 +443,10 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 			     "table.lgd td { border-width: 1px; border-style: solid solid solid solid; border-color: gray; padding: 2px;}\n"
 			     "table.lgd td.noborder { border-style: none; padding: 2px; white-space: nowrap;}\n"
 			     "-->\n"
-			     "</style></head>\n");
+			     "</style></head>\n",
+			     uri->node_name ? " on " : "",
+			     uri->node_name ? uri->node_name : ""
+			     );
 		} else {
 			print_csv_header(&msg, sizeof(trash));
 		}
@@ -464,7 +467,7 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 			chunk_printf(&msg, sizeof(trash),
 			     "<body><h1><a href=\"" PRODUCT_URL "\" style=\"text-decoration: none;\">"
 			     PRODUCT_NAME "%s</a></h1>\n"
-			     "<h2>Statistics Report for pid %d</h2>\n"
+			     "<h2>Statistics Report for pid %d%s%s</h2>\n"
 			     "<hr width=\"100%%\" class=\"hr\">\n"
 			     "<h3>&gt; General process information</h3>\n"
 			     "<table border=0 cols=4><tr><td align=\"left\" nowrap width=\"1%%\">\n"
@@ -494,7 +497,8 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 			     "<b>Display option:</b><ul style=\"margin-top: 0.25em;\">"
 			     "",
 			     (uri->flags&ST_HIDEVER)?"":(STATS_VERSION_STRING),
-			     pid, pid,
+			     pid, uri->node_name ? " on " : "", uri->node_name ? uri->node_name : "",
+			     pid,
 			     relative_pid, global.nbproc,
 			     up / 86400, (up % 86400) / 3600,
 			     (up % 3600) / 60, (up % 60),

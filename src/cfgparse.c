@@ -1725,7 +1725,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curproxy->uri_auth = NULL; /* we must detach from the default config */
 
 		if (*(args[1]) == 0) {
-			Alert("parsing [%s:%d] : '%s' expects 'uri', 'realm', 'auth', 'scope' or 'enable'.\n", file, linenum, args[0]);
+			Alert("parsing [%s:%d] : '%s' expects 'uri', 'realm', 'node-name', 'auth', 'scope' or 'enable'.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		} else if (!strcmp(args[1], "uri")) {
@@ -1744,6 +1744,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			} else if (!stats_set_realm(&curproxy->uri_auth, args[2])) {
+				Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
+		} else if (!strcmp(args[1], "node-name")) {
+			if (!stats_set_node_name(&curproxy->uri_auth, *(args[2]) ? args[2] : hostname)) {
 				Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
