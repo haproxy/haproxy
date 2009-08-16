@@ -72,6 +72,9 @@ enum {
 
 #define SI_FL_CAP_SPLICE (SI_FL_CAP_SPLTCP)
 
+struct server;
+struct proxy;
+
 struct stream_interface {
 	unsigned int state;     /* SI_ST* */
 	unsigned int prev_state;/* SI_ST*, copy of previous state */
@@ -79,6 +82,8 @@ struct stream_interface {
 	int fd;                 /* file descriptor for a stream driver when known */
 	unsigned int flags;
 	unsigned int exp;       /* wake up time for connect, queue, turn-around, ... */
+	int (*connect)(struct stream_interface *, struct proxy *, struct server *,
+		       struct sockaddr *, struct sockaddr *); /* connect function if any */
 	void (*shutr)(struct stream_interface *);  /* shutr function */
 	void (*shutw)(struct stream_interface *);  /* shutw function */
 	void (*chk_rcv)(struct stream_interface *);/* chk_rcv function */

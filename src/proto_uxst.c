@@ -460,6 +460,7 @@ int uxst_event_accept(int fd) {
 		s->si[0].err_type = SI_ET_NONE;
 		s->si[0].err_loc = NULL;
 		s->si[0].owner = t;
+		s->si[0].connect = NULL;
 		s->si[0].shutr = stream_sock_shutr;
 		s->si[0].shutw = stream_sock_shutw;
 		s->si[0].chk_rcv = stream_sock_chk_rcv;
@@ -472,6 +473,7 @@ int uxst_event_accept(int fd) {
 		s->si[1].err_type = SI_ET_NONE;
 		s->si[1].err_loc = NULL;
 		s->si[1].owner = t;
+		s->si[1].connect = NULL;
 		s->si[1].shutr = stream_sock_shutr;
 		s->si[1].shutw = stream_sock_shutw;
 		s->si[1].chk_rcv = stream_sock_chk_rcv;

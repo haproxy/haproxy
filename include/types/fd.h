@@ -29,7 +29,6 @@
 
 #include <common/config.h>
 #include <types/task.h>
-#include <types/buffers.h>
 #include <types/protocols.h>
 
 /* different possible states for the fd */

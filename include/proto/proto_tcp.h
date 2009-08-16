@@ -24,7 +24,6 @@
 
 #include <common/config.h>
 #include <types/proto_tcp.h>
-#include <types/session.h>
 #include <types/task.h>
 
 int tcp_event_accept(int fd);
@@ -32,6 +31,9 @@ int tcpv4_bind_socket(int fd, int flags, struct sockaddr_in *local, struct socka
 void tcpv4_add_listener(struct listener *listener);
 void tcpv6_add_listener(struct listener *listener);
 int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen);
+int tcpv4_connect_server(struct stream_interface *si,
+			 struct proxy *be, struct server *srv,
+			 struct sockaddr *srv_addr, struct sockaddr *cli_addr);
 int tcp_inspect_request(struct session *s, struct buffer *req, int an_bit);
 int acl_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir,
                          struct acl_expr *expr, struct acl_test *test);

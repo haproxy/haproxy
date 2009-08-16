@@ -38,11 +38,14 @@
 #include <common/version.h>
 
 #include <types/global.h>
+#include <types/server.h>
 
 #include <proto/acl.h>
 #include <proto/backend.h>
 #include <proto/buffers.h>
 #include <proto/fd.h>
+#include <proto/log.h>
+#include <proto/port_range.h>
 #include <proto/protocols.h>
 #include <proto/proto_tcp.h>
 #include <proto/proxy.h>
@@ -172,6 +175,263 @@ int tcpv4_bind_socket(int fd, int flags, struct sockaddr_in *local, struct socka
 
 	return 0;
 }
+
+
+/*
+ * This function initiates a connection to the server assigned to this session
+ * (s->srv, s->srv_addr). It will assign a server if none is assigned yet.
+ * It can return one of :
+ *  - SN_ERR_NONE if everything's OK
+ *  - SN_ERR_SRVTO if there are no more servers
+ *  - SN_ERR_SRVCL if the connection was refused by the server
+ *  - SN_ERR_PRXCOND if the connection has been limited by the proxy (maxconn)
+ *  - SN_ERR_RESOURCE if a system resource is lacking (eg: fd limits, ports, ...)
+ *  - SN_ERR_INTERNAL for any other purely internal errors
+ * Additionnally, in the case of SN_ERR_RESOURCE, an emergency log will be emitted.
+ */
+int tcpv4_connect_server(struct stream_interface *si,
+			 struct proxy *be, struct server *srv,
+			 struct sockaddr *srv_addr, struct sockaddr *cli_addr)
+{
+	int fd;
+
+	if ((fd = si->fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {
+		qfprintf(stderr, "Cannot get a server socket.\n");
+
+		if (errno == ENFILE)
+			send_log(be, LOG_EMERG,
+				 "Proxy %s reached system FD limit at %d. Please check system tunables.\n",
+				 be->id, maxfd);
+		else if (errno == EMFILE)
+			send_log(be, LOG_EMERG,
+				 "Proxy %s reached process FD limit at %d. Please check 'ulimit-n' and restart.\n",
+				 be->id, maxfd);
+		else if (errno == ENOBUFS || errno == ENOMEM)
+			send_log(be, LOG_EMERG,
+				 "Proxy %s reached system memory limit at %d sockets. Please check system tunables.\n",
+				 be->id, maxfd);
+		/* this is a resource error */
+		return SN_ERR_RESOURCE;
+	}
+
+	if (fd >= global.maxsock) {
+		/* do not log anything there, it's a normal condition when this option
+		 * is used to serialize connections to a server !
+		 */
+		Alert("socket(): not enough free sockets. Raise -n argument. Giving up.\n");
+		close(fd);
+		return SN_ERR_PRXCOND; /* it is a configuration limit */
+	}
+
+	if ((fcntl(fd, F_SETFL, O_NONBLOCK)==-1) ||
+	    (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *) &one, sizeof(one)) == -1)) {
+		qfprintf(stderr,"Cannot set client socket to non blocking mode.\n");
+		close(fd);
+		return SN_ERR_INTERNAL;
+	}
+
+	if (be->options & PR_O_TCP_SRV_KA)
+		setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, (char *) &one, sizeof(one));
+
+	if (be->options & PR_O_TCP_NOLING)
+		setsockopt(fd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
+
+	/* allow specific binding :
+	 * - server-specific at first
+	 * - proxy-specific next
+	 */
+	if (srv != NULL && srv->state & SRV_BIND_SRC) {
+		struct sockaddr_in *remote = NULL;
+		int ret, flags = 0;
+
+#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
+		switch (srv->state & SRV_TPROXY_MASK) {
+		case SRV_TPROXY_ADDR:
+			remote = (struct sockaddr_in *)&srv->tproxy_addr;
+			flags  = 3;
+			break;
+		case SRV_TPROXY_CLI:
+			if (cli_addr)
+				flags |= 2;
+			/* fall through */
+		case SRV_TPROXY_CIP:
+			/* FIXME: what can we do if the client connects in IPv6 ? */
+			if (cli_addr)
+				flags |= 1;
+			remote = (struct sockaddr_in *)cli_addr;
+			break;
+		}
+#endif
+#ifdef SO_BINDTODEVICE
+		/* Note: this might fail if not CAP_NET_RAW */
+		if (srv->iface_name)
+			setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, srv->iface_name, srv->iface_len + 1);
+#endif
+
+		if (srv->sport_range) {
+			int attempts = 10; /* should be more than enough to find a spare port */
+			struct sockaddr_in src;
+
+			ret = 1;
+			src = srv->source_addr;
+
+			do {
+				/* note: in case of retry, we may have to release a previously
+				 * allocated port, hence this loop's construct.
+				 */
+				port_range_release_port(fdtab[fd].port_range, fdtab[fd].local_port);
+				fdtab[fd].port_range = NULL;
+
+				if (!attempts)
+					break;
+				attempts--;
+
+				fdtab[fd].local_port = port_range_alloc_port(srv->sport_range);
+				if (!fdtab[fd].local_port)
+					break;
+
+				fdtab[fd].port_range = srv->sport_range;
+				src.sin_port = htons(fdtab[fd].local_port);
+
+				ret = tcpv4_bind_socket(fd, flags, &src, remote);
+			} while (ret != 0); /* binding NOK */
+		}
+		else {
+			ret = tcpv4_bind_socket(fd, flags, &srv->source_addr, remote);
+		}
+
+		if (ret) {
+			port_range_release_port(fdtab[fd].port_range, fdtab[fd].local_port);
+			fdtab[fd].port_range = NULL;
+			close(fd);
+
+			if (ret == 1) {
+				Alert("Cannot bind to source address before connect() for server %s/%s. Aborting.\n",
+				      be->id, srv->id);
+				send_log(be, LOG_EMERG,
+					 "Cannot bind to source address before connect() for server %s/%s.\n",
+					 be->id, srv->id);
+			} else {
+				Alert("Cannot bind to tproxy source address before connect() for server %s/%s. Aborting.\n",
+				      be->id, srv->id);
+				send_log(be, LOG_EMERG,
+					 "Cannot bind to tproxy source address before connect() for server %s/%s.\n",
+					 be->id, srv->id);
+			}
+			return SN_ERR_RESOURCE;
+		}
+	}
+	else if (be->options & PR_O_BIND_SRC) {
+		struct sockaddr_in *remote = NULL;
+		int ret, flags = 0;
+
+#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
+		switch (be->options & PR_O_TPXY_MASK) {
+		case PR_O_TPXY_ADDR:
+			remote = (struct sockaddr_in *)&be->tproxy_addr;
+			flags  = 3;
+			break;
+		case PR_O_TPXY_CLI:
+			if (cli_addr)
+				flags |= 2;
+			/* fall through */
+		case PR_O_TPXY_CIP:
+			/* FIXME: what can we do if the client connects in IPv6 ? */
+			if (cli_addr)
+				flags |= 1;
+			remote = (struct sockaddr_in *)cli_addr;
+			break;
+		}
+#endif
+#ifdef SO_BINDTODEVICE
+		/* Note: this might fail if not CAP_NET_RAW */
+		if (be->iface_name)
+			setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, be->iface_name, be->iface_len + 1);
+#endif
+		ret = tcpv4_bind_socket(fd, flags, &be->source_addr, remote);
+		if (ret) {
+			close(fd);
+			if (ret == 1) {
+				Alert("Cannot bind to source address before connect() for proxy %s. Aborting.\n",
+				      be->id);
+				send_log(be, LOG_EMERG,
+					 "Cannot bind to source address before connect() for proxy %s.\n",
+					 be->id);
+			} else {
+				Alert("Cannot bind to tproxy source address before connect() for proxy %s. Aborting.\n",
+				      be->id);
+				send_log(be, LOG_EMERG,
+					 "Cannot bind to tproxy source address before connect() for proxy %s.\n",
+					 be->id);
+			}
+			return SN_ERR_RESOURCE;
+		}
+	}
+
+#if defined(TCP_QUICKACK) && defined(SOL_TCP)
+	/* disabling tcp quick ack now allows the first request to leave the
+	 * machine with the first ACK. We only do this if there are pending
+	 * data in the buffer.
+	 */
+	if ((be->options2 & PR_O2_SMARTCON) && si->ob->send_max)
+                setsockopt(fd, SOL_TCP, TCP_QUICKACK, (char *) &zero, sizeof(zero));
+#endif
+
+	if ((connect(fd, (struct sockaddr *)srv_addr, sizeof(struct sockaddr_in)) == -1) &&
+	    (errno != EINPROGRESS) && (errno != EALREADY) && (errno != EISCONN)) {
+
+		if (errno == EAGAIN || errno == EADDRINUSE) {
+			char *msg;
+			if (errno == EAGAIN) /* no free ports left, try again later */
+				msg = "no free ports";
+			else
+				msg = "local address already in use";
+
+			qfprintf(stderr,"Cannot connect: %s.\n",msg);
+			port_range_release_port(fdtab[fd].port_range, fdtab[fd].local_port);
+			fdtab[fd].port_range = NULL;
+			close(fd);
+			send_log(be, LOG_EMERG,
+				 "Connect() failed for server %s/%s: %s.\n",
+				 be->id, srv->id, msg);
+			return SN_ERR_RESOURCE;
+		} else if (errno == ETIMEDOUT) {
+			//qfprintf(stderr,"Connect(): ETIMEDOUT");
+			port_range_release_port(fdtab[fd].port_range, fdtab[fd].local_port);
+			fdtab[fd].port_range = NULL;
+			close(fd);
+			return SN_ERR_SRVTO;
+		} else {
+			// (errno == ECONNREFUSED || errno == ENETUNREACH || errno == EACCES || errno == EPERM)
+			//qfprintf(stderr,"Connect(): %d", errno);
+			port_range_release_port(fdtab[fd].port_range, fdtab[fd].local_port);
+			fdtab[fd].port_range = NULL;
+			close(fd);
+			return SN_ERR_SRVCL;
+		}
+	}
+
+	fdtab[fd].owner = si;
+	fdtab[fd].state = FD_STCONN; /* connection in progress */
+	fdtab[fd].flags = FD_FL_TCP | FD_FL_TCP_NODELAY;
+	fdtab[fd].cb[DIR_RD].f = &stream_sock_read;
+	fdtab[fd].cb[DIR_RD].b = si->ib;
+	fdtab[fd].cb[DIR_WR].f = &stream_sock_write;
+	fdtab[fd].cb[DIR_WR].b = si->ob;
+
+	fdtab[fd].peeraddr = (struct sockaddr *)srv_addr;
+	fdtab[fd].peerlen = sizeof(struct sockaddr_in);
+
+	fd_insert(fd);
+	EV_FD_SET(fd, DIR_WR);  /* for connect status */
+
+	si->state = SI_ST_CON;
+	si->flags |= SI_FL_CAP_SPLTCP; /* TCP supports splicing */
+	si->exp = tick_add_ifset(now_ms, be->timeout.connect);
+
+	return SN_ERR_NONE;  /* connection is OK */
+}
+
 
 /* This function tries to bind a TCPv4/v6 listener. It may return a warning or
  * an error message in <err> if the message is at most <errlen> bytes long

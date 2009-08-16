@@ -32,6 +32,7 @@
 #include <proto/fd.h>
 #include <proto/log.h>
 #include <proto/hdr_idx.h>
+#include <proto/proto_tcp.h>
 #include <proto/proto_http.h>
 #include <proto/proxy.h>
 #include <proto/session.h>
@@ -179,6 +180,7 @@ int event_accept(int fd) {
 		s->si[0].err_type = SI_ET_NONE;
 		s->si[0].err_loc = NULL;
 		s->si[0].owner = t;
+		s->si[0].connect = NULL;
 		s->si[0].shutr = stream_sock_shutr;
 		s->si[0].shutw = stream_sock_shutw;
 		s->si[0].chk_rcv = stream_sock_chk_rcv;
@@ -191,6 +193,7 @@ int event_accept(int fd) {
 		s->si[1].err_type = SI_ET_NONE;
 		s->si[1].err_loc = NULL;
 		s->si[1].owner = t;
+		s->si[1].connect = tcpv4_connect_server;
 		s->si[1].shutr = stream_sock_shutr;
 		s->si[1].shutw = stream_sock_shutw;
 		s->si[1].chk_rcv = stream_sock_chk_rcv;
