@@ -4144,16 +4144,20 @@ int check_config_validity()
 			    !LIST_ISEMPTY(&curproxy->tcp_req.inspect_rules))
 				curproxy->fe_req_ana |= AN_REQ_INSPECT;
 
-			if (curproxy->mode == PR_MODE_HTTP)
+			if (curproxy->mode == PR_MODE_HTTP) {
 				curproxy->fe_req_ana |= AN_REQ_WAIT_HTTP | AN_REQ_HTTP_PROCESS_FE;
+				curproxy->fe_rsp_ana |= AN_RTR_HTTP_HDR;
+			}
 
 			/* both TCP and HTTP must check switching rules */
 			curproxy->fe_req_ana |= AN_REQ_SWITCHING_RULES;
 		}
 
 		if (curproxy->cap & PR_CAP_BE) {
-			if (curproxy->mode == PR_MODE_HTTP)
+			if (curproxy->mode == PR_MODE_HTTP) {
 				curproxy->be_req_ana |= AN_REQ_WAIT_HTTP | AN_REQ_HTTP_INNER | AN_REQ_HTTP_PROCESS_BE;
+				curproxy->be_rsp_ana |= AN_RTR_HTTP_HDR;
+			}
 
 			/* If the backend does requires RDP cookie persistence, we have to
 			 * enable the corresponding analyser.

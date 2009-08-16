@@ -330,7 +330,6 @@ void sess_establish(struct session *s, struct stream_interface *si)
 		}
 	}
 	else {
-		rep->analysers |= AN_RTR_HTTP_HDR;
 		buffer_set_rlim(rep, BUFSIZE - MAXREWRITE); /* rewrite needed */
 		s->txn.rsp.msg_state = HTTP_MSG_RPBEFORE;
 		/* reset hdr_idx which was already initialized by the request.
@@ -339,6 +338,7 @@ void sess_establish(struct session *s, struct stream_interface *si)
 		 */
 	}
 
+	rep->analysers |= s->fe->fe_rsp_ana | s->be->be_rsp_ana;
 	rep->flags |= BF_READ_ATTACHED; /* producer is now attached */
 	req->wex = TICK_ETERNITY;
 }
