@@ -664,7 +664,6 @@ int uxst_req_analyser_stats(struct session *s, struct buffer *req, int an_bit)
 		s->data_source = DATA_SRC_STATS;
 		s->ana_state = STATS_ST_REQ;
 		buffer_write_dis(s->req);
-		buffer_shutw_now(s->req);
 		/* fall through */
 
 	case STATS_ST_REQ:

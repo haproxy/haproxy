@@ -28,6 +28,7 @@
 #include <proto/pipe.h>
 #include <proto/proto_http.h>
 #include <proto/proto_tcp.h>
+#include <proto/proto_uxst.h>
 #include <proto/proxy.h>
 #include <proto/queue.h>
 #include <proto/server.h>
@@ -837,6 +838,12 @@ resync_stream_interface:
 				if (s->req->analysers & AN_REQ_HTTP_BODY) {
 					last_ana |= AN_REQ_HTTP_BODY;
 					if (!http_process_request_body(s, s->req, AN_REQ_HTTP_BODY))
+						break;
+				}
+
+				if (s->req->analysers & AN_REQ_UNIX_STATS) {
+					last_ana |= AN_REQ_UNIX_STATS;
+					if (!uxst_req_analyser_stats(s, s->req, AN_REQ_UNIX_STATS))
 						break;
 				}
 

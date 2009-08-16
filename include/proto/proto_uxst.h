@@ -29,6 +29,7 @@
 int uxst_event_accept(int fd);
 void uxst_add_listener(struct listener *listener);
 struct task *uxst_process_session(struct task *t);
+int uxst_req_analyser_stats(struct session *s, struct buffer *req, int an_bit);
 
 #endif /* _PROTO_PROTO_UXST_H */
 
