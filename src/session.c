@@ -1206,6 +1206,13 @@ resync_stream_interface:
 	if (s->flags & SN_BE_ASSIGNED)
 		s->be->beconn--;
 	actconn--;
+	s->listener->nbconn--;
+	if (s->listener->state == LI_FULL &&
+	    s->listener->nbconn < s->listener->maxconn) {
+		/* we should reactivate the listener */
+		EV_FD_SET(s->listener->fd, DIR_RD);
+		s->listener->state = LI_READY;
+	}
 
 	if (unlikely((global.mode & MODE_DEBUG) &&
 		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {

@@ -108,6 +108,16 @@ int event_accept(int fd) {
 			}
 		}
 
+		if (l->nbconn >= l->maxconn) {
+			/* too many connections, we shoot this one and return.
+			 * FIXME: it would be better to simply switch the listener's
+			 * state to LI_FULL and disable the FD. We could re-enable
+			 * it upon fd_delete(), but this requires all protocols to
+			 * be switched.
+			 */
+			goto out_close;
+		}
+
 		if ((s = pool_alloc2(pool2_session)) == NULL) { /* disable this proxy for a while */
 			Alert("out of memory in event_accept().\n");
 			EV_FD_CLR(fd, DIR_RD);
@@ -457,6 +467,12 @@ int event_accept(int fd) {
 		 * priorities to tasks.
 		 */
 		task_wakeup(t, TASK_WOKEN_INIT);
+
+		l->nbconn++; /* warning! right now, it's up to the handler to decrease this */
+		if (l->nbconn >= l->maxconn) {
+			EV_FD_CLR(l->fd, DIR_RD);
+			l->state = LI_FULL;
+		}
 
 		p->feconn++;  /* beconn will be increased later */
 		if (p->feconn > p->feconn_max)
