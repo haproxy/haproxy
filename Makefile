@@ -17,7 +17,6 @@
 #   USE_REGPARM          : enable regparm optimization. Recommended on x86.
 #   USE_SEPOLL           : enable speculative epoll(). Automatic.
 #   USE_STATIC_PCRE      : enable static libpcre. Recommended.
-#   USE_TCPSPLICE        : enable tcp_splice() on Linux (needs kernel patch).
 #   USE_TPROXY           : enable transparent proxy. Automatic.
 #   USE_LINUX_TPROXY     : enable full transparent proxy (need kernel patch).
 #   USE_LINUX_SPLICE     : enable kernel 2.6 splicing (broken on old kernels)
@@ -301,11 +300,7 @@ BUILD_OPTIONS =
 ignore_implicit = $(patsubst %=implicit,,$(1)=$($(1)))
 
 ifneq ($(USE_TCPSPLICE),)
-# This is the directory hosting libtcpsplice.[ah]
-TCPSPLICEDIR    :=
-OPTIONS_CFLAGS  += -DCONFIG_HAP_TCPSPLICE -I$(TCPSPLICEDIR)
-OPTIONS_LDFLAGS += -L$(TCPSPLICEDIR) -ltcpsplice
-BUILD_OPTIONS   += $(call ignore_implicit,USE_TCPSPLICE)
+$(error experimental option USE_TCPSPLICE has been removed, check USE_LINUX_SPLICE)
 endif
 
 ifneq ($(USE_LINUX_SPLICE),)

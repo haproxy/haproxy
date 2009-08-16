@@ -710,7 +710,6 @@ option ssl-hello-chk        X          -         X         X
             accept          X          X         X         -
 option tcpka                X          X         X         X
 option tcplog               X          X         X         X
-[no] option tcpsplice       X          X         X         X
 [no] option transparent     X          -         X         X
 persist rdp-cookie          X          -         X         X
 rate-limit sessions         X          X         X         -
@@ -2905,31 +2904,6 @@ option tcplog
   This option may be set either in the frontend or the backend.
 
   See also :  "option httplog", and section 8 about logging.
-
-
-option tcpsplice  [ experimental ]
-  Enable linux kernel-based acceleration of data relaying
-  May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    yes   |   yes  |   yes
-  Arguments : none
-
-  This option is only available when HAProxy has been built for use on Linux
-  with USE_TCPSPLICE=1. This option requires a kernel patch which is available
-  on http://www.linux-l7sw.org/.
-
-  When "option tcpsplice" is set, as soon as the server's response headers have
-  been transferred, the session handling is transferred to the kernel which
-  will forward all subsequent data from the server to the client untill the
-  session closes. This leads to much faster data transfers between client and
-  server since the data is not copied twice between kernel and user space, but
-  there are some limitations such as the lack of information about the number
-  of bytes transferred and the total transfer time.
-
-  This is an experimental feature. It happens to reliably work but issues
-  caused by corner cases are to be expected.
-
-  Note that this option requires that the process permanently runs with
-  CAP_NETADMIN privileges, which most often translates into running as root.
 
 
 option transparent

@@ -56,10 +56,6 @@
 #include <proto/stream_sock.h>
 #include <proto/task.h>
 
-#ifdef CONFIG_HAP_TCPSPLICE
-#include <libtcpsplice.h>
-#endif
-
 /* This is used by remote monitoring */
 const char HTTP_200[] =
 	"HTTP/1.0 200 OK\r\n"
@@ -3194,12 +3190,6 @@ int process_response(struct session *t)
 		buffer_set_rlim(rep, BUFSIZE); /* no more rewrite needed */
 		t->logs.t_data = tv_ms_elapsed(&t->logs.tv_accept, &now);
 
-#ifdef CONFIG_HAP_TCPSPLICE
-		if ((t->fe->options & t->be->options) & PR_O_TCPSPLICE) {
-			/* TCP splicing supported by both FE and BE */
-			tcp_splice_splicefd(rep->cons->fd, rep->prod->fd, 0);
-		}
-#endif
 		/* if the user wants to log as soon as possible, without counting
 		 * bytes from the server, then this is the right moment. We have
 		 * to temporarily assign bytes_out to log what we currently have.

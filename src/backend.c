@@ -44,10 +44,6 @@
 #include <proto/stream_sock.h>
 #include <proto/task.h>
 
-#ifdef CONFIG_HAP_TCPSPLICE
-#include <libtcpsplice.h>
-#endif
-
 static inline void fwrr_remove_from_tree(struct server *s);
 static inline void fwrr_queue_by_weight(struct eb_root *root, struct server *s);
 static inline void fwrr_dequeue_srv(struct server *s);
@@ -1830,14 +1826,6 @@ int connect_server(struct session *s)
 		close(fd);
 		return SN_ERR_PRXCOND; /* it is a configuration limit */
 	}
-
-#ifdef CONFIG_HAP_TCPSPLICE
-	if ((global.tune.options & GTUNE_USE_SPLICE) &&
-	    (s->fe->options & s->be->options) & PR_O_TCPSPLICE) {
-		/* TCP splicing supported by both FE and BE */
-		tcp_splice_initfd(s->req->prod->fd, fd);
-	}
-#endif
 
 	if ((fcntl(fd, F_SETFL, O_NONBLOCK)==-1) ||
 	    (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *) &one, sizeof(one)) == -1)) {

@@ -101,7 +101,7 @@
 #define PR_O_TPXY_CLI	0x06000000	/* bind to the client's IP+port when connect()ing */
 #define PR_O_TPXY_MASK	0x06000000	/* bind to a non-local address when connect()ing */
 
-#define PR_O_TCPSPLICE	0x08000000      /* delegate data transfer to linux kernel's tcp_splice */
+/* unused : tcpsplice   0x08000000 */
 #define PR_O_CONTSTATS	0x10000000	/* continous counters */
 #define PR_O_HTTP_PROXY 0x20000000	/* Enable session to use HTTP proxy operations */
 #define PR_O_DISABLE404 0x40000000      /* Disable a server on a 404 response to a health-check */

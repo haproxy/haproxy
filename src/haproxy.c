@@ -93,10 +93,6 @@
 #include <proto/stream_sock.h>
 #include <proto/task.h>
 
-#ifdef CONFIG_HAP_TCPSPLICE
-#include <libtcpsplice.h>
-#endif
-
 #ifdef CONFIG_HAP_CTTPROXY
 #include <proto/cttproxy.h>
 #endif
@@ -218,7 +214,7 @@ void usage(char *name)
 #if defined(ENABLE_POLL)
 		"        -dp disables poll() usage even when available\n"
 #endif
-#if defined(CONFIG_HAP_LINUX_SPLICE) || defined(CONFIG_HAP_TCPSPLICE)
+#if defined(CONFIG_HAP_LINUX_SPLICE)
 		"        -dS disables splice usage (broken on old kernels)\n"
 #endif
 		"        -sf/-st [pid ]* finishes/terminates old pids. Must be last arguments.\n"
@@ -420,7 +416,7 @@ void init(int argc, char **argv)
 #if defined(ENABLE_KQUEUE)
 	global.tune.options |= GTUNE_USE_KQUEUE;
 #endif
-#if defined(CONFIG_HAP_LINUX_SPLICE) || defined(CONFIG_HAP_TCPSPLICE)
+#if defined(CONFIG_HAP_LINUX_SPLICE)
 	global.tune.options |= GTUNE_USE_SPLICE;
 #endif
 
@@ -459,7 +455,7 @@ void init(int argc, char **argv)
 			else if (*flag == 'd' && flag[1] == 'k')
 				global.tune.options &= ~GTUNE_USE_KQUEUE;
 #endif
-#if defined(CONFIG_HAP_LINUX_SPLICE) || defined(CONFIG_HAP_TCPSPLICE)
+#if defined(CONFIG_HAP_LINUX_SPLICE)
 			else if (*flag == 'd' && flag[1] == 'S')
 				global.tune.options &= ~GTUNE_USE_SPLICE;
 #endif
@@ -1041,20 +1037,6 @@ int main(int argc, char **argv)
 		}
 #endif
 	}
-
-#ifdef CONFIG_HAP_TCPSPLICE
-	if ((global.tune.options & GTUNE_USE_SPLICE) && (global.last_checks & LSTCHK_TCPSPLICE)) {
-		if (tcp_splice_start() < 0) {
-			Alert("[%s.main()] Cannot enable tcp_splice.\n"
-			      "  Make sure you have enough permissions and that the module is loadable.\n"
-			      "  Alternatively, you may disable the 'tcpsplice' options in the configuration\n"
-			      "  or add 'nosplice' in the global section, or start with '-dS'.\n"
-			      "", argv[0]);
-			protocol_unbind_all();
-			exit(1);
-		}
-	}
-#endif
 
 #ifdef CONFIG_HAP_CTTPROXY
 	if (global.last_checks & LSTCHK_CTTPROXY) {

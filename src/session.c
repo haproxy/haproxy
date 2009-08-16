@@ -35,10 +35,6 @@
 #include <proto/stream_sock.h>
 #include <proto/task.h>
 
-#ifdef CONFIG_HAP_TCPSPLICE
-#include <libtcpsplice.h>
-#endif
-
 struct pool_head *pool2_session;
 struct list sessions;
 
@@ -331,13 +327,6 @@ void sess_establish(struct session *s, struct stream_interface *si)
 			s->logs.t_close = s->logs.t_connect; /* to get a valid end date */
 			s->do_log(s);
 		}
-#ifdef CONFIG_HAP_TCPSPLICE
-		if ((global.tune.options & GTUNE_USE_SPLICE) &&
-		    (s->fe->options & s->be->options) & PR_O_TCPSPLICE) {
-			/* TCP splicing supported by both FE and BE */
-			tcp_splice_splicefd(req->prod->fd, si->fd, 0);
-		}
-#endif
 	}
 	else {
 		rep->analysers |= AN_RTR_HTTP_HDR;

@@ -116,9 +116,6 @@ static const struct cfg_opt cfg_opts[] =
 	{ "persist",      PR_O_PERSIST,    PR_CAP_BE, 0 },
 	{ "redispatch",   PR_O_REDISP,     PR_CAP_BE, 0 },
 	{ "srvtcpka",     PR_O_TCP_SRV_KA, PR_CAP_BE, 0 },
-#ifdef CONFIG_HAP_TCPSPLICE
-	{ "tcpsplice",    PR_O_TCPSPLICE,  PR_CAP_BE|PR_CAP_FE, LSTCHK_TCPSPLICE|LSTCHK_NETADM },
-#endif
 #ifdef TPROXY
 	{ "transparent",  PR_O_TRANSP,     PR_CAP_BE, 0 },
 #endif
