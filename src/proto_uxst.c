@@ -482,7 +482,7 @@ int uxst_event_accept(int fd) {
 		if ((s->req = pool_alloc2(pool2_buffer)) == NULL)
 			goto out_free_task;
 
-		s->req->size = BUFSIZE;
+		s->req->size = global.tune.bufsize;
 		buffer_init(s->req);
 		s->req->prod = &s->si[0];
 		s->req->cons = &s->si[1];
@@ -499,7 +499,7 @@ int uxst_event_accept(int fd) {
 		if ((s->rep = pool_alloc2(pool2_buffer)) == NULL)
 			goto out_free_req;
 
-		s->rep->size = BUFSIZE;
+		s->rep->size = global.tune.bufsize;
 		buffer_init(s->rep);
 
 		s->rep->prod = &s->si[1];

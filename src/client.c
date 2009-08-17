@@ -384,7 +384,7 @@ int event_accept(int fd) {
 		if ((s->req = pool_alloc2(pool2_buffer)) == NULL)
 			goto out_fail_req; /* no memory */
 
-		s->req->size = BUFSIZE;
+		s->req->size = global.tune.bufsize;
 		buffer_init(s->req);
 		s->req->prod = &s->si[0];
 		s->req->cons = &s->si[1];
@@ -393,7 +393,7 @@ int event_accept(int fd) {
 		s->req->flags |= BF_READ_ATTACHED; /* the producer is already connected */
 
 		if (p->mode == PR_MODE_HTTP) { /* reserve some space for header rewriting */
-			s->req->max_len -= MAXREWRITE;
+			s->req->max_len -= global.tune.maxrewrite;
 			s->req->flags |= BF_READ_DONTWAIT; /* one read is usually enough */
 		}
 
@@ -411,7 +411,7 @@ int event_accept(int fd) {
 		if ((s->rep = pool_alloc2(pool2_buffer)) == NULL)
 			goto out_fail_rep; /* no memory */
 
-		s->rep->size = BUFSIZE;
+		s->rep->size = global.tune.bufsize;
 		buffer_init(s->rep);
 		s->rep->prod = &s->si[1];
 		s->rep->cons = &s->si[0];

@@ -381,8 +381,10 @@ The following keywords are supported in the "global" section :
    - nosepoll
    - nosplice
    - spread-checks
+   - tune.bufsize
    - tune.maxaccept
    - tune.maxpollevents
+   - tune.maxrewrite
   
  * Debugging
    - debug
@@ -557,6 +559,16 @@ spread-checks <0..50, in percent>
   some randomness in the check interval between 0 and +/- 50%. A value between
   2 and 5 seems to show good results. The default value remains at 0.
 
+tune.bufsize <number>
+  Sets the buffer size to this size (in bytes). Lower values allow more
+  sessions to coexist in the same amount of RAM, and higher values allow some
+  applications with very large cookies to work. The default value is 16384 and
+  can be changed at build time. It is strongly recommended not to change this
+  from the default value, as very low values will break some services such as
+  statistics, and values larger than default size will increase memory usage,
+  possibly causing the system to run out of memory. At least the global maxconn
+  parameter should be decreased by the same factor as this one is increased.
+
 tune.maxaccept <number>
   Sets the maximum number of consecutive accepts that a process may perform on
   a single wake up. High values give higher priority to high connection rates,
@@ -573,6 +585,18 @@ tune.maxpollevents <number>
   has been noticed that reducing it below 200 tends to slightly decrease
   latency at the expense of network bandwidth, and increasing it above 200
   tends to trade latency for slightly increased bandwidth.
+
+tune.maxrewrite <number>
+  Sets the reserved buffer space to this size in bytes. The reserved space is
+  used for header rewriting or appending. The first reads on sockets will never
+  fill more than bufsize-maxrewrite. Historically it has defaulted to half of
+  bufsize, though that does not make much sense since there are rarely large
+  numbers of headers to add. Setting it too high prevents processing of large
+  requests or responses. Setting it too low prevents addition of new headers
+  to already large requests or to POST requests. It is generally wise to set it
+  to about 1024. It is automatically readjusted to half of bufsize if it is
+  larger than that. This means you don't have to worry about it when changing
+  bufsize.
 
 
 3.3. Debugging

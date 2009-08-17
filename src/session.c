@@ -330,7 +330,7 @@ void sess_establish(struct session *s, struct stream_interface *si)
 		}
 	}
 	else {
-		buffer_set_rlim(rep, req->size - MAXREWRITE); /* rewrite needed */
+		buffer_set_rlim(rep, req->size - global.tune.maxrewrite); /* rewrite needed */
 		s->txn.rsp.msg_state = HTTP_MSG_RPBEFORE;
 		/* reset hdr_idx which was already initialized by the request.
 		 * right now, the http parser does it.

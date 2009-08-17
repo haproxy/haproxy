@@ -445,6 +445,26 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.tune.maxaccept = atol(args[1]);
 	}
+	else if (!strcmp(args[0], "tune.bufsize")) {
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		global.tune.bufsize = atol(args[1]);
+		if (global.tune.maxrewrite >= global.tune.bufsize / 2)
+			global.tune.maxrewrite = global.tune.bufsize / 2;
+	}
+	else if (!strcmp(args[0], "tune.maxrewrite")) {
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		global.tune.maxrewrite = atol(args[1]);
+		if (global.tune.maxrewrite >= global.tune.bufsize / 2)
+			global.tune.maxrewrite = global.tune.bufsize / 2;
+	}
 	else if (!strcmp(args[0], "uid")) {
 		if (global.uid != 0) {
 			Alert("parsing [%s:%d] : user/uid already specified. Continuing.\n", file, linenum);
@@ -3482,13 +3502,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		if (stat.st_size <= BUFSIZE) {
+		if (stat.st_size <= global.tune.bufsize) {
 			errlen = stat.st_size;
 		} else {
 			Warning("parsing [%s:%d] : custom error message file <%s> larger than %d bytes. Truncating.\n",
-				file, linenum, args[2], BUFSIZE);
+				file, linenum, args[2], global.tune.bufsize);
 			err_code |= ERR_WARN;
-			errlen = BUFSIZE;
+			errlen = global.tune.bufsize;
 		}
 
 		err = malloc(errlen); /* malloc() must succeed during parsing */

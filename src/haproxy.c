@@ -122,7 +122,11 @@ struct global global = {
 				 .mode = 0,
 			 }
 		 }
-	}
+	},
+	.tune = {
+		.bufsize = BUFSIZE,
+		.maxrewrite = MAXREWRITE,
+	},
 	/* others NULL OK */
 };
 
@@ -177,7 +181,10 @@ void display_build_opts()
 #ifdef BUILD_OPTIONS
 	       "\n  OPTIONS = " BUILD_OPTIONS
 #endif
-	       "\n\n");
+	       "\n\nDefault settings :"
+	       "\n  maxconn = %d, bufsize = %d, maxrewrite = %d, maxpollevents = %d"
+	       "\n\n",
+	       DEFAULT_MAXCONN, BUFSIZE, MAXREWRITE, MAX_POLL_EVENTS);
 }
 
 /*
@@ -603,6 +610,9 @@ void init(int argc, char **argv)
 
 	if (global.tune.recv_enough == 0)
 		global.tune.recv_enough = MIN_RECV_AT_ONCE_ENOUGH;
+
+	if (global.tune.maxrewrite >= global.tune.bufsize / 2)
+		global.tune.maxrewrite = global.tune.bufsize / 2;
 
 	if (arg_mode & (MODE_DEBUG | MODE_FOREGROUND)) {
 		/* command line debug mode inhibits configuration mode */
