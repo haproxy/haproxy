@@ -1163,10 +1163,10 @@ resync_stream_interface:
 			session_process_counters(s);
 
 		if (s->rep->cons->state == SI_ST_EST)
-			stream_sock_data_finish(s->rep->cons);
+			s->rep->cons->update(s->rep->cons);
 
 		if (s->req->cons->state == SI_ST_EST)
-			stream_sock_data_finish(s->req->cons);
+			s->req->cons->update(s->req->cons);
 
 		s->req->flags &= ~(BF_READ_NULL|BF_READ_PARTIAL|BF_WRITE_NULL|BF_WRITE_PARTIAL);
 		s->rep->flags &= ~(BF_READ_NULL|BF_READ_PARTIAL|BF_WRITE_NULL|BF_WRITE_PARTIAL);
