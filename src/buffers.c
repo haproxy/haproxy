@@ -31,15 +31,24 @@ int init_buffer()
 
 
 /* writes <len> bytes from message <msg> to buffer <buf>. Returns -1 in case of
- * success, or the number of bytes available otherwise. The send limit is
- * automatically adjusted with the amount of data written.
- * FIXME-20060521: handle unaligned data.
+ * success, -2 if the message is larger than the buffer size, or the number of
+ * bytes available otherwise. The send limit is automatically adjusted with the
+ * amount of data written. FIXME-20060521: handle unaligned data.
  */
 int buffer_write(struct buffer *buf, const char *msg, int len)
 {
 	int max;
 
 	max = buffer_realign(buf);
+
+	if (len > buf->size) {
+		/* we can't write this chunk and will never be able to, because
+		 * it is larger than the buffer. This must be reported as an
+		 * error. Then we return -2 so that writers that don't care can
+		 * ignore it and go on, and others can check for this value.
+		 */
+		return -2;
+	}
 
 	if (len > max)
 		return max;
@@ -61,10 +70,11 @@ int buffer_write(struct buffer *buf, const char *msg, int len)
 	return -1;
 }
 
-/* writes the chunk <chunk> to buffer <buf>. Returns -1 in case of
- * success, or the number of bytes available otherwise. If the chunk
- * has been written, its size is automatically reset to zero. The send limit is
- * automatically adjusted with the amount of data written.
+/* writes the chunk <chunk> to buffer <buf>. Returns -1 in case of success,
+ * -2 if it is larger than the buffer size, or the number of bytes available
+ * otherwise. If the chunk has been written, its size is automatically reset
+ * to zero. The send limit is automatically adjusted with the amount of data
+ * written.
  */
 int buffer_write_chunk(struct buffer *buf, struct chunk *chunk)
 {
@@ -72,6 +82,15 @@ int buffer_write_chunk(struct buffer *buf, struct chunk *chunk)
 
 	if (chunk->len == 0)
 		return -1;
+
+	if (chunk->len > buf->size) {
+		/* we can't write this chunk and will never be able to, because
+		 * it is larger than the buffer. This must be reported as an
+		 * error. Then we return -2 so that writers that don't care can
+		 * ignore it and go on, and others can check for this value.
+		 */
+		return -2;
+	}
 
 	max = buffer_realign(buf);
 
