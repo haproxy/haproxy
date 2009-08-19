@@ -54,6 +54,11 @@
 #define SHUT_WR	        1
 #endif
 
+/* only Linux defines it */
+#ifndef MSG_NOSIGNAL
+#define MSG_NOSIGNAL	0
+#endif
+
 /* AIX does not define MSG_DONTWAIT. We'll define it to zero, and test it
  * wherever appropriate.
  */

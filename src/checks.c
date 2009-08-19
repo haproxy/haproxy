@@ -359,11 +359,7 @@ static int event_srv_chk_w(int fd)
 				memcpy(s->proxy->check_req + 11, &gmt_time, 4);
 			}
 
-#ifndef MSG_NOSIGNAL
-			ret = send(fd, s->proxy->check_req, s->proxy->check_len, MSG_DONTWAIT);
-#else
 			ret = send(fd, s->proxy->check_req, s->proxy->check_len, MSG_DONTWAIT | MSG_NOSIGNAL);
-#endif
 			if (ret == s->proxy->check_len) {
 				/* we allow up to <timeout.check> if nonzero for a responce */
 				if (s->proxy->timeout.check)
@@ -455,15 +451,11 @@ static int event_srv_chk_r(int fd)
 		goto out_wakeup;
 	}
 
-#ifndef MSG_NOSIGNAL
-	len = recv(fd, trash, sizeof(trash), 0);
-#else
 	/* Warning! Linux returns EAGAIN on SO_ERROR if data are still available
 	 * but the connection was closed on the remote end. Fortunately, recv still
 	 * works correctly and we don't need to do the getsockopt() on linux.
 	 */
 	len = recv(fd, trash, sizeof(trash), MSG_NOSIGNAL);
-#endif
 	if (unlikely(len < 0 && errno == EAGAIN)) {
 		/* we want some polling to happen first */
 		fdtab[fd].ev &= ~FD_POLL_IN;

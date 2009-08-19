@@ -313,8 +313,9 @@ int stream_sock_read(int fd) {
 		/*
 		 * 2. read the largest possible block
 		 */
-#ifndef MSG_NOSIGNAL
-		{
+		if (MSG_NOSIGNAL) {
+			ret = recv(fd, b->r, max, MSG_NOSIGNAL);
+		} else {
 			int skerr;
 			socklen_t lskerr = sizeof(skerr);
 
@@ -324,9 +325,7 @@ int stream_sock_read(int fd) {
 			else
 				ret = recv(fd, b->r, max, 0);
 		}
-#else
-		ret = recv(fd, b->r, max, MSG_NOSIGNAL);
-#endif
+
 		if (ret > 0) {
 			b->r += ret;
 			b->l += ret;
@@ -606,8 +605,9 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 		}
 #endif
 
-#ifndef MSG_NOSIGNAL
-		{
+		if (MSG_NOSIGNAL) {
+			ret = send(si->fd, b->w, max, MSG_DONTWAIT | MSG_NOSIGNAL);
+		} else {
 			int skerr;
 			socklen_t lskerr = sizeof(skerr);
 
@@ -617,9 +617,6 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 			else
 				ret = send(si->fd, b->w, max, MSG_DONTWAIT);
 		}
-#else
-		ret = send(si->fd, b->w, max, MSG_DONTWAIT | MSG_NOSIGNAL);
-#endif
 
 		if (ret > 0) {
 			if (fdtab[si->fd].state == FD_STCONN)
