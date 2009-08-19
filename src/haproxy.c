@@ -933,7 +933,7 @@ int main(int argc, char **argv)
 	/* on very high loads, a sigpipe sometimes happen just between the
 	 * getsockopt() which tells "it's OK to write", and the following write :-(
 	 */
-#if !defined(MSG_NOSIGNAL) || defined(CONFIG_HAP_LINUX_SPLICE)
+#if !MSG_NOSIGNAL || defined(CONFIG_HAP_LINUX_SPLICE)
 	signal(SIGPIPE, SIG_IGN);
 #endif
 

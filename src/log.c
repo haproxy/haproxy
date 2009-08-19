@@ -23,16 +23,13 @@
 #include <sys/time.h>
 
 #include <common/config.h>
+#include <common/compat.h>
 #include <common/standard.h>
 #include <common/time.h>
 
 #include <types/global.h>
 
 #include <proto/log.h>
-
-#ifndef MSG_NOSIGNAL
-#define MSG_NOSIGNAL	(0)
-#endif /* !MSG_NOSIGNAL */
 
 const char *log_facilities[NB_LOG_FACILITIES] = {
 	"kern", "user", "mail", "daemon",
