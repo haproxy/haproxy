@@ -63,8 +63,7 @@ enum {
  */
 #define FD_FL_TCP               0x0001       /* socket is TCP */
 #define FD_FL_TCP_NODELAY       0x0002
-#define FD_FL_TCP_CORK          0x0004
-#define FD_FL_TCP_NOLING        0x0008       /* lingering disabled */
+#define FD_FL_TCP_NOLING        0x0004       /* lingering disabled */
 
 /* info about one given fd */
 struct fdtab {

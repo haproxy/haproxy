@@ -66,6 +66,11 @@
 #define MSG_DONTWAIT	0
 #endif
 
+/* Only Linux defines MSG_MORE */
+#ifndef MSG_MORE
+#define MSG_MORE	0
+#endif
+
 #if defined(TPROXY) && defined(NETFILTER)
 #include <linux/types.h>
 #include <linux/netfilter_ipv6.h>

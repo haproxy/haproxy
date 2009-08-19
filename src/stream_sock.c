@@ -585,28 +585,28 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 		if (max > b->send_max)
 			max = b->send_max;
 
-
-#if defined(TCP_CORK) && defined(SOL_TCP)
-		/*
-		 * Check if we want to cork output before sending. This typically occurs
-		 * when there are data left in the buffer, or when we reached the end of
-		 * buffer but we know we will close, so we try to merge the ongoing FIN
-		 * with the last data segment.
+		/* check if we want to inform the kernel that we're interested in
+		 * sending more data after this call. We want this if :
+		 *  - we're about to close after this last send and want to merge
+		 *    the ongoing FIN with the last segment.
+		 *  - we know we can't send everything at once and must get back
+		 *    here because of unaligned data
+		 * The test is arranged so that the most common case does only 2
+		 * tests.
 		 */
-		if ((fdtab[si->fd].flags & (FD_FL_TCP|FD_FL_TCP_NOLING|FD_FL_TCP_CORK)) == FD_FL_TCP) {
-			if (unlikely((b->send_max == b->l && 
-				      (b->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) ==
-				      (BF_WRITE_ENA|BF_SHUTR)))) {
-				/* we have to unconditionally reset TCP_NODELAY for CORK */
-				setsockopt(si->fd, IPPROTO_TCP, TCP_NODELAY, (char *) &zero, sizeof(zero));
-				setsockopt(si->fd, SOL_TCP, TCP_CORK, (char *) &one, sizeof(one));
-				fdtab[si->fd].flags = (fdtab[si->fd].flags & ~FD_FL_TCP_NODELAY) | FD_FL_TCP_CORK;
-			}
-		}
-#endif
 
 		if (MSG_NOSIGNAL) {
-			ret = send(si->fd, b->w, max, MSG_DONTWAIT | MSG_NOSIGNAL);
+			unsigned int send_flag = MSG_DONTWAIT | MSG_NOSIGNAL;
+
+			if (MSG_MORE &&
+			    (((b->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) == (BF_WRITE_ENA|BF_SHUTR) &&
+			      (max == b->l)) ||
+			     (max != b->l && max != b->send_max))
+			    && (fdtab[si->fd].flags & FD_FL_TCP)) {
+				send_flag |= MSG_MORE;
+			}
+
+			ret = send(si->fd, b->w, max, send_flag);
 		} else {
 			int skerr;
 			socklen_t lskerr = sizeof(skerr);
@@ -661,21 +661,6 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 			break;
 		}
 	} /* while (1) */
-
-	/* check if we need to uncork the output, for instance when the
-	 * output buffer is empty but not shutr().
-	 */
-	if (unlikely((fdtab[si->fd].flags & (FD_FL_TCP|FD_FL_TCP_NODELAY)) == FD_FL_TCP && (b->flags & BF_EMPTY))) {
-		if ((b->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) != (BF_WRITE_ENA|BF_SHUTR)) {
-#if defined(TCP_CORK) && defined(SOL_TCP)
-			if (fdtab[si->fd].flags & FD_FL_TCP_CORK)
-				setsockopt(si->fd, SOL_TCP, TCP_CORK, (char *) &zero, sizeof(zero));
-#endif
-			setsockopt(si->fd, IPPROTO_TCP, TCP_NODELAY, (char *) &one, sizeof(one));
-			fdtab[si->fd].flags = (fdtab[si->fd].flags & ~FD_FL_TCP_CORK) | FD_FL_TCP_NODELAY;
-		}
-	}
-
 
 	return retval;
 }
