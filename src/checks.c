@@ -20,6 +20,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <sys/socket.h>
+#include <sys/types.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
@@ -670,13 +671,13 @@ struct task *process_chk(struct task *t)
 				}
 
 				if (s->result == SRV_CHK_UNKNOWN) {
-#if defined(TCP_QUICKACK) && defined(SOL_TCP)
+#if defined(TCP_QUICKACK)
 					/* disabling tcp quick ack now allows
 					 * the request to leave the machine with
 					 * the first ACK.
 					 */
 					if (s->proxy->options2 & PR_O2_SMARTCON)
-						setsockopt(fd, SOL_TCP, TCP_QUICKACK, (char *) &zero, sizeof(zero));
+						setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, (char *) &zero, sizeof(zero));
 #endif
 					if ((connect(fd, (struct sockaddr *)&sa, sizeof(sa)) != -1) || (errno == EINPROGRESS)) {
 						/* OK, connection in progress or established */

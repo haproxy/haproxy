@@ -17,6 +17,7 @@
 #include <syslog.h>
 #include <string.h>
 #include <ctype.h>
+#include <sys/types.h>
 
 #include <common/compat.h>
 #include <common/config.h>

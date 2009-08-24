@@ -18,13 +18,13 @@
 #include <string.h>
 #include <time.h>
 
-#include <netinet/tcp.h>
-
 #include <sys/param.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/un.h>
+
+#include <netinet/tcp.h>
 
 #include <common/cfgparse.h>
 #include <common/compat.h>
@@ -368,13 +368,13 @@ int tcpv4_connect_server(struct stream_interface *si,
 		}
 	}
 
-#if defined(TCP_QUICKACK) && defined(SOL_TCP)
+#if defined(TCP_QUICKACK)
 	/* disabling tcp quick ack now allows the first request to leave the
 	 * machine with the first ACK. We only do this if there are pending
 	 * data in the buffer.
 	 */
 	if ((be->options2 & PR_O2_SMARTCON) && si->ob->send_max)
-                setsockopt(fd, SOL_TCP, TCP_QUICKACK, (char *) &zero, sizeof(zero));
+                setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, (char *) &zero, sizeof(zero));
 #endif
 
 	if ((connect(fd, (struct sockaddr *)srv_addr, sizeof(struct sockaddr_in)) == -1) &&
@@ -511,9 +511,9 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		}
 	}
 #endif
-#if defined(TCP_MAXSEG) && defined(SOL_TCP)
+#if defined(TCP_MAXSEG)
 	if (listener->maxseg) {
-		if (setsockopt(fd, SOL_TCP, TCP_MAXSEG,
+		if (setsockopt(fd, IPPROTO_TCP, TCP_MAXSEG,
 			       &listener->maxseg, sizeof(listener->maxseg)) == -1) {
 			msg = "cannot set MSS";
 			err |= ERR_WARN;
@@ -532,9 +532,9 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		goto tcp_close_return;
 	}
 
-#if defined(TCP_QUICKACK) && defined(SOL_TCP)
+#if defined(TCP_QUICKACK)
 	if (listener->options & LI_O_NOQUICKACK)
-		setsockopt(fd, SOL_TCP, TCP_QUICKACK, (char *) &zero, sizeof(zero));
+		setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, (char *) &zero, sizeof(zero));
 #endif
 
 	/* the socket is ready */
