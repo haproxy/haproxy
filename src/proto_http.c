@@ -2092,6 +2092,25 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 			stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_403));
 			goto return_prx_cond;
 		}
+
+		/* When a connection is tarpitted, we use the tarpit timeout,
+		 * which may be the same as the connect timeout if unspecified.
+		 * If unset, then set it to zero because we really want it to
+		 * eventually expire. We build the tarpit as an analyser.
+		 */
+		if (txn->flags & TX_CLTARPIT) {
+			buffer_erase(s->req);
+			/* wipe the request out so that we can drop the connection early
+			 * if the client closes first.
+			 */
+			buffer_write_dis(req);
+			req->analysers = 0; /* remove switching rules etc... */
+			req->analysers |= AN_REQ_HTTP_TARPIT;
+			req->analyse_exp = tick_add_ifset(now_ms,  s->be->timeout.tarpit);
+			if (!req->analyse_exp)
+				req->analyse_exp = tick_add(now_ms, 0);
+			return 1;
+		}
 	}
 
 	/* We might have to check for "Connection:" */
@@ -2579,23 +2598,6 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 	buffer_set_rlim(req, req->size); /* no more rewrite needed */
 	s->logs.tv_request = now;
 
-	/* When a connection is tarpitted, we use the tarpit timeout,
-	 * which may be the same as the connect timeout if unspecified.
-	 * If unset, then set it to zero because we really want it to
-	 * eventually expire. We build the tarpit as an analyser.
-	 */
-	if (txn->flags & TX_CLTARPIT) {
-		buffer_erase(s->req);
-		/* wipe the request out so that we can drop the connection early
-		 * if the client closes first.
-		 */
-		buffer_write_dis(req);
-		req->analysers |= AN_REQ_HTTP_TARPIT;
-		req->analyse_exp = tick_add_ifset(now_ms,  s->be->timeout.tarpit);
-		if (!req->analyse_exp)
-			req->analyse_exp = tick_add(now_ms, 0);
-	}
-
 	/* OK let's go on with the BODY now */
 	return 1;
 
@@ -2633,6 +2635,7 @@ int http_process_tarpit(struct session *s, struct buffer *req, int an_bit)
 	 * timeout. We just have to check that the client is still
 	 * there and that the timeout has not expired.
 	 */
+	buffer_write_dis(req);
 	if ((req->flags & (BF_SHUTR|BF_READ_ERROR)) == 0 &&
 	    !tick_is_expired(req->analyse_exp, now_ms))
 		return 0;

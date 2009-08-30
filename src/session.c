@@ -823,15 +823,15 @@ resync_stream_interface:
 						break;
 				}
 
-				if (s->req->analysers & AN_REQ_HTTP_INNER) {
-					last_ana |= AN_REQ_HTTP_INNER;
-					if (!http_process_request(s, s->req, AN_REQ_HTTP_INNER))
-						break;
-				}
-
 				if (s->req->analysers & AN_REQ_HTTP_TARPIT) {
 					last_ana |= AN_REQ_HTTP_TARPIT;
 					if (!http_process_tarpit(s, s->req, AN_REQ_HTTP_TARPIT))
+						break;
+				}
+
+				if (s->req->analysers & AN_REQ_HTTP_INNER) {
+					last_ana |= AN_REQ_HTTP_INNER;
+					if (!http_process_request(s, s->req, AN_REQ_HTTP_INNER))
 						break;
 				}
 
