@@ -39,7 +39,8 @@ int buffer_write(struct buffer *buf, const char *msg, int len)
 {
 	int max;
 
-	max = buffer_realign(buf);
+	if (len == 0)
+		return -1;
 
 	if (len > buf->size) {
 		/* we can't write this chunk and will never be able to, because
@@ -49,6 +50,8 @@ int buffer_write(struct buffer *buf, const char *msg, int len)
 		 */
 		return -2;
 	}
+
+	max = buffer_realign(buf);
 
 	if (len > max)
 		return max;
@@ -70,48 +73,49 @@ int buffer_write(struct buffer *buf, const char *msg, int len)
 	return -1;
 }
 
-/* writes the chunk <chunk> to buffer <buf>. Returns -1 in case of success,
+/* Try to write string <str> into buffer <buf> after length controls. This
+ * is the equivalent of buffer_write() except that to_forward and send_max
+ * are updated and that max_len is respected. Returns -1 in case of success,
  * -2 if it is larger than the buffer size, or the number of bytes available
- * otherwise. If the chunk has been written, its size is automatically reset
- * to zero. The send limit is automatically adjusted with the amount of data
+ * otherwise. The send limit is automatically adjusted with the amount of data
  * written.
  */
-int buffer_write_chunk(struct buffer *buf, struct chunk *chunk)
+int buffer_feed(struct buffer *buf, const char *str, int len)
 {
 	int max;
 
-	if (chunk->len == 0)
+	if (len == 0)
 		return -1;
 
-	if (chunk->len > buf->size) {
+	if (len > buf->max_len) {
 		/* we can't write this chunk and will never be able to, because
-		 * it is larger than the buffer. This must be reported as an
-		 * error. Then we return -2 so that writers that don't care can
-		 * ignore it and go on, and others can check for this value.
+		 * it is larger than the buffer's current max size.
 		 */
 		return -2;
 	}
 
-	max = buffer_realign(buf);
+	max = buffer_contig_space(buf);
 
-	if (chunk->len > max)
+	if (len > max)
 		return max;
 
-	memcpy(buf->r, chunk->str, chunk->len);
-	buf->l += chunk->len;
-	buf->send_max += chunk->len;
-	buf->r += chunk->len;
-	buf->total += chunk->len;
+	memcpy(buf->r, str, len);
+	buf->l += len;
+	buf->r += len;
+	buf->total += len;
+	if (buf->to_forward > 0) {
+		int fwd = MIN(buf->to_forward, len);
+		buf->send_max   += fwd;
+		buf->to_forward -= fwd;
+	}
+
 	if (buf->r == buf->data + buf->size)
 		buf->r = buf->data;
 
 	buf->flags &= ~(BF_EMPTY|BF_FULL);
-	if (buf->l == 0)
-		buf->flags |= BF_EMPTY;
 	if (buf->l >= buf->max_len)
 		buf->flags |= BF_FULL;
 
-	chunk->len = 0;
 	return -1;
 }
 

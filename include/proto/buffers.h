@@ -348,13 +348,48 @@ static inline void buffer_skip(struct buffer *buf, int len)
 }
 
 int buffer_write(struct buffer *buf, const char *msg, int len);
-int buffer_write_chunk(struct buffer *buf, struct chunk *chunk);
+int buffer_feed(struct buffer *buf, const char *str, int len);
 int buffer_replace(struct buffer *b, char *pos, char *end, const char *str);
 int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int len);
 int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len);
 int chunk_printf(struct chunk *chk, int size, const char *fmt, ...)
 	__attribute__ ((format(printf, 3, 4)));
 void buffer_dump(FILE *o, struct buffer *b, int from, int to);
+
+
+/* writes the chunk <chunk> to buffer <buf>. Returns -1 in case of success,
+ * -2 if it is larger than the buffer size, or the number of bytes available
+ * otherwise. If the chunk has been written, its size is automatically reset
+ * to zero. The send limit is automatically adjusted with the amount of data
+ * written.
+ */
+static inline int buffer_write_chunk(struct buffer *buf, struct chunk *chunk)
+{
+	int ret;
+
+	ret = buffer_write(buf, chunk->str, chunk->len);
+	if (ret == -1)
+		chunk->len = 0;
+	return ret;
+}
+
+/* Try to write chunk <chunk> into buffer <buf> after length controls. This is
+ * the equivalent of buffer_write_chunk() except that to_forward and send_max
+ * are updated and that max_len is respected. Returns -1 in case of success,
+ * -2 if it is larger than the buffer size, or the number of bytes available
+ * otherwise. If the chunk has been written, its size is automatically reset
+ * to zero. The send limit is automatically adjusted with the amount of data
+ * written.
+ */
+static inline int buffer_feed_chunk(struct buffer *buf, struct chunk *chunk)
+{
+	int ret;
+
+	ret = buffer_feed(buf, chunk->str, chunk->len);
+	if (ret == -1)
+		chunk->len = 0;
+	return ret;
+}
 
 /*
  * frees the destination chunk if already allocated, allocates a new string,
