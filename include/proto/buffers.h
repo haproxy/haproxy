@@ -2,7 +2,7 @@
   include/proto/buffers.h
   Buffer management definitions, macros and inline functions.
 
-  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -272,6 +272,80 @@ static inline int buffer_realign(struct buffer *buf)
 	return buffer_max(buf);
 }
 
+/*
+ * Return the max amount of bytes that can be stuffed into the buffer at once.
+ * Note that this may be lower than the actual buffer size when the free space
+ * wraps after the end, so it's preferable to call this function again after
+ * writing. Also note that this function respects max_len.
+ */
+static inline int buffer_contig_space(struct buffer *buf)
+{
+	int ret;
+
+	if (buf->l == 0) {
+		buf->r = buf->w = buf->lr = buf->data;
+		ret = buf->max_len;
+	}
+	else if (buf->r > buf->w) {
+		ret = buf->data + buf->max_len - buf->r;
+	}
+	else {
+		ret = buf->w - buf->r;
+		if (ret > buf->max_len)
+			ret = buf->max_len;
+	}
+	return ret;
+}
+
+/*
+ * Return the max amount of bytes that can be read from the buffer at once.
+ * Note that this may be lower than the actual buffer length when the data
+ * wrap after the end, so it's preferable to call this function again after
+ * reading. Also note that this function respects the send_max limit.
+ */
+static inline int buffer_contig_data(struct buffer *buf)
+{
+	int ret;
+
+	if (!buf->send_max || !buf->l)
+		return 0;
+
+	if (buf->r > buf->w)
+		ret = buf->r - buf->w;
+	else
+		ret = buf->data + buf->size - buf->w;
+
+	/* limit the amount of outgoing data if required */
+	if (ret > buf->send_max)
+		ret = buf->send_max;
+
+	return ret;
+}
+
+/*
+ * Advance the buffer's read pointer by <len> bytes. This is useful when data
+ * have been read directly from the buffer. It is illegal to call this function
+ * with <len> causing a wrapping at the end of the buffer. It's the caller's
+ * responsibility to ensure that <len> is never larger than buffer_contig_data.
+ */
+static inline void buffer_skip(struct buffer *buf, int len)
+{
+	buf->w += len;
+	if (buf->w == buf->data + buf->size)
+		buf->w = buf->data; /* wrap around the buffer */
+
+	buf->l -= len;
+	if (!buf->l) {
+		buf->r = buf->w = buf->lr = buf->data;
+		if (!buf->pipe)
+			buf->flags |= BF_EMPTY;
+	}
+
+	if (buf->l < buf->max_len)
+		buf->flags &= ~BF_FULL;
+
+	buf->send_max -= len;
+}
 
 int buffer_write(struct buffer *buf, const char *msg, int len);
 int buffer_write_chunk(struct buffer *buf, struct chunk *chunk);
