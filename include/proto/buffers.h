@@ -347,8 +347,26 @@ static inline void buffer_skip(struct buffer *buf, int len)
 	buf->send_max -= len;
 }
 
+/*
+ * Return one char from the buffer. If the buffer is empty and closed, return -1.
+ * If the buffer is just empty, return -2. The buffer's pointer is not advanced,
+ * it's up to the caller to call buffer_skip(buf, 1) when it has consumed the char.
+ * Also note that this function respects the send_max limit.
+ */
+static inline int buffer_si_peekchar(struct buffer *buf)
+{
+	if (buf->send_max)
+		return *buf->w;
+
+	if (buf->flags & (BF_SHUTW|BF_SHUTW_NOW))
+		return -1;
+	else
+		return -2;
+}
+
 int buffer_write(struct buffer *buf, const char *msg, int len);
 int buffer_feed(struct buffer *buf, const char *str, int len);
+int buffer_si_peekline(struct buffer *buf, char *str, int len);
 int buffer_replace(struct buffer *b, char *pos, char *end, const char *str);
 int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int len);
 int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len);

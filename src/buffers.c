@@ -119,6 +119,55 @@ int buffer_feed(struct buffer *buf, const char *str, int len)
 	return -1;
 }
 
+/* Get one text line out of a buffer from a stream interface.
+ * Return values :
+ *   >0 : number of bytes read. Includes the \n if present before len or end.
+ *   =0 : no '\n' before end found. <buf> is undefined.
+ *   <0 : no more bytes readable + shutdown set.
+ * The buffer status is not changed. The caller must call buffer_skip() to
+ * update it. The '\n' is waited for as long as neither the buffer nor the
+ * output are full. If either of them is full, the string may be returned
+ * as is, without the '\n'.
+ */
+int buffer_si_peekline(struct buffer *buf, char *str, int len)
+{
+	int ret, max;
+	char *p;
+
+	ret = 0;
+	max = len;
+	if (!buf->send_max) {
+		if (buf->flags & (BF_SHUTW|BF_SHUTW_NOW))
+			ret = -1;
+		goto out;
+	}
+
+	p = buf->w;
+
+	if (max > buf->send_max) {
+		max = buf->send_max;
+		str[max] = 0;
+	}
+	while (max) {
+		*str++ = *p;
+		ret++;
+		max--;
+
+		if (*p == '\n')
+			break;
+		p++;
+		if (p == buf->data + buf->size)
+			p = buf->data;
+	}
+	if (*p != '\n' && ret < len && ret < buf->max_len &&
+	   !(buf->flags & (BF_SHUTW|BF_SHUTW_NOW)))
+		ret = 0;
+ out:
+	if (max)
+		*str = 0;
+	return ret;
+}
+
 /*
  * this function writes the string <str> at position <pos> which must be in buffer <b>,
  * and moves <end> just after the end of <str>.
