@@ -119,6 +119,38 @@ int buffer_feed(struct buffer *buf, const char *str, int len)
 	return -1;
 }
 
+/* Try to write character <c> into buffer <buf> after length controls. This
+ * work like buffer_feed(buf, &c, 1).
+ * Returns non-zero in case of success, 0 if the buffer was full.
+ * The send limit is automatically adjusted with the amount of data written.
+ */
+int buffer_si_putchar(struct buffer *buf, char c)
+{
+	if (buf->flags & BF_FULL)
+		return 0;
+
+	if (!buf->l)
+		buf->r = buf->w = buf->lr = buf->data;
+
+	*buf->r++ = c;
+	buf->l++;
+	buf->total++;
+
+	if (buf->to_forward) {
+		buf->send_max++;
+		buf->to_forward--;
+	}
+
+	if (buf->r == buf->data + buf->size)
+		buf->r = buf->data;
+
+	buf->flags &= ~(BF_EMPTY|BF_FULL);
+	if (buf->l >= buf->max_len)
+		buf->flags |= BF_FULL;
+
+	return 1;
+}
+
 /* Get one text line out of a buffer from a stream interface.
  * Return values :
  *   >0 : number of bytes read. Includes the \n if present before len or end.

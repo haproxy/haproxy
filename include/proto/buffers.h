@@ -366,6 +366,7 @@ static inline int buffer_si_peekchar(struct buffer *buf)
 
 int buffer_write(struct buffer *buf, const char *msg, int len);
 int buffer_feed(struct buffer *buf, const char *str, int len);
+int buffer_si_putchar(struct buffer *buf, char c);
 int buffer_si_peekline(struct buffer *buf, char *str, int len);
 int buffer_replace(struct buffer *b, char *pos, char *end, const char *str);
 int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int len);
