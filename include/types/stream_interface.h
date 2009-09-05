@@ -2,7 +2,7 @@
   include/types/stream_interface.h
   This file describes the stream_interface struct and associated constants.
 
-  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -68,6 +68,7 @@ enum {
 	SI_FL_WAIT_ROOM  = 0x0004,  /* waiting for space to store incoming data */
 	SI_FL_WAIT_DATA  = 0x0008,  /* waiting for more data to send */
 	SI_FL_CAP_SPLTCP = 0x0010,  /* splicing possible from/to TCP */
+	SI_FL_DONT_WAKE  = 0x0020,  /* resync in progress, don't wake up */
 };
 
 #define SI_FL_CAP_SPLICE (SI_FL_CAP_SPLTCP)

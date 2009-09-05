@@ -1087,7 +1087,8 @@ void stream_sock_chk_snd(struct stream_interface *si)
 		   ((ob->flags & BF_OUT_EMPTY) && !ob->to_forward) ||
 		   si->state != SI_ST_EST)) {
 	out_wakeup:
-		task_wakeup(si->owner, TASK_WOKEN_IO);
+		if (!(si->flags & SI_FL_DONT_WAKE) && si->owner)
+			task_wakeup(si->owner, TASK_WOKEN_IO);
 	}
 }
 

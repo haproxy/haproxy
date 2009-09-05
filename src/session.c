@@ -636,6 +636,12 @@ struct task *process_session(struct task *t)
 	rqf_last = s->req->flags;
 	rpf_last = s->rep->flags;
 
+	/* we don't want the stream interface functions to recursively wake us up */
+	if (s->req->prod->owner == t)
+		s->req->prod->flags |= SI_FL_DONT_WAKE;
+	if (s->req->cons->owner == t)
+		s->req->cons->flags |= SI_FL_DONT_WAKE;
+
 	/* 1a: Check for low level timeouts if needed. We just set a flag on
 	 * stream interfaces when their timeouts have expired.
 	 */
@@ -1127,6 +1133,10 @@ resync_stream_interface:
 
 	if ((s->rep->flags ^ rpf_last) & BF_MASK_STATIC)
 		goto resync_response;
+
+	/* we're interested in getting wakeups again */
+	s->req->prod->flags &= ~SI_FL_DONT_WAKE;
+	s->req->cons->flags &= ~SI_FL_DONT_WAKE;
 
 	/* This is needed only when debugging is enabled, to indicate
 	 * client-side or server-side close. Please note that in the unlikely
