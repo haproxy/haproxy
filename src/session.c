@@ -1173,10 +1173,10 @@ resync_stream_interface:
 		if ((s->fe->options & PR_O_CONTSTATS) && (s->flags & SN_BE_ASSIGNED))
 			session_process_counters(s);
 
-		if (s->rep->cons->state == SI_ST_EST)
+		if (s->rep->cons->state == SI_ST_EST && !s->rep->cons->iohandler)
 			s->rep->cons->update(s->rep->cons);
 
-		if (s->req->cons->state == SI_ST_EST)
+		if (s->req->cons->state == SI_ST_EST && !s->req->cons->iohandler)
 			s->req->cons->update(s->req->cons);
 
 		s->req->flags &= ~(BF_READ_NULL|BF_READ_PARTIAL|BF_WRITE_NULL|BF_WRITE_PARTIAL);
@@ -1198,6 +1198,21 @@ resync_stream_interface:
 		    (tick_isset(s->req->wex) || tick_isset(s->rep->rex))) {
 			s->req->flags |= BF_READ_NOEXP;
 			s->req->rex = TICK_ETERNITY;
+		}
+
+		/* Call the second stream interface's I/O handler if it's embedded.
+		 * Note that this one may wake the task up again.
+		 */
+		if (s->req->cons->iohandler) {
+			s->req->cons->iohandler(s->req->cons);
+			if (task_in_rq(t)) {
+				/* If we woke up, we don't want to requeue the
+				 * task to the wait queue, but rather requeue
+				 * it into the runqueue ASAP.
+				 */
+				t->expire = TICK_ETERNITY;
+				return t;
+			}
 		}
 
 		t->expire = tick_first(tick_first(s->req->rex, s->req->wex),
