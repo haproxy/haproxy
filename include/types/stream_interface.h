@@ -76,6 +76,10 @@ enum {
 struct server;
 struct proxy;
 
+/* Note that if an iohandler is set, the update function will not be called by
+ * the session handler, so it may be used to resync flags at the end of the I/O
+ * handler. See stream_int_update_embedded() for reference.
+ */
 struct stream_interface {
 	unsigned int state;     /* SI_ST* */
 	unsigned int prev_state;/* SI_ST*, copy of previous state */
