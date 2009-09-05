@@ -451,6 +451,7 @@ int uxst_event_accept(int fd) {
 		s->si[0].chk_rcv = stream_sock_chk_rcv;
 		s->si[0].chk_snd = stream_sock_chk_snd;
 		s->si[0].connect = NULL;
+		s->si[0].iohandler = NULL;
 		s->si[0].fd = cfd;
 		s->si[0].flags = SI_FL_NONE;
 		s->si[0].exp = TICK_ETERNITY;
@@ -465,6 +466,7 @@ int uxst_event_accept(int fd) {
 		s->si[1].chk_rcv = stream_sock_chk_rcv;
 		s->si[1].chk_snd = stream_sock_chk_snd;
 		s->si[1].connect = NULL;
+		s->si[1].iohandler = NULL;
 		s->si[1].exp = TICK_ETERNITY;
 		s->si[1].fd = -1; /* just to help with debugging */
 		s->si[1].flags = SI_FL_NONE;
