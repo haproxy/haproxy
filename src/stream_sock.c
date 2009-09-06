@@ -332,7 +332,7 @@ int stream_sock_read(int fd) {
 			cur_read += ret;
 
 			/* if we're allowed to directly forward data, we must update send_max */
-			if (b->to_forward > 0) {
+			if (b->to_forward > 0 && !(b->flags & (BF_SHUTW|BF_SHUTW_NOW))) {
 				int fwd = MIN(b->to_forward, ret);
 				b->send_max   += fwd;
 				b->to_forward -= fwd;
@@ -502,6 +502,8 @@ int stream_sock_read(int fd) {
 	/* we received a shutdown */
 	fdtab[fd].ev &= ~FD_POLL_HUP;
 	b->flags |= BF_READ_NULL;
+	if (b->flags & BF_WRITE_ENA)
+		buffer_shutw_now(b);
 	stream_sock_shutr(si);
 	goto out_wakeup;
 
@@ -599,7 +601,7 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 			unsigned int send_flag = MSG_DONTWAIT | MSG_NOSIGNAL;
 
 			if (MSG_MORE &&
-			    (((b->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) == (BF_WRITE_ENA|BF_SHUTR) &&
+			    (((b->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK|BF_WRITE_ENA)) == (BF_WRITE_ENA|BF_SHUTW_NOW) &&
 			      (max == b->l)) ||
 			     (max != b->l && max != b->send_max))
 			    && (fdtab[si->fd].flags & FD_FL_TCP)) {
@@ -739,8 +741,8 @@ int stream_sock_write(int fd)
 		 * send_max limit was reached. Maybe we just wrote the last
 		 * chunk and need to close.
 		 */
-		if (((b->flags & (BF_SHUTW|BF_EMPTY|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) ==
-		     (BF_EMPTY|BF_WRITE_ENA|BF_SHUTR)) &&
+		if (((b->flags & (BF_SHUTW|BF_HIJACK|BF_WRITE_ENA|BF_SHUTW_NOW)) ==
+		     (BF_WRITE_ENA|BF_SHUTW_NOW)) &&
 		    (si->state == SI_ST_EST)) {
 			stream_sock_shutw(si);
 			goto out_wakeup;
@@ -813,6 +815,7 @@ int stream_sock_write(int fd)
  */
 void stream_sock_shutw(struct stream_interface *si)
 {
+	si->ob->flags &= ~BF_SHUTW_NOW;
 	if (si->ob->flags & BF_SHUTW)
 		return;
 	si->ob->flags |= BF_SHUTW;
@@ -857,6 +860,7 @@ void stream_sock_shutw(struct stream_interface *si)
  */
 void stream_sock_shutr(struct stream_interface *si)
 {
+	si->ib->flags &= ~BF_SHUTR_NOW;
 	if (si->ib->flags & BF_SHUTR)
 		return;
 	si->ib->flags |= BF_SHUTR;
@@ -1041,8 +1045,8 @@ void stream_sock_chk_snd(struct stream_interface *si)
 		 * send_max limit was reached. Maybe we just wrote the last
 		 * chunk and need to close.
 		 */
-		if (((ob->flags & (BF_SHUTW|BF_EMPTY|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) ==
-		     (BF_EMPTY|BF_WRITE_ENA|BF_SHUTR)) &&
+		if (((ob->flags & (BF_SHUTW|BF_HIJACK|BF_WRITE_ENA|BF_SHUTW_NOW)) ==
+		     (BF_WRITE_ENA|BF_SHUTW_NOW)) &&
 		    (si->state == SI_ST_EST)) {
 			stream_sock_shutw(si);
 			goto out_wakeup;

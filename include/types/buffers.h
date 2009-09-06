@@ -46,8 +46,9 @@
  *     BF_SHUT*_NOW, BF_*_ENA, BF_HIJACK
  *
  * The flags have been arranged for readability, so that the read and write
- * bits have se same position in a byte (read being the lower byte and write
- * the second one).
+ * bits have the same position in a byte (read being the lower byte and write
+ * the second one). All flag names are relative to the buffer. For instance,
+ * 'write' indicates the direction from the buffer to the stream interface.
  */
 
 #define BF_READ_NULL      0x000001  /* last read detected on producer side */
@@ -58,7 +59,7 @@
 
 #define BF_FULL           0x000010  /* buffer cannot accept any more data (l >= max_len) */
 #define BF_SHUTR          0x000020  /* producer has already shut down */
-#define BF_SHUTR_NOW      0x000040  /* the producer must shut down for reads immediately */
+#define BF_SHUTR_NOW      0x000040  /* the producer must shut down for reads ASAP */
 #define BF_READ_NOEXP     0x000080  /* producer should not expire */
 
 #define BF_WRITE_NULL     0x000100  /* write(0) or connect() succeeded on consumer side */
@@ -69,17 +70,40 @@
 
 #define BF_EMPTY          0x001000  /* buffer is empty */
 #define BF_SHUTW          0x002000  /* consumer has already shut down */
-#define BF_SHUTW_NOW      0x004000  /* the consumer must shut down for writes immediately */
+#define BF_SHUTW_NOW      0x004000  /* the consumer must shut down for writes ASAP */
 #define BF_WRITE_ENA      0x008000  /* consumer is allowed to forward all buffer contents */
+
+/* When either BF_SHUTR_NOW or BF_HIJACK is set, it is strictly forbidden for
+ * the producer to alter the buffer contents. When BF_SHUTW_NOW is set, the
+ * consumer is free to perform a shutw() when it has consumed the last contents,
+ * otherwise the session processor will do it anyway.
+ *
+ * The SHUT* flags work like this :
+ *
+ *  SHUTR SHUTR_NOW  meaning
+ *    0       0      normal case, connection still open and data is being read
+ *    0       1      closing : the producer cannot feed data anymore but can close
+ *    1       0      closed: the producer has closed its input channel.
+ *    1       1      impossible
+ *
+ *  SHUTW SHUTW_NOW  meaning
+ *    0       0      normal case, connection still open and data is being written
+ *    0       1      closing: the consumer can send last data and may then close
+ *    1       0      closed: the consumer has closed its output channel.
+ *    1       1      impossible
+ *
+ * The SHUTW_NOW flag should be set by the session processor when SHUTR and WRITE_ENA
+ * are both set. It may also be set by a hijacker at the end of data. And it may also
+ * be set by the producer when it detects SHUTR while directly forwarding data to the
+ * consumer.
+ *
+ * The SHUTR_NOW flag is mostly used to force the producer to abort when an error is
+ * detected on the consumer side.
+ */
 
 #define BF_STREAMER       0x010000  /* the producer is identified as streaming data */
 #define BF_STREAMER_FAST  0x020000  /* the consumer seems to eat the stream very fast */
 
-/* When either BF_SHUTR_NOW or BF_HIJACK is set, it is strictly forbidden for
- * the stream interface to alter the buffer contents. When BF_SHUTW_NOW is set,
- * it is strictly forbidden for the stream interface to send anything from the
- * buffer.
- */
 #define BF_HIJACK         0x040000  /* the producer is temporarily replaced by ->hijacker */
 #define BF_ANA_TIMEOUT    0x080000  /* the analyser timeout has expired */
 #define BF_READ_ATTACHED  0x100000  /* the read side is attached for the first time */

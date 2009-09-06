@@ -198,9 +198,8 @@ int sess_update_st_con_tcp(struct session *s, struct stream_interface *si)
 	}
 
 	/* OK, maybe we want to abort */
-	if (unlikely((req->flags & BF_SHUTW_NOW) ||
-		     (rep->flags & BF_SHUTW) ||
-		     ((req->flags & BF_SHUTR) && /* FIXME: this should not prevent a connection from establishing */
+	if (unlikely((rep->flags & BF_SHUTW) ||
+		     ((req->flags & BF_SHUTW_NOW) && /* FIXME: this should not prevent a connection from establishing */
 		      (((req->flags & (BF_EMPTY|BF_WRITE_ACTIVITY)) == BF_EMPTY) ||
 		       s->be->options & PR_O_ABRT_CLOSE)))) {
 		/* give up */
@@ -451,8 +450,8 @@ void sess_update_stream_int(struct session *s, struct stream_interface *si)
 		}
 
 		/* Connection remains in queue, check if we have to abort it */
-		if ((si->ob->flags & (BF_READ_ERROR|BF_SHUTW_NOW)) || /* abort requested */
-		    ((si->ob->flags & BF_SHUTR) &&           /* empty and client stopped */
+		if ((si->ob->flags & (BF_READ_ERROR)) ||
+		    ((si->ob->flags & BF_SHUTW_NOW) &&   /* empty and client aborted */
 		     (si->ob->flags & BF_EMPTY || s->be->options & PR_O_ABRT_CLOSE))) {
 			/* give up */
 			si->exp = TICK_ETERNITY;
@@ -471,8 +470,8 @@ void sess_update_stream_int(struct session *s, struct stream_interface *si)
 	}
 	else if (si->state == SI_ST_TAR) {
 		/* Connection request might be aborted */
-		if ((si->ob->flags & (BF_READ_ERROR|BF_SHUTW_NOW)) || /* abort requested */
-		    ((si->ob->flags & BF_SHUTR) &&           /* empty and client stopped */
+		if ((si->ob->flags & (BF_READ_ERROR)) ||
+		    ((si->ob->flags & BF_SHUTW_NOW) &&  /* empty and client aborted */
 		     (si->ob->flags & BF_EMPTY || s->be->options & PR_O_ABRT_CLOSE))) {
 			/* give up */
 			si->exp = TICK_ETERNITY;
@@ -957,7 +956,7 @@ resync_stream_interface:
 		 * of data to be forwarded from the producer to the consumer (which
 		 * might possibly not be connected yet).
 		 */
-		if (!(s->req->flags & BF_SHUTR) &&
+		if (!(s->req->flags & (BF_SHUTR|BF_SHUTW|BF_SHUTW_NOW)) &&
 		    s->req->to_forward < FORWARD_DEFAULT_SIZE)
 			buffer_forward(s->req, FORWARD_DEFAULT_SIZE);
 	}
@@ -982,10 +981,10 @@ resync_stream_interface:
 	 */
 
 	/* first, let's check if the request buffer needs to shutdown(write) */
-	if (unlikely((s->req->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_EMPTY|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) ==
-		     (BF_EMPTY|BF_WRITE_ENA|BF_SHUTR)))
+	if (unlikely((s->req->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) ==
+		     (BF_WRITE_ENA|BF_SHUTR)))
 		buffer_shutw_now(s->req);
-	else if ((s->req->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_EMPTY|BF_WRITE_ENA)) == (BF_EMPTY|BF_WRITE_ENA) &&
+	else if ((s->req->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_WRITE_ENA)) == (BF_WRITE_ENA) &&
 		 (s->req->cons->state == SI_ST_EST) &&
 		 s->be->options & PR_O_FORCE_CLO &&
 		 s->rep->flags & BF_READ_ACTIVITY) {
@@ -997,7 +996,7 @@ resync_stream_interface:
 	}
 
 	/* shutdown(write) pending */
-	if (unlikely((s->req->flags & (BF_SHUTW|BF_SHUTW_NOW)) == BF_SHUTW_NOW))
+	if (unlikely((s->req->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_EMPTY)) == (BF_SHUTW_NOW|BF_EMPTY)))
 		s->req->cons->shutw(s->req->cons);
 
 	/* shutdown(write) done on server side, we must stop the client too */
@@ -1072,7 +1071,7 @@ resync_stream_interface:
 		 * of data to be forwarded from the producer to the consumer (which
 		 * might possibly not be connected yet).
 		 */
-		if (!(s->rep->flags & BF_SHUTR) &&
+		if (!(s->rep->flags & (BF_SHUTR|BF_SHUTW|BF_SHUTW_NOW)) &&
 		    s->rep->to_forward < FORWARD_DEFAULT_SIZE)
 			buffer_forward(s->rep, FORWARD_DEFAULT_SIZE);
 	}
@@ -1101,12 +1100,12 @@ resync_stream_interface:
 	 */
 
 	/* first, let's check if the response buffer needs to shutdown(write) */
-	if (unlikely((s->rep->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_EMPTY|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) ==
-		     (BF_EMPTY|BF_WRITE_ENA|BF_SHUTR)))
+	if (unlikely((s->rep->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) ==
+		     (BF_WRITE_ENA|BF_SHUTR)))
 		buffer_shutw_now(s->rep);
 
 	/* shutdown(write) pending */
-	if (unlikely((s->rep->flags & (BF_SHUTW|BF_SHUTW_NOW)) == BF_SHUTW_NOW))
+	if (unlikely((s->rep->flags & (BF_SHUTW|BF_EMPTY|BF_SHUTW_NOW)) == (BF_EMPTY|BF_SHUTW_NOW)))
 		s->rep->cons->shutw(s->rep->cons);
 
 	/* shutdown(write) done on the client side, we must stop the server too */
