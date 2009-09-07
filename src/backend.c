@@ -837,8 +837,19 @@ static void assign_tproxy_address(struct session *s)
 			/* FIXME: what can we do if the client connects in IPv6 ? */
 			s->from_addr = *(struct sockaddr_in *)&s->cli_addr;
 			break;
+		case SRV_TPROXY_DYN:
+			if (s->srv->bind_hdr_occ) {
+				/* bind to the IP in a header */
+				s->from_addr.sin_port = 0;
+				s->from_addr.sin_addr.s_addr = htonl(get_ip_from_hdr2(&s->txn.req,
+										s->srv->bind_hdr_name,
+										s->srv->bind_hdr_len,
+										&s->txn.hdr_idx,
+										s->srv->bind_hdr_occ));
+			}
+			break;
 		default:
-			s->from_addr = *(struct sockaddr_in *)0;
+			memset(&s->from_addr, 0, sizeof(s->from_addr));
 		}
 	}
 	else if (s->be->options & PR_O_BIND_SRC) {
@@ -851,8 +862,19 @@ static void assign_tproxy_address(struct session *s)
 			/* FIXME: what can we do if the client connects in IPv6 ? */
 			s->from_addr = *(struct sockaddr_in *)&s->cli_addr;
 			break;
+		case PR_O_TPXY_DYN:
+			if (s->be->bind_hdr_occ) {
+				/* bind to the IP in a header */
+				s->from_addr.sin_port = 0;
+				s->from_addr.sin_addr.s_addr = htonl(get_ip_from_hdr2(&s->txn.req,
+										s->be->bind_hdr_name,
+										s->be->bind_hdr_len,
+										&s->txn.hdr_idx,
+										s->be->bind_hdr_occ));
+			}
+			break;
 		default:
-			s->from_addr = *(struct sockaddr_in *)0;
+			memset(&s->from_addr, 0, sizeof(s->from_addr));
 		}
 	}
 #endif

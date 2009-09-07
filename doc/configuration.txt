@@ -4127,6 +4127,7 @@ server <name> <address>[:port] [param*]
 
 
 source <addr>[:<port>] [usesrc { <addr2>[:<port2>] | client | clientip } ]
+source <addr>[:<port>] [usesrc { <addr2>[:<port2>] | hdr_ip(<hdr>[,<occ>]) } ]
 source <addr>[:<port>] [interface <name>]
   Set the source address for outgoing connections
   May be used in sections :   defaults | frontend | listen | backend
@@ -4154,6 +4155,29 @@ source <addr>[:<port>] [interface <name>]
               are forwarded in full transparent proxy mode (see <addr2> above).
               The default value of zero means the system will select a free
               port.
+
+    <hdr>     is the name of a HTTP header in which to fetch the IP to bind to.
+              This is the name of a comma-separated header list which can
+              contain multiple IP addresses. By default, the last occurrence is
+              used. This is designed to work with the X-Forwarded-For header
+              and to automatically bind to the the client's IP address as seen
+              by previous proxy, typically Stunnel. In order to use another
+              occurrence from the last one, please see the <occ> parameter
+              below. When the header (or occurrence) is not found, no binding
+              is performed so that the proxy's default IP address is used. Also
+              keep in mind that the header name is case insensitive, as for any
+              HTTP header.
+
+    <occ>     is the occurrence number of a value to be used in a multi-value
+              header. This is to be used in conjunction with "hdr_ip(<hdr>)",
+              in order to specificy which occurrence to use for the source IP
+              address. Positive values indicate a position from the first
+              occurrence, 1 being the first one. Negative values indicate
+              positions relative to the last one, -1 being the last one. This
+              is helpful for situations where an X-Forwarded-For header is set
+              at the entry point of an infrastructure and must be used several
+              proxy layers away. When this value is not specified, -1 is
+              assumed. Passing a zero here disables the feature.
 
     <name>    is an optional interface name to which to bind to for outgoing
               traffic. On systems supporting this features (currently, only
@@ -4229,6 +4253,11 @@ source <addr>[:<port>] [interface <name>]
             # Connect to the SMTP farm from the client's source address/port
             # with Tproxy version 4.
             source 0.0.0.0 usesrc clientip
+
+        backend transparent_http
+            # Connect to the servers using the client's IP as seen by previous
+            # proxy.
+            source 0.0.0.0 usesrc hdr_ip(x-forwarded-for,-1)
 
   See also : the "source" server option in section 5, the Tproxy patches for
              the Linux kernel on www.balabit.com, the "bind" keyword.
@@ -5576,6 +5605,7 @@ slowstart <start_time_in_ms>
   Supported in default-server: Yes
 
 source <addr>[:<pl>[-<ph>]] [usesrc { <addr2>[:<port2>] | client | clientip } ]
+source <addr>[:<port>] [usesrc { <addr2>[:<port2>] | hdr_ip(<hdr>[,<occ>]) } ]
 source <addr>[:<pl>[-<ph>]] [interface <name>] ...
   The "source" parameter sets the source address which will be used when
   connecting to the server. It follows the exact same parameters and principle

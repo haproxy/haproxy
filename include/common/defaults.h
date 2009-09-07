@@ -63,6 +63,11 @@
 #define MAX_HTTP_HDR    ((BUFSIZE+79)/80)
 #endif
 
+// max # of headers in history when looking for header #-X
+#ifndef MAX_HDR_HISTORY
+#define MAX_HDR_HISTORY 10
+#endif
+
 // max # of loops we can perform around a read() which succeeds.
 // It's very frequent that the system returns a few TCP segments at a time.
 #ifndef MAX_READ_POLL_LOOPS

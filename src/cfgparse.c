@@ -3451,15 +3451,56 @@ stats_error_parsing:
 						}
 #endif
 						if (!*args[cur_arg + 1]) {
-							Alert("parsing [%s:%d] : '%s' expects <addr>[:<port>], 'client', or 'clientip' as argument.\n",
+							Alert("parsing [%s:%d] : '%s' expects <addr>[:<port>], 'client', 'clientip', or 'hdr_ip(name,#)' as argument.\n",
 							      file, linenum, "usesrc");
 							err_code |= ERR_ALERT | ERR_FATAL;
 							goto out;
 						}
 						if (!strcmp(args[cur_arg + 1], "client")) {
+							newsrv->state &= ~SRV_TPROXY_MASK;
 							newsrv->state |= SRV_TPROXY_CLI;
 						} else if (!strcmp(args[cur_arg + 1], "clientip")) {
+							newsrv->state &= ~SRV_TPROXY_MASK;
 							newsrv->state |= SRV_TPROXY_CIP;
+						} else if (!strncmp(args[cur_arg + 1], "hdr_ip(", 7)) {
+							char *name, *end;
+
+							name = args[cur_arg+1] + 7;
+							while (isspace(*name))
+								name++;
+
+							end = name;
+							while (*end && !isspace(*end) && *end != ',' && *end != ')')
+								end++;
+
+							newsrv->state &= ~SRV_TPROXY_MASK;
+							newsrv->state |= SRV_TPROXY_DYN;
+							newsrv->bind_hdr_name = calloc(1, end - name + 1);
+							newsrv->bind_hdr_len = end - name;
+							memcpy(newsrv->bind_hdr_name, name, end - name);
+							newsrv->bind_hdr_name[end-name] = '\0';
+							newsrv->bind_hdr_occ = -1;
+
+							/* now look for an occurrence number */
+							while (isspace(*end))
+								end++;
+							if (*end == ',') {
+								end++;
+								name = end;
+								if (*end == '-')
+									end++;
+								while (isdigit(*end))
+									end++;
+								newsrv->bind_hdr_occ = strl2ic(name, end-name);
+							}
+
+							if (newsrv->bind_hdr_occ < -MAX_HDR_HISTORY) {
+								Alert("parsing [%s:%d] : usesrc hdr_ip(name,num) does not support negative"
+								      " occurrences values smaller than %d.\n",
+								      file, linenum, MAX_HDR_HISTORY);
+								err_code |= ERR_ALERT | ERR_FATAL;
+								goto out;
+							}
 						} else {
 							struct sockaddr_in *sk = str2sa(args[cur_arg + 1]);
 							if (!sk) {
@@ -3725,9 +3766,50 @@ stats_error_parsing:
 				}
 
 				if (!strcmp(args[cur_arg + 1], "client")) {
+					curproxy->options &= ~PR_O_TPXY_MASK;
 					curproxy->options |= PR_O_TPXY_CLI;
 				} else if (!strcmp(args[cur_arg + 1], "clientip")) {
+					curproxy->options &= ~PR_O_TPXY_MASK;
 					curproxy->options |= PR_O_TPXY_CIP;
+				} else if (!strncmp(args[cur_arg + 1], "hdr_ip(", 7)) {
+					char *name, *end;
+
+					name = args[cur_arg+1] + 7;
+					while (isspace(*name))
+						name++;
+
+					end = name;
+					while (*end && !isspace(*end) && *end != ',' && *end != ')')
+						end++;
+
+					curproxy->options &= ~PR_O_TPXY_MASK;
+					curproxy->options |= PR_O_TPXY_DYN;
+					curproxy->bind_hdr_name = calloc(1, end - name + 1);
+					curproxy->bind_hdr_len = end - name;
+					memcpy(curproxy->bind_hdr_name, name, end - name);
+					curproxy->bind_hdr_name[end-name] = '\0';
+					curproxy->bind_hdr_occ = -1;
+
+					/* now look for an occurrence number */
+					while (isspace(*end))
+						end++;
+					if (*end == ',') {
+						end++;
+						name = end;
+						if (*end == '-')
+							end++;
+						while (isdigit(*end))
+							end++;
+						curproxy->bind_hdr_occ = strl2ic(name, end-name);
+					}
+
+					if (curproxy->bind_hdr_occ < -MAX_HDR_HISTORY) {
+						Alert("parsing [%s:%d] : usesrc hdr_ip(name,num) does not support negative"
+						      " occurrences values smaller than %d.\n",
+						      file, linenum, MAX_HDR_HISTORY);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
+					}
 				} else {
 					struct sockaddr_in *sk = str2sa(args[cur_arg + 1]);
 					if (!sk) {
@@ -5051,6 +5133,13 @@ out_uri_auth_compat:
 					curproxy->options2 &= ~cfg_opts2[optnum].val;
 				}
 			}
+
+			if (curproxy->bind_hdr_occ) {
+				curproxy->bind_hdr_occ = 0;
+				Warning("config : %s '%s' : ignoring use of header %s as source IP in non-HTTP mode.\n",
+					proxy_type_str(curproxy), curproxy->id, curproxy->bind_hdr_name);
+				err_code |= ERR_WARN;
+			}
 		}
 
 		/*
@@ -5073,6 +5162,13 @@ out_uri_auth_compat:
 				Alert("config : %s '%s' : server cannot have cookie or redirect prefix in non-HTTP mode.\n",
 				      proxy_type_str(curproxy), curproxy->id);
 				cfgerr++;
+			}
+
+			if (curproxy->mode != PR_MODE_HTTP && newsrv->bind_hdr_occ) {
+				newsrv->bind_hdr_occ = 0;
+				Warning("config : %s '%s' : server %s cannot use header %s as source IP in non-HTTP mode.\n",
+					proxy_type_str(curproxy), curproxy->id, newsrv->id, newsrv->bind_hdr_name);
+				err_code |= ERR_WARN;
 			}
 			newsrv = newsrv->next;
 		}
