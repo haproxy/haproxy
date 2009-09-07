@@ -269,6 +269,9 @@ extern unsigned int strl2uic(const char *s, int len);
 extern int strl2ic(const char *s, int len);
 extern int strl2irc(const char *s, int len, int *ret);
 extern int strl2llrc(const char *s, int len, long long *ret);
+unsigned int inetaddr_host(const char *text);
+unsigned int inetaddr_host_lim(const char *text, const char *stop);
+unsigned int inetaddr_host_lim_ret(const char *text, char *stop, const char **ret);
 
 static inline char *cut_crlf(char *s) {
 

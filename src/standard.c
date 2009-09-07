@@ -853,6 +853,160 @@ int word_match(const char *sample, int slen, const char *word, int wlen)
 	return 1;
 }
 
+/* Converts any text-formatted IPv4 address to a host-order IPv4 address. It
+ * is particularly fast because it avoids expensive operations such as
+ * multiplies, which are optimized away at the end. It requires a properly
+ * formated address though (3 points).
+ */
+unsigned int inetaddr_host(const char *text)
+{
+	const unsigned int ascii_zero = ('0' << 24) | ('0' << 16) | ('0' << 8) | '0';
+	register unsigned int dig100, dig10, dig1;
+	int s;
+	const char *p, *d;
+
+	dig1 = dig10 = dig100 = ascii_zero;
+	s = 24;
+
+	p = text;
+	while (1) {
+		if (((unsigned)(*p - '0')) <= 9) {
+			p++;
+			continue;
+		}
+
+		/* here, we have a complete byte between <text> and <p> (exclusive) */
+		if (p == text)
+			goto end;
+
+		d = p - 1;
+		dig1   |= (unsigned int)(*d << s);
+		if (d == text)
+			goto end;
+
+		d--;
+		dig10  |= (unsigned int)(*d << s);
+		if (d == text)
+			goto end;
+
+		d--;
+		dig100 |= (unsigned int)(*d << s);
+	end:
+		if (!s || *p != '.')
+			break;
+
+		s -= 8;
+		text = ++p;
+	}
+
+	dig100 -= ascii_zero;
+	dig10  -= ascii_zero;
+	dig1   -= ascii_zero;
+	return ((dig100 * 10) + dig10) * 10 + dig1;
+}
+
+/*
+ * Idem except the first unparsed character has to be passed in <stop>.
+ */
+unsigned int inetaddr_host_lim(const char *text, const char *stop)
+{
+	const unsigned int ascii_zero = ('0' << 24) | ('0' << 16) | ('0' << 8) | '0';
+	register unsigned int dig100, dig10, dig1;
+	int s;
+	const char *p, *d;
+
+	dig1 = dig10 = dig100 = ascii_zero;
+	s = 24;
+
+	p = text;
+	while (1) {
+		if (((unsigned)(*p - '0')) <= 9 && p < stop) {
+			p++;
+			continue;
+		}
+
+		/* here, we have a complete byte between <text> and <p> (exclusive) */
+		if (p == text)
+			goto end;
+
+		d = p - 1;
+		dig1   |= (unsigned int)(*d << s);
+		if (d == text)
+			goto end;
+
+		d--;
+		dig10  |= (unsigned int)(*d << s);
+		if (d == text)
+			goto end;
+
+		d--;
+		dig100 |= (unsigned int)(*d << s);
+	end:
+		if (!s || p == stop || *p != '.')
+			break;
+
+		s -= 8;
+		text = ++p;
+	}
+
+	dig100 -= ascii_zero;
+	dig10  -= ascii_zero;
+	dig1   -= ascii_zero;
+	return ((dig100 * 10) + dig10) * 10 + dig1;
+}
+
+/*
+ * Idem except the pointer to first unparsed byte is returned into <ret> which
+ * must not be NULL.
+ */
+unsigned int inetaddr_host_lim_ret(const char *text, char *stop, const char **ret)
+{
+	const unsigned int ascii_zero = ('0' << 24) | ('0' << 16) | ('0' << 8) | '0';
+	register unsigned int dig100, dig10, dig1;
+	int s;
+	const char *p, *d;
+
+	dig1 = dig10 = dig100 = ascii_zero;
+	s = 24;
+
+	p = text;
+	while (1) {
+		if (((unsigned)(*p - '0')) <= 9 && p < stop) {
+			p++;
+			continue;
+		}
+
+		/* here, we have a complete byte between <text> and <p> (exclusive) */
+		if (p == text)
+			goto end;
+
+		d = p - 1;
+		dig1   |= (unsigned int)(*d << s);
+		if (d == text)
+			goto end;
+
+		d--;
+		dig10  |= (unsigned int)(*d << s);
+		if (d == text)
+			goto end;
+
+		d--;
+		dig100 |= (unsigned int)(*d << s);
+	end:
+		if (!s || p == stop || *p != '.')
+			break;
+
+		s -= 8;
+		text = ++p;
+	}
+
+	*ret = p;
+	dig100 -= ascii_zero;
+	dig10  -= ascii_zero;
+	dig1   -= ascii_zero;
+	return ((dig100 * 10) + dig10) * 10 + dig1;
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8
