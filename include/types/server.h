@@ -51,7 +51,8 @@
 #define SRV_TPROXY_ADDR	0x0100	/* bind to this non-local address to reach this server */
 #define SRV_TPROXY_CIP	0x0200	/* bind to the client's IP address to reach this server */
 #define SRV_TPROXY_CLI	0x0300	/* bind to the client's IP+port to reach this server */
-#define SRV_TPROXY_MASK	0x0300	/* bind to a non-local address to reach this server */
+#define SRV_TPROXY_DYN	0x0400	/* bind to a dynamically computed non-local address */
+#define SRV_TPROXY_MASK	0x0700	/* bind to a non-local address to reach this server */
 
 /* function which act on servers need to return various errors */
 #define SRV_STATUS_OK       0   /* everything is OK. */

@@ -96,10 +96,11 @@
 #define PR_O_ABRT_CLOSE 0x00800000      /* immediately abort request when client closes */
 
 /* TPXY: exclusive values */
-#define PR_O_TPXY_ADDR  0x02000000	/* bind to this non-local address when connect()ing */
-#define PR_O_TPXY_CIP	0x04000000	/* bind to the client's IP address when connect()ing */
-#define PR_O_TPXY_CLI	0x06000000	/* bind to the client's IP+port when connect()ing */
-#define PR_O_TPXY_MASK	0x06000000	/* bind to a non-local address when connect()ing */
+#define PR_O_TPXY_ADDR  0x01000000	/* bind to this non-local address when connect()ing */
+#define PR_O_TPXY_CIP   0x02000000	/* bind to the client's IP address when connect()ing */
+#define PR_O_TPXY_CLI   0x03000000	/* bind to the client's IP+port when connect()ing */
+#define PR_O_TPXY_DYN   0x04000000	/* bind to a dynamically computed non-local address */
+#define PR_O_TPXY_MASK  0x07000000	/* bind to a non-local address when connect()ing */
 
 #define PR_O_SERVER_CLO 0x08000000	/* option http-server-close */
 #define PR_O_CONTSTATS	0x10000000	/* continous counters */

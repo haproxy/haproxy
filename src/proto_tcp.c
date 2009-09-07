@@ -254,6 +254,7 @@ int tcpv4_connect_server(struct stream_interface *si,
 			flags = 3;
 			break;
 		case SRV_TPROXY_CIP:
+		case SRV_TPROXY_DYN:
 			flags = 1;
 			break;
 		}
@@ -326,6 +327,7 @@ int tcpv4_connect_server(struct stream_interface *si,
 			flags = 3;
 			break;
 		case PR_O_TPXY_CIP:
+		case PR_O_TPXY_DYN:
 			flags = 1;
 			break;
 		}
