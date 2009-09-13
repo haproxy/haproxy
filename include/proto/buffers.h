@@ -389,6 +389,40 @@ static inline int buffer_si_peekchar(struct buffer *buf)
 		return -2;
 }
 
+/* Try to write character <c> into buffer <buf> after length controls. This
+ * work like buffer_feed(buf, &c, 1).
+ * Returns non-zero in case of success, 0 if the buffer was full.
+ * The send limit is automatically adjusted with the amount of data written.
+ */
+static inline int buffer_si_putchar(struct buffer *buf, char c)
+{
+	if (buf->flags & BF_FULL)
+		return 0;
+
+	if (buf->flags & BF_EMPTY) {
+		buf->flags &= ~BF_EMPTY;
+		buf->r = buf->w = buf->lr = buf->data;
+	}
+
+	*buf->r = c;
+
+	buf->l++;
+	if (buf->l >= buf->max_len)
+		buf->flags |= BF_FULL;
+
+	buf->r++;
+	if (buf->r - buf->data == buf->size)
+		buf->r -= buf->size;
+
+	if ((signed)(buf->to_forward - 1) >= 0) {
+		buf->to_forward--;
+		buf->send_max++;
+	}
+
+	buf->total++;
+	return 1;
+}
+
 int buffer_write(struct buffer *buf, const char *msg, int len);
 int buffer_feed(struct buffer *buf, const char *str, int len);
 int buffer_si_putchar(struct buffer *buf, char c);
