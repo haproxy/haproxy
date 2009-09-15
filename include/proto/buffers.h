@@ -99,12 +99,13 @@ static inline void buffer_forward(struct buffer *buf, unsigned int bytes)
 {
 	unsigned int data_left;
 
-	buf->to_forward += bytes;
 	data_left = buf->l - buf->send_max;
-	if (data_left > buf->to_forward)
-		data_left = buf->to_forward;
+	if (data_left >= bytes) {
+		buf->send_max += bytes;
+		return;
+	}
 
-	buf->to_forward -= data_left;
+	buf->to_forward += bytes - data_left;
 	buf->send_max += data_left;
 }
 
