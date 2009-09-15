@@ -1191,15 +1191,8 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 	http_msg_rpbefore:
 	case HTTP_MSG_RPBEFORE:
 		if (likely(HTTP_IS_TOKEN(*ptr))) {
-			if (likely(ptr == buf->data)) {
-				msg->sol = ptr;
-				msg->som = 0;
-			} else {
-#if PARSE_PRESERVE_EMPTY_LINES
-				/* only skip empty leading lines, don't remove them */
-				msg->sol = ptr;
-				msg->som = ptr - buf->data;
-#else
+#if !defined(PARSE_PRESERVE_EMPTY_LINES)
+			if (likely(ptr != buf->data)) {
 				/* Remove empty leading lines, as recommended by
 				 * RFC2616. This takes a lot of time because we
 				 * must move all the buffer backwards, but this
@@ -1207,14 +1200,12 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 				 * cleaner when we'll be able to start sending
 				 * the request from any place in the buffer.
 				 */
-				buf->lr = ptr;
-				buffer_replace2(buf, buf->data, buf->lr, NULL, 0);
-				msg->som = 0;
-				msg->sol = buf->data;
-				ptr = buf->data;
+				ptr += buffer_replace2(buf, buf->lr, ptr, NULL, 0);
 				end = buf->r;
-#endif
 			}
+#endif
+			msg->sol = ptr;
+			msg->som = ptr - buf->data;
 			hdr_idx_init(idx);
 			state = HTTP_MSG_RPVER;
 			goto http_msg_rpver;
@@ -2541,6 +2532,7 @@ int process_response(struct session *t)
 	struct buffer *req = t->req;
 	struct buffer *rep = t->rep;
 
+ next_response:
 	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		t,
@@ -2703,7 +2695,15 @@ int process_response(struct session *t)
 					t->flags |= SN_FINST_H;
 				return 0;
 			}
-			buffer_write_dis(rep);
+
+			/* We disable sending only if we have nothing to send.
+			 * Note that we should not need to do this since the
+			 * buffer is protected by the fact that at least one
+			 * analyser remains. But close events could still be
+			 * forwarded if we don't disable the BF_WRITE_ENA flag.
+			 */
+			if (!rep->send_max)
+				buffer_write_dis(rep);
 			return 0;
 		}
 
@@ -2809,7 +2809,8 @@ int process_response(struct session *t)
 
 			/* We might have to check for "Connection:" */
 			if (((t->fe->options | t->be->options) & (PR_O_HTTP_CLOSE|PR_O_FORCE_CLO)) &&
-			    !(t->flags & SN_CONN_CLOSED)) {
+			    !(t->flags & SN_CONN_CLOSED) &&
+			    txn->status >= 200) {
 				char *cur_ptr, *cur_end, *cur_next;
 				int cur_idx, old_idx, delta, val;
 				struct hdr_idx_elem *cur_hdr;
@@ -2859,6 +2860,8 @@ int process_response(struct session *t)
 
 			/* add response headers from the rule sets in the same order */
 			for (cur_idx = 0; cur_idx < rule_set->nb_rspadd; cur_idx++) {
+				if (txn->status < 200)
+					break;
 				if (unlikely(http_header_add_tail(rep, &txn->rsp, &txn->hdr_idx,
 								  rule_set->rsp_add[cur_idx])) < 0)
 					goto return_bad_resp;
@@ -2873,22 +2876,23 @@ int process_response(struct session *t)
 		/*
 		 * 4: check for server cookie.
 		 */
-		if (t->be->cookie_name || t->be->appsession_name || t->fe->capture_name
-		    || (t->be->options & PR_O_CHK_CACHE))
+		if ((t->be->cookie_name || t->be->appsession_name || t->fe->capture_name
+		     || (t->be->options & PR_O_CHK_CACHE)) && txn->status >= 200)
 			manage_server_side_cookies(t, rep);
 
 
 		/*
 		 * 5: check for cache-control or pragma headers if required.
 		 */
-		if ((t->be->options & (PR_O_COOK_NOC | PR_O_CHK_CACHE)) != 0)
+		if ((t->be->options & (PR_O_COOK_NOC | PR_O_CHK_CACHE)) != 0 && txn->status >= 200)
 			check_response_for_cacheability(t, rep);
 
 		/*
 		 * 6: add server cookie in the response if needed
 		 */
 		if ((t->srv) && !(t->flags & SN_DIRECT) && (t->be->options & PR_O_COOK_INS) &&
-		    (!(t->be->options & PR_O_COOK_POST) || (txn->meth == HTTP_METH_POST))) {
+		    (!(t->be->options & PR_O_COOK_POST) || (txn->meth == HTTP_METH_POST)) &&
+		    txn->status >= 200) {
 			int len;
 
 			/* the server is known, it's not the one the client requested, we have to
@@ -2931,7 +2935,8 @@ int process_response(struct session *t)
 		 */
 		if (((txn->flags & (TX_CACHEABLE | TX_CACHE_COOK | TX_SCK_ANY)) ==
 		     (TX_CACHEABLE | TX_CACHE_COOK | TX_SCK_ANY)) &&
-		    (t->be->options & PR_O_CHK_CACHE)) {
+		    (t->be->options & PR_O_CHK_CACHE) &&
+		    txn->status >= 200) {
 
 			/* we're in presence of a cacheable response containing
 			 * a set-cookie header. We'll block it as requested by
@@ -2954,13 +2959,29 @@ int process_response(struct session *t)
 		 * Note that we do not need to add it in case of HTTP/1.0.
 		 */
 		if (!(t->flags & SN_CONN_CLOSED) &&
-		    ((t->fe->options | t->be->options) & (PR_O_HTTP_CLOSE|PR_O_FORCE_CLO))) {
+		    ((t->fe->options | t->be->options) & (PR_O_HTTP_CLOSE|PR_O_FORCE_CLO)) &&
+		    txn->status >= 200) {
 			if ((unlikely(msg->sl.st.v_l != 8) ||
 			     unlikely(req->data[msg->som + 7] != '0')) &&
 			    unlikely(http_header_add_tail2(rep, &txn->rsp, &txn->hdr_idx,
 							   "Connection: close", 17)) < 0)
 				goto return_bad_resp;
 			t->flags |= SN_CONN_CLOSED;
+		}
+
+		/*
+		 * 9: we may be facing a 1xx response (100 continue, 101 switching protocols),
+		 * in which case this is not the right response, and we're waiting for the
+		 * next one. Let's allow this response to go to the client and wait for the
+		 * next one.
+		 */
+		if (txn->status < 200) {
+			hdr_idx_init(&txn->hdr_idx);
+			buffer_forward(rep, rep->lr - (rep->data + msg->som));
+			msg->msg_state = HTTP_MSG_RPBEFORE;
+			txn->status = 0;
+			rep->analysers |= AN_RTR_HTTP_HDR;
+			goto next_response;
 		}
 
 		/*************************************************************
