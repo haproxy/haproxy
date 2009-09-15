@@ -66,7 +66,7 @@ void stream_int_report_error(struct stream_interface *si)
 void stream_int_return(struct stream_interface *si, const struct chunk *msg)
 {
 	buffer_erase(si->ib);
-	buffer_erase(si->ob);
+	buffer_cut_tail(si->ob);
 	if (msg && msg->len)
 		buffer_write(si->ob, msg->str, msg->len);
 }
