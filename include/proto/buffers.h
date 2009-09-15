@@ -135,6 +135,30 @@ static inline void buffer_erase(struct buffer *buf)
 		buf->flags &= ~BF_FULL;
 }
 
+/* Cut the "tail" of the buffer, which means strip it to the length of unsent
+ * data only, and kill any remaining unsent data. Any scheduled forwarding is
+ * stopped. This is mainly to be used to send error messages after existing
+ * data.
+ */
+static inline void buffer_cut_tail(struct buffer *buf)
+{
+	if (!buf->send_max)
+		return buffer_erase(buf);
+
+	buf->to_forward = 0;
+	if (buf->l == buf->send_max)
+		return;
+
+	buf->l = buf->send_max;
+	buf->r = buf->w + buf->l;
+	if (buf->r >= buf->data + buf->size)
+		buf->r -= buf->size;
+	buf->lr = buf->r;
+	buf->flags &= ~(BF_EMPTY|BF_FULL);
+	if (buf->l >= buf->max_len)
+		buf->flags |= BF_FULL;
+}
+
 /* marks the buffer as "shutdown" for reads and cancels the timeout */
 static inline void buffer_shutr(struct buffer *buf)
 {
