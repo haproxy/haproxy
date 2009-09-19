@@ -5100,6 +5100,74 @@ acl_fetch_shdr_val(struct proxy *px, struct session *l4, void *l7, int dir,
 	return acl_fetch_hdr_val(px, l4, txn, txn->rsp.sol, expr, test);
 }
 
+/* 7. Check on HTTP header's IPv4 address value. The IPv4 address is returned.
+ * This generic function is used by both acl_fetch_chdr* and acl_fetch_shdr*.
+ */
+static int
+acl_fetch_hdr_ip(struct proxy *px, struct session *l4, void *l7, char *sol,
+                  struct acl_expr *expr, struct acl_test *test)
+{
+	struct http_txn *txn = l7;
+	struct hdr_idx *idx = &txn->hdr_idx;
+	struct hdr_ctx *ctx = (struct hdr_ctx *)test->ctx.a;
+
+	if (!txn)
+		return 0;
+
+	if (!(test->flags & ACL_TEST_F_FETCH_MORE))
+		/* search for header from the beginning */
+		ctx->idx = 0;
+
+	if (http_find_header2(expr->arg.str, expr->arg_len, sol, idx, ctx)) {
+		test->flags |= ACL_TEST_F_FETCH_MORE;
+		test->flags |= ACL_TEST_F_VOL_HDR;
+		/* Same optimization as url_ip */
+		memset(&l4->srv_addr.sin_addr, 0, sizeof(l4->srv_addr.sin_addr));
+		url2ip((char *)ctx->line + ctx->val, &l4->srv_addr.sin_addr);
+		test->ptr = (void *)&l4->srv_addr.sin_addr;
+		test->i = AF_INET;
+		return 1;
+	}
+
+	test->flags &= ~ACL_TEST_F_FETCH_MORE;
+	test->flags |= ACL_TEST_F_VOL_HDR;
+	return 0;
+}
+
+static int
+acl_fetch_chdr_ip(struct proxy *px, struct session *l4, void *l7, int dir,
+		   struct acl_expr *expr, struct acl_test *test)
+{
+	struct http_txn *txn = l7;
+
+	if (!txn)
+		return 0;
+
+	if (txn->req.msg_state != HTTP_MSG_BODY)
+		return 0;
+
+	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
+		/* ensure the indexes are not affected */
+		return 0;
+
+	return acl_fetch_hdr_ip(px, l4, txn, txn->req.sol, expr, test);
+}
+
+static int
+acl_fetch_shdr_ip(struct proxy *px, struct session *l4, void *l7, int dir,
+		   struct acl_expr *expr, struct acl_test *test)
+{
+	struct http_txn *txn = l7;
+
+	if (!txn)
+		return 0;
+
+	if (txn->rsp.msg_state != HTTP_MSG_BODY)
+		return 0;
+
+	return acl_fetch_hdr_ip(px, l4, txn, txn->rsp.sol, expr, test);
+}
+
 /* 8. Check on URI PATH. A pointer to the PATH is stored. The path starts at
  * the first '/' after the possible hostname, and ends before the possible '?'.
  */
@@ -5224,6 +5292,7 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "hdr_dom",    acl_parse_str,   acl_fetch_chdr,    acl_match_dom, ACL_USE_L7REQ_VOLATILE },
 	{ "hdr_cnt",    acl_parse_int,   acl_fetch_chdr_cnt,acl_match_int, ACL_USE_L7REQ_VOLATILE },
 	{ "hdr_val",    acl_parse_int,   acl_fetch_chdr_val,acl_match_int, ACL_USE_L7REQ_VOLATILE },
+	{ "hdr_ip",     acl_parse_ip,    acl_fetch_chdr_ip, acl_match_ip,  ACL_USE_L7REQ_VOLATILE },
 
 	{ "shdr",       acl_parse_str,   acl_fetch_shdr,    acl_match_str, ACL_USE_L7RTR_VOLATILE },
 	{ "shdr_reg",   acl_parse_reg,   acl_fetch_shdr,    acl_match_reg, ACL_USE_L7RTR_VOLATILE },
@@ -5234,6 +5303,7 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "shdr_dom",   acl_parse_str,   acl_fetch_shdr,    acl_match_dom, ACL_USE_L7RTR_VOLATILE },
 	{ "shdr_cnt",   acl_parse_int,   acl_fetch_shdr_cnt,acl_match_int, ACL_USE_L7RTR_VOLATILE },
 	{ "shdr_val",   acl_parse_int,   acl_fetch_shdr_val,acl_match_int, ACL_USE_L7RTR_VOLATILE },
+	{ "shdr_ip",    acl_parse_ip,    acl_fetch_shdr_ip, acl_match_ip,  ACL_USE_L7RTR_VOLATILE },
 
 	{ "path",       acl_parse_str,   acl_fetch_path,   acl_match_str, ACL_USE_L7REQ_VOLATILE },
 	{ "path_reg",   acl_parse_reg,   acl_fetch_path,   acl_match_reg, ACL_USE_L7REQ_VOLATILE },
