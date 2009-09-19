@@ -363,7 +363,7 @@ int str2net(const char *str, struct in_addr *addr, struct in_addr *mask)
 /*
  * Parse IP address found in url.
  */
-static int url2ip(const char *addr, struct in_addr *dst)
+int url2ip(const char *addr, struct in_addr *dst)
 {
 	int saw_digit, octets, ch;
 	u_char tmp[4], *tp;

@@ -188,6 +188,11 @@ struct sockaddr_in *str2sa_range(char *str, int *low, int *high);
 int str2net(const char *str, struct in_addr *addr, struct in_addr *mask);
 
 /*
+ * Parse IP address found in url.
+ */
+int url2ip(const char *addr, struct in_addr *dst);
+
+/*
  * Resolve destination server from URL. Convert <str> to a sockaddr_in*.
  */
 int url2sa(const char *url, int ulen, struct sockaddr_in *addr);

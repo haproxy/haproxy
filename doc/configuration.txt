@@ -4971,6 +4971,12 @@ hdr_cnt(header) <integer>
   request smugling attacks by rejecting requests which contain more than one
   of certain headers. See "hdr" for more information on header matching.
 
+hdr_ip <ip_address>
+hdr_ip(header) <ip_address>
+  Returns true when one of the headers' values contains an IP address matching
+  <ip_address>. This is mainly used with headers such as X-Forwarded-For or
+  X-Client-IP. See "hdr" for more information on header matching.
+
 
 7.6. Pre-defined ACLs
 ---------------------
