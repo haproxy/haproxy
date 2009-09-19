@@ -89,7 +89,7 @@ void stream_int_retnclose(struct stream_interface *si, const struct chunk *msg)
 		buffer_write(si->ob, msg->str, msg->len);
 
 	si->ob->wex = tick_add_ifset(now_ms, si->ob->wto);
-	buffer_write_ena(si->ob);
+	buffer_auto_close(si->ob);
 }
 
 /*

@@ -403,8 +403,10 @@ int event_accept(int fd) {
 		s->req->analysers = l->analysers;
 
 		/* note: this should not happen anymore since there's always at least the switching rules */
-		if (!s->req->analysers)
-			buffer_write_ena(s->req);  /* don't wait to establish connection */
+		if (!s->req->analysers) {
+			buffer_auto_connect(s->req);  /* don't wait to establish connection */
+			buffer_auto_close(s->req);    /* let the producer forward close requests */
+		}
 
 		s->req->rto = s->fe->timeout.client;
 		s->req->wto = s->be->timeout.server;

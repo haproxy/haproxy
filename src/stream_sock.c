@@ -502,7 +502,7 @@ int stream_sock_read(int fd) {
 	/* we received a shutdown */
 	fdtab[fd].ev &= ~FD_POLL_HUP;
 	b->flags |= BF_READ_NULL;
-	if (b->flags & BF_WRITE_ENA)
+	if (b->flags & BF_AUTO_CLOSE)
 		buffer_shutw_now(b);
 	stream_sock_shutr(si);
 	goto out_wakeup;
@@ -601,7 +601,7 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 			unsigned int send_flag = MSG_DONTWAIT | MSG_NOSIGNAL;
 
 			if (MSG_MORE &&
-			    (((b->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK|BF_WRITE_ENA)) == (BF_WRITE_ENA|BF_SHUTW_NOW) &&
+			    (((b->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK)) == BF_SHUTW_NOW &&
 			      (max == b->l)) ||
 			     (max != b->l && max != b->send_max))
 			    && (fdtab[si->fd].flags & FD_FL_TCP)) {
@@ -741,8 +741,7 @@ int stream_sock_write(int fd)
 		 * send_max limit was reached. Maybe we just wrote the last
 		 * chunk and need to close.
 		 */
-		if (((b->flags & (BF_SHUTW|BF_HIJACK|BF_WRITE_ENA|BF_SHUTW_NOW)) ==
-		     (BF_WRITE_ENA|BF_SHUTW_NOW)) &&
+		if (((b->flags & (BF_SHUTW|BF_HIJACK|BF_SHUTW_NOW)) == BF_SHUTW_NOW) &&
 		    (si->state == SI_ST_EST)) {
 			stream_sock_shutw(si);
 			goto out_wakeup;
@@ -926,11 +925,9 @@ void stream_sock_data_finish(struct stream_interface *si)
 	/* Check if we need to close the write side */
 	if (!(ob->flags & BF_SHUTW)) {
 		/* Write not closed, update FD status and timeout for writes */
-		if ((ob->send_max == 0 && !ob->pipe) ||
-		    (ob->flags & BF_EMPTY) ||
-		    (ob->flags & (BF_HIJACK|BF_WRITE_ENA)) == 0) {
+		if ((ob->send_max == 0 && !ob->pipe) || (ob->flags & BF_EMPTY)) {
 			/* stop writing */
-			if ((ob->flags & (BF_EMPTY|BF_HIJACK|BF_WRITE_ENA)) == (BF_EMPTY|BF_WRITE_ENA))
+			if ((ob->flags & (BF_EMPTY|BF_HIJACK)) == BF_EMPTY)
 				si->flags |= SI_FL_WAIT_DATA;
 			EV_FD_COND_C(fd, DIR_WR);
 			ob->wex = TICK_ETERNITY;
@@ -1014,8 +1011,7 @@ void stream_sock_chk_snd(struct stream_interface *si)
 
 	if (!(si->flags & SI_FL_WAIT_DATA) ||        /* not waiting for data */
 	    (fdtab[si->fd].ev & FD_POLL_OUT) ||      /* we'll be called anyway */
-	    !(ob->send_max || ob->pipe) ||           /* called with nothing to send ! */
-	    !(ob->flags & (BF_HIJACK|BF_WRITE_ENA))) /* we may not write */
+	    !(ob->send_max || ob->pipe))             /* called with nothing to send ! */
 		return;
 
 	retval = stream_sock_write_loop(si, ob);
@@ -1045,14 +1041,14 @@ void stream_sock_chk_snd(struct stream_interface *si)
 		 * send_max limit was reached. Maybe we just wrote the last
 		 * chunk and need to close.
 		 */
-		if (((ob->flags & (BF_SHUTW|BF_HIJACK|BF_WRITE_ENA|BF_SHUTW_NOW)) ==
-		     (BF_WRITE_ENA|BF_SHUTW_NOW)) &&
+		if (((ob->flags & (BF_SHUTW|BF_HIJACK|BF_AUTO_CLOSE|BF_SHUTW_NOW)) ==
+		     (BF_AUTO_CLOSE|BF_SHUTW_NOW)) &&
 		    (si->state == SI_ST_EST)) {
 			stream_sock_shutw(si);
 			goto out_wakeup;
 		}
 
-		if ((ob->flags & (BF_SHUTW|BF_EMPTY|BF_HIJACK|BF_WRITE_ENA)) == (BF_EMPTY|BF_WRITE_ENA))
+		if ((ob->flags & (BF_SHUTW|BF_EMPTY|BF_HIJACK)) == BF_EMPTY)
 			si->flags |= SI_FL_WAIT_DATA;
 		ob->wex = TICK_ETERNITY;
 	}

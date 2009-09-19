@@ -526,7 +526,7 @@ static void http_server_error(struct session *t, struct stream_interface *si,
 {
 	buffer_erase(si->ob);
 	buffer_erase(si->ib);
-	buffer_write_ena(si->ib);
+	buffer_auto_close(si->ib);
 	if (status > 0 && msg) {
 		t->txn.status = status;
 		buffer_write(si->ib, msg->str, msg->len);
@@ -1885,7 +1885,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 			return 0;
 		}
 
-		buffer_write_dis(req);
+		buffer_dont_connect(req);
 		req->flags |= BF_READ_DONTWAIT; /* try to get back here ASAP */
 
 		/* just set the request timeout once at the beginning of the request */
@@ -2036,7 +2036,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 
 	if (unlikely(msg->msg_state != HTTP_MSG_BODY)) {
 		/* we need more data */
-		buffer_write_dis(req);
+		buffer_dont_connect(req);
 		return 0;
 	}
 
@@ -2094,7 +2094,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 			/* wipe the request out so that we can drop the connection early
 			 * if the client closes first.
 			 */
-			buffer_write_dis(req);
+			buffer_dont_connect(req);
 			req->analysers = 0; /* remove switching rules etc... */
 			req->analysers |= AN_REQ_HTTP_TARPIT;
 			req->analyse_exp = tick_add_ifset(now_ms,  s->be->timeout.tarpit);
@@ -2321,7 +2321,7 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 
 	if (unlikely(msg->msg_state != HTTP_MSG_BODY)) {
 		/* we need more data */
-		buffer_write_dis(req);
+		buffer_dont_connect(req);
 		return 0;
 	}
 
@@ -2549,7 +2549,7 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 			ctx.idx = 0;
 			http_find_header2("Transfer-Encoding", 17, msg->sol, &txn->hdr_idx, &ctx);
 			if (ctx.idx && ctx.vlen >= 7 && strncasecmp(ctx.line+ctx.val, "chunked", 7) == 0) {
-				buffer_write_dis(req);
+				buffer_dont_connect(req);
 				req->analysers |= AN_REQ_HTTP_BODY;
 			}
 			else {
@@ -2572,7 +2572,7 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 					hint = s->be->url_param_post_limit;
 				/* now do we really need to buffer more data? */
 				if (len < hint) {
-					buffer_write_dis(req);
+					buffer_dont_connect(req);
 					req->analysers |= AN_REQ_HTTP_BODY;
 				}
 				/* else... There are no body bytes to wait for */
@@ -2626,7 +2626,7 @@ int http_process_tarpit(struct session *s, struct buffer *req, int an_bit)
 	 * timeout. We just have to check that the client is still
 	 * there and that the timeout has not expired.
 	 */
-	buffer_write_dis(req);
+	buffer_dont_connect(req);
 	if ((req->flags & (BF_SHUTR|BF_READ_ERROR)) == 0 &&
 	    !tick_is_expired(req->analyse_exp, now_ms))
 		return 0;
@@ -2669,7 +2669,7 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 
 	if (unlikely(msg->msg_state != HTTP_MSG_BODY)) {
 		/* we need more data */
-		buffer_write_dis(req);
+		buffer_dont_connect(req);
 		return 0;
 	}
 
@@ -2738,7 +2738,7 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 		 * request timeout once at the beginning of the
 		 * request.
 		 */
-		buffer_write_dis(req);
+		buffer_dont_connect(req);
 		if (!tick_isset(req->analyse_exp))
 			req->analyse_exp = tick_add_ifset(now_ms, s->be->timeout.httpreq);
 		return 0;
@@ -2921,14 +2921,7 @@ int process_response(struct session *t)
 				return 0;
 			}
 
-			/* We disable sending only if we have nothing to send.
-			 * Note that we should not need to do this since the
-			 * buffer is protected by the fact that at least one
-			 * analyser remains. But close events could still be
-			 * forwarded if we don't disable the BF_WRITE_ENA flag.
-			 */
-			if (!rep->send_max)
-				buffer_write_dis(rep);
+			buffer_dont_close(rep);
 			return 0;
 		}
 
@@ -4635,7 +4628,7 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 	/* The request is valid, the user is authenticated. Let's start sending
 	 * data.
 	 */
-	buffer_write_dis(t->req);
+	buffer_dont_connect(t->req);
 	buffer_shutw_now(t->req);
 	buffer_shutr_now(t->rep);
 	t->logs.tv_request = now;

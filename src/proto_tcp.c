@@ -668,7 +668,7 @@ int tcp_inspect_request(struct session *s, struct buffer *req, int an_bit)
 		if (rule->cond) {
 			ret = acl_exec_cond(rule->cond, s->fe, s, &s->txn, ACL_DIR_REQ | partial);
 			if (ret == ACL_PAT_MISS) {
-				buffer_write_dis(req);
+				buffer_dont_connect(req);
 				/* just set the request timeout once at the beginning of the request */
 				if (!tick_isset(req->analyse_exp) && s->fe->tcp_req.inspect_delay)
 					req->analyse_exp = tick_add_ifset(now_ms, s->fe->tcp_req.inspect_delay);

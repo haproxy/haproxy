@@ -71,7 +71,7 @@
 #define BF_EMPTY          0x001000  /* buffer is empty */
 #define BF_SHUTW          0x002000  /* consumer has already shut down */
 #define BF_SHUTW_NOW      0x004000  /* the consumer must shut down for writes ASAP */
-#define BF_WRITE_ENA      0x008000  /* consumer is allowed to forward all buffer contents */
+#define BF_AUTO_CLOSE     0x008000  /* producer can forward shutdown to other side */
 
 /* When either BF_SHUTR_NOW or BF_HIJACK is set, it is strictly forbidden for
  * the producer to alter the buffer contents. When BF_SHUTW_NOW is set, the
@@ -92,7 +92,7 @@
  *    1       0      closed: the consumer has closed its output channel.
  *    1       1      impossible
  *
- * The SHUTW_NOW flag should be set by the session processor when SHUTR and WRITE_ENA
+ * The SHUTW_NOW flag should be set by the session processor when SHUTR and AUTO_CLOSE
  * are both set. It may also be set by a hijacker at the end of data. And it may also
  * be set by the producer when it detects SHUTR while directly forwarding data to the
  * consumer.
@@ -109,6 +109,7 @@
 #define BF_READ_ATTACHED  0x100000  /* the read side is attached for the first time */
 #define BF_KERN_SPLICING  0x200000  /* kernel splicing desired for this buffer */
 #define BF_READ_DONTWAIT  0x400000  /* wake the task up after every read (eg: HTTP request) */
+#define BF_AUTO_CONNECT   0x800000  /* consumer may attempt to establish a new connection */
 
 /* Use these masks to clear the flags before going back to lower layers */
 #define BF_CLEAR_READ     (~(BF_READ_NULL|BF_READ_PARTIAL|BF_READ_ERROR|BF_READ_ATTACHED))
@@ -119,7 +120,7 @@
 #define BF_MASK_ANALYSER        (BF_READ_ATTACHED|BF_READ_ACTIVITY|BF_READ_TIMEOUT|BF_ANA_TIMEOUT|BF_WRITE_ACTIVITY)
 
 /* Mask for static flags which are not events, but might change during processing */
-#define BF_MASK_STATIC          (BF_EMPTY|BF_FULL|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR|BF_SHUTW|BF_SHUTR_NOW|BF_SHUTW_NOW)
+#define BF_MASK_STATIC          (BF_EMPTY|BF_FULL|BF_HIJACK|BF_AUTO_CLOSE|BF_AUTO_CONNECT|BF_SHUTR|BF_SHUTW|BF_SHUTR_NOW|BF_SHUTW_NOW)
 
 
 /* Analysers (buffer->analysers).

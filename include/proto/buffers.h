@@ -211,54 +211,30 @@ static inline void buffer_stop_hijack(struct buffer *buf)
 	buf->flags &= ~BF_HIJACK;
 }
 
-/* allows the consumer to send the buffer contents */
-static inline void buffer_write_ena(struct buffer *buf)
+/* allow the consumer to try to establish a new connection. */
+static inline void buffer_auto_connect(struct buffer *buf)
 {
-	buf->flags |= BF_WRITE_ENA;
+	buf->flags |= BF_AUTO_CONNECT;
 }
 
-/* prevents the consumer from sending the buffer contents */
-static inline void buffer_write_dis(struct buffer *buf)
-{
-	buf->flags &= ~BF_WRITE_ENA;
-}
-
-/* check if the buffer needs to be shut down for read, and perform the shutdown
- * at the stream_interface level if needed. This must not be used with a buffer
- * for which a connection is currently in queue or turn-around.
+/* prevent the consumer from trying to establish a new connection, and also
+ * disable auto shutdown forwarding.
  */
-static inline void buffer_check_shutr(struct buffer *b)
+static inline void buffer_dont_connect(struct buffer *buf)
 {
-	if (b->flags & BF_SHUTR)
-		return;
-
-	if (!(b->flags & (BF_SHUTR_NOW|BF_SHUTW)))
-		return;
-
-	/* Last read, forced read-shutdown, or other end closed. We have to
-	 * close our read side and inform the stream_interface.
-	 */
-	b->prod->shutr(b->prod);
+	buf->flags &= ~(BF_AUTO_CONNECT|BF_AUTO_CLOSE);
 }
 
-/* check if the buffer needs to be shut down for write, and perform the shutdown
- * at the stream_interface level if needed. This must not be used with a buffer
- * for which a connection is currently in queue or turn-around.
- */
-static inline void buffer_check_shutw(struct buffer *b)
+/* allow the producer to forward shutdown requests */
+static inline void buffer_auto_close(struct buffer *buf)
 {
-	if (b->flags & BF_SHUTW)
-		return;
+	buf->flags |= BF_AUTO_CLOSE;
+}
 
-	if ((b->flags & BF_SHUTW_NOW) ||
-	    (b->flags & (BF_EMPTY|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) ==
-	    (BF_EMPTY|BF_WRITE_ENA|BF_SHUTR)) {
-		/* Application requested write-shutdown, or other end closed
-		 * with empty buffer. We have to close our write side and
-		 * inform the stream_interface.
-		 */
-		b->cons->shutw(b->cons);
-	}
+/* prevent the producer from forwarding shutdown requests */
+static inline void buffer_dont_close(struct buffer *buf)
+{
+	buf->flags &= ~BF_AUTO_CLOSE;
 }
 
 /* returns the maximum number of bytes writable at once in this buffer */

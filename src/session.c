@@ -769,8 +769,9 @@ resync_stream_interface:
 		if (s->req->prod->state >= SI_ST_EST) {
 			unsigned int last_ana = 0;
 
-			/* it's up to the analysers to reset write_ena */
-			buffer_write_ena(s->req);
+			/* it's up to the analysers to stop new connections */
+			buffer_auto_connect(s->req);
+			buffer_auto_close(s->req);
 
 			/* We will call all analysers for which a bit is set in
 			 * s->req->analysers, following the bit order from LSB
@@ -884,8 +885,8 @@ resync_stream_interface:
 		unsigned int flags = s->rep->flags;
 
 		if (s->rep->prod->state >= SI_ST_EST) {
-			/* it's up to the analysers to reset write_ena */
-			buffer_write_ena(s->rep);
+			/* it's up to the analysers to reset auto_close */
+			buffer_auto_close(s->rep);
 			if (s->rep->analysers)
 				process_response(s);
 		}
@@ -950,6 +951,8 @@ resync_stream_interface:
 		 * attached to it. If any data are left in, we'll permit them to
 		 * move.
 		 */
+		buffer_auto_connect(s->req);
+		buffer_auto_close(s->req);
 		buffer_flush(s->req);
 
 		/* If the producer is still connected, we'll schedule large blocks
@@ -980,18 +983,15 @@ resync_stream_interface:
 	 * Now forward all shutdown requests between both sides of the buffer
 	 */
 
-	/* first, let's check if the request buffer needs to shutdown(write) */
-	if (unlikely((s->req->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) ==
-		     (BF_WRITE_ENA|BF_SHUTR)))
-		buffer_shutw_now(s->req);
-	else if ((s->req->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_WRITE_ENA)) == (BF_WRITE_ENA) &&
-		 (s->req->cons->state == SI_ST_EST) &&
-		 s->be->options & PR_O_FORCE_CLO &&
-		 s->rep->flags & BF_READ_ACTIVITY) {
-		/* We want to force the connection to the server to close,
-		 * and the server has begun to respond. That's the right
-		 * time.
-		 */
+	/* first, let's check if the request buffer needs to shutdown(write), which may
+	 * happen either because the input is closed or because we want to force a close
+	 * once the server has begun to respond.
+	 */
+	if ((s->req->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK|BF_AUTO_CLOSE)) == BF_AUTO_CLOSE) {
+		if (unlikely((s->req->flags & BF_SHUTR) ||
+			     ((s->req->cons->state == SI_ST_EST) &&
+			      (s->be->options & PR_O_FORCE_CLO) &&
+			      (s->rep->flags & BF_READ_ACTIVITY))))
 		buffer_shutw_now(s->req);
 	}
 
@@ -1008,17 +1008,23 @@ resync_stream_interface:
 	if (unlikely((s->req->flags & (BF_SHUTR|BF_SHUTR_NOW)) == BF_SHUTR_NOW))
 		s->req->prod->shutr(s->req->prod);
 
-	/* it's possible that an upper layer has requested a connection setup or abort */
-	if (s->req->cons->state == SI_ST_INI &&
-	    (s->req->flags & (BF_WRITE_ENA|BF_SHUTW|BF_SHUTW_NOW))) {
-		if ((s->req->flags & (BF_WRITE_ENA|BF_SHUTW|BF_SHUTW_NOW)) == BF_WRITE_ENA) {
-			/* If we have a ->connect method, we need to perform a connection request,
-			 * otherwise we immediately switch to the connected state.
-			 */
-			if (s->req->cons->connect)
-				s->req->cons->state = SI_ST_REQ; /* new connection requested */
-			else
-				s->req->cons->state = SI_ST_EST; /* connection established */
+	/* it's possible that an upper layer has requested a connection setup or abort.
+	 * There are 2 situations where we decide to establish a new connection :
+	 *  - there are data scheduled for emission in the buffer
+	 *  - the BF_AUTO_CONNECT flag is set (active connection)
+	 */
+	if (s->req->cons->state == SI_ST_INI) {
+		if (!(s->req->flags & (BF_SHUTW|BF_SHUTW_NOW))) {
+			if ((s->req->flags & BF_AUTO_CONNECT) ||
+			    (s->req->send_max || s->req->pipe)) {
+				/* If we have a ->connect method, we need to perform a connection request,
+				 * otherwise we immediately switch to the connected state.
+				 */
+				if (s->req->cons->connect)
+					s->req->cons->state = SI_ST_REQ; /* new connection requested */
+				else
+					s->req->cons->state = SI_ST_EST; /* connection established */
+			}
 		}
 		else
 			s->req->cons->state = SI_ST_CLO; /* shutw+ini = abort */
@@ -1065,6 +1071,7 @@ resync_stream_interface:
 		 * attached to it. If any data are left in, we'll permit them to
 		 * move.
 		 */
+		buffer_auto_close(s->rep);
 		buffer_flush(s->rep);
 
 		/* If the producer is still connected, we'll schedule large blocks
@@ -1100,8 +1107,8 @@ resync_stream_interface:
 	 */
 
 	/* first, let's check if the response buffer needs to shutdown(write) */
-	if (unlikely((s->rep->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK|BF_WRITE_ENA|BF_SHUTR)) ==
-		     (BF_WRITE_ENA|BF_SHUTR)))
+	if (unlikely((s->rep->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK|BF_AUTO_CLOSE|BF_SHUTR)) ==
+		     (BF_AUTO_CLOSE|BF_SHUTR)))
 		buffer_shutw_now(s->rep);
 
 	/* shutdown(write) pending */
@@ -1182,7 +1189,7 @@ resync_stream_interface:
 		 * request timeout is set and the server has not yet sent a response.
 		 */
 
-		if ((s->rep->flags & (BF_WRITE_ENA|BF_SHUTR)) == 0 &&
+		if ((s->rep->flags & (BF_AUTO_CLOSE|BF_SHUTR)) == 0 &&
 		    (tick_isset(s->req->wex) || tick_isset(s->rep->rex))) {
 			s->req->flags |= BF_READ_NOEXP;
 			s->req->rex = TICK_ETERNITY;

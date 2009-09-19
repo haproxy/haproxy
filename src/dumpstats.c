@@ -316,7 +316,7 @@ int stats_sock_req_analyser(struct session *s, struct buffer *req, int an_bit)
 		memset(&s->data_ctx.stats, 0, sizeof(s->data_ctx.stats));
 		s->data_source = DATA_SRC_STATS;
 		s->ana_state = STATS_ST_REQ;
-		buffer_write_dis(s->req);
+		buffer_dont_connect(s->req);
 		/* fall through */
 
 	case STATS_ST_REQ:
