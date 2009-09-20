@@ -42,7 +42,7 @@ int init_buffer();
  * so that the compiler can optimize it away if changed immediately after the
  * call to this function. By default, it is set to the full size of the buffer.
  * This implies that buffer_init() must only be called once ->size is set !
- * The BF_EMPTY flags is set.
+ * The BF_OUT_EMPTY flags is set.
  */
 static inline void buffer_init(struct buffer *buf)
 {
@@ -52,20 +52,9 @@ static inline void buffer_init(struct buffer *buf)
 	buf->pipe = NULL;
 	buf->analysers = 0;
 	buf->cons = NULL;
-	buf->flags = BF_EMPTY;
+	buf->flags = BF_OUT_EMPTY;
 	buf->r = buf->lr = buf->w = buf->data;
 	buf->max_len = buf->size;
-}
-
-/* returns 1 if the buffer is empty, 0 otherwise */
-static inline int buffer_isempty(const struct buffer *buf)
-{
-	return buf->l == 0;
-}
-
-/* returns 1 if the buffer is full, 0 otherwise */
-static inline int buffer_isfull(const struct buffer *buf) {
-	return buf->l == buf->size;
 }
 
 /* Check buffer timeouts, and set the corresponding flags. The
@@ -100,6 +89,9 @@ static inline void buffer_forward(struct buffer *buf, unsigned int bytes)
 {
 	unsigned int data_left;
 
+	if (!bytes)
+		return;
+	buf->flags &= ~BF_OUT_EMPTY;
 	data_left = buf->l - buf->send_max;
 	if (data_left >= bytes) {
 		buf->send_max += bytes;
@@ -118,6 +110,8 @@ static inline void buffer_flush(struct buffer *buf)
 {
 	if (buf->send_max < buf->l)
 		buf->send_max = buf->l;
+	if (buf->send_max)
+		buf->flags &= ~BF_OUT_EMPTY;
 }
 
 /* Erase any content from buffer <buf> and adjusts flags accordingly. Note
@@ -130,9 +124,11 @@ static inline void buffer_erase(struct buffer *buf)
 	buf->to_forward = 0;
 	buf->r = buf->lr = buf->w = buf->data;
 	buf->l = 0;
-	buf->flags |= BF_EMPTY | BF_FULL;
-	if (buf->max_len)
-		buf->flags &= ~BF_FULL;
+	buf->flags &= ~(BF_FULL | BF_OUT_EMPTY);
+	if (!buf->pipe)
+		buf->flags |= BF_OUT_EMPTY;
+	if (!buf->max_len)
+		buf->flags |= BF_FULL;
 }
 
 /* Cut the "tail" of the buffer, which means strip it to the length of unsent
@@ -154,7 +150,7 @@ static inline void buffer_cut_tail(struct buffer *buf)
 	if (buf->r >= buf->data + buf->size)
 		buf->r -= buf->size;
 	buf->lr = buf->r;
-	buf->flags &= ~(BF_EMPTY|BF_FULL);
+	buf->flags &= ~BF_FULL;
 	if (buf->l >= buf->max_len)
 		buf->flags |= BF_FULL;
 }
@@ -336,16 +332,15 @@ static inline void buffer_skip(struct buffer *buf, int len)
 		buf->w = buf->data; /* wrap around the buffer */
 
 	buf->l -= len;
-	if (!buf->l) {
+	if (!buf->l)
 		buf->r = buf->w = buf->lr = buf->data;
-		if (!buf->pipe)
-			buf->flags |= BF_EMPTY;
-	}
 
 	if (buf->l < buf->max_len)
 		buf->flags &= ~BF_FULL;
 
 	buf->send_max -= len;
+	if (!buf->send_max && !buf->pipe)
+		buf->flags |= BF_OUT_EMPTY;
 }
 
 /*
@@ -375,11 +370,6 @@ static inline int buffer_si_putchar(struct buffer *buf, char c)
 	if (buf->flags & BF_FULL)
 		return 0;
 
-	if (buf->flags & BF_EMPTY) {
-		buf->flags &= ~BF_EMPTY;
-		buf->r = buf->w = buf->lr = buf->data;
-	}
-
 	*buf->r = c;
 
 	buf->l++;
@@ -393,6 +383,7 @@ static inline int buffer_si_putchar(struct buffer *buf, char c)
 	if ((signed)(buf->to_forward - 1) >= 0) {
 		buf->to_forward--;
 		buf->send_max++;
+		buf->flags &= ~BF_OUT_EMPTY;
 	}
 
 	buf->total++;

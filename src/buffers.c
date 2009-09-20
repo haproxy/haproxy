@@ -64,9 +64,7 @@ int buffer_write(struct buffer *buf, const char *msg, int len)
 	if (buf->r == buf->data + buf->size)
 		buf->r = buf->data;
 
-	buf->flags &= ~(BF_EMPTY|BF_FULL);
-	if (buf->l == 0)
-		buf->flags |= BF_EMPTY;
+	buf->flags &= ~(BF_OUT_EMPTY|BF_FULL);
 	if (buf->l >= buf->max_len)
 		buf->flags |= BF_FULL;
 
@@ -107,12 +105,13 @@ int buffer_feed(struct buffer *buf, const char *str, int len)
 		int fwd = MIN(buf->to_forward, len);
 		buf->send_max   += fwd;
 		buf->to_forward -= fwd;
+		buf->flags &= ~BF_OUT_EMPTY;
 	}
 
 	if (buf->r == buf->data + buf->size)
 		buf->r = buf->data;
 
-	buf->flags &= ~(BF_EMPTY|BF_FULL);
+	buf->flags &= ~BF_FULL;
 	if (buf->l >= buf->max_len)
 		buf->flags |= BF_FULL;
 
@@ -174,6 +173,8 @@ int buffer_si_peekline(struct buffer *buf, char *str, int len)
  * <b>'s parameters (l, r, w, h, lr) are recomputed to be valid after the shift.
  * the shift value (positive or negative) is returned.
  * If there's no space left, the move is not done.
+ * The function does not adjust ->send_max nor BF_OUT_EMPTY because it does not
+ * make sense to use it on data scheduled to be sent.
  *
  */
 int buffer_replace(struct buffer *b, char *pos, char *end, const char *str)
@@ -199,9 +200,9 @@ int buffer_replace(struct buffer *b, char *pos, char *end, const char *str)
 	if (b->lr > pos) b->lr += delta;
 	b->l += delta;
 
-	b->flags &= ~(BF_EMPTY|BF_FULL);
+	b->flags &= ~BF_FULL;
 	if (b->l == 0)
-		b->flags |= BF_EMPTY;
+		b->r = b->w = b->lr = b->data;
 	if (b->l >= b->max_len)
 		b->flags |= BF_FULL;
 
@@ -240,9 +241,9 @@ int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int
 	if (b->lr > pos) b->lr += delta;
 	b->l += delta;
 
-	b->flags &= ~(BF_EMPTY|BF_FULL);
+	b->flags &= ~BF_FULL;
 	if (b->l == 0)
-		b->flags |= BF_EMPTY;
+		b->r = b->w = b->lr = b->data;
 	if (b->l >= b->max_len)
 		b->flags |= BF_FULL;
 
@@ -284,9 +285,7 @@ int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len)
 	if (b->lr > pos) b->lr += delta;
 	b->l += delta;
 
-	b->flags &= ~(BF_EMPTY|BF_FULL);
-	if (b->l == 0)
-		b->flags |= BF_EMPTY;
+	b->flags &= ~BF_FULL;
 	if (b->l >= b->max_len)
 		b->flags |= BF_FULL;
 

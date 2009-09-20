@@ -94,7 +94,7 @@ _syscall6(int, splice, int, fdin, loff_t *, off_in, int, fdout, loff_t *, off_ou
  *   BF_READ_NULL
  *   BF_READ_PARTIAL
  *   BF_WRITE_PARTIAL (during copy)
- *   BF_EMPTY (during copy)
+ *   BF_OUT_EMPTY (during copy)
  *   SI_FL_ERR
  *   SI_FL_WAIT_ROOM
  *   (SI_FL_WAIT_RECV)
@@ -207,7 +207,7 @@ static int stream_sock_splice_in(struct buffer *b, struct stream_interface *si)
 		b->total += ret;
 		b->pipe->data += ret;
 		b->flags |= BF_READ_PARTIAL;
-		b->flags &= ~BF_EMPTY; /* to prevent shutdowns */
+		b->flags &= ~BF_OUT_EMPTY;
 
 		if (b->pipe->data >= SPLICE_FULL_HINT ||
 		    ret >= global.tune.recv_enough) {
@@ -336,13 +336,13 @@ int stream_sock_read(int fd) {
 				int fwd = MIN(b->to_forward, ret);
 				b->send_max   += fwd;
 				b->to_forward -= fwd;
+				b->flags &= ~BF_OUT_EMPTY;
 			}
 
 			if (fdtab[fd].state == FD_STCONN)
 				fdtab[fd].state = FD_STREADY;
 
 			b->flags |= BF_READ_PARTIAL;
-			b->flags &= ~BF_EMPTY;
 
 			if (b->r == b->data + b->size) {
 				b->r = b->data; /* wrap around the buffer */
@@ -466,7 +466,7 @@ int stream_sock_read(int fd) {
 
  out_wakeup:
 	/* We might have some data the consumer is waiting for */
-	if ((b->send_max || b->pipe) && (b->cons->flags & SI_FL_WAIT_DATA)) {
+	if (!(b->flags & BF_OUT_EMPTY) && (b->cons->flags & SI_FL_WAIT_DATA)) {
 		int last_len = b->pipe ? b->pipe->data : 0;
 
 		b->cons->chk_snd(b->cons);
@@ -566,13 +566,11 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 	/* At this point, the pipe is empty, but we may still have data pending
 	 * in the normal buffer.
 	 */
-	if (!b->l) {
-		b->flags |= BF_EMPTY;
+#endif
+	if (!b->send_max) {
+		b->flags |= BF_OUT_EMPTY;
 		return retval;
 	}
-#endif
-	if (!b->send_max)
-		return retval;
 
 	/* when we're in this loop, we already know that there is no spliced
 	 * data left, and that there are sendable buffered data.
@@ -634,16 +632,16 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 			if (likely(b->l < b->max_len))
 				b->flags &= ~BF_FULL;
 
-			if (likely(!b->l)) {
+			if (likely(!b->l))
 				/* optimize data alignment in the buffer */
 				b->r = b->w = b->lr = b->data;
-				if (likely(!b->pipe))
-					b->flags |= BF_EMPTY;
-			}
 
 			b->send_max -= ret;
-			if (!b->send_max || !b->l)
+			if (!b->send_max) {
+				if (likely(!b->pipe))
+					b->flags |= BF_OUT_EMPTY;
 				break;
+			}
 
 			/* if the system buffer is full, don't insist */
 			if (ret < max)
@@ -691,7 +689,7 @@ int stream_sock_write(int fd)
 	if (b->flags & BF_SHUTW)
 		goto out_wakeup;
 
-	if (likely(!(b->flags & BF_EMPTY))) {
+	if (likely(!(b->flags & BF_OUT_EMPTY))) {
 		/* OK there are data waiting to be sent */
 		retval = stream_sock_write_loop(si, b);
 		if (retval < 0)
@@ -735,7 +733,7 @@ int stream_sock_write(int fd)
 		 */
 	}
 
-	if (!b->pipe && !b->send_max) {
+	if (b->flags & BF_OUT_EMPTY) {
 		/* the connection is established but we can't write. Either the
 		 * buffer is empty, or we just refrain from sending because the
 		 * send_max limit was reached. Maybe we just wrote the last
@@ -747,7 +745,7 @@ int stream_sock_write(int fd)
 			goto out_wakeup;
 		}
 		
-		if ((b->flags & (BF_EMPTY|BF_SHUTW)) == BF_EMPTY)
+		if ((b->flags & (BF_SHUTW|BF_FULL|BF_HIJACK)) == 0)
 			si->flags |= SI_FL_WAIT_DATA;
 
 		EV_FD_CLR(fd, DIR_WR);
@@ -757,8 +755,7 @@ int stream_sock_write(int fd)
  out_may_wakeup:
 	if (b->flags & BF_WRITE_ACTIVITY) {
 		/* update timeout if we have written something */
-		if ((b->send_max || b->pipe) &&
-		    (b->flags & (BF_SHUTW|BF_WRITE_PARTIAL)) == BF_WRITE_PARTIAL)
+		if ((b->flags & (BF_OUT_EMPTY|BF_SHUTW|BF_WRITE_PARTIAL)) == BF_WRITE_PARTIAL)
 			b->wex = tick_add_ifset(now_ms, b->wto);
 
 	out_wakeup:
@@ -781,7 +778,7 @@ int stream_sock_write(int fd)
 		 * any more data to forward and it's not planned to send any more.
 		 */
 		if (likely((b->flags & (BF_WRITE_NULL|BF_WRITE_ERROR|BF_SHUTW)) ||
-			   (!b->to_forward && !b->send_max && !b->pipe) ||
+			   ((b->flags & BF_OUT_EMPTY) && !b->to_forward) ||
 			   si->state != SI_ST_EST ||
 			   b->prod->state != SI_ST_EST))
 			task_wakeup(si->owner, TASK_WOKEN_IO);
@@ -925,9 +922,9 @@ void stream_sock_data_finish(struct stream_interface *si)
 	/* Check if we need to close the write side */
 	if (!(ob->flags & BF_SHUTW)) {
 		/* Write not closed, update FD status and timeout for writes */
-		if ((ob->send_max == 0 && !ob->pipe) || (ob->flags & BF_EMPTY)) {
+		if (ob->flags & BF_OUT_EMPTY) {
 			/* stop writing */
-			if ((ob->flags & (BF_EMPTY|BF_HIJACK)) == BF_EMPTY)
+			if ((ob->flags & (BF_FULL|BF_HIJACK)) == 0)
 				si->flags |= SI_FL_WAIT_DATA;
 			EV_FD_COND_C(fd, DIR_WR);
 			ob->wex = TICK_ETERNITY;
@@ -1011,7 +1008,7 @@ void stream_sock_chk_snd(struct stream_interface *si)
 
 	if (!(si->flags & SI_FL_WAIT_DATA) ||        /* not waiting for data */
 	    (fdtab[si->fd].ev & FD_POLL_OUT) ||      /* we'll be called anyway */
-	    !(ob->send_max || ob->pipe))             /* called with nothing to send ! */
+	    (ob->flags & BF_OUT_EMPTY))              /* called with nothing to send ! */
 		return;
 
 	retval = stream_sock_write_loop(si, ob);
@@ -1035,7 +1032,7 @@ void stream_sock_chk_snd(struct stream_interface *si)
 	 * been sent, and that we may have to poll first. We have to do that
 	 * too if the buffer is not empty.
 	 */
-	if (ob->send_max == 0 && !ob->pipe) {
+	if (ob->flags & BF_OUT_EMPTY) {
 		/* the connection is established but we can't write. Either the
 		 * buffer is empty, or we just refrain from sending because the
 		 * send_max limit was reached. Maybe we just wrote the last
@@ -1048,7 +1045,7 @@ void stream_sock_chk_snd(struct stream_interface *si)
 			goto out_wakeup;
 		}
 
-		if ((ob->flags & (BF_SHUTW|BF_EMPTY|BF_HIJACK)) == BF_EMPTY)
+		if ((ob->flags & (BF_SHUTW|BF_FULL|BF_HIJACK)) == 0)
 			si->flags |= SI_FL_WAIT_DATA;
 		ob->wex = TICK_ETERNITY;
 	}
@@ -1064,8 +1061,7 @@ void stream_sock_chk_snd(struct stream_interface *si)
 
 	if (likely(ob->flags & BF_WRITE_ACTIVITY)) {
 		/* update timeout if we have written something */
-		if ((ob->send_max || ob->pipe) &&
-		    (ob->flags & (BF_SHUTW|BF_WRITE_PARTIAL)) == BF_WRITE_PARTIAL)
+		if ((ob->flags & (BF_OUT_EMPTY|BF_SHUTW|BF_WRITE_PARTIAL)) == BF_WRITE_PARTIAL)
 			ob->wex = tick_add_ifset(now_ms, ob->wto);
 
 		if (tick_isset(si->ib->rex)) {
@@ -1083,7 +1079,7 @@ void stream_sock_chk_snd(struct stream_interface *si)
 	 * have to notify the task.
 	 */
 	if (likely((ob->flags & (BF_WRITE_NULL|BF_WRITE_ERROR|BF_SHUTW)) ||
-		   (!ob->to_forward && !ob->send_max && !ob->pipe) ||
+		   ((ob->flags & BF_OUT_EMPTY) && !ob->to_forward) ||
 		   si->state != SI_ST_EST)) {
 	out_wakeup:
 		task_wakeup(si->owner, TASK_WOKEN_IO);
