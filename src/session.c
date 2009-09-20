@@ -1025,8 +1025,11 @@ resync_stream_interface:
 					s->req->cons->state = SI_ST_EST; /* connection established */
 			}
 		}
-		else
+		else {
 			s->req->cons->state = SI_ST_CLO; /* shutw+ini = abort */
+			buffer_shutw_now(s->req);        /* fix buffer flags upon abort */
+			buffer_shutr_now(s->rep);
+		}
 	}
 
 
