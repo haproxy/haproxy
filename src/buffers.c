@@ -101,10 +101,14 @@ int buffer_feed(struct buffer *buf, const char *str, int len)
 	buf->l += len;
 	buf->r += len;
 	buf->total += len;
-	if (buf->to_forward > 0) {
-		int fwd = MIN(buf->to_forward, len);
-		buf->send_max   += fwd;
-		buf->to_forward -= fwd;
+	if (buf->to_forward) {
+		unsigned long fwd = len;
+		if (buf->to_forward != BUF_INFINITE_FORWARD) {
+			if (fwd > buf->to_forward)
+				fwd = buf->to_forward;
+			buf->to_forward -= fwd;
+		}
+		buf->send_max += fwd;
 		buf->flags &= ~BF_OUT_EMPTY;
 	}
 

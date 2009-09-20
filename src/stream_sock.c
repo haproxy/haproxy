@@ -105,7 +105,8 @@ _syscall6(int, splice, int, fdin, loff_t *, off_in, int, fdout, loff_t *, off_ou
 static int stream_sock_splice_in(struct buffer *b, struct stream_interface *si)
 {
 	int fd = si->fd;
-	int ret, max, total = 0;
+	int ret;
+	unsigned long max;
 	int retval = 1;
 
 	if (!b->to_forward)
@@ -138,7 +139,7 @@ static int stream_sock_splice_in(struct buffer *b, struct stream_interface *si)
 
 	while (1) {
 		max = b->to_forward;
-		if (max <= 0) {
+		if (!max) {
 			/* It looks like the buffer + the pipe already contain
 			 * the maximum amount of data to be transferred. Try to
 			 * send those data immediately on the other side if it
@@ -202,8 +203,8 @@ static int stream_sock_splice_in(struct buffer *b, struct stream_interface *si)
 			break;
 		} /* ret <= 0 */
 
-		b->to_forward -= ret;
-		total += ret;
+		if (b->to_forward != BUF_INFINITE_FORWARD)
+			b->to_forward -= ret;
 		b->total += ret;
 		b->pipe->data += ret;
 		b->flags |= BF_READ_PARTIAL;
@@ -332,10 +333,14 @@ int stream_sock_read(int fd) {
 			cur_read += ret;
 
 			/* if we're allowed to directly forward data, we must update send_max */
-			if (b->to_forward > 0 && !(b->flags & (BF_SHUTW|BF_SHUTW_NOW))) {
-				int fwd = MIN(b->to_forward, ret);
-				b->send_max   += fwd;
-				b->to_forward -= fwd;
+			if (b->to_forward && !(b->flags & (BF_SHUTW|BF_SHUTW_NOW))) {
+				unsigned long fwd = ret;
+				if (b->to_forward != BUF_INFINITE_FORWARD) {
+					if (fwd > b->to_forward)
+						fwd = b->to_forward;
+					b->to_forward -= fwd;
+				}
+				b->send_max += fwd;
 				b->flags &= ~BF_OUT_EMPTY;
 			}
 

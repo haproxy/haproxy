@@ -143,6 +143,9 @@
 #define AN_RTR_HTTP_HDR         0x00000200  /* inspect HTTP response headers */
 #define AN_REQ_PRST_RDP_COOKIE  0x00000400  /* persistence on rdp cookie */
 
+/* Magic value to forward infinite size (TCP, ...), used with ->to_forward */
+#define BUF_INFINITE_FORWARD    (~0UL)
+
 /* describes a chunk of string */
 struct chunk {
 	char *str;	/* beginning of the string itself. Might not be 0-terminated */
@@ -164,7 +167,7 @@ struct buffer {
 	unsigned int size;              /* buffer size in bytes */
 	unsigned int max_len;           /* read limit, used to keep room for header rewriting */
 	unsigned int send_max;          /* number of bytes the sender can consume om this buffer, <= l */
-	unsigned int to_forward;        /* number of bytes to forward after send_max without a wake-up */
+	unsigned long to_forward;       /* number of bytes to forward after send_max without a wake-up */
 	unsigned int analysers;         /* bit field indicating what to do on the buffer */
 	int analyse_exp;                /* expiration date for current analysers (if set) */
 	void (*hijacker)(struct session *, struct buffer *); /* alternative content producer */
@@ -205,7 +208,8 @@ struct buffer {
 
    The producer is responsible for decreasing ->to_forward and increasing
    ->send_max. The ->to_forward parameter indicates how many bytes may be fed
-   into either data buffer without waking the parent up. The ->send_max
+   into either data buffer without waking the parent up. The special value
+   BUF_INFINITE_FORWARD is never decreased nor increased. The ->send_max
    parameter says how many bytes may be read from the visible buffer. Thus it
    may never exceed ->l. This parameter is updated by any buffer_write() as
    well as any data forwarded through the visible buffer.

@@ -85,9 +85,9 @@ static inline void buffer_check_timeouts(struct buffer *b)
  * cause lockups when send_max goes down to zero if nobody is ready to push the
  * remaining data.
  */
-static inline void buffer_forward(struct buffer *buf, unsigned int bytes)
+static inline void buffer_forward(struct buffer *buf, unsigned long bytes)
 {
-	unsigned int data_left;
+	unsigned long data_left;
 
 	if (!bytes)
 		return;
@@ -98,8 +98,13 @@ static inline void buffer_forward(struct buffer *buf, unsigned int bytes)
 		return;
 	}
 
-	buf->to_forward += bytes - data_left;
 	buf->send_max += data_left;
+	if (buf->to_forward == BUF_INFINITE_FORWARD)
+		return;
+
+	buf->to_forward += bytes - data_left;
+	if (bytes == BUF_INFINITE_FORWARD)
+		buf->to_forward = bytes;
 }
 
 /* Schedule all remaining buffer data to be sent. send_max is not touched if it
@@ -380,8 +385,9 @@ static inline int buffer_si_putchar(struct buffer *buf, char c)
 	if (buf->r - buf->data == buf->size)
 		buf->r -= buf->size;
 
-	if ((signed)(buf->to_forward - 1) >= 0) {
-		buf->to_forward--;
+	if (buf->to_forward >= 1) {
+		if (buf->to_forward != BUF_INFINITE_FORWARD)
+			buf->to_forward--;
 		buf->send_max++;
 		buf->flags &= ~BF_OUT_EMPTY;
 	}
