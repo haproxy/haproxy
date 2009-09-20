@@ -98,6 +98,8 @@ struct stream_interface {
 	struct buffer *ib, *ob; /* input and output buffers */
 	unsigned int err_type;  /* first error detected, one of SI_ET_* */
 	void *err_loc;          /* commonly the server, NULL when SI_ET_NONE */
+	void *private;          /* may be used by any function above */
+	unsigned int st0, st1;  /* may be used by any function above */
 };
 
 
