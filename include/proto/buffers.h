@@ -91,14 +91,17 @@ static inline void buffer_forward(struct buffer *buf, unsigned long bytes)
 
 	if (!bytes)
 		return;
-	buf->flags &= ~BF_OUT_EMPTY;
 	data_left = buf->l - buf->send_max;
 	if (data_left >= bytes) {
 		buf->send_max += bytes;
+		buf->flags &= ~BF_OUT_EMPTY;
 		return;
 	}
 
 	buf->send_max += data_left;
+	if (buf->send_max)
+		buf->flags &= ~BF_OUT_EMPTY;
+
 	if (buf->to_forward == BUF_INFINITE_FORWARD)
 		return;
 
