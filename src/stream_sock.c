@@ -745,7 +745,7 @@ int stream_sock_write(int fd)
 			goto out_wakeup;
 		}
 		
-		if ((b->flags & (BF_SHUTW|BF_FULL|BF_HIJACK)) == 0)
+		if ((b->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_FULL|BF_HIJACK)) == 0)
 			si->flags |= SI_FL_WAIT_DATA;
 
 		EV_FD_CLR(fd, DIR_WR);
@@ -924,7 +924,7 @@ void stream_sock_data_finish(struct stream_interface *si)
 		/* Write not closed, update FD status and timeout for writes */
 		if (ob->flags & BF_OUT_EMPTY) {
 			/* stop writing */
-			if ((ob->flags & (BF_FULL|BF_HIJACK)) == 0)
+			if ((ob->flags & (BF_FULL|BF_HIJACK|BF_SHUTW_NOW)) == 0)
 				si->flags |= SI_FL_WAIT_DATA;
 			EV_FD_COND_C(fd, DIR_WR);
 			ob->wex = TICK_ETERNITY;
@@ -1045,7 +1045,7 @@ void stream_sock_chk_snd(struct stream_interface *si)
 			goto out_wakeup;
 		}
 
-		if ((ob->flags & (BF_SHUTW|BF_FULL|BF_HIJACK)) == 0)
+		if ((ob->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_FULL|BF_HIJACK)) == 0)
 			si->flags |= SI_FL_WAIT_DATA;
 		ob->wex = TICK_ETERNITY;
 	}
