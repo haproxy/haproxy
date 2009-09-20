@@ -29,7 +29,7 @@
 
 
 /* main event functions used to move data between sockets and buffers */
-void stream_int_check_timeouts(struct stream_interface *si);
+int stream_int_check_timeouts(struct stream_interface *si);
 void stream_int_report_error(struct stream_interface *si);
 void stream_int_return(struct stream_interface *si, const struct chunk *msg);
 void stream_int_retnclose(struct stream_interface *si, const struct chunk *msg);
