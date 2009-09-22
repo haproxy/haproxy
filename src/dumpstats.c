@@ -272,16 +272,19 @@ int stats_sock_parse_request(struct session *s, char *line)
 			s->data_ctx.stats.flags |= STAT_SHOW_STAT;
 			s->data_ctx.stats.flags |= STAT_FMT_CSV;
 			s->ana_state = STATS_ST_REP;
+			stream_int_retnclose(s->rep->cons, NULL);
 			buffer_install_hijacker(s, s->rep, stats_dump_raw_to_buffer);
 		}
 		else if (strcmp(args[1], "info") == 0) {
 			s->data_ctx.stats.flags |= STAT_SHOW_INFO;
 			s->data_ctx.stats.flags |= STAT_FMT_CSV;
 			s->ana_state = STATS_ST_REP;
+			stream_int_retnclose(s->rep->cons, NULL);
 			buffer_install_hijacker(s, s->rep, stats_dump_raw_to_buffer);
 		}
 		else if (strcmp(args[1], "sess") == 0) {
 			s->ana_state = STATS_ST_REP;
+			stream_int_retnclose(s->rep->cons, NULL);
 			buffer_install_hijacker(s, s->rep, stats_dump_sess_to_buffer);
 		}
 		else if (strcmp(args[1], "errors") == 0) {
@@ -291,6 +294,7 @@ int stats_sock_parse_request(struct session *s, char *line)
 				s->data_ctx.errors.iid	= -1;
 			s->data_ctx.errors.px = NULL;
 			s->ana_state = STATS_ST_REP;
+			stream_int_retnclose(s->rep->cons, NULL);
 			buffer_install_hijacker(s, s->rep, stats_dump_errors_to_buffer);
 		}
 		else { /* neither "stat" nor "info" nor "sess" */
@@ -391,7 +395,6 @@ int stats_dump_raw(struct session *s, struct buffer *rep, struct uri_auth *uri)
 		/* the function had not been called yet, let's prepare the
 		 * buffer for a response.
 		 */
-		stream_int_retnclose(rep->cons, &msg);
 		s->data_state = DATA_ST_HEAD;
 		/* fall through */
 
@@ -538,7 +541,9 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 		chunk_printf(&msg, sizeof(trash), "\r\n");
 
 		s->txn.status = 200;
-		stream_int_retnclose(rep->cons, &msg); // send the start of the response.
+		if (buffer_write_chunk(rep, &msg) >= 0)
+			return 0;
+
 		msg.len = 0;
 
 		if (!(s->flags & SN_ERR_MASK))  // this is not really an error but it is
@@ -1404,7 +1409,6 @@ void stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 		 * this pointer. We know we have reached the end when this
 		 * pointer points back to the head of the sessions list.
 		 */
-		stream_int_retnclose(rep->cons, &msg);
 		LIST_INIT(&s->data_ctx.sess.bref.users);
 		s->data_ctx.sess.bref.ref = sessions.n;
 		s->data_state = DATA_ST_LIST;
@@ -1647,7 +1651,6 @@ void stats_dump_errors_to_buffer(struct session *s, struct buffer *rep)
 		/* the function had not been called yet, let's prepare the
 		 * buffer for a response.
 		 */
-		stream_int_retnclose(rep->cons, &msg);
 		s->data_ctx.errors.px = proxy;
 		s->data_ctx.errors.buf = 0;
 		s->data_ctx.errors.bol = 0;
