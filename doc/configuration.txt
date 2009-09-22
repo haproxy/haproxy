@@ -6490,27 +6490,35 @@ page. Both means provide a CSV format whose fields follow.
 -------------------------
 
 The following commands are supported on the UNIX stats socket ; all of them
-must be terminated by a line feed. It is important to understand that when
-multiple haproxy processes are started on the same sockets, any process may
-pick up the request and will output its own stats.
+must be terminated by a line feed. The socket supports pipelining, so that it
+is possible to chain multiple commands at once provided they are delimited by
+a semi-colon or a line feed, although the former is more reliable as it has no
+risk of being truncated over the network. The responses themselves will each be
+followed by an empty line, so it will be easy for an external script to match a
+given response with a given request. By default one command line is processed
+then the connection closes, but there is an interactive allowing multiple lines
+to be issued one at a time.
 
-show stat [<iid> <type> <sid>]
-  Dump statistics in the CSV format. By passing <id>, <type> and <sid>, it is
-  possible to dump only selected items :
-    - <iid> is a proxy ID, -1 to dump everything
-    - <type> selects the type of dumpable objects : 1 for frontends, 2 for
-       backends, 4 for servers, -1 for everything. These values can be ORed,
-       for example:
-          1 + 2     = 3   -> frontend + backend.
-          1 + 2 + 4 = 7   -> frontend + backend + server.
-    - <sid> is a server ID, -1 to dump everything from the selected proxy.
+It is important to understand that when multiple haproxy processes are started
+on the same sockets, any process may pick up the request and will output its
+own stats.
 
-show info
-  Dump info about haproxy status on current process.
+help
+  Print the list of known keywords and their basic usage. The same help screen
+  is also displayed for unknown commands.
 
-show sess
-  Dump all known sessions. Avoid doing this on slow connections as this can
-  be huge.
+prompt
+  Toggle the prompt at the beginning of the line and enter or leave interactive
+  mode. In interactive mode, the connection is not closed after a command
+  completes. Instead, the prompt will appear again, indicating the user that
+  the interpreter is waiting for a new command. The prompt consists in a right
+  angle bracket followed by a space "> ". This mode is particularly convenient
+  when one wants to periodically check information such as stats or errors.
+  It is also a good idea to enter interactive mode before issuing a "help"
+  command.
+
+quit
+  Close the connection when in interactive mode.
 
 show errors [<iid>]
   Dump last known request and response errors collected by frontends and
@@ -6562,6 +6570,47 @@ show errors [<iid>]
     213 bytes when the error was detected, and the error was at byte 23. This
     is the slash ('/') in header name "header/bizarre", which is not a valid
     HTTP character for a header name.
+
+show info
+  Dump info about haproxy status on current process.
+
+show sess
+  Dump all known sessions. Avoid doing this on slow connections as this can
+  be huge.
+
+show stat [<iid> <type> <sid>]
+  Dump statistics in the CSV format. By passing <id>, <type> and <sid>, it is
+  possible to dump only selected items :
+    - <iid> is a proxy ID, -1 to dump everything
+    - <type> selects the type of dumpable objects : 1 for frontends, 2 for
+       backends, 4 for servers, -1 for everything. These values can be ORed,
+       for example:
+          1 + 2     = 3   -> frontend + backend.
+          1 + 2 + 4 = 7   -> frontend + backend + server.
+    - <sid> is a server ID, -1 to dump everything from the selected proxy.
+
+  Example :
+    >>> $ echo "show info;show stat" | socat stdio unix-connect:/tmp/sock1
+        Name: HAProxy
+        Version: 1.4-dev2-49
+        Release_date: 2009/09/23
+        Nbproc: 1
+        Process_num: 1
+        (...)
+
+        # pxname,svname,qcur,qmax,scur,smax,slim,stot,bin,bout,dreq,  (...)
+        stats,FRONTEND,,,0,0,1000,0,0,0,0,0,0,,,,,OPEN,,,,,,,,,1,1,0, (...)
+        stats,BACKEND,0,0,0,0,1000,0,0,0,0,0,,0,0,0,0,UP,0,0,0,,0,250,(...)
+        (...)
+        www1,BACKEND,0,0,0,0,1000,0,0,0,0,0,,0,0,0,0,UP,1,1,0,,0,250, (...)
+
+        $
+
+    Here, two commands have been issued at once. That way it's easy to find
+    which process the stats apply to in multi-process mode. Notice the empty
+    line after the information output which marks the end of the first block.
+    A similar empty line appears at the end of the second block (stats) so that
+    the reader knows the output has not been trucated.
 
 /*
  * Local variables:

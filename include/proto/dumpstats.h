@@ -3,7 +3,7 @@
   This file contains definitions of some primitives to dedicated to
   statistics output.
 
-  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -44,8 +44,8 @@
 #define STATS_ST_REP   2
 #define STATS_ST_CLOSE 3
 
-int stats_sock_parse_request(struct session *s, char *line);
-int stats_sock_req_analyser(struct session *s, struct buffer *req, int an_bit);
+int stats_sock_parse_request(struct stream_interface *si, char *line);
+void stats_io_handler(struct stream_interface *si);
 int stats_dump_raw(struct session *s, struct buffer *rep, struct uri_auth *uri);
 void stats_dump_raw_to_buffer(struct session *s, struct buffer *req);
 int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri);

@@ -138,7 +138,6 @@
 #define AN_REQ_HTTP_INNER       0x00000020  /* inner processing of HTTP request */
 #define AN_REQ_HTTP_TARPIT      0x00000040  /* wait for end of HTTP tarpit */
 #define AN_REQ_HTTP_BODY        0x00000080  /* inspect HTTP request body */
-#define AN_REQ_STATS_SOCK       0x00000100  /* process stats socket request */
 
 #define AN_RTR_HTTP_HDR         0x00000200  /* inspect HTTP response headers */
 #define AN_REQ_PRST_RDP_COOKIE  0x00000400  /* persistence on rdp cookie */

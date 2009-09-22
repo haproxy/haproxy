@@ -41,6 +41,7 @@
 #include <proto/acl.h>
 #include <proto/backend.h>
 #include <proto/buffers.h>
+#include <proto/dumpstats.h>
 #include <proto/fd.h>
 #include <proto/log.h>
 #include <proto/protocols.h>
@@ -460,16 +461,12 @@ int uxst_event_accept(int fd) {
 		s->si[1].err_type = SI_ET_NONE;
 		s->si[1].err_loc = NULL;
 		s->si[1].owner = t;
-		s->si[1].update = stream_sock_data_finish;
-		s->si[1].shutr = stream_sock_shutr;
-		s->si[1].shutw = stream_sock_shutw;
-		s->si[1].chk_rcv = stream_sock_chk_rcv;
-		s->si[1].chk_snd = stream_sock_chk_snd;
-		s->si[1].connect = NULL;
-		s->si[1].iohandler = NULL;
 		s->si[1].exp = TICK_ETERNITY;
 		s->si[1].fd = -1; /* just to help with debugging */
 		s->si[1].flags = SI_FL_NONE;
+		stream_int_register_handler(&s->si[1], stats_io_handler);
+		s->si[1].private = s;
+		s->si[1].st0 = s->si[1].st1 = 0;
 
 		s->srv = s->prev_srv = s->srv_conn = NULL;
 		s->pend_pos = NULL;

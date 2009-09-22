@@ -847,12 +847,6 @@ resync_stream_interface:
 						break;
 				}
 
-				if (s->req->analysers & AN_REQ_STATS_SOCK) {
-					last_ana |= AN_REQ_STATS_SOCK;
-					if (!stats_sock_req_analyser(s, s->req, AN_REQ_STATS_SOCK))
-						break;
-				}
-
 				if (s->req->analysers & AN_REQ_PRST_RDP_COOKIE) {
 					last_ana |= AN_REQ_PRST_RDP_COOKIE;
 					if (!tcp_persist_rdp_cookie(s, s->req, AN_REQ_PRST_RDP_COOKIE))
