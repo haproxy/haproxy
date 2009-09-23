@@ -1,6 +1,60 @@
 ChangeLog :
 ===========
 
+2009/09/24 : 1.4-dev3
+    - [BUILD] compilation of haproxy-1.4-dev2 on FreeBSD
+    - [MEDIUM] Collect & show information about last health check, v3
+    - [MINOR] export the hostname variable so that all the code can access it
+    - [MINOR] stats: add a new node-name setting
+    - [MEDIUM] remove old experimental tcpsplice option
+    - [BUILD] fix build for systems without SOL_TCP
+    - [MEDIUM] move connection establishment from backend to the SI.
+    - [MEDIUM] make the global stats socket part of a frontend
+    - [MEDIUM] session: account per-listener connections
+    - [MINOR] session: switch to established state if no connect function
+    - [MEDIUM] make the unix stats sockets use the generic session handler
+    - [CLEANUP] unix: remove uxst_process_session()
+    - [CLEANUP] move remaining stats sockets code to dumpstats
+    - [MINOR] move the initial task's nice value to the listener
+    - [MINOR] cleanup set_session_backend by using pre-computed analysers
+    - [MINOR] set s->srv_error according to the analysers
+    - [MEDIUM] set rep->analysers from fe and be analysers
+    - [MEDIUM] replace BUFSIZE with buf->size in computations
+    - [MEDIUM] make it possible to change the buffer size in the configuration
+    - [MEDIUM] report error on buffer writes larger than buffer size
+    - [MEDIUM] stream_interface: add and use ->update function to resync
+    - [CLEANUP] remove ifdef MSG_NOSIGNAL and define it instead
+    - [MEDIUM] remove TCP_CORK and make use of MSG_MORE instead
+    - [BUG] tarpit did not work anymore
+    - [MINOR] acl: add support for hdr_ip to match IP addresses in headers
+    - [MAJOR] buffers: fix misuse of the BF_SHUTW_NOW flag
+    - [MINOR] buffers: provide more functions to handle buffer data
+    - [MEDIUM] buffers: provide new buffer_feed*() function
+    - [MINOR] buffers: add peekchar and peekline functions for stream interfaces
+    - [MINOR] buffers: provide buffer_si_putchar() to send a char from a stream interface
+    - [BUG] buffer_forward() would not correctly consider data already scheduled
+    - [MINOR] buffers: add buffer_cut_tail() to cut only unsent data
+    - [MEDIUM] stream_interface: make use of buffer_cut_tail() to report errors
+    - [MAJOR] http: add support for HTTP 1xx informational responses
+    - [MINOR] buffers: inline buffer_si_putchar()
+    - [MAJOR] buffers: split BF_WRITE_ENA into BF_AUTO_CONNECT and BF_AUTO_CLOSE
+    - [MAJOR] buffers: fix the BF_EMPTY flag's meaning
+    - [BUG] stream_interface: SI_ST_CLO must have buffers SHUT
+    - [MINOR] stream_sock: don't set SI_FL_WAIT_DATA if BF_SHUTW_NOW is set
+    - [MEDIUM] add support for infinite forwarding
+    - [BUILD] stream_interface: fix conflicting declaration
+    - [BUG] buffers: buffer_forward() must not always clear BF_OUT_EMPTY
+    - [BUG] variable buffer size ignored at initialization time
+    - [MINOR] ensure that buffer_feed() and buffer_skip() set BF_*_PARTIAL
+    - [BUG] fix buffer_skip() and buffer_si_getline() to correctly handle wrap-arounds
+    - [MINOR] stream_interface: add SI_FL_DONT_WAKE flag
+    - [MINOR] stream_interface: add iohandler callback
+    - [MINOR] stream_interface: add functions to support running as internal/external tasks
+    - [MEDIUM] session: call iohandler for embedded tasks (applets)
+    - [MINOR] add a ->private member to the stream_interface
+    - [MEDIUM] stats: prepare the connection for closing before dumping
+    - [MEDIUM] stats: replace the stats socket analyser with an SI applet
+
 2009/08/09 : 1.4-dev2
     - [BUG] task: fix possible crash when some timeouts are not configured
     - [BUG] log: option tcplog would log to global if no logger was defined
