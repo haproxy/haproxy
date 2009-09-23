@@ -331,13 +331,13 @@ static inline int buffer_contig_data(struct buffer *buf)
  * Advance the buffer's read pointer by <len> bytes. This is useful when data
  * have been read directly from the buffer. It is illegal to call this function
  * with <len> causing a wrapping at the end of the buffer. It's the caller's
- * responsibility to ensure that <len> is never larger than buffer_contig_data.
+ * responsibility to ensure that <len> is never larger than buf->send_max.
  */
 static inline void buffer_skip(struct buffer *buf, int len)
 {
 	buf->w += len;
-	if (buf->w == buf->data + buf->size)
-		buf->w = buf->data; /* wrap around the buffer */
+	if (buf->w >= buf->data + buf->size)
+		buf->w -= buf->size; /* wrap around the buffer */
 
 	buf->l -= len;
 	if (!buf->l)

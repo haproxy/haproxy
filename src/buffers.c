@@ -151,7 +151,7 @@ int buffer_si_peekline(struct buffer *buf, char *str, int len)
 
 	if (max > buf->send_max) {
 		max = buf->send_max;
-		str[max] = 0;
+		str[max-1] = 0;
 	}
 	while (max) {
 		*str++ = *p;
@@ -164,8 +164,9 @@ int buffer_si_peekline(struct buffer *buf, char *str, int len)
 		if (p == buf->data + buf->size)
 			p = buf->data;
 	}
-	if (*p != '\n' && ret < len && ret < buf->max_len &&
-	   !(buf->flags & (BF_SHUTW|BF_SHUTW_NOW)))
+	if (ret > 0 && ret < len && ret < buf->send_max &&
+	    *(str-1) != '\n' &&
+	    !(buf->flags & (BF_SHUTW|BF_SHUTW_NOW)))
 		ret = 0;
  out:
 	if (max)
