@@ -6465,6 +6465,25 @@ page. Both means provide a CSV format whose fields follow.
  31. tracked: id of proxy/server if tracking is enabled
  32. type (0=frontend, 1=backend, 2=server)
  33. rate (number of sessions per second over last elapsed second)
+ 36. check_status: status of last health check, one of:
+	UNK     -> unknown
+	INI     -> initializing
+	SOCKERR -> socket error
+	L4OK    -> check passed on layer 4, no upper layers testing enabled
+	L4TMOUT -> layer 1-4 timeout
+	L4CON   -> layer 1-4 connection problem, for example "Connection refused"
+		(tcp rst) or "No route to host" (icmp)
+	L6OK   -> check passed on layer 6
+	L6TOUT -> layer 6 (SSL) timeout
+	L6RSP  -> layer 6 invalid response - protocol error 
+	L7OK   -> check passed on layer 7
+	L7OKC  -> check conditionally passed on layer 7, for example 404 with
+		disable-on-404
+	L7TOUT -> layer 7 (HTTP/SMTP) timeout
+	L7RSP  -> layer 7 invalid response - protocol error 
+	L7STS  -> layer 7 response error, for example HTTP 5xx
+ 37. check_code: layer5-7 code, if available
+ 38. check_duration: time in ms took to finish last health check
 
 
 9.2. Unix Socket commands

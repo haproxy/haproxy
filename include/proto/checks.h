@@ -25,6 +25,8 @@
 #include <types/task.h>
 #include <common/config.h>
 
+const char *get_check_status_description(short check_status);
+const char *get_check_status_info(short check_status);
 struct task *process_chk(struct task *t);
 int start_checks();
 

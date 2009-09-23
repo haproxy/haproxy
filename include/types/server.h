@@ -35,6 +35,7 @@
 #include <types/proxy.h>
 #include <types/queue.h>
 #include <types/task.h>
+#include <types/checks.h>
 
 
 /* server flags */
@@ -74,7 +75,7 @@ struct server {
 	struct server *next;
 	int state;				/* server state (SRV_*) */
 	int prev_state;				/* server state before last change (SRV_*) */
-	int  cklen;				/* the len of the cookie, to speed up checks */
+	int cklen;				/* the len of the cookie, to speed up checks */
 	int rdr_len;				/* the length of the redirection prefix */
 	char *cookie;				/* the id set in the cookie */
 	char *rdr_pfx;				/* the redirection prefix */
@@ -121,9 +122,12 @@ struct server {
 	long long failed_checks, down_trans;	/* failed checks and up-down transitions */
 	unsigned down_time;			/* total time the server was down */
 	time_t last_change;			/* last time, when the state was changed */
+	struct timeval check_start;		/* last health check start time */
+	unsigned long check_duration;		/* time in ms took to finish last health check */
+	short check_status, check_code;		/* check result, check code */
 
 	long long failed_conns, failed_resp;	/* failed connect() and responses */
-	long long retries, redispatches;		/* retried and redispatched connections */
+	long long retries, redispatches;	/* retried and redispatched connections */
 	long long failed_secu;			/* blocked responses because of security concerns */
 	struct freq_ctr sess_per_sec;		/* sessions per second on this server */
 	unsigned int sps_max;			/* maximum of new sessions per second seen on this server */

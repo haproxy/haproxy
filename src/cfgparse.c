@@ -2643,6 +2643,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
+
+			newsrv->check_status = HCHK_STATUS_INI;
 			newsrv->state |= SRV_CHECKED;
 		}
 

@@ -2,7 +2,7 @@
  * Health-checks functions.
  *
  * Copyright 2000-2009 Willy Tarreau <w@1wt.eu>
- * Copyright 2007-2008 Krzysztof Piotr Oledzki <ole@ans.pl>
+ * Copyright 2007-2009 Krzysztof Piotr Oledzki <ole@ans.pl>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -12,6 +12,7 @@
  */
 
 #include <assert.h>
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -34,6 +35,7 @@
 #include <types/global.h>
 
 #include <proto/backend.h>
+#include <proto/checks.h>
 #include <proto/buffers.h>
 #include <proto/fd.h>
 #include <proto/log.h>
@@ -44,6 +46,102 @@
 #include <proto/proxy.h>
 #include <proto/server.h>
 #include <proto/task.h>
+
+const char *check_status_description[HCHK_STATUS_SIZE] = {
+	[HCHK_STATUS_UNKNOWN]	= "Unknown",
+
+	[HCHK_STATUS_INI]	= "Initializing",
+
+	[HCHK_STATUS_SOCKERR]	= "Socket error",
+
+	[HCHK_STATUS_L4OK]	= "Layer4 check passed",
+	[HCHK_STATUS_L4TOUT]	= "Layer4 timeout",
+	[HCHK_STATUS_L4CON]	= "Layer4 connection problem",
+
+	[HCHK_STATUS_L6OK]	= "Layer6 check passed",
+	[HCHK_STATUS_L6TOUT]	= "Layer6 timeout",
+	[HCHK_STATUS_L6RSP]	= "Layer6 invalid response",
+
+	[HCHK_STATUS_L7TOUT]	= "Layer7 timeout",
+	[HCHK_STATUS_L7RSP]	= "Layer7 invalid response",
+
+	[HCHK_STATUS_L7OKD]	= "Layer7 check passed",
+	[HCHK_STATUS_L7OKCD]	= "Layer7 check conditionally passed",
+	[HCHK_STATUS_L7STS]	= "Layer7 wrong status",
+};
+
+
+const char *check_status_info[HCHK_STATUS_SIZE] = {
+	[HCHK_STATUS_UNKNOWN]	= "UNK",
+
+	[HCHK_STATUS_INI]	= "INI",
+
+	[HCHK_STATUS_SOCKERR]	= "SOCKERR",
+
+	[HCHK_STATUS_L4OK]	= "L4OK",
+	[HCHK_STATUS_L4TOUT]	= "L4TOUT",
+	[HCHK_STATUS_L4CON]	= "L4CON",
+
+	[HCHK_STATUS_L6OK]	= "L6OK",
+	[HCHK_STATUS_L6TOUT]	= "L6TOUT",
+	[HCHK_STATUS_L6RSP]	= "L6RSP",
+
+	[HCHK_STATUS_L7TOUT]	= "L7TOUT",
+	[HCHK_STATUS_L7RSP]	= "L7RSP",
+
+	[HCHK_STATUS_L7OKD]	= "L7OK",
+	[HCHK_STATUS_L7OKCD]	= "L7OKC",
+	[HCHK_STATUS_L7STS]	= "L7STS",
+};
+
+/*
+ * Convert check_status code to description
+ */
+const char *get_check_status_description(short check_status) {
+
+	const char *desc;
+
+	if (check_status < HCHK_STATUS_SIZE)
+		desc = check_status_description[check_status];
+	else
+		desc = NULL;
+
+	if (desc && *desc)
+		return desc;
+	else
+		return check_status_description[HCHK_STATUS_UNKNOWN];
+}
+
+/*
+ * Convert check_status code to short info
+ */
+const char *get_check_status_info(short check_status) {
+
+	const char *info;
+
+	if (check_status < HCHK_STATUS_SIZE)
+		info = check_status_info[check_status];
+	else
+		info = NULL;
+
+	if (info && *info)
+		return info;
+	else
+		return check_status_info[HCHK_STATUS_UNKNOWN];
+}
+
+/*
+ * Set check_status and update check_duration
+ */
+static void set_server_check_status(struct server *s, short status) {
+
+		if (tv_iszero(&s->check_start))
+			return;
+
+		s->check_status = status;
+		s->check_duration = tv_ms_elapsed(&s->check_start, &now);
+		tv_zero(&s->check_start);
+}
 
 /* sends a log message when a backend goes down, and also sets last
  * change date.
@@ -145,6 +243,12 @@ static void set_server_down(struct server *s)
 			chunk_printf(&msg, sizeof(trash), " via %s/%s",
 				s->tracked->proxy->id, s->tracked->id);
 
+		chunk_printf(&msg, sizeof(trash), ", reason: %s", get_check_status_description(s->check_status));
+		if (s->check_status >= HCHK_STATUS_L57DATA)
+			chunk_printf(&msg, sizeof(trash), ", code: %d", s->check_code);
+
+		chunk_printf(&msg, sizeof(trash), ", check duration: %lums", s->check_duration);
+
 		chunk_printf(&msg, sizeof(trash), ". %d active and %d backup servers left.%s"
 			" %d sessions active, %d requeued, %d remaining in queue.\n",
 			s->proxy->srv_act, s->proxy->srv_bck,
@@ -219,6 +323,10 @@ static void set_server_up(struct server *s) {
 		if (s->tracked)
 			chunk_printf(&msg, sizeof(trash), " via %s/%s",
 				s->tracked->proxy->id, s->tracked->id);
+
+		chunk_printf(&msg, sizeof(trash), ", reason: %s", get_check_status_description(s->check_status));
+		if (s->check_status >= HCHK_STATUS_L57DATA)
+			chunk_printf(&msg, sizeof(trash), ", code: %d", s->check_code);
 
 		chunk_printf(&msg, sizeof(trash), ". %d active and %d backup servers online.%s"
 			" %d sessions requeued, %d total in queue.\n",
@@ -339,8 +447,10 @@ static int event_srv_chk_w(int fd)
 	struct server *s = t->context;
 
 	//fprintf(stderr, "event_srv_chk_w, state=%ld\n", unlikely(fdtab[fd].state));
-	if (unlikely(fdtab[fd].state == FD_STERROR || (fdtab[fd].ev & FD_POLL_ERR)))
+	if (unlikely(fdtab[fd].state == FD_STERROR || (fdtab[fd].ev & FD_POLL_ERR))) {
+		set_server_check_status(s, HCHK_STATUS_L4CON);
 		goto out_error;
+	}
 
 	/* here, we know that the connection is established */
 
@@ -370,8 +480,19 @@ static int event_srv_chk_w(int fd)
 			}
 			else if (ret == 0 || errno == EAGAIN)
 				goto out_poll;
-			else
+			else {
+				switch (errno) {
+					case ECONNREFUSED:
+					case ENETUNREACH:
+						set_server_check_status(s, HCHK_STATUS_L4CON);
+						break;
+
+					default:
+						set_server_check_status(s, HCHK_STATUS_SOCKERR);
+				}
+
 				goto out_error;
+			}
 		}
 		else {
 			/* We have no data to send to check the connection, and
@@ -395,11 +516,14 @@ static int event_srv_chk_w(int fd)
 			if (errno == EALREADY || errno == EINPROGRESS)
 				goto out_poll;
 
-			if (errno && errno != EISCONN)
+			if (errno && errno != EISCONN) {
+				set_server_check_status(s, HCHK_STATUS_L4CON);
 				goto out_error;
+			}
 
 			/* good TCP connection is enough */
 			s->result |= SRV_CHK_RUNNING;
+			set_server_check_status(s, HCHK_STATUS_L4OK);
 			goto out_wakeup;
 		}
 	}
@@ -416,6 +540,7 @@ static int event_srv_chk_w(int fd)
 	return 0;
  out_error:
 	s->result |= SRV_CHK_ERROR;
+	/* set_server_check_status() called bofore goto into this label */
 	fdtab[fd].state = FD_STERROR;
 	goto out_wakeup;
 }
@@ -448,7 +573,12 @@ static int event_srv_chk_r(int fd)
 		     (getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr) == -1) ||
 		     (skerr != 0))) {
 		/* in case of TCP only, this tells us if the connection failed */
+
+		if (!(s->result & SRV_CHK_ERROR))
+			set_server_check_status(s, HCHK_STATUS_SOCKERR);
+
 		s->result |= SRV_CHK_ERROR;
+
 		goto out_wakeup;
 	}
 
@@ -467,40 +597,67 @@ static int event_srv_chk_r(int fd)
 	if (s->proxy->options & PR_O_HTTP_CHK) {
 		/* Check if the server speaks HTTP 1.X */
 		if ((len < strlen("HTTP/1.0 000\r")) ||
-		    (memcmp(trash, "HTTP/1.", 7) != 0)) {
+		    (memcmp(trash, "HTTP/1.", 7) != 0 ||
+		    (trash[12] != ' ' && trash[12] != '\r')) ||
+		    !isdigit(trash[9]) || !isdigit(trash[10]) || !isdigit(trash[11])) {
 			s->result |= SRV_CHK_ERROR;
+			set_server_check_status(s, HCHK_STATUS_L7RSP);
 			goto out_wakeup;
 		}
 
+		s->check_code = str2uic(&trash[9]);
+
 		/* check the reply : HTTP/1.X 2xx and 3xx are OK */
-		if (trash[9] == '2' || trash[9] == '3')
+		if (trash[9] == '2' || trash[9] == '3') {
 			s->result |= SRV_CHK_RUNNING;
-		else if ((s->proxy->options & PR_O_DISABLE404) &&
+			set_server_check_status(s, HCHK_STATUS_L7OKD);
+		} else if ((s->proxy->options & PR_O_DISABLE404) &&
 			 (s->state & SRV_RUNNING) &&
-			 (memcmp(&trash[9], "404", 3) == 0)) {
+			 (s->check_code == 404)) {
 			/* 404 may be accepted as "stopping" only if the server was up */
 			s->result |= SRV_CHK_RUNNING | SRV_CHK_DISABLE;
+			set_server_check_status(s, HCHK_STATUS_L7OKCD);
 		}
-		else
+		else {
 			s->result |= SRV_CHK_ERROR;
+			set_server_check_status(s, HCHK_STATUS_L7STS);
+		}
 	}
 	else if (s->proxy->options & PR_O_SSL3_CHK) {
 		/* Check for SSLv3 alert or handshake */
-		if ((len >= 5) && (trash[0] == 0x15 || trash[0] == 0x16))
+		if ((len >= 5) && (trash[0] == 0x15 || trash[0] == 0x16)) {
 			s->result |= SRV_CHK_RUNNING;
-		else
+			set_server_check_status(s, HCHK_STATUS_L6OK);
+		} else {
 			s->result |= SRV_CHK_ERROR;
+			set_server_check_status(s, HCHK_STATUS_L6RSP);
+		}
 	}
 	else if (s->proxy->options & PR_O_SMTP_CHK) {
-		/* Check for SMTP code 2xx (should be 250) */
-		if ((len >= 3) && (trash[0] == '2'))
-			s->result |= SRV_CHK_RUNNING;
-		else
+		/* Check if the server speaks SMTP */
+		if ((len < strlen("000\r")) ||
+		    (trash[3] != ' ' && trash[3] != '\r') ||
+		    !isdigit(trash[0]) || !isdigit(trash[1]) || !isdigit(trash[2])) {
 			s->result |= SRV_CHK_ERROR;
+			set_server_check_status(s, HCHK_STATUS_L7RSP);
+			goto out_wakeup;
+		}
+
+		s->check_code = str2uic(&trash[0]);
+
+		/* Check for SMTP code 2xx (should be 250) */
+		if (trash[0] == '2') {
+			s->result |= SRV_CHK_RUNNING;
+			set_server_check_status(s, HCHK_STATUS_L7OKD);
+		} else {
+			s->result |= SRV_CHK_ERROR;
+			set_server_check_status(s, HCHK_STATUS_L7STS);
+		}
 	}
 	else {
 		/* other checks are valid if the connection succeeded anyway */
 		s->result |= SRV_CHK_RUNNING;
+		set_server_check_status(s, HCHK_STATUS_L4OK);
 	}
 
  out_wakeup:
@@ -551,6 +708,7 @@ struct task *process_chk(struct task *t)
 
 		/* we'll initiate a new check */
 		s->result = SRV_CHK_UNKNOWN; /* no result yet */
+		s->check_start = now;
 		if ((fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) != -1) {
 			if ((fd < global.maxsock) &&
 			    (fcntl(fd, F_SETFL, O_NONBLOCK) != -1) &&
@@ -626,6 +784,7 @@ struct task *process_chk(struct task *t)
 
 					if (ret) {
 						s->result |= SRV_CHK_ERROR;
+						set_server_check_status(s, HCHK_STATUS_SOCKERR);
 						switch (ret) {
 						case 1:
 							Alert("Cannot bind to source address before connect() for server %s/%s. Aborting.\n",
@@ -657,6 +816,7 @@ struct task *process_chk(struct task *t)
 					ret = tcpv4_bind_socket(fd, flags, &s->proxy->source_addr, remote);
 					if (ret) {
 						s->result |= SRV_CHK_ERROR;
+						set_server_check_status(s, HCHK_STATUS_SOCKERR);
 						switch (ret) {
 						case 1:
 							Alert("Cannot bind to source address before connect() for %s '%s'. Aborting.\n",
@@ -714,6 +874,17 @@ struct task *process_chk(struct task *t)
 					}
 					else if (errno != EALREADY && errno != EISCONN && errno != EAGAIN) {
 						s->result |= SRV_CHK_ERROR;    /* a real error */
+
+						switch (errno) {
+							/* FIXME: is it possible to get ECONNREFUSED/ENETUNREACH with O_NONBLOCK? */
+							case ECONNREFUSED:
+							case ENETUNREACH:
+								set_server_check_status(s, HCHK_STATUS_L4CON);
+								break;
+
+							default:
+								set_server_check_status(s, HCHK_STATUS_SOCKERR);
+						}
 					}
 				}
 			}
@@ -808,6 +979,17 @@ struct task *process_chk(struct task *t)
 			goto new_chk;
 		}
 		else if ((s->result & SRV_CHK_ERROR) || tick_is_expired(t->expire, now_ms)) {
+			if (!(s->result & SRV_CHK_ERROR)) {
+				if (!EV_FD_ISSET(fd, DIR_RD)) {
+					set_server_check_status(s, HCHK_STATUS_L4TOUT);
+				} else {
+					if (s->proxy->options & PR_O_SSL3_CHK)
+						set_server_check_status(s, HCHK_STATUS_L6TOUT);
+					else	/* HTTP, SMTP */
+						set_server_check_status(s, HCHK_STATUS_L7TOUT);
+				}
+			}
+
 			//fprintf(stderr, "process_chk: 10\n");
 			/* failure or timeout detected */
 			if (s->health > s->rise) {
@@ -894,6 +1076,7 @@ int start_checks() {
 			t->expire = tick_add(now_ms,
 					     MS_TO_TICKS(((mininter && mininter >= srv_getinter(s)) ?
 							  mininter : srv_getinter(s)) * srvpos / nbchk));
+			s->check_start = now;
 			task_queue(t);
 
 			srvpos++;

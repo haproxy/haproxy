@@ -2,6 +2,7 @@
  * Functions dedicated to statistics output
  *
  * Copyright 2000-2009 Willy Tarreau <w@1wt.eu>
+ * Copyright 2007-2009 Krzysztof Piotr Oledzki <ole@ans.pl>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -39,6 +40,7 @@
 
 #include <proto/backend.h>
 #include <proto/buffers.h>
+#include <proto/checks.h>
 #include <proto/dumpstats.h>
 #include <proto/fd.h>
 #include <proto/freq_ctr.h>
@@ -222,6 +224,7 @@ int print_csv_header(struct chunk *msg, int size)
 			    "chkfail,chkdown,lastchg,downtime,qlimit,"
 			    "pid,iid,sid,throttle,lbtot,tracked,type,"
 			    "rate,rate_lim,rate_max,"
+			    "check_status,check_code,check_duration,"
 			    "\n");
 }
 
@@ -860,7 +863,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     "<th colspan=3>Session rate</th><th colspan=5>Sessions</th>"
 				     "<th colspan=2>Bytes</th><th colspan=2>Denied</th>"
 				     "<th colspan=3>Errors</th><th colspan=2>Warnings</th>"
-				     "<th colspan=8>Server</th>"
+				     "<th colspan=9>Server</th>"
 				     "</tr>\n"
 				     "<tr align=\"center\" class=\"titre\">"
 				     "<th>Cur</th><th>Max</th><th>Limit</th>"
@@ -868,7 +871,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     "<th>Limit</th><th>Total</th><th>LbTot</th><th>In</th><th>Out</th>"
 				     "<th>Req</th><th>Resp</th><th>Req</th><th>Conn</th>"
 				     "<th>Resp</th><th>Retr</th><th>Redis</th>"
-				     "<th>Status</th><th>Wght</th><th>Act</th>"
+				     "<th>Status</th><th>LastChk</th><th>Wght</th><th>Act</th>"
 				     "<th>Bck</th><th>Chk</th><th>Dwn</th><th>Dwntme</th>"
 				     "<th>Thrtle</th>\n"
 				     "</tr>",
@@ -912,7 +915,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     /* server status : reflect frontend status */
 				     "<td align=center>%s</td>"
 				     /* rest of server: nothing */
-				     "<td align=center colspan=7></td></tr>"
+				     "<td align=center colspan=8></td></tr>"
 				     "",
 				     U2H0(px->denied_req), U2H1(px->denied_resp),
 				     U2H2(px->failed_req),
@@ -938,8 +941,10 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     ",,,,,,,,"
 				     /* pid, iid, sid, throttle, lbtot, tracked, type */
 				     "%d,%d,0,,,,%d,"
-				     /* rate, rate_lim, rate_max, */
+				     /* rate, rate_lim, rate_max */
 				     "%u,%u,%u,"
+				     /* check_status, check_code, check_duration */
+				     ",,,"
 				     "\n",
 				     px->id,
 				     px->feconn, px->feconn_max, px->maxconn, px->cum_feconn,
@@ -1044,17 +1049,31 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     U2H3(sv->failed_conns), U2H4(sv->failed_resp),
 				     sv->retries, sv->redispatches);
 
-				/* status */
+				/* status, lest check */
 				chunk_printf(&msg, sizeof(trash), "<td nowrap>");
 
-				if (sv->state & SRV_CHECKED)
+				if (sv->state & SRV_CHECKED) {
 					chunk_printf(&msg, sizeof(trash), "%s ",
 						human_time(now.tv_sec - sv->last_change, 1));
 
-				chunk_printf(&msg, sizeof(trash),
-				     srv_hlt_st[sv_state],
-				     (svs->state & SRV_RUNNING) ? (svs->health - svs->rise + 1) : (svs->health),
-				     (svs->state & SRV_RUNNING) ? (svs->fall) : (svs->rise));
+					chunk_printf(&msg, sizeof(trash),
+					     srv_hlt_st[sv_state],
+					     (svs->state & SRV_RUNNING) ? (svs->health - svs->rise + 1) : (svs->health),
+					     (svs->state & SRV_RUNNING) ? (svs->fall) : (svs->rise));
+				
+					chunk_printf(&msg, sizeof(trash), "</td><td title=\"%s\" nowrap> %s%s",
+						get_check_status_description(sv->check_status),
+						tv_iszero(&sv->check_start)?"":"* ",
+						get_check_status_info(sv->check_status));
+
+					if (sv->check_status >= HCHK_STATUS_L57DATA)
+						chunk_printf(&msg, sizeof(trash), "/%d", sv->check_code);
+
+					if (sv->check_status >= HCHK_STATUS_CHECKED)
+						chunk_printf(&msg, sizeof(trash), " in %lums", sv->check_duration);
+				} else {
+					chunk_printf(&msg, sizeof(trash), "</td><td>");
+				}
 
 				chunk_printf(&msg, sizeof(trash),
 				     /* weight */
@@ -1180,6 +1199,26 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 					     read_freq_ctr(&sv->sess_per_sec),
 					     sv->sps_max);
 
+				if (sv->state & SRV_CHECKED) {
+					/* check_status */
+					chunk_printf(&msg, sizeof(trash), "%s,", get_check_status_info(sv->check_status));
+
+					/* check_code */
+					if (sv->check_status >= HCHK_STATUS_L57DATA)
+						chunk_printf(&msg, sizeof(trash), "%u,", sv->check_code);
+					else
+						chunk_printf(&msg, sizeof(trash), ",");
+
+					/* check_duration */
+					if (sv->check_status >= HCHK_STATUS_CHECKED)	
+						chunk_printf(&msg, sizeof(trash), "%lu,", sv->check_duration);
+					else
+						chunk_printf(&msg, sizeof(trash), ",");
+
+				} else {
+					chunk_printf(&msg, sizeof(trash), ",,,");
+				}
+
 				/* finish with EOL */
 				chunk_printf(&msg, sizeof(trash), "\n");
 			}
@@ -1228,7 +1267,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				      * if the backend has known working servers or if it has no server at
 				      * all (eg: for stats). Then we display the total weight, number of
 				      * active and backups. */
-				     "<td align=center nowrap>%s %s</td><td align=center>%d</td>"
+				     "<td align=center nowrap>%s %s</td><td align=center>&nbsp;</td><td align=center>%d</td>"
 				     "<td align=center>%d</td><td align=center>%d</td>"
 				     "",
 				     U2H0(px->denied_req), U2H1(px->denied_resp),
@@ -1276,6 +1315,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     "%d,%d,0,,%lld,,%d,"
 				     /* rate, rate_lim, rate_max, */
 				     "%u,,%u,"
+				     /* check_status, check_code, check_duration */
+				     ",,,"
 				     "\n",
 				     px->id,
 				     px->nbpend /* or px->totpend ? */, px->nbpend_max,
