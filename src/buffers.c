@@ -119,6 +119,8 @@ int buffer_feed(struct buffer *buf, const char *str, int len)
 	if (buf->l >= buf->max_len)
 		buf->flags |= BF_FULL;
 
+	/* notify that some data was read from the SI into the buffer */
+	buf->flags |= BF_READ_PARTIAL;
 	return -1;
 }
 

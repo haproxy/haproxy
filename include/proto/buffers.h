@@ -349,6 +349,9 @@ static inline void buffer_skip(struct buffer *buf, int len)
 	buf->send_max -= len;
 	if (!buf->send_max && !buf->pipe)
 		buf->flags |= BF_OUT_EMPTY;
+
+	/* notify that some data was written to the SI from the buffer */
+	buf->flags |= BF_WRITE_PARTIAL;
 }
 
 /*
