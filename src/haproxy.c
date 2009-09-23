@@ -404,7 +404,7 @@ void init(int argc, char **argv)
 	signal_init();
 	init_task();
 	init_session();
-	init_buffer();
+	/* warning, we init buffers later */
 	init_pendconn();
 	init_proto_http();
 
@@ -555,6 +555,9 @@ void init(int argc, char **argv)
 		qfprintf(stdout, "Configuration file is valid\n");
 		exit(0);
 	}
+
+	/* now we know the buffer size, we can initialize the buffers */
+	init_buffer();
 
 	if (have_appsession)
 		appsession_init();
