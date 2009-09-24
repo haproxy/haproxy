@@ -3258,7 +3258,6 @@ void produce_content(struct session *s, struct buffer *rep)
 	else if (s->data_source == DATA_SRC_STATS) {
 		/* dump server statistics */
 		int ret;
-		stream_int_retnclose(rep->cons, NULL);
 		ret = stats_dump_http(s, rep, s->be->uri_auth);
 		if (ret >= 0)
 			return;
@@ -4633,6 +4632,7 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 	buffer_dont_connect(t->req);
 	buffer_shutw_now(t->req);
 	buffer_shutr_now(t->rep);
+	stream_int_retnclose(t->rep->cons, NULL);
 	t->logs.tv_request = now;
 	t->data_source = DATA_SRC_STATS;
 	t->data_state  = DATA_ST_INIT;
