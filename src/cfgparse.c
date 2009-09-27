@@ -1162,7 +1162,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		curproxy->uuid = atol(args[1]);
 
 		if (curproxy->uuid < 1001) {
-			Alert("parsing [%s:%d]: custom id has to be > 1000",
+			Alert("parsing [%s:%d]: custom id has to be > 1000.\n",
 				file, linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
@@ -2339,7 +2339,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				newsrv->puid = atol(args[cur_arg + 1]);
 
 				if (newsrv->puid< 1001) {
-					Alert("parsing [%s:%d]: custom id has to be > 1000",
+					Alert("parsing [%s:%d]: custom id has to be > 1000.\n",
 						file, linenum);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
@@ -2365,12 +2365,41 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "rise")) {
+				if (!*args[cur_arg + 1]) {
+					Alert("parsing [%s:%d]: '%s' expects an integer argument.\n",
+						file, linenum, args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
 				newsrv->rise = atol(args[cur_arg + 1]);
+				if (newsrv->rise <= 0) {
+					Alert("parsing [%s:%d]: '%s' has to be > 0.\n",
+						file, linenum, args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
 				newsrv->health = newsrv->rise;
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "fall")) {
 				newsrv->fall = atol(args[cur_arg + 1]);
+
+				if (!*args[cur_arg + 1]) {
+					Alert("parsing [%s:%d]: '%s' expects an integer argument.\n",
+						file, linenum, args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				if (newsrv->fall <= 0) {
+					Alert("parsing [%s:%d]: '%s' has to be > 0.\n",
+						file, linenum, args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "inter")) {
