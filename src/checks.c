@@ -232,24 +232,23 @@ static void set_server_down(struct server *s)
 		 */
 		xferred = redistribute_pending(s);
 
-		msg.len = 0;
-		msg.str = trash;
+		chunk_init(&msg, trash, sizeof(trash));
 
-		chunk_printf(&msg, sizeof(trash),
+		chunk_printf(&msg,
 			"%sServer %s/%s is DOWN", s->state & SRV_BACKUP ? "Backup " : "",
 			s->proxy->id, s->id);
 
 		if (s->tracked)
-			chunk_printf(&msg, sizeof(trash), " via %s/%s",
+			chunk_printf(&msg, " via %s/%s",
 				s->tracked->proxy->id, s->tracked->id);
 
-		chunk_printf(&msg, sizeof(trash), ", reason: %s", get_check_status_description(s->check_status));
+		chunk_printf(&msg, ", reason: %s", get_check_status_description(s->check_status));
 		if (s->check_status >= HCHK_STATUS_L57DATA)
-			chunk_printf(&msg, sizeof(trash), ", code: %d", s->check_code);
+			chunk_printf(&msg, ", code: %d", s->check_code);
 
-		chunk_printf(&msg, sizeof(trash), ", check duration: %lums", s->check_duration);
+		chunk_printf(&msg, ", check duration: %lums", s->check_duration);
 
-		chunk_printf(&msg, sizeof(trash), ". %d active and %d backup servers left.%s"
+		chunk_printf(&msg, ". %d active and %d backup servers left.%s"
 			" %d sessions active, %d requeued, %d remaining in queue.\n",
 			s->proxy->srv_act, s->proxy->srv_bck,
 			(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
@@ -313,22 +312,21 @@ static void set_server_up(struct server *s) {
 		 */
 		xferred = check_for_pending(s);
 
-		msg.len = 0;
-		msg.str = trash;
+		chunk_init(&msg, trash, sizeof(trash));
 
-		chunk_printf(&msg, sizeof(trash),
+		chunk_printf(&msg,
 			"%sServer %s/%s is UP", s->state & SRV_BACKUP ? "Backup " : "",
 			s->proxy->id, s->id);
 
 		if (s->tracked)
-			chunk_printf(&msg, sizeof(trash), " via %s/%s",
+			chunk_printf(&msg, " via %s/%s",
 				s->tracked->proxy->id, s->tracked->id);
 
-		chunk_printf(&msg, sizeof(trash), ", reason: %s", get_check_status_description(s->check_status));
+		chunk_printf(&msg, ", reason: %s", get_check_status_description(s->check_status));
 		if (s->check_status >= HCHK_STATUS_L57DATA)
-			chunk_printf(&msg, sizeof(trash), ", code: %d", s->check_code);
+			chunk_printf(&msg, ", code: %d", s->check_code);
 
-		chunk_printf(&msg, sizeof(trash), ". %d active and %d backup servers online.%s"
+		chunk_printf(&msg, ". %d active and %d backup servers online.%s"
 			" %d sessions requeued, %d total in queue.\n",
 			s->proxy->srv_act, s->proxy->srv_bck,
 			(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
@@ -362,20 +360,19 @@ static void set_server_disabled(struct server *s) {
 	 */
 	xferred = redistribute_pending(s);
 
-	msg.len = 0;
-	msg.str = trash;
+	chunk_init(&msg, trash, sizeof(trash));
 
-	chunk_printf(&msg, sizeof(trash),
+	chunk_printf(&msg,
 		"Load-balancing on %sServer %s/%s is disabled",
 		s->state & SRV_BACKUP ? "Backup " : "",
 		s->proxy->id, s->id);
 
 	if (s->tracked)
-		chunk_printf(&msg, sizeof(trash), " via %s/%s",
+		chunk_printf(&msg, " via %s/%s",
 			s->tracked->proxy->id, s->tracked->id);
 
 
-	chunk_printf(&msg, sizeof(trash),". %d active and %d backup servers online.%s"
+	chunk_printf(&msg,". %d active and %d backup servers online.%s"
 		" %d sessions requeued, %d total in queue.\n",
 		s->proxy->srv_act, s->proxy->srv_bck,
 		(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
@@ -407,19 +404,18 @@ static void set_server_enabled(struct server *s) {
 	 */
 	xferred = check_for_pending(s);
 
-	msg.len = 0;
-	msg.str = trash;
+	chunk_init(&msg, trash, sizeof(trash));
 
-	chunk_printf(&msg, sizeof(trash),
+	chunk_printf(&msg,
 		"Load-balancing on %sServer %s/%s is enabled again",
 		s->state & SRV_BACKUP ? "Backup " : "",
 		s->proxy->id, s->id);
 
 	if (s->tracked)
-		chunk_printf(&msg, sizeof(trash), " via %s/%s",
+		chunk_printf(&msg, " via %s/%s",
 			s->tracked->proxy->id, s->tracked->id);
 
-	chunk_printf(&msg, sizeof(trash), ". %d active and %d backup servers online.%s"
+	chunk_printf(&msg, ". %d active and %d backup servers online.%s"
 		" %d sessions requeued, %d total in queue.\n",
 		s->proxy->srv_act, s->proxy->srv_bck,
 		(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",

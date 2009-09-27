@@ -279,7 +279,7 @@ int event_accept(int fd) {
 		txn->rsp.sol = txn->rsp.eol = NULL;
 		txn->rsp.som = txn->rsp.eoh = 0; /* relative to the buffer */
 		txn->req.err_pos = txn->rsp.err_pos = -2; /* block buggy requests/responses */
-		txn->auth_hdr.len = -1;
+		chunk_reset(&txn->auth_hdr);
 		if (p->options2 & PR_O2_REQBUG_OK)
 			txn->req.err_pos = -1; /* let buggy requests pass */
 
@@ -455,13 +455,15 @@ int event_accept(int fd) {
 			 * or we're in health check mode with the 'httpchk' option enabled. In
 			 * both cases, we return a fake "HTTP/1.0 200 OK" response and we exit.
 			 */
-			struct chunk msg = { .str = "HTTP/1.0 200 OK\r\n\r\n", .len = 19 };
+			struct chunk msg;
+			chunk_initstr(&msg, "HTTP/1.0 200 OK\r\n\r\n");
 			stream_int_retnclose(&s->si[0], &msg); /* forge a 200 response */
 			s->req->analysers = 0;
 			t->expire = s->rep->wex;
 		}
 		else if (p->mode == PR_MODE_HEALTH) {  /* health check mode, no client reading */
-			struct chunk msg = { .str = "OK\n", .len = 3 };
+			struct chunk msg;
+			chunk_initstr(&msg, "OK\n");
 			stream_int_retnclose(&s->si[0], &msg); /* forge an "OK" response */
 			s->req->analysers = 0;
 			t->expire = s->rep->wex;

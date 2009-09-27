@@ -704,7 +704,7 @@ void deinit(void)
 		free(p->monitor_uri);
 
 		for (i = 0; i < HTTP_ERR_SIZE; i++)
-			free(p->errmsg[i].str);
+			chunk_destroy(&p->errmsg[i]);
 
 		for (i = 0; i < p->nb_reqadd; i++)
 			free(p->req_add[i]);

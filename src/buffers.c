@@ -302,17 +302,20 @@ int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len)
 
 /*
  * Does an snprintf() at the end of chunk <chk>, respecting the limit of
- * at most <size> chars. If the size is over, nothing is added. Returns
+ * at most chk->size chars. If the chk->len is over, nothing is added. Returns
  * the new chunk size.
  */
-int chunk_printf(struct chunk *chk, int size, const char *fmt, ...)
+int chunk_printf(struct chunk *chk, const char *fmt, ...)
 {
 	va_list argp;
 	int ret;
 
+	if (!chk->str || !chk->size)
+		return 0;
+
 	va_start(argp, fmt);
-	ret = vsnprintf(chk->str + chk->len, size - chk->len, fmt, argp);
-	if (ret >= size - chk->len)
+	ret = vsnprintf(chk->str + chk->len, chk->size - chk->len, fmt, argp);
+	if (ret >= chk->size - chk->len)
 		/* do not copy anything in case of truncation */
 		chk->str[chk->len] = 0;
 	else

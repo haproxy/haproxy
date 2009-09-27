@@ -213,9 +213,9 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 	return 0;
 }
 
-int print_csv_header(struct chunk *msg, int size)
+int print_csv_header(struct chunk *msg)
 {
-	return chunk_printf(msg, size,
+	return chunk_printf(msg,
 			    "# pxname,svname,"
 			    "qcur,qmax,"
 			    "scur,smax,slim,stot,"
@@ -532,8 +532,7 @@ int stats_dump_raw(struct session *s, struct buffer *rep, struct uri_auth *uri)
 	struct chunk msg;
 	unsigned int up;
 
-	msg.len = 0;
-	msg.str = trash;
+	chunk_init(&msg, trash, sizeof(trash));
 
 	switch (s->data_state) {
 	case DATA_ST_INIT:
@@ -545,7 +544,7 @@ int stats_dump_raw(struct session *s, struct buffer *rep, struct uri_auth *uri)
 
 	case DATA_ST_HEAD:
 		if (s->data_ctx.stats.flags & STAT_SHOW_STAT) {
-			print_csv_header(&msg, sizeof(trash));
+			print_csv_header(&msg);
 			if (buffer_write_chunk(rep, &msg) >= 0)
 				return 0;
 		}
@@ -556,7 +555,7 @@ int stats_dump_raw(struct session *s, struct buffer *rep, struct uri_auth *uri)
 	case DATA_ST_INFO:
 		up = (now.tv_sec - start_date.tv_sec);
 		if (s->data_ctx.stats.flags & STAT_SHOW_INFO) {
-			chunk_printf(&msg, sizeof(trash),
+			chunk_printf(&msg,
 				     "Name: " PRODUCT_NAME "\n"
 				     "Version: " HAPROXY_VERSION "\n"
 				     "Release_date: " HAPROXY_DATE "\n"
@@ -667,12 +666,11 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 	struct chunk msg;
 	unsigned int up;
 
-	msg.len = 0;
-	msg.str = trash;
+	chunk_init(&msg, trash, sizeof(trash));
 
 	switch (s->data_state) {
 	case DATA_ST_INIT:
-		chunk_printf(&msg, sizeof(trash),
+		chunk_printf(&msg,
 			     "HTTP/1.0 200 OK\r\n"
 			     "Cache-Control: no-cache\r\n"
 			     "Connection: close\r\n"
@@ -680,10 +678,10 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 			     (s->data_ctx.stats.flags & STAT_FMT_CSV) ? "text/plain" : "text/html");
 
 		if (uri->refresh > 0 && !(s->data_ctx.stats.flags & STAT_NO_REFRESH))
-			chunk_printf(&msg, sizeof(trash), "Refresh: %d\r\n",
+			chunk_printf(&msg, "Refresh: %d\r\n",
 				     uri->refresh);
 
-		chunk_printf(&msg, sizeof(trash), "\r\n");
+		chunk_printf(&msg, "\r\n");
 
 		s->txn.status = 200;
 		if (buffer_write_chunk(rep, &msg) >= 0)
@@ -709,7 +707,7 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 	case DATA_ST_HEAD:
 		if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
 			/* WARNING! This must fit in the first buffer !!! */	    
-			chunk_printf(&msg, sizeof(trash),
+			chunk_printf(&msg,
 			     "<html><head><title>Statistics Report for " PRODUCT_NAME "%s%s</title>\n"
 			     "<meta http-equiv=\"content-type\" content=\"text/html; charset=iso-8859-1\">\n"
 			     "<style type=\"text/css\"><!--\n"
@@ -787,7 +785,7 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 			     uri->node_name ? uri->node_name : ""
 			     );
 		} else {
-			print_csv_header(&msg, sizeof(trash));
+			print_csv_header(&msg);
 		}
 		if (buffer_write_chunk(rep, &msg) >= 0)
 			return 0;
@@ -803,7 +801,7 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 			 * become tricky if we want to support 4kB buffers !
 			 */
 		if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
-			chunk_printf(&msg, sizeof(trash),
+			chunk_printf(&msg,
 			     "<body><h1><a href=\"" PRODUCT_URL "\" style=\"text-decoration: none;\">"
 			     PRODUCT_NAME "%s</a></h1>\n"
 			     "<h2>Statistics Report for pid %d%s%s</h2>\n"
@@ -850,13 +848,13 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 			     );
 
 			if (s->data_ctx.stats.flags & STAT_HIDE_DOWN)
-				chunk_printf(&msg, sizeof(trash),
+				chunk_printf(&msg,
 				     "<li><a href=\"%s%s%s\">Show all servers</a><br>\n",
 				     uri->uri_prefix,
 				     "",
 				     (s->data_ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "");
 			else
-				chunk_printf(&msg, sizeof(trash),
+				chunk_printf(&msg,
 				     "<li><a href=\"%s%s%s\">Hide 'DOWN' servers</a><br>\n",
 				     uri->uri_prefix,
 				     ";up",
@@ -864,31 +862,31 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 
 			if (uri->refresh > 0) {
 				if (s->data_ctx.stats.flags & STAT_NO_REFRESH)
-					chunk_printf(&msg, sizeof(trash),
+					chunk_printf(&msg,
 					     "<li><a href=\"%s%s%s\">Enable refresh</a><br>\n",
 					     uri->uri_prefix,
 					     (s->data_ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
 					     "");
 				else
-					chunk_printf(&msg, sizeof(trash),
+					chunk_printf(&msg,
 					     "<li><a href=\"%s%s%s\">Disable refresh</a><br>\n",
 					     uri->uri_prefix,
 					     (s->data_ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
 					     ";norefresh");
 			}
 
-			chunk_printf(&msg, sizeof(trash),
+			chunk_printf(&msg,
 			     "<li><a href=\"%s%s%s\">Refresh now</a><br>\n",
 			     uri->uri_prefix,
 			     (s->data_ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
 			     (s->data_ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "");
 
-			chunk_printf(&msg, sizeof(trash),
+			chunk_printf(&msg,
 			     "<li><a href=\"%s;csv%s\">CSV export</a><br>\n",
 			     uri->uri_prefix,
 			     (uri->refresh > 0) ? ";norefresh" : "");
 
-			chunk_printf(&msg, sizeof(trash),
+			chunk_printf(&msg,
 			     "</td>"
 			     "<td align=\"left\" valign=\"top\" nowrap width=\"1%%\">"
 			     "<b>External ressources:</b><ul style=\"margin-top: 0.25em;\">\n"
@@ -929,7 +927,7 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 
 	case DATA_ST_END:
 		if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
-			chunk_printf(&msg, sizeof(trash), "</body></html>\n");
+			chunk_printf(&msg, "</body></html>\n");
 			if (buffer_write_chunk(rep, &msg) >= 0)
 				return 0;
 		}
@@ -960,8 +958,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 	struct server *sv, *svs;	/* server and server-state, server-state=server or server->tracked */
 	struct chunk msg;
 
-	msg.len = 0;
-	msg.str = trash;
+	chunk_init(&msg, trash, sizeof(trash));
 
 	switch (s->data_ctx.stats.px_st) {
 	case DATA_ST_PX_INIT:
@@ -1001,7 +998,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 	case DATA_ST_PX_TH:
 		if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
 			/* print a new table */
-			chunk_printf(&msg, sizeof(trash),
+			chunk_printf(&msg,
 				     "<table cols=\"29\" class=\"tbl\" width=\"100%%\">\n"
 				     "<tr align=\"center\" class=\"titre\">"
 				     "<th colspan=2 class=\"pxname\">%s</th>"
@@ -1039,7 +1036,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 		if ((px->cap & PR_CAP_FE) &&
 		    (!(s->data_ctx.stats.flags & STAT_BOUND) || (s->data_ctx.stats.type & (1 << STATS_TYPE_FE)))) {
 			if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
-				chunk_printf(&msg, sizeof(trash),
+				chunk_printf(&msg,
 				     /* name, queue */
 				     "<tr align=center class=\"frontend\"><td>Frontend</td><td colspan=3></td>"
 				     /* sessions rate : current, max, limit */
@@ -1055,7 +1052,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     U2H3(px->feconn), U2H4(px->feconn_max), U2H5(px->maxconn),
 				     U2H6(px->cum_feconn), U2H7(px->bytes_in), U2H8(px->bytes_out));
 
-				chunk_printf(&msg, sizeof(trash),
+				chunk_printf(&msg,
 				     /* denied: req, resp */
 				     "<td align=right>%s</td><td align=right>%s</td>"
 				     /* errors : request, connect, response */
@@ -1072,7 +1069,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     px->state == PR_STRUN ? "OPEN" :
 				     px->state == PR_STIDLE ? "FULL" : "STOP");
 			} else {
-				chunk_printf(&msg, sizeof(trash),
+				chunk_printf(&msg,
 				     /* pxid, name, queue cur, queue max, */
 				     "%s,FRONTEND,,,"
 				     /* sessions : current, max, limit, total */
@@ -1166,7 +1163,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 							       "UP %d/%d &darr;", "UP",
 							       "NOLB %d/%d &darr;", "NOLB",
 							       "<i>no check</i>" };
-				chunk_printf(&msg, sizeof(trash),
+				chunk_printf(&msg,
 				     /* name */
 				     "<tr align=\"center\" class=\"%s%d\"><td>%s</td>"
 				     /* queue : current, max, limit */
@@ -1184,7 +1181,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     U2H5(sv->cur_sess), U2H6(sv->cur_sess_max), LIM2A7(sv->maxconn, "-"),
 				     U2H8(sv->cum_sess), U2H9(sv->cum_lbconn));
 
-				chunk_printf(&msg, sizeof(trash),
+				chunk_printf(&msg,
 				     /* bytes : in, out */
 				     "<td align=right>%s</td><td align=right>%s</td>"
 				     /* denied: req, resp */
@@ -1200,32 +1197,32 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     sv->retries, sv->redispatches);
 
 				/* status, lest check */
-				chunk_printf(&msg, sizeof(trash), "<td nowrap>");
+				chunk_printf(&msg, "<td nowrap>");
 
 				if (sv->state & SRV_CHECKED) {
-					chunk_printf(&msg, sizeof(trash), "%s ",
+					chunk_printf(&msg, "%s ",
 						human_time(now.tv_sec - sv->last_change, 1));
 
-					chunk_printf(&msg, sizeof(trash),
+					chunk_printf(&msg,
 					     srv_hlt_st[sv_state],
 					     (svs->state & SRV_RUNNING) ? (svs->health - svs->rise + 1) : (svs->health),
 					     (svs->state & SRV_RUNNING) ? (svs->fall) : (svs->rise));
 				
-					chunk_printf(&msg, sizeof(trash), "</td><td title=\"%s\" nowrap> %s%s",
+					chunk_printf(&msg, "</td><td title=\"%s\" nowrap> %s%s",
 						get_check_status_description(sv->check_status),
 						tv_iszero(&sv->check_start)?"":"* ",
 						get_check_status_info(sv->check_status));
 
 					if (sv->check_status >= HCHK_STATUS_L57DATA)
-						chunk_printf(&msg, sizeof(trash), "/%d", sv->check_code);
+						chunk_printf(&msg, "/%d", sv->check_code);
 
 					if (sv->check_status >= HCHK_STATUS_CHECKED)
-						chunk_printf(&msg, sizeof(trash), " in %lums", sv->check_duration);
+						chunk_printf(&msg, " in %lums", sv->check_duration);
 				} else {
-					chunk_printf(&msg, sizeof(trash), "</td><td>");
+					chunk_printf(&msg, "</td><td>");
 				}
 
-				chunk_printf(&msg, sizeof(trash),
+				chunk_printf(&msg,
 				     /* weight */
 				     "</td><td>%d</td>"
 				     /* act, bck */
@@ -1237,17 +1234,17 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 
 				/* check failures: unique, fatal, down time */
 				if (sv->state & SRV_CHECKED)
-					chunk_printf(&msg, sizeof(trash),
+					chunk_printf(&msg,
 					     "<td align=right>%lld</td><td align=right>%lld</td>"
 					     "<td nowrap align=right>%s</td>"
 					     "",
 					     svs->failed_checks, svs->down_trans,
 					     human_time(srv_downtime(sv), 1));
 				else if (sv != svs)
-					chunk_printf(&msg, sizeof(trash),
+					chunk_printf(&msg,
 					     "<td nowrap colspan=3>via %s/%s</td>", svs->proxy->id, svs->id);
 				else
-					chunk_printf(&msg, sizeof(trash),
+					chunk_printf(&msg,
 					     "<td colspan=3></td>");
 
 				/* throttle */
@@ -1256,10 +1253,10 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				    now.tv_sec >= sv->last_change) {
 					unsigned int ratio;
 					ratio = MAX(1, 100 * (now.tv_sec - sv->last_change) / sv->slowstart);
-					chunk_printf(&msg, sizeof(trash),
+					chunk_printf(&msg,
 						     "<td>%d %%</td></tr>\n", ratio);
 				} else {
-					chunk_printf(&msg, sizeof(trash),
+					chunk_printf(&msg,
 						     "<td>-</td></tr>\n");
 				}
 			} else {
@@ -1267,7 +1264,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 							       "UP %d/%d,", "UP,",
 							       "NOLB %d/%d,", "NOLB,",
 							       "no check," };
-				chunk_printf(&msg, sizeof(trash),
+				chunk_printf(&msg,
 				     /* pxid, name */
 				     "%s,%s,"
 				     /* queue : current, max */
@@ -1292,12 +1289,12 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     sv->retries, sv->redispatches);
 
 				/* status */
-				chunk_printf(&msg, sizeof(trash),
+				chunk_printf(&msg,
 				     srv_hlt_st[sv_state],
 				     (sv->state & SRV_RUNNING) ? (sv->health - sv->rise + 1) : (sv->health),
 				     (sv->state & SRV_RUNNING) ? (sv->fall) : (sv->rise));
 
-				chunk_printf(&msg, sizeof(trash),
+				chunk_printf(&msg,
 				     /* weight, active, backup */
 				     "%d,%d,%d,"
 				     "",
@@ -1307,16 +1304,16 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 
 				/* check failures: unique, fatal; last change, total downtime */
 				if (sv->state & SRV_CHECKED)
-					chunk_printf(&msg, sizeof(trash),
+					chunk_printf(&msg,
 					     "%lld,%lld,%d,%d,",
 					     sv->failed_checks, sv->down_trans,
 					     (int)(now.tv_sec - sv->last_change), srv_downtime(sv));
 				else
-					chunk_printf(&msg, sizeof(trash),
+					chunk_printf(&msg,
 					     ",,,,");
 
 				/* queue limit, pid, iid, sid, */
-				chunk_printf(&msg, sizeof(trash),
+				chunk_printf(&msg,
 				     "%s,"
 				     "%d,%d,%d,",
 				     LIM2A0(sv->maxqueue, ""),
@@ -1328,49 +1325,49 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				    now.tv_sec >= sv->last_change) {
 					unsigned int ratio;
 					ratio = MAX(1, 100 * (now.tv_sec - sv->last_change) / sv->slowstart);
-					chunk_printf(&msg, sizeof(trash), "%d", ratio);
+					chunk_printf(&msg, "%d", ratio);
 				}
 
 				/* sessions: lbtot */
-				chunk_printf(&msg, sizeof(trash), ",%lld,", sv->cum_lbconn);
+				chunk_printf(&msg, ",%lld,", sv->cum_lbconn);
 
 				/* tracked */
 				if (sv->tracked)
-					chunk_printf(&msg, sizeof(trash), "%s/%s,",
+					chunk_printf(&msg, "%s/%s,",
 						sv->tracked->proxy->id, sv->tracked->id);
 				else
-					chunk_printf(&msg, sizeof(trash), ",");
+					chunk_printf(&msg, ",");
 
 				/* type */
-				chunk_printf(&msg, sizeof(trash), "%d,", STATS_TYPE_SV);
+				chunk_printf(&msg, "%d,", STATS_TYPE_SV);
 
 				/* rate */
-				chunk_printf(&msg, sizeof(trash), "%u,,%u,",
+				chunk_printf(&msg, "%u,,%u,",
 					     read_freq_ctr(&sv->sess_per_sec),
 					     sv->sps_max);
 
 				if (sv->state & SRV_CHECKED) {
 					/* check_status */
-					chunk_printf(&msg, sizeof(trash), "%s,", get_check_status_info(sv->check_status));
+					chunk_printf(&msg, "%s,", get_check_status_info(sv->check_status));
 
 					/* check_code */
 					if (sv->check_status >= HCHK_STATUS_L57DATA)
-						chunk_printf(&msg, sizeof(trash), "%u,", sv->check_code);
+						chunk_printf(&msg, "%u,", sv->check_code);
 					else
-						chunk_printf(&msg, sizeof(trash), ",");
+						chunk_printf(&msg, ",");
 
 					/* check_duration */
 					if (sv->check_status >= HCHK_STATUS_CHECKED)	
-						chunk_printf(&msg, sizeof(trash), "%lu,", sv->check_duration);
+						chunk_printf(&msg, "%lu,", sv->check_duration);
 					else
-						chunk_printf(&msg, sizeof(trash), ",");
+						chunk_printf(&msg, ",");
 
 				} else {
-					chunk_printf(&msg, sizeof(trash), ",,,");
+					chunk_printf(&msg, ",,,");
 				}
 
 				/* finish with EOL */
-				chunk_printf(&msg, sizeof(trash), "\n");
+				chunk_printf(&msg, "\n");
 			}
 			if (buffer_write_chunk(rep, &msg) >= 0)
 				return 0;
@@ -1384,7 +1381,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 		if ((px->cap & PR_CAP_BE) &&
 		    (!(s->data_ctx.stats.flags & STAT_BOUND) || (s->data_ctx.stats.type & (1 << STATS_TYPE_BE)))) {
 			if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
-				chunk_printf(&msg, sizeof(trash),
+				chunk_printf(&msg,
 				     /* name */
 				     "<tr align=center class=\"backend\"><td>Backend</td>"
 				     /* queue : current, max */
@@ -1395,7 +1392,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     U2H0(px->nbpend) /* or px->totpend ? */, U2H1(px->nbpend_max),
 				     U2H2(read_freq_ctr(&px->be_sess_per_sec)), U2H3(px->be_sps_max));
 
-				chunk_printf(&msg, sizeof(trash),
+				chunk_printf(&msg,
 				     /* sessions : current, max, limit, total, lbtot */
 				     "<td align=right>%s</td><td align=right>%s</td><td align=right>%s</td>"
 				     "<td align=right>%s</td><td align=right>%s</td>"
@@ -1406,7 +1403,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     U2H6(px->cum_beconn), U2H7(px->cum_lbconn),
 				     U2H8(px->bytes_in), U2H9(px->bytes_out));
 
-				chunk_printf(&msg, sizeof(trash),
+				chunk_printf(&msg,
 				     /* denied: req, resp */
 				     "<td align=right>%s</td><td align=right>%s</td>"
 				     /* errors : request, connect, response */
@@ -1429,7 +1426,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     (px->lbprm.tot_weight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv,
 				     px->srv_act, px->srv_bck);
 
-				chunk_printf(&msg, sizeof(trash),
+				chunk_printf(&msg,
 				     /* rest of backend: nothing, down transitions, total downtime, throttle */
 				     "<td align=center>&nbsp;</td><td align=\"right\">%d</td>"
 				     "<td align=\"right\" nowrap>%s</td>"
@@ -1438,7 +1435,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     px->down_trans,
 				     px->srv?human_time(be_downtime(px), 1):"&nbsp;");
 			} else {
-				chunk_printf(&msg, sizeof(trash),
+				chunk_printf(&msg,
 				     /* pxid, name */
 				     "%s,BACKEND,"
 				     /* queue : current, max */
@@ -1494,7 +1491,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 
 	case DATA_ST_PX_END:
 		if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
-			chunk_printf(&msg, sizeof(trash), "</table><p>\n");
+			chunk_printf(&msg, "</table><p>\n");
 
 			if (buffer_write_chunk(rep, &msg) >= 0)
 				return 0;
@@ -1542,8 +1539,7 @@ void stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 	if (s->ana_state != STATS_ST_REP)
 		return;
 
-	msg.len = 0;
-	msg.str = trash;
+	chunk_init(&msg, trash, sizeof(trash));
 
 	switch (s->data_state) {
 	case DATA_ST_INIT:
@@ -1573,7 +1569,7 @@ void stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 
 			curr_sess = LIST_ELEM(s->data_ctx.sess.bref.ref, struct session *, list);
 
-			chunk_printf(&msg, sizeof(trash),
+			chunk_printf(&msg,
 				     "%p: proto=%s",
 				     curr_sess,
 				     curr_sess->listener->proto->name);
@@ -1584,7 +1580,7 @@ void stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 					  (const void *)&((struct sockaddr_in *)&curr_sess->cli_addr)->sin_addr,
 					  pn, sizeof(pn));
 
-				chunk_printf(&msg, sizeof(trash),
+				chunk_printf(&msg,
 					     " src=%s:%d fe=%s be=%s srv=%s",
 					     pn,
 					     ntohs(((struct sockaddr_in *)&curr_sess->cli_addr)->sin_port),
@@ -1598,7 +1594,7 @@ void stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 					  (const void *)&((struct sockaddr_in6 *)(&curr_sess->cli_addr))->sin6_addr,
 					  pn, sizeof(pn));
 
-				chunk_printf(&msg, sizeof(trash),
+				chunk_printf(&msg,
 					     " src=%s:%d fe=%s be=%s srv=%s",
 					     pn,
 					     ntohs(((struct sockaddr_in6 *)&curr_sess->cli_addr)->sin6_port),
@@ -1613,13 +1609,13 @@ void stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 				break;
 			}
 
-			chunk_printf(&msg, sizeof(trash),
+			chunk_printf(&msg,
 				     " as=%d ts=%02x age=%s calls=%d",
 				     curr_sess->ana_state, curr_sess->task->state,
 				     human_time(now.tv_sec - curr_sess->logs.tv_accept.tv_sec, 1),
 				     curr_sess->task->calls);
 
-			chunk_printf(&msg, sizeof(trash),
+			chunk_printf(&msg,
 				     " rq[f=%06xh,l=%d,an=%02xh,rx=%s",
 				     curr_sess->req->flags,
 				     curr_sess->req->l,
@@ -1628,19 +1624,19 @@ void stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 				     human_time(TICKS_TO_MS(curr_sess->req->rex - now_ms),
 						TICKS_TO_MS(1000)) : "");
 
-			chunk_printf(&msg, sizeof(trash),
+			chunk_printf(&msg,
 				     ",wx=%s",
 				     curr_sess->req->wex ?
 				     human_time(TICKS_TO_MS(curr_sess->req->wex - now_ms),
 						TICKS_TO_MS(1000)) : "");
 
-			chunk_printf(&msg, sizeof(trash),
+			chunk_printf(&msg,
 				     ",ax=%s]",
 				     curr_sess->req->analyse_exp ?
 				     human_time(TICKS_TO_MS(curr_sess->req->analyse_exp - now_ms),
 						TICKS_TO_MS(1000)) : "");
 
-			chunk_printf(&msg, sizeof(trash),
+			chunk_printf(&msg,
 				     " rp[f=%06xh,l=%d,an=%02xh,rx=%s",
 				     curr_sess->rep->flags,
 				     curr_sess->rep->l,
@@ -1649,19 +1645,19 @@ void stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 				     human_time(TICKS_TO_MS(curr_sess->rep->rex - now_ms),
 						TICKS_TO_MS(1000)) : "");
 
-			chunk_printf(&msg, sizeof(trash),
+			chunk_printf(&msg,
 				     ",wx=%s",
 				     curr_sess->rep->wex ?
 				     human_time(TICKS_TO_MS(curr_sess->rep->wex - now_ms),
 						TICKS_TO_MS(1000)) : "");
 
-			chunk_printf(&msg, sizeof(trash),
+			chunk_printf(&msg,
 				     ",ax=%s]",
 				     curr_sess->rep->analyse_exp ?
 				     human_time(TICKS_TO_MS(curr_sess->rep->analyse_exp - now_ms),
 						TICKS_TO_MS(1000)) : "");
 
-			chunk_printf(&msg, sizeof(trash),
+			chunk_printf(&msg,
 				     " s0=[%d,%1xh,fd=%d,ex=%s]",
 				     curr_sess->si[0].state,
 				     curr_sess->si[0].flags,
@@ -1670,7 +1666,7 @@ void stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 				     human_time(TICKS_TO_MS(curr_sess->si[0].exp - now_ms),
 						TICKS_TO_MS(1000)) : "");
 
-			chunk_printf(&msg, sizeof(trash),
+			chunk_printf(&msg,
 				     " s1=[%d,%1xh,fd=%d,ex=%s]",
 				     curr_sess->si[1].state,
 				     curr_sess->si[1].flags,
@@ -1679,15 +1675,15 @@ void stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 				     human_time(TICKS_TO_MS(curr_sess->si[1].exp - now_ms),
 						TICKS_TO_MS(1000)) : "");
 
-			chunk_printf(&msg, sizeof(trash),
+			chunk_printf(&msg,
 				     " exp=%s",
 				     curr_sess->task->expire ?
 				     human_time(TICKS_TO_MS(curr_sess->task->expire - now_ms),
 						TICKS_TO_MS(1000)) : "");
 			if (task_in_rq(curr_sess->task))
-				chunk_printf(&msg, sizeof(trash), " run(nice=%d)", curr_sess->task->nice);
+				chunk_printf(&msg, " run(nice=%d)", curr_sess->task->nice);
 
-			chunk_printf(&msg, sizeof(trash), "\n");
+			chunk_printf(&msg, "\n");
 
 			if (buffer_write_chunk(rep, &msg) >= 0) {
 				/* let's try again later from this session. We add ourselves into
@@ -1718,17 +1714,17 @@ void stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
  * continuation of a previous truncated line begin with "+" instead of " "
  * after the offset. The new pointer is returned.
  */
-static int dump_error_line(struct chunk *out, int size,
-                          struct error_snapshot *err, int *line, int ptr)
+static int dump_error_line(struct chunk *out, struct error_snapshot *err,
+				int *line, int ptr)
 {
 	int end;
 	unsigned char c;
 
 	end = out->len + 80;
-	if (end > size)
+	if (end > out->size)
 		return ptr;
 
-	chunk_printf(out, size, "  %05d%c ", ptr, (ptr == *line) ? ' ' : '+');
+	chunk_printf(out, "  %05d%c ", ptr, (ptr == *line) ? ' ' : '+');
 
 	while (ptr < err->len) {
 		c = err->buf[ptr];
@@ -1789,8 +1785,7 @@ void stats_dump_errors_to_buffer(struct session *s, struct buffer *rep)
 	if (s->ana_state != STATS_ST_REP)
 		return;
 
-	msg.len = 0;
-	msg.str = trash;
+	chunk_init(&msg, trash, sizeof(trash));
 
 	if (!s->data_ctx.errors.px) {
 		/* the function had not been called yet, let's prepare the
@@ -1828,7 +1823,7 @@ void stats_dump_errors_to_buffer(struct session *s, struct buffer *rep)
 			struct tm tm;
 
 			get_localtime(es->when.tv_sec, &tm);
-			chunk_printf(&msg, sizeof(trash), "\n[%02d/%s/%04d:%02d:%02d:%02d.%03d]",
+			chunk_printf(&msg, "\n[%02d/%s/%04d:%02d:%02d:%02d.%03d]",
 				     tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
 				     tm.tm_hour, tm.tm_min, tm.tm_sec, (int)(es->when.tv_usec/1000));
 
@@ -1844,7 +1839,7 @@ void stats_dump_errors_to_buffer(struct session *s, struct buffer *rep)
 
 			switch (s->data_ctx.errors.buf) {
 			case 0:
-				chunk_printf(&msg, sizeof(trash),
+				chunk_printf(&msg,
 					     " frontend %s (#%d): invalid request\n"
 					     "  src %s, session #%d, backend %s (#%d), server %s (#%d)\n"
 					     "  request length %d bytes, error at position %d:\n\n",
@@ -1855,7 +1850,7 @@ void stats_dump_errors_to_buffer(struct session *s, struct buffer *rep)
 					     es->len, es->pos);
 				break;
 			case 1:
-				chunk_printf(&msg, sizeof(trash),
+				chunk_printf(&msg,
 					     " backend %s (#%d) : invalid response\n"
 					     "  src %s, session #%d, frontend %s (#%d), server %s (#%d)\n"
 					     "  response length %d bytes, error at position %d:\n\n",
@@ -1877,7 +1872,7 @@ void stats_dump_errors_to_buffer(struct session *s, struct buffer *rep)
 
 		if (s->data_ctx.errors.sid != es->sid) {
 			/* the snapshot changed while we were dumping it */
-			chunk_printf(&msg, sizeof(trash),
+			chunk_printf(&msg,
 				     "  WARNING! update detected on this snapshot, dump interrupted. Please re-check!\n");
 			if (buffer_write_chunk(rep, &msg) >= 0)
 				return;
@@ -1890,7 +1885,7 @@ void stats_dump_errors_to_buffer(struct session *s, struct buffer *rep)
 			int newline;
 
 			newline = s->data_ctx.errors.bol;
-			newptr = dump_error_line(&msg, sizeof(trash), es, &newline, s->data_ctx.errors.ptr);
+			newptr = dump_error_line(&msg, es, &newline, s->data_ctx.errors.ptr);
 			if (newptr == s->data_ctx.errors.ptr)
 				return;
 

@@ -409,8 +409,6 @@ int buffer_si_peekline(struct buffer *buf, char *str, int len);
 int buffer_replace(struct buffer *b, char *pos, char *end, const char *str);
 int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int len);
 int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len);
-int chunk_printf(struct chunk *chk, int size, const char *fmt, ...)
-	__attribute__ ((format(printf, 3, 4)));
 void buffer_dump(FILE *o, struct buffer *b, int from, int to);
 
 
@@ -446,6 +444,65 @@ static inline int buffer_feed_chunk(struct buffer *buf, struct chunk *chunk)
 	if (ret == -1)
 		chunk->len = 0;
 	return ret;
+}
+
+static inline void chunk_init(struct chunk *chk, char *str, size_t size) {
+	chk->str  = str;
+	chk->len  = 0;
+	chk->size = size;
+}
+
+/* report 0 in case of error, 1 if OK. */
+static inline int chunk_initlen(struct chunk *chk, char *str, size_t size, size_t len) {
+
+	if (len > size)
+		return 0;
+
+	chk->str  = str;
+	chk->len  = len;
+	chk->size = size;
+
+	return 1;
+}
+
+static inline void chunk_initstr(struct chunk *chk, char *str) {
+	chk->str = str;
+	chk->len = strlen(str);
+	chk->size = 0;			/* mark it read-only */
+}
+
+static inline int chunk_strcpy(struct chunk *chk, const char *str) {
+	size_t len;
+
+	len = strlen(str);
+
+	if (unlikely(len > chk->size))
+		return 0;
+
+	chk->len  = len;
+	memcpy(chk->str, str, len);
+
+	return 1;
+}
+
+int chunk_printf(struct chunk *chk, const char *fmt, ...)
+	__attribute__ ((format(printf, 2, 3)));
+
+static inline void chunk_reset(struct chunk *chk) {
+	chk->str  = NULL;
+	chk->len  = -1;
+	chk->size = 0;
+}
+
+static inline void chunk_destroy(struct chunk *chk) {
+
+	if (!chk->size)
+		return;
+
+	if (chk->str)
+		free(chk->str);
+
+	chunk_reset(chk);
 }
 
 /*

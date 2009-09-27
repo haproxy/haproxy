@@ -148,7 +148,8 @@
 /* describes a chunk of string */
 struct chunk {
 	char *str;	/* beginning of the string itself. Might not be 0-terminated */
-	int len;	/* size of the string from first to last char. <0 = uninit. */
+	size_t size;	/* total size of the buffer, 0 if the *str is read-only */
+	size_t len;	/* current size of the string from first to last char. <0 = uninit. */
 };
 
 /* needed for a declaration below */

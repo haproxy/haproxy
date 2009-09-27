@@ -640,7 +640,7 @@ void perform_http_redirect(struct session *s, struct stream_interface *si)
 	memcpy(rdr.str, HTTP_302, rdr.len);
 
 	/* 2: add the server's prefix */
-	if (rdr.len + s->srv->rdr_len > sizeof(trash))
+	if (rdr.len + s->srv->rdr_len > rdr.size)
 		return;
 
 	memcpy(rdr.str + rdr.len, s->srv->rdr_pfx, s->srv->rdr_len);
@@ -653,7 +653,7 @@ void perform_http_redirect(struct session *s, struct stream_interface *si)
 		return;
 
 	len = txn->req.sl.rq.u_l + (txn->req.sol+txn->req.sl.rq.u) - path;
-	if (rdr.len + len > sizeof(trash) - 4) /* 4 for CRLF-CRLF */
+	if (rdr.len + len > rdr.size - 4) /* 4 for CRLF-CRLF */
 		return;
 
 	memcpy(rdr.str + rdr.len, path, len);
@@ -2190,23 +2190,19 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 			/* build redirect message */
 			switch(rule->code) {
 			case 303:
-				rdr.len = strlen(HTTP_303);
 				msg_fmt = HTTP_303;
 				break;
 			case 301:
-				rdr.len = strlen(HTTP_301);
 				msg_fmt = HTTP_301;
 				break;
 			case 302:
 			default:
-				rdr.len = strlen(HTTP_302);
 				msg_fmt = HTTP_302;
 				break;
 			}
 
-			if (unlikely(rdr.len > sizeof(trash)))
+			if (unlikely(chunk_strcpy(&rdr, msg_fmt)))
 				goto return_bad_req;
-			memcpy(rdr.str, msg_fmt, rdr.len);
 
 			switch(rule->type) {
 			case REDIRECT_TYPE_PREFIX: {
@@ -2232,7 +2228,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 					pathlen = 1;
 				}
 
-				if (rdr.len + rule->rdr_len + pathlen > sizeof(trash) - 4)
+				if (rdr.len + rule->rdr_len + pathlen > rdr.size - 4)
 					goto return_bad_req;
 
 				/* add prefix. Note that if prefix == "/", we don't want to
@@ -2251,7 +2247,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 			}
 			case REDIRECT_TYPE_LOCATION:
 			default:
-				if (rdr.len + rule->rdr_len > sizeof(trash) - 4)
+				if (rdr.len + rule->rdr_len > rdr.size - 4)
 					goto return_bad_req;
 
 				/* add location */
@@ -4614,8 +4610,8 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 		struct chunk msg;
 
 		/* no need to go further */
-		msg.str = trash;
-		msg.len = sprintf(trash, HTTP_401_fmt, uri_auth->auth_realm);
+		sprintf(trash, HTTP_401_fmt, uri_auth->auth_realm);
+		chunk_initlen(&msg, trash, sizeof(trash), strlen(trash));
 		txn->status = 401;
 		stream_int_retnclose(t->req->prod, &msg);
 		t->req->analysers = 0;

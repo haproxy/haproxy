@@ -873,10 +873,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curproxy->fe_sps_lim = defproxy.fe_sps_lim;
 
 			/* initialize error relocations */
-			for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
-				if (defproxy.errmsg[rc].str)
-					chunk_dup(&curproxy->errmsg[rc], &defproxy.errmsg[rc]);
-			}
+			for (rc = 0; rc < HTTP_ERR_SIZE; rc++)
+				chunk_dup(&curproxy->errmsg[rc], &defproxy.errmsg[rc]);
 
 			curproxy->to_log = defproxy.to_log & ~LW_COOKIE & ~LW_REQHDR & ~ LW_RSPHDR;
 		}
@@ -975,7 +973,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		defproxy.fwdfor_hdr_len = 0;
 
 		for (rc = 0; rc < HTTP_ERR_SIZE; rc++)
-			free(defproxy.errmsg[rc].str);
+			chunk_destroy(&defproxy.errmsg[rc]);
 
 		/* we cannot free uri_auth because it might already be used */
 		init_default_instance();
@@ -3467,9 +3465,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
 			if (http_err_codes[rc] == errnum) {
-				free(curproxy->errmsg[rc].str);
-				curproxy->errmsg[rc].str = err;
-				curproxy->errmsg[rc].len = errlen;
+				chunk_destroy(&curproxy->errmsg[rc]);
+				chunk_initlen(&curproxy->errmsg[rc], err, errlen, errlen);
 				break;
 			}
 		}
@@ -3528,9 +3525,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		errnum = atol(args[1]);
 		for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
 			if (http_err_codes[rc] == errnum) {
-				free(curproxy->errmsg[rc].str);
-				curproxy->errmsg[rc].str = err;
-				curproxy->errmsg[rc].len = errlen;
+				chunk_destroy(&curproxy->errmsg[rc]);
+				chunk_initlen(&curproxy->errmsg[rc], err, errlen, errlen);
 				break;
 			}
 		}
