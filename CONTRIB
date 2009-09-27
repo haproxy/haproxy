@@ -8,13 +8,18 @@ Special thanks to the following people for their useful contributions :
 - Bryan Germann : option to exempt some sources from x-forwarded-for.
 - Fabrice Dulaunoy : health-checks on different addresses
 
+This list is quite incomplete and very outdated. For more up-to-date
+information please look at http://haproxy.1wt.eu/contrib.html, it lists
+not only significant code contributions (features, fixes), but also time or
+money donations.
+
 Note to contributors: it's very handy when patches comes with a properly
 formated subject. Try to put one of the following words between brackets
 to indicate the importance of the patch followed by a short description:
 
 [MINOR]    minor fix, very low risk of impact
 [MEDIUM]   medium risk, may cause unexpected regressions of low importance or
-           which may quickly be discovered (just like this patch)
+           which may quickly be discovered 
 [MAJOR]    major risk of hidden regression. This happens when I rearrange large
            parts of code, when I play with timeouts, with variable
            initializations, etc...
