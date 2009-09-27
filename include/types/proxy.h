@@ -121,6 +121,7 @@
 #define PR_O2_SMARTCON 	0x00000100      /* don't immediately send empty ACK after connect */
 #define PR_O2_RDPC_PRST	0x00000200      /* Actvate rdp cookie analyser */
 #define PR_O2_CLFLOG	0x00000400      /* log into clf format */
+#define PR_O2_LOGHCHKS	0x00000800	/* log health checks */
 
 /* This structure is used to apply fast weighted round robin on a server group */
 struct fwrr_group {

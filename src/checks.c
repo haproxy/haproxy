@@ -47,51 +47,29 @@
 #include <proto/server.h>
 #include <proto/task.h>
 
-const char *check_status_description[HCHK_STATUS_SIZE] = {
-	[HCHK_STATUS_UNKNOWN]	= "Unknown",
+const struct check_status check_statuses[HCHK_STATUS_SIZE] = {
+	[HCHK_STATUS_UNKNOWN]	= { SRV_CHK_UNKNOWN,                   "UNK",     "Unknown" },
+	[HCHK_STATUS_INI]	= { SRV_CHK_UNKNOWN,                   "INI",     "Initializing" },
+	[HCHK_STATUS_START]	= { /* SPECIAL STATUS*/ },
 
-	[HCHK_STATUS_INI]	= "Initializing",
+	[HCHK_STATUS_SOCKERR]	= { SRV_CHK_ERROR,                     "SOCKERR", "Socket error" },
 
-	[HCHK_STATUS_SOCKERR]	= "Socket error",
+	[HCHK_STATUS_L4OK]	= { SRV_CHK_RUNNING,                   "L4OK",    "Layer4 check passed" },
+	[HCHK_STATUS_L4TOUT]	= { SRV_CHK_ERROR,                     "L4TOUT",  "Layer4 timeout" },
+	[HCHK_STATUS_L4CON]	= { SRV_CHK_ERROR,                     "L4CON",   "Layer4 connection problem" },
 
-	[HCHK_STATUS_L4OK]	= "Layer4 check passed",
-	[HCHK_STATUS_L4TOUT]	= "Layer4 timeout",
-	[HCHK_STATUS_L4CON]	= "Layer4 connection problem",
+	[HCHK_STATUS_L6OK]	= { SRV_CHK_RUNNING,                   "L6OK",    "Layer6 check passed" },
+	[HCHK_STATUS_L6TOUT]	= { SRV_CHK_ERROR,                     "L6TOUT",  "Layer6 timeout" },
+	[HCHK_STATUS_L6RSP]	= { SRV_CHK_ERROR,                     "L6RSP",   "Layer6 invalid response" },
 
-	[HCHK_STATUS_L6OK]	= "Layer6 check passed",
-	[HCHK_STATUS_L6TOUT]	= "Layer6 timeout",
-	[HCHK_STATUS_L6RSP]	= "Layer6 invalid response",
+	[HCHK_STATUS_L7TOUT]	= { SRV_CHK_ERROR,                     "L7TOUT",  "Layer7 timeout" },
+	[HCHK_STATUS_L7RSP]	= { SRV_CHK_ERROR,                     "L7RSP",   "Layer7 invalid response" },
 
-	[HCHK_STATUS_L7TOUT]	= "Layer7 timeout",
-	[HCHK_STATUS_L7RSP]	= "Layer7 invalid response",
+	[HCHK_STATUS_L57DATA]	= { /* DUMMY STATUS */ },
 
-	[HCHK_STATUS_L7OKD]	= "Layer7 check passed",
-	[HCHK_STATUS_L7OKCD]	= "Layer7 check conditionally passed",
-	[HCHK_STATUS_L7STS]	= "Layer7 wrong status",
-};
-
-
-const char *check_status_info[HCHK_STATUS_SIZE] = {
-	[HCHK_STATUS_UNKNOWN]	= "UNK",
-
-	[HCHK_STATUS_INI]	= "INI",
-
-	[HCHK_STATUS_SOCKERR]	= "SOCKERR",
-
-	[HCHK_STATUS_L4OK]	= "L4OK",
-	[HCHK_STATUS_L4TOUT]	= "L4TOUT",
-	[HCHK_STATUS_L4CON]	= "L4CON",
-
-	[HCHK_STATUS_L6OK]	= "L6OK",
-	[HCHK_STATUS_L6TOUT]	= "L6TOUT",
-	[HCHK_STATUS_L6RSP]	= "L6RSP",
-
-	[HCHK_STATUS_L7TOUT]	= "L7TOUT",
-	[HCHK_STATUS_L7RSP]	= "L7RSP",
-
-	[HCHK_STATUS_L7OKD]	= "L7OK",
-	[HCHK_STATUS_L7OKCD]	= "L7OKC",
-	[HCHK_STATUS_L7STS]	= "L7STS",
+	[HCHK_STATUS_L7OKD]	= { SRV_CHK_RUNNING,                   "L7OK",    "Layer7 check passed" },
+	[HCHK_STATUS_L7OKCD]	= { SRV_CHK_RUNNING | SRV_CHK_DISABLE, "L7OKC",   "Layer7 check conditionally passed" },
+	[HCHK_STATUS_L7STS]	= { SRV_CHK_ERROR,                     "L7STS",   "Layer7 wrong status" },
 };
 
 /*
@@ -102,14 +80,14 @@ const char *get_check_status_description(short check_status) {
 	const char *desc;
 
 	if (check_status < HCHK_STATUS_SIZE)
-		desc = check_status_description[check_status];
+		desc = check_statuses[check_status].desc;
 	else
 		desc = NULL;
 
 	if (desc && *desc)
 		return desc;
 	else
-		return check_status_description[HCHK_STATUS_UNKNOWN];
+		return check_statuses[HCHK_STATUS_UNKNOWN].desc;
 }
 
 /*
@@ -120,27 +98,108 @@ const char *get_check_status_info(short check_status) {
 	const char *info;
 
 	if (check_status < HCHK_STATUS_SIZE)
-		info = check_status_info[check_status];
+		info = check_statuses[check_status].info;
 	else
 		info = NULL;
 
 	if (info && *info)
 		return info;
 	else
-		return check_status_info[HCHK_STATUS_UNKNOWN];
+		return check_statuses[HCHK_STATUS_UNKNOWN].info;
 }
 
 /*
- * Set check_status and update check_duration
+ * Set s->check_status, update s->check_duration and fill s->result with
+ * an adequate SRV_CHK_* value.
+ *
+ * Show information in logs about failed health check if server is UP
+ * or succeeded health checks if server is DOWN.
  */
 static void set_server_check_status(struct server *s, short status) {
 
-		if (tv_iszero(&s->check_start))
-			return;
+	struct chunk msg;
 
-		s->check_status = status;
+	if (status == HCHK_STATUS_START) {
+		s->result = SRV_CHK_UNKNOWN;	/* no result yet */
+		s->check_start = now;
+		return;
+	}
+
+	if (!s->check_status)
+		return;
+
+	s->check_status = status;
+	if (check_statuses[status].result)
+		s->result |= check_statuses[status].result;
+
+	if (!tv_iszero(&s->check_start)) {
+		/* set_server_check_status() may be called more than once */
 		s->check_duration = tv_ms_elapsed(&s->check_start, &now);
 		tv_zero(&s->check_start);
+	}
+
+	if (s->proxy->options2 & PR_O2_LOGHCHKS &&
+	(((s->health != 0) && (s->result & SRV_CHK_ERROR)) ||
+	    ((s->health != s->rise + s->fall - 1) && (s->result & SRV_CHK_RUNNING)) ||
+	    ((s->state & SRV_GOINGDOWN) && !(s->result & SRV_CHK_DISABLE)) ||
+	    (!(s->state & SRV_GOINGDOWN) && (s->result & SRV_CHK_DISABLE)))) {
+
+		int health, rise, fall, state;
+
+		chunk_init(&msg, trash, sizeof(trash));
+
+		/* FIXME begin: calculate local version of the health/rise/fall/state */
+		health = s->health;
+		rise   = s->rise;
+		fall   = s->fall;
+		state  = s->state;
+
+		if (s->result & SRV_CHK_ERROR) {
+			if (health > rise) {
+				health--; /* still good */
+			} else {
+				if (health == rise)
+					state &= ~(SRV_RUNNING | SRV_GOINGDOWN);
+
+				health = 0;
+			}
+		}
+
+		if (s->result & SRV_CHK_RUNNING) {
+			if (health < rise + fall - 1) {
+				health++; /* was bad, stays for a while */
+
+				if (health == rise)
+					state |= SRV_RUNNING;
+
+				if (health >= rise)
+					health = rise + fall - 1; /* OK now */
+			}
+		}
+		/* FIXME end: calculate local version of the health/rise/fall/state */
+
+		chunk_printf(&msg,
+			"Health check for %sserver %s/%s %s%s",
+			s->state & SRV_BACKUP ? "backup " : "",
+			s->proxy->id, s->id,
+			(s->result & SRV_CHK_DISABLE)?"conditionally ":"",
+			(s->result & SRV_CHK_RUNNING)?"succeeded":"failed");
+
+		chunk_printf(&msg, ", reason: %s", get_check_status_description(s->check_status));
+
+		if (s->check_status >= HCHK_STATUS_L57DATA)
+			chunk_printf(&msg, ", code: %d", s->check_code);
+
+		chunk_printf(&msg, ", check duration: %lums", s->check_duration);
+
+		chunk_printf(&msg, ", status: %d/%d %s.\n",
+			(state & SRV_RUNNING) ? (health - rise + 1) : (health),
+			(state & SRV_RUNNING) ? (fall) : (rise),
+			(state & SRV_RUNNING)?"UP":"DOWN");
+
+		Warning("%s", trash);
+		send_log(s->proxy, LOG_NOTICE, "%s", trash);
+	}
 }
 
 /* sends a log message when a backend goes down, and also sets last
@@ -242,11 +301,13 @@ static void set_server_down(struct server *s)
 			chunk_printf(&msg, " via %s/%s",
 				s->tracked->proxy->id, s->tracked->id);
 
-		chunk_printf(&msg, ", reason: %s", get_check_status_description(s->check_status));
-		if (s->check_status >= HCHK_STATUS_L57DATA)
-			chunk_printf(&msg, ", code: %d", s->check_code);
+		if (!s->tracked && !(s->proxy->options2 & PR_O2_LOGHCHKS)) {
+			chunk_printf(&msg, ", reason: %s", get_check_status_description(s->check_status));
+			if (s->check_status >= HCHK_STATUS_L57DATA)
+				chunk_printf(&msg, ", code: %d", s->check_code);
 
-		chunk_printf(&msg, ", check duration: %lums", s->check_duration);
+			chunk_printf(&msg, ", check duration: %lums", s->check_duration);
+		}
 
 		chunk_printf(&msg, ". %d active and %d backup servers left.%s"
 			" %d sessions active, %d requeued, %d remaining in queue.\n",
@@ -322,9 +383,11 @@ static void set_server_up(struct server *s) {
 			chunk_printf(&msg, " via %s/%s",
 				s->tracked->proxy->id, s->tracked->id);
 
-		chunk_printf(&msg, ", reason: %s", get_check_status_description(s->check_status));
-		if (s->check_status >= HCHK_STATUS_L57DATA)
-			chunk_printf(&msg, ", code: %d", s->check_code);
+		if (!s->tracked && !(s->proxy->options2 & PR_O2_LOGHCHKS)) {
+			chunk_printf(&msg, ", reason: %s", get_check_status_description(s->check_status));
+			if (s->check_status >= HCHK_STATUS_L57DATA)
+				chunk_printf(&msg, ", code: %d", s->check_code);
+		}
 
 		chunk_printf(&msg, ". %d active and %d backup servers online.%s"
 			" %d sessions requeued, %d total in queue.\n",
@@ -371,6 +434,14 @@ static void set_server_disabled(struct server *s) {
 		chunk_printf(&msg, " via %s/%s",
 			s->tracked->proxy->id, s->tracked->id);
 
+	if (!s->tracked && !(s->proxy->options2 & PR_O2_LOGHCHKS)) {
+		chunk_printf(&msg, ", reason: %s", get_check_status_description(s->check_status));
+
+		if (s->check_status >= HCHK_STATUS_L57DATA)
+			chunk_printf(&msg, ", code: %d", s->check_code);
+
+		chunk_printf(&msg, ", check duration: %lums", s->check_duration);
+	}
 
 	chunk_printf(&msg,". %d active and %d backup servers online.%s"
 		" %d sessions requeued, %d total in queue.\n",
@@ -415,6 +486,15 @@ static void set_server_enabled(struct server *s) {
 		chunk_printf(&msg, " via %s/%s",
 			s->tracked->proxy->id, s->tracked->id);
 
+	if (!s->tracked && !(s->proxy->options2 & PR_O2_LOGHCHKS)) {
+		chunk_printf(&msg, ", reason: %s", get_check_status_description(s->check_status));
+
+		if (s->check_status >= HCHK_STATUS_L57DATA)
+			chunk_printf(&msg, ", code: %d", s->check_code);
+
+		chunk_printf(&msg, ", check duration: %lums", s->check_duration);
+	}
+
 	chunk_printf(&msg, ". %d active and %d backup servers online.%s"
 		" %d sessions requeued, %d total in queue.\n",
 		s->proxy->srv_act, s->proxy->srv_bck,
@@ -431,8 +511,9 @@ static void set_server_enabled(struct server *s) {
 
 /*
  * This function is used only for server health-checks. It handles
- * the connection acknowledgement. If the proxy requires HTTP health-checks,
- * it sends the request. In other cases, it fills s->result with SRV_CHK_*.
+ * the connection acknowledgement. If the proxy requires L7 health-checks,
+ * it sends the request. In other cases, it calls set_server_check_status()
+ * to set s->check_status, s->check_duration and s->result.
  * The function itself returns 0 if it needs some polling before being called
  * again, otherwise 1.
  */
@@ -518,7 +599,6 @@ static int event_srv_chk_w(int fd)
 			}
 
 			/* good TCP connection is enough */
-			s->result |= SRV_CHK_RUNNING;
 			set_server_check_status(s, HCHK_STATUS_L4OK);
 			goto out_wakeup;
 		}
@@ -535,8 +615,6 @@ static int event_srv_chk_w(int fd)
 	fdtab[fd].ev &= ~FD_POLL_OUT;
 	return 0;
  out_error:
-	s->result |= SRV_CHK_ERROR;
-	/* set_server_check_status() called bofore goto into this label */
 	fdtab[fd].state = FD_STERROR;
 	goto out_wakeup;
 }
@@ -544,13 +622,19 @@ static int event_srv_chk_w(int fd)
 
 /*
  * This function is used only for server health-checks. It handles the server's
- * reply to an HTTP request or SSL HELLO. It sets s->result to SRV_CHK_RUNNING
- * if an HTTP server replies HTTP 2xx or 3xx (valid responses), if an SMTP
- * server returns 2xx, or if an SSL server returns at least 5 bytes in response
- * to an SSL HELLO (the principle is that this is enough to distinguish between
- * an SSL server and a pure TCP relay). All other cases will set s->result to
- * SRV_CHK_ERROR. The function returns 0 if it needs to be called again after
- * some polling, otherwise non-zero..
+ * reply to an HTTP request or SSL HELLO. It calls set_server_check_status() to
+ * update s->check_status, s->check_duration and s->result.
+
+ * The set_server_check_status function is called with HCHK_STATUS_L7OKD if
+ * an HTTP server replies HTTP 2xx or 3xx (valid responses), if an SMTP server
+ * returns 2xx, HCHK_STATUS_L6OK if an SSL server returns at least 5 bytes in
+ * response to an SSL HELLO (the principle is that this is enough to
+ * distinguish between an SSL server and a pure TCP relay). All other cases will
+ * call it with a proper error status like HCHK_STATUS_L7STS, HCHK_STATUS_L6RSP,
+ * etc.
+ *
+ * The function returns 0 if it needs to be called again after some polling,
+ * otherwise non-zero..
  */
 static int event_srv_chk_r(int fd)
 {
@@ -573,8 +657,6 @@ static int event_srv_chk_r(int fd)
 		if (!(s->result & SRV_CHK_ERROR))
 			set_server_check_status(s, HCHK_STATUS_SOCKERR);
 
-		s->result |= SRV_CHK_ERROR;
-
 		goto out_wakeup;
 	}
 
@@ -596,7 +678,6 @@ static int event_srv_chk_r(int fd)
 		    (memcmp(trash, "HTTP/1.", 7) != 0 ||
 		    (trash[12] != ' ' && trash[12] != '\r')) ||
 		    !isdigit(trash[9]) || !isdigit(trash[10]) || !isdigit(trash[11])) {
-			s->result |= SRV_CHK_ERROR;
 			set_server_check_status(s, HCHK_STATUS_L7RSP);
 			goto out_wakeup;
 		}
@@ -604,37 +685,28 @@ static int event_srv_chk_r(int fd)
 		s->check_code = str2uic(&trash[9]);
 
 		/* check the reply : HTTP/1.X 2xx and 3xx are OK */
-		if (trash[9] == '2' || trash[9] == '3') {
-			s->result |= SRV_CHK_RUNNING;
+		if (trash[9] == '2' || trash[9] == '3')
 			set_server_check_status(s, HCHK_STATUS_L7OKD);
-		} else if ((s->proxy->options & PR_O_DISABLE404) &&
+		else if ((s->proxy->options & PR_O_DISABLE404) &&
 			 (s->state & SRV_RUNNING) &&
-			 (s->check_code == 404)) {
-			/* 404 may be accepted as "stopping" only if the server was up */
-			s->result |= SRV_CHK_RUNNING | SRV_CHK_DISABLE;
+			 (s->check_code == 404))
+		/* 404 may be accepted as "stopping" only if the server was up */
 			set_server_check_status(s, HCHK_STATUS_L7OKCD);
-		}
-		else {
-			s->result |= SRV_CHK_ERROR;
+		else
 			set_server_check_status(s, HCHK_STATUS_L7STS);
-		}
 	}
 	else if (s->proxy->options & PR_O_SSL3_CHK) {
 		/* Check for SSLv3 alert or handshake */
-		if ((len >= 5) && (trash[0] == 0x15 || trash[0] == 0x16)) {
-			s->result |= SRV_CHK_RUNNING;
+		if ((len >= 5) && (trash[0] == 0x15 || trash[0] == 0x16))
 			set_server_check_status(s, HCHK_STATUS_L6OK);
-		} else {
-			s->result |= SRV_CHK_ERROR;
+		else
 			set_server_check_status(s, HCHK_STATUS_L6RSP);
-		}
 	}
 	else if (s->proxy->options & PR_O_SMTP_CHK) {
 		/* Check if the server speaks SMTP */
 		if ((len < strlen("000\r")) ||
 		    (trash[3] != ' ' && trash[3] != '\r') ||
 		    !isdigit(trash[0]) || !isdigit(trash[1]) || !isdigit(trash[2])) {
-			s->result |= SRV_CHK_ERROR;
 			set_server_check_status(s, HCHK_STATUS_L7RSP);
 			goto out_wakeup;
 		}
@@ -642,17 +714,13 @@ static int event_srv_chk_r(int fd)
 		s->check_code = str2uic(&trash[0]);
 
 		/* Check for SMTP code 2xx (should be 250) */
-		if (trash[0] == '2') {
-			s->result |= SRV_CHK_RUNNING;
+		if (trash[0] == '2')
 			set_server_check_status(s, HCHK_STATUS_L7OKD);
-		} else {
-			s->result |= SRV_CHK_ERROR;
+		else
 			set_server_check_status(s, HCHK_STATUS_L7STS);
-		}
 	}
 	else {
 		/* other checks are valid if the connection succeeded anyway */
-		s->result |= SRV_CHK_RUNNING;
 		set_server_check_status(s, HCHK_STATUS_L4OK);
 	}
 
@@ -703,8 +771,7 @@ struct task *process_chk(struct task *t)
 		}
 
 		/* we'll initiate a new check */
-		s->result = SRV_CHK_UNKNOWN; /* no result yet */
-		s->check_start = now;
+		set_server_check_status(s, HCHK_STATUS_START);
 		if ((fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) != -1) {
 			if ((fd < global.maxsock) &&
 			    (fcntl(fd, F_SETFL, O_NONBLOCK) != -1) &&
@@ -779,7 +846,6 @@ struct task *process_chk(struct task *t)
 					}
 
 					if (ret) {
-						s->result |= SRV_CHK_ERROR;
 						set_server_check_status(s, HCHK_STATUS_SOCKERR);
 						switch (ret) {
 						case 1:
@@ -811,7 +877,6 @@ struct task *process_chk(struct task *t)
 #endif
 					ret = tcpv4_bind_socket(fd, flags, &s->proxy->source_addr, remote);
 					if (ret) {
-						s->result |= SRV_CHK_ERROR;
 						set_server_check_status(s, HCHK_STATUS_SOCKERR);
 						switch (ret) {
 						case 1:
@@ -869,7 +934,7 @@ struct task *process_chk(struct task *t)
 						return t;
 					}
 					else if (errno != EALREADY && errno != EISCONN && errno != EAGAIN) {
-						s->result |= SRV_CHK_ERROR;    /* a real error */
+						/* a real error */
 
 						switch (errno) {
 							/* FIXME: is it possible to get ECONNREFUSED/ENETUNREACH with O_NONBLOCK? */

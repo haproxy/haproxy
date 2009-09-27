@@ -14,8 +14,9 @@
 enum {
 	HCHK_STATUS_UNKNOWN	 = 0,	/* Unknown */
 	HCHK_STATUS_INI,		/* Initializing */
+	HCHK_STATUS_START,		/* Check started - SPECIAL STATUS */
 
-	/* Below we have check finished */
+	/* Below we have finished checks */
 	HCHK_STATUS_CHECKED,		/* DUMMY STATUS */
 	HCHK_STATUS_SOCKERR,		/* Socket error */
 
@@ -38,4 +39,10 @@ enum {
 	HCHK_STATUS_L7STS,		/* L7 response error, for example HTTP 5xx */
 
 	HCHK_STATUS_SIZE
+};
+
+struct check_status {
+	short result;			/* one of SRV_CHK_* */
+	char *info;			/* human readable short info */
+	char *desc;			/* long description */
 };
