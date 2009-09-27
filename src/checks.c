@@ -108,6 +108,42 @@ const char *get_check_status_info(short check_status) {
 		return check_statuses[HCHK_STATUS_UNKNOWN].info;
 }
 
+#define SSP_O_VIA	0x0001
+#define SSP_O_HCHK	0x0002
+#define SSP_O_STATUS	0x0004
+
+static void server_status_printf(struct chunk *msg, struct server *s, unsigned options, int xferred) {
+
+	if (options & SSP_O_VIA)
+		chunk_printf(msg, " via %s/%s",
+			s->tracked->proxy->id, s->tracked->id);
+
+
+	if (options & SSP_O_HCHK) {
+		chunk_printf(msg, ", reason: %s", get_check_status_description(s->check_status));
+
+		if (s->check_status >= HCHK_STATUS_L57DATA)
+			chunk_printf(msg, ", code: %d", s->check_code);
+
+		chunk_printf(msg, ", check duration: %lums", s->check_duration);
+	}
+
+	if (options & SSP_O_STATUS) {
+		if (xferred)
+        	        chunk_printf(msg, ". %d active and %d backup servers left.%s"
+				" %d sessions active, %d requeued, %d remaining in queue.\n",
+				s->proxy->srv_act, s->proxy->srv_bck,
+				(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
+				s->cur_sess, xferred, s->nbpend);
+		else 
+			chunk_printf(msg, ". %d active and %d backup servers online.%s"
+				" %d sessions requeued, %d total in queue.\n",
+				s->proxy->srv_act, s->proxy->srv_bck,
+				(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
+				xferred, s->nbpend);
+	}
+}
+
 /*
  * Set s->check_status, update s->check_duration and fill s->result with
  * an adequate SRV_CHK_* value.
@@ -185,12 +221,7 @@ static void set_server_check_status(struct server *s, short status) {
 			(s->result & SRV_CHK_DISABLE)?"conditionally ":"",
 			(s->result & SRV_CHK_RUNNING)?"succeeded":"failed");
 
-		chunk_printf(&msg, ", reason: %s", get_check_status_description(s->check_status));
-
-		if (s->check_status >= HCHK_STATUS_L57DATA)
-			chunk_printf(&msg, ", code: %d", s->check_code);
-
-		chunk_printf(&msg, ", check duration: %lums", s->check_duration);
+		server_status_printf(&msg, s, SSP_O_HCHK, -1);
 
 		chunk_printf(&msg, ", status: %d/%d %s.\n",
 			(state & SRV_RUNNING) ? (health - rise + 1) : (health),
@@ -297,23 +328,10 @@ static void set_server_down(struct server *s)
 			"%sServer %s/%s is DOWN", s->state & SRV_BACKUP ? "Backup " : "",
 			s->proxy->id, s->id);
 
-		if (s->tracked)
-			chunk_printf(&msg, " via %s/%s",
-				s->tracked->proxy->id, s->tracked->id);
-
-		if (!s->tracked && !(s->proxy->options2 & PR_O2_LOGHCHKS)) {
-			chunk_printf(&msg, ", reason: %s", get_check_status_description(s->check_status));
-			if (s->check_status >= HCHK_STATUS_L57DATA)
-				chunk_printf(&msg, ", code: %d", s->check_code);
-
-			chunk_printf(&msg, ", check duration: %lums", s->check_duration);
-		}
-
-		chunk_printf(&msg, ". %d active and %d backup servers left.%s"
-			" %d sessions active, %d requeued, %d remaining in queue.\n",
-			s->proxy->srv_act, s->proxy->srv_bck,
-			(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
-			s->cur_sess, xferred, s->nbpend);
+		server_status_printf(&msg, s,
+					(s->tracked?SSP_O_VIA:0) | SSP_O_STATUS |
+					((!s->tracked && !(s->proxy->options2 & PR_O2_LOGHCHKS))?SSP_O_HCHK:0),
+					xferred);
 
 		Warning("%s", trash);
 
@@ -379,21 +397,10 @@ static void set_server_up(struct server *s) {
 			"%sServer %s/%s is UP", s->state & SRV_BACKUP ? "Backup " : "",
 			s->proxy->id, s->id);
 
-		if (s->tracked)
-			chunk_printf(&msg, " via %s/%s",
-				s->tracked->proxy->id, s->tracked->id);
-
-		if (!s->tracked && !(s->proxy->options2 & PR_O2_LOGHCHKS)) {
-			chunk_printf(&msg, ", reason: %s", get_check_status_description(s->check_status));
-			if (s->check_status >= HCHK_STATUS_L57DATA)
-				chunk_printf(&msg, ", code: %d", s->check_code);
-		}
-
-		chunk_printf(&msg, ". %d active and %d backup servers online.%s"
-			" %d sessions requeued, %d total in queue.\n",
-			s->proxy->srv_act, s->proxy->srv_bck,
-			(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
-			xferred, s->nbpend);
+		server_status_printf(&msg, s,
+					(s->tracked?SSP_O_VIA:0) | SSP_O_STATUS |
+					((!s->tracked && !(s->proxy->options2 & PR_O2_LOGHCHKS))?SSP_O_HCHK:0),
+					-1);
 
 		Warning("%s", trash);
 		send_log(s->proxy, LOG_NOTICE, "%s", trash);
@@ -430,27 +437,12 @@ static void set_server_disabled(struct server *s) {
 		s->state & SRV_BACKUP ? "Backup " : "",
 		s->proxy->id, s->id);
 
-	if (s->tracked)
-		chunk_printf(&msg, " via %s/%s",
-			s->tracked->proxy->id, s->tracked->id);
-
-	if (!s->tracked && !(s->proxy->options2 & PR_O2_LOGHCHKS)) {
-		chunk_printf(&msg, ", reason: %s", get_check_status_description(s->check_status));
-
-		if (s->check_status >= HCHK_STATUS_L57DATA)
-			chunk_printf(&msg, ", code: %d", s->check_code);
-
-		chunk_printf(&msg, ", check duration: %lums", s->check_duration);
-	}
-
-	chunk_printf(&msg,". %d active and %d backup servers online.%s"
-		" %d sessions requeued, %d total in queue.\n",
-		s->proxy->srv_act, s->proxy->srv_bck,
-		(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
-		xferred, s->nbpend);
+	server_status_printf(&msg, s,
+				(s->tracked?SSP_O_VIA:0) | SSP_O_STATUS |
+				((!s->tracked && !(s->proxy->options2 & PR_O2_LOGHCHKS))?SSP_O_HCHK:0),
+				-1);
 
 	Warning("%s", trash);
-
 	send_log(s->proxy, LOG_NOTICE, "%s", trash);
 
 	if (!s->proxy->srv_bck && !s->proxy->srv_act)
@@ -482,24 +474,10 @@ static void set_server_enabled(struct server *s) {
 		s->state & SRV_BACKUP ? "Backup " : "",
 		s->proxy->id, s->id);
 
-	if (s->tracked)
-		chunk_printf(&msg, " via %s/%s",
-			s->tracked->proxy->id, s->tracked->id);
-
-	if (!s->tracked && !(s->proxy->options2 & PR_O2_LOGHCHKS)) {
-		chunk_printf(&msg, ", reason: %s", get_check_status_description(s->check_status));
-
-		if (s->check_status >= HCHK_STATUS_L57DATA)
-			chunk_printf(&msg, ", code: %d", s->check_code);
-
-		chunk_printf(&msg, ", check duration: %lums", s->check_duration);
-	}
-
-	chunk_printf(&msg, ". %d active and %d backup servers online.%s"
-		" %d sessions requeued, %d total in queue.\n",
-		s->proxy->srv_act, s->proxy->srv_bck,
-		(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
-		xferred, s->nbpend);
+	server_status_printf(&msg, s,
+				(s->tracked?SSP_O_VIA:0) | SSP_O_STATUS |
+				((!s->tracked && !(s->proxy->options2 & PR_O2_LOGHCHKS))?SSP_O_HCHK:0),
+				-1);
 
 	Warning("%s", trash);
 	send_log(s->proxy, LOG_NOTICE, "%s", trash);
