@@ -253,6 +253,23 @@ struct server *map_get_server_rr(struct proxy *px, struct server *srvtoavoid)
 	return avoided;
 }
 
+/*
+ * This function returns the running server from the map at the location
+ * pointed to by the result of a modulo operation on <hash>. The server map may
+ * be recomputed if required before being looked up. If any server is found, it
+ * will be returned.  If no valid server is found, NULL is returned.
+ */
+struct server *map_get_server_hash(struct proxy *px, unsigned int hash)
+{
+	if (px->lbprm.tot_weight == 0)
+		return NULL;
+
+	if (px->lbprm.map.state & PR_MAP_RECALC)
+		recalc_server_map(px);
+
+	return px->lbprm.map.srv[hash % px->lbprm.tot_weight];
+}
+
 
 /*
  * Local variables:

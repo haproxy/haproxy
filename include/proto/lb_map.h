@@ -1,5 +1,5 @@
 /*
- *  include/proto/lb_map.h
+ * include/proto/lb_map.h
  * Map-based load-balancing (RR and HASH)
  *
  * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
@@ -31,6 +31,7 @@ void map_set_server_status_up(struct server *srv);
 void recalc_server_map(struct proxy *px);
 void init_server_map(struct proxy *p);
 struct server *map_get_server_rr(struct proxy *px, struct server *srvtoavoid);
+struct server *map_get_server_hash(struct proxy *px, unsigned int hash);
 
 #endif /* _PROTO_LB_MAP_H */
 

@@ -92,6 +92,78 @@ void update_backend_weight(struct proxy *px)
 	}
 }
 
+/*
+ * This function tries to find a running server for the proxy <px> following
+ * the source hash method. Depending on the number of active/backup servers,
+ * it will either look for active servers, or for backup servers.
+ * If any server is found, it will be returned. If no valid server is found,
+ * NULL is returned.
+ */
+struct server *get_server_sh(struct proxy *px, const char *addr, int len)
+{
+	unsigned int h, l;
+
+	if (px->lbprm.tot_weight == 0)
+		return NULL;
+
+	l = h = 0;
+
+	/* note: we won't hash if there's only one server left */
+	if (px->lbprm.tot_used == 1)
+		goto hash_done;
+
+	while ((l + sizeof (int)) <= len) {
+		h ^= ntohl(*(unsigned int *)(&addr[l]));
+		l += sizeof (int);
+	}
+ hash_done:
+	return map_get_server_hash(px, h);
+}
+
+/*
+ * This function tries to find a running server for the proxy <px> following
+ * the URI hash method. In order to optimize cache hits, the hash computation
+ * ends at the question mark. Depending on the number of active/backup servers,
+ * it will either look for active servers, or for backup servers.
+ * If any server is found, it will be returned. If no valid server is found,
+ * NULL is returned.
+ *
+ * This code was contributed by Guillaume Dallaire, who also selected this hash
+ * algorithm out of a tens because it gave him the best results.
+ *
+ */
+struct server *get_server_uh(struct proxy *px, char *uri, int uri_len)
+{
+	unsigned long hash = 0;
+	int c;
+	int slashes = 0;
+
+	if (px->lbprm.tot_weight == 0)
+		return NULL;
+
+	/* note: we won't hash if there's only one server left */
+	if (px->lbprm.tot_used == 1)
+		goto hash_done;
+
+	if (px->uri_len_limit)
+		uri_len = MIN(uri_len, px->uri_len_limit);
+
+	while (uri_len--) {
+		c = *uri++;
+		if (c == '/') {
+			slashes++;
+			if (slashes == px->uri_dirs_depth1) /* depth+1 */
+				break;
+		}
+		else if (c == '?')
+			break;
+
+		hash = c + (hash << 6) + (hash << 16) - hash;
+	}
+ hash_done:
+	return map_get_server_hash(px, hash);
+}
+
 /* 
  * This function tries to find a running server for the proxy <px> following
  * the URL parameter hash method. It looks for a specific parameter in the
@@ -115,9 +187,6 @@ struct server *get_server_ph(struct proxy *px, const char *uri, int uri_len)
 	if ((p = memchr(uri, '?', uri_len)) == NULL)
 		return NULL;
 
-	if (px->lbprm.map.state & PR_MAP_RECALC)
-		recalc_server_map(px);
-
 	p++;
 
 	uri_len -= (p - uri);
@@ -140,7 +209,7 @@ struct server *get_server_ph(struct proxy *px, const char *uri, int uri_len)
 					uri_len--;
 					p++;
 				}
-				return px->lbprm.map.srv[hash % px->lbprm.tot_weight];
+				return map_get_server_hash(px, hash);
 			}
 		}
 		/* skip to next parameter */
@@ -181,9 +250,6 @@ struct server *get_server_ph_post(struct session *s)
 
 	if ( len == 0 )
 		return NULL;
-
-	if (px->lbprm.map.state & PR_MAP_RECALC)
-		recalc_server_map(px);
 
 	ctx.idx = 0;
 
@@ -242,7 +308,7 @@ struct server *get_server_ph_post(struct session *s)
 					p++;
 					/* should we break if vlen exceeds limit? */
 				}
-				return px->lbprm.map.srv[hash % px->lbprm.tot_weight];
+				return map_get_server_hash(px, hash);
 			}
 		}
 		/* skip to next parameter */
@@ -281,9 +347,6 @@ struct server *get_server_hh(struct session *s)
 	if (px->lbprm.tot_weight == 0)
 		return NULL;
 
-	if (px->lbprm.map.state & PR_MAP_RECALC)
-		recalc_server_map(px);
-
 	ctx.idx = 0;
 
 	/* if the message is chunked, we skip the chunk size, but use the value as len */
@@ -292,6 +355,10 @@ struct server *get_server_hh(struct session *s)
 	/* if the header is not found or empty, let's fallback to round robin */
 	if (!ctx.idx || !ctx.vlen)
 		return NULL;
+
+	/* note: we won't hash if there's only one server left */
+	if (px->lbprm.tot_used == 1)
+		goto hash_done;
 
 	/* Found a the hh_name in the headers.
 	 * we will compute the hash based on this value ctx.val.
@@ -327,7 +394,8 @@ struct server *get_server_hh(struct session *s)
 			p--;
 		}
 	}
-	return px->lbprm.map.srv[hash % px->lbprm.tot_weight];
+ hash_done:
+	return map_get_server_hash(px, hash);
 }
 
 struct server *get_server_rch(struct session *s)
@@ -344,9 +412,6 @@ struct server *get_server_rch(struct session *s)
 	if (px->lbprm.tot_weight == 0)
 		return NULL;
 
-	if (px->lbprm.map.state & PR_MAP_RECALC)
-		recalc_server_map(px);
-
 	memset(&expr, 0, sizeof(expr));
 	memset(&test, 0, sizeof(test));
 
@@ -356,6 +421,10 @@ struct server *get_server_rch(struct session *s)
 	ret = acl_fetch_rdp_cookie(px, s, NULL, ACL_DIR_REQ, &expr, &test);
 	if (ret == 0 || (test.flags & ACL_TEST_F_MAY_CHANGE) || test.len == 0)
 		return NULL;
+
+	/* note: we won't hash if there's only one server left */
+	if (px->lbprm.tot_used == 1)
+		goto hash_done;
 
 	/* Found a the hh_name in the headers.
 	 * we will compute the hash based on this value ctx.val.
@@ -367,8 +436,8 @@ struct server *get_server_rch(struct session *s)
 		len--;
 		p++;
 	}
-
-	return px->lbprm.map.srv[hash % px->lbprm.tot_weight];
+ hash_done:
+	return map_get_server_hash(px, hash);
 }
  
 /*
@@ -1151,80 +1220,6 @@ static void __backend_init(void)
 {
 	acl_register_keywords(&acl_kws);
 }
-
-/*
- * This function tries to find a running server for the proxy <px> following
- * the source hash method. Depending on the number of active/backup servers,
- * it will either look for active servers, or for backup servers.
- * If any server is found, it will be returned. If no valid server is found,
- * NULL is returned.
- */
-struct server *get_server_sh(struct proxy *px, const char *addr, int len)
-{
-	unsigned int h, l;
-
-	if (px->lbprm.tot_weight == 0)
-		return NULL;
-
-	if (px->lbprm.map.state & PR_MAP_RECALC)
-		recalc_server_map(px);
-
-	l = h = 0;
-
-	/* note: we won't hash if there's only one server left */
-	if (px->lbprm.tot_used > 1) {
-		while ((l + sizeof (int)) <= len) {
-			h ^= ntohl(*(unsigned int *)(&addr[l]));
-			l += sizeof (int);
-		}
-		h %= px->lbprm.tot_weight;
-	}
-	return px->lbprm.map.srv[h];
-}
-
-/* 
- * This function tries to find a running server for the proxy <px> following
- * the URI hash method. In order to optimize cache hits, the hash computation
- * ends at the question mark. Depending on the number of active/backup servers,
- * it will either look for active servers, or for backup servers.
- * If any server is found, it will be returned. If no valid server is found,
- * NULL is returned.
- *
- * This code was contributed by Guillaume Dallaire, who also selected this hash
- * algorithm out of a tens because it gave him the best results.
- *
- */
-struct server *get_server_uh(struct proxy *px, char *uri, int uri_len)
-{
-	unsigned long hash = 0;
-	int c;
-	int slashes = 0;
-
-	if (px->lbprm.tot_weight == 0)
-		return NULL;
-
-	if (px->lbprm.map.state & PR_MAP_RECALC)
-		recalc_server_map(px);
-
-	if (px->uri_len_limit)
-		uri_len = MIN(uri_len, px->uri_len_limit);
-
-	while (uri_len--) {
-		c = *uri++;
-		if (c == '/') {
-			slashes++;
-			if (slashes == px->uri_dirs_depth1) /* depth+1 */
-				break;
-		}
-		else if (c == '?')
-			break;
-
-		hash = c + (hash << 6) + (hash << 16) - hash;
-	}
-
-	return px->lbprm.map.srv[hash % px->lbprm.tot_weight];
-}
-
 
 /*
  * Local variables:
