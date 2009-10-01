@@ -44,6 +44,9 @@ void fwrr_init_server_groups(struct proxy *p);
 void fwlc_init_server_tree(struct proxy *p);
 void recount_servers(struct proxy *px);
 void update_backend_weight(struct proxy *px);
+struct server *get_server_rr_with_conns(struct proxy *px, struct server *srvtoavoid);
+struct server *get_server_sh(struct proxy *px, const char *addr, int len);
+struct server *get_server_uh(struct proxy *px, char *uri, int uri_len);
 
 /* This function returns non-zero if a server with the given weight and state
  * is usable for LB, otherwise zero.
@@ -58,128 +61,6 @@ static inline int srv_is_usable(int state, int weight)
 		return 0;
 	return 1;
 }
-
-/*
- * This function tries to find a running server with free connection slots for
- * the proxy <px> following the round-robin method.
- * If any server is found, it will be returned and px->lbprm.map.rr_idx will be updated
- * to point to the next server. If no valid server is found, NULL is returned.
- */
-static inline struct server *get_server_rr_with_conns(struct proxy *px, struct server *srvtoavoid)
-{
-	int newidx, avoididx;
-	struct server *srv, *avoided;
-
-	if (px->lbprm.tot_weight == 0)
-		return NULL;
-
-	if (px->lbprm.map.state & PR_MAP_RECALC)
-		recalc_server_map(px);
-
-	if (px->lbprm.map.rr_idx < 0 || px->lbprm.map.rr_idx >= px->lbprm.tot_weight)
-		px->lbprm.map.rr_idx = 0;
-	newidx = px->lbprm.map.rr_idx;
-
-	avoided = NULL;
-	avoididx = 0; /* shut a gcc warning */
-	do {
-		srv = px->lbprm.map.srv[newidx++];
-		if (!srv->maxconn || srv->cur_sess < srv_dynamic_maxconn(srv)) {
-			/* make sure it is not the server we are try to exclude... */
-			if (srv != srvtoavoid) {
-				px->lbprm.map.rr_idx = newidx;
-				return srv;
-			}
-
-			avoided = srv;	/* ...but remember that is was selected yet avoided */
-			avoididx = newidx;
-		}
-		if (newidx == px->lbprm.tot_weight)
-			newidx = 0;
-	} while (newidx != px->lbprm.map.rr_idx);
-
-	if (avoided)
-		px->lbprm.map.rr_idx = avoididx;
-
-	/* return NULL or srvtoavoid if found */
-	return avoided;
-}
-
-
-/*
- * This function tries to find a running server for the proxy <px> following
- * the source hash method. Depending on the number of active/backup servers,
- * it will either look for active servers, or for backup servers.
- * If any server is found, it will be returned. If no valid server is found,
- * NULL is returned.
- */
-static inline struct server *get_server_sh(struct proxy *px,
-					   const char *addr, int len)
-{
-	unsigned int h, l;
-
-	if (px->lbprm.tot_weight == 0)
-		return NULL;
-
-	if (px->lbprm.map.state & PR_MAP_RECALC)
-		recalc_server_map(px);
-
-	l = h = 0;
-
-	/* note: we won't hash if there's only one server left */
-	if (px->lbprm.tot_used > 1) {
-		while ((l + sizeof (int)) <= len) {
-			h ^= ntohl(*(unsigned int *)(&addr[l]));
-			l += sizeof (int);
-		}
-		h %= px->lbprm.tot_weight;
-	}
-	return px->lbprm.map.srv[h];
-}
-
-/* 
- * This function tries to find a running server for the proxy <px> following
- * the URI hash method. In order to optimize cache hits, the hash computation
- * ends at the question mark. Depending on the number of active/backup servers,
- * it will either look for active servers, or for backup servers.
- * If any server is found, it will be returned. If no valid server is found,
- * NULL is returned.
- *
- * This code was contributed by Guillaume Dallaire, who also selected this hash
- * algorithm out of a tens because it gave him the best results.
- *
- */
-static inline struct server *get_server_uh(struct proxy *px, char *uri, int uri_len)
-{
-	unsigned long hash = 0;
-	int c;
-	int slashes = 0;
-
-	if (px->lbprm.tot_weight == 0)
-		return NULL;
-
-	if (px->lbprm.map.state & PR_MAP_RECALC)
-		recalc_server_map(px);
-
-	if (px->uri_len_limit)
-		uri_len = MIN(uri_len, px->uri_len_limit);
-
-	while (uri_len--) {
-		c = *uri++;
-		if (c == '/') {
-			slashes++;
-			if (slashes == px->uri_dirs_depth1) /* depth+1 */
-				break;
-		}
-		else if (c == '?')
-			break;
-
-		hash = c + (hash << 6) + (hash << 16) - hash;
-	}
-
-	return px->lbprm.map.srv[hash % px->lbprm.tot_weight];
-}
-
 
 #endif /* _PROTO_BACKEND_H */
 
