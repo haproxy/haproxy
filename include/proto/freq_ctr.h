@@ -23,6 +23,7 @@
 #define _PROTO_FREQ_CTR_H
 
 #include <common/config.h>
+#include <common/time.h>
 #include <types/freq_ctr.h>
 
 /* Rotate a frequency counter when current period is over. Must not be called
