@@ -30,6 +30,7 @@
 #include <proto/acl.h>
 #include <proto/backend.h>
 #include <proto/client.h>
+#include <proto/lb_chash.h>
 #include <proto/lb_fwlc.h>
 #include <proto/lb_fwrr.h>
 #include <proto/lb_map.h>
@@ -117,7 +118,10 @@ struct server *get_server_sh(struct proxy *px, const char *addr, int len)
 		l += sizeof (int);
 	}
  hash_done:
-	return map_get_server_hash(px, h);
+	if (px->lbprm.algo & BE_LB_LKUP_CHTREE)
+		return chash_get_server_hash(px, h);
+	else
+		return map_get_server_hash(px, h);
 }
 
 /*
@@ -161,7 +165,10 @@ struct server *get_server_uh(struct proxy *px, char *uri, int uri_len)
 		hash = c + (hash << 6) + (hash << 16) - hash;
 	}
  hash_done:
-	return map_get_server_hash(px, hash);
+	if (px->lbprm.algo & BE_LB_LKUP_CHTREE)
+		return chash_get_server_hash(px, hash);
+	else
+		return map_get_server_hash(px, hash);
 }
 
 /* 
@@ -209,7 +216,10 @@ struct server *get_server_ph(struct proxy *px, const char *uri, int uri_len)
 					uri_len--;
 					p++;
 				}
-				return map_get_server_hash(px, hash);
+				if (px->lbprm.algo & BE_LB_LKUP_CHTREE)
+					return chash_get_server_hash(px, hash);
+				else
+					return map_get_server_hash(px, hash);
 			}
 		}
 		/* skip to next parameter */
@@ -308,7 +318,10 @@ struct server *get_server_ph_post(struct session *s)
 					p++;
 					/* should we break if vlen exceeds limit? */
 				}
-				return map_get_server_hash(px, hash);
+				if (px->lbprm.algo & BE_LB_LKUP_CHTREE)
+					return chash_get_server_hash(px, hash);
+				else
+					return map_get_server_hash(px, hash);
 			}
 		}
 		/* skip to next parameter */
@@ -395,7 +408,10 @@ struct server *get_server_hh(struct session *s)
 		}
 	}
  hash_done:
-	return map_get_server_hash(px, hash);
+	if (px->lbprm.algo & BE_LB_LKUP_CHTREE)
+		return chash_get_server_hash(px, hash);
+	else
+		return map_get_server_hash(px, hash);
 }
 
 struct server *get_server_rch(struct session *s)
@@ -437,7 +453,10 @@ struct server *get_server_rch(struct session *s)
 		p++;
 	}
  hash_done:
-	return map_get_server_hash(px, hash);
+	if (px->lbprm.algo & BE_LB_LKUP_CHTREE)
+		return chash_get_server_hash(px, hash);
+	else
+		return map_get_server_hash(px, hash);
 }
  
 /*
@@ -515,9 +534,13 @@ int assign_server(struct session *s)
 			s->srv = fwlc_get_next_server(s->be, s->prev_srv);
 			break;
 
+		case BE_LB_LKUP_CHTREE:
 		case BE_LB_LKUP_MAP:
 			if ((s->be->lbprm.algo & BE_LB_KIND) == BE_LB_KIND_RR) {
-				s->srv = map_get_server_rr(s->be, s->prev_srv);
+				if (s->be->lbprm.algo & BE_LB_LKUP_CHTREE)
+					s->srv = chash_get_next_server(s->be, s->prev_srv);
+				else
+					s->srv = map_get_server_rr(s->be, s->prev_srv);
 				break;
 			}
 			else if ((s->be->lbprm.algo & BE_LB_KIND) != BE_LB_KIND_HI) {
@@ -581,8 +604,12 @@ int assign_server(struct session *s)
 			/* If the hashing parameter was not found, let's fall
 			 * back to round robin on the map.
 			 */
-			if (!s->srv)
-				s->srv = map_get_server_rr(s->be, s->prev_srv);
+			if (!s->srv) {
+				if (s->be->lbprm.algo & BE_LB_LKUP_CHTREE)
+					s->srv = chash_get_next_server(s->be, s->prev_srv);
+				else
+					s->srv = map_get_server_rr(s->be, s->prev_srv);
+			}
 
 			/* end of map-based LB */
 			break;

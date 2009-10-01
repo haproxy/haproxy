@@ -23,6 +23,7 @@
 #define _TYPES_BACKEND_H
 
 #include <common/config.h>
+#include <types/lb_chash.h>
 #include <types/lb_fwlc.h>
 #include <types/lb_fwrr.h>
 #include <types/lb_map.h>
@@ -59,7 +60,7 @@
 #define BE_LB_KIND_NONE 0x00000  /* algorithm not set */
 #define BE_LB_KIND_RR   0x01000  /* round-robin */
 #define BE_LB_KIND_LC   0x02000  /* least connections */
-#define BE_LB_KIND_HI   0x03000  /* hash of input (see hash inputs below) */
+#define BE_LB_KIND_HI   0x03000  /* hash of input (see hash inputs above) */
 #define BE_LB_KIND      0x07000  /* mask to get/clear LB algorithm */
 
 /* All known variants of load balancing algorithms. These can be cleared using
@@ -84,12 +85,16 @@
 #define BE_LB_LKUP_MAP    0x10000  /* static map based lookup */
 #define BE_LB_LKUP_RRTREE 0x20000  /* FWRR tree lookup */
 #define BE_LB_LKUP_LCTREE 0x30000  /* FWLC tree lookup */
+#define BE_LB_LKUP_CHTREE 0x40000  /* consistent hash  */
 #define BE_LB_LKUP        0x70000  /* mask to get just the LKUP value */
 
 /* additional properties */
 #define BE_LB_PROP_DYN    0x80000 /* bit to indicate a dynamic algorithm */
 
-
+/* hash types */
+#define BE_LB_HASH_MAP    0x000000 /* map-based hash (default) */
+#define BE_LB_HASH_CONS   0x100000 /* consistent hashbit to indicate a dynamic algorithm */
+#define BE_LB_HASH_TYPE   0x100000 /* get/clear hash types */
 
 /* various constants */
 
@@ -115,6 +120,7 @@ struct lbprm {
 	struct lb_map map;		/* LB parameters for map-based algorithms */
 	struct lb_fwrr fwrr;
 	struct lb_fwlc fwlc;
+	struct lb_chash chash;
 	/* Call backs for some actions. Some may be NULL (thus should be ignored). */
 	void (*update_server_eweight)(struct server *);  /* to be called after eweight change */
 	void (*set_server_status_up)(struct server *);   /* to be called after status changes to UP */

@@ -72,6 +72,15 @@
 #define SRV_EWGHT_RANGE (SRV_UWGHT_RANGE * BE_WEIGHT_SCALE)
 #define SRV_EWGHT_MAX   (SRV_UWGHT_MAX   * BE_WEIGHT_SCALE)
 
+/* A tree occurrence is a descriptor of a place in a tree, with a pointer back
+ * to the server itself.
+ */
+struct server;
+struct tree_occ {
+	struct server *server;
+	struct eb32_node node;
+};
+
 struct server {
 	struct server *next;
 	int state;				/* server state (SRV_*) */
@@ -121,6 +130,9 @@ struct server {
 	struct eb32_node lb_node;               /* node used for tree-based load balancing */
 	struct eb_root *lb_tree;                /* we want to know in what tree the server is */
 	struct server *next_full;               /* next server in the temporary full list */
+	unsigned lb_nodes_tot;                  /* number of allocated lb_nodes (C-HASH) */
+	unsigned lb_nodes_now;                  /* number of lb_nodes placed in the tree (C-HASH) */
+	struct tree_occ *lb_nodes;              /* lb_nodes_tot * struct tree_occ */
 
 	unsigned down_time;			/* total time the server was down */
 	time_t last_change;			/* last time, when the state was changed */

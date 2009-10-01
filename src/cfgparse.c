@@ -1,7 +1,7 @@
 /*
  * Configuration parser
  *
- * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2009 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -42,6 +42,7 @@
 #include <proto/checks.h>
 #include <proto/dumpstats.h>
 #include <proto/httperr.h>
+#include <proto/lb_chash.h>
 #include <proto/lb_fwlc.h>
 #include <proto/lb_fwrr.h>
 #include <proto/lb_map.h>
@@ -2440,6 +2441,24 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 	}
+	else if (!strcmp(args[0], "hash-type")) { /* set hashing method */
+		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
+			err_code |= ERR_WARN;
+
+		if (strcmp(args[1], "consistent") == 0) {	/* use consistent hashing */
+			curproxy->lbprm.algo &= ~BE_LB_HASH_TYPE;
+			curproxy->lbprm.algo |= BE_LB_HASH_CONS;
+		}
+		else if (strcmp(args[1], "map-based") == 0) {	/* use map-based hashing */
+			curproxy->lbprm.algo &= ~BE_LB_HASH_TYPE;
+			curproxy->lbprm.algo |= BE_LB_HASH_MAP;
+		}
+		else {
+			Alert("parsing [%s:%d] : '%s' only supports 'consistent' and 'map-based'.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+	}
 	else if (!strcmp(args[0], "server")) {  /* server address */
 		int cur_arg;
 		char *rport;
@@ -4298,13 +4317,20 @@ int check_config_validity()
 				fwrr_init_server_groups(curproxy);
 			}
 			break;
+
 		case BE_LB_KIND_LC:
 			curproxy->lbprm.algo |= BE_LB_LKUP_LCTREE | BE_LB_PROP_DYN;
 			fwlc_init_server_tree(curproxy);
 			break;
+
 		case BE_LB_KIND_HI:
-			curproxy->lbprm.algo |= BE_LB_LKUP_MAP;
-			init_server_map(curproxy);
+			if ((curproxy->lbprm.algo & BE_LB_HASH_TYPE) == BE_LB_HASH_CONS) {
+				curproxy->lbprm.algo |= BE_LB_LKUP_CHTREE | BE_LB_PROP_DYN;
+				chash_init_server_tree(curproxy);
+			} else {
+				curproxy->lbprm.algo |= BE_LB_LKUP_MAP;
+				init_server_map(curproxy);
+			}
 			break;
 		}
 
