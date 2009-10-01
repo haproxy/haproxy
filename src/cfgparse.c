@@ -42,6 +42,9 @@
 #include <proto/checks.h>
 #include <proto/dumpstats.h>
 #include <proto/httperr.h>
+#include <proto/lb_fwlc.h>
+#include <proto/lb_fwrr.h>
+#include <proto/lb_map.h>
 #include <proto/log.h>
 #include <proto/port_range.h>
 #include <proto/protocols.h>

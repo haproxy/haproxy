@@ -2,7 +2,7 @@
   include/proto/backend.h
   Functions prototypes for the backend.
 
-  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
+  Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
   
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -25,9 +25,9 @@
 #include <common/config.h>
 
 #include <types/backend.h>
+#include <types/proxy.h>
+#include <types/server.h>
 #include <types/session.h>
-
-#include <proto/queue.h>
 
 int assign_server(struct session *s);
 int assign_server_address(struct session *s);
@@ -37,14 +37,9 @@ int srv_redispatch_connect(struct session *t);
 int backend_parse_balance(const char **args, char *err,
 			  int errlen, struct proxy *curproxy);
 
-void recalc_server_map(struct proxy *px);
 int be_downtime(struct proxy *px);
-void init_server_map(struct proxy *p);
-void fwrr_init_server_groups(struct proxy *p);
-void fwlc_init_server_tree(struct proxy *p);
 void recount_servers(struct proxy *px);
 void update_backend_weight(struct proxy *px);
-struct server *get_server_rr_with_conns(struct proxy *px, struct server *srvtoavoid);
 struct server *get_server_sh(struct proxy *px, const char *addr, int len);
 struct server *get_server_uh(struct proxy *px, char *uri, int uri_len);
 
