@@ -44,20 +44,6 @@ static inline void fwrr_dequeue_srv(struct server *s);
 static void fwrr_get_srv(struct server *s);
 static void fwrr_queue_srv(struct server *s);
 
-/* This function returns non-zero if a server with the given weight and state
- * is usable for LB, otherwise zero.
- */
-static inline int srv_is_usable(int state, int weight)
-{
-	if (!weight)
-		return 0;
-	if (state & SRV_GOINGDOWN)
-		return 0;
-	if (!(state & SRV_RUNNING))
-		return 0;
-	return 1;
-}
-
 /*
  * This function recounts the number of usable active and backup servers for
  * proxy <p>. These numbers are returned into the p->srv_act and p->srv_bck.
@@ -65,7 +51,7 @@ static inline int srv_is_usable(int state, int weight)
  * it does not update tot_weight nor tot_used. Use update_backend_weight() for
  * this.
  */
-static void recount_servers(struct proxy *px)
+void recount_servers(struct proxy *px)
 {
 	struct server *srv;
 
@@ -93,7 +79,7 @@ static void recount_servers(struct proxy *px)
  * after servers weights have been updated. It is designed to be used after
  * recount_servers() or equivalent.
  */
-static void update_backend_weight(struct proxy *px)
+void update_backend_weight(struct proxy *px)
 {
 	if (px->srv_act) {
 		px->lbprm.tot_weight = px->lbprm.tot_wact;

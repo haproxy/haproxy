@@ -42,6 +42,22 @@ int be_downtime(struct proxy *px);
 void init_server_map(struct proxy *p);
 void fwrr_init_server_groups(struct proxy *p);
 void fwlc_init_server_tree(struct proxy *p);
+void recount_servers(struct proxy *px);
+void update_backend_weight(struct proxy *px);
+
+/* This function returns non-zero if a server with the given weight and state
+ * is usable for LB, otherwise zero.
+ */
+static inline int srv_is_usable(int state, int weight)
+{
+	if (!weight)
+		return 0;
+	if (state & SRV_GOINGDOWN)
+		return 0;
+	if (!(state & SRV_RUNNING))
+		return 0;
+	return 1;
+}
 
 /*
  * This function tries to find a running server with free connection slots for
@@ -87,26 +103,6 @@ static inline struct server *get_server_rr_with_conns(struct proxy *px, struct s
 
 	/* return NULL or srvtoavoid if found */
 	return avoided;
-}
-
-
-/*
- * This function tries to find a running server for the proxy <px> following
- * the round-robin method.
- * If any server is found, it will be returned and px->lbprm.map.rr_idx will be updated
- * to point to the next server. If no valid server is found, NULL is returned.
- */
-static inline struct server *get_server_rr(struct proxy *px)
-{
-	if (px->lbprm.tot_weight == 0)
-		return NULL;
-
-	if (px->lbprm.map.state & PR_MAP_RECALC)
-		recalc_server_map(px);
-
-	if (px->lbprm.map.rr_idx < 0 || px->lbprm.map.rr_idx >= px->lbprm.tot_weight)
-		px->lbprm.map.rr_idx = 0;
-	return px->lbprm.map.srv[px->lbprm.map.rr_idx++];
 }
 
 
