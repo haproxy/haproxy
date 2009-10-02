@@ -238,6 +238,8 @@ int stats_dump_raw(struct session *s, struct buffer *rep, struct uri_auth *uri)
 				     "PipesFree: %d\n"
 				     "Tasks: %d\n"
 				     "Run_queue: %d\n"
+				     "node: %s\n"
+				     "description: %s\n"
 				     "",
 				     global.nbproc,
 				     relative_pid,
@@ -248,7 +250,8 @@ int stats_dump_raw(struct session *s, struct buffer *rep, struct uri_auth *uri)
 				     global.rlimit_nofile,
 				     global.maxsock, global.maxconn, global.maxpipes,
 				     actconn, pipes_used, pipes_free,
-				     nb_tasks_cur, run_queue_cur
+				     nb_tasks_cur, run_queue_cur,
+				     global.node, global.desc?global.desc:""
 				     );
 			if (buffer_write_chunk(rep, &msg) >= 0)
 				return 0;
@@ -415,8 +418,7 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 			     " border-color: black;"
 			     " border-bottom-style: solid;"
 			     "}\n"
-			     ".pxname	{background: #b00040;color: #ffff40;font-weight: bold;}\n"
-			     ".titre	{background: #20D0D0;color: #000000;font-weight: bold;}\n"
+			     ".titre	{background: #20D0D0;color: #000000; font-weight: bold;}\n"
 			     ".total	{background: #20D0D0;color: #ffff80;}\n"
 			     ".frontend	{background: #e8e8d0;}\n"
 			     ".backend	{background: #e8e8d0;}\n"
@@ -438,14 +440,16 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 			     "table.tbl { border-collapse: collapse; border-style: none;}\n"
 			     "table.tbl td { border-width: 1px 1px 1px 1px; border-style: solid solid solid solid; padding: 2px 3px; border-color: gray;}\n"
 			     "table.tbl th { border-width: 1px; border-style: solid solid solid solid; border-color: gray;}\n"
+			     "table.tbl th.pxname {background: #b00040; color: #ffff40; font-weight: bold; border-style: solid solid none solid; padding: 2px 3px; white-space: nowrap;}\n"
 			     "table.tbl th.empty { border-style: none; empty-cells: hide; background: white;}\n"
+			     "table.tbl th.desc { background: white; border-style: solid solid none solid; text-align: left; padding: 2px 3px;}\n"
 			     "table.lgd { border-collapse: collapse; border-width: 1px; border-style: none none none solid; border-color: black;}\n"
 			     "table.lgd td { border-width: 1px; border-style: solid solid solid solid; border-color: gray; padding: 2px;}\n"
 			     "table.lgd td.noborder { border-style: none; padding: 2px; white-space: nowrap;}\n"
 			     "-->\n"
 			     "</style></head>\n",
-			     uri->node_name ? " on " : "",
-			     uri->node_name ? uri->node_name : ""
+			     (uri->flags&ST_SHNODE) ? " on " : "",
+			     (uri->flags&ST_SHNODE) ? (uri->node ? uri->node : global.node) : ""
 			     );
 		} else {
 			print_csv_header(&msg, sizeof(trash));
@@ -467,16 +471,16 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 			chunk_printf(&msg, sizeof(trash),
 			     "<body><h1><a href=\"" PRODUCT_URL "\" style=\"text-decoration: none;\">"
 			     PRODUCT_NAME "%s</a></h1>\n"
-			     "<h2>Statistics Report for pid %d%s%s</h2>\n"
+			     "<h2>Statistics Report for pid %d%s%s%s%s</h2>\n"
 			     "<hr width=\"100%%\" class=\"hr\">\n"
 			     "<h3>&gt; General process information</h3>\n"
 			     "<table border=0 cols=4><tr><td align=\"left\" nowrap width=\"1%%\">\n"
 			     "<p><b>pid = </b> %d (process #%d, nbproc = %d)<br>\n"
 			     "<b>uptime = </b> %dd %dh%02dm%02ds<br>\n"
-			     "<b>system limits :</b> memmax = %s%s ; ulimit-n = %d<br>\n"
-			     "<b>maxsock = </b> %d ; <b>maxconn = </b> %d ; <b>maxpipes = </b> %d<br>\n"
-			     "current conns = %d ; current pipes = %d/%d<br>\n"
-			     "Running tasks : %d/%d<br>\n"
+			     "<b>system limits:</b> memmax = %s%s; ulimit-n = %d<br>\n"
+			     "<b>maxsock = </b> %d; <b>maxconn = </b> %d; <b>maxpipes = </b> %d<br>\n"
+			     "current conns = %d; current pipes = %d/%d<br>\n"
+			     "Running tasks: %d/%d<br>\n"
 			     "</td><td align=\"center\" nowrap>\n"
 			     "<table class=\"lgd\"><tr>\n"
 			     "<td class=\"active3\">&nbsp;</td><td class=\"noborder\">active UP </td>"
@@ -497,9 +501,9 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 			     "<b>Display option:</b><ul style=\"margin-top: 0.25em;\">"
 			     "",
 			     (uri->flags&ST_HIDEVER)?"":(STATS_VERSION_STRING),
-			     pid, uri->node_name ? " on " : "", uri->node_name ? uri->node_name : "",
-			     pid,
-			     relative_pid, global.nbproc,
+			     pid, (uri->flags&ST_SHNODE) ? " on " : "", (uri->flags&ST_SHNODE) ? (uri->node ? uri->node : global.node) : "",
+			     (uri->flags&ST_SHDESC)? ": " : "", (uri->flags&ST_SHDESC) ? (uri->desc ? uri->desc : global.desc) : "",
+			     pid, relative_pid, global.nbproc,
 			     up / 86400, (up % 86400) / 3600,
 			     (up % 3600) / 60, (up % 60),
 			     global.rlimit_memmax ? ultoa(global.rlimit_memmax) : "unlimited",
@@ -663,11 +667,13 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 		if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
 			/* print a new table */
 			chunk_printf(&msg, sizeof(trash),
-				     "<table cols=\"29\" class=\"tbl\" width=\"100%%\">\n"
+				     "<table class=\"tbl\" width=\"100%%\">\n"
 				     "<tr align=\"center\" class=\"titre\">"
-				     "<th colspan=2 class=\"pxname\">%s</th>"
-				     "<th colspan=27 class=\"empty\"></th>"
+				     "<th class=\"pxname\" width=\"10%%\">%s</th>"
+				     "<th class=\"%s\" width=\"90%%\">%s</th>"
 				     "</tr>\n"
+				     "</table>\n"
+				     "<table cols=\"29\" class=\"tbl\" width=\"100%%\">\n"
 				     "<tr align=\"center\" class=\"titre\">"
 				     "<th rowspan=2></th>"
 				     "<th colspan=3>Queue</th>"
@@ -686,7 +692,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     "<th>Bck</th><th>Chk</th><th>Dwn</th><th>Dwntme</th>"
 				     "<th>Thrtle</th>\n"
 				     "</tr>",
-				     px->id);
+				     px->id,
+				     px->desc ? "desc" : "empty", px->desc ? px->desc : "");
 
 			if (buffer_write_chunk(rep, &msg) >= 0)
 				return 0;

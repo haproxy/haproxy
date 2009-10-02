@@ -223,7 +223,7 @@ struct proxy {
 		int httpreq;                    /* maximum time for complete HTTP request */
 		int check;                      /* maximum time for complete check */
 	} timeout;
-	char *id;				/* proxy id */
+	char *id, *desc;			/* proxy id (name) and description */
 	struct list pendconns;			/* pending connections with no server assigned yet */
 	int nbpend, nbpend_max;			/* number of pending connections with no server assigned yet */
 	int totpend;				/* total number of pending connections on this instance (for stats) */

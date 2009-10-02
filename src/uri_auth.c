@@ -110,26 +110,71 @@ struct uri_auth *stats_set_realm(struct uri_auth **root, char *realm)
 }
 
 /*
- * Returns a default uri_auth with <node-name> set as the node name.
+ * Returns a default uri_auth with ST_SHNODE flag enabled and
+ * <node> set as the name if it is not empty.
  * Uses the pointer provided if not NULL and not initialized.
  */
-struct uri_auth *stats_set_node_name(struct uri_auth **root, char *name)
+struct uri_auth *stats_set_node(struct uri_auth **root, char *name)
 {
 	struct uri_auth *u;
-	char *name_copy;
+	char *node_copy = NULL;
 
-	if ((name_copy = strdup(name)) == NULL)
-		goto out_realm;
+	if (name && *name) {
+		node_copy = strdup(name);
+		if (node_copy == NULL)
+			goto out_realm;
+	}
 	
 	if ((u = stats_check_init_uri_auth(root)) == NULL)
 		goto out_u;
-	
-	free(u->node_name);
-	u->node_name = name_copy;
+
+	if (!stats_set_flag(root, ST_SHNODE))
+		goto out_u;
+
+	if (node_copy) {	
+		free(u->node);
+		u->node = node_copy;
+	}
+
 	return u;
 
  out_u:
-	free(name_copy);
+	free(node_copy);
+ out_realm:
+	return NULL;
+}
+
+/*
+ * Returns a default uri_auth with ST_SHDESC flag enabled and
+ * <description> set as the desc if it is not empty.
+ * Uses the pointer provided if not NULL and not initialized.
+ */
+struct uri_auth *stats_set_desc(struct uri_auth **root, char *desc)
+{
+	struct uri_auth *u;
+	char *desc_copy = NULL;
+
+	if (desc && *desc) {
+		desc_copy = strdup(desc);
+		if (desc_copy == NULL)
+			goto out_realm;
+	}
+	
+	if ((u = stats_check_init_uri_auth(root)) == NULL)
+		goto out_u;
+
+	if (!stats_set_flag(root, ST_SHDESC))
+		goto out_u;
+
+	if (desc_copy) {
+		free(u->desc);
+		u->desc = desc_copy;
+	}
+
+	return u;
+
+ out_u:
+	free(desc_copy);
  out_realm:
 	return NULL;
 }
