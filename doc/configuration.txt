@@ -383,6 +383,8 @@ The following keywords are supported in the "global" section :
    - ulimit-n
    - user
    - stats
+   - node
+   - description
   
  * Performance tuning
    - maxconn
@@ -513,6 +515,21 @@ ulimit-n <number>
 user <user name>
   Similar to "uid" but uses the UID of user name <user name> from /etc/passwd.
   See also "uid" and "group".
+
+node <name>
+  Only letters, digits, hyphen and underscore are allowed, like in DNS names.
+
+  This statement is useful in HA configurations where two or more processes or
+  servers share the same IP address. By setting a different node-name on all
+  nodes, it becomes easy to immediately spot what server is handling the
+  traffic.
+
+description <text>
+  Add a text that describes the instance.
+
+  Please note that it is required to escape certain characters (# for example)
+  and this text is inserted into a html page so you should avoid using
+  "<" and ">" characters.
 
 
 3.2. Performance tuning
@@ -696,6 +713,7 @@ clitimeout                  X          X         X         -  (deprecated)
 contimeout                  X          -         X         X  (deprecated)
 cookie                      X          -         X         X
 default_backend             -          X         X         -
+description                 -          X         X         X
 disabled                    X          X         X         X
 dispatch                    -          -         X         X
 enabled                     X          X         X         X
@@ -3785,22 +3803,43 @@ stats enable
   See also : "stats auth", "stats realm", "stats uri"
 
 
-stats node-name [ <name> ]
+stats show-node [ <name> ]
   Enable reporting of a host name on the statistics page.
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
-  Arguments :
-    <name>    is an optional name to be reported. If unspecified, the system's
-              hostname is automatically used instead.
+  Arguments:
+    <name>    is an optional name to be reported. If unspecified, the
+              node name from global section is automatically used instead.
 
-  The node-name is read as a single word, so any spaces in it should be escaped
-  using a backslash ('\'). If it is left unspecified, the system's hostname is
-  used instead.
+  This statement is useful for users that offer shared services to their
+  customers, where node or description might be different on a stats page
+  provided for each customer.
 
-  This statement is useful in HA configurations where two or more processes or
-  servers share a same IP address. By setting a different node-name on all
-  nodes, it becomes easy to immediately spot what server is handling the
-  traffic.
+  Though this statement alone is enough to enable statistics reporting, it is
+  recommended to set all other settings in order to avoid relying on default
+  unobvious parameters.
+
+  Example:
+    # internal monitoring access (unlimited)
+    backend private_monitoring
+        stats enable
+        stats show-node Europe-1
+        stats uri       /admin?stats
+        stats refresh   5s
+
+  See also: "show-desc", "stats enable", "stats uri", and "node" in global section.
+
+
+stats show-desc [ <description> ]
+  Enable reporting of a description on the statistics page.
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+
+    <name>    is an optional description to be reported. If unspecified, the
+              description from global section is automatically used instead.
+
+  This statement is useful for users that offer shared services to their
+  customers, where node or description should be different for each customer.
 
   Though this statement alone is enough to enable statistics reporting, it is
   recommended to set all other settings in order to avoid relying on default
@@ -3810,11 +3849,11 @@ stats node-name [ <name> ]
     # internal monitoring access (unlimited)
     backend private_monitoring
         stats enable
-        stats node-name master
+        stats show-desc Master node for Europe, Asia, Africa
         stats uri       /admin?stats
         stats refresh   5s
 
-  See also : "stats enable", "stats uri"
+  See also: "show-node", "stats enable", "stats uri" and "description" in global section.
 
 
 stats realm <realm>

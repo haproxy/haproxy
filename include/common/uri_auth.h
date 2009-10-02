@@ -32,13 +32,15 @@ struct stat_scope {
 };
 
 #define	ST_HIDEVER	0x00000001	/* do not report the version and reldate */
+#define	ST_SHNODE	0x00000002	/* show node name */
+#define	ST_SHDESC	0x00000004	/* show description */
 
 /* later we may link them to support multiple URI matching */
 struct uri_auth {
 	int uri_len;			/* the prefix length */
 	char *uri_prefix;		/* the prefix we want to match */
 	char *auth_realm;		/* the realm reported to the client */
-	char *node_name;		/* the node name reported to the client */
+	char *node, *desc;		/* node name & description reported in this stats */
 	int refresh;			/* refresh interval for the browser (in seconds) */
 	int flags;			/* some flags describing the statistics page */
 	struct user_auth *users;	/* linked list of valid user:passwd couples */
@@ -75,7 +77,8 @@ struct uri_auth *stats_set_refresh(struct uri_auth **root, int interval);
 struct uri_auth *stats_set_flag(struct uri_auth **root, int flag);
 struct uri_auth *stats_add_auth(struct uri_auth **root, char *user);
 struct uri_auth *stats_add_scope(struct uri_auth **root, char *scope);
-struct uri_auth *stats_set_node_name(struct uri_auth **root, char *name);
+struct uri_auth *stats_set_node(struct uri_auth **root, char *name);
+struct uri_auth *stats_set_desc(struct uri_auth **root, char *desc);
 
 #endif /* _COMMON_URI_AUTH_H */
 

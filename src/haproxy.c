@@ -677,6 +677,9 @@ void init(int argc, char **argv)
 		printf("Using %s() as the polling mechanism.\n", cur_poller.name);
 	}
 
+	if (!global.node)
+		global.node = strdup(hostname);
+
 }
 
 void deinit(void)
@@ -843,6 +846,8 @@ void deinit(void)
 
 		free(uap->uri_prefix);
 		free(uap->auth_realm);
+		free(uap->node);
+		free(uap->desc);
 
 		while (uap->users) {
 			user = uap->users;
@@ -857,6 +862,8 @@ void deinit(void)
 
 	free(global.chroot);  global.chroot = NULL;
 	free(global.pidfile); global.pidfile = NULL;
+	free(global.node);    global.node = NULL;
+	free(global.desc);    global.desc = NULL;
 	free(fdtab);          fdtab   = NULL;
 	free(oldpids);        oldpids = NULL;
 

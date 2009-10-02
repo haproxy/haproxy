@@ -70,6 +70,7 @@ struct global {
 	int spread_checks;
 	char *chroot;
 	char *pidfile;
+	char *node, *desc;		/* node name & description */
 	int logfac1, logfac2;
 	int loglev1, loglev2;
 	int minlvl1, minlvl2;

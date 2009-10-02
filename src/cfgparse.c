@@ -603,6 +603,52 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.chroot = strdup(args[1]);
 	}
+	else if (!strcmp(args[0], "description")) {
+		int i, len=0;
+		char *d;
+
+		if (!*args[1]) {
+			Alert("parsing [%s:%d]: '%s' expects a string argument.\n",
+				file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		for(i=1; *args[i]; i++)
+			len += strlen(args[i])+1;
+
+		if (global.desc)
+			free(global.desc);
+
+		global.desc = d = (char *)calloc(1, len);
+
+		d += sprintf(d, "%s", args[1]);
+		for(i=2; *args[i]; i++)
+			d += sprintf(d, " %s", args[i]);
+	}
+	else if (!strcmp(args[0], "node")) {
+		int i;
+		char c;
+
+		for (i=0; args[1][i]; i++) {
+			c = args[1][i];
+			if (!isupper(c) && !islower(c) && !isdigit(c) && c != '_' && c != '-' && c != '.')
+				break;
+		}
+
+		if (!i || args[1][i]) {
+			Alert("parsing [%s:%d]: '%s' requires valid node name - non-empty string"
+				" with digits(0-9), letters(A-Z, a-z), dot(.), hyphen(-) or underscode(_).\n",
+				file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		if (global.node)
+			free(global.node);
+
+		global.node = strdup(args[1]);
+	}
 	else if (!strcmp(args[0], "pidfile")) {
 		if (global.pidfile != NULL) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
@@ -728,6 +774,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		Alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section\n", file, linenum, args[0], "global");
 		err_code |= ERR_ALERT | ERR_FATAL;
 	}
+
  out:
 	return err_code;
 }
@@ -1178,6 +1225,27 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
+	}
+	else if (!strcmp(args[0], "description")) {
+		int i, len=0;
+		char *d;
+
+		if (!*args[1]) {
+			Alert("parsing [%s:%d]: '%s' expects a string argument.\n",
+				file, linenum, args[0]);
+			return -1;
+		}
+
+		for(i=1; *args[i]; i++)
+			len += strlen(args[i])+1;
+
+		d = (char *)calloc(1, len);
+		curproxy->desc = d;
+
+		d += sprintf(d, "%s", args[1]);
+		for(i=2; *args[i]; i++)
+			d += sprintf(d, " %s", args[i]);
+
 	}
 	else if (!strcmp(args[0], "disabled")) {  /* disables this proxy */
 		curproxy->state = PR_STSTOPPED;
@@ -1744,7 +1812,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curproxy->uri_auth = NULL; /* we must detach from the default config */
 
 		if (*(args[1]) == 0) {
-			Alert("parsing [%s:%d] : '%s' expects 'uri', 'realm', 'node-name', 'auth', 'scope' or 'enable'.\n", file, linenum, args[0]);
+			Alert("parsing [%s:%d] : '%s' expects 'uri', 'realm', 'auth', 'scope' or 'enable', 'hide-version', 'show-node', 'show-desc'.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		} else if (!strcmp(args[1], "uri")) {
@@ -1763,12 +1831,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			} else if (!stats_set_realm(&curproxy->uri_auth, args[2])) {
-				Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
-				err_code |= ERR_ALERT | ERR_ABORT;
-				goto out;
-			}
-		} else if (!strcmp(args[1], "node-name")) {
-			if (!stats_set_node_name(&curproxy->uri_auth, *(args[2]) ? args[2] : hostname)) {
 				Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
@@ -1818,6 +1880,61 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
+			}
+		} else if (!strcmp(args[1], "show-node")) {
+
+			if (*args[2]) {
+				int i;
+				char c;
+
+				for (i=0; args[2][i]; i++) {
+					c = args[2][i];
+					if (!isupper(c) && !islower(c) && !isdigit(c) && c != '_' && c != '-')
+						break;
+				}
+
+				if (!i || args[2][i]) {
+					Alert("parsing [%s:%d]: '%s %s' invalid node name - should be a string"
+						"with digits(0-9), letters(A-Z, a-z), hyphen(-) or underscode(_).\n",
+						file, linenum, args[0], args[1]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+			}
+
+			if (!stats_set_node(&curproxy->uri_auth, args[2])) {
+				Alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
+		} else if (!strcmp(args[1], "show-desc")) {
+			char *desc = NULL;
+
+			if (*args[2]) {
+				int i, len=0;
+				char *d;
+
+				for(i=2; *args[i]; i++)
+					len += strlen(args[i])+1;
+
+				desc = d = (char *)calloc(1, len);
+
+				d += sprintf(d, "%s", args[2]);
+				for(i=3; *args[i]; i++)
+					d += sprintf(d, " %s", args[i]);
+			}
+
+			if (!*args[2] && !global.desc)
+				Warning("parsing [%s:%d]: '%s' requires a parameter or 'desc' to be set in the global section.\n",
+					file, linenum, args[1]);
+			else {
+				if (!stats_set_desc(&curproxy->uri_auth, desc)) {
+					free(desc);
+					Alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+					err_code |= ERR_ALERT | ERR_ABORT;
+					goto out;
+				}
+				free(desc);
 			}
 		} else {
 			Alert("parsing [%s:%d] : unknown stats parameter '%s' (expects 'hide-version', 'uri', 'realm', 'auth' or 'enable').\n",
