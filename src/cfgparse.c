@@ -3985,7 +3985,7 @@ int check_config_validity()
 		}
 
 		if ((curproxy->cap & PR_CAP_BE) && (curproxy->mode != PR_MODE_HEALTH)) {
-			if (curproxy->lbprm.algo & BE_LB_ALGO) {
+			if (curproxy->lbprm.algo & BE_LB_KIND) {
 				if (curproxy->options & PR_O_TRANSP) {
 					Alert("config : %s '%s' cannot use both transparent and balance mode.\n",
 					      proxy_type_str(curproxy), curproxy->id);
@@ -4189,13 +4189,25 @@ int check_config_validity()
 		curproxy->lbprm.wmult = 1; /* default weight multiplier */
 		curproxy->lbprm.wdiv  = 1; /* default weight divider */
 
-		/* round robin relies on a weight tree */
-		if ((curproxy->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_RR)
+		/* We have to initialize the server lookup mechanism depending
+		 * on what LB algorithm was choosen.
+		 */
+
+		curproxy->lbprm.algo &= ~(BE_LB_LKUP | BE_LB_PROP_DYN);
+		switch (curproxy->lbprm.algo & BE_LB_KIND) {
+		case BE_LB_KIND_RR:
+			curproxy->lbprm.algo |= BE_LB_LKUP_RRTREE | BE_LB_PROP_DYN;
 			fwrr_init_server_groups(curproxy);
-		else if ((curproxy->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_LC)
+			break;
+		case BE_LB_KIND_LC:
+			curproxy->lbprm.algo |= BE_LB_LKUP_LCTREE | BE_LB_PROP_DYN;
 			fwlc_init_server_tree(curproxy);
-		else
+			break;
+		case BE_LB_KIND_HI:
+			curproxy->lbprm.algo |= BE_LB_LKUP_MAP;
 			init_server_map(curproxy);
+			break;
+		}
 
 		if (curproxy->options & PR_O_LOGASAP)
 			curproxy->to_log &= ~LW_BYTES;

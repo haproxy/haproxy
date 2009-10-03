@@ -28,27 +28,64 @@
 #include <types/lb_map.h>
 #include <types/server.h>
 
-/* Parameters for lbprm.algo.
- * The low part of the value is unique for each algo so that applying the mask
- * BE_LB_ALGO returns a unique algorithm.
- * The high part indicates specific properties.
+/* Parameters for lbprm.algo */
+
+/* Lower bits define the kind of load balancing method, which means the type of
+ * algorithm, and which criterion it is based on. For this reason, those bits
+ * also include information about dependencies, so that the config parser can
+ * detect incompatibilities.
  */
 
-/* Masks to extract algorithm properties */
-#define BE_LB_ALGO	0x000007FF      /* mask to extract all algorithm flags */
-#define BE_LB_PROP_DYN  0x00000100      /* mask to match dynamic algorithms */
-#define BE_LB_PROP_L4   0x00000200      /* mask to match layer4-based algorithms */
-#define BE_LB_PROP_L7   0x00000400      /* mask to match layer7-based algorithms */
+/* LB parameters. Depends on the LB kind. Right now, only hashing uses this. */
+#define BE_LB_HASH_SRC  0x00000  /* hash source IP */
+#define BE_LB_HASH_URI  0x00001  /* hash HTTP URI */
+#define BE_LB_HASH_PRM  0x00002  /* hash HTTP URL parameter */
+#define BE_LB_HASH_HDR  0x00003  /* hash HTTP header value */
+#define BE_LB_HASH_RDP  0x00004  /* hash RDP cookie value */
+#define BE_LB_PARM      0x000FF  /* mask to get/clear the LB param */
 
-/* the algorithms themselves */
-#define BE_LB_ALGO_NONE 0x00000000              /* dispatch or transparent mode */
-#define BE_LB_ALGO_RR	(BE_LB_PROP_DYN | 0x01) /* fast weighted round-robin mode (dynamic) */
-#define BE_LB_ALGO_SH	(BE_LB_PROP_L4  | 0x02) /* balance on source IP hash */
-#define BE_LB_ALGO_UH	(BE_LB_PROP_L7  | 0x03) /* balance on URI hash */
-#define BE_LB_ALGO_PH	(BE_LB_PROP_L7  | 0x04) /* balance on URL parameter hash */
-#define BE_LB_ALGO_LC	(BE_LB_PROP_DYN | 0x05) /* fast weighted leastconn mode (dynamic) */
-#define BE_LB_ALGO_HH	(BE_LB_PROP_L7  | 0x06) /* balance on Http Header value */
-#define BE_LB_ALGO_RCH	(BE_LB_PROP_L4  | 0x07) /* balance on RDP Cookie value */
+/* Required input(s) */
+#define BE_LB_NEED_NONE	0x00000  /* no input needed            */
+#define BE_LB_NEED_ADDR	0x00100  /* only source address needed */
+#define BE_LB_NEED_DATA	0x00200  /* some payload is needed     */
+#define BE_LB_NEED_HTTP	0x00400  /* an HTTP request is needed  */
+/* not used: 0x0800 */
+#define BE_LB_NEED      0x00F00  /* mask to get/clear dependencies */
+
+/* Algorithm */
+#define BE_LB_KIND_NONE 0x00000  /* algorithm not set */
+#define BE_LB_KIND_RR   0x01000  /* round-robin */
+#define BE_LB_KIND_LC   0x02000  /* least connections */
+#define BE_LB_KIND_HI   0x03000  /* hash of input (see hash inputs below) */
+#define BE_LB_KIND      0x07000  /* mask to get/clear LB algorithm */
+
+/* All known variants of load balancing algorithms. These can be cleared using
+ * the BE_LB_ALGO mask. For a check, using BE_LB_KIND is preferred.
+ */
+#define BE_LB_ALGO_NONE (BE_LB_KIND_NONE | BE_LB_NEED_NONE)    /* not defined */
+#define BE_LB_ALGO_RR   (BE_LB_KIND_RR | BE_LB_NEED_NONE)      /* round robin */
+#define BE_LB_ALGO_LC   (BE_LB_KIND_LC | BE_LB_NEED_NONE)      /* least connections */
+#define BE_LB_ALGO_SH	(BE_LB_KIND_HI | BE_LB_NEED_ADDR | BE_LB_HASH_SRC) /* hash: source IP */
+#define BE_LB_ALGO_UH	(BE_LB_KIND_HI | BE_LB_NEED_HTTP | BE_LB_HASH_URI) /* hash: HTTP URI  */
+#define BE_LB_ALGO_PH	(BE_LB_KIND_HI | BE_LB_NEED_HTTP | BE_LB_HASH_PRM) /* hash: HTTP URL parameter */
+#define BE_LB_ALGO_HH	(BE_LB_KIND_HI | BE_LB_NEED_HTTP | BE_LB_HASH_HDR) /* hash: HTTP header value  */
+#define BE_LB_ALGO_RCH	(BE_LB_KIND_HI | BE_LB_NEED_DATA | BE_LB_HASH_RDP) /* hash: RDP cookie value   */
+#define BE_LB_ALGO      (BE_LB_KIND    | BE_LB_NEED      | BE_LB_PARM    ) /* mask to clear algo */
+
+/* Higher bits define how a given criterion is mapped to a server. In fact it
+ * designates the LB function by itself. The dynamic algorithms will also have
+ * the DYN bit set. These flags are automatically set at the end of the parsing.
+ */
+#define BE_LB_LKUP_NONE   0x00000  /* not defined */
+#define BE_LB_LKUP_MAP    0x10000  /* static map based lookup */
+#define BE_LB_LKUP_RRTREE 0x20000  /* FWRR tree lookup */
+#define BE_LB_LKUP_LCTREE 0x30000  /* FWLC tree lookup */
+#define BE_LB_LKUP        0x70000  /* mask to get just the LKUP value */
+
+/* additional properties */
+#define BE_LB_PROP_DYN    0x80000 /* bit to indicate a dynamic algorithm */
+
+
 
 /* various constants */
 
@@ -64,7 +101,7 @@
 
 /* LB parameters for all algorithms */
 struct lbprm {
-	int algo;			/* load balancing algorithm and variants: BE_LB_ALGO_* */
+	int algo;			/* load balancing algorithm and variants: BE_LB_* */
 	int tot_wact, tot_wbck;		/* total effective weights of active and backup servers */
 	int tot_weight;			/* total effective weight of servers participating to LB */
 	int tot_used;			/* total number of servers used for LB */

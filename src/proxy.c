@@ -323,7 +323,7 @@ int proxy_cfg_ensure_no_http(struct proxy *curproxy)
 		Warning("config : monitor-uri will be ignored for %s '%s' (needs 'mode http').\n",
 			proxy_type_str(curproxy), curproxy->id);
 	}
-	if (curproxy->lbprm.algo & BE_LB_PROP_L7) {
+	if (curproxy->lbprm.algo & BE_LB_NEED_HTTP) {
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
 		curproxy->lbprm.algo |= BE_LB_ALGO_RR;
 		Warning("config : Layer 7 hash not possible for %s '%s' (needs 'mode http'). Falling back to round robin.\n",

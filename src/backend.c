@@ -494,7 +494,7 @@ int assign_server(struct session *s)
 	 */
 
 	s->srv = NULL;
-	if (s->be->lbprm.algo & BE_LB_ALGO) {
+	if (s->be->lbprm.algo & BE_LB_KIND) {
 		int len;
 		/* we must check if we have at least one server available */
 		if (!s->be->lbprm.tot_weight) {
@@ -646,7 +646,7 @@ int assign_server_address(struct session *s)
 	fprintf(stderr,"assign_server_address : s=%p\n",s);
 #endif
 
-	if ((s->flags & SN_DIRECT) || (s->be->lbprm.algo & BE_LB_ALGO)) {
+	if ((s->flags & SN_DIRECT) || (s->be->lbprm.algo & BE_LB_KIND)) {
 		/* A server is necessarily known for this session */
 		if (!(s->flags & SN_ASSIGNED))
 			return SRV_STATUS_INTERNAL;
