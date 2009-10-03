@@ -516,7 +516,11 @@ int assign_server(struct session *s)
 			break;
 
 		case BE_LB_LKUP_MAP:
-			if ((s->be->lbprm.algo & BE_LB_KIND) != BE_LB_KIND_HI) {
+			if ((s->be->lbprm.algo & BE_LB_KIND) == BE_LB_KIND_RR) {
+				s->srv = map_get_server_rr(s->be, s->prev_srv);
+				break;
+			}
+			else if ((s->be->lbprm.algo & BE_LB_KIND) != BE_LB_KIND_HI) {
 				/* unknown balancing algorithm */
 				err = SRV_STATUS_INTERNAL;
 				goto out;
@@ -973,6 +977,10 @@ int backend_parse_balance(const char **args, char *err, int errlen, struct proxy
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
 		curproxy->lbprm.algo |= BE_LB_ALGO_RR;
 	}
+	else if (!strcmp(args[0], "static-rr")) {
+		curproxy->lbprm.algo &= ~BE_LB_ALGO;
+		curproxy->lbprm.algo |= BE_LB_ALGO_SRR;
+	}
 	else if (!strcmp(args[0], "leastconn")) {
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
 		curproxy->lbprm.algo |= BE_LB_ALGO_LC;
@@ -1098,7 +1106,7 @@ int backend_parse_balance(const char **args, char *err, int errlen, struct proxy
 		}
 	}
 	else {
-		snprintf(err, errlen, "'balance' only supports 'roundrobin', 'leastconn', 'source', 'uri', 'url_param', 'hdr(name)' and 'rdp-cookie(name)' options.");
+		snprintf(err, errlen, "'balance' only supports 'roundrobin', 'static-rr', 'leastconn', 'source', 'uri', 'url_param', 'hdr(name)' and 'rdp-cookie(name)' options.");
 		return -1;
 	}
 	return 0;

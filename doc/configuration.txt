@@ -915,7 +915,23 @@ balance url_param <param> [check_post [<max_wait>]]
                   This is the smoothest and fairest algorithm when the server's
                   processing time remains equally distributed. This algorithm
                   is dynamic, which means that server weights may be adjusted
-                  on the fly for slow starts for instance.
+                  on the fly for slow starts for instance. It is limited by
+                  design to 4128 active servers per backend. Note that in some
+                  large farms, when a server becomes up after having been down
+                  for a very short time, it may sometimes take a few hundreds
+                  requests for it to be re-integrated into the farm and start
+                  receiving traffic. This is normal, though very rare. It is
+                  indicated here in case you would have the chance to observe
+                  it, so that you don't worry.
+
+      static-rr   Each server is used in turns, according to their weights.
+                  This algorithm is as similar to roundrobin except that it is
+                  static, which means that changing a server's weight on the
+                  fly will have no effect. On the other hand, it has no design
+                  limitation on the number of servers, and when a server goes
+                  up, it is always immediately reintroduced into the farm, once
+                  the full map is recomputed. It also uses slightly less CPU to
+                  run (around -1%).
 
       leastconn   The server with the lowest number of connections receives the
                   connection. Round-robin is performed within groups of servers

@@ -4196,8 +4196,13 @@ int check_config_validity()
 		curproxy->lbprm.algo &= ~(BE_LB_LKUP | BE_LB_PROP_DYN);
 		switch (curproxy->lbprm.algo & BE_LB_KIND) {
 		case BE_LB_KIND_RR:
-			curproxy->lbprm.algo |= BE_LB_LKUP_RRTREE | BE_LB_PROP_DYN;
-			fwrr_init_server_groups(curproxy);
+			if ((curproxy->lbprm.algo & BE_LB_PARM) == BE_LB_RR_STATIC) {
+				curproxy->lbprm.algo |= BE_LB_LKUP_MAP;
+				init_server_map(curproxy);
+			} else {
+				curproxy->lbprm.algo |= BE_LB_LKUP_RRTREE | BE_LB_PROP_DYN;
+				fwrr_init_server_groups(curproxy);
+			}
 			break;
 		case BE_LB_KIND_LC:
 			curproxy->lbprm.algo |= BE_LB_LKUP_LCTREE | BE_LB_PROP_DYN;
