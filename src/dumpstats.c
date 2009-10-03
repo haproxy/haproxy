@@ -423,9 +423,7 @@ void stats_io_handler(struct stream_interface *si)
 					si->st0 = 1; // end of command, send prompt
 				break;
 			case 4:	/* sessions dump */
-				stats_dump_sess_to_buffer(s, res);
-				si->ib->flags |= BF_READ_PARTIAL; /* remove this once we use buffer_feed */
-				if (s->ana_state == STATS_ST_CLOSE)
+				if (stats_dump_sess_to_buffer(s, res))
 					si->st0 = 1; // end of command, send prompt
 				break;
 			case 5:	/* errors dump */
@@ -1524,9 +1522,9 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
  * It dumps the sessions states onto the output buffer <rep>.
  * Expects to be called with client socket shut down on input.
  * s->data_ctx must have been zeroed first, and the flags properly set.
- * It automatically clears the HIJACK bit from the response buffer.
+ * It returns 0 as long as it does not complete, non-zero upon completion.
  */
-void stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
+int stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 {
 	struct chunk msg;
 
@@ -1540,14 +1538,8 @@ void stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 				LIST_INIT(&s->data_ctx.sess.bref.users);
 			}
 		}
-		s->data_state = DATA_ST_FIN;
-		buffer_stop_hijack(rep);
-		s->ana_state = STATS_ST_CLOSE;
-		return;
+		return 1;
 	}
-
-	if (s->ana_state != STATS_ST_REP)
-		return;
 
 	chunk_init(&msg, trash, sizeof(trash));
 
@@ -1695,12 +1687,12 @@ void stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 
 			chunk_printf(&msg, "\n");
 
-			if (buffer_write_chunk(rep, &msg) >= 0) {
+			if (buffer_feed_chunk(rep, &msg) >= 0) {
 				/* let's try again later from this session. We add ourselves into
 				 * this session's users so that it can remove us upon termination.
 				 */
 				LIST_ADDQ(&curr_sess->back_refs, &s->data_ctx.sess.bref.users);
-				return;
+				return 0;
 			}
 
 			s->data_ctx.sess.bref.ref = curr_sess->list.n;
@@ -1710,9 +1702,7 @@ void stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 
 	default:
 		s->data_state = DATA_ST_FIN;
-		buffer_stop_hijack(rep);
-		s->ana_state = STATS_ST_CLOSE;
-		return;
+		return 1;
 	}
 }
 
