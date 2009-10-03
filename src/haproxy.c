@@ -183,7 +183,13 @@ void display_build_opts()
 #ifdef BUILD_OPTIONS
 	       "\n  OPTIONS = " BUILD_OPTIONS
 #endif
-	       "\n\n");
+	       "\n\nDefault settings :"
+	       "\n  maxconn = %d, maxpollevents = %d"
+	       "\n\n",
+	       DEFAULT_MAXCONN, MAX_POLL_EVENTS);
+
+	list_pollers(stdout);
+	putchar('\n');
 }
 
 /*
