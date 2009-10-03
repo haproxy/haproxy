@@ -1889,7 +1889,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 				for (i=0; args[2][i]; i++) {
 					c = args[2][i];
-					if (!isupper(c) && !islower(c) && !isdigit(c) && c != '_' && c != '-')
+					if (!isupper(c) && !islower(c) && !isdigit(c) && c != '_' && c != '-' && c != '.')
 						break;
 				}
 

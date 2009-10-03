@@ -777,7 +777,7 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 			     "table.tbl { border-collapse: collapse; border-style: none;}\n"
 			     "table.tbl td { border-width: 1px 1px 1px 1px; border-style: solid solid solid solid; padding: 2px 3px; border-color: gray;}\n"
 			     "table.tbl th { border-width: 1px; border-style: solid solid solid solid; border-color: gray;}\n"
-			     "table.tbl th.pxname {background: #b00040; color: #ffff40; font-weight: bold; border-style: solid solid none solid; padding: 2px 3px;}\n"
+			     "table.tbl th.pxname {background: #b00040; color: #ffff40; font-weight: bold; border-style: solid solid none solid; padding: 2px 3px; white-space: nowrap;}\n"
 			     "table.tbl th.empty { border-style: none; empty-cells: hide; background: white;}\n"
 			     "table.tbl th.desc { background: white; border-style: solid solid none solid; text-align: left; padding: 2px 3px;}\n"
 			     "table.lgd { border-collapse: collapse; border-width: 1px; border-style: none none none solid; border-color: black;}\n"
