@@ -747,10 +747,10 @@ option httpchk              X          -         X         X
 [no] option httpclose       X          X         X         X
 option httplog              X          X         X         X
 [no] option http_proxy      X          X         X         X
-[no] option log-separate-
-            errors          X          X         X         -
 [no] option log-health-     X          -         X         X
             checks
+[no] option log-separate-
+            errors          X          X         X         -
 [no] option logasap         X          X         X         -
 [no] option nolinger        X          X         X         X
 option originalto           X          X         X         X
@@ -2477,6 +2477,24 @@ no option http_proxy
   See also : "option httpclose"
 
 
+option log-health-checks
+no option log-health-checks
+  Enable or disable logging of health checks
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |  yes
+  Arguments : none
+
+  Enable health checks logging so it possible to check for example what
+  was happening before a server crash. Failed health check are logged if
+  server is UP and succeeded health checks if server is DOWN, so the amount
+  of additional information is limited.
+
+  If health check logging is enabled no health check status is printed
+  when servers is set up UP/DOWN/ENABLED/DISABLED.
+
+  See also: "log" and section 8 about logging.
+
+
 option log-separate-errors
 no option log-separate-errors
   Change log level for non-completely successful connections
@@ -2499,23 +2517,6 @@ no option log-separate-errors
   See also : "log", "dontlognull", "dontlog-normal" and section 8 about
              logging.
 
-
-log-health-checks
-no log-health-checks
-  Enable or disable logging of health checks
-  May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    no    |   yes  |  yes
-  Arguments : none
-
-  Enable health checks logging so it possible to check for example what
-  was happening before a server crash. Failed health check are logged if
-  server is UP and succeeded health checks if server is DOWN, so the amount
-  of additional information is limited.
-
-  If health check logging is enabled no health check status is printed
-  when servers is set up UP/DOWN/ENABLED/DISABLED.
-
-  See also: "log" and section 8 about logging.
 
 option logasap
 no option logasap
