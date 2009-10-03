@@ -1,30 +1,34 @@
 /*
-  include/types/backend.h
-  This file assembles definitions for backends
-
-  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
-  
-  This library is free software; you can redistribute it and/or
-  modify it under the terms of the GNU Lesser General Public
-  License as published by the Free Software Foundation, version 2.1
-  exclusively.
-
-  This library is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  Lesser General Public License for more details.
-
-  You should have received a copy of the GNU Lesser General Public
-  License along with this library; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
+ * include/types/backend.h
+ * This file assembles definitions for backends
+ *
+ * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation, version 2.1
+ * exclusively.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
 
 #ifndef _TYPES_BACKEND_H
 #define _TYPES_BACKEND_H
 
 #include <common/config.h>
+#include <types/lb_fwlc.h>
+#include <types/lb_fwrr.h>
+#include <types/lb_map.h>
+#include <types/server.h>
 
-/* Parameters for proxy->lbprm.algo.
+/* Parameters for lbprm.algo.
  * The low part of the value is unique for each algo so that applying the mask
  * BE_LB_ALGO returns a unique algorithm.
  * The high part indicates specific properties.
@@ -57,6 +61,26 @@
  * modulation steps of about 6% for servers with the lowest weight (1).
  */
 #define BE_WEIGHT_SCALE 16
+
+/* LB parameters for all algorithms */
+struct lbprm {
+	int algo;			/* load balancing algorithm and variants: BE_LB_ALGO_* */
+	int tot_wact, tot_wbck;		/* total effective weights of active and backup servers */
+	int tot_weight;			/* total effective weight of servers participating to LB */
+	int tot_used;			/* total number of servers used for LB */
+	int wmult;			/* ratio between user weight and effective weight */
+	int wdiv;			/* ratio between effective weight and user weight */
+	struct server *fbck;		/* first backup server when !PR_O_USE_ALL_BK, or NULL */
+	struct lb_map map;		/* LB parameters for map-based algorithms */
+	struct lb_fwrr fwrr;
+	struct lb_fwlc fwlc;
+	/* Call backs for some actions. Some may be NULL (thus should be ignored). */
+	void (*update_server_eweight)(struct server *);  /* to be called after eweight change */
+	void (*set_server_status_up)(struct server *);   /* to be called after status changes to UP */
+	void (*set_server_status_down)(struct server *); /* to be called after status changes to DOWN */
+	void (*server_take_conn)(struct server *);       /* to be called when connection is assigned */
+	void (*server_drop_conn)(struct server *);       /* to be called when connection is dropped */
+};
 
 #endif /* _TYPES_BACKEND_H */
 

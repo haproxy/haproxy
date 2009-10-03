@@ -1,23 +1,23 @@
 /*
-  include/types/proxy.h
-  This file defines everything related to proxies.
-
-  Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
-  
-  This library is free software; you can redistribute it and/or
-  modify it under the terms of the GNU Lesser General Public
-  License as published by the Free Software Foundation, version 2.1
-  exclusively.
-
-  This library is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  Lesser General Public License for more details.
-
-  You should have received a copy of the GNU Lesser General Public
-  License along with this library; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
+ * include/types/proxy.h
+ * This file defines everything related to proxies.
+ *
+ * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation, version 2.1
+ * exclusively.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
 
 #ifndef _TYPES_PROXY_H
 #define _TYPES_PROXY_H
@@ -29,13 +29,13 @@
 
 #include <common/appsession.h>
 #include <common/config.h>
-#include <common/ebtree.h>
 #include <common/mini-clist.h>
 #include <common/regex.h>
 #include <common/sessionhash.h>
 #include <common/tools.h>
 
 #include <types/acl.h>
+#include <types/backend.h>
 #include <types/buffers.h>
 #include <types/freq_ctr.h>
 #include <types/httperr.h>
@@ -56,9 +56,6 @@
 #define PR_MODE_TCP     0
 #define PR_MODE_HTTP    1
 #define PR_MODE_HEALTH  2
-
-/* values for proxy->lbprm.map.state */
-#define PR_MAP_RECALC  (1 << 0)
 
 /* flag values for proxy->cap. This is a bitmask of capabilities supported by the proxy */
 #define PR_CAP_NONE    0x0000
@@ -123,17 +120,6 @@
 #define PR_O2_CLFLOG	0x00000400      /* log into clf format */
 #define PR_O2_LOGHCHKS	0x00000800	/* log health checks */
 
-/* This structure is used to apply fast weighted round robin on a server group */
-struct fwrr_group {
-	struct eb_root curr;    /* tree for servers in "current" time range */
-	struct eb_root t0, t1;  /* "init" and "next" servers */
-	struct eb_root *init;   /* servers waiting to be placed */
-	struct eb_root *next;   /* servers to be placed at next run */
-	int curr_pos;           /* current position in the tree */
-	int curr_weight;        /* total weight of the current time range */
-	int next_weight;        /* total weight of the next time range */
-}; 
-
 struct error_snapshot {
 	struct timeval when;		/* date of this event, (tv_sec == 0) means "never" */
 	unsigned int len;		/* original length of the last invalid request/response */
@@ -170,35 +156,7 @@ struct proxy {
 	int acl_requires;                       /* Elements required to satisfy all ACLs (ACL_USE_*) */
 	struct server *srv;			/* known servers */
 	int srv_act, srv_bck;			/* # of servers eligible for LB (UP|!checked) AND (enabled+weight!=0) */
-
-	struct {
-		int algo;			/* load balancing algorithm and variants: BE_LB_ALGO* */
-		int tot_wact, tot_wbck;		/* total effective weights of active and backup servers */
-		int tot_weight;			/* total effective weight of servers participating to LB */
-		int tot_used;			/* total number of servers used for LB */
-		int wmult;			/* ratio between user weight and effective weight */
-		int wdiv;			/* ratio between effective weight and user weight */
-		struct server *fbck;		/* first backup server when !PR_O_USE_ALL_BK, or NULL */
-		struct {
-			struct server **srv;	/* the server map used to apply weights */
-			int rr_idx;		/* next server to be elected in round robin mode */
-			int state;		/* PR_MAP_RECALC */
-		} map;				/* LB parameters for map-based algorithms */
-		struct {
-			struct fwrr_group act;	/* weighted round robin on the active servers */
-			struct fwrr_group bck;	/* weighted round robin on the backup servers */
-		} fwrr;
-		struct {
-			struct eb_root act;	/* weighted least conns on the active servers */
-			struct eb_root bck;	/* weighted least conns on the backup servers */
-		} fwlc;
-		void (*update_server_eweight)(struct server *);/* if non-NULL, to be called after eweight change */
-		void (*set_server_status_up)(struct server *);/* to be called after status changes to UP */
-		void (*set_server_status_down)(struct server *);/* to be called after status changes to DOWN */
-		void (*server_take_conn)(struct server *);/* to be called when connection is assigned */
-		void (*server_drop_conn)(struct server *);/* to be called when connection is dropped */
-	} lbprm;				/* LB parameters for all algorithms */
-
+	struct lbprm lbprm;			/* load-balancing parameters */
 	char *cookie_domain;			/* domain used to insert the cookie */
 	char *cookie_name;			/* name of the cookie to look for */
 	int  cookie_len;			/* strlen(cookie_name), computed only once */

@@ -38,7 +38,7 @@ static void map_set_server_status_down(struct server *srv)
 	/* FIXME: could be optimized since we know what changed */
 	recount_servers(p);
 	update_backend_weight(p);
-	p->lbprm.map.state |= PR_MAP_RECALC;
+	p->lbprm.map.state |= LB_MAP_RECALC;
  out_update_state:
 	srv->prev_state = srv->state;
 	srv->prev_eweight = srv->eweight;
@@ -59,7 +59,7 @@ static void map_set_server_status_up(struct server *srv)
 	/* FIXME: could be optimized since we know what changed */
 	recount_servers(p);
 	update_backend_weight(p);
-	p->lbprm.map.state |= PR_MAP_RECALC;
+	p->lbprm.map.state |= LB_MAP_RECALC;
  out_update_state:
 	srv->prev_state = srv->state;
 	srv->prev_eweight = srv->eweight;
@@ -77,7 +77,7 @@ void recalc_server_map(struct proxy *px)
 
 	switch (px->lbprm.tot_used) {
 	case 0:	/* no server */
-		px->lbprm.map.state &= ~PR_MAP_RECALC;
+		px->lbprm.map.state &= ~LB_MAP_RECALC;
 		return;
 	case 1: /* only one server, just fill first entry */
 		tot = 1;
@@ -132,7 +132,7 @@ void recalc_server_map(struct proxy *px)
 		px->lbprm.map.srv[o] = best;
 		best->wscore -= tot;
 	}
-	px->lbprm.map.state &= ~PR_MAP_RECALC;
+	px->lbprm.map.state &= ~LB_MAP_RECALC;
 }
 
 /* This function is responsible of building the server MAP for map-based LB
@@ -201,7 +201,7 @@ void init_server_map(struct proxy *p)
 
 	p->lbprm.map.srv = (struct server **)calloc(act, sizeof(struct server *));
 	/* recounts servers and their weights */
-	p->lbprm.map.state = PR_MAP_RECALC;
+	p->lbprm.map.state = LB_MAP_RECALC;
 	recount_servers(p);
 	update_backend_weight(p);
 	recalc_server_map(p);
@@ -221,7 +221,7 @@ struct server *map_get_server_rr(struct proxy *px, struct server *srvtoavoid)
 	if (px->lbprm.tot_weight == 0)
 		return NULL;
 
-	if (px->lbprm.map.state & PR_MAP_RECALC)
+	if (px->lbprm.map.state & LB_MAP_RECALC)
 		recalc_server_map(px);
 
 	if (px->lbprm.map.rr_idx < 0 || px->lbprm.map.rr_idx >= px->lbprm.tot_weight)
@@ -264,7 +264,7 @@ struct server *map_get_server_hash(struct proxy *px, unsigned int hash)
 	if (px->lbprm.tot_weight == 0)
 		return NULL;
 
-	if (px->lbprm.map.state & PR_MAP_RECALC)
+	if (px->lbprm.map.state & LB_MAP_RECALC)
 		recalc_server_map(px);
 
 	return px->lbprm.map.srv[hash % px->lbprm.tot_weight];
