@@ -67,6 +67,8 @@ enum {
 	SI_FL_ERR        = 0x0002,  /* a non-recoverable error has occurred */
 	SI_FL_WAIT_ROOM  = 0x0004,  /* waiting for space to store incoming data */
 	SI_FL_WAIT_DATA  = 0x0008,  /* waiting for more data to send */
+	/* 0x10..0x20 already used in 1.4 */
+	SI_FL_INDEP_STR  = 0x0040,  /* independant streams = don't update rex on write */
 };
 
 struct stream_interface {

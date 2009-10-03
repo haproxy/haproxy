@@ -117,6 +117,8 @@
 #define PR_O2_RSPBUG_OK	0x00000010      /* let buggy responses pass through */
 #define PR_O2_NOLOGNORM	0x00000020      /* don't log normal traffic, only errors and retries */
 #define PR_O2_LOGERRORS	0x00000040      /* log errors and retries at level LOG_ERR */
+/* 0x80..0x800 already used in 1.4 */
+#define PR_O2_INDEPSTR	0x00001000	/* independant streams, don't update rex on write */
 
 /* This structure is used to apply fast weighted round robin on a server group */
 struct fwrr_group {

@@ -129,6 +129,7 @@ static const struct cfg_opt cfg_opts2[] =
 	{ "accept-invalid-http-response", PR_O2_RSPBUG_OK, PR_CAP_BE, 0 },
 	{ "dontlog-normal",               PR_O2_NOLOGNORM, PR_CAP_FE, 0 },
 	{ "log-separate-errors",          PR_O2_LOGERRORS, PR_CAP_FE, 0 },
+	{ "independant-streams",          PR_O2_INDEPSTR,  PR_CAP_FE|PR_CAP_BE, 0 },
 	{ NULL, 0, 0, 0 }
 };
 
