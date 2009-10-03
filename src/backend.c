@@ -502,94 +502,98 @@ int assign_server(struct session *s)
 			goto out;
 		}
 
-		switch (s->be->lbprm.algo & BE_LB_ALGO) {
-		case BE_LB_ALGO_RR:
+		/* First check whether we need to fetch some data or simply call
+		 * the LB lookup function. Only the hashing functions will need
+		 * some input data in fact, and will support multiple algorithms.
+		 */
+		switch (s->be->lbprm.algo & BE_LB_LKUP) {
+		case BE_LB_LKUP_RRTREE:
 			s->srv = fwrr_get_next_server(s->be, s->prev_srv);
-			if (!s->srv) {
-				err = SRV_STATUS_FULL;
-				goto out;
-			}
 			break;
-		case BE_LB_ALGO_LC:
+
+		case BE_LB_LKUP_LCTREE:
 			s->srv = fwlc_get_next_server(s->be, s->prev_srv);
-			if (!s->srv) {
-				err = SRV_STATUS_FULL;
-				goto out;
-			}
 			break;
-		case BE_LB_ALGO_SH:
-			if (s->cli_addr.ss_family == AF_INET)
-				len = 4;
-			else if (s->cli_addr.ss_family == AF_INET6)
-				len = 16;
-			else {
-				/* unknown IP family */
+
+		case BE_LB_LKUP_MAP:
+			if ((s->be->lbprm.algo & BE_LB_KIND) != BE_LB_KIND_HI) {
+				/* unknown balancing algorithm */
 				err = SRV_STATUS_INTERNAL;
 				goto out;
 			}
+
+			switch (s->be->lbprm.algo & BE_LB_PARM) {
+			case BE_LB_HASH_SRC:
+				if (s->cli_addr.ss_family == AF_INET)
+					len = 4;
+				else if (s->cli_addr.ss_family == AF_INET6)
+					len = 16;
+				else {
+					/* unknown IP family */
+					err = SRV_STATUS_INTERNAL;
+					goto out;
+				}
 		
-			s->srv = get_server_sh(s->be,
-					       (void *)&((struct sockaddr_in *)&s->cli_addr)->sin_addr,
-					       len);
-			break;
-		case BE_LB_ALGO_UH:
-			/* URI hashing */
-			s->srv = get_server_uh(s->be,
-					       s->txn.req.sol + s->txn.req.sl.rq.u,
-					       s->txn.req.sl.rq.u_l);
-			break;
-		case BE_LB_ALGO_PH:
-			/* URL Parameter hashing */
-			if (s->txn.meth == HTTP_METH_POST &&
-			    memchr(s->txn.req.sol + s->txn.req.sl.rq.u, '&',
-				   s->txn.req.sl.rq.u_l ) == NULL)
-				s->srv = get_server_ph_post(s);
-			else
-				s->srv = get_server_ph(s->be,
+				s->srv = get_server_sh(s->be,
+						       (void *)&((struct sockaddr_in *)&s->cli_addr)->sin_addr,
+						       len);
+				break;
+
+			case BE_LB_HASH_URI:
+				/* URI hashing */
+				s->srv = get_server_uh(s->be,
 						       s->txn.req.sol + s->txn.req.sl.rq.u,
 						       s->txn.req.sl.rq.u_l);
+				break;
 
-			if (!s->srv) {
-				/* parameter not found, fall back to round robin on the map */
-				s->srv = map_get_server_rr(s->be, s->prev_srv);
-				if (!s->srv) {
-					err = SRV_STATUS_FULL;
-					goto out;
-				}
-			}
-			break;
-		case BE_LB_ALGO_HH:
-			/* Header Parameter hashing */
-			s->srv = get_server_hh(s);
+			case BE_LB_HASH_PRM:
+				/* URL Parameter hashing */
+				if (s->txn.meth == HTTP_METH_POST &&
+				    memchr(s->txn.req.sol + s->txn.req.sl.rq.u, '&',
+					   s->txn.req.sl.rq.u_l ) == NULL)
+					s->srv = get_server_ph_post(s);
+				else
+					s->srv = get_server_ph(s->be,
+							       s->txn.req.sol + s->txn.req.sl.rq.u,
+							       s->txn.req.sl.rq.u_l);
+				break;
 
-			if (!s->srv) {
-				/* parameter not found, fall back to round robin on the map */
-				s->srv = map_get_server_rr(s->be, s->prev_srv);
-				if (!s->srv) {
-					err = SRV_STATUS_FULL;
-					goto out;
-				}
-			}
-			break;
-		case BE_LB_ALGO_RCH:
-			/* RDP Cookie hashing */
-			s->srv = get_server_rch(s);
+			case BE_LB_HASH_HDR:
+				/* Header Parameter hashing */
+				s->srv = get_server_hh(s);
+				break;
 
-			if (!s->srv) {
-				/* parameter not found, fall back to round robin on the map */
-				s->srv = map_get_server_rr(s->be, s->prev_srv);
-				if (!s->srv) {
-					err = SRV_STATUS_FULL;
-					goto out;
-				}
+			case BE_LB_HASH_RDP:
+				/* RDP Cookie hashing */
+				s->srv = get_server_rch(s);
+				break;
+
+			default:
+				/* unknown balancing algorithm */
+				err = SRV_STATUS_INTERNAL;
+				goto out;
 			}
+
+			/* If the hashing parameter was not found, let's fall
+			 * back to round robin on the map.
+			 */
+			if (!s->srv)
+				s->srv = map_get_server_rr(s->be, s->prev_srv);
+
+			/* end of map-based LB */
 			break;
+
 		default:
 			/* unknown balancing algorithm */
 			err = SRV_STATUS_INTERNAL;
 			goto out;
 		}
-		if (s->srv != s->prev_srv) {
+
+		if (!s->srv) {
+			err = SRV_STATUS_FULL;
+			goto out;
+		}
+		else if (s->srv != s->prev_srv) {
 			s->be->cum_lbconn++;
 			s->srv->cum_lbconn++;
 		}
