@@ -429,9 +429,7 @@ void stats_io_handler(struct stream_interface *si)
 					si->st0 = 1; // end of command, send prompt
 				break;
 			case 5:	/* errors dump */
-				stats_dump_errors_to_buffer(s, res);
-				si->ib->flags |= BF_READ_PARTIAL; /* remove this once we use buffer_feed */
-				if (s->ana_state == STATS_ST_CLOSE)
+				if (stats_dump_errors_to_buffer(s, res))
 					si->st0 = 1; // end of command, send prompt
 				break;
 			default: /* abnormal state or lack of space for prompt */
@@ -1738,7 +1736,7 @@ static int dump_error_line(struct chunk *out, struct error_snapshot *err,
 
 	chunk_printf(out, "  %05d%c ", ptr, (ptr == *line) ? ' ' : '+');
 
-	while (ptr < err->len) {
+	while (ptr < err->len && ptr < sizeof(err->buf)) {
 		c = err->buf[ptr];
 		if (isprint(c) && isascii(c) && c != '\\') {
 			if (out->len > end - 2)
@@ -1780,22 +1778,15 @@ static int dump_error_line(struct chunk *out, struct error_snapshot *err,
  * It dumps the errors logged in proxies onto the output buffer <rep>.
  * Expects to be called with client socket shut down on input.
  * s->data_ctx must have been zeroed first, and the flags properly set.
- * It automatically clears the HIJACK bit from the response buffer.
+ * It returns 0 as long as it does not complete, non-zero upon completion.
  */
-void stats_dump_errors_to_buffer(struct session *s, struct buffer *rep)
+int stats_dump_errors_to_buffer(struct session *s, struct buffer *rep)
 {
 	extern const char *monthname[12];
 	struct chunk msg;
 
-	if (unlikely(rep->flags & (BF_WRITE_ERROR|BF_SHUTW))) {
-		s->data_state = DATA_ST_FIN;
-		buffer_stop_hijack(rep);
-		s->ana_state = STATS_ST_CLOSE;
-		return;
-	}
-
-	if (s->ana_state != STATS_ST_REP)
-		return;
+	if (unlikely(rep->flags & (BF_WRITE_ERROR|BF_SHUTW)))
+		return 1;
 
 	chunk_init(&msg, trash, sizeof(trash));
 
@@ -1874,9 +1865,9 @@ void stats_dump_errors_to_buffer(struct session *s, struct buffer *rep)
 				break;
 			}
 
-			if (buffer_write_chunk(rep, &msg) >= 0) {
+			if (buffer_feed_chunk(rep, &msg) >= 0) {
 				/* Socket buffer full. Let's try again later from the same point */
-				return;
+				return 0;
 			}
 			s->data_ctx.errors.ptr = 0;
 			s->data_ctx.errors.sid = es->sid;
@@ -1886,24 +1877,24 @@ void stats_dump_errors_to_buffer(struct session *s, struct buffer *rep)
 			/* the snapshot changed while we were dumping it */
 			chunk_printf(&msg,
 				     "  WARNING! update detected on this snapshot, dump interrupted. Please re-check!\n");
-			if (buffer_write_chunk(rep, &msg) >= 0)
-				return;
+			if (buffer_feed_chunk(rep, &msg) >= 0)
+				return 0;
 			goto next;
 		}
 
 		/* OK, ptr >= 0, so we have to dump the current line */
-		while (s->data_ctx.errors.ptr < es->len) {
+		while (s->data_ctx.errors.ptr < es->len && s->data_ctx.errors.ptr < sizeof(es->buf)) {
 			int newptr;
 			int newline;
 
 			newline = s->data_ctx.errors.bol;
 			newptr = dump_error_line(&msg, es, &newline, s->data_ctx.errors.ptr);
 			if (newptr == s->data_ctx.errors.ptr)
-				return;
+				return 0;
 
-			if (buffer_write_chunk(rep, &msg) >= 0) {
+			if (buffer_feed_chunk(rep, &msg) >= 0) {
 				/* Socket buffer full. Let's try again later from the same point */
-				return;
+				return 0;
 			}
 			s->data_ctx.errors.ptr = newptr;
 			s->data_ctx.errors.bol = newline;
@@ -1919,8 +1910,7 @@ void stats_dump_errors_to_buffer(struct session *s, struct buffer *rep)
 	}
 
 	/* dump complete */
-	buffer_stop_hijack(rep);
-	s->ana_state = STATS_ST_CLOSE;
+	return 1;
 }
 
 
