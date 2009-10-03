@@ -185,6 +185,9 @@ void display_build_opts()
 	       "\n  maxconn = %d, bufsize = %d, maxrewrite = %d, maxpollevents = %d"
 	       "\n\n",
 	       DEFAULT_MAXCONN, BUFSIZE, MAXREWRITE, MAX_POLL_EVENTS);
+
+	list_pollers(stdout);
+	putchar('\n');
 }
 
 /*
