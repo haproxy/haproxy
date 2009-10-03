@@ -200,6 +200,8 @@ int event_accept(int fd) {
 		s->si[0].iohandler = NULL;
 		s->si[0].fd = cfd;
 		s->si[0].flags = SI_FL_NONE | SI_FL_CAP_SPLTCP; /* TCP splicing capable */
+		if (s->fe->options2 & PR_O2_INDEPSTR)
+			s->si[0].flags |= SI_FL_INDEP_STR;
 		s->si[0].exp = TICK_ETERNITY;
 
 		s->si[1].state = s->si[1].prev_state = SI_ST_INI;
@@ -216,6 +218,8 @@ int event_accept(int fd) {
 		s->si[1].exp = TICK_ETERNITY;
 		s->si[1].fd = -1; /* just to help with debugging */
 		s->si[1].flags = SI_FL_NONE;
+		if (s->be->options2 & PR_O2_INDEPSTR)
+			s->si[1].flags |= SI_FL_INDEP_STR;
 
 		s->srv = s->prev_srv = s->srv_conn = NULL;
 		s->pend_pos = NULL;

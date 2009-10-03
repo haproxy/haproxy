@@ -123,11 +123,15 @@ void stream_int_update_embedded(struct stream_interface *si)
 	if ((si->ib->flags & (BF_FULL|BF_SHUTR)) == BF_FULL)
 		si->flags |= SI_FL_WAIT_ROOM;
 
-	if (si->ob->flags & BF_WRITE_ACTIVITY || si->ib->flags & BF_READ_ACTIVITY) {
-		if (tick_isset(si->ib->rex))
-			si->ib->rex = tick_add_ifset(now_ms, si->ib->rto);
+	if (si->ob->flags & BF_WRITE_ACTIVITY) {
 		if (tick_isset(si->ob->wex))
 			si->ob->wex = tick_add_ifset(now_ms, si->ob->wto);
+	}
+
+	if (si->ib->flags & BF_READ_ACTIVITY ||
+	    (si->ob->flags & BF_WRITE_ACTIVITY && !(si->flags & SI_FL_INDEP_STR))) {
+		if (tick_isset(si->ib->rex))
+			si->ib->rex = tick_add_ifset(now_ms, si->ib->rto);
 	}
 
 	if (si->ob->flags & BF_WRITE_PARTIAL)

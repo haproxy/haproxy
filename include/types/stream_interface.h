@@ -69,6 +69,7 @@ enum {
 	SI_FL_WAIT_DATA  = 0x0008,  /* waiting for more data to send */
 	SI_FL_CAP_SPLTCP = 0x0010,  /* splicing possible from/to TCP */
 	SI_FL_DONT_WAKE  = 0x0020,  /* resync in progress, don't wake up */
+	SI_FL_INDEP_STR  = 0x0040,  /* independant streams = don't update rex on write */
 };
 
 #define SI_FL_CAP_SPLICE (SI_FL_CAP_SPLTCP)

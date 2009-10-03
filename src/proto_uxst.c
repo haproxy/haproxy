@@ -455,6 +455,8 @@ int uxst_event_accept(int fd) {
 		s->si[0].iohandler = NULL;
 		s->si[0].fd = cfd;
 		s->si[0].flags = SI_FL_NONE;
+		if (s->fe->options2 & PR_O2_INDEPSTR)
+			s->si[0].flags |= SI_FL_INDEP_STR;
 		s->si[0].exp = TICK_ETERNITY;
 
 		s->si[1].state = s->si[1].prev_state = SI_ST_INI;
@@ -464,6 +466,9 @@ int uxst_event_accept(int fd) {
 		s->si[1].exp = TICK_ETERNITY;
 		s->si[1].fd = -1; /* just to help with debugging */
 		s->si[1].flags = SI_FL_NONE;
+		if (s->be->options2 & PR_O2_INDEPSTR)
+			s->si[1].flags |= SI_FL_INDEP_STR;
+
 		stream_int_register_handler(&s->si[1], stats_io_handler);
 		s->si[1].private = s;
 		s->si[1].st0 = s->si[1].st1 = 0;

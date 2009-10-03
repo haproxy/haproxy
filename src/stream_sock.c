@@ -764,12 +764,14 @@ int stream_sock_write(int fd)
 			b->wex = tick_add_ifset(now_ms, b->wto);
 
 	out_wakeup:
-		if (tick_isset(si->ib->rex)) {
+		if (tick_isset(si->ib->rex) && !(si->flags & SI_FL_INDEP_STR)) {
 			/* Note: to prevent the client from expiring read timeouts
-			 * during writes, we refresh it. A better solution would be
-			 * to merge read+write timeouts into a unique one, although
-			 * that needs some study particularly on full-duplex TCP
-			 * connections.
+			 * during writes, we refresh it. We only do this if the
+			 * interface is not configured for "independant streams",
+			 * because for some applications it's better not to do this,
+			 * for instance when continuously exchanging small amounts
+			 * of data which can full the socket buffers long before a
+			 * write timeout is detected.
 			 */
 			si->ib->rex = tick_add_ifset(now_ms, si->ib->rto);
 		}
@@ -943,11 +945,12 @@ void stream_sock_data_finish(struct stream_interface *si)
 			EV_FD_COND_S(fd, DIR_WR);
 			if (!tick_isset(ob->wex) || ob->flags & BF_WRITE_ACTIVITY) {
 				ob->wex = tick_add_ifset(now_ms, ob->wto);
-				if (tick_isset(ib->rex)) {
+				if (tick_isset(ib->rex) && !(si->flags & SI_FL_INDEP_STR)) {
 					/* Note: depending on the protocol, we don't know if we're waiting
 					 * for incoming data or not. So in order to prevent the socket from
 					 * expiring read timeouts during writes, we refresh the read timeout,
-					 * except if it was already infinite.
+					 * except if it was already infinite or if we have explicitly setup
+					 * independant streams.
 					 */
 					ib->rex = tick_add_ifset(now_ms, ib->rto);
 				}
@@ -1069,12 +1072,14 @@ void stream_sock_chk_snd(struct stream_interface *si)
 		if ((ob->flags & (BF_OUT_EMPTY|BF_SHUTW|BF_WRITE_PARTIAL)) == BF_WRITE_PARTIAL)
 			ob->wex = tick_add_ifset(now_ms, ob->wto);
 
-		if (tick_isset(si->ib->rex)) {
+		if (tick_isset(si->ib->rex) && !(si->flags & SI_FL_INDEP_STR)) {
 			/* Note: to prevent the client from expiring read timeouts
-			 * during writes, we refresh it. A better solution would be
-			 * to merge read+write timeouts into a unique one, although
-			 * that needs some study particularly on full-duplex TCP
-			 * connections.
+			 * during writes, we refresh it. We only do this if the
+			 * interface is not configured for "independant streams",
+			 * because for some applications it's better not to do this,
+			 * for instance when continuously exchanging small amounts
+			 * of data which can full the socket buffers long before a
+			 * write timeout is detected.
 			 */
 			si->ib->rex = tick_add_ifset(now_ms, si->ib->rto);
 		}
