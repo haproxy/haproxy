@@ -1574,8 +1574,8 @@ int stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 			}
 
 			chunk_printf(&msg,
-				     " as=%d ts=%02x age=%s calls=%d",
-				     curr_sess->ana_state, curr_sess->task->state,
+				     " ts=%02x age=%s calls=%d",
+				     curr_sess->task->state,
 				     human_time(now.tv_sec - curr_sess->logs.tv_accept.tv_sec, 1),
 				     curr_sess->task->calls);
 

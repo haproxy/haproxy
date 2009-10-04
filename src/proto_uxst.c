@@ -439,7 +439,6 @@ int uxst_event_accept(int fd) {
 		s->listener = l;
 		s->fe = s->be = l->private;
 
-		s->ana_state = 0;
 		s->req = s->rep = NULL; /* will be allocated later */
 
 		s->si[0].state = s->si[0].prev_state = SI_ST_EST;
