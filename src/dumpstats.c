@@ -308,12 +308,16 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 		if (strcmp(args[1], "counters") == 0) {
 			struct proxy *px;
 			struct server *sv;
+			struct listener *li;
 
 			for (px = proxy; px; px = px->next) {
 				memset(&px->counters, 0, sizeof(px->counters));
 
 				for (sv = px->srv; sv; sv = sv->next)
 					memset(&sv->counters, 0, sizeof(sv->counters));
+
+				for (li = px->listen; li; li = li->next)
+					memset(li->counters, 0, sizeof(*li->counters));
 			}
 
 			return 1;
@@ -782,6 +786,7 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 			     ".titre	{background: #20D0D0;color: #000000; font-weight: bold;}\n"
 			     ".total	{background: #20D0D0;color: #ffff80;}\n"
 			     ".frontend	{background: #e8e8d0;}\n"
+			     ".socket	{background: #d0d0d0;}\n"
 			     ".backend	{background: #e8e8d0;}\n"
 			     ".active0	{background: #ff9090;}\n"
 			     ".active1	{background: #ffd020;}\n"
@@ -983,6 +988,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 {
 	struct buffer *rep = s->rep;
 	struct server *sv, *svs;	/* server and server-state, server-state=server or server->tracked */
+	struct listener *l;
 	struct chunk msg;
 
 	chunk_init(&msg, trash, sizeof(trash));
@@ -1133,6 +1139,95 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     relative_pid, px->uuid, STATS_TYPE_FE,
 				     read_freq_ctr(&px->fe_sess_per_sec),
 				     px->fe_sps_lim, px->fe_sps_max);
+			}
+
+			if (buffer_feed_chunk(rep, &msg) >= 0)
+				return 0;
+		}
+
+		s->data_ctx.stats.l = px->listen; /* may be NULL */
+		s->data_ctx.stats.px_st = DATA_ST_PX_LI;
+		/* fall through */
+
+	case DATA_ST_PX_LI:
+		/* stats.l has been initialized above */
+		for (; s->data_ctx.stats.l != NULL; s->data_ctx.stats.l = l->next) {
+			l = s->data_ctx.stats.l;
+			if (!l->counters)
+				continue;
+
+			if (s->data_ctx.stats.flags & STAT_BOUND) {
+				if (!(s->data_ctx.stats.type & (1 << STATS_TYPE_SO)))
+					break;
+
+				if (s->data_ctx.stats.sid != -1 && l->luid != s->data_ctx.stats.sid)
+					continue;
+			}
+
+			if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
+				chunk_printf(&msg,
+				     /* name, queue */
+				     "<tr align=center class=\"socket\"><td>%s</td><td colspan=3></td>"
+				     /* sessions rate: current, max, limit */
+				     "<td align=right colspan=3>&nbsp;</td>"
+				     /* sessions: current, max, limit, total, lbtot */
+				     "<td align=right>%s</td><td align=right>%s</td><td align=right>%s</td>"
+				     "<td align=right>%s</td><td align=right>&nbsp;</td>"
+				     /* bytes: in, out */
+				     "<td align=right>%s</td><td align=right>%s</td>"
+				     "",
+				     l->name,
+				     U2H3(l->nbconn), U2H4(l->counters->conn_max), U2H5(l->maxconn),
+				     U2H6(l->counters->cum_conn), U2H7(l->counters->bytes_in), U2H8(l->counters->bytes_out));
+
+				chunk_printf(&msg,
+				     /* denied: req, resp */
+				     "<td align=right>%s</td><td align=right>%s</td>"
+				     /* errors: request, connect, response */
+				     "<td align=right>%s</td><td align=right></td><td align=right></td>"
+				     /* warnings: retries, redispatches */
+				     "<td align=right></td><td align=right></td>"
+				     /* server status: reflect listener status */
+				     "<td align=center>%s</td>"
+				     /* rest of server: nothing */
+				     "<td align=center colspan=8></td></tr>"
+				     "",
+				     U2H0(l->counters->denied_req), U2H1(l->counters->denied_resp),
+				     U2H2(l->counters->failed_req),
+				     (l->nbconn < l->maxconn) ? "OPEN" : "FULL");
+			} else {
+				chunk_printf(&msg,
+				     /* pxid, name, queue cur, queue max, */
+				     "%s,%s,,,"
+				     /* sessions: current, max, limit, total */
+				     "%d,%d,%d,%lld,"
+				     /* bytes: in, out */
+				     "%lld,%lld,"
+				     /* denied: req, resp */
+				     "%lld,%lld,"
+				     /* errors: request, connect, response */
+				     "%lld,,,"
+				     /* warnings: retries, redispatches */
+				     ",,"
+				     /* server status: reflect listener status */
+				     "%s,"
+				     /* rest of server: nothing */
+				     ",,,,,,,,"
+				     /* pid, iid, sid, throttle, lbtot, tracked, type */
+				     "%d,%d,%d,,,,%d,"
+				     /* rate, rate_lim, rate_max */
+				     ",,,"
+				     /* check_status, check_code, check_duration */
+				     ",,,"
+				     "\n",
+				     px->id, l->name,
+				     l->nbconn, l->counters->conn_max,
+				     l->maxconn, l->counters->cum_conn,
+				     l->counters->bytes_in, l->counters->bytes_out,
+				     l->counters->denied_req, l->counters->denied_resp,
+				     l->counters->failed_req,
+				     (l->nbconn < l->maxconn) ? "OPEN" : "FULL",
+				     relative_pid, px->uuid, l->luid, STATS_TYPE_SO);
 			}
 
 			if (buffer_feed_chunk(rep, &msg) >= 0)

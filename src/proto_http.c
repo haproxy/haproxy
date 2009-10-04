@@ -1843,7 +1843,11 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 				http_capture_bad_message(&s->fe->invalid_req, s, req, msg, s->fe);
 			msg->msg_state = HTTP_MSG_ERROR;
 			req->analysers = 0;
+
 			s->fe->counters.failed_req++;
+			if (s->listener->counters)
+				s->listener->counters->failed_req++;
+
 			if (!(s->flags & SN_ERR_MASK))
 				s->flags |= SN_ERR_CLICL;
 			if (!(s->flags & SN_FINST_MASK))
@@ -1860,7 +1864,11 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 			stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_408));
 			msg->msg_state = HTTP_MSG_ERROR;
 			req->analysers = 0;
+
 			s->fe->counters.failed_req++;
+			if (s->listener->counters)
+				s->listener->counters->failed_req++;
+
 			if (!(s->flags & SN_ERR_MASK))
 				s->flags |= SN_ERR_CLITO;
 			if (!(s->flags & SN_FINST_MASK))
@@ -1876,7 +1884,11 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 			stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_400));
 			msg->msg_state = HTTP_MSG_ERROR;
 			req->analysers = 0;
+
 			s->fe->counters.failed_req++;
+			if (s->listener->counters)
+				s->listener->counters->failed_req++;
+
 			if (!(s->flags & SN_ERR_MASK))
 				s->flags |= SN_ERR_CLICL;
 			if (!(s->flags & SN_FINST_MASK))
@@ -2005,7 +2017,10 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	txn->req.msg_state = HTTP_MSG_ERROR;
 	txn->status = 400;
 	stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_400));
+
 	s->fe->counters.failed_req++;
+	if (s->listener->counters)
+		s->listener->counters->failed_req++;
 
  return_prx_cond:
 	if (!(s->flags & SN_ERR_MASK))
@@ -2291,7 +2306,10 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 	txn->req.msg_state = HTTP_MSG_ERROR;
 	txn->status = 400;
 	stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_400));
+
 	s->fe->counters.failed_req++;
+	if (s->listener->counters)
+		s->listener->counters->failed_req++;
 
  return_prx_cond:
 	if (!(s->flags & SN_ERR_MASK))
@@ -2599,7 +2617,10 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 	txn->status = 400;
 	req->analysers = 0;
 	stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_400));
+
 	s->fe->counters.failed_req++;
+	if (s->listener->counters)
+		s->listener->counters->failed_req++;
 
 	if (!(s->flags & SN_ERR_MASK))
 		s->flags |= SN_ERR_PRXCOND;
@@ -2640,7 +2661,10 @@ int http_process_tarpit(struct session *s, struct buffer *req, int an_bit)
 
 	req->analysers = 0;
 	req->analyse_exp = TICK_ETERNITY;
+
 	s->fe->counters.failed_req++;
+	if (s->listener->counters)
+		s->listener->counters->failed_req++;
 
 	if (!(s->flags & SN_ERR_MASK))
 		s->flags |= SN_ERR_PRXCOND;
@@ -3016,7 +3040,11 @@ int process_response(struct session *t)
 			if (txn->flags & TX_SVDENY) {
 				if (t->srv)
 					t->srv->counters.failed_secu++;
+
 				cur_proxy->counters.denied_resp++;
+				if (t->listener->counters)
+					t->listener->counters->denied_resp++;
+
 				goto return_srv_prx_502;
 			}
 
@@ -3157,7 +3185,11 @@ int process_response(struct session *t)
 			 */
 			if (t->srv)
 				t->srv->counters.failed_secu++;
+
 			cur_proxy->counters.denied_resp++;
+			if (t->listener->counters)
+				t->listener->counters->denied_resp++;
+
 			Alert("Blocking cacheable cookie in response from instance %s, server %s.\n",
 			      t->be->id, t->srv?t->srv->id:"<dispatch>");
 			send_log(t->be, LOG_ALERT,
@@ -3308,13 +3340,21 @@ int apply_filter_to_req_headers(struct session *t, struct buffer *req, struct hd
 			case ACT_DENY:
 				txn->flags |= TX_CLDENY;
 				last_hdr = 1;
+
 				t->be->counters.denied_req++;
+				if (t->listener->counters)
+					t->listener->counters->denied_resp++;
+
 				break;
 
 			case ACT_TARPIT:
 				txn->flags |= TX_CLTARPIT;
 				last_hdr = 1;
+
 				t->be->counters.denied_req++;
+				if (t->listener->counters)
+					t->listener->counters->denied_resp++;
+
 				break;
 
 			case ACT_REPLACE:
@@ -3419,13 +3459,21 @@ int apply_filter_to_req_line(struct session *t, struct buffer *req, struct hdr_e
 
 		case ACT_DENY:
 			txn->flags |= TX_CLDENY;
+
 			t->be->counters.denied_req++;
+			if (t->listener->counters)
+				t->listener->counters->denied_resp++;
+
 			done = 1;
 			break;
 
 		case ACT_TARPIT:
 			txn->flags |= TX_CLTARPIT;
+
 			t->be->counters.denied_req++;
+			if (t->listener->counters)
+				t->listener->counters->denied_resp++;
+
 			done = 1;
 			break;
 

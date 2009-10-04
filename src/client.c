@@ -491,6 +491,11 @@ int event_accept(int fd) {
 		if (p->feconn > p->counters.feconn_max)
 			p->counters.feconn_max = p->feconn;
 
+		if (l->counters) {
+			if (l->nbconn > l->counters->conn_max)
+				l->counters->conn_max = l->nbconn;
+		}
+
 		actconn++;
 		totalconn++;
 

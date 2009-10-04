@@ -30,6 +30,7 @@
 #include <common/config.h>
 #include <common/mini-clist.h>
 
+#include <types/counters.h>
 #include <types/task.h>
 
 /* max length of a protcol name, including trailing zero */
@@ -80,6 +81,7 @@ struct listener {
 	int luid;			/* listener universally unique ID, used for SNMP */
 	int state;			/* state: NEW, INIT, ASSIGNED, LISTEN, READY, FULL */
 	int options;			/* socket options : LI_O_* */
+	struct licounters *counters;	/* statistics counters */
 	struct sockaddr_storage addr;	/* the address we listen to */
 	struct protocol *proto;		/* protocol this listener belongs to */
 	int nbconn;			/* current number of connections on this listener */

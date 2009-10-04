@@ -38,6 +38,7 @@
 #define STATS_TYPE_FE  0
 #define STATS_TYPE_BE  1
 #define STATS_TYPE_SV  2
+#define STATS_TYPE_SO  3
 
 /* unix stats socket states */
 #define STAT_CLI_INIT   0   /* initial state */

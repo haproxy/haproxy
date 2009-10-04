@@ -69,6 +69,9 @@ static inline void proxy_reset_timeouts(struct proxy *proxy)
 static void inline proxy_inc_fe_ctr(struct listener *l, struct proxy *fe)
 {
 	fe->counters.cum_feconn++;
+	if (l->counters)
+		l->counters->cum_conn++;
+
 	update_freq_ctr(&fe->fe_sess_per_sec, 1);
 	if (fe->fe_sess_per_sec.curr_ctr > fe->fe_sps_max)
 		fe->fe_sps_max = fe->fe_sess_per_sec.curr_ctr;

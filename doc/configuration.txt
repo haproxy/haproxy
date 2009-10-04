@@ -759,6 +759,7 @@ option originalto           X          X         X         X
 [no] option persist         X          -         X         X
 [no] option redispatch      X          -         X         X
 option smtpchk              X          -         X         X
+[no] option socket-stats    X          X         X         -
 [no] option splice-auto     X          X         X         X
 [no] option splice-request  X          X         X         X
 [no] option splice-response X          X         X         X
@@ -1104,6 +1105,8 @@ bind [<address>]:<port> [, ...]
 bind [<address>]:<port> [, ...] interface <interface>
 bind [<address>]:<port> [, ...] mss <maxseg>
 bind [<address>]:<port> [, ...] transparent
+bind [<address>]:<port> [, ...] id <id>
+bind [<address>]:<port> [, ...] name <name>
   Define one or several listening addresses and/or ports in a frontend.
   May be used in sections :   defaults | frontend | listen | backend
                                   no   |    yes   |   yes  |   no
@@ -1136,6 +1139,13 @@ bind [<address>]:<port> [, ...] transparent
                   was buggy in all versions prior to 2.6.28. It may or may not
                   work on other operating systems. The commonly advertised
                   value on Ethernet networks is 1460 = 1500(MTU) - 40(IP+TCP).
+
+    <id>          is a persistent value for socket ID. Must be unique and
+                  larger than 1000, as smaller values are reserved for
+                  auto-assigned ids. Can only be used when defining only
+                  a single socket.
+
+    <name>        is an optional name provided for stats
 
     transparent   is an optional keyword which is supported only on certain
                   Linux kernels. It indicates that the addresses will be bound
@@ -2765,6 +2775,16 @@ option smtpchk <hello> <domain>
         option smtpchk HELO mydomain.org
 
   See also : "option httpchk", "source"
+
+
+option socket-stats
+no option socket-stats
+
+  Enable or disable collecting & providing separate statistics for each socket.
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   no
+
+  Arguments : none
 
 
 option splice-auto
@@ -6573,7 +6593,7 @@ page. Both means provide a CSV format whose fields follow.
  29. throttle: warm up status
  30. lbtot: total number of times a server was selected
  31. tracked: id of proxy/server if tracking is enabled
- 32. type (0=frontend, 1=backend, 2=server)
+ 32. type (0=frontend, 1=backend, 2=server, 3=socket)
  33. rate: number of sessions per second over last elapsed second
  34. rate_lim: limit on new sessions per second
  35. rate_max: max number of new sessions per second

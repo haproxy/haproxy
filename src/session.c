@@ -146,6 +146,9 @@ void session_process_counters(struct session *s)
 
 			if (s->srv)
 				s->srv->counters.bytes_in		+= bytes;
+
+			if (s->listener->counters)
+				s->listener->counters->bytes_in		+= bytes;
 		}
 	}
 
@@ -160,6 +163,9 @@ void session_process_counters(struct session *s)
 
 			if (s->srv)
 				s->srv->counters.bytes_out		+= bytes;
+
+			if (s->listener->counters)
+				s->listener->counters->bytes_out	+= bytes;
 		}
 	}
 }
@@ -1309,7 +1315,11 @@ void sess_set_term_flags(struct session *s)
 {
 	if (!(s->flags & SN_FINST_MASK)) {
 		if (s->si[1].state < SI_ST_REQ) {
+
 			s->fe->counters.failed_req++;
+			if (s->listener->counters)
+				s->listener->counters->failed_req++;
+
 			s->flags |= SN_FINST_R;
 		}
 		else if (s->si[1].state == SI_ST_QUE)

@@ -139,6 +139,7 @@ static const struct cfg_opt cfg_opts2[] =
 	{ "dontlog-normal",               PR_O2_NOLOGNORM, PR_CAP_FE, 0 },
 	{ "log-separate-errors",          PR_O2_LOGERRORS, PR_CAP_FE, 0 },
 	{ "log-health-checks",            PR_O2_LOGHCHKS,  PR_CAP_BE, 0 },
+	{ "socket-stats",                 PR_O2_SOCKSTAT,  PR_CAP_FE, 0 },
 	{ "tcp-smart-accept",             PR_O2_SMARTACC,  PR_CAP_FE, 0 },
 	{ "tcp-smart-connect",            PR_O2_SMARTCON,  PR_CAP_BE, 0 },
 	{ "independant-streams",          PR_O2_INDEPSTR,  PR_CAP_FE|PR_CAP_BE, 0 },
@@ -162,17 +163,16 @@ static struct cfg_kw_list cfg_keywords = {
  *  - <port> is a numerical port from 1 to 65535 ;
  *  - <end> indicates to use the range from <port> to <end> instead (inclusive).
  * This can be repeated as many times as necessary, separated by a coma.
- * The <tail> argument is a pointer to a current list which should be appended
- * to the tail of the new list. The pointer to the new list is returned.
+ * Function returns 1 for success or 0 if error.
  */
-static struct listener *str2listener(char *str, struct listener *tail)
+static int str2listener(char *str, struct proxy *curproxy)
 {
 	struct listener *l;
 	char *c, *next, *range, *dupstr;
 	int port, end;
 
 	next = dupstr = strdup(str);
-    
+
 	while (next && *next) {
 		struct sockaddr_storage ss;
 
@@ -243,8 +243,8 @@ static struct listener *str2listener(char *str, struct listener *tail)
 
 		for (; port <= end; port++) {
 			l = (struct listener *)calloc(1, sizeof(struct listener));
-			l->next = tail;
-			tail = l;
+			l->next = curproxy->listen;
+			curproxy->listen = l;
 
 			l->fd = -1;
 			l->addr = ss;
@@ -257,14 +257,16 @@ static struct listener *str2listener(char *str, struct listener *tail)
 				((struct sockaddr_in *)(&l->addr))->sin_port = htons(port);
 				tcpv4_add_listener(l);
 			}
+
+			l->luid = curproxy->next_lid++;
 			listeners++;
 		} /* end for(port) */
 	} /* end while(next) */
 	free(dupstr);
-	return tail;
+	return 1;
  fail:
 	free(dupstr);
-	return NULL;
+	return 0;
 }
 
 /*
@@ -893,8 +895,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		/* parse the listener address if any */
 		if ((curproxy->cap & PR_CAP_FE) && *args[2]) {
-			curproxy->listen = str2listener(args[2], curproxy->listen);
-			if (!curproxy->listen) {
+			if (!str2listener(args[2], curproxy)) {
 				err_code |= ERR_FATAL;
 				goto out;
 			}
@@ -1004,6 +1005,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		curproxy->grace  = defproxy.grace;
 		curproxy->uuid = next_pxid++;   /* generate a uuid for this proxy */
 		curproxy->next_svid = 1;        /* server id 0 is reserved */
+		curproxy->next_lid  = 1;        /* listener id 0 is reserved */
 
 		goto out;
 	}
@@ -1061,8 +1063,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		last_listen = curproxy->listen;
-		curproxy->listen = str2listener(args[1], last_listen);
-		if (!curproxy->listen) {
+		if (!str2listener(args[1], curproxy)) {
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -1142,6 +1143,54 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				goto out;
 #endif
 			}
+
+			if (!strcmp(args[cur_arg], "name")) {
+				struct listener *l;
+
+				for (l = curproxy->listen; l != last_listen; l = l->next)
+					l->name = strdup(args[cur_arg + 1]);
+
+				cur_arg += 2;
+				continue;
+			}
+
+			if (!strcmp(args[cur_arg], "id")) {
+				struct listener *l;
+
+				if (curproxy->listen->next != last_listen) {
+					Alert("parsing [%s:%d]: '%s' can be only used with a single socket.\n",
+						file, linenum, args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				if (!*args[cur_arg + 1]) {
+					Alert("parsing [%s:%d]: '%s' expects an integer argument.\n",
+						file, linenum, args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				curproxy->listen->luid = atol(args[cur_arg + 1]);
+
+				if (curproxy->listen->luid < 1001) {
+					Alert("parsing [%s:%d]: custom id has to be > 1000\n",
+						file, linenum);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				for (l = curproxy->listen; l != last_listen; l = l->next)
+					if (curproxy->listen != l && l->luid == curproxy->listen->luid) {
+						Alert("parsing [%s:%d]: custom id has to be unique but is duplicated in %s.\n",
+							file, linenum, args[1]);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
+					}
+				cur_arg += 2;
+				continue;
+			}
+
 			Alert("parsing [%s:%d] : '%s' only supports the 'transparent' and 'interface' options.\n",
 			      file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -4352,9 +4401,32 @@ int check_config_validity()
 				curproxy->be_req_ana |= AN_REQ_PRST_RDP_COOKIE;
 		}
 
+		listener = NULL;
+		while (curproxy->listen) {
+			struct listener *next;
+
+			next = curproxy->listen->next;
+			curproxy->listen->next = listener;
+			listener = curproxy->listen;
+
+			if (!next)
+				break;
+
+			curproxy->listen = next;
+		}
+
 		/* adjust this proxy's listeners */
 		listener = curproxy->listen;
 		while (listener) {
+			/* enable separate counters */
+			if (curproxy->options2 & PR_O2_SOCKSTAT) {
+				listener->counters = (struct licounters *)calloc(1, sizeof(struct licounters));
+				if (!listener->name) {
+					sprintf(trash, "sock-%d", listener->luid);
+					listener->name = strdup(trash);
+				}
+			}
+
 			if (curproxy->options & PR_O_TCP_NOLING)
 				listener->options |= LI_O_NOLINGER;
 			listener->maxconn = curproxy->maxconn;
