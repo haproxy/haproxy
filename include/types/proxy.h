@@ -258,6 +258,11 @@ struct proxy {
 	int no_options2;			/* PR_O2_* */
 
 	struct pxcounters counters;		/* statistics counters */
+
+	struct {
+		const char *file;		/* file where the section appears */
+		int line;			/* line where the section appears */
+	} conf;					/* config information */
 };
 
 struct switching_rule {

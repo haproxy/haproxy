@@ -876,6 +876,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		curproxy->next = proxy;
 		proxy = curproxy;
+		curproxy->conf.file = file;
+		curproxy->conf.line = linenum;
 		LIST_INIT(&curproxy->pendconns);
 		LIST_INIT(&curproxy->acl);
 		LIST_INIT(&curproxy->block_cond);
@@ -895,9 +897,16 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		/* parse the listener address if any */
 		if ((curproxy->cap & PR_CAP_FE) && *args[2]) {
+			struct listener *new, *last = curproxy->listen;
 			if (!str2listener(args[2], curproxy)) {
 				err_code |= ERR_FATAL;
 				goto out;
+			}
+			new = curproxy->listen;
+			while (new != last) {
+				new->conf.file = file;
+				new->conf.line = linenum;
+				new = new->next;
 			}
 			global.maxsock++;
 		}
@@ -1044,7 +1053,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 	/* Now let's parse the proxy-specific keywords */
 	if (!strcmp(args[0], "bind")) {  /* new listen addresses */
-		struct listener *last_listen;
+		struct listener *new_listen, *last_listen;
 		int cur_arg;
 
 		if (curproxy == &defproxy) {
@@ -1066,6 +1075,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		if (!str2listener(args[1], curproxy)) {
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
+		}
+
+		new_listen = curproxy->listen;
+		while (new_listen != last_listen) {
+			new_listen->conf.file = file;
+			new_listen->conf.line = linenum;
+			new_listen = new_listen->next;
 		}
 
 		cur_arg = 2;
@@ -2453,6 +2469,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		curproxy->srv = newsrv;
 		newsrv->proxy = curproxy;
 		newsrv->puid = curproxy->next_svid++;
+		newsrv->conf.file = file;
+		newsrv->conf.line = linenum;
 
 		LIST_INIT(&newsrv->pendconns);
 		do_check = 0;

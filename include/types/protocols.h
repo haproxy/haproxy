@@ -104,6 +104,11 @@ struct listener {
 	} perm;
 	char *interface;		/* interface name or NULL */
 	int maxseg;			/* for TCP, advertised MSS */
+
+	struct {
+		const char *file;	/* file where the section appears */
+		int line;		/* line where the section appears */
+	} conf;				/* config information */
 };
 
 /* This structure contains all information needed to easily handle a protocol.

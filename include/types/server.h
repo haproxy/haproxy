@@ -131,6 +131,11 @@ struct server {
 	int puid;				/* proxy-unique server ID, used for SNMP */
 
 	struct srvcounters counters;		/* statistics counters */
+
+	struct {
+		const char *file;		/* file where the section appears */
+		int line;			/* line where the section appears */
+	} conf;					/* config information */
 };
 
 
