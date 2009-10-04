@@ -645,8 +645,8 @@ int session_set_backend(struct session *s, struct proxy *be)
 		return 1;
 	s->be = be;
 	be->beconn++;
-	if (be->beconn > be->beconn_max)
-		be->beconn_max = be->beconn;
+	if (be->beconn > be->counters.beconn_max)
+		be->counters.beconn_max = be->beconn;
 	proxy_inc_be_ctr(be);
 
 	/* assign new parameters to the session from the new backend */

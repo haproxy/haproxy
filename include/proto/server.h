@@ -38,7 +38,7 @@ int srv_getinter(struct server *s);
 /* increase the number of cumulated connections on the designated server */
 static void inline srv_inc_sess_ctr(struct server *s)
 {
-	s->cum_sess++;
+	s->counters.cum_sess++;
 	update_freq_ctr(&s->sess_per_sec, 1);
 	if (s->sess_per_sec.curr_ctr > s->sps_max)
 		s->sps_max = s->sess_per_sec.curr_ctr;

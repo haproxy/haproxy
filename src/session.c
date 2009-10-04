@@ -139,13 +139,13 @@ void session_process_counters(struct session *s)
 		bytes = s->req->total - s->logs.bytes_in;
 		s->logs.bytes_in = s->req->total;
 		if (bytes) {
-			s->fe->bytes_in          += bytes;
+			s->fe->counters.bytes_in			+= bytes;
 
 			if (s->be != s->fe)
-				s->be->bytes_in  += bytes;
+				s->be->counters.bytes_in		+= bytes;
 
 			if (s->srv)
-				s->srv->bytes_in += bytes;
+				s->srv->counters.bytes_in		+= bytes;
 		}
 	}
 
@@ -153,13 +153,13 @@ void session_process_counters(struct session *s)
 		bytes = s->rep->total - s->logs.bytes_out;
 		s->logs.bytes_out = s->rep->total;
 		if (bytes) {
-			s->fe->bytes_out          += bytes;
+			s->fe->counters.bytes_out			+= bytes;
 
 			if (s->be != s->fe)
-				s->be->bytes_out  += bytes;
+				s->be->counters.bytes_out		+= bytes;
 
 			if (s->srv)
-				s->srv->bytes_out += bytes;
+				s->srv->counters.bytes_out		+= bytes;
 		}
 	}
 }
@@ -255,8 +255,8 @@ int sess_update_st_cer(struct session *s, struct stream_interface *si)
 		}
 
 		if (s->srv)
-			s->srv->failed_conns++;
-		s->be->failed_conns++;
+			s->srv->counters.failed_conns++;
+		s->be->counters.failed_conns++;
 		if (may_dequeue_tasks(s->srv, s->be))
 			process_srv_queue(s->srv);
 
@@ -286,8 +286,8 @@ int sess_update_st_cer(struct session *s, struct stream_interface *si)
 		si->state = SI_ST_REQ;
 	} else {
 		if (s->srv)
-			s->srv->retries++;
-		s->be->retries++;
+			s->srv->counters.retries++;
+		s->be->counters.retries++;
 		si->state = SI_ST_ASS;
 	}
 
@@ -381,8 +381,8 @@ void sess_update_stream_int(struct session *s, struct stream_interface *si)
 			if (s->srv)
 				srv_inc_sess_ctr(s->srv);
 			if (s->srv)
-				s->srv->failed_conns++;
-			s->be->failed_conns++;
+				s->srv->counters.failed_conns++;
+			s->be->counters.failed_conns++;
 
 			/* release other sessions waiting for this server */
 			if (may_dequeue_tasks(s->srv, s->be))
@@ -436,8 +436,8 @@ void sess_update_stream_int(struct session *s, struct stream_interface *si)
 			si->exp = TICK_ETERNITY;
 			s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
 			if (s->srv)
-				s->srv->failed_conns++;
-			s->be->failed_conns++;
+				s->srv->counters.failed_conns++;
+			s->be->counters.failed_conns++;
 			si->shutr(si);
 			si->shutw(si);
 			si->ob->flags |= BF_WRITE_TIMEOUT;
@@ -698,9 +698,9 @@ struct task *process_session(struct task *t)
 			s->si[1].shutr(&s->si[1]);
 			s->si[1].shutw(&s->si[1]);
 			stream_int_report_error(&s->si[1]);
-			s->be->failed_resp++;
+			s->be->counters.failed_resp++;
 			if (s->srv)
-				s->srv->failed_resp++;
+				s->srv->counters.failed_resp++;
 			if (!(s->req->analysers) && !(s->rep->analysers)) {
 				if (!(s->flags & SN_ERR_MASK))
 					s->flags |= SN_ERR_SRVCL;
@@ -1309,7 +1309,7 @@ void sess_set_term_flags(struct session *s)
 {
 	if (!(s->flags & SN_FINST_MASK)) {
 		if (s->si[1].state < SI_ST_REQ) {
-			s->fe->failed_req++;
+			s->fe->counters.failed_req++;
 			s->flags |= SN_FINST_R;
 		}
 		else if (s->si[1].state == SI_ST_QUE)

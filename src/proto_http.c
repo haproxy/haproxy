@@ -1843,7 +1843,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 				http_capture_bad_message(&s->fe->invalid_req, s, req, msg, s->fe);
 			msg->msg_state = HTTP_MSG_ERROR;
 			req->analysers = 0;
-			s->fe->failed_req++;
+			s->fe->counters.failed_req++;
 			if (!(s->flags & SN_ERR_MASK))
 				s->flags |= SN_ERR_CLICL;
 			if (!(s->flags & SN_FINST_MASK))
@@ -1860,7 +1860,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 			stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_408));
 			msg->msg_state = HTTP_MSG_ERROR;
 			req->analysers = 0;
-			s->fe->failed_req++;
+			s->fe->counters.failed_req++;
 			if (!(s->flags & SN_ERR_MASK))
 				s->flags |= SN_ERR_CLITO;
 			if (!(s->flags & SN_FINST_MASK))
@@ -1876,8 +1876,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 			stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_400));
 			msg->msg_state = HTTP_MSG_ERROR;
 			req->analysers = 0;
-			s->fe->failed_req++;
-
+			s->fe->counters.failed_req++;
 			if (!(s->flags & SN_ERR_MASK))
 				s->flags |= SN_ERR_CLICL;
 			if (!(s->flags & SN_FINST_MASK))
@@ -2006,7 +2005,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	txn->req.msg_state = HTTP_MSG_ERROR;
 	txn->status = 400;
 	stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_400));
-	s->fe->failed_req++;
+	s->fe->counters.failed_req++;
 
  return_prx_cond:
 	if (!(s->flags & SN_ERR_MASK))
@@ -2292,7 +2291,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 	txn->req.msg_state = HTTP_MSG_ERROR;
 	txn->status = 400;
 	stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_400));
-	s->fe->failed_req++;
+	s->fe->counters.failed_req++;
 
  return_prx_cond:
 	if (!(s->flags & SN_ERR_MASK))
@@ -2600,7 +2599,7 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 	txn->status = 400;
 	req->analysers = 0;
 	stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_400));
-	s->fe->failed_req++;
+	s->fe->counters.failed_req++;
 
 	if (!(s->flags & SN_ERR_MASK))
 		s->flags |= SN_ERR_PRXCOND;
@@ -2641,8 +2640,8 @@ int http_process_tarpit(struct session *s, struct buffer *req, int an_bit)
 
 	req->analysers = 0;
 	req->analyse_exp = TICK_ETERNITY;
+	s->fe->counters.failed_req++;
 
-	s->fe->failed_req++;
 	if (!(s->flags & SN_ERR_MASK))
 		s->flags |= SN_ERR_PRXCOND;
 	if (!(s->flags & SN_FINST_MASK))
@@ -2834,8 +2833,8 @@ int process_response(struct session *t)
 				buffer_shutr_now(rep);
 				buffer_shutw_now(req);
 				if (t->srv)
-					t->srv->failed_resp++;
-				t->be->failed_resp++;
+					t->srv->counters.failed_resp++;
+				t->be->counters.failed_resp++;
 				rep->analysers = 0;
 				txn->status = 502;
 				stream_int_return(rep->cons, error_message(t, HTTP_ERR_502));
@@ -2857,8 +2856,8 @@ int process_response(struct session *t)
 				buffer_shutr_now(rep);
 				buffer_shutw_now(req);
 				if (t->srv)
-					t->srv->failed_resp++;
-				t->be->failed_resp++;
+					t->srv->counters.failed_resp++;
+				t->be->counters.failed_resp++;
 				rep->analysers = 0;
 				txn->status = 502;
 				stream_int_return(rep->cons, error_message(t, HTTP_ERR_502));
@@ -2875,8 +2874,8 @@ int process_response(struct session *t)
 				buffer_shutr_now(rep);
 				buffer_shutw_now(req);
 				if (t->srv)
-					t->srv->failed_resp++;
-				t->be->failed_resp++;
+					t->srv->counters.failed_resp++;
+				t->be->counters.failed_resp++;
 				rep->analysers = 0;
 				txn->status = 504;
 				stream_int_return(rep->cons, error_message(t, HTTP_ERR_504));
@@ -2892,8 +2891,8 @@ int process_response(struct session *t)
 					http_capture_bad_message(&t->be->invalid_rep, t, rep, msg, t->fe);
 				buffer_shutw_now(req);
 				if (t->srv)
-					t->srv->failed_resp++;
-				t->be->failed_resp++;
+					t->srv->counters.failed_resp++;
+				t->be->counters.failed_resp++;
 				rep->analysers = 0;
 				txn->status = 502;
 				stream_int_return(rep->cons, error_message(t, HTTP_ERR_502));
@@ -2908,7 +2907,7 @@ int process_response(struct session *t)
 				if (msg->err_pos >= 0)
 					http_capture_bad_message(&t->be->invalid_rep, t, rep, msg, t->fe);
 				buffer_shutr_now(rep);
-				t->be->failed_resp++;
+				t->be->counters.failed_resp++;
 				rep->analysers = 0;
 				if (!(t->flags & SN_ERR_MASK))
 					t->flags |= SN_ERR_CLICL;
@@ -2997,8 +2996,8 @@ int process_response(struct session *t)
 				if (apply_filters_to_response(t, rep, rule_set->rsp_exp) < 0) {
 				return_bad_resp:
 					if (t->srv)
-						t->srv->failed_resp++;
-					cur_proxy->failed_resp++;
+						t->srv->counters.failed_resp++;
+					cur_proxy->counters.failed_resp++;
 				return_srv_prx_502:
 					buffer_shutr_now(rep);
 					buffer_shutw_now(req);
@@ -3016,8 +3015,8 @@ int process_response(struct session *t)
 			/* has the response been denied ? */
 			if (txn->flags & TX_SVDENY) {
 				if (t->srv)
-					t->srv->failed_secu++;
-				cur_proxy->denied_resp++;
+					t->srv->counters.failed_secu++;
+				cur_proxy->counters.denied_resp++;
 				goto return_srv_prx_502;
 			}
 
@@ -3157,9 +3156,8 @@ int process_response(struct session *t)
 			 * the 'checkcache' option, and send an alert.
 			 */
 			if (t->srv)
-				t->srv->failed_secu++;
-			t->be->denied_resp++;
-
+				t->srv->counters.failed_secu++;
+			cur_proxy->counters.denied_resp++;
 			Alert("Blocking cacheable cookie in response from instance %s, server %s.\n",
 			      t->be->id, t->srv?t->srv->id:"<dispatch>");
 			send_log(t->be, LOG_ALERT,
@@ -3310,13 +3308,13 @@ int apply_filter_to_req_headers(struct session *t, struct buffer *req, struct hd
 			case ACT_DENY:
 				txn->flags |= TX_CLDENY;
 				last_hdr = 1;
-				t->be->denied_req++;
+				t->be->counters.denied_req++;
 				break;
 
 			case ACT_TARPIT:
 				txn->flags |= TX_CLTARPIT;
 				last_hdr = 1;
-				t->be->denied_req++;
+				t->be->counters.denied_req++;
 				break;
 
 			case ACT_REPLACE:
@@ -3421,13 +3419,13 @@ int apply_filter_to_req_line(struct session *t, struct buffer *req, struct hdr_e
 
 		case ACT_DENY:
 			txn->flags |= TX_CLDENY;
-			t->be->denied_req++;
+			t->be->counters.denied_req++;
 			done = 1;
 			break;
 
 		case ACT_TARPIT:
 			txn->flags |= TX_CLTARPIT;
-			t->be->denied_req++;
+			t->be->counters.denied_req++;
 			done = 1;
 			break;
 

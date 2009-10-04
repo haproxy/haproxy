@@ -281,7 +281,7 @@ void sig_dump_state(int sig)
 				 "SIGHUP: Server %s/%s is %s. Conn: %d act, %d pend, %lld tot.",
 				 p->id, s->id,
 				 (s->state & SRV_RUNNING) ? "UP" : "DOWN",
-				 s->cur_sess, s->nbpend, s->cum_sess);
+				 s->cur_sess, s->nbpend, s->counters.cum_sess);
 			Warning("%s\n", trash);
 			send_log(p, LOG_NOTICE, "%s\n", trash);
 			s = s->next;
@@ -292,19 +292,19 @@ void sig_dump_state(int sig)
 			snprintf(trash, sizeof(trash),
 				 "SIGHUP: Proxy %s has no servers. Conn: act(FE+BE): %d+%d, %d pend (%d unass), tot(FE+BE): %lld+%lld.",
 				 p->id,
-				 p->feconn, p->beconn, p->totpend, p->nbpend, p->cum_feconn, p->cum_beconn);
+				 p->feconn, p->beconn, p->totpend, p->nbpend, p->counters.cum_feconn, p->counters.cum_beconn);
 		} else if (p->srv_act == 0) {
 			snprintf(trash, sizeof(trash),
 				 "SIGHUP: Proxy %s %s ! Conn: act(FE+BE): %d+%d, %d pend (%d unass), tot(FE+BE): %lld+%lld.",
 				 p->id,
 				 (p->srv_bck) ? "is running on backup servers" : "has no server available",
-				 p->feconn, p->beconn, p->totpend, p->nbpend, p->cum_feconn, p->cum_beconn);
+				 p->feconn, p->beconn, p->totpend, p->nbpend, p->counters.cum_feconn, p->counters.cum_beconn);
 		} else {
 			snprintf(trash, sizeof(trash),
 				 "SIGHUP: Proxy %s has %d active servers and %d backup servers available."
 				 " Conn: act(FE+BE): %d+%d, %d pend (%d unass), tot(FE+BE): %lld+%lld.",
 				 p->id, p->srv_act, p->srv_bck,
-				 p->feconn, p->beconn, p->totpend, p->nbpend, p->cum_feconn, p->cum_beconn);
+				 p->feconn, p->beconn, p->totpend, p->nbpend, p->counters.cum_feconn, p->counters.cum_beconn);
 		}
 		Warning("%s\n", trash);
 		send_log(p, LOG_NOTICE, "%s\n", trash);

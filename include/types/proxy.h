@@ -37,6 +37,7 @@
 #include <types/acl.h>
 #include <types/backend.h>
 #include <types/buffers.h>
+#include <types/counters.h>
 #include <types/freq_ctr.h>
 #include <types/httperr.h>
 #include <types/log.h>
@@ -196,14 +197,11 @@ struct proxy {
 	struct list pendconns;			/* pending connections with no server assigned yet */
 	int nbpend, nbpend_max;			/* number of pending connections with no server assigned yet */
 	int totpend;				/* total number of pending connections on this instance (for stats) */
-	unsigned int feconn, feconn_max;	/* # of active frontend sessions */
-	unsigned int beconn, beconn_max;	/* # of active backend sessions */
+	unsigned int feconn, beconn;		/* # of active frontend and backends sessions */
 	struct freq_ctr fe_sess_per_sec;	/* sessions per second on the frontend */
 	unsigned int fe_sps_max;		/* maximum of new sessions per second seen on the frontend */
 	struct freq_ctr be_sess_per_sec;	/* sessions per second on the backend */
 	unsigned int be_sps_max;		/* maximum of new sessions per second seen on the backend */
-	long long cum_feconn, cum_beconn;	/* cumulated number of processed sessions */
-	long long cum_lbconn;			/* cumulated number of sessions processed by load balancing */
 	unsigned int maxconn;			/* max # of active sessions on the frontend */
 	unsigned int fe_sps_lim;		/* limit on new sessions per second on the frontend */
 	unsigned int fullconn;			/* #conns on backend above which servers are used at full load */
@@ -219,12 +217,6 @@ struct proxy {
 	unsigned down_time;			/* total time the proxy was down */
 	time_t last_change;			/* last time, when the state was changed */
 
-	long long failed_conns, failed_resp;	/* failed connect() and responses */
-	long long retries, redispatches;	/* retried and redispatched connections */
-	long long denied_req, denied_resp;	/* blocked requests/responses because of security concerns */
-	long long failed_req;			/* failed requests (eg: invalid or timeout) */
-	long long bytes_in;			/* number of bytes transferred from the client to the server */
-	long long bytes_out;			/* number of bytes transferred from the server to the client */
 	int conn_retries;			/* maximum number of connect retries */
 	int cap;				/* supported capabilities (PR_CAP_*) */
 	struct sockaddr_in source_addr;		/* the address to which we want to bind for connect() */
@@ -255,7 +247,7 @@ struct proxy {
 	int check_len;				/* Length of the HTTP or SSL3 request */
 	struct chunk errmsg[HTTP_ERR_SIZE];	/* default or customized error messages for known errors */
 	int uuid;				/* universally unique proxy ID, used for SNMP */
-	int next_svid;				/* next server-id, used for SNMP */
+	int next_svid, next_lid;		/* next server-id and listener-id, used for SNMP */
 	unsigned int backlog;			/* force the frontend's listen backlog */
 	unsigned int bind_proc;			/* bitmask of processes using this proxy. 0 = all. */
 	struct error_snapshot invalid_req, invalid_rep; /* captures of last errors */
@@ -263,6 +255,8 @@ struct proxy {
 	/* used only during configuration parsing */
 	int no_options;				/* PR_O_REDISP, PR_O_TRANSP, ... */
 	int no_options2;			/* PR_O2_* */
+
+	struct pxcounters counters;		/* statistics counters */
 };
 
 struct switching_rule {

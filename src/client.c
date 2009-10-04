@@ -255,7 +255,7 @@ int event_accept(int fd) {
 		s->data_source = DATA_SRC_NONE;
 
 		s->uniq_id = totalconn;
-		proxy_inc_fe_ctr(p);	/* note: cum_beconn will be increased once assigned */
+		proxy_inc_fe_ctr(l, p);	/* note: cum_beconn will be increased once assigned */
 
 		txn = &s->txn;
 		txn->flags = 0;
@@ -488,8 +488,8 @@ int event_accept(int fd) {
 		}
 
 		p->feconn++;  /* beconn will be increased later */
-		if (p->feconn > p->feconn_max)
-			p->feconn_max = p->feconn;
+		if (p->feconn > p->counters.feconn_max)
+			p->counters.feconn_max = p->feconn;
 
 		actconn++;
 		totalconn++;

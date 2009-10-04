@@ -344,7 +344,7 @@ static void set_server_down(struct server *s)
 		if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
 			set_backend_down(s->proxy);
 
-		s->down_trans++;
+		s->counters.down_trans++;
 
 		if (s->state & SRV_CHECKED)
 			for(srv = s->tracknext; srv; srv = srv->tracknext)
@@ -942,7 +942,7 @@ struct task *process_chk(struct task *t)
 		/* here, we have seen a failure */
 		if (s->health > s->rise) {
 			s->health--; /* still good */
-			s->failed_checks++;
+			s->counters.failed_checks++;
 		}
 		else
 			set_server_down(s);
@@ -1033,7 +1033,7 @@ struct task *process_chk(struct task *t)
 			/* failure or timeout detected */
 			if (s->health > s->rise) {
 				s->health--; /* still good */
-				s->failed_checks++;
+				s->counters.failed_checks++;
 			}
 			else
 				set_server_down(s);

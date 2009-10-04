@@ -598,8 +598,8 @@ int assign_server(struct session *s)
 			goto out;
 		}
 		else if (s->srv != s->prev_srv) {
-			s->be->cum_lbconn++;
-			s->srv->cum_lbconn++;
+			s->be->counters.cum_lbconn++;
+			s->srv->counters.cum_lbconn++;
 		}
 	}
 	else if (s->be->options & PR_O_HTTP_PROXY) {
@@ -749,11 +749,11 @@ int assign_server_and_queue(struct session *s)
 					s->txn.flags |= TX_CK_DOWN;
 				}
 				s->flags |= SN_REDISP;
-				s->prev_srv->redispatches++;
-				s->be->redispatches++;
+				s->prev_srv->counters.redispatches++;
+				s->be->counters.redispatches++;
 			} else {
-				s->prev_srv->retries++;
-				s->be->retries++;
+				s->prev_srv->counters.retries++;
+				s->be->counters.retries++;
 			}
 		}
 	}
@@ -906,8 +906,8 @@ int srv_redispatch_connect(struct session *t)
 			t->req->cons->err_loc = t->srv;
 		}
 
-		t->srv->failed_conns++;
-		t->be->failed_conns++;
+		t->srv->counters.failed_conns++;
+		t->be->counters.failed_conns++;
 		return 1;
 
 	case SRV_STATUS_NOSRV:
@@ -917,7 +917,7 @@ int srv_redispatch_connect(struct session *t)
 			t->req->cons->err_loc = NULL;
 		}
 
-		t->be->failed_conns++;
+		t->be->counters.failed_conns++;
 		return 1;
 
 	case SRV_STATUS_QUEUED:
@@ -936,8 +936,8 @@ int srv_redispatch_connect(struct session *t)
 		if (t->srv)
 			srv_inc_sess_ctr(t->srv);
 		if (t->srv)
-			t->srv->failed_conns++;
-		t->be->failed_conns++;
+			t->srv->counters.failed_conns++;
+		t->be->counters.failed_conns++;
 
 		/* release other sessions waiting for this server */
 		if (may_dequeue_tasks(t->srv, t->be))

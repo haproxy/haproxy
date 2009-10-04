@@ -1060,8 +1060,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     "",
 				     U2H0(read_freq_ctr(&px->fe_sess_per_sec)),
 				     U2H1(px->fe_sps_max), LIM2A2(px->fe_sps_lim, "-"),
-				     U2H3(px->feconn), U2H4(px->feconn_max), U2H5(px->maxconn),
-				     U2H6(px->cum_feconn), U2H7(px->bytes_in), U2H8(px->bytes_out));
+				     U2H3(px->feconn), U2H4(px->counters.feconn_max), U2H5(px->maxconn),
+				     U2H6(px->counters.cum_feconn), U2H7(px->counters.bytes_in), U2H8(px->counters.bytes_out));
 
 				chunk_printf(&msg,
 				     /* denied: req, resp */
@@ -1075,8 +1075,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     /* rest of server: nothing */
 				     "<td align=center colspan=8></td></tr>"
 				     "",
-				     U2H0(px->denied_req), U2H1(px->denied_resp),
-				     U2H2(px->failed_req),
+				     U2H0(px->counters.denied_req), U2H1(px->counters.denied_resp),
+				     U2H2(px->counters.failed_req),
 				     px->state == PR_STRUN ? "OPEN" :
 				     px->state == PR_STIDLE ? "FULL" : "STOP");
 			} else {
@@ -1105,10 +1105,10 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     ",,,"
 				     "\n",
 				     px->id,
-				     px->feconn, px->feconn_max, px->maxconn, px->cum_feconn,
-				     px->bytes_in, px->bytes_out,
-				     px->denied_req, px->denied_resp,
-				     px->failed_req,
+				     px->feconn, px->counters.feconn_max, px->maxconn, px->counters.cum_feconn,
+				     px->counters.bytes_in, px->counters.bytes_out,
+				     px->counters.denied_req, px->counters.denied_resp,
+				     px->counters.failed_req,
 				     px->state == PR_STRUN ? "OPEN" :
 				     px->state == PR_STIDLE ? "FULL" : "STOP",
 				     relative_pid, px->uuid, STATS_TYPE_FE,
@@ -1190,7 +1190,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     U2H0(sv->nbpend), U2H1(sv->nbpend_max), LIM2A2(sv->maxqueue, "-"),
 				     U2H3(read_freq_ctr(&sv->sess_per_sec)), U2H4(sv->sps_max),
 				     U2H5(sv->cur_sess), U2H6(sv->cur_sess_max), LIM2A7(sv->maxconn, "-"),
-				     U2H8(sv->cum_sess), U2H9(sv->cum_lbconn));
+				     U2H8(sv->counters.cum_sess), U2H9(sv->counters.cum_lbconn));
 
 				chunk_printf(&msg,
 				     /* bytes : in, out */
@@ -1202,10 +1202,10 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     /* warnings: retries, redispatches */
 				     "<td align=right>%lld</td><td align=right>%lld</td>"
 				     "",
-				     U2H0(sv->bytes_in), U2H1(sv->bytes_out),
-				     U2H2(sv->failed_secu),
-				     U2H3(sv->failed_conns), U2H4(sv->failed_resp),
-				     sv->retries, sv->redispatches);
+				     U2H0(sv->counters.bytes_in), U2H1(sv->counters.bytes_out),
+				     U2H2(sv->counters.failed_secu),
+				     U2H3(sv->counters.failed_conns), U2H4(sv->counters.failed_resp),
+				     sv->counters.retries, sv->counters.redispatches);
 
 				/* status, lest check */
 				chunk_printf(&msg, "<td nowrap>");
@@ -1249,7 +1249,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 					     "<td align=right>%lld</td><td align=right>%lld</td>"
 					     "<td nowrap align=right>%s</td>"
 					     "",
-					     svs->failed_checks, svs->down_trans,
+					     svs->counters.failed_checks, svs->counters.down_trans,
 					     human_time(srv_downtime(sv), 1));
 				else if (sv != svs)
 					chunk_printf(&msg,
@@ -1293,11 +1293,11 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     "",
 				     px->id, sv->id,
 				     sv->nbpend, sv->nbpend_max,
-				     sv->cur_sess, sv->cur_sess_max, LIM2A0(sv->maxconn, ""), sv->cum_sess,
-				     sv->bytes_in, sv->bytes_out,
-				     sv->failed_secu,
-				     sv->failed_conns, sv->failed_resp,
-				     sv->retries, sv->redispatches);
+				     sv->cur_sess, sv->cur_sess_max, LIM2A0(sv->maxconn, ""), sv->counters.cum_sess,
+				     sv->counters.bytes_in, sv->counters.bytes_out,
+				     sv->counters.failed_secu,
+				     sv->counters.failed_conns, sv->counters.failed_resp,
+				     sv->counters.retries, sv->counters.redispatches);
 
 				/* status */
 				chunk_printf(&msg,
@@ -1317,7 +1317,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				if (sv->state & SRV_CHECKED)
 					chunk_printf(&msg,
 					     "%lld,%lld,%d,%d,",
-					     sv->failed_checks, sv->down_trans,
+					     sv->counters.failed_checks, sv->counters.down_trans,
 					     (int)(now.tv_sec - sv->last_change), srv_downtime(sv));
 				else
 					chunk_printf(&msg,
@@ -1340,7 +1340,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				}
 
 				/* sessions: lbtot */
-				chunk_printf(&msg, ",%lld,", sv->cum_lbconn);
+				chunk_printf(&msg, ",%lld,", sv->counters.cum_lbconn);
 
 				/* tracked */
 				if (sv->tracked)
@@ -1410,9 +1410,9 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     /* bytes : in, out */
 				     "<td align=right>%s</td><td align=right>%s</td>"
 				     "",
-				     U2H2(px->beconn), U2H3(px->beconn_max), U2H4(px->fullconn),
-				     U2H6(px->cum_beconn), U2H7(px->cum_lbconn),
-				     U2H8(px->bytes_in), U2H9(px->bytes_out));
+				     U2H2(px->beconn), U2H3(px->counters.beconn_max), U2H4(px->fullconn),
+				     U2H6(px->counters.cum_beconn), U2H7(px->counters.cum_lbconn),
+				     U2H8(px->counters.bytes_in), U2H9(px->counters.bytes_out));
 
 				chunk_printf(&msg,
 				     /* denied: req, resp */
@@ -1428,9 +1428,9 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     "<td align=center nowrap>%s %s</td><td align=center>&nbsp;</td><td align=center>%d</td>"
 				     "<td align=center>%d</td><td align=center>%d</td>"
 				     "",
-				     U2H0(px->denied_req), U2H1(px->denied_resp),
-				     U2H2(px->failed_conns), U2H3(px->failed_resp),
-				     px->retries, px->redispatches,
+				     U2H0(px->counters.denied_req), U2H1(px->counters.denied_resp),
+				     U2H2(px->counters.failed_conns), U2H3(px->counters.failed_resp),
+				     px->counters.retries, px->counters.redispatches,
 				     human_time(now.tv_sec - px->last_change, 1),
 				     (px->lbprm.tot_weight > 0 || !px->srv) ? "UP" :
 					     "<font color=\"red\"><b>DOWN</b></font>",
@@ -1478,18 +1478,18 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     "\n",
 				     px->id,
 				     px->nbpend /* or px->totpend ? */, px->nbpend_max,
-				     px->beconn, px->beconn_max, px->fullconn, px->cum_beconn,
-				     px->bytes_in, px->bytes_out,
-				     px->denied_req, px->denied_resp,
-				     px->failed_conns, px->failed_resp,
-				     px->retries, px->redispatches,
+				     px->beconn, px->counters.beconn_max, px->fullconn, px->counters.cum_beconn,
+				     px->counters.bytes_in, px->counters.bytes_out,
+				     px->counters.denied_req, px->counters.denied_resp,
+				     px->counters.failed_conns, px->counters.failed_resp,
+				     px->counters.retries, px->counters.redispatches,
 				     (px->lbprm.tot_weight > 0 || !px->srv) ? "UP" : "DOWN",
 				     (px->lbprm.tot_weight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv,
 				     px->srv_act, px->srv_bck,
 				     px->down_trans, (int)(now.tv_sec - px->last_change),
 				     px->srv?be_downtime(px):0,
 				     relative_pid, px->uuid,
-				     px->cum_lbconn, STATS_TYPE_BE,
+				     px->counters.cum_lbconn, STATS_TYPE_BE,
 				     read_freq_ctr(&px->be_sess_per_sec),
 				     px->be_sps_max);
 			}

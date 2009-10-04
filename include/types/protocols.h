@@ -76,6 +76,8 @@
  */
 struct listener {
 	int fd;				/* the listen socket */
+	char *name;			/* */
+	int luid;			/* listener universally unique ID, used for SNMP */
 	int state;			/* state: NEW, INIT, ASSIGNED, LISTEN, READY, FULL */
 	int options;			/* socket options : LI_O_* */
 	struct sockaddr_storage addr;	/* the address we listen to */
