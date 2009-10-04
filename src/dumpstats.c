@@ -467,11 +467,10 @@ void stats_io_handler(struct stream_interface *si)
 			s->ana_state = STATS_ST_REQ;
 		}
 		else if (s->ana_state == STATS_ST_CLOSE) {
-			/* let's close for real now. Note that we may as well
-			 * call shutw+shutr, but this is enough since the shut
-			 * conditions below will complete.
+			/* Let's close for real now. We just close the request
+			 * side, the conditions below will complete if needed.
 			 */
-			buffer_shutw(si->ob);
+			si->shutw(si);
 			s->ana_state = 0;
 			break;
 		}

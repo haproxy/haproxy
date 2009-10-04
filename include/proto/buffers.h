@@ -163,20 +163,6 @@ static inline void buffer_cut_tail(struct buffer *buf)
 		buf->flags |= BF_FULL;
 }
 
-/* marks the buffer as "shutdown" for reads and cancels the timeout */
-static inline void buffer_shutr(struct buffer *buf)
-{
-	buf->rex = TICK_ETERNITY;
-	buf->flags |= BF_SHUTR;
-}
-
-/* marks the buffer as "shutdown" for writes and cancels the timeout */
-static inline void buffer_shutw(struct buffer *buf)
-{
-	buf->wex = TICK_ETERNITY;
-	buf->flags |= BF_SHUTW;
-}
-
 /* marks the buffer as "shutdown" ASAP for reads */
 static inline void buffer_shutr_now(struct buffer *buf)
 {
