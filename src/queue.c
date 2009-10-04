@@ -1,7 +1,7 @@
 /*
  * Queue management functions.
  *
- * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2009 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -147,14 +147,14 @@ struct pendconn *pendconn_add(struct session *sess)
 		LIST_ADDQ(&sess->srv->pendconns, &p->list);
 		sess->srv->nbpend++;
 		sess->logs.srv_queue_size += sess->srv->nbpend;
-		if (sess->srv->nbpend > sess->srv->nbpend_max)
-			sess->srv->nbpend_max = sess->srv->nbpend;
+		if (sess->srv->nbpend > sess->srv->counters.nbpend_max)
+			sess->srv->counters.nbpend_max = sess->srv->nbpend;
 	} else {
 		LIST_ADDQ(&sess->be->pendconns, &p->list);
 		sess->be->nbpend++;
 		sess->logs.prx_queue_size += sess->be->nbpend;
-		if (sess->be->nbpend > sess->be->nbpend_max)
-			sess->be->nbpend_max = sess->be->nbpend;
+		if (sess->be->nbpend > sess->be->counters.nbpend_max)
+			sess->be->counters.nbpend_max = sess->be->nbpend;
 	}
 	sess->be->totpend++;
 	return p;

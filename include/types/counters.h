@@ -28,6 +28,10 @@ struct pxcounters {
 	long long cum_feconn, cum_beconn;	/* cumulated number of processed sessions */
 	long long cum_lbconn;			/* cumulated number of sessions processed by load balancing */
 
+	unsigned int fe_sps_max;		/* maximum of new sessions per second seen on the frontend */
+	unsigned int be_sps_max;		/* maximum of new sessions per second seen on the backend */
+	unsigned int nbpend_max;		/* max number of pending connections with no server assigned yet */
+
 	long long bytes_in;			/* number of bytes transferred from the client to the server */
 	long long bytes_out;			/* number of bytes transferred from the server to the client */
 
@@ -51,6 +55,10 @@ struct licounters {
 };
 
 struct srvcounters {
+	unsigned int cur_sess_max;		/* max number of currently active sessions */
+	unsigned int nbpend_max;		/* max number of pending connections reached */
+	unsigned int sps_max;			/* maximum of new sessions per second seen on this server */
+
 	long long cum_sess;			/* cumulated number of sessions really sent to this server */
 	long long cum_lbconn;			/* cumulated number of sessions directed by load balancing */
 

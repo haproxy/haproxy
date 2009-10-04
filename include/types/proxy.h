@@ -197,13 +197,11 @@ struct proxy {
 	} timeout;
 	char *id, *desc;			/* proxy id (name) and description */
 	struct list pendconns;			/* pending connections with no server assigned yet */
-	int nbpend, nbpend_max;			/* number of pending connections with no server assigned yet */
+	int nbpend;				/* number of pending connections with no server assigned yet */
 	int totpend;				/* total number of pending connections on this instance (for stats) */
 	unsigned int feconn, beconn;		/* # of active frontend and backends sessions */
 	struct freq_ctr fe_sess_per_sec;	/* sessions per second on the frontend */
-	unsigned int fe_sps_max;		/* maximum of new sessions per second seen on the frontend */
 	struct freq_ctr be_sess_per_sec;	/* sessions per second on the backend */
-	unsigned int be_sps_max;		/* maximum of new sessions per second seen on the backend */
 	unsigned int maxconn;			/* max # of active sessions on the frontend */
 	unsigned int fe_sps_lim;		/* limit on new sessions per second on the frontend */
 	unsigned int fullconn;			/* #conns on backend above which servers are used at full load */
@@ -244,6 +242,7 @@ struct proxy {
 	                 *rsp_cap_pool;
 	struct pool_head *hdr_idx_pool;         /* pools of pre-allocated int* used for headers indexing */
 	char *req_add[MAX_NEWHDR], *rsp_add[MAX_NEWHDR]; /* headers to be added */
+	struct pxcounters counters;		/* statistics counters */
 	int grace;				/* grace time after stop request */
 	char *check_req;			/* HTTP or SSL request to use for PR_O_HTTP_CHK|PR_O_SSL3_CHK */
 	int check_len;				/* Length of the HTTP or SSL3 request */
@@ -256,8 +255,6 @@ struct proxy {
 	/* used only during configuration parsing */
 	int no_options;				/* PR_O_REDISP, PR_O_TRANSP, ... */
 	int no_options2;			/* PR_O2_* */
-
-	struct pxcounters counters;		/* statistics counters */
 
 	struct {
 		const char *file;		/* file where the section appears */

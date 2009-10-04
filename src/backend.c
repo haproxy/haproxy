@@ -856,8 +856,8 @@ int connect_server(struct session *s)
 	if (s->srv) {
 		s->flags |= SN_CURR_SESS;
 		s->srv->cur_sess++;
-		if (s->srv->cur_sess > s->srv->cur_sess_max)
-			s->srv->cur_sess_max = s->srv->cur_sess;
+		if (s->srv->cur_sess > s->srv->counters.cur_sess_max)
+			s->srv->counters.cur_sess_max = s->srv->cur_sess;
 		if (s->be->lbprm.server_take_conn)
 			s->be->lbprm.server_take_conn(s->srv);
 	}

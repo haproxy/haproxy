@@ -83,10 +83,12 @@ struct server {
 
 	struct proxy *proxy;			/* the proxy this server belongs to */
 	int served;				/* # of active sessions currently being served (ie not pending) */
-	int cur_sess, cur_sess_max;		/* number of currently active sessions (including syn_sent) */
+	int cur_sess;				/* number of currently active sessions (including syn_sent) */
 	unsigned maxconn, minconn;		/* max # of active sessions (0 = unlimited), min# for dynamic limit. */
-	int nbpend, nbpend_max;			/* number of pending connections */
+	int nbpend;				/* number of pending connections */
 	int maxqueue;				/* maximum number of pending connections allowed */
+	struct srvcounters counters;		/* statistics counters */
+
 	struct list pendconns;			/* pending connections */
 	struct task *check;                     /* the task associated to the health check processing */
 
@@ -127,10 +129,7 @@ struct server {
 	short check_status, check_code;		/* check result, check code */
 
 	struct freq_ctr sess_per_sec;		/* sessions per second on this server */
-	unsigned int sps_max;			/* maximum of new sessions per second seen on this server */
 	int puid;				/* proxy-unique server ID, used for SNMP */
-
-	struct srvcounters counters;		/* statistics counters */
 
 	struct {
 		const char *file;		/* file where the section appears */

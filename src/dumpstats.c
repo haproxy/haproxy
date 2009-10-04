@@ -1084,7 +1084,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     "<td align=right>%s</td><td align=right>%s</td>"
 				     "",
 				     U2H0(read_freq_ctr(&px->fe_sess_per_sec)),
-				     U2H1(px->fe_sps_max), LIM2A2(px->fe_sps_lim, "-"),
+				     U2H1(px->counters.fe_sps_max), LIM2A2(px->fe_sps_lim, "-"),
 				     U2H3(px->feconn), U2H4(px->counters.feconn_max), U2H5(px->maxconn),
 				     U2H6(px->counters.cum_feconn), U2H7(px->counters.bytes_in), U2H8(px->counters.bytes_out));
 
@@ -1138,7 +1138,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     px->state == PR_STIDLE ? "FULL" : "STOP",
 				     relative_pid, px->uuid, STATS_TYPE_FE,
 				     read_freq_ctr(&px->fe_sess_per_sec),
-				     px->fe_sps_lim, px->fe_sps_max);
+				     px->fe_sps_lim, px->counters.fe_sps_max);
 			}
 
 			if (buffer_feed_chunk(rep, &msg) >= 0)
@@ -1301,9 +1301,9 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     "",
 				     (sv->state & SRV_BACKUP) ? "backup" : "active",
 				     sv_state, sv->id,
-				     U2H0(sv->nbpend), U2H1(sv->nbpend_max), LIM2A2(sv->maxqueue, "-"),
-				     U2H3(read_freq_ctr(&sv->sess_per_sec)), U2H4(sv->sps_max),
-				     U2H5(sv->cur_sess), U2H6(sv->cur_sess_max), LIM2A7(sv->maxconn, "-"),
+				     U2H0(sv->nbpend), U2H1(sv->counters.nbpend_max), LIM2A2(sv->maxqueue, "-"),
+				     U2H3(read_freq_ctr(&sv->sess_per_sec)), U2H4(sv->counters.sps_max),
+				     U2H5(sv->cur_sess), U2H6(sv->counters.cur_sess_max), LIM2A7(sv->maxconn, "-"),
 				     U2H8(sv->counters.cum_sess), U2H9(sv->counters.cum_lbconn));
 
 				chunk_printf(&msg,
@@ -1406,8 +1406,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     "%lld,%lld,"
 				     "",
 				     px->id, sv->id,
-				     sv->nbpend, sv->nbpend_max,
-				     sv->cur_sess, sv->cur_sess_max, LIM2A0(sv->maxconn, ""), sv->counters.cum_sess,
+				     sv->nbpend, sv->counters.nbpend_max,
+				     sv->cur_sess, sv->counters.cur_sess_max, LIM2A0(sv->maxconn, ""), sv->counters.cum_sess,
 				     sv->counters.bytes_in, sv->counters.bytes_out,
 				     sv->counters.failed_secu,
 				     sv->counters.failed_conns, sv->counters.failed_resp,
@@ -1469,7 +1469,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				/* rate */
 				chunk_printf(&msg, "%u,,%u,",
 					     read_freq_ctr(&sv->sess_per_sec),
-					     sv->sps_max);
+					     sv->counters.sps_max);
 
 				if (sv->state & SRV_CHECKED) {
 					/* check_status */
@@ -1514,8 +1514,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     /* sessions rate : current, max, limit */
 				     "<td align=right>%s</td><td align=right>%s</td><td align=right></td>"
 				     "",
-				     U2H0(px->nbpend) /* or px->totpend ? */, U2H1(px->nbpend_max),
-				     U2H2(read_freq_ctr(&px->be_sess_per_sec)), U2H3(px->be_sps_max));
+				     U2H0(px->nbpend) /* or px->totpend ? */, U2H1(px->counters.nbpend_max),
+				     U2H2(read_freq_ctr(&px->be_sess_per_sec)), U2H3(px->counters.be_sps_max));
 
 				chunk_printf(&msg,
 				     /* sessions : current, max, limit, total, lbtot */
@@ -1591,7 +1591,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     ",,,"
 				     "\n",
 				     px->id,
-				     px->nbpend /* or px->totpend ? */, px->nbpend_max,
+				     px->nbpend /* or px->totpend ? */, px->counters.nbpend_max,
 				     px->beconn, px->counters.beconn_max, px->fullconn, px->counters.cum_beconn,
 				     px->counters.bytes_in, px->counters.bytes_out,
 				     px->counters.denied_req, px->counters.denied_resp,
@@ -1605,7 +1605,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     relative_pid, px->uuid,
 				     px->counters.cum_lbconn, STATS_TYPE_BE,
 				     read_freq_ctr(&px->be_sess_per_sec),
-				     px->be_sps_max);
+				     px->counters.be_sps_max);
 			}
 			if (buffer_feed_chunk(rep, &msg) >= 0)
 				return 0;
