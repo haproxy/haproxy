@@ -766,7 +766,7 @@ struct acl *parse_acl(const char **args, struct list *known_acl)
 	 * subject, as this is almost certainly a typo. Right now we can only
 	 * emit a warning, so let's do so.
 	 */
-	if (*args[2] == '(')
+	if (!strchr(args[1], '(') && *args[2] == '(')
 		Warning("parsing acl '%s' :\n"
 			"  matching '%s' for pattern '%s' is likely a mistake and probably\n"
 			"  not what you want. Maybe you need to remove the extraneous space before '('.\n"
