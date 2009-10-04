@@ -232,10 +232,9 @@ int print_csv_header(struct chunk *msg)
 }
 
 /* Processes the stats interpreter on the statistics socket. This function is
- * called from an applet running in a stream interface. Right now we still
- * support older functions which used to emulate servers and to set
- * STATS_ST_CLOSE upon completion, but we also support a new interactive mode.
- * The function returns 1 if the request was understood, otherwise zero.
+ * called from an applet running in a stream interface. The function returns 1
+ * if the request was understood, otherwise zero. It sets si->st0 to a value
+ * designating the function which will have to process the request.
  */
 int stats_sock_parse_request(struct stream_interface *si, char *line)
 {
@@ -266,7 +265,6 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 	while (++arg <= MAX_STATS_ARGS)
 		args[arg] = line;
 
-	si->st0 = 0;
 	s->data_ctx.stats.flags = 0;
 	if (strcmp(args[0], "show") == 0) {
 		if (strcmp(args[1], "stat") == 0) {
@@ -280,20 +278,17 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 			s->data_ctx.stats.flags |= STAT_SHOW_STAT;
 			s->data_ctx.stats.flags |= STAT_FMT_CSV;
 			s->data_state = DATA_ST_INIT;
-			s->ana_state = STATS_ST_REP;
-			si->st0 = 3; // stats_dump_raw_to_buffer
+			si->st0 = STAT_CLI_O_INFO; // stats_dump_raw_to_buffer
 		}
 		else if (strcmp(args[1], "info") == 0) {
 			s->data_ctx.stats.flags |= STAT_SHOW_INFO;
 			s->data_ctx.stats.flags |= STAT_FMT_CSV;
 			s->data_state = DATA_ST_INIT;
-			s->ana_state = STATS_ST_REP;
-			si->st0 = 3; // stats_dump_raw_to_buffer
+			si->st0 = STAT_CLI_O_INFO; // stats_dump_raw_to_buffer
 		}
 		else if (strcmp(args[1], "sess") == 0) {
 			s->data_state = DATA_ST_INIT;
-			s->ana_state = STATS_ST_REP;
-			si->st0 = 4; // stats_dump_sess_to_buffer
+			si->st0 = STAT_CLI_O_SESS; // stats_dump_sess_to_buffer
 		}
 		else if (strcmp(args[1], "errors") == 0) {
 			if (*args[2])
@@ -302,8 +297,7 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 				s->data_ctx.errors.iid	= -1;
 			s->data_ctx.errors.px = NULL;
 			s->data_state = DATA_ST_INIT;
-			s->ana_state = STATS_ST_REP;
-			si->st0 = 5; // stats_dump_errors_to_buffer
+			si->st0 = STAT_CLI_O_ERR; // stats_dump_errors_to_buffer
 		}
 		else { /* neither "stat" nor "info" nor "sess" */
 			return 0;
@@ -316,15 +310,12 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 }
 
 /* This I/O handler runs as an applet embedded in a stream interface. It is
- * used to processes I/O from/to the stats unix socket. Right now we still
- * support older functions which used to emulate servers and to set
- * STATS_ST_CLOSE upon completion, but we also support a new interactive mode.
- * The system relies on a request/response flip-flop state machine. We read
- * a request, then we process it and send the response. Then we can read again.
- * This could be enhanced a lot but we're still bound to support older output
- * functions which were designed to work as hijackers.
- * At the moment, we use si->st0 as the output type, and si->st1 to indicate
- * whether we're in prompt mode or not.
+ * used to processes I/O from/to the stats unix socket. The system relies on a
+ * state machine handling requests and various responses. We read a request,
+ * then we process it and send the response, and we possibly display a prompt.
+ * Then we can read again. The state is stored in si->st0 and is one of the
+ * STAT_CLI_* constants. si->st1 is used to indicate whether prompt is enabled
+ * or not.
  */
 void stats_io_handler(struct stream_interface *si)
 {
@@ -338,18 +329,25 @@ void stats_io_handler(struct stream_interface *si)
 		goto out;
 
 	while (1) {
-		if (s->ana_state == STATS_ST_INIT) {
+		if (si->st0 == STAT_CLI_INIT) {
 			/* Stats output not initialized yet */
 			memset(&s->data_ctx.stats, 0, sizeof(s->data_ctx.stats));
 			s->data_source = DATA_SRC_STATS;
-			s->ana_state = STATS_ST_REQ;
+			si->st0 = STAT_CLI_GETREQ;
 		}
-		else if (s->ana_state == STATS_ST_REQ) {
+		else if (si->st0 == STAT_CLI_END) {
+			/* Let's close for real now. We just close the request
+			 * side, the conditions below will complete if needed.
+			 */
+			si->shutw(si);
+			break;
+		}
+		else if (si->st0 == STAT_CLI_GETREQ) {
 			reql = buffer_si_peekline(si->ob, trash, sizeof(trash));
 			if (reql <= 0) { /* closed or EOL not found */
 				if (reql == 0)
 					break;
-				s->ana_state = STATS_ST_CLOSE;
+				si->st0 = STAT_CLI_END;
 				continue;
 			}
 
@@ -369,7 +367,7 @@ void stats_io_handler(struct stream_interface *si)
 			 */
 			len = reql - 1;
 			if (trash[len] != '\n') {
-				s->ana_state = STATS_ST_CLOSE;
+				si->st0 = STAT_CLI_END;
 				continue;
 			}
 
@@ -378,77 +376,69 @@ void stats_io_handler(struct stream_interface *si)
 
 			trash[len] = '\0';
 
-			si->st0 = 1; // default to prompt
+			si->st0 = STAT_CLI_PROMPT;
 			if (len) {
 				if (strcmp(trash, "quit") == 0) {
-					s->ana_state = STATS_ST_CLOSE;
+					si->st0 = STAT_CLI_END;
 					continue;
 				}
 				else if (strcmp(trash, "prompt") == 0)
 					si->st1 = !si->st1;
 				else if (strcmp(trash, "help") == 0 ||
 					 !stats_sock_parse_request(si, trash))
-					si->st0 = 2; // help
+					si->st0 = STAT_CLI_O_HELP;
+				/* NB: stats_sock_parse_request() may have put
+				 * another STAT_CLI_O_* into si->st0.
+				 */
 			}
 			else if (!si->st1) {
 				/* if prompt is disabled, print help on empty lines,
 				 * so that the user at least knows how to enable
 				 * prompt and find help.
 				 */
-				si->st0 = 2;
+				si->st0 = STAT_CLI_O_HELP;
 			}
 
 			/* re-adjust req buffer */
 			buffer_skip(si->ob, reql);
-
-			s->ana_state = STATS_ST_REP;
 			req->flags |= BF_READ_DONTWAIT; /* we plan to read small requests */
 		}
-		else if (s->ana_state == STATS_ST_REP) {
+		else {	/* output functions: first check if the output buffer is closed then abort */
 			if (res->flags & (BF_SHUTR_NOW|BF_SHUTR)) {
-				s->ana_state = STATS_ST_CLOSE;
+				si->st0 = STAT_CLI_END;
 				continue;
 			}
 
 			switch (si->st0) {
-			case 2:	/* help */
+			case STAT_CLI_O_HELP:
 				if (buffer_feed(si->ib, stats_sock_usage.str, stats_sock_usage.len) < 0)
-					/* message sent or too large for buffer (!) */
-					si->st0 = 1; // send prompt
+					si->st0 = STAT_CLI_PROMPT;
 				break;
-			case 3:	/* stats/info dump, should be split later ? */
+			case STAT_CLI_O_INFO:
 				if (stats_dump_raw_to_buffer(s, res))
-					si->st0 = 1; // end of command, send prompt
+					si->st0 = STAT_CLI_PROMPT;
 				break;
-			case 4:	/* sessions dump */
+			case STAT_CLI_O_SESS:
 				if (stats_dump_sess_to_buffer(s, res))
-					si->st0 = 1; // end of command, send prompt
+					si->st0 = STAT_CLI_PROMPT;
 				break;
-			case 5:	/* errors dump */
+			case STAT_CLI_O_ERR:	/* errors dump */
 				if (stats_dump_errors_to_buffer(s, res))
-					si->st0 = 1; // end of command, send prompt
+					si->st0 = STAT_CLI_PROMPT;
 				break;
-			default: /* abnormal state or lack of space for prompt */
-				si->st0 = 1; // return to prompt
+			default: /* abnormal state */
+				si->st0 = STAT_CLI_PROMPT;
 				break;
 			}
 
-			if (si->st0 == 1) {	/* post-command prompt (LF or LF + '> ') */
-				if (!si->st1) {	/* non-interactive mode */
-					if (buffer_feed(si->ib, "\n", 1) < 0)
-						si->st0 = 0; // end of output
-				}
-				else {		/* interactive mode */
-					if (buffer_feed(si->ib, "\n> ", 3) < 0)
-						si->st0 = 0; // end of output
-				}
+			/* The post-command prompt is either LF alone or LF + '> ' in interactive mode */
+			if (si->st0 == STAT_CLI_PROMPT) {
+				if (buffer_feed(si->ib, si->st1 ? "\n> " : "\n", si->st1 ? 3 : 1) < 0)
+					si->st0 = STAT_CLI_GETREQ;
 			}
 
-			/* If the output functions are still there, it means
-			 * they require more room.
-			 */
-			if (si->st0 > 0) {
-				s->ana_state = STATS_ST_REP; /* some old applets still force CLOSE */
+			/* If the output functions are still there, it means they require more room. */
+			if (si->st0 >= STAT_CLI_OUTPUT) {
 				si->flags |= SI_FL_WAIT_ROOM;
 				break;
 			}
@@ -459,24 +449,16 @@ void stats_io_handler(struct stream_interface *si)
 			 * to be sent in non-interactive mode.
 			 */
 			if ((res->flags & (BF_SHUTW|BF_SHUTW_NOW)) || (!si->st1 && !req->send_max)) {
-				s->ana_state = STATS_ST_CLOSE;
+				si->st0 = STAT_CLI_END;
 				continue;
 			}
 
-			/* switch state back to ST_REQ to read next requests */
-			s->ana_state = STATS_ST_REQ;
-		}
-		else if (s->ana_state == STATS_ST_CLOSE) {
-			/* Let's close for real now. We just close the request
-			 * side, the conditions below will complete if needed.
-			 */
-			si->shutw(si);
-			s->ana_state = 0;
-			break;
+			/* switch state back to GETREQ to read next requests */
+			si->st0 = STAT_CLI_GETREQ;
 		}
 	}
 
-	if ((res->flags & BF_SHUTR) && (si->state == SI_ST_EST) && (s->ana_state != STATS_ST_REQ)) {
+	if ((res->flags & BF_SHUTR) && (si->state == SI_ST_EST) && (si->st0 != STAT_CLI_GETREQ)) {
 		DPRINTF(stderr, "%s@%d: si to buf closed. req=%08x, res=%08x, st=%d\n",
 			__FUNCTION__, __LINE__, req->flags, res->flags, si->state);
 		/* Other size has closed, let's abort if we have no more processing to do
@@ -487,7 +469,7 @@ void stats_io_handler(struct stream_interface *si)
 		si->shutw(si);
 	}
 
-	if ((req->flags & BF_SHUTW) && (si->state == SI_ST_EST) && (s->ana_state != STATS_ST_REP)) {
+	if ((req->flags & BF_SHUTW) && (si->state == SI_ST_EST) && (si->st0 < STAT_CLI_OUTPUT)) {
 		DPRINTF(stderr, "%s@%d: buf to si closed. req=%08x, res=%08x, st=%d\n",
 			__FUNCTION__, __LINE__, req->flags, res->flags, si->state);
 		/* We have no more processing to do, and nothing more to send, and
@@ -513,7 +495,6 @@ void stats_io_handler(struct stream_interface *si)
 	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO)) {
 		/* check that we have released everything then unregister */
 		stream_int_unregister_handler(si);
-		s->ana_state = 0;
 	}
 }
 

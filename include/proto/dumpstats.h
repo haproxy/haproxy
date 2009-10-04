@@ -39,10 +39,18 @@
 #define STATS_TYPE_BE  1
 #define STATS_TYPE_SV  2
 
-#define STATS_ST_INIT  0
-#define STATS_ST_REQ   1
-#define STATS_ST_REP   2
-#define STATS_ST_CLOSE 3
+/* unix stats socket states */
+#define STAT_CLI_INIT   0   /* initial state */
+#define STAT_CLI_END    1   /* final state, let's close */
+#define STAT_CLI_GETREQ 2   /* wait for a request */
+#define STAT_CLI_OUTPUT 3   /* all states after this one are responses */
+#define STAT_CLI_PROMPT 3   /* display the prompt (first output, same code) */
+
+#define STAT_CLI_O_HELP 4   /* display help */
+#define STAT_CLI_O_INFO 5   /* dump info/stats */
+#define STAT_CLI_O_SESS 6   /* dump sessions */
+#define STAT_CLI_O_ERR  7   /* dump errors */
+
 
 int stats_sock_parse_request(struct stream_interface *si, char *line);
 void stats_io_handler(struct stream_interface *si);

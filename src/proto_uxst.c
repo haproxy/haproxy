@@ -471,7 +471,8 @@ int uxst_event_accept(int fd) {
 
 		stream_int_register_handler(&s->si[1], stats_io_handler);
 		s->si[1].private = s;
-		s->si[1].st0 = s->si[1].st1 = 0;
+		s->si[1].st1 = 0;
+		s->si[1].st0 = STAT_CLI_INIT;
 
 		s->srv = s->prev_srv = s->srv_conn = NULL;
 		s->pend_pos = NULL;
