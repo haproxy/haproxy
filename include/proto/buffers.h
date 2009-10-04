@@ -439,9 +439,9 @@ static inline void chunk_init(struct chunk *chk, char *str, size_t size) {
 }
 
 /* report 0 in case of error, 1 if OK. */
-static inline int chunk_initlen(struct chunk *chk, char *str, size_t size, size_t len) {
+static inline int chunk_initlen(struct chunk *chk, char *str, size_t size, int len) {
 
-	if (len > size)
+	if (size && len > size)
 		return 0;
 
 	chk->str  = str;

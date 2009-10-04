@@ -4596,8 +4596,7 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 			int len = txn->hdr_idx.v[cur_idx].len;
 			if (len > 14 &&
 			    !strncasecmp("Authorization:", h, 14)) {
-				txn->auth_hdr.str = h;
-				txn->auth_hdr.len = len;
+				chunk_initlen(&txn->auth_hdr, h, 0, len);
 				break;
 			}
 			h += len + txn->hdr_idx.v[cur_idx].cr + 1;
