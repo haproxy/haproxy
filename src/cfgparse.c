@@ -258,7 +258,6 @@ static int str2listener(char *str, struct proxy *curproxy)
 				tcpv4_add_listener(l);
 			}
 
-			l->luid = curproxy->next_lid++;
 			listeners++;
 		} /* end for(port) */
 	} /* end while(next) */
@@ -1013,9 +1012,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		curproxy->loglev2 = defproxy.loglev2;
 		curproxy->minlvl2 = defproxy.minlvl2;
 		curproxy->grace  = defproxy.grace;
-		curproxy->uuid = next_pxid++;   /* generate a uuid for this proxy */
-		curproxy->next_svid = 1;        /* server id 0 is reserved */
-		curproxy->next_lid  = 1;        /* listener id 0 is reserved */
+		curproxy->conf.used_listener_id = EB_ROOT;
+		curproxy->conf.used_server_id = EB_ROOT;
 
 		goto out;
 	}
@@ -1172,6 +1170,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			}
 
 			if (!strcmp(args[cur_arg], "id")) {
+				struct eb32_node *node;
 				struct listener *l;
 
 				if (curproxy->listen->next != last_listen) {
@@ -1189,21 +1188,25 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				}
 
 				curproxy->listen->luid = atol(args[cur_arg + 1]);
+				curproxy->listen->conf.id.key = curproxy->listen->luid;
 
-				if (curproxy->listen->luid < 1001) {
-					Alert("parsing [%s:%d]: custom id has to be > 1000\n",
+				if (curproxy->listen->luid <= 0) {
+					Alert("parsing [%s:%d]: custom id has to be > 0\n",
 						file, linenum);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
 
-				for (l = curproxy->listen; l; l = l->next)
-					if (curproxy->listen != l && l->luid == curproxy->listen->luid) {
-						Alert("parsing [%s:%d]: custom id %d for socket '%s' already used at %s:%d.\n",
-						      file, linenum, l->luid, args[1], l->conf.file, l->conf.line);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-					}
+				node = eb32_lookup(&curproxy->conf.used_listener_id, curproxy->listen->luid);
+				if (node) {
+					l = container_of(node, struct listener, conf.id);
+					Alert("parsing [%s:%d]: custom id %d for socket '%s' already used at %s:%d.\n",
+					      file, linenum, l->luid, args[1], l->conf.file, l->conf.line);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				eb32_insert(&curproxy->conf.used_listener_id, &curproxy->listen->conf.id);
+
 				cur_arg += 2;
 				continue;
 			}
@@ -1260,7 +1263,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 	}
 	else if (!strcmp(args[0], "id")) {
-		struct proxy *target;
+		struct eb32_node *node;
 
 		if (curproxy == &defproxy) {
 			Alert("parsing [%s:%d]: '%s' not allowed in 'defaults' section.\n",
@@ -1277,22 +1280,25 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		curproxy->uuid = atol(args[1]);
+		curproxy->conf.id.key = curproxy->uuid;
 
-		if (curproxy->uuid < 1001) {
-			Alert("parsing [%s:%d]: custom id has to be > 1000.\n",
+		if (curproxy->uuid <= 0) {
+			Alert("parsing [%s:%d]: custom id has to be > 0.\n",
 				file, linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 
-		for (target = proxy; target; target = target->next)
-			if (curproxy != target && curproxy->uuid == target->uuid) {
-				Alert("parsing [%s:%d]: %s %s reuses same custom id as %s %s (declared at %s:%d).\n",
-				      file, linenum, proxy_type_str(curproxy), curproxy->id,
-				      proxy_type_str(target), target->id, target->conf.file, target->conf.line);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
+		node = eb32_lookup(&used_proxy_id, curproxy->uuid);
+		if (node) {
+			struct proxy *target = container_of(node, struct proxy, conf.id);
+			Alert("parsing [%s:%d]: %s %s reuses same custom id as %s %s (declared at %s:%d).\n",
+			      file, linenum, proxy_type_str(curproxy), curproxy->id,
+			      proxy_type_str(target), target->id, target->conf.file, target->conf.line);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		eb32_insert(&used_proxy_id, &curproxy->conf.id);
 	}
 	else if (!strcmp(args[0], "description")) {
 		int i, len=0;
@@ -2474,7 +2480,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		newsrv->next = curproxy->srv;
 		curproxy->srv = newsrv;
 		newsrv->proxy = curproxy;
-		newsrv->puid = curproxy->next_svid++;
 		newsrv->conf.file = file;
 		newsrv->conf.line = linenum;
 
@@ -2521,7 +2526,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		cur_arg = 3;
 		while (*args[cur_arg]) {
 			if (!strcmp(args[cur_arg], "id")) {
-				struct server *target;
+				struct eb32_node *node;
 
 				if (!*args[cur_arg + 1]) {
 					Alert("parsing [%s:%d]: '%s' expects an integer argument.\n",
@@ -2531,21 +2536,24 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				}
 
 				newsrv->puid = atol(args[cur_arg + 1]);
+				newsrv->conf.id.key = newsrv->puid;
 
-				if (newsrv->puid< 1001) {
-					Alert("parsing [%s:%d]: custom id has to be > 1000.\n",
+				if (newsrv->puid <= 0) {
+					Alert("parsing [%s:%d]: custom id has to be > 0.\n",
 						file, linenum);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
 
-				for (target = proxy->srv; target; target = target->next)
-					if (newsrv != target && newsrv->puid == target->puid) {
-						Alert("parsing [%s:%d]: server %s reuses same custom id as server %s (declared at %s:%d).\n",
-						      file, linenum, newsrv->id, target->id, target->conf.file, target->conf.line);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-					}
+				node = eb32_lookup(&curproxy->conf.used_server_id, newsrv->puid);
+				if (node) {
+					struct server *target = container_of(node, struct server, conf.id);
+					Alert("parsing [%s:%d]: server %s reuses same custom id as server %s (declared at %s:%d).\n",
+					      file, linenum, newsrv->id, target->id, target->conf.file, target->conf.line);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				eb32_insert(&curproxy->conf.used_server_id, &newsrv->conf.id);
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "cookie")) {
@@ -3986,6 +3994,7 @@ int check_config_validity()
 	struct proxy *curproxy = NULL;
 	struct server *newsrv = NULL;
 	int err_code = 0;
+	unsigned int next_pxid = 1;
 
 	/*
 	 * Now, check for the integrity of all that we have collected.
@@ -4016,6 +4025,17 @@ int check_config_validity()
 	while (curproxy != NULL) {
 		struct switching_rule *rule;
 		struct listener *listener;
+		unsigned int next_id;
+
+		if (!curproxy->uuid) {
+			/* proxy ID not set, use automatic numbering with first
+			 * spare entry starting with next_pxid.
+			 */
+			next_pxid = get_next_id(&used_proxy_id, next_pxid);
+			curproxy->conf.id.key = curproxy->uuid = next_pxid;
+			eb32_insert(&used_proxy_id, &curproxy->conf.id);
+			next_pxid++;
+		}
 
 		if (curproxy->state == PR_STSTOPPED) {
 			/* ensure we don't keep listeners uselessly bound */
@@ -4301,8 +4321,19 @@ int check_config_validity()
 		/*
 		 * ensure that we're not cross-dressing a TCP server into HTTP.
 		 */
+		next_id = 1;
 		newsrv = curproxy->srv;
 		while (newsrv != NULL) {
+			if (!newsrv->puid) {
+				/* server ID not set, use automatic numbering with first
+				 * spare entry starting with next_svid.
+				 */
+				next_id = get_next_id(&curproxy->conf.used_server_id, next_id);
+				newsrv->conf.id.key = newsrv->puid = next_id;
+				eb32_insert(&curproxy->conf.used_server_id, &newsrv->conf.id);
+				next_id++;
+			}
+
 			if ((curproxy->mode != PR_MODE_HTTP) && (newsrv->rdr_len || newsrv->cklen)) {
 				Alert("config : %s '%s' : server cannot have cookie or redirect prefix in non-HTTP mode.\n",
 				      proxy_type_str(curproxy), curproxy->id);
@@ -4440,8 +4471,19 @@ int check_config_validity()
 		}
 
 		/* adjust this proxy's listeners */
+		next_id = 1;
 		listener = curproxy->listen;
 		while (listener) {
+			if (!listener->luid) {
+				/* listener ID not set, use automatic numbering with first
+				 * spare entry starting with next_luid.
+				 */
+				next_id = get_next_id(&curproxy->conf.used_listener_id, next_id);
+				listener->conf.id.key = listener->luid = next_id;
+				eb32_insert(&curproxy->conf.used_listener_id, &listener->conf.id);
+				next_id++;
+			}
+
 			/* enable separate counters */
 			if (curproxy->options2 & PR_O2_SOCKSTAT) {
 				listener->counters = (struct licounters *)calloc(1, sizeof(struct licounters));

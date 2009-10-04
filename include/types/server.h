@@ -135,6 +135,7 @@ struct server {
 	struct {
 		const char *file;		/* file where the section appears */
 		int line;			/* line where the section appears */
+		struct eb32_node id;		/* place in the tree of used IDs */
 	} conf;					/* config information */
 };
 

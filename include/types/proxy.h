@@ -29,6 +29,7 @@
 
 #include <common/appsession.h>
 #include <common/config.h>
+#include <common/eb32tree.h>
 #include <common/mini-clist.h>
 #include <common/regex.h>
 #include <common/sessionhash.h>
@@ -248,7 +249,6 @@ struct proxy {
 	int check_len;				/* Length of the HTTP or SSL3 request */
 	struct chunk errmsg[HTTP_ERR_SIZE];	/* default or customized error messages for known errors */
 	int uuid;				/* universally unique proxy ID, used for SNMP */
-	int next_svid, next_lid;		/* next server-id and listener-id, used for SNMP */
 	unsigned int backlog;			/* force the frontend's listen backlog */
 	unsigned int bind_proc;			/* bitmask of processes using this proxy. 0 = all. */
 	struct error_snapshot invalid_req, invalid_rep; /* captures of last errors */
@@ -262,6 +262,9 @@ struct proxy {
 	struct {
 		const char *file;		/* file where the section appears */
 		int line;			/* line where the section appears */
+		struct eb32_node id;		/* place in the tree of used IDs */
+		struct eb_root used_listener_id;/* list of listener IDs in use */
+		struct eb_root used_server_id;	/* list of server IDs in use */
 	} conf;					/* config information */
 };
 
@@ -287,7 +290,7 @@ struct redirect_rule {
 };
 
 extern struct proxy *proxy;
-extern int next_pxid;
+extern struct eb_root used_proxy_id;	/* list of proxy IDs in use */
 
 #endif /* _TYPES_PROXY_H */
 

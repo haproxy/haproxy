@@ -724,6 +724,7 @@ errorloc303                 X          X         X         X
 fullconn                    X          -         X         X
 grace                       -          X         X         X
 http-check disable-on-404   X          -         X         X
+id                          -          X         X         X
 log                         X          X         X         X
 maxconn                     X          X         X         -
 mode                        X          X         X         X
@@ -1140,10 +1141,10 @@ bind [<address>]:<port> [, ...] name <name>
                   work on other operating systems. The commonly advertised
                   value on Ethernet networks is 1460 = 1500(MTU) - 40(IP+TCP).
 
-    <id>          is a persistent value for socket ID. Must be unique and
-                  larger than 1000, as smaller values are reserved for
-                  auto-assigned ids. Can only be used when defining only
-                  a single socket.
+    <id>          is a persistent value for socket ID. Must be positive and
+                  unique in the proxy. An unused value will automatically be
+                  assigned if unset. Can only be used when defining only a
+                  single socket.
 
     <name>        is an optional name provided for stats
 
@@ -1748,8 +1749,14 @@ http-check disable-on-404
 
 
 id <value>
-  Set a persistent value for proxy ID. Must be unique and larger than 1000, as
-  smaller values are reserved for auto-assigned ids.
+  Set a persistent ID to a proxy.
+  May be used in sections :   defaults | frontend | listen | backend
+                                  no   |    yes   |   yes  |   yes
+  Arguments : none
+
+  Set a persistent ID for the proxy. This ID must be unique and positive.
+  An unused ID will automatically be assigned if unset. The first assigned
+  value will be 1. This ID is currently only returned in statistics.
 
 
 log global
@@ -4583,8 +4590,9 @@ fall <count>
   unspecified. See also the "check", "inter" and "rise" parameters.
 
 id <value>
-  Set a persistent value for server ID. Must be unique and larger than 1000, as
-  smaller values are reserved for auto-assigned ids.
+  Set a persistent ID for the server. This ID must be positive and unique for
+  the proxy. An unused ID will automatically be assigned if unset. The first
+  assigned value will be 1. This ID is currently only returned in statistics.
 
 inter <delay>
 fastinter <delay>

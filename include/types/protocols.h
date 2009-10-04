@@ -28,6 +28,7 @@
 #include <sys/un.h>
 
 #include <common/config.h>
+#include <common/eb32tree.h>
 #include <common/mini-clist.h>
 
 #include <types/counters.h>
@@ -108,6 +109,7 @@ struct listener {
 	struct {
 		const char *file;	/* file where the section appears */
 		int line;		/* line where the section appears */
+		struct eb32_node id;	/* place in the tree of used IDs */
 	} conf;				/* config information */
 };
 
