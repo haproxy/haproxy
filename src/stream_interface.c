@@ -120,7 +120,10 @@ void stream_int_update_embedded(struct stream_interface *si)
 	if ((si->ob->flags & (BF_FULL|BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK)) == 0)
 		si->flags |= SI_FL_WAIT_DATA;
 
-	if ((si->ib->flags & (BF_FULL|BF_SHUTR)) == BF_FULL)
+	/* we're almost sure that we need some space if the buffer is not
+	 * empty, even if it's not full, because the applets can't fill it.
+	 */
+	if ((si->ib->flags & (BF_SHUTR|BF_OUT_EMPTY)) == 0)
 		si->flags |= SI_FL_WAIT_ROOM;
 
 	if (si->ob->flags & BF_WRITE_ACTIVITY) {
@@ -134,10 +137,12 @@ void stream_int_update_embedded(struct stream_interface *si)
 			si->ib->rex = tick_add_ifset(now_ms, si->ib->rto);
 	}
 
-	if (si->ob->flags & BF_WRITE_PARTIAL)
+	if (likely((si->ob->flags & (BF_SHUTW|BF_WRITE_PARTIAL|BF_FULL)) == BF_WRITE_PARTIAL &&
+		   (si->ob->prod->flags & SI_FL_WAIT_ROOM)))
 		si->ob->prod->chk_rcv(si->ob->prod);
 
-	if (si->ib->flags & BF_READ_PARTIAL)
+	if (((si->ib->flags & (BF_READ_PARTIAL|BF_OUT_EMPTY)) == BF_READ_PARTIAL) &&
+	    (si->ib->cons->flags & SI_FL_WAIT_DATA))
 		si->ib->cons->chk_snd(si->ib->cons);
 
 	/* Note that we're trying to wake up in two conditions here :

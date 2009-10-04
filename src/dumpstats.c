@@ -438,10 +438,8 @@ void stats_io_handler(struct stream_interface *si)
 			}
 
 			/* If the output functions are still there, it means they require more room. */
-			if (si->st0 >= STAT_CLI_OUTPUT) {
-				si->flags |= SI_FL_WAIT_ROOM;
+			if (si->st0 >= STAT_CLI_OUTPUT)
 				break;
-			}
 
 			/* Now we close the output if one of the writers did so,
 			 * or if we're not in interactive mode and the request
@@ -637,9 +635,6 @@ void http_stats_io_handler(struct stream_interface *si)
 		if (stats_dump_http(s, res, s->be->uri_auth)) {
 			si->st0 = 1;
 			si->shutw(si);
-		} else {
-			/* buffer full */
-			si->flags |= SI_FL_WAIT_ROOM;
 		}
 	}
 
