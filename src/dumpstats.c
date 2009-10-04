@@ -587,7 +587,6 @@ int stats_dump_raw_to_buffer(struct session *s, struct buffer *rep)
 				/* skip the disabled proxies and non-networked ones */
 				if (px->state != PR_STSTOPPED &&
 				    (px->cap & (PR_CAP_FE | PR_CAP_BE))) {
-					rep->flags |= BF_READ_PARTIAL; /* remove this once stats_dump_proxy uses buffer_feed */
 					if (stats_dump_proxy(s, px, NULL) == 0)
 						return 0;
 				}
@@ -612,6 +611,57 @@ int stats_dump_raw_to_buffer(struct session *s, struct buffer *rep)
 		/* unknown state ! */
 		s->data_state = DATA_ST_FIN;
 		return 1;
+	}
+}
+
+
+/* This I/O handler runs as an applet embedded in a stream interface. It is
+ * used to send HTTP stats over a TCP socket. The mechanism is very simple.
+ * si->st0 becomes non-zero once the transfer is finished. The handler
+ * automatically unregisters itself once transfer is complete.
+ */
+void http_stats_io_handler(struct stream_interface *si)
+{
+	struct session *s = si->private;
+	struct buffer *req = si->ob;
+	struct buffer *res = si->ib;
+
+	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO))
+		goto out;
+
+	/* check that the output is not closed */
+	if (res->flags & (BF_SHUTW|BF_SHUTW_NOW))
+		si->st0 = 1;
+
+	if (!si->st0) {
+		if (stats_dump_http(s, res, s->be->uri_auth)) {
+			si->st0 = 1;
+			si->shutw(si);
+		} else {
+			/* buffer full */
+			si->flags |= SI_FL_WAIT_ROOM;
+		}
+	}
+
+	if ((res->flags & BF_SHUTR) && (si->state == SI_ST_EST))
+		si->shutw(si);
+
+	if ((req->flags & BF_SHUTW) && (si->state == SI_ST_EST) && si->st0) {
+		si->shutr(si);
+		res->flags |= BF_READ_NULL;
+	}
+
+	/* update all other flags and resync with the other side */
+	si->update(si);
+
+	/* we don't want to expire timeouts while we're processing requests */
+	si->ib->rex = TICK_ETERNITY;
+	si->ob->wex = TICK_ETERNITY;
+
+ out:
+	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO)) {
+		/* check that we have released everything then unregister */
+		stream_int_unregister_handler(si);
 	}
 }
 
@@ -650,10 +700,8 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 		chunk_printf(&msg, "\r\n");
 
 		s->txn.status = 200;
-		if (buffer_write_chunk(rep, &msg) >= 0)
+		if (buffer_feed_chunk(rep, &msg) >= 0)
 			return 0;
-
-		msg.len = 0;
 
 		if (!(s->flags & SN_ERR_MASK))  // this is not really an error but it is
 			s->flags |= SN_ERR_PRXCOND; // to mark that it comes from the proxy
@@ -663,7 +711,6 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 		if (s->txn.meth == HTTP_METH_HEAD) {
 			/* that's all we return in case of HEAD request */
 			s->data_state = DATA_ST_FIN;
-			buffer_stop_hijack(rep);
 			return 1;
 		}
 
@@ -754,7 +801,7 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 		} else {
 			print_csv_header(&msg);
 		}
-		if (buffer_write_chunk(rep, &msg) >= 0)
+		if (buffer_feed_chunk(rep, &msg) >= 0)
 			return 0;
 
 		s->data_state = DATA_ST_INFO;
@@ -866,7 +913,7 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 			     ""
 			     );
 
-			if (buffer_write_chunk(rep, &msg) >= 0)
+			if (buffer_feed_chunk(rep, &msg) >= 0)
 				return 0;
 		}
 
@@ -895,7 +942,7 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 	case DATA_ST_END:
 		if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
 			chunk_printf(&msg, "</body></html>\n");
-			if (buffer_write_chunk(rep, &msg) >= 0)
+			if (buffer_feed_chunk(rep, &msg) >= 0)
 				return 0;
 		}
 
@@ -903,12 +950,11 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 		/* fall through */
 
 	case DATA_ST_FIN:
-		buffer_stop_hijack(rep);
 		return 1;
 
 	default:
 		/* unknown state ! */
-		buffer_stop_hijack(rep);
+		s->data_state = DATA_ST_FIN;
 		return -1;
 	}
 }
@@ -994,7 +1040,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     px->id,
 				     px->desc ? "desc" : "empty", px->desc ? px->desc : "");
 
-			if (buffer_write_chunk(rep, &msg) >= 0)
+			if (buffer_feed_chunk(rep, &msg) >= 0)
 				return 0;
 		}
 
@@ -1075,7 +1121,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     px->fe_sps_lim, px->fe_sps_max);
 			}
 
-			if (buffer_write_chunk(rep, &msg) >= 0)
+			if (buffer_feed_chunk(rep, &msg) >= 0)
 				return 0;
 		}
 
@@ -1339,7 +1385,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				/* finish with EOL */
 				chunk_printf(&msg, "\n");
 			}
-			if (buffer_write_chunk(rep, &msg) >= 0)
+			if (buffer_feed_chunk(rep, &msg) >= 0)
 				return 0;
 		} /* for sv */
 
@@ -1452,7 +1498,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     read_freq_ctr(&px->be_sess_per_sec),
 				     px->be_sps_max);
 			}
-			if (buffer_write_chunk(rep, &msg) >= 0)
+			if (buffer_feed_chunk(rep, &msg) >= 0)
 				return 0;
 		}
 
@@ -1463,7 +1509,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 		if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
 			chunk_printf(&msg, "</table><p>\n");
 
-			if (buffer_write_chunk(rep, &msg) >= 0)
+			if (buffer_feed_chunk(rep, &msg) >= 0)
 				return 0;
 		}
 

@@ -3238,40 +3238,6 @@ int process_response(struct session *t)
 	return 0;
 }
 
-/*
- * Produces data for the session <s> depending on its source. Expects to be
- * called with client socket shut down on input. Right now, only statistics can
- * be produced. It stops by itself by unsetting the BF_HIJACK flag from the
- * buffer, which it uses to keep on being called when there is free space in
- * the buffer, or simply by letting an empty buffer upon return.
- */
-void produce_content(struct session *s, struct buffer *rep)
-{
-	if (s->data_source == DATA_SRC_NONE) {
-		buffer_stop_hijack(rep);
-		return;
-	}
-	else if (s->data_source == DATA_SRC_STATS) {
-		/* dump server statistics */
-		int ret;
-		ret = stats_dump_http(s, rep, s->be->uri_auth);
-		if (ret >= 0)
-			return;
-		/* -1 indicates an error */
-	}
-
-	/* unknown data source or internal error */
-	s->txn.status = 500;
-	stream_int_retnclose(rep->cons, error_message(s, HTTP_ERR_500));
-	if (!(s->flags & SN_ERR_MASK))
-		s->flags |= SN_ERR_PRXCOND;
-	if (!(s->flags & SN_FINST_MASK))
-		s->flags |= SN_FINST_R;
-	buffer_stop_hijack(rep);
-	return;
-}
-
-
 /* Iterate the same filter through all request headers.
  * Returns 1 if this filter can be stopped upon return, otherwise 0.
  * Since it can manage the switch to another backend, it updates the per-proxy
@@ -4508,7 +4474,7 @@ void get_srv_from_appsession(struct session *t, const char *begin, int len)
  *
  * It is assumed that the request is either a HEAD or GET and that the
  * t->be->uri_auth field is valid. An HTTP/401 response may be sent, or
- * produce_content() can be called to start sending data.
+ * the stats I/O handler will be registered to start sending data.
  *
  * Returns 1 if the session's state changes, otherwise 0.
  */
@@ -4625,15 +4591,13 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 	/* The request is valid, the user is authenticated. Let's start sending
 	 * data.
 	 */
-	buffer_dont_connect(t->req);
-	buffer_shutw_now(t->req);
-	buffer_shutr_now(t->rep);
-	stream_int_retnclose(t->rep->cons, NULL);
 	t->logs.tv_request = now;
 	t->data_source = DATA_SRC_STATS;
 	t->data_state  = DATA_ST_INIT;
 	t->task->nice = -32; /* small boost for HTTP statistics */
-	buffer_install_hijacker(t, t->rep, produce_content);
+	stream_int_register_handler(t->rep->prod, http_stats_io_handler);
+	t->rep->prod->private = t;
+	t->rep->prod->st0 = t->rep->prod->st1 = 0;
 	return 1;
 }
 

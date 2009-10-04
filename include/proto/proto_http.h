@@ -1,23 +1,23 @@
 /*
-  include/proto/proto_http.h
-  This file contains HTTP protocol definitions.
-
-  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
-
-  This library is free software; you can redistribute it and/or
-  modify it under the terms of the GNU Lesser General Public
-  License as published by the Free Software Foundation, version 2.1
-  exclusively.
-
-  This library is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  Lesser General Public License for more details.
-
-  You should have received a copy of the GNU Lesser General Public
-  License along with this library; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
+ * include/proto/proto_http.h
+ * This file contains HTTP protocol definitions.
+ *
+ * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation, version 2.1
+ * exclusively.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
 
 #ifndef _PROTO_PROTO_HTTP_H
 #define _PROTO_PROTO_HTTP_H
@@ -68,9 +68,6 @@ int http_process_tarpit(struct session *s, struct buffer *req, int an_bit);
 int http_process_request_body(struct session *s, struct buffer *req, int an_bit);
 int process_response(struct session *t);
 
-void produce_content(struct session *s, struct buffer *rep);
-int produce_content_stats(struct session *s);
-int produce_content_stats_proxy(struct session *s, struct proxy *px);
 void debug_hdr(const char *dir, struct session *t, const char *start, const char *end);
 void get_srv_from_appsession(struct session *t, const char *begin, int len);
 int apply_filter_to_req_headers(struct session *t, struct buffer *req, struct hdr_exp *exp);
