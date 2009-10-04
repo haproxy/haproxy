@@ -417,9 +417,7 @@ void stats_io_handler(struct stream_interface *si)
 					si->st0 = 1; // send prompt
 				break;
 			case 3:	/* stats/info dump, should be split later ? */
-				stats_dump_raw_to_buffer(s, res);
-				si->ib->flags |= BF_READ_PARTIAL; /* remove this once we use buffer_feed */
-				if (s->ana_state == STATS_ST_CLOSE)
+				if (stats_dump_raw_to_buffer(s, res))
 					si->st0 = 1; // end of command, send prompt
 				break;
 			case 4:	/* sessions dump */
@@ -519,15 +517,14 @@ void stats_io_handler(struct stream_interface *si)
 	}
 }
 
-/*
- * Produces statistics data for the session <s>. Expects to be called with
- * client socket shut down on input. It *may* make use of informations from
- * <uri>. s->data_ctx must have been zeroed first, and the flags properly set.
- * It returns 0 if it had to stop writing data and an I/O is needed, 1 if the
- * dump is finished and the session must be closed, or -1 in case of any error.
- * It automatically clears the HIJACK bit from the response buffer.
+/* This function is called to send output to the response buffer.
+ * It dumps statistics onto the output buffer <rep> owned by session <s>.
+ * s->data_ctx must have been zeroed first, and the flags properly set.
+ * It returns 0 as long as it does not complete, non-zero upon completion.
+ * Some states are not used but it makes the code more similar to other
+ * functions which handle stats too.
  */
-int stats_dump_raw(struct session *s, struct buffer *rep, struct uri_auth *uri)
+int stats_dump_raw_to_buffer(struct session *s, struct buffer *rep)
 {
 	struct proxy *px;
 	struct chunk msg;
@@ -537,16 +534,14 @@ int stats_dump_raw(struct session *s, struct buffer *rep, struct uri_auth *uri)
 
 	switch (s->data_state) {
 	case DATA_ST_INIT:
-		/* the function had not been called yet, let's prepare the
-		 * buffer for a response.
-		 */
+		/* the function had not been called yet */
 		s->data_state = DATA_ST_HEAD;
 		/* fall through */
 
 	case DATA_ST_HEAD:
 		if (s->data_ctx.stats.flags & STAT_SHOW_STAT) {
 			print_csv_header(&msg);
-			if (buffer_write_chunk(rep, &msg) >= 0)
+			if (buffer_feed_chunk(rep, &msg) >= 0)
 				return 0;
 		}
 
@@ -590,7 +585,7 @@ int stats_dump_raw(struct session *s, struct buffer *rep, struct uri_auth *uri)
 				     nb_tasks_cur, run_queue_cur,
 				     global.node, global.desc?global.desc:""
 				     );
-			if (buffer_write_chunk(rep, &msg) >= 0)
+			if (buffer_feed_chunk(rep, &msg) >= 0)
 				return 0;
 		}
 
@@ -610,9 +605,11 @@ int stats_dump_raw(struct session *s, struct buffer *rep, struct uri_auth *uri)
 				px = s->data_ctx.stats.px;
 				/* skip the disabled proxies and non-networked ones */
 				if (px->state != PR_STSTOPPED &&
-				    (px->cap & (PR_CAP_FE | PR_CAP_BE)))
+				    (px->cap & (PR_CAP_FE | PR_CAP_BE))) {
+					rep->flags |= BF_READ_PARTIAL; /* remove this once stats_dump_proxy uses buffer_feed */
 					if (stats_dump_proxy(s, px, NULL) == 0)
 						return 0;
+				}
 
 				s->data_ctx.stats.px = px->next;
 				s->data_ctx.stats.px_st = DATA_ST_PX_INIT;
@@ -628,29 +625,13 @@ int stats_dump_raw(struct session *s, struct buffer *rep, struct uri_auth *uri)
 		/* fall through */
 
 	case DATA_ST_FIN:
-		buffer_stop_hijack(rep);
 		return 1;
 
 	default:
 		/* unknown state ! */
-		buffer_stop_hijack(rep);
-		return -1;
+		s->data_state = DATA_ST_FIN;
+		return 1;
 	}
-}
-
-
-/* This function is called to send output to the response buffer. It simply
- * calls stats_dump_raw(), and releases the buffer's hijack bit when the dump
- * is finished.
- */
-void stats_dump_raw_to_buffer(struct session *s, struct buffer *rep)
-{
-	if (s->ana_state != STATS_ST_REP)
-		return;
-
-	if (stats_dump_raw(s, rep, NULL) != 0)
-		s->ana_state = STATS_ST_CLOSE;
-	return;
 }
 
 
