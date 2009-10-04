@@ -1180,7 +1180,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 					goto out;
 				}
 
-				for (l = curproxy->listen; l != last_listen; l = l->next)
+				for (l = curproxy->listen; l; l = l->next)
 					if (curproxy->listen != l && l->luid == curproxy->listen->luid) {
 						Alert("parsing [%s:%d]: custom id has to be unique but is duplicated in %s.\n",
 							file, linenum, args[1]);
