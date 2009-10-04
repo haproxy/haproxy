@@ -27,6 +27,7 @@
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <common/config.h>
+#include <common/eb32tree.h>
 #include <proto/fd.h>
 
 /****** string-specific macros and functions ******/
@@ -330,5 +331,10 @@ static inline unsigned int mul32hi(unsigned int a, unsigned int b)
 
 /* copies at most <n> characters from <src> and always terminates with '\0' */
 char *my_strndup(const char *src, int n);
+
+/* This function returns the first unused key greater than or equal to <key> in
+ * ID tree <root>. Zero is returned if no place is found.
+ */
+unsigned int get_next_id(struct eb_root *root, unsigned int key);
 
 #endif /* _COMMON_STANDARD_H */

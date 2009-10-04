@@ -20,6 +20,7 @@
 #include <arpa/inet.h>
 
 #include <common/config.h>
+#include <common/eb32tree.h>
 #include <common/standard.h>
 #include <proto/log.h>
 
@@ -729,6 +730,23 @@ char *my_strndup(const char *src, int n)
 	ret[len] = '\0';
 	return ret;
 }
+
+/* This function returns the first unused key greater than or equal to <key> in
+ * ID tree <root>. Zero is returned if no place is found.
+ */
+unsigned int get_next_id(struct eb_root *root, unsigned int key)
+{
+	struct eb32_node *used;
+
+	do {
+		used = eb32_lookup_ge(root, key);
+		if (!used || used->key > key)
+			return key; /* key is available */
+		key++;
+	} while (key);
+	return key;
+}
+
 
 /*
  * Local variables:
