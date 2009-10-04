@@ -363,13 +363,19 @@ void stats_io_handler(struct stream_interface *si)
 					break;
 				}
 
-			/* ensure we have a full line */
-			if (trash[reql-1] != '\n') {
+			/* now it is time to check that we have a full line,
+			 * remove the trailing \n and possibly \r, then cut the
+			 * line.
+			 */
+			len = reql - 1;
+			if (trash[len] != '\n') {
 				s->ana_state = STATS_ST_CLOSE;
 				continue;
 			}
 
-			len = reql - 1;
+			if (len && trash[len-1] == '\r')
+				len--;
+
 			trash[len] = '\0';
 
 			si->st0 = 1; // default to prompt
