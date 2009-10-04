@@ -317,7 +317,8 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 					memset(&sv->counters, 0, sizeof(sv->counters));
 
 				for (li = px->listen; li; li = li->next)
-					memset(li->counters, 0, sizeof(*li->counters));
+					if (li->counters)
+						memset(li->counters, 0, sizeof(*li->counters));
 			}
 
 			return 1;
