@@ -1661,6 +1661,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
+		cond->file = file;
 		cond->line = linenum;
 		curproxy->acl_requires |= cond->requires;
 		LIST_ADDQ(&curproxy->block_cond, &cond->list);
@@ -1787,6 +1788,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
+		cond->file = file;
 		cond->line = linenum;
 		curproxy->acl_requires |= cond->requires;
 		rule = (struct redirect_rule *)calloc(1, sizeof(*rule));
@@ -1853,6 +1855,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
+		cond->file = file;
 		cond->line = linenum;
 		curproxy->acl_requires |= cond->requires;
 		if (cond->requires & ACL_USE_RTR_ANY) {
@@ -2339,6 +2342,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
+			cond->file = file;
 			cond->line = linenum;
 			curproxy->acl_requires |= cond->requires;
 			LIST_ADDQ(&curproxy->mon_fail_cond, &cond->list);
