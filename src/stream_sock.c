@@ -916,12 +916,12 @@ void stream_sock_data_finish(struct stream_interface *si)
 		else {
 			/* (re)start reading and update timeout. Note: we don't recompute the timeout
 			 * everytime we get here, otherwise it would risk never to expire. We only
-			 * update it if is was not yet set, or if we already got some read status.
+			 * update it if is was not yet set. The stream socket handler will already
+			 * have updated it if there has been a completed I/O.
 			 */
 			si->flags &= ~SI_FL_WAIT_ROOM;
 			EV_FD_COND_S(fd, DIR_RD);
-			if (!(ib->flags & BF_READ_NOEXP) &&
-			    (!tick_isset(ib->rex) || ib->flags & BF_READ_ACTIVITY))
+			if (!(ib->flags & BF_READ_NOEXP) && !tick_isset(ib->rex))
 				ib->rex = tick_add_ifset(now_ms, ib->rto);
 		}
 	}
@@ -939,11 +939,12 @@ void stream_sock_data_finish(struct stream_interface *si)
 		else {
 			/* (re)start writing and update timeout. Note: we don't recompute the timeout
 			 * everytime we get here, otherwise it would risk never to expire. We only
-			 * update it if is was not yet set, or if we already got some write status.
+			 * update it if is was not yet set. The stream socket handler will already
+			 * have updated it if there has been a completed I/O.
 			 */
 			si->flags &= ~SI_FL_WAIT_DATA;
 			EV_FD_COND_S(fd, DIR_WR);
-			if (!tick_isset(ob->wex) || ob->flags & BF_WRITE_ACTIVITY) {
+			if (!tick_isset(ob->wex)) {
 				ob->wex = tick_add_ifset(now_ms, ob->wto);
 				if (tick_isset(ib->rex) && !(si->flags & SI_FL_INDEP_STR)) {
 					/* Note: depending on the protocol, we don't know if we're waiting
