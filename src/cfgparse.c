@@ -862,8 +862,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			if (!strcmp(curproxy->id, args[1]) &&
 				(rc!=(PR_CAP_FE|PR_CAP_RS) || curproxy->cap!=(PR_CAP_BE|PR_CAP_RS)) &&
 				(rc!=(PR_CAP_BE|PR_CAP_RS) || curproxy->cap!=(PR_CAP_FE|PR_CAP_RS))) {
-				Warning("Parsing [%s:%d]: %s '%s' has same name as another %s.\n",
-					file, linenum, proxy_cap_str(rc), args[1], proxy_type_str(curproxy));
+				Warning("Parsing [%s:%d]: %s '%s' has same name as another %s (declared at %s:%d).\n",
+					file, linenum, proxy_cap_str(rc), args[1], proxy_type_str(curproxy),
+					curproxy->conf.file, curproxy->conf.line);
 				err_code |= ERR_WARN;
 			}
 		}
@@ -1198,8 +1199,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 				for (l = curproxy->listen; l; l = l->next)
 					if (curproxy->listen != l && l->luid == curproxy->listen->luid) {
-						Alert("parsing [%s:%d]: custom id has to be unique but is duplicated in %s.\n",
-							file, linenum, args[1]);
+						Alert("parsing [%s:%d]: custom id %d for socket '%s' already used at %s:%d.\n",
+						      file, linenum, l->luid, args[1], l->conf.file, l->conf.line);
 						err_code |= ERR_ALERT | ERR_FATAL;
 						goto out;
 					}
@@ -1286,8 +1287,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		for (target = proxy; target; target = target->next)
 			if (curproxy != target && curproxy->uuid == target->uuid) {
-				Alert("parsing [%s:%d]: custom id has to be unique but is duplicated in %s and %s.\n",
-					file, linenum, curproxy->id, target->id);
+				Alert("parsing [%s:%d]: %s %s reuses same custom id as %s %s (declared at %s:%d).\n",
+				      file, linenum, proxy_type_str(curproxy), curproxy->id,
+				      proxy_type_str(target), target->id, target->conf.file, target->conf.line);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
@@ -2535,8 +2537,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 				for (target = proxy->srv; target; target = target->next)
 					if (newsrv != target && newsrv->puid == target->puid) {
-						Alert("parsing [%s:%d]: custom id has to be unique but is duplicated in %s and %s.\n",
-							file, linenum, newsrv->id, target->id);
+						Alert("parsing [%s:%d]: server %s reuses same custom id as server %s (declared at %s:%d).\n",
+						      file, linenum, newsrv->id, target->id, target->conf.file, target->conf.line);
 						err_code |= ERR_ALERT | ERR_FATAL;
 						goto out;
 					}
