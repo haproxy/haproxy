@@ -6724,6 +6724,10 @@ show stat [<iid> <type> <sid>]
     A similar empty line appears at the end of the second block (stats) so that
     the reader knows the output has not been trucated.
 
+clear counters
+  Clear statistics counters in each proxy (frontend & backend) and in each
+  server.
+
 /*
  * Local variables:
  *  fill-column: 79

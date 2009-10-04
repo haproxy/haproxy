@@ -53,14 +53,15 @@
 #include <proto/task.h>
 
 const char stats_sock_usage_msg[] =
-        "Unknown command. Please enter one of the following commands only :\n"
-        "  help        : this message\n"
-        "  prompt      : toggle interactive mode with prompt\n"
-        "  quit        : disconnect\n"
-        "  show info   : report information about the running process\n"
-        "  show stat   : report counters for each proxy and server\n"
-        "  show errors : report last request and response errors for each proxy\n"
-        "  show sess   : report the list of current sessions\n"
+	"Unknown command. Please enter one of the following commands only :\n"
+	"  clear counters : clear statistics counters\n"
+	"  help           : this message\n"
+	"  prompt         : toggle interactive mode with prompt\n"
+	"  quit           : disconnect\n"
+	"  show info      : report information about the running process\n"
+	"  show stat      : report counters for each proxy and server\n"
+	"  show errors    : report last request and response errors for each proxy\n"
+	"  show sess      : report the list of current sessions\n"
 	"";
 
 const struct chunk stats_sock_usage = {
@@ -299,11 +300,29 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 			s->data_state = DATA_ST_INIT;
 			si->st0 = STAT_CLI_O_ERR; // stats_dump_errors_to_buffer
 		}
-		else { /* neither "stat" nor "info" nor "sess" */
+		else { /* neither "stat" nor "info" nor "sess" nor "errors"*/
 			return 0;
 		}
 	}
-	else { /* not "show" */
+	else if (strcmp(args[0], "clear") == 0) {
+		if (strcmp(args[1], "counters") == 0) {
+			struct proxy *px;
+			struct server *sv;
+
+			for (px = proxy; px; px = px->next) {
+				memset(&px->counters, 0, sizeof(px->counters));
+
+				for (sv = px->srv; sv; sv = sv->next)
+					memset(&sv->counters, 0, sizeof(sv->counters));
+			}
+
+			return 1;
+		}
+		else {
+			return 0;
+		}
+	}
+	else { /* not "show" nor "clear"*/
 		return 0;
 	}
 	return 1;
