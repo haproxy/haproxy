@@ -108,7 +108,9 @@ void __task_queue(struct task *task)
 		return;
 	}
 	eb32_insert(&timers, &task->wq);
-	if (!last_timer || (task->wq.node.bit < last_timer->node.bit))
+
+	/* Make sure we don't assign the last_timer to a node-less entry */
+	if (task->wq.node.node_p && (!last_timer || (task->wq.node.bit < last_timer->node.bit)))
 		last_timer = &task->wq;
 	return;
 }
