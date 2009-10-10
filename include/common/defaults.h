@@ -174,4 +174,9 @@
 #define MAX_HOSTNAME_LEN	32
 #endif
 
+/* Maximum health check description length */
+#ifndef HCHK_DESC_LEN
+#define HCHK_DESC_LEN	128
+#endif
+
 #endif /* _COMMON_DEFAULTS_H */

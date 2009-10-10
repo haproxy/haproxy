@@ -125,6 +125,17 @@ static void server_status_printf(struct chunk *msg, struct server *s, unsigned o
 		if (s->check_status >= HCHK_STATUS_L57DATA)
 			chunk_printf(msg, ", code: %d", s->check_code);
 
+		if (*s->check_desc) {
+			struct chunk src;
+
+			chunk_printf(msg, ", info: \"");
+
+			chunk_initlen(&src, s->check_desc, 0, strlen(s->check_desc));
+			chunk_asciiencode(msg, &src, '"');
+
+			chunk_printf(msg, "\"");
+		}
+
 		chunk_printf(msg, ", check duration: %lums", s->check_duration);
 	}
 
@@ -151,18 +162,25 @@ static void server_status_printf(struct chunk *msg, struct server *s, unsigned o
  * Show information in logs about failed health check if server is UP
  * or succeeded health checks if server is DOWN.
  */
-static void set_server_check_status(struct server *s, short status) {
+static void set_server_check_status(struct server *s, short status, char *desc) {
 
 	struct chunk msg;
 
 	if (status == HCHK_STATUS_START) {
 		s->result = SRV_CHK_UNKNOWN;	/* no result yet */
+		s->check_desc[0] = '\0';
 		s->check_start = now;
 		return;
 	}
 
 	if (!s->check_status)
 		return;
+
+	if (desc && *desc) {
+		strncpy(s->check_desc, desc, HCHK_DESC_LEN-1);
+		s->check_desc[HCHK_DESC_LEN-1] = '\0';
+	} else
+		s->check_desc[0] = '\0';
 
 	s->check_status = status;
 	if (check_statuses[status].result)
@@ -503,7 +521,7 @@ static int event_srv_chk_w(int fd)
 
 	//fprintf(stderr, "event_srv_chk_w, state=%ld\n", unlikely(fdtab[fd].state));
 	if (unlikely(fdtab[fd].state == FD_STERROR || (fdtab[fd].ev & FD_POLL_ERR))) {
-		set_server_check_status(s, HCHK_STATUS_L4CON);
+		set_server_check_status(s, HCHK_STATUS_L4CON, strerror(errno));
 		goto out_error;
 	}
 
@@ -539,11 +557,11 @@ static int event_srv_chk_w(int fd)
 				switch (errno) {
 					case ECONNREFUSED:
 					case ENETUNREACH:
-						set_server_check_status(s, HCHK_STATUS_L4CON);
+						set_server_check_status(s, HCHK_STATUS_L4CON, strerror(errno));
 						break;
 
 					default:
-						set_server_check_status(s, HCHK_STATUS_SOCKERR);
+						set_server_check_status(s, HCHK_STATUS_SOCKERR, strerror(errno));
 				}
 
 				goto out_error;
@@ -572,12 +590,12 @@ static int event_srv_chk_w(int fd)
 				goto out_poll;
 
 			if (errno && errno != EISCONN) {
-				set_server_check_status(s, HCHK_STATUS_L4CON);
+				set_server_check_status(s, HCHK_STATUS_L4CON, strerror(errno));
 				goto out_error;
 			}
 
 			/* good TCP connection is enough */
-			set_server_check_status(s, HCHK_STATUS_L4OK);
+			set_server_check_status(s, HCHK_STATUS_L4OK, NULL);
 			goto out_wakeup;
 		}
 	}
@@ -621,6 +639,7 @@ static int event_srv_chk_r(int fd)
 	struct task *t = fdtab[fd].owner;
 	struct server *s = t->context;
 	int skerr;
+	char *desc;
 	socklen_t lskerr = sizeof(skerr);
 
 	len = -1;
@@ -633,7 +652,7 @@ static int event_srv_chk_r(int fd)
 		/* in case of TCP only, this tells us if the connection failed */
 
 		if (!(s->result & SRV_CHK_ERROR))
-			set_server_check_status(s, HCHK_STATUS_SOCKERR);
+			set_server_check_status(s, HCHK_STATUS_SOCKERR, NULL);
 
 		goto out_wakeup;
 	}
@@ -649,6 +668,11 @@ static int event_srv_chk_r(int fd)
 		return 0;
 	}
 
+	if (len < sizeof(trash))
+		trash[len] = '\0';
+	else
+		trash[len-1] = '\0';
+
 	/* Note: the response will only be accepted if read at once */
 	if (s->proxy->options & PR_O_HTTP_CHK) {
 		/* Check if the server speaks HTTP 1.X */
@@ -656,50 +680,62 @@ static int event_srv_chk_r(int fd)
 		    (memcmp(trash, "HTTP/1.", 7) != 0 ||
 		    (trash[12] != ' ' && trash[12] != '\r')) ||
 		    !isdigit(trash[9]) || !isdigit(trash[10]) || !isdigit(trash[11])) {
-			set_server_check_status(s, HCHK_STATUS_L7RSP);
+
+			cut_crlf(trash);
+			set_server_check_status(s, HCHK_STATUS_L7RSP, trash);
+
 			goto out_wakeup;
 		}
 
 		s->check_code = str2uic(&trash[9]);
 
+		desc = ltrim(&trash[12], ' ');
+		cut_crlf(desc);
+
 		/* check the reply : HTTP/1.X 2xx and 3xx are OK */
 		if (trash[9] == '2' || trash[9] == '3')
-			set_server_check_status(s, HCHK_STATUS_L7OKD);
+			set_server_check_status(s, HCHK_STATUS_L7OKD, desc);
 		else if ((s->proxy->options & PR_O_DISABLE404) &&
 			 (s->state & SRV_RUNNING) &&
 			 (s->check_code == 404))
 		/* 404 may be accepted as "stopping" only if the server was up */
-			set_server_check_status(s, HCHK_STATUS_L7OKCD);
+			set_server_check_status(s, HCHK_STATUS_L7OKCD, desc);
 		else
-			set_server_check_status(s, HCHK_STATUS_L7STS);
+			set_server_check_status(s, HCHK_STATUS_L7STS, desc);
 	}
 	else if (s->proxy->options & PR_O_SSL3_CHK) {
 		/* Check for SSLv3 alert or handshake */
 		if ((len >= 5) && (trash[0] == 0x15 || trash[0] == 0x16))
-			set_server_check_status(s, HCHK_STATUS_L6OK);
+			set_server_check_status(s, HCHK_STATUS_L6OK, NULL);
 		else
-			set_server_check_status(s, HCHK_STATUS_L6RSP);
+			set_server_check_status(s, HCHK_STATUS_L6RSP, NULL);
 	}
 	else if (s->proxy->options & PR_O_SMTP_CHK) {
 		/* Check if the server speaks SMTP */
 		if ((len < strlen("000\r")) ||
 		    (trash[3] != ' ' && trash[3] != '\r') ||
 		    !isdigit(trash[0]) || !isdigit(trash[1]) || !isdigit(trash[2])) {
-			set_server_check_status(s, HCHK_STATUS_L7RSP);
+
+			cut_crlf(trash);
+			set_server_check_status(s, HCHK_STATUS_L7RSP, trash);
+
 			goto out_wakeup;
 		}
 
 		s->check_code = str2uic(&trash[0]);
 
+		desc = ltrim(&trash[3], ' ');
+		cut_crlf(desc);
+
 		/* Check for SMTP code 2xx (should be 250) */
 		if (trash[0] == '2')
-			set_server_check_status(s, HCHK_STATUS_L7OKD);
+			set_server_check_status(s, HCHK_STATUS_L7OKD, desc);
 		else
-			set_server_check_status(s, HCHK_STATUS_L7STS);
+			set_server_check_status(s, HCHK_STATUS_L7STS, desc);
 	}
 	else {
 		/* other checks are valid if the connection succeeded anyway */
-		set_server_check_status(s, HCHK_STATUS_L4OK);
+		set_server_check_status(s, HCHK_STATUS_L4OK, NULL);
 	}
 
  out_wakeup:
@@ -749,7 +785,7 @@ struct task *process_chk(struct task *t)
 		}
 
 		/* we'll initiate a new check */
-		set_server_check_status(s, HCHK_STATUS_START);
+		set_server_check_status(s, HCHK_STATUS_START, NULL);
 		if ((fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) != -1) {
 			if ((fd < global.maxsock) &&
 			    (fcntl(fd, F_SETFL, O_NONBLOCK) != -1) &&
@@ -824,7 +860,7 @@ struct task *process_chk(struct task *t)
 					}
 
 					if (ret) {
-						set_server_check_status(s, HCHK_STATUS_SOCKERR);
+						set_server_check_status(s, HCHK_STATUS_SOCKERR, NULL);
 						switch (ret) {
 						case 1:
 							Alert("Cannot bind to source address before connect() for server %s/%s. Aborting.\n",
@@ -855,7 +891,7 @@ struct task *process_chk(struct task *t)
 #endif
 					ret = tcpv4_bind_socket(fd, flags, &s->proxy->source_addr, remote);
 					if (ret) {
-						set_server_check_status(s, HCHK_STATUS_SOCKERR);
+						set_server_check_status(s, HCHK_STATUS_SOCKERR, NULL);
 						switch (ret) {
 						case 1:
 							Alert("Cannot bind to source address before connect() for %s '%s'. Aborting.\n",
@@ -918,11 +954,11 @@ struct task *process_chk(struct task *t)
 							/* FIXME: is it possible to get ECONNREFUSED/ENETUNREACH with O_NONBLOCK? */
 							case ECONNREFUSED:
 							case ENETUNREACH:
-								set_server_check_status(s, HCHK_STATUS_L4CON);
+								set_server_check_status(s, HCHK_STATUS_L4CON, strerror(errno));
 								break;
 
 							default:
-								set_server_check_status(s, HCHK_STATUS_SOCKERR);
+								set_server_check_status(s, HCHK_STATUS_SOCKERR, strerror(errno));
 						}
 					}
 				}
@@ -1020,12 +1056,12 @@ struct task *process_chk(struct task *t)
 		else if ((s->result & SRV_CHK_ERROR) || tick_is_expired(t->expire, now_ms)) {
 			if (!(s->result & SRV_CHK_ERROR)) {
 				if (!EV_FD_ISSET(fd, DIR_RD)) {
-					set_server_check_status(s, HCHK_STATUS_L4TOUT);
+					set_server_check_status(s, HCHK_STATUS_L4TOUT, NULL);
 				} else {
 					if (s->proxy->options & PR_O_SSL3_CHK)
-						set_server_check_status(s, HCHK_STATUS_L6TOUT);
+						set_server_check_status(s, HCHK_STATUS_L6TOUT, NULL);
 					else	/* HTTP, SMTP */
-						set_server_check_status(s, HCHK_STATUS_L7TOUT);
+						set_server_check_status(s, HCHK_STATUS_L7TOUT, NULL);
 				}
 			}
 

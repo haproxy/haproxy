@@ -139,6 +139,7 @@ struct server {
 	struct timeval check_start;		/* last health check start time */
 	unsigned long check_duration;		/* time in ms took to finish last health check */
 	short check_status, check_code;		/* check result, check code */
+	char check_desc[HCHK_DESC_LEN];		/* healt check descritpion */
 
 	struct freq_ctr sess_per_sec;		/* sessions per second on this server */
 	int puid;				/* proxy-unique server ID, used for SNMP */

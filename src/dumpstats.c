@@ -1500,9 +1500,20 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 					     srv_hlt_st[sv_state],
 					     (svs->state & SRV_RUNNING) ? (svs->health - svs->rise + 1) : (svs->health),
 					     (svs->state & SRV_RUNNING) ? (svs->fall) : (svs->rise));
+
+					chunk_printf(&msg, "</td><td title=\"%s",
+						get_check_status_description(sv->check_status));
+
+					if (*sv->check_desc) {
+						struct chunk src;
+
+						chunk_printf(&msg, ": ");
+
+						chunk_initlen(&src, sv->check_desc, 0, strlen(sv->check_desc));
+						chunk_htmlencode(&msg, &src);
+					}
 				
-					chunk_printf(&msg, "</td><td title=\"%s\" nowrap> %s%s",
-						get_check_status_description(sv->check_status),
+					chunk_printf(&msg, "\" nowrap> %s%s",
 						tv_iszero(&sv->check_start)?"":"* ",
 						get_check_status_info(sv->check_status));
 
