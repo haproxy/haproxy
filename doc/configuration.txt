@@ -5041,10 +5041,30 @@ dst_port <integer>
   to a different backend for some alternative ports.
 
 dst_conn <integer>
-  Applies to the number of currently established connections on the frontend,
+  Applies to the number of currently established connections on the same socket
   including the one being evaluated. It can be used to either return a sorry
   page before hard-blocking, or to use a specific backend to drain new requests
-  when the farm is considered saturated.
+  when the socket is considered saturated. This offers the ability to assign
+  different limits to different listening ports or addresses. See also the
+  "fe_conn" and "be_conn" criteria.
+
+fe_conn <integer>
+fe_conn(frontend) <integer>
+  Applies to the number of currently established connections on the frontend,
+  possibly including the connection being evaluated. If no frontend name is
+  specified, the current one is used. But it is also possible to check another
+  frontend. It can be used to either return a sorry page before hard-blocking,
+  or to use a specific backend to drain new requests when the farm is
+  considered saturated. See also the "dst_conn", "be_conn" and "fe_sess_rate"
+  criteria.
+
+be_conn <integer>
+be_conn(frontend) <integer>
+  Applies to the number of currently established connections on the backend,
+  possibly including the connection being evaluated. If no backend name is
+  specified, the current one is used. But it is also possible to check another
+  backend. It can be used to use a specific farm when the nominal one is full.
+  See also the "fe_conn", "queue" and "be_sess_rate" criteria.
 
 nbsrv <integer>
 nbsrv(backend) <integer>
@@ -5063,18 +5083,42 @@ connslots(backend) <integer>
   'connslots' = number of available server connection slots, + number of
   available server queue slots.
 
-  Note that while "dst_conn" may be used, "connslots" comes in especially
+  Note that while "fe_conn" may be used, "connslots" comes in especially
   useful when you have a case of traffic going to one single ip, splitting into
   multiple backends (perhaps using acls to do name-based load balancing) and
   you want to be able to differentiate between different backends, and their
   available "connslots".  Also, whereas "nbsrv" only measures servers that are
   actually *down*, this acl is more fine-grained and looks into the number of
-  available connection slots as well.
+  available connection slots as well. See also "queue" and "avg_queue".
 
   OTHER CAVEATS AND NOTES: at this point in time, the code does not take care
   of dynamic connections. Also, if any of the server maxconn, or maxqueue is 0,
   then this acl clearly does not make sense, in which case the value returned
   will be -1.
+
+queue <integer>
+queue(frontend) <integer>
+  Returns the total number of queued connections of the designated backend,
+  including all the connections in server queues. If no backend name is
+  specified, the current one is used, but it is also possible to check another
+  one. This can be used to take actions when queuing goes above a known level,
+  generally indicating a surge of traffic or a massive slowdown on the servers.
+  One possible action could be to reject new users but still accept old ones.
+  See also the "avg_queue", "be_conn", and "be_sess_rate" criteria.
+
+avg_queue <integer>
+avg_queue(frontend) <integer>
+  Returns the total number of queued connections of the designated backend
+  divided by the number of active servers. This is very similar to "queue"
+  except that the size of the farm is considered, in order to give a more
+  accurate measurement of the time it may take for a new connection to be
+  processed. The main usage is to return a sorry page to new users when it
+  becomes certain they will get a degraded service. Note that in the event
+  there would not be any active server anymore, we would consider twice the
+  number of queued connections as the measured value. This is a fair estimate,
+  as we expect one server to get back soon anyway, but we still prefer to send
+  new traffic to another backend if in better shape. See also the "queue",
+  "be_conn", and "be_sess_rate" criteria.
 
 fe_sess_rate <integer>
 fe_sess_rate(frontend) <integer>
