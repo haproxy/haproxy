@@ -282,6 +282,49 @@ extern int strl2ic(const char *s, int len);
 extern int strl2irc(const char *s, int len, int *ret);
 extern int strl2llrc(const char *s, int len, long long *ret);
 
+static inline char *cut_crlf(char *s) {
+
+	while (*s != '\r' || *s == '\n') {
+		char *p = s++;
+
+		if (!*p)
+			return p;
+	}
+
+	*s++ = 0;
+
+	return s;
+}
+
+static inline char *ltrim(char *s, char c) {
+
+	if (c)
+		while (*s == c)
+			s++;
+
+	return s;
+}
+
+static inline char *rtrim(char *s, char c) {
+
+	char *p = s + strlen(s);
+
+	while (p-- > s)
+		if (*p == c)
+			*p = '\0';
+		else
+			break;
+
+	return s;
+}
+
+static inline char *alltrim(char *s, char c) {
+
+	rtrim(s, c);
+
+	return ltrim(s, c);
+}
+
 /* This function converts the time_t value <now> into a broken out struct tm
  * which must be allocated by the caller. It is highly recommended to use this
  * function intead of localtime() because that one requires a time_t* which
