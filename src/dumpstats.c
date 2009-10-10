@@ -63,6 +63,7 @@ const char stats_sock_usage_msg[] =
 	"  show errors    : report last request and response errors for each proxy\n"
 	"  show sess      : report the list of current sessions\n"
 	"  get weight     : report a server's current weight\n"
+	"  set weight     : change a server's weight\n"
 	"";
 
 const char stats_permission_denied_msg[] =
@@ -412,7 +413,88 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 			return 0;
 		}
 	}
-	else { /* not "show" nor "clear" nor "get" */
+	else if (strcmp(args[0], "set") == 0) {
+		if (strcmp(args[1], "weight") == 0) {
+			struct proxy *px;
+			struct server *sv;
+			int w;
+
+			if (s->listener->perm.ux.level < ACCESS_LVL_ADMIN) {
+				buffer_feed(si->ib, stats_permission_denied_msg);
+				return 1;
+			}
+
+			/* split "backend/server" and make <line> point to server */
+			for (line = args[2]; *line; line++)
+				if (*line == '/') {
+					*line++ = '\0';
+					break;
+				}
+
+			if (!*line || !*args[3]) {
+				buffer_feed(si->ib, "Require 'backend/server' and 'weight' or 'weight%'.\n");
+				return 1;
+			}
+
+			if (!get_backend_server(args[2], line, &px, &sv)) {
+				if (!px)
+					buffer_feed(si->ib, "No such backend.\n");
+				else
+					buffer_feed(si->ib, "No such server.\n");
+				return 1;
+			}
+
+			/* if the weight is terminated with '%', it is set relative to
+			 * the initial weight, otherwise it is absolute.
+			 */
+			w = atoi(args[3]);
+			if (strchr(args[3], '%') != NULL) {
+				if (w < 0 || w > 100) {
+					buffer_feed(si->ib, "Relative weight can only be set between 0 and 100% inclusive.\n");
+					return 1;
+				}
+				w = sv->iweight * w / 100;
+			}
+			else {
+				if (w < 0 || w > 256) {
+					buffer_feed(si->ib, "Absolute weight can only be between 0 and 256 inclusive.\n");
+					return 1;
+				}
+			}
+
+			if (w && w != sv->iweight && !(px->lbprm.algo & BE_LB_PROP_DYN)) {
+				buffer_feed(si->ib, "Backend is using a static LB algorithm and only accepts weights '0%' and '100%'.\n");
+				return 1;
+			}
+
+			sv->uweight = w;
+
+			if (px->lbprm.algo & BE_LB_PROP_DYN) {
+			/* we must take care of not pushing the server to full throttle during slow starts */
+				if ((sv->state & SRV_WARMINGUP) && (px->lbprm.algo & BE_LB_PROP_DYN))
+					sv->eweight = (BE_WEIGHT_SCALE * (now.tv_sec - sv->last_change) + sv->slowstart - 1) / sv->slowstart;
+				else
+					sv->eweight = BE_WEIGHT_SCALE;
+				sv->eweight *= sv->uweight;
+			} else {
+				sv->eweight = sv->uweight;
+			}
+
+			/* static LB algorithms are a bit harder to update */
+			if (px->lbprm.update_server_eweight)
+				px->lbprm.update_server_eweight(sv);
+			else if (sv->eweight)
+				px->lbprm.set_server_status_up(sv);
+			else
+				px->lbprm.set_server_status_down(sv);
+
+			return 1;
+		}
+		else { /* not "set weight" */
+			return 0;
+		}
+	}
+	else { /* not "show" nor "clear" nor "get" nor "set" */
 		return 0;
 	}
 	return 1;
