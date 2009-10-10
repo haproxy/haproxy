@@ -88,11 +88,21 @@ int get_backend_server(const char *bk_name, const char *sv_name,
 {
 	struct proxy *p;
 	struct server *s;
+	int pid, sid;
 
 	*sv = NULL;
 
+	pid = 0;
+	if (*bk_name == '#')
+		pid = atoi(bk_name + 1);
+	sid = 0;
+	if (*sv_name == '#')
+		sid = atoi(sv_name + 1);
+
 	for (p = proxy; p; p = p->next)
-		if ((p->cap & PR_CAP_BE) && (strcmp(p->id, bk_name) == 0))
+		if ((p->cap & PR_CAP_BE) &&
+		    ((pid && p->uuid == pid) ||
+		     (!pid && strcmp(p->id, bk_name) == 0)))
 			break;
 	if (bk)
 		*bk = p;
@@ -100,7 +110,8 @@ int get_backend_server(const char *bk_name, const char *sv_name,
 		return 0;
 
 	for (s = p->srv; s; s = s->next)
-		if (strcmp(s->id, sv_name) == 0)
+		if ((sid && s->puid == sid) ||
+		    (!sid && strcmp(s->id, sv_name) == 0))
 			break;
 	*sv = s;
 	if (!s)

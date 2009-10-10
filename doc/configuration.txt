@@ -6874,7 +6874,9 @@ get weight <backend>/<server>
   Report the current weight and the initial weight of server <server> in
   backend <backend> or an error if either doesn't exist. The initial weight is
   the one that appears in the configuration file. Both are normally equal
-  unless the current weight has been changed.
+  unless the current weight has been changed. Both the backend and the server
+  may be specified either by their name or by their numeric ID, prefixed with a
+  dash ('#').
 
 set weight <backend>/<server> <weight>[%]
   Change a server's weight to the value passed in argument. If the value ends
@@ -6888,7 +6890,9 @@ set weight <backend>/<server> <weight>[%]
   requests to consider changes. A typical usage of this command is to disable
   a server during an update by setting its weight to zero, then to enable it
   again after the update by setting it back to 100%. This command is restricted
-  and can only be issued on sockets configured for level "admin".
+  and can only be issued on sockets configured for level "admin". Both the
+  backend and the server may be specified either by their name or by their
+  numeric ID, prefixed with a dash ('#').
 
 
 /*
