@@ -6870,6 +6870,12 @@ clear counters all
   server. This has the same effect as restarting. This command is restricted
   and can only be issued on sockets configured for level "admin".
 
+get weight <backend>/<server>
+  Report the current weight and the initial weight of server <server> in
+  backend <backend> or an error if either doesn't exist. The initial weight is
+  the one that appears in the configuration file. Both are normally equal
+  unless the current weight has been changed.
+
 
 /*
  * Local variables:

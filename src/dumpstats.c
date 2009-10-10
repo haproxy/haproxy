@@ -62,6 +62,7 @@ const char stats_sock_usage_msg[] =
 	"  show stat      : report counters for each proxy and server\n"
 	"  show errors    : report last request and response errors for each proxy\n"
 	"  show sess      : report the list of current sessions\n"
+	"  get weight     : report a server's current weight\n"
 	"";
 
 const char stats_permission_denied_msg[] =
@@ -377,7 +378,41 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 			return 0;
 		}
 	}
-	else { /* not "show" nor "clear"*/
+	else if (strcmp(args[0], "get") == 0) {
+		if (strcmp(args[1], "weight") == 0) {
+			struct proxy *px;
+			struct server *sv;
+
+			/* split "backend/server" and make <line> point to server */
+			for (line = args[2]; *line; line++)
+				if (*line == '/') {
+					*line++ = '\0';
+					break;
+				}
+
+			if (!*line) {
+				buffer_feed(si->ib, "Require 'backend/server'.\n");
+				return 1;
+			}
+
+			if (!get_backend_server(args[2], line, &px, &sv)) {
+				if (!px)
+					buffer_feed(si->ib, "No such backend.\n");
+				else
+					buffer_feed(si->ib, "No such server.\n");
+				return 1;
+			}
+
+			/* return server's effective weight at the moment */
+			snprintf(trash, sizeof(trash), "%d (initial %d)\n", sv->uweight, sv->iweight);
+			buffer_feed(si->ib, trash);
+			return 1;
+		}
+		else { /* not "get weight" */
+			return 0;
+		}
+	}
+	else { /* not "show" nor "clear" nor "get" */
 		return 0;
 	}
 	return 1;
