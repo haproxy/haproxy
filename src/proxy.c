@@ -76,6 +76,38 @@ const char *proxy_mode_str(int mode) {
 		return "unknown";
 }
 
+/*
+ * This function scans the list of backends and servers to retrieve the first
+ * backend and the first server with the given names, and sets them in both
+ * parameters. It returns zero if either is not found, or non-zero and sets
+ * the ones it did not found to NULL. If a NULL pointer is passed for the
+ * backend, only the pointer to the server will be updated.
+ */
+int get_backend_server(const char *bk_name, const char *sv_name,
+		       struct proxy **bk, struct server **sv)
+{
+	struct proxy *p;
+	struct server *s;
+
+	*sv = NULL;
+
+	for (p = proxy; p; p = p->next)
+		if ((p->cap & PR_CAP_BE) && (strcmp(p->id, bk_name) == 0))
+			break;
+	if (bk)
+		*bk = p;
+	if (!p)
+		return 0;
+
+	for (s = p->srv; s; s = s->next)
+		if (strcmp(s->id, sv_name) == 0)
+			break;
+	*sv = s;
+	if (!s)
+		return 0;
+	return 1;
+}
+
 /* This function parses a "timeout" statement in a proxy section. It returns
  * -1 if there is any error, 1 for a warning, otherwise zero. If it does not
  * return zero, it may write an error message into the <err> buffer, for at
