@@ -2249,7 +2249,7 @@ acl_fetch_connslots(struct proxy *px, struct session *l4, void *l7, int dir,
 	test->i = 0;
 	iterator = px->srv;
 	while (iterator) {
-		if ((iterator->state & 1) == 0) {
+		if ((iterator->state & SRV_RUNNING) == 0) {
 			iterator = iterator->next;
 			continue;
 		}
@@ -2304,6 +2304,99 @@ acl_fetch_be_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 1;
 }
 
+/* set test->i to the number of concurrent connections on the frontend */
+static int
+acl_fetch_fe_conn(struct proxy *px, struct session *l4, void *l7, int dir,
+		  struct acl_expr *expr, struct acl_test *test)
+{
+	test->flags = ACL_TEST_F_VOL_TEST;
+	if (expr->arg_len) {
+		/* another proxy was designated, we must look for it */
+		for (px = proxy; px; px = px->next)
+			if ((px->cap & PR_CAP_FE) && !strcmp(px->id, expr->arg.str))
+				break;
+	}
+	if (!px)
+		return 0;
+
+	test->i = px->feconn;
+	return 1;
+}
+
+/* set test->i to the number of concurrent connections on the backend */
+static int
+acl_fetch_be_conn(struct proxy *px, struct session *l4, void *l7, int dir,
+		  struct acl_expr *expr, struct acl_test *test)
+{
+	test->flags = ACL_TEST_F_VOL_TEST;
+	if (expr->arg_len) {
+		/* another proxy was designated, we must look for it */
+		for (px = proxy; px; px = px->next)
+			if ((px->cap & PR_CAP_BE) && !strcmp(px->id, expr->arg.str))
+				break;
+	}
+	if (!px)
+		return 0;
+
+	test->i = px->beconn;
+	return 1;
+}
+
+/* set test->i to the total number of queued connections on the backend */
+static int
+acl_fetch_queue_size(struct proxy *px, struct session *l4, void *l7, int dir,
+		   struct acl_expr *expr, struct acl_test *test)
+{
+	test->flags = ACL_TEST_F_VOL_TEST;
+	if (expr->arg_len) {
+		/* another proxy was designated, we must look for it */
+		for (px = proxy; px; px = px->next)
+			if ((px->cap & PR_CAP_BE) && !strcmp(px->id, expr->arg.str))
+				break;
+	}
+	if (!px)
+		return 0;
+
+	test->i = px->totpend;
+	return 1;
+}
+
+/* set test->i to the total number of queued connections on the backend divided
+ * by the number of running servers and rounded up. If there is no running
+ * server, we return twice the total, just as if we had half a running server.
+ * This is more or less correct anyway, since we expect the last server to come
+ * back soon.
+ */
+static int
+acl_fetch_avg_queue_size(struct proxy *px, struct session *l4, void *l7, int dir,
+		   struct acl_expr *expr, struct acl_test *test)
+{
+	int nbsrv;
+
+	test->flags = ACL_TEST_F_VOL_TEST;
+	if (expr->arg_len) {
+		/* another proxy was designated, we must look for it */
+		for (px = proxy; px; px = px->next)
+			if ((px->cap & PR_CAP_BE) && !strcmp(px->id, expr->arg.str))
+				break;
+	}
+	if (!px)
+		return 0;
+
+	if (px->srv_act)
+		nbsrv = px->srv_act;
+	else if (px->lbprm.fbck)
+		nbsrv = 1;
+	else
+		nbsrv = px->srv_bck;
+
+	if (nbsrv > 0)
+		test->i = (px->totpend + nbsrv - 1) / nbsrv;
+	else
+		test->i = px->totpend * 2;
+
+	return 1;
+}
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct acl_kw_list acl_kws = {{ },{
@@ -2311,6 +2404,10 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "connslots", acl_parse_int,   acl_fetch_connslots, acl_match_int, ACL_USE_NOTHING },
 	{ "fe_sess_rate", acl_parse_int, acl_fetch_fe_sess_rate, acl_match_int, ACL_USE_NOTHING },
 	{ "be_sess_rate", acl_parse_int, acl_fetch_be_sess_rate, acl_match_int, ACL_USE_NOTHING },
+	{ "fe_conn", acl_parse_int, acl_fetch_fe_conn, acl_match_int, ACL_USE_NOTHING },
+	{ "be_conn", acl_parse_int, acl_fetch_be_conn, acl_match_int, ACL_USE_NOTHING },
+	{ "queue", acl_parse_int, acl_fetch_queue_size, acl_match_int, ACL_USE_NOTHING },
+	{ "avg_queue", acl_parse_int, acl_fetch_avg_queue_size, acl_match_int, ACL_USE_NOTHING },
 	{ NULL, NULL, NULL, NULL },
 }};
 

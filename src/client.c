@@ -562,12 +562,12 @@ acl_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
 }
 
 
-/* set test->i to the number of connexions to the proxy */
+/* set test->i to the number of connexions to the same listening socket */
 static int
 acl_fetch_dconn(struct proxy *px, struct session *l4, void *l7, int dir,
                 struct acl_expr *expr, struct acl_test *test)
 {
-	test->i = px->feconn;
+	test->i = l4->listener->nbconn;
 	return 1;
 }
 
