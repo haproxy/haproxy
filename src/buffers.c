@@ -1,7 +1,7 @@
 /*
  * Buffer management functions.
  *
- * Copyright 2000-2007 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2009 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -78,7 +78,7 @@ int buffer_write(struct buffer *buf, const char *msg, int len)
  * otherwise. The send limit is automatically adjusted with the amount of data
  * written.
  */
-int buffer_feed(struct buffer *buf, const char *str, int len)
+int buffer_feed2(struct buffer *buf, const char *str, int len)
 {
 	int max;
 

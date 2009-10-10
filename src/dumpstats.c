@@ -64,19 +64,9 @@ const char stats_sock_usage_msg[] =
 	"  show sess      : report the list of current sessions\n"
 	"";
 
-const struct chunk stats_sock_usage = {
-        .str = (char *)&stats_sock_usage_msg,
-        .len = sizeof(stats_sock_usage_msg)-1
-};
-
 const char stats_permission_denied_msg[] =
 	"Permission denied\n"
 	"";
-
-const struct chunk stats_permission_denied = {
-        .str = (char *)&stats_permission_denied_msg,
-        .len = sizeof(stats_permission_denied_msg)-1
-};
 
 /* This function parses a "stats" statement in the "global" section. It returns
  * -1 if there is any error, otherwise zero. If it returns -1, it may write an
@@ -313,14 +303,14 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 		else if (strcmp(args[1], "sess") == 0) {
 			s->data_state = DATA_ST_INIT;
 			if (s->listener->perm.ux.level < ACCESS_LVL_OPER) {
-				buffer_feed(si->ib, stats_permission_denied.str, stats_permission_denied.len);
+				buffer_feed(si->ib, stats_permission_denied_msg);
 				return 1;
 			}
 			si->st0 = STAT_CLI_O_SESS; // stats_dump_sess_to_buffer
 		}
 		else if (strcmp(args[1], "errors") == 0) {
 			if (s->listener->perm.ux.level < ACCESS_LVL_OPER) {
-				buffer_feed(si->ib, stats_permission_denied.str, stats_permission_denied.len);
+				buffer_feed(si->ib, stats_permission_denied_msg);
 				return 1;
 			}
 			if (*args[2])
@@ -348,7 +338,7 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 			/* check permissions */
 			if (s->listener->perm.ux.level < ACCESS_LVL_OPER ||
 			    (clrall && s->listener->perm.ux.level < ACCESS_LVL_ADMIN)) {
-				buffer_feed(si->ib, stats_permission_denied.str, stats_permission_denied.len);
+				buffer_feed(si->ib, stats_permission_denied_msg);
 				return 1;
 			}
 
@@ -495,7 +485,7 @@ void stats_io_handler(struct stream_interface *si)
 
 			switch (si->st0) {
 			case STAT_CLI_O_HELP:
-				if (buffer_feed(si->ib, stats_sock_usage.str, stats_sock_usage.len) < 0)
+				if (buffer_feed(si->ib, stats_sock_usage_msg) < 0)
 					si->st0 = STAT_CLI_PROMPT;
 				break;
 			case STAT_CLI_O_INFO:
@@ -517,7 +507,7 @@ void stats_io_handler(struct stream_interface *si)
 
 			/* The post-command prompt is either LF alone or LF + '> ' in interactive mode */
 			if (si->st0 == STAT_CLI_PROMPT) {
-				if (buffer_feed(si->ib, si->st1 ? "\n> " : "\n", si->st1 ? 3 : 1) < 0)
+				if (buffer_feed(si->ib, si->st1 ? "\n> " : "\n") < 0)
 					si->st0 = STAT_CLI_GETREQ;
 			}
 

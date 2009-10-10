@@ -358,7 +358,7 @@ static inline int buffer_si_peekchar(struct buffer *buf)
 }
 
 /* Try to write character <c> into buffer <buf> after length controls. This
- * work like buffer_feed(buf, &c, 1).
+ * work like buffer_feed2(buf, &c, 1).
  * Returns non-zero in case of success, 0 if the buffer was full.
  * The send limit is automatically adjusted with the amount of data written.
  */
@@ -389,7 +389,7 @@ static inline int buffer_si_putchar(struct buffer *buf, char c)
 }
 
 int buffer_write(struct buffer *buf, const char *msg, int len);
-int buffer_feed(struct buffer *buf, const char *str, int len);
+int buffer_feed2(struct buffer *buf, const char *str, int len);
 int buffer_si_putchar(struct buffer *buf, char c);
 int buffer_si_peekline(struct buffer *buf, char *str, int len);
 int buffer_replace(struct buffer *b, char *pos, char *end, const char *str);
@@ -426,10 +426,21 @@ static inline int buffer_feed_chunk(struct buffer *buf, struct chunk *chunk)
 {
 	int ret;
 
-	ret = buffer_feed(buf, chunk->str, chunk->len);
+	ret = buffer_feed2(buf, chunk->str, chunk->len);
 	if (ret == -1)
 		chunk->len = 0;
 	return ret;
+}
+
+/* Try to write string <str> into buffer <buf> after length controls. This is
+ * the equivalent of buffer_feed2() except that string length is measured by
+ * the function. Returns -1 in case of success, -2 if it is larger than the
+ * buffer size, or the number of bytes available otherwise. The send limit is
+ * automatically adjusted with the amount of data written.
+ */
+static inline int buffer_feed(struct buffer *buf, const char *str)
+{
+	return buffer_feed2(buf, str, strlen(str));
 }
 
 static inline void chunk_init(struct chunk *chk, char *str, size_t size) {
