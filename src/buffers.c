@@ -10,6 +10,7 @@
  *
  */
 
+#include <ctype.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -322,6 +323,87 @@ int chunk_printf(struct chunk *chk, const char *fmt, ...)
 		chk->len += ret;
 	va_end(argp);
 	return chk->len;
+}
+
+/*
+ * Encode chunk <src> into chunk <dst>, respecting the limit of at most
+ * chk->size chars. Replace non-printable or special chracters with "&#%d;".
+ * If the chk->len is over, nothing is added. Returns the new chunk size.
+ */
+int chunk_htmlencode(struct chunk *dst, struct chunk *src) {
+
+	int i, l;
+	int olen, free;
+	char c;
+
+	olen = dst->len;
+
+	for (i = 0; i < src->len; i++) {
+		free = dst->size - dst->len;
+
+		if (!free) {
+			dst->len = olen;
+			return dst->len;
+		}
+
+		c = src->str[i];
+
+		if (!isascii(c) || !isprint(c) || c == '&' || c == '"' || c == '\'' || c == '<' || c == '>') {
+			l = snprintf(dst->str + dst->len, free, "&#%u;", (unsigned char)c);
+
+			if (free < l) {
+				dst->len = olen;
+				return dst->len;
+			}
+
+			dst->len += l;
+		} else {
+			dst->str[dst->len] = c;
+			dst->len++;
+		}
+	}
+
+	return dst->len;
+}
+
+/*
+ * Encode chunk <src> into chunk <dst>, respecting the limit of at most
+ * chk->size chars. Replace non-printable or char passed in qc with "<%02X>".
+ * If the chk->len is over, nothing is added. Returns the new chunk size.
+ */
+int chunk_asciiencode(struct chunk *dst, struct chunk *src, char qc) {
+	int i, l;
+	int olen, free;
+	char c;
+
+	olen = dst->len;
+
+	for (i = 0; i < src->len; i++) {
+		free = dst->size - dst->len;
+
+		if (!free) {
+			dst->len = olen;
+			return dst->len;
+		}
+
+		c = src->str[i];
+
+		if (!isascii(c) || !isprint(c) || c == '<' || c == '>' || c == qc) {
+			l = snprintf(dst->str + dst->len, free, "<%02X>", (unsigned char)c);
+
+			if (free < l) {
+				dst->len = olen;
+				return dst->len;
+			}
+
+			dst->len += l;
+		} else {
+			dst->str[dst->len] = c;
+			dst->len++;
+		}
+	}
+
+	return dst->len;
 }
 
 /*

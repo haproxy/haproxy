@@ -485,6 +485,9 @@ static inline int chunk_strcpy(struct chunk *chk, const char *str) {
 int chunk_printf(struct chunk *chk, const char *fmt, ...)
 	__attribute__ ((format(printf, 2, 3)));
 
+int chunk_htmlencode(struct chunk *dst, struct chunk *src);
+int chunk_asciiencode(struct chunk *dst, struct chunk *src, char qc);
+
 static inline void chunk_reset(struct chunk *chk) {
 	chk->str  = NULL;
 	chk->len  = -1;
