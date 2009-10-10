@@ -69,6 +69,15 @@ const struct chunk stats_sock_usage = {
         .len = sizeof(stats_sock_usage_msg)-1
 };
 
+const char stats_permission_denied_msg[] =
+	"Permission denied\n"
+	"";
+
+const struct chunk stats_permission_denied = {
+        .str = (char *)&stats_permission_denied_msg,
+        .len = sizeof(stats_permission_denied_msg)-1
+};
+
 /* This function parses a "stats" statement in the "global" section. It returns
  * -1 if there is any error, otherwise zero. If it returns -1, it may write an
  * error message into ther <err> buffer, for at most <errlen> bytes, trailing
@@ -129,6 +138,7 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 		global.stats_sock.analysers = 0;
 		global.stats_sock.nice = -64;  /* we want to boost priority for local stats */
 		global.stats_sock.private = global.stats_fe; /* must point to the frontend */
+		global.stats_sock.perm.ux.level = ACCESS_LVL_OPER; /* default access level */
 
 		global.stats_fe->timeout.client = MS_TO_TICKS(10000); /* default timeout of 10 seconds */
 		global.stats_sock.timeout = &global.stats_fe->timeout.client;
@@ -172,8 +182,21 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 				global.stats_sock.perm.ux.gid = group->gr_gid;
 				cur_arg += 2;
 			}
+			else if (!strcmp(args[cur_arg], "level")) {
+				if (!strcmp(args[cur_arg+1], "user"))
+					global.stats_sock.perm.ux.level = ACCESS_LVL_USER;
+				else if (!strcmp(args[cur_arg+1], "operator"))
+					global.stats_sock.perm.ux.level = ACCESS_LVL_OPER;
+				else if (!strcmp(args[cur_arg+1], "admin"))
+					global.stats_sock.perm.ux.level = ACCESS_LVL_ADMIN;
+				else {
+					snprintf(err, errlen, "'stats socket level' only supports 'user', 'operator', and 'admin'");
+					return -1;
+				}
+				cur_arg += 2;
+			}
 			else {
-				snprintf(err, errlen, "'stats socket' only supports 'user', 'uid', 'group', 'gid', and 'mode'");
+				snprintf(err, errlen, "'stats socket' only supports 'user', 'uid', 'group', 'gid', 'level', and 'mode'");
 				return -1;
 			}
 		}
@@ -289,9 +312,17 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 		}
 		else if (strcmp(args[1], "sess") == 0) {
 			s->data_state = DATA_ST_INIT;
+			if (s->listener->perm.ux.level < ACCESS_LVL_OPER) {
+				buffer_feed(si->ib, stats_permission_denied.str, stats_permission_denied.len);
+				return 1;
+			}
 			si->st0 = STAT_CLI_O_SESS; // stats_dump_sess_to_buffer
 		}
 		else if (strcmp(args[1], "errors") == 0) {
+			if (s->listener->perm.ux.level < ACCESS_LVL_OPER) {
+				buffer_feed(si->ib, stats_permission_denied.str, stats_permission_denied.len);
+				return 1;
+			}
 			if (*args[2])
 				s->data_ctx.errors.iid	= atoi(args[2]);
 			else
@@ -313,6 +344,13 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 
 			if (strcmp(args[2], "all") == 0)
 				clrall = 1;
+
+			/* check permissions */
+			if (s->listener->perm.ux.level < ACCESS_LVL_OPER ||
+			    (clrall && s->listener->perm.ux.level < ACCESS_LVL_ADMIN)) {
+				buffer_feed(si->ib, stats_permission_denied.str, stats_permission_denied.len);
+				return 1;
+			}
 
 			for (px = proxy; px; px = px->next) {
 				if (clrall)

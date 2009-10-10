@@ -476,13 +476,25 @@ pidfile <pidfile>
   starting the process. See also "daemon".
 
 stats socket <path> [{uid | user} <uid>] [{gid | group} <gid>] [mode <mode>]
+  [level <level>]
+
   Creates a UNIX socket in stream mode at location <path>. Any previously
   existing socket will be backed up then replaced. Connections to this socket
-  will get a CSV-formated output of the process statistics in response to the
-  "show stat" command followed by a line feed, more general process information
-  in response to the "show info" command followed by a line feed, and a
-  complete list of all existing sessions in response to the "show sess" command
-  followed by a line feed.
+  will return various statictics outputs and even allow some commands to be
+  issued. Please consult section 9.2 "Unix Socket commands" for more details.
+
+  An optional "level" parameter can be specified to restrict the nature of
+  the commands that can be issued on the socket :
+    - "user" is the least privileged level ; only non-sensitive stats can be
+      read, and no change is allowed. It would make sense on systems where it
+      is not easy to restrict access to the socket.
+
+    - "operator" is the default level and fits most common uses. All data can
+      be read, and only non-sensible changes are permitted (eg: clear max
+      counters).
+
+    - "admin" should be used with care, as everything is permitted (eg: clear
+      all counters).
 
   On platforms which support it, it is possible to restrict access to this
   socket by specifying numerical IDs after "uid" and "gid", or valid user and
@@ -6753,7 +6765,9 @@ quit
 show errors [<iid>]
   Dump last known request and response errors collected by frontends and
   backends. If <iid> is specified, the limit the dump to errors concerning
-  either frontend or backend whose ID is <iid>.
+  either frontend or backend whose ID is <iid>. This command is restricted
+  and can only be issued on sockets configured for levels "operator" or
+  "admin".
 
   The errors which may be collected are the last request and response errors
   caused by protocol violations, often due to invalid characters in header
@@ -6806,7 +6820,9 @@ show info
 
 show sess
   Dump all known sessions. Avoid doing this on slow connections as this can
-  be huge.
+  be huge. This command is restricted and can only be issued on sockets
+  configured for levels "operator" or "admin".
+
 
 show stat [<iid> <type> <sid>]
   Dump statistics in the CSV format. By passing <id>, <type> and <sid>, it is
@@ -6846,11 +6862,14 @@ clear counters
   Clear the max values of the statistics counters in each proxy (frontend &
   backend) and in each server. The cumulated counters are not affected. This
   can be used to get clean counters after an incident, without having to
-  restart nor to clear traffic counters.
+  restart nor to clear traffic counters. This command is restricted and can
+  only be issued on sockets configured for levels "operator" or "admin".
 
 clear counters all
   Clear all statistics counters in each proxy (frontend & backend) and in each
-  server. This has the same effect as restarting.
+  server. This has the same effect as restarting. This command is restricted
+  and can only be issued on sockets configured for level "admin".
+
 
 /*
  * Local variables:

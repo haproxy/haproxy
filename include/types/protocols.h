@@ -101,6 +101,7 @@ struct listener {
 			uid_t uid;	/* -1 to leave unchanged */
 			gid_t gid;	/* -1 to leave unchanged */
 			mode_t mode;	/* 0 to leave unchanged */
+			int level;	/* access level (ACCESS_LVL_*) */
 		} ux;
 	} perm;
 	char *interface;		/* interface name or NULL */

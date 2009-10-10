@@ -54,6 +54,11 @@
 /* platform-specific options */
 #define GTUNE_USE_SPLICE         (1<<5)
 
+/* Access level for a stats socket */
+#define ACCESS_LVL_NONE     0
+#define ACCESS_LVL_USER     1
+#define ACCESS_LVL_OPER     2
+#define ACCESS_LVL_ADMIN    3
 
 /* FIXME : this will have to be redefined correctly */
 struct global {
