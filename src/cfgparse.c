@@ -2538,7 +2538,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		newsrv->rise = DEF_RISETIME;
 		newsrv->fall = DEF_FALLTIME;
 		newsrv->health = newsrv->rise; /* up, but will fall down at first failure */
-		newsrv->uweight = 1;
+		newsrv->uweight = newsrv->iweight = 1;
 		newsrv->maxqueue = 0;
 		newsrv->slowstart = 0;
 
@@ -2695,7 +2695,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
-				newsrv->uweight = w;
+				newsrv->uweight = newsrv->iweight = w;
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "minconn")) {

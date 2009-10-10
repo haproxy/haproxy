@@ -122,7 +122,7 @@ struct server {
 	int curfd;				/* file desc used for current test, or -1 if not in test */
 
 	char *id;				/* just for identification */
-	unsigned uweight, eweight;		/* user-specified weight, and effective weight */
+	unsigned iweight,uweight, eweight;	/* initial weight, user-specified weight, and effective weight */
 	unsigned wscore;			/* weight score, used during srv map computation */
 	unsigned prev_eweight;			/* eweight before last change */
 	unsigned rweight;			/* remainer of weight in the current LB tree */
