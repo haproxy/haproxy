@@ -54,7 +54,7 @@
 
 const char stats_sock_usage_msg[] =
 	"Unknown command. Please enter one of the following commands only :\n"
-	"  clear counters : clear statistics counters\n"
+	"  clear counters : clear max statistics counters (add 'all' for all counters)\n"
 	"  help           : this message\n"
 	"  prompt         : toggle interactive mode with prompt\n"
 	"  quit           : disconnect\n"
@@ -309,16 +309,38 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 			struct proxy *px;
 			struct server *sv;
 			struct listener *li;
+			int clrall = 0;
+
+			if (strcmp(args[2], "all") == 0)
+				clrall = 1;
 
 			for (px = proxy; px; px = px->next) {
-				memset(&px->counters, 0, sizeof(px->counters));
+				if (clrall)
+					memset(&px->counters, 0, sizeof(px->counters));
+				else {
+					px->counters.feconn_max = 0;
+					px->counters.beconn_max = 0;
+					px->counters.fe_sps_max = 0;
+					px->counters.be_sps_max = 0;
+					px->counters.nbpend_max = 0;
+				}
 
 				for (sv = px->srv; sv; sv = sv->next)
-					memset(&sv->counters, 0, sizeof(sv->counters));
+					if (clrall)
+						memset(&sv->counters, 0, sizeof(sv->counters));
+					else {
+						sv->counters.cur_sess_max = 0;
+						sv->counters.nbpend_max = 0;
+						sv->counters.sps_max = 0;
+					}
 
 				for (li = px->listen; li; li = li->next)
-					if (li->counters)
-						memset(li->counters, 0, sizeof(*li->counters));
+					if (li->counters) {
+						if (clrall)
+							memset(li->counters, 0, sizeof(*li->counters));
+						else
+							li->counters->conn_max = 0;
+					}
 			}
 
 			return 1;

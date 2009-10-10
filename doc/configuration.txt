@@ -6843,8 +6843,14 @@ show stat [<iid> <type> <sid>]
     the reader knows the output has not been trucated.
 
 clear counters
-  Clear statistics counters in each proxy (frontend & backend) and in each
-  server.
+  Clear the max values of the statistics counters in each proxy (frontend &
+  backend) and in each server. The cumulated counters are not affected. This
+  can be used to get clean counters after an incident, without having to
+  restart nor to clear traffic counters.
+
+clear counters all
+  Clear all statistics counters in each proxy (frontend & backend) and in each
+  server. This has the same effect as restarting.
 
 /*
  * Local variables:
