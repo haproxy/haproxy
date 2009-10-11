@@ -288,6 +288,14 @@ static inline int buffer_contig_space(struct buffer *buf)
 	return ret;
 }
 
+/* Return 1 if the buffer has less than 1/4 of its capacity free, otherwise 0 */
+static inline int buffer_almost_full(struct buffer *buf)
+{
+	if (buffer_contig_space(buf) < buf->size / 4)
+		return 1;
+	return 0;
+}
+
 /*
  * Return the max amount of bytes that can be read from the buffer at once.
  * Note that this may be lower than the actual buffer length when the data

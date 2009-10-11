@@ -540,6 +540,12 @@ void stats_io_handler(struct stream_interface *si)
 			break;
 		}
 		else if (si->st0 == STAT_CLI_GETREQ) {
+			/* ensure we have some output room left in the event we
+			 * would want to return some info right after parsing.
+			 */
+			if (buffer_almost_full(si->ib))
+				break;
+
 			reql = buffer_si_peekline(si->ob, trash, sizeof(trash));
 			if (reql <= 0) { /* closed or EOL not found */
 				if (reql == 0)
@@ -1121,6 +1127,8 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 	case DATA_ST_LIST:
 		/* dump proxies */
 		while (s->data_ctx.stats.px) {
+			if (buffer_almost_full(rep))
+				return 0;
 			px = s->data_ctx.stats.px;
 			/* skip the disabled proxies and non-networked ones */
 			if (px->state != PR_STSTOPPED && (px->cap & (PR_CAP_FE | PR_CAP_BE)))
@@ -1329,6 +1337,9 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 	case DATA_ST_PX_LI:
 		/* stats.l has been initialized above */
 		for (; s->data_ctx.stats.l != NULL; s->data_ctx.stats.l = l->next) {
+			if (buffer_almost_full(rep))
+				return 0;
+
 			l = s->data_ctx.stats.l;
 			if (!l->counters)
 				continue;
@@ -1418,8 +1429,10 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 	case DATA_ST_PX_SV:
 		/* stats.sv has been initialized above */
 		for (; s->data_ctx.stats.sv != NULL; s->data_ctx.stats.sv = sv->next) {
-
 			int sv_state; /* 0=DOWN, 1=going up, 2=going down, 3=UP, 4,5=NOLB, 6=unchecked */
+
+			if (buffer_almost_full(rep))
+				return 0;
 
 			sv = s->data_ctx.stats.sv;
 
