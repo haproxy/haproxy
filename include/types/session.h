@@ -212,6 +212,9 @@ struct session {
 			int ptr;		/* <0: headers, >=0 : text pointer to restart from */
 			int bol;		/* pointer to beginning of current line */
 		} errors;
+		struct {
+			const char *msg;	/* pointer to a persistent message to be returned in PRINT state */
+		} cli;
 	} data_ctx;				/* used by stats I/O handlers to dump the stats */
 	unsigned int uniq_id;			/* unique ID used for the traces */
 };

@@ -46,8 +46,8 @@
 #define STAT_CLI_GETREQ 2   /* wait for a request */
 #define STAT_CLI_OUTPUT 3   /* all states after this one are responses */
 #define STAT_CLI_PROMPT 3   /* display the prompt (first output, same code) */
+#define STAT_CLI_PRINT  4   /* display message in cli->msg */
 
-#define STAT_CLI_O_HELP 4   /* display help */
 #define STAT_CLI_O_INFO 5   /* dump info/stats */
 #define STAT_CLI_O_SESS 6   /* dump sessions */
 #define STAT_CLI_O_ERR  7   /* dump errors */

@@ -250,7 +250,8 @@ int print_csv_header(struct chunk *msg)
 /* Processes the stats interpreter on the statistics socket. This function is
  * called from an applet running in a stream interface. The function returns 1
  * if the request was understood, otherwise zero. It sets si->st0 to a value
- * designating the function which will have to process the request.
+ * designating the function which will have to process the request, which can
+ * also be the print function to display the return message set into cli.msg.
  */
 int stats_sock_parse_request(struct stream_interface *si, char *line)
 {
@@ -305,14 +306,16 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 		else if (strcmp(args[1], "sess") == 0) {
 			s->data_state = DATA_ST_INIT;
 			if (s->listener->perm.ux.level < ACCESS_LVL_OPER) {
-				buffer_feed(si->ib, stats_permission_denied_msg);
+				s->data_ctx.cli.msg = stats_permission_denied_msg;
+				si->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
 			si->st0 = STAT_CLI_O_SESS; // stats_dump_sess_to_buffer
 		}
 		else if (strcmp(args[1], "errors") == 0) {
 			if (s->listener->perm.ux.level < ACCESS_LVL_OPER) {
-				buffer_feed(si->ib, stats_permission_denied_msg);
+				s->data_ctx.cli.msg = stats_permission_denied_msg;
+				si->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
 			if (*args[2])
@@ -340,7 +343,8 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 			/* check permissions */
 			if (s->listener->perm.ux.level < ACCESS_LVL_OPER ||
 			    (clrall && s->listener->perm.ux.level < ACCESS_LVL_ADMIN)) {
-				buffer_feed(si->ib, stats_permission_denied_msg);
+				s->data_ctx.cli.msg = stats_permission_denied_msg;
+				si->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
 
@@ -392,15 +396,14 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 				}
 
 			if (!*line) {
-				buffer_feed(si->ib, "Require 'backend/server'.\n");
+				s->data_ctx.cli.msg = "Require 'backend/server'.\n";
+				si->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
 
 			if (!get_backend_server(args[2], line, &px, &sv)) {
-				if (!px)
-					buffer_feed(si->ib, "No such backend.\n");
-				else
-					buffer_feed(si->ib, "No such server.\n");
+				s->data_ctx.cli.msg = px ? "No such server.\n" : "No such backend.\n";
+				si->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
 
@@ -420,7 +423,8 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 			int w;
 
 			if (s->listener->perm.ux.level < ACCESS_LVL_ADMIN) {
-				buffer_feed(si->ib, stats_permission_denied_msg);
+				s->data_ctx.cli.msg = stats_permission_denied_msg;
+				si->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
 
@@ -432,15 +436,14 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 				}
 
 			if (!*line || !*args[3]) {
-				buffer_feed(si->ib, "Require 'backend/server' and 'weight' or 'weight%'.\n");
+				s->data_ctx.cli.msg = "Require 'backend/server' and 'weight' or 'weight%'.\n";
+				si->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
 
 			if (!get_backend_server(args[2], line, &px, &sv)) {
-				if (!px)
-					buffer_feed(si->ib, "No such backend.\n");
-				else
-					buffer_feed(si->ib, "No such server.\n");
+				s->data_ctx.cli.msg = px ? "No such server.\n" : "No such backend.\n";
+				si->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
 
@@ -450,20 +453,23 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 			w = atoi(args[3]);
 			if (strchr(args[3], '%') != NULL) {
 				if (w < 0 || w > 100) {
-					buffer_feed(si->ib, "Relative weight can only be set between 0 and 100% inclusive.\n");
+					s->data_ctx.cli.msg = "Relative weight can only be set between 0 and 100% inclusive.\n";
+					si->st0 = STAT_CLI_PRINT;
 					return 1;
 				}
 				w = sv->iweight * w / 100;
 			}
 			else {
 				if (w < 0 || w > 256) {
-					buffer_feed(si->ib, "Absolute weight can only be between 0 and 256 inclusive.\n");
+					s->data_ctx.cli.msg = "Absolute weight can only be between 0 and 256 inclusive.\n";
+					si->st0 = STAT_CLI_PRINT;
 					return 1;
 				}
 			}
 
 			if (w && w != sv->iweight && !(px->lbprm.algo & BE_LB_PROP_DYN)) {
-				buffer_feed(si->ib, "Backend is using a static LB algorithm and only accepts weights '0%' and '100%'.\n");
+				s->data_ctx.cli.msg = "Backend is using a static LB algorithm and only accepts weights '0%' and '100%'.\n";
+				si->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
 
@@ -576,8 +582,10 @@ void stats_io_handler(struct stream_interface *si)
 				else if (strcmp(trash, "prompt") == 0)
 					si->st1 = !si->st1;
 				else if (strcmp(trash, "help") == 0 ||
-					 !stats_sock_parse_request(si, trash))
-					si->st0 = STAT_CLI_O_HELP;
+					 !stats_sock_parse_request(si, trash)) {
+					s->data_ctx.cli.msg = stats_sock_usage_msg;
+					si->st0 = STAT_CLI_PRINT;
+				}
 				/* NB: stats_sock_parse_request() may have put
 				 * another STAT_CLI_O_* into si->st0.
 				 */
@@ -587,7 +595,8 @@ void stats_io_handler(struct stream_interface *si)
 				 * so that the user at least knows how to enable
 				 * prompt and find help.
 				 */
-				si->st0 = STAT_CLI_O_HELP;
+				s->data_ctx.cli.msg = stats_sock_usage_msg;
+				si->st0 = STAT_CLI_PRINT;
 			}
 
 			/* re-adjust req buffer */
@@ -601,8 +610,8 @@ void stats_io_handler(struct stream_interface *si)
 			}
 
 			switch (si->st0) {
-			case STAT_CLI_O_HELP:
-				if (buffer_feed(si->ib, stats_sock_usage_msg) < 0)
+			case STAT_CLI_PRINT:
+				if (buffer_feed(si->ib, s->data_ctx.cli.msg) < 0)
 					si->st0 = STAT_CLI_PROMPT;
 				break;
 			case STAT_CLI_O_INFO:
