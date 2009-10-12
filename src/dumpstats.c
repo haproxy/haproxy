@@ -922,6 +922,8 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 		if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
 			/* WARNING! This must fit in the first buffer !!! */	    
 			chunk_printf(&msg,
+			     "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\"\n"
+			     "\"http://www.w3.org/TR/html4/loose.dtd\">\n"
 			     "<html><head><title>Statistics Report for " PRODUCT_NAME "%s%s</title>\n"
 			     "<meta http-equiv=\"content-type\" content=\"text/html; charset=iso-8859-1\">\n"
 			     "<style type=\"text/css\"><!--\n"
@@ -934,7 +936,6 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 			     "}\n"
 			     "th,td {"
 			     " font-size: 10px;"
-			     " align: center;"
 			     "}\n"
 			     "h1 {"
 			     " font-size: x-large;"
@@ -966,7 +967,7 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 			     " border-color: black;"
 			     " border-bottom-style: solid;"
 			     "}\n"
-			     ".titre	{background: #20D0D0;color: #000000; font-weight: bold;}\n"
+			     ".titre	{background: #20D0D0;color: #000000; font-weight: bold; text-align: center;}\n"
 			     ".total	{background: #20D0D0;color: #ffff80;}\n"
 			     ".frontend	{background: #e8e8d0;}\n"
 			     ".socket	{background: #d0d0d0;}\n"
@@ -986,12 +987,15 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 			     ".backup5	{background: #90b0e0;}\n"  /* NOLB state shows same as going down */
 			     ".backup6	{background: #e0e0e0;}\n"
 			     ".rls      {letter-spacing: 0.2em; margin-right: 1px;}\n" /* right letter spacing (used for grouping digits) */
+			     "\n"
 			     "table.tbl { border-collapse: collapse; border-style: none;}\n"
-			     "table.tbl td { border-width: 1px 1px 1px 1px; border-style: solid solid solid solid; padding: 2px 3px; border-color: gray;}\n"
+			     "table.tbl td { text-align: right; border-width: 1px 1px 1px 1px; border-style: solid solid solid solid; padding: 2px 3px; border-color: gray; white-space: nowrap;}\n"
+			     "table.tbl td.ac { text-align: center;}\n"
 			     "table.tbl th { border-width: 1px; border-style: solid solid solid solid; border-color: gray;}\n"
-			     "table.tbl th.pxname {background: #b00040; color: #ffff40; font-weight: bold; border-style: solid solid none solid; padding: 2px 3px; white-space: nowrap;}\n"
+			     "table.tbl th.pxname { background: #b00040; color: #ffff40; font-weight: bold; border-style: solid solid none solid; padding: 2px 3px; white-space: nowrap;}\n"
 			     "table.tbl th.empty { border-style: none; empty-cells: hide; background: white;}\n"
 			     "table.tbl th.desc { background: white; border-style: solid solid none solid; text-align: left; padding: 2px 3px;}\n"
+			     "\n"
 			     "table.lgd { border-collapse: collapse; border-width: 1px; border-style: none none none solid; border-color: black;}\n"
 			     "table.lgd td { border-width: 1px; border-style: solid solid solid solid; border-color: gray; padding: 2px;}\n"
 			     "table.lgd td.noborder { border-style: none; padding: 2px; white-space: nowrap;}\n"
@@ -1023,7 +1027,7 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 			     "<h2>Statistics Report for pid %d%s%s%s%s</h2>\n"
 			     "<hr width=\"100%%\" class=\"hr\">\n"
 			     "<h3>&gt; General process information</h3>\n"
-			     "<table border=0 cols=4><tr><td align=\"left\" nowrap width=\"1%%\">\n"
+			     "<table border=0><tr><td align=\"left\" nowrap width=\"1%%\">\n"
 			     "<p><b>pid = </b> %d (process #%d, nbproc = %d)<br>\n"
 			     "<b>uptime = </b> %dd %dh%02dm%02ds<br>\n"
 			     "<b>system limits:</b> memmax = %s%s; ulimit-n = %d<br>\n"
@@ -1103,7 +1107,7 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 			     (uri->refresh > 0) ? ";norefresh" : "");
 
 			chunk_printf(&msg,
-			     "</td>"
+			     "</ul></td>"
 			     "<td align=\"left\" valign=\"top\" nowrap width=\"1%%\">"
 			     "<b>External ressources:</b><ul style=\"margin-top: 0.25em;\">\n"
 			     "<li><a href=\"" PRODUCT_URL "\">Primary site</a><br>\n"
@@ -1218,13 +1222,13 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 			/* print a new table */
 			chunk_printf(&msg,
 				     "<table class=\"tbl\" width=\"100%%\">\n"
-				     "<tr align=\"center\" class=\"titre\">"
+				     "<tr class=\"titre\">"
 				     "<th class=\"pxname\" width=\"10%%\">%s</th>"
 				     "<th class=\"%s\" width=\"90%%\">%s</th>"
 				     "</tr>\n"
 				     "</table>\n"
-				     "<table cols=\"29\" class=\"tbl\" width=\"100%%\">\n"
-				     "<tr align=\"center\" class=\"titre\">"
+				     "<table class=\"tbl\" width=\"100%%\">\n"
+				     "<tr class=\"titre\">"
 				     "<th rowspan=2></th>"
 				     "<th colspan=3>Queue</th>"
 				     "<th colspan=3>Session rate</th><th colspan=5>Sessions</th>"
@@ -1232,7 +1236,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     "<th colspan=3>Errors</th><th colspan=2>Warnings</th>"
 				     "<th colspan=9>Server</th>"
 				     "</tr>\n"
-				     "<tr align=\"center\" class=\"titre\">"
+				     "<tr class=\"titre\">"
 				     "<th>Cur</th><th>Max</th><th>Limit</th>"
 				     "<th>Cur</th><th>Max</th><th>Limit</th><th>Cur</th><th>Max</th>"
 				     "<th>Limit</th><th>Total</th><th>LbTot</th><th>In</th><th>Out</th>"
@@ -1259,14 +1263,14 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 			if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
 				chunk_printf(&msg,
 				     /* name, queue */
-				     "<tr align=center class=\"frontend\"><td>Frontend</td><td colspan=3></td>"
+				     "<tr class=\"frontend\"><td class=ac>Frontend</td><td colspan=3></td>"
 				     /* sessions rate : current, max, limit */
-				     "<td align=right>%s</td><td align=right>%s</td><td align=right>%s</td>"
+				     "<td>%s</td><td>%s</td><td>%s</td>"
 				     /* sessions : current, max, limit, total, lbtot */
-				     "<td align=right>%s</td><td align=right>%s</td><td align=right>%s</td>"
-				     "<td align=right>%s</td><td align=right></td>"
+				     "<td>%s</td><td>%s</td><td>%s</td>"
+				     "<td>%s</td><td></td>"
 				     /* bytes : in, out */
-				     "<td align=right>%s</td><td align=right>%s</td>"
+				     "<td>%s</td><td>%s</td>"
 				     "",
 				     U2H0(read_freq_ctr(&px->fe_sess_per_sec)),
 				     U2H1(px->counters.fe_sps_max), LIM2A2(px->fe_sps_lim, "-"),
@@ -1275,15 +1279,15 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 
 				chunk_printf(&msg,
 				     /* denied: req, resp */
-				     "<td align=right>%s</td><td align=right>%s</td>"
+				     "<td>%s</td><td>%s</td>"
 				     /* errors : request, connect, response */
-				     "<td align=right>%s</td><td align=right></td><td align=right></td>"
+				     "<td>%s</td><td></td><td></td>"
 				     /* warnings: retries, redispatches */
-				     "<td align=right></td><td align=right></td>"
+				     "<td></td><td></td>"
 				     /* server status : reflect frontend status */
-				     "<td align=center>%s</td>"
+				     "<td class=ac>%s</td>"
 				     /* rest of server: nothing */
-				     "<td align=center colspan=8></td></tr>"
+				     "<td class=ac colspan=8></td></tr>"
 				     "",
 				     U2H0(px->counters.denied_req), U2H1(px->counters.denied_resp),
 				     U2H2(px->counters.failed_req),
@@ -1355,14 +1359,14 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 			if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
 				chunk_printf(&msg,
 				     /* name, queue */
-				     "<tr align=center class=\"socket\"><td>%s</td><td colspan=3></td>"
+				     "<tr class=socket><td class=ac>%s</td><td colspan=3></td>"
 				     /* sessions rate: current, max, limit */
-				     "<td align=right colspan=3>&nbsp;</td>"
+				     "<td colspan=3>&nbsp;</td>"
 				     /* sessions: current, max, limit, total, lbtot */
-				     "<td align=right>%s</td><td align=right>%s</td><td align=right>%s</td>"
-				     "<td align=right>%s</td><td align=right>&nbsp;</td>"
+				     "<td>%s</td><td>%s</td><td>%s</td>"
+				     "<td>%s</td><td>&nbsp;</td>"
 				     /* bytes: in, out */
-				     "<td align=right>%s</td><td align=right>%s</td>"
+				     "<td>%s</td><td>%s</td>"
 				     "",
 				     l->name,
 				     U2H3(l->nbconn), U2H4(l->counters->conn_max), U2H5(l->maxconn),
@@ -1370,15 +1374,15 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 
 				chunk_printf(&msg,
 				     /* denied: req, resp */
-				     "<td align=right>%s</td><td align=right>%s</td>"
+				     "<td>%s</td><td>%s</td>"
 				     /* errors: request, connect, response */
-				     "<td align=right>%s</td><td align=right></td><td align=right></td>"
+				     "<td>%s</td><td></td><td></td>"
 				     /* warnings: retries, redispatches */
-				     "<td align=right></td><td align=right></td>"
+				     "<td></td><td></td>"
 				     /* server status: reflect listener status */
-				     "<td align=center>%s</td>"
+				     "<td class=ac>%s</td>"
 				     /* rest of server: nothing */
-				     "<td align=center colspan=8></td></tr>"
+				     "<td class=ac colspan=8></td></tr>"
 				     "",
 				     U2H0(l->counters->denied_req), U2H1(l->counters->denied_resp),
 				     U2H2(l->counters->failed_req),
@@ -1480,14 +1484,14 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 							       "<i>no check</i>" };
 				chunk_printf(&msg,
 				     /* name */
-				     "<tr align=\"center\" class=\"%s%d\"><td>%s</td>"
+				     "<tr class=\"%s%d\"><td class=ac>%s</td>"
 				     /* queue : current, max, limit */
-				     "<td align=right>%s</td><td align=right>%s</td><td align=right>%s</td>"
+				     "<td>%s</td><td>%s</td><td>%s</td>"
 				     /* sessions rate : current, max, limit */
-				     "<td align=right>%s</td><td align=right>%s</td><td align=right></td>"
+				     "<td>%s</td><td>%s</td><td></td>"
 				     /* sessions : current, max, limit, total, lbtot */
-				     "<td align=right>%s</td><td align=right>%s</td><td align=right>%s</td>"
-				     "<td align=right>%s</td><td align=right>%s</td>"
+				     "<td>%s</td><td>%s</td><td>%s</td>"
+				     "<td>%s</td><td>%s</td>"
 				     "",
 				     (sv->state & SRV_BACKUP) ? "backup" : "active",
 				     sv_state, sv->id,
@@ -1498,13 +1502,13 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 
 				chunk_printf(&msg,
 				     /* bytes : in, out */
-				     "<td align=right>%s</td><td align=right>%s</td>"
+				     "<td>%s</td><td>%s</td>"
 				     /* denied: req, resp */
-				     "<td align=right></td><td align=right>%s</td>"
+				     "<td></td><td>%s</td>"
 				     /* errors : request, connect, response */
-				     "<td align=right></td><td align=right>%s</td><td align=right>%s</td>\n"
+				     "<td></td><td>%s</td><td>%s</td>\n"
 				     /* warnings: retries, redispatches */
-				     "<td align=right>%lld</td><td align=right>%lld</td>"
+				     "<td>%lld</td><td>%lld</td>"
 				     "",
 				     U2H0(sv->counters.bytes_in), U2H1(sv->counters.bytes_out),
 				     U2H2(sv->counters.failed_secu),
@@ -1512,7 +1516,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     sv->counters.retries, sv->counters.redispatches);
 
 				/* status, lest check */
-				chunk_printf(&msg, "<td nowrap>");
+				chunk_printf(&msg, "<td class=ac>");
 
 				if (sv->state & SRV_CHECKED) {
 					chunk_printf(&msg, "%s ",
@@ -1523,7 +1527,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 					     (svs->state & SRV_RUNNING) ? (svs->health - svs->rise + 1) : (svs->health),
 					     (svs->state & SRV_RUNNING) ? (svs->fall) : (svs->rise));
 
-					chunk_printf(&msg, "</td><td title=\"%s",
+					chunk_printf(&msg, "</td><td class=ac title=\"%s",
 						get_check_status_description(sv->check_status));
 
 					if (*sv->check_desc) {
@@ -1535,7 +1539,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 						chunk_htmlencode(&msg, &src);
 					}
 				
-					chunk_printf(&msg, "\" nowrap> %s%s",
+					chunk_printf(&msg, "\"> %s%s",
 						tv_iszero(&sv->check_start)?"":"* ",
 						get_check_status_info(sv->check_status));
 
@@ -1550,9 +1554,9 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 
 				chunk_printf(&msg,
 				     /* weight */
-				     "</td><td>%d</td>"
+				     "</td><td class=ac>%d</td>"
 				     /* act, bck */
-				     "<td>%s</td><td>%s</td>"
+				     "<td class=ac>%s</td><td class=ac>%s</td>"
 				     "",
 				     (sv->eweight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv,
 				     (sv->state & SRV_BACKUP) ? "-" : "Y",
@@ -1561,14 +1565,14 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				/* check failures: unique, fatal, down time */
 				if (sv->state & SRV_CHECKED)
 					chunk_printf(&msg,
-					     "<td align=right>%lld</td><td align=right>%lld</td>"
-					     "<td nowrap align=right>%s</td>"
+					     "<td>%lld</td><td>%lld</td>"
+					     "<td>%s</td>"
 					     "",
 					     svs->counters.failed_checks, svs->counters.down_trans,
 					     human_time(srv_downtime(sv), 1));
 				else if (sv != svs)
 					chunk_printf(&msg,
-					     "<td nowrap colspan=3>via %s/%s</td>", svs->proxy->id, svs->id);
+					     "<td class=ac colspan=3>via %s/%s</td>", svs->proxy->id, svs->id);
 				else
 					chunk_printf(&msg,
 					     "<td colspan=3></td>");
@@ -1580,10 +1584,10 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 					unsigned int ratio;
 					ratio = MAX(1, 100 * (now.tv_sec - sv->last_change) / sv->slowstart);
 					chunk_printf(&msg,
-						     "<td>%d %%</td></tr>\n", ratio);
+						     "<td class=ac>%d %%</td></tr>\n", ratio);
 				} else {
 					chunk_printf(&msg,
-						     "<td>-</td></tr>\n");
+						     "<td class=ac>-</td></tr>\n");
 				}
 			} else {
 				static char *srv_hlt_st[7] = { "DOWN,", "DOWN %d/%d,",
@@ -1709,21 +1713,21 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 			if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
 				chunk_printf(&msg,
 				     /* name */
-				     "<tr align=center class=\"backend\"><td>Backend</td>"
+				     "<tr class=\"backend\"><td class=ac>Backend</td>"
 				     /* queue : current, max */
-				     "<td align=right>%s</td><td align=right>%s</td><td></td>"
+				     "<td>%s</td><td>%s</td><td></td>"
 				     /* sessions rate : current, max, limit */
-				     "<td align=right>%s</td><td align=right>%s</td><td align=right></td>"
+				     "<td>%s</td><td>%s</td><td></td>"
 				     "",
 				     U2H0(px->nbpend) /* or px->totpend ? */, U2H1(px->counters.nbpend_max),
 				     U2H2(read_freq_ctr(&px->be_sess_per_sec)), U2H3(px->counters.be_sps_max));
 
 				chunk_printf(&msg,
 				     /* sessions : current, max, limit, total, lbtot */
-				     "<td align=right>%s</td><td align=right>%s</td><td align=right>%s</td>"
-				     "<td align=right>%s</td><td align=right>%s</td>"
+				     "<td>%s</td><td>%s</td><td>%s</td>"
+				     "<td>%s</td><td>%s</td>"
 				     /* bytes : in, out */
-				     "<td align=right>%s</td><td align=right>%s</td>"
+				     "<td>%s</td><td>%s</td>"
 				     "",
 				     U2H2(px->beconn), U2H3(px->counters.beconn_max), U2H4(px->fullconn),
 				     U2H6(px->counters.cum_beconn), U2H7(px->counters.cum_lbconn),
@@ -1731,17 +1735,17 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 
 				chunk_printf(&msg,
 				     /* denied: req, resp */
-				     "<td align=right>%s</td><td align=right>%s</td>"
+				     "<td>%s</td><td>%s</td>"
 				     /* errors : request, connect, response */
-				     "<td align=right></td><td align=right>%s</td><td align=right>%s</td>\n"
+				     "<td></td><td>%s</td><td>%s</td>\n"
 				     /* warnings: retries, redispatches */
-				     "<td align=right>%lld</td><td align=right>%lld</td>"
+				     "<td>%lld</td><td>%lld</td>"
 				     /* backend status: reflect backend status (up/down): we display UP
 				      * if the backend has known working servers or if it has no server at
 				      * all (eg: for stats). Then we display the total weight, number of
 				      * active and backups. */
-				     "<td align=center nowrap>%s %s</td><td align=center>&nbsp;</td><td align=center>%d</td>"
-				     "<td align=center>%d</td><td align=center>%d</td>"
+				     "<td class=ac>%s %s</td><td class=ac>&nbsp;</td><td class=ac>%d</td>"
+				     "<td class=ac>%d</td><td class=ac>%d</td>"
 				     "",
 				     U2H0(px->counters.denied_req), U2H1(px->counters.denied_resp),
 				     U2H2(px->counters.failed_conns), U2H3(px->counters.failed_resp),
@@ -1754,8 +1758,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 
 				chunk_printf(&msg,
 				     /* rest of backend: nothing, down transitions, total downtime, throttle */
-				     "<td align=center>&nbsp;</td><td align=\"right\">%d</td>"
-				     "<td align=\"right\" nowrap>%s</td>"
+				     "<td class=ac>&nbsp;</td><td>%d</td>"
+				     "<td>%s</td>"
 				     "<td></td>"
 				     "</tr>",
 				     px->down_trans,
