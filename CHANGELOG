@@ -1,6 +1,70 @@
 ChangeLog :
 ===========
 
+2009/10/12 : 1.4-dev4
+    - [DOC] add missing rate_lim and rate_max
+    - [MAJOR] struct chunk rework
+    - [MEDIUM] Health check reporting code rework + health logging, v3
+    - [BUG] check if rise/fall has an argument and it is > 0
+    - [MINOR] health checks logging unification
+    - [MINOR] add "description", "node" and show-node"/"show-desc", remove "node-name", v2
+    - [MINOR] Allow dots in show-node & add "white-space: nowrap" in th.pxname.
+    - [DOC] Add information about http://haproxy.1wt.eu/contrib.html
+    - [MINOR] Introduce include/types/counters.h
+    - [CLEANUP] Move counters to dedicated structures
+    - [MINOR] Add "clear counters" to clear statistics counters
+    - [MEDIUM] Collect & provide separate statistics for sockets, v2
+    - [BUG] Fix NULL pointer dereference in stats_check_uri_auth(), v2
+    - [MINOR] acl: don't report valid acls as potential mistakes
+    - [MINOR] Add cut_crlf(), ltrim(), rtrim() and alltrim()
+    - [MINOR] Add chunk_htmlencode and chunk_asciiencode
+    - [MINOR] Capture & display more data from health checks, v2
+    - [BUG] task.c: don't assing last_timer to node-less entries
+    - [BUG] http stats: large outputs sometimes got some parts chopped off
+    - [MINOR] backend: export some functions to recount servers
+    - [MINOR] backend: uninline some LB functions
+    - [MINOR] include time.h from freq_ctr.h as is uses "now".
+    - [CLEANUP] backend: move LB algos to individual files
+    - [MINOR] lb_map: reorder code in order to ease integration of new hash functions
+    - [CLEANUP] proxy: move last lb-specific bits to their respective files
+    - [MINOR] backend: separate declarations of LB algos from their lookup method
+    - [MINOR] backend: reorganize the LB algorithm selection
+    - [MEDIUM] backend: introduce the "static-rr" LB algorithm
+    - [MINOR] report list of supported pollers with -vv
+    - [DOC] log-health-checks is an option, not a directive
+    - [MEDIUM] new option "independant-streams" to stop updating read timeout on writes
+    - [BUG] stats: don't call buffer_shutw(), but ->shutw() instead
+    - [MINOR] stats: strip CR and LF from the input command line
+    - [BUG] don't refresh timeouts late after detected activity
+    - [MINOR] stats_dump_errors_to_buffer: use buffer_feed_chunk()
+    - [MINOR] stats_dump_sess_to_buffer: use buffer_feed_chunk()
+    - [MINOR] stats: make stats_dump_raw_to_buffer() use buffer_feed_chunk
+    - [MEDIUM] stats: don't use s->ana_state anymore
+    - [MINOR] remove now obsolete ana_state from the session struct
+    - [MEDIUM] stats: make HTTP stats use an I/O handler
+    - [MEDIUM] stream_int: adjust WAIT_ROOM handling
+    - [BUG] config: look for ID conflicts in all sockets, not only last ones.
+    - [MINOR] config: reference file and line with any listener/proxy/server declaration
+    - [MINOR] config: report places of duplicate names or IDs
+    - [MINOR] config: add pointer to file name in block/redirect/use_backend/monitor rules
+    - [MINOR] tools: add a new get_next_id() function
+    - [MEDIUM] config: automatically find unused IDs for proxies, servers and listeners
+    - [OPTIM] counters: move some max numbers to the counters struct
+    - [BUG] counters: fix segfault on missing counters for a listener
+    - [MEDIUM] backend: implement consistent hashing variation
+    - [MINOR] acl: add fe_conn, be_conn, queue, avg_queue
+    - [MINOR] stats: use 'clear counters all' to clear all values
+    - [MEDIUM] add access restrictions to the stats socket
+    - [MINOR] buffers: add buffer_feed2() and make buffer_feed() measure string length
+    - [MINOR] proxy: provide function to retrieve backend/server pointers
+    - [MINOR] add the "initial weight" to the server struct.
+    - [MEDIUM] stats: add the "get weight" command to report a server's weight
+    - [MEDIUM] stats: add the "set weight" command
+    - [BUILD] add a 'make tags' target
+    - [MINOR] stats: add support for numeric IDs in set weight/get weight
+    - [MINOR] stats: use a dedicated state to output static data
+    - [OPTIM] stats: check free space before trying to print
+
 2009/09/24 : 1.4-dev3
     - [BUILD] compilation of haproxy-1.4-dev2 on FreeBSD
     - [MEDIUM] Collect & show information about last health check, v3
