@@ -71,6 +71,7 @@
 #define LI_O_NOLINGER	0x0001	/* disable linger on this socket */
 #define LI_O_FOREIGN	0x0002	/* permit listening on foreing addresses */
 #define LI_O_NOQUICKACK	0x0004	/* disable quick ack of immediate data (linux) */
+#define LI_O_DEF_ACCEPT	0x0008	/* wait up to 1 second for data before accepting */
 
 /* The listener will be directly referenced by the fdtab[] which holds its
  * socket. The listener provides the protocol-specific accept() function to

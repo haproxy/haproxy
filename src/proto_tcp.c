@@ -520,6 +520,16 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		}
 	}
 #endif
+#if defined(TCP_DEFER_ACCEPT)
+	if (listener->options & LI_O_DEF_ACCEPT) {
+		/* defer accept by up to one second */
+		int accept_delay = 1;
+		if (setsockopt(fd, IPPROTO_TCP, TCP_DEFER_ACCEPT, &accept_delay, sizeof(accept_delay)) == -1) {
+			msg = "cannot enable DEFER_ACCEPT";
+			err |= ERR_WARN;
+		}
+	}
+#endif
 	if (bind(fd, (struct sockaddr *)&listener->addr, listener->proto->sock_addrlen) == -1) {
 		err |= ERR_RETRYABLE | ERR_ALERT;
 		msg = "cannot bind socket";

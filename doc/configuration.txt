@@ -1132,6 +1132,7 @@ bind [<address>]:<port> [, ...] mss <maxseg>
 bind [<address>]:<port> [, ...] transparent
 bind [<address>]:<port> [, ...] id <id>
 bind [<address>]:<port> [, ...] name <name>
+bind [<address>]:<port> [, ...] defer_accept
   Define one or several listening addresses and/or ports in a frontend.
   May be used in sections :   defaults | frontend | listen | backend
                                   no   |    yes   |   yes  |   no
@@ -1181,6 +1182,20 @@ bind [<address>]:<port> [, ...] name <name>
                   the default address '*', as it would redirect any traffic for
                   the specified port. This keyword is available only when
                   HAProxy is built with USE_LINUX_TPROXY=1.
+
+    defer_accept  is an optional keyword which is supported only on certain
+                  Linux kernels. It states that a connection will only be
+                  accepted once some data arrive on it, or at worst after the
+                  first retransmit. This should be used only on protocols for
+                  which the client talks first (eg: HTTP). It can slightly
+                  improve performance by ensuring that most of the request is
+                  already available when the connection is accepted. On the
+                  other hand, it will not be able to detect connections which
+                  don't talk. It is important to note that this option is
+                  broken in all kernels up to 2.6.31, as the connection is
+                  never accepted until the client talks. This can cause issues
+                  with front firewalls which would see an established
+                  connection while the proxy will only see it in SYN_RECV.
 
   It is possible to specify a list of address:port combinations delimited by
   commas. The frontend will then listen on all of these addresses. There is no

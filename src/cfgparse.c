@@ -1143,6 +1143,24 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				goto out;
 #endif
 			}
+
+			if (!strcmp(args[cur_arg], "defer-accept")) { /* wait for some data for 1 second max before doing accept */
+#ifdef TCP_DEFER_ACCEPT
+				struct listener *l;
+
+				for (l = curproxy->listen; l != last_listen; l = l->next)
+					l->options |= LI_O_DEF_ACCEPT;
+
+				cur_arg ++;
+				continue;
+#else
+				Alert("parsing [%s:%d] : '%s' : '%s' option not implemented.\n",
+				      file, linenum, args[0], args[cur_arg]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+#endif
+			}
+
 			if (!strcmp(args[cur_arg], "transparent")) { /* transparently bind to these addresses */
 #ifdef CONFIG_HAP_LINUX_TPROXY
 				struct listener *l;
@@ -1212,7 +1230,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				continue;
 			}
 
-			Alert("parsing [%s:%d] : '%s' only supports the 'transparent', 'name', 'id', 'mss' and 'interface' options.\n",
+			Alert("parsing [%s:%d] : '%s' only supports the 'transparent', 'defer-accept', 'name', 'id', 'mss' and 'interface' options.\n",
 			      file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
