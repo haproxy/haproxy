@@ -244,6 +244,7 @@ int print_csv_header(struct chunk *msg)
 			    "pid,iid,sid,throttle,lbtot,tracked,type,"
 			    "rate,rate_lim,rate_max,"
 			    "check_status,check_code,check_duration,"
+			    "hrsp_1xx,hrsp_2xx,hrsp_3xx,hrsp_4xx,hrsp_5xx,hspr_other,"
 			    "\n");
 }
 
@@ -1317,6 +1318,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     "%u,%u,%u,"
 				     /* check_status, check_code, check_duration */
 				     ",,,"
+				     /* http response: 1xx, 2xx, 3xx, 4xx, 5xx, other */
+				     ",,,,,,"
 				     "\n",
 				     px->id,
 				     px->feconn, px->counters.feconn_max, px->maxconn, px->counters.cum_feconn,
@@ -1411,6 +1414,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     ",,,"
 				     /* check_status, check_code, check_duration */
 				     ",,,"
+				     /* http response: 1xx, 2xx, 3xx, 4xx, 5xx, other */
+				     ",,,,,,"
 				     "\n",
 				     px->id, l->name,
 				     l->nbconn, l->counters->conn_max,
@@ -1489,16 +1494,32 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     "<td>%s</td><td>%s</td><td>%s</td>"
 				     /* sessions rate : current, max, limit */
 				     "<td>%s</td><td>%s</td><td></td>"
-				     /* sessions : current, max, limit, total, lbtot */
+				     /* sessions: current, max, limit */
 				     "<td>%s</td><td>%s</td><td>%s</td>"
-				     "<td>%s</td><td>%s</td>"
+				     "<td"
 				     "",
 				     (sv->state & SRV_BACKUP) ? "backup" : "active",
 				     sv_state, sv->id,
 				     U2H0(sv->nbpend), U2H1(sv->counters.nbpend_max), LIM2A2(sv->maxqueue, "-"),
 				     U2H3(read_freq_ctr(&sv->sess_per_sec)), U2H4(sv->counters.sps_max),
-				     U2H5(sv->cur_sess), U2H6(sv->counters.cur_sess_max), LIM2A7(sv->maxconn, "-"),
-				     U2H8(sv->counters.cum_sess), U2H9(sv->counters.cum_lbconn));
+				     U2H5(sv->cur_sess), U2H6(sv->counters.cur_sess_max), LIM2A7(sv->maxconn, "-"));
+
+				/* http response (via td title): 1xx, 2xx, 3xx, 4xx, 5xx, other */
+				if (px->mode == PR_MODE_HTTP) {
+					int i;
+
+					chunk_printf(&msg, " title=\"rsp codes:");
+
+					for (i = 1; i < 6; i++)
+						chunk_printf(&msg, " %dxx=%lld,", i, sv->counters.p.http.rsp[i]);
+
+					chunk_printf(&msg, " other=%lld\"", sv->counters.p.http.rsp[0]);
+				}
+
+				chunk_printf(&msg,
+				     /* sessions: total, lbtot */
+				     ">%s</td><td>%s</td>",
+				     U2H0(sv->counters.cum_sess), U2H1(sv->counters.cum_lbconn));
 
 				chunk_printf(&msg,
 				     /* bytes : in, out */
@@ -1696,6 +1717,18 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 					chunk_printf(&msg, ",,,");
 				}
 
+				/* http response: 1xx, 2xx, 3xx, 4xx, 5xx, other */
+				if (px->mode == PR_MODE_HTTP) {
+					int i;
+
+					for (i=1; i<6; i++)
+						chunk_printf(&msg, "%lld,", sv->counters.p.http.rsp[i]);
+
+					chunk_printf(&msg, "%lld,", sv->counters.p.http.rsp[0]);
+				} else {
+					chunk_printf(&msg, ",,,,,,");
+				}
+
 				/* finish with EOL */
 				chunk_printf(&msg, "\n");
 			}
@@ -1723,13 +1756,30 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     U2H2(read_freq_ctr(&px->be_sess_per_sec)), U2H3(px->counters.be_sps_max));
 
 				chunk_printf(&msg,
-				     /* sessions : current, max, limit, total, lbtot */
+				     /* sessions: current, max, limit */
 				     "<td>%s</td><td>%s</td><td>%s</td>"
-				     "<td>%s</td><td>%s</td>"
-				     /* bytes : in, out */
+				     "<td"
+				     "",
+				     U2H2(px->beconn), U2H3(px->counters.beconn_max), U2H4(px->fullconn));
+
+				/* http response (via td title): 1xx, 2xx, 3xx, 4xx, 5xx, other */
+				if (px->mode == PR_MODE_HTTP) {
+					int i;
+
+					chunk_printf(&msg, " title=\"rsp codes:");
+
+					for (i = 1; i < 6; i++)
+						chunk_printf(&msg, " %dxx=%lld", i, px->counters.p.http.rsp[i]);
+
+					chunk_printf(&msg, " other=%lld\"", px->counters.p.http.rsp[0]);
+				}
+
+				chunk_printf(&msg,
+				     /* sessions: total, lbtot */
+				     ">%s</td><td>%s</td>"
+				     /* bytes: in, out */
 				     "<td>%s</td><td>%s</td>"
 				     "",
-				     U2H2(px->beconn), U2H3(px->counters.beconn_max), U2H4(px->fullconn),
 				     U2H6(px->counters.cum_beconn), U2H7(px->counters.cum_lbconn),
 				     U2H8(px->counters.bytes_in), U2H9(px->counters.bytes_out));
 
@@ -1793,8 +1843,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     /* rate, rate_lim, rate_max, */
 				     "%u,,%u,"
 				     /* check_status, check_code, check_duration */
-				     ",,,"
-				     "\n",
+				     ",,,",
 				     px->id,
 				     px->nbpend /* or px->totpend ? */, px->counters.nbpend_max,
 				     px->beconn, px->counters.beconn_max, px->fullconn, px->counters.cum_beconn,
@@ -1811,6 +1860,22 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     px->counters.cum_lbconn, STATS_TYPE_BE,
 				     read_freq_ctr(&px->be_sess_per_sec),
 				     px->counters.be_sps_max);
+
+				/* http response: 1xx, 2xx, 3xx, 4xx, 5xx, other */
+				if (px->mode == PR_MODE_HTTP) {
+					int i;
+
+					for (i=1; i<6; i++)
+						chunk_printf(&msg, "%lld,", px->counters.p.http.rsp[i]);
+
+					chunk_printf(&msg, "%lld,", px->counters.p.http.rsp[0]);
+				} else {
+					chunk_printf(&msg, ",,,,,,");
+				}
+
+				/* finish with EOL */
+				chunk_printf(&msg, "\n");
+
 			}
 			if (buffer_feed_chunk(rep, &msg) >= 0)
 				return 0;

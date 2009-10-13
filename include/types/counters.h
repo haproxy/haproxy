@@ -38,6 +38,12 @@ struct pxcounters {
 	long long denied_req, denied_resp;	/* blocked requests/responses because of security concerns */
 	long long failed_req;			/* failed requests (eg: invalid or timeout) */
 
+	union {
+		struct {
+			long long rsp[6];		/* http resonse codes */
+		} http;
+	} p;
+
 	long long failed_conns, failed_resp;	/* failed connect() and responses */
 	long long retries, redispatches;	/* retried and redispatched connections */
 };
@@ -68,6 +74,12 @@ struct srvcounters {
 	long long failed_conns, failed_resp;	/* failed connect() and responses */
 	long long retries, redispatches;	/* retried and redispatched connections */
 	long long failed_secu;			/* blocked responses because of security concerns */
+
+	union {
+		struct {
+			long long rsp[6];		/* http resonse codes */
+		} http;
+	} p;
 
 	long long failed_checks, down_trans;	/* failed checks and up->down transitions */
 };

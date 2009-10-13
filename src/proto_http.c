@@ -2775,6 +2775,7 @@ int process_response(struct session *t)
 	struct http_txn *txn = &t->txn;
 	struct buffer *req = t->req;
 	struct buffer *rep = t->rep;
+	int n;
 
  next_response:
 	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
@@ -2965,6 +2966,13 @@ int process_response(struct session *t)
 
 		t->logs.logwait &= ~LW_RESP;
 		txn->status = strl2ui(rep->data + msg->sl.st.c, msg->sl.st.c_l);
+
+		n = rep->data[msg->sl.st.c] - '0';
+		if (n < 1 || n > 5)
+			n = 0;
+
+		t->srv->counters.p.http.rsp[n]++;
+		t->be->counters.p.http.rsp[n]++;
 
 		switch (txn->status) {
 		case 200:

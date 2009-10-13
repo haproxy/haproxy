@@ -6741,6 +6741,12 @@ page. Both means provide a CSV format whose fields follow.
 	L7STS  -> layer 7 response error, for example HTTP 5xx
  37. check_code: layer5-7 code, if available
  38. check_duration: time in ms took to finish last health check
+ 39. hrsp_1xx: http responces with 1xx code
+ 40. hrsp_2xx: http responces with 2xx code
+ 41. hrsp_3xx: http responces with 3xx code
+ 42. hrsp_4xx: http responces with 4xx code
+ 43. hrsp_5xx: http responces with 5xx code
+ 44. hrsp_other: http responces with other codes (protocol error)
 
 
 9.2. Unix Socket commands
