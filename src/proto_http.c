@@ -3368,6 +3368,72 @@ int apply_filters_to_request(struct session *t, struct buffer *req, struct hdr_e
 
 
 /*
+ * Try to retrieve the server associated to the appsession.
+ * If the server is found, it's assigned to the session.
+ */
+void manage_client_side_appsession(struct session *t, const char *buf) {
+	struct http_txn *txn = &t->txn;
+	appsess *asession = NULL;
+	char *sessid_temp = NULL;
+
+	if (t->be->options2 & PR_O2_AS_REQL) {
+		/* request-learn option is enabled : store the sessid in the session for future use */
+		if (t->sessid != NULL) {
+			/* free previously allocated memory as we don't need the session id found in the URL anymore */
+			pool_free2(apools.sessid, t->sessid);
+		}
+
+		if ((t->sessid = pool_alloc2(apools.sessid)) == NULL) {
+			Alert("Not enough memory process_cli():asession->sessid:malloc().\n");
+			send_log(t->be, LOG_ALERT, "Not enough memory process_cli():asession->sessid:malloc().\n");
+			return;
+		}
+
+		memcpy(t->sessid, buf, t->be->appsession_len);
+		t->sessid[t->be->appsession_len] = 0;
+	}
+
+	if ((sessid_temp = pool_alloc2(apools.sessid)) == NULL) {
+		Alert("Not enough memory process_cli():asession->sessid:malloc().\n");
+		send_log(t->be, LOG_ALERT, "Not enough memory process_cli():asession->sessid:malloc().\n");
+		return;
+	}
+
+	memcpy(sessid_temp, buf, t->be->appsession_len);
+	sessid_temp[t->be->appsession_len] = 0;
+
+	asession = appsession_hash_lookup(&(t->be->htbl_proxy), sessid_temp);
+	/* free previously allocated memory */
+	pool_free2(apools.sessid, sessid_temp);
+
+	if (asession != NULL) {
+		asession->expire = tick_add_ifset(now_ms, t->be->timeout.appsession);
+		if (!(t->be->options2 & PR_O2_AS_REQL))
+			asession->request_count++;
+
+		if (asession->serverid != NULL) {
+			struct server *srv = t->be->srv;
+			while (srv) {
+				if (strcmp(srv->id, asession->serverid) == 0) {
+					if (srv->state & SRV_RUNNING || t->be->options & PR_O_PERSIST) {
+						/* we found the server and it's usable */
+						txn->flags &= ~TX_CK_MASK;
+						txn->flags |= TX_CK_VALID;
+						t->flags |= SN_DIRECT | SN_ASSIGNED;
+						t->srv = srv;
+						break;
+					} else {
+						txn->flags &= ~TX_CK_MASK;
+						txn->flags |= TX_CK_DOWN;
+					}
+				}
+				srv = srv->next;
+			}
+		}
+	}
+}
+
+/*
  * Manage client-side cookie. It can impact performance by about 2% so it is
  * desirable to call it only when needed.
  */
@@ -3377,9 +3443,6 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 	char *p1, *p2, *p3, *p4;
 	char *del_colon, *del_cookie, *colon;
 	int app_cookies;
-
-	appsess *asession_temp = NULL;
-	appsess local_asession;
 
 	char *cur_ptr, *cur_end, *cur_next;
 	int cur_idx, old_idx;
@@ -3610,63 +3673,7 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 					/* first, let's see if the cookie is our appcookie*/
 
 					/* Cool... it's the right one */
-
-					asession_temp = &local_asession;
-			  
-					if ((asession_temp->sessid = pool_alloc2(apools.sessid)) == NULL) {
-						Alert("Not enough memory process_cli():asession->sessid:malloc().\n");
-						send_log(t->be, LOG_ALERT, "Not enough memory process_cli():asession->sessid:malloc().\n");
-						return;
-					}
-
-					memcpy(asession_temp->sessid, p3, t->be->appsession_len);
-					asession_temp->sessid[t->be->appsession_len] = 0;
-					asession_temp->serverid = NULL;
-
-					/* only do insert, if lookup fails */
-					asession_temp = appsession_hash_lookup(&(t->be->htbl_proxy), asession_temp->sessid);
-					if (asession_temp == NULL) {
-						if ((asession_temp = pool_alloc2(pool2_appsess)) == NULL) {
-							/* free previously allocated memory */
-							pool_free2(apools.sessid, local_asession.sessid);
-							Alert("Not enough memory process_cli():asession:calloc().\n");
-							send_log(t->be, LOG_ALERT, "Not enough memory process_cli():asession:calloc().\n");
-							return;
-						}
-
-						asession_temp->sessid = local_asession.sessid;
-						asession_temp->serverid = local_asession.serverid;
-						asession_temp->request_count = 0;
-						appsession_hash_insert(&(t->be->htbl_proxy), asession_temp);
-					} else {
-						/* free previously allocated memory */
-						pool_free2(apools.sessid, local_asession.sessid);
-					}
-					if (asession_temp->serverid == NULL) {
-						/* TODO redispatch request */
-						Alert("Found Application Session without matching server.\n");
-					} else {
-						struct server *srv = t->be->srv;
-						while (srv) {
-							if (strcmp(srv->id, asession_temp->serverid) == 0) {
-								if (srv->state & SRV_RUNNING || t->be->options & PR_O_PERSIST) {
-									/* we found the server and it's usable */
-									txn->flags &= ~TX_CK_MASK;
-									txn->flags |= TX_CK_VALID;
-									t->flags |= SN_DIRECT | SN_ASSIGNED;
-									t->srv = srv;
-									break;
-								} else {
-									txn->flags &= ~TX_CK_MASK;
-									txn->flags |= TX_CK_DOWN;
-								}
-							}
-							srv = srv->next;
-						}/* end while(srv) */
-					}/* end else if server == NULL */
-
-					asession_temp->expire = tick_add_ifset(now_ms, t->be->timeout.appsession);
-					asession_temp->request_count++;
+					manage_client_side_appsession(t, p3);
 #if defined(DEBUG_HASH)
 					Alert("manage_client_side_cookies\n");
 					appsession_hash_dump(&(t->be->htbl_proxy));
@@ -3944,9 +3951,6 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 	struct http_txn *txn = &t->txn;
 	char *p1, *p2, *p3, *p4;
 
-	appsess *asession_temp = NULL;
-	appsess local_asession;
-
 	char *cur_ptr, *cur_end, *cur_next;
 	int cur_idx, old_idx, delta;
 
@@ -4087,60 +4091,64 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 
 				/* Cool... it's the right one */
 
-				size_t server_id_len = strlen(t->srv->id) + 1;
-				asession_temp = &local_asession;
-		      
-				if ((asession_temp->sessid = pool_alloc2(apools.sessid)) == NULL) {
+				if (t->sessid != NULL) {
+					/* free previously allocated memory as we don't need it anymore */
+					pool_free2(apools.sessid, t->sessid);
+				}
+				/* Store the sessid in the session for future use */
+				if ((t->sessid = pool_alloc2(apools.sessid)) == NULL) {
 					Alert("Not enough Memory process_srv():asession->sessid:malloc().\n");
 					send_log(t->be, LOG_ALERT, "Not enough Memory process_srv():asession->sessid:malloc().\n");
 					return;
 				}
-				memcpy(asession_temp->sessid, p3, t->be->appsession_len);
-				asession_temp->sessid[t->be->appsession_len] = 0;
-				asession_temp->serverid = NULL;
-
-				/* only do insert, if lookup fails */
-				asession_temp = appsession_hash_lookup(&(t->be->htbl_proxy), asession_temp->sessid);
-				if (asession_temp == NULL) {
-					if ((asession_temp = pool_alloc2(pool2_appsess)) == NULL) {
-						Alert("Not enough Memory process_srv():asession:calloc().\n");
-						send_log(t->be, LOG_ALERT, "Not enough Memory process_srv():asession:calloc().\n");
-						return;
-					}
-					asession_temp->sessid = local_asession.sessid;
-					asession_temp->serverid = local_asession.serverid;
-					asession_temp->request_count = 0;
-					appsession_hash_insert(&(t->be->htbl_proxy), asession_temp);
-				} else {
-					/* free wasted memory */
-					pool_free2(apools.sessid, local_asession.sessid);
-				}
-
-				if (asession_temp->serverid == NULL) {
-					if ((asession_temp->serverid = pool_alloc2(apools.serverid)) == NULL) {
-						Alert("Not enough Memory process_srv():asession->sessid:malloc().\n");
-						send_log(t->be, LOG_ALERT, "Not enough Memory process_srv():asession->sessid:malloc().\n");
-						return;
-					}
-					asession_temp->serverid[0] = '\0';
-				}
-		      
-				if (asession_temp->serverid[0] == '\0')
-					memcpy(asession_temp->serverid, t->srv->id, server_id_len);
-		      
-				asession_temp->expire = tick_add_ifset(now_ms, t->be->timeout.appsession);
-				asession_temp->request_count++;
-#if defined(DEBUG_HASH)
-				Alert("manage_server_side_cookies\n");
-				appsession_hash_dump(&(t->be->htbl_proxy));
-#endif
+				memcpy(t->sessid, p3, t->be->appsession_len);
+				t->sessid[t->be->appsession_len] = 0;
 			}/* end if ((t->proxy->appsession_name != NULL) ... */
 			break; /* we don't want to loop again since there cannot be another cookie on the same line */
 		} /* we're now at the end of the cookie value */
-
 		/* keep the link from this header to next one */
 		old_idx = cur_idx;
 	} /* end of cookie processing on this header */
+
+	if (t->sessid != NULL) {
+		appsess *asession = NULL;
+		/* only do insert, if lookup fails */
+		asession = appsession_hash_lookup(&(t->be->htbl_proxy), t->sessid);
+		if (asession == NULL) {
+			if ((asession = pool_alloc2(pool2_appsess)) == NULL) {
+				Alert("Not enough Memory process_srv():asession:calloc().\n");
+				send_log(t->be, LOG_ALERT, "Not enough Memory process_srv():asession:calloc().\n");
+				return;
+			}
+			if ((asession->sessid = pool_alloc2(apools.sessid)) == NULL) {
+				Alert("Not enough Memory process_srv():asession->sessid:malloc().\n");
+				send_log(t->be, LOG_ALERT, "Not enough Memory process_srv():asession->sessid:malloc().\n");
+				return;
+			}
+			memcpy(asession->sessid, t->sessid, t->be->appsession_len);
+			asession->sessid[t->be->appsession_len] = 0;
+
+			size_t server_id_len = strlen(t->srv->id) + 1;
+			if ((asession->serverid = pool_alloc2(apools.serverid)) == NULL) {
+				Alert("Not enough Memory process_srv():asession->sessid:malloc().\n");
+				send_log(t->be, LOG_ALERT, "Not enough Memory process_srv():asession->sessid:malloc().\n");
+				return;
+			}
+			asession->serverid[0] = '\0';
+			memcpy(asession->serverid, t->srv->id, server_id_len);
+
+			asession->request_count = 0;
+			appsession_hash_insert(&(t->be->htbl_proxy), asession);
+		}
+
+		asession->expire = tick_add_ifset(now_ms, t->be->timeout.appsession);
+		asession->request_count++;
+	}
+
+#if defined(DEBUG_HASH)
+	Alert("manage_server_side_cookies\n");
+	appsession_hash_dump(&(t->be->htbl_proxy));
+#endif
 }
 
 
@@ -4238,9 +4246,6 @@ void check_response_for_cacheability(struct session *t, struct buffer *rtr)
  */
 void get_srv_from_appsession(struct session *t, const char *begin, int len)
 {
-	struct http_txn *txn = &t->txn;
-	appsess *asession_temp = NULL;
-	appsess local_asession;
 	char *request_line;
 
 	if (t->be->appsession_name == NULL ||
@@ -4259,69 +4264,11 @@ void get_srv_from_appsession(struct session *t, const char *begin, int len)
 	/* skip jsessionid= */
 	request_line += t->be->appsession_name_len + 1;
 	
-	/* First try if we already have an appsession */
-	asession_temp = &local_asession;
-	
-	if ((asession_temp->sessid = pool_alloc2(apools.sessid)) == NULL) {
-		Alert("Not enough memory process_cli():asession_temp->sessid:calloc().\n");
-		send_log(t->be, LOG_ALERT, "Not enough Memory process_cli():asession_temp->sessid:calloc().\n");
-		return;
-	}
-	
-	/* Copy the sessionid */
-	memcpy(asession_temp->sessid, request_line, t->be->appsession_len);
-	asession_temp->sessid[t->be->appsession_len] = 0;
-	asession_temp->serverid = NULL;
-	
-	/* only do insert, if lookup fails */
-	asession_temp = appsession_hash_lookup(&(t->be->htbl_proxy), asession_temp->sessid);
-	if (asession_temp == NULL) {
-		if ((asession_temp = pool_alloc2(pool2_appsess)) == NULL) {
-			/* free previously allocated memory */
-			pool_free2(apools.sessid, local_asession.sessid);
-			Alert("Not enough memory process_cli():asession:calloc().\n");
-			send_log(t->be, LOG_ALERT, "Not enough memory process_cli():asession:calloc().\n");
-			return;
-		}
-		asession_temp->sessid = local_asession.sessid;
-		asession_temp->serverid = local_asession.serverid;
-		asession_temp->request_count=0;
-		appsession_hash_insert(&(t->be->htbl_proxy), asession_temp);
-	}
-	else {
-		/* free previously allocated memory */
-		pool_free2(apools.sessid, local_asession.sessid);
-	}
-
-	asession_temp->expire = tick_add_ifset(now_ms, t->be->timeout.appsession);
-	asession_temp->request_count++;
-
+	manage_client_side_appsession(t, request_line);
 #if defined(DEBUG_HASH)
 	Alert("get_srv_from_appsession\n");
 	appsession_hash_dump(&(t->be->htbl_proxy));
 #endif
-	if (asession_temp->serverid == NULL) {
-		/* TODO redispatch request */
-		Alert("Found Application Session without matching server.\n");
-	} else {
-		struct server *srv = t->be->srv;
-		while (srv) {
-			if (strcmp(srv->id, asession_temp->serverid) == 0) {
-				if (srv->state & SRV_RUNNING || t->be->options & PR_O_PERSIST) {
-					/* we found the server and it's usable */
-					txn->flags &= ~TX_CK_MASK;
-					txn->flags |= TX_CK_VALID;
-					t->flags |= SN_DIRECT | SN_ASSIGNED;
-					t->srv = srv;
-					break;
-				} else {
-					txn->flags &= ~TX_CK_MASK;
-					txn->flags |= TX_CK_DOWN;
-				}
-			}
-			srv = srv->next;
-		}
-	}
 }
 
 

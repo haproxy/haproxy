@@ -119,6 +119,8 @@
 #define PR_O2_LOGERRORS	0x00000040      /* log errors and retries at level LOG_ERR */
 /* 0x80..0x800 already used in 1.4 */
 #define PR_O2_INDEPSTR	0x00001000	/* independant streams, don't update rex on write */
+/* 0x2000 used in 1.4 */
+#define PR_O2_AS_REQL	0x00004000      /* appsession: learn the session id from the request */
 
 /* This structure is used to apply fast weighted round robin on a server group */
 struct fwrr_group {

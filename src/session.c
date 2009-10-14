@@ -78,6 +78,9 @@ void session_free(struct session *s)
 	pool_free2(pool2_buffer, s->req);
 	pool_free2(pool2_buffer, s->rep);
 
+	if (s->sessid)
+		pool_free2(apools.sessid, s->sessid);
+
 	if (fe) {
 		pool_free2(fe->hdr_idx_pool, txn->hdr_idx.v);
 

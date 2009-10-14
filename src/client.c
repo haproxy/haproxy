@@ -180,6 +180,7 @@ int event_accept(int fd) {
 
 		s->ana_state = 0;  /* analysers may change it but must reset it upon exit */
 		s->req = s->rep = NULL; /* will be allocated later */
+		s->sessid = NULL;
 
 		s->si[0].state = s->si[0].prev_state = SI_ST_EST;
 		s->si[0].err_type = SI_ET_NONE;

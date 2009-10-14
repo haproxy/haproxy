@@ -814,7 +814,7 @@ acl <aclname> <criterion> [flags] [operator] <value> ...
   See section 7 about ACL usage.
 
 
-appsession <cookie> len <length> timeout <holdtime>
+appsession <cookie> len <length> timeout <holdtime> [request-learn]
   Define session stickiness on an existing application cookie.
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    no    |   yes  |   yes
@@ -828,6 +828,14 @@ appsession <cookie> len <length> timeout <holdtime>
     <holdtime> this is the time after which the cookie will be removed from
                memory if unused. If no unit is specified, this time is in
                milliseconds.
+
+    request-learn
+               If this option is specified, then haproxy will be able to learn
+               the cookie found in the request in case the server does not
+               specify any in response. This is typically what happens with
+               PHPSESSID cookies, or when haproxy's session expires before
+               the application's session and the correct server is selected.
+               It is recommended to specify this option to improve reliability.
 
   When an application cookie is defined in a backend, HAProxy will check when
   the server sets such a cookie, and will store its value in a table, and
