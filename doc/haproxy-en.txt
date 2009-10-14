@@ -6,6 +6,15 @@
                               willy tarreau
                                 2008/04/19
 
+
+ !!!!  NOTE: THIS DOCUMENT IS OUTDATED  !!!!
+
+ Please use "configuration.txt" from the same directory, or download
+ an up-to-date version from the following location :
+
+        http://haproxy.1wt.eu/download/1.3/doc/configuration.txt
+
+
 ============
 | Abstract |
 ============
