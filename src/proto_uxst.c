@@ -466,8 +466,6 @@ int uxst_event_accept(int fd) {
 		s->si[0].chk_snd = stream_sock_chk_snd;
 		s->si[0].fd = cfd;
 		s->si[0].flags = SI_FL_NONE;
-		if (s->fe->options2 & PR_O2_INDEPSTR)
-			s->si[0].flags |= SI_FL_INDEP_STR;
 		s->si[0].exp = TICK_ETERNITY;
 
 		s->si[1].state = s->si[1].prev_state = SI_ST_INI;
@@ -481,8 +479,6 @@ int uxst_event_accept(int fd) {
 		s->si[1].exp = TICK_ETERNITY;
 		s->si[1].fd = -1; /* just to help with debugging */
 		s->si[1].flags = SI_FL_NONE;
-		if (s->be->options2 & PR_O2_INDEPSTR)
-			s->si[1].flags |= SI_FL_INDEP_STR;
 
 		s->srv = s->prev_srv = s->srv_conn = NULL;
 		s->pend_pos = NULL;
