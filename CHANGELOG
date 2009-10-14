@@ -1,6 +1,12 @@
 ChangeLog :
 ===========
 
+2009/10/14 : 1.3.22
+    - [BUG] unix socket: don't try to dereference frontend/backends
+    - [MINOR] unix socket: report the socket path in case of bind error
+    - [CONTRIB] halog: support searching by response time
+    - [DOC] add a reminder about obsolete documents
+
 2009/10/12 : 1.3.21
     - [DOC] add missing rate_lim and rate_max
     - [BUG] check if rise/fall has an argument and it is > 0
