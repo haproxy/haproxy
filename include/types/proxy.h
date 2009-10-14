@@ -123,6 +123,7 @@
 #define PR_O2_LOGHCHKS	0x00000800	/* log health checks */
 #define PR_O2_INDEPSTR	0x00001000	/* independant streams, don't update rex on write */
 #define PR_O2_SOCKSTAT	0x00002000	/* collect & provide separate statistics for sockets */
+#define PR_O2_AS_REQL	0x00004000      /* appsession: learn the session id from the request */
 
 struct error_snapshot {
 	struct timeval when;		/* date of this event, (tv_sec == 0) means "never" */

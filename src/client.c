@@ -185,6 +185,7 @@ int event_accept(int fd) {
 		s->be = s->fe = p;
 
 		s->req = s->rep = NULL; /* will be allocated later */
+		s->sessid = NULL;
 
 		s->si[0].state = s->si[0].prev_state = SI_ST_EST;
 		s->si[0].err_type = SI_ET_NONE;

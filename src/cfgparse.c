@@ -1535,6 +1535,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 	}
 	else if (!strcmp(args[0], "appsession")) {  /* cookie name */
+		int cur_arg;
 
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
@@ -1563,6 +1564,14 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
+		}
+
+		cur_arg = 6;
+		curproxy->options2 &= ~PR_O2_AS_REQL;
+		while (*(args[cur_arg])) {
+			if (!strcmp(args[cur_arg], "request-learn"))
+				curproxy->options2 |= PR_O2_AS_REQL;
+			cur_arg++;
 		}
 	} /* Url App Session */
 	else if (!strcmp(args[0], "capture")) {
