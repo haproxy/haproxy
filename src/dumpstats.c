@@ -244,7 +244,7 @@ int print_csv_header(struct chunk *msg)
 			    "pid,iid,sid,throttle,lbtot,tracked,type,"
 			    "rate,rate_lim,rate_max,"
 			    "check_status,check_code,check_duration,"
-			    "hrsp_1xx,hrsp_2xx,hrsp_3xx,hrsp_4xx,hrsp_5xx,hspr_other,"
+			    "hrsp_1xx,hrsp_2xx,hrsp_3xx,hrsp_4xx,hrsp_5xx,hrsp_other,"
 			    "\n");
 }
 
