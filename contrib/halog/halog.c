@@ -58,6 +58,10 @@ struct timer {
 #define FILT_ACC_COUNT		0x20
 #define FILT_GRAPH_TIMERS	0x40
 #define FILT_PERCENTILE		0x80
+#define FILT_TIME_RESP         0x100
+
+#define FILT_INVERT_ERRORS     0x200
+#define FILT_INVERT_TIME_RESP  0x400
 
 unsigned int filter = 0;
 unsigned int filter_invert = 0;
@@ -69,7 +73,7 @@ void die(const char *msg)
 {
 	fprintf(stderr,
 		"%s"
-		"Usage: halog [-c] [-v] [-gt] [-pct] [-s <skip>] [-e] [-ad <delay>] [-ac <count>] < file.log\n"
+		"Usage: halog [-c] [-v] [-gt] [-pct] [-s <skip>] [-e|-E] [-rt|-RT <time>] [-ad <delay>] [-ac <count>] < file.log\n"
 		"\n",
 		msg ? msg : ""
 		);
@@ -353,6 +357,7 @@ int main(int argc, char **argv)
 	int val, test;
 	int array[5];
 	int filter_acc_delay = 0, filter_acc_count = 0;
+	int filter_time_resp = 0;
 	int skip_fields = 1;
 
 	argc--; argv++;
@@ -372,6 +377,18 @@ int main(int argc, char **argv)
 			filter |= FILT_ACC_COUNT;
 			filter_acc_count = atol(*argv);
 		}
+		else if (strcmp(argv[0], "-rt") == 0) {
+			if (argc < 2) die("missing option for -rt");
+			argc--; argv++;
+			filter |= FILT_TIME_RESP;
+			filter_time_resp = atol(*argv);
+		}
+		else if (strcmp(argv[0], "-RT") == 0) {
+			if (argc < 2) die("missing option for -RT");
+			argc--; argv++;
+			filter |= FILT_TIME_RESP | FILT_INVERT_TIME_RESP;
+			filter_time_resp = atol(*argv);
+		}
 		else if (strcmp(argv[0], "-s") == 0) {
 			if (argc < 2) die("missing option for -s");
 			argc--; argv++;
@@ -379,6 +396,8 @@ int main(int argc, char **argv)
 		}
 		else if (strcmp(argv[0], "-e") == 0)
 			filter |= FILT_ERRORS_ONLY;
+		else if (strcmp(argv[0], "-E") == 0)
+			filter |= FILT_ERRORS_ONLY | FILT_INVERT_ERRORS;
 		else if (strcmp(argv[0], "-c") == 0)
 			filter |= FILT_COUNT_ONLY;
 		else if (strcmp(argv[0], "-q") == 0)
@@ -416,6 +435,40 @@ int main(int argc, char **argv)
 	while ((line = fgets2(stdin)) != NULL) {
 		linenum++;
 
+		test = 1;
+		if (filter & FILT_TIME_RESP) {
+			int tps;
+
+			/* only report lines with response times larger than filter_time_resp */
+			b = field_start(line, TIME_FIELD + skip_fields);
+			if (!*b) {
+				truncated_line(linenum, line);
+				continue;
+			}
+
+			e = field_stop(b + 1);
+			/* we have field TIME_FIELD in [b]..[e-1] */
+
+			p = b;
+			err = 0;
+			for (f = 0; f < 4 && *p; f++) {
+				tps = str2ic(p);
+				if (tps < 0) {
+					tps = -1;
+					err = 1;
+				}
+
+				SKIP_CHAR(p, '/');
+			}
+
+			if (f < 4) {
+				parse_err++;
+				continue;
+			}
+
+			test &= (tps >= filter_time_resp) ^ !!(filter & FILT_INVERT_TIME_RESP);
+		}
+
 		if (filter & FILT_ERRORS_ONLY) {
 			/* only report erroneous status codes */
 			b = field_start(line, STATUS_FIELD + skip_fields);
@@ -424,18 +477,11 @@ int main(int argc, char **argv)
 				continue;
 			}
 			if (*b == '-') {
-				test = 1;
+				test &= !!(filter & FILT_INVERT_ERRORS);
 			} else {
 				val = strl2ui(b, 3);
-				test = (val >= 500 && val <= 599);
+				test &= (val >= 500 && val <= 599) ^ !!(filter & FILT_INVERT_ERRORS);
 			}
-			test ^= filter_invert;
-			if (test) {
-				tot++;
-				if (!(filter & FILT_COUNT_ONLY))
-					puts(line);
-			}
-			continue;
 		}
 
 		if (filter & (FILT_ACC_COUNT|FILT_ACC_DELAY)) {
@@ -539,8 +585,14 @@ int main(int argc, char **argv)
 			continue;
 		}
 
+		test ^= filter_invert;
+		if (!test)
+			continue;
+
 		/* all other cases mean we just want to count lines */
 		tot++;
+		if (!(filter & FILT_COUNT_ONLY))
+			puts(line);
 	}
 
 	if (t)
