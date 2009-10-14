@@ -100,36 +100,36 @@ static int create_uxst_socket(const char *path, uid_t uid, gid_t gid, mode_t mod
 
 	/* 1. create socket names */
 	if (!path[0]) {
-		Alert("Invalid name for a UNIX socket. Aborting.\n");
+		Alert("Invalid empty name for a UNIX socket. Aborting.\n");
 		goto err_return;
 	}
 
 	ret = snprintf(tempname, MAXPATHLEN, "%s.%d.tmp", path, pid);
 	if (ret < 0 || ret >= MAXPATHLEN) {
-		Alert("name too long for UNIX socket. Aborting.\n");
+		Alert("name too long for UNIX socket (%s). Aborting.\n", path);
 		goto err_return;
 	}
 
 	ret = snprintf(backname, MAXPATHLEN, "%s.%d.bak", path, pid);
 	if (ret < 0 || ret >= MAXPATHLEN) {
-		Alert("name too long for UNIX socket. Aborting.\n");
+		Alert("name too long for UNIX socket (%s). Aborting.\n", path);
 		goto err_return;
 	}
 
 	/* 2. clean existing orphaned entries */
 	if (unlink(tempname) < 0 && errno != ENOENT) {
-		Alert("error when trying to unlink previous UNIX socket. Aborting.\n");
+		Alert("error when trying to unlink previous UNIX socket (%s). Aborting.\n", path);
 		goto err_return;
 	}
 
 	if (unlink(backname) < 0 && errno != ENOENT) {
-		Alert("error when trying to unlink previous UNIX socket. Aborting.\n");
+		Alert("error when trying to unlink previous UNIX socket (%s). Aborting.\n", path);
 		goto err_return;
 	}
 
 	/* 3. backup existing socket */
 	if (link(path, backname) < 0 && errno != ENOENT) {
-		Alert("error when trying to preserve previous UNIX socket. Aborting.\n");
+		Alert("error when trying to preserve previous UNIX socket (%s). Aborting.\n", path);
 		goto err_return;
 	}
 
@@ -140,12 +140,12 @@ static int create_uxst_socket(const char *path, uid_t uid, gid_t gid, mode_t mod
 
 	sock = socket(PF_UNIX, SOCK_STREAM, 0);
 	if (sock < 0) {
-		Alert("cannot create socket for UNIX listener. Aborting.\n");
+		Alert("cannot create socket for UNIX listener (%s). Aborting.\n", path);
 		goto err_unlink_back;
 	}
 
 	if (sock >= global.maxsock) {
-		Alert("socket(): not enough free sockets for UNIX listener. Raise -n argument. Aborting.\n");
+		Alert("socket(): not enough free sockets for UNIX listener (%s). Raise -n argument. Aborting.\n", path);
 		goto err_unlink_temp;
 	}
 
@@ -156,18 +156,18 @@ static int create_uxst_socket(const char *path, uid_t uid, gid_t gid, mode_t mod
 
 	if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
 		/* note that bind() creates the socket <tempname> on the file system */
-		Alert("cannot bind socket for UNIX listener. Aborting.\n");
+		Alert("cannot bind socket for UNIX listener (%s). Aborting.\n", path);
 		goto err_unlink_temp;
 	}
 
 	if (((uid != -1 || gid != -1) && (chown(tempname, uid, gid) == -1)) ||
 	    (mode != 0 && chmod(tempname, mode) == -1)) {
-		Alert("cannot change UNIX socket ownership. Aborting.\n");
+		Alert("cannot change UNIX socket ownership (%s). Aborting.\n", path);
 		goto err_unlink_temp;
 	}
 
 	if (listen(sock, 0) < 0) {
-		Alert("cannot listen to socket for UNIX listener. Aborting.\n");
+		Alert("cannot listen to socket for UNIX listener (%s). Aborting.\n", path);
 		goto err_unlink_temp;
 	}
 
@@ -177,7 +177,7 @@ static int create_uxst_socket(const char *path, uid_t uid, gid_t gid, mode_t mod
 	 * backname.
 	 */
 	if (rename(tempname, path) < 0) {
-		Alert("cannot switch final and temporary sockets for UNIX listener. Aborting.\n");
+		Alert("cannot switch final and temporary sockets for UNIX listener (%s). Aborting.\n", path);
 		goto err_rename;
 	}
 
