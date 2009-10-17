@@ -781,6 +781,8 @@ option smtpchk              X          -         X         X
 option ssl-hello-chk        X          -         X         X
 [no] option tcp-smart-
             accept          X          X         X         -
+[no] option tcp-smart-
+            connect         X          -         X         X
 option tcpka                X          X         X         X
 option tcplog               X          X         X         X
 [no] option transparent     X          -         X         X
