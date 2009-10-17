@@ -111,6 +111,8 @@
 #define BF_READ_DONTWAIT  0x400000  /* wake the task up after every read (eg: HTTP request) */
 #define BF_AUTO_CONNECT   0x800000  /* consumer may attempt to establish a new connection */
 
+#define BF_DONT_READ     0x1000000  /* disable reading for now */
+
 /* Use these masks to clear the flags before going back to lower layers */
 #define BF_CLEAR_READ     (~(BF_READ_NULL|BF_READ_PARTIAL|BF_READ_ERROR|BF_READ_ATTACHED))
 #define BF_CLEAR_WRITE    (~(BF_WRITE_NULL|BF_WRITE_PARTIAL|BF_WRITE_ERROR))

@@ -123,7 +123,7 @@ void stream_int_update_embedded(struct stream_interface *si)
 	/* we're almost sure that we need some space if the buffer is not
 	 * empty, even if it's not full, because the applets can't fill it.
 	 */
-	if ((si->ib->flags & (BF_SHUTR|BF_OUT_EMPTY)) == 0)
+	if ((si->ib->flags & (BF_SHUTR|BF_OUT_EMPTY|BF_DONT_READ)) == 0)
 		si->flags |= SI_FL_WAIT_ROOM;
 
 	if (si->ob->flags & BF_WRITE_ACTIVITY) {
@@ -137,7 +137,7 @@ void stream_int_update_embedded(struct stream_interface *si)
 			si->ib->rex = tick_add_ifset(now_ms, si->ib->rto);
 	}
 
-	if (likely((si->ob->flags & (BF_SHUTW|BF_WRITE_PARTIAL|BF_FULL)) == BF_WRITE_PARTIAL &&
+	if (likely((si->ob->flags & (BF_SHUTW|BF_WRITE_PARTIAL|BF_FULL|BF_DONT_READ)) == BF_WRITE_PARTIAL &&
 		   (si->ob->prod->flags & SI_FL_WAIT_ROOM)))
 		si->ob->prod->chk_rcv(si->ob->prod);
 
@@ -210,7 +210,7 @@ void stream_int_shutw(struct stream_interface *si)
 
 	switch (si->state) {
 	case SI_ST_EST:
-		if (!(si->ib->flags & BF_SHUTR))
+		if (!(si->ib->flags & (BF_SHUTR|BF_DONT_READ)))
 			break;
 
 		/* fall through */
@@ -242,9 +242,9 @@ void stream_int_chk_rcv(struct stream_interface *si)
 	if (unlikely(si->state != SI_ST_EST || (ib->flags & BF_SHUTR)))
 		return;
 
-	if (ib->flags & (BF_FULL|BF_HIJACK)) {
+	if (ib->flags & (BF_FULL|BF_HIJACK|BF_DONT_READ)) {
 		/* stop reading */
-		if ((ib->flags & (BF_FULL|BF_HIJACK)) == BF_FULL)
+		if ((ib->flags & (BF_FULL|BF_HIJACK|BF_DONT_READ)) == BF_FULL)
 			si->flags |= SI_FL_WAIT_ROOM;
 	}
 	else {

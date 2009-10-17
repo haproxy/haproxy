@@ -486,7 +486,7 @@ int stream_sock_read(int fd) {
 		EV_FD_CLR(fd, DIR_RD);
 		b->rex = TICK_ETERNITY;
 	}
-	else if ((b->flags & (BF_SHUTR|BF_READ_PARTIAL|BF_FULL|BF_READ_NOEXP)) == BF_READ_PARTIAL)
+	else if ((b->flags & (BF_SHUTR|BF_READ_PARTIAL|BF_FULL|BF_DONT_READ|BF_READ_NOEXP)) == BF_READ_PARTIAL)
 		b->rex = tick_add_ifset(now_ms, b->rto);
 
 	/* we have to wake up if there is a special event or if we don't have
@@ -777,7 +777,7 @@ int stream_sock_write(int fd)
 		}
 
 		/* the producer might be waiting for more room to store data */
-		if (likely((b->flags & (BF_SHUTW|BF_WRITE_PARTIAL|BF_FULL)) == BF_WRITE_PARTIAL &&
+		if (likely((b->flags & (BF_SHUTW|BF_WRITE_PARTIAL|BF_FULL|BF_DONT_READ)) == BF_WRITE_PARTIAL &&
 			   (b->prod->flags & SI_FL_WAIT_ROOM)))
 			b->prod->chk_rcv(b->prod);
 
@@ -834,7 +834,7 @@ void stream_sock_shutw(struct stream_interface *si)
 		EV_FD_CLR(si->fd, DIR_WR);
 		shutdown(si->fd, SHUT_WR);
 
-		if (!(si->ib->flags & BF_SHUTR))
+		if (!(si->ib->flags & (BF_SHUTR|BF_DONT_READ)))
 			return;
 
 		/* fall through */
@@ -906,9 +906,9 @@ void stream_sock_data_finish(struct stream_interface *si)
 	/* Check if we need to close the read side */
 	if (!(ib->flags & BF_SHUTR)) {
 		/* Read not closed, update FD status and timeout for reads */
-		if (ib->flags & (BF_FULL|BF_HIJACK)) {
+		if (ib->flags & (BF_FULL|BF_HIJACK|BF_DONT_READ)) {
 			/* stop reading */
-			if ((ib->flags & (BF_FULL|BF_HIJACK)) == BF_FULL)
+			if ((ib->flags & (BF_FULL|BF_HIJACK|BF_DONT_READ)) == BF_FULL)
 				si->flags |= SI_FL_WAIT_ROOM;
 			EV_FD_COND_C(fd, DIR_RD);
 			ib->rex = TICK_ETERNITY;
@@ -921,7 +921,7 @@ void stream_sock_data_finish(struct stream_interface *si)
 			 */
 			si->flags &= ~SI_FL_WAIT_ROOM;
 			EV_FD_COND_S(fd, DIR_RD);
-			if (!(ib->flags & BF_READ_NOEXP) && !tick_isset(ib->rex))
+			if (!(ib->flags & (BF_READ_NOEXP|BF_DONT_READ)) && !tick_isset(ib->rex))
 				ib->rex = tick_add_ifset(now_ms, ib->rto);
 		}
 	}
@@ -980,9 +980,9 @@ void stream_sock_chk_rcv(struct stream_interface *si)
 	if (unlikely(si->state != SI_ST_EST || (ib->flags & BF_SHUTR)))
 		return;
 
-	if (ib->flags & (BF_FULL|BF_HIJACK)) {
+	if (ib->flags & (BF_FULL|BF_HIJACK|BF_DONT_READ)) {
 		/* stop reading */
-		if ((ib->flags & (BF_FULL|BF_HIJACK)) == BF_FULL)
+		if ((ib->flags & (BF_FULL|BF_HIJACK|BF_DONT_READ)) == BF_FULL)
 			si->flags |= SI_FL_WAIT_ROOM;
 		EV_FD_COND_C(si->fd, DIR_RD);
 	}
