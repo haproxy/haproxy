@@ -2166,6 +2166,12 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 			}
 			old_idx = cur_idx;
 		}
+
+		/* if there was no Connection header and we're in HTTP/1.0, then "close" is implied */
+		if (!(s->flags & SN_CONN_CLOSED) && (msg->sl.rq.v_l == 8) &&
+		    (req->data[msg->som + msg->sl.rq.v + 5] == '1') &&
+		    (req->data[msg->som + msg->sl.rq.v + 7] == '0'))
+			s->flags |= SN_CONN_CLOSED;
 	}
 	/* add request headers from the rule sets in the same order */
 	for (cur_idx = 0; cur_idx < px->nb_reqadd; cur_idx++) {
@@ -2498,15 +2504,10 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 		}
 	}
 
-	/*
-	 * 11: add "Connection: close" if needed and not yet set.
-	 * Note that we do not need to add it in case of HTTP/1.0.
-	 */
+	/* 11: add "Connection: close" if needed and not yet set. */
 	if (!(s->flags & SN_CONN_CLOSED) &&
 	    ((s->fe->options | s->be->options) & (PR_O_HTTP_CLOSE|PR_O_FORCE_CLO))) {
-		if ((unlikely(msg->sl.rq.v_l != 8) ||
-		     unlikely(req->data[msg->som + msg->sl.rq.v + 7] != '0')) &&
-		    unlikely(http_header_add_tail2(req, &txn->req, &txn->hdr_idx,
+		if (unlikely(http_header_add_tail2(req, &txn->req, &txn->hdr_idx,
 						   "Connection: close", 17)) < 0)
 			goto return_bad_req;
 		s->flags |= SN_CONN_CLOSED;
