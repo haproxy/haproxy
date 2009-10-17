@@ -173,9 +173,10 @@ static int epoll_fd;
 static struct epoll_event ev;
 
 
-REGPRM1 static void alloc_spec_entry(const int fd)
+REGPRM1 static inline void alloc_spec_entry(const int fd)
 {
 	if (fd_list[fd].s1)
+		/* sometimes the entry already exists for the other direction */
 		return;
 	fd_list[fd].s1 = nbspec + 1;
 	spec_list[nbspec] = fd;
@@ -231,7 +232,6 @@ REGPRM2 static int __fd_is_set(const int fd, int dir)
  */
 REGPRM2 static int __fd_set(const int fd, int dir)
 {
-	__label__ switch_state;
 	unsigned int i;
 
 #if DEBUG_DEV
@@ -242,25 +242,19 @@ REGPRM2 static int __fd_set(const int fd, int dir)
 #endif
 	i = ((unsigned)fd_list[fd].e >> dir) & FD_EV_MASK_DIR;
 
-	if (i == FD_EV_IDLE) {
+	if (i != FD_EV_STOP) {
+		if (unlikely(i != FD_EV_IDLE))
+			return 0;
 		// switch to SPEC state and allocate a SPEC entry.
 		fd_created++;
 		alloc_spec_entry(fd);
-	switch_state:
-		fd_list[fd].e ^= (unsigned int)(FD_EV_IN_SL << dir);
-		return 1;
 	}
-	else if (i == FD_EV_STOP) {
-		// switch to WAIT state
-		goto switch_state;
-	}
-	else
-		return 0;
+	fd_list[fd].e ^= (unsigned int)(FD_EV_IN_SL << dir);
+	return 1;
 }
 
 REGPRM2 static int __fd_clr(const int fd, int dir)
 {
-	__label__ switch_state;
 	unsigned int i;
 
 #if DEBUG_DEV
@@ -271,22 +265,18 @@ REGPRM2 static int __fd_clr(const int fd, int dir)
 #endif
 	i = ((unsigned)fd_list[fd].e >> dir) & FD_EV_MASK_DIR;
 
-	if (i == FD_EV_SPEC) {
-		// switch to IDLE state
-		goto switch_state;
-	}
-	else if (likely(i == FD_EV_WAIT)) {
+	if (i != FD_EV_SPEC) {
+		if (unlikely(i != FD_EV_WAIT))
+			return 0;
 		// switch to STOP state
 		/* We will create a queue entry for this one because we want to
 		 * process it later in order to merge it with other events on
 		 * the same FD.
 		 */
 		alloc_spec_entry(fd);
-	switch_state:
-		fd_list[fd].e ^= (unsigned int)(FD_EV_IN_SL << dir);
-		return 1;
 	}
-	return 0;
+	fd_list[fd].e ^= (unsigned int)(FD_EV_IN_SL << dir);
+	return 1;
 }
 
 /* normally unused */
