@@ -1,7 +1,7 @@
 /*
  * FD polling functions for Speculative I/O combined with Linux epoll()
  *
- * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2009 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -149,18 +149,10 @@ static _syscall4 (int, epoll_wait, int, epfd, struct epoll_event *, events, int,
  */
 #define MIN_RETURN_EVENTS	25
 
-/* descriptor of one FD.
- * FIXME: should be a bit field */
-struct fd_status {
-	unsigned int e:4;       // read and write events status.
-	unsigned int s1:28;     // Position in spec list+1. 0=not in list. Should be last.
-};
-
 static int nbspec = 0;          // current size of the spec list
 static int absmaxevents = 0;    // absolute maximum amounts of polled events
 static int fd_created = 0;      // fd creation detector, reset upon poll() entry.
 
-static struct fd_status *fd_list = NULL;	// list of FDs
 static unsigned int *spec_list = NULL;	// speculative I/O list
 
 /* private data */
@@ -175,27 +167,27 @@ static struct epoll_event ev;
 
 REGPRM1 static inline void alloc_spec_entry(const int fd)
 {
-	if (fd_list[fd].s1)
+	if (fdtab[fd].spec.s1)
 		/* sometimes the entry already exists for the other direction */
 		return;
-	fd_list[fd].s1 = nbspec + 1;
+	fdtab[fd].spec.s1 = nbspec + 1;
 	spec_list[nbspec] = fd;
 	nbspec++;
 }
 
 /* Removes entry used by fd <fd> from the spec list and replaces it with the
- * last one. The fd_list is adjusted to match the back reference if needed.
+ * last one. The fdtab.spec is adjusted to match the back reference if needed.
  * If the fd has no entry assigned, return immediately.
  */
 REGPRM1 static void release_spec_entry(int fd)
 {
 	unsigned int pos;
 
-	pos = fd_list[fd].s1;
+	pos = fdtab[fd].spec.s1;
 	if (!pos)
 		return;
 
-	fd_list[fd].s1 = 0;
+	fdtab[fd].spec.s1 = 0;
 	pos--;
 	/* we have spec_list[pos]==fd */
 
@@ -205,8 +197,8 @@ REGPRM1 static void release_spec_entry(int fd)
 
 	/* we replace current FD by the highest one, which may sometimes be the same */
 	fd = spec_list[nbspec];
-	fd_list[fd].s1 = pos + 1;
 	spec_list[pos] = fd;
+	fdtab[fd].spec.s1 = pos + 1;
 }
 
 /*
@@ -222,7 +214,7 @@ REGPRM2 static int __fd_is_set(const int fd, int dir)
 		ABORT_NOW();
 	}
 #endif
-	ret = ((unsigned)fd_list[fd].e >> dir) & FD_EV_MASK_DIR;
+	ret = ((unsigned)fdtab[fd].spec.e >> dir) & FD_EV_MASK_DIR;
 	return (ret == FD_EV_SPEC || ret == FD_EV_WAIT);
 }
 
@@ -240,7 +232,7 @@ REGPRM2 static int __fd_set(const int fd, int dir)
 		ABORT_NOW();
 	}
 #endif
-	i = ((unsigned)fd_list[fd].e >> dir) & FD_EV_MASK_DIR;
+	i = ((unsigned)fdtab[fd].spec.e >> dir) & FD_EV_MASK_DIR;
 
 	if (i != FD_EV_STOP) {
 		if (unlikely(i != FD_EV_IDLE))
@@ -249,7 +241,7 @@ REGPRM2 static int __fd_set(const int fd, int dir)
 		fd_created++;
 		alloc_spec_entry(fd);
 	}
-	fd_list[fd].e ^= (unsigned int)(FD_EV_IN_SL << dir);
+	fdtab[fd].spec.e ^= (unsigned int)(FD_EV_IN_SL << dir);
 	return 1;
 }
 
@@ -263,7 +255,7 @@ REGPRM2 static int __fd_clr(const int fd, int dir)
 		ABORT_NOW();
 	}
 #endif
-	i = ((unsigned)fd_list[fd].e >> dir) & FD_EV_MASK_DIR;
+	i = ((unsigned)fdtab[fd].spec.e >> dir) & FD_EV_MASK_DIR;
 
 	if (i != FD_EV_SPEC) {
 		if (unlikely(i != FD_EV_WAIT))
@@ -275,7 +267,7 @@ REGPRM2 static int __fd_clr(const int fd, int dir)
 		 */
 		alloc_spec_entry(fd);
 	}
-	fd_list[fd].e ^= (unsigned int)(FD_EV_IN_SL << dir);
+	fdtab[fd].spec.e ^= (unsigned int)(FD_EV_IN_SL << dir);
 	return 1;
 }
 
@@ -293,7 +285,7 @@ REGPRM1 static void __fd_rem(int fd)
 REGPRM1 static void __fd_clo(int fd)
 {
 	release_spec_entry(fd);
-	fd_list[fd].e &= ~(FD_EV_MASK);
+	fdtab[fd].spec.e &= ~(FD_EV_MASK);
 }
 
 /*
@@ -326,7 +318,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 
 		spec_idx--;
 		fd = spec_list[spec_idx];
-		eo = fd_list[fd].e;  /* save old events */
+		eo = fdtab[fd].spec.e;  /* save old events */
 
 		if (looping && --fd_created < 0) {
 			/* we were just checking the newly created FDs */
@@ -344,8 +336,8 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 
 #ifdef DEBUG_DEV
 		if (fdtab[fd].state == FD_STCLOSE) {
-			fprintf(stderr,"fd=%d, fdtab[].ev=%x, fd_list[].e=%x, .s=%d, idx=%d\n",
-				fd, fdtab[fd].ev, fd_list[fd].e, fd_list[fd].s1, spec_idx);
+			fprintf(stderr,"fd=%d, fdtab[].ev=%x, fdtab[].spec.e=%x, .s=%d, idx=%d\n",
+				fd, fdtab[fd].ev, fdtab[fd].spec.e, fdtab[fd].spec.s1, spec_idx);
 		}
 #endif
 		done = 0;
@@ -356,14 +348,14 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 				/* Pretend there is something to read */
 				fdtab[fd].ev |= FD_POLL_IN;
 				if (!fdtab[fd].cb[DIR_RD].f(fd))
-					fd_list[fd].e ^= (FD_EV_WAIT_R ^ FD_EV_SPEC_R);
+					fdtab[fd].spec.e ^= (FD_EV_WAIT_R ^ FD_EV_SPEC_R);
 				else
 					done = 1;
 			}
 		}
 		else if ((eo & FD_EV_MASK_R) == FD_EV_STOP_R) {
 			/* This FD was being polled and is now being removed. */
-			fd_list[fd].e &= ~FD_EV_MASK_R;
+			fdtab[fd].spec.e &= ~FD_EV_MASK_R;
 		}
 		
 		if ((eo & FD_EV_MASK_W) == FD_EV_SPEC_W) {
@@ -372,14 +364,14 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 				/* Pretend there is something to write */
 				fdtab[fd].ev |= FD_POLL_OUT;
 				if (!fdtab[fd].cb[DIR_WR].f(fd))
-					fd_list[fd].e ^= (FD_EV_WAIT_W ^ FD_EV_SPEC_W);
+					fdtab[fd].spec.e ^= (FD_EV_WAIT_W ^ FD_EV_SPEC_W);
 				else
 					done = 1;
 			}
 		}
 		else if ((eo & FD_EV_MASK_W) == FD_EV_STOP_W) {
 			/* This FD was being polled and is now being removed. */
-			fd_list[fd].e &= ~FD_EV_MASK_W;
+			fdtab[fd].spec.e &= ~FD_EV_MASK_W;
 		}
 
 		status += done;
@@ -393,9 +385,9 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		 * have opposite changes for READ and WRITE too.
 		 */
 
-		if ((eo ^ fd_list[fd].e) & FD_EV_RW_PL) {
+		if ((eo ^ fdtab[fd].spec.e) & FD_EV_RW_PL) {
 			/* poll status changed*/
-			if ((fd_list[fd].e & FD_EV_RW_PL) == 0) {
+			if ((fdtab[fd].spec.e & FD_EV_RW_PL) == 0) {
 				/* fd removed from poll list */
 				opcode = EPOLL_CTL_DEL;
 			}
@@ -410,10 +402,10 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 
 			/* construct the epoll events based on new state */
 			ev.events = 0;
-			if (fd_list[fd].e & FD_EV_WAIT_R)
+			if (fdtab[fd].spec.e & FD_EV_WAIT_R)
 				ev.events |= EPOLLIN;
 
-			if (fd_list[fd].e & FD_EV_WAIT_W)
+			if (fdtab[fd].spec.e & FD_EV_WAIT_W)
 				ev.events |= EPOLLOUT;
 
 			ev.data.fd = fd;
@@ -421,7 +413,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		}
 
 
-		if (!(fd_list[fd].e & FD_EV_RW_SL)) {
+		if (!(fdtab[fd].spec.e & FD_EV_RW_SL)) {
 			/* This fd switched to combinations of either WAIT or
 			 * IDLE. It must be removed from the spec list.
 			 */
@@ -515,14 +507,14 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			((e & EPOLLERR) ? FD_POLL_ERR : 0) |
 			((e & EPOLLHUP) ? FD_POLL_HUP : 0);
 		
-		if ((fd_list[fd].e & FD_EV_MASK_R) == FD_EV_WAIT_R) {
+		if ((fdtab[fd].spec.e & FD_EV_MASK_R) == FD_EV_WAIT_R) {
 			if (fdtab[fd].state == FD_STCLOSE || fdtab[fd].state == FD_STERROR)
 				continue;
 			if (fdtab[fd].ev & (FD_POLL_IN|FD_POLL_HUP|FD_POLL_ERR))
 				fdtab[fd].cb[DIR_RD].f(fd);
 		}
 
-		if ((fd_list[fd].e & FD_EV_MASK_W) == FD_EV_WAIT_W) {
+		if ((fdtab[fd].spec.e & FD_EV_MASK_W) == FD_EV_WAIT_W) {
 			if (fdtab[fd].state == FD_STCLOSE || fdtab[fd].state == FD_STERROR)
 				continue;
 			if (fdtab[fd].ev & (FD_POLL_OUT|FD_POLL_ERR))
@@ -550,7 +542,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
  */
 REGPRM1 static int _do_init(struct poller *p)
 {
-	__label__ fail_fd_list, fail_spec, fail_ee, fail_fd;
+	__label__ fail_spec, fail_ee, fail_fd;
 
 	p->private = NULL;
 
@@ -569,14 +561,8 @@ REGPRM1 static int _do_init(struct poller *p)
 	if ((spec_list = (uint32_t *)calloc(1, sizeof(uint32_t) * global.maxsock)) == NULL)
 		goto fail_spec;
 
-	fd_list = (struct fd_status *)calloc(1, sizeof(struct fd_status) * global.maxsock);
-	if (fd_list == NULL)
-		goto fail_fd_list;
-
 	return 1;
 
- fail_fd_list:
-	free(spec_list);
  fail_spec:
 	free(epoll_events);
  fail_ee:
@@ -593,7 +579,6 @@ REGPRM1 static int _do_init(struct poller *p)
  */
 REGPRM1 static void _do_term(struct poller *p)
 {
-	free(fd_list);
 	free(spec_list);
 	free(epoll_events);
 
@@ -602,7 +587,6 @@ REGPRM1 static void _do_term(struct poller *p)
 		epoll_fd = -1;
 	}
 
-	fd_list = NULL;
 	spec_list = NULL;
 	epoll_events = NULL;
 

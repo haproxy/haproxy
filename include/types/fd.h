@@ -72,6 +72,10 @@ struct fdtab {
 		struct buffer *b;            /* read/write buffer */
 	} cb[DIR_SIZE];
 	void *owner;                         /* the session (or proxy) associated with this fd */
+	struct {                             /* used by pollers which support speculative polling */
+		unsigned char e;             /* read and write events status. 4 bits, may be merged into flags' lower bits */
+		unsigned int s1;             /* Position in spec list+1. 0=not in list. */
+	} spec;
 	unsigned short flags;                /* various flags precising the exact status of this fd */
 	unsigned char state;                 /* the state of this fd */
 	unsigned char ev;                    /* event seen in return of poll() : FD_POLL_* */
