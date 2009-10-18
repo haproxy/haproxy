@@ -2764,7 +2764,6 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 	struct http_msg *msg = &s->txn.req;
 	unsigned long body = msg->sol[msg->eoh] == '\r' ? msg->eoh + 2 : msg->eoh + 1;
 	long long limit = s->be->url_param_post_limit;
-	struct hdr_ctx ctx;
 
 	if (unlikely(msg->msg_state != HTTP_MSG_BODY)) {
 		/* we need more data */
@@ -2778,11 +2777,8 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 	 * related structures are ready.
 	 */
 
-	ctx.idx = 0;
-
 	/* now if we have a length, we'll take the hint */
-	http_find_header2("Transfer-Encoding", 17, msg->sol, &s->txn.hdr_idx, &ctx);
-	if (ctx.idx && ctx.vlen >= 7 && strncasecmp(ctx.line+ctx.val, "chunked", 7) == 0) {
+	if (s->txn.flags & TX_REQ_TE_CHNK) {
 		unsigned int chunk = 0;
 		while (body < req->l && !HTTP_IS_CRLF(msg->sol[body])) {
 			char c = msg->sol[body];
