@@ -22,6 +22,7 @@
 #include <proto/port_range.h>
 
 struct fdtab *fdtab = NULL;     /* array of all the file descriptors */
+struct fdinfo *fdinfo = NULL;   /* less-often used infos for file descriptors */
 int maxfd;                      /* # of the highest fd + 1 */
 int totalconn;                  /* total # of terminated sessions */
 int actconn;                    /* # of active sessions */
@@ -37,8 +38,8 @@ int nbpollers = 0;
 void fd_delete(int fd)
 {
 	EV_FD_CLO(fd);
-	port_range_release_port(fdtab[fd].port_range, fdtab[fd].local_port);
-	fdtab[fd].port_range = NULL;
+	port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
+	fdinfo[fd].port_range = NULL;
 	close(fd);
 	fdtab[fd].state = FD_STCLOSE;
 

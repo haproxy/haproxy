@@ -279,19 +279,19 @@ int tcpv4_connect_server(struct stream_interface *si,
 				/* note: in case of retry, we may have to release a previously
 				 * allocated port, hence this loop's construct.
 				 */
-				port_range_release_port(fdtab[fd].port_range, fdtab[fd].local_port);
-				fdtab[fd].port_range = NULL;
+				port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
+				fdinfo[fd].port_range = NULL;
 
 				if (!attempts)
 					break;
 				attempts--;
 
-				fdtab[fd].local_port = port_range_alloc_port(srv->sport_range);
-				if (!fdtab[fd].local_port)
+				fdinfo[fd].local_port = port_range_alloc_port(srv->sport_range);
+				if (!fdinfo[fd].local_port)
 					break;
 
-				fdtab[fd].port_range = srv->sport_range;
-				src.sin_port = htons(fdtab[fd].local_port);
+				fdinfo[fd].port_range = srv->sport_range;
+				src.sin_port = htons(fdinfo[fd].local_port);
 
 				ret = tcpv4_bind_socket(fd, flags, &src, remote);
 			} while (ret != 0); /* binding NOK */
@@ -301,8 +301,8 @@ int tcpv4_connect_server(struct stream_interface *si,
 		}
 
 		if (ret) {
-			port_range_release_port(fdtab[fd].port_range, fdtab[fd].local_port);
-			fdtab[fd].port_range = NULL;
+			port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
+			fdinfo[fd].port_range = NULL;
 			close(fd);
 
 			if (ret == 1) {
@@ -388,8 +388,8 @@ int tcpv4_connect_server(struct stream_interface *si,
 				msg = "local address already in use";
 
 			qfprintf(stderr,"Cannot connect: %s.\n",msg);
-			port_range_release_port(fdtab[fd].port_range, fdtab[fd].local_port);
-			fdtab[fd].port_range = NULL;
+			port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
+			fdinfo[fd].port_range = NULL;
 			close(fd);
 			send_log(be, LOG_EMERG,
 				 "Connect() failed for server %s/%s: %s.\n",
@@ -397,15 +397,15 @@ int tcpv4_connect_server(struct stream_interface *si,
 			return SN_ERR_RESOURCE;
 		} else if (errno == ETIMEDOUT) {
 			//qfprintf(stderr,"Connect(): ETIMEDOUT");
-			port_range_release_port(fdtab[fd].port_range, fdtab[fd].local_port);
-			fdtab[fd].port_range = NULL;
+			port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
+			fdinfo[fd].port_range = NULL;
 			close(fd);
 			return SN_ERR_SRVTO;
 		} else {
 			// (errno == ECONNREFUSED || errno == ENETUNREACH || errno == EACCES || errno == EPERM)
 			//qfprintf(stderr,"Connect(): %d", errno);
-			port_range_release_port(fdtab[fd].port_range, fdtab[fd].local_port);
-			fdtab[fd].port_range = NULL;
+			port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
+			fdinfo[fd].port_range = NULL;
 			close(fd);
 			return SN_ERR_SRVCL;
 		}
@@ -419,8 +419,8 @@ int tcpv4_connect_server(struct stream_interface *si,
 	fdtab[fd].cb[DIR_WR].f = &stream_sock_write;
 	fdtab[fd].cb[DIR_WR].b = si->ob;
 
-	fdtab[fd].peeraddr = (struct sockaddr *)srv_addr;
-	fdtab[fd].peerlen = sizeof(struct sockaddr_in);
+	fdinfo[fd].peeraddr = (struct sockaddr *)srv_addr;
+	fdinfo[fd].peerlen = sizeof(struct sockaddr_in);
 
 	fd_insert(fd);
 	EV_FD_SET(fd, DIR_WR);  /* for connect status */
@@ -562,8 +562,8 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	if (listener->options & LI_O_NOLINGER)
 		fdtab[fd].flags |= FD_FL_TCP_NOLING;
 
-	fdtab[fd].peeraddr = NULL;
-	fdtab[fd].peerlen = 0;
+	fdinfo[fd].peeraddr = NULL;
+	fdinfo[fd].peerlen = 0;
  tcp_return:
 	if (msg && errlen)
 		strlcpy2(errmsg, msg, errlen);

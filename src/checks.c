@@ -838,19 +838,19 @@ struct task *process_chk(struct task *t)
 							/* note: in case of retry, we may have to release a previously
 							 * allocated port, hence this loop's construct.
 							 */
-							port_range_release_port(fdtab[fd].port_range, fdtab[fd].local_port);
-							fdtab[fd].port_range = NULL;
+							port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
+							fdinfo[fd].port_range = NULL;
 
 							if (!bind_attempts)
 								break;
 							bind_attempts--;
 
-							fdtab[fd].local_port = port_range_alloc_port(s->sport_range);
-							if (!fdtab[fd].local_port)
+							fdinfo[fd].local_port = port_range_alloc_port(s->sport_range);
+							if (!fdinfo[fd].local_port)
 								break;
 
-							fdtab[fd].port_range = s->sport_range;
-							src.sin_port = htons(fdtab[fd].local_port);
+							fdinfo[fd].port_range = s->sport_range;
+							src.sin_port = htons(fdinfo[fd].local_port);
 
 							ret = tcpv4_bind_socket(fd, flags, &src, remote);
 						} while (ret != 0); /* binding NOK */
@@ -926,8 +926,8 @@ struct task *process_chk(struct task *t)
 						fdtab[fd].cb[DIR_RD].b = NULL;
 						fdtab[fd].cb[DIR_WR].f = &event_srv_chk_w;
 						fdtab[fd].cb[DIR_WR].b = NULL;
-						fdtab[fd].peeraddr = (struct sockaddr *)&sa;
-						fdtab[fd].peerlen = sizeof(sa);
+						fdinfo[fd].peeraddr = (struct sockaddr *)&sa;
+						fdinfo[fd].peerlen = sizeof(sa);
 						fdtab[fd].state = FD_STCONN; /* connection in progress */
 						fdtab[fd].flags = FD_FL_TCP | FD_FL_TCP_NODELAY;
 						EV_FD_SET(fd, DIR_WR);  /* for connect status */
@@ -963,8 +963,8 @@ struct task *process_chk(struct task *t)
 					}
 				}
 			}
-			port_range_release_port(fdtab[fd].port_range, fdtab[fd].local_port);
-			fdtab[fd].port_range = NULL;
+			port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
+			fdinfo[fd].port_range = NULL;
 			close(fd); /* socket creation error */
 		}
 

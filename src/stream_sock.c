@@ -712,7 +712,7 @@ int stream_sock_write(int fd)
 			 *  - connecting (EALREADY, EINPROGRESS)
 			 *  - connected (EISCONN, 0)
 			 */
-			if ((connect(fd, fdtab[fd].peeraddr, fdtab[fd].peerlen) == 0))
+			if ((connect(fd, fdinfo[fd].peeraddr, fdinfo[fd].peerlen) == 0))
 				errno = 0;
 
 			if (errno == EALREADY || errno == EINPROGRESS) {

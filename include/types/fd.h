@@ -1,23 +1,23 @@
 /*
-  include/types/fd.h
-  File descriptors states.
-
-  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
-
-  This library is free software; you can redistribute it and/or
-  modify it under the terms of the GNU Lesser General Public
-  License as published by the Free Software Foundation, version 2.1
-  exclusively.
-
-  This library is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  Lesser General Public License for more details.
-
-  You should have received a copy of the GNU Lesser General Public
-  License along with this library; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
+ * include/types/fd.h
+ * File descriptors states.
+ *
+ * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation, version 2.1
+ * exclusively.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
 
 #ifndef _TYPES_FD_H
 #define _TYPES_FD_H
@@ -75,10 +75,14 @@ struct fdtab {
 	unsigned short flags;                /* various flags precising the exact status of this fd */
 	unsigned char state;                 /* the state of this fd */
 	unsigned char ev;                    /* event seen in return of poll() : FD_POLL_* */
-	struct sockaddr *peeraddr;           /* pointer to peer's network address, or NULL if unset */
-	socklen_t peerlen;                   /* peer's address length, or 0 if unset */
-	int local_port;                      /* optional local port */
+};
+
+/* less often used information */
+struct fdinfo {
 	struct port_range *port_range;       /* optional port range to bind to */
+	int local_port;                      /* optional local port */
+	struct sockaddr *peeraddr;   /* pointer to peer's network address, or NULL if unset */
+	socklen_t peerlen;           /* peer's address length, or 0 if unset */
 };
 
 /*
@@ -123,6 +127,7 @@ extern int nbpollers;
 extern struct poller pollers[MAX_POLLERS];   /* all registered pollers */
 
 extern struct fdtab *fdtab;             /* array of all the file descriptors */
+extern struct fdinfo *fdinfo;           /* less-often used infos for file descriptors */
 extern int maxfd;                       /* # of the highest fd + 1 */
 extern int totalconn;                   /* total # of terminated sessions */
 extern int actconn;                     /* # of active sessions */

@@ -449,8 +449,8 @@ int event_accept(int fd) {
 		fdtab[cfd].cb[DIR_RD].b = s->req;
 		fdtab[cfd].cb[DIR_WR].f = l->proto->write;
 		fdtab[cfd].cb[DIR_WR].b = s->rep;
-		fdtab[cfd].peeraddr = (struct sockaddr *)&s->cli_addr;
-		fdtab[cfd].peerlen = sizeof(s->cli_addr);
+		fdinfo[cfd].peeraddr = (struct sockaddr *)&s->cli_addr;
+		fdinfo[cfd].peerlen = sizeof(s->cli_addr);
 
 		if ((p->mode == PR_MODE_HTTP && (s->flags & SN_MONITOR)) ||
 		    (p->mode == PR_MODE_HEALTH && (p->options & PR_O_HTTP_CHK))) {

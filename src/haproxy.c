@@ -641,6 +641,8 @@ void init(int argc, char **argv)
 	if (global.nbproc < 1)
 		global.nbproc = 1;
 
+	fdinfo = (struct fdinfo *)calloc(1,
+				       sizeof(struct fdinfo) * (global.maxsock));
 	fdtab = (struct fdtab *)calloc(1,
 				       sizeof(struct fdtab) * (global.maxsock));
 	for (i = 0; i < global.maxsock; i++) {

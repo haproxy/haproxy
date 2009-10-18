@@ -267,8 +267,8 @@ static int uxst_bind_listener(struct listener *listener)
 	fdtab[fd].cb[DIR_RD].b = fdtab[fd].cb[DIR_WR].b = NULL;
 	fdtab[fd].owner = listener; /* reference the listener instead of a task */
 	fdtab[fd].state = FD_STLISTEN;
-	fdtab[fd].peeraddr = NULL;
-	fdtab[fd].peerlen = 0;
+	fdinfo[fd].peeraddr = NULL;
+	fdinfo[fd].peerlen = 0;
 	return ERR_NONE;
 }
 
@@ -537,8 +537,8 @@ int uxst_event_accept(int fd) {
 		fdtab[cfd].cb[DIR_RD].b = s->req;
 		fdtab[cfd].cb[DIR_WR].f = l->proto->write;
 		fdtab[cfd].cb[DIR_WR].b = s->rep;
-		fdtab[cfd].peeraddr = (struct sockaddr *)&s->cli_addr;
-		fdtab[cfd].peerlen = sizeof(s->cli_addr);
+		fdinfo[cfd].peeraddr = (struct sockaddr *)&s->cli_addr;
+		fdinfo[cfd].peerlen = sizeof(s->cli_addr);
 
 		EV_FD_SET(cfd, DIR_RD);
 
