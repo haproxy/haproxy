@@ -2069,16 +2069,20 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 			conn_ka = 1;
 	}
 
+	/* prepare flags for this transaction */
+	txn->flags |= (TX_CLI_CONN_KA | TX_SRV_CONN_KA);
+	txn->flags |= (TX_CLI_CONN_KA | TX_SRV_CONN_KA);
+
 	if ((msg->sl.rq.v_l == 8) &&
 	    (req->data[msg->som + msg->sl.rq.v + 5] == '1') &&
 	    (req->data[msg->som + msg->sl.rq.v + 7] == '0')) {
 		/* HTTP/1.0 */
-		if (conn_ka)
-			txn->flags |= (TX_CLI_CONN_KA | TX_SRV_CONN_KA);
+		if (!conn_ka)
+			txn->flags &= ~(TX_CLI_CONN_KA | TX_SRV_CONN_KA);
 	} else {
-		/* HTTP/1.0 */
-		if (!conn_cl)
-			txn->flags |= (TX_CLI_CONN_KA | TX_SRV_CONN_KA);
+		/* HTTP/1.1 */
+		if (conn_cl)
+			txn->flags &= ~(TX_CLI_CONN_KA | TX_SRV_CONN_KA);
 	}
 
 	/* we can mark the connection as non-persistent if needed */
