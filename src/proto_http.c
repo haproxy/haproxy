@@ -2390,16 +2390,9 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 	}
 
 	/* We can shut read side if "connection: close" && !abort_on_close && !content-length */
-	if ((txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD) &&
-	    (s->flags & SN_CONN_CLOSED) && !(s->be->options & PR_O_ABRT_CLOSE)) {
-		struct hdr_ctx ctx;
-		ctx.idx = 0;
-		if (!http_find_header2("Transfer-Encoding", 17, msg->sol, &txn->hdr_idx, &ctx)) {
-			ctx.idx = 0;
-			if (!http_find_header2("Content-length", 14, msg->sol, &txn->hdr_idx, &ctx))
-				req->flags |= BF_DONT_READ;
-		}
-	}
+	if ((s->flags & SN_CONN_CLOSED) && !(s->be->options & PR_O_ABRT_CLOSE) &&
+	    !(txn->flags & TX_REQ_TE_CHNK) && !txn->req.hdr_content_len && (txn->meth < HTTP_METH_CONNECT))
+		req->flags |= BF_DONT_READ;
 
 	/* that's OK for us now, let's move on to next analysers */
 	return 1;
