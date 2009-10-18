@@ -1,23 +1,23 @@
 /*
-  include/types/proto_http.h
-  This file contains HTTP protocol definitions.
-
-  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
-  
-  This library is free software; you can redistribute it and/or
-  modify it under the terms of the GNU Lesser General Public
-  License as published by the Free Software Foundation, version 2.1
-  exclusively.
-
-  This library is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  Lesser General Public License for more details.
-
-  You should have received a copy of the GNU Lesser General Public
-  License along with this library; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
+ * include/types/proto_http.h
+ * This file contains HTTP protocol definitions.
+ *
+ * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation, version 2.1
+ * exclusively.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
 
 #ifndef _TYPES_PROTO_HTTP_H
 #define _TYPES_PROTO_HTTP_H
@@ -80,6 +80,15 @@
 #define TX_CACHE_COOK	0x00002000	/* a cookie in the response is cacheable */
 #define TX_CACHE_SHIFT	12		/* bit shift */
 
+/* client and server keep-alive capability */
+#define TX_CLI_CONN_KA	0x00004000	/* the client-side connection is still keep-alive capable */
+#define TX_SRV_CONN_KA	0x00008000	/* the server-side connection is still keep-alive capable */
+
+/* report presence of transfer-encoding:chunked and content-length headers */
+#define TX_REQ_CNT_LEN	0x00010000	/* content-length present in the request */
+#define TX_REQ_TE_CHNK	0x00020000	/* transfer-encoding: chunked present in the request */
+#define TX_RES_CNT_LEN	0x00040000	/* content-length present in the response */
+#define TX_RES_TE_CHNK	0x00080000	/* transfer-encoding: chunked present in the response */
 
 /* The HTTP parser is more complex than it looks like, because we have to
  * support multi-line headers and any number of spaces between the colon and
@@ -231,7 +240,7 @@ struct http_msg {
 			int r, r_l;            /* REASON, length */
 		} st;                          /* status line : field, length */
 	} sl;                                  /* start line */
-	unsigned long long hdr_content_len;    /* cache for parsed header value */
+	unsigned long long hdr_content_len;    /* cache for parsed header value or for chunk-size if present */
 	int err_pos;                           /* err handling: -2=block, -1=pass, 0+=detected */
 };
 
