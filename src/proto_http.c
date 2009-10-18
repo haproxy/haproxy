@@ -2855,6 +2855,8 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 {
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->rsp;
+	struct hdr_ctx ctx;
+	int conn_ka, conn_cl;
 	int cur_idx;
 	int n;
 
@@ -3092,6 +3094,101 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 		capture_headers(rep->data + msg->som, &txn->hdr_idx,
 				txn->rsp.cap, s->fe->rsp_cap);
 
+	/* 4: determine if we have a transfer-encoding or content-length.
+	 * RFC2616 #4.4 states that :
+	 *   - Any response which "MUST NOT" include a message-body (such as the
+	 *     1xx, 204 and 304 responses and any response to a HEAD request) is
+	 *     always terminated by the first empty line after the header fields,
+	 *     regardless of the entity-header fields present in the message.
+	 *
+	 *   - If a Transfer-Encoding header field is present and has any value
+	 *     other than "identity", then the transfer-length is defined by use
+	 *     of the "chunked" transfer-coding ;
+	 *
+	 *   - If a Content-Length header field is present, its decimal value in
+	 *     OCTETs represents both the entity-length and the transfer-length.
+	 *     If a message is received with both a Transfer-Encoding header
+	 *     field and a Content-Length header field, the latter MUST be ignored.
+	 */
+
+	/* Skip parsing if no content length is possible. The response flags
+	 * remain 0 as well as the hdr_content_len, which may or may not mirror
+	 * the real header value.
+	 * FIXME: should we parse anyway and return an error on chunked encoding ?
+	 */
+	if (txn->meth == HTTP_METH_HEAD ||
+	    (txn->status >= 100 && txn->status < 200) ||
+	    txn->status == 204 || txn->status == 304)
+		goto skip_content_length;
+
+	/* FIXME: chunked encoding is HTTP/1.1 only */
+	ctx.idx = 0;
+	while (http_find_header2("Transfer-Encoding", 17, msg->sol, &txn->hdr_idx, &ctx)) {
+		if (ctx.vlen == 8 && strncasecmp(ctx.line + ctx.val, "identity", 8) == 0)
+			continue;
+		txn->flags |= TX_RES_TE_CHNK;
+		break;
+	}
+
+	/* FIXME: below we should remove the content-length header(s) in case of chunked encoding */
+	ctx.idx = 0;
+	while (!(txn->flags & TX_RES_TE_CHNK) &&
+	       http_find_header2("Content-Length", 14, msg->sol, &txn->hdr_idx, &ctx)) {
+		signed long long cl;
+
+		if (!ctx.vlen)
+			goto hdr_response_bad;
+
+		if (strl2llrc(ctx.line + ctx.val, ctx.vlen, &cl))
+			goto hdr_response_bad; /* parse failure */
+
+		if (cl < 0)
+			goto hdr_response_bad;
+
+		if ((txn->flags & TX_RES_CNT_LEN) && (msg->hdr_content_len != cl))
+			goto hdr_response_bad; /* already specified, was different */
+
+		txn->flags |= TX_RES_CNT_LEN;
+		msg->hdr_content_len = cl;
+	}
+
+skip_content_length:
+	/* Determine if the server wishes keep-alive or close.
+	 * RFC2616 #8.1.2 and #14.10 state that HTTP/1.1 and above connections
+	 * are persistent unless "Connection: close" is explicitly specified.
+	 * RFC2616 #19.6.2 refers to RFC2068 for HTTP/1.0 persistent connections.
+	 * RFC2068 #19.7.1 states that HTTP/1.0 clients are not persistent unless
+	 * they explicitly specify "Connection: keep-alive", regardless of any
+	 * optional "keep-alive" header.
+	 */
+
+	/* FIXME: should we also remove any header specified in "connection" ? */
+	conn_ka = conn_cl = 0;
+	ctx.idx = 0;
+	while (http_find_header2("Connection", 10, msg->sol, &txn->hdr_idx, &ctx)) {
+		if (ctx.vlen == 5 && strncasecmp(ctx.line + ctx.val, "close", 5) == 0)
+			conn_cl = 1;
+		else if (ctx.vlen == 10 && strncasecmp(ctx.line + ctx.val, "keep-alive", 10) == 0)
+			conn_ka = 1;
+	}
+
+	if ((msg->sl.st.v_l == 8) &&
+	    (rep->data[msg->som + 5] == '1') &&
+	    (rep->data[msg->som + 7] == '0')) {
+		/* HTTP/1.0 */
+		if (!conn_ka)
+			txn->flags &= ~TX_SRV_CONN_KA;
+	} else {
+		/* HTTP/1.1 */
+		if (conn_cl)
+			txn->flags &= ~TX_SRV_CONN_KA;;
+	}
+
+	/* we can mark the connection as non-persistent if needed */
+	s->flags &= ~SN_CONN_CLOSED; /* prepare for inspection */
+	if (!(txn->flags & TX_SRV_CONN_KA))
+		s->flags |= SN_CONN_CLOSED;
+
 	/* end of job, return OK */
 	rep->analysers &= ~an_bit;
 	rep->analyse_exp = TICK_ETERNITY;
@@ -3137,8 +3234,6 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 		 * Filters are tried with ->be first, then with ->fe if it is
 		 * different from ->be.
 		 */
-
-		t->flags &= ~SN_CONN_CLOSED; /* prepare for inspection */
 
 		cur_proxy = t->be;
 		while (1) {
