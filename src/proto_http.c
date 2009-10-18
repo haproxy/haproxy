@@ -2203,7 +2203,10 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 		}
 	}
 
-	/* We might have to check for "Connection:" */
+	/* We might have to check for "Connection:". The test for persistent
+	 * connections has already been performed, so we only enter here if
+	 * we are certain the connection is persistent.
+	 */
 	if (((s->fe->options | s->be->options) & (PR_O_HTTP_CLOSE|PR_O_FORCE_CLO)) &&
 	    !(s->flags & SN_CONN_CLOSED)) {
 		char *cur_ptr, *cur_end, *cur_next;
@@ -2247,16 +2250,20 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 						txn->req.eoh += delta;
 					}
 					s->flags |= SN_CONN_CLOSED;
+					txn->flags &= ~TX_SRV_CONN_KA; /* keep-alive closed on server side */
 				}
 			}
 			old_idx = cur_idx;
 		}
 
-		/* if there was no Connection header and we're in HTTP/1.0, then "close" is implied */
+		/* if there is no "Connection: keep-alive" header left and we're
+		 * in HTTP/1.0, then non-persistent connection is implied */
 		if (!(s->flags & SN_CONN_CLOSED) && (msg->sl.rq.v_l == 8) &&
 		    (req->data[msg->som + msg->sl.rq.v + 5] == '1') &&
-		    (req->data[msg->som + msg->sl.rq.v + 7] == '0'))
+		    (req->data[msg->som + msg->sl.rq.v + 7] == '0')) {
 			s->flags |= SN_CONN_CLOSED;
+			txn->flags &= ~TX_SRV_CONN_KA; /* keep-alive closed on server side */
+		}
 	}
 	/* add request headers from the rule sets in the same order */
 	for (cur_idx = 0; cur_idx < px->nb_reqadd; cur_idx++) {
