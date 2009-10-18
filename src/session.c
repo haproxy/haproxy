@@ -894,10 +894,43 @@ resync_stream_interface:
 		unsigned int flags = s->rep->flags;
 
 		if (s->rep->prod->state >= SI_ST_EST) {
+			unsigned int last_ana = 0;
+
 			/* it's up to the analysers to reset auto_close */
 			buffer_auto_close(s->rep);
-			if (s->rep->analysers)
-				process_response(s);
+
+			/* We will call all analysers for which a bit is set in
+			 * s->rep->analysers, following the bit order from LSB
+			 * to MSB. The analysers must remove themselves from
+			 * the list when not needed. Any analyser may return 0
+			 * to break out of the loop, either because of missing
+			 * data to take a decision, or because it decides to
+			 * kill the session. We loop at least once through each
+			 * analyser, and we may loop again if other analysers
+			 * are added in the middle.
+			 */
+			while (s->rep->analysers & ~last_ana) {
+				last_ana = s->rep->analysers;
+
+				if (s->rep->analysers & AN_RES_WAIT_HTTP) {
+					last_ana |= AN_RES_WAIT_HTTP;
+					if (!http_wait_for_response(s, s->rep, AN_RES_WAIT_HTTP))
+						break;
+				}
+
+				if (s->rep->analysers & AN_RES_HTTP_PROCESS_BE) {
+					last_ana |= AN_RES_HTTP_PROCESS_BE;
+					if (!http_process_res_common(s, s->rep, AN_RES_HTTP_PROCESS_BE, s->be))
+						break;
+					/* FIXME: we may wait for a second response in case of a status 1xx
+					 * and want to immediately loop back to the top. This is a dirty way
+					 * of doing it, and we should find a cleaner method relying on a
+					 * circular list of function pointers.
+					 */
+					if ((s->rep->analysers & ~last_ana) & AN_RES_WAIT_HTTP)
+						continue;
+				}
+			}
 		}
 
 		if ((s->rep->flags ^ flags) & BF_MASK_STATIC) {

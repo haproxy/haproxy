@@ -2840,20 +2840,274 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 	}
 }
 
+/* This stream analyser waits for a complete HTTP response. It returns 1 if the
+ * processing can continue on next analysers, or zero if it either needs more
+ * data or wants to immediately abort the response (eg: timeout, error, ...). It
+ * is tied to AN_RES_WAIT_HTTP and may may remove itself from s->rep->analysers
+ * when it has nothing left to do, and may remove any analyser when it wants to
+ * abort.
+ */
+int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
+{
+	struct http_txn *txn = &s->txn;
+	struct http_msg *msg = &txn->rsp;
+	int cur_idx;
+	int n;
+
+	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
+		now_ms, __FUNCTION__,
+		s,
+		rep,
+		rep->rex, rep->wex,
+		rep->flags,
+		rep->l,
+		rep->analysers);
+
+	/*
+	 * Now parse the partial (or complete) lines.
+	 * We will check the response syntax, and also join multi-line
+	 * headers. An index of all the lines will be elaborated while
+	 * parsing.
+	 *
+	 * For the parsing, we use a 28 states FSM.
+	 *
+	 * Here is the information we currently have :
+	 *   rep->data + rep->som  = beginning of response
+	 *   rep->data + rep->eoh  = end of processed headers / start of current one
+	 *   rep->data + rep->eol  = end of current header or line (LF or CRLF)
+	 *   rep->lr = first non-visited byte
+	 *   rep->r  = end of data
+	 */
+
+	if (likely(rep->lr < rep->r))
+		http_msg_analyzer(rep, msg, &txn->hdr_idx);
+
+	/* 1: we might have to print this header in debug mode */
+	if (unlikely((global.mode & MODE_DEBUG) &&
+		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) &&
+		     (msg->msg_state == HTTP_MSG_BODY || msg->msg_state == HTTP_MSG_ERROR))) {
+		char *eol, *sol;
+
+		sol = rep->data + msg->som;
+		eol = sol + msg->sl.rq.l;
+		debug_hdr("srvrep", s, sol, eol);
+
+		sol += hdr_idx_first_pos(&txn->hdr_idx);
+		cur_idx = hdr_idx_first_idx(&txn->hdr_idx);
+
+		while (cur_idx) {
+			eol = sol + txn->hdr_idx.v[cur_idx].len;
+			debug_hdr("srvhdr", s, sol, eol);
+			sol = eol + txn->hdr_idx.v[cur_idx].cr + 1;
+			cur_idx = txn->hdr_idx.v[cur_idx].next;
+		}
+	}
+
+	/*
+	 * Now we quickly check if we have found a full valid response.
+	 * If not so, we check the FD and buffer states before leaving.
+	 * A full response is indicated by the fact that we have seen
+	 * the double LF/CRLF, so the state is HTTP_MSG_BODY. Invalid
+	 * responses are checked first.
+	 *
+	 * Depending on whether the client is still there or not, we
+	 * may send an error response back or not. Note that normally
+	 * we should only check for HTTP status there, and check I/O
+	 * errors somewhere else.
+	 */
+
+	if (unlikely(msg->msg_state != HTTP_MSG_BODY)) {
+		/* Invalid response */
+		if (unlikely(msg->msg_state == HTTP_MSG_ERROR)) {
+			/* we detected a parsing error. We want to archive this response
+			 * in the dedicated proxy area for later troubleshooting.
+			 */
+		hdr_response_bad:
+			if (msg->msg_state == HTTP_MSG_ERROR || msg->err_pos >= 0)
+				http_capture_bad_message(&s->be->invalid_rep, s, rep, msg, s->fe);
+
+			s->be->counters.failed_resp++;
+			if (s->srv)
+				s->srv->counters.failed_resp++;
+
+			rep->analysers = 0;
+			txn->status = 502;
+			stream_int_retnclose(rep->cons, error_message(s, HTTP_ERR_502));
+
+			if (!(s->flags & SN_ERR_MASK))
+				s->flags |= SN_ERR_PRXCOND;
+			if (!(s->flags & SN_FINST_MASK))
+				s->flags |= SN_FINST_H;
+
+			return 0;
+		}
+
+		/* too large response does not fit in buffer. */
+		else if (rep->flags & BF_FULL) {
+			goto hdr_response_bad;
+		}
+
+		/* read error */
+		else if (rep->flags & BF_READ_ERROR) {
+			if (msg->err_pos >= 0)
+				http_capture_bad_message(&s->be->invalid_rep, s, rep, msg, s->fe);
+
+			s->be->counters.failed_resp++;
+			if (s->srv)
+				s->srv->counters.failed_resp++;
+
+			rep->analysers = 0;
+			txn->status = 502;
+			stream_int_retnclose(rep->cons, error_message(s, HTTP_ERR_502));
+
+			if (!(s->flags & SN_ERR_MASK))
+				s->flags |= SN_ERR_SRVCL;
+			if (!(s->flags & SN_FINST_MASK))
+				s->flags |= SN_FINST_H;
+			return 0;
+		}
+
+		/* read timeout : return a 504 to the client. */
+		else if (rep->flags & BF_READ_TIMEOUT) {
+			if (msg->err_pos >= 0)
+				http_capture_bad_message(&s->be->invalid_rep, s, rep, msg, s->fe);
+
+			s->be->counters.failed_resp++;
+			if (s->srv)
+				s->srv->counters.failed_resp++;
+
+			rep->analysers = 0;
+			txn->status = 504;
+			stream_int_retnclose(rep->cons, error_message(s, HTTP_ERR_504));
+
+			if (!(s->flags & SN_ERR_MASK))
+				s->flags |= SN_ERR_SRVTO;
+			if (!(s->flags & SN_FINST_MASK))
+				s->flags |= SN_FINST_H;
+			return 0;
+		}
+
+		/* close from server */
+		else if (rep->flags & BF_SHUTR) {
+			if (msg->err_pos >= 0)
+				http_capture_bad_message(&s->be->invalid_rep, s, rep, msg, s->fe);
+
+			s->be->counters.failed_resp++;
+			if (s->srv)
+				s->srv->counters.failed_resp++;
+
+			rep->analysers = 0;
+			txn->status = 502;
+			stream_int_retnclose(rep->cons, error_message(s, HTTP_ERR_502));
+
+			if (!(s->flags & SN_ERR_MASK))
+				s->flags |= SN_ERR_SRVCL;
+			if (!(s->flags & SN_FINST_MASK))
+				s->flags |= SN_FINST_H;
+			return 0;
+		}
+
+		/* write error to client (we don't send any message then) */
+		else if (rep->flags & BF_WRITE_ERROR) {
+			if (msg->err_pos >= 0)
+				http_capture_bad_message(&s->be->invalid_rep, s, rep, msg, s->fe);
+
+			s->be->counters.failed_resp++;
+			rep->analysers = 0;
+
+			if (!(s->flags & SN_ERR_MASK))
+				s->flags |= SN_ERR_CLICL;
+			if (!(s->flags & SN_FINST_MASK))
+				s->flags |= SN_FINST_H;
+
+			/* process_session() will take care of the error */
+			return 0;
+		}
+
+		buffer_dont_close(rep);
+		return 0;
+	}
+
+	/* More interesting part now : we know that we have a complete
+	 * response which at least looks like HTTP. We have an indicator
+	 * of each header's length, so we can parse them quickly.
+	 */
+
+	if (unlikely(msg->err_pos >= 0))
+		http_capture_bad_message(&s->be->invalid_rep, s, rep, msg, s->fe);
+
+	/* ensure we keep this pointer to the beginning of the message */
+	msg->sol = rep->data + msg->som;
+
+	/*
+	 * 1: get the status code
+	 */
+	n = rep->data[msg->sl.st.c] - '0';
+	if (n < 1 || n > 5)
+		n = 0;
+	s->srv->counters.p.http.rsp[n]++;
+	s->be->counters.p.http.rsp[n]++;
+
+	txn->status = strl2ui(rep->data + msg->sl.st.c, msg->sl.st.c_l);
+
+	/*
+	 * 2: check for cacheability.
+	 */
+
+	switch (txn->status) {
+	case 200:
+	case 203:
+	case 206:
+	case 300:
+	case 301:
+	case 410:
+		/* RFC2616 @13.4:
+		 *   "A response received with a status code of
+		 *    200, 203, 206, 300, 301 or 410 MAY be stored
+		 *    by a cache (...) unless a cache-control
+		 *    directive prohibits caching."
+		 *
+		 * RFC2616 @9.5: POST method :
+		 *   "Responses to this method are not cacheable,
+		 *    unless the response includes appropriate
+		 *    Cache-Control or Expires header fields."
+		 */
+		if (likely(txn->meth != HTTP_METH_POST) &&
+		    (s->be->options & (PR_O_CHK_CACHE|PR_O_COOK_NOC)))
+			txn->flags |= TX_CACHEABLE | TX_CACHE_COOK;
+		break;
+	default:
+		break;
+	}
+
+	/*
+	 * 3: we may need to capture headers
+	 */
+	s->logs.logwait &= ~LW_RESP;
+	if (unlikely((s->logs.logwait & LW_RSPHDR) && s->fe->rsp_cap))
+		capture_headers(rep->data + msg->som, &txn->hdr_idx,
+				txn->rsp.cap, s->fe->rsp_cap);
+
+	/* end of job, return OK */
+	rep->analysers &= ~an_bit;
+	rep->analyse_exp = TICK_ETERNITY;
+	return 1;
+}
+
 /* This function performs all the processing enabled for the current response.
  * It normally returns zero, but may return 1 if it absolutely needs to be
  * called again after other functions. It relies on buffers flags, and updates
  * t->rep->analysers. It might make sense to explode it into several other
  * functions. It works like process_request (see indications above).
  */
-int process_response(struct session *t)
+int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, struct proxy *px)
 {
 	struct http_txn *txn = &t->txn;
 	struct buffer *req = t->req;
-	struct buffer *rep = t->rep;
-	int n;
+	struct http_msg *msg = &txn->rsp;
+	struct proxy *cur_proxy;
+	int cur_idx;
 
- next_response:
 	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		t,
@@ -2863,226 +3117,13 @@ int process_response(struct session *t)
 		rep->l,
 		rep->analysers);
 
-	if (rep->analysers & AN_RTR_HTTP_HDR) { /* receiving server headers */
-		/*
-		 * Now parse the partial (or complete) lines.
-		 * We will check the response syntax, and also join multi-line
-		 * headers. An index of all the lines will be elaborated while
-		 * parsing.
-		 *
-		 * For the parsing, we use a 28 states FSM.
-		 *
-		 * Here is the information we currently have :
-		 *   rep->data + rep->som  = beginning of response
-		 *   rep->data + rep->eoh  = end of processed headers / start of current one
-		 *   rep->data + rep->eol  = end of current header or line (LF or CRLF)
-		 *   rep->lr = first non-visited byte
-		 *   rep->r  = end of data
-		 */
+	if (unlikely(msg->msg_state != HTTP_MSG_BODY))	/* we need more data */
+		return 0;
 
-		int cur_idx;
-		struct http_msg *msg = &txn->rsp;
-		struct proxy *cur_proxy;
+	rep->analysers &= ~an_bit;
+	rep->analyse_exp = TICK_ETERNITY;
 
-		if (likely(rep->lr < rep->r))
-			http_msg_analyzer(rep, msg, &txn->hdr_idx);
-
-		/* 1: we might have to print this header in debug mode */
-		if (unlikely((global.mode & MODE_DEBUG) &&
-			     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) &&
-			     (msg->msg_state == HTTP_MSG_BODY || msg->msg_state == HTTP_MSG_ERROR))) {
-			char *eol, *sol;
-
-			sol = rep->data + msg->som;
-			eol = sol + msg->sl.rq.l;
-			debug_hdr("srvrep", t, sol, eol);
-
-			sol += hdr_idx_first_pos(&txn->hdr_idx);
-			cur_idx = hdr_idx_first_idx(&txn->hdr_idx);
-
-			while (cur_idx) {
-				eol = sol + txn->hdr_idx.v[cur_idx].len;
-				debug_hdr("srvhdr", t, sol, eol);
-				sol = eol + txn->hdr_idx.v[cur_idx].cr + 1;
-				cur_idx = txn->hdr_idx.v[cur_idx].next;
-			}
-		}
-
-		/*
-		 * Now we quickly check if we have found a full valid response.
-		 * If not so, we check the FD and buffer states before leaving.
-		 * A full response is indicated by the fact that we have seen
-		 * the double LF/CRLF, so the state is HTTP_MSG_BODY. Invalid
-		 * responses are checked first.
-		 *
-		 * Depending on whether the client is still there or not, we
-		 * may send an error response back or not. Note that normally
-		 * we should only check for HTTP status there, and check I/O
-		 * errors somewhere else.
-		 */
-
-		if (unlikely(msg->msg_state != HTTP_MSG_BODY)) {
-			/* Invalid response */
-			if (unlikely(msg->msg_state == HTTP_MSG_ERROR)) {
-				/* we detected a parsing error. We want to archive this response
-				 * in the dedicated proxy area for later troubleshooting.
-				 */
-			hdr_response_bad:
-				if (msg->msg_state == HTTP_MSG_ERROR || msg->err_pos >= 0)
-					http_capture_bad_message(&t->be->invalid_rep, t, rep, msg, t->fe);
-
-				buffer_shutr_now(rep);
-				buffer_shutw_now(req);
-				if (t->srv)
-					t->srv->counters.failed_resp++;
-				t->be->counters.failed_resp++;
-				rep->analysers = 0;
-				txn->status = 502;
-				stream_int_return(rep->cons, error_message(t, HTTP_ERR_502));
-				if (!(t->flags & SN_ERR_MASK))
-					t->flags |= SN_ERR_PRXCOND;
-				if (!(t->flags & SN_FINST_MASK))
-					t->flags |= SN_FINST_H;
-
-				return 0;
-			}
-			/* too large response does not fit in buffer. */
-			else if (rep->flags & BF_FULL) {
-				goto hdr_response_bad;
-			}
-			/* read error */
-			else if (rep->flags & BF_READ_ERROR) {
-				if (msg->err_pos >= 0)
-					http_capture_bad_message(&t->be->invalid_rep, t, rep, msg, t->fe);
-				buffer_shutr_now(rep);
-				buffer_shutw_now(req);
-				if (t->srv)
-					t->srv->counters.failed_resp++;
-				t->be->counters.failed_resp++;
-				rep->analysers = 0;
-				txn->status = 502;
-				stream_int_return(rep->cons, error_message(t, HTTP_ERR_502));
-				if (!(t->flags & SN_ERR_MASK))
-					t->flags |= SN_ERR_SRVCL;
-				if (!(t->flags & SN_FINST_MASK))
-					t->flags |= SN_FINST_H;
-				return 0;
-			}
-			/* read timeout : return a 504 to the client. */
-			else if (rep->flags & BF_READ_TIMEOUT) {
-				if (msg->err_pos >= 0)
-					http_capture_bad_message(&t->be->invalid_rep, t, rep, msg, t->fe);
-				buffer_shutr_now(rep);
-				buffer_shutw_now(req);
-				if (t->srv)
-					t->srv->counters.failed_resp++;
-				t->be->counters.failed_resp++;
-				rep->analysers = 0;
-				txn->status = 504;
-				stream_int_return(rep->cons, error_message(t, HTTP_ERR_504));
-				if (!(t->flags & SN_ERR_MASK))
-					t->flags |= SN_ERR_SRVTO;
-				if (!(t->flags & SN_FINST_MASK))
-					t->flags |= SN_FINST_H;
-				return 0;
-			}
-			/* close from server */
-			else if (rep->flags & BF_SHUTR) {
-				if (msg->err_pos >= 0)
-					http_capture_bad_message(&t->be->invalid_rep, t, rep, msg, t->fe);
-				buffer_shutw_now(req);
-				if (t->srv)
-					t->srv->counters.failed_resp++;
-				t->be->counters.failed_resp++;
-				rep->analysers = 0;
-				txn->status = 502;
-				stream_int_return(rep->cons, error_message(t, HTTP_ERR_502));
-				if (!(t->flags & SN_ERR_MASK))
-					t->flags |= SN_ERR_SRVCL;
-				if (!(t->flags & SN_FINST_MASK))
-					t->flags |= SN_FINST_H;
-				return 0;
-			}
-			/* write error to client (we don't send any message then) */
-			else if (rep->flags & BF_WRITE_ERROR) {
-				if (msg->err_pos >= 0)
-					http_capture_bad_message(&t->be->invalid_rep, t, rep, msg, t->fe);
-				buffer_shutr_now(rep);
-				t->be->counters.failed_resp++;
-				rep->analysers = 0;
-				if (!(t->flags & SN_ERR_MASK))
-					t->flags |= SN_ERR_CLICL;
-				if (!(t->flags & SN_FINST_MASK))
-					t->flags |= SN_FINST_H;
-				return 0;
-			}
-
-			buffer_dont_close(rep);
-			return 0;
-		}
-
-
-		/*****************************************************************
-		 * More interesting part now : we know that we have a complete   *
-		 * response which at least looks like HTTP. We have an indicator *
-		 * of each header's length, so we can parse them quickly.        *
-		 ****************************************************************/
-
-		if (msg->err_pos >= 0)
-			http_capture_bad_message(&t->be->invalid_rep, t, rep, msg, t->fe);
-
-		rep->analysers &= ~AN_RTR_HTTP_HDR;
-
-		/* ensure we keep this pointer to the beginning of the message */
-		msg->sol = rep->data + msg->som;
-
-		/*
-		 * 1: get the status code and check for cacheability.
-		 */
-
-		t->logs.logwait &= ~LW_RESP;
-		txn->status = strl2ui(rep->data + msg->sl.st.c, msg->sl.st.c_l);
-
-		n = rep->data[msg->sl.st.c] - '0';
-		if (n < 1 || n > 5)
-			n = 0;
-
-		t->srv->counters.p.http.rsp[n]++;
-		t->be->counters.p.http.rsp[n]++;
-
-		switch (txn->status) {
-		case 200:
-		case 203:
-		case 206:
-		case 300:
-		case 301:
-		case 410:
-			/* RFC2616 @13.4:
-			 *   "A response received with a status code of
-			 *    200, 203, 206, 300, 301 or 410 MAY be stored
-			 *    by a cache (...) unless a cache-control
-			 *    directive prohibits caching."
-			 *   
-			 * RFC2616 @9.5: POST method :
-			 *   "Responses to this method are not cacheable,
-			 *    unless the response includes appropriate
-			 *    Cache-Control or Expires header fields."
-			 */
-			if (likely(txn->meth != HTTP_METH_POST) &&
-			    (t->be->options & (PR_O_CHK_CACHE|PR_O_COOK_NOC)))
-				txn->flags |= TX_CACHEABLE | TX_CACHE_COOK;
-			break;
-		default:
-			break;
-		}
-
-		/*
-		 * 2: we may need to capture headers
-		 */
-		if (unlikely((t->logs.logwait & LW_RSPHDR) && t->fe->rsp_cap))
-			capture_headers(rep->data + msg->som, &txn->hdr_idx,
-					txn->rsp.cap, t->fe->rsp_cap);
-
+	if (1) {
 		/*
 		 * 3: we will have to evaluate the filters.
 		 * As opposed to version 1.2, now they will be evaluated in the
@@ -3308,8 +3349,8 @@ int process_response(struct session *t)
 			buffer_forward(rep, rep->lr - (rep->data + msg->som));
 			msg->msg_state = HTTP_MSG_RPBEFORE;
 			txn->status = 0;
-			rep->analysers |= AN_RTR_HTTP_HDR;
-			goto next_response;
+			rep->analysers |= AN_RES_WAIT_HTTP | an_bit;
+			return 1;
 		}
 
 		/*************************************************************
@@ -3337,18 +3378,6 @@ int process_response(struct session *t)
 
 		return 0;
 	}
-
-	/* Note: eventhough nobody should set an unknown flag, clearing them right now will
-	 * probably reduce one day's debugging session.
-	 */
-#ifdef DEBUG_DEV
-	if (rep->analysers & ~(AN_RTR_HTTP_HDR)) {
-		fprintf(stderr, "FIXME !!!! unknown analysers flags %s:%d = 0x%08X\n",
-			__FILE__, __LINE__, rep->analysers);
-		ABORT_NOW();
-	}
-#endif
-	rep->analysers &= AN_RTR_HTTP_HDR;
 	return 0;
 }
 

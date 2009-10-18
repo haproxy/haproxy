@@ -66,7 +66,8 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 int http_process_request(struct session *t, struct buffer *req, int an_bit);
 int http_process_tarpit(struct session *s, struct buffer *req, int an_bit);
 int http_process_request_body(struct session *s, struct buffer *req, int an_bit);
-int process_response(struct session *t);
+int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit);
+int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, struct proxy *px);
 
 void debug_hdr(const char *dir, struct session *t, const char *start, const char *end);
 void get_srv_from_appsession(struct session *t, const char *begin, int len);
