@@ -2649,38 +2649,20 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 				goto end_check_maybe_wait_for_body;
 		}
 
-		if (likely(len > s->be->url_param_post_limit)) {
-			/* nothing to do, we got enough */
-		} else {
+		if (likely(len <= s->be->url_param_post_limit)) {
 			/* limit implies we are supposed to need this many bytes
-			 * to find the parameter. Let's see how many bytes we can wait for.
+			 * to find the parameter. Let's see how many bytes we can
+			 * wait for.
 			 */
-			long long hint = len;
-			struct hdr_ctx ctx;
-			ctx.idx = 0;
-			http_find_header2("Transfer-Encoding", 17, msg->sol, &txn->hdr_idx, &ctx);
-			if (ctx.idx && ctx.vlen >= 7 && strncasecmp(ctx.line+ctx.val, "chunked", 7) == 0) {
+			if (txn->flags & TX_REQ_TE_CHNK) {
 				buffer_dont_connect(req);
 				req->analysers |= AN_REQ_HTTP_BODY;
-			}
-			else {
-				ctx.idx = 0;
-				http_find_header2("Content-Length", 14, msg->sol, &txn->hdr_idx, &ctx);
-				/* now if we have a length, we'll take the hint */
-				if (ctx.idx) {
-					/* We have Content-Length */
-					if (strl2llrc(ctx.line+ctx.val,ctx.vlen, &hint))
-						hint = 0;         /* parse failure, untrusted client */
-					else {
-						if (hint > 0)
-							msg->hdr_content_len = hint;
-						else
-							hint = 0; /* bad client, sent negative length */
-					}
-				}
+			} else {
+				long long hint = txn->req.hdr_content_len;
 				/* but limited to what we care about, maybe we don't expect any entity data (hint == 0) */
 				if (s->be->url_param_post_limit < hint)
 					hint = s->be->url_param_post_limit;
+
 				/* now do we really need to buffer more data? */
 				if (len < hint) {
 					buffer_dont_connect(req);
