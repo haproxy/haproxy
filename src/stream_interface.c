@@ -60,19 +60,6 @@ void stream_int_report_error(struct stream_interface *si)
 }
 
 /*
- * Erase any content from input and output buffers, and return a message into
- * the output buffer. The message is provided as a "chunk". If it is null,
- * then an empty message is used.
- */
-void stream_int_return(struct stream_interface *si, const struct chunk *msg)
-{
-	buffer_erase(si->ib);
-	buffer_cut_tail(si->ob);
-	if (msg && msg->len)
-		buffer_write(si->ob, msg->str, msg->len);
-}
-
-/*
  * Returns a message to the client ; the connection is shut down for read,
  * and the request is cleared so that no server connection can be initiated.
  * The buffer is marked for read shutdown on the other side to protect the

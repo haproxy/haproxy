@@ -3247,11 +3247,9 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 						t->srv->counters.failed_resp++;
 					cur_proxy->counters.failed_resp++;
 				return_srv_prx_502:
-					buffer_shutr_now(rep);
-					buffer_shutw_now(req);
 					rep->analysers = 0;
 					txn->status = 502;
-					stream_int_return(rep->cons, error_message(t, HTTP_ERR_502));
+					stream_int_retnclose(rep->cons, error_message(t, HTTP_ERR_502));
 					if (!(t->flags & SN_ERR_MASK))
 						t->flags |= SN_ERR_PRXCOND;
 					if (!(t->flags & SN_FINST_MASK))
