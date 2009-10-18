@@ -1770,6 +1770,8 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	int cur_idx;
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->req;
+	struct hdr_ctx ctx;
+	int conn_ka, conn_cl;
 
 	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
@@ -1999,6 +2001,89 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	if (unlikely((s->logs.logwait & LW_REQHDR) && s->fe->req_cap))
 		capture_headers(req->data + msg->som, &txn->hdr_idx,
 				txn->req.cap, s->fe->req_cap);
+
+	/* 6: determine if we have a transfer-encoding or content-length.
+	 * RFC2616 #4.4 states that :
+	 *   - If a Transfer-Encoding header field is present and has any value
+	 *     other than "identity", then the transfer-length is defined by use
+	 *     of the "chunked" transfer-coding ;
+	 *
+	 *   - If a Content-Length header field is present, its decimal value in
+	 *     OCTETs represents both the entity-length and the transfer-length.
+	 *     If a message is received with both a Transfer-Encoding header
+	 *     field and a Content-Length header field, the latter MUST be ignored.
+	 *
+	 *   - If a request contains a message-body and a Content-Length is not
+	 *     given, the server SHOULD respond with 400 (bad request) if it
+	 *     cannot determine the length of the message, or with 411 (length
+	 *     required) if it wishes to insist on receiving a valid Content-Length.
+	 */
+
+	/* FIXME: chunked encoding is HTTP/1.1 only */
+	ctx.idx = 0;
+	while (http_find_header2("Transfer-Encoding", 17, msg->sol, &txn->hdr_idx, &ctx)) {
+		if (ctx.vlen == 8 && strncasecmp(ctx.line + ctx.val, "identity", 8) == 0)
+			continue;
+		txn->flags |= TX_REQ_TE_CHNK;
+		break;
+	}
+
+	/* FIXME: below we should remove the content-length header(s) in case of chunked encoding */
+	ctx.idx = 0;
+	while (!(txn->flags & TX_REQ_TE_CHNK) &&
+	       http_find_header2("Content-Length", 14, msg->sol, &txn->hdr_idx, &ctx)) {
+		signed long long cl;
+
+		if (!ctx.vlen)
+			goto return_bad_req;
+
+		if (strl2llrc(ctx.line + ctx.val, ctx.vlen, &cl))
+			goto return_bad_req; /* parse failure */
+
+		if (cl < 0)
+			goto return_bad_req;
+
+		if ((txn->flags & TX_REQ_CNT_LEN) && (msg->hdr_content_len != cl))
+			goto return_bad_req; /* already specified, was different */
+
+		txn->flags |= TX_REQ_CNT_LEN;
+		msg->hdr_content_len = cl;
+	}
+
+	/* Determine if the client wishes keep-alive or close.
+	 * RFC2616 #8.1.2 and #14.10 state that HTTP/1.1 and above connections
+	 * are persistent unless "Connection: close" is explicitly specified.
+	 * RFC2616 #19.6.2 refers to RFC2068 for HTTP/1.0 persistent connections.
+	 * RFC2068 #19.7.1 states that HTTP/1.0 clients are not persistent unless
+	 * they explicitly specify "Connection: keep-alive", regardless of any
+	 * optional "keep-alive" header.
+	 */
+
+	/* FIXME: should we also remove any header specified in "connection" ? */
+	conn_ka = conn_cl = 0;
+	ctx.idx = 0;
+	while (http_find_header2("Connection", 10, msg->sol, &txn->hdr_idx, &ctx)) {
+		if (ctx.vlen == 5 && strncasecmp(ctx.line + ctx.val, "close", 5) == 0)
+			conn_cl = 1;
+		else if (ctx.vlen == 10 && strncasecmp(ctx.line + ctx.val, "keep-alive", 10) == 0)
+			conn_ka = 1;
+	}
+
+	if ((msg->sl.rq.v_l == 8) &&
+	    (req->data[msg->som + msg->sl.rq.v + 5] == '1') &&
+	    (req->data[msg->som + msg->sl.rq.v + 7] == '0')) {
+		/* HTTP/1.0 */
+		if (conn_ka)
+			txn->flags |= (TX_CLI_CONN_KA | TX_SRV_CONN_KA);
+	} else {
+		/* HTTP/1.0 */
+		if (!conn_cl)
+			txn->flags |= (TX_CLI_CONN_KA | TX_SRV_CONN_KA);
+	}
+
+	/* we can mark the connection as non-persistent if needed */
+	if (!(txn->flags & TX_SRV_CONN_KA))
+		s->flags |= SN_CONN_CLOSED;
 
 	/* end of job, return OK */
 	req->analysers &= ~an_bit;
