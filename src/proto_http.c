@@ -3323,6 +3323,15 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 				}
 			}
 
+			/* if there is no "Connection: keep-alive" header left and we're
+			 * in HTTP/1.0, then non-persistent connection is implied */
+			if (!(t->flags & SN_CONN_CLOSED) && (msg->sl.st.v_l == 8) &&
+			    (rep->data[msg->som + 5] == '1') &&
+			    (rep->data[msg->som + 7] == '0')) {
+				t->flags |= SN_CONN_CLOSED;
+				txn->flags &= ~TX_CLI_CONN_KA; /* keep-alive closed on server side */
+			}
+
 			/* add response headers from the rule sets in the same order */
 			for (cur_idx = 0; cur_idx < rule_set->nb_rspadd; cur_idx++) {
 				if (txn->status < 200)
