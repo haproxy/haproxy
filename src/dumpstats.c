@@ -1224,7 +1224,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 			chunk_printf(&msg,
 				     "<table class=\"tbl\" width=\"100%%\">\n"
 				     "<tr class=\"titre\">"
-				     "<th class=\"pxname\" width=\"10%%\">%s</th>"
+				     "<th class=\"pxname\" width=\"10%%\"><a name=\"%s\">%s</a></th>"
 				     "<th class=\"%s\" width=\"90%%\">%s</th>"
 				     "</tr>\n"
 				     "</table>\n"
@@ -1247,7 +1247,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     "<th>Bck</th><th>Chk</th><th>Dwn</th><th>Dwntme</th>"
 				     "<th>Thrtle</th>\n"
 				     "</tr>",
-				     px->id,
+				     px->id, px->id,
 				     px->desc ? "desc" : "empty", px->desc ? px->desc : "");
 
 			if (buffer_feed_chunk(rep, &msg) >= 0)
@@ -1264,7 +1264,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 			if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
 				chunk_printf(&msg,
 				     /* name, queue */
-				     "<tr class=\"frontend\"><td class=ac>Frontend</td><td colspan=3></td>"
+				     "<tr class=\"frontend\"><td class=ac>"
+				     "<a name=\"%s/Frontend\">Frontend</a></td><td colspan=3></td>"
 				     /* sessions rate : current, max, limit */
 				     "<td>%s</td><td>%s</td><td>%s</td>"
 				     /* sessions : current, max, limit, total, lbtot */
@@ -1273,6 +1274,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     /* bytes : in, out */
 				     "<td>%s</td><td>%s</td>"
 				     "",
+				     px->id,
 				     U2H0(read_freq_ctr(&px->fe_sess_per_sec)),
 				     U2H1(px->counters.fe_sps_max), LIM2A2(px->fe_sps_lim, "-"),
 				     U2H3(px->feconn), U2H4(px->counters.feconn_max), U2H5(px->maxconn),
@@ -1489,7 +1491,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 							       "<i>no check</i>" };
 				chunk_printf(&msg,
 				     /* name */
-				     "<tr class=\"%s%d\"><td class=ac>%s</td>"
+				     "<tr class=\"%s%d\"><td class=ac><a name=\"%s/%s\">%s</a></td>"
 				     /* queue : current, max, limit */
 				     "<td>%s</td><td>%s</td><td>%s</td>"
 				     /* sessions rate : current, max, limit */
@@ -1499,7 +1501,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     "<td"
 				     "",
 				     (sv->state & SRV_BACKUP) ? "backup" : "active",
-				     sv_state, sv->id,
+				     sv_state, px->id, sv->id, sv->id,
 				     U2H0(sv->nbpend), U2H1(sv->counters.nbpend_max), LIM2A2(sv->maxqueue, "-"),
 				     U2H3(read_freq_ctr(&sv->sess_per_sec)), U2H4(sv->counters.sps_max),
 				     U2H5(sv->cur_sess), U2H6(sv->counters.cur_sess_max), LIM2A7(sv->maxconn, "-"));
@@ -1746,12 +1748,14 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 			if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
 				chunk_printf(&msg,
 				     /* name */
-				     "<tr class=\"backend\"><td class=ac>Backend</td>"
+				     "<tr class=\"backend\"><td class=ac>"
+				     "<a name=\"%s/Backend\">Backend</a></td>"
 				     /* queue : current, max */
 				     "<td>%s</td><td>%s</td><td></td>"
 				     /* sessions rate : current, max, limit */
 				     "<td>%s</td><td>%s</td><td></td>"
 				     "",
+				     px->id,
 				     U2H0(px->nbpend) /* or px->totpend ? */, U2H1(px->counters.nbpend_max),
 				     U2H2(read_freq_ctr(&px->be_sess_per_sec)), U2H3(px->counters.be_sps_max));
 
