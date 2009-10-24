@@ -3052,7 +3052,6 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 	if (n < 1 || n > 5)
 		n = 0;
 	s->srv->counters.p.http.rsp[n]++;
-	s->be->counters.p.http.rsp[n]++;
 
 	txn->status = strl2ui(rep->data + msg->sl.st.c, msg->sl.st.c_l);
 

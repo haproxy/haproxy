@@ -1278,16 +1278,33 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     "<a class=lfsb href=\"#%s/Frontend\">Frontend</a></td><td colspan=3></td>"
 				     /* sessions rate : current, max, limit */
 				     "<td>%s</td><td>%s</td><td>%s</td>"
-				     /* sessions : current, max, limit, total, lbtot */
+				     /* sessions: current, max, limit */
 				     "<td>%s</td><td>%s</td><td>%s</td>"
-				     "<td>%s</td><td></td>"
-				     /* bytes : in, out */
-				     "<td>%s</td><td>%s</td>"
+				     "<td"
 				     "",
 				     px->id, px->id,
 				     U2H0(read_freq_ctr(&px->fe_sess_per_sec)),
 				     U2H1(px->counters.fe_sps_max), LIM2A2(px->fe_sps_lim, "-"),
-				     U2H3(px->feconn), U2H4(px->counters.feconn_max), U2H5(px->maxconn),
+				     U2H3(px->feconn), U2H4(px->counters.feconn_max), U2H5(px->maxconn));
+
+				/* http response (via td title): 1xx, 2xx, 3xx, 4xx, 5xx, other */
+				if (px->mode == PR_MODE_HTTP) {
+					int i;
+
+					chunk_printf(&msg, " title=\"rsp codes:");
+
+					for (i = 1; i < 6; i++)
+						chunk_printf(&msg, " %dxx=%lld,", i, px->counters.p.http.rsp[i]);
+
+					chunk_printf(&msg, " other=%lld\"", px->counters.p.http.rsp[0]);
+				}
+
+				chunk_printf(&msg,
+				     /* sessions: total, lbtot */
+				     ">%s</td><td></td>"
+				     /* bytes : in, out */
+				     "<td>%s</td><td>%s</td>"
+				     "",
 				     U2H6(px->counters.cum_feconn), U2H7(px->counters.bytes_in), U2H8(px->counters.bytes_out));
 
 				chunk_printf(&msg,
@@ -1329,10 +1346,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     /* rate, rate_lim, rate_max */
 				     "%u,%u,%u,"
 				     /* check_status, check_code, check_duration */
-				     ",,,"
-				     /* http response: 1xx, 2xx, 3xx, 4xx, 5xx, other */
-				     ",,,,,,"
-				     "\n",
+				     ",,,",
 				     px->id,
 				     px->feconn, px->counters.feconn_max, px->maxconn, px->counters.cum_feconn,
 				     px->counters.bytes_in, px->counters.bytes_out,
@@ -1343,6 +1357,21 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     relative_pid, px->uuid, STATS_TYPE_FE,
 				     read_freq_ctr(&px->fe_sess_per_sec),
 				     px->fe_sps_lim, px->counters.fe_sps_max);
+
+				/* http response: 1xx, 2xx, 3xx, 4xx, 5xx, other */
+				if (px->mode == PR_MODE_HTTP) {
+					int i;
+
+					for (i=1; i<6; i++)
+						chunk_printf(&msg, "%lld,", px->counters.p.http.rsp[i]);
+
+					chunk_printf(&msg, "%lld,", px->counters.p.http.rsp[0]);
+				} else {
+					chunk_printf(&msg, ",,,,,,");
+				}
+
+				/* finish with EOL */
+				chunk_printf(&msg, "\n");
 			}
 
 			if (buffer_feed_chunk(rep, &msg) >= 0)

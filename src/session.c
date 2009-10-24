@@ -1302,6 +1302,21 @@ resync_stream_interface:
 	s->logs.t_close = tv_ms_elapsed(&s->logs.tv_accept, &now);
 	session_process_counters(s);
 
+	if (s->txn.status) {
+		int n;
+
+		n = s->txn.status / 100;
+		if (n < 1 || n > 5)
+			n = 0;
+
+		if (s->fe->mode == PR_MODE_HTTP)
+			s->fe->counters.p.http.rsp[n]++;
+
+		if ((s->flags & SN_BE_ASSIGNED) && (s->fe != s->be) &&
+		    (s->be->mode == PR_MODE_HTTP))
+			s->be->counters.p.http.rsp[n]++;
+	}
+
 	/* let's do a final log if we need it */
 	if (s->logs.logwait &&
 	    !(s->flags & SN_MONITOR) &&
