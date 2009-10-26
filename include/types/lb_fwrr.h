@@ -23,7 +23,7 @@
 #define _TYPES_LB_FWRR_H
 
 #include <common/config.h>
-#include <common/ebtree.h>
+#include <ebtree.h>
 
 /* This structure is used to apply fast weighted round robin on a server group */
 struct fwrr_group {

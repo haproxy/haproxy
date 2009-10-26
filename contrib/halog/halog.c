@@ -27,7 +27,7 @@
 #include <unistd.h>
 #include <ctype.h>
 
-#include <common/eb32tree.h>
+#include <eb32tree.h>
 
 #define ACCEPT_FIELD 6
 #define TIME_FIELD 9

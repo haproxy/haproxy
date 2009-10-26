@@ -13,11 +13,11 @@
 #include <string.h>
 
 #include <common/config.h>
-#include <common/eb32tree.h>
 #include <common/memory.h>
 #include <common/mini-clist.h>
 #include <common/standard.h>
 #include <common/time.h>
+#include <eb32tree.h>
 
 #include <proto/proxy.h>
 #include <proto/session.h>

@@ -19,7 +19,7 @@
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/debug.h>
-#include <common/eb32tree.h>
+#include <eb32tree.h>
 
 #include <types/global.h>
 #include <types/server.h>

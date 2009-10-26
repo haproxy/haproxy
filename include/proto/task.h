@@ -26,11 +26,11 @@
 #include <sys/time.h>
 
 #include <common/config.h>
-#include <common/eb32tree.h>
 #include <common/memory.h>
 #include <common/mini-clist.h>
 #include <common/standard.h>
 #include <common/ticks.h>
+#include <eb32tree.h>
 
 #include <types/task.h>
 

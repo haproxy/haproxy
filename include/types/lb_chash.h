@@ -23,8 +23,8 @@
 #define _TYPES_LB_CHASH_H
 
 #include <common/config.h>
-#include <common/ebtree.h>
-#include <common/eb32tree.h>
+#include <ebtree.h>
+#include <eb32tree.h>
 
 struct lb_chash {
 	struct eb_root act;	/* weighted chash entries of active servers */

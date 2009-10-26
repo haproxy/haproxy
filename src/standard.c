@@ -20,8 +20,8 @@
 #include <arpa/inet.h>
 
 #include <common/config.h>
-#include <common/eb32tree.h>
 #include <common/standard.h>
+#include <eb32tree.h>
 #include <proto/log.h>
 
 /* enough to store 10 integers of :

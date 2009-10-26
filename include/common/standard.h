@@ -27,7 +27,7 @@
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <common/config.h>
-#include <common/eb32tree.h>
+#include <eb32tree.h>
 #include <proto/fd.h>
 
 /****** string-specific macros and functions ******/

@@ -410,10 +410,12 @@ OPTIONS_LDFLAGS += -L$(PCREDIR)/lib -Wl,-Bstatic -lpcreposix -lpcre -Wl,-Bdynami
 BUILD_OPTIONS   += $(call ignore_implicit,USE_STATIC_PCRE)
 endif
 
+# This one can be changed to look for ebtree files in an external directory
+EBTREE_DIR := ebtree
 
 #### Global compile options
 VERBOSE_CFLAGS = $(CFLAGS) $(TARGET_CFLAGS) $(SMALL_OPTS) $(DEFINE)
-COPTS  = -Iinclude -Wall
+COPTS  = -Iinclude -I$(EBTREE_DIR) -Wall
 COPTS += $(CFLAGS) $(TARGET_CFLAGS) $(SMALL_OPTS) $(DEFINE) $(SILENT_DEFINE)
 COPTS += $(DEBUG) $(OPTIONS_CFLAGS) $(ADDINC)
 
@@ -462,11 +464,21 @@ OBJS = src/haproxy.o src/sessionhash.o src/base64.o src/protocols.o \
        src/lb_chash.o src/lb_fwlc.o src/lb_fwrr.o src/lb_map.o \
        src/stream_interface.o src/dumpstats.o src/proto_tcp.o \
        src/session.o src/hdr_idx.o src/ev_select.o src/signal.o \
-       src/acl.o src/memory.o src/freq_ctr.o \
-       src/ebtree.o src/eb32tree.o
+       src/acl.o src/memory.o src/freq_ctr.o
 
-haproxy: $(OBJS) $(OPTIONS_OBJS)
+EBTREE_OBJS = $(EBTREE_DIR)/ebtree.o \
+              $(EBTREE_DIR)/eb32tree.o $(EBTREE_DIR)/eb64tree.o \
+              $(EBTREE_DIR)/ebmbtree.o $(EBTREE_DIR)/ebsttree.o \
+              $(EBTREE_DIR)/ebimtree.o $(EBTREE_DIR)/ebistree.o
+
+# Not used right now
+LIB_EBTREE = $(EBTREE_DIR)/libebtree.a
+
+haproxy: $(OBJS) $(OPTIONS_OBJS) $(EBTREE_OBJS)
 	$(LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
+
+$(LIB_EBTREE): $(EBTREE_OBJS)
+	$(AR) rv $@ $^
 
 objsize: haproxy
 	@objdump -t $^|grep ' g '|grep -F '.text'|awk '{print $$5 FS $$6}'|sort
@@ -504,8 +516,8 @@ install-bin: haproxy
 install: install-bin install-man install-doc
 
 clean:
-	rm -f *.[oas] src/*.[oas] core haproxy test
-	for dir in . src include/* doc; do rm -f $$dir/*~ $$dir/*.rej;done
+	rm -f *.[oas] src/*.[oas] ebtree/*.[oas] haproxy test
+	for dir in . src include/* doc ebtree; do rm -f $$dir/*~ $$dir/*.rej $$dir/core; done
 	rm -f haproxy-$(VERSION).tar.gz haproxy-$(VERSION)$(SUBVERS).tar.gz
 	rm -f haproxy-$(VERSION) nohup.out gmon.out
 

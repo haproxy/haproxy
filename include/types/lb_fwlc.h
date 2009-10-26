@@ -23,7 +23,7 @@
 #define _TYPES_LB_FWLC_H
 
 #include <common/config.h>
-#include <common/ebtree.h>
+#include <ebtree.h>
 
 struct lb_fwlc {
 	struct eb_root act;	/* weighted least conns on the active servers */

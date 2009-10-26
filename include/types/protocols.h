@@ -28,8 +28,8 @@
 #include <sys/un.h>
 
 #include <common/config.h>
-#include <common/eb32tree.h>
 #include <common/mini-clist.h>
+#include <eb32tree.h>
 
 #include <types/counters.h>
 #include <types/task.h>
