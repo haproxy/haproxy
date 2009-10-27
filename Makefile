@@ -364,7 +364,7 @@ BUILD_OPTIONS  += $(call ignore_implicit,USE_GETSOCKNAME)
 endif
 
 ifneq ($(USE_REGPARM),)
-OPTIONS_CFLAGS += -DCONFIG_HAP_USE_REGPARM
+OPTIONS_CFLAGS += -DCONFIG_REGPARM=3
 BUILD_OPTIONS  += $(call ignore_implicit,USE_REGPARM)
 endif
 
