@@ -48,7 +48,7 @@ static forceinline struct ebmb_node *__ebst_lookup(struct eb_root *root, const v
 		if ((eb_gettag(troot) == EB_LEAF)) {
 			node = container_of(eb_untag(troot, EB_LEAF),
 					    struct ebmb_node, node.branches);
-			if (strcmp(node->key, x) == 0)
+			if (strcmp((char *)node->key, x) == 0)
 				return node;
 			else
 				return NULL;
@@ -61,7 +61,7 @@ static forceinline struct ebmb_node *__ebst_lookup(struct eb_root *root, const v
 			 * value, and we walk down left, or it's a different
 			 * one and we don't have our key.
 			 */
-			if (strcmp(node->key, x) != 0)
+			if (strcmp((char *)node->key, x) != 0)
 				return NULL;
 
 			troot = node->node.branches.b[EB_LEFT];
