@@ -38,7 +38,8 @@ void listen_proxies(void);
 
 const char *proxy_cap_str(int cap);
 const char *proxy_mode_str(int mode);
-struct proxy *findproxy(const char *name, int mode, int cap);
+struct proxy *findproxy_mode(const char *name, int mode, int cap);
+struct proxy *findproxy(const char *name, int cap);
 struct server *findserver(const struct proxy *px, const char *name);
 int proxy_cfg_ensure_no_http(struct proxy *curproxy);
 
