@@ -281,7 +281,7 @@ static int proxy_parse_rate_limit(char **args, int section, struct proxy *proxy,
  * requested name as this often leads into unexpected situations.
  */
 
-struct proxy *findproxy(const char *name, int mode, int cap) {
+struct proxy *findproxy_mode(const char *name, int mode, int cap) {
 
 	struct proxy *curproxy, *target = NULL;
 
@@ -304,6 +304,25 @@ struct proxy *findproxy(const char *name, int mode, int cap) {
 
 		Alert("Refusing to use duplicated proxy '%s' with overlapping capabilities: %s/%s!\n",
 			name, proxy_type_str(curproxy), proxy_type_str(target));
+
+		return NULL;
+	}
+
+	return target;
+}
+
+struct proxy *findproxy(const char *name, int cap) {
+
+	struct proxy *curproxy, *target = NULL;
+
+	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
+		if ((curproxy->cap & cap)!=cap || strcmp(curproxy->id, name))
+			continue;
+
+		if (!target) {
+			target = curproxy;
+			continue;
+		}
 
 		return NULL;
 	}

@@ -39,7 +39,8 @@ int  session_set_backend(struct session *s, struct proxy *be);
 
 const char *proxy_cap_str(int cap);
 const char *proxy_mode_str(int mode);
-struct proxy *findproxy(const char *name, int mode, int cap);
+struct proxy *findproxy_mode(const char *name, int mode, int cap);
+struct proxy *findproxy(const char *name, int cap);
 struct server *findserver(const struct proxy *px, const char *name);
 int proxy_cfg_ensure_no_http(struct proxy *curproxy);
 int get_backend_server(const char *bk_name, const char *sv_name,
