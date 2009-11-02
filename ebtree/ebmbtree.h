@@ -18,6 +18,9 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
+#ifndef _EBMBTREE_H
+#define _EBMBTREE_H
+
 #include <string.h>
 #include "ebtree.h"
 
@@ -333,4 +336,6 @@ __ebmb_insert(struct eb_root *root, struct ebmb_node *new, unsigned int len)
 	root->b[side] = eb_dotag(&new->node.branches, EB_NODE);
 	return new;
 }
+
+#endif /* _EBMBTREE_H */
 
