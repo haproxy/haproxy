@@ -20,6 +20,9 @@
 
 /* These functions and macros rely on Multi-Byte nodes */
 
+#ifndef _EBSTTREE_H
+#define _EBSTTREE_H
+
 #include "ebtree.h"
 #include "ebmbtree.h"
 
@@ -255,4 +258,6 @@ __ebst_insert(struct eb_root *root, struct ebmb_node *new)
 	root->b[side] = eb_dotag(&new->node.branches, EB_NODE);
 	return new;
 }
+
+#endif /* _EBSTTREE_H */
 
