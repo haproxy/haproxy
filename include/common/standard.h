@@ -118,6 +118,12 @@ extern const char *limit_r(unsigned long n, char *buffer, int size, const char *
 extern int ishex(char s);
 
 /*
+ * Return integer equivalent of character <c> for a hex digit (0-9, a-f, A-F),
+ * otherwise -1.
+ */
+extern int hex2i(int c);
+
+/*
  * Checks <name> for invalid characters. Valid chars are [A-Za-z0-9_:.-]. If an
  * invalid character is found, a pointer to it is returned. If everything is
  * fine, NULL is returned.
