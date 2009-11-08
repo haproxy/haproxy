@@ -1,7 +1,7 @@
 /*
  * HTTP protocol analyzer
  *
- * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2009 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -1791,7 +1791,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	/* 1: we might have to print this header in debug mode */
 	if (unlikely((global.mode & MODE_DEBUG) &&
 		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) &&
-		     (msg->msg_state == HTTP_MSG_BODY || msg->msg_state == HTTP_MSG_ERROR))) {
+		     (msg->msg_state >= HTTP_MSG_BODY || msg->msg_state == HTTP_MSG_ERROR))) {
 		char *eol, *sol;
 
 		sol = req->data + msg->som;
@@ -1814,12 +1814,12 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	 * Now we quickly check if we have found a full valid request.
 	 * If not so, we check the FD and buffer states before leaving.
 	 * A full request is indicated by the fact that we have seen
-	 * the double LF/CRLF, so the state is HTTP_MSG_BODY. Invalid
+	 * the double LF/CRLF, so the state is >= HTTP_MSG_BODY. Invalid
 	 * requests are checked first.
 	 *
 	 */
 
-	if (unlikely(msg->msg_state != HTTP_MSG_BODY)) {
+	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
 		/*
 		 * First, let's catch bad requests.
 		 */
@@ -2137,7 +2137,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 	struct redirect_rule *rule;
 	int cur_idx;
 
-	if (unlikely(msg->msg_state != HTTP_MSG_BODY)) {
+	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
 		/* we need more data */
 		buffer_dont_connect(req);
 		return 0;
@@ -2439,7 +2439,7 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->req;
 
-	if (unlikely(msg->msg_state != HTTP_MSG_BODY)) {
+	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
 		/* we need more data */
 		buffer_dont_connect(req);
 		return 0;
@@ -2769,7 +2769,7 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 	unsigned long body = msg->sol[msg->eoh] == '\r' ? msg->eoh + 2 : msg->eoh + 1;
 	long long limit = s->be->url_param_post_limit;
 
-	if (unlikely(msg->msg_state != HTTP_MSG_BODY)) {
+	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
 		/* we need more data */
 		buffer_dont_connect(req);
 		return 0;
@@ -2891,7 +2891,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 	/* 1: we might have to print this header in debug mode */
 	if (unlikely((global.mode & MODE_DEBUG) &&
 		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) &&
-		     (msg->msg_state == HTTP_MSG_BODY || msg->msg_state == HTTP_MSG_ERROR))) {
+		     (msg->msg_state >= HTTP_MSG_BODY || msg->msg_state == HTTP_MSG_ERROR))) {
 		char *eol, *sol;
 
 		sol = rep->data + msg->som;
@@ -2913,7 +2913,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 	 * Now we quickly check if we have found a full valid response.
 	 * If not so, we check the FD and buffer states before leaving.
 	 * A full response is indicated by the fact that we have seen
-	 * the double LF/CRLF, so the state is HTTP_MSG_BODY. Invalid
+	 * the double LF/CRLF, so the state is >= HTTP_MSG_BODY. Invalid
 	 * responses are checked first.
 	 *
 	 * Depending on whether the client is still there or not, we
@@ -2922,7 +2922,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 	 * errors somewhere else.
 	 */
 
-	if (unlikely(msg->msg_state != HTTP_MSG_BODY)) {
+	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
 		/* Invalid response */
 		if (unlikely(msg->msg_state == HTTP_MSG_ERROR)) {
 			/* we detected a parsing error. We want to archive this response
@@ -3217,7 +3217,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 		rep->l,
 		rep->analysers);
 
-	if (unlikely(msg->msg_state != HTTP_MSG_BODY))	/* we need more data */
+	if (unlikely(msg->msg_state < HTTP_MSG_BODY))	/* we need more data */
 		return 0;
 
 	rep->analysers &= ~an_bit;
@@ -4885,7 +4885,7 @@ acl_fetch_meth(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!txn)
 		return 0;
 
-	if (txn->req.msg_state != HTTP_MSG_BODY)
+	if (txn->req.msg_state < HTTP_MSG_BODY)
 		return 0;
 
 	meth = txn->meth;
@@ -4945,7 +4945,7 @@ acl_fetch_rqver(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!txn)
 		return 0;
 
-	if (txn->req.msg_state != HTTP_MSG_BODY)
+	if (txn->req.msg_state < HTTP_MSG_BODY)
 		return 0;
 
 	len = txn->req.sl.rq.v_l;
@@ -4973,7 +4973,7 @@ acl_fetch_stver(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!txn)
 		return 0;
 
-	if (txn->rsp.msg_state != HTTP_MSG_BODY)
+	if (txn->rsp.msg_state < HTTP_MSG_BODY)
 		return 0;
 
 	len = txn->rsp.sl.st.v_l;
@@ -5002,7 +5002,7 @@ acl_fetch_stcode(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!txn)
 		return 0;
 
-	if (txn->rsp.msg_state != HTTP_MSG_BODY)
+	if (txn->rsp.msg_state < HTTP_MSG_BODY)
 		return 0;
 
 	len = txn->rsp.sl.st.c_l;
@@ -5023,7 +5023,7 @@ acl_fetch_url(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!txn)
 		return 0;
 
-	if (txn->req.msg_state != HTTP_MSG_BODY)
+	if (txn->req.msg_state < HTTP_MSG_BODY)
 		return 0;
 
 	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
@@ -5047,7 +5047,7 @@ acl_fetch_url_ip(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!txn)
 		return 0;
 
-	if (txn->req.msg_state != HTTP_MSG_BODY)
+	if (txn->req.msg_state < HTTP_MSG_BODY)
 		return 0;
 
 	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
@@ -5079,7 +5079,7 @@ acl_fetch_url_port(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!txn)
 		return 0;
 
-	if (txn->req.msg_state != HTTP_MSG_BODY)
+	if (txn->req.msg_state < HTTP_MSG_BODY)
 		return 0;
 
 	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
@@ -5137,7 +5137,7 @@ acl_fetch_chdr(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!txn)
 		return 0;
 
-	if (txn->req.msg_state != HTTP_MSG_BODY)
+	if (txn->req.msg_state < HTTP_MSG_BODY)
 		return 0;
 
 	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
@@ -5156,7 +5156,7 @@ acl_fetch_shdr(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!txn)
 		return 0;
 
-	if (txn->rsp.msg_state != HTTP_MSG_BODY)
+	if (txn->rsp.msg_state < HTTP_MSG_BODY)
 		return 0;
 
 	return acl_fetch_hdr(px, l4, txn, txn->rsp.sol, expr, test);
@@ -5196,7 +5196,7 @@ acl_fetch_chdr_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!txn)
 		return 0;
 
-	if (txn->req.msg_state != HTTP_MSG_BODY)
+	if (txn->req.msg_state < HTTP_MSG_BODY)
 		return 0;
 
 	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
@@ -5215,7 +5215,7 @@ acl_fetch_shdr_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!txn)
 		return 0;
 
-	if (txn->rsp.msg_state != HTTP_MSG_BODY)
+	if (txn->rsp.msg_state < HTTP_MSG_BODY)
 		return 0;
 
 	return acl_fetch_hdr_cnt(px, l4, txn, txn->rsp.sol, expr, test);
@@ -5261,7 +5261,7 @@ acl_fetch_chdr_val(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!txn)
 		return 0;
 
-	if (txn->req.msg_state != HTTP_MSG_BODY)
+	if (txn->req.msg_state < HTTP_MSG_BODY)
 		return 0;
 
 	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
@@ -5280,7 +5280,7 @@ acl_fetch_shdr_val(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!txn)
 		return 0;
 
-	if (txn->rsp.msg_state != HTTP_MSG_BODY)
+	if (txn->rsp.msg_state < HTTP_MSG_BODY)
 		return 0;
 
 	return acl_fetch_hdr_val(px, l4, txn, txn->rsp.sol, expr, test);
@@ -5329,7 +5329,7 @@ acl_fetch_chdr_ip(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!txn)
 		return 0;
 
-	if (txn->req.msg_state != HTTP_MSG_BODY)
+	if (txn->req.msg_state < HTTP_MSG_BODY)
 		return 0;
 
 	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
@@ -5348,7 +5348,7 @@ acl_fetch_shdr_ip(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!txn)
 		return 0;
 
-	if (txn->rsp.msg_state != HTTP_MSG_BODY)
+	if (txn->rsp.msg_state < HTTP_MSG_BODY)
 		return 0;
 
 	return acl_fetch_hdr_ip(px, l4, txn, txn->rsp.sol, expr, test);
@@ -5367,7 +5367,7 @@ acl_fetch_path(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!txn)
 		return 0;
 
-	if (txn->req.msg_state != HTTP_MSG_BODY)
+	if (txn->req.msg_state < HTTP_MSG_BODY)
 		return 0;
 
 	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
@@ -5407,7 +5407,7 @@ acl_fetch_proto_http(struct proxy *px, struct session *s, void *l7, int dir,
 	if (!s || !req)
 		return 0;
 
-	if (unlikely(msg->msg_state == HTTP_MSG_BODY)) {
+	if (unlikely(msg->msg_state >= HTTP_MSG_BODY)) {
 		/* Already decoded as OK */
 		test->flags |= ACL_TEST_F_SET_RES_PASS;
 		return 1;
@@ -5417,7 +5417,7 @@ acl_fetch_proto_http(struct proxy *px, struct session *s, void *l7, int dir,
 	if (likely(req->lr < req->r))
 		http_msg_analyzer(req, msg, &txn->hdr_idx);
 
-	if (unlikely(msg->msg_state != HTTP_MSG_BODY)) {
+	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
 		if ((msg->msg_state == HTTP_MSG_ERROR) || (req->flags & BF_FULL)) {
 			test->flags |= ACL_TEST_F_SET_RES_FAIL;
 			return 1;

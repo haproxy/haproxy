@@ -145,8 +145,24 @@
 #define HTTP_MSG_HDR_L2_LWS   24 // checking whether it's a new header or an LWS
 
 #define HTTP_MSG_LAST_LF      25 // parsing last LF
-#define HTTP_MSG_BODY         26 // parsing body at end of headers
-#define HTTP_MSG_ERROR        27 // an error occurred
+
+/* error state : must be before HTTP_MSG_BODY so that (>=BODY) always indicates
+ * that data are being processed.
+ */
+
+#define HTTP_MSG_ERROR        26 // an error occurred
+
+/* Body processing.
+ * The state HTTP_MSG_BODY is a delimiter to know if we're waiting for headers
+ * or body. All the sub-states below also indicate we're processing the body,
+ * with some additional information.
+ */
+#define HTTP_MSG_BODY         27 // parsing body at end of headers
+#define HTTP_MSG_100_SENT     28 // parsing body after a 100-Continue was sent
+#define HTTP_MSG_CHUNK_SIZE   29 // parsing the chunk size (RFC2616 #3.6.1)
+#define HTTP_MSG_DATA         30 // skipping data chunk / content-length data
+#define HTTP_MSG_DATA_CRLF    31 // skipping CRLF after data chunk
+#define HTTP_MSG_TRAILERS     32 // trailers (post-data entity headers)
 
 
 /* various data sources for the responses */
