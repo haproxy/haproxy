@@ -391,6 +391,11 @@ int proxy_cfg_ensure_no_http(struct proxy *curproxy)
 		Warning("config : Layer 7 hash not possible for %s '%s' (needs 'mode http'). Falling back to round robin.\n",
 			proxy_type_str(curproxy), curproxy->id);
 	}
+	if (curproxy->to_log & (LW_REQ | LW_RESP)) {
+		curproxy->to_log &= ~(LW_REQ | LW_RESP);
+		Warning("config : 'option httplog' not usable with %s '%s' (needs 'mode http'). Falling back to 'option tcplog'.\n",
+			proxy_type_str(curproxy), curproxy->id);
+	}
 	return 0;
 }
 
