@@ -3996,6 +3996,21 @@ int readcfgfile(const char *file)
 		if (!**args)
 			continue;
 
+		if (*line) {
+			/* we had to stop due to too many args.
+			 * Let's terminate the string, print the offending part then cut the
+			 * last arg.
+			 */
+			while (*line && *line != '#' && *line != '\n' && *line != '\r')
+				line++;
+			*line = '\0';
+
+			Alert("parsing [%s:%d]: line too long, truncating at word %d, position %d : <%s>.\n",
+			      file, linenum, arg + 1, args[arg] - thisline + 1, args[arg]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			args[arg] = line;
+		}
+
 		/* zero out remaining args and ensure that at least one entry
 		 * is zeroed out.
 		 */
