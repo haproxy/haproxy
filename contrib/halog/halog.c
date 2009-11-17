@@ -674,6 +674,9 @@ int main(int argc, char **argv)
 		unsigned long cum[5];
 		double step;
 
+		if (!tot)
+			goto empty;
+
 		for (f = 1; f < 5; f++) {
 			n[f] = eb32_first(&timers[f]);
 			cum[f] = container_of(n[f], struct timer, node)->count;
@@ -706,7 +709,7 @@ int main(int argc, char **argv)
 				step += 1;
 		}
 	}
-
+ empty:
 	if (!(filter & FILT_QUIET))
 		fprintf(stderr, "%d lines in, %d lines out, %d parsing errors\n",
 			linenum, tot, parse_err);
