@@ -1,5 +1,6 @@
 INCLUDE  = -I../../include
-OPTIMIZE = -O3 -mtune=pentium-m
+#OPTIMIZE = -O3 -mtune=pentium-m
+OPTIMIZE = -O3
 
 OBJS     = halog halog64
 
