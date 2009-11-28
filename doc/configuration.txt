@@ -1142,7 +1142,7 @@ bind [<address>]:<port> [, ...] mss <maxseg>
 bind [<address>]:<port> [, ...] transparent
 bind [<address>]:<port> [, ...] id <id>
 bind [<address>]:<port> [, ...] name <name>
-bind [<address>]:<port> [, ...] defer_accept
+bind [<address>]:<port> [, ...] defer-accept
   Define one or several listening addresses and/or ports in a frontend.
   May be used in sections :   defaults | frontend | listen | backend
                                   no   |    yes   |   yes  |   no
