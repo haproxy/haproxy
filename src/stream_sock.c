@@ -84,6 +84,10 @@ _syscall6(int, splice, int, fdin, loff_t *, off_in, int, fdout, loff_t *, off_ou
  */
 #define SPLICE_FULL_HINT	16*1448
 
+/* how many data we attempt to splice at once when the buffer is configured for
+ * infinite forwarding */
+#define MAX_SPLICE_AT_ONCE	(1<<30)
+
 /* Returns :
  *   -1 if splice is not possible or not possible anymore and we must switch to
  *      user-land copy (eg: to_forward reached)
@@ -138,7 +142,11 @@ static int stream_sock_splice_in(struct buffer *b, struct stream_interface *si)
 	/* At this point, b->pipe is valid */
 
 	while (1) {
-		max = b->to_forward;
+		if (b->to_forward == BUF_INFINITE_FORWARD)
+			max = MAX_SPLICE_AT_ONCE;
+		else
+			max = b->to_forward;
+
 		if (!max) {
 			/* It looks like the buffer + the pipe already contain
 			 * the maximum amount of data to be transferred. Try to
@@ -188,7 +196,7 @@ static int stream_sock_splice_in(struct buffer *b, struct stream_interface *si)
 				break;
 			}
 
-			if (errno == ENOSYS) {
+			if (errno == ENOSYS || errno == EINVAL) {
 				/* splice not supported on this end, disable it */
 				b->flags &= ~BF_KERN_SPLICING;
 				si->flags &= ~SI_FL_CAP_SPLICE;
