@@ -366,7 +366,7 @@ int http_header_add_tail(struct buffer *b, struct http_msg *msg,
 	bytes = buffer_insert_line2(b, b->data + msg->eoh, text, len);
 	if (!bytes)
 		return -1;
-	msg->eoh += bytes;
+	http_msg_move_end(msg, bytes);
 	return hdr_idx_add(len, 1, hdr_idx, hdr_idx->tail);
 }
 
@@ -386,7 +386,7 @@ int http_header_add_tail2(struct buffer *b, struct http_msg *msg,
 	bytes = buffer_insert_line2(b, b->data + msg->eoh, text, len);
 	if (!bytes)
 		return -1;
-	msg->eoh += bytes;
+	http_msg_move_end(msg, bytes);
 	return hdr_idx_add(len, 1, hdr_idx, hdr_idx->tail);
 }
 
@@ -1675,6 +1675,7 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 		EXPECT_LF_HERE(ptr, http_msg_invalid);
 		ptr++;
 		buf->lr = ptr;
+		msg->col = msg->sov = buf->lr - buf->data;
 		msg->eoh = msg->sol - buf->data;
 		msg->msg_state = HTTP_MSG_BODY;
 		return;
@@ -1717,11 +1718,11 @@ static int http_upgrade_v09_to_v10(struct buffer *req, struct http_msg *msg, str
 		/* if no URI was set, add "/" */
 		delta = buffer_replace2(req, cur_end, cur_end, " /", 2);
 		cur_end += delta;
-		msg->eoh += delta;
+		http_msg_move_end(msg, delta);
 	}
 	/* add HTTP version */
 	delta = buffer_replace2(req, cur_end, cur_end, " HTTP/1.0\r\n", 11);
-	msg->eoh += delta;
+	http_msg_move_end(msg, delta);
 	cur_end += delta;
 	cur_end = (char *)http_parse_reqline(msg, req->data,
 					     HTTP_MSG_RQMETH,
@@ -1911,7 +1912,12 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 
 	/* OK now we have a complete HTTP request with indexed headers. Let's
 	 * complete the request parsing by setting a few fields we will need
-	 * later.
+	 * later. At this point, we have the last CRLF at req->data + msg->eoh.
+	 * If the request is in HTTP/0.9 form, the rule is still true, and eoh
+	 * points to the CRLF of the request line. req->lr points to the first
+	 * byte after the last LF. msg->col and msg->sov point to the first
+	 * byte of data. msg->eol cannot be trusted because it may have been
+	 * left uninitialized (for instance in the absence of headers).
 	 */
 
 	/* Maybe we found in invalid header name while we were configured not
@@ -2240,7 +2246,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 				 */
 				if (s->flags & SN_CONN_CLOSED) {
 					delta = buffer_replace2(req, cur_ptr, cur_next, NULL, 0);
-					txn->req.eoh += delta;
+					http_msg_move_end(&txn->req, delta);
 					cur_next += delta;
 					txn->hdr_idx.v[old_idx].next = cur_hdr->next;
 					txn->hdr_idx.used--;
@@ -2251,7 +2257,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 									"close", 5);
 						cur_next += delta;
 						cur_hdr->len += delta;
-						txn->req.eoh += delta;
+						http_msg_move_end(&txn->req, delta);
 					}
 					s->flags |= SN_CONN_CLOSED;
 					txn->flags &= ~TX_SRV_CONN_KA; /* keep-alive closed on server side */
@@ -3300,7 +3306,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 						 */
 						if (t->flags & SN_CONN_CLOSED) {
 							delta = buffer_replace2(rep, cur_ptr, cur_next, NULL, 0);
-							txn->rsp.eoh += delta;
+							http_msg_move_end(&txn->rsp, delta);
 							cur_next += delta;
 							txn->hdr_idx.v[old_idx].next = cur_hdr->next;
 							txn->hdr_idx.used--;
@@ -3311,7 +3317,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 											"close", 5);
 								cur_next += delta;
 								cur_hdr->len += delta;
-								txn->rsp.eoh += delta;
+								http_msg_move_end(&txn->rsp, delta);
 							}
 							t->flags |= SN_CONN_CLOSED;
 						}
@@ -3586,15 +3592,14 @@ int apply_filter_to_req_headers(struct session *t, struct buffer *req, struct hd
 				cur_end += delta;
 				cur_next += delta;
 				cur_hdr->len += delta;
-				txn->req.eoh += delta;
+				http_msg_move_end(&txn->req, delta);
 				break;
 
 			case ACT_REMOVE:
 				delta = buffer_replace2(req, cur_ptr, cur_next, NULL, 0);
 				cur_next += delta;
 
-				/* FIXME: this should be a separate function */
-				txn->req.eoh += delta;
+				http_msg_move_end(&txn->req, delta);
 				txn->hdr_idx.v[old_idx].next = cur_hdr->next;
 				txn->hdr_idx.used--;
 				cur_hdr->len = 0;
@@ -3704,7 +3709,7 @@ int apply_filter_to_req_line(struct session *t, struct buffer *req, struct hdr_e
 			 * will not be counted as a new header.
 			 */
 
-			txn->req.eoh += delta;
+			http_msg_move_end(&txn->req, delta);
 			cur_end += delta;
 
 			txn->req.sol = req->data + txn->req.som; /* should be equal to txn->sol */
@@ -4044,7 +4049,7 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 						cur_end += delta;
 						cur_next += delta;
 						cur_hdr->len += delta;
-						txn->req.eoh += delta;
+						http_msg_move_end(&txn->req, delta);
 
 						del_cookie = del_colon = NULL;
 						app_cookies++;	/* protect the header from deletion */
@@ -4070,7 +4075,7 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 						cur_end += delta;
 						cur_next += delta;
 						cur_hdr->len += delta;
-						txn->req.eoh += delta;
+						http_msg_move_end(&txn->req, delta);
 						del_cookie = del_colon = NULL;
 					}
 				}
@@ -4115,7 +4120,7 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 				cur_hdr->len = 0;
 			}
 			cur_next += delta;
-			txn->req.eoh += delta;
+			http_msg_move_end(&txn->req, delta);
 		}
 
 		/* keep the link from this header to next one */
@@ -4193,15 +4198,14 @@ int apply_filter_to_resp_headers(struct session *t, struct buffer *rtr, struct h
 				cur_end += delta;
 				cur_next += delta;
 				cur_hdr->len += delta;
-				txn->rsp.eoh += delta;
+				http_msg_move_end(&txn->rsp, delta);
 				break;
 
 			case ACT_REMOVE:
 				delta = buffer_replace2(rtr, cur_ptr, cur_next, NULL, 0);
 				cur_next += delta;
 
-				/* FIXME: this should be a separate function */
-				txn->rsp.eoh += delta;
+				http_msg_move_end(&txn->rsp, delta);
 				txn->hdr_idx.v[old_idx].next = cur_hdr->next;
 				txn->hdr_idx.used--;
 				cur_hdr->len = 0;
@@ -4280,7 +4284,7 @@ int apply_filter_to_sts_line(struct session *t, struct buffer *rtr, struct hdr_e
 			 * will not be counted as a new header.
 			 */
 
-			txn->rsp.eoh += delta;
+			http_msg_move_end(&txn->rsp, delta);
 			cur_end += delta;
 
 			txn->rsp.sol = rtr->data + txn->rsp.som; /* should be equal to txn->sol */
@@ -4462,7 +4466,7 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 					txn->hdr_idx.used--;
 					cur_hdr->len = 0;
 					cur_next += delta;
-					txn->rsp.eoh += delta;
+					http_msg_move_end(&txn->rsp, delta);
 
 					txn->flags |= TX_SCK_DELETED;
 				}
@@ -4474,7 +4478,7 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 					delta = buffer_replace2(rtr, p3, p4, t->srv->cookie, t->srv->cklen);
 					cur_hdr->len += delta;
 					cur_next += delta;
-					txn->rsp.eoh += delta;
+					http_msg_move_end(&txn->rsp, delta);
 
 					txn->flags |= TX_SCK_INSERTED | TX_SCK_DELETED;
 				}
@@ -4486,7 +4490,7 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 					delta = buffer_replace2(rtr, p3, p3, t->srv->cookie, t->srv->cklen + 1);
 					cur_hdr->len += delta;
 					cur_next += delta;
-					txn->rsp.eoh += delta;
+					http_msg_move_end(&txn->rsp, delta);
 
 					p3[t->srv->cklen] = COOKIE_DELIM;
 					txn->flags |= TX_SCK_INSERTED | TX_SCK_DELETED;

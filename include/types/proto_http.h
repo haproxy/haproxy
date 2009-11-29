@@ -230,18 +230,22 @@ typedef enum {
  *  - eoh (End of Headers)   : relative offset in the buffer of first byte that
  *                             is not part of a completely processed header.
  *                             During parsing, it points to last header seen
- *                             for states after START.
+ *                             for states after START. When in HTTP_MSG_BODY,
+ *                             eoh points to the first byte of the last CRLF
+ *                             preceeding data.
+ *  - col and sov            : When in HTTP_MSG_BODY, will point to the first
+ *                             byte of data.
  *  - eol (End of Line)      : relative offset in the buffer of the first byte
  *                             which marks the end of the line (LF or CRLF).
  */
 struct http_msg {
 	unsigned int msg_state;                /* where we are in the current message parsing */
+	unsigned int col, sov;                 /* current header: colon, start of value */
+	unsigned int eoh;                      /* End Of Headers, relative to buffer */
 	char *sol;                             /* start of line, also start of message when fully parsed */
 	char *eol;                             /* end of line */
 	unsigned int som;                      /* Start Of Message, relative to buffer */
-	unsigned int col, sov;                 /* current header: colon, start of value */
-	unsigned int eoh;                      /* End Of Headers, relative to buffer */
-	char **cap;                            /* array of captured headers (may be NULL) */
+	int err_pos;                           /* err handling: -2=block, -1=pass, 0+=detected */
 	union {                                /* useful start line pointers, relative to buffer */
 		struct {
 			int l;                 /* request line length (not including CR) */
@@ -257,7 +261,7 @@ struct http_msg {
 		} st;                          /* status line : field, length */
 	} sl;                                  /* start line */
 	unsigned long long hdr_content_len;    /* cache for parsed header value or for chunk-size if present */
-	int err_pos;                           /* err handling: -2=block, -1=pass, 0+=detected */
+	char **cap;                            /* array of captured headers (may be NULL) */
 };
 
 /* This is an HTTP transaction. It contains both a request message and a

@@ -91,6 +91,14 @@ void http_capture_bad_message(struct error_snapshot *es, struct session *s,
                               struct buffer *buf, struct http_msg *msg,
 			      struct proxy *other_end);
 
+/* to be used when contents change in an HTTP message */
+#define http_msg_move_end(msg, bytes) do { \
+		unsigned int _bytes = (bytes);	\
+		(msg)->col += (_bytes);		\
+		(msg)->sov += (_bytes);		\
+		(msg)->eoh += (_bytes);		\
+	} while (0)
+
 #endif /* _PROTO_PROTO_HTTP_H */
 
 /*
