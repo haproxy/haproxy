@@ -2479,17 +2479,7 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 	}
 
 	/*
-	 * 7: the appsession cookie was looked up very early in 1.2,
-	 * so let's do the same now.
-	 */
-
-	/* It needs to look into the URI */
-	if (s->be->appsession_name) {
-		get_srv_from_appsession(s, &req->data[msg->som], msg->sl.rq.l);
-	}
-
-	/*
-	 * 8: Now we can work with the cookies.
+	 * 7: Now we can work with the cookies.
 	 * Note that doing so might move headers in the request, but
 	 * the fields will stay coherent and the URI will not move.
 	 * This should only be performed in the backend.
@@ -2497,6 +2487,16 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 	if ((s->be->cookie_name || s->be->appsession_name || s->fe->capture_name)
 	    && !(txn->flags & (TX_CLDENY|TX_CLTARPIT)))
 		manage_client_side_cookies(s, req);
+
+	/*
+	 * 8: the appsession cookie was looked up very early in 1.2,
+	 * so let's do the same now.
+	 */
+
+	/* It needs to look into the URI */
+	if ((s->sessid == NULL) && s->be->appsession_name) {
+		get_srv_from_appsession(s, &req->data[msg->som + msg->sl.rq.u], msg->sl.rq.u_l);
+	}
 
 	/*
 	 * 9: add X-Forwarded-For if either the frontend or the backend
@@ -3783,10 +3783,14 @@ int apply_filters_to_request(struct session *t, struct buffer *req, struct hdr_e
  * Try to retrieve the server associated to the appsession.
  * If the server is found, it's assigned to the session.
  */
-void manage_client_side_appsession(struct session *t, const char *buf) {
+void manage_client_side_appsession(struct session *t, const char *buf, int len) {
 	struct http_txn *txn = &t->txn;
 	appsess *asession = NULL;
 	char *sessid_temp = NULL;
+
+	if (len > t->be->appsession_len) {
+		len = t->be->appsession_len;
+	}
 
 	if (t->be->options2 & PR_O2_AS_REQL) {
 		/* request-learn option is enabled : store the sessid in the session for future use */
@@ -3801,8 +3805,8 @@ void manage_client_side_appsession(struct session *t, const char *buf) {
 			return;
 		}
 
-		memcpy(t->sessid, buf, t->be->appsession_len);
-		t->sessid[t->be->appsession_len] = 0;
+		memcpy(t->sessid, buf, len);
+		t->sessid[len] = 0;
 	}
 
 	if ((sessid_temp = pool_alloc2(apools.sessid)) == NULL) {
@@ -3811,8 +3815,8 @@ void manage_client_side_appsession(struct session *t, const char *buf) {
 		return;
 	}
 
-	memcpy(sessid_temp, buf, t->be->appsession_len);
-	sessid_temp[t->be->appsession_len] = 0;
+	memcpy(sessid_temp, buf, len);
+	sessid_temp[len] = 0;
 
 	asession = appsession_hash_lookup(&(t->be->htbl_proxy), sessid_temp);
 	/* free previously allocated memory */
@@ -4080,12 +4084,25 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 					}
 				}
 
-				if ((t->be->appsession_name != NULL) &&
-				    (memcmp(p1, t->be->appsession_name, p2 - p1) == 0)) {
-					/* first, let's see if the cookie is our appcookie*/
+				if (t->be->appsession_name != NULL) {
+					int cmp_len, value_len;
+					char *value_begin;
 
-					/* Cool... it's the right one */
-					manage_client_side_appsession(t, p3);
+					if (t->be->options2 & PR_O2_AS_PFX) {
+						cmp_len = MIN(p4 - p1, t->be->appsession_name_len);
+						value_begin = p1 + t->be->appsession_name_len;
+						value_len = p4 - p1 - t->be->appsession_name_len;
+					} else {
+						cmp_len = p2 - p1;
+						value_begin = p3;
+						value_len = p4 - p3;
+					}
+
+					/* let's see if the cookie is our appcookie */
+					if (memcmp(p1, t->be->appsession_name, cmp_len) == 0) {
+						/* Cool... it's the right one */
+						manage_client_side_appsession(t, value_begin, value_len);
+					}
 #if defined(DEBUG_HASH)
 					Alert("manage_client_side_cookies\n");
 					appsession_hash_dump(&(t->be->htbl_proxy));
@@ -4497,24 +4514,36 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 				}
 			}
 			/* next, let's see if the cookie is our appcookie */
-			else if ((t->be->appsession_name != NULL) &&
-			         (memcmp(p1, t->be->appsession_name, p2 - p1) == 0)) {
+			else if (t->be->appsession_name != NULL) {
+				int cmp_len, value_len;
+				char *value_begin;
 
-				/* Cool... it's the right one */
+				if (t->be->options2 & PR_O2_AS_PFX) {
+					cmp_len = MIN(p4 - p1, t->be->appsession_name_len);
+					value_begin = p1 + t->be->appsession_name_len;
+					value_len = MIN(t->be->appsession_len, p4 - p1 - t->be->appsession_name_len);
+				} else {
+					cmp_len = p2 - p1;
+					value_begin = p3;
+					value_len = MIN(t->be->appsession_len, p4 - p3);
+				}
 
-				if (t->sessid != NULL) {
-					/* free previously allocated memory as we don't need it anymore */
-					pool_free2(apools.sessid, t->sessid);
+				if (memcmp(p1, t->be->appsession_name, cmp_len) == 0) {
+					/* Cool... it's the right one */
+					if (t->sessid != NULL) {
+						/* free previously allocated memory as we don't need it anymore */
+						pool_free2(apools.sessid, t->sessid);
+					}
+					/* Store the sessid in the session for future use */
+					if ((t->sessid = pool_alloc2(apools.sessid)) == NULL) {
+						Alert("Not enough Memory process_srv():asession->sessid:malloc().\n");
+						send_log(t->be, LOG_ALERT, "Not enough Memory process_srv():asession->sessid:malloc().\n");
+						return;
+					}
+					memcpy(t->sessid, value_begin, value_len);
+					t->sessid[value_len] = 0;
 				}
-				/* Store the sessid in the session for future use */
-				if ((t->sessid = pool_alloc2(apools.sessid)) == NULL) {
-					Alert("Not enough Memory process_srv():asession->sessid:malloc().\n");
-					send_log(t->be, LOG_ALERT, "Not enough Memory process_srv():asession->sessid:malloc().\n");
-					return;
-				}
-				memcpy(t->sessid, p3, t->be->appsession_len);
-				t->sessid[t->be->appsession_len] = 0;
-			}/* end if ((t->proxy->appsession_name != NULL) ... */
+			} /* end if ((t->be->appsession_name != NULL) ... */
 			break; /* we don't want to loop again since there cannot be another cookie on the same line */
 		} /* we're now at the end of the cookie value */
 		/* keep the link from this header to next one */
@@ -4657,25 +4686,66 @@ void check_response_for_cacheability(struct session *t, struct buffer *rtr)
  */
 void get_srv_from_appsession(struct session *t, const char *begin, int len)
 {
-	char *request_line;
+	char *end_params, *first_param, *cur_param, *next_param;
+	char separator;
+	int value_len;
+
+	int mode = t->be->options2 & PR_O2_AS_M_ANY;
 
 	if (t->be->appsession_name == NULL ||
-	    (t->txn.meth != HTTP_METH_GET && t->txn.meth != HTTP_METH_POST) ||
-	    (request_line = memchr(begin, ';', len)) == NULL ||
-	    ((1 + t->be->appsession_name_len + 1 + t->be->appsession_len) > (begin + len - request_line)))
+	    (t->txn.meth != HTTP_METH_GET && t->txn.meth != HTTP_METH_POST)) {
 		return;
+	}
 
-	/* skip ';' */
-	request_line++;
+	first_param = NULL;
+	switch (mode) {
+	case PR_O2_AS_M_PP:
+		first_param = memchr(begin, ';', len);
+		break;
+	case PR_O2_AS_M_QS:
+		first_param = memchr(begin, '?', len);
+		break;
+	}
 
-	/* look if we have a jsessionid */
-	if (strncasecmp(request_line, t->be->appsession_name, t->be->appsession_name_len) != 0)
+	if (first_param == NULL) {
 		return;
+	}
 
-	/* skip jsessionid= */
-	request_line += t->be->appsession_name_len + 1;
+	switch (mode) {
+	case PR_O2_AS_M_PP:
+		if ((end_params = memchr(first_param, '?', len - (begin - first_param))) == NULL) {
+			end_params = (char *) begin + len;
+		}
+		separator = ';';
+		break;
+	case PR_O2_AS_M_QS:
+		end_params = (char *) begin + len;
+		separator = '&';
+		break;
+	default:
+		/* unknown mode, shouldn't happen */
+		return;
+	}
 	
-	manage_client_side_appsession(t, request_line);
+	cur_param = next_param = end_params;
+	while (cur_param > first_param) {
+		cur_param--;
+		if ((cur_param[0] == separator) || (cur_param == first_param)) {
+			/* let's see if this is the appsession parameter */
+			if ((cur_param + t->be->appsession_name_len + 1 < next_param) &&
+				((t->be->options2 & PR_O2_AS_PFX) || cur_param[t->be->appsession_name_len + 1] == '=') &&
+				(strncasecmp(cur_param + 1, t->be->appsession_name, t->be->appsession_name_len) == 0)) {
+				/* Cool... it's the right one */
+				cur_param += t->be->appsession_name_len + (t->be->options2 & PR_O2_AS_PFX ? 1 : 2);
+				value_len = MIN(t->be->appsession_len, next_param - cur_param);
+				if (value_len > 0) {
+					manage_client_side_appsession(t, cur_param, value_len);
+				}
+				break;
+			}
+			next_param = cur_param;
+		}
+	}
 #if defined(DEBUG_HASH)
 	Alert("get_srv_from_appsession\n");
 	appsession_hash_dump(&(t->be->htbl_proxy));

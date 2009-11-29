@@ -75,7 +75,7 @@ int apply_filter_to_req_headers(struct session *t, struct buffer *req, struct hd
 int apply_filter_to_req_line(struct session *t, struct buffer *req, struct hdr_exp *exp);
 int apply_filters_to_request(struct session *t, struct buffer *req, struct hdr_exp *exp);
 int apply_filters_to_response(struct session *t, struct buffer *rtr, struct hdr_exp *exp);
-void manage_client_side_appsession(struct session *t, const char *buf);
+void manage_client_side_appsession(struct session *t, const char *buf, int len);
 void manage_client_side_cookies(struct session *t, struct buffer *req);
 void manage_server_side_cookies(struct session *t, struct buffer *rtr);
 void check_response_for_cacheability(struct session *t, struct buffer *rtr);

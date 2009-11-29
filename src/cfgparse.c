@@ -1541,7 +1541,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_WARN;
 
 		if (*(args[5]) == 0) {
-			Alert("parsing [%s:%d] : '%s' expects 'appsession' <cookie_name> 'len' <len> 'timeout' <timeout>.\n",
+			Alert("parsing [%s:%d] : '%s' expects 'appsession' <cookie_name> 'len' <len> 'timeout' <timeout> [options*].\n",
 			      file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
@@ -1568,9 +1568,34 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		cur_arg = 6;
 		curproxy->options2 &= ~PR_O2_AS_REQL;
+		curproxy->options2 &= ~PR_O2_AS_M_ANY;
+		curproxy->options2 |= PR_O2_AS_M_PP;
 		while (*(args[cur_arg])) {
-			if (!strcmp(args[cur_arg], "request-learn"))
+			if (!strcmp(args[cur_arg], "request-learn")) {
 				curproxy->options2 |= PR_O2_AS_REQL;
+			} else if (!strcmp(args[cur_arg], "prefix")) {
+				curproxy->options2 |= PR_O2_AS_PFX;
+			} else if (!strcmp(args[cur_arg], "mode")) {
+				if (!*args[cur_arg + 1]) {
+					Alert("parsing [%s:%d] : '%s': missing argument for '%s'.\n",
+					      file, linenum, args[0], args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				cur_arg++;
+				if (!strcmp(args[cur_arg], "query-string")) {
+					curproxy->options2 &= ~PR_O2_AS_M_ANY;
+					curproxy->options2 |= PR_O2_AS_M_QS;
+				} else if (!strcmp(args[cur_arg], "path-parameters")) {
+					curproxy->options2 &= ~PR_O2_AS_M_ANY;
+					curproxy->options2 |= PR_O2_AS_M_PP;
+				} else {
+					Alert("parsing [%s:%d] : unknown mode '%s'\n", file, linenum, args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+			}
 			cur_arg++;
 		}
 	} /* Url App Session */
