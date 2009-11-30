@@ -2176,7 +2176,7 @@ int http_process_request(struct session *s, struct buffer *req)
 				} else {
 					len = s->fe->fwdfor_hdr_len;
 					memcpy(trash, s->fe->fwdfor_hdr_name, len);
-					}
+				}
 				len += sprintf(trash + len, ": %d.%d.%d.%d", pn[0], pn[1], pn[2], pn[3]);
 
 				if (unlikely(http_header_add_tail2(req, &txn->req,
@@ -2249,7 +2249,7 @@ int http_process_request(struct session *s, struct buffer *req)
 				} else {
 					len = s->fe->orgto_hdr_len;
 					memcpy(trash, s->fe->orgto_hdr_name, len);
-					}
+				}
 				len += sprintf(trash + len, ": %d.%d.%d.%d", pn[0], pn[1], pn[2], pn[3]);
 
 				if (unlikely(http_header_add_tail2(req, &txn->req,

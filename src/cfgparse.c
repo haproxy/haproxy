@@ -885,6 +885,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			curproxy->fwdfor_hdr_name = strdup(defproxy.fwdfor_hdr_name);
 		}
 
+		if (defproxy.orgto_hdr_len) {
+			curproxy->orgto_hdr_len  = defproxy.orgto_hdr_len;
+			curproxy->orgto_hdr_name = strdup(defproxy.orgto_hdr_name);
+		}
+
 		if (curproxy->cap & PR_CAP_FE) {
 			curproxy->maxconn = defproxy.maxconn;
 			curproxy->backlog = defproxy.backlog;
@@ -988,6 +993,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		free(defproxy.iface_name);
 		free(defproxy.fwdfor_hdr_name);
 		defproxy.fwdfor_hdr_len = 0;
+		free(defproxy.orgto_hdr_name);
+		defproxy.orgto_hdr_len = 0;
 
 		for (rc = 0; rc < HTTP_ERR_SIZE; rc++)
 			free(defproxy.errmsg[rc].str);
