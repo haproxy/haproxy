@@ -2611,6 +2611,15 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 		}
 	}
 
+
+	/* indicate in the session if it will be a tunnel-mode one or not. If
+	 * we don't intend to analyse contents after the first request, it's a
+	 * tunnel.
+	 */
+	if (s->txn.meth == HTTP_METH_CONNECT ||
+	    !((s->fe->options|s->be->options) & (PR_O_KEEPALIVE|PR_O_HTTP_CLOSE|PR_O_FORCE_CLO)))
+		s->flags |= SN_TUNNEL;
+
 	/* 11: add "Connection: close" if needed and not yet set. */
 	if (!(s->flags & SN_CONN_CLOSED) &&
 	    ((s->fe->options | s->be->options) & (PR_O_HTTP_CLOSE|PR_O_FORCE_CLO))) {
