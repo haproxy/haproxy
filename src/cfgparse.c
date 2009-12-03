@@ -645,6 +645,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			if (defproxy.cookie_name)
 				curproxy->cookie_name = strdup(defproxy.cookie_name);
 			curproxy->cookie_len = defproxy.cookie_len;
+			if (defproxy.cookie_domain)
+				curproxy->cookie_domain = strdup(defproxy.cookie_domain);
 
 			if (defproxy.url_param_name)
 				curproxy->url_param_name = strdup(defproxy.url_param_name);
@@ -701,6 +703,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		 */
 		if (defproxy.check_req)     free(defproxy.check_req);
 		if (defproxy.cookie_name)   free(defproxy.cookie_name);
+		if (defproxy.cookie_domain) free(defproxy.cookie_domain);
 		if (defproxy.url_param_name) free(defproxy.url_param_name);
 		if (defproxy.capture_name)  free(defproxy.capture_name);
 		if (defproxy.monitor_uri)   free(defproxy.monitor_uri);
@@ -884,6 +887,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			      file, linenum, args[0]);
 			return -1;
 		}
+
+		free(curproxy->cookie_domain); curproxy->cookie_domain = NULL;
 		curproxy->cookie_name = strdup(args[1]);
 		curproxy->cookie_len = strlen(curproxy->cookie_name);
 	
