@@ -934,7 +934,21 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 					return -1;
 				}
 
-				curproxy->cookie_domain = strdup(args[cur_arg + 1]);
+				if (!curproxy->cookie_domain) {
+					curproxy->cookie_domain = strdup(args[cur_arg + 1]);
+				} else {
+					/* one domain was already specified, add another one by
+					 * building the string which will be returned along with
+					 * the cookie.
+					 */
+					char *new_ptr;
+					int new_len = strlen(curproxy->cookie_domain) +
+						strlen("; domain=") + strlen(args[cur_arg + 1]) + 1;
+					new_ptr = malloc(new_len);
+					snprintf(new_ptr, new_len, "%s; domain=%s", curproxy->cookie_domain, args[cur_arg+1]);
+					free(curproxy->cookie_domain);
+					curproxy->cookie_domain = new_ptr;
+				}
 				cur_arg++;
 			}
 			else {
