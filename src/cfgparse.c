@@ -1285,10 +1285,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 					goto out;
 				}
 
-				if (*args[cur_arg + 1] != '.' || !strchr(args[cur_arg + 1] + 1, '.')) {
+				if (*args[cur_arg + 1] != '.' && !strchr(args[cur_arg + 1] + 1, '.')) {
 					/* rfc2109, 4.3.2 Rejecting Cookies */
 					Alert("parsing [%s:%d]: domain '%s' contains no embedded"
-						" dots or does not start with a dot.\n",
+						" dots and does not start with a dot.\n",
 						file, linenum, args[cur_arg + 1]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
