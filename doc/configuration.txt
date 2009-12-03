@@ -1357,7 +1357,7 @@ contimeout <timeout>
 
 
 cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
-              [ postonly ] [ domain <domain> ]
+              [ postonly ] [ domain <domain> ]*
   Enable cookie-based persistence in a backend.
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
@@ -1439,7 +1439,12 @@ cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
 
     domain    This option allows to specify the domain at which a cookie is
               inserted. It requires exactly one paramater: a valid domain
-              name.
+              name. If the domain begins with a dot, the browser is allowed to
+              use it for any host ending with that name. It is also possible to
+              specify several domain names by invoking this option multiple
+              times. Some browsers might have small limits on the number of
+              domains, so be careful when doing that. For the record, sending
+              10 domains to MSIE 6 or Firefox 2 works as expected.
 
   There can be only one persistence cookie per HTTP backend, and it can be
   declared in a defaults section. The value of the cookie will be the value
