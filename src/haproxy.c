@@ -541,7 +541,15 @@ void init(int argc, char **argv)
 	init_default_instance();
 
 	for (i = 0; i < cfg_nbcfgfiles; i++) {
-		err_code |= readcfgfile(cfg_cfgfile[i]);
+		int ret;
+
+		ret = readcfgfile(cfg_cfgfile[i]);
+		if (ret == -1) {
+			Alert("Could not open configuration file %s : %s\n",
+			      cfg_cfgfile[i], strerror(errno));
+			exit(1);
+		}
+		err_code |= ret;
 		if (err_code & (ERR_ABORT|ERR_FATAL))
 			Alert("Error(s) found in configuration file : %s\n", cfg_cfgfile[i]);
 		if (err_code & ERR_ABORT)
