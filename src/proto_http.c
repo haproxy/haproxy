@@ -57,6 +57,14 @@
 #include <proto/stream_sock.h>
 #include <proto/task.h>
 
+const char HTTP_100[] =
+	"HTTP/1.1 100 Continue\r\n\r\n";
+
+const struct chunk http_100_chunk = {
+	.str = (char *)&HTTP_100,
+	.len = sizeof(HTTP_100)-1
+};
+
 /* This is used by remote monitoring */
 const char HTTP_200[] =
 	"HTTP/1.0 200 OK\r\n"
@@ -2452,9 +2460,6 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 		return 0;
 	}
 
-	req->analysers &= ~an_bit;
-	req->analyse_exp = TICK_ETERNITY;
-
 	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
@@ -2629,79 +2634,29 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 			goto return_bad_req;
 		s->flags |= SN_CONN_CLOSED;
 	}
-	/* Before we switch to data, was assignment set in manage_client_side_cookie?
-	 * If not assigned, perhaps we are balancing on url_param, but this is a
-	 * POST; and the parameters are in the body, maybe scan there to find our server.
-	 * (unless headers overflowed the buffer?)
+
+	/* If we have no server assigned yet and we're balancing on url_param
+	 * with a POST request, we may be interested in checking the body for
+	 * that parameter. This will be done in another analyser.
 	 */
 	if (!(s->flags & (SN_ASSIGNED|SN_DIRECT)) &&
 	    s->txn.meth == HTTP_METH_POST && s->be->url_param_name != NULL &&
-	    s->be->url_param_post_limit != 0 && !(req->flags & BF_FULL) &&
+	    s->be->url_param_post_limit != 0 &&
+	    (txn->flags & (TX_REQ_CNT_LEN|TX_REQ_TE_CHNK)) &&
 	    memchr(msg->sol + msg->sl.rq.u, '?', msg->sl.rq.u_l) == NULL) {
-		/* are there enough bytes here? total == l || r || rlim ?
-		 * len is unsigned, but eoh is int,
-		 * how many bytes of body have we received?
-		 * eoh is the first empty line of the header
-		 */
-		/* already established CRLF or LF at eoh, move to start of message, find message length in buffer */
-		unsigned long len = req->l - (msg->sol[msg->eoh] == '\r' ? msg->eoh + 2 : msg->eoh + 1);
-
-		/* If we have HTTP/1.1 and Expect: 100-continue, then abort.
-		 * We can't assume responsibility for the server's decision,
-		 * on this URI and header set. See rfc2616: 14.20, 8.2.3,
-		 * We also can't change our mind later, about which server to choose, so round robin.
-		 */
-		if ((likely(msg->sl.rq.v_l == 8) && req->data[msg->som + msg->sl.rq.v + 7] == '1')) {
-			struct hdr_ctx ctx;
-			ctx.idx = 0;
-			/* Expect is allowed in 1.1, look for it */
-			http_find_header2("Expect", 6, msg->sol, &txn->hdr_idx, &ctx);
-			if (ctx.idx != 0  &&
-			    unlikely(ctx.vlen == 12 && strncasecmp(ctx.line+ctx.val, "100-continue", 12) == 0))
-				/* We can't reliablly stall and wait for data, because of
-				 * .NET clients that don't conform to rfc2616; so, no need for
-				 * the next block to check length expectations.
-				 * We could send 100 status back to the client, but then we need to
-				 * re-write headers, and send the message. And this isn't the right
-				 * place for that action.
-				 * TODO: support Expect elsewhere and delete this block.
-				 */
-				goto end_check_maybe_wait_for_body;
-		}
-
-		if (likely(len <= s->be->url_param_post_limit)) {
-			/* limit implies we are supposed to need this many bytes
-			 * to find the parameter. Let's see how many bytes we can
-			 * wait for.
-			 */
-			if (txn->flags & TX_REQ_TE_CHNK) {
-				buffer_dont_connect(req);
-				req->analysers |= AN_REQ_HTTP_BODY;
-			} else {
-				long long hint = txn->req.hdr_content_len;
-				/* but limited to what we care about, maybe we don't expect any entity data (hint == 0) */
-				if (s->be->url_param_post_limit < hint)
-					hint = s->be->url_param_post_limit;
-
-				/* now do we really need to buffer more data? */
-				if (len < hint) {
-					buffer_dont_connect(req);
-					req->analysers |= AN_REQ_HTTP_BODY;
-				}
-				/* else... There are no body bytes to wait for */
-			}
-		}
+		buffer_dont_connect(req);
+		req->analysers |= AN_REQ_HTTP_BODY;
 	}
- end_check_maybe_wait_for_body:
 
 	/*************************************************************
 	 * OK, that's finished for the headers. We have done what we *
 	 * could. Let's switch to the DATA state.                    *
 	 ************************************************************/
+	req->analyse_exp = TICK_ETERNITY;
+	req->analysers &= ~an_bit;
 
 	buffer_set_rlim(req, req->size); /* no more rewrite needed */
 	s->logs.tv_request = now;
-
 	/* OK let's go on with the BODY now */
 	return 1;
 
@@ -2781,15 +2736,9 @@ int http_process_tarpit(struct session *s, struct buffer *req, int an_bit)
  */
 int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 {
+	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &s->txn.req;
-	unsigned long body = msg->sol[msg->eoh] == '\r' ? msg->eoh + 2 : msg->eoh + 1;
 	long long limit = s->be->url_param_post_limit;
-
-	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
-		/* we need more data */
-		buffer_dont_connect(req);
-		return 0;
-	}
 
 	/* We have to parse the HTTP request body to find any required data.
 	 * "balance url_param check_post" should have been the only way to get
@@ -2797,56 +2746,79 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 	 * related structures are ready.
 	 */
 
-	/* now if we have a length, we'll take the hint */
-	if (s->txn.flags & TX_REQ_TE_CHNK) {
+	if (unlikely(msg->msg_state < HTTP_MSG_BODY))
+		goto missing_data;
+
+	if (msg->msg_state < HTTP_MSG_100_SENT) {
+		/* If we have HTTP/1.1 and Expect: 100-continue, then we must
+		 * send an HTTP/1.1 100 Continue intermediate response.
+		 */
+		if ((likely(msg->sl.rq.v_l == 8) && req->data[msg->som + msg->sl.rq.v + 7] == '1')) {
+			struct hdr_ctx ctx;
+			ctx.idx = 0;
+			/* Expect is allowed in 1.1, look for it */
+			if (http_find_header2("Expect", 6, msg->sol, &txn->hdr_idx, &ctx) &&
+			    unlikely(ctx.vlen == 12 && strncasecmp(ctx.line+ctx.val, "100-continue", 12) == 0)) {
+				buffer_write(s->rep, http_100_chunk.str, http_100_chunk.len);
+			}
+		}
+		msg->msg_state = HTTP_MSG_100_SENT;
+	}
+
+	if (msg->msg_state < HTTP_MSG_CHUNK_SIZE) {
+		if (txn->flags & TX_REQ_TE_CHNK)
+			msg->msg_state = HTTP_MSG_CHUNK_SIZE;
+		else
+			msg->msg_state = HTTP_MSG_DATA;
+	}
+
+	if (msg->msg_state == HTTP_MSG_CHUNK_SIZE) {
+		unsigned long body = msg->col;
 		unsigned int chunk = 0;
+
 		while (body < req->l && !HTTP_IS_CRLF(msg->sol[body])) {
-			char c = msg->sol[body];
-			if (ishex(c)) {
-				unsigned int hex = toupper(c) - '0';
-				if (hex > 9)
-					hex -= 'A' - '9' - 1;
-				chunk = (chunk << 4) | hex;
-			} else
-				break;
+			int c = hex2i(msg->sol[body]);
+			if (c < 0)
+				goto return_bad_req;
+			chunk = (chunk << 4) + c;
 			body++;
 		}
+
+		/* now we want CRLF */
 		if (body + 2 >= req->l) /* we want CRLF too */
-			goto http_body_end; /* end of buffer? data missing! */
+			goto missing_data; /* end of buffer? data missing! */
 
-		if (memcmp(msg->sol+body, "\r\n", 2) != 0)
-			goto http_body_end; /* chunked encoding len ends with CRLF, and we don't have it yet */
+		if ((msg->sol[body++] != '\r') || (msg->sol[body++] != '\n'))
+			goto return_bad_req;
 
-		body += 2; // skip CRLF
-
-		/* if we support more then one chunk here, we have to do it again when assigning server
-		 * 1. how much entity data do we have? new var
-		 * 2. should save entity_start, entity_cursor, elen & rlen in req; so we don't repeat scanning here
-		 * 3. test if elen > limit, or set new limit to elen if 0 (end of entity found)
-		 */
-
-		if (chunk < limit)
-			limit = chunk;                  /* only reading one chunk */
-	} else {
-		if (msg->hdr_content_len < limit)
-			limit = msg->hdr_content_len;
+		msg->sov = body;
+		txn->req.hdr_content_len = chunk;
+		msg->msg_state = HTTP_MSG_DATA;
 	}
 
- http_body_end:
-	/* we leave once we know we have nothing left to do. This means that we have
-	 * enough bytes, or that we know we'll not get any more (buffer full, read
-	 * buffer closed).
+	/* Now we're in HTTP_MSG_DATA state.
+	 * We have the first non-header byte in msg->col, which is either the
+	 * beginning of the chunk size or of the data. The first data byte is in
+	 * msg->sov, which is equal to msg->col when not using transfer-encoding.
+	 * We're waiting for at least <url_param_post_limit> bytes after msg->sov.
 	 */
-	if (req->l - body >= limit ||             /* enough bytes! */
-	    req->flags & (BF_FULL | BF_READ_ERROR | BF_SHUTR | BF_READ_TIMEOUT) ||
-	    tick_is_expired(req->analyse_exp, now_ms)) {
-		/* The situation will not evolve, so let's give up on the analysis. */
-		s->logs.tv_request = now;  /* update the request timer to reflect full request */
-		req->analysers &= ~an_bit;
-		req->analyse_exp = TICK_ETERNITY;
-		return 1;
+
+	if (msg->hdr_content_len < limit)
+		limit = msg->hdr_content_len;
+
+	if (req->l - msg->sov >= limit)    /* we have enough bytes now */
+		goto http_end;
+
+ missing_data:
+	/* we get here if we need to wait for more data */
+	if ((req->flags & BF_READ_TIMEOUT) || tick_is_expired(req->analyse_exp, now_ms)) {
+		txn->status = 408;
+		stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_408));
+		goto return_err_msg;
 	}
-	else {
+
+	/* we get here if we need to wait for more data */
+	if (!(req->flags & (BF_FULL | BF_READ_ERROR | BF_SHUTR))) {
 		/* Not enough data. We'll re-use the http-request
 		 * timeout here. Ideally, we should set the timeout
 		 * relative to the accept() date. We just set the
@@ -2858,6 +2830,30 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 			req->analyse_exp = tick_add_ifset(now_ms, s->be->timeout.httpreq);
 		return 0;
 	}
+
+ http_end:
+	/* The situation will not evolve, so let's give up on the analysis. */
+	s->logs.tv_request = now;  /* update the request timer to reflect full request */
+	req->analysers &= ~an_bit;
+	req->analyse_exp = TICK_ETERNITY;
+	return 1;
+
+ return_bad_req: /* let's centralize all bad requests */
+	txn->req.msg_state = HTTP_MSG_ERROR;
+	txn->status = 400;
+	stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_400));
+
+ return_err_msg:
+	req->analysers = 0;
+	s->fe->counters.failed_req++;
+	if (s->listener->counters)
+		s->listener->counters->failed_req++;
+
+	if (!(s->flags & SN_ERR_MASK))
+		s->flags |= SN_ERR_PRXCOND;
+	if (!(s->flags & SN_FINST_MASK))
+		s->flags |= SN_FINST_R;
+	return 0;
 }
 
 /* This stream analyser waits for a complete HTTP response. It returns 1 if the
