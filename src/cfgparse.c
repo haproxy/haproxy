@@ -3696,7 +3696,7 @@ int readcfgfile(const char *file)
 					}
 				}
 				if (skip) {
-					memmove(line + 1, line + 1 + skip, end - (line + skip + 1));
+					memmove(line + 1, line + 1 + skip, end - (line + skip));
 					end -= skip;
 				}
 				line++;
