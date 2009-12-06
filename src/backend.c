@@ -1248,6 +1248,9 @@ struct server *get_server_ph_post(struct session *s)
 		len = chunk;
 	}
 
+	if (len > req->l - body)
+		len = req->l - body;
+
 	p = params;
 
 	while (len > plen) {
