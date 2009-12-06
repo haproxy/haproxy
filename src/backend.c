@@ -244,55 +244,18 @@ struct server *get_server_ph_post(struct session *s)
 	struct http_msg *msg  = &txn->req;
 	struct proxy    *px   = s->be;
 	unsigned int     plen = px->url_param_len;
-	unsigned long body;
-	unsigned long len;
-	const char *params;
-	struct hdr_ctx ctx;
-	const char   *p;
+	unsigned long    len  = msg->hdr_content_len;
+	const char      *params = req->data + msg->sov;
+	const char      *p    = params;
 
-	/* tot_weight appears to mean srv_count */
+	if (len > req->l - msg->sov)
+		len = req->l - msg->sov;
+
+	if (len == 0)
+		return NULL;
+
 	if (px->lbprm.tot_weight == 0)
 		return NULL;
-
-        body = msg->sol[msg->eoh] == '\r' ? msg->eoh + 2 : msg->eoh + 1;
-        len  = req->l - body;
-        params = req->data + body;
-
-	if ( len == 0 )
-		return NULL;
-
-	ctx.idx = 0;
-
-	/* if the message is chunked, we skip the chunk size, but use the value as len */
-	http_find_header2("Transfer-Encoding", 17, msg->sol, &txn->hdr_idx, &ctx);
-	if (ctx.idx && ctx.vlen >= 7 && strncasecmp(ctx.line+ctx.val, "chunked", 7) == 0) {
-		unsigned int chunk = 0;
-		while ( params < (req->data+req->max_len) && !HTTP_IS_CRLF(*params)) {
-			char c = *params;
-			if (ishex(c)) {
-				unsigned int hex = toupper(c) - '0';
-				if ( hex > 9 )
-					hex -= 'A' - '9' - 1;
-				chunk = (chunk << 4) | hex;
-			}
-			else
-				return NULL;
-			params++;
-			len--;
-		}
-		/* spec says we get CRLF */
-		if (HTTP_IS_CRLF(*params) && HTTP_IS_CRLF(params[1]))
-			params += 2;
-		else
-			return NULL;
-		/* ok we have some encoded length, just inspect the first chunk */
-		len = chunk;
-	}
-
-	if (len > req->l - body)
-		len = req->l - body;
-
-	p = params;
 
 	while (len > plen) {
 		/* Look for the parameter name followed by an equal symbol */
@@ -307,9 +270,9 @@ struct server *get_server_ph_post(struct session *s)
 
 				while (len && *p != '&') {
 					if (unlikely(!HTTP_IS_TOKEN(*p))) {
-					/* if in a POST, body must be URI encoded or its not a URI.
-					 * Do not interprete any possible binary data as a parameter.
-					 */
+						/* if in a POST, body must be URI encoded or it's not a URI.
+						 * Do not interprete any possible binary data as a parameter.
+						 */
 						if (likely(HTTP_IS_LWS(*p))) /* eol, uncertain uri len */
 							break;
 						return NULL;                 /* oh, no; this is not uri-encoded.
