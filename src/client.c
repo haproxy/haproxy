@@ -400,10 +400,8 @@ int event_accept(int fd) {
 
 		s->req->flags |= BF_READ_ATTACHED; /* the producer is already connected */
 
-		if (p->mode == PR_MODE_HTTP) { /* reserve some space for header rewriting */
-			s->req->max_len -= global.tune.maxrewrite;
+		if (p->mode == PR_MODE_HTTP)
 			s->req->flags |= BF_READ_DONTWAIT; /* one read is usually enough */
-		}
 
 		/* activate default analysers enabled for this listener */
 		s->req->analysers = l->analysers;

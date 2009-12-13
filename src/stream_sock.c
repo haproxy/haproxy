@@ -302,15 +302,15 @@ int stream_sock_read(int fd) {
 		if (b->l == 0) {
 			/* let's realign the buffer to optimize I/O */
 			b->r = b->w = b->lr = b->data;
-			max = b->max_len;
+			max = buffer_max_len(b);
 		}
 		else if (b->r > b->w) {
-			max = b->data + b->max_len - b->r;
+			max = b->data + buffer_max_len(b) - b->r;
 		}
 		else {
 			max = b->w - b->r;
-			if (max > b->max_len)
-				max = b->max_len;
+			if (max > buffer_max_len(b))
+				max = buffer_max_len(b);
 		}
 
 		if (max == 0) {
@@ -363,7 +363,7 @@ int stream_sock_read(int fd) {
 
 			b->total += ret;
 
-			if (b->l >= b->max_len) {
+			if (b->l >= buffer_max_len(b)) {
 				/* The buffer is now full, there's no point in going through
 				 * the loop again.
 				 */
@@ -642,7 +642,7 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 				b->w = b->data; /* wrap around the buffer */
 
 			b->l -= ret;
-			if (likely(b->l < b->max_len))
+			if (likely(b->l < buffer_max_len(b)))
 				b->flags &= ~BF_FULL;
 
 			if (likely(!b->l))

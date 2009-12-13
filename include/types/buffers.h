@@ -1,23 +1,23 @@
 /*
-  include/types/buffers.h
-  Buffer management definitions, macros and inline functions.
-
-  Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
-
-  This library is free software; you can redistribute it and/or
-  modify it under the terms of the GNU Lesser General Public
-  License as published by the Free Software Foundation, version 2.1
-  exclusively.
-
-  This library is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  Lesser General Public License for more details.
-
-  You should have received a copy of the GNU Lesser General Public
-  License along with this library; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
+ * include/types/buffers.h
+ * Buffer management definitions, macros and inline functions.
+ *
+ * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation, version 2.1
+ * exclusively.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
 
 #ifndef _TYPES_BUFFERS_H
 #define _TYPES_BUFFERS_H
@@ -57,7 +57,7 @@
 #define BF_READ_ERROR     0x000008  /* unrecoverable error on producer side */
 #define BF_READ_ACTIVITY  (BF_READ_NULL|BF_READ_PARTIAL|BF_READ_ERROR)
 
-#define BF_FULL           0x000010  /* buffer cannot accept any more data (l >= max_len) */
+#define BF_FULL           0x000010  /* buffer cannot accept any more data (l >= max len) */
 #define BF_SHUTR          0x000020  /* producer has already shut down */
 #define BF_SHUTR_NOW      0x000040  /* the producer must shut down for reads ASAP */
 #define BF_READ_NOEXP     0x000080  /* producer should not expire */
@@ -173,7 +173,6 @@ struct buffer {
 	unsigned int l;                 /* data length */
 	char *r, *w, *lr;               /* read ptr, write ptr, last read */
 	unsigned int size;              /* buffer size in bytes */
-	unsigned int max_len;           /* read limit, used to keep room for header rewriting */
 	unsigned int send_max;          /* number of bytes the sender can consume om this buffer, <= l */
 	unsigned long to_forward;       /* number of bytes to forward after send_max without a wake-up */
 	unsigned int analysers;         /* bit field indicating what to do on the buffer */
@@ -238,6 +237,24 @@ struct buffer {
    whole buffer, and reduce ->to_forward to 8000. After that, the producer may
    try to feed the additional data through the invisible buffer using a
    platform-specific method such as splice().
+
+   The ->to_forward entry is also used to detect whether we can fill the buffer
+   or not. The idea is that we need to save some space for data manipulation
+   (mainly header rewriting in HTTP) so we don't want to have a full buffer on
+   input before processing a request or response. Thus, we ensure that there is
+   always global.maxrewrite bytes of free space. Since we don't want to forward
+   chunks without filling the buffer, we rely on ->to_forward. When ->to_forward
+   is null, we may have some processing to do so we don't want to fill the
+   buffer. When ->to_forward is non-null, we know we don't care for at least as
+   many bytes. In the end, we know that each of the ->to_forward bytes will
+   eventually leave the buffer. So as long as ->to_forward is larger than
+   global.maxrewrite, we can fill the buffer. If ->to_forward is smaller than
+   global.maxrewrite, then we don't want to fill the buffer with more than
+   ->size - global.maxrewrite + ->to_forward.
+
+   Note that this also means that anyone touching ->to_forward must also take
+   care of updating the BF_FULL flag. For this reason, it's really advised to
+   use buffer_forward() only.
  */
 
 #endif /* _TYPES_BUFFERS_H */

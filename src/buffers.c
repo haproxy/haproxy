@@ -66,7 +66,7 @@ int buffer_write(struct buffer *buf, const char *msg, int len)
 		buf->r = buf->data;
 
 	buf->flags &= ~(BF_OUT_EMPTY|BF_FULL);
-	if (buf->l >= buf->max_len)
+	if (buf->l >= buffer_max_len(buf))
 		buf->flags |= BF_FULL;
 
 	return -1;
@@ -86,7 +86,7 @@ int buffer_feed2(struct buffer *buf, const char *str, int len)
 	if (len == 0)
 		return -1;
 
-	if (len > buf->max_len) {
+	if (len > buffer_max_len(buf)) {
 		/* we can't write this chunk and will never be able to, because
 		 * it is larger than the buffer's current max size.
 		 */
@@ -117,7 +117,7 @@ int buffer_feed2(struct buffer *buf, const char *str, int len)
 		buf->r = buf->data;
 
 	buf->flags &= ~BF_FULL;
-	if (buf->l >= buf->max_len)
+	if (buf->l >= buffer_max_len(buf))
 		buf->flags |= BF_FULL;
 
 	/* notify that some data was read from the SI into the buffer */
@@ -211,7 +211,7 @@ int buffer_replace(struct buffer *b, char *pos, char *end, const char *str)
 	b->flags &= ~BF_FULL;
 	if (b->l == 0)
 		b->r = b->w = b->lr = b->data;
-	if (b->l >= b->max_len)
+	if (b->l >= buffer_max_len(b))
 		b->flags |= BF_FULL;
 
 	return delta;
@@ -252,7 +252,7 @@ int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int
 	b->flags &= ~BF_FULL;
 	if (b->l == 0)
 		b->r = b->w = b->lr = b->data;
-	if (b->l >= b->max_len)
+	if (b->l >= buffer_max_len(b))
 		b->flags |= BF_FULL;
 
 	return delta;
@@ -294,7 +294,7 @@ int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len)
 	b->l += delta;
 
 	b->flags &= ~BF_FULL;
-	if (b->l >= b->max_len)
+	if (b->l >= buffer_max_len(b))
 		b->flags |= BF_FULL;
 
 	return delta;

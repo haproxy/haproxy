@@ -1,23 +1,23 @@
 /*
-  include/proto/buffers.h
-  Buffer management definitions, macros and inline functions.
-
-  Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
-
-  This library is free software; you can redistribute it and/or
-  modify it under the terms of the GNU Lesser General Public
-  License as published by the Free Software Foundation, version 2.1
-  exclusively.
-
-  This library is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  Lesser General Public License for more details.
-
-  You should have received a copy of the GNU Lesser General Public
-  License along with this library; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
+ * include/proto/buffers.h
+ * Buffer management definitions, macros and inline functions.
+ *
+ * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation, version 2.1
+ * exclusively.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
 
 #ifndef _PROTO_BUFFERS_H
 #define _PROTO_BUFFERS_H
@@ -32,18 +32,14 @@
 #include <common/time.h>
 
 #include <types/buffers.h>
+#include <types/global.h>
 
 extern struct pool_head *pool2_buffer;
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_buffer();
 
-/* Initializes all fields in the buffer. The ->max_len field is initialized last
- * so that the compiler can optimize it away if changed immediately after the
- * call to this function. By default, it is set to the full size of the buffer.
- * This implies that buffer_init() must only be called once ->size is set !
- * The BF_OUT_EMPTY flags is set.
- */
+/* Initialize all fields in the buffer. The BF_OUT_EMPTY flags is set. */
 static inline void buffer_init(struct buffer *buf)
 {
 	buf->send_max = 0;
@@ -54,7 +50,19 @@ static inline void buffer_init(struct buffer *buf)
 	buf->cons = NULL;
 	buf->flags = BF_OUT_EMPTY;
 	buf->r = buf->lr = buf->w = buf->data;
-	buf->max_len = buf->size;
+}
+
+/* Return the max number of bytes the buffer can contain so that once all the
+ * pending bytes are forwarded, the buffer still has global.tune.maxrewrite
+ * bytes free. The result sits between buf->size - maxrewrite and buf->size.
+ */
+static inline int buffer_max_len(struct buffer *buf)
+{
+	if (buf->to_forward == BUF_INFINITE_FORWARD ||
+	    buf->to_forward + buf->send_max >= global.tune.maxrewrite)
+		return buf->size;
+	else
+		return buf->size - global.tune.maxrewrite + buf->to_forward + buf->send_max;
 }
 
 /* Check buffer timeouts, and set the corresponding flags. The
@@ -102,12 +110,16 @@ static inline void buffer_forward(struct buffer *buf, unsigned long bytes)
 	if (buf->send_max)
 		buf->flags &= ~BF_OUT_EMPTY;
 
-	if (buf->to_forward == BUF_INFINITE_FORWARD)
-		return;
+	if (buf->to_forward != BUF_INFINITE_FORWARD) {
+		buf->to_forward += bytes - data_left;
+		if (bytes == BUF_INFINITE_FORWARD)
+			buf->to_forward = bytes;
+	}
 
-	buf->to_forward += bytes - data_left;
-	if (bytes == BUF_INFINITE_FORWARD)
-		buf->to_forward = bytes;
+	if (buf->l < buffer_max_len(buf))
+		buf->flags &= ~BF_FULL;
+	else
+		buf->flags |= BF_FULL;
 }
 
 /* Schedule all remaining buffer data to be sent. send_max is not touched if it
@@ -135,8 +147,6 @@ static inline void buffer_erase(struct buffer *buf)
 	buf->flags &= ~(BF_FULL | BF_OUT_EMPTY);
 	if (!buf->pipe)
 		buf->flags |= BF_OUT_EMPTY;
-	if (!buf->max_len)
-		buf->flags |= BF_FULL;
 }
 
 /* Cut the "tail" of the buffer, which means strip it to the length of unsent
@@ -159,7 +169,7 @@ static inline void buffer_cut_tail(struct buffer *buf)
 		buf->r -= buf->size;
 	buf->lr = buf->r;
 	buf->flags &= ~BF_FULL;
-	if (buf->l >= buf->max_len)
+	if (buf->l >= buffer_max_len(buf))
 		buf->flags |= BF_FULL;
 }
 
@@ -238,18 +248,6 @@ static inline int buffer_max(const struct buffer *buf)
 		return buf->w - buf->r;
 }
 
-/* sets the buffer read limit to <size> bytes, and adjusts the FULL
- * flag accordingly.
- */
-static inline void buffer_set_rlim(struct buffer *buf, int size)
-{
-	buf->max_len = size;
-	if (buf->l < size)
-		buf->flags &= ~BF_FULL;
-	else
-		buf->flags |= BF_FULL;
-}
-
 /*
  * Tries to realign the given buffer, and returns how many bytes can be written
  * there at once without overwriting anything.
@@ -275,15 +273,15 @@ static inline int buffer_contig_space(struct buffer *buf)
 
 	if (buf->l == 0) {
 		buf->r = buf->w = buf->lr = buf->data;
-		ret = buf->max_len;
+		ret = buffer_max_len(buf);
 	}
 	else if (buf->r > buf->w) {
-		ret = buf->data + buf->max_len - buf->r;
+		ret = buf->data + buffer_max_len(buf) - buf->r;
 	}
 	else {
 		ret = buf->w - buf->r;
-		if (ret > buf->max_len)
-			ret = buf->max_len;
+		if (ret > buffer_max_len(buf))
+			ret = buffer_max_len(buf);
 	}
 	return ret;
 }
@@ -337,7 +335,7 @@ static inline void buffer_skip(struct buffer *buf, int len)
 	if (!buf->l)
 		buf->r = buf->w = buf->lr = buf->data;
 
-	if (buf->l < buf->max_len)
+	if (buf->l < buffer_max_len(buf))
 		buf->flags &= ~BF_FULL;
 
 	buf->send_max -= len;
@@ -378,7 +376,7 @@ static inline int buffer_si_putchar(struct buffer *buf, char c)
 	*buf->r = c;
 
 	buf->l++;
-	if (buf->l >= buf->max_len)
+	if (buf->l >= buffer_max_len(buf))
 		buf->flags |= BF_FULL;
 
 	buf->r++;

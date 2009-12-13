@@ -2694,7 +2694,6 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 	req->analyse_exp = TICK_ETERNITY;
 	req->analysers &= ~an_bit;
 
-	buffer_set_rlim(req, req->size); /* no more rewrite needed */
 	s->logs.tv_request = now;
 	/* OK let's go on with the BODY now */
 	return 1;
@@ -3569,7 +3568,6 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 		 * could. Let's switch to the DATA state.                    *
 		 ************************************************************/
 
-		buffer_set_rlim(rep, rep->size); /* no more rewrite needed */
 		t->logs.t_data = tv_ms_elapsed(&t->logs.tv_accept, &now);
 
 		/* if the user wants to log as soon as possible, without counting

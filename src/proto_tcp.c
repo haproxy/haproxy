@@ -1021,8 +1021,8 @@ acl_fetch_req_ssl_ver(struct proxy *px, struct session *l4, void *l7, int dir,
 	 * all the part of the request which fits in a buffer is already
 	 * there.
 	 */
-	if (msg_len > l4->req->max_len + l4->req->data - l4->req->w)
-		msg_len = l4->req->max_len + l4->req->data - l4->req->w;
+	if (msg_len > buffer_max_len(l4->req) + l4->req->data - l4->req->w)
+		msg_len = buffer_max_len(l4->req) + l4->req->data - l4->req->w;
 
 	if (bleft < msg_len)
 		goto too_short;

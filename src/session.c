@@ -334,8 +334,6 @@ void sess_establish(struct session *s, struct stream_interface *si)
 		health_adjust(s->srv, HANA_STATUS_L4_OK);
 
 	if (s->be->mode == PR_MODE_TCP) { /* let's allow immediate data connection in this case */
-		buffer_set_rlim(rep, rep->size); /* no rewrite needed */
-
 		/* if the user wants to log as soon as possible, without counting
 		 * bytes from the server, then this is the right moment. */
 		if (s->fe->to_log && !(s->logs.logwait & LW_BYTES)) {
@@ -344,7 +342,6 @@ void sess_establish(struct session *s, struct stream_interface *si)
 		}
 	}
 	else {
-		buffer_set_rlim(rep, req->size - global.tune.maxrewrite); /* rewrite needed */
 		s->txn.rsp.msg_state = HTTP_MSG_RPBEFORE;
 		/* reset hdr_idx which was already initialized by the request.
 		 * right now, the http parser does it.
