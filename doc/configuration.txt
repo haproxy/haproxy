@@ -102,7 +102,7 @@ correct rules and to debug existing configurations.
 -------------------------------
 
 The HTTP protocol is transaction-driven. This means that each request will lead
-to one and only one response. Traditionnally, a TCP connection is established
+to one and only one response. Traditionally, a TCP connection is established
 from the client to the server, a request is sent by the client on the
 connection, the server responds and the connection is closed. A new request
 will involve a new connection :
@@ -341,14 +341,14 @@ HAProxy's configuration process involves 3 major sources of parameters :
 The configuration file syntax consists in lines beginning with a keyword
 referenced in this manual, optionally followed by one or several parameters
 delimited by spaces. If spaces have to be entered in strings, then they must be
-preceeded by a backslash ('\') to be escaped. Backslashes also have to be
+preceded by a backslash ('\') to be escaped. Backslashes also have to be
 escaped by doubling them.
 
 
 2.2. Time format
 ----------------
 
-Some parameters involve values representating time, such as timeouts. These
+Some parameters involve values representing time, such as timeouts. These
 values are generally expressed in milliseconds (unless explicitly stated
 otherwise) but may be expressed in any other unit by suffixing the unit to the
 numeric value. It is important to consider this because it will not be repeated
@@ -480,7 +480,7 @@ stats socket <path> [{uid | user} <uid>] [{gid | group} <gid>] [mode <mode>]
 
   Creates a UNIX socket in stream mode at location <path>. Any previously
   existing socket will be backed up then replaced. Connections to this socket
-  will return various statictics outputs and even allow some commands to be
+  will return various statistics outputs and even allow some commands to be
   issued. Please consult section 9.2 "Unix Socket commands" for more details.
 
   An optional "level" parameter can be specified to restrict the nature of
@@ -587,7 +587,7 @@ nosplice
   Disables the use of kernel tcp splicing between sockets on Linux. It is
   equivalent to the command line argument "-dS".  Data will then be copied
   using conventional and more portable recv/send calls. Kernel tcp splicing is
-  limited to some very recent instances of kernel 2.6. Most verstions between
+  limited to some very recent instances of kernel 2.6. Most versions between
   2.6.25 and 2.6.28 are buggy and will forward corrupted data, so they must not
   be used. This option makes it easier to globally disable kernel splicing in
   case of doubt. See also "option splice-auto", "option splice-request" and
@@ -689,7 +689,7 @@ name, as this configuration seems to be commonly encountered.
 
 Right now, two major proxy modes are supported : "tcp", also known as layer 4,
 and "http", also known as layer 7. In layer 4 mode, HAProxy simply forwards
-bidirectionnal traffic between two sides. In layer 7 mode, HAProxy analyzes the
+bidirectional traffic between two sides. In layer 7 mode, HAProxy analyzes the
 protocol, and can interact with it by allowing, blocking, switching, adding,
 modifying, or removing arbitrary contents in requests or responses, based on
 arbitrary criteria.
@@ -999,7 +999,7 @@ balance url_param <param> [check_post [<max_wait>]]
                   number of running servers changing, many clients will be
                   directed to a different server. This algorithm is generally
                   used in TCP mode where no cookie may be inserted. It may also
-                  be used on the Internet to provide a best-effort stickyness
+                  be used on the Internet to provide a best-effort stickiness
                   to clients which refuse session cookies. This algorithm is
                   static by default, which means that changing a server's
                   weight on the fly will have no effect, but this can be
@@ -1071,10 +1071,10 @@ balance url_param <param> [check_post [<max_wait>]]
       hdr(name)   The HTTP header <name> will be looked up in each HTTP request.
                   Just as with the equivalent ACL 'hdr()' function, the header
                   name in parenthesis is not case sensitive. If the header is
-                  absent or if it does not contain any value, the round-robin
+                  absent or if it does not contain any value, the roundrobin
                   algorithm is applied instead.
 
-                  An optionnal 'use_domain_only' parameter is available, for
+                  An optional 'use_domain_only' parameter is available, for
                   reducing the hash algorithm to the main domain part with some
                   specific headers such as 'Host'. For instance, in the Host
                   value "haproxy.1wt.eu", only "1wt" will be considered.
@@ -1091,7 +1091,7 @@ balance url_param <param> [check_post [<max_wait>]]
                   is not case-sensitive. This mechanism is useful as a degraded
                   persistence mode, as it makes it possible to always send the
                   same user (or the same session ID) to the same server. If the
-                  cookie is not found, the normal round-robind algorithm is
+                  cookie is not found, the normal roundrobin algorithm is
                   used instead.
 
                   Note that for this to work, the frontend must ensure that an
@@ -1125,7 +1125,7 @@ balance url_param <param> [check_post [<max_wait>]]
   Note: the following caveats and limitations on using the "check_post"
   extension with "url_param" must be considered :
 
-    - all POST requests are eligable for consideration, because there is no way
+    - all POST requests are eligible for consideration, because there is no way
       to determine if the parameters will be found in the body or entity which
       may contain binary data. Therefore another method may be required to
       restrict consideration of POST requests that have no URL parameters in
@@ -1149,7 +1149,7 @@ balance url_param <param> [check_post [<max_wait>]]
     - This feature does not support generation of a 100, 411 or 501 response.
 
     - In some cases, requesting "check_post" MAY attempt to scan the entire
-      contents of a message body. Scaning normally terminates when linear
+      contents of a message body. Scanning normally terminates when linear
       white space or control characters are found, indicating the end of what
       might be a URL parameter list. This is probably not a concern with SGML
       type message bodies.
@@ -1208,7 +1208,7 @@ bind [<address>]:<port> [, ...] defer-accept
     transparent   is an optional keyword which is supported only on certain
                   Linux kernels. It indicates that the addresses will be bound
                   even if they do not belong to the local machine. Any packet
-                  targetting any of these addresses will be caught just as if
+                  targeting any of these addresses will be caught just as if
                   the address was locally configured. This normally requires
                   that IP forwarding is enabled. Caution! do not use this with
                   the default address '*', as it would redirect any traffic for
@@ -1344,7 +1344,7 @@ capture cookie <name> len <length>
   the log format does not change for a given frontend depending on the
   backends. This may change in the future. Note that there can be only one
   "capture cookie" statement in a frontend. The maximum capture length is
-  configured in the souces by default to 64 characters. It is not possible to
+  configured in the sources by default to 64 characters. It is not possible to
   specify a capture in a "defaults" section.
 
   Example:
@@ -1376,7 +1376,7 @@ capture request header <name> len <length>
   headers will be logged just as an empty string. Common uses for request
   header captures include the "Host" field in virtual hosting environments, the
   "Content-length" when uploads are supported, "User-agent" to quickly
-  differenciate between real users and robots, and "X-Forwarded-For" in proxied
+  differentiate between real users and robots, and "X-Forwarded-For" in proxied
   environments to find where the request came from.
 
   Note that when capturing headers such as "User-agent", some spaces may be
@@ -1584,7 +1584,7 @@ cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
               See also the "insert" and "nocache" options.
 
     domain    This option allows to specify the domain at which a cookie is
-              inserted. It requires exactly one paramater: a valid domain
+              inserted. It requires exactly one parameter: a valid domain
               name. If the domain begins with a dot, the browser is allowed to
               use it for any host ending with that name. It is also possible to
               specify several domain names by invoking this option multiple
@@ -1772,7 +1772,7 @@ fullconn <conns>
   values when the backend has less than <conns> concurrent connections. This
   makes it possible to limit the load on the servers during normal loads, but
   push it further for important loads without overloading the servers during
-  exceptionnal loads.
+  exceptional loads.
 
   Example :
      # The servers will accept between 100 and 1000 concurrent connections each
@@ -1797,7 +1797,7 @@ grace <time>
 
   This may be used to ensure that the services disappear in a certain order.
   This was designed so that frontends which are dedicated to monitoring by an
-  external equipement fail immediately while other ones remain up for the time
+  external equipment fail immediately while other ones remain up for the time
   needed by the equipment to detect the failure.
 
   Note that currently, there is very little benefit in using this parameter,
@@ -2001,7 +2001,7 @@ monitor fail [if | unless] <condition>
   Arguments :
     if <cond>     the monitor request will fail if the condition is satisfied,
                   and will succeed otherwise. The condition should describe a
-                  combinated test which must induce a failure if all conditions
+                  combined test which must induce a failure if all conditions
                   are met, for instance a low number of servers both in a
                   backend and its backup.
 
@@ -2042,7 +2042,7 @@ monitor-net <source>
 
   In TCP mode, any connection coming from a source matching <source> will cause
   the connection to be immediately closed without any log. This allows another
-  equipement to probe the port and verify that it is still listening, without
+  equipment to probe the port and verify that it is still listening, without
   forwarding the connection to a remote server.
 
   In HTTP mode, a connection coming from a source matching <source> will be
@@ -2233,20 +2233,20 @@ no option allbackups
 
 option checkcache
 no option checkcache
-  Analyze all server responses and block requests with cachable cookies
+  Analyze all server responses and block requests with cacheable cookies
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |     no   |   yes  |   yes
   Arguments : none
 
   Some high-level frameworks set application cookies everywhere and do not
   always let enough control to the developer to manage how the responses should
-  be cached. When a session cookie is returned on a cachable object, there is a
+  be cached. When a session cookie is returned on a cacheable object, there is a
   high risk of session crossing or stealing between users traversing the same
   caches. In some situations, it is better to block the response than to let
   some sensible session information go in the wild.
 
   The option "checkcache" enables deep inspection of all server responses for
-  strict compliance with HTTP specification in terms of cachability. It
+  strict compliance with HTTP specification in terms of cacheability. It
   carefully checks "Cache-control", "Pragma" and "Set-cookie" headers in server
   response to check if there's a risk of caching a cookie on a client-side
   proxy. When this option is enabled, the only responses which can be delivered
@@ -2269,7 +2269,7 @@ no option checkcache
   If a response doesn't respect these requirements, then it will be blocked
   just as if it was from an "rspdeny" filter, with an "HTTP 502 bad gateway".
   The session state shows "PH--" meaning that the proxy blocked the response
-  during headers processing. Additionnaly, an alert will be sent in the logs so
+  during headers processing. Additionally, an alert will be sent in the logs so
   that admins are informed that there's something to be fixed.
 
   Due to the high impact on the application, the application should be tested
@@ -2716,7 +2716,7 @@ no option logasap
 
 option nolinger
 no option nolinger
-  Enable or disable immediate session ressource cleaning after close
+  Enable or disable immediate session resource cleaning after close
   May be used in sections:    defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
   Arguments : none
@@ -2915,7 +2915,7 @@ no option splice-auto
   will automatically evaluate the opportunity to use kernel tcp splicing to
   forward data between the client and the server, in either direction. Haproxy
   uses heuristics to estimate if kernel splicing might improve performance or
-  not. Both directions are handled independantly. Note that the heuristics used
+  not. Both directions are handled independently. Note that the heuristics used
   are not much aggressive in order to limit excessive use of splicing. This
   option requires splicing to be enabled at compile time, and may be globally
   disabled with the global option "nosplice". Since splice uses pipes, using it
@@ -3211,7 +3211,7 @@ persist rdp-cookie(name)
   Note that this only makes sense in a TCP backend, but for this to work, the
   frontend must have waited long enough to ensure that an RDP cookie is present
   in the request buffer. This is the same requirement as with the "rdp-cookie"
-  load-balancing method. Thus it is higly recommended to put all statements in
+  load-balancing method. Thus it is highly recommended to put all statements in
   a single "listen" section.
 
   Example :
@@ -4183,7 +4183,7 @@ stats uri <prefix>
   possible to reach it in the application.
 
   The default URI compiled in haproxy is "/haproxy?stats", but this may be
-  changed at build time, so it's better to always explictly specify it here.
+  changed at build time, so it's better to always explicitly specify it here.
   It is generally a good idea to include a question mark in the URI so that
   intermediate proxies refrain from caching the results. Also, since any string
   beginning with the prefix will be accepted as a stats request, the question
@@ -4270,7 +4270,7 @@ tcp-request content accept [{if | unless} <condition>]
   order, so that it is possible to build complex rules from them. There is no
   specific limit to the number of rules which may be inserted.
 
-  Note that the "if/unless" condition is optionnal. If no condition is set on
+  Note that the "if/unless" condition is optional. If no condition is set on
   the action, it is simply performed unconditionally.
 
   If no "tcp-request content" rules are matched, the default action already is
@@ -4296,7 +4296,7 @@ tcp-request content reject [{if | unless} <condition>]
   order, so that it is possible to build complex rules from them. There is no
   specific limit to the number of rules which may be inserted.
 
-  Note that the "if/unless" condition is optionnal. If no condition is set on
+  Note that the "if/unless" condition is optional. If no condition is set on
   the action, it is simply performed unconditionally.
 
   If no "tcp-request content" rules are matched, the default action is set to
@@ -4336,7 +4336,7 @@ tcp-request inspect-delay <timeout>
 
   Note that when performing content inspection, haproxy will evaluate the whole
   rules for every new chunk which gets in, taking into account the fact that
-  those data are partial. If no rule matches before the aforementionned delay,
+  those data are partial. If no rule matches before the aforementioned delay,
   a last check is performed upon expiration, this time considering that the
   contents are definitive. If no delay is set, haproxy will not wait at all
   and will immediately apply a verdict based on the available information.
@@ -4635,7 +4635,7 @@ use_backend <backend> unless <condition>
   used and a 503 service unavailable response is returned.
 
   Note that it is possible to switch from a TCP frontend to an HTTP backend. In
-  this case, etiher the frontend has already checked that the protocol is HTTP,
+  this case, either the frontend has already checked that the protocol is HTTP,
   and backend processing will immediately follow, or the backend will wait for
   a complete HTTP request to get in. This feature is useful when a frontend
   must decode several protocols on a unique port, one of them being HTTP.
@@ -4759,7 +4759,7 @@ minconn <minconn>
   the ramp between both values when the backend has less than <fullconn>
   concurrent connections. This makes it possible to limit the load on the
   server during normal loads, but push it further for important loads without
-  overloading the server during exceptionnal loads. See also the "maxconn"
+  overloading the server during exceptional loads. See also the "maxconn"
   and "maxqueue" parameters, as well as the "fullconn" backend keyword.
   
 port <port>
@@ -4779,7 +4779,7 @@ redir <prefix>
   that no trailing slash should be used after <prefix>. All invalid requests
   will be rejected, and all non-GET or HEAD requests will be normally served by
   the server. Note that since the response is completely forged, no header
-  mangling nor cookie insertion is possible in the respose. However, cookies in
+  mangling nor cookie insertion is possible in the response. However, cookies in
   requests are still analysed, making this solution completely usable to direct
   users to a remote location in case of local disaster. Main use consists in
   increasing bandwidth for static servers by having the clients directly
@@ -4865,7 +4865,7 @@ There is an exception though. If HAProxy encounters an "Informational Response"
 rewrite or delete a header, but it will refuse to add a header to any such
 messages as this is not HTTP-compliant. The reason for still processing headers
 in such responses is to stop and/or fix any possible information leak which may
-happen, for instance because another downstream equipment would inconditionally
+happen, for instance because another downstream equipment would unconditionally
 add a header, or if a server name appears there. When such messages are seen,
 normal processing still occurs on the next non-informational messages.
 
@@ -4940,7 +4940,7 @@ Notes related to these keywords :
     on occasional usages, it is possible to gain some space by removing some
     useless headers before adding new ones.
 
-  - keywords beginning with "reqi" and "rspi" are the same as their couterpart
+  - keywords beginning with "reqi" and "rspi" are the same as their counterpart
     without the 'i' letter except that they ignore case when matching patterns.
 
   - when a request passes through a frontend then a backend, all req* rules
@@ -5212,7 +5212,7 @@ be_sess_rate(backend) <integer>
   Returns true when the sessions creation rate on the backend matches the
   specified values or ranges, in number of new sessions per second. This is
   used to switch to an alternate backend when an expensive or fragile one
-  reaches too high a session rate, or to limite abuse of service (eg. prevent
+  reaches too high a session rate, or to limit abuse of service (eg. prevent
   sucking of an online dictionary).
 
   Example :
@@ -5243,7 +5243,7 @@ req_len <integer>
 req_proto_http
   Returns true when data in the request buffer look like HTTP and correctly
   parses as such. It is the same parser as the common HTTP request parser which
-  is used so there should be no surprizes. This test can be used for instance
+  is used so there should be no surprises. This test can be used for instance
   to direct HTTP traffic to a given port and HTTPS traffic to another one
   using TCP request content inspection rules.
 
@@ -5454,7 +5454,7 @@ hdr_cnt(header) <integer>
   the values or ranges specified. It is important to remember that one header
   line may count as several headers if it has several values. This is used to
   detect presence, absence or abuse of a specific header, as well as to block
-  request smugling attacks by rejecting requests which contain more than one
+  request smuggling attacks by rejecting requests which contain more than one
   of certain headers. See "hdr" for more information on header matching.
 
 hdr_ip <ip_address>
@@ -5487,7 +5487,7 @@ METH_OPTIONS     method  OPTIONS               match HTTP OPTIONS method
 METH_POST        method  POST                  match HTTP POST method
 METH_TRACE       method  TRACE                 match HTTP TRACE method
 HTTP_URL_ABS     url_reg ^[^/:]*://            match absolute URL with scheme
-HTTP_URL_SLASH   url_beg /                     match URL begining with "/"
+HTTP_URL_SLASH   url_beg /                     match URL beginning with "/"
 HTTP_URL_STAR    url     *                     match URL equal to "*"
 HTTP_CONTENT     hdr_val(content-length) gt 0  match an existing content-length
 RDP_COOKIE       req_rdp_cookie_cnt gt 0       match presence of an RDP cookie
@@ -5506,7 +5506,7 @@ combination of ACLs with operators. 3 operators are supported :
   - OR  (explicit with the "or" keyword or the "||" operator)
   - Negation with the exclamation mark ("!")
 
-A condition is formed as a disjonctive form :
+A condition is formed as a disjunctive form:
 
    [!]acl1 [!]acl2 ... [!]acln  { or [!]acl1 [!]acl2 ... [!]acln } ...
 
@@ -5547,7 +5547,7 @@ provides the finest level of information available for such a product, which is
 very important for troubleshooting complex environments. Standard information
 provided in logs include client ports, TCP/HTTP state timers, precise session
 state at termination and precise termination cause, information about decisions
-to direct trafic to a server, and of course the ability to capture arbitrary
+to direct traffic to a server, and of course the ability to capture arbitrary
 headers.
 
 In order to improve administrators reactivity, it offers a great transparency
@@ -6199,7 +6199,7 @@ mode, 5 control points are reported under the form "Tq/Tw/Tc/Tr/Tt" :
 These timers provide precious indications on trouble causes. Since the TCP
 protocol defines retransmit delays of 3, 6, 12... seconds, we know for sure
 that timers close to multiples of 3s are nearly always related to lost packets
-due to network problems (wires, negociation, congestion). Moreover, if "Tt" is
+due to network problems (wires, negotiation, congestion). Moreover, if "Tt" is
 close to a timeout value specified in the configuration, it often means that a
 session has been aborted on timeout.
 
@@ -6440,7 +6440,7 @@ easier finding and understanding.
           closer to the average reported "Tw" timer, in order not to consume
           resources for just a few attackers.
 
-     SC   The server or an equipement between it and haproxy explicitly refused
+     SC   The server or an equipment between it and haproxy explicitly refused
           the TCP connection (the proxy received a TCP RST or an ICMP message
           in return). Under some circumstances, it can also be the network
           stack telling the proxy that the server is unreachable (eg: no route,
@@ -6459,7 +6459,7 @@ easier finding and understanding.
 
      sD   The server did not send nor acknowledge any data for as long as the
           "timeout server" setting during the data phase. This is often caused
-          by too short timeouts on L4 equipements before the server (firewalls,
+          by too short timeouts on L4 equipments before the server (firewalls,
           load-balancers, ...), as well as keep-alive sessions maintained
           between the client and the server expiring first on haproxy.
 
@@ -6571,8 +6571,8 @@ response header" statements in the frontend. Please consult their definition in
 section 4.2 for more details.
 
 It is possible to include both request headers and response headers at the same
-time. Non-existant headers are logged as empty strings, and if one header
-appears more than once, only its last occurence will be logged. Request headers
+time. Non-existent headers are logged as empty strings, and if one header
+appears more than once, only its last occurrence will be logged. Request headers
 are grouped within braces '{' and '}' in the same order as they were declared,
 and delimited with a vertical bar '|' without any space. Response headers
 follow the same representation, but are displayed after a space following the
@@ -6658,7 +6658,7 @@ reading. Their sole purpose is to explain how to decipher them.
           "GET /image.iso HTTP/1.0"
 
     => request for a long data transfer. The "logasap" option was specified, so
-       the log was produced just before transfering data. The server replied in
+       the log was produced just before transferring data. The server replied in
        14 ms, 243 bytes of headers were sent to the client, and total time from
        accept to first data byte is 30 ms.
 
@@ -6778,12 +6778,12 @@ page. Both means provide a CSV format whose fields follow.
 	L7STS  -> layer 7 response error, for example HTTP 5xx
  37. check_code: layer5-7 code, if available
  38. check_duration: time in ms took to finish last health check
- 39. hrsp_1xx: http responces with 1xx code
- 40. hrsp_2xx: http responces with 2xx code
- 41. hrsp_3xx: http responces with 3xx code
- 42. hrsp_4xx: http responces with 4xx code
- 43. hrsp_5xx: http responces with 5xx code
- 44. hrsp_other: http responces with other codes (protocol error)
+ 39. hrsp_1xx: http responses with 1xx code
+ 40. hrsp_2xx: http responses with 2xx code
+ 41. hrsp_3xx: http responses with 3xx code
+ 42. hrsp_4xx: http responses with 4xx code
+ 43. hrsp_5xx: http responses with 5xx code
+ 44. hrsp_other: http responses with other codes (protocol error)
 
 
 9.2. Unix Socket commands
@@ -6914,7 +6914,7 @@ show stat [<iid> <type> <sid>]
     which process the stats apply to in multi-process mode. Notice the empty
     line after the information output which marks the end of the first block.
     A similar empty line appears at the end of the second block (stats) so that
-    the reader knows the output has not been trucated.
+    the reader knows the output has not been truncated.
 
 clear counters
   Clear the max values of the statistics counters in each proxy (frontend &
