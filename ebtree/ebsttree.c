@@ -1,6 +1,6 @@
 /*
  * Elastic Binary Trees - exported functions for String data nodes.
- * Version 5.0
+ * Version 5.1
  * (C) 2002-2009 - Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -29,6 +29,21 @@
 REGPRM2 struct ebmb_node *ebst_lookup(struct eb_root *root, const char *x)
 {
 	return __ebst_lookup(root, x);
+}
+
+/* Find the first occurence of a length <len> string <x> in the tree <root>.
+ * It's the caller's reponsibility to use this function only on trees which
+ * only contain zero-terminated strings, and that no null character is present
+ * in string <x> in the first <len> chars. If none can be found, return NULL.
+ */
+REGPRM3 struct ebmb_node *ebst_lookup_len(struct eb_root *root, const char *x, unsigned int len)
+{
+	struct ebmb_node *node;
+
+	node = ebmb_lookup(root, x, len);
+	if (!node || node->key[len] != 0)
+		return NULL;
+	return node;
 }
 
 /* Insert ebmb_node <new> into subtree starting at node root <root>. Only

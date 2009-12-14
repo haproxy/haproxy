@@ -1,6 +1,6 @@
 /*
  * Elastic Binary Trees - macros to manipulate Indirect String data nodes.
- * Version 5.0
+ * Version 5.1
  * (C) 2002-2009 - Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -32,6 +32,7 @@
  * in ebistree.c, which simply relies on their inline version.
  */
 REGPRM2 struct ebpt_node *ebis_lookup(struct eb_root *root, const char *x);
+REGPRM3 struct ebpt_node *ebis_lookup_len(struct eb_root *root, const char *x, unsigned int len);
 REGPRM2 struct ebpt_node *ebis_insert(struct eb_root *root, struct ebpt_node *new);
 
 /* Find the first occurence of a zero-terminated string <x> in the tree <root>.
