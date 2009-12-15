@@ -551,9 +551,9 @@ void init(int argc, char **argv)
 			      cfg_cfgfile[i], strerror(errno));
 			exit(1);
 		}
-		err_code |= ret;
-		if (err_code & (ERR_ABORT|ERR_FATAL))
+		if (ret & (ERR_ABORT|ERR_FATAL))
 			Alert("Error(s) found in configuration file : %s\n", cfg_cfgfile[i]);
+		err_code |= ret;
 		if (err_code & ERR_ABORT)
 			exit(1);
 	}
