@@ -4694,6 +4694,13 @@ cookie <value>
   the same cookie value, and it is in fact somewhat common between normal and
   backup servers. See also the "cookie" keyword in backend section.
 
+error-limit <count>
+  If health observing is enabled, the "error-limit" parameter specifies the number
+  of consecutive errors that triggers event selected by the "on-error" option.
+  By default it is set to 10 consecutive errors.
+
+ See also the "check", "error-limit" and "on-error".
+
 fall <count>
   The "fall" parameter states that a server will be considered as dead after
   <count> consecutive unsuccessful health checks. This value defaults to 3 if
@@ -4761,7 +4768,29 @@ minconn <minconn>
   server during normal loads, but push it further for important loads without
   overloading the server during exceptional loads. See also the "maxconn"
   and "maxqueue" parameters, as well as the "fullconn" backend keyword.
-  
+
+observe <mode>
+  This option enables health adjusting based on observing communication with
+  the server. By default this functionality is disabled and enabling it also
+  requires to enable health checks. There are two supported modes: "layer4" and
+  "layer7". In layer4 mode, only successful/unsuccessful tcp connections are
+  significant. In layer7, which is only allowed for http proxies, responses
+  received from server are verified, like valid/wrong http code, unparsable
+  headers, a timeout, etc.
+
+  See also the "check", "on-error" and "error-limit".
+
+on-error <mode>
+  Select what should happen when enough consecutive errors are detected.
+  Currently, four modes are available:
+  - fastinter: force fastinter
+  - fail-check: simulate a failed check, also forces fastinter (default)
+  - sudden-death: simulate a pre-fatal failed health check, one more failed
+    check will mark a server down, forces fastinter
+  - mark-down: mark the server immediately down and force fastinter
+
+  See also the "check", "observe" and "error-limit".
+
 port <port>
   Using the "port" parameter, it becomes possible to use a different port to
   send health-checks. On some servers, it may be desirable to dedicate a port

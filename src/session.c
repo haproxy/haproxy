@@ -22,6 +22,7 @@
 #include <proto/acl.h>
 #include <proto/backend.h>
 #include <proto/buffers.h>
+#include <proto/checks.h>
 #include <proto/dumpstats.h>
 #include <proto/hdr_idx.h>
 #include <proto/log.h>
@@ -249,6 +250,8 @@ int sess_update_st_cer(struct session *s, struct stream_interface *si)
 {
 	/* we probably have to release last session from the server */
 	if (s->srv) {
+		health_adjust(s->srv, HANA_STATUS_L4_ERR);
+
 		if (s->flags & SN_CURR_SESS) {
 			s->flags &= ~SN_CURR_SESS;
 			s->srv->cur_sess--;
@@ -326,6 +329,9 @@ void sess_establish(struct session *s, struct stream_interface *si)
 {
 	struct buffer *req = si->ob;
 	struct buffer *rep = si->ib;
+
+	if (s->srv)
+		health_adjust(s->srv, HANA_STATUS_L4_OK);
 
 	if (s->be->mode == PR_MODE_TCP) { /* let's allow immediate data connection in this case */
 		buffer_set_rlim(rep, rep->size); /* no rewrite needed */

@@ -120,6 +120,9 @@
 #define DEF_CHECK_REQ   "OPTIONS / HTTP/1.0\r\n\r\n"
 #define DEF_SMTP_CHECK_REQ   "HELO localhost\r\n"
 
+#define DEF_HANA_ONERR		HANA_ONERR_FAILCHK
+#define DEF_HANA_ERRLIMIT	10
+
 // X-Forwarded-For header default
 #define DEF_XFORWARDFOR_HDR	"X-Forwarded-For"
 

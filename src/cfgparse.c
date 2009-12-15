@@ -2618,6 +2618,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		newsrv->uweight = newsrv->iweight = 1;
 		newsrv->maxqueue = 0;
 		newsrv->slowstart = 0;
+		newsrv->onerror = DEF_HANA_ONERR;
+		newsrv->consecutive_errors_limit = DEF_HANA_ERRLIMIT;
 
 		cur_arg = 3;
 		while (*args[cur_arg]) {
@@ -2822,6 +2824,65 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				global.maxsock++;
 				do_check = 1;
 				cur_arg += 1;
+			}
+			else if (!strcmp(args[cur_arg], "observe")) {
+				if (!strcmp(args[cur_arg + 1], "none"))
+					newsrv->observe = HANA_OBS_NONE;
+				else if (!strcmp(args[cur_arg + 1], "layer4"))
+					newsrv->observe = HANA_OBS_LAYER4;
+				else if (!strcmp(args[cur_arg + 1], "layer7")) {
+					if (curproxy->mode != PR_MODE_HTTP) {
+						Alert("parsing [%s:%d]: '%s' can only be used in http proxies.\n",
+							file, linenum, args[cur_arg + 1]);
+						err_code |= ERR_ALERT;
+					}
+					newsrv->observe = HANA_OBS_LAYER7;
+				}
+				else {
+					Alert("parsing [%s:%d]: '%s' expects one of 'none', "
+						"'l4events', 'http-responses' but get '%s'\n",
+						file, linenum, args[cur_arg], args[cur_arg + 1]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				cur_arg += 2;
+			}
+			else if (!strcmp(args[cur_arg], "on-error")) {
+				if (!strcmp(args[cur_arg + 1], "fastinter"))
+					newsrv->onerror = HANA_ONERR_FASTINTER;
+				else if (!strcmp(args[cur_arg + 1], "fail-check"))
+					newsrv->onerror = HANA_ONERR_FAILCHK;
+				else if (!strcmp(args[cur_arg + 1], "sudden-death"))
+					newsrv->onerror = HANA_ONERR_SUDDTH;
+				else if (!strcmp(args[cur_arg + 1], "mark-down"))
+					newsrv->onerror = HANA_ONERR_MARKDWN;
+				else {
+					Alert("parsing [%s:%d]: '%s' expects one of 'fastinter', "
+						"'fail-check', 'sudden-death' or 'mark-down' but get '%s'\n",
+						file, linenum, args[cur_arg], args[cur_arg + 1]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				cur_arg += 2;
+			}
+			else if (!strcmp(args[cur_arg], "error-limit")) {
+				if (!*args[cur_arg + 1]) {
+					Alert("parsing [%s:%d]: '%s' expects an integer argument.\n",
+						file, linenum, args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				newsrv->consecutive_errors_limit = atoi(args[cur_arg + 1]);
+
+				if (newsrv->consecutive_errors_limit <= 0) {
+					Alert("parsing [%s:%d]: %s has to be > 0.\n",
+						file, linenum, args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
 			}
 			else if (!strcmp(args[cur_arg], "source")) {  /* address to which we bind when connecting */
 				int port_low, port_high;

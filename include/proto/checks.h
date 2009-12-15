@@ -29,6 +29,7 @@ const char *get_check_status_description(short check_status);
 const char *get_check_status_info(short check_status);
 struct task *process_chk(struct task *t);
 int start_checks();
+void health_adjust(struct server *s, short status);
 
 #endif /* _PROTO_CHECKS_H */
 

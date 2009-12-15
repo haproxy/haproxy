@@ -41,6 +41,7 @@
 #include <proto/acl.h>
 #include <proto/backend.h>
 #include <proto/buffers.h>
+#include <proto/checks.h>
 #include <proto/client.h>
 #include <proto/dumpstats.h>
 #include <proto/fd.h>
@@ -2948,8 +2949,10 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 				http_capture_bad_message(&s->be->invalid_rep, s, rep, msg, s->fe);
 
 			s->be->counters.failed_resp++;
-			if (s->srv)
+			if (s->srv) {
 				s->srv->counters.failed_resp++;
+				health_adjust(s->srv, HANA_STATUS_HTTP_HDRRSP);
+			}
 
 			rep->analysers = 0;
 			txn->status = 502;
@@ -2974,8 +2977,10 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 				http_capture_bad_message(&s->be->invalid_rep, s, rep, msg, s->fe);
 
 			s->be->counters.failed_resp++;
-			if (s->srv)
+			if (s->srv) {
 				s->srv->counters.failed_resp++;
+				health_adjust(s->srv, HANA_STATUS_HTTP_READ_ERROR);
+			}
 
 			rep->analysers = 0;
 			txn->status = 502;
@@ -2994,8 +2999,10 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 				http_capture_bad_message(&s->be->invalid_rep, s, rep, msg, s->fe);
 
 			s->be->counters.failed_resp++;
-			if (s->srv)
+			if (s->srv) {
 				s->srv->counters.failed_resp++;
+				health_adjust(s->srv, HANA_STATUS_HTTP_READ_TIMEOUT);
+			}
 
 			rep->analysers = 0;
 			txn->status = 504;
@@ -3014,8 +3021,10 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 				http_capture_bad_message(&s->be->invalid_rep, s, rep, msg, s->fe);
 
 			s->be->counters.failed_resp++;
-			if (s->srv)
+			if (s->srv) {
 				s->srv->counters.failed_resp++;
+				health_adjust(s->srv, HANA_STATUS_HTTP_BROKEN_PIPE);
+			}
 
 			rep->analysers = 0;
 			txn->status = 502;
@@ -3069,6 +3078,11 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 	s->srv->counters.p.http.rsp[n]++;
 
 	txn->status = strl2ui(rep->data + msg->sl.st.c, msg->sl.st.c_l);
+
+	if (txn->status >= 100 && txn->status < 500)
+		health_adjust(s->srv, HANA_STATUS_HTTP_OK);
+	else
+		health_adjust(s->srv, HANA_STATUS_HTTP_STS);
 
 	/*
 	 * 2: check for cacheability.
@@ -3257,8 +3271,10 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 			if (rule_set->rsp_exp != NULL) {
 				if (apply_filters_to_response(t, rep, rule_set->rsp_exp) < 0) {
 				return_bad_resp:
-					if (t->srv)
+					if (t->srv) {
 						t->srv->counters.failed_resp++;
+						health_adjust(t->srv, HANA_STATUS_HTTP_RSP);
+					}
 					cur_proxy->counters.failed_resp++;
 				return_srv_prx_502:
 					rep->analysers = 0;

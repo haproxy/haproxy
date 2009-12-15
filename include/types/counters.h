@@ -81,7 +81,8 @@ struct srvcounters {
 		} http;
 	} p;
 
-	long long failed_checks, down_trans;	/* failed checks and up->down transitions */
+	long long failed_checks, failed_hana;	/* failed health checks and health analyses */
+	long long down_trans;			/* up->down transitions */
 };
 
 #endif /* _TYPES_COUNTERS_H */

@@ -52,6 +52,8 @@ const struct check_status check_statuses[HCHK_STATUS_SIZE] = {
 	[HCHK_STATUS_INI]	= { SRV_CHK_UNKNOWN,                   "INI",     "Initializing" },
 	[HCHK_STATUS_START]	= { /* SPECIAL STATUS*/ },
 
+	[HCHK_STATUS_HANA]	= { SRV_CHK_ERROR,                     "HANA",    "Health analyze" },
+
 	[HCHK_STATUS_SOCKERR]	= { SRV_CHK_ERROR,                     "SOCKERR", "Socket error" },
 
 	[HCHK_STATUS_L4OK]	= { SRV_CHK_RUNNING,                   "L4OK",    "Layer4 check passed" },
@@ -70,6 +72,22 @@ const struct check_status check_statuses[HCHK_STATUS_SIZE] = {
 	[HCHK_STATUS_L7OKD]	= { SRV_CHK_RUNNING,                   "L7OK",    "Layer7 check passed" },
 	[HCHK_STATUS_L7OKCD]	= { SRV_CHK_RUNNING | SRV_CHK_DISABLE, "L7OKC",   "Layer7 check conditionally passed" },
 	[HCHK_STATUS_L7STS]	= { SRV_CHK_ERROR,                     "L7STS",   "Layer7 wrong status" },
+};
+
+const struct analyze_status analyze_statuses[HANA_STATUS_SIZE] = {		/* 0: ignore, 1: error, 2: OK */
+	[HANA_STATUS_UNKNOWN]		= { "Unknown",                         { 0, 0 }},
+
+	[HANA_STATUS_L4_OK]		= { "L4 successful connection",        { 2, 0 }},
+	[HANA_STATUS_L4_ERR]		= { "L4 unsuccessful connection",      { 1, 1 }},
+
+	[HANA_STATUS_HTTP_OK]		= { "Correct http response",           { 0, 2 }},
+	[HANA_STATUS_HTTP_STS]		= { "Wrong http response",             { 0, 1 }},
+	[HANA_STATUS_HTTP_HDRRSP]	= { "Invalid http response (headers)", { 0, 1 }},
+	[HANA_STATUS_HTTP_RSP]		= { "Invalid http response",           { 0, 1 }},
+
+	[HANA_STATUS_HTTP_READ_ERROR]	= { "Read error (http)",               { 0, 1 }},
+	[HANA_STATUS_HTTP_READ_TIMEOUT]	= { "Read timeout (http)",             { 0, 1 }},
+	[HANA_STATUS_HTTP_BROKEN_PIPE]	= { "Close from server (http)",        { 0, 1 }},
 };
 
 /*
@@ -108,6 +126,21 @@ const char *get_check_status_info(short check_status) {
 		return check_statuses[HCHK_STATUS_UNKNOWN].info;
 }
 
+const char *get_analyze_status(short analyze_status) {
+
+	const char *desc;
+
+	if (analyze_status < HANA_STATUS_SIZE)
+		desc = analyze_statuses[analyze_status].desc;
+	else
+		desc = NULL;
+
+	if (desc && *desc)
+		return desc;
+	else
+		return analyze_statuses[HANA_STATUS_UNKNOWN].desc;
+}
+
 #define SSP_O_VIA	0x0001
 #define SSP_O_HCHK	0x0002
 #define SSP_O_STATUS	0x0004
@@ -136,7 +169,8 @@ static void server_status_printf(struct chunk *msg, struct server *s, unsigned o
 			chunk_printf(msg, "\"");
 		}
 
-		chunk_printf(msg, ", check duration: %lums", s->check_duration);
+		if (s->check_duration >= 0)
+			chunk_printf(msg, ", check duration: %ldms", s->check_duration);
 	}
 
 	if (options & SSP_O_STATUS) {
@@ -184,9 +218,11 @@ static void set_server_check_status(struct server *s, short status, char *desc) 
 
 	s->check_status = status;
 	if (check_statuses[status].result)
-		s->result |= check_statuses[status].result;
+		s->result = check_statuses[status].result;
 
-	if (!tv_iszero(&s->check_start)) {
+	if (status == HCHK_STATUS_HANA)
+		s->check_duration = -1;
+	else if (!tv_iszero(&s->check_start)) {
 		/* set_server_check_status() may be called more than once */
 		s->check_duration = tv_ms_elapsed(&s->check_start, &now);
 		tv_zero(&s->check_start);
@@ -229,6 +265,10 @@ static void set_server_check_status(struct server *s, short status, char *desc) 
 				if (health >= rise)
 					health = rise + fall - 1; /* OK now */
 			}
+
+			/* clear consecutive_errors if observing is enabled */
+			if (s->onerror)
+				s->consecutive_errors = 0;
 		}
 		/* FIXME end: calculate local version of the health/rise/fall/state */
 
@@ -503,6 +543,96 @@ static void set_server_enabled(struct server *s) {
 	if (s->state & SRV_CHECKED)
 		for(srv = s->tracknext; srv; srv = srv->tracknext)
 			set_server_enabled(srv);
+}
+
+void health_adjust(struct server *s, short status) {
+
+	int failed;
+	int expire;
+
+	/* return now if observing nor health check is not enabled */
+	if (!s->observe || !s->check)
+		return;
+
+	if (s->observe >= HANA_OBS_SIZE)
+		return;
+
+	if (status >= HCHK_STATUS_SIZE || !analyze_statuses[status].desc)
+		return;
+
+	switch (analyze_statuses[status].lr[s->observe - 1]) {
+		case 1:
+			failed = 1;
+			break;
+
+		case 2:
+			failed = 0;
+			break;
+
+		default:
+			return;
+	}
+
+	if (!failed) {
+		/* good: clear consecutive_errors */
+		s->consecutive_errors = 0;
+		return;
+	}
+
+	s->consecutive_errors++;
+
+	if (s->consecutive_errors < s->consecutive_errors_limit)
+		return;
+
+	sprintf(trash, "Detected %d consecutive errors, last one was: %s",
+		s->consecutive_errors, get_analyze_status(status));
+
+	switch (s->onerror) {
+		case HANA_ONERR_FASTINTER:
+		/* force fastinter - nothing to do here as all modes force it */
+			break;
+
+		case HANA_ONERR_SUDDTH:
+		/* simulate a pre-fatal failed health check */
+			if (s->health > s->rise)
+				s->health = s->rise + 1;
+
+			/* no break - fall through */
+
+		case HANA_ONERR_FAILCHK:
+		/* simulate a failed health check */
+			set_server_check_status(s, HCHK_STATUS_HANA, trash);
+
+			if (s->health > s->rise) {
+				s->health--; /* still good */
+				s->counters.failed_checks++;
+			}
+			else
+				set_server_down(s);
+
+			break;
+
+		case HANA_ONERR_MARKDWN:
+		/* mark server down */
+			s->health = s->rise;
+			set_server_check_status(s, HCHK_STATUS_HANA, trash);
+			set_server_down(s);
+
+			break;
+
+		default:
+			/* write a warning? */
+			break;
+	}
+
+	s->consecutive_errors = 0;
+	s->counters.failed_hana++;
+
+	if (s->fastinter) {
+		expire = tick_add(now_ms, MS_TO_TICKS(s->fastinter));
+		if (s->check->expire > expire)
+			s->check->expire = expire;
+	}
 }
 
 /*

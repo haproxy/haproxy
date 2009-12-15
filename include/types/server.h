@@ -115,7 +115,10 @@ struct server {
 	struct sockaddr_in check_addr;		/* the address to check, if different from <addr> */
 	short check_port;			/* the port to use for the health checks */
 	int health;				/* 0->rise-1 = bad; rise->rise+fall-1 = good */
+	int consecutive_errors;			/* current number of consecutive errors */
 	int rise, fall;				/* time in iterations */
+	int consecutive_errors_limit;		/* number of consecutive errors that triggers an event */
+	short observe, onerror;			/* observing mode: one of HANA_OBS_*; what to do on error: on of ANA_ONERR_* */
 	int inter, fastinter, downinter;	/* checks: time in milliseconds */
 	int slowstart;				/* slowstart time in seconds (ms in the conf) */
 	int result;				/* health-check result : SRV_CHK_* */
@@ -137,9 +140,9 @@ struct server {
 	unsigned down_time;			/* total time the server was down */
 	time_t last_change;			/* last time, when the state was changed */
 	struct timeval check_start;		/* last health check start time */
-	unsigned long check_duration;		/* time in ms took to finish last health check */
+	long check_duration;			/* time in ms took to finish last health check */
 	short check_status, check_code;		/* check result, check code */
-	char check_desc[HCHK_DESC_LEN];		/* healt check descritpion */
+	char check_desc[HCHK_DESC_LEN];		/* health check descritpion */
 
 	struct freq_ctr sess_per_sec;		/* sessions per second on this server */
 	int puid;				/* proxy-unique server ID, used for SNMP */

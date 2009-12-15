@@ -244,7 +244,7 @@ int print_csv_header(struct chunk *msg)
 			    "pid,iid,sid,throttle,lbtot,tracked,type,"
 			    "rate,rate_lim,rate_max,"
 			    "check_status,check_code,check_duration,"
-			    "hrsp_1xx,hrsp_2xx,hrsp_3xx,hrsp_4xx,hrsp_5xx,hrsp_other,"
+			    "hrsp_1xx,hrsp_2xx,hrsp_3xx,hrsp_4xx,hrsp_5xx,hrsp_other,hanafail,"
 			    "\n");
 }
 
@@ -1370,6 +1370,9 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 					chunk_printf(&msg, ",,,,,,");
 				}
 
+				/* failed health analyses */
+				chunk_printf(&msg, ",");
+
 				/* finish with EOL */
 				chunk_printf(&msg, "\n");
 			}
@@ -1457,6 +1460,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     ",,,"
 				     /* http response: 1xx, 2xx, 3xx, 4xx, 5xx, other */
 				     ",,,,,,"
+				     /* failed health analyses */
+				     ","
 				     "\n",
 				     px->id, l->name,
 				     l->nbconn, l->counters->conn_max,
@@ -1610,7 +1615,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 					if (sv->check_status >= HCHK_STATUS_L57DATA)
 						chunk_printf(&msg, "/%d", sv->check_code);
 
-					if (sv->check_status >= HCHK_STATUS_CHECKED)
+					if (sv->check_status >= HCHK_STATUS_CHECKED && sv->check_duration >= 0)
 						chunk_printf(&msg, " in %lums", sv->check_duration);
 				} else {
 					chunk_printf(&msg, "</td><td>");
@@ -1629,11 +1634,11 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				/* check failures: unique, fatal, down time */
 				if (sv->state & SRV_CHECKED)
 					chunk_printf(&msg,
-					     "<td>%lld</td><td>%lld</td>"
-					     "<td>%s</td>"
+					     "<td title=\"Failed Health Checks/Health Analyses\">%lld/%lld</td>"
+					     "<td>%lld</td><td>%s</td>"
 					     "",
-					     svs->counters.failed_checks, svs->counters.down_trans,
-					     human_time(srv_downtime(sv), 1));
+					     svs->counters.failed_checks, svs->counters.failed_hana,
+					     svs->counters.down_trans, human_time(srv_downtime(sv), 1));
 				else if (sv != svs)
 					chunk_printf(&msg,
 					     "<td class=ac colspan=3>via %s/%s</td>", svs->proxy->id, svs->id);
@@ -1771,6 +1776,9 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				} else {
 					chunk_printf(&msg, ",,,,,,");
 				}
+
+				/* failed health analyses */
+				chunk_printf(&msg, "%lld,",  sv->counters.failed_hana);
 
 				/* finish with EOL */
 				chunk_printf(&msg, "\n");
@@ -1918,6 +1926,9 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				} else {
 					chunk_printf(&msg, ",,,,,,");
 				}
+
+				/* failed health analyses */
+				chunk_printf(&msg, ",");
 
 				/* finish with EOL */
 				chunk_printf(&msg, "\n");
