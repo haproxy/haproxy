@@ -4085,7 +4085,7 @@ int readcfgfile(const char *file)
 			*line = '\0';
 
 			Alert("parsing [%s:%d]: line too long, truncating at word %d, position %ld: <%s>.\n",
-			      file, linenum, arg + 1, args[arg] - thisline + 1, args[arg]);
+			      file, linenum, arg + 1, (long)(args[arg] - thisline + 1), args[arg]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			args[arg] = line;
 		}
