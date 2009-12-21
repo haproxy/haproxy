@@ -1747,6 +1747,63 @@ static int http_upgrade_v09_to_v10(struct buffer *req, struct http_msg *msg, str
 	return 1;
 }
 
+/* Parse the Connection: headaer of an HTTP request, and set the transaction
+ * flag TX_REQ_CONN_CLO if a "close" mode is expected. The TX_CON_HDR_PARS flag
+ * is also set so that we don't parse a second time. If some dangerous values
+ * are encountered, we leave the status to indicate that the request might be
+ * interpreted as keep-alive, but we also set the connection flags to indicate
+ * that we WANT it to be a close, so that the header will be fixed. This
+ * function should only be called when we know we're interested in checking
+ * the request (not a CONNECT, and FE or BE mangles the header).
+ */
+void http_parse_connection_header(struct http_txn *txn)
+{
+	struct http_msg *msg = &txn->req;
+	struct hdr_ctx ctx;
+	int conn_cl, conn_ka;
+
+	if (txn->flags & TX_CON_HDR_PARS)
+		return;
+
+	conn_cl = 0;
+	conn_ka = 0;
+	ctx.idx = 0;
+
+	while (http_find_header2("Connection", 10, msg->sol, &txn->hdr_idx, &ctx)) {
+		if (ctx.vlen == 5 && strncasecmp(ctx.line + ctx.val, "close", 5) == 0)
+			conn_cl = 1;
+		else if (ctx.vlen == 10 && strncasecmp(ctx.line + ctx.val, "keep-alive", 10) == 0)
+			conn_ka = 1;
+	}
+
+	/* Determine if the client wishes keep-alive or close.
+	 * RFC2616 #8.1.2 and #14.10 state that HTTP/1.1 and above connections
+	 * are persistent unless "Connection: close" is explicitly specified.
+	 * RFC2616 #19.6.2 refers to RFC2068 for HTTP/1.0 persistent connections.
+	 * RFC2068 #19.7.1 states that HTTP/1.0 clients are not persistent unless
+	 * they explicitly specify "Connection: Keep-Alive", regardless of any
+	 * optional "Keep-Alive" header.
+	 * Note that if we find a request with both "Connection: close" and
+	 * "Connection: Keep-Alive", we indicate we want a close but don't have
+	 * it, so that it can be enforced later.
+	 */
+
+	if (txn->flags & TX_REQ_VER_11) {	/* HTTP/1.1 */
+		if (conn_cl) {
+			txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
+			if (!conn_ka)
+				txn->flags |= TX_REQ_CONN_CLO;
+		}
+	} else {	/* HTTP/1.0 */
+		if (!conn_ka)
+			txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO | TX_REQ_CONN_CLO;
+		else if (conn_cl)
+			txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
+	}
+	txn->flags |= TX_CON_HDR_PARS;
+}
+
+
 /* This stream analyser waits for a complete HTTP request. It returns 1 if the
  * processing can continue on next analysers, or zero if it either needs more
  * data or wants to immediately abort the request (eg: timeout, error, ...). It
@@ -1781,7 +1838,6 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->req;
 	struct hdr_ctx ctx;
-	int conn_ka, conn_cl;
 
 	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
@@ -2012,6 +2068,16 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	if (unlikely(msg->sl.rq.v_l == 0) && !http_upgrade_v09_to_v10(req, msg, txn))
 		goto return_bad_req;
 
+	/* ... and check if the request is HTTP/1.1 or above */
+	if ((msg->sl.rq.v_l == 8) &&
+	    ((req->data[msg->som + msg->sl.rq.v + 5] > '1') ||
+	     ((req->data[msg->som + msg->sl.rq.v + 5] == '1') &&
+	      (req->data[msg->som + msg->sl.rq.v + 7] >= '1'))))
+		txn->flags |= TX_REQ_VER_11;
+
+	/* "connection" has not been parsed yet */
+	txn->flags &= ~TX_CON_HDR_PARS;
+
 	/* 5: we may need to capture headers */
 	if (unlikely((s->logs.logwait & LW_REQHDR) && s->fe->req_cap))
 		capture_headers(req->data + msg->som, &txn->hdr_idx,
@@ -2064,45 +2130,6 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 		txn->flags |= TX_REQ_CNT_LEN;
 		msg->hdr_content_len = cl;
 	}
-
-	/* Determine if the client wishes keep-alive or close.
-	 * RFC2616 #8.1.2 and #14.10 state that HTTP/1.1 and above connections
-	 * are persistent unless "Connection: close" is explicitly specified.
-	 * RFC2616 #19.6.2 refers to RFC2068 for HTTP/1.0 persistent connections.
-	 * RFC2068 #19.7.1 states that HTTP/1.0 clients are not persistent unless
-	 * they explicitly specify "Connection: keep-alive", regardless of any
-	 * optional "keep-alive" header.
-	 */
-
-	/* FIXME: should we also remove any header specified in "connection" ? */
-	conn_ka = conn_cl = 0;
-	ctx.idx = 0;
-	while (http_find_header2("Connection", 10, msg->sol, &txn->hdr_idx, &ctx)) {
-		if (ctx.vlen == 5 && strncasecmp(ctx.line + ctx.val, "close", 5) == 0)
-			conn_cl = 1;
-		else if (ctx.vlen == 10 && strncasecmp(ctx.line + ctx.val, "keep-alive", 10) == 0)
-			conn_ka = 1;
-	}
-
-	/* prepare flags for this transaction */
-	txn->flags |= (TX_CLI_CONN_KA | TX_SRV_CONN_KA);
-	txn->flags |= (TX_CLI_CONN_KA | TX_SRV_CONN_KA);
-
-	if ((msg->sl.rq.v_l == 8) &&
-	    (req->data[msg->som + msg->sl.rq.v + 5] == '1') &&
-	    (req->data[msg->som + msg->sl.rq.v + 7] == '0')) {
-		/* HTTP/1.0 */
-		if (!conn_ka)
-			txn->flags &= ~(TX_CLI_CONN_KA | TX_SRV_CONN_KA);
-	} else {
-		/* HTTP/1.1 */
-		if (conn_cl)
-			txn->flags &= ~(TX_CLI_CONN_KA | TX_SRV_CONN_KA);
-	}
-
-	/* we can mark the connection as non-persistent if needed */
-	if (!(txn->flags & TX_SRV_CONN_KA))
-		s->flags |= SN_CONN_CLOSED;
 
 	/* end of job, return OK */
 	req->analysers &= ~an_bit;
@@ -2222,68 +2249,88 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 		}
 	}
 
-	/* We might have to check for "Connection:". The test for persistent
-	 * connections has already been performed, so we only enter here if
-	 * we are certain the connection is persistent.
+	/* Until set to anything else, the connection mode is set as TUNNEL. It will
+	 * only change if both the request and the config reference something else.
 	 */
-	if (((s->fe->options | s->be->options) & (PR_O_HTTP_CLOSE|PR_O_FORCE_CLO)) &&
-	    !(s->flags & SN_CONN_CLOSED)) {
+
+	if ((s->txn.meth != HTTP_METH_CONNECT) &&
+	    ((s->fe->options|s->be->options) & (PR_O_KEEPALIVE|PR_O_HTTP_CLOSE|PR_O_FORCE_CLO))) {
+		int tmp = TX_CON_WANT_TUN;
+		if ((s->fe->options|s->be->options) & PR_O_KEEPALIVE)
+			tmp = TX_CON_WANT_KAL;
+		/* FIXME: for now, we don't support server-close mode */
+		if ((s->fe->options|s->be->options) & (PR_O_HTTP_CLOSE|PR_O_FORCE_CLO))
+			tmp = TX_CON_WANT_CLO;
+
+		if (!(txn->flags & TX_CON_HDR_PARS))
+			http_parse_connection_header(txn);
+
+		if ((txn->flags & TX_CON_WANT_MSK) < tmp)
+			txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | tmp;
+	}
+
+	/* We're really certain of the connection mode (tunnel, close, keep-alive)
+	 * once we know the backend, because the tunnel mode can be implied by the
+	 * lack of any close/keepalive options in both the FE and the BE. Since
+	 * this information can evolve with time, we proceed by trying to make the
+	 * header status match the desired status. For this, we'll have to adjust
+	 * the "Connection" header. The test for persistent connections has already
+	 * been performed, so we only enter here if there is a risk the connection
+	 * is considered as persistent and we want it to be closed on the server
+	 * side. It would be nice if we could enter this place only when a
+	 * Connection header exists. Note that a CONNECT method will not enter
+	 * here.
+	 */
+	if (!(txn->flags & TX_REQ_CONN_CLO) && ((txn->flags & TX_CON_WANT_MSK) >= TX_CON_WANT_SCL)) {
 		char *cur_ptr, *cur_end, *cur_next;
 		int old_idx, delta, val;
+		int must_delete;
 		struct hdr_idx_elem *cur_hdr;
 
+		must_delete = !(txn->flags & TX_REQ_VER_11);
 		cur_next = req->data + txn->req.som + hdr_idx_first_pos(&txn->hdr_idx);
-		old_idx = 0;
 
-		while ((cur_idx = txn->hdr_idx.v[old_idx].next)) {
+		for (old_idx = 0; (cur_idx = txn->hdr_idx.v[old_idx].next); old_idx = cur_idx) {
 			cur_hdr  = &txn->hdr_idx.v[cur_idx];
 			cur_ptr  = cur_next;
 			cur_end  = cur_ptr + cur_hdr->len;
 			cur_next = cur_end + cur_hdr->cr + 1;
 
 			val = http_header_match2(cur_ptr, cur_end, "Connection", 10);
-			if (val) {
-				/* 3 possibilities :
-				 * - we have already set Connection: close,
-				 *   so we remove this line.
-				 * - we have not yet set Connection: close,
-				 *   but this line indicates close. We leave
-				 *   it untouched and set the flag.
-				 * - we have not yet set Connection: close,
-				 *   and this line indicates non-close. We
-				 *   replace it.
-				 */
-				if (s->flags & SN_CONN_CLOSED) {
-					delta = buffer_replace2(req, cur_ptr, cur_next, NULL, 0);
-					http_msg_move_end(&txn->req, delta);
-					cur_next += delta;
-					txn->hdr_idx.v[old_idx].next = cur_hdr->next;
-					txn->hdr_idx.used--;
-					cur_hdr->len = 0;
-				} else {
-					if (strncasecmp(cur_ptr + val, "close", 5) != 0) {
-						delta = buffer_replace2(req, cur_ptr + val, cur_end,
-									"close", 5);
-						cur_next += delta;
-						cur_hdr->len += delta;
-						http_msg_move_end(&txn->req, delta);
-					}
-					s->flags |= SN_CONN_CLOSED;
-					txn->flags &= ~TX_SRV_CONN_KA; /* keep-alive closed on server side */
-				}
-			}
-			old_idx = cur_idx;
-		}
+			if (!val)
+				continue;
 
-		/* if there is no "Connection: keep-alive" header left and we're
-		 * in HTTP/1.0, then non-persistent connection is implied */
-		if (!(s->flags & SN_CONN_CLOSED) && (msg->sl.rq.v_l == 8) &&
-		    (req->data[msg->som + msg->sl.rq.v + 5] == '1') &&
-		    (req->data[msg->som + msg->sl.rq.v + 7] == '0')) {
-			s->flags |= SN_CONN_CLOSED;
-			txn->flags &= ~TX_SRV_CONN_KA; /* keep-alive closed on server side */
-		}
-	}
+			/* 3 possibilities :
+			 * - we have already set "Connection: close" or we're in
+			 *   HTTP/1.0, so we remove this line.
+			 * - we have not yet set "Connection: close", but this line
+			 *   indicates close. We leave it untouched and set the flag.
+			 * - we have not yet set "Connection: close", and this line
+			 *   indicates non-close. We replace it and set the flag.
+			 */
+			if (must_delete) {
+				delta = buffer_replace2(req, cur_ptr, cur_next, NULL, 0);
+				http_msg_move_end(&txn->req, delta);
+				cur_next += delta;
+				txn->hdr_idx.v[old_idx].next = cur_hdr->next;
+				txn->hdr_idx.used--;
+				cur_hdr->len = 0;
+				txn->flags |= TX_REQ_CONN_CLO;
+			} else {
+				if (cur_end - cur_ptr - val != 5 ||
+				    strncasecmp(cur_ptr + val, "close", 5) != 0) {
+					delta = buffer_replace2(req, cur_ptr + val, cur_end,
+								"close", 5);
+					cur_next += delta;
+					cur_hdr->len += delta;
+					http_msg_move_end(&txn->req, delta);
+				}
+				txn->flags |= TX_REQ_CONN_CLO;
+				must_delete = 1;
+			}
+		} /* for loop */
+	} /* if must close keep-alive */
+
 	/* add request headers from the rule sets in the same order */
 	for (cur_idx = 0; cur_idx < px->nb_reqadd; cur_idx++) {
 		if (unlikely(http_header_add_tail(req,
@@ -2408,9 +2455,11 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 		}
 	}
 
-	/* We can shut read side if "connection: close" && !abort_on_close && !content-length */
-	if ((s->flags & SN_CONN_CLOSED) && !(s->be->options & PR_O_ABRT_CLOSE) &&
-	    !(txn->flags & TX_REQ_TE_CHNK) && !txn->req.hdr_content_len && (txn->meth < HTTP_METH_CONNECT))
+	/* We can shut read side if "connection: close" && no-data && !tunnel && !abort_on_close */
+	if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_CLO &&
+	    !(txn->flags & TX_REQ_TE_CHNK) && !txn->req.hdr_content_len &&
+	    (txn->meth != HTTP_METH_CONNECT) &&
+	    !(s->be->options & PR_O_ABRT_CLOSE))
 		req->flags |= BF_DONT_READ;
 
 	/* that's OK for us now, let's move on to next analysers */
@@ -2617,22 +2666,12 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 		}
 	}
 
-
-	/* indicate in the session if it will be a tunnel-mode one or not. If
-	 * we don't intend to analyse contents after the first request, it's a
-	 * tunnel.
-	 */
-	if (s->txn.meth == HTTP_METH_CONNECT ||
-	    !((s->fe->options|s->be->options) & (PR_O_KEEPALIVE|PR_O_HTTP_CLOSE|PR_O_FORCE_CLO)))
-		s->flags |= SN_TUNNEL;
-
 	/* 11: add "Connection: close" if needed and not yet set. */
-	if (!(s->flags & SN_CONN_CLOSED) &&
-	    ((s->fe->options | s->be->options) & (PR_O_HTTP_CLOSE|PR_O_FORCE_CLO))) {
+	if (!(txn->flags & TX_REQ_CONN_CLO) && ((txn->flags & TX_CON_WANT_MSK) >= TX_CON_WANT_SCL)) {
 		if (unlikely(http_header_add_tail2(req, &txn->req, &txn->hdr_idx,
 						   "Connection: close", 17)) < 0)
 			goto return_bad_req;
-		s->flags |= SN_CONN_CLOSED;
+		txn->flags |= TX_REQ_CONN_CLO;
 	}
 
 	/* If we have no server assigned yet and we're balancing on url_param
@@ -2868,7 +2907,6 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->rsp;
 	struct hdr_ctx ctx;
-	int conn_ka, conn_cl;
 	int cur_idx;
 	int n;
 
@@ -3073,6 +3111,16 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 		n = 0;
 	s->srv->counters.p.http.rsp[n]++;
 
+	/* check if the response is HTTP/1.1 or above */
+	if ((msg->sl.st.v_l == 8) &&
+	    ((rep->data[msg->som + 5] > '1') ||
+	     ((rep->data[msg->som + 5] == '1') &&
+	      (rep->data[msg->som + 7] >= '1'))))
+		txn->flags |= TX_RES_VER_11;
+
+	/* "connection" has not been parsed yet */
+	txn->flags &= ~TX_CON_HDR_PARS;
+
 	txn->status = strl2ui(rep->data + msg->sl.st.c, msg->sl.st.c_l);
 
 	if (txn->status >= 100 && txn->status < 500)
@@ -3177,41 +3225,6 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 	}
 
 skip_content_length:
-	/* Determine if the server wishes keep-alive or close.
-	 * RFC2616 #8.1.2 and #14.10 state that HTTP/1.1 and above connections
-	 * are persistent unless "Connection: close" is explicitly specified.
-	 * RFC2616 #19.6.2 refers to RFC2068 for HTTP/1.0 persistent connections.
-	 * RFC2068 #19.7.1 states that HTTP/1.0 clients are not persistent unless
-	 * they explicitly specify "Connection: keep-alive", regardless of any
-	 * optional "keep-alive" header.
-	 */
-
-	/* FIXME: should we also remove any header specified in "connection" ? */
-	conn_ka = conn_cl = 0;
-	ctx.idx = 0;
-	while (http_find_header2("Connection", 10, msg->sol, &txn->hdr_idx, &ctx)) {
-		if (ctx.vlen == 5 && strncasecmp(ctx.line + ctx.val, "close", 5) == 0)
-			conn_cl = 1;
-		else if (ctx.vlen == 10 && strncasecmp(ctx.line + ctx.val, "keep-alive", 10) == 0)
-			conn_ka = 1;
-	}
-
-	if ((msg->sl.st.v_l == 8) &&
-	    (rep->data[msg->som + 5] == '1') &&
-	    (rep->data[msg->som + 7] == '0')) {
-		/* HTTP/1.0 */
-		if (!conn_ka)
-			txn->flags &= ~TX_SRV_CONN_KA;
-	} else {
-		/* HTTP/1.1 */
-		if (conn_cl)
-			txn->flags &= ~TX_SRV_CONN_KA;;
-	}
-
-	/* we can mark the connection as non-persistent if needed */
-	s->flags &= ~SN_CONN_CLOSED; /* prepare for inspection */
-	if (!(txn->flags & TX_SRV_CONN_KA))
-		s->flags |= SN_CONN_CLOSED;
 
 	/* end of job, return OK */
 	rep->analysers &= ~an_bit;
@@ -3228,10 +3241,11 @@ skip_content_length:
 int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, struct proxy *px)
 {
 	struct http_txn *txn = &t->txn;
-	struct buffer *req = t->req;
 	struct http_msg *msg = &txn->rsp;
 	struct proxy *cur_proxy;
 	int cur_idx;
+	int conn_ka = 0, conn_cl = 0;
+	int must_close = 0;
 
 	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
@@ -3247,6 +3261,135 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 
 	rep->analysers &= ~an_bit;
 	rep->analyse_exp = TICK_ETERNITY;
+
+	/* Now we have to check if we need to modify the Connection header.
+	 * This is more difficult on the response than it is on the request,
+	 * because we can have two different HTTP versions and we don't know
+	 * how the client will interprete a response. For instance, let's say
+	 * that the client sends a keep-alive request in HTTP/1.0 and gets an
+	 * HTTP/1.1 response without any header. Maybe it will bound itself to
+	 * HTTP/1.0 because it only knows about it, and will consider the lack
+	 * of header as a close, or maybe it knows HTTP/1.1 and can consider
+	 * the lack of header as a keep-alive. Thus we will use two flags
+	 * indicating how a request MAY be understood by the client. In case
+	 * of multiple possibilities, we'll fix the header to be explicit. If
+	 * ambiguous cases such as both close and keepalive are seen, then we
+	 * will fall back to explicit close. Note that we won't take risks with
+	 * HTTP/1.0 clients which may not necessarily understand keep-alive.
+	 */
+
+	if ((txn->meth != HTTP_METH_CONNECT) &&
+	    (txn->status >= 200) &&
+	    (txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN &&
+	    !(txn->flags & TX_CON_HDR_PARS)) {
+		int may_keep = 0, may_close = 0; /* how it may be understood */
+		struct hdr_ctx ctx;
+
+		ctx.idx = 0;
+		while (http_find_header2("Connection", 10, msg->sol, &txn->hdr_idx, &ctx)) {
+			if (ctx.vlen == 5 && strncasecmp(ctx.line + ctx.val, "close", 5) == 0)
+				conn_cl = 1;
+			else if (ctx.vlen == 10 && strncasecmp(ctx.line + ctx.val, "keep-alive", 10) == 0)
+				conn_ka = 1;
+		}
+
+		if (conn_cl) {
+			/* close header present */
+			may_close = 1;
+			if (conn_ka)	/* we have both close and keep-alive */
+				may_keep = 1;
+		}
+		else if (conn_ka) {
+			/* keep-alive alone */
+			may_keep = 1;
+		}
+		else {
+			/* no close nor keep-alive header */
+			if (txn->flags & TX_RES_VER_11)
+				may_keep = 1;
+			else
+				may_close = 1;
+
+			if (txn->flags & TX_REQ_VER_11)
+				may_keep = 1;
+			else
+				may_close = 1;
+		}
+
+		/* let's update the transaction status to reflect any close.
+		 * Note that ambiguous cases with keep & close will also be
+		 * handled.
+		 */
+		if (may_close)
+			txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
+
+		/* Now we must adjust the response header :
+		 *  - set "close" if may_keep and WANT_CLO
+		 *  - remove "close" if WANT_SCL and REQ_1.1 and may_close and (content-length or TE_CHNK)
+		 *  - add "keep-alive" if WANT_SCL and REQ_1.0 and may_close and content-length
+		 *
+		 * Until we support the server-close mode, we'll only support the set "close".
+		 */
+		if (may_keep && (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_CLO)
+			must_close = 1;
+
+		txn->flags |= TX_CON_HDR_PARS;
+	}
+
+	/* We might have to check for "Connection:" if the server
+	 * returns a connection status that is not compatible with
+	 * the client's or with the config.
+	 */
+	if ((txn->status >= 200) && must_close && (conn_cl|conn_ka)) {
+		char *cur_ptr, *cur_end, *cur_next;
+		int cur_idx, old_idx, delta, val;
+		int must_delete;
+		struct hdr_idx_elem *cur_hdr;
+
+		/* we just have to remove the headers if both sides are 1.0 */
+		must_delete = !(txn->flags & TX_REQ_VER_11) && !(txn->flags & TX_RES_VER_11);
+		cur_next = rep->data + txn->rsp.som + hdr_idx_first_pos(&txn->hdr_idx);
+
+		for (old_idx = 0; (cur_idx = txn->hdr_idx.v[old_idx].next); old_idx = cur_idx) {
+			cur_hdr  = &txn->hdr_idx.v[cur_idx];
+			cur_ptr  = cur_next;
+			cur_end  = cur_ptr + cur_hdr->len;
+			cur_next = cur_end + cur_hdr->cr + 1;
+
+			val = http_header_match2(cur_ptr, cur_end, "Connection", 10);
+			if (!val)
+				continue;
+
+			/* 3 possibilities :
+			 * - we have already set "Connection: close" or we're in
+			 *   HTTP/1.0, so we remove this line.
+			 * - we have not yet set "Connection: close", but this line
+			 *   indicates close. We leave it untouched and set the flag.
+			 * - we have not yet set "Connection: close", and this line
+			 *   indicates non-close. We replace it and set the flag.
+			 */
+			if (must_delete) {
+				delta = buffer_replace2(rep, cur_ptr, cur_next, NULL, 0);
+				http_msg_move_end(&txn->rsp, delta);
+				cur_next += delta;
+				txn->hdr_idx.v[old_idx].next = cur_hdr->next;
+				txn->hdr_idx.used--;
+				cur_hdr->len = 0;
+				must_close = 0;
+			} else {
+				if (cur_end - cur_ptr - val != 5 ||
+				    strncasecmp(cur_ptr + val, "close", 5) != 0) {
+					delta = buffer_replace2(rep, cur_ptr + val, cur_end,
+								"close", 5);
+					cur_next += delta;
+					cur_hdr->len += delta;
+					http_msg_move_end(&txn->rsp, delta);
+				}
+				must_delete = 1;
+				must_close = 0;
+			}
+		} /* for loop */
+	} /* if must close keep-alive */
 
 	if (1) {
 		/*
@@ -3294,66 +3437,6 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 					t->listener->counters->denied_resp++;
 
 				goto return_srv_prx_502;
-			}
-
-			/* We might have to check for "Connection:" */
-			if (((t->fe->options | t->be->options) & (PR_O_HTTP_CLOSE|PR_O_FORCE_CLO)) &&
-			    !(t->flags & SN_CONN_CLOSED) &&
-			    txn->status >= 200) {
-				char *cur_ptr, *cur_end, *cur_next;
-				int cur_idx, old_idx, delta, val;
-				struct hdr_idx_elem *cur_hdr;
-
-				cur_next = rep->data + txn->rsp.som + hdr_idx_first_pos(&txn->hdr_idx);
-				old_idx = 0;
-
-				while ((cur_idx = txn->hdr_idx.v[old_idx].next)) {
-					cur_hdr  = &txn->hdr_idx.v[cur_idx];
-					cur_ptr  = cur_next;
-					cur_end  = cur_ptr + cur_hdr->len;
-					cur_next = cur_end + cur_hdr->cr + 1;
-
-					val = http_header_match2(cur_ptr, cur_end, "Connection", 10);
-					if (val) {
-						/* 3 possibilities :
-						 * - we have already set Connection: close,
-						 *   so we remove this line.
-						 * - we have not yet set Connection: close,
-						 *   but this line indicates close. We leave
-						 *   it untouched and set the flag.
-						 * - we have not yet set Connection: close,
-						 *   and this line indicates non-close. We
-						 *   replace it.
-						 */
-						if (t->flags & SN_CONN_CLOSED) {
-							delta = buffer_replace2(rep, cur_ptr, cur_next, NULL, 0);
-							http_msg_move_end(&txn->rsp, delta);
-							cur_next += delta;
-							txn->hdr_idx.v[old_idx].next = cur_hdr->next;
-							txn->hdr_idx.used--;
-							cur_hdr->len = 0;
-						} else {
-							if (strncasecmp(cur_ptr + val, "close", 5) != 0) {
-								delta = buffer_replace2(rep, cur_ptr + val, cur_end,
-											"close", 5);
-								cur_next += delta;
-								cur_hdr->len += delta;
-								http_msg_move_end(&txn->rsp, delta);
-							}
-							t->flags |= SN_CONN_CLOSED;
-						}
-					}
-					old_idx = cur_idx;
-				}
-			}
-
-			/* if there is no "Connection: keep-alive" header left and we're
-			 * in HTTP/1.0, then non-persistent connection is implied */
-			if (!(t->flags & SN_CONN_CLOSED) && (msg->sl.st.v_l == 8) &&
-			    (rep->data[msg->som + 5] == '1') &&
-			    (rep->data[msg->som + 7] == '0')) {
-				t->flags |= SN_CONN_CLOSED;
-				txn->flags &= ~TX_CLI_CONN_KA; /* keep-alive closed on server side */
 			}
 
 			/* add response headers from the rule sets in the same order */
@@ -3425,7 +3508,6 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 			}
 		}
 
-
 		/*
 		 * 7: check if result will be cacheable with a cookie.
 		 * We'll block the response if security checks have caught
@@ -3456,18 +3538,15 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 		}
 
 		/*
-		 * 8: add "Connection: close" if needed and not yet set.
-		 * Note that we do not need to add it in case of HTTP/1.0.
+		 * 8: add "Connection: close" if needed and not yet set. This is
+		 * only needed for 1.1 responses since we know there is no other
+		 * Connection header.
 		 */
-		if (!(t->flags & SN_CONN_CLOSED) &&
-		    ((t->fe->options | t->be->options) & (PR_O_HTTP_CLOSE|PR_O_FORCE_CLO)) &&
-		    txn->status >= 200) {
-			if ((unlikely(msg->sl.st.v_l != 8) ||
-			     unlikely(req->data[msg->som + 7] != '0')) &&
-			    unlikely(http_header_add_tail2(rep, &txn->rsp, &txn->hdr_idx,
+		if (txn->status >= 200 && must_close && (txn->flags & TX_RES_VER_11)) {
+			if (unlikely(http_header_add_tail2(rep, &txn->rsp, &txn->hdr_idx,
 							   "Connection: close", 17)) < 0)
 				goto return_bad_resp;
-			t->flags |= SN_CONN_CLOSED;
+			must_close = 0;
 		}
 
 		/*

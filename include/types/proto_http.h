@@ -80,15 +80,32 @@
 #define TX_CACHE_COOK	0x00002000	/* a cookie in the response is cacheable */
 #define TX_CACHE_SHIFT	12		/* bit shift */
 
-/* client and server keep-alive capability */
-#define TX_CLI_CONN_KA	0x00004000	/* the client-side connection is still keep-alive capable */
-#define TX_SRV_CONN_KA	0x00008000	/* the server-side connection is still keep-alive capable */
+/* request and response HTTP version */
+#define TX_REQ_VER_11	0x00004000	/* the request is HTTP/1.1 or above */
+#define TX_RES_VER_11	0x00008000	/* the response is HTTP/1.1 or above */
 
 /* report presence of transfer-encoding:chunked and content-length headers */
 #define TX_REQ_CNT_LEN	0x00010000	/* content-length present in the request */
 #define TX_REQ_TE_CHNK	0x00020000	/* transfer-encoding: chunked present in the request */
 #define TX_RES_CNT_LEN	0x00040000	/* content-length present in the response */
 #define TX_RES_TE_CHNK	0x00080000	/* transfer-encoding: chunked present in the response */
+
+/* indicate how we *want* the connection to behave, regardless of what is in
+ * the headers. We have 4 possible values right now :
+ * - WANT_TUN : will be a tunnel (default when nothing configured or with CONNECT).
+ * - WANT_KAL : try to maintain keep-alive
+ * - WANT_SCL : enforce close on the server side
+ * - WANT_CLO : enforce close on both sides
+ */
+#define TX_CON_WANT_TUN 0x00000000	/* note: it's important that it is 0 (init) */
+#define TX_CON_WANT_KAL 0x00100000
+#define TX_CON_WANT_SCL 0x00200000
+#define TX_CON_WANT_CLO 0x00300000
+#define TX_CON_WANT_MSK 0x00300000	/* this is the mask to get the bits */
+
+#define TX_CON_HDR_PARS	0x00400000	/* "connection" header already parsed (req or res) */
+#define TX_REQ_CONN_CLO	0x00800000	/* request asks for "Connection: close" mode */
+
 
 /* The HTTP parser is more complex than it looks like, because we have to
  * support multi-line headers and any number of spaces between the colon and
