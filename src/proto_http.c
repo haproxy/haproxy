@@ -2687,6 +2687,11 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 		req->analysers |= AN_REQ_HTTP_BODY;
 	}
 
+	/* if we're not expecting anything else, we're done with this request */
+	if (!(txn->flags & (TX_REQ_TE_CHNK|TX_REQ_CNT_LEN)) &&
+	    (txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN)
+		msg->msg_state = HTTP_MSG_DONE;
+
 	/*************************************************************
 	 * OK, that's finished for the headers. We have done what we *
 	 * could. Let's switch to the DATA state.                    *
@@ -3562,6 +3567,18 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 				goto return_bad_resp;
 			must_close = 0;
 		}
+
+		/* If we're not expecting anything else, we're done with this request.
+		 * We know there is nothing anymore when we don't have either chunk
+		 * nor content-length in HTTP/1.1, or when we expect an empty body
+		 * (cf RFC2616#4.4).
+		 */
+		if (((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN) &&
+		    (((txn->flags & (TX_RES_VER_11|TX_RES_TE_CHNK|TX_RES_CNT_LEN)) == TX_RES_VER_11) ||
+		     ((txn->flags & TX_RES_CNT_LEN) &&
+		      (txn->meth == HTTP_METH_HEAD ||
+		       !msg->hdr_content_len || txn->status == 204 || txn->status == 304))))
+			msg->msg_state = HTTP_MSG_DONE;
 
 		/*************************************************************
 		 * OK, that's finished for the headers. We have done what we *
