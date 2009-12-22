@@ -97,9 +97,8 @@ void session_free(struct session *s)
 			pool_free2(fe->req_cap_pool, txn->req.cap);
 		}
 	}
-	pool_free2(pool2_requri, txn->uri);
-	pool_free2(pool2_capture, txn->cli_cookie);
-	pool_free2(pool2_capture, txn->srv_cookie);
+
+	http_end_txn(s);
 
 	list_for_each_entry_safe(bref, back, &s->back_refs, users) {
 		/* we have to unlink all watchers. We must not relink them if

@@ -5018,6 +5018,87 @@ void debug_hdr(const char *dir, struct session *t, const char *start, const char
 	write(1, trash, len);
 }
 
+/*
+ * Initialize a new HTTP transaction for session <s>. It is assumed that all
+ * the required fields are properly allocated and that we only need to (re)init
+ * them. This should be used before processing any new request.
+ */
+void http_init_txn(struct session *s)
+{
+	struct http_txn *txn = &s->txn;
+	struct proxy *fe = s->fe;
+
+	txn->flags = 0;
+	txn->status = -1;
+
+	txn->req.sol = txn->req.eol = NULL;
+	txn->req.som = txn->req.eoh = 0; /* relative to the buffer */
+	txn->rsp.sol = txn->rsp.eol = NULL;
+	txn->rsp.som = txn->rsp.eoh = 0; /* relative to the buffer */
+	txn->req.hdr_content_len = 0LL;
+	txn->rsp.hdr_content_len = 0LL;
+	txn->req.msg_state = HTTP_MSG_RQBEFORE; /* at the very beginning of the request */
+	txn->rsp.msg_state = HTTP_MSG_RPBEFORE; /* at the very beginning of the response */
+	chunk_reset(&txn->auth_hdr);
+
+	txn->req.err_pos = txn->rsp.err_pos = -2; /* block buggy requests/responses */
+	if (fe->options2 & PR_O2_REQBUG_OK)
+		txn->req.err_pos = -1;            /* let buggy requests pass */
+
+	if (txn->req.cap)
+		memset(txn->req.cap, 0, fe->nb_req_cap * sizeof(void *));
+
+	if (txn->rsp.cap)
+		memset(txn->rsp.cap, 0, fe->nb_rsp_cap * sizeof(void *));
+
+	if (txn->hdr_idx.v)
+		hdr_idx_init(&txn->hdr_idx);
+}
+
+/* to be used at the end of a transaction */
+void http_end_txn(struct session *s)
+{
+	struct http_txn *txn = &s->txn;
+
+	/* these ones will have been dynamically allocated */
+	pool_free2(pool2_requri, txn->uri);
+	pool_free2(pool2_capture, txn->cli_cookie);
+	pool_free2(pool2_capture, txn->srv_cookie);
+	txn->uri = NULL;
+	txn->srv_cookie = NULL;
+	txn->cli_cookie = NULL;
+}
+
+/* to be used at the end of a transaction to prepare a new one */
+void http_reset_txn(struct session *s)
+{
+	http_end_txn(s);
+	http_init_txn(s);
+
+	s->be = s->fe;
+	s->req->analysers = s->listener->analysers;
+	s->logs.logwait = s->fe->to_log;
+	s->srv = s->prev_srv = s->srv_conn = NULL;
+	s->pend_pos = NULL;
+	s->conn_retries = s->be->conn_retries;
+
+	s->req->flags |= BF_READ_DONTWAIT; /* one read is usually enough */
+
+	s->req->rto = s->fe->timeout.client;
+	s->req->wto = s->be->timeout.server;
+	s->req->cto = s->be->timeout.connect;
+
+	s->rep->rto = s->be->timeout.server;
+	s->rep->wto = s->fe->timeout.client;
+	s->rep->cto = TICK_ETERNITY;
+
+	s->req->rex = TICK_ETERNITY;
+	s->req->wex = TICK_ETERNITY;
+	s->req->analyse_exp = TICK_ETERNITY;
+	s->rep->rex = TICK_ETERNITY;
+	s->rep->wex = TICK_ETERNITY;
+	s->rep->analyse_exp = TICK_ETERNITY;
+}
 
 /************************************************************************/
 /*        The code below is dedicated to ACL parsing and matching       */

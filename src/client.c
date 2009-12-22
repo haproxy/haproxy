@@ -259,7 +259,6 @@ int event_accept(int fd) {
 		proxy_inc_fe_ctr(l, p);	/* note: cum_beconn will be increased once assigned */
 
 		txn = &s->txn;
-		txn->flags = 0;
 		/* Those variables will be checked and freed if non-NULL in
 		 * session.c:session_free(). It is important that they are
 		 * properly initialized.
@@ -272,36 +271,15 @@ int event_accept(int fd) {
 		txn->hdr_idx.v = NULL;
 		txn->hdr_idx.size = txn->hdr_idx.used = 0;
 
-		/* we always initialize the HTTP structure because we may use it later */
-		txn->status = -1;
-		txn->req.hdr_content_len = 0LL;
-		txn->rsp.hdr_content_len = 0LL;
-		txn->req.msg_state = HTTP_MSG_RQBEFORE; /* at the very beginning of the request */
-		txn->rsp.msg_state = HTTP_MSG_RPBEFORE; /* at the very beginning of the response */
-		txn->req.sol = txn->req.eol = NULL;
-		txn->req.som = txn->req.eoh = 0; /* relative to the buffer */
-		txn->rsp.sol = txn->rsp.eol = NULL;
-		txn->rsp.som = txn->rsp.eoh = 0; /* relative to the buffer */
-		txn->req.err_pos = txn->rsp.err_pos = -2; /* block buggy requests/responses */
-		chunk_reset(&txn->auth_hdr);
-		if (p->options2 & PR_O2_REQBUG_OK)
-			txn->req.err_pos = -1; /* let buggy requests pass */
-
 		if (p->mode == PR_MODE_HTTP) {
 			/* the captures are only used in HTTP frontends */
-			if (p->nb_req_cap > 0) {
-				if ((txn->req.cap = pool_alloc2(p->req_cap_pool)) == NULL)
+			if (p->nb_req_cap > 0 &&
+			    (txn->req.cap = pool_alloc2(p->req_cap_pool)) == NULL)
 					goto out_fail_reqcap;	/* no memory */
 
-				memset(txn->req.cap, 0, p->nb_req_cap*sizeof(char *));
-			}
-
-			if (p->nb_rsp_cap > 0) {
-				if ((txn->rsp.cap = pool_alloc2(p->rsp_cap_pool)) == NULL)
+			if (p->nb_rsp_cap > 0 &&
+			    (txn->rsp.cap = pool_alloc2(p->rsp_cap_pool)) == NULL)
 					goto out_fail_rspcap;	/* no memory */
-
-				memset(txn->rsp.cap, 0, p->nb_rsp_cap*sizeof(char *));
-			}
 		}
 
 		if (p->acl_requires & ACL_USE_L7_ANY) {
@@ -313,9 +291,10 @@ int event_accept(int fd) {
 
 			if ((txn->hdr_idx.v = pool_alloc2(p->hdr_idx_pool)) == NULL)
 				goto out_fail_idx; /* no memory */
-
-			hdr_idx_init(&txn->hdr_idx);
 		}
+
+		if (p->mode == PR_MODE_HTTP)
+			http_init_txn(s);
 
 		if ((p->mode == PR_MODE_TCP || p->mode == PR_MODE_HTTP)
 		    && (p->logfac1 >= 0 || p->logfac2 >= 0)) {
