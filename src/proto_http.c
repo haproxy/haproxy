@@ -3454,25 +3454,41 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 		}
 
 		/*
+		 * We may be facing a 1xx response (100 continue, 101 switching protocols),
+		 * in which case this is not the right response, and we're waiting for the
+		 * next one. Let's allow this response to go to the client and wait for the
+		 * next one.
+		 */
+		if (txn->status < 200) {
+			hdr_idx_init(&txn->hdr_idx);
+			buffer_forward(rep, rep->lr - (rep->data + msg->som));
+			msg->msg_state = HTTP_MSG_RPBEFORE;
+			txn->status = 0;
+			rep->analysers |= AN_RES_WAIT_HTTP | an_bit;
+			return 1;
+		}
+
+		/* we don't have any 1xx status code now */
+
+		/*
 		 * 4: check for server cookie.
 		 */
-		if ((t->be->cookie_name || t->be->appsession_name || t->fe->capture_name
-		     || (t->be->options & PR_O_CHK_CACHE)) && txn->status >= 200)
+		if (t->be->cookie_name || t->be->appsession_name || t->fe->capture_name ||
+		    (t->be->options & PR_O_CHK_CACHE))
 			manage_server_side_cookies(t, rep);
 
 
 		/*
 		 * 5: check for cache-control or pragma headers if required.
 		 */
-		if ((t->be->options & (PR_O_COOK_NOC | PR_O_CHK_CACHE)) != 0 && txn->status >= 200)
+		if ((t->be->options & (PR_O_COOK_NOC | PR_O_CHK_CACHE)) != 0)
 			check_response_for_cacheability(t, rep);
 
 		/*
 		 * 6: add server cookie in the response if needed
 		 */
 		if ((t->srv) && !(t->flags & SN_DIRECT) && (t->be->options & PR_O_COOK_INS) &&
-		    (!(t->be->options & PR_O_COOK_POST) || (txn->meth == HTTP_METH_POST)) &&
-		    txn->status >= 200) {
+		    (!(t->be->options & PR_O_COOK_POST) || (txn->meth == HTTP_METH_POST))) {
 			int len;
 
 			/* the server is known, it's not the one the client requested, we have to
@@ -3514,8 +3530,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 		 */
 		if (((txn->flags & (TX_CACHEABLE | TX_CACHE_COOK | TX_SCK_ANY)) ==
 		     (TX_CACHEABLE | TX_CACHE_COOK | TX_SCK_ANY)) &&
-		    (t->be->options & PR_O_CHK_CACHE) &&
-		    txn->status >= 200) {
+		    (t->be->options & PR_O_CHK_CACHE)) {
 
 			/* we're in presence of a cacheable response containing
 			 * a set-cookie header. We'll block it as requested by
@@ -3541,26 +3556,11 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 		 * only needed for 1.1 responses since we know there is no other
 		 * Connection header.
 		 */
-		if (txn->status >= 200 && must_close && (txn->flags & TX_RES_VER_11)) {
+		if (must_close && (txn->flags & TX_RES_VER_11)) {
 			if (unlikely(http_header_add_tail2(rep, &txn->rsp, &txn->hdr_idx,
 							   "Connection: close", 17)) < 0)
 				goto return_bad_resp;
 			must_close = 0;
-		}
-
-		/*
-		 * 9: we may be facing a 1xx response (100 continue, 101 switching protocols),
-		 * in which case this is not the right response, and we're waiting for the
-		 * next one. Let's allow this response to go to the client and wait for the
-		 * next one.
-		 */
-		if (txn->status < 200) {
-			hdr_idx_init(&txn->hdr_idx);
-			buffer_forward(rep, rep->lr - (rep->data + msg->som));
-			msg->msg_state = HTTP_MSG_RPBEFORE;
-			txn->status = 0;
-			rep->analysers |= AN_RES_WAIT_HTTP | an_bit;
-			return 1;
 		}
 
 		/*************************************************************
