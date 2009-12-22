@@ -2100,9 +2100,9 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	 *     required) if it wishes to insist on receiving a valid Content-Length.
 	 */
 
-	/* FIXME: chunked encoding is HTTP/1.1 only */
 	ctx.idx = 0;
-	while (http_find_header2("Transfer-Encoding", 17, msg->sol, &txn->hdr_idx, &ctx)) {
+	while ((txn->flags & TX_REQ_VER_11) &&
+	       http_find_header2("Transfer-Encoding", 17, msg->sol, &txn->hdr_idx, &ctx)) {
 		if (ctx.vlen == 8 && strncasecmp(ctx.line + ctx.val, "identity", 8) == 0)
 			continue;
 		txn->flags |= TX_REQ_TE_CHNK;
@@ -2792,7 +2792,7 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 		/* If we have HTTP/1.1 and Expect: 100-continue, then we must
 		 * send an HTTP/1.1 100 Continue intermediate response.
 		 */
-		if ((likely(msg->sl.rq.v_l == 8) && req->data[msg->som + msg->sl.rq.v + 7] == '1')) {
+		if (txn->flags & TX_REQ_VER_11) {
 			struct hdr_ctx ctx;
 			ctx.idx = 0;
 			/* Expect is allowed in 1.1, look for it */
@@ -3193,9 +3193,9 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 	    txn->status == 204 || txn->status == 304)
 		goto skip_content_length;
 
-	/* FIXME: chunked encoding is HTTP/1.1 only */
 	ctx.idx = 0;
-	while (http_find_header2("Transfer-Encoding", 17, msg->sol, &txn->hdr_idx, &ctx)) {
+	while ((txn->flags & TX_RES_VER_11) &&
+	       http_find_header2("Transfer-Encoding", 17, msg->sol, &txn->hdr_idx, &ctx)) {
 		if (ctx.vlen == 8 && strncasecmp(ctx.line + ctx.val, "identity", 8) == 0)
 			continue;
 		txn->flags |= TX_RES_TE_CHNK;
