@@ -1803,6 +1803,71 @@ void http_parse_connection_header(struct http_txn *txn)
 	txn->flags |= TX_CON_HDR_PARS;
 }
 
+/* Parse the chunk size at msg->col.
+ * Return >0 on success, 0 when some data is missing, <0 on error.
+ */
+int http_parse_chunk_size(struct buffer *req, struct http_msg *msg)
+{
+	unsigned long body = msg->col;
+	unsigned int chunk = 0;
+
+	/* The chunk size is in the following form, though we are only
+	 * interested in the size and CRLF :
+	 *    1*HEXDIGIT *WSP *[ ';' extensions ] CRLF
+	 */
+	while (1) {
+		int c;
+		if (body >= req->l)
+			return 0;
+		c = hex2i(msg->sol[body]);
+		if (c < 0) /* not a hex digit anymore */
+			break;
+		body++;
+		if (chunk & 0xF000000) /* overflow will occur */
+			return -1;
+		chunk = (chunk << 4) + c;
+	}
+
+	while (1) {
+		if (body >= req->l)
+			return 0;
+		if (!http_is_spht[(unsigned char)msg->sol[body]])
+			break;
+		body++;
+	}
+
+	/* Up to there, we know that at least one byte is present at [body]. */
+	switch (msg->sol[body]) {
+	case ';': /* chunk extension, ends at next CRLF */
+		if (++body >= req->l)
+			return 0;
+
+		while (msg->sol[body] != '\r') {
+			if (++body >= req->l)
+				return 0;
+		}
+		/* we now have a CR at <body>, fall through */
+	case '\r':
+		if (++body >= req->l)
+			return 0;
+		if (msg->sol[body] != '\n')
+			return -1;
+		body++;
+		break;
+
+	default:
+		return -1;
+	}
+
+	/* OK we found our CRLF and now <body> points to the next byte,
+	 * which may or may not be present.
+	 */
+	msg->sov = body;
+	msg->hdr_content_len = chunk;
+	msg->msg_state = HTTP_MSG_DATA;
+	return 1;
+}
+
 
 /* This stream analyser waits for a complete HTTP request. It returns 1 if the
  * processing can continue on next analysers, or zero if it either needs more
@@ -2816,27 +2881,15 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 	}
 
 	if (msg->msg_state == HTTP_MSG_CHUNK_SIZE) {
-		unsigned long body = msg->col;
-		unsigned int chunk = 0;
+		/* read the chunk size and assign it to ->hdr_content_len, then
+		 * set ->sov to point to the body and switch to DATA state.
+		 */
+		int ret = http_parse_chunk_size(req, msg);
 
-		while (body < req->l && !HTTP_IS_CRLF(msg->sol[body])) {
-			int c = hex2i(msg->sol[body]);
-			if (c < 0)
-				goto return_bad_req;
-			chunk = (chunk << 4) + c;
-			body++;
-		}
-
-		/* now we want CRLF */
-		if (body + 2 >= req->l) /* we want CRLF too */
-			goto missing_data; /* end of buffer? data missing! */
-
-		if ((msg->sol[body++] != '\r') || (msg->sol[body++] != '\n'))
+		if (!ret)
+			goto missing_data;
+		else if (ret < 0)
 			goto return_bad_req;
-
-		msg->sov = body;
-		txn->req.hdr_content_len = chunk;
-		msg->msg_state = HTTP_MSG_DATA;
 	}
 
 	/* Now we're in HTTP_MSG_DATA state.
@@ -2854,6 +2907,9 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 
  missing_data:
 	/* we get here if we need to wait for more data */
+	if (req->flags & BF_FULL)
+		goto return_bad_req;
+
 	if ((req->flags & BF_READ_TIMEOUT) || tick_is_expired(req->analyse_exp, now_ms)) {
 		txn->status = 408;
 		stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_408));
