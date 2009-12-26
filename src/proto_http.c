@@ -1756,7 +1756,7 @@ static int http_upgrade_v09_to_v10(struct buffer *req, struct http_msg *msg, str
  * function should only be called when we know we're interested in checking
  * the request (not a CONNECT, and FE or BE mangles the header).
  */
-void http_parse_connection_header(struct http_txn *txn)
+void http_req_parse_connection_header(struct http_txn *txn)
 {
 	struct http_msg *msg = &txn->req;
 	struct hdr_ctx ctx;
@@ -1900,6 +1900,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	 */
 
 	int cur_idx;
+	int use_close_only;
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->req;
 	struct hdr_ctx ctx;
@@ -2143,40 +2144,73 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	/* "connection" has not been parsed yet */
 	txn->flags &= ~TX_CON_HDR_PARS;
 
+	/* transfer length unknown*/
+	txn->flags &= ~TX_REQ_XFER_LEN;
+
 	/* 5: we may need to capture headers */
 	if (unlikely((s->logs.logwait & LW_REQHDR) && s->fe->req_cap))
 		capture_headers(req->data + msg->som, &txn->hdr_idx,
 				txn->req.cap, s->fe->req_cap);
 
-	/* 6: determine if we have a transfer-encoding or content-length.
-	 * RFC2616 #4.4 states that :
-	 *   - If a Transfer-Encoding header field is present and has any value
-	 *     other than "identity", then the transfer-length is defined by use
-	 *     of the "chunked" transfer-coding ;
+	/* 6: determine the transfer-length.
+	 * According to RFC2616 #4.4, amended by the HTTPbis working group,
+	 * the presence of a message-body in a REQUEST and its transfer length
+	 * must be determined that way (in order of precedence) :
+	 *   1. The presence of a message-body in a request is signaled by the
+	 *      inclusion of a Content-Length or Transfer-Encoding header field
+	 *      in the request's header fields.  When a request message contains
+	 *      both a message-body of non-zero length and a method that does
+	 *      not define any semantics for that request message-body, then an
+	 *      origin server SHOULD either ignore the message-body or respond
+	 *      with an appropriate error message (e.g., 413).  A proxy or
+	 *      gateway, when presented the same request, SHOULD either forward
+	 *      the request inbound with the message- body or ignore the
+	 *      message-body when determining a response.
 	 *
-	 *   - If a Content-Length header field is present, its decimal value in
-	 *     OCTETs represents both the entity-length and the transfer-length.
-	 *     If a message is received with both a Transfer-Encoding header
-	 *     field and a Content-Length header field, the latter MUST be ignored.
+	 *   2. If a Transfer-Encoding header field (Section 9.7) is present
+	 *      and the "chunked" transfer-coding (Section 6.2) is used, the
+	 *      transfer-length is defined by the use of this transfer-coding.
+	 *      If a Transfer-Encoding header field is present and the "chunked"
+	 *      transfer-coding is not present, the transfer-length is defined
+	 *      by the sender closing the connection.
 	 *
-	 *   - If a request contains a message-body and a Content-Length is not
-	 *     given, the server SHOULD respond with 400 (bad request) if it
-	 *     cannot determine the length of the message, or with 411 (length
-	 *     required) if it wishes to insist on receiving a valid Content-Length.
+	 *   3. If a Content-Length header field is present, its decimal value in
+	 *      OCTETs represents both the entity-length and the transfer-length.
+	 *      If a message is received with both a Transfer-Encoding header
+	 *      field and a Content-Length header field, the latter MUST be ignored.
+	 *
+	 *   4. By the server closing the connection. (Closing the connection
+	 *      cannot be used to indicate the end of a request body, since that
+	 *      would leave no possibility for the server to send back a response.)
+	 *
+	 *   Whenever a transfer-coding is applied to a message-body, the set of
+	 *   transfer-codings MUST include "chunked", unless the message indicates
+	 *   it is terminated by closing the connection.  When the "chunked"
+	 *   transfer-coding is used, it MUST be the last transfer-coding applied
+	 *   to the message-body.
 	 */
 
+	/* CONNECT sets a tunnel and ignores everything else */
+	if (txn->meth == HTTP_METH_CONNECT)
+		goto skip_xfer_len;
+
+	use_close_only = 0;
 	ctx.idx = 0;
+	/* set TE_CHNK and XFER_LEN only if "chunked" is seen last */
 	while ((txn->flags & TX_REQ_VER_11) &&
 	       http_find_header2("Transfer-Encoding", 17, msg->sol, &txn->hdr_idx, &ctx)) {
-		if (ctx.vlen == 8 && strncasecmp(ctx.line + ctx.val, "identity", 8) == 0)
-			continue;
-		txn->flags |= TX_REQ_TE_CHNK;
-		break;
+		if (ctx.vlen == 7 && strncasecmp(ctx.line + ctx.val, "chunked", 7) == 0)
+			txn->flags |= (TX_REQ_TE_CHNK | TX_REQ_XFER_LEN);
+		else if (txn->flags & TX_REQ_TE_CHNK) {
+			/* bad transfer-encoding (chunked followed by something else) */
+			use_close_only = 1;
+			txn->flags &= ~(TX_REQ_TE_CHNK | TX_REQ_XFER_LEN);
+			break;
+		}
 	}
 
-	/* FIXME: below we should remove the content-length header(s) in case of chunked encoding */
 	ctx.idx = 0;
-	while (!(txn->flags & TX_REQ_TE_CHNK) &&
+	while (!(txn->flags & TX_REQ_TE_CHNK) && !use_close_only &&
 	       http_find_header2("Content-Length", 14, msg->sol, &txn->hdr_idx, &ctx)) {
 		signed long long cl;
 
@@ -2192,10 +2226,15 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 		if ((txn->flags & TX_REQ_CNT_LEN) && (msg->hdr_content_len != cl))
 			goto return_bad_req; /* already specified, was different */
 
-		txn->flags |= TX_REQ_CNT_LEN;
+		txn->flags |= TX_REQ_CNT_LEN | TX_REQ_XFER_LEN;
 		msg->hdr_content_len = cl;
 	}
 
+	/* bodyless requests have a known length */
+	if (!use_close_only)
+		txn->flags |= TX_REQ_XFER_LEN;
+
+ skip_xfer_len:
 	/* end of job, return OK */
 	req->analysers &= ~an_bit;
 	req->analyse_exp = TICK_ETERNITY;
@@ -2318,7 +2357,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 	 * only change if both the request and the config reference something else.
 	 */
 
-	if ((s->txn.meth != HTTP_METH_CONNECT) &&
+	if ((txn->meth != HTTP_METH_CONNECT) &&
 	    ((s->fe->options|s->be->options) & (PR_O_KEEPALIVE|PR_O_HTTP_CLOSE|PR_O_FORCE_CLO))) {
 		int tmp = TX_CON_WANT_TUN;
 		if ((s->fe->options|s->be->options) & PR_O_KEEPALIVE)
@@ -2327,8 +2366,11 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 		if ((s->fe->options|s->be->options) & (PR_O_HTTP_CLOSE|PR_O_FORCE_CLO))
 			tmp = TX_CON_WANT_CLO;
 
+		if (!(txn->flags & TX_REQ_XFER_LEN))
+			tmp = TX_CON_WANT_CLO;
+
 		if (!(txn->flags & TX_CON_HDR_PARS))
-			http_parse_connection_header(txn);
+			http_req_parse_connection_header(txn);
 
 		if ((txn->flags & TX_CON_WANT_MSK) < tmp)
 			txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | tmp;
@@ -2522,8 +2564,8 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 
 	/* We can shut read side if "connection: close" && no-data && !tunnel && !abort_on_close */
 	if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_CLO &&
+	    (txn->flags & TX_REQ_XFER_LEN) &&
 	    !(txn->flags & TX_REQ_TE_CHNK) && !txn->req.hdr_content_len &&
-	    (txn->meth != HTTP_METH_CONNECT) &&
 	    !(s->be->options & PR_O_ABRT_CLOSE))
 		req->flags |= BF_DONT_READ;
 
@@ -2967,6 +3009,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->rsp;
 	struct hdr_ctx ctx;
+	int use_close_only;
 	int cur_idx;
 	int n;
 
@@ -3181,6 +3224,9 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 	/* "connection" has not been parsed yet */
 	txn->flags &= ~TX_CON_HDR_PARS;
 
+	/* transfer length unknown*/
+	txn->flags &= ~TX_RES_XFER_LEN;
+
 	txn->status = strl2ui(rep->data + msg->sl.st.c, msg->sl.st.c_l);
 
 	if (txn->status >= 100 && txn->status < 500)
@@ -3226,45 +3272,78 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 		capture_headers(rep->data + msg->som, &txn->hdr_idx,
 				txn->rsp.cap, s->fe->rsp_cap);
 
-	/* 4: determine if we have a transfer-encoding or content-length.
-	 * RFC2616 #4.4 states that :
-	 *   - Any response which "MUST NOT" include a message-body (such as the
-	 *     1xx, 204 and 304 responses and any response to a HEAD request) is
-	 *     always terminated by the first empty line after the header fields,
-	 *     regardless of the entity-header fields present in the message.
+	/* 4: determine the transfer-length.
+	 * According to RFC2616 #4.4, amended by the HTTPbis working group,
+	 * the presence of a message-body in a RESPONSE and its transfer length
+	 * must be determined that way :
 	 *
-	 *   - If a Transfer-Encoding header field is present and has any value
-	 *     other than "identity", then the transfer-length is defined by use
-	 *     of the "chunked" transfer-coding ;
+	 *   All responses to the HEAD request method MUST NOT include a
+	 *   message-body, even though the presence of entity-header fields
+	 *   might lead one to believe they do.  All 1xx (informational), 204
+	 *   (No Content), and 304 (Not Modified) responses MUST NOT include a
+	 *   message-body.  All other responses do include a message-body,
+	 *   although it MAY be of zero length.
 	 *
-	 *   - If a Content-Length header field is present, its decimal value in
-	 *     OCTETs represents both the entity-length and the transfer-length.
-	 *     If a message is received with both a Transfer-Encoding header
-	 *     field and a Content-Length header field, the latter MUST be ignored.
+	 *   1. Any response which "MUST NOT" include a message-body (such as the
+	 *      1xx, 204 and 304 responses and any response to a HEAD request) is
+	 *      always terminated by the first empty line after the header fields,
+	 *      regardless of the entity-header fields present in the message.
+	 *
+	 *   2. If a Transfer-Encoding header field (Section 9.7) is present and
+	 *      the "chunked" transfer-coding (Section 6.2) is used, the
+	 *      transfer-length is defined by the use of this transfer-coding.
+	 *      If a Transfer-Encoding header field is present and the "chunked"
+	 *      transfer-coding is not present, the transfer-length is defined by
+	 *      the sender closing the connection.
+	 *
+	 *   3. If a Content-Length header field is present, its decimal value in
+	 *      OCTETs represents both the entity-length and the transfer-length.
+	 *      If a message is received with both a Transfer-Encoding header
+	 *      field and a Content-Length header field, the latter MUST be ignored.
+	 *
+	 *   4. If the message uses the media type "multipart/byteranges", and
+	 *      the transfer-length is not otherwise specified, then this self-
+	 *      delimiting media type defines the transfer-length.  This media
+	 *      type MUST NOT be used unless the sender knows that the recipient
+	 *      can parse it; the presence in a request of a Range header with
+	 *      multiple byte-range specifiers from a 1.1 client implies that the
+	 *      client can parse multipart/byteranges responses.
+	 *
+	 *   5. By the server closing the connection.
 	 */
 
 	/* Skip parsing if no content length is possible. The response flags
 	 * remain 0 as well as the hdr_content_len, which may or may not mirror
-	 * the real header value.
+	 * the real header value, and we note that we know the response's length.
 	 * FIXME: should we parse anyway and return an error on chunked encoding ?
 	 */
 	if (txn->meth == HTTP_METH_HEAD ||
 	    (txn->status >= 100 && txn->status < 200) ||
-	    txn->status == 204 || txn->status == 304)
+	    txn->status == 204 || txn->status == 304) {
+		txn->flags |= TX_RES_XFER_LEN;
+		goto skip_content_length;
+	}
+
+	if (txn->meth == HTTP_METH_CONNECT)
 		goto skip_content_length;
 
+	use_close_only = 0;
 	ctx.idx = 0;
 	while ((txn->flags & TX_RES_VER_11) &&
 	       http_find_header2("Transfer-Encoding", 17, msg->sol, &txn->hdr_idx, &ctx)) {
-		if (ctx.vlen == 8 && strncasecmp(ctx.line + ctx.val, "identity", 8) == 0)
-			continue;
-		txn->flags |= TX_RES_TE_CHNK;
-		break;
+		if (ctx.vlen == 7 && strncasecmp(ctx.line + ctx.val, "chunked", 7) == 0)
+			txn->flags |= (TX_RES_TE_CHNK | TX_RES_XFER_LEN);
+		else if (txn->flags & TX_RES_TE_CHNK) {
+			/* bad transfer-encoding (chunked followed by something else) */
+			use_close_only = 1;
+			txn->flags &= ~(TX_RES_TE_CHNK | TX_RES_XFER_LEN);
+			break;
+		}
 	}
 
 	/* FIXME: below we should remove the content-length header(s) in case of chunked encoding */
 	ctx.idx = 0;
-	while (!(txn->flags & TX_RES_TE_CHNK) &&
+	while (!(txn->flags & TX_RES_TE_CHNK) && !use_close_only &&
 	       http_find_header2("Content-Length", 14, msg->sol, &txn->hdr_idx, &ctx)) {
 		signed long long cl;
 
@@ -3280,10 +3359,13 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 		if ((txn->flags & TX_RES_CNT_LEN) && (msg->hdr_content_len != cl))
 			goto hdr_response_bad; /* already specified, was different */
 
-		txn->flags |= TX_RES_CNT_LEN;
+		txn->flags |= TX_RES_CNT_LEN | TX_RES_XFER_LEN;
 		msg->hdr_content_len = cl;
 	}
 
+	/* FIXME: we should also implement the multipart/byterange method.
+	 * For now on, we resort to close mode in this case (unknown length).
+	 */
 skip_content_length:
 
 	/* end of job, return OK */
@@ -3378,9 +3460,10 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 
 		/* let's update the transaction status to reflect any close.
 		 * Note that ambiguous cases with keep & close will also be
-		 * handled.
+		 * handled. We also explicitly state that we will close in
+		 * case of an ambiguous response having no content-length.
 		 */
-		if (may_close)
+		if (may_close || !(txn->flags & TX_RES_XFER_LEN))
 			txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
 
 		/* Now we must adjust the response header :
@@ -3624,16 +3707,10 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 			must_close = 0;
 		}
 
-		/* If we're not expecting anything else, we're done with this request.
-		 * We know there is nothing anymore when we don't have either chunk
-		 * nor content-length in HTTP/1.1, or when we expect an empty body
-		 * (cf RFC2616#4.4).
-		 */
+		/* If we're not expecting anything else, we're done with this request */
 		if (((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN) &&
-		    (((txn->flags & (TX_RES_VER_11|TX_RES_TE_CHNK|TX_RES_CNT_LEN)) == TX_RES_VER_11) ||
-		     ((txn->flags & TX_RES_CNT_LEN) &&
-		      (txn->meth == HTTP_METH_HEAD ||
-		       !msg->hdr_content_len || txn->status == 204 || txn->status == 304))))
+		    (txn->flags & TX_RES_XFER_LEN) &&
+		    !(txn->flags & TX_RES_TE_CHNK) && !msg->hdr_content_len)
 			msg->msg_state = HTTP_MSG_DONE;
 
 		/*************************************************************

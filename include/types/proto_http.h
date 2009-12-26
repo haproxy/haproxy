@@ -106,6 +106,12 @@
 #define TX_CON_HDR_PARS	0x00400000	/* "connection" header already parsed (req or res) */
 #define TX_REQ_CONN_CLO	0x00800000	/* request asks for "Connection: close" mode */
 
+/* if either of these flags is not set, we may be forced to complete an
+ * connection as a half-way tunnel. For instance, if no content-length
+ * appears in a 1.1 response, but the request is correctly sized.
+ */
+#define TX_REQ_XFER_LEN	0x01000000	/* request xfer size can be determined */
+#define TX_RES_XFER_LEN	0x02000000	/* response xfer size can be determined */
 
 /* The HTTP parser is more complex than it looks like, because we have to
  * support multi-line headers and any number of spaces between the colon and
