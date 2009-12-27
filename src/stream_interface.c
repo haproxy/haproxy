@@ -80,6 +80,28 @@ void stream_int_retnclose(struct stream_interface *si, const struct chunk *msg)
 	buffer_auto_close(si->ob);
 }
 
+/* This function aborts all of the client's requests and stops the server's
+ * response with the data that are already present. If the response buffer
+ * empty, then the message in arguments will be sent. This ensures that
+ * we won't mix an HTTP response with pending data. The buffer is marked for
+ * read shutdown on the server side to protect the message or any pending
+ * data, and the buffer write is enabled. The message is contained in a
+ * "chunk". If it is null, then an empty message is used. The reply buffer
+ * doesn't need to be empty before this. The goal of this function is to
+ * return error messages to a client but only when it is possible.
+ */
+void stream_int_cond_close(struct stream_interface *si, const struct chunk *msg)
+{
+	buffer_abort(si->ib);
+	buffer_erase(si->ib); /* remove any pending request */
+	buffer_shutr_now(si->ob);
+	if (!si->ob->l && msg && msg->len)
+		buffer_write(si->ob, msg->str, msg->len);
+
+	si->ob->wex = tick_add_ifset(now_ms, si->ob->wto);
+	buffer_auto_close(si->ob);
+}
+
 /* default update function for scheduled tasks, not used for embedded tasks */
 void stream_int_update(struct stream_interface *si)
 {

@@ -32,6 +32,7 @@
 int stream_int_check_timeouts(struct stream_interface *si);
 void stream_int_report_error(struct stream_interface *si);
 void stream_int_retnclose(struct stream_interface *si, const struct chunk *msg);
+void stream_int_cond_close(struct stream_interface *si, const struct chunk *msg);
 
 /* functions used when running a stream interface as a task */
 void stream_int_update(struct stream_interface *si);
