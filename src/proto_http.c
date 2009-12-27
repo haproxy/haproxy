@@ -1404,21 +1404,12 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 	http_msg_rpbefore:
 	case HTTP_MSG_RPBEFORE:
 		if (likely(HTTP_IS_TOKEN(*ptr))) {
-#if !defined(PARSE_PRESERVE_EMPTY_LINES)
-			if (likely(ptr != buf->data)) {
-				/* Remove empty leading lines, as recommended by
-				 * RFC2616. This takes a lot of time because we
-				 * must move all the buffer backwards, but this
-				 * is rarely needed. The method above will be
-				 * cleaner when we'll be able to start sending
-				 * the request from any place in the buffer.
-				 */
-				ptr += buffer_replace2(buf, buf->lr, ptr, NULL, 0);
-				end = buf->r;
+			if (likely(ptr != buf->data + msg->som)) {
+				/* Remove empty leading lines, as recommended by RFC2616. */
+				buffer_ignore(buf, ptr - buf->data - msg->som);
+				msg->som = ptr - buf->data;
 			}
-#endif
 			msg->sol = ptr;
-			msg->som = ptr - buf->data;
 			hdr_idx_init(idx);
 			state = HTTP_MSG_RPVER;
 			goto http_msg_rpver;
@@ -1473,30 +1464,12 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 	http_msg_rqbefore:
 	case HTTP_MSG_RQBEFORE:
 		if (likely(HTTP_IS_TOKEN(*ptr))) {
-			if (likely(ptr == buf->data)) {
-				msg->sol = ptr;
-				msg->som = 0;
-			} else {
-#if PARSE_PRESERVE_EMPTY_LINES
-				/* only skip empty leading lines, don't remove them */
-				msg->sol = ptr;
+			if (likely(ptr != buf->data + msg->som)) {
+				/* Remove empty leading lines, as recommended by RFC2616. */
+				buffer_ignore(buf, ptr - buf->data - msg->som);
 				msg->som = ptr - buf->data;
-#else
-				/* Remove empty leading lines, as recommended by
-				 * RFC2616. This takes a lot of time because we
-				 * must move all the buffer backwards, but this
-				 * is rarely needed. The method above will be
-				 * cleaner when we'll be able to start sending
-				 * the request from any place in the buffer.
-				 */
-				buf->lr = ptr;
-				buffer_replace2(buf, buf->data, buf->lr, NULL, 0);
-				msg->som = 0;
-				msg->sol = buf->data;
-				ptr = buf->data;
-				end = buf->r;
-#endif
 			}
+			msg->sol = ptr;
 			/* we will need this when keep-alive will be supported
 			   hdr_idx_init(idx);
 			 */
@@ -2136,9 +2109,9 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 
 	/* ... and check if the request is HTTP/1.1 or above */
 	if ((msg->sl.rq.v_l == 8) &&
-	    ((req->data[msg->som + msg->sl.rq.v + 5] > '1') ||
-	     ((req->data[msg->som + msg->sl.rq.v + 5] == '1') &&
-	      (req->data[msg->som + msg->sl.rq.v + 7] >= '1'))))
+	    ((req->data[msg->sl.rq.v + 5] > '1') ||
+	     ((req->data[msg->sl.rq.v + 5] == '1') &&
+	      (req->data[msg->sl.rq.v + 7] >= '1'))))
 		txn->flags |= TX_REQ_VER_11;
 
 	/* "connection" has not been parsed yet */
@@ -2657,7 +2630,7 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 
 	/* It needs to look into the URI */
 	if ((s->sessid == NULL) && s->be->appsession_name) {
-		get_srv_from_appsession(s, &req->data[msg->som + msg->sl.rq.u], msg->sl.rq.u_l);
+		get_srv_from_appsession(s, &req->data[msg->sl.rq.u], msg->sl.rq.u_l);
 	}
 
 	/*
@@ -2789,7 +2762,7 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 	    s->txn.meth == HTTP_METH_POST && s->be->url_param_name != NULL &&
 	    s->be->url_param_post_limit != 0 &&
 	    (txn->flags & (TX_REQ_CNT_LEN|TX_REQ_TE_CHNK)) &&
-	    memchr(msg->sol + msg->sl.rq.u, '?', msg->sl.rq.u_l) == NULL) {
+	    memchr(req->data + msg->sl.rq.u, '?', msg->sl.rq.u_l) == NULL) {
 		buffer_dont_connect(req);
 		req->analysers |= AN_REQ_HTTP_BODY;
 	}

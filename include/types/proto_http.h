@@ -259,9 +259,12 @@ typedef enum {
  *                             eoh points to the first byte of the last CRLF
  *                             preceeding data.
  *  - col and sov            : When in HTTP_MSG_BODY, will point to the first
- *                             byte of data.
+ *                             byte of data (relative to buffer).
+ *  - sol (start of line)    : start of line, also start of message when fully parsed.
  *  - eol (End of Line)      : relative offset in the buffer of the first byte
  *                             which marks the end of the line (LF or CRLF).
+ * Note that all offsets are relative to the beginning of the buffer. To get
+ * them relative to the current request, subtract ->som.
  */
 struct http_msg {
 	unsigned int msg_state;                /* where we are in the current message parsing */
