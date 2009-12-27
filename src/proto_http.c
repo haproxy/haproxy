@@ -2970,7 +2970,7 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 	if (msg->hdr_content_len < limit)
 		limit = msg->hdr_content_len;
 
-	if (req->l - msg->sov >= limit)    /* we have enough bytes now */
+	if (req->l - (msg->sov - msg->som) >= limit)    /* we have enough bytes now */
 		goto http_end;
 
  missing_data:

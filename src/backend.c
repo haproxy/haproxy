@@ -248,8 +248,8 @@ struct server *get_server_ph_post(struct session *s)
 	const char      *params = req->data + msg->sov;
 	const char      *p    = params;
 
-	if (len > req->l - msg->sov)
-		len = req->l - msg->sov;
+	if (len > req->l - (msg->sov - msg->som))
+		len = req->l - (msg->sov - msg->som);
 
 	if (len == 0)
 		return NULL;
