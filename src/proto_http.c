@@ -1890,6 +1890,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	/* we're speaking HTTP here, so let's speak HTTP to the client */
 	s->srv_error = http_return_srv_error;
 
+ http_parse_again:
 	if (likely(req->lr < req->r))
 		http_msg_analyzer(req, msg, &txn->hdr_idx);
 
@@ -1937,6 +1938,58 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 		 *    must terminate it now.
 		 */
 		if (unlikely(req->flags & BF_FULL)) {
+			/* It is possible the analyser has stopped because of
+			 * lack of space at the end of the buffer, while the
+			 * beginning is free (skipped blanks or previous
+			 * requests vanished). In this case, we try to re-aling
+			 * the buffer, and update the few relevant pointers.
+			 * Since we're copying via the trash, it's important that
+			 * it is always as large as a buffer.
+			 */
+			if (req->l < buffer_max_len(req)) {
+				/* let's move what remains */
+				int max, done;
+				unsigned offset = req->w - req->data;
+
+				done = 0;
+				while (done < req->l) {
+					if (req->r > req->w)
+						max = req->r - req->w;
+					else
+						max = req->data + req->size - req->w;
+					memcpy(trash + done, req->w, max);
+					done += max;
+					req->w += max;
+					if (req->w >= req->data + req->size)
+						req->w -= req->size;
+				}
+				if (done)
+					memcpy(req->data, trash, done);
+				msg->eoh = msg->som = 0;
+
+				/* move all known pointers */
+				req->w = req->data;
+				req->lr -= offset; if (req->lr < req->data) req->lr += req->size;
+				req->r -= offset; if (req->r < req->data) req->r += req->size;
+				msg->sol -= offset; if (msg->sol < req->data) msg->sol += req->size;
+				msg->eol -= offset; if (msg->eol < req->data) msg->eol += req->size;
+
+				/* adjust relative pointers */
+				msg->col += req->size - offset; if (msg->col >= req->size) msg->col -= req->size;
+				msg->sov += req->size - offset; if (msg->sov >= req->size) msg->sov -= req->size;
+				msg->sl.rq.u += req->size - offset; if (msg->sl.rq.u >= req->size) msg->sl.rq.u -= req->size;
+				msg->sl.rq.v += req->size - offset; if (msg->sl.rq.v >= req->size) msg->sl.rq.v -= req->size;
+
+				if (msg->err_pos >= 0) {
+					msg->err_pos += req->size - offset;
+					if (msg->err_pos >= req->size)
+						msg->err_pos -= req->size;
+				}
+
+				req->flags &= ~BF_FULL;
+				goto http_parse_again;
+			}
+
 			/* FIXME: check if URI is set and return Status
 			 * 414 Request URI too long instead.
 			 */
