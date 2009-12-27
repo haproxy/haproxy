@@ -142,12 +142,14 @@
 #define AN_REQ_HTTP_BODY        0x00000080  /* inspect HTTP request body */
 /* unused: 0x100, 0x200 */
 #define AN_REQ_PRST_RDP_COOKIE  0x00000400  /* persistence on rdp cookie */
+#define AN_REQ_HTTP_XFER_BODY   0x00000800  /* forward request body */
 
 /* response analysers */
 #define AN_RES_INSPECT          0x00010000  /* content inspection */
 #define AN_RES_WAIT_HTTP        0x00020000  /* wait for HTTP response */
 #define AN_RES_HTTP_PROCESS_BE  0x00040000  /* process backend's HTTP part */
 #define AN_RES_HTTP_PROCESS_FE  0x00040000  /* process frontend's HTTP part (same for now) */
+#define AN_RES_HTTP_XFER_BODY   0x00100000  /* forward response body */
 
 
 /* Magic value to forward infinite size (TCP, ...), used with ->to_forward */

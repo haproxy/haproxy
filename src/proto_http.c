@@ -1776,12 +1776,18 @@ void http_req_parse_connection_header(struct http_txn *txn)
 	txn->flags |= TX_CON_HDR_PARS;
 }
 
-/* Parse the chunk size at msg->col.
+/* Parse the chunk size at buf->lr. Once done, it adjusts ->lr to point to the
+ * first byte of body, and increments msg->sov by the number of bytes parsed,
+ * so that we know we can forward between ->som and ->sov. Note that due to
+ * possible wrapping at the end of the buffer, it is possible that msg->sov is
+ * lower than msg->som.
  * Return >0 on success, 0 when some data is missing, <0 on error.
+ * Note: this function is designed to parse wrapped CRLF at the end of the buffer.
  */
-int http_parse_chunk_size(struct buffer *req, struct http_msg *msg)
+int http_parse_chunk_size(struct buffer *buf, struct http_msg *msg)
 {
-	unsigned long body = msg->col;
+	char *ptr = buf->lr;
+	char *end = buf->data + buf->size;
 	unsigned int chunk = 0;
 
 	/* The chunk size is in the following form, though we are only
@@ -1790,57 +1796,188 @@ int http_parse_chunk_size(struct buffer *req, struct http_msg *msg)
 	 */
 	while (1) {
 		int c;
-		if (body >= req->l)
+		if (ptr == buf->r)
 			return 0;
-		c = hex2i(msg->sol[body]);
+		c = hex2i(*ptr);
 		if (c < 0) /* not a hex digit anymore */
 			break;
-		body++;
+		if (++ptr >= end)
+			ptr = buf->data;
 		if (chunk & 0xF000000) /* overflow will occur */
 			return -1;
 		chunk = (chunk << 4) + c;
 	}
 
-	while (1) {
-		if (body >= req->l)
-			return 0;
-		if (!http_is_spht[(unsigned char)msg->sol[body]])
-			break;
-		body++;
-	}
-
-	/* Up to there, we know that at least one byte is present at [body]. */
-	switch (msg->sol[body]) {
-	case ';': /* chunk extension, ends at next CRLF */
-		if (++body >= req->l)
-			return 0;
-
-		while (msg->sol[body] != '\r') {
-			if (++body >= req->l)
-				return 0;
-		}
-		/* we now have a CR at <body>, fall through */
-	case '\r':
-		if (++body >= req->l)
-			return 0;
-		if (msg->sol[body] != '\n')
-			return -1;
-		body++;
-		break;
-
-	default:
+	/* empty size not allowed */
+	if (ptr == buf->lr)
 		return -1;
+
+	while (http_is_spht[(unsigned char)*ptr]) {
+		if (++ptr >= end)
+			ptr = buf->data;
+		if (ptr == buf->r)
+			return 0;
 	}
 
-	/* OK we found our CRLF and now <body> points to the next byte,
-	 * which may or may not be present.
+	/* Up to there, we know that at least one byte is present at *ptr. Check
+	 * for the end of chunk size.
 	 */
-	msg->sov = body;
+	while (1) {
+		if (likely(HTTP_IS_CRLF(*ptr))) {
+			/* we now have a CR or an LF at ptr */
+			if (likely(*ptr == '\r')) {
+				if (++ptr >= end)
+					ptr = buf->data;
+				if (ptr == buf->r)
+					return 0;
+			}
+
+			if (*ptr != '\n')
+				return -1;
+			if (++ptr >= end)
+				ptr = buf->data;
+			/* done */
+			break;
+		}
+		else if (*ptr == ';') {
+			/* chunk extension, ends at next CRLF */
+			if (++ptr >= end)
+				ptr = buf->data;
+			if (ptr == buf->r)
+				return 0;
+
+			while (!HTTP_IS_CRLF(*ptr)) {
+				if (++ptr >= end)
+					ptr = buf->data;
+				if (ptr == buf->r)
+					return 0;
+			}
+			/* we have a CRLF now, loop above */
+			continue;
+		}
+		else
+			return -1;
+	}
+
+	/* OK we found our CRLF and now <ptr> points to the next byte,
+	 * which may or may not be present. We save that into ->lr and
+	 * ->sov.
+	 */
+	msg->sov += ptr - buf->lr;
+	buf->lr = ptr;
 	msg->hdr_content_len = chunk;
-	msg->msg_state = HTTP_MSG_DATA;
+	msg->msg_state = chunk ? HTTP_MSG_DATA : HTTP_MSG_TRAILERS;
 	return 1;
 }
 
+/* This function skips trailers in the buffer <buf> associated with HTTP
+ * message <msg>. The first visited position is buf->lr. If the end of
+ * the trailers is found, it is automatically scheduled to be forwarded,
+ * msg->msg_state switches to HTTP_MSG_DONE, and the function returns >0.
+ * If not enough data are available, the function does not change anything
+ * except maybe buf->lr if it could parse some lines, and returns zero. If
+ * a parse error is encountered, the function returns < 0 and does not
+ * change anything except maybe buf->lr. Note that the message must already
+ * be in HTTP_MSG_TRAILERS state before calling this function, which implies
+ * that all non-trailers data have already been scheduled for forwarding. It
+ * is also important to note that this function is designed to be able to
+ * parse wrapped headers at end of buffer.
+ */
+int http_forward_trailers(struct buffer *buf, struct http_msg *msg)
+{
+	/* we have buf->lr which points to next line. Look for CRLF. */
+	while (1) {
+		char *p1 = NULL, *p2 = NULL;
+		char *ptr = buf->lr;
+
+		/* scan current line and stop at LF or CRLF */
+		while (1) {
+			if (ptr == buf->r)
+				return 0;
+
+			if (*ptr == '\n') {
+				if (!p1)
+					p1 = ptr;
+				p2 = ptr;
+				break;
+			}
+
+			if (*ptr == '\r') {
+				if (p1)
+					return -1;
+				p1 = ptr;
+			}
+
+			ptr++;
+			if (ptr >= buf->data + buf->size)
+				ptr = buf->data;
+		}
+
+		/* after LF; point to beginning of next line */
+		p2++;
+		if (p2 >= buf->data + buf->size)
+			p2 = buf->data;
+
+		if (p1 == buf->lr) {
+			/* LF/CRLF at beginning of line => end of trailers at p2 */
+			int bytes;
+			buf->lr = p2;
+
+			bytes = buf->lr - buf->data;
+			/* forward last remaining trailers */
+			buffer_forward(buf, bytes);
+			msg->som = msg->sov = bytes;
+			msg->msg_state = HTTP_MSG_DONE;
+			return 1;
+		}
+		/* OK, next line then */
+		buf->lr = p2;
+	}
+}
+
+/* This function may be called only in HTTP_MSG_DATA_CRLF. It reads the CRLF or
+ * a possible LF alone at the end of a chunk. It automatically adjusts msg->sov,
+ * ->som, buf->lr in order to include this part into the next forwarding phase.
+ * It also sets msg_state to HTTP_MSG_CHUNK_SIZE and returns >0 on success. If
+ * not enough data are available, the function does not change anything and
+ * returns zero. If a parse error is encountered, the function returns < 0 and
+ * does not change anything. Note: this function is designed to parse wrapped
+ * CRLF at the end of the buffer.
+ */
+int http_skip_chunk_crlf(struct buffer *buf, struct http_msg *msg)
+{
+	char *ptr;
+	int bytes;
+
+	/* NB: we'll check data availabilty at the end. It's not a
+	 * problem because whatever we match first will be checked
+	 * against the correct length.
+	 */
+	bytes = 1;
+	ptr = buf->lr;
+	if (*ptr == '\r') {
+		bytes++;
+		ptr++;
+		if (ptr >= buf->data + buf->size)
+			ptr = buf->data;
+	}
+
+	if (buf->l < bytes)
+		return 0;
+
+	if (*ptr != '\n')
+		return -1;
+
+	ptr++;
+	if (ptr >= buf->data + buf->size)
+		ptr = buf->data;
+	buf->lr = ptr;
+	/* prepare the CRLF to be forwarded. msg->som may be before data but we don't care */
+	msg->sov = ptr - buf->data;
+	msg->som = msg->sov - bytes;
+	msg->msg_state = HTTP_MSG_CHUNK_SIZE;
+	return 1;
+}
 
 /* This stream analyser waits for a complete HTTP request. It returns 1 if the
  * processing can continue on next analysers, or zero if it either needs more
@@ -2588,11 +2725,10 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 		}
 	}
 
-	/* We can shut read side if "connection: close" && no-data && !tunnel && !abort_on_close */
-	if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_CLO &&
-	    (txn->flags & TX_REQ_XFER_LEN) &&
+	/* We can shut read side if we know how we won't transfer any more data && !abort_on_close */
+	if ((txn->flags & TX_REQ_XFER_LEN) &&
 	    !(txn->flags & TX_REQ_TE_CHNK) && !txn->req.hdr_content_len &&
-	    !(s->be->options & PR_O_ABRT_CLOSE))
+	    (req->cons->state == SI_ST_EST || !(s->be->options & PR_O_ABRT_CLOSE)))
 		req->flags |= BF_DONT_READ;
 
 	/* that's OK for us now, let's move on to next analysers */
@@ -2820,10 +2956,8 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 		req->analysers |= AN_REQ_HTTP_BODY;
 	}
 
-	/* if we're not expecting anything else, we're done with this request */
-	if (!(txn->flags & (TX_REQ_TE_CHNK|TX_REQ_CNT_LEN)) &&
-	    (txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN)
-		msg->msg_state = HTTP_MSG_DONE;
+	if (txn->flags & TX_REQ_XFER_LEN)
+		req->analysers |= AN_REQ_HTTP_XFER_BODY;
 
 	/*************************************************************
 	 * OK, that's finished for the headers. We have done what we *
@@ -2942,6 +3076,12 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 	}
 
 	if (msg->msg_state < HTTP_MSG_CHUNK_SIZE) {
+		/* we have msg->col and msg->sov which both point to the first
+		 * byte of message body. msg->som still points to the beginning
+		 * of the message. We must save the body in req->lr because it
+		 * survives buffer re-alignments.
+		 */
+		req->lr = req->data + msg->sov;
 		if (txn->flags & TX_REQ_TE_CHNK)
 			msg->msg_state = HTTP_MSG_CHUNK_SIZE;
 		else
@@ -2950,7 +3090,8 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 
 	if (msg->msg_state == HTTP_MSG_CHUNK_SIZE) {
 		/* read the chunk size and assign it to ->hdr_content_len, then
-		 * set ->sov to point to the body and switch to DATA state.
+		 * set ->sov and ->lr to point to the body and switch to DATA or
+		 * TRAILERS state.
 		 */
 		int ret = http_parse_chunk_size(req, msg);
 
@@ -2960,7 +3101,7 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 			goto return_bad_req;
 	}
 
-	/* Now we're in HTTP_MSG_DATA state.
+	/* Now we're in HTTP_MSG_DATA or HTTP_MSG_TRAILERS state.
 	 * We have the first non-header byte in msg->col, which is either the
 	 * beginning of the chunk size or of the data. The first data byte is in
 	 * msg->sov, which is equal to msg->col when not using transfer-encoding.
@@ -3011,6 +3152,182 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 	stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_400));
 
  return_err_msg:
+	req->analysers = 0;
+	s->fe->counters.failed_req++;
+	if (s->listener->counters)
+		s->listener->counters->failed_req++;
+
+	if (!(s->flags & SN_ERR_MASK))
+		s->flags |= SN_ERR_PRXCOND;
+	if (!(s->flags & SN_FINST_MASK))
+		s->flags |= SN_FINST_R;
+	return 0;
+}
+
+/* This function is an analyser which forwards request body (including chunk
+ * sizes if any). It is called as soon as we must forward, even if we forward
+ * zero byte. The only situation where it must not be called is when we're in
+ * tunnel mode and we want to forward till the close. It's used both to forward
+ * remaining data and to resync after end of body. It expects the msg_state to
+ * be between MSG_BODY and MSG_DONE (inclusive). It returns zero if it needs to
+ * read more data, or 1 once we can go on with next request or end the session.
+ * When in MSG_DATA or MSG_TRAILERS, it will automatically forward hdr_content_len
+ * bytes of pending data + the headers if not already done (between som and sov).
+ * It eventually adjusts som to match sov after the data in between have been sent.
+ */
+int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
+{
+	struct http_txn *txn = &s->txn;
+	struct http_msg *msg = &s->txn.req;
+
+	if (unlikely(msg->msg_state < HTTP_MSG_BODY))
+		return 0;
+
+	/* Note that we don't have to send 100-continue back because we don't
+	 * need the data to complete our job, and it's up to the server to
+	 * decide whether to return 100, 417 or anything else in return of
+	 * an "Expect: 100-continue" header.
+	 */
+
+	if (msg->msg_state < HTTP_MSG_CHUNK_SIZE) {
+		/* we have msg->col and msg->sov which both point to the first
+		 * byte of message body. msg->som still points to the beginning
+		 * of the message. We must save the body in req->lr because it
+		 * survives buffer re-alignments.
+		 */
+		req->lr = req->data + msg->sov;
+		if (txn->flags & TX_REQ_TE_CHNK)
+			msg->msg_state = HTTP_MSG_CHUNK_SIZE;
+		else {
+			msg->msg_state = HTTP_MSG_DATA;
+		}
+	}
+
+	/* we may already have some data pending */
+	if (msg->hdr_content_len || msg->som != msg->sov) {
+		buffer_forward(req, msg->sov - msg->som + msg->hdr_content_len);
+		msg->hdr_content_len = 0; /* don't forward that again */
+		msg->som = msg->sov;
+	}
+
+	while (1) {
+		if (msg->msg_state == HTTP_MSG_CHUNK_SIZE) {
+			/* read the chunk size and assign it to ->hdr_content_len, then
+			 * set ->sov and ->lr to point to the body and switch to DATA or
+			 * TRAILERS state.
+			 */
+			int ret = http_parse_chunk_size(req, msg);
+
+			if (!ret)
+				goto missing_data;
+			else if (ret < 0)
+				goto return_bad_req;
+			/* otherwise we're in HTTP_MSG_DATA or HTTP_MSG_TRAILERS state */
+
+			/* forward the chunk size as well as any pending data */
+			if (msg->hdr_content_len || msg->som != msg->sov) {
+				buffer_forward(req, msg->sov - msg->som + msg->hdr_content_len);
+				msg->hdr_content_len = 0; /* don't forward that again */
+				msg->som = msg->sov;
+			}
+		}
+		else if (msg->msg_state == HTTP_MSG_DATA) {
+			/* must still forward */
+			if (req->to_forward)
+				return 0;
+
+			/* we're sending the last bits of request, the server's response
+			 * is expected in a short time. Most often the first read is enough
+			 * to bring all the headers, so we're preparing the response buffer
+			 * to read the response now. Note that we should probably move that
+			 * to a more appropriate place.
+			 */
+			s->rep->flags |= BF_READ_DONTWAIT;
+
+			/* nothing left to forward */
+			if (txn->flags & TX_REQ_TE_CHNK)
+				msg->msg_state = HTTP_MSG_DATA_CRLF;
+			else {
+				msg->msg_state = HTTP_MSG_DONE;
+			}
+		}
+		else if (msg->msg_state == HTTP_MSG_DATA_CRLF) {
+			/* we want the CRLF after the data */
+			int ret;
+
+			if (!(req->flags & BF_OUT_EMPTY))
+				return 0;
+			/* The output pointer does not move anymore, next unsent data
+			 * are available at ->w. Let's save that.
+			 */
+			req->lr = req->w;
+			ret = http_skip_chunk_crlf(req, msg);
+
+			if (ret == 0)
+				goto missing_data;
+			else if (ret < 0)
+				goto return_bad_req;
+			/* we're in MSG_CHUNK_SIZE now */
+		}
+		else if (msg->msg_state == HTTP_MSG_TRAILERS) {
+			int ret = http_forward_trailers(req, msg);
+
+			if (ret == 0)
+				goto missing_data;
+			else if (ret < 0)
+				goto return_bad_req;
+			/* we're in HTTP_MSG_DONE now */
+		}
+		else if (msg->msg_state == HTTP_MSG_DONE) {
+			/* No need to read anymore, the request is complete */
+			req->flags |= BF_DONT_READ;
+
+			if (!(s->req->flags & BF_OUT_EMPTY) || s->req->to_forward)
+				return 0;
+
+			if (!(s->rep->flags & BF_OUT_EMPTY) || s->rep->to_forward)
+				return 0;
+
+			if (txn->rsp.msg_state != HTTP_MSG_DONE && txn->rsp.msg_state != HTTP_MSG_ERROR) {
+				/* OK the request was completely sent, re-enable
+				 * reading on server side but return immediately.
+				 * FIXME: we should probably move that somewhere else !
+				 */
+				s->rep->flags &= ~BF_DONT_READ;
+				return 0;
+			}
+
+			/* when we support keep-alive or server-close modes, we'll have
+			 * to reset the transaction here.
+			 */
+			req->flags &= ~BF_DONT_READ; /* re-enable reading on client side */
+			break;
+		}
+	}
+
+	/* OK we're done with the data phase */
+	req->analysers &= ~an_bit;
+	return 1;
+
+ missing_data:
+	/* forward the chunk size as well as any pending data */
+	if (msg->hdr_content_len || msg->som != msg->sov) {
+		buffer_forward(req, msg->sov - msg->som + msg->hdr_content_len);
+		msg->hdr_content_len = 0; /* don't forward that again */
+		msg->som = msg->sov;
+	}
+
+	if (req->flags & BF_FULL)
+		goto return_bad_req;
+	/* the session handler will take care of timeouts and errors */
+	return 0;
+
+ return_bad_req: /* let's centralize all bad requests */
+	txn->req.msg_state = HTTP_MSG_ERROR;
+	txn->status = 400;
+	/* Note: we don't send any error if some data were already sent */
+	stream_int_cond_close(req->prod, (txn->rsp.msg_state < HTTP_MSG_BODY) ? error_message(s, HTTP_ERR_400) : NULL);
+
 	req->analysers = 0;
 	s->fe->counters.failed_req++;
 	if (s->listener->counters)
@@ -3733,11 +4050,8 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 			must_close = 0;
 		}
 
-		/* If we're not expecting anything else, we're done with this request */
-		if (((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN) &&
-		    (txn->flags & TX_RES_XFER_LEN) &&
-		    !(txn->flags & TX_RES_TE_CHNK) && !msg->hdr_content_len)
-			msg->msg_state = HTTP_MSG_DONE;
+		if (txn->flags & TX_RES_XFER_LEN)
+			rep->analysers |= AN_RES_HTTP_XFER_BODY;
 
 		/*************************************************************
 		 * OK, that's finished for the headers. We have done what we *
@@ -3763,6 +4077,155 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 
 		return 0;
 	}
+	return 0;
+}
+
+/* This function is an analyser which forwards response body (including chunk
+ * sizes if any). It is called as soon as we must forward, even if we forward
+ * zero byte. The only situation where it must not be called is when we're in
+ * tunnel mode and we want to forward till the close. It's used both to forward
+ * remaining data and to resync after end of body. It expects the msg_state to
+ * be between MSG_BODY and MSG_DONE (inclusive). It returns zero if it needs to
+ * read more data, or 1 once we can go on with next request or end the session.
+ * When in MSG_DATA or MSG_TRAILERS, it will automatically forward hdr_content_len
+ * bytes of pending data + the headers if not already done (between som and sov).
+ * It eventually adjusts som to match sov after the data in between have been sent.
+ */
+int http_response_forward_body(struct session *s, struct buffer *res, int an_bit)
+{
+	struct http_txn *txn = &s->txn;
+	struct http_msg *msg = &s->txn.rsp;
+
+	if (unlikely(msg->msg_state < HTTP_MSG_BODY))
+		return 0;
+
+	if (msg->msg_state < HTTP_MSG_CHUNK_SIZE) {
+		/* we have msg->col and msg->sov which both point to the first
+		 * byte of message body. msg->som still points to the beginning
+		 * of the message. We must save the body in req->lr because it
+		 * survives buffer re-alignments.
+		 */
+		res->lr = res->data + msg->sov;
+		if (txn->flags & TX_RES_TE_CHNK)
+			msg->msg_state = HTTP_MSG_CHUNK_SIZE;
+		else {
+			msg->msg_state = HTTP_MSG_DATA;
+		}
+	}
+
+	/* we may already have some data pending */
+	if (msg->hdr_content_len || msg->som != msg->sov) {
+		buffer_forward(res, msg->sov - msg->som + msg->hdr_content_len);
+		msg->hdr_content_len = 0; /* don't forward that again */
+		msg->som = msg->sov;
+	}
+
+	while (1) {
+		if (msg->msg_state == HTTP_MSG_CHUNK_SIZE) {
+			/* read the chunk size and assign it to ->hdr_content_len, then
+			 * set ->sov to point to the body and switch to DATA or TRAILERS state.
+			 */
+			int ret = http_parse_chunk_size(res, msg);
+
+			if (!ret)
+				goto missing_data;
+			else if (ret < 0)
+				goto return_bad_res;
+			/* otherwise we're in HTTP_MSG_DATA or HTTP_MSG_TRAILERS state */
+
+			/* forward the chunk size as well as any pending data */
+			if (msg->hdr_content_len || msg->som != msg->sov) {
+				buffer_forward(res, msg->sov - msg->som + msg->hdr_content_len);
+				msg->hdr_content_len = 0; /* don't forward that again */
+				msg->som = msg->sov;
+			}
+		}
+		else if (msg->msg_state == HTTP_MSG_DATA) {
+			/* must still forward */
+			if (res->to_forward)
+				return 0;
+
+			/* nothing left to forward */
+			if (txn->flags & TX_RES_TE_CHNK)
+				msg->msg_state = HTTP_MSG_DATA_CRLF;
+			else {
+				msg->msg_state = HTTP_MSG_DONE;
+			}
+		}
+		else if (msg->msg_state == HTTP_MSG_DATA_CRLF) {
+			/* we want the CRLF after the data */
+			int ret;
+
+			if (!(res->flags & BF_OUT_EMPTY))
+				return 0;
+			/* The output pointer does not move anymore, next unsent data
+			 * are available at ->w. Let's save that.
+			 */
+			res->lr = res->w;
+			ret = http_skip_chunk_crlf(res, msg);
+
+			if (!ret)
+				goto missing_data;
+			else if (ret < 0)
+				goto return_bad_res;
+			/* we're in MSG_CHUNK_SIZE now */
+		}
+		else if (msg->msg_state == HTTP_MSG_TRAILERS) {
+			int ret = http_forward_trailers(res, msg);
+			if (ret == 0)
+				goto missing_data;
+			else if (ret < 0)
+				goto return_bad_res;
+			/* we're in HTTP_MSG_DONE now */
+		}
+		else if (msg->msg_state == HTTP_MSG_DONE) {
+			if (!(s->req->flags & BF_OUT_EMPTY) || !(s->rep->flags & BF_OUT_EMPTY) ||
+			    s->req->to_forward || s->rep->to_forward)
+				return 0;
+
+			if (txn->req.msg_state != HTTP_MSG_DONE && txn->req.msg_state != HTTP_MSG_ERROR)
+				return 0;
+
+			/* when we support keep-alive or server-close modes, we'll have
+			 * to reset the transaction here.
+			 */
+			s->req->flags &= ~BF_DONT_READ;	/* re-enable reading on client side */
+			break;
+		}
+	}
+
+	res->analysers &= ~an_bit;
+	return 1;
+
+ missing_data:
+	/* forward the chunk size as well as any pending data */
+	if (msg->hdr_content_len || msg->som != msg->sov) {
+		buffer_forward(res, msg->sov - msg->som + msg->hdr_content_len);
+		msg->hdr_content_len = 0; /* don't forward that again */
+		msg->som = msg->sov;
+	}
+
+	if (res->flags & BF_FULL)
+		goto return_bad_res;
+	/* the session handler will take care of timeouts and errors */
+	return 0;
+
+ return_bad_res: /* let's centralize all bad resuests */
+	txn->rsp.msg_state = HTTP_MSG_ERROR;
+	txn->status = 502;
+	stream_int_cond_close(res->cons, NULL);
+
+	res->analysers = 0;
+	s->be->counters.failed_resp++;
+	if (s->srv) {
+		s->srv->counters.failed_resp++;
+		health_adjust(s->srv, HANA_STATUS_HTTP_HDRRSP);
+	}
+
+	if (!(s->flags & SN_ERR_MASK))
+		s->flags |= SN_ERR_PRXCOND;
+	if (!(s->flags & SN_FINST_MASK))
+		s->flags |= SN_FINST_R;
 	return 0;
 }
 

@@ -863,6 +863,12 @@ resync_stream_interface:
 					if (!tcp_persist_rdp_cookie(s, s->req, AN_REQ_PRST_RDP_COOKIE))
 						break;
 				}
+
+				if (s->req->analysers & AN_REQ_HTTP_XFER_BODY) {
+					last_ana |= AN_REQ_HTTP_XFER_BODY;
+					if (!http_request_forward_body(s, s->req, AN_REQ_HTTP_XFER_BODY))
+						break;
+				}
 			}
 		}
 
@@ -931,6 +937,12 @@ resync_stream_interface:
 					 */
 					if ((s->rep->analysers & ~last_ana) & AN_RES_WAIT_HTTP)
 						continue;
+				}
+
+				if (s->rep->analysers & AN_RES_HTTP_XFER_BODY) {
+					last_ana |= AN_RES_HTTP_XFER_BODY;
+					if (!http_response_forward_body(s, s->rep, AN_RES_HTTP_XFER_BODY))
+						break;
 				}
 			}
 		}
