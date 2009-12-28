@@ -2180,7 +2180,7 @@ int http_process_request(struct session *s, struct buffer *req)
 				len += sprintf(trash + len, ": %d.%d.%d.%d", pn[0], pn[1], pn[2], pn[3]);
 
 				if (unlikely(http_header_add_tail2(req, &txn->req,
-								   &txn->hdr_idx, trash, len)) < 0)
+								   &txn->hdr_idx, trash, len) < 0))
 					goto return_bad_req;
 			}
 		}
@@ -2209,7 +2209,7 @@ int http_process_request(struct session *s, struct buffer *req)
 			len += sprintf(trash + len, ": %s", pn);
 
 			if (unlikely(http_header_add_tail2(req, &txn->req,
-							   &txn->hdr_idx, trash, len)) < 0)
+							   &txn->hdr_idx, trash, len) < 0))
 				goto return_bad_req;
 		}
 	}
@@ -2253,7 +2253,7 @@ int http_process_request(struct session *s, struct buffer *req)
 				len += sprintf(trash + len, ": %d.%d.%d.%d", pn[0], pn[1], pn[2], pn[3]);
 
 				if (unlikely(http_header_add_tail2(req, &txn->req,
-								   &txn->hdr_idx, trash, len)) < 0)
+								   &txn->hdr_idx, trash, len) < 0))
 					goto return_bad_req;
 			}
 		}
@@ -2268,7 +2268,7 @@ int http_process_request(struct session *s, struct buffer *req)
 		if ((unlikely(msg->sl.rq.v_l != 8) ||
 		     unlikely(req->data[msg->som + msg->sl.rq.v + 7] != '0')) &&
 		    unlikely(http_header_add_tail2(req, &txn->req, &txn->hdr_idx,
-						   "Connection: close", 17)) < 0)
+						   "Connection: close", 17) < 0))
 			goto return_bad_req;
 		s->flags |= SN_CONN_CLOSED;
 	}
@@ -2873,7 +2873,7 @@ int process_response(struct session *t)
 				if (txn->status < 200)
 					break;
 				if (unlikely(http_header_add_tail(rep, &txn->rsp, &txn->hdr_idx,
-								  rule_set->rsp_add[cur_idx])) < 0)
+								  rule_set->rsp_add[cur_idx]) < 0))
 					goto return_bad_resp;
 			}
 
@@ -2918,7 +2918,7 @@ int process_response(struct session *t)
 				len += sprintf(trash+len, "; domain=%s", t->be->cookie_domain);
 
 			if (unlikely(http_header_add_tail2(rep, &txn->rsp, &txn->hdr_idx,
-							   trash, len)) < 0)
+							   trash, len) < 0))
 				goto return_bad_resp;
 			txn->flags |= TX_SCK_INSERTED;
 
@@ -2932,7 +2932,7 @@ int process_response(struct session *t)
 				txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
 
 				if (unlikely(http_header_add_tail2(rep, &txn->rsp, &txn->hdr_idx,
-								   "Cache-control: private", 22)) < 0)
+								   "Cache-control: private", 22) < 0))
 					goto return_bad_resp;
 			}
 		}
@@ -2974,7 +2974,7 @@ int process_response(struct session *t)
 			if ((unlikely(msg->sl.st.v_l != 8) ||
 			     unlikely(req->data[msg->som + 7] != '0')) &&
 			    unlikely(http_header_add_tail2(rep, &txn->rsp, &txn->hdr_idx,
-							   "Connection: close", 17)) < 0)
+							   "Connection: close", 17) < 0))
 				goto return_bad_resp;
 			t->flags |= SN_CONN_CLOSED;
 		}
