@@ -1979,6 +1979,57 @@ int http_skip_chunk_crlf(struct buffer *buf, struct http_msg *msg)
 	return 1;
 }
 
+void http_buffer_heavy_realign(struct buffer *buf, struct http_msg *msg)
+{
+	char *end = buf->data + buf->size;
+	int off = buf->data + buf->size - buf->w;
+
+	/* two possible cases :
+	 *   - the buffer is in one contiguous block, we move it in-place
+	 *   - the buffer is in two blocks, we move it via the trash
+	 */
+	if (buf->l) {
+		int block1 = buf->l;
+		int block2 = 0;
+		if (buf->r <= buf->w) {
+			/* non-contiguous block */
+			block1 = buf->data + buf->size - buf->w;
+			block2 = buf->r - buf->data;
+		}
+		if (block2)
+			memcpy(trash, buf->data, block2);
+		memmove(buf->data, buf->w, block1);
+		if (block2)
+			memcpy(buf->data + block1, trash, block2);
+	}
+
+	/* adjust all known pointers */
+	buf->w    = buf->data;
+	buf->lr  += off; if (buf->lr  >= end) buf->lr  -= buf->size;
+	buf->r   += off; if (buf->r   >= end) buf->r   -= buf->size;
+	msg->sol += off; if (msg->sol >= end) msg->sol -= buf->size;
+	msg->eol += off; if (msg->eol >= end) msg->eol -= buf->size;
+
+	/* adjust relative pointers */
+	msg->som  = 0;
+	msg->eoh += off; if (msg->eoh >= buf->size) msg->eoh -= buf->size;
+	msg->col += off; if (msg->col >= buf->size) msg->col -= buf->size;
+	msg->sov += off; if (msg->sov >= buf->size) msg->sov -= buf->size;
+
+	msg->sl.rq.u += off; if (msg->sl.rq.u >= buf->size) msg->sl.rq.u -= buf->size;
+	msg->sl.rq.v += off; if (msg->sl.rq.v >= buf->size) msg->sl.rq.v -= buf->size;
+
+	if (msg->err_pos >= 0) {
+		msg->err_pos += off;
+		if (msg->err_pos >= buf->size)
+			msg->err_pos -= buf->size;
+	}
+
+	buf->flags &= ~BF_FULL;
+	if (buf->l >= buffer_max_len(buf))
+		buf->flags |= BF_FULL;
+}
+
 /* This stream analyser waits for a complete HTTP request. It returns 1 if the
  * processing can continue on next analysers, or zero if it either needs more
  * data or wants to immediately abort the request (eg: timeout, error, ...). It
@@ -1998,8 +2049,8 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	 *
 	 * Here is the information we currently have :
 	 *   req->data + msg->som  = beginning of request
-	 *   req->data + req->eoh  = end of processed headers / start of current one
-	 *   req->data + req->eol  = end of current header or line (LF or CRLF)
+	 *   req->data + msg->eoh  = end of processed headers / start of current one
+	 *   msg->eol              = end of current header or line (LF or CRLF)
 	 *   req->lr = first non-visited byte
 	 *   req->r  = end of data
 	 *
@@ -2027,7 +2078,23 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	/* we're speaking HTTP here, so let's speak HTTP to the client */
 	s->srv_error = http_return_srv_error;
 
- http_parse_again:
+	/* There's a protected area at the end of the buffer for rewriting
+	 * purposes. We don't want to start to parse the request if the
+	 * protected area is affected, because we may have to move processed
+	 * data later, which is much more complicated.
+	 */
+	if (req->l &&
+	    (req->r <= req->lr || req->r > req->data + req->size - global.tune.maxrewrite)) {
+		if (req->send_max) {
+			/* some data has still not left the buffer, wake us once that's done */
+			buffer_dont_connect(req);
+			req->flags |= BF_READ_DONTWAIT; /* try to get back here ASAP */
+			return 0;
+		}
+
+		http_buffer_heavy_realign(req, msg);
+	}
+
 	if (likely(req->lr < req->r))
 		http_msg_analyzer(req, msg, &txn->hdr_idx);
 
@@ -2075,58 +2142,6 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 		 *    must terminate it now.
 		 */
 		if (unlikely(req->flags & BF_FULL)) {
-			/* It is possible the analyser has stopped because of
-			 * lack of space at the end of the buffer, while the
-			 * beginning is free (skipped blanks or previous
-			 * requests vanished). In this case, we try to re-aling
-			 * the buffer, and update the few relevant pointers.
-			 * Since we're copying via the trash, it's important that
-			 * it is always as large as a buffer.
-			 */
-			if (req->l < buffer_max_len(req)) {
-				/* let's move what remains */
-				int max, done;
-				unsigned offset = req->w - req->data;
-
-				done = 0;
-				while (done < req->l) {
-					if (req->r > req->w)
-						max = req->r - req->w;
-					else
-						max = req->data + req->size - req->w;
-					memcpy(trash + done, req->w, max);
-					done += max;
-					req->w += max;
-					if (req->w >= req->data + req->size)
-						req->w -= req->size;
-				}
-				if (done)
-					memcpy(req->data, trash, done);
-				msg->eoh = msg->som = 0;
-
-				/* move all known pointers */
-				req->w = req->data;
-				req->lr -= offset; if (req->lr < req->data) req->lr += req->size;
-				req->r -= offset; if (req->r < req->data) req->r += req->size;
-				msg->sol -= offset; if (msg->sol < req->data) msg->sol += req->size;
-				msg->eol -= offset; if (msg->eol < req->data) msg->eol += req->size;
-
-				/* adjust relative pointers */
-				msg->col += req->size - offset; if (msg->col >= req->size) msg->col -= req->size;
-				msg->sov += req->size - offset; if (msg->sov >= req->size) msg->sov -= req->size;
-				msg->sl.rq.u += req->size - offset; if (msg->sl.rq.u >= req->size) msg->sl.rq.u -= req->size;
-				msg->sl.rq.v += req->size - offset; if (msg->sl.rq.v >= req->size) msg->sl.rq.v -= req->size;
-
-				if (msg->err_pos >= 0) {
-					msg->err_pos += req->size - offset;
-					if (msg->err_pos >= req->size)
-						msg->err_pos -= req->size;
-				}
-
-				req->flags &= ~BF_FULL;
-				goto http_parse_again;
-			}
-
 			/* FIXME: check if URI is set and return Status
 			 * 414 Request URI too long instead.
 			 */
@@ -3374,12 +3389,28 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 	 * For the parsing, we use a 28 states FSM.
 	 *
 	 * Here is the information we currently have :
-	 *   rep->data + rep->som  = beginning of response
-	 *   rep->data + rep->eoh  = end of processed headers / start of current one
-	 *   rep->data + rep->eol  = end of current header or line (LF or CRLF)
+	 *   rep->data + msg->som  = beginning of response
+	 *   rep->data + msg->eoh  = end of processed headers / start of current one
+	 *   msg->eol              = end of current header or line (LF or CRLF)
 	 *   rep->lr = first non-visited byte
 	 *   rep->r  = end of data
 	 */
+
+	/* There's a protected area at the end of the buffer for rewriting
+	 * purposes. We don't want to start to parse the request if the
+	 * protected area is affected, because we may have to move processed
+	 * data later, which is much more complicated.
+	 */
+	if (rep->l &&
+	    (rep->r <= rep->lr || rep->r > rep->data + rep->size - global.tune.maxrewrite)) {
+		if (rep->send_max) {
+			/* some data has still not left the buffer, wake us once that's done */
+			buffer_dont_close(rep);
+			return 0;
+		}
+
+		http_buffer_heavy_realign(rep, msg);
+	}
 
 	if (likely(rep->lr < rep->r))
 		http_msg_analyzer(rep, msg, &txn->hdr_idx);
