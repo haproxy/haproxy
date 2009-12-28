@@ -296,28 +296,27 @@ int stream_sock_read(int fd) {
 #endif
 	cur_read = 0;
 	while (1) {
+		max = buffer_max_len(b) - b->l;
+
+		if (max <= 0) {
+			b->flags |= BF_FULL;
+			si->flags |= SI_FL_WAIT_ROOM;
+			break;
+		}
+
 		/*
 		 * 1. compute the maximum block size we can read at once.
 		 */
 		if (b->l == 0) {
 			/* let's realign the buffer to optimize I/O */
 			b->r = b->w = b->lr = b->data;
-			max = buffer_max_len(b);
 		}
 		else if (b->r > b->w) {
-			max = b->data + buffer_max_len(b) - b->r;
+			/* remaining space wraps at the end, with a moving limit */
+			if (max > b->data + b->size - b->r)
+				max = b->data + b->size - b->r;
 		}
-		else {
-			max = b->w - b->r;
-			if (max > buffer_max_len(b))
-				max = buffer_max_len(b);
-		}
-
-		if (max == 0) {
-			b->flags |= BF_FULL;
-			si->flags |= SI_FL_WAIT_ROOM;
-			break;
-		}
+		/* else max is already OK */
 
 		/*
 		 * 2. read the largest possible block
