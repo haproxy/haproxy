@@ -2606,7 +2606,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 		if (unlikely(http_header_add_tail(req,
 						  &txn->req,
 						  &txn->hdr_idx,
-						  px->req_add[cur_idx])) < 0)
+						  px->req_add[cur_idx]) < 0))
 			goto return_bad_req;
 	}
 
@@ -2856,7 +2856,7 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 				len += sprintf(trash + len, ": %d.%d.%d.%d", pn[0], pn[1], pn[2], pn[3]);
 
 				if (unlikely(http_header_add_tail2(req, &txn->req,
-								   &txn->hdr_idx, trash, len)) < 0)
+								   &txn->hdr_idx, trash, len) < 0))
 					goto return_bad_req;
 			}
 		}
@@ -2885,7 +2885,7 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 			len += sprintf(trash + len, ": %s", pn);
 
 			if (unlikely(http_header_add_tail2(req, &txn->req,
-							   &txn->hdr_idx, trash, len)) < 0)
+							   &txn->hdr_idx, trash, len) < 0))
 				goto return_bad_req;
 		}
 	}
@@ -2929,7 +2929,7 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 				len += sprintf(trash + len, ": %d.%d.%d.%d", pn[0], pn[1], pn[2], pn[3]);
 
 				if (unlikely(http_header_add_tail2(req, &txn->req,
-								   &txn->hdr_idx, trash, len)) < 0)
+								   &txn->hdr_idx, trash, len) < 0))
 					goto return_bad_req;
 			}
 		}
@@ -2938,7 +2938,7 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 	/* 11: add "Connection: close" if needed and not yet set. */
 	if (!(txn->flags & TX_REQ_CONN_CLO) && ((txn->flags & TX_CON_WANT_MSK) >= TX_CON_WANT_SCL)) {
 		if (unlikely(http_header_add_tail2(req, &txn->req, &txn->hdr_idx,
-						   "Connection: close", 17)) < 0)
+						   "Connection: close", 17) < 0))
 			goto return_bad_req;
 		txn->flags |= TX_REQ_CONN_CLO;
 	}
@@ -3930,7 +3930,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 				if (txn->status < 200)
 					break;
 				if (unlikely(http_header_add_tail(rep, &txn->rsp, &txn->hdr_idx,
-								  rule_set->rsp_add[cur_idx])) < 0)
+								  rule_set->rsp_add[cur_idx]) < 0))
 					goto return_bad_resp;
 			}
 
@@ -3991,7 +3991,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 				len += sprintf(trash+len, "; domain=%s", t->be->cookie_domain);
 
 			if (unlikely(http_header_add_tail2(rep, &txn->rsp, &txn->hdr_idx,
-							   trash, len)) < 0)
+							   trash, len) < 0))
 				goto return_bad_resp;
 			txn->flags |= TX_SCK_INSERTED;
 
@@ -4005,7 +4005,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 				txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
 
 				if (unlikely(http_header_add_tail2(rep, &txn->rsp, &txn->hdr_idx,
-								   "Cache-control: private", 22)) < 0)
+								   "Cache-control: private", 22) < 0))
 					goto return_bad_resp;
 			}
 		}
@@ -4045,7 +4045,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 		 */
 		if (must_close && (txn->flags & TX_RES_VER_11)) {
 			if (unlikely(http_header_add_tail2(rep, &txn->rsp, &txn->hdr_idx,
-							   "Connection: close", 17)) < 0)
+							   "Connection: close", 17) < 0))
 				goto return_bad_resp;
 			must_close = 0;
 		}
