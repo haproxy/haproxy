@@ -668,19 +668,23 @@ struct task *process_session(struct task *t)
 
 		buffer_check_timeouts(s->req);
 
+		if (unlikely((s->req->flags & (BF_SHUTW|BF_WRITE_TIMEOUT)) == BF_WRITE_TIMEOUT)) {
+			s->req->cons->flags |= SI_FL_NOLINGER;
+			s->req->cons->shutw(s->req->cons);
+		}
+
 		if (unlikely((s->req->flags & (BF_SHUTR|BF_READ_TIMEOUT)) == BF_READ_TIMEOUT))
 			s->req->prod->shutr(s->req->prod);
 
-		if (unlikely((s->req->flags & (BF_SHUTW|BF_WRITE_TIMEOUT)) == BF_WRITE_TIMEOUT))
-			s->req->cons->shutw(s->req->cons);
-
 		buffer_check_timeouts(s->rep);
+
+		if (unlikely((s->rep->flags & (BF_SHUTW|BF_WRITE_TIMEOUT)) == BF_WRITE_TIMEOUT)) {
+			s->rep->cons->flags |= SI_FL_NOLINGER;
+			s->rep->cons->shutw(s->rep->cons);
+		}
 
 		if (unlikely((s->rep->flags & (BF_SHUTR|BF_READ_TIMEOUT)) == BF_READ_TIMEOUT))
 			s->rep->prod->shutr(s->rep->prod);
-
-		if (unlikely((s->rep->flags & (BF_SHUTW|BF_WRITE_TIMEOUT)) == BF_WRITE_TIMEOUT))
-			s->rep->cons->shutw(s->rep->cons);
 	}
 
 	/* 1b: check for low-level errors reported at the stream interface.
