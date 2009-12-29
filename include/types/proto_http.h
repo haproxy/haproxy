@@ -187,8 +187,10 @@
 #define HTTP_MSG_DATA_CRLF    31 // skipping CRLF after data chunk
 #define HTTP_MSG_TRAILERS     32 // trailers (post-data entity headers)
 
-/* we enter this state when we're done with the current message */
-#define HTTP_MSG_DONE         33 // message done, waiting to resync for next one.
+/* we enter this state when we've received the end of the current message */
+#define HTTP_MSG_DONE         33 // message end received, waiting for resync or close
+#define HTTP_MSG_CLOSING      34 // shutdown_w done, not all bytes sent yet
+#define HTTP_MSG_CLOSED       35 // shutdown_w done, all bytes sent
 
 /* various data sources for the responses */
 #define DATA_SRC_NONE	0

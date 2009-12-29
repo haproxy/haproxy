@@ -1924,7 +1924,10 @@ int http_forward_trailers(struct buffer *buf, struct http_msg *msg)
 			buf->lr = p2;
 
 			bytes = buf->lr - buf->data;
-			/* forward last remaining trailers */
+			/* Forward last remaining trailers. Note that since all the
+			 * bytes are included in the buffer and we've found the end,
+			 * we won't leave anything in to_forward.
+			 */
 			buffer_forward(buf, bytes);
 			msg->som = msg->sov = bytes;
 			msg->msg_state = HTTP_MSG_DONE;
@@ -3226,6 +3229,9 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 	}
 
 	while (1) {
+		// printf("req1: stq=%d, str=%d, l=%d, send_max=%d, fl=%08x, txf=%08x\n",
+		//        msg->msg_state, txn->rsp.msg_state, s->rep->l, s->rep->send_max, s->rep->flags, txn->flags);
+
 		if (msg->msg_state == HTTP_MSG_CHUNK_SIZE) {
 			/* read the chunk size and assign it to ->hdr_content_len, then
 			 * set ->sov and ->lr to point to the body and switch to DATA or
@@ -3257,7 +3263,10 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 			 * to read the response now. Note that we should probably move that
 			 * to a more appropriate place.
 			 */
-			s->rep->flags |= BF_READ_DONTWAIT;
+			if (txn->rsp.msg_state == HTTP_MSG_RPBEFORE) {
+				s->rep->flags &= ~BF_DONT_READ;
+				s->rep->flags |= BF_READ_DONTWAIT;
+			}
 
 			/* nothing left to forward */
 			if (txn->flags & TX_REQ_TE_CHNK)
@@ -3294,28 +3303,44 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 			/* we're in HTTP_MSG_DONE now */
 		}
 		else if (msg->msg_state == HTTP_MSG_DONE) {
-			/* No need to read anymore, the request is complete */
+			/* No need to read anymore, the request was completely parsed */
 			req->flags |= BF_DONT_READ;
 
-			if (!(s->req->flags & BF_OUT_EMPTY) || s->req->to_forward)
-				return 0;
-
-			if (!(s->rep->flags & BF_OUT_EMPTY) || s->rep->to_forward)
-				return 0;
-
-			if (txn->rsp.msg_state != HTTP_MSG_DONE && txn->rsp.msg_state != HTTP_MSG_ERROR) {
-				/* OK the request was completely sent, re-enable
-				 * reading on server side but return immediately.
-				 * FIXME: we should probably move that somewhere else !
+			if (txn->rsp.msg_state < HTTP_MSG_DONE && txn->rsp.msg_state != HTTP_MSG_ERROR) {
+				/* The server has not finished to respond, so we
+				 * don't want to move in order not to upset it.
 				 */
-				s->rep->flags &= ~BF_DONT_READ;
 				return 0;
 			}
 
 			/* when we support keep-alive or server-close modes, we'll have
 			 * to reset the transaction here.
 			 */
-			req->flags &= ~BF_DONT_READ; /* re-enable reading on client side */
+
+			if (req->flags & (BF_SHUTW|BF_SHUTW_NOW)) {
+				if (req->flags & BF_OUT_EMPTY)
+					msg->msg_state = HTTP_MSG_CLOSED;
+				else
+					msg->msg_state = HTTP_MSG_CLOSING;
+			}
+			else {
+				/* for other modes, we let further requests pass for now */
+				req->flags &= ~BF_DONT_READ;
+				/* FIXME: we're still forced to do that here */
+				s->rep->flags &= ~BF_DONT_READ;
+				break;
+			}
+		}
+		else if (msg->msg_state == HTTP_MSG_CLOSING) {
+			/* nothing else to forward, just waiting for the buffer to be empty */
+			if (!(req->flags & BF_OUT_EMPTY))
+				return 0;
+			msg->msg_state = HTTP_MSG_CLOSED;
+		}
+		else if (msg->msg_state == HTTP_MSG_CLOSED) {
+			req->flags &= ~BF_DONT_READ;
+			/* FIXME: we're still forced to do that here */
+			s->rep->flags &= ~BF_DONT_READ;
 			break;
 		}
 	}
@@ -4152,6 +4177,8 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 	}
 
 	while (1) {
+		// printf("res1: stq=%d, str=%d, l=%d, send_max=%d, fl=%08x, txf=%08x\n",
+		//        txn->req.msg_state, msg->msg_state, s->rep->l, s->rep->send_max, s->rep->flags, txn->flags);
 		if (msg->msg_state == HTTP_MSG_CHUNK_SIZE) {
 			/* read the chunk size and assign it to ->hdr_content_len, then
 			 * set ->sov to point to the body and switch to DATA or TRAILERS state.
@@ -4203,6 +4230,7 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 		}
 		else if (msg->msg_state == HTTP_MSG_TRAILERS) {
 			int ret = http_forward_trailers(res, msg);
+
 			if (ret == 0)
 				goto missing_data;
 			else if (ret < 0)
@@ -4210,17 +4238,48 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 			/* we're in HTTP_MSG_DONE now */
 		}
 		else if (msg->msg_state == HTTP_MSG_DONE) {
-			if (!(s->req->flags & BF_OUT_EMPTY) || !(s->rep->flags & BF_OUT_EMPTY) ||
-			    s->req->to_forward || s->rep->to_forward)
-				return 0;
+			/* In theory, we don't need to read anymore, but we must
+			 * still monitor the server connection for a possible close,
+			 * so we don't set the BF_DONT_READ flag here.
+			 */
 
-			if (txn->req.msg_state != HTTP_MSG_DONE && txn->req.msg_state != HTTP_MSG_ERROR)
+			if (txn->req.msg_state < HTTP_MSG_DONE && txn->req.msg_state != HTTP_MSG_ERROR) {
+				/* The client seems to still be sending data, probably
+				 * because we got an error response during an upload.
+				 * We have the choice of either breaking the connection
+				 * or letting it pass through. Let's do the later.
+				 */
 				return 0;
+			}
 
 			/* when we support keep-alive or server-close modes, we'll have
 			 * to reset the transaction here.
 			 */
-			s->req->flags &= ~BF_DONT_READ;	/* re-enable reading on client side */
+
+			if (res->flags & (BF_SHUTW|BF_SHUTW_NOW)) {
+				if (res->flags & BF_OUT_EMPTY)
+					msg->msg_state = HTTP_MSG_CLOSED;
+				else
+					msg->msg_state = HTTP_MSG_CLOSING;
+			}
+			else {
+				/* for other modes, we let further responses pass for now */
+				res->flags &= ~BF_DONT_READ;
+				/* FIXME: we're still forced to do that here */
+				s->req->flags &= ~BF_DONT_READ;
+				break;
+			}
+		}
+		else if (msg->msg_state == HTTP_MSG_CLOSING) {
+			/* nothing else to forward, just waiting for the buffer to be empty */
+			if (!(res->flags & BF_OUT_EMPTY))
+				return 0;
+			msg->msg_state = HTTP_MSG_CLOSED;
+		}
+		else if (msg->msg_state == HTTP_MSG_CLOSED) {
+			res->flags &= ~BF_DONT_READ;
+			/* FIXME: we're still forced to do that here */
+			s->req->flags &= ~BF_DONT_READ;
 			break;
 		}
 	}
