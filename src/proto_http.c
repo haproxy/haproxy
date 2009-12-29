@@ -3318,7 +3318,12 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 			 */
 
 			if ((s->fe->options | s->be->options) & PR_O_FORCE_CLO) {
-				/* option forceclose is set, let's enforce it now that the transfer is complete. */
+				/* Option forceclose is set, let's enforce it now
+				 * that the transfer is complete. We can safely speed
+				 * up the close because we know the server has received
+				 * everything we wanted it to receive.
+				 */
+				req->cons->flags |= SI_FL_NOLINGER;
 				buffer_abort(req);
 			}
 
