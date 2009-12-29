@@ -612,7 +612,7 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 
 			if (MSG_MORE &&
 			    (((b->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK)) == BF_SHUTW_NOW &&
-			      (max == b->l)) ||
+			      (max == b->send_max)) ||
 			     (max != b->l && max != b->send_max))
 			    && (fdtab[si->fd].flags & FD_FL_TCP)) {
 				send_flag |= MSG_MORE;
