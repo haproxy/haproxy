@@ -3502,6 +3502,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 
 			rep->analysers = 0;
 			txn->status = 502;
+			rep->prod->flags |= SI_FL_NOLINGER;
 			stream_int_retnclose(rep->cons, error_message(s, HTTP_ERR_502));
 
 			if (!(s->flags & SN_ERR_MASK))
@@ -3530,6 +3531,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 
 			rep->analysers = 0;
 			txn->status = 502;
+			rep->prod->flags |= SI_FL_NOLINGER;
 			stream_int_retnclose(rep->cons, error_message(s, HTTP_ERR_502));
 
 			if (!(s->flags & SN_ERR_MASK))
@@ -3552,6 +3554,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 
 			rep->analysers = 0;
 			txn->status = 504;
+			rep->prod->flags |= SI_FL_NOLINGER;
 			stream_int_retnclose(rep->cons, error_message(s, HTTP_ERR_504));
 
 			if (!(s->flags & SN_ERR_MASK))
@@ -3574,6 +3577,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 
 			rep->analysers = 0;
 			txn->status = 502;
+			rep->prod->flags |= SI_FL_NOLINGER;
 			stream_int_retnclose(rep->cons, error_message(s, HTTP_ERR_502));
 
 			if (!(s->flags & SN_ERR_MASK))
@@ -3970,6 +3974,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 				return_srv_prx_502:
 					rep->analysers = 0;
 					txn->status = 502;
+					rep->prod->flags |= SI_FL_NOLINGER;
 					stream_int_retnclose(rep->cons, error_message(t, HTTP_ERR_502));
 					if (!(t->flags & SN_ERR_MASK))
 						t->flags |= SN_ERR_PRXCOND;
