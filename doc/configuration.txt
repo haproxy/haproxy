@@ -2393,10 +2393,8 @@ no option forceclose
   global session times in the logs.
 
   When this happens, it is possible to use "option forceclose". It will
-  actively close the outgoing server channel as soon as the server begins to
-  reply and only if the request buffer is empty. Note that this should NOT be
-  used if CONNECT requests are expected between the client and the server. This
-  option implicitly enables the "httpclose" option.
+  actively close the outgoing server channel as soon as the server has finished
+  to respond. This option implicitly enables the "httpclose" option.
 
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.

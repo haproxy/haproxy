@@ -3317,6 +3317,11 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 			 * to reset the transaction here.
 			 */
 
+			if ((s->fe->options | s->be->options) & PR_O_FORCE_CLO) {
+				/* option forceclose is set, let's enforce it now that the transfer is complete. */
+				buffer_abort(req);
+			}
+
 			if (req->flags & (BF_SHUTW|BF_SHUTW_NOW)) {
 				if (req->flags & BF_OUT_EMPTY)
 					msg->msg_state = HTTP_MSG_CLOSED;
@@ -4255,6 +4260,11 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 			/* when we support keep-alive or server-close modes, we'll have
 			 * to reset the transaction here.
 			 */
+
+			if ((s->fe->options | s->be->options) & PR_O_FORCE_CLO) {
+				/* option forceclose is set, let's enforce it now that the transfer is complete. */
+				buffer_abort(res);
+			}
 
 			if (res->flags & (BF_SHUTW|BF_SHUTW_NOW)) {
 				if (res->flags & BF_OUT_EMPTY)

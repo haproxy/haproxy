@@ -1000,7 +1000,7 @@ resync_stream_interface:
 	 * everything. We configure the buffer to forward indefinitely.
 	 */
 	if (!s->req->analysers &&
-	    !(s->req->flags & (BF_HIJACK|BF_SHUTW)) &&
+	    !(s->req->flags & (BF_HIJACK|BF_SHUTW|BF_SHUTW_NOW)) &&
 	    (s->req->prod->state >= SI_ST_EST) &&
 	    (s->req->to_forward != BUF_INFINITE_FORWARD)) {
 		/* This buffer is freewheeling, there's no analyser nor hijacker
@@ -1042,13 +1042,9 @@ resync_stream_interface:
 	 * happen either because the input is closed or because we want to force a close
 	 * once the server has begun to respond.
 	 */
-	if ((s->req->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK|BF_AUTO_CLOSE)) == BF_AUTO_CLOSE) {
-		if (unlikely((s->req->flags & BF_SHUTR) ||
-			     ((s->req->cons->state == SI_ST_EST) &&
-			      (s->be->options & PR_O_FORCE_CLO) &&
-			      (s->rep->flags & BF_READ_ACTIVITY))))
+	if (unlikely((s->req->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK|BF_AUTO_CLOSE|BF_SHUTR)) ==
+		     (BF_AUTO_CLOSE|BF_SHUTR)))
 			buffer_shutw_now(s->req);
-	}
 
 	/* shutdown(write) pending */
 	if (unlikely((s->req->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_OUT_EMPTY)) == (BF_SHUTW_NOW|BF_OUT_EMPTY)))
@@ -1121,7 +1117,7 @@ resync_stream_interface:
 	 * everything. We configure the buffer to forward indefinitely.
 	 */
 	if (!s->rep->analysers &&
-	    !(s->rep->flags & (BF_HIJACK|BF_SHUTW)) &&
+	    !(s->rep->flags & (BF_HIJACK|BF_SHUTW|BF_SHUTW_NOW)) &&
 	    (s->rep->prod->state >= SI_ST_EST) &&
 	    (s->rep->to_forward != BUF_INFINITE_FORWARD)) {
 		/* This buffer is freewheeling, there's no analyser nor hijacker
