@@ -837,12 +837,20 @@ void stream_sock_shutw(struct stream_interface *si)
 		/* we have to shut before closing, otherwise some short messages
 		 * may never leave the system, especially when there are remaining
 		 * unread data in the socket input buffer, or when nolinger is set.
+		 * However, if SI_FL_NOLINGER is explicitly set, we know there is
+		 * no risk so we close both sides immediately.
 		 */
-		EV_FD_CLR(si->fd, DIR_WR);
-		shutdown(si->fd, SHUT_WR);
+		if (si->flags & SI_FL_NOLINGER) {
+			si->flags &= ~SI_FL_NOLINGER;
+			setsockopt(si->fd, SOL_SOCKET, SO_LINGER,
+				   (struct linger *) &nolinger, sizeof(struct linger));
+		} else {
+			EV_FD_CLR(si->fd, DIR_WR);
+			shutdown(si->fd, SHUT_WR);
 
-		if (!(si->ib->flags & (BF_SHUTR|BF_DONT_READ)))
-			return;
+			if (!(si->ib->flags & (BF_SHUTR|BF_DONT_READ)))
+				return;
+		}
 
 		/* fall through */
 	case SI_ST_CON:
