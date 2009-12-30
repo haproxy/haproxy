@@ -98,7 +98,7 @@ static const struct cfg_opt cfg_opts[] =
 	{ "clitcpka",     PR_O_TCP_CLI_KA, PR_CAP_FE, 0 },
 	{ "contstats",    PR_O_CONTSTATS,  PR_CAP_FE, 0 },
 	{ "dontlognull",  PR_O_NULLNOLOG,  PR_CAP_FE, 0 },
-	{ "forceclose",   PR_O_FORCE_CLO,  PR_CAP_BE, 0 },
+	{ "forceclose",   PR_O_FORCE_CLO,  PR_CAP_FE | PR_CAP_BE, 0 },
 	{ "http_proxy",	  PR_O_HTTP_PROXY, PR_CAP_FE | PR_CAP_BE, 0 },
 	{ "httpclose",    PR_O_HTTP_CLOSE, PR_CAP_FE | PR_CAP_BE, 0 },
 	{ "keepalive",    PR_O_KEEPALIVE,  PR_CAP_NONE, 0 },
