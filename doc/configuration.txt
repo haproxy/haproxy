@@ -755,7 +755,7 @@ monitor-uri                 X          X         X         -
 [no] option contstats       X          X         X         -
 [no] option dontlog-normal  X          X         X         -
 [no] option dontlognull     X          X         X         -
-[no] option forceclose      X          -         X         X
+[no] option forceclose      X          X         X         X
 option forwardfor           X          X         X         X
 option httpchk              X          -         X         X
 [no] option httpclose       X          X         X         X
@@ -2383,7 +2383,7 @@ option forceclose
 no option forceclose
   Enable or disable active connection closing after response is transferred.
   May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |     no   |   yes  |   yes
+                                 yes   |    yes   |   yes  |   yes
   Arguments : none
 
   Some HTTP servers do not necessarily close the connections when they receive
