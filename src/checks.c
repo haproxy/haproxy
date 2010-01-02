@@ -651,7 +651,13 @@ static int event_srv_chk_w(int fd)
 
 	//fprintf(stderr, "event_srv_chk_w, state=%ld\n", unlikely(fdtab[fd].state));
 	if (unlikely(fdtab[fd].state == FD_STERROR || (fdtab[fd].ev & FD_POLL_ERR))) {
-		set_server_check_status(s, HCHK_STATUS_L4CON, strerror(errno));
+		int skerr, err = errno;
+		socklen_t lskerr = sizeof(skerr);
+
+		if (!getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr) && skerr)
+			err = skerr;
+
+		set_server_check_status(s, HCHK_STATUS_L4CON, strerror(err));
 		goto out_error;
 	}
 
