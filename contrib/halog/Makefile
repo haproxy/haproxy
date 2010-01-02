@@ -1,5 +1,5 @@
 EBTREE_DIR = ../../ebtree
-INCLUDE  = -I$(EBTREE_DIR)
+INCLUDE  = -I../../include -I$(EBTREE_DIR)
 OPTIMIZE = -O3 #-mtune=pentium-m
 
 OBJS     = halog halog64
