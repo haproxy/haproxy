@@ -2106,20 +2106,23 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	 * protected area is affected, because we may have to move processed
 	 * data later, which is much more complicated.
 	 */
-	if (req->l &&
-	    (req->r <= req->lr || req->r > req->data + req->size - global.tune.maxrewrite)) {
-		if (req->send_max) {
-			/* some data has still not left the buffer, wake us once that's done */
-			buffer_dont_connect(req);
-			req->flags |= BF_READ_DONTWAIT; /* try to get back here ASAP */
-			return 0;
+	if (req->l && msg->msg_state < HTTP_MSG_ERROR) {
+		if (unlikely((req->flags & BF_FULL) ||
+			     req->r < req->lr ||
+			     req->r > req->data + req->size - global.tune.maxrewrite)) {
+			if (req->send_max) {
+				/* some data has still not left the buffer, wake us once that's done */
+				buffer_dont_connect(req);
+				req->flags |= BF_READ_DONTWAIT; /* try to get back here ASAP */
+				return 0;
+			}
+			if (req->l <= req->size - global.tune.maxrewrite)
+				http_buffer_heavy_realign(req, msg);
 		}
 
-		http_buffer_heavy_realign(req, msg);
+		if (likely(req->lr < req->r))
+			http_msg_analyzer(req, msg, &txn->hdr_idx);
 	}
-
-	if (likely(req->lr < req->r))
-		http_msg_analyzer(req, msg, &txn->hdr_idx);
 
 	/* 1: we might have to print this header in debug mode */
 	if (unlikely((global.mode & MODE_DEBUG) &&
@@ -3456,19 +3459,23 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 	 * protected area is affected, because we may have to move processed
 	 * data later, which is much more complicated.
 	 */
-	if (rep->l &&
-	    (rep->r <= rep->lr || rep->r > rep->data + rep->size - global.tune.maxrewrite)) {
-		if (rep->send_max) {
-			/* some data has still not left the buffer, wake us once that's done */
-			buffer_dont_close(rep);
-			return 0;
+	if (rep->l && msg->msg_state < HTTP_MSG_ERROR) {
+		if (unlikely((rep->flags & BF_FULL) ||
+			     rep->r < rep->lr ||
+			     rep->r > rep->data + rep->size - global.tune.maxrewrite)) {
+			if (rep->send_max) {
+				/* some data has still not left the buffer, wake us once that's done */
+				buffer_dont_close(rep);
+				rep->flags |= BF_READ_DONTWAIT; /* try to get back here ASAP */
+				return 0;
+			}
+			if (rep->l <= rep->size - global.tune.maxrewrite)
+				http_buffer_heavy_realign(rep, msg);
 		}
 
-		http_buffer_heavy_realign(rep, msg);
+		if (likely(rep->lr < rep->r))
+			http_msg_analyzer(rep, msg, &txn->hdr_idx);
 	}
-
-	if (likely(rep->lr < rep->r))
-		http_msg_analyzer(rep, msg, &txn->hdr_idx);
 
 	/* 1: we might have to print this header in debug mode */
 	if (unlikely((global.mode & MODE_DEBUG) &&
