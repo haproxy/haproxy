@@ -1381,7 +1381,9 @@ const char *http_parse_reqline(struct http_msg *msg, const char *msg_buf,
  * when data are missing and recalled at the exact same location with no
  * information loss. The header index is re-initialized when switching from
  * MSG_R[PQ]BEFORE to MSG_RPVER|MSG_RQMETH. It modifies msg->sol among other
- * fields.
+ * fields. Note that msg->som and msg->sol will be initialized after completing
+ * the first state, so that none of the msg pointers has to be initialized
+ * prior to the first call.
  */
 void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx *idx)
 {
@@ -1404,11 +1406,20 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 	http_msg_rpbefore:
 	case HTTP_MSG_RPBEFORE:
 		if (likely(HTTP_IS_TOKEN(*ptr))) {
-			if (likely(ptr != buf->data + msg->som)) {
+			/* we have a start of message, but we have to check
+			 * first if we need to remove some CRLF. We can only
+			 * do this when send_max=0.
+			 */
+			char *beg = buf->w + buf->send_max;
+			if (beg >= buf->data + buf->size)
+				beg -= buf->size;
+			if (unlikely(ptr != beg)) {
+				if (buf->send_max)
+					goto http_msg_ood;
 				/* Remove empty leading lines, as recommended by RFC2616. */
-				buffer_ignore(buf, ptr - buf->data - msg->som);
-				msg->som = ptr - buf->data;
+				buffer_ignore(buf, ptr - beg);
 			}
+			msg->som = ptr - buf->data;
 			msg->sol = ptr;
 			hdr_idx_init(idx);
 			state = HTTP_MSG_RPVER;
@@ -1464,11 +1475,20 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 	http_msg_rqbefore:
 	case HTTP_MSG_RQBEFORE:
 		if (likely(HTTP_IS_TOKEN(*ptr))) {
-			if (likely(ptr != buf->data + msg->som)) {
+			/* we have a start of message, but we have to check
+			 * first if we need to remove some CRLF. We can only
+			 * do this when send_max=0.
+			 */
+			char *beg = buf->w + buf->send_max;
+			if (beg >= buf->data + buf->size)
+				beg -= buf->size;
+			if (likely(ptr != beg)) {
+				if (buf->send_max)
+					goto http_msg_ood;
 				/* Remove empty leading lines, as recommended by RFC2616. */
-				buffer_ignore(buf, ptr - buf->data - msg->som);
-				msg->som = ptr - buf->data;
+				buffer_ignore(buf, ptr - beg);
 			}
+			msg->som = ptr - buf->data;
 			msg->sol = ptr;
 			/* we will need this when keep-alive will be supported
 			   hdr_idx_init(idx);
