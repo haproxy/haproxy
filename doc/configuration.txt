@@ -758,6 +758,8 @@ monitor-uri                 X          X         X         -
 [no] option forceclose      X          X         X         X
 option forwardfor           X          X         X         X
 option httpchk              X          -         X         X
+[no] option http-server-
+            close           X          X         X         X
 [no] option httpclose       X          X         X         X
 option httplog              X          X         X         X
 [no] option http_proxy      X          X         X         X
@@ -2510,6 +2512,38 @@ option httpchk <method> <uri> <version>
              "check", "port" and "interval" server options.
 
 
+option http-server-close
+no option http-server-close
+  Enable or disable HTTP connection closing on the server side
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+  Arguments : none
+
+  This mode enables HTTP connection-close mode on the server side while keeping
+  the ability to support HTTP keep-alive and pipelining on the client side.
+  This provides the lowest latency on the client side (slow network) and the
+  fastest session reuse on the server side to save server resources, similarly
+  to "option forceclose". It also permits non-keepalive capable servers to be
+  served in keep-alive mode to the clients if they conform to the requirements
+  of RFC2616.
+
+  At the moment, logs will not indicate whether requests came from the same
+  session or not. The accept date reported in the logs corresponds to the end
+  of the previous request, and the request time corresponds to the time spent
+  waiting for a new request. The keep-alive request time is still bound to the
+  timeout defined by "timeout http-request".
+
+  This option may be set both in a frontend and in a backend. It is enabled if
+  at least one of the frontend or backend holding a connection has it enabled.
+  It is worth noting that "option forceclose" has precedence over "httpclose",
+  which itself has precedence over "option http-server-close".
+
+  If this option has been enabled in a "defaults" section, it can be disabled
+  in a specific instance by prepending the "no" keyword before it.
+
+  See also : "option forceclose" and "option httpclose"
+
+
 option httpclose
 no option httpclose
   Enable or disable passive HTTP connection closing
@@ -2540,7 +2574,7 @@ no option httpclose
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
 
-  See also : "option forceclose"
+  See also : "option forceclose" and "option http-server-close"
 
 
 option httplog [ clf ]

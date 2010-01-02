@@ -56,7 +56,9 @@
 #define TX_SVDENY	0x00000004	/* a server header matches a deny regex */
 #define TX_SVALLOW	0x00000008	/* a server header matches an allow regex */
 #define TX_CLTARPIT	0x00000010	/* the session is tarpitted (anti-dos) */
-/* unused:              0x00000020 */
+
+/* used only for keep-alive purposes, to indicate we're on a second transaction */
+#define TX_NOT_FIRST	0x00000020	/* the transaction is not the first one */
 
 /* transaction flags dedicated to cookies : bits values 0x40, 0x80 (0-3 shift 6) */
 #define TX_CK_NONE	0x00000000	/* this session had no cookie */

@@ -115,6 +115,7 @@ static const struct cfg_opt cfg_opts[] =
 	{ "http_proxy",	  PR_O_HTTP_PROXY, PR_CAP_FE | PR_CAP_BE, 0 },
 	{ "httpclose",    PR_O_HTTP_CLOSE, PR_CAP_FE | PR_CAP_BE, 0 },
 	{ "keepalive",    PR_O_KEEPALIVE,  PR_CAP_NONE, 0 },
+	{ "http-server-close", PR_O_SERVER_CLO,  PR_CAP_FE | PR_CAP_BE, 0 },
 	{ "logasap",      PR_O_LOGASAP,    PR_CAP_FE, 0 },
 	{ "nolinger",     PR_O_TCP_NOLING, PR_CAP_FE | PR_CAP_BE, 0 },
 	{ "persist",      PR_O_PERSIST,    PR_CAP_BE, 0 },

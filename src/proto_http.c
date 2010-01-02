@@ -2176,6 +2176,9 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 
 		/* 2: have we encountered a read error ? */
 		else if (req->flags & BF_READ_ERROR) {
+			if (txn->flags & TX_NOT_FIRST)
+				goto failed_keep_alive;
+
 			/* we cannot return any message on error */
 			if (msg->err_pos >= 0)
 				http_capture_bad_message(&s->fe->invalid_req, s, req, msg, s->fe);
@@ -2195,6 +2198,9 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 
 		/* 3: has the read timeout expired ? */
 		else if (req->flags & BF_READ_TIMEOUT || tick_is_expired(req->analyse_exp, now_ms)) {
+			if (txn->flags & TX_NOT_FIRST)
+				goto failed_keep_alive;
+
 			/* read timeout : give up with an error message. */
 			if (msg->err_pos >= 0)
 				http_capture_bad_message(&s->fe->invalid_req, s, req, msg, s->fe);
@@ -2216,6 +2222,9 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 
 		/* 4: have we encountered a close ? */
 		else if (req->flags & BF_SHUTR) {
+			if (txn->flags & TX_NOT_FIRST)
+				goto failed_keep_alive;
+
 			if (msg->err_pos >= 0)
 				http_capture_bad_message(&s->fe->invalid_req, s, req, msg, s->fe);
 			txn->status = 400;
@@ -2242,6 +2251,19 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 			req->analyse_exp = tick_add_ifset(now_ms, s->be->timeout.httpreq);
 
 		/* we're not ready yet */
+		return 0;
+
+	failed_keep_alive:
+		/* Here we process low-level errors for keep-alive requests. In
+		 * short, if the request is not the first one and it experiences
+		 * a timeout, read error or shutdown, we just silently close so
+		 * that the client can try again.
+		 */
+		txn->status = 0;
+		msg->msg_state = HTTP_MSG_RQBEFORE;
+		req->analysers = 0;
+		s->logs.logwait = 0;
+		stream_int_cond_close(req->prod, NULL);
 		return 0;
 	}
 
@@ -2562,11 +2584,12 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 	 */
 
 	if ((txn->meth != HTTP_METH_CONNECT) &&
-	    ((s->fe->options|s->be->options) & (PR_O_KEEPALIVE|PR_O_HTTP_CLOSE|PR_O_FORCE_CLO))) {
+	    ((s->fe->options|s->be->options) & (PR_O_KEEPALIVE|PR_O_SERVER_CLO|PR_O_HTTP_CLOSE|PR_O_FORCE_CLO))) {
 		int tmp = TX_CON_WANT_TUN;
 		if ((s->fe->options|s->be->options) & PR_O_KEEPALIVE)
 			tmp = TX_CON_WANT_KAL;
-		/* FIXME: for now, we don't support server-close mode */
+		if ((s->fe->options|s->be->options) & PR_O_SERVER_CLO)
+			tmp = TX_CON_WANT_SCL;
 		if ((s->fe->options|s->be->options) & (PR_O_HTTP_CLOSE|PR_O_FORCE_CLO))
 			tmp = TX_CON_WANT_CLO;
 
@@ -3340,7 +3363,12 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 			 * to reset the transaction here.
 			 */
 
-			if ((s->fe->options | s->be->options) & PR_O_FORCE_CLO) {
+			if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL) {
+				/* initiate a connection close to the server */
+				req->cons->flags |= SI_FL_NOLINGER;
+				buffer_shutw_now(req);
+			}
+			else if ((s->fe->options | s->be->options) & PR_O_FORCE_CLO) {
 				/* Option forceclose is set, let's enforce it now
 				 * that the transfer is complete. We can safely speed
 				 * up the close because we know the server has received
@@ -3372,6 +3400,111 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 		}
 		else if (msg->msg_state == HTTP_MSG_CLOSED) {
 			req->flags &= ~BF_DONT_READ;
+
+			if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL) {
+
+				/* FIXME : this part is 1) awful, 2) tricky, 3) duplicated
+				 * ... but it works.
+				 * We need a better way to force a connection close without
+				 * any risk of propagation to the other side. We need a more
+				 * portable way of releasing a backend's and a server's
+				 * connections. We need a safer way to reinitialize buffer
+				 * flags. We also need a more accurate method for computing
+				 * per-request data.
+				 */
+				s->req->cons->flags |= SI_FL_NOLINGER;
+				s->req->cons->shutr(s->req->cons);
+				s->req->cons->shutw(s->req->cons);
+
+				if (s->flags & SN_BE_ASSIGNED)
+					s->be->beconn--;
+
+				s->logs.t_close = tv_ms_elapsed(&s->logs.tv_accept, &now);
+				session_process_counters(s);
+
+				if (s->txn.status) {
+					int n;
+
+					n = s->txn.status / 100;
+					if (n < 1 || n > 5)
+						n = 0;
+
+					if (s->fe->mode == PR_MODE_HTTP)
+						s->fe->counters.p.http.rsp[n]++;
+
+					if ((s->flags & SN_BE_ASSIGNED) && (s->fe != s->be) &&
+					    (s->be->mode == PR_MODE_HTTP))
+						s->be->counters.p.http.rsp[n]++;
+				}
+
+				/* don't count other requests' data */
+				s->logs.bytes_in  -= s->req->l - s->req->send_max;
+				s->logs.bytes_out -= s->rep->l - s->rep->send_max;
+
+				/* let's do a final log if we need it */
+				if (s->logs.logwait &&
+				    !(s->flags & SN_MONITOR) &&
+				    (!(s->fe->options & PR_O_NULLNOLOG) || s->req->total)) {
+					s->do_log(s);
+				}
+
+				s->logs.accept_date = date; /* user-visible date for logging */
+				s->logs.tv_accept = now;  /* corrected date for internal use */
+				tv_zero(&s->logs.tv_request);
+				s->logs.t_queue = -1;
+				s->logs.t_connect = -1;
+				s->logs.t_data = -1;
+				s->logs.t_close = 0;
+				s->logs.prx_queue_size = 0;  /* we get the number of pending conns before us */
+				s->logs.srv_queue_size = 0; /* we will get this number soon */
+
+				s->logs.bytes_in = s->req->total = s->req->l - s->req->send_max;
+				s->logs.bytes_out = s->rep->total = s->rep->l - s->rep->send_max;
+
+				if (s->pend_pos)
+					pendconn_free(s->pend_pos);
+
+				if (s->srv) {
+					if (s->flags & SN_CURR_SESS) {
+						s->flags &= ~SN_CURR_SESS;
+						s->srv->cur_sess--;
+					}
+					if (may_dequeue_tasks(s->srv, s->be))
+						process_srv_queue(s->srv);
+				}
+
+				if (unlikely(s->srv_conn))
+					sess_change_server(s, NULL);
+				s->srv = NULL;
+
+				s->req->cons->state     = s->req->cons->prev_state = SI_ST_INI;
+				s->req->cons->fd        = -1; /* just to help with debugging */
+				s->req->cons->err_type  = SI_ET_NONE;
+				s->req->cons->err_loc   = NULL;
+				s->req->cons->exp       = TICK_ETERNITY;
+				s->req->cons->flags     = SI_FL_NONE;
+				s->req->flags &= ~(BF_SHUTW|BF_SHUTW_NOW|BF_AUTO_CONNECT|BF_WRITE_ERROR|BF_STREAMER|BF_STREAMER_FAST|BF_AUTO_CLOSE);
+				s->rep->flags &= ~(BF_SHUTR|BF_SHUTR_NOW|BF_READ_ATTACHED|BF_READ_ERROR|BF_READ_NOEXP|BF_STREAMER|BF_STREAMER_FAST|BF_AUTO_CLOSE|BF_WRITE_PARTIAL);
+				s->flags &= ~(SN_DIRECT|SN_ASSIGNED|SN_ADDR_SET|SN_BE_ASSIGNED);
+				s->flags &= ~(SN_CURR_SESS|SN_REDIRECTABLE);
+				s->txn.meth = 0;
+				http_reset_txn(s);
+				txn->flags |= TX_NOT_FIRST;
+				if (s->be->options2 & PR_O2_INDEPSTR)
+					s->req->cons->flags |= SI_FL_INDEP_STR;
+
+				/* make ->lr point to the first non-forwarded byte */
+				s->req->lr = s->req->w + s->req->send_max;
+				if (s->req->lr >= s->req->data + s->req->size)
+					s->req->lr -= s->req->size;
+				s->rep->lr = s->rep->w + s->rep->send_max;
+				if (s->rep->lr >= s->rep->data + s->rep->size)
+					s->rep->lr -= s->req->size;
+
+				s->req->analysers |= s->fe->fe_req_ana;
+				s->rep->analysers = 0;
+			}
+
 			/* FIXME: we're still forced to do that here */
 			s->rep->flags &= ~BF_DONT_READ;
 			break;
@@ -3828,6 +3961,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 	int cur_idx;
 	int conn_ka = 0, conn_cl = 0;
 	int must_close = 0;
+	int must_del_close = 0, must_keep = 0;
 
 	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
@@ -3903,7 +4037,9 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 		 * handled. We also explicitly state that we will close in
 		 * case of an ambiguous response having no content-length.
 		 */
-		if (may_close || !(txn->flags & TX_RES_XFER_LEN))
+		if ((may_close &&
+		     (may_keep || ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_SCL))) ||
+		    !(txn->flags & TX_RES_XFER_LEN))
 			txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
 
 		/* Now we must adjust the response header :
@@ -3915,6 +4051,12 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 		 */
 		if (may_keep && (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_CLO)
 			must_close = 1;
+		else if (((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL) &&
+			 may_close && (txn->flags & TX_RES_XFER_LEN)) {
+			must_del_close = 1;
+			if (!(txn->flags & TX_REQ_VER_11))
+				must_keep = 1;
+		}
 
 		txn->flags |= TX_CON_HDR_PARS;
 	}
@@ -3923,7 +4065,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 	 * returns a connection status that is not compatible with
 	 * the client's or with the config.
 	 */
-	if ((txn->status >= 200) && must_close && (conn_cl|conn_ka)) {
+	if ((txn->status >= 200) && (must_del_close|must_close) && (conn_cl|conn_ka)) {
 		char *cur_ptr, *cur_end, *cur_next;
 		int cur_idx, old_idx, delta, val;
 		int must_delete;
@@ -3931,6 +4073,10 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 
 		/* we just have to remove the headers if both sides are 1.0 */
 		must_delete = !(txn->flags & TX_REQ_VER_11) && !(txn->flags & TX_RES_VER_11);
+
+		/* same if we want to re-enable keep-alive on 1.1 */
+		must_delete |= must_del_close;
+
 		cur_next = rep->data + txn->rsp.som + hdr_idx_first_pos(&txn->hdr_idx);
 
 		for (old_idx = 0; (cur_idx = txn->hdr_idx.v[old_idx].next); old_idx = cur_idx) {
@@ -3959,6 +4105,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 				txn->hdr_idx.used--;
 				cur_hdr->len = 0;
 				must_close = 0;
+				must_del_close = 0;
 			} else {
 				if (cur_end - cur_ptr - val != 5 ||
 				    strncasecmp(cur_ptr + val, "close", 5) != 0) {
@@ -4147,6 +4294,12 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 				goto return_bad_resp;
 			must_close = 0;
 		}
+		else if (must_keep && !(txn->flags & TX_REQ_VER_11)) {
+			if (unlikely(http_header_add_tail2(rep, &txn->rsp, &txn->hdr_idx,
+							   "Connection: keep-alive", 22) < 0))
+				goto return_bad_resp;
+			must_keep = 0;
+		}
 
 		if (txn->flags & TX_RES_XFER_LEN)
 			rep->analysers |= AN_RES_HTTP_XFER_BODY;
@@ -4196,6 +4349,12 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY))
 		return 0;
+
+	/* note: in server-close mode, we don't want to automatically close the
+	 * output when the input is closed.
+	 */
+	if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL)
+		buffer_dont_close(res);
 
 	if (msg->msg_state < HTTP_MSG_CHUNK_SIZE) {
 		/* we have msg->col and msg->sov which both point to the first
@@ -4301,6 +4460,11 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 			if ((s->fe->options | s->be->options) & PR_O_FORCE_CLO) {
 				/* option forceclose is set, let's enforce it now that the transfer is complete. */
 				buffer_abort(res);
+			}
+			else if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL) {
+				/* server close is handled entirely on the req analyser */
+				s->req->cons->flags |= SI_FL_NOLINGER;
+				buffer_shutw_now(s->req);
 			}
 
 			if (res->flags & (BF_SHUTW|BF_SHUTW_NOW)) {

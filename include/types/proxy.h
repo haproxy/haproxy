@@ -100,12 +100,11 @@
 #define PR_O_TPXY_CLI	0x06000000	/* bind to the client's IP+port when connect()ing */
 #define PR_O_TPXY_MASK	0x06000000	/* bind to a non-local address when connect()ing */
 
-/* unused : tcpsplice   0x08000000 */
+#define PR_O_SERVER_CLO 0x08000000	/* option http-server-close */
 #define PR_O_CONTSTATS	0x10000000	/* continous counters */
 #define PR_O_HTTP_PROXY 0x20000000	/* Enable session to use HTTP proxy operations */
 #define PR_O_DISABLE404 0x40000000      /* Disable a server on a 404 response to a health-check */
 #define PR_O_ORGTO      0x80000000      /* insert x-original-to with destination address */
-/* unused: 0x80000000 - now used by PR_O_ORGTO */
 
 /* bits for proxy->options2 */
 #define PR_O2_SPLIC_REQ	0x00000001      /* transfer requests using linux kernel's splice() */
