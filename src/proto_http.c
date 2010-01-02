@@ -3244,7 +3244,7 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &s->txn.req;
 
-	if (req->flags & (BF_SHUTW|BF_WRITE_ERROR|BF_WRITE_TIMEOUT)) {
+	if (req->flags & (BF_WRITE_ERROR|BF_WRITE_TIMEOUT)) {
 		req->analysers &= ~an_bit;
 		return 1;
 	}
@@ -4352,7 +4352,7 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &s->txn.rsp;
 
-	if (res->flags & (BF_SHUTW|BF_WRITE_ERROR|BF_WRITE_TIMEOUT)) {
+	if (res->flags & (BF_WRITE_ERROR|BF_WRITE_TIMEOUT)) {
 		res->analysers &= ~an_bit;
 		return 1;
 	}
