@@ -3347,17 +3347,6 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 			if (req->to_forward)
 				return 0;
 
-			/* we're sending the last bits of request, the server's response
-			 * is expected in a short time. Most often the first read is enough
-			 * to bring all the headers, so we're preparing the response buffer
-			 * to read the response now. Note that we should probably move that
-			 * to a more appropriate place.
-			 */
-			if (txn->rsp.msg_state == HTTP_MSG_RPBEFORE) {
-				s->rep->flags &= ~BF_DONT_READ;
-				s->rep->flags |= BF_READ_DONTWAIT;
-			}
-
 			/* nothing left to forward */
 			if (txn->flags & TX_REQ_TE_CHNK)
 				msg->msg_state = HTTP_MSG_DATA_CRLF;
