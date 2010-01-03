@@ -2251,6 +2251,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 
 		buffer_dont_connect(req);
 		req->flags |= BF_READ_DONTWAIT; /* try to get back here ASAP */
+		req->flags &= ~BF_DONT_READ;
 
 		/* just set the request timeout once at the beginning of the request */
 		if (!tick_isset(req->analyse_exp))
@@ -2800,6 +2801,8 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 	    !(txn->flags & TX_REQ_TE_CHNK) && !txn->req.hdr_content_len &&
 	    (req->cons->state == SI_ST_EST || !(s->be->options & PR_O_ABRT_CLOSE)))
 		req->flags |= BF_DONT_READ;
+	else
+		req->flags &= ~BF_DONT_READ;
 
 	/* that's OK for us now, let's move on to next analysers */
 	return 1;
@@ -3500,9 +3503,13 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 				/* if the request buffer is not empty, it means we're
 				 * about to process another request, so send pending
 				 * data with MSG_MORE to merge TCP packets when possible.
+				 * Also, let's not start reading a small request packet,
+				 * we may prefer to read a larger one later.
 				 */
-				if (s->req->l)
+				if (s->req->l > s->req->send_max) {
 					s->rep->flags |= BF_EXPECT_MORE;
+					s->req->flags |= BF_DONT_READ;
+				}
 
 				/* make ->lr point to the first non-forwarded byte */
 				s->req->lr = s->req->w + s->req->send_max;
