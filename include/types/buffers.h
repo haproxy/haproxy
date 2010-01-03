@@ -112,6 +112,7 @@
 #define BF_AUTO_CONNECT   0x800000  /* consumer may attempt to establish a new connection */
 
 #define BF_DONT_READ     0x1000000  /* disable reading for now */
+#define BF_EXPECT_MORE   0x2000000  /* more data expected to be sent very soon (one-shoot) */
 
 /* Use these masks to clear the flags before going back to lower layers */
 #define BF_CLEAR_READ     (~(BF_READ_NULL|BF_READ_PARTIAL|BF_READ_ERROR|BF_READ_ATTACHED))

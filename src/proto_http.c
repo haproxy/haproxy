@@ -3497,6 +3497,13 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 				if (s->be->options2 & PR_O2_INDEPSTR)
 					s->req->cons->flags |= SI_FL_INDEP_STR;
 
+				/* if the request buffer is not empty, it means we're
+				 * about to process another request, so send pending
+				 * data with MSG_MORE to merge TCP packets when possible.
+				 */
+				if (s->req->l)
+					s->rep->flags |= BF_EXPECT_MORE;
+
 				/* make ->lr point to the first non-forwarded byte */
 				s->req->lr = s->req->w + s->req->send_max;
 				if (s->req->lr >= s->req->data + s->req->size)
