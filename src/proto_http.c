@@ -1895,13 +1895,15 @@ int http_parse_chunk_size(struct buffer *buf, struct http_msg *msg)
  * the trailers is found, it is automatically scheduled to be forwarded,
  * msg->msg_state switches to HTTP_MSG_DONE, and the function returns >0.
  * If not enough data are available, the function does not change anything
- * except maybe buf->lr if it could parse some lines, and returns zero. If
- * a parse error is encountered, the function returns < 0 and does not
- * change anything except maybe buf->lr. Note that the message must already
- * be in HTTP_MSG_TRAILERS state before calling this function, which implies
- * that all non-trailers data have already been scheduled for forwarding. It
- * is also important to note that this function is designed to be able to
- * parse wrapped headers at end of buffer.
+ * except maybe buf->lr and msg->sov if it could parse some lines, and returns
+ * zero. If a parse error is encountered, the function returns < 0 and does not
+ * change anything except maybe buf->lr and msg->sov. Note that the message
+ * must already be in HTTP_MSG_TRAILERS state before calling this function,
+ * which implies that all non-trailers data have already been scheduled for
+ * forwarding, and that the difference between msg->som and msg->sov exactly
+ * matches the length of trailers already parsed and not forwarded. It is also
+ * important to note that this function is designed to be able to parse wrapped
+ * headers at end of buffer.
  */
 int http_forward_trailers(struct buffer *buf, struct http_msg *msg)
 {
@@ -1909,6 +1911,7 @@ int http_forward_trailers(struct buffer *buf, struct http_msg *msg)
 	while (1) {
 		char *p1 = NULL, *p2 = NULL;
 		char *ptr = buf->lr;
+		int bytes;
 
 		/* scan current line and stop at LF or CRLF */
 		while (1) {
@@ -1938,18 +1941,21 @@ int http_forward_trailers(struct buffer *buf, struct http_msg *msg)
 		if (p2 >= buf->data + buf->size)
 			p2 = buf->data;
 
-		if (p1 == buf->lr) {
-			/* LF/CRLF at beginning of line => end of trailers at p2 */
-			int bytes;
-			buf->lr = p2;
+		bytes = p2 - buf->lr;
+		if (bytes < 0)
+			bytes += buf->size;
 
-			bytes = buf->lr - buf->data;
-			/* Forward last remaining trailers. Note that since all the
-			 * bytes are included in the buffer and we've found the end,
-			 * we won't leave anything in to_forward.
+		/* schedule this line for forwarding */
+		msg->sov += bytes;
+		if (msg->sov >= buf->size)
+			msg->sov -= buf->size;
+
+		if (p1 == buf->lr) {
+			/* LF/CRLF at beginning of line => end of trailers at p2.
+			 * Everything was scheduled for forwarding, there's nothing
+			 * left from this message.
 			 */
-			buffer_forward(buf, bytes);
-			msg->som = msg->sov = bytes;
+			buf->lr = p2;
 			msg->msg_state = HTTP_MSG_DONE;
 			return 1;
 		}
@@ -3272,16 +3278,16 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 		}
 	}
 
-	/* we may already have some data pending */
-	if (msg->hdr_content_len || msg->som != msg->sov) {
-		buffer_forward(req, msg->sov - msg->som + msg->hdr_content_len);
-		msg->hdr_content_len = 0; /* don't forward that again */
-		msg->som = msg->sov;
-	}
-
 	while (1) {
-		// printf("req1: stq=%d, str=%d, l=%d, send_max=%d, fl=%08x, txf=%08x\n",
-		//        msg->msg_state, txn->rsp.msg_state, s->rep->l, s->rep->send_max, s->rep->flags, txn->flags);
+		/* we may have some data pending */
+		if (msg->hdr_content_len || msg->som != msg->sov) {
+			int bytes = msg->sov - msg->som;
+			if (bytes < 0) /* sov may have wrapped at the end */
+				bytes += req->size;
+			buffer_forward(req, bytes + msg->hdr_content_len);
+			msg->hdr_content_len = 0; /* don't forward that again */
+			msg->som = msg->sov;
+		}
 
 		if (msg->msg_state == HTTP_MSG_CHUNK_SIZE) {
 			/* read the chunk size and assign it to ->hdr_content_len, then
@@ -3295,13 +3301,6 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 			else if (ret < 0)
 				goto return_bad_req;
 			/* otherwise we're in HTTP_MSG_DATA or HTTP_MSG_TRAILERS state */
-
-			/* forward the chunk size as well as any pending data */
-			if (msg->hdr_content_len || msg->som != msg->sov) {
-				buffer_forward(req, msg->sov - msg->som + msg->hdr_content_len);
-				msg->hdr_content_len = 0; /* don't forward that again */
-				msg->som = msg->sov;
-			}
 		}
 		else if (msg->msg_state == HTTP_MSG_DATA) {
 			/* must still forward */
@@ -4380,16 +4379,17 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 		}
 	}
 
-	/* we may already have some data pending */
-	if (msg->hdr_content_len || msg->som != msg->sov) {
-		buffer_forward(res, msg->sov - msg->som + msg->hdr_content_len);
-		msg->hdr_content_len = 0; /* don't forward that again */
-		msg->som = msg->sov;
-	}
-
 	while (1) {
-		// printf("res1: stq=%d, str=%d, l=%d, send_max=%d, fl=%08x, txf=%08x\n",
-		//        txn->req.msg_state, msg->msg_state, s->rep->l, s->rep->send_max, s->rep->flags, txn->flags);
+		/* we may have some data pending */
+		if (msg->hdr_content_len || msg->som != msg->sov) {
+			int bytes = msg->sov - msg->som;
+			if (bytes < 0) /* sov may have wrapped at the end */
+				bytes += res->size;
+			buffer_forward(res, bytes + msg->hdr_content_len);
+			msg->hdr_content_len = 0; /* don't forward that again */
+			msg->som = msg->sov;
+		}
+
 		if (msg->msg_state == HTTP_MSG_CHUNK_SIZE) {
 			/* read the chunk size and assign it to ->hdr_content_len, then
 			 * set ->sov to point to the body and switch to DATA or TRAILERS state.
@@ -4401,13 +4401,6 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 			else if (ret < 0)
 				goto return_bad_res;
 			/* otherwise we're in HTTP_MSG_DATA or HTTP_MSG_TRAILERS state */
-
-			/* forward the chunk size as well as any pending data */
-			if (msg->hdr_content_len || msg->som != msg->sov) {
-				buffer_forward(res, msg->sov - msg->som + msg->hdr_content_len);
-				msg->hdr_content_len = 0; /* don't forward that again */
-				msg->som = msg->sov;
-			}
 		}
 		else if (msg->msg_state == HTTP_MSG_DATA) {
 			/* must still forward */
