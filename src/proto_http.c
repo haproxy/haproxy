@@ -2807,6 +2807,15 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 	else
 		req->flags &= ~BF_DONT_READ;
 
+	/* POST requests may be accompanied with an "Expect: 100-Continue" header.
+	 * If this happens, then the data will not come immediately, so we must
+	 * send all what we have without waiting. Note that due to the small gain
+	 * in waiting for the body of the request, it's easier to simply put the
+	 * BF_SEND_DONTWAIT flag any time. It's a one-shot flag so it will remove
+	 * itself once used.
+	 */
+	req->flags |= BF_SEND_DONTWAIT;
+
 	/* that's OK for us now, let's move on to next analysers */
 	return 1;
 

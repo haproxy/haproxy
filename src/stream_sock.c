@@ -623,7 +623,15 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 				send_flag |= MSG_MORE;
 			}
 
+			/* this flag has precedence over the rest */
+			if (b->flags & BF_SEND_DONTWAIT)
+				send_flag &= ~MSG_MORE;
+
 			ret = send(si->fd, b->w, max, send_flag);
+
+			/* disable it only once everything has been sent */
+			if (ret == max && (b->flags & BF_SEND_DONTWAIT))
+				b->flags &= ~BF_SEND_DONTWAIT;
 		} else {
 			int skerr;
 			socklen_t lskerr = sizeof(skerr);
