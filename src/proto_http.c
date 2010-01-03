@@ -4953,7 +4953,7 @@ void manage_client_side_appsession(struct session *t, const char *buf, int len) 
 void manage_client_side_cookies(struct session *t, struct buffer *req)
 {
 	struct http_txn *txn = &t->txn;
-	char *p1, *p2, *p3, *p4;
+	char *p1, *p2, *p3, *p4, *p5;
 	char *del_colon, *del_cookie, *colon;
 	int app_cookies;
 
@@ -5008,6 +5008,7 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 		
 		while (p1 < cur_end) {
 			/* skip spaces and colons, but keep an eye on these ones */
+		resync_name:
 			while (p1 < cur_end) {
 				if (*p1 == ';' || *p1 == ',')
 					colon = p1;
@@ -5021,8 +5022,14 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 		    
 			/* p1 is at the beginning of the cookie name */
 			p2 = p1;
-			while (p2 < cur_end && *p2 != '=')
+			while (p2 < cur_end && *p2 != '=') {
+				if (*p2 == ',' || *p2 == ';' || isspace((unsigned char)*p2)) {
+					/* oops, the cookie name was truncated, resync */
+					p1 = p2;
+					goto resync_name;
+				}
 				p2++;
+			}
 
 			if (p2 == cur_end)
 				break;
@@ -5031,16 +5038,20 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 			if (p3 == cur_end)
 				break;
 		    
-			p4 = p3;
-			while (p4 < cur_end && !isspace((unsigned char)*p4) && *p4 != ';' && *p4 != ',')
-				p4++;
+			/* parse the value, stripping leading and trailing spaces but keeping insiders. */
+			p5 = p4 = p3;
+			while (p5 < cur_end && *p5 != ';' && *p5 != ',') {
+				if (!isspace((unsigned char)*p5))
+					p4 = p5 + 1;
+				p5++;
+			}
 
 			/* here, we have the cookie name between p1 and p2,
 			 * and its value between p3 and p4.
 			 * we can process it :
 			 *
-			 * Cookie: NAME=VALUE;
-			 * |      ||   ||    |
+			 * Cookie: NAME=VALUE ;
+			 * |      ||   ||    |+-> p5
 			 * |      ||   ||    +--> p4
 			 * |      ||   |+-------> p3
 			 * |      ||   +--------> p2
@@ -5080,8 +5091,8 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 					 * have the server ID betweek p3 and delim, and the original cookie between
 					 * delim+1 and p4. Otherwise, delim==p4 :
 					 *
-					 * Cookie: NAME=SRV~VALUE;
-					 * |      ||   ||  |     |
+					 * Cookie: NAME=SRV~VALUE ;
+					 * |      ||   ||  |     |+-> p5
 					 * |      ||   ||  |     +--> p4
 					 * |      ||   ||  +--------> delim
 					 * |      ||   |+-----------> p3
@@ -5147,6 +5158,7 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 
 						delta = buffer_replace2(req, p3, delim + 1, NULL, 0);
 						p4  += delta;
+						p5  += delta;
 						cur_end += delta;
 						cur_next += delta;
 						cur_hdr->len += delta;
@@ -5173,6 +5185,7 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 
 						delta = buffer_replace2(req, del_cookie, p1, NULL, 0);
 						p4  += delta;
+						p5  += delta;
 						cur_end += delta;
 						cur_next += delta;
 						cur_hdr->len += delta;
@@ -5208,7 +5221,7 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 			}
 
 			/* we'll have to look for another cookie ... */
-			p1 = p4;
+			p1 = p5;
 		} /* while (p1 < cur_end) */
 
 		/* There's no more cookie on this line.
