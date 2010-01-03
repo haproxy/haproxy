@@ -2697,11 +2697,14 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 
 	/* check whether we have some ACLs set to redirect this request */
 	list_for_each_entry(rule, &px->redirect_rules, list) {
-		int ret = acl_exec_cond(rule->cond, px, s, txn, ACL_DIR_REQ);
+		int ret = ACL_PAT_PASS;
 
-		ret = acl_pass(ret);
-		if (rule->cond->pol == ACL_COND_UNLESS)
-			ret = !ret;
+		if (rule->cond) {
+			ret = acl_exec_cond(rule->cond, px, s, txn, ACL_DIR_REQ);
+			ret = acl_pass(ret);
+			if (rule->cond->pol == ACL_COND_UNLESS)
+				ret = !ret;
+		}
 
 		if (ret) {
 			struct chunk rdr = { .str = trash, .size = sizeof(trash), .len = 0 };

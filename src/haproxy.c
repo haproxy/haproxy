@@ -797,8 +797,10 @@ void deinit(void)
 
 		list_for_each_entry_safe(rdr, rdrb, &p->redirect_rules, list) {
 			LIST_DEL(&rdr->list);
-			prune_acl_cond(rdr->cond);
-			free(rdr->cond);
+			if (rdr->cond) {
+				prune_acl_cond(rdr->cond);
+				free(rdr->cond);
+			}
 			free(rdr->rdr_str);
 			free(rdr);
 		}

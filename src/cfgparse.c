@@ -1754,7 +1754,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	}
 	else if (!strcmp(args[0], "redirect")) {
 		int pol = ACL_COND_NONE;
-		struct acl_cond *cond;
+		struct acl_cond *cond = NULL;
 		struct redirect_rule *rule;
 		int cur_arg;
 		int type = REDIRECT_TYPE_NONE;
@@ -1859,23 +1859,19 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		if (pol == ACL_COND_NONE) {
-			Alert("parsing [%s:%d] : '%s' requires either 'if' or 'unless' followed by a condition.\n",
-			      file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if ((cond = parse_acl_cond((const char **)args + cur_arg, &curproxy->acl, pol)) == NULL) {
+		if (pol != ACL_COND_NONE &&
+		    (cond = parse_acl_cond((const char **)args + cur_arg, &curproxy->acl, pol)) == NULL) {
 			Alert("parsing [%s:%d] : '%s': error detected while parsing redirect condition.\n",
 			      file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 
-		cond->file = file;
-		cond->line = linenum;
-		curproxy->acl_requires |= cond->requires;
+		if (cond) {
+			cond->file = file;
+			cond->line = linenum;
+			curproxy->acl_requires |= cond->requires;
+		}
 		rule = (struct redirect_rule *)calloc(1, sizeof(*rule));
 		rule->cond = cond;
 		rule->rdr_str = strdup(destination);

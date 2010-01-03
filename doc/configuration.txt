@@ -3296,14 +3296,14 @@ rate-limit sessions <rate>
   See also : the "backlog" keyword and the "fe_sess_rate" ACL criterion.
 
 
-redirect location <to> [code <code>] <option> {if | unless} <condition>
-redirect prefix   <to> [code <code>] <option> {if | unless} <condition>
+redirect location <to> [code <code>] <option> [{if | unless} <condition>]
+redirect prefix   <to> [code <code>] <option> [{if | unless} <condition>]
   Return an HTTP redirection if/unless a condition is matched
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   yes
 
   If/unless the condition is matched, the HTTP request will lead to a redirect
-  response.
+  response. If no condition is specified, the redirect applies unconditionally.
 
   Arguments :
     <to>      With "redirect location", the exact value in <to> is placed into
