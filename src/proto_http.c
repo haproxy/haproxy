@@ -2702,7 +2702,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 			ret = !ret;
 
 		if (ret) {
-			struct chunk rdr = { trash, 0 };
+			struct chunk rdr = { .str = trash, .size = sizeof(trash), .len = 0 };
 			const char *msg_fmt;
 
 			/* build redirect message */
@@ -2719,7 +2719,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 				break;
 			}
 
-			if (unlikely(chunk_strcpy(&rdr, msg_fmt)))
+			if (unlikely(!chunk_strcpy(&rdr, msg_fmt)))
 				goto return_bad_req;
 
 			switch(rule->type) {
