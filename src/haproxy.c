@@ -1,6 +1,6 @@
 /*
  * HA-Proxy : High Availability-enabled HTTP/TCP proxy
- * Copyright 2000-2009  Willy Tarreau <w@1wt.eu>.
+ * Copyright 2000-2010  Willy Tarreau <w@1wt.eu>.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -22,15 +22,6 @@
  *   - a proxy with an invalid config will prevent the startup even if disabled.
  *
  * ChangeLog has moved to the CHANGELOG file.
- *
- * TODO:
- *   - handle properly intermediate incomplete server headers. Done ?
- *   - handle hot-reconfiguration
- *   - fix client/server state transition when server is in connect or headers state
- *     and client suddenly disconnects. The server *should* switch to SHUT_WR, but
- *     still handle HTTP headers.
- *   - remove MAX_NEWHDR
- *   - cut this huge file into several ones
  *
  */
 
@@ -706,6 +697,7 @@ void deinit(void)
 	struct acl *acl, *aclb;
 	struct switching_rule *rule, *ruleb;
 	struct redirect_rule *rdr, *rdrb;
+	struct wordlist *wl, *wlb;
 	struct uri_auth *uap, *ua = NULL;
 	struct user_auth *user;
 	int i;
@@ -722,11 +714,17 @@ void deinit(void)
 		for (i = 0; i < HTTP_ERR_SIZE; i++)
 			chunk_destroy(&p->errmsg[i]);
 
-		for (i = 0; i < p->nb_reqadd; i++)
-			free(p->req_add[i]);
+		list_for_each_entry_safe(wl, wlb, &p->req_add, list) {
+			LIST_DEL(&wl->list);
+			free(wl->s);
+			free(wl);
+		}
 
-		for (i = 0; i < p->nb_rspadd; i++)
-			free(p->rsp_add[i]);
+		list_for_each_entry_safe(wl, wlb, &p->rsp_add, list) {
+			LIST_DEL(&wl->list);
+			free(wl->s);
+			free(wl);
+		}
 
 		list_for_each_entry_safe(cond, condb, &p->block_cond, list) {
 			LIST_DEL(&cond->list);

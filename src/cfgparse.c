@@ -1,7 +1,7 @@
 /*
  * Configuration parser
  *
- * Copyright 2000-2009 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2010 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -327,7 +327,7 @@ int warnif_rule_after_reqxxx(struct proxy *proxy, const char *file, int line, ch
  */
 int warnif_rule_after_reqadd(struct proxy *proxy, const char *file, int line, char *arg)
 {
-	if (proxy->nb_reqadd) {
+	if (!LIST_ISEMPTY(&proxy->req_add)) {
 		Warning("parsing [%s:%d] : a '%s' rule placed after a 'reqadd' rule will still be processed before.\n",
 			file, line, arg);
 		return 1;
@@ -796,6 +796,8 @@ static void init_new_proxy(struct proxy *p)
 	LIST_INIT(&p->mon_fail_cond);
 	LIST_INIT(&p->switching_rules);
 	LIST_INIT(&p->tcp_req.inspect_rules);
+	LIST_INIT(&p->req_add);
+	LIST_INIT(&p->rsp_add);
 
 	/* Timeouts are defined as -1 */
 	proxy_reset_timeouts(p);
@@ -3592,6 +3594,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqadd")) {  /* add request header */
+		struct wordlist *wl;
+
 		if (curproxy == &defproxy) {
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -3600,19 +3604,15 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
-		if (curproxy->nb_reqadd >= MAX_NEWHDR) {
-			Alert("parsing [%s:%d] : too many '%s'. Continuing.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects <header> as an argument.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-	
-		curproxy->req_add[curproxy->nb_reqadd++] = strdup(args[1]);
+
+		wl = calloc(1, sizeof(*wl));
+		wl->s = strdup(args[1]);
+		LIST_ADDQ(&curproxy->req_add, &wl->list);
 		warnif_misplaced_reqadd(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "srvexp") || !strcmp(args[0], "rsprep")) {  /* replace response header from a regex */
@@ -3800,6 +3800,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 	}
 	else if (!strcmp(args[0], "rspadd")) {  /* add response header */
+		struct wordlist *wl;
+
 		if (curproxy == &defproxy) {
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -3808,19 +3810,15 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
-		if (curproxy->nb_rspadd >= MAX_NEWHDR) {
-			Alert("parsing [%s:%d] : too many '%s'. Continuing.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects <header> as an argument.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 	
-		curproxy->rsp_add[curproxy->nb_rspadd++] = strdup(args[1]);
+		wl = calloc(1, sizeof(*wl));
+		wl->s = strdup(args[1]);
+		LIST_ADDQ(&curproxy->rsp_add, &wl->list);
 	}
 	else if (!strcmp(args[0], "errorloc") ||
 		 !strcmp(args[0], "errorloc302") ||

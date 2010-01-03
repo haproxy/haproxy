@@ -2,7 +2,7 @@
  * include/types/proxy.h
  * This file defines everything related to proxies.
  *
- * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -240,7 +240,6 @@ struct proxy {
 	int minlvl1, minlvl2;			/* minimum log level for each server, 0 by default */
 	int to_log;				/* things to be logged (LW_*) */
 	int stop_time;                          /* date to stop listening, when stopping != 0 (int ticks) */
-	int nb_reqadd, nb_rspadd;
 	struct hdr_exp *req_exp;		/* regular expressions for request headers */
 	struct hdr_exp *rsp_exp;		/* regular expressions for response headers */
 	int nb_req_cap, nb_rsp_cap;		/* # of headers to be captured */
@@ -249,7 +248,7 @@ struct proxy {
 	struct pool_head *req_cap_pool,		/* pools of pre-allocated char ** used to build the sessions */
 	                 *rsp_cap_pool;
 	struct pool_head *hdr_idx_pool;         /* pools of pre-allocated int* used for headers indexing */
-	char *req_add[MAX_NEWHDR], *rsp_add[MAX_NEWHDR]; /* headers to be added */
+	struct list req_add, rsp_add;           /* headers to be added */
 	struct pxcounters counters;		/* statistics counters */
 	int grace;				/* grace time after stop request */
 	char *check_req;			/* HTTP or SSL request to use for PR_O_HTTP_CHK|PR_O_SSL3_CHK */

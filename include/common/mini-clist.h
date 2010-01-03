@@ -1,6 +1,6 @@
 /*
  * list.h : list manipulation macros and structures.
- * Copyright 2002-2008 Willy Tarreau <w@1wt.eu>
+ * Copyright 2002-2010 Willy Tarreau <w@1wt.eu>
  *
  */
 
@@ -31,6 +31,12 @@ struct list {
 struct bref {
 	struct list users;
 	struct list *ref; /* pointer to the target's list entry */
+};
+
+/* a word list is a generic list with a pointer to a string in each element. */
+struct wordlist {
+	struct list list;
+	char *s;
 };
 
 /* First undefine some macros which happen to also be defined on OpenBSD,

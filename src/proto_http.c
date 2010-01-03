@@ -1,7 +1,7 @@
 /*
  * HTTP protocol analyzer
  *
- * Copyright 2000-2009 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2010 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -2515,6 +2515,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 	struct http_msg *msg = &txn->req;
 	struct acl_cond *cond;
 	struct redirect_rule *rule;
+	struct wordlist *wl;
 	int cur_idx;
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
@@ -2674,11 +2675,8 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 	} /* if must close keep-alive */
 
 	/* add request headers from the rule sets in the same order */
-	for (cur_idx = 0; cur_idx < px->nb_reqadd; cur_idx++) {
-		if (unlikely(http_header_add_tail(req,
-						  &txn->req,
-						  &txn->hdr_idx,
-						  px->req_add[cur_idx]) < 0))
+	list_for_each_entry(wl, &px->req_add, list) {
+		if (unlikely(http_header_add_tail(req, &txn->req, &txn->hdr_idx, wl->s) < 0))
 			goto return_bad_req;
 	}
 
@@ -4015,7 +4013,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 	struct http_txn *txn = &t->txn;
 	struct http_msg *msg = &txn->rsp;
 	struct proxy *cur_proxy;
-	int cur_idx;
+	struct wordlist *wl;
 	int conn_ka = 0, conn_cl = 0;
 	int must_close = 0;
 	int must_del_close = 0, must_keep = 0;
@@ -4228,11 +4226,10 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 			}
 
 			/* add response headers from the rule sets in the same order */
-			for (cur_idx = 0; cur_idx < rule_set->nb_rspadd; cur_idx++) {
+			list_for_each_entry(wl, &rule_set->rsp_add, list) {
 				if (txn->status < 200)
 					break;
-				if (unlikely(http_header_add_tail(rep, &txn->rsp, &txn->hdr_idx,
-								  rule_set->rsp_add[cur_idx]) < 0))
+				if (unlikely(http_header_add_tail(rep, &txn->rsp, &txn->hdr_idx, wl->s) < 0))
 					goto return_bad_resp;
 			}
 
