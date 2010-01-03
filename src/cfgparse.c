@@ -1607,7 +1607,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 				break;
 			}
 			else {
-				Alert("parsing [%s:%d] : '%s' expects 'code', 'prefix' or 'location' (was '%s').\n",
+				Alert("parsing [%s:%d] : '%s' expects 'code', 'prefix', 'location', 'set-cookie', 'clear-cookie' or 'drop-query' (was '%s').\n",
 				      file, linenum, args[0], args[cur_arg]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
