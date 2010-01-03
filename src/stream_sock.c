@@ -603,6 +603,7 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 		 *    the ongoing FIN with the last segment.
 		 *  - we know we can't send everything at once and must get back
 		 *    here because of unaligned data
+		 *  - there is still a finite amount of data to forward
 		 * The test is arranged so that the most common case does only 2
 		 * tests.
 		 */
@@ -611,8 +612,8 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 			unsigned int send_flag = MSG_DONTWAIT | MSG_NOSIGNAL;
 
 			if (MSG_MORE &&
-			    (((b->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK)) == BF_SHUTW_NOW &&
-			      (max == b->send_max)) ||
+			    ((b->to_forward && b->to_forward != BUF_INFINITE_FORWARD) ||
+			     ((b->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK)) == BF_SHUTW_NOW && (max == b->send_max)) ||
 			     (max != b->l && max != b->send_max))
 			    && (fdtab[si->fd].flags & FD_FL_TCP)) {
 				send_flag |= MSG_MORE;
