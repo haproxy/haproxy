@@ -92,8 +92,8 @@
 
 /*********************************************************************/
 
-static int cfg_nbcfgfiles;      /* number of config files */
-static char *cfg_cfgfile[10];	/* configuration files, stop at NULL */
+/* list of config files */
+static struct list cfg_cfgfiles = LIST_HEAD_INIT(cfg_cfgfiles);
 char *progname = NULL;		/* program name */
 int  pid;			/* current process id */
 int  relative_pid = 1;		/* process id starting at 1 */
@@ -380,6 +380,7 @@ void init(int argc, char **argv)
 	char *tmp;
 	char *cfg_pidfile = NULL;
 	int err_code = 0;
+	struct wordlist *wl;
 
 	/*
 	 * Initialize the previously static variables.
@@ -500,12 +501,13 @@ void init(int argc, char **argv)
 				case 'm' : global.rlimit_memmax = atol(*argv); break;
 				case 'N' : cfg_maxpconn = atol(*argv); break;
 				case 'f' :
-					if (cfg_nbcfgfiles > MAX_CFG_FILES) {
-						Alert("Cannot load configuration file %s : too many configuration files (max %d).\n",
-						      *argv, MAX_CFG_FILES);
+					wl = (struct wordlist *)calloc(1, sizeof(*wl));
+					if (!wl) {
+						Alert("Cannot load configuration file %s : out of memory.\n", *argv);
 						exit(1);
 					}
-					cfg_cfgfile[cfg_nbcfgfiles++] = *argv;
+					wl->s = *argv;
+					LIST_ADDQ(&cfg_cfgfiles, &wl->list);
 					break;
 				case 'p' : cfg_pidfile = *argv; break;
 				default: usage(old_argv);
@@ -521,7 +523,7 @@ void init(int argc, char **argv)
 		(arg_mode & (MODE_DAEMON | MODE_FOREGROUND | MODE_VERBOSE
 			     | MODE_QUIET | MODE_CHECK | MODE_DEBUG));
 
-	if (!cfg_nbcfgfiles)
+	if (LIST_ISEMPTY(&cfg_cfgfiles))
 		usage(old_argv);
 
 	gethostname(hostname, MAX_HOSTNAME_LEN);
@@ -531,17 +533,17 @@ void init(int argc, char **argv)
 
 	init_default_instance();
 
-	for (i = 0; i < cfg_nbcfgfiles; i++) {
+	list_for_each_entry(wl, &cfg_cfgfiles, list) {
 		int ret;
 
-		ret = readcfgfile(cfg_cfgfile[i]);
+		ret = readcfgfile(wl->s);
 		if (ret == -1) {
 			Alert("Could not open configuration file %s : %s\n",
-			      cfg_cfgfile[i], strerror(errno));
+			      wl->s, strerror(errno));
 			exit(1);
 		}
 		if (ret & (ERR_ABORT|ERR_FATAL))
-			Alert("Error(s) found in configuration file : %s\n", cfg_cfgfile[i]);
+			Alert("Error(s) found in configuration file : %s\n", wl->s);
 		err_code |= ret;
 		if (err_code & ERR_ABORT)
 			exit(1);
@@ -879,6 +881,11 @@ void deinit(void)
 	free(global.desc);    global.desc = NULL;
 	free(fdtab);          fdtab   = NULL;
 	free(oldpids);        oldpids = NULL;
+
+	list_for_each_entry_safe(wl, wlb, &cfg_cfgfiles, list) {
+		LIST_DEL(&wl->list);
+		free(wl);
+	}
 
 	pool_destroy2(pool2_session);
 	pool_destroy2(pool2_buffer);

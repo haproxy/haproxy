@@ -48,9 +48,6 @@
 #define LINESIZE	2048
 #endif
 
-// max # of configuration files
-#define MAX_CFG_FILES   10
-
 // max # args on a configuration line
 #define MAX_LINE_ARGS   64
 
