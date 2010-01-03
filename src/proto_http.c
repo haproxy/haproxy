@@ -79,18 +79,17 @@ const struct chunk http_200_chunk = {
 	.len = sizeof(HTTP_200)-1
 };
 
+/* Warning: no "connection" header is provided with the 3xx messages below */
 const char *HTTP_301 =
 	"HTTP/1.1 301 Moved Permanently\r\n"
 	"Cache-Control: no-cache\r\n"
 	"Content-length: 0\r\n"
-	"Connection: close\r\n"
 	"Location: "; /* not terminated since it will be concatenated with the URL */
 
 const char *HTTP_302 =
 	"HTTP/1.1 302 Found\r\n"
 	"Cache-Control: no-cache\r\n"
 	"Content-length: 0\r\n"
-	"Connection: close\r\n"
 	"Location: "; /* not terminated since it will be concatenated with the URL */
 
 /* same as 302 except that the browser MUST retry with the GET method */
@@ -98,7 +97,6 @@ const char *HTTP_303 =
 	"HTTP/1.1 303 See Other\r\n"
 	"Cache-Control: no-cache\r\n"
 	"Content-length: 0\r\n"
-	"Connection: close\r\n"
 	"Location: "; /* not terminated since it will be concatenated with the URL */
 
 /* Warning: this one is an sprintf() fmt string, with <realm> as its only argument */
@@ -670,8 +668,8 @@ void perform_http_redirect(struct session *s, struct stream_interface *si)
 
 	memcpy(rdr.str + rdr.len, path, len);
 	rdr.len += len;
-	memcpy(rdr.str + rdr.len, "\r\n\r\n", 4);
-	rdr.len += 4;
+	memcpy(rdr.str + rdr.len, "\r\nConnection: close\r\n\r\n", 23);
+	rdr.len += 23;
 
 	/* prepare to return without error. */
 	si->shutr(si);
@@ -2787,15 +2785,38 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 				rdr.len += 2;
 			}
 
-			/* add end of headers */
-			memcpy(rdr.str + rdr.len, "\r\n\r\n", 4);
-			rdr.len += 4;
-
+			/* add end of headers and the keep-alive/close status.
+			 * We may choose to set keep-alive if the Location begins
+			 * with a slash, because the client will come back to the
+			 * same server.
+			 */
 			txn->status = rule->code;
 			/* let's log the request time */
 			s->logs.tv_request = now;
-			stream_int_retnclose(req->prod, &rdr);
-			goto return_prx_cond;
+
+			if (rule->rdr_len >= 1 && *rule->rdr_str == '/' &&
+			    (txn->flags & TX_REQ_XFER_LEN) &&
+			    !(txn->flags & TX_REQ_TE_CHNK) && !txn->req.hdr_content_len &&
+			    ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL ||
+			     (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL)) {
+				/* keep-alive possible */
+				memcpy(rdr.str + rdr.len, "\r\nConnection: keep-alive\r\n\r\n", 28);
+				rdr.len += 28;
+				buffer_write(req->prod->ob, rdr.str, rdr.len);
+				/* "eat" the request */
+				buffer_ignore(req, msg->sov - msg->som);
+				msg->som = msg->sov;
+				req->analysers = AN_REQ_HTTP_XFER_BODY;
+				txn->req.msg_state = HTTP_MSG_DONE;
+				txn->rsp.msg_state = HTTP_MSG_CLOSED;
+				break;
+			} else {
+				/* keep-alive not possible */
+				memcpy(rdr.str + rdr.len, "\r\nConnection: close\r\n\r\n", 23);
+				rdr.len += 23;
+				stream_int_cond_close(req->prod, &rdr);
+				goto return_prx_cond;
+			}
 		}
 	}
 
