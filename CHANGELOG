@@ -1,6 +1,123 @@
 ChangeLog :
 ===========
 
+2010/01/03 : 1.4-dev5
+    - [MINOR] server tracking: don't care about the tracked server's mode
+    - [MEDIUM] appsession: add "len", "prefix" and "mode" options
+    - [MEDIUM] appsession: add the "request-learn" option
+    - [BUG] Configuration parser bug when escaping characters
+    - [MINOR] CSS & HTML fun
+    - [MINOR] Collect & provide http response codes received from servers
+    - [BUG] Fix silly typo: hspr_other -> hrsp_other
+    - [MINOR] Add "a name" to stats page
+    - [MINOR] add additional "a href"s to stats page
+    - [MINOR] Collect & provide http response codes for frontends, fix backends
+    - [DOC] some small spell fixes and unifications
+    - [MEDIUM] Decrease server health based on http responses / events, version 3
+    - [BUG] format '%d' expects type 'int', but argument 5 has type 'long int'
+    - [BUG] config: fix erroneous check on cookie domain names, again
+    - [BUG] Healthchecks: get a proper error code if connection cannot be completed immediately
+    - [DOC] trivial fix for man page
+    - [MINOR] config: report all supported options for the "bind" keyword
+    - [MINOR] tcp: add support for the defer_accept bind option
+    - [MINOR] unix socket: report the socket path in case of bind error
+    - [CONTRIB] halog: support searching by response time
+    - [DOC] add a reminder about obsolete documents
+    - [DOC] point to 1.4 doc, not 1.3
+    - [DOC] option tcp-smart-connect was missing from index
+    - [MINOR] http: detect connection: close earlier
+    - [CLEANUP] sepoll: clean up the fd_clr/fd_set functions
+    - [OPTIM] move some rarely used fields out of fdtab
+    - [MEDIUM] fd: merge fd_list into fdtab
+    - [MAJOR] buffer: flag BF_DONT_READ to disable reads when not required
+    - [MINOR] http: add new transaction flags for keep-alive and content-length
+    - [MEDIUM] http request: parse connection, content-length and transfer-encoding
+    - [MINOR] http request: update the TX_SRV_CONN_KA flag on rewrite
+    - [MINOR] http request: simplify the test of no-data
+    - [MEDIUM] http request: simplify POST length detection
+    - [MEDIUM] http request: make use of pre-parsed transfer-encoding header
+    - [MAJOR] http: create the analyser which waits for a response
+    - [MINOR] http: pre-set the persistent flags in the transaction
+    - [MEDIUM] http response: check body length and set transaction flags
+    - [MINOR] http response: update the TX_CLI_CONN_KA flag on rewrite
+    - [MINOR] http: remove the last call to stream_int_return
+    - [IMPORT] import ebtree v5.0 into directory ebtree/
+    - [MEDIUM] build: switch ebtree users to use new ebtree version
+    - [CLEANUP] ebtree: remove old unused files
+    - [BUG] definitely fix regparm issues between haproxy core and ebtree
+    - [CLEANUP] ebtree: cast to char * to get rid of gcc warning
+    - [BUILD] missing #ifndef in ebmbtree.h
+    - [BUILD] missing #ifndef in ebsttree.h
+    - [MINOR] tools: add hex2i() function to convert hex char to int
+    - [MINOR] http: create new MSG_BODY sub-states
+    - [BUG] stream_sock: BUF_INFINITE_FORWARD broke splice on 64-bit platforms
+    - [DOC] option is "defer-accept", not "defer_accept"
+    - [MINOR] http: keep pointer to beginning of data
+    - [BUG] x-original-to: name was not set in default instance
+    - [MINOR] http: detect tunnel mode and set it in the session
+    - [BUG] config: fix error message when config file is not found
+    - [BUG] config: fix wrong handling of too large argument count
+    - [BUG] config: disable 'option httplog' on TCP proxies
+    - [BUG] config: fix erroneous check on cookie domain names
+    - [BUG] config: cookie domain was ignored in defaults sections
+    - [MINOR] config: support passing multiple "domain" statements to cookies
+    - [MINOR] ebtree: add functions to lookup non-null terminated strings
+    - [MINOR] config: don't report error on all subsequent files on failure
+    - [BUG] second fix for the printf format warning
+    - [BUG] check_post: limit analysis to the buffer length
+    - [MEDIUM] http: process request body in a specific analyser
+    - [MEDIUM] backend: remove HTTP POST parsing from get_server_ph_post()
+    - [MAJOR] http: completely process the "connection" header
+    - [MINOR] http: only consider chunk encoding with HTTP/1.1
+    - [MAJOR] buffers: automatically compute the maximum buffer length
+    - [MINOR] http: move the http transaction init/cleanup code to proto_http
+    - [MINOR] http: move 1xx handling earlier to eliminate a lot of ifs
+    - [MINOR] http: introduce a new synchronisation state : HTTP_MSG_DONE
+    - [MEDIUM] http: rework chunk-size parser
+    - [MEDIUM] http: add a new transaction flags indicating if we know the transfer length
+    - [MINOR] buffers: add buffer_ignore() to skip some bytes
+    - [BUG] http: offsets are relative to the buffer, not to ->som
+    - [MEDIUM] http: automatically re-aling request buffer
+    - [BUG] http: body parsing must consider the start of message
+    - [MINOR] new function stream_int_cond_close()
+    - [MAJOR] http: implement body parser
+    - [BUG] http: typos on several unlikely() around header insertion
+    - [BUG] stream_sock: wrong max computation on recv
+    - [MEDIUM] http: rework the buffer alignment logic
+    - [BUG] buffers: wrong size calculation for displaced data
+    - [MINOR] stream_sock: prepare for closing when all pending data are sent
+    - [MEDIUM] http: add two more states for the closing period
+    - [MEDIUM] http: properly handle "option forceclose"
+    - [MINOR] stream_sock: add SI_FL_NOLINGER for faster close
+    - [MEDIUM] http: make forceclose use SI_FL_NOLINGER
+    - [MEDIUM] session: set SI_FL_NOLINGER when aborting on write timeouts
+    - [MEDIUM] http: add some SI_FL_NOLINGER around server errors
+    - [MINOR] config: option forceclose is valid in frontends too
+    - [BUILD] halog: insufficient include path in makefile
+    - [MEDIUM] http: make the analyser not rely on msg being initialized anymore
+    - [MEDIUM] http: make the parsers able to wait for a buffer flush
+    - [MAJOR] http: add support for option http-server-close
+    - [BUG] http: ensure we abort data transfer on write error
+    - [BUG] last fix was overzealous and disabled server-close
+    - [BUG] http: fix erroneous trailers size computation
+    - [MINOR] stream_sock: enable MSG_MORE when forwarding finite amount of data
+    - [OPTIM] http: set MSG_MORE on response when a pipelined request is pending
+    - [BUG] http: redirects were broken by chunk changes
+    - [BUG] http: the request URI pointer is relative to the buffer
+    - [OPTIM] http: don't immediately enable reading on request
+    - [MINOR] http: move redirect messages to HTTP/1.1 with a content-length
+    - [BUG] http: take care of errors, timeouts and aborts during the data phase
+    - [MINOR] http: don't wait for sending requests to the server
+    - [MINOR] http: make the conditional redirect support keep-alive
+    - [BUG] http: fix cookie parser to support spaces and commas in values
+    - [MINOR] config: some options were missing for "redirect"
+    - [MINOR] redirect: add support for unconditional rules
+    - [MINOR] config: centralize proxy struct initialization
+    - [MEDIUM] config: remove the limitation of 10 reqadd/rspadd statements
+    - [MEDIUM] config: remove the limitation of 10 config files
+    - [CLEANUP] http: remove a remaining impossible condition
+    - [OPTIM] http: optimize a bit the construct of the forward loops
+
 2009/10/12 : 1.4-dev4
     - [DOC] add missing rate_lim and rate_max
     - [MAJOR] struct chunk rework
