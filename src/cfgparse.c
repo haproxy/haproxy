@@ -783,23 +783,32 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	return err_code;
 }
 
+/* Perform the most basic initialization of a proxy :
+ * memset(), list_init(*), reset_timeouts(*).
+ */
+static void init_new_proxy(struct proxy *p)
+{
+	memset(p, 0, sizeof(struct proxy));
+	LIST_INIT(&p->pendconns);
+	LIST_INIT(&p->acl);
+	LIST_INIT(&p->block_cond);
+	LIST_INIT(&p->redirect_rules);
+	LIST_INIT(&p->mon_fail_cond);
+	LIST_INIT(&p->switching_rules);
+	LIST_INIT(&p->tcp_req.inspect_rules);
+
+	/* Timeouts are defined as -1 */
+	proxy_reset_timeouts(p);
+}
 
 void init_default_instance()
 {
-	memset(&defproxy, 0, sizeof(defproxy));
+	init_new_proxy(&defproxy);
 	defproxy.mode = PR_MODE_TCP;
 	defproxy.state = PR_STNEW;
 	defproxy.maxconn = cfg_maxpconn;
 	defproxy.conn_retries = CONN_RETRIES;
 	defproxy.logfac1 = defproxy.logfac2 = -1; /* log disabled */
-
-	LIST_INIT(&defproxy.pendconns);
-	LIST_INIT(&defproxy.acl);
-	LIST_INIT(&defproxy.block_cond);
-	LIST_INIT(&defproxy.mon_fail_cond);
-	LIST_INIT(&defproxy.switching_rules);
-
-	proxy_reset_timeouts(&defproxy);
 }
 
 /*
@@ -876,23 +885,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
+		init_new_proxy(curproxy);
 		curproxy->next = proxy;
 		proxy = curproxy;
 		curproxy->conf.file = file;
 		curproxy->conf.line = linenum;
-		LIST_INIT(&curproxy->pendconns);
-		LIST_INIT(&curproxy->acl);
-		LIST_INIT(&curproxy->block_cond);
-		LIST_INIT(&curproxy->redirect_rules);
-		LIST_INIT(&curproxy->mon_fail_cond);
-		LIST_INIT(&curproxy->switching_rules);
-		LIST_INIT(&curproxy->tcp_req.inspect_rules);
-
-		/* Timeouts are defined as -1, so we cannot use the zeroed area
-		 * as a default value.
-		 */
-		proxy_reset_timeouts(curproxy);
-
 		curproxy->last_change = now.tv_sec;
 		curproxy->id = strdup(args[1]);
 		curproxy->cap = rc;
