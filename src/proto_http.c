@@ -593,7 +593,7 @@ http_get_path(struct http_txn *txn)
 {
 	char *ptr, *end;
 
-	ptr = txn->req.sol + txn->req.sl.rq.u;
+	ptr = txn->req.sol - txn->req.som + txn->req.sl.rq.u;
 	end = ptr + txn->req.sl.rq.u_l;
 
 	if (ptr >= end)
@@ -661,7 +661,7 @@ void perform_http_redirect(struct session *s, struct stream_interface *si)
 	if (!path)
 		return;
 
-	len = txn->req.sl.rq.u_l + (txn->req.sol+txn->req.sl.rq.u) - path;
+	len = txn->req.sl.rq.u_l + (txn->req.sol-txn->req.som+txn->req.sl.rq.u) - path;
 	if (rdr.len + len > rdr.size - 4) /* 4 for CRLF-CRLF */
 		return;
 
@@ -2730,7 +2730,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 				path = http_get_path(txn);
 				/* build message using path */
 				if (path) {
-					pathlen = txn->req.sl.rq.u_l + (txn->req.sol+txn->req.sl.rq.u) - path;
+					pathlen = txn->req.sl.rq.u_l + (txn->req.sol-txn->req.som+txn->req.sl.rq.u) - path;
 					if (rule->flags & REDIRECT_FLAG_DROP_QS) {
 						int qs = 0;
 						while (qs < pathlen) {
@@ -6234,7 +6234,7 @@ acl_fetch_url(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0;
 
 	test->len = txn->req.sl.rq.u_l;
-	test->ptr = txn->req.sol + txn->req.sl.rq.u;
+	test->ptr = txn->req.sol - txn->req.som + txn->req.sl.rq.u;
 
 	/* we do not need to set READ_ONLY because the data is in a buffer */
 	test->flags = ACL_TEST_F_VOL_1ST;
@@ -6258,7 +6258,7 @@ acl_fetch_url_ip(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0;
 
 	/* Parse HTTP request */
-	url2sa(txn->req.sol + txn->req.sl.rq.u, txn->req.sl.rq.u_l, &l4->srv_addr);
+	url2sa(txn->req.sol - txn->req.som + txn->req.sl.rq.u, txn->req.sl.rq.u_l, &l4->srv_addr);
 	test->ptr = (void *)&((struct sockaddr_in *)&l4->srv_addr)->sin_addr;
 	test->i = AF_INET;
 
@@ -6290,7 +6290,7 @@ acl_fetch_url_port(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0;
 
 	/* Same optimization as url_ip */
-	url2sa(txn->req.sol + txn->req.sl.rq.u, txn->req.sl.rq.u_l, &l4->srv_addr);
+	url2sa(txn->req.sol - txn->req.som + txn->req.sl.rq.u, txn->req.sl.rq.u_l, &l4->srv_addr);
 	test->i = ntohs(((struct sockaddr_in *)&l4->srv_addr)->sin_port);
 
 	if (px->options & PR_O_HTTP_PROXY)
@@ -6577,7 +6577,7 @@ acl_fetch_path(struct proxy *px, struct session *l4, void *l7, int dir,
 		/* ensure the indexes are not affected */
 		return 0;
 
-	end = txn->req.sol + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
+	end = txn->req.sol - txn->req.som + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
 	ptr = http_get_path(txn);
 	if (!ptr)
 		return 0;
