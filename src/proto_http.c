@@ -80,21 +80,24 @@ const struct chunk http_200_chunk = {
 };
 
 const char *HTTP_301 =
-	"HTTP/1.0 301 Moved Permantenly\r\n"
+	"HTTP/1.1 301 Moved Permanently\r\n"
 	"Cache-Control: no-cache\r\n"
+	"Content-length: 0\r\n"
 	"Connection: close\r\n"
 	"Location: "; /* not terminated since it will be concatenated with the URL */
 
 const char *HTTP_302 =
-	"HTTP/1.0 302 Found\r\n"
+	"HTTP/1.1 302 Found\r\n"
 	"Cache-Control: no-cache\r\n"
+	"Content-length: 0\r\n"
 	"Connection: close\r\n"
 	"Location: "; /* not terminated since it will be concatenated with the URL */
 
 /* same as 302 except that the browser MUST retry with the GET method */
 const char *HTTP_303 =
-	"HTTP/1.0 303 See Other\r\n"
+	"HTTP/1.1 303 See Other\r\n"
 	"Cache-Control: no-cache\r\n"
+	"Content-length: 0\r\n"
 	"Connection: close\r\n"
 	"Location: "; /* not terminated since it will be concatenated with the URL */
 
