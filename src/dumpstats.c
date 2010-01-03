@@ -1632,14 +1632,19 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     (sv->state & SRV_BACKUP) ? "Y" : "-");
 
 				/* check failures: unique, fatal, down time */
-				if (sv->state & SRV_CHECKED)
+				if (sv->state & SRV_CHECKED) {
+					chunk_printf(&msg, "<td title=\"Failed Health Checks%s\">%lld",
+					     svs->observe?"/Health Analyses":"", svs->counters.failed_checks);
+
+					if (svs->observe)
+						chunk_printf(&msg, "/%lld", svs->counters.failed_hana);
+
 					chunk_printf(&msg,
-					     "<td title=\"Failed Health Checks/Health Analyses\">%lld/%lld</td>"
+					     "</td>"
 					     "<td>%lld</td><td>%s</td>"
 					     "",
-					     svs->counters.failed_checks, svs->counters.failed_hana,
 					     svs->counters.down_trans, human_time(srv_downtime(sv), 1));
-				else if (sv != svs)
+				} else if (sv != svs)
 					chunk_printf(&msg,
 					     "<td class=ac colspan=3>via %s/%s</td>", svs->proxy->id, svs->id);
 				else
