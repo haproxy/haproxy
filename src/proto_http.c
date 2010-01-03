@@ -3329,7 +3329,20 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 			msg->som = msg->sov;
 		}
 
-		if (msg->msg_state == HTTP_MSG_CHUNK_SIZE) {
+		if (msg->msg_state == HTTP_MSG_DATA) {
+			/* must still forward */
+			if (req->to_forward)
+				return 0;
+
+			/* nothing left to forward */
+			if (txn->flags & TX_REQ_TE_CHNK)
+				msg->msg_state = HTTP_MSG_DATA_CRLF;
+			else {
+				msg->msg_state = HTTP_MSG_DONE;
+				goto http_msg_done;
+			}
+		}
+		else if (msg->msg_state == HTTP_MSG_CHUNK_SIZE) {
 			/* read the chunk size and assign it to ->hdr_content_len, then
 			 * set ->sov and ->lr to point to the body and switch to DATA or
 			 * TRAILERS state.
@@ -3341,18 +3354,6 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 			else if (ret < 0)
 				goto return_bad_req;
 			/* otherwise we're in HTTP_MSG_DATA or HTTP_MSG_TRAILERS state */
-		}
-		else if (msg->msg_state == HTTP_MSG_DATA) {
-			/* must still forward */
-			if (req->to_forward)
-				return 0;
-
-			/* nothing left to forward */
-			if (txn->flags & TX_REQ_TE_CHNK)
-				msg->msg_state = HTTP_MSG_DATA_CRLF;
-			else {
-				msg->msg_state = HTTP_MSG_DONE;
-			}
 		}
 		else if (msg->msg_state == HTTP_MSG_DATA_CRLF) {
 			/* we want the CRLF after the data */
@@ -3382,6 +3383,7 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 			/* we're in HTTP_MSG_DONE now */
 		}
 		else if (msg->msg_state == HTTP_MSG_DONE) {
+		http_msg_done:
 			/* No need to read anymore, the request was completely parsed */
 			req->flags |= BF_DONT_READ;
 
@@ -3412,10 +3414,14 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 			}
 
 			if (req->flags & (BF_SHUTW|BF_SHUTW_NOW)) {
-				if (req->flags & BF_OUT_EMPTY)
+				if (req->flags & BF_OUT_EMPTY) {
 					msg->msg_state = HTTP_MSG_CLOSED;
-				else
+					goto http_msg_closed;
+				}
+				else {
 					msg->msg_state = HTTP_MSG_CLOSING;
+					goto http_msg_closing;
+				}
 			}
 			else {
 				/* for other modes, we let further requests pass for now */
@@ -3426,12 +3432,14 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 			}
 		}
 		else if (msg->msg_state == HTTP_MSG_CLOSING) {
+		http_msg_closing:
 			/* nothing else to forward, just waiting for the buffer to be empty */
 			if (!(req->flags & BF_OUT_EMPTY))
 				return 0;
 			msg->msg_state = HTTP_MSG_CLOSED;
 		}
 		else if (msg->msg_state == HTTP_MSG_CLOSED) {
+		http_msg_closed:
 			req->flags &= ~BF_DONT_READ;
 
 			if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL) {
@@ -4433,7 +4441,18 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 			msg->som = msg->sov;
 		}
 
-		if (msg->msg_state == HTTP_MSG_CHUNK_SIZE) {
+		if (msg->msg_state == HTTP_MSG_DATA) {
+			/* must still forward */
+			if (res->to_forward)
+				return 0;
+
+			/* nothing left to forward */
+			if (txn->flags & TX_RES_TE_CHNK)
+				msg->msg_state = HTTP_MSG_DATA_CRLF;
+			else
+				msg->msg_state = HTTP_MSG_DONE;
+		}
+		else if (msg->msg_state == HTTP_MSG_CHUNK_SIZE) {
 			/* read the chunk size and assign it to ->hdr_content_len, then
 			 * set ->sov to point to the body and switch to DATA or TRAILERS state.
 			 */
@@ -4444,18 +4463,6 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 			else if (ret < 0)
 				goto return_bad_res;
 			/* otherwise we're in HTTP_MSG_DATA or HTTP_MSG_TRAILERS state */
-		}
-		else if (msg->msg_state == HTTP_MSG_DATA) {
-			/* must still forward */
-			if (res->to_forward)
-				return 0;
-
-			/* nothing left to forward */
-			if (txn->flags & TX_RES_TE_CHNK)
-				msg->msg_state = HTTP_MSG_DATA_CRLF;
-			else {
-				msg->msg_state = HTTP_MSG_DONE;
-			}
 		}
 		else if (msg->msg_state == HTTP_MSG_DATA_CRLF) {
 			/* we want the CRLF after the data */
@@ -4514,10 +4521,14 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 			}
 
 			if (res->flags & (BF_SHUTW|BF_SHUTW_NOW)) {
-				if (res->flags & BF_OUT_EMPTY)
+				if (res->flags & BF_OUT_EMPTY) {
 					msg->msg_state = HTTP_MSG_CLOSED;
-				else
+					goto http_msg_closed;
+				}
+				else {
 					msg->msg_state = HTTP_MSG_CLOSING;
+					goto http_msg_closing;
+				}
 			}
 			else {
 				/* for other modes, we let further responses pass for now */
@@ -4528,12 +4539,14 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 			}
 		}
 		else if (msg->msg_state == HTTP_MSG_CLOSING) {
+		http_msg_closing:
 			/* nothing else to forward, just waiting for the buffer to be empty */
 			if (!(res->flags & BF_OUT_EMPTY))
 				return 0;
 			msg->msg_state = HTTP_MSG_CLOSED;
 		}
 		else if (msg->msg_state == HTTP_MSG_CLOSED) {
+		http_msg_closed:
 			res->flags &= ~BF_DONT_READ;
 			/* FIXME: we're still forced to do that here */
 			s->req->flags &= ~BF_DONT_READ;
