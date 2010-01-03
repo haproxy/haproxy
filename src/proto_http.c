@@ -3256,7 +3256,10 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &s->txn.req;
 
-	if (req->flags & (BF_WRITE_ERROR|BF_WRITE_TIMEOUT)) {
+	if ((req->flags & (BF_READ_ERROR|BF_READ_TIMEOUT|BF_WRITE_ERROR|BF_WRITE_TIMEOUT)) ||
+	    ((req->flags & BF_SHUTW) && (req->to_forward || req->send_max))) {
+		/* Output closed while we were sending data. We must abort. */
+		buffer_ignore(req, req->l - req->send_max);
 		req->analysers &= ~an_bit;
 		return 1;
 	}
@@ -4368,7 +4371,11 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &s->txn.rsp;
 
-	if (res->flags & (BF_WRITE_ERROR|BF_WRITE_TIMEOUT)) {
+	if ((res->flags & (BF_READ_ERROR|BF_READ_TIMEOUT|BF_WRITE_ERROR|BF_WRITE_TIMEOUT)) ||
+	    !s->req->analysers) {
+		/* in case of error or if the other analyser went away, we can't analyse HTTP anymore */
+		buffer_ignore(res, res->l - res->send_max);
+		buffer_auto_close(res);
 		res->analysers &= ~an_bit;
 		return 1;
 	}
@@ -4515,6 +4522,8 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 		}
 	}
 
+	buffer_ignore(res, res->l - res->send_max);
+	buffer_auto_close(res);
 	res->analysers &= ~an_bit;
 	return 1;
 
