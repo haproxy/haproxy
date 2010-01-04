@@ -32,6 +32,7 @@
 #include <proto/fd.h>
 #include <proto/log.h>
 #include <proto/hdr_idx.h>
+#include <proto/pattern.h>
 #include <proto/proto_tcp.h>
 #include <proto/proto_http.h>
 #include <proto/proxy.h>
@@ -521,8 +522,17 @@ acl_fetch_src(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 1;
 }
 
+/* extract the connection's source address */
+static int
+pattern_fetch_src(struct proxy *px, struct session *l4, void *l7, int dir,
+                  const char *arg, int arg_len, union pattern_data *data)
+{
+	data->ip.s_addr = ((struct sockaddr_in *)&l4->cli_addr)->sin_addr.s_addr;
+	return 1;
+}
 
-/* set test->i to the connexion's source port */
+
+/* set test->i to the connection's source port */
 static int
 acl_fetch_sport(struct proxy *px, struct session *l4, void *l7, int dir,
                 struct acl_expr *expr, struct acl_test *test)
@@ -554,6 +564,15 @@ acl_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir,
 }
 
 
+/* extract the connection's destination address */
+static int
+pattern_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir,
+                  const char *arg, int arg_len, union pattern_data *data)
+{
+	data->ip.s_addr = ((struct sockaddr_in *)&l4->frt_addr)->sin_addr.s_addr;
+	return 1;
+}
+
 /* set test->i to the frontend connexion's destination port */
 static int
 acl_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -570,6 +589,14 @@ acl_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 1;
 }
 
+static int
+pattern_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
+                    const char *arg, int arg_len, union pattern_data *data)
+
+{
+	data->integer = ntohs(((struct sockaddr_in *)&l4->frt_addr)->sin_port);
+	return 1;
+}
 
 /* set test->i to the number of connexions to the same listening socket */
 static int
@@ -595,10 +622,20 @@ static struct acl_kw_list acl_kws = {{ },{
 }};
 
 
+/* Note: must not be declared <const> as its list will be overwritten */
+static struct pattern_fetch_kw_list pattern_fetch_keywords = {{ },{
+	{ "src",       pattern_fetch_src,   PATTERN_TYPE_IP,      PATTERN_FETCH_REQ },
+	{ "dst",       pattern_fetch_dst,   PATTERN_TYPE_IP,      PATTERN_FETCH_REQ },
+	{ "dst_port",  pattern_fetch_dport, PATTERN_TYPE_INTEGER, PATTERN_FETCH_REQ },
+	{ NULL, NULL, 0, 0 },
+}};
+
+
 __attribute__((constructor))
 static void __client_init(void)
 {
 	acl_register_keywords(&acl_kws);
+	pattern_register_fetches(&pattern_fetch_keywords);
 }
 
 
