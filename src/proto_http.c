@@ -3295,6 +3295,7 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 		return 1;
 	}
 
+	buffer_dont_close(req);
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY))
 		return 0;
 
@@ -3359,12 +3360,10 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 			/* we want the CRLF after the data */
 			int ret;
 
-			if (!(req->flags & BF_OUT_EMPTY))
-				return 0;
-			/* The output pointer does not move anymore, next unsent data
-			 * are available at ->w. Let's save that.
-			 */
-			req->lr = req->w;
+			req->lr = req->w + req->send_max;
+			if (req->lr >= req->data + req->size)
+				req->lr -= req->size;
+
 			ret = http_skip_chunk_crlf(req, msg);
 
 			if (ret == 0)
@@ -4407,6 +4406,7 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 		return 1;
 	}
 
+	buffer_dont_close(res);
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY))
 		return 0;
 
@@ -4468,12 +4468,10 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 			/* we want the CRLF after the data */
 			int ret;
 
-			if (!(res->flags & BF_OUT_EMPTY))
-				return 0;
-			/* The output pointer does not move anymore, next unsent data
-			 * are available at ->w. Let's save that.
-			 */
-			res->lr = res->w;
+			res->lr = res->w + res->send_max;
+			if (res->lr >= res->data + res->size)
+				res->lr -= res->size;
+
 			ret = http_skip_chunk_crlf(res, msg);
 
 			if (!ret)
