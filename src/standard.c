@@ -56,7 +56,7 @@ int strlcpy2(char *dst, const char *src, int size)
  * This function simply returns a locally allocated string containing
  * the ascii representation for number 'n' in decimal.
  */
-const char *ultoa_r(unsigned long n, char *buffer, int size)
+char *ultoa_r(unsigned long n, char *buffer, int size)
 {
 	char *pos;
 	
