@@ -4621,6 +4621,10 @@ int check_config_validity()
 		list_for_each_entry(mrule, &curproxy->sticking_rules, list) {
 			struct proxy *target;
 
+			curproxy->be_req_ana |= AN_REQ_STICKING_RULES;
+			if (mrule->flags & STK_IS_STORE)
+				curproxy->be_rsp_ana |= AN_RES_STORE_RULES;
+
 			if (mrule->table.name)
 				target = findproxy(mrule->table.name, PR_CAP_BE);
 			else
@@ -4650,6 +4654,8 @@ int check_config_validity()
 		/* find the target table for 'store response' rules */
 		list_for_each_entry(mrule, &curproxy->storersp_rules, list) {
 			struct proxy *target;
+
+			curproxy->be_rsp_ana |= AN_RES_STORE_RULES;
 
 			if (mrule->table.name)
 				target = findproxy(mrule->table.name, PR_CAP_BE);

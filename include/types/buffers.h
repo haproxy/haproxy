@@ -142,7 +142,8 @@
 #define AN_REQ_HTTP_INNER       0x00000020  /* inner processing of HTTP request */
 #define AN_REQ_HTTP_TARPIT      0x00000040  /* wait for end of HTTP tarpit */
 #define AN_REQ_HTTP_BODY        0x00000080  /* inspect HTTP request body */
-/* unused: 0x100, 0x200 */
+#define AN_REQ_STICKING_RULES   0x00000100  /* table persistence matching */
+/* unused: 0x200 */
 #define AN_REQ_PRST_RDP_COOKIE  0x00000400  /* persistence on rdp cookie */
 #define AN_REQ_HTTP_XFER_BODY   0x00000800  /* forward request body */
 
@@ -151,6 +152,7 @@
 #define AN_RES_WAIT_HTTP        0x00020000  /* wait for HTTP response */
 #define AN_RES_HTTP_PROCESS_BE  0x00040000  /* process backend's HTTP part */
 #define AN_RES_HTTP_PROCESS_FE  0x00040000  /* process frontend's HTTP part (same for now) */
+#define AN_RES_STORE_RULES      0x00080000  /* table persistence matching */
 #define AN_RES_HTTP_XFER_BODY   0x00100000  /* forward response body */
 
 

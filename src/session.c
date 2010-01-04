@@ -27,12 +27,14 @@
 #include <proto/hdr_idx.h>
 #include <proto/log.h>
 #include <proto/session.h>
+#include <proto/pattern.h>
 #include <proto/pipe.h>
 #include <proto/proto_http.h>
 #include <proto/proto_tcp.h>
 #include <proto/proxy.h>
 #include <proto/queue.h>
 #include <proto/server.h>
+#include <proto/stick_table.h>
 #include <proto/stream_interface.h>
 #include <proto/stream_sock.h>
 #include <proto/task.h>
@@ -610,6 +612,169 @@ int process_switching_rules(struct session *s, struct buffer *req, int an_bit)
 	return 0;
 }
 
+/* This stream analyser works on a request. It applies all sticking rules on
+ * it then returns 1. The data must already be present in the buffer otherwise
+ * they won't match. It always returns 1.
+ */
+int process_sticking_rules(struct session *s, struct buffer *req, int an_bit)
+{
+	struct proxy    *px   = s->be;
+	struct sticking_rule  *rule;
+
+	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
+		now_ms, __FUNCTION__,
+		s,
+		req,
+		req->rex, req->wex,
+		req->flags,
+		req->l,
+		req->analysers);
+
+	list_for_each_entry(rule, &px->sticking_rules, list) {
+		int ret = 1 ;
+		int i;
+
+		for (i = 0; i < s->store_count; i++) {
+			if (rule->table.t == s->store[i].table)
+				break;
+		}
+
+		if (i !=  s->store_count)
+			continue;
+
+		if (rule->cond) {
+	                ret = acl_exec_cond(rule->cond, px, s, &s->txn, ACL_DIR_REQ);
+			ret = acl_pass(ret);
+			if (rule->cond->pol == ACL_COND_UNLESS)
+				ret = !ret;
+		}
+
+		if (ret) {
+			struct stktable_key *key;
+
+			key = pattern_process_key(px, s, &s->txn, PATTERN_FETCH_REQ, rule->expr, rule->table.t->type);
+			if (!key)
+				continue;
+
+			if (rule->flags & STK_IS_MATCH) {
+				struct stksess *ts;
+
+				if ((ts = stktable_lookup(rule->table.t, key)) != NULL) {
+					if (!(s->flags & SN_ASSIGNED)) {
+						struct eb32_node *node;
+
+						/* srv found in table */
+						node = eb32_lookup(&px->conf.used_server_id, ts->sid);
+						if (node) {
+							struct server *srv;
+
+							srv = container_of(node, struct server, conf.id);
+							if ((srv->state & SRV_RUNNING) || (px->options & PR_O_PERSIST)) {
+								s->flags |= SN_DIRECT | SN_ASSIGNED;
+								s->srv = srv;
+							}
+						}
+					}
+					ts->expire = tick_add(now_ms, MS_TO_TICKS(rule->table.t->expire));
+				}
+			}
+			if (rule->flags & STK_IS_STORE) {
+				if (s->store_count < (sizeof(s->store) / sizeof(s->store[0]))) {
+					struct stksess *ts;
+
+					ts = stksess_new(rule->table.t, key);
+					if (ts) {
+						s->store[s->store_count].table = rule->table.t;
+						s->store[s->store_count++].ts = ts;
+					}
+				}
+			}
+		}
+	}
+
+	req->analysers &= ~an_bit;
+	req->analyse_exp = TICK_ETERNITY;
+	return 1;
+}
+
+/* This stream analyser works on a response. It applies all store rules on it
+ * then returns 1. The data must already be present in the buffer otherwise
+ * they won't match. It always returns 1.
+ */
+int process_store_rules(struct session *s, struct buffer *rep, int an_bit)
+{
+	struct proxy    *px   = s->be;
+	struct sticking_rule  *rule;
+	int i;
+
+	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
+		now_ms, __FUNCTION__,
+		s,
+		req,
+		req->rex, req->wex,
+		req->flags,
+		req->l,
+		req->analysers);
+
+	list_for_each_entry(rule, &px->storersp_rules, list) {
+		int ret = 1 ;
+		int storereqidx = -1;
+
+		for (i = 0; i < s->store_count; i++) {
+			if (rule->table.t == s->store[i].table) {
+				if (!(s->store[i].flags))
+					storereqidx = i;
+				break;
+			}
+		}
+
+		if ((i !=  s->store_count) && (storereqidx == -1))
+			continue;
+
+		if (rule->cond) {
+	                ret = acl_exec_cond(rule->cond, px, s, &s->txn, ACL_DIR_RTR);
+	                ret = acl_pass(ret);
+			if (rule->cond->pol == ACL_COND_UNLESS)
+				ret = !ret;
+		}
+
+		if (ret) {
+			struct stktable_key *key;
+
+			key = pattern_process_key(px, s, &s->txn, PATTERN_FETCH_RTR, rule->expr, rule->table.t->type);
+			if (!key)
+				continue;
+
+			if (storereqidx != -1) {
+				stksess_key(s->store[storereqidx].table, s->store[storereqidx].ts, key);
+				s->store[storereqidx].flags = 1;
+			}
+			else if (s->store_count < (sizeof(s->store) / sizeof(s->store[0]))) {
+				struct stksess *ts;
+
+				ts = stksess_new(rule->table.t, key);
+				if (ts) {
+					s->store[s->store_count].table = rule->table.t;
+					s->store[s->store_count].flags = 1;
+					s->store[s->store_count++].ts = ts;
+				}
+			}
+		}
+	}
+
+	/* process store request and store response */
+	for (i = 0; i < s->store_count; i++) {
+		if (stktable_store(s->store[i].table, s->store[i].ts, s->srv->puid) > 0) {
+			stksess_free(s->store[i].table, s->store[i].ts);
+			s->store[i].ts = NULL;
+		}
+	}
+
+	rep->analysers &= ~an_bit;
+	rep->analyse_exp = TICK_ETERNITY;
+	return 1;
+}
+
 /* This macro is very specific to the function below. See the comments in
  * process_session() below to understand the logic and the tests.
  */
@@ -893,6 +1058,12 @@ resync_stream_interface:
 					UPDATE_ANALYSERS(s->req->analysers, ana_list, ana_back, AN_REQ_PRST_RDP_COOKIE);
 				}
 
+				if (ana_list & AN_REQ_STICKING_RULES) {
+					if (!process_sticking_rules(s, s->req, AN_REQ_STICKING_RULES))
+						break;
+					UPDATE_ANALYSERS(s->req->analysers, ana_list, ana_back, AN_REQ_STICKING_RULES);
+				}
+
 				if (ana_list & AN_REQ_HTTP_XFER_BODY) {
 					if (!http_request_forward_body(s, s->req, AN_REQ_HTTP_XFER_BODY))
 						break;
@@ -973,6 +1144,12 @@ resync_stream_interface:
 					if (!http_wait_for_response(s, s->rep, AN_RES_WAIT_HTTP))
 						break;
 					UPDATE_ANALYSERS(s->rep->analysers, ana_list, ana_back, AN_RES_WAIT_HTTP);
+				}
+
+				if (ana_list & AN_RES_STORE_RULES) {
+					if (!process_store_rules(s, s->rep, AN_RES_STORE_RULES))
+						break;
+					UPDATE_ANALYSERS(s->rep->analysers, ana_list, ana_back, AN_RES_STORE_RULES);
 				}
 
 				if (ana_list & AN_RES_HTTP_PROCESS_BE) {
