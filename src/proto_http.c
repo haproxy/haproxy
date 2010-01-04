@@ -3297,6 +3297,419 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 	return 0;
 }
 
+/* Terminate current transaction and prepare a new one. This is very tricky
+ * right now but it works.
+ */
+void http_end_txn_clean_session(struct session *s)
+{
+	/* FIXME: We need a more portable way of releasing a backend's and a
+	 * server's connections. We need a safer way to reinitialize buffer
+	 * flags. We also need a more accurate method for computing per-request
+	 * data.
+	 */
+	http_silent_debug(__LINE__, s);
+
+	s->req->cons->flags |= SI_FL_NOLINGER;
+	s->req->cons->shutr(s->req->cons);
+	s->req->cons->shutw(s->req->cons);
+
+	http_silent_debug(__LINE__, s);
+
+	if (s->flags & SN_BE_ASSIGNED)
+		s->be->beconn--;
+
+	s->logs.t_close = tv_ms_elapsed(&s->logs.tv_accept, &now);
+	session_process_counters(s);
+
+	if (s->txn.status) {
+		int n;
+
+		n = s->txn.status / 100;
+		if (n < 1 || n > 5)
+			n = 0;
+
+		if (s->fe->mode == PR_MODE_HTTP)
+			s->fe->counters.p.http.rsp[n]++;
+
+		if ((s->flags & SN_BE_ASSIGNED) && (s->fe != s->be) &&
+		    (s->be->mode == PR_MODE_HTTP))
+			s->be->counters.p.http.rsp[n]++;
+	}
+
+	/* don't count other requests' data */
+	s->logs.bytes_in  -= s->req->l - s->req->send_max;
+	s->logs.bytes_out -= s->rep->l - s->rep->send_max;
+
+	/* let's do a final log if we need it */
+	if (s->logs.logwait &&
+	    !(s->flags & SN_MONITOR) &&
+	    (!(s->fe->options & PR_O_NULLNOLOG) || s->req->total)) {
+		s->do_log(s);
+	}
+
+	s->logs.accept_date = date; /* user-visible date for logging */
+	s->logs.tv_accept = now;  /* corrected date for internal use */
+	tv_zero(&s->logs.tv_request);
+	s->logs.t_queue = -1;
+	s->logs.t_connect = -1;
+	s->logs.t_data = -1;
+	s->logs.t_close = 0;
+	s->logs.prx_queue_size = 0;  /* we get the number of pending conns before us */
+	s->logs.srv_queue_size = 0; /* we will get this number soon */
+
+	s->logs.bytes_in = s->req->total = s->req->l - s->req->send_max;
+	s->logs.bytes_out = s->rep->total = s->rep->l - s->rep->send_max;
+
+	if (s->pend_pos)
+		pendconn_free(s->pend_pos);
+
+	if (s->srv) {
+		if (s->flags & SN_CURR_SESS) {
+			s->flags &= ~SN_CURR_SESS;
+			s->srv->cur_sess--;
+		}
+		if (may_dequeue_tasks(s->srv, s->be))
+			process_srv_queue(s->srv);
+	}
+
+	if (unlikely(s->srv_conn))
+		sess_change_server(s, NULL);
+	s->srv = NULL;
+
+	s->req->cons->state     = s->req->cons->prev_state = SI_ST_INI;
+	s->req->cons->fd        = -1; /* just to help with debugging */
+	s->req->cons->err_type  = SI_ET_NONE;
+	s->req->cons->err_loc   = NULL;
+	s->req->cons->exp       = TICK_ETERNITY;
+	s->req->cons->flags     = SI_FL_NONE;
+	s->req->flags &= ~(BF_SHUTW|BF_SHUTW_NOW|BF_AUTO_CONNECT|BF_WRITE_ERROR|BF_STREAMER|BF_STREAMER_FAST|BF_AUTO_CLOSE);
+	s->rep->flags &= ~(BF_SHUTR|BF_SHUTR_NOW|BF_READ_ATTACHED|BF_READ_ERROR|BF_READ_NOEXP|BF_STREAMER|BF_STREAMER_FAST|BF_AUTO_CLOSE|BF_WRITE_PARTIAL);
+	s->flags &= ~(SN_DIRECT|SN_ASSIGNED|SN_ADDR_SET|SN_BE_ASSIGNED);
+	s->flags &= ~(SN_CURR_SESS|SN_REDIRECTABLE);
+	s->txn.meth = 0;
+	http_reset_txn(s);
+	s->txn.flags |= TX_NOT_FIRST;
+	if (s->be->options2 & PR_O2_INDEPSTR)
+		s->req->cons->flags |= SI_FL_INDEP_STR;
+
+	/* if the request buffer is not empty, it means we're
+	 * about to process another request, so send pending
+	 * data with MSG_MORE to merge TCP packets when possible.
+	 * Also, let's not start reading a small request packet,
+	 * we may prefer to read a larger one later.
+	 */
+	s->req->flags &= ~BF_DONT_READ;
+	if (s->req->l > s->req->send_max) {
+		s->rep->flags |= BF_EXPECT_MORE;
+		s->req->flags |= BF_DONT_READ;
+	}
+
+	/* make ->lr point to the first non-forwarded byte */
+	s->req->lr = s->req->w + s->req->send_max;
+	if (s->req->lr >= s->req->data + s->req->size)
+		s->req->lr -= s->req->size;
+	s->rep->lr = s->rep->w + s->rep->send_max;
+	if (s->rep->lr >= s->rep->data + s->rep->size)
+		s->rep->lr -= s->req->size;
+
+	s->req->analysers |= s->fe->fe_req_ana;
+	s->rep->analysers = 0;
+
+	http_silent_debug(__LINE__, s);
+}
+
+
+/* This function updates the request state machine according to the response
+ * state machine and buffer flags. It returns 1 if it changes anything (flag
+ * or state), otherwise zero. It ignores any state before HTTP_MSG_DONE, as
+ * it is only used to find when a request/response couple is complete. Both
+ * this function and its equivalent should loop until both return zero. It
+ * can set its own state to DONE, CLOSING, CLOSED, TUNNEL, ERROR.
+ */
+int http_sync_req_state(struct session *s)
+{
+	struct buffer *buf = s->req;
+	struct http_txn *txn = &s->txn;
+	unsigned int old_flags = buf->flags;
+	unsigned int old_state = txn->req.msg_state;
+
+	http_silent_debug(__LINE__, s);
+	if (unlikely(txn->req.msg_state < HTTP_MSG_BODY))
+		return 0;
+
+	if (txn->req.msg_state == HTTP_MSG_DONE) {
+		/* No need to read anymore, the request was completely parsed */
+		buf->flags |= BF_DONT_READ;
+
+		if (txn->rsp.msg_state == HTTP_MSG_ERROR)
+			goto wait_other_side;
+
+		if (txn->rsp.msg_state < HTTP_MSG_DONE) {
+			/* The server has not finished to respond, so we
+			 * don't want to move in order not to upset it.
+			 */
+			goto wait_other_side;
+		}
+
+		if (txn->rsp.msg_state == HTTP_MSG_TUNNEL) {
+			/* if any side switches to tunnel mode, the other one does too */
+			buf->flags &= ~BF_DONT_READ;
+			txn->req.msg_state = HTTP_MSG_TUNNEL;
+			goto wait_other_side;
+		}
+
+		/* When we get here, it means that both the request and the
+		 * response have finished receiving. Depending on the connection
+		 * mode, we'll have to wait for the last bytes to leave in either
+		 * direction, and sometimes for a close to be effective.
+		 */
+
+		if (!(buf->flags & (BF_SHUTW|BF_SHUTW_NOW))) {
+			if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL) {
+				/* Server-close mode : queue a connection close to the server */
+				buffer_shutw_now(buf);
+				buf->cons->flags |= SI_FL_NOLINGER;
+			}
+			else if ((s->fe->options | s->be->options) & PR_O_FORCE_CLO) {
+				/* Option forceclose is set, let's enforce it now
+				 * that we're not expecting any new data to come.
+				 */
+				buffer_shutr_now(buf);
+				buffer_shutw_now(buf);
+				buf->cons->flags |= SI_FL_NOLINGER;
+			}
+			/* other modes include httpclose (no action) and keepalive (not implemented) */
+		}
+
+		if (buf->flags & (BF_SHUTW|BF_SHUTW_NOW)) {
+			/* if we've just closed an output, let's switch */
+			if (!(buf->flags & BF_OUT_EMPTY)) {
+				txn->req.msg_state = HTTP_MSG_CLOSING;
+				goto http_msg_closing;
+			}
+			else {
+				txn->req.msg_state = HTTP_MSG_CLOSED;
+				goto http_msg_closed;
+			}
+		}
+		else {
+			/* other modes are used as a tunnel right now */
+			buf->flags &= ~BF_DONT_READ;
+			txn->req.msg_state = HTTP_MSG_TUNNEL;
+			goto wait_other_side;
+		}
+	}
+
+	if (txn->req.msg_state == HTTP_MSG_CLOSING) {
+	http_msg_closing:
+		/* nothing else to forward, just waiting for the output buffer
+		 * to be empty and for the shutw_now to take effect.
+		 */
+		if (buf->flags & BF_OUT_EMPTY) {
+			txn->req.msg_state = HTTP_MSG_CLOSED;
+			goto http_msg_closed;
+		}
+		else if (buf->flags & BF_SHUTW) {
+			txn->req.msg_state = HTTP_MSG_ERROR;
+			goto wait_other_side;
+		}
+	}
+
+	if (txn->req.msg_state == HTTP_MSG_CLOSED) {
+	http_msg_closed:
+		goto wait_other_side;
+	}
+
+ wait_other_side:
+	http_silent_debug(__LINE__, s);
+	return txn->req.msg_state != old_state || buf->flags != old_flags;
+}
+
+
+/* This function updates the response state machine according to the request
+ * state machine and buffer flags. It returns 1 if it changes anything (flag
+ * or state), otherwise zero. It ignores any state before HTTP_MSG_DONE, as
+ * it is only used to find when a request/response couple is complete. Both
+ * this function and its equivalent should loop until both return zero. It
+ * can set its own state to DONE, CLOSING, CLOSED, TUNNEL, ERROR.
+ */
+int http_sync_res_state(struct session *s)
+{
+	struct buffer *buf = s->rep;
+	struct http_txn *txn = &s->txn;
+	unsigned int old_flags = buf->flags;
+	unsigned int old_state = txn->rsp.msg_state;
+
+	http_silent_debug(__LINE__, s);
+	if (unlikely(txn->rsp.msg_state < HTTP_MSG_BODY))
+		return 0;
+
+	if (txn->rsp.msg_state == HTTP_MSG_DONE) {
+		/* In theory, we don't need to read anymore, but we must
+		 * still monitor the server connection for a possible close,
+		 * so we don't set the BF_DONT_READ flag here.
+		 */
+		/* buf->flags |= BF_DONT_READ; */
+
+		if (txn->req.msg_state == HTTP_MSG_ERROR)
+			goto wait_other_side;
+
+		if (txn->req.msg_state < HTTP_MSG_DONE) {
+			/* The client seems to still be sending data, probably
+			 * because we got an error response during an upload.
+			 * We have the choice of either breaking the connection
+			 * or letting it pass through. Let's do the later.
+			 */
+			goto wait_other_side;
+		}
+
+		if (txn->req.msg_state == HTTP_MSG_TUNNEL) {
+			/* if any side switches to tunnel mode, the other one does too */
+			buf->flags &= ~BF_DONT_READ;
+			txn->rsp.msg_state = HTTP_MSG_TUNNEL;
+			goto wait_other_side;
+		}
+
+		/* When we get here, it means that both the request and the
+		 * response have finished receiving. Depending on the connection
+		 * mode, we'll have to wait for the last bytes to leave in either
+		 * direction, and sometimes for a close to be effective.
+		 */
+
+		if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL) {
+			/* Server-close mode : shut read and wait for the request
+			 * side to close its output buffer. The caller will detect
+			 * when we're in DONE and the other is in CLOSED and will
+			 * catch that for the final cleanup.
+			 */
+			if (!(buf->flags & (BF_SHUTR|BF_SHUTR_NOW)))
+				buffer_shutr_now(buf);
+			goto wait_other_side;
+		}
+		else if (!(buf->flags & (BF_SHUTW|BF_SHUTW_NOW)) &&
+			 ((s->fe->options | s->be->options) & PR_O_FORCE_CLO)) {
+			/* Option forceclose is set, let's enforce it now
+			 * that we're not expecting any new data to come.
+			 * The caller knows the session is complete once
+			 * both states are CLOSED.
+			 */
+			buffer_shutr_now(buf);
+			buffer_shutw_now(buf);
+			buf->cons->flags |= SI_FL_NOLINGER;
+		}
+		else {
+			/* other modes include httpclose (no action) and keepalive
+			 * (not implemented). These modes are used as a tunnel right
+			 * now.
+			 */
+			buf->flags &= ~BF_DONT_READ;
+			txn->rsp.msg_state = HTTP_MSG_TUNNEL;
+			goto wait_other_side;
+		}
+
+		if (buf->flags & (BF_SHUTW|BF_SHUTW_NOW)) {
+			/* if we've just closed an output, let's switch */
+			if (!(buf->flags & BF_OUT_EMPTY)) {
+				txn->rsp.msg_state = HTTP_MSG_CLOSING;
+				goto http_msg_closing;
+			}
+			else {
+				txn->rsp.msg_state = HTTP_MSG_CLOSED;
+				goto http_msg_closed;
+			}
+		}
+		goto wait_other_side;
+	}
+
+	if (txn->rsp.msg_state == HTTP_MSG_CLOSING) {
+	http_msg_closing:
+		/* nothing else to forward, just waiting for the output buffer
+		 * to be empty and for the shutw_now to take effect.
+		 */
+		if (buf->flags & BF_OUT_EMPTY) {
+			txn->rsp.msg_state = HTTP_MSG_CLOSED;
+			goto http_msg_closed;
+		}
+		else if (buf->flags & BF_SHUTW) {
+			txn->rsp.msg_state = HTTP_MSG_ERROR;
+			goto wait_other_side;
+		}
+	}
+
+	if (txn->rsp.msg_state == HTTP_MSG_CLOSED) {
+	http_msg_closed:
+		/* drop any pending data */
+		buffer_ignore(buf, buf->l - buf->send_max);
+		buffer_auto_close(buf);
+		goto wait_other_side;
+	}
+
+ wait_other_side:
+	http_silent_debug(__LINE__, s);
+	return txn->rsp.msg_state != old_state || buf->flags != old_flags;
+}
+
+
+/* Resync the request and response state machines. Return 1 if either state
+ * changes.
+ */
+int http_resync_states(struct session *s)
+{
+	struct http_txn *txn = &s->txn;
+	int old_req_state = txn->req.msg_state;
+	int old_res_state = txn->rsp.msg_state;
+
+	http_silent_debug(__LINE__, s);
+	http_sync_req_state(s);
+	while (1) {
+	http_silent_debug(__LINE__, s);
+		if (!http_sync_res_state(s))
+			break;
+	http_silent_debug(__LINE__, s);
+		if (!http_sync_req_state(s))
+			break;
+	}
+	http_silent_debug(__LINE__, s);
+	/* OK, both state machines agree on a compatible state.
+	 * There are a few cases we're interested in :
+	 *  - HTTP_MSG_TUNNEL on either means we have to disable both analysers
+	 *  - HTTP_MSG_CLOSED on both sides means we've reached the end in both
+	 *    directions, so let's simply disable both analysers.
+	 *  - HTTP_MSG_CLOSED on the response only means we must abort the
+	 *    request.
+	 *  - HTTP_MSG_CLOSED on the request and HTTP_MSG_DONE on the response
+	 *    with server-close mode means we've completed one request and we
+	 *    must re-initialize the server connection.
+	 */
+
+	if (txn->req.msg_state == HTTP_MSG_TUNNEL ||
+	    txn->rsp.msg_state == HTTP_MSG_TUNNEL ||
+	    (txn->req.msg_state == HTTP_MSG_CLOSED &&
+	     txn->rsp.msg_state == HTTP_MSG_CLOSED)) {
+		s->req->analysers = 0;
+		s->rep->analysers = 0;
+	}
+	else if (txn->rsp.msg_state == HTTP_MSG_CLOSED) {
+		buffer_abort(s->req);
+		buffer_auto_close(s->req);
+		buffer_ignore(s->req, s->req->l - s->req->send_max);
+		s->req->analysers = 0;
+		s->rep->analysers = 0;
+	}
+	else if (txn->req.msg_state == HTTP_MSG_CLOSED &&
+		 txn->rsp.msg_state == HTTP_MSG_DONE &&
+		 ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL)) {
+		/* server-close: terminate this server connection and
+		 * reinitialize a fresh-new transaction.
+		 */
+		http_end_txn_clean_session(s);
+	}
+
+	http_silent_debug(__LINE__, s);
+	return txn->req.msg_state != old_req_state ||
+		txn->rsp.msg_state != old_res_state;
+}
+
 /* This function is an analyser which forwards request body (including chunk
  * sizes if any). It is called as soon as we must forward, even if we forward
  * zero byte. The only situation where it must not be called is when we're in
@@ -3347,6 +3760,7 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 	}
 
 	while (1) {
+		http_silent_debug(__LINE__, s);
 		/* we may have some data pending */
 		if (msg->hdr_content_len || msg->som != msg->sov) {
 			int bytes = msg->sov - msg->som;
@@ -3365,10 +3779,8 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 			/* nothing left to forward */
 			if (txn->flags & TX_REQ_TE_CHNK)
 				msg->msg_state = HTTP_MSG_DATA_CRLF;
-			else {
+			else
 				msg->msg_state = HTTP_MSG_DONE;
-				goto http_msg_done;
-			}
 		}
 		else if (msg->msg_state == HTTP_MSG_CHUNK_SIZE) {
 			/* read the chunk size and assign it to ->hdr_content_len, then
@@ -3408,212 +3820,30 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 				goto return_bad_req;
 			/* we're in HTTP_MSG_DONE now */
 		}
-		else if (msg->msg_state == HTTP_MSG_DONE) {
-		http_msg_done:
-			/* No need to read anymore, the request was completely parsed */
-			req->flags |= BF_DONT_READ;
-
-			if (txn->rsp.msg_state < HTTP_MSG_DONE && txn->rsp.msg_state != HTTP_MSG_ERROR) {
-				/* The server has not finished to respond, so we
-				 * don't want to move in order not to upset it.
+		else {
+			/* other states, DONE...TUNNEL */
+			if (http_resync_states(s)) {
+				/* some state changes occurred, maybe the analyser
+				 * was disabled too.
 				 */
-				goto wait_other_side;
+				if (unlikely(msg->msg_state == HTTP_MSG_ERROR))
+					goto return_bad_req;
+				return 1;
 			}
-
-			/* when we support keep-alive or server-close modes, we'll have
-			 * to reset the transaction here.
-			 */
-
-			if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL) {
-				/* initiate a connection close to the server */
-				req->cons->flags |= SI_FL_NOLINGER;
-				buffer_shutw_now(req);
-			}
-			else if ((s->fe->options | s->be->options) & PR_O_FORCE_CLO) {
-				/* Option forceclose is set, let's enforce it now
-				 * that the transfer is complete. We can safely speed
-				 * up the close because we know the server has received
-				 * everything we wanted it to receive.
-				 */
-				req->cons->flags |= SI_FL_NOLINGER;
-				buffer_abort(req);
-			}
-
-			if (req->flags & (BF_SHUTW|BF_SHUTW_NOW)) {
-				if (req->flags & BF_OUT_EMPTY) {
-					msg->msg_state = HTTP_MSG_CLOSED;
-					goto http_msg_closed;
-				}
-				else {
-					msg->msg_state = HTTP_MSG_CLOSING;
-					goto http_msg_closing;
-				}
-			}
-			else {
-				/* for other modes, we let further requests pass for now */
-				req->flags &= ~BF_DONT_READ;
-				/* FIXME: we're still forced to do that here */
-				s->rep->flags &= ~BF_DONT_READ;
-				break;
-			}
-		}
-		else if (msg->msg_state == HTTP_MSG_CLOSING) {
-		http_msg_closing:
-			/* nothing else to forward, just waiting for the buffer to be empty */
-			if (!(req->flags & BF_OUT_EMPTY))
-				goto wait_empty;
-			msg->msg_state = HTTP_MSG_CLOSED;
-		}
-		else if (msg->msg_state == HTTP_MSG_CLOSED) {
-		http_msg_closed:
-			req->flags &= ~BF_DONT_READ;
-
-			if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL) {
-
-				/* FIXME : this part is 1) awful, 2) tricky, 3) duplicated
-				 * ... but it works.
-				 * We need a better way to force a connection close without
-				 * any risk of propagation to the other side. We need a more
-				 * portable way of releasing a backend's and a server's
-				 * connections. We need a safer way to reinitialize buffer
-				 * flags. We also need a more accurate method for computing
-				 * per-request data.
-				 */
-				s->req->cons->flags |= SI_FL_NOLINGER;
-				s->req->cons->shutr(s->req->cons);
-				s->req->cons->shutw(s->req->cons);
-
-				if (s->flags & SN_BE_ASSIGNED)
-					s->be->beconn--;
-
-				s->logs.t_close = tv_ms_elapsed(&s->logs.tv_accept, &now);
-				session_process_counters(s);
-
-				if (s->txn.status) {
-					int n;
-
-					n = s->txn.status / 100;
-					if (n < 1 || n > 5)
-						n = 0;
-
-					if (s->fe->mode == PR_MODE_HTTP)
-						s->fe->counters.p.http.rsp[n]++;
-
-					if ((s->flags & SN_BE_ASSIGNED) && (s->fe != s->be) &&
-					    (s->be->mode == PR_MODE_HTTP))
-						s->be->counters.p.http.rsp[n]++;
-				}
-
-				/* don't count other requests' data */
-				s->logs.bytes_in  -= s->req->l - s->req->send_max;
-				s->logs.bytes_out -= s->rep->l - s->rep->send_max;
-
-				/* let's do a final log if we need it */
-				if (s->logs.logwait &&
-				    !(s->flags & SN_MONITOR) &&
-				    (!(s->fe->options & PR_O_NULLNOLOG) || s->req->total)) {
-					s->do_log(s);
-				}
-
-				s->logs.accept_date = date; /* user-visible date for logging */
-				s->logs.tv_accept = now;  /* corrected date for internal use */
-				tv_zero(&s->logs.tv_request);
-				s->logs.t_queue = -1;
-				s->logs.t_connect = -1;
-				s->logs.t_data = -1;
-				s->logs.t_close = 0;
-				s->logs.prx_queue_size = 0;  /* we get the number of pending conns before us */
-				s->logs.srv_queue_size = 0; /* we will get this number soon */
-
-				s->logs.bytes_in = s->req->total = s->req->l - s->req->send_max;
-				s->logs.bytes_out = s->rep->total = s->rep->l - s->rep->send_max;
-
-				if (s->pend_pos)
-					pendconn_free(s->pend_pos);
-
-				if (s->srv) {
-					if (s->flags & SN_CURR_SESS) {
-						s->flags &= ~SN_CURR_SESS;
-						s->srv->cur_sess--;
-					}
-					if (may_dequeue_tasks(s->srv, s->be))
-						process_srv_queue(s->srv);
-				}
-
-				if (unlikely(s->srv_conn))
-					sess_change_server(s, NULL);
-				s->srv = NULL;
-
-				s->req->cons->state     = s->req->cons->prev_state = SI_ST_INI;
-				s->req->cons->fd        = -1; /* just to help with debugging */
-				s->req->cons->err_type  = SI_ET_NONE;
-				s->req->cons->err_loc   = NULL;
-				s->req->cons->exp       = TICK_ETERNITY;
-				s->req->cons->flags     = SI_FL_NONE;
-				s->req->flags &= ~(BF_SHUTW|BF_SHUTW_NOW|BF_AUTO_CONNECT|BF_WRITE_ERROR|BF_STREAMER|BF_STREAMER_FAST|BF_AUTO_CLOSE);
-				s->rep->flags &= ~(BF_SHUTR|BF_SHUTR_NOW|BF_READ_ATTACHED|BF_READ_ERROR|BF_READ_NOEXP|BF_STREAMER|BF_STREAMER_FAST|BF_AUTO_CLOSE|BF_WRITE_PARTIAL);
-				s->flags &= ~(SN_DIRECT|SN_ASSIGNED|SN_ADDR_SET|SN_BE_ASSIGNED);
-				s->flags &= ~(SN_CURR_SESS|SN_REDIRECTABLE);
-				s->txn.meth = 0;
-				http_reset_txn(s);
-				txn->flags |= TX_NOT_FIRST;
-				if (s->be->options2 & PR_O2_INDEPSTR)
-					s->req->cons->flags |= SI_FL_INDEP_STR;
-
-				/* if the request buffer is not empty, it means we're
-				 * about to process another request, so send pending
-				 * data with MSG_MORE to merge TCP packets when possible.
-				 * Also, let's not start reading a small request packet,
-				 * we may prefer to read a larger one later.
-				 */
-				if (s->req->l > s->req->send_max) {
-					s->rep->flags |= BF_EXPECT_MORE;
-					s->req->flags |= BF_DONT_READ;
-				}
-
-				/* make ->lr point to the first non-forwarded byte */
-				s->req->lr = s->req->w + s->req->send_max;
-				if (s->req->lr >= s->req->data + s->req->size)
-					s->req->lr -= s->req->size;
-				s->rep->lr = s->rep->w + s->rep->send_max;
-				if (s->rep->lr >= s->rep->data + s->rep->size)
-					s->rep->lr -= s->req->size;
-
-				s->req->analysers |= s->fe->fe_req_ana;
-				s->rep->analysers = 0;
-			}
-
-			/* FIXME: we're still forced to do that here */
-			s->rep->flags &= ~BF_DONT_READ;
-			break;
+			return 0;
 		}
 	}
-
-	/* OK we're done with the data phase */
-	buffer_auto_close(req);
-	req->analysers &= ~an_bit;
-	return 1;
 
  missing_data:
 	/* stop waiting for data if the input is closed before the end */
 	if (req->flags & BF_SHUTR)
 		goto return_bad_req;
 
- wait_other_side:
-	/* forward the chunk size as well as any pending data */
-	if (msg->hdr_content_len || msg->som != msg->sov) {
-		buffer_forward(req, msg->sov - msg->som + msg->hdr_content_len);
-		msg->hdr_content_len = 0; /* don't forward that again */
-		msg->som = msg->sov;
-	}
-
-	/* the session handler will take care of timeouts and errors */
-	return 0;
-
- wait_empty:
 	/* waiting for the last bits to leave the buffer */
 	if (req->flags & BF_SHUTW)
 		goto return_bad_req;
+
+	http_silent_debug(__LINE__, s);
 	return 0;
 
  return_bad_req: /* let's centralize all bad requests */
@@ -3631,6 +3861,7 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 		s->flags |= SN_ERR_PRXCOND;
 	if (!(s->flags & SN_FINST_MASK))
 		s->flags |= SN_FINST_R;
+	http_silent_debug(__LINE__, s);
 	return 0;
 }
 
@@ -4462,6 +4693,7 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 	}
 
 	while (1) {
+		http_silent_debug(__LINE__, s);
 		/* we may have some data pending */
 		if (msg->hdr_content_len || msg->som != msg->sov) {
 			int bytes = msg->sov - msg->som;
@@ -4520,80 +4752,29 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 				goto return_bad_res;
 			/* we're in HTTP_MSG_DONE now */
 		}
-		else if (msg->msg_state == HTTP_MSG_DONE) {
-			/* In theory, we don't need to read anymore, but we must
-			 * still monitor the server connection for a possible close,
-			 * so we don't set the BF_DONT_READ flag here.
-			 */
-
-			if (txn->req.msg_state < HTTP_MSG_DONE && txn->req.msg_state != HTTP_MSG_ERROR) {
-				/* The client seems to still be sending data, probably
-				 * because we got an error response during an upload.
-				 * We have the choice of either breaking the connection
-				 * or letting it pass through. Let's do the later.
+		else {
+			/* other states, DONE...TUNNEL */
+			if (http_resync_states(s)) {
+				http_silent_debug(__LINE__, s);
+				/* some state changes occurred, maybe the analyser
+				 * was disabled too.
 				 */
-				goto wait_other_side;
+				if (unlikely(msg->msg_state == HTTP_MSG_ERROR))
+					goto return_bad_res;
+				return 1;
 			}
-
-			/* when we support keep-alive or server-close modes, we'll have
-			 * to reset the transaction here.
-			 */
-
-			if ((s->fe->options | s->be->options) & PR_O_FORCE_CLO) {
-				/* option forceclose is set, let's enforce it now that the transfer is complete. */
-				buffer_abort(res);
-			}
-			else if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL) {
-				/* server close is handled entirely on the req analyser */
-				s->req->cons->flags |= SI_FL_NOLINGER;
-				buffer_shutw_now(s->req);
-			}
-
-			if (res->flags & (BF_SHUTW|BF_SHUTW_NOW)) {
-				if (res->flags & BF_OUT_EMPTY) {
-					msg->msg_state = HTTP_MSG_CLOSED;
-					goto http_msg_closed;
-				}
-				else {
-					msg->msg_state = HTTP_MSG_CLOSING;
-					goto http_msg_closing;
-				}
-			}
-			else {
-				/* for other modes, we let further responses pass for now */
-				res->flags &= ~BF_DONT_READ;
-				/* FIXME: we're still forced to do that here */
-				s->req->flags &= ~BF_DONT_READ;
-				break;
-			}
-		}
-		else if (msg->msg_state == HTTP_MSG_CLOSING) {
-		http_msg_closing:
-			/* nothing else to forward, just waiting for the buffer to be empty */
-			if (!(res->flags & BF_OUT_EMPTY))
-				goto wait_empty;
-			msg->msg_state = HTTP_MSG_CLOSED;
-		}
-		else if (msg->msg_state == HTTP_MSG_CLOSED) {
-		http_msg_closed:
-			res->flags &= ~BF_DONT_READ;
-			/* FIXME: we're still forced to do that here */
-			s->req->flags &= ~BF_DONT_READ;
-			break;
+			return 0;
 		}
 	}
-
-	buffer_ignore(res, res->l - res->send_max);
-	buffer_auto_close(res);
-	res->analysers &= ~an_bit;
-	return 1;
 
  missing_data:
 	/* stop waiting for data if the input is closed before the end */
 	if (res->flags & BF_SHUTR)
 		goto return_bad_res;
 
- wait_other_side:
+	if (!s->req->analysers)
+		goto return_bad_res;
+
 	/* forward the chunk size as well as any pending data */
 	if (msg->hdr_content_len || msg->som != msg->sov) {
 		buffer_forward(res, msg->sov - msg->som + msg->hdr_content_len);
@@ -4602,12 +4783,7 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 	}
 
 	/* the session handler will take care of timeouts and errors */
-	return 0;
-
- wait_empty:
-	/* waiting for last bits to leave the buffer */
-	if (res->flags & BF_SHUTW)
-		goto return_bad_res;
+	http_silent_debug(__LINE__, s);
 	return 0;
 
  return_bad_res: /* let's centralize all bad resuests */
@@ -4626,6 +4802,7 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 		s->flags |= SN_ERR_PRXCOND;
 	if (!(s->flags & SN_FINST_MASK))
 		s->flags |= SN_FINST_R;
+	http_silent_debug(__LINE__, s);
 	return 0;
 }
 

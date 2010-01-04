@@ -193,6 +193,7 @@
 #define HTTP_MSG_DONE         33 // message end received, waiting for resync or close
 #define HTTP_MSG_CLOSING      34 // shutdown_w done, not all bytes sent yet
 #define HTTP_MSG_CLOSED       35 // shutdown_w done, all bytes sent
+#define HTTP_MSG_TUNNEL       36 // tunneled data after DONE
 
 /* various data sources for the responses */
 #define DATA_SRC_NONE	0
