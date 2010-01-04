@@ -23,6 +23,7 @@
 #define _TYPES_STREAM_INTERFACE_H
 
 #include <stdlib.h>
+#include <sys/socket.h>
 
 #include <types/buffers.h>
 #include <common/config.h>
