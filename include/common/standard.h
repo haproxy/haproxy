@@ -334,6 +334,7 @@ static inline void get_gmtime(const time_t now, struct tm *tm)
  * <ret> is left untouched.
  */
 extern const char *parse_time_err(const char *text, unsigned *ret, unsigned unit_flags);
+extern const char *parse_size_err(const char *text, unsigned *ret);
 
 /* unit flags to pass to parse_time_err */
 #define TIME_UNIT_US   0x0000

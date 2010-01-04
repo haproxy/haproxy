@@ -729,6 +729,57 @@ const char *parse_time_err(const char *text, unsigned *ret, unsigned unit_flags)
 	return NULL;
 }
 
+/* this function converts the string starting at <text> to an unsigned int
+ * stored in <ret>. If an error is detected, the pointer to the unexpected
+ * character is returned. If the conversio is succesful, NULL is returned.
+ */
+const char *parse_size_err(const char *text, unsigned *ret) {
+	unsigned value = 0;
+
+	while (1) {
+		unsigned int j;
+
+		j = *text - '0';
+		if (j > 9)
+			break;
+		if (value > ~0U / 10)
+			return text;
+		value *= 10;
+		if (value > (value + j))
+			return text;
+		value += j;
+		text++;
+	}
+
+	switch (*text) {
+	case '\0':
+		break;
+	case 'K':
+	case 'k':
+		if (value > ~0U >> 10)
+			return text;
+		value = value << 10;
+		break;
+	case 'M':
+	case 'm':
+		if (value > ~0U >> 20)
+			return text;
+		value = value << 20;
+		break;
+	case 'G':
+	case 'g':
+		if (value > ~0U >> 30)
+			return text;
+		value = value << 30;
+		break;
+	default:
+		return text;
+	}
+
+	*ret = value;
+	return NULL;
+}
+
 /* copies at most <n> characters from <src> and always terminates with '\0' */
 char *my_strndup(const char *src, int n)
 {
