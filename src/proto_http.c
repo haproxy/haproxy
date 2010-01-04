@@ -3287,6 +3287,9 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &s->txn.req;
 
+	if (unlikely(msg->msg_state < HTTP_MSG_BODY))
+		return 0;
+
 	if ((req->flags & (BF_READ_ERROR|BF_READ_TIMEOUT|BF_WRITE_ERROR|BF_WRITE_TIMEOUT)) ||
 	    ((req->flags & BF_SHUTW) && (req->to_forward || req->send_max))) {
 		/* Output closed while we were sending data. We must abort. */
@@ -3296,8 +3299,6 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 	}
 
 	buffer_dont_close(req);
-	if (unlikely(msg->msg_state < HTTP_MSG_BODY))
-		return 0;
 
 	/* Note that we don't have to send 100-continue back because we don't
 	 * need the data to complete our job, and it's up to the server to
@@ -3333,7 +3334,7 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 		if (msg->msg_state == HTTP_MSG_DATA) {
 			/* must still forward */
 			if (req->to_forward)
-				return 0;
+				goto missing_data;
 
 			/* nothing left to forward */
 			if (txn->flags & TX_REQ_TE_CHNK)
@@ -3390,7 +3391,7 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 				/* The server has not finished to respond, so we
 				 * don't want to move in order not to upset it.
 				 */
-				return 0;
+				goto wait_other_side;
 			}
 
 			/* when we support keep-alive or server-close modes, we'll have
@@ -3434,7 +3435,7 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 		http_msg_closing:
 			/* nothing else to forward, just waiting for the buffer to be empty */
 			if (!(req->flags & BF_OUT_EMPTY))
-				return 0;
+				goto wait_empty;
 			msg->msg_state = HTTP_MSG_CLOSED;
 		}
 		else if (msg->msg_state == HTTP_MSG_CLOSED) {
@@ -3563,10 +3564,16 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 	}
 
 	/* OK we're done with the data phase */
+	buffer_auto_close(req);
 	req->analysers &= ~an_bit;
 	return 1;
 
  missing_data:
+	/* stop waiting for data if the input is closed before the end */
+	if (req->flags & BF_SHUTR)
+		goto return_bad_req;
+
+ wait_other_side:
 	/* forward the chunk size as well as any pending data */
 	if (msg->hdr_content_len || msg->som != msg->sov) {
 		buffer_forward(req, msg->sov - msg->som + msg->hdr_content_len);
@@ -3574,9 +3581,13 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 		msg->som = msg->sov;
 	}
 
-	if (req->flags & BF_FULL)
-		goto return_bad_req;
 	/* the session handler will take care of timeouts and errors */
+	return 0;
+
+ wait_empty:
+	/* waiting for the last bits to leave the buffer */
+	if (req->flags & BF_SHUTW)
+		goto return_bad_req;
 	return 0;
 
  return_bad_req: /* let's centralize all bad requests */
@@ -4397,24 +4408,18 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &s->txn.rsp;
 
+	if (unlikely(msg->msg_state < HTTP_MSG_BODY))
+		return 0;
+
 	if ((res->flags & (BF_READ_ERROR|BF_READ_TIMEOUT|BF_WRITE_ERROR|BF_WRITE_TIMEOUT)) ||
 	    !s->req->analysers) {
 		/* in case of error or if the other analyser went away, we can't analyse HTTP anymore */
 		buffer_ignore(res, res->l - res->send_max);
-		buffer_auto_close(res);
 		res->analysers &= ~an_bit;
 		return 1;
 	}
 
 	buffer_dont_close(res);
-	if (unlikely(msg->msg_state < HTTP_MSG_BODY))
-		return 0;
-
-	/* note: in server-close mode, we don't want to automatically close the
-	 * output when the input is closed.
-	 */
-	if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL)
-		buffer_dont_close(res);
 
 	if (msg->msg_state < HTTP_MSG_CHUNK_SIZE) {
 		/* we have msg->col and msg->sov which both point to the first
@@ -4444,7 +4449,7 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 		if (msg->msg_state == HTTP_MSG_DATA) {
 			/* must still forward */
 			if (res->to_forward)
-				return 0;
+				goto missing_data;
 
 			/* nothing left to forward */
 			if (txn->flags & TX_RES_TE_CHNK)
@@ -4501,7 +4506,7 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 				 * We have the choice of either breaking the connection
 				 * or letting it pass through. Let's do the later.
 				 */
-				return 0;
+				goto wait_other_side;
 			}
 
 			/* when we support keep-alive or server-close modes, we'll have
@@ -4540,7 +4545,7 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 		http_msg_closing:
 			/* nothing else to forward, just waiting for the buffer to be empty */
 			if (!(res->flags & BF_OUT_EMPTY))
-				return 0;
+				goto wait_empty;
 			msg->msg_state = HTTP_MSG_CLOSED;
 		}
 		else if (msg->msg_state == HTTP_MSG_CLOSED) {
@@ -4558,6 +4563,11 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 	return 1;
 
  missing_data:
+	/* stop waiting for data if the input is closed before the end */
+	if (res->flags & BF_SHUTR)
+		goto return_bad_res;
+
+ wait_other_side:
 	/* forward the chunk size as well as any pending data */
 	if (msg->hdr_content_len || msg->som != msg->sov) {
 		buffer_forward(res, msg->sov - msg->som + msg->hdr_content_len);
@@ -4565,9 +4575,13 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 		msg->som = msg->sov;
 	}
 
-	if (res->flags & BF_FULL)
-		goto return_bad_res;
 	/* the session handler will take care of timeouts and errors */
+	return 0;
+
+ wait_empty:
+	/* waiting for last bits to leave the buffer */
+	if (res->flags & BF_SHUTW)
+		goto return_bad_res;
 	return 0;
 
  return_bad_res: /* let's centralize all bad resuests */
