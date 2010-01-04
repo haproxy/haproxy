@@ -3687,9 +3687,17 @@ int http_resync_states(struct session *s)
 	    (txn->req.msg_state == HTTP_MSG_CLOSED &&
 	     txn->rsp.msg_state == HTTP_MSG_CLOSED)) {
 		s->req->analysers = 0;
+		s->req->flags &= ~BF_DONT_READ;
+		buffer_auto_close(s->req);
 		s->rep->analysers = 0;
+		buffer_auto_close(s->rep);
+		s->rep->flags &= ~BF_DONT_READ;
 	}
-	else if (txn->rsp.msg_state == HTTP_MSG_CLOSED) {
+	else if (txn->rsp.msg_state == HTTP_MSG_CLOSED ||
+		 txn->rsp.msg_state == HTTP_MSG_ERROR ||
+		 (s->rep->flags & BF_SHUTW)) {
+		s->rep->flags &= ~BF_DONT_READ;
+		s->req->flags &= ~BF_DONT_READ;
 		buffer_abort(s->req);
 		buffer_auto_close(s->req);
 		buffer_ignore(s->req, s->req->l - s->req->send_max);
@@ -3734,6 +3742,7 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 		/* Output closed while we were sending data. We must abort. */
 		buffer_ignore(req, req->l - req->send_max);
 		req->analysers &= ~an_bit;
+		req->flags &= ~BF_DONT_READ;
 		return 1;
 	}
 
@@ -4668,10 +4677,12 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 		return 0;
 
 	if ((res->flags & (BF_READ_ERROR|BF_READ_TIMEOUT|BF_WRITE_ERROR|BF_WRITE_TIMEOUT)) ||
+	    ((res->flags & BF_SHUTW) && (res->to_forward || res->send_max)) ||
 	    !s->req->analysers) {
 		/* in case of error or if the other analyser went away, we can't analyse HTTP anymore */
 		buffer_ignore(res, res->l - res->send_max);
 		res->analysers &= ~an_bit;
+		res->flags &= ~BF_DONT_READ;
 		return 1;
 	}
 
