@@ -225,6 +225,9 @@ int event_accept(int fd) {
 		s->pend_pos = NULL;
 		s->conn_retries = s->be->conn_retries;
 
+		/* init store persistence */
+		s->store_count = 0;
+
 		/* FIXME: the logs are horribly complicated now, because they are
 		 * defined in <p>, <p>, and later <be> and <be>.
 		 */

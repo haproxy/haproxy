@@ -476,6 +476,8 @@ int uxst_event_accept(int fd) {
 		s->srv = s->prev_srv = s->srv_conn = NULL;
 		s->pend_pos = NULL;
 
+		s->store_count = 0;
+
 		memset(&s->logs, 0, sizeof(s->logs));
 		memset(&s->txn, 0, sizeof(s->txn));
 

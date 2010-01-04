@@ -6415,6 +6415,9 @@ void http_reset_txn(struct session *s)
 	s->req->analysers = s->listener->analysers;
 	s->logs.logwait = s->fe->to_log;
 	s->srv = s->prev_srv = s->srv_conn = NULL;
+	/* re-init store persistence */
+	s->store_count = 0;
+
 	s->pend_pos = NULL;
 	s->conn_retries = s->be->conn_retries;
 

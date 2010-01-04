@@ -36,6 +36,7 @@
 #include <eb32tree.h>
 
 #include <types/acl.h>
+#include <types/pattern.h>
 #include <types/backend.h>
 #include <types/buffers.h>
 #include <types/counters.h>
@@ -45,6 +46,7 @@
 #include <types/protocols.h>
 #include <types/session.h>
 #include <types/server.h>
+#include <types/stick_table.h>
 
 /* values for proxy->state */
 #define PR_STNEW        0
@@ -133,6 +135,12 @@
 #define PR_O2_AS_M_ANY	0x00010000      /* mask covering all PR_O2_AS_M_* values */
 
 #define PR_O2_MYSQL_CHK 0x00020000      /* use MYSQL check for server health */
+/* end of proxy->options2 */
+
+/* bits for sticking rules */
+#define STK_IS_MATCH	0x00000001	/* match on request fetch */
+#define STK_IS_STORE	0x00000002	/* store on request fetch */
+#define STK_ON_RSP	0x00000004	/* store on response fetch */
 
 struct error_snapshot {
 	struct timeval when;		/* date of this event, (tv_sec == 0) means "never" */
@@ -163,6 +171,8 @@ struct proxy {
 	struct list block_cond;                 /* early blocking conditions (chained) */
 	struct list redirect_rules;             /* content redirecting rules (chained) */
 	struct list switching_rules;            /* content switching rules (chained) */
+	struct list sticking_rules;             /* content sticking rules (chained) */
+	struct list storersp_rules;             /* content store response rules (chained) */
 	struct {                                /* TCP request processing */
 		unsigned int inspect_delay;     /* inspection delay */
 		struct list inspect_rules;      /* inspection rules */
@@ -253,6 +263,9 @@ struct proxy {
 	struct pool_head *hdr_idx_pool;         /* pools of pre-allocated int* used for headers indexing */
 	struct list req_add, rsp_add;           /* headers to be added */
 	struct pxcounters counters;		/* statistics counters */
+
+	struct stktable table;			/* table for storing sticking sessions */
+
 	int grace;				/* grace time after stop request */
 	char *check_req;			/* HTTP or SSL request to use for PR_O_HTTP_CHK|PR_O_SSL3_CHK */
 	int check_len;				/* Length of the HTTP or SSL3 request */
@@ -283,6 +296,18 @@ struct switching_rule {
 		char *name;			/* target backend name during config parsing */
 	} be;
 };
+
+struct sticking_rule {
+	struct list list;                       /* list linked to from the proxy */
+	struct acl_cond *cond;                  /* acl condition to meet */
+	struct pattern_expr *expr;              /* fetch expr to fetch key */
+	int flags;                              /* STK_* */
+	union {
+		struct stktable *t;	        /* target table */
+		char *name;                     /* target table name during config parsing */
+	} table;
+};
+
 
 struct redirect_rule {
 	struct list list;                       /* list linked to from the proxy */

@@ -38,6 +38,7 @@
 #include <types/server.h>
 #include <types/stream_interface.h>
 #include <types/task.h>
+#include <types/stick_table.h>
 
 
 /* various session flags, bits values 0x01 to 0x100 (shift 0) */
@@ -174,6 +175,14 @@ struct session {
 	struct server *prev_srv;		/* the server the was running on, after a redispatch, otherwise NULL */
 	struct pendconn *pend_pos;		/* if not NULL, points to the position in the pending queue */
 	struct http_txn txn;			/* current HTTP transaction being processed. Should become a list. */
+
+	struct {
+		struct stksess *ts;
+		struct stktable *table;
+		int flags;
+	} store[8];				/* tracked stickiness values to store */
+	int store_count;
+
 	struct {
 		int logwait;			/* log fields waiting to be collected : LW_* */
 		struct timeval accept_date;	/* date of the accept() in user date */

@@ -47,6 +47,7 @@
 #include <proto/lb_fwrr.h>
 #include <proto/lb_map.h>
 #include <proto/log.h>
+#include <proto/pattern.h>
 #include <proto/port_range.h>
 #include <proto/protocols.h>
 #include <proto/proto_tcp.h>
@@ -55,6 +56,7 @@
 #include <proto/server.h>
 #include <proto/session.h>
 #include <proto/task.h>
+#include <proto/stick_table.h>
 
 
 /* This is the SSLv3 CLIENT HELLO packet used in conjunction with the
@@ -795,6 +797,8 @@ static void init_new_proxy(struct proxy *p)
 	LIST_INIT(&p->redirect_rules);
 	LIST_INIT(&p->mon_fail_cond);
 	LIST_INIT(&p->switching_rules);
+	LIST_INIT(&p->sticking_rules);
+	LIST_INIT(&p->storersp_rules);
 	LIST_INIT(&p->tcp_req.inspect_rules);
 	LIST_INIT(&p->req_add);
 	LIST_INIT(&p->rsp_add);
@@ -1541,7 +1545,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		if (!strncmp(args[1], "rdp-cookie", 10)) {
 			curproxy->options2 |= PR_O2_RDPC_PRST;
 
-	                if (*(args[1] + 10 ) == '(') { /* cookie name */
+	                if (*(args[1] + 10) == '(') { /* cookie name */
 				const char *beg, *end;
 
 				beg = args[1] + 11;
@@ -1558,7 +1562,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				curproxy->rdp_cookie_name = my_strndup(beg, end - beg);
 				curproxy->rdp_cookie_len = end-beg;
 			}
-			else if (*(args[1] + 10 ) == '\0') { /* default cookie name 'msts' */
+			else if (*(args[1] + 10) == '\0') { /* default cookie name 'msts' */
 				free(curproxy->rdp_cookie_name);
 				curproxy->rdp_cookie_name = strdup("msts");
 				curproxy->rdp_cookie_len = strlen(curproxy->rdp_cookie_name);
@@ -1981,6 +1985,199 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		rule->be.name = strdup(args[1]);
 		LIST_INIT(&rule->list);
 		LIST_ADDQ(&curproxy->switching_rules, &rule->list);
+	}
+	else if (!strcmp(args[0], "stick-table")) {
+		int myidx = 1;
+
+		curproxy->table.type = (unsigned int)-1;
+		while (*args[myidx]) {
+			const char *err;
+
+			if (strcmp(args[myidx], "size") == 0) {
+				myidx++;
+				if (!*(args[myidx])) {
+					Alert("parsing [%s:%d] : stick-table: missing argument after '%s'.\n",
+					      file, linenum, args[myidx-1]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				if ((err = parse_size_err(args[myidx], &curproxy->table.size))) {
+					Alert("parsing [%s:%d] : stick-table: unexpected character '%c' in argument of '%s'.\n",
+					      file, linenum, *err, args[myidx-1]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+			}
+			else if (strcmp(args[myidx], "expire") == 0) {
+				myidx++;
+				if (!*(args[myidx])) {
+					Alert("parsing [%s:%d] : stick-table: missing argument after '%s'.\n",
+					      file, linenum, args[myidx-1]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				err = parse_time_err(args[myidx], &val, TIME_UNIT_MS);
+				if (err) {
+					Alert("parsing [%s:%d] : stick-table: unexpected character '%c' in argument of '%s'.\n",
+					      file, linenum, *err, args[myidx-1]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				curproxy->table.expire = val;
+			}
+			else if (strcmp(args[myidx], "nopurge") == 0) {
+				curproxy->table.nopurge = 1;
+			}
+			else if (strcmp(args[myidx], "type") == 0) {
+				myidx++;
+				if (stktable_parse_type(args, &myidx, &curproxy->table.type, &curproxy->table.key_size) != 0) {
+					Alert("parsing [%s:%d] : stick-table: unknown type '%s'.\n",
+					      file, linenum, args[myidx]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+			}
+			myidx++;
+		}
+
+		if (!curproxy->table.size) {
+			Alert("parsing [%s:%d] : stick-table: missing size.\n",
+			       file, linenum);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		if (curproxy->table.type == (unsigned int)-1) {
+			Alert("parsing [%s:%d] : stick-table: missing type.\n",
+			       file, linenum);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+	}
+	else if (!strcmp(args[0], "stick")) {
+		int pol = ACL_COND_NONE;
+		struct acl_cond *cond = NULL;
+		struct sticking_rule *rule;
+		struct pattern_expr *expr;
+		int myidx = 0;
+		const char *name = NULL;
+		int flags;
+
+		if (curproxy == &defproxy) {
+			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL)) {
+			err_code |= ERR_WARN;
+			goto out;
+		}
+
+		myidx++;
+		if ((strcmp(args[myidx], "store") == 0) ||
+		    (strcmp(args[myidx], "store-request") == 0)) {
+			myidx++;
+			flags = STK_IS_STORE;
+		}
+		else if (strcmp(args[myidx], "store-response") == 0) {
+			myidx++;
+			flags = STK_IS_STORE | STK_ON_RSP;
+		}
+		else if (strcmp(args[myidx], "match") == 0) {
+			myidx++;
+			flags = STK_IS_MATCH;
+		}
+		else if (strcmp(args[myidx], "on") == 0) {
+			myidx++;
+			flags = STK_IS_MATCH | STK_IS_STORE;
+		}
+		else {
+			Alert("parsing [%s:%d] : '%s' expects 'on', 'match', or 'store'.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		if (*(args[myidx]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects a fetch method.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		expr = pattern_parse_expr(args, &myidx);
+		if (!expr) {
+			Alert("parsing [%s:%d] : '%s': unknown fetch method '%s'.\n", file, linenum, args[0], args[myidx]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		if (flags & STK_ON_RSP) {
+			if (!(expr->fetch->dir & PATTERN_FETCH_RTR)) {
+				Alert("parsing [%s:%d] : '%s': fetch method '%s' can not be used on response.\n",
+				      file, linenum, args[0], expr->fetch->kw);
+		                err_code |= ERR_ALERT | ERR_FATAL;
+			        goto out;
+			}
+		} else {
+			if (!(expr->fetch->dir & PATTERN_FETCH_REQ)) {
+				Alert("parsing [%s:%d] : '%s': fetch method '%s' can not be used on request.\n",
+				      file, linenum, args[0], expr->fetch->kw);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+		}
+
+		if (strcmp(args[myidx], "table") == 0) {
+			myidx++;
+			name = args[myidx++];
+		}
+
+		if (*(args[myidx]) == 0)
+			pol = ACL_COND_NONE;
+		else if (strcmp(args[myidx], "if") == 0)
+			pol = ACL_COND_IF;
+		else if (strcmp(args[myidx], "unless") == 0)
+			pol = ACL_COND_UNLESS;
+		else {
+			Alert("parsing [%s:%d] : '%s': unknown keyword '%s'.\n",
+			      file, linenum, args[0], args[myidx]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		if (pol != ACL_COND_NONE) {
+			myidx++;
+			if ((cond = parse_acl_cond((const char **)args + myidx, &curproxy->acl, pol)) == NULL) {
+				Alert("parsing [%s:%d] : '%s': error detected while parsing sticking condition.\n",
+				      file, linenum, args[0]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+
+			cond->file = file;
+			cond->line = linenum;
+			curproxy->acl_requires |= cond->requires;
+			if (cond->requires & ACL_USE_RTR_ANY) {
+				struct acl *acl;
+				const char *name;
+
+				acl = cond_find_require(cond, ACL_USE_RTR_ANY);
+				name = acl ? acl->name : "(unknown)";
+				Warning("parsing [%s:%d] : '%s' : acl '%s' involves some response-only criteria which will be ignored.\n",
+					file, linenum, args[0], name);
+				err_code |= ERR_WARN;
+			}
+		}
+		rule = (struct sticking_rule *)calloc(1, sizeof(*rule));
+		rule->cond = cond;
+		rule->expr = expr;
+		rule->flags = flags;
+		rule->table.name = name ? strdup(name) : NULL;
+		LIST_INIT(&rule->list);
+		if (flags & STK_ON_RSP)
+			LIST_ADDQ(&curproxy->storersp_rules, &rule->list);
+		else
+			LIST_ADDQ(&curproxy->sticking_rules, &rule->list);
 	}
 	else if (!strcmp(args[0], "stats")) {
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
@@ -4085,7 +4282,7 @@ int readcfgfile(const char *file)
 					skip = 1;
 				}
 				else if (line[1] == 'x') {
-					if ((line + 3 < end ) && ishex(line[2]) && ishex(line[3])) {
+					if ((line + 3 < end) && ishex(line[2]) && ishex(line[3])) {
 						unsigned char hex1, hex2;
 						hex1 = toupper(line[2]) - '0';
 						hex2 = toupper(line[3]) - '0';
@@ -4247,6 +4444,7 @@ int check_config_validity()
 
 	while (curproxy != NULL) {
 		struct switching_rule *rule;
+		struct sticking_rule *mrule;
 		struct listener *listener;
 		unsigned int next_id;
 
@@ -4416,6 +4614,66 @@ int check_config_validity()
 				 */
 				target->bind_proc = curproxy->bind_proc ?
 					(target->bind_proc | curproxy->bind_proc) : 0;
+			}
+		}
+
+		/* find the target table for 'stick' rules */
+		list_for_each_entry(mrule, &curproxy->sticking_rules, list) {
+			struct proxy *target;
+
+			if (mrule->table.name)
+				target = findproxy(mrule->table.name, PR_CAP_BE);
+			else
+				target = curproxy;
+
+			if (!target) {
+				Alert("Proxy '%s': unable to find stick-table '%s'.\n",
+				      curproxy->id, mrule->table.name);
+				cfgerr++;
+			}
+			else if (target->table.size == 0) {
+				Alert("Proxy '%s': stick-table '%s' used but not configured.\n",
+				      curproxy->id, mrule->table.name ? mrule->table.name : curproxy->id);
+				cfgerr++;
+			}
+			else if (pattern_notusable_key(mrule->expr,  target->table.type)) {
+				Alert("Proxy '%s': type of pattern not usable with type of stick-table '%s'.\n",
+				      curproxy->id, mrule->table.name ? mrule->table.name : curproxy->id);
+				cfgerr++;
+			}
+			else {
+				free((void *)mrule->table.name);
+				mrule->table.t = &(target->table);
+			}
+		}
+
+		/* find the target table for 'store response' rules */
+		list_for_each_entry(mrule, &curproxy->storersp_rules, list) {
+			struct proxy *target;
+
+			if (mrule->table.name)
+				target = findproxy(mrule->table.name, PR_CAP_BE);
+			else
+				target = curproxy;
+
+			if (!target) {
+				Alert("Proxy '%s': unable to find store table '%s'.\n",
+				      curproxy->id, mrule->table.name);
+				cfgerr++;
+			}
+			else if (target->table.size == 0) {
+				Alert("Proxy '%s': stick-table '%s' used but not configured.\n",
+				      curproxy->id, mrule->table.name ? mrule->table.name : curproxy->id);
+				cfgerr++;
+			}
+			else if (pattern_notusable_key(mrule->expr, target->table.type)) {
+				Alert("Proxy '%s': type of pattern not usable with type of stick-table '%s'.\n",
+				      curproxy->id, mrule->table.name ? mrule->table.name : curproxy->id);
+				cfgerr++;
+			}
+			else {
+				free((void *)mrule->table.name);
+				mrule->table.t = &(target->table);
 			}
 		}
 
@@ -4678,6 +4936,9 @@ int check_config_validity()
 				curproxy->be_req_ana |= AN_REQ_WAIT_HTTP | AN_REQ_HTTP_INNER | AN_REQ_HTTP_PROCESS_BE;
 				curproxy->be_rsp_ana |= AN_RES_WAIT_HTTP | AN_RES_HTTP_PROCESS_BE;
 			}
+
+			/* init table on backend capabilities proxy */
+			stktable_init(&curproxy->table);
 
 			/* If the backend does requires RDP cookie persistence, we have to
 			 * enable the corresponding analyser.
