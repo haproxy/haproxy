@@ -4267,10 +4267,9 @@ skip_content_length:
 }
 
 /* This function performs all the processing enabled for the current response.
- * It normally returns zero, but may return 1 if it absolutely needs to be
- * called again after other functions. It relies on buffers flags, and updates
- * t->rep->analysers. It might make sense to explode it into several other
- * functions. It works like process_request (see indications above).
+ * It normally returns 1 unless it wants to break. It relies on buffers flags,
+ * and updates t->rep->analysers. It might make sense to explode it into several
+ * other functions. It works like process_request (see indications above).
  */
 int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, struct proxy *px)
 {
@@ -4644,9 +4643,9 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 		 * otherwise we would not let the client side wake up.
 		 */
 
-		return 0;
+		return 1;
 	}
-	return 0;
+	return 1;
 }
 
 /* This function is an analyser which forwards response body (including chunk
