@@ -34,6 +34,7 @@ int assign_server_address(struct session *s);
 int assign_server_and_queue(struct session *s);
 int connect_server(struct session *s);
 int srv_redispatch_connect(struct session *t);
+const char *backend_lb_algo_str(int algo);
 int backend_parse_balance(const char **args, char *err,
 			  int errlen, struct proxy *curproxy);
 

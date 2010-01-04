@@ -34,6 +34,7 @@ struct stat_scope {
 #define	ST_HIDEVER	0x00000001	/* do not report the version and reldate */
 #define	ST_SHNODE	0x00000002	/* show node name */
 #define	ST_SHDESC	0x00000004	/* show description */
+#define ST_SHLGNDS	0x0000008	/* show legends */
 
 /* later we may link them to support multiple URI matching */
 struct uri_auth {

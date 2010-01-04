@@ -1963,7 +1963,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curproxy->uri_auth = NULL; /* we must detach from the default config */
 
 		if (*(args[1]) == 0) {
-			Alert("parsing [%s:%d] : '%s' expects 'uri', 'realm', 'auth', 'scope' or 'enable', 'hide-version', 'show-node', 'show-desc'.\n", file, linenum, args[0]);
+			Alert("parsing [%s:%d] : '%s' expects 'uri', 'realm', 'auth', 'scope' or 'enable', 'hide-version', 'show-node', 'show-desc', 'show-legends'.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		} else if (!strcmp(args[1], "uri")) {
@@ -2029,6 +2029,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		} else if (!strcmp(args[1], "hide-version")) {
 			if (!stats_set_flag(&curproxy->uri_auth, ST_HIDEVER)) {
 				Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
+		} else if (!strcmp(args[1], "show-legends")) {
+			if (!stats_set_flag(&curproxy->uri_auth, ST_SHLGNDS)) {
+				Alert("parsing [%s:%d]: out of memory.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}

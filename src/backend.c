@@ -950,6 +950,33 @@ int be_downtime(struct proxy *px) {
 	return now.tv_sec - px->last_change + px->down_time;
 }
 
+/*
+ * This function returns a string containing the balancing
+ * mode of the proxy in a format suitable for stats.
+ */
+
+const char *backend_lb_algo_str(int algo) {
+
+	if (algo == BE_LB_ALGO_RR)
+		return "roundrobin";
+	else if (algo == BE_LB_ALGO_SRR)
+		return "static-rr";
+	else if (algo == BE_LB_ALGO_LC)
+		return "leastconn";
+	else if (algo == BE_LB_ALGO_SH)
+		return "source";
+	else if (algo == BE_LB_ALGO_UH)
+		return "uri";
+	else if (algo == BE_LB_ALGO_PH)
+		return "url_param";
+	else if (algo == BE_LB_ALGO_HH)
+		return "hdr";
+	else if (algo == BE_LB_ALGO_RCH)
+		return "rdp-cookie";
+	else
+		return NULL;
+}
+
 /* This function parses a "balance" statement in a backend section describing
  * <curproxy>. It returns -1 if there is any error, otherwise zero. If it
  * returns -1, it may write an error message into ther <err> buffer, for at

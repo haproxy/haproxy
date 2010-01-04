@@ -4084,6 +4084,19 @@ stats show-desc [ <description> ]
 
   See also: "show-node", "stats enable", "stats uri" and "description" in global section.
 
+stats show-legends
+  Enable reporting additional informations on the statistics page :
+    - cap: capabilities (proxy)
+    - mode: one of tcp, http or health (proxy)
+    - id: SNMP ID (proxy, socket, server)
+    - IP (socket, server)
+    - cookie (backend, server)
+
+  Though this statement alone is enough to enable statistics reporting, it is
+  recommended to set all other settings in order to avoid relying on default
+  unobvious parameters.
+
+  See also: "stats enable", "stats uri".
 
 stats realm <realm>
   Enable statistics and set authentication realm

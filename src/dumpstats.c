@@ -1231,8 +1231,30 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 			chunk_printf(&msg,
 				     "<table class=\"tbl\" width=\"100%%\">\n"
 				     "<tr class=\"titre\">"
-				     "<th class=\"pxname\" width=\"10%%\">"
-				     "<a name=\"%s\"></a>"
+				     "<th class=\"pxname\" width=\"10%%\"");
+
+			if (uri->flags&ST_SHLGNDS) {
+				/* cap, mode, id */
+				chunk_printf(&msg, " title=\"cap: %s, mode: %s, id: %d",
+					proxy_cap_str(px->cap), proxy_mode_str(px->mode),
+					px->uuid);
+
+				/* cookie */
+				if (px->cookie_name) {
+					struct chunk src;
+
+					chunk_printf(&msg, ", cookie: '");
+					chunk_initlen(&src, px->cookie_name, 0, strlen(px->cookie_name));
+					chunk_htmlencode(&msg, &src);
+
+					chunk_printf(&msg, "'");
+				}
+
+				chunk_printf(&msg, "\"");
+			}
+
+			chunk_printf(&msg,
+				     "><a name=\"%s\"></a>"
 				     "<a class=px href=\"#%s\">%s</a></th>"
 				     "<th class=\"%s\" width=\"90%%\">%s</th>"
 				     "</tr>\n"
@@ -1404,9 +1426,44 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 			}
 
 			if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
+				chunk_printf(&msg, "<tr class=socket><td class=ac");
+
+					if (uri->flags&ST_SHLGNDS) {
+						char str[INET6_ADDRSTRLEN], *fmt = NULL;
+						int port;
+
+						chunk_printf(&msg, " title=\"IP: ");
+
+						port = (l->addr.ss_family == AF_INET6)
+							? ntohs(((struct sockaddr_in6 *)(&l->addr))->sin6_port)
+							: ntohs(((struct sockaddr_in *)(&l->addr))->sin_port);
+
+						if (l->addr.ss_family == AF_INET) {
+							if (inet_ntop(AF_INET,
+							    (const void *)&((struct sockaddr_in *)&l->addr)->sin_addr,
+							    str, sizeof(str)))
+								fmt = "%s:%d";
+						} else {
+							if (inet_ntop(AF_INET6,
+							    (const void *)&((struct sockaddr_in6 *)(&l->addr))->sin6_addr,
+							    str, sizeof(str)))
+								fmt = "[%s]:%d";
+						}
+
+						if (fmt)
+							chunk_printf(&msg, fmt, str, port);
+						else
+							chunk_printf(&msg, "(%s)", strerror(errno));
+
+						/* id */
+						chunk_printf(&msg, ", id: %d", l->luid);
+
+						chunk_printf(&msg, "\"");
+					}
+
 				chunk_printf(&msg,
 				     /* name, queue */
-				     "<tr class=socket><td class=ac><a name=\"%s/+%s\"></a>"
+				     "><a name=\"%s/+%s\"></a>"
 				     "<a class=lfsb href=\"#%s/+%s\">%s</a></td><td colspan=3></td>"
 				     /* sessions rate: current, max, limit */
 				     "<td colspan=3>&nbsp;</td>"
@@ -1536,8 +1593,40 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 							       "<i>no check</i>" };
 				chunk_printf(&msg,
 				     /* name */
-				     "<tr class=\"%s%d\"><td class=ac>"
-				     "<a name=\"%s/%s\"></a>"
+				     "<tr class=\"%s%d\"><td class=ac",
+				     (sv->state & SRV_BACKUP) ? "backup" : "active", sv_state);
+
+				if (uri->flags&ST_SHLGNDS) {
+					char str[INET6_ADDRSTRLEN];
+
+					chunk_printf(&msg, " title=\"IP: ");
+
+					/* IP */
+					if (inet_ntop(sv->addr.sin_family, &sv->addr.sin_addr, str, sizeof(str)))
+						chunk_printf(&msg, "%s:%d", str, htons(sv->addr.sin_port));
+					else
+						chunk_printf(&msg, "(%s)", strerror(errno));
+
+					/* id */
+					chunk_printf(&msg, ", id: %d", sv->puid);
+
+					/* cookie */
+					if (sv->cookie) {
+						struct chunk src;
+
+						chunk_printf(&msg, ", cookie: '");
+
+						chunk_initlen(&src, sv->cookie, 0, strlen(sv->cookie));
+						chunk_htmlencode(&msg, &src);
+
+						chunk_printf(&msg, "'");
+					}
+
+					chunk_printf(&msg, "\"");
+				}
+
+				chunk_printf(&msg,
+				     "><a name=\"%s/%s\"></a>"
 				     "<a class=lfsb href=\"#%s/%s\">%s</a></td>"
 				     /* queue : current, max, limit */
 				     "<td>%s</td><td>%s</td><td>%s</td>"
@@ -1547,8 +1636,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     "<td>%s</td><td>%s</td><td>%s</td>"
 				     "<td"
 				     "",
-				     (sv->state & SRV_BACKUP) ? "backup" : "active",
-				     sv_state, px->id, sv->id, px->id, sv->id, sv->id,
+				     px->id, sv->id, px->id, sv->id, sv->id,
 				     U2H0(sv->nbpend), U2H1(sv->counters.nbpend_max), LIM2A2(sv->maxqueue, "-"),
 				     U2H3(read_freq_ctr(&sv->sess_per_sec)), U2H4(sv->counters.sps_max),
 				     U2H5(sv->cur_sess), U2H6(sv->counters.cur_sess_max), LIM2A7(sv->maxconn, "-"));
@@ -1803,8 +1891,17 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 			if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
 				chunk_printf(&msg,
 				     /* name */
-				     "<tr class=\"backend\"><td class=ac>"
-				     "<a name=\"%s/Backend\"></a>"
+				     "<tr class=\"backend\"><td class=ac");
+
+				if (uri->flags&ST_SHLGNDS) {
+					/* balancing */
+
+					 chunk_printf(&msg, " title=\"balancing: %s\"",
+						 backend_lb_algo_str(px->lbprm.algo & BE_LB_ALGO));
+				}
+
+				chunk_printf(&msg,
+				     "><a name=\"%s/Backend\"></a>"
 				     "<a class=lfsb href=\"#%s/Backend\">Backend</a></td>"
 				     /* queue : current, max */
 				     "<td>%s</td><td>%s</td><td></td>"
