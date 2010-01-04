@@ -459,7 +459,7 @@ endif
 OBJS = src/haproxy.o src/sessionhash.o src/base64.o src/protocols.o \
        src/uri_auth.o src/standard.o src/buffers.o src/log.o src/task.o \
        src/time.o src/fd.o src/pipe.o src/regex.o src/cfgparse.o src/server.o \
-       src/checks.o src/queue.o src/client.o src/proxy.o src/proto_uxst.o \
+       src/checks.o src/queue.o src/client.o src/proxy.o src/stick_table.o src/proto_uxst.o \
        src/proto_http.o src/stream_sock.o src/appsession.o src/backend.o \
        src/lb_chash.o src/lb_fwlc.o src/lb_fwrr.o src/lb_map.o \
        src/stream_interface.o src/dumpstats.o src/proto_tcp.o \
