@@ -2834,8 +2834,9 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 				buffer_ignore(req, msg->sov - msg->som);
 				msg->som = msg->sov;
 				req->analysers = AN_REQ_HTTP_XFER_BODY;
-				txn->req.msg_state = HTTP_MSG_DONE;
-				txn->rsp.msg_state = HTTP_MSG_CLOSED;
+				s->rep->analysers = AN_RES_HTTP_XFER_BODY;
+				txn->req.msg_state = HTTP_MSG_CLOSED;
+				txn->rsp.msg_state = HTTP_MSG_DONE;
 				break;
 			} else {
 				/* keep-alive not possible */
