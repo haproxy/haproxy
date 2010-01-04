@@ -1406,7 +1406,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 			if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
 				chunk_printf(&msg,
 				     /* name, queue */
-				     "<tr class=socket><td class=ac>%s</td><td colspan=3></td>"
+				     "<tr class=socket><td class=ac><a name=\"%s/+%s\"></a>"
+				     "<a class=lfsb href=\"#%s/+%s\">%s</a></td><td colspan=3></td>"
 				     /* sessions rate: current, max, limit */
 				     "<td colspan=3>&nbsp;</td>"
 				     /* sessions: current, max, limit, total, lbtot */
@@ -1415,7 +1416,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     /* bytes: in, out */
 				     "<td>%s</td><td>%s</td>"
 				     "",
-				     l->name,
+				     px->id, l->name, px->id, l->name, l->name,
 				     U2H3(l->nbconn), U2H4(l->counters->conn_max), U2H5(l->maxconn),
 				     U2H6(l->counters->cum_conn), U2H7(l->counters->bytes_in), U2H8(l->counters->bytes_out));
 
