@@ -2635,11 +2635,11 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 		if ((s->fe->options|s->be->options) & PR_O_FORCE_CLO)
 			tmp = TX_CON_WANT_CLO;
 
-		if (!(txn->flags & TX_CON_HDR_PARS))
-			http_req_parse_connection_header(txn);
-
 		if ((txn->flags & TX_CON_WANT_MSK) < tmp)
 			txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | tmp;
+
+		if (!(txn->flags & TX_CON_HDR_PARS))
+			http_req_parse_connection_header(txn);
 
 		if ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN) {
 			if ((s->fe->options|s->be->options) & PR_O_HTTP_CLOSE)
