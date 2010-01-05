@@ -2396,7 +2396,10 @@ no option forceclose
 
   When this happens, it is possible to use "option forceclose". It will
   actively close the outgoing server channel as soon as the server has finished
-  to respond. This option implicitly enables the "httpclose" option.
+  to respond. This option implicitly enables the "httpclose" option. Note that
+  this option also enables the parsing of the full request and response, which
+  means we can close the connection to the server very quickly, releasing some
+  resources earlier than with httpclose.
 
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
@@ -2535,8 +2538,9 @@ no option http-server-close
 
   This option may be set both in a frontend and in a backend. It is enabled if
   at least one of the frontend or backend holding a connection has it enabled.
-  It is worth noting that "option forceclose" has precedence over "httpclose",
-  which itself has precedence over "option http-server-close".
+  It is worth noting that "option forceclose" has precedence over "option
+  http-server-close" and that combining "http-server-close" with "httpclose"
+  basically achieve the same result as "forceclose".
 
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
@@ -2562,14 +2566,18 @@ no option httpclose
   be removed.
 
   It seldom happens that some servers incorrectly ignore this header and do not
-  close the connection eventough they reply "Connection: close". For this
-  reason, they are not compatible with older HTTP 1.0 browsers. If this
-  happens it is possible to use the "option forceclose" which actively closes
-  the request connection once the server responds.
+  close the connection eventhough they reply "Connection: close". For this
+  reason, they are not compatible with older HTTP 1.0 browsers. If this happens
+  it is possible to use the "option forceclose" which actively closes the
+  request connection once the server responds. Option "forceclose" also
+  releases the server connection earlier because it does not have to wait for
+  the client to acknowledge it.
 
   This option may be set both in a frontend and in a backend. It is enabled if
   at least one of the frontend or backend holding a connection has it enabled.
   If "option forceclose" is specified too, it has precedence over "httpclose".
+  If "option http-server-close" is enabled at the same time as "httpclose", it
+  basically achieves the same result as "option forceclose".
 
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.

@@ -1808,17 +1808,21 @@ void http_req_parse_connection_header(struct http_txn *txn)
 	 * it, so that it can be enforced later.
 	 */
 
-	if (txn->flags & TX_REQ_VER_11) {	/* HTTP/1.1 */
+	if (conn_cl && conn_ka) {
+		txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
+	}
+	else if (txn->flags & TX_REQ_VER_11) {	/* HTTP/1.1 */
 		if (conn_cl) {
-			txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
-			if (!conn_ka)
-				txn->flags |= TX_REQ_CONN_CLO;
+			txn->flags |= TX_REQ_CONN_CLO;
+			if ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN)
+				txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
 		}
 	} else {	/* HTTP/1.0 */
-		if (!conn_ka)
-			txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO | TX_REQ_CONN_CLO;
-		else if (conn_cl)
-			txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
+		if (!conn_ka) {
+			txn->flags |= TX_REQ_CONN_CLO;
+			if ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN)
+				txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
+		}
 	}
 	txn->flags |= TX_CON_HDR_PARS;
 }
@@ -2616,6 +2620,9 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 
 	/* Until set to anything else, the connection mode is set as TUNNEL. It will
 	 * only change if both the request and the config reference something else.
+	 * Option httpclose by itself does not set a mode, it remains a tunnel mode
+	 * in which headers are mangled. However, if another mode is set, it will
+	 * affect it (eg: server-close/keep-alive + httpclose = close).
 	 */
 
 	if ((txn->meth != HTTP_METH_CONNECT) &&
@@ -2625,10 +2632,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 			tmp = TX_CON_WANT_KAL;
 		if ((s->fe->options|s->be->options) & PR_O_SERVER_CLO)
 			tmp = TX_CON_WANT_SCL;
-		if ((s->fe->options|s->be->options) & (PR_O_HTTP_CLOSE|PR_O_FORCE_CLO))
-			tmp = TX_CON_WANT_CLO;
-
-		if (!(txn->flags & TX_REQ_XFER_LEN))
+		if ((s->fe->options|s->be->options) & PR_O_FORCE_CLO)
 			tmp = TX_CON_WANT_CLO;
 
 		if (!(txn->flags & TX_CON_HDR_PARS))
@@ -2636,6 +2640,13 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 
 		if ((txn->flags & TX_CON_WANT_MSK) < tmp)
 			txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | tmp;
+
+		if ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN) {
+			if ((s->fe->options|s->be->options) & PR_O_HTTP_CLOSE)
+				txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
+			if (!(txn->flags & TX_REQ_XFER_LEN))
+				txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
+		}
 	}
 
 	/* We're really certain of the connection mode (tunnel, close, keep-alive)
@@ -2650,7 +2661,9 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 	 * Connection header exists. Note that a CONNECT method will not enter
 	 * here.
 	 */
-	if (!(txn->flags & TX_REQ_CONN_CLO) && ((txn->flags & TX_CON_WANT_MSK) >= TX_CON_WANT_SCL)) {
+	if (!(txn->flags & TX_REQ_CONN_CLO) &&
+	    ((txn->flags & TX_CON_WANT_MSK) >= TX_CON_WANT_SCL ||
+	     ((s->fe->options|s->be->options) & PR_O_HTTP_CLOSE))) {
 		char *cur_ptr, *cur_end, *cur_next;
 		int old_idx, delta, val;
 		int must_delete;
@@ -3070,7 +3083,9 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 	}
 
 	/* 11: add "Connection: close" if needed and not yet set. */
-	if (!(txn->flags & TX_REQ_CONN_CLO) && ((txn->flags & TX_CON_WANT_MSK) >= TX_CON_WANT_SCL)) {
+	if (!(txn->flags & TX_REQ_CONN_CLO) &&
+	    ((txn->flags & TX_CON_WANT_MSK) >= TX_CON_WANT_SCL ||
+	     ((s->fe->options|s->be->options) & PR_O_HTTP_CLOSE))) {
 		if (unlikely(http_header_add_tail2(req, &txn->req, &txn->hdr_idx,
 						   "Connection: close", 17) < 0))
 			goto return_bad_req;
@@ -3471,7 +3486,7 @@ int http_sync_req_state(struct session *s)
 				buffer_shutw_now(buf);
 				buf->cons->flags |= SI_FL_NOLINGER;
 			}
-			else if ((s->fe->options | s->be->options) & PR_O_FORCE_CLO) {
+			else if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_CLO) {
 				/* Option forceclose is set, let's enforce it now
 				 * that we're not expecting any new data to come.
 				 */
@@ -4322,9 +4337,9 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 	 */
 
 	if ((txn->meth != HTTP_METH_CONNECT) &&
-	    (txn->status >= 200) &&
-	    (txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN &&
-	    !(txn->flags & TX_CON_HDR_PARS)) {
+	    (txn->status >= 200) && !(txn->flags & TX_CON_HDR_PARS) &&
+	    ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN ||
+	     ((t->fe->options|t->be->options) & PR_O_HTTP_CLOSE))) {
 		int may_keep = 0, may_close = 0; /* how it may be understood */
 		struct hdr_ctx ctx;
 
@@ -4364,19 +4379,19 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 		 * handled. We also explicitly state that we will close in
 		 * case of an ambiguous response having no content-length.
 		 */
-		if ((may_close &&
+		if ((may_close && ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN) &&
 		     (may_keep || ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_SCL))) ||
 		    !(txn->flags & TX_RES_XFER_LEN))
 			txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
 
 		/* Now we must adjust the response header :
-		 *  - set "close" if may_keep and WANT_CLO
+		 *  - set "close" if may_keep and (WANT_CLO | httpclose)
 		 *  - remove "close" if WANT_SCL and REQ_1.1 and may_close and (content-length or TE_CHNK)
 		 *  - add "keep-alive" if WANT_SCL and REQ_1.0 and may_close and content-length
-		 *
-		 * Until we support the server-close mode, we'll only support the set "close".
 		 */
-		if (may_keep && (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_CLO)
+		if (may_keep &&
+		    ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_CLO ||
+		     ((t->fe->options|t->be->options) & PR_O_HTTP_CLOSE)))
 			must_close = 1;
 		else if (((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL) &&
 			 may_close && (txn->flags & TX_RES_XFER_LEN)) {
