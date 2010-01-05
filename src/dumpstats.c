@@ -921,7 +921,7 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 
 	case DATA_ST_HEAD:
 		if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
-			/* WARNING! This must fit in the first buffer !!! */	    
+			/* WARNING! This must fit in the first buffer !!! */
 			chunk_printf(&msg,
 			     "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\"\n"
 			     "\"http://www.w3.org/TR/html4/loose.dtd\">\n"
@@ -1676,7 +1676,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				/* status, lest check */
 				chunk_printf(&msg, "<td class=ac>");
 
-				if (sv->state & SRV_CHECKED) {
+				if (svs->state & SRV_CHECKED) {
 					chunk_printf(&msg, "%s ",
 						human_time(now.tv_sec - sv->last_change, 1));
 
@@ -1684,7 +1684,9 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 					     srv_hlt_st[sv_state],
 					     (svs->state & SRV_RUNNING) ? (svs->health - svs->rise + 1) : (svs->health),
 					     (svs->state & SRV_RUNNING) ? (svs->fall) : (svs->rise));
+				}
 
+				if (sv->state & SRV_CHECKED) {
 					chunk_printf(&msg, "</td><td class=ac title=\"%s",
 						get_check_status_description(sv->check_status));
 
@@ -1696,7 +1698,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 						chunk_initlen(&src, sv->check_desc, 0, strlen(sv->check_desc));
 						chunk_htmlencode(&msg, &src);
 					}
-				
+
 					chunk_printf(&msg, "\"> %s%s",
 						tv_iszero(&sv->check_start)?"":"* ",
 						get_check_status_info(sv->check_status));
@@ -1705,10 +1707,9 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 						chunk_printf(&msg, "/%d", sv->check_code);
 
 					if (sv->check_status >= HCHK_STATUS_CHECKED && sv->check_duration >= 0)
-						chunk_printf(&msg, " in %lums", sv->check_duration);
-				} else {
+					chunk_printf(&msg, " in %lums", sv->check_duration);
+				} else
 					chunk_printf(&msg, "</td><td>");
-				}
 
 				chunk_printf(&msg,
 				     /* weight */
@@ -1851,7 +1852,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 						chunk_printf(&msg, ",");
 
 					/* check_duration */
-					if (sv->check_status >= HCHK_STATUS_CHECKED)	
+					if (sv->check_status >= HCHK_STATUS_CHECKED)
 						chunk_printf(&msg, "%lu,", sv->check_duration);
 					else
 						chunk_printf(&msg, ",");
