@@ -811,6 +811,20 @@ void init_default_instance()
 	defproxy.maxconn = cfg_maxpconn;
 	defproxy.conn_retries = CONN_RETRIES;
 	defproxy.logfac1 = defproxy.logfac2 = -1; /* log disabled */
+
+	defproxy.defsrv.inter = DEF_CHKINTR;
+	defproxy.defsrv.fastinter = 0;
+	defproxy.defsrv.downinter = 0;
+	defproxy.defsrv.rise = DEF_RISETIME;
+	defproxy.defsrv.fall = DEF_FALLTIME;
+	defproxy.defsrv.check_port = 0;
+	defproxy.defsrv.maxqueue = 0;
+	defproxy.defsrv.minconn = 0;
+	defproxy.defsrv.maxconn = 0;
+	defproxy.defsrv.slowstart = 0;
+	defproxy.defsrv.onerror = DEF_HANA_ONERR;
+	defproxy.defsrv.consecutive_errors_limit = DEF_HANA_ERRLIMIT;
+	defproxy.defsrv.uweight = defproxy.defsrv.iweight = 1;
 }
 
 /*
@@ -913,6 +927,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		/* set default values */
+		memcpy(&curproxy->defsrv, &defproxy.defsrv, sizeof(curproxy->defsrv));
+
 		curproxy->state = defproxy.state;
 		curproxy->options = defproxy.options;
 		curproxy->options2 = defproxy.options2;
@@ -2538,14 +2554,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 	}
-	else if (!strcmp(args[0], "server")) {  /* server address */
+	else if (!strcmp(args[0], "server") || !strcmp(args[0], "default-server")) {  /* server address */
 		int cur_arg;
-		char *rport;
-		char *raddr;
-		short realport;
-		int do_check;
+		char *rport, *raddr;
+		short realport = 0;
+		int do_check = 0, defsrv = (*args[0] == 'd');
 
-		if (curproxy == &defproxy) {
+		if (!defsrv && curproxy == &defproxy) {
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
@@ -2574,58 +2589,68 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		/* the servers are linked backwards first */
-		newsrv->next = curproxy->srv;
-		curproxy->srv = newsrv;
-		newsrv->proxy = curproxy;
-		newsrv->conf.file = file;
-		newsrv->conf.line = linenum;
+		if (!defsrv) {
+			/* the servers are linked backwards first */
+			newsrv->next = curproxy->srv;
+			curproxy->srv = newsrv;
+			newsrv->proxy = curproxy;
+			newsrv->conf.file = file;
+			newsrv->conf.line = linenum;
 
-		LIST_INIT(&newsrv->pendconns);
-		do_check = 0;
-		newsrv->state = SRV_RUNNING; /* early server setup */
-		newsrv->last_change = now.tv_sec;
-		newsrv->id = strdup(args[1]);
+			LIST_INIT(&newsrv->pendconns);
+			do_check = 0;
+			newsrv->state = SRV_RUNNING; /* early server setup */
+			newsrv->last_change = now.tv_sec;
+			newsrv->id = strdup(args[1]);
 
-		/* several ways to check the port component :
-		 *  - IP    => port=+0, relative
-		 *  - IP:   => port=+0, relative
-		 *  - IP:N  => port=N, absolute
-		 *  - IP:+N => port=+N, relative
-		 *  - IP:-N => port=-N, relative
-		 */
-		raddr = strdup(args[2]);
-		rport = strchr(raddr, ':');
-		if (rport) {
-			*rport++ = 0;
-			realport = atol(rport);
-			if (!isdigit((unsigned char)*rport))
+			/* several ways to check the port component :
+			 *  - IP    => port=+0, relative
+			 *  - IP:   => port=+0, relative
+			 *  - IP:N  => port=N, absolute
+			 *  - IP:+N => port=+N, relative
+			 *  - IP:-N => port=-N, relative
+			 */
+			raddr = strdup(args[2]);
+			rport = strchr(raddr, ':');
+			if (rport) {
+				*rport++ = 0;
+				realport = atol(rport);
+				if (!isdigit((unsigned char)*rport))
+					newsrv->state |= SRV_MAPPORTS;
+			} else
 				newsrv->state |= SRV_MAPPORTS;
+
+			newsrv->addr = *str2sa(raddr);
+			newsrv->addr.sin_port = htons(realport);
+			free(raddr);
+
+			newsrv->check_port	= curproxy->defsrv.check_port;
+			newsrv->inter		= curproxy->defsrv.inter;
+			newsrv->fastinter	= curproxy->defsrv.fastinter;
+			newsrv->downinter	= curproxy->defsrv.downinter;
+			newsrv->rise		= curproxy->defsrv.rise;
+			newsrv->fall		= curproxy->defsrv.fall;
+			newsrv->maxqueue	= curproxy->defsrv.maxqueue;
+			newsrv->minconn		= curproxy->defsrv.minconn;
+			newsrv->maxconn		= curproxy->defsrv.maxconn;
+			newsrv->slowstart	= curproxy->defsrv.slowstart;
+			newsrv->onerror		= curproxy->defsrv.onerror;
+			newsrv->consecutive_errors_limit
+						= curproxy->defsrv.consecutive_errors_limit;
+			newsrv->uweight = newsrv->iweight
+						= curproxy->defsrv.iweight;
+
+			newsrv->curfd = -1;		/* no health-check in progress */
+			newsrv->health = newsrv->rise;	/* up, but will fall down at first failure */
+
+			cur_arg = 3;
 		} else {
-			realport = 0;
-			newsrv->state |= SRV_MAPPORTS;
-		}	    
+			newsrv = &curproxy->defsrv;
+			cur_arg = 1;
+		}
 
-		newsrv->addr = *str2sa(raddr);
-		newsrv->addr.sin_port = htons(realport);
-		free(raddr);
-
-		newsrv->curfd = -1; /* no health-check in progress */
-		newsrv->inter = DEF_CHKINTR;
-		newsrv->fastinter = 0;		/* 0 => use newsrv->inter instead */
-		newsrv->downinter = 0;		/* 0 => use newsrv->inter instead */
-		newsrv->rise = DEF_RISETIME;
-		newsrv->fall = DEF_FALLTIME;
-		newsrv->health = newsrv->rise; /* up, but will fall down at first failure */
-		newsrv->uweight = newsrv->iweight = 1;
-		newsrv->maxqueue = 0;
-		newsrv->slowstart = 0;
-		newsrv->onerror = DEF_HANA_ONERR;
-		newsrv->consecutive_errors_limit = DEF_HANA_ERRLIMIT;
-
-		cur_arg = 3;
 		while (*args[cur_arg]) {
-			if (!strcmp(args[cur_arg], "id")) {
+			if (!defsrv && !strcmp(args[cur_arg], "id")) {
 				struct eb32_node *node;
 
 				if (!*args[cur_arg + 1]) {
@@ -2656,12 +2681,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				eb32_insert(&curproxy->conf.used_server_id, &newsrv->conf.id);
 				cur_arg += 2;
 			}
-			else if (!strcmp(args[cur_arg], "cookie")) {
+			else if (!defsrv && !strcmp(args[cur_arg], "cookie")) {
 				newsrv->cookie = strdup(args[cur_arg + 1]);
 				newsrv->cklen = strlen(args[cur_arg + 1]);
 				cur_arg += 2;
 			}
-			else if (!strcmp(args[cur_arg], "redir")) {
+			else if (!defsrv && !strcmp(args[cur_arg], "redir")) {
 				newsrv->rdr_pfx = strdup(args[cur_arg + 1]);
 				newsrv->rdr_len = strlen(args[cur_arg + 1]);
 				cur_arg += 2;
@@ -2755,7 +2780,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				newsrv->downinter = val;
 				cur_arg += 2;
 			}
-			else if (!strcmp(args[cur_arg], "addr")) {
+			else if (!defsrv && !strcmp(args[cur_arg], "addr")) {
 				newsrv->check_addr = *str2sa(args[cur_arg + 1]);
 				cur_arg += 2;
 			}
@@ -2763,7 +2788,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				newsrv->check_port = atol(args[cur_arg + 1]);
 				cur_arg += 2;
 			}
-			else if (!strcmp(args[cur_arg], "backup")) {
+			else if (!defsrv && !strcmp(args[cur_arg], "backup")) {
 				newsrv->state |= SRV_BACKUP;
 				cur_arg ++;
 			}
@@ -2809,7 +2834,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				newsrv->slowstart = (val + 999) / 1000;
 				cur_arg += 2;
 			}
-			else if (!strcmp(args[cur_arg], "track")) {
+			else if (!defsrv && !strcmp(args[cur_arg], "track")) {
 
 				if (!*args[cur_arg + 1]) {
 					Alert("parsing [%s:%d]: 'track' expects [<proxy>/]<server> as argument.\n",
@@ -2822,12 +2847,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 				cur_arg += 2;
 			}
-			else if (!strcmp(args[cur_arg], "check")) {
+			else if (!defsrv && !strcmp(args[cur_arg], "check")) {
 				global.maxsock++;
 				do_check = 1;
 				cur_arg += 1;
 			}
-			else if (!strcmp(args[cur_arg], "observe")) {
+			else if (!defsrv && !strcmp(args[cur_arg], "observe")) {
 				if (!strcmp(args[cur_arg + 1], "none"))
 					newsrv->observe = HANA_OBS_NONE;
 				else if (!strcmp(args[cur_arg + 1], "layer4"))
@@ -2886,7 +2911,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 					goto out;
 				}
 			}
-			else if (!strcmp(args[cur_arg], "source")) {  /* address to which we bind when connecting */
+			else if (!defsrv && !strcmp(args[cur_arg], "source")) {  /* address to which we bind when connecting */
 				int port_low, port_high;
 				if (!*args[cur_arg + 1]) {
 #if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
@@ -2984,15 +3009,20 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 					break;
 				} /* while */
 			}
-			else if (!strcmp(args[cur_arg], "usesrc")) {  /* address to use outside: needs "source" first */
+			else if (!defsrv && !strcmp(args[cur_arg], "usesrc")) {  /* address to use outside: needs "source" first */
 				Alert("parsing [%s:%d] : '%s' only allowed after a '%s' statement.\n",
 				      file, linenum, "usesrc", "source");
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
 			else {
-				Alert("parsing [%s:%d] : server %s only supports options 'backup', 'cookie', 'redir', 'check', 'track', 'id', 'inter', 'fastinter', 'downinter', 'rise', 'fall', 'addr', 'port', 'source', 'minconn', 'maxconn', 'maxqueue', 'slowstart' and 'weight'.\n",
-				      file, linenum, newsrv->id);
+				if (!defsrv)
+					Alert("parsing [%s:%d] : server %s only supports options 'backup', 'cookie', 'redir', 'check', 'track', 'id', 'inter', 'fastinter', 'downinter', 'rise', 'fall', 'addr', 'port', 'source', 'minconn', 'maxconn', 'maxqueue', 'slowstart' and 'weight'.\n",
+					      file, linenum, newsrv->id);
+				else
+					Alert("parsing [%s:%d]: default-server only supports options 'inter', 'fastinter', 'downinter', 'rise', 'fall', 'port', 'minconn', 'maxconn', 'maxqueue', 'slowstart' and 'weight'.\n",
+					      file, linenum);
+
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
@@ -3037,12 +3067,14 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			newsrv->state |= SRV_CHECKED;
 		}
 
-		if (newsrv->state & SRV_BACKUP)
-			curproxy->srv_bck++;
-		else
-			curproxy->srv_act++;
+		if (!defsrv) {
+			if (newsrv->state & SRV_BACKUP)
+				curproxy->srv_bck++;
+			else
+				curproxy->srv_act++;
 
-		newsrv->prev_state = newsrv->state;
+			newsrv->prev_state = newsrv->state;
+		}
 	}
 	else if (!strcmp(args[0], "log")) {  /* syslog server address */
 		struct logsrv logsrv;

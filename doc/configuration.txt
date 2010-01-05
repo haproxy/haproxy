@@ -47,7 +47,7 @@ Summary
 4.1.      Proxy keywords matrix
 4.2.      Alphabetically sorted keywords reference
 
-5.    Server options
+5.    Server and default-server options
 
 6.    HTTP header manipulation
 
@@ -724,6 +724,7 @@ capture response header     -          X         X         -
 clitimeout                  X          X         X         -  (deprecated)
 contimeout                  X          -         X         X  (deprecated)
 cookie                      X          -         X         X
+default-server              X          -         X         -
 default_backend             -          X         X         -
 description                 -          X         X         X
 disabled                    X          X         X         X
@@ -1606,6 +1607,19 @@ cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
 
   See also : "appsession", "balance source", "capture cookie", "server".
 
+default-server [param*]
+  Change default options for a server in a backend
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments:
+    <param*>  is a list of parameters for this server. The "default-server" keywords
+              accepts an important number of options and has a complete section
+              dedicated to it. Please refer to section 5 for more details.
+
+  Examples:
+        default-server inter 1000 weight 13
+
+  See also: "server" and section 5 about server options
 
 default_backend <backend>
   Specify the backend to use when no "use_backend" rule has been matched.
@@ -3795,7 +3809,7 @@ server <name> <address>[:port] [param*]
         server first  10.1.1.1:1080 cookie first  check inter 1000
         server second 10.1.1.2:1080 cookie second check inter 1000
 
-  See also : section 5 about server options
+  See also: "default-server" and section 5 about server options
 
 
 source <addr>[:<port>] [usesrc { <addr2>[:<port2>] | client | clientip } ]
@@ -4696,19 +4710,22 @@ use_backend <backend> unless <condition>
   See also: "default_backend", "tcp-request", and section 7 about ACLs.
   
 
-5. Server options
+5. Server and default-server options
 -----------------
 
-The "server" keyword supports a certain number of settings which are all passed
-as arguments on the server line. The order in which those arguments appear does
-not count, and they are all optional. Some of those settings are single words
-(booleans) while others expect one or several values after them. In this case,
-the values must immediately follow the setting name. All those settings must be
-specified after the server's address if they are used :
+The "server" and "default-server" keywords support a certain number of settings
+which are all passed as arguments on the server line. The order in which those
+arguments appear does not count, and they are all optional. Some of those
+settings are single words (booleans) while others expect one or several values
+after them. In this case, the values must immediately follow the setting name.
+Except default-server, all those settings must be specified after the server's
+address if they are used:
 
   server <name> <address>[:port] [settings ...]
+  default-server [settings ...]
 
-The currently supported settings are the following ones.
+The currently supported settings are the following ones, the ones marked with
+"[D]" are also upported for default-server.
 
 addr <ipv4>
   Using the "addr" parameter, it becomes possible to use a different IP address
@@ -4747,14 +4764,14 @@ cookie <value>
   the same cookie value, and it is in fact somewhat common between normal and
   backup servers. See also the "cookie" keyword in backend section.
 
-error-limit <count>
+[D] error-limit <count>
   If health observing is enabled, the "error-limit" parameter specifies the number
   of consecutive errors that triggers event selected by the "on-error" option.
   By default it is set to 10 consecutive errors.
 
  See also the "check", "error-limit" and "on-error".
 
-fall <count>
+[D] fall <count>
   The "fall" parameter states that a server will be considered as dead after
   <count> consecutive unsuccessful health checks. This value defaults to 3 if
   unspecified. See also the "check", "inter" and "rise" parameters.
@@ -4764,9 +4781,9 @@ id <value>
   the proxy. An unused ID will automatically be assigned if unset. The first
   assigned value will be 1. This ID is currently only returned in statistics.
 
-inter <delay>
-fastinter <delay>
-downinter <delay>
+[D] inter <delay>
+[D] fastinter <delay>
+[D] downinter <delay>
   The "inter" parameter sets the interval between two consecutive health checks
   to <delay> milliseconds. If left unspecified, the delay defaults to 2000 ms.
   It is also possible to use "fastinter" and "downinter" to optimize delays
@@ -4793,7 +4810,7 @@ downinter <delay>
   keyword. This makes sense for instance when a lot of backends use the same
   servers.
 
-maxconn <maxconn>
+[D] maxconn <maxconn>
   The "maxconn" parameter specifies the maximal number of concurrent
   connections that will be sent to this server. If the number of incoming
   concurrent requests goes higher than this value, they will be queued, waiting
@@ -4803,7 +4820,7 @@ maxconn <maxconn>
   which means unlimited. See also the "minconn" and "maxqueue" parameters, and
   the backend's "fullconn" keyword.
 
-maxqueue <maxqueue>
+[D] maxqueue <maxqueue>
   The "maxqueue" parameter specifies the maximal number of connections which
   will wait in the queue for this server. If this limit is reached, next
   requests will be redispatched to other servers instead of indefinitely
@@ -4812,7 +4829,7 @@ maxqueue <maxqueue>
   default value is "0" which means the queue is unlimited. See also the
   "maxconn" and "minconn" parameters.
 
-minconn <minconn>
+[D] minconn <minconn>
   When the "minconn" parameter is set, the maxconn limit becomes a dynamic
   limit following the backend's load. The server will always accept at least
   <minconn> connections, never more than <maxconn>, and the limit will be on
@@ -4833,7 +4850,7 @@ observe <mode>
 
   See also the "check", "on-error" and "error-limit".
 
-on-error <mode>
+[D] on-error <mode>
   Select what should happen when enough consecutive errors are detected.
   Currently, four modes are available:
   - fastinter: force fastinter
@@ -4844,7 +4861,7 @@ on-error <mode>
 
   See also the "check", "observe" and "error-limit".
 
-port <port>
+[D] port <port>
   Using the "port" parameter, it becomes possible to use a different port to
   send health-checks. On some servers, it may be desirable to dedicate a port
   to a specific component able to perform complex tests which are more suitable
@@ -4870,12 +4887,12 @@ redir <prefix>
 
   Example :  server srv1 192.168.1.1:80 redir http://image1.mydomain.com check
 
-rise <count>
+[D] rise <count>
   The "rise" parameter states that a server will be considered as operational
   after <count> consecutive successful health checks. This value defaults to 2
   if unspecified. See also the "check", "inter" and "fall" parameters.
 
-slowstart <start_time_in_ms>
+[D] slowstart <start_time_in_ms>
   The "slowstart" parameter for a server accepts a value in milliseconds which
   indicates after how long a server which has just come back up will run at
   full speed. Just as with every other time-based parameter, it can be entered
@@ -4917,7 +4934,7 @@ track [<proxy>/]<server>
   one. If <proxy> is omitted the current one is used. If disable-on-404 is
   used, it has to be enabled on both proxies.
 
-weight <weight>
+[D] weight <weight>
   The "weight" parameter is used to adjust the server's weight relative to
   other servers. All servers will receive a load proportional to their weight
   relative to the sum of all weights, so the higher the weight, the higher the
