@@ -3596,7 +3596,6 @@ int http_sync_res_state(struct session *s)
 			 */
 			buffer_shutr_now(buf);
 			buffer_shutw_now(buf);
-			buf->cons->flags |= SI_FL_NOLINGER;
 		}
 		else {
 			/* other modes include httpclose (no action) and keepalive
