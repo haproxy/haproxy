@@ -1239,17 +1239,6 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 					proxy_cap_str(px->cap), proxy_mode_str(px->mode),
 					px->uuid);
 
-				/* cookie */
-				if (px->cookie_name) {
-					struct chunk src;
-
-					chunk_printf(&msg, ", cookie: '");
-					chunk_initlen(&src, px->cookie_name, 0, strlen(px->cookie_name));
-					chunk_htmlencode(&msg, &src);
-
-					chunk_printf(&msg, "'");
-				}
-
 				chunk_printf(&msg, "\"");
 			}
 
@@ -1897,9 +1886,23 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 
 				if (uri->flags&ST_SHLGNDS) {
 					/* balancing */
-
-					 chunk_printf(&msg, " title=\"balancing: %s\"",
+					 chunk_printf(&msg, " title=\"balancing: %s",
 						 backend_lb_algo_str(px->lbprm.algo & BE_LB_ALGO));
+
+					/* cookie */
+					if (px->cookie_name) {
+						struct chunk src;
+
+						chunk_printf(&msg, ", cookie: '");
+
+						chunk_initlen(&src, px->cookie_name, 0, strlen(px->cookie_name));
+						chunk_htmlencode(&msg, &src);
+
+						chunk_printf(&msg, "'");
+					}
+
+					chunk_printf(&msg, "\"");
+
 				}
 
 				chunk_printf(&msg,
