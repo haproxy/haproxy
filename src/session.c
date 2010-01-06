@@ -804,7 +804,13 @@ resync_stream_interface:
 			unsigned int ana_list;
 			unsigned int ana_back;
 
-			/* it's up to the analysers to stop new connections */
+			/* it's up to the analysers to stop new connections,
+			 * disable reading or closing. Note: if an analyser
+			 * disables any of these bits, it is responsible for
+			 * enabling them again when it disables itself, so
+			 * that other analysers are called in similar conditions.
+			 */
+			buffer_auto_read(s->req);
 			buffer_auto_connect(s->req);
 			buffer_auto_close(s->req);
 
@@ -950,7 +956,13 @@ resync_stream_interface:
 			unsigned int ana_list;
 			unsigned int ana_back;
 
-			/* it's up to the analysers to reset auto_close */
+			/* it's up to the analysers to stop disable reading or
+			 * closing. Note: if an analyser disables any of these
+			 * bits, it is responsible for enabling them again when
+			 * it disables itself, so that other analysers are called
+			 * in similar conditions.
+			 */
+			buffer_auto_read(s->rep);
 			buffer_auto_close(s->rep);
 
 			/* We will call all analysers for which a bit is set in
@@ -1055,6 +1067,7 @@ resync_stream_interface:
 		 * attached to it. If any data are left in, we'll permit them to
 		 * move.
 		 */
+		buffer_auto_read(s->req);
 		buffer_auto_connect(s->req);
 		buffer_auto_close(s->req);
 		buffer_flush(s->req);
@@ -1172,6 +1185,7 @@ resync_stream_interface:
 		 * attached to it. If any data are left in, we'll permit them to
 		 * move.
 		 */
+		buffer_auto_read(s->rep);
 		buffer_auto_close(s->rep);
 		buffer_flush(s->rep);
 		if (!(s->rep->flags & (BF_SHUTR|BF_SHUTW|BF_SHUTW_NOW)))

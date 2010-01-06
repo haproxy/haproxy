@@ -563,6 +563,7 @@ static void http_server_error(struct session *t, struct stream_interface *si,
 	buffer_erase(si->ob);
 	buffer_erase(si->ib);
 	buffer_auto_close(si->ib);
+	buffer_auto_read(si->ib);
 	if (status > 0 && msg) {
 		t->txn.status = status;
 		buffer_write(si->ib, msg->str, msg->len);
@@ -2282,7 +2283,6 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 
 		buffer_dont_connect(req);
 		req->flags |= BF_READ_DONTWAIT; /* try to get back here ASAP */
-		req->flags &= ~BF_DONT_READ;
 
 		/* just set the request timeout once at the beginning of the request */
 		if (!tick_isset(req->analyse_exp))
@@ -2861,14 +2861,6 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 		}
 	}
 
-	/* We can shut read side if we know how we won't transfer any more data && !abort_on_close */
-	if ((txn->flags & TX_REQ_XFER_LEN) &&
-	    !(txn->flags & TX_REQ_TE_CHNK) && !txn->req.hdr_content_len &&
-	    (req->cons->state == SI_ST_EST || !(s->be->options & PR_O_ABRT_CLOSE)))
-		req->flags |= BF_DONT_READ;
-	else
-		req->flags &= ~BF_DONT_READ;
-
 	/* POST requests may be accompanied with an "Expect: 100-Continue" header.
 	 * If this happens, then the data will not come immediately, so we must
 	 * send all what we have without waiting. Note that due to the small gain
@@ -3398,8 +3390,8 @@ void http_end_txn_clean_session(struct session *s)
 	s->req->cons->err_loc   = NULL;
 	s->req->cons->exp       = TICK_ETERNITY;
 	s->req->cons->flags     = SI_FL_NONE;
-	s->req->flags &= ~(BF_SHUTW|BF_SHUTW_NOW|BF_AUTO_CONNECT|BF_WRITE_ERROR|BF_STREAMER|BF_STREAMER_FAST|BF_AUTO_CLOSE);
-	s->rep->flags &= ~(BF_SHUTR|BF_SHUTR_NOW|BF_READ_ATTACHED|BF_READ_ERROR|BF_READ_NOEXP|BF_STREAMER|BF_STREAMER_FAST|BF_AUTO_CLOSE|BF_WRITE_PARTIAL);
+	s->req->flags &= ~(BF_SHUTW|BF_SHUTW_NOW|BF_AUTO_CONNECT|BF_WRITE_ERROR|BF_STREAMER|BF_STREAMER_FAST);
+	s->rep->flags &= ~(BF_SHUTR|BF_SHUTR_NOW|BF_READ_ATTACHED|BF_READ_ERROR|BF_READ_NOEXP|BF_STREAMER|BF_STREAMER_FAST|BF_WRITE_PARTIAL);
 	s->flags &= ~(SN_DIRECT|SN_ASSIGNED|SN_ADDR_SET|SN_BE_ASSIGNED);
 	s->flags &= ~(SN_CURR_SESS|SN_REDIRECTABLE);
 	s->txn.meth = 0;
@@ -3411,14 +3403,15 @@ void http_end_txn_clean_session(struct session *s)
 	/* if the request buffer is not empty, it means we're
 	 * about to process another request, so send pending
 	 * data with MSG_MORE to merge TCP packets when possible.
-	 * Also, let's not start reading a small request packet,
-	 * we may prefer to read a larger one later.
 	 */
-	s->req->flags &= ~BF_DONT_READ;
-	if (s->req->l > s->req->send_max) {
+	if (s->req->l > s->req->send_max)
 		s->rep->flags |= BF_EXPECT_MORE;
-		s->req->flags |= BF_DONT_READ;
-	}
+
+	/* we're removing the analysers, we MUST re-enable events detection */
+	buffer_auto_read(s->req);
+	buffer_auto_close(s->req);
+	buffer_auto_read(s->rep);
+	buffer_auto_close(s->rep);
 
 	/* make ->lr point to the first non-forwarded byte */
 	s->req->lr = s->req->w + s->req->send_max;
@@ -3454,8 +3447,11 @@ int http_sync_req_state(struct session *s)
 		return 0;
 
 	if (txn->req.msg_state == HTTP_MSG_DONE) {
-		/* No need to read anymore, the request was completely parsed */
-		buf->flags |= BF_DONT_READ;
+		/* No need to read anymore, the request was completely parsed.
+		 * We can shut the read side unless we want to abort_on_close.
+		 */
+		if (buf->cons->state == SI_ST_EST || !(s->be->options & PR_O_ABRT_CLOSE))
+			buffer_dont_read(buf);
 
 		if (txn->rsp.msg_state == HTTP_MSG_ERROR)
 			goto wait_other_side;
@@ -3469,7 +3465,7 @@ int http_sync_req_state(struct session *s)
 
 		if (txn->rsp.msg_state == HTTP_MSG_TUNNEL) {
 			/* if any side switches to tunnel mode, the other one does too */
-			buf->flags &= ~BF_DONT_READ;
+			buffer_auto_read(buf);
 			txn->req.msg_state = HTTP_MSG_TUNNEL;
 			goto wait_other_side;
 		}
@@ -3510,7 +3506,7 @@ int http_sync_req_state(struct session *s)
 		}
 		else {
 			/* other modes are used as a tunnel right now */
-			buf->flags &= ~BF_DONT_READ;
+			buffer_auto_read(buf);
 			txn->req.msg_state = HTTP_MSG_TUNNEL;
 			goto wait_other_side;
 		}
@@ -3562,10 +3558,11 @@ int http_sync_res_state(struct session *s)
 
 	if (txn->rsp.msg_state == HTTP_MSG_DONE) {
 		/* In theory, we don't need to read anymore, but we must
-		 * still monitor the server connection for a possible close,
-		 * so we don't set the BF_DONT_READ flag here.
+		 * still monitor the server connection for a possible close
+		 * while the request is being uploaded, so we don't disable
+		 * reading.
 		 */
-		/* buf->flags |= BF_DONT_READ; */
+		/* buffer_dont_read(buf); */
 
 		if (txn->req.msg_state == HTTP_MSG_ERROR)
 			goto wait_other_side;
@@ -3581,7 +3578,7 @@ int http_sync_res_state(struct session *s)
 
 		if (txn->req.msg_state == HTTP_MSG_TUNNEL) {
 			/* if any side switches to tunnel mode, the other one does too */
-			buf->flags &= ~BF_DONT_READ;
+			buffer_auto_read(buf);
 			txn->rsp.msg_state = HTTP_MSG_TUNNEL;
 			goto wait_other_side;
 		}
@@ -3617,7 +3614,7 @@ int http_sync_res_state(struct session *s)
 			 * (not implemented). These modes are used as a tunnel right
 			 * now.
 			 */
-			buf->flags &= ~BF_DONT_READ;
+			buffer_auto_read(buf);
 			txn->rsp.msg_state = HTTP_MSG_TUNNEL;
 			goto wait_other_side;
 		}
@@ -3656,6 +3653,7 @@ int http_sync_res_state(struct session *s)
 		/* drop any pending data */
 		buffer_ignore(buf, buf->l - buf->send_max);
 		buffer_auto_close(buf);
+		buffer_auto_read(buf);
 		goto wait_other_side;
 	}
 
@@ -3677,10 +3675,10 @@ int http_resync_states(struct session *s)
 	http_silent_debug(__LINE__, s);
 	http_sync_req_state(s);
 	while (1) {
-	http_silent_debug(__LINE__, s);
+		http_silent_debug(__LINE__, s);
 		if (!http_sync_res_state(s))
 			break;
-	http_silent_debug(__LINE__, s);
+		http_silent_debug(__LINE__, s);
 		if (!http_sync_req_state(s))
 			break;
 	}
@@ -3702,22 +3700,23 @@ int http_resync_states(struct session *s)
 	    (txn->req.msg_state == HTTP_MSG_CLOSED &&
 	     txn->rsp.msg_state == HTTP_MSG_CLOSED)) {
 		s->req->analysers = 0;
-		s->req->flags &= ~BF_DONT_READ;
 		buffer_auto_close(s->req);
+		buffer_auto_read(s->req);
 		s->rep->analysers = 0;
 		buffer_auto_close(s->rep);
-		s->rep->flags &= ~BF_DONT_READ;
+		buffer_auto_read(s->rep);
 	}
 	else if (txn->rsp.msg_state == HTTP_MSG_CLOSED ||
 		 txn->rsp.msg_state == HTTP_MSG_ERROR ||
 		 (s->rep->flags & BF_SHUTW)) {
-		s->rep->flags &= ~BF_DONT_READ;
-		s->req->flags &= ~BF_DONT_READ;
+		s->rep->analysers = 0;
+		buffer_auto_close(s->rep);
+		buffer_auto_read(s->rep);
+		s->req->analysers = 0;
 		buffer_abort(s->req);
 		buffer_auto_close(s->req);
+		buffer_auto_read(s->req);
 		buffer_ignore(s->req, s->req->l - s->req->send_max);
-		s->req->analysers = 0;
-		s->rep->analysers = 0;
 	}
 	else if (txn->req.msg_state == HTTP_MSG_CLOSED &&
 		 txn->rsp.msg_state == HTTP_MSG_DONE &&
@@ -3756,8 +3755,9 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 	    ((req->flags & BF_SHUTW) && (req->to_forward || req->send_max))) {
 		/* Output closed while we were sending data. We must abort. */
 		buffer_ignore(req, req->l - req->send_max);
+		buffer_auto_read(req);
+		buffer_auto_close(req);
 		req->analysers &= ~an_bit;
-		req->flags &= ~BF_DONT_READ;
 		return 1;
 	}
 
@@ -3876,6 +3876,8 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 	/* Note: we don't send any error if some data were already sent */
 	stream_int_cond_close(req->prod, (txn->rsp.msg_state < HTTP_MSG_BODY) ? error_message(s, HTTP_ERR_400) : NULL);
 
+	buffer_auto_read(req);
+	buffer_auto_close(req);
 	req->analysers = 0;
 	s->fe->counters.failed_req++;
 	if (s->listener->counters)
@@ -4003,6 +4005,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 				health_adjust(s->srv, HANA_STATUS_HTTP_HDRRSP);
 			}
 
+			buffer_auto_close(rep);
 			rep->analysers = 0;
 			txn->status = 502;
 			rep->prod->flags |= SI_FL_NOLINGER;
@@ -4032,6 +4035,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 				health_adjust(s->srv, HANA_STATUS_HTTP_READ_ERROR);
 			}
 
+			buffer_auto_close(rep);
 			rep->analysers = 0;
 			txn->status = 502;
 			rep->prod->flags |= SI_FL_NOLINGER;
@@ -4055,6 +4059,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 				health_adjust(s->srv, HANA_STATUS_HTTP_READ_TIMEOUT);
 			}
 
+			buffer_auto_close(rep);
 			rep->analysers = 0;
 			txn->status = 504;
 			rep->prod->flags |= SI_FL_NOLINGER;
@@ -4078,6 +4083,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 				health_adjust(s->srv, HANA_STATUS_HTTP_BROKEN_PIPE);
 			}
 
+			buffer_auto_close(rep);
 			rep->analysers = 0;
 			txn->status = 502;
 			rep->prod->flags |= SI_FL_NOLINGER;
@@ -4097,6 +4103,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 
 			s->be->counters.failed_resp++;
 			rep->analysers = 0;
+			buffer_auto_close(rep);
 
 			if (!(s->flags & SN_ERR_MASK))
 				s->flags |= SN_ERR_CLICL;
@@ -4287,6 +4294,7 @@ skip_content_length:
 	/* end of job, return OK */
 	rep->analysers &= ~an_bit;
 	rep->analyse_exp = TICK_ETERNITY;
+	buffer_auto_close(rep);
 	return 1;
 }
 
@@ -4696,8 +4704,9 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 	    !s->req->analysers) {
 		/* in case of error or if the other analyser went away, we can't analyse HTTP anymore */
 		buffer_ignore(res, res->l - res->send_max);
+		buffer_auto_read(res);
+		buffer_auto_close(res);
 		res->analysers &= ~an_bit;
-		res->flags &= ~BF_DONT_READ;
 		return 1;
 	}
 
@@ -4816,6 +4825,8 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 	txn->status = 502;
 	stream_int_cond_close(res->cons, NULL);
 
+	buffer_auto_close(res);
+	buffer_auto_read(res);
 	res->analysers = 0;
 	s->be->counters.failed_resp++;
 	if (s->srv) {

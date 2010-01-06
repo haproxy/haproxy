@@ -252,6 +252,18 @@ static inline void buffer_dont_close(struct buffer *buf)
 	buf->flags &= ~BF_AUTO_CLOSE;
 }
 
+/* allow the producer to read / poll the input */
+static inline void buffer_auto_read(struct buffer *buf)
+{
+	buf->flags &= ~BF_DONT_READ;
+}
+
+/* prevent the producer from read / poll the input */
+static inline void buffer_dont_read(struct buffer *buf)
+{
+	buf->flags |= BF_DONT_READ;
+}
+
 /* returns the maximum number of bytes writable at once in this buffer */
 static inline int buffer_max(const struct buffer *buf)
 {
