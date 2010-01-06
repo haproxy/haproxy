@@ -1978,10 +1978,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		if (curproxy != &defproxy && curproxy->uri_auth == defproxy.uri_auth)
 			curproxy->uri_auth = NULL; /* we must detach from the default config */
 
-		if (*(args[1]) == 0) {
-			Alert("parsing [%s:%d] : '%s' expects 'uri', 'realm', 'auth', 'scope' or 'enable', 'hide-version', 'show-node', 'show-desc', 'show-legends'.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
+		if (!*args[1]) {
+			goto stats_error_parsing;
 		} else if (!strcmp(args[1], "uri")) {
 			if (*(args[2]) == 0) {
 				Alert("parsing [%s:%d] : 'uri' needs an URI prefix.\n", file, linenum);
@@ -2110,8 +2108,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				free(desc);
 			}
 		} else {
-			Alert("parsing [%s:%d] : unknown stats parameter '%s' (expects 'hide-version', 'uri', 'realm', 'auth' or 'enable').\n",
-			      file, linenum, args[0]);
+stats_error_parsing:
+			Alert("parsing [%s:%d]: %s '%s', expects 'uri', 'realm', 'auth', 'scope', 'enable', 'hide-version', 'show-node', 'show-desc' or 'show-legends'.\n",
+			      file, linenum, *args[1]?"unknown stats parameter":"missing keyword in", args[*args[1]?1:0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
