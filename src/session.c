@@ -648,6 +648,7 @@ struct task *process_session(struct task *t)
 {
 	struct session *s = t->context;
 	unsigned int rqf_last, rpf_last;
+	unsigned int req_ana_back;
 
 	//DPRINTF(stderr, "%s:%d: cs=%d ss=%d(%d) rqf=0x%08x rpf=0x%08x\n", __FUNCTION__, __LINE__,
 	//        s->si[0].state, s->si[1].state, s->si[1].err_type, s->req->flags, s->rep->flags);
@@ -916,6 +917,12 @@ resync_stream_interface:
 		}
 	}
 
+	/* we'll monitor the request analysers while parsing the response,
+	 * because some response analysers may indirectly enable new request
+	 * analysers (eg: HTTP keep-alive).
+	 */
+	req_ana_back = s->req->analysers;
+
  resync_response:
 	/* Analyse response */
 
@@ -989,6 +996,10 @@ resync_stream_interface:
 			goto resync_response;
 		}
 	}
+
+	/* maybe someone has added some request analysers, so we must check and loop */
+	if (s->req->analysers & ~req_ana_back)
+		goto resync_request;
 
 	/* FIXME: here we should call protocol handlers which rely on
 	 * both buffers.
