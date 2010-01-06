@@ -724,7 +724,7 @@ capture response header     -          X         X         -
 clitimeout                  X          X         X         -  (deprecated)
 contimeout                  X          -         X         X  (deprecated)
 cookie                      X          -         X         X
-default-server              X          -         X         -
+default-server              X          -         X         X
 default_backend             -          X         X         -
 description                 -          X         X         X
 disabled                    X          X         X         X
@@ -4724,8 +4724,7 @@ address if they are used:
   server <name> <address>[:port] [settings ...]
   default-server [settings ...]
 
-The currently supported settings are the following ones, the ones marked with
-"[D]" are also upported for default-server.
+The currently supported settings are the following ones.
 
 addr <ipv4>
   Using the "addr" parameter, it becomes possible to use a different IP address
@@ -4734,6 +4733,8 @@ addr <ipv4>
   suitable to health-checks than the application. This parameter is ignored if
   the "check" parameter is not set. See also the "port" parameter.
 
+  Supported in default-server: No
+
 backup
   When "backup" is present on a server line, the server is only used in load
   balancing when all other non-backup servers are unavailable. Requests coming
@@ -4741,6 +4742,8 @@ backup
   though. By default, only the first operational backup server is used, unless
   the "allbackups" option is set in the backend. See also the "allbackups"
   option.
+
+  Supported in default-server: No
 
 check
   This option enables health checks on the server. By default, a server is
@@ -4755,6 +4758,8 @@ check
   and "ssl-hello-chk" options. Please refer to those options and parameters for
   more information.
 
+  Supported in default-server: No
+
 cookie <value>
   The "cookie" parameter sets the cookie value assigned to the server to
   <value>. This value will be checked in incoming requests, and the first
@@ -4764,26 +4769,34 @@ cookie <value>
   the same cookie value, and it is in fact somewhat common between normal and
   backup servers. See also the "cookie" keyword in backend section.
 
-[D] error-limit <count>
+  Supported in default-server: No
+
+error-limit <count>
   If health observing is enabled, the "error-limit" parameter specifies the number
   of consecutive errors that triggers event selected by the "on-error" option.
   By default it is set to 10 consecutive errors.
 
- See also the "check", "error-limit" and "on-error".
+  Supported in default-server: Yes
 
-[D] fall <count>
+  See also the "check", "error-limit" and "on-error".
+
+fall <count>
   The "fall" parameter states that a server will be considered as dead after
   <count> consecutive unsuccessful health checks. This value defaults to 3 if
   unspecified. See also the "check", "inter" and "rise" parameters.
+
+  Supported in default-server: Yes
 
 id <value>
   Set a persistent ID for the server. This ID must be positive and unique for
   the proxy. An unused ID will automatically be assigned if unset. The first
   assigned value will be 1. This ID is currently only returned in statistics.
 
-[D] inter <delay>
-[D] fastinter <delay>
-[D] downinter <delay>
+  Supported in default-server: No
+
+inter <delay>
+fastinter <delay>
+downinter <delay>
   The "inter" parameter sets the interval between two consecutive health checks
   to <delay> milliseconds. If left unspecified, the delay defaults to 2000 ms.
   It is also possible to use "fastinter" and "downinter" to optimize delays
@@ -4810,7 +4823,9 @@ id <value>
   keyword. This makes sense for instance when a lot of backends use the same
   servers.
 
-[D] maxconn <maxconn>
+  Supported in default-server: Yes
+
+maxconn <maxconn>
   The "maxconn" parameter specifies the maximal number of concurrent
   connections that will be sent to this server. If the number of incoming
   concurrent requests goes higher than this value, they will be queued, waiting
@@ -4820,7 +4835,9 @@ id <value>
   which means unlimited. See also the "minconn" and "maxqueue" parameters, and
   the backend's "fullconn" keyword.
 
-[D] maxqueue <maxqueue>
+  Supported in default-server: Yes
+
+maxqueue <maxqueue>
   The "maxqueue" parameter specifies the maximal number of connections which
   will wait in the queue for this server. If this limit is reached, next
   requests will be redispatched to other servers instead of indefinitely
@@ -4829,7 +4846,9 @@ id <value>
   default value is "0" which means the queue is unlimited. See also the
   "maxconn" and "minconn" parameters.
 
-[D] minconn <minconn>
+  Supported in default-server: Yes
+
+minconn <minconn>
   When the "minconn" parameter is set, the maxconn limit becomes a dynamic
   limit following the backend's load. The server will always accept at least
   <minconn> connections, never more than <maxconn>, and the limit will be on
@@ -4838,6 +4857,8 @@ id <value>
   server during normal loads, but push it further for important loads without
   overloading the server during exceptional loads. See also the "maxconn"
   and "maxqueue" parameters, as well as the "fullconn" backend keyword.
+
+  Supported in default-server: Yes
 
 observe <mode>
   This option enables health adjusting based on observing communication with
@@ -4848,9 +4869,11 @@ observe <mode>
   received from server are verified, like valid/wrong http code, unparsable
   headers, a timeout, etc.
 
+  Supported in default-server: No
+
   See also the "check", "on-error" and "error-limit".
 
-[D] on-error <mode>
+on-error <mode>
   Select what should happen when enough consecutive errors are detected.
   Currently, four modes are available:
   - fastinter: force fastinter
@@ -4859,15 +4882,19 @@ observe <mode>
     check will mark a server down, forces fastinter
   - mark-down: mark the server immediately down and force fastinter
 
+  Supported in default-server: Yes
+
   See also the "check", "observe" and "error-limit".
 
-[D] port <port>
+port <port>
   Using the "port" parameter, it becomes possible to use a different port to
   send health-checks. On some servers, it may be desirable to dedicate a port
   to a specific component able to perform complex tests which are more suitable
   to health-checks than the application. It is common to run a simple script in
   inetd for instance. This parameter is ignored if the "check" parameter is not
   set. See also the "addr" parameter.
+
+  Supported in default-server: Yes
 
 redir <prefix>
   The "redir" parameter enables the redirection mode for all GET and HEAD
@@ -4887,12 +4914,16 @@ redir <prefix>
 
   Example :  server srv1 192.168.1.1:80 redir http://image1.mydomain.com check
 
-[D] rise <count>
+  Supported in default-server: No
+
+rise <count>
   The "rise" parameter states that a server will be considered as operational
   after <count> consecutive successful health checks. This value defaults to 2
   if unspecified. See also the "check", "inter" and "fall" parameters.
 
-[D] slowstart <start_time_in_ms>
+  Supported in default-server: Yes
+
+slowstart <start_time_in_ms>
   The "slowstart" parameter for a server accepts a value in milliseconds which
   indicates after how long a server which has just come back up will run at
   full speed. Just as with every other time-based parameter, it can be entered
@@ -4912,6 +4943,8 @@ redir <prefix>
   trouble to running servers. It only applies when a server has been previously
   seen as failed.
 
+  Supported in default-server: Yes
+
 source <addr>[:<pl>[-<ph>]] [usesrc { <addr2>[:<port2>] | client | clientip } ]
 source <addr>[:<pl>[-<ph>]] [interface <name>] ...
   The "source" parameter sets the source address which will be used when
@@ -4927,6 +4960,8 @@ source <addr>[:<pl>[-<ph>]] [interface <name>] ...
   total concurrent connections. The limit will then reach 64k connections per
   server.
 
+  Supported in default-server: No
+
 track [<proxy>/]<server>
   This option enables ability to set the current state of the server by
   tracking another one. Only a server with checks enabled can be tracked
@@ -4934,7 +4969,9 @@ track [<proxy>/]<server>
   one. If <proxy> is omitted the current one is used. If disable-on-404 is
   used, it has to be enabled on both proxies.
 
-[D] weight <weight>
+  Supported in default-server: No
+
+weight <weight>
   The "weight" parameter is used to adjust the server's weight relative to
   other servers. All servers will receive a load proportional to their weight
   relative to the sum of all weights, so the higher the weight, the higher the
@@ -4944,6 +4981,8 @@ track [<proxy>/]<server>
   according to server's capacity, it is recommended to start with values which
   can both grow and shrink, for instance between 10 and 100 to leave enough
   room above and below for later adjustments.
+
+  Supported in default-server: Yes
 
 
 6. HTTP header manipulation
