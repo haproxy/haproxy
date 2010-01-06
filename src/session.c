@@ -624,6 +624,18 @@ int process_switching_rules(struct session *s, struct buffer *req, int an_bit)
 	return 0;
 }
 
+/* This macro is very specific to the function below. See the comments in
+ * process_session() below to understand the logic and the tests.
+ */
+#define UPDATE_ANALYSERS(real, list, back, flag) {			\
+		list = (((list) & ~(flag)) | ~(back)) & (real);		\
+		back = real;						\
+		if (!(list))						\
+			break;						\
+		if (((list) ^ ((list) & ((list) - 1))) < (flag))	\
+			continue;					\
+}
+
 /* Processes the client, server, request and response jobs of a session task,
  * then puts it back to the wait queue in a clean state, or cleans up its
  * resources if it must be deleted. Returns in <next> the date the task wants
@@ -788,7 +800,8 @@ resync_stream_interface:
 		unsigned int flags = s->req->flags;
 
 		if (s->req->prod->state >= SI_ST_EST) {
-			unsigned int last_ana = 0;
+			unsigned int ana_list;
+			unsigned int ana_back;
 
 			/* it's up to the analysers to stop new connections */
 			buffer_auto_connect(s->req);
@@ -803,77 +816,98 @@ resync_stream_interface:
 			 * kill the session. We loop at least once through each
 			 * analyser, and we may loop again if other analysers
 			 * are added in the middle.
+			 *
+			 * We build a list of analysers to run. We evaluate all
+			 * of these analysers in the order of the lower bit to
+			 * the higher bit. This ordering is very important.
+			 * An analyser will often add/remove other analysers,
+			 * including itself. Any changes to itself have no effect
+			 * on the loop. If it removes any other analysers, we
+			 * want those analysers not to be called anymore during
+			 * this loop. If it adds an analyser that is located
+			 * after itself, we want it to be scheduled for being
+			 * processed during the loop. If it adds an analyser
+			 * which is located before it, we want it to switch to
+			 * it immediately, even if it has already been called
+			 * once but removed since.
+			 *
+			 * In order to achieve this, we compare the analyser
+			 * list after the call with a copy of it before the
+			 * call. The work list is fed with analyser bits that
+			 * appeared during the call. Then we compare previous
+			 * work list with the new one, and check the bits that
+			 * appeared. If the lowest of these bits is lower than
+			 * the current bit, it means we have enabled a previous
+			 * analyser and must immediately loop again.
 			 */
-			while (s->req->analysers & ~last_ana) {
-				last_ana = s->req->analysers;
 
-				if (s->req->analysers & AN_REQ_INSPECT) {
-					last_ana |= AN_REQ_INSPECT;
+			ana_list = ana_back = s->req->analysers;
+			do {
+				if (!ana_list)
+					break;
+
+				/* Warning! ensure that analysers are always placed in ascending order! */
+
+				if (ana_list & AN_REQ_INSPECT) {
 					if (!tcp_inspect_request(s, s->req, AN_REQ_INSPECT))
 						break;
+					UPDATE_ANALYSERS(s->req->analysers, ana_list, ana_back, AN_REQ_INSPECT);
 				}
 
-				if (s->req->analysers & AN_REQ_WAIT_HTTP) {
-					last_ana |= AN_REQ_WAIT_HTTP;
+				if (ana_list & AN_REQ_WAIT_HTTP) {
 					if (!http_wait_for_request(s, s->req, AN_REQ_WAIT_HTTP))
 						break;
+					UPDATE_ANALYSERS(s->req->analysers, ana_list, ana_back, AN_REQ_WAIT_HTTP);
 				}
 
-				if (s->req->analysers & AN_REQ_HTTP_PROCESS_FE) {
-					last_ana |= AN_REQ_HTTP_PROCESS_FE;
+				if (ana_list & AN_REQ_HTTP_PROCESS_FE) {
 					if (!http_process_req_common(s, s->req, AN_REQ_HTTP_PROCESS_FE, s->fe))
 						break;
+					UPDATE_ANALYSERS(s->req->analysers, ana_list, ana_back, AN_REQ_HTTP_PROCESS_FE);
 				}
 
-				if (s->req->analysers & AN_REQ_SWITCHING_RULES) {
-					last_ana |= AN_REQ_SWITCHING_RULES;
+				if (ana_list & AN_REQ_SWITCHING_RULES) {
 					if (!process_switching_rules(s, s->req, AN_REQ_SWITCHING_RULES))
 						break;
-					/* FIXME: we mait switch from TCP to HTTP and want to
-					 * immediately loop back to the top. This is a dirty way
-					 * of doing it, and we should find a cleaner method relying
-					 * on a circular list of function pointers.
-					 */
-					if ((s->req->analysers & ~last_ana) & AN_REQ_WAIT_HTTP)
-						continue;
+					UPDATE_ANALYSERS(s->req->analysers, ana_list, ana_back, AN_REQ_SWITCHING_RULES);
 				}
 
-				if (s->req->analysers & AN_REQ_HTTP_PROCESS_BE) {
-					last_ana |= AN_REQ_HTTP_PROCESS_BE;
+				if (ana_list & AN_REQ_HTTP_PROCESS_BE) {
 					if (!http_process_req_common(s, s->req, AN_REQ_HTTP_PROCESS_BE, s->be))
 						break;
+					UPDATE_ANALYSERS(s->req->analysers, ana_list, ana_back, AN_REQ_HTTP_PROCESS_BE);
 				}
 
-				if (s->req->analysers & AN_REQ_HTTP_TARPIT) {
-					last_ana |= AN_REQ_HTTP_TARPIT;
+				if (ana_list & AN_REQ_HTTP_TARPIT) {
 					if (!http_process_tarpit(s, s->req, AN_REQ_HTTP_TARPIT))
 						break;
+					UPDATE_ANALYSERS(s->req->analysers, ana_list, ana_back, AN_REQ_HTTP_TARPIT);
 				}
 
-				if (s->req->analysers & AN_REQ_HTTP_INNER) {
-					last_ana |= AN_REQ_HTTP_INNER;
+				if (ana_list & AN_REQ_HTTP_INNER) {
 					if (!http_process_request(s, s->req, AN_REQ_HTTP_INNER))
 						break;
+					UPDATE_ANALYSERS(s->req->analysers, ana_list, ana_back, AN_REQ_HTTP_INNER);
 				}
 
-				if (s->req->analysers & AN_REQ_HTTP_BODY) {
-					last_ana |= AN_REQ_HTTP_BODY;
+				if (ana_list & AN_REQ_HTTP_BODY) {
 					if (!http_process_request_body(s, s->req, AN_REQ_HTTP_BODY))
 						break;
+					UPDATE_ANALYSERS(s->req->analysers, ana_list, ana_back, AN_REQ_HTTP_BODY);
 				}
 
-				if (s->req->analysers & AN_REQ_PRST_RDP_COOKIE) {
-					last_ana |= AN_REQ_PRST_RDP_COOKIE;
+				if (ana_list & AN_REQ_PRST_RDP_COOKIE) {
 					if (!tcp_persist_rdp_cookie(s, s->req, AN_REQ_PRST_RDP_COOKIE))
 						break;
+					UPDATE_ANALYSERS(s->req->analysers, ana_list, ana_back, AN_REQ_PRST_RDP_COOKIE);
 				}
 
-				if (s->req->analysers & AN_REQ_HTTP_XFER_BODY) {
-					last_ana |= AN_REQ_HTTP_XFER_BODY;
+				if (ana_list & AN_REQ_HTTP_XFER_BODY) {
 					if (!http_request_forward_body(s, s->req, AN_REQ_HTTP_XFER_BODY))
 						break;
+					UPDATE_ANALYSERS(s->req->analysers, ana_list, ana_back, AN_REQ_HTTP_XFER_BODY);
 				}
-			}
+			} while (0);
 		}
 
 		if ((s->req->flags ^ flags) & BF_MASK_STATIC) {
@@ -906,7 +940,8 @@ resync_stream_interface:
 		unsigned int flags = s->rep->flags;
 
 		if (s->rep->prod->state >= SI_ST_EST) {
-			unsigned int last_ana = 0;
+			unsigned int ana_list;
+			unsigned int ana_back;
 
 			/* it's up to the analysers to reset auto_close */
 			buffer_auto_close(s->rep);
@@ -921,34 +956,32 @@ resync_stream_interface:
 			 * analyser, and we may loop again if other analysers
 			 * are added in the middle.
 			 */
-			while (s->rep->analysers & ~last_ana) {
-				last_ana = s->rep->analysers;
 
-				if (s->rep->analysers & AN_RES_WAIT_HTTP) {
-					last_ana |= AN_RES_WAIT_HTTP;
+			ana_list = ana_back = s->rep->analysers;
+			do {
+				if (!ana_list)
+					break;
+
+				/* Warning! ensure that analysers are always placed in ascending order! */
+
+				if (ana_list & AN_RES_WAIT_HTTP) {
 					if (!http_wait_for_response(s, s->rep, AN_RES_WAIT_HTTP))
 						break;
+					UPDATE_ANALYSERS(s->rep->analysers, ana_list, ana_back, AN_RES_WAIT_HTTP);
 				}
 
-				if (s->rep->analysers & AN_RES_HTTP_PROCESS_BE) {
-					last_ana |= AN_RES_HTTP_PROCESS_BE;
+				if (ana_list & AN_RES_HTTP_PROCESS_BE) {
 					if (!http_process_res_common(s, s->rep, AN_RES_HTTP_PROCESS_BE, s->be))
 						break;
-					/* FIXME: we may wait for a second response in case of a status 1xx
-					 * and want to immediately loop back to the top. This is a dirty way
-					 * of doing it, and we should find a cleaner method relying on a
-					 * circular list of function pointers.
-					 */
-					if ((s->rep->analysers & ~last_ana) & AN_RES_WAIT_HTTP)
-						continue;
+					UPDATE_ANALYSERS(s->rep->analysers, ana_list, ana_back, AN_RES_HTTP_PROCESS_BE);
 				}
 
-				if (s->rep->analysers & AN_RES_HTTP_XFER_BODY) {
-					last_ana |= AN_RES_HTTP_XFER_BODY;
+				if (ana_list & AN_RES_HTTP_XFER_BODY) {
 					if (!http_response_forward_body(s, s->rep, AN_RES_HTTP_XFER_BODY))
 						break;
+					UPDATE_ANALYSERS(s->rep->analysers, ana_list, ana_back, AN_RES_HTTP_XFER_BODY);
 				}
-			}
+			} while (0);
 		}
 
 		if ((s->rep->flags ^ flags) & BF_MASK_STATIC) {
