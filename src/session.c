@@ -81,24 +81,13 @@ void session_free(struct session *s)
 	if (s->sessid)
 		pool_free2(apools.sessid, s->sessid);
 
+	http_end_txn(s);
+
 	if (fe) {
 		pool_free2(fe->hdr_idx_pool, txn->hdr_idx.v);
-
-		if (txn->rsp.cap != NULL) {
-			struct cap_hdr *h;
-			for (h = fe->rsp_cap; h; h = h->next)
-				pool_free2(h->pool, txn->rsp.cap[h->index]);
-			pool_free2(fe->rsp_cap_pool, txn->rsp.cap);
-		}
-		if (txn->req.cap != NULL) {
-			struct cap_hdr *h;
-			for (h = fe->req_cap; h; h = h->next)
-				pool_free2(h->pool, txn->req.cap[h->index]);
-			pool_free2(fe->req_cap_pool, txn->req.cap);
-		}
+		pool_free2(fe->rsp_cap_pool, txn->rsp.cap);
+		pool_free2(fe->req_cap_pool, txn->req.cap);
 	}
-
-	http_end_txn(s);
 
 	list_for_each_entry_safe(bref, back, &s->back_refs, users) {
 		/* we have to unlink all watchers. We must not relink them if
