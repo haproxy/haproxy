@@ -6310,11 +6310,19 @@ void http_init_txn(struct session *s)
 	if (fe->options2 & PR_O2_REQBUG_OK)
 		txn->req.err_pos = -1;            /* let buggy requests pass */
 
-	if (txn->req.cap)
+	if (txn->req.cap) {
+		struct cap_hdr *h;
+		for (h = fe->req_cap; h; h = h->next)
+			pool_free2(h->pool, txn->req.cap[h->index]);
 		memset(txn->req.cap, 0, fe->nb_req_cap * sizeof(void *));
+	}
 
-	if (txn->rsp.cap)
+	if (txn->rsp.cap) {
+		struct cap_hdr *h;
+		for (h = fe->rsp_cap; h; h = h->next)
+			pool_free2(h->pool, txn->rsp.cap[h->index]);
 		memset(txn->rsp.cap, 0, fe->nb_rsp_cap * sizeof(void *));
+	}
 
 	if (txn->hdr_idx.v)
 		hdr_idx_init(&txn->hdr_idx);
