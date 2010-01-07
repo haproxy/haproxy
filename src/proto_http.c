@@ -2855,7 +2855,8 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 				/* keep-alive not possible */
 				memcpy(rdr.str + rdr.len, "\r\nConnection: close\r\n\r\n", 23);
 				rdr.len += 23;
-				stream_int_cond_close(req->prod, &rdr);
+				buffer_write(req->prod->ob, rdr.str, rdr.len);
+				stream_int_cond_close(req->prod, NULL);
 				goto return_prx_cond;
 			}
 		}
