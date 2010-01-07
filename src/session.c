@@ -790,6 +790,7 @@ resync_stream_interface:
 		unsigned int flags = s->req->flags;
 
 		if (s->req->prod->state >= SI_ST_EST) {
+			int max_loops = global.tune.maxpollevents;
 			unsigned int ana_list;
 			unsigned int ana_back;
 
@@ -838,10 +839,7 @@ resync_stream_interface:
 			 */
 
 			ana_list = ana_back = s->req->analysers;
-			do {
-				if (!ana_list)
-					break;
-
+			while (ana_list && max_loops--) {
 				/* Warning! ensure that analysers are always placed in ascending order! */
 
 				if (ana_list & AN_REQ_INSPECT) {
@@ -903,7 +901,8 @@ resync_stream_interface:
 						break;
 					UPDATE_ANALYSERS(s->req->analysers, ana_list, ana_back, AN_REQ_HTTP_XFER_BODY);
 				}
-			} while (0);
+				break;
+			}
 		}
 
 		if ((s->req->flags ^ flags) & BF_MASK_STATIC) {
@@ -942,6 +941,7 @@ resync_stream_interface:
 		unsigned int flags = s->rep->flags;
 
 		if (s->rep->prod->state >= SI_ST_EST) {
+			int max_loops = global.tune.maxpollevents;
 			unsigned int ana_list;
 			unsigned int ana_back;
 
@@ -966,7 +966,7 @@ resync_stream_interface:
 			 */
 
 			ana_list = ana_back = s->rep->analysers;
-			do {
+			while (ana_list && max_loops--) {
 				if (!ana_list)
 					break;
 
@@ -989,7 +989,8 @@ resync_stream_interface:
 						break;
 					UPDATE_ANALYSERS(s->rep->analysers, ana_list, ana_back, AN_RES_HTTP_XFER_BODY);
 				}
-			} while (0);
+				break;
+			}
 		}
 
 		if ((s->rep->flags ^ flags) & BF_MASK_STATIC) {
