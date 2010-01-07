@@ -2145,7 +2145,8 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	 * data later, which is much more complicated.
 	 */
 	if (req->l && msg->msg_state < HTTP_MSG_ERROR) {
-		if (unlikely((req->flags & BF_FULL) ||
+		if ((txn->flags & TX_NOT_FIRST) &&
+		    unlikely((req->flags & BF_FULL) ||
 			     req->r < req->lr ||
 			     req->r > req->data + req->size - global.tune.maxrewrite)) {
 			if (req->send_max) {
@@ -2156,6 +2157,24 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 			}
 			if (req->l <= req->size - global.tune.maxrewrite)
 				http_buffer_heavy_realign(req, msg);
+		}
+
+		/* Note that we have the same problem with the response ; we
+		 * may want to send a redirect, error or anything which requires
+		 * some spare space. So we'll ensure that we have at least
+		 * maxrewrite bytes available in the response buffer before
+		 * processing that one. This will only affect pipelined
+		 * keep-alive requests.
+		 */
+		if ((txn->flags & TX_NOT_FIRST) &&
+		    unlikely((s->rep->flags & BF_FULL) ||
+			     s->rep->r < s->rep->lr ||
+			     s->rep->r > s->rep->data + s->rep->size - global.tune.maxrewrite)) {
+			if (s->rep->send_max) {
+				/* don't let a connection request be initiated */
+				buffer_dont_connect(req);
+				return 0;
+			}
 		}
 
 		if (likely(req->lr < req->r))
@@ -3404,9 +3423,17 @@ void http_end_txn_clean_session(struct session *s)
 	/* if the request buffer is not empty, it means we're
 	 * about to process another request, so send pending
 	 * data with MSG_MORE to merge TCP packets when possible.
+	 * Just don't do this if the buffer is close to be full,
+	 * because the request will wait for it to flush a little
+	 * bit before proceeding.
 	 */
-	if (s->req->l > s->req->send_max)
-		s->rep->flags |= BF_EXPECT_MORE;
+	if (s->req->l > s->req->send_max) {
+		if (s->rep->send_max &&
+		    !(s->rep->flags & BF_FULL) &&
+		    s->rep->lr <= s->rep->r &&
+		    s->rep->r <= s->rep->data + s->rep->size - global.tune.maxrewrite)
+			s->rep->flags |= BF_EXPECT_MORE;
+	}
 
 	/* we're removing the analysers, we MUST re-enable events detection */
 	buffer_auto_read(s->req);
