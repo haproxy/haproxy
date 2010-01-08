@@ -1,6 +1,39 @@
 ChangeLog :
 ===========
 
+2010/01/08 : 1.4-dev6
+    - [BUILD] warning in stream_interface.h
+    - [BUILD] warning ultoa_r returns char *
+    - [MINOR] hana: only report stats if it is enabled
+    - [MINOR] stats: add "a link" & "a href" for sockets
+    - [MINOR]: stats: add show-legends to report additional informations
+    - [MEDIUM] default-server support
+    - [BUG]: add 'observer', 'on-error', 'error-limit' to supported options list
+    - [MINOR] stats: add href to tracked server
+    - [BUG] stats: show UP/DOWN status also in tracking servers
+    - [DOC] Restore ability to search a keyword at the beginning of a line
+    - [BUG] stats: cookie should be reported under backend not under proxy
+    - [BUG] cfgparser/stats: fix error message
+    - [BUG] http: disable auto-closing during chunk analysis
+    - [BUG] http: fix hopefully last closing issue on data forwarding
+    - [DEBUG] add an http_silent_debug function to debug HTTP states
+    - [MAJOR] http: fix again the forward analysers
+    - [BUG] http_process_res_common() must not skip the forward analyser
+    - [BUG] http: some possible missed close remain in the forward chain
+    - [BUG] http: redirect needed to be updated after recent changes
+    - [BUG] http: don't set no-linger on response in case of forced close
+    - [MEDIUM] http: restore the original behaviour of option httpclose
+    - [TESTS] add a file to test various connection modes
+    - [BUG] http: check options before the connection header
+    - [MAJOR] session: fix the order by which the analysers are run
+    - [MEDIUM] session: also consider request analysers added during response
+    - [MEDIUM] http: make safer use of the DONT_READ and AUTO_CLOSE flags
+    - [BUG] http: memory leak with captures when using keep-alive
+    - [BUG] http: fix for capture memory leak was incorrect
+    - [MINOR] http redirect: use proper call to return last response
+    - [MEDIUM] http: wait for some flush of the response buffer before a new request
+    - [MEDIUM] session: limit the number of analyser loops
+
 2010/01/03 : 1.4-dev5
     - [MINOR] server tracking: don't care about the tracked server's mode
     - [MEDIUM] appsession: add "len", "prefix" and "mode" options
