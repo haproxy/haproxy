@@ -651,8 +651,11 @@ void perform_http_redirect(struct session *s, struct stream_interface *si)
 	if (rdr.len + s->srv->rdr_len > sizeof(trash))
 		return;
 
-	memcpy(rdr.str + rdr.len, s->srv->rdr_pfx, s->srv->rdr_len);
-	rdr.len += s->srv->rdr_len;
+	/* special prefix "/" means don't change URL */
+	if (s->srv->rdr_len != 1 || *s->srv->rdr_pfx != '/') {
+		memcpy(rdr.str + rdr.len, s->srv->rdr_pfx, s->srv->rdr_len);
+		rdr.len += s->srv->rdr_len;
+	}
 
 	/* 3: add the request URI */
 	txn = &s->txn;
