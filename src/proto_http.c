@@ -5946,6 +5946,7 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 		/* only do insert, if lookup fails */
 		asession = appsession_hash_lookup(&(t->be->htbl_proxy), t->sessid);
 		if (asession == NULL) {
+			size_t server_id_len;
 			if ((asession = pool_alloc2(pool2_appsess)) == NULL) {
 				Alert("Not enough Memory process_srv():asession:calloc().\n");
 				send_log(t->be, LOG_ALERT, "Not enough Memory process_srv():asession:calloc().\n");
@@ -5959,7 +5960,7 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 			memcpy(asession->sessid, t->sessid, t->be->appsession_len);
 			asession->sessid[t->be->appsession_len] = 0;
 
-			size_t server_id_len = strlen(t->srv->id) + 1;
+			server_id_len = strlen(t->srv->id) + 1;
 			if ((asession->serverid = pool_alloc2(apools.serverid)) == NULL) {
 				Alert("Not enough Memory process_srv():asession->sessid:malloc().\n");
 				send_log(t->be, LOG_ALERT, "Not enough Memory process_srv():asession->sessid:malloc().\n");
