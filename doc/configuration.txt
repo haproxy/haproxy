@@ -3004,6 +3004,12 @@ redirect prefix   <to> [code <code>] <option> {if | unless} <condition>
         for directing users to a non-secure page for instance. It has no effect
         with a location-type redirect.
 
+      - "append-slash"
+        This keyword may be used in conjunction with "drop-query" to redirect
+        users who use a URL not ending with a '/' to the same one with the '/'.
+        It can be useful to ensure that search engines will only see one URL.
+        For this, a return code 301 is preferred.
+
       - "set-cookie NAME[=value]"
         A "Set-Cookie" header will be added with NAME (and optionally "=value")
         to the response. This is sometimes used to indicate that a user has
@@ -3033,6 +3039,10 @@ redirect prefix   <to> [code <code>] <option> {if | unless} <condition>
         redirect prefix   http://mysite.com drop-query if login_page !uid_given
         redirect location http://mysite.com/           if !login_page secure
         redirect location / clear-cookie USERID=       if logout
+
+  Example: send redirects for request for articles without a '/'.
+        acl missing_slash path_reg ^/article/[^/]*$
+        redirect code 301 prefix / drop-query append-slash if missing_slash
 
   See section 7 about ACL usage.
 

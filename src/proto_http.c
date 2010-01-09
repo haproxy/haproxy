@@ -2005,6 +2005,16 @@ int http_process_request(struct session *s, struct buffer *req)
 					/* add path */
 					memcpy(rdr.str + rdr.len, path, pathlen);
 					rdr.len += pathlen;
+
+					/* append a slash at the end of the location is needed and missing */
+					if (rdr.len && rdr.str[rdr.len - 1] != '/' &&
+					    (rule->flags & REDIRECT_FLAG_APPEND_SLASH)) {
+						if (rdr.len > sizeof(trash) - 5)
+							goto return_bad_req;
+						rdr.str[rdr.len] = '/';
+						rdr.len++;
+					}
+
 					break;
 				}
 				case REDIRECT_TYPE_LOCATION:

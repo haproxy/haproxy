@@ -1596,6 +1596,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			else if (!strcmp(args[cur_arg],"drop-query")) {
 				flags |= REDIRECT_FLAG_DROP_QS;
 			}
+			else if (!strcmp(args[cur_arg],"append-slash")) {
+				flags |= REDIRECT_FLAG_APPEND_SLASH;
+			}
 			else if (!strcmp(args[cur_arg], "if")) {
 				pol = ACL_COND_IF;
 				cur_arg++;
@@ -1607,7 +1610,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 				break;
 			}
 			else {
-				Alert("parsing [%s:%d] : '%s' expects 'code', 'prefix', 'location', 'set-cookie', 'clear-cookie' or 'drop-query' (was '%s').\n",
+				Alert("parsing [%s:%d] : '%s' expects 'code', 'prefix', 'location', 'set-cookie', 'clear-cookie', 'drop-query' or 'append-slash' (was '%s').\n",
 				      file, linenum, args[0], args[cur_arg]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
