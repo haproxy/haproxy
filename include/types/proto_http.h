@@ -256,7 +256,8 @@ typedef enum {
  *
  *  - som (Start of Message) : relative offset in the buffer of first byte of
  *                             the request being processed or parsed. Reset to
- *                             zero during accept().
+ *                             zero during accept(), and changes while parsing
+ *                             chunks.
  *  - eoh (End of Headers)   : relative offset in the buffer of first byte that
  *                             is not part of a completely processed header.
  *                             During parsing, it points to last header seen
@@ -269,7 +270,7 @@ typedef enum {
  *  - eol (End of Line)      : relative offset in the buffer of the first byte
  *                             which marks the end of the line (LF or CRLF).
  * Note that all offsets are relative to the beginning of the buffer. To get
- * them relative to the current request, subtract ->som.
+ * them relative to the current request, subtract ->som or ->sol.
  */
 struct http_msg {
 	unsigned int msg_state;                /* where we are in the current message parsing */
@@ -279,7 +280,7 @@ struct http_msg {
 	char *eol;                             /* end of line */
 	unsigned int som;                      /* Start Of Message, relative to buffer */
 	int err_pos;                           /* err handling: -2=block, -1=pass, 0+=detected */
-	union {                                /* useful start line pointers, relative to buffer */
+	union {                                /* useful start line pointers, relative to ->sol */
 		struct {
 			int l;                 /* request line length (not including CR) */
 			int m_l;               /* METHOD length (method starts at ->som) */
