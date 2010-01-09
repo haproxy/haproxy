@@ -5957,6 +5957,7 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 			if ((asession->sessid = pool_alloc2(apools.sessid)) == NULL) {
 				Alert("Not enough Memory process_srv():asession->sessid:malloc().\n");
 				send_log(t->be, LOG_ALERT, "Not enough Memory process_srv():asession->sessid:malloc().\n");
+				t->be->htbl_proxy.destroy(asession);
 				return;
 			}
 			memcpy(asession->sessid, t->sessid, t->be->appsession_len);
@@ -5966,6 +5967,7 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 			if ((asession->serverid = pool_alloc2(apools.serverid)) == NULL) {
 				Alert("Not enough Memory process_srv():asession->sessid:malloc().\n");
 				send_log(t->be, LOG_ALERT, "Not enough Memory process_srv():asession->sessid:malloc().\n");
+				t->be->htbl_proxy.destroy(asession);
 				return;
 			}
 			asession->serverid[0] = '\0';
