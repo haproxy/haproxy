@@ -78,9 +78,6 @@ void session_free(struct session *s)
 	pool_free2(pool2_buffer, s->req);
 	pool_free2(pool2_buffer, s->rep);
 
-	if (s->sessid)
-		pool_free2(apools.sessid, s->sessid);
-
 	http_end_txn(s);
 
 	if (fe) {

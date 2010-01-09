@@ -6357,6 +6357,8 @@ void http_end_txn(struct session *s)
 	pool_free2(pool2_requri, txn->uri);
 	pool_free2(pool2_capture, txn->cli_cookie);
 	pool_free2(pool2_capture, txn->srv_cookie);
+	pool_free2(apools.sessid, s->sessid);
+	s->sessid = NULL;
 	txn->uri = NULL;
 	txn->srv_cookie = NULL;
 	txn->cli_cookie = NULL;
