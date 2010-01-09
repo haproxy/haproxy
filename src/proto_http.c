@@ -2820,6 +2820,16 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 				/* add path */
 				memcpy(rdr.str + rdr.len, path, pathlen);
 				rdr.len += pathlen;
+
+				/* append a slash at the end of the location is needed and missing */
+				if (rdr.len && rdr.str[rdr.len - 1] != '/' &&
+				    (rule->flags & REDIRECT_FLAG_APPEND_SLASH)) {
+					if (rdr.len > rdr.size - 5)
+						goto return_bad_req;
+					rdr.str[rdr.len] = '/';
+					rdr.len++;
+				}
+
 				break;
 			}
 			case REDIRECT_TYPE_LOCATION:
