@@ -674,6 +674,7 @@ void perform_http_redirect(struct session *s, struct stream_interface *si)
 	/* 1: create the response header */
 	rdr.len = strlen(HTTP_302);
 	rdr.str = trash;
+	rdr.size = sizeof(trash);
 	memcpy(rdr.str, HTTP_302, rdr.len);
 
 	/* 2: add the server's prefix */
