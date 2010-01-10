@@ -175,10 +175,6 @@ static int proxy_parse_timeout(char **args, int section, struct proxy *proxy,
 		tv = &proxy->timeout.check;
 		td = &defpx->timeout.check;
 		cap = PR_CAP_BE;
-	} else if (!strcmp(args[0], "appsession")) {
-		tv = &proxy->timeout.appsession;
-		td = &defpx->timeout.appsession;
-		cap = PR_CAP_BE;
 	} else if (!strcmp(args[0], "queue")) {
 		tv = &proxy->timeout.queue;
 		td = &defpx->timeout.queue;
@@ -186,7 +182,7 @@ static int proxy_parse_timeout(char **args, int section, struct proxy *proxy,
 	} else {
 		snprintf(err, errlen,
 			 "timeout '%s': must be 'client', 'server', 'connect', 'check', "
-			 "'appsession', 'queue', 'http-keep-alive', 'http-request' or 'tarpit'",
+			 "'queue', 'http-keep-alive', 'http-request' or 'tarpit'",
 			 args[0]);
 		return -1;
 	}
