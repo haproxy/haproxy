@@ -2867,8 +2867,12 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 			    ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL ||
 			     (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL)) {
 				/* keep-alive possible */
-				memcpy(rdr.str + rdr.len, "\r\nConnection: keep-alive\r\n\r\n", 28);
-				rdr.len += 28;
+				if (!(txn->flags & TX_REQ_VER_11)) {
+					memcpy(rdr.str + rdr.len, "\r\nConnection: keep-alive", 24);
+					rdr.len += 24;
+				}
+				memcpy(rdr.str + rdr.len, "\r\n\r\n", 4);
+				rdr.len += 4;
 				buffer_write(req->prod->ob, rdr.str, rdr.len);
 				/* "eat" the request */
 				buffer_ignore(req, msg->sov - msg->som);
