@@ -2321,7 +2321,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 		msg->msg_state = HTTP_MSG_RQBEFORE;
 		req->analysers = 0;
 		s->logs.logwait = 0;
-		stream_int_cond_close(req->prod, NULL);
+		stream_int_retnclose(req->prod, NULL);
 		return 0;
 	}
 
@@ -2882,8 +2882,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 				/* keep-alive not possible */
 				memcpy(rdr.str + rdr.len, "\r\nConnection: close\r\n\r\n", 23);
 				rdr.len += 23;
-				buffer_write(req->prod->ob, rdr.str, rdr.len);
-				stream_int_cond_close(req->prod, NULL);
+				stream_int_retnclose(req->prod, &rdr);
 				goto return_prx_cond;
 			}
 		}
@@ -3910,10 +3909,7 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 	txn->req.msg_state = HTTP_MSG_ERROR;
 	txn->status = 400;
 	/* Note: we don't send any error if some data were already sent */
-	stream_int_cond_close(req->prod, (txn->rsp.msg_state < HTTP_MSG_BODY) ? error_message(s, HTTP_ERR_400) : NULL);
-
-	buffer_auto_read(req);
-	buffer_auto_close(req);
+	stream_int_retnclose(req->prod, (txn->rsp.msg_state < HTTP_MSG_BODY) ? error_message(s, HTTP_ERR_400) : NULL);
 	req->analysers = 0;
 	s->fe->counters.failed_req++;
 	if (s->listener->counters)
@@ -4857,10 +4853,8 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
  return_bad_res: /* let's centralize all bad resuests */
 	txn->rsp.msg_state = HTTP_MSG_ERROR;
 	txn->status = 502;
-	stream_int_cond_close(res->cons, NULL);
-
-	buffer_auto_close(res);
-	buffer_auto_read(res);
+	/* don't send any error message as we're in the body */
+	stream_int_retnclose(res->cons, NULL);
 	res->analysers = 0;
 	s->be->counters.failed_resp++;
 	if (s->srv) {
