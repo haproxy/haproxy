@@ -174,7 +174,7 @@ static void server_status_printf(struct chunk *msg, struct server *s, unsigned o
 	}
 
 	if (options & SSP_O_STATUS) {
-		if (xferred)
+		if (!(s->state & SRV_RUNNING))
         	        chunk_printf(msg, ". %d active and %d backup servers left.%s"
 				" %d sessions active, %d requeued, %d remaining in queue.\n",
 				s->proxy->srv_act, s->proxy->srv_bck,
@@ -458,7 +458,7 @@ static void set_server_up(struct server *s) {
 		server_status_printf(&msg, s,
 					(s->tracked?SSP_O_VIA:0) | SSP_O_STATUS |
 					((!s->tracked && !(s->proxy->options2 & PR_O2_LOGHCHKS))?SSP_O_HCHK:0),
-					-1);
+					xferred);
 
 		Warning("%s", trash);
 		send_log(s->proxy, LOG_NOTICE, "%s", trash);
@@ -498,7 +498,7 @@ static void set_server_disabled(struct server *s) {
 	server_status_printf(&msg, s,
 				(s->tracked?SSP_O_VIA:0) | SSP_O_STATUS |
 				((!s->tracked && !(s->proxy->options2 & PR_O2_LOGHCHKS))?SSP_O_HCHK:0),
-				-1);
+				xferred);
 
 	Warning("%s", trash);
 	send_log(s->proxy, LOG_NOTICE, "%s", trash);
@@ -535,7 +535,7 @@ static void set_server_enabled(struct server *s) {
 	server_status_printf(&msg, s,
 				(s->tracked?SSP_O_VIA:0) | SSP_O_STATUS |
 				((!s->tracked && !(s->proxy->options2 & PR_O2_LOGHCHKS))?SSP_O_HCHK:0),
-				-1);
+				xferred);
 
 	Warning("%s", trash);
 	send_log(s->proxy, LOG_NOTICE, "%s", trash);
