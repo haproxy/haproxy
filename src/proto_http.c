@@ -2234,7 +2234,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 
 		/* 2: have we encountered a read error ? */
 		else if (req->flags & BF_READ_ERROR) {
-			if (txn->flags & TX_NOT_FIRST)
+			if (txn->flags & TX_WAIT_NEXT_RQ)
 				goto failed_keep_alive;
 
 			/* we cannot return any message on error */
@@ -2256,7 +2256,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 
 		/* 3: has the read timeout expired ? */
 		else if (req->flags & BF_READ_TIMEOUT || tick_is_expired(req->analyse_exp, now_ms)) {
-			if (txn->flags & TX_NOT_FIRST)
+			if (txn->flags & TX_WAIT_NEXT_RQ)
 				goto failed_keep_alive;
 
 			/* read timeout : give up with an error message. */
@@ -2280,7 +2280,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 
 		/* 4: have we encountered a close ? */
 		else if (req->flags & BF_SHUTR) {
-			if (txn->flags & TX_NOT_FIRST)
+			if (txn->flags & TX_WAIT_NEXT_RQ)
 				goto failed_keep_alive;
 
 			if (msg->err_pos >= 0)
@@ -2303,6 +2303,13 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 
 		buffer_dont_connect(req);
 		req->flags |= BF_READ_DONTWAIT; /* try to get back here ASAP */
+
+		if ((msg->msg_state != HTTP_MSG_RQBEFORE) && (txn->flags & TX_WAIT_NEXT_RQ)) {
+			/* If the client starts to talk, let's fall back to
+			 * request timeout processing.
+			 */
+			txn->flags &= ~TX_WAIT_NEXT_RQ;
+		}
 
 		/* just set the request timeout once at the beginning of the request */
 		if (!tick_isset(req->analyse_exp))
@@ -3427,7 +3434,7 @@ void http_end_txn_clean_session(struct session *s)
 	s->flags &= ~(SN_CURR_SESS|SN_REDIRECTABLE);
 	s->txn.meth = 0;
 	http_reset_txn(s);
-	s->txn.flags |= TX_NOT_FIRST;
+	s->txn.flags |= TX_NOT_FIRST | TX_WAIT_NEXT_RQ;
 	if (s->be->options2 & PR_O2_INDEPSTR)
 		s->req->cons->flags |= SI_FL_INDEP_STR;
 

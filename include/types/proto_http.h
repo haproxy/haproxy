@@ -2,7 +2,7 @@
  * include/types/proto_http.h
  * This file contains HTTP protocol definitions.
  *
- * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -27,28 +27,7 @@
 #include <types/buffers.h>
 #include <types/hdr_idx.h>
 
-/*
- * FIXME: break this into HTTP state and TCP socket state.
- */
-
-/* different possible states for the client side */
-#define CL_STDATA	0
-#define CL_STSHUTR	1
-#define CL_STSHUTW	2
-#define CL_STCLOSE	3
-
-/* different possible states for the server side */
-#define SV_STIDLE	0
-#define SV_STCONN	1
-#define SV_STDATA	2
-#define SV_STSHUTR	3
-#define SV_STSHUTW	4
-#define SV_STCLOSE	5
-
-/*
- * Transaction flags moved from session
- */
-
+/* These are the flags that are found in txn->flags */
 
 /* action flags */
 #define TX_CLDENY	0x00000001	/* a client header matches a deny regex */
@@ -114,6 +93,7 @@
  */
 #define TX_REQ_XFER_LEN	0x01000000	/* request xfer size can be determined */
 #define TX_RES_XFER_LEN	0x02000000	/* response xfer size can be determined */
+#define TX_WAIT_NEXT_RQ	0x04000000	/* waiting for the second request to start, use keep-alive timeout */
 
 /* The HTTP parser is more complex than it looks like, because we have to
  * support multi-line headers and any number of spaces between the colon and
