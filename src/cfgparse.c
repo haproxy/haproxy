@@ -1353,6 +1353,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 	else if (!strcmp(args[0], "appsession")) {  /* cookie name */
 		int cur_arg;
 
+		if (curproxy == &defproxy) {
+			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
