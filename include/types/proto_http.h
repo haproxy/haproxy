@@ -311,6 +311,7 @@ struct http_txn {
 	char *uri;			/* first line if log needed, NULL otherwise */
 	char *cli_cookie;		/* cookie presented by the client, in capture mode */
 	char *srv_cookie;		/* cookie presented by the server, in capture mode */
+	char *sessid;                   /* the appsession id, if found in the request or in the response */
 	int status;			/* HTTP status from the server, negative if from proxy */
 	unsigned int flags;             /* transaction flags */
 };

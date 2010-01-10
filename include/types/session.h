@@ -163,7 +163,6 @@ struct session {
 	int conn_retries;			/* number of connect retries left */
 	int flags;				/* some flags describing the session */
 	unsigned term_trace;			/* term trace: 4*8 bits indicating which part of the code closed */
-	char *sessid;				/* the session id, if found in the request or in the response */
 	struct buffer *req;			/* request buffer */
 	struct buffer *rep;			/* response buffer */
 	struct stream_interface si[2];          /* client and server stream interfaces */

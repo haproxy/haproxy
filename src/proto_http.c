@@ -2988,7 +2988,7 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 	 */
 
 	/* It needs to look into the URI */
-	if ((s->sessid == NULL) && s->be->appsession_name) {
+	if ((txn->sessid == NULL) && s->be->appsession_name) {
 		get_srv_from_appsession(s, msg->sol + msg->sl.rq.u, msg->sl.rq.u_l);
 	}
 
@@ -5174,19 +5174,19 @@ void manage_client_side_appsession(struct session *t, const char *buf, int len) 
 
 	if (t->be->options2 & PR_O2_AS_REQL) {
 		/* request-learn option is enabled : store the sessid in the session for future use */
-		if (t->sessid != NULL) {
+		if (txn->sessid != NULL) {
 			/* free previously allocated memory as we don't need the session id found in the URL anymore */
-			pool_free2(apools.sessid, t->sessid);
+			pool_free2(apools.sessid, txn->sessid);
 		}
 
-		if ((t->sessid = pool_alloc2(apools.sessid)) == NULL) {
+		if ((txn->sessid = pool_alloc2(apools.sessid)) == NULL) {
 			Alert("Not enough memory process_cli():asession->sessid:malloc().\n");
 			send_log(t->be, LOG_ALERT, "Not enough memory process_cli():asession->sessid:malloc().\n");
 			return;
 		}
 
-		memcpy(t->sessid, buf, len);
-		t->sessid[len] = 0;
+		memcpy(txn->sessid, buf, len);
+		txn->sessid[len] = 0;
 	}
 
 	if ((sessid_temp = pool_alloc2(apools.sessid)) == NULL) {
@@ -5921,18 +5921,18 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 
 				if (memcmp(p1, t->be->appsession_name, cmp_len) == 0) {
 					/* Cool... it's the right one */
-					if (t->sessid != NULL) {
+					if (txn->sessid != NULL) {
 						/* free previously allocated memory as we don't need it anymore */
-						pool_free2(apools.sessid, t->sessid);
+						pool_free2(apools.sessid, txn->sessid);
 					}
 					/* Store the sessid in the session for future use */
-					if ((t->sessid = pool_alloc2(apools.sessid)) == NULL) {
+					if ((txn->sessid = pool_alloc2(apools.sessid)) == NULL) {
 						Alert("Not enough Memory process_srv():asession->sessid:malloc().\n");
 						send_log(t->be, LOG_ALERT, "Not enough Memory process_srv():asession->sessid:malloc().\n");
 						return;
 					}
-					memcpy(t->sessid, value_begin, value_len);
-					t->sessid[value_len] = 0;
+					memcpy(txn->sessid, value_begin, value_len);
+					txn->sessid[value_len] = 0;
 				}
 			} /* end if ((t->be->appsession_name != NULL) ... */
 			break; /* we don't want to loop again since there cannot be another cookie on the same line */
@@ -5941,10 +5941,10 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 		old_idx = cur_idx;
 	} /* end of cookie processing on this header */
 
-	if (t->sessid != NULL) {
+	if (txn->sessid != NULL) {
 		appsess *asession = NULL;
 		/* only do insert, if lookup fails */
-		asession = appsession_hash_lookup(&(t->be->htbl_proxy), t->sessid);
+		asession = appsession_hash_lookup(&(t->be->htbl_proxy), txn->sessid);
 		if (asession == NULL) {
 			size_t server_id_len;
 			if ((asession = pool_alloc2(pool2_appsess)) == NULL) {
@@ -5958,7 +5958,7 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 				t->be->htbl_proxy.destroy(asession);
 				return;
 			}
-			memcpy(asession->sessid, t->sessid, t->be->appsession_len);
+			memcpy(asession->sessid, txn->sessid, t->be->appsession_len);
 			asession->sessid[t->be->appsession_len] = 0;
 
 			server_id_len = strlen(t->srv->id) + 1;
@@ -6362,8 +6362,8 @@ void http_end_txn(struct session *s)
 	pool_free2(pool2_requri, txn->uri);
 	pool_free2(pool2_capture, txn->cli_cookie);
 	pool_free2(pool2_capture, txn->srv_cookie);
-	pool_free2(apools.sessid, s->sessid);
-	s->sessid = NULL;
+	pool_free2(apools.sessid, txn->sessid);
+	txn->sessid = NULL;
 	txn->uri = NULL;
 	txn->srv_cookie = NULL;
 	txn->cli_cookie = NULL;
