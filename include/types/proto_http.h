@@ -303,17 +303,20 @@ struct http_msg {
  * response message (which can be empty).
  */
 struct http_txn {
-	http_meth_t meth;		/* HTTP method */
+	struct http_msg req;            /* HTTP request message */
 	struct hdr_idx hdr_idx;         /* array of header indexes (max: MAX_HTTP_HDR) */
-	struct chunk auth_hdr;		/* points to 'Authorization:' header */
-	struct http_msg req, rsp;	/* HTTP request and response messages */
-
-	char *uri;			/* first line if log needed, NULL otherwise */
-	char *cli_cookie;		/* cookie presented by the client, in capture mode */
-	char *srv_cookie;		/* cookie presented by the server, in capture mode */
-	char *sessid;                   /* the appsession id, if found in the request or in the response */
-	int status;			/* HTTP status from the server, negative if from proxy */
 	unsigned int flags;             /* transaction flags */
+	http_meth_t meth;               /* HTTP method */
+
+	int status;                     /* HTTP status from the server, negative if from proxy */
+	struct http_msg rsp;            /* HTTP response message */
+
+	char *uri;                      /* first line if log needed, NULL otherwise */
+	char *cli_cookie;               /* cookie presented by the client, in capture mode */
+	char *srv_cookie;               /* cookie presented by the server, in capture mode */
+	char *sessid;                   /* the appsession id, if found in the request or in the response */
+
+	struct chunk auth_hdr;          /* points to 'Authorization:' header */
 };
 
 /* This structure is used by http_find_header() to return values of headers.
