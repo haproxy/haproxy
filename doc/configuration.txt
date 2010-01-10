@@ -835,6 +835,7 @@ timeout client              X          X         X         -
 timeout clitimeout          X          X         X         -  (deprecated)
 timeout connect             X          -         X         X
 timeout contimeout          X          -         X         X  (deprecated)
+timeout http-keep-alive     X          X         X         X
 timeout http-request        X          X         X         X
 timeout queue               X          -         X         X
 timeout server              X          -         X         X
@@ -2548,7 +2549,8 @@ no option http-server-close
   session or not. The accept date reported in the logs corresponds to the end
   of the previous request, and the request time corresponds to the time spent
   waiting for a new request. The keep-alive request time is still bound to the
-  timeout defined by "timeout http-request".
+  timeout defined by "timeout http-keep-alive" or "timeout http-request" if
+  not set.
 
   This option may be set both in a frontend and in a backend. It is enabled if
   at least one of the frontend or backend holding a connection has it enabled.
@@ -4537,6 +4539,47 @@ timeout contimeout <timeout> (deprecated)
             "timeout tarpit".
 
 
+timeout http-keep-alive <timeout>
+  Set the maximum allowed time to wait for a new HTTP request to appear
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+  Arguments :
+    <timeout> is the timeout value specified in milliseconds by default, but
+              can be in any other unit if the number is suffixed by the unit,
+              as explained at the top of this document.
+
+  By default, the time to wait for a new request in case of keep-alive is set
+  by "timeout http-request". However this is not always convenient because some
+  people want very short keep-alive timeouts in order to release connections
+  faster, and others prefer to have larger ones but still have short timeouts
+  once the request has started to present itself.
+
+  The "http-keep-alive" timeout covers these needs. It will define how long to
+  wait for a new HTTP request to start coming after a response was sent. Once
+  the first byte of request has been seen, the "http-request" timeout is used
+  to wait for the complete request to come. Note that empty lines prior to a
+  new request do not refresh the timeout and are not counted as a new request.
+
+  There is also another difference between the two timeouts : when a connection
+  expires during timeout http-keep-alive, no error is returned, the connection
+  just closes. If the connection expires in "http-request" while waiting for a
+  connection to complete, a HTTP 408 error is returned.
+
+  In general it is optimal to set this value to a few tens to hundreds of
+  milliseconds, to allow users to fetch all objects of a page at once but
+  without waiting for further clicks. Also, if set to a very small value (eg:
+  1 millisecond) it will probably only accept pipelined requests but not the
+  non-pipelined ones. It may be a nice trade-off for very large sites running
+  with tends to hundreds of thousands of clients.
+
+  If this parameter is not set, the "http-request" timeout applies, and if both
+  are not set, "timeout client" still applies at the lower level. It should be
+  set in the frontend to take effect, unless the frontend is in TCP mode, in
+  which case the HTTP backend's timeout will be used.
+
+  See also : "timeout http-request", "timeout client".
+
+
 timeout http-request <timeout>
   Set the maximum allowed time to wait for a complete HTTP request
   May be used in sections :   defaults | frontend | listen | backend
@@ -4557,7 +4600,8 @@ timeout http-request <timeout>
 
   Note that this timeout only applies to the header part of the request, and
   not to any data. As soon as the empty line is received, this timeout is not
-  used anymore.
+  used anymore. It is used again on keep-alive connections to wait for a second
+  request if "timeout http-keep-alive" is not set.
 
   Generally it is enough to set it to a few seconds, as most clients send the
   full request immediately upon connection. Add 3 or more seconds to cover TCP
@@ -4570,7 +4614,7 @@ timeout http-request <timeout>
   effect, unless the frontend is in TCP mode, in which case the HTTP backend's
   timeout will be used.
 
-  See also : "timeout client".
+  See also : "timeout http-keep-alive", "timeout client".
 
 
 timeout queue <timeout>

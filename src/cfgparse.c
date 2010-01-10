@@ -1006,6 +1006,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curproxy->timeout.client = defproxy.timeout.client;
 			curproxy->timeout.tarpit = defproxy.timeout.tarpit;
 			curproxy->timeout.httpreq = defproxy.timeout.httpreq;
+			curproxy->timeout.httpka = defproxy.timeout.httpka;
 			curproxy->uri_auth  = defproxy.uri_auth;
 			curproxy->mon_net = defproxy.mon_net;
 			curproxy->mon_mask = defproxy.mon_mask;
@@ -1023,6 +1024,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curproxy->timeout.queue = defproxy.timeout.queue;
 			curproxy->timeout.tarpit = defproxy.timeout.tarpit;
 			curproxy->timeout.httpreq = defproxy.timeout.httpreq;
+			curproxy->timeout.httpka = defproxy.timeout.httpka;
 			curproxy->source_addr = defproxy.source_addr;
 		}
 

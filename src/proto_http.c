@@ -2309,11 +2309,18 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 			 * request timeout processing.
 			 */
 			txn->flags &= ~TX_WAIT_NEXT_RQ;
+			req->analyse_exp = TICK_ETERNITY;
 		}
 
 		/* just set the request timeout once at the beginning of the request */
-		if (!tick_isset(req->analyse_exp))
-			req->analyse_exp = tick_add_ifset(now_ms, s->be->timeout.httpreq);
+		if (!tick_isset(req->analyse_exp)) {
+			if ((msg->msg_state == HTTP_MSG_RQBEFORE) &&
+			    (txn->flags & TX_WAIT_NEXT_RQ) &&
+			    tick_isset(s->be->timeout.httpka))
+				req->analyse_exp = tick_add(now_ms, s->be->timeout.httpka);
+			else
+				req->analyse_exp = tick_add_ifset(now_ms, s->be->timeout.httpreq);
+		}
 
 		/* we're not ready yet */
 		return 0;
@@ -2341,6 +2348,13 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	 * byte of data. msg->eol cannot be trusted because it may have been
 	 * left uninitialized (for instance in the absence of headers).
 	 */
+
+	if (txn->flags & TX_WAIT_NEXT_RQ) {
+		/* kill the pending keep-alive timeout */
+		txn->flags &= ~TX_WAIT_NEXT_RQ;
+		req->analyse_exp = TICK_ETERNITY;
+	}
+
 
 	/* Maybe we found in invalid header name while we were configured not
 	 * to block on that, so we have to capture it now.
