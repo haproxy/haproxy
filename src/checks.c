@@ -141,16 +141,13 @@ const char *get_analyze_status(short analyze_status) {
 		return analyze_statuses[HANA_STATUS_UNKNOWN].desc;
 }
 
-#define SSP_O_VIA	0x0001
 #define SSP_O_HCHK	0x0002
-#define SSP_O_STATUS	0x0004
 
 static void server_status_printf(struct chunk *msg, struct server *s, unsigned options, int xferred) {
 
-	if (options & SSP_O_VIA)
+	if (s->tracked)
 		chunk_printf(msg, " via %s/%s",
 			s->tracked->proxy->id, s->tracked->id);
-
 
 	if (options & SSP_O_HCHK) {
 		chunk_printf(msg, ", reason: %s", get_check_status_description(s->check_status));
@@ -173,7 +170,7 @@ static void server_status_printf(struct chunk *msg, struct server *s, unsigned o
 			chunk_printf(msg, ", check duration: %ldms", s->check_duration);
 	}
 
-	if (options & SSP_O_STATUS) {
+	if (xferred > 0) {
 		if (!(s->state & SRV_RUNNING))
         	        chunk_printf(msg, ". %d active and %d backup servers left.%s"
 				" %d sessions active, %d requeued, %d remaining in queue.\n",
@@ -387,7 +384,6 @@ static void set_server_down(struct server *s)
 			s->proxy->id, s->id);
 
 		server_status_printf(&msg, s,
-					(s->tracked?SSP_O_VIA:0) | SSP_O_STATUS |
 					((!s->tracked && !(s->proxy->options2 & PR_O2_LOGHCHKS))?SSP_O_HCHK:0),
 					xferred);
 
@@ -456,7 +452,6 @@ static void set_server_up(struct server *s) {
 			s->proxy->id, s->id);
 
 		server_status_printf(&msg, s,
-					(s->tracked?SSP_O_VIA:0) | SSP_O_STATUS |
 					((!s->tracked && !(s->proxy->options2 & PR_O2_LOGHCHKS))?SSP_O_HCHK:0),
 					xferred);
 
@@ -496,7 +491,6 @@ static void set_server_disabled(struct server *s) {
 		s->proxy->id, s->id);
 
 	server_status_printf(&msg, s,
-				(s->tracked?SSP_O_VIA:0) | SSP_O_STATUS |
 				((!s->tracked && !(s->proxy->options2 & PR_O2_LOGHCHKS))?SSP_O_HCHK:0),
 				xferred);
 
@@ -533,7 +527,6 @@ static void set_server_enabled(struct server *s) {
 		s->proxy->id, s->id);
 
 	server_status_printf(&msg, s,
-				(s->tracked?SSP_O_VIA:0) | SSP_O_STATUS |
 				((!s->tracked && !(s->proxy->options2 & PR_O2_LOGHCHKS))?SSP_O_HCHK:0),
 				xferred);
 
