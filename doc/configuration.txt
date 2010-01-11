@@ -1609,19 +1609,22 @@ cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
 
   See also : "appsession", "balance source", "capture cookie", "server".
 
+
 default-server [param*]
   Change default options for a server in a backend
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
   Arguments:
-    <param*>  is a list of parameters for this server. The "default-server" keywords
-              accepts an important number of options and has a complete section
-              dedicated to it. Please refer to section 5 for more details.
+    <param*>  is a list of parameters for this server. The "default-server"
+              keyword accepts an important number of options and has a complete
+              section dedicated to it. Please refer to section 5 for more
+              details.
 
-  Examples:
+  Example :
         default-server inter 1000 weight 13
 
   See also: "server" and section 5 about server options
+
 
 default_backend <backend>
   Specify the backend to use when no "use_backend" rule has been matched.
@@ -4105,7 +4108,8 @@ stats show-node [ <name> ]
         stats uri       /admin?stats
         stats refresh   5s
 
-  See also: "show-desc", "stats enable", "stats uri", and "node" in global section.
+  See also: "show-desc", "stats enable", "stats uri", and "node" in global
+            section.
 
 
 stats show-desc [ <description> ]
@@ -4131,7 +4135,9 @@ stats show-desc [ <description> ]
         stats uri       /admin?stats
         stats refresh   5s
 
-  See also: "show-node", "stats enable", "stats uri" and "description" in global section.
+  See also: "show-node", "stats enable", "stats uri" and "description" in
+            global section.
+
 
 stats show-legends
   Enable reporting additional informations on the statistics page :
@@ -4146,6 +4152,7 @@ stats show-legends
   unobvious parameters.
 
   See also: "stats enable", "stats uri".
+
 
 stats realm <realm>
   Enable statistics and set authentication realm
@@ -4849,9 +4856,9 @@ cookie <value>
   Supported in default-server: No
 
 error-limit <count>
-  If health observing is enabled, the "error-limit" parameter specifies the number
-  of consecutive errors that triggers event selected by the "on-error" option.
-  By default it is set to 10 consecutive errors.
+  If health observing is enabled, the "error-limit" parameter specifies the
+  number of consecutive errors that triggers event selected by the "on-error"
+  option. By default it is set to 10 consecutive errors.
 
   Supported in default-server: Yes
 
