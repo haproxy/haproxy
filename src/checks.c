@@ -173,13 +173,13 @@ static void server_status_printf(struct chunk *msg, struct server *s, unsigned o
 	if (xferred > 0) {
 		if (!(s->state & SRV_RUNNING))
         	        chunk_printf(msg, ". %d active and %d backup servers left.%s"
-				" %d sessions active, %d requeued, %d remaining in queue.\n",
+				" %d sessions active, %d requeued, %d remaining in queue",
 				s->proxy->srv_act, s->proxy->srv_bck,
 				(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
 				s->cur_sess, xferred, s->nbpend);
 		else 
 			chunk_printf(msg, ". %d active and %d backup servers online.%s"
-				" %d sessions requeued, %d total in queue.\n",
+				" %d sessions requeued, %d total in queue",
 				s->proxy->srv_act, s->proxy->srv_bck,
 				(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
 				xferred, s->nbpend);
@@ -278,13 +278,13 @@ static void set_server_check_status(struct server *s, short status, char *desc) 
 
 		server_status_printf(&msg, s, SSP_O_HCHK, -1);
 
-		chunk_printf(&msg, ", status: %d/%d %s.\n",
+		chunk_printf(&msg, ", status: %d/%d %s",
 			(state & SRV_RUNNING) ? (health - rise + 1) : (health),
 			(state & SRV_RUNNING) ? (fall) : (rise),
 			(state & SRV_RUNNING)?"UP":"DOWN");
 
-		Warning("%s", trash);
-		send_log(s->proxy, LOG_NOTICE, "%s", trash);
+		Warning("%s.\n", trash);
+		send_log(s->proxy, LOG_NOTICE, "%s.\n", trash);
 	}
 }
 
@@ -387,13 +387,13 @@ static void set_server_down(struct server *s)
 					((!s->tracked && !(s->proxy->options2 & PR_O2_LOGHCHKS))?SSP_O_HCHK:0),
 					xferred);
 
-		Warning("%s", trash);
+		Warning("%s.\n", trash);
 
 		/* we don't send an alert if the server was previously paused */
 		if (srv_was_paused)
-			send_log(s->proxy, LOG_NOTICE, "%s", trash);
+			send_log(s->proxy, LOG_NOTICE, "%s.\n", trash);
 		else
-			send_log(s->proxy, LOG_ALERT, "%s", trash);
+			send_log(s->proxy, LOG_ALERT, "%s.\n", trash);
 
 		if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
 			set_backend_down(s->proxy);
@@ -455,8 +455,8 @@ static void set_server_up(struct server *s) {
 					((!s->tracked && !(s->proxy->options2 & PR_O2_LOGHCHKS))?SSP_O_HCHK:0),
 					xferred);
 
-		Warning("%s", trash);
-		send_log(s->proxy, LOG_NOTICE, "%s", trash);
+		Warning("%s.\n", trash);
+		send_log(s->proxy, LOG_NOTICE, "%s.\n", trash);
 
 		if (s->state & SRV_CHECKED)
 			for(srv = s->tracknext; srv; srv = srv->tracknext)
@@ -494,8 +494,8 @@ static void set_server_disabled(struct server *s) {
 				((!s->tracked && !(s->proxy->options2 & PR_O2_LOGHCHKS))?SSP_O_HCHK:0),
 				xferred);
 
-	Warning("%s", trash);
-	send_log(s->proxy, LOG_NOTICE, "%s", trash);
+	Warning("%s.\n", trash);
+	send_log(s->proxy, LOG_NOTICE, "%s.\n", trash);
 
 	if (!s->proxy->srv_bck && !s->proxy->srv_act)
 		set_backend_down(s->proxy);
@@ -530,8 +530,8 @@ static void set_server_enabled(struct server *s) {
 				((!s->tracked && !(s->proxy->options2 & PR_O2_LOGHCHKS))?SSP_O_HCHK:0),
 				xferred);
 
-	Warning("%s", trash);
-	send_log(s->proxy, LOG_NOTICE, "%s", trash);
+	Warning("%s.\n", trash);
+	send_log(s->proxy, LOG_NOTICE, "%s.\n", trash);
 
 	if (s->state & SRV_CHECKED)
 		for(srv = s->tracknext; srv; srv = srv->tracknext)
