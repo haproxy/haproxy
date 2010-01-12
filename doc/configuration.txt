@@ -156,7 +156,7 @@ with cookie insertion.
 First, let's consider this HTTP request :
 
   Line     Contents
-  number 
+  number
      1     GET /serv/login.php?lang=en&profile=2 HTTP/1.1
      2     Host: www.mydomain.com
      3     User-agent: my small browser
@@ -202,7 +202,7 @@ The URI itself can have several forms :
   - a star ('*') : this form is only accepted in association with the OPTIONS
     method and is not relayable. It is used to inquiry a next hop's
     capabilities.
-        
+
   - an address:port combination : 192.168.0.12:80
     This is used with the CONNECT method, which is used to establish TCP
     tunnels through HTTP proxies, generally for HTTPS, but sometimes for
@@ -254,7 +254,7 @@ An HTTP response looks very much like an HTTP request. Both are called HTTP
 messages. Let's consider this HTTP response :
 
   Line     Contents
-  number 
+  number
      1     HTTP/1.1 200 OK
      2     Content-length: 350
      3     Content-Type: text/html
@@ -288,7 +288,7 @@ The status code is always 3-digit. The first digit indicates a general status :
  - 5xx = error caused by the server (eg: 500, 502, 503)
 
 Please refer to RFC2616 for the detailed meaning of all such codes. The
-"reason" field is just a hint, but is not parsed by clients. Anything can be 
+"reason" field is just a hint, but is not parsed by clients. Anything can be
 found there, but it's a common practice to respect the well-established
 messages. It can be composed of one or multiple words, such as "OK", "Found",
 or "Authentication Required".
@@ -385,7 +385,7 @@ The following keywords are supported in the "global" section :
    - stats
    - node
    - description
-  
+
  * Performance tuning
    - maxconn
    - maxpipes
@@ -413,7 +413,7 @@ chroot <jail dir>
   attacker to exploit the system. This only works when the process is started
   with superuser privileges. It is important to ensure that <jail_dir> is both
   empty and unwritable to anyone.
-  
+
 daemon
   Makes the process fork into background. This is the recommended mode of
   operation. It is equivalent to the command line "-D" argument. It can be
@@ -424,11 +424,11 @@ gid <number>
   ID is dedicated to HAProxy or to a small set of similar daemons. HAProxy must
   be started with a user belonging to this group, or with superuser privileges.
   See also "group" and "uid".
-  
+
 group <group name>
   Similar to "gid" but uses the GID of group name <group name> from /etc/group.
   See also "gid" and "user".
-  
+
 log <address> <facility> [max level [min level]]
   Adds a global syslog server. Up to two global servers can be defined. They
   will receive logs for startups and exits, as well as all logs from proxies
@@ -673,12 +673,12 @@ and must be disabled for a specific instance.
 
 keyword                 defaults   frontend   listen    backend
 ----------------------+----------+----------+---------+---------
-acl                         -          X         X         X   
-appsession                  -          -         X         X   
+acl                         -          X         X         X
+appsession                  -          -         X         X
 backlog                     X          X         X         -
-balance                     X          -         X         X   
-bind                        -          X         X         -   
-bind-process                X          X         X         X   
+balance                     X          -         X         X
+bind                        -          X         X         -
+bind-process                X          X         X         X
 block                       -          X         X         X
 capture cookie              -          X         X         -
 capture request header      -          X         X         -
@@ -1335,7 +1335,7 @@ contimeout <timeout>
 
   If the server is located on the same LAN as haproxy, the connection should be
   immediate (less than a few milliseconds). Anyway, it is a good practice to
-  cover one or several TCP packet losses by specifying timeouts that are 
+  cover one or several TCP packet losses by specifying timeouts that are
   slightly above multiples of 3 seconds (eg: 4 or 5 seconds). By default, the
   connect timeout also presets the queue timeout to the same value if this one
   has not been specified. Historically, the contimeout was also used to set the
@@ -1939,7 +1939,7 @@ no option abortonclose
   the response. However, this introduces risks of congestion when lots of users
   do the same, and is completely useless nowadays because probably no client at
   all will close the session while waiting for the response. Some HTTP agents
-  support this behaviour (Squid, Apache, HAProxy), and others do not (TUX, most 
+  support this behaviour (Squid, Apache, HAProxy), and others do not (TUX, most
   hardware-based load balancers). So the probability for a closed input channel
   to represent a user hitting the "STOP" button is close to 100%, and the risk
   of being the single component to break rare but valid traffic is extremely
@@ -1954,7 +1954,7 @@ no option abortonclose
   during the connection establishment if the server has not yet acknowledged
   the connection request. This considerably reduces the queue size and the load
   on saturated servers when users are tempted to click on STOP, which in turn
-  reduces the response time for other users. 
+  reduces the response time for other users.
 
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
@@ -2231,7 +2231,7 @@ option forwardfor [ except <network> ] [ header <name> ]
     <network> is an optional argument used to disable this option for sources
               matching <network>
     <name>    an optional argument to specify a different "X-Forwarded-For"
-              header name.  
+              header name.
 
   Since HAProxy works in reverse-proxy mode, the servers see its IP address as
   their client address. This is sometimes annoying when the client's IP address
@@ -2244,10 +2244,10 @@ option forwardfor [ except <network> ] [ header <name> ]
   that only the last occurrence of the header must be used, since it is really
   possible that the client has already brought one.
 
-  The keyword "header" may be used to supply a different header name to replace 
+  The keyword "header" may be used to supply a different header name to replace
   the default "X-Forwarded-For". This can be useful where you might already
-  have a "X-Forwarded-For" header from a different application (eg: stunnel), 
-  and you need preserve it. Also if your backend server doesn't use the 
+  have a "X-Forwarded-For" header from a different application (eg: stunnel),
+  and you need preserve it. Also if your backend server doesn't use the
   "X-Forwarded-For" header and requires different one (eg: Zeus Web Servers
   require "X-Cluster-Client-IP").
 
@@ -2637,7 +2637,7 @@ no option redispatch
   It also allows to retry last connection to another server in case of multiple
   connection failures. Of course, it requires having "retries" set to a nonzero
   value.
-  
+
   This form is the preferred form, which replaces both the "redispatch" and
   "redisp" keywords.
 
@@ -2652,7 +2652,7 @@ option smtpchk <hello> <domain>
   Use SMTP health checks for server testing
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
-  Arguments : 
+  Arguments :
     <hello>   is an optional argument. It is the "hello" command to use. It can
               be either "HELO" (for SMTP) or "EHLO" (for ESTMP). All other
               values will be turned into the default command ("HELO").
@@ -3064,7 +3064,7 @@ redispatch (deprecated)
   It also allows to retry last connection to another server in case of multiple
   connection failures. Of course, it requires having "retries" set to a nonzero
   value.
-  
+
   This form is deprecated, do not use it in any new configuration, use the new
   "option redispatch" instead.
 
@@ -3108,7 +3108,7 @@ reqiallow <search>  (ignore case)
   <search> will mark the request as allowed, even if any later test would
   result in a deny. The test applies both to the request line and to request
   headers. Keep in mind that URLs in request line are case-sensitive while
-  header names are not. 
+  header names are not.
 
   It is easier, faster and more powerful to use ACLs to write access policies.
   Reqdeny, reqallow and reqpass should be avoided in new designs.
@@ -3171,11 +3171,11 @@ reqideny <search>  (ignore case)
   <search> will mark the request as denied, even if any later test would
   result in an allow. The test applies both to the request line and to request
   headers. Keep in mind that URLs in request line are case-sensitive while
-  header names are not. 
+  header names are not.
 
   A denied request will generate an "HTTP 403 forbidden" response once the
   complete request has been parsed. This is consistent with what is practiced
-  using ACLs. 
+  using ACLs.
 
   It is easier, faster and more powerful to use ACLs to write access policies.
   Reqdeny, reqallow and reqpass should be avoided in new designs.
@@ -3604,7 +3604,7 @@ srvtimeout <timeout> (deprecated)
   order to avoid complex situations to debug. Whatever the expected server
   response times, it is a good practice to cover at least one or several TCP
   packet losses by specifying timeouts that are slightly above multiples of 3
-  seconds (eg: 4 or 5 seconds minimum). 
+  seconds (eg: 4 or 5 seconds minimum).
 
   This parameter is specific to backends, but can be specified once for all in
   "defaults" sections. This is in fact one of the easiest solutions not to
@@ -4064,7 +4064,7 @@ tcp-request inspect-delay <timeout>
   For most protocols, it is enough to set it to a few seconds, as most clients
   send the full request immediately upon connection. Add 3 or more seconds to
   cover TCP retransmits but that's all. For some protocols, it may make sense
-  to use large values, for instance to ensure that the client never talks 
+  to use large values, for instance to ensure that the client never talks
   before the server (eg: SMTP), or to wait for a client to talk before passing
   data to the server (eg: SSL). Note that the client timeout must cover at
   least the inspection delay, otherwise it will expire first.
@@ -4154,7 +4154,7 @@ timeout contimeout <timeout> (deprecated)
 
   If the server is located on the same LAN as haproxy, the connection should be
   immediate (less than a few milliseconds). Anyway, it is a good practice to
-  cover one or several TCP packet losses by specifying timeouts that are 
+  cover one or several TCP packet losses by specifying timeouts that are
   slightly above multiples of 3 seconds (eg: 4 or 5 seconds). By default, the
   connect timeout also presets both queue and tarpit timeouts to the same value
   if these have not been specified.
@@ -4256,7 +4256,7 @@ timeout srvtimeout <timeout> (deprecated)
   order to avoid complex situations to debug. Whatever the expected server
   response times, it is a good practice to cover at least one or several TCP
   packet losses by specifying timeouts that are slightly above multiples of 3
-  seconds (eg: 4 or 5 seconds minimum). 
+  seconds (eg: 4 or 5 seconds minimum).
 
   This parameter is specific to backends, but can be specified once for all in
   "defaults" sections. This is in fact one of the easiest solutions not to
@@ -4289,7 +4289,7 @@ timeout tarpit <timeout>
   unit if the number is suffixed by the unit, as specified at the top of this
   document. If unspecified, the same value as the backend's connection timeout
   ("timeout connect") is used, for backwards compatibility with older versions
-  with no "timeout tapit" parameter. 
+  with no "timeout tapit" parameter.
 
   See also : "timeout connect", "contimeout".
 
@@ -4424,7 +4424,7 @@ downinter <delay>
     ---------------------------------+-----------------------------------------
      DOWN 100% (non-transitional)    | "downinter" if set, "inter" otherwise.
     ---------------------------------+-----------------------------------------
-    
+
   Just as with every other time-based parameter, they can be entered in any
   other explicit unit among { us, ms, s, m, h, d }. The "inter" parameter also
   serves as a timeout for health checks sent to servers if "timeout check" is
@@ -4651,7 +4651,7 @@ Notes related to these keywords :
 
   - req* statements are applied after "block" statements, so that "block" is
     always the first one, but before "use_backend" in order to permit rewriting
-    before switching. 
+    before switching.
 
 
 7. Using ACLs
@@ -4908,7 +4908,7 @@ fe_sess_rate(frontend) <integer>
             tcp-request inspect-delay 100ms
             tcp-request content accept if ! too_fast
             tcp-request content accept if WAIT_END
-  
+
 be_sess_rate <integer>
 be_sess_rate(backend) <integer>
   Returns true when the sessions creation rate on the backend matches the
@@ -5068,7 +5068,7 @@ url_port <integer>
   "http_proxy". Note that if the port is not specified in the request, port 80
   is assumed.
 
-hdr <string> 
+hdr <string>
 hdr(header) <string>
   Note: all the "hdr*" matching criteria either apply to all headers, or to a
   particular header whose name is passed between parenthesis and without any
@@ -5526,7 +5526,7 @@ with a star ('*') after the field name below.
     >>> Feb  6 12:14:14 localhost \
           haproxy[14389]: 10.0.1.2:33317 [06/Feb/2009:12:14:14.655] http-in \
           static/srv1 10/0/30/69/109 200 2750 - - ---- 1/1/1/1/0 0/0 {1wt.eu} \
-          {} "GET /index.html HTTP/1.1" 
+          {} "GET /index.html HTTP/1.1"
 
   Field   Format                                Extract from the example above
       1   process_name '[' pid ']:'                            haproxy[14389]:
@@ -5545,7 +5545,7 @@ with a star ('*') after the field name below.
      14   '{' captured_request_headers* '}'                   {haproxy.1wt.eu}
      15   '{' captured_response_headers* '}'                                {}
      16   '"' http_request '"'                      "GET /index.html HTTP/1.1"
-  
+
 
 Detailed fields description :
   - "client_ip" is the IP address of the client which initiated the TCP
@@ -6069,7 +6069,7 @@ easier finding and understanding.
           by network routing issues between the client and haproxy, or by a
           keep-alive session between the server and the client terminated first
           by the client.
-	  
+
      cD   The client did not send nor acknowledge any data for as long as the
           "timeout client" delay. This is often caused by network failures on
 	  the client side, or the client simply leaving the net uncleanly.
@@ -6291,14 +6291,14 @@ in the logs.
           haproxy[2022]: 127.0.0.1:34020 [09/Aug/2004:20:30:46] proxy-out \
           proxy-out/cache1 0/0/0/182/+182 200 +279 - - ---- 0/0/0/0/0 0/0 \
           {w.ods.org||} {Formilux/0.1.8|3495|||} \
-          "GET http://trafic.1wt.eu/ HTTP/1.1" 
+          "GET http://trafic.1wt.eu/ HTTP/1.1"
 
     >>> Aug  9 20:30:46 localhost \
           haproxy[2022]: 127.0.0.1:34028 [09/Aug/2004:20:30:46] proxy-out \
           proxy-out/cache1 0/0/2/126/+128 301 +223 - - ---- 0/0/0/0/0 0/0 \
           {www.sytadin.equipement.gouv.fr||http://trafic.1wt.eu/} \
           {Apache|230|||http://www.sytadin.} \
-          "GET http://www.sytadin.equipement.gouv.fr/ HTTP/1.1" 
+          "GET http://www.sytadin.equipement.gouv.fr/ HTTP/1.1"
 
 
 8.9. Examples of logs
@@ -6343,7 +6343,7 @@ reading. Their sole purpose is to explain how to decipher them.
        to return the 502 and not the server.
 
     >>> haproxy[18113]: 127.0.0.1:34548 [15/Oct/2003:15:18:55.798] px-http \
-          px-http/<NOSRV> -1/-1/-1/-1/8490 -1 0 - - CR-- 2/2/2/0/0 0/0 "" 
+          px-http/<NOSRV> -1/-1/-1/-1/8490 -1 0 - - CR-- 2/2/2/0/0 0/0 ""
 
     => the client never completed its request and aborted itself ("C---") after
        8.5s, while the proxy was waiting for the request headers ("-R--").
@@ -6365,7 +6365,7 @@ reading. Their sole purpose is to explain how to decipher them.
 
     >>> haproxy[18989]: 10.0.0.1:34552 [15/Oct/2003:15:26:31.462] px-http \
           px-http/srv1 3183/-1/-1/-1/11215 503 0 - - SC-- 205/202/202/115/3 \
-          0/0 "HEAD / HTTP/1.0" 
+          0/0 "HEAD / HTTP/1.0"
 
     => The request took 3s to complete (probably a network problem), and the
        connection to the server failed ('SC--') after 4 attempts of 2 seconds
