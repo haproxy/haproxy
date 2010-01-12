@@ -610,6 +610,30 @@ acl_fetch_dconn(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 1;
 }
 
+/* set test->i to the id of the frontend */
+static int
+acl_fetch_fe_id(struct proxy *px, struct session *l4, void *l7, int dir,
+                struct acl_expr *expr, struct acl_test *test) {
+
+	test->flags = ACL_TEST_F_READ_ONLY;
+
+	test->i = l4->fe->uuid;
+
+	return 1;
+}
+
+/* set test->i to the id of the socket (listener) */
+static int
+acl_fetch_so_id(struct proxy *px, struct session *l4, void *l7, int dir,
+                struct acl_expr *expr, struct acl_test *test) {
+
+	test->flags = ACL_TEST_F_READ_ONLY;
+
+	test->i = l4->listener->luid;
+
+	return 1;
+}
+
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct acl_kw_list acl_kws = {{ },{
@@ -621,6 +645,8 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "src_limit",  acl_parse_int,   acl_fetch_sconn,    acl_match_int },
 #endif
 	{ "dst_conn",   acl_parse_int,   acl_fetch_dconn,    acl_match_int, ACL_USE_NOTHING },
+	{ "fe_id",      acl_parse_int,   acl_fetch_fe_id,    acl_match_int, ACL_USE_NOTHING },
+	{ "so_id",      acl_parse_int,   acl_fetch_so_id,    acl_match_int, ACL_USE_NOTHING },
 	{ NULL, NULL, NULL, NULL },
 }};
 

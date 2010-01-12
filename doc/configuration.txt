@@ -5604,6 +5604,13 @@ fe_conn(frontend) <integer>
   considered saturated. See also the "dst_conn", "be_conn" and "fe_sess_rate"
   criteria.
 
+fe_id <integer>
+  Applies to the fronted's id. Can be used in backends to check from which
+  frontend it was called.
+
+so_id <integer>
+  Applies to the socket's id. Useful in frontends with many bind keywords.
+
 be_conn <integer>
 be_conn(frontend) <integer>
   Applies to the number of currently established connections on the backend,
