@@ -771,6 +771,7 @@ option httplog              X          X         X         X
 [no] option log-separate-
             errors          X          X         X         -
 [no] option logasap         X          X         X         -
+option mysql-check          X          -         X         X
 [no] option nolinger        X          X         X         X
 option originalto           X          X         X         X
 [no] option persist         X          -         X         X
@@ -2526,8 +2527,8 @@ option httpchk <method> <uri> <version>
           option httpchk OPTIONS * HTTP/1.1\r\nHost:\ www
           server apache1 192.168.1.1:443 check port 80
 
-  See also : "option ssl-hello-chk", "option smtpchk", "http-check" and the
-             "check", "port" and "interval" server options.
+  See also : "option ssl-hello-chk", "option smtpchk", "option mysql-check",
+             "http-check" and the "check", "port" and "interval" server options.
 
 
 option http-server-close
@@ -2768,6 +2769,28 @@ no option logasap
 
   See also : "option httplog", "capture response header", and section 8 about
              logging.
+
+
+option mysql-check
+  Use Mysql health checks for server testing
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments : none
+
+  The check consists in parsing Mysql Handshake Initialisation packet or Error
+  packet, which is sent by MySQL server on connect. It is a basic but useful
+  test which does not produce any logging on the server. However, it does not
+  check database presence nor database consistency, nor user permission to
+  access. To do this, you can use an external check with xinetd for example.
+
+  Most often, an incoming MySQL server needs to see the client's IP address for
+  various purposes, including IP privilege matching and connection logging.
+  When possible, it is often wise to masquerade the client's IP address when
+  connecting to the server using the "usesrc" argument of the "source" keyword,
+  which requires the cttproxy feature to be compiled in, and the MySQL server
+  to route the client via the machine hosting haproxy.
+
+  See also: "option httpchk"
 
 
 option nolinger
@@ -4809,8 +4832,8 @@ check
   "port" parameter, the source address using the "source" address, and the
   interval and timers using the "inter", "rise" and "fall" parameters. The
   request method is define in the backend using the "httpchk", "smtpchk",
-  and "ssl-hello-chk" options. Please refer to those options and parameters for
-  more information.
+  "mysql-check" and "ssl-hello-chk" options. Please refer to those options and
+  parameters for more information.
 
   Supported in default-server: No
 

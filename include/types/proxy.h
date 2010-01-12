@@ -132,6 +132,8 @@
 #define PR_O2_AS_M_QS	0x00010000      /* query-string mode */
 #define PR_O2_AS_M_ANY	0x00010000      /* mask covering all PR_O2_AS_M_* values */
 
+#define PR_O2_MYSQL_CHK 0x00020000      /* use MYSQL check for server health */
+
 struct error_snapshot {
 	struct timeval when;		/* date of this event, (tv_sec == 0) means "never" */
 	unsigned int len;		/* original length of the last invalid request/response */

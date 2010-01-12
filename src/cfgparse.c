@@ -2227,6 +2227,7 @@ stats_error_parsing:
 			free(curproxy->check_req);
 			curproxy->options &= ~PR_O_SSL3_CHK;
 			curproxy->options &= ~PR_O_SMTP_CHK;
+			curproxy->options2 &= ~PR_O2_MYSQL_CHK;
 			curproxy->options |= PR_O_HTTP_CHK;
 			if (!*args[2]) { /* no argument */
 				curproxy->check_req = strdup(DEF_CHECK_REQ); /* default request */
@@ -2256,6 +2257,7 @@ stats_error_parsing:
 			free(curproxy->check_req);
 			curproxy->options &= ~PR_O_HTTP_CHK;
 			curproxy->options &= ~PR_O_SMTP_CHK;
+			curproxy->options2 &= ~PR_O2_MYSQL_CHK;
 			curproxy->options |= PR_O_SSL3_CHK;
 		}
 		else if (!strcmp(args[1], "smtpchk")) {
@@ -2263,6 +2265,7 @@ stats_error_parsing:
 			free(curproxy->check_req);
 			curproxy->options &= ~PR_O_HTTP_CHK;
 			curproxy->options &= ~PR_O_SSL3_CHK;
+			curproxy->options2 &= ~PR_O2_MYSQL_CHK;
 			curproxy->options |= PR_O_SMTP_CHK;
 
 			if (!*args[2] || !*args[3]) { /* no argument or incomplete EHLO host */
@@ -2281,6 +2284,14 @@ stats_error_parsing:
 					curproxy->check_len = strlen(DEF_SMTP_CHECK_REQ);
 				}
 			}
+		}
+		else if (!strcmp(args[1], "mysql-check")) {
+			/* use MYSQL request to check servers' health */
+			free(curproxy->check_req);
+			curproxy->options &= ~PR_O_HTTP_CHK;
+			curproxy->options &= ~PR_O_SSL3_CHK;
+			curproxy->options &= ~PR_O_SMTP_CHK;
+			curproxy->options2 |= PR_O2_MYSQL_CHK;
 		}
 		else if (!strcmp(args[1], "forwardfor")) {
 			int cur_arg;

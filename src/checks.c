@@ -660,7 +660,8 @@ static int event_srv_chk_w(int fd)
 		/* we don't want to mark 'UP' a server on which we detected an error earlier */
 		if ((s->proxy->options & PR_O_HTTP_CHK) ||
 		    (s->proxy->options & PR_O_SSL3_CHK) ||
-		    (s->proxy->options & PR_O_SMTP_CHK)) {
+		    (s->proxy->options & PR_O_SMTP_CHK) ||
+		    (s->proxy->options2 & PR_O2_MYSQL_CHK)) {
 			int ret;
 			/* we want to check if this host replies to HTTP or SSLv3 requests
 			 * so we'll send the request, and won't wake the checker up now.
@@ -861,6 +862,33 @@ static int event_srv_chk_r(int fd)
 			set_server_check_status(s, HCHK_STATUS_L7OKD, desc);
 		else
 			set_server_check_status(s, HCHK_STATUS_L7STS, desc);
+	}
+	else if (s->proxy->options2 & PR_O2_MYSQL_CHK) {
+		/* MySQL Error packet always begin with field_count = 0xff
+		 * contrary to OK Packet who always begin whith 0x00 */
+		if (trash[4] != -1) {
+			/* We set the MySQL Version in description for information purpose
+			 * FIXME : it can be cool to use MySQL Version for other purpose,
+			 * like mark as down old MySQL server.
+			 */
+			if (len > 51) {
+				desc = ltrim(&trash[5], ' ');
+				set_server_check_status(s, HCHK_STATUS_L7OKD, desc);
+			}
+			else {
+				/* it seems we have a OK packet but without a valid length,
+				 * it must be a protocol error
+				 */
+				set_server_check_status(s, HCHK_STATUS_L7RSP, trash);
+			}
+		}
+		else {
+			/* An error message is attached in the Error packet,
+			 * so we can display it ! :)
+			 */
+			desc = ltrim(&trash[7], ' ');
+			set_server_check_status(s, HCHK_STATUS_L7STS, desc);
+		}
 	}
 	else {
 		/* other checks are valid if the connection succeeded anyway */
