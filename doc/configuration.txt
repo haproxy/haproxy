@@ -926,7 +926,7 @@ appsession <cookie> len <length> timeout <holdtime>
   Example :
         appsession JSESSIONID len 52 timeout 3h
 
-  See also : "cookie", "capture cookie" and "balance".
+  See also : "cookie", "capture cookie", "balance", "stick" and "stick-table".
 
 
 backlog <conns>
@@ -4365,6 +4365,266 @@ stats hide-version
   See also : "stats auth", "stats enable", "stats realm", "stats uri"
 
 
+stick match <pattern> [table <table>] [{if | unless} <cond>]
+  Define a request pattern matching condition to stick a user to a server
+  May be used in sections :   defaults | frontend | listen | backend
+                                 no    |    no    |   yes  |   yes
+
+  Arguments :
+    <pattern>  is a pattern extraction rule as described in section 7.8. It
+               describes what elements of the incoming request or connection
+               will be analysed in the hope to find a matching entry in a
+               stickiness table. This rule is mandatory.
+
+    <table>    is an optional stickiness table name. If unspecified, the same
+               backend's table is used. A stickiness table is declared using
+               the "stick-table" statement.
+
+    <cond>     is an optional matching condition. It makes it possible to match
+               on a certain criterion only when other conditions are met (or
+               not met). For instance, it could be used to match on a source IP
+               address except when a request passes through a known proxy, in
+               which case we'd match on a header containing that IP address.
+
+  Some protocols or applications require complex stickiness rules and cannot
+  always simply rely on cookies nor hashing. The "stick match" statement
+  describes a rule to extract the stickiness criterion from an incoming request
+  or connection. See section 7 for a complete list of possible patterns and
+  transformation rules.
+
+  The table has to be declared using the "stick-table" statement. It must be of
+  a type compatible with the pattern. By default it is the one which is present
+  in the same backend. It is possible to share a table with other backends by
+  referencing it using the "table" keyword. If another table is referenced,
+  the server's ID inside the backends are used. By default, all server IDs
+  start at 1 in each backend, so the server ordering is enough. But in case of
+  doubt, it is highly recommended to force server IDs using their "id" setting.
+
+  It is possible to restrict the conditions where a "stick match" statement
+  will apply, using "if" or "unless" followed by a condition. See section 7 for
+  ACL based conditions.
+
+  There is no limit on the number of "stick match" statements. The first that
+  applies and matches will cause the request to be directed to the same server
+  as was used for the request which created the entry. That way, multiple
+  matches can be used as fallbacks.
+
+  The stick rules are checked after the persistence cookies, so they will not
+  affect stickiness if a cookie has already been used to select a server. That
+  way, it becomes very easy to insert cookies and match on IP addresses in
+  order to maintain stickiness between HTTP and HTTPS.
+
+  Example :
+    # forward SMTP users to the same server they just used for POP in the
+    # last 30 minutes
+    backend pop
+        mode tcp
+        balance roundrobin
+        stick store-request src
+        stick-table type ip size 200k expire 30m
+        server s1 192.168.1.1:110
+        server s2 192.168.1.1:110
+
+    backend smtp
+        mode tcp
+        balance roundrobin
+        stick match src table pop
+        server s1 192.168.1.1:25
+        server s2 192.168.1.1:25
+
+  See also : "stick-table", "stick on", and section 7 about ACLs and pattern
+             extraction.
+
+
+stick on <pattern> [table <table>] [{if | unless} <condition>]
+  Define a request pattern to associate a user to a server
+  May be used in sections :   defaults | frontend | listen | backend
+                                 no    |    no    |   yes  |   yes
+
+  Note : This form is exactly equivalent to "stick match" followed by
+         "stick store-request", all with the same arguments. Please refer
+         to both keywords for details. It is only provided as a convenience
+         for writing more maintainable configurations.
+
+  Examples :
+    # The following form ...
+    stick or src table pop if !localhost
+
+    # ...is strictly equivalent to this one :
+    stick match src table pop if !localhost
+    stick store-request src table pop if !localhost
+
+
+    # Use cookie persistence for HTTP, and stick on source address for HTTPS as
+    # well as HTTP without cookie. Share the same table between both accesses.
+    backend http
+        mode http
+        balance roundrobin
+        stick on src table https
+        cookie SRV insert indirect nocache
+        server s1 192.168.1.1:80 cookie s1
+        server s2 192.168.1.1:80 cookie s2
+
+    backend https
+        mode tcp
+        balance roundrobin
+        stick-table type ip size 200k expire 30m
+        stick on src
+        server s1 192.168.1.1:443
+        server s2 192.168.1.1:443
+
+  See also : "stick match" and "stick store-request"
+
+
+stick store-request <pattern> [table <table>] [{if | unless} <condition>]
+  Define a request pattern used to create an entry in a stickiness table
+  May be used in sections :   defaults | frontend | listen | backend
+                                 no    |    no    |   yes  |   yes
+
+  Arguments :
+    <pattern>  is a pattern extraction rule as described in section 7.8. It
+               describes what elements of the incoming request or connection
+               will be analysed, extracted and stored in the table once a
+               server is selected.
+
+    <table>    is an optional stickiness table name. If unspecified, the same
+               backend's table is used. A stickiness table is declared using
+               the "stick-table" statement.
+
+    <cond>     is an optional storage condition. It makes it possible to store
+               certain criteria only when some conditions are met (or not met).
+               For instance, it could be used to store the source IP address
+               except when the request passes through a known proxy, in which
+               case we'd store a converted form of a header containing that IP
+               address.
+
+  Some protocols or applications require complex stickiness rules and cannot
+  always simply rely on cookies nor hashing. The "stick store-request" statement
+  describes a rule to decide what to extract from the request and when to do
+  it, in order to store it into a stickiness table for further requests to
+  match it using the "stick match" statement. Obviously the extracted part must
+  make sense and have a chance to be matched in a further request. Storing a
+  client's IP address for instance often makes sense. Storing an ID found in a
+  URL parameter also makes sense. Storing a source port will almost never make
+  any sense because it will be randomly matched. See section 7 for a complete
+  list of possible patterns and transformation rules.
+
+  The table has to be declared using the "stick-table" statement. It must be of
+  a type compatible with the pattern. By default it is the one which is present
+  in the same backend. It is possible to share a table with other backends by
+  referencing it using the "table" keyword. If another table is referenced,
+  the server's ID inside the backends are used. By default, all server IDs
+  start at 1 in each backend, so the server ordering is enough. But in case of
+  doubt, it is highly recommended to force server IDs using their "id" setting.
+
+  It is possible to restrict the conditions where a "stick store-request"
+  statement will apply, using "if" or "unless" followed by a condition. This
+  condition will be evaluated while parsing the request, so any criteria can be
+  used. See section 7 for ACL based conditions.
+
+  There is no limit on the number of "stick store-request" statements, but
+  there is a limit of 8 simultaneous stores per request or response. This
+  makes it possible to store up to 8 criteria, all extracted from either the
+  request or the response, regardless of the number of rules. Only the 8 first
+  ones which match will be kept. Using this, it is possible to feed multiple
+  tables at once in the hope to increase the chance to recognize a user on
+  another protocol or access method.
+
+  The "store-request" rules are evaluated once the server connection has been
+  established, so that the table will contain the real server that processed
+  the request.
+
+  Example :
+    # forward SMTP users to the same server they just used for POP in the
+    # last 30 minutes
+    backend pop
+        mode tcp
+        balance roundrobin
+        stick store-request src
+        stick-table type ip size 200k expire 30m
+        server s1 192.168.1.1:110
+        server s2 192.168.1.1:110
+
+    backend smtp
+        mode tcp
+        balance roundrobin
+        stick match src table pop
+        server s1 192.168.1.1:25
+        server s2 192.168.1.1:25
+
+  See also : "stick-table", "stick on", and section 7 about ACLs and pattern
+             extraction.
+
+
+stick-table type {ip | integer | string [len <length>] } size <size>
+            [expire <expire>] [nopurge]
+  Configure the stickiness table for the current backend
+  May be used in sections :   defaults | frontend | listen | backend
+                                 no    |    no    |   yes  |   yes
+
+  Arguments :
+    ip         a table declared with "type ip" will only store IPv4 addresses.
+               This form is very compact (about 50 bytes per entry) and allows
+               very fast entry lookup and stores with almost no overhead. This
+               is mainly used to store client source IP addresses.
+
+    integer    a table declared with "type integer" will store 32bit integers
+               which can represent a client identifier found in a request for
+               instance.
+
+    string     a table declared with "type string" will store substrings of up
+               to <len> characters. If the string provided by the pattern
+               extractor is larger than <len>, it will be truncated before
+               being stored. During matching, at most <len> characters will be
+               compared between the string in the table and the extracted
+               pattern. When not specified, the string is automatically limited
+               to 31 characters.
+
+    <length>   is the maximum number of characters that will be stored in a
+               "string" type table. See type "string" above. Be careful when
+               changing this parameter as memory usage will proportionally
+               increase.
+
+    <size>     is the maximum number of entries that can fit in the table. This
+               value directly impats memory usage. Count approximately 50 bytes
+               per entry, plus the size of a string if any. The size supports
+               suffixes "k", "m", "g" for 2^10, 2^20 and 2^30 factors.
+
+    [nopurge]  indicates that we refuse to purge older entries when the table
+               is full. When not specified and the table is full when haproxy
+               wants to store an entry in it, it will flush a few of the oldest
+               entries in order to release some space for the new ones. This is
+               most often the desired behaviour. In some specific cases, it
+               be desirable to refuse new entries instead of purging the older
+               ones. That may be the case when the amount of data to store is
+               far above the hardware limits and we prefer not to offer access
+               to new clients than to reject the ones already connected. When
+               using this parameter, be sure to properly set the "expire"
+               parameter (see below).
+
+    <expire>   defines the maximum duration of an entry in the table since it
+               was last created, refreshed or matched. The expiration delay is
+               defined using the standard time format, similarly as the various
+               timeouts. The maximum duration is slightly above 24 days. See
+               section 2.2 for more information. If this delay is not specified,
+	       the session won't automatically expire, but older entries will
+               be removed once full. Be sure not to use the "nopurge" parameter
+               if not expiration delay is specified.
+
+  The is only one stick-table per backend. At the moment of writing this doc,
+  it does not seem useful to have multiple tables per backend. If this happens
+  to be required, simply create a dummy backend with a stick-table in it and
+  reference it.
+
+  It is important to understand that stickiness based on learning information
+  has some limitations, including the fact that all learned associations are
+  lost upon restart. In general it can be good as a complement but not always
+  as an exclusive stickiness.
+
+  See also : "stick match", "stick on", "stick store-request", and section 2.2
+             about time format.
+
+
 tcp-request content accept [{if | unless} <condition>]
   Accept a connection if/unless a content inspection condition is matched
   May be used in sections :   defaults | frontend | listen | backend
@@ -5174,8 +5434,8 @@ Notes related to these keywords :
     before switching.
 
 
-7. Using ACLs
--------------
+7. Using ACLs and pattern extraction
+------------------------------------
 
 The use of Access Control Lists (ACL) provides a flexible solution to perform
 content switching and generally to take decisions based on content extracted
@@ -5759,6 +6019,48 @@ and to every request on the "img", "video", "download" and "ftp" hosts :
    use_backend www    if host_www
 
 See section 4.2 for detailed help on the "block" and "use_backend" keywords.
+
+
+7.8. Pattern extraction
+-----------------------
+
+The stickiness features relies on pattern extraction in the request and
+response. Sometimes the data needs to be converted first before being stored,
+for instance converted from ASCII to IP or upper case to lower case.
+
+All these operations of data extraction and conversion are defined as
+"pattern extraction rules". A pattern rule always has the same format. It
+begins with a single pattern fetch word, potentially followed by a list of
+arguments within parenthesis then an optional list of transformations. As
+much as possible, the pattern fetch functions use the same name as their
+equivalent used in ACLs.
+
+The list of currently supported pattern fetch functions is the following :
+
+  src          This is the source IPv4 address of the client of the session.
+               It is of type IP and only works with such tables.
+
+  dst          This is the destination IPv4 address of the session on the
+               client side, which is the address the client connected to.
+               It can be useful when running in transparent mode. It is of
+               typie IP and only works with such tables.
+
+  dst_port     This is the destination TCP port of the session on the client
+               side, which is the port the client connected to. This might be
+               used when running in transparent mode or when assigning dynamic
+               ports to some clients for a whole application session. It is of
+               type integer and only works with such tables.
+
+
+The currently available list of transformations include :
+
+  lower        Convert a string pattern to lower case. This can only be placed
+               after a string pattern fetch function or after a conversion
+               function returning a string type. The result is of type string.
+
+  upper        Convert a string pattern to upper case. This can only be placed
+               after a string pattern fetch function or after a conversion
+               function returning a string type. The result is of type string.
 
 
 8. Logging
