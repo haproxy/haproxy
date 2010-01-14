@@ -866,7 +866,7 @@ static int event_srv_chk_r(int fd)
 	else if (s->proxy->options2 & PR_O2_MYSQL_CHK) {
 		/* MySQL Error packet always begin with field_count = 0xff
 		 * contrary to OK Packet who always begin whith 0x00 */
-		if (trash[4] != -1) {
+		if (trash[4] != '\xff') {
 			/* We set the MySQL Version in description for information purpose
 			 * FIXME : it can be cool to use MySQL Version for other purpose,
 			 * like mark as down old MySQL server.
