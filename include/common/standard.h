@@ -23,6 +23,7 @@
 #define _COMMON_STANDARD_H
 
 #include <limits.h>
+#include <string.h>
 #include <time.h>
 #include <sys/types.h>
 #include <netinet/in.h>
