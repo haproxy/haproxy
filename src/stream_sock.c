@@ -321,18 +321,7 @@ int stream_sock_read(int fd) {
 		/*
 		 * 2. read the largest possible block
 		 */
-		if (MSG_NOSIGNAL) {
-			ret = recv(fd, b->r, max, MSG_NOSIGNAL);
-		} else {
-			int skerr;
-			socklen_t lskerr = sizeof(skerr);
-
-			ret = getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
-			if (ret == -1 || skerr)
-				ret = -1;
-			else
-				ret = recv(fd, b->r, max, 0);
-		}
+		ret = recv(fd, b->r, max, 0);
 
 		if (ret > 0) {
 			b->r += ret;
