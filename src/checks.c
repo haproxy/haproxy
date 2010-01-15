@@ -768,19 +768,14 @@ static int event_srv_chk_r(int fd)
 	int len;
 	struct task *t = fdtab[fd].owner;
 	struct server *s = t->context;
-	int skerr;
 	char *desc;
-	socklen_t lskerr = sizeof(skerr);
 
 	len = -1;
 
 	if (unlikely((s->result & SRV_CHK_ERROR) ||
 		     (fdtab[fd].state == FD_STERROR) ||
-		     (fdtab[fd].ev & FD_POLL_ERR) ||
-		     (getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr) == -1) ||
-		     (skerr != 0))) {
+		     (fdtab[fd].ev & FD_POLL_ERR))) {
 		/* in case of TCP only, this tells us if the connection failed */
-
 		if (!(s->result & SRV_CHK_ERROR))
 			set_server_check_status(s, HCHK_STATUS_SOCKERR, NULL);
 
@@ -792,10 +787,16 @@ static int event_srv_chk_r(int fd)
 	 * works correctly and we don't need to do the getsockopt() on linux.
 	 */
 	len = recv(fd, trash, sizeof(trash), 0);
-	if (unlikely(len < 0 && errno == EAGAIN)) {
-		/* we want some polling to happen first */
-		fdtab[fd].ev &= ~FD_POLL_IN;
-		return 0;
+	if (unlikely(len < 0)) {
+		if (errno == EAGAIN) {
+			/* not ready, we want to poll first */
+			fdtab[fd].ev &= ~FD_POLL_IN;
+			return 0;
+		}
+		/* network error, report it */
+		if (!(s->result & SRV_CHK_ERROR))
+			set_server_check_status(s, HCHK_STATUS_SOCKERR, NULL);
+		goto out_wakeup;
 	}
 
 	if (len < sizeof(trash))
