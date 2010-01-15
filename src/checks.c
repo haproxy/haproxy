@@ -454,7 +454,7 @@ static int event_srv_chk_r(int fd)
 	 * but the connection was closed on the remote end. Fortunately, recv still
 	 * works correctly and we don't need to do the getsockopt() on linux.
 	 */
-	len = recv(fd, trash, sizeof(trash), MSG_NOSIGNAL);
+	len = recv(fd, trash, sizeof(trash), 0);
 	if (unlikely(len < 0 && errno == EAGAIN)) {
 		/* we want some polling to happen first */
 		fdtab[fd].ev &= ~FD_POLL_IN;
