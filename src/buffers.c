@@ -230,12 +230,6 @@ int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int
 	if (delta + b->r >= b->data + b->size)
 		return 0;  /* no space left */
 
-	if (b->data + b->l < end) {
-		/* The data has been stolen, we could have crashed.
-		 * Maybe we should abort() ? */
-		return 0;
-	}
-
 	/* first, protect the end of the buffer */
 	memmove(end + delta, end, b->r - end);
 
