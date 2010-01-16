@@ -823,7 +823,8 @@ int stream_sock_write(int fd)
  * This function performs a shutdown-write on a stream interface in a connected or
  * init state (it does nothing for other states). It either shuts the write side
  * or closes the file descriptor and marks itself as closed. The buffer flags are
- * updated to reflect the new state.
+ * updated to reflect the new state. It does also close everything is the SI was
+ * marked as being in error state.
  */
 void stream_sock_shutw(struct stream_interface *si)
 {
@@ -842,7 +843,10 @@ void stream_sock_shutw(struct stream_interface *si)
 		 * However, if SI_FL_NOLINGER is explicitly set, we know there is
 		 * no risk so we close both sides immediately.
 		 */
-		if (si->flags & SI_FL_NOLINGER) {
+		if (si->flags & SI_FL_ERR) {
+			/* quick close, the socket is already shut. Remove pending flags. */
+			si->flags &= ~SI_FL_NOLINGER;
+		} else if (si->flags & SI_FL_NOLINGER) {
 			si->flags &= ~SI_FL_NOLINGER;
 			setsockopt(si->fd, SOL_SOCKET, SO_LINGER,
 				   (struct linger *) &nolinger, sizeof(struct linger));
