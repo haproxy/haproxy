@@ -1168,6 +1168,7 @@ option dontlognull                   (*)  X          X         X         -
 option forceclose                    (*)  X          X         X         X
 -- keyword -------------------------- defaults - frontend - listen -- backend -
 option forwardfor                         X          X         X         X
+option http-keep-alive               (*)  X          X         X         X
 option http-no-delay                 (*)  X          X         X         X
 option http-pretend-keepalive        (*)  X          X         X         X
 option http-server-close             (*)  X          X         X         X
@@ -3763,6 +3764,61 @@ option forwardfor [ except <network> ] [ header <name> ] [ if-none ]
              "option forceclose"
 
 
+option http-keep-alive
+no option http-keep-alive
+  Enable or disable HTTP keep-alive from client to server
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+  Arguments : none
+
+  By default, when a client communicates with a server, HAProxy will only
+  analyze, log, and process the first request of each connection. Setting
+  "option http-keep-alive" enables HTTP keep-alive mode on the client- and
+  server- sides. This provides the lowest latency on the client side (slow
+  network) and the fastest session reuse on the server side at the expense
+  of maintaining idle connections to the servers. In general, it is possible
+  with this option to achieve approximately twice the request rate that the
+  "http-server-close" option achieves on small objects. There are mainly two
+  situations where this option may be useful :
+
+    - when the server is non-HTTP compliant and authenticates the connection
+      instead of requests (eg: NTLM authentication)
+
+    - when the cost of establishing the connection to the server is significant
+      compared to the cost of retrieving the associated object from the server.
+
+  This last case can happen when the server is a fast static server of cache.
+  In this case, the server will need to be properly tuned to support high enough
+  connection counts because connections will last until the client sends another
+  request.
+
+  If the client request has to go to another backend or another server due to
+  content switching or the load balancing algorithm, the idle connection will
+  immediately be closed and a new one re-opened.
+
+  In general it is preferred to use "option http-server-close" with application
+  servers, and some static servers might benefit from "option http-keep-alive".
+
+  At the moment, logs will not indicate whether requests came from the same
+  session or not. The accept date reported in the logs corresponds to the end
+  of the previous request, and the request time corresponds to the time spent
+  waiting for a new request. The keep-alive request time is still bound to the
+  timeout defined by "timeout http-keep-alive" or "timeout http-request" if
+  not set.
+
+  This option may be set both in a frontend and in a backend. It is enabled if
+  at least one of the frontend or backend holding a connection has it enabled.
+  It is worth noting that "option forceclose" and "option http-server-close"
+  have precedence over "option http-keep-alive".
+
+  If this option has been enabled in a "defaults" section, it can be disabled
+  in a specific instance by prepending the "no" keyword before it.
+
+  See also : "option forceclose", "option http-server-close",
+             "option httpclose", "option http-pretend-keepalive" and
+             "1.1. The HTTP transaction model".
+
+
 option http-no-delay
 no option http-no-delay
   Instruct the system to favor low interactive delays over performance in HTTP
@@ -3835,7 +3891,8 @@ no option http-pretend-keepalive
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
 
-  See also : "option forceclose" and "option http-server-close"
+  See also : "option forceclose", "option http-server-close", and
+             "option http-keep-alive"
 
 
 option http-server-close
@@ -3875,7 +3932,8 @@ no option http-server-close
   in a specific instance by prepending the "no" keyword before it.
 
   See also : "option forceclose", "option http-pretend-keepalive",
-             "option httpclose" and "1.1. The HTTP transaction model".
+             "option httpclose", "option http-keep-alive", and
+             "1.1. The HTTP transaction model".
 
 
 option http-use-proxy-header
