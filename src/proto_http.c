@@ -2209,8 +2209,11 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	 * If not so, we check the FD and buffer states before leaving.
 	 * A full request is indicated by the fact that we have seen
 	 * the double LF/CRLF, so the state is >= HTTP_MSG_BODY. Invalid
-	 * requests are checked first.
-	 *
+	 * requests are checked first. When waiting for a second request
+	 * on a keep-alive session, if we encounter and error, close, t/o,
+	 * we note the error in the session flags but don't set any state.
+	 * Since the error will be noted there, it will not be counted by
+	 * process_session() as a frontend error.
 	 */
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
@@ -2234,6 +2237,9 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 
 		/* 2: have we encountered a read error ? */
 		else if (req->flags & BF_READ_ERROR) {
+			if (!(s->flags & SN_ERR_MASK))
+				s->flags |= SN_ERR_CLICL;
+
 			if (txn->flags & TX_WAIT_NEXT_RQ)
 				goto failed_keep_alive;
 
@@ -2247,8 +2253,6 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 			if (s->listener->counters)
 				s->listener->counters->failed_req++;
 
-			if (!(s->flags & SN_ERR_MASK))
-				s->flags |= SN_ERR_CLICL;
 			if (!(s->flags & SN_FINST_MASK))
 				s->flags |= SN_FINST_R;
 			return 0;
@@ -2256,6 +2260,9 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 
 		/* 3: has the read timeout expired ? */
 		else if (req->flags & BF_READ_TIMEOUT || tick_is_expired(req->analyse_exp, now_ms)) {
+			if (!(s->flags & SN_ERR_MASK))
+				s->flags |= SN_ERR_CLITO;
+
 			if (txn->flags & TX_WAIT_NEXT_RQ)
 				goto failed_keep_alive;
 
@@ -2271,8 +2278,6 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 			if (s->listener->counters)
 				s->listener->counters->failed_req++;
 
-			if (!(s->flags & SN_ERR_MASK))
-				s->flags |= SN_ERR_CLITO;
 			if (!(s->flags & SN_FINST_MASK))
 				s->flags |= SN_FINST_R;
 			return 0;
@@ -2280,6 +2285,9 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 
 		/* 4: have we encountered a close ? */
 		else if (req->flags & BF_SHUTR) {
+			if (!(s->flags & SN_ERR_MASK))
+				s->flags |= SN_ERR_CLICL;
+
 			if (txn->flags & TX_WAIT_NEXT_RQ)
 				goto failed_keep_alive;
 
@@ -2294,8 +2302,6 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 			if (s->listener->counters)
 				s->listener->counters->failed_req++;
 
-			if (!(s->flags & SN_ERR_MASK))
-				s->flags |= SN_ERR_CLICL;
 			if (!(s->flags & SN_FINST_MASK))
 				s->flags |= SN_FINST_R;
 			return 0;
