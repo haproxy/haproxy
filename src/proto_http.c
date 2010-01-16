@@ -3542,25 +3542,36 @@ int http_sync_req_state(struct session *s)
 		 * direction, and sometimes for a close to be effective.
 		 */
 
-		if (!(buf->flags & (BF_SHUTW|BF_SHUTW_NOW))) {
-			if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL) {
-				/* Server-close mode : queue a connection close to the server */
+		if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL) {
+			/* Server-close mode : queue a connection close to the server */
+			if (!(buf->flags & (BF_SHUTW|BF_SHUTW_NOW)))
 				buffer_shutw_now(buf);
-				buf->cons->flags |= SI_FL_NOLINGER;
-			}
-			else if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_CLO) {
-				/* Option forceclose is set, let's enforce it now
-				 * that we're not expecting any new data to come.
-				 */
+		}
+		else if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_CLO) {
+			/* Option forceclose is set, or either side wants to close,
+			 * let's enforce it now that we're not expecting any new
+			 * data to come. The caller knows the session is complete
+			 * once both states are CLOSED.
+			 */
+			if (!(buf->flags & (BF_SHUTW|BF_SHUTW_NOW))) {
 				buffer_shutr_now(buf);
 				buffer_shutw_now(buf);
-				buf->cons->flags |= SI_FL_NOLINGER;
 			}
-			/* other modes include httpclose (no action) and keepalive (not implemented) */
+		}
+		else {
+			/* The last possible modes are keep-alive and tunnel. Since tunnel
+			 * mode does not set the body analyser, we can't reach this place
+			 * in tunnel mode, so we're left with keep-alive only.
+			 * This mode is currently not implemented, we switch to tunnel mode.
+			 */
+			buffer_auto_read(buf);
+			txn->req.msg_state = HTTP_MSG_TUNNEL;
 		}
 
 		if (buf->flags & (BF_SHUTW|BF_SHUTW_NOW)) {
 			/* if we've just closed an output, let's switch */
+			buf->cons->flags |= SI_FL_NOLINGER;  /* we want to close ASAP */
+
 			if (!(buf->flags & BF_OUT_EMPTY)) {
 				txn->req.msg_state = HTTP_MSG_CLOSING;
 				goto http_msg_closing;
@@ -3570,12 +3581,7 @@ int http_sync_req_state(struct session *s)
 				goto http_msg_closed;
 			}
 		}
-		else {
-			/* other modes are used as a tunnel right now */
-			buffer_auto_read(buf);
-			txn->req.msg_state = HTTP_MSG_TUNNEL;
-			goto wait_other_side;
-		}
+		goto wait_other_side;
 	}
 
 	if (txn->req.msg_state == HTTP_MSG_CLOSING) {
@@ -3663,26 +3669,26 @@ int http_sync_res_state(struct session *s)
 			 */
 			if (!(buf->flags & (BF_SHUTR|BF_SHUTR_NOW)))
 				buffer_shutr_now(buf);
-			goto wait_other_side;
 		}
-		else if (!(buf->flags & (BF_SHUTW|BF_SHUTW_NOW)) &&
-			 ((s->fe->options | s->be->options) & PR_O_FORCE_CLO)) {
-			/* Option forceclose is set, let's enforce it now
-			 * that we're not expecting any new data to come.
-			 * The caller knows the session is complete once
-			 * both states are CLOSED.
+		else if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_CLO) {
+			/* Option forceclose is set, or either side wants to close,
+			 * let's enforce it now that we're not expecting any new
+			 * data to come. The caller knows the session is complete
+			 * once both states are CLOSED.
 			 */
-			buffer_shutr_now(buf);
-			buffer_shutw_now(buf);
+			if (!(buf->flags & (BF_SHUTW|BF_SHUTW_NOW))) {
+				buffer_shutr_now(buf);
+				buffer_shutw_now(buf);
+			}
 		}
 		else {
-			/* other modes include httpclose (no action) and keepalive
-			 * (not implemented). These modes are used as a tunnel right
-			 * now.
+			/* The last possible modes are keep-alive and tunnel. Since tunnel
+			 * mode does not set the body analyser, we can't reach this place
+			 * in tunnel mode, so we're left with keep-alive only.
+			 * This mode is currently not implemented, we switch to tunnel mode.
 			 */
 			buffer_auto_read(buf);
 			txn->rsp.msg_state = HTTP_MSG_TUNNEL;
-			goto wait_other_side;
 		}
 
 		if (buf->flags & (BF_SHUTW|BF_SHUTW_NOW)) {
