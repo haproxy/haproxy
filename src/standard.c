@@ -1,7 +1,7 @@
 /*
  * General purpose functions.
  *
- * Copyright 2000-2009 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2010 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -813,6 +813,35 @@ unsigned int get_next_id(struct eb_root *root, unsigned int key)
 	return key;
 }
 
+/* This function compares a sample word possibly followed by blanks to another
+ * clean word. The compare is case-insensitive. 1 is returned if both are equal,
+ * otherwise zero. This intends to be used when checking HTTP headers for some
+ * values. Note that it validates a word followed only by blanks but does not
+ * validate a word followed by blanks then other chars.
+ */
+int word_match(const char *sample, int slen, const char *word, int wlen)
+{
+	if (slen < wlen)
+		return 0;
+
+	while (wlen) {
+		char c = *sample ^ *word;
+		if (c && c != ('A' ^ 'a'))
+			return 0;
+		sample++;
+		word++;
+		slen--;
+		wlen--;
+	}
+
+	while (slen) {
+		if (*sample != ' ' && *sample != '\t')
+			return 0;
+		sample++;
+		slen--;
+	}
+	return 1;
+}
 
 /*
  * Local variables:

@@ -2,7 +2,7 @@
  * include/common/standard.h
  * This files contains some general purpose functions and macros.
  *
- * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -362,5 +362,12 @@ char *my_strndup(const char *src, int n);
  * ID tree <root>. Zero is returned if no place is found.
  */
 unsigned int get_next_id(struct eb_root *root, unsigned int key);
+
+/* This function compares a sample word possibly followed by blanks to another
+ * clean word. The compare is case-insensitive. 1 is returned if both are equal,
+ * otherwise zero. This intends to be used when checking HTTP headers for some
+ * values.
+ */
+int word_match(const char *sample, int slen, const char *word, int wlen);
 
 #endif /* _COMMON_STANDARD_H */
