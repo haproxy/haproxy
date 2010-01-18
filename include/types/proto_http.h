@@ -84,8 +84,8 @@
 #define TX_CON_WANT_CLO 0x00300000
 #define TX_CON_WANT_MSK 0x00300000	/* this is the mask to get the bits */
 
-#define TX_CON_HDR_PARS	0x00400000	/* "connection" header already parsed (req or res) */
-#define TX_REQ_CONN_CLO	0x00800000	/* request asks for "Connection: close" mode */
+#define TX_CON_CLO_SET  0x00400000	/* "connection: close" is now set */
+#define TX_CON_KAL_SET  0x00800000	/* "connection: keep-alive" is now set */
 
 /* if either of these flags is not set, we may be forced to complete an
  * connection as a half-way tunnel. For instance, if no content-length
@@ -94,6 +94,11 @@
 #define TX_REQ_XFER_LEN	0x01000000	/* request xfer size can be determined */
 #define TX_RES_XFER_LEN	0x02000000	/* response xfer size can be determined */
 #define TX_WAIT_NEXT_RQ	0x04000000	/* waiting for the second request to start, use keep-alive timeout */
+
+#define TX_HDR_CONN_PRS	0x08000000	/* "connection" header already parsed (req or res), results below */
+#define TX_HDR_CONN_CLO	0x10000000	/* "Connection: close" was present at least once */
+#define TX_HDR_CONN_KAL	0x20000000	/* "Connection: keep-alive" was present at least once */
+
 
 /* The HTTP parser is more complex than it looks like, because we have to
  * support multi-line headers and any number of spaces between the colon and

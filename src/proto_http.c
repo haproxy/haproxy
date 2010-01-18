@@ -1831,64 +1831,88 @@ static int http_upgrade_v09_to_v10(struct buffer *req, struct http_msg *msg, str
 	return 1;
 }
 
-/* Parse the Connection: headaer of an HTTP request, and set the transaction
- * flag TX_REQ_CONN_CLO if a "close" mode is expected. The TX_CON_HDR_PARS flag
- * is also set so that we don't parse a second time. If some dangerous values
- * are encountered, we leave the status to indicate that the request might be
- * interpreted as keep-alive, but we also set the connection flags to indicate
- * that we WANT it to be a close, so that the header will be fixed. This
- * function should only be called when we know we're interested in checking
- * the request (not a CONNECT, and FE or BE mangles the header).
+/* Parse the Connection: header of an HTTP request, looking for both "close"
+ * and "keep-alive" values. If a buffer is provided and we already know that
+ * some headers may safely be removed, we remove them now. The <to_del> flags
+ * are used for that :
+ *  - bit 0 means remove "close" headers (in HTTP/1.0 requests/responses)
+ *  - bit 1 means remove "keep-alive" headers (in HTTP/1.1 reqs/resp to 1.1).
+ * The TX_HDR_CONN_* flags are adjusted in txn->flags depending on what was
+ * found, and TX_CON_*_SET is adjusted depending on what is left so only
+ * harmless combinations may be removed. Do not call that after changes have
+ * been processed. If unused, the buffer can be NULL, and no data will be
+ * changed.
  */
-void http_req_parse_connection_header(struct http_txn *txn)
+void http_parse_connection_header(struct http_txn *txn, struct http_msg *msg, struct buffer *buf, int to_del)
 {
-	struct http_msg *msg = &txn->req;
 	struct hdr_ctx ctx;
-	int conn_cl, conn_ka;
 
-	if (txn->flags & TX_CON_HDR_PARS)
+	if (txn->flags & TX_HDR_CONN_PRS)
 		return;
 
-	conn_cl = 0;
-	conn_ka = 0;
+	ctx.idx = 0;
+	txn->flags &= ~(TX_CON_KAL_SET|TX_CON_CLO_SET);
+	while (http_find_header2("Connection", 10, msg->sol, &txn->hdr_idx, &ctx)) {
+		if (ctx.vlen >= 10 && word_match(ctx.line + ctx.val, ctx.vlen, "keep-alive", 10)) {
+			txn->flags |= TX_HDR_CONN_KAL;
+			if ((to_del & 2) && buf)
+				http_remove_header2(msg, buf, &txn->hdr_idx, &ctx);
+			else
+				txn->flags |= TX_CON_KAL_SET;
+		}
+		else if (ctx.vlen >= 5 && word_match(ctx.line + ctx.val, ctx.vlen, "close", 5)) {
+			txn->flags |= TX_HDR_CONN_CLO;
+			if ((to_del & 1) && buf)
+				http_remove_header2(msg, buf, &txn->hdr_idx, &ctx);
+			else
+				txn->flags |= TX_CON_CLO_SET;
+		}
+	}
+
+	txn->flags |= TX_HDR_CONN_PRS;
+	return;
+}
+
+/* Apply desired changes on the Connection: header. Values may be removed and/or
+ * added depending on the <wanted> flags, which are exclusively composed of
+ * TX_CON_CLO_SET and TX_CON_KAL_SET, depending on what flags are desired. The
+ * TX_CON_*_SET flags are adjusted in txn->flags depending on what is left.
+ */
+void http_change_connection_header(struct http_txn *txn, struct http_msg *msg, struct buffer *buf, int wanted)
+{
+	struct hdr_ctx ctx;
+
 	ctx.idx = 0;
 
+	txn->flags &= ~(TX_CON_CLO_SET | TX_CON_KAL_SET);
 	while (http_find_header2("Connection", 10, msg->sol, &txn->hdr_idx, &ctx)) {
-		if (ctx.vlen == 5 && strncasecmp(ctx.line + ctx.val, "close", 5) == 0)
-			conn_cl = 1;
-		else if (ctx.vlen == 10 && strncasecmp(ctx.line + ctx.val, "keep-alive", 10) == 0)
-			conn_ka = 1;
-	}
-
-	/* Determine if the client wishes keep-alive or close.
-	 * RFC2616 #8.1.2 and #14.10 state that HTTP/1.1 and above connections
-	 * are persistent unless "Connection: close" is explicitly specified.
-	 * RFC2616 #19.6.2 refers to RFC2068 for HTTP/1.0 persistent connections.
-	 * RFC2068 #19.7.1 states that HTTP/1.0 clients are not persistent unless
-	 * they explicitly specify "Connection: Keep-Alive", regardless of any
-	 * optional "Keep-Alive" header.
-	 * Note that if we find a request with both "Connection: close" and
-	 * "Connection: Keep-Alive", we indicate we want a close but don't have
-	 * it, so that it can be enforced later.
-	 */
-
-	if (conn_cl && conn_ka) {
-		txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
-	}
-	else if (txn->flags & TX_REQ_VER_11) {	/* HTTP/1.1 */
-		if (conn_cl) {
-			txn->flags |= TX_REQ_CONN_CLO;
-			if ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN)
-				txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
+		if (ctx.vlen >= 10 && word_match(ctx.line + ctx.val, ctx.vlen, "keep-alive", 10)) {
+			if (wanted & TX_CON_KAL_SET)
+				txn->flags |= TX_CON_KAL_SET;
+			else
+				http_remove_header2(msg, buf, &txn->hdr_idx, &ctx);
 		}
-	} else {	/* HTTP/1.0 */
-		if (!conn_ka) {
-			txn->flags |= TX_REQ_CONN_CLO;
-			if ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN)
-				txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
+		else if (ctx.vlen >= 5 && word_match(ctx.line + ctx.val, ctx.vlen, "close", 5)) {
+			if (wanted & TX_CON_CLO_SET)
+				txn->flags |= TX_CON_CLO_SET;
+			else
+				http_remove_header2(msg, buf, &txn->hdr_idx, &ctx);
 		}
 	}
-	txn->flags |= TX_CON_HDR_PARS;
+
+	if (wanted == (txn->flags & (TX_CON_CLO_SET|TX_CON_KAL_SET)))
+		return;
+
+	if ((wanted & TX_CON_CLO_SET) && !(txn->flags & TX_CON_CLO_SET)) {
+		txn->flags |= TX_CON_CLO_SET;
+		http_header_add_tail2(buf, msg, &txn->hdr_idx, "Connection: close", 17);
+	}
+
+	if ((wanted & TX_CON_KAL_SET) && !(txn->flags & TX_CON_KAL_SET)) {
+		txn->flags |= TX_CON_KAL_SET;
+		http_header_add_tail2(buf, msg, &txn->hdr_idx, "Connection: keep-alive", 22);
+	}
+	return;
 }
 
 /* Parse the chunk size at buf->lr. Once done, it adjusts ->lr to point to the
@@ -2509,7 +2533,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 		txn->flags |= TX_REQ_VER_11;
 
 	/* "connection" has not been parsed yet */
-	txn->flags &= ~TX_CON_HDR_PARS;
+	txn->flags &= ~(TX_HDR_CONN_PRS | TX_HDR_CONN_CLO | TX_HDR_CONN_KAL);
 
 	/* transfer length unknown*/
 	txn->flags &= ~TX_REQ_XFER_LEN;
@@ -2649,7 +2673,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 	struct acl_cond *cond;
 	struct redirect_rule *rule;
 	struct wordlist *wl;
-	int cur_idx;
+	int del_ka, del_cl;
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
 		/* we need more data */
@@ -2725,12 +2749,22 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 	 * only change if both the request and the config reference something else.
 	 * Option httpclose by itself does not set a mode, it remains a tunnel mode
 	 * in which headers are mangled. However, if another mode is set, it will
-	 * affect it (eg: server-close/keep-alive + httpclose = close).
+	 * affect it (eg: server-close/keep-alive + httpclose = close). Note that we
+	 * avoid to redo the same work if FE and BE have the same settings (common).
+	 * The method consists in checking if options changed between the two calls
+	 * (implying that either one is non-null, or one of them is non-null and we
+	 * are there for the first time.
 	 */
 
+	del_cl = del_ka = 0;
+
 	if ((txn->meth != HTTP_METH_CONNECT) &&
-	    ((s->fe->options|s->be->options) & (PR_O_KEEPALIVE|PR_O_SERVER_CLO|PR_O_HTTP_CLOSE|PR_O_FORCE_CLO))) {
+	    ((!(txn->flags & TX_HDR_CONN_PRS) &&
+	      (s->fe->options & (PR_O_KEEPALIVE|PR_O_SERVER_CLO|PR_O_HTTP_CLOSE|PR_O_FORCE_CLO))) ||
+	     ((s->fe->options & (PR_O_KEEPALIVE|PR_O_SERVER_CLO|PR_O_HTTP_CLOSE|PR_O_FORCE_CLO)) !=
+	      (s->be->options & (PR_O_KEEPALIVE|PR_O_SERVER_CLO|PR_O_HTTP_CLOSE|PR_O_FORCE_CLO))))) {
 		int tmp = TX_CON_WANT_TUN;
+
 		if ((s->fe->options|s->be->options) & PR_O_KEEPALIVE)
 			tmp = TX_CON_WANT_KAL;
 		if ((s->fe->options|s->be->options) & PR_O_SERVER_CLO)
@@ -2741,80 +2775,26 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 		if ((txn->flags & TX_CON_WANT_MSK) < tmp)
 			txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | tmp;
 
-		if (!(txn->flags & TX_CON_HDR_PARS))
-			http_req_parse_connection_header(txn);
-
-		if ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN) {
-			if ((s->fe->options|s->be->options) & PR_O_HTTP_CLOSE)
-				txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
-			if (!(txn->flags & TX_REQ_XFER_LEN))
-				txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
+		if (!(txn->flags & TX_HDR_CONN_PRS)) {
+			/* parse the Connection header and possibly clean it */
+			int to_del = 0;
+			if ((txn->flags & TX_REQ_VER_11) ||
+			    (txn->flags & TX_CON_WANT_MSK) >= TX_CON_WANT_SCL)
+				to_del |= 2; /* remove "keep-alive" */
+			if (!(txn->flags & TX_REQ_VER_11))
+				to_del |= 1; /* remove "close" */
+			http_parse_connection_header(txn, msg, req, to_del);
 		}
+
+		/* check if client or config asks for explicit close in KAL/SCL */
+		if (((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL ||
+		     (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL) &&
+		    ((txn->flags & TX_HDR_CONN_CLO) ||                         /* "connection: close" */
+		     (txn->flags & (TX_REQ_VER_11|TX_HDR_CONN_KAL)) == 0 ||    /* no "connection: k-a" in 1.0 */
+		     ((s->fe->options|s->be->options) & PR_O_HTTP_CLOSE) ||    /* httpclose + any = forceclose */
+		     !(txn->flags & TX_REQ_XFER_LEN)))                         /* no length known => close */
+		    txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
 	}
-
-	/* We're really certain of the connection mode (tunnel, close, keep-alive)
-	 * once we know the backend, because the tunnel mode can be implied by the
-	 * lack of any close/keepalive options in both the FE and the BE. Since
-	 * this information can evolve with time, we proceed by trying to make the
-	 * header status match the desired status. For this, we'll have to adjust
-	 * the "Connection" header. The test for persistent connections has already
-	 * been performed, so we only enter here if there is a risk the connection
-	 * is considered as persistent and we want it to be closed on the server
-	 * side. It would be nice if we could enter this place only when a
-	 * Connection header exists. Note that a CONNECT method will not enter
-	 * here.
-	 */
-	if (!(txn->flags & TX_REQ_CONN_CLO) &&
-	    ((txn->flags & TX_CON_WANT_MSK) >= TX_CON_WANT_SCL ||
-	     ((s->fe->options|s->be->options) & PR_O_HTTP_CLOSE))) {
-		char *cur_ptr, *cur_end, *cur_next;
-		int old_idx, delta, val;
-		int must_delete;
-		struct hdr_idx_elem *cur_hdr;
-
-		must_delete = !(txn->flags & TX_REQ_VER_11);
-		cur_next = req->data + txn->req.som + hdr_idx_first_pos(&txn->hdr_idx);
-
-		for (old_idx = 0; (cur_idx = txn->hdr_idx.v[old_idx].next); old_idx = cur_idx) {
-			cur_hdr  = &txn->hdr_idx.v[cur_idx];
-			cur_ptr  = cur_next;
-			cur_end  = cur_ptr + cur_hdr->len;
-			cur_next = cur_end + cur_hdr->cr + 1;
-
-			val = http_header_match2(cur_ptr, cur_end, "Connection", 10);
-			if (!val)
-				continue;
-
-			/* 3 possibilities :
-			 * - we have already set "Connection: close" or we're in
-			 *   HTTP/1.0, so we remove this line.
-			 * - we have not yet set "Connection: close", but this line
-			 *   indicates close. We leave it untouched and set the flag.
-			 * - we have not yet set "Connection: close", and this line
-			 *   indicates non-close. We replace it and set the flag.
-			 */
-			if (must_delete) {
-				delta = buffer_replace2(req, cur_ptr, cur_next, NULL, 0);
-				http_msg_move_end(&txn->req, delta);
-				cur_next += delta;
-				txn->hdr_idx.v[old_idx].next = cur_hdr->next;
-				txn->hdr_idx.used--;
-				cur_hdr->len = 0;
-				txn->flags |= TX_REQ_CONN_CLO;
-			} else {
-				if (cur_end - cur_ptr - val != 5 ||
-				    strncasecmp(cur_ptr + val, "close", 5) != 0) {
-					delta = buffer_replace2(req, cur_ptr + val, cur_end,
-								"close", 5);
-					cur_next += delta;
-					cur_hdr->len += delta;
-					http_msg_move_end(&txn->req, delta);
-				}
-				txn->flags |= TX_REQ_CONN_CLO;
-				must_delete = 1;
-			}
-		} /* for loop */
-	} /* if must close keep-alive */
 
 	/* add request headers from the rule sets in the same order */
 	list_for_each_entry(wl, &px->req_add, list) {
@@ -3191,15 +3171,24 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 		}
 	}
 
-	/* 11: add "Connection: close" if needed and not yet set. */
-	if (!(txn->flags & TX_REQ_CONN_CLO) &&
-	    ((txn->flags & TX_CON_WANT_MSK) >= TX_CON_WANT_SCL ||
-	     ((s->fe->options|s->be->options) & PR_O_HTTP_CLOSE))) {
-		if (unlikely(http_header_add_tail2(req, &txn->req, &txn->hdr_idx,
-						   "Connection: close", 17) < 0))
-			goto return_bad_req;
-		txn->flags |= TX_REQ_CONN_CLO;
+	/* 11: add "Connection: close" or "Connection: keep-alive" if needed and not yet set. */
+	if (((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN) ||
+	    ((s->fe->options|s->be->options) & PR_O_HTTP_CLOSE)) {
+		unsigned int want_flags = 0;
+
+		if (txn->flags & TX_REQ_VER_11) {
+			if ((txn->flags & TX_CON_WANT_MSK) >= TX_CON_WANT_SCL ||
+			    ((s->fe->options|s->be->options) & PR_O_HTTP_CLOSE))
+				want_flags |= TX_CON_CLO_SET;
+		} else {
+			if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL)
+				want_flags |= TX_CON_KAL_SET;
+		}
+
+		if (want_flags != (txn->flags & (TX_CON_CLO_SET|TX_CON_KAL_SET)))
+			http_change_connection_header(txn, msg, req, want_flags);
 	}
+
 
 	/* If we have no server assigned yet and we're balancing on url_param
 	 * with a POST request, we may be interested in checking the body for
@@ -4271,7 +4260,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 		txn->flags |= TX_RES_VER_11;
 
 	/* "connection" has not been parsed yet */
-	txn->flags &= ~TX_CON_HDR_PARS;
+	txn->flags &= ~(TX_HDR_CONN_PRS | TX_HDR_CONN_CLO | TX_HDR_CONN_KAL);
 
 	/* transfer length unknown*/
 	txn->flags &= ~TX_RES_XFER_LEN;
@@ -4471,7 +4460,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 	 */
 
 	if ((txn->meth != HTTP_METH_CONNECT) &&
-	    (txn->status >= 200) && !(txn->flags & TX_CON_HDR_PARS) &&
+	    (txn->status >= 200) && !(txn->flags & TX_HDR_CONN_PRS) &&
 	    ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN ||
 	     ((t->fe->options|t->be->options) & PR_O_HTTP_CLOSE))) {
 		int may_keep = 0, may_close = 0; /* how it may be understood */
