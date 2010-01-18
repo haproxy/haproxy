@@ -4260,7 +4260,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 		txn->flags |= TX_RES_VER_11;
 
 	/* "connection" has not been parsed yet */
-	txn->flags &= ~(TX_HDR_CONN_PRS | TX_HDR_CONN_CLO | TX_HDR_CONN_KAL);
+	txn->flags &= ~(TX_HDR_CONN_PRS|TX_HDR_CONN_CLO|TX_HDR_CONN_KAL|TX_CON_CLO_SET|TX_CON_KAL_SET);
 
 	/* transfer length unknown*/
 	txn->flags &= ~TX_RES_XFER_LEN;
@@ -4424,9 +4424,6 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 	struct http_msg *msg = &txn->rsp;
 	struct proxy *cur_proxy;
 	struct wordlist *wl;
-	int conn_ka = 0, conn_cl = 0;
-	int must_close = 0;
-	int must_del_close = 0, must_keep = 0;
 
 	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
@@ -4457,134 +4454,45 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 	 * ambiguous cases such as both close and keepalive are seen, then we
 	 * will fall back to explicit close. Note that we won't take risks with
 	 * HTTP/1.0 clients which may not necessarily understand keep-alive.
+	 * See doc/internals/connection-header.txt for the complete matrix.
 	 */
 
 	if ((txn->meth != HTTP_METH_CONNECT) &&
 	    (txn->status >= 200) && !(txn->flags & TX_HDR_CONN_PRS) &&
 	    ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN ||
 	     ((t->fe->options|t->be->options) & PR_O_HTTP_CLOSE))) {
-		int may_keep = 0, may_close = 0; /* how it may be understood */
-		struct hdr_ctx ctx;
+		int to_del = 0;
 
-		ctx.idx = 0;
-		while (http_find_header2("Connection", 10, msg->sol, &txn->hdr_idx, &ctx)) {
-			if (ctx.vlen == 5 && strncasecmp(ctx.line + ctx.val, "close", 5) == 0)
-				conn_cl = 1;
-			else if (ctx.vlen == 10 && strncasecmp(ctx.line + ctx.val, "keep-alive", 10) == 0)
-				conn_ka = 1;
-		}
-
-		if (conn_cl) {
-			/* close header present */
-			may_close = 1;
-			if (conn_ka)	/* we have both close and keep-alive */
-				may_keep = 1;
-		}
-		else if (conn_ka) {
-			/* keep-alive alone */
-			may_keep = 1;
-		}
-		else {
-			/* no close nor keep-alive header */
-			if (txn->flags & TX_RES_VER_11)
-				may_keep = 1;
-			else
-				may_close = 1;
-
-			if (txn->flags & TX_REQ_VER_11)
-				may_keep = 1;
-			else
-				may_close = 1;
-		}
-
-		/* let's update the transaction status to reflect any close.
-		 * Note that ambiguous cases with keep & close will also be
-		 * handled. We also explicitly state that we will close in
-		 * case of an ambiguous response having no content-length.
-		 */
-		if ((may_close && ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN) &&
-		     (may_keep || ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_SCL))) ||
-		    !(txn->flags & TX_RES_XFER_LEN))
+		/* on unknown transfer length, we must close */
+		if (!(txn->flags & TX_RES_XFER_LEN) &&
+		    (txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN)
 			txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
 
-		/* Now we must adjust the response header :
-		 *  - set "close" if may_keep and (WANT_CLO | httpclose)
-		 *  - remove "close" if WANT_SCL and REQ_1.1 and may_close and (content-length or TE_CHNK)
-		 *  - add "keep-alive" if WANT_SCL and REQ_1.0 and may_close and content-length
-		 */
-		if (may_keep &&
-		    ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_CLO ||
-		     ((t->fe->options|t->be->options) & PR_O_HTTP_CLOSE)))
-			must_close = 1;
-		else if (((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL) &&
-			 may_close && (txn->flags & TX_RES_XFER_LEN)) {
-			must_del_close = 1;
-			if (!(txn->flags & TX_REQ_VER_11))
-				must_keep = 1;
+		/* now adjust header transformations depending on current state */
+		if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_TUN ||
+		    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_CLO) {
+			to_del |= 2; /* remove "keep-alive" on any response */
+			if (!(txn->flags & TX_RES_VER_11))
+				to_del |= 1; /* remove "close" for HTTP/1.0 responses */
+		}
+		else { /* SCL / KAL */
+			to_del |= 1; /* remove "close" on any response */
+			if ((txn->flags & (TX_RES_VER_11|TX_REQ_VER_11)) == (TX_RES_VER_11|TX_REQ_VER_11))
+				to_del |= 2; /* remove "keep-alive" on pure 1.1 responses */
 		}
 
-		txn->flags |= TX_CON_HDR_PARS;
+		/* Parse and remove some headers from the connection header */
+		http_parse_connection_header(txn, msg, rep, to_del);
+
+		/* Some keep-alive responses are converted to Server-close if
+		 * the server wants to close.
+		 */
+		if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL) {
+			if ((txn->flags & TX_HDR_CONN_CLO) ||
+			    (txn->flags & (TX_HDR_CONN_KAL|TX_RES_VER_11)) == 0)
+				txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_SCL;
+		}
 	}
-
-	/* We might have to check for "Connection:" if the server
-	 * returns a connection status that is not compatible with
-	 * the client's or with the config.
-	 */
-	if ((txn->status >= 200) && (must_del_close|must_close) && (conn_cl|conn_ka)) {
-		char *cur_ptr, *cur_end, *cur_next;
-		int cur_idx, old_idx, delta, val;
-		int must_delete;
-		struct hdr_idx_elem *cur_hdr;
-
-		/* we just have to remove the headers if both sides are 1.0 */
-		must_delete = !(txn->flags & TX_REQ_VER_11) && !(txn->flags & TX_RES_VER_11);
-
-		/* same if we want to re-enable keep-alive on 1.1 */
-		must_delete |= must_del_close;
-
-		cur_next = txn->rsp.sol + hdr_idx_first_pos(&txn->hdr_idx);
-
-		for (old_idx = 0; (cur_idx = txn->hdr_idx.v[old_idx].next); old_idx = cur_idx) {
-			cur_hdr  = &txn->hdr_idx.v[cur_idx];
-			cur_ptr  = cur_next;
-			cur_end  = cur_ptr + cur_hdr->len;
-			cur_next = cur_end + cur_hdr->cr + 1;
-
-			val = http_header_match2(cur_ptr, cur_end, "Connection", 10);
-			if (!val)
-				continue;
-
-			/* 3 possibilities :
-			 * - we have already set "Connection: close" or we're in
-			 *   HTTP/1.0, so we remove this line.
-			 * - we have not yet set "Connection: close", but this line
-			 *   indicates close. We leave it untouched and set the flag.
-			 * - we have not yet set "Connection: close", and this line
-			 *   indicates non-close. We replace it and set the flag.
-			 */
-			if (must_delete) {
-				delta = buffer_replace2(rep, cur_ptr, cur_next, NULL, 0);
-				http_msg_move_end(&txn->rsp, delta);
-				cur_next += delta;
-				txn->hdr_idx.v[old_idx].next = cur_hdr->next;
-				txn->hdr_idx.used--;
-				cur_hdr->len = 0;
-				must_close = 0;
-				must_del_close = 0;
-			} else {
-				if (cur_end - cur_ptr - val != 5 ||
-				    strncasecmp(cur_ptr + val, "close", 5) != 0) {
-					delta = buffer_replace2(rep, cur_ptr + val, cur_end,
-								"close", 5);
-					cur_next += delta;
-					cur_hdr->len += delta;
-					http_msg_move_end(&txn->rsp, delta);
-				}
-				must_delete = 1;
-				must_close = 0;
-			}
-		} /* for loop */
-	} /* if must close keep-alive */
 
 	if (1) {
 		/*
@@ -4748,21 +4656,30 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 		}
 
 		/*
-		 * 8: add "Connection: close" if needed and not yet set. This is
-		 * only needed for 1.1 responses since we know there is no other
-		 * Connection header.
+		 * 8: adjust "Connection: close" or "Connection: keep-alive" if needed.
 		 */
-		if (must_close && (txn->flags & TX_RES_VER_11)) {
-			if (unlikely(http_header_add_tail2(rep, &txn->rsp, &txn->hdr_idx,
-							   "Connection: close", 17) < 0))
-				goto return_bad_resp;
-			must_close = 0;
-		}
-		else if (must_keep && !(txn->flags & TX_REQ_VER_11)) {
-			if (unlikely(http_header_add_tail2(rep, &txn->rsp, &txn->hdr_idx,
-							   "Connection: keep-alive", 22) < 0))
-				goto return_bad_resp;
-			must_keep = 0;
+		if (((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN) ||
+		    ((t->fe->options|t->be->options) & PR_O_HTTP_CLOSE)) {
+			unsigned int want_flags = 0;
+
+			if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL ||
+			    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL) {
+				/* we want a keep-alive response here. Keep-alive header
+				 * required if either side is not 1.1.
+				 */
+				if ((txn->flags & (TX_REQ_VER_11|TX_RES_VER_11)) != (TX_REQ_VER_11|TX_RES_VER_11))
+					want_flags |= TX_CON_KAL_SET;
+			}
+			else {
+				/* we want a close response here. Close header required if
+				 * the server is 1.1, regardless of the client.
+				 */
+				if (txn->flags & TX_RES_VER_11)
+					want_flags |= TX_CON_CLO_SET;
+			}
+
+			if (want_flags != (txn->flags & (TX_CON_CLO_SET|TX_CON_KAL_SET)))
+				http_change_connection_header(txn, msg, rep, want_flags);
 		}
 
 		if (txn->flags & TX_RES_XFER_LEN)

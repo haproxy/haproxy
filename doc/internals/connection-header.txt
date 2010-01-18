@@ -71,7 +71,7 @@ SCL    1.1       both       CLO       del_ka
 
 CLO    1.0         -        CLO        -
 CLO    1.0        ka        CLO       del_ka
-CLO    1.0       close      CLO       del_clo
+CLO    1.0       close      CLO       del_close
 CLO    1.0       both       CLO       del_ka, del_close
 
 CLO    1.1         -        CLO       add_close
@@ -149,7 +149,7 @@ KAL    1.1       ka       1.1       KAL       del_ka
 KAL    1.1      close     1.0       SCL       del_close, add_ka
 KAL    1.1      close     1.1       SCL       del_close
 KAL    1.1      both      1.0       SCL       del_close
-KAL    1.1      both      1.1       SCL       del_ka
+KAL    1.1      both      1.1       SCL       del_ka, del_close
 
 SCL    1.0        -       any       SCL       add_ka
 SCL    1.0       ka       any       SCL        -
@@ -163,7 +163,7 @@ SCL    1.1       ka       1.1       SCL       del_ka
 SCL    1.1      close     1.0       SCL       del_close, add_ka
 SCL    1.1      close     1.1       SCL       del_close
 SCL    1.1      both      1.0       SCL       del_close
-SCL    1.1      both      1.1       SCL       del_ka
+SCL    1.1      both      1.1       SCL       del_ka, del_close
 
 CLO    1.0        -       any       CLO        -
 CLO    1.0       ka       any       CLO       del_ka
