@@ -300,13 +300,17 @@ struct http_txn {
 };
 
 /* This structure is used by http_find_header() to return values of headers.
- * The header starts at <line>, the value at <line>+<val> for <vlen> bytes.
+ * The header starts at <line>, the value at <line>+<val> for <vlen> bytes, and
+ * sets <line>+<del> to point to the last delimitor (colon or comma) before
+ * this value. <prev> points to the index of the header whose next is this one.
  */
 struct hdr_ctx {
-	const char *line;
+	char *line;
 	int  idx;
 	int  val;  /* relative to line */
 	int  vlen; /* relative to line+val */
+	int  del;  /* relative to line */
+	int  prev; /* index of previous header */
 };
 
 #endif /* _TYPES_PROTO_HTTP_H */

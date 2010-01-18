@@ -452,11 +452,11 @@ int http_header_match2(const char *hdr, const char *end,
 	return val - hdr;
 }
 
-/* Find the end of the header value contained between <s> and <e>.
- * See RFC2616, par 2.2 for more information. Note that it requires
- * a valid header to return a valid result.
+/* Find the end of the header value contained between <s> and <e>. See RFC2616,
+ * par 2.2 for more information. Note that it requires a valid header to return
+ * a valid result. This works for headers defined as comma-separated lists.
  */
-const char *find_hdr_value_end(const char *s, const char *e)
+char *find_hdr_value_end(char *s, const char *e)
 {
 	int quoted, qdpair;
 
@@ -476,29 +476,35 @@ const char *find_hdr_value_end(const char *s, const char *e)
  * structure holds everything necessary to use the header and find next
  * occurrence. If its <idx> member is 0, the header is searched from the
  * beginning. Otherwise, the next occurrence is returned. The function returns
- * 1 when it finds a value, and 0 when there is no more.
+ * 1 when it finds a value, and 0 when there is no more. It is designed to work
+ * with headers defined as comma-separated lists. As a special case, if ctx->val
+ * is NULL when searching for a new values of a header, the current header is
+ * rescanned. This allows rescanning after a header deletion.
  */
 int http_find_header2(const char *name, int len,
-		      const char *sol, struct hdr_idx *idx,
+		      char *sol, struct hdr_idx *idx,
 		      struct hdr_ctx *ctx)
 {
-	const char *eol, *sov;
-	int cur_idx;
+	char *eol, *sov;
+	int cur_idx, old_idx;
 
-	if (ctx->idx) {
+	cur_idx = ctx->idx;
+	if (cur_idx) {
 		/* We have previously returned a value, let's search
 		 * another one on the same line.
 		 */
-		cur_idx = ctx->idx;
 		sol = ctx->line;
-		sov = sol + ctx->val + ctx->vlen;
+		ctx->del = ctx->val + ctx->vlen;
+		sov = sol + ctx->del;
 		eol = sol + idx->v[cur_idx].len;
 
 		if (sov >= eol)
 			/* no more values in this header */
 			goto next_hdr;
 
-		/* values remaining for this header, skip the comma */
+		/* values remaining for this header, skip the comma but save it
+		 * for later use (eg: for header deletion).
+		 */
 		sov++;
 		while (sov < eol && http_is_lws[(unsigned char)*sov])
 			sov++;
@@ -508,8 +514,8 @@ int http_find_header2(const char *name, int len,
 
 	/* first request for this header */
 	sol += hdr_idx_first_pos(idx);
+	old_idx = 0;
 	cur_idx = hdr_idx_first_idx(idx);
-
 	while (cur_idx) {
 		eol = sol + idx->v[cur_idx].len;
 
@@ -524,12 +530,14 @@ int http_find_header2(const char *name, int len,
 		if ((len < eol - sol) &&
 		    (sol[len] == ':') &&
 		    (strncasecmp(sol, name, len) == 0)) {
-
+			ctx->del = len;
 			sov = sol + len + 1;
 			while (sov < eol && http_is_lws[(unsigned char)*sov])
 				sov++;
-		return_hdr:
+
 			ctx->line = sol;
+			ctx->prev = old_idx;
+		return_hdr:
 			ctx->idx  = cur_idx;
 			ctx->val  = sov - sol;
 
@@ -539,16 +547,67 @@ int http_find_header2(const char *name, int len,
 		}
 	next_hdr:
 		sol = eol + idx->v[cur_idx].cr + 1;
+		old_idx = cur_idx;
 		cur_idx = idx->v[cur_idx].next;
 	}
 	return 0;
 }
 
 int http_find_header(const char *name,
-		     const char *sol, struct hdr_idx *idx,
+		     char *sol, struct hdr_idx *idx,
 		     struct hdr_ctx *ctx)
 {
 	return http_find_header2(name, strlen(name), sol, idx, ctx);
+}
+
+/* Remove one value of a header. This only works on a <ctx> returned by one of
+ * the http_find_header functions. The value is removed, as well as surrounding
+ * commas if any. If the removed value was alone, the whole header is removed.
+ * The ctx is always updated accordingly, as well as buffer <buf> and HTTP
+ * message <msg>. The new index is returned. If it is zero, it means there is
+ * no more header, so any processing may stop. The ctx is always left in a form
+ * that can be handled by http_find_header2() to find next occurrence.
+ */
+int http_remove_header2(struct http_msg *msg, struct buffer *buf,
+			struct hdr_idx *idx, struct hdr_ctx *ctx)
+{
+	int cur_idx = ctx->idx;
+	char *sol = ctx->line;
+	struct hdr_idx_elem *hdr;
+	int delta, skip_comma;
+
+	if (!cur_idx)
+		return 0;
+
+	hdr = &idx->v[cur_idx];
+	if (sol[ctx->del] == ':' && ctx->val + ctx->vlen == hdr->len) {
+		/* This was the only value of the header, we must now remove it entirely. */
+		delta = buffer_replace2(buf, sol, sol + hdr->len + hdr->cr + 1, NULL, 0);
+		http_msg_move_end(msg, delta);
+		idx->used--;
+		hdr->len = 0;   /* unused entry */
+		idx->v[ctx->prev].next = idx->v[ctx->idx].next;
+		ctx->idx = ctx->prev;    /* walk back to the end of previous header */
+		ctx->line -= idx->v[ctx->idx].len + idx->v[cur_idx].cr + 1;
+		ctx->val = idx->v[ctx->idx].len; /* point to end of previous header */
+		ctx->vlen = 0;
+		return ctx->idx;
+	}
+
+	/* This was not the only value of this header. We have to remove between
+	 * ctx->del+1 and ctx->val+ctx->vlen+1 included. If it is the last entry
+	 * of the list, we remove the last separator.
+	 */
+
+	skip_comma = (ctx->val + ctx->vlen == hdr->len) ? 0 : 1;
+	delta = buffer_replace2(buf, sol + ctx->del + skip_comma,
+				sol + ctx->val + ctx->vlen + skip_comma,
+				NULL, 0);
+	hdr->len += delta;
+	http_msg_move_end(msg, delta);
+	ctx->val = ctx->del;
+	ctx->vlen = 0;
+	return ctx->idx;
 }
 
 /* This function handles a server error at the stream interface level. The

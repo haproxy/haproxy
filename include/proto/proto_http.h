@@ -84,7 +84,7 @@ void check_response_for_cacheability(struct session *t, struct buffer *rtr);
 int stats_check_uri_auth(struct session *t, struct proxy *backend);
 void init_proto_http();
 int http_find_header2(const char *name, int len,
-		      const char *sol, struct hdr_idx *idx,
+		      char *sol, struct hdr_idx *idx,
 		      struct hdr_ctx *ctx);
 void http_sess_log(struct session *s);
 void perform_http_redirect(struct session *s, struct stream_interface *si);
