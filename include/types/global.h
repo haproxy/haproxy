@@ -87,6 +87,10 @@ struct global {
 		int recv_enough;   /* how many input bytes at once are "enough" */
 		int bufsize;       /* buffer size in bytes, defaults to BUFSIZE */
 		int maxrewrite;    /* buffer max rewrite size in bytes, defaults to MAXREWRITE */
+		int client_sndbuf; /* set client sndbuf to this value if not null */
+		int client_rcvbuf; /* set client rcvbuf to this value if not null */
+		int server_sndbuf; /* set server sndbuf to this value if not null */
+		int server_rcvbuf; /* set server rcvbuf to this value if not null */
 	} tune;
 	struct listener stats_sock; /* unix socket listener for statistics */
 	struct proxy *stats_fe;     /* the frontend holding the stats settings */

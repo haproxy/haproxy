@@ -399,6 +399,10 @@ The following keywords are supported in the "global" section :
    - tune.maxaccept
    - tune.maxpollevents
    - tune.maxrewrite
+   - tune.rcvbuf.client
+   - tune.rcvbuf.server
+   - tune.sndbuf.client
+   - tune.sndbuf.server
 
  * Debugging
    - debug
@@ -638,6 +642,29 @@ tune.maxrewrite <number>
   to about 1024. It is automatically readjusted to half of bufsize if it is
   larger than that. This means you don't have to worry about it when changing
   bufsize.
+
+tune.rcvbuf.client <number>
+tune.rcvbuf.server <number>
+  Forces the kernel socket receive buffer size on the client or the server side
+  to the specified value in bytes. This value applies to all TCP/HTTP frontends
+  and backends. It should normally never be set, and the default size (0) lets
+  the kernel autotune this value depending on the amount of available memory.
+  However it can sometimes help to set it to very low values (eg: 4096) in
+  order to save kernel memory by preventing it from buffering too large amounts
+  of received data. Lower values will significantly increase CPU usage though.
+
+tune.sndbuf.client <number>
+tune.sndbuf.server <number>
+  Forces the kernel socket send buffer size on the client or the server side to
+  the specified value in bytes. This value applies to all TCP/HTTP frontends
+  and backends. It should normally never be set, and the default size (0) lets
+  the kernel autotune this value depending on the amount of available memory.
+  However it can sometimes help to set it to very low values (eg: 4096) in
+  order to save kernel memory by preventing it from buffering too large amounts
+  of received data. Lower values will significantly increase CPU usage though.
+  Another use case is to prevent write timeouts with extremely slow clients due
+  to the kernel waiting for a large part of the buffer to be read before
+  notifying haproxy again.
 
 
 3.3. Debugging

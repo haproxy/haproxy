@@ -172,6 +172,12 @@ int event_accept(int fd) {
 		if (p->options & PR_O_TCP_NOLING)
 			setsockopt(cfd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
 
+		if (global.tune.client_sndbuf)
+			setsockopt(cfd, SOL_SOCKET, SO_SNDBUF, &global.tune.client_sndbuf, sizeof(global.tune.client_sndbuf));
+
+		if (global.tune.client_rcvbuf)
+			setsockopt(cfd, SOL_SOCKET, SO_RCVBUF, &global.tune.client_rcvbuf, sizeof(global.tune.client_rcvbuf));
+
 		t->process = l->handler;
 		t->context = s;
 		t->nice = l->nice;

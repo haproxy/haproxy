@@ -475,6 +475,58 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		if (global.tune.maxrewrite >= global.tune.bufsize / 2)
 			global.tune.maxrewrite = global.tune.bufsize / 2;
 	}
+	else if (!strcmp(args[0], "tune.rcvbuf.client")) {
+		if (global.tune.client_rcvbuf != 0) {
+			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT;
+			goto out;
+		}
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		global.tune.client_rcvbuf = atol(args[1]);
+	}
+	else if (!strcmp(args[0], "tune.rcvbuf.server")) {
+		if (global.tune.server_rcvbuf != 0) {
+			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT;
+			goto out;
+		}
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		global.tune.server_rcvbuf = atol(args[1]);
+	}
+	else if (!strcmp(args[0], "tune.sndbuf.client")) {
+		if (global.tune.client_sndbuf != 0) {
+			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT;
+			goto out;
+		}
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		global.tune.client_sndbuf = atol(args[1]);
+	}
+	else if (!strcmp(args[0], "tune.sndbuf.server")) {
+		if (global.tune.server_sndbuf != 0) {
+			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT;
+			goto out;
+		}
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		global.tune.server_sndbuf = atol(args[1]);
+	}
 	else if (!strcmp(args[0], "uid")) {
 		if (global.uid != 0) {
 			Alert("parsing [%s:%d] : user/uid already specified. Continuing.\n", file, linenum);

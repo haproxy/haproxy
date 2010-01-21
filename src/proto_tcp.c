@@ -378,6 +378,12 @@ int tcpv4_connect_server(struct stream_interface *si,
                 setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, (char *) &zero, sizeof(zero));
 #endif
 
+	if (global.tune.server_sndbuf)
+                setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &global.tune.server_sndbuf, sizeof(global.tune.server_sndbuf));
+
+	if (global.tune.server_rcvbuf)
+                setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &global.tune.server_rcvbuf, sizeof(global.tune.server_rcvbuf));
+
 	if ((connect(fd, (struct sockaddr *)srv_addr, sizeof(struct sockaddr_in)) == -1) &&
 	    (errno != EINPROGRESS) && (errno != EALREADY) && (errno != EISCONN)) {
 
