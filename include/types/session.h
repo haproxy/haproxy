@@ -2,7 +2,7 @@
  * include/types/session.h
  * This file defines everything related to sessions.
  *
- * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -47,7 +47,7 @@
 #define SN_ADDR_SET	0x00000004	/* this session's server address has been set */
 #define SN_BE_ASSIGNED	0x00000008	/* a backend was assigned. Conns are accounted. */
 
-/* unused:              0x00000010 */
+#define SN_FORCE_PRST	0x00000010	/* force persistence here, even if server is down */
 #define SN_MONITOR	0x00000020	/* this session comes from a monitoring system */
 #define SN_CURR_SESS	0x00000040	/* a connection is currently being counted on the server */
 #define SN_FRT_ADDR_SET	0x00000080	/* set if the frontend address has been filled */

@@ -276,7 +276,8 @@ int sess_update_st_cer(struct session *s, struct stream_interface *si)
 	 * bit to ignore any persistence cookie. We won't count a retry nor a
 	 * redispatch yet, because this will depend on what server is selected.
 	 */
-	if (s->srv && s->conn_retries == 0 && s->be->options & PR_O_REDISP) {
+	if (s->srv && s->conn_retries == 0 &&
+	    s->be->options & PR_O_REDISP && !(s->flags & SN_FORCE_PRST)) {
 		if (may_dequeue_tasks(s->srv, s->be))
 			process_srv_queue(s->srv);
 
@@ -543,12 +544,15 @@ static void sess_prepare_conn_req(struct session *s, struct stream_interface *si
 }
 
 /* This stream analyser checks the switching rules and changes the backend
- * if appropriate. The default_backend rule is also considered.
+ * if appropriate. The default_backend rule is also considered, then the
+ * target backend's forced persistence rules are also evaluated last if any.
  * It returns 1 if the processing can continue on next analysers, or zero if it
  * either needs more data or wants to immediately abort the request.
  */
 int process_switching_rules(struct session *s, struct buffer *req, int an_bit)
 {
+	struct force_persist_rule *prst_rule;
+
 	req->analysers &= ~an_bit;
 	req->analyse_exp = TICK_ETERNITY;
 
@@ -593,6 +597,26 @@ int process_switching_rules(struct session *s, struct buffer *req, int an_bit)
 	/* we don't want to run the HTTP filters again if the backend has not changed */
 	if (s->fe == s->be)
 		s->req->analysers &= ~AN_REQ_HTTP_PROCESS_BE;
+
+	/* as soon as we know the backend, we must check if we have a matching forced
+	 * persistence rule, and report that in the session.
+	 */
+	list_for_each_entry(prst_rule, &s->be->force_persist_rules, list) {
+		int ret = 1;
+
+		if (prst_rule->cond) {
+	                ret = acl_exec_cond(prst_rule->cond, s->be, s, &s->txn, ACL_DIR_REQ);
+			ret = acl_pass(ret);
+			if (prst_rule->cond->pol == ACL_COND_UNLESS)
+				ret = !ret;
+		}
+
+		if (ret) {
+			/* no rule, or the rule matches */
+			s->flags |= SN_FORCE_PRST;
+			break;
+		}
+	}
 
 	return 1;
 
@@ -669,7 +693,9 @@ int process_sticking_rules(struct session *s, struct buffer *req, int an_bit)
 							struct server *srv;
 
 							srv = container_of(node, struct server, conf.id);
-							if ((srv->state & SRV_RUNNING) || (px->options & PR_O_PERSIST)) {
+							if ((srv->state & SRV_RUNNING) ||
+							    (px->options & PR_O_PERSIST) ||
+							    (s->flags & SN_FORCE_PRST)) {
 								s->flags |= SN_DIRECT | SN_ASSIGNED;
 								s->srv = srv;
 							}

@@ -3504,7 +3504,7 @@ void http_end_txn_clean_session(struct session *s)
 	s->req->cons->flags     = SI_FL_NONE;
 	s->req->flags &= ~(BF_SHUTW|BF_SHUTW_NOW|BF_AUTO_CONNECT|BF_WRITE_ERROR|BF_STREAMER|BF_STREAMER_FAST);
 	s->rep->flags &= ~(BF_SHUTR|BF_SHUTR_NOW|BF_READ_ATTACHED|BF_READ_ERROR|BF_READ_NOEXP|BF_STREAMER|BF_STREAMER_FAST|BF_WRITE_PARTIAL);
-	s->flags &= ~(SN_DIRECT|SN_ASSIGNED|SN_ADDR_SET|SN_BE_ASSIGNED);
+	s->flags &= ~(SN_DIRECT|SN_ASSIGNED|SN_ADDR_SET|SN_BE_ASSIGNED|SN_FORCE_PRST);
 	s->flags &= ~(SN_CURR_SESS|SN_REDIRECTABLE);
 	s->txn.meth = 0;
 	http_reset_txn(s);
@@ -5215,7 +5215,9 @@ void manage_client_side_appsession(struct session *t, const char *buf, int len) 
 			struct server *srv = t->be->srv;
 			while (srv) {
 				if (strcmp(srv->id, asession->serverid) == 0) {
-					if (srv->state & SRV_RUNNING || t->be->options & PR_O_PERSIST) {
+					if ((srv->state & SRV_RUNNING) ||
+					    (t->be->options & PR_O_PERSIST) ||
+					    (t->flags & SN_FORCE_PRST)) {
 						/* we found the server and it's usable */
 						txn->flags &= ~TX_CK_MASK;
 						txn->flags |= TX_CK_VALID;
@@ -5411,7 +5413,9 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 					while (srv) {
 						if (srv->cookie && (srv->cklen == delim - p3) &&
 						    !memcmp(p3, srv->cookie, delim - p3)) {
-							if (srv->state & SRV_RUNNING || t->be->options & PR_O_PERSIST) {
+							if ((srv->state & SRV_RUNNING) ||
+							    (t->be->options & PR_O_PERSIST) ||
+							    (t->flags & SN_FORCE_PRST)) {
 								/* we found the server and it's usable */
 								txn->flags &= ~TX_CK_MASK;
 								txn->flags |= TX_CK_VALID;

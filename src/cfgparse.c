@@ -849,6 +849,7 @@ static void init_new_proxy(struct proxy *p)
 	LIST_INIT(&p->redirect_rules);
 	LIST_INIT(&p->mon_fail_cond);
 	LIST_INIT(&p->switching_rules);
+	LIST_INIT(&p->force_persist_rules);
 	LIST_INIT(&p->sticking_rules);
 	LIST_INIT(&p->storersp_rules);
 	LIST_INIT(&p->tcp_req.inspect_rules);
@@ -2037,6 +2038,58 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		rule->be.name = strdup(args[1]);
 		LIST_INIT(&rule->list);
 		LIST_ADDQ(&curproxy->switching_rules, &rule->list);
+	}
+	else if (!strcmp(args[0], "force-persist")) {
+		int pol = ACL_COND_NONE;
+		struct acl_cond *cond;
+		struct force_persist_rule *rule;
+
+		if (curproxy == &defproxy) {
+			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		if (warnifnotcap(curproxy, PR_CAP_FE|PR_CAP_BE, file, linenum, args[0], NULL))
+			err_code |= ERR_WARN;
+
+		if (!strcmp(args[1], "if"))
+			pol = ACL_COND_IF;
+		else if (!strcmp(args[1], "unless"))
+			pol = ACL_COND_UNLESS;
+
+		if (pol == ACL_COND_NONE) {
+			Alert("parsing [%s:%d] : '%s' requires either 'if' or 'unless' followed by a condition.\n",
+			      file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		if ((cond = parse_acl_cond((const char **)args + 2, &curproxy->acl, pol)) == NULL) {
+			Alert("parsing [%s:%d] : error detected while parsing a 'force-persist' rule.\n",
+			      file, linenum);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		cond->file = file;
+		cond->line = linenum;
+		curproxy->acl_requires |= cond->requires;
+		if (cond->requires & ACL_USE_RTR_ANY) {
+			struct acl *acl;
+			const char *name;
+
+			acl = cond_find_require(cond, ACL_USE_RTR_ANY);
+			name = acl ? acl->name : "(unknown)";
+			Warning("parsing [%s:%d] : acl '%s' involves some response-only criteria which will be ignored.\n",
+				file, linenum, name);
+			err_code |= ERR_WARN;
+		}
+
+		rule = (struct force_persist_rule *)calloc(1, sizeof(*rule));
+		rule->cond = cond;
+		LIST_INIT(&rule->list);
+		LIST_ADDQ(&curproxy->force_persist_rules, &rule->list);
 	}
 	else if (!strcmp(args[0], "stick-table")) {
 		int myidx = 1;
