@@ -532,8 +532,8 @@ int http_find_header(const char *name,
 static void http_server_error(struct session *t, struct stream_interface *si,
 			      int err, int finst, int status, const struct chunk *msg)
 {
+	buffer_abort(si->ob);
 	buffer_erase(si->ob);
-	buffer_erase(si->ib);
 	buffer_write_ena(si->ib);
 	if (status > 0 && msg) {
 		t->txn.status = status;
