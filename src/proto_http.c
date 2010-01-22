@@ -2260,6 +2260,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 			if (s->rep->send_max) {
 				/* don't let a connection request be initiated */
 				buffer_dont_connect(req);
+				s->rep->flags &= ~BF_EXPECT_MORE; /* speed up sending a previous response */
 				return 0;
 			}
 		}
@@ -2395,6 +2396,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 
 		buffer_dont_connect(req);
 		req->flags |= BF_READ_DONTWAIT; /* try to get back here ASAP */
+		s->rep->flags &= ~BF_EXPECT_MORE; /* speed up sending a previous response */
 
 		if ((msg->msg_state != HTTP_MSG_RQBEFORE) && (txn->flags & TX_WAIT_NEXT_RQ)) {
 			/* If the client starts to talk, let's fall back to
@@ -2427,6 +2429,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 		msg->msg_state = HTTP_MSG_RQBEFORE;
 		req->analysers = 0;
 		s->logs.logwait = 0;
+		s->rep->flags &= ~BF_EXPECT_MORE; /* speed up sending a previous response */
 		stream_int_retnclose(req->prod, NULL);
 		return 0;
 	}
