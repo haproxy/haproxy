@@ -160,6 +160,7 @@ struct proxy {
 	struct list block_cond;                 /* early blocking conditions (chained) */
 	struct list redirect_rules;             /* content redirecting rules (chained) */
 	struct list switching_rules;            /* content switching rules (chained) */
+	struct list force_persist_rules;        /* 'force-persist' rules (chained) */
 	struct {                                /* TCP request processing */
 		unsigned int inspect_delay;     /* inspection delay */
 		struct list inspect_rules;      /* inspection rules */
@@ -303,6 +304,11 @@ struct switching_rule {
 		struct proxy *backend;		/* target backend */
 		char *name;			/* target backend name during config parsing */
 	} be;
+};
+
+struct force_persist_rule {
+	struct list list;			/* list linked to from the proxy */
+	struct acl_cond *cond;			/* acl condition to meet */
 };
 
 struct redirect_rule {

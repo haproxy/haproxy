@@ -1615,6 +1615,34 @@ errorloc303 <code> <url>
   See also : "errorfile", "errorloc", "errorloc302"
 
 
+force-persist { if | unless } <condition>
+  Declare a condition to force persistence on down servers
+  May be used in sections:    defaults | frontend | listen | backend
+                                  no   |    yes   |   yes  |   yes
+
+  By default, requests are not dispatched to down servers. It is possible to
+  force this using "option persist", but it is unconditional and redispatches
+  to a valid server if "option redispatch" is set. That leaves with very little
+  possibilities to force some requests to reach a server which is artificially
+  marked down for maintenance operations.
+
+  The "force-persist" statement allows one to declare various ACL-based
+  conditions which, when met, will cause a request to ignore the down status of
+  a server and still try to connect to it. That makes it possible to start a
+  server, still replying an error to the health checks, and run a specially
+  configured browser to test the service. Among the handy methods, one could
+  use a specific source IP address, or a specific cookie. The cookie also has
+  the advantage that it can easily be added/removed on the browser from a test
+  page. Once the service is validated, it is then possible to open the service
+  to the world by returning a valid response to health checks.
+
+  The forced persistence is enabled when an "if" condition is met, or unless an
+  "unless" condition is met. The final redispatch is always disabled when this
+  is used.
+
+  See also : "option redispatch", "persist", and section 7 about ACL usage.
+
+
 fullconn <conns>
   Specify at what backend load the servers will reach their maxconn
   May be used in sections :   defaults | frontend | listen | backend
@@ -2617,7 +2645,7 @@ no option persist
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
 
-  See also : "option redispatch", "retries"
+  See also : "option redispatch", "retries", "force-persist"
 
 
 option redispatch
@@ -2644,7 +2672,7 @@ no option redispatch
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
 
-  See also : "redispatch", "retries"
+  See also : "redispatch", "retries", "force-persist"
 
 
 option smtpchk

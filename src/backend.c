@@ -2019,7 +2019,8 @@ int srv_redispatch_connect(struct session *t)
 		 * would bring us on the same server again. Note that t->srv is set in
 		 * this case.
 		 */
-		if ((t->flags & SN_DIRECT) && (t->be->options & PR_O_REDISP)) {
+		if (((t->flags & (SN_DIRECT|SN_FORCE_PRST)) == SN_DIRECT) &&
+		    (t->be->options & PR_O_REDISP)) {
 			t->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
 			t->prev_srv = t->srv;
 			goto redispatch;

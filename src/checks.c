@@ -65,7 +65,8 @@ static int redistribute_pending(struct server *s)
 
 	FOREACH_ITEM_SAFE(pc, pc_bck, &s->pendconns, pc_end, struct pendconn *, list) {
 		struct session *sess = pc->sess;
-		if (sess->be->options & PR_O_REDISP) {
+		if ((sess->be->options & (PR_O_REDISP|PR_O_PERSIST)) == PR_O_REDISP &&
+		    !(sess->flags & SN_FORCE_PRST)) {
 			/* The REDISP option was specified. We will ignore
 			 * cookie and force to balance or use the dispatcher.
 			 */

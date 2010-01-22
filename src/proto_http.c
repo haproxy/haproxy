@@ -1540,6 +1540,7 @@ int http_process_request(struct session *s, struct buffer *req)
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->req;
 	struct proxy *cur_proxy;
+	struct force_persist_rule *prst_rule;
 
 	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
@@ -2122,6 +2123,26 @@ int http_process_request(struct session *s, struct buffer *req)
 			s->be->beconn_max = s->be->beconn;
 		proxy_inc_be_ctr(s->be);
 		s->flags |= SN_BE_ASSIGNED;
+	}
+
+	/* as soon as we know the backend, we must check if we have a matching forced
+	 * persistence rule, and report that in the session.
+	 */
+	list_for_each_entry(prst_rule, &s->be->force_persist_rules, list) {
+		int ret = 1;
+
+		if (prst_rule->cond) {
+	                ret = acl_exec_cond(prst_rule->cond, s->be, s, &s->txn, ACL_DIR_REQ);
+			ret = acl_pass(ret);
+			if (prst_rule->cond->pol == ACL_COND_UNLESS)
+				ret = !ret;
+		}
+
+		if (ret) {
+			/* no rule, or the rule matches */
+			s->flags |= SN_FORCE_PRST;
+			break;
+		}
 	}
 
 	/*
@@ -3428,7 +3449,9 @@ void manage_client_side_appsession(struct session *t, const char *buf) {
 			struct server *srv = t->be->srv;
 			while (srv) {
 				if (strcmp(srv->id, asession->serverid) == 0) {
-					if (srv->state & SRV_RUNNING || t->be->options & PR_O_PERSIST) {
+					if ((srv->state & SRV_RUNNING) ||
+					    (t->be->options & PR_O_PERSIST) ||
+					    (t->flags & SN_FORCE_PRST)) {
 						/* we found the server and it's usable */
 						txn->flags &= ~TX_CK_MASK;
 						txn->flags |= TX_CK_VALID;
@@ -3624,7 +3647,9 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 					while (srv) {
 						if (srv->cookie && (srv->cklen == delim - p3) &&
 						    !memcmp(p3, srv->cookie, delim - p3)) {
-							if (srv->state & SRV_RUNNING || t->be->options & PR_O_PERSIST) {
+							if ((srv->state & SRV_RUNNING) ||
+							    (t->be->options & PR_O_PERSIST) ||
+							    (t->flags & SN_FORCE_PRST)) {
 								/* we found the server and it's usable */
 								txn->flags &= ~TX_CK_MASK;
 								txn->flags |= TX_CK_VALID;

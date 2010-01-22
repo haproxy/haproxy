@@ -52,7 +52,7 @@
 #define SN_REDISP	0x00000100	/* set if this session was redispatched from one server to another */
 #define SN_CONN_TAR	0x00000200	/* set if this session is turning around before reconnecting */
 #define SN_REDIRECTABLE	0x00000400	/* set if this session is redirectable (GET or HEAD) */
-/* unused:              0x00000800 */
+#define SN_FORCE_PRST	0x00000800	/* force persistence here, even if server is down */
 
 /* session termination conditions, bits values 0x1000 to 0x7000 (0-7 shift 12) */
 #define SN_ERR_NONE     0x00000000

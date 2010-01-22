@@ -280,7 +280,8 @@ int sess_update_st_cer(struct session *s, struct stream_interface *si)
 	 * bit to ignore any persistence cookie. We won't count a retry nor a
 	 * redispatch yet, because this will depend on what server is selected.
 	 */
-	if (s->srv && s->conn_retries == 0 && s->be->options & PR_O_REDISP) {
+	if (s->srv && s->conn_retries == 0 &&
+	    s->be->options & PR_O_REDISP && !(s->flags & SN_FORCE_PRST)) {
 		if (may_dequeue_tasks(s->srv, s->be))
 			process_srv_queue(s->srv);
 
