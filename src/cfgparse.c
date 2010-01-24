@@ -1409,6 +1409,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		int i, len=0;
 		char *d;
 
+		if (curproxy == &defproxy) {
+			Alert("parsing [%s:%d]: '%s' not allowed in 'defaults' section.\n",
+				 file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
 		if (!*args[1]) {
 			Alert("parsing [%s:%d]: '%s' expects a string argument.\n",
 				file, linenum, args[0]);
@@ -1711,6 +1718,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_WARN;
 
 		if (!strcmp(args[1], "cookie")) {  /* name of a cookie to capture */
+			if (curproxy == &defproxy) {
+				Alert("parsing [%s:%d] : '%s %s' not allowed in 'defaults' section.\n", file, linenum, args[0], args[1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+
 			if (*(args[4]) == 0) {
 				Alert("parsing [%s:%d] : '%s' expects 'cookie' <cookie_name> 'len' <len>.\n",
 				      file, linenum, args[0]);
@@ -1844,6 +1857,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		char *cookie = NULL;
 		int cookie_set = 0;
 		unsigned int flags = REDIRECT_FLAG_NONE;
+
+		if (curproxy == &defproxy) {
+			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
 
 		cur_arg = 1;
 		while (*(args[cur_arg])) {
@@ -3979,6 +3998,11 @@ stats_error_parsing:
 	}
 	else if (!strcmp(args[0], "srvexp") || !strcmp(args[0], "rsprep")) {  /* replace response header from a regex */
 		regex_t *preg;
+		if (curproxy == &defproxy) {
+			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
 	
 		if (*(args[1]) == 0 || *(args[2]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects <search> and <replace> as arguments.\n",
