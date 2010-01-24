@@ -5220,7 +5220,7 @@ void manage_client_side_appsession(struct session *t, const char *buf, int len) 
 					    (t->flags & SN_FORCE_PRST)) {
 						/* we found the server and it's usable */
 						txn->flags &= ~TX_CK_MASK;
-						txn->flags |= TX_CK_VALID;
+						txn->flags |= (srv->state & SRV_RUNNING) ? TX_CK_VALID : TX_CK_DOWN;
 						t->flags |= SN_DIRECT | SN_ASSIGNED;
 						t->srv = srv;
 						break;
@@ -5418,7 +5418,7 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 							    (t->flags & SN_FORCE_PRST)) {
 								/* we found the server and it's usable */
 								txn->flags &= ~TX_CK_MASK;
-								txn->flags |= TX_CK_VALID;
+								txn->flags |= (srv->state & SRV_RUNNING) ? TX_CK_VALID : TX_CK_DOWN;
 								t->flags |= SN_DIRECT | SN_ASSIGNED;
 								t->srv = srv;
 								break;
