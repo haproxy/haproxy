@@ -686,7 +686,7 @@ capture response header     -          X         X         -
 clitimeout                  X          X         X         -  (deprecated)
 contimeout                  X          -         X         X  (deprecated)
 cookie                      X          -         X         X
-default_backend             -          X         X         -
+default_backend             X          X         X         -
 description                 -          X         X         X
 disabled                    X          X         X         X
 dispatch                    -          -         X         X
@@ -696,7 +696,7 @@ errorloc                    X          X         X         X
 errorloc302                 X          X         X         X
 errorloc303                 X          X         X         X
 fullconn                    X          -         X         X
-grace                       -          X         X         X
+grace                       X          X         X         X
 http-check disable-on-404   X          -         X         X
 log                         X          X         X         X
 maxconn                     X          X         X         -
@@ -1676,7 +1676,7 @@ fullconn <conns>
 grace <time>
   Maintain a proxy operational for some time after a soft stop
   May be used in sections :   defaults | frontend | listen | backend
-                                  no   |    yes   |   yes  |   yes
+                                 yes   |    yes   |   yes  |   yes
   Arguments :
     <time>    is the time (by default in milliseconds) for which the instance
               will remain operational with the frontend sockets still listening
