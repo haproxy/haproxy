@@ -178,7 +178,7 @@ int buffer_si_peekline(struct buffer *buf, char *str, int len)
 /*
  * this function writes the string <str> at position <pos> which must be in buffer <b>,
  * and moves <end> just after the end of <str>.
- * <b>'s parameters (l, r, w, h, lr) are recomputed to be valid after the shift.
+ * <b>'s parameters (l, r, lr) are recomputed to be valid after the shift.
  * the shift value (positive or negative) is returned.
  * If there's no space left, the move is not done.
  * The function does not adjust ->send_max nor BF_OUT_EMPTY because it does not
@@ -196,6 +196,9 @@ int buffer_replace(struct buffer *b, char *pos, char *end, const char *str)
 	if (delta + b->r >= b->data + b->size)
 		return 0;  /* no space left */
 
+	if (delta + b->r > b->w && b->w >= b->r && b->l)
+		return 0;  /* no space left before wrapping data */
+
 	/* first, protect the end of the buffer */
 	memmove(end + delta, end, b->r - end);
 
@@ -204,7 +207,6 @@ int buffer_replace(struct buffer *b, char *pos, char *end, const char *str)
 
 	/* we only move data after the displaced zone */
 	if (b->r  > pos) b->r  += delta;
-	if (b->w  > pos) b->w  += delta;
 	if (b->lr > pos) b->lr += delta;
 	b->l += delta;
 
@@ -230,6 +232,9 @@ int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int
 	if (delta + b->r >= b->data + b->size)
 		return 0;  /* no space left */
 
+	if (delta + b->r > b->w && b->w >= b->r && b->l)
+		return 0;  /* no space left before wrapping data */
+
 	/* first, protect the end of the buffer */
 	memmove(end + delta, end, b->r - end);
 
@@ -239,7 +244,6 @@ int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int
 
 	/* we only move data after the displaced zone */
 	if (b->r  > pos) b->r  += delta;
-	if (b->w  > pos) b->w  += delta;
 	if (b->lr > pos) b->lr += delta;
 	b->l += delta;
 
