@@ -1,6 +1,13 @@
 ChangeLog :
 ===========
 
+2010/01/25 : 1.4-dev8
+    - [CLEANUP] Keep in sync "defaults" support between documentation and code
+    - [MEDIUM] http: add support for Proxy-Connection header
+    - [CRITICAL] buffers: buffer_insert_line2 must not change the ->w entry
+    - [MINOR] http: remove a copy-paste typo in transaction cleaning
+    - [BUG] http: trim any excess buffer data when recycling a connection
+
 2010/01/25 : 1.4-dev7
     - [BUG] appsession: possible memory leak in case of out of memory condition
     - [MINOR] config: don't accept 'appsession' in defaults section
