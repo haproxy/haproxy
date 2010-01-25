@@ -135,6 +135,7 @@
 #define PR_O2_AS_M_ANY	0x00010000      /* mask covering all PR_O2_AS_M_* values */
 
 #define PR_O2_MYSQL_CHK 0x00020000      /* use MYSQL check for server health */
+#define PR_O2_USE_PXHDR 0x00040000      /* use Proxy-Connection for proxy requests */
 /* end of proxy->options2 */
 
 /* bits for sticking rules */

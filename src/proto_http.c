@@ -761,8 +761,14 @@ void perform_http_redirect(struct session *s, struct stream_interface *si)
 
 	memcpy(rdr.str + rdr.len, path, len);
 	rdr.len += len;
-	memcpy(rdr.str + rdr.len, "\r\nConnection: close\r\n\r\n", 23);
-	rdr.len += 23;
+
+	if (unlikely(txn->flags & TX_USE_PX_CONN)) {
+		memcpy(rdr.str + rdr.len, "\r\nProxy-Connection: close\r\n\r\n", 29);
+		rdr.len += 29;
+	} else {
+		memcpy(rdr.str + rdr.len, "\r\nConnection: close\r\n\r\n", 23);
+		rdr.len += 23;
+	}
 
 	/* prepare to return without error. */
 	si->shutr(si);
@@ -1849,13 +1855,20 @@ static int http_upgrade_v09_to_v10(struct buffer *req, struct http_msg *msg, str
 void http_parse_connection_header(struct http_txn *txn, struct http_msg *msg, struct buffer *buf, int to_del)
 {
 	struct hdr_ctx ctx;
+	const char *hdr_val = "Connection";
+	int hdr_len = 10;
 
 	if (txn->flags & TX_HDR_CONN_PRS)
 		return;
 
+	if (unlikely(txn->flags & TX_USE_PX_CONN)) {
+		hdr_val = "Proxy-Connection";
+		hdr_len = 16;
+	}
+
 	ctx.idx = 0;
 	txn->flags &= ~(TX_CON_KAL_SET|TX_CON_CLO_SET);
-	while (http_find_header2("Connection", 10, msg->sol, &txn->hdr_idx, &ctx)) {
+	while (http_find_header2(hdr_val, hdr_len, msg->sol, &txn->hdr_idx, &ctx)) {
 		if (ctx.vlen >= 10 && word_match(ctx.line + ctx.val, ctx.vlen, "keep-alive", 10)) {
 			txn->flags |= TX_HDR_CONN_KAL;
 			if ((to_del & 2) && buf)
@@ -1884,11 +1897,19 @@ void http_parse_connection_header(struct http_txn *txn, struct http_msg *msg, st
 void http_change_connection_header(struct http_txn *txn, struct http_msg *msg, struct buffer *buf, int wanted)
 {
 	struct hdr_ctx ctx;
+	const char *hdr_val = "Connection";
+	int hdr_len = 10;
 
 	ctx.idx = 0;
 
+
+	if (unlikely(txn->flags & TX_USE_PX_CONN)) {
+		hdr_val = "Proxy-Connection";
+		hdr_len = 16;
+	}
+
 	txn->flags &= ~(TX_CON_CLO_SET | TX_CON_KAL_SET);
-	while (http_find_header2("Connection", 10, msg->sol, &txn->hdr_idx, &ctx)) {
+	while (http_find_header2(hdr_val, hdr_len, msg->sol, &txn->hdr_idx, &ctx)) {
 		if (ctx.vlen >= 10 && word_match(ctx.line + ctx.val, ctx.vlen, "keep-alive", 10)) {
 			if (wanted & TX_CON_KAL_SET)
 				txn->flags |= TX_CON_KAL_SET;
@@ -1908,12 +1929,24 @@ void http_change_connection_header(struct http_txn *txn, struct http_msg *msg, s
 
 	if ((wanted & TX_CON_CLO_SET) && !(txn->flags & TX_CON_CLO_SET)) {
 		txn->flags |= TX_CON_CLO_SET;
-		http_header_add_tail2(buf, msg, &txn->hdr_idx, "Connection: close", 17);
+		hdr_val = "Connection: close";
+		hdr_len  = 17;
+		if (unlikely(txn->flags & TX_USE_PX_CONN)) {
+			hdr_val = "Proxy-Connection: close";
+			hdr_len = 23;
+		}
+		http_header_add_tail2(buf, msg, &txn->hdr_idx, hdr_val, hdr_len);
 	}
 
 	if ((wanted & TX_CON_KAL_SET) && !(txn->flags & TX_CON_KAL_SET)) {
 		txn->flags |= TX_CON_KAL_SET;
-		http_header_add_tail2(buf, msg, &txn->hdr_idx, "Connection: keep-alive", 22);
+		hdr_val = "Connection: keep-alive";
+		hdr_len = 22;
+		if (unlikely(txn->flags & TX_USE_PX_CONN)) {
+			hdr_val = "Proxy-Connection: keep-alive";
+			hdr_len = 28;
+		}
+		http_header_add_tail2(buf, msg, &txn->hdr_idx, hdr_val, hdr_len);
 	}
 	return;
 }
@@ -2541,6 +2574,19 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	/* "connection" has not been parsed yet */
 	txn->flags &= ~(TX_HDR_CONN_PRS | TX_HDR_CONN_CLO | TX_HDR_CONN_KAL);
 
+	/* if the frontend has "option http-use-proxy-header", we'll check if
+	 * we have what looks like a proxied connection instead of a connection,
+	 * and in this case set the TX_USE_PX_CONN flag to use Proxy-connection.
+	 * Note that this is *not* RFC-compliant, however browsers and proxies
+	 * happen to do that despite being non-standard :-(
+	 * We consider that a request not beginning with either '/' or '*' is
+	 * a proxied connection, which covers both "scheme://location" and
+	 * CONNECT ip:port.
+	 */
+	if ((s->fe->options2 & PR_O2_USE_PXHDR) &&
+	    msg->sol[msg->sl.rq.u] != '/' && msg->sol[msg->sl.rq.u] != '*')
+		txn->flags |= TX_USE_PX_CONN;
+
 	/* transfer length unknown*/
 	txn->flags &= ~TX_REQ_XFER_LEN;
 
@@ -2940,8 +2986,13 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 			     (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL)) {
 				/* keep-alive possible */
 				if (!(txn->flags & TX_REQ_VER_11)) {
-					memcpy(rdr.str + rdr.len, "\r\nConnection: keep-alive", 24);
-					rdr.len += 24;
+					if (unlikely(txn->flags & TX_USE_PX_CONN)) {
+						memcpy(rdr.str + rdr.len, "\r\nProxy-Connection: keep-alive", 30);
+						rdr.len += 30;
+					} else {
+						memcpy(rdr.str + rdr.len, "\r\nConnection: keep-alive", 24);
+						rdr.len += 24;
+					}
 				}
 				memcpy(rdr.str + rdr.len, "\r\n\r\n", 4);
 				rdr.len += 4;
@@ -2956,8 +3007,13 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 				break;
 			} else {
 				/* keep-alive not possible */
-				memcpy(rdr.str + rdr.len, "\r\nConnection: close\r\n\r\n", 23);
-				rdr.len += 23;
+				if (unlikely(txn->flags & TX_USE_PX_CONN)) {
+					memcpy(rdr.str + rdr.len, "\r\nProxy-Connection: close\r\n\r\n", 29);
+					rdr.len += 29;
+				} else {
+					memcpy(rdr.str + rdr.len, "\r\nConnection: close\r\n\r\n", 23);
+					rdr.len += 23;
+				}
 				stream_int_retnclose(req->prod, &rdr);
 				goto return_prx_cond;
 			}

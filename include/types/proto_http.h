@@ -98,6 +98,7 @@
 #define TX_HDR_CONN_PRS	0x08000000	/* "connection" header already parsed (req or res), results below */
 #define TX_HDR_CONN_CLO	0x10000000	/* "Connection: close" was present at least once */
 #define TX_HDR_CONN_KAL	0x20000000	/* "Connection: keep-alive" was present at least once */
+#define TX_USE_PX_CONN	0x40000000	/* Use "Proxy-Connection" instead of "Connection" */
 
 
 /* The HTTP parser is more complex than it looks like, because we have to

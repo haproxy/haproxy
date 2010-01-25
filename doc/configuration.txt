@@ -788,6 +788,8 @@ option forwardfor           X          X         X         X
 option httpchk              X          -         X         X
 [no] option http-server-
             close           X          X         X         X
+[no] option http-use-proxy-
+            header          X          X         X         -
 [no] option httpclose       X          X         X         X
 option httplog              X          X         X         X
 [no] option http_proxy      X          X         X         X
@@ -2621,6 +2623,35 @@ no option http-server-close
   in a specific instance by prepending the "no" keyword before it.
 
   See also : "option forceclose" and "option httpclose"
+
+
+option http-use-proxy-header
+[no] option http-use-proxy-header
+  Make use of non-standard Proxy-Connection header instead of Connection
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   no
+  Arguments : none
+
+  While RFC2616 explicitly states that HTTP/1.1 agents must use the
+  Connection header to indicate their wish of persistent or non-persistent
+  connections, both browsers and proxies ignore this header for proxied
+  connections and make use of the undocumented, non-standard Proxy-Connection
+  header instead. The issue begins when trying to put a load balancer between
+  browsers and such proxies, because there will be a difference between what
+  haproxy understands and what the client and the proxy agree on.
+
+  By setting this option in a frontend, haproxy can automatically switch to use
+  that non-standard header if it sees proxied requests. A proxied request is
+  defined here as one where the URI begins with neither a '/' nor a '*'. The
+  choice of header only affects requests passing through proxies making use of
+  one of the "httpclose", "forceclose" and "http-server-close" options. Note
+  that this option can only be specified in a frontend and will affect the
+  request along its whole life.
+
+  This option should normally never be used, except in front of a proxy.
+
+  See also : "option httpclose", "option forceclose" and "option
+             http-server-close".
 
 
 option httpclose
