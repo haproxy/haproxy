@@ -1,6 +1,56 @@
 ChangeLog :
 ===========
 
+2010/01/25 : 1.4-dev7
+    - [BUG] appsession: possible memory leak in case of out of memory condition
+    - [MINOR] config: don't accept 'appsession' in defaults section
+    - [MINOR] Add function to parse a size in configuration
+    - [MEDIUM] Add stick table (persistence) management functions and types
+    - [MEDIUM] Add pattern fetch management types and functions
+    - [MEDIUM] Add src dst and dport pattern fetches.
+    - [MEDIUM] Add stick table configuration and init.
+    - [MEDIUM] Add stick and store rules analysers.
+    - [MINOR] add option "mysql-check" to use MySQL health checks
+    - [BUG] health checks: fix requeued message
+    - [OPTIM] remove SSP_O_VIA and SSP_O_STATUS
+    - [BUG] checks: fix newline termination
+    - [MINOR] acl: add fe_id/so_id to match frontend's and socket's id
+    - [BUG] appsession's sessid must be reset at end of transaction
+    - [BUILD] appsession did not build anymore under gcc-2.95
+    - [BUG] server redirection used an uninitialized string.
+    - [MEDIUM] http: fix handling of message pointers
+    - [MINOR] http: fix double slash prefix with server redirect
+    - [MINOR] http redirect: add the ability to append a '/' to the URL
+    - [BUG] stream_interface: fix retnclose and remove cond_close
+    - [MINOR] http redirect: don't explicitly state keep-alive on 1.1
+    - [MINOR] http: move appsession 'sessid' from session to http_txn
+    - [OPTIM] reorder http_txn to optimize cache lines placement
+    - [MINOR] http: differentiate waiting for new request and waiting for a complete requst
+    - [MINOR] http: add a separate "http-keep-alive" timeout
+    - [MINOR] config: remove undocumented and buggy 'timeout appsession'
+    - [DOC] fix various too large lines
+    - [DOC] remove several trailing spaces
+    - [DOC] add the doc about stickiness
+    - [BUILD] remove a warning in standard.h on AIX
+    - [BUG] checks: chars are unsigned on AIX, check was always true
+    - [CLEANUP] stream_sock: MSG_NOSIGNAL is only for send(), not recv()
+    - [BUG] check: we must not check for error before reading a response
+    - [BUG] buffers: remove remains of wrong obsolete length check
+    - [OPTIM] stream_sock: don't shutdown(write) when the socket is in error
+    - [BUG] http: don't count req errors on client resets or t/o during keep-alive
+    - [MEDIUM] http: don't switch to tunnel mode upon close
+    - [DOC] add documentation about connection header processing
+    - [MINOR] http: add http_remove_header2() to remove a header value.
+    - [MINOR] tools: add a "word_match()" function to match words and ignore spaces
+    - [MAJOR] http: rework request Connection header handling
+    - [MAJOR] http: rework response Connection header handling
+    - [MINOR] add the ability to force kernel socket buffer size.
+    - [BUG] http_server_error() must not purge a previous pending response
+    - [OPTIM] http: don't delay response if next request is incomplete
+    - [MINOR] add the "force-persist" statement to force persistence on down servers
+    - [MINOR] http: logs must report persistent connections to down servers
+    - [BUG] buffer_replace2 must never change the ->w entry
+
 2010/01/08 : 1.4-dev6
     - [BUILD] warning in stream_interface.h
     - [BUILD] warning ultoa_r returns char *
