@@ -205,7 +205,6 @@ int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len)
 
 	/* we only move data after the displaced zone */
 	if (b->r  > pos) b->r  += delta;
-	if (b->w  > pos) b->w  += delta;
 	if (b->lr > pos) b->lr += delta;
 	b->l += delta;
 
