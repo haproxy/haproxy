@@ -3578,7 +3578,6 @@ void http_end_txn_clean_session(struct session *s)
 	if (s->req->l > s->req->send_max) {
 		if (s->rep->send_max &&
 		    !(s->rep->flags & BF_FULL) &&
-		    s->rep->lr <= s->rep->r &&
 		    s->rep->r <= s->rep->data + s->rep->size - global.tune.maxrewrite)
 			s->rep->flags |= BF_EXPECT_MORE;
 	}
