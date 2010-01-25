@@ -6465,6 +6465,21 @@ void http_reset_txn(struct session *s)
 
 	s->req->flags |= BF_READ_DONTWAIT; /* one read is usually enough */
 
+	/* We must trim any excess data from the response buffer, because we
+	 * may have blocked an invalid response from a server that we don't
+	 * want to accidentely forward once we disable the analysers, nor do
+	 * we want those data to come along with next response. A typical
+	 * example of such data would be from a buggy server responding to
+	 * a HEAD with some data, or sending more than the advertised
+	 * content-length.
+	 */
+	if (unlikely(s->rep->l > s->rep->send_max)) {
+		s->rep->l = s->rep->send_max;
+		s->rep->r = s->rep->w + s->rep->l;
+		if (s->rep->r >= s->rep->data + s->rep->size)
+			s->rep->r -= s->rep->size;
+	}
+
 	s->req->rto = s->fe->timeout.client;
 	s->req->wto = s->be->timeout.server;
 	s->req->cto = s->be->timeout.connect;
