@@ -315,6 +315,30 @@ struct sockaddr_in *str2sa_range(char *str, int *low, int *high)
 	return &sa;
 }
 
+/* converts <str> to a struct in_addr containing a network mask. It can be
+ * passed in dotted form (255.255.255.0) or in CIDR form (24). It returns 1
+ * if the conversion succeeds otherwise non-zero.
+ */
+int str2mask(const char *str, struct in_addr *mask)
+{
+	if (strchr(str, '.') != NULL) {	    /* dotted notation */
+		if (!inet_pton(AF_INET, str, mask))
+			return 0;
+	}
+	else { /* mask length */
+		char *err;
+		unsigned long len = strtol(str, &err, 10);
+
+		if (!*str || (err && *err) || (unsigned)len > 32)
+			return 0;
+		if (len)
+			mask->s_addr = htonl(~0UL << (32 - len));
+		else
+			mask->s_addr = 0;
+	}
+	return 1;
+}
+
 /*
  * converts <str> to two struct in_addr* which must be pre-allocated.
  * The format is "addr[/mask]", where "addr" cannot be empty, and mask
@@ -326,7 +350,6 @@ int str2net(const char *str, struct in_addr *addr, struct in_addr *mask)
 	__label__ out_free, out_err;
 	char *c, *s;
 	int ret_val;
-	unsigned long len;
 
 	s = strdup(str);
 	if (!s)
@@ -338,20 +361,8 @@ int str2net(const char *str, struct in_addr *addr, struct in_addr *mask)
 	if ((c = strrchr(s, '/')) != NULL) {
 		*c++ = '\0';
 		/* c points to the mask */
-		if (strchr(c, '.') != NULL) {	    /* dotted notation */
-			if (!inet_pton(AF_INET, c, mask))
-				goto out_err;
-		}
-		else { /* mask length */
-			char *err;
-			len = strtol(c, &err, 10);
-			if (!*c || (err && *err) || (unsigned)len > 32)
-				goto out_err;
-			if (len)
-				mask->s_addr = htonl(~0UL << (32 - len));
-			else
-				mask->s_addr = 0;
-		}
+		if (!str2mask(c, mask))
+			goto out_err;
 	}
 	else {
 		mask->s_addr = ~0U;

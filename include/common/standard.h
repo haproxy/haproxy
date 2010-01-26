@@ -162,6 +162,12 @@ struct sockaddr_in *str2sa(char *str);
  */
 struct sockaddr_in *str2sa_range(char *str, int *low, int *high);
 
+/* converts <str> to a struct in_addr containing a network mask. It can be
+ * passed in dotted form (255.255.255.0) or in CIDR form (24). It returns 1
+ * if the conversion succeeds otherwise non-zero.
+ */
+int str2mask(const char *str, struct in_addr *mask);
+
 /*
  * converts <str> to two struct in_addr* which must be pre-allocated.
  * The format is "addr[/mask]", where "addr" cannot be empty, and mask
