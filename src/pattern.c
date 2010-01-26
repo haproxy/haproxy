@@ -536,6 +536,20 @@ int pattern_notusable_key(struct pattern_expr *expr, unsigned long table_type)
 	return 0;
 }
 
+/* Converts an argument string to an IPv4 mask stored in network byte order in
+ * arg_i. Returns non-zero in case of success, 0 on error.
+ */
+static int pattern_conv_arg_to_ipmask(const char *arg_str, void **arg_p, int *arg_i)
+{
+	struct in_addr mask;
+
+	if (!str2mask(arg_str, &mask))
+		return 0;
+
+	*arg_i = mask.s_addr;
+	return 1;
+}
+
 /*****************************************************************/
 /*    Pattern format convert functions                           */
 /*****************************************************************/
@@ -562,10 +576,18 @@ static int pattern_conv_str2upper(const void *arg_p, int arg_i, union pattern_da
 	return 1;
 }
 
+/* takes the netmask in arg_i */
+static int pattern_conv_ipmask(const void *arg_p, int arg_i, union pattern_data *data)
+{
+	data->ip.s_addr &= arg_i;
+	return 1;
+}
+
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct pattern_conv_kw_list pattern_conv_kws = {{ },{
 	{ "upper",       pattern_conv_str2upper, PATTERN_TYPE_STRING, PATTERN_TYPE_STRING },
 	{ "lower",       pattern_conv_str2lower, PATTERN_TYPE_STRING, PATTERN_TYPE_STRING },
+	{ "ipmask",      pattern_conv_ipmask, PATTERN_TYPE_IP, PATTERN_TYPE_IP, pattern_conv_arg_to_ipmask },
 	{ NULL, NULL, 0, 0 },
 }};
 

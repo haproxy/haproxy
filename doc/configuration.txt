@@ -6155,6 +6155,12 @@ The currently available list of transformations include :
                after a string pattern fetch function or after a conversion
                function returning a string type. The result is of type string.
 
+  ipmask(mask) Apply a mask to an IPv4 address, and use the result for lookups
+               and storage. This can be used to make all hosts within a
+               certain mask to share the same table entries and as such use
+               the same server. The mask can be passed in dotted form (eg:
+               255.255.255.0) or in CIDR form (eg: 24).
+
 
 8. Logging
 ----------
