@@ -2132,6 +2132,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
+				myidx++;
 			}
 			else if (strcmp(args[myidx], "expire") == 0) {
 				myidx++;
@@ -2149,9 +2150,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 					goto out;
 				}
 				curproxy->table.expire = val;
+				myidx++;
 			}
 			else if (strcmp(args[myidx], "nopurge") == 0) {
 				curproxy->table.nopurge = 1;
+				myidx++;
 			}
 			else if (strcmp(args[myidx], "type") == 0) {
 				myidx++;
@@ -2161,8 +2164,14 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
+				/* myidx already points to next arg */
 			}
-			myidx++;
+			else {
+				Alert("parsing [%s:%d] : stick-table: unknown argument '%s'.\n",
+				      file, linenum, args[myidx]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
 		}
 
 		if (!curproxy->table.size) {
