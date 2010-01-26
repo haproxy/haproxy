@@ -432,9 +432,18 @@ struct pattern_expr *pattern_parse_expr(char **str, int *idx)
 		conv_expr->conv = conv;
 
 		if (end != endw) {
-			conv_expr->arg_i = end - endw - 2;
-			conv_expr->arg_p = calloc(1, conv_expr->arg_i + 1);
-			memcpy(conv_expr->arg_p, endw + 1, conv_expr->arg_i);
+			int i = end - endw - 2;
+			char *p = my_strndup(endw + 1, i);
+
+			if (conv->parse_args) {
+				i = conv->parse_args(p, &conv_expr->arg_p, &conv_expr->arg_i);
+				free(p);
+				if (!i)
+					goto out_error;
+			} else {
+				conv_expr->arg_i = i;
+				conv_expr->arg_p = p;
+			}
 		}
 	}
 	return expr;

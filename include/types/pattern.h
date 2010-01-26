@@ -59,6 +59,9 @@ struct pattern_conv {
 	               union pattern_data *data); /* process function */
 	unsigned int in_type;                     /* input needed pattern type */
 	unsigned int out_type;                    /* output pattern type */
+	int (*parse_args)(const char *arg_str,
+			  void **arg_p,
+			  int *arg_i);            /* argument parser. Can be NULL. */
 };
 
 /* pattern conversion expression */
