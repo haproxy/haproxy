@@ -471,7 +471,7 @@ struct pattern *pattern_process(struct proxy *px, struct session *l4, void *l7, 
 			return NULL;
 
 		p->type = conv_expr->conv->in_type;
-		if (!conv_expr->conv->process(conv_expr->arg, expr->arg_len, &p->data))
+		if (!conv_expr->conv->process(conv_expr->arg, conv_expr->arg_len, &p->data))
 			return NULL;
 
 		p->type = conv_expr->conv->out_type;
