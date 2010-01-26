@@ -64,6 +64,7 @@ const char stats_sock_usage_msg[] =
 	"  show sess      : report the list of current sessions\n"
 	"  get weight     : report a server's current weight\n"
 	"  set weight     : change a server's weight\n"
+	"  set timeout    : change a timeout setting\n"
 	"";
 
 const char stats_permission_denied_msg[] =
@@ -497,7 +498,34 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 
 			return 1;
 		}
-		else { /* not "set weight" */
+		else if (strcmp(args[1], "timeout") == 0) {
+			if (strcmp(args[2], "cli") == 0) {
+				unsigned timeout;
+				const char *res;
+
+				if (!*args[3]) {
+					s->data_ctx.cli.msg = "Expects an integer value.\n";
+					si->st0 = STAT_CLI_PRINT;
+					return 1;
+				}
+
+				res = parse_time_err(args[3], &timeout, TIME_UNIT_S);
+				if (res || timeout < 1) {
+					s->data_ctx.cli.msg = "Invalid timeout value.\n";
+					si->st0 = STAT_CLI_PRINT;
+					return 1;
+				}
+
+				s->req->rto = s->rep->wto = 1 + MS_TO_TICKS(timeout*1000);
+				return 1;
+			}
+			else {
+				s->data_ctx.cli.msg = "'set timeout' only supports 'cli'.\n";
+				si->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+		}
+		else { /* unknown "set" parameter */
 			return 0;
 		}
 	}

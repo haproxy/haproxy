@@ -7553,6 +7553,11 @@ get weight <backend>/<server>
   may be specified either by their name or by their numeric ID, prefixed with a
   dash ('#').
 
+set timeout cli <delay>
+  Change the CLI interface timeout for current connection. This can be useful
+  during long debugging sessions where the user needs to constantly inspect
+  some indicators without being disconnected. The delay is passed in seconds.
+
 set weight <backend>/<server> <weight>[%]
   Change a server's weight to the value passed in argument. If the value ends
   with the '%' sign, then the new weight will be relative to the initially
