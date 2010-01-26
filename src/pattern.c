@@ -432,10 +432,9 @@ struct pattern_expr *pattern_parse_expr(char **str, int *idx)
 		conv_expr->conv = conv;
 
 		if (end != endw) {
-			conv_expr->arg_len = end - endw - 2;
-			conv_expr->arg = malloc(conv_expr->arg_len + 1);
-			conv_expr->arg = memcpy(conv_expr->arg, endw + 1, conv_expr->arg_len);
-			conv_expr->arg[expr->arg_len] = '\0';
+			conv_expr->arg_i = end - endw - 2;
+			conv_expr->arg_p = calloc(1, conv_expr->arg_i + 1);
+			memcpy(conv_expr->arg_p, endw + 1, conv_expr->arg_i);
 		}
 	}
 	return expr;
@@ -471,7 +470,7 @@ struct pattern *pattern_process(struct proxy *px, struct session *l4, void *l7, 
 			return NULL;
 
 		p->type = conv_expr->conv->in_type;
-		if (!conv_expr->conv->process(conv_expr->arg, conv_expr->arg_len, &p->data))
+		if (!conv_expr->conv->process(conv_expr->arg_p, conv_expr->arg_i, &p->data))
 			return NULL;
 
 		p->type = conv_expr->conv->out_type;
@@ -532,7 +531,7 @@ int pattern_notusable_key(struct pattern_expr *expr, unsigned long table_type)
 /*    Pattern format convert functions                           */
 /*****************************************************************/
 
-static int pattern_conv_str2lower(const char *arg, int arg_len, union pattern_data *data)
+static int pattern_conv_str2lower(const void *arg_p, int arg_i, union pattern_data *data)
 {
 	int i;
 
@@ -543,7 +542,7 @@ static int pattern_conv_str2lower(const char *arg, int arg_len, union pattern_da
 	return 1;
 }
 
-static int pattern_conv_str2upper(const char *arg, int arg_len, union pattern_data *data)
+static int pattern_conv_str2upper(const void *arg_p, int arg_i, union pattern_data *data)
 {
 	int i;
 

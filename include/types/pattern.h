@@ -54,8 +54,8 @@ struct pattern {
 /* pattern conversion */
 struct pattern_conv {
 	const char *kw;                           /* configuration keyword  */
-	int (*process)(const char *arg,
-	               int arg_len,
+	int (*process)(const void *arg_p,
+	               int arg_i,
 	               union pattern_data *data); /* process function */
 	unsigned int in_type;                     /* input needed pattern type */
 	unsigned int out_type;                    /* output pattern type */
@@ -65,8 +65,8 @@ struct pattern_conv {
 struct pattern_conv_expr {
 	struct list list;                         /* member of a pattern expression */
 	struct pattern_conv *conv;                /* pattern conversion */
-	char *arg;                                /* configured keyword argument */
-	int arg_len;                              /* configured keyword argument length */
+	void *arg_p;                              /* pointer arg, most often a string argument */
+	int arg_i;                                /* int arg, most often the argument's length */
 };
 
 /* pattern fetch */
