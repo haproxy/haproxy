@@ -668,11 +668,8 @@ struct acl_expr *parse_acl_expr(const char **args)
 		end = strchr(arg, ')');
 		if (!end)
 			goto out_free_expr;
-		arg2 = (char *)calloc(1, end - arg + 1);
-		if (!arg2)
+		arg2 = my_strndup(arg, end - arg);
 			goto out_free_expr;
-		memcpy(arg2, arg, end - arg);
-		arg2[end-arg] = '\0';
 		expr->arg_len = end - arg;
 		expr->arg.str = arg2;
 	}

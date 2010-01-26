@@ -397,9 +397,7 @@ struct pattern_expr *pattern_parse_expr(char **str, int *idx)
 
 	if (end != endw) {
 		expr->arg_len = end - endw - 2;
-		expr->arg = malloc(expr->arg_len + 1);
-		expr->arg = memcpy(expr->arg, endw + 1, expr->arg_len);
-		expr->arg[expr->arg_len] = '\0';
+		expr->arg = my_strndup(endw + 1, expr->arg_len);
 	}
 
 	for (*idx += 1; *(str[*idx]); (*idx)++) {
