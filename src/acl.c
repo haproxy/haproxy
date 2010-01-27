@@ -669,6 +669,7 @@ struct acl_expr *parse_acl_expr(const char **args)
 		if (!end)
 			goto out_free_expr;
 		arg2 = my_strndup(arg, end - arg);
+		if (!arg2)
 			goto out_free_expr;
 		expr->arg_len = end - arg;
 		expr->arg.str = arg2;
