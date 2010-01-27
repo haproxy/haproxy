@@ -324,6 +324,62 @@ static void set_server_enabled(struct server *s) {
 			set_server_enabled(srv);
 }
 
+static int httpchk_build_status_header(struct server *s, char *buffer)
+{
+	int sv_state;
+	int ratio;
+	int hlen = 0;
+	const char *srv_hlt_st[7] = { "DOWN", "DOWN %d/%d",
+				      "UP %d/%d", "UP",
+				      "NOLB %d/%d", "NOLB",
+				      "no check" };
+
+	memcpy(buffer + hlen, "X-Haproxy-Server-State: ", 24);
+	hlen += 24;
+
+	if (!(s->state & SRV_CHECKED))
+		sv_state = 6; /* should obviously never happen */
+	else if (s->state & SRV_RUNNING) {
+		if (s->health == s->rise + s->fall - 1)
+			sv_state = 3; /* UP */
+		else
+			sv_state = 2; /* going down */
+
+		if (s->state & SRV_GOINGDOWN)
+			sv_state += 2;
+	} else {
+		if (s->health)
+			sv_state = 1; /* going up */
+		else
+			sv_state = 0; /* DOWN */
+	}
+
+	hlen += sprintf(buffer + hlen,
+			     srv_hlt_st[sv_state],
+			     (s->state & SRV_RUNNING) ? (s->health - s->rise + 1) : (s->health),
+			     (s->state & SRV_RUNNING) ? (s->fall) : (s->rise));
+
+	hlen += sprintf(buffer + hlen, "; name=%s/%s; node=%s; weight=%d/%d; scur=%d/%d; qcur=%d",
+			     s->proxy->id, s->id,
+			     global.node,
+			     (s->eweight * s->proxy->lbprm.wmult + s->proxy->lbprm.wdiv - 1) / s->proxy->lbprm.wdiv,
+			     (s->proxy->lbprm.tot_weight * s->proxy->lbprm.wmult + s->proxy->lbprm.wdiv - 1) / s->proxy->lbprm.wdiv,
+			     s->cur_sess, s->proxy->beconn - s->proxy->nbpend,
+			     s->nbpend);
+
+	if ((s->state & SRV_WARMINGUP) &&
+	    now.tv_sec < s->last_change + s->slowstart &&
+	    now.tv_sec >= s->last_change) {
+		ratio = MAX(1, 100 * (now.tv_sec - s->last_change) / s->slowstart);
+		hlen += sprintf(buffer + hlen, "; throttle=%d%%", ratio);
+	}
+
+	buffer[hlen++] = '\r';
+	buffer[hlen++] = '\n';
+
+	return hlen;
+}
+
 /*
  * This function is used only for server health-checks. It handles
  * the connection acknowledgement. If the proxy requires HTTP health-checks,
@@ -363,6 +419,10 @@ static int event_srv_chk_w(int fd)
 			}
 			else if (s->proxy->options & PR_O_HTTP_CHK) {
 				memcpy(trash, check_req, check_len);
+
+				if (s->proxy->options2 & PR_O2_CHK_SNDST)
+					check_len += httpchk_build_status_header(s, trash + check_len);
+
 				trash[check_len++] = '\r';
 				trash[check_len++] = '\n';
 				trash[check_len] = '\0';

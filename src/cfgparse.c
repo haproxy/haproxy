@@ -2198,6 +2198,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			/* enable a graceful server shutdown on an HTTP 404 response */
 			curproxy->options |= PR_O_DISABLE404;
 		}
+		else if (strcmp(args[1], "send-state") == 0) {
+			/* enable emission of the apparent state of a server in HTTP checks */
+			curproxy->options2 |= PR_O2_CHK_SNDST;
+		}
 		else {
 			Alert("parsing [%s:%d] : '%s' only supports 'disable-on-404'.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -4000,6 +4004,13 @@ int check_config_validity()
 			err_code |= ERR_WARN;
 		}
 
+		if ((curproxy->options2 & PR_O2_CHK_SNDST) && !(curproxy->options & PR_O_HTTP_CHK)) {
+			curproxy->options &= ~PR_O2_CHK_SNDST;
+			Warning("config : '%s' will be ignored for %s '%s' (requires 'option httpchk').\n",
+				"send-state", proxy_type_str(curproxy), curproxy->id);
+			err_code |= ERR_WARN;
+		}
+
 		/* if a default backend was specified, let's find it */
 		if (curproxy->defbe.name) {
 			struct proxy *target;
@@ -4268,7 +4279,7 @@ int check_config_validity()
 				if (curproxy != px &&
 					(curproxy->options & PR_O_DISABLE404) != (px->options & PR_O_DISABLE404)) {
 					Alert("config : %s '%s', server '%s': unable to use %s/%s for"
-						"tracing: disable-on-404 option inconsistency.\n",
+						"tracking: disable-on-404 option inconsistency.\n",
 						proxy_type_str(curproxy), curproxy->id,
 						newsrv->id, px->id, srv->id);
 					cfgerr++;

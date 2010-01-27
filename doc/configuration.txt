@@ -1711,6 +1711,49 @@ http-check disable-on-404
   See also : "option httpchk"
 
 
+http-check send-state
+  Enable emission of a state header with HTTP health checks
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments : none
+
+  When this option is set, haproxy will systematically send a special header
+  "X-Haproxy-Server-State" with a list of parameters indicating to each server
+  how they are seen by haproxy. This can be used for instance when a server is
+  manipulated without access to haproxy and the operator needs to know whether
+  haproxy still sees it up or not, or if the server is the last one in a farm.
+
+  The header is composed of fields delimited by semi-colons, the first of which
+  is a word ("UP", "DOWN", "NOLB"), possibly followed by a number of valid
+  checks on the total number before transition, just as appears in the stats
+  interface. Next headers are in the form "<variable>=<value>", indicating in
+  no specific order some values available in the stats interface :
+    - a variable "name", containing the name of the backend followed by a slash
+      ("/") then the name of the server. This can be used when a server is
+      checked in multiple backends.
+
+    - a variable "node" containing the name of the haproxy node, as set in the
+      global "node" variable, otherwise the system's hostname if unspecified.
+
+    - a variable "weight" indicating the weight of the server, a slash ("/")
+      and the total weight of the farm (just counting usable servers). This
+      helps to know if other servers are available to handle the load when this
+      one fails.
+
+    - a variable "scur" indicating the current number of concurrent connections
+      on the server, followed by a slash ("/") then the total number of
+      connections on all servers of the same backend.
+
+    - a variable "qcur" indicating the current number of requests in the
+      server's queue.
+
+  Example of a header received by the application server :
+    >>>  X-Haproxy-Server-State: UP 2/3; name=bck/srv2; node=lb1; weight=1/2; \
+           scur=13/22; qcur=0
+
+  See also : "option httpchk", "http-check disable-on-404"
+
+
 id <value>
   Set a persistent value for proxy ID. Must be unique and larger than 1000, as
   smaller values are reserved for auto-assigned ids.
