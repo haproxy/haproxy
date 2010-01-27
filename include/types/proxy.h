@@ -136,6 +136,7 @@
 
 #define PR_O2_MYSQL_CHK 0x00020000      /* use MYSQL check for server health */
 #define PR_O2_USE_PXHDR 0x00040000      /* use Proxy-Connection for proxy requests */
+#define PR_O2_CHK_SNDST 0x00080000      /* send the state of each server along with HTTP health checks */
 /* end of proxy->options2 */
 
 /* bits for sticking rules */
