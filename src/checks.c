@@ -349,6 +349,9 @@ static int event_srv_chk_w(int fd)
 		    (s->proxy->options & PR_O_SSL3_CHK) ||
 		    (s->proxy->options & PR_O_SMTP_CHK)) {
 			int ret;
+			const char *check_req = s->proxy->check_req;
+			int check_len = s->proxy->check_len;
+
 			/* we want to check if this host replies to HTTP or SSLv3 requests
 			 * so we'll send the request, and won't wake the checker up now.
 			 */
@@ -358,9 +361,16 @@ static int event_srv_chk_w(int fd)
 				int gmt_time = htonl(date.tv_sec);
 				memcpy(s->proxy->check_req + 11, &gmt_time, 4);
 			}
+			else if (s->proxy->options & PR_O_HTTP_CHK) {
+				memcpy(trash, check_req, check_len);
+				trash[check_len++] = '\r';
+				trash[check_len++] = '\n';
+				trash[check_len] = '\0';
+				check_req = trash;
+			}
 
-			ret = send(fd, s->proxy->check_req, s->proxy->check_len, MSG_DONTWAIT | MSG_NOSIGNAL);
-			if (ret == s->proxy->check_len) {
+			ret = send(fd, check_req, check_len, MSG_DONTWAIT | MSG_NOSIGNAL);
+			if (ret == check_len) {
 				/* we allow up to <timeout.check> if nonzero for a responce */
 				if (s->proxy->timeout.check)
 					t->expire = tick_add_ifset(now_ms, s->proxy->timeout.check);

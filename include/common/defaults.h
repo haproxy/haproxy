@@ -127,7 +127,7 @@
 #define	DEF_CHKINTR     2000
 #define DEF_FALLTIME    3
 #define DEF_RISETIME    2
-#define DEF_CHECK_REQ   "OPTIONS / HTTP/1.0\r\n\r\n"
+#define DEF_CHECK_REQ   "OPTIONS / HTTP/1.0\r\n"
 #define DEF_SMTP_CHECK_REQ   "HELO localhost\r\n"
 
 // X-Forwarded-For header default

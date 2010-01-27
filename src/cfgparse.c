@@ -2015,12 +2015,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 				curproxy->check_req = strdup(DEF_CHECK_REQ); /* default request */
 				curproxy->check_len = strlen(DEF_CHECK_REQ);
 			} else if (!*args[3]) { /* one argument : URI */
-				int reqlen = strlen(args[2]) + strlen("OPTIONS  HTTP/1.0\r\n\r\n") + 1;
+				int reqlen = strlen(args[2]) + strlen("OPTIONS  HTTP/1.0\r\n") + 1;
 				curproxy->check_req = (char *)malloc(reqlen);
 				curproxy->check_len = snprintf(curproxy->check_req, reqlen,
-							       "OPTIONS %s HTTP/1.0\r\n\r\n", args[2]); /* URI to use */
+							       "OPTIONS %s HTTP/1.0\r\n", args[2]); /* URI to use */
 			} else { /* more arguments : METHOD URI [HTTP_VER] */
-				int reqlen = strlen(args[2]) + strlen(args[3]) + 3 + strlen("\r\n\r\n");
+				int reqlen = strlen(args[2]) + strlen(args[3]) + 3 + strlen("\r\n");
 				if (*args[4])
 					reqlen += strlen(args[4]);
 				else
@@ -2028,7 +2028,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 		    
 				curproxy->check_req = (char *)malloc(reqlen);
 				curproxy->check_len = snprintf(curproxy->check_req, reqlen,
-							       "%s %s %s\r\n\r\n", args[2], args[3], *args[4]?args[4]:"HTTP/1.0");
+							       "%s %s %s\r\n", args[2], args[3], *args[4]?args[4]:"HTTP/1.0");
 			}
 		}
 		else if (!strcmp(args[1], "ssl-hello-chk")) {
