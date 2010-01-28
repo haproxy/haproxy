@@ -2844,7 +2844,8 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 		    ((txn->flags & TX_HDR_CONN_CLO) ||                         /* "connection: close" */
 		     (txn->flags & (TX_REQ_VER_11|TX_HDR_CONN_KAL)) == 0 ||    /* no "connection: k-a" in 1.0 */
 		     ((s->fe->options|s->be->options) & PR_O_HTTP_CLOSE) ||    /* httpclose + any = forceclose */
-		     !(txn->flags & TX_REQ_XFER_LEN)))                         /* no length known => close */
+		     !(txn->flags & TX_REQ_XFER_LEN) ||                        /* no length known => close */
+		     s->fe->state == PR_STSTOPPED))                            /* frontend is stopping */
 		    txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
 	}
 
