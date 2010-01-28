@@ -1813,7 +1813,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		curproxy->conn_retries = atol(args[1]);
 	}
 	else if (!strcmp(args[0], "block")) {  /* early blocking based on ACLs */
-		int pol = ACL_COND_NONE;
 		struct acl_cond *cond;
 
 		if (curproxy == &defproxy) {
@@ -1822,32 +1821,24 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		if (!strcmp(args[1], "if"))
-			pol = ACL_COND_IF;
-		else if (!strcmp(args[1], "unless"))
-			pol = ACL_COND_UNLESS;
-
-		if (pol == ACL_COND_NONE) {
+		if (strcmp(args[1], "if") != 0 && strcmp(args[1], "unless") != 0) {
 			Alert("parsing [%s:%d] : '%s' requires either 'if' or 'unless' followed by a condition.\n",
 			      file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 
-		if ((cond = parse_acl_cond((const char **)args + 2, &curproxy->acl, pol)) == NULL) {
+		if ((cond = build_acl_cond(file, linenum, curproxy, (const char **)args + 1)) == NULL) {
 			Alert("parsing [%s:%d] : error detected while parsing blocking condition.\n",
 			      file, linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		cond->file = file;
-		cond->line = linenum;
-		curproxy->acl_requires |= cond->requires;
+
 		LIST_ADDQ(&curproxy->block_cond, &cond->list);
 		warnif_misplaced_block(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "redirect")) {
-		int pol = ACL_COND_NONE;
 		struct acl_cond *cond = NULL;
 		struct redirect_rule *rule;
 		int cur_arg;
@@ -1936,14 +1927,15 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			else if (!strcmp(args[cur_arg],"append-slash")) {
 				flags |= REDIRECT_FLAG_APPEND_SLASH;
 			}
-			else if (!strcmp(args[cur_arg], "if")) {
-				pol = ACL_COND_IF;
-				cur_arg++;
-				break;
-			}
-			else if (!strcmp(args[cur_arg], "unless")) {
-				pol = ACL_COND_UNLESS;
-				cur_arg++;
+			else if (strcmp(args[cur_arg], "if") == 0 ||
+				 strcmp(args[cur_arg], "unless") == 0) {
+				cond = build_acl_cond(file, linenum, curproxy, (const char **)args + cur_arg);
+				if (!cond) {
+					Alert("parsing [%s:%d] : '%s': error detected while parsing redirect condition.\n",
+					      file, linenum, args[0]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
 				break;
 			}
 			else {
@@ -1962,19 +1954,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		if (pol != ACL_COND_NONE &&
-		    (cond = parse_acl_cond((const char **)args + cur_arg, &curproxy->acl, pol)) == NULL) {
-			Alert("parsing [%s:%d] : '%s': error detected while parsing redirect condition.\n",
-			      file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (cond) {
-			cond->file = file;
-			cond->line = linenum;
-			curproxy->acl_requires |= cond->requires;
-		}
 		rule = (struct redirect_rule *)calloc(1, sizeof(*rule));
 		rule->cond = cond;
 		rule->rdr_str = strdup(destination);
@@ -2001,7 +1980,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		warnif_rule_after_use_backend(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "use_backend")) {
-		int pol = ACL_COND_NONE;
 		struct acl_cond *cond;
 		struct switching_rule *rule;
 
@@ -2020,28 +1998,20 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		if (!strcmp(args[2], "if"))
-			pol = ACL_COND_IF;
-		else if (!strcmp(args[2], "unless"))
-			pol = ACL_COND_UNLESS;
-
-		if (pol == ACL_COND_NONE) {
+		if (strcmp(args[2], "if") != 0 && strcmp(args[2], "unless") != 0) {
 			Alert("parsing [%s:%d] : '%s' requires either 'if' or 'unless' followed by a condition.\n",
 			      file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 
-		if ((cond = parse_acl_cond((const char **)args + 3, &curproxy->acl, pol)) == NULL) {
+		if ((cond = build_acl_cond(file, linenum, curproxy, (const char **)args + 2)) == NULL) {
 			Alert("parsing [%s:%d] : error detected while parsing switching rule.\n",
 			      file, linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 
-		cond->file = file;
-		cond->line = linenum;
-		curproxy->acl_requires |= cond->requires;
 		if (cond->requires & ACL_USE_RTR_ANY) {
 			struct acl *acl;
 			const char *name;
@@ -2060,7 +2030,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		LIST_ADDQ(&curproxy->switching_rules, &rule->list);
 	}
 	else if (!strcmp(args[0], "force-persist")) {
-		int pol = ACL_COND_NONE;
 		struct acl_cond *cond;
 		struct force_persist_rule *rule;
 
@@ -2073,28 +2042,20 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		if (warnifnotcap(curproxy, PR_CAP_FE|PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
-		if (!strcmp(args[1], "if"))
-			pol = ACL_COND_IF;
-		else if (!strcmp(args[1], "unless"))
-			pol = ACL_COND_UNLESS;
-
-		if (pol == ACL_COND_NONE) {
+		if (strcmp(args[1], "if") != 0 && strcmp(args[1], "unless") != 0) {
 			Alert("parsing [%s:%d] : '%s' requires either 'if' or 'unless' followed by a condition.\n",
 			      file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 
-		if ((cond = parse_acl_cond((const char **)args + 2, &curproxy->acl, pol)) == NULL) {
+		if ((cond = build_acl_cond(file, linenum, curproxy, (const char **)args + 1)) == NULL) {
 			Alert("parsing [%s:%d] : error detected while parsing a 'force-persist' rule.\n",
 			      file, linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 
-		cond->file = file;
-		cond->line = linenum;
-		curproxy->acl_requires |= cond->requires;
 		if (cond->requires & ACL_USE_RTR_ANY) {
 			struct acl *acl;
 			const char *name;
@@ -2189,7 +2150,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 	}
 	else if (!strcmp(args[0], "stick")) {
-		int pol = ACL_COND_NONE;
 		struct acl_cond *cond = NULL;
 		struct sticking_rule *rule;
 		struct pattern_expr *expr;
@@ -2266,31 +2226,14 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			name = args[myidx++];
 		}
 
-		if (*(args[myidx]) == 0)
-			pol = ACL_COND_NONE;
-		else if (strcmp(args[myidx], "if") == 0)
-			pol = ACL_COND_IF;
-		else if (strcmp(args[myidx], "unless") == 0)
-			pol = ACL_COND_UNLESS;
-		else {
-			Alert("parsing [%s:%d] : '%s': unknown keyword '%s'.\n",
-			      file, linenum, args[0], args[myidx]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (pol != ACL_COND_NONE) {
-			myidx++;
-			if ((cond = parse_acl_cond((const char **)args + myidx, &curproxy->acl, pol)) == NULL) {
+		if (strcmp(args[myidx], "if") == 0 || strcmp(args[myidx], "unless") == 0) {
+			if ((cond = build_acl_cond(file, linenum, curproxy, (const char **)args + myidx)) == NULL) {
 				Alert("parsing [%s:%d] : '%s': error detected while parsing sticking condition.\n",
 				      file, linenum, args[0]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
 
-			cond->file = file;
-			cond->line = linenum;
-			curproxy->acl_requires |= cond->requires;
 			if (cond->requires & ACL_USE_RTR_ANY) {
 				struct acl *acl;
 				const char *name;
@@ -2302,6 +2245,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_WARN;
 			}
 		}
+		else if (*(args[myidx])) {
+			Alert("parsing [%s:%d] : '%s': unknown keyword '%s'.\n",
+			      file, linenum, args[0], args[myidx]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
 		rule = (struct sticking_rule *)calloc(1, sizeof(*rule));
 		rule->cond = cond;
 		rule->expr = expr;
@@ -2779,30 +2729,21 @@ stats_error_parsing:
 
 		if (strcmp(args[1], "fail") == 0) {
 			/* add a condition to fail monitor requests */
-			int pol = ACL_COND_NONE;
 			struct acl_cond *cond;
 
-			if (!strcmp(args[2], "if"))
-				pol = ACL_COND_IF;
-			else if (!strcmp(args[2], "unless"))
-				pol = ACL_COND_UNLESS;
-
-			if (pol == ACL_COND_NONE) {
+			if (strcmp(args[2], "if") != 0 && strcmp(args[2], "unless") != 0) {
 				Alert("parsing [%s:%d] : '%s %s' requires either 'if' or 'unless' followed by a condition.\n",
 				      file, linenum, args[0], args[1]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
 
-			if ((cond = parse_acl_cond((const char **)args + 3, &curproxy->acl, pol)) == NULL) {
+			if ((cond = build_acl_cond(file, linenum, curproxy, (const char **)args + 2)) == NULL) {
 				Alert("parsing [%s:%d] : error detected while parsing a '%s %s' condition.\n",
 				      file, linenum, args[0], args[1]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
-			cond->file = file;
-			cond->line = linenum;
-			curproxy->acl_requires |= cond->requires;
 			LIST_ADDQ(&curproxy->mon_fail_cond, &cond->list);
 		}
 		else {

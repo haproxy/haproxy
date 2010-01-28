@@ -872,32 +872,21 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 		pol = ACL_COND_NONE;
 		cond = NULL;
 
-		if (!*args[3])
-			pol = ACL_COND_NONE;
-		else if (!strcmp(args[3], "if"))
-			pol = ACL_COND_IF;
-		else if (!strcmp(args[3], "unless"))
-			pol = ACL_COND_UNLESS;
-		else {
+		if (strcmp(args[3], "if") == 0 || strcmp(args[3], "unless") == 0) {
+			if ((cond = build_acl_cond(NULL, 0, curpx, (const char **)args+3)) == NULL) {
+				retlen = snprintf(err, errlen,
+						  "error detected in %s '%s' while parsing '%s' condition",
+						  proxy_type_str(curpx), curpx->id, args[3]);
+				return -1;
+			}
+		}
+		else if (*args[3]) {
 			retlen = snprintf(err, errlen,
 					  "'%s %s %s' only accepts 'if' or 'unless', in %s '%s' (was '%s')",
 					  args[0], args[1], args[2], proxy_type_str(curpx), curpx->id, args[3]);
 			return -1;
 		}
 
-		/* Note: we consider "if TRUE" when there is no condition */
-		if (pol != ACL_COND_NONE &&
-		    (cond = parse_acl_cond((const char **)args+4, &curpx->acl, pol)) == NULL) {
-			retlen = snprintf(err, errlen,
-					  "error detected in %s '%s' while parsing '%s' condition",
-					  proxy_type_str(curpx), curpx->id, args[3]);
-			return -1;
-		}
-
-		// FIXME: how to set this ?
-		// cond->line = linenum;
-		if (cond)
-			curpx->acl_requires |= cond->requires;
 		if (cond && (cond->requires & ACL_USE_RTR_ANY)) {
 			struct acl *acl;
 			const char *name;
