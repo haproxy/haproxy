@@ -980,6 +980,39 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int p
 	return NULL;
 }
 
+/* Builds an ACL condition starting at the if/unless keyword. The complete
+ * condition is returned. NULL is returned in case of error or if the first
+ * word is neither "if" nor "unless". It automatically sets the file name and
+ * the line number in the condition for better error reporting, and adds the
+ * ACL requirements to the proxy's acl_requires.
+ */
+struct acl_cond *build_acl_cond(const char *file, int line, struct proxy *px, const char **args)
+{
+	int pol = ACL_COND_NONE;
+	struct acl_cond *cond = NULL;
+
+	if (!strcmp(*args, "if")) {
+		pol = ACL_COND_IF;
+		args++;
+	}
+	else if (!strcmp(*args, "unless")) {
+		pol = ACL_COND_UNLESS;
+		args++;
+	}
+	else
+		return NULL;
+
+	cond = parse_acl_cond(args, &px->acl, pol);
+	if (!cond)
+		return NULL;
+
+	cond->file = file;
+	cond->line = line;
+	px->acl_requires |= cond->requires;
+
+	return cond;
+}
+
 /* Execute condition <cond> and return either ACL_PAT_FAIL, ACL_PAT_MISS or
  * ACL_PAT_PASS depending on the test results. ACL_PAT_MISS may only be
  * returned if <dir> contains ACL_PARTIAL, indicating that incomplete data

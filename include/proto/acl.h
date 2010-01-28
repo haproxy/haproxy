@@ -1,23 +1,23 @@
 /*
-  include/proto/acl.h
-  This file provides interface definitions for ACL manipulation.
-
-  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
-
-  This library is free software; you can redistribute it and/or
-  modify it under the terms of the GNU Lesser General Public
-  License as published by the Free Software Foundation, version 2.1
-  exclusively.
-
-  This library is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  Lesser General Public License for more details.
-
-  You should have received a copy of the GNU Lesser General Public
-  License along with this library; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
+ * include/proto/acl.h
+ * This file provides interface definitions for ACL manipulation.
+ *
+ * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation, version 2.1
+ * exclusively.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
 
 #ifndef _PROTO_ACL_H
 #define _PROTO_ACL_H
@@ -79,6 +79,14 @@ struct acl_cond *prune_acl_cond(struct acl_cond *cond);
  * case of low memory). Supports multiple conditions separated by "or".
  */
 struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int pol);
+
+/* Builds an ACL condition starting at the if/unless keyword. The complete
+ * condition is returned. NULL is returned in case of error or if the first
+ * word is neither "if" nor "unless". It automatically sets the file name and
+ * the line number in the condition for better error reporting, and adds the
+ * ACL requirements to the proxy's acl_requires.
+ */
+struct acl_cond *build_acl_cond(const char *file, int line, struct proxy *px, const char **args);
 
 /* Execute condition <cond> and return either ACL_PAT_FAIL, ACL_PAT_MISS or
  * ACL_PAT_PASS depending on the test results. This function only computes the
