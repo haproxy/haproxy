@@ -903,6 +903,62 @@ void init_default_instance()
 	defproxy.defsrv.uweight = defproxy.defsrv.iweight = 1;
 }
 
+
+static int create_cond_regex_rule(const char *file, int line,
+				  struct proxy *px, int dir, int action, int flags,
+				  const char *cmd, const char *reg, const char *repl,
+				  const char **cond_start)
+{
+	regex_t *preg = NULL;
+	const char *err;
+	int err_code = 0;
+
+	if (px == &defproxy) {
+		Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, line, cmd);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto err;
+	}
+
+	if (*reg == 0) {
+		Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, line, cmd);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto err;
+	}
+
+	if (warnifnotcap(px, PR_CAP_RS, file, line, cmd, NULL))
+		err_code |= ERR_WARN;
+
+	preg = calloc(1, sizeof(regex_t));
+	if (!preg) {
+		Alert("parsing [%s:%d] : '%s' : not enough memory to build regex.\n", file, line, cmd);
+		err_code = ERR_ALERT | ERR_FATAL;
+		goto err;
+	}
+
+	if (regcomp(preg, reg, REG_EXTENDED | flags) != 0) {
+		Alert("parsing [%s:%d] : '%s' : bad regular expression '%s'.\n", file, line, cmd, reg);
+		err_code = ERR_ALERT | ERR_FATAL;
+		goto err;
+	}
+
+	err = chain_regex((dir == ACL_DIR_REQ) ? &px->req_exp : &px->rsp_exp,
+			  preg, action, repl ? strdup(repl) : NULL, NULL);
+	if (repl && err) {
+		Alert("parsing [%s:%d] : '%s' : invalid character or unterminated sequence in replacement string near '%c'.\n",
+		      file, line, cmd, *err);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto err;
+	}
+
+	if (dir == ACL_DIR_REQ && warnif_misplaced_reqxxx(px, file, line, cmd))
+		err_code |= ERR_WARN;
+
+	return err_code;
+ err:
+	free(preg);
+	return err_code;
+}
+
 /*
  * Parse a line in a <listen>, <frontend>, <backend> or <ruleset> section.
  * Returns the error code, 0 if OK, or any combination of :
@@ -3534,383 +3590,116 @@ stats_error_parsing:
 		goto out;
 	}
 	else if (!strcmp(args[0], "cliexp") || !strcmp(args[0], "reqrep")) {  /* replace request header from a regex */
-		regex_t *preg;
-		if (curproxy == &defproxy) {
-			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (*(args[1]) == 0 || *(args[2]) == 0) {
+		if (*(args[2]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects <search> and <replace> as arguments.\n",
 			      file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-	
-		preg = calloc(1, sizeof(regex_t));
-		if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
-			Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
+
+		err_code |= create_cond_regex_rule(file, linenum, curproxy,
+						   ACL_DIR_REQ, ACT_REPLACE, 0,
+						   args[0], args[1], args[2], NULL);
+		if (err_code & ERR_FATAL)
 			goto out;
-		}
-	
-		err = chain_regex(&curproxy->req_exp, preg, ACT_REPLACE, strdup(args[2]), NULL);
-		if (err) {
-			Alert("parsing [%s:%d] : invalid character or unterminated sequence in replacement string near '%c'.\n",
-			      file, linenum, *err);
-			err_code |= ERR_ALERT | ERR_FATAL;
-		}
-		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqdel")) {  /* delete request header from a regex */
-		regex_t *preg;
-		if (curproxy == &defproxy) {
-			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
+		err_code |= create_cond_regex_rule(file, linenum, curproxy,
+						   ACL_DIR_REQ, ACT_REMOVE, 0,
+						   args[0], args[1], NULL, NULL);
+		if (err_code & ERR_FATAL)
 			goto out;
-		}
-		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (*(args[1]) == 0) {
-			Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	
-		preg = calloc(1, sizeof(regex_t));
-		if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
-			Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	
-		chain_regex(&curproxy->req_exp, preg, ACT_REMOVE, NULL, NULL);
-		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqdeny")) {  /* deny a request if a header matches this regex */
-		regex_t *preg;
-		if (curproxy == &defproxy) {
-			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
+		err_code |= create_cond_regex_rule(file, linenum, curproxy,
+						   ACL_DIR_REQ, ACT_DENY, 0,
+						   args[0], args[1], NULL, NULL);
+		if (err_code & ERR_FATAL)
 			goto out;
-		}
-		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (*(args[1]) == 0) {
-			Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	
-		preg = calloc(1, sizeof(regex_t));
-		if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
-			Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	
-		chain_regex(&curproxy->req_exp, preg, ACT_DENY, NULL, NULL);
-		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqpass")) {  /* pass this header without allowing or denying the request */
-		regex_t *preg;
-		if (curproxy == &defproxy) {
-			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
+		err_code |= create_cond_regex_rule(file, linenum, curproxy,
+						   ACL_DIR_REQ, ACT_PASS, 0,
+						   args[0], args[1], NULL, NULL);
+		if (err_code & ERR_FATAL)
 			goto out;
-		}
-		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (*(args[1]) == 0) {
-			Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	
-		preg = calloc(1, sizeof(regex_t));
-		if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
-			Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	
-		chain_regex(&curproxy->req_exp, preg, ACT_PASS, NULL, NULL);
-		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqallow")) {  /* allow a request if a header matches this regex */
-		regex_t *preg;
-		if (curproxy == &defproxy) {
-			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
+		err_code |= create_cond_regex_rule(file, linenum, curproxy,
+						   ACL_DIR_REQ, ACT_ALLOW, 0,
+						   args[0], args[1], NULL, NULL);
+		if (err_code & ERR_FATAL)
 			goto out;
-		}
-		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (*(args[1]) == 0) {
-			Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	
-		preg = calloc(1, sizeof(regex_t));
-		if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
-			Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	
-		chain_regex(&curproxy->req_exp, preg, ACT_ALLOW, NULL, NULL);
-		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqtarpit")) {  /* tarpit a request if a header matches this regex */
-		regex_t *preg;
-		if (curproxy == &defproxy) {
-			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
+		err_code |= create_cond_regex_rule(file, linenum, curproxy,
+						   ACL_DIR_REQ, ACT_TARPIT, 0,
+						   args[0], args[1], NULL, NULL);
+		if (err_code & ERR_FATAL)
 			goto out;
-		}
-		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (*(args[1]) == 0) {
-			Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	
-		preg = calloc(1, sizeof(regex_t));
-		if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
-			Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	
-		chain_regex(&curproxy->req_exp, preg, ACT_TARPIT, NULL, NULL);
-		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqsetbe")) { /* switch the backend from a regex, respecting case */
-		regex_t *preg;
-		if (curproxy == &defproxy) {
-			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
+		err_code |= create_cond_regex_rule(file, linenum, curproxy,
+						   ACL_DIR_REQ, ACT_SETBE, 0,
+						   args[0], args[1], args[2], NULL);
+		if (err_code & ERR_FATAL)
 			goto out;
-		}
-		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (*(args[1]) == 0 || *(args[2]) == 0) {
-			Alert("parsing [%s:%d] : '%s' expects <search> and <target> as arguments.\n", 
-				file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		
-		preg = calloc(1, sizeof(regex_t));
-		if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
-			Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		chain_regex(&curproxy->req_exp, preg, ACT_SETBE, strdup(args[2]), NULL);
-		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqisetbe")) { /* switch the backend from a regex, ignoring case */
-		regex_t *preg;
-		if (curproxy == &defproxy) {
-			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
+		err_code |= create_cond_regex_rule(file, linenum, curproxy,
+						   ACL_DIR_REQ, ACT_SETBE, REG_ICASE,
+						   args[0], args[1], args[2], NULL);
+		if (err_code & ERR_FATAL)
 			goto out;
-		}
-		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (*(args[1]) == 0 || *(args[2]) == 0) {
-			Alert("parsing [%s:%d] : '%s' expects <search> and <target> as arguments.\n", 
-			      file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		
-		preg = calloc(1, sizeof(regex_t));
-		if (regcomp(preg, args[1], REG_EXTENDED | REG_ICASE) != 0) {
-			Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		chain_regex(&curproxy->req_exp, preg, ACT_SETBE, strdup(args[2]), NULL);
-		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqirep")) {  /* replace request header from a regex, ignoring case */
-		regex_t *preg;
-		if (curproxy == &defproxy) {
-			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (*(args[1]) == 0 || *(args[2]) == 0) {
+		if (*(args[2]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects <search> and <replace> as arguments.\n",
 			      file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-	
-		preg = calloc(1, sizeof(regex_t));
-		if (regcomp(preg, args[1], REG_EXTENDED | REG_ICASE) != 0) {
-			Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
+
+		err_code |= create_cond_regex_rule(file, linenum, curproxy,
+						   ACL_DIR_REQ, ACT_REPLACE, REG_ICASE,
+						   args[0], args[1], args[2], NULL);
+		if (err_code & ERR_FATAL)
 			goto out;
-		}
-	
-		err = chain_regex(&curproxy->req_exp, preg, ACT_REPLACE, strdup(args[2]), NULL);
-		if (err) {
-			Alert("parsing [%s:%d] : invalid character or unterminated sequence in replacement string near '%c'.\n",
-			      file, linenum, *err);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqidel")) {  /* delete request header from a regex ignoring case */
-		regex_t *preg;
-		if (curproxy == &defproxy) {
-			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
+		err_code |= create_cond_regex_rule(file, linenum, curproxy,
+						   ACL_DIR_REQ, ACT_REMOVE, REG_ICASE,
+						   args[0], args[1], NULL, NULL);
+		if (err_code & ERR_FATAL)
 			goto out;
-		}
-		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (*(args[1]) == 0) {
-			Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	
-		preg = calloc(1, sizeof(regex_t));
-		if (regcomp(preg, args[1], REG_EXTENDED | REG_ICASE) != 0) {
-			Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	
-		chain_regex(&curproxy->req_exp, preg, ACT_REMOVE, NULL, NULL);
-		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqideny")) {  /* deny a request if a header matches this regex ignoring case */
-		regex_t *preg;
-		if (curproxy == &defproxy) {
-			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
+		err_code |= create_cond_regex_rule(file, linenum, curproxy,
+						   ACL_DIR_REQ, ACT_DENY, REG_ICASE,
+						   args[0], args[1], NULL, NULL);
+		if (err_code & ERR_FATAL)
 			goto out;
-		}
-		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (*(args[1]) == 0) {
-			Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	
-		preg = calloc(1, sizeof(regex_t));
-		if (regcomp(preg, args[1], REG_EXTENDED | REG_ICASE) != 0) {
-			Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	
-		chain_regex(&curproxy->req_exp, preg, ACT_DENY, NULL, NULL);
-		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqipass")) {  /* pass this header without allowing or denying the request */
-		regex_t *preg;
-		if (curproxy == &defproxy) {
-			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
+		err_code |= create_cond_regex_rule(file, linenum, curproxy,
+						   ACL_DIR_REQ, ACT_PASS, REG_ICASE,
+						   args[0], args[1], NULL, NULL);
+		if (err_code & ERR_FATAL)
 			goto out;
-		}
-		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (*(args[1]) == 0) {
-			Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	
-		preg = calloc(1, sizeof(regex_t));
-		if (regcomp(preg, args[1], REG_EXTENDED | REG_ICASE) != 0) {
-			Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	
-		chain_regex(&curproxy->req_exp, preg, ACT_PASS, NULL, NULL);
-		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqiallow")) {  /* allow a request if a header matches this regex ignoring case */
-		regex_t *preg;
-		if (curproxy == &defproxy) {
-			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
+		err_code |= create_cond_regex_rule(file, linenum, curproxy,
+						   ACL_DIR_REQ, ACT_ALLOW, REG_ICASE,
+						   args[0], args[1], NULL, NULL);
+		if (err_code & ERR_FATAL)
 			goto out;
-		}
-		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (*(args[1]) == 0) {
-			Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	
-		preg = calloc(1, sizeof(regex_t));
-		if (regcomp(preg, args[1], REG_EXTENDED | REG_ICASE) != 0) {
-			Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	
-		chain_regex(&curproxy->req_exp, preg, ACT_ALLOW, NULL, NULL);
-		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqitarpit")) {  /* tarpit a request if a header matches this regex ignoring case */
-		regex_t *preg;
-		if (curproxy == &defproxy) {
-			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
+		err_code |= create_cond_regex_rule(file, linenum, curproxy,
+						   ACL_DIR_REQ, ACT_TARPIT, REG_ICASE,
+						   args[0], args[1], NULL, NULL);
+		if (err_code & ERR_FATAL)
 			goto out;
-		}
-		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (*(args[1]) == 0) {
-			Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	
-		preg = calloc(1, sizeof(regex_t));
-		if (regcomp(preg, args[1], REG_EXTENDED | REG_ICASE) != 0) {
-			Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	
-		chain_regex(&curproxy->req_exp, preg, ACT_TARPIT, NULL, NULL);
-		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqadd")) {  /* add request header */
 		struct cond_wordlist *wl;
@@ -3935,193 +3724,60 @@ stats_error_parsing:
 		warnif_misplaced_reqadd(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "srvexp") || !strcmp(args[0], "rsprep")) {  /* replace response header from a regex */
-		regex_t *preg;
-		if (curproxy == &defproxy) {
-			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	
-		if (*(args[1]) == 0 || *(args[2]) == 0) {
+		if (*(args[2]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects <search> and <replace> as arguments.\n",
 			      file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
 
-		preg = calloc(1, sizeof(regex_t));
-		if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
-			Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
+		err_code |= create_cond_regex_rule(file, linenum, curproxy,
+						   ACL_DIR_RTR, ACT_REPLACE, 0,
+						   args[0], args[1], args[2], NULL);
+		if (err_code & ERR_FATAL)
 			goto out;
-		}
-	
-		err = chain_regex(&curproxy->rsp_exp, preg, ACT_REPLACE, strdup(args[2]), NULL);
-		if (err) {
-			Alert("parsing [%s:%d] : invalid character or unterminated sequence in replacement string near '%c'.\n",
-			      file, linenum, *err);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "rspdel")) {  /* delete response header from a regex */
-		regex_t *preg;
-		if (curproxy == &defproxy) {
-			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
+		err_code |= create_cond_regex_rule(file, linenum, curproxy,
+						   ACL_DIR_RTR, ACT_REMOVE, 0,
+						   args[0], args[1], NULL, NULL);
+		if (err_code & ERR_FATAL)
 			goto out;
-		}
-		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (*(args[1]) == 0) {
-			Alert("parsing [%s:%d] : '%s' expects <search> as an argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		preg = calloc(1, sizeof(regex_t));
-		if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
-			Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	
-		err = chain_regex(&curproxy->rsp_exp, preg, ACT_REMOVE, strdup(args[2]), NULL);
-		if (err) {
-			Alert("parsing [%s:%d] : invalid character or unterminated sequence in replacement string near '%c'.\n",
-			      file, linenum, *err);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
 	}
 	else if (!strcmp(args[0], "rspdeny")) {  /* block response header from a regex */
-		regex_t *preg;
-		if (curproxy == &defproxy) {
-			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
+		err_code |= create_cond_regex_rule(file, linenum, curproxy,
+						   ACL_DIR_RTR, ACT_DENY, 0,
+						   args[0], args[1], NULL, NULL);
+		if (err_code & ERR_FATAL)
 			goto out;
-		}
-		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (*(args[1]) == 0) {
-			Alert("parsing [%s:%d] : '%s' expects <search> as an argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		preg = calloc(1, sizeof(regex_t));
-		if (regcomp(preg, args[1], REG_EXTENDED) != 0) {
-			Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	
-		err = chain_regex(&curproxy->rsp_exp, preg, ACT_DENY, strdup(args[2]), NULL);
-		if (err) {
-			Alert("parsing [%s:%d] : invalid character or unterminated sequence in replacement string near '%c'.\n",
-			      file, linenum, *err);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
 	}
 	else if (!strcmp(args[0], "rspirep")) {  /* replace response header from a regex ignoring case */
-		regex_t *preg;
-		if (curproxy == &defproxy) {
-			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (*(args[1]) == 0 || *(args[2]) == 0) {
+		if (*(args[2]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects <search> and <replace> as arguments.\n",
 			      file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 
-		preg = calloc(1, sizeof(regex_t));
-		if (regcomp(preg, args[1], REG_EXTENDED | REG_ICASE) != 0) {
-			Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
+		err_code |= create_cond_regex_rule(file, linenum, curproxy,
+						   ACL_DIR_RTR, ACT_REPLACE, REG_ICASE,
+						   args[0], args[1], args[2], NULL);
+		if (err_code & ERR_FATAL)
 			goto out;
-		}
-	    
-		err = chain_regex(&curproxy->rsp_exp, preg, ACT_REPLACE, strdup(args[2]), NULL);
-		if (err) {
-			Alert("parsing [%s:%d] : invalid character or unterminated sequence in replacement string near '%c'.\n",
-			      file, linenum, *err);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
 	}
 	else if (!strcmp(args[0], "rspidel")) {  /* delete response header from a regex ignoring case */
-		regex_t *preg;
-		if (curproxy == &defproxy) {
-			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
+		err_code |= create_cond_regex_rule(file, linenum, curproxy,
+						   ACL_DIR_RTR, ACT_REMOVE, REG_ICASE,
+						   args[0], args[1], NULL, NULL);
+		if (err_code & ERR_FATAL)
 			goto out;
-		}
-		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (*(args[1]) == 0) {
-			Alert("parsing [%s:%d] : '%s' expects <search> as an argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		preg = calloc(1, sizeof(regex_t));
-		if (regcomp(preg, args[1], REG_EXTENDED | REG_ICASE) != 0) {
-			Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	
-		err = chain_regex(&curproxy->rsp_exp, preg, ACT_REMOVE, strdup(args[2]), NULL);
-		if (err) {
-			Alert("parsing [%s:%d] : invalid character or unterminated sequence in replacement string near '%c'.\n",
-			      file, linenum, *err);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
 	}
 	else if (!strcmp(args[0], "rspideny")) {  /* block response header from a regex ignoring case */
-		regex_t *preg;
-		if (curproxy == &defproxy) {
-			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
+		err_code |= create_cond_regex_rule(file, linenum, curproxy,
+						   ACL_DIR_RTR, ACT_DENY, REG_ICASE,
+						   args[0], args[1], NULL, NULL);
+		if (err_code & ERR_FATAL)
 			goto out;
-		}
-		else if (warnifnotcap(curproxy, PR_CAP_RS, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		if (*(args[1]) == 0) {
-			Alert("parsing [%s:%d] : '%s' expects <search> as an argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		preg = calloc(1, sizeof(regex_t));
-		if (regcomp(preg, args[1], REG_EXTENDED | REG_ICASE) != 0) {
-			Alert("parsing [%s:%d] : bad regular expression '%s'.\n", file, linenum, args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-	
-		err = chain_regex(&curproxy->rsp_exp, preg, ACT_DENY, strdup(args[2]), NULL);
-		if (err) {
-			Alert("parsing [%s:%d] : invalid character or unterminated sequence in replacement string near '%c'.\n",
-			      file, linenum, *err);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
 	}
 	else if (!strcmp(args[0], "rspadd")) {  /* add response header */
 		struct cond_wordlist *wl;
