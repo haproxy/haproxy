@@ -3405,7 +3405,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			goto out;
 		}
 	
-		err = chain_regex(&curproxy->rsp_exp, preg, ACT_REMOVE, strdup(args[2]));
+		err = chain_regex(&curproxy->rsp_exp, preg, ACT_REMOVE, NULL);
 		if (err) {
 			Alert("parsing [%s:%d] : invalid character or unterminated sequence in replacement string near '%c'.\n",
 			      file, linenum, *err);
@@ -3436,7 +3436,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			goto out;
 		}
 	
-		err = chain_regex(&curproxy->rsp_exp, preg, ACT_DENY, strdup(args[2]));
+		err = chain_regex(&curproxy->rsp_exp, preg, ACT_DENY, NULL);
 		if (err) {
 			Alert("parsing [%s:%d] : invalid character or unterminated sequence in replacement string near '%c'.\n",
 			      file, linenum, *err);
@@ -3499,7 +3499,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			goto out;
 		}
 	
-		err = chain_regex(&curproxy->rsp_exp, preg, ACT_REMOVE, strdup(args[2]));
+		err = chain_regex(&curproxy->rsp_exp, preg, ACT_REMOVE, NULL);
 		if (err) {
 			Alert("parsing [%s:%d] : invalid character or unterminated sequence in replacement string near '%c'.\n",
 			      file, linenum, *err);
@@ -3530,7 +3530,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int inv)
 			goto out;
 		}
 	
-		err = chain_regex(&curproxy->rsp_exp, preg, ACT_DENY, strdup(args[2]));
+		err = chain_regex(&curproxy->rsp_exp, preg, ACT_DENY, NULL);
 		if (err) {
 			Alert("parsing [%s:%d] : invalid character or unterminated sequence in replacement string near '%c'.\n",
 			      file, linenum, *err);
