@@ -279,7 +279,7 @@ static int str2listener(char *str, struct proxy *curproxy)
  * of the warning to help the user. Returns 1 if a warning was emitted
  * or 0 if the condition is valid.
  */
-int warnifnotcap(struct proxy *proxy, int cap, const char *file, int line, char *arg, char *hint)
+int warnifnotcap(struct proxy *proxy, int cap, const char *file, int line, const char *arg, const char *hint)
 {
 	char *msg;
 
@@ -302,7 +302,7 @@ int warnifnotcap(struct proxy *proxy, int cap, const char *file, int line, char 
 /* Report a warning if a rule is placed after a 'block' rule.
  * Return 1 if the warning has been emitted, otherwise 0.
  */
-int warnif_rule_after_block(struct proxy *proxy, const char *file, int line, char *arg)
+int warnif_rule_after_block(struct proxy *proxy, const char *file, int line, const char *arg)
 {
 	if (!LIST_ISEMPTY(&proxy->block_cond)) {
 		Warning("parsing [%s:%d] : a '%s' rule placed after a 'block' rule will still be processed before.\n",
@@ -315,7 +315,7 @@ int warnif_rule_after_block(struct proxy *proxy, const char *file, int line, cha
 /* Report a warning if a rule is placed after a reqrewrite rule.
  * Return 1 if the warning has been emitted, otherwise 0.
  */
-int warnif_rule_after_reqxxx(struct proxy *proxy, const char *file, int line, char *arg)
+int warnif_rule_after_reqxxx(struct proxy *proxy, const char *file, int line, const char *arg)
 {
 	if (proxy->req_exp) {
 		Warning("parsing [%s:%d] : a '%s' rule placed after a 'reqxxx' rule will still be processed before.\n",
@@ -328,7 +328,7 @@ int warnif_rule_after_reqxxx(struct proxy *proxy, const char *file, int line, ch
 /* Report a warning if a rule is placed after a reqadd rule.
  * Return 1 if the warning has been emitted, otherwise 0.
  */
-int warnif_rule_after_reqadd(struct proxy *proxy, const char *file, int line, char *arg)
+int warnif_rule_after_reqadd(struct proxy *proxy, const char *file, int line, const char *arg)
 {
 	if (!LIST_ISEMPTY(&proxy->req_add)) {
 		Warning("parsing [%s:%d] : a '%s' rule placed after a 'reqadd' rule will still be processed before.\n",
@@ -341,7 +341,7 @@ int warnif_rule_after_reqadd(struct proxy *proxy, const char *file, int line, ch
 /* Report a warning if a rule is placed after a redirect rule.
  * Return 1 if the warning has been emitted, otherwise 0.
  */
-int warnif_rule_after_redirect(struct proxy *proxy, const char *file, int line, char *arg)
+int warnif_rule_after_redirect(struct proxy *proxy, const char *file, int line, const char *arg)
 {
 	if (!LIST_ISEMPTY(&proxy->redirect_rules)) {
 		Warning("parsing [%s:%d] : a '%s' rule placed after a 'redirect' rule will still be processed before.\n",
@@ -354,7 +354,7 @@ int warnif_rule_after_redirect(struct proxy *proxy, const char *file, int line, 
 /* Report a warning if a rule is placed after a 'use_backend' rule.
  * Return 1 if the warning has been emitted, otherwise 0.
  */
-int warnif_rule_after_use_backend(struct proxy *proxy, const char *file, int line, char *arg)
+int warnif_rule_after_use_backend(struct proxy *proxy, const char *file, int line, const char *arg)
 {
 	if (!LIST_ISEMPTY(&proxy->switching_rules)) {
 		Warning("parsing [%s:%d] : a '%s' rule placed after a 'use_backend' rule will still be processed before.\n",
@@ -365,7 +365,7 @@ int warnif_rule_after_use_backend(struct proxy *proxy, const char *file, int lin
 }
 
 /* report a warning if a block rule is dangerously placed */
-int warnif_misplaced_block(struct proxy *proxy, const char *file, int line, char *arg)
+int warnif_misplaced_block(struct proxy *proxy, const char *file, int line, const char *arg)
 {
 	return	warnif_rule_after_reqxxx(proxy, file, line, arg) ||
 		warnif_rule_after_reqadd(proxy, file, line, arg) ||
@@ -374,7 +374,7 @@ int warnif_misplaced_block(struct proxy *proxy, const char *file, int line, char
 }
 
 /* report a warning if a reqxxx rule is dangerously placed */
-int warnif_misplaced_reqxxx(struct proxy *proxy, const char *file, int line, char *arg)
+int warnif_misplaced_reqxxx(struct proxy *proxy, const char *file, int line, const char *arg)
 {
 	return	warnif_rule_after_reqadd(proxy, file, line, arg) ||
 		warnif_rule_after_redirect(proxy, file, line, arg) ||
@@ -382,7 +382,7 @@ int warnif_misplaced_reqxxx(struct proxy *proxy, const char *file, int line, cha
 }
 
 /* report a warning if a reqadd rule is dangerously placed */
-int warnif_misplaced_reqadd(struct proxy *proxy, const char *file, int line, char *arg)
+int warnif_misplaced_reqadd(struct proxy *proxy, const char *file, int line, const char *arg)
 {
 	return	warnif_rule_after_redirect(proxy, file, line, arg) ||
 		warnif_rule_after_use_backend(proxy, file, line, arg);
@@ -921,6 +921,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	int rc;
 	unsigned val;
 	int err_code = 0;
+	struct acl_cond *cond = NULL;
 
 	if (!strcmp(args[0], "listen"))
 		rc = PR_CAP_LISTEN;
@@ -1831,8 +1832,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		curproxy->conn_retries = atol(args[1]);
 	}
 	else if (!strcmp(args[0], "block")) {  /* early blocking based on ACLs */
-		struct acl_cond *cond;
-
 		if (curproxy == &defproxy) {
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -1857,7 +1856,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		warnif_misplaced_block(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "redirect")) {
-		struct acl_cond *cond = NULL;
 		struct redirect_rule *rule;
 		int cur_arg;
 		int type = REDIRECT_TYPE_NONE;
@@ -1998,7 +1996,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		warnif_rule_after_use_backend(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "use_backend")) {
-		struct acl_cond *cond;
 		struct switching_rule *rule;
 
 		if (curproxy == &defproxy) {
@@ -2039,7 +2036,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		LIST_ADDQ(&curproxy->switching_rules, &rule->list);
 	}
 	else if (!strcmp(args[0], "force-persist")) {
-		struct acl_cond *cond;
 		struct force_persist_rule *rule;
 
 		if (curproxy == &defproxy) {
@@ -2150,7 +2146,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 	}
 	else if (!strcmp(args[0], "stick")) {
-		struct acl_cond *cond = NULL;
 		struct sticking_rule *rule;
 		struct pattern_expr *expr;
 		int myidx = 0;
@@ -2720,8 +2715,6 @@ stats_error_parsing:
 
 		if (strcmp(args[1], "fail") == 0) {
 			/* add a condition to fail monitor requests */
-			struct acl_cond *cond;
-
 			if (strcmp(args[2], "if") != 0 && strcmp(args[2], "unless") != 0) {
 				Alert("parsing [%s:%d] : '%s %s' requires either 'if' or 'unless' followed by a condition.\n",
 				      file, linenum, args[0], args[1]);
