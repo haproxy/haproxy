@@ -75,7 +75,7 @@ void debug_hdr(const char *dir, struct session *t, const char *start, const char
 void get_srv_from_appsession(struct session *t, const char *begin, int len);
 int apply_filter_to_req_headers(struct session *t, struct buffer *req, struct hdr_exp *exp);
 int apply_filter_to_req_line(struct session *t, struct buffer *req, struct hdr_exp *exp);
-int apply_filters_to_request(struct session *t, struct buffer *req, struct hdr_exp *exp);
+int apply_filters_to_request(struct session *s, struct buffer *req, struct proxy *px);
 int apply_filters_to_response(struct session *t, struct buffer *rtr, struct hdr_exp *exp);
 void manage_client_side_appsession(struct session *t, const char *buf, int len);
 void manage_client_side_cookies(struct session *t, struct buffer *req);

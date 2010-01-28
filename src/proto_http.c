@@ -2764,7 +2764,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 
 	/* try headers filters */
 	if (px->req_exp != NULL) {
-		if (apply_filters_to_request(s, req, px->req_exp) < 0)
+		if (apply_filters_to_request(s, req, px) < 0)
 			goto return_bad_req;
 
 		/* has the request been denied ? */
@@ -5176,16 +5176,17 @@ int apply_filter_to_req_line(struct session *t, struct buffer *req, struct hdr_e
 
 
 /*
- * Apply all the req filters <exp> to all headers in buffer <req> of session <t>.
+ * Apply all the req filters of proxy <px> to all headers in buffer <req> of session <s>.
  * Returns 0 if everything is alright, or -1 in case a replacement lead to an
  * unparsable request. Since it can manage the switch to another backend, it
  * updates the per-proxy DENY stats.
  */
-int apply_filters_to_request(struct session *t, struct buffer *req, struct hdr_exp *exp)
+int apply_filters_to_request(struct session *s, struct buffer *req, struct proxy *px)
 {
-	struct http_txn *txn = &t->txn;
-	/* iterate through the filters in the outer loop */
-	while (exp && !(txn->flags & (TX_CLDENY|TX_CLTARPIT))) {
+	struct http_txn *txn = &s->txn;
+	struct hdr_exp *exp;
+
+	for (exp = px->req_exp; exp; exp = exp->next) {
 		int ret;
 
 		/*
@@ -5194,15 +5195,29 @@ int apply_filters_to_request(struct session *t, struct buffer *req, struct hdr_e
 		 * the evaluation.
 		 */
 
+		if (txn->flags & (TX_CLDENY|TX_CLTARPIT))
+			break;
+
 		if ((txn->flags & TX_CLALLOW) &&
 		    (exp->action == ACT_ALLOW || exp->action == ACT_DENY ||
-		     exp->action == ACT_TARPIT || exp->action == ACT_PASS)) {
-			exp = exp->next;
+		     exp->action == ACT_TARPIT || exp->action == ACT_PASS))
 			continue;
+
+		/* if this filter had a condition, evaluate it now and skip to
+		 * next filter if the condition does not match.
+		 */
+		if (exp->cond) {
+			ret = acl_exec_cond(exp->cond, px, s, txn, ACL_DIR_REQ);
+			ret = acl_pass(ret);
+			if (((struct acl_cond *)exp->cond)->pol == ACL_COND_UNLESS)
+				ret = !ret;
+
+			if (!ret)
+				continue;
 		}
 
 		/* Apply the filter to the request line. */
-		ret = apply_filter_to_req_line(t, req, exp);
+		ret = apply_filter_to_req_line(s, req, exp);
 		if (unlikely(ret < 0))
 			return -1;
 
@@ -5210,9 +5225,8 @@ int apply_filters_to_request(struct session *t, struct buffer *req, struct hdr_e
 			/* The filter did not match the request, it can be
 			 * iterated through all headers.
 			 */
-			apply_filter_to_req_headers(t, req, exp);
+			apply_filter_to_req_headers(s, req, exp);
 		}
-		exp = exp->next;
 	}
 	return 0;
 }
