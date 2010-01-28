@@ -3597,8 +3597,8 @@ reqadd  <string>
   See also: "rspadd" and section 6 about HTTP header manipulation
 
 
-reqallow  <search>
-reqiallow <search>  (ignore case)
+reqallow  <search> [{if | unless} <cond>]
+reqiallow <search> [{if | unless} <cond>] (ignore case)
   Definitely allow an HTTP request if a line matches a regular expression
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   yes
@@ -3610,6 +3610,9 @@ reqiallow <search>  (ignore case)
               ('\'). The pattern applies to a full line at a time. The
               "reqallow" keyword strictly matches case while "reqiallow"
               ignores case.
+
+    <cond>    is an optional matching condition built from ACLs. It makes it
+              possible to ignore this rule when other conditions are not met.
 
   A request containing any line which matches extended regular expression
   <search> will mark the request as allowed, even if any later test would
@@ -3625,12 +3628,12 @@ reqiallow <search>  (ignore case)
      reqiallow ^Host:\ www\.
      reqideny  ^Host:\ .*\.local
 
-  See also: "reqdeny", "acl", "block" and section 6 about HTTP header
-            manipulation
+  See also: "reqdeny", "block", section 6 about HTTP header manipulation, and
+            section 7 about ACLs.
 
 
-reqdel  <search>
-reqidel <search>  (ignore case)
+reqdel  <search> [{if | unless} <cond>]
+reqidel <search> [{if | unless} <cond>]  (ignore case)
   Delete all headers matching a regular expression in an HTTP request
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   yes
@@ -3641,6 +3644,9 @@ reqidel <search>  (ignore case)
               Any space or known delimiter must be escaped using a backslash
               ('\'). The pattern applies to a full line at a time. The "reqdel"
               keyword strictly matches case while "reqidel" ignores case.
+
+    <cond>    is an optional matching condition built from ACLs. It makes it
+              possible to ignore this rule when other conditions are not met.
 
   Any header line matching extended regular expression <search> in the request
   will be completely deleted. Most common use of this is to remove unwanted
@@ -3656,12 +3662,12 @@ reqidel <search>  (ignore case)
      reqidel ^X-Forwarded-For:.*
      reqidel ^Cookie:.*SERVER=
 
-  See also: "reqadd", "reqrep", "rspdel" and section 6 about HTTP header
-            manipulation
+  See also: "reqadd", "reqrep", "rspdel", section 6 about HTTP header
+            manipulation, and section 7 about ACLs.
 
 
-reqdeny  <search>
-reqideny <search>  (ignore case)
+reqdeny  <search> [{if | unless} <cond>]
+reqideny <search> [{if | unless} <cond>]  (ignore case)
   Deny an HTTP request if a line matches a regular expression
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   yes
@@ -3673,6 +3679,9 @@ reqideny <search>  (ignore case)
               ('\'). The pattern applies to a full line at a time. The
               "reqdeny" keyword strictly matches case while "reqideny" ignores
               case.
+
+    <cond>    is an optional matching condition built from ACLs. It makes it
+              possible to ignore this rule when other conditions are not met.
 
   A request containing any line which matches extended regular expression
   <search> will mark the request as denied, even if any later test would
@@ -3692,12 +3701,12 @@ reqideny <search>  (ignore case)
      reqideny  ^Host:\ .*\.local
      reqiallow ^Host:\ www\.
 
-  See also: "reqallow", "rspdeny", "acl", "block" and section 6 about HTTP
-            header manipulation
+  See also: "reqallow", "rspdeny", "block", section 6 about HTTP header
+            manipulation, and section 7 about ACLs.
 
 
-reqpass  <search>
-reqipass <search>  (ignore case)
+reqpass  <search> [{if | unless} <cond>]
+reqipass <search> [{if | unless} <cond>]  (ignore case)
   Ignore any HTTP request line matching a regular expression in next rules
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   yes
@@ -3709,6 +3718,9 @@ reqipass <search>  (ignore case)
               ('\'). The pattern applies to a full line at a time. The
               "reqpass" keyword strictly matches case while "reqipass" ignores
               case.
+
+    <cond>    is an optional matching condition built from ACLs. It makes it
+              possible to ignore this rule when other conditions are not met.
 
   A request containing any line which matches extended regular expression
   <search> will skip next rules, without assigning any deny or allow verdict.
@@ -3724,12 +3736,12 @@ reqipass <search>  (ignore case)
      reqideny  ^Host:\ .*\.local
      reqiallow ^Host:\ www\.
 
-  See also: "reqallow", "reqdeny", "acl", "block" and section 6 about HTTP
-            header manipulation
+  See also: "reqallow", "reqdeny", "block", section 6 about HTTP header
+            manipulation, and section 7 about ACLs.
 
 
-reqrep  <search> <string>
-reqirep <search> <string>   (ignore case)
+reqrep  <search> <string> [{if | unless} <cond>]
+reqirep <search> <string> [{if | unless} <cond>]   (ignore case)
   Replace a regular expression with a string in an HTTP request line
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   yes
@@ -3747,6 +3759,9 @@ reqirep <search> <string>   (ignore case)
               being a single digit between 0 and 9. Please refer to section
               6 about HTTP header manipulation for more information.
 
+    <cond>    is an optional matching condition built from ACLs. It makes it
+              possible to ignore this rule when other conditions are not met.
+
   Any line matching extended regular expression <search> in the request (both
   the request line and header lines) will be completely replaced with <string>.
   Most common use of this is to rewrite URLs or domain names in "Host" headers.
@@ -3763,12 +3778,12 @@ reqirep <search> <string>   (ignore case)
      # replace "www.mydomain.com" with "www" in the host name.
      reqirep ^Host:\ www.mydomain.com   Host:\ www
 
-  See also: "reqadd", "reqdel", "rsprep" and section 6 about HTTP header
-            manipulation
+  See also: "reqadd", "reqdel", "rsprep", section 6 about HTTP header
+            manipulation, and section 7 about ACLs.
 
 
-reqtarpit  <search>
-reqitarpit <search>  (ignore case)
+reqtarpit  <search> [{if | unless} <cond>]
+reqitarpit <search> [{if | unless} <cond>]  (ignore case)
   Tarpit an HTTP request containing a line matching a regular expression
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   yes
@@ -3780,6 +3795,9 @@ reqitarpit <search>  (ignore case)
               ('\'). The pattern applies to a full line at a time. The
               "reqtarpit" keyword strictly matches case while "reqitarpit"
               ignores case.
+
+    <cond>    is an optional matching condition built from ACLs. It makes it
+              possible to ignore this rule when other conditions are not met.
 
   A request containing any line which matches extended regular expression
   <search> will be tarpitted, which means that it will connect to nowhere, will
@@ -3795,14 +3813,18 @@ reqitarpit <search>  (ignore case)
   come. Depending on the environment and attack, it may be particularly
   efficient at reducing the load on the network and firewalls.
 
-  Example :
+  Examples :
      # ignore user-agents reporting any flavour of "Mozilla" or "MSIE", but
      # block all others.
      reqipass   ^User-Agent:\.*(Mozilla|MSIE)
      reqitarpit ^User-Agent:
 
-  See also: "reqallow", "reqdeny", "reqpass", and section 6 about HTTP header
-            manipulation
+     # block bad guys
+     acl badguys src 10.1.0.3 172.16.13.20/28
+     reqitarpit . if badguys
+
+  See also: "reqallow", "reqdeny", "reqpass", section 6 about HTTP header
+            manipulation, and section 7 about ACLs.
 
 
 retries <value>
