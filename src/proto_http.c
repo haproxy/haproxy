@@ -2724,7 +2724,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 	struct http_msg *msg = &txn->req;
 	struct acl_cond *cond;
 	struct redirect_rule *rule;
-	struct wordlist *wl;
+	struct cond_wordlist *wl;
 	int del_ka, del_cl;
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
@@ -4485,7 +4485,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 	struct http_txn *txn = &t->txn;
 	struct http_msg *msg = &txn->rsp;
 	struct proxy *cur_proxy;
-	struct wordlist *wl;
+	struct cond_wordlist *wl;
 
 	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,

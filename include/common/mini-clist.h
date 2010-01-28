@@ -39,6 +39,13 @@ struct wordlist {
 	char *s;
 };
 
+/* this is the same as above with an additional pointer to a condition. */
+struct cond_wordlist {
+	struct list list;
+	void *cond;
+	char *s;
+};
+
 /* First undefine some macros which happen to also be defined on OpenBSD,
  * in sys/queue.h, used by sys/event.h
  */

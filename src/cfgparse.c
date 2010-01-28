@@ -3564,7 +3564,7 @@ stats_error_parsing:
 			goto out;
 		}
 	
-		err = chain_regex(&curproxy->req_exp, preg, ACT_REPLACE, strdup(args[2]));
+		err = chain_regex(&curproxy->req_exp, preg, ACT_REPLACE, strdup(args[2]), NULL);
 		if (err) {
 			Alert("parsing [%s:%d] : invalid character or unterminated sequence in replacement string near '%c'.\n",
 			      file, linenum, *err);
@@ -3595,7 +3595,7 @@ stats_error_parsing:
 			goto out;
 		}
 	
-		chain_regex(&curproxy->req_exp, preg, ACT_REMOVE, NULL);
+		chain_regex(&curproxy->req_exp, preg, ACT_REMOVE, NULL, NULL);
 		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqdeny")) {  /* deny a request if a header matches this regex */
@@ -3621,7 +3621,7 @@ stats_error_parsing:
 			goto out;
 		}
 	
-		chain_regex(&curproxy->req_exp, preg, ACT_DENY, NULL);
+		chain_regex(&curproxy->req_exp, preg, ACT_DENY, NULL, NULL);
 		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqpass")) {  /* pass this header without allowing or denying the request */
@@ -3647,7 +3647,7 @@ stats_error_parsing:
 			goto out;
 		}
 	
-		chain_regex(&curproxy->req_exp, preg, ACT_PASS, NULL);
+		chain_regex(&curproxy->req_exp, preg, ACT_PASS, NULL, NULL);
 		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqallow")) {  /* allow a request if a header matches this regex */
@@ -3673,7 +3673,7 @@ stats_error_parsing:
 			goto out;
 		}
 	
-		chain_regex(&curproxy->req_exp, preg, ACT_ALLOW, NULL);
+		chain_regex(&curproxy->req_exp, preg, ACT_ALLOW, NULL, NULL);
 		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqtarpit")) {  /* tarpit a request if a header matches this regex */
@@ -3699,7 +3699,7 @@ stats_error_parsing:
 			goto out;
 		}
 	
-		chain_regex(&curproxy->req_exp, preg, ACT_TARPIT, NULL);
+		chain_regex(&curproxy->req_exp, preg, ACT_TARPIT, NULL, NULL);
 		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqsetbe")) { /* switch the backend from a regex, respecting case */
@@ -3726,7 +3726,7 @@ stats_error_parsing:
 			goto out;
 		}
 
-		chain_regex(&curproxy->req_exp, preg, ACT_SETBE, strdup(args[2]));
+		chain_regex(&curproxy->req_exp, preg, ACT_SETBE, strdup(args[2]), NULL);
 		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqisetbe")) { /* switch the backend from a regex, ignoring case */
@@ -3753,7 +3753,7 @@ stats_error_parsing:
 			goto out;
 		}
 
-		chain_regex(&curproxy->req_exp, preg, ACT_SETBE, strdup(args[2]));
+		chain_regex(&curproxy->req_exp, preg, ACT_SETBE, strdup(args[2]), NULL);
 		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqirep")) {  /* replace request header from a regex, ignoring case */
@@ -3780,7 +3780,7 @@ stats_error_parsing:
 			goto out;
 		}
 	
-		err = chain_regex(&curproxy->req_exp, preg, ACT_REPLACE, strdup(args[2]));
+		err = chain_regex(&curproxy->req_exp, preg, ACT_REPLACE, strdup(args[2]), NULL);
 		if (err) {
 			Alert("parsing [%s:%d] : invalid character or unterminated sequence in replacement string near '%c'.\n",
 			      file, linenum, *err);
@@ -3812,7 +3812,7 @@ stats_error_parsing:
 			goto out;
 		}
 	
-		chain_regex(&curproxy->req_exp, preg, ACT_REMOVE, NULL);
+		chain_regex(&curproxy->req_exp, preg, ACT_REMOVE, NULL, NULL);
 		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqideny")) {  /* deny a request if a header matches this regex ignoring case */
@@ -3838,7 +3838,7 @@ stats_error_parsing:
 			goto out;
 		}
 	
-		chain_regex(&curproxy->req_exp, preg, ACT_DENY, NULL);
+		chain_regex(&curproxy->req_exp, preg, ACT_DENY, NULL, NULL);
 		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqipass")) {  /* pass this header without allowing or denying the request */
@@ -3864,7 +3864,7 @@ stats_error_parsing:
 			goto out;
 		}
 	
-		chain_regex(&curproxy->req_exp, preg, ACT_PASS, NULL);
+		chain_regex(&curproxy->req_exp, preg, ACT_PASS, NULL, NULL);
 		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqiallow")) {  /* allow a request if a header matches this regex ignoring case */
@@ -3890,7 +3890,7 @@ stats_error_parsing:
 			goto out;
 		}
 	
-		chain_regex(&curproxy->req_exp, preg, ACT_ALLOW, NULL);
+		chain_regex(&curproxy->req_exp, preg, ACT_ALLOW, NULL, NULL);
 		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqitarpit")) {  /* tarpit a request if a header matches this regex ignoring case */
@@ -3916,11 +3916,11 @@ stats_error_parsing:
 			goto out;
 		}
 	
-		chain_regex(&curproxy->req_exp, preg, ACT_TARPIT, NULL);
+		chain_regex(&curproxy->req_exp, preg, ACT_TARPIT, NULL, NULL);
 		warnif_misplaced_reqxxx(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "reqadd")) {  /* add request header */
-		struct wordlist *wl;
+		struct cond_wordlist *wl;
 
 		if (curproxy == &defproxy) {
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
@@ -3965,7 +3965,7 @@ stats_error_parsing:
 			goto out;
 		}
 	
-		err = chain_regex(&curproxy->rsp_exp, preg, ACT_REPLACE, strdup(args[2]));
+		err = chain_regex(&curproxy->rsp_exp, preg, ACT_REPLACE, strdup(args[2]), NULL);
 		if (err) {
 			Alert("parsing [%s:%d] : invalid character or unterminated sequence in replacement string near '%c'.\n",
 			      file, linenum, *err);
@@ -3997,7 +3997,7 @@ stats_error_parsing:
 			goto out;
 		}
 	
-		err = chain_regex(&curproxy->rsp_exp, preg, ACT_REMOVE, strdup(args[2]));
+		err = chain_regex(&curproxy->rsp_exp, preg, ACT_REMOVE, strdup(args[2]), NULL);
 		if (err) {
 			Alert("parsing [%s:%d] : invalid character or unterminated sequence in replacement string near '%c'.\n",
 			      file, linenum, *err);
@@ -4028,7 +4028,7 @@ stats_error_parsing:
 			goto out;
 		}
 	
-		err = chain_regex(&curproxy->rsp_exp, preg, ACT_DENY, strdup(args[2]));
+		err = chain_regex(&curproxy->rsp_exp, preg, ACT_DENY, strdup(args[2]), NULL);
 		if (err) {
 			Alert("parsing [%s:%d] : invalid character or unterminated sequence in replacement string near '%c'.\n",
 			      file, linenum, *err);
@@ -4060,7 +4060,7 @@ stats_error_parsing:
 			goto out;
 		}
 	    
-		err = chain_regex(&curproxy->rsp_exp, preg, ACT_REPLACE, strdup(args[2]));
+		err = chain_regex(&curproxy->rsp_exp, preg, ACT_REPLACE, strdup(args[2]), NULL);
 		if (err) {
 			Alert("parsing [%s:%d] : invalid character or unterminated sequence in replacement string near '%c'.\n",
 			      file, linenum, *err);
@@ -4091,7 +4091,7 @@ stats_error_parsing:
 			goto out;
 		}
 	
-		err = chain_regex(&curproxy->rsp_exp, preg, ACT_REMOVE, strdup(args[2]));
+		err = chain_regex(&curproxy->rsp_exp, preg, ACT_REMOVE, strdup(args[2]), NULL);
 		if (err) {
 			Alert("parsing [%s:%d] : invalid character or unterminated sequence in replacement string near '%c'.\n",
 			      file, linenum, *err);
@@ -4122,7 +4122,7 @@ stats_error_parsing:
 			goto out;
 		}
 	
-		err = chain_regex(&curproxy->rsp_exp, preg, ACT_DENY, strdup(args[2]));
+		err = chain_regex(&curproxy->rsp_exp, preg, ACT_DENY, strdup(args[2]), NULL);
 		if (err) {
 			Alert("parsing [%s:%d] : invalid character or unterminated sequence in replacement string near '%c'.\n",
 			      file, linenum, *err);
@@ -4131,7 +4131,7 @@ stats_error_parsing:
 		}
 	}
 	else if (!strcmp(args[0], "rspadd")) {  /* add response header */
-		struct wordlist *wl;
+		struct cond_wordlist *wl;
 
 		if (curproxy == &defproxy) {
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);

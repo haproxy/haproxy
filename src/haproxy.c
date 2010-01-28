@@ -700,6 +700,7 @@ void deinit(void)
 	struct switching_rule *rule, *ruleb;
 	struct redirect_rule *rdr, *rdrb;
 	struct wordlist *wl, *wlb;
+	struct cond_wordlist *cwl, *cwlb;
 	struct uri_auth *uap, *ua = NULL;
 	struct user_auth *user;
 	int i;
@@ -716,16 +717,16 @@ void deinit(void)
 		for (i = 0; i < HTTP_ERR_SIZE; i++)
 			chunk_destroy(&p->errmsg[i]);
 
-		list_for_each_entry_safe(wl, wlb, &p->req_add, list) {
-			LIST_DEL(&wl->list);
-			free(wl->s);
-			free(wl);
+		list_for_each_entry_safe(cwl, cwlb, &p->req_add, list) {
+			LIST_DEL(&cwl->list);
+			free(cwl->s);
+			free(cwl);
 		}
 
-		list_for_each_entry_safe(wl, wlb, &p->rsp_add, list) {
-			LIST_DEL(&wl->list);
-			free(wl->s);
-			free(wl);
+		list_for_each_entry_safe(cwl, cwlb, &p->rsp_add, list) {
+			LIST_DEL(&cwl->list);
+			free(cwl->s);
+			free(cwl);
 		}
 
 		list_for_each_entry_safe(cond, condb, &p->block_cond, list) {

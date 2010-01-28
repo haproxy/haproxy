@@ -1,7 +1,7 @@
 /*
  * Regex and string management functions.
  *
- * Copyright 2000-2006 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2010 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -21,7 +21,6 @@
 
 /* regex trash buffer used by various regex tests */
 regmatch_t pmatch[MAX_MATCH];  /* rm_so, rm_eo for regular expressions */
-
 
 
 int exp_replace(char *dst, char *src, const char *str, const regmatch_t *matches)
@@ -98,7 +97,7 @@ const char *check_replace_string(const char *str)
 
 /* returns the pointer to an error in the replacement string, or NULL if OK */
 const char *chain_regex(struct hdr_exp **head, const regex_t *preg,
-			int action, const char *replace)
+			int action, const char *replace, void *cond)
 {
 	struct hdr_exp *exp;
 
@@ -117,6 +116,7 @@ const char *chain_regex(struct hdr_exp **head, const regex_t *preg,
 	exp->preg = preg;
 	exp->replace = replace;
 	exp->action = action;
+	exp->cond = cond;
 	*head = exp;
 
 	return NULL;
