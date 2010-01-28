@@ -89,4 +89,8 @@ check the Makefile to see which ones will be available in your case, and
 use the USE_* variables in the GNU Makefile, or ADDINC, ADDLIB, and DEFINE
 variables in the BSD makefiles.
 
+AIX 5.3 is known to work with the generic target. However, for the binary to
+also run on 5.2 or earlier, you need to build with DEFINE="-D_MSGQSUPPORT",
+otherwise __fd_select() will be used while not being present in the libc.
+
 -- end
