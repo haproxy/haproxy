@@ -98,7 +98,7 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 /* Reports a pointer to the first ACL used in condition <cond> which requires
  * at least one of the USE_FLAGS in <require>. Returns NULL if none matches.
  */
-struct acl *cond_find_require(struct acl_cond *cond, unsigned int require);
+struct acl *cond_find_require(const struct acl_cond *cond, unsigned int require);
 
 /* Return a pointer to the ACL <name> within the list starting at <head>, or
  * NULL if not found.

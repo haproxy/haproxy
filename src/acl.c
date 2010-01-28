@@ -1150,7 +1150,7 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
  * through and never cached, because that way, this function can be used as a
  * late check.
  */
-struct acl *cond_find_require(struct acl_cond *cond, unsigned int require)
+struct acl *cond_find_require(const struct acl_cond *cond, unsigned int require)
 {
 	struct acl_term_suite *suite;
 	struct acl_term *term;

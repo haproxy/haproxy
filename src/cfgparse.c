@@ -388,6 +388,24 @@ int warnif_misplaced_reqadd(struct proxy *proxy, const char *file, int line, cha
 		warnif_rule_after_use_backend(proxy, file, line, arg);
 }
 
+/* Report it if a request ACL condition uses some response-only parameters. It
+ * returns either 0 or ERR_WARN so that its result can be or'ed with err_code.
+ * Note that <cond> may be NULL and then will be ignored.
+ */
+static int warnif_cond_requires_resp(const struct acl_cond *cond, const char *file, int line)
+{
+	struct acl *acl;
+
+	if (!cond || !(cond->requires & ACL_USE_RTR_ANY))
+		return 0;
+
+	acl = cond_find_require(cond, ACL_USE_RTR_ANY);
+	Warning("parsing [%s:%d] : acl '%s' involves some response-only criteria which will be ignored.\n",
+		file, line, acl ? acl->name : "(unknown)");
+	return ERR_WARN;
+}
+
+
 /*
  * parse a line in a <global> section. Returns the error code, 0 if OK, or
  * any combination of :
@@ -2012,16 +2030,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		if (cond->requires & ACL_USE_RTR_ANY) {
-			struct acl *acl;
-			const char *name;
-
-			acl = cond_find_require(cond, ACL_USE_RTR_ANY);
-			name = acl ? acl->name : "(unknown)";
-			Warning("parsing [%s:%d] : acl '%s' involves some response-only criteria which will be ignored.\n",
-				file, linenum, name);
-			err_code |= ERR_WARN;
-		}
+		err_code |= warnif_cond_requires_resp(cond, file, linenum);
 
 		rule = (struct switching_rule *)calloc(1, sizeof(*rule));
 		rule->cond = cond;
@@ -2056,16 +2065,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		if (cond->requires & ACL_USE_RTR_ANY) {
-			struct acl *acl;
-			const char *name;
-
-			acl = cond_find_require(cond, ACL_USE_RTR_ANY);
-			name = acl ? acl->name : "(unknown)";
-			Warning("parsing [%s:%d] : acl '%s' involves some response-only criteria which will be ignored.\n",
-				file, linenum, name);
-			err_code |= ERR_WARN;
-		}
+		err_code |= warnif_cond_requires_resp(cond, file, linenum);
 
 		rule = (struct force_persist_rule *)calloc(1, sizeof(*rule));
 		rule->cond = cond;
@@ -2233,17 +2233,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
-
-			if (cond->requires & ACL_USE_RTR_ANY) {
-				struct acl *acl;
-				const char *name;
-
-				acl = cond_find_require(cond, ACL_USE_RTR_ANY);
-				name = acl ? acl->name : "(unknown)";
-				Warning("parsing [%s:%d] : '%s' : acl '%s' involves some response-only criteria which will be ignored.\n",
-					file, linenum, args[0], name);
-				err_code |= ERR_WARN;
-			}
 		}
 		else if (*(args[myidx])) {
 			Alert("parsing [%s:%d] : '%s': unknown keyword '%s'.\n",
@@ -2251,6 +2240,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
+
+		err_code |= warnif_cond_requires_resp(cond, file, linenum);
 
 		rule = (struct sticking_rule *)calloc(1, sizeof(*rule));
 		rule->cond = cond;
