@@ -170,6 +170,7 @@ struct proxy {
 		char *name;			/* default backend name during config parse */
 	} defbe;
 	struct list acl;                        /* ACL declared on this proxy */
+	struct list req_acl;			/* request ACL: allow/deny/http-auth */
 	struct list block_cond;                 /* early blocking conditions (chained) */
 	struct list redirect_rules;             /* content redirecting rules (chained) */
 	struct list switching_rules;            /* content switching rules (chained) */

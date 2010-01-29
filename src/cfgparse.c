@@ -882,6 +882,7 @@ static void init_new_proxy(struct proxy *p)
 	memset(p, 0, sizeof(struct proxy));
 	LIST_INIT(&p->pendconns);
 	LIST_INIT(&p->acl);
+	LIST_INIT(&p->req_acl);
 	LIST_INIT(&p->block_cond);
 	LIST_INIT(&p->redirect_rules);
 	LIST_INIT(&p->mon_fail_cond);
@@ -1926,6 +1927,31 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 		curproxy->conn_retries = atol(args[1]);
+	}
+	else if (!strcmp(args[0], "http-request")) {	/* request access control: allow/deny/auth */
+		struct req_acl_rule *req_acl;
+
+		if (curproxy == &defproxy) {
+			Alert("parsing [%s:%d]: '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+
+		if (!LIST_ISEMPTY(&curproxy->req_acl) && !LIST_PREV(&curproxy->req_acl, struct req_acl_rule *, list)->cond) {
+			Warning("parsing [%s:%d]: previous '%s' action has no condition attached, further entries are NOOP.\n",
+			        file, linenum, args[0]);
+			err_code |= ERR_WARN;
+		}
+
+		req_acl = parse_auth_cond((const char **)args + 1, file, linenum, &curproxy->acl, &curproxy->acl_requires);
+
+		if (!req_acl) {
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		LIST_ADDQ(&curproxy->req_acl, &req_acl->list);
 	}
 	else if (!strcmp(args[0], "block")) {  /* early blocking based on ACLs */
 		if (curproxy == &defproxy) {

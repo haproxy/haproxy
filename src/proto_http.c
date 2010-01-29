@@ -1351,7 +1351,6 @@ const char *http_parse_stsline(struct http_msg *msg, const char *msg_buf,
 	return NULL;
 }
 
-
 /*
  * This function parses a request line between <ptr> and <end>, starting with
  * parser state <state>. Only states HTTP_MSG_RQMETH, HTTP_MSG_RQMETH_SP,
@@ -2723,6 +2722,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->req;
 	struct acl_cond *cond;
+	struct req_acl_rule *req_acl, *req_acl_final = NULL;
 	struct redirect_rule *rule;
 	struct cond_wordlist *wl;
 	int del_ka, del_cl;
@@ -2760,6 +2760,29 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 			stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_403));
 			goto return_prx_cond;
 		}
+	}
+
+	list_for_each_entry(req_acl, &px->req_acl, list) {
+		int ret = 1;
+
+		if (req_acl->action >= PR_REQ_ACL_ACT_MAX)
+			continue;
+
+		/* check condition, but only if attached */
+		if (req_acl->cond)
+			ret = acl_exec_cond(req_acl->cond, px, s, txn, ACL_DIR_REQ);
+
+		if (ret) {
+			req_acl_final = req_acl;
+			break;
+		}
+	}
+
+	if (req_acl_final && req_acl_final->action == PR_REQ_ACL_ACT_DENY) {
+			txn->status = 403;
+			s->logs.tv_request = now;
+			stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_403));
+			goto return_prx_cond;
 	}
 
 	/* try headers filters */
@@ -2862,6 +2885,16 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 
 		if (unlikely(http_header_add_tail(req, &txn->req, &txn->hdr_idx, wl->s) < 0))
 			goto return_bad_req;
+	}
+
+	if (req_acl_final && req_acl_final->action == PR_REQ_ACL_ACT_HTTP_AUTH) {
+		struct chunk msg;
+
+		sprintf(trash, HTTP_401_fmt, req_acl->http_auth.realm?req_acl->http_auth.realm:px->id);
+		chunk_initlen(&msg, trash, sizeof(trash), strlen(trash));
+		txn->status = 401;
+		stream_int_retnclose(req->prod, &msg);
+		goto return_prx_cond;
 	}
 
 	/* check if stats URI was requested, and if an auth is needed */

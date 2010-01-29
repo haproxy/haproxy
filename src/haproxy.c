@@ -859,6 +859,8 @@ void deinit(void)
 			l = l_next;
 		}/* end while(l) */
 
+		req_acl_free(&p->req_acl);
+
 		pool_destroy2(p->req_cap_pool);
 		pool_destroy2(p->rsp_cap_pool);
 		pool_destroy2(p->hdr_idx_pool);
