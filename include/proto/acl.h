@@ -100,6 +100,12 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
  */
 struct acl *cond_find_require(const struct acl_cond *cond, unsigned int require);
 
+/*
+ * Find targets for userlist and groups in acl. Function returns the number
+ * of errors or OK if everything is fine.
+ */
+int acl_find_targets(struct proxy *p);
+
 /* Return a pointer to the ACL <name> within the list starting at <head>, or
  * NULL if not found.
  */
@@ -146,6 +152,9 @@ int acl_parse_range(const char **text, struct acl_pattern *pattern, int *opaque)
 
 /* Parse a string. It is allocated and duplicated. */
 int acl_parse_str(const char **text, struct acl_pattern *pattern, int *opaque);
+
+/* Parse and concatenate strings into one. It is allocated and duplicated. */
+int acl_parse_strcat(const char **text, struct acl_pattern *pattern, int *opaque);
 
 /* Parse a regex. It is allocated. */
 int acl_parse_reg(const char **text, struct acl_pattern *pattern, int *opaque);

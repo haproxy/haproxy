@@ -24,6 +24,7 @@
 #include <sys/types.h>
 
 #include <common/appsession.h>
+#include <common/base64.h>
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/debug.h>
@@ -39,6 +40,7 @@
 #include <types/global.h>
 
 #include <proto/acl.h>
+#include <proto/auth.h>
 #include <proto/backend.h>
 #include <proto/buffers.h>
 #include <proto/checks.h>
@@ -1471,6 +1473,77 @@ const char *http_parse_reqline(struct http_msg *msg, const char *msg_buf,
 	if (ret_ptr)
 		*ret_ptr = (char *)ptr;
 	return NULL;
+}
+
+/*
+ * Returns the data from Authorization header. Function may be called more
+ * than once so data is stored in txn->auth_data. When no header is found
+ * or auth method is unknown auth_method is set to HTTP_AUTH_WRONG to avoid
+ * searching again for something we are unable to find anyway.
+ */
+
+char get_http_auth_buff[BUFSIZE];
+
+int
+get_http_auth(struct session *s)
+{
+
+	struct http_txn *txn = &s->txn;
+	struct chunk auth_method;
+	struct hdr_ctx ctx;
+	char *h, *p;
+	int len;
+
+#ifdef DEBUG_AUTH
+	printf("Auth for session %p: %d\n", s, txn->auth.method);
+#endif
+
+	if (txn->auth.method == HTTP_AUTH_WRONG)
+		return 0;
+
+	if (txn->auth.method)
+		return 1;
+
+	txn->auth.method = HTTP_AUTH_WRONG;
+
+	ctx.idx = 0;
+	if (!http_find_header("Authorization", txn->req.sol, &txn->hdr_idx, &ctx))
+		return 0;
+
+	h = ctx.line + ctx.val;
+
+	p = memchr(h, ' ', ctx.vlen);
+	if (!p || p == h)
+		return 0;
+
+	chunk_initlen(&auth_method, h, 0, p-h);
+	chunk_initlen(&txn->auth.method_data, p+1, 0, ctx.vlen-(p-h)-1);
+
+	if (!strncasecmp("Basic", auth_method.str, auth_method.len)) {
+
+		len = base64dec(txn->auth.method_data.str, txn->auth.method_data.len,
+				get_http_auth_buff, BUFSIZE - 1);
+
+		if (len < 0)
+			return 0;
+
+
+		get_http_auth_buff[len] = '\0';
+
+		p = strchr(get_http_auth_buff, ':');
+
+		if (!p)
+			return 0;
+
+		txn->auth.user = get_http_auth_buff;
+		*p = '\0';
+		txn->auth.pass = p+1;
+
+		txn->auth.method = HTTP_AUTH_BASIC;
+		return 1;
+	}
+
+	return 0;
 }
 
 
@@ -6480,6 +6553,8 @@ void http_init_txn(struct session *s)
 	txn->rsp.hdr_content_len = 0LL;
 	txn->req.msg_state = HTTP_MSG_RQBEFORE; /* at the very beginning of the request */
 	txn->rsp.msg_state = HTTP_MSG_RPBEFORE; /* at the very beginning of the response */
+
+	txn->auth.method = HTTP_AUTH_UNKNOWN;
 	chunk_reset(&txn->auth_hdr);
 
 	txn->req.err_pos = txn->rsp.err_pos = -2; /* block buggy requests/responses */
@@ -6506,6 +6581,7 @@ void http_end_txn(struct session *s)
 	pool_free2(pool2_capture, txn->cli_cookie);
 	pool_free2(pool2_capture, txn->srv_cookie);
 	pool_free2(apools.sessid, txn->sessid);
+
 	txn->sessid = NULL;
 	txn->uri = NULL;
 	txn->srv_cookie = NULL;
@@ -7172,6 +7248,25 @@ acl_fetch_proto_http(struct proxy *px, struct session *s, void *l7, int dir,
 	return 1;
 }
 
+static int
+acl_fetch_http_auth(struct proxy *px, struct session *s, void *l7, int dir,
+		    struct acl_expr *expr, struct acl_test *test)
+{
+
+	if (!s)
+		return 0;
+
+	if (!get_http_auth(s))
+		return 0;
+
+	test->ctx.a[0] = expr->arg.ul;
+	test->ctx.a[1] = s->txn.auth.user;
+	test->ctx.a[2] = s->txn.auth.pass;
+
+	test->flags |= ACL_TEST_F_READ_ONLY | ACL_TEST_F_NULL_MATCH;
+
+	return 1;
+}
 
 /************************************************************************/
 /*             All supported keywords must be declared here.            */
@@ -7227,8 +7322,6 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "path_dir",   acl_parse_str,   acl_fetch_path,   acl_match_dir, ACL_USE_L7REQ_VOLATILE },
 	{ "path_dom",   acl_parse_str,   acl_fetch_path,   acl_match_dom, ACL_USE_L7REQ_VOLATILE },
 
-	{ NULL, NULL, NULL, NULL },
-
 #if 0
 	{ "line",       acl_parse_str,   acl_fetch_line,   acl_match_str   },
 	{ "line_reg",   acl_parse_reg,   acl_fetch_line,   acl_match_reg   },
@@ -7246,13 +7339,11 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "cook_dir",   acl_parse_str,   acl_fetch_cook,   acl_match_dir   },
 	{ "cook_dom",   acl_parse_str,   acl_fetch_cook,   acl_match_dom   },
 	{ "cook_pst",   acl_parse_none,  acl_fetch_cook,   acl_match_pst   },
-
-	{ "auth_user",  acl_parse_str,   acl_fetch_user,   acl_match_str   },
-	{ "auth_regex", acl_parse_reg,   acl_fetch_user,   acl_match_reg   },
-	{ "auth_clear", acl_parse_str,   acl_fetch_auth,   acl_match_str   },
-	{ "auth_md5",   acl_parse_str,   acl_fetch_auth,   acl_match_md5   },
-	{ NULL, NULL, NULL, NULL },
 #endif
+
+	{ "http_auth",       acl_parse_nothing, acl_fetch_http_auth, acl_match_auth },
+	{ "http_auth_group", acl_parse_strcat,  acl_fetch_http_auth, acl_match_auth },
+	{ NULL, NULL, NULL, NULL },
 }};
 
 

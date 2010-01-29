@@ -830,6 +830,9 @@ struct task *process_session(struct task *t)
 	//DPRINTF(stderr, "%s:%d: cs=%d ss=%d(%d) rqf=0x%08x rpf=0x%08x\n", __FUNCTION__, __LINE__,
 	//        s->si[0].state, s->si[1].state, s->si[1].err_type, s->req->flags, s->rep->flags);
 
+	/* this data may be no longer valid, clear it */
+	memset(&s->txn.auth, 0, sizeof(s->txn.auth));
+
 	/* This flag must explicitly be set every time */
 	s->req->flags &= ~BF_READ_NOEXP;
 

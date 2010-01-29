@@ -19,6 +19,7 @@
 #include <common/standard.h>
 
 #include <proto/acl.h>
+#include <proto/auth.h>
 #include <proto/log.h>
 
 /* The capabilities of filtering hooks describe the type of information
@@ -332,6 +333,29 @@ int acl_parse_str(const char **text, struct acl_pattern *pattern, int *opaque)
 	return 1;
 }
 
+/* Parse and concatenate all further strings into one. */
+int
+acl_parse_strcat(const char **text, struct acl_pattern *pattern, int *opaque)
+{
+
+	int len = 0, i;
+	char *s;
+
+	for (i = 0; *text[i]; i++)
+		len += strlen(text[i])+1;
+
+	pattern->ptr.str = s = calloc(1, len);
+	if (!pattern->ptr.str)
+		return 0;
+
+	for (i = 0; *text[i]; i++)
+		s += sprintf(s, i?" %s":"%s", text[i]);
+
+	pattern->len = len;
+
+	return i;
+}
+
 /* Free data allocated by acl_parse_reg */
 static void acl_free_reg(void *ptr) {
 
@@ -627,7 +651,7 @@ static struct acl_expr *prune_acl_expr(struct acl_expr *expr)
 {
 	free_pattern_list(&expr->patterns);
 	LIST_INIT(&expr->patterns);
-	if (expr->arg.str)
+	if (expr->arg_len && expr->arg.str)
 		free(expr->arg.str);
 	expr->kw->use_cnt--;
 	return expr;
@@ -1169,6 +1193,74 @@ struct acl *cond_find_require(const struct acl_cond *cond, unsigned int require)
 	return NULL;
 }
 
+/*
+ * Find targets for userlist and groups in acl. Function returns the number
+ * of errors or OK if everything is fine.
+ */
+int
+acl_find_targets(struct proxy *p)
+{
+
+	struct acl *acl;
+	struct acl_expr *expr;
+	struct acl_pattern *pattern;
+	struct userlist *ul;
+	int cfgerr = 0;
+
+	list_for_each_entry(acl, &p->acl, list) {
+		list_for_each_entry(expr, &acl->expr, list) {
+			if (strstr(expr->kw->kw, "http_auth") == expr->kw->kw) {
+
+				if (!expr->arg.str || !*expr->arg.str) {
+					Alert("proxy %s: acl %s %s(): missing userlist name.\n",
+						p->id, acl->name, expr->kw->kw);
+					cfgerr++;
+					continue;
+				}
+
+				ul = auth_find_userlist(expr->arg.str);
+
+				if (!ul) {
+					Alert("proxy %s: acl %s %s(%s): unable to find userlist.\n",
+						p->id, acl->name, expr->kw->kw, expr->arg.str);
+					cfgerr++;
+					continue;
+				}
+
+				expr->arg_len = 0;
+				expr->arg.ul  = ul;
+			}
+
+
+			if (!strcmp(expr->kw->kw, "http_auth_group")) {
+
+				if (LIST_ISEMPTY(&expr->patterns)) {
+					Alert("proxy %s: acl %s %s(): no groups specified.\n",
+						p->id, acl->name, expr->kw->kw);
+					cfgerr++;
+					continue;
+				}
+
+				list_for_each_entry(pattern, &expr->patterns, list) {
+					pattern->val.group_mask = auth_resolve_groups(expr->arg.ul, pattern->ptr.str);
+
+					free(pattern->ptr.str);
+					pattern->ptr.str = NULL;
+					pattern->len = 0;
+
+					if (!pattern->val.group_mask) {
+						Alert("proxy %s: acl %s %s(): invalid group(s).\n",
+							p->id, acl->name, expr->kw->kw);
+						cfgerr++;
+						continue;
+					}
+				}
+			}
+		}
+	}
+
+	return cfgerr;
+}
 
 /************************************************************************/
 /*             All supported keywords must be declared here.            */

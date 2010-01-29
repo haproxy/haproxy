@@ -4691,6 +4691,8 @@ int check_config_validity()
 			}
 		}
 
+		cfgerr += acl_find_targets(curproxy);
+
 		if ((curproxy->mode == PR_MODE_TCP || curproxy->mode == PR_MODE_HTTP) &&
 		    (((curproxy->cap & PR_CAP_FE) && !curproxy->timeout.client) ||
 		     ((curproxy->cap & PR_CAP_BE) && (curproxy->srv) &&

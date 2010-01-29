@@ -235,6 +235,13 @@ typedef enum {
 	HTTP_METH_OTHER,
 } http_meth_t;
 
+enum {
+	HTTP_AUTH_WRONG		= -1,		/* missing or unknown */
+	HTTP_AUTH_UNKNOWN	= 0,
+	HTTP_AUTH_BASIC,
+	HTTP_AUTH_DIGEST,
+};
+
 /* This is an HTTP message, as described in RFC2616. It can be either a request
  * message or a response message.
  *
@@ -285,6 +292,12 @@ struct http_msg {
 	char **cap;                            /* array of captured headers (may be NULL) */
 };
 
+struct http_auth_data {
+	int method;			/* one of HTTP_AUTH_* */
+	struct chunk method_data;	/* points to the creditial part from 'Authorization:' header */
+	char *user, *pass;		/* extracted username & password */
+};
+
 /* This is an HTTP transaction. It contains both a request message and a
  * response message (which can be empty).
  */
@@ -303,6 +316,7 @@ struct http_txn {
 	char *sessid;                   /* the appsession id, if found in the request or in the response */
 
 	struct chunk auth_hdr;          /* points to 'Authorization:' header */
+	struct http_auth_data auth;	/* HTTP auth data */
 };
 
 /* This structure is used by http_find_header() to return values of headers.

@@ -26,6 +26,7 @@
 #include <common/config.h>
 #include <common/mini-clist.h>
 
+#include <types/auth.h>
 #include <types/proxy.h>
 #include <types/session.h>
 
@@ -209,6 +210,7 @@ struct acl_pattern {
 			struct in_addr mask;
 		} ipv4;                         /* IPv4 address */
 		struct acl_time time;           /* valid hours and days */
+		unsigned int group_mask;
 	} val;                                  /* direct value */
 	union {
 		void *ptr;              /* any data */
@@ -291,6 +293,7 @@ struct acl_expr {
 	struct acl_keyword *kw;     /* back-reference to the keyword */
 	union {                     /* optional argument of the subject (eg: header or cookie name) */
 		char *str;
+		struct userlist *ul;
 	} arg;
 	int arg_len;                /* optional argument length */
 	struct list patterns;       /* list of acl_patterns */
