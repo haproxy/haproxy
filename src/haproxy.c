@@ -67,6 +67,7 @@
 #include <types/capture.h>
 #include <types/global.h>
 
+#include <proto/auth.h>
 #include <proto/acl.h>
 #include <proto/backend.h>
 #include <proto/buffers.h>
@@ -176,6 +177,16 @@ void display_build_opts()
 	       "\n  maxconn = %d, bufsize = %d, maxrewrite = %d, maxpollevents = %d"
 	       "\n\n",
 	       DEFAULT_MAXCONN, BUFSIZE, MAXREWRITE, MAX_POLL_EVENTS);
+
+	printf("Encrypted password support via crypt(3): "
+#ifdef CONFIG_HAP_CRYPT
+		"yes"
+#else
+		"no"
+#endif
+		"\n");
+
+	putchar('\n');
 
 	list_pollers(stdout);
 	putchar('\n');
@@ -851,6 +862,7 @@ void deinit(void)
 		pool_destroy2(p->req_cap_pool);
 		pool_destroy2(p->rsp_cap_pool);
 		pool_destroy2(p->hdr_idx_pool);
+
 		p0 = p;
 		p = p->next;
 		free(p0);
@@ -873,6 +885,8 @@ void deinit(void)
 		}
 		free(uap);
 	}
+
+	userlist_free(userlist);
 
 	protocol_unbind_all();
 

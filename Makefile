@@ -108,7 +108,8 @@ SMALL_OPTS =
 #### Debug settings
 # You can enable debugging on specific code parts by setting DEBUG=-DDEBUG_xxx.
 # Currently defined DEBUG macros include DEBUG_FULL, DEBUG_MEMORY, DEBUG_FSM,
-# and DEBUG_HASH. Please check sources for exact meaning or do not use at all.
+# DEBUG_HASH and DEBUG_AUTH. Please check sources for exact meaning or do not
+# use at all.
 DEBUG =
 
 #### Additional include and library dirs
@@ -170,6 +171,7 @@ ifeq ($(TARGET),linux22)
   USE_GETSOCKNAME = implicit
   USE_POLL        = implicit
   USE_TPROXY      = implicit
+  USE_LIBCRYPT    = implicit
 else
 ifeq ($(TARGET),linux24)
   # This is for standard Linux 2.4 with netfilter but without epoll()
@@ -177,6 +179,7 @@ ifeq ($(TARGET),linux24)
   USE_NETFILTER   = implicit
   USE_POLL        = implicit
   USE_TPROXY      = implicit
+  USE_LIBCRYPT    = implicit
 else
 ifeq ($(TARGET),linux24e)
   # This is for enhanced Linux 2.4 with netfilter and epoll() patch > 0.21
@@ -187,6 +190,7 @@ ifeq ($(TARGET),linux24e)
   USE_SEPOLL      = implicit
   USE_MY_EPOLL    = implicit
   USE_TPROXY      = implicit
+  USE_LIBCRYPT    = implicit
 else
 ifeq ($(TARGET),linux26)
   # This is for standard Linux 2.6 with netfilter and standard epoll()
@@ -196,6 +200,7 @@ ifeq ($(TARGET),linux26)
   USE_EPOLL       = implicit
   USE_SEPOLL      = implicit
   USE_TPROXY      = implicit
+  USE_LIBCRYPT    = implicit
 else
 ifeq ($(TARGET),solaris)
   # This is for Solaris 8
@@ -209,6 +214,7 @@ ifeq ($(TARGET),freebsd)
   USE_POLL       = implicit
   USE_KQUEUE     = implicit
   USE_TPROXY     = implicit
+  USE_LIBCRYPT   = implicit
 else
 ifeq ($(TARGET),openbsd)
   # This is for OpenBSD >= 3.0
@@ -322,6 +328,12 @@ endif
 ifneq ($(USE_LINUX_TPROXY),)
 OPTIONS_CFLAGS += -DCONFIG_HAP_LINUX_TPROXY
 BUILD_OPTIONS  += $(call ignore_implicit,USE_LINUX_TPROXY)
+endif
+
+ifneq ($(USE_LIBCRYPT),)
+OPTIONS_CFLAGS  += -DCONFIG_HAP_CRYPT
+BUILD_OPTIONS   += $(call ignore_implicit,USE_LIBCRYPT)
+OPTIONS_LDFLAGS += -lcrypt
 endif
 
 ifneq ($(USE_POLL),)
@@ -464,7 +476,7 @@ OBJS = src/haproxy.o src/sessionhash.o src/base64.o src/protocols.o \
        src/lb_chash.o src/lb_fwlc.o src/lb_fwrr.o src/lb_map.o \
        src/stream_interface.o src/dumpstats.o src/proto_tcp.o \
        src/session.o src/hdr_idx.o src/ev_select.o src/signal.o \
-       src/acl.o src/pattern.o src/memory.o src/freq_ctr.o
+       src/acl.o src/pattern.o src/memory.o src/freq_ctr.o src/auth.o
 
 EBTREE_OBJS = $(EBTREE_DIR)/ebtree.o \
               $(EBTREE_DIR)/eb32tree.o $(EBTREE_DIR)/eb64tree.o \

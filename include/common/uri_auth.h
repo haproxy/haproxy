@@ -15,6 +15,8 @@
 
 #include <common/config.h>
 
+#include <types/auth.h>
+
 /* here we find a very basic list of base64-encoded 'user:passwd' strings */
 struct user_auth {
 	struct user_auth *next;		/* next entry, NULL if none */
@@ -46,6 +48,7 @@ struct uri_auth {
 	int flags;			/* some flags describing the statistics page */
 	struct user_auth *users;	/* linked list of valid user:passwd couples */
 	struct stat_scope *scope;	/* linked list of authorized proxies */
+	struct list req_acl; 		/* */
 	struct uri_auth *next;		/* Used at deinit() to build a list of unique elements */
 };
 

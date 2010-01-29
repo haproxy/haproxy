@@ -32,6 +32,7 @@
 #define CFG_NONE	0
 #define CFG_GLOBAL	1
 #define CFG_LISTEN	2
+#define CFG_USERLIST	3
 
 struct cfg_keyword {
 	int section;                            /* section type for this keyword */

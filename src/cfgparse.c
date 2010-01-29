@@ -37,6 +37,7 @@
 #include <types/global.h>
 
 #include <proto/acl.h>
+#include <proto/auth.h>
 #include <proto/backend.h>
 #include <proto/buffers.h>
 #include <proto/checks.h>
@@ -4008,6 +4009,175 @@ stats_error_parsing:
 	return err_code;
 }
 
+int
+cfg_parse_users(const char *file, int linenum, char **args, int kwm)
+{
+
+	int err_code = 0;
+	const char *err;
+
+	if (!strcmp(args[0], "userlist")) {		/* new userlist */
+		struct userlist *newul;
+
+		if (!*args[1]) {
+			Alert("parsing [%s:%d]: '%s' expects <name> as arguments.\n",
+			      file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		err = invalid_char(args[1]);
+		if (err) {
+			Alert("parsing [%s:%d]: character '%c' is not permitted in '%s' name '%s'.\n",
+			      file, linenum, *err, args[0], args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		for (newul = userlist; newul; newul = newul->next)
+			if (!strcmp(newul->name, args[1])) {
+				Warning("parsing [%s:%d]: ignoring duplicated userlist '%s'.\n",
+					file, linenum, args[1]);
+				err_code |= ERR_WARN;
+				goto out;
+			}
+
+		newul = (struct userlist *)calloc(1, sizeof(struct userlist));
+		if (!newul) {
+			Alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		newul->groupusers = calloc(MAX_AUTH_GROUPS, sizeof(char *));
+		newul->name = strdup(args[1]);
+
+		if (!newul->groupusers | !newul->name) {
+			Alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		newul->next = userlist;
+		userlist = newul;
+
+	} else if (!strcmp(args[0], "group")) {  	/* new group */
+		int cur_arg, i;
+		const char *err;
+
+		if (!*args[1]) {
+			Alert("parsing [%s:%d]: '%s' expects <name> as arguments.\n",
+			      file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		err = invalid_char(args[1]);
+		if (err) {
+			Alert("parsing [%s:%d]: character '%c' is not permitted in '%s' name '%s'.\n",
+			      file, linenum, *err, args[0], args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		for(i = 0; i < userlist->grpcnt; i++)
+			if (!strcmp(userlist->groups[i], args[1])) {
+				Warning("parsing [%s:%d]: ignoring duplicated group '%s' in userlist '%s'.\n",
+				      file, linenum, args[1], userlist->name);
+				err_code |= ERR_ALERT;
+				goto out;
+			}
+
+		if (userlist->grpcnt >= MAX_AUTH_GROUPS) {
+			Alert("parsing [%s:%d]: too many groups (%u) in in userlist '%s' while adding group '%s'.\n",
+			      file, linenum, MAX_AUTH_GROUPS, userlist->name, args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		cur_arg = 2;
+
+		while (*args[cur_arg]) {
+			if (!strcmp(args[cur_arg], "users")) {
+				userlist->groupusers[userlist->grpcnt] = strdup(args[cur_arg + 1]);
+				cur_arg += 2;
+				continue;
+			} else {
+				Alert("parsing [%s:%d]: '%s' only supports 'users' option.\n",
+				      file, linenum, args[0]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+		}
+
+		userlist->groups[userlist->grpcnt++] = strdup(args[1]);
+	} else if (!strcmp(args[0], "user")) {		/* new user */
+		struct auth_users *newuser;
+		int cur_arg;
+
+		if (!*args[1]) {
+			Alert("parsing [%s:%d]: '%s' expects <name> as arguments.\n",
+			      file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		for (newuser = userlist->users; newuser; newuser = newuser->next)
+			if (!strcmp(newuser->user, args[1])) {
+				Warning("parsing [%s:%d]: ignoring duplicated user '%s' in userlist '%s'.\n",
+				      file, linenum, args[1], userlist->name);
+				err_code |= ERR_ALERT;
+				goto out;
+			}
+
+		newuser = (struct auth_users *)calloc(1, sizeof(struct auth_users));
+		if (!newuser) {
+			Alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		newuser->user = strdup(args[1]);
+
+		newuser->next = userlist->users;
+		userlist->users = newuser;
+
+		cur_arg = 2;
+
+		while (*args[cur_arg]) {
+			if (!strcmp(args[cur_arg], "password")) {
+#ifndef CONFIG_HAP_CRYPT
+				Warning("parsing [%s:%d]: no crypt(3) support compiled, encrypted passwords will not work.\n",
+					file, linenum);
+				err_code |= ERR_ALERT;
+#endif
+				newuser->pass = strdup(args[cur_arg + 1]);
+				cur_arg += 2;
+				continue;
+			} else if (!strcmp(args[cur_arg], "insecure-password")) {
+				newuser->pass = strdup(args[cur_arg + 1]);
+				newuser->flags |= AU_O_INSECURE;
+				cur_arg += 2;
+				continue;
+			} else if (!strcmp(args[cur_arg], "groups")) {
+				newuser->groups = strdup(args[cur_arg + 1]);
+				cur_arg += 2;
+				continue;
+			} else {
+				Alert("parsing [%s:%d]: '%s' only supports 'password', 'insecure-password' and 'groups' options.\n",
+				      file, linenum, args[0]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+		}
+	} else {
+		Alert("parsing [%s:%d]: unknown keyword '%s' in '%s' section\n", file, linenum, args[0], "users");
+		err_code |= ERR_ALERT | ERR_FATAL;
+	}
+
+out:
+	return err_code;
+}
 
 /*
  * This function reads and parses the configuration file given in the argument.
@@ -4172,6 +4342,10 @@ int readcfgfile(const char *file)
 			confsect = CFG_GLOBAL;
 			free(cursection);
 			cursection = strdup(args[0]);
+		} else if (!strcmp(args[0], "userlist")) {
+			confsect = CFG_USERLIST;
+			free(cursection);
+			cursection = strdup(args[0]);
 		}
 		/* else it's a section keyword */
 
@@ -4182,8 +4356,11 @@ int readcfgfile(const char *file)
 		case CFG_GLOBAL:
 			err_code |= cfg_parse_global(file, linenum, args, kwm);
 			break;
+		case CFG_USERLIST:
+			err_code |= cfg_parse_users(file, linenum, args, kwm);
+			break;
 		default:
-			Alert("parsing [%s:%d] : unknown keyword '%s' out of section.\n", file, linenum, args[0]);
+			Alert("parsing [%s:%d]: unknown keyword '%s' out of section.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 
@@ -4210,6 +4387,7 @@ int check_config_validity()
 	int cfgerr = 0;
 	struct proxy *curproxy = NULL;
 	struct server *newsrv = NULL;
+	struct userlist *curuserlist = NULL;
 	int err_code = 0;
 	unsigned int next_pxid = 1;
 
@@ -4815,6 +4993,78 @@ int check_config_validity()
 		}
 
 		curproxy = curproxy->next;
+	}
+
+	for (curuserlist = userlist; curuserlist; curuserlist = curuserlist->next) {
+		struct auth_users *curuser;
+		int g;
+
+		for (curuser = curuserlist->users; curuser; curuser = curuser->next) {
+			unsigned int group_mask = 0;
+			char *group = NULL;
+
+			if (!curuser->groups)
+				continue;
+
+			while ((group = strtok(group?NULL:curuser->groups, ","))) {
+
+				for (g = 0; g < curuserlist->grpcnt; g++)
+					if (!strcmp(curuserlist->groups[g], group))
+						break;
+
+				if (g == curuserlist->grpcnt) {
+					Alert("userlist '%s': no such group '%s' specified in user '%s'\n",
+					      curuserlist->name, group, curuser->user);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				group_mask |= (1 << g);
+			}
+
+			free(curuser->groups);
+			curuser->group_mask = group_mask;
+		}
+
+		for (g = 0; g < curuserlist->grpcnt; g++) {
+			char *user = NULL;
+
+			if (!curuserlist->groupusers[g])
+				continue;
+
+			while ((user = strtok(user?NULL:curuserlist->groupusers[g], ","))) {
+				for (curuser = curuserlist->users; curuser; curuser = curuser->next)
+					if (!strcmp(curuser->user, user))
+						break;
+
+				if (!curuser) {
+					Alert("userlist '%s': no such user '%s' specified in group '%s'\n",
+					      curuserlist->name, user, curuserlist->groups[g]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				curuser->group_mask |= (1 << g);
+			}
+
+			free(curuserlist->groupusers[g]);
+		}
+
+		free(curuserlist->groupusers);
+
+#ifdef DEBUG_AUTH
+		for (g = 0; g < curuserlist->grpcnt; g++) {
+			fprintf(stderr, "group %s, id %d, mask %08X, users:", curuserlist->groups[g], g , 1 << g);
+
+			for (curuser = curuserlist->users; curuser; curuser = curuser->next) {
+				if (curuser->group_mask & (1 << g))
+					fprintf(stderr, " %s", curuser->user);
+			}
+
+			fprintf(stderr, "\n");
+		}
+#endif
+
 	}
 
 	/*
