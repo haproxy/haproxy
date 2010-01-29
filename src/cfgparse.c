@@ -2414,6 +2414,37 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
+		} else if (!strcmp(args[1], "http-request")) {    /* request access control: allow/deny/auth */
+			struct req_acl_rule *req_acl;
+
+			if (curproxy == &defproxy) {
+				Alert("parsing [%s:%d]: '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+
+			if (!stats_check_init_uri_auth(&curproxy->uri_auth)) {
+				Alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
+
+			if (!LIST_ISEMPTY(&curproxy->uri_auth->req_acl) &&
+			    !LIST_PREV(&curproxy->uri_auth->req_acl, struct req_acl_rule *, list)->cond) {
+				Warning("parsing [%s:%d]: previous '%s' action has no condition attached, further entries are NOOP.\n",
+					file, linenum, args[0]);
+				err_code |= ERR_WARN;
+			}
+
+			req_acl = parse_auth_cond((const char **)args + 2, file, linenum, &curproxy->acl, &curproxy->acl_requires);
+
+			if (!req_acl) {
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
+
+			LIST_ADDQ(&curproxy->uri_auth->req_acl, &req_acl->list);
+
 		} else if (!strcmp(args[1], "auth")) {
 			if (*(args[2]) == 0) {
 				Alert("parsing [%s:%d] : 'auth' needs a user:password account.\n", file, linenum);
@@ -4690,6 +4721,55 @@ int check_config_validity()
 				mrule->table.t = &(target->table);
 			}
 		}
+
+		if (curproxy->uri_auth && !LIST_ISEMPTY(&curproxy->uri_auth->req_acl) &&
+		    (curproxy->uri_auth->userlist || curproxy->uri_auth->auth_realm )) {
+			Alert("%s '%s': stats 'auth'/'realm' and 'http-request' can't be used at the same time.\n",
+			      "proxy", curproxy->id);
+			cfgerr++;
+			goto out_uri_auth_compat;
+		}
+
+		if (curproxy->uri_auth && curproxy->uri_auth->userlist) {
+			const char *uri_auth_compat_acl[3] = { ".internal-stats-auth-ok", "http_auth(.internal-stats-userlist)", ""};
+			const char *uri_auth_compat_req[][4] = {
+				{ "allow", "if", ".internal-stats-auth-ok", ""},
+				{ "auth", "", "", ""},
+				{ 0 },
+			};
+			struct req_acl_rule *req_acl;
+			int i;
+
+			if (parse_acl(uri_auth_compat_acl, &curproxy->acl) == NULL) {
+				Alert("Error compiling internal auth-compat acl.\n");
+				cfgerr++;
+				goto out_uri_auth_compat;
+			}
+
+			if (curproxy->uri_auth->auth_realm) {
+				uri_auth_compat_req[1][1] = "realm";
+				uri_auth_compat_req[1][2] = curproxy->uri_auth->auth_realm;
+			} else
+				uri_auth_compat_req[1][1] = "";
+
+			for (i = 0; *uri_auth_compat_req[i]; i++) {
+				req_acl = parse_auth_cond(uri_auth_compat_req[i], "internal-stats-auth-compat", i,
+							  &curproxy->acl, &curproxy->acl_requires);
+				if (!req_acl) {
+					cfgerr++;
+					break;
+				}
+
+				LIST_ADDQ(&curproxy->uri_auth->req_acl, &req_acl->list);
+			}
+
+			if (curproxy->uri_auth->auth_realm) {
+				free(curproxy->uri_auth->auth_realm);
+				curproxy->uri_auth->auth_realm = NULL;
+			}
+
+		}
+out_uri_auth_compat:
 
 		cfgerr += acl_find_targets(curproxy);
 

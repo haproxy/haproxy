@@ -81,7 +81,7 @@ void manage_client_side_appsession(struct session *t, const char *buf, int len);
 void manage_client_side_cookies(struct session *t, struct buffer *req);
 void manage_server_side_cookies(struct session *t, struct buffer *rtr);
 void check_response_for_cacheability(struct session *t, struct buffer *rtr);
-int stats_check_uri_auth(struct session *t, struct proxy *backend);
+int stats_check_uri(struct session *s, struct proxy *backend);
 void init_proto_http();
 int http_find_header2(const char *name, int len,
 		      char *sol, struct hdr_idx *idx,

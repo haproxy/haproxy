@@ -17,6 +17,7 @@
 #include <common/config.h>
 #include <common/uri_auth.h>
 
+#include <proto/log.h>
 
 /*
  * Initializes a basic uri_auth structure header and returns a pointer to it.
@@ -29,6 +30,8 @@ struct uri_auth *stats_check_init_uri_auth(struct uri_auth **root)
 	if (!root || !*root) {
 		if ((u = (struct uri_auth *)calloc(1, sizeof (*u))) == NULL)
 			goto out_u;
+
+		LIST_INIT(&u->req_acl);
 	} else
 		u = *root;
 
@@ -38,17 +41,11 @@ struct uri_auth *stats_check_init_uri_auth(struct uri_auth **root)
 			goto out_uri;
 	}
 
-	if (!u->auth_realm)
-		if ((u->auth_realm = strdup(STATS_DEFAULT_REALM)) == NULL)
-			goto out_realm;
-
 	if (root && !*root)
 		*root = u;
 
 	return u;
 
- out_realm:
-	free(u->uri_prefix);
  out_uri:
 	if (!root || !*root)
 		free(u);
@@ -210,48 +207,55 @@ struct uri_auth *stats_set_flag(struct uri_auth **root, int flag)
  * authorized users. If a matching entry is found, no update will be performed.
  * Uses the pointer provided if not NULL and not initialized.
  */
-struct uri_auth *stats_add_auth(struct uri_auth **root, char *auth)
+struct uri_auth *stats_add_auth(struct uri_auth **root, char *user)
 {
 	struct uri_auth *u;
-	char *auth_base64;
-	int alen, blen;
-	struct user_auth *users, **ulist;
+	struct auth_users *newuser;
+	char *pass;
 
-	alen = strlen(auth);
-	blen = ((alen + 2) / 3) * 4;
-
-	if ((auth_base64 = (char *)calloc(1, blen + 1)) == NULL)
-		goto out_ubase64;
-
-	/* convert user:passwd to base64. It should return exactly blen */
-	if (a2base64(auth, alen, auth_base64, blen + 1) != blen)
-		goto out_base64;
+	pass = strchr(user, ':');
+	if (pass)
+		*pass++ = '\0';
+	else
+		pass = "";
 
 	if ((u = stats_check_init_uri_auth(root)) == NULL)
-		goto out_base64;
+		return NULL;
 
-	ulist = &u->users;
-	while ((users = *ulist)) {
-		if (!strcmp(users->user_pwd, auth_base64))
-			break;
-		ulist = &users->next;
-	}
+	if (!u->userlist)
+		u->userlist = (struct userlist *)calloc(1, sizeof(struct userlist));
 
-	if (!users) {
-		if ((users = (struct user_auth *)calloc(1, sizeof(*users))) == NULL)
-			goto out_u;
-		*ulist = users;
-		users->user_pwd = auth_base64;
-		users->user_len = blen;
-	}
+	if (!u->userlist)
+		return NULL;
+
+	if (!u->userlist->name)
+		u->userlist->name = strdup(".internal-stats-userlist");
+
+	if (!u->userlist->name)
+		return NULL;
+
+	for (newuser = u->userlist->users; newuser; newuser = newuser->next)
+		if (!strcmp(newuser->user, user)) {
+			Warning("uri auth: ignoring duplicated user '%s'.\n",
+				user);
+			return u;
+		}
+
+	newuser = (struct auth_users *)calloc(1, sizeof(struct auth_users));
+	if (!newuser)
+		return NULL;
+
+	newuser->user = strdup(user);
+	newuser->pass = strdup(pass);
+	newuser->flags |= AU_O_INSECURE;
+
+	if (!newuser->user || !newuser->user)
+		return NULL;
+
+	newuser->next = u->userlist->users;
+	u->userlist->users = newuser;
+
 	return u;
-
- out_u:
-	free(u);
- out_base64:
-	free(auth_base64);
- out_ubase64:
-	return NULL;
 }
 
 /*

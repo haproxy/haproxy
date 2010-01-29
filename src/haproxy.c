@@ -713,7 +713,6 @@ void deinit(void)
 	struct wordlist *wl, *wlb;
 	struct cond_wordlist *cwl, *cwlb;
 	struct uri_auth *uap, *ua = NULL;
-	struct user_auth *user;
 	int i;
 
 	while (p) {
@@ -879,12 +878,9 @@ void deinit(void)
 		free(uap->node);
 		free(uap->desc);
 
-		while (uap->users) {
-			user = uap->users;
-			uap->users = uap->users->next;
-			free(user->user_pwd);
-			free(user);
-		}
+		userlist_free(uap->userlist);
+		req_acl_free(&uap->req_acl);
+
 		free(uap);
 	}
 

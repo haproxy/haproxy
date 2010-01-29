@@ -17,6 +17,7 @@
 #include <common/config.h>
 #include <common/mini-clist.h>
 #include <common/standard.h>
+#include <common/uri_auth.h>
 
 #include <proto/acl.h>
 #include <proto/auth.h>
@@ -1218,7 +1219,11 @@ acl_find_targets(struct proxy *p)
 					continue;
 				}
 
-				ul = auth_find_userlist(expr->arg.str);
+				if (p->uri_auth && p->uri_auth->userlist &&
+				    !strcmp(p->uri_auth->userlist->name, expr->arg.str))
+					ul = p->uri_auth->userlist;
+				else
+					ul = auth_find_userlist(expr->arg.str);
 
 				if (!ul) {
 					Alert("proxy %s: acl %s %s(%s): unable to find userlist.\n",

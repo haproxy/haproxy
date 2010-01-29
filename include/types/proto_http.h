@@ -315,7 +315,6 @@ struct http_txn {
 	char *srv_cookie;               /* cookie presented by the server, in capture mode */
 	char *sessid;                   /* the appsession id, if found in the request or in the response */
 
-	struct chunk auth_hdr;          /* points to 'Authorization:' header */
 	struct http_auth_data auth;	/* HTTP auth data */
 };
 

@@ -2798,7 +2798,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 	struct req_acl_rule *req_acl, *req_acl_final = NULL;
 	struct redirect_rule *rule;
 	struct cond_wordlist *wl;
-	int del_ka, del_cl;
+	int del_ka, del_cl, do_stats;
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
 		/* we need more data */
@@ -2835,7 +2835,9 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 		}
 	}
 
-	list_for_each_entry(req_acl, &px->req_acl, list) {
+	do_stats = stats_check_uri(s, px);
+
+	list_for_each_entry(req_acl, (do_stats?&px->uri_auth->req_acl:&px->req_acl), list) {
 		int ret = 1;
 
 		if (req_acl->action >= PR_REQ_ACL_ACT_MAX)
@@ -2962,25 +2964,35 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 
 	if (req_acl_final && req_acl_final->action == PR_REQ_ACL_ACT_HTTP_AUTH) {
 		struct chunk msg;
+		char *realm = req_acl->http_auth.realm;
 
-		sprintf(trash, HTTP_401_fmt, req_acl->http_auth.realm?req_acl->http_auth.realm:px->id);
+		if (!realm)
+			realm = do_stats?STATS_DEFAULT_REALM:px->id;
+
+		sprintf(trash, HTTP_401_fmt, realm);
 		chunk_initlen(&msg, trash, sizeof(trash), strlen(trash));
 		txn->status = 401;
 		stream_int_retnclose(req->prod, &msg);
 		goto return_prx_cond;
 	}
 
-	/* check if stats URI was requested, and if an auth is needed */
-	if (px->uri_auth != NULL &&
-	    (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)) {
-		/* we have to check the URI and auth for this request.
+	if (do_stats) {
+		/* We need to provied stats for this request.
 		 * FIXME!!! that one is rather dangerous, we want to
 		 * make it follow standard rules (eg: clear req->analysers).
 		 */
-		if (stats_check_uri_auth(s, px)) {
-			req->analysers = 0;
-			return 0;
-		}
+
+		s->logs.tv_request = now;
+		s->data_source = DATA_SRC_STATS;
+		s->data_state  = DATA_ST_INIT;
+		s->task->nice = -32; /* small boost for HTTP statistics */
+		stream_int_register_handler(s->rep->prod, http_stats_io_handler);
+		s->rep->prod->private = s;
+		s->rep->prod->st0 = s->rep->prod->st1 = 0;
+		req->analysers = 0;
+
+		return 0;
+
 	}
 
 	/* check whether we have some ACLs set to redirect this request */
@@ -6362,24 +6374,26 @@ void get_srv_from_appsession(struct session *t, const char *begin, int len)
 #endif
 }
 
-
 /*
  * In a GET or HEAD request, check if the requested URI matches the stats uri
- * for the current backend, and if an authorization has been passed and is valid.
+ * for the current backend.
  *
  * It is assumed that the request is either a HEAD or GET and that the
- * t->be->uri_auth field is valid. An HTTP/401 response may be sent, or
- * the stats I/O handler will be registered to start sending data.
+ * t->be->uri_auth field is valid.
  *
- * Returns 1 if the session's state changes, otherwise 0.
+ * Returns 1 if stats should be provided, otherwise 0.
  */
-int stats_check_uri_auth(struct session *t, struct proxy *backend)
+int stats_check_uri(struct session *t, struct proxy *backend)
 {
 	struct http_txn *txn = &t->txn;
 	struct uri_auth *uri_auth = backend->uri_auth;
-	struct user_auth *user;
-	int authenticated, cur_idx;
 	char *h;
+
+	if (!uri_auth)
+		return 0;
+
+	if (txn->meth != HTTP_METH_GET && txn->meth != HTTP_METH_HEAD)
+		return 0;
 
 	memset(&t->data_ctx.stats, 0, sizeof(t->data_ctx.stats));
 
@@ -6424,74 +6438,6 @@ int stats_check_uri_auth(struct session *t, struct proxy *backend)
 
 	t->data_ctx.stats.flags |= STAT_SHOW_STAT | STAT_SHOW_INFO;
 
-	/* we are in front of a interceptable URI. Let's check
-	 * if there's an authentication and if it's valid.
-	 */
-	user = uri_auth->users;
-	if (!user) {
-		/* no user auth required, it's OK */
-		authenticated = 1;
-	} else {
-		authenticated = 0;
-
-		/* a user list is defined, we have to check.
-		 * skip 21 chars for "Authorization: Basic ".
-		 */
-
-		/* FIXME: this should move to an earlier place */
-		cur_idx = 0;
-		h = txn->req.sol + hdr_idx_first_pos(&txn->hdr_idx);
-		while ((cur_idx = txn->hdr_idx.v[cur_idx].next)) {
-			int len = txn->hdr_idx.v[cur_idx].len;
-			if (len > 14 &&
-			    !strncasecmp("Authorization:", h, 14)) {
-				chunk_initlen(&txn->auth_hdr, h, 0, len);
-				break;
-			}
-			h += len + txn->hdr_idx.v[cur_idx].cr + 1;
-		}
-
-		if (txn->auth_hdr.len < 21 ||
-		    memcmp(txn->auth_hdr.str + 14, " Basic ", 7))
-			user = NULL;
-
-		while (user) {
-			if ((txn->auth_hdr.len == user->user_len + 14 + 7)
-			    && !memcmp(txn->auth_hdr.str + 14 + 7,
-				       user->user_pwd, user->user_len)) {
-				authenticated = 1;
-				break;
-			}
-			user = user->next;
-		}
-	}
-
-	if (!authenticated) {
-		struct chunk msg;
-
-		/* no need to go further */
-		sprintf(trash, HTTP_401_fmt, uri_auth->auth_realm);
-		chunk_initlen(&msg, trash, sizeof(trash), strlen(trash));
-		txn->status = 401;
-		stream_int_retnclose(t->req->prod, &msg);
-		t->req->analysers = 0;
-		if (!(t->flags & SN_ERR_MASK))
-			t->flags |= SN_ERR_PRXCOND;
-		if (!(t->flags & SN_FINST_MASK))
-			t->flags |= SN_FINST_R;
-		return 1;
-	}
-
-	/* The request is valid, the user is authenticated. Let's start sending
-	 * data.
-	 */
-	t->logs.tv_request = now;
-	t->data_source = DATA_SRC_STATS;
-	t->data_state  = DATA_ST_INIT;
-	t->task->nice = -32; /* small boost for HTTP statistics */
-	stream_int_register_handler(t->rep->prod, http_stats_io_handler);
-	t->rep->prod->private = t;
-	t->rep->prod->st0 = t->rep->prod->st1 = 0;
 	return 1;
 }
 
@@ -6555,7 +6501,6 @@ void http_init_txn(struct session *s)
 	txn->rsp.msg_state = HTTP_MSG_RPBEFORE; /* at the very beginning of the response */
 
 	txn->auth.method = HTTP_AUTH_UNKNOWN;
-	chunk_reset(&txn->auth_hdr);
 
 	txn->req.err_pos = txn->rsp.err_pos = -2; /* block buggy requests/responses */
 	if (fe->options2 & PR_O2_REQBUG_OK)

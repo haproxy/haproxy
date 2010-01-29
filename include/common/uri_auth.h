@@ -17,13 +17,6 @@
 
 #include <types/auth.h>
 
-/* here we find a very basic list of base64-encoded 'user:passwd' strings */
-struct user_auth {
-	struct user_auth *next;		/* next entry, NULL if none */
-	int user_len;			/* user:passwd length */
-	char *user_pwd;			/* auth as base64("user":"passwd") (see RFC2617) */
-};
-
 /* This is a list of proxies we are allowed to see. Later, it should go in the
  * user list, but before this we need to support de/re-authentication.
  */
@@ -46,9 +39,9 @@ struct uri_auth {
 	char *node, *desc;		/* node name & description reported in this stats */
 	int refresh;			/* refresh interval for the browser (in seconds) */
 	int flags;			/* some flags describing the statistics page */
-	struct user_auth *users;	/* linked list of valid user:passwd couples */
 	struct stat_scope *scope;	/* linked list of authorized proxies */
-	struct list req_acl; 		/* */
+	struct userlist *userlist;	/* private userlist to emulate legacy "stats auth user:password" */
+	struct list req_acl; 		/* http stats ACL: allow/deny/auth */
 	struct uri_auth *next;		/* Used at deinit() to build a list of unique elements */
 };
 
