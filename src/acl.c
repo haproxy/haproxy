@@ -1087,6 +1087,9 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 						if (acl_res == ACL_PAT_PASS)
 							break;
 					}
+
+					if ((test.flags & ACL_TEST_F_NULL_MATCH) && LIST_ISEMPTY(&expr->patterns))
+						acl_res |= expr->kw->match(&test, NULL);
 				}
 				/*
 				 * OK now acl_res holds the result of this expression
