@@ -17,6 +17,8 @@
 #include <common/config.h>
 
 int a2base64(char *in, int ilen, char *out, int olen);
+int base64dec(const char *in, size_t ilen, char *out, size_t olen);
+
 extern const char base64tab[];
 
 #endif /* _COMMON_BASE64_H */
