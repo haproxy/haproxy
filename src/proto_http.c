@@ -4582,7 +4582,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 
 			/* try headers filters */
 			if (rule_set->rsp_exp != NULL) {
-				if (apply_filters_to_response(t, rep, rule_set->rsp_exp) < 0) {
+				if (apply_filters_to_response(t, rep, rule_set) < 0) {
 				return_bad_resp:
 					if (t->srv) {
 						t->srv->counters.failed_resp++;
@@ -4618,6 +4618,14 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 			list_for_each_entry(wl, &rule_set->rsp_add, list) {
 				if (txn->status < 200)
 					break;
+				if (wl->cond) {
+					int ret = acl_exec_cond(wl->cond, px, t, txn, ACL_DIR_RTR);
+					ret = acl_pass(ret);
+					if (((struct acl_cond *)wl->cond)->pol == ACL_COND_UNLESS)
+						ret = !ret;
+					if (!ret)
+						continue;
+				}
 				if (unlikely(http_header_add_tail(rep, &txn->rsp, &txn->hdr_idx, wl->s) < 0))
 					goto return_bad_resp;
 			}
@@ -5806,15 +5814,16 @@ int apply_filter_to_sts_line(struct session *t, struct buffer *rtr, struct hdr_e
 
 
 /*
- * Apply all the resp filters <exp> to all headers in buffer <rtr> of session <t>.
+ * Apply all the resp filters of proxy <px> to all headers in buffer <rtr> of session <s>.
  * Returns 0 if everything is alright, or -1 in case a replacement lead to an
  * unparsable response.
  */
-int apply_filters_to_response(struct session *t, struct buffer *rtr, struct hdr_exp *exp)
+int apply_filters_to_response(struct session *s, struct buffer *rtr, struct proxy *px)
 {
-	struct http_txn *txn = &t->txn;
-	/* iterate through the filters in the outer loop */
-	while (exp && !(txn->flags & TX_SVDENY)) {
+	struct http_txn *txn = &s->txn;
+	struct hdr_exp *exp;
+
+	for (exp = px->rsp_exp; exp; exp = exp->next) {
 		int ret;
 
 		/*
@@ -5823,6 +5832,9 @@ int apply_filters_to_response(struct session *t, struct buffer *rtr, struct hdr_
 		 * the evaluation.
 		 */
 
+		if (txn->flags & TX_SVDENY)
+			break;
+
 		if ((txn->flags & TX_SVALLOW) &&
 		    (exp->action == ACT_ALLOW || exp->action == ACT_DENY ||
 		     exp->action == ACT_PASS)) {
@@ -5830,8 +5842,20 @@ int apply_filters_to_response(struct session *t, struct buffer *rtr, struct hdr_
 			continue;
 		}
 
+		/* if this filter had a condition, evaluate it now and skip to
+		 * next filter if the condition does not match.
+		 */
+		if (exp->cond) {
+			ret = acl_exec_cond(exp->cond, px, s, txn, ACL_DIR_RTR);
+			ret = acl_pass(ret);
+			if (((struct acl_cond *)exp->cond)->pol == ACL_COND_UNLESS)
+				ret = !ret;
+			if (!ret)
+				continue;
+		}
+
 		/* Apply the filter to the status line. */
-		ret = apply_filter_to_sts_line(t, rtr, exp);
+		ret = apply_filter_to_sts_line(s, rtr, exp);
 		if (unlikely(ret < 0))
 			return -1;
 
@@ -5839,9 +5863,8 @@ int apply_filters_to_response(struct session *t, struct buffer *rtr, struct hdr_
 			/* The filter did not match the response, it can be
 			 * iterated through all headers.
 			 */
-			apply_filter_to_resp_headers(t, rtr, exp);
+			apply_filter_to_resp_headers(s, rtr, exp);
 		}
-		exp = exp->next;
 	}
 	return 0;
 }

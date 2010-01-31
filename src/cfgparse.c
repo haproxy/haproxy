@@ -405,6 +405,23 @@ static int warnif_cond_requires_resp(const struct acl_cond *cond, const char *fi
 	return ERR_WARN;
 }
 
+/* Report it if a request ACL condition uses some request-only volatile parameters.
+ * It returns either 0 or ERR_WARN so that its result can be or'ed with err_code.
+ * Note that <cond> may be NULL and then will be ignored.
+ */
+static int warnif_cond_requires_req(const struct acl_cond *cond, const char *file, int line)
+{
+	struct acl *acl;
+
+	if (!cond || !(cond->requires & ACL_USE_REQ_VOLATILE))
+		return 0;
+
+	acl = cond_find_require(cond, ACL_USE_REQ_VOLATILE);
+	Warning("parsing [%s:%d] : acl '%s' involves some volatile request-only criteria which will be ignored.\n",
+		file, line, acl ? acl->name : "(unknown)");
+	return ERR_WARN;
+}
+
 
 /*
  * parse a line in a <global> section. Returns the error code, 0 if OK, or
@@ -947,6 +964,8 @@ static int create_cond_regex_rule(const char *file, int line,
 
 	if (dir == ACL_DIR_REQ)
 		err_code |= warnif_cond_requires_resp(cond, file, line);
+	else
+		err_code |= warnif_cond_requires_req(cond, file, line);
 
 	preg = calloc(1, sizeof(regex_t));
 	if (!preg) {
@@ -3770,21 +3789,21 @@ stats_error_parsing:
 
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
 						   ACL_DIR_RTR, ACT_REPLACE, 0,
-						   args[0], args[1], args[2], NULL);
+						   args[0], args[1], args[2], (const char **)args+3);
 		if (err_code & ERR_FATAL)
 			goto out;
 	}
 	else if (!strcmp(args[0], "rspdel")) {  /* delete response header from a regex */
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
 						   ACL_DIR_RTR, ACT_REMOVE, 0,
-						   args[0], args[1], NULL, NULL);
+						   args[0], args[1], NULL, (const char **)args+2);
 		if (err_code & ERR_FATAL)
 			goto out;
 	}
 	else if (!strcmp(args[0], "rspdeny")) {  /* block response header from a regex */
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
 						   ACL_DIR_RTR, ACT_DENY, 0,
-						   args[0], args[1], NULL, NULL);
+						   args[0], args[1], NULL, (const char **)args+2);
 		if (err_code & ERR_FATAL)
 			goto out;
 	}
@@ -3798,21 +3817,21 @@ stats_error_parsing:
 
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
 						   ACL_DIR_RTR, ACT_REPLACE, REG_ICASE,
-						   args[0], args[1], args[2], NULL);
+						   args[0], args[1], args[2], (const char **)args+3);
 		if (err_code & ERR_FATAL)
 			goto out;
 	}
 	else if (!strcmp(args[0], "rspidel")) {  /* delete response header from a regex ignoring case */
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
 						   ACL_DIR_RTR, ACT_REMOVE, REG_ICASE,
-						   args[0], args[1], NULL, NULL);
+						   args[0], args[1], NULL, (const char **)args+2);
 		if (err_code & ERR_FATAL)
 			goto out;
 	}
 	else if (!strcmp(args[0], "rspideny")) {  /* block response header from a regex ignoring case */
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
 						   ACL_DIR_RTR, ACT_DENY, REG_ICASE,
-						   args[0], args[1], NULL, NULL);
+						   args[0], args[1], NULL, (const char **)args+2);
 		if (err_code & ERR_FATAL)
 			goto out;
 	}
@@ -3833,7 +3852,24 @@ stats_error_parsing:
 			goto out;
 		}
 	
+		if ((strcmp(args[2], "if") == 0 || strcmp(args[2], "unless") == 0)) {
+			if ((cond = build_acl_cond(file, linenum, curproxy, (const char **)args+2)) == NULL) {
+				Alert("parsing [%s:%d] : error detected while parsing a '%s' condition.\n",
+				      file, linenum, args[0]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			err_code |= warnif_cond_requires_req(cond, file, linenum);
+		}
+		else if (*args[2]) {
+			Alert("parsing [%s:%d] : '%s' : Expecting nothing, 'if', or 'unless', got '%s'.\n",
+			      file, linenum, args[0], args[2]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
 		wl = calloc(1, sizeof(*wl));
+		wl->cond = cond;
 		wl->s = strdup(args[1]);
 		LIST_ADDQ(&curproxy->rsp_add, &wl->list);
 	}
