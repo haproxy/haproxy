@@ -5972,6 +5972,11 @@ method <string>
   Applies to the method in the HTTP request, eg: "GET". Some predefined ACL
   already check for most common methods.
 
+status <integer>
+  Applies to the HTTP status code in the HTTP response, eg: "302". It can be
+  used to act on responses depending on status ranges, for instance, remove
+  any Location header if the response is not a 3xx.
+
 req_ver <string>
   Applies to the version string in the HTTP request, eg: "1.0". Some predefined
   ACL already check for versions 1.0 and 1.1.
@@ -6059,6 +6064,7 @@ hdr(header) <string>
   particular header whose name is passed between parenthesis and without any
   space. The header name is not case-sensitive. The header matching complies
   with RFC2616, and treats as separate headers all values delimited by commas.
+  Use the shdr() variant for response headers sent by the server.
 
   The "hdr" criteria returns true if any of the headers matching the criteria
   match any of the strings. This can be used to check exact for values. For
@@ -6069,45 +6075,51 @@ hdr(header) <string>
 hdr_beg <string>
 hdr_beg(header) <string>
   Returns true when one of the headers begins with one of the strings. See
-  "hdr" for more information on header matching.
+  "hdr" for more information on header matching. Use the shdr_beg() variant for
+  response headers sent by the server.
 
 hdr_end <string>
 hdr_end(header) <string>
   Returns true when one of the headers ends with one of the strings. See "hdr"
-  for more information on header matching.
+  for more information on header matching. Use the shdr_end() variant for
+  response headers sent by the server.
 
 hdr_sub <string>
 hdr_sub(header) <string>
   Returns true when one of the headers contains one of the strings. See "hdr"
-  for more information on header matching.
+  for more information on header matching. Use the shdr_sub() variant for
+  response headers sent by the server.
 
 hdr_dir <string>
 hdr_dir(header) <string>
   Returns true when one of the headers contains one of the strings either
   isolated or delimited by slashes. This is used to perform filename or
   directory name matching, and may be used with Referer. See "hdr" for more
-  information on header matching.
+  information on header matching. Use the shdr_dir() variant for response
+  headers sent by the server.
 
 hdr_dom <string>
 hdr_dom(header) <string>
   Returns true when one of the headers contains one of the strings either
   isolated or delimited by dots. This is used to perform domain name matching,
   and may be used with the Host header. See "hdr" for more information on
-  header matching.
+  header matching. Use the shdr_dom() variant for response headers sent by the
+  server.
 
 hdr_reg <regex>
 hdr_reg(header) <regex>
   Returns true when one of the headers matches of the regular expressions. It
   can be used at any time, but it is important to remember that regex matching
   is slower than other methods. See also other "hdr_" criteria, as well as
-  "hdr" for more information on header matching.
+  "hdr" for more information on header matching. Use the shdr_reg() variant for
+  response headers sent by the server.
 
 hdr_val <integer>
 hdr_val(header) <integer>
   Returns true when one of the headers starts with a number which matches the
   values or ranges specified. This may be used to limit content-length to
   acceptable values for example. See "hdr" for more information on header
-  matching.
+  matching. Use the shdr_val() variant for response headers sent by the server.
 
 hdr_cnt <integer>
 hdr_cnt(header) <integer>
@@ -6116,13 +6128,15 @@ hdr_cnt(header) <integer>
   line may count as several headers if it has several values. This is used to
   detect presence, absence or abuse of a specific header, as well as to block
   request smuggling attacks by rejecting requests which contain more than one
-  of certain headers. See "hdr" for more information on header matching.
+  of certain headers. See "hdr" for more information on header matching. Use
+  the shdr_cnt() variant for response headers sent by the server.
 
 hdr_ip <ip_address>
 hdr_ip(header) <ip_address>
   Returns true when one of the headers' values contains an IP address matching
   <ip_address>. This is mainly used with headers such as X-Forwarded-For or
-  X-Client-IP. See "hdr" for more information on header matching.
+  X-Client-IP. See "hdr" for more information on header matching. Use the
+  shdr_ip() variant for response headers sent by the server.
 
 
 7.6. Pre-defined ACLs
