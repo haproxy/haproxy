@@ -3738,7 +3738,24 @@ stats_error_parsing:
 			goto out;
 		}
 
+		if ((strcmp(args[2], "if") == 0 || strcmp(args[2], "unless") == 0)) {
+			if ((cond = build_acl_cond(file, linenum, curproxy, (const char **)args+2)) == NULL) {
+				Alert("parsing [%s:%d] : error detected while parsing a '%s' condition.\n",
+				      file, linenum, args[0]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			err_code |= warnif_cond_requires_resp(cond, file, linenum);
+		}
+		else if (*args[2]) {
+			Alert("parsing [%s:%d] : '%s' : Expecting nothing, 'if', or 'unless', got '%s'.\n",
+			      file, linenum, args[0], args[2]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
 		wl = calloc(1, sizeof(*wl));
+		wl->cond = cond;
 		wl->s = strdup(args[1]);
 		LIST_ADDQ(&curproxy->req_add, &wl->list);
 		warnif_misplaced_reqadd(curproxy, file, linenum, args[0]);

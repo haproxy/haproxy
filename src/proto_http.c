@@ -2851,6 +2851,15 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 
 	/* add request headers from the rule sets in the same order */
 	list_for_each_entry(wl, &px->req_add, list) {
+		if (wl->cond) {
+			int ret = acl_exec_cond(wl->cond, px, s, txn, ACL_DIR_REQ);
+			ret = acl_pass(ret);
+			if (((struct acl_cond *)wl->cond)->pol == ACL_COND_UNLESS)
+				ret = !ret;
+			if (!ret)
+				continue;
+		}
+
 		if (unlikely(http_header_add_tail(req, &txn->req, &txn->hdr_idx, wl->s) < 0))
 			goto return_bad_req;
 	}
