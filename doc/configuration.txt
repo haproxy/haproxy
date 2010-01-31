@@ -2691,6 +2691,11 @@ option http-use-proxy-header
   that this option can only be specified in a frontend and will affect the
   request along its whole life.
 
+  Also, when this option is set, a request which requires authentication will
+  automatically switch to use proxy authentication headers if it is itself a
+  proxied request. That makes it possible to check or enforce authentication in
+  front of an existing proxy.
+
   This option should normally never be used, except in front of a proxy.
 
   See also : "option httpclose", "option forceclose" and "option

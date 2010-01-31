@@ -111,6 +111,15 @@ const char *HTTP_401_fmt =
 	"\r\n"
 	"<html><body><h1>401 Unauthorized</h1>\nYou need a valid user and password to access this content.\n</body></html>\n";
 
+const char *HTTP_407_fmt =
+	"HTTP/1.0 407 Unauthorized\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
+	"Proxy-Authenticate: Basic realm=\"%s\"\r\n"
+	"\r\n"
+	"<html><body><h1>401 Unauthorized</h1>\nYou need a valid user and password to access this content.\n</body></html>\n";
+
 
 const int http_err_codes[HTTP_ERR_SIZE] = {
 	[HTTP_ERR_400] = 400,
@@ -1507,7 +1516,16 @@ get_http_auth(struct session *s)
 	txn->auth.method = HTTP_AUTH_WRONG;
 
 	ctx.idx = 0;
-	if (!http_find_header("Authorization", txn->req.sol, &txn->hdr_idx, &ctx))
+
+	if (txn->flags & TX_USE_PX_CONN) {
+		h = "Proxy-Authorization";
+		len = strlen(h);
+	} else {
+		h = "Authorization";
+		len = strlen(h);
+	}
+
+	if (!http_find_header2(h, len, txn->req.sol, &txn->hdr_idx, &ctx))
 		return 0;
 
 	h = ctx.line + ctx.val;
@@ -2969,7 +2987,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 		if (!realm)
 			realm = do_stats?STATS_DEFAULT_REALM:px->id;
 
-		sprintf(trash, HTTP_401_fmt, realm);
+		sprintf(trash, (txn->flags & TX_USE_PX_CONN) ? HTTP_407_fmt : HTTP_401_fmt, realm);
 		chunk_initlen(&msg, trash, sizeof(trash), strlen(trash));
 		txn->status = 401;
 		stream_int_retnclose(req->prod, &msg);
