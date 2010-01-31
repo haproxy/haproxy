@@ -359,11 +359,15 @@ static int check_for_pending(struct server *s)
  * possible to other servers. It automatically recomputes the number of
  * servers, but not the map.
  */
-static void set_server_down(struct server *s)
+void set_server_down(struct server *s)
 {
 	struct server *srv;
 	struct chunk msg;
 	int xferred;
+
+	if (s->state & SRV_MAINTAIN) {
+		s->health = s->rise;
+	}
 
 	if (s->health == s->rise || s->tracked) {
 		int srv_was_paused = s->state & SRV_GOINGDOWN;
@@ -380,14 +384,19 @@ static void set_server_down(struct server *s)
 
 		chunk_init(&msg, trash, sizeof(trash));
 
-		chunk_printf(&msg,
-			"%sServer %s/%s is DOWN", s->state & SRV_BACKUP ? "Backup " : "",
-			s->proxy->id, s->id);
+		if (s->state & SRV_MAINTAIN) {
+			chunk_printf(&msg,
+				"%sServer %s/%s is DOWN for maintenance", s->state & SRV_BACKUP ? "Backup " : "",
+				s->proxy->id, s->id);
+		} else {
+			chunk_printf(&msg,
+				"%sServer %s/%s is DOWN", s->state & SRV_BACKUP ? "Backup " : "",
+				s->proxy->id, s->id);
 
-		server_status_printf(&msg, s,
-					((!s->tracked && !(s->proxy->options2 & PR_O2_LOGHCHKS))?SSP_O_HCHK:0),
-					xferred);
-
+			server_status_printf(&msg, s,
+						((!s->tracked && !(s->proxy->options2 & PR_O2_LOGHCHKS))?SSP_O_HCHK:0),
+						xferred);
+		}
 		Warning("%s.\n", trash);
 
 		/* we don't send an alert if the server was previously paused */
@@ -403,17 +412,23 @@ static void set_server_down(struct server *s)
 
 		if (s->state & SRV_CHECKED)
 			for(srv = s->tracknext; srv; srv = srv->tracknext)
-				set_server_down(srv);
+				if (! (srv->state & SRV_MAINTAIN))
+					/* Only notify tracking servers that are not already in maintenance. */
+					set_server_down(srv);
 	}
 
 	s->health = 0; /* failure */
 }
 
-static void set_server_up(struct server *s) {
+void set_server_up(struct server *s) {
 
 	struct server *srv;
 	struct chunk msg;
 	int xferred;
+
+	if (s->state & SRV_MAINTAIN) {
+		s->health = s->rise;
+	}
 
 	if (s->health == s->rise || s->tracked) {
 		if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
@@ -448,20 +463,30 @@ static void set_server_up(struct server *s) {
 
 		chunk_init(&msg, trash, sizeof(trash));
 
-		chunk_printf(&msg,
-			"%sServer %s/%s is UP", s->state & SRV_BACKUP ? "Backup " : "",
-			s->proxy->id, s->id);
+		if (s->state & SRV_MAINTAIN) {
+			chunk_printf(&msg,
+				"%sServer %s/%s is UP (leaving maintenance)", s->state & SRV_BACKUP ? "Backup " : "",
+				s->proxy->id, s->id);
+		} else {
+			chunk_printf(&msg,
+				"%sServer %s/%s is UP", s->state & SRV_BACKUP ? "Backup " : "",
+				s->proxy->id, s->id);
 
-		server_status_printf(&msg, s,
-					((!s->tracked && !(s->proxy->options2 & PR_O2_LOGHCHKS))?SSP_O_HCHK:0),
-					xferred);
+			server_status_printf(&msg, s,
+						((!s->tracked && !(s->proxy->options2 & PR_O2_LOGHCHKS))?SSP_O_HCHK:0),
+						xferred);
+		}
 
 		Warning("%s.\n", trash);
 		send_log(s->proxy, LOG_NOTICE, "%s.\n", trash);
 
 		if (s->state & SRV_CHECKED)
 			for(srv = s->tracknext; srv; srv = srv->tracknext)
-				set_server_up(srv);
+				if (! (srv->state & SRV_MAINTAIN))
+					/* Only notify tracking servers if they're not in maintenance. */
+					set_server_up(srv);
+
+		s->state &= ~SRV_MAINTAIN;
 	}
 
 	if (s->health >= s->rise)
@@ -1007,7 +1032,7 @@ struct task *process_chk(struct task *t)
 		/* we don't send any health-checks when the proxy is stopped or when
 		 * the server should not be checked.
 		 */
-		if (!(s->state & SRV_CHECKED) || s->proxy->state == PR_STSTOPPED) {
+		if (!(s->state & SRV_CHECKED) || s->proxy->state == PR_STSTOPPED || (s->state & SRV_MAINTAIN)) {
 			while (tick_is_expired(t->expire, now_ms))
 				t->expire = tick_add(t->expire, MS_TO_TICKS(s->inter));
 			return t;

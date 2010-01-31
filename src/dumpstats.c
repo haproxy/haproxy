@@ -65,6 +65,8 @@ const char stats_sock_usage_msg[] =
 	"  get weight     : report a server's current weight\n"
 	"  set weight     : change a server's weight\n"
 	"  set timeout    : change a timeout setting\n"
+	"  disable server : set a server in maintenance mode\n"
+	"  enable server  : re-enable a server that was previously in maintenance mode\n"
 	"";
 
 const char stats_permission_denied_msg[] =
@@ -529,7 +531,102 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 			return 0;
 		}
 	}
-	else { /* not "show" nor "clear" nor "get" nor "set" */
+	else if (strcmp(args[0], "enable") == 0) {
+		if (strcmp(args[1], "server") == 0) {
+			struct proxy *px;
+			struct server *sv;
+
+			if (s->listener->perm.ux.level < ACCESS_LVL_ADMIN) {
+				s->data_ctx.cli.msg = stats_permission_denied_msg;
+				si->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			/* split "backend/server" and make <line> point to server */
+			for (line = args[2]; *line; line++)
+				if (*line == '/') {
+					*line++ = '\0';
+					break;
+				}
+
+			if (!*line || !*args[2]) {
+				s->data_ctx.cli.msg = "Require 'backend/server'.\n";
+				si->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			if (!get_backend_server(args[2], line, &px, &sv)) {
+				s->data_ctx.cli.msg = px ? "No such server.\n" : "No such backend.\n";
+				si->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			if (sv->state & SRV_MAINTAIN) {
+				/* The server is really in maintenance, we can change the server state */
+				if (sv->tracked) {
+					/* If this server tracks the status of another one,
+					* we must restore the good status.
+					*/
+					if (sv->tracked->state & SRV_RUNNING) {
+						set_server_up(sv);
+					} else {
+						sv->state &= ~SRV_MAINTAIN;
+						set_server_down(sv);
+					}
+				} else {
+					set_server_up(sv);
+				}
+			}
+
+			return 1;
+		}
+		else { /* unknown "enable" parameter */
+			return 0;
+		}
+	}
+	else if (strcmp(args[0], "disable") == 0) {
+		if (strcmp(args[1], "server") == 0) {
+			struct proxy *px;
+			struct server *sv;
+
+			if (s->listener->perm.ux.level < ACCESS_LVL_ADMIN) {
+				s->data_ctx.cli.msg = stats_permission_denied_msg;
+				si->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			/* split "backend/server" and make <line> point to server */
+			for (line = args[2]; *line; line++)
+				if (*line == '/') {
+					*line++ = '\0';
+					break;
+				}
+
+			if (!*line || !*args[2]) {
+				s->data_ctx.cli.msg = "Require 'backend/server'.\n";
+				si->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			if (!get_backend_server(args[2], line, &px, &sv)) {
+				s->data_ctx.cli.msg = px ? "No such server.\n" : "No such backend.\n";
+				si->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			if (! (sv->state & SRV_MAINTAIN)) {
+				/* Not already in maintenance, we can change the server state */
+				sv->state |= SRV_MAINTAIN;
+				set_server_down(sv);
+			}
+
+			return 1;
+		}
+		else { /* unknown "disable" parameter */
+			return 0;
+		}
+	}
+	else { /* not "show" nor "clear" nor "get" nor "set" nor "enable" nor "disable" */
 		return 0;
 	}
 	return 1;
@@ -1015,6 +1112,7 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 			     ".backup4	{background: #c060ff;}\n"  /* NOLB state shows same as going down */
 			     ".backup5	{background: #90b0e0;}\n"  /* NOLB state shows same as going down */
 			     ".backup6	{background: #e0e0e0;}\n"
+			     ".maintain	{background: #c07820;}\n"
 			     ".rls      {letter-spacing: 0.2em; margin-right: 1px;}\n" /* right letter spacing (used for grouping digits) */
 			     "\n"
 			     "a.px:link {color: #ffff40; text-decoration: none;}"
@@ -1083,6 +1181,8 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 			     "</tr><tr>\n"
 			     "<td class=\"active0\"></td><td class=\"noborder\">active or backup DOWN &nbsp;</td>"
 			     "<td class=\"active6\"></td><td class=\"noborder\">not checked </td>"
+			     "</tr><tr>\n"
+			     "<td class=\"maintain\"></td><td class=\"noborder\" colspan=\"3\">active or backup DOWN for maintenance (MAINT) &nbsp;</td>"
 			     "</tr></table>\n"
 			     "Note: UP with load-balancing disabled is reported as \"NOLB\"."
 			     "</td>"
@@ -1608,10 +1708,18 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 							       "UP %d/%d &darr;", "UP",
 							       "NOLB %d/%d &darr;", "NOLB",
 							       "<i>no check</i>" };
-				chunk_printf(&msg,
-				     /* name */
-				     "<tr class=\"%s%d\"><td class=ac",
-				     (sv->state & SRV_BACKUP) ? "backup" : "active", sv_state);
+				if (sv->state & SRV_MAINTAIN) {
+					chunk_printf(&msg,
+					    /* name */
+					    "<tr class=\"maintain\"><td class=ac"
+					);
+				}
+				else {
+					chunk_printf(&msg,
+					    /* name */
+					    "<tr class=\"%s%d\"><td class=ac",
+					    (sv->state & SRV_BACKUP) ? "backup" : "active", sv_state);
+				}
 
 				if (uri->flags&ST_SHLGNDS) {
 					char str[INET6_ADDRSTRLEN];
@@ -1693,7 +1801,12 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				/* status, lest check */
 				chunk_printf(&msg, "<td class=ac>");
 
-				if (svs->state & SRV_CHECKED) {
+				if (sv->state & SRV_MAINTAIN) {
+					chunk_printf(&msg, "%s ",
+						human_time(now.tv_sec - sv->last_change, 1));
+					chunk_printf(&msg, "MAINT");
+				}
+				else if (svs->state & SRV_CHECKED) {
 					chunk_printf(&msg, "%s ",
 						human_time(now.tv_sec - sv->last_change, 1));
 
@@ -1801,10 +1914,14 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     sv->counters.retries, sv->counters.redispatches);
 
 				/* status */
-				chunk_printf(&msg,
-				     srv_hlt_st[sv_state],
-				     (sv->state & SRV_RUNNING) ? (sv->health - sv->rise + 1) : (sv->health),
-				     (sv->state & SRV_RUNNING) ? (sv->fall) : (sv->rise));
+				if (sv->state & SRV_MAINTAIN) {
+					chunk_printf(&msg, "MAINT,");
+				} else {
+					chunk_printf(&msg,
+					    srv_hlt_st[sv_state],
+					    (svs->state & SRV_RUNNING) ? (svs->health - svs->rise + 1) : (svs->health),
+					    (svs->state & SRV_RUNNING) ? (svs->fall) : (svs->rise));
+				}
 
 				chunk_printf(&msg,
 				     /* weight, active, backup */

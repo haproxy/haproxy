@@ -7656,6 +7656,28 @@ clear counters all
   server. This has the same effect as restarting. This command is restricted
   and can only be issued on sockets configured for level "admin".
 
+disable server <backend>/<server>
+  Mark the server DOWN for maintenance. In this mode, no more checks will be
+  performed on the server until it leaves maintenance.
+  If the server is tracked by other servers, those servers will be set to DOWN
+  during the maintenance.
+
+  Both the backend and the server may be specified either by their name or by
+  their numeric ID, prefixed with a dash ('#').
+
+  This command is restricted and can only be issued on sockets configured for
+  level "admin".
+
+enable server <backend>/<server>
+  If the server was previously marked as DOWN for maintenance, this marks the
+  server UP and checks are re-enabled.
+
+  Both the backend and the server may be specified either by their name or by
+  their numeric ID, prefixed with a dash ('#').
+
+  This command is restricted and can only be issued on sockets configured for
+  level "admin".
+
 get weight <backend>/<server>
   Report the current weight and the initial weight of server <server> in
   backend <backend> or an error if either doesn't exist. The initial weight is
