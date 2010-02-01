@@ -6216,6 +6216,36 @@ and to every request on the "img", "video", "download" and "ftp" hosts :
    use_backend static if host_static or host_www url_static
    use_backend www    if host_www
 
+It is also possible to form rules using "anonymous ACLs". Those are unnamed ACL
+expressions that are built on the fly without needing to be declared. They must
+be enclosed between braces, with a space before and after each brace (because
+the braces must be seen as independant words). Example :
+
+   The following rule :
+
+       acl missing_cl hdr_cnt(Content-length) eq 0
+       block if METH_POST missing_cl
+
+   Can also be written that way :
+
+       block if METH_POST { hdr_cnt(Content-length) eq 0 }
+
+It is generally not recommended to use this construct because it's a lot easier
+to leave errors in the configuration when written that way. However, for very
+simple rules matching only one source IP address for instance, it can make more
+sense to use them than to declare ACLs with random names. Another example of
+good use is the following :
+
+   With named ACLs :
+
+        acl site_dead nbsrv(dynamic) lt 2
+        acl site_dead nbsrv(static)  lt 2
+        monitor fail  if site_dead
+
+   With anonymous ACLs :
+
+        monitor fail if { nbsrv(dynamic) lt 2 } || { nbsrv(static) lt 2 }
+
 See section 4.2 for detailed help on the "block" and "use_backend" keywords.
 
 

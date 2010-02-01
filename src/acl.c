@@ -963,16 +963,45 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int p
 			continue;
 		}
 
-		/* search for <word> in the known ACL names. If we do not find
-		 * it, let's look for it in the default ACLs, and if found, add
-		 * it to the list of ACLs of this proxy. This makes it possible
-		 * to override them.
-		 */
-		cur_acl = find_acl_by_name(word, known_acl);
-		if (cur_acl == NULL) {
-			cur_acl = find_acl_default(word, known_acl);
-			if (cur_acl == NULL)
+		if (strcmp(word, "{") == 0) {
+			/* we may have a complete ACL expression between two braces,
+			 * find the last one.
+			 */
+			int arg_end = arg + 1;
+			const char **args_new;
+
+			while (*args[arg_end] && strcmp(args[arg_end], "}") != 0)
+				arg_end++;
+
+			if (!*args[arg_end])
 				goto out_free_suite;
+
+			args_new = calloc(1, (arg_end - arg + 1) * sizeof(*args_new));
+			if (!args_new)
+				goto out_free_suite;
+
+			args_new[0] = ".noname";
+			memcpy(args_new + 1, args + arg + 1, (arg_end - arg) * sizeof(*args_new));
+			args_new[arg_end - arg] = "";
+			cur_acl = parse_acl(args_new, known_acl);
+			free(args_new);
+
+			if (!cur_acl)
+				goto out_free_suite;
+			arg = arg_end;
+		}
+		else {
+			/* search for <word> in the known ACL names. If we do not find
+			 * it, let's look for it in the default ACLs, and if found, add
+			 * it to the list of ACLs of this proxy. This makes it possible
+			 * to override them.
+			 */
+			cur_acl = find_acl_by_name(word, known_acl);
+			if (cur_acl == NULL) {
+				cur_acl = find_acl_default(word, known_acl);
+				if (cur_acl == NULL)
+					goto out_free_suite;
+			}
 		}
 
 		cur_term = (struct acl_term *)calloc(1, sizeof(*cur_term));

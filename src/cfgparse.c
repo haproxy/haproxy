@@ -4733,42 +4733,36 @@ int check_config_validity()
 		}
 
 		if (curproxy->uri_auth && curproxy->uri_auth->userlist) {
-			const char *uri_auth_compat_acl[3] = { ".internal-stats-auth-ok", "http_auth(.internal-stats-userlist)", ""};
-			const char *uri_auth_compat_req[][4] = {
-				{ "allow", "if", ".internal-stats-auth-ok", ""},
-				{ "auth", "", "", ""},
-				{ 0 },
-			};
+			const char *uri_auth_compat_req[10];
 			struct req_acl_rule *req_acl;
-			int i;
+			int i = 0;
 
-			if (parse_acl(uri_auth_compat_acl, &curproxy->acl) == NULL) {
-				Alert("Error compiling internal auth-compat acl.\n");
-				cfgerr++;
-				goto out_uri_auth_compat;
-			}
+			/* build the ACL condition from scratch. We're relying on anonymous ACLs for that */
+			uri_auth_compat_req[i++] = "auth";
 
 			if (curproxy->uri_auth->auth_realm) {
-				uri_auth_compat_req[1][1] = "realm";
-				uri_auth_compat_req[1][2] = curproxy->uri_auth->auth_realm;
-			} else
-				uri_auth_compat_req[1][1] = "";
-
-			for (i = 0; *uri_auth_compat_req[i]; i++) {
-				req_acl = parse_auth_cond(uri_auth_compat_req[i], "internal-stats-auth-compat", i, curproxy);
-				if (!req_acl) {
-					cfgerr++;
-					break;
-				}
-
-				LIST_ADDQ(&curproxy->uri_auth->req_acl, &req_acl->list);
+				uri_auth_compat_req[i++] = "realm";
+				uri_auth_compat_req[i++] = curproxy->uri_auth->auth_realm;
 			}
+
+			uri_auth_compat_req[i++] = "unless";
+			uri_auth_compat_req[i++] = "{";
+			uri_auth_compat_req[i++] = "http_auth(.internal-stats-userlist)";
+			uri_auth_compat_req[i++] = "}";
+			uri_auth_compat_req[i++] = "";
+
+			req_acl = parse_auth_cond(uri_auth_compat_req, "internal-stats-auth-compat", 0, curproxy);
+			if (!req_acl) {
+				cfgerr++;
+				break;
+			}
+
+			LIST_ADDQ(&curproxy->uri_auth->req_acl, &req_acl->list);
 
 			if (curproxy->uri_auth->auth_realm) {
 				free(curproxy->uri_auth->auth_realm);
 				curproxy->uri_auth->auth_realm = NULL;
 			}
-
 		}
 out_uri_auth_compat:
 
