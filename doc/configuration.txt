@@ -42,6 +42,7 @@ Summary
 3.1.      Process management and security
 3.2.      Performance tuning
 3.3.      Debugging
+3.4.      Userlists
 
 4.    Proxies
 4.1.      Proxy keywords matrix
@@ -684,6 +685,48 @@ quiet
   Do not display any message during startup. It is equivalent to the command-
   line argument "-q".
 
+3.4. Userlists
+--------------
+It is possible to control access to frontend/backend/listen sections or to
+http stats by allowing only authenticated and authorized users. To do this,
+it is required to create at least one userlist and to define users.
+
+userlist <listname>
+  Creates new userlist with name <listname>. Many indepenend userlists can be
+  used to store authentication & authorization data for independent customers.
+
+group <groupname> [users <user>,<user>,(...)]
+  Adds group <gropname> to the current userlist. It is also possible to
+  attach users to this group by using a comma separated list of names
+  proceeded by "users" keyword.
+
+user <username> [password|insecure-password <password>] [groups <group>,<group>,(...)]
+  Adds user <username> to the current userlist. Both secure (encrypted) and
+  insecure (unencrypted) passwords can be used. Encrypted passwords are
+  evaluated using the crypt(3) function so dependig of the system's
+  capabilities, different algoritms are supported. For example modern Glibc
+  based Linux system supports MD5, SHA-256, SHA-512 and of course classic,
+  DES-based method of crypting passwords.
+
+
+  Example:
+	userlist L1
+	  group G1 users tiger,scott
+	  group G2 users xdb,scott
+
+	  user tiger password $6$k6y3o.eP$JlKBx9za966ud67qe45NSQYf8Nw.XFuk8QVRevoLh1XPCQDCBPjcU2JtGBSS0MOQW2PFxHSwRv6J.C0/D7cV91
+	  user scott insecure-password elgato
+	  user xdb insecure-password hello
+
+	userlist L2
+	  group G1
+	  group G2
+
+	  user tiger password $6$k6y3o.eP$JlKBx9za966ud67qe45NSQYf8Nw.XFuk8QVRevoLh1XPCQDCBPjcU2JtGBSS0MOQW2PFxHSwRv6J.C0/D7cV91 groups G1
+	  user scott insecure-password elgato groups G1,G2
+	  user xdb insecure-password hello groups G2
+
+  Please note that both lists are functionally identical.
 
 4. Proxies
 ----------
@@ -769,6 +812,7 @@ fullconn                    X          -         X         X
 grace                       X          X         X         X
 hash-type                   X          -         X         X
 http-check disable-on-404   X          -         X         X
+http-request                -          X         X         X
 id                          -          X         X         X
 log                         X          X         X         X
 maxconn                     X          X         X         -
@@ -1982,6 +2026,38 @@ http-check send-state
 
   See also : "option httpchk", "http-check disable-on-404"
 
+http-request { allow | deny | http-auth [realm <realm>] } [ { if | unless } <condition> ]
+  Access control for Layer 7 requests
+
+  May be used in sections:   defaults | frontend | listen | backend
+                                no    |    yes   |   yes  |   yes
+
+  These set of options allow to fine control access to a
+  frontend/listen/backend. Each option may be followed by if/unless and acl.
+  First option with matched condition (or option without condition) is final.
+  For "block" a 403 error will be returned, for "allow" normal processing is
+  performed, for "http-auth" a 401/407 error code is returned so the client
+  should be asked to enter a username and password.
+
+  There is no fixed limit to the number of http-request statements per
+  instance.
+
+  Example:
+	acl nagios src 192.168.129.3
+	acl local_net src 192.168.0.0/16
+	acl auth_ok http_auth(L1)
+
+	http-request allow if nagios
+	http-request allow if local_net auth_ok
+	http-request auth realm Gimme if local_net auth_ok
+	http-request deny
+
+  Exampe:
+	acl auth_ok http_auth_group(L1) G1
+
+	http-request auth unless auth_ok
+
+  See section 3.4 about userlists and 7 about ACL usage.
 
 id <value>
   Set a persistent ID to a proxy.
@@ -6146,6 +6222,15 @@ hdr_ip(header) <ip_address>
   <ip_address>. This is mainly used with headers such as X-Forwarded-For or
   X-Client-IP. See "hdr" for more information on header matching. Use the
   shdr_ip() variant for response headers sent by the server.
+
+http_auth(userlist)
+http_auth_group(userlist) <group> [<group>]*
+  Returns true when authentication data received from the client matches
+  username & password stored on the userlist. It is also possible to
+  use http_auth_group to check if the user is assigned to at least one
+  of specified groups.
+
+  Currently only http basic auth is supported.
 
 
 7.6. Pre-defined ACLs
