@@ -2723,10 +2723,6 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	 *   to the message-body.
 	 */
 
-	/* CONNECT sets a tunnel and ignores everything else */
-	if (txn->meth == HTTP_METH_CONNECT)
-		goto skip_xfer_len;
-
 	use_close_only = 0;
 	ctx.idx = 0;
 	/* set TE_CHNK and XFER_LEN only if "chunked" is seen last */
@@ -2767,7 +2763,6 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	if (!use_close_only)
 		txn->flags |= TX_REQ_XFER_LEN;
 
- skip_xfer_len:
 	/* end of job, return OK */
 	req->analysers &= ~an_bit;
 	req->analyse_exp = TICK_ETERNITY;
@@ -2931,11 +2926,10 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 
 	del_cl = del_ka = 0;
 
-	if ((txn->meth != HTTP_METH_CONNECT) &&
-	    ((!(txn->flags & TX_HDR_CONN_PRS) &&
-	      (s->fe->options & (PR_O_KEEPALIVE|PR_O_SERVER_CLO|PR_O_HTTP_CLOSE|PR_O_FORCE_CLO))) ||
-	     ((s->fe->options & (PR_O_KEEPALIVE|PR_O_SERVER_CLO|PR_O_HTTP_CLOSE|PR_O_FORCE_CLO)) !=
-	      (s->be->options & (PR_O_KEEPALIVE|PR_O_SERVER_CLO|PR_O_HTTP_CLOSE|PR_O_FORCE_CLO))))) {
+	if ((!(txn->flags & TX_HDR_CONN_PRS) &&
+	     (s->fe->options & (PR_O_KEEPALIVE|PR_O_SERVER_CLO|PR_O_HTTP_CLOSE|PR_O_FORCE_CLO))) ||
+	    ((s->fe->options & (PR_O_KEEPALIVE|PR_O_SERVER_CLO|PR_O_HTTP_CLOSE|PR_O_FORCE_CLO)) !=
+	     (s->be->options & (PR_O_KEEPALIVE|PR_O_SERVER_CLO|PR_O_HTTP_CLOSE|PR_O_FORCE_CLO)))) {
 		int tmp = TX_CON_WANT_TUN;
 
 		if ((s->fe->options|s->be->options) & PR_O_KEEPALIVE)
@@ -4574,9 +4568,6 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 		goto skip_content_length;
 	}
 
-	if (txn->meth == HTTP_METH_CONNECT)
-		goto skip_content_length;
-
 	use_close_only = 0;
 	ctx.idx = 0;
 	while ((txn->flags & TX_RES_VER_11) &&
@@ -4669,21 +4660,22 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 	 * See doc/internals/connection-header.txt for the complete matrix.
 	 */
 
-	if (unlikely(txn->status == 101)) {
-		/* this is a "switching protocol" response, we're very unlikely
+	if (unlikely((txn->meth == HTTP_METH_CONNECT && txn->status == 200) ||
+		     txn->status == 101)) {
+		/* Either we've established an explicit tunnel, or we're
+		 * switching the protocol. In both cases, we're very unlikely
 		 * to understand the next protocols. We have to switch to tunnel
 		 * mode, so that we transfer the request and responses then let
 		 * this protocol pass unmodified. When we later implement specific
 		 * parsers for such protocols, we'll want to check the Upgrade
-		 * header which contains information about that protocol (eg: see
-		 * RFC2817 about TLS).
+		 * header which contains information about that protocol for
+		 * responses with status 101 (eg: see RFC2817 about TLS).
 		 */
 		txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_TUN;
 	}
-	else if ((txn->meth != HTTP_METH_CONNECT) &&
-	    (txn->status >= 200) && !(txn->flags & TX_HDR_CONN_PRS) &&
-	    ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN ||
-	     ((t->fe->options|t->be->options) & PR_O_HTTP_CLOSE))) {
+	else if ((txn->status >= 200) && !(txn->flags & TX_HDR_CONN_PRS) &&
+		 ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN ||
+		  ((t->fe->options|t->be->options) & PR_O_HTTP_CLOSE))) {
 		int to_del = 0;
 
 		/* on unknown transfer length, we must close */
@@ -4916,7 +4908,8 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 		}
 
 	skip_header_mangling:
-		if (txn->flags & TX_RES_XFER_LEN)
+		if ((txn->flags & TX_RES_XFER_LEN) ||
+		    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_TUN)
 			rep->analysers |= AN_RES_HTTP_XFER_BODY;
 
 		/*************************************************************
