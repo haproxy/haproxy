@@ -262,13 +262,17 @@ messages. Let's consider this HTTP response :
 As a special case, HTTP supports so called "Informational responses" as status
 codes 1xx. These messages are special in that they don't convey any part of the
 response, they're just used as sort of a signaling message to ask a client to
-continue to post its request for instance. The requested information will be
-carried by the next non-1xx response message following the informational one.
-This implies that multiple responses may be sent to a single request, and that
-this only works when keep-alive is enabled (1xx messages are HTTP/1.1 only).
-HAProxy handles these messages and is able to correctly forward and skip them,
-and only process the next non-1xx response. As such, these messages are neither
-logged nor transformed, unless explicitly state otherwise.
+continue to post its request for instance. In the case of a status 100 response
+the requested information will be carried by the next non-100 response message
+following the informational one. This implies that multiple responses may be
+sent to a single request, and that this only works when keep-alive is enabled
+(1xx messages are HTTP/1.1 only). HAProxy handles these messages and is able to
+correctly forward and skip them, and only process the next non-100 response. As
+such, these messages are neither logged nor transformed, unless explicitly
+state otherwise. Status 101 messages indicate that the protocol is changing
+over the same connection and that haproxy must switch to tunnel mode, just as
+if a CONNECT had occurred. Then the Upgrade header would contain additional
+information about the type of protocol the connection is switching to.
 
 
 1.3.1. The Response line

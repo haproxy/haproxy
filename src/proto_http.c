@@ -4669,7 +4669,18 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 	 * See doc/internals/connection-header.txt for the complete matrix.
 	 */
 
-	if ((txn->meth != HTTP_METH_CONNECT) &&
+	if (unlikely(txn->status == 101)) {
+		/* this is a "switching protocol" response, we're very unlikely
+		 * to understand the next protocols. We have to switch to tunnel
+		 * mode, so that we transfer the request and responses then let
+		 * this protocol pass unmodified. When we later implement specific
+		 * parsers for such protocols, we'll want to check the Upgrade
+		 * header which contains information about that protocol (eg: see
+		 * RFC2817 about TLS).
+		 */
+		txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_TUN;
+	}
+	else if ((txn->meth != HTTP_METH_CONNECT) &&
 	    (txn->status >= 200) && !(txn->flags & TX_HDR_CONN_PRS) &&
 	    ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN ||
 	     ((t->fe->options|t->be->options) & PR_O_HTTP_CLOSE))) {
@@ -4778,12 +4789,12 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 		}
 
 		/*
-		 * We may be facing a 1xx response (100 continue, 101 switching protocols),
-		 * in which case this is not the right response, and we're waiting for the
-		 * next one. Let's allow this response to go to the client and wait for the
+		 * We may be facing a 100-continue response, in which case this
+		 * is not the right response, and we're waiting for the next one.
+		 * Let's allow this response to go to the client and wait for the
 		 * next one.
 		 */
-		if (txn->status < 200) {
+		if (unlikely(txn->status == 100)) {
 			hdr_idx_init(&txn->hdr_idx);
 			buffer_forward(rep, rep->lr - msg->sol);
 			msg->msg_state = HTTP_MSG_RPBEFORE;
@@ -4791,6 +4802,8 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 			rep->analysers |= AN_RES_WAIT_HTTP | an_bit;
 			return 1;
 		}
+		else if (unlikely(txn->status < 200))
+			goto skip_header_mangling;
 
 		/* we don't have any 1xx status code now */
 
@@ -4902,6 +4915,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 				http_change_connection_header(txn, msg, rep, want_flags);
 		}
 
+	skip_header_mangling:
 		if (txn->flags & TX_RES_XFER_LEN)
 			rep->analysers |= AN_RES_HTTP_XFER_BODY;
 
