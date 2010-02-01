@@ -2862,8 +2862,13 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 			continue;
 
 		/* check condition, but only if attached */
-		if (req_acl->cond)
-			ret = acl_exec_cond(req_acl->cond, px, s, txn, ACL_DIR_REQ);
+		if (!req_acl->cond)
+			continue;
+
+		ret = acl_exec_cond(req_acl->cond, px, s, txn, ACL_DIR_REQ);
+		ret = acl_pass(ret);
+		if (req_acl->cond->pol == ACL_COND_UNLESS)
+			ret = !ret;
 
 		if (ret) {
 			req_acl_final = req_acl;
