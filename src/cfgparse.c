@@ -1944,13 +1944,14 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_WARN;
 		}
 
-		req_acl = parse_auth_cond((const char **)args + 1, file, linenum, &curproxy->acl, &curproxy->acl_requires);
+		req_acl = parse_auth_cond((const char **)args + 1, file, linenum, curproxy);
 
 		if (!req_acl) {
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
 
+		err_code |= warnif_cond_requires_resp(req_acl->cond, file, linenum);
 		LIST_ADDQ(&curproxy->req_acl, &req_acl->list);
 	}
 	else if (!strcmp(args[0], "block")) {  /* early blocking based on ACLs */
@@ -2436,13 +2437,14 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_WARN;
 			}
 
-			req_acl = parse_auth_cond((const char **)args + 2, file, linenum, &curproxy->acl, &curproxy->acl_requires);
+			req_acl = parse_auth_cond((const char **)args + 2, file, linenum, curproxy);
 
 			if (!req_acl) {
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
 
+			err_code |= warnif_cond_requires_resp(req_acl->cond, file, linenum);
 			LIST_ADDQ(&curproxy->uri_auth->req_acl, &req_acl->list);
 
 		} else if (!strcmp(args[1], "auth")) {
@@ -4753,8 +4755,7 @@ int check_config_validity()
 				uri_auth_compat_req[1][1] = "";
 
 			for (i = 0; *uri_auth_compat_req[i]; i++) {
-				req_acl = parse_auth_cond(uri_auth_compat_req[i], "internal-stats-auth-compat", i,
-							  &curproxy->acl, &curproxy->acl_requires);
+				req_acl = parse_auth_cond(uri_auth_compat_req[i], "internal-stats-auth-compat", i, curproxy);
 				if (!req_acl) {
 					cfgerr++;
 					break;

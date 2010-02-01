@@ -78,7 +78,7 @@ auth_resolve_groups(struct userlist *l, char *groups)
 }
 
 struct req_acl_rule *
-parse_auth_cond(const char **args, const char *file, int linenum, struct list *known_acl, int *acl_requires)
+parse_auth_cond(const char **args, const char *file, int linenum, struct proxy *proxy)
 {
 	struct req_acl_rule *req_acl;
 	int cur_arg;
@@ -116,31 +116,21 @@ req_error_parsing:
 		return NULL;
 	}
 
-	if (*args[cur_arg]) {
-		int pol = ACL_COND_NONE;
+	if (strcmp(args[cur_arg], "if") == 0 || strcmp(args[cur_arg], "unless") == 0) {
 		struct acl_cond *cond;
 
-		if (!strcmp(args[cur_arg], "if"))
-			pol = ACL_COND_IF;
-		else if (!strcmp(args[cur_arg], "unless"))
-			pol = ACL_COND_UNLESS;
-		else {
-			Alert("parsing [%s:%d]: '%s' expects 'realm' for 'auth' or"
-			      " either 'if' or 'unless' followed by a condition but found '%s'.\n",
-			      file, linenum, args[0], args[cur_arg]);
+		if ((cond = build_acl_cond(file, linenum, proxy, args+cur_arg)) == NULL) {
+			Alert("parsing [%s:%d] : error detected while parsing an 'http-request %s' condition.\n",
+			      file, linenum, args[0]);
 			return NULL;
 		}
-
-		if ((cond = parse_acl_cond((const char **)args + cur_arg + 1, known_acl, pol)) == NULL) {
-			Alert("parsing [%s:%d]: error detected while parsing 'req' condition.\n",
-			      file, linenum);
-			return NULL;
-		}
-
-		cond->file = file;
-		cond->line = linenum;
-		*acl_requires |= cond->requires;
 		req_acl->cond = cond;
+	}
+	else if (*args[cur_arg]) {
+		Alert("parsing [%s:%d]: 'http-request %s' expects 'realm' for 'auth' or"
+		      " either 'if' or 'unless' followed by a condition but found '%s'.\n",
+		      file, linenum, args[0], args[cur_arg]);
+		return NULL;
 	}
 
 	return req_acl;
