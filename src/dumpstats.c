@@ -1697,7 +1697,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				else
 					sv_state = 0; /* DOWN */
 
-			if ((sv_state == 0) && (s->data_ctx.stats.flags & STAT_HIDE_DOWN)) {
+			if (((sv_state == 0) || (sv->state & SRV_MAINTAIN)) && (s->data_ctx.stats.flags & STAT_HIDE_DOWN)) {
 				/* do not report servers which are DOWN */
 				s->data_ctx.stats.sv = sv->next;
 				continue;
@@ -1708,7 +1708,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 							       "UP %d/%d &darr;", "UP",
 							       "NOLB %d/%d &darr;", "NOLB",
 							       "<i>no check</i>" };
-				if (sv->state & SRV_MAINTAIN) {
+				if ((sv->state & SRV_MAINTAIN) || (svs->state & SRV_MAINTAIN)) {
 					chunk_printf(&msg,
 					    /* name */
 					    "<tr class=\"maintain\"><td class=ac"
@@ -1806,9 +1806,14 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 						human_time(now.tv_sec - sv->last_change, 1));
 					chunk_printf(&msg, "MAINT");
 				}
+				else if (svs != sv && svs->state & SRV_MAINTAIN) {
+					chunk_printf(&msg, "%s ",
+						human_time(now.tv_sec - svs->last_change, 1));
+					chunk_printf(&msg, "MAINT(via)");
+				}
 				else if (svs->state & SRV_CHECKED) {
 					chunk_printf(&msg, "%s ",
-						human_time(now.tv_sec - sv->last_change, 1));
+						human_time(now.tv_sec - svs->last_change, 1));
 
 					chunk_printf(&msg,
 					     srv_hlt_st[sv_state],
@@ -1916,7 +1921,11 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				/* status */
 				if (sv->state & SRV_MAINTAIN) {
 					chunk_printf(&msg, "MAINT,");
-				} else {
+				}
+				else if (svs != sv && svs->state & SRV_MAINTAIN) {
+					chunk_printf(&msg, "MAINT(via),");
+				}
+				else {
 					chunk_printf(&msg,
 					    srv_hlt_st[sv_state],
 					    (svs->state & SRV_RUNNING) ? (svs->health - svs->rise + 1) : (svs->health),

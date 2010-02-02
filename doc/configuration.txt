@@ -7587,7 +7587,7 @@ page. Both means provide a CSV format whose fields follow.
  14. eresp: response errors
  15. wretr: retries (warning)
  16. wredis: redispatches (warning)
- 17. status: status (UP/DOWN/...)
+ 17. status: status (UP/DOWN/NOLB/MAINT/MAINT(via)...)
  18. weight: server weight (server), total weight (backend)
  19. act: server is active (server), number of active servers (backend)
  20. bck: server is backup (server), number of backup servers (backend)
@@ -7780,6 +7780,9 @@ disable server <backend>/<server>
   performed on the server until it leaves maintenance.
   If the server is tracked by other servers, those servers will be set to DOWN
   during the maintenance.
+
+  In the statistics page, a server DOWN for maintenance will appear with a
+  "MAINT" status, its tracking servers with the "MAINT(via)" one.
 
   Both the backend and the server may be specified either by their name or by
   their numeric ID, prefixed with a dash ('#').
