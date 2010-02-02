@@ -208,7 +208,7 @@ check_user(struct userlist *ul, unsigned int group_mask, const char *user, const
 	 * if user matches but group does not,
 	 * it makes no sens to check passwords
 	 */
-	if (group_mask && !(group_mask & u->group_mask))
+	if (group_mask && !(group_mask & u->u.group_mask))
 		return 0;
 
 	if (!(u->flags & AU_O_INSECURE)) {

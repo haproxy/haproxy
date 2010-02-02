@@ -36,11 +36,9 @@ struct req_acl_rule {
 	struct list list;
 	struct acl_cond *cond;			/* acl condition to meet */
 	unsigned int action;
-		union {
-			struct {
-			char *realm;
-		} http_auth;
-	};
+	struct {
+		char *realm;
+	} http_auth;
 };
 
 struct auth_users {
@@ -50,7 +48,7 @@ struct auth_users {
 	union {
 		char *groups;
 		unsigned int group_mask;
-	};
+	} u;
 };
 
 struct userlist {

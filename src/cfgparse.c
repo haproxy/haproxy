@@ -4223,7 +4223,7 @@ cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 				cur_arg += 2;
 				continue;
 			} else if (!strcmp(args[cur_arg], "groups")) {
-				newuser->groups = strdup(args[cur_arg + 1]);
+				newuser->u.groups = strdup(args[cur_arg + 1]);
 				cur_arg += 2;
 				continue;
 			} else {
@@ -5110,10 +5110,10 @@ out_uri_auth_compat:
 			unsigned int group_mask = 0;
 			char *group = NULL;
 
-			if (!curuser->groups)
+			if (!curuser->u.groups)
 				continue;
 
-			while ((group = strtok(group?NULL:curuser->groups, ","))) {
+			while ((group = strtok(group?NULL:curuser->u.groups, ","))) {
 
 				for (g = 0; g < curuserlist->grpcnt; g++)
 					if (!strcmp(curuserlist->groups[g], group))
@@ -5129,8 +5129,8 @@ out_uri_auth_compat:
 				group_mask |= (1 << g);
 			}
 
-			free(curuser->groups);
-			curuser->group_mask = group_mask;
+			free(curuser->u.groups);
+			curuser->u.group_mask = group_mask;
 		}
 
 		for (g = 0; g < curuserlist->grpcnt; g++) {
@@ -5151,7 +5151,7 @@ out_uri_auth_compat:
 					goto out;
 				}
 
-				curuser->group_mask |= (1 << g);
+				curuser->u.group_mask |= (1 << g);
 			}
 
 			free(curuserlist->groupusers[g]);
