@@ -1,6 +1,53 @@
 ChangeLog :
 ===========
 
+2010/02/02 : 1.4-rc1
+    - [MEDIUM] add a maintenance mode to servers
+    - [MINOR] http-auth: last fix was wrong
+    - [CONTRIB] add base64rev-gen.c that was used to generate the base64rev table.
+    - [MINOR] Base64 decode
+    - [MINOR] generic auth support with groups and encrypted passwords
+    - [MINOR] add ACL_TEST_F_NULL_MATCH
+    - [MINOR] http-request: allow/deny/auth support for frontend/backend/listen
+    - [MINOR] acl: add http_auth and http_auth_group
+    - [MAJOR] use the new auth framework for http stats
+    - [DOC] add info about userlists, http-request and http_auth/http_auth_group acls
+    - [STATS] make it possible to change a CLI connection timeout
+    - [BUG] patterns: copy-paste typo in type conversion arguments
+    - [MINOR] pattern: make the converter more flexible by supporting void* and int args
+    - [MINOR] standard: str2mask: string to netmask converter
+    - [MINOR] pattern: add support for argument parsers for converters
+    - [MINOR] pattern: add the "ipmask()" converting function
+    - [MINOR] config: off-by-one in "stick-table" after list of converters
+    - [CLEANUP] acl, patterns: make use of my_strndup() instead of malloc+memcpy
+    - [BUG] restore accidentely removed line in last patch !
+    - [MINOR] checks: make the HTTP check code add the CRLF itself
+    - [MINOR] checks: add the server's status in the checks
+    - [BUILD] halog: make without arch-specific optimizations
+    - [BUG] halog: fix segfault in case of empty log in PCT mode (cherry picked from commit fe362fe4762151d209b9656639ee1651bc2b329d)
+    - [MINOR] http: disable keep-alive when process is going down
+    - [MINOR] acl: add build_acl_cond() to make it easier to add ACLs in config
+    - [CLEANUP] config: use build_acl_cond() instead of parse_acl_cond()
+    - [CLEANUP] config: use warnif_cond_requires_resp() to check for bad ACLs
+    - [MINOR] prepare req_*/rsp_* to receive a condition
+    - [CLEANUP] config: specify correct const char types to warnif_* functions
+    - [MEDIUM] config: factor out the parsing of 20 req*/rsp* keywords
+    - [MEDIUM] http: make the request filter loop check for optional conditions
+    - [MEDIUM] http: add support for conditional request filter execution
+    - [DOC] add some build info about the AIX platform (cherry picked from commit e41914c77edbc40aebf827b37542d37d758e371e)
+    - [MEDIUM] http: add support for conditional request header addition
+    - [MEDIUM] http: add support for conditional response header rewriting
+    - [DOC] add some missing ACLs about response header matching
+    - [MEDIUM] http: add support for proxy authentication
+    - [MINOR] http-auth: make the 'unless' keyword work as expected
+    - [CLEANUP] config: use build_acl_cond() to simplify http-request ACL parsing
+    - [MEDIUM] add support for anonymous ACLs
+    - [MEDIUM] http: switch to tunnel mode after status 101 responses
+    - [MEDIUM] http: stricter processing of the CONNECT method
+    - [BUG] config: reset check request to avoid double free when switching to ssl/sql
+    - [MINOR] config: fix too large ssl-hello-check message.
+    - [BUG] fix error response in case of server error
+
 2010/01/25 : 1.4-dev8
     - [CLEANUP] Keep in sync "defaults" support between documentation and code
     - [MEDIUM] http: add support for Proxy-Connection header

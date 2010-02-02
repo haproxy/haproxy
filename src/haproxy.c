@@ -152,7 +152,7 @@ char hostname[MAX_HOSTNAME_LEN] = "";
 void display_version()
 {
 	printf("HA-Proxy version " HAPROXY_VERSION " " HAPROXY_DATE"\n");
-	printf("Copyright 2000-2009 Willy Tarreau <w@1wt.eu>\n\n");
+	printf("Copyright 2000-2010 Willy Tarreau <w@1wt.eu>\n\n");
 }
 
 void display_build_opts()
