@@ -52,7 +52,7 @@ Summary
 
 6.    HTTP header manipulation
 
-7.    Using ACLs
+7.    Using ACLs and pattern extraction
 7.1.      Matching integers
 7.2.      Matching strings
 7.3.      Matching regular expressions (regexes)
@@ -63,6 +63,7 @@ Summary
 7.5.3.        Matching at Layer 7
 7.6.      Pre-defined ACLs
 7.7.      Using ACLs to form conditions
+7.8.      Pattern extraction
 
 8.    Logging
 8.1.      Log levels
