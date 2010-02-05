@@ -854,9 +854,14 @@ void deinit(void)
 		l = p->listen;
 		while (l) {
 			l_next = l->next;
+			free(l->name);
+			free(l->counters);
 			free(l);
 			l = l_next;
 		}/* end while(l) */
+
+		free(p->desc);
+		free(p->fwdfor_hdr_name);
 
 		req_acl_free(&p->req_acl);
 

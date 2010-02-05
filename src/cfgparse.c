@@ -3023,13 +3023,13 @@ stats_error_parsing:
 			goto out;
 		}
 
-		if ((newsrv = (struct server *)calloc(1, sizeof(struct server))) == NULL) {
-			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
-			err_code |= ERR_ALERT | ERR_ABORT;
-			goto out;
-		}
-
 		if (!defsrv) {
+			if ((newsrv = (struct server *)calloc(1, sizeof(struct server))) == NULL) {
+				Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
+
 			/* the servers are linked backwards first */
 			newsrv->next = curproxy->srv;
 			curproxy->srv = newsrv;
