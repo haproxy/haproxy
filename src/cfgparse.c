@@ -4493,8 +4493,9 @@ int check_config_validity()
 			next_pxid = get_next_id(&used_proxy_id, next_pxid);
 			curproxy->conf.id.key = curproxy->uuid = next_pxid;
 			eb32_insert(&used_proxy_id, &curproxy->conf.id);
-			next_pxid++;
 		}
+		next_pxid++;
+
 
 		if (curproxy->state == PR_STSTOPPED) {
 			/* ensure we don't keep listeners uselessly bound */
@@ -4914,8 +4915,8 @@ out_uri_auth_compat:
 				next_id = get_next_id(&curproxy->conf.used_server_id, next_id);
 				newsrv->conf.id.key = newsrv->puid = next_id;
 				eb32_insert(&curproxy->conf.used_server_id, &newsrv->conf.id);
-				next_id++;
 			}
+			next_id++;
 
 			if ((curproxy->mode != PR_MODE_HTTP) && (newsrv->rdr_len || newsrv->cklen)) {
 				Alert("config : %s '%s' : server cannot have cookie or redirect prefix in non-HTTP mode.\n",
@@ -5067,8 +5068,8 @@ out_uri_auth_compat:
 				next_id = get_next_id(&curproxy->conf.used_listener_id, next_id);
 				listener->conf.id.key = listener->luid = next_id;
 				eb32_insert(&curproxy->conf.used_listener_id, &listener->conf.id);
-				next_id++;
 			}
+			next_id++;
 
 			/* enable separate counters */
 			if (curproxy->options2 & PR_O2_SOCKSTAT) {
