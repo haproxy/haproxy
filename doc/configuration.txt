@@ -701,7 +701,8 @@ group <groupname> [users <user>,<user>,(...)]
   attach users to this group by using a comma separated list of names
   proceeded by "users" keyword.
 
-user <username> [password|insecure-password <password>] [groups <group>,<group>,(...)]
+user <username> [password|insecure-password <password>]
+                [groups <group>,<group>,(...)]
   Adds user <username> to the current userlist. Both secure (encrypted) and
   insecure (unencrypted) passwords can be used. Encrypted passwords are
   evaluated using the crypt(3) function so dependig of the system's
@@ -711,21 +712,21 @@ user <username> [password|insecure-password <password>] [groups <group>,<group>,
 
 
   Example:
-	userlist L1
-	  group G1 users tiger,scott
-	  group G2 users xdb,scott
+        userlist L1
+          group G1 users tiger,scott
+          group G2 users xdb,scott
 
-	  user tiger password $6$k6y3o.eP$JlKBx9za966ud67qe45NSQYf8Nw.XFuk8QVRevoLh1XPCQDCBPjcU2JtGBSS0MOQW2PFxHSwRv6J.C0/D7cV91
-	  user scott insecure-password elgato
-	  user xdb insecure-password hello
+          user tiger password $6$k6y3o.eP$JlKBx9za9667qe4(...)xHSwRv6J.C0/D7cV91
+          user scott insecure-password elgato
+          user xdb insecure-password hello
 
-	userlist L2
-	  group G1
-	  group G2
+        userlist L2
+          group G1
+          group G2
 
-	  user tiger password $6$k6y3o.eP$JlKBx9za966ud67qe45NSQYf8Nw.XFuk8QVRevoLh1XPCQDCBPjcU2JtGBSS0MOQW2PFxHSwRv6J.C0/D7cV91 groups G1
-	  user scott insecure-password elgato groups G1,G2
-	  user xdb insecure-password hello groups G2
+          user tiger password $6$k6y3o.eP$JlKBx(...)xHSwRv6J.C0/D7cV91 groups G1
+          user scott insecure-password elgato groups G1,G2
+          user xdb insecure-password hello groups G2
 
   Please note that both lists are functionally identical.
 
@@ -1518,7 +1519,7 @@ capture response header <name> len <length>
              about logging.
 
 
-clitimeout <timeout>
+clitimeout <timeout> (deprecated)
   Set the maximum inactivity time on the client side.
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
@@ -1553,7 +1554,7 @@ clitimeout <timeout>
              "srvtimeout".
 
 
-contimeout <timeout>
+contimeout <timeout> (deprecated)
   Set the maximum time to wait for a connection attempt to a server to succeed.
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
@@ -2027,7 +2028,8 @@ http-check send-state
 
   See also : "option httpchk", "http-check disable-on-404"
 
-http-request { allow | deny | http-auth [realm <realm>] } [ { if | unless } <condition> ]
+http-request { allow | deny | http-auth [realm <realm>] }
+             [ { if | unless } <condition> ]
   Access control for Layer 7 requests
 
   May be used in sections:   defaults | frontend | listen | backend
@@ -2196,7 +2198,7 @@ mode { tcp|http|health }
    See also : "monitor", "monitor-net"
 
 
-monitor fail [if | unless] <condition>
+monitor fail { if | unless } <condition>
   Add a condition to report a failure to a monitor HTTP request.
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   no
@@ -2712,7 +2714,7 @@ option httpchk <method> <uri> <version>
           server apache1 192.168.1.1:443 check port 80
 
   See also : "option ssl-hello-chk", "option smtpchk", "option mysql-check",
-             "http-check" and the "check", "port" and "interval" server options.
+             "http-check" and the "check", "port" and "inter" server options.
 
 
 option http-server-close
@@ -2750,7 +2752,7 @@ no option http-server-close
 
 
 option http-use-proxy-header
-[no] option http-use-proxy-header
+no option http-use-proxy-header
   Make use of non-standard Proxy-Connection header instead of Connection
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
@@ -5313,7 +5315,7 @@ use_backend <backend> unless <condition>
 
 
 5. Server and default-server options
------------------
+------------------------------------
 
 The "server" and "default-server" keywords support a certain number of settings
 which are all passed as arguments on the server line. The order in which those
@@ -7608,22 +7610,22 @@ page. Both means provide a CSV format whose fields follow.
  34. rate_lim: limit on new sessions per second
  35. rate_max: max number of new sessions per second
  36. check_status: status of last health check, one of:
-	UNK     -> unknown
-	INI     -> initializing
-	SOCKERR -> socket error
-	L4OK    -> check passed on layer 4, no upper layers testing enabled
-	L4TMOUT -> layer 1-4 timeout
-	L4CON   -> layer 1-4 connection problem, for example "Connection refused"
-		(tcp rst) or "No route to host" (icmp)
-	L6OK   -> check passed on layer 6
-	L6TOUT -> layer 6 (SSL) timeout
-	L6RSP  -> layer 6 invalid response - protocol error
-	L7OK   -> check passed on layer 7
-	L7OKC  -> check conditionally passed on layer 7, for example 404 with
-		disable-on-404
-	L7TOUT -> layer 7 (HTTP/SMTP) timeout
-	L7RSP  -> layer 7 invalid response - protocol error
-	L7STS  -> layer 7 response error, for example HTTP 5xx
+        UNK     -> unknown
+        INI     -> initializing
+        SOCKERR -> socket error
+        L4OK    -> check passed on layer 4, no upper layers testing enabled
+        L4TMOUT -> layer 1-4 timeout
+        L4CON   -> layer 1-4 connection problem, for example
+                   "Connection refused" (tcp rst) or "No route to host" (icmp)
+        L6OK    -> check passed on layer 6
+        L6TOUT  -> layer 6 (SSL) timeout
+        L6RSP   -> layer 6 invalid response - protocol error
+        L7OK    -> check passed on layer 7
+        L7OKC   -> check conditionally passed on layer 7, for example 404 with
+                   disable-on-404
+        L7TOUT  -> layer 7 (HTTP/SMTP) timeout
+        L7RSP   -> layer 7 invalid response - protocol error
+        L7STS   -> layer 7 response error, for example HTTP 5xx
  37. check_code: layer5-7 code, if available
  38. check_duration: time in ms took to finish last health check
  39. hrsp_1xx: http responses with 1xx code
