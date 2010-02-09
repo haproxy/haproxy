@@ -736,11 +736,11 @@ int process_store_rules(struct session *s, struct buffer *rep, int an_bit)
 	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
-		req,
-		req->rex, req->wex,
-		req->flags,
-		req->l,
-		req->analysers);
+		rep,
+		rep->rex, rep->wex,
+		rep->flags,
+		rep->l,
+		rep->analysers);
 
 	list_for_each_entry(rule, &px->storersp_rules, list) {
 		int ret = 1 ;
