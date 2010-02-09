@@ -119,6 +119,7 @@ const char *limit_r(unsigned long n, char *buffer, int size, const char *alt)
 /*
  * converts <str> to a struct sockaddr_un* which is locally allocated.
  * The format is "/path", where "/path" is a path to a UNIX domain socket.
+ * NULL is returned if the socket path is invalid (too long).
  */
 struct sockaddr_un *str2sun(const char *str)
 {
@@ -128,8 +129,7 @@ struct sockaddr_un *str2sun(const char *str)
 	memset(&su, 0, sizeof(su));
 	strsz = strlen(str) + 1;
 	if (strsz > sizeof(su.sun_path)) {
-		Alert("Socket path '%s' too long (max %d)\n",
-		      str, (int)sizeof(su.sun_path) - 1);
+		return NULL;
 	} else {
 		su.sun_family = AF_UNIX;
 		memcpy(su.sun_path, str, strsz);
@@ -216,18 +216,20 @@ const char *invalid_domainchar(const char *name) {
 /*
  * converts <str> to a struct sockaddr_in* which is locally allocated.
  * The format is "addr:port", where "addr" can be a dotted IPv4 address,
- * a host name, or empty or "*" to indicate INADDR_ANY.
+ * a host name, or empty or "*" to indicate INADDR_ANY. NULL is returned
+ * if the host part cannot be resolved.
  */
 struct sockaddr_in *str2sa(char *str)
 {
 	static struct sockaddr_in sa;
+	struct sockaddr_in *ret = NULL;
 	char *c;
 	int port;
 
 	memset(&sa, 0, sizeof(sa));
 	str = strdup(str);
 	if (str == NULL)
-		goto out_nofree;
+		goto out;
 
 	if ((c = strrchr(str,':')) != NULL) {
 		*c++ = '\0';
@@ -240,20 +242,17 @@ struct sockaddr_in *str2sa(char *str)
 		sa.sin_addr.s_addr = INADDR_ANY;
 	}
 	else if (!inet_pton(AF_INET, str, &sa.sin_addr)) {
-		struct hostent *he;
-
-		if ((he = gethostbyname(str)) == NULL) {
-			Alert("Invalid server name: '%s'\n", str);
-		}
-		else
-			sa.sin_addr = *(struct in_addr *) *(he->h_addr_list);
+		struct hostent *he = gethostbyname(str);
+		if (!he)
+			goto out;
+		sa.sin_addr = *(struct in_addr *) *(he->h_addr_list);
 	}
 	sa.sin_port   = htons(port);
 	sa.sin_family = AF_INET;
-
+	ret = &sa;
+ out:
 	free(str);
- out_nofree:
-	return &sa;
+	return ret;
 }
 
 /*
@@ -263,18 +262,20 @@ struct sockaddr_in *str2sa(char *str)
  * port is set in the sockaddr_in. Thus, it is enough to check the size of the
  * returned range to know if an array must be allocated or not. The format is
  * "addr[:port[-port]]", where "addr" can be a dotted IPv4 address, a host
- * name, or empty or "*" to indicate INADDR_ANY.
+ * name, or empty or "*" to indicate INADDR_ANY. NULL is returned if the host
+ * part cannot be resolved.
  */
 struct sockaddr_in *str2sa_range(char *str, int *low, int *high)
 {
 	static struct sockaddr_in sa;
+	struct sockaddr_in *ret = NULL;
 	char *c;
 	int portl, porth;
 
 	memset(&sa, 0, sizeof(sa));
 	str = strdup(str);
 	if (str == NULL)
-		goto out_nofree;
+		goto out;
 
 	if ((c = strrchr(str,':')) != NULL) {
 		char *sep;
@@ -296,23 +297,21 @@ struct sockaddr_in *str2sa_range(char *str, int *low, int *high)
 		sa.sin_addr.s_addr = INADDR_ANY;
 	}
 	else if (!inet_pton(AF_INET, str, &sa.sin_addr)) {
-		struct hostent *he;
-
-		if ((he = gethostbyname(str)) == NULL) {
-			Alert("Invalid server name: '%s'\n", str);
-		}
-		else
-			sa.sin_addr = *(struct in_addr *) *(he->h_addr_list);
+		struct hostent *he = gethostbyname(str);
+		if (!he)
+			goto out;
+		sa.sin_addr = *(struct in_addr *) *(he->h_addr_list);
 	}
 	sa.sin_port   = htons(portl);
 	sa.sin_family = AF_INET;
+	ret = &sa;
 
 	*low = portl;
 	*high = porth;
 
+ out:
 	free(str);
- out_nofree:
-	return &sa;
+	return ret;
 }
 
 /* converts <str> to a struct in_addr containing a network mask. It can be
