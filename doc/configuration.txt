@@ -5003,8 +5003,9 @@ timeout check <timeout>
   for check and "timeout check" as an additional read timeout. The "min" is
   used so that people running with *very* long "timeout connect" (eg. those
   who needed this due to the queue or tarpit) do not slow down their checks.
-  Of course it is better to use "check queue" and "check tarpit" instead of
-  long "timeout connect".
+  (Please also note that there is no valid reason to have such long connect
+  timeouts, because "timeout queue" and "timeout tarpit" can always be used to
+  avoid that).
 
   If "timeout check" is not set haproxy uses "inter" for complete check
   timeout (connect + read) exactly like all <1.3.15 version.
