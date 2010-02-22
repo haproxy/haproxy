@@ -30,6 +30,7 @@ struct stat_scope {
 #define	ST_SHNODE	0x00000002	/* show node name */
 #define	ST_SHDESC	0x00000004	/* show description */
 #define	ST_SHLGNDS	0x00000008	/* show legends */
+#define	ST_CONVDONE	0x00000010	/* req_acl conversion done */
 
 /* later we may link them to support multiple URI matching */
 struct uri_auth {
