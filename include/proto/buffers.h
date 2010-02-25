@@ -2,7 +2,7 @@
  * include/proto/buffers.h
  * Buffer management definitions, macros and inline functions.
  *
- * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -429,6 +429,8 @@ int buffer_replace(struct buffer *b, char *pos, char *end, const char *str);
 int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int len);
 int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len);
 void buffer_dump(FILE *o, struct buffer *b, int from, int to);
+void buffer_bounce_realign(struct buffer *buf);
+
 
 
 /* writes the chunk <chunk> to buffer <buf>. Returns -1 in case of success,
