@@ -225,6 +225,7 @@ struct proxy {
 	int nbpend;				/* number of pending connections with no server assigned yet */
 	int totpend;				/* total number of pending connections on this instance (for stats) */
 	unsigned int feconn, beconn;		/* # of active frontend and backends sessions */
+	struct freq_ctr fe_req_per_sec;		/* HTTP requests per second on the frontend */
 	struct freq_ctr fe_sess_per_sec;	/* sessions per second on the frontend */
 	struct freq_ctr be_sess_per_sec;	/* sessions per second on the backend */
 	unsigned int maxconn;			/* max # of active sessions on the frontend */

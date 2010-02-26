@@ -2559,6 +2559,8 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	 * left uninitialized (for instance in the absence of headers).
 	 */
 
+	proxy_inc_fe_req_ctr(s->fe); /* one more valid request for this FE */
+
 	if (txn->flags & TX_WAIT_NEXT_RQ) {
 		/* kill the pending keep-alive timeout */
 		txn->flags &= ~TX_WAIT_NEXT_RQ;

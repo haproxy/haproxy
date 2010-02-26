@@ -89,6 +89,15 @@ static void inline proxy_inc_be_ctr(struct proxy *be)
 		be->counters.be_sps_max = be->be_sess_per_sec.curr_ctr;
 }
 
+/* increase the number of cumulated requests on the designated frontend */
+static void inline proxy_inc_fe_req_ctr(struct proxy *fe)
+{
+	fe->counters.cum_fe_req++;
+	update_freq_ctr(&fe->fe_req_per_sec, 1);
+	if (fe->fe_req_per_sec.curr_ctr > fe->counters.fe_rps_max)
+		fe->counters.fe_rps_max = fe->fe_req_per_sec.curr_ctr;
+}
+
 #endif /* _PROTO_PROXY_H */
 
 /*

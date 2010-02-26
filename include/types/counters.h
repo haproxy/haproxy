@@ -25,9 +25,11 @@
 struct pxcounters {
 	unsigned int feconn_max, beconn_max;	/* max # of active frontend and backend sessions */
 
+	long long cum_fe_req;			/* cumulated number of processed HTTP requests */
 	long long cum_feconn, cum_beconn;	/* cumulated number of processed sessions */
 	long long cum_lbconn;			/* cumulated number of sessions processed by load balancing */
 
+	unsigned int fe_rps_max;		/* maximum of new sessions per second seen on the frontend */
 	unsigned int fe_sps_max;		/* maximum of new sessions per second seen on the frontend */
 	unsigned int be_sps_max;		/* maximum of new sessions per second seen on the backend */
 	unsigned int nbpend_max;		/* max number of pending connections with no server assigned yet */

@@ -248,6 +248,7 @@ int print_csv_header(struct chunk *msg)
 			    "rate,rate_lim,rate_max,"
 			    "check_status,check_code,check_duration,"
 			    "hrsp_1xx,hrsp_2xx,hrsp_3xx,hrsp_4xx,hrsp_5xx,hrsp_other,hanafail,"
+			    "req_rate, req_rate_max, req_tot,"
 			    "\n");
 }
 
@@ -358,6 +359,7 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 				else {
 					px->counters.feconn_max = 0;
 					px->counters.beconn_max = 0;
+					px->counters.fe_rps_max = 0;
 					px->counters.fe_sps_max = 0;
 					px->counters.be_sps_max = 0;
 					px->counters.nbpend_max = 0;
@@ -1512,6 +1514,11 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				/* failed health analyses */
 				chunk_printf(&msg, ",");
 
+				/* requests : req_rate, req_rate_max, req_tot, */
+				chunk_printf(&msg, "%u,%u,%lld,",
+					     read_freq_ctr(&px->fe_req_per_sec),
+					     px->counters.fe_rps_max, px->counters.cum_fe_req);
+
 				/* finish with EOL */
 				chunk_printf(&msg, "\n");
 			}
@@ -1637,6 +1644,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     ",,,,,,"
 				     /* failed health analyses */
 				     ","
+				     /* requests : req_rate, req_rate_max, req_tot, */
+				     ",,,"
 				     "\n",
 				     px->id, l->name,
 				     l->nbconn, l->counters->conn_max,
@@ -2019,6 +2028,9 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				/* failed health analyses */
 				chunk_printf(&msg, "%lld,",  sv->counters.failed_hana);
 
+				/* requests : req_rate, req_rate_max, req_tot, */
+				chunk_printf(&msg, ",,,");
+
 				/* finish with EOL */
 				chunk_printf(&msg, "\n");
 			}
@@ -2191,6 +2203,9 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 
 				/* failed health analyses */
 				chunk_printf(&msg, ",");
+
+				/* requests : req_rate, req_rate_max, req_tot, */
+				chunk_printf(&msg, ",,,");
 
 				/* finish with EOL */
 				chunk_printf(&msg, "\n");
