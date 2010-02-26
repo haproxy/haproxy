@@ -1417,22 +1417,40 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     "<tr class=\"frontend\"><td class=ac>"
 				     "<a name=\"%s/Frontend\"></a>"
 				     "<a class=lfsb href=\"#%s/Frontend\">Frontend</a></td><td colspan=3></td>"
-				     /* sessions rate : current, max, limit */
-				     "<td>%s</td><td>%s</td><td>%s</td>"
+				     "",
+				     px->id, px->id);
+
+				if (px->mode == PR_MODE_HTTP) {
+					chunk_printf(&msg,
+						     /* sessions rate : current, max, limit */
+						     "<td title=\"Cur: %u req/s\">%s</td><td title=\"Max: %u req/s\">%s</td><td>%s</td>"
+						     "",
+						     read_freq_ctr(&px->fe_req_per_sec),
+						     U2H0(read_freq_ctr(&px->fe_sess_per_sec)),
+						     px->counters.fe_rps_max,
+						     U2H2(px->counters.fe_sps_max),
+						     LIM2A2(px->fe_sps_lim, "-"));
+				} else {
+					chunk_printf(&msg,
+						     /* sessions rate : current, max, limit */
+						     "<td>%s</td><td>%s</td><td>%s</td>"
+						     "",
+						     U2H0(read_freq_ctr(&px->fe_sess_per_sec)),
+						     U2H1(px->counters.fe_sps_max), LIM2A2(px->fe_sps_lim, "-"));
+				}
+
+				chunk_printf(&msg,
 				     /* sessions: current, max, limit */
 				     "<td>%s</td><td>%s</td><td>%s</td>"
 				     "<td"
 				     "",
-				     px->id, px->id,
-				     U2H0(read_freq_ctr(&px->fe_sess_per_sec)),
-				     U2H1(px->counters.fe_sps_max), LIM2A2(px->fe_sps_lim, "-"),
 				     U2H3(px->feconn), U2H4(px->counters.feconn_max), U2H5(px->maxconn));
 
 				/* http response (via td title): 1xx, 2xx, 3xx, 4xx, 5xx, other */
 				if (px->mode == PR_MODE_HTTP) {
 					int i;
 
-					chunk_printf(&msg, " title=\"rsp codes:");
+					chunk_printf(&msg, " title=\"%lld requests:", px->counters.cum_fe_req);
 
 					for (i = 1; i < 6; i++)
 						chunk_printf(&msg, " %dxx=%lld,", i, px->counters.fe.http.rsp[i]);
