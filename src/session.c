@@ -1575,11 +1575,11 @@ resync_stream_interface:
 			n = 0;
 
 		if (s->fe->mode == PR_MODE_HTTP)
-			s->fe->counters.p.http.rsp[n]++;
+			s->fe->counters.fe.http.rsp[n]++;
 
-		if ((s->flags & SN_BE_ASSIGNED) && (s->fe != s->be) &&
+		if ((s->flags & SN_BE_ASSIGNED) &&
 		    (s->be->mode == PR_MODE_HTTP))
-			s->be->counters.p.http.rsp[n]++;
+			s->be->counters.be.http.rsp[n]++;
 	}
 
 	/* let's do a final log if we need it */

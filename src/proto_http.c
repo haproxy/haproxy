@@ -3644,11 +3644,11 @@ void http_end_txn_clean_session(struct session *s)
 			n = 0;
 
 		if (s->fe->mode == PR_MODE_HTTP)
-			s->fe->counters.p.http.rsp[n]++;
+			s->fe->counters.fe.http.rsp[n]++;
 
-		if ((s->flags & SN_BE_ASSIGNED) && (s->fe != s->be) &&
+		if ((s->flags & SN_BE_ASSIGNED) &&
 		    (s->be->mode == PR_MODE_HTTP))
-			s->be->counters.p.http.rsp[n]++;
+			s->be->counters.be.http.rsp[n]++;
 	}
 
 	/* don't count other requests' data */

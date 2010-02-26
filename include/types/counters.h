@@ -42,9 +42,9 @@ struct pxcounters {
 
 	union {
 		struct {
-			long long rsp[6];		/* http resonse codes */
+			long long rsp[6];	/* http response codes */
 		} http;
-	} p;
+	} fe, be;				/* FE and BE stats */
 
 	long long failed_conns, failed_resp;	/* failed connect() and responses */
 	long long retries, redispatches;	/* retried and redispatched connections */
@@ -79,7 +79,7 @@ struct srvcounters {
 
 	union {
 		struct {
-			long long rsp[6];		/* http resonse codes */
+			long long rsp[6];	/* http response codes */
 		} http;
 	} p;
 

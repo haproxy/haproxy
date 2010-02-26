@@ -1435,9 +1435,9 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 					chunk_printf(&msg, " title=\"rsp codes:");
 
 					for (i = 1; i < 6; i++)
-						chunk_printf(&msg, " %dxx=%lld,", i, px->counters.p.http.rsp[i]);
+						chunk_printf(&msg, " %dxx=%lld,", i, px->counters.fe.http.rsp[i]);
 
-					chunk_printf(&msg, " other=%lld\"", px->counters.p.http.rsp[0]);
+					chunk_printf(&msg, " other=%lld\"", px->counters.fe.http.rsp[0]);
 				}
 
 				chunk_printf(&msg,
@@ -1504,9 +1504,9 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 					int i;
 
 					for (i=1; i<6; i++)
-						chunk_printf(&msg, "%lld,", px->counters.p.http.rsp[i]);
+						chunk_printf(&msg, "%lld,", px->counters.fe.http.rsp[i]);
 
-					chunk_printf(&msg, "%lld,", px->counters.p.http.rsp[0]);
+					chunk_printf(&msg, "%lld,", px->counters.fe.http.rsp[0]);
 				} else {
 					chunk_printf(&msg, ",,,,,,");
 				}
@@ -2097,9 +2097,9 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 					chunk_printf(&msg, " title=\"rsp codes:");
 
 					for (i = 1; i < 6; i++)
-						chunk_printf(&msg, " %dxx=%lld", i, px->counters.p.http.rsp[i]);
+						chunk_printf(&msg, " %dxx=%lld", i, px->counters.be.http.rsp[i]);
 
-					chunk_printf(&msg, " other=%lld\"", px->counters.p.http.rsp[0]);
+					chunk_printf(&msg, " other=%lld\"", px->counters.be.http.rsp[0]);
 				}
 
 				chunk_printf(&msg,
@@ -2194,9 +2194,9 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 					int i;
 
 					for (i=1; i<6; i++)
-						chunk_printf(&msg, "%lld,", px->counters.p.http.rsp[i]);
+						chunk_printf(&msg, "%lld,", px->counters.be.http.rsp[i]);
 
-					chunk_printf(&msg, "%lld,", px->counters.p.http.rsp[0]);
+					chunk_printf(&msg, "%lld,", px->counters.be.http.rsp[0]);
 				} else {
 					chunk_printf(&msg, ",,,,,,");
 				}
