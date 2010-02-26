@@ -1,6 +1,28 @@
 ChangeLog :
 ===========
 
+2010/02/26 : 1.4.0
+    - [MINOR] stats: report maint state for tracking servers too
+    - [DOC] fix summary to add pattern extraction
+    - [DOC] Documentation cleanups
+    - [BUG] cfgparse memory leak and missing free calls in deinit()
+    - [BUG] pxid/puid/luid: don't shift IDs when some of them are forced
+    - [EXAMPLES] add auth.cfg
+    - [BUG] uri_auth: ST_SHLGNDS should be 0x00000008 not 0x0000008
+    - [BUG] uri_auth: do not attemp to convert uri_auth -> http-request more than once
+    - [BUILD] auth: don't use unnamed unions
+    - [BUG] config: report unresolvable host names as errors
+    - [BUILD] fix build breakage with DEBUG_FULL
+    - [DOC] fix a typo about timeout check and clarify the explanation.
+    - [MEDIUM] http: don't use trash to realign large buffers
+    - [STATS] report HTTP requests (total and rate) in frontends
+    - [STATS] separate frontend and backend HTTP stats
+    - [MEDIUM] http: revert to use a swap buffer for realignment
+    - [MINOR] stats: report the request rate in frontends as cell titles
+    - [MINOR] stats: mark areas with an underline when tooltips are available
+    - [DOC] reorder some entries to maintain the alphabetical order
+    - [DOC] cleanup of the keyword matrix
+
 2010/02/02 : 1.4-rc1
     - [MEDIUM] add a maintenance mode to servers
     - [MINOR] http-auth: last fix was wrong
