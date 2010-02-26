@@ -1135,6 +1135,7 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 			     "table.lgd { border-collapse: collapse; border-width: 1px; border-style: none none none solid; border-color: black;}\n"
 			     "table.lgd td { border-width: 1px; border-style: solid solid solid solid; border-color: gray; padding: 2px;}\n"
 			     "table.lgd td.noborder { border-style: none; padding: 2px; white-space: nowrap;}\n"
+			     "u {text-decoration:none; border-bottom: 1px dotted black;}\n"
 			     "-->\n"
 			     "</style></head>\n",
 			     (uri->flags&ST_SHNODE) ? " on " : "",
@@ -1373,8 +1374,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 			}
 
 			chunk_printf(&msg,
-				     "><a name=\"%s\"></a>"
-				     "<a class=px href=\"#%s\">%s</a></th>"
+				     ">%s<a name=\"%s\"></a>"
+				     "<a class=px href=\"#%s\">%s</a>%s</th>"
 				     "<th class=\"%s\" width=\"90%%\">%s</th>"
 				     "</tr>\n"
 				     "</table>\n"
@@ -1397,7 +1398,9 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     "<th>Bck</th><th>Chk</th><th>Dwn</th><th>Dwntme</th>"
 				     "<th>Thrtle</th>\n"
 				     "</tr>",
+				     (uri->flags & ST_SHLGNDS)?"<u>":"",
 				     px->id, px->id, px->id,
+				     (uri->flags & ST_SHLGNDS)?"</u>":"",
 				     px->desc ? "desc" : "empty", px->desc ? px->desc : "");
 
 			if (buffer_feed_chunk(rep, &msg) >= 0)
@@ -1423,7 +1426,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				if (px->mode == PR_MODE_HTTP) {
 					chunk_printf(&msg,
 						     /* sessions rate : current, max, limit */
-						     "<td title=\"Cur: %u req/s\">%s</td><td title=\"Max: %u req/s\">%s</td><td>%s</td>"
+						     "<td title=\"Cur: %u req/s\"><u>%s</u></td><td title=\"Max: %u req/s\"><u>%s</u></td><td>%s</td>"
 						     "",
 						     read_freq_ctr(&px->fe_req_per_sec),
 						     U2H0(read_freq_ctr(&px->fe_sess_per_sec)),
@@ -1460,11 +1463,14 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 
 				chunk_printf(&msg,
 				     /* sessions: total, lbtot */
-				     ">%s</td><td></td>"
+				     ">%s%s%s</td><td></td>"
 				     /* bytes : in, out */
 				     "<td>%s</td><td>%s</td>"
 				     "",
-				     U2H6(px->counters.cum_feconn), U2H7(px->counters.bytes_in), U2H8(px->counters.bytes_out));
+				     (px->mode == PR_MODE_HTTP)?"<u>":"",
+				     U2H6(px->counters.cum_feconn),
+				     (px->mode == PR_MODE_HTTP)?"</u>":"",
+				     U2H7(px->counters.bytes_in), U2H8(px->counters.bytes_out));
 
 				chunk_printf(&msg,
 				     /* denied: req, resp */
@@ -1605,8 +1611,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 
 				chunk_printf(&msg,
 				     /* name, queue */
-				     "><a name=\"%s/+%s\"></a>"
-				     "<a class=lfsb href=\"#%s/+%s\">%s</a></td><td colspan=3></td>"
+				     ">%s<a name=\"%s/+%s\"></a>"
+				     "<a class=lfsb href=\"#%s/+%s\">%s</a></td><td colspan=3>%s</td>"
 				     /* sessions rate: current, max, limit */
 				     "<td colspan=3>&nbsp;</td>"
 				     /* sessions: current, max, limit, total, lbtot */
@@ -1615,7 +1621,9 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     /* bytes: in, out */
 				     "<td>%s</td><td>%s</td>"
 				     "",
+				     (uri->flags & ST_SHLGNDS)?"<u>":"",
 				     px->id, l->name, px->id, l->name, l->name,
+				     (uri->flags & ST_SHLGNDS)?"</u>":"",
 				     U2H3(l->nbconn), U2H4(l->counters->conn_max), U2H5(l->maxconn),
 				     U2H6(l->counters->cum_conn), U2H7(l->counters->bytes_in), U2H8(l->counters->bytes_out));
 
@@ -1778,8 +1786,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				}
 
 				chunk_printf(&msg,
-				     "><a name=\"%s/%s\"></a>"
-				     "<a class=lfsb href=\"#%s/%s\">%s</a></td>"
+				     ">%s<a name=\"%s/%s\"></a>"
+				     "<a class=lfsb href=\"#%s/%s\">%s</a>%s</td>"
 				     /* queue : current, max, limit */
 				     "<td>%s</td><td>%s</td><td>%s</td>"
 				     /* sessions rate : current, max, limit */
@@ -1788,7 +1796,9 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     "<td>%s</td><td>%s</td><td>%s</td>"
 				     "<td"
 				     "",
+				     (uri->flags & ST_SHLGNDS)?"<u>":"",
 				     px->id, sv->id, px->id, sv->id, sv->id,
+				     (uri->flags & ST_SHLGNDS)?"</u>":"",
 				     U2H0(sv->nbpend), U2H1(sv->counters.nbpend_max), LIM2A2(sv->maxqueue, "-"),
 				     U2H3(read_freq_ctr(&sv->sess_per_sec)), U2H4(sv->counters.sps_max),
 				     U2H5(sv->cur_sess), U2H6(sv->counters.cur_sess_max), LIM2A7(sv->maxconn, "-"));
@@ -1807,8 +1817,11 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 
 				chunk_printf(&msg,
 				     /* sessions: total, lbtot */
-				     ">%s</td><td>%s</td>",
-				     U2H0(sv->counters.cum_sess), U2H1(sv->counters.cum_lbconn));
+				     ">%s%s%s</td><td>%s</td>",
+				     (px->mode == PR_MODE_HTTP)?"<u>":"",
+				     U2H0(sv->counters.cum_sess),
+				     (px->mode == PR_MODE_HTTP)?"</u>":"",
+				     U2H1(sv->counters.cum_lbconn));
 
 				chunk_printf(&msg,
 				     /* bytes : in, out */
@@ -1861,7 +1874,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 						chunk_htmlencode(&msg, &src);
 					}
 
-					chunk_printf(&msg, "\"> %s%s",
+					chunk_printf(&msg, "\"><u> %s%s",
 						tv_iszero(&sv->check_start)?"":"* ",
 						get_check_status_info(sv->check_status));
 
@@ -1869,7 +1882,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 						chunk_printf(&msg, "/%d", sv->check_code);
 
 					if (sv->check_status >= HCHK_STATUS_CHECKED && sv->check_duration >= 0)
-					chunk_printf(&msg, " in %lums", sv->check_duration);
+					chunk_printf(&msg, " in %lums</u>", sv->check_duration);
 				} else
 					chunk_printf(&msg, "</td><td>");
 
@@ -1885,14 +1898,14 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 
 				/* check failures: unique, fatal, down time */
 				if (sv->state & SRV_CHECKED) {
-					chunk_printf(&msg, "<td title=\"Failed Health Checks%s\">%lld",
+					chunk_printf(&msg, "<td title=\"Failed Health Checks%s\"><u>%lld",
 					     svs->observe?"/Health Analyses":"", svs->counters.failed_checks);
 
 					if (svs->observe)
 						chunk_printf(&msg, "/%lld", svs->counters.failed_hana);
 
 					chunk_printf(&msg,
-					     "</td>"
+					     "</u></td>"
 					     "<td>%lld</td><td>%s</td>"
 					     "",
 					     svs->counters.down_trans, human_time(srv_downtime(sv), 1));
@@ -2090,14 +2103,16 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				}
 
 				chunk_printf(&msg,
-				     "><a name=\"%s/Backend\"></a>"
-				     "<a class=lfsb href=\"#%s/Backend\">Backend</a></td>"
+				     ">%s<a name=\"%s/Backend\"></a>"
+				     "<a class=lfsb href=\"#%s/Backend\">Backend</a>%s</td>"
 				     /* queue : current, max */
 				     "<td>%s</td><td>%s</td><td></td>"
 				     /* sessions rate : current, max, limit */
 				     "<td>%s</td><td>%s</td><td></td>"
 				     "",
+				     (uri->flags & ST_SHLGNDS)?"<u>":"",
 				     px->id, px->id,
+				     (uri->flags & ST_SHLGNDS)?"</u>":"",
 				     U2H0(px->nbpend) /* or px->totpend ? */, U2H1(px->counters.nbpend_max),
 				     U2H2(read_freq_ctr(&px->be_sess_per_sec)), U2H3(px->counters.be_sps_max));
 
@@ -2122,11 +2137,14 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 
 				chunk_printf(&msg,
 				     /* sessions: total, lbtot */
-				     ">%s</td><td>%s</td>"
+				     ">%s%s%s</td><td>%s</td>"
 				     /* bytes: in, out */
 				     "<td>%s</td><td>%s</td>"
 				     "",
-				     U2H6(px->counters.cum_beconn), U2H7(px->counters.cum_lbconn),
+				     (px->mode == PR_MODE_HTTP)?"<u>":"",
+				     U2H6(px->counters.cum_beconn),
+				     (px->mode == PR_MODE_HTTP)?"</u>":"",
+				     U2H7(px->counters.cum_lbconn),
 				     U2H8(px->counters.bytes_in), U2H9(px->counters.bytes_out));
 
 				chunk_printf(&msg,
