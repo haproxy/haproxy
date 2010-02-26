@@ -771,160 +771,156 @@ The following list of keywords is supported. Most of them may only be used in a
 limited set of section types. Some of them are marked as "deprecated" because
 they are inherited from an old syntax which may be confusing or functionally
 limited, and there are new recommended keywords to replace them. Keywords
-listed with [no] can be optionally inverted using the "no" prefix, eg. "no
+marked with "(*)" can be optionally inverted using the "no" prefix, eg. "no
 option contstats". This makes sense when the option has been enabled by default
 and must be disabled for a specific instance. Such options may also be prefixed
 with "default" in order to restore default settings regardless of what has been
 specified in a previous "defaults" section.
 
 
-keyword                 defaults   frontend   listen    backend
-----------------------+----------+----------+---------+---------
-acl                         -          X         X         X
-appsession                  -          -         X         X
-backlog                     X          X         X         -
-balance                     X          -         X         X
-bind                        -          X         X         -
-bind-process                X          X         X         X
-block                       -          X         X         X
-capture cookie              -          X         X         -
-capture request header      -          X         X         -
-capture response header     -          X         X         -
-clitimeout                  X          X         X         -  (deprecated)
-contimeout                  X          -         X         X  (deprecated)
-cookie                      X          -         X         X
-default-server              X          -         X         X
-default_backend             X          X         X         -
-description                 -          X         X         X
-disabled                    X          X         X         X
-dispatch                    -          -         X         X
-enabled                     X          X         X         X
-errorfile                   X          X         X         X
-errorloc                    X          X         X         X
-errorloc302                 X          X         X         X
-errorloc303                 X          X         X         X
-fullconn                    X          -         X         X
-grace                       X          X         X         X
-hash-type                   X          -         X         X
-http-check disable-on-404   X          -         X         X
-http-request                -          X         X         X
-id                          -          X         X         X
-log                         X          X         X         X
-maxconn                     X          X         X         -
-mode                        X          X         X         X
-monitor fail                -          X         X         -
-monitor-net                 X          X         X         -
-monitor-uri                 X          X         X         -
-[no] option abortonclose    X          -         X         X
-[no] option accept-invalid-
-            http-request    X          X         X         -
-[no] option accept-invalid-
-            http-response   X          -         X         X
-[no] option allbackups      X          -         X         X
-[no] option checkcache      X          -         X         X
-[no] option clitcpka        X          X         X         -
-[no] option contstats       X          X         X         -
-[no] option dontlog-normal  X          X         X         -
-[no] option dontlognull     X          X         X         -
-[no] option forceclose      X          X         X         X
-option forwardfor           X          X         X         X
-[no] option http-server-
-            close           X          X         X         X
-[no] option http-use-proxy-
-            header          X          X         X         -
-option httpchk              X          -         X         X
-[no] option httpclose       X          X         X         X
-option httplog              X          X         X         X
-[no] option http_proxy      X          X         X         X
-[no] option independant-
-            streams         X          X         X         X
-[no] option log-health-     X          -         X         X
-            checks
-[no] option log-separate-
-            errors          X          X         X         -
-[no] option logasap         X          X         X         -
-option mysql-check          X          -         X         X
-[no] option nolinger        X          X         X         X
-option originalto           X          X         X         X
-[no] option persist         X          -         X         X
-[no] option redispatch      X          -         X         X
-option smtpchk              X          -         X         X
-[no] option socket-stats    X          X         X         -
-[no] option splice-auto     X          X         X         X
-[no] option splice-request  X          X         X         X
-[no] option splice-response X          X         X         X
-[no] option srvtcpka        X          -         X         X
-option ssl-hello-chk        X          -         X         X
-[no] option tcp-smart-
-            accept          X          X         X         -
-[no] option tcp-smart-
-            connect         X          -         X         X
-option tcpka                X          X         X         X
-option tcplog               X          X         X         X
-[no] option transparent     X          -         X         X
-persist rdp-cookie          X          -         X         X
-rate-limit sessions         X          X         X         -
-redirect                    -          X         X         X
-redisp                      X          -         X         X  (deprecated)
-redispatch                  X          -         X         X  (deprecated)
-reqadd                      -          X         X         X
-reqallow                    -          X         X         X
-reqdel                      -          X         X         X
-reqdeny                     -          X         X         X
-reqiallow                   -          X         X         X
-reqidel                     -          X         X         X
-reqideny                    -          X         X         X
-reqipass                    -          X         X         X
-reqirep                     -          X         X         X
-reqisetbe                   -          X         X         X
-reqitarpit                  -          X         X         X
-reqpass                     -          X         X         X
-reqrep                      -          X         X         X
-reqsetbe                    -          X         X         X
-reqtarpit                   -          X         X         X
-retries                     X          -         X         X
-rspadd                      -          X         X         X
-rspdel                      -          X         X         X
-rspdeny                     -          X         X         X
-rspidel                     -          X         X         X
-rspideny                    -          X         X         X
-rspirep                     -          X         X         X
-rsprep                      -          X         X         X
-server                      -          -         X         X
-source                      X          -         X         X
-srvtimeout                  X          -         X         X  (deprecated)
-stats auth                  X          -         X         X
-stats enable                X          -         X         X
-stats hide-version          X          -         X         X
-stats realm                 X          -         X         X
-stats refresh               X          -         X         X
-stats scope                 X          -         X         X
-stats show-desc             X          -         X         X
-stats show-legends          X          -         X         X
-stats show-node             X          -         X         X
-stats uri                   X          -         X         X
-stick match                 -          -         X         X
-stick on                    -          -         X         X
-stick store-request         -          -         X         X
-stick-table                 -          -         X         X
-tcp-request content accept  -          X         X         -
-tcp-request content reject  -          X         X         -
-tcp-request inspect-delay   -          X         X         -
-timeout check               X          -         X         X
-timeout client              X          X         X         -
-timeout clitimeout          X          X         X         -  (deprecated)
-timeout connect             X          -         X         X
-timeout contimeout          X          -         X         X  (deprecated)
-timeout http-keep-alive     X          X         X         X
-timeout http-request        X          X         X         X
-timeout queue               X          -         X         X
-timeout server              X          -         X         X
-timeout srvtimeout          X          -         X         X  (deprecated)
-timeout tarpit              X          X         X         X
-transparent                 X          -         X         X  (deprecated)
-use_backend                 -          X         X         -
-----------------------+----------+----------+---------+---------
-keyword                 defaults   frontend   listen    backend
+ keyword                              defaults   frontend   listen    backend
+------------------------------------+----------+----------+---------+---------
+acl                                       -          X         X         X
+appsession                                -          -         X         X
+backlog                                   X          X         X         -
+balance                                   X          -         X         X
+bind                                      -          X         X         -
+bind-process                              X          X         X         X
+block                                     -          X         X         X
+capture cookie                            -          X         X         -
+capture request header                    -          X         X         -
+capture response header                   -          X         X         -
+clitimeout                  (deprecated)  X          X         X         -
+contimeout                  (deprecated)  X          -         X         X
+cookie                                    X          -         X         X
+default-server                            X          -         X         X
+default_backend                           X          X         X         -
+description                               -          X         X         X
+disabled                                  X          X         X         X
+dispatch                                  -          -         X         X
+enabled                                   X          X         X         X
+errorfile                                 X          X         X         X
+errorloc                                  X          X         X         X
+errorloc302                               X          X         X         X
+-- keyword -------------------------- defaults - frontend - listen -- backend -
+errorloc303                               X          X         X         X
+fullconn                                  X          -         X         X
+grace                                     X          X         X         X
+hash-type                                 X          -         X         X
+http-check disable-on-404                 X          -         X         X
+http-request                              -          X         X         X
+id                                        -          X         X         X
+log                                       X          X         X         X
+maxconn                                   X          X         X         -
+mode                                      X          X         X         X
+monitor fail                              -          X         X         -
+monitor-net                               X          X         X         -
+monitor-uri                               X          X         X         -
+option abortonclose                  (*)  X          -         X         X
+option accept-invalid-http-request   (*)  X          X         X         -
+option accept-invalid-http-response  (*)  X          -         X         X
+option allbackups                    (*)  X          -         X         X
+option checkcache                    (*)  X          -         X         X
+option clitcpka                      (*)  X          X         X         -
+option contstats                     (*)  X          X         X         -
+option dontlog-normal                (*)  X          X         X         -
+option dontlognull                   (*)  X          X         X         -
+option forceclose                    (*)  X          X         X         X
+-- keyword -------------------------- defaults - frontend - listen -- backend -
+option forwardfor                         X          X         X         X
+option http-server-close             (*)  X          X         X         X
+option http-use-proxy-header         (*)  X          X         X         -
+option httpchk                            X          -         X         X
+option httpclose                     (*)  X          X         X         X
+option httplog                            X          X         X         X
+option http_proxy                    (*)  X          X         X         X
+option independant-streams           (*)  X          X         X         X
+option log-health-checks             (*)  X          -         X         X
+option log-separate-errors           (*)  X          X         X         -
+option logasap                       (*)  X          X         X         -
+option mysql-check                        X          -         X         X
+option nolinger                      (*)  X          X         X         X
+option originalto                         X          X         X         X
+option persist                       (*)  X          -         X         X
+option redispatch                    (*)  X          -         X         X
+option smtpchk                            X          -         X         X
+option socket-stats                  (*)  X          X         X         -
+option splice-auto                   (*)  X          X         X         X
+option splice-request                (*)  X          X         X         X
+option splice-response               (*)  X          X         X         X
+option srvtcpka                      (*)  X          -         X         X
+option ssl-hello-chk                      X          -         X         X
+-- keyword -------------------------- defaults - frontend - listen -- backend -
+option tcp-smart-accept              (*)  X          X         X         -
+option tcp-smart-connect             (*)  X          -         X         X
+option tcpka                              X          X         X         X
+option tcplog                             X          X         X         X
+option transparent                   (*)  X          -         X         X
+persist rdp-cookie                        X          -         X         X
+rate-limit sessions                       X          X         X         -
+redirect                                  -          X         X         X
+redisp                      (deprecated)  X          -         X         X
+redispatch                  (deprecated)  X          -         X         X
+reqadd                                    -          X         X         X
+reqallow                                  -          X         X         X
+reqdel                                    -          X         X         X
+reqdeny                                   -          X         X         X
+reqiallow                                 -          X         X         X
+reqidel                                   -          X         X         X
+reqideny                                  -          X         X         X
+reqipass                                  -          X         X         X
+reqirep                                   -          X         X         X
+reqisetbe                                 -          X         X         X
+reqitarpit                                -          X         X         X
+reqpass                                   -          X         X         X
+reqrep                                    -          X         X         X
+-- keyword -------------------------- defaults - frontend - listen -- backend -
+reqsetbe                                  -          X         X         X
+reqtarpit                                 -          X         X         X
+retries                                   X          -         X         X
+rspadd                                    -          X         X         X
+rspdel                                    -          X         X         X
+rspdeny                                   -          X         X         X
+rspidel                                   -          X         X         X
+rspideny                                  -          X         X         X
+rspirep                                   -          X         X         X
+rsprep                                    -          X         X         X
+server                                    -          -         X         X
+source                                    X          -         X         X
+srvtimeout                  (deprecated)  X          -         X         X
+stats auth                                X          -         X         X
+stats enable                              X          -         X         X
+stats hide-version                        X          -         X         X
+stats realm                               X          -         X         X
+stats refresh                             X          -         X         X
+stats scope                               X          -         X         X
+stats show-desc                           X          -         X         X
+stats show-legends                        X          -         X         X
+stats show-node                           X          -         X         X
+stats uri                                 X          -         X         X
+-- keyword -------------------------- defaults - frontend - listen -- backend -
+stick match                               -          -         X         X
+stick on                                  -          -         X         X
+stick store-request                       -          -         X         X
+stick-table                               -          -         X         X
+tcp-request content accept                -          X         X         -
+tcp-request content reject                -          X         X         -
+tcp-request inspect-delay                 -          X         X         -
+timeout check                             X          -         X         X
+timeout client                            X          X         X         -
+timeout clitimeout          (deprecated)  X          X         X         -
+timeout connect                           X          -         X         X
+timeout contimeout          (deprecated)  X          -         X         X
+timeout http-keep-alive                   X          X         X         X
+timeout http-request                      X          X         X         X
+timeout queue                             X          -         X         X
+timeout server                            X          -         X         X
+timeout srvtimeout          (deprecated)  X          -         X         X
+timeout tarpit                            X          X         X         X
+transparent                 (deprecated)  X          -         X         X
+use_backend                               -          X         X         -
+------------------------------------+----------+----------+---------+---------
+ keyword                              defaults   frontend   listen    backend
 
 
 4.2. Alphabetically sorted keywords reference
