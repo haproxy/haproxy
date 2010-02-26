@@ -23,8 +23,8 @@
 #define _COMMON_COMPAT_H
 
 /* This is needed on Linux for Netfilter includes */
-#include <sys/socket.h>
 #include <sys/types.h>
+#include <sys/socket.h>
 #include <common/config.h>
 #include <common/standard.h>
 
