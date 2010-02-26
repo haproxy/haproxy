@@ -2259,14 +2259,21 @@ void http_buffer_heavy_realign(struct buffer *buf, struct http_msg *msg)
 
 	/* two possible cases :
 	 *   - the buffer is in one contiguous block, we move it in-place
-	 *   - the buffer is in two blocks, we move it via the trash
+	 *   - the buffer is in two blocks, we move it via the swap_buffer
 	 */
 	if (buf->l) {
-		if (buf->r <= buf->w)
+		int block1 = buf->l;
+		int block2 = 0;
+		if (buf->r <= buf->w) {
 			/* non-contiguous block */
-			buffer_bounce_realign(buf);
-		else
-			memmove(buf->data, buf->w, buf->l);
+			block1 = buf->data + buf->size - buf->w;
+			block2 = buf->r - buf->data;
+		}
+		if (block2)
+			memcpy(swap_buffer, buf->data, block2);
+		memmove(buf->data, buf->w, block1);
+		if (block2)
+			memcpy(buf->data + block1, swap_buffer, block2);
 	}
 
 	/* adjust all known pointers */

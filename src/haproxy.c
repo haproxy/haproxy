@@ -138,6 +138,11 @@ static int oldpids_sig; /* use USR1 or TERM */
 /* this is used to drain data, and as a temporary buffer for sprintf()... */
 char trash[BUFSIZE];
 
+/* this buffer is always the same size as standard buffers and is used for
+ * swapping data inside a buffer.
+ */
+char *swap_buffer = NULL;
+
 const int zero = 0;
 const int one = 1;
 const struct linger nolinger = { .l_onoff = 1, .l_linger = 0 };
@@ -652,6 +657,8 @@ void init(int argc, char **argv)
 
 	if (global.nbproc < 1)
 		global.nbproc = 1;
+
+	swap_buffer = (char *)calloc(1, global.tune.bufsize);
 
 	fdinfo = (struct fdinfo *)calloc(1,
 				       sizeof(struct fdinfo) * (global.maxsock));
