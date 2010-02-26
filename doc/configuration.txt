@@ -127,8 +127,8 @@ header is used: "Content-length". This mode is called the "keep-alive" mode :
 Its advantages are a reduced latency between transactions, and less processing
 power required on the server side. It is generally better than the close mode,
 but not always because the clients often limit their concurrent connections to
-a smaller value. HAProxy currently does not support the HTTP keep-alive mode,
-but knows how to transform it to the close mode.
+a smaller value. HAProxy currently only supports the HTTP keep-alive mode on
+the client side, and transforms it to a close mode on the server side.
 
 A last improvement in the communications is the pipelining mode. It still uses
 keep-alive, but the client does not wait for the first response to send the
@@ -141,15 +141,8 @@ This can obviously have a tremendous benefit on performance because the network
 latency is eliminated between subsequent requests. Many HTTP agents do not
 correctly support pipelining since there is no way to associate a response with
 the corresponding request in HTTP. For this reason, it is mandatory for the
-server to reply in the exact same order as the requests were received.
-
-Right now, HAProxy only supports the first mode (HTTP close) if it needs to
-process the request. This means that for each request, there will be one TCP
-connection. If keep-alive or pipelining are required, HAProxy will still
-support them, but will only see the first request and the first response of
-each transaction. While this is generally problematic with regards to logs,
-content switching or filtering, it most often causes no problem for persistence
-with cookie insertion.
+server to reply in the exact same order as the requests were received. HAProxy
+supports pipelined requsts on the client side and processes them one at a time.
 
 
 1.2. HTTP request
@@ -835,11 +828,11 @@ monitor-uri                 X          X         X         -
 [no] option dontlognull     X          X         X         -
 [no] option forceclose      X          X         X         X
 option forwardfor           X          X         X         X
-option httpchk              X          -         X         X
 [no] option http-server-
             close           X          X         X         X
 [no] option http-use-proxy-
             header          X          X         X         -
+option httpchk              X          -         X         X
 [no] option httpclose       X          X         X         X
 option httplog              X          X         X         X
 [no] option http_proxy      X          X         X         X
@@ -902,11 +895,18 @@ source                      X          -         X         X
 srvtimeout                  X          -         X         X  (deprecated)
 stats auth                  X          -         X         X
 stats enable                X          -         X         X
+stats hide-version          X          -         X         X
 stats realm                 X          -         X         X
 stats refresh               X          -         X         X
 stats scope                 X          -         X         X
+stats show-desc             X          -         X         X
+stats show-legends          X          -         X         X
+stats show-node             X          -         X         X
 stats uri                   X          -         X         X
-stats hide-version          X          -         X         X
+stick match                 -          -         X         X
+stick on                    -          -         X         X
+stick store-request         -          -         X         X
+stick-table                 -          -         X         X
 tcp-request content accept  -          X         X         -
 tcp-request content reject  -          X         X         -
 tcp-request inspect-delay   -          X         X         -
@@ -2669,54 +2669,6 @@ option forwardfor [ except <network> ] [ header <name> ]
   See also : "option httpclose"
 
 
-option httpchk
-option httpchk <uri>
-option httpchk <method> <uri>
-option httpchk <method> <uri> <version>
-  Enable HTTP protocol to check on the servers health
-  May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    no    |   yes  |   yes
-  Arguments :
-    <method>  is the optional HTTP method used with the requests. When not set,
-              the "OPTIONS" method is used, as it generally requires low server
-              processing and is easy to filter out from the logs. Any method
-              may be used, though it is not recommended to invent non-standard
-              ones.
-
-    <uri>     is the URI referenced in the HTTP requests. It defaults to " / "
-              which is accessible by default on almost any server, but may be
-              changed to any other URI. Query strings are permitted.
-
-    <version> is the optional HTTP version string. It defaults to "HTTP/1.0"
-              but some servers might behave incorrectly in HTTP 1.0, so turning
-              it to HTTP/1.1 may sometimes help. Note that the Host field is
-              mandatory in HTTP/1.1, and as a trick, it is possible to pass it
-              after "\r\n" following the version string.
-
-  By default, server health checks only consist in trying to establish a TCP
-  connection. When "option httpchk" is specified, a complete HTTP request is
-  sent once the TCP connection is established, and responses 2xx and 3xx are
-  considered valid, while all other ones indicate a server failure, including
-  the lack of any response.
-
-  The port and interval are specified in the server configuration.
-
-  This option does not necessarily require an HTTP backend, it also works with
-  plain TCP backends. This is particularly useful to check simple scripts bound
-  to some dedicated ports using the inetd daemon.
-
-  Examples :
-      # Relay HTTPS traffic to Apache instance and check service availability
-      # using HTTP request "OPTIONS * HTTP/1.1" on port 80.
-      backend https_relay
-          mode tcp
-          option httpchk OPTIONS * HTTP/1.1\r\nHost:\ www
-          server apache1 192.168.1.1:443 check port 80
-
-  See also : "option ssl-hello-chk", "option smtpchk", "option mysql-check",
-             "http-check" and the "check", "port" and "inter" server options.
-
-
 option http-server-close
 no option http-server-close
   Enable or disable HTTP connection closing on the server side
@@ -2783,6 +2735,54 @@ no option http-use-proxy-header
 
   See also : "option httpclose", "option forceclose" and "option
              http-server-close".
+
+
+option httpchk
+option httpchk <uri>
+option httpchk <method> <uri>
+option httpchk <method> <uri> <version>
+  Enable HTTP protocol to check on the servers health
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments :
+    <method>  is the optional HTTP method used with the requests. When not set,
+              the "OPTIONS" method is used, as it generally requires low server
+              processing and is easy to filter out from the logs. Any method
+              may be used, though it is not recommended to invent non-standard
+              ones.
+
+    <uri>     is the URI referenced in the HTTP requests. It defaults to " / "
+              which is accessible by default on almost any server, but may be
+              changed to any other URI. Query strings are permitted.
+
+    <version> is the optional HTTP version string. It defaults to "HTTP/1.0"
+              but some servers might behave incorrectly in HTTP 1.0, so turning
+              it to HTTP/1.1 may sometimes help. Note that the Host field is
+              mandatory in HTTP/1.1, and as a trick, it is possible to pass it
+              after "\r\n" following the version string.
+
+  By default, server health checks only consist in trying to establish a TCP
+  connection. When "option httpchk" is specified, a complete HTTP request is
+  sent once the TCP connection is established, and responses 2xx and 3xx are
+  considered valid, while all other ones indicate a server failure, including
+  the lack of any response.
+
+  The port and interval are specified in the server configuration.
+
+  This option does not necessarily require an HTTP backend, it also works with
+  plain TCP backends. This is particularly useful to check simple scripts bound
+  to some dedicated ports using the inetd daemon.
+
+  Examples :
+      # Relay HTTPS traffic to Apache instance and check service availability
+      # using HTTP request "OPTIONS * HTTP/1.1" on port 80.
+      backend https_relay
+          mode tcp
+          option httpchk OPTIONS * HTTP/1.1\r\nHost:\ www
+          server apache1 192.168.1.1:443 check port 80
+
+  See also : "option ssl-hello-chk", "option smtpchk", "option mysql-check",
+             "http-check" and the "check", "port" and "inter" server options.
 
 
 option httpclose
@@ -4344,74 +4344,42 @@ stats enable
   See also : "stats auth", "stats realm", "stats uri"
 
 
-stats show-node [ <name> ]
-  Enable reporting of a host name on the statistics page.
+stats hide-version
+  Enable statistics and hide HAProxy version reporting
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
-  Arguments:
-    <name>    is an optional name to be reported. If unspecified, the
-              node name from global section is automatically used instead.
+  Arguments : none
 
-  This statement is useful for users that offer shared services to their
-  customers, where node or description might be different on a stats page
-  provided for each customer.
-
-  Though this statement alone is enough to enable statistics reporting, it is
-  recommended to set all other settings in order to avoid relying on default
-  unobvious parameters.
-
-  Example:
-    # internal monitoring access (unlimited)
-    backend private_monitoring
-        stats enable
-        stats show-node Europe-1
-        stats uri       /admin?stats
-        stats refresh   5s
-
-  See also: "show-desc", "stats enable", "stats uri", and "node" in global
-            section.
-
-
-stats show-desc [ <description> ]
-  Enable reporting of a description on the statistics page.
-  May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    no    |   yes  |   yes
-
-    <name>    is an optional description to be reported. If unspecified, the
-              description from global section is automatically used instead.
-
-  This statement is useful for users that offer shared services to their
-  customers, where node or description should be different for each customer.
+  By default, the stats page reports some useful status information along with
+  the statistics. Among them is HAProxy's version. However, it is generally
+  considered dangerous to report precise version to anyone, as it can help them
+  target known weaknesses with specific attacks. The "stats hide-version"
+  statement removes the version from the statistics report. This is recommended
+  for public sites or any site with a weak login/password.
 
   Though this statement alone is enough to enable statistics reporting, it is
   recommended to set all other settings in order to avoid relying on default
   unobvious parameters.
 
   Example :
+    # public access (limited to this backend only)
+    backend public_www
+        server srv1 192.168.0.1:80
+        stats enable
+        stats hide-version
+        stats scope   .
+        stats uri     /admin?stats
+        stats realm   Haproxy\ Statistics
+        stats auth    admin1:AdMiN123
+        stats auth    admin2:AdMiN321
+
     # internal monitoring access (unlimited)
     backend private_monitoring
         stats enable
-        stats show-desc Master node for Europe, Asia, Africa
-        stats uri       /admin?stats
-        stats refresh   5s
+        stats uri     /admin?stats
+        stats refresh 5s
 
-  See also: "show-node", "stats enable", "stats uri" and "description" in
-            global section.
-
-
-stats show-legends
-  Enable reporting additional informations on the statistics page :
-    - cap: capabilities (proxy)
-    - mode: one of tcp, http or health (proxy)
-    - id: SNMP ID (proxy, socket, server)
-    - IP (socket, server)
-    - cookie (backend, server)
-
-  Though this statement alone is enough to enable statistics reporting, it is
-  recommended to set all other settings in order to avoid relying on default
-  unobvious parameters.
-
-  See also: "stats enable", "stats uri".
+  See also : "stats auth", "stats enable", "stats realm", "stats uri"
 
 
 stats realm <realm>
@@ -4537,6 +4505,76 @@ stats scope { <name> | "." }
   See also : "stats auth", "stats enable", "stats realm", "stats uri"
 
 
+stats show-desc [ <description> ]
+  Enable reporting of a description on the statistics page.
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+
+    <name>    is an optional description to be reported. If unspecified, the
+              description from global section is automatically used instead.
+
+  This statement is useful for users that offer shared services to their
+  customers, where node or description should be different for each customer.
+
+  Though this statement alone is enough to enable statistics reporting, it is
+  recommended to set all other settings in order to avoid relying on default
+  unobvious parameters.
+
+  Example :
+    # internal monitoring access (unlimited)
+    backend private_monitoring
+        stats enable
+        stats show-desc Master node for Europe, Asia, Africa
+        stats uri       /admin?stats
+        stats refresh   5s
+
+  See also: "show-node", "stats enable", "stats uri" and "description" in
+            global section.
+
+
+stats show-legends
+  Enable reporting additional informations on the statistics page :
+    - cap: capabilities (proxy)
+    - mode: one of tcp, http or health (proxy)
+    - id: SNMP ID (proxy, socket, server)
+    - IP (socket, server)
+    - cookie (backend, server)
+
+  Though this statement alone is enough to enable statistics reporting, it is
+  recommended to set all other settings in order to avoid relying on default
+  unobvious parameters.
+
+  See also: "stats enable", "stats uri".
+
+
+stats show-node [ <name> ]
+  Enable reporting of a host name on the statistics page.
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments:
+    <name>    is an optional name to be reported. If unspecified, the
+              node name from global section is automatically used instead.
+
+  This statement is useful for users that offer shared services to their
+  customers, where node or description might be different on a stats page
+  provided for each customer.
+
+  Though this statement alone is enough to enable statistics reporting, it is
+  recommended to set all other settings in order to avoid relying on default
+  unobvious parameters.
+
+  Example:
+    # internal monitoring access (unlimited)
+    backend private_monitoring
+        stats enable
+        stats show-node Europe-1
+        stats uri       /admin?stats
+        stats refresh   5s
+
+  See also: "show-desc", "stats enable", "stats uri", and "node" in global
+            section.
+
+
 stats uri <prefix>
   Enable statistics and define the URI prefix to access them
   May be used in sections :   defaults | frontend | listen | backend
@@ -4585,44 +4623,6 @@ stats uri <prefix>
         stats refresh 5s
 
   See also : "stats auth", "stats enable", "stats realm"
-
-
-stats hide-version
-  Enable statistics and hide HAProxy version reporting
-  May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    no    |   yes  |   yes
-  Arguments : none
-
-  By default, the stats page reports some useful status information along with
-  the statistics. Among them is HAProxy's version. However, it is generally
-  considered dangerous to report precise version to anyone, as it can help them
-  target known weaknesses with specific attacks. The "stats hide-version"
-  statement removes the version from the statistics report. This is recommended
-  for public sites or any site with a weak login/password.
-
-  Though this statement alone is enough to enable statistics reporting, it is
-  recommended to set all other settings in order to avoid relying on default
-  unobvious parameters.
-
-  Example :
-    # public access (limited to this backend only)
-    backend public_www
-        server srv1 192.168.0.1:80
-        stats enable
-        stats hide-version
-        stats scope   .
-        stats uri     /admin?stats
-        stats realm   Haproxy\ Statistics
-        stats auth    admin1:AdMiN123
-        stats auth    admin2:AdMiN321
-
-    # internal monitoring access (unlimited)
-    backend private_monitoring
-        stats enable
-        stats uri     /admin?stats
-        stats refresh 5s
-
-  See also : "stats auth", "stats enable", "stats realm", "stats uri"
 
 
 stick match <pattern> [table <table>] [{if | unless} <cond>]
@@ -5831,46 +5831,19 @@ always_true
   This one always matches. All values and flags are ignored. It may be used as
   a temporary replacement for another one when adjusting configurations.
 
-src <ip_address>
-  Applies to the client's IPv4 address. It is usually used to limit access to
-  certain resources such as statistics. Note that it is the TCP-level source
-  address which is used, and not the address of a client behind a proxy.
-
-src_port <integer>
-  Applies to the client's TCP source port. This has a very limited usage.
-
-dst <ip_address>
-  Applies to the local IPv4 address the client connected to. It can be used to
-  switch to a different backend for some alternative addresses.
-
-dst_port <integer>
-  Applies to the local port the client connected to. It can be used to switch
-  to a different backend for some alternative ports.
-
-dst_conn <integer>
-  Applies to the number of currently established connections on the same socket
-  including the one being evaluated. It can be used to either return a sorry
-  page before hard-blocking, or to use a specific backend to drain new requests
-  when the socket is considered saturated. This offers the ability to assign
-  different limits to different listening ports or addresses. See also the
-  "fe_conn" and "be_conn" criteria.
-
-fe_conn <integer>
-fe_conn(frontend) <integer>
-  Applies to the number of currently established connections on the frontend,
-  possibly including the connection being evaluated. If no frontend name is
-  specified, the current one is used. But it is also possible to check another
-  frontend. It can be used to either return a sorry page before hard-blocking,
-  or to use a specific backend to drain new requests when the farm is
-  considered saturated. See also the "dst_conn", "be_conn" and "fe_sess_rate"
-  criteria.
-
-fe_id <integer>
-  Applies to the fronted's id. Can be used in backends to check from which
-  frontend it was called.
-
-so_id <integer>
-  Applies to the socket's id. Useful in frontends with many bind keywords.
+avg_queue <integer>
+avg_queue(frontend) <integer>
+  Returns the total number of queued connections of the designated backend
+  divided by the number of active servers. This is very similar to "queue"
+  except that the size of the farm is considered, in order to give a more
+  accurate measurement of the time it may take for a new connection to be
+  processed. The main usage is to return a sorry page to new users when it
+  becomes certain they will get a degraded service. Note that in the event
+  there would not be any active server anymore, we would consider twice the
+  number of queued connections as the measured value. This is a fair estimate,
+  as we expect one server to get back soon anyway, but we still prefer to send
+  new traffic to another backend if in better shape. See also the "queue",
+  "be_conn", and "be_sess_rate" criteria.
 
 be_conn <integer>
 be_conn(frontend) <integer>
@@ -5880,13 +5853,20 @@ be_conn(frontend) <integer>
   backend. It can be used to use a specific farm when the nominal one is full.
   See also the "fe_conn", "queue" and "be_sess_rate" criteria.
 
-nbsrv <integer>
-nbsrv(backend) <integer>
-  Returns true when the number of usable servers of either the current backend
-  or the named backend matches the values or ranges specified. This is used to
-  switch to an alternate backend when the number of servers is too low to
-  to handle some load. It is useful to report a failure when combined with
-  "monitor fail".
+be_sess_rate <integer>
+be_sess_rate(backend) <integer>
+  Returns true when the sessions creation rate on the backend matches the
+  specified values or ranges, in number of new sessions per second. This is
+  used to switch to an alternate backend when an expensive or fragile one
+  reaches too high a session rate, or to limit abuse of service (eg. prevent
+  sucking of an online dictionary).
+
+  Example :
+        # Redirect to an error page if the dictionary is requested too often
+        backend dynamic
+            mode http
+            acl being_scanned be_sess_rate gt 100
+            redirect location /denied.html if being_scanned
 
 connslots <integer>
 connslots(backend) <integer>
@@ -5910,29 +5890,35 @@ connslots(backend) <integer>
   then this acl clearly does not make sense, in which case the value returned
   will be -1.
 
-queue <integer>
-queue(frontend) <integer>
-  Returns the total number of queued connections of the designated backend,
-  including all the connections in server queues. If no backend name is
-  specified, the current one is used, but it is also possible to check another
-  one. This can be used to take actions when queuing goes above a known level,
-  generally indicating a surge of traffic or a massive slowdown on the servers.
-  One possible action could be to reject new users but still accept old ones.
-  See also the "avg_queue", "be_conn", and "be_sess_rate" criteria.
+dst <ip_address>
+  Applies to the local IPv4 address the client connected to. It can be used to
+  switch to a different backend for some alternative addresses.
 
-avg_queue <integer>
-avg_queue(frontend) <integer>
-  Returns the total number of queued connections of the designated backend
-  divided by the number of active servers. This is very similar to "queue"
-  except that the size of the farm is considered, in order to give a more
-  accurate measurement of the time it may take for a new connection to be
-  processed. The main usage is to return a sorry page to new users when it
-  becomes certain they will get a degraded service. Note that in the event
-  there would not be any active server anymore, we would consider twice the
-  number of queued connections as the measured value. This is a fair estimate,
-  as we expect one server to get back soon anyway, but we still prefer to send
-  new traffic to another backend if in better shape. See also the "queue",
-  "be_conn", and "be_sess_rate" criteria.
+dst_conn <integer>
+  Applies to the number of currently established connections on the same socket
+  including the one being evaluated. It can be used to either return a sorry
+  page before hard-blocking, or to use a specific backend to drain new requests
+  when the socket is considered saturated. This offers the ability to assign
+  different limits to different listening ports or addresses. See also the
+  "fe_conn" and "be_conn" criteria.
+
+dst_port <integer>
+  Applies to the local port the client connected to. It can be used to switch
+  to a different backend for some alternative ports.
+
+fe_conn <integer>
+fe_conn(frontend) <integer>
+  Applies to the number of currently established connections on the frontend,
+  possibly including the connection being evaluated. If no frontend name is
+  specified, the current one is used. But it is also possible to check another
+  frontend. It can be used to either return a sorry page before hard-blocking,
+  or to use a specific backend to drain new requests when the farm is
+  considered saturated. See also the "dst_conn", "be_conn" and "fe_sess_rate"
+  criteria.
+
+fe_id <integer>
+  Applies to the fronted's id. Can be used in backends to check from which
+  frontend it was called.
 
 fe_sess_rate <integer>
 fe_sess_rate(frontend) <integer>
@@ -5957,20 +5943,34 @@ fe_sess_rate(frontend) <integer>
             tcp-request content accept if ! too_fast
             tcp-request content accept if WAIT_END
 
-be_sess_rate <integer>
-be_sess_rate(backend) <integer>
-  Returns true when the sessions creation rate on the backend matches the
-  specified values or ranges, in number of new sessions per second. This is
-  used to switch to an alternate backend when an expensive or fragile one
-  reaches too high a session rate, or to limit abuse of service (eg. prevent
-  sucking of an online dictionary).
+nbsrv <integer>
+nbsrv(backend) <integer>
+  Returns true when the number of usable servers of either the current backend
+  or the named backend matches the values or ranges specified. This is used to
+  switch to an alternate backend when the number of servers is too low to
+  to handle some load. It is useful to report a failure when combined with
+  "monitor fail".
 
-  Example :
-        # Redirect to an error page if the dictionary is requested too often
-        backend dynamic
-            mode http
-            acl being_scanned be_sess_rate gt 100
-            redirect location /denied.html if being_scanned
+queue <integer>
+queue(frontend) <integer>
+  Returns the total number of queued connections of the designated backend,
+  including all the connections in server queues. If no backend name is
+  specified, the current one is used, but it is also possible to check another
+  one. This can be used to take actions when queuing goes above a known level,
+  generally indicating a surge of traffic or a massive slowdown on the servers.
+  One possible action could be to reject new users but still accept old ones.
+  See also the "avg_queue", "be_conn", and "be_sess_rate" criteria.
+
+so_id <integer>
+  Applies to the socket's id. Useful in frontends with many bind keywords.
+
+src <ip_address>
+  Applies to the client's IPv4 address. It is usually used to limit access to
+  certain resources such as statistics. Note that it is the TCP-level source
+  address which is used, and not the address of a client behind a proxy.
+
+src_port <integer>
+  Applies to the client's TCP source port. This has a very limited usage.
 
 
 7.5.2. Matching contents at Layer 4
@@ -6057,96 +6057,6 @@ application layer (layer 7). Those require that a full HTTP request has been
 read, and are only evaluated then. They may require slightly more CPU resources
 than the layer 4 ones, but not much since the request and response are indexed.
 
-method <string>
-  Applies to the method in the HTTP request, eg: "GET". Some predefined ACL
-  already check for most common methods.
-
-status <integer>
-  Applies to the HTTP status code in the HTTP response, eg: "302". It can be
-  used to act on responses depending on status ranges, for instance, remove
-  any Location header if the response is not a 3xx.
-
-req_ver <string>
-  Applies to the version string in the HTTP request, eg: "1.0". Some predefined
-  ACL already check for versions 1.0 and 1.1.
-
-path <string>
-  Returns true when the path part of the request, which starts at the first
-  slash and ends before the question mark, equals one of the strings. It may be
-  used to match known files, such as /favicon.ico.
-
-path_beg <string>
-  Returns true when the path begins with one of the strings. This can be used
-  to send certain directory names to alternative backends.
-
-path_end <string>
-  Returns true when the path ends with one of the strings. This may be used to
-  control file name extension.
-
-path_sub <string>
-  Returns true when the path contains one of the strings. It can be used to
-  detect particular patterns in paths, such as "../" for example. See also
-  "path_dir".
-
-path_dir <string>
-  Returns true when one of the strings is found isolated or delimited with
-  slashes in the path. This is used to perform filename or directory name
-  matching without the risk of wrong match due to colliding prefixes. See also
-  "url_dir" and "path_sub".
-
-path_dom <string>
-  Returns true when one of the strings is found isolated or delimited with dots
-  in the path. This may be used to perform domain name matching in proxy
-  requests. See also "path_sub" and "url_dom".
-
-path_reg <regex>
-  Returns true when the path matches one of the regular expressions. It can be
-  used any time, but it is important to remember that regex matching is slower
-  than other methods. See also "url_reg" and all "path_" criteria.
-
-url <string>
-  Applies to the whole URL passed in the request. The only real use is to match
-  "*", for which there already is a predefined ACL.
-
-url_beg <string>
-  Returns true when the URL begins with one of the strings. This can be used to
-  check whether a URL begins with a slash or with a protocol scheme.
-
-url_end <string>
-  Returns true when the URL ends with one of the strings. It has very limited
-  use. "path_end" should be used instead for filename matching.
-
-url_sub <string>
-  Returns true when the URL contains one of the strings. It can be used to
-  detect particular patterns in query strings for example. See also "path_sub".
-
-url_dir <string>
-  Returns true when one of the strings is found isolated or delimited with
-  slashes in the URL. This is used to perform filename or directory name
-  matching without the risk of wrong match due to colliding prefixes. See also
-  "path_dir" and "url_sub".
-
-url_dom <string>
-  Returns true when one of the strings is found isolated or delimited with dots
-  in the URL. This is used to perform domain name matching without the risk of
-  wrong match due to colliding prefixes. See also "url_sub".
-
-url_reg <regex>
-  Returns true when the URL matches one of the regular expressions. It can be
-  used any time, but it is important to remember that regex matching is slower
-  than other methods. See also "path_reg" and all "url_" criteria.
-
-url_ip <ip_address>
-  Applies to the IP address specified in the absolute URI in an HTTP request.
-  It can be used to prevent access to certain resources such as local network.
-  It is useful with option "http_proxy".
-
-url_port <integer>
-  Applies to the port specified in the absolute URI in an HTTP request. It can
-  be used to prevent access to certain resources. It is useful with option
-  "http_proxy". Note that if the port is not specified in the request, port 80
-  is assumed.
-
 hdr <string>
 hdr(header) <string>
   Note: all the "hdr*" matching criteria either apply to all headers, or to a
@@ -6167,17 +6077,15 @@ hdr_beg(header) <string>
   "hdr" for more information on header matching. Use the shdr_beg() variant for
   response headers sent by the server.
 
-hdr_end <string>
-hdr_end(header) <string>
-  Returns true when one of the headers ends with one of the strings. See "hdr"
-  for more information on header matching. Use the shdr_end() variant for
-  response headers sent by the server.
-
-hdr_sub <string>
-hdr_sub(header) <string>
-  Returns true when one of the headers contains one of the strings. See "hdr"
-  for more information on header matching. Use the shdr_sub() variant for
-  response headers sent by the server.
+hdr_cnt <integer>
+hdr_cnt(header) <integer>
+  Returns true when the number of occurrence of the specified header matches
+  the values or ranges specified. It is important to remember that one header
+  line may count as several headers if it has several values. This is used to
+  detect presence, absence or abuse of a specific header, as well as to block
+  request smuggling attacks by rejecting requests which contain more than one
+  of certain headers. See "hdr" for more information on header matching. Use
+  the shdr_cnt() variant for response headers sent by the server.
 
 hdr_dir <string>
 hdr_dir(header) <string>
@@ -6195,12 +6103,31 @@ hdr_dom(header) <string>
   header matching. Use the shdr_dom() variant for response headers sent by the
   server.
 
+hdr_end <string>
+hdr_end(header) <string>
+  Returns true when one of the headers ends with one of the strings. See "hdr"
+  for more information on header matching. Use the shdr_end() variant for
+  response headers sent by the server.
+
+hdr_ip <ip_address>
+hdr_ip(header) <ip_address>
+  Returns true when one of the headers' values contains an IP address matching
+  <ip_address>. This is mainly used with headers such as X-Forwarded-For or
+  X-Client-IP. See "hdr" for more information on header matching. Use the
+  shdr_ip() variant for response headers sent by the server.
+
 hdr_reg <regex>
 hdr_reg(header) <regex>
   Returns true when one of the headers matches of the regular expressions. It
   can be used at any time, but it is important to remember that regex matching
   is slower than other methods. See also other "hdr_" criteria, as well as
   "hdr" for more information on header matching. Use the shdr_reg() variant for
+  response headers sent by the server.
+
+hdr_sub <string>
+hdr_sub(header) <string>
+  Returns true when one of the headers contains one of the strings. See "hdr"
+  for more information on header matching. Use the shdr_sub() variant for
   response headers sent by the server.
 
 hdr_val <integer>
@@ -6210,23 +6137,6 @@ hdr_val(header) <integer>
   acceptable values for example. See "hdr" for more information on header
   matching. Use the shdr_val() variant for response headers sent by the server.
 
-hdr_cnt <integer>
-hdr_cnt(header) <integer>
-  Returns true when the number of occurrence of the specified header matches
-  the values or ranges specified. It is important to remember that one header
-  line may count as several headers if it has several values. This is used to
-  detect presence, absence or abuse of a specific header, as well as to block
-  request smuggling attacks by rejecting requests which contain more than one
-  of certain headers. See "hdr" for more information on header matching. Use
-  the shdr_cnt() variant for response headers sent by the server.
-
-hdr_ip <ip_address>
-hdr_ip(header) <ip_address>
-  Returns true when one of the headers' values contains an IP address matching
-  <ip_address>. This is mainly used with headers such as X-Forwarded-For or
-  X-Client-IP. See "hdr" for more information on header matching. Use the
-  shdr_ip() variant for response headers sent by the server.
-
 http_auth(userlist)
 http_auth_group(userlist) <group> [<group>]*
   Returns true when authentication data received from the client matches
@@ -6235,6 +6145,96 @@ http_auth_group(userlist) <group> [<group>]*
   of specified groups.
 
   Currently only http basic auth is supported.
+
+method <string>
+  Applies to the method in the HTTP request, eg: "GET". Some predefined ACL
+  already check for most common methods.
+
+path <string>
+  Returns true when the path part of the request, which starts at the first
+  slash and ends before the question mark, equals one of the strings. It may be
+  used to match known files, such as /favicon.ico.
+
+path_beg <string>
+  Returns true when the path begins with one of the strings. This can be used
+  to send certain directory names to alternative backends.
+
+path_dir <string>
+  Returns true when one of the strings is found isolated or delimited with
+  slashes in the path. This is used to perform filename or directory name
+  matching without the risk of wrong match due to colliding prefixes. See also
+  "url_dir" and "path_sub".
+
+path_dom <string>
+  Returns true when one of the strings is found isolated or delimited with dots
+  in the path. This may be used to perform domain name matching in proxy
+  requests. See also "path_sub" and "url_dom".
+
+path_end <string>
+  Returns true when the path ends with one of the strings. This may be used to
+  control file name extension.
+
+path_reg <regex>
+  Returns true when the path matches one of the regular expressions. It can be
+  used any time, but it is important to remember that regex matching is slower
+  than other methods. See also "url_reg" and all "path_" criteria.
+
+path_sub <string>
+  Returns true when the path contains one of the strings. It can be used to
+  detect particular patterns in paths, such as "../" for example. See also
+  "path_dir".
+
+req_ver <string>
+  Applies to the version string in the HTTP request, eg: "1.0". Some predefined
+  ACL already check for versions 1.0 and 1.1.
+
+status <integer>
+  Applies to the HTTP status code in the HTTP response, eg: "302". It can be
+  used to act on responses depending on status ranges, for instance, remove
+  any Location header if the response is not a 3xx.
+
+url <string>
+  Applies to the whole URL passed in the request. The only real use is to match
+  "*", for which there already is a predefined ACL.
+
+url_beg <string>
+  Returns true when the URL begins with one of the strings. This can be used to
+  check whether a URL begins with a slash or with a protocol scheme.
+
+url_dir <string>
+  Returns true when one of the strings is found isolated or delimited with
+  slashes in the URL. This is used to perform filename or directory name
+  matching without the risk of wrong match due to colliding prefixes. See also
+  "path_dir" and "url_sub".
+
+url_dom <string>
+  Returns true when one of the strings is found isolated or delimited with dots
+  in the URL. This is used to perform domain name matching without the risk of
+  wrong match due to colliding prefixes. See also "url_sub".
+
+url_end <string>
+  Returns true when the URL ends with one of the strings. It has very limited
+  use. "path_end" should be used instead for filename matching.
+
+url_ip <ip_address>
+  Applies to the IP address specified in the absolute URI in an HTTP request.
+  It can be used to prevent access to certain resources such as local network.
+  It is useful with option "http_proxy".
+
+url_port <integer>
+  Applies to the port specified in the absolute URI in an HTTP request. It can
+  be used to prevent access to certain resources. It is useful with option
+  "http_proxy". Note that if the port is not specified in the request, port 80
+  is assumed.
+
+url_reg <regex>
+  Returns true when the URL matches one of the regular expressions. It can be
+  used any time, but it is important to remember that regex matching is slower
+  than other methods. See also "path_reg" and all "url_" criteria.
+
+url_sub <string>
+  Returns true when the URL contains one of the strings. It can be used to
+  detect particular patterns in query strings for example. See also "path_sub".
 
 
 7.6. Pre-defined ACLs
@@ -6247,24 +6247,24 @@ only the first three ones are not layer 7 based.
 
 ACL name          Equivalent to                Usage
 ---------------+-----------------------------+---------------------------------
-TRUE             always_true                   always match
 FALSE            always_false                  never match
-LOCALHOST        src 127.0.0.1/8               match connection from local host
 HTTP             req_proto_http                match if protocol is valid HTTP
 HTTP_1.0         req_ver 1.0                   match HTTP version 1.0
 HTTP_1.1         req_ver 1.1                   match HTTP version 1.1
+HTTP_CONTENT     hdr_val(content-length) gt 0  match an existing content-length
+HTTP_URL_ABS     url_reg ^[^/:]*://            match absolute URL with scheme
+HTTP_URL_SLASH   url_beg /                     match URL beginning with "/"
+HTTP_URL_STAR    url     *                     match URL equal to "*"
+LOCALHOST        src 127.0.0.1/8               match connection from local host
 METH_CONNECT     method  CONNECT               match HTTP CONNECT method
 METH_GET         method  GET HEAD              match HTTP GET or HEAD method
 METH_HEAD        method  HEAD                  match HTTP HEAD method
 METH_OPTIONS     method  OPTIONS               match HTTP OPTIONS method
 METH_POST        method  POST                  match HTTP POST method
 METH_TRACE       method  TRACE                 match HTTP TRACE method
-HTTP_URL_ABS     url_reg ^[^/:]*://            match absolute URL with scheme
-HTTP_URL_SLASH   url_beg /                     match URL beginning with "/"
-HTTP_URL_STAR    url     *                     match URL equal to "*"
-HTTP_CONTENT     hdr_val(content-length) gt 0  match an existing content-length
 RDP_COOKIE       req_rdp_cookie_cnt gt 0       match presence of an RDP cookie
 REQ_CONTENT      req_len gt 0                  match data in the request buffer
+TRUE             always_true                   always match
 WAIT_END         wait_end                      wait for end of content analysis
 ---------------+-----------------------------+---------------------------------
 
@@ -7635,6 +7635,10 @@ page. Both means provide a CSV format whose fields follow.
  42. hrsp_4xx: http responses with 4xx code
  43. hrsp_5xx: http responses with 5xx code
  44. hrsp_other: http responses with other codes (protocol error)
+ 45. hanafail: failed health checks details
+ 46. req_rate: HTTP requests per second over last elapsed second
+ 47. req_rate_max: max number of HTTP requests per second observed
+ 48. req_tot: total number of HTTP requests received
 
 
 9.2. Unix Socket commands
@@ -7654,6 +7658,51 @@ It is important to understand that when multiple haproxy processes are started
 on the same sockets, any process may pick up the request and will output its
 own stats.
 
+clear counters
+  Clear the max values of the statistics counters in each proxy (frontend &
+  backend) and in each server. The cumulated counters are not affected. This
+  can be used to get clean counters after an incident, without having to
+  restart nor to clear traffic counters. This command is restricted and can
+  only be issued on sockets configured for levels "operator" or "admin".
+
+clear counters all
+  Clear all statistics counters in each proxy (frontend & backend) and in each
+  server. This has the same effect as restarting. This command is restricted
+  and can only be issued on sockets configured for level "admin".
+
+disable server <backend>/<server>
+  Mark the server DOWN for maintenance. In this mode, no more checks will be
+  performed on the server until it leaves maintenance.
+  If the server is tracked by other servers, those servers will be set to DOWN
+  during the maintenance.
+
+  In the statistics page, a server DOWN for maintenance will appear with a
+  "MAINT" status, its tracking servers with the "MAINT(via)" one.
+
+  Both the backend and the server may be specified either by their name or by
+  their numeric ID, prefixed with a dash ('#').
+
+  This command is restricted and can only be issued on sockets configured for
+  level "admin".
+
+enable server <backend>/<server>
+  If the server was previously marked as DOWN for maintenance, this marks the
+  server UP and checks are re-enabled.
+
+  Both the backend and the server may be specified either by their name or by
+  their numeric ID, prefixed with a dash ('#').
+
+  This command is restricted and can only be issued on sockets configured for
+  level "admin".
+
+get weight <backend>/<server>
+  Report the current weight and the initial weight of server <server> in
+  backend <backend> or an error if either doesn't exist. The initial weight is
+  the one that appears in the configuration file. Both are normally equal
+  unless the current weight has been changed. Both the backend and the server
+  may be specified either by their name or by their numeric ID, prefixed with a
+  dash ('#').
+
 help
   Print the list of known keywords and their basic usage. The same help screen
   is also displayed for unknown commands.
@@ -7670,6 +7719,27 @@ prompt
 
 quit
   Close the connection when in interactive mode.
+
+set timeout cli <delay>
+  Change the CLI interface timeout for current connection. This can be useful
+  during long debugging sessions where the user needs to constantly inspect
+  some indicators without being disconnected. The delay is passed in seconds.
+
+set weight <backend>/<server> <weight>[%]
+  Change a server's weight to the value passed in argument. If the value ends
+  with the '%' sign, then the new weight will be relative to the initially
+  configured weight. Relative weights are only permitted between 0 and 100%,
+  and absolute weights are permitted between 0 and 256. Servers which are part
+  of a farm running a static load-balancing algorithm have stricter limitations
+  because the weight cannot change once set. Thus for these servers, the only
+  accepted values are 0 and 100% (or 0 and the initial weight). Changes take
+  effect immediately, though certain LB algorithms require a certain amount of
+  requests to consider changes. A typical usage of this command is to disable
+  a server during an update by setting its weight to zero, then to enable it
+  again after the update by setting it back to 100%. This command is restricted
+  and can only be issued on sockets configured for level "admin". Both the
+  backend and the server may be specified either by their name or by their
+  numeric ID, prefixed with a dash ('#').
 
 show errors [<iid>]
   Dump last known request and response errors collected by frontends and
@@ -7766,72 +7836,6 @@ show stat [<iid> <type> <sid>]
     line after the information output which marks the end of the first block.
     A similar empty line appears at the end of the second block (stats) so that
     the reader knows the output has not been truncated.
-
-clear counters
-  Clear the max values of the statistics counters in each proxy (frontend &
-  backend) and in each server. The cumulated counters are not affected. This
-  can be used to get clean counters after an incident, without having to
-  restart nor to clear traffic counters. This command is restricted and can
-  only be issued on sockets configured for levels "operator" or "admin".
-
-clear counters all
-  Clear all statistics counters in each proxy (frontend & backend) and in each
-  server. This has the same effect as restarting. This command is restricted
-  and can only be issued on sockets configured for level "admin".
-
-disable server <backend>/<server>
-  Mark the server DOWN for maintenance. In this mode, no more checks will be
-  performed on the server until it leaves maintenance.
-  If the server is tracked by other servers, those servers will be set to DOWN
-  during the maintenance.
-
-  In the statistics page, a server DOWN for maintenance will appear with a
-  "MAINT" status, its tracking servers with the "MAINT(via)" one.
-
-  Both the backend and the server may be specified either by their name or by
-  their numeric ID, prefixed with a dash ('#').
-
-  This command is restricted and can only be issued on sockets configured for
-  level "admin".
-
-enable server <backend>/<server>
-  If the server was previously marked as DOWN for maintenance, this marks the
-  server UP and checks are re-enabled.
-
-  Both the backend and the server may be specified either by their name or by
-  their numeric ID, prefixed with a dash ('#').
-
-  This command is restricted and can only be issued on sockets configured for
-  level "admin".
-
-get weight <backend>/<server>
-  Report the current weight and the initial weight of server <server> in
-  backend <backend> or an error if either doesn't exist. The initial weight is
-  the one that appears in the configuration file. Both are normally equal
-  unless the current weight has been changed. Both the backend and the server
-  may be specified either by their name or by their numeric ID, prefixed with a
-  dash ('#').
-
-set timeout cli <delay>
-  Change the CLI interface timeout for current connection. This can be useful
-  during long debugging sessions where the user needs to constantly inspect
-  some indicators without being disconnected. The delay is passed in seconds.
-
-set weight <backend>/<server> <weight>[%]
-  Change a server's weight to the value passed in argument. If the value ends
-  with the '%' sign, then the new weight will be relative to the initially
-  configured weight. Relative weights are only permitted between 0 and 100%,
-  and absolute weights are permitted between 0 and 256. Servers which are part
-  of a farm running a static load-balancing algorithm have stricter limitations
-  because the weight cannot change once set. Thus for these servers, the only
-  accepted values are 0 and 100% (or 0 and the initial weight). Changes take
-  effect immediately, though certain LB algorithms require a certain amount of
-  requests to consider changes. A typical usage of this command is to disable
-  a server during an update by setting its weight to zero, then to enable it
-  again after the update by setting it back to 100%. This command is restricted
-  and can only be issued on sockets configured for level "admin". Both the
-  backend and the server may be specified either by their name or by their
-  numeric ID, prefixed with a dash ('#').
 
 
 /*
