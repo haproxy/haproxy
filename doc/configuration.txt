@@ -4704,7 +4704,7 @@ stick on <pattern> [table <table>] [{if | unless} <condition>]
 
   Examples :
     # The following form ...
-    stick or src table pop if !localhost
+    stick on src table pop if !localhost
 
     # ...is strictly equivalent to this one :
     stick match src table pop if !localhost
