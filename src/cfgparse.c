@@ -2113,16 +2113,19 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		rule->rdr_len = strlen(destination);
 		if (cookie) {
 			/* depending on cookie_set, either we want to set the cookie, or to clear it.
-			 * a clear consists in appending "; Max-Age=0" at the end.
+			 * a clear consists in appending "; path=/; Max-Age=0;" at the end.
 			 */
 			rule->cookie_len = strlen(cookie);
-			if (cookie_set)
-				rule->cookie_str = strdup(cookie);
-			else {
-				rule->cookie_str = malloc(rule->cookie_len + 12);
+			if (cookie_set) {
+				rule->cookie_str = malloc(rule->cookie_len + 10);
 				memcpy(rule->cookie_str, cookie, rule->cookie_len);
-				memcpy(rule->cookie_str + rule->cookie_len, "; Max-Age=0", 12);
-				rule->cookie_len += 11;
+				memcpy(rule->cookie_str + rule->cookie_len, "; path=/;", 10);
+				rule->cookie_len += 9;
+			} else {
+				rule->cookie_str = malloc(rule->cookie_len + 21);
+				memcpy(rule->cookie_str, cookie, rule->cookie_len);
+				memcpy(rule->cookie_str + rule->cookie_len, "; path=/; Max-Age=0;", 21);
+				rule->cookie_len += 20;
 			}
 		}
 		rule->type = type;
