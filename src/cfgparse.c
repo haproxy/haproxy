@@ -727,7 +727,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 
 		for (i=0; args[1][i]; i++) {
 			c = args[1][i];
-			if (!isupper(c) && !islower(c) && !isdigit(c) && c != '_' && c != '-' && c != '.')
+			if (!isupper((unsigned char)c) && !islower((unsigned char)c) &&
+			    !isdigit((unsigned char)c) && c != '_' && c != '-' && c != '.')
 				break;
 		}
 
@@ -2506,7 +2507,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 				for (i=0; args[2][i]; i++) {
 					c = args[2][i];
-					if (!isupper(c) && !islower(c) && !isdigit(c) && c != '_' && c != '-' && c != '.')
+					if (!isupper((unsigned char)c) && !islower((unsigned char)c) &&
+					    !isdigit((unsigned char)c) && c != '_' && c != '-' && c != '.')
 						break;
 				}
 

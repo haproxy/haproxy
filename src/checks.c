@@ -906,7 +906,8 @@ static int event_srv_chk_r(int fd)
 		if ((len < strlen("HTTP/1.0 000\r")) ||
 		    (memcmp(trash, "HTTP/1.", 7) != 0 ||
 		    (trash[12] != ' ' && trash[12] != '\r')) ||
-		    !isdigit(trash[9]) || !isdigit(trash[10]) || !isdigit(trash[11])) {
+		    !isdigit((unsigned char)trash[9]) || !isdigit((unsigned char)trash[10]) ||
+		    !isdigit((unsigned char)trash[11])) {
 
 			cut_crlf(trash);
 			set_server_check_status(s, HCHK_STATUS_L7RSP, trash);
@@ -941,7 +942,8 @@ static int event_srv_chk_r(int fd)
 		/* Check if the server speaks SMTP */
 		if ((len < strlen("000\r")) ||
 		    (trash[3] != ' ' && trash[3] != '\r') ||
-		    !isdigit(trash[0]) || !isdigit(trash[1]) || !isdigit(trash[2])) {
+		    !isdigit((unsigned char)trash[0]) || !isdigit((unsigned char)trash[1]) ||
+		    !isdigit((unsigned char)trash[2])) {
 
 			cut_crlf(trash);
 			set_server_check_status(s, HCHK_STATUS_L7RSP, trash);

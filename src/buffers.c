@@ -407,7 +407,7 @@ int chunk_htmlencode(struct chunk *dst, struct chunk *src) {
 
 		c = src->str[i];
 
-		if (!isascii(c) || !isprint(c) || c == '&' || c == '"' || c == '\'' || c == '<' || c == '>') {
+		if (!isascii(c) || !isprint((unsigned char)c) || c == '&' || c == '"' || c == '\'' || c == '<' || c == '>') {
 			l = snprintf(dst->str + dst->len, free, "&#%u;", (unsigned char)c);
 
 			if (free < l) {
@@ -447,7 +447,7 @@ int chunk_asciiencode(struct chunk *dst, struct chunk *src, char qc) {
 
 		c = src->str[i];
 
-		if (!isascii(c) || !isprint(c) || c == '<' || c == '>' || c == qc) {
+		if (!isascii(c) || !isprint((unsigned char)c) || c == '<' || c == '>' || c == qc) {
 			l = snprintf(dst->str + dst->len, free, "<%02X>", (unsigned char)c);
 
 			if (free < l) {
