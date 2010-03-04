@@ -1,6 +1,20 @@
 ChangeLog :
 ===========
 
+2010/03/04 : 1.4.1
+    - [BUG] Clear-cookie path issue
+    - [DOC] fix typo on stickiness rules
+    - [BUILD] fix BSD and OSX makefiles for missing files
+    - [BUILD] includes order breaks OpenBSD build
+    - [BUILD] fix some build warnings on Solaris with is* macros
+    - [BUG] logs: don't report "last data" when we have just closed after an error
+    - [BUG] logs: don't report "proxy request" when server closes early
+    - [BUILD] fix platform-dependant build issues related to crypt()
+    - [STATS] count transfer aborts caused by client and by server
+    - [STATS] frontend requests were not accounted for failed requests
+    - [MINOR] report total number of processed connections when stopping a proxy
+    - [DOC] be more clear about the limitation to one single monitor-net entry
+
 2010/02/26 : 1.4.0
     - [MINOR] stats: report maint state for tracking servers too
     - [DOC] fix summary to add pattern extraction
