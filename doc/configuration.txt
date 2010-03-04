@@ -2257,6 +2257,9 @@ monitor-net <source>
   nothing more. Right now, it is not possible to set failure conditions on
   requests caught by "monitor-net".
 
+  Last, please note that only one "monitor-net" statement can be specified in
+  a frontend. If more than one is found, only the last one will be considered.
+ 
   Example :
     # addresses .252 and .253 are just probing us.
     frontend www
