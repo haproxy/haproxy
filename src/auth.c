@@ -10,7 +10,15 @@
  *
  */
 
-#define _XOPEN_SOURCE 500
+#ifdef CONFIG_HAP_CRYPT
+/* This is to have crypt() defined on Linux */
+#define _GNU_SOURCE
+
+#ifdef NEED_CRYPT_H
+/* some platforms such as Solaris need this */
+#include <crypt.h>
+#endif
+#endif /* CONFIG_HAP_CRYPT */
 
 #include <stdio.h>
 #include <stdlib.h>
