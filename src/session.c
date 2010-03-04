@@ -1642,7 +1642,7 @@ void sess_set_term_flags(struct session *s)
 			s->flags |= SN_FINST_Q;
 		else if (s->si[1].state < SI_ST_EST)
 			s->flags |= SN_FINST_C;
-		else if (s->si[1].state == SI_ST_EST)
+		else if (s->si[1].state == SI_ST_EST || s->si[1].prev_state == SI_ST_EST)
 			s->flags |= SN_FINST_D;
 		else
 			s->flags |= SN_FINST_L;
