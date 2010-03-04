@@ -2429,8 +2429,10 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 		/*
 		 * First, let's catch bad requests.
 		 */
-		if (unlikely(msg->msg_state == HTTP_MSG_ERROR))
+		if (unlikely(msg->msg_state == HTTP_MSG_ERROR)) {
+			proxy_inc_fe_req_ctr(s->fe);
 			goto return_bad_req;
+		}
 
 		/* 1: Since we are in header mode, if there's no space
 		 *    left for headers, we won't be able to free more
@@ -2441,6 +2443,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 			/* FIXME: check if URI is set and return Status
 			 * 414 Request URI too long instead.
 			 */
+			proxy_inc_fe_req_ctr(s->fe);
 			goto return_bad_req;
 		}
 
@@ -2458,6 +2461,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 			msg->msg_state = HTTP_MSG_ERROR;
 			req->analysers = 0;
 
+			proxy_inc_fe_req_ctr(s->fe);
 			s->fe->counters.failed_req++;
 			if (s->listener->counters)
 				s->listener->counters->failed_req++;
@@ -2483,6 +2487,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 			msg->msg_state = HTTP_MSG_ERROR;
 			req->analysers = 0;
 
+			proxy_inc_fe_req_ctr(s->fe);
 			s->fe->counters.failed_req++;
 			if (s->listener->counters)
 				s->listener->counters->failed_req++;
@@ -2507,6 +2512,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 			msg->msg_state = HTTP_MSG_ERROR;
 			req->analysers = 0;
 
+			proxy_inc_fe_req_ctr(s->fe);
 			s->fe->counters.failed_req++;
 			if (s->listener->counters)
 				s->listener->counters->failed_req++;
