@@ -529,8 +529,10 @@ void maintain_proxies(int *next)
 				int t;
 				t = tick_remain(now_ms, p->stop_time);
 				if (t == 0) {
-					Warning("Proxy %s stopped.\n", p->id);
-					send_log(p, LOG_WARNING, "Proxy %s stopped.\n", p->id);
+					Warning("Proxy %s stopped (FE: %lld conns, BE: %lld conns).\n",
+						p->id, p->counters.cum_feconn, p->counters.cum_beconn);
+					send_log(p, LOG_WARNING, "Proxy %s stopped (FE: %lld conns, BE: %lld conns).\n",
+						 p->id, p->counters.cum_feconn, p->counters.cum_beconn);
 					stop_proxy(p);
 					/* try to free more memory */
 					pool_gc2();
