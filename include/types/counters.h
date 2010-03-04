@@ -47,6 +47,7 @@ struct pxcounters {
 	} fe, be;				/* FE and BE stats */
 
 	long long failed_conns, failed_resp;	/* failed connect() and responses */
+	long long cli_aborts, srv_aborts;	/* aborted responses during DATA phase due to client or server */
 	long long retries, redispatches;	/* retried and redispatched connections */
 };
 
@@ -74,6 +75,7 @@ struct srvcounters {
 	long long bytes_out;			/* number of bytes transferred from the server to the client */
 
 	long long failed_conns, failed_resp;	/* failed connect() and responses */
+	long long cli_aborts, srv_aborts;	/* aborted responses during DATA phase due to client or server */
 	long long retries, redispatches;	/* retried and redispatched connections */
 	long long failed_secu;			/* blocked responses because of security concerns */
 

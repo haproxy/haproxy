@@ -893,6 +893,9 @@ struct task *process_session(struct task *t)
 			s->si[0].shutw(&s->si[0]);
 			stream_int_report_error(&s->si[0]);
 			if (!(s->req->analysers) && !(s->rep->analysers)) {
+				s->be->counters.cli_aborts++;
+				if (s->srv)
+					s->srv->counters.cli_aborts++;
 				if (!(s->flags & SN_ERR_MASK))
 					s->flags |= SN_ERR_CLICL;
 				if (!(s->flags & SN_FINST_MASK))
@@ -910,6 +913,9 @@ struct task *process_session(struct task *t)
 			if (s->srv)
 				s->srv->counters.failed_resp++;
 			if (!(s->req->analysers) && !(s->rep->analysers)) {
+				s->be->counters.srv_aborts++;
+				if (s->srv)
+					s->srv->counters.srv_aborts++;
 				if (!(s->flags & SN_ERR_MASK))
 					s->flags |= SN_ERR_SRVCL;
 				if (!(s->flags & SN_FINST_MASK))
@@ -1212,33 +1218,67 @@ resync_stream_interface:
 
 
 	/*
-	 * Now we propagate unhandled errors to the session
+	 * Now we propagate unhandled errors to the session. Normally
+	 * we're just in a data phase here since it means we have not
+	 * seen any analyser who could set an error status.
 	 */
 	if (!(s->flags & SN_ERR_MASK)) {
 		if (s->req->flags & (BF_READ_ERROR|BF_READ_TIMEOUT|BF_WRITE_ERROR|BF_WRITE_TIMEOUT)) {
 			/* Report it if the client got an error or a read timeout expired */
 			s->req->analysers = 0;
-			if (s->req->flags & BF_READ_ERROR)
+			if (s->req->flags & BF_READ_ERROR) {
+				s->be->counters.cli_aborts++;
+				if (s->srv)
+					s->srv->counters.cli_aborts++;
 				s->flags |= SN_ERR_CLICL;
-			else if (s->req->flags & BF_READ_TIMEOUT)
+			}
+			else if (s->req->flags & BF_READ_TIMEOUT) {
+				s->be->counters.cli_aborts++;
+				if (s->srv)
+					s->srv->counters.cli_aborts++;
 				s->flags |= SN_ERR_CLITO;
-			else if (s->req->flags & BF_WRITE_ERROR)
+			}
+			else if (s->req->flags & BF_WRITE_ERROR) {
+				s->be->counters.srv_aborts++;
+				if (s->srv)
+					s->srv->counters.srv_aborts++;
 				s->flags |= SN_ERR_SRVCL;
-			else
+			}
+			else {
+				s->be->counters.srv_aborts++;
+				if (s->srv)
+					s->srv->counters.srv_aborts++;
 				s->flags |= SN_ERR_SRVTO;
+			}
 			sess_set_term_flags(s);
 		}
 		else if (s->rep->flags & (BF_READ_ERROR|BF_READ_TIMEOUT|BF_WRITE_ERROR|BF_WRITE_TIMEOUT)) {
 			/* Report it if the server got an error or a read timeout expired */
 			s->rep->analysers = 0;
-			if (s->rep->flags & BF_READ_ERROR)
+			if (s->rep->flags & BF_READ_ERROR) {
+				s->be->counters.srv_aborts++;
+				if (s->srv)
+					s->srv->counters.srv_aborts++;
 				s->flags |= SN_ERR_SRVCL;
-			else if (s->rep->flags & BF_READ_TIMEOUT)
+			}
+			else if (s->rep->flags & BF_READ_TIMEOUT) {
+				s->be->counters.srv_aborts++;
+				if (s->srv)
+					s->srv->counters.srv_aborts++;
 				s->flags |= SN_ERR_SRVTO;
-			else if (s->rep->flags & BF_WRITE_ERROR)
+			}
+			else if (s->rep->flags & BF_WRITE_ERROR) {
+				s->be->counters.cli_aborts++;
+				if (s->srv)
+					s->srv->counters.cli_aborts++;
 				s->flags |= SN_ERR_CLICL;
-			else
-			s->flags |= SN_ERR_CLITO;
+			}
+			else {
+				s->be->counters.cli_aborts++;
+				if (s->srv)
+					s->srv->counters.cli_aborts++;
+				s->flags |= SN_ERR_CLITO;
+			}
 			sess_set_term_flags(s);
 		}
 	}

@@ -248,7 +248,8 @@ int print_csv_header(struct chunk *msg)
 			    "rate,rate_lim,rate_max,"
 			    "check_status,check_code,check_duration,"
 			    "hrsp_1xx,hrsp_2xx,hrsp_3xx,hrsp_4xx,hrsp_5xx,hrsp_other,hanafail,"
-			    "req_rate, req_rate_max, req_tot,"
+			    "req_rate,req_rate_max,req_tot,"
+			    "cli_abrt,srv_abrt,"
 			    "\n");
 }
 
@@ -1543,6 +1544,9 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 					     read_freq_ctr(&px->fe_req_per_sec),
 					     px->counters.fe_rps_max, px->counters.cum_fe_req);
 
+				/* errors: cli_aborts, srv_aborts */
+				chunk_printf(&msg, ",,");
+
 				/* finish with EOL */
 				chunk_printf(&msg, "\n");
 			}
@@ -1672,6 +1676,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     ","
 				     /* requests : req_rate, req_rate_max, req_tot, */
 				     ",,,"
+				     /* errors: cli_aborts, srv_aborts */
+				     ",,"
 				     "\n",
 				     px->id, l->name,
 				     l->nbconn, l->counters->conn_max,
@@ -1828,14 +1834,19 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     "<td>%s</td><td>%s</td>"
 				     /* denied: req, resp */
 				     "<td></td><td>%s</td>"
-				     /* errors : request, connect, response */
-				     "<td></td><td>%s</td><td>%s</td>\n"
+				     /* errors : request, connect */
+				     "<td></td><td>%s</td>"
+				     /* errors : response */
+				     "<td title=\"Connection resets during transfers: %s client, %s server\"><u>%s</u></td>"
 				     /* warnings: retries, redispatches */
 				     "<td>%lld</td><td>%lld</td>"
 				     "",
 				     U2H0(sv->counters.bytes_in), U2H1(sv->counters.bytes_out),
 				     U2H2(sv->counters.failed_secu),
-				     U2H3(sv->counters.failed_conns), U2H4(sv->counters.failed_resp),
+				     U2H3(sv->counters.failed_conns),
+				     U2H4(sv->counters.cli_aborts),
+				     U2H5(sv->counters.srv_aborts),
+				     U2H6(sv->counters.failed_resp),
 				     sv->counters.retries, sv->counters.redispatches);
 
 				/* status, lest check */
@@ -2062,6 +2073,10 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				/* requests : req_rate, req_rate_max, req_tot, */
 				chunk_printf(&msg, ",,,");
 
+				/* errors: cli_aborts, srv_aborts */
+				chunk_printf(&msg, "%lld,%lld,",
+					     sv->counters.cli_aborts, sv->counters.srv_aborts);
+
 				/* finish with EOL */
 				chunk_printf(&msg, "\n");
 			}
@@ -2150,8 +2165,10 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				chunk_printf(&msg,
 				     /* denied: req, resp */
 				     "<td>%s</td><td>%s</td>"
-				     /* errors : request, connect, response */
-				     "<td></td><td>%s</td><td>%s</td>\n"
+				     /* errors : request, connect */
+				     "<td></td><td>%s</td>"
+				     /* errors : response */
+				     "<td title=\"Connection resets during transfers: %s client, %s server\"><u>%s</u></td>"
 				     /* warnings: retries, redispatches */
 				     "<td>%lld</td><td>%lld</td>"
 				     /* backend status: reflect backend status (up/down): we display UP
@@ -2162,7 +2179,10 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     "<td class=ac>%d</td><td class=ac>%d</td>"
 				     "",
 				     U2H0(px->counters.denied_req), U2H1(px->counters.denied_resp),
-				     U2H2(px->counters.failed_conns), U2H3(px->counters.failed_resp),
+				     U2H2(px->counters.failed_conns),
+				     U2H3(px->counters.cli_aborts),
+				     U2H4(px->counters.srv_aborts),
+				     U2H5(px->counters.failed_resp),
 				     px->counters.retries, px->counters.redispatches,
 				     human_time(now.tv_sec - px->last_change, 1),
 				     (px->lbprm.tot_weight > 0 || !px->srv) ? "UP" :
@@ -2242,6 +2262,10 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 
 				/* requests : req_rate, req_rate_max, req_tot, */
 				chunk_printf(&msg, ",,,");
+
+				/* errors: cli_aborts, srv_aborts */
+				chunk_printf(&msg, "%lld,%lld,",
+					     px->counters.cli_aborts, px->counters.srv_aborts);
 
 				/* finish with EOL */
 				chunk_printf(&msg, "\n");

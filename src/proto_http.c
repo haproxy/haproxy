@@ -3971,6 +3971,9 @@ int http_sync_res_state(struct session *s)
 		}
 		else if (buf->flags & BF_SHUTW) {
 			txn->rsp.msg_state = HTTP_MSG_ERROR;
+			s->be->counters.cli_aborts++;
+			if (s->srv)
+				s->srv->counters.cli_aborts++;
 			goto wait_other_side;
 		}
 	}
@@ -5071,6 +5074,9 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 	if (res->flags & BF_SHUTR) {
 		if (!(s->flags & SN_ERR_MASK))
 			s->flags |= SN_ERR_SRVCL;
+		s->be->counters.srv_aborts++;
+		if (s->srv)
+			s->srv->counters.srv_aborts++;
 		goto return_bad_res;
 	}
 

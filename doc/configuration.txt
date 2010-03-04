@@ -7584,7 +7584,7 @@ page. Both means provide a CSV format whose fields follow.
  11. dresp: denied responses
  12. ereq: request errors
  13. econ: connection errors
- 14. eresp: response errors
+ 14. eresp: response errors (among which srv_abrt)
  15. wretr: retries (warning)
  16. wredis: redispatches (warning)
  17. status: status (UP/DOWN/NOLB/MAINT/MAINT(via)...)
@@ -7635,6 +7635,8 @@ page. Both means provide a CSV format whose fields follow.
  46. req_rate: HTTP requests per second over last elapsed second
  47. req_rate_max: max number of HTTP requests per second observed
  48. req_tot: total number of HTTP requests received
+ 49. cli_abrt: number of data transfers aborted by the client
+ 50. srv_abrt: number of data transfers aborted by the server (inc. in eresp)
 
 
 9.2. Unix Socket commands
