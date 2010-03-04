@@ -5068,9 +5068,13 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 
  missing_data:
 	/* stop waiting for data if the input is closed before the end */
-	if (res->flags & BF_SHUTR)
+	if (res->flags & BF_SHUTR) {
+		if (!(s->flags & SN_ERR_MASK))
+			s->flags |= SN_ERR_SRVCL;
 		goto return_bad_res;
+	}
 
+	/* we need to obey the req analyser, so if it leaves, we must too */
 	if (!s->req->analysers)
 		goto return_bad_res;
 
@@ -5085,9 +5089,8 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 	http_silent_debug(__LINE__, s);
 	return 0;
 
- return_bad_res: /* let's centralize all bad resuests */
+ return_bad_res: /* let's centralize all bad responses */
 	txn->rsp.msg_state = HTTP_MSG_ERROR;
-	txn->status = 502;
 	/* don't send any error message as we're in the body */
 	stream_int_retnclose(res->cons, NULL);
 	res->analysers = 0;
@@ -5100,7 +5103,7 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 	if (!(s->flags & SN_ERR_MASK))
 		s->flags |= SN_ERR_PRXCOND;
 	if (!(s->flags & SN_FINST_MASK))
-		s->flags |= SN_FINST_R;
+		s->flags |= SN_FINST_D;
 	http_silent_debug(__LINE__, s);
 	return 0;
 }
