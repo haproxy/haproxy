@@ -2359,6 +2359,8 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 			     req->r < req->lr ||
 			     req->r > req->data + req->size - global.tune.maxrewrite)) {
 			if (req->send_max) {
+				if (req->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_WRITE_ERROR|BF_WRITE_TIMEOUT))
+					goto failed_keep_alive;
 				/* some data has still not left the buffer, wake us once that's done */
 				buffer_dont_connect(req);
 				req->flags |= BF_READ_DONTWAIT; /* try to get back here ASAP */
@@ -2380,6 +2382,8 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 			     s->rep->r < s->rep->lr ||
 			     s->rep->r > s->rep->data + s->rep->size - global.tune.maxrewrite)) {
 			if (s->rep->send_max) {
+				if (s->rep->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_WRITE_ERROR|BF_WRITE_TIMEOUT))
+					goto failed_keep_alive;
 				/* don't let a connection request be initiated */
 				buffer_dont_connect(req);
 				s->rep->flags &= ~BF_EXPECT_MORE; /* speed up sending a previous response */
@@ -4277,6 +4281,8 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 			     rep->r > rep->data + rep->size - global.tune.maxrewrite)) {
 			if (rep->send_max) {
 				/* some data has still not left the buffer, wake us once that's done */
+				if (rep->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_WRITE_ERROR|BF_WRITE_TIMEOUT))
+					goto abort_response;
 				buffer_dont_close(rep);
 				rep->flags |= BF_READ_DONTWAIT; /* try to get back here ASAP */
 				return 0;
@@ -4338,7 +4344,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 				s->srv->counters.failed_resp++;
 				health_adjust(s->srv, HANA_STATUS_HTTP_HDRRSP);
 			}
-
+		abort_response:
 			buffer_auto_close(rep);
 			rep->analysers = 0;
 			txn->status = 502;
