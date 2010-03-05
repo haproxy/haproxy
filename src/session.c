@@ -1170,9 +1170,6 @@ resync_stream_interface:
 
 			ana_list = ana_back = s->rep->analysers;
 			while (ana_list && max_loops--) {
-				if (!ana_list)
-					break;
-
 				/* Warning! ensure that analysers are always placed in ascending order! */
 
 				if (ana_list & AN_RES_WAIT_HTTP) {
