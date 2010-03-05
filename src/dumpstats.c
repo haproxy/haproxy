@@ -2597,7 +2597,7 @@ int stats_dump_errors_to_buffer(struct session *s, struct buffer *rep)
 			struct tm tm;
 
 			get_localtime(es->when.tv_sec, &tm);
-			chunk_printf(&msg, "\n[%02d/%s/%04d:%02d:%02d:%02d.%03d]",
+			chunk_printf(&msg, " \n[%02d/%s/%04d:%02d:%02d:%02d.%03d]",
 				     tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
 				     tm.tm_hour, tm.tm_min, tm.tm_sec, (int)(es->when.tv_usec/1000));
 
@@ -2616,7 +2616,7 @@ int stats_dump_errors_to_buffer(struct session *s, struct buffer *rep)
 				chunk_printf(&msg,
 					     " frontend %s (#%d): invalid request\n"
 					     "  src %s, session #%d, backend %s (#%d), server %s (#%d)\n"
-					     "  request length %d bytes, error at position %d:\n\n",
+					     "  request length %d bytes, error at position %d:\n \n",
 					     s->data_ctx.errors.px->id, s->data_ctx.errors.px->uuid,
 					     pn, es->sid, es->oe->id, es->oe->uuid,
 					     es->srv ? es->srv->id : "<NONE>",
@@ -2627,7 +2627,7 @@ int stats_dump_errors_to_buffer(struct session *s, struct buffer *rep)
 				chunk_printf(&msg,
 					     " backend %s (#%d) : invalid response\n"
 					     "  src %s, session #%d, frontend %s (#%d), server %s (#%d)\n"
-					     "  response length %d bytes, error at position %d:\n\n",
+					     "  response length %d bytes, error at position %d:\n \n",
 					     s->data_ctx.errors.px->id, s->data_ctx.errors.px->uuid,
 					     pn, es->sid, es->oe->id, es->oe->uuid,
 					     es->srv ? es->srv->id : "<NONE>",
