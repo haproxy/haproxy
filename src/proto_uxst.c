@@ -481,6 +481,7 @@ int uxst_event_accept(int fd) {
 		memset(&s->logs, 0, sizeof(s->logs));
 		memset(&s->txn, 0, sizeof(s->txn));
 
+		s->logs.accept_date = date; /* user-visible date for logging */
 		s->logs.tv_accept = now;  /* corrected date for internal use */
 
 		s->data_state = DATA_ST_INIT;
