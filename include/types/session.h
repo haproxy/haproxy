@@ -212,7 +212,11 @@ struct session {
 			int iid, type, sid;	/* proxy id, type and service id if bounding of stats is enabled */
 		} stats;
 		struct {
-			struct bref bref;
+			struct bref bref;	/* back-reference from the session being dumped */
+			void *target;		/* session we want to dump, or NULL for all */
+			unsigned int uid;	/* if non-null, the uniq_id of the session being dumped */
+			int section;		/* section of the session being dumped */
+			int pos;		/* last position of the current session's buffer */
 		} sess;
 		struct {
 			int iid;		/* if >= 0, ID of the proxy to filter on */

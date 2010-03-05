@@ -7803,6 +7803,13 @@ show sess
   be huge. This command is restricted and can only be issued on sockets
   configured for levels "operator" or "admin".
 
+show sess <id>
+  Display a lot of internal information about the specified session identifier.
+  This identifier is the first field at the beginning of the lines in the dumps
+  of "show sess" (it corresponds to the session pointer). Those information are
+  useless to most users but may be used by haproxy developers to troubleshoot a
+  complex bug. The output format is intentionally not documented so that it can
+  freely evolve depending on demands.
 
 show stat [<iid> <type> <sid>]
   Dump statistics in the CSV format. By passing <id>, <type> and <sid>, it is

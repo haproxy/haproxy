@@ -61,7 +61,7 @@ const char stats_sock_usage_msg[] =
 	"  show info      : report information about the running process\n"
 	"  show stat      : report counters for each proxy and server\n"
 	"  show errors    : report last request and response errors for each proxy\n"
-	"  show sess      : report the list of current sessions\n"
+	"  show sess [id] : report the list of current sessions or dump this session\n"
 	"  get weight     : report a server's current weight\n"
 	"  set weight     : change a server's weight\n"
 	"  set timeout    : change a timeout setting\n"
@@ -316,6 +316,12 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 				si->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
+			if (*args[2])
+				s->data_ctx.sess.target = (void *)strtoul(args[2], NULL, 0);
+			else
+				s->data_ctx.sess.target = NULL;
+			s->data_ctx.sess.section = 0; /* start with session status */
+			s->data_ctx.sess.pos = 0;
 			si->st0 = STAT_CLI_O_SESS; // stats_dump_sess_to_buffer
 		}
 		else if (strcmp(args[1], "errors") == 0) {
@@ -2298,6 +2304,209 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 	}
 }
 
+/* This function is called to send output to the response buffer. It dumps a
+ * complete session state onto the output buffer <rep>. The session has to be
+ * set in data_ctx.sess.target. It returns 0 if the output buffer is full and
+ * it needs to be called again, otherwise non-zero. It is designed to be called
+ * from stats_dump_sess_to_buffer() below.
+ */
+
+/* returns 1 if dump is not complete */
+int stats_dump_full_sess_to_buffer(struct session *s, struct buffer *rep)
+{
+	struct tm tm;
+	struct chunk msg;
+	struct session *sess;
+	extern const char *monthname[12];
+	char pn[INET6_ADDRSTRLEN];
+
+	chunk_init(&msg, trash, sizeof(trash));
+	sess = s->data_ctx.sess.target;
+
+	if (s->data_ctx.sess.section > 0 && s->data_ctx.sess.uid != sess->uniq_id) {
+		/* session changed, no need to go any further */
+		chunk_printf(&msg, "  *** session terminated while we were watching it ***\n");
+		if (buffer_feed_chunk(rep, &msg) >= 0)
+			return 0;
+		s->data_ctx.sess.target = NULL;
+		s->data_ctx.sess.uid = 0;
+		return 1;
+	}
+
+	switch (s->data_ctx.sess.section) {
+	case 0: /* main status of the session */
+		s->data_ctx.sess.uid = sess->uniq_id;
+		s->data_ctx.sess.section = 1;
+		/* fall through */
+
+	case 1:
+		chunk_printf(&msg,
+			     "%p: id=%u, proto=%s",
+			     sess,
+			     sess->uniq_id,
+			     sess->listener->proto->name);
+
+		switch (sess->listener->proto->sock_family) {
+		case AF_INET:
+			inet_ntop(AF_INET,
+				  (const void *)&((struct sockaddr_in *)&sess->cli_addr)->sin_addr,
+				  pn, sizeof(pn));
+
+			chunk_printf(&msg,
+				     " source=%s:%d\n",
+				     pn,
+				     ntohs(((struct sockaddr_in *)&sess->cli_addr)->sin_port));
+			break;
+		case AF_INET6:
+			inet_ntop(AF_INET6,
+				  (const void *)&((struct sockaddr_in6 *)(&sess->cli_addr))->sin6_addr,
+				  pn, sizeof(pn));
+
+			chunk_printf(&msg,
+				     " source=%s:%d\n",
+				     pn,
+				     ntohs(((struct sockaddr_in6 *)&sess->cli_addr)->sin6_port));
+			break;
+		case AF_UNIX:
+		default:
+			/* no more information to print right now */
+			chunk_printf(&msg, "\n");
+			break;
+		}
+
+		chunk_printf(&msg,
+			     "  flags=0x%x, conn_retries=%d, srv_conn=%p, pend_pos=%p\n",
+			     sess->flags, sess->conn_retries, sess->srv_conn, sess->pend_pos);
+
+		chunk_printf(&msg,
+			     "  frontend=%s (id=%u mode=%s), listener=%s (id=%u)\n",
+			     sess->fe->id, sess->fe->uuid, sess->fe->mode ? "http" : "tcp",
+			     sess->listener ? sess->listener->name ? sess->listener->name : "?" : "?",
+			     sess->listener ? sess->listener->luid : 0);
+
+		chunk_printf(&msg,
+			     "  backend=%s (id=%u mode=%s) server=%s (id=%u)\n",
+			     sess->be->id, sess->be->uuid, sess->be->mode ? "http" : "tcp",
+			     sess->srv ? sess->srv->id : "<none>",
+			     sess->srv ? sess->srv->puid : 0);
+
+		chunk_printf(&msg,
+			     "  task=%p (state=0x%02x nice=%d calls=%d exp=%s%s)\n",
+			     sess->task,
+			     sess->task->state,
+			     sess->task->nice, sess->task->calls,
+			     sess->task->expire ?
+			             tick_is_expired(sess->task->expire, now_ms) ? "<PAST>" :
+			                     human_time(TICKS_TO_MS(sess->task->expire - now_ms),
+			                     TICKS_TO_MS(1000)) : "<NEVER>",
+			     task_in_rq(sess->task) ? ", running" : "");
+
+		get_localtime(sess->logs.accept_date.tv_sec, &tm);
+		chunk_printf(&msg,
+			     "  task created [%02d/%s/%04d:%02d:%02d:%02d.%06d] (age=%s)\n",
+			     tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
+			     tm.tm_hour, tm.tm_min, tm.tm_sec, (int)(sess->logs.accept_date.tv_usec),
+			     human_time(now.tv_sec - sess->logs.accept_date.tv_sec, 1));
+
+		chunk_printf(&msg,
+			     "  si[0]=%p (state=%d flags=0x%02x fd=%d exp=%s, et=0x%03x)\n",
+			     &sess->si[0],
+			     sess->si[0].state,
+			     sess->si[0].flags,
+			     sess->si[0].fd,
+			     sess->si[0].exp ?
+			             tick_is_expired(sess->si[0].exp, now_ms) ? "<PAST>" :
+			                     human_time(TICKS_TO_MS(sess->si[0].exp - now_ms),
+			                     TICKS_TO_MS(1000)) : "<NEVER>",
+			     sess->si[0].err_type);
+
+		chunk_printf(&msg,
+			     "  si[1]=%p (state=%d flags=0x%02x fd=%d exp=%s, et=0x%03x)\n",
+			     &sess->si[1],
+			     sess->si[1].state,
+			     sess->si[1].flags,
+			     sess->si[1].fd,
+			     sess->si[1].exp ?
+			             tick_is_expired(sess->si[1].exp, now_ms) ? "<PAST>" :
+			                     human_time(TICKS_TO_MS(sess->si[1].exp - now_ms),
+			                     TICKS_TO_MS(1000)) : "<NEVER>",
+			     sess->si[1].err_type);
+
+		chunk_printf(&msg,
+			     "  txn=%p (flags=0x%x meth=%d status=%d req.st=%d rsp.st=%d)\n",
+			     &sess->txn, sess->txn.flags, sess->txn.meth, sess->txn.status,
+			     sess->txn.req.msg_state, sess->txn.rsp.msg_state);
+
+
+		chunk_printf(&msg,
+			     "  req=%p (f=0x%06x an=0x%x l=%d sndmx=%d pipe=%d fwd=%ld)\n"
+			     "      an_exp=%s",
+			     sess->req,
+			     sess->req->flags, sess->req->analysers,
+			     sess->req->l, sess->req->send_max,
+			     sess->req->pipe ? sess->req->pipe->data : 0,
+			     sess->req->to_forward,
+			     sess->req->analyse_exp ?
+			     human_time(TICKS_TO_MS(sess->req->analyse_exp - now_ms),
+					TICKS_TO_MS(1000)) : "<NEVER>");
+
+		chunk_printf(&msg,
+			     " rex=%s",
+			     sess->req->rex ?
+			     human_time(TICKS_TO_MS(sess->req->rex - now_ms),
+					TICKS_TO_MS(1000)) : "<NEVER>");
+
+		chunk_printf(&msg,
+			     " wex=%s\n"
+			     "      data=%p r=%d w=%d lr=%d total=%lld\n",
+			     sess->req->wex ?
+			     human_time(TICKS_TO_MS(sess->req->wex - now_ms),
+					TICKS_TO_MS(1000)) : "<NEVER>",
+			     sess->req->data,
+			     sess->req->r - sess->req->data,
+			     sess->req->w - sess->req->data,
+			     sess->req->lr - sess->req->data,
+			     sess->req->total);
+
+		chunk_printf(&msg,
+			     "  res=%p (f=0x%06x an=0x%x l=%d sndmx=%d pipe=%d fwd=%ld)\n"
+			     "      an_exp=%s",
+			     sess->rep,
+			     sess->rep->flags, sess->rep->analysers,
+			     sess->rep->l, sess->rep->send_max,
+			     sess->rep->pipe ? sess->rep->pipe->data : 0,
+			     sess->rep->to_forward,
+			     sess->rep->analyse_exp ?
+			     human_time(TICKS_TO_MS(sess->rep->analyse_exp - now_ms),
+					TICKS_TO_MS(1000)) : "<NEVER>");
+
+		chunk_printf(&msg,
+			     " rex=%s",
+			     sess->rep->rex ?
+			     human_time(TICKS_TO_MS(sess->rep->rex - now_ms),
+					TICKS_TO_MS(1000)) : "<NEVER>");
+
+		chunk_printf(&msg,
+			     " wex=%s\n"
+			     "      data=%p r=%d w=%d lr=%d total=%lld\n",
+			     sess->rep->wex ?
+			     human_time(TICKS_TO_MS(sess->rep->wex - now_ms),
+					TICKS_TO_MS(1000)) : "<NEVER>",
+			     sess->rep->data,
+			     sess->rep->r - sess->rep->data,
+			     sess->rep->w - sess->rep->data,
+			     sess->rep->lr - sess->rep->data,
+			     sess->rep->total);
+
+		if (buffer_feed_chunk(rep, &msg) >= 0)
+			return 0;
+
+		/* use other states to dump the contents */
+	}
+	/* end of dump */
+	s->data_ctx.sess.uid = 0;
+	return 1;
+}
 
 /* This function is called to send output to the response buffer.
  * It dumps the sessions states onto the output buffer <rep>.
@@ -2351,6 +2560,22 @@ int stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 			struct session *curr_sess;
 
 			curr_sess = LIST_ELEM(s->data_ctx.sess.bref.ref, struct session *, list);
+
+			if (s->data_ctx.sess.target) {
+				if (s->data_ctx.sess.target != curr_sess)
+					goto next_sess;
+
+				LIST_ADDQ(&curr_sess->back_refs, &s->data_ctx.sess.bref.users);
+				/* call the proper dump() function and return if we're missing space */
+				if (!stats_dump_full_sess_to_buffer(s, rep))
+					return 0;
+
+				/* session dump complete */
+				LIST_DEL(&s->data_ctx.sess.bref.users);
+				LIST_INIT(&s->data_ctx.sess.bref.users);
+				s->data_ctx.sess.target = NULL;
+				break;
+			}
 
 			chunk_printf(&msg,
 				     "%p: proto=%s",
@@ -2476,8 +2701,25 @@ int stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 				return 0;
 			}
 
+		next_sess:
 			s->data_ctx.sess.bref.ref = curr_sess->list.n;
 		}
+
+		if (s->data_ctx.sess.target) {
+			/* specified session not found */
+			if (s->data_ctx.sess.section > 0)
+				chunk_printf(&msg, "  *** session terminated while we were watching it ***\n");
+			else
+				chunk_printf(&msg, "Session not found.\n");
+
+			if (buffer_feed_chunk(rep, &msg) >= 0)
+				return 0;
+
+			s->data_ctx.sess.target = NULL;
+			s->data_ctx.sess.uid = 0;
+			return 1;
+		}
+
 		s->data_state = DATA_ST_FIN;
 		/* fall through */
 
