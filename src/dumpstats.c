@@ -2487,7 +2487,7 @@ int stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 	}
 }
 
-/* print a line of error buffer (limited to 70 bytes) to <out>. The format is :
+/* print a line of text buffer (limited to 70 bytes) to <out>. The format is :
  * <2 spaces> <offset=5 digits> <space or plus> <space> <70 chars max> <\n>
  * which is 60 chars per line. Non-printable chars \t, \n, \r and \e are
  * encoded in C format. Other non-printable chars are encoded "\xHH". Original
@@ -2495,8 +2495,8 @@ int stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
  * continuation of a previous truncated line begin with "+" instead of " "
  * after the offset. The new pointer is returned.
  */
-static int dump_error_line(struct chunk *out, struct error_snapshot *err,
-				int *line, int ptr)
+static int dump_text_line(struct chunk *out, const char *buf, int bsize, int len,
+			  int *line, int ptr)
 {
 	int end;
 	unsigned char c;
@@ -2507,8 +2507,8 @@ static int dump_error_line(struct chunk *out, struct error_snapshot *err,
 
 	chunk_printf(out, "  %05d%c ", ptr, (ptr == *line) ? ' ' : '+');
 
-	while (ptr < err->len && ptr < sizeof(err->buf)) {
-		c = err->buf[ptr];
+	while (ptr < len && ptr < bsize) {
+		c = buf[ptr];
 		if (isprint(c) && isascii(c) && c != '\\') {
 			if (out->len > end - 2)
 				break;
@@ -2533,7 +2533,7 @@ static int dump_error_line(struct chunk *out, struct error_snapshot *err,
 			out->str[out->len++] = hextab[(c >> 4) & 0xF];
 			out->str[out->len++] = hextab[c & 0xF];
 		}
-		if (err->buf[ptr++] == '\n') {
+		if (buf[ptr++] == '\n') {
 			/* we had a line break, let's return now */
 			out->str[out->len++] = '\n';
 			*line = ptr;
@@ -2659,7 +2659,7 @@ int stats_dump_errors_to_buffer(struct session *s, struct buffer *rep)
 			int newline;
 
 			newline = s->data_ctx.errors.bol;
-			newptr = dump_error_line(&msg, es, &newline, s->data_ctx.errors.ptr);
+			newptr = dump_text_line(&msg, es->buf, sizeof(es->buf), es->len, &newline, s->data_ctx.errors.ptr);
 			if (newptr == s->data_ctx.errors.ptr)
 				return 0;
 
