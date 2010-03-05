@@ -1843,15 +1843,15 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     /* errors : request, connect */
 				     "<td></td><td>%s</td>"
 				     /* errors : response */
-				     "<td title=\"Connection resets during transfers: %s client, %s server\"><u>%s</u></td>"
+				     "<td title=\"Connection resets during transfers: %lld client, %lld server\"><u>%s</u></td>"
 				     /* warnings: retries, redispatches */
 				     "<td>%lld</td><td>%lld</td>"
 				     "",
 				     U2H0(sv->counters.bytes_in), U2H1(sv->counters.bytes_out),
 				     U2H2(sv->counters.failed_secu),
 				     U2H3(sv->counters.failed_conns),
-				     U2H4(sv->counters.cli_aborts),
-				     U2H5(sv->counters.srv_aborts),
+				     sv->counters.cli_aborts,
+				     sv->counters.srv_aborts,
 				     U2H6(sv->counters.failed_resp),
 				     sv->counters.retries, sv->counters.redispatches);
 
@@ -2174,7 +2174,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     /* errors : request, connect */
 				     "<td></td><td>%s</td>"
 				     /* errors : response */
-				     "<td title=\"Connection resets during transfers: %s client, %s server\"><u>%s</u></td>"
+				     "<td title=\"Connection resets during transfers: %lld client, %lld server\"><u>%s</u></td>"
 				     /* warnings: retries, redispatches */
 				     "<td>%lld</td><td>%lld</td>"
 				     /* backend status: reflect backend status (up/down): we display UP
@@ -2186,8 +2186,8 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     "",
 				     U2H0(px->counters.denied_req), U2H1(px->counters.denied_resp),
 				     U2H2(px->counters.failed_conns),
-				     U2H3(px->counters.cli_aborts),
-				     U2H4(px->counters.srv_aborts),
+				     px->counters.cli_aborts,
+				     px->counters.srv_aborts,
 				     U2H5(px->counters.failed_resp),
 				     px->counters.retries, px->counters.redispatches,
 				     human_time(now.tv_sec - px->last_change, 1),
