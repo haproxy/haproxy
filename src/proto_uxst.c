@@ -427,7 +427,7 @@ int uxst_event_accept(int fd) {
 		}
 
 		if (fcntl(cfd, F_SETFL, O_NONBLOCK) == -1) {
-			Alert("accept(): cannot set the socket in non blocking mode. Giving up\n");
+			Alert("accept(): cannot set the socket in non blocking mode. Giving up.\n");
 			goto out_free_task;
 		}
 

@@ -141,8 +141,9 @@ This can obviously have a tremendous benefit on performance because the network
 latency is eliminated between subsequent requests. Many HTTP agents do not
 correctly support pipelining since there is no way to associate a response with
 the corresponding request in HTTP. For this reason, it is mandatory for the
-server to reply in the exact same order as the requests were received. HAProxy
-supports pipelined requsts on the client side and processes them one at a time.
+server to reply in the exact same order as the requests were received.
+HAProxy supports pipelined requests on the client side and processes them one
+at a time.
 
 
 1.2. HTTP request
@@ -686,11 +687,11 @@ http stats by allowing only authenticated and authorized users. To do this,
 it is required to create at least one userlist and to define users.
 
 userlist <listname>
-  Creates new userlist with name <listname>. Many indepenend userlists can be
+  Creates new userlist with name <listname>. Many independent userlists can be
   used to store authentication & authorization data for independent customers.
 
 group <groupname> [users <user>,<user>,(...)]
-  Adds group <gropname> to the current userlist. It is also possible to
+  Adds group <groupname> to the current userlist. It is also possible to
   attach users to this group by using a comma separated list of names
   proceeded by "users" keyword.
 
@@ -698,8 +699,8 @@ user <username> [password|insecure-password <password>]
                 [groups <group>,<group>,(...)]
   Adds user <username> to the current userlist. Both secure (encrypted) and
   insecure (unencrypted) passwords can be used. Encrypted passwords are
-  evaluated using the crypt(3) function so dependig of the system's
-  capabilities, different algoritms are supported. For example modern Glibc
+  evaluated using the crypt(3) function so depending of the system's
+  capabilities, different algorithms are supported. For example modern Glibc
   based Linux system supports MD5, SHA-256, SHA-512 and of course classic,
   DES-based method of crypting passwords.
 
@@ -2042,19 +2043,19 @@ http-request { allow | deny | http-auth [realm <realm>] }
   instance.
 
   Example:
-	acl nagios src 192.168.129.3
-	acl local_net src 192.168.0.0/16
-	acl auth_ok http_auth(L1)
+        acl nagios src 192.168.129.3
+        acl local_net src 192.168.0.0/16
+        acl auth_ok http_auth(L1)
 
-	http-request allow if nagios
-	http-request allow if local_net auth_ok
-	http-request auth realm Gimme if local_net auth_ok
-	http-request deny
+        http-request allow if nagios
+        http-request allow if local_net auth_ok
+        http-request auth realm Gimme if local_net auth_ok
+        http-request deny
 
-  Exampe:
-	acl auth_ok http_auth_group(L1) G1
+  Example:
+        acl auth_ok http_auth_group(L1) G1
 
-	http-request auth unless auth_ok
+        http-request auth unless auth_ok
 
   See section 3.4 about userlists and 7 about ACL usage.
 
@@ -4845,9 +4846,9 @@ stick-table type {ip | integer | string [len <length>] } size <size>
                increase.
 
     <size>     is the maximum number of entries that can fit in the table. This
-               value directly impats memory usage. Count approximately 50 bytes
-               per entry, plus the size of a string if any. The size supports
-               suffixes "k", "m", "g" for 2^10, 2^20 and 2^30 factors.
+               value directly impacts memory usage. Count approximately
+               50 bytes per entry, plus the size of a string if any. The size
+               supports suffixes "k", "m", "g" for 2^10, 2^20 and 2^30 factors.
 
     [nopurge]  indicates that we refuse to purge older entries when the table
                is full. When not specified and the table is full when haproxy
@@ -5232,7 +5233,7 @@ timeout srvtimeout <timeout> (deprecated)
 
 
 timeout tarpit <timeout>
-  Set the duration for which tapitted connections will be maintained
+  Set the duration for which tarpitted connections will be maintained
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
   Arguments :
@@ -5248,7 +5249,7 @@ timeout tarpit <timeout>
   unit if the number is suffixed by the unit, as specified at the top of this
   document. If unspecified, the same value as the backend's connection timeout
   ("timeout connect") is used, for backwards compatibility with older versions
-  with no "timeout tapit" parameter.
+  with no "timeout tarpit" parameter.
 
   See also : "timeout connect", "contimeout".
 
@@ -5916,7 +5917,7 @@ fe_conn(frontend) <integer>
   criteria.
 
 fe_id <integer>
-  Applies to the fronted's id. Can be used in backends to check from which
+  Applies to the frontend's id. Can be used in backends to check from which
   frontend it was called.
 
 fe_sess_rate <integer>
