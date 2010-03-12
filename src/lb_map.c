@@ -79,9 +79,6 @@ void recalc_server_map(struct proxy *px)
 	case 0:	/* no server */
 		px->lbprm.map.state &= ~LB_MAP_RECALC;
 		return;
-	case 1: /* only one server, just fill first entry */
-		tot = 1;
-		break;
 	default:
 		tot = px->lbprm.tot_weight;
 		break;
