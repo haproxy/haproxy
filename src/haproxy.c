@@ -147,7 +147,7 @@ const int zero = 0;
 const int one = 1;
 const struct linger nolinger = { .l_onoff = 1, .l_linger = 0 };
 
-char hostname[MAX_HOSTNAME_LEN] = "";
+char hostname[MAX_HOSTNAME_LEN];
 
 
 /*********************************************************************/
@@ -542,7 +542,12 @@ void init(int argc, char **argv)
 	if (LIST_ISEMPTY(&cfg_cfgfiles))
 		usage(old_argv);
 
-	gethostname(hostname, MAX_HOSTNAME_LEN);
+	/* NB: POSIX does not make it mandatory for gethostname() to NULL-terminate
+	 * the string in case of truncation, and at least FreeBSD appears not to do
+	 * it.
+	 */
+	memset(hostname, 0, sizeof(hostname));
+	gethostname(hostname, sizeof(hostname) - 1);
 
 	have_appsession = 0;
 	global.maxsock = 10; /* reserve 10 fds ; will be incremented by socket eaters */
