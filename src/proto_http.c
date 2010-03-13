@@ -1018,11 +1018,16 @@ void http_sess_clflog(struct session *s)
 		for (hdr = 0; hdr < fe->nb_req_cap; hdr++) {
 			if (h >= sizeof (tmpline) + tmpline - 4)
 				goto trunc;
-			*(h++) = ' ';
-			*(h++) = '\"';
-			h = encode_string(h, tmpline + sizeof(tmpline) - 2,
-			                  '#', hdr_encode_map, txn->req.cap[hdr]);
-			*(h++) = '\"';
+			if (txn->req.cap[hdr] != NULL) {
+				*(h++) = ' ';
+				*(h++) = '\"';
+				h = encode_string(h, tmpline + sizeof(tmpline) - 2,
+						'#', hdr_encode_map, txn->req.cap[hdr]);
+				*(h++) = '\"';
+			} else {
+				memcpy(h, " \"-\"", 4);
+				h += 4;
+			}
 		}
 	}
 
@@ -1030,11 +1035,16 @@ void http_sess_clflog(struct session *s)
 		for (hdr = 0; hdr < fe->nb_rsp_cap; hdr++) {
 			if (h >= sizeof (tmpline) + tmpline - 4)
 				goto trunc;
-			*(h++) = ' ';
-			*(h++) = '\"';
-			h = encode_string(h, tmpline + sizeof(tmpline) - 2,
-			                  '#', hdr_encode_map, txn->rsp.cap[hdr]);
-			*(h++) = '\"';
+			if (txn->rsp.cap[hdr] != NULL) {
+				*(h++) = ' ';
+				*(h++) = '\"';
+				h = encode_string(h, tmpline + sizeof(tmpline) - 2,
+						'#', hdr_encode_map, txn->rsp.cap[hdr]);
+				*(h++) = '\"';
+			} else {
+				memcpy(h, " \"-\"", 4);
+				h += 4;
+			}
 		}
 	}
 
