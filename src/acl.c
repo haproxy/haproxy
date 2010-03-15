@@ -767,7 +767,8 @@ struct acl *prune_acl(struct acl *acl) {
 
 /* Parse an ACL with the name starting at <args>[0], and with a list of already
  * known ACLs in <acl>. If the ACL was not in the list, it will be added.
- * A pointer to that ACL is returned.
+ * A pointer to that ACL is returned. If the ACL has an empty name, then it's
+ * an anonymous one and it won't be merged with any other one.
  *
  * args syntax: <aclname> <acl_expr>
  */
@@ -778,7 +779,7 @@ struct acl *parse_acl(const char **args, struct list *known_acl)
 	struct acl_expr *acl_expr;
 	char *name;
 
-	if (invalid_char(*args))
+	if (**args && invalid_char(*args))
 		goto out_return;
 
 	acl_expr = parse_acl_expr(args + 1);
@@ -797,7 +798,11 @@ struct acl *parse_acl(const char **args, struct list *known_acl)
 			"  match and the pattern to make this warning message disappear.\n",
 			args[0], args[1], args[2]);
 
-	cur_acl = find_acl_by_name(args[0], known_acl);
+	if (*args[0])
+		cur_acl = find_acl_by_name(args[0], known_acl);
+	else
+		cur_acl = NULL;
+
 	if (!cur_acl) {
 		name = strdup(args[0]);
 		if (!name)
@@ -980,7 +985,7 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int p
 			if (!args_new)
 				goto out_free_suite;
 
-			args_new[0] = ".noname";
+			args_new[0] = "";
 			memcpy(args_new + 1, args + arg + 1, (arg_end - arg) * sizeof(*args_new));
 			args_new[arg_end - arg] = "";
 			cur_acl = parse_acl(args_new, known_acl);
