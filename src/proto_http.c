@@ -4503,7 +4503,11 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 
 	txn->status = strl2ui(msg->sol + msg->sl.st.c, msg->sl.st.c_l);
 
-	if (txn->status >= 100 && txn->status < 500)
+	/* Adjust server's health based on status code. Note: status codes 501
+	 * and 505 are triggered on demand by client request, so we must not
+	 * count them as server failures.
+	 */
+	if (txn->status >= 100 && (txn->status < 500 || txn->status == 501 || txn->status == 505))
 		health_adjust(s->srv, HANA_STATUS_HTTP_OK);
 	else
 		health_adjust(s->srv, HANA_STATUS_HTTP_STS);
