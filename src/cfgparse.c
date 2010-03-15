@@ -3389,6 +3389,7 @@ stats_error_parsing:
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
+				cur_arg += 2;
 			}
 			else if (!defsrv && !strcmp(args[cur_arg], "source")) {  /* address to which we bind when connecting */
 				int port_low, port_high;
