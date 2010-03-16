@@ -898,10 +898,17 @@ static int event_srv_chk_r(int fd)
 			fdtab[fd].ev &= ~FD_POLL_IN;
 			return 0;
 		}
-		/* network error, report it */
-		if (!(s->result & SRV_CHK_ERROR))
-			set_server_check_status(s, HCHK_STATUS_SOCKERR, NULL);
-		goto out_wakeup;
+
+		/* Report network errors only if we got no other data. Otherwise
+		 * we'll let the upper layers decide whether the response is OK
+		 * or not. It is very common that an RST sent by the server is
+		 * reported as an error just after the last data chunk.
+		 */
+		if (!s->check_data_len) {
+			if (!(s->result & SRV_CHK_ERROR))
+				set_server_check_status(s, HCHK_STATUS_SOCKERR, NULL);
+			goto out_wakeup;
+		}
 	}
 
 	/* Full response received.
