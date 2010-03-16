@@ -866,9 +866,7 @@ static int event_srv_chk_r(int fd)
 	struct server *s = t->context;
 	char *desc;
 
-	if (unlikely((s->result & SRV_CHK_ERROR) ||
-		     (fdtab[fd].state == FD_STERROR) ||
-		     (fdtab[fd].ev & FD_POLL_ERR))) {
+	if (unlikely((s->result & SRV_CHK_ERROR) || (fdtab[fd].state == FD_STERROR))) {
 		/* in case of TCP only, this tells us if the connection failed */
 		if (!(s->result & SRV_CHK_ERROR))
 			set_server_check_status(s, HCHK_STATUS_SOCKERR, NULL);
