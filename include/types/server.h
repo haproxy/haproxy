@@ -147,6 +147,9 @@ struct server {
 	struct freq_ctr sess_per_sec;		/* sessions per second on this server */
 	int puid;				/* proxy-unique server ID, used for SNMP */
 
+	char *check_data;			/* storage of partial check results */
+	int check_data_len;			/* length of partial check results stored in check_data */
+
 	struct {
 		const char *file;		/* file where the section appears */
 		int line;			/* line where the section appears */

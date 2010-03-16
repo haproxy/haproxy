@@ -865,6 +865,8 @@ static int event_srv_chk_r(int fd)
 	struct task *t = fdtab[fd].owner;
 	struct server *s = t->context;
 	char *desc;
+	char *buffer;
+	int buffer_remaining;
 
 	len = -1;
 
@@ -882,8 +884,20 @@ static int event_srv_chk_r(int fd)
 	 * but the connection was closed on the remote end. Fortunately, recv still
 	 * works correctly and we don't need to do the getsockopt() on linux.
 	 */
-	len = recv(fd, trash, sizeof(trash), 0);
-	if (unlikely(len < 0)) {
+
+	/* Set buffer to point to the end of the data already read, and check
+	 * that there is free space remaining. If the buffer is full, proceed
+	 * with running the checks without attempting another socket read.
+	 */
+	buffer = s->check_data + s->check_data_len;
+	buffer_remaining = BUFSIZE - s->check_data_len;
+
+	if (buffer_remaining > 0)
+		len = recv(fd, buffer, buffer_remaining, 0);
+	else
+		len = 0;
+
+	if (len < 0) {			/* recv returned an error */
 		if (errno == EAGAIN) {
 			/* not ready, we want to poll first */
 			fdtab[fd].ev &= ~FD_POLL_IN;
@@ -894,70 +908,88 @@ static int event_srv_chk_r(int fd)
 			set_server_check_status(s, HCHK_STATUS_SOCKERR, NULL);
 		goto out_wakeup;
 	}
+	else if (len != 0)		/* recv hasn't seen end of connection */
+	{
+		s->check_data_len += len;
+		fdtab[fd].ev &= ~FD_POLL_IN;
+		return 0;
+	}
 
-	if (len < sizeof(trash))
-		trash[len] = '\0';
+	/* Full response received.
+	 * Terminate string in check_data buffer... */
+	if (s->check_data_len < BUFSIZE)
+		*buffer = '\0';
 	else
-		trash[len-1] = '\0';
+		*(buffer - 1) = '\0';
 
-	/* Note: the response will only be accepted if read at once */
+	/* Close the connection... */
+	int shut = shutdown(fd, SHUT_RDWR);
+	int err = errno;
+	if (shut == -1) {
+		Alert("event_srv_chk_r(): err = %i, %s\n", err, strerror(err));
+	}
+
+	/* Run the checks... */
 	if (s->proxy->options & PR_O_HTTP_CHK) {
 		/* Check if the server speaks HTTP 1.X */
-		if ((len < strlen("HTTP/1.0 000\r")) ||
-		    (memcmp(trash, "HTTP/1.", 7) != 0 ||
-		    (trash[12] != ' ' && trash[12] != '\r')) ||
-		    !isdigit((unsigned char)trash[9]) || !isdigit((unsigned char)trash[10]) ||
-		    !isdigit((unsigned char)trash[11])) {
-
-			cut_crlf(trash);
-			set_server_check_status(s, HCHK_STATUS_L7RSP, trash);
+		if ((s->check_data_len < strlen("HTTP/1.0 000\r")) ||
+		    (memcmp(s->check_data, "HTTP/1.", 7) != 0 ||
+		    (*(s->check_data + 12) != ' ' && *(s->check_data + 12) != '\r')) ||
+		    !isdigit((unsigned char) *(s->check_data + 9)) || !isdigit((unsigned char) *(s->check_data + 10)) ||
+		    !isdigit((unsigned char) *(s->check_data + 11))) {
+			cut_crlf(s->check_data);
+			set_server_check_status(s, HCHK_STATUS_L7RSP, s->check_data);
 
 			goto out_wakeup;
 		}
 
-		s->check_code = str2uic(&trash[9]);
+		s->check_code = str2uic(s->check_data + 9);
 
-		desc = ltrim(&trash[12], ' ');
-		cut_crlf(desc);
-
+		desc = ltrim(s->check_data + 12, ' ');
+		
 		/* check the reply : HTTP/1.X 2xx and 3xx are OK */
-		if (trash[9] == '2' || trash[9] == '3')
+		if (*(s->check_data + 9) == '2' || *(s->check_data + 9) == '3') {
+			cut_crlf(desc);
 			set_server_check_status(s, HCHK_STATUS_L7OKD, desc);
+		}
 		else if ((s->proxy->options & PR_O_DISABLE404) &&
 			 (s->state & SRV_RUNNING) &&
-			 (s->check_code == 404))
-		/* 404 may be accepted as "stopping" only if the server was up */
+			 (s->check_code == 404)) {
+			/* 404 may be accepted as "stopping" only if the server was up */
+			cut_crlf(desc);
 			set_server_check_status(s, HCHK_STATUS_L7OKCD, desc);
-		else
+		}
+		else {
+			cut_crlf(desc);
 			set_server_check_status(s, HCHK_STATUS_L7STS, desc);
+		}
 	}
 	else if (s->proxy->options & PR_O_SSL3_CHK) {
 		/* Check for SSLv3 alert or handshake */
-		if ((len >= 5) && (trash[0] == 0x15 || trash[0] == 0x16))
+		if ((s->check_data_len >= 5) && (*s->check_data == 0x15 || *s->check_data == 0x16))
 			set_server_check_status(s, HCHK_STATUS_L6OK, NULL);
 		else
 			set_server_check_status(s, HCHK_STATUS_L6RSP, NULL);
 	}
 	else if (s->proxy->options & PR_O_SMTP_CHK) {
 		/* Check if the server speaks SMTP */
-		if ((len < strlen("000\r")) ||
-		    (trash[3] != ' ' && trash[3] != '\r') ||
-		    !isdigit((unsigned char)trash[0]) || !isdigit((unsigned char)trash[1]) ||
-		    !isdigit((unsigned char)trash[2])) {
-
-			cut_crlf(trash);
-			set_server_check_status(s, HCHK_STATUS_L7RSP, trash);
+		if ((s->check_data_len < strlen("000\r")) ||
+		    (*(s->check_data + 3) != ' ' && *(s->check_data + 3) != '\r') ||
+		    !isdigit((unsigned char) *s->check_data) || !isdigit((unsigned char) *(s->check_data + 1)) ||
+		    !isdigit((unsigned char) *(s->check_data + 2))) {
+			cut_crlf(s->check_data);
+			set_server_check_status(s, HCHK_STATUS_L7RSP, s->check_data);
 
 			goto out_wakeup;
 		}
 
-		s->check_code = str2uic(&trash[0]);
+		s->check_code = str2uic(s->check_data);
 
-		desc = ltrim(&trash[3], ' ');
+		desc = ltrim(s->check_data + 3, ' ');
 		cut_crlf(desc);
 
 		/* Check for SMTP code 2xx (should be 250) */
-		if (trash[0] == '2')
+		if (*s->check_data == '2')
 			set_server_check_status(s, HCHK_STATUS_L7OKD, desc);
 		else
 			set_server_check_status(s, HCHK_STATUS_L7STS, desc);
@@ -965,27 +997,27 @@ static int event_srv_chk_r(int fd)
 	else if (s->proxy->options2 & PR_O2_MYSQL_CHK) {
 		/* MySQL Error packet always begin with field_count = 0xff
 		 * contrary to OK Packet who always begin whith 0x00 */
-		if (trash[4] != '\xff') {
+		if (*(s->check_data + 4) != '\xff') {
 			/* We set the MySQL Version in description for information purpose
 			 * FIXME : it can be cool to use MySQL Version for other purpose,
 			 * like mark as down old MySQL server.
 			 */
-			if (len > 51) {
-				desc = ltrim(&trash[5], ' ');
+			if (s->check_data_len > 51) {
+				desc = ltrim(s->check_data + 5, ' ');
 				set_server_check_status(s, HCHK_STATUS_L7OKD, desc);
 			}
 			else {
 				/* it seems we have a OK packet but without a valid length,
 				 * it must be a protocol error
 				 */
-				set_server_check_status(s, HCHK_STATUS_L7RSP, trash);
+				set_server_check_status(s, HCHK_STATUS_L7RSP, s->check_data);
 			}
 		}
 		else {
 			/* An error message is attached in the Error packet,
 			 * so we can display it ! :)
 			 */
-			desc = ltrim(&trash[7], ' ');
+			desc = ltrim(s->check_data + 7, ' ');
 			set_server_check_status(s, HCHK_STATUS_L7STS, desc);
 		}
 	}
@@ -997,6 +1029,10 @@ static int event_srv_chk_r(int fd)
  out_wakeup:
 	if (s->result & SRV_CHK_ERROR)
 		fdtab[fd].state = FD_STERROR;
+
+	/* Reset the check buffer... */
+	*s->check_data = '\0';
+	s->check_data_len = 0;
 
 	EV_FD_CLR(fd, DIR_RD);
 	task_wakeup(t, TASK_WOKEN_IO);

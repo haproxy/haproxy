@@ -3116,6 +3116,12 @@ stats_error_parsing:
 			newsrv->curfd = -1;		/* no health-check in progress */
 			newsrv->health = newsrv->rise;	/* up, but will fall down at first failure */
 
+			/* Allocate buffer for partial check results... */
+			if ((newsrv->check_data = calloc(BUFSIZE, sizeof(char))) == NULL) {
+				Alert("parsing [%s:%d] : out of memory while allocating check buffer.\n", file, linenum);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
 			cur_arg = 3;
 		} else {
 			newsrv = &curproxy->defsrv;

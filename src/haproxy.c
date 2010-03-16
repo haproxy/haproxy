@@ -859,6 +859,7 @@ void deinit(void)
 
 			free(s->id);
 			free(s->cookie);
+			free(s->check_data);
 			free(s);
 			s = s_next;
 		}/* end while(s) */
