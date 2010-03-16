@@ -865,10 +865,6 @@ static int event_srv_chk_r(int fd)
 	struct task *t = fdtab[fd].owner;
 	struct server *s = t->context;
 	char *desc;
-	char *buffer;
-	int buffer_remaining;
-
-	len = -1;
 
 	if (unlikely((s->result & SRV_CHK_ERROR) ||
 		     (fdtab[fd].state == FD_STERROR) ||
@@ -889,13 +885,12 @@ static int event_srv_chk_r(int fd)
 	 * that there is free space remaining. If the buffer is full, proceed
 	 * with running the checks without attempting another socket read.
 	 */
-	buffer = s->check_data + s->check_data_len;
-	buffer_remaining = BUFSIZE - s->check_data_len;
 
-	if (buffer_remaining > 0)
-		len = recv(fd, buffer, buffer_remaining, 0);
-	else
-		len = 0;
+	for (len = 0; s->check_data_len < BUFSIZE; s->check_data_len += len) {
+		len = recv(fd, s->check_data + s->check_data_len, BUFSIZE - s->check_data_len, 0);
+		if (len <= 0)
+			break;
+	}
 
 	if (len < 0) {			/* recv returned an error */
 		if (errno == EAGAIN) {
@@ -908,19 +903,13 @@ static int event_srv_chk_r(int fd)
 			set_server_check_status(s, HCHK_STATUS_SOCKERR, NULL);
 		goto out_wakeup;
 	}
-	else if (len != 0)		/* recv hasn't seen end of connection */
-	{
-		s->check_data_len += len;
-		fdtab[fd].ev &= ~FD_POLL_IN;
-		return 0;
-	}
 
 	/* Full response received.
 	 * Terminate string in check_data buffer... */
 	if (s->check_data_len < BUFSIZE)
-		*buffer = '\0';
+		s->check_data[s->check_data_len] = '\0';
 	else
-		*(buffer - 1) = '\0';
+		s->check_data[s->check_data_len - 1] = '\0';
 
 	/* Close the connection... */
 	int shut = shutdown(fd, SHUT_RDWR);
