@@ -868,6 +868,7 @@ fullconn                                  X          -         X         X
 grace                                     X          X         X         X
 hash-type                                 X          -         X         X
 http-check disable-on-404                 X          -         X         X
+http-check expect                         -          -         X         X
 http-check send-state                     X          -         X         X
 http-request                              -          X         X         X
 id                                        -          X         X         X
@@ -2083,9 +2084,93 @@ http-check disable-on-404
   generate an alert, just a notice. If the server responds 2xx or 3xx again, it
   will immediately be reinserted into the farm. The status on the stats page
   reports "NOLB" for a server in this mode. It is important to note that this
-  option only works in conjunction with the "httpchk" option.
+  option only works in conjunction with the "httpchk" option. If this option
+  is used with "http-check expect", then it has precedence over it so that 404
+  responses will still be considered as soft-stop.
 
-  See also : "option httpchk"
+  See also : "option httpchk", "http-check expect"
+
+
+http-check expect [!] <match> <pattern>
+  Make HTTP health checks consider reponse contents or specific status codes
+  May be used in sections :   defaults | frontend | listen | backend
+                                  no   |    no    |   yes  |   yes
+  Arguments :
+    <match>   is a keyword indicating how to look for a specific pattern in the
+              response. The keyword may be one of "status", "rstatus",
+	      "string", or "rstring". The keyword may be preceeded by an
+              exclamation mark ("!") to negate the match. Spaces are allowed
+              between the exclamation mark and the keyword. See below for more
+              details on the supported keywords.
+
+    <pattern> is the pattern to look for. It may be a string or a regular
+              expression. If the pattern contains spaces, they must be escaped
+              with the usual backslash ('\').
+
+  By default, "option httpchk" considers that response statuses 2xx and 3xx
+  are valid, and that others are invalid. When "http-check expect" is used,
+  it defines what is considered valid or invalid. Only one "http-check"
+  statement is supported in a backend. If a server fails to respond or times
+  out, the check obviously fails. The available matches are :
+
+    status <string> : test the exact string match for the HTTP status code.
+                      A health check respose will be considered valid if the
+                      response's status code is exactly this string. If the
+                      "status" keyword is prefixed with "!", then the response
+                      will be considered invalid if the status code matches.
+
+    rstatus <regex> : test a regular expression for the HTTP status code.
+                      A health check respose will be considered valid if the
+                      response's status code matches the expression. If the
+                      "rstatus" keyword is prefixed with "!", then the response
+                      will be considered invalid if the status code matches.
+                      This is mostly used to check for multiple codes.
+
+    string <string> : test the exact string match in the HTTP response body.
+                      A health check respose will be considered valid if the
+                      response's body contains this exact string. If the
+                      "string" keyword is prefixed with "!", then the response
+                      will be considered invalid if the body contains this
+                      string. This can be used to look for a mandatory word at
+                      the end of a dynamic page, or to detect a failure when a
+                      specific error appears on the check page (eg: a stack
+                      trace).
+
+    rstring <regex> : test a regular expression on the HTTP response body.
+                      A health check respose will be considered valid if the
+                      response's body matches this expression. If the "rstring"
+                      keyword is prefixed with "!", then the response will be
+                      considered invalid if the body matches the expression.
+                      This can be used to look for a mandatory word at the end
+                      of a dynamic page, or to detect a failure when a specific
+                      error appears on the check page (eg: a stack trace).
+
+  It is important to note that the responses will be limited to a certain size
+  defined by the global "tune.chksize" option, which defaults to 16384 bytes.
+  Thus, too large responses may not contain the mandatory pattern when using
+  "string" or "rstring". If a large response is absolutely required, it is
+  possible to change the default max size by setting the global variable.
+  However, it is worth keeping in mind that parsing very large responses can
+  waste some CPU cycles, especially when regular expressions are used, and that
+  it is always better to focus the checks on smaller resources.
+
+  Last, if "http-check expect" is combined with "http-check disable-on-404",
+  then this last one has precedence when the server responds with 404.
+
+  Examples :
+         # only accept status 200 as valid
+         http-request expect status 200
+
+         # consider SQL errors as errors
+         http-request expect ! string SQL\ Error
+
+         # consider status 5xx only as errors
+         http-request expect ! rstatus ^5
+
+         # check that we have a correct hexadecimal tag before /html
+         http-request expect rstring <!--tag:[0-9a-f]*</html>
+
+  See also : "option httpchk", "http-check disable-on-404"
 
 
 http-check send-state

@@ -2971,8 +2971,91 @@ stats_error_parsing:
 			/* enable emission of the apparent state of a server in HTTP checks */
 			curproxy->options2 |= PR_O2_CHK_SNDST;
 		}
+		else if (strcmp(args[1], "expect") == 0) {
+			const char *ptr_arg;
+			int cur_arg;
+
+			if (curproxy->options2 & PR_O2_EXP_TYPE) {
+				Alert("parsing [%s:%d] : '%s %s' already specified.\n", file, linenum, args[0], args[1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+
+			cur_arg = 2;
+			/* consider exclamation marks, sole or at the beginning of a word */
+			while (*(ptr_arg = args[cur_arg])) {
+				while (*ptr_arg == '!') {
+					curproxy->options2 ^= PR_O2_EXP_INV;
+					ptr_arg++;
+				}
+				if (*ptr_arg)
+					break;
+				cur_arg++;
+			}
+			/* now ptr_arg points to the beginning of a word past any possible
+			 * exclamation mark, and cur_arg is the argument which holds this word.
+			 */
+			if (strcmp(ptr_arg, "status") == 0) {
+				if (!*(args[cur_arg + 1])) {
+					Alert("parsing [%s:%d] : '%s %s %s' expects <string> as an argument.\n",
+					      file, linenum, args[0], args[1], ptr_arg);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				curproxy->options2 |= PR_O2_EXP_STS;
+				curproxy->expect_str = strdup(args[cur_arg + 1]);
+			}
+			else if (strcmp(ptr_arg, "string") == 0) {
+				if (!*(args[cur_arg + 1])) {
+					Alert("parsing [%s:%d] : '%s %s %s' expects <string> as an argument.\n",
+					      file, linenum, args[0], args[1], ptr_arg);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				curproxy->options2 |= PR_O2_EXP_STR;
+				curproxy->expect_str = strdup(args[cur_arg + 1]);
+			}
+			else if (strcmp(ptr_arg, "rstatus") == 0) {
+				if (!*(args[cur_arg + 1])) {
+					Alert("parsing [%s:%d] : '%s %s %s' expects <regex> as an argument.\n",
+					      file, linenum, args[0], args[1], ptr_arg);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				curproxy->options2 |= PR_O2_EXP_RSTS;
+				curproxy->expect_regex = calloc(1, sizeof(regex_t));
+				if (regcomp(curproxy->expect_regex, args[cur_arg + 1], REG_EXTENDED) != 0) {
+					Alert("parsing [%s:%d] : '%s %s %s' : bad regular expression '%s'.\n",
+					      file, linenum, args[0], args[1], ptr_arg, args[cur_arg + 1]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+			}
+			else if (strcmp(ptr_arg, "rstring") == 0) {
+				if (!*(args[cur_arg + 1])) {
+					Alert("parsing [%s:%d] : '%s %s %s' expects <regex> as an argument.\n",
+					      file, linenum, args[0], args[1], ptr_arg);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				curproxy->options2 |= PR_O2_EXP_RSTR;
+				curproxy->expect_regex = calloc(1, sizeof(regex_t));
+				if (regcomp(curproxy->expect_regex, args[cur_arg + 1], REG_EXTENDED) != 0) {
+					Alert("parsing [%s:%d] : '%s %s %s' : bad regular expression '%s'.\n",
+					      file, linenum, args[0], args[1], ptr_arg, args[cur_arg + 1]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+			}
+			else {
+				Alert("parsing [%s:%d] : '%s %s' only supports [!] 'status', 'string', 'rstatus', 'rstring', found '%s'.\n",
+				      file, linenum, args[0], args[1], ptr_arg);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+		}
 		else {
-			Alert("parsing [%s:%d] : '%s' only supports 'disable-on-404'.\n", file, linenum, args[0]);
+			Alert("parsing [%s:%d] : '%s' only supports 'disable-on-404', 'expect' .\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}

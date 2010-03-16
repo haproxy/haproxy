@@ -140,6 +140,14 @@
 #define PR_O2_SSL3_CHK  0x00100000      /* use SSLv3 CLIENT_HELLO packets for server health */
 #define PR_O2_FAKE_KA   0x00200000      /* pretend we do keep-alive with server eventhough we close */
 #define PR_O2_LDAP_CHK  0x00400000      /* use LDAP check for server health */
+
+#define PR_O2_EXP_NONE  0x00000000      /* http-check : no expect rule */
+#define PR_O2_EXP_STS   0x00800000      /* http-check expect status */
+#define PR_O2_EXP_RSTS  0x01000000      /* http-check expect rstatus */
+#define PR_O2_EXP_STR   0x01800000      /* http-check expect string */
+#define PR_O2_EXP_RSTR  0x02000000      /* http-check expect rstring */
+#define PR_O2_EXP_TYPE  0x03800000      /* mask for http-check expect type */
+#define PR_O2_EXP_INV   0x04000000      /* http-check expect !<rule> */
 /* end of proxy->options2 */
 
 /* bits for sticking rules */
@@ -283,6 +291,8 @@ struct proxy {
 	int grace;				/* grace time after stop request */
 	char *check_req;			/* HTTP or SSL request to use for PR_O_HTTP_CHK|PR_O_SSL3_CHK */
 	int check_len;				/* Length of the HTTP or SSL3 request */
+	char *expect_str;			/* http-check expected content */
+	regex_t *expect_regex;			/* http-check expected content */
 	struct chunk errmsg[HTTP_ERR_SIZE];	/* default or customized error messages for known errors */
 	int uuid;				/* universally unique proxy ID, used for SNMP */
 	unsigned int backlog;			/* force the frontend's listen backlog */

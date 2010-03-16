@@ -47,6 +47,8 @@
 #include <proto/server.h>
 #include <proto/task.h>
 
+static int httpchk_expect(struct server *s, int done);
+
 const struct check_status check_statuses[HCHK_STATUS_SIZE] = {
 	[HCHK_STATUS_UNKNOWN]	= { SRV_CHK_UNKNOWN,                   "UNK",     "Unknown" },
 	[HCHK_STATUS_INI]	= { SRV_CHK_UNKNOWN,                   "INI",     "Initializing" },
@@ -938,20 +940,23 @@ static int event_srv_chk_r(int fd)
 		}
 
 		s->check_code = str2uic(s->check_data + 9);
-
 		desc = ltrim(s->check_data + 12, ' ');
 		
-		/* check the reply : HTTP/1.X 2xx and 3xx are OK */
-		if (*(s->check_data + 9) == '2' || *(s->check_data + 9) == '3') {
-			cut_crlf(desc);
-			set_server_check_status(s, HCHK_STATUS_L7OKD, desc);
-		}
-		else if ((s->proxy->options & PR_O_DISABLE404) &&
-			 (s->state & SRV_RUNNING) &&
-			 (s->check_code == 404)) {
+		if ((s->proxy->options & PR_O_DISABLE404) &&
+			 (s->state & SRV_RUNNING) && (s->check_code == 404)) {
 			/* 404 may be accepted as "stopping" only if the server was up */
 			cut_crlf(desc);
 			set_server_check_status(s, HCHK_STATUS_L7OKCD, desc);
+		}
+		else if (s->proxy->options2 & PR_O2_EXP_TYPE) {
+			/* Run content verification check... We know we have at least 13 chars */
+			if (!httpchk_expect(s, done))
+				goto wait_more_data;
+		}
+		/* check the reply : HTTP/1.X 2xx and 3xx are OK */
+		else if (*(s->check_data + 9) == '2' || *(s->check_data + 9) == '3') {
+			cut_crlf(desc);
+			set_server_check_status(s, HCHK_STATUS_L7OKD, desc);
 		}
 		else {
 			cut_crlf(desc);
@@ -1515,6 +1520,107 @@ int start_checks() {
 		}
 	}
 	return 0;
+}
+
+/*
+ * Perform content verification check on data in s->check_data buffer.
+ * The buffer MUST be terminated by a null byte before calling this function.
+ * Sets server status appropriately. The caller is responsible for ensuring
+ * that the buffer contains at least 13 characters. If <done> is zero, we may
+ * return 0 to indicate that data is required to decide of a match.
+ */
+static int httpchk_expect(struct server *s, int done)
+{
+	static char status_msg[] = "HTTP status check returned code <000>";
+	char status_code[] = "000";
+	char *contentptr;
+	int crlf;
+	int ret;
+
+	switch (s->proxy->options2 & PR_O2_EXP_TYPE) {
+	case PR_O2_EXP_STS:
+	case PR_O2_EXP_RSTS:
+		memcpy(status_code, s->check_data + 9, 3);
+		memcpy(status_msg + strlen(status_msg) - 4, s->check_data + 9, 3);
+
+		if ((s->proxy->options2 & PR_O2_EXP_TYPE) == PR_O2_EXP_STS)
+			ret = strncmp(s->proxy->expect_str, status_code, 3) == 0;
+		else
+			ret = regexec(s->proxy->expect_regex, status_code, MAX_MATCH, pmatch, 0) == 0;
+
+		/* we necessarily have the response, so there are no partial failures */
+		if (s->proxy->options2 & PR_O2_EXP_INV)
+			ret = !ret;
+
+		set_server_check_status(s, ret ? HCHK_STATUS_L7OKD : HCHK_STATUS_L7STS, status_msg);
+		break;
+
+	case PR_O2_EXP_STR:
+	case PR_O2_EXP_RSTR:
+		/* very simple response parser: ignore CR and only count consecutive LFs,
+		 * stop with contentptr pointing to first char after the double CRLF or
+		 * to '\0' if crlf < 2.
+		 */
+		crlf = 0;
+		for (contentptr = s->check_data; *contentptr; contentptr++) {
+			if (crlf >= 2)
+				break;
+			if (*contentptr == '\r')
+				continue;
+			else if (*contentptr == '\n')
+				crlf++;
+			else
+				crlf = 0;
+		}
+
+		/* Check that response contains a body... */
+		if (crlf < 2) {
+			if (!done)
+				return 0;
+
+			set_server_check_status(s, HCHK_STATUS_L7RSP,
+						"HTTP content check could not find a response body");
+			return 1;
+		}
+
+		/* Check that response body is not empty... */
+		if (*contentptr == '\0') {
+			set_server_check_status(s, HCHK_STATUS_L7RSP,
+						"HTTP content check found empty response body");
+			return 1;
+		}
+
+		/* Check the response content against the supplied string
+		 * or regex... */
+		if ((s->proxy->options2 & PR_O2_EXP_TYPE) == PR_O2_EXP_STR)
+			ret = strstr(contentptr, s->proxy->expect_str) != NULL;
+		else
+			ret = regexec(s->proxy->expect_regex, contentptr, MAX_MATCH, pmatch, 0) == 0;
+
+		/* if we don't match, we may need to wait more */
+		if (!ret && !done)
+			return 0;
+
+		if (ret) {
+			/* content matched */
+			if (s->proxy->options2 & PR_O2_EXP_INV)
+				set_server_check_status(s, HCHK_STATUS_L7RSP,
+							"HTTP check matched unwanted content");
+			else
+				set_server_check_status(s, HCHK_STATUS_L7OKD,
+							"HTTP content check matched");
+		}
+		else {
+			if (s->proxy->options2 & PR_O2_EXP_INV)
+				set_server_check_status(s, HCHK_STATUS_L7OKD,
+							"HTTP check did not match unwanted content");
+			else
+				set_server_check_status(s, HCHK_STATUS_L7RSP,
+							"HTTP content check did not match");
+		}
+		break;
+	}
+	return 1;
 }
 
 /*
