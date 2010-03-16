@@ -917,11 +917,7 @@ static int event_srv_chk_r(int fd)
 		s->check_data[s->check_data_len - 1] = '\0';
 
 	/* Close the connection... */
-	int shut = shutdown(fd, SHUT_RDWR);
-	int err = errno;
-	if (shut == -1) {
-		Alert("event_srv_chk_r(): err = %i, %s\n", err, strerror(err));
-	}
+	shutdown(fd, SHUT_RDWR);
 
 	/* Run the checks... */
 	if (s->proxy->options & PR_O_HTTP_CHK) {
