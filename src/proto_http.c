@@ -2245,7 +2245,7 @@ int http_skip_chunk_crlf(struct buffer *buf, struct http_msg *msg)
 			ptr = buf->data;
 	}
 
-	if (buf->l < bytes)
+	if (bytes > buf->l - buf->send_max)
 		return 0;
 
 	if (*ptr != '\n')
