@@ -1,6 +1,33 @@
 ChangeLog :
 ===========
 
+2010/03/17 : 1.4.2
+    - [CLEANUP] product branch update
+    - [DOC] Some more documentation cleanups
+    - [BUG] clf logs segfault when capturing a non existant header
+    - [OPTIM] config: only allocate check buffer when checks are enabled
+    - [MEDIUM] checks: support multi-packet health check responses
+    - [CLEANUP] session: remove duplicate test
+    - [BUG] http: don't wait for response data to leave buffer is client has left
+    - [MINOR] proto_uxst: set accept_date upon accept() to the wall clock time
+    - [MINOR] stats: don't send empty lines in "show errors"
+    - [MINOR] stats: make the data dump function reusable for other purposes
+    - [MINOR] stats socket: add show sess <id> to dump details about a session
+    - [BUG] stats: connection reset counters must be plain ascii, not HTML
+    - [BUG] url_param hash may return a down server
+    - [MINOR] force null-termination of hostname
+    - [MEDIUM] connect to servers even when the input has already been closed
+    - [BUG] don't merge anonymous ACLs !
+    - [BUG] config: fix endless loop when parsing "on-error"
+    - [MINOR] http: don't mark a server as failed when it returns 501/505
+    - [OPTIM] checks: try to detect the end of response without polling again
+    - [BUG] checks: don't report an error when recv() returns an error after data
+    - [BUG] checks: don't abort when second poll returns an error
+    - [MINOR] checks: make shutdown() silently fail
+    - [BUG] http: fix truncated responses on chunk encoding when size divides buffer size
+    - [BUG] init: unconditionally catch SIGPIPE
+    - [BUG] checks: don't wait for a close to start parsing the response
+
 2010/03/04 : 1.4.1
     - [BUG] Clear-cookie path issue
     - [DOC] fix typo on stickiness rules
