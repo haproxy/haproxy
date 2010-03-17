@@ -995,12 +995,11 @@ int main(int argc, char **argv)
 	signal_register(SIGTERM, sig_term);
 #endif
 
-	/* on very high loads, a sigpipe sometimes happen just between the
-	 * getsockopt() which tells "it's OK to write", and the following write :-(
+	/* Always catch SIGPIPE even on platforms which define MSG_NOSIGNAL.
+	 * Some recent FreeBSD setups report broken pipes, and MSG_NOSIGNAL
+	 * was defined there, so let's stay on the safe side.
 	 */
-#if !MSG_NOSIGNAL || defined(CONFIG_HAP_LINUX_SPLICE)
 	signal(SIGPIPE, SIG_IGN);
-#endif
 
 	/* We will loop at most 100 times with 10 ms delay each time.
 	 * That's at most 1 second. We only send a signal to old pids
