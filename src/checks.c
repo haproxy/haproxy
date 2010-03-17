@@ -865,6 +865,7 @@ static int event_srv_chk_r(int fd)
 	struct task *t = fdtab[fd].owner;
 	struct server *s = t->context;
 	char *desc;
+	int done;
 
 	if (unlikely((s->result & SRV_CHK_ERROR) || (fdtab[fd].state == FD_STERROR))) {
 		/* in case of TCP only, this tells us if the connection failed */
@@ -884,24 +885,22 @@ static int event_srv_chk_r(int fd)
 	 * with running the checks without attempting another socket read.
 	 */
 
+	done = 0;
 	for (len = 0; s->check_data_len < BUFSIZE; s->check_data_len += len) {
 		len = recv(fd, s->check_data + s->check_data_len, BUFSIZE - s->check_data_len, 0);
 		if (len <= 0)
 			break;
 	}
 
-	if (len < 0) {			/* recv returned an error */
-		if (errno == EAGAIN) {
-			/* not ready, we want to poll first */
-			fdtab[fd].ev &= ~FD_POLL_IN;
-			return 0;
-		}
-
+	if (len == 0)
+		done = 1; /* connection hangup received */
+	else if (len < 0 && errno != EAGAIN) {
 		/* Report network errors only if we got no other data. Otherwise
 		 * we'll let the upper layers decide whether the response is OK
 		 * or not. It is very common that an RST sent by the server is
 		 * reported as an error just after the last data chunk.
 		 */
+		done = 1;
 		if (!s->check_data_len) {
 			if (!(s->result & SRV_CHK_ERROR))
 				set_server_check_status(s, HCHK_STATUS_SOCKERR, NULL);
@@ -909,18 +908,21 @@ static int event_srv_chk_r(int fd)
 		}
 	}
 
-	/* Full response received.
-	 * Terminate string in check_data buffer... */
+	/* Intermediate or complete response received.
+	 * Terminate string in check_data buffer.
+	 */
 	if (s->check_data_len < BUFSIZE)
 		s->check_data[s->check_data_len] = '\0';
-	else
+	else {
 		s->check_data[s->check_data_len - 1] = '\0';
-
-	/* Close the connection... */
-	shutdown(fd, SHUT_RDWR);
+		done = 1; /* buffer full, don't wait for more data */
+	}
 
 	/* Run the checks... */
 	if (s->proxy->options & PR_O_HTTP_CHK) {
+		if (!done && s->check_data_len < strlen("HTTP/1.0 000\r"))
+			goto wait_more_data;
+
 		/* Check if the server speaks HTTP 1.X */
 		if ((s->check_data_len < strlen("HTTP/1.0 000\r")) ||
 		    (memcmp(s->check_data, "HTTP/1.", 7) != 0 ||
@@ -955,6 +957,9 @@ static int event_srv_chk_r(int fd)
 		}
 	}
 	else if (s->proxy->options & PR_O_SSL3_CHK) {
+		if (!done && s->check_data_len < 5)
+			goto wait_more_data;
+
 		/* Check for SSLv3 alert or handshake */
 		if ((s->check_data_len >= 5) && (*s->check_data == 0x15 || *s->check_data == 0x16))
 			set_server_check_status(s, HCHK_STATUS_L6OK, NULL);
@@ -962,6 +967,9 @@ static int event_srv_chk_r(int fd)
 			set_server_check_status(s, HCHK_STATUS_L6RSP, NULL);
 	}
 	else if (s->proxy->options & PR_O_SMTP_CHK) {
+		if (!done && s->check_data_len < strlen("000\r"))
+			goto wait_more_data;
+
 		/* Check if the server speaks SMTP */
 		if ((s->check_data_len < strlen("000\r")) ||
 		    (*(s->check_data + 3) != ' ' && *(s->check_data + 3) != '\r') ||
@@ -987,6 +995,9 @@ static int event_srv_chk_r(int fd)
 	else if (s->proxy->options2 & PR_O2_MYSQL_CHK) {
 		/* MySQL Error packet always begin with field_count = 0xff
 		 * contrary to OK Packet who always begin whith 0x00 */
+		if (!done && s->check_data_len < 5)
+			goto wait_more_data;
+
 		if (*(s->check_data + 4) != '\xff') {
 			/* We set the MySQL Version in description for information purpose
 			 * FIXME : it can be cool to use MySQL Version for other purpose,
@@ -997,6 +1008,8 @@ static int event_srv_chk_r(int fd)
 				set_server_check_status(s, HCHK_STATUS_L7OKD, desc);
 			}
 			else {
+				if (!done)
+					goto wait_more_data;
 				/* it seems we have a OK packet but without a valid length,
 				 * it must be a protocol error
 				 */
@@ -1024,10 +1037,16 @@ static int event_srv_chk_r(int fd)
 	*s->check_data = '\0';
 	s->check_data_len = 0;
 
+	/* Close the connection... */
+	shutdown(fd, SHUT_RDWR);
 	EV_FD_CLR(fd, DIR_RD);
 	task_wakeup(t, TASK_WOKEN_IO);
 	fdtab[fd].ev &= ~FD_POLL_IN;
 	return 1;
+
+ wait_more_data:
+	fdtab[fd].ev &= ~FD_POLL_IN;
+	return 0;
 }
 
 /*
