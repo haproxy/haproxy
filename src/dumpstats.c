@@ -2463,9 +2463,9 @@ int stats_dump_full_sess_to_buffer(struct session *s, struct buffer *rep)
 			     human_time(TICKS_TO_MS(sess->req->wex - now_ms),
 					TICKS_TO_MS(1000)) : "<NEVER>",
 			     sess->req->data,
-			     sess->req->r - sess->req->data,
-			     sess->req->w - sess->req->data,
-			     sess->req->lr - sess->req->data,
+			     (int)(sess->req->r - sess->req->data),
+			     (int)(sess->req->w - sess->req->data),
+			     (int)(sess->req->lr - sess->req->data),
 			     sess->req->total);
 
 		chunk_printf(&msg,
@@ -2493,9 +2493,9 @@ int stats_dump_full_sess_to_buffer(struct session *s, struct buffer *rep)
 			     human_time(TICKS_TO_MS(sess->rep->wex - now_ms),
 					TICKS_TO_MS(1000)) : "<NEVER>",
 			     sess->rep->data,
-			     sess->rep->r - sess->rep->data,
-			     sess->rep->w - sess->rep->data,
-			     sess->rep->lr - sess->rep->data,
+			     (int)(sess->rep->r - sess->rep->data),
+			     (int)(sess->rep->w - sess->rep->data),
+			     (int)(sess->rep->lr - sess->rep->data),
 			     sess->rep->total);
 
 		if (buffer_feed_chunk(rep, &msg) >= 0)
