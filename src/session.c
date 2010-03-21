@@ -1331,12 +1331,10 @@ resync_stream_interface:
 
 	/* first, let's check if the request buffer needs to shutdown(write), which may
 	 * happen either because the input is closed or because we want to force a close
-	 * once the server has begun to respond. Note that we only apply it once we're
-	 * connected, so that we still support queuing of a request with input already
-	 * closed.
+	 * once the server has begun to respond.
 	 */
 	if (unlikely((s->req->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK|BF_AUTO_CLOSE|BF_SHUTR)) ==
-		     (BF_AUTO_CLOSE|BF_SHUTR) && s->req->cons->state >= SI_ST_EST))
+		     (BF_AUTO_CLOSE|BF_SHUTR)))
 			buffer_shutw_now(s->req);
 
 	/* shutdown(write) pending */
@@ -1358,7 +1356,7 @@ resync_stream_interface:
 	 *  - the BF_AUTO_CONNECT flag is set (active connection)
 	 */
 	if (s->req->cons->state == SI_ST_INI) {
-		if (!(s->req->flags & (BF_SHUTW|BF_SHUTW_NOW))) {
+		if (!(s->req->flags & BF_SHUTW)) {
 			if ((s->req->flags & (BF_AUTO_CONNECT|BF_OUT_EMPTY)) != BF_OUT_EMPTY) {
 				/* If we have a ->connect method, we need to perform a connection request,
 				 * otherwise we immediately switch to the connected state.

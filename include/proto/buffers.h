@@ -204,6 +204,7 @@ static inline void buffer_shutw_now(struct buffer *buf)
 static inline void buffer_abort(struct buffer *buf)
 {
 	buf->flags |= BF_SHUTR_NOW | BF_SHUTW_NOW;
+	buf->flags &= ~BF_AUTO_CONNECT;
 }
 
 /* Installs <func> as a hijacker on the buffer <b> for session <s>. The hijack
