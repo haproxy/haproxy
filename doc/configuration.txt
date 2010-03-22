@@ -1239,13 +1239,13 @@ balance url_param <param> [check_post [<max_wait>]]
              "http_proxy".
 
 
-bind [<address>]:<port> [, ...]
-bind [<address>]:<port> [, ...] interface <interface>
-bind [<address>]:<port> [, ...] mss <maxseg>
-bind [<address>]:<port> [, ...] transparent
-bind [<address>]:<port> [, ...] id <id>
-bind [<address>]:<port> [, ...] name <name>
-bind [<address>]:<port> [, ...] defer-accept
+bind [<address>]:<port_range> [, ...]
+bind [<address>]:<port_range> [, ...] interface <interface>
+bind [<address>]:<port_range> [, ...] mss <maxseg>
+bind [<address>]:<port_range> [, ...] transparent
+bind [<address>]:<port_range> [, ...] id <id>
+bind [<address>]:<port_range> [, ...] name <name>
+bind [<address>]:<port_range> [, ...] defer-accept
   Define one or several listening addresses and/or ports in a frontend.
   May be used in sections :   defaults | frontend | listen | backend
                                   no   |    yes   |   yes  |   no
@@ -1256,9 +1256,25 @@ bind [<address>]:<port> [, ...] defer-accept
                   listened on. The same will apply for '*' or the system's
                   special address "0.0.0.0".
 
-    <port>        is the TCP port number the proxy will listen on. The port is
-                  mandatory. Note that in the case of an IPv6 address, the port
-                  is always the number after the last colon (':').
+    <port_range>  is either a unique TCP port, or a port range for which the
+                  proxy will accept connections for the IP address specified
+                  above. The port is mandatory. Note that in the case of an
+                  IPv6 address, the port is always the number after the last
+                  colon (':'). A range can either be :
+                   - a numerical port (ex: '80')
+                   - a dash-delimited ports range explicitly stating the lower
+                     and upper bounds (ex: '2000-2100') which are included in
+                     the range.
+
+                  Particular care must be taken against port ranges, because
+                  every <address:port> couple consumes one socket (= a file
+                  descriptor), so it's easy to consume lots of descriptors
+                  with a simple range, and to run out of sockets. Also, each
+                  <address:port> couple must be used only once among all
+                  instances running on a same system. Please note that binding
+                  to ports lower than 1024 generally require particular
+                  privileges to start the program, which are independant of
+                  the 'uid' parameter.
 
     <interface>   is an optional physical interface name. This is currently
                   only supported on Linux. The interface must be a physical
