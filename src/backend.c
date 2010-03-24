@@ -534,6 +534,8 @@ int assign_server(struct session *s)
 
 			case BE_LB_HASH_URI:
 				/* URI hashing */
+				if (s->txn.req.msg_state < HTTP_MSG_BODY)
+					break;
 				s->srv = get_server_uh(s->be,
 						       s->txn.req.sol + s->txn.req.sl.rq.u,
 						       s->txn.req.sl.rq.u_l);
@@ -541,6 +543,8 @@ int assign_server(struct session *s)
 
 			case BE_LB_HASH_PRM:
 				/* URL Parameter hashing */
+				if (s->txn.req.msg_state < HTTP_MSG_BODY)
+					break;
 				if (s->txn.meth == HTTP_METH_POST &&
 				    memchr(s->txn.req.sol + s->txn.req.sl.rq.u, '&',
 					   s->txn.req.sl.rq.u_l ) == NULL)
@@ -553,6 +557,8 @@ int assign_server(struct session *s)
 
 			case BE_LB_HASH_HDR:
 				/* Header Parameter hashing */
+				if (s->txn.req.msg_state < HTTP_MSG_BODY)
+					break;
 				s->srv = get_server_hh(s);
 				break;
 
