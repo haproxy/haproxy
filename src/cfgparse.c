@@ -103,52 +103,53 @@ struct cfg_opt {
 	unsigned int val;
 	unsigned int cap;
 	unsigned int checks;
+	unsigned int mode;
 };
 
 /* proxy->options */
 static const struct cfg_opt cfg_opts[] =
 {
-	{ "abortonclose", PR_O_ABRT_CLOSE, PR_CAP_BE, 0 },
-	{ "allbackups",   PR_O_USE_ALL_BK, PR_CAP_BE, 0 },
-	{ "checkcache",   PR_O_CHK_CACHE,  PR_CAP_BE, 0 },
-	{ "clitcpka",     PR_O_TCP_CLI_KA, PR_CAP_FE, 0 },
-	{ "contstats",    PR_O_CONTSTATS,  PR_CAP_FE, 0 },
-	{ "dontlognull",  PR_O_NULLNOLOG,  PR_CAP_FE, 0 },
-	{ "forceclose",   PR_O_FORCE_CLO,  PR_CAP_FE | PR_CAP_BE, 0 },
-	{ "http_proxy",	  PR_O_HTTP_PROXY, PR_CAP_FE | PR_CAP_BE, 0 },
-	{ "httpclose",    PR_O_HTTP_CLOSE, PR_CAP_FE | PR_CAP_BE, 0 },
-	{ "keepalive",    PR_O_KEEPALIVE,  PR_CAP_NONE, 0 },
-	{ "http-server-close", PR_O_SERVER_CLO,  PR_CAP_FE | PR_CAP_BE, 0 },
-	{ "logasap",      PR_O_LOGASAP,    PR_CAP_FE, 0 },
-	{ "nolinger",     PR_O_TCP_NOLING, PR_CAP_FE | PR_CAP_BE, 0 },
-	{ "persist",      PR_O_PERSIST,    PR_CAP_BE, 0 },
-	{ "redispatch",   PR_O_REDISP,     PR_CAP_BE, 0 },
-	{ "srvtcpka",     PR_O_TCP_SRV_KA, PR_CAP_BE, 0 },
+	{ "abortonclose", PR_O_ABRT_CLOSE, PR_CAP_BE, 0, 0 },
+	{ "allbackups",   PR_O_USE_ALL_BK, PR_CAP_BE, 0, 0 },
+	{ "checkcache",   PR_O_CHK_CACHE,  PR_CAP_BE, 0, PR_MODE_HTTP },
+	{ "clitcpka",     PR_O_TCP_CLI_KA, PR_CAP_FE, 0, 0 },
+	{ "contstats",    PR_O_CONTSTATS,  PR_CAP_FE, 0, 0 },
+	{ "dontlognull",  PR_O_NULLNOLOG,  PR_CAP_FE, 0, 0 },
+	{ "forceclose",   PR_O_FORCE_CLO,  PR_CAP_FE | PR_CAP_BE, 0, PR_MODE_HTTP },
+	{ "http_proxy",	  PR_O_HTTP_PROXY, PR_CAP_FE | PR_CAP_BE, 0, PR_MODE_HTTP },
+	{ "httpclose",    PR_O_HTTP_CLOSE, PR_CAP_FE | PR_CAP_BE, 0, PR_MODE_HTTP },
+	{ "keepalive",    PR_O_KEEPALIVE,  PR_CAP_NONE, 0, PR_MODE_HTTP },
+	{ "http-server-close", PR_O_SERVER_CLO,  PR_CAP_FE | PR_CAP_BE, 0, PR_MODE_HTTP },
+	{ "logasap",      PR_O_LOGASAP,    PR_CAP_FE, 0, 0 },
+	{ "nolinger",     PR_O_TCP_NOLING, PR_CAP_FE | PR_CAP_BE, 0, 0 },
+	{ "persist",      PR_O_PERSIST,    PR_CAP_BE, 0, 0 },
+	{ "redispatch",   PR_O_REDISP,     PR_CAP_BE, 0, 0 },
+	{ "srvtcpka",     PR_O_TCP_SRV_KA, PR_CAP_BE, 0, 0 },
 #ifdef TPROXY
-	{ "transparent",  PR_O_TRANSP,     PR_CAP_BE, 0 },
+	{ "transparent",  PR_O_TRANSP,     PR_CAP_BE, 0, 0 },
 #endif
 
-	{ NULL, 0, 0, 0 }
+	{ NULL, 0, 0, 0, 0 }
 };
 
 /* proxy->options2 */
 static const struct cfg_opt cfg_opts2[] =
 {
 #ifdef CONFIG_HAP_LINUX_SPLICE
-	{ "splice-request",  PR_O2_SPLIC_REQ, PR_CAP_FE|PR_CAP_BE, 0 },
-	{ "splice-response", PR_O2_SPLIC_RTR, PR_CAP_FE|PR_CAP_BE, 0 },
-	{ "splice-auto",     PR_O2_SPLIC_AUT, PR_CAP_FE|PR_CAP_BE, 0 },
+	{ "splice-request",  PR_O2_SPLIC_REQ, PR_CAP_FE|PR_CAP_BE, 0, 0 },
+	{ "splice-response", PR_O2_SPLIC_RTR, PR_CAP_FE|PR_CAP_BE, 0, 0 },
+	{ "splice-auto",     PR_O2_SPLIC_AUT, PR_CAP_FE|PR_CAP_BE, 0, 0 },
 #endif
-	{ "accept-invalid-http-request",  PR_O2_REQBUG_OK, PR_CAP_FE, 0 },
-	{ "accept-invalid-http-response", PR_O2_RSPBUG_OK, PR_CAP_BE, 0 },
-	{ "dontlog-normal",               PR_O2_NOLOGNORM, PR_CAP_FE, 0 },
-	{ "log-separate-errors",          PR_O2_LOGERRORS, PR_CAP_FE, 0 },
-	{ "log-health-checks",            PR_O2_LOGHCHKS,  PR_CAP_BE, 0 },
-	{ "socket-stats",                 PR_O2_SOCKSTAT,  PR_CAP_FE, 0 },
-	{ "tcp-smart-accept",             PR_O2_SMARTACC,  PR_CAP_FE, 0 },
-	{ "tcp-smart-connect",            PR_O2_SMARTCON,  PR_CAP_BE, 0 },
-	{ "independant-streams",          PR_O2_INDEPSTR,  PR_CAP_FE|PR_CAP_BE, 0 },
-	{ "http-use-proxy-header",        PR_O2_USE_PXHDR, PR_CAP_FE, 0 },
+	{ "accept-invalid-http-request",  PR_O2_REQBUG_OK, PR_CAP_FE, 0, PR_MODE_HTTP },
+	{ "accept-invalid-http-response", PR_O2_RSPBUG_OK, PR_CAP_BE, 0, PR_MODE_HTTP },
+	{ "dontlog-normal",               PR_O2_NOLOGNORM, PR_CAP_FE, 0, 0 },
+	{ "log-separate-errors",          PR_O2_LOGERRORS, PR_CAP_FE, 0, 0 },
+	{ "log-health-checks",            PR_O2_LOGHCHKS,  PR_CAP_BE, 0, 0 },
+	{ "socket-stats",                 PR_O2_SOCKSTAT,  PR_CAP_FE, 0, 0 },
+	{ "tcp-smart-accept",             PR_O2_SMARTACC,  PR_CAP_FE, 0, 0 },
+	{ "tcp-smart-connect",            PR_O2_SMARTCON,  PR_CAP_BE, 0, 0 },
+	{ "independant-streams",          PR_O2_INDEPSTR,  PR_CAP_FE|PR_CAP_BE, 0, 0 },
+	{ "http-use-proxy-header",        PR_O2_USE_PXHDR, PR_CAP_FE, 0, PR_MODE_HTTP },
 	{ NULL, 0, 0, 0 }
 };
 
@@ -4990,6 +4991,59 @@ out_uri_auth_compat:
 			Warning("config : log format ignored for %s '%s' since it has no log address.\n",
 				proxy_type_str(curproxy), curproxy->id);
 			err_code |= ERR_WARN;
+		}
+
+		if (curproxy->mode != PR_MODE_HTTP) {
+			int optnum;
+
+			if (curproxy->options & PR_O_COOK_ANY) {
+				Warning("config : 'cookie' statement ignored for %s '%s' as it requires HTTP mode.\n",
+					proxy_type_str(curproxy), curproxy->id);
+				err_code |= ERR_WARN;
+			}
+
+			if (curproxy->uri_auth) {
+				Warning("config : 'stats' statement ignored for %s '%s' as it requires HTTP mode.\n",
+					proxy_type_str(curproxy), curproxy->id);
+				err_code |= ERR_WARN;
+				curproxy->uri_auth = NULL;
+			}
+
+			if (curproxy->options & PR_O_FWDFOR) {
+				Warning("config : 'option %s' ignored for %s '%s' as it requires HTTP mode.\n",
+					"forwardfor", proxy_type_str(curproxy), curproxy->id);
+				err_code |= ERR_WARN;
+				curproxy->options &= ~PR_O_FWDFOR;
+			}
+
+			if (curproxy->options & PR_O_ORGTO) {
+				Warning("config : 'option %s' ignored for %s '%s' as it requires HTTP mode.\n",
+					"originalto", proxy_type_str(curproxy), curproxy->id);
+				err_code |= ERR_WARN;
+				curproxy->options &= ~PR_O_ORGTO;
+			}
+
+			for (optnum = 0; cfg_opts[optnum].name; optnum++) {
+				if (cfg_opts[optnum].mode == PR_MODE_HTTP &&
+				    (curproxy->cap & cfg_opts[optnum].cap) &&
+				    (curproxy->options & cfg_opts[optnum].val)) {
+					Warning("config : 'option %s' ignored for %s '%s' as it requires HTTP mode.\n",
+						cfg_opts[optnum].name, proxy_type_str(curproxy), curproxy->id);
+					err_code |= ERR_WARN;
+					curproxy->options &= ~cfg_opts[optnum].val;
+				}
+			}
+
+			for (optnum = 0; cfg_opts2[optnum].name; optnum++) {
+				if (cfg_opts2[optnum].mode == PR_MODE_HTTP &&
+				    (curproxy->cap & cfg_opts2[optnum].cap) &&
+				    (curproxy->options2 & cfg_opts2[optnum].val)) {
+					Warning("config : 'option %s' ignored for %s '%s' as it requires HTTP mode.\n",
+						cfg_opts2[optnum].name, proxy_type_str(curproxy), curproxy->id);
+					err_code |= ERR_WARN;
+					curproxy->options2 &= ~cfg_opts2[optnum].val;
+				}
+			}
 		}
 
 		/*
