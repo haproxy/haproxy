@@ -2860,7 +2860,8 @@ int stats_dump_errors_to_buffer(struct session *s, struct buffer *rep)
 					     "  src %s, session #%d, backend %s (#%d), server %s (#%d)\n"
 					     "  request length %d bytes, error at position %d:\n \n",
 					     s->data_ctx.errors.px->id, s->data_ctx.errors.px->uuid,
-					     pn, es->sid, es->oe->id, es->oe->uuid,
+					     pn, es->sid, (es->oe->cap & PR_CAP_BE) ? es->oe->id : "<NONE>",
+					     (es->oe->cap & PR_CAP_BE) ? es->oe->uuid : -1,
 					     es->srv ? es->srv->id : "<NONE>",
 					     es->srv ? es->srv->puid : -1,
 					     es->len, es->pos);
