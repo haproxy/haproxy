@@ -5392,6 +5392,15 @@ cookie <value>
 
   Supported in default-server: No
 
+disabled
+  The "disabled" keyword starts the server in the "disabled" state. That means
+  that it is marked down in maintenance mode, and no connection other than the
+  ones allowed by persist mode will reach it. It is very well suited to setup
+  new servers, because normal traffic will never reach them, while it is still
+  possible to test the service by making use of the force-persist mechanism.
+
+  Supported in default-server: No
+
 error-limit <count>
   If health observing is enabled, the "error-limit" parameter specifies the
   number of consecutive errors that triggers event selected by the "on-error"

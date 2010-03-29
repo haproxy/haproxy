@@ -3181,7 +3181,8 @@ stats_error_parsing:
 					goto out;
 				}
 
-				newsrv->health = newsrv->rise;
+				if (newsrv->health)
+					newsrv->health = newsrv->rise;
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "fall")) {
@@ -3330,6 +3331,12 @@ stats_error_parsing:
 			else if (!defsrv && !strcmp(args[cur_arg], "check")) {
 				global.maxsock++;
 				do_check = 1;
+				cur_arg += 1;
+			}
+			else if (!defsrv && !strcmp(args[cur_arg], "disabled")) {
+				newsrv->state |= SRV_MAINTAIN;
+				newsrv->state &= ~SRV_RUNNING;
+				newsrv->health = 0;
 				cur_arg += 1;
 			}
 			else if (!defsrv && !strcmp(args[cur_arg], "observe")) {
@@ -3512,7 +3519,7 @@ stats_error_parsing:
 			}
 			else {
 				if (!defsrv)
-					Alert("parsing [%s:%d] : server %s only supports options 'backup', 'cookie', 'redir', 'observer', 'on-error', 'error-limit', 'check', 'track', 'id', 'inter', 'fastinter', 'downinter', 'rise', 'fall', 'addr', 'port', 'source', 'minconn', 'maxconn', 'maxqueue', 'slowstart' and 'weight'.\n",
+					Alert("parsing [%s:%d] : server %s only supports options 'backup', 'cookie', 'redir', 'observer', 'on-error', 'error-limit', 'check', 'disabled', 'track', 'id', 'inter', 'fastinter', 'downinter', 'rise', 'fall', 'addr', 'port', 'source', 'minconn', 'maxconn', 'maxqueue', 'slowstart' and 'weight'.\n",
 					      file, linenum, newsrv->id);
 				else
 					Alert("parsing [%s:%d]: default-server only supports options 'on-error', 'error-limit', 'inter', 'fastinter', 'downinter', 'rise', 'fall', 'port', 'minconn', 'maxconn', 'maxqueue', 'slowstart' and 'weight'.\n",
