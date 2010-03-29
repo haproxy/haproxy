@@ -741,8 +741,8 @@ static int event_srv_chk_w(int fd)
 	if (!(s->result & SRV_CHK_ERROR)) {
 		/* we don't want to mark 'UP' a server on which we detected an error earlier */
 		if ((s->proxy->options & PR_O_HTTP_CHK) ||
-		    (s->proxy->options & PR_O_SSL3_CHK) ||
 		    (s->proxy->options & PR_O_SMTP_CHK) ||
+		    (s->proxy->options2 & PR_O2_SSL3_CHK) ||
 		    (s->proxy->options2 & PR_O2_MYSQL_CHK)) {
 			int ret;
 			const char *check_req = s->proxy->check_req;
@@ -752,7 +752,7 @@ static int event_srv_chk_w(int fd)
 			 * so we'll send the request, and won't wake the checker up now.
 			 */
 
-			if (s->proxy->options & PR_O_SSL3_CHK) {
+			if (s->proxy->options2 & PR_O2_SSL3_CHK) {
 				/* SSL requires that we put Unix time in the request */
 				int gmt_time = htonl(date.tv_sec);
 				memcpy(s->proxy->check_req + 11, &gmt_time, 4);
@@ -956,7 +956,7 @@ static int event_srv_chk_r(int fd)
 			set_server_check_status(s, HCHK_STATUS_L7STS, desc);
 		}
 	}
-	else if (s->proxy->options & PR_O_SSL3_CHK) {
+	else if (s->proxy->options2 & PR_O2_SSL3_CHK) {
 		if (!done && s->check_data_len < 5)
 			goto wait_more_data;
 
@@ -1359,7 +1359,7 @@ struct task *process_chk(struct task *t)
 				if (!EV_FD_ISSET(fd, DIR_RD)) {
 					set_server_check_status(s, HCHK_STATUS_L4TOUT, NULL);
 				} else {
-					if (s->proxy->options & PR_O_SSL3_CHK)
+					if (s->proxy->options2 & PR_O2_SSL3_CHK)
 						set_server_check_status(s, HCHK_STATUS_L6TOUT, NULL);
 					else	/* HTTP, SMTP */
 						set_server_check_status(s, HCHK_STATUS_L7TOUT, NULL);

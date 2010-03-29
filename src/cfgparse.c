@@ -2667,8 +2667,8 @@ stats_error_parsing:
 			/* use HTTP request to check servers' health */
 			free(curproxy->check_req);
 			curproxy->check_req = NULL;
-			curproxy->options &= ~PR_O_SSL3_CHK;
 			curproxy->options &= ~PR_O_SMTP_CHK;
+			curproxy->options2 &= ~PR_O2_SSL3_CHK;
 			curproxy->options2 &= ~PR_O2_MYSQL_CHK;
 			curproxy->options |= PR_O_HTTP_CHK;
 			if (!*args[2]) { /* no argument */
@@ -2701,14 +2701,14 @@ stats_error_parsing:
 			curproxy->options &= ~PR_O_HTTP_CHK;
 			curproxy->options &= ~PR_O_SMTP_CHK;
 			curproxy->options2 &= ~PR_O2_MYSQL_CHK;
-			curproxy->options |= PR_O_SSL3_CHK;
+			curproxy->options2 |= PR_O2_SSL3_CHK;
 		}
 		else if (!strcmp(args[1], "smtpchk")) {
 			/* use SMTP request to check servers' health */
 			free(curproxy->check_req);
 			curproxy->check_req = NULL;
 			curproxy->options &= ~PR_O_HTTP_CHK;
-			curproxy->options &= ~PR_O_SSL3_CHK;
+			curproxy->options2 &= ~PR_O2_SSL3_CHK;
 			curproxy->options2 &= ~PR_O2_MYSQL_CHK;
 			curproxy->options |= PR_O_SMTP_CHK;
 
@@ -2734,8 +2734,8 @@ stats_error_parsing:
 			free(curproxy->check_req);
 			curproxy->check_req = NULL;
 			curproxy->options &= ~PR_O_HTTP_CHK;
-			curproxy->options &= ~PR_O_SSL3_CHK;
 			curproxy->options &= ~PR_O_SMTP_CHK;
+			curproxy->options2 &= ~PR_O2_SSL3_CHK;
 			curproxy->options2 |= PR_O2_MYSQL_CHK;
 		}
 		else if (!strcmp(args[1], "forwardfor")) {
@@ -4915,7 +4915,7 @@ out_uri_auth_compat:
 			}
 		}
 
-		if (curproxy->options & PR_O_SSL3_CHK) {
+		if (curproxy->options2 & PR_O2_SSL3_CHK) {
 			curproxy->check_len = sizeof(sslv3_client_hello_pkt) - 1;
 			curproxy->check_req = (char *)malloc(curproxy->check_len);
 			memcpy(curproxy->check_req, sslv3_client_hello_pkt, curproxy->check_len);

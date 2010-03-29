@@ -94,7 +94,6 @@
 #define PR_O_FORCE_CLO  0x00200000      /* enforce the connection close immediately after server response */
 #define PR_O_TCP_NOLING 0x00400000      /* disable lingering on client and server connections */
 #define PR_O_ABRT_CLOSE 0x00800000      /* immediately abort request when client closes */
-#define PR_O_SSL3_CHK   0x01000000      /* use SSLv3 CLIENT_HELLO packets for server health */
 
 /* TPXY: exclusive values */
 #define PR_O_TPXY_ADDR  0x02000000	/* bind to this non-local address when connect()ing */
@@ -137,6 +136,7 @@
 #define PR_O2_MYSQL_CHK 0x00020000      /* use MYSQL check for server health */
 #define PR_O2_USE_PXHDR 0x00040000      /* use Proxy-Connection for proxy requests */
 #define PR_O2_CHK_SNDST 0x00080000      /* send the state of each server along with HTTP health checks */
+#define PR_O2_SSL3_CHK  0x00100000      /* use SSLv3 CLIENT_HELLO packets for server health */
 /* end of proxy->options2 */
 
 /* bits for sticking rules */
