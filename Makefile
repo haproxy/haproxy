@@ -543,7 +543,7 @@ clean:
 	rm -f haproxy-$(VERSION) nohup.out gmon.out
 
 tags:
-	find src include -name '*.c' -o -name '*.h' -print0 | \
+	find src include \( -name '*.c' -o -name '*.h' \) -print0 | \
 	   xargs -0 etags --declarations --members
 
 tar:	clean
