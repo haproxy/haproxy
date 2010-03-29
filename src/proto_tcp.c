@@ -180,7 +180,11 @@ int tcpv4_bind_socket(int fd, int flags, struct sockaddr_in *local, struct socka
 
 /*
  * This function initiates a connection to the server assigned to this session
- * (s->srv, s->srv_addr). It will assign a server if none is assigned yet.
+ * (s->srv, s->srv_addr). It will assign a server if none is assigned yet. A
+ * source address may be pointed to by <from_addr>. Note that this is only used
+ * in case of transparent proxying. Normal source bind addresses are still
+ * determined locally (due to the possible need of a source port).
+ *
  * It can return one of :
  *  - SN_ERR_NONE if everything's OK
  *  - SN_ERR_SRVTO if there are no more servers
@@ -192,7 +196,7 @@ int tcpv4_bind_socket(int fd, int flags, struct sockaddr_in *local, struct socka
  */
 int tcpv4_connect_server(struct stream_interface *si,
 			 struct proxy *be, struct server *srv,
-			 struct sockaddr *srv_addr, struct sockaddr *cli_addr)
+			 struct sockaddr *srv_addr, struct sockaddr *from_addr)
 {
 	int fd;
 
@@ -242,27 +246,18 @@ int tcpv4_connect_server(struct stream_interface *si,
 	 * - proxy-specific next
 	 */
 	if (srv != NULL && srv->state & SRV_BIND_SRC) {
-		struct sockaddr_in *remote = NULL;
 		int ret, flags = 0;
 
-#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
 		switch (srv->state & SRV_TPROXY_MASK) {
 		case SRV_TPROXY_ADDR:
-			remote = (struct sockaddr_in *)&srv->tproxy_addr;
-			flags  = 3;
-			break;
 		case SRV_TPROXY_CLI:
-			if (cli_addr)
-				flags |= 2;
-			/* fall through */
+			flags = 3;
+			break;
 		case SRV_TPROXY_CIP:
-			/* FIXME: what can we do if the client connects in IPv6 ? */
-			if (cli_addr)
-				flags |= 1;
-			remote = (struct sockaddr_in *)cli_addr;
+			flags = 1;
 			break;
 		}
-#endif
+
 #ifdef SO_BINDTODEVICE
 		/* Note: this might fail if not CAP_NET_RAW */
 		if (srv->iface_name)
@@ -294,11 +289,11 @@ int tcpv4_connect_server(struct stream_interface *si,
 				fdinfo[fd].port_range = srv->sport_range;
 				src.sin_port = htons(fdinfo[fd].local_port);
 
-				ret = tcpv4_bind_socket(fd, flags, &src, remote);
+				ret = tcpv4_bind_socket(fd, flags, &src, (struct sockaddr_in *)from_addr);
 			} while (ret != 0); /* binding NOK */
 		}
 		else {
-			ret = tcpv4_bind_socket(fd, flags, &srv->source_addr, remote);
+			ret = tcpv4_bind_socket(fd, flags, &srv->source_addr, (struct sockaddr_in *)from_addr);
 		}
 
 		if (ret) {
@@ -323,33 +318,24 @@ int tcpv4_connect_server(struct stream_interface *si,
 		}
 	}
 	else if (be->options & PR_O_BIND_SRC) {
-		struct sockaddr_in *remote = NULL;
 		int ret, flags = 0;
 
-#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
 		switch (be->options & PR_O_TPXY_MASK) {
 		case PR_O_TPXY_ADDR:
-			remote = (struct sockaddr_in *)&be->tproxy_addr;
-			flags  = 3;
-			break;
 		case PR_O_TPXY_CLI:
-			if (cli_addr)
-				flags |= 2;
-			/* fall through */
+			flags = 3;
+			break;
 		case PR_O_TPXY_CIP:
-			/* FIXME: what can we do if the client connects in IPv6 ? */
-			if (cli_addr)
-				flags |= 1;
-			remote = (struct sockaddr_in *)cli_addr;
+			flags = 1;
 			break;
 		}
-#endif
+
 #ifdef SO_BINDTODEVICE
 		/* Note: this might fail if not CAP_NET_RAW */
 		if (be->iface_name)
 			setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, be->iface_name, be->iface_len + 1);
 #endif
-		ret = tcpv4_bind_socket(fd, flags, &be->source_addr, remote);
+		ret = tcpv4_bind_socket(fd, flags, &be->source_addr, (struct sockaddr_in *)from_addr);
 		if (ret) {
 			close(fd);
 			if (ret == 1) {

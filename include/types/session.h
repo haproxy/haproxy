@@ -170,6 +170,7 @@ struct session {
 	struct sockaddr_storage cli_addr;	/* the client address */
 	struct sockaddr_storage frt_addr;	/* the frontend address reached by the client if SN_FRT_ADDR_SET is set */
 	struct sockaddr_in srv_addr;		/* the address to connect to */
+	struct sockaddr_in from_addr;		/* the address to spoof when connecting to the server (transparent mode) */
 	struct server *srv;			/* the server the session will be running or has been running on */
 	struct server *srv_conn;		/* session already has a slot on a server and is not in queue */
 	struct server *prev_srv;		/* the server the was running on, after a redispatch, otherwise NULL */

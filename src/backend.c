@@ -820,6 +820,45 @@ int assign_server_and_queue(struct session *s)
 	}
 }
 
+/* If an explicit source binding is specified on the server and/or backend, and
+ * this source makes use of the transparent proxy, then it is extracted now and
+ * assigned to the session's from_addr entry.
+ */
+static void assign_tproxy_address(struct session *s)
+{
+#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
+	if (s->srv != NULL && s->srv->state & SRV_BIND_SRC) {
+		switch (s->srv->state & SRV_TPROXY_MASK) {
+		case SRV_TPROXY_ADDR:
+			s->from_addr = *(struct sockaddr_in *)&s->srv->tproxy_addr;
+			break;
+		case SRV_TPROXY_CLI:
+		case SRV_TPROXY_CIP:
+			/* FIXME: what can we do if the client connects in IPv6 ? */
+			s->from_addr = *(struct sockaddr_in *)&s->cli_addr;
+			break;
+		default:
+			s->from_addr = *(struct sockaddr_in *)0;
+		}
+	}
+	else if (s->be->options & PR_O_BIND_SRC) {
+		switch (s->be->options & PR_O_TPXY_MASK) {
+		case PR_O_TPXY_ADDR:
+			s->from_addr = *(struct sockaddr_in *)&s->be->tproxy_addr;
+			break;
+		case PR_O_TPXY_CLI:
+		case PR_O_TPXY_CIP:
+			/* FIXME: what can we do if the client connects in IPv6 ? */
+			s->from_addr = *(struct sockaddr_in *)&s->cli_addr;
+			break;
+		default:
+			s->from_addr = *(struct sockaddr_in *)0;
+		}
+	}
+#endif
+}
+
+
 /*
  * This function initiates a connection to the server assigned to this session
  * (s->srv, s->srv_addr). It will assign a server if none is assigned yet.
@@ -845,9 +884,11 @@ int connect_server(struct session *s)
 	if (!s->req->cons->connect)
 		return SN_ERR_INTERNAL;
 
+	assign_tproxy_address(s);
+
 	err = s->req->cons->connect(s->req->cons, s->be, s->srv,
 				    (struct sockaddr *)&s->srv_addr,
-				    (struct sockaddr *)&s->cli_addr);
+				    (struct sockaddr *)&s->from_addr);
 
 	if (err != SN_ERR_NONE)
 		return err;
