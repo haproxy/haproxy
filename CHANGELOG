@@ -1,6 +1,18 @@
 ChangeLog :
 ===========
 
+2010/03/30 : 1.4.3
+    - [CLEANUP] stats: remove printf format warning in stats_dump_full_sess_to_buffer()
+    - [MEDIUM] session: better fix for connection to servers with closed input
+    - [DOC] indicate in the doc how to bind to port ranges
+    - [BUG] backend: L7 hashing must not be performed on incomplete requests
+    - [TESTS] add a simple program to test connection resets
+    - [MINOR] cli: "show errors" should display "backend <NONE>" when backend was not used
+    - [MINOR] config: emit warnings when HTTP-only options are used in TCP mode
+    - [MINOR] config: allow "slowstart 0s"
+    - [BUILD] 'make tags' did not consider files ending in '.c'
+    - [MINOR] checks: add the ability to disable a server in the config
+
 2010/03/17 : 1.4.2
     - [CLEANUP] product branch update
     - [DOC] Some more documentation cleanups
