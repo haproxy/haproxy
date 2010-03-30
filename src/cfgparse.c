@@ -5134,12 +5134,14 @@ out_uri_auth_compat:
 				}
 			}
 
+#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
 			if (curproxy->bind_hdr_occ) {
 				curproxy->bind_hdr_occ = 0;
 				Warning("config : %s '%s' : ignoring use of header %s as source IP in non-HTTP mode.\n",
 					proxy_type_str(curproxy), curproxy->id, curproxy->bind_hdr_name);
 				err_code |= ERR_WARN;
 			}
+#endif
 		}
 
 		/*
@@ -5164,12 +5166,14 @@ out_uri_auth_compat:
 				cfgerr++;
 			}
 
+#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
 			if (curproxy->mode != PR_MODE_HTTP && newsrv->bind_hdr_occ) {
 				newsrv->bind_hdr_occ = 0;
 				Warning("config : %s '%s' : server %s cannot use header %s as source IP in non-HTTP mode.\n",
 					proxy_type_str(curproxy), curproxy->id, newsrv->id, newsrv->bind_hdr_name);
 				err_code |= ERR_WARN;
 			}
+#endif
 			newsrv = newsrv->next;
 		}
 
