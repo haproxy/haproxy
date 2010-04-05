@@ -138,6 +138,7 @@
 #define PR_O2_USE_PXHDR 0x00040000      /* use Proxy-Connection for proxy requests */
 #define PR_O2_CHK_SNDST 0x00080000      /* send the state of each server along with HTTP health checks */
 #define PR_O2_SSL3_CHK  0x00100000      /* use SSLv3 CLIENT_HELLO packets for server health */
+#define PR_O2_FAKE_KA   0x00200000      /* pretend we do keep-alive with server eventhough we close */
 /* end of proxy->options2 */
 
 /* bits for sticking rules */

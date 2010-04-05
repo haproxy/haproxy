@@ -829,6 +829,7 @@ option dontlognull                   (*)  X          X         X         -
 option forceclose                    (*)  X          X         X         X
 -- keyword -------------------------- defaults - frontend - listen -- backend -
 option forwardfor                         X          X         X         X
+option http-pretend-keepalive        (*)  X          X         X         X
 option http-server-close             (*)  X          X         X         X
 option http-use-proxy-header         (*)  X          X         X         -
 option httpchk                            X          -         X         X
@@ -2619,10 +2620,14 @@ no option forceclose
   means we can close the connection to the server very quickly, releasing some
   resources earlier than with httpclose.
 
+  This option may also be combined with "option http-pretend-keepalive", which
+  will disable sending of the "Connection: close" header, but will still cause
+  the connection to be closed once the whole response is received.
+
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
 
-  See also : "option httpclose"
+  See also : "option httpclose" and "option http-pretend-keepalive"
 
 
 option forwardfor [ except <network> ] [ header <name> ]
@@ -2685,6 +2690,48 @@ option forwardfor [ except <network> ] [ header <name> ]
   See also : "option httpclose"
 
 
+option http-pretend-keepalive
+no option http-pretend-keepalive
+  Define whether haproxy will announce keepalive to the server or not
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+  Arguments : none
+
+  When running with "option http-server-close" or "option forceclose", haproxy
+  adds a "Connection: close" header to the request forwarded to the server.
+  Unfortunately, when some servers see this header, they automatically refrain
+  from using the chunked encoding for responses of unknown length, while this
+  is totally unrelated. The immediate effect is that this prevents haproxy from
+  maintaining the client connection alive. A second effect is that a client or
+  a cache could receive an incomplete response without being aware of it, and
+  consider the response complete.
+
+  By setting "option http-pretend-keepalive", haproxy will make the server
+  believe it will keep the connection alive. The server will then not fall back
+  to the abnormal undesired above. When haproxy gets the whole response, it
+  will close the connection with the server just as it would do with the
+  "forceclose" option. That way the client gets a normal response and the
+  connection is correctly closed on the server side.
+
+  It is recommended not to enable this option by default, because most servers
+  will more efficiently close the connection themselves after the last packet,
+  and release its buffers slightly earlier. Also, the added packet on the
+  network could slightly reduce the overall peak performance. However it is
+  worth noting that when this option is enabled, haproxy will have slightly
+  less work to do. So if haproxy is the bottleneck on the whole architecture,
+  enabling this option might save a few CPU cycles.
+
+  This option may be set both in a frontend and in a backend. It is enabled if
+  at least one of the frontend or backend holding a connection has it enabled.
+  This option has no effect if it is combined with "option httpclose", which
+  has precedence.
+
+  If this option has been enabled in a "defaults" section, it can be disabled
+  in a specific instance by prepending the "no" keyword before it.
+
+  See also : "option forceclose" and "option http-server-close"
+
+
 option http-server-close
 no option http-server-close
   Enable or disable HTTP connection closing on the server side
@@ -2698,7 +2745,10 @@ no option http-server-close
   fastest session reuse on the server side to save server resources, similarly
   to "option forceclose". It also permits non-keepalive capable servers to be
   served in keep-alive mode to the clients if they conform to the requirements
-  of RFC2616.
+  of RFC2616. Please note that some servers do not always conform to those
+  requirements when they see "Connection: close" in the request. The effect
+  will be that keep-alive will never be used. A workaround consists in enabling
+  "option http-pretend-keepalive".
 
   At the moment, logs will not indicate whether requests came from the same
   session or not. The accept date reported in the logs corresponds to the end
@@ -2716,7 +2766,8 @@ no option http-server-close
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
 
-  See also : "option forceclose" and "option httpclose"
+  See also : "option forceclose", "option http-pretend-keepalive" and
+             "option httpclose".
 
 
 option http-use-proxy-header

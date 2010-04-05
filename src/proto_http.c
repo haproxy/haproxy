@@ -2967,7 +2967,8 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 			/* parse the Connection header and possibly clean it */
 			int to_del = 0;
 			if ((txn->flags & TX_REQ_VER_11) ||
-			    (txn->flags & TX_CON_WANT_MSK) >= TX_CON_WANT_SCL)
+			    ((txn->flags & TX_CON_WANT_MSK) >= TX_CON_WANT_SCL &&
+			     !((s->fe->options2|s->be->options2) & PR_O2_FAKE_KA)))
 				to_del |= 2; /* remove "keep-alive" */
 			if (!(txn->flags & TX_REQ_VER_11))
 				to_del |= 1; /* remove "close" */
@@ -3405,11 +3406,14 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 		unsigned int want_flags = 0;
 
 		if (txn->flags & TX_REQ_VER_11) {
-			if ((txn->flags & TX_CON_WANT_MSK) >= TX_CON_WANT_SCL ||
+			if (((txn->flags & TX_CON_WANT_MSK) >= TX_CON_WANT_SCL &&
+			     !((s->fe->options2|s->be->options2) & PR_O2_FAKE_KA)) ||
 			    ((s->fe->options|s->be->options) & PR_O_HTTP_CLOSE))
 				want_flags |= TX_CON_CLO_SET;
 		} else {
-			if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL)
+			if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL ||
+			    (((s->fe->options2|s->be->options2) & PR_O2_FAKE_KA) &&
+			     !((s->fe->options|s->be->options) & PR_O_HTTP_CLOSE)))
 				want_flags |= TX_CON_KAL_SET;
 		}
 
