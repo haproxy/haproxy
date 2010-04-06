@@ -5780,7 +5780,8 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 					}
 
 					/* let's see if the cookie is our appcookie */
-					if (memcmp(p1, t->be->appsession_name, cmp_len) == 0) {
+					if ((cmp_len == t->be->appsession_name_len) &&
+					    (memcmp(p1, t->be->appsession_name, t->be->appsession_name_len) == 0)) {
 						/* Cool... it's the right one */
 						manage_client_side_appsession(t, value_begin, value_len);
 					}
@@ -6222,7 +6223,8 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 					value_len = MIN(t->be->appsession_len, p4 - p3);
 				}
 
-				if (memcmp(p1, t->be->appsession_name, cmp_len) == 0) {
+				if ((cmp_len == t->be->appsession_name_len) &&
+				    (memcmp(p1, t->be->appsession_name, t->be->appsession_name_len) == 0)) {
 					/* Cool... it's the right one */
 					if (txn->sessid != NULL) {
 						/* free previously allocated memory as we don't need it anymore */
@@ -6283,8 +6285,10 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 	}
 
 #if defined(DEBUG_HASH)
-	Alert("manage_server_side_cookies\n");
-	appsession_hash_dump(&(t->be->htbl_proxy));
+	if (t->be->appsession_name) {
+		Alert("manage_server_side_cookies\n");
+		appsession_hash_dump(&(t->be->htbl_proxy));
+	}
 #endif
 }
 
@@ -6390,7 +6394,7 @@ void get_srv_from_appsession(struct session *t, const char *begin, int len)
 	int mode = t->be->options2 & PR_O2_AS_M_ANY;
 
 	if (t->be->appsession_name == NULL ||
-	    (t->txn.meth != HTTP_METH_GET && t->txn.meth != HTTP_METH_POST)) {
+	    (t->txn.meth != HTTP_METH_GET && t->txn.meth != HTTP_METH_POST && t->txn.meth != HTTP_METH_HEAD)) {
 		return;
 	}
 
