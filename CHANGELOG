@@ -1,6 +1,17 @@
 ChangeLog :
 ===========
 
+2010/04/07 : 1.4.4
+    - [BUG] appsession should match the whole cookie name
+    - [CLEANUP] proxy: move PR_O_SSL3_CHK to options2 to release one flag
+    - [MEDIUM] backend: move the transparent proxy address selection to backend
+    - [MINOR] add very fast IP parsing functions
+    - [MINOR] add new tproxy flags for dynamic source address binding
+    - [MEDIUM] add ability to connect to a server from an IP found in a header
+    - [BUILD] config: last patch breaks build without CONFIG_HAP_LINUX_TPROXY
+    - [MINOR] http: make it possible to pretend keep-alive when doing close
+    - [MINOR] config: report "default-server" instead of "(null)" in error messages
+
 2010/03/30 : 1.4.3
     - [CLEANUP] stats: remove printf format warning in stats_dump_full_sess_to_buffer()
     - [MEDIUM] session: better fix for connection to servers with closed input
