@@ -1118,6 +1118,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		/* set default values */
 		memcpy(&curproxy->defsrv, &defproxy.defsrv, sizeof(curproxy->defsrv));
+		curproxy->defsrv.id = "default-server";
 
 		curproxy->state = defproxy.state;
 		curproxy->options = defproxy.options;
