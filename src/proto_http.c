@@ -2408,6 +2408,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	/* 1: we might have to print this header in debug mode */
 	if (unlikely((global.mode & MODE_DEBUG) &&
 		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) &&
+		     msg->sol &&
 		     (msg->msg_state >= HTTP_MSG_BODY || msg->msg_state == HTTP_MSG_ERROR))) {
 		char *eol, *sol;
 
@@ -4312,6 +4313,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 	/* 1: we might have to print this header in debug mode */
 	if (unlikely((global.mode & MODE_DEBUG) &&
 		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) &&
+		     msg->sol &&
 		     (msg->msg_state >= HTTP_MSG_BODY || msg->msg_state == HTTP_MSG_ERROR))) {
 		char *eol, *sol;
 
