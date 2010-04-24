@@ -176,7 +176,7 @@ struct proxy {
 	struct list block_cond;                 /* early blocking conditions (chained) */
 	struct list redirect_rules;             /* content redirecting rules (chained) */
 	struct list switching_rules;            /* content switching rules (chained) */
-	struct list force_persist_rules;        /* 'force-persist' rules (chained) */
+	struct list persist_rules;		/* 'force-persist' and 'ignore-persist' rules (chained) */
 	struct list sticking_rules;             /* content sticking rules (chained) */
 	struct list storersp_rules;             /* content store response rules (chained) */
 	struct {                                /* TCP request processing */
@@ -307,9 +307,10 @@ struct switching_rule {
 	} be;
 };
 
-struct force_persist_rule {
+struct persist_rule {
 	struct list list;			/* list linked to from the proxy */
 	struct acl_cond *cond;			/* acl condition to meet */
+	int type;
 };
 
 struct sticking_rule {

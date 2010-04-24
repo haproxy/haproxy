@@ -551,7 +551,7 @@ static void sess_prepare_conn_req(struct session *s, struct stream_interface *si
  */
 int process_switching_rules(struct session *s, struct buffer *req, int an_bit)
 {
-	struct force_persist_rule *prst_rule;
+	struct persist_rule *prst_rule;
 
 	req->analysers &= ~an_bit;
 	req->analyse_exp = TICK_ETERNITY;
@@ -598,10 +598,10 @@ int process_switching_rules(struct session *s, struct buffer *req, int an_bit)
 	if (s->fe == s->be)
 		s->req->analysers &= ~AN_REQ_HTTP_PROCESS_BE;
 
-	/* as soon as we know the backend, we must check if we have a matching forced
+	/* as soon as we know the backend, we must check if we have a matching forced or ignored
 	 * persistence rule, and report that in the session.
 	 */
-	list_for_each_entry(prst_rule, &s->be->force_persist_rules, list) {
+	list_for_each_entry(prst_rule, &s->be->persist_rules, list) {
 		int ret = 1;
 
 		if (prst_rule->cond) {
@@ -613,7 +613,11 @@ int process_switching_rules(struct session *s, struct buffer *req, int an_bit)
 
 		if (ret) {
 			/* no rule, or the rule matches */
-			s->flags |= SN_FORCE_PRST;
+			if (prst_rule->type == PERSIST_TYPE_FORCE) {
+				s->flags |= SN_FORCE_PRST;
+			} else {
+				s->flags |= SN_IGNORE_PRST;
+			}
 			break;
 		}
 	}

@@ -903,7 +903,7 @@ static void init_new_proxy(struct proxy *p)
 	LIST_INIT(&p->redirect_rules);
 	LIST_INIT(&p->mon_fail_cond);
 	LIST_INIT(&p->switching_rules);
-	LIST_INIT(&p->force_persist_rules);
+	LIST_INIT(&p->persist_rules);
 	LIST_INIT(&p->sticking_rules);
 	LIST_INIT(&p->storersp_rules);
 	LIST_INIT(&p->tcp_req.inspect_rules);
@@ -2178,8 +2178,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		LIST_INIT(&rule->list);
 		LIST_ADDQ(&curproxy->switching_rules, &rule->list);
 	}
-	else if (!strcmp(args[0], "force-persist")) {
-		struct force_persist_rule *rule;
+	else if ((!strcmp(args[0], "force-persist")) ||
+		 (!strcmp(args[0], "ignore-persist"))) {
+		struct persist_rule *rule;
 
 		if (curproxy == &defproxy) {
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
@@ -2198,18 +2199,23 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		if ((cond = build_acl_cond(file, linenum, curproxy, (const char **)args + 1)) == NULL) {
-			Alert("parsing [%s:%d] : error detected while parsing a 'force-persist' rule.\n",
-			      file, linenum);
+			Alert("parsing [%s:%d] : error detected while parsing a '%s' rule.\n",
+			      file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 
 		err_code |= warnif_cond_requires_resp(cond, file, linenum);
 
-		rule = (struct force_persist_rule *)calloc(1, sizeof(*rule));
+		rule = (struct persist_rule *)calloc(1, sizeof(*rule));
 		rule->cond = cond;
+		if (!strcmp(args[0], "force-persist")) {
+			rule->type = PERSIST_TYPE_FORCE;
+		} else {
+			rule->type = PERSIST_TYPE_IGNORE;
+		}
 		LIST_INIT(&rule->list);
-		LIST_ADDQ(&curproxy->force_persist_rules, &rule->list);
+		LIST_ADDQ(&curproxy->persist_rules, &rule->list);
 	}
 	else if (!strcmp(args[0], "stick-table")) {
 		int myidx = 1;

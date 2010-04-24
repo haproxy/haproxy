@@ -3282,8 +3282,8 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 	 * so let's do the same now.
 	 */
 
-	/* It needs to look into the URI */
-	if ((txn->sessid == NULL) && s->be->appsession_name) {
+	/* It needs to look into the URI unless persistence must be ignored */
+	if ((txn->sessid == NULL) && s->be->appsession_name && !(s->flags & SN_IGNORE_PRST)) {
 		get_srv_from_appsession(s, msg->sol + msg->sl.rq.u, msg->sl.rq.u_l);
 	}
 
@@ -3730,7 +3730,7 @@ void http_end_txn_clean_session(struct session *s)
 	s->req->cons->flags     = SI_FL_NONE;
 	s->req->flags &= ~(BF_SHUTW|BF_SHUTW_NOW|BF_AUTO_CONNECT|BF_WRITE_ERROR|BF_STREAMER|BF_STREAMER_FAST);
 	s->rep->flags &= ~(BF_SHUTR|BF_SHUTR_NOW|BF_READ_ATTACHED|BF_READ_ERROR|BF_READ_NOEXP|BF_STREAMER|BF_STREAMER_FAST|BF_WRITE_PARTIAL);
-	s->flags &= ~(SN_DIRECT|SN_ASSIGNED|SN_ADDR_SET|SN_BE_ASSIGNED|SN_FORCE_PRST);
+	s->flags &= ~(SN_DIRECT|SN_ASSIGNED|SN_ADDR_SET|SN_BE_ASSIGNED|SN_FORCE_PRST|SN_IGNORE_PRST);
 	s->flags &= ~(SN_CURR_SESS|SN_REDIRECTABLE);
 	s->txn.meth = 0;
 	http_reset_txn(s);
@@ -4856,7 +4856,8 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 		 * 6: add server cookie in the response if needed
 		 */
 		if ((t->srv) && !(t->flags & SN_DIRECT) && (t->be->options & PR_O_COOK_INS) &&
-		    (!(t->be->options & PR_O_COOK_POST) || (txn->meth == HTTP_METH_POST))) {
+		    (!(t->be->options & PR_O_COOK_POST) || (txn->meth == HTTP_METH_POST)) &&
+		    !(t->flags & SN_IGNORE_PRST)) {
 			int len;
 
 			/* the server is known, it's not the one the client requested, we have to
@@ -5493,6 +5494,7 @@ void manage_client_side_appsession(struct session *t, const char *buf, int len) 
 
 		if (asession->serverid != NULL) {
 			struct server *srv = t->be->srv;
+
 			while (srv) {
 				if (strcmp(srv->id, asession->serverid) == 0) {
 					if ((srv->state & SRV_RUNNING) ||
@@ -5686,8 +5688,9 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 					 * However, to prevent clients from sticking to cookie-less backup server
 					 * when they have incidentely learned an empty cookie, we simply ignore
 					 * empty cookies and mark them as invalid.
+					 * The same behaviour is applied when persistence must be ignored.
 					 */
-					if (delim == p3)
+					if ((delim == p3) || (t->flags & SN_IGNORE_PRST))
 						srv = NULL;
 
 					while (srv) {
@@ -5765,7 +5768,8 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 					}
 				}
 
-				if (t->be->appsession_name != NULL) {
+				/* Look for the appsession cookie unless persistence must be ignored */
+				if (!(t->flags & SN_IGNORE_PRST) && (t->be->appsession_name != NULL)) {
 					int cmp_len, value_len;
 					char *value_begin;
 
@@ -6161,7 +6165,7 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 			}
 
 			/* now check if we need to process it for persistence */
-			if ((p2 - p1 == t->be->cookie_len) && (t->be->cookie_name != NULL) &&
+			if (!(t->flags & SN_IGNORE_PRST) && (p2 - p1 == t->be->cookie_len) && (t->be->cookie_name != NULL) &&
 			    (memcmp(p1, t->be->cookie_name, p2 - p1) == 0)) {
 				/* Cool... it's the right one */
 				txn->flags |= TX_SCK_SEEN;
@@ -6208,8 +6212,8 @@ void manage_server_side_cookies(struct session *t, struct buffer *rtr)
 					txn->flags |= TX_SCK_INSERTED | TX_SCK_DELETED;
 				}
 			}
-			/* next, let's see if the cookie is our appcookie */
-			else if (t->be->appsession_name != NULL) {
+			/* next, let's see if the cookie is our appcookie, unless persistence must be ignored */
+			else if (!(t->flags & SN_IGNORE_PRST) && (t->be->appsession_name != NULL)) {
 				int cmp_len, value_len;
 				char *value_begin;
 

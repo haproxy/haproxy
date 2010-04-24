@@ -221,6 +221,13 @@ enum {
 	REDIRECT_TYPE_PREFIX,           /* prefix redirect */
 };
 
+/* Perist types (force-persist, ignore-persist) */
+enum {
+	PERSIST_TYPE_NONE = 0,          /* no persistence */
+	PERSIST_TYPE_FORCE,             /* force-persist */
+	PERSIST_TYPE_IGNORE,            /* ignore-persist */
+};
+
 /* Known HTTP methods */
 typedef enum {
 	HTTP_METH_NONE = 0,

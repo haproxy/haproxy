@@ -81,6 +81,8 @@
 #define	SN_FINST_SHIFT	16		/* bit shift */
 /* unused:              0x00080000 */
 
+#define SN_IGNORE_PRST	0x00100000	/* ignore persistence */
+
 /* WARNING: if new fields are added, they must be initialized in event_accept()
  * and freed in session_free() !
  */
