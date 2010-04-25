@@ -18,7 +18,7 @@
 #   USE_SEPOLL           : enable speculative epoll(). Automatic.
 #   USE_STATIC_PCRE      : enable static libpcre. Recommended.
 #   USE_TPROXY           : enable transparent proxy. Automatic.
-#   USE_LINUX_TPROXY     : enable full transparent proxy (need kernel patch).
+#   USE_LINUX_TPROXY     : enable full transparent proxy (needs kernel 2.6.28).
 #   USE_LINUX_SPLICE     : enable kernel 2.6 splicing (broken on old kernels)
 #   USE_LIBCRYPT         : enable crypted passwords using -lcrypt
 #   USE_CRYPT_H          : set it if your system requires including crypt.h
