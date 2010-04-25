@@ -836,6 +836,7 @@ option httpchk                            X          -         X         X
 option httpclose                     (*)  X          X         X         X
 option httplog                            X          X         X         X
 option http_proxy                    (*)  X          X         X         X
+option ignore-persist                     -          X         X         X
 option independant-streams           (*)  X          X         X         X
 option log-health-checks             (*)  X          -         X         X
 option log-separate-errors           (*)  X          X         X         -
@@ -1003,7 +1004,8 @@ appsession <cookie> len <length> timeout <holdtime>
   Example :
         appsession JSESSIONID len 52 timeout 3h
 
-  See also : "cookie", "capture cookie", "balance", "stick" and "stick-table".
+  See also : "cookie", "capture cookie", "balance", "stick", "stick-table"
+             and "option ignore-persist"
 
 
 backlog <conns>
@@ -1700,7 +1702,8 @@ cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
         cookie SRV insert indirect nocache
         cookie SRV insert postonly indirect
 
-  See also : "appsession", "balance source", "capture cookie", "server".
+  See also : "appsession", "balance source", "capture cookie", "server"
+             and "option ignore-persist".
 
 
 default-server [param*]
@@ -1895,7 +1898,8 @@ force-persist { if | unless } <condition>
   "unless" condition is met. The final redispatch is always disabled when this
   is used.
 
-  See also : "option redispatch", "persist", and section 7 about ACL usage.
+  See also : "option redispatch", "option ignore-persist", "persist",
+             and section 7 about ACL usage.
 
 
 fullconn <conns>
@@ -2948,6 +2952,30 @@ no option http_proxy
         option http_proxy
 
   See also : "option httpclose"
+
+
+option ignore-persist { if | unless } <condition>
+  Declare a condition to ignore persistence
+  May be used in sections:    defaults | frontend | listen | backend
+                                  no   |    yes   |   yes  |   yes
+
+  By default, when cookie persistence is enabled, every requests containing
+  the cookie are unconditionally persistent (assuming the target server is up
+  and running).
+
+  The "ignore-persist" statement allows one to declare various ACL-based
+  conditions which, when met, will cause a request to ignore persistence.
+  This is sometimes useful to load balance requests for static files, which
+  oftenly don't require persistence. This can also be used to fully disable
+  persistence for a specific User-Agent (for example, some web crawler bots).
+
+  Combined with "appsession", it can also help reduce HAProxy memory usage, as
+  the appsession table won't grow if persistence is ignored.
+
+  The persistence is ignored when an "if" condition is met, or unless an
+  "unless" condition is met.
+
+  See also : "option force-persist", "cookie", and section 7 about ACL usage.
 
 
 option independant-streams
@@ -7303,7 +7331,8 @@ each of which has a special meaning :
 
         I : the client provided an INVALID cookie matching no known server.
             This might be caused by a recent configuration change, mixed
-            cookies between HTTP/HTTPS sites, or an attack.
+            cookies between HTTP/HTTPS sites, persistence conditionally
+            ignored, or an attack.
 
         D : the client provided a cookie designating a server which was DOWN,
             so either "option persist" was used and the client was sent to
