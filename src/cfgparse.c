@@ -150,7 +150,7 @@ static const struct cfg_opt cfg_opts2[] =
 	{ "tcp-smart-connect",            PR_O2_SMARTCON,  PR_CAP_BE, 0, 0 },
 	{ "independant-streams",          PR_O2_INDEPSTR,  PR_CAP_FE|PR_CAP_BE, 0, 0 },
 	{ "http-use-proxy-header",        PR_O2_USE_PXHDR, PR_CAP_FE, 0, PR_MODE_HTTP },
-	{ "http-pretend-keepalive",       PR_O2_FAKE_KA,   PR_CAP_FE, 0, PR_MODE_HTTP },
+	{ "http-pretend-keepalive",       PR_O2_FAKE_KA,   PR_CAP_FE|PR_CAP_BE, 0, PR_MODE_HTTP },
 	{ NULL, 0, 0, 0 }
 };
 
