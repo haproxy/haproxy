@@ -33,7 +33,7 @@
  */
 int check_cttproxy_version() {
 	struct in_tproxy itp1;
-	int fd;
+	int fd, ret;
 
 	memset(&itp1, 0, sizeof(itp1));
 		
@@ -43,14 +43,16 @@ int check_cttproxy_version() {
 
 	itp1.op = TPROXY_VERSION;
 	itp1.v.version = 0x02000000; /* CTTPROXY version 2.0 expected */
-	
+
+	ret = 0;
 	if (setsockopt(fd, SOL_IP, IP_TPROXY, &itp1, sizeof(itp1)) == -1) {
 		if (errno == -EINVAL)
-			return -1; /* wrong version */
+			ret = -1; /* wrong version */
 		else
-			return -2; /* not supported or other error */
+			ret = -2; /* not supported or other error */
 	}
-	return 0;
+	close(fd);
+	return ret;
 }
 
 
