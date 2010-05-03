@@ -63,6 +63,8 @@ struct timer {
 #define FILT_INVERT_ERRORS     0x200
 #define FILT_INVERT_TIME_RESP  0x400
 
+#define FILT_COUNT_STATUS      0x800
+
 unsigned int filter = 0;
 unsigned int filter_invert = 0;
 const char *line;
@@ -73,7 +75,7 @@ void die(const char *msg)
 {
 	fprintf(stderr,
 		"%s"
-		"Usage: halog [-c] [-v] [-gt] [-pct] [-s <skip>] [-e|-E] [-rt|-RT <time>] [-ad <delay>] [-ac <count>] < file.log\n"
+		"Usage: halog [-c] [-v] [-gt] [-pct] [-st] [-s <skip>] [-e|-E] [-rt|-RT <time>] [-ad <delay>] [-ac <count>] < file.log\n"
 		"\n",
 		msg ? msg : ""
 		);
@@ -408,6 +410,8 @@ int main(int argc, char **argv)
 			filter |= FILT_GRAPH_TIMERS;
 		else if (strcmp(argv[0], "-pct") == 0)
 			filter |= FILT_PERCENTILE;
+		else if (strcmp(argv[0], "-st") == 0)
+			filter |= FILT_COUNT_STATUS;
 		else if (strcmp(argv[0], "-o") == 0) {
 			if (output_file)
 				die("Fatal: output file name already specified.\n");
@@ -483,6 +487,10 @@ int main(int argc, char **argv)
 				test &= (val >= 500 && val <= 599) ^ !!(filter & FILT_INVERT_ERRORS);
 			}
 		}
+
+		test ^= filter_invert;
+		if (!test)
+			continue;
 
 		if (filter & (FILT_ACC_COUNT|FILT_ACC_DELAY)) {
 			b = field_start(line, ACCEPT_FIELD + skip_fields);
@@ -585,9 +593,18 @@ int main(int argc, char **argv)
 			continue;
 		}
 
-		test ^= filter_invert;
-		if (!test)
+		if (filter & FILT_COUNT_STATUS) {
+			b = field_start(line, STATUS_FIELD + skip_fields);
+			if (!*b) {
+				truncated_line(linenum, line);
+				continue;
+			}
+			val = str2ic(b);
+
+			t2 = insert_value(&timers[0], &t, val);
+			t2->count++;
 			continue;
+		}
 
 		/* all other cases mean we just want to count lines */
 		tot++;
@@ -602,9 +619,6 @@ int main(int argc, char **argv)
 		printf("%d\n", tot);
 		exit(0);
 	}
-
-	if (filter & FILT_ERRORS_ONLY)
-		exit(0);
 
 	if (filter & (FILT_ACC_COUNT|FILT_ACC_DELAY)) {
 		/* sort and count all timers. Output will look like this :
@@ -707,6 +721,15 @@ int main(int argc, char **argv)
 				step += 10;
 			else
 				step += 1;
+		}
+	}
+	else if (filter & FILT_COUNT_STATUS) {
+		/* output all statuses in the form of <status> <occurrences> */
+		n = eb32_first(&timers[0]);
+		while (n) {
+			t = container_of(n, struct timer, node);
+			printf("%d %d\n", n->key, t->count);
+			n = eb32_next(n);
 		}
 	}
  empty:
