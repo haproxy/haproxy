@@ -24,34 +24,39 @@
 // return 1 if the integer contains at least one zero byte
 static inline unsigned int has_zero(unsigned int x)
 {
-	if (!(x & 0xFF000000U) ||
-	    !(x & 0xFF0000U) ||
-	    !(x & 0xFF00U) ||
-	    !(x & 0xFFU))
-		return 1;
-	return 0;
+	unsigned int y;
+
+	/* Principle: we want to perform 4 tests on one 32-bit int at once. For
+	 * this, we have to simulate an SIMD instruction which we don't have by
+	 * default. The principle is that a zero byte is the only one which
+	 * will cause a 1 to appear on the upper bit of a byte/word/etc... when
+	 * we subtract 1. So we can detect a zero byte if a one appears at any
+	 * of the bits 7, 15, 23 or 31 where it was not. It takes only one
+	 * instruction to test for the presence of any of these bits, but it is
+	 * still complex to check for their initial absence. Thus, we'll
+	 * proceed differently : we first save and clear only those bits, then
+	 * we check in the final result if one of them is present and was not.
+	 */
+	y = x;
+	x = ~x & 0x80808080; /* save and invert bits 7, 15, 23, 31 */
+	y &= 0x7F7F7F7F;     /* clear them */
+	y -= 0x01010101;     /* generate a carry */
+	y &= x;              /* clear the bits that were already set */
+	return !!y;
 }
 
+
+// return 1 if the argument contains at least one zero byte. See principle above.
 static inline unsigned int has_zero64(unsigned long long x)
 {
-	unsigned long long x2;
+	unsigned long long y;
 
-	x2 = x & (x >> 8);
-	/* no need to split it further */
-	if ((x2 & 0x00FF) && (x2 & 0x00FF0000) && (x2 & 0x00FF00000000ULL) && (x2 & 0x00FF000000000000ULL))
-			return 0; // approx 11/12 return here
-
-	if (!(x & 0xff00000000000000ULL) ||
-	    !(x & 0xff000000000000ULL) ||
-	    !(x & 0xff0000000000ULL) ||
-	    !(x & 0xff00000000ULL) ||
-	    !(x & 0xff000000UL) ||
-	    !(x & 0xff0000UL) ||
-	    !(x & 0xff00UL) ||
-	    !(x & 0xffUL))
-		return 1; // approx 1/3 of the remaining return here
-
-	return 0;
+	y = x;
+	x = ~x & 0x8080808080808080ULL; /* save bits 7, 15, 23, 31, 39, 47, 55 and 63 */
+	y &= 0x7F7F7F7F7F7F7F7FULL;     /* clear them */
+	y -= 0x0101010101010101ULL;     /* generate a carry */
+	y &= x;                         /* clear the bits that were already set */
+	return !!y;
 }
 
 #define FGETS2_BUFSIZE		(256*1024)
