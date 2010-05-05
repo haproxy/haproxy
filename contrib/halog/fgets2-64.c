@@ -62,7 +62,7 @@ static inline unsigned int has_zero64(unsigned long long x)
 #define FGETS2_BUFSIZE		(256*1024)
 const char *fgets2(FILE *stream)
 {
-	static char buffer[FGETS2_BUFSIZE + 5];
+	static char buffer[FGETS2_BUFSIZE + 9]; // +9 to have zeroes past the end
 	static char *end = buffer;
 	static char *line = buffer;
 
@@ -72,15 +72,35 @@ const char *fgets2(FILE *stream)
 	next = line;
 
 	while (1) {
-		/* this is a speed-up, we read 32 bits at once and check for an
+		/* this is a speed-up, we read 64 bits at once and check for an
 		 * LF character there. We stop if found then continue one at a
 		 * time.
 		 */
-		while (next < end && (((unsigned long)next) & 7) && *next != '\n')
-			next++;
 
-		/* now next is multiple of 4 or equal to end */
-		while (next <= (end-32)) {
+		if (next <= (end-12)) {
+			/* max 3 bytes tested here */
+			while ((((unsigned long)next) & 3) && *next != '\n')
+				next++;
+
+			/* maybe we have can skip 4 more bytes */
+			if ((((unsigned long)next) & 4) && !has_zero(*(unsigned int *)next ^ 0x0A0A0A0AU))
+				next += 4;
+		}
+
+		/* now next is multiple of 8 or equal to end */
+		while (next <= (end-68)) {
+			if (has_zero64(*(unsigned long long *)next ^ 0x0A0A0A0A0A0A0A0AULL))
+				break;
+			next += 8;
+			if (has_zero64(*(unsigned long long *)next ^ 0x0A0A0A0A0A0A0A0AULL))
+				break;
+			next += 8;
+			if (has_zero64(*(unsigned long long *)next ^ 0x0A0A0A0A0A0A0A0AULL))
+				break;
+			next += 8;
+			if (has_zero64(*(unsigned long long *)next ^ 0x0A0A0A0A0A0A0A0AULL))
+				break;
+			next += 8;
 			if (has_zero64(*(unsigned long long *)next ^ 0x0A0A0A0A0A0A0A0AULL))
 				break;
 			next += 8;
@@ -94,6 +114,10 @@ const char *fgets2(FILE *stream)
 				break;
 			next += 8;
 		}
+
+		/* maybe we can skip 4 more bytes */
+		if (!has_zero(*(unsigned int *)next ^ 0x0A0A0A0AU))
+			next += 4;
 
 		/* we finish if needed. Note that next might be slightly higher
 		 * than end here because we might have gone past it above.
