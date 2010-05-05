@@ -440,7 +440,7 @@ int main(int argc, char **argv)
 		linenum++;
 
 		test = 1;
-		if (filter & FILT_TIME_RESP) {
+		if (unlikely(filter & FILT_TIME_RESP)) {
 			int tps;
 
 			/* only report lines with response times larger than filter_time_resp */
@@ -473,7 +473,7 @@ int main(int argc, char **argv)
 			test &= (tps >= filter_time_resp) ^ !!(filter & FILT_INVERT_TIME_RESP);
 		}
 
-		if (filter & FILT_ERRORS_ONLY) {
+		if (unlikely(filter & FILT_ERRORS_ONLY)) {
 			/* only report erroneous status codes */
 			b = field_start(line, STATUS_FIELD + skip_fields);
 			if (!*b) {
@@ -492,7 +492,7 @@ int main(int argc, char **argv)
 		if (!test)
 			continue;
 
-		if (filter & (FILT_ACC_COUNT|FILT_ACC_DELAY)) {
+		if (unlikely(filter & (FILT_ACC_COUNT|FILT_ACC_DELAY))) {
 			b = field_start(line, ACCEPT_FIELD + skip_fields);
 			if (!*b) {
 				truncated_line(linenum, line);
@@ -512,7 +512,7 @@ int main(int argc, char **argv)
 			continue;
 		}
 
-		if (filter & (FILT_GRAPH_TIMERS|FILT_PERCENTILE)) {
+		if (unlikely(filter & (FILT_GRAPH_TIMERS|FILT_PERCENTILE))) {
 			int f;
 
 			b = field_start(line, TIME_FIELD + skip_fields);
@@ -593,7 +593,7 @@ int main(int argc, char **argv)
 			continue;
 		}
 
-		if (filter & FILT_COUNT_STATUS) {
+		if (unlikely(filter & FILT_COUNT_STATUS)) {
 			b = field_start(line, STATUS_FIELD + skip_fields);
 			if (!*b) {
 				truncated_line(linenum, line);
@@ -608,7 +608,7 @@ int main(int argc, char **argv)
 
 		/* all other cases mean we just want to count lines */
 		tot++;
-		if (!(filter & FILT_COUNT_ONLY))
+		if (unlikely(!(filter & FILT_COUNT_ONLY)))
 			puts(line);
 	}
 
