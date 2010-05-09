@@ -1,6 +1,7 @@
 /*
  * Elastic Binary Trees - exported functions for operations on 64bit nodes.
- * (C) 2002-2007 - Willy Tarreau <w@1wt.eu>
+ * Version 6.0
+ * (C) 2002-2010 - Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -97,7 +98,7 @@ REGPRM2 struct eb64_node *eb64_lookup_le(struct eb_root *root, u64 x)
 			 * small and we need to get its highest value, or it is
 			 * too large, and we need to get the prev value.
 			 */
-			if ((node->key >> node->node.bit) > (x >> node->node.bit)) {
+			if ((node->key >> node->node.bit) < (x >> node->node.bit)) {
 				troot = node->node.branches.b[EB_RGHT];
 				return eb64_entry(eb_walk_down(troot, EB_RGHT), struct eb64_node, node);
 			}

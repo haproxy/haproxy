@@ -1,7 +1,7 @@
 /*
  * Elastic Binary Trees - generic macros and structures.
- * Version 5.0
- * (C) 2002-2009 - Willy Tarreau <w@1wt.eu>
+ * Version 6.0
+ * (C) 2002-2010 - Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -259,10 +259,18 @@
 #include <stdlib.h>
 #include "compiler.h"
 
+static inline int flsnz8_generic(unsigned int x)
+{
+	int ret = 0;
+	if (x >> 4) { x >>= 4; ret += 4; }
+	return ret + ((0xFFFFAA50U >> (x << 1)) & 3) + 1;
+}
+
 /* Note: we never need to run fls on null keys, so we can optimize the fls
  * function by removing a conditional jump.
  */
-#if defined(__i386__)
+#if defined(__i386__) || defined(__x86_64__)
+/* this code is similar on 32 and 64 bit */
 static inline int flsnz(int x)
 {
 	int r;
@@ -270,6 +278,16 @@ static inline int flsnz(int x)
 	        : "=r" (r) : "rm" (x));
 	return r+1;
 }
+
+static inline int flsnz8(unsigned char x)
+{
+	int r;
+	__asm__("movzbl %%al, %%eax\n"
+		"bsrl %%eax,%0\n"
+	        : "=r" (r) : "a" (x));
+	return r+1;
+}
+
 #else
 // returns 1 to 32 for 1<<0 to 1<<31. Undefined for 0.
 #define flsnz(___a) ({ \
@@ -282,6 +300,13 @@ static inline int flsnz(int x)
 	if (___x & 0xaaaaaaaa) { ___x &= 0xaaaaaaaa; ___bits +=  1;} \
 	___bits + 1; \
 	})
+
+static inline int flsnz8(unsigned int x)
+{
+	return flsnz8_generic(x);
+}
+
+
 #endif
 
 static inline int fls64(unsigned long long x)
@@ -350,7 +375,8 @@ struct eb_node {
 	struct eb_root branches; /* branches, must be at the beginning */
 	eb_troot_t    *node_p;  /* link node's parent */
 	eb_troot_t    *leaf_p;  /* leaf node's parent */
-	int           bit;     /* link's bit position. */
+	short int      bit;     /* link's bit position. */
+	short int      pfx;     /* data prefix length, always related to leaf */
 };
 
 /* Return the structure of type <type> whose member <member> points to <ptr> */
@@ -698,39 +724,62 @@ static forceinline void __eb_delete(struct eb_node *node)
  * bytes. Note that parts or all of <ignore> bits may be rechecked. It is only
  * passed here as a hint to speed up the check.
  */
-static forceinline unsigned int equal_bits(const unsigned char *a,
-				      const unsigned char *b,
-				      unsigned int ignore, unsigned int len)
+static forceinline int equal_bits(const unsigned char *a,
+				  const unsigned char *b,
+				  int ignore, int len)
 {
-	unsigned int beg;
-	unsigned int end;
-	unsigned int ret;
-	unsigned char c;
+	for (ignore >>= 3, a += ignore, b += ignore, ignore <<= 3;
+	     ignore < len; ) {
+		unsigned char c;
 
-	beg = ignore >> 3;
-	end = (len + 7) >> 3;
-	ret = end << 3;
-	
-	do {
-		if (beg >= end)
-			goto out;
-		beg++;
-		c = a[beg-1] ^ b[beg-1];
-	} while (!c);
+		a++; b++;
+		ignore += 8;
+		c = b[-1] ^ a[-1];
 
-	/* OK now we know that a and b differ at byte <beg> and that <c> holds
-	 * the bit differences. We have to find what bit is differing and report
-	 * it as the number of identical bits. Note that low bit numbers are
-	 * assigned to high positions in the byte, as we compare them as strings.
-	 */
-	ret = beg << 3;
-	if (c & 0xf0) { c >>= 4; ret -= 4; }
-	if (c & 0x0c) { c >>= 2; ret -= 2; }
-	ret -= (c >> 1);
-	ret--;
- out:
-	return ret;
+		if (c) {
+			/* OK now we know that old and new differ at byte <ptr> and that <c> holds
+			 * the bit differences. We have to find what bit is differing and report
+			 * it as the number of identical bits. Note that low bit numbers are
+			 * assigned to high positions in the byte, as we compare them as strings.
+			 */
+			ignore -= flsnz8(c);
+			break;
+		}
+	}
+	return ignore;
 }
+
+/* check that the two blocks <a> and <b> are equal on <len> bits. If it is known
+ * they already are on some bytes, this number of equal bytes to be skipped may
+ * be passed in <skip>. It returns 0 if they match, otherwise non-zero.
+ */
+static forceinline int check_bits(const unsigned char *a,
+				  const unsigned char *b,
+				  int skip,
+				  int len)
+{
+	int bit, ret;
+
+	/* This uncommon construction gives the best performance on x86 because
+	 * it makes heavy use multiple-index addressing and parallel instructions,
+	 * and it prevents gcc from reordering the loop since it is already
+	 * properly oriented. Tested to be fine with 2.95 to 4.2.
+	 */
+	bit = ~len + (skip << 3) + 9; // = (skip << 3) + (8 - len)
+	ret = a[skip] ^ b[skip];
+	if (unlikely(bit >= 0))
+		return ret >> bit;
+	while (1) {
+		skip++;
+		if (ret)
+			return ret;
+		ret = a[skip] ^ b[skip];
+		bit += 8;
+		if (bit >= 0)
+			return ret >> bit;
+	}
+}
+
 
 /* Compare strings <a> and <b> byte-to-byte, from bit <ignore> to the last 0.
  * Return the number of equal bits between strings, assuming that the first
@@ -740,11 +789,11 @@ static forceinline unsigned int equal_bits(const unsigned char *a,
  * of the two strings. However, referencing any bit from the trailing zero is
  * permitted.
  */
-static forceinline unsigned int string_equal_bits(const unsigned char *a,
-						  const unsigned char *b,
-						  unsigned int ignore)
+static forceinline int string_equal_bits(const unsigned char *a,
+					 const unsigned char *b,
+					 int ignore)
 {
-	unsigned int beg;
+	int beg;
 	unsigned char c;
 
 	beg = ignore >> 3;
@@ -771,14 +820,7 @@ static forceinline unsigned int string_equal_bits(const unsigned char *a,
 	 * identical bits. Note that low bit numbers are assigned to high positions
 	 * in the byte, as we compare them as strings.
 	 */
-	beg <<= 3;
-	if (c & 0xf0) { c >>= 4; beg -= 4; }
-	if (c & 0x0c) { c >>= 2; beg -= 2; }
-	beg -= (c >> 1);
-	if (c)
-		beg--;
-
-	return beg;
+	return (beg << 3) - flsnz8(c);
 }
 
 static forceinline int cmp_bits(const unsigned char *a, const unsigned char *b, unsigned int pos)

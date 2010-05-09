@@ -1,7 +1,7 @@
 /*
  * Elastic Binary Trees - macros and structures for operations on 32bit nodes.
- * Version 5.0
- * (C) 2002-2009 - Willy Tarreau <w@1wt.eu>
+ * Version 6.0
+ * (C) 2002-2010 - Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -125,6 +125,7 @@ static forceinline struct eb32_node *__eb32_lookup(struct eb_root *root, u32 x)
 	struct eb32_node *node;
 	eb_troot_t *troot;
 	u32 y;
+	int node_bit;
 
 	troot = root->b[EB_LEFT];
 	if (unlikely(troot == NULL))
@@ -141,6 +142,7 @@ static forceinline struct eb32_node *__eb32_lookup(struct eb_root *root, u32 x)
 		}
 		node = container_of(eb_untag(troot, EB_NODE),
 				    struct eb32_node, node.branches);
+		node_bit = node->node.bit;
 
 		y = node->key ^ x;
 		if (!y) {
@@ -148,7 +150,7 @@ static forceinline struct eb32_node *__eb32_lookup(struct eb_root *root, u32 x)
 			 * we have a dup tree. In the later case, we have to
 			 * walk it down left to get the first entry.
 			 */
-			if (node->node.bit < 0) {
+			if (node_bit < 0) {
 				troot = node->node.branches.b[EB_LEFT];
 				while (eb_gettag(troot) != EB_LEAF)
 					troot = (eb_untag(troot, EB_NODE))->b[EB_LEFT];
@@ -158,10 +160,10 @@ static forceinline struct eb32_node *__eb32_lookup(struct eb_root *root, u32 x)
 			return node;
 		}
 
-		if ((y >> node->node.bit) >= EB_NODE_BRANCHES)
+		if ((y >> node_bit) >= EB_NODE_BRANCHES)
 			return NULL; /* no more common bits */
 
-		troot = node->node.branches.b[(x >> node->node.bit) & EB_NODE_BRANCH_MASK];
+		troot = node->node.branches.b[(x >> node_bit) & EB_NODE_BRANCH_MASK];
 	}
 }
 
@@ -175,6 +177,7 @@ static forceinline struct eb32_node *__eb32i_lookup(struct eb_root *root, s32 x)
 	eb_troot_t *troot;
 	u32 key = x ^ 0x80000000;
 	u32 y;
+	int node_bit;
 
 	troot = root->b[EB_LEFT];
 	if (unlikely(troot == NULL))
@@ -184,13 +187,14 @@ static forceinline struct eb32_node *__eb32i_lookup(struct eb_root *root, s32 x)
 		if ((eb_gettag(troot) == EB_LEAF)) {
 			node = container_of(eb_untag(troot, EB_LEAF),
 					    struct eb32_node, node.branches);
-			if (node->key == x)
+			if (node->key == (u32)x)
 				return node;
 			else
 				return NULL;
 		}
 		node = container_of(eb_untag(troot, EB_NODE),
 				    struct eb32_node, node.branches);
+		node_bit = node->node.bit;
 
 		y = node->key ^ x;
 		if (!y) {
@@ -198,7 +202,7 @@ static forceinline struct eb32_node *__eb32i_lookup(struct eb_root *root, s32 x)
 			 * we have a dup tree. In the later case, we have to
 			 * walk it down left to get the first entry.
 			 */
-			if (node->node.bit < 0) {
+			if (node_bit < 0) {
 				troot = node->node.branches.b[EB_LEFT];
 				while (eb_gettag(troot) != EB_LEAF)
 					troot = (eb_untag(troot, EB_NODE))->b[EB_LEFT];
@@ -208,10 +212,10 @@ static forceinline struct eb32_node *__eb32i_lookup(struct eb_root *root, s32 x)
 			return node;
 		}
 
-		if ((y >> node->node.bit) >= EB_NODE_BRANCHES)
+		if ((y >> node_bit) >= EB_NODE_BRANCHES)
 			return NULL; /* no more common bits */
 
-		troot = node->node.branches.b[(key >> node->node.bit) & EB_NODE_BRANCH_MASK];
+		troot = node->node.branches.b[(key >> node_bit) & EB_NODE_BRANCH_MASK];
 	}
 }
 
@@ -223,9 +227,12 @@ static forceinline struct eb32_node *
 __eb32_insert(struct eb_root *root, struct eb32_node *new) {
 	struct eb32_node *old;
 	unsigned int side;
-	eb_troot_t *troot;
+	eb_troot_t *troot, **up_ptr;
 	u32 newkey; /* caching the key saves approximately one cycle */
 	eb_troot_t *root_right = root;
+	eb_troot_t *new_left, *new_rght;
+	eb_troot_t *new_leaf;
+	int old_node_bit;
 
 	side = EB_LEFT;
 	troot = root->b[EB_LEFT];
@@ -252,112 +259,86 @@ __eb32_insert(struct eb_root *root, struct eb32_node *new) {
 	newkey = new->key;
 
 	while (1) {
-		if (unlikely(eb_gettag(troot) == EB_LEAF)) {
-			eb_troot_t *new_left, *new_rght;
-			eb_troot_t *new_leaf, *old_leaf;
-
+		if (eb_gettag(troot) == EB_LEAF) {
+			/* insert above a leaf */
 			old = container_of(eb_untag(troot, EB_LEAF),
 					    struct eb32_node, node.branches);
-
-			new_left = eb_dotag(&new->node.branches, EB_LEFT);
-			new_rght = eb_dotag(&new->node.branches, EB_RGHT);
-			new_leaf = eb_dotag(&new->node.branches, EB_LEAF);
-			old_leaf = eb_dotag(&old->node.branches, EB_LEAF);
-
 			new->node.node_p = old->node.leaf_p;
-
-			/* Right here, we have 3 possibilities :
-			   - the tree does not contain the key, and we have
-			     new->key < old->key. We insert new above old, on
-			     the left ;
-
-			   - the tree does not contain the key, and we have
-			     new->key > old->key. We insert new above old, on
-			     the right ;
-
-			   - the tree does contain the key, which implies it
-			     is alone. We add the new key next to it as a
-			     first duplicate.
-
-			   The last two cases can easily be partially merged.
-			*/
-			 
-			if (new->key < old->key) {
-				new->node.leaf_p = new_left;
-				old->node.leaf_p = new_rght;
-				new->node.branches.b[EB_LEFT] = new_leaf;
-				new->node.branches.b[EB_RGHT] = old_leaf;
-			} else {
-				/* we may refuse to duplicate this key if the tree is
-				 * tagged as containing only unique keys.
-				 */
-				if ((new->key == old->key) && eb_gettag(root_right))
-					return old;
-
-				/* new->key >= old->key, new goes the right */
-				old->node.leaf_p = new_left;
-				new->node.leaf_p = new_rght;
-				new->node.branches.b[EB_LEFT] = old_leaf;
-				new->node.branches.b[EB_RGHT] = new_leaf;
-
-				if (new->key == old->key) {
-					new->node.bit = -1;
-					root->b[side] = eb_dotag(&new->node.branches, EB_NODE);
-					return new;
-				}
-			}
+			up_ptr = &old->node.leaf_p;
 			break;
 		}
 
 		/* OK we're walking down this link */
 		old = container_of(eb_untag(troot, EB_NODE),
 				    struct eb32_node, node.branches);
+		old_node_bit = old->node.bit;
 
 		/* Stop going down when we don't have common bits anymore. We
 		 * also stop in front of a duplicates tree because it means we
 		 * have to insert above.
 		 */
 
-		if ((old->node.bit < 0) || /* we're above a duplicate tree, stop here */
-		    (((new->key ^ old->key) >> old->node.bit) >= EB_NODE_BRANCHES)) {
+		if ((old_node_bit < 0) || /* we're above a duplicate tree, stop here */
+		    (((new->key ^ old->key) >> old_node_bit) >= EB_NODE_BRANCHES)) {
 			/* The tree did not contain the key, so we insert <new> before the node
 			 * <old>, and set ->bit to designate the lowest bit position in <new>
 			 * which applies to ->branches.b[].
 			 */
-			eb_troot_t *new_left, *new_rght;
-			eb_troot_t *new_leaf, *old_node;
-
-			new_left = eb_dotag(&new->node.branches, EB_LEFT);
-			new_rght = eb_dotag(&new->node.branches, EB_RGHT);
-			new_leaf = eb_dotag(&new->node.branches, EB_LEAF);
-			old_node = eb_dotag(&old->node.branches, EB_NODE);
-
 			new->node.node_p = old->node.node_p;
-
-			if (new->key < old->key) {
-				new->node.leaf_p = new_left;
-				old->node.node_p = new_rght;
-				new->node.branches.b[EB_LEFT] = new_leaf;
-				new->node.branches.b[EB_RGHT] = old_node;
-			}
-			else if (new->key > old->key) {
-				old->node.node_p = new_left;
-				new->node.leaf_p = new_rght;
-				new->node.branches.b[EB_LEFT] = old_node;
-				new->node.branches.b[EB_RGHT] = new_leaf;
-			}
-			else {
-				struct eb_node *ret;
-				ret = eb_insert_dup(&old->node, &new->node);
-				return container_of(ret, struct eb32_node, node);
-			}
+			up_ptr = &old->node.node_p;
 			break;
 		}
 
 		/* walk down */
 		root = &old->node.branches;
-		side = (newkey >> old->node.bit) & EB_NODE_BRANCH_MASK;
+		side = (newkey >> old_node_bit) & EB_NODE_BRANCH_MASK;
 		troot = root->b[side];
+	}
+
+	new_left = eb_dotag(&new->node.branches, EB_LEFT);
+	new_rght = eb_dotag(&new->node.branches, EB_RGHT);
+	new_leaf = eb_dotag(&new->node.branches, EB_LEAF);
+
+	/* We need the common higher bits between new->key and old->key.
+	 * What differences are there between new->key and the node here ?
+	 * NOTE that bit(new) is always < bit(root) because highest
+	 * bit of new->key and old->key are identical here (otherwise they
+	 * would sit on different branches).
+	 */
+
+	// note that if EB_NODE_BITS > 1, we should check that it's still >= 0
+	new->node.bit = flsnz(new->key ^ old->key) - EB_NODE_BITS;
+
+	if (new->key == old->key) {
+		new->node.bit = -1; /* mark as new dup tree, just in case */
+
+		if (likely(eb_gettag(root_right))) {
+			/* we refuse to duplicate this key if the tree is
+			 * tagged as containing only unique keys.
+			 */
+			return old;
+		}
+
+		if (eb_gettag(troot) != EB_LEAF) {
+			/* there was already a dup tree below */
+			struct eb_node *ret;
+			ret = eb_insert_dup(&old->node, &new->node);
+			return container_of(ret, struct eb32_node, node);
+		}
+		/* otherwise fall through */
+	}
+
+	if (new->key >= old->key) {
+		new->node.branches.b[EB_LEFT] = troot;
+		new->node.branches.b[EB_RGHT] = new_leaf;
+		new->node.leaf_p = new_rght;
+		*up_ptr = new_left;
+	}
+	else {
+		new->node.branches.b[EB_LEFT] = new_leaf;
+		new->node.branches.b[EB_RGHT] = troot;
+		new->node.leaf_p = new_left;
+		*up_ptr = new_rght;
 	}
 
 	/* Ok, now we are inserting <new> between <root> and <old>. <old>'s
@@ -366,16 +347,7 @@ __eb32_insert(struct eb_root *root, struct eb32_node *new) {
 	 * find the side by checking the side of new->node.node_p.
 	 */
 
-	/* We need the common higher bits between new->key and old->key.
-	 * What differences are there between new->key and the node here ?
-	 * NOTE that bit(new) is always < bit(root) because highest
-	 * bit of new->key and old->key are identical here (otherwise they
-	 * would sit on different branches).
-	 */
-	// note that if EB_NODE_BITS > 1, we should check that it's still >= 0
-	new->node.bit = flsnz(new->key ^ old->key) - EB_NODE_BITS;
 	root->b[side] = eb_dotag(&new->node.branches, EB_NODE);
-
 	return new;
 }
 
@@ -387,9 +359,12 @@ static forceinline struct eb32_node *
 __eb32i_insert(struct eb_root *root, struct eb32_node *new) {
 	struct eb32_node *old;
 	unsigned int side;
-	eb_troot_t *troot;
+	eb_troot_t *troot, **up_ptr;
 	int newkey; /* caching the key saves approximately one cycle */
 	eb_troot_t *root_right = root;
+	eb_troot_t *new_left, *new_rght;
+	eb_troot_t *new_leaf;
+	int old_node_bit;
 
 	side = EB_LEFT;
 	troot = root->b[EB_LEFT];
@@ -418,112 +393,85 @@ __eb32i_insert(struct eb_root *root, struct eb32_node *new) {
 	newkey = new->key + 0x80000000;
 
 	while (1) {
-		if (unlikely(eb_gettag(troot) == EB_LEAF)) {
-			eb_troot_t *new_left, *new_rght;
-			eb_troot_t *new_leaf, *old_leaf;
-
+		if (eb_gettag(troot) == EB_LEAF) {
 			old = container_of(eb_untag(troot, EB_LEAF),
 					    struct eb32_node, node.branches);
-
-			new_left = eb_dotag(&new->node.branches, EB_LEFT);
-			new_rght = eb_dotag(&new->node.branches, EB_RGHT);
-			new_leaf = eb_dotag(&new->node.branches, EB_LEAF);
-			old_leaf = eb_dotag(&old->node.branches, EB_LEAF);
-
 			new->node.node_p = old->node.leaf_p;
-
-			/* Right here, we have 3 possibilities :
-			   - the tree does not contain the key, and we have
-			     new->key < old->key. We insert new above old, on
-			     the left ;
-
-			   - the tree does not contain the key, and we have
-			     new->key > old->key. We insert new above old, on
-			     the right ;
-
-			   - the tree does contain the key, which implies it
-			     is alone. We add the new key next to it as a
-			     first duplicate.
-
-			   The last two cases can easily be partially merged.
-			*/
-			 
-			if ((s32)new->key < (s32)old->key) {
-				new->node.leaf_p = new_left;
-				old->node.leaf_p = new_rght;
-				new->node.branches.b[EB_LEFT] = new_leaf;
-				new->node.branches.b[EB_RGHT] = old_leaf;
-			} else {
-				/* we may refuse to duplicate this key if the tree is
-				 * tagged as containing only unique keys.
-				 */
-				if ((new->key == old->key) && eb_gettag(root_right))
-					return old;
-
-				/* new->key >= old->key, new goes the right */
-				old->node.leaf_p = new_left;
-				new->node.leaf_p = new_rght;
-				new->node.branches.b[EB_LEFT] = old_leaf;
-				new->node.branches.b[EB_RGHT] = new_leaf;
-
-				if (new->key == old->key) {
-					new->node.bit = -1;
-					root->b[side] = eb_dotag(&new->node.branches, EB_NODE);
-					return new;
-				}
-			}
+			up_ptr = &old->node.leaf_p;
 			break;
 		}
 
 		/* OK we're walking down this link */
 		old = container_of(eb_untag(troot, EB_NODE),
 				    struct eb32_node, node.branches);
+		old_node_bit = old->node.bit;
 
 		/* Stop going down when we don't have common bits anymore. We
 		 * also stop in front of a duplicates tree because it means we
 		 * have to insert above.
 		 */
 
-		if ((old->node.bit < 0) || /* we're above a duplicate tree, stop here */
-		    (((new->key ^ old->key) >> old->node.bit) >= EB_NODE_BRANCHES)) {
+		if ((old_node_bit < 0) || /* we're above a duplicate tree, stop here */
+		    (((new->key ^ old->key) >> old_node_bit) >= EB_NODE_BRANCHES)) {
 			/* The tree did not contain the key, so we insert <new> before the node
 			 * <old>, and set ->bit to designate the lowest bit position in <new>
 			 * which applies to ->branches.b[].
 			 */
-			eb_troot_t *new_left, *new_rght;
-			eb_troot_t *new_leaf, *old_node;
-
-			new_left = eb_dotag(&new->node.branches, EB_LEFT);
-			new_rght = eb_dotag(&new->node.branches, EB_RGHT);
-			new_leaf = eb_dotag(&new->node.branches, EB_LEAF);
-			old_node = eb_dotag(&old->node.branches, EB_NODE);
-
 			new->node.node_p = old->node.node_p;
-
-			if ((s32)new->key < (s32)old->key) {
-				new->node.leaf_p = new_left;
-				old->node.node_p = new_rght;
-				new->node.branches.b[EB_LEFT] = new_leaf;
-				new->node.branches.b[EB_RGHT] = old_node;
-			}
-			else if ((s32)new->key > (s32)old->key) {
-				old->node.node_p = new_left;
-				new->node.leaf_p = new_rght;
-				new->node.branches.b[EB_LEFT] = old_node;
-				new->node.branches.b[EB_RGHT] = new_leaf;
-			}
-			else {
-				struct eb_node *ret;
-				ret = eb_insert_dup(&old->node, &new->node);
-				return container_of(ret, struct eb32_node, node);
-			}
+			up_ptr = &old->node.node_p;
 			break;
 		}
 
 		/* walk down */
 		root = &old->node.branches;
-		side = (newkey >> old->node.bit) & EB_NODE_BRANCH_MASK;
+		side = (newkey >> old_node_bit) & EB_NODE_BRANCH_MASK;
 		troot = root->b[side];
+	}
+
+	new_left = eb_dotag(&new->node.branches, EB_LEFT);
+	new_rght = eb_dotag(&new->node.branches, EB_RGHT);
+	new_leaf = eb_dotag(&new->node.branches, EB_LEAF);
+
+	/* We need the common higher bits between new->key and old->key.
+	 * What differences are there between new->key and the node here ?
+	 * NOTE that bit(new) is always < bit(root) because highest
+	 * bit of new->key and old->key are identical here (otherwise they
+	 * would sit on different branches).
+	 */
+
+	// note that if EB_NODE_BITS > 1, we should check that it's still >= 0
+	new->node.bit = flsnz(new->key ^ old->key) - EB_NODE_BITS;
+
+	if (new->key == old->key) {
+		new->node.bit = -1; /* mark as new dup tree, just in case */
+
+		if (likely(eb_gettag(root_right))) {
+			/* we refuse to duplicate this key if the tree is
+			 * tagged as containing only unique keys.
+			 */
+			return old;
+		}
+
+		if (eb_gettag(troot) != EB_LEAF) {
+			/* there was already a dup tree below */
+			struct eb_node *ret;
+			ret = eb_insert_dup(&old->node, &new->node);
+			return container_of(ret, struct eb32_node, node);
+		}
+		/* otherwise fall through */
+	}
+
+	if ((s32)new->key >= (s32)old->key) {
+		new->node.branches.b[EB_LEFT] = troot;
+		new->node.branches.b[EB_RGHT] = new_leaf;
+		new->node.leaf_p = new_rght;
+		*up_ptr = new_left;
+	}
+	else {
+		new->node.branches.b[EB_LEFT] = new_leaf;
+		new->node.branches.b[EB_RGHT] = troot;
+		new->node.leaf_p = new_left;
+		*up_ptr = new_rght;
 	}
 
 	/* Ok, now we are inserting <new> between <root> and <old>. <old>'s
@@ -532,16 +480,7 @@ __eb32i_insert(struct eb_root *root, struct eb32_node *new) {
 	 * find the side by checking the side of new->node.node_p.
 	 */
 
-	/* We need the common higher bits between new->key and old->key.
-	 * What differences are there between new->key and the node here ?
-	 * NOTE that bit(new) is always < bit(root) because highest
-	 * bit of new->key and old->key are identical here (otherwise they
-	 * would sit on different branches).
-	 */
-	// note that if EB_NODE_BITS > 1, we should check that it's still >= 0
-	new->node.bit = flsnz(new->key ^ old->key) - EB_NODE_BITS;
 	root->b[side] = eb_dotag(&new->node.branches, EB_NODE);
-
 	return new;
 }
 

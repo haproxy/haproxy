@@ -1,7 +1,7 @@
 /*
  * Elastic Binary Trees - macros to manipulate String data nodes.
- * Version 5.1
- * (C) 2002-2009 - Willy Tarreau <w@1wt.eu>
+ * Version 6.0
+ * (C) 2002-2010 - Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -41,7 +41,8 @@ static forceinline struct ebmb_node *__ebst_lookup(struct eb_root *root, const v
 {
 	struct ebmb_node *node;
 	eb_troot_t *troot;
-	unsigned int bit;
+	int bit;
+	int node_bit;
 
 	troot = root->b[EB_LEFT];
 	if (unlikely(troot == NULL))
@@ -59,8 +60,9 @@ static forceinline struct ebmb_node *__ebst_lookup(struct eb_root *root, const v
 		}
 		node = container_of(eb_untag(troot, EB_NODE),
 				    struct ebmb_node, node.branches);
+		node_bit = node->node.bit;
 
-		if (node->node.bit < 0) {
+		if (node_bit < 0) {
 			/* We have a dup tree now. Either it's for the same
 			 * value, and we walk down left, or it's a different
 			 * one and we don't have our key.
@@ -78,11 +80,11 @@ static forceinline struct ebmb_node *__ebst_lookup(struct eb_root *root, const v
 
 		/* OK, normal data node, let's walk down */
 		bit = string_equal_bits(x, node->key, bit);
-		if (bit < node->node.bit)
+		if (bit < node_bit)
 			return NULL; /* no more common bits */
 
-		troot = node->node.branches.b[(((unsigned char*)x)[node->node.bit >> 3] >>
-					       (~node->node.bit & 7)) & 1];
+		troot = node->node.branches.b[(((unsigned char*)x)[node_bit >> 3] >>
+					       (~node_bit & 7)) & 1];
 	}
 }
 
@@ -100,6 +102,7 @@ __ebst_insert(struct eb_root *root, struct ebmb_node *new)
 	eb_troot_t *root_right = root;
 	int diff;
 	int bit;
+	int old_node_bit;
 
 	side = EB_LEFT;
 	troot = root->b[EB_LEFT];
@@ -188,6 +191,7 @@ __ebst_insert(struct eb_root *root, struct ebmb_node *new)
 		/* OK we're walking down this link */
 		old = container_of(eb_untag(troot, EB_NODE),
 				   struct ebmb_node, node.branches);
+		old_node_bit = old->node.bit;
 
 		/* Stop going down when we don't have common bits anymore. We
 		 * also stop in front of a duplicates tree because it means we
@@ -195,16 +199,16 @@ __ebst_insert(struct eb_root *root, struct ebmb_node *new)
 		 * the current node's because as long as they are identical, we
 		 * know we descend along the correct side.
 		 */
-		if (old->node.bit < 0) {
+		if (old_node_bit < 0) {
 			/* we're above a duplicate tree, we must compare till the end */
 			bit = string_equal_bits(new->key, old->key, bit);
 			goto dup_tree;
 		}
-		else if (bit < old->node.bit) {
+		else if (bit < old_node_bit) {
 			bit = string_equal_bits(new->key, old->key, bit);
 		}
 
-		if (bit < old->node.bit) { /* we don't have all bits in common */
+		if (bit < old_node_bit) { /* we don't have all bits in common */
 			/* The tree did not contain the key, so we insert <new> before the node
 			 * <old>, and set ->bit to designate the lowest bit position in <new>
 			 * which applies to ->branches.b[].
@@ -242,7 +246,7 @@ __ebst_insert(struct eb_root *root, struct ebmb_node *new)
 
 		/* walk down */
 		root = &old->node.branches;
-		side = (new->key[old->node.bit >> 3] >> (~old->node.bit & 7)) & 1;
+		side = (new->key[old_node_bit >> 3] >> (~old_node_bit & 7)) & 1;
 		troot = root->b[side];
 	}
 

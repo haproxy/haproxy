@@ -1,7 +1,7 @@
 /*
  * Elastic Binary Trees - exported functions for Indirect String data nodes.
- * Version 5.1
- * (C) 2002-2009 - Willy Tarreau <w@1wt.eu>
+ * Version 6.0
+ * (C) 2002-2010 - Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
