@@ -1,20 +1,22 @@
-                           -------------------
-                             H A - P r o x y
-                             How to build it
-                           -------------------
-                              version 1.3.15
-                              willy tarreau
-                                2008/05/25
+                         ----------------------
+                             HAProxy how-to
+                         ----------------------
+                              version 1.4
+                             willy tarreau
+                               2010/05/09
 
+
+1) How to build it
+------------------
 
 To build haproxy, you will need :
-  - GNU make. Neither Solaris nor OpenBSD's make work with this makefile.
+  - GNU make. Neither Solaris nor OpenBSD's make work with the GNU Makefile.
     However, specific Makefiles for BSD and OSX are provided.
-  - GCC between 2.91 and 4.3. Others may work, but not tested.
+  - GCC between 2.91 and 4.5.0. Others may work, but not tested.
   - GNU ld
 
 Also, you might want to build with libpcre support, which will provide a very
-efficient regex implementation and will also fix some badness on Solaris's one.
+efficient regex implementation and will also fix some badness on Solaris' one.
 
 To build haproxy, you have to choose your target OS amongst the following ones
 and assign it to the TARGET variable :
@@ -24,8 +26,8 @@ and assign it to the TARGET variable :
   - linux24e    for Linux 2.4 with support for a working epoll (> 0.21)
   - linux26     for Linux 2.6 and above
   - solaris     for Solaris 8 or 10 (others untested)
-  - freebsd     for FreeBSD 5 to 6.2 (others untested)
-  - openbsd     for OpenBSD 3.1 to 3.7 (others untested)
+  - freebsd     for FreeBSD 5 to 8.0 (others untested)
+  - openbsd     for OpenBSD 3.1 to 4.6 (others untested)
   - cygwin      for Cygwin
   - generic     for any other OS.
   - custom      to manually adjust every setting
@@ -92,5 +94,198 @@ variables in the BSD makefiles.
 AIX 5.3 is known to work with the generic target. However, for the binary to
 also run on 5.2 or earlier, you need to build with DEFINE="-D_MSGQSUPPORT",
 otherwise __fd_select() will be used while not being present in the libc.
+
+
+2) How to install it
+--------------------
+
+To install haproxy, you can either copy the single resulting binary to the
+place you want, or run :
+
+    $ sudo make install
+
+If you're packaging it for another system, you can specify its root directory
+in the usual DESTDIR variable.
+
+
+3) How to set it up
+-------------------
+
+There is some documentation in the doc/ directory :
+
+    - architecture.txt : this is the architecture manual. It is quite old and
+      does not tell about the nice new features, but it's still a good starting
+      point when you know what you want but don't know how to do it.
+
+    - configuration.txt : this is the configuration manual. It recalls a few
+      essential HTTP basic concepts, and details all the configuration file
+      syntax (keywords, units). It also describes the log and stats format. It
+      is normally always up to date. If you see that something is missing from
+      it, please report it as this is a bug.
+
+    - haproxy-en.txt / haproxy-fr.txt : these are the old outdated docs. You
+      should never need them. If you do, then please report what you didn't
+      find in the other ones.
+
+    - gpl.txt / lgpl.txt : the copy of the licenses covering the software. See
+      the 'LICENSE' file at the top for more information.
+
+    - the rest is mainly for developers.
+
+There are also a number of nice configuration examples in the "examples"
+directory as well as on several sites and articles on the net which are linked
+to from the haproxy web site.
+
+
+4) How to report a bug
+----------------------
+
+It is possible that from time to time you'll find a bug. A bug is a case where
+what you see is not what is documented. Otherwise it can be a misdesign. If you
+find that something is stupidly design, please discuss it on the list (see the
+"how to contribute" section below). If you feel like you're proceeding right
+and haproxy doesn't obey, then first ask yourself if it is possible that nobody
+before you has even encountered this issue. If it's unlikely, the you probably
+have an issue in your setup. Just in case of doubt, please consult the mailing
+list archives :
+
+                        http://www.formilux.org/archives/haproxy/
+                        http://marc.info/?l=haproxy
+
+Otherwise, please try to gather the maximum amount of information to help
+reproduce the issue and send that to the mailing list :
+
+                        haproxy@formilux.org
+
+Please include your configuration and logs. You can mask your IP addresses and
+passwords, we don't need them. But it's essential that you post your config if
+you want people to guess what is happening.
+
+Also, keep in mind that haproxy is designed to NEVER CRASH. If you see it die
+without any reason, then it definitely is a critical bug that must be reported
+and urgently fixed. It has happened a couple of times in the past, essentially
+on development versions running on new architectures. If you think your setup
+is fairly common, then it is possible that the issue is totally unrelated.
+Anyway, if that happens, feel free to contact me directly, as I will give you
+instructions on how to collect a usable core file, and will probably ask for
+other captures that you'll not want to share with the list.
+
+
+5) How to contribute
+--------------------
+
+It is possible that you'll want to add a specific feature to satisfy your needs
+or one of your customers'. Contributions are welcome, however I'm often very
+picky about changes. I will generally reject patches that change massive parts
+of the code, or that touch the core parts without any good reason if those
+changes have not been discussed first.
+
+The proper place to discuss your changes is the HAProxy Mailing List. There are
+enough skilled readers to catch hazardous mistakes and to suggest improvements.
+You can subscribe to it by sending an empty e-mail at the following address :
+
+                        haproxy+subscribe@formilux.org
+
+If your work is very confidential and you can't publicly discuss it, you can
+also mail me directly about it, but your mail may be waiting several days in
+the queue before you get a response.
+
+If you'd like a feature to be added but you think you don't have the skills to
+implement it yourself, you should follow these steps :
+
+    1. discuss the feature on the mailing list. It is possible that someone
+       else has already implemented it, or that someone will tell you how to
+       proceed without it, or even why not to do it. It is also possible that
+       in fact it's quite easy to implement and people will guide you through
+       the process. That way you'll finally have YOUR patch merged, providing
+       the feature YOU need.
+
+    2. if you really can't code it yourself after discussing it, then you may
+       consider contacting someone to do the job for you. Some people on the
+       list might be OK with trying to do it. Otherwise, you can check the list
+       of contributors at the URL below, some of the regular contributors may
+       be able to do the work, probably not for free but their time is as much
+       valuable as yours after all, you can't eat the cake and have it too.
+
+The list of past and regular contributors is available below. It lists not only
+significant code contributions (features, fixes), but also time or money
+donations :
+
+                        http://haproxy.1wt.eu/contrib.html
+
+Note to contributors: it's very handy when patches comes with a properly
+formated subject. Try to put one of the following words between brackets
+to indicate the importance of the patch followed if possible by a single
+word indicating what subsystem is affected, then by a short description :
+
+  [BUG]      fix for a minor or medium-level bug. When a few of these ones are
+             available, a new maintenance release is emitted.
+
+  [CRITICAL] medium-term reliability or security is at risk, an upgrade is
+             absolutely required. A maintenance release may be emitted even if
+             only one of these bugs are fixed.
+
+  [CLEANUP]  code cleanup, silence of warnings, etc... theorically no impact.
+             These patches will rarely be seen in stable branches, though they
+             may appear when they remove some annoyance.
+
+  [MINOR]    minor change, very low risk of impact. It is often the case for
+             code additions that don't touch live code.
+
+  [MEDIUM]   medium risk, may cause unexpected regressions of low importance or
+             which may quickly be discovered.
+
+  [MAJOR]    major risk of hidden regression. This happens when I rearrange
+             large parts of code, when I play with timeouts, with variable
+             initializations, etc... We should only exceptionally find such
+             patches in stable branches.
+
+  [OPTIM]    some code was optimised. Sometimes if the regression risk is very
+             low and the gains significant, such patches may be merged in the
+             stable branch.
+
+  [DOC]      documentation updates or fixes only. No code is affected, no need
+             to upgrade. These patches can also be sent right after a new
+             feature, to document it.
+
+  [TESTS]    added regression testing configuration files or scripts
+
+  [BUILD]    fix build issues. If you could build, no upgrade required.
+
+  [LICENSE]  licensing updates (may impact distro packagers)
+
+  [RELEASE]  release a new version (development version or stable version)
+
+  [PATCH]    any other patch which could not be qualified with the tags above.
+
+
+The tags are not rigid, and I reserve the right to change them when merging the
+patch. It may happen that a same patch has a different tag in two distinct
+branches. The reason is that a bug in one branch may just be a cleanup in the
+other one because the code cannot be triggered.
+
+Examples of messages :
+       - [DOC] document options forwardfor to logasap
+       - [BUG] stats: connection reset counters must be plain ascii, not HTML
+       - [MEDIUM] checks: support multi-packet health check responses
+       - [RELEASE] Released version 1.4.2
+
+For a more efficient interaction between the mainline code and your code, I can
+only strongly encourage you to try the Git version control system :
+
+                        http://git-scm.com/
+
+It's very fast, lightweight and lets you undo/redo your work as often as you
+want, without making your mistakes visible to the rest of the world. It will
+definitely help you contribute quality code and take other people's feedback
+in consideration. In order to clone the HAProxy Git repository :
+
+    $ git clone http://git.1wt.eu/git/haproxy-1.4.git    (stable 1.4)
+    $ git clone http://git.1wt.eu/git/haproxy.git/       (development)
+
+If you decide to use Git for your developments, then your commit messages will
+have the subject line in the format described above, then the whole description
+of your work (mainly why you did it) will be in the body. You can directly send
+your commits to the mailing list, the format is convenient to read and process.
 
 -- end
