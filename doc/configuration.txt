@@ -2888,7 +2888,7 @@ no option httpclose
                                  yes   |    yes   |   yes  |   yes
   Arguments : none
 
-  As stated in section 1, HAProxy does not yes support the HTTP keep-alive
+  As stated in section 1, HAProxy does not yet support the HTTP keep-alive
   mode. So by default, if a client communicates with a server in this mode, it
   will only analyze, log, and process the first request of each connection. To
   workaround this limitation, it is possible to specify "option httpclose". It
@@ -5270,7 +5270,7 @@ timeout http-keep-alive <timeout>
   without waiting for further clicks. Also, if set to a very small value (eg:
   1 millisecond) it will probably only accept pipelined requests but not the
   non-pipelined ones. It may be a nice trade-off for very large sites running
-  with tends to hundreds of thousands of clients.
+  with tens to hundreds of thousands of clients.
 
   If this parameter is not set, the "http-request" timeout applies, and if both
   are not set, "timeout client" still applies at the lower level. It should be
@@ -6401,8 +6401,7 @@ url_sub <string>
 
 Some predefined ACLs are hard-coded so that they do not have to be declared in
 every frontend which needs them. They all have their names in upper case in
-order to avoid confusion. Their equivalence is provided below. Please note that
-only the first three ones are not layer 7 based.
+order to avoid confusion. Their equivalence is provided below.
 
 ACL name          Equivalent to                Usage
 ---------------+-----------------------------+---------------------------------
