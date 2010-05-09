@@ -5886,8 +5886,26 @@ performance, they just consume a small amount of memory.
 
 The following ACL flags are currently supported :
 
-   -i : ignore case during matching.
+   -i : ignore case during matching of all subsequent patterns.
+   -f : load patterns from a file.
    -- : force end of flags. Useful when a string looks like one of the flags.
+
+The "-f" flag is special as it loads all of the lines it finds in the file
+specified in argument and loads all of them before continuing. It is even
+possible to pass multiple "-f" arguments if the patterns are to be loaded from
+multiple files. Also, note that the "-i" flag applies to subsequent entries and
+not to entries loaded from files preceeding it. For instance :
+
+    acl valid-ua hdr(user-agent) -f exact-ua.lst -i -f generic-ua.lst  test
+
+In this example, each line of "exact-ua.lst" will be exactly matched against
+the "user-agent" header of the request. Then each line of "generic-ua" will be
+case-insensitively matched. Then the word "test" will be insensitively matched
+too.
+
+Note that right now it is difficult for the ACL parsers to report errors, so if
+a file is unreadable or unparsable, the most you'll get is a parse error in the
+ACL. Thus, file-based ACLs should only be produced by reliable processes.
 
 Supported types of values are :
 

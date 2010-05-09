@@ -19,6 +19,8 @@
 #include <common/standard.h>
 #include <common/uri_auth.h>
 
+#include <types/global.h>
+
 #include <proto/acl.h>
 #include <proto/auth.h>
 #include <proto/log.h>
@@ -658,6 +660,52 @@ static struct acl_expr *prune_acl_expr(struct acl_expr *expr)
 	return expr;
 }
 
+static int acl_read_patterns_from_file(	struct acl_keyword *aclkw,
+					struct acl_expr *expr,
+					const char *filename, int patflags)
+{
+	FILE *file;
+	char *c;
+	const char *args[2];
+	struct acl_pattern *pattern;
+	int opaque;
+
+	file = fopen(filename, "r");
+	if (!file)
+		return 0;
+
+	/* now parse all patterns. The file may contain only one pattern per
+	 * line. If the line contains spaces, they will be part of the pattern.
+	 * The pattern stops at the first CR, LF or EOF encountered.
+	 */
+	opaque = 0;
+	args[0] = trash;
+	args[1] = "";
+	while (fgets(trash, sizeof(trash), file) != NULL) {
+
+		c = trash;
+		while (*c && *c != '\n' && *c != '\r')
+			c++;
+		*c = 0;
+
+		pattern = (struct acl_pattern *)calloc(1, sizeof(*pattern));
+		if (!pattern)
+			goto out_close;
+		pattern->flags = patflags;
+
+		if (!aclkw->parse(args, pattern, &opaque))
+			goto out_free_pattern;
+		LIST_ADDQ(&expr->patterns, &pattern->list);
+	}
+	return 1;
+
+ out_free_pattern:
+	free_pattern(pattern);
+ out_close:
+	fclose(file);
+	return 0;
+}
+
 /* Parse an ACL expression starting at <args>[0], and return it.
  * Right now, the only accepted syntax is :
  * <subject> [<value>...]
@@ -711,8 +759,11 @@ struct acl_expr *parse_acl_expr(const char **args)
 	while (**args == '-') {
 		if ((*args)[1] == 'i')
 			patflags |= ACL_PAT_F_IGNORE_CASE;
-		else if ((*args)[1] == 'f')
-			patflags |= ACL_PAT_F_FROM_FILE;
+		else if ((*args)[1] == 'f') {
+			if (!acl_read_patterns_from_file(aclkw, expr, args[1], patflags | ACL_PAT_F_FROM_FILE))
+				goto out_free_expr;
+			args++;
+		}
 		else if ((*args)[1] == '-') {
 			args++;
 			break;
