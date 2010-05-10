@@ -30,6 +30,7 @@
 #include <types/proxy.h>
 #include <types/session.h>
 
+#include <ebmbtree.h>
 
 /* Pattern matching function result.
  *
@@ -100,6 +101,8 @@ enum {
 enum {
 	ACL_PAT_F_IGNORE_CASE = 1 << 0,       /* ignore case */
 	ACL_PAT_F_FROM_FILE   = 1 << 1,       /* pattern comes from a file */
+	ACL_PAT_F_TREE_OK     = 1 << 2,       /* the pattern parser is allowed to build a tree */
+	ACL_PAT_F_TREE        = 1 << 3,       /* some patterns are arranged in a tree */
 };
 
 /* what capabilities an ACL uses. These flags are set during parsing, which
@@ -165,6 +168,12 @@ enum {
 
 	/* any type of response information */
 	ACL_USE_RTR_ANY         = (ACL_USE_L4RTR_ANY | ACL_USE_L7RTR_ANY),
+
+	/* some flags indicating if a keyword supports exact pattern matching,
+	 * so that patterns may be arranged in lookup trees. Let's put those
+	 * flags at the end to leave some space for the other ones above.
+	 */
+	ACL_MAY_LOOKUP          =  1 << 31,  /* exact pattern lookup */
 };
 
 /* filtering hooks */
@@ -297,6 +306,7 @@ struct acl_expr {
 	} arg;
 	int arg_len;                /* optional argument length */
 	struct list patterns;       /* list of acl_patterns */
+	struct eb_root pattern_tree;  /* may be used for lookup in large datasets */
 };
 
 struct acl {
