@@ -25,6 +25,8 @@
 #include <proto/auth.h>
 #include <proto/log.h>
 
+#include <ebsttree.h>
+
 /* The capabilities of filtering hooks describe the type of information
  * available to each of them.
  */
@@ -128,6 +130,25 @@ int acl_match_str(struct acl_test *test, struct acl_pattern *pattern)
 	    (!icase && strncmp(pattern->ptr.str, test->ptr, test->len) == 0))
 		return ACL_PAT_PASS;
 	return ACL_PAT_FAIL;
+}
+
+/* Lookup a string in the expression's pattern tree. The node is returned if it
+ * exists, otherwise NULL.
+ */
+void *acl_lookup_str(struct acl_test *test, struct acl_expr *expr)
+{
+	/* data are stored in a tree */
+	struct ebmb_node *node;
+	char prev;
+
+	/* we may have to force a trailing zero on the test pattern */
+	prev = test->ptr[test->len];
+	if (prev)
+		test->ptr[test->len] = '\0';
+	node = ebst_lookup(&expr->pattern_tree, test->ptr);
+	if (prev)
+		test->ptr[test->len] = prev;
+	return node;
 }
 
 /* Executes a regex. It needs to change the data. If it is marked READ_ONLY
@@ -329,6 +350,23 @@ int acl_parse_str(const char **text, struct acl_pattern *pattern, int *opaque)
 	int len;
 
 	len  = strlen(*text);
+
+	if (pattern->flags & ACL_PAT_F_TREE_OK) {
+		/* we're allowed to put the data in a tree whose root is pointed
+		 * to by val.tree.
+		 */
+		struct ebmb_node *node;
+
+		node = calloc(1, sizeof(*node) + len + 1);
+		if (!node)
+			return 0;
+		memcpy(node->key, *text, len + 1);
+		if (ebst_insert(pattern->val.tree, node) != node)
+			free(node); /* was a duplicate */
+		pattern->flags |= ACL_PAT_F_TREE; /* this pattern now contains a tree */
+		return 1;
+	}
+
 	pattern->ptr.str = strdup(*text);
 	if (!pattern->ptr.str)
 		return 0;
@@ -1224,6 +1262,12 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 						acl_res |= ACL_PAT_FAIL;
 				}
 				else {
+					if (expr->pattern_tree.b[EB_LEFT]) {
+						/* a tree is present, let's check what type it is */
+						if (expr->kw->match == acl_match_str)
+							acl_res |= acl_lookup_str(&test, expr) ? ACL_PAT_PASS : ACL_PAT_FAIL;
+					}
+
 					/* call the match() function for all tests on this value */
 					list_for_each_entry(pattern, &expr->patterns, list) {
 						if (acl_res == ACL_PAT_PASS)
