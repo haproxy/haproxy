@@ -220,6 +220,7 @@ struct acl_pattern {
 		} ipv4;                         /* IPv4 address */
 		struct acl_time time;           /* valid hours and days */
 		unsigned int group_mask;
+		struct eb_root *tree;           /* tree storing all values if any */
 	} val;                                  /* direct value */
 	union {
 		void *ptr;              /* any data */

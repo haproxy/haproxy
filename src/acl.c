@@ -650,9 +650,21 @@ static void free_pattern_list(struct list *head)
 		free_pattern(pat);
 }
 
+static void free_pattern_tree(struct eb_root *root)
+{
+	struct eb_node *node, *next;
+	node = eb_first(root);
+	while (node) {
+		next = eb_next(node);
+		free(node);
+		node = next;
+	}
+}
+
 static struct acl_expr *prune_acl_expr(struct acl_expr *expr)
 {
 	free_pattern_list(&expr->patterns);
+	free_pattern_tree(&expr->pattern_tree);
 	LIST_INIT(&expr->patterns);
 	if (expr->arg_len && expr->arg.str)
 		free(expr->arg.str);
@@ -679,6 +691,7 @@ static int acl_read_patterns_from_file(	struct acl_keyword *aclkw,
 	 * The pattern stops at the first CR, LF or EOF encountered.
 	 */
 	opaque = 0;
+	pattern = NULL;
 	args[0] = trash;
 	args[1] = "";
 	while (fgets(trash, sizeof(trash), file) != NULL) {
@@ -688,15 +701,34 @@ static int acl_read_patterns_from_file(	struct acl_keyword *aclkw,
 			c++;
 		*c = 0;
 
-		pattern = (struct acl_pattern *)calloc(1, sizeof(*pattern));
+		/* we keep the previous pattern along iterations as long as it's not used */
+		if (!pattern)
+			pattern = (struct acl_pattern *)malloc(sizeof(*pattern));
 		if (!pattern)
 			goto out_close;
+
+		memset(pattern, 0, sizeof(*pattern));
 		pattern->flags = patflags;
+
+		if ((aclkw->requires & ACL_MAY_LOOKUP) && !(pattern->flags & ACL_PAT_F_IGNORE_CASE)) {
+			/* we pre-set the data pointer to the tree's head so that functions
+			 * which are able to insert in a tree know where to do that.
+			 */
+			pattern->flags |= ACL_PAT_F_TREE_OK;
+			pattern->val.tree = &expr->pattern_tree;
+		}
 
 		if (!aclkw->parse(args, pattern, &opaque))
 			goto out_free_pattern;
-		LIST_ADDQ(&expr->patterns, &pattern->list);
+
+		/* if the parser did not feed the tree, let's chain the pattern to the list */
+		if (!(pattern->flags & ACL_PAT_F_TREE)) {
+			LIST_ADDQ(&expr->patterns, &pattern->list);
+			pattern = NULL; /* get a new one */
+		}
 	}
+	if (pattern)
+		free_pattern(pattern);
 	return 1;
 
  out_free_pattern:
@@ -730,6 +762,7 @@ struct acl_expr *parse_acl_expr(const char **args)
 	expr->kw = aclkw;
 	aclkw->use_cnt++;
 	LIST_INIT(&expr->patterns);
+	expr->pattern_tree = EB_ROOT_UNIQUE;
 	expr->arg.str = NULL;
 	expr->arg_len = 0;
 
@@ -1193,12 +1226,13 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 				else {
 					/* call the match() function for all tests on this value */
 					list_for_each_entry(pattern, &expr->patterns, list) {
-						acl_res |= expr->kw->match(&test, pattern);
 						if (acl_res == ACL_PAT_PASS)
 							break;
+						acl_res |= expr->kw->match(&test, pattern);
 					}
 
-					if ((test.flags & ACL_TEST_F_NULL_MATCH) && LIST_ISEMPTY(&expr->patterns))
+					if ((test.flags & ACL_TEST_F_NULL_MATCH) &&
+					    LIST_ISEMPTY(&expr->patterns) && !expr->pattern_tree.b[EB_LEFT])
 						acl_res |= expr->kw->match(&test, NULL);
 				}
 				/*
