@@ -49,6 +49,7 @@
 #include <proto/fd.h>
 #include <proto/log.h>
 #include <proto/hdr_idx.h>
+#include <proto/pattern.h>
 #include <proto/proto_tcp.h>
 #include <proto/proto_http.h>
 #include <proto/proxy.h>
@@ -7429,11 +7430,40 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ NULL, NULL, NULL, NULL },
 }};
 
+/************************************************************************/
+/*     The code below is dedicated to pattern fetching and matching     */
+/************************************************************************/
+
+/* extract the IP address from the last occurrence of specified header. Note
+ * that we should normally first extract the string then convert it to IP,
+ * but right now we have all the functions to do this seemlessly, and we will
+ * be able to change that later without touching the configuration.
+ */
+static int
+pattern_fetch_hdr_ip(struct proxy *px, struct session *l4, void *l7, int dir,
+                  const char *arg, int arg_len, union pattern_data *data)
+{
+	struct http_txn *txn = l7;
+
+	data->ip.s_addr = htonl(get_ip_from_hdr2(&txn->req, arg, arg_len, &txn->hdr_idx, -1));
+	return data->ip.s_addr != 0;
+}
+
+/************************************************************************/
+/*             All supported keywords must be declared here.            */
+/************************************************************************/
+/* Note: must not be declared <const> as its list will be overwritten */
+static struct pattern_fetch_kw_list pattern_fetch_keywords = {{ },{
+	{ "hdr",       pattern_fetch_hdr_ip,   PATTERN_TYPE_IP,   PATTERN_FETCH_REQ },
+	{ NULL, NULL, 0, 0 },
+}};
+
 
 __attribute__((constructor))
 static void __http_protocol_init(void)
 {
 	acl_register_keywords(&acl_kws);
+	pattern_register_fetches(&pattern_fetch_keywords);
 }
 
 

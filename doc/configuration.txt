@@ -6555,6 +6555,11 @@ The list of currently supported pattern fetch functions is the following :
                ports to some clients for a whole application session. It is of
                type integer and only works with such tables.
 
+  hdr(name)    This extracts the last occurrence of header <name> in an HTTP
+               request and converts it to an IP address. This IP address is
+               then used to match the table. A typical use is with the
+               x-forwarded-for header.
+
 
 The currently available list of transformations include :
 
