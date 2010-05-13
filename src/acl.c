@@ -344,6 +344,21 @@ int acl_match_ip(struct acl_test *test, struct acl_pattern *pattern)
 	return ACL_PAT_FAIL;
 }
 
+/* Lookup an IPv4 address in the expression's pattern tree using the longest
+ * match method. The node is returned if it exists, otherwise NULL.
+ */
+void *acl_lookup_ip(struct acl_test *test, struct acl_expr *expr)
+{
+	struct in_addr *s;
+
+	if (test->i != AF_INET)
+		return ACL_PAT_FAIL;
+
+	s = (void *)test->ptr;
+
+	return ebmb_lookup_longest(&expr->pattern_tree, &s->s_addr);
+}
+
 /* Parse a string. It is allocated and duplicated. */
 int acl_parse_str(const char **text, struct acl_pattern *pattern, int *opaque)
 {
@@ -608,8 +623,33 @@ int acl_parse_dotted_ver(const char **text, struct acl_pattern *pattern, int *op
  */
 int acl_parse_ip(const char **text, struct acl_pattern *pattern, int *opaque)
 {
-	if (str2net(*text, &pattern->val.ipv4.addr, &pattern->val.ipv4.mask))
+	struct eb_root *tree = NULL;
+	if (pattern->flags & ACL_PAT_F_TREE_OK)
+		tree = pattern->val.tree;
+
+	if (str2net(*text, &pattern->val.ipv4.addr, &pattern->val.ipv4.mask)) {
+		unsigned int mask = ntohl(pattern->val.ipv4.mask.s_addr);
+		struct ebmb_node *node;
+		/* check if the mask is contiguous so that we can insert the
+		 * network into the tree. A continuous mask has only ones on
+		 * the left. This means that this mask + its lower bit added
+		 * once again is null.
+		 */
+		if (mask + (mask & -mask) == 0 && tree) {
+			mask = mask ? 33 - flsnz(mask & -mask) : 0; /* equals cidr value */
+			/* FIXME: insert <addr>/<mask> into the tree here */
+			node = calloc(1, sizeof(*node) + 4); /* reserve 4 bytes for IPv4 address */
+			if (!node)
+				return 0;
+			memcpy(node->key, &pattern->val.ipv4.addr, 4); /* network byte order */
+			node->node.pfx = mask;
+			if (ebmb_insert_prefix(tree, node, 4) != node)
+				free(node); /* was a duplicate */
+			pattern->flags |= ACL_PAT_F_TREE;
+			return 1;
+		}
 		return 1;
+	}
 	else
 		return 0;
 }
@@ -1266,6 +1306,8 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 						/* a tree is present, let's check what type it is */
 						if (expr->kw->match == acl_match_str)
 							acl_res |= acl_lookup_str(&test, expr) ? ACL_PAT_PASS : ACL_PAT_FAIL;
+						else if (expr->kw->match == acl_match_ip)
+							acl_res |= acl_lookup_ip(&test, expr) ? ACL_PAT_PASS : ACL_PAT_FAIL;
 					}
 
 					/* call the match() function for all tests on this value */
