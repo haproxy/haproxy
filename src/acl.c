@@ -770,11 +770,24 @@ static int acl_read_patterns_from_file(	struct acl_keyword *aclkw,
 	 */
 	opaque = 0;
 	pattern = NULL;
-	args[0] = trash;
 	args[1] = "";
 	while (fgets(trash, sizeof(trash), file) != NULL) {
 
 		c = trash;
+
+		/* ignore lines beginning with a dash */
+		if (*c == '#')
+			continue;
+
+		/* strip leading spaces and tabs */
+		while (*c == ' ' || *c == '\t')
+			c++;
+
+		/* empty lines are ignored too */
+		if (!*c)
+			continue;
+
+		args[0] = c;
 		while (*c && *c != '\n' && *c != '\r')
 			c++;
 		*c = 0;

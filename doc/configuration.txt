@@ -5893,8 +5893,15 @@ The following ACL flags are currently supported :
 The "-f" flag is special as it loads all of the lines it finds in the file
 specified in argument and loads all of them before continuing. It is even
 possible to pass multiple "-f" arguments if the patterns are to be loaded from
-multiple files. Also, note that the "-i" flag applies to subsequent entries and
-not to entries loaded from files preceeding it. For instance :
+multiple files. Empty lines as well as lines beginning with a sharp ('#') will
+be ignored. All leading spaces and tabs will be stripped. If it is absolutely
+needed to insert a valid pattern beginning with a sharp, just prefix it with a
+space so that it is not taken for a comment. Depending on the data type and
+match method, haproxy may load the lines into a binary tree, allowing very fast
+lookups. This is true for IPv4 and exact string matching. In this case,
+duplicates will automatically be removed. Also, note that the "-i" flag applies
+to subsequent entries and not to entries loaded from files preceeding it. For
+instance :
 
     acl valid-ua hdr(user-agent) -f exact-ua.lst -i -f generic-ua.lst  test
 
