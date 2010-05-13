@@ -1,6 +1,29 @@
 ChangeLog :
 ===========
 
+2010/05/13 : 1.4.5
+    - [DOC] report minimum kernel version for tproxy in the Makefile
+    - [MINOR] add the "ignore-persist" option to conditionally ignore persistence
+    - [DOC] add the "ignore-persist" option to conditionally ignore persistence
+    - [DOC] fix ignore-persist/force-persist documentation
+    - [BUG] cttproxy: socket fd leakage in check_cttproxy_version
+    - [DOC] doc/configuration.txt: fix typos
+    - [MINOR] option http-pretend-keepalive is both for FEs and BEs
+    - [MINOR] fix possible crash in debug mode with invalid responses
+    - [MINOR] halog: add support for statisticts on status codes
+    - [OPTIM] halog: use a faster zero test in fgets()
+    - [OPTIM] halog: minor speedup by using unlikely()
+    - [OPTIM] halog: speed up fgets2-64 by about 10%
+    - [DOC] refresh the README file and merge the CONTRIB file into it
+    - [MINOR] acl: support loading values from files
+    - [MEDIUM] ebtree: upgrade to version 6.0
+    - [MINOR] acl trees: add flags and union members to store values in trees
+    - [MEDIUM] acl: add ability to insert patterns in trees
+    - [MEDIUM] acl: add tree-based lookups of exact strings
+    - [MEDIUM] acl: add tree-based lookups of networks
+    - [MINOR] acl: ignore empty lines and comments in pattern files
+    - [MINOR] stick-tables: add support for "stick on hdr"
+
 2010/04/07 : 1.4.4
     - [BUG] appsession should match the whole cookie name
     - [CLEANUP] proxy: move PR_O_SSL3_CHK to options2 to release one flag
