@@ -1232,6 +1232,24 @@ acl_fetch_nbsrv(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 1;
 }
 
+/* report in test->flags a success or failure depending on the designated
+ * server's state. There is no match function involved since there's no pattern.
+ */
+static int
+acl_fetch_srv_is_up(struct proxy *px, struct session *l4, void *l7, int dir,
+		    struct acl_expr *expr, struct acl_test *test)
+{
+	struct server *srv = expr->arg.srv;
+
+	test->flags = ACL_TEST_F_VOL_TEST;
+	if (!(srv->state & SRV_MAINTAIN) &&
+	    (!(srv->state & SRV_CHECKED) || (srv->state & SRV_RUNNING)))
+		test->flags |= ACL_TEST_F_SET_RES_PASS;
+	else
+		test->flags |= ACL_TEST_F_SET_RES_FAIL;
+	return 1;
+}
+
 /* set test->i to the number of enabled servers on the proxy */
 static int
 acl_fetch_connslots(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -1410,6 +1428,7 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "be_conn", acl_parse_int, acl_fetch_be_conn, acl_match_int, ACL_USE_NOTHING },
 	{ "queue", acl_parse_int, acl_fetch_queue_size, acl_match_int, ACL_USE_NOTHING },
 	{ "avg_queue", acl_parse_int, acl_fetch_avg_queue_size, acl_match_int, ACL_USE_NOTHING },
+	{ "srv_is_up",    acl_parse_nothing,   acl_fetch_srv_is_up,  acl_match_nothing, ACL_USE_NOTHING },
 	{ NULL, NULL, NULL, NULL },
 }};
 

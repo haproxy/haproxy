@@ -6156,6 +6156,17 @@ src <ip_address>
 src_port <integer>
   Applies to the client's TCP source port. This has a very limited usage.
 
+srv_is_up(<server>)
+srv_is_up(<backend>/<server>)
+  Returns true when the designated server is UP, and false when it is either
+  DOWN or in maintenance mode. If <backend> is omitted, then the server is
+  looked up in the current backend. The function takes no arguments since it
+  is used as a boolean. It is mainly used to take action based on an external
+  status reported via a health check (eg: a geographical site's availability).
+  Another possible use which is more of a hack consists in using dummy servers
+  as boolean variables that can be enabled or disabled from the CLI, so that
+  rules depending on those ACLs can be tweaked in realtime.
+
 
 7.5.2. Matching contents at Layer 4
 -----------------------------------

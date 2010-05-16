@@ -2,7 +2,7 @@
  * include/types/acl.h
  * This file provides structures and types for ACLs.
  *
- * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -28,6 +28,7 @@
 
 #include <types/auth.h>
 #include <types/proxy.h>
+#include <types/server.h>
 #include <types/session.h>
 
 #include <ebmbtree.h>
@@ -304,6 +305,7 @@ struct acl_expr {
 	union {                     /* optional argument of the subject (eg: header or cookie name) */
 		char *str;
 		struct userlist *ul;
+		struct server *srv;
 	} arg;
 	int arg_len;                /* optional argument length */
 	struct list patterns;       /* list of acl_patterns */

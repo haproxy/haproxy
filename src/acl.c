@@ -24,6 +24,7 @@
 #include <proto/acl.h>
 #include <proto/auth.h>
 #include <proto/log.h>
+#include <proto/proxy.h>
 
 #include <ebsttree.h>
 
@@ -1428,6 +1429,53 @@ acl_find_targets(struct proxy *p)
 
 	list_for_each_entry(acl, &p->acl, list) {
 		list_for_each_entry(expr, &acl->expr, list) {
+			if (strcmp(expr->kw->kw, "srv_is_up") == 0) {
+				struct proxy *px;
+				struct server *srv;
+				char *pname, *sname;
+
+				if (!expr->arg.str || !*expr->arg.str) {
+					Alert("proxy %s: acl %s %s(): missing server name.\n",
+						p->id, acl->name, expr->kw->kw);
+					cfgerr++;
+					continue;
+				}
+
+				pname = expr->arg.str;
+				sname = strrchr(pname, '/');
+
+				if (sname)
+					*sname++ = '\0';
+				else {
+					sname = pname;
+					pname = NULL;
+				}
+
+				px = p;
+				if (pname) {
+					px = findproxy(pname, PR_CAP_BE);
+					if (!px) {
+						Alert("proxy %s: acl %s %s(): unable to find proxy '%s'.\n",
+						      p->id, acl->name, expr->kw->kw, pname);
+						cfgerr++;
+						continue;
+					}
+				}
+
+				srv = findserver(px, sname);
+				if (!srv) {
+					Alert("proxy %s: acl %s %s(): unable to find server '%s'.\n",
+					      p->id, acl->name, expr->kw->kw, sname);
+					cfgerr++;
+					continue;
+				}
+
+				free(expr->arg.str);
+				expr->arg_len = 0;
+				expr->arg.srv = srv;
+				continue;
+			}
+
 			if (strstr(expr->kw->kw, "http_auth") == expr->kw->kw) {
 
 				if (!expr->arg.str || !*expr->arg.str) {
