@@ -1315,7 +1315,7 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 						acl_res |= ACL_PAT_FAIL;
 				}
 				else {
-					if (expr->pattern_tree.b[EB_LEFT]) {
+					if (!eb_is_empty(&expr->pattern_tree)) {
 						/* a tree is present, let's check what type it is */
 						if (expr->kw->match == acl_match_str)
 							acl_res |= acl_lookup_str(&test, expr) ? ACL_PAT_PASS : ACL_PAT_FAIL;
@@ -1331,7 +1331,7 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 					}
 
 					if ((test.flags & ACL_TEST_F_NULL_MATCH) &&
-					    LIST_ISEMPTY(&expr->patterns) && !expr->pattern_tree.b[EB_LEFT])
+					    LIST_ISEMPTY(&expr->patterns) && eb_is_empty(&expr->pattern_tree))
 						acl_res |= expr->kw->match(&test, NULL);
 				}
 				/*
