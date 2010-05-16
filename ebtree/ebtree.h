@@ -1,6 +1,6 @@
 /*
  * Elastic Binary Trees - generic macros and structures.
- * Version 6.0
+ * Version 6.0.1
  * (C) 2002-2010 - Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -518,6 +518,12 @@ __eb_insert_dup(struct eb_node *sub, struct eb_node *new)
 /**************************************\
  * Public functions, for the end-user *
 \**************************************/
+
+/* Return non-zero if the tree is empty, otherwise zero */
+static inline int eb_is_empty(struct eb_root *root)
+{
+	return !root->b[EB_LEFT];
+}
 
 /* Return the first leaf in the tree starting at <root>, or NULL if none */
 static inline struct eb_node *eb_first(struct eb_root *root)

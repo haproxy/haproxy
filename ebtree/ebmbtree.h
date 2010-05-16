@@ -1,6 +1,6 @@
 /*
  * Elastic Binary Trees - macros and structures for Multi-Byte data nodes.
- * Version 6.0
+ * Version 6.0.1
  * (C) 2002-2010 - Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -17,8 +17,6 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
-
-#define dprintf(x,...) do { } while(0)
 
 #ifndef _EBMBTREE_H
 #define _EBMBTREE_H
@@ -605,7 +603,6 @@ __ebmb_insert_prefix(struct eb_root *root, struct ebmb_node *new, unsigned int l
 			if (len > old->node.pfx)
 				len = old->node.pfx;
 			bit = equal_bits(new->key, old->key, bit, len);
-			dprintf(" [new=%p, old=%p] obit=%d, eqbit=%d\n", new, old, old->node.bit, bit);
 			break;
 		}
 
@@ -613,7 +610,6 @@ __ebmb_insert_prefix(struct eb_root *root, struct ebmb_node *new, unsigned int l
 
 		bit = equal_bits(new->key, old->key, bit, old_node_bit >> 1);
 		bit = (bit << 1) + 1; // assume comparisons with normal nodes
-		dprintf(" [old=%p, new=%p] bit=%d/2, old_bit=%d/2\n", old, new, bit, old_node_bit);
 
 		/* we must always check that our prefix is larger than the nodes
 		 * we visit, otherwise we have to stop going down. The following
@@ -625,7 +621,6 @@ __ebmb_insert_prefix(struct eb_root *root, struct ebmb_node *new, unsigned int l
 			up_ptr = &old->node.node_p;
 			new->node.bit = new->node.pfx << 1;
 			diff = -1;
-			dprintf(" [new=%p, old=%p] obit=%d, nbit=%d (1)\n", new, old, old->node.bit, new->node.bit);
 			goto insert_above;
 		}
 
@@ -639,7 +634,6 @@ __ebmb_insert_prefix(struct eb_root *root, struct ebmb_node *new, unsigned int l
 			up_ptr = &old->node.node_p;
 			new->node.bit = bit;
 			diff = cmp_bits(new->key, old->key, bit >> 1);
-			dprintf(" --> diff=%d, node.bit=%d/2\n", diff, new->node.bit);
 			goto insert_above;
 		}
 
@@ -653,7 +647,6 @@ __ebmb_insert_prefix(struct eb_root *root, struct ebmb_node *new, unsigned int l
 				root = &old->node.branches;
 				side = EB_LEFT;
 				troot = root->b[side];
-				dprintf(" --> going down cover by left\n");
 				continue;
 			}
 
@@ -662,7 +655,6 @@ __ebmb_insert_prefix(struct eb_root *root, struct ebmb_node *new, unsigned int l
 			bit = old_node_bit >> 1; /* recheck that bit */
 			root = &old->node.branches;
 			troot = root->b[side];
-			dprintf(" --> going down cover by right\n");
 			continue;
 		}
 
@@ -712,7 +704,6 @@ __ebmb_insert_prefix(struct eb_root *root, struct ebmb_node *new, unsigned int l
 	if (bit > old->node.pfx)
 		bit = old->node.pfx;
 
-	dprintf(" [old=%p, new=%p] bit2=%d\n", old, new, bit);
 	new->node.bit = (bit << 1) + 1; /* assume normal node by default */
 
 	/* if one prefix is included in the second one, we don't compare bits
@@ -731,7 +722,6 @@ __ebmb_insert_prefix(struct eb_root *root, struct ebmb_node *new, unsigned int l
 		 */
 		new->node.bit--; /* anticipate cover node insertion */
 		if (new->node.pfx == old->node.pfx) {
-			dprintf(" [inserting dup %p->%p]\n", old, new);
 			new->node.bit = -1; /* mark as new dup tree, just in case */
 
 			if (unlikely(eb_gettag(root_right))) {
@@ -760,14 +750,12 @@ __ebmb_insert_prefix(struct eb_root *root, struct ebmb_node *new, unsigned int l
 	new_leaf = eb_dotag(&new->node.branches, EB_LEAF);
 
 	if (diff >= 0) {
-		dprintf(" [old=%p, new=%p] inserting right, obit=%d/2, nbit=%d/2\n", old, new, old->node.bit, new->node.bit);
 		new->node.branches.b[EB_LEFT] = troot;
 		new->node.branches.b[EB_RGHT] = new_leaf;
 		new->node.leaf_p = new_rght;
 		*up_ptr = new_left;
 	}
 	else {
-		dprintf(" [old=%p, new=%p] inserting left,  obit=%d/2, nbit=%d/2\n", old, new, old->node.bit, new->node.bit);
 		new->node.branches.b[EB_LEFT] = new_leaf;
 		new->node.branches.b[EB_RGHT] = troot;
 		new->node.leaf_p = new_left;
