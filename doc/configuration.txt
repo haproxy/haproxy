@@ -3617,8 +3617,8 @@ persist rdp-cookie(name)
                                  yes   |    no    |   yes  |   yes
   Arguments :
     <name>    is the optional name of the RDP cookie to check. If omitted, the
-              default cookie name "mstshash" will be used. There currently is
-              no valid reason to change this name.
+              default cookie name "msts" will be used. There currently is no
+              valid reason to change this name.
 
   This statement enables persistence based on an RDP cookie. The RDP cookie
   contains all information required to find the server in the list of known
@@ -3632,6 +3632,10 @@ persist rdp-cookie(name)
   in the request buffer. This is the same requirement as with the "rdp-cookie"
   load-balancing method. Thus it is highly recommended to put all statements in
   a single "listen" section.
+
+  Also, it is important to understand that the terminal server will emit this
+  RDP cookie only if it is configured for "token redirection mode", which means
+  that the "IP address redirection" option is disabled.
 
   Example :
         listen tse-farm
