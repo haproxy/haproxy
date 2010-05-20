@@ -4493,7 +4493,8 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 	n = msg->sol[msg->sl.st.c] - '0';
 	if (n < 1 || n > 5)
 		n = 0;
-	s->srv->counters.p.http.rsp[n]++;
+	if (s->srv)
+		s->srv->counters.p.http.rsp[n]++;
 
 	/* check if the response is HTTP/1.1 or above */
 	if ((msg->sl.st.v_l == 8) &&
@@ -4514,10 +4515,12 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 	 * and 505 are triggered on demand by client request, so we must not
 	 * count them as server failures.
 	 */
-	if (txn->status >= 100 && (txn->status < 500 || txn->status == 501 || txn->status == 505))
-		health_adjust(s->srv, HANA_STATUS_HTTP_OK);
-	else
-		health_adjust(s->srv, HANA_STATUS_HTTP_STS);
+	if (s->srv) {
+		if (txn->status >= 100 && (txn->status < 500 || txn->status == 501 || txn->status == 505))
+			health_adjust(s->srv, HANA_STATUS_HTTP_OK);
+		else
+			health_adjust(s->srv, HANA_STATUS_HTTP_STS);
+	}
 
 	/*
 	 * 2: check for cacheability.
