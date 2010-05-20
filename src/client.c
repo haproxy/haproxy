@@ -301,10 +301,10 @@ int event_accept(int fd) {
 
 			if ((txn->hdr_idx.v = pool_alloc2(p->hdr_idx_pool)) == NULL)
 				goto out_fail_idx; /* no memory */
-		}
 
-		if (p->mode == PR_MODE_HTTP)
+			/* and now initialize the HTTP transaction state */
 			http_init_txn(s);
+		}
 
 		if ((p->mode == PR_MODE_TCP || p->mode == PR_MODE_HTTP)
 		    && (p->logfac1 >= 0 || p->logfac2 >= 0)) {
