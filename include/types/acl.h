@@ -126,15 +126,15 @@ enum {
 	ACL_USE_TCP_VOLATILE    = 1 <<  8,      /* volatile  TCPv4/v6 data (eg: RTT) */
 	ACL_USE_TCP_ANY         = (ACL_USE_TCP_PERMANENT | ACL_USE_TCP_CACHEABLE | ACL_USE_TCP_VOLATILE),
 
-	ACL_USE_L4REQ_PERMANENT = 1 <<  9,      /* unchanged layer4 request data */
-	ACL_USE_L4REQ_CACHEABLE = 1 << 10,      /* cacheable layer4 request data (eg: length) */
-	ACL_USE_L4REQ_VOLATILE  = 1 << 11,      /* volatile  layer4 request data (eg: contents) */
-	ACL_USE_L4REQ_ANY       = (ACL_USE_L4REQ_PERMANENT | ACL_USE_L4REQ_CACHEABLE | ACL_USE_L4REQ_VOLATILE),
+	ACL_USE_L6REQ_PERMANENT = 1 <<  9,      /* unchanged layer6 request data */
+	ACL_USE_L6REQ_CACHEABLE = 1 << 10,      /* cacheable layer6 request data (eg: length) */
+	ACL_USE_L6REQ_VOLATILE  = 1 << 11,      /* volatile  layer6 request data (eg: contents) */
+	ACL_USE_L6REQ_ANY       = (ACL_USE_L6REQ_PERMANENT | ACL_USE_L6REQ_CACHEABLE | ACL_USE_L6REQ_VOLATILE),
 
-	ACL_USE_L4RTR_PERMANENT = 1 << 12,      /* unchanged layer4 response data */
-	ACL_USE_L4RTR_CACHEABLE = 1 << 13,      /* cacheable layer4 response data (eg: length) */
-	ACL_USE_L4RTR_VOLATILE  = 1 << 14,      /* volatile  layer4 response data (eg: contents) */
-	ACL_USE_L4RTR_ANY       = (ACL_USE_L4RTR_PERMANENT | ACL_USE_L4RTR_CACHEABLE | ACL_USE_L4RTR_VOLATILE),
+	ACL_USE_L6RTR_PERMANENT = 1 << 12,      /* unchanged layer6 response data */
+	ACL_USE_L6RTR_CACHEABLE = 1 << 13,      /* cacheable layer6 response data (eg: length) */
+	ACL_USE_L6RTR_VOLATILE  = 1 << 14,      /* volatile  layer6 response data (eg: contents) */
+	ACL_USE_L6RTR_ANY       = (ACL_USE_L6RTR_PERMANENT | ACL_USE_L6RTR_CACHEABLE | ACL_USE_L6RTR_VOLATILE),
 
 	ACL_USE_L7REQ_PERMANENT = 1 << 15,      /* unchanged layer7 request data (eg: method) */
 	ACL_USE_L7REQ_CACHEABLE = 1 << 16,      /* cacheable layer7 request data (eg: content-length) */
@@ -153,22 +153,22 @@ enum {
 
 	/* information which remains during response */
 	ACL_USE_REQ_PERMANENT   = (ACL_USE_TCP4_PERMANENT | ACL_USE_TCP6_PERMANENT | ACL_USE_TCP_PERMANENT |
-				   ACL_USE_L4REQ_PERMANENT | ACL_USE_L7REQ_PERMANENT),
+				   ACL_USE_L6REQ_PERMANENT | ACL_USE_L7REQ_PERMANENT),
 	ACL_USE_REQ_CACHEABLE   = (ACL_USE_TCP4_CACHEABLE | ACL_USE_TCP6_CACHEABLE | ACL_USE_TCP_CACHEABLE |
-				   ACL_USE_L4REQ_CACHEABLE | ACL_USE_L7REQ_CACHEABLE | ACL_USE_HDR_CACHEABLE),
+				   ACL_USE_L6REQ_CACHEABLE | ACL_USE_L7REQ_CACHEABLE | ACL_USE_HDR_CACHEABLE),
 
 	/* information which does not remain during response */
 	ACL_USE_REQ_VOLATILE    = (ACL_USE_TCP4_VOLATILE | ACL_USE_TCP6_VOLATILE | ACL_USE_TCP_VOLATILE |
-				   ACL_USE_L4REQ_VOLATILE | ACL_USE_L7REQ_VOLATILE),
+				   ACL_USE_L6REQ_VOLATILE | ACL_USE_L7REQ_VOLATILE),
 
-	/* any type of layer 4 contents information */
-	ACL_USE_L4_ANY          = (ACL_USE_L4REQ_ANY | ACL_USE_L4RTR_ANY),
+	/* any type of layer 6 contents information (random data available in a buffer) */
+	ACL_USE_L6_ANY          = (ACL_USE_L6REQ_ANY | ACL_USE_L6RTR_ANY),
 
 	/* any type of layer 7 information */
 	ACL_USE_L7_ANY          = (ACL_USE_L7REQ_ANY | ACL_USE_L7RTR_ANY | ACL_USE_HDR_ANY),
 
 	/* any type of response information */
-	ACL_USE_RTR_ANY         = (ACL_USE_L4RTR_ANY | ACL_USE_L7RTR_ANY),
+	ACL_USE_RTR_ANY         = (ACL_USE_L6RTR_ANY | ACL_USE_L7RTR_ANY),
 
 	/* some flags indicating if a keyword supports exact pattern matching,
 	 * so that patterns may be arranged in lookup trees. Let's put those
