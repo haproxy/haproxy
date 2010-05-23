@@ -63,6 +63,7 @@ int frontend_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	struct session *s;
 	struct http_txn *txn;
 	struct task *t;
+	struct tcp_rule *rule;
 
 	if ((s = pool_alloc2(pool2_session)) == NULL) { /* disable this proxy for a while */
 		Alert("out of memory in event_accept().\n");
@@ -94,25 +95,6 @@ int frontend_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 		goto out_free_session;
 	}
 
-	if ((fcntl(cfd, F_SETFL, O_NONBLOCK) == -1) ||
-	    (setsockopt(cfd, IPPROTO_TCP, TCP_NODELAY,
-			(char *) &one, sizeof(one)) == -1)) {
-		Alert("accept(): cannot set the socket in non blocking mode. Giving up\n");
-		goto out_free_task;
-	}
-
-	if (p->options & PR_O_TCP_CLI_KA)
-		setsockopt(cfd, SOL_SOCKET, SO_KEEPALIVE, (char *) &one, sizeof(one));
-
-	if (p->options & PR_O_TCP_NOLING)
-		setsockopt(cfd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
-
-	if (global.tune.client_sndbuf)
-		setsockopt(cfd, SOL_SOCKET, SO_SNDBUF, &global.tune.client_sndbuf, sizeof(global.tune.client_sndbuf));
-
-	if (global.tune.client_rcvbuf)
-		setsockopt(cfd, SOL_SOCKET, SO_RCVBUF, &global.tune.client_rcvbuf, sizeof(global.tune.client_rcvbuf));
-
 	t->process = l->handler;
 	t->context = s;
 	t->nice = l->nice;
@@ -128,6 +110,7 @@ int frontend_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 
 	s->req = s->rep = NULL; /* will be allocated later */
 
+	/* this part should be common with other protocols */
 	s->si[0].state = s->si[0].prev_state = SI_ST_EST;
 	s->si[0].err_type = SI_ET_NONE;
 	s->si[0].err_loc = NULL;
@@ -144,6 +127,50 @@ int frontend_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	if (s->fe->options2 & PR_O2_INDEPSTR)
 		s->si[0].flags |= SI_FL_INDEP_STR;
 	s->si[0].exp = TICK_ETERNITY;
+
+	s->logs.accept_date = date; /* user-visible date for logging */
+	s->logs.tv_accept = now;  /* corrected date for internal use */
+	s->uniq_id = totalconn;
+	proxy_inc_fe_ctr(l, p);	/* note: cum_beconn will be increased once assigned */
+
+	/* now evaluate the tcp-request rules */
+	list_for_each_entry(rule, &p->tcp_req.l4_rules, list) {
+		int ret = ACL_PAT_PASS;
+
+		if (rule->cond) {
+			ret = acl_exec_cond(rule->cond, p, s, &s->txn, ACL_DIR_REQ);
+			ret = acl_pass(ret);
+			if (rule->cond->pol == ACL_COND_UNLESS)
+				ret = !ret;
+		}
+
+		if (ret) {
+			/* we have a matching rule. */
+			if (rule->action == TCP_ACT_REJECT) {
+				p->counters.denied_req++;
+				if (l->counters)
+					l->counters->denied_req++;
+
+				if (!(s->flags & SN_ERR_MASK))
+					s->flags |= SN_ERR_PRXCOND;
+				if (!(s->flags & SN_FINST_MASK))
+					s->flags |= SN_FINST_R;
+
+				task_free(t);
+				LIST_DEL(&s->list);
+				pool_free2(pool2_session, s);
+
+				/* let's do a no-linger now to close with a single RST. */
+				setsockopt(cfd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
+				return 0;
+			}
+
+			/* otherwise it's an accept */
+			break;
+		}
+	}
+
+	/* pre-initialize the other side's stream interface */
 
 	s->si[1].state = s->si[1].prev_state = SI_ST_INI;
 	s->si[1].err_type = SI_ET_NONE;
@@ -186,8 +213,6 @@ int frontend_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	/* default error reporting function, may be changed by analysers */
 	s->srv_error = default_srv_error;
 
-	s->logs.accept_date = date; /* user-visible date for logging */
-	s->logs.tv_accept = now;  /* corrected date for internal use */
 	tv_zero(&s->logs.tv_request);
 	s->logs.t_queue = -1;
 	s->logs.t_connect = -1;
@@ -198,9 +223,6 @@ int frontend_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->logs.srv_queue_size = 0; /* we will get this number soon */
 
 	s->data_source = DATA_SRC_NONE;
-
-	s->uniq_id = totalconn;
-	proxy_inc_fe_ctr(l, p);	/* note: cum_beconn will be increased once assigned */
 
 	txn = &s->txn;
 	/* Those variables will be checked and freed if non-NULL in
@@ -215,6 +237,26 @@ int frontend_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	txn->rsp.cap = NULL;
 	txn->hdr_idx.v = NULL;
 	txn->hdr_idx.size = txn->hdr_idx.used = 0;
+
+	/* Adjust some socket options */
+	if ((fcntl(cfd, F_SETFL, O_NONBLOCK) == -1) ||
+	    (setsockopt(cfd, IPPROTO_TCP, TCP_NODELAY,
+			(char *) &one, sizeof(one)) == -1)) {
+		Alert("accept(): cannot set the socket in non blocking mode. Giving up\n");
+		goto out_free_task;
+	}
+
+	if (p->options & PR_O_TCP_CLI_KA)
+		setsockopt(cfd, SOL_SOCKET, SO_KEEPALIVE, (char *) &one, sizeof(one));
+
+	if (p->options & PR_O_TCP_NOLING)
+		setsockopt(cfd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
+
+	if (global.tune.client_sndbuf)
+		setsockopt(cfd, SOL_SOCKET, SO_SNDBUF, &global.tune.client_sndbuf, sizeof(global.tune.client_sndbuf));
+
+	if (global.tune.client_rcvbuf)
+		setsockopt(cfd, SOL_SOCKET, SO_RCVBUF, &global.tune.client_rcvbuf, sizeof(global.tune.client_rcvbuf));
 
 	if (p->mode == PR_MODE_HTTP) {
 		/* the captures are only used in HTTP frontends */
