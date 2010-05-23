@@ -908,6 +908,7 @@ static void init_new_proxy(struct proxy *p)
 	LIST_INIT(&p->sticking_rules);
 	LIST_INIT(&p->storersp_rules);
 	LIST_INIT(&p->tcp_req.inspect_rules);
+	LIST_INIT(&p->tcp_req.l4_rules);
 	LIST_INIT(&p->req_add);
 	LIST_INIT(&p->rsp_add);
 

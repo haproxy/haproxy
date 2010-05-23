@@ -182,6 +182,7 @@ struct proxy {
 	struct {                                /* TCP request processing */
 		unsigned int inspect_delay;     /* inspection delay */
 		struct list inspect_rules;      /* inspection rules */
+		struct list l4_rules;           /* layer4 rules */
 	} tcp_req;
 	int acl_requires;                       /* Elements required to satisfy all ACLs (ACL_USE_*) */
 	struct server *srv, defsrv;		/* known servers; default server configuration */
