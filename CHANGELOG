@@ -1,6 +1,9 @@
 ChangeLog :
 ===========
 
+2010/05/23 : 1.5-dev0
+    - exact copy of 1.4.6
+
 2010/05/16 : 1.4.6
     - [BUILD] ebtree: update to v6.0.1 to remove references to dprintf()
     - [CLEANUP] acl: make use of eb_is_empty() instead of open coding the tree's emptiness test

@@ -1,112 +1,99 @@
-'+' = done, '-' = todo, '*' = done except doc
+Medium-long term roadmap - 2010/04/10
 
-1.2.12 :
- + weighted RR/SH
+Legend: '+' = done, '-' = todo, '*' = done except doc
 
-1.2.13 :
- + maxconn
- + queueing
+1.5 (ETA 2010/12/31) :
+  - server-side HTTP keepalive
 
-1.2.14 :
- + HTML status page
+  - return-html code xxx [ file "xxx" | text "xxx" ] if <acl>
 
-        stats enable
-        stats uri /?stats  
-        stats realm w.ods.org\ statistics
-        stats auth user1:pass1
-        stats auth user2:pass2
-        stats auth user3:pass3
-        stats scope <px_id> | '.'
+  - return-raw  [ file "xxx" | text "xxx" ] if <acl>
 
- + allow server-less proxies (for stats)
+  - add support for client-side and server-side unix sockets
 
- - separate timeout controls
+  - try to remove srv==NULL internally and assign a dummy server to each backend
+    for dispatch, http_proxy and transparent modes.
 
- + option 'abortonclose' : if the session is queued or being connecting
-   to the server, and the client sends a shutdown(), then decide to abort
-   the session early because in most situations, this will be caused by
-   a client hitting the 'Stop' button, so there's no reason to overload
-   the servers with unservable requests. However, this is not HTTP compliant
-   and might cause little trouble to some very specific clients used to
-   close immediately after sending the request (no support for KA, which ones?)
+  - rename L4 acls as L6 ACLs when some content is involved
 
- + minconn : makes the server's maxconn dynamic, which will be computed as a
-   ratio of the proxy's sessions :
-     srv->effective_maxconn =
-          max(srv->maxconn * px->nbsess / px->maxconn, srv->minconn)
+  - add new L4 ACL checks immediately after accept, before even allocating the
+    buffers ("connection {accept|reject|delay|freeze} {if|unless}").
 
-1.2.15 :
- + monitor-uri : specify an URI for which we will always return 'HTTP/1.0 200'
-   and never forward nor log it.
+  - implement support for "connection freeze" after accept. A list of frozen
+    connections should be maintained so that it is possible to recycle them
+    when new file descriptors are required.
 
- + option ssl-hello-chk : send SSLv3 client hello messages to check the servers
+  - support for time-ordered priority queues with ability to add an offset
+    based on request matching. Each session will have one ebtree node to be
+    attached to whatever queue the session is waiting in.
 
-1.3 :
- - remove unused STATTIME
+  - assign a nice priority based on ACLs.
 
- - reference all the include files that must be created, possibly under subdirs :
+  - pattern extraction is needed for ACLs and stickiness. It would work like
+    this :
 
-   - acl.h      => more general ACL work
-   - appcook.h  => appsession-related cookies
-   - backend.h  => back-end part of the PR_O_* + backend definitions
-   - buffers.h  => buffer management relying on memory.h
-   - capture.h  => header and cookie capture
-   - cfgparse.h => configuration parser
-   - checks.h   => health checks
-   - clireq.h   => the client side "request" part of the current sessions.
-   - compat.h   => compatibility with other OSes (TCP_NODELAY, ...)
-   - config.h   => config parameters, renamed CONFIG_HAP_*, includes defaults.h
-   - controls.h => SN_CACHEABLE, ...
-   - cookies.h  => definitions related to cookie management + SN_SCK_*
-   - defaults.h => many default values, might disappear soon after cleanup
-   - frontend.h => front-end part of the PR_O_* + client definitions + listeners
-   - global.h   => shared global variables
-   - http.h     => HTTP state definitions and transitions
-   - httperr.{hc} => HTTP return codes
-   - libtask.h  => task scheduler
-   - libtime.h  => time-related definitions
-   - loadbal.h  => load balancing algorithms
-   - log.h      => log definitions
-   - memory.h   => pools
-   - polling.h  => definitions of select(), poll(), INTBITS, ...
-   - queue.h    => queue management
-   - regex.h    => filtering
-   - servers.h  => servers definitions (SRV_*, states, ...)
-   - fd.h       => FD_ST* (add FD_DGRAM), RES_*, socket states, etc...
-   - srvreq.h   => the server side "request" part of the current sessions.
-   - standard.h => general purpose macros and defines (eg: MIN/MAX, ...)
-   - startup.h  => MODE_*
-   - tuning.h   => platform-specific tuning parameters
+       acl <name> <pattern> [-i] <values>...
+
+    All ACL fetch method currently available would be transformed into pattern
+    extraction methods. That way we could stick on hdr(x-forwarded-for) or use
+    source 0.0.0.0 usesrc <pattern> (such as "hdr_ip(headername)"). Note that
+    ACLs sometimes need iterative matching/extraction.
+
+  - add support for complex pattern extraction rules :
+
+       pattern = <pattern_term>
+               | '{' pattern_expr '}'
+
+       pattern_expr = <pattern_term> [ <transform> ... ]
+
+  - support loading data sets from files
+      + present/not present (eg: netmasks)
+      - pattern conversion per prefixes. Eg: convert src IP to country.
+
+  - make new patterns available based on stickiness matching :
+      - number of entries in table for the matched pattern
+      - same after having increased the match counter
+
+  - add support for concurrency match in tables
+      - just like stickiness, but counted per session (or request), increased
+        on first match and decreased at end of request or connection. This
+        requires that the session has a list of matched terms that must be
+        released at the end.
+
+1.6 (will probably change anyway) :
+  - wait on resource (mem, socket, server's conn, server's rate, ...)
+
+  - bandwidth limits
+
+  - create internal services and make stats, CLI, etc... part of that.
+
+  - use_server ... if ...
+
+  - buddy servers to build defined lists of failovers. Detect loops during
+    the config check.
+
+          server XXX buddy YYY
+          server YYY    # may replace XXX when XXX fails
+
+  - spare servers : servers which are used in LB only when a minimum farm
+    weight threshold is not satisfied anymore. Useful for inter-site LB with
+    local pref by default.
 
 
+Old, maybe obsolete points
  - clarify licence by adding a 'MODULE_LICENCE("GPL")' or something equivalent.
-
- - handle half-closed connections better (cli/srv would not distinguish
-   DATA/SHUTR/SHUTW, it would be a session flag which would tell shutr/shutw).
-   Check how it got changed in httpterm.
 
  - 3 memory models : failsafe (prealloc), normal (current), optimal (alloc on
    demand)
 
- - wait queues replaced for priority-based trees
+ - ability to assign a task priority based on L7 matching
 
- - ability to assign a prio based on L7 matching
-
- - prio-based O(1) scheduler
-
- - maxconn reserve for VIP/admins
+ - implement support for event-triggerred epoll()
 
  - verify if it would be worth implementing an epoll_ctl_batch() for Linux
 
- - balance LC/WLC (patch available)
-
- - option minservers XXX : activates some backup servers when active servers
+ - option minservers XXX : activates some spare servers when active servers
    are insufficient
-
- - monitor minservers XXX : monitor-net and monitor-uri could report a failure
-   when the number of active servers is below this threshold.
-
- - option smtp-chk : use SMTP health checks (avoid logs if possible)
 
  - new keyword 'check' : check http xxx, check smtp xxx, check ssl-hello
 
