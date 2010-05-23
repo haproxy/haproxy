@@ -692,9 +692,9 @@ int tcp_inspect_request(struct session *s, struct buffer *req, int an_bit)
 				buffer_abort(s->rep);
 				req->analysers = 0;
 
-				s->fe->counters.failed_req++;
+				s->fe->counters.denied_req++;
 				if (s->listener->counters)
-					s->listener->counters->failed_req++;
+					s->listener->counters->denied_req++;
 
 				if (!(s->flags & SN_ERR_MASK))
 					s->flags |= SN_ERR_PRXCOND;
