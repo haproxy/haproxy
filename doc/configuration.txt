@@ -907,9 +907,11 @@ stick match                               -          -         X         X
 stick on                                  -          -         X         X
 stick store-request                       -          -         X         X
 stick-table                               -          -         X         X
+tcp-request accept                        -          X         X         -
 tcp-request content accept                -          X         X         -
 tcp-request content reject                -          X         X         -
 tcp-request inspect-delay                 -          X         X         -
+tcp-request reject                        -          X         X         -
 timeout check                             X          -         X         X
 timeout client                            X          X         X         -
 timeout clitimeout          (deprecated)  X          X         X         -
@@ -5061,6 +5063,38 @@ stick-table type {ip | integer | string [len <length>] } size <size>
              about time format.
 
 
+tcp-request accept [{if | unless} <condition>]
+  Accept an incoming connection if/unless a layer 4 condition is matched
+  May be used in sections :   defaults | frontend | listen | backend
+                                 no    |    yes   |   yes  |   no
+
+  Immediately after acceptance of a new incoming connection, it is possible to
+  evaluate some conditions to decide whether this connection must be accepted
+  or dropped. Those conditions cannot make use of any data contents because the
+  connection has not been read from yet, and the buffers are not yet allocated.
+  This can be used to selectively and very quickly accept or drop connections
+  from various sources with a very low overhead. If some contents need to be
+  inspected in order to take the decision, the "tcp-request content" statements
+  must be used instead.
+
+  This statement accepts the connection if the condition is true (when used
+  with "if") or false (when used with "unless"). It is important to understand
+  that "accept" and "reject" rules are evaluated in their exact declaration
+  order, so that it is possible to build complex rules from them. There is no
+  specific limit to the number of rules which may be inserted.
+
+  Note that the "if/unless" condition is optional. If no condition is set on
+  the action, it is simply performed unconditionally.
+
+  If no "tcp-request" rules are matched, the default action is to accept the
+  connection, which implies that the "tcp-request accept" statement will only
+  make sense when combined with another "tcp-request reject" statement.
+
+  See section 7 about ACL usage.
+
+  See also : "tcp-request reject" and "tcp-request content"
+
+
 tcp-request content accept [{if | unless} <condition>]
   Accept a connection if/unless a content inspection condition is matched
   May be used in sections :   defaults | frontend | listen | backend
@@ -5162,6 +5196,45 @@ tcp-request inspect-delay <timeout>
 
   See also : "tcp-request content accept", "tcp-request content reject",
              "timeout client".
+
+
+tcp-request reject [{if | unless} <condition>]
+  Reject an incoming connection if/unless a layer 4 condition is matched
+  May be used in sections :   defaults | frontend | listen | backend
+                                 no    |    yes   |   yes  |   no
+
+  Immediately after acceptance of a new incoming connection, it is possible to
+  evaluate some conditions to decide whether this connection must be accepted
+  or dropped. Those conditions cannot make use of any data contents because the
+  connection has not been read from yet, and the buffers are not yet allocated.
+  This can be used to selectively and very quickly accept or drop connections
+  from various sources with a very low overhead. If some contents need to be
+  inspected in order to take the decision, the "tcp-request content" statements
+  must be used instead.
+
+  This statement rejects the connection if the condition is true (when used
+  with "if") or false (when used with "unless"). It is important to understand
+  that "accept" and "reject" rules are evaluated in their exact declaration
+  order, so that it is possible to build complex rules from them. There is no
+  specific limit to the number of rules which may be inserted.
+
+  Note that the "if/unless" condition is optional. If no condition is set on
+  the action, it is simply performed unconditionally.
+
+  If no "tcp-request" rules are matched, the default action is to accept the
+  connection, which implies that the "tcp-request accept" statement will only
+  make sense when combined with another "tcp-request reject" statement.
+
+  Rejected connections are accounted in stats but are not logged. The reason is
+  that these rules should only be used to filter extremely high connection
+  rates such as the ones encountered during a massive DDoS attack. Under these
+  conditions, the simple action of logging each event would make the system
+  collapse and would considerably lower the filtering capacity. If logging is
+  absolutely desired, then "tcp-request content" rules should be used instead.
+
+  See section 7 about ACL usage.
+
+  See also : "tcp-request accept" and "tcp-request content"
 
 
 timeout check <timeout>

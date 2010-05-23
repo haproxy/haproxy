@@ -1,7 +1,7 @@
 /*
  * AF_INET/AF_INET6 SOCK_STREAM protocol layer (tcp)
  *
- * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2010 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -717,6 +717,11 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 	const char *ptr = NULL;
 	unsigned int val;
 	int retlen;
+	int action;
+	int warn = 0;
+	int pol = ACL_COND_NONE;
+	struct acl_cond *cond;
+	struct tcp_rule *rule;
 
 	if (!*args[1]) {
 		snprintf(err, errlen, "missing argument for '%s' in %s '%s'",
@@ -758,12 +763,6 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 	}
 
 	if (!strcmp(args[1], "content")) {
-		int action;
-		int warn = 0;
-		int pol = ACL_COND_NONE;
-		struct acl_cond *cond;
-		struct tcp_rule *rule;
-
 		if (curpx == defpx) {
 			snprintf(err, errlen, "%s %s is not allowed in 'defaults' sections",
 				 args[0], args[1]);
@@ -819,9 +818,69 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 		return warn;
 	}
 
-	snprintf(err, errlen, "unknown argument '%s' after '%s' in %s '%s'",
-		 args[1], args[0], proxy_type_str(proxy), curpx->id);
-	return -1;
+	/* OK so we're in front of plain L4 rules */
+	if (!strcmp(args[1], "accept"))
+		action = TCP_ACT_ACCEPT;
+	else if (!strcmp(args[1], "reject"))
+		action = TCP_ACT_REJECT;
+	else {
+		retlen = snprintf(err, errlen,
+				  "'%s' expects 'inspect-delay', 'content', 'accept' or 'reject', in %s '%s' (was '%s')",
+				  args[0], proxy_type_str(curpx), curpx->id, args[1]);
+		return -1;
+	}
+
+	if (curpx == defpx) {
+		snprintf(err, errlen, "%s %s is not allowed in 'defaults' sections",
+			 args[0], args[1]);
+		return -1;
+	}
+
+	pol = ACL_COND_NONE;
+	cond = NULL;
+
+	if (strcmp(args[2], "if") == 0 || strcmp(args[2], "unless") == 0) {
+		if ((cond = build_acl_cond(NULL, 0, curpx, (const char **)args+2)) == NULL) {
+			retlen = snprintf(err, errlen,
+					  "error detected in %s '%s' while parsing '%s' condition",
+					  proxy_type_str(curpx), curpx->id, args[2]);
+			return -1;
+		}
+	}
+	else if (*args[2]) {
+		retlen = snprintf(err, errlen,
+				  "'%s %s' only accepts 'if' or 'unless', in %s '%s' (was '%s')",
+				  args[0], args[1], proxy_type_str(curpx), curpx->id, args[2]);
+		return -1;
+	}
+
+	if (cond && (cond->requires & (ACL_USE_RTR_ANY|ACL_USE_L6_ANY|ACL_USE_L7_ANY))) {
+		struct acl *acl;
+		const char *name;
+
+		acl = cond_find_require(cond, ACL_USE_RTR_ANY|ACL_USE_L6_ANY|ACL_USE_L7_ANY);
+		name = acl ? acl->name : "(unknown)";
+
+		if (acl->requires & (ACL_USE_L6_ANY|ACL_USE_L7_ANY)) {
+			retlen = snprintf(err, errlen,
+					  "'%s %s' may not reference acl '%s' which makes use of payload in %s '%s'. Please use '%s content' for this.",
+					  args[0], args[1], name, proxy_type_str(curpx), curpx->id, args[0]);
+			return -1;
+		}
+		if (acl->requires & ACL_USE_RTR_ANY)
+			retlen = snprintf(err, errlen,
+					  "acl '%s' involves some response-only criteria which will be ignored.",
+					  name);
+
+		warn++;
+	}
+
+	rule = (struct tcp_rule *)calloc(1, sizeof(*rule));
+	rule->cond = cond;
+	rule->action = action;
+	LIST_INIT(&rule->list);
+	LIST_ADDQ(&curpx->tcp_req.l4_rules, &rule->list);
+	return warn;
 }
 
 
