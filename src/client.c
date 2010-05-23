@@ -265,6 +265,7 @@ int event_accept(int fd) {
 		s->data_source = DATA_SRC_NONE;
 
 		s->uniq_id = totalconn;
+		totalconn++;
 		proxy_inc_fe_ctr(l, p);	/* note: cum_beconn will be increased once assigned */
 
 		txn = &s->txn;
@@ -486,7 +487,6 @@ int event_accept(int fd) {
 		}
 
 		actconn++;
-		totalconn++;
 
 		// fprintf(stderr, "accepting from %p => %d conn, %d total, task=%p\n", p, actconn, totalconn, t);
 	} /* end of while (p->feconn < p->maxconn) */

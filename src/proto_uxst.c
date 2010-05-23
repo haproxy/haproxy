@@ -487,6 +487,7 @@ int uxst_event_accept(int fd) {
 		s->data_state = DATA_ST_INIT;
 		s->data_source = DATA_SRC_NONE;
 		s->uniq_id = totalconn;
+		totalconn++;
 
 		if ((s->req = pool_alloc2(pool2_buffer)) == NULL)
 			goto out_free_task;
@@ -554,7 +555,6 @@ int uxst_event_accept(int fd) {
 			l->state = LI_FULL;
 		}
 		actconn++;
-		totalconn++;
 	}
 	return 0;
 
