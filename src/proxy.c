@@ -27,7 +27,6 @@
 
 #include <types/global.h>
 
-#include <proto/client.h>
 #include <proto/backend.h>
 #include <proto/fd.h>
 #include <proto/hdr_idx.h>

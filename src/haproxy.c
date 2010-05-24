@@ -72,7 +72,6 @@
 #include <proto/backend.h>
 #include <proto/buffers.h>
 #include <proto/checks.h>
-#include <proto/client.h>
 #include <proto/fd.h>
 #include <proto/log.h>
 #include <proto/protocols.h>

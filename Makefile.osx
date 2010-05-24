@@ -101,7 +101,7 @@ LDFLAGS = -g -isysroot /Developer/SDKs/MacOSX10.4u.sdk -arch ppc -arch i386 -mma
 OBJS = src/haproxy.o src/sessionhash.o src/base64.o src/protocols.o \
        src/uri_auth.o src/standard.o src/buffers.o src/log.o src/task.o \
        src/time.o src/fd.o src/pipe.o src/regex.o src/cfgparse.o src/server.o \
-       src/checks.o src/queue.o src/client.o src/proxy.o src/proto_uxst.o \
+       src/checks.o src/queue.o src/frontend.o src/proxy.o src/proto_uxst.o \
        src/proto_http.o src/stream_sock.o src/appsession.o src/backend.o \
        src/stream_interface.o src/dumpstats.o src/proto_tcp.o \
        src/session.o src/hdr_idx.o src/ev_select.o src/signal.o \

@@ -27,7 +27,6 @@
 #include <common/time.h>
 
 #include <proto/buffers.h>
-#include <proto/client.h>
 #include <proto/fd.h>
 #include <proto/stream_interface.h>
 #include <proto/stream_sock.h>

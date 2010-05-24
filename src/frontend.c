@@ -1,7 +1,7 @@
 /*
- * Client-side variables and functions.
+ * Frontend variables and functions.
  *
- * Copyright 2000-2009 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2010 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -28,8 +28,8 @@
 
 #include <proto/acl.h>
 #include <proto/buffers.h>
-#include <proto/client.h>
 #include <proto/fd.h>
+#include <proto/frontend.h>
 #include <proto/log.h>
 #include <proto/hdr_idx.h>
 #include <proto/proto_tcp.h>
@@ -572,7 +572,7 @@ static struct acl_kw_list acl_kws = {{ },{
 
 
 __attribute__((constructor))
-static void __client_init(void)
+static void __frontend_init(void)
 {
 	acl_register_keywords(&acl_kws);
 }

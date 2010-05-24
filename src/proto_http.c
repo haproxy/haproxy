@@ -44,9 +44,9 @@
 #include <proto/backend.h>
 #include <proto/buffers.h>
 #include <proto/checks.h>
-#include <proto/client.h>
 #include <proto/dumpstats.h>
 #include <proto/fd.h>
+#include <proto/frontend.h>
 #include <proto/log.h>
 #include <proto/hdr_idx.h>
 #include <proto/pattern.h>

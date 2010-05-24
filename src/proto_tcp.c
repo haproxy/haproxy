@@ -39,7 +39,7 @@
 
 #include <proto/acl.h>
 #include <proto/buffers.h>
-#include <proto/client.h>
+#include <proto/frontend.h>
 #include <proto/log.h>
 #include <proto/pattern.h>
 #include <proto/port_range.h>
