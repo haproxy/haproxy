@@ -1,7 +1,7 @@
 /*
- * Protocol registration functions.
+ * Protocol registration and listener management functions.
  *
- * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2010 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -18,6 +18,7 @@
 #include <common/mini-clist.h>
 #include <common/standard.h>
 
+#include <proto/acl.h>
 #include <proto/fd.h>
 
 /* List head of all registered protocols */
@@ -208,3 +209,47 @@ int protocol_disable_all(void)
 	return err;
 }
 
+/************************************************************************/
+/*           All supported ACL keywords must be declared here.          */
+/************************************************************************/
+
+/* set test->i to the number of connexions to the same listening socket */
+static int
+acl_fetch_dconn(struct proxy *px, struct session *l4, void *l7, int dir,
+                struct acl_expr *expr, struct acl_test *test)
+{
+	test->i = l4->listener->nbconn;
+	return 1;
+}
+
+/* set test->i to the id of the socket (listener) */
+static int
+acl_fetch_so_id(struct proxy *px, struct session *l4, void *l7, int dir,
+                struct acl_expr *expr, struct acl_test *test) {
+
+	test->flags = ACL_TEST_F_READ_ONLY;
+
+	test->i = l4->listener->luid;
+
+	return 1;
+}
+
+/* Note: must not be declared <const> as its list will be overwritten */
+static struct acl_kw_list acl_kws = {{ },{
+	{ "dst_conn",   acl_parse_int,   acl_fetch_dconn,    acl_match_int, ACL_USE_NOTHING },
+	{ "so_id",      acl_parse_int,   acl_fetch_so_id,    acl_match_int, ACL_USE_NOTHING },
+	{ NULL, NULL, NULL, NULL },
+}};
+
+__attribute__((constructor))
+static void __protocols_init(void)
+{
+	acl_register_keywords(&acl_kws);
+}
+
+/*
+ * Local variables:
+ *  c-indent-level: 8
+ *  c-basic-offset: 8
+ * End:
+ */

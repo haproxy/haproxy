@@ -1353,25 +1353,6 @@ acl_fetch_connslots(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 1;
 }
 
-/* set test->i to the number of connections per second reaching the frontend */
-static int
-acl_fetch_fe_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-                       struct acl_expr *expr, struct acl_test *test)
-{
-	test->flags = ACL_TEST_F_VOL_TEST;
-	if (expr->arg_len) {
-		/* another proxy was designated, we must look for it */
-		for (px = proxy; px; px = px->next)
-			if ((px->cap & PR_CAP_FE) && !strcmp(px->id, expr->arg.str))
-				break;
-	}
-	if (!px)
-		return 0;
-
-	test->i = read_freq_ctr(&px->fe_sess_per_sec);
-	return 1;
-}
-
 /* set test->i to the number of connections per second reaching the backend */
 static int
 acl_fetch_be_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -1388,25 +1369,6 @@ acl_fetch_be_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0;
 
 	test->i = read_freq_ctr(&px->be_sess_per_sec);
-	return 1;
-}
-
-/* set test->i to the number of concurrent connections on the frontend */
-static int
-acl_fetch_fe_conn(struct proxy *px, struct session *l4, void *l7, int dir,
-		  struct acl_expr *expr, struct acl_test *test)
-{
-	test->flags = ACL_TEST_F_VOL_TEST;
-	if (expr->arg_len) {
-		/* another proxy was designated, we must look for it */
-		for (px = proxy; px; px = px->next)
-			if ((px->cap & PR_CAP_FE) && !strcmp(px->id, expr->arg.str))
-				break;
-	}
-	if (!px)
-		return 0;
-
-	test->i = px->feconn;
 	return 1;
 }
 
@@ -1489,9 +1451,7 @@ acl_fetch_avg_queue_size(struct proxy *px, struct session *l4, void *l7, int dir
 static struct acl_kw_list acl_kws = {{ },{
 	{ "nbsrv",    acl_parse_int,   acl_fetch_nbsrv,     acl_match_int, ACL_USE_NOTHING },
 	{ "connslots", acl_parse_int,   acl_fetch_connslots, acl_match_int, ACL_USE_NOTHING },
-	{ "fe_sess_rate", acl_parse_int, acl_fetch_fe_sess_rate, acl_match_int, ACL_USE_NOTHING },
 	{ "be_sess_rate", acl_parse_int, acl_fetch_be_sess_rate, acl_match_int, ACL_USE_NOTHING },
-	{ "fe_conn", acl_parse_int, acl_fetch_fe_conn, acl_match_int, ACL_USE_NOTHING },
 	{ "be_conn", acl_parse_int, acl_fetch_be_conn, acl_match_int, ACL_USE_NOTHING },
 	{ "queue", acl_parse_int, acl_fetch_queue_size, acl_match_int, ACL_USE_NOTHING },
 	{ "avg_queue", acl_parse_int, acl_fetch_avg_queue_size, acl_match_int, ACL_USE_NOTHING },

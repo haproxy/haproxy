@@ -39,7 +39,9 @@
 
 #include <proto/acl.h>
 #include <proto/buffers.h>
+#include <proto/client.h>
 #include <proto/log.h>
+#include <proto/pattern.h>
 #include <proto/port_range.h>
 #include <proto/protocols.h>
 #include <proto/proto_tcp.h>
@@ -822,13 +824,122 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 	return -1;
 }
 
+
+/************************************************************************/
+/*           All supported ACL keywords must be declared here.          */
+/************************************************************************/
+
+/* set test->ptr to point to the source IPv4/IPv6 address and test->i to the family */
+static int
+acl_fetch_src(struct proxy *px, struct session *l4, void *l7, int dir,
+              struct acl_expr *expr, struct acl_test *test)
+{
+	test->i = l4->cli_addr.ss_family;
+	if (test->i == AF_INET)
+		test->ptr = (void *)&((struct sockaddr_in *)&l4->cli_addr)->sin_addr;
+	else
+		test->ptr = (void *)&((struct sockaddr_in6 *)(&l4->cli_addr))->sin6_addr;
+	test->flags = ACL_TEST_F_READ_ONLY;
+	return 1;
+}
+
+/* extract the connection's source address */
+static int
+pattern_fetch_src(struct proxy *px, struct session *l4, void *l7, int dir,
+                  const char *arg, int arg_len, union pattern_data *data)
+{
+	data->ip.s_addr = ((struct sockaddr_in *)&l4->cli_addr)->sin_addr.s_addr;
+	return 1;
+}
+
+
+/* set test->i to the connection's source port */
+static int
+acl_fetch_sport(struct proxy *px, struct session *l4, void *l7, int dir,
+                struct acl_expr *expr, struct acl_test *test)
+{
+	if (l4->cli_addr.ss_family == AF_INET)
+		test->i = ntohs(((struct sockaddr_in *)&l4->cli_addr)->sin_port);
+	else
+		test->i = ntohs(((struct sockaddr_in6 *)(&l4->cli_addr))->sin6_port);
+	test->flags = 0;
+	return 1;
+}
+
+
+/* set test->ptr to point to the frontend's IPv4/IPv6 address and test->i to the family */
+static int
+acl_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir,
+              struct acl_expr *expr, struct acl_test *test)
+{
+	if (!(l4->flags & SN_FRT_ADDR_SET))
+		get_frt_addr(l4);
+
+	test->i = l4->frt_addr.ss_family;
+	if (test->i == AF_INET)
+		test->ptr = (void *)&((struct sockaddr_in *)&l4->frt_addr)->sin_addr;
+	else
+		test->ptr = (void *)&((struct sockaddr_in6 *)(&l4->frt_addr))->sin6_addr;
+	test->flags = ACL_TEST_F_READ_ONLY;
+	return 1;
+}
+
+
+/* extract the connection's destination address */
+static int
+pattern_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir,
+                  const char *arg, int arg_len, union pattern_data *data)
+{
+	data->ip.s_addr = ((struct sockaddr_in *)&l4->frt_addr)->sin_addr.s_addr;
+	return 1;
+}
+
+/* set test->i to the frontend connexion's destination port */
+static int
+acl_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
+                struct acl_expr *expr, struct acl_test *test)
+{
+	if (!(l4->flags & SN_FRT_ADDR_SET))
+		get_frt_addr(l4);
+
+	if (l4->frt_addr.ss_family == AF_INET)
+		test->i = ntohs(((struct sockaddr_in *)&l4->frt_addr)->sin_port);
+	else
+		test->i = ntohs(((struct sockaddr_in6 *)(&l4->frt_addr))->sin6_port);
+	test->flags = 0;
+	return 1;
+}
+
+static int
+pattern_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
+                    const char *arg, int arg_len, union pattern_data *data)
+
+{
+	data->integer = ntohs(((struct sockaddr_in *)&l4->frt_addr)->sin_port);
+	return 1;
+}
+
+
 static struct cfg_kw_list cfg_kws = {{ },{
 	{ CFG_LISTEN, "tcp-request", tcp_parse_tcp_req },
 	{ 0, NULL, NULL },
 }};
 
+/* Note: must not be declared <const> as its list will be overwritten */
 static struct acl_kw_list acl_kws = {{ },{
+	{ "src_port",   acl_parse_int,   acl_fetch_sport,    acl_match_int, ACL_USE_TCP_PERMANENT  },
+	{ "src",        acl_parse_ip,    acl_fetch_src,      acl_match_ip,  ACL_USE_TCP4_PERMANENT|ACL_MAY_LOOKUP },
+	{ "dst",        acl_parse_ip,    acl_fetch_dst,      acl_match_ip,  ACL_USE_TCP4_PERMANENT|ACL_MAY_LOOKUP },
+	{ "dst_port",   acl_parse_int,   acl_fetch_dport,    acl_match_int, ACL_USE_TCP_PERMANENT  },
 	{ NULL, NULL, NULL, NULL },
+}};
+
+/* Note: must not be declared <const> as its list will be overwritten */
+static struct pattern_fetch_kw_list pattern_fetch_keywords = {{ },{
+	{ "src",       pattern_fetch_src,   PATTERN_TYPE_IP,      PATTERN_FETCH_REQ },
+	{ "dst",       pattern_fetch_dst,   PATTERN_TYPE_IP,      PATTERN_FETCH_REQ },
+	{ "dst_port",  pattern_fetch_dport, PATTERN_TYPE_INTEGER, PATTERN_FETCH_REQ },
+	{ NULL, NULL, 0, 0 },
 }};
 
 __attribute__((constructor))
@@ -836,6 +947,7 @@ static void __tcp_protocol_init(void)
 {
 	protocol_register(&proto_tcpv4);
 	protocol_register(&proto_tcpv6);
+	pattern_register_fetches(&pattern_fetch_keywords);
 	cfg_register_keywords(&cfg_kws);
 	acl_register_keywords(&acl_kws);
 }
