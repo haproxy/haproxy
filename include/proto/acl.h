@@ -173,6 +173,10 @@ int acl_fetch_nothing(struct proxy *px, struct session *l4, void *l7, int dir,
 /* always return false */
 int acl_match_nothing(struct acl_test *test, struct acl_pattern *pattern);
 
+/* Fetch the RDP cookie identified in the expression. */
+int acl_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir,
+                         struct acl_expr *expr, struct acl_test *test);
+
 /* Checks that the pattern matches the end of the tested string. */
 int acl_match_end(struct acl_test *test, struct acl_pattern *pattern);
 

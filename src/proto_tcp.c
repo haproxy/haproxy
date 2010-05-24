@@ -31,29 +31,20 @@
 #include <common/config.h>
 #include <common/debug.h>
 #include <common/errors.h>
-#include <common/memory.h>
 #include <common/mini-clist.h>
 #include <common/standard.h>
-#include <common/time.h>
-#include <common/version.h>
 
 #include <types/global.h>
 #include <types/server.h>
 
 #include <proto/acl.h>
-#include <proto/backend.h>
 #include <proto/buffers.h>
-#include <proto/checks.h>
-#include <proto/fd.h>
 #include <proto/log.h>
 #include <proto/port_range.h>
 #include <proto/protocols.h>
 #include <proto/proto_tcp.h>
 #include <proto/proxy.h>
-#include <proto/queue.h>
-#include <proto/session.h>
 #include <proto/stream_sock.h>
-#include <proto/task.h>
 
 #ifdef CONFIG_HAP_CTTPROXY
 #include <import/ip_tproxy.h>
@@ -715,75 +706,6 @@ int tcp_inspect_request(struct session *s, struct buffer *req, int an_bit)
 	return 1;
 }
 
-/* Apply RDP cookie persistence to the current session. For this, the function
- * tries to extract an RDP cookie from the request buffer, and look for the
- * matching server in the list. If the server is found, it is assigned to the
- * session. This always returns 1, and the analyser removes itself from the
- * list. Nothing is performed if a server was already assigned.
- */
-int tcp_persist_rdp_cookie(struct session *s, struct buffer *req, int an_bit)
-{
-	struct proxy    *px   = s->be;
-	int              ret;
-	struct acl_expr  expr;
-	struct acl_test  test;
-	struct server *srv = px->srv;
-	struct sockaddr_in addr;
-	char *p;
-
-	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
-		now_ms, __FUNCTION__,
-		s,
-		req,
-		req->rex, req->wex,
-		req->flags,
-		req->l,
-		req->analysers);
-
-	if (s->flags & SN_ASSIGNED)
-		goto no_cookie;
-
-	memset(&expr, 0, sizeof(expr));
-	memset(&test, 0, sizeof(test));
-
-	expr.arg.str = s->be->rdp_cookie_name;
-	expr.arg_len = s->be->rdp_cookie_len;
-
-	ret = acl_fetch_rdp_cookie(px, s, NULL, ACL_DIR_REQ, &expr, &test);
-	if (ret == 0 || (test.flags & ACL_TEST_F_MAY_CHANGE) || test.len == 0)
-		goto no_cookie;
-
-	memset(&addr, 0, sizeof(addr));
-	addr.sin_family = AF_INET;
-
-	/* Considering an rdp cookie detected using acl, test.ptr ended with <cr><lf> and should return */
-	addr.sin_addr.s_addr = strtoul(test.ptr, &p, 10);
-	if (*p != '.')
-		goto no_cookie;
-	p++;
-	addr.sin_port = (unsigned short)strtoul(p, &p, 10);
-	if (*p != '.')
-		goto no_cookie;
-
-	while (srv) {
-		if (memcmp(&addr, &(srv->addr), sizeof(addr)) == 0) {
-			if ((srv->state & SRV_RUNNING) || (px->options & PR_O_PERSIST)) {
-				/* we found the server and it is usable */
-				s->flags |= SN_DIRECT | SN_ASSIGNED;
-				s->srv = srv;
-				break;
-			}
-		}
-		srv = srv->next;
-	}
-
-no_cookie:
-	req->analysers &= ~an_bit;
-	req->analyse_exp = TICK_ETERNITY;
-	return 1;
-}
-
-
 /* This function should be called to parse a line starting with the "tcp-request"
  * keyword.
  */
@@ -900,246 +822,12 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 	return -1;
 }
 
-/* return the number of bytes in the request buffer */
-static int
-acl_fetch_req_len(struct proxy *px, struct session *l4, void *l7, int dir,
-		  struct acl_expr *expr, struct acl_test *test)
-{
-	if (!l4 || !l4->req)
-		return 0;
-
-	test->i = l4->req->l;
-	test->flags = ACL_TEST_F_VOLATILE | ACL_TEST_F_MAY_CHANGE;
-	return 1;
-}
-
-/* Return the version of the SSL protocol in the request. It supports both
- * SSLv3 (TLSv1) header format for any message, and SSLv2 header format for
- * the hello message. The SSLv3 format is described in RFC 2246 p49, and the
- * SSLv2 format is described here, and completed p67 of RFC 2246 :
- *    http://wp.netscape.com/eng/security/SSL_2.html
- *
- * Note: this decoder only works with non-wrapping data.
- */
-static int
-acl_fetch_req_ssl_ver(struct proxy *px, struct session *l4, void *l7, int dir,
-			struct acl_expr *expr, struct acl_test *test)
-{
-	int version, bleft, msg_len;
-	const unsigned char *data;
-
-	if (!l4 || !l4->req)
-		return 0;
-
-	msg_len = 0;
-	bleft = l4->req->l;
-	if (!bleft)
-		goto too_short;
-
-	data = (const unsigned char *)l4->req->w;
-	if ((*data >= 0x14 && *data <= 0x17) || (*data == 0xFF)) {
-		/* SSLv3 header format */
-		if (bleft < 5)
-			goto too_short;
-
-		version = (data[1] << 16) + data[2]; /* version: major, minor */
-		msg_len = (data[3] <<  8) + data[4]; /* record length */
-
-		/* format introduced with SSLv3 */
-		if (version < 0x00030000)
-			goto not_ssl;
-
-		/* message length between 1 and 2^14 + 2048 */
-		if (msg_len < 1 || msg_len > ((1<<14) + 2048))
-			goto not_ssl;
-
-		bleft -= 5; data += 5;
-	} else {
-		/* SSLv2 header format, only supported for hello (msg type 1) */
-		int rlen, plen, cilen, silen, chlen;
-
-		if (*data & 0x80) {
-			if (bleft < 3)
-				goto too_short;
-			/* short header format : 15 bits for length */
-			rlen = ((data[0] & 0x7F) << 8) | data[1];
-			plen = 0;
-			bleft -= 2; data += 2;
-		} else {
-			if (bleft < 4)
-				goto too_short;
-			/* long header format : 14 bits for length + pad length */
-			rlen = ((data[0] & 0x3F) << 8) | data[1];
-			plen = data[2];
-			bleft -= 3; data += 2;
-		}
-
-		if (*data != 0x01)
-			goto not_ssl;
-		bleft--; data++;
-
-		if (bleft < 8)
-			goto too_short;
-		version = (data[0] << 16) + data[1]; /* version: major, minor */
-		cilen   = (data[2] <<  8) + data[3]; /* cipher len, multiple of 3 */
-		silen   = (data[4] <<  8) + data[5]; /* session_id_len: 0 or 16 */
-		chlen   = (data[6] <<  8) + data[7]; /* 16<=challenge length<=32 */
-
-		bleft -= 8; data += 8;
-		if (cilen % 3 != 0)
-			goto not_ssl;
-		if (silen && silen != 16)
-			goto not_ssl;
-		if (chlen < 16 || chlen > 32)
-			goto not_ssl;
-		if (rlen != 9 + cilen + silen + chlen)
-			goto not_ssl;
-
-		/* focus on the remaining data length */
-		msg_len = cilen + silen + chlen + plen;
-	}
-	/* We could recursively check that the buffer ends exactly on an SSL
-	 * fragment boundary and that a possible next segment is still SSL,
-	 * but that's a bit pointless. However, we could still check that
-	 * all the part of the request which fits in a buffer is already
-	 * there.
-	 */
-	if (msg_len > buffer_max_len(l4->req) + l4->req->data - l4->req->w)
-		msg_len = buffer_max_len(l4->req) + l4->req->data - l4->req->w;
-
-	if (bleft < msg_len)
-		goto too_short;
-
-	/* OK that's enough. We have at least the whole message, and we have
-	 * the protocol version.
-	 */
-	test->i = version;
-	test->flags = ACL_TEST_F_VOLATILE;
-	return 1;
-
- too_short:
-	test->flags = ACL_TEST_F_MAY_CHANGE;
- not_ssl:
-	return 0;
-}
-
-int
-acl_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir,
-                     struct acl_expr *expr, struct acl_test *test)
-{
-	int bleft;
-	const unsigned char *data;
-
-	if (!l4 || !l4->req)
-		return 0;
-
-	test->flags = 0;
-
-	bleft = l4->req->l;
-	if (bleft <= 11)
-		goto too_short;
-
-	data = (const unsigned char *)l4->req->w + 11;
-	bleft -= 11;
-
-	if (bleft <= 7)
-		goto too_short;
-
-	if (strncasecmp((const char *)data, "Cookie:", 7) != 0)
-		goto not_cookie;
-
-	data += 7;
-	bleft -= 7;
-
-	while (bleft > 0 && *data == ' ') {
-		data++;
-		bleft--;
-	}
-
-	if (expr->arg_len) {
-
-		if (bleft <= expr->arg_len)
-			goto too_short;
-
-		if ((data[expr->arg_len] != '=') ||
-		    strncasecmp(expr->arg.str, (const char *)data, expr->arg_len) != 0)
-			goto not_cookie;
-
-		data += expr->arg_len + 1;
-		bleft -= expr->arg_len + 1;
-	} else {
-		while (bleft > 0 && *data != '=') {
-			if (*data == '\r' || *data == '\n')
-				goto not_cookie;
-			data++;
-			bleft--;
-		}
-
-		if (bleft < 1)
-			goto too_short;
-
-		if (*data != '=')
-			goto not_cookie;
-
-		data++;
-		bleft--;
-	}
-
-	/* data points to cookie value */
-	test->ptr = (char *)data;
-	test->len = 0;
-
-	while (bleft > 0 && *data != '\r') {
-		data++;
-		bleft--;
-	}
-
-	if (bleft < 2)
-		goto too_short;
-
-	if (data[0] != '\r' || data[1] != '\n')
-		goto not_cookie;
-
-	test->len = (char *)data - test->ptr;
-	test->flags = ACL_TEST_F_VOLATILE;
-	return 1;
-
- too_short:
-	test->flags = ACL_TEST_F_MAY_CHANGE;
- not_cookie:
-	return 0;
-}
-
-static int
-acl_fetch_rdp_cookie_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
-			struct acl_expr *expr, struct acl_test *test)
-{
-	int ret;
-
-	ret = acl_fetch_rdp_cookie(px, l4, l7, dir, expr, test);
-
-	test->ptr = NULL;
-	test->len = 0;
-
-	if (test->flags & ACL_TEST_F_MAY_CHANGE)
-		return 0;
-
-	test->flags = ACL_TEST_F_VOLATILE;
-	test->i = ret;
-
-	return 1;
-}
-
 static struct cfg_kw_list cfg_kws = {{ },{
 	{ CFG_LISTEN, "tcp-request", tcp_parse_tcp_req },
 	{ 0, NULL, NULL },
 }};
 
 static struct acl_kw_list acl_kws = {{ },{
-	{ "req_len",      acl_parse_int,        acl_fetch_req_len,     acl_match_int, ACL_USE_L6REQ_VOLATILE },
-	{ "req_ssl_ver",  acl_parse_dotted_ver, acl_fetch_req_ssl_ver, acl_match_int, ACL_USE_L6REQ_VOLATILE },
-	{ "req_rdp_cookie",     acl_parse_str,  acl_fetch_rdp_cookie,     acl_match_str, ACL_USE_L6REQ_VOLATILE|ACL_MAY_LOOKUP },
-	{ "req_rdp_cookie_cnt", acl_parse_int,  acl_fetch_rdp_cookie_cnt, acl_match_int, ACL_USE_L6REQ_VOLATILE },
 	{ NULL, NULL, NULL, NULL },
 }};
 
