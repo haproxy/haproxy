@@ -5045,6 +5045,22 @@ out_uri_auth_compat:
 			curproxy->srv = next;
 		}
 
+		/* assign automatic UIDs to servers which don't have one yet */
+		next_id = 1;
+		newsrv = curproxy->srv;
+		while (newsrv != NULL) {
+			if (!newsrv->puid) {
+				/* server ID not set, use automatic numbering with first
+				 * spare entry starting with next_svid.
+				 */
+				next_id = get_next_id(&curproxy->conf.used_server_id, next_id);
+				newsrv->conf.id.key = newsrv->puid = next_id;
+				eb32_insert(&curproxy->conf.used_server_id, &newsrv->conf.id);
+			}
+			next_id++;
+			newsrv = newsrv->next;
+		}
+
 		curproxy->lbprm.wmult = 1; /* default weight multiplier */
 		curproxy->lbprm.wdiv  = 1; /* default weight divider */
 
@@ -5155,19 +5171,8 @@ out_uri_auth_compat:
 		/*
 		 * ensure that we're not cross-dressing a TCP server into HTTP.
 		 */
-		next_id = 1;
 		newsrv = curproxy->srv;
 		while (newsrv != NULL) {
-			if (!newsrv->puid) {
-				/* server ID not set, use automatic numbering with first
-				 * spare entry starting with next_svid.
-				 */
-				next_id = get_next_id(&curproxy->conf.used_server_id, next_id);
-				newsrv->conf.id.key = newsrv->puid = next_id;
-				eb32_insert(&curproxy->conf.used_server_id, &newsrv->conf.id);
-			}
-			next_id++;
-
 			if ((curproxy->mode != PR_MODE_HTTP) && (newsrv->rdr_len || newsrv->cklen)) {
 				Alert("config : %s '%s' : server cannot have cookie or redirect prefix in non-HTTP mode.\n",
 				      proxy_type_str(curproxy), curproxy->id);
