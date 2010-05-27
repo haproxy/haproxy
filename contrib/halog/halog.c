@@ -1,7 +1,7 @@
 /*
  * haproxy log time reporter
  *
- * Copyright 2000-2009 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2010 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -28,8 +28,11 @@
 #include <ctype.h>
 
 #include <eb32tree.h>
+#include <ebsttree.h>
 
+#define SOURCE_FIELD 5
 #define ACCEPT_FIELD 6
+#define SERVER_FIELD 8
 #define TIME_FIELD 9
 #define STATUS_FIELD 10
 #define CONN_FIELD 15
@@ -49,6 +52,13 @@ struct timer {
 	unsigned int count;
 };
 
+struct srv_st {
+	unsigned int st_cnt[6]; /* 0xx to 5xx */
+	unsigned int nb_ct, nb_rt, nb_ok;
+	unsigned long long cum_ct, cum_rt;
+	struct ebmb_node node;
+	/* don't put anything else here, the server name will be there */
+};
 
 #define FILT_COUNT_ONLY		0x01
 #define FILT_INVERT		0x02
@@ -64,6 +74,7 @@ struct timer {
 #define FILT_INVERT_TIME_RESP  0x400
 
 #define FILT_COUNT_STATUS      0x800
+#define FILT_COUNT_SRV_STATUS 0x1000
 
 unsigned int filter = 0;
 unsigned int filter_invert = 0;
@@ -75,7 +86,7 @@ void die(const char *msg)
 {
 	fprintf(stderr,
 		"%s"
-		"Usage: halog [-c] [-v] [-gt] [-pct] [-st] [-s <skip>] [-e|-E] [-rt|-RT <time>] [-ad <delay>] [-ac <count>] < file.log\n"
+		"Usage: halog [-q] [-c] [-v] [-gt] [-pct] [-st] [-srv] [-s <skip>] [-e|-E] [-rt|-RT <time>] [-ad <delay>] [-ac <count>] < file.log\n"
 		"\n",
 		msg ? msg : ""
 		);
@@ -412,6 +423,8 @@ int main(int argc, char **argv)
 			filter |= FILT_PERCENTILE;
 		else if (strcmp(argv[0], "-st") == 0)
 			filter |= FILT_COUNT_STATUS;
+		else if (strcmp(argv[0], "-srv") == 0)
+			filter |= FILT_COUNT_SRV_STATUS;
 		else if (strcmp(argv[0], "-o") == 0) {
 			if (output_file)
 				die("Fatal: output file name already specified.\n");
@@ -606,6 +619,104 @@ int main(int argc, char **argv)
 			continue;
 		}
 
+		if (unlikely(filter & FILT_COUNT_SRV_STATUS)) {
+			char *srv_name;
+			struct ebmb_node *srv_node;
+			struct srv_st *srv;
+
+			/* first, let's ensure that the line is a traffic line (beginning
+			 * with an IP address)
+			 */
+			b = field_start(line, SOURCE_FIELD + skip_fields);
+			if (*b < '0' || *b > '9') {
+				parse_err++;
+				continue;
+			}
+
+			/* the server field is before the status field, so let's
+			 * parse them in the proper order.
+			 */
+			b = field_start(b, SERVER_FIELD - SOURCE_FIELD + 1);
+			if (!*b) {
+				truncated_line(linenum, line);
+				continue;
+			}
+
+			e = field_stop(b + 1);  /* we have the server name in [b]..[e-1] */
+
+			/* the chance that a server name already exists is extremely high,
+			 * so let's perform a normal lookup first.
+			 */
+			srv_node = ebst_lookup_len(&timers[0], b, e - b);
+			srv = container_of(srv_node, struct srv_st, node);
+
+			if (!srv_node) {
+				/* server not yet in the tree, let's create it */
+				srv = (void *)calloc(1, sizeof(struct srv_st) + e - b + 1);
+				srv_node = &srv->node;
+				memcpy(&srv_node->key, b, e - b);
+				srv_node->key[e - b] = '\0';
+				ebst_insert(&timers[0], srv_node);
+			}
+
+			/* let's collect the connect and response times */
+			b = field_start(e, TIME_FIELD - SERVER_FIELD);
+			if (!*b) {
+				truncated_line(linenum, line);
+				continue;
+			}
+
+			e = field_stop(b + 1);
+			/* we have field TIME_FIELD in [b]..[e-1] */
+
+			p = b;
+			err = 0;
+			for (f = 0; f < 5 && *p; f++) {
+				array[f] = str2ic(p);
+				if (array[f] < 0) {
+					array[f] = -1;
+					err = 1;
+				}
+
+				SKIP_CHAR(p, '/');
+			}
+
+			if (f < 5) {
+				parse_err++;
+				continue;
+			}
+
+			/* OK we have our timers in array[2,3] */
+			if (!err)
+				srv->nb_ok++;
+
+			if (array[2] >= 0) {
+				srv->cum_ct += array[2];
+				srv->nb_ct++;
+			}
+
+			if (array[3] >= 0) {
+				srv->cum_rt += array[3];
+				srv->nb_rt++;
+			}
+
+			/* we're interested in the 5 HTTP status classes (1xx ... 5xx), and
+			 * the invalid ones which will be reported as 0.
+			 */
+			b = field_start(e, STATUS_FIELD - TIME_FIELD);
+			if (!*b) {
+				truncated_line(linenum, line);
+				continue;
+			}
+
+			val = 0;
+			if (*b >= '1' && *b <= '5')
+				val = *b - '0';
+
+			srv->st_cnt[val]++;
+			continue;
+		}
+
 		/* all other cases mean we just want to count lines */
 		tot++;
 		if (unlikely(!(filter & FILT_COUNT_ONLY)))
@@ -732,6 +843,34 @@ int main(int argc, char **argv)
 			n = eb32_next(n);
 		}
 	}
+	else if (unlikely(filter & FILT_COUNT_SRV_STATUS)) {
+		char *srv_name;
+		struct ebmb_node *srv_node;
+		struct srv_st *srv;
+
+		printf("#srv_name 1xx 2xx 3xx 4xx 5xx other tot_req req_ok pct_ok avg_ct avg_rt\n");
+
+		srv_node = ebmb_first(&timers[0]);
+		while (srv_node) {
+			int tot_rq;
+
+			srv = container_of(srv_node, struct srv_st, node);
+
+			tot_rq = 0;
+			for (f = 0; f <= 5; f++)
+				tot_rq += srv->st_cnt[f];
+
+			printf("%s %d %d %d %d %d %d %d %d %.1f %d %d\n",
+			       srv_node->key, srv->st_cnt[1], srv->st_cnt[2],
+			       srv->st_cnt[3], srv->st_cnt[4], srv->st_cnt[5], srv->st_cnt[0],
+			       tot_rq,
+			       srv->nb_ok, (double)srv->nb_ok * 100.0 / (tot_rq?tot_rq:1),
+			       (int)(srv->cum_ct / (srv->nb_ct?srv->nb_ct:1)), (int)(srv->cum_rt / (srv->nb_rt?srv->nb_rt:1)));
+			srv_node = ebmb_next(srv_node);
+			tot++;
+		}
+	}
+
  empty:
 	if (!(filter & FILT_QUIET))
 		fprintf(stderr, "%d lines in, %d lines out, %d parsing errors\n",
