@@ -65,7 +65,7 @@ int frontend_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	struct task *t;
 	struct tcp_rule *rule;
 
-	if ((s = pool_alloc2(pool2_session)) == NULL) { /* disable this proxy for a while */
+	if (unlikely((s = pool_alloc2(pool2_session)) == NULL)) {
 		Alert("out of memory in event_accept().\n");
 		goto out_close;
 	}
@@ -80,9 +80,9 @@ int frontend_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	/* if this session comes from a known monitoring system, we want to ignore
 	 * it as soon as possible, which means closing it immediately for TCP.
 	 */
-	if (p->mon_mask.s_addr &&
-	    addr->ss_family == AF_INET &&
-	    (((struct sockaddr_in *)addr)->sin_addr.s_addr & p->mon_mask.s_addr) == p->mon_net.s_addr) {
+	if (unlikely(p->mon_mask.s_addr &&
+		     addr->ss_family == AF_INET &&
+		     (((struct sockaddr_in *)addr)->sin_addr.s_addr & p->mon_mask.s_addr) == p->mon_net.s_addr)) {
 		if (p->mode == PR_MODE_TCP) {
 			pool_free2(pool2_session, s);
 			return 0;
@@ -90,7 +90,7 @@ int frontend_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 		s->flags |= SN_MONITOR;
 	}
 
-	if ((t = task_new()) == NULL) { /* disable this proxy for a while */
+	if (unlikely((t = task_new()) == NULL)) { /* disable this proxy for a while */
 		Alert("out of memory in event_accept().\n");
 		goto out_free_session;
 	}
@@ -124,7 +124,7 @@ int frontend_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->si[0].iohandler = NULL;
 	s->si[0].fd = cfd;
 	s->si[0].flags = SI_FL_NONE | SI_FL_CAP_SPLTCP; /* TCP splicing capable */
-	if (s->fe->options2 & PR_O2_INDEPSTR)
+	if (likely(s->fe->options2 & PR_O2_INDEPSTR))
 		s->si[0].flags |= SI_FL_INDEP_STR;
 	s->si[0].exp = TICK_ETERNITY;
 
@@ -186,7 +186,7 @@ int frontend_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->si[1].exp = TICK_ETERNITY;
 	s->si[1].fd = -1; /* just to help with debugging */
 	s->si[1].flags = SI_FL_NONE;
-	if (s->be->options2 & PR_O2_INDEPSTR)
+	if (likely(s->be->options2 & PR_O2_INDEPSTR))
 		s->si[1].flags |= SI_FL_INDEP_STR;
 
 	s->srv = s->prev_srv = s->srv_conn = NULL;
@@ -239,9 +239,9 @@ int frontend_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	txn->hdr_idx.size = txn->hdr_idx.used = 0;
 
 	/* Adjust some socket options */
-	if ((fcntl(cfd, F_SETFL, O_NONBLOCK) == -1) ||
-	    (setsockopt(cfd, IPPROTO_TCP, TCP_NODELAY,
-			(char *) &one, sizeof(one)) == -1)) {
+	if (unlikely(fcntl(cfd, F_SETFL, O_NONBLOCK) == -1 ||
+		     setsockopt(cfd, IPPROTO_TCP, TCP_NODELAY,
+				(char *) &one, sizeof(one)) == -1)) {
 		Alert("accept(): cannot set the socket in non blocking mode. Giving up\n");
 		goto out_free_task;
 	}
@@ -260,12 +260,12 @@ int frontend_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 
 	if (p->mode == PR_MODE_HTTP) {
 		/* the captures are only used in HTTP frontends */
-		if (p->nb_req_cap > 0 &&
-		    (txn->req.cap = pool_alloc2(p->req_cap_pool)) == NULL)
+		if (unlikely(p->nb_req_cap > 0 &&
+			     (txn->req.cap = pool_alloc2(p->req_cap_pool)) == NULL))
 			goto out_fail_reqcap;	/* no memory */
 
-		if (p->nb_rsp_cap > 0 &&
-		    (txn->rsp.cap = pool_alloc2(p->rsp_cap_pool)) == NULL)
+		if (unlikely(p->nb_rsp_cap > 0 &&
+			     (txn->rsp.cap = pool_alloc2(p->rsp_cap_pool)) == NULL))
 			goto out_fail_rspcap;	/* no memory */
 	}
 
@@ -276,7 +276,7 @@ int frontend_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 		 */
 		txn->hdr_idx.size = MAX_HTTP_HDR;
 
-		if ((txn->hdr_idx.v = pool_alloc2(p->hdr_idx_pool)) == NULL)
+		if (unlikely((txn->hdr_idx.v = pool_alloc2(p->hdr_idx_pool)) == NULL))
 			goto out_fail_idx; /* no memory */
 
 		/* and now initialize the HTTP transaction state */
@@ -285,7 +285,7 @@ int frontend_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 
 	if ((p->mode == PR_MODE_TCP || p->mode == PR_MODE_HTTP)
 	    && (p->logfac1 >= 0 || p->logfac2 >= 0)) {
-		if (p->to_log) {
+		if (likely(p->to_log)) {
 			/* we have the client ip */
 			if (s->logs.logwait & LW_CLIP)
 				if (!(s->logs.logwait &= ~LW_CLIP))
@@ -325,7 +325,7 @@ int frontend_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 		}
 	}
 
-	if ((global.mode & MODE_DEBUG) && (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))) {
+	if (unlikely((global.mode & MODE_DEBUG) && (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
 		int len;
 
 		if (!(s->flags & SN_FRT_ADDR_SET))
@@ -355,7 +355,7 @@ int frontend_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 		write(1, trash, len);
 	}
 
-	if ((s->req = pool_alloc2(pool2_buffer)) == NULL)
+	if (unlikely((s->req = pool_alloc2(pool2_buffer)) == NULL))
 		goto out_fail_req; /* no memory */
 
 	s->req->size = global.tune.bufsize;
@@ -382,7 +382,7 @@ int frontend_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->req->wto = s->be->timeout.server;
 	s->req->cto = s->be->timeout.connect;
 
-	if ((s->rep = pool_alloc2(pool2_buffer)) == NULL)
+	if (unlikely((s->rep = pool_alloc2(pool2_buffer)) == NULL))
 		goto out_fail_rep; /* no memory */
 
 	s->rep->size = global.tune.bufsize;
@@ -418,8 +418,8 @@ int frontend_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	fdinfo[cfd].peeraddr = (struct sockaddr *)&s->cli_addr;
 	fdinfo[cfd].peerlen = sizeof(s->cli_addr);
 
-	if ((p->mode == PR_MODE_HTTP && (s->flags & SN_MONITOR)) ||
-	    (p->mode == PR_MODE_HEALTH && (p->options & PR_O_HTTP_CHK))) {
+	if (unlikely((p->mode == PR_MODE_HTTP && (s->flags & SN_MONITOR)) ||
+		     (p->mode == PR_MODE_HEALTH && (p->options & PR_O_HTTP_CHK)))) {
 		/* Either we got a request from a monitoring system on an HTTP instance,
 		 * or we're in health check mode with the 'httpchk' option enabled. In
 		 * both cases, we return a fake "HTTP/1.0 200 OK" response and we exit.
@@ -430,7 +430,7 @@ int frontend_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 		s->req->analysers = 0;
 		t->expire = s->rep->wex;
 	}
-	else if (p->mode == PR_MODE_HEALTH) {  /* health check mode, no client reading */
+	else if (unlikely(p->mode == PR_MODE_HEALTH)) {  /* health check mode, no client reading */
 		struct chunk msg;
 		chunk_initstr(&msg, "OK\n");
 		stream_int_retnclose(&s->si[0], &msg); /* forge an "OK" response */
