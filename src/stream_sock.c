@@ -31,6 +31,8 @@
 
 #include <proto/buffers.h>
 #include <proto/fd.h>
+#include <proto/freq_ctr.h>
+#include <proto/log.h>
 #include <proto/pipe.h>
 #include <proto/stream_sock.h>
 #include <proto/task.h>
@@ -1116,6 +1118,107 @@ void stream_sock_chk_snd(struct stream_interface *si)
 		if (!(si->flags & SI_FL_DONT_WAKE) && si->owner)
 			task_wakeup(si->owner, TASK_WOKEN_IO);
 	}
+}
+
+/* This function is called on a read event from a listening socket, corresponding
+ * to an accept. It tries to accept as many connections as possible, and for each
+ * calls the listener's accept handler (generally the frontend's accept handler).
+ */
+int stream_sock_accept(int fd)
+{
+	struct listener *l = fdtab[fd].owner;
+	struct proxy *p = l->frontend;
+	int max_accept = global.tune.maxaccept;
+	int cfd;
+	int ret;
+
+	if (unlikely(l->nbconn >= l->maxconn)) {
+		EV_FD_CLR(l->fd, DIR_RD);
+		l->state = LI_FULL;
+		return 0;
+	}
+
+	if (p && p->fe_sps_lim) {
+		int max = freq_ctr_remain(&p->fe_sess_per_sec, p->fe_sps_lim, 0);
+		if (max_accept > max)
+			max_accept = max;
+	}
+
+	while ((!p || p->feconn < p->maxconn) && actconn < global.maxconn && max_accept--) {
+		struct sockaddr_storage addr;
+		socklen_t laddr = sizeof(addr);
+
+		cfd = accept(fd, (struct sockaddr *)&addr, &laddr);
+		if (unlikely(cfd == -1)) {
+			switch (errno) {
+			case EAGAIN:
+			case EINTR:
+			case ECONNABORTED:
+				return 0;	    /* nothing more to accept */
+			case ENFILE:
+				send_log(p, LOG_EMERG,
+					 "Proxy %s reached system FD limit at %d. Please check system tunables.\n",
+					 p->id, maxfd);
+				return 0;
+			case EMFILE:
+				send_log(p, LOG_EMERG,
+					 "Proxy %s reached process FD limit at %d. Please check 'ulimit-n' and restart.\n",
+					 p->id, maxfd);
+				return 0;
+			case ENOBUFS:
+			case ENOMEM:
+				send_log(p, LOG_EMERG,
+					 "Proxy %s reached system memory limit at %d sockets. Please check system tunables.\n",
+					 p->id, maxfd);
+				return 0;
+			default:
+				return 0;
+			}
+		}
+
+		if (unlikely(cfd >= global.maxsock)) {
+			Alert("accept(): not enough free sockets. Raise -n argument. Giving up.\n");
+			goto out_close;
+		}
+
+		ret = l->accept(l, cfd, &addr);
+		if (unlikely(ret < 0)) {
+			/* critical error encountered, generally a resource shortage */
+			EV_FD_CLR(fd, DIR_RD);
+			p->state = PR_STIDLE;
+			goto out_close;
+		}
+		else if (unlikely(ret == 0)) {
+			/* ignore this connection */
+			close(cfd);
+			continue;
+		}
+
+		actconn++;
+		totalconn++;
+		l->nbconn++; /* warning! right now, it's up to the handler to decrease this */
+		if (l->nbconn >= l->maxconn) {
+			EV_FD_CLR(l->fd, DIR_RD);
+			l->state = LI_FULL;
+		}
+
+		if (p) {
+			p->feconn++;  /* beconn will be increased later */
+			if (p->feconn > p->counters.feconn_max)
+				p->counters.feconn_max = p->feconn;
+		}
+
+		if (l->counters) {
+			if (l->nbconn > l->counters->conn_max)
+				l->counters->conn_max = l->nbconn;
+		}
+	} /* end of while (p->feconn < p->maxconn) */
+	return 0;
+
+	/* Error unrolling */
+ out_close:
+	close(cfd);
+	return 0;
 }
 
 

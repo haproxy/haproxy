@@ -26,7 +26,6 @@
 #include <types/proto_tcp.h>
 #include <types/task.h>
 
-int tcp_event_accept(int fd);
 int tcpv4_bind_socket(int fd, int flags, struct sockaddr_in *local, struct sockaddr_in *remote);
 void tcpv4_add_listener(struct listener *listener);
 void tcpv6_add_listener(struct listener *listener);

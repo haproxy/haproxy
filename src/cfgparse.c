@@ -42,6 +42,7 @@
 #include <proto/buffers.h>
 #include <proto/checks.h>
 #include <proto/dumpstats.h>
+#include <proto/frontend.h>
 #include <proto/httperr.h>
 #include <proto/lb_chash.h>
 #include <proto/lb_fwlc.h>
@@ -5349,8 +5350,8 @@ out_uri_auth_compat:
 			listener->maxconn = curproxy->maxconn;
 			listener->backlog = curproxy->backlog;
 			listener->timeout = &curproxy->timeout.client;
-			listener->accept = event_accept;
-			listener->private = curproxy;
+			listener->accept = frontend_accept;
+			listener->frontend = curproxy;
 			listener->handler = process_session;
 			listener->analysers |= curproxy->fe_req_ana;
 

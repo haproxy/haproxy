@@ -63,6 +63,7 @@ static struct protocol proto_tcpv4 = {
 	.sock_family = AF_INET,
 	.sock_addrlen = sizeof(struct sockaddr_in),
 	.l3_addrlen = 32/8,
+	.accept = &stream_sock_accept,
 	.read = &stream_sock_read,
 	.write = &stream_sock_write,
 	.bind_all = tcp_bind_listeners,
@@ -81,6 +82,7 @@ static struct protocol proto_tcpv6 = {
 	.sock_family = AF_INET6,
 	.sock_addrlen = sizeof(struct sockaddr_in6),
 	.l3_addrlen = 128/8,
+	.accept = &stream_sock_accept,
 	.read = &stream_sock_read,
 	.write = &stream_sock_write,
 	.bind_all = tcp_bind_listeners,
@@ -539,19 +541,17 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	listener->fd = fd;
 	listener->state = LI_LISTEN;
 
-	/* the function for the accept() event */
-	fd_insert(fd);
-	fdtab[fd].cb[DIR_RD].f = listener->accept;
-	fdtab[fd].cb[DIR_WR].f = NULL; /* never called */
-	fdtab[fd].cb[DIR_RD].b = fdtab[fd].cb[DIR_WR].b = NULL;
 	fdtab[fd].owner = listener; /* reference the listener instead of a task */
 	fdtab[fd].state = FD_STLISTEN;
-	fdtab[fd].flags = FD_FL_TCP;
-	if (listener->options & LI_O_NOLINGER)
-		fdtab[fd].flags |= FD_FL_TCP_NOLING;
+	fdtab[fd].flags = FD_FL_TCP | ((listener->options & LI_O_NOLINGER) ? FD_FL_TCP_NOLING : 0);
+	fdtab[fd].cb[DIR_RD].f = listener->proto->accept;
+	fdtab[fd].cb[DIR_WR].f = NULL; /* never called */
+	fdtab[fd].cb[DIR_RD].b = fdtab[fd].cb[DIR_WR].b = NULL;
 
 	fdinfo[fd].peeraddr = NULL;
 	fdinfo[fd].peerlen = 0;
+	fd_insert(fd);
+
  tcp_return:
 	if (msg && errlen)
 		strlcpy2(errmsg, msg, errlen);

@@ -91,10 +91,10 @@ struct listener {
 	unsigned int backlog;		/* if set, listen backlog */
 	struct listener *next;		/* next address for the same proxy, or NULL */
 	struct list proto_list;         /* list in the protocol header */
-	int (*accept)(int fd);		/* accept() function passed to fdtab[] */
+	int (*accept)(struct listener *l, int fd, struct sockaddr_storage *addr); /* upper layer's accept() */
 	struct task * (*handler)(struct task *t); /* protocol handler. It is a task */
 	int  *timeout;                  /* pointer to client-side timeout */
-	void *private;			/* any private data which may be used by accept() */
+	struct proxy *frontend;		/* the frontend this listener belongs to, or NULL */
 	unsigned int analysers;		/* bitmap of required protocol analysers */
 	int nice;			/* nice value to assign to the instanciated tasks */
 	union {				/* protocol-dependant access restrictions */
@@ -129,6 +129,7 @@ struct protocol {
 	sa_family_t sock_family;			/* socket family, for sockaddr */
 	socklen_t sock_addrlen;				/* socket address length, used by bind() */
 	int l3_addrlen;					/* layer3 address length, used by hashes */
+	int (*accept)(int fd);				/* generic accept function */
 	int (*read)(int fd);				/* generic read function */
 	int (*write)(int fd);				/* generic write function */
 	int (*bind_all)(struct protocol *proto);	/* bind all unbound listeners */
