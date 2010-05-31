@@ -79,7 +79,7 @@ int frontend_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	/* if this session comes from a known monitoring system, we want to ignore
 	 * it as soon as possible, which means closing it immediately for TCP.
 	 */
-	if (unlikely(p->mon_mask.s_addr &&
+	if (unlikely((l->options & LI_O_CHK_MONNET) &&
 		     addr->ss_family == AF_INET &&
 		     (((struct sockaddr_in *)addr)->sin_addr.s_addr & p->mon_mask.s_addr) == p->mon_net.s_addr)) {
 		if (p->mode == PR_MODE_TCP) {
