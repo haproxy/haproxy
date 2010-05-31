@@ -34,6 +34,7 @@
 #include <proto/log.h>
 #include <proto/protocols.h>
 #include <proto/proto_tcp.h>
+#include <proto/proto_http.h>
 #include <proto/proxy.h>
 
 
@@ -736,6 +737,10 @@ int session_set_backend(struct session *s, struct proxy *be)
 	if (unlikely(!s->txn.hdr_idx.v && (be->acl_requires & ACL_USE_L7_ANY))) {
 		if ((s->txn.hdr_idx.v = pool_alloc2(s->fe->hdr_idx_pool)) == NULL)
 			return 0; /* not enough memory */
+
+		/* and now initialize the HTTP transaction state */
+		http_init_txn(s);
+
 		s->txn.hdr_idx.size = MAX_HTTP_HDR;
 		hdr_idx_init(&s->txn.hdr_idx);
 	}
