@@ -720,7 +720,6 @@ int session_set_backend(struct session *s, struct proxy *be)
 
 	/* assign new parameters to the session from the new backend */
 	s->rep->rto = s->req->wto = be->timeout.server;
-	s->req->cto = be->timeout.connect;
 	s->conn_retries = be->conn_retries;
 	s->si[1].flags &= ~SI_FL_INDEP_STR;
 	if (be->options2 & PR_O2_INDEPSTR)

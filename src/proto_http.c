@@ -6747,11 +6747,9 @@ void http_reset_txn(struct session *s)
 
 	s->req->rto = s->fe->timeout.client;
 	s->req->wto = s->be->timeout.server;
-	s->req->cto = s->be->timeout.connect;
 
 	s->rep->rto = s->be->timeout.server;
 	s->rep->wto = s->fe->timeout.client;
-	s->rep->cto = TICK_ETERNITY;
 
 	s->req->rex = TICK_ETERNITY;
 	s->req->wex = TICK_ETERNITY;

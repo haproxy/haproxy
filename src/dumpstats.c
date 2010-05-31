@@ -179,7 +179,6 @@ int stats_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->req->analysers = l->analysers;
 
 	s->req->wto = TICK_ETERNITY;
-	s->req->cto = TICK_ETERNITY;
 	s->req->rto = TICK_ETERNITY;
 
 	if ((s->rep = pool_alloc2(pool2_buffer)) == NULL)
@@ -193,7 +192,6 @@ int stats_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->si[0].ob = s->si[1].ib = s->rep;
 
 	s->rep->rto = TICK_ETERNITY;
-	s->rep->cto = TICK_ETERNITY;
 	s->rep->wto = TICK_ETERNITY;
 
 	s->req->rex = TICK_ETERNITY;
