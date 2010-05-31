@@ -347,6 +347,11 @@ void sess_establish(struct session *s, struct stream_interface *si)
 
 	rep->analysers |= s->fe->fe_rsp_ana | s->be->be_rsp_ana;
 	rep->flags |= BF_READ_ATTACHED; /* producer is now attached */
+	if (si->connect) {
+		/* real connections have timeouts */
+		req->wto = s->be->timeout.server;
+		rep->rto = s->be->timeout.server;
+	}
 	req->wex = TICK_ETERNITY;
 }
 

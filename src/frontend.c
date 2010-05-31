@@ -351,7 +351,7 @@ int frontend_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	}
 
 	s->req->rto = s->fe->timeout.client;
-	s->req->wto = s->be->timeout.server;
+	s->req->wto = TICK_ETERNITY;
 
 	if (unlikely((s->rep = pool_alloc2(pool2_buffer)) == NULL))
 		goto out_fail_rep; /* no memory */
@@ -363,7 +363,7 @@ int frontend_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->si[0].ob = s->si[1].ib = s->rep;
 	s->rep->analysers = 0;
 
-	s->rep->rto = s->be->timeout.server;
+	s->rep->rto = TICK_ETERNITY;
 	s->rep->wto = s->fe->timeout.client;
 
 	s->req->rex = TICK_ETERNITY;
