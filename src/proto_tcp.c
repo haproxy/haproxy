@@ -708,6 +708,46 @@ int tcp_inspect_request(struct session *s, struct buffer *req, int an_bit)
 	return 1;
 }
 
+/* This function performs the TCP layer4 analysis on the current request. It
+ * returns 0 if a reject rule matches, otherwise 1 if either an accept rule
+ * matches or if no more rule matches. It can only use rules which don't need
+ * any data.
+ */
+int tcp_exec_req_rules(struct session *s)
+{
+	struct tcp_rule *rule;
+	int ret;
+
+	list_for_each_entry(rule, &s->fe->tcp_req.l4_rules, list) {
+		ret = ACL_PAT_PASS;
+
+		if (rule->cond) {
+			ret = acl_exec_cond(rule->cond, s->fe, s, NULL, ACL_DIR_REQ);
+			ret = acl_pass(ret);
+			if (rule->cond->pol == ACL_COND_UNLESS)
+				ret = !ret;
+		}
+
+		if (ret) {
+			/* we have a matching rule. */
+			if (rule->action == TCP_ACT_REJECT) {
+				s->fe->counters.denied_req++;
+				if (s->listener->counters)
+					s->listener->counters->denied_req++;
+
+				if (!(s->flags & SN_ERR_MASK))
+					s->flags |= SN_ERR_PRXCOND;
+				if (!(s->flags & SN_FINST_MASK))
+					s->flags |= SN_FINST_R;
+				return 0;
+			}
+			/* otherwise it's an accept */
+			break;
+		}
+	}
+	return 1;
+}
+
 /* This function should be called to parse a line starting with the "tcp-request"
  * keyword.
  */

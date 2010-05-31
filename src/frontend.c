@@ -63,7 +63,6 @@ int frontend_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	struct session *s;
 	struct http_txn *txn;
 	struct task *t;
-	struct tcp_rule *rule;
 
 	if (unlikely((s = pool_alloc2(pool2_session)) == NULL)) {
 		Alert("out of memory in event_accept().\n");
@@ -134,40 +133,13 @@ int frontend_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	proxy_inc_fe_ctr(l, p);	/* note: cum_beconn will be increased once assigned */
 
 	/* now evaluate the tcp-request rules */
-	list_for_each_entry(rule, &p->tcp_req.l4_rules, list) {
-		int ret = ACL_PAT_PASS;
-
-		if (rule->cond) {
-			ret = acl_exec_cond(rule->cond, p, s, &s->txn, ACL_DIR_REQ);
-			ret = acl_pass(ret);
-			if (rule->cond->pol == ACL_COND_UNLESS)
-				ret = !ret;
-		}
-
-		if (ret) {
-			/* we have a matching rule. */
-			if (rule->action == TCP_ACT_REJECT) {
-				p->counters.denied_req++;
-				if (l->counters)
-					l->counters->denied_req++;
-
-				if (!(s->flags & SN_ERR_MASK))
-					s->flags |= SN_ERR_PRXCOND;
-				if (!(s->flags & SN_FINST_MASK))
-					s->flags |= SN_FINST_R;
-
-				task_free(t);
-				LIST_DEL(&s->list);
-				pool_free2(pool2_session, s);
-
-				/* let's do a no-linger now to close with a single RST. */
-				setsockopt(cfd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
-				return 0;
-			}
-
-			/* otherwise it's an accept */
-			break;
-		}
+	if ((l->options & LI_O_TCP_RULES) && !tcp_exec_req_rules(s)) {
+		task_free(t);
+		LIST_DEL(&s->list);
+		pool_free2(pool2_session, s);
+		/* let's do a no-linger now to close with a single RST. */
+		setsockopt(cfd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
+		return 0;
 	}
 
 	/* pre-initialize the other side's stream interface */

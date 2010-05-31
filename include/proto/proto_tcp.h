@@ -35,6 +35,7 @@ int tcpv4_connect_server(struct stream_interface *si,
 			 struct sockaddr *srv_addr, struct sockaddr *from_addr);
 int tcp_inspect_request(struct session *s, struct buffer *req, int an_bit);
 int tcp_persist_rdp_cookie(struct session *s, struct buffer *req, int an_bit);
+int tcp_exec_req_rules(struct session *s);
 
 #endif /* _PROTO_PROTO_TCP_H */
 

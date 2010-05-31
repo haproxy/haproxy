@@ -5356,6 +5356,9 @@ out_uri_auth_compat:
 			listener->handler = process_session;
 			listener->analysers |= curproxy->fe_req_ana;
 
+			if (!LIST_ISEMPTY(&curproxy->tcp_req.l4_rules))
+				listener->options |= LI_O_TCP_RULES;
+
 			/* smart accept mode is automatic in HTTP mode */
 			if ((curproxy->options2 & PR_O2_SMARTACC) ||
 			    (curproxy->mode == PR_MODE_HTTP &&
