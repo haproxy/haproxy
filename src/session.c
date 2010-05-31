@@ -318,8 +318,8 @@ int sess_update_st_cer(struct session *s, struct stream_interface *si)
 
 /*
  * This function handles the transition between the SI_ST_CON state and the
- * SI_ST_EST state. It must only be called after switching from SI_ST_CON to
- * SI_ST_EST.
+ * SI_ST_EST state. It must only be called after switching from SI_ST_CON (or
+ * SI_ST_INI) to SI_ST_EST, but only when a ->connect function is defined.
  */
 void sess_establish(struct session *s, struct stream_interface *si)
 {
@@ -1370,13 +1370,16 @@ resync_stream_interface:
 	if (s->req->cons->state == SI_ST_INI) {
 		if (!(s->req->flags & BF_SHUTW)) {
 			if ((s->req->flags & (BF_AUTO_CONNECT|BF_OUT_EMPTY)) != BF_OUT_EMPTY) {
-				/* If we have a ->connect method, we need to perform a connection request,
-				 * otherwise we immediately switch to the connected state.
+				/* If we have an iohandler without a connect method, we immediately
+				 * switch to the connected state, otherwise we perform a connection
+				 * request.
 				 */
-				if (s->req->cons->connect)
-					s->req->cons->state = SI_ST_REQ; /* new connection requested */
-				else
+				s->req->cons->state = SI_ST_REQ; /* new connection requested */
+				if (unlikely(s->req->cons->iohandler && !s->req->cons->connect)) {
 					s->req->cons->state = SI_ST_EST; /* connection established */
+					s->rep->flags |= BF_READ_ATTACHED; /* producer is now attached */
+					s->req->wex = TICK_ETERNITY;
+				}
 			}
 		}
 		else {
