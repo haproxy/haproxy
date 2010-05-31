@@ -142,21 +142,15 @@ int frontend_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 		return 0;
 	}
 
-	/* pre-initialize the other side's stream interface */
-
+	/* pre-initialize the other side's stream interface to an INIT state */
+	s->si[1].owner = t;
 	s->si[1].state = s->si[1].prev_state = SI_ST_INI;
 	s->si[1].err_type = SI_ET_NONE;
 	s->si[1].err_loc = NULL;
-	s->si[1].owner = t;
-	s->si[1].update = stream_sock_data_finish;
-	s->si[1].shutr = stream_sock_shutr;
-	s->si[1].shutw = stream_sock_shutw;
-	s->si[1].chk_rcv = stream_sock_chk_rcv;
-	s->si[1].chk_snd = stream_sock_chk_snd;
-	s->si[1].connect = tcpv4_connect_server;
 	s->si[1].iohandler = NULL;
 	s->si[1].exp = TICK_ETERNITY;
 	s->si[1].fd = -1; /* just to help with debugging */
+
 	s->si[1].flags = SI_FL_NONE;
 	if (likely(s->be->options2 & PR_O2_INDEPSTR))
 		s->si[1].flags |= SI_FL_INDEP_STR;
