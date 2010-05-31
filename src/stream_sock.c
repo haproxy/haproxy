@@ -1,7 +1,7 @@
 /*
  * Functions operating on SOCK_STREAM and buffers.
  *
- * Copyright 2000-2009 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2010 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -1219,6 +1219,17 @@ int stream_sock_accept(int fd)
  out_close:
 	close(cfd);
 	return 0;
+}
+
+/* Prepare a stream interface to be used in socket mode. */
+void stream_sock_prepare_interface(struct stream_interface *si)
+{
+	si->update = stream_sock_data_finish;
+	si->shutr = stream_sock_shutr;
+	si->shutw = stream_sock_shutw;
+	si->chk_rcv = stream_sock_chk_rcv;
+	si->chk_snd = stream_sock_chk_snd;
+	si->iohandler = NULL;
 }
 
 

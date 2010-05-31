@@ -39,6 +39,7 @@ void stream_sock_shutr(struct stream_interface *si);
 void stream_sock_shutw(struct stream_interface *si);
 void stream_sock_chk_rcv(struct stream_interface *si);
 void stream_sock_chk_snd(struct stream_interface *si);
+void stream_sock_prepare_interface(struct stream_interface *si);
 
 
 /* This either returns the sockname or the original destination address. Code
