@@ -1,7 +1,7 @@
 /*
- * Server management functions.
+ * Session management functions.
  *
- * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2010 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -11,6 +11,8 @@
  */
 
 #include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
 
 #include <common/config.h>
 #include <common/debug.h>
@@ -41,6 +43,237 @@
 
 struct pool_head *pool2_session;
 struct list sessions;
+
+/* This function is called from the protocol layer accept() in order to instanciate
+ * a new session on behalf of a given listener and frontend. It returns a positive
+ * value upon success, 0 if the connection needs to be closed and ignored, or a
+ * negative value upon critical failure.
+ */
+int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
+{
+	struct proxy *p = l->frontend;
+	struct session *s;
+	struct http_txn *txn;
+	struct task *t;
+
+	if (unlikely((s = pool_alloc2(pool2_session)) == NULL)) {
+		Alert("out of memory in event_accept().\n");
+		goto out_close;
+	}
+
+	/* minimum session initialization required for monitor mode below */
+	s->flags = 0;
+	s->logs.logwait = p->to_log;
+
+	/* if this session comes from a known monitoring system, we want to ignore
+	 * it as soon as possible, which means closing it immediately for TCP, but
+	 * cleanly.
+	 */
+	if (unlikely((l->options & LI_O_CHK_MONNET) &&
+		     addr->ss_family == AF_INET &&
+		     (((struct sockaddr_in *)addr)->sin_addr.s_addr & p->mon_mask.s_addr) == p->mon_net.s_addr)) {
+		if (p->mode == PR_MODE_TCP) {
+			pool_free2(pool2_session, s);
+			return 0;
+		}
+		s->flags |= SN_MONITOR;
+		s->logs.logwait = 0;
+	}
+
+	/* OK, we're keeping the session, so let's properly initialize the session */
+	LIST_ADDQ(&sessions, &s->list);
+	LIST_INIT(&s->back_refs);
+
+	if (unlikely((t = task_new()) == NULL)) { /* disable this proxy for a while */
+		Alert("out of memory in event_accept().\n");
+		goto out_free_session;
+	}
+
+	s->term_trace = 0;
+	s->cli_addr = *addr;
+	s->logs.accept_date = date; /* user-visible date for logging */
+	s->logs.tv_accept = now;  /* corrected date for internal use */
+	s->uniq_id = totalconn;
+	proxy_inc_fe_ctr(l, p);	/* note: cum_beconn will be increased once assigned */
+
+	t->process = l->handler;
+	t->context = s;
+	t->nice = l->nice;
+	t->expire = TICK_ETERNITY;
+
+	s->task = t;
+	s->listener = l;
+
+	/* Note: initially, the session's backend points to the frontend.
+	 * This changes later when switching rules are executed or
+	 * when the default backend is assigned.
+	 */
+	s->be  = s->fe  = p;
+	s->req = s->rep = NULL; /* will be allocated later */
+
+	/* now evaluate the tcp-request layer4 rules. Since we expect to be able
+	 * to abort right here as soon as possible, we check the rules before
+	 * even initializing the stream interfaces.
+	 */
+	if ((l->options & LI_O_TCP_RULES) && !tcp_exec_req_rules(s)) {
+		task_free(t);
+		LIST_DEL(&s->list);
+		pool_free2(pool2_session, s);
+		/* let's do a no-linger now to close with a single RST. */
+		setsockopt(cfd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
+		return 0;
+	}
+
+	/* this part should be common with other protocols */
+	s->si[0].fd        = cfd;
+	s->si[0].owner     = t;
+	s->si[0].state     = s->si[0].prev_state = SI_ST_EST;
+	s->si[0].err_type  = SI_ET_NONE;
+	s->si[0].err_loc   = NULL;
+	s->si[0].connect   = NULL;
+	s->si[0].iohandler = NULL;
+	s->si[0].exp       = TICK_ETERNITY;
+	s->si[0].flags     = SI_FL_NONE;
+
+	if (likely(s->fe->options2 & PR_O2_INDEPSTR))
+		s->si[0].flags |= SI_FL_INDEP_STR;
+
+	if (addr->ss_family == AF_INET || addr->ss_family == AF_INET6)
+		s->si[0].flags = SI_FL_CAP_SPLTCP; /* TCP/TCPv6 splicing possible */
+
+	/* add the various callbacks */
+	stream_sock_prepare_interface(&s->si[0]);
+
+	/* pre-initialize the other side's stream interface to an INIT state. The
+	 * callbacks will be initialized before attempting to connect.
+	 */
+	s->si[1].fd        = -1; /* just to help with debugging */
+	s->si[1].owner     = t;
+	s->si[1].state     = s->si[1].prev_state = SI_ST_INI;
+	s->si[1].err_type  = SI_ET_NONE;
+	s->si[1].err_loc   = NULL;
+	s->si[1].connect   = NULL;
+	s->si[1].iohandler = NULL;
+	s->si[1].shutr     = stream_int_shutr;
+	s->si[1].shutw     = stream_int_shutw;
+	s->si[1].exp       = TICK_ETERNITY;
+	s->si[1].flags     = SI_FL_NONE;
+
+	if (likely(s->fe->options2 & PR_O2_INDEPSTR))
+		s->si[1].flags |= SI_FL_INDEP_STR;
+
+	s->srv = s->prev_srv = s->srv_conn = NULL;
+	s->pend_pos = NULL;
+
+	/* init store persistence */
+	s->store_count = 0;
+
+	/* Adjust some socket options */
+	if (unlikely(fcntl(cfd, F_SETFL, O_NONBLOCK) == -1)) {
+		Alert("accept(): cannot set the socket in non blocking mode. Giving up\n");
+		goto out_free_task;
+	}
+
+	txn = &s->txn;
+	/* Those variables will be checked and freed if non-NULL in
+	 * session.c:session_free(). It is important that they are
+	 * properly initialized.
+	 */
+	txn->sessid = NULL;
+	txn->srv_cookie = NULL;
+	txn->cli_cookie = NULL;
+	txn->uri = NULL;
+	txn->req.cap = NULL;
+	txn->rsp.cap = NULL;
+	txn->hdr_idx.v = NULL;
+	txn->hdr_idx.size = txn->hdr_idx.used = 0;
+
+	if (unlikely((s->req = pool_alloc2(pool2_buffer)) == NULL))
+		goto out_free_task; /* no memory */
+
+	if (unlikely((s->rep = pool_alloc2(pool2_buffer)) == NULL))
+		goto out_free_req; /* no memory */
+
+	/* initialize the request buffer */
+	s->req->size = global.tune.bufsize;
+	buffer_init(s->req);
+	s->req->prod = &s->si[0];
+	s->req->cons = &s->si[1];
+	s->si[0].ib = s->si[1].ob = s->req;
+	s->req->flags |= BF_READ_ATTACHED; /* the producer is already connected */
+
+	/* activate default analysers enabled for this listener */
+	s->req->analysers = l->analysers;
+
+	s->req->wto = TICK_ETERNITY;
+	s->req->rto = TICK_ETERNITY;
+	s->req->rex = TICK_ETERNITY;
+	s->req->wex = TICK_ETERNITY;
+	s->req->analyse_exp = TICK_ETERNITY;
+
+	/* initialize response buffer */
+	s->rep->size = global.tune.bufsize;
+	buffer_init(s->rep);
+	s->rep->prod = &s->si[1];
+	s->rep->cons = &s->si[0];
+	s->si[0].ob = s->si[1].ib = s->rep;
+	s->rep->analysers = 0;
+
+	s->rep->rto = TICK_ETERNITY;
+	s->rep->wto = TICK_ETERNITY;
+	s->rep->rex = TICK_ETERNITY;
+	s->rep->wex = TICK_ETERNITY;
+	s->rep->analyse_exp = TICK_ETERNITY;
+
+	/* finish initialization of the accepted file descriptor */
+	fd_insert(cfd);
+	fdtab[cfd].owner = &s->si[0];
+	fdtab[cfd].state = FD_STREADY;
+	fdtab[cfd].flags = 0;
+	fdtab[cfd].cb[DIR_RD].f = l->proto->read;
+	fdtab[cfd].cb[DIR_RD].b = s->req;
+	fdtab[cfd].cb[DIR_WR].f = l->proto->write;
+	fdtab[cfd].cb[DIR_WR].b = s->rep;
+	fdinfo[cfd].peeraddr = (struct sockaddr *)&s->cli_addr;
+	fdinfo[cfd].peerlen  = sizeof(s->cli_addr);
+	EV_FD_SET(cfd, DIR_RD);
+
+	if (p->accept) {
+		int ret = p->accept(s);
+		if (unlikely(ret < 0))
+			goto out_free_rep;
+
+		if (unlikely(ret == 0)) {
+			/* work is finished, we can release everything (eg: monitoring) */
+			pool_free2(pool2_buffer, s->rep);
+			pool_free2(pool2_buffer, s->req);
+			task_free(t);
+			LIST_DEL(&s->list);
+			pool_free2(pool2_session, s);
+			return 0;
+		}
+	}
+
+	/* it is important not to call the wakeup function directly but to
+	 * pass through task_wakeup(), because this one knows how to apply
+	 * priorities to tasks.
+	 */
+	task_wakeup(t, TASK_WOKEN_INIT);
+	return 1;
+
+	/* Error unrolling */
+ out_free_rep:
+	pool_free2(pool2_buffer, s->rep);
+ out_free_req:
+	pool_free2(pool2_buffer, s->req);
+ out_free_task:
+	task_free(t);
+ out_free_session:
+	LIST_DEL(&s->list);
+	pool_free2(pool2_session, s);
+ out_close:
+	return -1;
+}
 
 /*
  * frees  the context associated to a session. It must have been removed first.

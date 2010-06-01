@@ -26,7 +26,7 @@
 #include <types/session.h>
 
 void get_frt_addr(struct session *s);
-int frontend_accept(struct listener *l, int cfd, struct sockaddr_storage *addr);
+int frontend_accept(struct session *s);
 
 
 #endif /* _PROTO_FRONTEND_H */

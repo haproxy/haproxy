@@ -5280,6 +5280,8 @@ out_uri_auth_compat:
 		}
 
 		if (curproxy->cap & PR_CAP_FE) {
+			curproxy->accept = frontend_accept;
+
 			if (curproxy->tcp_req.inspect_delay ||
 			    !LIST_ISEMPTY(&curproxy->tcp_req.inspect_rules))
 				curproxy->fe_req_ana |= AN_REQ_INSPECT;
@@ -5351,7 +5353,7 @@ out_uri_auth_compat:
 			listener->maxconn = curproxy->maxconn;
 			listener->backlog = curproxy->backlog;
 			listener->timeout = &curproxy->timeout.client;
-			listener->accept = frontend_accept;
+			listener->accept = session_accept;
 			listener->frontend = curproxy;
 			listener->handler = process_session;
 			listener->analysers |= curproxy->fe_req_ana;
