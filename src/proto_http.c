@@ -3742,7 +3742,7 @@ void http_end_txn_clean_session(struct session *s)
 	s->txn.meth = 0;
 	http_reset_txn(s);
 	s->txn.flags |= TX_NOT_FIRST | TX_WAIT_NEXT_RQ;
-	if (s->be->options2 & PR_O2_INDEPSTR)
+	if (s->fe->options2 & PR_O2_INDEPSTR)
 		s->req->cons->flags |= SI_FL_INDEP_STR;
 
 	/* if the request buffer is not empty, it means we're

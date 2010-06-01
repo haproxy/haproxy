@@ -152,7 +152,7 @@ int frontend_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->si[1].fd = -1; /* just to help with debugging */
 
 	s->si[1].flags = SI_FL_NONE;
-	if (likely(s->be->options2 & PR_O2_INDEPSTR))
+	if (likely(s->fe->options2 & PR_O2_INDEPSTR))
 		s->si[1].flags |= SI_FL_INDEP_STR;
 
 	s->srv = s->prev_srv = s->srv_conn = NULL;

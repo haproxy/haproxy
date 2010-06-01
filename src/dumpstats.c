@@ -136,7 +136,7 @@ int stats_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->si[1].exp = TICK_ETERNITY;
 	s->si[1].fd = -1; /* just to help with debugging */
 	s->si[1].flags = SI_FL_NONE;
-	if (s->be->options2 & PR_O2_INDEPSTR)
+	if (s->fe->options2 & PR_O2_INDEPSTR)
 		s->si[1].flags |= SI_FL_INDEP_STR;
 
 	stream_int_register_handler(&s->si[1], stats_io_handler);
