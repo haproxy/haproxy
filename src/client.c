@@ -413,6 +413,7 @@ int event_accept(int fd) {
 		s->rep->prod = &s->si[1];
 		s->rep->cons = &s->si[0];
 		s->si[0].ob = s->si[1].ib = s->rep;
+		s->rep->analysers = 0;
 
 		s->rep->rto = s->be->timeout.server;
 		s->rep->wto = s->fe->timeout.client;
