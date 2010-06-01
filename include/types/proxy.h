@@ -257,6 +257,7 @@ struct proxy {
 #endif
 	int iface_len;				/* bind interface name length */
 	char *iface_name;			/* bind interface name or NULL */
+	int (*accept)(struct session *s);       /* application layer's accept() */
 	struct proxy *next;
 	struct logsrv logsrv1, logsrv2;		/* 2 syslog servers */
 	signed char logfac1, logfac2;		/* log facility for both servers. -1 = disabled */
