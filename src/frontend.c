@@ -157,7 +157,6 @@ int frontend_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 
 	s->srv = s->prev_srv = s->srv_conn = NULL;
 	s->pend_pos = NULL;
-	s->si[1].conn_retries = s->be->conn_retries;
 
 	/* init store persistence */
 	s->store_count = 0;

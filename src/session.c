@@ -1380,6 +1380,7 @@ resync_stream_interface:
 				 * request.
 				 */
 				s->req->cons->state = SI_ST_REQ; /* new connection requested */
+				s->req->cons->conn_retries = s->be->conn_retries;
 				if (unlikely(s->req->cons->iohandler && !s->req->cons->connect)) {
 					s->req->cons->state = SI_ST_EST; /* connection established */
 					s->rep->flags |= BF_READ_ATTACHED; /* producer is now attached */

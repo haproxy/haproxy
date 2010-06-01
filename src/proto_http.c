@@ -6726,7 +6726,6 @@ void http_reset_txn(struct session *s)
 	s->store_count = 0;
 
 	s->pend_pos = NULL;
-	s->req->cons->conn_retries = s->be->conn_retries;
 
 	s->req->flags |= BF_READ_DONTWAIT; /* one read is usually enough */
 
