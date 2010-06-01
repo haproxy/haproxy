@@ -75,163 +75,37 @@ const char stats_permission_denied_msg[] =
 	"Permission denied\n"
 	"";
 
-/* This function is called from the protocol layer accept() in order to instanciate
+/* This function is called from the session-level accept() in order to instanciate
  * a new stats socket. It returns a positive value upon success, 0 if the connection
  * needs to be closed and ignored, or a negative value upon critical failure.
  */
-int stats_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
+int stats_accept(struct session *s)
 {
-	struct proxy *p = l->frontend; /* attached frontend */
-	struct session *s;
-	struct task *t;
-
-	if ((s = pool_alloc2(pool2_session)) == NULL) {
-		Alert("out of memory in stats_accept().\n");
-		goto out_close;
-	}
-
-	LIST_ADDQ(&sessions, &s->list);
-	LIST_INIT(&s->back_refs);
-
-	s->flags = 0;
-	s->term_trace = 0;
-	s->cli_addr = *addr;
-
-	if ((t = task_new()) == NULL) {
-		Alert("out of memory in stats_accept().\n");
-		goto out_free_session;
-	}
-
-	t->process = l->handler;
-	t->context = s;
-	t->nice = l->nice;
-
-	s->task = t;
-	s->listener = l;
-	s->fe = s->be = p;
-
-	s->req = s->rep = NULL; /* will be allocated later */
-
-	s->si[0].state = s->si[0].prev_state = SI_ST_EST;
-	s->si[0].err_type = SI_ET_NONE;
-	s->si[0].err_loc = NULL;
-	s->si[0].owner = t;
-	s->si[0].update = stream_sock_data_finish;
-	s->si[0].shutr = stream_sock_shutr;
-	s->si[0].shutw = stream_sock_shutw;
-	s->si[0].chk_rcv = stream_sock_chk_rcv;
-	s->si[0].chk_snd = stream_sock_chk_snd;
-	s->si[0].connect = NULL;
-	s->si[0].iohandler = NULL;
-	s->si[0].fd = cfd;
-	s->si[0].flags = SI_FL_NONE;
-	if (s->fe->options2 & PR_O2_INDEPSTR)
-		s->si[0].flags |= SI_FL_INDEP_STR;
-	s->si[0].exp = TICK_ETERNITY;
-
-	s->si[1].state = s->si[1].prev_state = SI_ST_INI;
-	s->si[1].err_type = SI_ET_NONE;
-	s->si[1].err_loc = NULL;
-	s->si[1].owner = t;
-	s->si[1].exp = TICK_ETERNITY;
-	s->si[1].fd = -1; /* just to help with debugging */
-	s->si[1].flags = SI_FL_NONE;
-	if (s->fe->options2 & PR_O2_INDEPSTR)
-		s->si[1].flags |= SI_FL_INDEP_STR;
-
+	/* we have a dedicated I/O handler for the stats */
 	stream_int_register_handler(&s->si[1], stats_io_handler);
 	s->si[1].private = s;
 	s->si[1].st1 = 0;
 	s->si[1].st0 = STAT_CLI_INIT;
 
-	s->srv = s->prev_srv = s->srv_conn = NULL;
-	s->pend_pos = NULL;
-
-	s->store_count = 0;
-
-	memset(&s->logs, 0, sizeof(s->logs));
-	memset(&s->txn, 0, sizeof(s->txn));
-
-	s->logs.accept_date = date; /* user-visible date for logging */
-	s->logs.tv_accept = now;  /* corrected date for internal use */
+	tv_zero(&s->logs.tv_request);
+	s->logs.t_queue = 0;
+	s->logs.t_connect = 0;
+	s->logs.t_data = 0;
+	s->logs.t_close = 0;
+	s->logs.bytes_in = s->logs.bytes_out = 0;
+	s->logs.prx_queue_size = 0;  /* we get the number of pending conns before us */
+	s->logs.srv_queue_size = 0; /* we will get this number soon */
 
 	s->data_state = DATA_ST_INIT;
 	s->data_source = DATA_SRC_NONE;
-	s->uniq_id = totalconn;
-	proxy_inc_fe_ctr(l, p);	/* note: cum_beconn will be increased once assigned */
 
-	if (fcntl(cfd, F_SETFL, O_NONBLOCK) == -1) {
-		Alert("accept(): cannot set the socket in non blocking mode. Giving up.\n");
-		goto out_free_task;
-	}
-
-	if ((s->req = pool_alloc2(pool2_buffer)) == NULL)
-		goto out_free_task;
-
-	s->req->size = global.tune.bufsize;
-	buffer_init(s->req);
-	s->req->prod = &s->si[0];
-	s->req->cons = &s->si[1];
-	s->si[0].ib = s->si[1].ob = s->req;
-	s->req->flags |= BF_READ_ATTACHED; /* the producer is already connected */
 	s->req->flags |= BF_READ_DONTWAIT; /* we plan to read small requests */
 
-	s->req->analysers = l->analysers;
-
-	s->req->wto = TICK_ETERNITY;
-	s->req->rto = TICK_ETERNITY;
-
-	if ((s->rep = pool_alloc2(pool2_buffer)) == NULL)
-		goto out_free_req;
-
-	s->rep->size = global.tune.bufsize;
-	buffer_init(s->rep);
-
-	s->rep->prod = &s->si[1];
-	s->rep->cons = &s->si[0];
-	s->si[0].ob = s->si[1].ib = s->rep;
-
-	s->rep->rto = TICK_ETERNITY;
-	s->rep->wto = TICK_ETERNITY;
-
-	s->req->rex = TICK_ETERNITY;
-	s->req->wex = TICK_ETERNITY;
-	s->req->analyse_exp = TICK_ETERNITY;
-	s->rep->rex = TICK_ETERNITY;
-	s->rep->wex = TICK_ETERNITY;
-	s->rep->analyse_exp = TICK_ETERNITY;
-
-	t->expire = TICK_ETERNITY;
-
-	if (l->timeout) {
-		s->req->rto = *l->timeout;
-		s->rep->wto = *l->timeout;
+	if (s->listener->timeout) {
+		s->req->rto = *s->listener->timeout;
+		s->rep->wto = *s->listener->timeout;
 	}
-
-	fd_insert(cfd);
-	fdtab[cfd].owner = &s->si[0];
-	fdtab[cfd].state = FD_STREADY;
-	fdtab[cfd].cb[DIR_RD].f = l->proto->read;
-	fdtab[cfd].cb[DIR_RD].b = s->req;
-	fdtab[cfd].cb[DIR_WR].f = l->proto->write;
-	fdtab[cfd].cb[DIR_WR].b = s->rep;
-	fdinfo[cfd].peeraddr = (struct sockaddr *)&s->cli_addr;
-	fdinfo[cfd].peerlen = sizeof(s->cli_addr);
-
-	EV_FD_SET(cfd, DIR_RD);
-
-	task_wakeup(t, TASK_WOKEN_INIT);
 	return 1;
-
- out_free_req:
-	pool_free2(pool2_buffer, s->req);
- out_free_task:
-	task_free(t);
- out_free_session:
-	LIST_DEL(&s->list);
-	pool_free2(pool2_session, s);
- out_close:
-	return -1;
 }
 
 /* This function parses a "stats" statement in the "global" section. It returns
@@ -290,7 +164,8 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 
 		global.stats_sock.state = LI_INIT;
 		global.stats_sock.options = LI_O_NONE;
-		global.stats_sock.accept = stats_accept;
+		global.stats_sock.accept = session_accept;
+		global.stats_fe->accept = stats_accept;
 		global.stats_sock.handler = process_session;
 		global.stats_sock.analysers = 0;
 		global.stats_sock.nice = -64;  /* we want to boost priority for local stats */

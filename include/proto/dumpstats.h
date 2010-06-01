@@ -53,7 +53,7 @@
 #define STAT_CLI_O_ERR  7   /* dump errors */
 
 
-int stats_accept(struct listener *l, int cfd, struct sockaddr_storage *addr);
+int stats_accept(struct session *s);
 int stats_sock_parse_request(struct stream_interface *si, char *line);
 void stats_io_handler(struct stream_interface *si);
 int stats_dump_raw_to_buffer(struct session *s, struct buffer *rep);
