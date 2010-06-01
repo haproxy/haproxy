@@ -2,7 +2,7 @@
  * include/types/stream_interface.h
  * This file describes the stream_interface struct and associated constants.
  *
- * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -82,6 +82,9 @@ struct proxy;
 /* Note that if an iohandler is set, the update function will not be called by
  * the session handler, so it may be used to resync flags at the end of the I/O
  * handler. See stream_int_update_embedded() for reference.
+ * This struct could be optimized, because :
+ *   - connect(), fd, conn_retries are only used in stream_sock mode
+ *   - iohandler(), private, st0, st1 are only used in iohandler mode
  */
 struct stream_interface {
 	unsigned int state;     /* SI_ST* */
@@ -99,6 +102,7 @@ struct stream_interface {
 		       struct sockaddr *, struct sockaddr *); /* connect function if any */
 	void (*iohandler)(struct stream_interface *);  /* internal I/O handler when embedded */
 	struct buffer *ib, *ob; /* input and output buffers */
+	int conn_retries;	/* number of connect retries left */
 	unsigned int err_type;  /* first error detected, one of SI_ET_* */
 	void *err_loc;          /* commonly the server, NULL when SI_ET_NONE */
 	void *private;          /* may be used by any function above */

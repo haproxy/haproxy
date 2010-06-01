@@ -254,8 +254,8 @@ int sess_update_st_cer(struct session *s, struct stream_interface *si)
 	}
 
 	/* ensure that we have enough retries left */
-	s->conn_retries--;
-	if (s->conn_retries < 0) {
+	si->conn_retries--;
+	if (si->conn_retries < 0) {
 		if (!si->err_type) {
 			si->err_type = SI_ET_CONN_ERR;
 			si->err_loc = s->srv;
@@ -284,7 +284,7 @@ int sess_update_st_cer(struct session *s, struct stream_interface *si)
 	 * bit to ignore any persistence cookie. We won't count a retry nor a
 	 * redispatch yet, because this will depend on what server is selected.
 	 */
-	if (s->srv && s->conn_retries == 0 &&
+	if (s->srv && si->conn_retries == 0 &&
 	    s->be->options & PR_O_REDISP && !(s->flags & SN_FORCE_PRST)) {
 		if (may_dequeue_tasks(s->srv, s->be))
 			process_srv_queue(s->srv);
@@ -970,7 +970,7 @@ resync_stream_interface:
 		s->req->flags, s->rep->flags,
 		s->req->l, s->rep->l, s->rep->cons->state, s->req->cons->state,
 		s->rep->cons->err_type, s->req->cons->err_type,
-		s->conn_retries);
+		s->req->cons->conn_retries);
 
 	/* nothing special to be done on client side */
 	if (unlikely(s->req->prod->state == SI_ST_DIS))

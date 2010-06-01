@@ -163,7 +163,6 @@ struct session {
 	struct listener *listener;		/* the listener by which the request arrived */
 	struct proxy *fe;			/* the proxy this session depends on for the client side */
 	struct proxy *be;			/* the proxy this session depends on for the server side */
-	int conn_retries;			/* number of connect retries left */
 	int flags;				/* some flags describing the session */
 	unsigned term_trace;			/* term trace: 4*8 bits indicating which part of the code closed */
 	struct buffer *req;			/* request buffer */

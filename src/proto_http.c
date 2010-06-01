@@ -860,7 +860,7 @@ void http_sess_clflog(struct session *s)
 
 	prx_log = fe;
 	err = (s->flags & (SN_ERR_MASK | SN_REDISP)) ||
-		(s->conn_retries != be->conn_retries) ||
+		(s->req->cons->conn_retries != be->conn_retries) ||
 		txn->status >= 500;
 
 	if (s->cli_addr.ss_family == AF_INET)
@@ -976,7 +976,7 @@ void http_sess_clflog(struct session *s)
 	w = snprintf(h, sizeof(tmpline) - (h - tmpline),
 	             " %d %d %d %d %d %ld %ld",
 	             actconn, fe->feconn, be->beconn, s->srv ? s->srv->cur_sess : 0,
-	             (s->conn_retries > 0) ? (be->conn_retries - s->conn_retries) : be->conn_retries,
+	             (s->req->cons->conn_retries > 0) ? (be->conn_retries - s->req->cons->conn_retries) : be->conn_retries,
 	             s->logs.srv_queue_size, s->logs.prx_queue_size);
 
 	if (w < 0 || w >= sizeof(tmpline) - (h - tmpline))
@@ -1082,7 +1082,7 @@ void http_sess_log(struct session *s)
 
 	/* if we don't want to log normal traffic, return now */
 	err = (s->flags & (SN_ERR_MASK | SN_REDISP)) ||
-		(s->conn_retries != be->conn_retries) ||
+		(s->req->cons->conn_retries != be->conn_retries) ||
 		txn->status >= 500;
 	if (!err && (fe->options2 & PR_O2_NOLOGNORM))
 		return;
@@ -1187,7 +1187,7 @@ void http_sess_log(struct session *s)
 		 (be->options & PR_O_COOK_ANY) ? sess_set_cookie[(txn->flags & TX_SCK_MASK) >> TX_SCK_SHIFT] : '-',
 		 actconn, fe->feconn, be->beconn, s->srv ? s->srv->cur_sess : 0,
 		 (s->flags & SN_REDISP)?"+":"",
-		 (s->conn_retries>0)?(be->conn_retries - s->conn_retries):be->conn_retries,
+		 (s->req->cons->conn_retries>0)?(be->conn_retries - s->req->cons->conn_retries):be->conn_retries,
 		 s->logs.srv_queue_size, s->logs.prx_queue_size, tmpline);
 
 	s->logs.logwait = 0;
@@ -6726,7 +6726,7 @@ void http_reset_txn(struct session *s)
 	s->store_count = 0;
 
 	s->pend_pos = NULL;
-	s->conn_retries = s->be->conn_retries;
+	s->req->cons->conn_retries = s->be->conn_retries;
 
 	s->req->flags |= BF_READ_DONTWAIT; /* one read is usually enough */
 

@@ -327,7 +327,7 @@ void tcp_sess_log(struct session *s)
 	struct tm tm;
 
 	/* if we don't want to log normal traffic, return now */
-	err = (s->flags & (SN_ERR_MASK | SN_REDISP)) || (s->conn_retries != be->conn_retries);
+	err = (s->flags & (SN_ERR_MASK | SN_REDISP)) || (s->req->cons->conn_retries != be->conn_retries);
 	if (!err && (fe->options2 & PR_O2_NOLOGNORM))
 		return;
 
@@ -371,7 +371,7 @@ void tcp_sess_log(struct session *s)
 		 sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT],
 		 actconn, fe->feconn, be->beconn, s->srv ? s->srv->cur_sess : 0,
 		 (s->flags & SN_REDISP)?"+":"",
-		 (s->conn_retries>0)?(be->conn_retries - s->conn_retries):be->conn_retries,
+		 (s->req->cons->conn_retries>0)?(be->conn_retries - s->req->cons->conn_retries):be->conn_retries,
 		 s->logs.srv_queue_size, s->logs.prx_queue_size);
 
 	s->logs.logwait = 0;

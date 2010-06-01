@@ -2540,7 +2540,7 @@ int stats_dump_full_sess_to_buffer(struct session *s, struct buffer *rep)
 
 		chunk_printf(&msg,
 			     "  flags=0x%x, conn_retries=%d, srv_conn=%p, pend_pos=%p\n",
-			     sess->flags, sess->conn_retries, sess->srv_conn, sess->pend_pos);
+			     sess->flags, sess->si[1].conn_retries, sess->srv_conn, sess->pend_pos);
 
 		chunk_printf(&msg,
 			     "  frontend=%s (id=%u mode=%s), listener=%s (id=%u)\n",
