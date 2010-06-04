@@ -407,6 +407,7 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 					px->counters.beconn_max = 0;
 					px->counters.fe_rps_max = 0;
 					px->counters.fe_sps_max = 0;
+					px->counters.fe_cps_max = 0;
 					px->counters.be_sps_max = 0;
 					px->counters.nbpend_max = 0;
 				}
@@ -1514,7 +1515,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     "<td>%s</td><td>%s</td>"
 				     "",
 				     (px->mode == PR_MODE_HTTP)?"<u>":"",
-				     U2H6(px->counters.cum_feconn),
+				     U2H6(px->counters.cum_fesess),
 				     (px->mode == PR_MODE_HTTP)?"</u>":"",
 				     U2H7(px->counters.bytes_in), U2H8(px->counters.bytes_out));
 
@@ -1559,7 +1560,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     /* check_status, check_code, check_duration */
 				     ",,,",
 				     px->id,
-				     px->feconn, px->counters.feconn_max, px->maxconn, px->counters.cum_feconn,
+				     px->feconn, px->counters.feconn_max, px->maxconn, px->counters.cum_fesess,
 				     px->counters.bytes_in, px->counters.bytes_out,
 				     px->counters.denied_req, px->counters.denied_resp,
 				     px->counters.failed_req,

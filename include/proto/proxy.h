@@ -68,13 +68,24 @@ static inline void proxy_reset_timeouts(struct proxy *proxy)
 	proxy->timeout.check = TICK_ETERNITY;
 }
 
-/* increase the number of cumulated connections on the designated frontend */
-static void inline proxy_inc_fe_ctr(struct listener *l, struct proxy *fe)
+/* increase the number of cumulated connections received on the designated frontend */
+static void inline proxy_inc_fe_conn_ctr(struct listener *l, struct proxy *fe)
 {
 	fe->counters.cum_feconn++;
 	if (l->counters)
 		l->counters->cum_conn++;
 
+	update_freq_ctr(&fe->fe_conn_per_sec, 1);
+	if (fe->fe_conn_per_sec.curr_ctr > fe->counters.fe_cps_max)
+		fe->counters.fe_cps_max = fe->fe_conn_per_sec.curr_ctr;
+}
+
+/* increase the number of cumulated connections accepted by the designated frontend */
+static void inline proxy_inc_fe_sess_ctr(struct listener *l, struct proxy *fe)
+{
+	fe->counters.cum_fesess++;
+	if (l->counters)
+		l->counters->cum_sess++;
 	update_freq_ctr(&fe->fe_sess_per_sec, 1);
 	if (fe->fe_sess_per_sec.curr_ctr > fe->counters.fe_sps_max)
 		fe->counters.fe_sps_max = fe->fe_sess_per_sec.curr_ctr;

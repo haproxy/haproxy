@@ -94,7 +94,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->logs.accept_date = date; /* user-visible date for logging */
 	s->logs.tv_accept = now;  /* corrected date for internal use */
 	s->uniq_id = totalconn;
-	proxy_inc_fe_ctr(l, p);	/* note: cum_beconn will be increased once assigned */
+	proxy_inc_fe_conn_ctr(l, p);	/* note: cum_beconn will be increased once assigned */
 
 	t->process = l->handler;
 	t->context = s;
@@ -123,6 +123,9 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 		setsockopt(cfd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
 		return 0;
 	}
+
+	/* This session was accepted, count it now */
+	proxy_inc_fe_sess_ctr(l, p);
 
 	/* this part should be common with other protocols */
 	s->si[0].fd        = cfd;

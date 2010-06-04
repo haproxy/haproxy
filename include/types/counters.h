@@ -26,11 +26,12 @@ struct pxcounters {
 	unsigned int feconn_max, beconn_max;	/* max # of active frontend and backend sessions */
 
 	long long cum_fe_req;			/* cumulated number of processed HTTP requests */
-	long long cum_feconn, cum_beconn;	/* cumulated number of processed sessions */
-	long long cum_lbconn;			/* cumulated number of sessions processed by load balancing */
+	long long cum_feconn, cum_fesess;	/* cumulated number of received/accepted connections */
+	long long cum_beconn, cum_lbconn;	/* cumulated number of sessions processed by load balancing */
 
 	unsigned int fe_rps_max;		/* maximum of new sessions per second seen on the frontend */
-	unsigned int fe_sps_max;		/* maximum of new sessions per second seen on the frontend */
+	unsigned int fe_cps_max;		/* maximum of new connections per second received on the frontend */
+	unsigned int fe_sps_max;		/* maximum of new sessions per second accepted on the frontend */
 	unsigned int be_sps_max;		/* maximum of new sessions per second seen on the backend */
 	unsigned int nbpend_max;		/* max number of pending connections with no server assigned yet */
 
@@ -54,7 +55,8 @@ struct pxcounters {
 struct licounters {
 	unsigned int conn_max;			/* max # of active listener sessions */
 
-	long long cum_conn;			/* cumulated number of processed sessions */
+	long long cum_conn;			/* cumulated number of received connections */
+	long long cum_sess;			/* cumulated number of accepted sessions */
 
 	long long bytes_in;			/* number of bytes transferred from the client to the server */
 	long long bytes_out;			/* number of bytes transferred from the server to the client */
