@@ -123,8 +123,8 @@
 /* Masks which define input events for stream analysers */
 #define BF_MASK_ANALYSER        (BF_READ_ATTACHED|BF_READ_ACTIVITY|BF_READ_TIMEOUT|BF_ANA_TIMEOUT|BF_WRITE_ACTIVITY)
 
-/* Mask for static flags which are not events, but might change during processing */
-#define BF_MASK_STATIC          (BF_OUT_EMPTY|BF_FULL|BF_HIJACK|BF_AUTO_CLOSE|BF_AUTO_CONNECT|BF_SHUTR|BF_SHUTW|BF_SHUTR_NOW|BF_SHUTW_NOW)
+/* Mask for static flags which cause analysers to be woken up when they change */
+#define BF_MASK_STATIC          (BF_OUT_EMPTY|BF_FULL|BF_SHUTR|BF_SHUTW|BF_SHUTR_NOW|BF_SHUTW_NOW)
 
 
 /* Analysers (buffer->analysers).
