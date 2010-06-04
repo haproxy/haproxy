@@ -1156,20 +1156,23 @@ int stream_sock_accept(int fd)
 			case ECONNABORTED:
 				return 0;	    /* nothing more to accept */
 			case ENFILE:
-				send_log(p, LOG_EMERG,
-					 "Proxy %s reached system FD limit at %d. Please check system tunables.\n",
-					 p->id, maxfd);
+				if (p)
+					send_log(p, LOG_EMERG,
+						 "Proxy %s reached system FD limit at %d. Please check system tunables.\n",
+						 p->id, maxfd);
 				return 0;
 			case EMFILE:
-				send_log(p, LOG_EMERG,
-					 "Proxy %s reached process FD limit at %d. Please check 'ulimit-n' and restart.\n",
-					 p->id, maxfd);
+				if (p)
+					send_log(p, LOG_EMERG,
+						 "Proxy %s reached process FD limit at %d. Please check 'ulimit-n' and restart.\n",
+						 p->id, maxfd);
 				return 0;
 			case ENOBUFS:
 			case ENOMEM:
-				send_log(p, LOG_EMERG,
-					 "Proxy %s reached system memory limit at %d sockets. Please check system tunables.\n",
-					 p->id, maxfd);
+				if (p)
+					send_log(p, LOG_EMERG,
+						 "Proxy %s reached system memory limit at %d sockets. Please check system tunables.\n",
+						 p->id, maxfd);
 				return 0;
 			default:
 				return 0;
@@ -1184,8 +1187,10 @@ int stream_sock_accept(int fd)
 		ret = l->accept(l, cfd, &addr);
 		if (unlikely(ret < 0)) {
 			/* critical error encountered, generally a resource shortage */
-			EV_FD_CLR(fd, DIR_RD);
-			p->state = PR_STIDLE;
+			if (p) {
+				EV_FD_CLR(fd, DIR_RD);
+				p->state = PR_STIDLE;
+			}
 			goto out_close;
 		}
 		else if (unlikely(ret == 0)) {
