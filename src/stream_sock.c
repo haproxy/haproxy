@@ -1184,6 +1184,15 @@ int stream_sock_accept(int fd)
 			goto out_close;
 		}
 
+		actconn++;
+		totalconn++;
+		l->nbconn++;
+
+		if (l->counters) {
+			if (l->nbconn > l->counters->conn_max)
+				l->counters->conn_max = l->nbconn;
+		}
+
 		ret = l->accept(l, cfd, &addr);
 		if (unlikely(ret < 0)) {
 			/* critical error encountered, generally a resource shortage */
@@ -1191,31 +1200,21 @@ int stream_sock_accept(int fd)
 				EV_FD_CLR(fd, DIR_RD);
 				p->state = PR_STIDLE;
 			}
+			actconn--;
+			l->nbconn--;
 			goto out_close;
 		}
 		else if (unlikely(ret == 0)) {
 			/* ignore this connection */
+			actconn--;
+			l->nbconn--;
 			close(cfd);
 			continue;
 		}
 
-		actconn++;
-		totalconn++;
-		l->nbconn++; /* warning! right now, it's up to the handler to decrease this */
 		if (l->nbconn >= l->maxconn) {
 			EV_FD_CLR(l->fd, DIR_RD);
 			l->state = LI_FULL;
-		}
-
-		if (p) {
-			p->feconn++;  /* beconn will be increased later */
-			if (p->feconn > p->counters.feconn_max)
-				p->counters.feconn_max = p->feconn;
-		}
-
-		if (l->counters) {
-			if (l->nbconn > l->counters->conn_max)
-				l->counters->conn_max = l->nbconn;
 		}
 	} /* end of while (p->feconn < p->maxconn) */
 	return 0;

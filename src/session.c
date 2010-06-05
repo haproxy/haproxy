@@ -94,6 +94,8 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->logs.accept_date = date; /* user-visible date for logging */
 	s->logs.tv_accept = now;  /* corrected date for internal use */
 	s->uniq_id = totalconn;
+	p->feconn++;  /* beconn will be increased once assigned */
+
 	proxy_inc_fe_conn_ctr(l, p);	/* note: cum_beconn will be increased once assigned */
 
 	t->process = l->handler;
@@ -121,10 +123,13 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 		pool_free2(pool2_session, s);
 		/* let's do a no-linger now to close with a single RST. */
 		setsockopt(cfd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
+		p->feconn--;
 		return 0;
 	}
 
 	/* This session was accepted, count it now */
+	if (p->feconn > p->counters.feconn_max)
+		p->counters.feconn_max = p->feconn;
 	proxy_inc_fe_sess_ctr(l, p);
 
 	/* this part should be common with other protocols */
@@ -253,6 +258,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 			task_free(t);
 			LIST_DEL(&s->list);
 			pool_free2(pool2_session, s);
+			p->feconn--;
 			return 0;
 		}
 	}
@@ -270,6 +276,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
  out_free_req:
 	pool_free2(pool2_buffer, s->req);
  out_free_task:
+	p->feconn--;
 	task_free(t);
  out_free_session:
 	LIST_DEL(&s->list);
