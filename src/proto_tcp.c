@@ -731,9 +731,9 @@ int tcp_exec_req_rules(struct session *s)
 		if (ret) {
 			/* we have a matching rule. */
 			if (rule->action == TCP_ACT_REJECT) {
-				s->fe->counters.denied_req++;
+				s->fe->counters.denied_conn++;
 				if (s->listener->counters)
-					s->listener->counters->denied_req++;
+					s->listener->counters->denied_conn++;
 
 				if (!(s->flags & SN_ERR_MASK))
 					s->flags |= SN_ERR_PRXCOND;

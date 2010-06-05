@@ -40,6 +40,7 @@ struct pxcounters {
 
 	long long denied_req, denied_resp;	/* blocked requests/responses because of security concerns */
 	long long failed_req;			/* failed requests (eg: invalid or timeout) */
+	long long denied_conn;			/* denied connection requests (tcp-req rules) */
 
 	union {
 		struct {
@@ -63,6 +64,7 @@ struct licounters {
 
 	long long denied_req, denied_resp;	/* blocked requests/responses because of security concerns */
 	long long failed_req;			/* failed requests (eg: invalid or timeout) */
+	long long denied_conn;			/* denied connection requests (tcp-req rules) */
 };
 
 struct srvcounters {

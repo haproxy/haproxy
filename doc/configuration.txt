@@ -5225,8 +5225,10 @@ tcp-request reject [{if | unless} <condition>]
   connection, which implies that the "tcp-request accept" statement will only
   make sense when combined with another "tcp-request reject" statement.
 
-  Rejected connections are accounted in stats but are not logged. The reason is
-  that these rules should only be used to filter extremely high connection
+  Rejected connections do not even become a session, which is why they are
+  accounted separately for in the stats, as "denied connections". They are not
+  considered for the session rate-limit and are not logged either. The reason
+  is that these rules should only be used to filter extremely high connection
   rates such as the ones encountered during a massive DDoS attack. Under these
   conditions, the simple action of logging each event would make the system
   collapse and would considerably lower the filtering capacity. If logging is
