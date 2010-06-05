@@ -6265,8 +6265,35 @@ src <ip_address>
   certain resources such as statistics. Note that it is the TCP-level source
   address which is used, and not the address of a client behind a proxy.
 
+src_count <integer>
+src_count(backend) <integer>
+  Returns the number of occurrences of the source IPv4 address in the current
+  backend's stick-table or in the designated stick-table. If the address is not
+  found, zero is returned.
+
 src_port <integer>
   Applies to the client's TCP source port. This has a very limited usage.
+
+src_update_count <integer>
+src_update_count(backend) <integer>
+  Creates or updates the entry associated to the source IPv4 address in the
+  current backend's stick-table or in the designated stick-table. This table
+  must be configured to store the "conn_cum" data type, otherwise the match
+  will be ignored. The current count is incremented by one, and the expiration
+  timer refreshed. The updated count is returned, so this match can't return
+  zero. This is used to reject service abusers based on their source address.
+
+  Example :
+        # This frontend limits incoming SSH connections to 3 per 10 second for
+        # each source address, and rejects excess connections until a 10 second
+        # silence is observed. At most 20 addresses are tracked.
+        listen ssh
+            bind :22
+            mode tcp
+            maxconn 100
+            stick-table type ip size 20 expire 10s store conn_cum
+            tcp-request content reject if { src_update_count gt 3 }
+            server local 127.0.0.1:22
 
 srv_is_up(<server>)
 srv_is_up(<backend>/<server>)
