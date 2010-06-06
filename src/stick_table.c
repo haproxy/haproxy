@@ -189,6 +189,19 @@ struct stksess *stktable_lookup(struct stktable *t, struct stksess *ts)
 	return ebmb_entry(eb, struct stksess, key);
 }
 
+/* Update the expiration timer for <ts> but do not touch its expiration node.
+ * The table's expiration timer is updated if set.
+ */
+struct stksess *stktable_touch(struct stktable *t, struct stksess *ts)
+{
+	ts->expire = tick_add(now_ms, MS_TO_TICKS(t->expire));
+	if (t->expire) {
+		t->exp_task->expire = t->exp_next = tick_first(ts->expire, t->exp_next);
+		task_queue(t->exp_task);
+	}
+	return ts;
+}
+
 /* Insert new sticky session <ts> in the table. It is assumed that it does not
  * yet exist (the caller must check this). The table's timeout is updated if it
  * is set. <ts> is returned.
@@ -196,14 +209,9 @@ struct stksess *stktable_lookup(struct stktable *t, struct stksess *ts)
 struct stksess *stktable_store(struct stktable *t, struct stksess *ts)
 {
 	ebmb_insert(&t->keys, &ts->key, t->key_size);
-
-	ts->exp.key = ts->expire = tick_add(now_ms, MS_TO_TICKS(t->expire));
+	stktable_touch(t, ts);
+	ts->exp.key = ts->expire;
 	eb32_insert(&t->exps, &ts->exp);
-
-	if (t->expire) {
-		t->exp_task->expire = t->exp_next = tick_first(ts->expire, t->exp_next);
-		task_queue(t->exp_task);
-	}
 	return ts;
 }
 

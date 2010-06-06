@@ -1057,6 +1057,7 @@ int process_store_rules(struct session *s, struct buffer *rep, int an_bit)
 		ts = stktable_lookup(s->store[i].table, s->store[i].ts);
 		if (ts) {
 			/* the entry already existed, we can free ours */
+			stktable_touch(s->store[i].table, s->store[i].ts);
 			stksess_free(s->store[i].table, s->store[i].ts);
 		}
 		else

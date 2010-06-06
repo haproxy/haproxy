@@ -1086,12 +1086,8 @@ acl_fetch_src_update_count(struct proxy *px, struct session *l4, void *l7, int d
 			return 0;
 		stktable_store(&px->table, ts);
 	}
-	else if (px->table.expire) {
-		/* if entries can expire, let's update the entry and the table */
-		ts->expire = tick_add(now_ms, MS_TO_TICKS(px->table.expire));
-		px->table.exp_task->expire = px->table.exp_next = tick_first(ts->expire, px->table.exp_next);
-		task_queue(px->table.exp_task);
-	}
+	else
+		stktable_touch(&px->table, ts);
 
 	ptr = stktable_data_ptr(&px->table, ts, STKTABLE_DT_CONN_CUM);
 	if (!ptr)

@@ -37,6 +37,7 @@ void stksess_free(struct stktable *t, struct stksess *ts);
 int stktable_init(struct stktable *t);
 int stktable_parse_type(char **args, int *idx, unsigned long *type, size_t *key_size);
 struct stksess *stktable_store(struct stktable *t, struct stksess *ts);
+struct stksess *stktable_touch(struct stktable *t, struct stksess *ts);
 struct stksess *stktable_lookup(struct stktable *t, struct stksess *ts);
 struct stksess *stktable_lookup_key(struct stktable *t, struct stktable_key *key);
 struct stktable_key *stktable_fetch_key(struct proxy *px, struct session *l4,
