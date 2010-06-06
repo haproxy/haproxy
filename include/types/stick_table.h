@@ -48,7 +48,11 @@ struct stktable_type {
 	size_t default_size;      /* default key size */
 };
 
-/* sticky session */
+/* Sticky session.
+ * Any additional data related to the stuck session is installed *before*
+ * stksess (with negative offsets). This allows us to run variable-sized
+ * keys and variable-sized data without making use of intermediate pointers.
+ */
 struct stksess {
 	int sid;                  /* id of server to use for this session */
 	unsigned int expire;      /* session expiration date */
@@ -70,6 +74,7 @@ struct stktable {
 	int nopurge;              /* if non-zero, don't purge sticky sessions when full */
 	int exp_next;             /* next expiration date (ticks) */
 	int expire;               /* time to live for sticky sessions (milliseconds) */
+	int data_size;            /* the size of the data that is prepended *before* stksess */
 };
 
 /*** The definitions below should probably be better placed in pattern.h ***/

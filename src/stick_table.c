@@ -35,14 +35,14 @@
 void stksess_free(struct stktable *t, struct stksess *ts)
 {
 	t->current--;
-	pool_free2(t->pool, ts);
+	pool_free2(t->pool, (void *)ts - t->data_size);
 }
 
 /*
  * Initialize or update the key in the sticky session <ts> present in table <t>
  * from the value present in <key>.
  */
-void stksess_key(struct stktable *t, struct stksess *ts, struct stktable_key *key)
+void stksess_setkey(struct stktable *t, struct stksess *ts, struct stktable_key *key)
 {
 	if (t->type != STKTABLE_TYPE_STRING)
 		memcpy(ts->keys.key, key->key, t->key_size);
@@ -54,15 +54,15 @@ void stksess_key(struct stktable *t, struct stksess *ts, struct stktable_key *ke
 
 
 /*
- * Init sticky session <ts> of table <t> using <key>.
+ * Init sticky session <ts> of table <t>. The data parts are cleared and <ts>
+ * is returned.
  */
-struct stksess *stksess_init(struct stktable *t, struct stksess * ts, struct stktable_key *key)
+static struct stksess *stksess_init(struct stktable *t, struct stksess * ts)
 {
+	memset((void *)ts - t->data_size, 0, t->data_size);
+	ts->sid = 0;
 	ts->keys.node.leaf_p = NULL;
 	ts->exps.node.leaf_p = NULL;
-	ts->sid = 0;
-	stksess_key(t, ts, key);
-
 	return ts;
 }
 
@@ -138,10 +138,11 @@ struct stksess *stksess_new(struct stktable *t, struct stktable_key *key)
 			return NULL;
 	}
 
-	ts = pool_alloc2(t->pool);
+	ts = pool_alloc2(t->pool) + t->data_size;
 	if (ts) {
 		t->current++;
-		stksess_init(t, ts, key);
+		stksess_init(t, ts);
+		stksess_setkey(t, ts, key);
 	}
 
 	return ts;
@@ -281,7 +282,7 @@ int stktable_init(struct stktable *t)
 		memset(&t->keys, 0, sizeof(t->keys));
 		memset(&t->exps, 0, sizeof(t->exps));
 
-		t->pool = create_pool("sticktables", sizeof(struct stksess) + t->key_size, MEM_F_SHARED);
+		t->pool = create_pool("sticktables", sizeof(struct stksess) + t->data_size + t->key_size, MEM_F_SHARED);
 
 		t->exp_next = TICK_ETERNITY;
 		if ( t->expire ) {

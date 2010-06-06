@@ -25,7 +25,7 @@
 #include <types/stick_table.h>
 
 struct stksess *stksess_new(struct stktable *t, struct stktable_key *key);
-void stksess_key(struct stktable *t, struct stksess *ts, struct stktable_key *key);
+void stksess_setkey(struct stktable *t, struct stksess *ts, struct stktable_key *key);
 void stksess_free(struct stktable *t, struct stksess *ts);
 
 int stktable_init(struct stktable *t);

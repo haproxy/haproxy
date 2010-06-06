@@ -1032,7 +1032,7 @@ int process_store_rules(struct session *s, struct buffer *rep, int an_bit)
 				continue;
 
 			if (storereqidx != -1) {
-				stksess_key(s->store[storereqidx].table, s->store[storereqidx].ts, key);
+				stksess_setkey(s->store[storereqidx].table, s->store[storereqidx].ts, key);
 				s->store[storereqidx].flags = 1;
 			}
 			else if (s->store_count < (sizeof(s->store) / sizeof(s->store[0]))) {
