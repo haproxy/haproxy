@@ -56,8 +56,8 @@ struct stktable_type {
 struct stksess {
 	int sid;                  /* id of server to use for this session */
 	unsigned int expire;      /* session expiration date */
-	struct eb32_node exps;    /* ebtree node used to hold the session in expiration tree */
-	struct ebmb_node keys;    /* ebtree node used to hold the session in table */
+	struct eb32_node exp;     /* ebtree node used to hold the session in expiration tree */
+	struct ebmb_node key;     /* ebtree node used to hold the session in table */
 	/* WARNING! do not put anything after <keys>, it's used by the key */
 };
 

@@ -45,10 +45,10 @@ void stksess_free(struct stktable *t, struct stksess *ts)
 void stksess_setkey(struct stktable *t, struct stksess *ts, struct stktable_key *key)
 {
 	if (t->type != STKTABLE_TYPE_STRING)
-		memcpy(ts->keys.key, key->key, t->key_size);
+		memcpy(ts->key.key, key->key, t->key_size);
 	else {
-		memcpy(ts->keys.key, key->key, MIN(t->key_size - 1, key->key_len));
-		ts->keys.key[MIN(t->key_size - 1, key->key_len)] = 0;
+		memcpy(ts->key.key, key->key, MIN(t->key_size - 1, key->key_len));
+		ts->key.key[MIN(t->key_size - 1, key->key_len)] = 0;
 	}
 }
 
@@ -61,8 +61,8 @@ static struct stksess *stksess_init(struct stktable *t, struct stksess * ts)
 {
 	memset((void *)ts - t->data_size, 0, t->data_size);
 	ts->sid = 0;
-	ts->keys.node.leaf_p = NULL;
-	ts->exps.node.leaf_p = NULL;
+	ts->key.node.leaf_p = NULL;
+	ts->exp.node.leaf_p = NULL;
 	return ts;
 }
 
@@ -91,28 +91,26 @@ static int stktable_trash_oldest(struct stktable *t, int to_batch)
 		}
 
 		/* timer looks expired, detach it from the queue */
-		ts = eb32_entry(eb, struct stksess, exps);
+		ts = eb32_entry(eb, struct stksess, exp);
 		eb = eb32_next(eb);
 
-		eb32_delete(&ts->exps);
+		eb32_delete(&ts->exp);
 
-		if (ts->expire != ts->exps.key) {
-
+		if (ts->expire != ts->exp.key) {
 			if (!tick_isset(ts->expire))
 				continue;
 
-			ts->exps.key = ts->expire;
+			ts->exp.key = ts->expire;
+			eb32_insert(&t->exps, &ts->exp);
 
-			eb32_insert(&t->exps, &ts->exps);
-
-			if (!eb || eb->key > ts->exps.key)
-				eb = &ts->exps;
+			if (!eb || eb->key > ts->exp.key)
+				eb = &ts->exp;
 
 			continue;
 		}
 
 		/* session expired, trash it */
-		ebmb_delete(&ts->keys);
+		ebmb_delete(&ts->key);
 		stksess_free(t, ts);
 		batched++;
 	}
@@ -166,7 +164,7 @@ struct stksess *stktable_lookup(struct stktable *t, struct stktable_key *key)
 		return NULL;
 	}
 
-	return ebmb_entry(eb, struct stksess, keys);
+	return ebmb_entry(eb, struct stksess, key);
 }
 
 /* Try to store sticky session <ts> in the table. If another entry already
@@ -181,17 +179,17 @@ int stktable_store(struct stktable *t, struct stksess *ts, int sid)
 	struct ebmb_node *eb;
 
 	if (t->type == STKTABLE_TYPE_STRING)
-		eb = ebst_lookup(&(t->keys), (char *)ts->keys.key);
+		eb = ebst_lookup(&(t->keys), (char *)ts->key.key);
 	else
-		eb = ebmb_lookup(&(t->keys), ts->keys.key, t->key_size);
+		eb = ebmb_lookup(&(t->keys), ts->key.key, t->key_size);
 
 	if (unlikely(!eb)) {
 		/* no existing session, insert ours */
 		ts->sid = sid;
-		ebmb_insert(&t->keys, &ts->keys, t->key_size);
+		ebmb_insert(&t->keys, &ts->key, t->key_size);
 
-		ts->exps.key = ts->expire = tick_add(now_ms, MS_TO_TICKS(t->expire));
-		eb32_insert(&t->exps, &ts->exps);
+		ts->exp.key = ts->expire = tick_add(now_ms, MS_TO_TICKS(t->expire));
+		eb32_insert(&t->exps, &ts->exp);
 
 		if (t->expire) {
 			t->exp_task->expire = t->exp_next = tick_first(ts->expire, t->exp_next);
@@ -200,7 +198,7 @@ int stktable_store(struct stktable *t, struct stksess *ts, int sid)
 		return 0;
 	}
 
-	ts = ebmb_entry(eb, struct stksess, keys);
+	ts = ebmb_entry(eb, struct stksess, key);
 
 	if ( ts->sid != sid )
 		ts->sid = sid;
@@ -236,25 +234,25 @@ static int stktable_trash_expired(struct stktable *t)
 		}
 
 		/* timer looks expired, detach it from the queue */
-		ts = eb32_entry(eb, struct stksess, exps);
+		ts = eb32_entry(eb, struct stksess, exp);
 		eb = eb32_next(eb);
 
-		eb32_delete(&ts->exps);
+		eb32_delete(&ts->exp);
 
 		if (!tick_is_expired(ts->expire, now_ms)) {
 			if (!tick_isset(ts->expire))
 				continue;
 
-			ts->exps.key = ts->expire;
-			eb32_insert(&t->exps, &ts->exps);
+			ts->exp.key = ts->expire;
+			eb32_insert(&t->exps, &ts->exp);
 
-			if (!eb || eb->key > ts->exps.key)
-				eb = &ts->exps;
+			if (!eb || eb->key > ts->exp.key)
+				eb = &ts->exp;
 			continue;
 		}
 
 		/* session expired, trash it */
-		ebmb_delete(&ts->keys);
+		ebmb_delete(&ts->key);
 		stksess_free(t, ts);
 	}
 
