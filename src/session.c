@@ -50,6 +50,7 @@ void session_free(struct session *s)
 	struct http_txn *txn = &s->txn;
 	struct proxy *fe = s->fe;
 	struct bref *bref, *back;
+	int i;
 
 	if (s->pend_pos)
 		pendconn_free(s->pend_pos);
@@ -81,6 +82,13 @@ void session_free(struct session *s)
 	pool_free2(pool2_buffer, s->rep);
 
 	http_end_txn(s);
+
+	for (i = 0; i < s->store_count; i++) {
+		if (!s->store[i].ts)
+			continue;
+		stksess_free(s->store[i].table, s->store[i].ts);
+		s->store[i].ts = NULL;
+	}
 
 	if (fe) {
 		pool_free2(fe->hdr_idx_pool, txn->hdr_idx.v);
