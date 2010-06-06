@@ -4998,7 +4998,7 @@ stick-table type {ip | integer | string [len <length>] } size <size>
             [expire <expire>] [nopurge] [store <data_type>]*
   Configure the stickiness table for the current backend
   May be used in sections :   defaults | frontend | listen | backend
-                                 no    |    no    |   yes  |   yes
+                                 no    |    yes   |   yes  |   yes
 
   Arguments :
     ip         a table declared with "type ip" will only store IPv4 addresses.
@@ -5059,8 +5059,8 @@ stick-table type {ip | integer | string [len <length>] } size <size>
                "server_id" type is also supported but it's only for internal
                use for stick and store directives.
 
-  The is only one stick-table per backend. At the moment of writing this doc,
-  it does not seem useful to have multiple tables per backend. If this happens
+  There is only one stick-table per proxy. At the moment of writing this doc,
+  it does not seem useful to have multiple tables per proxy. If this happens
   to be required, simply create a dummy backend with a stick-table in it and
   reference it.
 

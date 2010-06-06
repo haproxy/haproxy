@@ -4877,7 +4877,7 @@ int check_config_validity()
 				curproxy->be_rsp_ana |= AN_RES_STORE_RULES;
 
 			if (mrule->table.name)
-				target = findproxy(mrule->table.name, PR_CAP_BE);
+				target = findproxy(mrule->table.name, 0);
 			else
 				target = curproxy;
 
@@ -4910,7 +4910,7 @@ int check_config_validity()
 			curproxy->be_rsp_ana |= AN_RES_STORE_RULES;
 
 			if (mrule->table.name)
-				target = findproxy(mrule->table.name, PR_CAP_BE);
+				target = findproxy(mrule->table.name, 0);
 			else
 				target = curproxy;
 
@@ -5471,8 +5471,7 @@ out_uri_auth_compat:
 	 * other proxies.
 	 */
 	for (curproxy = proxy; curproxy; curproxy = curproxy->next)
-		if (curproxy->cap & PR_CAP_BE)
-			stktable_init(&curproxy->table);
+		stktable_init(&curproxy->table);
 
 	/*
 	 * Recount currently required checks.
