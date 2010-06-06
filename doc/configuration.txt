@@ -4995,7 +4995,7 @@ stick store-request <pattern> [table <table>] [{if | unless} <condition>]
 
 
 stick-table type {ip | integer | string [len <length>] } size <size>
-            [expire <expire>] [nopurge]
+            [expire <expire>] [nopurge] [store <data_type>]*
   Configure the stickiness table for the current backend
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    no    |   yes  |   yes
@@ -5048,6 +5048,12 @@ stick-table type {ip | integer | string [len <length>] } size <size>
 	       the session won't automatically expire, but older entries will
                be removed once full. Be sure not to use the "nopurge" parameter
                if not expiration delay is specified.
+
+   <data_type> is used to store additional information in the stick-table. This
+               may be used by ACLs in order to control various criteria related
+               to the activity of the client matching the stick-table. For each
+               item specified here, the size of each entry will be inflated so
+               that the additional data can fit.
 
   The is only one stick-table per backend. At the moment of writing this doc,
   it does not seem useful to have multiple tables per backend. If this happens

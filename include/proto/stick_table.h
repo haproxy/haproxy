@@ -3,6 +3,7 @@
  * Functions for stick tables management.
  *
  * Copyright (C) 2009-2010 EXCELIANCE, Emeric Brun <ebrun@exceliance.fr>
+ * Copyright (C) 2010 Willy Tarreau <w@1wt.eu>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -36,6 +37,23 @@ struct stktable_key *stktable_fetch_key(struct proxy *px, struct session *l4,
 					void *l7, int dir, struct pattern_expr *expr,
 					unsigned long table_type);
 int stktable_compatible_pattern(struct pattern_expr *expr, unsigned long table_type);
+int stktable_get_data_type(char *name);
 
+/* reserve some space for data type <type>. Return non-0 if OK, or 0 if already
+ * allocated (or impossible type).
+ */
+static inline int stktable_alloc_data_type(struct stktable *t, int type)
+{
+	if (type >= STKTABLE_DATA_TYPES)
+		return 0;
+
+	if (t->data_ofs[type])
+		/* already allocated */
+		return 0;
+
+	t->data_size      += stktable_data_types[type].data_length;
+	t->data_ofs[type]  = -t->data_size;
+	return 1;
+}
 
 #endif /* _PROTO_STICK_TABLE_H */

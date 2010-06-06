@@ -3,6 +3,7 @@
  * Macros, variables and structures for stick tables management.
  *
  * Copyright (C) 2009-2010 EXCELIANCE, Emeric Brun <ebrun@exceliance.fr>
+ * Copyright (C) 2010 Willy Tarreau <w@1wt.eu>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -36,6 +37,24 @@ enum {
 	STKTABLE_TYPE_INTEGER,    /* table key is unsigned 32bit integer */
 	STKTABLE_TYPE_STRING,     /* table key is a null terminated string */
 	STKTABLE_TYPES            /* Number of types, must always be last */
+};
+
+/* The types of extra data we can store in a stick table */
+enum {
+	STKTABLE_DATA_TYPES       /* Number of data types, must always be last */
+};
+
+/* stick_table extra data. This is mainly used for casting or size computation */
+union stktable_data {
+};
+
+#define stktable_data_size(type) (sizeof(((union stktable_data*)0)->type))
+#define stktable_data_cast(ptr, type) ((union stktable_data*)(ptr))->type
+
+/* known data types */
+struct stktable_data_type {
+	const char *name; /* name of the data type */
+	int data_length;  /* length of this type, or 0 if variable (eg: string) */
 };
 
 /* stick table key type flags */
@@ -75,9 +94,10 @@ struct stktable {
 	int exp_next;             /* next expiration date (ticks) */
 	int expire;               /* time to live for sticky sessions (milliseconds) */
 	int data_size;            /* the size of the data that is prepended *before* stksess */
+	int data_ofs[STKTABLE_DATA_TYPES]; /* negative offsets of present data types, or 0 if absent */
 };
 
-/*** The definitions below should probably be better placed in pattern.h ***/
+struct stktable_data_type stktable_data_types[STKTABLE_DATA_TYPES];
 
 /* stick table key data */
 union stktable_key_data {

@@ -2,6 +2,7 @@
  * Stick tables management functions.
  *
  * Copyright 2009-2010 EXCELIANCE, Emeric Brun <ebrun@exceliance.fr>
+ * Copyright (C) 2010 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -472,5 +473,24 @@ int stktable_compatible_pattern(struct pattern_expr *expr, unsigned long table_t
 			return 0;
 	}
 	return 1;
+}
+
+/* Extra data types processing */
+struct stktable_data_type stktable_data_types[STKTABLE_DATA_TYPES] = {
+};
+
+/*
+ * Returns the data type number for the stktable_data_type whose name is <name>,
+ * or <0 if not found.
+ */
+int stktable_get_data_type(char *name)
+{
+	int type;
+
+	for (type = 0; type < STKTABLE_DATA_TYPES; type++) {
+		if (strcmp(name, stktable_data_types[type].name) == 0)
+			return type;
+	}
+	return -1;
 }
 
