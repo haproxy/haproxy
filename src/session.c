@@ -945,9 +945,11 @@ int process_sticking_rules(struct session *s, struct buffer *req, int an_bit)
 				if ((ts = stktable_lookup_key(rule->table.t, key)) != NULL) {
 					if (!(s->flags & SN_ASSIGNED)) {
 						struct eb32_node *node;
+						void *ptr;
 
 						/* srv found in table */
-						node = eb32_lookup(&px->conf.used_server_id, ts->sid);
+						ptr = stktable_data_ptr(rule->table.t, ts, STKTABLE_DT_SERVER_ID);
+						node = eb32_lookup(&px->conf.used_server_id, stktable_data_cast(ptr, server_id));
 						if (node) {
 							struct server *srv;
 
@@ -1050,6 +1052,7 @@ int process_store_rules(struct session *s, struct buffer *rep, int an_bit)
 	/* process store request and store response */
 	for (i = 0; i < s->store_count; i++) {
 		struct stksess *ts;
+		void *ptr;
 
 		ts = stktable_lookup(s->store[i].table, s->store[i].ts);
 		if (ts) {
@@ -1060,7 +1063,8 @@ int process_store_rules(struct session *s, struct buffer *rep, int an_bit)
 			ts = stktable_store(s->store[i].table, s->store[i].ts);
 
 		s->store[i].ts = NULL;
-		ts->sid = s->srv->puid;
+		ptr = stktable_data_ptr(s->store[i].table, ts, STKTABLE_DT_SERVER_ID);
+		stktable_data_cast(ptr, server_id) = s->srv->puid;
 	}
 
 	rep->analysers &= ~an_bit;

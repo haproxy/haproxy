@@ -64,7 +64,6 @@ void stksess_setkey(struct stktable *t, struct stksess *ts, struct stktable_key 
 static struct stksess *stksess_init(struct stktable *t, struct stksess * ts)
 {
 	memset((void *)ts - t->data_size, 0, t->data_size);
-	ts->sid = 0;
 	ts->key.node.leaf_p = NULL;
 	ts->exp.node.leaf_p = NULL;
 	return ts;
@@ -476,6 +475,7 @@ int stktable_compatible_pattern(struct pattern_expr *expr, unsigned long table_t
 /* Extra data types processing */
 struct stktable_data_type stktable_data_types[STKTABLE_DATA_TYPES] = {
 	[STKTABLE_DT_CONN_CUM] = { .name = "conn_cum", .data_length = stktable_data_size(conn_cum) },
+	[STKTABLE_DT_SERVER_ID] = { .name = "server_id", .data_length = stktable_data_size(server_id) },
 };
 
 /*

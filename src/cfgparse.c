@@ -4899,6 +4899,7 @@ int check_config_validity()
 			else {
 				free((void *)mrule->table.name);
 				mrule->table.t = &(target->table);
+				stktable_alloc_data_type(&target->table, STKTABLE_DT_SERVER_ID);
 			}
 		}
 
@@ -4931,6 +4932,7 @@ int check_config_validity()
 			else {
 				free((void *)mrule->table.name);
 				mrule->table.t = &(target->table);
+				stktable_alloc_data_type(&target->table, STKTABLE_DT_SERVER_ID);
 			}
 		}
 

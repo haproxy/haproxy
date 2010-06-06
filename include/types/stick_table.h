@@ -41,6 +41,7 @@ enum {
 
 /* The types of extra data we can store in a stick table */
 enum {
+	STKTABLE_DT_SERVER_ID,    /* the server ID to use with this session if > 0 */
 	STKTABLE_DT_CONN_CUM,     /* cumulated number of connections */
 	STKTABLE_DATA_TYPES       /* Number of data types, must always be last */
 };
@@ -48,6 +49,7 @@ enum {
 /* stick_table extra data. This is mainly used for casting or size computation */
 union stktable_data {
 	unsigned int conn_cum;
+	int server_id;
 };
 
 /* known data types */
@@ -72,7 +74,6 @@ struct stktable_type {
  * keys and variable-sized data without making use of intermediate pointers.
  */
 struct stksess {
-	int sid;                  /* id of server to use for this session */
 	unsigned int expire;      /* session expiration date */
 	struct eb32_node exp;     /* ebtree node used to hold the session in expiration tree */
 	struct ebmb_node key;     /* ebtree node used to hold the session in table */

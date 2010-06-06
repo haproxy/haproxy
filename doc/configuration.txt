@@ -5055,7 +5055,9 @@ stick-table type {ip | integer | string [len <length>] } size <size>
                item specified here, the size of each entry will be inflated so
                that the additional data can fit. At the moment, only "conn_cum"
                is supported, which can be used to store and retrieve the total
-               number of connections matching the entry since it was created.
+               number of connections matching the entry since it was created. A
+               "server_id" type is also supported but it's only for internal
+               use for stick and store directives.
 
   The is only one stick-table per backend. At the moment of writing this doc,
   it does not seem useful to have multiple tables per backend. If this happens
