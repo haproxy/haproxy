@@ -5319,9 +5319,6 @@ out_uri_auth_compat:
 				curproxy->be_rsp_ana |= AN_RES_WAIT_HTTP | AN_RES_HTTP_PROCESS_BE;
 			}
 
-			/* init table on backend capabilities proxy */
-			stktable_init(&curproxy->table);
-
 			/* If the backend does requires RDP cookie persistence, we have to
 			 * enable the corresponding analyser.
 			 */
@@ -5466,6 +5463,14 @@ out_uri_auth_compat:
 #endif
 
 	}
+
+	/* initialize stick-tables on backend capable proxies. This must not
+	 * be done earlier because the data size may be discovered while parsing
+	 * other proxies.
+	 */
+	for (curproxy = proxy; curproxy; curproxy = curproxy->next)
+		if (curproxy->cap & PR_CAP_BE)
+			stktable_init(&curproxy->table);
 
 	/*
 	 * Recount currently required checks.
