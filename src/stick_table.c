@@ -29,22 +29,23 @@
 
 
 /*
- * Free an allocate sticked session <ts>.
- * Decrease table <t> sticked session counter .
+ * Free an allocated sticky session <ts>, and decrease sticky sessions counter
+ * in table <t>.
  */
 void stksess_free(struct stktable *t, struct stksess *ts)
 {
 	t->current--;
-	pool_free2(t->pool,ts);
+	pool_free2(t->pool, ts);
 }
 
 /*
- * Init or modify <key> of th sticked session <ts> present in table <t>.
+ * Initialize or update the key in the sticky session <ts> present in table <t>
+ * from the value present in <key>.
  */
 void stksess_key(struct stktable *t, struct stksess *ts, struct stktable_key *key)
 {
 	if (t->type != STKTABLE_TYPE_STRING)
-		memcpy(ts->keys.key, key->key , t->key_size);
+		memcpy(ts->keys.key, key->key, t->key_size);
 	else {
 		memcpy(ts->keys.key, key->key, MIN(t->key_size - 1, key->key_len));
 		ts->keys.key[MIN(t->key_size - 1, key->key_len)] = 0;
@@ -53,7 +54,7 @@ void stksess_key(struct stktable *t, struct stksess *ts, struct stktable_key *ke
 
 
 /*
- * Init sticked session <ts> using <key>.
+ * Init sticky session <ts> of table <t> using <key>.
  */
 struct stksess *stksess_init(struct stktable *t, struct stksess * ts, struct stktable_key *key)
 {
@@ -66,8 +67,8 @@ struct stksess *stksess_init(struct stktable *t, struct stksess * ts, struct stk
 }
 
 /*
- * Trash oldest <to_batch> sticked sessions from table <t>
- * Returns number of trashed sticked session.
+ * Trash oldest <to_batch> sticky sessions from table <t>
+ * Returns number of trashed sticky sessions.
  */
 static int stktable_trash_oldest(struct stktable *t, int to_batch)
 {
@@ -109,8 +110,8 @@ static int stktable_trash_oldest(struct stktable *t, int to_batch)
 
 			continue;
 		}
-		/* session expired, trash it */
 
+		/* session expired, trash it */
 		ebmb_delete(&ts->keys);
 		stksess_free(t, ts);
 		batched++;
@@ -120,11 +121,10 @@ static int stktable_trash_oldest(struct stktable *t, int to_batch)
 }
 
 /*
- *  Allocate and initialise a new sticked session.
- *  The new sticked session is returned or NULL in case of lack of memory.
- *  Sticked sessions should only be allocated this way, and must be
- *  freed using stksess_free().
- *  Increase table <t> sticked session counter.
+ * Allocate and initialise a new sticky session.
+ * The new sticky session is returned or NULL in case of lack of memory.
+ * Sticky sessions should only be allocated this way, and must be freed using
+ * stksess_free(). Increase table <t> sticky session counter.
  */
 struct stksess *stksess_new(struct stktable *t, struct stktable_key *key)
 {
@@ -148,14 +148,13 @@ struct stksess *stksess_new(struct stktable *t, struct stktable_key *key)
 }
 
 /*
- * Lookup in table <t> for a sticked session identified by <key>.
- * Returns pointer on requested sticked session or NULL if no one found.
+ * Looks in table <t> for a sticky session matching <key>.
+ * Returns pointer on requested sticky session or NULL if none was found.
  */
 struct stksess *stktable_lookup(struct stktable *t, struct stktable_key *key)
 {
 	struct ebmb_node *eb;
 
-	/* lookup on track session */
 	if (t->type == STKTABLE_TYPE_STRING)
 		eb = ebst_lookup_len(&t->keys, key->key, key->key_len);
 	else
@@ -166,39 +165,40 @@ struct stksess *stktable_lookup(struct stktable *t, struct stktable_key *key)
 		return NULL;
 	}
 
-	/* Existing session, returns server id */
 	return ebmb_entry(eb, struct stksess, keys);
 }
 
-/*
- * Store sticked session if not present in table.
- * Il already present, update the existing session.
+/* Try to store sticky session <ts> in the table. If another entry already
+ * exists with the same key, its server ID is updated with <sid> and a non
+ * zero value is returned so that the caller knows it can release its stksess.
+ * If no similar entry was present, <ts> is inserted into the tree and assigned
+ * server ID <sid>. Zero is returned in this case, and the caller must not
+ * release the stksess.
  */
-int stktable_store(struct stktable *t, struct stksess *tsess, int sid)
+int stktable_store(struct stktable *t, struct stksess *ts, int sid)
 {
-	struct stksess *ts;
 	struct ebmb_node *eb;
 
 	if (t->type == STKTABLE_TYPE_STRING)
-		eb = ebst_lookup(&(t->keys), (char *)tsess->keys.key);
+		eb = ebst_lookup(&(t->keys), (char *)ts->keys.key);
 	else
-		eb = ebmb_lookup(&(t->keys), tsess->keys.key, t->key_size);
+		eb = ebmb_lookup(&(t->keys), ts->keys.key, t->key_size);
 
 	if (unlikely(!eb)) {
-		tsess->sid = sid;
-		ebmb_insert(&t->keys, &tsess->keys, t->key_size);
+		/* no existing session, insert ours */
+		ts->sid = sid;
+		ebmb_insert(&t->keys, &ts->keys, t->key_size);
 
-		tsess->exps.key = tsess->expire = tick_add(now_ms, MS_TO_TICKS(t->expire));
-		eb32_insert(&t->exps, &tsess->exps);
+		ts->exps.key = ts->expire = tick_add(now_ms, MS_TO_TICKS(t->expire));
+		eb32_insert(&t->exps, &ts->exps);
 
 		if (t->expire) {
-			t->exp_task->expire = t->exp_next = tick_first(tsess->expire, t->exp_next);
+			t->exp_task->expire = t->exp_next = tick_first(ts->expire, t->exp_next);
 			task_queue(t->exp_task);
 		}
 		return 0;
 	}
 
-	/* Existing track session */
 	ts = ebmb_entry(eb, struct stksess, keys);
 
 	if ( ts->sid != sid )
@@ -207,7 +207,8 @@ int stktable_store(struct stktable *t, struct stksess *tsess, int sid)
 }
 
 /*
- * Trash expired sticked sessions from table <t>.
+ * Trash expired sticky sessions from table <t>. The next expiration date is
+ * returned.
  */
 static int stktable_trash_expired(struct stktable *t)
 {
@@ -262,9 +263,10 @@ static int stktable_trash_expired(struct stktable *t)
 }
 
 /*
- * Task processing function to trash expired sticked sessions.
+ * Task processing function to trash expired sticky sessions. A pointer to the
+ * task itself is returned since it never dies.
  */
-static struct task *process_table_expire(struct task * task)
+static struct task *process_table_expire(struct task *task)
 {
 	struct stktable *t = (struct stktable *)task->context;
 
@@ -272,7 +274,7 @@ static struct task *process_table_expire(struct task * task)
 	return task;
 }
 
-/* Perform minimal intializations, report 0 in case of error, 1 if OK. */
+/* Perform minimal stick table intializations, report 0 in case of error, 1 if OK. */
 int stktable_init(struct stktable *t)
 {
 	if (t->size) {
@@ -298,7 +300,7 @@ int stktable_init(struct stktable *t)
  */
 struct stktable_type stktable_types[STKTABLE_TYPES] = { { "ip", 0, 4 } ,
 						        { "integer", 0, 4 },
-						        { "string", STKTABLE_TYPEFLAG_CUSTOMKEYSIZE, 32 } };
+						        { "string", STK_F_CUSTOM_KEYSIZE, 32 } };
 
 
 /*
@@ -315,7 +317,7 @@ int stktable_parse_type(char **args, int *myidx, unsigned long *type, size_t *ke
 		*key_size =  stktable_types[*type].default_size;
 		(*myidx)++;
 
-		if (stktable_types[*type].flags & STKTABLE_TYPEFLAG_CUSTOMKEYSIZE) {
+		if (stktable_types[*type].flags & STK_F_CUSTOM_KEYSIZE) {
 			if (strcmp("len", args[*myidx]) == 0) {
 				(*myidx)++;
 				*key_size = atol(args[*myidx]);

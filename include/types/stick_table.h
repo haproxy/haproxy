@@ -31,45 +31,48 @@
 #include <common/memory.h>
 
 /* stick table key types */
-#define STKTABLE_TYPE_IP	0 /* table key is ipv4 */
-#define STKTABLE_TYPE_INTEGER	1 /* table key is unsigned 32bit integer */
-#define STKTABLE_TYPE_STRING	2 /* table key is a null terminated string */
+enum {
+	STKTABLE_TYPE_IP = 0,     /* table key is ipv4 */
+	STKTABLE_TYPE_INTEGER,    /* table key is unsigned 32bit integer */
+	STKTABLE_TYPE_STRING,     /* table key is a null terminated string */
+	STKTABLE_TYPES            /* Number of types, must always be last */
+};
 
-#define STKTABLE_TYPES	3  /* Increase this value if you add a type */
-
-/* stick table type flags */
-#define STKTABLE_TYPEFLAG_CUSTOMKEYSIZE 0x00000001 /* this table type maxsize is configurable */
+/* stick table key type flags */
+#define STK_F_CUSTOM_KEYSIZE      0x00000001   /* this table's key size is configurable */
 
 /* stick table keyword type */
 struct stktable_type {
-	const char *kw;       /* keyword string */
-	int flags;            /* type flags */
-	size_t default_size;  /* default key size */
+	const char *kw;           /* keyword string */
+	int flags;                /* type flags */
+	size_t default_size;      /* default key size */
 };
 
-/* stuck session */
+/* sticky session */
 struct stksess {
-	int sid;                  /* id of server to use for session */
+	int sid;                  /* id of server to use for this session */
 	unsigned int expire;      /* session expiration date */
 	struct eb32_node exps;    /* ebtree node used to hold the session in expiration tree */
 	struct ebmb_node keys;    /* ebtree node used to hold the session in table */
+	/* WARNING! do not put anything after <keys>, it's used by the key */
 };
-
 
 /* stick table */
 struct stktable {
-	struct eb_root keys;      /* head of stuck session tree */
-	struct eb_root exps;      /* head of stuck session expiration tree */
-	struct pool_head *pool;   /* pool used to allocate stuck sessions */
+	struct eb_root keys;      /* head of sticky session tree */
+	struct eb_root exps;      /* head of sticky session expiration tree */
+	struct pool_head *pool;   /* pool used to allocate sticky sessions */
 	struct task *exp_task;    /* expiration task */
-	unsigned long type;       /* type of table (determine key format) */
+	unsigned long type;       /* type of table (determines key format) */
 	size_t key_size;          /* size of a key, maximum size in case of string */
-	unsigned int size;        /* maximum stuck session in table */
-	unsigned int current;     /* number of stuck session in table */
-	int nopurge;              /* 1 never purge stuck sessions */
-	int exp_next;             /* next epiration date */
-	int expire;               /* duration before expiration of stuck session */
+	unsigned int size;        /* maximum number of sticky sessions in table */
+	unsigned int current;     /* number of sticky sessions currently in table */
+	int nopurge;              /* if non-zero, don't purge sticky sessions when full */
+	int exp_next;             /* next expiration date (ticks) */
+	int expire;               /* time to live for sticky sessions (milliseconds) */
 };
+
+/*** The definitions below should probably be better placed in pattern.h ***/
 
 /* stick table key data */
 union stktable_key_data {

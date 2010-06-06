@@ -28,10 +28,10 @@
 
 /* pattern in and out types */
 enum {
-	PATTERN_TYPE_IP      = 0,  /* ipv4 type */
-	PATTERN_TYPE_INTEGER = 1,  /* unsigned 32bits integer type */
-	PATTERN_TYPE_STRING  = 2,  /* char string type */
-	PATTERN_TYPES
+	PATTERN_TYPE_IP = 0,      /* ipv4 type */
+	PATTERN_TYPE_INTEGER,     /* unsigned 32bits integer type */
+	PATTERN_TYPE_STRING,      /* char string type */
+	PATTERN_TYPES             /* number of types, must always be last */
 };
 
 /* pattern fetch direction */
@@ -40,9 +40,9 @@ enum {
 
 /* pattern result data */
 union pattern_data {
-	struct in_addr ip; /* used for ipv4 type */
-	uint32_t integer;  /* used for unsigned 32bits integer type */
-	struct chunk str;  /* used for char string type */
+	struct in_addr ip;        /* used for ipv4 type */
+	uint32_t integer;         /* used for unsigned 32bits integer type */
+	struct chunk str;         /* used for char string type */
 };
 
 /* pattern result */
