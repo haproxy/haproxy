@@ -29,10 +29,6 @@ struct pattern_expr *pattern_parse_expr(char **str, int *idx);
 struct pattern *pattern_process(struct proxy *px, struct session *l4,
                                 void *l7, int dir, struct pattern_expr *expr,
                                 struct pattern *p);
-struct stktable_key *pattern_process_key(struct proxy *px, struct session *l4,
-                                         void *l7, int dir, struct pattern_expr *expr,
-                                         unsigned long table_type);
-int pattern_notusable_key(struct pattern_expr *expr, unsigned long table_type);
 void pattern_register_fetches(struct pattern_fetch_kw_list *psl);
 void pattern_register_convs(struct pattern_conv_kw_list *psl);
 

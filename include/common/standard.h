@@ -379,4 +379,9 @@ unsigned int get_next_id(struct eb_root *root, unsigned int key);
  */
 int word_match(const char *sample, int slen, const char *word, int wlen);
 
+/* Convert a fixed-length string to an IP address. Returns 0 in case of error,
+ * or the number of chars read in case of success.
+ */
+int buf2ip(const char *buf, size_t len, struct in_addr *dst);
+
 #endif /* _COMMON_STANDARD_H */

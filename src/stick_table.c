@@ -23,10 +23,14 @@
 
 #include <types/stick_table.h>
 
+#include <proto/pattern.h>
 #include <proto/proxy.h>
 #include <proto/session.h>
 #include <proto/task.h>
 
+
+/* static structure used to return a table key built from a pattern */
+static struct stktable_key static_table_key;
 
 /*
  * Free an allocated sticky session <ts>, and decrease sticky sessions counter
@@ -332,4 +336,141 @@ int stktable_parse_type(char **args, int *myidx, unsigned long *type, size_t *ke
 	return 1;
 }
 
+/*****************************************************************/
+/*    typed pattern to typed table key functions                 */
+/*****************************************************************/
+
+static void *k_int2int(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
+{
+	return (void *)&pdata->integer;
+}
+
+static void *k_ip2ip(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
+{
+	return (void *)&pdata->ip.s_addr;
+}
+
+static void *k_ip2int(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
+{
+	kdata->integer = ntohl(pdata->ip.s_addr);
+	return (void *)&kdata->integer;
+}
+
+static void *k_int2ip(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
+{
+	kdata->ip.s_addr = htonl(pdata->integer);
+	return (void *)&kdata->ip.s_addr;
+}
+
+static void *k_str2str(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
+{
+	*len = pdata->str.len;
+	return (void *)pdata->str.str;
+}
+
+static void *k_ip2str(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
+{
+	if (!inet_ntop(AF_INET, &pdata->ip, kdata->buf, sizeof(kdata->buf)))
+		return NULL;
+
+	*len = strlen((const char *)kdata->buf);
+	return (void *)kdata->buf;
+}
+
+static void *k_int2str(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
+{
+	void *key;
+
+	key = (void *)ultoa_r(pdata->integer,  kdata->buf,  sizeof(kdata->buf));
+	if (!key)
+		return NULL;
+
+	*len = strlen((const char *)key);
+	return key;
+}
+
+static void *k_str2ip(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
+{
+	if (!buf2ip(pdata->str.str, pdata->str.len, &kdata->ip))
+		return NULL;
+
+	return (void *)&kdata->ip.s_addr;
+}
+
+
+static void *k_str2int(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
+{
+	int i;
+
+	kdata->integer = 0;
+	for (i = 0; i < pdata->str.len; i++) {
+		uint32_t val = pdata->str.str[i] - '0';
+
+		if (val > 9)
+			break;
+
+		kdata->integer = kdata->integer * 10 + val;
+	}
+	return (void *)&kdata->integer;
+}
+
+/*****************************************************************/
+/*      typed pattern to typed table key matrix:                 */
+/*         pattern_to_key[from pattern type][to table key type]  */
+/*         NULL pointer used for impossible pattern casts        */
+/*****************************************************************/
+
+typedef void *(*pattern_to_key_fct)(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len);
+static pattern_to_key_fct pattern_to_key[PATTERN_TYPES][STKTABLE_TYPES] = {
+	{ k_ip2ip,  k_ip2int,  k_ip2str  },
+	{ k_int2ip, k_int2int, k_int2str },
+	{ k_str2ip, k_str2int, k_str2str },
+};
+
+
+/*
+ * Process a fetch + format conversion as defined by the pattern expression <expr>
+ * on request or response considering the <dir> parameter. Returns either NULL if
+ * no key could be extracted, or a pointer to the converted result stored in
+ * static_table_key in format <table_type>.
+ */
+struct stktable_key *stktable_fetch_key(struct proxy *px, struct session *l4, void *l7, int dir,
+					struct pattern_expr *expr, unsigned long table_type)
+{
+	struct pattern *ptrn;
+
+	ptrn = pattern_process(px, l4, l7, dir, expr, NULL);
+	if (!ptrn)
+		return NULL;
+
+	static_table_key.key_len = (size_t)-1;
+	static_table_key.key = pattern_to_key[ptrn->type][table_type](&ptrn->data, &static_table_key.data, &static_table_key.key_len);
+
+	if (!static_table_key.key)
+		return NULL;
+
+	return &static_table_key;
+}
+
+/*
+ * Returns 1 if pattern expression <expr> result can be converted to table key of
+ * type <table_type>, otherwise zero. Used in configuration check.
+ */
+int stktable_compatible_pattern(struct pattern_expr *expr, unsigned long table_type)
+{
+	if (table_type >= STKTABLE_TYPES)
+		return 0;
+
+	if (LIST_ISEMPTY(&expr->conv_exprs)) {
+		if (!pattern_to_key[expr->fetch->out_type][table_type])
+			return 0;
+	} else {
+		struct pattern_conv_expr *conv_expr;
+		conv_expr = LIST_PREV(&expr->conv_exprs, typeof(conv_expr), list);
+
+		if (!pattern_to_key[conv_expr->conv->out_type][table_type])
+			return 0;
+	}
+	return 1;
+}
 

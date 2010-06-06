@@ -29,7 +29,6 @@
 #include <proto/hdr_idx.h>
 #include <proto/log.h>
 #include <proto/session.h>
-#include <proto/pattern.h>
 #include <proto/pipe.h>
 #include <proto/proto_http.h>
 #include <proto/proto_tcp.h>
@@ -936,7 +935,7 @@ int process_sticking_rules(struct session *s, struct buffer *req, int an_bit)
 		if (ret) {
 			struct stktable_key *key;
 
-			key = pattern_process_key(px, s, &s->txn, PATTERN_FETCH_REQ, rule->expr, rule->table.t->type);
+			key = stktable_fetch_key(px, s, &s->txn, PATTERN_FETCH_REQ, rule->expr, rule->table.t->type);
 			if (!key)
 				continue;
 
@@ -1027,7 +1026,7 @@ int process_store_rules(struct session *s, struct buffer *rep, int an_bit)
 		if (ret) {
 			struct stktable_key *key;
 
-			key = pattern_process_key(px, s, &s->txn, PATTERN_FETCH_RTR, rule->expr, rule->table.t->type);
+			key = stktable_fetch_key(px, s, &s->txn, PATTERN_FETCH_RTR, rule->expr, rule->table.t->type);
 			if (!key)
 				continue;
 

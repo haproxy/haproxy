@@ -12,7 +12,6 @@
 
 #include <string.h>
 #include <arpa/inet.h>
-#include <types/stick_table.h>
 
 #include <proto/pattern.h>
 #include <common/standard.h>
@@ -29,9 +28,6 @@ static char pattern_trash_buf2[BUFSIZE];
 
 /* pattern_trash_buf point on used buffer*/
 static char *pattern_trash_buf = pattern_trash_buf1;
-
-/* static structure used to returns builded table key from a pattern*/
-static struct stktable_key stable_key;
 
 /* list head of all known pattern fetch keywords */
 static struct pattern_fetch_kw_list pattern_fetches = {
@@ -159,56 +155,6 @@ static int c_int2ip(union pattern_data *data)
 	return 1;
 }
 
-/* Convert a fixed-length string to an IP address. Returns 0 in case of error,
- * or the number of chars read in case of success.
- */
-static int buf2ip(const char *buf, size_t len, struct in_addr *dst)
-{
-	const char *addr;
-	int saw_digit, octets, ch;
-	u_char tmp[4], *tp;
-	const char *cp = buf;
-
-	saw_digit = 0;
-	octets = 0;
-	*(tp = tmp) = 0;
-
-	for (addr = buf; addr - buf < len; addr++) {
-		unsigned char digit = (ch = *addr) - '0';
-
-		if (digit > 9 && ch != '.')
-			break;
-
-		if (digit <= 9) {
-			u_int new = *tp * 10 + digit;
-
-			if (new > 255)
-				return 0;
-
-			*tp = new;
-
-			if (!saw_digit) {
-				if (++octets > 4)
-					return 0;
-				saw_digit = 1;
-			}
-		} else if (ch == '.' && saw_digit) {
-			if (octets == 4)
-				return 0;
-
-			*++tp = 0;
-			saw_digit = 0;
-		} else
-			return 0;
-	}
-
-	if (octets < 4)
-		return 0;
-
-	memcpy(&dst->s_addr, tmp, 4);
-	return addr - cp;
-}
-
 static int c_str2ip(union pattern_data *data)
 {
 	if (!buf2ip(data->str.str, data->str.len, &data->ip))
@@ -263,100 +209,14 @@ static int c_str2int(union pattern_data *data)
 /*           NULL pointer used for impossible pattern casts      */
 /*****************************************************************/
 
-typedef int (*pattern_cast)(union pattern_data *data);
-static pattern_cast pattern_casts[PATTERN_TYPES][PATTERN_TYPES] = { { c_donothing, c_ip2int, c_ip2str  },
-								    { c_int2ip, c_donothing, c_int2str },
-								    { c_str2ip, c_str2int, c_donothing } };
+typedef int (*pattern_cast_fct)(union pattern_data *data);
+static pattern_cast_fct pattern_casts[PATTERN_TYPES][PATTERN_TYPES] = {
+	{ c_donothing, c_ip2int,    c_ip2str    },
+	{ c_int2ip,    c_donothing, c_int2str   },
+	{ c_str2ip,    c_str2int,   c_donothing },
+};
 
 
-/*****************************************************************/
-/*    typed pattern to typed table key functions                 */
-/*****************************************************************/
-
-static void *k_int2int(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
-{
-	return (void *)&pdata->integer;
-}
-
-static void *k_ip2ip(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
-{
-	return (void *)&pdata->ip.s_addr;
-}
-
-static void *k_ip2int(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
-{
-	kdata->integer = ntohl(pdata->ip.s_addr);
-	return (void *)&kdata->integer;
-}
-
-static void *k_int2ip(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
-{
-	kdata->ip.s_addr = htonl(pdata->integer);
-	return (void *)&kdata->ip.s_addr;
-}
-
-static void *k_str2str(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
-{
-	*len = pdata->str.len;
-	return (void *)pdata->str.str;
-}
-
-static void *k_ip2str(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
-{
-	if (!inet_ntop(AF_INET, &pdata->ip, kdata->buf, sizeof(kdata->buf)))
-		return NULL;
-
-	*len = strlen((const char *)kdata->buf);
-	return (void *)kdata->buf;
-}
-
-static void *k_int2str(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
-{
-	void *key;
-
-	key = (void *)ultoa_r(pdata->integer,  kdata->buf,  sizeof(kdata->buf));
-	if (!key)
-		return NULL;
-
-	*len = strlen((const char *)key);
-	return key;
-}
-
-static void *k_str2ip(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
-{
-	if (!buf2ip(pdata->str.str, pdata->str.len, &kdata->ip))
-		return NULL;
-
-	return (void *)&kdata->ip.s_addr;
-}
-
-
-static void *k_str2int(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
-{
-	int i;
-
-	kdata->integer = 0;
-	for (i = 0; i < pdata->str.len; i++) {
-		uint32_t val = pdata->str.str[i] - '0';
-
-		if (val > 9)
-			break;
-
-		kdata->integer = kdata->integer * 10 + val;
-	}
-	return (void *)&kdata->integer;
-}
-
-/*****************************************************************/
-/*      typed pattern to typed table key matrix:                 */
-/*           pattern_keys[from pattern type][to table key type]  */
-/*           NULL pointer used for impossible pattern casts      */
-/*****************************************************************/
-
-typedef void *(*pattern_key)(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len);
-static pattern_key pattern_keys[PATTERN_TYPES][STKTABLE_TYPES] = { { k_ip2ip,  k_ip2int,  k_ip2str  },
-                                                                   { k_int2ip, k_int2int, k_int2str },
-                                                                   { k_str2ip, k_str2int, k_str2str } };
 /*
  * Parse a pattern expression configuration:
  *        fetch keyword followed by format conversion keywords.
@@ -483,55 +343,6 @@ struct pattern *pattern_process(struct proxy *px, struct session *l4, void *l7, 
 		p->type = conv_expr->conv->out_type;
 	}
 	return p;
-}
-
-/*
- *  Process a fetch + format conversion of defined by the pattern expression <expr>
- *  on request or response considering the <dir> parameter.
- *  Returns a pointer on a static tablekey  structure of type <table_type> of
- *  the converted result.
- */
-struct stktable_key *pattern_process_key(struct proxy *px, struct session *l4, void *l7, int dir,
-                                         struct pattern_expr *expr, unsigned long table_type)
-{
-	struct pattern *ptrn;
-
-	ptrn = pattern_process(px, l4, l7, dir, expr, NULL);
-	if (!ptrn)
-		return NULL;
-
-	stable_key.key_len = (size_t)-1;
-	stable_key.key = pattern_keys[ptrn->type][table_type](&ptrn->data, &stable_key.data, &stable_key.key_len);
-
-	if (!stable_key.key)
-		return NULL;
-
-	return &stable_key;
-}
-
-/*
- * Returns 1 if pattern expression <expr> result cannot be converted to table key of
- * type <table_type> .
- *
- * Used in configuration check
- */
-int pattern_notusable_key(struct pattern_expr *expr, unsigned long table_type)
-{
-
-	if (table_type >= STKTABLE_TYPES)
-		return 1;
-
-	if (LIST_ISEMPTY(&expr->conv_exprs)) {
-		if (!pattern_keys[expr->fetch->out_type][table_type])
-			return 1;
-	} else {
-		struct pattern_conv_expr *conv_expr;
-		conv_expr = LIST_PREV(&expr->conv_exprs, typeof(conv_expr), list);
-
-		if (!pattern_keys[conv_expr->conv->out_type][table_type])
-			return 1;
-	}
-	return 0;
 }
 
 /* Converts an argument string to an IPv4 mask stored in network byte order in

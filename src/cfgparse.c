@@ -4873,7 +4873,7 @@ int check_config_validity()
 				      curproxy->id, mrule->table.name ? mrule->table.name : curproxy->id);
 				cfgerr++;
 			}
-			else if (pattern_notusable_key(mrule->expr,  target->table.type)) {
+			else if (!stktable_compatible_pattern(mrule->expr,  target->table.type)) {
 				Alert("Proxy '%s': type of pattern not usable with type of stick-table '%s'.\n",
 				      curproxy->id, mrule->table.name ? mrule->table.name : curproxy->id);
 				cfgerr++;
@@ -4905,7 +4905,7 @@ int check_config_validity()
 				      curproxy->id, mrule->table.name ? mrule->table.name : curproxy->id);
 				cfgerr++;
 			}
-			else if (pattern_notusable_key(mrule->expr, target->table.type)) {
+			else if (!stktable_compatible_pattern(mrule->expr, target->table.type)) {
 				Alert("Proxy '%s': type of pattern not usable with type of stick-table '%s'.\n",
 				      curproxy->id, mrule->table.name ? mrule->table.name : curproxy->id);
 				cfgerr++;

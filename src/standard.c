@@ -1007,6 +1007,58 @@ unsigned int inetaddr_host_lim_ret(const char *text, char *stop, const char **re
 	return ((dig100 * 10) + dig10) * 10 + dig1;
 }
 
+/* Convert a fixed-length string to an IP address. Returns 0 in case of error,
+ * or the number of chars read in case of success. Maybe this could be replaced
+ * by one of the functions above. Also, apparently this function does not support
+ * hosts above 255 and requires exactly 4 octets.
+ */
+int buf2ip(const char *buf, size_t len, struct in_addr *dst)
+{
+	const char *addr;
+	int saw_digit, octets, ch;
+	u_char tmp[4], *tp;
+	const char *cp = buf;
+
+	saw_digit = 0;
+	octets = 0;
+	*(tp = tmp) = 0;
+
+	for (addr = buf; addr - buf < len; addr++) {
+		unsigned char digit = (ch = *addr) - '0';
+
+		if (digit > 9 && ch != '.')
+			break;
+
+		if (digit <= 9) {
+			u_int new = *tp * 10 + digit;
+
+			if (new > 255)
+				return 0;
+
+			*tp = new;
+
+			if (!saw_digit) {
+				if (++octets > 4)
+					return 0;
+				saw_digit = 1;
+			}
+		} else if (ch == '.' && saw_digit) {
+			if (octets == 4)
+				return 0;
+
+			*++tp = 0;
+			saw_digit = 0;
+		} else
+			return 0;
+	}
+
+	if (octets < 4)
+		return 0;
+
+	memcpy(&dst->s_addr, tmp, 4);
+	return addr - cp;
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8

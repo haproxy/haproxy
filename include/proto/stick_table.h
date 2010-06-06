@@ -32,6 +32,10 @@ int stktable_init(struct stktable *t);
 int stktable_parse_type(char **args, int *idx, unsigned long *type, size_t *key_size);
 int stktable_store(struct stktable *t, struct stksess *ts, int sid);
 struct stksess *stktable_lookup(struct stktable *t, struct stktable_key *key);
+struct stktable_key *stktable_fetch_key(struct proxy *px, struct session *l4,
+					void *l7, int dir, struct pattern_expr *expr,
+					unsigned long table_type);
+int stktable_compatible_pattern(struct pattern_expr *expr, unsigned long table_type);
 
 
 #endif /* _PROTO_STICK_TABLE_H */
