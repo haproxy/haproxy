@@ -50,9 +50,6 @@ union stktable_data {
 	unsigned int conn_cum;
 };
 
-#define stktable_data_size(type) (sizeof(((union stktable_data*)0)->type))
-#define stktable_data_cast(ptr, type) ((union stktable_data*)(ptr))->type
-
 /* known data types */
 struct stktable_data_type {
 	const char *name; /* name of the data type */

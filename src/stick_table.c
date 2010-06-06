@@ -22,11 +22,10 @@
 #include <ebmbtree.h>
 #include <ebsttree.h>
 
-#include <types/stick_table.h>
-
 #include <proto/pattern.h>
 #include <proto/proxy.h>
 #include <proto/session.h>
+#include <proto/stick_table.h>
 #include <proto/task.h>
 
 

@@ -25,6 +25,9 @@
 
 #include <types/stick_table.h>
 
+#define stktable_data_size(type) (sizeof(((union stktable_data*)0)->type))
+#define stktable_data_cast(ptr, type) ((union stktable_data*)(ptr))->type
+
 struct stksess *stksess_new(struct stktable *t, struct stktable_key *key);
 void stksess_setkey(struct stktable *t, struct stksess *ts, struct stktable_key *key);
 void stksess_free(struct stktable *t, struct stksess *ts);
@@ -55,6 +58,23 @@ static inline int stktable_alloc_data_type(struct stktable *t, int type)
 	t->data_size      += stktable_data_types[type].data_length;
 	t->data_ofs[type]  = -t->data_size;
 	return 1;
+}
+
+/* return pointer for data type <type> in sticky session <ts> of table <t>, or
+ * NULL if either <ts> is NULL or the type is not stored.
+ */
+static inline void *stktable_data_ptr(struct stktable *t, struct stksess *ts, int type)
+{
+	if (type >= STKTABLE_DATA_TYPES)
+		return NULL;
+
+	if (!t->data_ofs[type]) /* type not stored */
+		return NULL;
+
+	if (!ts)
+		return NULL;
+
+	return (void *)ts + t->data_ofs[type];
 }
 
 #endif /* _PROTO_STICK_TABLE_H */
