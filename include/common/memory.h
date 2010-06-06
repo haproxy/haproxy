@@ -39,7 +39,7 @@
                 __p = malloc(((__len) >= sizeof (void *)) ? \
                       (__len) : sizeof(void *));            \
         else {                                              \
-                __pool = *(void **)(__pool);                \
+                (__pool) = *(void **)(__pool);		    \
         }                                                   \
         __p;                                                \
 })
@@ -87,8 +87,8 @@
  */
 #define pool_free(type, ptr)                            \
 ({                                                      \
-        *(void **)ptr = (void *)pool_##type;            \
-        pool_##type = (void *)ptr;                      \
+        *(void **)(ptr) = (void *)pool_##type;		\
+        pool_##type = (void *)(ptr);			\
 })
 
 #else
@@ -171,11 +171,11 @@ void *pool_destroy2(struct pool_head *pool);
 #define pool_alloc2(pool)                                       \
 ({                                                              \
         void *__p;                                              \
-        if ((__p = pool->free_list) == NULL)                    \
+        if ((__p = (pool)->free_list) == NULL)			\
                 __p = pool_refill_alloc(pool);                  \
         else {                                                  \
-                pool->free_list = *(void **)pool->free_list;    \
-                pool->used++;                                   \
+                (pool)->free_list = *(void **)(pool)->free_list;\
+		(pool)->used++;					\
         }                                                       \
         __p;                                                    \
 })
@@ -192,9 +192,9 @@ void *pool_destroy2(struct pool_head *pool);
 #define pool_free2(pool, ptr)                           \
 ({                                                      \
         if (likely((ptr) != NULL)) {                    \
-                *(void **)ptr = (void *)pool->free_list;\
-                pool->free_list = (void *)ptr;          \
-                pool->used--;                           \
+                *(void **)(ptr) = (void *)(pool)->free_list;	\
+                (pool)->free_list = (void *)(ptr);	\
+                (pool)->used--;				\
         }                                               \
 })
 
