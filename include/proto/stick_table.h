@@ -28,6 +28,8 @@
 #define stktable_data_size(type) (sizeof(((union stktable_data*)0)->type))
 #define stktable_data_cast(ptr, type) ((union stktable_data*)(ptr))->type
 
+extern struct stktable_key static_table_key;
+
 struct stksess *stksess_new(struct stktable *t, struct stktable_key *key);
 void stksess_setkey(struct stktable *t, struct stksess *ts, struct stktable_key *key);
 void stksess_free(struct stktable *t, struct stksess *ts);

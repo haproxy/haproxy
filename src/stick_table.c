@@ -29,8 +29,8 @@
 #include <proto/task.h>
 
 
-/* static structure used to return a table key built from a pattern */
-static struct stktable_key static_table_key;
+/* structure used to return a table key built from a pattern */
+struct stktable_key static_table_key;
 
 /*
  * Free an allocated sticky session <ts>, and decrease sticky sessions counter
