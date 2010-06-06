@@ -152,10 +152,10 @@ struct stksess *stksess_new(struct stktable *t, struct stktable_key *key)
 }
 
 /*
- * Looks in table <t> for a sticky session matching <key>.
+ * Looks in table <t> for a sticky session matching key <key>.
  * Returns pointer on requested sticky session or NULL if none was found.
  */
-struct stksess *stktable_lookup(struct stktable *t, struct stktable_key *key)
+struct stksess *stktable_lookup_key(struct stktable *t, struct stktable_key *key)
 {
 	struct ebmb_node *eb;
 
@@ -172,14 +172,11 @@ struct stksess *stktable_lookup(struct stktable *t, struct stktable_key *key)
 	return ebmb_entry(eb, struct stksess, key);
 }
 
-/* Try to store sticky session <ts> in the table. If another entry already
- * exists with the same key, its server ID is updated with <sid> and a non
- * zero value is returned so that the caller knows it can release its stksess.
- * If no similar entry was present, <ts> is inserted into the tree and assigned
- * server ID <sid>. Zero is returned in this case, and the caller must not
- * release the stksess.
+/*
+ * Looks in table <t> for a sticky session with same key as <ts>.
+ * Returns pointer on requested sticky session or NULL if none was found.
  */
-int stktable_store(struct stktable *t, struct stksess *ts, int sid)
+struct stksess *stktable_lookup(struct stktable *t, struct stksess *ts)
 {
 	struct ebmb_node *eb;
 
@@ -188,26 +185,28 @@ int stktable_store(struct stktable *t, struct stksess *ts, int sid)
 	else
 		eb = ebmb_lookup(&(t->keys), ts->key.key, t->key_size);
 
-	if (unlikely(!eb)) {
-		/* no existing session, insert ours */
-		ts->sid = sid;
-		ebmb_insert(&t->keys, &ts->key, t->key_size);
+	if (unlikely(!eb))
+		return NULL;
 
-		ts->exp.key = ts->expire = tick_add(now_ms, MS_TO_TICKS(t->expire));
-		eb32_insert(&t->exps, &ts->exp);
+	return ebmb_entry(eb, struct stksess, key);
+}
 
-		if (t->expire) {
-			t->exp_task->expire = t->exp_next = tick_first(ts->expire, t->exp_next);
-			task_queue(t->exp_task);
-		}
-		return 0;
+/* Insert new sticky session <ts> in the table. It is assumed that it does not
+ * yet exist (the caller must check this). The table's timeout is updated if it
+ * is set. <ts> is returned.
+ */
+struct stksess *stktable_store(struct stktable *t, struct stksess *ts)
+{
+	ebmb_insert(&t->keys, &ts->key, t->key_size);
+
+	ts->exp.key = ts->expire = tick_add(now_ms, MS_TO_TICKS(t->expire));
+	eb32_insert(&t->exps, &ts->exp);
+
+	if (t->expire) {
+		t->exp_task->expire = t->exp_next = tick_first(ts->expire, t->exp_next);
+		task_queue(t->exp_task);
 	}
-
-	ts = ebmb_entry(eb, struct stksess, key);
-
-	if ( ts->sid != sid )
-		ts->sid = sid;
-	return 1;
+	return ts;
 }
 
 /*

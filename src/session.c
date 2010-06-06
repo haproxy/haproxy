@@ -942,7 +942,7 @@ int process_sticking_rules(struct session *s, struct buffer *req, int an_bit)
 			if (rule->flags & STK_IS_MATCH) {
 				struct stksess *ts;
 
-				if ((ts = stktable_lookup(rule->table.t, key)) != NULL) {
+				if ((ts = stktable_lookup_key(rule->table.t, key)) != NULL) {
 					if (!(s->flags & SN_ASSIGNED)) {
 						struct eb32_node *node;
 
@@ -1049,10 +1049,18 @@ int process_store_rules(struct session *s, struct buffer *rep, int an_bit)
 
 	/* process store request and store response */
 	for (i = 0; i < s->store_count; i++) {
-		if (stktable_store(s->store[i].table, s->store[i].ts, s->srv->puid) > 0) {
+		struct stksess *ts;
+
+		ts = stktable_lookup(s->store[i].table, s->store[i].ts);
+		if (ts) {
+			/* the entry already existed, we can free ours */
 			stksess_free(s->store[i].table, s->store[i].ts);
-			s->store[i].ts = NULL;
 		}
+		else
+			ts = stktable_store(s->store[i].table, s->store[i].ts);
+
+		s->store[i].ts = NULL;
+		ts->sid = s->srv->puid;
 	}
 
 	rep->analysers &= ~an_bit;
