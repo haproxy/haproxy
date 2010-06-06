@@ -41,11 +41,13 @@ enum {
 
 /* The types of extra data we can store in a stick table */
 enum {
+	STKTABLE_DT_CONN_CUM,     /* cumulated number of connections */
 	STKTABLE_DATA_TYPES       /* Number of data types, must always be last */
 };
 
 /* stick_table extra data. This is mainly used for casting or size computation */
 union stktable_data {
+	unsigned int conn_cum;
 };
 
 #define stktable_data_size(type) (sizeof(((union stktable_data*)0)->type))
