@@ -2413,7 +2413,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 		     (msg->msg_state >= HTTP_MSG_BODY || msg->msg_state == HTTP_MSG_ERROR))) {
 		char *eol, *sol;
 
-		sol = msg->sol;
+		sol = req->data + msg->som;
 		eol = sol + msg->sl.rq.l;
 		debug_hdr("clireq", s, sol, eol);
 
@@ -4337,7 +4337,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 		     (msg->msg_state >= HTTP_MSG_BODY || msg->msg_state == HTTP_MSG_ERROR))) {
 		char *eol, *sol;
 
-		sol = msg->sol;
+		sol = rep->data + msg->som;
 		eol = sol + msg->sl.st.l;
 		debug_hdr("srvrep", s, sol, eol);
 
