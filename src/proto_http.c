@@ -4338,7 +4338,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 		char *eol, *sol;
 
 		sol = msg->sol;
-		eol = sol + msg->sl.rq.l;
+		eol = sol + msg->sl.st.l;
 		debug_hdr("srvrep", s, sol, eol);
 
 		sol += hdr_idx_first_pos(&txn->hdr_idx);
@@ -5982,7 +5982,7 @@ int apply_filter_to_sts_line(struct session *t, struct buffer *rtr, struct hdr_e
 	done = 0;
 
 	cur_ptr = txn->rsp.sol;
-	cur_end = cur_ptr + txn->rsp.sl.rq.l;
+	cur_end = cur_ptr + txn->rsp.sl.st.l;
 
 	/* Now we have the status line between cur_ptr and cur_end */
 
@@ -6028,7 +6028,7 @@ int apply_filter_to_sts_line(struct session *t, struct buffer *rtr, struct hdr_e
 			 * or an LF at <ptr>.
 			 */
 			txn->status = strl2ui(txn->rsp.sol + txn->rsp.sl.st.c, txn->rsp.sl.st.c_l);
-			hdr_idx_set_start(&txn->hdr_idx, txn->rsp.sl.rq.l, *cur_end == '\r');
+			hdr_idx_set_start(&txn->hdr_idx, txn->rsp.sl.st.l, *cur_end == '\r');
 			/* there is no point trying this regex on headers */
 			return 1;
 		}
