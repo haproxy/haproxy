@@ -4064,6 +4064,7 @@ int http_resync_states(struct session *s)
 	}
 	else if (txn->rsp.msg_state == HTTP_MSG_CLOSED ||
 		 txn->rsp.msg_state == HTTP_MSG_ERROR ||
+		 txn->req.msg_state == HTTP_MSG_ERROR ||
 		 (s->rep->flags & BF_SHUTW)) {
 		s->rep->analysers = 0;
 		buffer_auto_close(s->rep);
@@ -4109,15 +4110,16 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 
 	if ((req->flags & (BF_READ_ERROR|BF_READ_TIMEOUT|BF_WRITE_ERROR|BF_WRITE_TIMEOUT)) ||
 	    ((req->flags & BF_SHUTW) && (req->to_forward || req->send_max))) {
-		/* Output closed while we were sending data. We must abort. */
-		buffer_ignore(req, req->l - req->send_max);
-		buffer_auto_read(req);
-		buffer_auto_close(req);
-		req->analysers &= ~an_bit;
+		/* Output closed while we were sending data. We must abort and
+		 * wake the other side up.
+		 */
+		msg->msg_state = HTTP_MSG_ERROR;
+		http_resync_states(s);
 		return 1;
 	}
 
-	buffer_dont_close(req);
+	/* in most states, we should abort in case of early close */
+	buffer_auto_close(req);
 
 	/* Note that we don't have to send 100-continue back because we don't
 	 * need the data to complete our job, and it's up to the server to
@@ -4202,6 +4204,8 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 		}
 		else {
 			/* other states, DONE...TUNNEL */
+			/* for keep-alive we don't want to forward closes on DONE */
+			buffer_dont_close(req);
 			if (http_resync_states(s)) {
 				/* some state changes occurred, maybe the analyser
 				 * was disabled too.
@@ -5007,15 +5011,16 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 	if ((res->flags & (BF_READ_ERROR|BF_READ_TIMEOUT|BF_WRITE_ERROR|BF_WRITE_TIMEOUT)) ||
 	    ((res->flags & BF_SHUTW) && (res->to_forward || res->send_max)) ||
 	    !s->req->analysers) {
-		/* in case of error or if the other analyser went away, we can't analyse HTTP anymore */
-		buffer_ignore(res, res->l - res->send_max);
-		buffer_auto_read(res);
-		buffer_auto_close(res);
-		res->analysers &= ~an_bit;
+		/* Output closed while we were sending data. We must abort and
+		 * wake the other side up.
+		 */
+		msg->msg_state = HTTP_MSG_ERROR;
+		http_resync_states(s);
 		return 1;
 	}
 
-	buffer_dont_close(res);
+	/* in most states, we should abort in case of early close */
+	buffer_auto_close(res);
 
 	if (msg->msg_state < HTTP_MSG_CHUNK_SIZE) {
 		/* we have msg->col and msg->sov which both point to the first
@@ -5093,6 +5098,8 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 		}
 		else {
 			/* other states, DONE...TUNNEL */
+			/* for keep-alive we don't want to forward closes on DONE */
+			buffer_dont_close(res);
 			if (http_resync_states(s)) {
 				http_silent_debug(__LINE__, s);
 				/* some state changes occurred, maybe the analyser
