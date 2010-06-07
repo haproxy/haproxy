@@ -1761,6 +1761,29 @@ disabled
   See also : "enabled"
 
 
+dispatch <address>:<port>
+  Set a default server address
+  May be used in sections :   defaults | frontend | listen | backend
+                                 no    |    no    |   yes  |   yes
+  Arguments : none
+
+    <address> is the IPv4 address of the default server. Alternatively, a
+              resolvable hostname is supported, but this name will be resolved
+              during start-up.
+
+    <ports>   is a mandatory port specification. All connections will be sent
+              to this port, and it is not permitted to use port offsets as is
+              possible with normal servers.
+
+  The "disabled" keyword designates a default server for use when no other
+  server can take the connection. In the past it was used to forward non
+  persistent connections to an auxiliary load balancer. Due to its simple
+  syntax, it has also been used for simple TCP relays. It is recommended not to
+  use it for more clarity, and to use the "server" directive instead.
+
+  See also : "server"
+
+
 enabled
   Enable a proxy, frontend or backend.
   May be used in sections :   defaults | frontend | listen | backend
