@@ -3603,6 +3603,11 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 	if ((req->flags & BF_READ_TIMEOUT) || tick_is_expired(req->analyse_exp, now_ms)) {
 		txn->status = 408;
 		stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_408));
+
+		if (!(s->flags & SN_ERR_MASK))
+			s->flags |= SN_ERR_CLITO;
+		if (!(s->flags & SN_FINST_MASK))
+			s->flags |= SN_FINST_D;
 		goto return_err_msg;
 	}
 
@@ -3632,16 +3637,16 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 	txn->status = 400;
 	stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_400));
 
+	if (!(s->flags & SN_ERR_MASK))
+		s->flags |= SN_ERR_PRXCOND;
+	if (!(s->flags & SN_FINST_MASK))
+		s->flags |= SN_FINST_R;
+
  return_err_msg:
 	req->analysers = 0;
 	s->fe->counters.failed_req++;
 	if (s->listener->counters)
 		s->listener->counters->failed_req++;
-
-	if (!(s->flags & SN_ERR_MASK))
-		s->flags |= SN_ERR_PRXCOND;
-	if (!(s->flags & SN_FINST_MASK))
-		s->flags |= SN_FINST_R;
 	return 0;
 }
 
@@ -4220,12 +4225,22 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 
  missing_data:
 	/* stop waiting for data if the input is closed before the end */
-	if (req->flags & BF_SHUTR)
+	if (req->flags & BF_SHUTR) {
+		if (!(s->flags & SN_ERR_MASK))
+			s->flags |= SN_ERR_CLICL;
+		if (!(s->flags & SN_FINST_MASK))
+			s->flags |= SN_FINST_D;
 		goto return_bad_req;
+	}
 
 	/* waiting for the last bits to leave the buffer */
-	if (req->flags & BF_SHUTW)
+	if (req->flags & BF_SHUTW) {
+		if (!(s->flags & SN_ERR_MASK))
+			s->flags |= SN_ERR_SRVCL;
+		if (!(s->flags & SN_FINST_MASK))
+			s->flags |= SN_FINST_D;
 		goto return_bad_req;
+	}
 
 	http_silent_debug(__LINE__, s);
 	return 0;
