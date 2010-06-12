@@ -127,8 +127,7 @@ header is used: "Content-length". This mode is called the "keep-alive" mode :
 Its advantages are a reduced latency between transactions, and less processing
 power required on the server side. It is generally better than the close mode,
 but not always because the clients often limit their concurrent connections to
-a smaller value. HAProxy currently only supports the HTTP keep-alive mode on
-the client side, and transforms it to a close mode on the server side.
+a smaller value.
 
 A last improvement in the communications is the pipelining mode. It still uses
 keep-alive, but the client does not wait for the first response to send the
@@ -142,8 +141,17 @@ latency is eliminated between subsequent requests. Many HTTP agents do not
 correctly support pipelining since there is no way to associate a response with
 the corresponding request in HTTP. For this reason, it is mandatory for the
 server to reply in the exact same order as the requests were received.
-HAProxy supports pipelined requests on the client side and processes them one
-at a time.
+
+By default HAProxy operates in a tunnel-like mode with regards to persistent
+connections: for each connection it processes the first request and forwards
+everything else (including additional requests) to selected server. Once
+established, the connection is persisted both on the client and server
+sides. Use "option http-server-close" to preserve client persistent connections
+while handling every incoming request individually, dispatching them one after
+another to servers, in HTTP close mode. Use "option httpclose" to switch both
+sides to HTTP close mode. "option forceclose" and "option
+http-pretend-keepalive" help working around servers misbehaving in HTTP close
+mode.
 
 
 1.2. HTTP request
@@ -2793,16 +2801,18 @@ no option http-server-close
                                  yes   |    yes   |   yes  |   yes
   Arguments : none
 
-  This mode enables HTTP connection-close mode on the server side while keeping
-  the ability to support HTTP keep-alive and pipelining on the client side.
-  This provides the lowest latency on the client side (slow network) and the
-  fastest session reuse on the server side to save server resources, similarly
-  to "option forceclose". It also permits non-keepalive capable servers to be
-  served in keep-alive mode to the clients if they conform to the requirements
-  of RFC2616. Please note that some servers do not always conform to those
-  requirements when they see "Connection: close" in the request. The effect
-  will be that keep-alive will never be used. A workaround consists in enabling
-  "option http-pretend-keepalive".
+  By default, when a client communicates with a server, HAProxy will only
+  analyze, log, and process the first request of each connection. Setting
+  "option http-server-close" enables HTTP connection-close mode on the server
+  side while keeping the ability to support HTTP keep-alive and pipelining on
+  the client side.  This provides the lowest latency on the client side (slow
+  network) and the fastest session reuse on the server side to save server
+  resources, similarly to "option forceclose". It also permits non-keepalive
+  capable servers to be served in keep-alive mode to the clients if they
+  conform to the requirements of RFC2616. Please note that some servers do not
+  always conform to those requirements when they see "Connection: close" in the
+  request. The effect will be that keep-alive will never be used. A workaround
+  consists in enabling "option http-pretend-keepalive".
 
   At the moment, logs will not indicate whether requests came from the same
   session or not. The accept date reported in the logs corresponds to the end
@@ -2820,8 +2830,8 @@ no option http-server-close
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
 
-  See also : "option forceclose", "option http-pretend-keepalive" and
-             "option httpclose".
+  See also : "option forceclose", "option http-pretend-keepalive",
+             "option httpclose" and "1.1. The HTTP transaction model".
 
 
 option http-use-proxy-header
@@ -2913,15 +2923,13 @@ no option httpclose
                                  yes   |    yes   |   yes  |   yes
   Arguments : none
 
-  As stated in section 1, HAProxy does not yet support the HTTP keep-alive
-  mode. So by default, if a client communicates with a server in this mode, it
-  will only analyze, log, and process the first request of each connection. To
-  workaround this limitation, it is possible to specify "option httpclose". It
-  will check if a "Connection: close" header is already set in each direction,
-  and will add one if missing. Each end should react to this by actively
-  closing the TCP connection after each transfer, thus resulting in a switch to
-  the HTTP close mode. Any "Connection" header different from "close" will also
-  be removed.
+  By default, when a client communicates with a server, HAProxy will only
+  analyze, log, and process the first request of each connection. If "option
+  httpclose" is set, it will check if a "Connection: close" header is already
+  set in each direction, and will add one if missing. Each end should react to
+  this by actively closing the TCP connection after each transfer, thus
+  resulting in a switch to the HTTP close mode. Any "Connection" header
+  different from "close" will also be removed.
 
   It seldom happens that some servers incorrectly ignore this header and do not
   close the connection eventhough they reply "Connection: close". For this
@@ -2940,7 +2948,8 @@ no option httpclose
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
 
-  See also : "option forceclose" and "option http-server-close"
+  See also : "option forceclose", "option http-server-close" and
+             "1.1. The HTTP transaction model".
 
 
 option httplog [ clf ]
