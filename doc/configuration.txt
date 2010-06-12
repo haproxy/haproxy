@@ -7403,7 +7403,9 @@ Most common cases :
     spent accepting these connections will inevitably slightly delay processing
     of other connections, and it can happen that request times in the order of
     a few tens of milliseconds are measured after a few thousands of new
-    connections have been accepted at once.
+    connections have been accepted at once. Setting "option http-server-close"
+    may display larger request times since "Tq" also measures the time spent
+    waiting for additional requests.
 
   - If "Tc" is close to 3000, a packet has probably been lost between the
     server and the proxy during the server connection phase. This value should
