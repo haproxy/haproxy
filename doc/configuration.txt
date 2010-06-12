@@ -37,6 +37,7 @@ Summary
 2.    Configuring HAProxy
 2.1.      Configuration file format
 2.2.      Time format
+2.3.      Examples
 
 3.    Global parameters
 3.1.      Process management and security
@@ -368,6 +369,52 @@ for every keyword. Supported units are :
   - m  : minutes. 1m = 60s = 60000ms
   - h  : hours.   1h = 60m = 3600s = 3600000ms
   - d  : days.    1d = 24h = 1440m = 86400s = 86400000ms
+
+
+2.3. Examples
+-------------
+
+    # Simple configuration for an HTTP proxy listening on port 80 on all
+    # interfaces and forwarding requests to a single backend "servers" with a
+    # single server "server1" listening on 127.0.0.1:8000
+    global
+        daemon
+        maxconn 256
+
+    defaults
+        mode http
+        timeout connect 5000ms
+        timeout client 50000ms
+        timeout server 50000ms
+
+    frontend http-in
+        bind *:80
+        default_backend servers
+
+    backend servers
+        server server1 127.0.0.1:8000 maxconn 32
+
+
+    # The same configuration defined with a single listen block. Shorter but
+    # less expressive, especially in HTTP mode.
+    global
+        daemon
+        maxconn 256
+
+    defaults
+        mode http
+        timeout connect 5000ms
+        timeout client 50000ms
+        timeout server 50000ms
+
+    listen http-in
+        bind *:80
+        server server1 127.0.0.1:8000 maxconn 32
+
+
+Assuming haproxy is in $PATH, test these configurations in a shell with:
+
+    $ sudo haproxy -f configuration.conf -d
 
 
 3. Global parameters
