@@ -174,6 +174,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 
 	/* init store persistence */
 	s->store_count = 0;
+	s->tracked_src_counters = NULL;
 
 	/* Adjust some socket options */
 	if (unlikely(fcntl(cfd, F_SETFL, O_NONBLOCK) == -1)) {

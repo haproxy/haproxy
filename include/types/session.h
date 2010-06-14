@@ -184,6 +184,7 @@ struct session {
 		int flags;
 	} store[8];				/* tracked stickiness values to store */
 	int store_count;
+	struct stksess *tracked_src_counters;	/* tracked counters for this source */
 
 	struct {
 		int logwait;			/* log fields waiting to be collected : LW_* */
