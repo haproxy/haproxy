@@ -1059,6 +1059,25 @@ int buf2ip(const char *buf, size_t len, struct in_addr *dst)
 	return addr - cp;
 }
 
+/* To be used to quote config arg positions. Returns the short string at <ptr>
+ * surrounded by simple quotes if <ptr> is valid and non-empty, or "end of line"
+ * if ptr is NULL or empty. The string is locally allocated.
+ */
+const char *quote_arg(const char *ptr)
+{
+	static char val[32];
+	int i;
+
+	if (!ptr || !*ptr)
+		return "end of line";
+	val[0] = '\'';
+	for (i = 1; i < sizeof(val) - 1 && *ptr; i++)
+		val[i] = *ptr++;
+	val[i++] = '\'';
+	val[i] = '\0';
+	return val;
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8

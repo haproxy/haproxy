@@ -384,4 +384,10 @@ int word_match(const char *sample, int slen, const char *word, int wlen);
  */
 int buf2ip(const char *buf, size_t len, struct in_addr *dst);
 
+/* To be used to quote config arg positions. Returns the string at <ptr>
+ * surrounded by simple quotes if <ptr> is valid and non-empty, or "end of line"
+ * if ptr is NULL or empty. The string is locally allocated.
+ */
+const char *quote_arg(const char *ptr);
+
 #endif /* _COMMON_STANDARD_H */
