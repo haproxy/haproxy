@@ -759,10 +759,9 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 	const char *ptr = NULL;
 	unsigned int val;
 	int retlen;
-	int action;
 	int warn = 0;
 	int pol = ACL_COND_NONE;
-	struct acl_cond *cond;
+	int arg;
 	struct tcp_rule *rule;
 
 	if (!*args[1]) {
@@ -804,47 +803,50 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 		return 0;
 	}
 
+	rule = (struct tcp_rule *)calloc(1, sizeof(*rule));
+	arg = 1;
+
 	if (!strcmp(args[1], "content")) {
 		if (curpx == defpx) {
 			snprintf(err, errlen, "%s %s is not allowed in 'defaults' sections",
 				 args[0], args[1]);
-			return -1;
+			goto error;
 		}
 
 		if (!strcmp(args[2], "accept"))
-			action = TCP_ACT_ACCEPT;
+			rule->action = TCP_ACT_ACCEPT;
 		else if (!strcmp(args[2], "reject"))
-			action = TCP_ACT_REJECT;
+			rule->action = TCP_ACT_REJECT;
 		else {
 			retlen = snprintf(err, errlen,
 					  "'%s %s' expects 'accept' or 'reject', in %s '%s' (was '%s')",
 					  args[0], args[1], proxy_type_str(curpx), curpx->id, args[2]);
-			return -1;
+			goto error;
 		}
 
 		pol = ACL_COND_NONE;
-		cond = NULL;
+		rule->cond = NULL;
 
 		if (strcmp(args[3], "if") == 0 || strcmp(args[3], "unless") == 0) {
-			if ((cond = build_acl_cond(NULL, 0, curpx, (const char **)args+3)) == NULL) {
+			if ((rule->cond = build_acl_cond(NULL, 0, curpx, (const char **)args+3)) == NULL) {
 				retlen = snprintf(err, errlen,
 						  "error detected in %s '%s' while parsing '%s' condition",
 						  proxy_type_str(curpx), curpx->id, args[3]);
-				return -1;
+				goto error;
 			}
 		}
 		else if (*args[3]) {
 			retlen = snprintf(err, errlen,
 					  "'%s %s %s' only accepts 'if' or 'unless', in %s '%s' (was '%s')",
 					  args[0], args[1], args[2], proxy_type_str(curpx), curpx->id, args[3]);
-			return -1;
+			goto error;
 		}
 
-		if (cond && (cond->requires & ACL_USE_RTR_ANY)) {
+		if (rule->cond && (rule->cond->requires & ACL_USE_RTR_ANY)) {
 			struct acl *acl;
 			const char *name;
 
-			acl = cond_find_require(cond, ACL_USE_RTR_ANY);
+			acl = cond_find_require(rule->cond, ACL_USE_RTR_ANY);
 			name = acl ? acl->name : "(unknown)";
 
 			retlen = snprintf(err, errlen,
@@ -852,62 +854,60 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 					  name);
 			warn++;
 		}
-		rule = (struct tcp_rule *)calloc(1, sizeof(*rule));
-		rule->cond = cond;
-		rule->action = action;
 		LIST_INIT(&rule->list);
 		LIST_ADDQ(&curpx->tcp_req.inspect_rules, &rule->list);
 		return warn;
 	}
 
 	/* OK so we're in front of plain L4 rules */
-	if (!strcmp(args[1], "accept"))
-		action = TCP_ACT_ACCEPT;
-	else if (!strcmp(args[1], "reject"))
-		action = TCP_ACT_REJECT;
+
+	if (strcmp(args[1], "accept") == 0)
+		rule->action = TCP_ACT_ACCEPT;
+	else if (strcmp(args[1], "reject") == 0)
+		rule->action = TCP_ACT_REJECT;
 	else {
 		retlen = snprintf(err, errlen,
 				  "'%s' expects 'inspect-delay', 'content', 'accept' or 'reject', in %s '%s' (was '%s')",
 				  args[0], proxy_type_str(curpx), curpx->id, args[1]);
-		return -1;
+		goto error;
 	}
 
 	if (curpx == defpx) {
 		snprintf(err, errlen, "%s %s is not allowed in 'defaults' sections",
 			 args[0], args[1]);
-		return -1;
+		goto error;
 	}
 
+	arg++;
 	pol = ACL_COND_NONE;
-	cond = NULL;
 
-	if (strcmp(args[2], "if") == 0 || strcmp(args[2], "unless") == 0) {
-		if ((cond = build_acl_cond(NULL, 0, curpx, (const char **)args+2)) == NULL) {
+	if (strcmp(args[arg], "if") == 0 || strcmp(args[arg], "unless") == 0) {
+		if ((rule->cond = build_acl_cond(NULL, 0, curpx, (const char **)args+arg)) == NULL) {
 			retlen = snprintf(err, errlen,
 					  "error detected in %s '%s' while parsing '%s' condition",
-					  proxy_type_str(curpx), curpx->id, args[2]);
-			return -1;
+					  proxy_type_str(curpx), curpx->id, args[arg]);
+			goto error;
 		}
 	}
-	else if (*args[2]) {
+	else if (*args[arg]) {
 		retlen = snprintf(err, errlen,
 				  "'%s %s' only accepts 'if' or 'unless', in %s '%s' (was '%s')",
-				  args[0], args[1], proxy_type_str(curpx), curpx->id, args[2]);
-		return -1;
+				  args[0], args[1], proxy_type_str(curpx), curpx->id, args[arg]);
+		goto error;
 	}
 
-	if (cond && (cond->requires & (ACL_USE_RTR_ANY|ACL_USE_L6_ANY|ACL_USE_L7_ANY))) {
+	if (rule->cond && (rule->cond->requires & (ACL_USE_RTR_ANY|ACL_USE_L6_ANY|ACL_USE_L7_ANY))) {
 		struct acl *acl;
 		const char *name;
 
-		acl = cond_find_require(cond, ACL_USE_RTR_ANY|ACL_USE_L6_ANY|ACL_USE_L7_ANY);
+		acl = cond_find_require(rule->cond, ACL_USE_RTR_ANY|ACL_USE_L6_ANY|ACL_USE_L7_ANY);
 		name = acl ? acl->name : "(unknown)";
 
 		if (acl->requires & (ACL_USE_L6_ANY|ACL_USE_L7_ANY)) {
 			retlen = snprintf(err, errlen,
 					  "'%s %s' may not reference acl '%s' which makes use of payload in %s '%s'. Please use '%s content' for this.",
 					  args[0], args[1], name, proxy_type_str(curpx), curpx->id, args[0]);
-			return -1;
+			goto error;
 		}
 		if (acl->requires & ACL_USE_RTR_ANY)
 			retlen = snprintf(err, errlen,
@@ -917,12 +917,12 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 		warn++;
 	}
 
-	rule = (struct tcp_rule *)calloc(1, sizeof(*rule));
-	rule->cond = cond;
-	rule->action = action;
 	LIST_INIT(&rule->list);
 	LIST_ADDQ(&curpx->tcp_req.l4_rules, &rule->list);
 	return warn;
+ error:
+	free(rule);
+	return -1;
 }
 
 
