@@ -75,6 +75,7 @@ struct stktable_type {
  */
 struct stksess {
 	unsigned int expire;      /* session expiration date */
+	unsigned int ref_cnt;     /* reference count, can only purge when zero */
 	struct eb32_node exp;     /* ebtree node used to hold the session in expiration tree */
 	struct ebmb_node key;     /* ebtree node used to hold the session in table */
 	/* WARNING! do not put anything after <keys>, it's used by the key */

@@ -64,6 +64,7 @@ void stksess_setkey(struct stktable *t, struct stksess *ts, struct stktable_key 
 static struct stksess *stksess_init(struct stktable *t, struct stksess * ts)
 {
 	memset((void *)ts - t->data_size, 0, t->data_size);
+	ts->ref_cnt = 0;
 	ts->key.node.leaf_p = NULL;
 	ts->exp.node.leaf_p = NULL;
 	return ts;
@@ -78,6 +79,7 @@ static int stktable_trash_oldest(struct stktable *t, int to_batch)
 	struct stksess *ts;
 	struct eb32_node *eb;
 	int batched = 0;
+	int looped = 0;
 
 	eb = eb32_lookup_ge(&t->exps, now_ms - TIMER_LOOK_BACK);
 
@@ -86,8 +88,12 @@ static int stktable_trash_oldest(struct stktable *t, int to_batch)
 		if (unlikely(!eb)) {
 			/* we might have reached the end of the tree, typically because
 			 * <now_ms> is in the first half and we're first scanning the last
-			 * half. Let's loop back to the beginning of the tree now.
+			 * half. Let's loop back to the beginning of the tree now if we
+			 * have not yet visited it.
 			 */
+			if (looped)
+				break;
+			looped = 1;
 			eb = eb32_first(&t->exps);
 			if (likely(!eb))
 				break;
@@ -96,6 +102,10 @@ static int stktable_trash_oldest(struct stktable *t, int to_batch)
 		/* timer looks expired, detach it from the queue */
 		ts = eb32_entry(eb, struct stksess, exp);
 		eb = eb32_next(eb);
+
+		/* don't delete an entry which is currently referenced */
+		if (ts->ref_cnt)
+			continue;
 
 		eb32_delete(&ts->exp);
 
@@ -223,6 +233,7 @@ static int stktable_trash_expired(struct stktable *t)
 {
 	struct stksess *ts;
 	struct eb32_node *eb;
+	int looped = 0;
 
 	eb = eb32_lookup_ge(&t->exps, now_ms - TIMER_LOOK_BACK);
 
@@ -230,8 +241,12 @@ static int stktable_trash_expired(struct stktable *t)
 		if (unlikely(!eb)) {
 			/* we might have reached the end of the tree, typically because
 			 * <now_ms> is in the first half and we're first scanning the last
-			 * half. Let's loop back to the beginning of the tree now.
+			 * half. Let's loop back to the beginning of the tree now if we
+			 * have not yet visited it.
 			 */
+			if (looped)
+				break;
+			looped = 1;
 			eb = eb32_first(&t->exps);
 			if (likely(!eb))
 				break;
@@ -246,6 +261,10 @@ static int stktable_trash_expired(struct stktable *t)
 		/* timer looks expired, detach it from the queue */
 		ts = eb32_entry(eb, struct stksess, exp);
 		eb = eb32_next(eb);
+
+		/* don't delete an entry which is currently referenced */
+		if (ts->ref_cnt)
+			continue;
 
 		eb32_delete(&ts->exp);
 
