@@ -46,6 +46,7 @@
 #include <proto/protocols.h>
 #include <proto/proto_tcp.h>
 #include <proto/proxy.h>
+#include <proto/session.h>
 #include <proto/stick_table.h>
 #include <proto/stream_sock.h>
 #include <proto/task.h>
@@ -704,6 +705,9 @@ int tcp_inspect_request(struct session *s, struct buffer *req, int an_bit)
 int tcp_exec_req_rules(struct session *s)
 {
 	struct tcp_rule *rule;
+	struct stksess *ts = s->tracked_counters;
+	struct stktable *t = NULL;
+	int result = 1;
 	int ret;
 
 	list_for_each_entry(rule, &s->fe->tcp_req.l4_rules, list) {
@@ -727,13 +731,29 @@ int tcp_exec_req_rules(struct session *s)
 					s->flags |= SN_ERR_PRXCOND;
 				if (!(s->flags & SN_FINST_MASK))
 					s->flags |= SN_FINST_R;
-				return 0;
+				result = 0;
+				break;
 			}
-			/* otherwise it's an accept */
-			break;
+			else if (rule->action == TCP_ACT_TRK_CTR) {
+				if (!s->tracked_counters) {
+					/* only the first valid track-counters directive applies.
+					 * Also, note that right now we can only track SRC so we
+					 * don't check how to get the key, but later we may need
+					 * to consider rule->act_prm->trk_ctr.type.
+					 */
+					t = rule->act_prm.trk_ctr.table.t;
+					ts = stktable_get_entry(t, tcpv4_src_to_stktable_key(s));
+					if (ts)
+						session_track_counters(s, t, ts);
+				}
+			}
+			else {
+				/* otherwise it's an accept */
+				break;
+			}
 		}
 	}
-	return 1;
+	return result;
 }
 
 /* This function should be called to parse a line starting with the "tcp-request"
@@ -840,13 +860,29 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 
 	/* OK so we're in front of plain L4 rules */
 
-	if (strcmp(args[1], "accept") == 0)
+	if (strcmp(args[1], "accept") == 0) {
+		arg++;
 		rule->action = TCP_ACT_ACCEPT;
-	else if (strcmp(args[1], "reject") == 0)
+	}
+	else if (strcmp(args[1], "reject") == 0) {
+		arg++;
 		rule->action = TCP_ACT_REJECT;
+	}
+	else if (strcmp(args[1], "track-counters") == 0) {
+		int ret;
+
+		arg++;
+		ret = parse_track_counters(args, &arg, section_type, curpx,
+					   &rule->act_prm.trk_ctr, defpx, err, errlen);
+
+		if (ret < 0) /* nb: warnings are not handled yet */
+			goto error;
+
+		rule->action = TCP_ACT_TRK_CTR;
+	}
 	else {
 		retlen = snprintf(err, errlen,
-				  "'%s' expects 'inspect-delay', 'content', 'accept' or 'reject', in %s '%s' (was '%s')",
+				  "'%s' expects 'inspect-delay', 'content', 'accept', 'reject', or 'track-counters' in %s '%s' (was '%s')",
 				  args[0], proxy_type_str(curpx), curpx->id, args[1]);
 		goto error;
 	}
@@ -857,7 +893,6 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 		goto error;
 	}
 
-	arg++;
 	pol = ACL_COND_NONE;
 
 	if (strcmp(args[arg], "if") == 0 || strcmp(args[arg], "unless") == 0) {

@@ -63,6 +63,8 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	/* minimum session initialization required for monitor mode below */
 	s->flags = 0;
 	s->logs.logwait = p->to_log;
+	s->tracked_counters = NULL;
+	s->tracked_table = NULL;
 
 	/* if this session comes from a known monitoring system, we want to ignore
 	 * it as soon as possible, which means closing it immediately for TCP, but
@@ -117,6 +119,8 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	 * even initializing the stream interfaces.
 	 */
 	if ((l->options & LI_O_TCP_RULES) && !tcp_exec_req_rules(s)) {
+		if (s->tracked_counters)
+			session_store_counters(s);
 		task_free(t);
 		LIST_DEL(&s->list);
 		pool_free2(pool2_session, s);
@@ -176,7 +180,6 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 
 	/* init store persistence */
 	s->store_count = 0;
-	s->tracked_src_counters = NULL;
 
 	/* Adjust some socket options */
 	if (unlikely(fcntl(cfd, F_SETFL, O_NONBLOCK) == -1)) {
@@ -257,6 +260,8 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 			/* work is finished, we can release everything (eg: monitoring) */
 			pool_free2(pool2_buffer, s->rep);
 			pool_free2(pool2_buffer, s->req);
+			if (s->tracked_counters)
+				session_store_counters(s);
 			task_free(t);
 			LIST_DEL(&s->list);
 			pool_free2(pool2_session, s);
@@ -279,6 +284,8 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	pool_free2(pool2_buffer, s->req);
  out_free_task:
 	p->feconn--;
+	if (s->tracked_counters)
+		session_store_counters(s);
 	task_free(t);
  out_free_session:
 	LIST_DEL(&s->list);
@@ -340,6 +347,9 @@ void session_free(struct session *s)
 		pool_free2(fe->rsp_cap_pool, txn->rsp.cap);
 		pool_free2(fe->req_cap_pool, txn->req.cap);
 	}
+
+	if (s->tracked_counters)
+		session_store_counters(s);
 
 	list_for_each_entry_safe(bref, back, &s->back_refs, users) {
 		/* we have to unlink all watchers. We must not relink them if
@@ -2038,6 +2048,56 @@ void default_srv_error(struct session *s, struct stream_interface *si)
 		s->flags |= err;
 	if (!(s->flags & SN_FINST_MASK))
 		s->flags |= fin;
+}
+
+
+/* Parse a "track-counters" line starting with "track-counters" in args[arg-1].
+ * Returns the number of warnings emitted, or -1 in case of fatal errors. The
+ * <prm> struct is fed with the table name if any. If unspecified, the caller
+ * will assume that the current proxy's table is used.
+ */
+int parse_track_counters(char **args, int *arg,
+			 int section_type, struct proxy *curpx,
+			 struct track_ctr_prm *prm,
+			 struct proxy *defpx, char *err, int errlen)
+{
+	int pattern_type = 0;
+
+	/* parse the arguments of "track-counters" before the condition in the
+	 * following form :
+	 *      track-counters src [ table xxx ] [ if|unless ... ]
+	 */
+	while (args[*arg]) {
+		if (strcmp(args[*arg], "src") == 0) {
+			prm->type = STKTABLE_TYPE_IP;
+			pattern_type = 1;
+		}
+		else if (strcmp(args[*arg], "table") == 0) {
+			if (!args[*arg + 1]) {
+				snprintf(err, errlen,
+					 "missing table for track-counter in %s '%s'.",
+					 proxy_type_str(curpx), curpx->id);
+				return -1;
+			}
+			/* we copy the table name for now, it will be resolved later */
+			prm->table.n = strdup(args[*arg + 1]);
+			(*arg)++;
+		}
+		else {
+			/* unhandled keywords are handled by the caller */
+			break;
+		}
+		(*arg)++;
+	}
+
+	if (!pattern_type) {
+		snprintf(err, errlen,
+			 "track-counter key not specified in %s '%s' (found %s, only 'src' is supported).",
+			 proxy_type_str(curpx), curpx->id, quote_arg(args[*arg]));
+		return -1;
+	}
+
+	return 0;
 }
 
 /*

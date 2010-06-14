@@ -25,6 +25,7 @@
 #include <common/config.h>
 #include <common/memory.h>
 #include <types/session.h>
+#include <proto/stick_table.h>
 
 extern struct pool_head *pool2_session;
 extern struct list sessions;
@@ -40,6 +41,31 @@ void sess_change_server(struct session *sess, struct server *newsrv);
 struct task *process_session(struct task *t);
 void sess_set_term_flags(struct session *s);
 void default_srv_error(struct session *s, struct stream_interface *si);
+int parse_track_counters(char **args, int *arg,
+			 int section_type, struct proxy *curpx,
+			 struct track_ctr_prm *prm,
+			 struct proxy *defpx, char *err, int errlen);
+
+/* Remove the refcount from the session to the tracked counters, and clear the
+ * pointer to ensure this is only performed once. The caller is responsible for
+ * ensuring that the pointer is valid first.
+ */
+static inline void session_store_counters(struct session *s)
+{
+	s->tracked_counters->ref_cnt--;
+	s->tracked_counters = NULL;
+}
+
+/* Enable tracking of session counters on stksess <ts>. The caller is
+ * responsible for ensuring that <t> and <ts> are valid pointers and that no
+ * previous tracked_counters was assigned to the session.
+ */
+static inline void session_track_counters(struct session *s, struct stktable *t, struct stksess *ts)
+{
+	ts->ref_cnt++;
+	s->tracked_table = t;
+	s->tracked_counters = ts;
+}
 
 static void inline trace_term(struct session *s, unsigned int code)
 {

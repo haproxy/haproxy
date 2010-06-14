@@ -25,6 +25,7 @@
 #include <common/config.h>
 #include <types/proto_tcp.h>
 #include <types/task.h>
+#include <proto/stick_table.h>
 
 int tcpv4_bind_socket(int fd, int flags, struct sockaddr_in *local, struct sockaddr_in *remote);
 void tcpv4_add_listener(struct listener *listener);
@@ -36,6 +37,22 @@ int tcpv4_connect_server(struct stream_interface *si,
 int tcp_inspect_request(struct session *s, struct buffer *req, int an_bit);
 int tcp_persist_rdp_cookie(struct session *s, struct buffer *req, int an_bit);
 int tcp_exec_req_rules(struct session *s);
+
+/* Converts the TCPv4 source address to a stick_table key usable for table
+ * lookups. Returns either NULL if the source cannot be converted (eg: not
+ * IPv4) or a pointer to the converted result in static_table_key in the
+ * appropriate format (IP).
+ */
+static inline struct stktable_key *tcpv4_src_to_stktable_key(struct session *s)
+{
+	/* right now we only support IPv4 */
+	if (s->cli_addr.ss_family != AF_INET)
+		return NULL;
+
+	static_table_key.key = (void *)&((struct sockaddr_in *)&s->cli_addr)->sin_addr;
+	return &static_table_key;
+}
+
 
 #endif /* _PROTO_PROTO_TCP_H */
 

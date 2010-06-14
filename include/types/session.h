@@ -184,7 +184,8 @@ struct session {
 		int flags;
 	} store[8];				/* tracked stickiness values to store */
 	int store_count;
-	struct stksess *tracked_src_counters;	/* tracked counters for this source */
+	struct stksess *tracked_counters;       /* counters currently being tracked by this session */
+	struct stktable *tracked_table;         /* table the counters above belong to (undefined if counters are null) */
 
 	struct {
 		int logwait;			/* log fields waiting to be collected : LW_* */
@@ -234,6 +235,15 @@ struct session {
 		} cli;
 	} data_ctx;				/* used by stats I/O handlers to dump the stats */
 	unsigned int uniq_id;			/* unique ID used for the traces */
+};
+
+/* parameters to configure tracked counters */
+struct track_ctr_prm {
+	int type;				/* type of the key */
+	union {
+		struct stktable *t;		/* a pointer to the table */
+		char *n;			/* or its name during parsing. */
+	} table;
 };
 
 

@@ -225,6 +225,30 @@ struct stksess *stktable_store(struct stktable *t, struct stksess *ts)
 	return ts;
 }
 
+/* Returns a valid or initialized stksess for the specified stktable_key in the
+ * specified table, or NULL if the key was NULL, or if no entry was found nor
+ * could be created. The entry's expiration is updated.
+ */
+struct stksess *stktable_get_entry(struct stktable *table, struct stktable_key *key)
+{
+	struct stksess *ts;
+
+	if (!key)
+		return NULL;
+
+	ts = stktable_lookup_key(table, key);
+	if (ts == NULL) {
+		/* entry does not exist, initialize a new one */
+		ts = stksess_new(table, key);
+		if (!ts)
+			return NULL;
+		stktable_store(table, ts);
+	}
+	else
+		stktable_touch(table, ts);
+	return ts;
+}
+
 /*
  * Trash expired sticky sessions from table <t>. The next expiration date is
  * returned.
