@@ -766,7 +766,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 
 	if (!*args[1]) {
 		snprintf(err, errlen, "missing argument for '%s' in %s '%s'",
-			 args[0], proxy_type_str(proxy), curpx->id);
+			 args[0], proxy_type_str(curpx), curpx->id);
 		return -1;
 	}
 
@@ -779,7 +779,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 
 		if (!(curpx->cap & PR_CAP_FE)) {
 			snprintf(err, errlen, "%s %s will be ignored because %s '%s' has no %s capability",
-				 args[0], args[1], proxy_type_str(proxy), curpx->id,
+				 args[0], args[1], proxy_type_str(curpx), curpx->id,
 				 "frontend");
 			return 1;
 		}
@@ -787,7 +787,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 		if (!*args[2] || (ptr = parse_time_err(args[2], &val, TIME_UNIT_MS))) {
 			retlen = snprintf(err, errlen,
 					  "'%s %s' expects a positive delay in milliseconds, in %s '%s'",
-					  args[0], args[1], proxy_type_str(proxy), curpx->id);
+					  args[0], args[1], proxy_type_str(curpx), curpx->id);
 			if (ptr && retlen < errlen)
 				retlen += snprintf(err+retlen, errlen - retlen,
 						   " (unexpected character '%c')", *ptr);
@@ -796,7 +796,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 
 		if (curpx->tcp_req.inspect_delay) {
 			snprintf(err, errlen, "ignoring %s %s (was already defined) in %s '%s'",
-				 args[0], args[1], proxy_type_str(proxy), curpx->id);
+				 args[0], args[1], proxy_type_str(curpx), curpx->id);
 			return 1;
 		}
 		curpx->tcp_req.inspect_delay = val;
