@@ -1088,8 +1088,8 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "src",        acl_parse_ip,    acl_fetch_src,      acl_match_ip,  ACL_USE_TCP4_PERMANENT|ACL_MAY_LOOKUP },
 	{ "dst",        acl_parse_ip,    acl_fetch_dst,      acl_match_ip,  ACL_USE_TCP4_PERMANENT|ACL_MAY_LOOKUP },
 	{ "dst_port",   acl_parse_int,   acl_fetch_dport,    acl_match_int, ACL_USE_TCP_PERMANENT  },
-	{ "src_count",  acl_parse_int,   acl_fetch_src_count,acl_match_int, ACL_USE_TCP4_PERMANENT },
-	{ "src_update_count",  acl_parse_int,   acl_fetch_src_update_count, acl_match_int, ACL_USE_TCP4_PERMANENT },
+	{ "src_count",  acl_parse_int,   acl_fetch_src_count,acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "src_update_count",  acl_parse_int,   acl_fetch_src_update_count, acl_match_int, ACL_USE_TCP4_VOLATILE },
 	{ NULL, NULL, NULL, NULL },
 }};
 
