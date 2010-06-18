@@ -1034,84 +1034,6 @@ pattern_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 1;
 }
 
-/* set test->i to the number of connections from the session's source address
- * in the table pointed to by expr.
- */
-static int
-acl_fetch_src_count(struct proxy *px, struct session *l4, void *l7, int dir,
-		    struct acl_expr *expr, struct acl_test *test)
-{
-	struct stksess *ts;
-
-	/* right now we only support IPv4 */
-	if (l4->cli_addr.ss_family != AF_INET)
-		return 0;
-
-	if (expr->arg_len) {
-		/* another table was designated, we must look for it */
-		for (px = proxy; px; px = px->next)
-			if (strcmp(px->id, expr->arg.str) == 0)
-				break;
-	}
-	if (!px)
-		return 0; /* table not found */
-
-	static_table_key.key = (void *)&((struct sockaddr_in *)&l4->frt_addr)->sin_addr;
-	test->flags = ACL_TEST_F_VOL_TEST;
-	test->i = 0;
-	if ((ts = stktable_lookup_key(&px->table, &static_table_key)) != NULL) {
-		void *ptr = stktable_data_ptr(&px->table, ts, STKTABLE_DT_CONN_CUM);
-		if (!ptr)
-			return 0; /* parameter not stored */
-		test->i = stktable_data_cast(ptr, conn_cum);
-	}
-
-	return 1;
-}
-
-/* set test->i to the number of connections from the session's source address
- * in the table pointed to by expr, after updating it.
- */
-static int
-acl_fetch_src_update_count(struct proxy *px, struct session *l4, void *l7, int dir,
-			   struct acl_expr *expr, struct acl_test *test)
-{
-	struct stksess *ts;
-	void *ptr;
-
-	/* right now we only support IPv4 */
-	if (l4->cli_addr.ss_family != AF_INET)
-		return 0;
-
-	if (expr->arg_len) {
-		/* another table was designated, we must look for it */
-		for (px = proxy; px; px = px->next)
-			if (strcmp(px->id, expr->arg.str) == 0)
-				break;
-	}
-	if (!px)
-		return 0;
-
-	static_table_key.key = (void *)&((struct sockaddr_in *)&l4->frt_addr)->sin_addr;
-	if ((ts = stktable_lookup_key(&px->table, &static_table_key)) == NULL) {
-		/* entry does not exist, initialize a new one */
-		ts = stksess_new(&px->table, &static_table_key);
-		if (!ts)
-			return 0;
-		stktable_store(&px->table, ts);
-	}
-	else
-		stktable_touch(&px->table, ts);
-
-	ptr = stktable_data_ptr(&px->table, ts, STKTABLE_DT_CONN_CUM);
-	if (!ptr)
-		return 0; /* parameter not stored in this table */
-
-	test->i = ++stktable_data_cast(ptr, conn_cum);
-	test->flags = ACL_TEST_F_VOL_TEST;
-	return 1;
-}
-
 static struct cfg_kw_list cfg_kws = {{ },{
 	{ CFG_LISTEN, "tcp-request", tcp_parse_tcp_req },
 	{ 0, NULL, NULL },
@@ -1123,8 +1045,6 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "src",        acl_parse_ip,    acl_fetch_src,      acl_match_ip,  ACL_USE_TCP4_PERMANENT|ACL_MAY_LOOKUP },
 	{ "dst",        acl_parse_ip,    acl_fetch_dst,      acl_match_ip,  ACL_USE_TCP4_PERMANENT|ACL_MAY_LOOKUP },
 	{ "dst_port",   acl_parse_int,   acl_fetch_dport,    acl_match_int, ACL_USE_TCP_PERMANENT  },
-	{ "src_count",  acl_parse_int,   acl_fetch_src_count,acl_match_int, ACL_USE_TCP4_VOLATILE },
-	{ "src_update_count",  acl_parse_int,   acl_fetch_src_update_count, acl_match_int, ACL_USE_TCP4_VOLATILE },
 	{ NULL, NULL, NULL, NULL },
 }};
 

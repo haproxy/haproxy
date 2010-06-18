@@ -2051,6 +2051,91 @@ void default_srv_error(struct session *s, struct stream_interface *si)
 }
 
 
+/************************************************************************/
+/*           All supported ACL keywords must be declared here.          */
+/************************************************************************/
+
+/* set test->i to the number of connections from the session's source address
+ * in the table pointed to by expr.
+ */
+static int
+acl_fetch_src_conn_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+		       struct acl_expr *expr, struct acl_test *test)
+{
+	struct stksess *ts;
+	struct stktable_key *key;
+
+	key = tcpv4_src_to_stktable_key(l4);
+	if (!key)
+		return 0; /* only TCPv4 is supported right now */
+
+	if (expr->arg_len)
+		px = find_stktable(expr->arg.str);
+
+	if (!px)
+		return 0; /* table not found */
+
+	test->flags = ACL_TEST_F_VOL_TEST;
+	test->i = 0;
+	if ((ts = stktable_lookup_key(&px->table, key)) != NULL) {
+		void *ptr = stktable_data_ptr(&px->table, ts, STKTABLE_DT_CONN_CNT);
+		if (!ptr)
+			return 0; /* parameter not stored */
+		test->i = stktable_data_cast(ptr, conn_cnt);
+	}
+
+	return 1;
+}
+
+/* set test->i to the number of connections from the session's source address
+ * in the table pointed to by expr, after updating it.
+ */
+static int
+acl_fetch_src_updt_conn_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+			    struct acl_expr *expr, struct acl_test *test)
+{
+	struct stksess *ts;
+	struct stktable_key *key;
+	void *ptr;
+
+	key = tcpv4_src_to_stktable_key(l4);
+	if (!key)
+		return 0; /* only TCPv4 is supported right now */
+
+	if (expr->arg_len)
+		px = find_stktable(expr->arg.str);
+
+	if (!px)
+		return 0; /* table not found */
+
+	if ((ts = stktable_lookup_key(&px->table, key)) == NULL) {
+		/* entry does not exist, initialize a new one */
+		ts = stksess_new(&px->table, key);
+		if (!ts)
+			return 0;
+		stktable_store(&px->table, ts);
+	}
+	else
+		stktable_touch(&px->table, ts);
+
+	ptr = stktable_data_ptr(&px->table, ts, STKTABLE_DT_CONN_CNT);
+	if (!ptr)
+		return 0; /* parameter not stored in this table */
+
+	test->i = ++stktable_data_cast(ptr, conn_cnt);
+	test->flags = ACL_TEST_F_VOL_TEST;
+	return 1;
+}
+
+
+/* Note: must not be declared <const> as its list will be overwritten */
+static struct acl_kw_list acl_kws = {{ },{
+	{ "src_conn_cnt",       acl_parse_int,   acl_fetch_src_conn_cnt,      acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "src_updt_conn_cnt",  acl_parse_int,   acl_fetch_src_updt_conn_cnt, acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ NULL, NULL, NULL, NULL },
+}};
+
+
 /* Parse a "track-counters" line starting with "track-counters" in args[arg-1].
  * Returns the number of warnings emitted, or -1 in case of fatal errors. The
  * <prm> struct is fed with the table name if any. If unspecified, the caller
@@ -2098,6 +2183,12 @@ int parse_track_counters(char **args, int *arg,
 	}
 
 	return 0;
+}
+
+__attribute__((constructor))
+static void __session_init(void)
+{
+	acl_register_keywords(&acl_kws);
 }
 
 /*
