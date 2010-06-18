@@ -44,6 +44,8 @@ enum {
 	STKTABLE_DT_SERVER_ID,    /* the server ID to use with this session if > 0 */
 	STKTABLE_DT_CONN_CNT,     /* cumulated number of connections */
 	STKTABLE_DT_CONN_CUR,     /* concurrent number of connections */
+	STKTABLE_DT_BYTES_IN_CNT, /* cumulated bytes count from client to servers */
+	STKTABLE_DT_BYTES_OUT_CNT,/* cumulated bytes count from servers to client */
 	STKTABLE_DATA_TYPES       /* Number of data types, must always be last */
 };
 
@@ -52,6 +54,8 @@ union stktable_data {
 	int server_id;
 	unsigned int conn_cnt;
 	unsigned int conn_cur;
+	unsigned long long bytes_in_cnt;
+	unsigned long long bytes_out_cnt;
 };
 
 /* known data types */

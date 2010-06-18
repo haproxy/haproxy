@@ -403,6 +403,14 @@ void session_process_counters(struct session *s)
 
 			if (s->listener->counters)
 				s->listener->counters->bytes_in		+= bytes;
+
+			if (s->tracked_counters) {
+				void *ptr = stktable_data_ptr(s->tracked_table,
+							      s->tracked_counters,
+							      STKTABLE_DT_BYTES_IN_CNT);
+				if (ptr)
+					stktable_data_cast(ptr, bytes_in_cnt) += bytes;
+			}
 		}
 	}
 
@@ -420,6 +428,14 @@ void session_process_counters(struct session *s)
 
 			if (s->listener->counters)
 				s->listener->counters->bytes_out	+= bytes;
+
+			if (s->tracked_counters) {
+				void *ptr = stktable_data_ptr(s->tracked_table,
+							      s->tracked_counters,
+							      STKTABLE_DT_BYTES_OUT_CNT);
+				if (ptr)
+					stktable_data_cast(ptr, bytes_out_cnt) += bytes;
+			}
 		}
 	}
 }
@@ -2160,12 +2176,80 @@ acl_fetch_src_conn_cur(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 1;
 }
 
+/* set test->i to the number of kbytes received from the session's source
+ * address in the table pointed to by expr.
+ */
+static int
+acl_fetch_src_kbytes_in(struct proxy *px, struct session *l4, void *l7, int dir,
+			struct acl_expr *expr, struct acl_test *test)
+{
+	struct stksess *ts;
+	struct stktable_key *key;
+
+	key = tcpv4_src_to_stktable_key(l4);
+	if (!key)
+		return 0; /* only TCPv4 is supported right now */
+
+	if (expr->arg_len)
+		px = find_stktable(expr->arg.str);
+
+	if (!px)
+		return 0; /* table not found */
+
+	test->flags = ACL_TEST_F_VOL_TEST;
+	test->i = 0;
+
+	if ((ts = stktable_lookup_key(&px->table, key)) != NULL) {
+		void *ptr = stktable_data_ptr(&px->table, ts, STKTABLE_DT_BYTES_IN_CNT);
+		if (!ptr)
+			return 0; /* parameter not stored */
+		test->i = stktable_data_cast(ptr, bytes_in_cnt) >> 10;
+	}
+
+	return 1;
+}
+
+/* set test->i to the number of kbytes sent to the session's source address in
+ * the table pointed to by expr.
+ */
+static int
+acl_fetch_src_kbytes_out(struct proxy *px, struct session *l4, void *l7, int dir,
+			 struct acl_expr *expr, struct acl_test *test)
+{
+	struct stksess *ts;
+	struct stktable_key *key;
+
+	key = tcpv4_src_to_stktable_key(l4);
+	if (!key)
+		return 0; /* only TCPv4 is supported right now */
+
+	if (expr->arg_len)
+		px = find_stktable(expr->arg.str);
+
+	if (!px)
+		return 0; /* table not found */
+
+	test->flags = ACL_TEST_F_VOL_TEST;
+	test->i = 0;
+
+	if ((ts = stktable_lookup_key(&px->table, key)) != NULL) {
+		void *ptr = stktable_data_ptr(&px->table, ts, STKTABLE_DT_BYTES_OUT_CNT);
+		if (!ptr)
+			return 0; /* parameter not stored */
+		test->i = stktable_data_cast(ptr, bytes_out_cnt) >> 10;
+	}
+
+	return 1;
+}
+
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct acl_kw_list acl_kws = {{ },{
 	{ "src_conn_cnt",       acl_parse_int,   acl_fetch_src_conn_cnt,      acl_match_int, ACL_USE_TCP4_VOLATILE },
 	{ "src_updt_conn_cnt",  acl_parse_int,   acl_fetch_src_updt_conn_cnt, acl_match_int, ACL_USE_TCP4_VOLATILE },
 	{ "src_conn_cur",       acl_parse_int,   acl_fetch_src_conn_cur,      acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "src_kbytes_in",      acl_parse_int,   acl_fetch_src_kbytes_in,     acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "src_kbytes_out",     acl_parse_int,   acl_fetch_src_kbytes_out,    acl_match_int, ACL_USE_TCP4_VOLATILE },
 	{ NULL, NULL, NULL, NULL },
 }};
 
