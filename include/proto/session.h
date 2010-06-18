@@ -52,6 +52,11 @@ int parse_track_counters(char **args, int *arg,
  */
 static inline void session_store_counters(struct session *s)
 {
+	if (s->tracked_counters) {
+		void *ptr = stktable_data_ptr(s->tracked_table, s->tracked_counters, STKTABLE_DT_CONN_CUR);
+		if (ptr)
+			stktable_data_cast(ptr, conn_cur)--;
+	}
 	s->tracked_counters->ref_cnt--;
 	s->tracked_counters = NULL;
 }
@@ -65,6 +70,13 @@ static inline void session_track_counters(struct session *s, struct stktable *t,
 	ts->ref_cnt++;
 	s->tracked_table = t;
 	s->tracked_counters = ts;
+	if (ts) {
+		void *ptr = stktable_data_ptr(t, ts, STKTABLE_DT_CONN_CUR);
+		if (ptr)
+			stktable_data_cast(ptr, conn_cur)++;
+		if (tick_isset(t->expire))
+			ts->expire = tick_add(now_ms, MS_TO_TICKS(t->expire));
+	}
 }
 
 static void inline trace_term(struct session *s, unsigned int code)
