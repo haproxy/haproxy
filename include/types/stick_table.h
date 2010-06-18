@@ -42,13 +42,13 @@ enum {
 /* The types of extra data we can store in a stick table */
 enum {
 	STKTABLE_DT_SERVER_ID,    /* the server ID to use with this session if > 0 */
-	STKTABLE_DT_CONN_CUM,     /* cumulated number of connections */
+	STKTABLE_DT_CONN_CNT,     /* cumulated number of connections */
 	STKTABLE_DATA_TYPES       /* Number of data types, must always be last */
 };
 
 /* stick_table extra data. This is mainly used for casting or size computation */
 union stktable_data {
-	unsigned int conn_cum;
+	unsigned int conn_cnt;
 	int server_id;
 };
 

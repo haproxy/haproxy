@@ -5116,7 +5116,7 @@ stick-table type {ip | integer | string [len <length>] } size <size>
                may be used by ACLs in order to control various criteria related
                to the activity of the client matching the stick-table. For each
                item specified here, the size of each entry will be inflated so
-               that the additional data can fit. At the moment, only "conn_cum"
+               that the additional data can fit. At the moment, only "conn_cnt"
                is supported, which can be used to store and retrieve the total
                number of connections matching the entry since it was created. A
                "server_id" type is also supported but it's only for internal

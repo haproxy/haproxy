@@ -525,7 +525,7 @@ int stktable_compatible_pattern(struct pattern_expr *expr, unsigned long table_t
 
 /* Extra data types processing */
 struct stktable_data_type stktable_data_types[STKTABLE_DATA_TYPES] = {
-	[STKTABLE_DT_CONN_CUM] = { .name = "conn_cum", .data_length = stktable_data_size(conn_cum) },
+	[STKTABLE_DT_CONN_CNT]  = { .name = "conn_cnt", .data_length = stktable_data_size(conn_cnt) },
 	[STKTABLE_DT_SERVER_ID] = { .name = "server_id", .data_length = stktable_data_size(server_id) },
 };
 
