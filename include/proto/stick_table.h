@@ -46,6 +46,7 @@ struct stktable_key *stktable_fetch_key(struct proxy *px, struct session *l4,
 					unsigned long table_type);
 int stktable_compatible_pattern(struct pattern_expr *expr, unsigned long table_type);
 int stktable_get_data_type(char *name);
+struct proxy *find_stktable(const char *name);
 
 /* reserve some space for data type <type>. Return non-0 if OK, or 0 if already
  * allocated (or impossible type).

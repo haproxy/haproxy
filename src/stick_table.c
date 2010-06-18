@@ -544,3 +544,14 @@ int stktable_get_data_type(char *name)
 	return -1;
 }
 
+/* Returns pointer to proxy containing table <name> or NULL if not found */
+struct proxy *find_stktable(const char *name)
+{
+	struct proxy *px;
+
+	for (px = proxy; px; px = px->next) {
+		if (px->table.size && strcmp(px->id, name) == 0)
+			return px;
+	}
+	return NULL;
+}
