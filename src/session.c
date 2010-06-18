@@ -2208,6 +2208,35 @@ acl_fetch_src_conn_cur(struct proxy *px, struct session *l4, void *l7, int dir,
 	return acl_fetch_conn_cnt(&px->table, test, stktable_lookup_key(&px->table, key));
 }
 
+/* set test->i to the number of kbytes received from clients matching the stksess entry <ts> */
+static int
+acl_fetch_kbytes_in(struct stktable *table, struct acl_test *test, struct stksess *ts)
+{
+	test->flags = ACL_TEST_F_VOL_TEST;
+	test->i = 0;
+
+	if (ts != NULL) {
+		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_BYTES_IN_CNT);
+		if (!ptr)
+			return 0; /* parameter not stored */
+		test->i = stktable_data_cast(ptr, bytes_in_cnt) >> 10;
+	}
+	return 1;
+}
+
+/* set test->i to the number of kbytes received from clients according to the
+ * session's tracked counters.
+ */
+static int
+acl_fetch_trk_kbytes_in(struct proxy *px, struct session *l4, void *l7, int dir,
+			struct acl_expr *expr, struct acl_test *test)
+{
+	if (!l4->tracked_counters)
+		return 0;
+
+	return acl_fetch_kbytes_in(l4->tracked_table, test, l4->tracked_counters);
+}
+
 /* set test->i to the number of kbytes received from the session's source
  * address in the table pointed to by expr.
  */
@@ -2215,7 +2244,6 @@ static int
 acl_fetch_src_kbytes_in(struct proxy *px, struct session *l4, void *l7, int dir,
 			struct acl_expr *expr, struct acl_test *test)
 {
-	struct stksess *ts;
 	struct stktable_key *key;
 
 	key = tcpv4_src_to_stktable_key(l4);
@@ -2228,17 +2256,36 @@ acl_fetch_src_kbytes_in(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!px)
 		return 0; /* table not found */
 
+	return acl_fetch_kbytes_in(&px->table, test, stktable_lookup_key(&px->table, key));
+}
+
+/* set test->i to the number of kbytes sent to clients matching the stksess entry <ts> */
+static int
+acl_fetch_kbytes_out(struct stktable *table, struct acl_test *test, struct stksess *ts)
+{
 	test->flags = ACL_TEST_F_VOL_TEST;
 	test->i = 0;
 
-	if ((ts = stktable_lookup_key(&px->table, key)) != NULL) {
-		void *ptr = stktable_data_ptr(&px->table, ts, STKTABLE_DT_BYTES_IN_CNT);
+	if (ts != NULL) {
+		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_BYTES_OUT_CNT);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		test->i = stktable_data_cast(ptr, bytes_in_cnt) >> 10;
+		test->i = stktable_data_cast(ptr, bytes_out_cnt) >> 10;
 	}
-
 	return 1;
+}
+
+/* set test->i to the number of kbytes sent to clients according to the session's
+ * tracked counters.
+ */
+static int
+acl_fetch_trk_kbytes_out(struct proxy *px, struct session *l4, void *l7, int dir,
+			 struct acl_expr *expr, struct acl_test *test)
+{
+	if (!l4->tracked_counters)
+		return 0;
+
+	return acl_fetch_kbytes_out(l4->tracked_table, test, l4->tracked_counters);
 }
 
 /* set test->i to the number of kbytes sent to the session's source address in
@@ -2248,7 +2295,6 @@ static int
 acl_fetch_src_kbytes_out(struct proxy *px, struct session *l4, void *l7, int dir,
 			 struct acl_expr *expr, struct acl_test *test)
 {
-	struct stksess *ts;
 	struct stktable_key *key;
 
 	key = tcpv4_src_to_stktable_key(l4);
@@ -2261,17 +2307,7 @@ acl_fetch_src_kbytes_out(struct proxy *px, struct session *l4, void *l7, int dir
 	if (!px)
 		return 0; /* table not found */
 
-	test->flags = ACL_TEST_F_VOL_TEST;
-	test->i = 0;
-
-	if ((ts = stktable_lookup_key(&px->table, key)) != NULL) {
-		void *ptr = stktable_data_ptr(&px->table, ts, STKTABLE_DT_BYTES_OUT_CNT);
-		if (!ptr)
-			return 0; /* parameter not stored */
-		test->i = stktable_data_cast(ptr, bytes_out_cnt) >> 10;
-	}
-
-	return 1;
+	return acl_fetch_kbytes_out(&px->table, test, stktable_lookup_key(&px->table, key));
 }
 
 
@@ -2282,7 +2318,9 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "src_updt_conn_cnt",  acl_parse_int,   acl_fetch_src_updt_conn_cnt, acl_match_int, ACL_USE_TCP4_VOLATILE },
 	{ "trk_conn_cur",       acl_parse_int,   acl_fetch_trk_conn_cur,      acl_match_int, ACL_USE_NOTHING },
 	{ "src_conn_cur",       acl_parse_int,   acl_fetch_src_conn_cur,      acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "trk_kbytes_in",      acl_parse_int,   acl_fetch_trk_kbytes_in,     acl_match_int, ACL_USE_TCP4_VOLATILE },
 	{ "src_kbytes_in",      acl_parse_int,   acl_fetch_src_kbytes_in,     acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "trk_kbytes_out",     acl_parse_int,   acl_fetch_trk_kbytes_out,    acl_match_int, ACL_USE_TCP4_VOLATILE },
 	{ "src_kbytes_out",     acl_parse_int,   acl_fetch_src_kbytes_out,    acl_match_int, ACL_USE_TCP4_VOLATILE },
 	{ NULL, NULL, NULL, NULL },
 }};
