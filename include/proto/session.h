@@ -71,9 +71,16 @@ static inline void session_track_counters(struct session *s, struct stktable *t,
 	s->tracked_table = t;
 	s->tracked_counters = ts;
 	if (ts) {
-		void *ptr = stktable_data_ptr(t, ts, STKTABLE_DT_CONN_CUR);
+		void *ptr;
+
+		ptr = stktable_data_ptr(t, ts, STKTABLE_DT_CONN_CUR);
 		if (ptr)
 			stktable_data_cast(ptr, conn_cur)++;
+
+		ptr = stktable_data_ptr(t, ts, STKTABLE_DT_CONN_CNT);
+		if (ptr)
+			stktable_data_cast(ptr, conn_cnt)++;
+
 		if (tick_isset(t->expire))
 			ts->expire = tick_add(now_ms, MS_TO_TICKS(t->expire));
 	}
