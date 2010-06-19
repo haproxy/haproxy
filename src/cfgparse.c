@@ -2276,19 +2276,29 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			}
 			else if (strcmp(args[myidx], "store") == 0) {
 				int type;
+				char *cw, *nw;
 
 				myidx++;
-				type = stktable_get_data_type(args[myidx]);
-				if (type < 0) {
-					Alert("parsing [%s:%d] : %s: unknown store option '%s'.\n",
-					      file, linenum, args[0], args[myidx]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				if (!stktable_alloc_data_type(&curproxy->table, type)) {
-					Warning("parsing [%s:%d]: %s: store option '%s' already enabled, ignored.\n",
-						file, linenum, args[0], args[myidx]);
-					err_code |= ERR_WARN;
+				nw = args[myidx];
+				while (*nw) {
+					/* the "store" keyword supports a comma-separated list */
+					cw = nw;
+					while (*nw && *nw != ',')
+						nw++;
+					if (*nw)
+						*nw++ = '\0';
+					type = stktable_get_data_type(cw);
+					if (type < 0) {
+						Alert("parsing [%s:%d] : %s: unknown store option '%s'.\n",
+						      file, linenum, args[0], cw);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
+					}
+					if (!stktable_alloc_data_type(&curproxy->table, type)) {
+						Warning("parsing [%s:%d]: %s: store option '%s' already enabled, ignored.\n",
+							file, linenum, args[0], cw);
+						err_code |= ERR_WARN;
+					}
 				}
 				myidx++;
 			}
