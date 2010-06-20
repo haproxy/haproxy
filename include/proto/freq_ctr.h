@@ -56,6 +56,41 @@ static inline void update_freq_ctr(struct freq_ctr *ctr, unsigned int inc)
 	/* Note: later we may want to propagate the update to other counters */
 }
 
+/* Rotate a frequency counter when current period is over. Must not be called
+ * during a valid period. It is important that it correctly initializes a null
+ * area. This one works on frequency counters which have a period different
+ * from one second.
+ */
+static inline void rotate_freq_ctr_period(struct freq_ctr_period *ctr,
+					  unsigned int period)
+{
+	ctr->prev_ctr = ctr->curr_ctr;
+	ctr->curr_tick += period;
+	if (likely(now_ms - ctr->curr_tick >= period)) {
+		/* we missed at least two periods */
+		ctr->prev_ctr = 0;
+		ctr->curr_tick = now_ms;
+	}
+	ctr->curr_ctr = 0; /* leave it at the end to help gcc optimize it away */
+}
+
+/* Update a frequency counter by <inc> incremental units. It is automatically
+ * rotated if the period is over. It is important that it correctly initializes
+ * a null area. This one works on frequency counters which have a period
+ * different from one second.
+ */
+static inline void update_freq_ctr_period(struct freq_ctr_period *ctr,
+					  unsigned int period, unsigned int inc)
+{
+	if (likely(now_ms - ctr->curr_tick < period)) {
+		ctr->curr_ctr += inc;
+		return;
+	}
+	rotate_freq_ctr_period(ctr, period);
+	ctr->curr_ctr = inc;
+	/* Note: later we may want to propagate the update to other counters */
+}
+
 /* Read a frequency counter taking history into account for missing time in
  * current period.
  */
@@ -74,6 +109,11 @@ unsigned int freq_ctr_remain(struct freq_ctr *ctr, unsigned int freq, unsigned i
  * of one ms.
  */
 unsigned int next_event_delay(struct freq_ctr *ctr, unsigned int freq, unsigned int pend);
+
+/* process freq counters over configurable periods */
+unsigned int read_freq_ctr_period(struct freq_ctr_period *ctr, unsigned int period);
+unsigned int freq_ctr_remain_period(struct freq_ctr_period *ctr, unsigned int period,
+				    unsigned int freq, unsigned int pend);
 
 #endif /* _PROTO_FREQ_CTR_H */
 
