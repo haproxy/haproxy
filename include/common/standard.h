@@ -364,6 +364,23 @@ static inline unsigned int mul32hi(unsigned int a, unsigned int b)
 	return ((unsigned long long)a * b) >> 32;
 }
 
+/* gcc does not know when it can safely divide 64 bits by 32 bits. Use this
+ * function when you know for sure that the result fits in 32 bits, because
+ * it is optimal on x86 and on 64bit processors.
+ */
+static inline unsigned int div64_32(unsigned long long o1, unsigned int o2)
+{
+	unsigned int result;
+#ifdef __i386__
+	asm("divl %2"
+	    : "=a" (result)
+	    : "A"(o1), "rm"(o2));
+#else
+	result = o1 / o2;
+#endif
+	return result;
+}
+
 /* copies at most <n> characters from <src> and always terminates with '\0' */
 char *my_strndup(const char *src, int n);
 
