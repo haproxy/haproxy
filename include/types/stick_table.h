@@ -50,6 +50,13 @@ enum {
 	STKTABLE_DATA_TYPES       /* Number of data types, must always be last */
 };
 
+/* The types of optional arguments to stored data */
+enum {
+	ARG_T_NONE = 0,           /* data type takes no argument (default) */
+	ARG_T_INT,                /* signed integer */
+	ARG_T_DELAY,              /* a delay which supports time units */
+};
+
 /* stick_table extra data. This is mainly used for casting or size computation */
 union stktable_data {
 	int server_id;
@@ -64,6 +71,7 @@ union stktable_data {
 struct stktable_data_type {
 	const char *name; /* name of the data type */
 	int data_length;  /* length of this type, or 0 if variable (eg: string) */
+	int arg_type;     /* type of optional argument, ARG_T_* */
 };
 
 /* stick table key type flags */
@@ -104,6 +112,11 @@ struct stktable {
 	int expire;               /* time to live for sticky sessions (milliseconds) */
 	int data_size;            /* the size of the data that is prepended *before* stksess */
 	int data_ofs[STKTABLE_DATA_TYPES]; /* negative offsets of present data types, or 0 if absent */
+	union {
+		int i;
+		unsigned int u;
+		void *p;
+	} data_arg[STKTABLE_DATA_TYPES]; /* optional argument of each data type */
 };
 
 struct stktable_data_type stktable_data_types[STKTABLE_DATA_TYPES];

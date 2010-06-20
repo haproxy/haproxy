@@ -23,6 +23,7 @@
 #ifndef _PROTO_STICK_TABLE_H
 #define _PROTO_STICK_TABLE_H
 
+#include <common/errors.h>
 #include <types/stick_table.h>
 
 #define stktable_data_size(type) (sizeof(((union stktable_data*)0)->type))
@@ -48,21 +49,27 @@ int stktable_compatible_pattern(struct pattern_expr *expr, unsigned long table_t
 int stktable_get_data_type(char *name);
 struct proxy *find_stktable(const char *name);
 
-/* reserve some space for data type <type>. Return non-0 if OK, or 0 if already
- * allocated (or impossible type).
+/* reserve some space for data type <type>, and associate argument at <sa> if
+ * not NULL. Returns PE_NONE (0) if OK or an error code among :
+ *   - PE_ENUM_OOR if <type> does not exist
+ *   - PE_EXIST if <type> is already registered
  */
-static inline int stktable_alloc_data_type(struct stktable *t, int type)
+static inline int stktable_alloc_data_type(struct stktable *t, int type, const char *sa)
 {
 	if (type >= STKTABLE_DATA_TYPES)
-		return 0;
+		return PE_ENUM_OOR;
 
 	if (t->data_ofs[type])
 		/* already allocated */
-		return 0;
+		return PE_EXIST;
 
 	t->data_size      += stktable_data_types[type].data_length;
 	t->data_ofs[type]  = -t->data_size;
-	return 1;
+	/* right now only int type is supported, but we may later support type-
+	 * specific arg type.
+	 */
+	t->data_arg[type].i = sa ? atoi(sa) : 0;
+	return PE_NONE;
 }
 
 /* return pointer for data type <type> in sticky session <ts> of table <t>, or

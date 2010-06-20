@@ -2276,15 +2276,31 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			}
 			else if (strcmp(args[myidx], "store") == 0) {
 				int type;
-				char *cw, *nw;
+				char *cw, *nw, *sa;
 
 				myidx++;
 				nw = args[myidx];
 				while (*nw) {
 					/* the "store" keyword supports a comma-separated list */
 					cw = nw;
-					while (*nw && *nw != ',')
+					sa = NULL; /* store arg */
+					while (*nw && *nw != ',') {
+						if (*nw == '(') {
+							*nw = 0;
+							sa = ++nw;
+							while (*nw != ')') {
+								if (!*nw) {
+									Alert("parsing [%s:%d] : %s: missing closing parenthesis after store option '%s'.\n",
+									      file, linenum, args[0], cw);
+									err_code |= ERR_ALERT | ERR_FATAL;
+									goto out;
+								}
+								nw++;
+							}
+							*nw = '\0';
+						}
 						nw++;
+					}
 					if (*nw)
 						*nw++ = '\0';
 					type = stktable_get_data_type(cw);
@@ -2294,7 +2310,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 						err_code |= ERR_ALERT | ERR_FATAL;
 						goto out;
 					}
-					if (!stktable_alloc_data_type(&curproxy->table, type)) {
+					if (stktable_alloc_data_type(&curproxy->table, type, sa)) {
 						Warning("parsing [%s:%d]: %s: store option '%s' already enabled, ignored.\n",
 							file, linenum, args[0], cw);
 						err_code |= ERR_WARN;
@@ -4910,7 +4926,7 @@ int check_config_validity()
 			else {
 				free((void *)mrule->table.name);
 				mrule->table.t = &(target->table);
-				stktable_alloc_data_type(&target->table, STKTABLE_DT_SERVER_ID);
+				stktable_alloc_data_type(&target->table, STKTABLE_DT_SERVER_ID, NULL);
 			}
 		}
 
@@ -4943,7 +4959,7 @@ int check_config_validity()
 			else {
 				free((void *)mrule->table.name);
 				mrule->table.t = &(target->table);
-				stktable_alloc_data_type(&target->table, STKTABLE_DT_SERVER_ID);
+				stktable_alloc_data_type(&target->table, STKTABLE_DT_SERVER_ID, NULL);
 			}
 		}
 
