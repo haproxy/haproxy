@@ -2222,15 +2222,9 @@ acl_fetch_src_updt_conn_cnt(struct proxy *px, struct session *l4, void *l7, int 
 	if (!px)
 		return 0; /* table not found */
 
-	if ((ts = stktable_lookup_key(&px->table, key)) == NULL) {
-		/* entry does not exist, initialize a new one */
-		ts = stksess_new(&px->table, key);
-		if (!ts)
-			return 0;
-		stktable_store(&px->table, ts);
-	}
-	else
-		stktable_touch(&px->table, ts);
+	if ((ts = stktable_update_key(&px->table, key)) == NULL)
+		/* entry does not exist and could not be created */
+		return 0;
 
 	ptr = stktable_data_ptr(&px->table, ts, STKTABLE_DT_CONN_CNT);
 	if (!ptr)

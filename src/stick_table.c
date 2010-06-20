@@ -180,6 +180,26 @@ struct stksess *stktable_lookup_key(struct stktable *t, struct stktable_key *key
 	return ebmb_entry(eb, struct stksess, key);
 }
 
+/* Lookup and touch <key> in <table>, or create the entry if it does not exist.
+ * This is mainly used for situations where we want to refresh a key's usage so
+ * that it does not expire, and we want to have it created if it was not there.
+ * The stksess is returned, or NULL if it could not be created.
+ */
+struct stksess *stktable_update_key(struct stktable *table, struct stktable_key *key)
+{
+	struct stksess *ts;
+
+	ts = stktable_lookup_key(table, key);
+	if (likely(ts))
+		return stktable_touch(table, ts);
+
+	/* entry does not exist, initialize a new one */
+	ts = stksess_new(table, key);
+	if (likely(ts))
+		stktable_store(table, ts);
+	return ts;
+}
+
 /*
  * Looks in table <t> for a sticky session with same key as <ts>.
  * Returns pointer on requested sticky session or NULL if none was found.
