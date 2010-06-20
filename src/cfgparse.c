@@ -2275,7 +2275,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				/* myidx already points to next arg */
 			}
 			else if (strcmp(args[myidx], "store") == 0) {
-				int type;
+				int type, err;
 				char *cw, *nw, *sa;
 
 				myidx++;
@@ -2310,10 +2310,33 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 						err_code |= ERR_ALERT | ERR_FATAL;
 						goto out;
 					}
-					if (stktable_alloc_data_type(&curproxy->table, type, sa)) {
+
+					err = stktable_alloc_data_type(&curproxy->table, type, sa);
+					switch (err) {
+					case PE_NONE: break;
+					case PE_EXIST:
 						Warning("parsing [%s:%d]: %s: store option '%s' already enabled, ignored.\n",
 							file, linenum, args[0], cw);
 						err_code |= ERR_WARN;
+						break;
+
+					case PE_ARG_MISSING:
+						Alert("parsing [%s:%d] : %s: missing argument to store option '%s'.\n",
+						      file, linenum, args[0], cw);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
+
+					case PE_ARG_NOT_USED:
+						Alert("parsing [%s:%d] : %s: unexpected argument to store option '%s'.\n",
+						      file, linenum, args[0], cw);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
+
+					default:
+						Alert("parsing [%s:%d] : %s: error when processing store option '%s'.\n",
+						      file, linenum, args[0], cw);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
 					}
 				}
 				myidx++;
