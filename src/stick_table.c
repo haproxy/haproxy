@@ -532,7 +532,9 @@ struct stktable_data_type stktable_data_types[STKTABLE_DATA_TYPES] = {
 	[STKTABLE_DT_SESS_CNT]  = { .name = "sess_cnt",  .data_length = stktable_data_size(sess_cnt)  },
 	[STKTABLE_DT_SESS_RATE] = { .name = "sess_rate", .data_length = stktable_data_size(sess_rate), .arg_type = ARG_T_DELAY  },
 	[STKTABLE_DT_BYTES_IN_CNT]  = { .name = "bytes_in_cnt",  .data_length = stktable_data_size(bytes_in_cnt)  },
+	[STKTABLE_DT_BYTES_IN_RATE] = { .name = "bytes_in_rate", .data_length = stktable_data_size(bytes_in_rate), .arg_type = ARG_T_DELAY },
 	[STKTABLE_DT_BYTES_OUT_CNT] = { .name = "bytes_out_cnt", .data_length = stktable_data_size(bytes_out_cnt) },
+	[STKTABLE_DT_BYTES_OUT_RATE]= { .name = "bytes_out_rate",.data_length = stktable_data_size(bytes_out_rate), .arg_type = ARG_T_DELAY },
 };
 
 /*

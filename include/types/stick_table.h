@@ -49,7 +49,9 @@ enum {
 	STKTABLE_DT_SESS_CNT,     /* cumulated number of sessions (accepted connections) */
 	STKTABLE_DT_SESS_RATE,    /* accepted sessions rate */
 	STKTABLE_DT_BYTES_IN_CNT, /* cumulated bytes count from client to servers */
+	STKTABLE_DT_BYTES_IN_RATE,/* bytes rate from client to servers */
 	STKTABLE_DT_BYTES_OUT_CNT,/* cumulated bytes count from servers to client */
+	STKTABLE_DT_BYTES_OUT_RATE,/* bytes rate from servers to client */
 	STKTABLE_DATA_TYPES       /* Number of data types, must always be last */
 };
 
@@ -69,7 +71,9 @@ union stktable_data {
 	unsigned int sess_cnt;
 	struct freq_ctr_period sess_rate;
 	unsigned long long bytes_in_cnt;
+	struct freq_ctr_period bytes_in_rate;
 	unsigned long long bytes_out_cnt;
+	struct freq_ctr_period bytes_out_rate;
 };
 
 /* known data types */
