@@ -546,6 +546,7 @@ int stktable_compatible_pattern(struct pattern_expr *expr, unsigned long table_t
 /* Extra data types processing */
 struct stktable_data_type stktable_data_types[STKTABLE_DATA_TYPES] = {
 	[STKTABLE_DT_SERVER_ID] = { .name = "server_id", .data_length = stktable_data_size(server_id) },
+	[STKTABLE_DT_GPC0]      = { .name = "gpc0",      .data_length = stktable_data_size(gpc0)      },
 	[STKTABLE_DT_CONN_CNT]  = { .name = "conn_cnt",  .data_length = stktable_data_size(conn_cnt)  },
 	[STKTABLE_DT_CONN_RATE] = { .name = "conn_rate", .data_length = stktable_data_size(conn_rate), .arg_type = ARG_T_DELAY  },
 	[STKTABLE_DT_CONN_CUR]  = { .name = "conn_cur",  .data_length = stktable_data_size(conn_cur)  },

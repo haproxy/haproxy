@@ -2102,6 +2102,106 @@ void default_srv_error(struct session *s, struct stream_interface *si)
 /*           All supported ACL keywords must be declared here.          */
 /************************************************************************/
 
+/* set test->i to the General Purpose Counter 0 value in the stksess entry <ts> */
+static int
+acl_fetch_get_gpc0(struct stktable *table, struct acl_test *test, struct stksess *ts)
+{
+	test->flags = ACL_TEST_F_VOL_TEST;
+	test->i = 0;
+	if (ts != NULL) {
+		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_GPC0);
+		if (!ptr)
+			return 0; /* parameter not stored */
+		test->i = stktable_data_cast(ptr, gpc0);
+	}
+	return 1;
+}
+
+/* set test->i to the General Purpose Counter 0 value from the session's tracked
+ * counters.
+ */
+static int
+acl_fetch_trk_get_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
+		       struct acl_expr *expr, struct acl_test *test)
+{
+	if (!l4->tracked_counters)
+		return 0;
+	return acl_fetch_get_gpc0(l4->tracked_table, test, l4->tracked_counters);
+}
+
+/* set test->i to the General Purpose Counter 0 value from the session's source
+ * address in the table pointed to by expr.
+ */
+static int
+acl_fetch_src_get_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
+		       struct acl_expr *expr, struct acl_test *test)
+{
+	struct stktable_key *key;
+
+	key = tcpv4_src_to_stktable_key(l4);
+	if (!key)
+		return 0; /* only TCPv4 is supported right now */
+
+	if (expr->arg_len)
+		px = find_stktable(expr->arg.str);
+
+	if (!px)
+		return 0; /* table not found */
+
+	return acl_fetch_get_gpc0(&px->table, test, stktable_lookup_key(&px->table, key));
+}
+
+/* Increment the General Purpose Counter 0 value in the stksess entry <ts> and
+ * return it into test->i.
+ */
+static int
+acl_fetch_inc_gpc0(struct stktable *table, struct acl_test *test, struct stksess *ts)
+{
+	test->flags = ACL_TEST_F_VOL_TEST;
+	test->i = 0;
+	if (ts != NULL) {
+		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_GPC0);
+		if (!ptr)
+			return 0; /* parameter not stored */
+		test->i = ++stktable_data_cast(ptr, gpc0);
+	}
+	return 1;
+}
+
+/* Increment the General Purpose Counter 0 value from the session's tracked
+ * counters and return it into test->i.
+ */
+static int
+acl_fetch_trk_inc_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
+		       struct acl_expr *expr, struct acl_test *test)
+{
+	if (!l4->tracked_counters)
+		return 0;
+	return acl_fetch_inc_gpc0(l4->tracked_table, test, l4->tracked_counters);
+}
+
+/* Increment the General Purpose Counter 0 value from the session's source
+ * address in the table pointed to by expr, and return it into test->i.
+ */
+static int
+acl_fetch_src_inc_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
+		       struct acl_expr *expr, struct acl_test *test)
+{
+	struct stktable_key *key;
+
+	key = tcpv4_src_to_stktable_key(l4);
+	if (!key)
+		return 0; /* only TCPv4 is supported right now */
+
+	if (expr->arg_len)
+		px = find_stktable(expr->arg.str);
+
+	if (!px)
+		return 0; /* table not found */
+
+	return acl_fetch_inc_gpc0(&px->table, test, stktable_update_key(&px->table, key));
+}
+
 /* set test->i to the cumulated number of connections in the stksess entry <ts> */
 static int
 acl_fetch_conn_cnt(struct stktable *table, struct acl_test *test, struct stksess *ts)
@@ -2594,6 +2694,10 @@ acl_fetch_src_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, int
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct acl_kw_list acl_kws = {{ },{
+	{ "trk_get_gpc0",       acl_parse_int,   acl_fetch_trk_get_gpc0,      acl_match_int, ACL_USE_NOTHING },
+	{ "src_get_gpc0",       acl_parse_int,   acl_fetch_src_get_gpc0,      acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "trk_inc_gpc0",       acl_parse_int,   acl_fetch_trk_inc_gpc0,      acl_match_int, ACL_USE_NOTHING },
+	{ "src_inc_gpc0",       acl_parse_int,   acl_fetch_src_inc_gpc0,      acl_match_int, ACL_USE_TCP4_VOLATILE },
 	{ "trk_conn_cnt",       acl_parse_int,   acl_fetch_trk_conn_cnt,      acl_match_int, ACL_USE_NOTHING },
 	{ "src_conn_cnt",       acl_parse_int,   acl_fetch_src_conn_cnt,      acl_match_int, ACL_USE_TCP4_VOLATILE },
 	{ "trk_conn_rate",      acl_parse_int,   acl_fetch_trk_conn_rate,     acl_match_int, ACL_USE_NOTHING },
