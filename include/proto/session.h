@@ -25,6 +25,7 @@
 #include <common/config.h>
 #include <common/memory.h>
 #include <types/session.h>
+#include <proto/freq_ctr.h>
 #include <proto/stick_table.h>
 
 extern struct pool_head *pool2_session;
@@ -80,6 +81,11 @@ static inline void session_track_counters(struct session *s, struct stktable *t,
 		ptr = stktable_data_ptr(t, ts, STKTABLE_DT_CONN_CNT);
 		if (ptr)
 			stktable_data_cast(ptr, conn_cnt)++;
+
+		ptr = stktable_data_ptr(t, ts, STKTABLE_DT_CONN_RATE);
+		if (ptr)
+			update_freq_ctr_period(&stktable_data_cast(ptr, conn_rate),
+					       t->data_arg[STKTABLE_DT_CONN_RATE].u, 1);
 
 		if (tick_isset(t->expire))
 			ts->expire = tick_add(now_ms, MS_TO_TICKS(t->expire));

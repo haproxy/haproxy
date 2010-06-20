@@ -26,6 +26,7 @@
 #include <proto/buffers.h>
 #include <proto/checks.h>
 #include <proto/dumpstats.h>
+#include <proto/freq_ctr.h>
 #include <proto/hdr_idx.h>
 #include <proto/log.h>
 #include <proto/session.h>
@@ -135,9 +136,16 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 		p->counters.feconn_max = p->feconn;
 	proxy_inc_fe_sess_ctr(l, p);
 	if (s->tracked_counters) {
-		void *ptr = stktable_data_ptr(s->tracked_table, s->tracked_counters, STKTABLE_DT_SESS_CNT);
+		void *ptr;
+
+		ptr = stktable_data_ptr(s->tracked_table, s->tracked_counters, STKTABLE_DT_SESS_CNT);
 		if (ptr)
 			stktable_data_cast(ptr, sess_cnt)++;
+
+		ptr = stktable_data_ptr(s->tracked_table, s->tracked_counters, STKTABLE_DT_SESS_RATE);
+		if (ptr)
+			update_freq_ctr_period(&stktable_data_cast(ptr, sess_rate),
+					       s->tracked_table->data_arg[STKTABLE_DT_SESS_RATE].u, 1);
 	}
 
 	/* this part should be common with other protocols */
@@ -2124,6 +2132,57 @@ acl_fetch_src_conn_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 	return acl_fetch_conn_cnt(&px->table, test, stktable_lookup_key(&px->table, key));
 }
 
+/* set test->i to the connection rate in the stksess entry <ts> over the configured period */
+static int
+acl_fetch_conn_rate(struct stktable *table, struct acl_test *test, struct stksess *ts)
+{
+	test->flags = ACL_TEST_F_VOL_TEST;
+	test->i = 0;
+	if (ts != NULL) {
+		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_CONN_RATE);
+		if (!ptr)
+			return 0; /* parameter not stored */
+		test->i = read_freq_ctr_period(&stktable_data_cast(ptr, conn_rate),
+					       table->data_arg[STKTABLE_DT_CONN_RATE].u);
+	}
+	return 1;
+}
+
+/* set test->i to the connection rate from the session's tracked counters over
+ * the configured period.
+ */
+static int
+acl_fetch_trk_conn_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+			struct acl_expr *expr, struct acl_test *test)
+{
+	if (!l4->tracked_counters)
+		return 0;
+
+	return acl_fetch_conn_rate(l4->tracked_table, test, l4->tracked_counters);
+}
+
+/* set test->i to the connection rate from the session's source address in the
+ * table pointed to by expr, over the configured period.
+ */
+static int
+acl_fetch_src_conn_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+			struct acl_expr *expr, struct acl_test *test)
+{
+	struct stktable_key *key;
+
+	key = tcpv4_src_to_stktable_key(l4);
+	if (!key)
+		return 0; /* only TCPv4 is supported right now */
+
+	if (expr->arg_len)
+		px = find_stktable(expr->arg.str);
+
+	if (!px)
+		return 0; /* table not found */
+
+	return acl_fetch_conn_rate(&px->table, test, stktable_lookup_key(&px->table, key));
+}
+
 /* set test->i to the number of connections from the session's source address
  * in the table pointed to by expr, after updating it.
  */
@@ -2261,6 +2320,57 @@ acl_fetch_src_sess_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 	return acl_fetch_sess_cnt(&px->table, test, stktable_lookup_key(&px->table, key));
 }
 
+/* set test->i to the session rate in the stksess entry <ts> over the configured period */
+static int
+acl_fetch_sess_rate(struct stktable *table, struct acl_test *test, struct stksess *ts)
+{
+	test->flags = ACL_TEST_F_VOL_TEST;
+	test->i = 0;
+	if (ts != NULL) {
+		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_SESS_RATE);
+		if (!ptr)
+			return 0; /* parameter not stored */
+		test->i = read_freq_ctr_period(&stktable_data_cast(ptr, sess_rate),
+					       table->data_arg[STKTABLE_DT_SESS_RATE].u);
+	}
+	return 1;
+}
+
+/* set test->i to the session rate from the session's tracked counters over
+ * the configured period.
+ */
+static int
+acl_fetch_trk_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+			struct acl_expr *expr, struct acl_test *test)
+{
+	if (!l4->tracked_counters)
+		return 0;
+
+	return acl_fetch_sess_rate(l4->tracked_table, test, l4->tracked_counters);
+}
+
+/* set test->i to the session rate from the session's source address in the
+ * table pointed to by expr, over the configured period.
+ */
+static int
+acl_fetch_src_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+			struct acl_expr *expr, struct acl_test *test)
+{
+	struct stktable_key *key;
+
+	key = tcpv4_src_to_stktable_key(l4);
+	if (!key)
+		return 0; /* only TCPv4 is supported right now */
+
+	if (expr->arg_len)
+		px = find_stktable(expr->arg.str);
+
+	if (!px)
+		return 0; /* table not found */
+
+	return acl_fetch_sess_rate(&px->table, test, stktable_lookup_key(&px->table, key));
+}
+
 /* set test->i to the number of kbytes received from clients matching the stksess entry <ts> */
 static int
 acl_fetch_kbytes_in(struct stktable *table, struct acl_test *test, struct stksess *ts)
@@ -2368,11 +2478,15 @@ acl_fetch_src_kbytes_out(struct proxy *px, struct session *l4, void *l7, int dir
 static struct acl_kw_list acl_kws = {{ },{
 	{ "trk_conn_cnt",       acl_parse_int,   acl_fetch_trk_conn_cnt,      acl_match_int, ACL_USE_NOTHING },
 	{ "src_conn_cnt",       acl_parse_int,   acl_fetch_src_conn_cnt,      acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "trk_conn_rate",      acl_parse_int,   acl_fetch_trk_conn_rate,     acl_match_int, ACL_USE_NOTHING },
+	{ "src_conn_rate",      acl_parse_int,   acl_fetch_src_conn_rate,     acl_match_int, ACL_USE_TCP4_VOLATILE },
 	{ "src_updt_conn_cnt",  acl_parse_int,   acl_fetch_src_updt_conn_cnt, acl_match_int, ACL_USE_TCP4_VOLATILE },
 	{ "trk_conn_cur",       acl_parse_int,   acl_fetch_trk_conn_cur,      acl_match_int, ACL_USE_NOTHING },
 	{ "src_conn_cur",       acl_parse_int,   acl_fetch_src_conn_cur,      acl_match_int, ACL_USE_TCP4_VOLATILE },
 	{ "trk_sess_cnt",       acl_parse_int,   acl_fetch_trk_sess_cnt,      acl_match_int, ACL_USE_NOTHING },
 	{ "src_sess_cnt",       acl_parse_int,   acl_fetch_src_sess_cnt,      acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "trk_sess_rate",      acl_parse_int,   acl_fetch_trk_sess_rate,     acl_match_int, ACL_USE_NOTHING },
+	{ "src_sess_rate",      acl_parse_int,   acl_fetch_src_sess_rate,     acl_match_int, ACL_USE_TCP4_VOLATILE },
 	{ "trk_kbytes_in",      acl_parse_int,   acl_fetch_trk_kbytes_in,     acl_match_int, ACL_USE_TCP4_VOLATILE },
 	{ "src_kbytes_in",      acl_parse_int,   acl_fetch_src_kbytes_in,     acl_match_int, ACL_USE_TCP4_VOLATILE },
 	{ "trk_kbytes_out",     acl_parse_int,   acl_fetch_trk_kbytes_out,    acl_match_int, ACL_USE_TCP4_VOLATILE },

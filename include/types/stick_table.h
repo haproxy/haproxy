@@ -30,6 +30,7 @@
 #include <ebmbtree.h>
 #include <eb32tree.h>
 #include <common/memory.h>
+#include <types/freq_ctr.h>
 
 /* stick table key types */
 enum {
@@ -43,8 +44,10 @@ enum {
 enum {
 	STKTABLE_DT_SERVER_ID,    /* the server ID to use with this session if > 0 */
 	STKTABLE_DT_CONN_CNT,     /* cumulated number of connections */
+	STKTABLE_DT_CONN_RATE,    /* incoming connection rate */
 	STKTABLE_DT_CONN_CUR,     /* concurrent number of connections */
 	STKTABLE_DT_SESS_CNT,     /* cumulated number of sessions (accepted connections) */
+	STKTABLE_DT_SESS_RATE,    /* accepted sessions rate */
 	STKTABLE_DT_BYTES_IN_CNT, /* cumulated bytes count from client to servers */
 	STKTABLE_DT_BYTES_OUT_CNT,/* cumulated bytes count from servers to client */
 	STKTABLE_DATA_TYPES       /* Number of data types, must always be last */
@@ -61,8 +64,10 @@ enum {
 union stktable_data {
 	int server_id;
 	unsigned int conn_cnt;
+	struct freq_ctr_period conn_rate;
 	unsigned int conn_cur;
 	unsigned int sess_cnt;
+	struct freq_ctr_period sess_rate;
 	unsigned long long bytes_in_cnt;
 	unsigned long long bytes_out_cnt;
 };
