@@ -2483,6 +2483,204 @@ acl_fetch_src_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
 	return acl_fetch_sess_rate(&px->table, test, stktable_lookup_key(&px->table, key));
 }
 
+/* set test->i to the cumulated number of sessions in the stksess entry <ts> */
+static int
+acl_fetch_http_req_cnt(struct stktable *table, struct acl_test *test, struct stksess *ts)
+{
+	test->flags = ACL_TEST_F_VOL_TEST;
+	test->i = 0;
+	if (ts != NULL) {
+		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_HTTP_REQ_CNT);
+		if (!ptr)
+			return 0; /* parameter not stored */
+		test->i = stktable_data_cast(ptr, http_req_cnt);
+	}
+	return 1;
+}
+
+/* set test->i to the cumulated number of sessions from the session's tracked counters */
+static int
+acl_fetch_trk_http_req_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+		       struct acl_expr *expr, struct acl_test *test)
+{
+	if (!l4->tracked_counters)
+		return 0;
+
+	return acl_fetch_http_req_cnt(l4->tracked_table, test, l4->tracked_counters);
+}
+
+/* set test->i to the cumulated number of session from the session's source
+ * address in the table pointed to by expr.
+ */
+static int
+acl_fetch_src_http_req_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+		       struct acl_expr *expr, struct acl_test *test)
+{
+	struct stktable_key *key;
+
+	key = tcpv4_src_to_stktable_key(l4);
+	if (!key)
+		return 0; /* only TCPv4 is supported right now */
+
+	if (expr->arg_len)
+		px = find_stktable(expr->arg.str);
+
+	if (!px)
+		return 0; /* table not found */
+
+	return acl_fetch_http_req_cnt(&px->table, test, stktable_lookup_key(&px->table, key));
+}
+
+/* set test->i to the session rate in the stksess entry <ts> over the configured period */
+static int
+acl_fetch_http_req_rate(struct stktable *table, struct acl_test *test, struct stksess *ts)
+{
+	test->flags = ACL_TEST_F_VOL_TEST;
+	test->i = 0;
+	if (ts != NULL) {
+		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_HTTP_REQ_RATE);
+		if (!ptr)
+			return 0; /* parameter not stored */
+		test->i = read_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
+					       table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u);
+	}
+	return 1;
+}
+
+/* set test->i to the session rate from the session's tracked counters over
+ * the configured period.
+ */
+static int
+acl_fetch_trk_http_req_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+			struct acl_expr *expr, struct acl_test *test)
+{
+	if (!l4->tracked_counters)
+		return 0;
+
+	return acl_fetch_http_req_rate(l4->tracked_table, test, l4->tracked_counters);
+}
+
+/* set test->i to the session rate from the session's source address in the
+ * table pointed to by expr, over the configured period.
+ */
+static int
+acl_fetch_src_http_req_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+			struct acl_expr *expr, struct acl_test *test)
+{
+	struct stktable_key *key;
+
+	key = tcpv4_src_to_stktable_key(l4);
+	if (!key)
+		return 0; /* only TCPv4 is supported right now */
+
+	if (expr->arg_len)
+		px = find_stktable(expr->arg.str);
+
+	if (!px)
+		return 0; /* table not found */
+
+	return acl_fetch_http_req_rate(&px->table, test, stktable_lookup_key(&px->table, key));
+}
+
+/* set test->i to the cumulated number of sessions in the stksess entry <ts> */
+static int
+acl_fetch_http_err_cnt(struct stktable *table, struct acl_test *test, struct stksess *ts)
+{
+	test->flags = ACL_TEST_F_VOL_TEST;
+	test->i = 0;
+	if (ts != NULL) {
+		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_HTTP_ERR_CNT);
+		if (!ptr)
+			return 0; /* parameter not stored */
+		test->i = stktable_data_cast(ptr, http_err_cnt);
+	}
+	return 1;
+}
+
+/* set test->i to the cumulated number of sessions from the session's tracked counters */
+static int
+acl_fetch_trk_http_err_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+		       struct acl_expr *expr, struct acl_test *test)
+{
+	if (!l4->tracked_counters)
+		return 0;
+
+	return acl_fetch_http_err_cnt(l4->tracked_table, test, l4->tracked_counters);
+}
+
+/* set test->i to the cumulated number of session from the session's source
+ * address in the table pointed to by expr.
+ */
+static int
+acl_fetch_src_http_err_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+		       struct acl_expr *expr, struct acl_test *test)
+{
+	struct stktable_key *key;
+
+	key = tcpv4_src_to_stktable_key(l4);
+	if (!key)
+		return 0; /* only TCPv4 is supported right now */
+
+	if (expr->arg_len)
+		px = find_stktable(expr->arg.str);
+
+	if (!px)
+		return 0; /* table not found */
+
+	return acl_fetch_http_err_cnt(&px->table, test, stktable_lookup_key(&px->table, key));
+}
+
+/* set test->i to the session rate in the stksess entry <ts> over the configured period */
+static int
+acl_fetch_http_err_rate(struct stktable *table, struct acl_test *test, struct stksess *ts)
+{
+	test->flags = ACL_TEST_F_VOL_TEST;
+	test->i = 0;
+	if (ts != NULL) {
+		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_HTTP_ERR_RATE);
+		if (!ptr)
+			return 0; /* parameter not stored */
+		test->i = read_freq_ctr_period(&stktable_data_cast(ptr, http_err_rate),
+					       table->data_arg[STKTABLE_DT_HTTP_ERR_RATE].u);
+	}
+	return 1;
+}
+
+/* set test->i to the session rate from the session's tracked counters over
+ * the configured period.
+ */
+static int
+acl_fetch_trk_http_err_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+			struct acl_expr *expr, struct acl_test *test)
+{
+	if (!l4->tracked_counters)
+		return 0;
+
+	return acl_fetch_http_err_rate(l4->tracked_table, test, l4->tracked_counters);
+}
+
+/* set test->i to the session rate from the session's source address in the
+ * table pointed to by expr, over the configured period.
+ */
+static int
+acl_fetch_src_http_err_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+			struct acl_expr *expr, struct acl_test *test)
+{
+	struct stktable_key *key;
+
+	key = tcpv4_src_to_stktable_key(l4);
+	if (!key)
+		return 0; /* only TCPv4 is supported right now */
+
+	if (expr->arg_len)
+		px = find_stktable(expr->arg.str);
+
+	if (!px)
+		return 0; /* table not found */
+
+	return acl_fetch_http_err_rate(&px->table, test, stktable_lookup_key(&px->table, key));
+}
+
 /* set test->i to the number of kbytes received from clients matching the stksess entry <ts> */
 static int
 acl_fetch_kbytes_in(struct stktable *table, struct acl_test *test, struct stksess *ts)
@@ -2709,6 +2907,14 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "src_sess_cnt",       acl_parse_int,   acl_fetch_src_sess_cnt,      acl_match_int, ACL_USE_TCP4_VOLATILE },
 	{ "trk_sess_rate",      acl_parse_int,   acl_fetch_trk_sess_rate,     acl_match_int, ACL_USE_NOTHING },
 	{ "src_sess_rate",      acl_parse_int,   acl_fetch_src_sess_rate,     acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "trk_http_req_cnt",   acl_parse_int,   acl_fetch_trk_http_req_cnt,  acl_match_int, ACL_USE_NOTHING },
+	{ "src_http_req_cnt",   acl_parse_int,   acl_fetch_src_http_req_cnt,  acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "trk_http_req_rate",  acl_parse_int,   acl_fetch_trk_http_req_rate, acl_match_int, ACL_USE_NOTHING },
+	{ "src_http_req_rate",  acl_parse_int,   acl_fetch_src_http_req_rate, acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "trk_http_err_cnt",   acl_parse_int,   acl_fetch_trk_http_err_cnt,  acl_match_int, ACL_USE_NOTHING },
+	{ "src_http_err_cnt",   acl_parse_int,   acl_fetch_src_http_err_cnt,  acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "trk_http_err_rate",  acl_parse_int,   acl_fetch_trk_http_err_rate, acl_match_int, ACL_USE_NOTHING },
+	{ "src_http_err_rate",  acl_parse_int,   acl_fetch_src_http_err_rate, acl_match_int, ACL_USE_TCP4_VOLATILE },
 	{ "trk_kbytes_in",      acl_parse_int,   acl_fetch_trk_kbytes_in,     acl_match_int, ACL_USE_TCP4_VOLATILE },
 	{ "src_kbytes_in",      acl_parse_int,   acl_fetch_src_kbytes_in,     acl_match_int, ACL_USE_TCP4_VOLATILE },
 	{ "trk_bytes_in_rate",  acl_parse_int,   acl_fetch_trk_bytes_in_rate, acl_match_int, ACL_USE_NOTHING },

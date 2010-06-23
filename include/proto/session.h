@@ -98,6 +98,45 @@ static void inline trace_term(struct session *s, unsigned int code)
 	s->term_trace |= code;
 }
 
+/* Increase the number of cumulated HTTP requests in the tracked counters */
+static void inline session_inc_http_req_ctr(struct session *s)
+{
+	if (s->tracked_counters) {
+		void *ptr;
+
+		ptr = stktable_data_ptr(s->tracked_table, s->tracked_counters, STKTABLE_DT_HTTP_REQ_CNT);
+		if (ptr)
+			stktable_data_cast(ptr, http_req_cnt)++;
+
+		ptr = stktable_data_ptr(s->tracked_table, s->tracked_counters, STKTABLE_DT_HTTP_REQ_RATE);
+		if (ptr)
+			update_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
+					       s->tracked_table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
+	}
+}
+
+/* Increase the number of cumulated failed HTTP requests in the tracked
+ * counters. Only 4xx requests should be counted here so that we can
+ * distinguish between errors caused by client behaviour and other ones.
+ * Note that even 404 are interesting because they're generally caused by
+ * vulnerability scans.
+ */
+static void inline session_inc_http_err_ctr(struct session *s)
+{
+	if (s->tracked_counters) {
+		void *ptr;
+
+		ptr = stktable_data_ptr(s->tracked_table, s->tracked_counters, STKTABLE_DT_HTTP_ERR_CNT);
+		if (ptr)
+			stktable_data_cast(ptr, http_err_cnt)++;
+
+		ptr = stktable_data_ptr(s->tracked_table, s->tracked_counters, STKTABLE_DT_HTTP_ERR_RATE);
+		if (ptr)
+			update_freq_ctr_period(&stktable_data_cast(ptr, http_err_rate),
+					       s->tracked_table->data_arg[STKTABLE_DT_HTTP_ERR_RATE].u, 1);
+	}
+}
+
 #endif /* _PROTO_SESSION_H */
 
 /*

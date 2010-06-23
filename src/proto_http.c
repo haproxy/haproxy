@@ -2439,6 +2439,10 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	 * we note the error in the session flags but don't set any state.
 	 * Since the error will be noted there, it will not be counted by
 	 * process_session() as a frontend error.
+	 * Last, we may increase some tracked counters' http request errors on
+	 * the cases that are deliberately the client's fault. For instance,
+	 * a timeout or connection reset is not counted as an error. However
+	 * a bad request is.
 	 */
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
@@ -2446,6 +2450,8 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 		 * First, let's catch bad requests.
 		 */
 		if (unlikely(msg->msg_state == HTTP_MSG_ERROR)) {
+			session_inc_http_req_ctr(s);
+			session_inc_http_err_ctr(s);
 			proxy_inc_fe_req_ctr(s->fe);
 			goto return_bad_req;
 		}
@@ -2459,6 +2465,8 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 			/* FIXME: check if URI is set and return Status
 			 * 414 Request URI too long instead.
 			 */
+			session_inc_http_req_ctr(s);
+			session_inc_http_err_ctr(s);
 			proxy_inc_fe_req_ctr(s->fe);
 			goto return_bad_req;
 		}
@@ -2472,11 +2480,15 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 				goto failed_keep_alive;
 
 			/* we cannot return any message on error */
-			if (msg->err_pos >= 0)
+			if (msg->err_pos >= 0) {
 				http_capture_bad_message(&s->fe->invalid_req, s, req, msg, s->fe);
+				session_inc_http_err_ctr(s);
+			}
+
 			msg->msg_state = HTTP_MSG_ERROR;
 			req->analysers = 0;
 
+			session_inc_http_req_ctr(s);
 			proxy_inc_fe_req_ctr(s->fe);
 			s->fe->counters.failed_req++;
 			if (s->listener->counters)
@@ -2496,13 +2508,16 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 				goto failed_keep_alive;
 
 			/* read timeout : give up with an error message. */
-			if (msg->err_pos >= 0)
+			if (msg->err_pos >= 0) {
 				http_capture_bad_message(&s->fe->invalid_req, s, req, msg, s->fe);
+				session_inc_http_err_ctr(s);
+			}
 			txn->status = 408;
 			stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_408));
 			msg->msg_state = HTTP_MSG_ERROR;
 			req->analysers = 0;
 
+			session_inc_http_req_ctr(s);
 			proxy_inc_fe_req_ctr(s->fe);
 			s->fe->counters.failed_req++;
 			if (s->listener->counters)
@@ -2528,6 +2543,8 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 			msg->msg_state = HTTP_MSG_ERROR;
 			req->analysers = 0;
 
+			session_inc_http_err_ctr(s);
+			session_inc_http_req_ctr(s);
 			proxy_inc_fe_req_ctr(s->fe);
 			s->fe->counters.failed_req++;
 			if (s->listener->counters)
@@ -2588,6 +2605,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	 * left uninitialized (for instance in the absence of headers).
 	 */
 
+	session_inc_http_req_ctr(s);
 	proxy_inc_fe_req_ctr(s->fe); /* one more valid request for this FE */
 
 	if (txn->flags & TX_WAIT_NEXT_RQ) {
@@ -2867,6 +2885,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 			/* let's log the request time */
 			s->logs.tv_request = now;
 			stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_403));
+			session_inc_http_err_ctr(s);
 			goto return_prx_cond;
 		}
 	}
@@ -2898,6 +2917,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 			txn->status = 403;
 			s->logs.tv_request = now;
 			stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_403));
+			session_inc_http_err_ctr(s);
 			goto return_prx_cond;
 	}
 
@@ -2913,6 +2933,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 			/* let's log the request time */
 			s->logs.tv_request = now;
 			stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_403));
+			session_inc_http_err_ctr(s);
 			goto return_prx_cond;
 		}
 
@@ -2932,6 +2953,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 			req->analyse_exp = tick_add_ifset(now_ms,  s->be->timeout.tarpit);
 			if (!req->analyse_exp)
 				req->analyse_exp = tick_add(now_ms, 0);
+			session_inc_http_err_ctr(s);
 			return 1;
 		}
 	}
@@ -3014,6 +3036,11 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 		chunk_initlen(&msg, trash, sizeof(trash), strlen(trash));
 		txn->status = 401;
 		stream_int_retnclose(req->prod, &msg);
+		/* on 401 we still count one error, because normal browsing
+		 * won't significantly increase the counter but brute force
+		 * attempts will.
+		 */
+		session_inc_http_err_ctr(s);
 		goto return_prx_cond;
 	}
 
@@ -3578,8 +3605,10 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 
 		if (!ret)
 			goto missing_data;
-		else if (ret < 0)
+		else if (ret < 0) {
+			session_inc_http_err_ctr(s);
 			goto return_bad_req;
+		}
 	}
 
 	/* Now we're in HTTP_MSG_DATA or HTTP_MSG_TRAILERS state.
@@ -3597,8 +3626,10 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 
  missing_data:
 	/* we get here if we need to wait for more data */
-	if (req->flags & BF_FULL)
+	if (req->flags & BF_FULL) {
+		session_inc_http_err_ctr(s);
 		goto return_bad_req;
+	}
 
 	if ((req->flags & BF_READ_TIMEOUT) || tick_is_expired(req->analyse_exp, now_ms)) {
 		txn->status = 408;
@@ -4178,8 +4209,10 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 
 			if (!ret)
 				goto missing_data;
-			else if (ret < 0)
+			else if (ret < 0) {
+				session_inc_http_err_ctr(s);
 				goto return_bad_req;
+			}
 			/* otherwise we're in HTTP_MSG_DATA or HTTP_MSG_TRAILERS state */
 		}
 		else if (msg->msg_state == HTTP_MSG_DATA_CRLF) {
@@ -4194,8 +4227,10 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 
 			if (ret == 0)
 				goto missing_data;
-			else if (ret < 0)
+			else if (ret < 0) {
+				session_inc_http_err_ctr(s);
 				goto return_bad_req;
+			}
 			/* we're in MSG_CHUNK_SIZE now */
 		}
 		else if (msg->msg_state == HTTP_MSG_TRAILERS) {
@@ -4203,8 +4238,10 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 
 			if (ret == 0)
 				goto missing_data;
-			else if (ret < 0)
+			else if (ret < 0) {
+				session_inc_http_err_ctr(s);
 				goto return_bad_req;
+			}
 			/* we're in HTTP_MSG_DONE now */
 		}
 		else {
@@ -4512,6 +4549,14 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 	n = msg->sol[msg->sl.st.c] - '0';
 	if (n < 1 || n > 5)
 		n = 0;
+	/* when the client triggers a 4xx from the server, it's most often due
+	 * to a missing object or permission. These events should be tracked
+	 * because if they happen often, it may indicate a brute force or a
+	 * vulnerability scan.
+	 */
+	if (n == 4)
+		session_inc_http_err_ctr(s);
+
 	if (s->srv)
 		s->srv->counters.p.http.rsp[n]++;
 
