@@ -178,6 +178,9 @@ void stream_int_shutr(struct stream_interface *si)
 		si->exp = TICK_ETERNITY;
 	}
 
+	if (si->release)
+		si->release(si);
+
 	/* note that if the task exist, it must unregister itself once it runs */
 	if (!(si->flags & SI_FL_DONT_WAKE) && si->owner)
 		task_wakeup(si->owner, TASK_WOKEN_IO);
@@ -213,6 +216,9 @@ void stream_int_shutw(struct stream_interface *si)
 		si->ib->rex = TICK_ETERNITY;
 		si->exp = TICK_ETERNITY;
 	}
+
+	if (si->release)
+		si->release(si);
 
 	/* note that if the task exist, it must unregister itself once it runs */
 	if (!(si->flags & SI_FL_DONT_WAKE) && si->owner)
@@ -289,6 +295,7 @@ struct task *stream_int_register_handler(struct stream_interface *si,
 	si->chk_snd = stream_int_chk_snd;
 	si->connect = NULL;
 	si->iohandler = fct;
+	si->release   = NULL;
 	si->flags |= SI_FL_WAIT_DATA;
 	return si->owner;
 }
@@ -312,6 +319,7 @@ struct task *stream_int_register_handler_task(struct stream_interface *si,
 	si->chk_snd = stream_int_chk_snd;
 	si->connect = NULL;
 	si->iohandler = NULL; /* not used when running as an external task */
+	si->release   = NULL;
 	si->flags |= SI_FL_WAIT_DATA;
 
 	t = task_new();
@@ -337,6 +345,7 @@ void stream_int_unregister_handler(struct stream_interface *si)
 		task_free(si->owner);
 	}
 	si->iohandler = NULL;
+	si->release   = NULL;
 	si->owner = NULL;
 }
 

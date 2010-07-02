@@ -139,6 +139,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->si[0].err_loc   = NULL;
 	s->si[0].connect   = NULL;
 	s->si[0].iohandler = NULL;
+	s->si[0].release   = NULL;
 	s->si[0].exp       = TICK_ETERNITY;
 	s->si[0].flags     = SI_FL_NONE;
 
@@ -161,6 +162,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->si[1].err_loc   = NULL;
 	s->si[1].connect   = NULL;
 	s->si[1].iohandler = NULL;
+	s->si[1].release   = NULL;
 	s->si[1].shutr     = stream_int_shutr;
 	s->si[1].shutw     = stream_int_shutw;
 	s->si[1].exp       = TICK_ETERNITY;
@@ -433,6 +435,9 @@ int sess_update_st_con_tcp(struct session *s, struct stream_interface *si)
 		si->state = SI_ST_CER;
 		si->flags &= ~SI_FL_CAP_SPLICE;
 		fd_delete(si->fd);
+
+		if (si->release)
+			si->release(si);
 
 		if (si->err_type)
 			return 0;

@@ -875,6 +875,9 @@ void stream_sock_shutw(struct stream_interface *si)
 		si->exp = TICK_ETERNITY;
 		return;
 	}
+
+	if (si->release)
+		si->release(si);
 }
 
 /*
@@ -899,6 +902,9 @@ void stream_sock_shutr(struct stream_interface *si)
 		fd_delete(si->fd);
 		si->state = SI_ST_DIS;
 		si->exp = TICK_ETERNITY;
+
+		if (si->release)
+			si->release(si);
 		return;
 	}
 	EV_FD_CLR(si->fd, DIR_RD);

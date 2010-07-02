@@ -100,6 +100,7 @@ struct stream_interface {
 	void (*chk_snd)(struct stream_interface *);/* chk_snd function */
 	int (*connect)(struct stream_interface *, struct proxy *, struct server *,
 		       struct sockaddr *, struct sockaddr *); /* connect function if any */
+	void (*release)(struct stream_interface *); /* handler to call after the last close() */
 	void (*iohandler)(struct stream_interface *);  /* internal I/O handler when embedded */
 	struct buffer *ib, *ob; /* input and output buffers */
 	int conn_retries;	/* number of connect retries left */
