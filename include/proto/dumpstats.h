@@ -51,6 +51,7 @@
 #define STAT_CLI_O_INFO 5   /* dump info/stats */
 #define STAT_CLI_O_SESS 6   /* dump sessions */
 #define STAT_CLI_O_ERR  7   /* dump errors */
+#define STAT_CLI_O_TAB  8   /* dump tables */
 
 
 int stats_accept(struct session *s);
@@ -60,6 +61,7 @@ int stats_dump_raw_to_buffer(struct session *s, struct buffer *rep);
 int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri);
 int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri);
 int stats_dump_sess_to_buffer(struct session *s, struct buffer *rep);
+int stats_dump_table_to_buffer(struct session *s, struct buffer *rep);
 int stats_dump_errors_to_buffer(struct session *s, struct buffer *rep);
 void http_stats_io_handler(struct stream_interface *si);
 

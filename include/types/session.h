@@ -231,6 +231,11 @@ struct session {
 			int bol;		/* pointer to beginning of current line */
 		} errors;
 		struct {
+			void *target;		/* table we want to dump, or NULL for all */
+			struct proxy *proxy;	/* table being currently dumped (first if NULL) */
+			struct stksess *entry;	/* last entry we were trying to dump (or first if NULL) */
+		} table;
+		struct {
 			const char *msg;	/* pointer to a persistent message to be returned in PRINT state */
 		} cli;
 	} data_ctx;				/* used by stats I/O handlers to dump the stats */

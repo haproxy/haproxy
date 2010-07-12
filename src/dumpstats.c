@@ -64,6 +64,7 @@ const char stats_sock_usage_msg[] =
 	"  show stat      : report counters for each proxy and server\n"
 	"  show errors    : report last request and response errors for each proxy\n"
 	"  show sess [id] : report the list of current sessions or dump this session\n"
+	"  show table [id]: report table usage stats or dump this table's contents\n"
 	"  get weight     : report a server's current weight\n"
 	"  set weight     : change a server's weight\n"
 	"  set timeout    : change a timeout setting\n"
@@ -376,6 +377,16 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 			s->data_ctx.errors.px = NULL;
 			s->data_state = DATA_ST_INIT;
 			si->st0 = STAT_CLI_O_ERR; // stats_dump_errors_to_buffer
+		}
+		else if (strcmp(args[1], "table") == 0) {
+			s->data_state = DATA_ST_INIT;
+			if (*args[2])
+				s->data_ctx.table.target = findproxy(args[2], 0);
+			else
+				s->data_ctx.table.target = NULL;
+			s->data_ctx.table.proxy = NULL;
+			s->data_ctx.table.entry = NULL;
+			si->st0 = STAT_CLI_O_TAB; // stats_dump_table_to_buffer
 		}
 		else { /* neither "stat" nor "info" nor "sess" nor "errors"*/
 			return 0;
@@ -805,6 +816,10 @@ void stats_io_handler(struct stream_interface *si)
 				break;
 			case STAT_CLI_O_ERR:	/* errors dump */
 				if (stats_dump_errors_to_buffer(s, res))
+					si->st0 = STAT_CLI_PROMPT;
+				break;
+			case STAT_CLI_O_TAB:
+				if (stats_dump_table_to_buffer(s, res))
 					si->st0 = STAT_CLI_PROMPT;
 				break;
 			default: /* abnormal state */
@@ -2767,6 +2782,174 @@ int stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 		s->data_state = DATA_ST_FIN;
 		return 1;
 	}
+}
+
+/* This function is called to send output to the response buffer.
+ * It dumps the tables states onto the output buffer <rep>.
+ * Expects to be called with client socket shut down on input.
+ * s->data_ctx must have been zeroed first, and the flags properly set.
+ * It returns 0 as long as it does not complete, non-zero upon completion.
+ */
+int stats_dump_table_to_buffer(struct session *s, struct buffer *rep)
+{
+	struct chunk msg;
+	struct ebmb_node *eb;
+	int dt;
+
+	/*
+	 * We have 3 possible states in s->data_state :
+	 *   - DATA_ST_INIT : the first call
+	 *   - DATA_ST_INFO : the proxy pointer points to the next table to
+	 *     dump, the entry pointer is NULL ;
+	 *   - DATA_ST_LIST : the proxy pointer points to the current table
+	 *     and the entry pointer points to the next entry to be dumped,
+	 *     and the refcount on the next entry is held ;
+	 *   - DATA_ST_END : nothing left to dump, the buffer may contain some
+	 *     data though.
+	 */
+
+	if (unlikely(rep->flags & (BF_WRITE_ERROR|BF_SHUTW))) {
+		/* in case of abort, remove any refcount we might have set on an entry */
+		if (s->data_state == DATA_ST_LIST)
+			s->data_ctx.table.entry->ref_cnt--;
+		return 1;
+	}
+
+	chunk_init(&msg, trash, sizeof(trash));
+
+	while (s->data_state != DATA_ST_FIN) {
+		switch (s->data_state) {
+		case DATA_ST_INIT:
+			s->data_ctx.table.proxy = s->data_ctx.table.target;
+			if (!s->data_ctx.table.proxy)
+				s->data_ctx.table.proxy = proxy;
+
+			s->data_ctx.table.entry = NULL;
+			s->data_state = DATA_ST_INFO;
+			break;
+
+		case DATA_ST_INFO:
+			if (!s->data_ctx.table.proxy ||
+			    (s->data_ctx.table.target &&
+			     s->data_ctx.table.proxy != s->data_ctx.table.target)) {
+				s->data_state = DATA_ST_END;
+				break;
+			}
+
+			if (s->data_ctx.table.proxy->table.size) {
+				chunk_printf(&msg, "# table: %s, type: %ld, size:%d, used:%d\n",
+					     s->data_ctx.table.proxy->id,
+					     s->data_ctx.table.proxy->table.type,
+					     s->data_ctx.table.proxy->table.size,
+					     s->data_ctx.table.proxy->table.current);
+
+				/* any other information should be dumped here */
+
+				if (s->data_ctx.table.target &&
+				    s->listener->perm.ux.level < ACCESS_LVL_OPER)
+					chunk_printf(&msg, "# contents not dumped due to insufficient privileges\n");
+
+				if (buffer_feed_chunk(rep, &msg) >= 0)
+					return 0;
+
+				if (s->data_ctx.table.target &&
+				    s->listener->perm.ux.level >= ACCESS_LVL_OPER) {
+					/* dump entries only if table explicitly requested */
+					eb = ebmb_first(&s->data_ctx.table.proxy->table.keys);
+					if (eb) {
+						s->data_ctx.table.entry = ebmb_entry(eb, struct stksess, key);
+						s->data_ctx.table.entry->ref_cnt++;
+						s->data_state = DATA_ST_LIST;
+						break;
+					}
+				}
+			}
+			s->data_ctx.table.proxy = s->data_ctx.table.proxy->next;
+			break;
+
+		case DATA_ST_LIST:
+			chunk_printf(&msg, "%p:", s->data_ctx.table.entry);
+
+			if (s->data_ctx.table.proxy->table.type == STKTABLE_TYPE_IP) {
+				char addr[16];
+				inet_ntop(AF_INET,
+					  (const void *)&s->data_ctx.table.entry->key.key,
+					  addr, sizeof(addr));
+				chunk_printf(&msg, " key=%s", addr);
+			}
+			else
+				chunk_printf(&msg, " key=?");
+
+			chunk_printf(&msg, " use=%d exp=%d",
+				     s->data_ctx.table.entry->ref_cnt - 1,
+				     tick_remain(now_ms, s->data_ctx.table.entry->expire));
+
+			for (dt = 0; dt < STKTABLE_DATA_TYPES; dt++) {
+				void *ptr;
+
+				if (s->data_ctx.table.proxy->table.data_ofs[dt] == 0)
+					continue;
+				if (stktable_data_types[dt].arg_type == ARG_T_DELAY)
+					chunk_printf(&msg, " %s(%d)=",
+						     stktable_data_types[dt].name,
+						     s->data_ctx.table.proxy->table.data_arg[dt].u);
+				else
+					chunk_printf(&msg, " %s=", stktable_data_types[dt].name);
+
+				ptr = stktable_data_ptr(&s->data_ctx.table.proxy->table,
+							s->data_ctx.table.entry,
+							dt);
+				switch (dt) {
+					/* all entries using the same type can be folded */
+				case STKTABLE_DT_SERVER_ID:
+				case STKTABLE_DT_GPC0:
+				case STKTABLE_DT_CONN_CNT:
+				case STKTABLE_DT_CONN_CUR:
+				case STKTABLE_DT_SESS_CNT:
+				case STKTABLE_DT_HTTP_REQ_CNT:
+				case STKTABLE_DT_HTTP_ERR_CNT:
+					chunk_printf(&msg, "%u", stktable_data_cast(ptr, server_id));
+					break;
+				case STKTABLE_DT_CONN_RATE:
+				case STKTABLE_DT_SESS_RATE:
+				case STKTABLE_DT_HTTP_REQ_RATE:
+				case STKTABLE_DT_HTTP_ERR_RATE:
+				case STKTABLE_DT_BYTES_IN_RATE:
+				case STKTABLE_DT_BYTES_OUT_RATE:
+					chunk_printf(&msg, "%d",
+						     read_freq_ctr_period(&stktable_data_cast(ptr, conn_rate),
+									  s->data_ctx.table.proxy->table.data_arg[dt].u));
+					break;
+				case STKTABLE_DT_BYTES_IN_CNT:
+				case STKTABLE_DT_BYTES_OUT_CNT:
+					chunk_printf(&msg, "%lld", stktable_data_cast(ptr, bytes_in_cnt));
+					break;
+				}
+			}
+			chunk_printf(&msg, "\n");
+
+			if (buffer_feed_chunk(rep, &msg) >= 0)
+				return 0;
+
+			s->data_ctx.table.entry->ref_cnt--;
+
+			eb = ebmb_next(&s->data_ctx.table.entry->key);
+			if (eb) {
+				s->data_ctx.table.entry = ebmb_entry(eb, struct stksess, key);
+				s->data_ctx.table.entry->ref_cnt++;
+				break;
+			}
+
+			s->data_ctx.table.proxy = s->data_ctx.table.proxy->next;
+			s->data_state = DATA_ST_INFO;
+			break;
+
+		case DATA_ST_END:
+			s->data_state = DATA_ST_FIN;
+			break;
+		}
+	}
+	return 1;
 }
 
 /* print a line of text buffer (limited to 70 bytes) to <out>. The format is :
