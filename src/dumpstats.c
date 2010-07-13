@@ -57,6 +57,7 @@
 const char stats_sock_usage_msg[] =
 	"Unknown command. Please enter one of the following commands only :\n"
 	"  clear counters : clear max statistics counters (add 'all' for all counters)\n"
+	"  clear table    : remove an entry from a table\n"
 	"  help           : this message\n"
 	"  prompt         : toggle interactive mode with prompt\n"
 	"  quit           : disconnect\n"
@@ -388,7 +389,7 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 			s->data_ctx.table.entry = NULL;
 			si->st0 = STAT_CLI_O_TAB; // stats_dump_table_to_buffer
 		}
-		else { /* neither "stat" nor "info" nor "sess" nor "errors"*/
+		else { /* neither "stat" nor "info" nor "sess" nor "errors" no "table" */
 			return 0;
 		}
 	}
@@ -443,7 +444,75 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 
 			return 1;
 		}
+		else if (strcmp(args[1], "table") == 0) {
+			struct proxy *px;
+			struct stksess *ts;
+			unsigned int ip_key;
+
+			if (!*args[2]) {
+				s->data_ctx.cli.msg = "\"table\" argument expected.";
+				si->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			px = find_stktable(args[2]);
+
+			if (!px) {
+				s->data_ctx.cli.msg = "No such table.";
+				si->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			if (strcmp(args[3], "key") != 0) {
+				s->data_ctx.cli.msg = "\"key\" argument expected.";
+				si->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			if (!*args[4]) {
+				s->data_ctx.cli.msg = "Key value expected.";
+				si->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			if (px->table.type == STKTABLE_TYPE_IP) {
+				ip_key = htonl(inetaddr_host(args[4]));
+				static_table_key.key = (void *)&ip_key;
+			}
+			else {
+				s->data_ctx.cli.msg = "Removing keys from non-ip tables is not supported.";
+				si->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			/* check permissions */
+			if (s->listener->perm.ux.level < ACCESS_LVL_OPER) {
+				s->data_ctx.cli.msg = stats_permission_denied_msg;
+				si->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			ts = stktable_lookup_key(&px->table, &static_table_key);
+			if (!ts) {
+				/* silent return, entry was already removed */
+				return 1;
+			}
+			else if (ts->ref_cnt) {
+				/* don't delete an entry which is currently referenced */
+				s->data_ctx.cli.msg = "Entry currently in use, cannot remove.";
+				si->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			eb32_delete(&ts->exp);
+			ebmb_delete(&ts->key);
+			stksess_free(&px->table, ts);
+
+			/* end of processing */
+			return 1;
+		}
 		else {
+			/* unknown "clear" argument */
 			return 0;
 		}
 	}
