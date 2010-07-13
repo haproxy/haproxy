@@ -963,7 +963,7 @@ int process_sticking_rules(struct session *s, struct buffer *req, int an_bit)
 							}
 						}
 					}
-					ts->expire = tick_add(now_ms, MS_TO_TICKS(rule->table.t->expire));
+					stktable_touch(rule->table.t, ts);
 				}
 			}
 			if (rule->flags & STK_IS_STORE) {
@@ -1058,7 +1058,7 @@ int process_store_rules(struct session *s, struct buffer *rep, int an_bit)
 		ts = stktable_lookup(s->store[i].table, s->store[i].ts);
 		if (ts) {
 			/* the entry already existed, we can free ours */
-			stktable_touch(s->store[i].table, s->store[i].ts);
+			stktable_touch(s->store[i].table, ts);
 			stksess_free(s->store[i].table, s->store[i].ts);
 		}
 		else
