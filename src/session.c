@@ -1821,11 +1821,14 @@ resync_stream_interface:
 			s->req->rex = TICK_ETERNITY;
 		}
 
-		/* Call the second stream interface's I/O handler if it's embedded.
+		/* Call the stream interfaces' I/O handlers when embedded.
 		 * Note that this one may wake the task up again.
 		 */
-		if (s->req->cons->iohandler) {
-			s->req->cons->iohandler(s->req->cons);
+		if (s->req->cons->iohandler || s->rep->cons->iohandler) {
+			if (s->req->cons->iohandler)
+				s->req->cons->iohandler(s->req->cons);
+			if (s->rep->cons->iohandler)
+				s->rep->cons->iohandler(s->rep->cons);
 			if (task_in_rq(t)) {
 				/* If we woke up, we don't want to requeue the
 				 * task to the wait queue, but rather requeue

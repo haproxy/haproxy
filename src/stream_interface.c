@@ -142,7 +142,7 @@ void stream_int_update_embedded(struct stream_interface *si)
 	 *    the to only rely the changes the chk_* might have performed.
 	 */
 	if (/* check stream interface changes */
-	    (si->flags & SI_FL_ERR) || si->state != SI_ST_EST || si->ib->cons->state != SI_ST_EST ||
+	    (si->flags & SI_FL_ERR) || si->state != SI_ST_EST || si->ib->cons->state > SI_ST_EST ||
 	    /* check response buffer changes */
 	    (si->ib->flags & (BF_READ_NULL|BF_READ_ERROR|BF_READ_DONTWAIT)) ||
 	    ((si->ib->flags & BF_READ_ACTIVITY) && !si->ib->to_forward) ||
