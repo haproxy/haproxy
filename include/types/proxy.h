@@ -299,6 +299,7 @@ struct proxy {
 		struct eb_root used_listener_id;/* list of listener IDs in use */
 		struct eb_root used_server_id;	/* list of server IDs in use */
 	} conf;					/* config information */
+	void *parent;				/* parent of the proxy when applicable */
 };
 
 struct switching_rule {
