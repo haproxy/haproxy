@@ -4296,7 +4296,14 @@ server <name> <address>[:port] [param*]
 
     <address> is the IPv4 address of the server. Alternatively, a resolvable
               hostname is supported, but this name will be resolved during
-              start-up.
+              start-up. Address "0.0.0.0" or "*" has a special meaning. It
+              indicates that the connection will be forwarded to the same IP
+              address as the one from the client connection. This is useful in
+              transparent proxy architectures where the client's connection is
+              intercepted and haproxy must forward to the original destination
+              address. This is more or less what the "transparent" keyword does
+              except that with a server it's possible to limit concurrency and
+              to report statistics.
 
     <ports>   is an optional port specification. If set, all connections will
               be sent to this port. If unset, the same port the client

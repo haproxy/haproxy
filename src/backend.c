@@ -661,6 +661,17 @@ int assign_server_address(struct session *s)
 
 		s->srv_addr = s->srv->addr;
 
+		if (!s->srv_addr.sin_addr.s_addr) {
+			/* if the server has no address, we use the same address
+			 * the client asked, which is handy for remapping ports
+			 * locally on multiple addresses at once.
+			 */
+			if (!(s->be->options & PR_O_TRANSP) && !(s->flags & SN_FRT_ADDR_SET))
+				get_frt_addr(s);
+
+			s->srv_addr.sin_addr = ((struct sockaddr_in *)&s->frt_addr)->sin_addr;
+		}
+
 		/* if this server remaps proxied ports, we'll use
 		 * the port the client connected to with an offset. */
 		if (s->srv->state & SRV_MAPPORTS) {
