@@ -4257,6 +4257,18 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 					goto return_bad_req;
 				return 1;
 			}
+
+			/* If "option abortonclose" is set on the backend, we
+			 * want to monitor the client's connection and forward
+			 * any shutdown notification to the server, which will
+			 * decide whether to close or to go on processing the
+			 * request.
+			 */
+			if (s->be->options & PR_O_ABRT_CLOSE) {
+				buffer_auto_read(req);
+				buffer_auto_close(req);
+			}
+
 			return 0;
 		}
 	}
