@@ -2968,30 +2968,20 @@ int stats_dump_table_to_buffer(struct session *s, struct buffer *rep)
 				ptr = stktable_data_ptr(&s->data_ctx.table.proxy->table,
 							s->data_ctx.table.entry,
 							dt);
-				switch (dt) {
-					/* all entries using the same type can be folded */
-				case STKTABLE_DT_SERVER_ID:
-				case STKTABLE_DT_GPC0:
-				case STKTABLE_DT_CONN_CNT:
-				case STKTABLE_DT_CONN_CUR:
-				case STKTABLE_DT_SESS_CNT:
-				case STKTABLE_DT_HTTP_REQ_CNT:
-				case STKTABLE_DT_HTTP_ERR_CNT:
-					chunk_printf(&msg, "%u", stktable_data_cast(ptr, server_id));
+				switch (stktable_data_types[dt].std_type) {
+				case STD_T_SINT:
+					chunk_printf(&msg, "%d", stktable_data_cast(ptr, std_t_sint));
 					break;
-				case STKTABLE_DT_CONN_RATE:
-				case STKTABLE_DT_SESS_RATE:
-				case STKTABLE_DT_HTTP_REQ_RATE:
-				case STKTABLE_DT_HTTP_ERR_RATE:
-				case STKTABLE_DT_BYTES_IN_RATE:
-				case STKTABLE_DT_BYTES_OUT_RATE:
+				case STD_T_UINT:
+					chunk_printf(&msg, "%u", stktable_data_cast(ptr, std_t_uint));
+					break;
+				case STD_T_ULL:
+					chunk_printf(&msg, "%lld", stktable_data_cast(ptr, std_t_ull));
+					break;
+				case STD_T_FRQP:
 					chunk_printf(&msg, "%d",
-						     read_freq_ctr_period(&stktable_data_cast(ptr, conn_rate),
+						     read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
 									  s->data_ctx.table.proxy->table.data_arg[dt].u));
-					break;
-				case STKTABLE_DT_BYTES_IN_CNT:
-				case STKTABLE_DT_BYTES_OUT_CNT:
-					chunk_printf(&msg, "%lld", stktable_data_cast(ptr, bytes_in_cnt));
 					break;
 				}
 			}

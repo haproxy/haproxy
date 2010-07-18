@@ -545,21 +545,21 @@ int stktable_compatible_pattern(struct pattern_expr *expr, unsigned long table_t
 
 /* Extra data types processing */
 struct stktable_data_type stktable_data_types[STKTABLE_DATA_TYPES] = {
-	[STKTABLE_DT_SERVER_ID] = { .name = "server_id", .data_length = stktable_data_size(server_id) },
-	[STKTABLE_DT_GPC0]      = { .name = "gpc0",      .data_length = stktable_data_size(gpc0)      },
-	[STKTABLE_DT_CONN_CNT]  = { .name = "conn_cnt",  .data_length = stktable_data_size(conn_cnt)  },
-	[STKTABLE_DT_CONN_RATE] = { .name = "conn_rate", .data_length = stktable_data_size(conn_rate), .arg_type = ARG_T_DELAY  },
-	[STKTABLE_DT_CONN_CUR]  = { .name = "conn_cur",  .data_length = stktable_data_size(conn_cur)  },
-	[STKTABLE_DT_SESS_CNT]  = { .name = "sess_cnt",  .data_length = stktable_data_size(sess_cnt)  },
-	[STKTABLE_DT_SESS_RATE] = { .name = "sess_rate", .data_length = stktable_data_size(sess_rate), .arg_type = ARG_T_DELAY  },
-	[STKTABLE_DT_HTTP_REQ_CNT]  = { .name = "http_req_cnt",  .data_length = stktable_data_size(http_req_cnt)  },
-	[STKTABLE_DT_HTTP_REQ_RATE] = { .name = "http_req_rate", .data_length = stktable_data_size(http_req_rate), .arg_type = ARG_T_DELAY  },
-	[STKTABLE_DT_HTTP_ERR_CNT]  = { .name = "http_err_cnt",  .data_length = stktable_data_size(http_err_cnt)  },
-	[STKTABLE_DT_HTTP_ERR_RATE] = { .name = "http_err_rate", .data_length = stktable_data_size(http_err_rate), .arg_type = ARG_T_DELAY  },
-	[STKTABLE_DT_BYTES_IN_CNT]  = { .name = "bytes_in_cnt",  .data_length = stktable_data_size(bytes_in_cnt)  },
-	[STKTABLE_DT_BYTES_IN_RATE] = { .name = "bytes_in_rate", .data_length = stktable_data_size(bytes_in_rate), .arg_type = ARG_T_DELAY },
-	[STKTABLE_DT_BYTES_OUT_CNT] = { .name = "bytes_out_cnt", .data_length = stktable_data_size(bytes_out_cnt) },
-	[STKTABLE_DT_BYTES_OUT_RATE]= { .name = "bytes_out_rate",.data_length = stktable_data_size(bytes_out_rate), .arg_type = ARG_T_DELAY },
+	[STKTABLE_DT_SERVER_ID]     = { .name = "server_id",      .std_type = STD_T_SINT  },
+	[STKTABLE_DT_GPC0]          = { .name = "gpc0",           .std_type = STD_T_UINT  },
+	[STKTABLE_DT_CONN_CNT]      = { .name = "conn_cnt",       .std_type = STD_T_UINT  },
+	[STKTABLE_DT_CONN_RATE]     = { .name = "conn_rate",      .std_type = STD_T_FRQP, .arg_type = ARG_T_DELAY  },
+	[STKTABLE_DT_CONN_CUR]      = { .name = "conn_cur",       .std_type = STD_T_UINT  },
+	[STKTABLE_DT_SESS_CNT]      = { .name = "sess_cnt",       .std_type = STD_T_UINT  },
+	[STKTABLE_DT_SESS_RATE]     = { .name = "sess_rate",      .std_type = STD_T_FRQP, .arg_type = ARG_T_DELAY  },
+	[STKTABLE_DT_HTTP_REQ_CNT]  = { .name = "http_req_cnt",   .std_type = STD_T_UINT  },
+	[STKTABLE_DT_HTTP_REQ_RATE] = { .name = "http_req_rate",  .std_type = STD_T_FRQP, .arg_type = ARG_T_DELAY  },
+	[STKTABLE_DT_HTTP_ERR_CNT]  = { .name = "http_err_cnt",   .std_type = STD_T_UINT  },
+	[STKTABLE_DT_HTTP_ERR_RATE] = { .name = "http_err_rate",  .std_type = STD_T_FRQP, .arg_type = ARG_T_DELAY  },
+	[STKTABLE_DT_BYTES_IN_CNT]  = { .name = "bytes_in_cnt",   .std_type = STD_T_ULL   },
+	[STKTABLE_DT_BYTES_IN_RATE] = { .name = "bytes_in_rate",  .std_type = STD_T_FRQP, .arg_type = ARG_T_DELAY },
+	[STKTABLE_DT_BYTES_OUT_CNT] = { .name = "bytes_out_cnt",  .std_type = STD_T_ULL   },
+	[STKTABLE_DT_BYTES_OUT_RATE]= { .name = "bytes_out_rate", .std_type = STD_T_FRQP, .arg_type = ARG_T_DELAY },
 };
 
 /*

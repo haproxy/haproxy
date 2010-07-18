@@ -50,6 +50,21 @@ int stktable_compatible_pattern(struct pattern_expr *expr, unsigned long table_t
 int stktable_get_data_type(char *name);
 struct proxy *find_stktable(const char *name);
 
+/* return allocation size for standard data type <type> */
+static inline int stktable_type_size(int type)
+{
+	switch(type) {
+	case STD_T_SINT:
+	case STD_T_UINT:
+		return sizeof(int);
+	case STD_T_ULL:
+		return sizeof(unsigned long long);
+	case STD_T_FRQP:
+		return sizeof(struct freq_ctr_period);
+	}
+	return 0;
+}
+
 /* reserve some space for data type <type>, and associate argument at <sa> if
  * not NULL. Returns PE_NONE (0) if OK or an error code among :
  *   - PE_ENUM_OOR if <type> does not exist
@@ -85,7 +100,7 @@ static inline int stktable_alloc_data_type(struct stktable *t, int type, const c
 		break;
 	}
 
-	t->data_size      += stktable_data_types[type].data_length;
+	t->data_size      += stktable_type_size(stktable_data_types[type].std_type);
 	t->data_ofs[type]  = -t->data_size;
 	return PE_NONE;
 }

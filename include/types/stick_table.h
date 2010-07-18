@@ -60,6 +60,14 @@ enum {
 	STKTABLE_DATA_TYPES       /* Number of data types, must always be last */
 };
 
+/* The equivalent standard types of the stored data */
+enum {
+	STD_T_SINT = 0,           /* data is of type signed int */
+	STD_T_UINT,               /* data is of type unsigned int */
+	STD_T_ULL,                /* data is of type unsigned long long */
+	STD_T_FRQP,               /* data is of type freq_ctr_period */
+};
+
 /* The types of optional arguments to stored data */
 enum {
 	ARG_T_NONE = 0,           /* data type takes no argument (default) */
@@ -69,6 +77,13 @@ enum {
 
 /* stick_table extra data. This is mainly used for casting or size computation */
 union stktable_data {
+	/* standard types for easy casting */
+	int std_t_sint;
+	unsigned int std_t_uint;
+	unsigned long long std_t_ull;
+	struct freq_ctr_period std_t_frqp;
+
+	/* types of each storable data */
 	int server_id;
 	unsigned int gpc0;
 	unsigned int conn_cnt;
@@ -89,7 +104,7 @@ union stktable_data {
 /* known data types */
 struct stktable_data_type {
 	const char *name; /* name of the data type */
-	int data_length;  /* length of this type, or 0 if variable (eg: string) */
+	int std_type;     /* standard type we can use for this data, STD_T_* */
 	int arg_type;     /* type of optional argument, ARG_T_* */
 };
 
