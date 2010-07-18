@@ -381,8 +381,14 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 		}
 		else if (strcmp(args[1], "table") == 0) {
 			s->data_state = DATA_ST_INIT;
-			if (*args[2])
-				s->data_ctx.table.target = findproxy(args[2], 0);
+			if (*args[2]) {
+				s->data_ctx.table.target = find_stktable(args[2]);
+				if (!s->data_ctx.table.target) {
+					s->data_ctx.cli.msg = "No such table\n";
+					si->st0 = STAT_CLI_PRINT;
+					return 1;
+				}
+			}
 			else
 				s->data_ctx.table.target = NULL;
 			s->data_ctx.table.proxy = NULL;
@@ -450,7 +456,7 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 			unsigned int ip_key;
 
 			if (!*args[2]) {
-				s->data_ctx.cli.msg = "\"table\" argument expected.";
+				s->data_ctx.cli.msg = "\"table\" argument expected\n";
 				si->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -458,19 +464,19 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 			px = find_stktable(args[2]);
 
 			if (!px) {
-				s->data_ctx.cli.msg = "No such table.";
+				s->data_ctx.cli.msg = "No such table\n";
 				si->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
 
 			if (strcmp(args[3], "key") != 0) {
-				s->data_ctx.cli.msg = "\"key\" argument expected.";
+				s->data_ctx.cli.msg = "\"key\" argument expected\n";
 				si->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
 
 			if (!*args[4]) {
-				s->data_ctx.cli.msg = "Key value expected.";
+				s->data_ctx.cli.msg = "Key value expected\n";
 				si->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -480,7 +486,7 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 				static_table_key.key = (void *)&ip_key;
 			}
 			else {
-				s->data_ctx.cli.msg = "Removing keys from non-ip tables is not supported.";
+				s->data_ctx.cli.msg = "Removing keys from non-ip tables is not supported\n";
 				si->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -499,7 +505,7 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 			}
 			else if (ts->ref_cnt) {
 				/* don't delete an entry which is currently referenced */
-				s->data_ctx.cli.msg = "Entry currently in use, cannot remove.";
+				s->data_ctx.cli.msg = "Entry currently in use, cannot remove\n";
 				si->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
