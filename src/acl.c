@@ -694,13 +694,15 @@ int acl_parse_int(const char **text, struct acl_pattern *pattern, int *opaque)
 
 
 	while (!isdigit((unsigned char)*ptr)) {
-		if      (strcmp(ptr, "eq") == 0) *opaque = 0;
-		else if (strcmp(ptr, "gt") == 0) *opaque = 1;
-		else if (strcmp(ptr, "ge") == 0) *opaque = 2;
-		else if (strcmp(ptr, "lt") == 0) *opaque = 3;
-		else if (strcmp(ptr, "le") == 0) *opaque = 4;
-		else
+		switch (get_std_op(ptr)) {
+		case STD_OP_EQ: *opaque = 0; break;
+		case STD_OP_GT: *opaque = 1; break;
+		case STD_OP_GE: *opaque = 2; break;
+		case STD_OP_LT: *opaque = 3; break;
+		case STD_OP_LE: *opaque = 4; break;
+		default:
 			return 0;
+		}
 
 		skip++;
 		ptr = text[skip];
@@ -780,13 +782,15 @@ int acl_parse_dotted_ver(const char **text, struct acl_pattern *pattern, int *op
 
 
 	while (!isdigit((unsigned char)*ptr)) {
-		if      (strcmp(ptr, "eq") == 0) *opaque = 0;
-		else if (strcmp(ptr, "gt") == 0) *opaque = 1;
-		else if (strcmp(ptr, "ge") == 0) *opaque = 2;
-		else if (strcmp(ptr, "lt") == 0) *opaque = 3;
-		else if (strcmp(ptr, "le") == 0) *opaque = 4;
-		else
+		switch (get_std_op(ptr)) {
+		case STD_OP_EQ: *opaque = 0; break;
+		case STD_OP_GT: *opaque = 1; break;
+		case STD_OP_GE: *opaque = 2; break;
+		case STD_OP_LT: *opaque = 3; break;
+		case STD_OP_LE: *opaque = 4; break;
+		default:
 			return 0;
+		}
 
 		skip++;
 		ptr = text[skip];
