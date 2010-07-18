@@ -42,6 +42,15 @@
  * power of 2, and 0 otherwise */
 #define POWEROF2(x) (((x) & ((x)-1)) == 0)
 
+/* operators to compare values. They're ordered that way so that the lowest bit
+ * serves as a negation for the test and contains all tests that are not equal.
+ */
+enum {
+	STD_OP_LE = 0, STD_OP_GT = 1,
+	STD_OP_EQ = 2, STD_OP_NE = 3,
+	STD_OP_GE = 4, STD_OP_LT = 5,
+};
+
 /*
  * copies at most <size-1> chars from <src> to <dst>. Last char is always
  * set to 0, unless <size> is 0. The number of chars copied is returned
@@ -406,5 +415,8 @@ int buf2ip(const char *buf, size_t len, struct in_addr *dst);
  * if ptr is NULL or empty. The string is locally allocated.
  */
 const char *quote_arg(const char *ptr);
+
+/* returns an operator among STD_OP_* for string <str> or < 0 if unknown */
+int get_std_op(const char *str);
 
 #endif /* _COMMON_STANDARD_H */

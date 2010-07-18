@@ -1078,6 +1078,29 @@ const char *quote_arg(const char *ptr)
 	return val;
 }
 
+/* returns an operator among STD_OP_* for string <str> or < 0 if unknown */
+int get_std_op(const char *str)
+{
+	int ret = -1;
+
+	if (*str == 'e' && str[1] == 'q')
+		ret = STD_OP_EQ;
+	else if (*str == 'n' && str[1] == 'e')
+		ret = STD_OP_NE;
+	else if (*str == 'l') {
+		if (str[1] == 'e') ret = STD_OP_LE;
+		else if (str[1] == 't') ret = STD_OP_LT;
+	}
+	else if (*str == 'g') {
+		if (str[1] == 'e') ret = STD_OP_GE;
+		else if (str[1] == 't') ret = STD_OP_GT;
+	}
+
+	if (ret == -1 || str[2] != '\0')
+		return -1;
+	return ret;
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8
