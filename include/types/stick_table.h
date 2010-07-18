@@ -138,7 +138,7 @@ struct stktable {
 	} data_arg[STKTABLE_DATA_TYPES]; /* optional argument of each data type */
 };
 
-struct stktable_data_type stktable_data_types[STKTABLE_DATA_TYPES];
+extern struct stktable_data_type stktable_data_types[STKTABLE_DATA_TYPES];
 
 /* stick table key data */
 union stktable_key_data {
