@@ -391,6 +391,42 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 			}
 			else
 				s->data_ctx.table.target = NULL;
+
+			s->data_ctx.table.data_type = -1;
+			if (s->data_ctx.table.target && strncmp(args[3], "data.", 5) == 0) {
+				/* condition on stored data value */
+				s->data_ctx.table.data_type = stktable_get_data_type(args[3] + 5);
+				if (s->data_ctx.table.data_type < 0) {
+					s->data_ctx.cli.msg = "Unknown data type\n";
+					si->st0 = STAT_CLI_PRINT;
+					return 1;
+				}
+
+				if (!((struct proxy *)s->data_ctx.table.target)->table.data_ofs[s->data_ctx.table.data_type]) {
+					s->data_ctx.cli.msg = "Data type not stored in this table\n";
+					si->st0 = STAT_CLI_PRINT;
+					return 1;
+				}
+
+				s->data_ctx.table.data_op = get_std_op(args[4]);
+				if (s->data_ctx.table.data_op < 0) {
+					s->data_ctx.cli.msg = "Require and operator among \"eq\", \"ne\", \"le\", \"ge\", \"lt\", \"gt\"\n";
+					si->st0 = STAT_CLI_PRINT;
+					return 1;
+				}
+
+				if (!*args[5] || strl2llrc(args[5], strlen(args[5]), &s->data_ctx.table.value) != 0) {
+					s->data_ctx.cli.msg = "Require a valid integer value to compare against\n";
+					si->st0 = STAT_CLI_PRINT;
+					return 1;
+				}
+			}
+			else if (*args[3]) {
+				s->data_ctx.cli.msg = "Optional argument only supports \"data.<store_data_type>\" <operator> <value>\n";
+				si->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
 			s->data_ctx.table.proxy = NULL;
 			s->data_ctx.table.entry = NULL;
 			si->st0 = STAT_CLI_O_TAB; // stats_dump_table_to_buffer
@@ -2943,6 +2979,49 @@ int stats_dump_table_to_buffer(struct session *s, struct buffer *rep)
 			break;
 
 		case DATA_ST_LIST:
+			if (s->data_ctx.table.data_type >= 0) {
+				/* we're filtering on some data contents */
+				void *ptr;
+				long long data;
+
+				dt = s->data_ctx.table.data_type;
+				ptr = stktable_data_ptr(&s->data_ctx.table.proxy->table,
+							s->data_ctx.table.entry,
+							dt);
+
+				data = 0;
+				switch (stktable_data_types[dt].std_type) {
+				case STD_T_SINT:
+					data = stktable_data_cast(ptr, std_t_sint);
+					break;
+				case STD_T_UINT:
+					data = stktable_data_cast(ptr, std_t_uint);
+					break;
+				case STD_T_ULL:
+					data = stktable_data_cast(ptr, std_t_ull);
+					break;
+				case STD_T_FRQP:
+					data = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
+								    s->data_ctx.table.proxy->table.data_arg[dt].u);
+					break;
+				}
+
+				/* skip the entry if the data does not match the test and the value */
+				if ((data < s->data_ctx.table.value &&
+				     (s->data_ctx.table.data_op == STD_OP_EQ ||
+				      s->data_ctx.table.data_op == STD_OP_GT ||
+				      s->data_ctx.table.data_op == STD_OP_GE)) ||
+				    (data == s->data_ctx.table.value &&
+				     (s->data_ctx.table.data_op == STD_OP_NE ||
+				      s->data_ctx.table.data_op == STD_OP_GT ||
+				      s->data_ctx.table.data_op == STD_OP_LT)) ||
+				    (data > s->data_ctx.table.value &&
+				     (s->data_ctx.table.data_op == STD_OP_EQ ||
+				      s->data_ctx.table.data_op == STD_OP_LT ||
+				      s->data_ctx.table.data_op == STD_OP_LE)))
+					goto skip_entry;
+			}
+
 			chunk_printf(&msg, "%p:", s->data_ctx.table.entry);
 
 			if (s->data_ctx.table.proxy->table.type == STKTABLE_TYPE_IP) {
@@ -2996,6 +3075,7 @@ int stats_dump_table_to_buffer(struct session *s, struct buffer *rep)
 			if (buffer_feed_chunk(rep, &msg) >= 0)
 				return 0;
 
+		skip_entry:
 			s->data_ctx.table.entry->ref_cnt--;
 
 			eb = ebmb_next(&s->data_ctx.table.entry->key);

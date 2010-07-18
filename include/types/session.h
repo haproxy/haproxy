@@ -234,6 +234,9 @@ struct session {
 			void *target;		/* table we want to dump, or NULL for all */
 			struct proxy *proxy;	/* table being currently dumped (first if NULL) */
 			struct stksess *entry;	/* last entry we were trying to dump (or first if NULL) */
+			long long value;	/* value to compare against */
+			signed char data_type;	/* type of data to compare, or -1 if none */
+			signed char data_op;	/* operator (STD_OP_*) when data_type set */
 		} table;
 		struct {
 			const char *msg;	/* pointer to a persistent message to be returned in PRINT state */
