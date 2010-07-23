@@ -1601,7 +1601,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 						     read_freq_ctr(&px->fe_req_per_sec),
 						     U2H0(read_freq_ctr(&px->fe_sess_per_sec)),
 						     px->counters.fe_rps_max,
-						     U2H2(px->counters.fe_sps_max),
+						     U2H1(px->counters.fe_sps_max),
 						     LIM2A2(px->fe_sps_lim, "-"));
 				} else {
 					chunk_printf(&msg,
