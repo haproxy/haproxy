@@ -4746,12 +4746,12 @@ stats scope { <name> | "." }
   See also : "stats auth", "stats enable", "stats realm", "stats uri"
 
 
-stats show-desc [ <description> ]
+stats show-desc [ <desc> ]
   Enable reporting of a description on the statistics page.
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
 
-    <name>    is an optional description to be reported. If unspecified, the
+    <desc>    is an optional description to be reported. If unspecified, the
               description from global section is automatically used instead.
 
   This statement is useful for users that offer shared services to their
@@ -5116,11 +5116,115 @@ stick-table type {ip | integer | string [len <length>] } size <size>
                may be used by ACLs in order to control various criteria related
                to the activity of the client matching the stick-table. For each
                item specified here, the size of each entry will be inflated so
-               that the additional data can fit. At the moment, only "conn_cnt"
-               is supported, which can be used to store and retrieve the total
-               number of connections matching the entry since it was created. A
-               "server_id" type is also supported but it's only for internal
-               use for stick and store directives.
+               that the additional data can fit. Several data types may be
+               stored with an entry. Multiple data types may be specified after
+               the "store" keyword, as a comma-separated list. Alternatively,
+               it is possible to repeat the "store" keyword followed by one or
+               several data types. Except for the "server_id" type which is
+               automatically detected and enabled, all data types must be
+               explicitly declared to be stored. If an ACL references a data
+               type which is not stored, the ACL will simply not match. Some
+               data types require an argument which must be passed just after
+               the type between parenthesis. See below for the supported data
+               types and their arguments.
+
+  The data types that can be stored with an entry are the following :
+    - server_id : this is an integer which holds the numeric ID of the server a
+      request was assigned to. It is used by the "stick match", "stick store",
+      and "stick on" rules. It is automatically enabled when referenced.
+
+    - gpc0 : first General Purpose Counter. It is a positive 32-bit integer
+      integer which may be used for anything. Most of the time it will be used
+      to put a special tag on some entries, for instance to note that a
+      specific behaviour was detected and must be known for future matches.
+
+    - conn_cnt : Connection Count. It is a positive 32-bit integer which counts
+      the absolute number of connections received from clients which matched
+      this entry. It does not mean the connections were accepted, just that
+      they were received.
+
+    - conn_cur : Current Connections. It is a positive 32-bit integer which
+      stores the concurrent connection counts for the entry. It is incremented
+      once an incoming connection matches the entry, and decremented once the
+      connection leaves. That way it is possible to know at any time the exact
+      number of concurrent connections for an entry.
+
+    - conn_rate(<period>) : frequency counter (takes 12 bytes). It takes an
+      integer parameter <period> which indicates in milliseconds the length
+      of the period over which the average is measured. It reports the average
+      incoming connection rate over that period, in connections per period. The
+      result is an integer which can be matched using ACLs.
+
+    - sess_cnt : Session Count. It is a positive 32-bit integer which counts
+      the absolute number of sessions received from clients which matched this
+      entry. A session is a connection that was accepted by the layer 4 rules.
+
+    - sess_rate(<period>) : frequency counter (takes 12 bytes). It takes an
+      integer parameter <period> which indicates in milliseconds the length
+      of the period over which the average is measured. It reports the average
+      incoming session rate over that period, in sessions per period. The
+      result is an integer which can be matched using ACLs.
+
+    - http_req_cnt : HTTP request Count. It is a positive 32-bit integer which
+      counts the absolute number of HTTP requests received from clients which
+      matched this entry. It does not matter whether they are valid requests or
+      not. Note that this is different from sessions when keep-alive is used on
+      the client side.
+
+    - http_req_rate(<period>) : frequency counter (takes 12 bytes). It takes an
+      integer parameter <period> which indicates in milliseconds the length
+      of the period over which the average is measured. It reports the average
+      HTTP request rate over that period, in requests per period. The result is
+      an integer which can be matched using ACLs. It does not matter whether
+      they are valid requests or not. Note that this is different from sessions
+      when keep-alive is used on the client side.
+
+    - http_err_cnt : HTTP Error Count. It is a positive 32-bit integer which
+      counts the absolute number of HTTP requests errors induced by clients
+      which matched this entry. Errors are counted on invalid and truncated
+      requests, as well as on denied or tarpitted requests, and on failed
+      authentications. If the server responds with 4xx, then the request is
+      also counted as an error since it's an error triggered by the client
+      (eg: vulnerability scan).
+
+    - http_err_rate(<period>) : frequency counter (takes 12 bytes). It takes an
+      integer parameter <period> which indicates in milliseconds the length
+      of the period over which the average is measured. It reports the average
+      HTTP request error rate over that period, in requests per period (see
+      http_err_cnt above for what is accounted as an error). The result is an
+      integer which can be matched using ACLs.
+
+    - bytes_in_cnt : client to server byte count. It is a positive 64-bit
+      integer which counts the cumulated amount of bytes received from clients
+      which matched this entry. Headers are included in the count. This may be
+      used to limit abuse of upload features on photo or video servers.
+
+    - bytes_in_rate(<period>) : frequency counter (takes 12 bytes). It takes an
+      integer parameter <period> which indicates in milliseconds the length
+      of the period over which the average is measured. It reports the average
+      incoming bytes rate over that period, in bytes per period. It may be used
+      to detect users which upload too much and too fast. Warning: with large
+      uploads, it is possible that the amount of uploaded data will be counted
+      once upon termination, thus causing spikes in the average transfer speed
+      instead of having a smooth one. This may partially be smoothed with
+      "option contstats" though this is not perfect yet. Use of byte_in_cnt is
+      recommended for better fairness.
+
+    - bytes_out_cnt : server to client byte count. It is a positive 64-bit
+      integer which counts the cumulated amount of bytes sent to clients which
+      matched this entry. Headers are included in the count. This may be used
+      to limit abuse of bots sucking the whole site.
+
+    - bytes_out_rate(<period>) : frequency counter (takes 12 bytes). It takes
+      an integer parameter <period> which indicates in milliseconds the length
+      of the period over which the average is measured. It reports the average
+      outgoing bytes rate over that period, in bytes per period. It may be used
+      to detect users which download too much and too fast. Warning: with large
+      transfers, it is possible that the amount of transferred data will be
+      counted once upon termination, thus causing spikes in the average
+      transfer speed instead of having a smooth one. This may partially be
+      smoothed with "option contstats" though this is not perfect yet. Use of
+      byte_out_cnt is recommended for better fairness.
 
   There is only one stick-table per proxy. At the moment of writing this doc,
   it does not seem useful to have multiple tables per proxy. If this happens
@@ -5132,8 +5236,19 @@ stick-table type {ip | integer | string [len <length>] } size <size>
   lost upon restart. In general it can be good as a complement but not always
   as an exclusive stickiness.
 
-  See also : "stick match", "stick on", "stick store-request", and section 2.2
-             about time format.
+  Last, memory requirements may be important when storing many data types.
+  Indeed, storing all indicators above at once in each entry requires 116 bytes
+  per entry, or 116 MB for a 1-million entries table. This is definitely not
+  something that can be ignored.
+
+  Example:
+        # Keep track of counters of up to 1 million IP addresses over 5 minutes
+        # and store a general purpose counter and the average connection rate
+        # computed over a sliding window of 30 seconds.
+        stick-table type ip size 1m expire 5m store gpc0,conn_rate(30s)
+
+  See also : "stick match", "stick on", "stick store-request", section 2.2
+             about time format and section 7 avoud ACLs.
 
 
 tcp-request accept [{if | unless} <condition>]
@@ -5319,6 +5434,65 @@ tcp-request reject [{if | unless} <condition>]
   See section 7 about ACL usage.
 
   See also : "tcp-request accept" and "tcp-request content"
+
+
+tcp-request track-counters <key> [table <table>] [{if | unless} <condition>]
+  Enable tracking of session counters if/unless a layer 4 condition is matched
+  May be used in sections :   defaults | frontend | listen | backend
+                                 no    |    yes   |   yes  |   no
+
+  Arguments :
+    <key>     is the criterion the tracking key will be derived from. At the
+              moment, only "src" is supported. With it, the key will be the
+              connection's source IPv4 address.
+
+    <table>   is an optional table to use instead of the one from the current
+              proxy. All the counters for the matches and updates for the key
+              will then be performed in that table.
+
+  Immediately after a new incoming connection has been accepted, it is possible
+  to enable tracking of some of this session's counters in a table. Doing so
+  serves two purposes :
+    - feed the entry with the session's counters that are relevant to the table
+      being pointed. These counters are then updated as often as possible, and
+      also systematically when the session ends.
+
+    - keep a pointer to the entry in the table in the session to avoid having
+      to perform key lookups when complex ACL rules make use of the entry,
+      especially when the key is expensive to compute (eg: header-based).
+
+  It is possible to evaluate some conditions to decide whether a track-counters
+  statement will apply or not. In this case, only the first matching rule will
+  apply and the other ones will be ignored. We could for instance imagine that
+  some hosts which are references in a white list make use of a different
+  counters table, or do not get accounted for. The tracking is enabled if the
+  condition is true (when used with "if") or false (when used with "unless").
+  There is no specific limit to the number of rules which may be declared.
+
+  It is important to understand that "accept", "reject" and "track-counters"
+  rules are evaluated in their exact declaration order, so that it is possible
+  to build complex rules from them. For instance, the following rule rejects
+  too fast connections without tracking them, to that they get accepted again
+  after some time despite activity, while the second one will still update the
+  counters when rejecting a connection.
+
+  Example:
+        # reject too fast connection without counting them
+        tcp-request reject if { src_conn_rate gt 10 }
+        tcp-request track-counters src
+
+        # reject too fast connection and count them
+        tcp-request track-counters src
+        tcp-request reject if { src_conn_rate gt 10 }
+
+
+  Note that the "if/unless" condition is optional. If no condition is set on
+  the action, it is simply performed unconditionally.
+
+  See section 7 about ACL usage.
+
+  See also : "tcp-request accept", "tcp-request reject", "tcp-request content",
+             and "stick-table".
 
 
 timeout check <timeout>
@@ -6337,23 +6511,135 @@ src <ip_address>
   certain resources such as statistics. Note that it is the TCP-level source
   address which is used, and not the address of a client behind a proxy.
 
-src_count <integer>
-src_count(backend) <integer>
-  Returns the number of occurrences of the source IPv4 address in the current
-  backend's stick-table or in the designated stick-table. If the address is not
-  found, zero is returned.
+src_bytes_in_rate <integer>
+src_bytes_in_rate(table) <integer>
+  Returns the average bytes rate from the connection's source IPv4 address in
+  the current proxy's stick-table or in the designated stick-table, measured in
+  amount of bytes over the period configured in the table. If the address is
+  not found, zero is returned. See also trk_bytes_in_rate.
+
+src_bytes_out_rate <integer>
+src_bytes_out_rate(table) <integer>
+  Returns the average bytes rate to the connection's source IPv4 address in the
+  current proxy's stick-table or in the designated stick-table, measured in
+  amount of bytes over the period configured in the table. If the address is
+  not found, zero is returned. See also trk_bytes_out_rate.
+
+src_conn_cnt <integer>
+src_conn_cnt(table) <integer>
+  Returns the cumulated number of connections initiated from the current
+  connection's source IPv4 address in the current proxy's stick-table or in
+  the designated stick-table. If the address is not found, zero is returned.
+  See also trk_conn_cnt.
+
+src_conn_cur <integer>
+src_conn_cur(table) <integer>
+  Returns the current amount of concurrent connections initiated from the
+  current connection's source IPv4 address in the current proxy's stick-table
+  or in the designated stick-table. If the address is not found, zero is
+  returned. See also trk_conn_cur.
+
+src_conn_rate <integer>
+src_conn_rate(table) <integer>
+  Returns the average connection rate from the connection's source IPv4 address
+  in the current proxy's stick-table or in the designated stick-table, measured
+  in amount of connections over the period configured in the table. If the
+  address is not found, zero is returned. See also trk_conn_rate.
+
+src_get_gpc0 <integer>
+src_get_gpc0(table) <integer>
+  Returns the value of the first General Purpose Counter associated to the
+  connection's source IPv4 address in the current proxy's stick-table or in
+  the designated stick-table. If the address is not found, zero is returned.
+  See also trk_get_gpc0 and src_inc_gpc0.
+
+src_http_err_cnt <integer>
+src_http_err_cnt(table) <integer>
+  Returns the cumulated number of HTTP errors from the current connection's
+  source IPv4 address in the current proxy's stick-table or in the designated
+  stick-table. This includes the both request errors and 4xx error responses.
+  If the address is not found, zero is returned. See also trk_http_err_cnt.
+
+src_http_err_rate <integer>
+src_http_err_rate(table) <integer>
+  Returns the average rate of HTTP errors from the current connection's source
+  IPv4 address in the current proxy's stick-table or in the designated stick-
+  table, measured in amount of errors over the period configured in the table.
+  This includes the both request errors and 4xx error responses. If the address
+  is not found, zero is returned. See also trk_http_err_rate.
+
+src_http_req_cnt <integer>
+src_http_req_cnt(table) <integer>
+  Returns the cumulated number of HTTP requests from the current connection's
+  source IPv4 address in the current proxy's stick-table or in the designated
+  stick-table. This includes every started request, valid or not. If the
+  address is not found, zero is returned. See also trk_http_req_cnt.
+
+src_http_req_rate <integer>
+src_http_req_rate(table) <integer>
+  Returns the average rate of HTTP requests from the current connection's
+  source IPv4 address in the current proxy's stick-table or in the designated
+  stick-table, measured in amount of requests over the period configured in the
+  table. This includes every started request, valid or not. If the address is
+  not found, zero is returned. See also trk_http_req_rate.
+
+src_inc_gpc0 <integer>
+src_inc_gpc0(table) <integer>
+  Increments the first General Purpose Counter associated to the connection's
+  source IPv4 address in the current proxy's stick-table or in the designated
+  stick-table, and returns its value. If the address is not found, an entry is
+  created and 1 is returned. The test can also be used alone and always returns
+  true. This is typically used as a second ACL in an expression in order to
+  mark a connection when a first ACL was verified :
+
+        acl abuse src_http_req_rate gt 10
+        acl kill  src_inc_gpc0
+        tcp-request reject if abuse kill
+
+src_kbytes_in <integer>
+src_kbytes_in(table) <integer>
+  Returns the amount of data received from the connection's source IPv4 address
+  in the current proxy's stick-table or in the designated stick-table, measured
+  in kilobytes over the period configured in the table. If the address is not
+  found, zero is returned. The test is currently performed on 32-bit integers,
+  which limits values to 4 terabytes. See also trk_kbytes_in.
+
+src_kbytes_out <integer>
+src_kbytes_out(table) <integer>
+  Returns the amount of data sent to the connection's source IPv4 address in
+  the current proxy's stick-table or in the designated stick-table, measured
+  in kilobytes over the period configured in the table. If the address is not
+  found, zero is returned. The test is currently performed on 32-bit integers,
+  which limits values to 4 terabytes. See also trk_kbytes_out.
 
 src_port <integer>
   Applies to the client's TCP source port. This has a very limited usage.
 
-src_update_count <integer>
-src_update_count(backend) <integer>
+src_sess_cnt <integer>
+src_sess_cnt(table) <integer>
+  Returns the cumulated number of connections initiated from the current
+  connection's source IPv4 address in the current proxy's stick-table or in the
+  designated stick-table, that were transformed into sessions, which means that
+  they were accepted by "tcp-request" rules. If the address is not found, zero
+  is returned. See also trk_sess_cnt.
+
+src_sess_rate <integer>
+src_sess_rate(table) <integer>
+  Returns the average session rate from the connection's source IPv4 address in
+  the current proxy's stick-table or in the designated stick-table, measured in
+  amount of sessions over the period configured in the table. A session is a
+  connection that got past the early "tcp-request" rules. If the address is not
+  found, zero is returned. See also trk_sess_rate.
+
+src_updt_conn_cnt <integer>
+src_updt_conn_cnt(table) <integer>
   Creates or updates the entry associated to the source IPv4 address in the
-  current backend's stick-table or in the designated stick-table. This table
-  must be configured to store the "conn_cum" data type, otherwise the match
+  current proxy's stick-table or in the designated stick-table. This table
+  must be configured to store the "conn_cnt" data type, otherwise the match
   will be ignored. The current count is incremented by one, and the expiration
   timer refreshed. The updated count is returned, so this match can't return
   zero. This is used to reject service abusers based on their source address.
+  Note: it is recommended to use the more complete "track-counters" instead.
 
   Example :
         # This frontend limits incoming SSH connections to 3 per 10 second for
@@ -6363,7 +6649,7 @@ src_update_count(backend) <integer>
             bind :22
             mode tcp
             maxconn 100
-            stick-table type ip size 20 expire 10s store conn_cum
+            stick-table type ip size 20 expire 10s store conn_cnt
             tcp-request content reject if { src_update_count gt 3 }
             server local 127.0.0.1:22
 
@@ -6377,6 +6663,91 @@ srv_is_up(<backend>/<server>)
   Another possible use which is more of a hack consists in using dummy servers
   as boolean variables that can be enabled or disabled from the CLI, so that
   rules depending on those ACLs can be tweaked in realtime.
+
+trk_bytes_in_rate
+  Returns the average client-to-server bytes rate from the currently tracked
+  counters, measured in amount of bytes over the period configured in the
+  table. See also src_bytes_in_rate.
+
+trk_bytes_out_rate
+  Returns the average server-to-client bytes rate from the currently tracked
+  counters, measured in amount of bytes over the period configured in the
+  table. See also src_bytes_out_rate.
+
+trk_conn_cnt
+  Returns the cumulated number of incoming connections from currently tracked
+  counters. See also src_conn_cnt.
+
+trk_conn_cur
+  Returns the current amount of concurrent connections tracking the same
+  tracked counters. This number is automatically incremented when tracking
+  begins and decremented when tracking stops. See also src_conn_cur.
+
+trk_conn_rate
+  Returns the average connection rate from the currently tracked counters,
+  measured in amount of connections over the period configured in the table.
+  See also src_conn_rate.
+
+trk_get_gpc0
+  Returns the value of the first General Purpose Counter associated to the
+  currently tracked counters. See also src_get_gpc0 and trk_inc_gpc0.
+
+trk_http_err_cnt
+  Returns the cumulated number of HTTP errors from the currently tracked
+  counters. This includes the both request errors and 4xx error responses.
+  See also src_http_err_cnt.
+
+trk_http_err_rate
+  Returns the average rate of HTTP errors from the currently tracked counters,
+  measured in amount of errors over the period configured in the table. This
+  includes the both request errors and 4xx error responses. See also
+  src_http_err_rate.
+
+trk_http_req_cnt
+  Returns the cumulated number of HTTP requests from the currently tracked
+  counters. This includes every started request, valid or not. See also
+  src_http_req_cnt.
+
+trk_http_req_rate
+  Returns the average rate of HTTP requests from the currently tracked
+  counters, measured in amount of requests over the period configured in
+  the table. This includes every started request, valid or not. See also
+  src_http_req_rate.
+
+trk_inc_gpc0
+  Increments the first General Purpose Counter associated to the currently
+  tracked counters, and returns its value. Before the first invocation, the
+  stored value is zero, so first invocation will increase it to 1 and will
+  return 1. The test can also be used alone and always returns true. This is
+  typically used as a second ACL in an expression in order to mark a connection
+  when a first ACL was verified :
+
+        acl abuse trk_http_req_rate gt 10
+        acl kill  trk_inc_gpc0
+        tcp-request reject if abuse kill
+
+trk_kbytes_in
+  Returns the amount of client-to-server data from the currently tracked
+  counters, measured in kilobytes over the period configured in the table. The
+  test is currently performed on 32-bit integers, which limits values to 4
+  terabytes. See also src_kbytes_in.
+
+trk_kbytes_out
+  Returns the amount of server-to-client data from the currently tracked
+  counters, measured in kilobytes over the period configured in the table. The
+  test is currently performed on 32-bit integers, which limits values to 4
+  terabytes. See also src_kbytes_out.
+
+trk_sess_cnt
+  Returns the cumulated number of incoming connections that were transformed
+  into sessions, which means that they were accepted by "tcp-request" rules,
+  from the currently tracked counters. See also src_sess_cnt.
+
+trk_sess_rate
+  Returns the average session rate from the currently tracked counters,
+  measured in amount of sessions over the period configured in the table. A
+  session is a connection that got past the early "tcp-request" rules. See
+  also src_sess_rate.
 
 
 7.5.2. Matching contents at Layer 4
