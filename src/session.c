@@ -1104,6 +1104,8 @@ struct task *process_session(struct task *t)
 {
 	struct session *s = t->context;
 	unsigned int rqf_last, rpf_last;
+	unsigned int rq_prod_last, rq_cons_last;
+	unsigned int rp_cons_last, rp_prod_last;
 	unsigned int req_ana_back;
 
 	//DPRINTF(stderr, "%s:%d: cs=%d ss=%d(%d) rqf=0x%08x rpf=0x%08x\n", __FUNCTION__, __LINE__,
@@ -1219,7 +1221,12 @@ struct task *process_session(struct task *t)
 		 */
 	}
 
-resync_stream_interface:
+	rq_prod_last = s->si[0].state;
+	rq_cons_last = s->si[1].state;
+	rp_cons_last = s->si[0].state;
+	rp_prod_last = s->si[1].state;
+
+ resync_stream_interface:
 	/* Check for connection closure */
 
 	DPRINTF(stderr,
@@ -1262,7 +1269,9 @@ resync_stream_interface:
  resync_request:
 	/* Analyse request */
 	if ((s->req->flags & BF_MASK_ANALYSER) ||
-	    (s->req->flags ^ rqf_last) & BF_MASK_STATIC) {
+	    ((s->req->flags ^ rqf_last) & BF_MASK_STATIC) ||
+	    s->si[0].state != rq_prod_last ||
+	    s->si[1].state != rq_cons_last) {
 		unsigned int flags = s->req->flags;
 
 		if (s->req->prod->state >= SI_ST_EST) {
@@ -1387,10 +1396,12 @@ resync_stream_interface:
 			}
 		}
 
-		if ((s->req->flags ^ flags) & BF_MASK_STATIC) {
-			rqf_last = s->req->flags;
+		rq_prod_last = s->si[0].state;
+		rq_cons_last = s->si[1].state;
+		rqf_last = s->req->flags;
+
+		if ((s->req->flags ^ flags) & BF_MASK_STATIC)
 			goto resync_request;
-		}
 	}
 
 	/* we'll monitor the request analysers while parsing the response,
@@ -1419,7 +1430,9 @@ resync_stream_interface:
 		}
 	}
 	else if ((s->rep->flags & BF_MASK_ANALYSER) ||
-		 (s->rep->flags ^ rpf_last) & BF_MASK_STATIC) {
+		 (s->rep->flags ^ rpf_last) & BF_MASK_STATIC ||
+		 s->si[0].state != rp_cons_last ||
+		 s->si[1].state != rp_prod_last) {
 		unsigned int flags = s->rep->flags;
 
 		if (s->rep->prod->state >= SI_ST_EST) {
@@ -1478,10 +1491,12 @@ resync_stream_interface:
 			}
 		}
 
-		if ((s->rep->flags ^ flags) & BF_MASK_STATIC) {
-			rpf_last = s->rep->flags;
+		rp_cons_last = s->si[0].state;
+		rp_prod_last = s->si[1].state;
+		rpf_last = s->rep->flags;
+
+		if ((s->rep->flags ^ flags) & BF_MASK_STATIC)
 			goto resync_response;
-		}
 	}
 
 	/* maybe someone has added some request analysers, so we must check and loop */
@@ -1681,7 +1696,7 @@ resync_stream_interface:
 	if (s->req->prod->state == SI_ST_DIS || s->req->cons->state == SI_ST_DIS)
 		goto resync_stream_interface;
 
-	/* otherwise wewant to check if we need to resync the req buffer or not */
+	/* otherwise we want to check if we need to resync the req buffer or not */
 	if ((s->req->flags ^ rqf_last) & BF_MASK_STATIC)
 		goto resync_request;
 
