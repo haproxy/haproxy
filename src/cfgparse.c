@@ -4990,7 +4990,7 @@ int check_config_validity()
 		list_for_each_entry(trule, &curproxy->tcp_req.l4_rules, list) {
 			struct proxy *target;
 
-			if (trule->action != TCP_ACT_TRK_CTR)
+			if (trule->action != TCP_ACT_TRK_FE_CTR && trule->action != TCP_ACT_TRK_BE_CTR)
 				continue;
 
 			if (trule->act_prm.trk_ctr.table.n)

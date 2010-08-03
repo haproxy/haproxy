@@ -3704,6 +3704,7 @@ void http_end_txn_clean_session(struct session *s)
 
 	s->logs.t_close = tv_ms_elapsed(&s->logs.tv_accept, &now);
 	session_process_counters(s);
+	session_stop_backend_counters(s);
 
 	if (s->txn.status) {
 		int n;

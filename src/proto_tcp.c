@@ -705,7 +705,7 @@ int tcp_inspect_request(struct session *s, struct buffer *req, int an_bit)
 int tcp_exec_req_rules(struct session *s)
 {
 	struct tcp_rule *rule;
-	struct stksess *ts = s->tracked_counters;
+	struct stksess *ts;
 	struct stktable *t = NULL;
 	int result = 1;
 	int ret;
@@ -734,8 +734,8 @@ int tcp_exec_req_rules(struct session *s)
 				result = 0;
 				break;
 			}
-			else if (rule->action == TCP_ACT_TRK_CTR) {
-				if (!s->tracked_counters) {
+			else if (rule->action == TCP_ACT_TRK_FE_CTR) {
+				if (!s->fe_tracked_counters) {
 					/* only the first valid track-counters directive applies.
 					 * Also, note that right now we can only track SRC so we
 					 * don't check how to get the key, but later we may need
@@ -744,7 +744,20 @@ int tcp_exec_req_rules(struct session *s)
 					t = rule->act_prm.trk_ctr.table.t;
 					ts = stktable_get_entry(t, tcpv4_src_to_stktable_key(s));
 					if (ts)
-						session_track_counters(s, t, ts);
+						session_track_fe_counters(s, t, ts);
+				}
+			}
+			else if (rule->action == TCP_ACT_TRK_BE_CTR) {
+				if (!s->be_tracked_counters) {
+					/* only the first valid track-counters directive applies.
+					 * Also, note that right now we can only track SRC so we
+					 * don't check how to get the key, but later we may need
+					 * to consider rule->act_prm->trk_ctr.type.
+					 */
+					t = rule->act_prm.trk_ctr.table.t;
+					ts = stktable_get_entry(t, tcpv4_src_to_stktable_key(s));
+					if (ts)
+						session_track_be_counters(s, t, ts);
 				}
 			}
 			else {
@@ -868,7 +881,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 		arg++;
 		rule->action = TCP_ACT_REJECT;
 	}
-	else if (strcmp(args[1], "track-counters") == 0) {
+	else if (strcmp(args[1], "track-fe-counters") == 0) {
 		int ret;
 
 		arg++;
@@ -878,11 +891,23 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 		if (ret < 0) /* nb: warnings are not handled yet */
 			goto error;
 
-		rule->action = TCP_ACT_TRK_CTR;
+		rule->action = TCP_ACT_TRK_FE_CTR;
+	}
+	else if (strcmp(args[1], "track-be-counters") == 0) {
+		int ret;
+
+		arg++;
+		ret = parse_track_counters(args, &arg, section_type, curpx,
+					   &rule->act_prm.trk_ctr, defpx, err, errlen);
+
+		if (ret < 0) /* nb: warnings are not handled yet */
+			goto error;
+
+		rule->action = TCP_ACT_TRK_BE_CTR;
 	}
 	else {
 		retlen = snprintf(err, errlen,
-				  "'%s' expects 'inspect-delay', 'content', 'accept', 'reject', or 'track-counters' in %s '%s' (was '%s')",
+				  "'%s' expects 'inspect-delay', 'content', 'accept', 'reject',  'track-fe-counters' or 'track-be-counters' in %s '%s' (was '%s')",
 				  args[0], proxy_type_str(curpx), curpx->id, args[1]);
 		goto error;
 	}

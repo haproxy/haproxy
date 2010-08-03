@@ -53,43 +53,95 @@ int parse_track_counters(char **args, int *arg,
  */
 static inline void session_store_counters(struct session *s)
 {
-	if (s->tracked_counters) {
-		void *ptr = stktable_data_ptr(s->tracked_table, s->tracked_counters, STKTABLE_DT_CONN_CUR);
+	void *ptr;
+
+	if (s->be_tracked_counters) {
+		ptr = stktable_data_ptr(s->be_tracked_table, s->be_tracked_counters, STKTABLE_DT_CONN_CUR);
 		if (ptr)
 			stktable_data_cast(ptr, conn_cur)--;
+		s->be_tracked_counters->ref_cnt--;
+		s->be_tracked_counters = NULL;
 	}
-	s->tracked_counters->ref_cnt--;
-	s->tracked_counters = NULL;
+
+	if (s->fe_tracked_counters) {
+		ptr = stktable_data_ptr(s->fe_tracked_table, s->fe_tracked_counters, STKTABLE_DT_CONN_CUR);
+		if (ptr)
+			stktable_data_cast(ptr, conn_cur)--;
+		s->fe_tracked_counters->ref_cnt--;
+		s->fe_tracked_counters = NULL;
+	}
 }
 
-/* Enable tracking of session counters on stksess <ts>. The caller is
- * responsible for ensuring that <t> and <ts> are valid pointers and that no
- * previous tracked_counters was assigned to the session.
+/* Remove the refcount from the session counters tracked only by the backend if
+ * any, and clear the pointer to ensure this is only performed once. The caller
+ * is responsible for ensuring that the pointer is valid first.
  */
-static inline void session_track_counters(struct session *s, struct stktable *t, struct stksess *ts)
+static inline void session_stop_backend_counters(struct session *s)
 {
+	void *ptr;
+
+	if (!s->be_tracked_counters)
+		return;
+
+	ptr = stktable_data_ptr(s->be_tracked_table, s->be_tracked_counters, STKTABLE_DT_CONN_CUR);
+	if (ptr)
+		stktable_data_cast(ptr, conn_cur)--;
+	s->be_tracked_counters->ref_cnt--;
+	s->be_tracked_counters = NULL;
+}
+
+/* Increase total and concurrent connection count for stick entry <ts> of table
+ * <t>. The caller is responsible for ensuring that <t> and <ts> are valid
+ * pointers, and for calling this only once per connection.
+ */
+static inline void session_start_counters(struct stktable *t, struct stksess *ts)
+{
+	void *ptr;
+
+	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_CONN_CUR);
+	if (ptr)
+		stktable_data_cast(ptr, conn_cur)++;
+
+	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_CONN_CNT);
+	if (ptr)
+		stktable_data_cast(ptr, conn_cnt)++;
+
+	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_CONN_RATE);
+	if (ptr)
+		update_freq_ctr_period(&stktable_data_cast(ptr, conn_rate),
+				       t->data_arg[STKTABLE_DT_CONN_RATE].u, 1);
+	if (tick_isset(t->expire))
+		ts->expire = tick_add(now_ms, MS_TO_TICKS(t->expire));
+}
+
+/* Enable frontend tracking of session counters on stksess <ts>. The caller is
+ * responsible for ensuring that <t> and <ts> are valid pointers. Some controls
+ * are performed to ensure the state can still change.
+ */
+static inline void session_track_fe_counters(struct session *s, struct stktable *t, struct stksess *ts)
+{
+	if (s->fe_tracked_counters)
+		return;
+
 	ts->ref_cnt++;
-	s->tracked_table = t;
-	s->tracked_counters = ts;
-	if (ts) {
-		void *ptr;
+	s->fe_tracked_table = t;
+	s->fe_tracked_counters = ts;
+	session_start_counters(t, ts);
+}
 
-		ptr = stktable_data_ptr(t, ts, STKTABLE_DT_CONN_CUR);
-		if (ptr)
-			stktable_data_cast(ptr, conn_cur)++;
+/* Enable backend tracking of session counters on stksess <ts>. The caller is
+ * responsible for ensuring that <t> and <ts> are valid pointers. Some controls
+ * are performed to ensure the state can still change.
+ */
+static inline void session_track_be_counters(struct session *s, struct stktable *t, struct stksess *ts)
+{
+	if (s->be_tracked_counters)
+		return;
 
-		ptr = stktable_data_ptr(t, ts, STKTABLE_DT_CONN_CNT);
-		if (ptr)
-			stktable_data_cast(ptr, conn_cnt)++;
-
-		ptr = stktable_data_ptr(t, ts, STKTABLE_DT_CONN_RATE);
-		if (ptr)
-			update_freq_ctr_period(&stktable_data_cast(ptr, conn_rate),
-					       t->data_arg[STKTABLE_DT_CONN_RATE].u, 1);
-
-		if (tick_isset(t->expire))
-			ts->expire = tick_add(now_ms, MS_TO_TICKS(t->expire));
-	}
+	ts->ref_cnt++;
+	s->be_tracked_table = t;
+	s->be_tracked_counters = ts;
+	session_start_counters(t, ts);
 }
 
 static void inline trace_term(struct session *s, unsigned int code)
@@ -101,17 +153,28 @@ static void inline trace_term(struct session *s, unsigned int code)
 /* Increase the number of cumulated HTTP requests in the tracked counters */
 static void inline session_inc_http_req_ctr(struct session *s)
 {
-	if (s->tracked_counters) {
-		void *ptr;
+	void *ptr;
 
-		ptr = stktable_data_ptr(s->tracked_table, s->tracked_counters, STKTABLE_DT_HTTP_REQ_CNT);
+	if (s->be_tracked_counters) {
+		ptr = stktable_data_ptr(s->be_tracked_table, s->be_tracked_counters, STKTABLE_DT_HTTP_REQ_CNT);
 		if (ptr)
 			stktable_data_cast(ptr, http_req_cnt)++;
 
-		ptr = stktable_data_ptr(s->tracked_table, s->tracked_counters, STKTABLE_DT_HTTP_REQ_RATE);
+		ptr = stktable_data_ptr(s->be_tracked_table, s->be_tracked_counters, STKTABLE_DT_HTTP_REQ_RATE);
 		if (ptr)
 			update_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
-					       s->tracked_table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
+					       s->be_tracked_table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
+	}
+
+	if (s->fe_tracked_counters) {
+		ptr = stktable_data_ptr(s->fe_tracked_table, s->fe_tracked_counters, STKTABLE_DT_HTTP_REQ_CNT);
+		if (ptr)
+			stktable_data_cast(ptr, http_req_cnt)++;
+
+		ptr = stktable_data_ptr(s->fe_tracked_table, s->fe_tracked_counters, STKTABLE_DT_HTTP_REQ_RATE);
+		if (ptr)
+			update_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
+					       s->fe_tracked_table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
 	}
 }
 
@@ -123,17 +186,28 @@ static void inline session_inc_http_req_ctr(struct session *s)
  */
 static void inline session_inc_http_err_ctr(struct session *s)
 {
-	if (s->tracked_counters) {
-		void *ptr;
+	void *ptr;
 
-		ptr = stktable_data_ptr(s->tracked_table, s->tracked_counters, STKTABLE_DT_HTTP_ERR_CNT);
+	if (s->be_tracked_counters) {
+		ptr = stktable_data_ptr(s->be_tracked_table, s->be_tracked_counters, STKTABLE_DT_HTTP_ERR_CNT);
 		if (ptr)
 			stktable_data_cast(ptr, http_err_cnt)++;
 
-		ptr = stktable_data_ptr(s->tracked_table, s->tracked_counters, STKTABLE_DT_HTTP_ERR_RATE);
+		ptr = stktable_data_ptr(s->be_tracked_table, s->be_tracked_counters, STKTABLE_DT_HTTP_ERR_RATE);
 		if (ptr)
 			update_freq_ctr_period(&stktable_data_cast(ptr, http_err_rate),
-					       s->tracked_table->data_arg[STKTABLE_DT_HTTP_ERR_RATE].u, 1);
+					       s->be_tracked_table->data_arg[STKTABLE_DT_HTTP_ERR_RATE].u, 1);
+	}
+
+	if (s->fe_tracked_counters) {
+		ptr = stktable_data_ptr(s->fe_tracked_table, s->fe_tracked_counters, STKTABLE_DT_HTTP_ERR_CNT);
+		if (ptr)
+			stktable_data_cast(ptr, http_err_cnt)++;
+
+		ptr = stktable_data_ptr(s->fe_tracked_table, s->fe_tracked_counters, STKTABLE_DT_HTTP_ERR_RATE);
+		if (ptr)
+			update_freq_ctr_period(&stktable_data_cast(ptr, http_err_rate),
+					       s->fe_tracked_table->data_arg[STKTABLE_DT_HTTP_ERR_RATE].u, 1);
 	}
 }
 
