@@ -3773,7 +3773,7 @@ void http_end_txn_clean_session(struct session *s)
 	if (s->rep->lr >= s->rep->data + s->rep->size)
 		s->rep->lr -= s->req->size;
 
-	s->req->analysers |= s->fe->fe_req_ana;
+	s->req->analysers |= s->listener->analysers;
 	s->rep->analysers = 0;
 
 	http_silent_debug(__LINE__, s);
