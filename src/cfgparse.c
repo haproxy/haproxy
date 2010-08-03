@@ -5304,7 +5304,7 @@ out_uri_auth_compat:
 
 			if (curproxy->tcp_req.inspect_delay ||
 			    !LIST_ISEMPTY(&curproxy->tcp_req.inspect_rules))
-				curproxy->fe_req_ana |= AN_REQ_INSPECT;
+				curproxy->fe_req_ana |= AN_REQ_INSPECT_FE;
 
 			if (curproxy->mode == PR_MODE_HTTP) {
 				curproxy->fe_req_ana |= AN_REQ_WAIT_HTTP | AN_REQ_HTTP_PROCESS_FE;
@@ -5316,6 +5316,10 @@ out_uri_auth_compat:
 		}
 
 		if (curproxy->cap & PR_CAP_BE) {
+			if (curproxy->tcp_req.inspect_delay ||
+			    !LIST_ISEMPTY(&curproxy->tcp_req.inspect_rules))
+				curproxy->be_req_ana |= AN_REQ_INSPECT_BE;
+
 			if (curproxy->mode == PR_MODE_HTTP) {
 				curproxy->be_req_ana |= AN_REQ_WAIT_HTTP | AN_REQ_HTTP_INNER | AN_REQ_HTTP_PROCESS_BE;
 				curproxy->be_rsp_ana |= AN_RES_WAIT_HTTP | AN_RES_HTTP_PROCESS_BE;

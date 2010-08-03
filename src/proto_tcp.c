@@ -615,23 +615,9 @@ void tcpv6_add_listener(struct listener *listener)
 /* This function performs the TCP request analysis on the current request. It
  * returns 1 if the processing can continue on next analysers, or zero if it
  * needs more data, encounters an error, or wants to immediately abort the
- * request. It relies on buffers flags, and updates s->req->analysers. Its
- * behaviour is rather simple:
- *  - the analyser should check for errors and timeouts, and react as expected.
- *    It does not have to close anything upon error, the caller will. Note that
- *    the caller also knows how to report errors and timeouts.
- *  - if the analyser does not have enough data, it must return 0 without calling
- *    other ones. It should also probably do a buffer_write_dis() to ensure
- *    that unprocessed data will not be forwarded. But that probably depends on
- *    the protocol.
- *  - if an analyser has enough data, it just has to pass on to the next
- *    analyser without using buffer_write_dis() (enabled by default).
- *  - if an analyser thinks it has no added value anymore staying here, it must
- *    reset its bit from the analysers flags in order not to be called anymore.
- *
- * In the future, analysers should be able to indicate that they want to be
- * called after XXX bytes have been received (or transfered), and the min of
- * all's wishes will be used to ring back (unless a special condition occurs).
+ * request. It relies on buffers flags, and updates s->req->analysers. The
+ * function may be called for frontend rules and backend rules. It only relies
+ * on the backend pointer so this works for both cases.
  */
 int tcp_inspect_request(struct session *s, struct buffer *req, int an_bit)
 {
@@ -657,21 +643,21 @@ int tcp_inspect_request(struct session *s, struct buffer *req, int an_bit)
 	 * - if one rule returns KO, then return KO
 	 */
 
-	if (req->flags & BF_SHUTR || !s->fe->tcp_req.inspect_delay || tick_is_expired(req->analyse_exp, now_ms))
+	if (req->flags & BF_SHUTR || !s->be->tcp_req.inspect_delay || tick_is_expired(req->analyse_exp, now_ms))
 		partial = 0;
 	else
 		partial = ACL_PARTIAL;
 
-	list_for_each_entry(rule, &s->fe->tcp_req.inspect_rules, list) {
+	list_for_each_entry(rule, &s->be->tcp_req.inspect_rules, list) {
 		int ret = ACL_PAT_PASS;
 
 		if (rule->cond) {
-			ret = acl_exec_cond(rule->cond, s->fe, s, &s->txn, ACL_DIR_REQ | partial);
+			ret = acl_exec_cond(rule->cond, s->be, s, &s->txn, ACL_DIR_REQ | partial);
 			if (ret == ACL_PAT_MISS) {
 				buffer_dont_connect(req);
 				/* just set the request timeout once at the beginning of the request */
-				if (!tick_isset(req->analyse_exp) && s->fe->tcp_req.inspect_delay)
-					req->analyse_exp = tick_add_ifset(now_ms, s->fe->tcp_req.inspect_delay);
+				if (!tick_isset(req->analyse_exp) && s->be->tcp_req.inspect_delay)
+					req->analyse_exp = tick_add_ifset(now_ms, s->be->tcp_req.inspect_delay);
 				return 0;
 			}
 
@@ -687,7 +673,7 @@ int tcp_inspect_request(struct session *s, struct buffer *req, int an_bit)
 				buffer_abort(s->rep);
 				req->analysers = 0;
 
-				s->fe->counters.denied_req++;
+				s->be->counters.denied_req++;
 				if (s->listener->counters)
 					s->listener->counters->denied_req++;
 
@@ -775,13 +761,6 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 			snprintf(err, errlen, "%s %s is not allowed in 'defaults' sections",
 				 args[0], args[1]);
 			return -1;
-		}
-
-		if (!(curpx->cap & PR_CAP_FE)) {
-			snprintf(err, errlen, "%s %s will be ignored because %s '%s' has no %s capability",
-				 args[0], args[1], proxy_type_str(curpx), curpx->id,
-				 "frontend");
-			return 1;
 		}
 
 		if (!*args[2] || (ptr = parse_time_err(args[2], &val, TIME_UNIT_MS))) {

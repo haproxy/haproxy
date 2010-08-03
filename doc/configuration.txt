@@ -5171,10 +5171,12 @@ tcp-request accept [{if | unless} <condition>]
 tcp-request content accept [{if | unless} <condition>]
   Accept a connection if/unless a content inspection condition is matched
   May be used in sections :   defaults | frontend | listen | backend
-                                 no    |    yes   |   yes  |   no
+                                 no    |    yes   |   yes  |   yes
 
   During TCP content inspection, the connection is immediately validated if the
   condition is true (when used with "if") or false (when used with "unless").
+  TCP content inspection applies very early when a connection reaches a
+  frontend, then very early when the connection is forwarded to a backend.
   Most of the time during content inspection, a condition will be in an
   uncertain state which is neither true nor false. The evaluation immediately
   stops when such a condition is encountered. It is important to understand
@@ -5197,10 +5199,12 @@ tcp-request content accept [{if | unless} <condition>]
 tcp-request content reject [{if | unless} <condition>]
   Reject a connection if/unless a content inspection condition is matched
   May be used in sections :   defaults | frontend | listen | backend
-                                 no    |    yes   |   yes  |   no
+                                 no    |    yes   |   yes  |   yes
 
   During TCP content inspection, the connection is immediately rejected if the
   condition is true (when used with "if") or false (when used with "unless").
+  TCP content inspection applies very early when a connection reaches a
+  frontend, then very early when the connection is forwarded to a backend.
   Most of the time during content inspection, a condition will be in an
   uncertain state which is neither true nor false. The evaluation immediately
   stops when such a condition is encountered. It is important to understand
@@ -5234,7 +5238,7 @@ tcp-request content reject [{if | unless} <condition>]
 tcp-request inspect-delay <timeout>
   Set the maximum allowed time to wait for data during content inspection
   May be used in sections :   defaults | frontend | listen | backend
-                                 no    |    yes   |   yes  |   no
+                                 no    |    yes   |   yes  |   yes
   Arguments :
     <timeout> is the timeout value specified in milliseconds by default, but
               can be in any other unit if the number is suffixed by the unit,
@@ -5245,6 +5249,11 @@ tcp-request inspect-delay <timeout>
   order to be able to analyze the request contents, we must first withhold
   the data then analyze them. This statement simply enables withholding of
   data for at most the specified amount of time.
+
+  TCP content inspection applies very early when a connection reaches a
+  frontend, then very early when the connection is forwarded to a backend. This
+  means that a connection may experience a first delay in the frontend and a
+  second delay in the backend if both have tcp-request rules.
 
   Note that when performing content inspection, haproxy will evaluate the whole
   rules for every new chunk which gets in, taking into account the fact that
