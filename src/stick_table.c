@@ -43,6 +43,19 @@ void stksess_free(struct stktable *t, struct stksess *ts)
 }
 
 /*
+ * Kill an stksess (only if its ref_cnt is zero).
+ */
+void stksess_kill(struct stktable *t, struct stksess *ts)
+{
+	if (ts->ref_cnt)
+		return;
+
+	eb32_delete(&ts->exp);
+	ebmb_delete(&ts->key);
+	stksess_free(t, ts);
+}
+
+/*
  * Initialize or update the key in the sticky session <ts> present in table <t>
  * from the value present in <key>.
  */

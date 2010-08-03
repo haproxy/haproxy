@@ -2921,8 +2921,10 @@ int stats_dump_table_to_buffer(struct session *s, struct buffer *rep)
 
 	if (unlikely(rep->flags & (BF_WRITE_ERROR|BF_SHUTW))) {
 		/* in case of abort, remove any refcount we might have set on an entry */
-		if (s->data_state == DATA_ST_LIST)
+		if (s->data_state == DATA_ST_LIST) {
 			s->data_ctx.table.entry->ref_cnt--;
+			stksess_kill_if_expired(&s->data_ctx.table.proxy->table, s->data_ctx.table.entry);
+		}
 		return 1;
 	}
 
@@ -3080,11 +3082,14 @@ int stats_dump_table_to_buffer(struct session *s, struct buffer *rep)
 
 			eb = ebmb_next(&s->data_ctx.table.entry->key);
 			if (eb) {
+				struct stksess *old = s->data_ctx.table.entry;
 				s->data_ctx.table.entry = ebmb_entry(eb, struct stksess, key);
+				stksess_kill_if_expired(&s->data_ctx.table.proxy->table, old);
 				s->data_ctx.table.entry->ref_cnt++;
 				break;
 			}
 
+			stksess_kill_if_expired(&s->data_ctx.table.proxy->table, s->data_ctx.table.entry);
 			s->data_ctx.table.proxy = s->data_ctx.table.proxy->next;
 			s->data_state = DATA_ST_INFO;
 			break;

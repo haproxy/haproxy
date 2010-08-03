@@ -24,6 +24,8 @@
 #define _PROTO_STICK_TABLE_H
 
 #include <common/errors.h>
+#include <common/ticks.h>
+#include <common/time.h>
 #include <types/stick_table.h>
 
 #define stktable_data_size(type) (sizeof(((union stktable_data*)0)->type))
@@ -34,6 +36,7 @@ extern struct stktable_key static_table_key;
 struct stksess *stksess_new(struct stktable *t, struct stktable_key *key);
 void stksess_setkey(struct stktable *t, struct stksess *ts, struct stktable_key *key);
 void stksess_free(struct stktable *t, struct stksess *ts);
+void stksess_kill(struct stktable *t, struct stksess *ts);
 
 int stktable_init(struct stktable *t);
 int stktable_parse_type(char **args, int *idx, unsigned long *type, size_t *key_size);
@@ -120,6 +123,13 @@ static inline void *stktable_data_ptr(struct stktable *t, struct stksess *ts, in
 		return NULL;
 
 	return (void *)ts + t->data_ofs[type];
+}
+
+/* kill an entry if it's expired and its ref_cnt is zero */
+static inline void stksess_kill_if_expired(struct stktable *t, struct stksess *ts)
+{
+	if (tick_is_expired(ts->expire, now_ms))
+		stksess_kill(t, ts);
 }
 
 #endif /* _PROTO_STICK_TABLE_H */

@@ -60,6 +60,7 @@ static inline void session_store_counters(struct session *s)
 		if (ptr)
 			stktable_data_cast(ptr, conn_cur)--;
 		s->be_tracked_counters->ref_cnt--;
+		stksess_kill_if_expired(s->be_tracked_table, s->be_tracked_counters);
 		s->be_tracked_counters = NULL;
 	}
 
@@ -68,6 +69,7 @@ static inline void session_store_counters(struct session *s)
 		if (ptr)
 			stktable_data_cast(ptr, conn_cur)--;
 		s->fe_tracked_counters->ref_cnt--;
+		stksess_kill_if_expired(s->fe_tracked_table, s->fe_tracked_counters);
 		s->fe_tracked_counters = NULL;
 	}
 }
@@ -87,6 +89,7 @@ static inline void session_stop_backend_counters(struct session *s)
 	if (ptr)
 		stktable_data_cast(ptr, conn_cur)--;
 	s->be_tracked_counters->ref_cnt--;
+	stksess_kill_if_expired(s->be_tracked_table, s->be_tracked_counters);
 	s->be_tracked_counters = NULL;
 }
 
