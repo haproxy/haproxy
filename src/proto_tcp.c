@@ -799,6 +799,74 @@ int tcp_exec_req_rules(struct session *s)
 	return result;
 }
 
+/* Parse a tcp-request rule. Return a negative value in case of failure */
+static int tcp_parse_request_rule(char **args, int arg, int section_type,
+				  struct proxy *curpx, struct proxy *defpx,
+				  struct tcp_rule *rule, char *err, int errlen)
+{
+	if (curpx == defpx) {
+		snprintf(err, errlen, "%s %s is not allowed in 'defaults' sections",
+			 args[0], args[1]);
+		return -1;
+	}
+
+	if (!strcmp(args[arg], "accept")) {
+		arg++;
+		rule->action = TCP_ACT_ACCEPT;
+	}
+	else if (!strcmp(args[arg], "reject")) {
+		arg++;
+		rule->action = TCP_ACT_REJECT;
+	}
+	else if (strcmp(args[arg], "track-fe-counters") == 0) {
+		int ret;
+
+		arg++;
+		ret = parse_track_counters(args, &arg, section_type, curpx,
+					   &rule->act_prm.trk_ctr, defpx, err, errlen);
+
+		if (ret < 0) /* nb: warnings are not handled yet */
+			return -1;
+
+		rule->action = TCP_ACT_TRK_FE_CTR;
+	}
+	else if (strcmp(args[arg], "track-be-counters") == 0) {
+		int ret;
+
+		arg++;
+		ret = parse_track_counters(args, &arg, section_type, curpx,
+					   &rule->act_prm.trk_ctr, defpx, err, errlen);
+
+		if (ret < 0) /* nb: warnings are not handled yet */
+			return -1;
+
+		rule->action = TCP_ACT_TRK_BE_CTR;
+	}
+	else {
+		snprintf(err, errlen,
+			 "'%s %s' expects 'accept', 'reject', 'track-fe-counters' "
+			 "or 'track-be-counters' in %s '%s' (was '%s')",
+			 args[0], args[1], proxy_type_str(curpx), curpx->id, args[arg]);
+		return -1;
+	}
+
+	if (strcmp(args[arg], "if") == 0 || strcmp(args[arg], "unless") == 0) {
+		if ((rule->cond = build_acl_cond(NULL, 0, curpx, (const char **)args+arg)) == NULL) {
+			snprintf(err, errlen,
+				 "error detected in %s '%s' while parsing '%s' condition",
+				 proxy_type_str(curpx), curpx->id, args[arg]);
+			return -1;
+		}
+	}
+	else if (*args[arg]) {
+		snprintf(err, errlen,
+			 "'%s %s %s' only accepts 'if' or 'unless', in %s '%s' (was '%s')",
+			 args[0], args[1], args[2], proxy_type_str(curpx), curpx->id, args[arg]);
+		return -1;
+	}
+	return 0;
+}
+
 /* This function should be called to parse a line starting with the "tcp-request"
  * keyword.
  */
@@ -809,7 +877,6 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 	unsigned int val;
 	int retlen;
 	int warn = 0;
-	int pol = ACL_COND_NONE;
 	int arg;
 	struct tcp_rule *rule;
 
@@ -848,70 +915,10 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 	rule = (struct tcp_rule *)calloc(1, sizeof(*rule));
 	arg = 1;
 
-	if (!strcmp(args[1], "content")) {
+	if (strcmp(args[1], "content") == 0) {
 		arg++;
-		if (curpx == defpx) {
-			snprintf(err, errlen, "%s %s is not allowed in 'defaults' sections",
-				 args[0], args[1]);
+		if (tcp_parse_request_rule(args, arg, section_type, curpx, defpx, rule, err, errlen) < 0)
 			goto error;
-		}
-
-		if (!strcmp(args[2], "accept")) {
-			arg++;
-			rule->action = TCP_ACT_ACCEPT;
-		}
-		else if (!strcmp(args[2], "reject")) {
-			arg++;
-			rule->action = TCP_ACT_REJECT;
-		}
-		else if (strcmp(args[2], "track-fe-counters") == 0) {
-			int ret;
-
-			arg++;
-			ret = parse_track_counters(args, &arg, section_type, curpx,
-						   &rule->act_prm.trk_ctr, defpx, err, errlen);
-
-			if (ret < 0) /* nb: warnings are not handled yet */
-				goto error;
-
-			rule->action = TCP_ACT_TRK_FE_CTR;
-		}
-		else if (strcmp(args[2], "track-be-counters") == 0) {
-			int ret;
-
-			arg++;
-			ret = parse_track_counters(args, &arg, section_type, curpx,
-						   &rule->act_prm.trk_ctr, defpx, err, errlen);
-
-			if (ret < 0) /* nb: warnings are not handled yet */
-				goto error;
-
-			rule->action = TCP_ACT_TRK_BE_CTR;
-		}
-		else {
-			retlen = snprintf(err, errlen,
-					  "'%s %s' expects 'accept', 'reject', 'track-fe-counters' or 'track-be-counters' in %s '%s' (was '%s')",
-					  args[0], args[1], proxy_type_str(curpx), curpx->id, args[2]);
-			goto error;
-		}
-
-		pol = ACL_COND_NONE;
-		rule->cond = NULL;
-
-		if (strcmp(args[arg], "if") == 0 || strcmp(args[arg], "unless") == 0) {
-			if ((rule->cond = build_acl_cond(NULL, 0, curpx, (const char **)args+arg)) == NULL) {
-				retlen = snprintf(err, errlen,
-						  "error detected in %s '%s' while parsing '%s' condition",
-						  proxy_type_str(curpx), curpx->id, args[arg]);
-				goto error;
-			}
-		}
-		else if (*args[arg]) {
-			retlen = snprintf(err, errlen,
-					  "'%s %s %s' only accepts 'if' or 'unless', in %s '%s' (was '%s')",
-					  args[0], args[1], args[2], proxy_type_str(curpx), curpx->id, args[arg]);
-			goto error;
-		}
 
 		if (rule->cond && (rule->cond->requires & ACL_USE_RTR_ANY)) {
 			struct acl *acl;
@@ -925,94 +932,45 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 					  name);
 			warn++;
 		}
-		LIST_INIT(&rule->list);
-		LIST_ADDQ(&curpx->tcp_req.inspect_rules, &rule->list);
-		return warn;
 	}
-
-	/* OK so we're in front of plain L4 rules */
-
-	if (strcmp(args[1], "accept") == 0) {
+	else if (strcmp(args[1], "connection") == 0) {
 		arg++;
-		rule->action = TCP_ACT_ACCEPT;
-	}
-	else if (strcmp(args[1], "reject") == 0) {
-		arg++;
-		rule->action = TCP_ACT_REJECT;
-	}
-	else if (strcmp(args[1], "track-fe-counters") == 0) {
-		int ret;
 
-		arg++;
-		ret = parse_track_counters(args, &arg, section_type, curpx,
-					   &rule->act_prm.trk_ctr, defpx, err, errlen);
+		if (!(curpx->cap & PR_CAP_FE)) {
+			snprintf(err, errlen, "%s %s is not allowed because %s %s is not a frontend",
+				 args[0], args[1], proxy_type_str(curpx), curpx->id);
+			return -1;
+		}
 
-		if (ret < 0) /* nb: warnings are not handled yet */
+		if (tcp_parse_request_rule(args, arg, section_type, curpx, defpx, rule, err, errlen) < 0)
 			goto error;
 
-		rule->action = TCP_ACT_TRK_FE_CTR;
-	}
-	else if (strcmp(args[1], "track-be-counters") == 0) {
-		int ret;
+		if (rule->cond && (rule->cond->requires & (ACL_USE_RTR_ANY|ACL_USE_L6_ANY|ACL_USE_L7_ANY))) {
+			struct acl *acl;
+			const char *name;
 
-		arg++;
-		ret = parse_track_counters(args, &arg, section_type, curpx,
-					   &rule->act_prm.trk_ctr, defpx, err, errlen);
+			acl = cond_find_require(rule->cond, ACL_USE_RTR_ANY|ACL_USE_L6_ANY|ACL_USE_L7_ANY);
+			name = acl ? acl->name : "(unknown)";
 
-		if (ret < 0) /* nb: warnings are not handled yet */
-			goto error;
-
-		rule->action = TCP_ACT_TRK_BE_CTR;
+			if (acl->requires & (ACL_USE_L6_ANY|ACL_USE_L7_ANY)) {
+				retlen = snprintf(err, errlen,
+						  "'%s %s' may not reference acl '%s' which makes use of "
+						  "payload in %s '%s'. Please use '%s content' for this.",
+						  args[0], args[1], name, proxy_type_str(curpx), curpx->id, args[0]);
+				goto error;
+			}
+			if (acl->requires & ACL_USE_RTR_ANY)
+				retlen = snprintf(err, errlen,
+						  "acl '%s' involves some response-only criteria which will be ignored.",
+						  name);
+			warn++;
+		}
 	}
 	else {
 		retlen = snprintf(err, errlen,
-				  "'%s' expects 'inspect-delay', 'content', 'accept', 'reject', 'track-fe-counters' or 'track-be-counters' in %s '%s' (was '%s')",
+				  "'%s' expects 'inspect-delay', 'connection', or 'content' in %s '%s' (was '%s')",
 				  args[0], proxy_type_str(curpx), curpx->id, args[1]);
 		goto error;
-	}
-
-	if (curpx == defpx) {
-		snprintf(err, errlen, "%s %s is not allowed in 'defaults' sections",
-			 args[0], args[1]);
-		goto error;
-	}
-
-	pol = ACL_COND_NONE;
-
-	if (strcmp(args[arg], "if") == 0 || strcmp(args[arg], "unless") == 0) {
-		if ((rule->cond = build_acl_cond(NULL, 0, curpx, (const char **)args+arg)) == NULL) {
-			retlen = snprintf(err, errlen,
-					  "error detected in %s '%s' while parsing '%s' condition",
-					  proxy_type_str(curpx), curpx->id, args[arg]);
-			goto error;
-		}
-	}
-	else if (*args[arg]) {
-		retlen = snprintf(err, errlen,
-				  "'%s %s' only accepts 'if' or 'unless', in %s '%s' (was '%s')",
-				  args[0], args[1], proxy_type_str(curpx), curpx->id, args[arg]);
-		goto error;
-	}
-
-	if (rule->cond && (rule->cond->requires & (ACL_USE_RTR_ANY|ACL_USE_L6_ANY|ACL_USE_L7_ANY))) {
-		struct acl *acl;
-		const char *name;
-
-		acl = cond_find_require(rule->cond, ACL_USE_RTR_ANY|ACL_USE_L6_ANY|ACL_USE_L7_ANY);
-		name = acl ? acl->name : "(unknown)";
-
-		if (acl->requires & (ACL_USE_L6_ANY|ACL_USE_L7_ANY)) {
-			retlen = snprintf(err, errlen,
-					  "'%s %s' may not reference acl '%s' which makes use of payload in %s '%s'. Please use '%s content' for this.",
-					  args[0], args[1], name, proxy_type_str(curpx), curpx->id, args[0]);
-			goto error;
-		}
-		if (acl->requires & ACL_USE_RTR_ANY)
-			retlen = snprintf(err, errlen,
-					  "acl '%s' involves some response-only criteria which will be ignored.",
-					  name);
-
-		warn++;
 	}
 
 	LIST_INIT(&rule->list);

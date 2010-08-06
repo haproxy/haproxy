@@ -962,11 +962,12 @@ stick match                               -          -         X         X
 stick on                                  -          -         X         X
 stick store-request                       -          -         X         X
 stick-table                               -          -         X         X
-tcp-request accept                        -          X         X         -
+tcp-request connection accept             -          X         X         -
+tcp-request connection reject             -          X         X         -
+tcp-request connection track-counters     -          X         X         -
 tcp-request content accept                -          X         X         -
 tcp-request content reject                -          X         X         -
 tcp-request inspect-delay                 -          X         X         -
-tcp-request reject                        -          X         X         -
 timeout check                             X          -         X         X
 timeout client                            X          X         X         -
 timeout clitimeout          (deprecated)  X          X         X         -
@@ -5251,7 +5252,7 @@ stick-table type {ip | integer | string [len <length>] } size <size>
              about time format and section 7 avoud ACLs.
 
 
-tcp-request accept [{if | unless} <condition>]
+tcp-request connection accept [{if | unless} <condition>]
   Accept an incoming connection if/unless a layer 4 condition is matched
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   no
@@ -5280,7 +5281,108 @@ tcp-request accept [{if | unless} <condition>]
 
   See section 7 about ACL usage.
 
-  See also : "tcp-request reject" and "tcp-request content"
+  See also : "tcp-request connection reject" and "tcp-request content"
+
+
+tcp-request connection reject [{if | unless} <condition>]
+  Reject an incoming connection if/unless a layer 4 condition is matched
+  May be used in sections :   defaults | frontend | listen | backend
+                                 no    |    yes   |   yes  |   no
+
+  Immediately after acceptance of a new incoming connection, it is possible to
+  evaluate some conditions to decide whether this connection must be accepted
+  or dropped. Those conditions cannot make use of any data contents because the
+  connection has not been read from yet, and the buffers are not yet allocated.
+  This can be used to selectively and very quickly accept or drop connections
+  from various sources with a very low overhead. If some contents need to be
+  inspected in order to take the decision, the "tcp-request content" statements
+  must be used instead.
+
+  This statement rejects the connection if the condition is true (when used
+  with "if") or false (when used with "unless"). It is important to understand
+  that "accept" and "reject" rules are evaluated in their exact declaration
+  order, so that it is possible to build complex rules from them. There is no
+  specific limit to the number of rules which may be inserted.
+
+  Note that the "if/unless" condition is optional. If no condition is set on
+  the action, it is simply performed unconditionally.
+
+  If no "tcp-request" rules are matched, the default action is to accept the
+  connection, which implies that the "tcp-request accept" statement will only
+  make sense when combined with another "tcp-request reject" statement.
+
+  Rejected connections do not even become a session, which is why they are
+  accounted separately for in the stats, as "denied connections". They are not
+  considered for the session rate-limit and are not logged either. The reason
+  is that these rules should only be used to filter extremely high connection
+  rates such as the ones encountered during a massive DDoS attack. Under these
+  conditions, the simple action of logging each event would make the system
+  collapse and would considerably lower the filtering capacity. If logging is
+  absolutely desired, then "tcp-request content" rules should be used instead.
+
+  See section 7 about ACL usage.
+
+  See also : "tcp-request connection accept" and "tcp-request content"
+
+
+tcp-request connection track-counters <key> [table <table>]
+                                      [{if | unless} <condition>]
+  Enable tracking of session counters if/unless a layer 4 condition is matched
+  May be used in sections :   defaults | frontend | listen | backend
+                                 no    |    yes   |   yes  |   no
+
+  Arguments :
+    <key>     is the criterion the tracking key will be derived from. At the
+              moment, only "src" is supported. With it, the key will be the
+              connection's source IPv4 address.
+
+    <table>   is an optional table to use instead of the one from the current
+              proxy. All the counters for the matches and updates for the key
+              will then be performed in that table.
+
+  Immediately after a new incoming connection has been accepted, it is possible
+  to enable tracking of some of this session's counters in a table. Doing so
+  serves two purposes :
+    - feed the entry with the session's counters that are relevant to the table
+      being pointed. These counters are then updated as often as possible, and
+      also systematically when the session ends.
+
+    - keep a pointer to the entry in the table in the session to avoid having
+      to perform key lookups when complex ACL rules make use of the entry,
+      especially when the key is expensive to compute (eg: header-based).
+
+  It is possible to evaluate some conditions to decide whether a track-counters
+  statement will apply or not. In this case, only the first matching rule will
+  apply and the other ones will be ignored. We could for instance imagine that
+  some hosts which are references in a white list make use of a different
+  counters table, or do not get accounted for. The tracking is enabled if the
+  condition is true (when used with "if") or false (when used with "unless").
+  There is no specific limit to the number of rules which may be declared.
+
+  It is important to understand that "accept", "reject" and "track-counters"
+  rules are evaluated in their exact declaration order, so that it is possible
+  to build complex rules from them. For instance, the following rule rejects
+  too fast connections without tracking them, to that they get accepted again
+  after some time despite activity, while the second one will still update the
+  counters when rejecting a connection.
+
+  Example:
+        # reject too fast connection without counting them
+        tcp-request connection reject if { src_conn_rate gt 10 }
+        tcp-request connection track-counters src
+
+        # reject too fast connection and count them
+        tcp-request connection track-counters src
+        tcp-request connection reject if { src_conn_rate gt 10 }
+
+
+  Note that the "if/unless" condition is optional. If no condition is set on
+  the action, it is simply performed unconditionally.
+
+  See section 7 about ACL usage.
+
+  See also : "tcp-request connection accept", "tcp-request connection reject",
+             "tcp-request content", and "stick-table".
 
 
 tcp-request content accept [{if | unless} <condition>]
@@ -5337,12 +5439,12 @@ tcp-request content reject [{if | unless} <condition>]
         # reject SMTP connection if client speaks first
         tcp-request inspect-delay 30s
         acl content_present req_len gt 0
-        tcp-request reject if content_present
+        tcp-request content reject if content_present
 
         # Forward HTTPS connection only if client speaks
         tcp-request inspect-delay 30s
         acl content_present req_len gt 0
-        tcp-request accept if content_present
+        tcp-request content accept if content_present
         tcp-request reject
 
   See section 7 about ACL usage.
@@ -5393,106 +5495,6 @@ tcp-request inspect-delay <timeout>
 
   See also : "tcp-request content accept", "tcp-request content reject",
              "timeout client".
-
-
-tcp-request reject [{if | unless} <condition>]
-  Reject an incoming connection if/unless a layer 4 condition is matched
-  May be used in sections :   defaults | frontend | listen | backend
-                                 no    |    yes   |   yes  |   no
-
-  Immediately after acceptance of a new incoming connection, it is possible to
-  evaluate some conditions to decide whether this connection must be accepted
-  or dropped. Those conditions cannot make use of any data contents because the
-  connection has not been read from yet, and the buffers are not yet allocated.
-  This can be used to selectively and very quickly accept or drop connections
-  from various sources with a very low overhead. If some contents need to be
-  inspected in order to take the decision, the "tcp-request content" statements
-  must be used instead.
-
-  This statement rejects the connection if the condition is true (when used
-  with "if") or false (when used with "unless"). It is important to understand
-  that "accept" and "reject" rules are evaluated in their exact declaration
-  order, so that it is possible to build complex rules from them. There is no
-  specific limit to the number of rules which may be inserted.
-
-  Note that the "if/unless" condition is optional. If no condition is set on
-  the action, it is simply performed unconditionally.
-
-  If no "tcp-request" rules are matched, the default action is to accept the
-  connection, which implies that the "tcp-request accept" statement will only
-  make sense when combined with another "tcp-request reject" statement.
-
-  Rejected connections do not even become a session, which is why they are
-  accounted separately for in the stats, as "denied connections". They are not
-  considered for the session rate-limit and are not logged either. The reason
-  is that these rules should only be used to filter extremely high connection
-  rates such as the ones encountered during a massive DDoS attack. Under these
-  conditions, the simple action of logging each event would make the system
-  collapse and would considerably lower the filtering capacity. If logging is
-  absolutely desired, then "tcp-request content" rules should be used instead.
-
-  See section 7 about ACL usage.
-
-  See also : "tcp-request accept" and "tcp-request content"
-
-
-tcp-request track-counters <key> [table <table>] [{if | unless} <condition>]
-  Enable tracking of session counters if/unless a layer 4 condition is matched
-  May be used in sections :   defaults | frontend | listen | backend
-                                 no    |    yes   |   yes  |   no
-
-  Arguments :
-    <key>     is the criterion the tracking key will be derived from. At the
-              moment, only "src" is supported. With it, the key will be the
-              connection's source IPv4 address.
-
-    <table>   is an optional table to use instead of the one from the current
-              proxy. All the counters for the matches and updates for the key
-              will then be performed in that table.
-
-  Immediately after a new incoming connection has been accepted, it is possible
-  to enable tracking of some of this session's counters in a table. Doing so
-  serves two purposes :
-    - feed the entry with the session's counters that are relevant to the table
-      being pointed. These counters are then updated as often as possible, and
-      also systematically when the session ends.
-
-    - keep a pointer to the entry in the table in the session to avoid having
-      to perform key lookups when complex ACL rules make use of the entry,
-      especially when the key is expensive to compute (eg: header-based).
-
-  It is possible to evaluate some conditions to decide whether a track-counters
-  statement will apply or not. In this case, only the first matching rule will
-  apply and the other ones will be ignored. We could for instance imagine that
-  some hosts which are references in a white list make use of a different
-  counters table, or do not get accounted for. The tracking is enabled if the
-  condition is true (when used with "if") or false (when used with "unless").
-  There is no specific limit to the number of rules which may be declared.
-
-  It is important to understand that "accept", "reject" and "track-counters"
-  rules are evaluated in their exact declaration order, so that it is possible
-  to build complex rules from them. For instance, the following rule rejects
-  too fast connections without tracking them, to that they get accepted again
-  after some time despite activity, while the second one will still update the
-  counters when rejecting a connection.
-
-  Example:
-        # reject too fast connection without counting them
-        tcp-request reject if { src_conn_rate gt 10 }
-        tcp-request track-counters src
-
-        # reject too fast connection and count them
-        tcp-request track-counters src
-        tcp-request reject if { src_conn_rate gt 10 }
-
-
-  Note that the "if/unless" condition is optional. If no condition is set on
-  the action, it is simply performed unconditionally.
-
-  See section 7 about ACL usage.
-
-  See also : "tcp-request accept", "tcp-request reject", "tcp-request content",
-             and "stick-table".
 
 
 timeout check <timeout>
