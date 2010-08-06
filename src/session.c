@@ -64,10 +64,10 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	/* minimum session initialization required for monitor mode below */
 	s->flags = 0;
 	s->logs.logwait = p->to_log;
-	s->fe_tracked_counters = NULL;
-	s->be_tracked_counters = NULL;
-	s->fe_tracked_table = NULL;
-	s->be_tracked_table = NULL;
+	s->stkctr1_entry = NULL;
+	s->stkctr2_entry = NULL;
+	s->stkctr1_table = NULL;
+	s->stkctr2_table = NULL;
 
 	/* if this session comes from a known monitoring system, we want to ignore
 	 * it as soon as possible, which means closing it immediately for TCP, but
@@ -122,7 +122,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	 * even initializing the stream interfaces.
 	 */
 	if ((l->options & LI_O_TCP_RULES) && !tcp_exec_req_rules(s)) {
-		if (s->fe_tracked_counters || s->be_tracked_counters)
+		if (s->stkctr1_entry || s->stkctr2_entry)
 			session_store_counters(s);
 		task_free(t);
 		LIST_DEL(&s->list);
@@ -137,30 +137,30 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	if (p->feconn > p->counters.feconn_max)
 		p->counters.feconn_max = p->feconn;
 	proxy_inc_fe_sess_ctr(l, p);
-	if (s->fe_tracked_counters) {
+	if (s->stkctr1_entry) {
 		void *ptr;
 
-		ptr = stktable_data_ptr(s->fe_tracked_table, s->fe_tracked_counters, STKTABLE_DT_SESS_CNT);
+		ptr = stktable_data_ptr(s->stkctr1_table, s->stkctr1_entry, STKTABLE_DT_SESS_CNT);
 		if (ptr)
 			stktable_data_cast(ptr, sess_cnt)++;
 
-		ptr = stktable_data_ptr(s->fe_tracked_table, s->fe_tracked_counters, STKTABLE_DT_SESS_RATE);
+		ptr = stktable_data_ptr(s->stkctr1_table, s->stkctr1_entry, STKTABLE_DT_SESS_RATE);
 		if (ptr)
 			update_freq_ctr_period(&stktable_data_cast(ptr, sess_rate),
-					       s->fe_tracked_table->data_arg[STKTABLE_DT_SESS_RATE].u, 1);
+					       s->stkctr1_table->data_arg[STKTABLE_DT_SESS_RATE].u, 1);
 	}
 
-	if (s->be_tracked_counters) {
+	if (s->stkctr2_entry) {
 		void *ptr;
 
-		ptr = stktable_data_ptr(s->be_tracked_table, s->be_tracked_counters, STKTABLE_DT_SESS_CNT);
+		ptr = stktable_data_ptr(s->stkctr2_table, s->stkctr2_entry, STKTABLE_DT_SESS_CNT);
 		if (ptr)
 			stktable_data_cast(ptr, sess_cnt)++;
 
-		ptr = stktable_data_ptr(s->be_tracked_table, s->be_tracked_counters, STKTABLE_DT_SESS_RATE);
+		ptr = stktable_data_ptr(s->stkctr2_table, s->stkctr2_entry, STKTABLE_DT_SESS_RATE);
 		if (ptr)
 			update_freq_ctr_period(&stktable_data_cast(ptr, sess_rate),
-					       s->be_tracked_table->data_arg[STKTABLE_DT_SESS_RATE].u, 1);
+					       s->stkctr2_table->data_arg[STKTABLE_DT_SESS_RATE].u, 1);
 	}
 
 	/* this part should be common with other protocols */
@@ -288,7 +288,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 			/* work is finished, we can release everything (eg: monitoring) */
 			pool_free2(pool2_buffer, s->rep);
 			pool_free2(pool2_buffer, s->req);
-			if (s->fe_tracked_counters || s->be_tracked_counters)
+			if (s->stkctr1_entry || s->stkctr2_entry)
 				session_store_counters(s);
 			task_free(t);
 			LIST_DEL(&s->list);
@@ -312,7 +312,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	pool_free2(pool2_buffer, s->req);
  out_free_task:
 	p->feconn--;
-	if (s->fe_tracked_counters || s->be_tracked_counters)
+	if (s->stkctr1_entry || s->stkctr2_entry)
 		session_store_counters(s);
 	task_free(t);
  out_free_session:
@@ -376,7 +376,7 @@ void session_free(struct session *s)
 		pool_free2(fe->req_cap_pool, txn->req.cap);
 	}
 
-	if (s->fe_tracked_counters || s->be_tracked_counters)
+	if (s->stkctr1_entry || s->stkctr2_entry)
 		session_store_counters(s);
 
 	list_for_each_entry_safe(bref, back, &s->back_refs, users) {
@@ -432,38 +432,38 @@ void session_process_counters(struct session *s)
 			if (s->listener->counters)
 				s->listener->counters->bytes_in		+= bytes;
 
-			if (s->be_tracked_counters) {
+			if (s->stkctr2_entry) {
 				void *ptr;
 
-				ptr = stktable_data_ptr(s->be_tracked_table,
-							s->be_tracked_counters,
+				ptr = stktable_data_ptr(s->stkctr2_table,
+							s->stkctr2_entry,
 							STKTABLE_DT_BYTES_IN_CNT);
 				if (ptr)
 					stktable_data_cast(ptr, bytes_in_cnt) += bytes;
 
-				ptr = stktable_data_ptr(s->be_tracked_table,
-							s->be_tracked_counters,
+				ptr = stktable_data_ptr(s->stkctr2_table,
+							s->stkctr2_entry,
 							STKTABLE_DT_BYTES_IN_RATE);
 				if (ptr)
 					update_freq_ctr_period(&stktable_data_cast(ptr, bytes_in_rate),
-							       s->be_tracked_table->data_arg[STKTABLE_DT_BYTES_IN_RATE].u, bytes);
+							       s->stkctr2_table->data_arg[STKTABLE_DT_BYTES_IN_RATE].u, bytes);
 			}
 
-			if (s->fe_tracked_counters) {
+			if (s->stkctr1_entry) {
 				void *ptr;
 
-				ptr = stktable_data_ptr(s->fe_tracked_table,
-							s->fe_tracked_counters,
+				ptr = stktable_data_ptr(s->stkctr1_table,
+							s->stkctr1_entry,
 							STKTABLE_DT_BYTES_IN_CNT);
 				if (ptr)
 					stktable_data_cast(ptr, bytes_in_cnt) += bytes;
 
-				ptr = stktable_data_ptr(s->fe_tracked_table,
-							s->fe_tracked_counters,
+				ptr = stktable_data_ptr(s->stkctr1_table,
+							s->stkctr1_entry,
 							STKTABLE_DT_BYTES_IN_RATE);
 				if (ptr)
 					update_freq_ctr_period(&stktable_data_cast(ptr, bytes_in_rate),
-							       s->fe_tracked_table->data_arg[STKTABLE_DT_BYTES_IN_RATE].u, bytes);
+							       s->stkctr1_table->data_arg[STKTABLE_DT_BYTES_IN_RATE].u, bytes);
 			}
 		}
 	}
@@ -483,38 +483,38 @@ void session_process_counters(struct session *s)
 			if (s->listener->counters)
 				s->listener->counters->bytes_out	+= bytes;
 
-			if (s->be_tracked_counters) {
+			if (s->stkctr2_entry) {
 				void *ptr;
 
-				ptr = stktable_data_ptr(s->be_tracked_table,
-							s->be_tracked_counters,
+				ptr = stktable_data_ptr(s->stkctr2_table,
+							s->stkctr2_entry,
 							STKTABLE_DT_BYTES_OUT_CNT);
 				if (ptr)
 					stktable_data_cast(ptr, bytes_out_cnt) += bytes;
 
-				ptr = stktable_data_ptr(s->be_tracked_table,
-							s->be_tracked_counters,
+				ptr = stktable_data_ptr(s->stkctr2_table,
+							s->stkctr2_entry,
 							STKTABLE_DT_BYTES_OUT_RATE);
 				if (ptr)
 					update_freq_ctr_period(&stktable_data_cast(ptr, bytes_out_rate),
-							       s->be_tracked_table->data_arg[STKTABLE_DT_BYTES_OUT_RATE].u, bytes);
+							       s->stkctr2_table->data_arg[STKTABLE_DT_BYTES_OUT_RATE].u, bytes);
 			}
 
-			if (s->fe_tracked_counters) {
+			if (s->stkctr1_entry) {
 				void *ptr;
 
-				ptr = stktable_data_ptr(s->fe_tracked_table,
-							s->fe_tracked_counters,
+				ptr = stktable_data_ptr(s->stkctr1_table,
+							s->stkctr1_entry,
 							STKTABLE_DT_BYTES_OUT_CNT);
 				if (ptr)
 					stktable_data_cast(ptr, bytes_out_cnt) += bytes;
 
-				ptr = stktable_data_ptr(s->fe_tracked_table,
-							s->fe_tracked_counters,
+				ptr = stktable_data_ptr(s->stkctr1_table,
+							s->stkctr1_entry,
 							STKTABLE_DT_BYTES_OUT_RATE);
 				if (ptr)
 					update_freq_ctr_period(&stktable_data_cast(ptr, bytes_out_rate),
-							       s->fe_tracked_table->data_arg[STKTABLE_DT_BYTES_OUT_RATE].u, bytes);
+							       s->stkctr1_table->data_arg[STKTABLE_DT_BYTES_OUT_RATE].u, bytes);
 			}
 		}
 	}
@@ -2170,24 +2170,24 @@ acl_fetch_get_gpc0(struct stktable *table, struct acl_test *test, struct stksess
  * frontend counters.
  */
 static int
-acl_fetch_trkfe_get_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
-                         struct acl_expr *expr, struct acl_test *test)
+acl_fetch_sc1_get_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
+                       struct acl_expr *expr, struct acl_test *test)
 {
-	if (!l4->fe_tracked_counters)
+	if (!l4->stkctr1_entry)
 		return 0;
-	return acl_fetch_get_gpc0(l4->fe_tracked_table, test, l4->fe_tracked_counters);
+	return acl_fetch_get_gpc0(l4->stkctr1_table, test, l4->stkctr1_entry);
 }
 
 /* set test->i to the General Purpose Counter 0 value from the session's tracked
  * backend counters.
  */
 static int
-acl_fetch_trkbe_get_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
-                         struct acl_expr *expr, struct acl_test *test)
+acl_fetch_sc2_get_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
+                       struct acl_expr *expr, struct acl_test *test)
 {
-	if (!l4->be_tracked_counters)
+	if (!l4->stkctr2_entry)
 		return 0;
-	return acl_fetch_get_gpc0(l4->be_tracked_table, test, l4->be_tracked_counters);
+	return acl_fetch_get_gpc0(l4->stkctr2_table, test, l4->stkctr2_entry);
 }
 
 /* set test->i to the General Purpose Counter 0 value from the session's source
@@ -2233,24 +2233,24 @@ acl_fetch_inc_gpc0(struct stktable *table, struct acl_test *test, struct stksess
  * frontend counters and return it into test->i.
  */
 static int
-acl_fetch_trkfe_inc_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
-                         struct acl_expr *expr, struct acl_test *test)
+acl_fetch_sc1_inc_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
+                       struct acl_expr *expr, struct acl_test *test)
 {
-	if (!l4->fe_tracked_counters)
+	if (!l4->stkctr1_entry)
 		return 0;
-	return acl_fetch_inc_gpc0(l4->fe_tracked_table, test, l4->fe_tracked_counters);
+	return acl_fetch_inc_gpc0(l4->stkctr1_table, test, l4->stkctr1_entry);
 }
 
 /* Increment the General Purpose Counter 0 value from the session's tracked
  * backend counters and return it into test->i.
  */
 static int
-acl_fetch_trkbe_inc_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
-                         struct acl_expr *expr, struct acl_test *test)
+acl_fetch_sc2_inc_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
+                       struct acl_expr *expr, struct acl_test *test)
 {
-	if (!l4->be_tracked_counters)
+	if (!l4->stkctr2_entry)
 		return 0;
-	return acl_fetch_inc_gpc0(l4->be_tracked_table, test, l4->be_tracked_counters);
+	return acl_fetch_inc_gpc0(l4->stkctr2_table, test, l4->stkctr2_entry);
 }
 
 /* Increment the General Purpose Counter 0 value from the session's source
@@ -2292,24 +2292,24 @@ acl_fetch_conn_cnt(struct stktable *table, struct acl_test *test, struct stksess
 
 /* set test->i to the cumulated number of connections from the session's tracked FE counters */
 static int
-acl_fetch_trkfe_conn_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
-                         struct acl_expr *expr, struct acl_test *test)
+acl_fetch_sc1_conn_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+                       struct acl_expr *expr, struct acl_test *test)
 {
-	if (!l4->fe_tracked_counters)
+	if (!l4->stkctr1_entry)
 		return 0;
 
-	return acl_fetch_conn_cnt(l4->fe_tracked_table, test, l4->fe_tracked_counters);
+	return acl_fetch_conn_cnt(l4->stkctr1_table, test, l4->stkctr1_entry);
 }
 
 /* set test->i to the cumulated number of connections from the session's tracked BE counters */
 static int
-acl_fetch_trkbe_conn_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
-                         struct acl_expr *expr, struct acl_test *test)
+acl_fetch_sc2_conn_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+                       struct acl_expr *expr, struct acl_test *test)
 {
-	if (!l4->be_tracked_counters)
+	if (!l4->stkctr2_entry)
 		return 0;
 
-	return acl_fetch_conn_cnt(l4->be_tracked_table, test, l4->be_tracked_counters);
+	return acl_fetch_conn_cnt(l4->stkctr2_table, test, l4->stkctr2_entry);
 }
 
 /* set test->i to the cumulated number of connections from the session's source
@@ -2354,26 +2354,26 @@ acl_fetch_conn_rate(struct stktable *table, struct acl_test *test, struct stkses
  * the configured period.
  */
 static int
-acl_fetch_trkfe_conn_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-                         struct acl_expr *expr, struct acl_test *test)
+acl_fetch_sc1_conn_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+                        struct acl_expr *expr, struct acl_test *test)
 {
-	if (!l4->fe_tracked_counters)
+	if (!l4->stkctr1_entry)
 		return 0;
 
-	return acl_fetch_conn_rate(l4->fe_tracked_table, test, l4->fe_tracked_counters);
+	return acl_fetch_conn_rate(l4->stkctr1_table, test, l4->stkctr1_entry);
 }
 
 /* set test->i to the connection rate from the session's tracked BE counters over
  * the configured period.
  */
 static int
-acl_fetch_trkbe_conn_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-                          struct acl_expr *expr, struct acl_test *test)
+acl_fetch_sc2_conn_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+                        struct acl_expr *expr, struct acl_test *test)
 {
-	if (!l4->be_tracked_counters)
+	if (!l4->stkctr2_entry)
 		return 0;
 
-	return acl_fetch_conn_rate(l4->be_tracked_table, test, l4->be_tracked_counters);
+	return acl_fetch_conn_rate(l4->stkctr2_table, test, l4->stkctr2_entry);
 }
 
 /* set test->i to the connection rate from the session's source address in the
@@ -2450,24 +2450,24 @@ acl_fetch_conn_cur(struct stktable *table, struct acl_test *test, struct stksess
 
 /* set test->i to the number of concurrent connections from the session's tracked FE counters */
 static int
-acl_fetch_trkfe_conn_cur(struct proxy *px, struct session *l4, void *l7, int dir,
-                         struct acl_expr *expr, struct acl_test *test)
+acl_fetch_sc1_conn_cur(struct proxy *px, struct session *l4, void *l7, int dir,
+                       struct acl_expr *expr, struct acl_test *test)
 {
-	if (!l4->fe_tracked_counters)
+	if (!l4->stkctr1_entry)
 		return 0;
 
-	return acl_fetch_conn_cur(l4->fe_tracked_table, test, l4->fe_tracked_counters);
+	return acl_fetch_conn_cur(l4->stkctr1_table, test, l4->stkctr1_entry);
 }
 
 /* set test->i to the number of concurrent connections from the session's tracked BE counters */
 static int
-acl_fetch_trkbe_conn_cur(struct proxy *px, struct session *l4, void *l7, int dir,
-                         struct acl_expr *expr, struct acl_test *test)
+acl_fetch_sc2_conn_cur(struct proxy *px, struct session *l4, void *l7, int dir,
+                       struct acl_expr *expr, struct acl_test *test)
 {
-	if (!l4->be_tracked_counters)
+	if (!l4->stkctr2_entry)
 		return 0;
 
-	return acl_fetch_conn_cur(l4->be_tracked_table, test, l4->be_tracked_counters);
+	return acl_fetch_conn_cur(l4->stkctr2_table, test, l4->stkctr2_entry);
 }
 
 /* set test->i to the number of concurrent connections from the session's source
@@ -2509,24 +2509,24 @@ acl_fetch_sess_cnt(struct stktable *table, struct acl_test *test, struct stksess
 
 /* set test->i to the cumulated number of sessions from the session's tracked FE counters */
 static int
-acl_fetch_trkfe_sess_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
-                         struct acl_expr *expr, struct acl_test *test)
+acl_fetch_sc1_sess_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+                       struct acl_expr *expr, struct acl_test *test)
 {
-	if (!l4->fe_tracked_counters)
+	if (!l4->stkctr1_entry)
 		return 0;
 
-	return acl_fetch_sess_cnt(l4->fe_tracked_table, test, l4->fe_tracked_counters);
+	return acl_fetch_sess_cnt(l4->stkctr1_table, test, l4->stkctr1_entry);
 }
 
 /* set test->i to the cumulated number of sessions from the session's tracked BE counters */
 static int
-acl_fetch_trkbe_sess_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
-                         struct acl_expr *expr, struct acl_test *test)
+acl_fetch_sc2_sess_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+                       struct acl_expr *expr, struct acl_test *test)
 {
-	if (!l4->be_tracked_counters)
+	if (!l4->stkctr2_entry)
 		return 0;
 
-	return acl_fetch_sess_cnt(l4->be_tracked_table, test, l4->be_tracked_counters);
+	return acl_fetch_sess_cnt(l4->stkctr2_table, test, l4->stkctr2_entry);
 }
 
 /* set test->i to the cumulated number of session from the session's source
@@ -2571,26 +2571,26 @@ acl_fetch_sess_rate(struct stktable *table, struct acl_test *test, struct stkses
  * the configured period.
  */
 static int
-acl_fetch_trkfe_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-                          struct acl_expr *expr, struct acl_test *test)
+acl_fetch_sc1_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+                        struct acl_expr *expr, struct acl_test *test)
 {
-	if (!l4->fe_tracked_counters)
+	if (!l4->stkctr1_entry)
 		return 0;
 
-	return acl_fetch_sess_rate(l4->fe_tracked_table, test, l4->fe_tracked_counters);
+	return acl_fetch_sess_rate(l4->stkctr1_table, test, l4->stkctr1_entry);
 }
 
 /* set test->i to the session rate from the session's tracked BE counters over
  * the configured period.
  */
 static int
-acl_fetch_trkbe_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-			struct acl_expr *expr, struct acl_test *test)
+acl_fetch_sc2_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+                        struct acl_expr *expr, struct acl_test *test)
 {
-	if (!l4->be_tracked_counters)
+	if (!l4->stkctr2_entry)
 		return 0;
 
-	return acl_fetch_sess_rate(l4->be_tracked_table, test, l4->be_tracked_counters);
+	return acl_fetch_sess_rate(l4->stkctr2_table, test, l4->stkctr2_entry);
 }
 
 /* set test->i to the session rate from the session's source address in the
@@ -2632,24 +2632,24 @@ acl_fetch_http_req_cnt(struct stktable *table, struct acl_test *test, struct stk
 
 /* set test->i to the cumulated number of sessions from the session's tracked FE counters */
 static int
-acl_fetch_trkfe_http_req_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
-                             struct acl_expr *expr, struct acl_test *test)
+acl_fetch_sc1_http_req_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+                           struct acl_expr *expr, struct acl_test *test)
 {
-	if (!l4->fe_tracked_counters)
+	if (!l4->stkctr1_entry)
 		return 0;
 
-	return acl_fetch_http_req_cnt(l4->fe_tracked_table, test, l4->fe_tracked_counters);
+	return acl_fetch_http_req_cnt(l4->stkctr1_table, test, l4->stkctr1_entry);
 }
 
 /* set test->i to the cumulated number of sessions from the session's tracked BE counters */
 static int
-acl_fetch_trkbe_http_req_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
-                             struct acl_expr *expr, struct acl_test *test)
+acl_fetch_sc2_http_req_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+                           struct acl_expr *expr, struct acl_test *test)
 {
-	if (!l4->be_tracked_counters)
+	if (!l4->stkctr2_entry)
 		return 0;
 
-	return acl_fetch_http_req_cnt(l4->be_tracked_table, test, l4->be_tracked_counters);
+	return acl_fetch_http_req_cnt(l4->stkctr2_table, test, l4->stkctr2_entry);
 }
 
 /* set test->i to the cumulated number of session from the session's source
@@ -2657,7 +2657,7 @@ acl_fetch_trkbe_http_req_cnt(struct proxy *px, struct session *l4, void *l7, int
  */
 static int
 acl_fetch_src_http_req_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
-		       struct acl_expr *expr, struct acl_test *test)
+                           struct acl_expr *expr, struct acl_test *test)
 {
 	struct stktable_key *key;
 
@@ -2694,26 +2694,26 @@ acl_fetch_http_req_rate(struct stktable *table, struct acl_test *test, struct st
  * the configured period.
  */
 static int
-acl_fetch_trkfe_http_req_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-                              struct acl_expr *expr, struct acl_test *test)
+acl_fetch_sc1_http_req_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+                            struct acl_expr *expr, struct acl_test *test)
 {
-	if (!l4->fe_tracked_counters)
+	if (!l4->stkctr1_entry)
 		return 0;
 
-	return acl_fetch_http_req_rate(l4->fe_tracked_table, test, l4->fe_tracked_counters);
+	return acl_fetch_http_req_rate(l4->stkctr1_table, test, l4->stkctr1_entry);
 }
 
 /* set test->i to the session rate from the session's tracked BE counters over
  * the configured period.
  */
 static int
-acl_fetch_trkbe_http_req_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-                              struct acl_expr *expr, struct acl_test *test)
+acl_fetch_sc2_http_req_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+                            struct acl_expr *expr, struct acl_test *test)
 {
-	if (!l4->be_tracked_counters)
+	if (!l4->stkctr2_entry)
 		return 0;
 
-	return acl_fetch_http_req_rate(l4->be_tracked_table, test, l4->be_tracked_counters);
+	return acl_fetch_http_req_rate(l4->stkctr2_table, test, l4->stkctr2_entry);
 }
 
 /* set test->i to the session rate from the session's source address in the
@@ -2721,7 +2721,7 @@ acl_fetch_trkbe_http_req_rate(struct proxy *px, struct session *l4, void *l7, in
  */
 static int
 acl_fetch_src_http_req_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-			struct acl_expr *expr, struct acl_test *test)
+                            struct acl_expr *expr, struct acl_test *test)
 {
 	struct stktable_key *key;
 
@@ -2755,24 +2755,24 @@ acl_fetch_http_err_cnt(struct stktable *table, struct acl_test *test, struct stk
 
 /* set test->i to the cumulated number of sessions from the session's tracked FE counters */
 static int
-acl_fetch_trkfe_http_err_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
-                             struct acl_expr *expr, struct acl_test *test)
+acl_fetch_sc1_http_err_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+                           struct acl_expr *expr, struct acl_test *test)
 {
-	if (!l4->fe_tracked_counters)
+	if (!l4->stkctr1_entry)
 		return 0;
 
-	return acl_fetch_http_err_cnt(l4->fe_tracked_table, test, l4->fe_tracked_counters);
+	return acl_fetch_http_err_cnt(l4->stkctr1_table, test, l4->stkctr1_entry);
 }
 
 /* set test->i to the cumulated number of sessions from the session's tracked BE counters */
 static int
-acl_fetch_trkbe_http_err_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
-                             struct acl_expr *expr, struct acl_test *test)
+acl_fetch_sc2_http_err_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+                           struct acl_expr *expr, struct acl_test *test)
 {
-	if (!l4->be_tracked_counters)
+	if (!l4->stkctr2_entry)
 		return 0;
 
-	return acl_fetch_http_err_cnt(l4->be_tracked_table, test, l4->be_tracked_counters);
+	return acl_fetch_http_err_cnt(l4->stkctr2_table, test, l4->stkctr2_entry);
 }
 
 /* set test->i to the cumulated number of session from the session's source
@@ -2780,7 +2780,7 @@ acl_fetch_trkbe_http_err_cnt(struct proxy *px, struct session *l4, void *l7, int
  */
 static int
 acl_fetch_src_http_err_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
-		       struct acl_expr *expr, struct acl_test *test)
+                           struct acl_expr *expr, struct acl_test *test)
 {
 	struct stktable_key *key;
 
@@ -2817,26 +2817,26 @@ acl_fetch_http_err_rate(struct stktable *table, struct acl_test *test, struct st
  * the configured period.
  */
 static int
-acl_fetch_trkfe_http_err_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-                              struct acl_expr *expr, struct acl_test *test)
+acl_fetch_sc1_http_err_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+                            struct acl_expr *expr, struct acl_test *test)
 {
-	if (!l4->fe_tracked_counters)
+	if (!l4->stkctr1_entry)
 		return 0;
 
-	return acl_fetch_http_err_rate(l4->fe_tracked_table, test, l4->fe_tracked_counters);
+	return acl_fetch_http_err_rate(l4->stkctr1_table, test, l4->stkctr1_entry);
 }
 
 /* set test->i to the session rate from the session's tracked BE counters over
  * the configured period.
  */
 static int
-acl_fetch_trkbe_http_err_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-                              struct acl_expr *expr, struct acl_test *test)
+acl_fetch_sc2_http_err_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+                            struct acl_expr *expr, struct acl_test *test)
 {
-	if (!l4->be_tracked_counters)
+	if (!l4->stkctr2_entry)
 		return 0;
 
-	return acl_fetch_http_err_rate(l4->be_tracked_table, test, l4->be_tracked_counters);
+	return acl_fetch_http_err_rate(l4->stkctr2_table, test, l4->stkctr2_entry);
 }
 
 /* set test->i to the session rate from the session's source address in the
@@ -2881,26 +2881,26 @@ acl_fetch_kbytes_in(struct stktable *table, struct acl_test *test, struct stkses
  * session's tracked FE counters.
  */
 static int
-acl_fetch_trkfe_kbytes_in(struct proxy *px, struct session *l4, void *l7, int dir,
-                          struct acl_expr *expr, struct acl_test *test)
+acl_fetch_sc1_kbytes_in(struct proxy *px, struct session *l4, void *l7, int dir,
+                        struct acl_expr *expr, struct acl_test *test)
 {
-	if (!l4->fe_tracked_counters)
+	if (!l4->stkctr1_entry)
 		return 0;
 
-	return acl_fetch_kbytes_in(l4->fe_tracked_table, test, l4->fe_tracked_counters);
+	return acl_fetch_kbytes_in(l4->stkctr1_table, test, l4->stkctr1_entry);
 }
 
 /* set test->i to the number of kbytes received from clients according to the
  * session's tracked BE counters.
  */
 static int
-acl_fetch_trkbe_kbytes_in(struct proxy *px, struct session *l4, void *l7, int dir,
-                          struct acl_expr *expr, struct acl_test *test)
+acl_fetch_sc2_kbytes_in(struct proxy *px, struct session *l4, void *l7, int dir,
+                        struct acl_expr *expr, struct acl_test *test)
 {
-	if (!l4->be_tracked_counters)
+	if (!l4->stkctr2_entry)
 		return 0;
 
-	return acl_fetch_kbytes_in(l4->be_tracked_table, test, l4->be_tracked_counters);
+	return acl_fetch_kbytes_in(l4->stkctr2_table, test, l4->stkctr2_entry);
 }
 
 /* set test->i to the number of kbytes received from the session's source
@@ -2947,26 +2947,26 @@ acl_fetch_bytes_in_rate(struct stktable *table, struct acl_test *test, struct st
  * counters over the configured period.
  */
 static int
-acl_fetch_trkfe_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-                              struct acl_expr *expr, struct acl_test *test)
+acl_fetch_sc1_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+                            struct acl_expr *expr, struct acl_test *test)
 {
-	if (!l4->fe_tracked_counters)
+	if (!l4->stkctr1_entry)
 		return 0;
 
-	return acl_fetch_bytes_in_rate(l4->fe_tracked_table, test, l4->fe_tracked_counters);
+	return acl_fetch_bytes_in_rate(l4->stkctr1_table, test, l4->stkctr1_entry);
 }
 
 /* set test->i to the bytes rate from clients from the session's tracked BE
  * counters over the configured period.
  */
 static int
-acl_fetch_trkbe_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-                              struct acl_expr *expr, struct acl_test *test)
+acl_fetch_sc2_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+                            struct acl_expr *expr, struct acl_test *test)
 {
-	if (!l4->be_tracked_counters)
+	if (!l4->stkctr2_entry)
 		return 0;
 
-	return acl_fetch_bytes_in_rate(l4->be_tracked_table, test, l4->be_tracked_counters);
+	return acl_fetch_bytes_in_rate(l4->stkctr2_table, test, l4->stkctr2_entry);
 }
 
 /* set test->i to the bytes rate from clients from the session's source address
@@ -2974,7 +2974,7 @@ acl_fetch_trkbe_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, in
  */
 static int
 acl_fetch_src_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-			struct acl_expr *expr, struct acl_test *test)
+                            struct acl_expr *expr, struct acl_test *test)
 {
 	struct stktable_key *key;
 
@@ -3011,26 +3011,26 @@ acl_fetch_kbytes_out(struct stktable *table, struct acl_test *test, struct stkse
  * tracked FE counters.
  */
 static int
-acl_fetch_trkfe_kbytes_out(struct proxy *px, struct session *l4, void *l7, int dir,
-                           struct acl_expr *expr, struct acl_test *test)
+acl_fetch_sc1_kbytes_out(struct proxy *px, struct session *l4, void *l7, int dir,
+                         struct acl_expr *expr, struct acl_test *test)
 {
-	if (!l4->fe_tracked_counters)
+	if (!l4->stkctr1_entry)
 		return 0;
 
-	return acl_fetch_kbytes_out(l4->fe_tracked_table, test, l4->fe_tracked_counters);
+	return acl_fetch_kbytes_out(l4->stkctr1_table, test, l4->stkctr1_entry);
 }
 
 /* set test->i to the number of kbytes sent to clients according to the session's
  * tracked BE counters.
  */
 static int
-acl_fetch_trkbe_kbytes_out(struct proxy *px, struct session *l4, void *l7, int dir,
-                           struct acl_expr *expr, struct acl_test *test)
+acl_fetch_sc2_kbytes_out(struct proxy *px, struct session *l4, void *l7, int dir,
+                         struct acl_expr *expr, struct acl_test *test)
 {
-	if (!l4->be_tracked_counters)
+	if (!l4->stkctr2_entry)
 		return 0;
 
-	return acl_fetch_kbytes_out(l4->be_tracked_table, test, l4->be_tracked_counters);
+	return acl_fetch_kbytes_out(l4->stkctr2_table, test, l4->stkctr2_entry);
 }
 
 /* set test->i to the number of kbytes sent to the session's source address in
@@ -3077,26 +3077,26 @@ acl_fetch_bytes_out_rate(struct stktable *table, struct acl_test *test, struct s
  * over the configured period.
  */
 static int
-acl_fetch_trkfe_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-                               struct acl_expr *expr, struct acl_test *test)
+acl_fetch_sc1_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+                             struct acl_expr *expr, struct acl_test *test)
 {
-	if (!l4->fe_tracked_counters)
+	if (!l4->stkctr1_entry)
 		return 0;
 
-	return acl_fetch_bytes_out_rate(l4->fe_tracked_table, test, l4->fe_tracked_counters);
+	return acl_fetch_bytes_out_rate(l4->stkctr1_table, test, l4->stkctr1_entry);
 }
 
 /* set test->i to the bytes rate to clients from the session's tracked BE counters
  * over the configured period.
  */
 static int
-acl_fetch_trkbe_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-                               struct acl_expr *expr, struct acl_test *test)
+acl_fetch_sc2_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+                             struct acl_expr *expr, struct acl_test *test)
 {
-	if (!l4->be_tracked_counters)
+	if (!l4->stkctr2_entry)
 		return 0;
 
-	return acl_fetch_bytes_out_rate(l4->be_tracked_table, test, l4->be_tracked_counters);
+	return acl_fetch_bytes_out_rate(l4->stkctr2_table, test, l4->stkctr2_entry);
 }
 
 /* set test->i to the bytes rate to client from the session's source address in
@@ -3104,7 +3104,7 @@ acl_fetch_trkbe_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, i
  */
 static int
 acl_fetch_src_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-			struct acl_expr *expr, struct acl_test *test)
+                             struct acl_expr *expr, struct acl_test *test)
 {
 	struct stktable_key *key;
 
@@ -3124,57 +3124,57 @@ acl_fetch_src_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, int
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct acl_kw_list acl_kws = {{ },{
-	{ "trkfe_get_gpc0",       acl_parse_int,   acl_fetch_trkfe_get_gpc0,       acl_match_int, ACL_USE_NOTHING },
-	{ "trkbe_get_gpc0",       acl_parse_int,   acl_fetch_trkbe_get_gpc0,       acl_match_int, ACL_USE_NOTHING },
-	{ "src_get_gpc0",         acl_parse_int,   acl_fetch_src_get_gpc0,         acl_match_int, ACL_USE_TCP4_VOLATILE },
-	{ "trkfe_inc_gpc0",       acl_parse_int,   acl_fetch_trkfe_inc_gpc0,       acl_match_int, ACL_USE_NOTHING },
-	{ "trkbe_inc_gpc0",       acl_parse_int,   acl_fetch_trkbe_inc_gpc0,       acl_match_int, ACL_USE_NOTHING },
-	{ "src_inc_gpc0",         acl_parse_int,   acl_fetch_src_inc_gpc0,         acl_match_int, ACL_USE_TCP4_VOLATILE },
-	{ "trkfe_conn_cnt",       acl_parse_int,   acl_fetch_trkfe_conn_cnt,       acl_match_int, ACL_USE_NOTHING },
-	{ "trkbe_conn_cnt",       acl_parse_int,   acl_fetch_trkbe_conn_cnt,       acl_match_int, ACL_USE_NOTHING },
-	{ "src_conn_cnt",         acl_parse_int,   acl_fetch_src_conn_cnt,         acl_match_int, ACL_USE_TCP4_VOLATILE },
-	{ "trkfe_conn_rate",      acl_parse_int,   acl_fetch_trkfe_conn_rate,      acl_match_int, ACL_USE_NOTHING },
-	{ "trkbe_conn_rate",      acl_parse_int,   acl_fetch_trkbe_conn_rate,      acl_match_int, ACL_USE_NOTHING },
-	{ "src_conn_rate",        acl_parse_int,   acl_fetch_src_conn_rate,        acl_match_int, ACL_USE_TCP4_VOLATILE },
-	{ "src_updt_conn_cnt",    acl_parse_int,   acl_fetch_src_updt_conn_cnt,    acl_match_int, ACL_USE_TCP4_VOLATILE },
-	{ "trkfe_conn_cur",       acl_parse_int,   acl_fetch_trkfe_conn_cur,       acl_match_int, ACL_USE_NOTHING },
-	{ "trkbe_conn_cur",       acl_parse_int,   acl_fetch_trkbe_conn_cur,       acl_match_int, ACL_USE_NOTHING },
-	{ "src_conn_cur",         acl_parse_int,   acl_fetch_src_conn_cur,         acl_match_int, ACL_USE_TCP4_VOLATILE },
-	{ "trkfe_sess_cnt",       acl_parse_int,   acl_fetch_trkfe_sess_cnt,       acl_match_int, ACL_USE_NOTHING },
-	{ "trkbe_sess_cnt",       acl_parse_int,   acl_fetch_trkbe_sess_cnt,       acl_match_int, ACL_USE_NOTHING },
-	{ "src_sess_cnt",         acl_parse_int,   acl_fetch_src_sess_cnt,         acl_match_int, ACL_USE_TCP4_VOLATILE },
-	{ "trkfe_sess_rate",      acl_parse_int,   acl_fetch_trkfe_sess_rate,      acl_match_int, ACL_USE_NOTHING },
-	{ "trkbe_sess_rate",      acl_parse_int,   acl_fetch_trkbe_sess_rate,      acl_match_int, ACL_USE_NOTHING },
-	{ "src_sess_rate",        acl_parse_int,   acl_fetch_src_sess_rate,        acl_match_int, ACL_USE_TCP4_VOLATILE },
-	{ "trkfe_http_req_cnt",   acl_parse_int,   acl_fetch_trkfe_http_req_cnt,   acl_match_int, ACL_USE_NOTHING },
-	{ "trkbe_http_req_cnt",   acl_parse_int,   acl_fetch_trkbe_http_req_cnt,   acl_match_int, ACL_USE_NOTHING },
-	{ "src_http_req_cnt",     acl_parse_int,   acl_fetch_src_http_req_cnt,     acl_match_int, ACL_USE_TCP4_VOLATILE },
-	{ "trkfe_http_req_rate",  acl_parse_int,   acl_fetch_trkfe_http_req_rate,  acl_match_int, ACL_USE_NOTHING },
-	{ "trkbe_http_req_rate",  acl_parse_int,   acl_fetch_trkbe_http_req_rate,  acl_match_int, ACL_USE_NOTHING },
-	{ "src_http_req_rate",    acl_parse_int,   acl_fetch_src_http_req_rate,    acl_match_int, ACL_USE_TCP4_VOLATILE },
-	{ "trkfe_http_err_cnt",   acl_parse_int,   acl_fetch_trkfe_http_err_cnt,   acl_match_int, ACL_USE_NOTHING },
-	{ "trkbe_http_err_cnt",   acl_parse_int,   acl_fetch_trkbe_http_err_cnt,   acl_match_int, ACL_USE_NOTHING },
-	{ "src_http_err_cnt",     acl_parse_int,   acl_fetch_src_http_err_cnt,     acl_match_int, ACL_USE_TCP4_VOLATILE },
-	{ "trkfe_http_err_rate",  acl_parse_int,   acl_fetch_trkfe_http_err_rate,  acl_match_int, ACL_USE_NOTHING },
-	{ "trkbe_http_err_rate",  acl_parse_int,   acl_fetch_trkbe_http_err_rate,  acl_match_int, ACL_USE_NOTHING },
-	{ "src_http_err_rate",    acl_parse_int,   acl_fetch_src_http_err_rate,    acl_match_int, ACL_USE_TCP4_VOLATILE },
-	{ "trkfe_kbytes_in",      acl_parse_int,   acl_fetch_trkfe_kbytes_in,      acl_match_int, ACL_USE_TCP4_VOLATILE },
-	{ "trkbe_kbytes_in",      acl_parse_int,   acl_fetch_trkbe_kbytes_in,      acl_match_int, ACL_USE_TCP4_VOLATILE },
-	{ "src_kbytes_in",        acl_parse_int,   acl_fetch_src_kbytes_in,        acl_match_int, ACL_USE_TCP4_VOLATILE },
-	{ "trkfe_bytes_in_rate",  acl_parse_int,   acl_fetch_trkfe_bytes_in_rate,  acl_match_int, ACL_USE_NOTHING },
-	{ "trkbe_bytes_in_rate",  acl_parse_int,   acl_fetch_trkbe_bytes_in_rate,  acl_match_int, ACL_USE_NOTHING },
-	{ "src_bytes_in_rate",    acl_parse_int,   acl_fetch_src_bytes_in_rate,    acl_match_int, ACL_USE_TCP4_VOLATILE },
-	{ "trkfe_kbytes_out",     acl_parse_int,   acl_fetch_trkfe_kbytes_out,     acl_match_int, ACL_USE_TCP4_VOLATILE },
-	{ "trkbe_kbytes_out",     acl_parse_int,   acl_fetch_trkbe_kbytes_out,     acl_match_int, ACL_USE_TCP4_VOLATILE },
-	{ "src_kbytes_out",       acl_parse_int,   acl_fetch_src_kbytes_out,       acl_match_int, ACL_USE_TCP4_VOLATILE },
-	{ "trkfe_bytes_out_rate", acl_parse_int,   acl_fetch_trkfe_bytes_out_rate, acl_match_int, ACL_USE_NOTHING },
-	{ "trkbe_bytes_out_rate", acl_parse_int,   acl_fetch_trkbe_bytes_out_rate, acl_match_int, ACL_USE_NOTHING },
-	{ "src_bytes_out_rate",   acl_parse_int,   acl_fetch_src_bytes_out_rate,   acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "sc1_get_gpc0",       acl_parse_int,   acl_fetch_sc1_get_gpc0,       acl_match_int, ACL_USE_NOTHING },
+	{ "sc2_get_gpc0",       acl_parse_int,   acl_fetch_sc2_get_gpc0,       acl_match_int, ACL_USE_NOTHING },
+	{ "src_get_gpc0",       acl_parse_int,   acl_fetch_src_get_gpc0,       acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "sc1_inc_gpc0",       acl_parse_int,   acl_fetch_sc1_inc_gpc0,       acl_match_int, ACL_USE_NOTHING },
+	{ "sc2_inc_gpc0",       acl_parse_int,   acl_fetch_sc2_inc_gpc0,       acl_match_int, ACL_USE_NOTHING },
+	{ "src_inc_gpc0",       acl_parse_int,   acl_fetch_src_inc_gpc0,       acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "sc1_conn_cnt",       acl_parse_int,   acl_fetch_sc1_conn_cnt,       acl_match_int, ACL_USE_NOTHING },
+	{ "sc2_conn_cnt",       acl_parse_int,   acl_fetch_sc2_conn_cnt,       acl_match_int, ACL_USE_NOTHING },
+	{ "src_conn_cnt",       acl_parse_int,   acl_fetch_src_conn_cnt,       acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "sc1_conn_rate",      acl_parse_int,   acl_fetch_sc1_conn_rate,      acl_match_int, ACL_USE_NOTHING },
+	{ "sc2_conn_rate",      acl_parse_int,   acl_fetch_sc2_conn_rate,      acl_match_int, ACL_USE_NOTHING },
+	{ "src_conn_rate",      acl_parse_int,   acl_fetch_src_conn_rate,      acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "src_updt_conn_cnt",  acl_parse_int,   acl_fetch_src_updt_conn_cnt,  acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "sc1_conn_cur",       acl_parse_int,   acl_fetch_sc1_conn_cur,       acl_match_int, ACL_USE_NOTHING },
+	{ "sc2_conn_cur",       acl_parse_int,   acl_fetch_sc2_conn_cur,       acl_match_int, ACL_USE_NOTHING },
+	{ "src_conn_cur",       acl_parse_int,   acl_fetch_src_conn_cur,       acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "sc1_sess_cnt",       acl_parse_int,   acl_fetch_sc1_sess_cnt,       acl_match_int, ACL_USE_NOTHING },
+	{ "sc2_sess_cnt",       acl_parse_int,   acl_fetch_sc2_sess_cnt,       acl_match_int, ACL_USE_NOTHING },
+	{ "src_sess_cnt",       acl_parse_int,   acl_fetch_src_sess_cnt,       acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "sc1_sess_rate",      acl_parse_int,   acl_fetch_sc1_sess_rate,      acl_match_int, ACL_USE_NOTHING },
+	{ "sc2_sess_rate",      acl_parse_int,   acl_fetch_sc2_sess_rate,      acl_match_int, ACL_USE_NOTHING },
+	{ "src_sess_rate",      acl_parse_int,   acl_fetch_src_sess_rate,      acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "sc1_http_req_cnt",   acl_parse_int,   acl_fetch_sc1_http_req_cnt,   acl_match_int, ACL_USE_NOTHING },
+	{ "sc2_http_req_cnt",   acl_parse_int,   acl_fetch_sc2_http_req_cnt,   acl_match_int, ACL_USE_NOTHING },
+	{ "src_http_req_cnt",   acl_parse_int,   acl_fetch_src_http_req_cnt,   acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "sc1_http_req_rate",  acl_parse_int,   acl_fetch_sc1_http_req_rate,  acl_match_int, ACL_USE_NOTHING },
+	{ "sc2_http_req_rate",  acl_parse_int,   acl_fetch_sc2_http_req_rate,  acl_match_int, ACL_USE_NOTHING },
+	{ "src_http_req_rate",  acl_parse_int,   acl_fetch_src_http_req_rate,  acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "sc1_http_err_cnt",   acl_parse_int,   acl_fetch_sc1_http_err_cnt,   acl_match_int, ACL_USE_NOTHING },
+	{ "sc2_http_err_cnt",   acl_parse_int,   acl_fetch_sc2_http_err_cnt,   acl_match_int, ACL_USE_NOTHING },
+	{ "src_http_err_cnt",   acl_parse_int,   acl_fetch_src_http_err_cnt,   acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "sc1_http_err_rate",  acl_parse_int,   acl_fetch_sc1_http_err_rate,  acl_match_int, ACL_USE_NOTHING },
+	{ "sc2_http_err_rate",  acl_parse_int,   acl_fetch_sc2_http_err_rate,  acl_match_int, ACL_USE_NOTHING },
+	{ "src_http_err_rate",  acl_parse_int,   acl_fetch_src_http_err_rate,  acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "sc1_kbytes_in",      acl_parse_int,   acl_fetch_sc1_kbytes_in,      acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "sc2_kbytes_in",      acl_parse_int,   acl_fetch_sc2_kbytes_in,      acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "src_kbytes_in",      acl_parse_int,   acl_fetch_src_kbytes_in,      acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "sc1_bytes_in_rate",  acl_parse_int,   acl_fetch_sc1_bytes_in_rate,  acl_match_int, ACL_USE_NOTHING },
+	{ "sc2_bytes_in_rate",  acl_parse_int,   acl_fetch_sc2_bytes_in_rate,  acl_match_int, ACL_USE_NOTHING },
+	{ "src_bytes_in_rate",  acl_parse_int,   acl_fetch_src_bytes_in_rate,  acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "sc1_kbytes_out",     acl_parse_int,   acl_fetch_sc1_kbytes_out,     acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "sc2_kbytes_out",     acl_parse_int,   acl_fetch_sc2_kbytes_out,     acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "src_kbytes_out",     acl_parse_int,   acl_fetch_src_kbytes_out,     acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "sc1_bytes_out_rate", acl_parse_int,   acl_fetch_sc1_bytes_out_rate, acl_match_int, ACL_USE_NOTHING },
+	{ "sc2_bytes_out_rate", acl_parse_int,   acl_fetch_sc2_bytes_out_rate, acl_match_int, ACL_USE_NOTHING },
+	{ "src_bytes_out_rate", acl_parse_int,   acl_fetch_src_bytes_out_rate, acl_match_int, ACL_USE_TCP4_VOLATILE },
 	{ NULL, NULL, NULL, NULL },
 }};
 
 
-/* Parse a "track-counters" line starting with "track-counters" in args[arg-1].
+/* Parse a "track-sc[12]" line starting with "track-sc[12]" in args[arg-1].
  * Returns the number of warnings emitted, or -1 in case of fatal errors. The
  * <prm> struct is fed with the table name if any. If unspecified, the caller
  * will assume that the current proxy's table is used.
@@ -3185,10 +3185,11 @@ int parse_track_counters(char **args, int *arg,
 			 struct proxy *defpx, char *err, int errlen)
 {
 	int pattern_type = 0;
+	char *kw = args[*arg - 1];
 
-	/* parse the arguments of "track-counters" before the condition in the
+	/* parse the arguments of "track-sc[12]" before the condition in the
 	 * following form :
-	 *      track-counters src [ table xxx ] [ if|unless ... ]
+	 *      track-sc[12] src [ table xxx ] [ if|unless ... ]
 	 */
 	while (args[*arg]) {
 		if (strcmp(args[*arg], "src") == 0) {
@@ -3198,8 +3199,8 @@ int parse_track_counters(char **args, int *arg,
 		else if (strcmp(args[*arg], "table") == 0) {
 			if (!args[*arg + 1]) {
 				snprintf(err, errlen,
-					 "missing table for track-counter in %s '%s'.",
-					 proxy_type_str(curpx), curpx->id);
+					 "missing table for %s in %s '%s'.",
+					 kw, proxy_type_str(curpx), curpx->id);
 				return -1;
 			}
 			/* we copy the table name for now, it will be resolved later */
@@ -3215,8 +3216,8 @@ int parse_track_counters(char **args, int *arg,
 
 	if (!pattern_type) {
 		snprintf(err, errlen,
-			 "track-counter key not specified in %s '%s' (found %s, only 'src' is supported).",
-			 proxy_type_str(curpx), curpx->id, quote_arg(args[*arg]));
+			 "%s key not specified in %s '%s' (found %s, only 'src' is supported).",
+			 kw, proxy_type_str(curpx), curpx->id, quote_arg(args[*arg]));
 		return -1;
 	}
 

@@ -32,8 +32,8 @@
 enum {
 	TCP_ACT_ACCEPT = 1,
 	TCP_ACT_REJECT = 2,
-	TCP_ACT_TRK_FE_CTR = 3,
-	TCP_ACT_TRK_BE_CTR = 4,
+	TCP_ACT_TRK_SC1 = 3,
+	TCP_ACT_TRK_SC2 = 4,
 };
 
 struct tcp_rule {

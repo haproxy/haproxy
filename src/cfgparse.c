@@ -4990,7 +4990,7 @@ int check_config_validity()
 		list_for_each_entry(trule, &curproxy->tcp_req.l4_rules, list) {
 			struct proxy *target;
 
-			if (trule->action != TCP_ACT_TRK_FE_CTR && trule->action != TCP_ACT_TRK_BE_CTR)
+			if (trule->action != TCP_ACT_TRK_SC1 && trule->action != TCP_ACT_TRK_SC2)
 				continue;
 
 			if (trule->act_prm.trk_ctr.table.n)
@@ -4999,8 +4999,9 @@ int check_config_validity()
 				target = curproxy;
 
 			if (!target) {
-				Alert("Proxy '%s': unable to find table '%s' referenced by track-counter.\n",
-				      curproxy->id, trule->act_prm.trk_ctr.table.n);
+				Alert("Proxy '%s': unable to find table '%s' referenced by track-sc%d.\n",
+				      curproxy->id, trule->act_prm.trk_ctr.table.n,
+				      trule->action == TCP_ACT_TRK_SC1 ? 1 : 2);
 				cfgerr++;
 			}
 			else if (target->table.size == 0) {
@@ -5009,14 +5010,14 @@ int check_config_validity()
 				cfgerr++;
 			}
 			else if (trule->act_prm.trk_ctr.type != target->table.type) {
-				Alert("Proxy '%s': type of track-counters pattern not usable with type of stick-table '%s'.\n",
+				Alert("Proxy '%s': type of tracking key for sticky counter not usable with type of stick-table '%s'.\n",
 				      curproxy->id, trule->act_prm.trk_ctr.table.n ? trule->act_prm.trk_ctr.table.n : curproxy->id);
 				cfgerr++;
 			}
 			else {
 				free(trule->act_prm.trk_ctr.table.n);
 				trule->act_prm.trk_ctr.table.t = &target->table;
-				/* Note: if we decide to enhance the track-counters syntax, we may be able
+				/* Note: if we decide to enhance the track-sc syntax, we may be able
 				 * to pass a list of counters to track and allocate them right here using
 				 * stktable_alloc_data_type().
 				 */
@@ -5027,7 +5028,7 @@ int check_config_validity()
 		list_for_each_entry(trule, &curproxy->tcp_req.inspect_rules, list) {
 			struct proxy *target;
 
-			if (trule->action != TCP_ACT_TRK_FE_CTR && trule->action != TCP_ACT_TRK_BE_CTR)
+			if (trule->action != TCP_ACT_TRK_SC1 && trule->action != TCP_ACT_TRK_SC2)
 				continue;
 
 			if (trule->act_prm.trk_ctr.table.n)
@@ -5036,8 +5037,9 @@ int check_config_validity()
 				target = curproxy;
 
 			if (!target) {
-				Alert("Proxy '%s': unable to find table '%s' referenced by track-counter.\n",
-				      curproxy->id, trule->act_prm.trk_ctr.table.n);
+				Alert("Proxy '%s': unable to find table '%s' referenced by track-sc%d.\n",
+				      curproxy->id, trule->act_prm.trk_ctr.table.n,
+				      trule->action == TCP_ACT_TRK_SC1 ? 1 : 2);
 				cfgerr++;
 			}
 			else if (target->table.size == 0) {
@@ -5046,14 +5048,14 @@ int check_config_validity()
 				cfgerr++;
 			}
 			else if (trule->act_prm.trk_ctr.type != target->table.type) {
-				Alert("Proxy '%s': type of track-counters pattern not usable with type of stick-table '%s'.\n",
+				Alert("Proxy '%s': type of tracking key for sticky counter not usable with type of stick-table '%s'.\n",
 				      curproxy->id, trule->act_prm.trk_ctr.table.n ? trule->act_prm.trk_ctr.table.n : curproxy->id);
 				cfgerr++;
 			}
 			else {
 				free(trule->act_prm.trk_ctr.table.n);
 				trule->act_prm.trk_ctr.table.t = &target->table;
-				/* Note: if we decide to enhance the track-counters syntax, we may be able
+				/* Note: if we decide to enhance the track-sc syntax, we may be able
 				 * to pass a list of counters to track and allocate them right here using
 				 * stktable_alloc_data_type().
 				 */

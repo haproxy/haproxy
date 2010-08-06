@@ -184,10 +184,11 @@ struct session {
 		int flags;
 	} store[8];				/* tracked stickiness values to store */
 	int store_count;
-	struct stksess *fe_tracked_counters;    /* counters currently being tracked by this session (frontend) */
-	struct stktable *fe_tracked_table;      /* table the counters above belong to (undefined if counters are null) */
-	struct stksess *be_tracked_counters;    /* counters currently being tracked by this session (backend) */
-	struct stktable *be_tracked_table;      /* table the counters above belong to (undefined if counters are null) */
+
+	struct stksess *stkctr1_entry;          /* entry containing counters currently being tracked as set 1 by this session */
+	struct stktable *stkctr1_table;         /* table the counters above belong to (undefined if counters are null) */
+	struct stksess *stkctr2_entry;          /* entry containing counters currently being tracked as set 2 by this session */
+	struct stktable *stkctr2_table;         /* table the counters above belong to (undefined if counters are null) */
 
 	struct {
 		int logwait;			/* log fields waiting to be collected : LW_* */

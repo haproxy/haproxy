@@ -686,9 +686,9 @@ int tcp_inspect_request(struct session *s, struct buffer *req, int an_bit)
 					s->flags |= SN_FINST_R;
 				return 0;
 			}
-			else if (rule->action == TCP_ACT_TRK_FE_CTR) {
-				if (!s->fe_tracked_counters) {
-					/* only the first valid track-counters directive applies.
+			else if (rule->action == TCP_ACT_TRK_SC1) {
+				if (!s->stkctr1_entry) {
+					/* only the first valid track-sc1 directive applies.
 					 * Also, note that right now we can only track SRC so we
 					 * don't check how to get the key, but later we may need
 					 * to consider rule->act_prm->trk_ctr.type.
@@ -696,12 +696,12 @@ int tcp_inspect_request(struct session *s, struct buffer *req, int an_bit)
 					t = rule->act_prm.trk_ctr.table.t;
 					ts = stktable_get_entry(t, tcpv4_src_to_stktable_key(s));
 					if (ts)
-						session_track_fe_counters(s, t, ts);
+						session_track_stkctr1(s, t, ts);
 				}
 			}
-			else if (rule->action == TCP_ACT_TRK_BE_CTR) {
-				if (!s->be_tracked_counters) {
-					/* only the first valid track-counters directive applies.
+			else if (rule->action == TCP_ACT_TRK_SC2) {
+				if (!s->stkctr2_entry) {
+					/* only the first valid track-sc2 directive applies.
 					 * Also, note that right now we can only track SRC so we
 					 * don't check how to get the key, but later we may need
 					 * to consider rule->act_prm->trk_ctr.type.
@@ -709,7 +709,7 @@ int tcp_inspect_request(struct session *s, struct buffer *req, int an_bit)
 					t = rule->act_prm.trk_ctr.table.t;
 					ts = stktable_get_entry(t, tcpv4_src_to_stktable_key(s));
 					if (ts)
-						session_track_be_counters(s, t, ts);
+						session_track_stkctr2(s, t, ts);
 				}
 			}
 			else {
@@ -764,9 +764,9 @@ int tcp_exec_req_rules(struct session *s)
 				result = 0;
 				break;
 			}
-			else if (rule->action == TCP_ACT_TRK_FE_CTR) {
-				if (!s->fe_tracked_counters) {
-					/* only the first valid track-counters directive applies.
+			else if (rule->action == TCP_ACT_TRK_SC1) {
+				if (!s->stkctr1_entry) {
+					/* only the first valid track-sc1 directive applies.
 					 * Also, note that right now we can only track SRC so we
 					 * don't check how to get the key, but later we may need
 					 * to consider rule->act_prm->trk_ctr.type.
@@ -774,12 +774,12 @@ int tcp_exec_req_rules(struct session *s)
 					t = rule->act_prm.trk_ctr.table.t;
 					ts = stktable_get_entry(t, tcpv4_src_to_stktable_key(s));
 					if (ts)
-						session_track_fe_counters(s, t, ts);
+						session_track_stkctr1(s, t, ts);
 				}
 			}
-			else if (rule->action == TCP_ACT_TRK_BE_CTR) {
-				if (!s->be_tracked_counters) {
-					/* only the first valid track-counters directive applies.
+			else if (rule->action == TCP_ACT_TRK_SC2) {
+				if (!s->stkctr2_entry) {
+					/* only the first valid track-sc2 directive applies.
 					 * Also, note that right now we can only track SRC so we
 					 * don't check how to get the key, but later we may need
 					 * to consider rule->act_prm->trk_ctr.type.
@@ -787,7 +787,7 @@ int tcp_exec_req_rules(struct session *s)
 					t = rule->act_prm.trk_ctr.table.t;
 					ts = stktable_get_entry(t, tcpv4_src_to_stktable_key(s));
 					if (ts)
-						session_track_be_counters(s, t, ts);
+						session_track_stkctr2(s, t, ts);
 				}
 			}
 			else {
@@ -818,7 +818,7 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 		arg++;
 		rule->action = TCP_ACT_REJECT;
 	}
-	else if (strcmp(args[arg], "track-fe-counters") == 0) {
+	else if (strcmp(args[arg], "track-sc1") == 0) {
 		int ret;
 
 		arg++;
@@ -828,9 +828,9 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 		if (ret < 0) /* nb: warnings are not handled yet */
 			return -1;
 
-		rule->action = TCP_ACT_TRK_FE_CTR;
+		rule->action = TCP_ACT_TRK_SC1;
 	}
-	else if (strcmp(args[arg], "track-be-counters") == 0) {
+	else if (strcmp(args[arg], "track-sc2") == 0) {
 		int ret;
 
 		arg++;
@@ -840,12 +840,12 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 		if (ret < 0) /* nb: warnings are not handled yet */
 			return -1;
 
-		rule->action = TCP_ACT_TRK_BE_CTR;
+		rule->action = TCP_ACT_TRK_SC2;
 	}
 	else {
 		snprintf(err, errlen,
-			 "'%s %s' expects 'accept', 'reject', 'track-fe-counters' "
-			 "or 'track-be-counters' in %s '%s' (was '%s')",
+			 "'%s %s' expects 'accept', 'reject', 'track-sc1' "
+			 "or 'track-sc2' in %s '%s' (was '%s')",
 			 args[0], args[1], proxy_type_str(curpx), curpx->id, args[arg]);
 		return -1;
 	}
