@@ -150,6 +150,19 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 					       s->fe_tracked_table->data_arg[STKTABLE_DT_SESS_RATE].u, 1);
 	}
 
+	if (s->be_tracked_counters) {
+		void *ptr;
+
+		ptr = stktable_data_ptr(s->be_tracked_table, s->be_tracked_counters, STKTABLE_DT_SESS_CNT);
+		if (ptr)
+			stktable_data_cast(ptr, sess_cnt)++;
+
+		ptr = stktable_data_ptr(s->be_tracked_table, s->be_tracked_counters, STKTABLE_DT_SESS_RATE);
+		if (ptr)
+			update_freq_ctr_period(&stktable_data_cast(ptr, sess_rate),
+					       s->be_tracked_table->data_arg[STKTABLE_DT_SESS_RATE].u, 1);
+	}
+
 	/* this part should be common with other protocols */
 	s->si[0].fd        = cfd;
 	s->si[0].owner     = t;
