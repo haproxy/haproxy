@@ -82,15 +82,27 @@ static inline void session_stop_backend_counters(struct session *s)
 {
 	void *ptr;
 
-	if (!s->stkctr2_entry)
+	if (!(s->flags & (SN_BE_TRACK_SC1|SN_BE_TRACK_SC2)))
 		return;
 
-	ptr = stktable_data_ptr(s->stkctr2_table, s->stkctr2_entry, STKTABLE_DT_CONN_CUR);
-	if (ptr)
-		stktable_data_cast(ptr, conn_cur)--;
-	s->stkctr2_entry->ref_cnt--;
-	stksess_kill_if_expired(s->stkctr2_table, s->stkctr2_entry);
-	s->stkctr2_entry = NULL;
+	if ((s->flags & SN_BE_TRACK_SC1) && s->stkctr1_entry) {
+		ptr = stktable_data_ptr(s->stkctr1_table, s->stkctr1_entry, STKTABLE_DT_CONN_CUR);
+		if (ptr)
+			stktable_data_cast(ptr, conn_cur)--;
+		s->stkctr1_entry->ref_cnt--;
+		stksess_kill_if_expired(s->stkctr1_table, s->stkctr1_entry);
+		s->stkctr1_entry = NULL;
+	}
+
+	if ((s->flags & SN_BE_TRACK_SC2) && s->stkctr2_entry) {
+		ptr = stktable_data_ptr(s->stkctr2_table, s->stkctr2_entry, STKTABLE_DT_CONN_CUR);
+		if (ptr)
+			stktable_data_cast(ptr, conn_cur)--;
+		s->stkctr2_entry->ref_cnt--;
+		stksess_kill_if_expired(s->stkctr2_table, s->stkctr2_entry);
+		s->stkctr2_entry = NULL;
+	}
+	s->flags &= ~(SN_BE_TRACK_SC1|SN_BE_TRACK_SC2);
 }
 
 /* Increase total and concurrent connection count for stick entry <ts> of table

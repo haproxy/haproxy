@@ -695,8 +695,11 @@ int tcp_inspect_request(struct session *s, struct buffer *req, int an_bit)
 					 */
 					t = rule->act_prm.trk_ctr.table.t;
 					ts = stktable_get_entry(t, tcpv4_src_to_stktable_key(s));
-					if (ts)
+					if (ts) {
 						session_track_stkctr1(s, t, ts);
+						if (s->fe != s->be)
+							s->flags |= SN_BE_TRACK_SC1;
+					}
 				}
 			}
 			else if (rule->action == TCP_ACT_TRK_SC2) {
@@ -708,8 +711,11 @@ int tcp_inspect_request(struct session *s, struct buffer *req, int an_bit)
 					 */
 					t = rule->act_prm.trk_ctr.table.t;
 					ts = stktable_get_entry(t, tcpv4_src_to_stktable_key(s));
-					if (ts)
+					if (ts) {
 						session_track_stkctr2(s, t, ts);
+						if (s->fe != s->be)
+							s->flags |= SN_BE_TRACK_SC2;
+					}
 				}
 			}
 			else {

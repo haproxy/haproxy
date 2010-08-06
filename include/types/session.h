@@ -67,7 +67,7 @@
 #define SN_ERR_INTERNAL	0x00007000	/* the proxy encountered an internal error */
 #define SN_ERR_MASK	0x00007000	/* mask to get only session error flags */
 #define SN_ERR_SHIFT	12		/* bit shift */
-/* unused:              0x00008000 */
+#define SN_BE_TRACK_SC1 0x00008000	/* backend tracks stick-counter 1 */
 
 /* session state at termination, bits values 0x10000 to 0x70000 (0-7 shift 16) */
 #define SN_FINST_R	0x00010000	/* session ended during client request */
@@ -79,13 +79,9 @@
 #define SN_FINST_T	0x00070000	/* session ended tarpitted */
 #define SN_FINST_MASK	0x00070000	/* mask to get only final session state flags */
 #define	SN_FINST_SHIFT	16		/* bit shift */
-/* unused:              0x00080000 */
+#define SN_BE_TRACK_SC2 0x00080000	/* backend tracks stick-counter 2 */
 
 #define SN_IGNORE_PRST	0x00100000	/* ignore persistence */
-
-/* WARNING: if new fields are added, they must be initialized in event_accept()
- * and freed in session_free() !
- */
 
 /* Termination sequence tracing.
  *
@@ -142,6 +138,10 @@ enum {
 	TT_HTTP_URI_1,
 };
 
+
+/* WARNING: if new fields are added, they must be initialized in event_accept()
+ * and freed in session_free() !
+ */
 
 /*
  * Note: some session flags have dependencies :
