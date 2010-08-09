@@ -96,6 +96,8 @@ void stream_int_update(struct stream_interface *si)
 /* default update function for embedded tasks, to be used at the end of the i/o handler */
 void stream_int_update_embedded(struct stream_interface *si)
 {
+	int old_flags = si->flags;
+
 	DPRINTF(stderr, "%s: si=%p, si->state=%d ib->flags=%08x ob->flags=%08x\n",
 		__FUNCTION__,
 		si, si->state, si->ib->flags, si->ob->flags);
@@ -126,34 +128,48 @@ void stream_int_update_embedded(struct stream_interface *si)
 			si->ib->rex = tick_add_ifset(now_ms, si->ib->rto);
 	}
 
+	/* save flags to detect changes */
+	old_flags = si->flags;
 	if (likely((si->ob->flags & (BF_SHUTW|BF_WRITE_PARTIAL|BF_FULL|BF_DONT_READ)) == BF_WRITE_PARTIAL &&
 		   (si->ob->prod->flags & SI_FL_WAIT_ROOM)))
 		si->ob->prod->chk_rcv(si->ob->prod);
 
 	if (((si->ib->flags & (BF_READ_PARTIAL|BF_OUT_EMPTY)) == BF_READ_PARTIAL) &&
-	    (si->ib->cons->flags & SI_FL_WAIT_DATA))
+	    (si->ib->cons->flags & SI_FL_WAIT_DATA)) {
 		si->ib->cons->chk_snd(si->ib->cons);
+		/* check if the consumer has freed some space */
+		if (!(si->ib->flags & BF_FULL))
+			si->flags &= ~SI_FL_WAIT_ROOM;
+	}
 
 	/* Note that we're trying to wake up in two conditions here :
 	 *  - special event, which needs the holder task attention
 	 *  - status indicating that the applet can go on working. This
 	 *    is rather hard because we might be blocking on output and
 	 *    don't want to wake up on input and vice-versa. The idea is
-	 *    the to only rely the changes the chk_* might have performed.
+	 *    to only rely on the changes the chk_* might have performed.
 	 */
 	if (/* check stream interface changes */
-	    (si->flags & SI_FL_ERR) || si->state != SI_ST_EST || si->ib->cons->state > SI_ST_EST ||
-	    /* check response buffer changes */
-	    (si->ib->flags & (BF_READ_NULL|BF_READ_ERROR|BF_READ_DONTWAIT)) ||
-	    ((si->ib->flags & BF_READ_ACTIVITY) && !si->ib->to_forward) ||
-	    (!(si->ib->flags & BF_FULL) && (si->ib->flags & BF_WRITE_ACTIVITY) && si->ib->to_forward) ||
-	    /* check request buffer changes */
-	    (si->ob->flags & (BF_WRITE_ERROR)) ||
-	    ((si->ob->flags & BF_WRITE_ACTIVITY) && (si->ob->flags & BF_OUT_EMPTY) && !si->ob->to_forward) ||
-	    (si->ob->flags & BF_READ_ACTIVITY)) {
+	    ((old_flags & ~si->flags) & (SI_FL_WAIT_ROOM|SI_FL_WAIT_DATA)) ||
+
+	    /* changes on the production side */
+	    (si->ib->flags & (BF_READ_NULL|BF_READ_ERROR)) ||
+	    si->state != SI_ST_EST ||
+	    (si->flags & SI_FL_ERR) ||
+	    ((si->ib->flags & BF_READ_PARTIAL) &&
+	     (!si->ib->to_forward || si->ib->cons->state != SI_ST_EST)) ||
+
+	    /* changes on the consumption side */
+	    (si->ob->flags & (BF_WRITE_NULL|BF_WRITE_ERROR)) ||
+	    ((si->ob->flags & BF_WRITE_ACTIVITY) &&
+	     ((si->ob->flags & BF_SHUTW) ||
+	      si->ob->prod->state != SI_ST_EST ||
+	      ((si->ob->flags & BF_OUT_EMPTY) && !si->ob->to_forward)))) {
 		if (!(si->flags & SI_FL_DONT_WAKE) && si->owner)
 			task_wakeup(si->owner, TASK_WOKEN_IO);
 	}
+	if (si->ib->flags & BF_READ_ACTIVITY)
+		si->ib->flags &= ~BF_READ_DONTWAIT;
 }
 
 /* default shutr function for scheduled tasks */
