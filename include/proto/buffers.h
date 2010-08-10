@@ -290,6 +290,15 @@ static inline int buffer_realign(struct buffer *buf)
 }
 
 /*
+ * Return the maximum amount of bytes that can be written into the buffer in
+ * one call to buffer_feed*().
+ */
+static inline int buffer_free_space(struct buffer *buf)
+{
+	return buffer_max_len(buf) - buf->l;
+}
+
+/*
  * Return the max amount of bytes that can be stuffed into the buffer at once.
  * Note that this may be lower than the actual buffer size when the free space
  * wraps after the end, so it's preferable to call this function again after
@@ -314,10 +323,33 @@ static inline int buffer_contig_space(struct buffer *buf)
 	return ret;
 }
 
+/*
+ * Same as above but the caller may pass the value of buffer_max_len(buf) if it
+ * knows it, thus avoiding some calculations.
+ */
+static inline int buffer_contig_space_with_len(struct buffer *buf, int maxlen)
+{
+	int ret;
+
+	if (buf->l == 0) {
+		buf->r = buf->w = buf->lr = buf->data;
+		ret = maxlen;
+	}
+	else if (buf->r > buf->w) {
+		ret = buf->data + maxlen - buf->r;
+	}
+	else {
+		ret = buf->w - buf->r;
+		if (ret > maxlen)
+			ret = maxlen;
+	}
+	return ret;
+}
+
 /* Return 1 if the buffer has less than 1/4 of its capacity free, otherwise 0 */
 static inline int buffer_almost_full(struct buffer *buf)
 {
-	if (buffer_contig_space(buf) < buf->size / 4)
+	if (buffer_free_space(buf) < buf->size / 4)
 		return 1;
 	return 0;
 }

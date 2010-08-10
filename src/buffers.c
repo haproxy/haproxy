@@ -86,19 +86,24 @@ int buffer_feed2(struct buffer *buf, const char *str, int len)
 	if (len == 0)
 		return -1;
 
-	if (len > buffer_max_len(buf)) {
-		/* we can't write this chunk and will never be able to, because
-		 * it is larger than the buffer's current max size.
+	max = buffer_max_len(buf);
+	if (len > max - buf->l) {
+		/* we can't write this chunk right now because the buffer is
+		 * almost full or because the block is too large. Return the
+		 * available space or -2 if impossible.
 		 */
-		return -2;
+		if (len > max)
+			return -2;
+
+		return max - buf->l;
 	}
 
-	max = buffer_contig_space(buf);
-
+	/* OK so the data fits in the buffer in one or two blocks */
+	max = buffer_contig_space_with_len(buf, max);
+	memcpy(buf->r, str, MIN(len, max));
 	if (len > max)
-		return max;
+		memcpy(buf->data, str + max, len - max);
 
-	memcpy(buf->r, str, len);
 	buf->l += len;
 	buf->r += len;
 	buf->total += len;
@@ -113,8 +118,8 @@ int buffer_feed2(struct buffer *buf, const char *str, int len)
 		buf->flags &= ~BF_OUT_EMPTY;
 	}
 
-	if (buf->r == buf->data + buf->size)
-		buf->r = buf->data;
+	if (buf->r >= buf->data + buf->size)
+		buf->r -= buf->size;
 
 	buf->flags &= ~BF_FULL;
 	if (buf->l >= buffer_max_len(buf))
