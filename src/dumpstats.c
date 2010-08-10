@@ -546,10 +546,7 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 				return 1;
 			}
 
-			eb32_delete(&ts->exp);
-			ebmb_delete(&ts->key);
-			stksess_free(&px->table, ts);
-
+			stksess_kill(&px->table, ts);
 			/* end of processing */
 			return 1;
 		}
