@@ -110,6 +110,36 @@ int stats_accept(struct session *s)
 	return 1;
 }
 
+/* allocate a new stats frontend named <name>, and return it
+ * (or NULL in case of lack of memory).
+ */
+static struct proxy *alloc_stats_fe(const char *name)
+{
+	struct proxy *fe;
+
+	fe = (struct proxy *)calloc(1, sizeof(struct proxy));
+	if (!fe)
+		return NULL;
+
+	LIST_INIT(&fe->pendconns);
+	LIST_INIT(&fe->acl);
+	LIST_INIT(&fe->block_cond);
+	LIST_INIT(&fe->redirect_rules);
+	LIST_INIT(&fe->mon_fail_cond);
+	LIST_INIT(&fe->switching_rules);
+	LIST_INIT(&fe->tcp_req.inspect_rules);
+
+	/* Timeouts are defined as -1, so we cannot use the zeroed area
+	 * as a default value.
+	 */
+	proxy_reset_timeouts(fe);
+
+	fe->last_change = now.tv_sec;
+	fe->id = strdup("GLOBAL");
+	fe->cap = PR_CAP_FE;
+	return fe;
+}
+
 /* This function parses a "stats" statement in the "global" section. It returns
  * -1 if there is any error, otherwise zero. If it returns -1, it may write an
  * error message into ther <err> buffer, for at most <errlen> bytes, trailing
@@ -140,28 +170,11 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 		memcpy(&global.stats_sock.addr, &su, sizeof(su)); // guaranteed to fit
 
 		if (!global.stats_fe) {
-			if ((global.stats_fe = (struct proxy *)calloc(1, sizeof(struct proxy))) == NULL) {
+			if ((global.stats_fe = alloc_stats_fe("GLOBAL")) == NULL) {
 				snprintf(err, errlen, "out of memory");
 				return -1;
 			}
-
-			LIST_INIT(&global.stats_fe->pendconns);
-			LIST_INIT(&global.stats_fe->acl);
-			LIST_INIT(&global.stats_fe->block_cond);
-			LIST_INIT(&global.stats_fe->redirect_rules);
-			LIST_INIT(&global.stats_fe->mon_fail_cond);
-			LIST_INIT(&global.stats_fe->switching_rules);
-			LIST_INIT(&global.stats_fe->tcp_req.inspect_rules);
-
-			/* Timeouts are defined as -1, so we cannot use the zeroed area
-			 * as a default value.
-			 */
-			proxy_reset_timeouts(global.stats_fe);
-
-			global.stats_fe->last_change = now.tv_sec;
-			global.stats_fe->id = strdup("GLOBAL");
-			global.stats_fe->cap = PR_CAP_FE;
-			global.stats_fe->maxconn = global.stats_sock.maxconn;
+			global.stats_fe->timeout.client = MS_TO_TICKS(10000); /* default timeout of 10 seconds */
 		}
 
 		global.stats_sock.state = LI_INIT;
@@ -173,8 +186,7 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 		global.stats_sock.nice = -64;  /* we want to boost priority for local stats */
 		global.stats_sock.frontend = global.stats_fe;
 		global.stats_sock.perm.ux.level = ACCESS_LVL_OPER; /* default access level */
-
-		global.stats_fe->timeout.client = MS_TO_TICKS(10000); /* default timeout of 10 seconds */
+		global.stats_fe->maxconn = global.stats_sock.maxconn;
 		global.stats_sock.timeout = &global.stats_fe->timeout.client;
 
 		global.stats_sock.next  = global.stats_fe->listen;
@@ -250,6 +262,12 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 		if (!timeout) {
 			snprintf(err, errlen, "a positive value is expected for 'stats timeout' in 'global section'");
 			return -1;
+		}
+		if (!global.stats_fe) {
+			if ((global.stats_fe = alloc_stats_fe("GLOBAL")) == NULL) {
+				snprintf(err, errlen, "out of memory");
+				return -1;
+			}
 		}
 		global.stats_fe->timeout.client = MS_TO_TICKS(timeout);
 	}
