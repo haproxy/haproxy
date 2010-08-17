@@ -962,11 +962,8 @@ stick match                               -          -         X         X
 stick on                                  -          -         X         X
 stick store-request                       -          -         X         X
 stick-table                               -          -         X         X
-tcp-request connection accept             -          X         X         -
-tcp-request connection reject             -          X         X         -
-tcp-request connection track-counters     -          X         X         -
-tcp-request content accept                -          X         X         -
-tcp-request content reject                -          X         X         -
+tcp-request connection                    -          X         X         -
+tcp-request content                       -          X         X         X
 tcp-request inspect-delay                 -          X         X         -
 timeout check                             X          -         X         X
 timeout client                            X          X         X         -
@@ -5252,188 +5249,171 @@ stick-table type {ip | integer | string [len <length>] } size <size>
              about time format and section 7 avoud ACLs.
 
 
-tcp-request connection accept [{if | unless} <condition>]
-  Accept an incoming connection if/unless a layer 4 condition is matched
+tcp-request connection <action> [{if | unless} <condition>]
+  Perform an action on an incoming connection depending on a layer 4 condition
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   no
-
-  Immediately after acceptance of a new incoming connection, it is possible to
-  evaluate some conditions to decide whether this connection must be accepted
-  or dropped. Those conditions cannot make use of any data contents because the
-  connection has not been read from yet, and the buffers are not yet allocated.
-  This can be used to selectively and very quickly accept or drop connections
-  from various sources with a very low overhead. If some contents need to be
-  inspected in order to take the decision, the "tcp-request content" statements
-  must be used instead.
-
-  This statement accepts the connection if the condition is true (when used
-  with "if") or false (when used with "unless"). It is important to understand
-  that "accept" and "reject" rules are evaluated in their exact declaration
-  order, so that it is possible to build complex rules from them. There is no
-  specific limit to the number of rules which may be inserted.
-
-  Note that the "if/unless" condition is optional. If no condition is set on
-  the action, it is simply performed unconditionally.
-
-  If no "tcp-request" rules are matched, the default action is to accept the
-  connection, which implies that the "tcp-request accept" statement will only
-  make sense when combined with another "tcp-request reject" statement.
-
-  See section 7 about ACL usage.
-
-  See also : "tcp-request connection reject" and "tcp-request content"
-
-
-tcp-request connection reject [{if | unless} <condition>]
-  Reject an incoming connection if/unless a layer 4 condition is matched
-  May be used in sections :   defaults | frontend | listen | backend
-                                 no    |    yes   |   yes  |   no
-
-  Immediately after acceptance of a new incoming connection, it is possible to
-  evaluate some conditions to decide whether this connection must be accepted
-  or dropped. Those conditions cannot make use of any data contents because the
-  connection has not been read from yet, and the buffers are not yet allocated.
-  This can be used to selectively and very quickly accept or drop connections
-  from various sources with a very low overhead. If some contents need to be
-  inspected in order to take the decision, the "tcp-request content" statements
-  must be used instead.
-
-  This statement rejects the connection if the condition is true (when used
-  with "if") or false (when used with "unless"). It is important to understand
-  that "accept" and "reject" rules are evaluated in their exact declaration
-  order, so that it is possible to build complex rules from them. There is no
-  specific limit to the number of rules which may be inserted.
-
-  Note that the "if/unless" condition is optional. If no condition is set on
-  the action, it is simply performed unconditionally.
-
-  If no "tcp-request" rules are matched, the default action is to accept the
-  connection, which implies that the "tcp-request accept" statement will only
-  make sense when combined with another "tcp-request reject" statement.
-
-  Rejected connections do not even become a session, which is why they are
-  accounted separately for in the stats, as "denied connections". They are not
-  considered for the session rate-limit and are not logged either. The reason
-  is that these rules should only be used to filter extremely high connection
-  rates such as the ones encountered during a massive DDoS attack. Under these
-  conditions, the simple action of logging each event would make the system
-  collapse and would considerably lower the filtering capacity. If logging is
-  absolutely desired, then "tcp-request content" rules should be used instead.
-
-  See section 7 about ACL usage.
-
-  See also : "tcp-request connection accept" and "tcp-request content"
-
-
-tcp-request connection track-counters <key> [table <table>]
-                                      [{if | unless} <condition>]
-  Enable tracking of session counters if/unless a layer 4 condition is matched
-  May be used in sections :   defaults | frontend | listen | backend
-                                 no    |    yes   |   yes  |   no
-
   Arguments :
-    <key>     is the criterion the tracking key will be derived from. At the
-              moment, only "src" is supported. With it, the key will be the
-              connection's source IPv4 address.
+    <action>    defines the action to perform if the condition applies. Valid
+                actions include : "accept", "reject", "track-sc1", "track-sc2".
+                See below for more details.
 
-    <table>   is an optional table to use instead of the one from the current
-              proxy. All the counters for the matches and updates for the key
-              will then be performed in that table.
+    <condition> is a standard layer4-only ACL-based condition (see section 7).
 
-  Immediately after a new incoming connection has been accepted, it is possible
-  to enable tracking of some of this session's counters in a table. Doing so
-  serves two purposes :
-    - feed the entry with the session's counters that are relevant to the table
-      being pointed. These counters are then updated as often as possible, and
-      also systematically when the session ends.
+  Immediately after acceptance of a new incoming connection, it is possible to
+  evaluate some conditions to decide whether this connection must be accepted
+  or dropped or have its counters tracked. Those conditions cannot make use of
+  any data contents because the connection has not been read from yet, and the
+  buffers are not yet allocated. This is used to selectively and very quickly
+  accept or drop connections from various sources with a very low overhead. If
+  some contents need to be inspected in order to take the decision, the
+  "tcp-request content" statements must be used instead.
 
-    - keep a pointer to the entry in the table in the session to avoid having
-      to perform key lookups when complex ACL rules make use of the entry,
-      especially when the key is expensive to compute (eg: header-based).
+  The "tcp-request connection" rules are evaluated in their exact declaration
+  order. If no rule matches or if there is no rule, the default action is to
+  accept the incoming connection. There is no specific limit to the number of
+  rules which may be inserted.
 
-  It is possible to evaluate some conditions to decide whether a track-counters
-  statement will apply or not. In this case, only the first matching rule will
-  apply and the other ones will be ignored. We could for instance imagine that
-  some hosts which are references in a white list make use of a different
-  counters table, or do not get accounted for. The tracking is enabled if the
-  condition is true (when used with "if") or false (when used with "unless").
-  There is no specific limit to the number of rules which may be declared.
+  Three types of actions are supported :
+    - accept :
+        accepts the connection if the condition is true (when used with "if")
+        or false (when used with "unless"). The first such rule executed ends
+        the rules evaluation.
 
-  It is important to understand that "accept", "reject" and "track-counters"
-  rules are evaluated in their exact declaration order, so that it is possible
-  to build complex rules from them. For instance, the following rule rejects
-  too fast connections without tracking them, to that they get accepted again
-  after some time despite activity, while the second one will still update the
-  counters when rejecting a connection.
+    - reject :
+        rejects the connection if the condition is true (when used with "if")
+        or false (when used with "unless"). The first such rule executed ends
+        the rules evaluation. Rejected connections do not even become a
+        session, which is why they are accounted separately for in the stats,
+        as "denied connections". They are not considered for the session
+        rate-limit and are not logged either. The reason is that these rules
+        should only be used to filter extremely high connection rates such as
+        the ones encountered during a massive DDoS attack. Under these extreme
+        conditions, the simple action of logging each event would make the
+        system collapse and would considerably lower the filtering capacity. If
+        logging is absolutely desired, then "tcp-request content" rules should
+        be used instead.
+
+    - { track-sc1 | track-sc2 } <key> [table <table>] :
+        enables tracking of sticky counters from current connection. These
+        rules do not stop evaluation and do not change default action. Two sets
+        of counters may be simultaneously tracked by the same connection. The
+        first "track-sc1" rule executed enables tracking of the counters of the
+        specified table as the first set. The first "track-sc2" rule executed
+        enables tracking of the counters of the specified table as the second
+        set. It is a recommended practice to use the first set of counters for
+        the per-frontend counters and the second set for the per-backend ones.
+
+        These actions take one or two arguments :
+          <key>   is mandatory, and defines the criterion the tracking key will
+                  be derived from. At the moment, only "src" is supported. With
+                  it, the key will be the connection's source IPv4 address.
+
+         <table>  is an optional table to be used instead of the default one,
+                  which is the stick-table declared in the current proxy. All
+                  the counters for the matches and updates for the key will
+                  then be performed in that table until the session ends.
+
+        Once a "track-sc*" rule is executed, the key is looked up in the table
+        and if it is not found, an entry is allocated for it. Then a pointer to
+        that entry is kept during all the session's life, and this entry's
+        counters are updated as often as possible, every time the session's
+        counters are updated, and also systematically when the session ends.
+        If the entry tracks concurrent connection counters, one connection is
+        counted for as long as the entry is tracked, and the entry will not
+        expire during that time. Tracking counters also provides a performance
+        advantage over just checking the keys, because only one table lookup is
+        performed for all ACL checks that make use of it.
+
+  Note that the "if/unless" condition is optional. If no condition is set on
+  the action, it is simply performed unconditionally. That can be useful for
+  "track-sc*" actions as well as for changing the default action to a reject.
+
+  Example: accept all connections from white-listed hosts, reject too fast
+           connection without counting them, and track accepted connections.
+           This results in connection rate being capped from abusive sources.
+
+        tcp-request connection accept if { src -f /etc/haproxy/whitelist.lst }
+        tcp-request connection reject if { src_conn_rate gt 10 }
+        tcp-request connection track-sc1 src
+
+  Example: accept all connections from white-listed hosts, count all other
+           connections and reject too fast ones. This results in abusive ones
+           being blocked as long as they don't slow down.
+
+        tcp-request connection accept if { src -f /etc/haproxy/whitelist.lst }
+        tcp-request connection track-sc1 src
+        tcp-request connection reject if { sc1_conn_rate gt 10 }
+
+  See section 7 about ACL usage.
+
+  See also : "tcp-request content", "stick-table"
+
+
+tcp-request content <action> [{if | unless} <condition>]
+  Perform an action on a new session depending on a layer 4-7 condition
+  May be used in sections :   defaults | frontend | listen | backend
+                                 no    |    yes   |   yes  |   yes
+  Arguments :
+    <action>    defines the action to perform if the condition applies. Valid
+                actions include : "accept", "reject", "track-sc1", "track-sc2".
+                See "tcp-request connection" above for their signification.
+
+    <condition> is a standard layer 4-7 ACL-based condition (see section 7).
+
+  A request's contents can be analysed at an early stage of request processing
+  called "TCP content inspection". During this stage, ACL-based rules are
+  evaluated every time the request contents are updated, until either an
+  "accept" or a "reject" rule matches, or the TCP request inspection delay
+  expires with no matching rule.
+
+  The first difference between these rules and "tcp-request connection" rules
+  is that "tcp-request content" rules can make use of contents to take a
+  decision. Most often, these decisions will consider a protocol recognition or
+  validity. The second difference is that content-based rules can be used in
+  both frontends and backends. In frontends, they will be evaluated upon new
+  connections. In backends, they will be evaluated once a session is assigned
+  a backend. This means that a single frontend connection may be evaluated
+  several times by one or multiple backends when a session gets reassigned
+  (for instance after a client-side HTTP keep-alive request).
+
+  Content-based rules are evaluated in their exact declaration order. If no
+  rule matches or if there is no rule, the default action is to accept the
+  contents. There is no specific limit to the number of rules which may be
+  inserted.
+
+  Three types of actions are supported :
+    - accept :
+    - reject :
+    - { track-sc1 | track-sc2 } <key> [table <table>]
+
+  They have the same meaning as their counter-parts in "tcp-request connection"
+  so please refer to that section for a complete description.
+
+  Also, it is worth noting that if sticky counters are tracked from a rule
+  defined in a backend, this tracking will automatically end when the session
+  releases the backend. That allows per-backend counter tracking even in case
+  of HTTP keep-alive requests when the backend changes. While there is nothing
+  mandatory about it, it is recommended to use the track-sc1 pointer to track
+  per-frontend counters and track-sc2 to track per-backend counters.
+
+  Note that the "if/unless" condition is optional. If no condition is set on
+  the action, it is simply performed unconditionally. That can be useful for
+  "track-sc*" actions as well as for changing the default action to a reject.
+
+  It is perfectly possible to match layer 7 contents with "tcp-request content"
+  rules, but then it is important to ensure that a full request has been
+  buffered, otherwise no contents will match. In order to achieve this, the
+  best solution involves detecting the HTTP protocol during the inspection
+  period.
 
   Example:
-        # reject too fast connection without counting them
-        tcp-request connection reject if { src_conn_rate gt 10 }
-        tcp-request connection track-counters src
-
-        # reject too fast connection and count them
-        tcp-request connection track-counters src
-        tcp-request connection reject if { src_conn_rate gt 10 }
-
-
-  Note that the "if/unless" condition is optional. If no condition is set on
-  the action, it is simply performed unconditionally.
-
-  See section 7 about ACL usage.
-
-  See also : "tcp-request connection accept", "tcp-request connection reject",
-             "tcp-request content", and "stick-table".
-
-
-tcp-request content accept [{if | unless} <condition>]
-  Accept a connection if/unless a content inspection condition is matched
-  May be used in sections :   defaults | frontend | listen | backend
-                                 no    |    yes   |   yes  |   yes
-
-  During TCP content inspection, the connection is immediately validated if the
-  condition is true (when used with "if") or false (when used with "unless").
-  TCP content inspection applies very early when a connection reaches a
-  frontend, then very early when the connection is forwarded to a backend.
-  Most of the time during content inspection, a condition will be in an
-  uncertain state which is neither true nor false. The evaluation immediately
-  stops when such a condition is encountered. It is important to understand
-  that "accept" and "reject" rules are evaluated in their exact declaration
-  order, so that it is possible to build complex rules from them. There is no
-  specific limit to the number of rules which may be inserted.
-
-  Note that the "if/unless" condition is optional. If no condition is set on
-  the action, it is simply performed unconditionally.
-
-  If no "tcp-request content" rules are matched, the default action already is
-  "accept". Thus, this statement alone does not bring anything without another
-  "reject" statement.
-
-  See section 7 about ACL usage.
-
-  See also : "tcp-request content reject", "tcp-request inspect-delay"
-
-
-tcp-request content reject [{if | unless} <condition>]
-  Reject a connection if/unless a content inspection condition is matched
-  May be used in sections :   defaults | frontend | listen | backend
-                                 no    |    yes   |   yes  |   yes
-
-  During TCP content inspection, the connection is immediately rejected if the
-  condition is true (when used with "if") or false (when used with "unless").
-  TCP content inspection applies very early when a connection reaches a
-  frontend, then very early when the connection is forwarded to a backend.
-  Most of the time during content inspection, a condition will be in an
-  uncertain state which is neither true nor false. The evaluation immediately
-  stops when such a condition is encountered. It is important to understand
-  that "accept" and "reject" rules are evaluated in their exact declaration
-  order, so that it is possible to build complex rules from them. There is no
-  specific limit to the number of rules which may be inserted.
-
-  Note that the "if/unless" condition is optional. If no condition is set on
-  the action, it is simply performed unconditionally.
-
-  If no "tcp-request content" rules are matched, the default action is set to
-  "accept".
+        # Accept HTTP requests containing a Host header saying "example.com"
+        # and reject everything else.
+        acl is_host_com hdr(Host) -i example.com
+        tcp-request inspect-delay 30s
+        tcp-request content accept if HTTP is_host_com
+        tcp-request content reject
 
   Example:
         # reject SMTP connection if client speaks first
@@ -5445,11 +5425,32 @@ tcp-request content reject [{if | unless} <condition>]
         tcp-request inspect-delay 30s
         acl content_present req_len gt 0
         tcp-request content accept if content_present
-        tcp-request reject
+        tcp-request content reject
+
+  Example: track per-frontend and per-backend counters, block abusers at the
+           frontend when the backend detects abuse.
+
+        frontend http
+            # Use General Purpose Couter 0 in SC1 as a global abuse counter
+            # protecting all our sites
+            stick-table type ip size 1m expire 5m store gpc0
+            tcp-request connection track-sc1 src
+            tcp-request connection reject if { sc1_get_gpc0 gt 0 }
+            ...
+            use_backend http_dynamic if { path_end .php }
+
+        backend http_dynamic
+            # if a source makes too fast requests to this dynamic site (tracked
+            # by SC2), block it globally in the frontend.
+            stick-table type ip size 1m expire 5m store http_req_rate(10s)
+            acl click_too_fast sc2_http_req_rate gt 10
+            acl mark_as_abuser sc1_inc_gpc0
+            tcp-request content track-sc2 src
+            tcp-request content reject if click_too_fast mark_as_abuser
 
   See section 7 about ACL usage.
 
-  See also : "tcp-request content accept", "tcp-request inspect-delay"
+  See also : "tcp-request connection", "tcp-request inspect-delay"
 
 
 tcp-request inspect-delay <timeout>
@@ -6505,6 +6506,111 @@ queue(frontend) <integer>
   One possible action could be to reject new users but still accept old ones.
   See also the "avg_queue", "be_conn", and "be_sess_rate" criteria.
 
+sc1_bytes_in_rate
+sc2_bytes_in_rate
+  Returns the average client-to-server bytes rate from the currently tracked
+  counters, measured in amount of bytes over the period configured in the
+  table. See also src_bytes_in_rate.
+
+sc1_bytes_out_rate
+sc2_bytes_out_rate
+  Returns the average server-to-client bytes rate from the currently tracked
+  counters, measured in amount of bytes over the period configured in the
+  table. See also src_bytes_out_rate.
+
+sc1_conn_cnt
+sc2_conn_cnt
+  Returns the cumulated number of incoming connections from currently tracked
+  counters. See also src_conn_cnt.
+
+sc1_conn_cur
+sc2_conn_cur
+  Returns the current amount of concurrent connections tracking the same
+  tracked counters. This number is automatically incremented when tracking
+  begins and decremented when tracking stops. See also src_conn_cur.
+
+sc1_conn_rate
+sc2_conn_rate
+  Returns the average connection rate from the currently tracked counters,
+  measured in amount of connections over the period configured in the table.
+  See also src_conn_rate.
+
+sc1_get_gpc0
+sc2_get_gpc0
+  Returns the value of the first General Purpose Counter associated to the
+  currently tracked counters. See also src_get_gpc0 and sc1/sc2_inc_gpc0.
+
+sc1_http_err_cnt
+sc2_http_err_cnt
+  Returns the cumulated number of HTTP errors from the currently tracked
+  counters. This includes the both request errors and 4xx error responses.
+  See also src_http_err_cnt.
+
+sc1_http_err_rate
+sc2_http_err_rate
+  Returns the average rate of HTTP errors from the currently tracked counters,
+  measured in amount of errors over the period configured in the table. This
+  includes the both request errors and 4xx error responses. See also
+  src_http_err_rate.
+
+sc1_http_req_cnt
+sc2_http_req_cnt
+  Returns the cumulated number of HTTP requests from the currently tracked
+  counters. This includes every started request, valid or not. See also
+  src_http_req_cnt.
+
+sc1_http_req_rate
+sc2_http_req_rate
+  Returns the average rate of HTTP requests from the currently tracked
+  counters, measured in amount of requests over the period configured in
+  the table. This includes every started request, valid or not. See also
+  src_http_req_rate.
+
+sc1_inc_gpc0
+sc2_inc_gpc0
+  Increments the first General Purpose Counter associated to the currently
+  tracked counters, and returns its value. Before the first invocation, the
+  stored value is zero, so first invocation will increase it to 1 and will
+  return 1. The test can also be used alone and always returns true. This is
+  typically used as a second ACL in an expression in order to mark a connection
+  when a first ACL was verified :
+
+        acl abuse sc1_http_req_rate gt 10
+        acl kill  sc1_inc_gpc0
+        tcp-request connection reject if abuse kill
+
+sc1_kbytes_in
+sc2_kbytes_in
+  Returns the amount of client-to-server data from the currently tracked
+  counters, measured in kilobytes over the period configured in the table. The
+  test is currently performed on 32-bit integers, which limits values to 4
+  terabytes. See also src_kbytes_in.
+
+sc1_kbytes_out
+sc2_kbytes_out
+  Returns the amount of server-to-client data from the currently tracked
+  counters, measured in kilobytes over the period configured in the table. The
+  test is currently performed on 32-bit integers, which limits values to 4
+  terabytes. See also src_kbytes_out.
+
+sc1_sess_cnt
+sc2_sess_cnt
+  Returns the cumulated number of incoming connections that were transformed
+  into sessions, which means that they were accepted by a "tcp-request
+  connection" rule, from the currently tracked counters. A backend may count
+  more sessions than connections because each connection could result in many
+  backend sessions if some HTTP keep-alive is performend over the connection
+  with the client. See also src_sess_cnt.
+
+sc1_sess_rate
+sc2_sess_rate
+  Returns the average session rate from the currently tracked counters,
+  measured in amount of sessions over the period configured in the table. A
+  session is a connection that got past the early "tcp-request connection"
+  rules. A backend may count more sessions than connections because each
+  connection could result in many backend sessions if some HTTP keep-alive is
+  performend over the connection with the client. See also src_sess_rate.
+
 so_id <integer>
   Applies to the socket's id. Useful in frontends with many bind keywords.
 
@@ -6518,49 +6624,49 @@ src_bytes_in_rate(table) <integer>
   Returns the average bytes rate from the connection's source IPv4 address in
   the current proxy's stick-table or in the designated stick-table, measured in
   amount of bytes over the period configured in the table. If the address is
-  not found, zero is returned. See also trk_bytes_in_rate.
+  not found, zero is returned. See also sc1/sc2_bytes_in_rate.
 
 src_bytes_out_rate <integer>
 src_bytes_out_rate(table) <integer>
   Returns the average bytes rate to the connection's source IPv4 address in the
   current proxy's stick-table or in the designated stick-table, measured in
   amount of bytes over the period configured in the table. If the address is
-  not found, zero is returned. See also trk_bytes_out_rate.
+  not found, zero is returned. See also sc1/sc2_bytes_out_rate.
 
 src_conn_cnt <integer>
 src_conn_cnt(table) <integer>
   Returns the cumulated number of connections initiated from the current
   connection's source IPv4 address in the current proxy's stick-table or in
   the designated stick-table. If the address is not found, zero is returned.
-  See also trk_conn_cnt.
+  See also sc1/sc2_conn_cnt.
 
 src_conn_cur <integer>
 src_conn_cur(table) <integer>
   Returns the current amount of concurrent connections initiated from the
   current connection's source IPv4 address in the current proxy's stick-table
   or in the designated stick-table. If the address is not found, zero is
-  returned. See also trk_conn_cur.
+  returned. See also sc1/sc2_conn_cur.
 
 src_conn_rate <integer>
 src_conn_rate(table) <integer>
   Returns the average connection rate from the connection's source IPv4 address
   in the current proxy's stick-table or in the designated stick-table, measured
   in amount of connections over the period configured in the table. If the
-  address is not found, zero is returned. See also trk_conn_rate.
+  address is not found, zero is returned. See also sc1/sc2_conn_rate.
 
 src_get_gpc0 <integer>
 src_get_gpc0(table) <integer>
   Returns the value of the first General Purpose Counter associated to the
   connection's source IPv4 address in the current proxy's stick-table or in
   the designated stick-table. If the address is not found, zero is returned.
-  See also trk_get_gpc0 and src_inc_gpc0.
+  See also sc1/sc2_get_gpc0 and src_inc_gpc0.
 
 src_http_err_cnt <integer>
 src_http_err_cnt(table) <integer>
   Returns the cumulated number of HTTP errors from the current connection's
   source IPv4 address in the current proxy's stick-table or in the designated
   stick-table. This includes the both request errors and 4xx error responses.
-  If the address is not found, zero is returned. See also trk_http_err_cnt.
+  If the address is not found, zero is returned. See also sc1/sc2_http_err_cnt.
 
 src_http_err_rate <integer>
 src_http_err_rate(table) <integer>
@@ -6568,14 +6674,14 @@ src_http_err_rate(table) <integer>
   IPv4 address in the current proxy's stick-table or in the designated stick-
   table, measured in amount of errors over the period configured in the table.
   This includes the both request errors and 4xx error responses. If the address
-  is not found, zero is returned. See also trk_http_err_rate.
+  is not found, zero is returned. See also sc1/sc2_http_err_rate.
 
 src_http_req_cnt <integer>
 src_http_req_cnt(table) <integer>
   Returns the cumulated number of HTTP requests from the current connection's
   source IPv4 address in the current proxy's stick-table or in the designated
   stick-table. This includes every started request, valid or not. If the
-  address is not found, zero is returned. See also trk_http_req_cnt.
+  address is not found, zero is returned. See also sc1/sc2_http_req_cnt.
 
 src_http_req_rate <integer>
 src_http_req_rate(table) <integer>
@@ -6583,7 +6689,7 @@ src_http_req_rate(table) <integer>
   source IPv4 address in the current proxy's stick-table or in the designated
   stick-table, measured in amount of requests over the period configured in the
   table. This includes every started request, valid or not. If the address is
-  not found, zero is returned. See also trk_http_req_rate.
+  not found, zero is returned. See also sc1/sc2_http_req_rate.
 
 src_inc_gpc0 <integer>
 src_inc_gpc0(table) <integer>
@@ -6596,7 +6702,7 @@ src_inc_gpc0(table) <integer>
 
         acl abuse src_http_req_rate gt 10
         acl kill  src_inc_gpc0
-        tcp-request reject if abuse kill
+        tcp-request connection reject if abuse kill
 
 src_kbytes_in <integer>
 src_kbytes_in(table) <integer>
@@ -6604,7 +6710,7 @@ src_kbytes_in(table) <integer>
   in the current proxy's stick-table or in the designated stick-table, measured
   in kilobytes over the period configured in the table. If the address is not
   found, zero is returned. The test is currently performed on 32-bit integers,
-  which limits values to 4 terabytes. See also trk_kbytes_in.
+  which limits values to 4 terabytes. See also sc1/sc2_kbytes_in.
 
 src_kbytes_out <integer>
 src_kbytes_out(table) <integer>
@@ -6612,7 +6718,7 @@ src_kbytes_out(table) <integer>
   the current proxy's stick-table or in the designated stick-table, measured
   in kilobytes over the period configured in the table. If the address is not
   found, zero is returned. The test is currently performed on 32-bit integers,
-  which limits values to 4 terabytes. See also trk_kbytes_out.
+  which limits values to 4 terabytes. See also sc1/sc2_kbytes_out.
 
 src_port <integer>
   Applies to the client's TCP source port. This has a very limited usage.
@@ -6623,7 +6729,7 @@ src_sess_cnt(table) <integer>
   connection's source IPv4 address in the current proxy's stick-table or in the
   designated stick-table, that were transformed into sessions, which means that
   they were accepted by "tcp-request" rules. If the address is not found, zero
-  is returned. See also trk_sess_cnt.
+  is returned. See also sc1/sc2_sess_cnt.
 
 src_sess_rate <integer>
 src_sess_rate(table) <integer>
@@ -6631,7 +6737,7 @@ src_sess_rate(table) <integer>
   the current proxy's stick-table or in the designated stick-table, measured in
   amount of sessions over the period configured in the table. A session is a
   connection that got past the early "tcp-request" rules. If the address is not
-  found, zero is returned. See also trk_sess_rate.
+  found, zero is returned. See also sc1/sc2_sess_rate.
 
 src_updt_conn_cnt <integer>
 src_updt_conn_cnt(table) <integer>
@@ -6666,99 +6772,14 @@ srv_is_up(<backend>/<server>)
   as boolean variables that can be enabled or disabled from the CLI, so that
   rules depending on those ACLs can be tweaked in realtime.
 
-trk_bytes_in_rate
-  Returns the average client-to-server bytes rate from the currently tracked
-  counters, measured in amount of bytes over the period configured in the
-  table. See also src_bytes_in_rate.
 
-trk_bytes_out_rate
-  Returns the average server-to-client bytes rate from the currently tracked
-  counters, measured in amount of bytes over the period configured in the
-  table. See also src_bytes_out_rate.
-
-trk_conn_cnt
-  Returns the cumulated number of incoming connections from currently tracked
-  counters. See also src_conn_cnt.
-
-trk_conn_cur
-  Returns the current amount of concurrent connections tracking the same
-  tracked counters. This number is automatically incremented when tracking
-  begins and decremented when tracking stops. See also src_conn_cur.
-
-trk_conn_rate
-  Returns the average connection rate from the currently tracked counters,
-  measured in amount of connections over the period configured in the table.
-  See also src_conn_rate.
-
-trk_get_gpc0
-  Returns the value of the first General Purpose Counter associated to the
-  currently tracked counters. See also src_get_gpc0 and trk_inc_gpc0.
-
-trk_http_err_cnt
-  Returns the cumulated number of HTTP errors from the currently tracked
-  counters. This includes the both request errors and 4xx error responses.
-  See also src_http_err_cnt.
-
-trk_http_err_rate
-  Returns the average rate of HTTP errors from the currently tracked counters,
-  measured in amount of errors over the period configured in the table. This
-  includes the both request errors and 4xx error responses. See also
-  src_http_err_rate.
-
-trk_http_req_cnt
-  Returns the cumulated number of HTTP requests from the currently tracked
-  counters. This includes every started request, valid or not. See also
-  src_http_req_cnt.
-
-trk_http_req_rate
-  Returns the average rate of HTTP requests from the currently tracked
-  counters, measured in amount of requests over the period configured in
-  the table. This includes every started request, valid or not. See also
-  src_http_req_rate.
-
-trk_inc_gpc0
-  Increments the first General Purpose Counter associated to the currently
-  tracked counters, and returns its value. Before the first invocation, the
-  stored value is zero, so first invocation will increase it to 1 and will
-  return 1. The test can also be used alone and always returns true. This is
-  typically used as a second ACL in an expression in order to mark a connection
-  when a first ACL was verified :
-
-        acl abuse trk_http_req_rate gt 10
-        acl kill  trk_inc_gpc0
-        tcp-request reject if abuse kill
-
-trk_kbytes_in
-  Returns the amount of client-to-server data from the currently tracked
-  counters, measured in kilobytes over the period configured in the table. The
-  test is currently performed on 32-bit integers, which limits values to 4
-  terabytes. See also src_kbytes_in.
-
-trk_kbytes_out
-  Returns the amount of server-to-client data from the currently tracked
-  counters, measured in kilobytes over the period configured in the table. The
-  test is currently performed on 32-bit integers, which limits values to 4
-  terabytes. See also src_kbytes_out.
-
-trk_sess_cnt
-  Returns the cumulated number of incoming connections that were transformed
-  into sessions, which means that they were accepted by "tcp-request" rules,
-  from the currently tracked counters. See also src_sess_cnt.
-
-trk_sess_rate
-  Returns the average session rate from the currently tracked counters,
-  measured in amount of sessions over the period configured in the table. A
-  session is a connection that got past the early "tcp-request" rules. See
-  also src_sess_rate.
-
-
-7.5.2. Matching contents at Layer 4
------------------------------------
+7.5.2. Matching contents at Layer 4 (also called Layer 6)
+---------------------------------------------------------
 
 A second set of criteria depends on data found in buffers, but which can change
 during analysis. This requires that some data has been buffered, for instance
-through TCP request content inspection. Please see the "tcp-request" keyword
-for more detailed information on the subject.
+through TCP request content inspection. Please see the "tcp-request content"
+keyword for more detailed information on the subject.
 
 req_len <integer>
   Returns true when the length of the data in the request buffer matches the
