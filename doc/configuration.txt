@@ -18,8 +18,11 @@ Note to documentation contributors :
     spaces for indentation and without tabs. Please follow these rules strictly
     so that it remains easily printable everywhere. If a line needs to be
     printed verbatim and does not fit, please end each line with a backslash
-    ('\') and continue on next line. If you add sections, please update the
-    summary below for easier searching.
+    ('\') and continue on next line, indented by two characters. It is also
+    sometimes useful to prefix all output lines (logs, console outs) with 3
+    closing angle brackets ('>>>') in order to help get the difference between
+    inputs and outputs when it can become ambiguous. If you add sections,
+    please update the summary below for easier searching.
 
 
 Summary
@@ -8490,16 +8493,19 @@ clear table <table> key <key>
   usuall enough.
 
   Example :
-    >>> $ echo "show table http_proxy" | socat stdio /tmp/sock1
-        # table: http_proxy, type: 0, size:204800, used:2
-        0x80e6a4c: key=127.0.0.1 use=0 exp=3594729 gpc0=0 conn_rate(30000)=1 bytes_out_rate(60000)=187
-        0x80e6a80: key=127.0.0.2 use=0 exp=3594740 gpc0=1 conn_rate(30000)=10 bytes_out_rate(60000)=191
+        $ echo "show table http_proxy" | socat stdio /tmp/sock1
+    >>> # table: http_proxy, type: 0, size:204800, used:2
+    >>> 0x80e6a4c: key=127.0.0.1 use=0 exp=3594729 gpc0=0 conn_rate(30000)=1 \
+          bytes_out_rate(60000)=187
+    >>> 0x80e6a80: key=127.0.0.2 use=0 exp=3594740 gpc0=1 conn_rate(30000)=10 \
+          bytes_out_rate(60000)=191
 
         $ echo "clear table http_proxy key 127.0.0.1" | socat stdio /tmp/sock1
 
         $ echo "show table http_proxy" | socat stdio /tmp/sock1
-        # table: http_proxy, type: 0, size:204800, used:1
-        0x80e6a80: key=127.0.0.2 use=0 exp=3594740 gpc0=1 conn_rate(30000)=10 bytes_out_rate(60000)=191
+    >>> # table: http_proxy, type: 0, size:204800, used:1
+    >>> 0x80e6a80: key=127.0.0.2 use=0 exp=3594740 gpc0=1 conn_rate(30000)=10 \
+          bytes_out_rate(60000)=191
 
 disable server <backend>/<server>
   Mark the server DOWN for maintenance. In this mode, no more checks will be
@@ -8603,8 +8609,8 @@ show errors [<iid>]
   line.
 
   Example :
-    >>> $ echo "show errors" | socat stdio /tmp/sock1
-        [04/Mar/2009:15:46:56.081] backend http-in (#2) : invalid response
+        $ echo "show errors" | socat stdio /tmp/sock1
+    >>> [04/Mar/2009:15:46:56.081] backend http-in (#2) : invalid response
           src 127.0.0.1, session #54, frontend fe-eth0 (#1), server s2 (#1)
           response length 213 bytes, error at position 23:
 
@@ -8653,8 +8659,8 @@ show stat [<iid> <type> <sid>]
     - <sid> is a server ID, -1 to dump everything from the selected proxy.
 
   Example :
-    >>> $ echo "show info;show stat" | socat stdio unix-connect:/tmp/sock1
-        Name: HAProxy
+        $ echo "show info;show stat" | socat stdio unix-connect:/tmp/sock1
+    >>> Name: HAProxy
         Version: 1.4-dev2-49
         Release_date: 2009/09/23
         Nbproc: 1
@@ -8682,9 +8688,9 @@ show table
   entries currently in use.
 
   Example :
-    >>> $ echo "show table" | socat stdio /tmp/sock1
-        # table: front_pub, type: 0, size:204800, used:171454
-        # table: back_rdp, type: 0, size:204800, used:0
+        $ echo "show table" | socat stdio /tmp/sock1
+    >>> # table: front_pub, type: 0, size:204800, used:171454
+    >>> # table: back_rdp, type: 0, size:204800, used:0
 
 show table <name> [ data.<type> <operator> <value> ]
   Dump contents of stick-table <name>. In this mode, a first line of generic
@@ -8703,18 +8709,23 @@ show table <name> [ data.<type> <operator> <value> ]
     - gt : match entries whose data is greater than this value
 
   Example :
-    >>> $ echo "show table http_proxy" | socat stdio /tmp/sock1
-        # table: http_proxy, type: 0, size:204800, used:2
-        0x80e6a4c: key=127.0.0.1 use=0 exp=3594729 gpc0=0 conn_rate(30000)=1 bytes_out_rate(60000)=187
-        0x80e6a80: key=127.0.0.2 use=0 exp=3594740 gpc0=1 conn_rate(30000)=10 bytes_out_rate(60000)=191
+        $ echo "show table http_proxy" | socat stdio /tmp/sock1
+    >>> # table: http_proxy, type: 0, size:204800, used:2
+    >>> 0x80e6a4c: key=127.0.0.1 use=0 exp=3594729 gpc0=0 conn_rate(30000)=1  \
+          bytes_out_rate(60000)=187
+    >>> 0x80e6a80: key=127.0.0.2 use=0 exp=3594740 gpc0=1 conn_rate(30000)=10 \
+          bytes_out_rate(60000)=191
 
-    >>> $ echo "show table http_proxy data.gpc0 gt 0" | socat stdio /tmp/sock1
-        # table: http_proxy, type: 0, size:204800, used:2
-        0x80e6a80: key=127.0.0.2 use=0 exp=3594740 gpc0=1 conn_rate(30000)=10 bytes_out_rate(60000)=191
+        $ echo "show table http_proxy data.gpc0 gt 0" | socat stdio /tmp/sock1
+    >>> # table: http_proxy, type: 0, size:204800, used:2
+    >>> 0x80e6a80: key=127.0.0.2 use=0 exp=3594740 gpc0=1 conn_rate(30000)=10 \
+          bytes_out_rate(60000)=191
 
-    >>> $ echo "show table http_proxy data.conn_rate gt 5" | socat stdio /tmp/sock1
-        # table: http_proxy, type: 0, size:204800, used:2
-        0x80e6a80: key=127.0.0.2 use=0 exp=3594740 gpc0=1 conn_rate(30000)=10 bytes_out_rate(60000)=191
+        $ echo "show table http_proxy data.conn_rate gt 5" | \
+            socat stdio /tmp/sock1
+    >>> # table: http_proxy, type: 0, size:204800, used:2
+    >>> 0x80e6a80: key=127.0.0.2 use=0 exp=3594740 gpc0=1 conn_rate(30000)=10 \
+          bytes_out_rate(60000)=191
 
   When the data criterion applies to a dynamic value dependent on time such as
   a bytes rate, the value is dynamically computed during the evaluation of the
@@ -8725,7 +8736,8 @@ show table <name> [ data.<type> <operator> <value> ]
   It is possible to use this to extract lists of IP addresses abusing the
   service, in order to monitor them or even blacklist them in a firewall.
   Example :
-        $ echo "show table http_proxy data.gpc0 gt 0" | socat stdio /tmp/sock1 \
+        $ echo "show table http_proxy data.gpc0 gt 0" \
+          | socat stdio /tmp/sock1 \
           | fgrep 'key=' | cut -d' ' -f2 | cut -d= -f2 > abusers-ip.txt
           ( or | awk '/key/{ print a[split($2,a,"=")]; }' )
 
