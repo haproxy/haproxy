@@ -919,6 +919,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 	}
 
 	rule = (struct tcp_rule *)calloc(1, sizeof(*rule));
+	LIST_INIT(&rule->list);
 	arg = 1;
 
 	if (strcmp(args[1], "content") == 0) {
@@ -938,6 +939,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 					  name);
 			warn++;
 		}
+		LIST_ADDQ(&curpx->tcp_req.inspect_rules, &rule->list);
 	}
 	else if (strcmp(args[1], "connection") == 0) {
 		arg++;
@@ -971,6 +973,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 						  name);
 			warn++;
 		}
+		LIST_ADDQ(&curpx->tcp_req.l4_rules, &rule->list);
 	}
 	else {
 		retlen = snprintf(err, errlen,
@@ -979,8 +982,6 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 		goto error;
 	}
 
-	LIST_INIT(&rule->list);
-	LIST_ADDQ(&curpx->tcp_req.l4_rules, &rule->list);
 	return warn;
  error:
 	free(rule);
