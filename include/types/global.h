@@ -104,6 +104,7 @@ extern int  actconn;            /* # of active sessions */
 extern int listeners;
 extern char trash[BUFSIZE];
 extern char *swap_buffer;
+extern int nb_oldpids;          /* contains the number of old pids found */
 extern const int zero;
 extern const int one;
 extern const struct linger nolinger;

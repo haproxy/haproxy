@@ -130,7 +130,6 @@ int stopping;	/* non zero means stopping in progress */
  * our ports. With 200 retries, that's about 2 seconds.
  */
 #define MAX_START_RETRIES	200
-static int nb_oldpids = 0;
 static int *oldpids = NULL;
 static int oldpids_sig; /* use USR1 or TERM */
 
@@ -142,6 +141,7 @@ char trash[BUFSIZE];
  */
 char *swap_buffer = NULL;
 
+int nb_oldpids = 0;
 const int zero = 0;
 const int one = 1;
 const struct linger nolinger = { .l_onoff = 1, .l_linger = 0 };
@@ -934,12 +934,17 @@ void deinit(void)
 
 } /* end deinit() */
 
-/* sends the signal <sig> to all pids found in <oldpids> */
-static void tell_old_pids(int sig)
+/* sends the signal <sig> to all pids found in <oldpids>. Returns the number of
+ * pids the signal was correctly delivered to.
+ */
+static int tell_old_pids(int sig)
 {
 	int p;
+	int ret = 0;
 	for (p = 0; p < nb_oldpids; p++)
-		kill(oldpids[p], sig);
+		if (kill(oldpids[p], sig) == 0)
+			ret++;
+	return ret;
 }
 
 /*
@@ -1012,14 +1017,18 @@ int main(int argc, char **argv)
 		/* exit the loop on no error or fatal error */
 		if ((err & (ERR_RETRYABLE|ERR_FATAL)) != ERR_RETRYABLE)
 			break;
-		if (nb_oldpids == 0)
+		if (nb_oldpids == 0 || retry == 0)
 			break;
 
 		/* FIXME-20060514: Solaris and OpenBSD do not support shutdown() on
 		 * listening sockets. So on those platforms, it would be wiser to
 		 * simply send SIGUSR1, which will not be undoable.
 		 */
-		tell_old_pids(SIGTTOU);
+		if (tell_old_pids(SIGTTOU) == 0) {
+			/* no need to wait if we can't contact old pids */
+			retry = 0;
+			continue;
+		}
 		/* give some time to old processes to stop listening */
 		w.tv_sec = 0;
 		w.tv_usec = 10*1000;
@@ -1149,7 +1158,7 @@ int main(int argc, char **argv)
 	}
 
 	if (nb_oldpids)
-		tell_old_pids(oldpids_sig);
+		nb_oldpids = tell_old_pids(oldpids_sig);
 
 	/* Note that any error at this stage will be fatal because we will not
 	 * be able to restart the old pids.
