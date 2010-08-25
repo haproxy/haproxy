@@ -1200,8 +1200,11 @@ int main(int argc, char **argv)
 		/* close the pidfile both in children and father */
 		if (pidfile != NULL)
 			fclose(pidfile);
-		free(global.pidfile);
-		global.pidfile = NULL;
+
+		/* We won't ever use this anymore */
+		free(oldpids);        oldpids = NULL;
+		free(global.chroot);  global.chroot = NULL;
+		free(global.pidfile); global.pidfile = NULL;
 
 		/* we might have to unbind some proxies from some processes */
 		px = proxy;
