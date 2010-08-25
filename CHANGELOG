@@ -1,6 +1,138 @@
 ChangeLog :
 ===========
 
+2010/08/25 : 1.5-dev1
+    - [BUG] stats: session rate limit gets garbaged in the stats
+    - [DOC] mention 'option http-server-close' effect in Tq section
+    - [DOC] summarize and highlight persistent connections behaviour
+    - [DOC] add configuration samples
+    - [BUG] http: dispatch and http_proxy modes were broken for a long time
+    - [BUG] http: the transaction must be initialized even in TCP mode
+    - [BUG] tcp: dropped connections must be counted as "denied" not "failed"
+    - [BUG] consistent hash: balance on all servers, not only 2 !
+    - [CONTRIB] halog: report per-server status codes, errors and response times
+    - [BUG] http: the transaction must be initialized even in TCP mode (part 2)
+    - [BUG] client: always ensure to zero rep->analysers
+    - [BUG] session: clear BF_READ_ATTACHED before next I/O
+    - [BUG] http: automatically close response if req is aborted
+    - [BUG] proxy: connection rate limiting was eating lots of CPU
+    - [BUG] http: report correct flags in case of client aborts during body
+    - [TESTS] refine non-regression tests and add 4 new tests
+    - [BUG] debug: wrong pointer was used to report a status line
+    - [BUG] debug: correctly report truncated messages
+    - [DOC] document the "dispatch" keyword
+    - [BUG] stick_table: fix possible memory leak in case of connection error
+    - [CLEANUP] acl: use 'L6' instead of 'L4' in ACL flags relying on contents
+    - [MINOR] accept: count the incoming connection earlier
+    - [CLEANUP] tcp: move some non tcp-specific layer6 processing out of proto_tcp
+    - [CLEANUP] client: move some ACLs away to their respective locations
+    - [CLEANUP] rename client -> frontend
+    - [MEDIUM] separate protocol-level accept() from the frontend's
+    - [MINOR] proxy: add a list to hold future layer 4 rules
+    - [MEDIUM] config: parse tcp layer4 rules (tcp-request accept/reject)
+    - [MEDIUM] tcp: check for pure layer4 rules immediately after accept()
+    - [OPTIM] frontend: tell the compiler that errors are unlikely to occur
+    - [MEDIUM] frontend: check for LI_O_TCP_RULES in the listener
+    - [MINOR] frontend: only check for monitor-net rules if LI_O_CHK_MONNET is set
+    - [CLEANUP] buffer->cto is not used anymore
+    - [MEDIUM] session: finish session establishment sequence in with I/O handlers
+    - [MEDIUM] session: initialize server-side timeouts after connect()
+    - [MEDIUM] backend: initialize the server stream_interface upon connect()
+    - [MAJOR] frontend: don't initialize the server-side stream_int anymore
+    - [MEDIUM] session: move the conn_retries attribute to the stream interface
+    - [MEDIUM] session: don't assign conn_retries upon accept() anymore
+    - [MINOR] frontend: rely on the frontend and not the backend for INDEPSTR
+    - [MAJOR] frontend: reorder the session initialization upon accept
+    - [MINOR] proxy: add an accept() callback for the application layer
+    - [MAJOR] frontend: split accept() into frontend_accept() and session_accept()
+    - [MEDIUM] stats: rely on the standard session_accept() function
+    - [MINOR] buffer: refine the flags that may wake an analyser up.
+    - [MINOR] stream_sock: don't dereference a non-existing frontend
+    - [MINOR] session: differenciate between accepted connections and received connections
+    - [MEDIUM] frontend: count the incoming connection earlier
+    - [MINOR] frontend: count denied TCP requests separately
+    - [CLEANUP] stick_table: add/clarify some comments
+    - [BUILD] memory: add a few missing parenthesis to the pool management macros
+    - [MINOR] stick_table: add support for variable-sized data
+    - [CLEANUP] stick_table: rename some stksess struct members to avoid confusion
+    - [CLEANUP] stick_table: move pattern to key functions to stick_table.c
+    - [MEDIUM] stick_table: add room for extra data types
+    - [MINOR] stick_table: add support for "conn_cum" data type.
+    - [MEDIUM] stick_table: don't overwrite data when storing an entry
+    - [MINOR] config: initialize stick tables after all the parsing
+    - [MINOR] stick_table: provide functions to return stksess data from a type
+    - [MEDIUM] stick_table: move the server ID to a generic data type
+    - [MINOR] stick_table: enable it for frontends too
+    - [MINOR] stick_table: export the stick_table_key
+    - [MINOR] tcp: add per-source connection rate limiting
+    - [MEDIUM] stick_table: separate storage and update of session entries
+    - [MEDIUM] stick-tables: add a reference counter to each entry
+    - [MINOR] session: add a pointer to the tracked counters for the source
+    - [CLEANUP] proto_tcp: make the config parser a little bit more flexible
+    - [BUG] config: report the correct proxy type in tcp-request errors
+    - [MINOR] config: provide a function to quote args in a more friendly way
+    - [BUG] stick_table: the fix for the memory leak caused a regression
+    - [MEDIUM] backend: support servers on 0.0.0.0
+    - [BUG] stick-table: correctly refresh expiration timers
+    - [MEDIUM] stream-interface: add a ->release callback
+    - [MINOR] proxy: add a "parent" member to the structure
+    - [MEDIUM] session: make it possible to call an I/O handler on both SI
+    - [MINOR] tools: add a fast div64_32 function
+    - [MINOR] freq_ctr: add new types and functions for periods different from 1s
+    - [MINOR] errors: provide new status codes for config parsing functions
+    - [BUG] http: denied requests must not be counted as denied resps in listeners
+    - [MINOR] tools: add a get_std_op() function to parse operators
+    - [MEDIUM] acl: make use of get_std_op() to parse intger ranges
+    - [MAJOR] stream_sock: better wakeup conditions on read()
+    - [BUG] session: analysers must be checked when SI state changes
+    - [MINOR] http: reset analysers to listener's, not frontend's
+    - [MEDIUM] session: support "tcp-request content" rules in backends
+    - [BUILD] always match official tags when doing git-tar
+    - [MAJOR] stream_interface: fix the wakeup conditions for embedded iohandlers
+    - [MEDIUM] buffer: make buffer_feed* support writing non-contiguous chunks
+    - [MINOR] tcp: src_count acl does not have a permanent result
+    - [MAJOR] session: add track-counters to track counters related to the session
+    - [MINOR] stick-table: provide a table lookup function
+    - [MINOR] stick-table: use suffix "_cnt" for cumulated counts
+    - [MEDIUM] session: move counter ACL fetches from proto_tcp
+    - [MEDIUM] session: add concurrent connections counter
+    - [MEDIUM] session: add data in and out volume counters
+    - [MINOR] session: add the trk_conn_cnt ACL keyword to track connection counts
+    - [MEDIUM] session-counters: automatically update tracked connection count
+    - [MINOR] session: add the trk_conn_cur ACL keyword to track concurrent connection
+    - [MINOR] session: add trk_kbytes_* ACL keywords to track data size
+    - [MEDIUM] session: add a counter on the cumulated number of sessions
+    - [MINOR] config: support a comma-separated list of store data types in stick-table
+    - [MEDIUM] stick-tables: add support for arguments to data_types
+    - [MEDIUM] stick-tables: add stored data argument type checking
+    - [MEDIUM] session counters: add conn_rate and sess_rate counters
+    - [MEDIUM] session counters: add bytes_in_rate and bytes_out_rate counters
+    - [MINOR] stktable: add a stktable_update_key() function
+    - [MINOR] session-counters: add a general purpose counter (gpc0)
+    - [MEDIUM] session-counters: add HTTP req/err tracking
+    - [MEDIUM] stats: add "show table [<name>]" to dump a stick-table
+    - [MEDIUM] stats: add "clear table <name> key <value>" to clear table entries
+    - [CLEANUP] stick-table: declare stktable_data_types as extern
+    - [MEDIUM] stick-table: make use of generic types for stored data
+    - [MINOR] stats: correctly report errors on "show table" and "clear table"
+    - [MEDIUM] stats: add the ability to dump table entries matching criteria
+    - [DOC] configuration: document all the new tracked counters
+    - [DOC] stats: document "show table" and "clear table"
+    - [MAJOR] session-counters: split FE and BE track counters
+    - [MEDIUM] tcp: accept the "track-counters" in "tcp-request content" rules
+    - [MEDIUM] session counters: automatically remove expired entries.
+    - [MEDIUM] config: replace 'tcp-request <action>' with "tcp-request connection"
+    - [MEDIUM] session-counters: make it possible to count connections from frontend
+    - [MINOR] session-counters: use "track-sc{1,2}" instead of "track-{fe,be}-counters"
+    - [MEDIUM] session-counters: correctly unbind the counters tracked by the backend
+    - [CLEANUP] stats: use stksess_kill() to remove table entries
+    - [DOC] update the references to session counters and to tcp-request connection
+    - [DOC] cleanup: split a few long lines
+    - [MEDIUM] http: forward client's close when abortonclose is set
+    - [BUG] queue: don't dequeue proxy-global requests on disabled servers
+    - [BUG] stats: global stats timeout may be specified before stats socket.
+    - [BUG] conf: add tcp-request content rules to the correct list
+
 2010/05/23 : 1.5-dev0
     - exact copy of 1.4.6
 
