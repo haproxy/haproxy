@@ -29,9 +29,13 @@ int signal_queue[MAX_SIGNAL];                     /* in-order queue of received 
 struct signal_descriptor signal_state[MAX_SIGNAL];
 struct pool_head *pool2_sig_handlers = NULL;
 sigset_t blocked_sig;
+int signal_pending = 0; /* non-zero if t least one signal remains unprocessed */
 
-/* Common signal handler, used by all signals. Received signals are queued. */
-static void signal_handler(int sig)
+/* Common signal handler, used by all signals. Received signals are queued.
+ * Signal number zero has a specific status, as it cannot be delivered by the
+ * system, any function may call it to perform asynchronous signal delivery.
+ */
+void signal_handler(int sig)
 {
 	if (sig < 0 || sig > MAX_SIGNAL) {
 		/* unhandled signal */
@@ -47,8 +51,10 @@ static void signal_handler(int sig)
 		else
 			qfprintf(stderr, "Signal %d : signal queue is unexpectedly full.\n", sig);
 	}
+
 	signal_state[sig].count++;
-	signal(sig, signal_handler); /* re-arm signal */
+	if (sig)
+		signal(sig, signal_handler); /* re-arm signal */
 }
 
 /* Call handlers of all pending signals and clear counts and queue length. The
@@ -66,6 +72,11 @@ void __signal_process_queue()
 	/* block signal delivery during processing */
 	sigprocmask(SIG_SETMASK, &blocked_sig, &old_sig);
 
+	/* It is important that we scan the queue forwards so that we can
+	 * catch any signal that would have been queued by another signal
+	 * handler. That allows real signal handlers to redistribute signals
+	 * to tasks subscribed to signal zero.
+	 */
 	for (cur_pos = 0; cur_pos < signal_queue_len; cur_pos++) {
 		sig  = signal_queue[cur_pos];
 		desc = &signal_state[sig];
@@ -121,7 +132,9 @@ void deinit_signals()
  * newly allocated sig_handler is returned, or NULL in case of any error. The
  * caller is responsible for unregistering the function when not used anymore.
  * Note that passing a NULL as the function pointer enables interception of the
- * signal without processing, which is identical to SIG_IGN.
+ * signal without processing, which is identical to SIG_IGN. If the signal is
+ * zero (which the system cannot deliver), only internal functions will be able
+ * to notify the registered functions.
  */
 struct sig_handler *signal_register_fct(int sig, void (*fct)(struct sig_handler *), int arg)
 {
@@ -130,7 +143,8 @@ struct sig_handler *signal_register_fct(int sig, void (*fct)(struct sig_handler 
 	if (sig < 0 || sig > MAX_SIGNAL)
 		return NULL;
 
-	signal(sig, signal_handler);
+	if (sig)
+		signal(sig, signal_handler);
 
 	if (!fct)
 		return NULL;
@@ -150,7 +164,9 @@ struct sig_handler *signal_register_fct(int sig, void (*fct)(struct sig_handler 
  * allocated sig_handler is returned, or NULL in case of any error. The caller
  * is responsible for unregistering the task when not used anymore. Note that
  * passing a NULL as the task pointer enables interception of the signal
- * without processing, which is identical to SIG_IGN.
+ * without processing, which is identical to SIG_IGN. If the signal is zero
+ * (which the system cannot deliver), only internal functions will be able to
+ * notify the registered functions.
  */
 struct sig_handler *signal_register_task(int sig, struct task *task, int reason)
 {
@@ -159,7 +175,8 @@ struct sig_handler *signal_register_task(int sig, struct task *task, int reason)
 	if (sig < 0 || sig > MAX_SIGNAL)
 		return NULL;
 
-	signal(sig, signal_handler);
+	if (sig)
+		signal(sig, signal_handler);
 
 	if (!task)
 		return NULL;

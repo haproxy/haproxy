@@ -35,6 +35,7 @@
 #include <proto/proto_tcp.h>
 #include <proto/proto_http.h>
 #include <proto/proxy.h>
+#include <proto/signal.h>
 
 
 int listeners;	/* # of proxy listeners, set by cfgparse, unset by maintain_proxies */
@@ -568,6 +569,8 @@ void soft_stop(void)
 		}
 		p = p->next;
 	}
+	/* signal zero is used to broadcast the "stopping" event */
+	signal_handler(0);
 }
 
 

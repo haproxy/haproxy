@@ -244,7 +244,9 @@ void usage(char *name)
 /*********************************************************************/
 
 /*
- * upon SIGUSR1, let's have a soft stop.
+ * upon SIGUSR1, let's have a soft stop. Note that soft_stop() broadcasts
+ * a signal zero to all subscribers. This means that it's as easy as
+ * subscribing to signal 0 to get informed about an imminent shutdown.
  */
 void sig_soft_stop(struct sig_handler *sh)
 {

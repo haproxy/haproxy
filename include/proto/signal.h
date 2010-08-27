@@ -19,6 +19,7 @@ extern int signal_queue_len;
 extern struct signal_descriptor signal_state[];
 extern struct pool_head *pool2_sig_handlers;
 
+void signal_handler(int sig);
 void __signal_process_queue();
 int signal_init();
 void deinit_signals();
