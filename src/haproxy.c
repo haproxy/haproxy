@@ -246,17 +246,17 @@ void usage(char *name)
 /*
  * upon SIGUSR1, let's have a soft stop.
  */
-void sig_soft_stop(int sig)
+void sig_soft_stop(struct sig_handler *sh)
 {
 	soft_stop();
+	signal_unregister_handler(sh);
 	pool_gc2();
-	signal_register(sig, SIG_IGN);
 }
 
 /*
  * upon SIGTTOU, we pause everything
  */
-void sig_pause(int sig)
+void sig_pause(struct sig_handler *sh)
 {
 	pause_proxies();
 	pool_gc2();
@@ -265,7 +265,7 @@ void sig_pause(int sig)
 /*
  * upon SIGTTIN, let's have a soft stop.
  */
-void sig_listen(int sig)
+void sig_listen(struct sig_handler *sh)
 {
 	listen_proxies();
 }
@@ -273,7 +273,7 @@ void sig_listen(int sig)
 /*
  * this function dumps every server's state when the process receives SIGHUP.
  */
-void sig_dump_state(int sig)
+void sig_dump_state(struct sig_handler *sh)
 {
 	struct proxy *p = proxy;
 
@@ -319,69 +319,12 @@ void sig_dump_state(int sig)
 	}
 }
 
-void dump(int sig)
+void dump(struct sig_handler *sh)
 {
-#if 0
-	struct task *t;
-	struct session *s;
-	struct rb_node *node;
-
-	for(node = rb_first(&wait_queue[0]);
-		node != NULL; node = rb_next(node)) {
-		t = rb_entry(node, struct task, rb_node);
-		s = t->context;
-		qfprintf(stderr,"[dump] wq: task %p, still %ld ms, "
-			 "cli=%d, srv=%d, req=%d, rep=%d\n",
-			 s, tv_ms_remain(&now, &t->expire),
-			 s->si[0].state,
-			 s->si[1].state,
-			 s->req->l, s->rep?s->rep->l:0);
-	}
-#endif
 	/* dump memory usage then free everything possible */
 	dump_pools();
 	pool_gc2();
 }
-
-#ifdef DEBUG_MEMORY
-static void fast_stop(void)
-{
-	struct proxy *p;
-	p = proxy;
-	while (p) {
-		p->grace = 0;
-		p = p->next;
-	}
-	soft_stop();
-}
-
-void sig_int(int sig)
-{
-	/* This would normally be a hard stop,
-	   but we want to be sure about deallocation,
-	   and so on, so we do a soft stop with
-	   0 GRACE time
-	*/
-	fast_stop();
-	pool_gc2();
-	/* If we are killed twice, we decide to die */
-	signal_register(sig, SIG_DFL);
-}
-
-void sig_term(int sig)
-{
-	/* This would normally be a hard stop,
-	   but we want to be sure about deallocation,
-	   and so on, so we do a soft stop with
-	   0 GRACE time
-	*/
-	fast_stop();
-	pool_gc2();
-	/* If we are killed twice, we decide to die */
-	signal_register(sig, SIG_DFL);
-}
-#endif
-
 
 /*
  * This function initializes all the necessary variables. It only returns
@@ -726,6 +669,7 @@ void deinit(void)
 	struct uri_auth *uap, *ua = NULL;
 	int i;
 
+	deinit_signals();
 	while (p) {
 		free(p->id);
 		free(p->check_req);
@@ -924,6 +868,7 @@ void deinit(void)
 	pool_destroy2(pool2_capture);
 	pool_destroy2(pool2_appsess);
 	pool_destroy2(pool2_pendconn);
+	pool_destroy2(pool2_sig_handlers);
     
 	if (have_appsession) {
 		pool_destroy2(apools.serverid);
@@ -931,7 +876,6 @@ void deinit(void)
 	}
 
 	deinit_pollers();
-
 } /* end deinit() */
 
 /* sends the signal <sig> to all pids found in <oldpids>. Returns the number of
@@ -991,19 +935,15 @@ int main(int argc, char **argv)
 	FILE *pidfile = NULL;
 	init(argc, argv);
 
-	signal_register(SIGQUIT, dump);
-	signal_register(SIGUSR1, sig_soft_stop);
-	signal_register(SIGHUP, sig_dump_state);
-#ifdef DEBUG_MEMORY
-	signal_register(SIGINT, sig_int);
-	signal_register(SIGTERM, sig_term);
-#endif
+	signal_register_fct(SIGQUIT, dump, SIGQUIT);
+	signal_register_fct(SIGUSR1, sig_soft_stop, SIGUSR1);
+	signal_register_fct(SIGHUP, sig_dump_state, SIGHUP);
 
 	/* Always catch SIGPIPE even on platforms which define MSG_NOSIGNAL.
 	 * Some recent FreeBSD setups report broken pipes, and MSG_NOSIGNAL
 	 * was defined there, so let's stay on the safe side.
 	 */
-	signal(SIGPIPE, SIG_IGN);
+	signal_register_fct(SIGPIPE, NULL, 0);
 
 	/* We will loop at most 100 times with 10 ms delay each time.
 	 * That's at most 1 second. We only send a signal to old pids
@@ -1061,8 +1001,8 @@ int main(int argc, char **argv)
 	}
 
 	/* prepare pause/play signals */
-	signal_register(SIGTTOU, sig_pause);
-	signal_register(SIGTTIN, sig_listen);
+	signal_register_fct(SIGTTOU, sig_pause, SIGTTOU);
+	signal_register_fct(SIGTTIN, sig_listen, SIGTTIN);
 
 	/* MODE_QUIET can inhibit alerts and warnings below this line */
 
