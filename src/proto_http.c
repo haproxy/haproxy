@@ -4248,7 +4248,9 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 		else {
 			/* other states, DONE...TUNNEL */
 			/* for keep-alive we don't want to forward closes on DONE */
-			buffer_dont_close(req);
+			if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL ||
+			    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL)
+				buffer_dont_close(req);
 			if (http_resync_states(s)) {
 				/* some state changes occurred, maybe the analyser
 				 * was disabled too.
@@ -4291,6 +4293,12 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 			s->flags |= SN_FINST_D;
 		goto return_bad_req;
 	}
+
+	/* When TE: chunked is used, we need to get there again to parse remaining
+	 * chunks even if the client has closed, so we don't want to set BF_DONTCLOSE.
+	 */
+	if (txn->flags & TX_REQ_TE_CHNK)
+		buffer_dont_close(req);
 
 	http_silent_debug(__LINE__, s);
 	return 0;
@@ -5172,7 +5180,9 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 		else {
 			/* other states, DONE...TUNNEL */
 			/* for keep-alive we don't want to forward closes on DONE */
-			buffer_dont_close(res);
+			if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL ||
+			    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL)
+				buffer_dont_close(res);
 			if (http_resync_states(s)) {
 				http_silent_debug(__LINE__, s);
 				/* some state changes occurred, maybe the analyser
@@ -5207,6 +5217,16 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 		msg->hdr_content_len = 0; /* don't forward that again */
 		msg->som = msg->sov;
 	}
+
+	/* When TE: chunked is used, we need to get there again to parse remaining
+	 * chunks even if the server has closed, so we don't want to set BF_DONTCLOSE.
+	 * Similarly, with keep-alive on the client side, we don't want to forward a
+	 * close.
+	 */
+	if ((txn->flags & TX_RES_TE_CHNK) ||
+	    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL ||
+	    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL)
+		buffer_dont_close(res);
 
 	/* the session handler will take care of timeouts and errors */
 	http_silent_debug(__LINE__, s);
