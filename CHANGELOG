@@ -1,6 +1,14 @@
 ChangeLog :
 ===========
 
+2010/08/28 : 1.5-dev2
+    - [MINOR] startup: release unused structs after forking
+    - [MINOR] startup: don't wait for nothing when no old pid remains
+    - [CLEANUP] reference product branch 1.5
+    - [MEDIUM] signals: add support for registering functions and tasks
+    - [MEDIUM] signals: support redistribution of signal zero when stopping
+    - [BUG] http: don't set auto_close if more data are expected
+
 2010/08/25 : 1.5-dev1
     - [BUG] stats: session rate limit gets garbaged in the stats
     - [DOC] mention 'option http-server-close' effect in Tq section
