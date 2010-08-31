@@ -5625,45 +5625,121 @@ void manage_client_side_appsession(struct session *t, const char *buf, int len) 
 	}
 }
 
+/* Find the end of a cookie value contained between <s> and <e>. It works the
+ * same way as with headers above except that the semi-colon also ends a token.
+ * See RFC2965 for more information. Note that it requires a valid header to
+ * return a valid result.
+ */
+char *find_cookie_value_end(char *s, const char *e)
+{
+	int quoted, qdpair;
+
+	quoted = qdpair = 0;
+	for (; s < e; s++) {
+		if (qdpair)                    qdpair = 0;
+		else if (quoted) {
+			if (*s == '\\')        qdpair = 1;
+			else if (*s == '"')    quoted = 0;
+		}
+		else if (*s == '"')            quoted = 1;
+		else if (*s == ',' || *s == ';') return s;
+	}
+	return s;
+}
+
+/* Delete a value in a header between delimiters <from> and <next> in buffer
+ * <buf>. The number of characters displaced is returned, and the pointer to
+ * the first delimiter is updated if required. The function tries as much as
+ * possible to respect the following principles :
+ *  - replace <from> delimiter by the <next> one unless <from> points to a
+ *    colon, in which case <next> is simply removed
+ *  - set exactly one space character after the new first delimiter, unless
+ *    there are not enough characters in the block being moved to do so.
+ *  - remove unneeded spaces before the previous delimiter and after the new
+ *    one.
+ *
+ * It is the caller's responsibility to ensure that :
+ *   - <from> points to a valid delimiter or the colon ;
+ *   - <next> points to a valid delimiter or the final CR/LF ;
+ *   - there are non-space chars before <from> ;
+ *   - there is a CR/LF at or after <next>.
+ */
+int del_hdr_value(struct buffer *buf, char **from, char *next)
+{
+	char *prev = *from;
+
+	if (*prev == ':') {
+		/* We're removing the first value, preserve the colon and add a
+		 * space if possible.
+		 */
+		if (!http_is_crlf[(unsigned char)*next])
+			next++;
+		prev++;
+		if (prev < next)
+			*prev++ = ' ';
+
+		while (http_is_spht[(unsigned char)*next])
+			next++;
+	} else {
+		/* Remove useless spaces before the old delimiter. */
+		while (http_is_spht[(unsigned char)*(prev-1)])
+			prev--;
+		*from = prev;
+
+		/* copy the delimiter and if possible a space if we're
+		 * not at the end of the line.
+		 */
+		if (!http_is_crlf[(unsigned char)*next]) {
+			*prev++ = *next++;
+			if (prev + 1 < next)
+				*prev++ = ' ';
+			while (http_is_spht[(unsigned char)*next])
+				next++;
+		}
+	}
+	return buffer_replace2(buf, prev, next, NULL, 0);
+}
+
 /*
  * Manage client-side cookie. It can impact performance by about 2% so it is
- * desirable to call it only when needed.
+ * desirable to call it only when needed. This code is quite complex because
+ * of the multiple very crappy and ambiguous syntaxes we have to support. it
+ * highly recommended not to touch this part without a good reason !
  */
 void manage_client_side_cookies(struct session *t, struct buffer *req)
 {
 	struct http_txn *txn = &t->txn;
-	char *p1, *p2, *p3, *p4, *p5;
-	char *del_colon, *del_cookie, *colon;
-	int app_cookies;
-
-	char *cur_ptr, *cur_end, *cur_next;
+	int preserve_hdr;
 	int cur_idx, old_idx;
+	char *hdr_beg, *hdr_end, *hdr_next, *del_from;
+	char *prev, *att_beg, *att_end, *equal, *val_beg, *val_end, *next;
 
-	/* Iterate through the headers.
-	 * we start with the start line.
-	 */
+	/* Iterate through the headers, we start with the start line. */
 	old_idx = 0;
-	cur_next = txn->req.sol + hdr_idx_first_pos(&txn->hdr_idx);
+	hdr_next = txn->req.sol + hdr_idx_first_pos(&txn->hdr_idx);
 
 	while ((cur_idx = txn->hdr_idx.v[old_idx].next)) {
 		struct hdr_idx_elem *cur_hdr;
 		int val;
 
 		cur_hdr  = &txn->hdr_idx.v[cur_idx];
-		cur_ptr  = cur_next;
-		cur_end  = cur_ptr + cur_hdr->len;
-		cur_next = cur_end + cur_hdr->cr + 1;
+		hdr_beg  = hdr_next;
+		hdr_end  = hdr_beg + cur_hdr->len;
+		hdr_next = hdr_end + cur_hdr->cr + 1;
 
-		/* We have one full header between cur_ptr and cur_end, and the
-		 * next header starts at cur_next. We're only interested in
+		/* We have one full header between hdr_beg and hdr_end, and the
+		 * next header starts at hdr_next. We're only interested in
 		 * "Cookie:" headers.
 		 */
 
-		val = http_header_match2(cur_ptr, cur_end, "Cookie", 6);
+		val = http_header_match2(hdr_beg, hdr_end, "Cookie", 6);
 		if (!val) {
 			old_idx = cur_idx;
 			continue;
 		}
+
+		del_from = NULL;  /* nothing to be deleted */
+		preserve_hdr = 0; /* assume we may kill the whole header */
 
 		/* Now look for cookies. Conforming to RFC2109, we have to support
 		 * attributes whose name begin with a '$', and associate them with
@@ -5676,267 +5752,336 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 		 *    "special" cookie.
 		 * At the end of loop, if a "special" cookie remains, we may have to
 		 * remove it. If no application cookie persists in the header, we
-		 * *MUST* delete it
+		 * *MUST* delete it.
+		 *
+		 * Note: RFC2965 is unclear about the processing of spaces around
+		 * the equal sign in the ATTR=VALUE form. A careful inspection of
+		 * the RFC explicitly allows spaces before it, and not within the
+		 * tokens (attrs or values). An inspection of RFC2109 allows that
+		 * too but section 10.1.3 lets one think that spaces may be allowed
+		 * after the equal sign too, resulting in some (rare) buggy
+		 * implementations trying to do that. So let's do what servers do.
+		 * Latest ietf draft forbids spaces all around. Also, earlier RFCs
+		 * allowed quoted strings in values, with any possible character
+		 * after a backslash, including control chars and delimitors, which
+		 * causes parsing to become ambiguous. Browsers also allow spaces
+		 * within values even without quotes.
+		 *
+		 * We have to keep multiple pointers in order to support cookie
+		 * removal at the beginning, middle or end of header without
+		 * corrupting the header. All of these headers are valid :
+		 *
+		 * Cookie:NAME1=VALUE1;NAME2=VALUE2;NAME3=VALUE3\r\n
+		 * Cookie:NAME1=VALUE1;NAME2_ONLY ;NAME3=VALUE3\r\n
+		 * Cookie:    NAME1  =  VALUE 1  ; NAME2 = VALUE2 ; NAME3 = VALUE3\r\n
+		 * |     |    |    | |  |      | |                                |
+		 * |     |    |    | |  |      | |                     hdr_end <--+
+		 * |     |    |    | |  |      | +--> next
+		 * |     |    |    | |  |      +----> val_end
+		 * |     |    |    | |  +-----------> val_beg
+		 * |     |    |    | +--------------> equal
+		 * |     |    |    +----------------> att_end
+		 * |     |    +---------------------> att_beg
+		 * |     +--------------------------> prev
+		 * +--------------------------------> hdr_beg
 		 */
 
-		colon = p1 = cur_ptr + val; /* first non-space char after 'Cookie:' */
+		for (prev = hdr_beg + 6; prev < hdr_end; prev = next) {
+			/* Iterate through all cookies on this line */
 
-		/* del_cookie == NULL => nothing to be deleted */
-		del_colon = del_cookie = NULL;
-		app_cookies = 0;
-		
-		while (p1 < cur_end) {
-			/* skip spaces and colons, but keep an eye on these ones */
-		resync_name:
-			while (p1 < cur_end) {
-				if (*p1 == ';' || *p1 == ',')
-					colon = p1;
-				else if (!isspace((unsigned char)*p1))
-					break;
-				p1++;
-			}
+			/* find att_beg */
+			att_beg = prev + 1;
+			while (att_beg < hdr_end && http_is_spht[(unsigned char)*att_beg])
+				att_beg++;
 
-			if (p1 == cur_end)
-				break;
-		    
-			/* p1 is at the beginning of the cookie name */
-			p2 = p1;
-			while (p2 < cur_end && *p2 != '=') {
-				if (*p2 == ',' || *p2 == ';' || isspace((unsigned char)*p2)) {
-					/* oops, the cookie name was truncated, resync */
-					p1 = p2;
-					goto resync_name;
-				}
-				p2++;
-			}
-
-			if (p2 == cur_end)
-				break;
-
-			p3 = p2 + 1; /* skips the '=' sign */
-			if (p3 == cur_end)
-				break;
-		    
-			/* parse the value, stripping leading and trailing spaces but keeping insiders. */
-			p5 = p4 = p3;
-			while (p5 < cur_end && *p5 != ';' && *p5 != ',') {
-				if (!isspace((unsigned char)*p5))
-					p4 = p5 + 1;
-				p5++;
-			}
-
-			/* here, we have the cookie name between p1 and p2,
-			 * and its value between p3 and p4.
-			 * we can process it :
-			 *
-			 * Cookie: NAME=VALUE ;
-			 * |      ||   ||    |+-> p5
-			 * |      ||   ||    +--> p4
-			 * |      ||   |+-------> p3
-			 * |      ||   +--------> p2
-			 * |      |+------------> p1
-			 * |      +-------------> colon
-			 * +--------------------> cur_ptr
+			/* find att_end : this is the first character after the last non
+			 * space before the equal. It may be equal to hdr_end.
 			 */
-		    
-			if (*p1 == '$') {
-				/* skip this one */
-			}
-			else {
-				/* first, let's see if we want to capture it */
-				if (t->fe->capture_name != NULL &&
-				    txn->cli_cookie == NULL &&
-				    (p4 - p1 >= t->fe->capture_namelen) &&
-				    memcmp(p1, t->fe->capture_name, t->fe->capture_namelen) == 0) {
-					int log_len = p4 - p1;
+			equal = att_end = att_beg;
 
-					if ((txn->cli_cookie = pool_alloc2(pool2_capture)) == NULL) {
-						Alert("HTTP logging : out of memory.\n");
-					} else {
-						if (log_len > t->fe->capture_len)
-							log_len = t->fe->capture_len;
-						memcpy(txn->cli_cookie, p1, log_len);
-						txn->cli_cookie[log_len] = 0;
-					}
+			while (equal < hdr_end) {
+				if (*equal == '=' || *equal == ',' || *equal == ';')
+					break;
+				if (http_is_spht[(unsigned char)*equal++])
+					continue;
+				att_end = equal;
+			}
+
+			/* here, <equal> points to '=', a delimitor or the end. <att_end>
+			 * is between <att_beg> and <equal>, both may be identical.
+			 */
+
+			/* look for end of cookie if there is an equal sign */
+			if (equal < hdr_end && *equal == '=') {
+				/* look for the beginning of the value */
+				val_beg = equal + 1;
+				while (val_beg < hdr_end && http_is_spht[(unsigned char)*val_beg])
+					val_beg++;
+
+				/* find the end of the value, respecting quotes */
+				next = find_cookie_value_end(val_beg, hdr_end);
+
+				/* make val_end point to the first white space or delimitor after the value */
+				val_end = next;
+				while (val_end > val_beg && http_is_spht[(unsigned char)*(val_end - 1)])
+					val_end--;
+			} else {
+				val_beg = val_end = next = equal;
+			}
+
+			/* We have nothing to do with attributes beginning with '$'. However,
+			 * they will automatically be removed if a header before them is removed,
+			 * since they're supposed to be linked together.
+			 */
+			if (*att_beg == '$')
+				continue;
+
+			/* Ignore cookies with no equal sign */
+			if (equal == next) {
+				/* This is not our cookie, so we must preserve it. But if we already
+				 * scheduled another cookie for removal, we cannot remove the
+				 * complete header, but we can remove the previous block itself.
+				 */
+				preserve_hdr = 1;
+				if (del_from != NULL) {
+					int delta = del_hdr_value(req, &del_from, prev);
+					val_end  += delta;
+					next     += delta;
+					hdr_end  += delta;
+					hdr_next += delta;
+					cur_hdr->len += delta;
+					http_msg_move_end(&txn->req, delta);
+					prev     = del_from;
+					del_from = NULL;
+				}
+				continue;
+			}
+
+			/* if there are spaces around the equal sign, we need to
+			 * strip them otherwise we'll get trouble for cookie captures,
+			 * or even for rewrites. Since this happens extremely rarely,
+			 * it does not hurt performance.
+			 */
+			if (unlikely(att_end != equal || val_beg > equal + 1)) {
+				int stripped_before = 0;
+				int stripped_after = 0;
+
+				if (att_end != equal) {
+					stripped_before = buffer_replace2(req, att_end, equal, NULL, 0);
+					equal   += stripped_before;
+					val_beg += stripped_before;
 				}
 
-				if ((p2 - p1 == t->be->cookie_len) && (t->be->cookie_name != NULL) &&
-				    (memcmp(p1, t->be->cookie_name, p2 - p1) == 0)) {
-					/* Cool... it's the right one */
-					struct server *srv = t->be->srv;
-					char *delim;
+				if (val_beg > equal + 1) {
+					stripped_after = buffer_replace2(req, equal + 1, val_beg, NULL, 0);
+					val_beg += stripped_after;
+					stripped_before += stripped_after;
+				}
 
-					/* if we're in cookie prefix mode, we'll search the delimitor so that we
-					 * have the server ID betweek p3 and delim, and the original cookie between
-					 * delim+1 and p4. Otherwise, delim==p4 :
-					 *
-					 * Cookie: NAME=SRV~VALUE ;
-					 * |      ||   ||  |     |+-> p5
-					 * |      ||   ||  |     +--> p4
-					 * |      ||   ||  +--------> delim
-					 * |      ||   |+-----------> p3
-					 * |      ||   +------------> p2
-					 * |      |+----------------> p1
-					 * |      +-----------------> colon
-					 * +------------------------> cur_ptr
-					 */
+				val_end      += stripped_before;
+				next         += stripped_before;
+				hdr_end      += stripped_before;
+				hdr_next     += stripped_before;
+				cur_hdr->len += stripped_before;
+				http_msg_move_end(&txn->req, stripped_before);
+			}
+			/* now everything is as on the diagram above */
 
-					if (t->be->options & PR_O_COOK_PFX) {
-						for (delim = p3; delim < p4; delim++)
-							if (*delim == COOKIE_DELIM)
-								break;
-					}
-					else
-						delim = p4;
+			/* First, let's see if we want to capture this cookie. We check
+			 * that we don't already have a client side cookie, because we
+			 * can only capture one. Also as an optimisation, we ignore
+			 * cookies shorter than the declared name.
+			 */
+			if (t->fe->capture_name != NULL && txn->cli_cookie == NULL &&
+			    (val_end - att_beg >= t->fe->capture_namelen) &&
+			    memcmp(att_beg, t->fe->capture_name, t->fe->capture_namelen) == 0) {
+				int log_len = val_end - att_beg;
 
-
-					/* Here, we'll look for the first running server which supports the cookie.
-					 * This allows to share a same cookie between several servers, for example
-					 * to dedicate backup servers to specific servers only.
-					 * However, to prevent clients from sticking to cookie-less backup server
-					 * when they have incidentely learned an empty cookie, we simply ignore
-					 * empty cookies and mark them as invalid.
-					 * The same behaviour is applied when persistence must be ignored.
-					 */
-					if ((delim == p3) || (t->flags & SN_IGNORE_PRST))
-						srv = NULL;
-
-					while (srv) {
-						if (srv->cookie && (srv->cklen == delim - p3) &&
-						    !memcmp(p3, srv->cookie, delim - p3)) {
-							if ((srv->state & SRV_RUNNING) ||
-							    (t->be->options & PR_O_PERSIST) ||
-							    (t->flags & SN_FORCE_PRST)) {
-								/* we found the server and it's usable */
-								txn->flags &= ~TX_CK_MASK;
-								txn->flags |= (srv->state & SRV_RUNNING) ? TX_CK_VALID : TX_CK_DOWN;
-								t->flags |= SN_DIRECT | SN_ASSIGNED;
-								t->srv = srv;
-								break;
-							} else {
-								/* we found a server, but it's down */
-								txn->flags &= ~TX_CK_MASK;
-								txn->flags |= TX_CK_DOWN;
-							}
-						}
-						srv = srv->next;
-					}
-
-					if (!srv && !(txn->flags & TX_CK_DOWN)) {
-						/* no server matched this cookie */
-						txn->flags &= ~TX_CK_MASK;
-						txn->flags |= TX_CK_INVALID;
-					}
-
-					/* depending on the cookie mode, we may have to either :
-					 * - delete the complete cookie if we're in insert+indirect mode, so that
-					 *   the server never sees it ;
-					 * - remove the server id from the cookie value, and tag the cookie as an
-					 *   application cookie so that it does not get accidentely removed later,
-					 *   if we're in cookie prefix mode
-					 */
-					if ((t->be->options & PR_O_COOK_PFX) && (delim != p4)) {
-						int delta; /* negative */
-
-						delta = buffer_replace2(req, p3, delim + 1, NULL, 0);
-						p4  += delta;
-						p5  += delta;
-						cur_end += delta;
-						cur_next += delta;
-						cur_hdr->len += delta;
-						http_msg_move_end(&txn->req, delta);
-
-						del_cookie = del_colon = NULL;
-						app_cookies++;	/* protect the header from deletion */
-					}
-					else if (del_cookie == NULL &&
-						 (t->be->options & (PR_O_COOK_INS | PR_O_COOK_IND)) == (PR_O_COOK_INS | PR_O_COOK_IND)) {
-						del_cookie = p1;
-						del_colon = colon;
-					}
+				if ((txn->cli_cookie = pool_alloc2(pool2_capture)) == NULL) {
+					Alert("HTTP logging : out of memory.\n");
 				} else {
-					/* now we know that we must keep this cookie since it's
-					 * not ours. But if we wanted to delete our cookie
-					 * earlier, we cannot remove the complete header, but we
-					 * can remove the previous block itself.
-					 */
-					app_cookies++;
-
-					if (del_cookie != NULL) {
-						int delta; /* negative */
-
-						delta = buffer_replace2(req, del_cookie, p1, NULL, 0);
-						p4  += delta;
-						p5  += delta;
-						cur_end += delta;
-						cur_next += delta;
-						cur_hdr->len += delta;
-						http_msg_move_end(&txn->req, delta);
-						del_cookie = del_colon = NULL;
-					}
+					if (log_len > t->fe->capture_len)
+						log_len = t->fe->capture_len;
+					memcpy(txn->cli_cookie, att_beg, log_len);
+					txn->cli_cookie[log_len] = 0;
 				}
-
-				/* Look for the appsession cookie unless persistence must be ignored */
-				if (!(t->flags & SN_IGNORE_PRST) && (t->be->appsession_name != NULL)) {
-					int cmp_len, value_len;
-					char *value_begin;
-
-					if (t->be->options2 & PR_O2_AS_PFX) {
-						cmp_len = MIN(p4 - p1, t->be->appsession_name_len);
-						value_begin = p1 + t->be->appsession_name_len;
-						value_len = p4 - p1 - t->be->appsession_name_len;
-					} else {
-						cmp_len = p2 - p1;
-						value_begin = p3;
-						value_len = p4 - p3;
-					}
-
-					/* let's see if the cookie is our appcookie */
-					if ((cmp_len == t->be->appsession_name_len) &&
-					    (memcmp(p1, t->be->appsession_name, t->be->appsession_name_len) == 0)) {
-						/* Cool... it's the right one */
-						manage_client_side_appsession(t, value_begin, value_len);
-					}
-#if defined(DEBUG_HASH)
-					Alert("manage_client_side_cookies\n");
-					appsession_hash_dump(&(t->be->htbl_proxy));
-#endif
-				}/* end if ((t->proxy->appsession_name != NULL) ... */
 			}
 
-			/* we'll have to look for another cookie ... */
-			p1 = p5;
-		} /* while (p1 < cur_end) */
+			/* For cookies in prefix mode. The form is :
+			 *
+			 *    Cookie: NAME=SRV~VALUE
+			 *
+			 */
+			if ((att_end - att_beg == t->be->cookie_len) && (t->be->cookie_name != NULL) &&
+			    (memcmp(att_beg, t->be->cookie_name, att_end - att_beg) == 0)) {
+				struct server *srv = t->be->srv;
+				char *delim;
 
-		/* There's no more cookie on this line.
-		 * We may have marked the last one(s) for deletion.
-		 * We must do this now in two ways :
-		 *  - if there is no app cookie, we simply delete the header ;
-		 *  - if there are app cookies, we must delete the end of the
-		 *    string properly, including the colon/semi-colon before
-		 *    the cookie name.
+				/* if we're in cookie prefix mode, we'll search the delimitor so that we
+				 * have the server ID between val_beg and delim, and the original cookie between
+				 * delim+1 and val_end. Otherwise, delim==val_end :
+				 *
+				 * Cookie: NAME=SRV;          # in all but prefix modes
+				 * Cookie: NAME=SRV~OPAQUE ;  # in prefix mode
+				 * |      ||   ||  |      |+-> next
+				 * |      ||   ||  |      +--> val_end
+				 * |      ||   ||  +---------> delim
+				 * |      ||   |+------------> val_beg
+				 * |      ||   +-------------> att_end = equal
+				 * |      |+-----------------> att_beg
+				 * |      +------------------> prev
+				 * +-------------------------> hdr_beg
+				 */
+
+				if (t->be->options & PR_O_COOK_PFX) {
+					for (delim = val_beg; delim < val_end; delim++)
+						if (*delim == COOKIE_DELIM)
+							break;
+				}
+				else
+					delim = val_end;
+
+
+				/* Here, we'll look for the first running server which supports the cookie.
+				 * This allows to share a same cookie between several servers, for example
+				 * to dedicate backup servers to specific servers only.
+				 * However, to prevent clients from sticking to cookie-less backup server
+				 * when they have incidentely learned an empty cookie, we simply ignore
+				 * empty cookies and mark them as invalid.
+				 * The same behaviour is applied when persistence must be ignored.
+				 */
+				if ((delim == val_beg) || (t->flags & SN_IGNORE_PRST))
+					srv = NULL;
+
+				while (srv) {
+					if (srv->cookie && (srv->cklen == delim - val_beg) &&
+					    !memcmp(val_beg, srv->cookie, delim - val_beg)) {
+						if ((srv->state & SRV_RUNNING) ||
+						    (t->be->options & PR_O_PERSIST) ||
+						    (t->flags & SN_FORCE_PRST)) {
+							/* we found the server and we can use it */
+							txn->flags &= ~TX_CK_MASK;
+							txn->flags |= (srv->state & SRV_RUNNING) ? TX_CK_VALID : TX_CK_DOWN;
+							t->flags |= SN_DIRECT | SN_ASSIGNED;
+							t->srv = srv;
+							break;
+						} else {
+							/* we found a server, but it's down,
+							 * mark it as such and go on in case
+							 * another one is available.
+							 */
+							txn->flags &= ~TX_CK_MASK;
+							txn->flags |= TX_CK_DOWN;
+						}
+					}
+					srv = srv->next;
+				}
+
+				if (!srv && !(txn->flags & TX_CK_DOWN)) {
+					/* no server matched this cookie */
+					txn->flags &= ~TX_CK_MASK;
+					txn->flags |= TX_CK_INVALID;
+				}
+
+				/* depending on the cookie mode, we may have to either :
+				 * - delete the complete cookie if we're in insert+indirect mode, so that
+				 *   the server never sees it ;
+				 * - remove the server id from the cookie value, and tag the cookie as an
+				 *   application cookie so that it does not get accidentely removed later,
+				 *   if we're in cookie prefix mode
+				 */
+				if ((t->be->options & PR_O_COOK_PFX) && (delim != val_end)) {
+					int delta; /* negative */
+
+					delta = buffer_replace2(req, val_beg, delim + 1, NULL, 0);
+					val_end  += delta;
+					next     += delta;
+					hdr_end  += delta;
+					hdr_next += delta;
+					cur_hdr->len += delta;
+					http_msg_move_end(&txn->req, delta);
+
+					del_from = NULL;
+					preserve_hdr = 1; /* we want to keep this cookie */
+				}
+				else if (del_from == NULL &&
+					 (t->be->options & (PR_O_COOK_INS | PR_O_COOK_IND)) == (PR_O_COOK_INS | PR_O_COOK_IND)) {
+					del_from = prev;
+				}
+			} else {
+				/* This is not our cookie, so we must preserve it. But if we already
+				 * scheduled another cookie for removal, we cannot remove the
+				 * complete header, but we can remove the previous block itself.
+				 */
+				preserve_hdr = 1;
+
+				if (del_from != NULL) {
+					int delta = del_hdr_value(req, &del_from, prev);
+					val_end  += delta;
+					next     += delta;
+					hdr_end  += delta;
+					hdr_next += delta;
+					cur_hdr->len += delta;
+					http_msg_move_end(&txn->req, delta);
+					prev     = del_from;
+					del_from = NULL;
+				}
+			}
+
+			/* Look for the appsession cookie unless persistence must be ignored */
+			if (!(t->flags & SN_IGNORE_PRST) && (t->be->appsession_name != NULL)) {
+				int cmp_len, value_len;
+				char *value_begin;
+
+				if (t->be->options2 & PR_O2_AS_PFX) {
+					cmp_len     = MIN(val_end - att_beg, t->be->appsession_name_len);
+					value_begin = att_beg + t->be->appsession_name_len;
+					value_len   = val_end - att_beg - t->be->appsession_name_len;
+				} else {
+					cmp_len     = att_end - att_beg;
+					value_begin = val_beg;
+					value_len   = val_end - val_beg;
+				}
+
+				/* let's see if the cookie is our appcookie */
+				if (cmp_len == t->be->appsession_name_len &&
+				    memcmp(att_beg, t->be->appsession_name, cmp_len) == 0) {
+					manage_client_side_appsession(t, value_begin, value_len);
+				}
+			}
+
+			/* continue with next cookie on this header line */
+			att_beg = next;
+		} /* for each cookie */
+
+		/* There are no more cookies on this line.
+		 * We may still have one (or several) marked for deletion at the
+		 * end of the line. We must do this now in two ways :
+		 *  - if some cookies must be preserved, we only delete from the
+		 *    mark to the end of line ;
+		 *  - if nothing needs to be preserved, simply delete the whole header
 		 */
-		if (del_cookie != NULL) {
+		if (del_from) {
 			int delta;
-			if (app_cookies) {
-				delta = buffer_replace2(req, del_colon, cur_end, NULL, 0);
-				cur_end = del_colon;
+			if (preserve_hdr) {
+				delta = del_hdr_value(req, &del_from, hdr_end);
+				hdr_end = del_from;
 				cur_hdr->len += delta;
 			} else {
-				delta = buffer_replace2(req, cur_ptr, cur_next, NULL, 0);
+				delta = buffer_replace2(req, hdr_beg, hdr_next, NULL, 0);
 
 				/* FIXME: this should be a separate function */
 				txn->hdr_idx.v[old_idx].next = cur_hdr->next;
 				txn->hdr_idx.used--;
 				cur_hdr->len = 0;
 			}
-			cur_next += delta;
+			hdr_next += delta;
 			http_msg_move_end(&txn->req, delta);
 		}
 
-		/* keep the link from this header to next one */
+		/* check next header */
 		old_idx = cur_idx;
-	} /* end of cookie processing on this header */
+	}
 }
 
 
