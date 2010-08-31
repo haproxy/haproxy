@@ -615,6 +615,7 @@ void stop_proxy(struct proxy *p)
 		if (l->state >= LI_ASSIGNED) {
 			delete_listener(l);
 			listeners--;
+			jobs--;
 		}
 	}
 	p->state = PR_STSTOPPED;

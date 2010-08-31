@@ -124,6 +124,7 @@ struct global global = {
 /*********************************************************************/
 
 int stopping;	/* non zero means stopping in progress */
+int jobs = 0;   /* number of active jobs (conns, listeners, active tasks, ...) */
 
 /* Here we store informations about the pids of the processes we may pause
  * or kill. We will send them a signal every 10 ms until we can bind to all
@@ -920,8 +921,8 @@ void run_poll_loop()
 		 * numbers of proxies. */
 		maintain_proxies(&next);
 
-		/* stop when there's no connection left and we don't allow them anymore */
-		if (!actconn && listeners == 0)
+		/* stop when there's nothing left to do */
+		if (jobs == 0)
 			break;
 
 		/* The poller will ensure it returns around <next> */

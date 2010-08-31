@@ -1191,6 +1191,7 @@ int stream_sock_accept(int fd)
 			goto out_close;
 		}
 
+		jobs++;
 		actconn++;
 		totalconn++;
 		l->nbconn++;
@@ -1207,12 +1208,14 @@ int stream_sock_accept(int fd)
 				EV_FD_CLR(fd, DIR_RD);
 				p->state = PR_STIDLE;
 			}
+			jobs--;
 			actconn--;
 			l->nbconn--;
 			goto out_close;
 		}
 		else if (unlikely(ret == 0)) {
 			/* ignore this connection */
+			jobs--;
 			actconn--;
 			l->nbconn--;
 			close(cfd);

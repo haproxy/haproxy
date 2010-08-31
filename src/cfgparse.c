@@ -267,6 +267,7 @@ static int str2listener(char *str, struct proxy *curproxy)
 				tcpv4_add_listener(l);
 			}
 
+			jobs++;
 			listeners++;
 		} /* end for(port) */
 	} /* end while(next) */

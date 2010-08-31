@@ -1999,6 +1999,7 @@ struct task *process_session(struct task *t)
 	if (s->flags & SN_BE_ASSIGNED)
 		s->be->beconn--;
 	actconn--;
+	jobs--;
 	s->listener->nbconn--;
 	if (s->listener->state == LI_FULL &&
 	    s->listener->nbconn < s->listener->maxconn) {
