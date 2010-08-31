@@ -1690,12 +1690,15 @@ cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
               "insert" and "prefix".
 
     insert    This keyword indicates that the persistence cookie will have to
-              be inserted by haproxy in the responses. If the server emits a
-              cookie with the same name, it will be replaced anyway. For this
-              reason, this mode can be used to upgrade existing configurations
-              running in the "rewrite" mode. The cookie will only be a session
-              cookie and will not be stored on the client's disk. Due to
-              caching effects, it is generally wise to add the "indirect" and
+              be inserted by haproxy in server responses if the client did not
+              already have a cookie that would have permitted it to access this
+              server. If the server emits a cookie with the same name, it will
+              be remove before processing. For this reason, this mode can be
+              used to upgrade existing configurations running in the "rewrite"
+              mode. The cookie will only be a session cookie and will not be
+              stored on the client's disk. By default, unless the "indirect"
+              option is added, the server will see the cookies emitted by the
+              client. Due to caching effects, it is generally wise to add the
               "nocache" or "postonly" keywords (see below). The "insert"
               keyword is not compatible with "rewrite" and "prefix".
 
@@ -1711,16 +1714,13 @@ cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
               this mode requires the HTTP close mode. The "prefix" keyword is
               not compatible with "rewrite" and "insert".
 
-    indirect  When this option is specified in insert mode, cookies will only
-              be added when the server was not reached after a direct access,
-              which means that only when a server is elected after applying a
-              load-balancing algorithm, or after a redispatch, then the cookie
-              will be inserted. If the client has all the required information
-              to connect to the same server next time, no further cookie will
-              be inserted. In all cases, when the "indirect" option is used in
-              insert mode, the cookie is always removed from the requests
-              transmitted to the server. The persistence mechanism then becomes
-              totally transparent from the application point of view.
+    indirect  When this option is specified, no cookie will be emitted to a
+              client which already has a valid one for the server which has
+              processed the request. If the server sets such a cookie itself,
+              it will be removed. In "insert" mode, this will additionally
+              remove cookies from requests transmitted to the server, making
+              the persistence mechanism totally transparent from an application
+              point of view.
 
     nocache   This option is recommended in conjunction with the insert mode
               when there is a cache between the client and HAProxy, as it
