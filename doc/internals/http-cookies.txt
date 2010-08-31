@@ -1,0 +1,45 @@
+2010/08/31 - HTTP Cookies - Theory and reality
+
+HTTP cookies are not uniformly supported across browsers, which makes it very
+hard to build a widely compatible implementation. At least four conflicting
+documents exist to describe how cookies should be handled, and browsers
+generally don't respect any but a sensibly selected mix of them :
+
+  - Netscape's original spec (also mirrored at Curl's site among others) :
+    http://web.archive.org/web/20070805052634/http://wp.netscape.com/newsref/std/cookie_spec.html
+    http://curl.haxx.se/rfc/cookie_spec.html
+
+    Issues: uses an unquoted "Expires" field that includes a comma.
+
+  - RFC 2109 :
+    http://www.ietf.org/rfc/rfc2109.txt
+
+    Issues: specifies use of "Max-Age" (not universally implemented) and does
+            not talk about "Expires" (generally supported). References quoted
+            strings, not generally supported (eg: MSIE). Stricter than browsers
+            about domains. Ambiguous about allowed spaces in values and attrs.
+
+  - RFC 2965 :
+    http://www.ietf.org/rfc/rfc2965.txt
+
+    Issues: same as RFC2109 + describes Set-Cookie2 which only Opera supports.
+
+  - Current internet draft :
+    https://datatracker.ietf.org/wg/httpstate/charter/
+
+    Issues: as of -p10, does not explain how the Set-Cookie2 header must be
+            emitted/handled, while suggesting a stricter approach for Cookie.
+            Documents reality and as such reintroduces the widely used unquoted
+            "Expires" attribute with its error-prone syntax. States that a
+            server should not emit more than one cookie per Set-Cookie header,
+            which is incompatible with HTTP which says that multiple headers
+            are allowed only if they can be folded.
+
+See also the following URL for a browser * feature matrix :
+   http://code.google.com/p/browsersec/wiki/Part2#Same-origin_policy_for_cookies
+
+In short, MSIE and Safari neither support quoted strings nor max-age, which
+make it mandatory to continue to send an unquoted Expires value (maybe the
+day of week could be omitted though). Only Safari supports comma-separated
+lists of Set-Cookie headers. Support for cross-domains is not uniform either.
+
