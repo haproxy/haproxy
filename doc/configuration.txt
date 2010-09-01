@@ -6500,7 +6500,7 @@ nbsrv(backend) <integer>
   "monitor fail".
 
 queue <integer>
-queue(frontend) <integer>
+queue(backend) <integer>
   Returns the total number of queued connections of the designated backend,
   including all the connections in server queues. If no backend name is
   specified, the current one is used, but it is also possible to check another
