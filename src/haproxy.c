@@ -813,6 +813,8 @@ void deinit(void)
 		l = p->listen;
 		while (l) {
 			l_next = l->next;
+			unbind_listener(l);
+			delete_listener(l);
 			free(l->name);
 			free(l->counters);
 			free(l);
