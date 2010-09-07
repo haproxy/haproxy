@@ -192,10 +192,10 @@ void stream_int_shutr(struct stream_interface *si)
 	if (si->ob->flags & BF_SHUTW) {
 		si->state = SI_ST_DIS;
 		si->exp = TICK_ETERNITY;
-	}
 
-	if (si->release)
-		si->release(si);
+		if (si->release)
+			si->release(si);
+	}
 
 	/* note that if the task exist, it must unregister itself once it runs */
 	if (!(si->flags & SI_FL_DONT_WAKE) && si->owner)
@@ -226,15 +226,15 @@ void stream_int_shutw(struct stream_interface *si)
 	case SI_ST_CER:
 		si->state = SI_ST_DIS;
 		/* fall through */
+
+		if (si->release)
+			si->release(si);
 	default:
 		si->flags &= ~SI_FL_WAIT_ROOM;
 		si->ib->flags |= BF_SHUTR;
 		si->ib->rex = TICK_ETERNITY;
 		si->exp = TICK_ETERNITY;
 	}
-
-	if (si->release)
-		si->release(si);
 
 	/* note that if the task exist, it must unregister itself once it runs */
 	if (!(si->flags & SI_FL_DONT_WAKE) && si->owner)
