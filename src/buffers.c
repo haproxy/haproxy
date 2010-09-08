@@ -72,37 +72,78 @@ int buffer_write(struct buffer *buf, const char *msg, int len)
 	return -1;
 }
 
-/* Try to write string <str> into buffer <buf> after length controls. This
- * is the equivalent of buffer_write() except that to_forward and send_max
- * are updated and that max_len is respected. Returns -1 in case of success,
- * -2 if it is larger than the buffer size, or the number of bytes available
- * otherwise. The send limit is automatically adjusted with the amount of data
- * written.
+/* Tries to copy character <c> into buffer <buf> after length controls. The
+ * send_max and to_forward pointers are updated. If the buffer's input is
+ * closed, -2 is returned. If there is not enough room left in the buffer, -1
+ * is returned. Otherwise the number of bytes copied is returned (1). Buffer
+ * flags FULL, EMPTY and READ_PARTIAL are updated if some data can be
+ * transferred.
  */
-int buffer_feed2(struct buffer *buf, const char *str, int len)
+int buffer_put_char(struct buffer *buf, char c)
+{
+	if (unlikely(buffer_input_closed(buf)))
+		return -2;
+
+	if (buf->flags & BF_FULL)
+		return -1;
+
+	*buf->r = c;
+
+	buf->l++;
+	if (buf->l >= buffer_max_len(buf))
+		buf->flags |= BF_FULL;
+	buf->flags |= BF_READ_PARTIAL;
+
+	buf->r++;
+	if (buf->r - buf->data == buf->size)
+		buf->r -= buf->size;
+
+	if (buf->to_forward >= 1) {
+		if (buf->to_forward != BUF_INFINITE_FORWARD)
+			buf->to_forward--;
+		buf->send_max++;
+		buf->flags &= ~BF_OUT_EMPTY;
+	}
+
+	buf->total++;
+	return 1;
+}
+
+/* Tries to copy block <blk> at once into buffer <buf> after length controls.
+ * The send_max and to_forward pointers are updated. If the buffer's input is
+ * closed, -2 is returned. If the block is too large for this buffer, -3 is
+ * returned. If there is not enough room left in the buffer, -1 is returned.
+ * Otherwise the number of bytes copied is returned (0 being a valid number).
+ * Buffer flags FULL, EMPTY and READ_PARTIAL are updated if some data can be
+ * transferred.
+ */
+int buffer_put_block(struct buffer *buf, const char *blk, int len)
 {
 	int max;
 
-	if (len == 0)
-		return -1;
+	if (unlikely(buffer_input_closed(buf)))
+		return -2;
 
 	max = buffer_max_len(buf);
-	if (len > max - buf->l) {
+	if (unlikely(len > max - buf->l)) {
 		/* we can't write this chunk right now because the buffer is
 		 * almost full or because the block is too large. Return the
 		 * available space or -2 if impossible.
 		 */
 		if (len > max)
-			return -2;
+			return -3;
 
-		return max - buf->l;
+		return -1;
 	}
+
+	if (unlikely(len == 0))
+		return 0;
 
 	/* OK so the data fits in the buffer in one or two blocks */
 	max = buffer_contig_space_with_len(buf, max);
-	memcpy(buf->r, str, MIN(len, max));
+	memcpy(buf->r, blk, MIN(len, max));
 	if (len > max)
-		memcpy(buf->data, str + max, len - max);
+		memcpy(buf->data, blk + max, len - max);
 
 	buf->l += len;
 	buf->r += len;
@@ -127,27 +168,29 @@ int buffer_feed2(struct buffer *buf, const char *str, int len)
 
 	/* notify that some data was read from the SI into the buffer */
 	buf->flags |= BF_READ_PARTIAL;
-	return -1;
+	return len;
 }
 
-/* Get one text line out of a buffer from a stream interface.
+/* Gets one text line out of a buffer from a stream interface.
  * Return values :
  *   >0 : number of bytes read. Includes the \n if present before len or end.
- *   =0 : no '\n' before end found. <buf> is undefined.
- *   <0 : no more bytes readable + shutdown set.
+ *   =0 : no '\n' before end found. <str> is left undefined.
+ *   <0 : no more bytes readable because output is shut.
  * The buffer status is not changed. The caller must call buffer_skip() to
  * update it. The '\n' is waited for as long as neither the buffer nor the
  * output are full. If either of them is full, the string may be returned
  * as is, without the '\n'.
  */
-int buffer_si_peekline(struct buffer *buf, char *str, int len)
+int buffer_get_line(struct buffer *buf, char *str, int len)
 {
 	int ret, max;
 	char *p;
 
 	ret = 0;
 	max = len;
-	if (!buf->send_max) {
+
+	/* closed or empty + imminent close = -1; empty = 0 */
+	if (unlikely(buf->flags & (BF_OUT_EMPTY|BF_SHUTW))) {
 		if (buf->flags & (BF_SHUTW|BF_SHUTW_NOW))
 			ret = -1;
 		goto out;
@@ -178,6 +221,43 @@ int buffer_si_peekline(struct buffer *buf, char *str, int len)
 	if (max)
 		*str = 0;
 	return ret;
+}
+
+/* Gets one full block of data at once from a buffer, optionally from a
+ * specific offset. Return values :
+ *   >0 : number of bytes read, equal to requested size.
+ *   =0 : not enough data available. <blk> is left undefined.
+ *   <0 : no more bytes readable because output is shut.
+ * The buffer status is not changed. The caller must call buffer_skip() to
+ * update it.
+ */
+int buffer_get_block(struct buffer *buf, char *blk, int len, int offset)
+{
+	int firstblock;
+
+	if (buf->flags & BF_SHUTW)
+		return -1;
+
+	if (len + offset > buf->send_max) {
+		if (buf->flags & (BF_SHUTW|BF_SHUTW_NOW))
+			return -1;
+		return 0;
+	}
+
+	firstblock = buf->data + buf->size - buf->w;
+	if (firstblock > offset) {
+		if (firstblock >= len + offset) {
+			memcpy(blk, buf->w + offset, len);
+			return len;
+		}
+
+		memcpy(blk, buf->w + offset, firstblock - offset);
+		memcpy(blk + firstblock - offset, buf->data, len - firstblock + offset);
+		return len;
+	}
+
+	memcpy(blk, buf->data + offset - firstblock, len);
+	return len;
 }
 
 /*

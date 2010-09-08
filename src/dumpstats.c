@@ -858,7 +858,7 @@ void stats_io_handler(struct stream_interface *si)
 			if (buffer_almost_full(si->ib))
 				break;
 
-			reql = buffer_si_peekline(si->ob, trash, sizeof(trash));
+			reql = buffer_get_line(si->ob, trash, sizeof(trash));
 			if (reql <= 0) { /* closed or EOL not found */
 				if (reql == 0)
 					break;

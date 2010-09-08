@@ -39,6 +39,18 @@ extern struct pool_head *pool2_buffer;
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_buffer();
 
+/* SI-to-buffer functions : buffer_{get,put}_{char,block,string,chunk} */
+int buffer_write(struct buffer *buf, const char *msg, int len);
+int buffer_put_block(struct buffer *buf, const char *str, int len);
+int buffer_put_char(struct buffer *buf, char c);
+int buffer_get_line(struct buffer *buf, char *str, int len);
+int buffer_get_block(struct buffer *buf, char *blk, int len, int offset);
+int buffer_replace(struct buffer *b, char *pos, char *end, const char *str);
+int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int len);
+int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len);
+void buffer_dump(FILE *o, struct buffer *b, int from, int to);
+void buffer_bounce_realign(struct buffer *buf);
+
 /* Initialize all fields in the buffer. The BF_OUT_EMPTY flags is set. */
 static inline void buffer_init(struct buffer *buf)
 {
@@ -63,6 +75,18 @@ static inline int buffer_max_len(struct buffer *buf)
 		return buf->size;
 	else
 		return buf->size - global.tune.maxrewrite + buf->to_forward + buf->send_max;
+}
+
+/* Returns true if the buffer's input is already closed */
+static inline int buffer_input_closed(struct buffer *buf)
+{
+	return ((buf->flags & BF_SHUTR) != 0);
+}
+
+/* Returns true if the buffer's output is already closed */
+static inline int buffer_output_closed(struct buffer *buf)
+{
+	return ((buf->flags & BF_SHUTW) != 0);
 }
 
 /* Check buffer timeouts, and set the corresponding flags. The
@@ -291,7 +315,7 @@ static inline int buffer_realign(struct buffer *buf)
 
 /*
  * Return the maximum amount of bytes that can be written into the buffer in
- * one call to buffer_feed*().
+ * one call to buffer_put_*().
  */
 static inline int buffer_free_space(struct buffer *buf)
 {
@@ -406,66 +430,6 @@ static inline void buffer_skip(struct buffer *buf, int len)
 	buf->flags |= BF_WRITE_PARTIAL;
 }
 
-/*
- * Return one char from the buffer. If the buffer is empty and closed, return -1.
- * If the buffer is just empty, return -2. The buffer's pointer is not advanced,
- * it's up to the caller to call buffer_skip(buf, 1) when it has consumed the char.
- * Also note that this function respects the send_max limit.
- */
-static inline int buffer_si_peekchar(struct buffer *buf)
-{
-	if (buf->send_max)
-		return *buf->w;
-
-	if (buf->flags & (BF_SHUTW|BF_SHUTW_NOW))
-		return -1;
-	else
-		return -2;
-}
-
-/* Try to write character <c> into buffer <buf> after length controls. This
- * work like buffer_feed2(buf, &c, 1).
- * Returns non-zero in case of success, 0 if the buffer was full.
- * The send limit is automatically adjusted with the amount of data written.
- */
-static inline int buffer_si_putchar(struct buffer *buf, char c)
-{
-	if (buf->flags & BF_FULL)
-		return 0;
-
-	*buf->r = c;
-
-	buf->l++;
-	if (buf->l >= buffer_max_len(buf))
-		buf->flags |= BF_FULL;
-
-	buf->r++;
-	if (buf->r - buf->data == buf->size)
-		buf->r -= buf->size;
-
-	if (buf->to_forward >= 1) {
-		if (buf->to_forward != BUF_INFINITE_FORWARD)
-			buf->to_forward--;
-		buf->send_max++;
-		buf->flags &= ~BF_OUT_EMPTY;
-	}
-
-	buf->total++;
-	return 1;
-}
-
-int buffer_write(struct buffer *buf, const char *msg, int len);
-int buffer_feed2(struct buffer *buf, const char *str, int len);
-int buffer_si_putchar(struct buffer *buf, char c);
-int buffer_si_peekline(struct buffer *buf, char *str, int len);
-int buffer_replace(struct buffer *b, char *pos, char *end, const char *str);
-int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int len);
-int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len);
-void buffer_dump(FILE *o, struct buffer *b, int from, int to);
-void buffer_bounce_realign(struct buffer *buf);
-
-
-
 /* writes the chunk <chunk> to buffer <buf>. Returns -1 in case of success,
  * -2 if it is larger than the buffer size, or the number of bytes available
  * otherwise. If the chunk has been written, its size is automatically reset
@@ -482,34 +446,90 @@ static inline int buffer_write_chunk(struct buffer *buf, struct chunk *chunk)
 	return ret;
 }
 
-/* Try to write chunk <chunk> into buffer <buf> after length controls. This is
- * the equivalent of buffer_write_chunk() except that to_forward and send_max
- * are updated and that max_len is respected. Returns -1 in case of success,
- * -2 if it is larger than the buffer size, or the number of bytes available
- * otherwise. If the chunk has been written, its size is automatically reset
- * to zero. The send limit is automatically adjusted with the amount of data
- * written.
+/* Tries to copy chunk <chunk> into buffer <buf> after length controls.
+ * The send_max and to_forward pointers are updated. If the buffer's input is
+ * closed, -2 is returned. If the block is too large for this buffer, -3 is
+ * returned. If there is not enough room left in the buffer, -1 is returned.
+ * Otherwise the number of bytes copied is returned (0 being a valid number).
+ * Buffer flags FULL, EMPTY and READ_PARTIAL are updated if some data can be
+ * transferred. The chunk's length is updated with the number of bytes sent.
  */
-static inline int buffer_feed_chunk(struct buffer *buf, struct chunk *chunk)
+static inline int buffer_put_chunk(struct buffer *buf, struct chunk *chunk)
 {
 	int ret;
 
-	ret = buffer_feed2(buf, chunk->str, chunk->len);
-	if (ret == -1)
-		chunk->len = 0;
+	ret = buffer_put_block(buf, chunk->str, chunk->len);
+	if (ret > 0)
+		chunk->len -= ret;
 	return ret;
 }
 
-/* Try to write string <str> into buffer <buf> after length controls. This is
- * the equivalent of buffer_feed2() except that string length is measured by
- * the function. Returns -1 in case of success, -2 if it is larger than the
- * buffer size, or the number of bytes available otherwise. The send limit is
- * automatically adjusted with the amount of data written.
+/* Tries to copy string <str> at once into buffer <buf> after length controls.
+ * The send_max and to_forward pointers are updated. If the buffer's input is
+ * closed, -2 is returned. If the block is too large for this buffer, -3 is
+ * returned. If there is not enough room left in the buffer, -1 is returned.
+ * Otherwise the number of bytes copied is returned (0 being a valid number).
+ * Buffer flags FULL, EMPTY and READ_PARTIAL are updated if some data can be
+ * transferred.
+ */
+static inline int buffer_put_string(struct buffer *buf, const char *str)
+{
+	return buffer_put_block(buf, str, strlen(str));
+}
+
+/*
+ * Return one char from the buffer. If the buffer is empty and closed, return -2.
+ * If the buffer is just empty, return -1. The buffer's pointer is not advanced,
+ * it's up to the caller to call buffer_skip(buf, 1) when it has consumed the char.
+ * Also note that this function respects the send_max limit.
+ */
+static inline int buffer_get_char(struct buffer *buf)
+{
+	/* closed or empty + imminent close = -2; empty = -1 */
+	if (unlikely(buf->flags & (BF_OUT_EMPTY|BF_SHUTW))) {
+		if (buf->flags & (BF_SHUTW|BF_SHUTW_NOW))
+			return -2;
+		return -1;
+	}
+	return *buf->w;
+}
+
+
+/* DEPRECATED, just provided for compatibility, use buffer_put_chunk() instead !!!
+ * returns >= 0 if the buffer is too small to hold the message, -1 if the
+ * transfer was OK, -2 in case of failure.
+ */
+static inline int buffer_feed_chunk(struct buffer *buf, struct chunk *msg)
+{
+	int ret = buffer_put_chunk(buf, msg);
+	if (ret >= 0) /* transfer OK */
+		return -1;
+	if (ret == -1) /* missing room */
+		return 1;
+	/* failure */
+	return -2;
+}
+
+/* DEPRECATED, just provided for compatibility, use buffer_put_string() instead !!!
+ * returns >= 0 if the buffer is too small to hold the message, -1 if the
+ * transfer was OK, -2 in case of failure.
  */
 static inline int buffer_feed(struct buffer *buf, const char *str)
 {
-	return buffer_feed2(buf, str, strlen(str));
+	int ret = buffer_put_string(buf, str);
+	if (ret >= 0) /* transfer OK */
+		return -1;
+	if (ret == -1) /* missing room */
+		return 1;
+	/* failure */
+	return -2;
 }
+
+/*
+ *
+ * Functions below are used to manage chunks
+ *
+ */
 
 static inline void chunk_init(struct chunk *chk, char *str, size_t size) {
 	chk->str  = str;
