@@ -6380,7 +6380,7 @@ always_true
   a temporary replacement for another one when adjusting configurations.
 
 avg_queue <integer>
-avg_queue(frontend) <integer>
+avg_queue(backend) <integer>
   Returns the total number of queued connections of the designated backend
   divided by the number of active servers. This is very similar to "queue"
   except that the size of the farm is considered, in order to give a more
@@ -6394,7 +6394,7 @@ avg_queue(frontend) <integer>
   "be_conn", and "be_sess_rate" criteria.
 
 be_conn <integer>
-be_conn(frontend) <integer>
+be_conn(backend) <integer>
   Applies to the number of currently established connections on the backend,
   possibly including the connection being evaluated. If no backend name is
   specified, the current one is used. But it is also possible to check another
