@@ -1,5 +1,5 @@
 /*
- * haproxy log time reporter
+ * haproxy log statistics reporter
  *
  * Copyright 2000-2010 Willy Tarreau <w@1wt.eu>
  *
@@ -8,14 +8,6 @@
  * as published by the Free Software Foundation; either version
  * 2 of the License, or (at your option) any later version.
  *
- */
-
-/*
- * gcc -O2 -o halog2 halog2.c -Iinclude src/ebtree.c src/eb32tree.c fgets2.c
- *
- * Usage:
- *    $0 [ min_delay [ min_count [ field_shift ]]] < haproxy.log
- *    Note: if min_delay < 0, it only outputs lines with status codes 5xx.
  */
 
 #include <errno.h>
@@ -35,6 +27,7 @@
 #define SERVER_FIELD 8
 #define TIME_FIELD 9
 #define STATUS_FIELD 10
+#define TERM_CODES_FIELD 14
 #define CONN_FIELD 15
 #define MAXLINE 16384
 #define QBITS 4
@@ -75,6 +68,7 @@ struct srv_st {
 
 #define FILT_COUNT_STATUS      0x800
 #define FILT_COUNT_SRV_STATUS 0x1000
+#define FILT_COUNT_TERM_CODES 0x2000
 
 unsigned int filter = 0;
 unsigned int filter_invert = 0;
@@ -86,7 +80,7 @@ void die(const char *msg)
 {
 	fprintf(stderr,
 		"%s"
-		"Usage: halog [-q] [-c] [-v] [-gt] [-pct] [-st] [-srv] [-s <skip>] [-e|-E] [-rt|-RT <time>] [-ad <delay>] [-ac <count>] < file.log\n"
+		"Usage: halog [-q] [-c] [-v] {-gt|-pct|-st|-tc|-srv} [-s <skip>] [-e|-E] [-rt|-RT <time>] [-ad <delay>] [-ac <count>] < file.log\n"
 		"\n",
 		msg ? msg : ""
 		);
@@ -425,6 +419,8 @@ int main(int argc, char **argv)
 			filter |= FILT_COUNT_STATUS;
 		else if (strcmp(argv[0], "-srv") == 0)
 			filter |= FILT_COUNT_SRV_STATUS;
+		else if (strcmp(argv[0], "-tc") == 0)
+			filter |= FILT_COUNT_TERM_CODES;
 		else if (strcmp(argv[0], "-o") == 0) {
 			if (output_file)
 				die("Fatal: output file name already specified.\n");
@@ -613,6 +609,19 @@ int main(int argc, char **argv)
 				continue;
 			}
 			val = str2ic(b);
+
+			t2 = insert_value(&timers[0], &t, val);
+			t2->count++;
+			continue;
+		}
+
+		if (unlikely(filter & FILT_COUNT_TERM_CODES)) {
+			b = field_start(line, TERM_CODES_FIELD + skip_fields);
+			if (!*b) {
+				truncated_line(linenum, line);
+				continue;
+			}
+			val = 256 * b[0] + b[1];
 
 			t2 = insert_value(&timers[0], &t, val);
 			t2->count++;
@@ -868,6 +877,15 @@ int main(int argc, char **argv)
 			       (int)(srv->cum_ct / (srv->nb_ct?srv->nb_ct:1)), (int)(srv->cum_rt / (srv->nb_rt?srv->nb_rt:1)));
 			srv_node = ebmb_next(srv_node);
 			tot++;
+		}
+	}
+	else if (filter & FILT_COUNT_TERM_CODES) {
+		/* output all statuses in the form of <code> <occurrences> */
+		n = eb32_first(&timers[0]);
+		while (n) {
+			t = container_of(n, struct timer, node);
+			printf("%c%c %d\n", (n->key >> 8), (n->key) & 255, t->count);
+			n = eb32_next(n);
 		}
 	}
 
