@@ -603,7 +603,16 @@ int main(int argc, char **argv)
 		}
 
 		if (unlikely(filter & FILT_COUNT_STATUS)) {
-			b = field_start(line, STATUS_FIELD + skip_fields);
+			/* first, let's ensure that the line is a traffic line (beginning
+			 * with an IP address)
+			 */
+			b = field_start(line, SOURCE_FIELD + skip_fields);
+			if (*b < '0' || *b > '9') {
+				parse_err++;
+				continue;
+			}
+
+			b = field_start(b, STATUS_FIELD - SOURCE_FIELD + 1);
 			if (!*b) {
 				truncated_line(linenum, line);
 				continue;
@@ -616,7 +625,16 @@ int main(int argc, char **argv)
 		}
 
 		if (unlikely(filter & FILT_COUNT_TERM_CODES)) {
-			b = field_start(line, TERM_CODES_FIELD + skip_fields);
+			/* first, let's ensure that the line is a traffic line (beginning
+			 * with an IP address)
+			 */
+			b = field_start(line, SOURCE_FIELD + skip_fields);
+			if (*b < '0' || *b > '9') {
+				parse_err++;
+				continue;
+			}
+
+			b = field_start(b, TERM_CODES_FIELD - SOURCE_FIELD + 1);
 			if (!*b) {
 				truncated_line(linenum, line);
 				continue;
