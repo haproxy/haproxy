@@ -968,7 +968,7 @@ stick store-request                       -          -         X         X
 stick-table                               -          -         X         X
 tcp-request connection                    -          X         X         -
 tcp-request content                       -          X         X         X
-tcp-request inspect-delay                 -          X         X         -
+tcp-request inspect-delay                 -          X         X         X
 timeout check                             X          -         X         X
 timeout client                            X          X         X         -
 timeout clitimeout          (deprecated)  X          X         X         -
