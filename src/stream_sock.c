@@ -1205,7 +1205,7 @@ int stream_sock_accept(int fd)
 		if (unlikely(ret < 0)) {
 			/* critical error encountered, generally a resource shortage */
 			if (p) {
-				EV_FD_CLR(fd, DIR_RD);
+				disable_listener(l);
 				p->state = PR_STIDLE;
 			}
 			jobs--;
