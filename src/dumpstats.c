@@ -3063,6 +3063,75 @@ int stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 	}
 }
 
+
+/* print a string of text buffer to <out>. The format is :
+ * Non-printable chars \t, \n, \r and \e are * encoded in C format.
+ * Other non-printable chars are encoded "\xHH". Space and '\' are also escaped.
+ * Print stopped if null char or <bsize> is reached, or if no more place in the chunk.
+ */
+
+static int dump_text(struct chunk *out, const char *buf, int bsize)
+{
+	unsigned char c;
+	int ptr = 0;
+
+	while (buf[ptr] && ptr < bsize) {
+		c = buf[ptr];
+		if (isprint(c) && isascii(c) && c != '\\' && c != ' ') {
+			if (out->len > out->size - 1)
+				break;
+			out->str[out->len++] = c;
+		}
+		else if (c == '\t' || c == '\n' || c == '\r' || c == '\e' || c == '\\' || c == ' ') {
+			if (out->len > out->size - 2)
+				break;
+			out->str[out->len++] = '\\';
+			switch (c) {
+			case ' ': c = ' '; break;
+			case '\t': c = 't'; break;
+			case '\n': c = 'n'; break;
+			case '\r': c = 'r'; break;
+			case '\e': c = 'e'; break;
+			case '\\': c = '\\'; break;
+			}
+			out->str[out->len++] = c;
+		}
+		else {
+			if (out->len > out->size - 4)
+				break;
+			out->str[out->len++] = '\\';
+			out->str[out->len++] = 'x';
+			out->str[out->len++] = hextab[(c >> 4) & 0xF];
+			out->str[out->len++] = hextab[c & 0xF];
+		}
+		ptr++;
+	}
+
+	return ptr;
+}
+
+/* print a buffer in hexa.
+ * Print stopped if <bsize> is reached, or if no more place in the chunk.
+ */
+
+static int dump_binary(struct chunk *out, const char *buf, int bsize)
+{
+	unsigned char c;
+	int ptr = 0;
+
+	while (ptr < bsize) {
+		c = buf[ptr];
+
+		if (out->len > out->size - 2)
+			break;
+		out->str[out->len++] = hextab[(c >> 4) & 0xF];
+		out->str[out->len++] = hextab[c & 0xF];
+
+		ptr++;
+	}
+	return ptr;
+}
+
 /* This function is called to send output to the response buffer.
  * It dumps the tables states onto the output buffer <rep>.
  * Expects to be called with client socket shut down on input.
@@ -3118,9 +3187,9 @@ int stats_dump_table_to_buffer(struct session *s, struct buffer *rep)
 			}
 
 			if (s->data_ctx.table.proxy->table.size) {
-				chunk_printf(&msg, "# table: %s, type: %ld, size:%d, used:%d\n",
+				chunk_printf(&msg, "# table: %s, type: %s, size:%d, used:%d\n",
 					     s->data_ctx.table.proxy->id,
-					     s->data_ctx.table.proxy->table.type,
+					     stktable_types[s->data_ctx.table.proxy->table.type].kw,
 					     s->data_ctx.table.proxy->table.size,
 					     s->data_ctx.table.proxy->table.current);
 
@@ -3201,8 +3270,17 @@ int stats_dump_table_to_buffer(struct session *s, struct buffer *rep)
 					  addr, sizeof(addr));
 				chunk_printf(&msg, " key=%s", addr);
 			}
-			else
-				chunk_printf(&msg, " key=?");
+			else if (s->data_ctx.table.proxy->table.type == STKTABLE_TYPE_INTEGER) {
+				chunk_printf(&msg, " key=%u", *(unsigned int *)s->data_ctx.table.entry->key.key);
+			}
+			else if (s->data_ctx.table.proxy->table.type == STKTABLE_TYPE_STRING) {
+				chunk_printf(&msg, " key=");
+				dump_text(&msg, (const char *)s->data_ctx.table.entry->key.key, s->data_ctx.table.proxy->table.key_size);
+			}
+			else {
+				chunk_printf(&msg, " key=");
+				dump_binary(&msg, (const char *)s->data_ctx.table.entry->key.key, s->data_ctx.table.proxy->table.key_size);
+			}
 
 			chunk_printf(&msg, " use=%d exp=%d",
 				     s->data_ctx.table.entry->ref_cnt - 1,
