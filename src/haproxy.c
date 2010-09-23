@@ -156,6 +156,7 @@ const int one = 1;
 const struct linger nolinger = { .l_onoff = 1, .l_linger = 0 };
 
 char hostname[MAX_HOSTNAME_LEN];
+char localpeer[MAX_HOSTNAME_LEN];
 
 
 /*********************************************************************/
@@ -224,6 +225,7 @@ void usage(char *name)
 		"        -n sets the maximum total # of connections (%d)\n"
 		"        -m limits the usable amount of memory (in MB)\n"
 		"        -N sets the default, per-proxy maximum # of connections (%d)\n"
+		"        -L set local peer name (default to hostname)\n"
 		"        -p writes pids of all children to this file\n"
 #if defined(ENABLE_EPOLL)
 		"        -de disables epoll() usage even when available\n"
@@ -351,6 +353,15 @@ void init(int argc, char **argv)
 	int err_code = 0;
 	struct wordlist *wl;
 
+	/* NB: POSIX does not make it mandatory for gethostname() to NULL-terminate
+	 * the string in case of truncation, and at least FreeBSD appears not to do
+	 * it.
+	 */
+	memset(hostname, 0, sizeof(hostname));
+	gethostname(hostname, sizeof(hostname) - 1);
+	memset(localpeer, 0, sizeof(localpeer));
+	memcpy(localpeer, hostname, (sizeof(hostname) > sizeof(localpeer) ? sizeof(localpeer) : sizeof(hostname)) - 1);
+
 	/*
 	 * Initialize the previously static variables.
 	 */
@@ -469,6 +480,7 @@ void init(int argc, char **argv)
 				case 'n' : cfg_maxconn = atol(*argv); break;
 				case 'm' : global.rlimit_memmax = atol(*argv); break;
 				case 'N' : cfg_maxpconn = atol(*argv); break;
+				case 'L' : strncpy(localpeer, *argv, sizeof(localpeer) - 1); break;
 				case 'f' :
 					wl = (struct wordlist *)calloc(1, sizeof(*wl));
 					if (!wl) {
@@ -494,13 +506,6 @@ void init(int argc, char **argv)
 
 	if (LIST_ISEMPTY(&cfg_cfgfiles))
 		usage(old_argv);
-
-	/* NB: POSIX does not make it mandatory for gethostname() to NULL-terminate
-	 * the string in case of truncation, and at least FreeBSD appears not to do
-	 * it.
-	 */
-	memset(hostname, 0, sizeof(hostname));
-	gethostname(hostname, sizeof(hostname) - 1);
 
 	have_appsession = 0;
 	global.maxsock = 10; /* reserve 10 fds ; will be incremented by socket eaters */
