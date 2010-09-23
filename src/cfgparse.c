@@ -1034,12 +1034,14 @@ static void init_new_proxy(struct proxy *p)
 	LIST_INIT(&p->sticking_rules);
 	LIST_INIT(&p->storersp_rules);
 	LIST_INIT(&p->tcp_req.inspect_rules);
+	LIST_INIT(&p->tcp_rep.inspect_rules);
 	LIST_INIT(&p->tcp_req.l4_rules);
 	LIST_INIT(&p->req_add);
 	LIST_INIT(&p->rsp_add);
 
 	/* Timeouts are defined as -1 */
 	proxy_reset_timeouts(p);
+	p->tcp_rep.inspect_delay = TICK_ETERNITY;
 }
 
 void init_default_instance()
@@ -2768,8 +2770,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-
-		err_code |= warnif_cond_requires_resp(cond, file, linenum);
+		if (flags & STK_ON_RSP)
+			err_code |= warnif_cond_requires_req(cond, file, linenum);
+		else
+			err_code |= warnif_cond_requires_resp(cond, file, linenum);
 
 		rule = (struct sticking_rule *)calloc(1, sizeof(*rule));
 		rule->cond = cond;
@@ -5969,6 +5973,9 @@ out_uri_auth_compat:
 			if (curproxy->tcp_req.inspect_delay ||
 			    !LIST_ISEMPTY(&curproxy->tcp_req.inspect_rules))
 				curproxy->be_req_ana |= AN_REQ_INSPECT_BE;
+
+			if (!LIST_ISEMPTY(&curproxy->tcp_rep.inspect_rules))
+                                curproxy->be_rsp_ana |= AN_RES_INSPECT;
 
 			if (curproxy->mode == PR_MODE_HTTP) {
 				curproxy->be_req_ana |= AN_REQ_WAIT_HTTP | AN_REQ_HTTP_INNER | AN_REQ_HTTP_PROCESS_BE;

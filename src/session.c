@@ -1585,6 +1585,12 @@ struct task *process_session(struct task *t)
 			while (ana_list && max_loops--) {
 				/* Warning! ensure that analysers are always placed in ascending order! */
 
+				if (ana_list & AN_RES_INSPECT) {
+					if (!tcp_inspect_response(s, s->rep, AN_RES_INSPECT))
+						break;
+					UPDATE_ANALYSERS(s->rep->analysers, ana_list, ana_back, AN_RES_INSPECT);
+				}
+
 				if (ana_list & AN_RES_WAIT_HTTP) {
 					if (!http_wait_for_response(s, s->rep, AN_RES_WAIT_HTTP))
 						break;

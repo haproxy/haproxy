@@ -50,6 +50,7 @@
 #include <proto/stick_table.h>
 #include <proto/stream_sock.h>
 #include <proto/task.h>
+#include <proto/buffers.h>
 
 #ifdef CONFIG_HAP_CTTPROXY
 #include <import/ip_tproxy.h>
@@ -750,6 +751,91 @@ int tcp_inspect_request(struct session *s, struct buffer *req, int an_bit)
 	return 1;
 }
 
+/* This function performs the TCP response analysis on the current response. It
+ * returns 1 if the processing can continue on next analysers, or zero if it
+ * needs more data, encounters an error, or wants to immediately abort the
+ * response. It relies on buffers flags, and updates s->rep->analysers. The
+ * function may be called for backend rules.
+ */
+int tcp_inspect_response(struct session *s, struct buffer *rep, int an_bit)
+{
+	struct tcp_rule *rule;
+	int partial;
+
+	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
+		now_ms, __FUNCTION__,
+		s,
+		rep,
+		rep->rex, rep->wex,
+		rep->flags,
+		rep->l,
+		rep->analysers);
+
+	/* We don't know whether we have enough data, so must proceed
+	 * this way :
+	 * - iterate through all rules in their declaration order
+	 * - if one rule returns MISS, it means the inspect delay is
+	 *   not over yet, then return immediately, otherwise consider
+	 *   it as a non-match.
+	 * - if one rule returns OK, then return OK
+	 * - if one rule returns KO, then return KO
+	 */
+
+	if (rep->flags & BF_SHUTR || tick_is_expired(rep->analyse_exp, now_ms))
+		partial = 0;
+	else
+		partial = ACL_PARTIAL;
+
+	list_for_each_entry(rule, &s->be->tcp_rep.inspect_rules, list) {
+		int ret = ACL_PAT_PASS;
+
+		if (rule->cond) {
+			ret = acl_exec_cond(rule->cond, s->be, s, &s->txn, ACL_DIR_RTR | partial);
+			if (ret == ACL_PAT_MISS) {
+				/* just set the analyser timeout once at the beginning of the response */
+				if (!tick_isset(rep->analyse_exp) && s->be->tcp_rep.inspect_delay)
+					rep->analyse_exp = tick_add_ifset(now_ms, s->be->tcp_rep.inspect_delay);
+				return 0;
+			}
+
+			ret = acl_pass(ret);
+			if (rule->cond->pol == ACL_COND_UNLESS)
+				ret = !ret;
+		}
+
+		if (ret) {
+			/* we have a matching rule. */
+			if (rule->action == TCP_ACT_REJECT) {
+				buffer_abort(rep);
+				buffer_abort(s->req);
+				rep->analysers = 0;
+
+				s->be->counters.denied_resp++;
+				if (s->listener->counters)
+					s->listener->counters->denied_resp++;
+
+				if (!(s->flags & SN_ERR_MASK))
+					s->flags |= SN_ERR_PRXCOND;
+				if (!(s->flags & SN_FINST_MASK))
+					s->flags |= SN_FINST_D;
+				return 0;
+			}
+			else {
+				/* otherwise accept */
+				break;
+			}
+		}
+	}
+
+	/* if we get there, it means we have no rule which matches, or
+	 * we have an explicit accept, so we apply the default accept.
+	 */
+	rep->analysers &= ~an_bit;
+	rep->analyse_exp = TICK_ETERNITY;
+	return 1;
+}
+
+
 /* This function performs the TCP layer4 analysis on the current request. It
  * returns 0 if a reject rule matches, otherwise 1 if either an accept rule
  * matches or if no more rule matches. It can only use rules which don't need
@@ -822,6 +908,51 @@ int tcp_exec_req_rules(struct session *s)
 	return result;
 }
 
+/* Parse a tcp-response rule. Return a negative value in case of failure */
+static int tcp_parse_response_rule(char **args, int arg, int section_type,
+				  struct proxy *curpx, struct proxy *defpx,
+				  struct tcp_rule *rule, char *err, int errlen)
+{
+	if (curpx == defpx || !(curpx->cap & PR_CAP_BE)) {
+		snprintf(err, errlen, "%s %s is only allowed in 'backend' sections",
+			 args[0], args[1]);
+		return -1;
+	}
+
+	if (strcmp(args[arg], "accept") == 0) {
+		arg++;
+		rule->action = TCP_ACT_ACCEPT;
+	}
+	else if (strcmp(args[arg], "reject") == 0) {
+		arg++;
+		rule->action = TCP_ACT_REJECT;
+	}
+	else {
+		snprintf(err, errlen,
+			 "'%s %s' expects 'accept' or 'reject' in %s '%s' (was '%s')",
+			 args[0], args[1], proxy_type_str(curpx), curpx->id, args[arg]);
+		return -1;
+	}
+
+	if (strcmp(args[arg], "if") == 0 || strcmp(args[arg], "unless") == 0) {
+		if ((rule->cond = build_acl_cond(NULL, 0, curpx, (const char **)args+arg)) == NULL) {
+			snprintf(err, errlen,
+				 "error detected in %s '%s' while parsing '%s' condition",
+				 proxy_type_str(curpx), curpx->id, args[arg]);
+			return -1;
+		}
+	}
+	else if (*args[arg]) {
+		snprintf(err, errlen,
+			 "'%s %s %s' only accepts 'if' or 'unless', in %s '%s' (was '%s')",
+			 args[0], args[1], args[2], proxy_type_str(curpx), curpx->id, args[arg]);
+		return -1;
+	}
+	return 0;
+}
+
+
+
 /* Parse a tcp-request rule. Return a negative value in case of failure */
 static int tcp_parse_request_rule(char **args, int arg, int section_type,
 				  struct proxy *curpx, struct proxy *defpx,
@@ -889,6 +1020,89 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 	}
 	return 0;
 }
+
+/* This function should be called to parse a line starting with the "tcp-response"
+ * keyword.
+ */
+static int tcp_parse_tcp_rep(char **args, int section_type, struct proxy *curpx,
+			     struct proxy *defpx, char *err, int errlen)
+{
+	const char *ptr = NULL;
+	unsigned int val;
+	int retlen;
+	int warn = 0;
+	int arg;
+	struct tcp_rule *rule;
+
+	if (!*args[1]) {
+		snprintf(err, errlen, "missing argument for '%s' in %s '%s'",
+			 args[0], proxy_type_str(curpx), curpx->id);
+		return -1;
+	}
+
+	if (strcmp(args[1], "inspect-delay") == 0) {
+		if (curpx == defpx || !(curpx->cap & PR_CAP_BE)) {
+			snprintf(err, errlen, "%s %s is only allowed in 'backend' sections",
+				 args[0], args[1]);
+			return -1;
+		}
+
+		if (!*args[2] || (ptr = parse_time_err(args[2], &val, TIME_UNIT_MS))) {
+			retlen = snprintf(err, errlen,
+					  "'%s %s' expects a positive delay in milliseconds, in %s '%s'",
+					  args[0], args[1], proxy_type_str(curpx), curpx->id);
+			if (ptr && retlen < errlen)
+				retlen += snprintf(err + retlen, errlen - retlen,
+						   " (unexpected character '%c')", *ptr);
+			return -1;
+		}
+
+		if (curpx->tcp_rep.inspect_delay) {
+			snprintf(err, errlen, "ignoring %s %s (was already defined) in %s '%s'",
+				 args[0], args[1], proxy_type_str(curpx), curpx->id);
+			return 1;
+		}
+		curpx->tcp_rep.inspect_delay = val;
+		return 0;
+	}
+
+	rule = (struct tcp_rule *)calloc(1, sizeof(*rule));
+	LIST_INIT(&rule->list);
+	arg = 1;
+
+	if (strcmp(args[1], "content") == 0) {
+		arg++;
+		if (tcp_parse_response_rule(args, arg, section_type, curpx, defpx, rule, err, errlen) < 0)
+			goto error;
+
+		if (rule->cond && (rule->cond->requires & ACL_USE_L6REQ_VOLATILE)) {
+			struct acl *acl;
+			const char *name;
+
+			acl = cond_find_require(rule->cond, ACL_USE_L6REQ_VOLATILE);
+			name = acl ? acl->name : "(unknown)";
+
+			retlen = snprintf(err, errlen,
+					  "acl '%s' involves some request-only criteria which will be ignored.",
+					  name);
+			warn++;
+		}
+
+		LIST_ADDQ(&curpx->tcp_rep.inspect_rules, &rule->list);
+	}
+	else {
+		retlen = snprintf(err, errlen,
+				  "'%s' expects 'inspect-delay' or 'content' in %s '%s' (was '%s')",
+				  args[0], proxy_type_str(curpx), curpx->id, args[1]);
+		goto error;
+	}
+
+	return warn;
+ error:
+	free(rule);
+	return -1;
+}
+
 
 /* This function should be called to parse a line starting with the "tcp-request"
  * keyword.
@@ -1129,6 +1343,7 @@ pattern_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
 
 static struct cfg_kw_list cfg_kws = {{ },{
 	{ CFG_LISTEN, "tcp-request", tcp_parse_tcp_req },
+	{ CFG_LISTEN, "tcp-response", tcp_parse_tcp_rep },
 	{ 0, NULL, NULL },
 }};
 
