@@ -1244,7 +1244,7 @@ acl_fetch_src(struct proxy *px, struct session *l4, void *l7, int dir,
 /* extract the connection's source address */
 static int
 pattern_fetch_src(struct proxy *px, struct session *l4, void *l7, int dir,
-                  const char *arg, int arg_len, union pattern_data *data)
+                  const struct pattern_arg *arg_p, int arg_i, union pattern_data *data)
 {
 	if (l4->cli_addr.ss_family != AF_INET )
 		return 0;
@@ -1295,7 +1295,7 @@ acl_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir,
 /* extract the connection's destination address */
 static int
 pattern_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir,
-                  const char *arg, int arg_len, union pattern_data *data)
+                  const struct pattern_arg *arg_p, int arg_i, union pattern_data *data)
 {
 	if (!(l4->flags & SN_FRT_ADDR_SET))
 		get_frt_addr(l4);
@@ -1328,8 +1328,7 @@ acl_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
 
 static int
 pattern_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
-                    const char *arg, int arg_len, union pattern_data *data)
-
+                    const struct pattern_arg *arg, int i, union pattern_data *data)
 {
 	if (!(l4->flags & SN_FRT_ADDR_SET))
 		get_frt_addr(l4);
@@ -1358,10 +1357,10 @@ static struct acl_kw_list acl_kws = {{ },{
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct pattern_fetch_kw_list pattern_fetch_keywords = {{ },{
-	{ "src",       pattern_fetch_src,   PATTERN_TYPE_IP,      PATTERN_FETCH_REQ },
-	{ "dst",       pattern_fetch_dst,   PATTERN_TYPE_IP,      PATTERN_FETCH_REQ },
-	{ "dst_port",  pattern_fetch_dport, PATTERN_TYPE_INTEGER, PATTERN_FETCH_REQ },
-	{ NULL, NULL, 0, 0 },
+	{ "src",         pattern_fetch_src,   NULL, PATTERN_TYPE_IP,        PATTERN_FETCH_REQ },
+	{ "dst",         pattern_fetch_dst,   NULL, PATTERN_TYPE_IP,        PATTERN_FETCH_REQ },
+	{ "dst_port",    pattern_fetch_dport, NULL, PATTERN_TYPE_INTEGER,   PATTERN_FETCH_REQ },
+	{ NULL, NULL, NULL, 0, 0 },
 }};
 
 __attribute__((constructor))

@@ -14,6 +14,7 @@
 #include <arpa/inet.h>
 
 #include <proto/pattern.h>
+#include <proto/buffers.h>
 #include <common/standard.h>
 
 /* static structure used on pattern_process if <p> is NULL*/
@@ -109,9 +110,7 @@ static struct chunk *get_trash_chunk(void)
 	else
 		pattern_trash_buf = pattern_trash_buf1;
 
-	trash_chunk.str = pattern_trash_buf;
-	trash_chunk.len = 0;
-	trash_chunk.size = BUFSIZE;
+	chunk_init(&trash_chunk, pattern_trash_buf, BUFSIZE);
 
 	return &trash_chunk;
 }
@@ -121,9 +120,7 @@ static struct chunk *get_trash_chunk(void)
 */
 static void pattern_data_setstring(union pattern_data *data, struct chunk *c)
 {
-	data->str.str = c->str;
-	data->str.len = c->len;
-	data->str.size = c->size;
+	chunk_initlen(&data->str, c->str, c->size, c->len);
 }
 
 /******************************************************************/
@@ -172,6 +169,7 @@ static int c_int2str(union pattern_data *data)
 	if (!pos)
 		return 0;
 
+	trash->size = trash->size - (pos - trash->str);
 	trash->str = pos;
 	trash->len = strlen(pos);
 
@@ -179,6 +177,19 @@ static int c_int2str(union pattern_data *data)
 
 	return 1;
 }
+
+static int c_datadup(union pattern_data *data)
+{
+	struct chunk *trash = get_trash_chunk();
+
+	trash->len = data->str.len < trash->size ? data->str.len : trash->size;
+	memcpy(trash->str, data->str.str, trash->len);
+
+	pattern_data_setstring(data, trash);
+
+	return 1;
+}
+
 
 static int c_donothing(union pattern_data *data)
 {
@@ -211,9 +222,13 @@ static int c_str2int(union pattern_data *data)
 
 typedef int (*pattern_cast_fct)(union pattern_data *data);
 static pattern_cast_fct pattern_casts[PATTERN_TYPES][PATTERN_TYPES] = {
-	{ c_donothing, c_ip2int,    c_ip2str    },
-	{ c_int2ip,    c_donothing, c_int2str   },
-	{ c_str2ip,    c_str2int,   c_donothing },
+/*            to:   IP           INTEGER      STRING       DATA         CONSTSTRING  CONSTDATA */
+/* from:    IP */ { c_donothing, c_ip2int,    c_ip2str,    NULL,        c_ip2str,    NULL        },
+/*     INTEGER */ { c_int2ip,    c_donothing, c_int2str,   NULL,        c_int2str,   NULL        },
+/*      STRING */ { c_str2ip,    c_str2int,   c_donothing, c_donothing, c_donothing, c_donothing },
+/*        DATA */ { NULL,        NULL,        NULL,        c_donothing, NULL,        c_donothing },
+/* CONSTSTRING */ { c_str2ip,    c_str2int,   c_datadup,   c_datadup,   c_donothing, c_donothing },
+/*   CONSTDATA */ { NULL,        NULL,        NULL,        c_datadup,   NULL,	     NULL        },
 };
 
 
@@ -222,7 +237,7 @@ static pattern_cast_fct pattern_casts[PATTERN_TYPES][PATTERN_TYPES] = {
  *        fetch keyword followed by format conversion keywords.
  * Returns a pointer on allocated pattern expression structure.
  */
-struct pattern_expr *pattern_parse_expr(char **str, int *idx)
+struct pattern_expr *pattern_parse_expr(char **str, int *idx, char *err, int err_size)
 {
 	const char *endw;
 	const char *end;
@@ -230,34 +245,88 @@ struct pattern_expr *pattern_parse_expr(char **str, int *idx)
 	struct pattern_fetch *fetch;
 	struct pattern_conv *conv;
 	unsigned long prev_type;
+	char *p;
 
-	if (!str[*idx])
+	snprintf(err, err_size, "memory error.");
+	if (!str[*idx]) {
+
+		snprintf(err, err_size, "missing fetch method.");
 		goto out_error;
+	}
 
 	end = str[*idx] + strlen(str[*idx]);
 	endw = strchr(str[*idx], '(');
 
 	if (!endw)
 		endw = end;
-	else if ((end-1)[0] != ')')
+	else if ((end-1)[0] != ')') {
+		p = my_strndup(str[*idx], endw - str[*idx]);
+		if (p) {
+			snprintf(err, err_size, "syntax error: missing ')' after keyword '%s'.", p);
+			free(p);
+		}
 		goto out_error;
+	}
 
 	fetch = find_pattern_fetch(str[*idx], endw - str[*idx]);
-	if (!fetch)
+	if (!fetch) {
+		p = my_strndup(str[*idx], endw - str[*idx]);
+		if (p) {
+			snprintf(err, err_size, "unknown fetch method '%s'.", p);
+			free(p);
+		}
 		goto out_error;
+	}
+	if (fetch->out_type >= PATTERN_TYPES) {
 
-	if (fetch->out_type >= PATTERN_TYPES)
+		p = my_strndup(str[*idx], endw - str[*idx]);
+		if (p) {
+			snprintf(err, err_size, "returns type of fetch method '%s' is unknown.", p);
+			free(p);
+		}
 		goto out_error;
+	}
 
 	prev_type = fetch->out_type;
 	expr = calloc(1, sizeof(struct pattern_expr));
+	if (!expr)
+		goto out_error;
 
 	LIST_INIT(&(expr->conv_exprs));
 	expr->fetch = fetch;
 
 	if (end != endw) {
-		expr->arg_len = end - endw - 2;
-		expr->arg = my_strndup(endw + 1, expr->arg_len);
+		int i = end - endw - 2;
+
+		if (!fetch->parse_args) {
+			p = my_strndup(str[*idx], endw - str[*idx]);
+			if (p) {
+				snprintf(err, err_size, "fetch method '%s' does not support any args.", p);
+				free(p);
+			}
+			goto out_error;
+		}
+		p = my_strndup(endw + 1, i);
+		if (!p)
+			goto out_error;
+		i = fetch->parse_args(p, &expr->arg_p, &expr->arg_i);
+		free(p);
+		if (!i) {
+			p = my_strndup(str[*idx], endw - str[*idx]);
+			if (p) {
+				snprintf(err, err_size, "invalid args in fetch method '%s'.", p);
+				free(p);
+			}
+			goto out_error;
+		}
+	}
+	else if (fetch->parse_args) {
+		p = my_strndup(str[*idx], endw - str[*idx]);
+		if (p) {
+			snprintf(err, err_size, "missing args for fetch method '%s'.", p);
+			free(p);
+		}
+		goto out_error;
 	}
 
 	for (*idx += 1; *(str[*idx]); (*idx)++) {
@@ -268,42 +337,85 @@ struct pattern_expr *pattern_parse_expr(char **str, int *idx)
 
 		if (!endw)
 			endw = end;
-		else if ((end-1)[0] != ')')
+		else if ((end-1)[0] != ')') {
+			p = my_strndup(str[*idx], endw - str[*idx]);
+			if (p) {
+				snprintf(err, err_size, "syntax error, missing ')' after keyword '%s'.", p);
+				free(p);
+			}
 			goto out_error;
+		}
 
 		conv = find_pattern_conv(str[*idx], endw - str[*idx]);
 		if (!conv)
 			break;
 
 		if (conv->in_type >= PATTERN_TYPES ||
-		    conv->out_type >= PATTERN_TYPES)
+		    conv->out_type >= PATTERN_TYPES) {
+			p = my_strndup(str[*idx], endw - str[*idx]);
+			if (p) {
+				snprintf(err, err_size, "returns type of conv method '%s' is unknown.", p);
+				free(p);
+			}
 			goto out_error;
+		}
 
 		/* If impossible type conversion */
-		if (!pattern_casts[prev_type][conv->in_type])
+		if (!pattern_casts[prev_type][conv->in_type]) {
+			p = my_strndup(str[*idx], endw - str[*idx]);
+			if (p) {
+				snprintf(err, err_size, "conv method '%s' cannot be applied.", p);
+				free(p);
+			}
 			goto out_error;
+		}
 
 		prev_type = conv->out_type;
 		conv_expr = calloc(1, sizeof(struct pattern_conv_expr));
+		if (!conv_expr)
+			goto out_error;
 
 		LIST_ADDQ(&(expr->conv_exprs), &(conv_expr->list));
 		conv_expr->conv = conv;
 
 		if (end != endw) {
 			int i = end - endw - 2;
-			char *p = my_strndup(endw + 1, i);
 
-			if (conv->parse_args) {
-				i = conv->parse_args(p, &conv_expr->arg_p, &conv_expr->arg_i);
-				free(p);
-				if (!i)
-					goto out_error;
-			} else {
-				conv_expr->arg_i = i;
-				conv_expr->arg_p = p;
+			if (!conv->parse_args) {
+				p = my_strndup(str[*idx], endw - str[*idx]);
+
+				if (p) {
+					snprintf(err, err_size, "conv method '%s' does not support any args.", p);
+					free(p);
+				}
+				goto out_error;
+			}
+
+			p = my_strndup(endw + 1, i);
+			if (!p)
+				goto out_error;
+			i = conv->parse_args(p, &conv_expr->arg_p, &conv_expr->arg_i);
+			free(p);
+			if (!i) {
+				p = my_strndup(str[*idx], endw - str[*idx]);
+				if (p) {
+					snprintf(err, err_size, "invalid args in conv method '%s'.", p);
+					free(p);
+				}
+				goto out_error;
 			}
 		}
+		else if (conv->parse_args) {
+			p = my_strndup(str[*idx], endw - str[*idx]);
+			if (p) {
+				snprintf(err, err_size, "missing args for conv method '%s'.", p);
+				free(p);
+			}
+			goto out_error;
+		}
+
 	}
+
 	return expr;
 
 out_error:
@@ -327,7 +439,7 @@ struct pattern *pattern_process(struct proxy *px, struct session *l4, void *l7, 
 	if (p == NULL)
 		p = &spattern;
 
-	if (!expr->fetch->process(px, l4, l7, dir, expr->arg, expr->arg_len, &p->data))
+	if (!expr->fetch->process(px, l4, l7, dir, expr->arg_p, expr->arg_i, &p->data))
 		return NULL;
 
 	p->type = expr->fetch->out_type;
@@ -345,27 +457,48 @@ struct pattern *pattern_process(struct proxy *px, struct session *l4, void *l7, 
 	return p;
 }
 
-/* Converts an argument string to an IPv4 mask stored in network byte order in
- * arg_i. Returns non-zero in case of success, 0 on error.
+/* Converts an argument string mask to a pattern_arg type IP.
+ * Returns non-zero in case of success, 0 on error.
  */
-static int pattern_conv_arg_to_ipmask(const char *arg_str, void **arg_p, int *arg_i)
+int pattern_arg_ipmask(const char *arg_str, struct pattern_arg **arg_p, int *arg_i)
 {
-	struct in_addr mask;
+	*arg_i = 1;
+	*arg_p = calloc(1, *arg_i*sizeof(struct pattern_arg));
+	(*arg_p)->type = PATTERN_ARG_TYPE_IP;
 
-	if (!str2mask(arg_str, &mask))
+	if (!str2mask(arg_str, &(*arg_p)->data.ip))
 		return 0;
 
-	*arg_i = mask.s_addr;
 	return 1;
 }
+
+
+/* Converts an argument string to a pattern_arg type STRING.
+ * Returns non-zero in case of success, 0 on error.
+ */
+int pattern_arg_str(const char *arg_str, struct pattern_arg **arg_p, int *arg_i)
+{
+	*arg_i = 1;
+	*arg_p = calloc(1, *arg_i*sizeof(struct pattern_arg));
+	(*arg_p)->type = PATTERN_ARG_TYPE_STRING;
+	(*arg_p)->data.str.str = strdup(arg_str);
+	(*arg_p)->data.str.len = strlen(arg_str);
+
+
+	return 1;
+}
+
 
 /*****************************************************************/
 /*    Pattern format convert functions                           */
 /*****************************************************************/
 
-static int pattern_conv_str2lower(const void *arg_p, int arg_i, union pattern_data *data)
+static int pattern_conv_str2lower(const struct pattern_arg *arg_p, int arg_i, union pattern_data *data)
 {
 	int i;
+
+	if (!data->str.size)
+		return 0;
 
 	for (i = 0; i < data->str.len; i++) {
 		if ((data->str.str[i] >= 'A') && (data->str.str[i] <= 'Z'))
@@ -374,9 +507,12 @@ static int pattern_conv_str2lower(const void *arg_p, int arg_i, union pattern_da
 	return 1;
 }
 
-static int pattern_conv_str2upper(const void *arg_p, int arg_i, union pattern_data *data)
+static int pattern_conv_str2upper(const struct pattern_arg *arg_p, int arg_i, union pattern_data *data)
 {
 	int i;
+
+	if (!data->str.size)
+		return 0;
 
 	for (i = 0; i < data->str.len; i++) {
 		if ((data->str.str[i] >= 'a') && (data->str.str[i] <= 'z'))
@@ -386,7 +522,7 @@ static int pattern_conv_str2upper(const void *arg_p, int arg_i, union pattern_da
 }
 
 /* takes the netmask in arg_i */
-static int pattern_conv_ipmask(const void *arg_p, int arg_i, union pattern_data *data)
+static int pattern_conv_ipmask(const struct pattern_arg *arg_p, int arg_i, union pattern_data *data)
 {
 	data->ip.s_addr &= arg_i;
 	return 1;
@@ -394,10 +530,10 @@ static int pattern_conv_ipmask(const void *arg_p, int arg_i, union pattern_data 
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct pattern_conv_kw_list pattern_conv_kws = {{ },{
-	{ "upper",       pattern_conv_str2upper, PATTERN_TYPE_STRING, PATTERN_TYPE_STRING },
-	{ "lower",       pattern_conv_str2lower, PATTERN_TYPE_STRING, PATTERN_TYPE_STRING },
-	{ "ipmask",      pattern_conv_ipmask, PATTERN_TYPE_IP, PATTERN_TYPE_IP, pattern_conv_arg_to_ipmask },
-	{ NULL, NULL, 0, 0 },
+	{ "upper",  pattern_conv_str2upper, NULL,               PATTERN_TYPE_STRING, PATTERN_TYPE_STRING },
+	{ "lower",  pattern_conv_str2lower, NULL,               PATTERN_TYPE_STRING, PATTERN_TYPE_STRING },
+	{ "ipmask", pattern_conv_ipmask,    pattern_arg_ipmask, PATTERN_TYPE_IP,     PATTERN_TYPE_IP },
+	{ NULL, NULL, NULL, 0, 0 },
 }};
 
 __attribute__((constructor))

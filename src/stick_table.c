@@ -181,7 +181,7 @@ struct stksess *stktable_lookup_key(struct stktable *t, struct stktable_key *key
 	struct ebmb_node *eb;
 
 	if (t->type == STKTABLE_TYPE_STRING)
-		eb = ebst_lookup_len(&t->keys, key->key, key->key_len);
+		eb = ebst_lookup_len(&t->keys, key->key, key->key_len+1 < t->key_size ? key->key_len : t->key_size-1);
 	else
 		eb = ebmb_lookup(&t->keys, key->key, t->key_size);
 
@@ -383,9 +383,10 @@ int stktable_init(struct stktable *t)
 /*
  * Configuration keywords of known table types
  */
-struct stktable_type stktable_types[STKTABLE_TYPES] = { { "ip", 0, 4 } ,
+struct stktable_type stktable_types[STKTABLE_TYPES] =  {{ "ip", 0, 4 },
 						        { "integer", 0, 4 },
-						        { "string", STK_F_CUSTOM_KEYSIZE, 32 } };
+						        { "string", STK_F_CUSTOM_KEYSIZE, 32 },
+							{ "binary", STK_F_CUSTOM_KEYSIZE, 32 } };
 
 
 /*
@@ -406,10 +407,12 @@ int stktable_parse_type(char **args, int *myidx, unsigned long *type, size_t *ke
 			if (strcmp("len", args[*myidx]) == 0) {
 				(*myidx)++;
 				*key_size = atol(args[*myidx]);
-				if ( !*key_size )
+				if (!*key_size)
 					break;
-				/* null terminated string needs +1 for '\0'. */
-				(*key_size)++;
+				if (*type == STKTABLE_TYPE_STRING) {
+					/* null terminated string needs +1 for '\0'. */
+					(*key_size)++;
+				}
 				(*myidx)++;
 			}
 		}
@@ -504,9 +507,13 @@ static void *k_str2int(union pattern_data *pdata, union stktable_key_data *kdata
 
 typedef void *(*pattern_to_key_fct)(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len);
 static pattern_to_key_fct pattern_to_key[PATTERN_TYPES][STKTABLE_TYPES] = {
-	{ k_ip2ip,  k_ip2int,  k_ip2str  },
-	{ k_int2ip, k_int2int, k_int2str },
-	{ k_str2ip, k_str2int, k_str2str },
+/*         table type:   IP        INTEGER    STRING     BINARY    */
+/* pattern type: IP */ { k_ip2ip,  k_ip2int,  k_ip2str,  NULL      },
+/*          INTEGER */ { k_int2ip, k_int2int, k_int2str, NULL      },
+/*           STRING */ { k_str2ip, k_str2int, k_str2str, k_str2str },
+/*             DATA */ { NULL,     NULL,      NULL,      k_str2str },
+/*      CONSTSTRING */ { k_str2ip, k_str2int, k_str2str, k_str2str },
+/*        CONSTDATA */ { NULL,     NULL,      NULL,      k_str2str },
 };
 
 
@@ -516,8 +523,8 @@ static pattern_to_key_fct pattern_to_key[PATTERN_TYPES][STKTABLE_TYPES] = {
  * no key could be extracted, or a pointer to the converted result stored in
  * static_table_key in format <table_type>.
  */
-struct stktable_key *stktable_fetch_key(struct proxy *px, struct session *l4, void *l7, int dir,
-					struct pattern_expr *expr, unsigned long table_type)
+struct stktable_key *stktable_fetch_key(struct stktable *t, struct proxy *px, struct session *l4, void *l7, int dir,
+                                        struct pattern_expr *expr)
 {
 	struct pattern *ptrn;
 
@@ -525,11 +532,38 @@ struct stktable_key *stktable_fetch_key(struct proxy *px, struct session *l4, vo
 	if (!ptrn)
 		return NULL;
 
-	static_table_key.key_len = (size_t)-1;
-	static_table_key.key = pattern_to_key[ptrn->type][table_type](&ptrn->data, &static_table_key.data, &static_table_key.key_len);
+	static_table_key.key_len = t->key_size;
+	static_table_key.key = pattern_to_key[ptrn->type][t->type](&ptrn->data, &static_table_key.data, &static_table_key.key_len);
 
 	if (!static_table_key.key)
 		return NULL;
+
+	if ((static_table_key.key_len < t->key_size) && (t->type != STKTABLE_TYPE_STRING)) {
+		/* need padding with null */
+
+		/* assume static_table_key.key_len is less than sizeof(static_table_key.data.buf)
+		cause t->key_size is necessary less than sizeof(static_table_key.data) */
+
+		if ((char *)static_table_key.key > (char *)&static_table_key.data &&
+		    (char *)static_table_key.key <  (char *)&static_table_key.data + sizeof(static_table_key.data)) {
+			/* key buffer is part of the static_table_key private data buffer, but is not aligned */
+
+			if (sizeof(static_table_key.data) - ((char *)static_table_key.key - (char *)&static_table_key.data) < t->key_size) {
+				/* if not remain enougth place for padding , process a realign */
+				memmove(static_table_key.data.buf, static_table_key.key, static_table_key.key_len);
+				static_table_key.key = static_table_key.data.buf;
+			}
+		}
+		else if (static_table_key.key != static_table_key.data.buf) {
+			/* key definitly not part of the static_table_key private data buffer */
+
+			memcpy(static_table_key.data.buf, static_table_key.key, static_table_key.key_len);
+			static_table_key.key = static_table_key.data.buf;
+		}
+
+		memset(static_table_key.key + static_table_key.key_len, 0, t->key_size - static_table_key.key_len);
+	}
+
 
 	return &static_table_key;
 }

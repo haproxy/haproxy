@@ -8105,21 +8105,23 @@ static struct acl_kw_list acl_kws = {{ },{
  */
 static int
 pattern_fetch_hdr_ip(struct proxy *px, struct session *l4, void *l7, int dir,
-                  const char *arg, int arg_len, union pattern_data *data)
+                     const struct pattern_arg *arg_p, int arg_i, union pattern_data *data)
 {
 	struct http_txn *txn = l7;
 
-	data->ip.s_addr = htonl(get_ip_from_hdr2(&txn->req, arg, arg_len, &txn->hdr_idx, -1));
+	data->ip.s_addr = htonl(get_ip_from_hdr2(&txn->req, arg_p->data.str.str, arg_p->data.str.len, &txn->hdr_idx, -1));
 	return data->ip.s_addr != 0;
 }
+
+
 
 /************************************************************************/
 /*             All supported keywords must be declared here.            */
 /************************************************************************/
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct pattern_fetch_kw_list pattern_fetch_keywords = {{ },{
-	{ "hdr",       pattern_fetch_hdr_ip,   PATTERN_TYPE_IP,   PATTERN_FETCH_REQ },
-	{ NULL, NULL, 0, 0 },
+	{ "hdr", pattern_fetch_hdr_ip, pattern_arg_str, PATTERN_TYPE_IP, PATTERN_FETCH_REQ },
+	{ NULL, NULL, NULL, 0, 0 },
 }};
 
 

@@ -2728,9 +2728,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		expr = pattern_parse_expr(args, &myidx);
+		expr = pattern_parse_expr(args, &myidx, trash, sizeof(trash));
 		if (!expr) {
-			Alert("parsing [%s:%d] : '%s': unknown fetch method '%s'.\n", file, linenum, args[0], args[myidx]);
+			Alert("parsing [%s:%d] : '%s': %s\n", file, linenum, args[0], trash);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}

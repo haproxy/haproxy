@@ -37,6 +37,7 @@ enum {
 	STKTABLE_TYPE_IP = 0,     /* table key is ipv4 */
 	STKTABLE_TYPE_INTEGER,    /* table key is unsigned 32bit integer */
 	STKTABLE_TYPE_STRING,     /* table key is a null terminated string */
+	STKTABLE_TYPE_BINARY,     /* table key is a buffer of data  */
 	STKTABLE_TYPES            /* Number of types, must always be last */
 };
 
@@ -118,6 +119,8 @@ struct stktable_type {
 	size_t default_size;      /* default key size */
 };
 
+extern struct stktable_type stktable_types[];
+
 /* Sticky session.
  * Any additional data related to the stuck session is installed *before*
  * stksess (with negative offsets). This allows us to run variable-sized
@@ -159,7 +162,7 @@ extern struct stktable_data_type stktable_data_types[STKTABLE_DATA_TYPES];
 union stktable_key_data {
 	struct in_addr ip;        /* used to store an ip key */
 	uint32_t integer;         /* used to store an integer key */
-	char buf[BUFSIZE];        /* used to store a null terminated string key */
+	char buf[BUFSIZE];        /* used to store a null terminated string key or a buffer of data */
 };
 
 /* stick table key */
