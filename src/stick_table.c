@@ -158,7 +158,7 @@ struct stksess *stksess_new(struct stktable *t, struct stktable_key *key)
 		if ( t->nopurge )
 			return NULL;
 
-		if (!stktable_trash_oldest(t, t->size >> 8))
+		if (!stktable_trash_oldest(t, (t->size >> 8) + 1))
 			return NULL;
 	}
 
