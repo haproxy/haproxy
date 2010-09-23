@@ -128,7 +128,7 @@ static inline void *stktable_data_ptr(struct stktable *t, struct stksess *ts, in
 /* kill an entry if it's expired and its ref_cnt is zero */
 static inline void stksess_kill_if_expired(struct stktable *t, struct stksess *ts)
 {
-	if (tick_is_expired(ts->expire, now_ms))
+	if (t->expire != TICK_ETERNITY && tick_is_expired(ts->expire, now_ms))
 		stksess_kill(t, ts);
 }
 
