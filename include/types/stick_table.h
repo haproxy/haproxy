@@ -147,6 +147,11 @@ struct stktable {
 	struct task *sync_task;   /* sync task */
 	unsigned int update;
 	unsigned int localupdate;
+	union {
+		struct peers *p; /* sync peers */
+		char *name;
+	} peers;
+
 	unsigned long type;       /* type of table (determines key format) */
 	size_t key_size;          /* size of a key, maximum size in case of string */
 	unsigned int size;        /* maximum number of sticky sessions in table */

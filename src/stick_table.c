@@ -27,7 +27,8 @@
 #include <proto/session.h>
 #include <proto/stick_table.h>
 #include <proto/task.h>
-
+#include <proto/peers.h>
+#include <types/global.h>
 
 /* structure used to return a table key built from a pattern */
 struct stktable_key static_table_key;
@@ -392,6 +393,10 @@ int stktable_init(struct stktable *t)
 			t->exp_task->expire = TICK_ETERNITY;
 			t->exp_task->context = (void *)t;
 		}
+		if (t->peers.p && t->peers.p->peers_fe) {
+			peers_register_table(t->peers.p, t);
+		}
+
 		return t->pool != NULL;
 	}
 	return 1;

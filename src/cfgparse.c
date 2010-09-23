@@ -35,6 +35,7 @@
 
 #include <types/capture.h>
 #include <types/global.h>
+#include <types/peers.h>
 
 #include <proto/acl.h>
 #include <proto/auth.h>
@@ -56,6 +57,7 @@
 #include <proto/proto_uxst.h>
 #include <proto/proto_http.h>
 #include <proto/proxy.h>
+#include <proto/peers.h>
 #include <proto/server.h>
 #include <proto/session.h>
 #include <proto/task.h>
@@ -1156,6 +1158,162 @@ static int create_cond_regex_rule(const char *file, int line,
  * Only the two first ones can stop processing, the two others are just
  * indicators.
  */
+int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
+{
+	static struct peers *curpeers = NULL;
+	struct peer *newpeer = NULL;
+	const char *err;
+	int err_code = 0;
+
+	if (strcmp(args[0], "peers") == 0) { /* new peers section */
+
+		err = invalid_char(args[1]);
+		if (err) {
+			Alert("parsing [%s:%d] : character '%c' is not permitted in '%s' name '%s'.\n",
+			      file, linenum, *err, args[0], args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+		}
+
+		for (curpeers = peers; curpeers != NULL; curpeers = curpeers->next) {
+			/*
+			 * If there are two proxies with the same name only following
+			 * combinations are allowed:
+			 */
+			if (strcmp(curpeers->id, args[1]) == 0) {
+				Warning("Parsing [%s:%d]: peers '%s' has same name as another peers (declared at %s:%d).\n",
+					file, linenum, args[1], curpeers->conf.file, curpeers->conf.line);
+				err_code |= ERR_WARN;
+			}
+		}
+
+		if ((curpeers = (struct peers *)calloc(1, sizeof(struct peers))) == NULL) {
+			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		curpeers->next = peers;
+		peers = curpeers;
+		curpeers->conf.file = file;
+		curpeers->conf.line = linenum;
+		curpeers->last_change = now.tv_sec;
+		curpeers->id = strdup(args[1]);
+	}
+	else if (strcmp(args[0], "peer") == 0) { /* peer definition */
+		char *rport, *raddr;
+		short realport = 0;
+		struct sockaddr_in *sk;
+
+		if (!*args[2]) {
+			Alert("parsing [%s:%d] : '%s' expects <name> and <addr>[:<port>] as arguments.\n",
+			      file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		err = invalid_char(args[1]);
+		if (err) {
+			Alert("parsing [%s:%d] : character '%c' is not permitted in server name '%s'.\n",
+			      file, linenum, *err, args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		if ((newpeer = (struct peer *)calloc(1, sizeof(struct peer))) == NULL) {
+			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		/* the peers are linked backwards first */
+		curpeers->count++;
+		newpeer->next = curpeers->remote;
+		curpeers->remote = newpeer;
+		newpeer->peers = curpeers;
+		newpeer->conf.file = file;
+		newpeer->conf.line = linenum;
+
+		newpeer->last_change = now.tv_sec;
+		newpeer->id = strdup(args[1]);
+
+		raddr = strdup(args[2]);
+		rport = strchr(raddr, ':');
+		if (rport) {
+			*rport++ = 0;
+			realport = atol(rport);
+		}
+		if (!realport) {
+			Alert("parsing [%s:%d] : Missing or invalid port in '%s'\n", file, linenum, args[2]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		sk = str2sa(raddr);
+		free(raddr);
+		if (!sk) {
+			Alert("parsing [%s:%d] : Unknown host in '%s'\n", file, linenum, args[2]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		newpeer->addr = *sk;
+		newpeer->addr.sin_port = htons(realport);
+
+		if (strcmp(newpeer->id, localpeer) == 0) {
+			/* Current is local peer, it define a frontend */
+			newpeer->local = 1;
+
+			if (!curpeers->peers_fe) {
+				if ((curpeers->peers_fe  = calloc(1, sizeof(struct proxy))) == NULL) {
+					Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+					err_code |= ERR_ALERT | ERR_ABORT;
+					goto out;
+				}
+				curpeers->peers_fe->parent = curpeers;
+
+				LIST_INIT(&(curpeers->peers_fe)->pendconns);
+				LIST_INIT(&(curpeers->peers_fe)->acl);
+				LIST_INIT(&(curpeers->peers_fe)->block_cond);
+				LIST_INIT(&(curpeers->peers_fe)->redirect_rules);
+				LIST_INIT(&(curpeers->peers_fe)->mon_fail_cond);
+				LIST_INIT(&(curpeers->peers_fe)->switching_rules);
+				LIST_INIT(&(curpeers->peers_fe)->tcp_req.inspect_rules);
+				LIST_INIT(&(curpeers->peers_fe)->tcp_rep.inspect_rules);
+
+				proxy_reset_timeouts(curpeers->peers_fe);
+
+				curpeers->peers_fe->last_change = now.tv_sec;
+				curpeers->peers_fe->id = strdup(args[1]);
+				curpeers->peers_fe->cap = PR_CAP_FE;
+				curpeers->peers_fe->maxconn = 65000;
+				curpeers->peers_fe->conn_retries = CONN_RETRIES;
+				curpeers->peers_fe->timeout.connect = 5000;
+				curpeers->peers_fe->accept = peer_accept;
+				curpeers->peers_fe->options2 |= PR_O2_INDEPSTR | PR_O2_SMARTCON | PR_O2_SMARTACC;
+				if (!str2listener(args[2], curpeers->peers_fe)) {
+					err_code |= ERR_FATAL;
+					goto out;
+				}
+				curpeers->peers_fe->listen->maxconn = ((struct proxy *)curpeers->peers_fe)->maxconn;
+				curpeers->peers_fe->listen->backlog = ((struct proxy *)curpeers->peers_fe)->backlog;
+				curpeers->peers_fe->listen->timeout = &((struct proxy *)curpeers->peers_fe)->timeout.client;
+				curpeers->peers_fe->listen->accept = session_accept;
+				curpeers->peers_fe->listen->frontend =  ((struct proxy *)curpeers->peers_fe);
+				curpeers->peers_fe->listen->handler = process_session;
+				curpeers->peers_fe->listen->analysers |=  ((struct proxy *)curpeers->peers_fe)->fe_req_ana;
+			}
+		}
+	} /* neither "peer" nor "peers" */
+	else if (*args[0] != 0) {
+		Alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section\n", file, linenum, args[0], cursection);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
+out:
+	return err_code;
+}
+
+
 int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 {
 	static struct proxy *curproxy = NULL;
@@ -2539,6 +2697,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	else if (!strcmp(args[0], "stick-table")) {
 		int myidx = 1;
 
+		curproxy->table.id =  curproxy->id;
 		curproxy->table.type = (unsigned int)-1;
 		while (*args[myidx]) {
 			const char *err;
@@ -2558,6 +2717,16 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 					goto out;
 				}
 				myidx++;
+			}
+			else if (strcmp(args[myidx], "peers") == 0) {
+				myidx++;
+                                if (!*(args[myidx])) {
+                                        Alert("parsing [%s:%d] : stick-table: missing argument after '%s'.\n",
+                                              file, linenum, args[myidx-1]);
+                                        err_code |= ERR_ALERT | ERR_FATAL;
+                                        goto out;
+                                }
+				curproxy->table.peers.name = strdup(args[myidx++]);
 			}
 			else if (strcmp(args[myidx], "expire") == 0) {
 				myidx++;
@@ -5187,11 +5356,18 @@ int readcfgfile(const char *file)
 			confsect = CFG_GLOBAL;
 			free(cursection);
 			cursection = strdup(args[0]);
-		} else if (!strcmp(args[0], "userlist")) {
+		}
+		else if (!strcmp(args[0], "userlist")) {
 			confsect = CFG_USERLIST;
 			free(cursection);
 			cursection = strdup(args[0]);
 		}
+		else if (!strcmp(args[0], "peers")) {
+			confsect = CFG_PEERS;
+			free(cursection);
+			cursection = strdup(args[0]);
+		}
+
 		/* else it's a section keyword */
 
 		switch (confsect) {
@@ -5203,6 +5379,9 @@ int readcfgfile(const char *file)
 			break;
 		case CFG_USERLIST:
 			err_code |= cfg_parse_users(file, linenum, args, kwm);
+			break;
+		case CFG_PEERS:
+			err_code |= cfg_parse_peers(file, linenum, args, kwm);
 			break;
 		default:
 			Alert("parsing [%s:%d]: unknown keyword '%s' out of section.\n", file, linenum, args[0]);
@@ -5587,6 +5766,29 @@ int check_config_validity()
 				 * to pass a list of counters to track and allocate them right here using
 				 * stktable_alloc_data_type().
 				 */
+			}
+		}
+
+		if (curproxy->table.peers.name) {
+			struct peers *curpeers = peers;
+
+			for (curpeers = peers; curpeers; curpeers = curpeers->next) {
+				if (strcmp(curpeers->id, curproxy->table.peers.name) == 0) {
+					free((void *)curproxy->table.peers.name);
+					curproxy->table.peers.p = peers;
+					break;
+				}
+			}
+
+			if (!curpeers) {
+				Alert("Proxy '%s': unable to find sync peers '%s'.\n",
+				      curproxy->id, curproxy->table.peers.name);
+				cfgerr++;
+			}
+			else if (!curpeers->peers_fe) {
+				Alert("Proxy '%s': unable to identify local peer in peers section '%s'.\n",
+				      curproxy->id, curpeers->id);
+				cfgerr++;
 			}
 		}
 
