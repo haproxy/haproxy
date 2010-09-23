@@ -1077,7 +1077,7 @@ int process_sticking_rules(struct session *s, struct buffer *req, int an_bit)
 							}
 						}
 					}
-					stktable_touch(rule->table.t, ts);
+					stktable_touch(rule->table.t, ts, 1);
 				}
 			}
 			if (rule->flags & STK_IS_STORE) {
@@ -1172,11 +1172,11 @@ int process_store_rules(struct session *s, struct buffer *rep, int an_bit)
 		ts = stktable_lookup(s->store[i].table, s->store[i].ts);
 		if (ts) {
 			/* the entry already existed, we can free ours */
-			stktable_touch(s->store[i].table, ts);
+			stktable_touch(s->store[i].table, ts, 1);
 			stksess_free(s->store[i].table, s->store[i].ts);
 		}
 		else
-			ts = stktable_store(s->store[i].table, s->store[i].ts);
+			ts = stktable_store(s->store[i].table, s->store[i].ts, 1);
 
 		s->store[i].ts = NULL;
 		ptr = stktable_data_ptr(s->store[i].table, ts, STKTABLE_DT_SERVER_ID);

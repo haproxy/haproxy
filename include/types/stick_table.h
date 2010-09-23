@@ -130,16 +130,23 @@ struct stksess {
 	unsigned int expire;      /* session expiration date */
 	unsigned int ref_cnt;     /* reference count, can only purge when zero */
 	struct eb32_node exp;     /* ebtree node used to hold the session in expiration tree */
+	struct eb32_node upd;     /* ebtree node used to hold the update sequence tree */
 	struct ebmb_node key;     /* ebtree node used to hold the session in table */
 	/* WARNING! do not put anything after <keys>, it's used by the key */
 };
 
+
 /* stick table */
 struct stktable {
+	char *id;		  /* table id name */
 	struct eb_root keys;      /* head of sticky session tree */
 	struct eb_root exps;      /* head of sticky session expiration tree */
+	struct eb_root updates;   /* head of sticky updates sequence tree */
 	struct pool_head *pool;   /* pool used to allocate sticky sessions */
 	struct task *exp_task;    /* expiration task */
+	struct task *sync_task;   /* sync task */
+	unsigned int update;
+	unsigned int localupdate;
 	unsigned long type;       /* type of table (determines key format) */
 	size_t key_size;          /* size of a key, maximum size in case of string */
 	unsigned int size;        /* maximum number of sticky sessions in table */

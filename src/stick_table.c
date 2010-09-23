@@ -51,6 +51,7 @@ void stksess_kill(struct stktable *t, struct stksess *ts)
 		return;
 
 	eb32_delete(&ts->exp);
+	eb32_delete(&ts->upd);
 	ebmb_delete(&ts->key);
 	stksess_free(t, ts);
 }
@@ -80,6 +81,7 @@ static struct stksess *stksess_init(struct stktable *t, struct stksess * ts)
 	ts->ref_cnt = 0;
 	ts->key.node.leaf_p = NULL;
 	ts->exp.node.leaf_p = NULL;
+	ts->upd.node.leaf_p = NULL;
 	return ts;
 }
 
@@ -137,6 +139,7 @@ static int stktable_trash_oldest(struct stktable *t, int to_batch)
 
 		/* session expired, trash it */
 		ebmb_delete(&ts->key);
+		eb32_delete(&ts->upd);
 		stksess_free(t, ts);
 		batched++;
 	}
@@ -204,12 +207,12 @@ struct stksess *stktable_update_key(struct stktable *table, struct stktable_key 
 
 	ts = stktable_lookup_key(table, key);
 	if (likely(ts))
-		return stktable_touch(table, ts);
+		return stktable_touch(table, ts, 1);
 
 	/* entry does not exist, initialize a new one */
 	ts = stksess_new(table, key);
 	if (likely(ts))
-		stktable_store(table, ts);
+		stktable_store(table, ts, 1);
 	return ts;
 }
 
@@ -235,12 +238,25 @@ struct stksess *stktable_lookup(struct stktable *t, struct stksess *ts)
 /* Update the expiration timer for <ts> but do not touch its expiration node.
  * The table's expiration timer is updated if set.
  */
-struct stksess *stktable_touch(struct stktable *t, struct stksess *ts)
+struct stksess *stktable_touch(struct stktable *t, struct stksess *ts, int local)
 {
+	struct eb32_node * eb;
 	ts->expire = tick_add(now_ms, MS_TO_TICKS(t->expire));
 	if (t->expire) {
 		t->exp_task->expire = t->exp_next = tick_first(ts->expire, t->exp_next);
 		task_queue(t->exp_task);
+	}
+
+	if (t->sync_task && local) {
+		ts->upd.key = ++t->update;
+		t->localupdate = t->update;
+		eb32_delete(&ts->upd);
+		eb = eb32_insert(&t->updates, &ts->upd);
+		if (eb != &ts->upd)  {
+			eb32_delete(eb);
+			eb32_insert(&t->updates, &ts->upd);
+		}
+		task_wakeup(t->sync_task, TASK_WOKEN_MSG);
 	}
 	return ts;
 }
@@ -249,10 +265,10 @@ struct stksess *stktable_touch(struct stktable *t, struct stksess *ts)
  * yet exist (the caller must check this). The table's timeout is updated if it
  * is set. <ts> is returned.
  */
-struct stksess *stktable_store(struct stktable *t, struct stksess *ts)
+struct stksess *stktable_store(struct stktable *t, struct stksess *ts, int local)
 {
 	ebmb_insert(&t->keys, &ts->key, t->key_size);
-	stktable_touch(t, ts);
+	stktable_touch(t, ts, local);
 	ts->exp.key = ts->expire;
 	eb32_insert(&t->exps, &ts->exp);
 	return ts;
@@ -275,10 +291,10 @@ struct stksess *stktable_get_entry(struct stktable *table, struct stktable_key *
 		ts = stksess_new(table, key);
 		if (!ts)
 			return NULL;
-		stktable_store(table, ts);
+		stktable_store(table, ts, 1);
 	}
 	else
-		stktable_touch(table, ts);
+		stktable_touch(table, ts, 1);
 	return ts;
 }
 
@@ -339,6 +355,7 @@ static int stktable_trash_expired(struct stktable *t)
 
 		/* session expired, trash it */
 		ebmb_delete(&ts->key);
+		eb32_delete(&ts->upd);
 		stksess_free(t, ts);
 	}
 
