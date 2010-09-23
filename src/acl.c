@@ -107,6 +107,67 @@ acl_fetch_req_len(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 1;
 }
 
+
+static int
+acl_fetch_ssl_hello_type(struct proxy *px, struct session *l4, void *l7, int dir,
+			 struct acl_expr *expr, struct acl_test *test)
+{
+	int hs_len;
+	int hs_type, bleft;
+	struct buffer *b;
+	const unsigned char *data;
+
+	if (!l4)
+		goto not_ssl_hello;
+
+	b = ((dir & ACL_DIR_MASK) == ACL_DIR_RTR) ? l4->rep : l4->req;
+
+	bleft = b->l;
+	data = (const unsigned char *)b->w;
+
+	if (!bleft)
+		goto too_short;
+
+	if ((*data >= 0x14 && *data <= 0x17) || (*data == 0xFF)) {
+		/* SSLv3 header format */
+		if (bleft < 9)
+			goto too_short;
+
+		/* ssl version 3 */
+		if ((data[1] << 16) + data[2] < 0x00030000)
+			goto not_ssl_hello;
+
+		/* ssl message len must present handshake type and len */
+		if ((data[3] << 8) + data[4] < 4)
+			goto not_ssl_hello;
+
+		/* format introduced with SSLv3 */
+
+		hs_type = (int)data[5];
+		hs_len = ( data[6] << 16 ) + ( data[7] << 8 ) + data[8];
+
+		/* not a full handshake */
+		if (bleft < (9 + hs_len))
+			goto too_short;
+
+	}
+	else {
+		goto not_ssl_hello;
+	}
+
+	test->i = hs_type;
+	test->flags = ACL_TEST_F_VOLATILE;
+
+	return 1;
+
+ too_short:
+	test->flags = ACL_TEST_F_MAY_CHANGE;
+
+ not_ssl_hello:
+
+	return 0;
+}
+
 /* Return the version of the SSL protocol in the request. It supports both
  * SSLv3 (TLSv1) header format for any message, and SSLv2 header format for
  * the hello message. The SSLv3 format is described in RFC 2246 p49, and the
@@ -1777,13 +1838,15 @@ acl_find_targets(struct proxy *p)
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct acl_kw_list acl_kws = {{ },{
-	{ "always_true",        acl_parse_nothing,    acl_fetch_true,           acl_match_nothing, ACL_USE_NOTHING },
-	{ "always_false",       acl_parse_nothing,    acl_fetch_false,          acl_match_nothing, ACL_USE_NOTHING },
-	{ "wait_end",           acl_parse_nothing,    acl_fetch_wait_end,       acl_match_nothing, ACL_USE_NOTHING },
-	{ "req_len",            acl_parse_int,        acl_fetch_req_len,        acl_match_int,     ACL_USE_L6REQ_VOLATILE },
-	{ "req_ssl_ver",        acl_parse_dotted_ver, acl_fetch_req_ssl_ver,    acl_match_int,     ACL_USE_L6REQ_VOLATILE },
-	{ "req_rdp_cookie",     acl_parse_str,        acl_fetch_rdp_cookie,     acl_match_str,     ACL_USE_L6REQ_VOLATILE|ACL_MAY_LOOKUP },
-	{ "req_rdp_cookie_cnt", acl_parse_int,        acl_fetch_rdp_cookie_cnt, acl_match_int,     ACL_USE_L6REQ_VOLATILE },
+	{ "always_true",         acl_parse_nothing,    acl_fetch_true,           acl_match_nothing, ACL_USE_NOTHING },
+	{ "always_false",        acl_parse_nothing,    acl_fetch_false,          acl_match_nothing, ACL_USE_NOTHING },
+	{ "wait_end",            acl_parse_nothing,    acl_fetch_wait_end,       acl_match_nothing, ACL_USE_NOTHING },
+	{ "req_len",             acl_parse_int,        acl_fetch_req_len,        acl_match_int,     ACL_USE_L6REQ_VOLATILE },
+	{ "req_ssl_hello_type",  acl_parse_int,        acl_fetch_ssl_hello_type, acl_match_int,     ACL_USE_L6REQ_VOLATILE },
+	{ "rep_ssl_hello_type",  acl_parse_int,        acl_fetch_ssl_hello_type, acl_match_int,     ACL_USE_L6RTR_VOLATILE },
+	{ "req_ssl_ver",         acl_parse_dotted_ver, acl_fetch_req_ssl_ver,    acl_match_int,     ACL_USE_L6REQ_VOLATILE },
+	{ "req_rdp_cookie",      acl_parse_str,        acl_fetch_rdp_cookie,     acl_match_str,     ACL_USE_L6REQ_VOLATILE|ACL_MAY_LOOKUP },
+	{ "req_rdp_cookie_cnt",  acl_parse_int,        acl_fetch_rdp_cookie_cnt, acl_match_int,     ACL_USE_L6REQ_VOLATILE },
 #if 0
 	{ "time",       acl_parse_time,  acl_fetch_time,   acl_match_time  },
 #endif
