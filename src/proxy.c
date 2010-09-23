@@ -26,6 +26,7 @@
 #include <common/time.h>
 
 #include <types/global.h>
+#include <types/peers.h>
 
 #include <proto/backend.h>
 #include <proto/fd.h>
@@ -36,6 +37,7 @@
 #include <proto/proto_http.h>
 #include <proto/proxy.h>
 #include <proto/signal.h>
+#include <proto/task.h>
 
 
 int listeners;	/* # of proxy listeners, set by cfgparse, unset by maintain_proxies */
@@ -524,6 +526,8 @@ void maintain_proxies(int *next)
 	}
 
 	if (stopping) {
+		struct peers *prs;
+
 		p = proxy;
 		while (p) {
 			if (p->state != PR_STSTOPPED) {
@@ -544,6 +548,13 @@ void maintain_proxies(int *next)
 			}
 			p = p->next;
 		}
+
+		prs = peers;
+		while (prs) {
+			stop_proxy((struct proxy *)prs->peers_fe);
+			prs = prs->next;
+		}
+
 	}
 	return;
 }
@@ -567,6 +578,9 @@ void soft_stop(void)
 			send_log(p, LOG_WARNING, "Stopping %s %s in %d ms.\n", proxy_cap_str(p->cap), p->id, p->grace);
 			p->stop_time = tick_add(now_ms, p->grace);
 		}
+		if (p->table.size && p->table.sync_task)
+			 task_wakeup(p->table.sync_task, TASK_WOKEN_MSG);
+
 		p = p->next;
 	}
 	/* signal zero is used to broadcast the "stopping" event */
@@ -631,6 +645,7 @@ void pause_proxies(void)
 {
 	int err;
 	struct proxy *p;
+	struct peers *prs;
 
 	err = 0;
 	p = proxy;
@@ -651,6 +666,26 @@ void pause_proxies(void)
 		}
 		p = p->next;
 	}
+
+	prs = peers;
+	while (prs) {
+		p = prs->peers_fe;
+		if (p && (p->cap & PR_CAP_FE &&
+                    p->state != PR_STERROR &&
+                    p->state != PR_STSTOPPED &&
+                    p->state != PR_STPAUSED)) {
+                        Warning("Pausing %s %s.\n", proxy_cap_str(p->cap), p->id);
+                        send_log(p, LOG_WARNING, "Pausing %s %s.\n", proxy_cap_str(p->cap), p->id);
+                        pause_proxy(p);
+                        if (p->state != PR_STPAUSED) {
+                                err |= 1;
+                                Warning("%s %s failed to enter pause mode.\n", proxy_cap_str(p->cap), p->id);
+                                send_log(p, LOG_WARNING, "%s %s failed to enter pause mode.\n", proxy_cap_str(p->cap), p->id);
+                        }
+                }
+                prs = prs->next;
+        }
+
 	if (err) {
 		Warning("Some proxies refused to pause, performing soft stop now.\n");
 		send_log(p, LOG_WARNING, "Some proxies refused to pause, performing soft stop now.\n");
