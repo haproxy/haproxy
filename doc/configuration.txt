@@ -5598,6 +5598,94 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
              about time format and section 7 avoud ACLs.
 
 
+stick store-response <pattern> [table <table>] [{if | unless} <condition>]
+  Define a request pattern used to create an entry in a stickiness table
+  May be used in sections :   defaults | frontend | listen | backend
+                                 no    |    no    |   yes  |   yes
+
+  Arguments :
+    <pattern>  is a pattern extraction rule as described in section 7.8. It
+               describes what elements of the response or connection will
+               be analysed, extracted and stored in the table once a
+               server is selected.
+
+    <table>    is an optional stickiness table name. If unspecified, the same
+               backend's table is used. A stickiness table is declared using
+               the "stick-table" statement.
+
+    <cond>     is an optional storage condition. It makes it possible to store
+               certain criteria only when some conditions are met (or not met).
+               For instance, it could be used to store the SSL session ID only
+               when the response is a SSL server hello.
+
+  Some protocols or applications require complex stickiness rules and cannot
+  always simply rely on cookies nor hashing. The "stick store-response"
+  statement  describes a rule to decide what to extract from the response and
+  when to do it, in order to store it into a stickiness table for further
+  requests to match it using the "stick match" statement. Obviously the
+  extracted part must make sense and have a chance to be matched in a further
+  request. Storing an ID found in a header of a response makes sense. 
+  See section 7 for a complete list of possible patterns and transformation
+  rules.
+
+  The table has to be declared using the "stick-table" statement. It must be of
+  a type compatible with the pattern. By default it is the one which is present
+  in the same backend. It is possible to share a table with other backends by
+  referencing it using the "table" keyword. If another table is referenced,
+  the server's ID inside the backends are used. By default, all server IDs
+  start at 1 in each backend, so the server ordering is enough. But in case of
+  doubt, it is highly recommended to force server IDs using their "id" setting.
+
+  It is possible to restrict the conditions where a "stick store-response"
+  statement will apply, using "if" or "unless" followed by a condition. This
+  condition will be evaluated while parsing the response, so any criteria can
+  be used. See section 7 for ACL based conditions.
+
+  There is no limit on the number of "stick store-response" statements, but
+  there is a limit of 8 simultaneous stores per request or response. This
+  makes it possible to store up to 8 criteria, all extracted from either the
+  request or the response, regardless of the number of rules. Only the 8 first
+  ones which match will be kept. Using this, it is possible to feed multiple
+  tables at once in the hope to increase the chance to recognize a user on
+  another protocol or access method.
+
+  The table will contain the real server that processed the request.
+
+  Example :
+    # Learn SSL session ID from both request and response and create affinity.
+    backend https
+        mode tcp
+        balance roundrobin
+	# maximum SSL session ID length is 32 bytes.
+        stick-table type binary len 32 size 30k expire 30m
+        
+        acl clienthello req_ssl_hello_type 1
+        acl serverhello rep_ssl_hello_type 2
+
+        # use tcp content accepts to detects ssl client and server hello.
+        tcp-request inspect-delay 5s
+        tcp-request content accept if clienthello
+
+        # no timeout on response inspect delay by default.
+        tcp-response content accept if serverhello
+ 
+        # SSL session ID (SSLID) may be present on a client or server hello.
+        # Its length is coded on 1 byte at offset 43 and its value starts
+        # at offset 44.
+
+        # Match and learn on request if client hello.
+        stick on payload_lv(43,1) if clienthello
+
+        # Learn on response if server hello.
+        stick store-response payload_lv(43,1) if serverhello
+	
+        server s1 192.168.1.1:443
+        server s2 192.168.1.1:443
+
+  See also : "stick-table", "stick on", and section 7 about ACLs and pattern
+             extraction.
+
+
 tcp-request connection <action> [{if | unless} <condition>]
   Perform an action on an incoming connection depending on a layer 4 condition
   May be used in sections :   defaults | frontend | listen | backend
@@ -7607,7 +7695,22 @@ The list of currently supported pattern fetch functions is the following :
                then used to match the table. A typical use is with the
                x-forwarded-for header.
 
+  payload(offset,length)
+               This extracts a binary block of <length> bytes, and starting
+               at bytes <offset> in the buffer of request or response (request
+               on "stick on" or "stick match" or response in on "stick store
+               response").
 
+  payload_lv(offset1,length[,offset2])
+               This extracts a binary block. In a first step the size of the
+               block is read from response or request buffer at <offset>
+               bytes and considered coded on <length> bytes. In a second step
+               data of the block are read from buffer at <offset2> bytes
+               (by default <lengthoffset> + <lengthsize>).
+               If <offset2> is prefixed by '+' or '-', it is relative to
+               <lengthoffset> + <lengthsize> else it is absolute.
+               Ex: see SSL session id  example in "stick table" chapter.
+                
 The currently available list of transformations include :
 
   lower        Convert a string pattern to lower case. This can only be placed
