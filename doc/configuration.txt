@@ -5396,8 +5396,8 @@ stick store-request <pattern> [table <table>] [{if | unless} <condition>]
              extraction.
 
 
-stick-table type {ip | integer | string [len <length>] } size <size>
-            [expire <expire>] [nopurge] [store <data_type>]*
+stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
+            size <size> [expire <expire>] [nopurge] [store <data_type>]*
   Configure the stickiness table for the current backend
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   yes
@@ -5418,10 +5418,18 @@ stick-table type {ip | integer | string [len <length>] } size <size>
                being stored. During matching, at most <len> characters will be
                compared between the string in the table and the extracted
                pattern. When not specified, the string is automatically limited
-               to 31 characters.
+               to 32 characters.
+
+    binary     a table declared with "type binary" will store binary blocks
+               of <len> bytes. If the block provided by the pattern
+               extractor is larger than <len>, it will be truncated before
+               being stored. If the block provided by the pattern extractor
+               is shorter than <len>, it will be padded by 0. When not
+               specified, the block is automatically limited to 32 bytes.
 
     <length>   is the maximum number of characters that will be stored in a
-               "string" type table. See type "string" above. Be careful when
+               "string" type table (See type "string" above). Or the number
+               of bytes of the block in "binary" type table. Be careful when
                changing this parameter as memory usage will proportionally
                increase.
 
@@ -8993,7 +9001,7 @@ clear table <table> key <key>
 
   Example :
         $ echo "show table http_proxy" | socat stdio /tmp/sock1
-    >>> # table: http_proxy, type: 0, size:204800, used:2
+    >>> # table: http_proxy, type: ip, size:204800, used:2
     >>> 0x80e6a4c: key=127.0.0.1 use=0 exp=3594729 gpc0=0 conn_rate(30000)=1 \
           bytes_out_rate(60000)=187
     >>> 0x80e6a80: key=127.0.0.2 use=0 exp=3594740 gpc0=1 conn_rate(30000)=10 \
@@ -9002,7 +9010,7 @@ clear table <table> key <key>
         $ echo "clear table http_proxy key 127.0.0.1" | socat stdio /tmp/sock1
 
         $ echo "show table http_proxy" | socat stdio /tmp/sock1
-    >>> # table: http_proxy, type: 0, size:204800, used:1
+    >>> # table: http_proxy, type: ip, size:204800, used:1
     >>> 0x80e6a80: key=127.0.0.2 use=0 exp=3594740 gpc0=1 conn_rate(30000)=10 \
           bytes_out_rate(60000)=191
 
