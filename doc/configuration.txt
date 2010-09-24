@@ -7230,6 +7230,18 @@ req_ssl_ver <decimal>
   that TLSv1 is announced as SSL version 3.1. This test was designed to be used
   with TCP request content inspection.
 
+req_ssl_hello_type <integer>
+  Returns true when data in the request buffer looks like a complete SSL (v3
+  or superior) hello message and handshake type is equal to <integer>.
+  This test was designed to be used with TCP request content inspection: an
+  SSL session ID may be fetched.
+
+rep_ssl_hello_type <integer>
+  Returns true when data in the response buffer looks like a complete SSL (v3
+  or superior) hello message and handshake type is equal to <integer>.
+  This test was designed to be used with TCP response content inspection: a
+  SSL session ID may be fetched.
+
 wait_end
   Waits for the end of the analysis period to return true. This may be used in
   conjunction with content analysis to avoid returning a wrong verdict early.
