@@ -996,6 +996,8 @@ stick-table                               -          -         X         X
 tcp-request connection                    -          X         X         -
 tcp-request content                       -          X         X         X
 tcp-request inspect-delay                 -          X         X         X
+tcp-response content                      -          -         X         X
+tcp-response inspect-delay                -          -         X         X
 timeout check                             X          -         X         X
 timeout client                            X          X         X         -
 timeout clitimeout          (deprecated)  X          X         X         -
@@ -5837,6 +5839,68 @@ tcp-request inspect-delay <timeout>
 
   See also : "tcp-request content accept", "tcp-request content reject",
              "timeout client".
+
+
+tcp-response content <action> [{if | unless} <condition>]
+  Perform an action on a session response depending on a layer 4-7 condition
+  May be used in sections :   defaults | frontend | listen | backend
+                                 no    |    no    |   yes  |   yes
+  Arguments :
+    <action>    defines the action to perform if the condition applies. Valid
+                actions include : "accept", "reject".
+                See "tcp-request connection" above for their signification.
+
+    <condition> is a standard layer 4-7 ACL-based condition (see section 7).
+
+  Response contents can be analysed at an early stage of response processing
+  called "TCP content inspection". During this stage, ACL-based rules are
+  evaluated every time the response contents are updated, until either an
+  "accept" or a "reject" rule matches, or a TCP response inspection delay is
+  set and expires with no matching rule. 
+
+  Most often, these decisions will consider a protocol recognition or validity.
+
+  Content-based rules are evaluated in their exact declaration order. If no
+  rule matches or if there is no rule, the default action is to accept the
+  contents. There is no specific limit to the number of rules which may be
+  inserted.
+
+  Two types of actions are supported :
+    - accept :
+        accepts the response if the condition is true (when used with "if")
+        or false (when used with "unless"). The first such rule executed ends
+        the rules evaluation.
+
+    - reject :
+        rejects the response if the condition is true (when used with "if")
+        or false (when used with "unless"). The first such rule executed ends
+        the rules evaluation. Rejected session are immediatly closed.
+
+  Note that the "if/unless" condition is optional. If no condition is set on
+  the action, it is simply performed unconditionally. That can be useful for
+  for changing the default action to a reject.
+
+  It is perfectly possible to match layer 7 contents with "tcp-reponse content"
+  rules, but then it is important to ensure that a full response has been
+  buffered, otherwise no contents will match. In order to achieve this, the
+  best solution involves detecting the HTTP protocol during the inspection
+  period.
+
+  See section 7 about ACL usage.
+
+  See also : "tcp-request content", "tcp-response inspect-delay"
+
+
+tcp-response inspect-delay <timeout>
+  Set the maximum allowed time to wait for a response during content inspection
+  May be used in sections :   defaults | frontend | listen | backend
+                                 no    |    no    |   yes  |   yes
+  Arguments :
+    <timeout> is the timeout value specified in milliseconds by default, but
+              can be in any other unit if the number is suffixed by the unit,
+              as explained at the top of this document.
+
+  See also : "tcp-response content", "tcp-request inspect-delay".
 
 
 timeout check <timeout>
