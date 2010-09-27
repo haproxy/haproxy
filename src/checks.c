@@ -170,7 +170,7 @@ static void server_status_printf(struct chunk *msg, struct server *s, unsigned o
 			chunk_printf(msg, ", check duration: %ldms", s->check_duration);
 	}
 
-	if (xferred > 0) {
+	if (xferred >= 0) {
 		if (!(s->state & SRV_RUNNING))
         	        chunk_printf(msg, ". %d active and %d backup servers left.%s"
 				" %d sessions active, %d requeued, %d remaining in queue",
