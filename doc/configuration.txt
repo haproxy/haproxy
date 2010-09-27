@@ -761,6 +761,7 @@ quiet
   Do not display any message during startup. It is equivalent to the command-
   line argument "-q".
 
+
 3.4. Userlists
 --------------
 It is possible to control access to frontend/backend/listen sections or to
@@ -804,6 +805,57 @@ user <username> [password|insecure-password <password>]
           user xdb insecure-password hello groups G2
 
   Please note that both lists are functionally identical.
+
+
+3.5. Peers
+--------------
+It is possible to synchronize server entries in stick tables between several
+haproxy instances over TCP connections in a multi-master fashion. Each instance
+pushes its local updates and insertions to remote peers. Server IDs are used to
+identify servers remotely, so it is important that configurations look similar
+or at least that the same IDs are forced on each server on all participants.
+Interrupted exchanges are automatically detected and recovered from the last
+known point. In addition, during a soft restart, the old process connects to
+the new one using such a TCP connection to push all its entries before the new
+process tries to connect to other peers. That ensures very fast replication
+during a reload, it typically takes a fraction of a second even for large
+tables.
+
+peers <peersect>
+  Creates a new peer list with name <peersect>. It is an independant section,
+  which is referenced by one or more stick-tables.
+
+peer <peername> <ip>:<port>
+  Defines a peer inside a peers section.
+  If <peername> is set to the local peer name (by default hostname, or forced
+  using "-L" command line option), haproxy will listen for incoming remote peer
+  connection on <ip>:<port>. Otherwise, <ip>:<port> defines where to connect to
+  to join the remote peer, and <peername> is used at the protocol level to
+  identify and validate the remote peer on the server side.
+
+  During a soft restart, local peer <ip>:<port> is used by the old instance to
+  connect the new one and initiate a complete replication (teaching process).
+
+  It is strongly recommended to have the exact same peers declaration on all
+  peers and to only rely on the "-L" command line argument to change the local
+  peer name. This makes it easier to maintain coherent configuration files
+  across all peers.
+
+Example:
+    peers mypeers
+        peers haproxy1 192.168.0.1:1024
+        peers haproxy2 192.168.0.2:1024
+        peers haproxy3 10.2.0.1:1024
+
+    backend mybackend
+        mode tcp
+        balance roundrobin
+        stick-table type ip size 20k peers mypeers
+        stick on src
+
+        server srv1 192.168.30:80
+        server srv2 192.168.31:80
+
 
 4. Proxies
 ----------
@@ -5397,7 +5449,8 @@ stick store-request <pattern> [table <table>] [{if | unless} <condition>]
 
 
 stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
-            size <size> [expire <expire>] [nopurge] [store <data_type>]*
+            size <size> [expire <expire>] [nopurge] [peers <peersect>]
+            [store <data_type>]*
   Configure the stickiness table for the current backend
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   yes
@@ -5449,6 +5502,12 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
                to new clients than to reject the ones already connected. When
                using this parameter, be sure to properly set the "expire"
                parameter (see below).
+
+    <peersect> is the name of the peers section to use for replication. Entries
+               which associate keys to server IDs are kept synchronized with
+               the remote peers declared in this section. All entries are also
+               automatically learned from the local peer (old process) during a
+               soft restart.
 
     <expire>   defines the maximum duration of an entry in the table since it
                was last created, refreshed or matched. The expiration delay is
