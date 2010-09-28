@@ -3834,9 +3834,14 @@ int http_sync_req_state(struct session *s)
 
 	if (txn->req.msg_state == HTTP_MSG_DONE) {
 		/* No need to read anymore, the request was completely parsed.
-		 * We can shut the read side unless we want to abort_on_close.
+		 * We can shut the read side unless we want to abort_on_close,
+		 * or we have a POST request. The issue with POST requests is
+		 * that some browsers still send a CRLF after the request, and
+		 * this CRLF must be read so that it does not remain in the kernel
+		 * buffers, otherwise a close could cause an RST on some systems
+		 * (eg: Linux).
 		 */
-		if (buf->cons->state == SI_ST_EST || !(s->be->options & PR_O_ABRT_CLOSE))
+		if (!(s->be->options & PR_O_ABRT_CLOSE) && txn->meth != HTTP_METH_POST)
 			buffer_dont_read(buf);
 
 		if (txn->rsp.msg_state == HTTP_MSG_ERROR)
@@ -4271,6 +4276,14 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 			if (s->be->options & PR_O_ABRT_CLOSE) {
 				buffer_auto_read(req);
 				buffer_auto_close(req);
+			}
+			else if (s->txn.meth == HTTP_METH_POST) {
+				/* POST requests may require to read extra CRLF
+				 * sent by broken browsers and which could cause
+				 * an RST to be sent upon close on some systems
+				 * (eg: Linux).
+				 */
+				buffer_auto_read(req);
 			}
 
 			return 0;
