@@ -793,7 +793,8 @@ static forceinline int check_bits(const unsigned char *a,
  * may be rechecked. It is only passed here as a hint to speed up the check.
  * The caller is responsible for not passing an <ignore> value larger than any
  * of the two strings. However, referencing any bit from the trailing zero is
- * permitted.
+ * permitted. Equal strings are reported as equal up to and including the last
+ * zero.
  */
 static forceinline int string_equal_bits(const unsigned char *a,
 					 const unsigned char *b,
@@ -818,9 +819,8 @@ static forceinline int string_equal_bits(const unsigned char *a,
 		if (c)
 			break;
 		if (!d)
-			break;
+			return (beg << 3) + 8; /* equal bytes + zero */
 	}
-
 	/* OK now we know that a and b differ at byte <beg>, or that both are zero.
 	 * We have to find what bit is differing and report it as the number of
 	 * identical bits. Note that low bit numbers are assigned to high positions
