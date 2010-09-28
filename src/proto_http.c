@@ -1290,8 +1290,8 @@ const char *http_parse_stsline(struct http_msg *msg, const char *msg_buf,
 			       char **ret_ptr, unsigned int *ret_state)
 {
 	switch (state)	{
-	http_msg_rpver:
 	case HTTP_MSG_RPVER:
+	http_msg_rpver:
 		if (likely(HTTP_IS_VER_TOKEN(*ptr)))
 			EAT_AND_JUMP_OR_RETURN(http_msg_rpver, HTTP_MSG_RPVER);
 
@@ -1302,8 +1302,8 @@ const char *http_parse_stsline(struct http_msg *msg, const char *msg_buf,
 		state = HTTP_MSG_ERROR;
 		break;
 
-	http_msg_rpver_sp:
 	case HTTP_MSG_RPVER_SP:
+	http_msg_rpver_sp:
 		if (likely(!HTTP_IS_LWS(*ptr))) {
 			msg->sl.st.c = (ptr - msg_buf) - msg->som;
 			goto http_msg_rpcode;
@@ -1314,8 +1314,8 @@ const char *http_parse_stsline(struct http_msg *msg, const char *msg_buf,
 		state = HTTP_MSG_ERROR;
 		break;
 
-	http_msg_rpcode:
 	case HTTP_MSG_RPCODE:
+	http_msg_rpcode:
 		if (likely(!HTTP_IS_LWS(*ptr)))
 			EAT_AND_JUMP_OR_RETURN(http_msg_rpcode, HTTP_MSG_RPCODE);
 
@@ -1332,8 +1332,8 @@ const char *http_parse_stsline(struct http_msg *msg, const char *msg_buf,
 		msg->sl.st.r_l = 0;
 		goto http_msg_rpline_eol;
 
-	http_msg_rpcode_sp:
 	case HTTP_MSG_RPCODE_SP:
+	http_msg_rpcode_sp:
 		if (likely(!HTTP_IS_LWS(*ptr))) {
 			msg->sl.st.r = (ptr - msg_buf) - msg->som;
 			goto http_msg_rpreason;
@@ -1343,8 +1343,8 @@ const char *http_parse_stsline(struct http_msg *msg, const char *msg_buf,
 		/* so it's a CR/LF, so there is no reason phrase */
 		goto http_msg_rsp_reason;
 
-	http_msg_rpreason:
 	case HTTP_MSG_RPREASON:
+	http_msg_rpreason:
 		if (likely(!HTTP_IS_CRLF(*ptr)))
 			EAT_AND_JUMP_OR_RETURN(http_msg_rpreason, HTTP_MSG_RPREASON);
 		msg->sl.st.r_l = (ptr - msg_buf) - msg->som - msg->sl.st.r;
@@ -1398,8 +1398,8 @@ const char *http_parse_reqline(struct http_msg *msg, const char *msg_buf,
 			       char **ret_ptr, unsigned int *ret_state)
 {
 	switch (state)	{
-	http_msg_rqmeth:
 	case HTTP_MSG_RQMETH:
+	http_msg_rqmeth:
 		if (likely(HTTP_IS_TOKEN(*ptr)))
 			EAT_AND_JUMP_OR_RETURN(http_msg_rqmeth, HTTP_MSG_RQMETH);
 
@@ -1423,8 +1423,8 @@ const char *http_parse_reqline(struct http_msg *msg, const char *msg_buf,
 		state = HTTP_MSG_ERROR;
 		break;
 
-	http_msg_rqmeth_sp:
 	case HTTP_MSG_RQMETH_SP:
+	http_msg_rqmeth_sp:
 		if (likely(!HTTP_IS_LWS(*ptr))) {
 			msg->sl.rq.u = (ptr - msg_buf) - msg->som;
 			goto http_msg_rquri;
@@ -1434,8 +1434,8 @@ const char *http_parse_reqline(struct http_msg *msg, const char *msg_buf,
 		/* so it's a CR/LF, meaning an HTTP 0.9 request */
 		goto http_msg_req09_uri;
 
-	http_msg_rquri:
 	case HTTP_MSG_RQURI:
+	http_msg_rquri:
 		if (likely(!HTTP_IS_LWS(*ptr)))
 			EAT_AND_JUMP_OR_RETURN(http_msg_rquri, HTTP_MSG_RQURI);
 
@@ -1447,8 +1447,8 @@ const char *http_parse_reqline(struct http_msg *msg, const char *msg_buf,
 		/* so it's a CR/LF, meaning an HTTP 0.9 request */
 		goto http_msg_req09_uri_e;
 
-	http_msg_rquri_sp:
 	case HTTP_MSG_RQURI_SP:
+	http_msg_rquri_sp:
 		if (likely(!HTTP_IS_LWS(*ptr))) {
 			msg->sl.rq.v = (ptr - msg_buf) - msg->som;
 			goto http_msg_rqver;
@@ -1458,8 +1458,8 @@ const char *http_parse_reqline(struct http_msg *msg, const char *msg_buf,
 		/* so it's a CR/LF, meaning an HTTP 0.9 request */
 		goto http_msg_req09_ver;
 
-	http_msg_rqver:
 	case HTTP_MSG_RQVER:
+	http_msg_rqver:
 		if (likely(HTTP_IS_VER_TOKEN(*ptr)))
 			EAT_AND_JUMP_OR_RETURN(http_msg_rqver, HTTP_MSG_RQVER);
 
@@ -1605,8 +1605,8 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 	 * We check them first so that request and headers are
 	 * closer to each other (accessed more often).
 	 */
-	http_msg_rpbefore:
 	case HTTP_MSG_RPBEFORE:
+	http_msg_rpbefore:
 		if (likely(HTTP_IS_TOKEN(*ptr))) {
 			/* we have a start of message, but we have to check
 			 * first if we need to remove some CRLF. We can only
@@ -1636,14 +1636,14 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 		EAT_AND_JUMP_OR_RETURN(http_msg_rpbefore_cr, HTTP_MSG_RPBEFORE_CR);
 		/* stop here */
 
-	http_msg_rpbefore_cr:
 	case HTTP_MSG_RPBEFORE_CR:
+	http_msg_rpbefore_cr:
 		EXPECT_LF_HERE(ptr, http_msg_invalid);
 		EAT_AND_JUMP_OR_RETURN(http_msg_rpbefore, HTTP_MSG_RPBEFORE);
 		/* stop here */
 
-	http_msg_rpver:
 	case HTTP_MSG_RPVER:
+	http_msg_rpver:
 	case HTTP_MSG_RPVER_SP:
 	case HTTP_MSG_RPCODE:
 	case HTTP_MSG_RPCODE_SP:
@@ -1664,8 +1664,8 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 			EAT_AND_JUMP_OR_RETURN(http_msg_rpline_end, HTTP_MSG_RPLINE_END);
 		goto http_msg_rpline_end;
 
-	http_msg_rpline_end:
 	case HTTP_MSG_RPLINE_END:
+	http_msg_rpline_end:
 		/* msg->sol must point to the first of CR or LF. */
 		EXPECT_LF_HERE(ptr, http_msg_invalid);
 		EAT_AND_JUMP_OR_RETURN(http_msg_hdr_first, HTTP_MSG_HDR_FIRST);
@@ -1674,8 +1674,8 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 	/*
 	 * Second, states that are specific to the request only
 	 */
-	http_msg_rqbefore:
 	case HTTP_MSG_RQBEFORE:
+	http_msg_rqbefore:
 		if (likely(HTTP_IS_TOKEN(*ptr))) {
 			/* we have a start of message, but we have to check
 			 * first if we need to remove some CRLF. We can only
@@ -1707,14 +1707,14 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 		EAT_AND_JUMP_OR_RETURN(http_msg_rqbefore_cr, HTTP_MSG_RQBEFORE_CR);
 		/* stop here */
 
-	http_msg_rqbefore_cr:
 	case HTTP_MSG_RQBEFORE_CR:
+	http_msg_rqbefore_cr:
 		EXPECT_LF_HERE(ptr, http_msg_invalid);
 		EAT_AND_JUMP_OR_RETURN(http_msg_rqbefore, HTTP_MSG_RQBEFORE);
 		/* stop here */
 
-	http_msg_rqmeth:
 	case HTTP_MSG_RQMETH:
+	http_msg_rqmeth:
 	case HTTP_MSG_RQMETH_SP:
 	case HTTP_MSG_RQURI:
 	case HTTP_MSG_RQURI_SP:
@@ -1735,8 +1735,8 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 			EAT_AND_JUMP_OR_RETURN(http_msg_rqline_end, HTTP_MSG_RQLINE_END);
 		goto http_msg_rqline_end;
 
-	http_msg_rqline_end:
 	case HTTP_MSG_RQLINE_END:
+	http_msg_rqline_end:
 		/* check for HTTP/0.9 request : no version information available.
 		 * msg->sol must point to the first of CR or LF.
 		 */
@@ -1750,8 +1750,8 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 	/*
 	 * Common states below
 	 */
-	http_msg_hdr_first:
 	case HTTP_MSG_HDR_FIRST:
+	http_msg_hdr_first:
 		msg->sol = ptr;
 		if (likely(!HTTP_IS_CRLF(*ptr))) {
 			goto http_msg_hdr_name;
@@ -1761,8 +1761,8 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 			EAT_AND_JUMP_OR_RETURN(http_msg_last_lf, HTTP_MSG_LAST_LF);
 		goto http_msg_last_lf;
 
-	http_msg_hdr_name:
 	case HTTP_MSG_HDR_NAME:
+	http_msg_hdr_name:
 		/* assumes msg->sol points to the first char */
 		if (likely(HTTP_IS_TOKEN(*ptr)))
 			EAT_AND_JUMP_OR_RETURN(http_msg_hdr_name, HTTP_MSG_HDR_NAME);
@@ -1781,8 +1781,8 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 		/* and we still accept this non-token character */
 		EAT_AND_JUMP_OR_RETURN(http_msg_hdr_name, HTTP_MSG_HDR_NAME);
 
-	http_msg_hdr_l1_sp:
 	case HTTP_MSG_HDR_L1_SP:
+	http_msg_hdr_l1_sp:
 		/* assumes msg->sol points to the first char and msg->col to the colon */
 		if (likely(HTTP_IS_SPHT(*ptr)))
 			EAT_AND_JUMP_OR_RETURN(http_msg_hdr_l1_sp, HTTP_MSG_HDR_L1_SP);
@@ -1798,13 +1798,13 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 			EAT_AND_JUMP_OR_RETURN(http_msg_hdr_l1_lf, HTTP_MSG_HDR_L1_LF);
 		goto http_msg_hdr_l1_lf;
 
-	http_msg_hdr_l1_lf:
 	case HTTP_MSG_HDR_L1_LF:
+	http_msg_hdr_l1_lf:
 		EXPECT_LF_HERE(ptr, http_msg_invalid);
 		EAT_AND_JUMP_OR_RETURN(http_msg_hdr_l1_lws, HTTP_MSG_HDR_L1_LWS);
 
-	http_msg_hdr_l1_lws:
 	case HTTP_MSG_HDR_L1_LWS:
+	http_msg_hdr_l1_lws:
 		if (likely(HTTP_IS_SPHT(*ptr))) {
 			/* replace HT,CR,LF with spaces */
 			for (; buf->data+msg->sov < ptr; msg->sov++)
@@ -1815,8 +1815,8 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 		msg->eol = buf->data + msg->sov;
 		goto http_msg_complete_header;
 		
-	http_msg_hdr_val:
 	case HTTP_MSG_HDR_VAL:
+	http_msg_hdr_val:
 		/* assumes msg->sol points to the first char, msg->col to the
 		 * colon, and msg->sov points to the first character of the
 		 * value.
@@ -1833,13 +1833,13 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 			EAT_AND_JUMP_OR_RETURN(http_msg_hdr_l2_lf, HTTP_MSG_HDR_L2_LF);
 		goto http_msg_hdr_l2_lf;
 
-	http_msg_hdr_l2_lf:
 	case HTTP_MSG_HDR_L2_LF:
+	http_msg_hdr_l2_lf:
 		EXPECT_LF_HERE(ptr, http_msg_invalid);
 		EAT_AND_JUMP_OR_RETURN(http_msg_hdr_l2_lws, HTTP_MSG_HDR_L2_LWS);
 
-	http_msg_hdr_l2_lws:
 	case HTTP_MSG_HDR_L2_LWS:
+	http_msg_hdr_l2_lws:
 		if (unlikely(HTTP_IS_SPHT(*ptr))) {
 			/* LWS: replace HT,CR,LF with spaces */
 			for (; msg->eol < ptr; msg->eol++)
@@ -1873,8 +1873,8 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 			EAT_AND_JUMP_OR_RETURN(http_msg_last_lf, HTTP_MSG_LAST_LF);
 		goto http_msg_last_lf;
 
-	http_msg_last_lf:
 	case HTTP_MSG_LAST_LF:
+	http_msg_last_lf:
 		/* Assumes msg->sol points to the first of either CR or LF */
 		EXPECT_LF_HERE(ptr, http_msg_invalid);
 		ptr++;
