@@ -5497,7 +5497,9 @@ tcp-request inspect-delay <timeout>
   to use large values, for instance to ensure that the client never talks
   before the server (eg: SMTP), or to wait for a client to talk before passing
   data to the server (eg: SSL). Note that the client timeout must cover at
-  least the inspection delay, otherwise it will expire first.
+  least the inspection delay, otherwise it will expire first. If the client
+  closes the connection or if the buffer is full, the delay immediately expires
+  since the contents will not be able to change anymore.
 
   See also : "tcp-request content accept", "tcp-request content reject",
              "timeout client".

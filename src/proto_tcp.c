@@ -646,7 +646,7 @@ int tcp_inspect_request(struct session *s, struct buffer *req, int an_bit)
 	 * - if one rule returns KO, then return KO
 	 */
 
-	if (req->flags & BF_SHUTR || !s->be->tcp_req.inspect_delay || tick_is_expired(req->analyse_exp, now_ms))
+	if (req->flags & (BF_SHUTR|BF_FULL) || !s->be->tcp_req.inspect_delay || tick_is_expired(req->analyse_exp, now_ms))
 		partial = 0;
 	else
 		partial = ACL_PARTIAL;
