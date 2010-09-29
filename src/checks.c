@@ -743,7 +743,8 @@ static int event_srv_chk_w(int fd)
 		if ((s->proxy->options & PR_O_HTTP_CHK) ||
 		    (s->proxy->options & PR_O_SMTP_CHK) ||
 		    (s->proxy->options2 & PR_O2_SSL3_CHK) ||
-		    (s->proxy->options2 & PR_O2_MYSQL_CHK)) {
+		    (s->proxy->options2 & PR_O2_MYSQL_CHK) ||
+		    (s->proxy->options2 & PR_O2_LDAP_CHK)) {
 			int ret;
 			const char *check_req = s->proxy->check_req;
 			int check_len = s->proxy->check_len;
@@ -866,6 +867,7 @@ static int event_srv_chk_r(int fd)
 	struct server *s = t->context;
 	char *desc;
 	int done;
+	unsigned short msglen;
 
 	if (unlikely((s->result & SRV_CHK_ERROR) || (fdtab[fd].state == FD_STERROR))) {
 		/* in case of TCP only, this tells us if the connection failed */
@@ -1022,6 +1024,60 @@ static int event_srv_chk_r(int fd)
 			 */
 			desc = ltrim(s->check_data + 7, ' ');
 			set_server_check_status(s, HCHK_STATUS_L7STS, desc);
+		}
+	}
+	else if (s->proxy->options2 & PR_O2_LDAP_CHK) {
+		if (!done && s->check_data_len < 14)
+			goto wait_more_data;
+
+		/* Check if the server speaks LDAP (ASN.1/BER)
+		 * http://en.wikipedia.org/wiki/Basic_Encoding_Rules
+		 * http://tools.ietf.org/html/rfc4511
+		 */
+
+		/* http://tools.ietf.org/html/rfc4511#section-4.1.1
+		 *   LDAPMessage: 0x30: SEQUENCE
+		 */
+		if ((s->check_data_len < 14) || (*(s->check_data) != '\x30')) {
+			set_server_check_status(s, HCHK_STATUS_L7RSP, "Not LDAPv3 protocol");
+		}
+		else {
+			 /* size of LDAPMessage */
+			msglen = (*(s->check_data + 1) & 0x80) ? (*(s->check_data + 1) & 0x7f) : 0;
+
+			/* http://tools.ietf.org/html/rfc4511#section-4.2.2
+			 *   messageID: 0x02 0x01 0x01: INTEGER 1
+			 *   protocolOp: 0x61: bindResponse
+			 */
+			if ((msglen > 2) ||
+			    (memcmp(s->check_data + 2 + msglen, "\x02\x01\x01\x61", 4) != 0)) {
+				set_server_check_status(s, HCHK_STATUS_L7RSP, "Not LDAPv3 protocol");
+
+				goto out_wakeup;
+			}
+
+			/* size of bindResponse */
+			msglen += (*(s->check_data + msglen + 6) & 0x80) ? (*(s->check_data + msglen + 6) & 0x7f) : 0;
+
+			/* http://tools.ietf.org/html/rfc4511#section-4.1.9
+			 *   ldapResult: 0x0a 0x01: ENUMERATION
+			 */
+			if ((msglen > 4) ||
+			    (memcmp(s->check_data + 7 + msglen, "\x0a\x01", 2) != 0)) {
+				set_server_check_status(s, HCHK_STATUS_L7RSP, "Not LDAPv3 protocol");
+
+				goto out_wakeup;
+			}
+
+			/* http://tools.ietf.org/html/rfc4511#section-4.1.9
+			 *   resultCode
+			 */
+			s->check_code = *(s->check_data + msglen + 9);
+			if (s->check_code) {
+				set_server_check_status(s, HCHK_STATUS_L7STS, "See RFC: http://tools.ietf.org/html/rfc4511#section-4.1.9");
+			} else {
+				set_server_check_status(s, HCHK_STATUS_L7OKD, "Success");
+			}
 		}
 	}
 	else {

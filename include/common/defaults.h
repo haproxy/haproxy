@@ -118,6 +118,7 @@
 #define DEF_RISETIME    2
 #define DEF_CHECK_REQ   "OPTIONS / HTTP/1.0\r\n"
 #define DEF_SMTP_CHECK_REQ   "HELO localhost\r\n"
+#define DEF_LDAP_CHECK_REQ   "\x30\x0c\x02\x01\x01\x60\x07\x02\x01\x03\x04\x00\x80\x00"
 
 #define DEF_HANA_ONERR		HANA_ONERR_FAILCHK
 #define DEF_HANA_ERRLIMIT	10

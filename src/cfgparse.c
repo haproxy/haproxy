@@ -2748,6 +2748,7 @@ stats_error_parsing:
 			curproxy->options &= ~PR_O_SMTP_CHK;
 			curproxy->options2 &= ~PR_O2_SSL3_CHK;
 			curproxy->options2 &= ~PR_O2_MYSQL_CHK;
+			curproxy->options2 &= ~PR_O2_LDAP_CHK;
 			curproxy->options |= PR_O_HTTP_CHK;
 			if (!*args[2]) { /* no argument */
 				curproxy->check_req = strdup(DEF_CHECK_REQ); /* default request */
@@ -2779,6 +2780,7 @@ stats_error_parsing:
 			curproxy->options &= ~PR_O_HTTP_CHK;
 			curproxy->options &= ~PR_O_SMTP_CHK;
 			curproxy->options2 &= ~PR_O2_MYSQL_CHK;
+			curproxy->options2 &= ~PR_O2_LDAP_CHK;
 			curproxy->options2 |= PR_O2_SSL3_CHK;
 		}
 		else if (!strcmp(args[1], "smtpchk")) {
@@ -2788,6 +2790,7 @@ stats_error_parsing:
 			curproxy->options &= ~PR_O_HTTP_CHK;
 			curproxy->options2 &= ~PR_O2_SSL3_CHK;
 			curproxy->options2 &= ~PR_O2_MYSQL_CHK;
+			curproxy->options2 &= ~PR_O2_LDAP_CHK;
 			curproxy->options |= PR_O_SMTP_CHK;
 
 			if (!*args[2] || !*args[3]) { /* no argument or incomplete EHLO host */
@@ -2814,7 +2817,22 @@ stats_error_parsing:
 			curproxy->options &= ~PR_O_HTTP_CHK;
 			curproxy->options &= ~PR_O_SMTP_CHK;
 			curproxy->options2 &= ~PR_O2_SSL3_CHK;
+			curproxy->options2 &= ~PR_O2_LDAP_CHK;
 			curproxy->options2 |= PR_O2_MYSQL_CHK;
+		}
+		else if (!strcmp(args[1], "ldap-check")) {
+			/* use LDAP request to check servers' health */
+			free(curproxy->check_req);
+			curproxy->check_req = NULL;
+			curproxy->options &= ~PR_O_HTTP_CHK;
+			curproxy->options &= ~PR_O_SMTP_CHK;
+			curproxy->options2 &= ~PR_O2_SSL3_CHK;
+			curproxy->options2 &= ~PR_O2_MYSQL_CHK;
+			curproxy->options2 |= PR_O2_LDAP_CHK;
+
+			curproxy->check_req = (char *) malloc(sizeof(DEF_LDAP_CHECK_REQ) - 1);
+			memcpy(curproxy->check_req, DEF_LDAP_CHECK_REQ, sizeof(DEF_LDAP_CHECK_REQ) - 1);
+			curproxy->check_len = sizeof(DEF_LDAP_CHECK_REQ) - 1;
 		}
 		else if (!strcmp(args[1], "forwardfor")) {
 			int cur_arg;

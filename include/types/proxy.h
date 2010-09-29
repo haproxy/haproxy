@@ -139,6 +139,7 @@
 #define PR_O2_CHK_SNDST 0x00080000      /* send the state of each server along with HTTP health checks */
 #define PR_O2_SSL3_CHK  0x00100000      /* use SSLv3 CLIENT_HELLO packets for server health */
 #define PR_O2_FAKE_KA   0x00200000      /* pretend we do keep-alive with server eventhough we close */
+#define PR_O2_LDAP_CHK  0x00400000      /* use LDAP check for server health */
 /* end of proxy->options2 */
 
 /* bits for sticking rules */

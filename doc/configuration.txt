@@ -898,6 +898,7 @@ option httpclose                     (*)  X          X         X         X
 option httplog                            X          X         X         X
 option http_proxy                    (*)  X          X         X         X
 option independant-streams           (*)  X          X         X         X
+option ldap-check                         X          -         X         X
 option log-health-checks             (*)  X          -         X         X
 option log-separate-errors           (*)  X          X         X         -
 option logasap                       (*)  X          X         X         -
@@ -3118,6 +3119,29 @@ no option independant-streams
   slow lines, so use it with caution.
 
   See also : "timeout client" and "timeout server"
+
+
+option ldap-check
+  Use LDAPv3 health checks for server testing
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments : none
+
+  It is possible to test that the server correctly talks LDAPv3 instead of just
+  testing that it accepts the TCP connection. When this option is set, an
+  LDAPv3 anonymous simple bind message is sent to the server, and the response
+  is analyzed to find an LDAPv3 bind response message.
+
+  The server is considered valid only when the LDAP response contains success
+  resultCode (http://tools.ietf.org/html/rfc4511#section-4.1.9).
+
+  Logging of bind requests is server dependent see your documentation how to
+  configure it.
+
+  Example :
+        option ldap-check
+
+  See also : "option httpchk"
 
 
 option log-health-checks
