@@ -2834,8 +2834,9 @@ no option http-pretend-keepalive
 
   This option may be set both in a frontend and in a backend. It is enabled if
   at least one of the frontend or backend holding a connection has it enabled.
-  This option has no effect if it is combined with "option httpclose", which
-  has precedence.
+  This option may be compbined with "option httpclose", which will cause
+  keepalive to be announced to the server and close to be announced to the
+  client. This practice is discouraged though.
 
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
