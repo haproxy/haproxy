@@ -964,6 +964,7 @@ srvtimeout                  (deprecated)  X          -         X         X
 stats auth                                X          -         X         X
 stats enable                              X          -         X         X
 stats hide-version                        X          -         X         X
+stats http-request                        -          -         X         X
 stats realm                               X          -         X         X
 stats refresh                             X          -         X         X
 stats scope                               X          -         X         X
@@ -2223,7 +2224,7 @@ http-check send-state
 
   See also : "option httpchk", "http-check disable-on-404"
 
-http-request { allow | deny | http-auth [realm <realm>] }
+http-request { allow | deny | auth [realm <realm>] }
              [ { if | unless } <condition> ]
   Access control for Layer 7 requests
 
@@ -2233,8 +2234,8 @@ http-request { allow | deny | http-auth [realm <realm>] }
   These set of options allow to fine control access to a
   frontend/listen/backend. Each option may be followed by if/unless and acl.
   First option with matched condition (or option without condition) is final.
-  For "block" a 403 error will be returned, for "allow" normal processing is
-  performed, for "http-auth" a 401/407 error code is returned so the client
+  For "deny" a 403 error will be returned, for "allow" normal processing is
+  performed, for "auth" a 401/407 error code is returned so the client
   should be asked to enter a username and password.
 
   There is no fixed limit to the number of http-request statements per
@@ -2255,7 +2256,8 @@ http-request { allow | deny | http-auth [realm <realm>] }
 
         http-request auth unless auth_ok
 
-  See section 3.4 about userlists and 7 about ACL usage.
+  See also : "stats http-request", section 3.4 about userlists and section 7
+             about ACL usage.
 
 id <value>
   Set a persistent ID to a proxy.
@@ -4741,6 +4743,27 @@ stats hide-version
         stats refresh 5s
 
   See also : "stats auth", "stats enable", "stats realm", "stats uri"
+
+
+stats http-request { allow | deny | auth [realm <realm>] }
+             [ { if | unless } <condition> ]
+  Access control for statistics
+
+  May be used in sections:   defaults | frontend | listen | backend
+                                no    |    no    |   yes  |   yes
+
+  As "http-request", these set of options allow to fine control access to
+  statistics. Each option may be followed by if/unless and acl.
+  First option with matched condition (or option without condition) is final.
+  For "deny" a 403 error will be returned, for "allow" normal processing is
+  performed, for "auth" a 401/407 error code is returned so the client
+  should be asked to enter a username and password.
+
+  There is no fixed limit to the number of http-request statements per
+  instance.
+
+  See also : "http-request", section 3.4 about userlists and section 7
+             about ACL usage.
 
 
 stats realm <realm>
