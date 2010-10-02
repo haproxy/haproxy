@@ -1374,7 +1374,7 @@ bind [<address>]:<port_range> [, ...] defer-accept
                   the specified port. This keyword is available only when
                   HAProxy is built with USE_LINUX_TPROXY=1.
 
-    defer_accept  is an optional keyword which is supported only on certain
+    defer-accept  is an optional keyword which is supported only on certain
                   Linux kernels. It states that a connection will only be
                   accepted once some data arrive on it, or at worst after the
                   first retransmit. This should be used only on protocols for
