@@ -91,6 +91,7 @@ struct global {
 		int client_rcvbuf; /* set client rcvbuf to this value if not null */
 		int server_sndbuf; /* set server sndbuf to this value if not null */
 		int server_rcvbuf; /* set server rcvbuf to this value if not null */
+		int chksize;       /* check buffer size in bytes, defaults to BUFSIZE */
 	} tune;
 	struct listener stats_sock; /* unix socket listener for statistics */
 	struct proxy *stats_fe;     /* the frontend holding the stats settings */

@@ -496,6 +496,14 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.tune.maxaccept = atol(args[1]);
 	}
+	else if (!strcmp(args[0], "tune.chksize")) {
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		global.tune.chksize = atol(args[1]);
+	}
 	else if (!strcmp(args[0], "tune.bufsize")) {
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
@@ -3786,7 +3794,7 @@ stats_error_parsing:
 			}
 
 			/* Allocate buffer for partial check results... */
-			if ((newsrv->check_data = calloc(BUFSIZE, sizeof(char))) == NULL) {
+			if ((newsrv->check_data = calloc(global.tune.chksize, sizeof(char))) == NULL) {
 				Alert("parsing [%s:%d] : out of memory while allocating check buffer.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;

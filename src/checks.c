@@ -890,8 +890,8 @@ static int event_srv_chk_r(int fd)
 	 */
 
 	done = 0;
-	for (len = 0; s->check_data_len < BUFSIZE; s->check_data_len += len) {
-		len = recv(fd, s->check_data + s->check_data_len, BUFSIZE - s->check_data_len, 0);
+	for (len = 0; s->check_data_len < global.tune.chksize; s->check_data_len += len) {
+		len = recv(fd, s->check_data + s->check_data_len, global.tune.chksize - s->check_data_len, 0);
 		if (len <= 0)
 			break;
 	}
@@ -915,7 +915,7 @@ static int event_srv_chk_r(int fd)
 	/* Intermediate or complete response received.
 	 * Terminate string in check_data buffer.
 	 */
-	if (s->check_data_len < BUFSIZE)
+	if (s->check_data_len < global.tune.chksize)
 		s->check_data[s->check_data_len] = '\0';
 	else {
 		s->check_data[s->check_data_len - 1] = '\0';
