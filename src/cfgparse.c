@@ -1179,6 +1179,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			if (defproxy.cookie_domain)
 				curproxy->cookie_domain = strdup(defproxy.cookie_domain);
 
+			if (defproxy.cookie_maxidle)
+				curproxy->cookie_maxidle = defproxy.cookie_maxidle;
+
+			if (defproxy.cookie_maxlife)
+				curproxy->cookie_maxlife = defproxy.cookie_maxlife;
+
 			if (defproxy.rdp_cookie_name)
 				 curproxy->rdp_cookie_name = strdup(defproxy.rdp_cookie_name);
 			curproxy->rdp_cookie_len = defproxy.rdp_cookie_len;
@@ -1719,8 +1725,50 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				}
 				cur_arg++;
 			}
+			else if (!strcmp(args[cur_arg], "maxidle")) {
+				unsigned int maxidle;
+				const char *res;
+
+				if (!*args[cur_arg + 1]) {
+					Alert("parsing [%s:%d]: '%s' expects <idletime> in seconds as argument.\n",
+						file, linenum, args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				res = parse_time_err(args[cur_arg + 1], &maxidle, TIME_UNIT_S);
+				if (res) {
+					Alert("parsing [%s:%d]: unexpected character '%c' in argument to <%s>.\n",
+					      file, linenum, *res, args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				curproxy->cookie_maxidle = maxidle;
+				cur_arg++;
+			}
+			else if (!strcmp(args[cur_arg], "maxlife")) {
+				unsigned int maxlife;
+				const char *res;
+
+				if (!*args[cur_arg + 1]) {
+					Alert("parsing [%s:%d]: '%s' expects <lifetime> in seconds as argument.\n",
+						file, linenum, args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				res = parse_time_err(args[cur_arg + 1], &maxlife, TIME_UNIT_S);
+				if (res) {
+					Alert("parsing [%s:%d]: unexpected character '%c' in argument to <%s>.\n",
+					      file, linenum, *res, args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				curproxy->cookie_maxlife = maxlife;
+				cur_arg++;
+			}
 			else {
-				Alert("parsing [%s:%d] : '%s' supports 'rewrite', 'insert', 'prefix', 'indirect', 'nocache' and 'postonly', 'domain' options.\n",
+				Alert("parsing [%s:%d] : '%s' supports 'rewrite', 'insert', 'prefix', 'indirect', 'nocache', 'postonly', 'domain', 'maxidle, and 'maxlife' options.\n",
 				      file, linenum, args[0]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
