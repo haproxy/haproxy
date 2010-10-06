@@ -110,6 +110,12 @@
 #define COOKIE_DELIM    '~'
 #endif
 
+// this delimitor is used between a server's name and a last visit date in
+// cookies exchanged with the client.
+#ifndef COOKIE_DELIM_DATE
+#define COOKIE_DELIM_DATE       '|'
+#endif
+
 #define CONN_RETRIES    3
 
 #define	CHK_CONNTIME    2000

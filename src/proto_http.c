@@ -5922,10 +5922,14 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 				}
 			}
 
-			/* For cookies in prefix mode. The form is :
+			/* Persistence cookies in passive, rewrite or insert mode have the
+			 * following form :
+			 *
+			 *    Cookie: NAME=SRV[|<lastseen>[|<firstseen>]]
+			 *
+			 * For cookies in prefix mode, the form is :
 			 *
 			 *    Cookie: NAME=SRV~VALUE
-			 *
 			 */
 			if ((att_end - att_beg == t->be->cookie_len) && (t->be->cookie_name != NULL) &&
 			    (memcmp(att_beg, t->be->cookie_name, att_end - att_beg) == 0)) {
@@ -5952,10 +5956,21 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 					for (delim = val_beg; delim < val_end; delim++)
 						if (*delim == COOKIE_DELIM)
 							break;
-				}
-				else
+				} else {
+					char *vbar1;
 					delim = val_end;
-
+					/* Now check if the cookie contains a date field, which would
+					 * appear after a vertical bar ('|') just after the server name
+					 * and before the delimiter.
+					 */
+					vbar1 = memchr(val_beg, COOKIE_DELIM_DATE, val_end - val_beg);
+					if (vbar1) {
+						/* OK, so left of the bar is the server's cookie and
+						 * right is the last seen date.
+						 */
+						delim = vbar1++;
+					}
+				}
 
 				/* Here, we'll look for the first running server which supports the cookie.
 				 * This allows to share a same cookie between several servers, for example
