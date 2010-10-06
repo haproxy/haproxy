@@ -36,25 +36,22 @@
 #define TX_SVALLOW	0x00000008	/* a server header matches an allow regex */
 #define TX_CLTARPIT	0x00000010	/* the session is tarpitted (anti-dos) */
 
-/* used only for keep-alive purposes, to indicate we're on a second transaction */
-#define TX_NOT_FIRST	0x00000020	/* the transaction is not the first one */
-
-/* transaction flags dedicated to cookies : bits values 0x40, 0x80 (0-3 shift 6) */
+/* transaction flags dedicated to cookies : bits values 0x20 to 0x80 (0-7 shift 5) */
 #define TX_CK_NONE	0x00000000	/* this session had no cookie */
-#define TX_CK_INVALID	0x00000040	/* this session had a cookie which matches no server */
-#define TX_CK_DOWN	0x00000080	/* this session had cookie matching a down server */
-#define TX_CK_VALID	0x000000C0	/* this session had cookie matching a valid server */
-#define TX_CK_MASK	0x000000C0	/* mask to get this session's cookie flags */
-#define TX_CK_SHIFT	6		/* bit shift */
+#define TX_CK_INVALID	0x00000020	/* this session had a cookie which matches no server */
+#define TX_CK_DOWN	0x00000040	/* this session had cookie matching a down server */
+#define TX_CK_VALID	0x00000060	/* this session had cookie matching a valid server */
+#define TX_CK_MASK	0x000000E0	/* mask to get this session's cookie flags */
+#define TX_CK_SHIFT	5		/* bit shift */
 
-/* cookie information, bits values 0x100 to 0x800 (0-8 shift 8) */
+/* cookie information, bits values 0x100 to 0x700 (0-7 shift 8) */
 #define TX_SCK_NONE	0x00000000	/* no set-cookie seen for the server cookie */
 #define TX_SCK_DELETED	0x00000100	/* existing set-cookie deleted or changed */
 #define TX_SCK_INSERTED	0x00000200	/* new set-cookie inserted or changed existing one */
 #define TX_SCK_SEEN	0x00000400	/* set-cookie seen for the server cookie */
 #define TX_SCK_MASK	0x00000700	/* mask to get the set-cookie field */
-#define TX_SCK_ANY	0x00000800	/* at least one set-cookie seen (not to be counted) */
 #define TX_SCK_SHIFT	8		/* bit shift */
+#define TX_SCK_ANY	0x00000800	/* at least one set-cookie seen (not to be counted) */
 
 /* cacheability management, bits values 0x1000 to 0x3000 (0-3 shift 12) */
 #define TX_CACHEABLE	0x00001000	/* at least part of the response is cacheable */
@@ -100,6 +97,9 @@
 #define TX_HDR_CONN_KAL	0x20000000	/* "Connection: keep-alive" was present at least once */
 #define TX_USE_PX_CONN	0x40000000	/* Use "Proxy-Connection" instead of "Connection" */
 
+/* used only for keep-alive purposes, to indicate we're on a second transaction */
+#define TX_NOT_FIRST	0x80000000	/* the transaction is not the first one */
+/* no more room for transaction flags ! */
 
 /* The HTTP parser is more complex than it looks like, because we have to
  * support multi-line headers and any number of spaces between the colon and
