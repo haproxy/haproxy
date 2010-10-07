@@ -5967,10 +5967,53 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 					vbar1 = memchr(val_beg, COOKIE_DELIM_DATE, val_end - val_beg);
 					if (vbar1) {
 						/* OK, so left of the bar is the server's cookie and
-						 * right is the last seen date.
+						 * right is the last seen date. It is a base64 encoded
+						 * 30-bit value representing the UNIX date since the
+						 * epoch in 4-second quantities.
 						 */
+						int val;
 						delim = vbar1++;
+						if (val_end - vbar1 >= 5) {
+							val = b64tos30(vbar1);
+							if (val > 0)
+								txn->cookie_last_date = val << 2;
+						}
+						/* look for a second vertical bar */
+						vbar1 = memchr(vbar1, COOKIE_DELIM_DATE, val_end - vbar1);
+						if (vbar1 && (val_end - vbar1 > 5)) {
+							val = b64tos30(vbar1 + 1);
+							if (val > 0)
+								txn->cookie_first_date = val << 2;
+						}
 					}
+				}
+
+				/* if the cookie has an expiration date and the proxy wants to check
+				 * it, then we do that now. We first check if the cookie is too old,
+				 * then only if it has expired. We detect strict overflow because the
+				 * time resolution here is not great (4 seconds). Cookies with dates
+				 * in the future are ignored if their offset is beyond one day. This
+				 * allows an admin to fix timezone issues without expiring everyone
+				 * and at the same time avoids keeping unwanted side effects for too
+				 * long.
+				 */
+				if (txn->cookie_first_date && t->be->cookie_maxlife &&
+				    ((signed)(date.tv_sec - txn->cookie_first_date) > t->be->cookie_maxlife ||
+				     (signed)(txn->cookie_first_date - date.tv_sec) > 86400)) {
+					txn->flags &= ~TX_CK_MASK;
+					txn->flags |= TX_CK_OLD;
+					delim = val_beg; // let's pretend we have not found the cookie
+					txn->cookie_first_date = 0;
+					txn->cookie_last_date = 0;
+				}
+				else if (txn->cookie_last_date && t->be->cookie_maxidle &&
+					 ((signed)(date.tv_sec - txn->cookie_last_date) > t->be->cookie_maxidle ||
+					  (signed)(txn->cookie_last_date - date.tv_sec) > 86400)) {
+					txn->flags &= ~TX_CK_MASK;
+					txn->flags |= TX_CK_EXPIRED;
+					delim = val_beg; // let's pretend we have not found the cookie
+					txn->cookie_first_date = 0;
+					txn->cookie_last_date = 0;
 				}
 
 				/* Here, we'll look for the first running server which supports the cookie.
@@ -6008,7 +6051,7 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 					srv = srv->next;
 				}
 
-				if (!srv && !(txn->flags & TX_CK_DOWN)) {
+				if (!srv && !(txn->flags & (TX_CK_DOWN|TX_CK_EXPIRED|TX_CK_OLD))) {
 					/* no server matched this cookie */
 					txn->flags &= ~TX_CK_MASK;
 					txn->flags |= TX_CK_INVALID;
@@ -7036,6 +7079,9 @@ void http_init_txn(struct session *s)
 
 	txn->flags = 0;
 	txn->status = -1;
+
+	txn->cookie_first_date = 0;
+	txn->cookie_last_date = 0;
 
 	txn->req.sol = txn->req.eol = NULL;
 	txn->req.som = txn->req.eoh = 0; /* relative to the buffer */
