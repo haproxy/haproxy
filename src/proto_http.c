@@ -837,10 +837,10 @@ void http_return_srv_error(struct session *s, struct stream_interface *si)
 extern const char sess_term_cond[8];
 extern const char sess_fin_state[8];
 extern const char *monthname[12];
-const char sess_cookie[8]     = "NIDVEO67";	/* No cookie, Invalid cookie, cookie for a Down server, Valid cookie, Expired cookie, Old cookie */
-const char sess_set_cookie[8] = "N1I3PD5R";	/* No set-cookie, unknown, Set-Cookie Inserted, unknown,
-					    	   Set-cookie seen and left unchanged (passive), Set-cookie Deleted,
-						   unknown, Set-cookie Rewritten */
+const char sess_cookie[8]     = "NIDVEO67";	/* No cookie, Invalid cookie, cookie for a Down server, Valid cookie, Expired cookie, Old cookie, unknown */
+const char sess_set_cookie[8] = "NPDIRU67";	/* No set-cookie, Set-cookie found and left unchanged (passive),
+						   Set-cookie Deleted, Set-Cookie Inserted, Set-cookie Rewritten,
+						   Set-cookie Updated, unknown, unknown */
 struct pool_head *pool2_requri;
 struct pool_head *pool2_capture;
 
@@ -4983,6 +4983,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 			if (unlikely(http_header_add_tail2(rep, &txn->rsp, &txn->hdr_idx,
 							   trash, len) < 0))
 				goto return_bad_resp;
+			txn->flags &= ~TX_SCK_MASK;
 			txn->flags |= TX_SCK_INSERTED;
 
 			/* Here, we will tell an eventual cache on the client side that we don't
@@ -5005,8 +5006,8 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 		 * We'll block the response if security checks have caught
 		 * nasty things such as a cacheable cookie.
 		 */
-		if (((txn->flags & (TX_CACHEABLE | TX_CACHE_COOK | TX_SCK_ANY)) ==
-		     (TX_CACHEABLE | TX_CACHE_COOK | TX_SCK_ANY)) &&
+		if (((txn->flags & (TX_CACHEABLE | TX_CACHE_COOK | TX_SCK_PRESENT)) ==
+		     (TX_CACHEABLE | TX_CACHE_COOK | TX_SCK_PRESENT)) &&
 		    (t->be->options & PR_O_CHK_CACHE)) {
 
 			/* we're in presence of a cacheable response containing
@@ -6400,7 +6401,7 @@ void manage_server_side_cookies(struct session *t, struct buffer *res)
 		/* OK, right now we know we have a Set-Cookie* at hdr_beg, and
 		 * <prev> points to the colon.
 		 */
-		txn->flags |= TX_SCK_ANY;
+		txn->flags |= TX_SCK_PRESENT;
 
 		/* Maybe we only wanted to see if there was a Set-Cookie (eg:
 		 * check-cache is enabled) and we are not interested in checking
@@ -6561,7 +6562,9 @@ void manage_server_side_cookies(struct session *t, struct buffer *res)
 			if (!(t->flags & SN_IGNORE_PRST) &&
 			    (att_end - att_beg == t->be->cookie_len) && (t->be->cookie_name != NULL) &&
 			    (memcmp(att_beg, t->be->cookie_name, att_end - att_beg) == 0)) {
-				txn->flags |= TX_SCK_SEEN;
+				/* assume passive cookie by default */
+				txn->flags &= ~TX_SCK_MASK;
+				txn->flags |= TX_SCK_FOUND;
 			
 				/* If the cookie is in insert mode on a known server, we'll delete
 				 * this occurrence because we'll insert another one later.
@@ -6591,6 +6594,7 @@ void manage_server_side_cookies(struct session *t, struct buffer *res)
 						cur_hdr->len += delta;
 						http_msg_move_end(&txn->rsp, delta);
 					}
+					txn->flags &= ~TX_SCK_MASK;
 					txn->flags |= TX_SCK_DELETED;
 					/* and go on with next cookie */
 				}
@@ -6606,7 +6610,8 @@ void manage_server_side_cookies(struct session *t, struct buffer *res)
 					cur_hdr->len += delta;
 					http_msg_move_end(&txn->rsp, delta);
 
-					txn->flags |= TX_SCK_INSERTED | TX_SCK_DELETED;
+					txn->flags &= ~TX_SCK_MASK;
+					txn->flags |= TX_SCK_REPLACED;
 				}
 				else if ((t->srv) && (t->srv->cookie) &&
 					 (t->be->options & PR_O_COOK_PFX)) {
@@ -6621,7 +6626,8 @@ void manage_server_side_cookies(struct session *t, struct buffer *res)
 					http_msg_move_end(&txn->rsp, delta);
 
 					val_beg[t->srv->cklen] = COOKIE_DELIM;
-					txn->flags |= TX_SCK_INSERTED | TX_SCK_DELETED;
+					txn->flags &= ~TX_SCK_MASK;
+					txn->flags |= TX_SCK_REPLACED;
 				}
 			}
 			/* next, let's see if the cookie is our appcookie, unless persistence must be ignored */

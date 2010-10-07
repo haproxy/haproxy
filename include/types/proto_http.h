@@ -46,14 +46,17 @@
 #define TX_CK_MASK	0x000000E0	/* mask to get this session's cookie flags */
 #define TX_CK_SHIFT	5		/* bit shift */
 
-/* cookie information, bits values 0x100 to 0x700 (0-7 shift 8) */
-#define TX_SCK_NONE	0x00000000	/* no set-cookie seen for the server cookie */
-#define TX_SCK_DELETED	0x00000100	/* existing set-cookie deleted or changed */
-#define TX_SCK_INSERTED	0x00000200	/* new set-cookie inserted or changed existing one */
-#define TX_SCK_SEEN	0x00000400	/* set-cookie seen for the server cookie */
+/* response cookie information, bits values 0x100 to 0x700 (0-7 shift 8) */
+#define TX_SCK_NONE	0x00000000	/* no cookie found in the response */
+#define TX_SCK_FOUND    0x00000100	/* a persistence cookie was found and forwarded */
+#define TX_SCK_DELETED	0x00000200	/* an existing persistence cookie was deleted */
+#define TX_SCK_INSERTED	0x00000300	/* a persistence cookie was inserted */
+#define TX_SCK_REPLACED	0x00000400	/* a persistence cookie was present and rewritten */
+#define TX_SCK_UPDATED	0x00000500	/* an expirable persistence cookie was updated */
 #define TX_SCK_MASK	0x00000700	/* mask to get the set-cookie field */
 #define TX_SCK_SHIFT	8		/* bit shift */
-#define TX_SCK_ANY	0x00000800	/* at least one set-cookie seen (not to be counted) */
+
+#define TX_SCK_PRESENT  0x00000800	/* a cookie was found in the server's response */
 
 /* cacheability management, bits values 0x1000 to 0x3000 (0-3 shift 12) */
 #define TX_CACHEABLE	0x00001000	/* at least part of the response is cacheable */
