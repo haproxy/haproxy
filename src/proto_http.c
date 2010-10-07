@@ -4963,19 +4963,46 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 		/*
 		 * 6: add server cookie in the response if needed
 		 */
-		if ((t->srv) && !(t->flags & SN_DIRECT) && (t->be->options & PR_O_COOK_INS) &&
+		if ((t->srv) && (t->be->options & PR_O_COOK_INS) &&
+		    (!(t->flags & SN_DIRECT) ||
+		     ((t->be->cookie_maxidle || txn->cookie_last_date) &&
+		      (!txn->cookie_last_date || (txn->cookie_last_date - date.tv_sec) < 0)) ||
+		     (t->be->cookie_maxlife && !txn->cookie_first_date) ||  // set the first_date
+		     (!t->be->cookie_maxlife && txn->cookie_first_date)) && // remove the first_date
 		    (!(t->be->options & PR_O_COOK_POST) || (txn->meth == HTTP_METH_POST)) &&
 		    !(t->flags & SN_IGNORE_PRST)) {
 			int len;
-
-			/* the server is known, it's not the one the client requested, we have to
+			/* the server is known, it's not the one the client requested, or the
+			 * cookie's last seen date needs to be refreshed. We have to
 			 * insert a set-cookie here, except if we want to insert only on POST
 			 * requests and this one isn't. Note that servers which don't have cookies
 			 * (eg: some backup servers) will return a full cookie removal request.
 			 */
-			len = sprintf(trash, "Set-Cookie: %s=%s; path=/",
-				      t->be->cookie_name,
-				      t->srv->cookie ? t->srv->cookie : "; Expires=Thu, 01-Jan-1970 00:00:01 GMT");
+			if (!t->srv->cookie) {
+				len = sprintf(trash,
+					      "Set-Cookie: %s=; Expires=Thu, 01-Jan-1970 00:00:01 GMT; path=/",
+					      t->be->cookie_name);
+			}
+			else {
+				len = sprintf(trash, "Set-Cookie: %s=%s", t->be->cookie_name, t->srv->cookie);
+
+				if (t->be->cookie_maxidle || t->be->cookie_maxlife) {
+					/* emit last_date, which is mandatory */
+					trash[len++] = COOKIE_DELIM_DATE;
+					s30tob64((date.tv_sec+3) >> 2, trash + len); len += 5;
+					if (t->be->cookie_maxlife) {
+						/* emit first_date, which is either the original one or
+						 * the current date.
+						 */
+						trash[len++] = COOKIE_DELIM_DATE;
+						s30tob64(txn->cookie_first_date ?
+							 txn->cookie_first_date >> 2 :
+							 (date.tv_sec+3) >> 2, trash + len);
+						len += 5;
+					}
+				}
+				len += sprintf(trash + len, "; path=/");
+			}
 
 			if (t->be->cookie_domain)
 				len += sprintf(trash+len, "; domain=%s", t->be->cookie_domain);
@@ -4983,8 +5010,13 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 			if (unlikely(http_header_add_tail2(rep, &txn->rsp, &txn->hdr_idx,
 							   trash, len) < 0))
 				goto return_bad_resp;
+
 			txn->flags &= ~TX_SCK_MASK;
-			txn->flags |= TX_SCK_INSERTED;
+			if (t->srv->cookie && (t->flags & SN_DIRECT))
+				/* the server did not change, only the date was updated */
+				txn->flags |= TX_SCK_UPDATED;
+			else
+				txn->flags |= TX_SCK_INSERTED;
 
 			/* Here, we will tell an eventual cache on the client side that we don't
 			 * want it to cache this reply because HTTP/1.0 caches also cache cookies !
@@ -5998,8 +6030,8 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 				 * long.
 				 */
 				if (txn->cookie_first_date && t->be->cookie_maxlife &&
-				    ((signed)(date.tv_sec - txn->cookie_first_date) > t->be->cookie_maxlife ||
-				     (signed)(txn->cookie_first_date - date.tv_sec) > 86400)) {
+				    (((signed)(date.tv_sec - txn->cookie_first_date) > (signed)t->be->cookie_maxlife) ||
+				     ((signed)(txn->cookie_first_date - date.tv_sec) > 86400))) {
 					txn->flags &= ~TX_CK_MASK;
 					txn->flags |= TX_CK_OLD;
 					delim = val_beg; // let's pretend we have not found the cookie
@@ -6007,8 +6039,8 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 					txn->cookie_last_date = 0;
 				}
 				else if (txn->cookie_last_date && t->be->cookie_maxidle &&
-					 ((signed)(date.tv_sec - txn->cookie_last_date) > t->be->cookie_maxidle ||
-					  (signed)(txn->cookie_last_date - date.tv_sec) > 86400)) {
+					 (((signed)(date.tv_sec - txn->cookie_last_date) > (signed)t->be->cookie_maxidle) ||
+					  ((signed)(txn->cookie_last_date - date.tv_sec) > 86400))) {
 					txn->flags &= ~TX_CK_MASK;
 					txn->flags |= TX_CK_EXPIRED;
 					delim = val_beg; // let's pretend we have not found the cookie
