@@ -1,7 +1,7 @@
 /*
  * ASCII <-> Base64 conversion as described in RFC1421.
  *
- * Copyright 2006-2008 Willy Tarreau <w@1wt.eu>
+ * Copyright 2006-2010 Willy Tarreau <w@1wt.eu>
  * Copyright 2009-2010 Krzysztof Piotr Oledzki <ole@ans.pl>
  *
  * This program is free software; you can redistribute it and/or
@@ -134,4 +134,51 @@ int base64dec(const char *in, size_t ilen, char *out, size_t olen) {
 	}
 
 	return convlen;
+}
+
+
+/* Converts the lower 30 bits of an integer to a 5-char base64 string. The
+ * caller is responsible for ensuring that the output buffer can accept 6 bytes
+ * (5 + the trailing zero). The pointer to the string is returned. The
+ * conversion is performed with MSB first and in a format that can be
+ * decoded with b64tos30(). This format is not padded and thus is not
+ * compatible with usual base64 routines.
+ */
+const char *s30tob64(int in, char *out)
+{
+	int i;
+	for (i = 0; i < 5; i++) {
+		out[i] = base64tab[(in >> 24) & 0x3F];
+		in <<= 6;
+	}
+	out[5] = '\0';
+	return out;
+}
+
+/* Converts a 5-char base64 string encoded by s30tob64() into a 30-bit integer.
+ * The caller is responsible for ensuring that the input contains at least 5
+ * chars. If any unexpected character is encountered, a negative value is
+ * returned.  Otherwise the decoded value is returned.
+ */
+int b64tos30(const char *in)
+{
+	int i, out;
+	signed char b;
+
+	out = 0;
+	for (i = 0; i < 5; i++) {
+		b = (signed char)in[i] - B64CMIN;
+		if ((unsigned char)b > (B64CMAX - B64CMIN))
+			return -1;  /* input character out of range */
+
+		b = base64rev[b] - B64BASE - 1;
+		if (b < 0)          /* invalid character */
+			return -1;
+
+		if (b == B64PADV)   /* padding not allowed */
+			return -1;
+
+		out = (out << 6) + b;
+	}
+	return out;
 }
