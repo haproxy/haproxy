@@ -837,7 +837,7 @@ void http_return_srv_error(struct session *s, struct stream_interface *si)
 extern const char sess_term_cond[8];
 extern const char sess_fin_state[8];
 extern const char *monthname[12];
-const char sess_cookie[4]     = "NIDV";		/* No cookie, Invalid cookie, cookie for a Down server, Valid cookie */
+const char sess_cookie[8]     = "NIDVEO67";	/* No cookie, Invalid cookie, cookie for a Down server, Valid cookie, Expired cookie, Old cookie */
 const char sess_set_cookie[8] = "N1I3PD5R";	/* No set-cookie, unknown, Set-Cookie Inserted, unknown,
 					    	   Set-cookie seen and left unchanged (passive), Set-cookie Deleted,
 						   unknown, Set-cookie Rewritten */
