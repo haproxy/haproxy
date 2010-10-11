@@ -2533,6 +2533,40 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		if (!*args[1]) {
 			goto stats_error_parsing;
+		} else if (!strcmp(args[1], "admin")) {
+			struct stats_admin_rule *rule;
+
+			if (curproxy == &defproxy) {
+				Alert("parsing [%s:%d]: '%s %s' not allowed in 'defaults' section.\n", file, linenum, args[0], args[1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+
+			if (!stats_check_init_uri_auth(&curproxy->uri_auth)) {
+				Alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
+
+			if (strcmp(args[2], "if") != 0 && strcmp(args[2], "unless") != 0) {
+				Alert("parsing [%s:%d] : '%s %s' requires either 'if' or 'unless' followed by a condition.\n",
+				file, linenum, args[0], args[1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			if ((cond = build_acl_cond(file, linenum, curproxy, (const char **)args + 2)) == NULL) {
+				Alert("parsing [%s:%d] : error detected while parsing a '%s %s' rule.\n",
+				file, linenum, args[0], args[1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+
+			err_code |= warnif_cond_requires_resp(cond, file, linenum);
+
+			rule = (struct stats_admin_rule *)calloc(1, sizeof(*rule));
+			rule->cond = cond;
+			LIST_INIT(&rule->list);
+			LIST_ADDQ(&curproxy->uri_auth->admin_rules, &rule->list);
 		} else if (!strcmp(args[1], "uri")) {
 			if (*(args[2]) == 0) {
 				Alert("parsing [%s:%d] : 'uri' needs an URI prefix.\n", file, linenum);
@@ -2695,7 +2729,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			}
 		} else {
 stats_error_parsing:
-			Alert("parsing [%s:%d]: %s '%s', expects 'uri', 'realm', 'auth', 'scope', 'enable', 'hide-version', 'show-node', 'show-desc' or 'show-legends'.\n",
+			Alert("parsing [%s:%d]: %s '%s', expects 'admin', 'uri', 'realm', 'auth', 'scope', 'enable', 'hide-version', 'show-node', 'show-desc' or 'show-legends'.\n",
 			      file, linenum, *args[1]?"unknown stats parameter":"missing keyword in", args[*args[1]?1:0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;

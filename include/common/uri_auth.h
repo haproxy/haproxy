@@ -43,6 +43,7 @@ struct uri_auth {
 	struct stat_scope *scope;	/* linked list of authorized proxies */
 	struct userlist *userlist;	/* private userlist to emulate legacy "stats auth user:password" */
 	struct list req_acl; 		/* http stats ACL: allow/deny/auth */
+	struct list admin_rules;	/* 'stats admin' rules (chained) */
 	struct uri_auth *next;		/* Used at deinit() to build a list of unique elements */
 };
 
@@ -59,6 +60,12 @@ struct uri_auth {
 #else
 #define STATS_DEFAULT_REALM "HAProxy Statistics"
 #endif
+
+
+struct stats_admin_rule {
+	struct list list;	/* list linked to from the proxy */
+	struct acl_cond *cond;	/* acl condition to meet */
+};
 
 
 /* Various functions used to set the fields during the configuration parsing.

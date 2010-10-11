@@ -3152,14 +3152,38 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 	}
 
 	if (do_stats) {
-		/* We need to provied stats for this request.
+		struct stats_admin_rule *stats_admin_rule;
+
+		/* We need to provide stats for this request.
 		 * FIXME!!! that one is rather dangerous, we want to
 		 * make it follow standard rules (eg: clear req->analysers).
 		 */
 
+		/* now check whether we have some admin rules for this request */
+		list_for_each_entry(stats_admin_rule, &s->be->uri_auth->admin_rules, list) {
+			int ret = 1;
+
+			if (stats_admin_rule->cond) {
+				ret = acl_exec_cond(stats_admin_rule->cond, s->be, s, &s->txn, ACL_DIR_REQ);
+				ret = acl_pass(ret);
+				if (stats_admin_rule->cond->pol == ACL_COND_UNLESS)
+					ret = !ret;
+			}
+
+			if (ret) {
+				/* no rule, or the rule matches */
+				s->data_ctx.stats.flags |= STAT_ADMIN;
+				break;
+			}
+		}
+
 		/* Was the status page requested with a POST ? */
 		if (txn->meth == HTTP_METH_POST) {
-			http_process_req_stat_post(s, req);
+			if (s->data_ctx.stats.flags & STAT_ADMIN) {
+				http_process_req_stat_post(s, req);
+			} else {
+				s->data_ctx.stats.st_code = STAT_STATUS_DENY;
+			}
 		}
 
 		s->logs.tv_request = now;
@@ -7124,6 +7148,8 @@ int stats_check_uri(struct session *t, struct proxy *backend)
 				t->data_ctx.stats.st_code = STAT_STATUS_NONE;
 			else if (memcmp(h, STAT_STATUS_EXCD, 4) == 0)
 				t->data_ctx.stats.st_code = STAT_STATUS_EXCD;
+			else if (memcmp(h, STAT_STATUS_DENY, 4) == 0)
+				t->data_ctx.stats.st_code = STAT_STATUS_DENY;
 			else
 				t->data_ctx.stats.st_code = STAT_STATUS_UNKN;
 			break;

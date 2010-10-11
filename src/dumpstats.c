@@ -1514,6 +1514,13 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 						     "You should retry with less servers at a time.</b>"
 						     "</div>\n", uri->uri_prefix);
 				}
+				else if (strcmp(s->data_ctx.stats.st_code, STAT_STATUS_DENY) == 0) {
+					chunk_printf(&msg,
+						     "<p><div class=active0>"
+						     "<a class=lfsb href=\"%s\" title=\"Remove this message\">[X]</a> "
+						     "<b>Action denied.</b>"
+						     "</div>\n", uri->uri_prefix);
+				}
 				else {
 					chunk_printf(&msg,
 						     "<p><div class=active6>"
@@ -1624,7 +1631,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 
 	case DATA_ST_PX_TH:
 		if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
-			if (px->cap & PR_CAP_BE && px->srv) {
+			if (px->cap & PR_CAP_BE && px->srv && (s->data_ctx.stats.flags & STAT_ADMIN)) {
 				/* A form to enable/disable this proxy servers */
 				chunk_printf(&msg,
 					"<form action=\"%s\" method=\"post\">",
@@ -1659,7 +1666,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     (uri->flags & ST_SHLGNDS)?"</u>":"",
 				     px->desc ? "desc" : "empty", px->desc ? px->desc : "");
 
-			if (px->cap & PR_CAP_BE && px->srv) {
+			if (px->cap & PR_CAP_BE && px->srv && (s->data_ctx.stats.flags & STAT_ADMIN)) {
 				 /* Column heading for Enable or Disable server */
 				chunk_printf(&msg, "<th rowspan=2 width=1></th>");
 			}
@@ -1699,7 +1706,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     /* name, queue */
 				     "<tr class=\"frontend\">");
 
-				if (px->cap & PR_CAP_BE && px->srv) {
+				if (px->cap & PR_CAP_BE && px->srv && (s->data_ctx.stats.flags & STAT_ADMIN)) {
 					/* Column sub-heading for Enable or Disable server */
 					chunk_printf(&msg, "<td></td>");
 				}
@@ -1867,7 +1874,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 
 			if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
 				chunk_printf(&msg, "<tr class=socket>");
-				if (px->cap & PR_CAP_BE && px->srv) {
+				if (px->cap & PR_CAP_BE && px->srv && (s->data_ctx.stats.flags & STAT_ADMIN)) {
 					 /* Column sub-heading for Enable or Disable server */
 					chunk_printf(&msg, "<td></td>");
 				}
@@ -2055,10 +2062,13 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 					    (sv->state & SRV_BACKUP) ? "backup" : "active", sv_state);
 				}
 
-				chunk_printf(&msg,
-					     "<td><input type=\"checkbox\" name=\"s\" value=\"%s\"></td>"
-					     "<td class=ac",
-					     sv->id);
+				if (px->cap & PR_CAP_BE && px->srv && (s->data_ctx.stats.flags & STAT_ADMIN)) {
+					chunk_printf(&msg,
+						"<td><input type=\"checkbox\" name=\"s\" value=\"%s\"></td>",
+						sv->id);
+				}
+
+				chunk_printf(&msg, "<td class=ac");
 
 				if (uri->flags&ST_SHLGNDS) {
 					char str[INET6_ADDRSTRLEN];
@@ -2391,7 +2401,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 		    (!(s->data_ctx.stats.flags & STAT_BOUND) || (s->data_ctx.stats.type & (1 << STATS_TYPE_BE)))) {
 			if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
 				chunk_printf(&msg, "<tr class=\"backend\">");
-				if (px->cap & PR_CAP_BE && px->srv) {
+				if (px->cap & PR_CAP_BE && px->srv && (s->data_ctx.stats.flags & STAT_ADMIN)) {
 					/* Column sub-heading for Enable or Disable server */
 					chunk_printf(&msg, "<td></td>");
 				}
@@ -2584,7 +2594,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 		if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
 			chunk_printf(&msg, "</table>");
 
-			if (px->cap & PR_CAP_BE && px->srv) {
+			if (px->cap & PR_CAP_BE && px->srv && (s->data_ctx.stats.flags & STAT_ADMIN)) {
 				/* close the form used to enable/disable this proxy servers */
 				chunk_printf(&msg,
 					"Choose the action to perform on the checked servers : "
