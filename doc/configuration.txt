@@ -961,6 +961,7 @@ rsprep                                    -          X         X         X
 server                                    -          -         X         X
 source                                    X          -         X         X
 srvtimeout                  (deprecated)  X          -         X         X
+stats admin                               -          -         X         X
 stats auth                                X          -         X         X
 stats enable                              X          -         X         X
 stats hide-version                        X          -         X         X
@@ -4653,6 +4654,57 @@ srvtimeout <timeout> (deprecated)
   Please use "timeout server" instead.
 
   See also : "timeout server", "timeout client" and "clitimeout".
+
+
+stats admin { if | unless } <cond>
+  Enable statistics admin level if/unless a condition is matched
+  May be used in sections :   defaults | frontend | listen | backend
+                                 no    |    no    |   yes  |   yes
+
+  This statement enables the statistics admin level if/unless a condition is
+  matched.
+
+  The admin level allows to enable/disable servers from the web interface. By
+  default, statistics page is read-only for security reasons.
+
+  Currently, there are 2 known limitations :
+
+    - The POST data are limited to one packet, which means that if the list of
+      servers is too long, the request won't be processed. It is recommended
+      to alter few servers at a time.
+
+    - Expect: 100-continue is not supported.
+
+  Example :
+    # statistics admin level only for localhost
+    backend stats_localhost
+        stats enable
+        stats admin if LOCALHOST
+
+  Example :
+    # statistics admin level always enabled because of the authentication
+    backend stats_auth
+        stats enable
+        stats auth  admin:AdMiN123
+        stats admin if TRUE
+
+  Example :
+    # statistics admin level depends on the authenticated user
+    userlist stats-auth
+        group admin    users admin
+        user  admin    insecure-password AdMiN123
+        group readonly users haproxy
+        user  haproxy  insecure-password haproxy
+
+    backend stats_auth
+        stats enable
+        acl AUTH       http_auth(stats-auth)
+        acl AUTH_ADMIN http_auth_group(stats-auth) admin
+        stats http-request auth unless AUTH
+        stats admin if AUTH_ADMIN
+
+  See also : "stats enable", "stats auth", "stats http-request", section 3.4
+             about userlists and section 7 about ACL usage.
 
 
 stats auth <user>:<passwd>
