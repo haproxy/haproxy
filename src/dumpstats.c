@@ -1135,6 +1135,44 @@ int stats_dump_raw_to_buffer(struct session *s, struct buffer *rep)
 }
 
 
+/* We don't want to land on the posted stats page because a refresh will
+ * repost the data.  We don't want this to happen on accident so we redirect
+ * the browse to the stats page with a GET.
+ */
+int stats_http_redir(struct session *s, struct buffer *rep, struct uri_auth *uri)
+{
+	struct chunk msg;
+
+	chunk_init(&msg, trash, sizeof(trash));
+
+	switch (s->data_state) {
+	case DATA_ST_INIT:
+		chunk_printf(&msg,
+			"HTTP/1.0 303 See Other\r\n"
+			"Cache-Control: no-cache\r\n"
+			"Content-Type: text/plain\r\n"
+			"Connection: close\r\n"
+			"Location: %s;st=%s",
+			uri->uri_prefix, s->data_ctx.stats.st_code);
+		chunk_printf(&msg, "\r\n\r\n");
+
+		if (buffer_feed_chunk(rep, &msg) >= 0)
+			return 0;
+
+		s->txn.status = 303;
+
+		if (!(s->flags & SN_ERR_MASK))  // this is not really an error but it is
+			s->flags |= SN_ERR_PRXCOND; // to mark that it comes from the proxy
+		if (!(s->flags & SN_FINST_MASK))
+			s->flags |= SN_FINST_R;
+
+		s->data_state = DATA_ST_FIN;
+		return 1;
+	}
+	return 1;
+}
+
+
 /* This I/O handler runs as an applet embedded in a stream interface. It is
  * used to send HTTP stats over a TCP socket. The mechanism is very simple.
  * si->st0 becomes non-zero once the transfer is finished. The handler
@@ -1154,9 +1192,16 @@ void http_stats_io_handler(struct stream_interface *si)
 		si->st0 = 1;
 
 	if (!si->st0) {
-		if (stats_dump_http(s, res, s->be->uri_auth)) {
-			si->st0 = 1;
-			si->shutw(si);
+		if (s->txn.meth == HTTP_METH_POST) {
+			if (stats_http_redir(s, res, s->be->uri_auth)) {
+				si->st0 = 1;
+				si->shutw(si);
+			}
+		} else {
+			if (stats_dump_http(s, res, s->be->uri_auth)) {
+				si->st0 = 1;
+				si->shutw(si);
+			}
 		}
 	}
 
@@ -1446,6 +1491,39 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 			     ""
 			     );
 
+			if (s->data_ctx.stats.st_code) {
+				if (strcmp(s->data_ctx.stats.st_code, STAT_STATUS_DONE) == 0) {
+					chunk_printf(&msg,
+						     "<p><div class=active3>"
+						     "<a class=lfsb href=\"%s\" title=\"Remove this message\">[X]</a> "
+						     "Action processed successfully."
+						     "</div>\n", uri->uri_prefix);
+				}
+				else if (strcmp(s->data_ctx.stats.st_code, STAT_STATUS_NONE) == 0) {
+					chunk_printf(&msg,
+						     "<p><div class=active2>"
+						     "<a class=lfsb href=\"%s\" title=\"Remove this message\">[X]</a> "
+						     "Nothing has changed."
+						     "</div>\n", uri->uri_prefix);
+				}
+				else if (strcmp(s->data_ctx.stats.st_code, STAT_STATUS_EXCD) == 0) {
+					chunk_printf(&msg,
+						     "<p><div class=active0>"
+						     "<a class=lfsb href=\"%s\" title=\"Remove this message\">[X]</a> "
+						     "<b>Action not processed : the buffer couldn't store all the data.<br>"
+						     "You should retry with less servers at a time.</b>"
+						     "</div>\n", uri->uri_prefix);
+				}
+				else {
+					chunk_printf(&msg,
+						     "<p><div class=active6>"
+						     "<a class=lfsb href=\"%s\" title=\"Remove this message\">[X]</a> "
+						     "Unexpected result."
+						     "</div>\n", uri->uri_prefix);
+				}
+				chunk_printf(&msg,"<p>\n");
+			}
+
 			if (buffer_feed_chunk(rep, &msg) >= 0)
 				return 0;
 		}
@@ -1546,6 +1624,13 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 
 	case DATA_ST_PX_TH:
 		if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
+			if (px->cap & PR_CAP_BE && px->srv) {
+				/* A form to enable/disable this proxy servers */
+				chunk_printf(&msg,
+					"<form action=\"%s\" method=\"post\">",
+					uri->uri_prefix);
+			}
+
 			/* print a new table */
 			chunk_printf(&msg,
 				     "<table class=\"tbl\" width=\"100%%\">\n"
@@ -1568,7 +1653,18 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     "</tr>\n"
 				     "</table>\n"
 				     "<table class=\"tbl\" width=\"100%%\">\n"
-				     "<tr class=\"titre\">"
+				     "<tr class=\"titre\">",
+				     (uri->flags & ST_SHLGNDS)?"<u>":"",
+				     px->id, px->id, px->id,
+				     (uri->flags & ST_SHLGNDS)?"</u>":"",
+				     px->desc ? "desc" : "empty", px->desc ? px->desc : "");
+
+			if (px->cap & PR_CAP_BE && px->srv) {
+				 /* Column heading for Enable or Disable server */
+				chunk_printf(&msg, "<th rowspan=2 width=1></th>");
+			}
+
+			chunk_printf(&msg,
 				     "<th rowspan=2></th>"
 				     "<th colspan=3>Queue</th>"
 				     "<th colspan=3>Session rate</th><th colspan=5>Sessions</th>"
@@ -1585,11 +1681,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				     "<th>Status</th><th>LastChk</th><th>Wght</th><th>Act</th>"
 				     "<th>Bck</th><th>Chk</th><th>Dwn</th><th>Dwntme</th>"
 				     "<th>Thrtle</th>\n"
-				     "</tr>",
-				     (uri->flags & ST_SHLGNDS)?"<u>":"",
-				     px->id, px->id, px->id,
-				     (uri->flags & ST_SHLGNDS)?"</u>":"",
-				     px->desc ? "desc" : "empty", px->desc ? px->desc : "");
+				     "</tr>");
 
 			if (buffer_feed_chunk(rep, &msg) >= 0)
 				return 0;
@@ -1605,9 +1697,18 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 			if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
 				chunk_printf(&msg,
 				     /* name, queue */
-				     "<tr class=\"frontend\"><td class=ac>"
+				     "<tr class=\"frontend\">");
+
+				if (px->cap & PR_CAP_BE && px->srv) {
+					/* Column sub-heading for Enable or Disable server */
+					chunk_printf(&msg, "<td></td>");
+				}
+
+				chunk_printf(&msg,
+				     "<td class=ac>"
 				     "<a name=\"%s/Frontend\"></a>"
-				     "<a class=lfsb href=\"#%s/Frontend\">Frontend</a></td><td colspan=3></td>"
+				     "<a class=lfsb href=\"#%s/Frontend\">Frontend</a></td>"
+				     "<td colspan=3></td>"
 				     "",
 				     px->id, px->id);
 
@@ -1765,7 +1866,12 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 			}
 
 			if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
-				chunk_printf(&msg, "<tr class=socket><td class=ac");
+				chunk_printf(&msg, "<tr class=socket>");
+				if (px->cap & PR_CAP_BE && px->srv) {
+					 /* Column sub-heading for Enable or Disable server */
+					chunk_printf(&msg, "<td></td>");
+				}
+				chunk_printf(&msg, "<td class=ac");
 
 					if (uri->flags&ST_SHLGNDS) {
 						char str[INET6_ADDRSTRLEN], *fmt = NULL;
@@ -1939,15 +2045,20 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				if ((sv->state & SRV_MAINTAIN) || (svs->state & SRV_MAINTAIN)) {
 					chunk_printf(&msg,
 					    /* name */
-					    "<tr class=\"maintain\"><td class=ac"
+					    "<tr class=\"maintain\">"
 					);
 				}
 				else {
 					chunk_printf(&msg,
 					    /* name */
-					    "<tr class=\"%s%d\"><td class=ac",
+					    "<tr class=\"%s%d\">",
 					    (sv->state & SRV_BACKUP) ? "backup" : "active", sv_state);
 				}
+
+				chunk_printf(&msg,
+					     "<td><input type=\"checkbox\" name=\"s\" value=\"%s\"></td>"
+					     "<td class=ac",
+					     sv->id);
 
 				if (uri->flags&ST_SHLGNDS) {
 					char str[INET6_ADDRSTRLEN];
@@ -2279,9 +2390,12 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 		if ((px->cap & PR_CAP_BE) &&
 		    (!(s->data_ctx.stats.flags & STAT_BOUND) || (s->data_ctx.stats.type & (1 << STATS_TYPE_BE)))) {
 			if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
-				chunk_printf(&msg,
-				     /* name */
-				     "<tr class=\"backend\"><td class=ac");
+				chunk_printf(&msg, "<tr class=\"backend\">");
+				if (px->cap & PR_CAP_BE && px->srv) {
+					/* Column sub-heading for Enable or Disable server */
+					chunk_printf(&msg, "<td></td>");
+				}
+				chunk_printf(&msg, "<td class=ac");
 
 				if (uri->flags&ST_SHLGNDS) {
 					/* balancing */
@@ -2305,6 +2419,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 				}
 
 				chunk_printf(&msg,
+				     /* name */
 				     ">%s<a name=\"%s/Backend\"></a>"
 				     "<a class=lfsb href=\"#%s/Backend\">Backend</a>%s</td>"
 				     /* queue : current, max */
@@ -2467,7 +2582,24 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 
 	case DATA_ST_PX_END:
 		if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
-			chunk_printf(&msg, "</table><p>\n");
+			chunk_printf(&msg, "</table>");
+
+			if (px->cap & PR_CAP_BE && px->srv) {
+				/* close the form used to enable/disable this proxy servers */
+				chunk_printf(&msg,
+					"Choose the action to perform on the checked servers : "
+					"<select name=action>"
+					"<option value=\"\"></option>"
+					"<option value=\"disable\">Disable</option>"
+					"<option value=\"enable\">Enable</option>"
+					"</select>"
+					"<input type=\"hidden\" name=\"b\" value=\"%s\">"
+					"&nbsp;<input type=\"submit\" value=\"Apply\">"
+					"</form>",
+					px->id);
+			}
+
+			chunk_printf(&msg, "<p>\n");
 
 			if (buffer_feed_chunk(rep, &msg) >= 0)
 				return 0;

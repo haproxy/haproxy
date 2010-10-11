@@ -53,6 +53,12 @@
 #define STAT_CLI_O_ERR  7   /* dump errors */
 #define STAT_CLI_O_TAB  8   /* dump tables */
 
+/* status codes (strictly 4 chars) used in the URL to display a message */
+#define STAT_STATUS_UNKN "UNKN"	/* an unknown error occured, shouldn't happen */
+#define STAT_STATUS_DONE "DONE"	/* the action is successful */
+#define STAT_STATUS_NONE "NONE"	/* nothing happened (no action chosen or servers state didn't change) */
+#define STAT_STATUS_EXCD "EXCD"	/* an error occured becayse the buffer couldn't store all data */
+
 
 int stats_accept(struct session *s);
 int stats_sock_parse_request(struct stream_interface *si, char *line);

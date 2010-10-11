@@ -2839,6 +2839,110 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	return 0;
 }
 
+/* We reached the stats page through a POST request.
+ * Parse the posted data and enable/disable servers if necessary.
+ * Returns 0 if request was parsed.
+ * Returns 1 if there was a problem parsing the posted data.
+ */
+int http_process_req_stat_post(struct session *s, struct buffer *req)
+{
+	struct http_txn *txn = &s->txn;
+	struct proxy *px;
+	struct server *sv;
+
+	char *backend = NULL;
+	int action = 0;
+
+	char *first_param, *cur_param, *next_param, *end_params;
+
+	first_param = req->data + txn->req.eoh + 2;
+	end_params  = first_param + txn->req.hdr_content_len;
+
+	cur_param = next_param = end_params;
+
+	if (end_params >= req->data + req->size) {
+		/* Prevent buffer overflow */
+		s->data_ctx.stats.st_code = STAT_STATUS_EXCD;
+		return 1;
+	}
+	else if (end_params > req->data + req->l) {
+		/* This condition also rejects a request with Expect: 100-continue */
+		s->data_ctx.stats.st_code = STAT_STATUS_EXCD;
+		return 1;
+	}
+
+	*end_params = '\0';
+
+	s->data_ctx.stats.st_code = STAT_STATUS_NONE;
+
+	/*
+	 * Parse the parameters in reverse order to only store the last value.
+	 * From the html form, the backend and the action are at the end.
+	 */
+	while (cur_param > first_param) {
+		char *key, *value;
+
+		cur_param--;
+		if ((*cur_param == '&') || (cur_param == first_param)) {
+			/* Parse the key */
+			key = cur_param;
+			if (cur_param != first_param) {
+				/* delimit the string for the next loop */
+				*key++ = '\0';
+			}
+
+			/* Parse the value */
+			value = key;
+			while (*value != '\0' && *value != '=') {
+				value++;
+			}
+			if (*value == '=') {
+				/* Ok, a value is found, we can mark the end of the key */
+				*value++ = '\0';
+			}
+
+			/* Now we can check the key to see what to do */
+			if (!backend && strcmp(key, "b") == 0) {
+				backend = value;
+			}
+			else if (!action && strcmp(key, "action") == 0) {
+				if (strcmp(value, "disable") == 0) {
+					action = 1;
+				}
+				else if (strcmp(value, "enable") == 0) {
+					action = 2;
+				} else {
+					/* unknown action, no need to continue */
+					break;
+				}
+			}
+			else if (strcmp(key, "s") == 0) {
+				if (backend && action && get_backend_server(backend, value, &px, &sv)) {
+					switch (action) {
+					case 1:
+						if (! (sv->state & SRV_MAINTAIN)) {
+							/* Not already in maintenance, we can change the server state */
+							sv->state |= SRV_MAINTAIN;
+							set_server_down(sv);
+							s->data_ctx.stats.st_code = STAT_STATUS_DONE;
+						}
+						break;
+					case 2:
+						if ((sv->state & SRV_MAINTAIN)) {
+							/* Already in maintenance, we can change the server state */
+							set_server_up(sv);
+							s->data_ctx.stats.st_code = STAT_STATUS_DONE;
+						}
+						break;
+					}
+				}
+			}
+			next_param = cur_param;
+		}
+	}
+	return 0;
+}
+
 /* This stream analyser runs all HTTP request processing which is common to
  * frontends and backends, which means blocking ACLs, filters, connection-close,
  * reqadd, stats and redirects. This is performed for the designated proxy.
@@ -3052,6 +3156,11 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 		 * FIXME!!! that one is rather dangerous, we want to
 		 * make it follow standard rules (eg: clear req->analysers).
 		 */
+
+		/* Was the status page requested with a POST ? */
+		if (txn->meth == HTTP_METH_POST) {
+			http_process_req_stat_post(s, req);
+		}
 
 		s->logs.tv_request = now;
 		s->data_source = DATA_SRC_STATS;
@@ -6943,10 +7052,10 @@ void get_srv_from_appsession(struct session *t, const char *begin, int len)
 }
 
 /*
- * In a GET or HEAD request, check if the requested URI matches the stats uri
+ * In a GET, HEAD or POST request, check if the requested URI matches the stats uri
  * for the current backend.
  *
- * It is assumed that the request is either a HEAD or GET and that the
+ * It is assumed that the request is either a HEAD, GET, or POST and that the
  * t->be->uri_auth field is valid.
  *
  * Returns 1 if stats should be provided, otherwise 0.
@@ -6960,7 +7069,7 @@ int stats_check_uri(struct session *t, struct proxy *backend)
 	if (!uri_auth)
 		return 0;
 
-	if (txn->meth != HTTP_METH_GET && txn->meth != HTTP_METH_HEAD)
+	if (txn->meth != HTTP_METH_GET && txn->meth != HTTP_METH_HEAD && txn->meth != HTTP_METH_POST)
 		return 0;
 
 	memset(&t->data_ctx.stats, 0, sizeof(t->data_ctx.stats));
@@ -6999,6 +7108,24 @@ int stats_check_uri(struct session *t, struct proxy *backend)
 	while (h <= txn->req.sol + txn->req.sl.rq.u + txn->req.sl.rq.u_l - 4) {
 		if (memcmp(h, ";csv", 4) == 0) {
 			t->data_ctx.stats.flags |= STAT_FMT_CSV;
+			break;
+		}
+		h++;
+	}
+
+	h = txn->req.sol + txn->req.sl.rq.u + uri_auth->uri_len;
+	while (h <= txn->req.sol + txn->req.sl.rq.u + txn->req.sl.rq.u_l - 8) {
+		if (memcmp(h, ";st=", 4) == 0) {
+			h += 4;
+
+			if (memcmp(h, STAT_STATUS_DONE, 4) == 0)
+				t->data_ctx.stats.st_code = STAT_STATUS_DONE;
+			else if (memcmp(h, STAT_STATUS_NONE, 4) == 0)
+				t->data_ctx.stats.st_code = STAT_STATUS_NONE;
+			else if (memcmp(h, STAT_STATUS_EXCD, 4) == 0)
+				t->data_ctx.stats.st_code = STAT_STATUS_EXCD;
+			else
+				t->data_ctx.stats.st_code = STAT_STATUS_UNKN;
 			break;
 		}
 		h++;

@@ -217,6 +217,7 @@ struct session {
 			short px_st, sv_st;	/* DATA_ST_INIT or DATA_ST_DATA */
 			unsigned int flags;	/* STAT_* */
 			int iid, type, sid;	/* proxy id, type and service id if bounding of stats is enabled */
+			const char *st_code;	/* pointer to the status code returned by an action */
 		} stats;
 		struct {
 			struct bref bref;	/* back-reference from the session being dumped */
