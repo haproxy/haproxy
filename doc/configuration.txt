@@ -1675,6 +1675,7 @@ contimeout <timeout> (deprecated)
 
 cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
               [ postonly ] [ domain <domain> ]*
+              [ maxidle <idle> ] [ maxlife <life> ]
   Enable cookie-based persistence in a backend.
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
@@ -1763,6 +1764,39 @@ cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
               domains, so be careful when doing that. For the record, sending
               10 domains to MSIE 6 or Firefox 2 works as expected.
 
+    maxidle   This option allows inserted cookies to be ignored after some idle
+              time. It only works with insert-mode cookies. When a cookie is
+              sent to the client, the date this cookie was emitted is sent too.
+              Upon further presentations of this cookie, if the date is older
+              than the delay indicated by the parameter (in seconds), it will
+              be ignored. Otherwise, it will be refreshed if needed when the
+              response is sent to the client. This is particularly useful to
+              prevent users who never close their browsers from remaining for
+              too long on the same server (eg: after a farm size change). When
+              this option is set and a cookie has no date, it is always
+              accepted, but gets refreshed in the response. This maintains the
+              ability for admins to access their sites. Cookies that have a
+              date in the future further than 24 hours are ignored. Doing so
+              lets admins fix timezone issues without risking kicking users off
+              the site.
+
+    maxlife   This option allows inserted cookies to be ignored after some life
+              time, whether they're in use or not. It only works with insert
+              mode cookies. When a cookie is first sent to the client, the date
+              this cookie was emitted is sent too. Upon further presentations
+              of this cookie, if the date is older than the delay indicated by
+              the parameter (in seconds), it will be ignored. If the cookie in
+              the request has no date, it is accepted and a date will be set.
+              Cookies that have a date in the future further than 24 hours are
+              ignored. Doing so lets admins fix timezone issues without risking
+              kicking users off the site. Contrary to maxidle, this value is
+              not refreshed, only the first visit date counts. Both maxidle and
+              maxlife may be used at the time. This is particularly useful to
+              prevent users who never close their browsers from remaining for
+              too long on the same server (eg: after a farm size change). This
+              is stronger than the maxidle method in that it forces a
+              redispatch after some absolute delay.
+
   There can be only one persistence cookie per HTTP backend, and it can be
   declared in a defaults section. The value of the cookie will be the value
   indicated after the "cookie" keyword in a "server" statement. If no cookie
@@ -1772,6 +1806,7 @@ cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
         cookie JSESSIONID prefix
         cookie SRV insert indirect nocache
         cookie SRV insert postonly indirect
+        cookie SRV insert indirect nocache maxidle 30m maxlife 8h
 
   See also : "appsession", "balance source", "capture cookie", "server"
              and "ignore-persist".
@@ -8158,8 +8193,18 @@ each of which has a special meaning :
             this server, or it was not set and the client was redispatched to
             another server.
 
-        V : the client provided a valid cookie, and was sent to the associated
+        V : the client provided a VALID cookie, and was sent to the associated
             server.
+
+        E : the client provided a valid cookie, but with a last date which was
+            older than what is allowed by the "maxidle" cookie parameter, so
+            the cookie is consider EXPIRED and is ignored. The request will be
+            redispatched just as if there was no cookie.
+
+        O : the client provided a valid cookie, but with a first date which was
+            older than what is allowed by the "maxlife" cookie parameter, so
+            the cookie is consider too OLD and is ignored. The request will be
+            redispatched just as if there was no cookie.
 
         - : does not apply (no cookie set in configuration).
 
@@ -8172,6 +8217,12 @@ each of which has a special meaning :
             Note that in "cookie insert" mode, if the server provides a cookie,
             it will still be overwritten and reported as "I" here.
 
+        U : the proxy UPDATED the last date in the cookie that was presented by
+            the client. This can only happen in insert mode with "maxidle". It
+            happens everytime there is activity at a different date than the
+            date indicated in the cookie. If any other change happens, such as
+            a redispatch, then the cookie will be marked as inserted instead.
+
         P : a cookie was PROVIDED by the server and transmitted as-is.
 
         R : the cookie provided by the server was REWRITTEN by the proxy, which
@@ -8181,8 +8232,8 @@ each of which has a special meaning :
 
         - : does not apply (no cookie set in configuration).
 
-The combination of the two first flags give a lot of information about what was
-happening when the session terminated, and why it did terminate. It can be
+The combination of the two first flags gives a lot of information about what
+was happening when the session terminated, and why it did terminate. It can be
 helpful to detect server saturation, network troubles, local system resource
 starvation, attacks, etc...
 
@@ -8317,6 +8368,51 @@ easier finding and understanding.
           preventing the connection to the server from establishing. The error
           logs will tell precisely what was missing. This is very rare and can
           only be solved by proper system tuning.
+
+The combination of the two last flags gives a lot of information about how
+persistence was handled by the client, the server and by haproxy. This is very
+important to troubleshoot disconnections, when users complain they have to
+re-authenticate. The commonly encountered flags are :
+
+     --   Persistence cookie is not enabled.
+
+     NN   No cookie was provided by the client, none was inserted in the
+          response. For instance, this can be in insert mode with "postonly"
+          set on a GET request.
+
+     II   A cookie designating an invalid server was provided by the client,
+          a valid one was inserted in the response. This typically happens when
+          a "server" entry is removed from the configuraton, since its cookie
+          value can be presented by a client when no other server knows it.
+
+     NI   No cookie was provided by the client, one was inserted in the
+          response. This typically happens for first requests from every user
+          in "insert" mode, which makes it an easy way to count real users.
+
+     VN   A cookie was provided by the client, none was inserted in the
+          response. This happens for most responses for which the client has
+          already got a cookie.
+
+     VU   A cookie was provided by the client, with a last visit date which is
+          not completely up-to-date, so an updated cookie was provided in
+          response. This can also happen if there was no date at all, or if
+          there was a date but the "maxidle" parameter was not set, so that the
+          cookie can be switched to unlimited time.
+
+     EI   A cookie was provided by the client, with a last visit date which is
+          too old for the "maxidle" parameter, so the cookie was ignored and a
+          new cookie was inserted in the response.
+
+     OI   A cookie was provided by the client, with a first visit date which is
+          too old for the "maxlife" parameter, so the cookie was ignored and a
+          new cookie was inserted in the response.
+
+     DI   The server designated by the cookie was down, a new server was
+          selected and a new cookie was emitted in the response.
+
+     VI   The server designated by the cookie was not marked dead but could not
+          be reached. A redispatch happened and selected another one, which was
+          then advertised in the response.
 
 
 8.6. Non-printable characters
