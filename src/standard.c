@@ -964,12 +964,12 @@ unsigned int inetaddr_host_lim(const char *text, const char *stop)
  * Idem except the pointer to first unparsed byte is returned into <ret> which
  * must not be NULL.
  */
-unsigned int inetaddr_host_lim_ret(const char *text, char *stop, const char **ret)
+unsigned int inetaddr_host_lim_ret(char *text, char *stop, char **ret)
 {
 	const unsigned int ascii_zero = ('0' << 24) | ('0' << 16) | ('0' << 8) | '0';
 	register unsigned int dig100, dig10, dig1;
 	int s;
-	const char *p, *d;
+	char *p, *d;
 
 	dig1 = dig10 = dig100 = ascii_zero;
 	s = 24;

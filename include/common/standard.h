@@ -303,7 +303,7 @@ extern int strl2llrc(const char *s, int len, long long *ret);
 extern unsigned int read_uint(const char **s, const char *end);
 unsigned int inetaddr_host(const char *text);
 unsigned int inetaddr_host_lim(const char *text, const char *stop);
-unsigned int inetaddr_host_lim_ret(const char *text, char *stop, const char **ret);
+unsigned int inetaddr_host_lim_ret(char *text, char *stop, char **ret);
 
 static inline char *cut_crlf(char *s) {
 
