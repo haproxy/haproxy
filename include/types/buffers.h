@@ -134,18 +134,19 @@
  * The field is blanked by buffer_init() and only by analysers themselves
  * afterwards.
  */
-#define AN_REQ_INSPECT_FE       0x00000001  /* inspect request contents in the frontend */
-#define AN_REQ_WAIT_HTTP        0x00000002  /* wait for an HTTP request */
-#define AN_REQ_HTTP_PROCESS_FE  0x00000004  /* process the frontend's HTTP part */
-#define AN_REQ_SWITCHING_RULES  0x00000008  /* apply the switching rules */
-#define AN_REQ_INSPECT_BE       0x00000010  /* inspect request contents in the backend */
-#define AN_REQ_HTTP_PROCESS_BE  0x00000020  /* process the backend's HTTP part */
-#define AN_REQ_HTTP_INNER       0x00000040  /* inner processing of HTTP request */
-#define AN_REQ_HTTP_TARPIT      0x00000080  /* wait for end of HTTP tarpit */
-#define AN_REQ_HTTP_BODY        0x00000100  /* inspect HTTP request body */
-#define AN_REQ_STICKING_RULES   0x00000200  /* table persistence matching */
-#define AN_REQ_PRST_RDP_COOKIE  0x00000400  /* persistence on rdp cookie */
-#define AN_REQ_HTTP_XFER_BODY   0x00000800  /* forward request body */
+#define AN_REQ_DECODE_PROXY     0x00000001  /* take the proxied address from a 'PROXY' line */
+#define AN_REQ_INSPECT_FE       0x00000002  /* inspect request contents in the frontend */
+#define AN_REQ_WAIT_HTTP        0x00000004  /* wait for an HTTP request */
+#define AN_REQ_HTTP_PROCESS_FE  0x00000008  /* process the frontend's HTTP part */
+#define AN_REQ_SWITCHING_RULES  0x00000010  /* apply the switching rules */
+#define AN_REQ_INSPECT_BE       0x00000020  /* inspect request contents in the backend */
+#define AN_REQ_HTTP_PROCESS_BE  0x00000040  /* process the backend's HTTP part */
+#define AN_REQ_HTTP_INNER       0x00000080  /* inner processing of HTTP request */
+#define AN_REQ_HTTP_TARPIT      0x00000100  /* wait for end of HTTP tarpit */
+#define AN_REQ_HTTP_BODY        0x00000200  /* inspect HTTP request body */
+#define AN_REQ_STICKING_RULES   0x00000400  /* table persistence matching */
+#define AN_REQ_PRST_RDP_COOKIE  0x00000800  /* persistence on rdp cookie */
+#define AN_REQ_HTTP_XFER_BODY   0x00001000  /* forward request body */
 
 /* response analysers */
 #define AN_RES_INSPECT          0x00010000  /* content inspection */
