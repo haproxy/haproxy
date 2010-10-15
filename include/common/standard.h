@@ -271,6 +271,28 @@ static inline unsigned int __strl2uic(const char *s, int len)
 	return i;
 }
 
+/* This function reads an unsigned integer from the string pointed to by <s>
+ * and returns it. The <s> pointer is adjusted to point to the first unread
+ * char. The function automatically stops at <end>.
+ */
+static inline unsigned int __read_uint(const char **s, const char *end)
+{
+	const char *ptr = *s;
+	unsigned int i = 0;
+	unsigned int j, k;
+
+	while (ptr < end) {
+		j = *ptr - '0';
+		k = i * 10;
+		if (j > 9)
+			break;
+		i = k + j;
+		ptr++;
+	}
+	*s = ptr;
+	return i;
+}
+
 extern unsigned int str2ui(const char *s);
 extern unsigned int str2uic(const char *s);
 extern unsigned int strl2ui(const char *s, int len);
@@ -278,6 +300,7 @@ extern unsigned int strl2uic(const char *s, int len);
 extern int strl2ic(const char *s, int len);
 extern int strl2irc(const char *s, int len, int *ret);
 extern int strl2llrc(const char *s, int len, long long *ret);
+extern unsigned int read_uint(const char **s, const char *end);
 unsigned int inetaddr_host(const char *text);
 unsigned int inetaddr_host_lim(const char *text, const char *stop);
 unsigned int inetaddr_host_lim_ret(const char *text, char *stop, const char **ret);

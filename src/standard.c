@@ -535,6 +535,11 @@ unsigned int strl2uic(const char *s, int len)
 	return __strl2uic(s, len);
 }
 
+unsigned int read_uint(const char **s, const char *end)
+{
+	return __read_uint(s, end);
+}
+
 /* This one is 7 times faster than strtol() on athlon with checks.
  * It returns the value of the number composed of all valid digits read,
  * and can process negative numbers too.
