@@ -1310,6 +1310,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		last_listen = curproxy->listen;
+
+		/* NOTE: the following line might create several listeners if there
+		 * are comma-separated IPs or port ranges. So all further processing
+		 * will have to be applied to all listeners created after last_listen.
+		 */
 		if (!str2listener(args[1], curproxy)) {
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
@@ -1416,6 +1421,16 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 #endif
 			}
 
+			if (!strcmp(args[cur_arg], "accept-proxy")) { /* expect a 'PROXY' line first */
+				struct listener *l;
+
+				for (l = curproxy->listen; l != last_listen; l = l->next)
+					l->options |= LI_O_ACC_PROXY;
+
+				cur_arg ++;
+				continue;
+			}
+
 			if (!strcmp(args[cur_arg], "name")) {
 				struct listener *l;
 
@@ -1468,7 +1483,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				continue;
 			}
 
-			Alert("parsing [%s:%d] : '%s' only supports the 'transparent', 'defer-accept', 'name', 'id', 'mss' and 'interface' options.\n",
+			Alert("parsing [%s:%d] : '%s' only supports the 'transparent', 'accept-proxy', 'defer-accept', 'name', 'id', 'mss' and 'interface' options.\n",
 			      file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
@@ -5772,6 +5787,9 @@ out_uri_auth_compat:
 			listener->frontend = curproxy;
 			listener->handler = process_session;
 			listener->analysers |= curproxy->fe_req_ana;
+
+			if (listener->options & LI_O_ACC_PROXY)
+				listener->analysers |= AN_REQ_DECODE_PROXY;
 
 			if (!LIST_ISEMPTY(&curproxy->tcp_req.l4_rules))
 				listener->options |= LI_O_TCP_RULES;
