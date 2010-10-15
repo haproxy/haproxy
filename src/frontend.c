@@ -22,6 +22,8 @@
 
 #include <common/compat.h>
 #include <common/config.h>
+#include <common/debug.h>
+#include <common/standard.h>
 #include <common/time.h>
 
 #include <types/global.h>
@@ -247,6 +249,121 @@ int frontend_accept(struct session *s)
  out_delete_cfd:
 	fd_delete(cfd);
 	return -1;
+}
+
+/* This analyser tries to fetch a line from the request buffer which looks like :
+ *
+ *   "PROXY" <SP> PROTO <SP> SRC3 <SP> DST3 <SP> SRC4 <SP> <DST4> "\r\n"
+ *
+ * There must be exactly one space between each field. Fields are :
+ *  - PROTO : layer 4 protocol, which must be "TCP4".
+ *  - SRC3  : layer 3 (eg: IP) source address in standard text form
+ *  - DST3  : layer 3 (eg: IP) destination address in standard text form
+ *  - SRC4  : layer 4 (eg: TCP port) source address in standard text form
+ *  - DST4  : layer 4 (eg: TCP port) destination address in standard text form
+ *
+ * This line MUST be at the beginning of the buffer and MUST NOT wrap.
+ *
+ * Once the data is fetched, the values are set in the session's field and data
+ * are removed from the buffer. The function returns zero if it needs to wait
+ * for more data (max: timeout_client), or 1 if it has finished and removed itself.
+ */
+int frontend_decode_proxy_request(struct session *s, struct buffer *req, int an_bit)
+{
+	char *line = req->data;
+	char *end = req->data + req->l;
+	u32 src3, dst3, sport, dport;
+	int len;
+
+	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
+		now_ms, __FUNCTION__,
+		s,
+		req,
+		req->rex, req->wex,
+		req->flags,
+		req->l,
+		req->analysers);
+
+	if (req->flags & (BF_READ_ERROR|BF_READ_TIMEOUT))
+		goto fail;
+
+	if (req->l < 18) /* shortest possible line */
+		goto missing;
+
+	/* Decode a possible proxy request */
+	if (memcmp(line, "PROXY ", 6) != 0)
+		goto fail;
+	line += 6;
+
+	if (memcmp(line, "TCP4 ", 5) != 0)
+		goto fail;
+	line += 5;
+
+	src3 = inetaddr_host_lim_ret(line, end, &line);
+	if (line == end)
+		goto missing;
+	if (*line++ != ' ')
+		goto fail;
+
+	dst3 = inetaddr_host_lim_ret(line, end, &line);
+	if (line == end)
+		goto missing;
+	if (*line++ != ' ')
+		goto fail;
+
+	sport = read_uint((const char **)&line, end);
+	if (line == end)
+		goto missing;
+	if (*line++ != ' ')
+		goto fail;
+
+	dport = read_uint((const char **)&line, end);
+	if (line >= end - 2)
+		goto missing;
+	if (*line++ != '\r')
+		goto fail;
+	if (*line++ != '\n')
+		goto fail;
+
+	/* update the session's addresses and mark them set */
+	((struct sockaddr_in *)&s->cli_addr)->sin_family      = AF_INET;
+	((struct sockaddr_in *)&s->cli_addr)->sin_addr.s_addr = htonl(src3);
+	((struct sockaddr_in *)&s->cli_addr)->sin_port        = htons(sport);
+
+	((struct sockaddr_in *)&s->frt_addr)->sin_family      = AF_INET;
+	((struct sockaddr_in *)&s->frt_addr)->sin_addr.s_addr = htonl(dst3);
+	((struct sockaddr_in *)&s->frt_addr)->sin_port        = htons(dport);
+	s->flags |= SN_FRT_ADDR_SET;
+
+	/* remove the PROXY line from the request */
+	len = line - req->data;
+	buffer_replace2(req, req->data, line, NULL, 0);
+	req->total -= len; /* don't count the header line */
+
+	req->analysers &= ~an_bit;
+	return 1;
+
+ missing:
+	if (!(req->flags & (BF_SHUTR|BF_FULL))) {
+		buffer_dont_connect(s->req);
+		return 0;
+	}
+	/* missing data and buffer is either full or shutdown => fail */
+
+ fail:
+	buffer_abort(req);
+	buffer_abort(s->rep);
+	req->analysers = 0;
+
+	s->fe->counters.failed_req++;
+	if (s->listener->counters)
+		s->listener->counters->failed_req++;
+
+	if (!(s->flags & SN_ERR_MASK))
+		s->flags |= SN_ERR_PRXCOND;
+	if (!(s->flags & SN_FINST_MASK))
+		s->flags |= SN_FINST_R;
+	return 0;
 }
 
 /* set test->i to the id of the frontend */

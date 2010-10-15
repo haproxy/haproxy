@@ -27,6 +27,7 @@
 
 void get_frt_addr(struct session *s);
 int frontend_accept(struct session *s);
+int frontend_decode_proxy_request(struct session *s, struct buffer *req, int an_bit);
 
 
 #endif /* _PROTO_FRONTEND_H */
