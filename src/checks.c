@@ -373,6 +373,7 @@ void set_server_down(struct server *s)
 
 	if (s->health == s->rise || s->tracked) {
 		int srv_was_paused = s->state & SRV_GOINGDOWN;
+		int prev_srv_count = s->proxy->srv_bck + s->proxy->srv_act;
 
 		s->last_change = now.tv_sec;
 		s->state &= ~(SRV_RUNNING | SRV_GOINGDOWN);
@@ -407,7 +408,7 @@ void set_server_down(struct server *s)
 		else
 			send_log(s->proxy, LOG_ALERT, "%s.\n", trash);
 
-		if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
+		if (prev_srv_count && s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
 			set_backend_down(s->proxy);
 
 		s->counters.down_trans++;
