@@ -848,8 +848,9 @@ static int event_srv_chk_w(int fd)
 
 /*
  * This function is used only for server health-checks. It handles the server's
- * reply to an HTTP request or SSL HELLO. It calls set_server_check_status() to
- * update s->check_status, s->check_duration and s->result.
+ * reply to an HTTP request, SSL HELLO or MySQL client Auth. It calls
+ * set_server_check_status() to update s->check_status, s->check_duration
+ * and s->result.
 
  * The set_server_check_status function is called with HCHK_STATUS_L7OKD if
  * an HTTP server replies HTTP 2xx or 3xx (valid responses), if an SMTP server
@@ -1001,35 +1002,90 @@ static int event_srv_chk_r(int fd)
 			set_server_check_status(s, HCHK_STATUS_L7STS, desc);
 	}
 	else if (s->proxy->options2 & PR_O2_MYSQL_CHK) {
-		/* MySQL Error packet always begin with field_count = 0xff
-		 * contrary to OK Packet who always begin whith 0x00 */
 		if (!done && s->check_data_len < 5)
 			goto wait_more_data;
 
-		if (*(s->check_data + 4) != '\xff') {
-			/* We set the MySQL Version in description for information purpose
-			 * FIXME : it can be cool to use MySQL Version for other purpose,
-			 * like mark as down old MySQL server.
-			 */
-			if (s->check_data_len > 51) {
-				desc = ltrim(s->check_data + 5, ' ');
-				set_server_check_status(s, HCHK_STATUS_L7OKD, desc);
+		if (s->proxy->check_len == 0) { // old mode
+			if (*(s->check_data + 4) != '\xff') {
+				/* We set the MySQL Version in description for information purpose
+				 * FIXME : it can be cool to use MySQL Version for other purpose,
+				 * like mark as down old MySQL server.
+				 */
+				if (s->check_data_len > 51) {
+					desc = ltrim(s->check_data + 5, ' ');
+					set_server_check_status(s, HCHK_STATUS_L7OKD, desc);
+				}
+				else {
+					if (!done)
+						goto wait_more_data;
+					/* it seems we have a OK packet but without a valid length,
+					 * it must be a protocol error
+					 */
+					set_server_check_status(s, HCHK_STATUS_L7RSP, s->check_data);
+				}
+			}
+			else {
+				/* An error message is attached in the Error packet */
+				desc = ltrim(s->check_data + 7, ' ');
+				set_server_check_status(s, HCHK_STATUS_L7STS, desc);
+			}
+		} else {
+			unsigned int first_packet_len = ((unsigned int) *s->check_data) +
+			                                (((unsigned int) *(s->check_data + 1)) << 8) +
+			                                (((unsigned int) *(s->check_data + 2)) << 16);
+
+			if (s->check_data_len == first_packet_len + 4) {
+				/* MySQL Error packet always begin with field_count = 0xff */
+				if (*(s->check_data + 4) != '\xff') {
+					/* We have only one MySQL packet and it is a Handshake Initialization packet
+					* but we need to have a second packet to know if it is alright
+					*/
+					if (!done && s->check_data_len < first_packet_len + 5)
+						goto wait_more_data;
+				}
+				else {
+					/* We have only one packet and it is an Error packet,
+					* an error message is attached, so we can display it
+					*/
+					desc = &s->check_data[7];
+					//Warning("onlyoneERR: %s\n", desc);
+					set_server_check_status(s, HCHK_STATUS_L7STS, desc);
+				}
+			} else if (s->check_data_len > first_packet_len + 4) {
+				unsigned int second_packet_len = ((unsigned int) *(s->check_data + first_packet_len + 4)) +
+				                                 (((unsigned int) *(s->check_data + first_packet_len + 5)) << 8) +
+				                                 (((unsigned int) *(s->check_data + first_packet_len + 6)) << 16);
+
+				if (s->check_data_len == first_packet_len + 4 + second_packet_len + 4 ) {
+					/* We have 2 packets and that's good */
+					/* Check if the second packet is a MySQL Error packet or not */
+					if (*(s->check_data + first_packet_len + 8) != '\xff') {
+						/* No error packet */
+						/* We set the MySQL Version in description for information purpose */
+						desc = &s->check_data[5];
+						//Warning("2packetOK: %s\n", desc);
+						set_server_check_status(s, HCHK_STATUS_L7OKD, desc);
+					}
+					else {
+						/* An error message is attached in the Error packet
+						* so we can display it ! :)
+						*/
+						desc = &s->check_data[first_packet_len+11];
+						//Warning("2packetERR: %s\n", desc);
+						set_server_check_status(s, HCHK_STATUS_L7STS, desc);
+					}
+				}
 			}
 			else {
 				if (!done)
 					goto wait_more_data;
-				/* it seems we have a OK packet but without a valid length,
+				/* it seems we have a Handshake Initialization packet but without a valid length,
 				 * it must be a protocol error
 				 */
-				set_server_check_status(s, HCHK_STATUS_L7RSP, s->check_data);
+				desc = &s->check_data[5];
+				//Warning("protoerr: %s\n", desc);
+				set_server_check_status(s, HCHK_STATUS_L7RSP, desc);
 			}
-		}
-		else {
-			/* An error message is attached in the Error packet,
-			 * so we can display it ! :)
-			 */
-			desc = ltrim(s->check_data + 7, ' ');
-			set_server_check_status(s, HCHK_STATUS_L7STS, desc);
 		}
 	}
 	else if (s->proxy->options2 & PR_O2_LDAP_CHK) {

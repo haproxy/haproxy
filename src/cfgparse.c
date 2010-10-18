@@ -2904,6 +2904,9 @@ stats_error_parsing:
 		}
 		else if (!strcmp(args[1], "mysql-check")) {
 			/* use MYSQL request to check servers' health */
+			if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[1], NULL))
+				err_code |= ERR_WARN;
+
 			free(curproxy->check_req);
 			curproxy->check_req = NULL;
 			curproxy->options &= ~PR_O_HTTP_CHK;
@@ -2911,6 +2914,65 @@ stats_error_parsing:
 			curproxy->options2 &= ~PR_O2_SSL3_CHK;
 			curproxy->options2 &= ~PR_O2_LDAP_CHK;
 			curproxy->options2 |= PR_O2_MYSQL_CHK;
+
+			/* This is an exemple of an MySQL >=4.0 client Authentication packet kindly provided by Cyril Bonte.
+			 * const char mysql40_client_auth_pkt[] = {
+			 * 	"\x0e\x00\x00"	// packet length
+			 * 	"\x01"		// packet number
+			 * 	"\x00\x00"	// client capabilities
+			 * 	"\x00\x00\x01"	// max packet
+			 * 	"haproxy\x00"	// username (null terminated string)
+			 * 	"\x00"		// filler (always 0x00)
+			 * 	"\x01\x00\x00"	// packet length
+			 * 	"\x00"		// packet number
+			 * 	"\x01"		// COM_QUIT command
+			 * };
+			 */
+
+			if (*(args[2])) {
+				int cur_arg = 2;
+
+				while (*(args[cur_arg])) {
+					if (strcmp(args[cur_arg], "user") == 0) {
+						char *mysqluser;
+						int packetlen, reqlen, userlen;
+
+						/* suboption header - needs additional argument for it */
+						if (*(args[cur_arg+1]) == 0) {
+							Alert("parsing [%s:%d] : '%s %s %s' expects <username> as argument.\n",
+							      file, linenum, args[0], args[1], args[cur_arg]);
+							err_code |= ERR_ALERT | ERR_FATAL;
+							goto out;
+						}
+						mysqluser = args[cur_arg + 1];
+						userlen   = strlen(mysqluser);
+						packetlen = userlen + 7;
+						reqlen    = packetlen + 9;
+
+						free(curproxy->check_req);
+						curproxy->check_req = (char *)calloc(1, reqlen);
+						curproxy->check_len = reqlen;
+
+						snprintf(curproxy->check_req, 4, "%c%c%c",
+							((unsigned char) packetlen & 0xff),
+							((unsigned char) (packetlen >> 8) & 0xff),
+							((unsigned char) (packetlen >> 16) & 0xff));
+
+						curproxy->check_req[3] = 1;
+						curproxy->check_req[8] = 1;
+						memcpy(&curproxy->check_req[9], mysqluser, userlen);
+						curproxy->check_req[9 + userlen + 1 + 1]     = 1;
+						curproxy->check_req[9 + userlen + 1 + 1 + 4] = 1;
+						cur_arg += 2;
+					} else {
+						/* unknown suboption - catchall */
+						Alert("parsing [%s:%d] : '%s %s' only supports optional values: 'user'.\n",
+						      file, linenum, args[0], args[1]);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
+					}
+				} /* end while loop */
+			}
 		}
 		else if (!strcmp(args[1], "ldap-check")) {
 			/* use LDAP request to check servers' health */

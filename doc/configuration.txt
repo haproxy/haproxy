@@ -3350,17 +3350,39 @@ no option logasap
              logging.
 
 
-option mysql-check
-  Use Mysql health checks for server testing
+option mysql-check [ user <username> ]
+  Use MySQL health checks for server testing
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
-  Arguments : none
+  Arguments :
+    user <username> This is the username which will be used when connecting
+    to MySQL server.
 
-  The check consists in parsing Mysql Handshake Initialisation packet or Error
-  packet, which is sent by MySQL server on connect. It is a basic but useful
-  test which does not produce any logging on the server. However, it does not
-  check database presence nor database consistency, nor user permission to
-  access. To do this, you can use an external check with xinetd for example.
+  If you specify a username, the check consists of sending two MySQL packet,
+  one Client Authentication packet, and one QUIT packet, to correctly close
+  MySQL session. We then parse the MySQL Handshake Initialisation packet and/or
+  Error packet. It is a basic but useful test which does not produce error nor
+  aborted connect on the server. However, it requires adding an authorization
+  in the MySQL table, like this :
+
+      USE mysql;
+      INSERT INTO user (Host,User) values ('<ip_of_haproxy>','<username>');
+      FLUSH PRIVILEGES;
+
+  If you don't specify a username (it is deprecated and not recommended), the
+  check only consists in parsing the Mysql Handshake Initialisation packet or
+  Error packet, we don't send anything in this mode. It was reported that it
+  can generate lockout if check is too frequent and/or if there is not enough
+  traffic. In fact, you need in this case to check MySQL "max_connect_errors"
+  value as if a connection is established successfully within fewer than MySQL
+  "max_connect_errors" attempts after a previous connection was interrupted,
+  the error count for the host is cleared to zero. If HAProxy's server get
+  blocked, the "FLUSH HOSTS" statement is the only way to unblock it.
+
+  Remember that this does not check database presence nor database consistency.
+  To do this, you can use an external check with xinetd for example.
+
+  The check requires MySQL >=4.0, for older version, please use TCP check.
 
   Most often, an incoming MySQL server needs to see the client's IP address for
   various purposes, including IP privilege matching and connection logging.
