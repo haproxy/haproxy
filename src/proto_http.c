@@ -2931,6 +2931,7 @@ int http_process_req_stat_post(struct session *s, struct buffer *req)
 						if ((sv->state & SRV_MAINTAIN)) {
 							/* Already in maintenance, we can change the server state */
 							set_server_up(sv);
+							sv->health = sv->rise;	/* up, but will fall down at first failure */
 							s->data_ctx.stats.st_code = STAT_STATUS_DONE;
 						}
 						break;

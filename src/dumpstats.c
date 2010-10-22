@@ -755,12 +755,14 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 					*/
 					if (sv->tracked->state & SRV_RUNNING) {
 						set_server_up(sv);
+						sv->health = sv->rise;	/* up, but will fall down at first failure */
 					} else {
 						sv->state &= ~SRV_MAINTAIN;
 						set_server_down(sv);
 					}
 				} else {
 					set_server_up(sv);
+					sv->health = sv->rise;	/* up, but will fall down at first failure */
 				}
 			}
 
