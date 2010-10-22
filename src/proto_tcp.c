@@ -1054,6 +1054,9 @@ static int
 pattern_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir,
                   const char *arg, int arg_len, union pattern_data *data)
 {
+	if (!(l4->flags & SN_FRT_ADDR_SET))
+		get_frt_addr(l4);
+
 	data->ip.s_addr = ((struct sockaddr_in *)&l4->frt_addr)->sin_addr.s_addr;
 	return 1;
 }
@@ -1079,6 +1082,9 @@ pattern_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
                     const char *arg, int arg_len, union pattern_data *data)
 
 {
+	if (!(l4->flags & SN_FRT_ADDR_SET))
+		get_frt_addr(l4);
+
 	data->integer = ntohs(((struct sockaddr_in *)&l4->frt_addr)->sin_port);
 	return 1;
 }
