@@ -53,6 +53,7 @@
 #include <proto/port_range.h>
 #include <proto/protocols.h>
 #include <proto/proto_tcp.h>
+#include <proto/proto_uxst.h>
 #include <proto/proto_http.h>
 #include <proto/proxy.h>
 #include <proto/server.h>
@@ -191,63 +192,87 @@ static int str2listener(char *str, struct proxy *curproxy)
 			*next++ = 0;
 		}
 
-		/* 2) look for the addr/port delimiter, it's the last colon. */
-		if ((range = strrchr(str, ':')) == NULL) {
-			Alert("Missing port number: '%s'\n", str);
-			goto fail;
-		}	    
+		if (*str == '/') {
+			/* sun_path during a soft_stop rename is <unix_bind_prefix><path>.<pid>.<bak|tmp> */
+			/* so compute max path */
+			int prefix_path_len = global.unix_bind.prefix ? strlen(global.unix_bind.prefix) : 0;
+			int max_path_len = (sizeof(((struct sockaddr_un *)&ss)->sun_path) - 1) - (prefix_path_len + 1 + 5 + 1 + 3);
 
-		*range++ = 0;
-
-		if (strrchr(str, ':') != NULL) {
-			/* IPv6 address contains ':' */
-			memset(&ss, 0, sizeof(ss));
-			ss.ss_family = AF_INET6;
-
-			if (!inet_pton(ss.ss_family, str, &((struct sockaddr_in6 *)&ss)->sin6_addr)) {
-				Alert("Invalid server address: '%s'\n", str);
+			if (strlen(str) > max_path_len) {
+                                Alert("Socket path '%s' too long (max %d)\n", str, max_path_len);
 				goto fail;
 			}
+
+			memset(&ss, 0, sizeof(ss));
+			ss.ss_family = AF_UNIX;
+			if (global.unix_bind.prefix) {
+				memcpy(((struct sockaddr_un *)&ss)->sun_path, global.unix_bind.prefix, prefix_path_len);
+				strcpy(((struct sockaddr_un *)&ss)->sun_path+prefix_path_len, str);
+			}
+			else {
+				strcpy(((struct sockaddr_un *)&ss)->sun_path, str);
+			}
+			port = end = 0;
 		}
 		else {
-			memset(&ss, 0, sizeof(ss));
-			ss.ss_family = AF_INET;
-
-			if (*str == '*' || *str == '\0') { /* INADDR_ANY */
-				((struct sockaddr_in *)&ss)->sin_addr.s_addr = INADDR_ANY;
+			/* 2) look for the addr/port delimiter, it's the last colon. */
+			if ((range = strrchr(str, ':')) == NULL) {
+				Alert("Missing port number: '%s'\n", str);
+				goto fail;
 			}
-			else if (!inet_pton(ss.ss_family, str, &((struct sockaddr_in *)&ss)->sin_addr)) {
-				struct hostent *he;
-		
-				if ((he = gethostbyname(str)) == NULL) {
-					Alert("Invalid server name: '%s'\n", str);
+
+			*range++ = 0;
+
+			if (strrchr(str, ':') != NULL) {
+				/* IPv6 address contains ':' */
+				memset(&ss, 0, sizeof(ss));
+				ss.ss_family = AF_INET6;
+
+				if (!inet_pton(ss.ss_family, str, &((struct sockaddr_in6 *)&ss)->sin6_addr)) {
+					Alert("Invalid server address: '%s'\n", str);
 					goto fail;
 				}
-				else
-					((struct sockaddr_in *)&ss)->sin_addr =
-						*(struct in_addr *) *(he->h_addr_list);
 			}
-		}
+			else {
+				memset(&ss, 0, sizeof(ss));
+				ss.ss_family = AF_INET;
 
-		/* 3) look for the port-end delimiter */
-		if ((c = strchr(range, '-')) != NULL) {
-			*c++ = 0;
-			end = atol(c);
-		}
-		else {
-			end = atol(range);
-		}
+				if (*str == '*' || *str == '\0') { /* INADDR_ANY */
+					((struct sockaddr_in *)&ss)->sin_addr.s_addr = INADDR_ANY;
+				}
+				else if (!inet_pton(ss.ss_family, str, &((struct sockaddr_in *)&ss)->sin_addr)) {
+					struct hostent *he;
 
-		port = atol(range);
+					if ((he = gethostbyname(str)) == NULL) {
+						Alert("Invalid server name: '%s'\n", str);
+						goto fail;
+					}
+					else
+						((struct sockaddr_in *)&ss)->sin_addr =
+							*(struct in_addr *) *(he->h_addr_list);
+				}
+			}
 
-		if (port < 1 || port > 65535) {
-			Alert("Invalid port '%d' specified for address '%s'.\n", port, str);
-			goto fail;
-		}
+			/* 3) look for the port-end delimiter */
+			if ((c = strchr(range, '-')) != NULL) {
+				*c++ = 0;
+				end = atol(c);
+			}
+			else {
+				end = atol(range);
+			}
 
-		if (end < 1 || end > 65535) {
-			Alert("Invalid port '%d' specified for address '%s'.\n", end, str);
-			goto fail;
+			port = atol(range);
+
+			if (port < 1 || port > 65535) {
+				Alert("Invalid port '%d' specified for address '%s'.\n", port, str);
+				goto fail;
+			}
+
+			if (end < 1 || end > 65535) {
+				Alert("Invalid port '%d' specified for address '%s'.\n", end, str);
+				goto fail;
+			}
 		}
 
 		for (; port <= end; port++) {
@@ -259,12 +284,18 @@ static int str2listener(char *str, struct proxy *curproxy)
 			l->addr = ss;
 			l->state = LI_INIT;
 
-			if (ss.ss_family == AF_INET6) {
-				((struct sockaddr_in6 *)(&l->addr))->sin6_port = htons(port);
-				tcpv6_add_listener(l);
-			} else {
+			if(ss.ss_family == AF_INET) {
 				((struct sockaddr_in *)(&l->addr))->sin_port = htons(port);
 				tcpv4_add_listener(l);
+			}
+			else if (ss.ss_family == AF_INET6) {
+				((struct sockaddr_in6 *)(&l->addr))->sin6_port = htons(port);
+				tcpv6_add_listener(l);
+			}
+			else {
+				l->perm.ux.gid = l->perm.ux.uid = -1;
+				l->perm.ux.mode = 0;
+				uxst_add_listener(l);
 			}
 
 			jobs++;
@@ -769,6 +800,86 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 		global.pidfile = strdup(args[1]);
+	}
+	else if (!strcmp(args[0], "unix-bind")) {
+		int cur_arg = 1;
+		while (*(args[cur_arg])) {
+			if (!strcmp(args[cur_arg], "prefix")) {
+				if (global.unix_bind.prefix != NULL) {
+					Alert("parsing [%s:%d] : unix-bind '%s' already specified. Continuing.\n", file, linenum, args[cur_arg]);
+					err_code |= ERR_ALERT;
+					cur_arg += 2;
+					continue;
+				}
+
+				if (*(args[cur_arg+1]) == 0) {
+		                        Alert("parsing [%s:%d] : unix_bind '%s' expects a path as an argument.\n", file, linenum, args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				global.unix_bind.prefix =  strdup(args[cur_arg+1]);
+				cur_arg += 2;
+				continue;
+			}
+
+			if (!strcmp(args[cur_arg], "mode")) {
+
+				global.unix_bind.ux.mode = strtol(args[cur_arg + 1], NULL, 8);
+                                cur_arg += 2;
+				continue;
+			}
+
+			if (!strcmp(args[cur_arg], "uid")) {
+
+				global.unix_bind.ux.uid = atol(args[cur_arg + 1 ]);
+                                cur_arg += 2;
+				continue;
+                        }
+
+			if (!strcmp(args[cur_arg], "gid")) {
+
+				global.unix_bind.ux.gid = atol(args[cur_arg + 1 ]);
+                                cur_arg += 2;
+				continue;
+                        }
+
+			if (!strcmp(args[cur_arg], "user")) {
+				struct passwd *user;
+
+				user = getpwnam(args[cur_arg + 1]);
+				if (!user) {
+					Alert("parsing [%s:%d] : '%s' : '%s' unknown user.\n",
+						file, linenum, args[0], args[cur_arg + 1 ]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				global.unix_bind.ux.uid = user->pw_uid;
+				cur_arg += 2;
+				continue;
+                        }
+
+			if (!strcmp(args[cur_arg], "group")) {
+				struct group *group;
+
+				group = getgrnam(args[cur_arg + 1]);
+				if (!group) {
+					Alert("parsing [%s:%d] : '%s' : '%s' unknown group.\n",
+						file, linenum, args[0], args[cur_arg + 1 ]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				global.unix_bind.ux.gid = group->gr_gid;
+				cur_arg += 2;
+				continue;
+			}
+
+			Alert("parsing [%s:%d] : '%s' only supports the 'transparent', 'accept-proxy', 'defer-accept', 'name', 'id', 'mss' and 'interface' options.\n",
+			      file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+                }
 	}
 	else if (!strcmp(args[0], "log")) {  /* syslog server address */
 		struct logsrv logsrv;
@@ -1302,7 +1413,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
-		if (strchr(args[1], ':') == NULL) {
+		if ( *(args[1]) != '/' && strchr(args[1], ':') == NULL) {
 			Alert("parsing [%s:%d] : '%s' expects [addr1]:port1[-end1]{,[addr]:port[-end]}... as arguments.\n",
 			      file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -1327,11 +1438,22 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			new_listen = new_listen->next;
 		}
 
+		/* Set default global rights and owner for unix bind  */
+		if (curproxy->listen->addr.ss_family == AF_UNIX) {
+			memcpy(&(curproxy->listen->perm.ux), &(global.unix_bind.ux), sizeof(global.unix_bind.ux));
+		}
 		cur_arg = 2;
 		while (*(args[cur_arg])) {
 			if (!strcmp(args[cur_arg], "interface")) { /* specifically bind to this interface */
 #ifdef SO_BINDTODEVICE
 				struct listener *l;
+
+				if (curproxy->listen->addr.ss_family == AF_UNIX) {
+					Alert("parsing [%s:%d] : '%s' : '%s' option not supported on unix sockets.\n",
+					      file, linenum, args[0], args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
 
 				if (!*args[cur_arg + 1]) {
 					Alert("parsing [%s:%d] : '%s' : missing interface name.\n",
@@ -1358,6 +1480,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 #ifdef TCP_MAXSEG
 				struct listener *l;
 				int mss;
+
+				if (curproxy->listen->addr.ss_family == AF_UNIX) {
+					Alert("parsing [%s:%d] : '%s' : '%s' option not supported on unix sockets.\n",
+					      file, linenum, args[0], args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
 
 				if (!*args[cur_arg + 1]) {
 					Alert("parsing [%s:%d] : '%s' : missing MSS value.\n",
@@ -1407,6 +1536,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			if (!strcmp(args[cur_arg], "transparent")) { /* transparently bind to these addresses */
 #ifdef CONFIG_HAP_LINUX_TPROXY
 				struct listener *l;
+
+				if (curproxy->listen->addr.ss_family == AF_UNIX) {
+					Alert("parsing [%s:%d] : '%s' : '%s' option not supported on unix sockets.\n",
+					      file, linenum, args[0], args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
 
 				for (l = curproxy->listen; l != last_listen; l = l->next)
 					l->options |= LI_O_FOREIGN;
@@ -1482,6 +1618,93 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				cur_arg += 2;
 				continue;
 			}
+
+			if (!strcmp(args[cur_arg], "mode")) {
+
+				if (curproxy->listen->addr.ss_family != AF_UNIX) {
+					Alert("parsing [%s:%d] : '%s' : '%s' option only supported on unix sockets.\n",
+					      file, linenum, args[0], args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				curproxy->listen->perm.ux.mode = strtol(args[cur_arg + 1], NULL, 8);
+
+				cur_arg += 2;
+				continue;
+			}
+
+			if (!strcmp(args[cur_arg], "uid")) {
+
+                                if (curproxy->listen->addr.ss_family != AF_UNIX) {
+                                        Alert("parsing [%s:%d] : '%s' : '%s' option only supported on unix sockets.\n",
+                                                file, linenum, args[0], args[cur_arg]);
+                                        err_code |= ERR_ALERT | ERR_FATAL;
+                                        goto out;
+                                }
+
+                                curproxy->listen->perm.ux.uid = atol(args[cur_arg + 1 ]);
+                                cur_arg += 2;
+                                continue;
+                        }
+
+			if (!strcmp(args[cur_arg], "gid")) {
+
+                                if (curproxy->listen->addr.ss_family != AF_UNIX) {
+                                        Alert("parsing [%s:%d] : '%s' : '%s' option only supported on unix sockets.\n",
+                                                file, linenum, args[0], args[cur_arg]);
+                                        err_code |= ERR_ALERT | ERR_FATAL;
+                                        goto out;
+                                }
+
+                                curproxy->listen->perm.ux.gid = atol(args[cur_arg + 1 ]);
+                                cur_arg += 2;
+                                continue;
+                        }
+
+			if (!strcmp(args[cur_arg], "user")) {
+				struct passwd *user;
+
+				if (curproxy->listen->addr.ss_family != AF_UNIX) {
+					Alert("parsing [%s:%d] : '%s' : '%s' option only supported on unix sockets.\n",
+						file, linenum, args[0], args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				user = getpwnam(args[cur_arg + 1]);
+				if (!user) {
+					Alert("parsing [%s:%d] : '%s' : '%s' unknown user.\n",
+						file, linenum, args[0], args[cur_arg + 1 ]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				curproxy->listen->perm.ux.uid = user->pw_uid;
+				cur_arg += 2;
+				continue;
+                        }
+
+			if (!strcmp(args[cur_arg], "group")) {
+				struct group *group;
+
+				if (curproxy->listen->addr.ss_family != AF_UNIX) {
+					Alert("parsing [%s:%d] : '%s' : '%s' option only supported on unix sockets.\n",
+						file, linenum, args[0], args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				group = getgrnam(args[cur_arg + 1]);
+				if (!group) {
+					Alert("parsing [%s:%d] : '%s' : '%s' unknown group.\n",
+						file, linenum, args[0], args[cur_arg + 1 ]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				curproxy->listen->perm.ux.gid = group->gr_gid;
+				cur_arg += 2;
+				continue;
+                        }
 
 			Alert("parsing [%s:%d] : '%s' only supports the 'transparent', 'accept-proxy', 'defer-accept', 'name', 'id', 'mss' and 'interface' options.\n",
 			      file, linenum, args[0]);

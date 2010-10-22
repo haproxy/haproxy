@@ -114,6 +114,13 @@ struct global global = {
 			 }
 		 }
 	},
+	.unix_bind = {
+		 .ux = {
+			 .uid = -1,
+			 .gid = -1,
+			 .mode = 0,
+		 }
+	},
 	.tune = {
 		.bufsize = BUFSIZE,
 		.maxrewrite = MAXREWRITE,

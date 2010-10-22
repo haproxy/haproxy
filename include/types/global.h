@@ -93,6 +93,15 @@ struct global {
 		int server_rcvbuf; /* set server rcvbuf to this value if not null */
 		int chksize;       /* check buffer size in bytes, defaults to BUFSIZE */
 	} tune;
+	struct {
+		char *prefix;           /* path prefix of unix bind socket */
+		struct {                /* UNIX socket permissions */
+			uid_t uid;      /* -1 to leave unchanged */
+			gid_t gid;      /* -1 to leave unchanged */
+			mode_t mode;    /* 0 to leave unchanged */
+			int level;      /* access level (ACCESS_LVL_*) */
+		} ux;
+	} unix_bind;
 	struct listener stats_sock; /* unix socket listener for statistics */
 	struct proxy *stats_fe;     /* the frontend holding the stats settings */
 };
