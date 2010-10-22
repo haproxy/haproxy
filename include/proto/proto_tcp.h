@@ -30,7 +30,6 @@
 int tcpv4_bind_socket(int fd, int flags, struct sockaddr_in *local, struct sockaddr_in *remote);
 void tcpv4_add_listener(struct listener *listener);
 void tcpv6_add_listener(struct listener *listener);
-int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen);
 int tcpv4_connect_server(struct stream_interface *si,
 			 struct proxy *be, struct server *srv,
 			 struct sockaddr *srv_addr, struct sockaddr *from_addr);

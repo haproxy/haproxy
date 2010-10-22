@@ -135,7 +135,8 @@ struct protocol {
 	int (*accept)(int fd);				/* generic accept function */
 	int (*read)(int fd);				/* generic read function */
 	int (*write)(int fd);				/* generic write function */
-	int (*bind_all)(struct protocol *proto);	/* bind all unbound listeners */
+	int (*bind)(struct listener *l, char *errmsg, int errlen); /* bind a listener */
+	int (*bind_all)(struct protocol *proto, char *errmsg, int errlen); /* bind all unbound listeners */
 	int (*unbind_all)(struct protocol *proto);	/* unbind all bound listeners */
 	int (*enable_all)(struct protocol *proto);	/* enable all bound listeners */
 	int (*disable_all)(struct protocol *proto);	/* disable all bound listeners */

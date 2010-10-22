@@ -47,7 +47,8 @@
 #define MAXPATHLEN 128
 #endif
 
-static int uxst_bind_listeners(struct protocol *proto);
+static int uxst_bind_listener(struct listener *listener, char *errmsg, int errlen);
+static int uxst_bind_listeners(struct protocol *proto, char *errmsg, int errlen);
 static int uxst_unbind_listeners(struct protocol *proto);
 
 /* Note: must not be declared <const> as its list will be overwritten */
@@ -62,6 +63,7 @@ static struct protocol proto_unix = {
 	.accept = &stream_sock_accept,
 	.read = &stream_sock_read,
 	.write = &stream_sock_write,
+	.bind = uxst_bind_listener,
 	.bind_all = uxst_bind_listeners,
 	.unbind_all = uxst_unbind_listeners,
 	.enable_all = enable_all_listeners,
@@ -82,7 +84,7 @@ static struct protocol proto_unix = {
  * OS, it's still useful where it works.
  * It returns the assigned file descriptor, or -1 in the event of an error.
  */
-static int create_uxst_socket(const char *path, uid_t uid, gid_t gid, mode_t mode)
+static int create_uxst_socket(const char *path, uid_t uid, gid_t gid, mode_t mode, char *errmsg, int errlen)
 {
 	char tempname[MAXPATHLEN];
 	char backname[MAXPATHLEN];
@@ -92,36 +94,42 @@ static int create_uxst_socket(const char *path, uid_t uid, gid_t gid, mode_t mod
 
 	/* 1. create socket names */
 	if (!path[0]) {
-		Alert("Invalid empty name for a UNIX socket. Aborting.\n");
+		if (errmsg && errlen)
+			snprintf(errmsg, errlen, "Invalid empty name for a UNIX socket");
 		goto err_return;
 	}
 
 	ret = snprintf(tempname, MAXPATHLEN, "%s.%d.tmp", path, pid);
 	if (ret < 0 || ret >= MAXPATHLEN) {
-		Alert("name too long for UNIX socket (%s). Aborting.\n", path);
+		if (errmsg && errlen)
+			snprintf(errmsg, errlen, "name too long for UNIX socket (%s)", path);
 		goto err_return;
 	}
 
 	ret = snprintf(backname, MAXPATHLEN, "%s.%d.bak", path, pid);
 	if (ret < 0 || ret >= MAXPATHLEN) {
-		Alert("name too long for UNIX socket (%s). Aborting.\n", path);
+		if (errmsg && errlen)
+			snprintf(errmsg, errlen, "name too long for UNIX socket (%s)", path);
 		goto err_return;
 	}
 
 	/* 2. clean existing orphaned entries */
 	if (unlink(tempname) < 0 && errno != ENOENT) {
-		Alert("error when trying to unlink previous UNIX socket (%s). Aborting.\n", path);
+		if (errmsg && errlen)
+			snprintf(errmsg, errlen, "error when trying to unlink previous UNIX socket (%s)", path);
 		goto err_return;
 	}
 
 	if (unlink(backname) < 0 && errno != ENOENT) {
-		Alert("error when trying to unlink previous UNIX socket (%s). Aborting.\n", path);
+		if (errmsg && errlen)
+			snprintf(errmsg, errlen, "error when trying to unlink previous UNIX socket (%s)", path);
 		goto err_return;
 	}
 
 	/* 3. backup existing socket */
 	if (link(path, backname) < 0 && errno != ENOENT) {
-		Alert("error when trying to preserve previous UNIX socket (%s). Aborting.\n", path);
+		if (errmsg && errlen)
+			snprintf(errmsg, errlen, "error when trying to preserve previous UNIX socket (%s)", path);
 		goto err_return;
 	}
 
@@ -132,34 +140,40 @@ static int create_uxst_socket(const char *path, uid_t uid, gid_t gid, mode_t mod
 
 	sock = socket(PF_UNIX, SOCK_STREAM, 0);
 	if (sock < 0) {
-		Alert("cannot create socket for UNIX listener (%s). Aborting.\n", path);
+		if (errmsg && errlen)
+			snprintf(errmsg, errlen, "cannot create socket for UNIX listener (%s)", path);
 		goto err_unlink_back;
 	}
 
 	if (sock >= global.maxsock) {
-		Alert("socket(): not enough free sockets for UNIX listener (%s). Raise -n argument. Aborting.\n", path);
+		if (errmsg && errlen)
+			snprintf(errmsg, errlen, "socket(): not enough free sockets for UNIX listener (%s). Raise -n argument", path);
 		goto err_unlink_temp;
 	}
 
 	if (fcntl(sock, F_SETFL, O_NONBLOCK) == -1) {
-		Alert("cannot make UNIX socket non-blocking. Aborting.\n");
+		if (errmsg && errlen)
+			snprintf(errmsg, errlen, "cannot make UNIX socket non-blocking");
 		goto err_unlink_temp;
 	}
 
 	if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
 		/* note that bind() creates the socket <tempname> on the file system */
-		Alert("cannot bind socket for UNIX listener (%s). Aborting.\n", path);
+		if (errmsg && errlen)
+			snprintf(errmsg, errlen, "cannot bind socket for UNIX listener (%s)", path);
 		goto err_unlink_temp;
 	}
 
 	if (((uid != -1 || gid != -1) && (chown(tempname, uid, gid) == -1)) ||
 	    (mode != 0 && chmod(tempname, mode) == -1)) {
-		Alert("cannot change UNIX socket ownership (%s). Aborting.\n", path);
+		if (errmsg && errlen)
+			snprintf(errmsg, errlen, "cannot change UNIX socket ownership (%s)", path);
 		goto err_unlink_temp;
 	}
 
 	if (listen(sock, 0) < 0) {
-		Alert("cannot listen to socket for UNIX listener (%s). Aborting.\n", path);
+		if (errmsg && errlen)
+			snprintf(errmsg, errlen, "cannot listen to socket for UNIX listener (%s)", path);
 		goto err_unlink_temp;
 	}
 
@@ -169,7 +183,8 @@ static int create_uxst_socket(const char *path, uid_t uid, gid_t gid, mode_t mod
 	 * backname.
 	 */
 	if (rename(tempname, path) < 0) {
-		Alert("cannot switch final and temporary sockets for UNIX listener (%s). Aborting.\n", path);
+		if (errmsg && errlen)
+			snprintf(errmsg, errlen, "cannot switch final and temporary sockets for UNIX listener (%s)", path);
 		goto err_rename;
 	}
 
@@ -234,9 +249,13 @@ static void destroy_uxst_socket(const char *path)
  * the state from ASSIGNED to LISTEN. The socket is NOT enabled for polling.
  * The return value is composed from ERR_NONE, ERR_RETRYABLE and ERR_FATAL.
  */
-static int uxst_bind_listener(struct listener *listener)
+static int uxst_bind_listener(struct listener *listener, char *errmsg, int errlen)
 {
 	int fd;
+
+        /* ensure we never return garbage */
+        if (errmsg && errlen)
+                *errmsg = 0;
 
 	if (listener->state != LI_ASSIGNED)
 		return ERR_NONE; /* already bound */
@@ -244,10 +263,10 @@ static int uxst_bind_listener(struct listener *listener)
 	fd = create_uxst_socket(((struct sockaddr_un *)&listener->addr)->sun_path,
 				listener->perm.ux.uid,
 				listener->perm.ux.gid,
-				listener->perm.ux.mode);
-	if (fd == -1)
-		return ERR_FATAL;
-
+				listener->perm.ux.mode, errmsg, errlen);
+	if (fd == -1) {
+		return ERR_FATAL | ERR_ALERT;
+	}
 	/* the socket is now listening */
 	listener->fd = fd;
 	listener->state = LI_LISTEN;
@@ -307,15 +326,15 @@ void uxst_add_listener(struct listener *listener)
  *
  * The return value is composed from ERR_NONE, ERR_RETRYABLE and ERR_FATAL.
  */
-static int uxst_bind_listeners(struct protocol *proto)
+static int uxst_bind_listeners(struct protocol *proto, char *errmsg, int errlen)
 {
 	struct listener *listener;
 	int err = ERR_NONE;
 
 	list_for_each_entry(listener, &proto->listeners, proto_list) {
-		err |= uxst_bind_listener(listener);
-		if (err != ERR_NONE)
-			continue;
+		err |= uxst_bind_listener(listener, errmsg, errlen);
+		if (err & ERR_ABORT)
+			break;
 	}
 	return err;
 }

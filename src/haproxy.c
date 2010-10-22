@@ -939,8 +939,9 @@ int main(int argc, char **argv)
 	int err, retry;
 	struct rlimit limit;
 	FILE *pidfile = NULL;
-	init(argc, argv);
+	char errmsg[100];
 
+	init(argc, argv);
 	signal_register_fct(SIGQUIT, dump, SIGQUIT);
 	signal_register_fct(SIGUSR1, sig_soft_stop, SIGUSR1);
 	signal_register_fct(SIGHUP, sig_dump_state, SIGHUP);
@@ -998,12 +999,18 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
-	if ((protocol_bind_all() & ~ERR_WARN) != ERR_NONE) {
+	err = protocol_bind_all(errmsg, sizeof(errmsg));
+	if ((err & ~ERR_WARN) != ERR_NONE) {
+		if ((err & ERR_ALERT) || (err & ERR_WARN))
+			Alert("[%s.main()] %s.\n", argv[0], errmsg);
+
 		Alert("[%s.main()] Some protocols failed to start their listeners! Exiting.\n", argv[0]);
 		protocol_unbind_all(); /* cleanup everything we can */
 		if (nb_oldpids)
 			tell_old_pids(SIGTTIN);
 		exit(1);
+	} else if (err & ERR_WARN) {
+		Alert("[%s.main()] %s.\n", argv[0], errmsg);
 	}
 
 	/* prepare pause/play signals */

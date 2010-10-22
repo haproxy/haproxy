@@ -55,7 +55,8 @@
 #include <import/ip_tproxy.h>
 #endif
 
-static int tcp_bind_listeners(struct protocol *proto);
+static int tcp_bind_listeners(struct protocol *proto, char *errmsg, int errlen);
+static int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen);
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct protocol proto_tcpv4 = {
@@ -69,6 +70,7 @@ static struct protocol proto_tcpv4 = {
 	.accept = &stream_sock_accept,
 	.read = &stream_sock_read,
 	.write = &stream_sock_write,
+	.bind = tcp_bind_listener,
 	.bind_all = tcp_bind_listeners,
 	.unbind_all = unbind_all_listeners,
 	.enable_all = enable_all_listeners,
@@ -88,6 +90,7 @@ static struct protocol proto_tcpv6 = {
 	.accept = &stream_sock_accept,
 	.read = &stream_sock_read,
 	.write = &stream_sock_write,
+	.bind = tcp_bind_listener,
 	.bind_all = tcp_bind_listeners,
 	.unbind_all = unbind_all_listeners,
 	.enable_all = enable_all_listeners,
@@ -571,14 +574,14 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
  * loose them across the fork(). A call to enable_all_listeners() is needed
  * to complete initialization. The return value is composed from ERR_*.
  */
-static int tcp_bind_listeners(struct protocol *proto)
+static int tcp_bind_listeners(struct protocol *proto, char *errmsg, int errlen)
 {
 	struct listener *listener;
 	int err = ERR_NONE;
 
 	list_for_each_entry(listener, &proto->listeners, proto_list) {
-		err |= tcp_bind_listener(listener, NULL, 0);
-		if ((err & ERR_CODE) == ERR_ABORT)
+		err |= tcp_bind_listener(listener, errmsg, errlen);
+		if (err & ERR_ABORT)
 			break;
 	}
 

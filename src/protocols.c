@@ -144,15 +144,18 @@ void protocol_unregister(struct protocol *proto)
 /* binds all listeners of all registered protocols. Returns a composition
  * of ERR_NONE, ERR_RETRYABLE, ERR_FATAL.
  */
-int protocol_bind_all(void)
+int protocol_bind_all(char *errmsg, int errlen)
 {
 	struct protocol *proto;
 	int err;
 
 	err = 0;
 	list_for_each_entry(proto, &protocols, list) {
-		if (proto->bind_all)
-			err |= proto->bind_all(proto);
+		if (proto->bind_all) {
+			err |= proto->bind_all(proto, errmsg, errlen);
+			if ( err & ERR_ABORT )
+				break;
+		}
 	}
 	return err;
 }
@@ -160,7 +163,7 @@ int protocol_bind_all(void)
 /* unbinds all listeners of all registered protocols. They are also closed.
  * This must be performed before calling exit() in order to get a chance to
  * remove file-system based sockets and pipes.
- * Returns a composition of ERR_NONE, ERR_RETRYABLE, ERR_FATAL.
+ * Returns a composition of ERR_NONE, ERR_RETRYABLE, ERR_FATAL, ERR_ABORT.
  */
 int protocol_unbind_all(void)
 {
@@ -169,8 +172,9 @@ int protocol_unbind_all(void)
 
 	err = 0;
 	list_for_each_entry(proto, &protocols, list) {
-		if (proto->unbind_all)
+		if (proto->unbind_all) {
 			err |= proto->unbind_all(proto);
+		}
 	}
 	return err;
 }
@@ -186,8 +190,9 @@ int protocol_enable_all(void)
 
 	err = 0;
 	list_for_each_entry(proto, &protocols, list) {
-		if (proto->enable_all)
+		if (proto->enable_all) {
 			err |= proto->enable_all(proto);
+		}
 	}
 	return err;
 }
@@ -203,8 +208,9 @@ int protocol_disable_all(void)
 
 	err = 0;
 	list_for_each_entry(proto, &protocols, list) {
-		if (proto->disable_all)
+		if (proto->disable_all) {
 			err |= proto->disable_all(proto);
+		}
 	}
 	return err;
 }

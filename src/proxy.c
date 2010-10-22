@@ -427,7 +427,7 @@ int start_proxies(int verbose)
 			if (listener->state != LI_ASSIGNED)
 				continue; /* already started */
 
-			lerr = tcp_bind_listener(listener, msg, sizeof(msg));
+			lerr = listener->proto->bind(listener, msg, sizeof(msg));
 
 			/* errors are reported if <verbose> is set or if they are fatal */
 			if (verbose || (lerr & (ERR_FATAL | ERR_ABORT))) {
