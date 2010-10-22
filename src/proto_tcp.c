@@ -1004,8 +1004,11 @@ acl_fetch_src(struct proxy *px, struct session *l4, void *l7, int dir,
 	test->i = l4->cli_addr.ss_family;
 	if (test->i == AF_INET)
 		test->ptr = (void *)&((struct sockaddr_in *)&l4->cli_addr)->sin_addr;
-	else
+	else if (test->i == AF_INET6)
 		test->ptr = (void *)&((struct sockaddr_in6 *)(&l4->cli_addr))->sin6_addr;
+	else
+		return 0;
+
 	test->flags = ACL_TEST_F_READ_ONLY;
 	return 1;
 }
@@ -1015,6 +1018,9 @@ static int
 pattern_fetch_src(struct proxy *px, struct session *l4, void *l7, int dir,
                   const char *arg, int arg_len, union pattern_data *data)
 {
+	if (l4->cli_addr.ss_family != AF_INET )
+		return 0;
+
 	data->ip.s_addr = ((struct sockaddr_in *)&l4->cli_addr)->sin_addr.s_addr;
 	return 1;
 }
@@ -1027,8 +1033,11 @@ acl_fetch_sport(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	if (l4->cli_addr.ss_family == AF_INET)
 		test->i = ntohs(((struct sockaddr_in *)&l4->cli_addr)->sin_port);
-	else
+	else if (l4->cli_addr.ss_family == AF_INET6)
 		test->i = ntohs(((struct sockaddr_in6 *)(&l4->cli_addr))->sin6_port);
+	else
+		return 0;
+
 	test->flags = 0;
 	return 1;
 }
@@ -1045,8 +1054,11 @@ acl_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir,
 	test->i = l4->frt_addr.ss_family;
 	if (test->i == AF_INET)
 		test->ptr = (void *)&((struct sockaddr_in *)&l4->frt_addr)->sin_addr;
-	else
+	else if (test->i == AF_INET6)
 		test->ptr = (void *)&((struct sockaddr_in6 *)(&l4->frt_addr))->sin6_addr;
+	else
+		return 0;
+
 	test->flags = ACL_TEST_F_READ_ONLY;
 	return 1;
 }
@@ -1059,6 +1071,9 @@ pattern_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	if (!(l4->flags & SN_FRT_ADDR_SET))
 		get_frt_addr(l4);
+
+	if (l4->frt_addr.ss_family != AF_INET)
+		return 0;
 
 	data->ip.s_addr = ((struct sockaddr_in *)&l4->frt_addr)->sin_addr.s_addr;
 	return 1;
@@ -1074,8 +1089,11 @@ acl_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
 
 	if (l4->frt_addr.ss_family == AF_INET)
 		test->i = ntohs(((struct sockaddr_in *)&l4->frt_addr)->sin_port);
-	else
+	else if (l4->frt_addr.ss_family == AF_INET6)
 		test->i = ntohs(((struct sockaddr_in6 *)(&l4->frt_addr))->sin6_port);
+	else
+		return 0;
+
 	test->flags = 0;
 	return 1;
 }
@@ -1087,6 +1105,9 @@ pattern_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	if (!(l4->flags & SN_FRT_ADDR_SET))
 		get_frt_addr(l4);
+
+	if (l4->frt_addr.ss_family != AF_INET)
+		return 0;
 
 	data->integer = ntohs(((struct sockaddr_in *)&l4->frt_addr)->sin_port);
 	return 1;
