@@ -669,7 +669,9 @@ int assign_server_address(struct session *s)
 			if (!(s->be->options & PR_O_TRANSP) && !(s->flags & SN_FRT_ADDR_SET))
 				get_frt_addr(s);
 
-			s->srv_addr.sin_addr = ((struct sockaddr_in *)&s->frt_addr)->sin_addr;
+			if (s->frt_addr.ss_family == AF_INET) {
+				s->srv_addr.sin_addr = ((struct sockaddr_in *)&s->frt_addr)->sin_addr;
+			}
 		}
 
 		/* if this server remaps proxied ports, we'll use
@@ -680,7 +682,8 @@ int assign_server_address(struct session *s)
 			if (s->frt_addr.ss_family == AF_INET) {
 				s->srv_addr.sin_port = htons(ntohs(s->srv_addr.sin_port) +
 							     ntohs(((struct sockaddr_in *)&s->frt_addr)->sin_port));
-			} else {
+			}
+			else if (s->frt_addr.ss_family == AF_INET6) {
 				s->srv_addr.sin_port = htons(ntohs(s->srv_addr.sin_port) +
 							     ntohs(((struct sockaddr_in6 *)&s->frt_addr)->sin6_port));
 			}
@@ -695,7 +698,9 @@ int assign_server_address(struct session *s)
 		if (!(s->flags & SN_FRT_ADDR_SET))
 			get_frt_addr(s);
 
-		memcpy(&s->srv_addr, &s->frt_addr, MIN(sizeof(s->srv_addr), sizeof(s->frt_addr)));
+		if (s->frt_addr.ss_family == AF_INET) {
+			memcpy(&s->srv_addr, &s->frt_addr, MIN(sizeof(s->srv_addr), sizeof(s->frt_addr)));
+		}
 		/* when we support IPv6 on the backend, we may add other tests */
 		//qfprintf(stderr, "Cannot get original server address.\n");
 		//return SRV_STATUS_INTERNAL;
@@ -846,7 +851,7 @@ static void assign_tproxy_address(struct session *s)
 			break;
 		case SRV_TPROXY_CLI:
 		case SRV_TPROXY_CIP:
-			/* FIXME: what can we do if the client connects in IPv6 ? */
+			/* FIXME: what can we do if the client connects in IPv6 or unix socket ? */
 			s->from_addr = *(struct sockaddr_in *)&s->cli_addr;
 			break;
 		case SRV_TPROXY_DYN:
@@ -871,7 +876,7 @@ static void assign_tproxy_address(struct session *s)
 			break;
 		case PR_O_TPXY_CLI:
 		case PR_O_TPXY_CIP:
-			/* FIXME: what can we do if the client connects in IPv6 ? */
+			/* FIXME: what can we do if the client connects in IPv6 or socket unix? */
 			s->from_addr = *(struct sockaddr_in *)&s->cli_addr;
 			break;
 		case PR_O_TPXY_DYN:
