@@ -687,15 +687,27 @@ void listen_proxies(void)
 				} else {
 					int port;
 
-					if (l->addr.ss_family == AF_INET6)
+					if (l->addr.ss_family == AF_INET6) {
 						port = ntohs(((struct sockaddr_in6 *)(&l->addr))->sin6_port);
-					else
+						Warning("Port %d busy while trying to enable %s %s.\n",
+							port, proxy_cap_str(p->cap), p->id);
+						send_log(p, LOG_WARNING, "Port %d busy while trying to enable %s %s.\n",
+							 port, proxy_cap_str(p->cap), p->id);
+					}
+					else if (l->addr.ss_family == AF_INET) {
 						port = ntohs(((struct sockaddr_in *)(&l->addr))->sin_port);
+						Warning("Port %d busy while trying to enable %s %s.\n",
+							port, proxy_cap_str(p->cap), p->id);
+						send_log(p, LOG_WARNING, "Port %d busy while trying to enable %s %s.\n",
+							 port, proxy_cap_str(p->cap), p->id);
+					}
+					else {
+						Warning("Bind on socket %d busy while trying to enable %s %s.\n",
+							l->luid, proxy_cap_str(p->cap), p->id);
+						send_log(p, LOG_WARNING, "Bind on socket %d busy while trying to enable %s %s.\n",
+							 l->luid, proxy_cap_str(p->cap), p->id);
+					}
 
-					Warning("Port %d busy while trying to enable %s %s.\n",
-						port, proxy_cap_str(p->cap), p->id);
-					send_log(p, LOG_WARNING, "Port %d busy while trying to enable %s %s.\n",
-						 port, proxy_cap_str(p->cap), p->id);
 					/* Another port might have been enabled. Let's stop everything. */
 					pause_proxy(p);
 					break;
