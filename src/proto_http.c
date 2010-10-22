@@ -7968,6 +7968,22 @@ acl_fetch_proto_http(struct proxy *px, struct session *s, void *l7, int dir,
 	return 1;
 }
 
+/* return a valid test if the current request is the first one on the connection */
+static int
+acl_fetch_http_first_req(struct proxy *px, struct session *s, void *l7, int dir,
+		     struct acl_expr *expr, struct acl_test *test)
+{
+	if (!s)
+		return 0;
+
+	if (s->txn.flags & TX_NOT_FIRST)
+		test->flags |= ACL_TEST_F_SET_RES_FAIL;
+	else
+		test->flags |= ACL_TEST_F_SET_RES_PASS;
+
+	return 1;
+}
+
 static int
 acl_fetch_http_auth(struct proxy *px, struct session *s, void *l7, int dir,
 		    struct acl_expr *expr, struct acl_test *test)
@@ -8061,8 +8077,9 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "cook_pst",   acl_parse_none,  acl_fetch_cook,   acl_match_pst   },
 #endif
 
-	{ "http_auth",       acl_parse_nothing, acl_fetch_http_auth, acl_match_auth },
-	{ "http_auth_group", acl_parse_strcat,  acl_fetch_http_auth, acl_match_auth },
+	{ "http_auth",       acl_parse_nothing, acl_fetch_http_auth, acl_match_auth, ACL_USE_L7REQ_PERMANENT },
+	{ "http_auth_group", acl_parse_strcat,  acl_fetch_http_auth, acl_match_auth, ACL_USE_L7REQ_PERMANENT },
+	{ "http_first_req",  acl_parse_nothing, acl_fetch_http_first_req, acl_match_nothing, ACL_USE_L7REQ_PERMANENT },
 	{ NULL, NULL, NULL, NULL },
 }};
 

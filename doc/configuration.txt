@@ -7202,6 +7202,12 @@ http_auth_group(userlist) <group> [<group>]*
 
   Currently only http basic auth is supported.
 
+http_req_first
+  Returns true when the request being processed is the first one of the
+  connection. This can be used to add or remove headers that may be missing
+  from some requests when a request is not the first one, or even to perform
+  some specific ACL checks only on the first request.
+
 method <string>
   Applies to the method in the HTTP request, eg: "GET". Some predefined ACL
   already check for most common methods.
