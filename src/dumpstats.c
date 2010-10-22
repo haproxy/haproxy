@@ -2693,6 +2693,9 @@ int stats_dump_full_sess_to_buffer(struct session *s, struct buffer *rep)
 				     ntohs(((struct sockaddr_in6 *)&sess->cli_addr)->sin6_port));
 			break;
 		case AF_UNIX:
+			chunk_printf(&msg,
+				     " source=unix:%d\n", sess->listener->luid);
+			break;
 		default:
 			/* no more information to print right now */
 			chunk_printf(&msg, "\n");
@@ -2938,7 +2941,13 @@ int stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 
 				break;
 			case AF_UNIX:
-				/* no more information to print right now */
+				chunk_printf(&msg,
+					     " src=unix:%d fe=%s be=%s srv=%s",
+					     curr_sess->listener->luid,
+					     curr_sess->fe->id,
+					     curr_sess->be->id,
+					     curr_sess->srv ? curr_sess->srv->id : "<none>"
+					     );
 				break;
 			}
 
