@@ -869,10 +869,12 @@ void http_sess_clflog(struct session *s)
 		inet_ntop(AF_INET,
 		          (const void *)&((struct sockaddr_in *)&s->cli_addr)->sin_addr,
 		          pn, sizeof(pn));
-	else
+	else if (s->cli_addr.ss_family == AF_INET6)
 		inet_ntop(AF_INET6,
 		          (const void *)&((struct sockaddr_in6 *)(&s->cli_addr))->sin6_addr,
 		          pn, sizeof(pn));
+	else
+		snprintf(pn, sizeof(pn), "unix:%d", s->listener->luid);
 
 	get_gmtime(s->logs.accept_date.tv_sec, &tm);
 
@@ -912,9 +914,10 @@ void http_sess_clflog(struct session *s)
 
 	w = snprintf(h, sizeof(tmpline) - (h - tmpline),
 	             " %d %03d",
-	             (s->cli_addr.ss_family == AF_INET) ?
-	             ntohs(((struct sockaddr_in *)&s->cli_addr)->sin_port) :
-	             ntohs(((struct sockaddr_in6 *)&s->cli_addr)->sin6_port),
+		     s->cli_addr.ss_family == AF_UNIX ? s->listener->luid :
+	                 ntohs((s->cli_addr.ss_family == AF_INET) ?
+	                       ((struct sockaddr_in *)&s->cli_addr)->sin_port :
+	                       ((struct sockaddr_in6 *)&s->cli_addr)->sin6_port),
 	             (int)s->logs.accept_date.tv_usec/1000);
 	if (w < 0 || w >= sizeof(tmpline) - (h - tmpline))
 		goto trunc;
@@ -1100,7 +1103,7 @@ void http_sess_log(struct session *s)
 		inet_ntop(AF_INET,
 			  (const void *)&((struct sockaddr_in *)&s->cli_addr)->sin_addr,
 			  pn, sizeof(pn));
-	else
+	else if (s->cli_addr.ss_family == AF_INET6)
 		inet_ntop(AF_INET6,
 			  (const void *)&((struct sockaddr_in6 *)(&s->cli_addr))->sin6_addr,
 			  pn, sizeof(pn));
@@ -1167,10 +1170,11 @@ void http_sess_log(struct session *s)
 		 "%s:%d [%02d/%s/%04d:%02d:%02d:%02d.%03d]"
 		 " %s %s/%s %d/%ld/%ld/%ld/%s%ld %d %s%lld"
 		 " %s %s %c%c%c%c %d/%d/%d/%d/%s%u %ld/%ld%s\n",
-		 pn,
-		 (s->cli_addr.ss_family == AF_INET) ?
-		 ntohs(((struct sockaddr_in *)&s->cli_addr)->sin_port) :
-		 ntohs(((struct sockaddr_in6 *)&s->cli_addr)->sin6_port),
+		 (s->cli_addr.ss_family == AF_UNIX) ? "unix" : pn,
+		 (s->cli_addr.ss_family == AF_UNIX) ? s->listener->luid :
+		     ntohs((s->cli_addr.ss_family == AF_INET) ?
+		           ((struct sockaddr_in *)&s->cli_addr)->sin_port :
+		           ((struct sockaddr_in6 *)&s->cli_addr)->sin6_port),
 		 tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
 		 tm.tm_hour, tm.tm_min, tm.tm_sec, (int)s->logs.accept_date.tv_usec/1000,
 		 fe->id, be->id, svid,
@@ -3535,12 +3539,13 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 			if (!(s->flags & SN_FRT_ADDR_SET))
 				get_frt_addr(s);
 
-			if ((!s->fe->except_mask_to.s_addr ||
-			     (((struct sockaddr_in *)&s->frt_addr)->sin_addr.s_addr & s->fe->except_mask_to.s_addr)
-			     != s->fe->except_to.s_addr) &&
-			    (!s->be->except_mask_to.s_addr ||
-			     (((struct sockaddr_in *)&s->frt_addr)->sin_addr.s_addr & s->be->except_mask_to.s_addr)
-			     != s->be->except_to.s_addr)) {
+			if (s->frt_addr.ss_family == AF_INET &&
+			    ((!s->fe->except_mask_to.s_addr ||
+			      (((struct sockaddr_in *)&s->frt_addr)->sin_addr.s_addr & s->fe->except_mask_to.s_addr)
+			      != s->fe->except_to.s_addr) &&
+			     (!s->be->except_mask_to.s_addr ||
+			      (((struct sockaddr_in *)&s->frt_addr)->sin_addr.s_addr & s->be->except_mask_to.s_addr)
+			      != s->be->except_to.s_addr))) {
 				int len;
 				unsigned char *pn;
 				pn = (unsigned char *)&((struct sockaddr_in *)&s->frt_addr)->sin_addr;
