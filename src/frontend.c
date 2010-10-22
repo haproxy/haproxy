@@ -153,7 +153,7 @@ int frontend_accept(struct session *s)
 					 s->fe->id, (s->fe->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
 			}
 		}
-		else {
+		else if (s->cli_addr.ss_family == AF_INET6) {
 			char pn[INET6_ADDRSTRLEN], sn[INET6_ADDRSTRLEN];
 
 			if (!(s->flags & SN_FRT_ADDR_SET))
@@ -168,6 +168,12 @@ int frontend_accept(struct session *s)
 					 sn, ntohs(((struct sockaddr_in6 *)&s->frt_addr)->sin6_port),
 					 s->fe->id, (s->fe->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
 			}
+		}
+		else {
+			/* UNIX socket, only the destination is known */
+			send_log(s->fe, LOG_INFO, "Connect to unix:%d (%s/%s)\n",
+                                 s->listener->luid,
+				 s->fe->id, (s->fe->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
 		}
 	}
 
@@ -187,7 +193,7 @@ int frontend_accept(struct session *s)
 				      s->uniq_id, s->fe->id, (unsigned short)s->listener->fd, (unsigned short)cfd,
 				      pn, ntohs(((struct sockaddr_in *)&s->cli_addr)->sin_port));
 		}
-		else {
+		else if (s->cli_addr.ss_family == AF_INET6) {
 			char pn[INET6_ADDRSTRLEN];
 			inet_ntop(AF_INET6,
 				  (const void *)&((struct sockaddr_in6 *)(&s->cli_addr))->sin6_addr,
@@ -196,6 +202,11 @@ int frontend_accept(struct session *s)
 			len = sprintf(trash, "%08x:%s.accept(%04x)=%04x from [%s:%d]\n",
 				      s->uniq_id, s->fe->id, (unsigned short)s->listener->fd, (unsigned short)cfd,
 				      pn, ntohs(((struct sockaddr_in6 *)(&s->cli_addr))->sin6_port));
+		}
+		else {
+			len = sprintf(trash, "%08x:%s.accept(%04x)=%04x from [unix:%d]\n",
+				      s->uniq_id, s->fe->id, (unsigned short)s->listener->fd, (unsigned short)cfd,
+				      s->listener->luid);
 		}
 
 		write(1, trash, len);
