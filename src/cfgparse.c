@@ -1169,8 +1169,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curproxy->fullconn = defproxy.fullconn;
 			curproxy->conn_retries = defproxy.conn_retries;
 
-			if (defproxy.check_req)
-				curproxy->check_req = strdup(defproxy.check_req);
+			if (defproxy.check_req) {
+				curproxy->check_req = calloc(1, defproxy.check_len);
+				memcpy(curproxy->check_req, defproxy.check_req, defproxy.check_len);
+			}
 			curproxy->check_len = defproxy.check_len;
 
 			if (defproxy.cookie_name)
