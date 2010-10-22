@@ -3623,7 +3623,7 @@ stats_error_parsing:
 				}
 				else {
 					Alert("parsing [%s:%d]: '%s' expects one of 'none', "
-						"'l4events', 'http-responses' but get '%s'\n",
+						"'layer4', 'layer7' but got '%s'\n",
 						file, linenum, args[cur_arg], args[cur_arg + 1]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
@@ -3642,7 +3642,7 @@ stats_error_parsing:
 					newsrv->onerror = HANA_ONERR_MARKDWN;
 				else {
 					Alert("parsing [%s:%d]: '%s' expects one of 'fastinter', "
-						"'fail-check', 'sudden-death' or 'mark-down' but get '%s'\n",
+						"'fail-check', 'sudden-death' or 'mark-down' but got '%s'\n",
 						file, linenum, args[cur_arg], args[cur_arg + 1]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
