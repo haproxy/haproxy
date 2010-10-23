@@ -1453,15 +1453,15 @@ bind-process [ all | odd | even | <number 1-32> ] ...
   Example :
         listen app_ip1
             bind 10.0.0.1:80
-            bind_process odd
+            bind-process odd
 
         listen app_ip2
             bind 10.0.0.2:80
-            bind_process even
+            bind-process even
 
         listen management
             bind 10.0.0.3:80
-            bind_process 1 2 3 4
+            bind-process 1 2 3 4
 
   See also : "nbproc" in global section.
 
