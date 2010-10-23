@@ -1660,11 +1660,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
+		curproxy->options &= ~PR_O_COOK_ANY;
+		curproxy->cookie_maxidle = curproxy->cookie_maxlife = 0;
 		free(curproxy->cookie_domain); curproxy->cookie_domain = NULL;
 		free(curproxy->cookie_name);
 		curproxy->cookie_name = strdup(args[1]);
 		curproxy->cookie_len = strlen(curproxy->cookie_name);
-	
+
 		cur_arg = 2;
 		while (*(args[cur_arg])) {
 			if (!strcmp(args[cur_arg], "rewrite")) {
