@@ -148,6 +148,7 @@
 #define PR_O2_EXP_RSTR  0x02000000      /* http-check expect rstring */
 #define PR_O2_EXP_TYPE  0x03800000      /* mask for http-check expect type */
 #define PR_O2_EXP_INV   0x04000000      /* http-check expect !<rule> */
+#define PR_O2_COOK_PSV  0x08000000      /* cookie ... preserve */
 /* end of proxy->options2 */
 
 /* bits for sticking rules */

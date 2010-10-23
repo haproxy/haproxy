@@ -5098,6 +5098,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 		 * 6: add server cookie in the response if needed
 		 */
 		if ((t->srv) && (t->be->options & PR_O_COOK_INS) &&
+		    !((txn->flags & TX_SCK_FOUND) && (t->be->options2 & PR_O2_COOK_PSV)) &&
 		    (!(t->flags & SN_DIRECT) ||
 		     ((t->be->cookie_maxidle || txn->cookie_last_date) &&
 		      (!txn->cookie_last_date || (txn->cookie_last_date - date.tv_sec) < 0)) ||
@@ -6780,7 +6781,12 @@ void manage_server_side_cookies(struct session *t, struct buffer *res)
 				 * We'll delete it too if the "indirect" option is set and we're in
 				 * a direct access.
 				 */
-				if (((t->srv) && (t->be->options & PR_O_COOK_INS)) ||
+				if (t->be->options2 & PR_O2_COOK_PSV) {
+					/* The "preserve" flag was set, we don't want to touch the
+					 * server's cookie.
+					 */
+				}
+				else if (((t->srv) && (t->be->options & PR_O_COOK_INS)) ||
 				    ((t->flags & SN_DIRECT) && (t->be->options & PR_O_COOK_IND))) {
 					/* this cookie must be deleted */
 					if (*prev == ':' && next == hdr_end) {

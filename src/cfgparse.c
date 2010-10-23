@@ -1661,6 +1661,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		curproxy->options &= ~PR_O_COOK_ANY;
+		curproxy->options2 &= ~PR_O2_COOK_PSV;
 		curproxy->cookie_maxidle = curproxy->cookie_maxlife = 0;
 		free(curproxy->cookie_domain); curproxy->cookie_domain = NULL;
 		free(curproxy->cookie_name);
@@ -1683,6 +1684,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			}
 			else if (!strcmp(args[cur_arg], "postonly")) {
 				curproxy->options |= PR_O_COOK_POST;
+			}
+			else if (!strcmp(args[cur_arg], "preserve")) {
+				curproxy->options2 |= PR_O2_COOK_PSV;
 			}
 			else if (!strcmp(args[cur_arg], "prefix")) {
 				curproxy->options |= PR_O_COOK_PFX;
@@ -1787,6 +1791,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		if (!POWEROF2(curproxy->options & (PR_O_COOK_RW|PR_O_COOK_INS|PR_O_COOK_PFX))) {
 			Alert("parsing [%s:%d] : cookie 'rewrite', 'insert' and 'prefix' modes are incompatible.\n",
+			      file, linenum);
+			err_code |= ERR_ALERT | ERR_FATAL;
+		}
+
+		if ((curproxy->options2 & PR_O2_COOK_PSV) && !(curproxy->options & (PR_O_COOK_INS|PR_O_COOK_IND))) {
+			Alert("parsing [%s:%d] : cookie 'preserve' requires at least 'insert' or 'indirect'.\n",
 			      file, linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
