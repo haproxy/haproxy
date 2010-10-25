@@ -1,14 +1,14 @@
 #
 # Net-SNMP perl plugin for Haproxy
-# Version 0.27
+# Version 0.30
 #
-# Copyright 2007-2008 Krzysztof Piotr Oledzki <ole@ans.pl>
+# Copyright 2007-2010 Krzysztof Piotr Oledzki <ole@ans.pl>
 #
-# 1. get a variable from stat:
+# 1. get a variable from "show stat":
 #  1.3.6.1.4.1.29385.106.1.$type.$field.$iid.$sid
-#  type: 0->frontend, 1->backend, 2->server
+#   type: 0->frontend, 1->backend, 2->server, 3->socket
 #
-# 2. get a variable from info
+# 2. get a variable from "show info":
 #  1.3.6.1.4.1.29385.106.2.$req.$varnr
 #
 # TODO:
@@ -53,7 +53,14 @@ my %info_vars = (
 	9	=> 'Ulimit-n',
 	10	=> 'Maxsock',
 	11	=> 'Maxconn',
-	12	=> 'CurrConns',
+	12	=> 'Maxpipes',
+	13	=> 'CurrConns',
+	14	=> 'PipesUsed',
+	15	=> 'PipesFree',
+	16	=> 'Tasks',
+	17	=> 'Run_queue',
+	18	=> 'node',
+	19	=> 'description',
 );
 
 sub find_next_stat_id {
@@ -107,7 +114,7 @@ sub haproxy_stat {
 
 		my($type, $field, $proxyid, $sid, $or) = split('\.', $oid, 5);
 
-		next if $type > 2 || defined($or);
+		next if $type > 3 || defined($or);
 
 		if ($mode == MODE_GETNEXT) {
 
