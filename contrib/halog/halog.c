@@ -20,6 +20,8 @@
 #include <ctype.h>
 
 #include <eb32tree.h>
+#include <eb64tree.h>
+#include <ebistree.h>
 #include <ebsttree.h>
 
 #define SOURCE_FIELD 5
@@ -29,6 +31,8 @@
 #define STATUS_FIELD 10
 #define TERM_CODES_FIELD 14
 #define CONN_FIELD 15
+#define METH_FIELD 17
+#define URL_FIELD 18
 #define MAXLINE 16384
 #define QBITS 4
 
@@ -53,6 +57,17 @@ struct srv_st {
 	/* don't put anything else here, the server name will be there */
 };
 
+struct url_stat {
+	union {
+		struct ebpt_node url;
+		struct eb64_node val;
+	} node;
+	char *url;
+	unsigned long long total_time;    /* sum(all reqs' times) */
+	unsigned long long total_time_ok; /* sum(all OK reqs' times) */
+	unsigned int nb_err, nb_req;
+};
+
 #define FILT_COUNT_ONLY		0x01
 #define FILT_INVERT		0x02
 #define FILT_QUIET		0x04
@@ -70,6 +85,16 @@ struct srv_st {
 #define FILT_COUNT_SRV_STATUS 0x1000
 #define FILT_COUNT_TERM_CODES 0x2000
 
+#define FILT_COUNT_URL_ONLY  0x004000
+#define FILT_COUNT_URL_COUNT 0x008000
+#define FILT_COUNT_URL_ERR   0x010000
+#define FILT_COUNT_URL_TTOT  0x020000
+#define FILT_COUNT_URL_TAVG  0x040000
+#define FILT_COUNT_URL_TTOTO 0x080000
+#define FILT_COUNT_URL_TAVGO 0x100000
+#define FILT_COUNT_URL_ANY   (FILT_COUNT_URL_ONLY|FILT_COUNT_URL_COUNT|FILT_COUNT_URL_ERR| \
+			      FILT_COUNT_URL_TTOT|FILT_COUNT_URL_TAVG|FILT_COUNT_URL_TTOTO|FILT_COUNT_URL_TAVGO)
+
 unsigned int filter = 0;
 unsigned int filter_invert = 0;
 const char *line;
@@ -80,7 +105,8 @@ void die(const char *msg)
 {
 	fprintf(stderr,
 		"%s"
-		"Usage: halog [-q] [-c] [-v] {-gt|-pct|-st|-tc|-srv} [-s <skip>] [-e|-E] [-rt|-RT <time>] [-ad <delay>] [-ac <count>] < file.log\n"
+		"Usage: halog [-q] [-c] [-v] {-gt|-pct|-st|-tc|-srv|-u|-uc|-ue|-ua|-ut|-uao|-uto}\n"
+		"       [-s <skip>] [-e|-E] [-rt|-RT <time>] [-ad <delay>] [-ac <count>] < file.log\n"
 		"\n",
 		msg ? msg : ""
 		);
@@ -361,6 +387,8 @@ int main(int argc, char **argv)
 	int f, tot, last, linenum, err, parse_err;
 	struct timer *t = NULL, *t2;
 	struct eb32_node *n;
+	struct url_stat *ustat = NULL;
+	struct ebpt_node *ebpt_old;
 	int val, test;
 	int array[5];
 	int filter_acc_delay = 0, filter_acc_count = 0;
@@ -421,6 +449,20 @@ int main(int argc, char **argv)
 			filter |= FILT_COUNT_SRV_STATUS;
 		else if (strcmp(argv[0], "-tc") == 0)
 			filter |= FILT_COUNT_TERM_CODES;
+		else if (strcmp(argv[0], "-u") == 0)
+			filter |= FILT_COUNT_URL_ONLY;
+		else if (strcmp(argv[0], "-uc") == 0)
+			filter |= FILT_COUNT_URL_COUNT;
+		else if (strcmp(argv[0], "-ue") == 0)
+			filter |= FILT_COUNT_URL_ERR;
+		else if (strcmp(argv[0], "-ua") == 0)
+			filter |= FILT_COUNT_URL_TAVG;
+		else if (strcmp(argv[0], "-ut") == 0)
+			filter |= FILT_COUNT_URL_TTOT;
+		else if (strcmp(argv[0], "-uao") == 0)
+			filter |= FILT_COUNT_URL_TAVGO;
+		else if (strcmp(argv[0], "-uto") == 0)
+			filter |= FILT_COUNT_URL_TTOTO;
 		else if (strcmp(argv[0], "-o") == 0) {
 			if (output_file)
 				die("Fatal: output file name already specified.\n");
@@ -744,6 +786,108 @@ int main(int argc, char **argv)
 			continue;
 		}
 
+		if (unlikely(filter & FILT_COUNT_URL_ANY)) {
+			/* first, let's ensure that the line is a traffic line (beginning
+			 * with an IP address)
+			 */
+			b = field_start(line, SOURCE_FIELD + skip_fields); // avg 95 ns per line
+			if (*b < '0' || *b > '9') {
+				parse_err++;
+				continue;
+			}
+
+			/* let's collect the response time */
+			b = field_start(field_stop(b + 1), TIME_FIELD - SOURCE_FIELD);  // avg 115 ns per line
+			if (!*b) {
+				truncated_line(linenum, line);
+				continue;
+			}
+
+			/* we have the field TIME_FIELD starting at <b>. We'll
+			 * parse the 5 timers to detect errors, it takes avg 55 ns per line.
+			 */
+			e = b; err = 0; f = 0;
+			while (*e) {
+				array[f] = str2ic(e);
+				if (array[f] < 0) {
+					array[f] = -1;
+					err = 1;
+				}
+				if (++f == 5)
+					break;
+				SKIP_CHAR(e, '/');
+			}
+			if (f < 5) {
+				parse_err++;
+				continue;
+			}
+
+			/* OK we have our timers in array[3], and err is >0 if at
+			 * least one -1 was seen. <e> points to the first char of
+			 * the last timer. Let's prepare a new node with that.
+			 */
+			if (unlikely(!ustat))
+				ustat = calloc(1, sizeof(*ustat));
+
+			ustat->nb_err = err;
+			ustat->nb_req = 1;
+
+			/* use array[4] = total time in case of error */
+			ustat->total_time = (array[3] >= 0) ? array[3] : array[4];
+			ustat->total_time_ok = (array[3] >= 0) ? array[3] : 0;
+
+			/* the line may be truncated because of a bad request or anything like this,
+			 * without a method. Also, if it does not begin with an quote, let's skip to
+			 * the next field because it's a capture. Let's fall back to the "method" itself
+			 * if there's nothing else.
+			 */
+			e = field_start(e, METH_FIELD - TIME_FIELD + 1); // avg 100 ns per line
+			while (*e != '"' && *e)
+				e = field_start(e, 2);
+
+			if (!*e) {
+				truncated_line(linenum, line);
+				continue;
+			}
+
+			b = field_start(e, URL_FIELD - METH_FIELD + 1); // avg 40 ns per line
+			if (!*b)
+				b = e;
+
+			/* stop at end of field or first ';' or '?', takes avg 64 ns per line */
+			e = b;
+			do {
+				if (*e == ' ' || *e == '?' || *e == ';' || *e == '\t') {
+					*(char *)e = 0;
+					break;
+				}
+				e++;
+			} while (*e);
+
+			/* now instead of copying the URL for a simple lookup, we'll link
+			 * to it from the node we're trying to insert. If it returns a
+			 * different value, it was already there. Otherwise we just have
+			 * to dynamically realloc an entry using strdup().
+			 */
+			ustat->node.url.key = (char *)b;
+			ebpt_old = ebis_insert(&timers[0], &ustat->node.url);
+
+			if (ebpt_old != &ustat->node.url) {
+				struct url_stat *ustat_old;
+				/* node was already there, let's update previous one */
+				ustat_old = container_of(ebpt_old, struct url_stat, node.url);
+				ustat_old->nb_req ++;
+				ustat_old->nb_err += ustat->nb_err;
+				ustat_old->total_time += ustat->total_time;
+				ustat_old->total_time_ok += ustat->total_time_ok;
+			} else {
+				ustat->url = ustat->node.url.key = strdup(ustat->node.url.key);
+				ustat = NULL; /* node was used */
+			}
+
+			continue;
+		}
+
 		/* all other cases mean we just want to count lines */
 		tot++;
 		if (unlikely(!(filter & FILT_COUNT_ONLY)))
@@ -904,6 +1048,62 @@ int main(int argc, char **argv)
 			t = container_of(n, struct timer, node);
 			printf("%c%c %d\n", (n->key >> 8), (n->key) & 255, t->count);
 			n = eb32_next(n);
+		}
+	}
+	else if (unlikely(filter & FILT_COUNT_URL_ANY)) {
+		char *srv_name;
+		struct eb_node *node, *next;
+
+		if (!(filter & FILT_COUNT_URL_ONLY)) {
+			/* we have to sort on another criterion. We'll use timers[1] for the
+			 * destination tree.
+			 */
+
+			timers[1] = EB_ROOT; /* reconfigure to accept duplicates */
+			for (node = eb_first(&timers[0]); node; node = next) {
+				next = eb_next(node);
+				eb_delete(node);
+
+				ustat = container_of(node, struct url_stat, node.url.node);
+
+				if (filter & FILT_COUNT_URL_COUNT)
+					ustat->node.val.key = ustat->nb_req;
+				else if (filter & FILT_COUNT_URL_ERR)
+					ustat->node.val.key = ustat->nb_err;
+				else if (filter & FILT_COUNT_URL_TTOT)
+					ustat->node.val.key = ustat->total_time;
+				else if (filter & FILT_COUNT_URL_TAVG)
+					ustat->node.val.key = ustat->nb_req ? ustat->total_time / ustat->nb_req : 0;
+				else if (filter & FILT_COUNT_URL_TTOTO)
+					ustat->node.val.key = ustat->total_time_ok;
+				else if (filter & FILT_COUNT_URL_TAVGO)
+					ustat->node.val.key = (ustat->nb_req - ustat->nb_err) ? ustat->total_time_ok / (ustat->nb_req - ustat->nb_err) : 0;
+				else
+					ustat->node.val.key = 0;
+
+				eb64_insert(&timers[1], &ustat->node.val);
+			}
+			/* switch trees */
+			timers[0] = timers[1];
+		}
+
+		printf("#req err ttot tavg oktot okavg url\n");
+
+		/* scan the tree in its reverse sorting order */
+		node = eb_last(&timers[0]);
+		while (node) {
+			ustat = container_of(node, struct url_stat, node.url.node);
+			printf("%d %d %Ld %Ld %Ld %Ld %s\n",
+			       ustat->nb_req,
+			       ustat->nb_err,
+			       ustat->total_time,
+			       ustat->nb_req ? ustat->total_time / ustat->nb_req : 0,
+			       ustat->total_time_ok,
+			       (ustat->nb_req - ustat->nb_err) ? ustat->total_time_ok / (ustat->nb_req - ustat->nb_err) : 0,
+			       ustat->url);
+
+			node = eb_prev(node);
+			tot++;
 		}
 	}
 
