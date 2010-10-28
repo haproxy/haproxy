@@ -80,10 +80,24 @@ static forceinline struct ebpt_node *__ebis_lookup(struct eb_root *root, const v
 			return node;
 		}
 
-		/* OK, normal data node, let's walk down */
-		bit = string_equal_bits(x, node->key, bit);
-		if (bit < node_bit)
-			return NULL; /* no more common bits */
+		/* OK, normal data node, let's walk down but don't compare data
+		 * if we already reached the end of the key.
+		 */
+		if (likely(bit >= 0)) {
+			bit = string_equal_bits(x, node->key, bit);
+			if (likely(bit < node_bit)) {
+				if (bit >= 0)
+					return NULL; /* no more common bits */
+
+				/* bit < 0 : we reached the end of the key. If we
+				 * are in a tree with unique keys, we can return
+				 * this node. Otherwise we have to walk it down
+				 * and stop comparing bits.
+				 */
+				if (eb_gettag(root->b[EB_RGHT]))
+					return node;
+			}
+		}
 
 		troot = node->node.branches.b[(((unsigned char*)x)[node_bit >> 3] >>
 					       (~node_bit & 7)) & 1];
@@ -160,32 +174,41 @@ __ebis_insert(struct eb_root *root, struct ebpt_node *new)
 			 *
 			 * The last two cases can easily be partially merged.
 			 */
-			bit = string_equal_bits(new->key, old->key, bit);
-			diff = cmp_bits(new->key, old->key, bit);
+			if (bit >= 0)
+				bit = string_equal_bits(new->key, old->key, bit);
 
+			if (bit < 0) {
+				/* key was already there */
+
+				/* we may refuse to duplicate this key if the tree is
+				 * tagged as containing only unique keys.
+				 */
+				if (eb_gettag(root_right))
+					return old;
+
+				/* new arbitrarily goes to the right and tops the dup tree */
+				old->node.leaf_p = new_left;
+				new->node.leaf_p = new_rght;
+				new->node.branches.b[EB_LEFT] = old_leaf;
+				new->node.branches.b[EB_RGHT] = new_leaf;
+				new->node.bit = -1;
+				root->b[side] = eb_dotag(&new->node.branches, EB_NODE);
+				return new;
+			}
+
+			diff = cmp_bits(new->key, old->key, bit);
 			if (diff < 0) {
+				/* new->key < old->key, new takes the left */
 				new->node.leaf_p = new_left;
 				old->node.leaf_p = new_rght;
 				new->node.branches.b[EB_LEFT] = new_leaf;
 				new->node.branches.b[EB_RGHT] = old_leaf;
 			} else {
-				/* we may refuse to duplicate this key if the tree is
-				 * tagged as containing only unique keys.
-				 */
-				if (diff == 0 && eb_gettag(root_right))
-					return old;
-
-				/* new->key >= old->key, new goes the right */
+				/* new->key > old->key, new takes the right */
 				old->node.leaf_p = new_left;
 				new->node.leaf_p = new_rght;
 				new->node.branches.b[EB_LEFT] = old_leaf;
 				new->node.branches.b[EB_RGHT] = new_leaf;
-
-				if (diff == 0) {
-					new->node.bit = -1;
-					root->b[side] = eb_dotag(&new->node.branches, EB_NODE);
-					return new;
-				}
 			}
 			break;
 		}
@@ -201,23 +224,36 @@ __ebis_insert(struct eb_root *root, struct ebpt_node *new)
 		 * the current node's because as long as they are identical, we
 		 * know we descend along the correct side.
 		 */
-		if (old_node_bit < 0) {
-			/* we're above a duplicate tree, we must compare till the end */
+		if (bit >= 0 && (bit < old_node_bit || old_node_bit < 0))
 			bit = string_equal_bits(new->key, old->key, bit);
-			goto dup_tree;
-		}
-		else if (bit < old_node_bit) {
-			bit = string_equal_bits(new->key, old->key, bit);
-		}
 
-		if (bit < old_node_bit) { /* we don't have all bits in common */
-			/* The tree did not contain the key, so we insert <new> before the node
-			 * <old>, and set ->bit to designate the lowest bit position in <new>
-			 * which applies to ->branches.b[].
+		if (unlikely(bit < 0)) {
+			/* Perfect match, we must only stop on head of dup tree
+			 * or walk down to a leaf.
+			 */
+			if (old_node_bit < 0) {
+				/* We know here that string_equal_bits matched all
+				 * bits and that we're on top of a dup tree, then
+				 * we can perform the dup insertion and return.
+				 */
+				struct eb_node *ret;
+				ret = eb_insert_dup(&old->node, &new->node);
+				return container_of(ret, struct ebpt_node, node);
+			}
+			/* OK so let's walk down */
+		}
+		else if (bit < old_node_bit || old_node_bit < 0) {
+			/* The tree did not contain the key, or we stopped on top of a dup
+			 * tree, possibly containing the key. In the former case, we insert
+			 * <new> before the node <old>, and set ->bit to designate the lowest
+			 * bit position in <new> which applies to ->branches.b[]. In the later
+			 * case, we add the key to the existing dup tree. Note that we cannot
+			 * enter here if we match an intermediate node's key that is not the
+			 * head of a dup tree.
 			 */
 			eb_troot_t *new_left, *new_rght;
 			eb_troot_t *new_leaf, *old_node;
-		dup_tree:
+
 			new_left = eb_dotag(&new->node.branches, EB_LEFT);
 			new_rght = eb_dotag(&new->node.branches, EB_RGHT);
 			new_leaf = eb_dotag(&new->node.branches, EB_LEAF);
@@ -225,6 +261,7 @@ __ebis_insert(struct eb_root *root, struct ebpt_node *new)
 
 			new->node.node_p = old->node.node_p;
 
+			/* we can never match all bits here */
 			diff = cmp_bits(new->key, old->key, bit);
 			if (diff < 0) {
 				new->node.leaf_p = new_left;
@@ -232,16 +269,11 @@ __ebis_insert(struct eb_root *root, struct ebpt_node *new)
 				new->node.branches.b[EB_LEFT] = new_leaf;
 				new->node.branches.b[EB_RGHT] = old_node;
 			}
-			else if (diff > 0) {
+			else {
 				old->node.node_p = new_left;
 				new->node.leaf_p = new_rght;
 				new->node.branches.b[EB_LEFT] = old_node;
 				new->node.branches.b[EB_RGHT] = new_leaf;
-			}
-			else {
-				struct eb_node *ret;
-				ret = eb_insert_dup(&old->node, &new->node);
-				return container_of(ret, struct ebpt_node, node);
 			}
 			break;
 		}
@@ -260,6 +292,7 @@ __ebis_insert(struct eb_root *root, struct ebpt_node *new)
 
 	/* We need the common higher bits between new->key and old->key.
 	 * This number of bits is already in <bit>.
+	 * NOTE: we can't get here whit bit < 0 since we found a dup !
 	 */
 	new->node.bit = bit;
 	root->b[side] = eb_dotag(&new->node.branches, EB_NODE);
