@@ -502,17 +502,19 @@ int main(int argc, char **argv)
 			}
 
 			e = field_stop(b + 1);
-			/* we have field TIME_FIELD in [b]..[e-1] */
+			/* we have field TIME_FIELD in [b]..[e-1], let's check only the response time */
 
 			p = b;
 			err = 0;
-			for (f = 0; f < 4 && *p; f++) {
+			f = 0;
+			while (*p) {
 				tps = str2ic(p);
 				if (tps < 0) {
 					tps = -1;
 					err = 1;
 				}
-
+				if (++f == 4)
+					break;
 				SKIP_CHAR(p, '/');
 			}
 
@@ -577,13 +579,15 @@ int main(int argc, char **argv)
 
 			p = b;
 			err = 0;
-			for (f = 0; f < 5 && *p; f++) {
+			f = 0;
+			while (*p) {
 				array[f] = str2ic(p);
 				if (array[f] < 0) {
 					array[f] = -1;
 					err = 1;
 				}
-
+				if (++f == 5)
+					break;
 				SKIP_CHAR(p, '/');
 			}
 
@@ -740,13 +744,15 @@ int main(int argc, char **argv)
 
 			p = b;
 			err = 0;
-			for (f = 0; f < 5 && *p; f++) {
+			f = 0;
+			while (*p) {
 				array[f] = str2ic(p);
 				if (array[f] < 0) {
 					array[f] = -1;
 					err = 1;
 				}
-
+				if (++f == 5)
+					break;
 				SKIP_CHAR(p, '/');
 			}
 
