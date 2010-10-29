@@ -256,7 +256,7 @@ int frontend_accept(struct session *s)
  *   "PROXY" <SP> PROTO <SP> SRC3 <SP> DST3 <SP> SRC4 <SP> <DST4> "\r\n"
  *
  * There must be exactly one space between each field. Fields are :
- *  - PROTO : layer 4 protocol, which must be "TCP4".
+ *  - PROTO : layer 4 protocol, which must be "TCP4" or "TCP6".
  *  - SRC3  : layer 3 (eg: IP) source address in standard text form
  *  - DST3  : layer 3 (eg: IP) destination address in standard text form
  *  - SRC4  : layer 4 (eg: TCP port) source address in standard text form
@@ -272,7 +272,6 @@ int frontend_decode_proxy_request(struct session *s, struct buffer *req, int an_
 {
 	char *line = req->data;
 	char *end = req->data + req->l;
-	u32 src3, dst3, sport, dport;
 	int len;
 
 	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
@@ -299,45 +298,112 @@ int frontend_decode_proxy_request(struct session *s, struct buffer *req, int an_
 	if (req->l < 18) /* shortest possible line */
 		goto missing;
 
-	if (memcmp(line, "TCP4 ", 5) != 0)
-		goto fail;
-	line += 5;
+	if (!memcmp(line, "TCP4 ", 5) != 0) {
+		u32 src3, dst3, sport, dport;
 
-	src3 = inetaddr_host_lim_ret(line, end, &line);
-	if (line == end)
-		goto missing;
-	if (*line++ != ' ')
-		goto fail;
+		line += 5;
 
-	dst3 = inetaddr_host_lim_ret(line, end, &line);
-	if (line == end)
-		goto missing;
-	if (*line++ != ' ')
-		goto fail;
+		src3 = inetaddr_host_lim_ret(line, end, &line);
+		if (line == end)
+			goto missing;
+		if (*line++ != ' ')
+			goto fail;
 
-	sport = read_uint((const char **)&line, end);
-	if (line == end)
-		goto missing;
-	if (*line++ != ' ')
-		goto fail;
+		dst3 = inetaddr_host_lim_ret(line, end, &line);
+		if (line == end)
+			goto missing;
+		if (*line++ != ' ')
+			goto fail;
 
-	dport = read_uint((const char **)&line, end);
-	if (line >= end - 2)
-		goto missing;
-	if (*line++ != '\r')
-		goto fail;
-	if (*line++ != '\n')
-		goto fail;
+		sport = read_uint((const char **)&line, end);
+		if (line == end)
+			goto missing;
+		if (*line++ != ' ')
+			goto fail;
 
-	/* update the session's addresses and mark them set */
-	((struct sockaddr_in *)&s->cli_addr)->sin_family      = AF_INET;
-	((struct sockaddr_in *)&s->cli_addr)->sin_addr.s_addr = htonl(src3);
-	((struct sockaddr_in *)&s->cli_addr)->sin_port        = htons(sport);
+		dport = read_uint((const char **)&line, end);
+		if (line > end - 2)
+			goto missing;
+		if (*line++ != '\r')
+			goto fail;
+		if (*line++ != '\n')
+			goto fail;
 
-	((struct sockaddr_in *)&s->frt_addr)->sin_family      = AF_INET;
-	((struct sockaddr_in *)&s->frt_addr)->sin_addr.s_addr = htonl(dst3);
-	((struct sockaddr_in *)&s->frt_addr)->sin_port        = htons(dport);
-	s->flags |= SN_FRT_ADDR_SET;
+		/* update the session's addresses and mark them set */
+		((struct sockaddr_in *)&s->cli_addr)->sin_family      = AF_INET;
+		((struct sockaddr_in *)&s->cli_addr)->sin_addr.s_addr = htonl(src3);
+		((struct sockaddr_in *)&s->cli_addr)->sin_port        = htons(sport);
+
+		((struct sockaddr_in *)&s->frt_addr)->sin_family      = AF_INET;
+		((struct sockaddr_in *)&s->frt_addr)->sin_addr.s_addr = htonl(dst3);
+		((struct sockaddr_in *)&s->frt_addr)->sin_port        = htons(dport);
+		s->flags |= SN_FRT_ADDR_SET;
+
+	}
+	else if (!memcmp(line, "TCP6 ", 5) != 0) {
+		u32 sport, dport;
+		char *src_s;
+		char *dst_s, *sport_s, *dport_s;
+		struct in6_addr src3, dst3;
+
+		line+=5;
+
+		src_s = line;
+		dst_s = sport_s = dport_s = NULL;
+		while (1) {
+			if (line > end - 2) {
+				goto missing;
+			}
+			else if (*line == '\r') {
+				*line = 0;
+				line++;
+				if (*line++ != '\n')
+					goto fail;
+				break;
+			}
+
+			if (*line == ' ') {
+				*line = 0;
+				if (!dst_s)
+					dst_s = line+1;
+				else if (!sport_s)
+					sport_s = line+1;
+				else if (!dport_s)
+					dport_s = line+1;
+			}
+			line++;
+		}
+
+		if (!dst_s || !sport_s || !dport_s)
+			goto fail;
+
+		sport = read_uint((const char **)&sport_s,dport_s-1);
+		if ( *sport_s != 0 )
+			goto fail;
+
+		dport = read_uint((const char **)&dport_s,line-2);
+		if ( *dport_s != 0 )
+			goto fail;
+
+		if (inet_pton(AF_INET6, src_s, (void *)&src3) != 1)
+			goto fail;
+
+		if (inet_pton(AF_INET6, dst_s, (void *)&dst3) != 1)
+			goto fail;
+
+		/* update the session's addresses and mark them set */
+		((struct sockaddr_in6 *)&s->cli_addr)->sin6_family      = AF_INET6;
+		memcpy(&((struct sockaddr_in6 *)&s->cli_addr)->sin6_addr, &src3, sizeof(struct in6_addr));
+		((struct sockaddr_in6 *)&s->cli_addr)->sin6_port        = htons(sport);
+
+		((struct sockaddr_in6 *)&s->frt_addr)->sin6_family      = AF_INET6;
+		memcpy(&((struct sockaddr_in6 *)&s->frt_addr)->sin6_addr, &dst3, sizeof(struct in6_addr));
+		((struct sockaddr_in6 *)&s->frt_addr)->sin6_port        = htons(dport);
+		s->flags |= SN_FRT_ADDR_SET;
+	}
+	else {
+		goto fail;
+	}
 
 	/* remove the PROXY line from the request */
 	len = line - req->data;
