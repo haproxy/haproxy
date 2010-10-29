@@ -1321,6 +1321,7 @@ bind [<address>]:<port_range> [, ...] transparent
 bind [<address>]:<port_range> [, ...] id <id>
 bind [<address>]:<port_range> [, ...] name <name>
 bind [<address>]:<port_range> [, ...] defer-accept
+bind [<address>]:<port_range> [, ...] accept-proxy
   Define one or several listening addresses and/or ports in a frontend.
   May be used in sections :   defaults | frontend | listen | backend
                                   no   |    yes   |   yes  |   no
@@ -1401,6 +1402,19 @@ bind [<address>]:<port_range> [, ...] defer-accept
                   with front firewalls which would see an established
                   connection while the proxy will only see it in SYN_RECV.
 
+    accept-proxy  is an optional keyword which enforces use of the PROXY
+                  protocol over any connection accepted by this listener. The
+                  PROXY protocol dictates the layer 3/4 addresses of the
+                  incoming connection to be used everywhere an address is used,
+                  with the only exception of "tcp-request connection" rules
+                  which will only see the real connection address. Logs will
+                  reflect the addresses indicated in the protocol, unless it is
+                  violated, in which case the real address will still be used.
+                  This keyword combined with support from external components
+                  can be used as an efficient and reliable alternative to the
+                  X-Forwarded-For mechanism which is not always reliable and
+                  not even always usable.
+
   It is possible to specify a list of address:port combinations delimited by
   commas. The frontend will then listen on all of these addresses. There is no
   fixed limit to the number of addresses and ports which can be listened on in
@@ -1412,7 +1426,8 @@ bind [<address>]:<port_range> [, ...] defer-accept
             bind :80,:443
             bind 10.0.0.1:10080,10.0.0.1:10443
 
-  See also : "source".
+  See also : "source", "option forwardfor", and the PROXY protocol
+             documentation.
 
 
 bind-process [ all | odd | even | <number 1-32> ] ...
