@@ -1,0 +1,159 @@
+The PROXY protocol - 2010/10/29 - Willy TARREAU
+-----------------------------------------------
+
+Relaying TCP connections through proxies generally involves a loss of the
+original TCP connection parameters such as source and destination addresses,
+ports, and so on. Some protocols make it a little bit easier to transfer such
+information. For SMTP, Postfix authors have proposed the XCLIENT protocol which
+received broad adoption and is particularly suited to mail exchanges. In HTTP,
+we have the non-standard but omnipresent X-Forwarded-For header which relays
+information about the original source address, and the less common
+X-Original-To which relays information about the destination address.
+
+However, both mechanisms require a knowledge of the underlying protocol to be
+implemented in intermediaries.
+
+Then comes a new class of products which we'll call "dumb proxies", not because
+they don't do anything, but because they're processing protocol-agnostic data.
+Stunnel is an example of such a "dumb proxy". It talks raw TCP on one side, and
+raw SSL on the other one, and does that reliably.
+
+The problem with such a proxy when it is combined with another one such as
+haproxy is to adapt it to talk the higher level protocol. A patch is available
+for Stunnel to make it capable to insert an X-Forwarded-For header in the first
+HTTP request of each incoming connection. Haproxy is able not to add another
+one when the connection comes from Stunnel, so that it's possible to hide it
+from the servers.
+
+The typical architecture becomes the following one :
+
+
+      +--------+      HTTP                      :80 +----------+
+      | client |  --------------------------------> |          |
+      |        |                                    | haproxy, |
+      +--------+             +---------+            |  1 or 2  |
+     /        /     HTTPS    | stunnel |  HTTP  :81 | listening|
+    <________/    ---------> | (server | ---------> |  ports   |
+                             |  mode)  |            |          |
+                             +---------+            +----------+
+
+
+The problem appears when haproxy runs with keep-alive on the side towards the
+client. The Stunnel patch will only add the X-Forwarded-For header to the first
+request of each connection and all subsequent requests will not have it. One
+solution could be to improve the patch to make it support keep-alive and parse
+all forwarded data, whether they're announced with a Content-Length or with a
+Transfer-Encoding, taking care of special methods such as HEAD which announce
+data without transfering them, etc... In fact, it would require implementing a
+full HTTP stack in Stunnel. It would then become a lot more complex, a lot less
+reliable and would not anymore be the "dumb proxy" that fits every purposes.
+
+In practice, we don't need to add a header for each request because we'll emit
+the exact same information every time : the information related to the client
+side connection. We could then cache that information in haproxy and use it for
+every other request. But that becomes dangerous and is still limited to HTTP
+only.
+
+Another approach would be to prepend each connection with a line reporting the
+characteristics of the other side's connection. This method is a lot simpler to
+implement, does not require any protocol-specific knowledge on either side, and
+completely fits the purpose. That's finally what we did with a small patch to
+Stunnel and another one to haproxy. We have called this protocol the PROXY
+protocol.
+
+The PROXY protocol's goal is to fill the receiver's internal structures with
+the information it could have found itself if it performed the accept from the
+client. Thus right now we're supporting the following :
+  - INET protocol and family (TCP over IPv4 or IPv6)
+  - layer 3 source and destination addresses
+  - layer 4 source and destination ports if any
+
+Unlike the XCLIENT protocol, the PROXY protocol was designed with limited
+extensibility in order to help the receiver parse it very fast, while keeping
+it human-readable for better debugging possibilities. So it consists in exactly
+the following block prepended before any data flowing from the dumb proxy to
+the next hop :
+
+  - a string identifying the protocol : "PROXY" ( \x50 \x52 \x4F \x58 \x59 )
+
+  - exactly one space : " " ( \x20 )
+
+  - a string indicating the proxied INET protocol and family. At the moment,
+    only "TCP4" ( \x54 \x43 \x50 \x34 ) for TCP over IPv4, and "TCP6"
+    ( \x54 \x43 \x50 \x36 ) for TCP over IPv6 are allowed. Unsupported or
+    unknown protocols must be reported with the name "UNKNOWN" ( \x55 \x4E \x4B
+    \x4E \x4F \x57 \x4E). The remaining fields of the line are then optional
+    and may be ignored, until the CRLF is found.
+
+  - exactly one space : " " ( \x20 )
+
+  - the layer 3 source address in its canonical format. IPv4 addresses must be
+    indicated as a series of exactly 4 integers in the range [0..255] inclusive
+    written in decimal representation separated by exactly one dot between each
+    other. Heading zeroes are not permitted in front of numbers in order to
+    avoid any possible confusion with octal numbers. IPv6 addresses must be
+    indicated as series of 4 hexadecimal digits (upper or lower case) delimited
+    by colons between each other, with the acceptance of one double colon
+    sequence to replace the largest acceptable range of consecutive zeroes. The
+    total number of decoded bits must exactly be 128. The advertised protocol
+    family dictates what format to use.
+
+  - exactly one space : " " ( \x20 )
+
+  - the layer 3 destination address in its canonical format. It is the same
+    format as the layer 3 source address and matches the same family.
+
+  - exactly one space : " " ( \x20 )
+
+  - the TCP source port represented as a decimal integer in the range
+    [0..65535] inclusive. Heading zeroes are not permitted in front of numbers
+    in order to avoid any possible confusion with octal numbers.
+
+  - exactly one space : " " ( \x20 )
+
+  - the TCP destination port represented as a decimal integer in the range
+    [0..65535] inclusive. Heading zeroes are not permitted in front of numbers
+    in order to avoid any possible confusion with octal numbers.
+
+  - the CRLF sequence ( \x0D \x0A )
+
+The receiver MUST be configured to only receive this protocol and MUST not try
+to guess whether the line is prepended or not. That means that the protocol
+explicitly prevents port sharing between public and private access. Otherwise
+it would become a big security issue. The receiver should ensure proper access
+filtering so that only trusted proxies are allowed to use this protocol. The
+receiver must wait for the CRLF sequence to decode the addresses in order to
+ensure they are complete. Any sequence which does not exactly match the
+protocol must be discarded and cause a connection abort. It is recommended
+to abort the connection as soon as possible to that the emitter notices the
+anomaly.
+
+If the announced transport protocol is "UNKNOWN", then the receiver knows that
+the emitter talks the correct protocol, any may or may not decide to accept the
+connection and use the real connection's parameters as if there was no such
+protocol on the wire.
+
+An example of such a line before an HTTP request would look like this (CR
+marked as "\r" and LF marked as "\n") :
+
+    PROXY TCP4 192.168.0.1 192.168.0.11 56324 443\r\n
+    GET / HTTP/1.1\r\n
+    Host: 192.168.0.11\r\n
+    \r\n
+
+For the emitter, the line is easy to put into the output buffers once the
+connection is established. For the receiver, once the line is parsed, it's
+easy to skip it from the input buffers.
+
+We have a patch available for recent versions of Stunnel that brings it the
+ability to be an emitter. The feature is called "send-proxy" there. The code
+for the receiving side has been merged into haproxy and is enabled using the
+"accept-proxy" keyword on a "bind" statement. Haproxy will use the transport
+information from the PROXY protocol for logging, ACLs, etc... everywhere an
+information about the original connection is required.
+
+It is possible that the protocol may slightly evolve to present other
+information such as the incoming network interface, or the origin addresses in
+case of network address translation happening before the first proxy, but this
+is not identified as a requirement right now.
+--
