@@ -287,13 +287,17 @@ int frontend_decode_proxy_request(struct session *s, struct buffer *req, int an_
 	if (req->flags & (BF_READ_ERROR|BF_READ_TIMEOUT))
 		goto fail;
 
-	if (req->l < 18) /* shortest possible line */
+	len = MIN(req->l, 6);
+	if (!len)
 		goto missing;
 
-	/* Decode a possible proxy request */
-	if (memcmp(line, "PROXY ", 6) != 0)
+	/* Decode a possible proxy request, fail early if it does not match */
+	if (strncmp(line, "PROXY ", len) != 0)
 		goto fail;
+
 	line += 6;
+	if (req->l < 18) /* shortest possible line */
+		goto missing;
 
 	if (memcmp(line, "TCP4 ", 5) != 0)
 		goto fail;
