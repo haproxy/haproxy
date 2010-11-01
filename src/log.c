@@ -318,7 +318,7 @@ void send_log(struct proxy *p, int level, const char *message, ...)
  */
 void tcp_sess_log(struct session *s)
 {
-	char pn[INET6_ADDRSTRLEN + strlen(":65535")];
+	char pn[INET6_ADDRSTRLEN];
 	struct proxy *fe = s->fe;
 	struct proxy *be = s->be;
 	struct proxy *prx_log;

@@ -2884,7 +2884,7 @@ int stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 
 		/* and start from where we stopped */
 		while (s->data_ctx.sess.bref.ref != &sessions) {
-			char pn[INET6_ADDRSTRLEN + strlen(":65535")];
+			char pn[INET6_ADDRSTRLEN];
 			struct session *curr_sess;
 
 			curr_sess = LIST_ELEM(s->data_ctx.sess.bref.ref, struct session *, list);
