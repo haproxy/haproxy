@@ -129,6 +129,8 @@ static const struct cfg_opt cfg_opts[] =
 	{ "srvtcpka",     PR_O_TCP_SRV_KA, PR_CAP_BE, 0, 0 },
 #ifdef TPROXY
 	{ "transparent",  PR_O_TRANSP,     PR_CAP_BE, 0, 0 },
+#else
+	{ "transparent",  0, 0, 0, 0 },
 #endif
 
 	{ NULL, 0, 0, 0, 0 }
@@ -141,6 +143,10 @@ static const struct cfg_opt cfg_opts2[] =
 	{ "splice-request",  PR_O2_SPLIC_REQ, PR_CAP_FE|PR_CAP_BE, 0, 0 },
 	{ "splice-response", PR_O2_SPLIC_RTR, PR_CAP_FE|PR_CAP_BE, 0, 0 },
 	{ "splice-auto",     PR_O2_SPLIC_AUT, PR_CAP_FE|PR_CAP_BE, 0, 0 },
+#else
+        { "splice-request",  0, 0, 0, 0 },
+        { "splice-response", 0, 0, 0, 0 },
+        { "splice-auto",     0, 0, 0, 0 },
 #endif
 	{ "accept-invalid-http-request",  PR_O2_REQBUG_OK, PR_CAP_FE, 0, PR_MODE_HTTP },
 	{ "accept-invalid-http-response", PR_O2_RSPBUG_OK, PR_CAP_BE, 0, PR_MODE_HTTP },
@@ -2999,6 +3005,12 @@ stats_error_parsing:
 
 		for (optnum = 0; cfg_opts[optnum].name; optnum++) {
 			if (!strcmp(args[1], cfg_opts[optnum].name)) {
+				if (cfg_opts[optnum].cap == PR_CAP_NONE) {
+					Alert("parsing [%s:%d]: option '%s' is not supported due to build options.\n",
+						file, linenum, cfg_opts[optnum].name);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
 				if (warnifnotcap(curproxy, cfg_opts[optnum].cap, file, linenum, args[1], NULL)) {
 					err_code |= ERR_WARN;
 					goto out;
@@ -3024,6 +3036,12 @@ stats_error_parsing:
 
 		for (optnum = 0; cfg_opts2[optnum].name; optnum++) {
 			if (!strcmp(args[1], cfg_opts2[optnum].name)) {
+				if (cfg_opts2[optnum].cap == PR_CAP_NONE) {
+					Alert("parsing [%s:%d]: option '%s' is not supported due to build options.\n",
+						file, linenum, cfg_opts2[optnum].name);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
 				if (warnifnotcap(curproxy, cfg_opts2[optnum].cap, file, linenum, args[1], NULL)) {
 					err_code |= ERR_WARN;
 					goto out;
