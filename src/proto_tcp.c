@@ -559,8 +559,22 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	fd_insert(fd);
 
  tcp_return:
-	if (msg && errlen)
-		strlcpy2(errmsg, msg, errlen);
+	if (msg && errlen) {
+		char pn[INET6_ADDRSTRLEN];
+
+		if (listener->addr.ss_family == AF_INET) {
+			inet_ntop(AF_INET,
+				  (const void *)&((struct sockaddr_in *)&listener->addr)->sin_addr,
+				  pn, sizeof(pn));
+			snprintf(errmsg, errlen, "%s [%s:%d]", msg, pn, ntohs(((struct sockaddr_in *)&listener->addr)->sin_port));
+		}
+		else {
+			inet_ntop(AF_INET6,
+				  (const void *)&((struct sockaddr_in6 *)(&listener->addr))->sin6_addr,
+				  pn, sizeof(pn));
+			snprintf(errmsg, errlen, "%s [%s:%d]", msg, pn, ntohs(((struct sockaddr_in6 *)&listener->addr)->sin6_port));
+		}
+	}
 	return err;
 
  tcp_close_return:
