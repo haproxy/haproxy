@@ -1340,6 +1340,180 @@ pattern_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 1;
 }
 
+static int
+pattern_arg_fetch_payloadlv(const char *arg, struct pattern_arg **arg_p, int *arg_i)
+{
+	int member = 0;
+	int len_offset = 0;
+	int len_size = 0;
+	int buf_offset = 0;
+	int relative = 0;
+	int arg_len = strlen(arg);
+	int i;
+
+	for (i = 0; i < arg_len; i++) {
+		if (arg[i] == ',') {
+			member++;
+		} else if (member == 0) {
+			if (arg[i] < '0' || arg[i] > '9')
+				return 0;
+
+			len_offset = 10 * len_offset + arg[i] - '0';
+		} else if (member == 1) {
+			if (arg[i] < '0' || arg[i] > '9')
+				return 0;
+
+			len_size = 10 * len_size + arg[i] - '0';
+		} else if (member == 2) {
+			if (!relative && !buf_offset && arg[i] == '+') {
+				relative = 1;
+				continue;
+			} else if (!relative && !buf_offset && arg[i] == '-') {
+				relative = 2;
+				continue;
+			} else if (arg[i] < '0' || arg[i] > '9')
+				return 0;
+
+			buf_offset = 10 * buf_offset + arg[i] - '0';
+		}
+	}
+
+	if (member < 1)
+		return 0;
+
+	if (!len_size)
+		return 0;
+
+	if (member == 1) {
+		buf_offset = len_offset + len_size;
+	}
+	else if (relative == 1) {
+		buf_offset = len_offset + len_size + buf_offset;
+	}
+	else if (relative == 2) {
+		if (len_offset + len_size < buf_offset)
+			return 0;
+
+		buf_offset = len_offset + len_size - buf_offset;
+	}
+
+	*arg_i = 3;
+	*arg_p = calloc(1, *arg_i*sizeof(struct pattern_arg));
+	(*arg_p)[0].type = PATTERN_ARG_TYPE_INTEGER;
+	(*arg_p)[0].data.integer = len_offset;
+	(*arg_p)[1].type = PATTERN_ARG_TYPE_INTEGER;
+	(*arg_p)[1].data.integer = len_size;
+	(*arg_p)[2].type = PATTERN_ARG_TYPE_INTEGER;
+	(*arg_p)[2].data.integer = buf_offset;
+
+	return 1;
+}
+
+static int
+pattern_fetch_payloadlv(struct proxy *px, struct session *l4, void *l7, int dir,
+                        const struct pattern_arg *arg_p, int arg_i, union pattern_data *data)
+{
+	int len_offset = arg_p[0].data.integer;
+	int len_size = arg_p[1].data.integer;
+	int buf_offset = arg_p[2].data.integer;
+	int buf_size = 0;
+	struct buffer *b;
+	int i;
+
+	/* Format is (len offset, len size, buf offset) or (len offset, len size) */
+	/* by default buf offset == len offset + len size */
+	/* buf offset could be absolute or relative to len offset + len size if prefixed by + or - */
+
+	if (!l4)
+		return 0;
+
+	b = (dir & PATTERN_FETCH_RTR) ? l4->rep : l4->req;
+
+	if (!b || !b->l)
+		return 0;
+
+	if (len_offset + len_size > b->l)
+		return 0;
+
+	for (i = 0; i < len_size; i++) {
+		buf_size = (buf_size << 8) + ((unsigned char *)b->w)[i + len_offset];
+	}
+
+	if (!buf_size)
+		return 0;
+
+	if (buf_offset + buf_size > b->l)
+		return 0;
+
+	/* init chunk as read only */
+	chunk_initlen(&data->str, (char *)(b->w + buf_offset), 0, buf_size);
+
+	return 1;
+}
+
+static int
+pattern_arg_fetch_payload (const char *arg, struct pattern_arg **arg_p, int *arg_i)
+{
+	int member = 0;
+	int buf_offset = 0;
+	int buf_size = 0;
+	int arg_len = strlen(arg);
+	int i;
+
+	for (i = 0 ; i < arg_len ; i++) {
+		if (arg[i] == ',') {
+			member++;
+		} else if (member == 0) {
+			if (arg[i] < '0' || arg[i] > '9')
+				return 0;
+
+			buf_offset = 10 * buf_offset + arg[i] - '0';
+		} else if (member == 1) {
+			if (arg[i] < '0' || arg[i] > '9')
+				return 0;
+
+			buf_size = 10 * buf_size + arg[i] - '0';
+		}
+	}
+
+	if (!buf_size)
+		return 0;
+
+	*arg_i = 2;
+	*arg_p = calloc(1, *arg_i*sizeof(struct pattern_arg));
+	(*arg_p)[0].type = PATTERN_ARG_TYPE_INTEGER;
+	(*arg_p)[0].data.integer = buf_offset;
+	(*arg_p)[1].type = PATTERN_ARG_TYPE_INTEGER;
+	(*arg_p)[1].data.integer = buf_size;
+
+	return 1;
+}
+
+static int
+pattern_fetch_payload(struct proxy *px, struct session *l4, void *l7, int dir,
+                      const struct pattern_arg *arg_p, int arg_i, union pattern_data *data)
+{
+	int buf_offset = arg_p[0].data.integer;
+	int buf_size = arg_p[1].data.integer;
+	struct buffer *b;
+
+	if (!l4)
+		return 0;
+
+	b = (dir & PATTERN_FETCH_RTR) ? l4->rep : l4->req;
+
+	if (!b || !b->l)
+		return 0;
+
+	if (buf_offset + buf_size > b->l)
+		return 0;
+
+	/* init chunk as read only */
+	chunk_initlen(&data->str, (char *)(b->w + buf_offset), 0, buf_size);
+
+	return 1;
+}
+
 static struct cfg_kw_list cfg_kws = {{ },{
 	{ CFG_LISTEN, "tcp-request", tcp_parse_tcp_req },
 	{ CFG_LISTEN, "tcp-response", tcp_parse_tcp_rep },
@@ -1357,9 +1531,11 @@ static struct acl_kw_list acl_kws = {{ },{
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct pattern_fetch_kw_list pattern_fetch_keywords = {{ },{
-	{ "src",         pattern_fetch_src,   NULL, PATTERN_TYPE_IP,        PATTERN_FETCH_REQ },
-	{ "dst",         pattern_fetch_dst,   NULL, PATTERN_TYPE_IP,        PATTERN_FETCH_REQ },
-	{ "dst_port",    pattern_fetch_dport, NULL, PATTERN_TYPE_INTEGER,   PATTERN_FETCH_REQ },
+	{ "src",         pattern_fetch_src,       NULL,                         PATTERN_TYPE_IP,        PATTERN_FETCH_REQ },
+	{ "dst",         pattern_fetch_dst,       NULL,                         PATTERN_TYPE_IP,        PATTERN_FETCH_REQ },
+	{ "dst_port",    pattern_fetch_dport,     NULL,                         PATTERN_TYPE_INTEGER,   PATTERN_FETCH_REQ },
+	{ "payload",     pattern_fetch_payload,   pattern_arg_fetch_payload,    PATTERN_TYPE_CONSTDATA, PATTERN_FETCH_REQ|PATTERN_FETCH_RTR },
+	{ "payload_lv",  pattern_fetch_payloadlv, pattern_arg_fetch_payloadlv,  PATTERN_TYPE_CONSTDATA, PATTERN_FETCH_REQ|PATTERN_FETCH_RTR },
 	{ NULL, NULL, NULL, 0, 0 },
 }};
 
