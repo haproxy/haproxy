@@ -22,6 +22,7 @@
 #ifndef _COMMON_TOOLS_H
 #define _COMMON_TOOLS_H
 
+#include <sys/param.h>
 #include <common/config.h>
 
 #ifndef MIN

@@ -19,7 +19,6 @@
 #include <syslog.h>
 #include <time.h>
 
-#include <sys/param.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -42,10 +41,6 @@
 #include <proto/proto_uxst.h>
 #include <proto/stream_sock.h>
 #include <proto/task.h>
-
-#ifndef MAXPATHLEN
-#define MAXPATHLEN 128
-#endif
 
 static int uxst_bind_listener(struct listener *listener, char *errmsg, int errlen);
 static int uxst_bind_listeners(struct protocol *proto, char *errmsg, int errlen);
