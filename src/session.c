@@ -1703,9 +1703,11 @@ struct task *process_session(struct task *t)
 
 	/* If noone is interested in analysing data, it's time to forward
 	 * everything. We configure the buffer to forward indefinitely.
+	 * Note that we're checking BF_SHUTR_NOW as an indication of a possible
+	 * recent call to buffer_abort().
 	 */
 	if (!s->req->analysers &&
-	    !(s->req->flags & (BF_HIJACK|BF_SHUTW|BF_SHUTW_NOW)) &&
+	    !(s->req->flags & (BF_HIJACK|BF_SHUTW|BF_SHUTR_NOW)) &&
 	    (s->req->prod->state >= SI_ST_EST) &&
 	    (s->req->to_forward != BUF_INFINITE_FORWARD)) {
 		/* This buffer is freewheeling, there's no analyser nor hijacker
@@ -1717,11 +1719,10 @@ struct task *process_session(struct task *t)
 		buffer_auto_close(s->req);
 		buffer_flush(s->req);
 
-		/* If the producer is still connected, we'll enable data to flow
-		 * from the producer to the consumer (which might possibly not be
-		 * connected yet).
+		/* We'll let data flow between the producer (if still connected)
+		 * to the consumer (which might possibly not be connected yet).
 		 */
-		if (!(s->req->flags & (BF_SHUTR|BF_SHUTW|BF_SHUTW_NOW)))
+		if (!(s->req->flags & (BF_SHUTR|BF_SHUTW_NOW)))
 			buffer_forward(s->req, BUF_INFINITE_FORWARD);
 	}
 
@@ -1825,9 +1826,11 @@ struct task *process_session(struct task *t)
 
 	/* If noone is interested in analysing data, it's time to forward
 	 * everything. We configure the buffer to forward indefinitely.
+	 * Note that we're checking BF_SHUTR_NOW as an indication of a possible
+	 * recent call to buffer_abort().
 	 */
 	if (!s->rep->analysers &&
-	    !(s->rep->flags & (BF_HIJACK|BF_SHUTW|BF_SHUTW_NOW)) &&
+	    !(s->rep->flags & (BF_HIJACK|BF_SHUTW|BF_SHUTR_NOW)) &&
 	    (s->rep->prod->state >= SI_ST_EST) &&
 	    (s->rep->to_forward != BUF_INFINITE_FORWARD)) {
 		/* This buffer is freewheeling, there's no analyser nor hijacker
@@ -1837,7 +1840,11 @@ struct task *process_session(struct task *t)
 		buffer_auto_read(s->rep);
 		buffer_auto_close(s->rep);
 		buffer_flush(s->rep);
-		if (!(s->rep->flags & (BF_SHUTR|BF_SHUTW|BF_SHUTW_NOW)))
+
+		/* We'll let data flow between the producer (if still connected)
+		 * to the consumer.
+		 */
+		if (!(s->rep->flags & (BF_SHUTR|BF_SHUTW_NOW)))
 			buffer_forward(s->rep, BUF_INFINITE_FORWARD);
 	}
 
