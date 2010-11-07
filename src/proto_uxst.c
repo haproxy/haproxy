@@ -84,47 +84,42 @@ static int create_uxst_socket(const char *path, uid_t uid, gid_t gid, mode_t mod
 	char tempname[MAXPATHLEN];
 	char backname[MAXPATHLEN];
 	struct sockaddr_un addr;
+	const char *msg = NULL;
 
 	int ret, sock;
 
 	/* 1. create socket names */
 	if (!path[0]) {
-		if (errmsg && errlen)
-			snprintf(errmsg, errlen, "Invalid empty name for a UNIX socket");
+		msg = "Invalid empty name for a UNIX socket";
 		goto err_return;
 	}
 
 	ret = snprintf(tempname, MAXPATHLEN, "%s.%d.tmp", path, pid);
 	if (ret < 0 || ret >= MAXPATHLEN) {
-		if (errmsg && errlen)
-			snprintf(errmsg, errlen, "name too long for UNIX socket (%s)", path);
+		msg = "name too long for UNIX socket";
 		goto err_return;
 	}
 
 	ret = snprintf(backname, MAXPATHLEN, "%s.%d.bak", path, pid);
 	if (ret < 0 || ret >= MAXPATHLEN) {
-		if (errmsg && errlen)
-			snprintf(errmsg, errlen, "name too long for UNIX socket (%s)", path);
+		msg = "name too long for UNIX socket";
 		goto err_return;
 	}
 
 	/* 2. clean existing orphaned entries */
 	if (unlink(tempname) < 0 && errno != ENOENT) {
-		if (errmsg && errlen)
-			snprintf(errmsg, errlen, "error when trying to unlink previous UNIX socket (%s)", path);
+		msg = "error when trying to unlink previous UNIX socket";
 		goto err_return;
 	}
 
 	if (unlink(backname) < 0 && errno != ENOENT) {
-		if (errmsg && errlen)
-			snprintf(errmsg, errlen, "error when trying to unlink previous UNIX socket (%s)", path);
+		msg = "error when trying to unlink previous UNIX socket";
 		goto err_return;
 	}
 
 	/* 3. backup existing socket */
 	if (link(path, backname) < 0 && errno != ENOENT) {
-		if (errmsg && errlen)
-			snprintf(errmsg, errlen, "error when trying to preserve previous UNIX socket (%s)", path);
+		msg = "error when trying to preserve previous UNIX socket";
 		goto err_return;
 	}
 
@@ -135,40 +130,34 @@ static int create_uxst_socket(const char *path, uid_t uid, gid_t gid, mode_t mod
 
 	sock = socket(PF_UNIX, SOCK_STREAM, 0);
 	if (sock < 0) {
-		if (errmsg && errlen)
-			snprintf(errmsg, errlen, "cannot create socket for UNIX listener (%s)", path);
+		msg = "cannot create UNIX socket";
 		goto err_unlink_back;
 	}
 
 	if (sock >= global.maxsock) {
-		if (errmsg && errlen)
-			snprintf(errmsg, errlen, "socket(): not enough free sockets for UNIX listener (%s). Raise -n argument", path);
+		msg = "socket(): not enough free sockets, raise -n argument";
 		goto err_unlink_temp;
 	}
 
 	if (fcntl(sock, F_SETFL, O_NONBLOCK) == -1) {
-		if (errmsg && errlen)
-			snprintf(errmsg, errlen, "cannot make UNIX socket non-blocking");
+		msg = "cannot make UNIX socket non-blocking";
 		goto err_unlink_temp;
 	}
 
 	if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
 		/* note that bind() creates the socket <tempname> on the file system */
-		if (errmsg && errlen)
-			snprintf(errmsg, errlen, "cannot bind socket for UNIX listener (%s)", path);
+		msg = "cannot bind UNIX socket";
 		goto err_unlink_temp;
 	}
 
 	if (((uid != -1 || gid != -1) && (chown(tempname, uid, gid) == -1)) ||
 	    (mode != 0 && chmod(tempname, mode) == -1)) {
-		if (errmsg && errlen)
-			snprintf(errmsg, errlen, "cannot change UNIX socket ownership (%s)", path);
+		msg = "cannot change UNIX socket ownership";
 		goto err_unlink_temp;
 	}
 
 	if (listen(sock, 0) < 0) {
-		if (errmsg && errlen)
-			snprintf(errmsg, errlen, "cannot listen to socket for UNIX listener (%s)", path);
+		msg = "cannot listen to UNIX socket";
 		goto err_unlink_temp;
 	}
 
@@ -178,8 +167,7 @@ static int create_uxst_socket(const char *path, uid_t uid, gid_t gid, mode_t mod
 	 * backname.
 	 */
 	if (rename(tempname, path) < 0) {
-		if (errmsg && errlen)
-			snprintf(errmsg, errlen, "cannot switch final and temporary sockets for UNIX listener (%s)", path);
+		msg = "cannot switch final and temporary UNIX sockets";
 		goto err_rename;
 	}
 
@@ -198,6 +186,9 @@ static int create_uxst_socket(const char *path, uid_t uid, gid_t gid, mode_t mod
  err_unlink_back:
 	unlink(backname);
  err_return:
+	if (msg && errlen)
+		snprintf(errmsg, errlen, "%s [%s]", msg, path);
+
 	return -1;
 }
 
