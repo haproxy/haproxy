@@ -1414,7 +1414,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_WARN;
 
 		if ( *(args[1]) != '/' && strchr(args[1], ':') == NULL) {
-			Alert("parsing [%s:%d] : '%s' expects [addr1]:port1[-end1]{,[addr]:port[-end]}... as arguments.\n",
+			Alert("parsing [%s:%d] : '%s' expects {<path>|[addr1]:port1[-end1]}{,[addr]:port[-end]}... as arguments.\n",
 			      file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
