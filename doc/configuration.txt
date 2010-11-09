@@ -443,6 +443,7 @@ The following keywords are supported in the "global" section :
    - stats
    - node
    - description
+   - unix-bind
 
  * Performance tuning
    - maxconn
@@ -586,6 +587,20 @@ ulimit-n <number>
   Sets the maximum number of per-process file-descriptors to <number>. By
   default, it is automatically computed, so it is recommended not to use this
   option.
+
+unix-bind [ prefix <prefix> ] [ mode <mode> ] [ user <user> ] [ uid <uid> ]
+          [ group <group> ] [ gid <gid> ]
+
+  Fixes common settings to UNIX listening sockets declared in "bind" statements.
+  This is mainly used to simplify declaration of those UNIX sockets and reduce
+  the risk of errors, since those settings are most commonly required but are
+  also process-specific. The <prefix> setting can be used to force all socket
+  path to be relative to that directory. This might be needed to access another
+  component's chroot. Note that those paths are resolved before haproxy chroots
+  itself, so they are absolute. The <mode>, <user>, <uid>, <group> and <gid>
+  all have the same meaning as their homonyms used by the "bind" statement. If
+  both are specified, the "bind" statement has priority, meaning that the
+  "unix-bind" settings may be seen as process-wide default settings.
 
 user <user name>
   Similar to "uid" but uses the UID of user name <user name> from /etc/passwd.
@@ -1322,6 +1337,10 @@ bind [<address>]:<port_range> [, ...] id <id>
 bind [<address>]:<port_range> [, ...] name <name>
 bind [<address>]:<port_range> [, ...] defer-accept
 bind [<address>]:<port_range> [, ...] accept-proxy
+bind /<path> [, ...]
+bind /<path> [, ...] mode <mode>
+bind /<path> [, ...] [ user <user> | uid <uid> ]
+bind /<path> [, ...] [ group <user> | gid <gid> ]
   Define one or several listening addresses and/or ports in a frontend.
   May be used in sections :   defaults | frontend | listen | backend
                                   no   |    yes   |   yes  |   no
@@ -1334,9 +1353,9 @@ bind [<address>]:<port_range> [, ...] accept-proxy
 
     <port_range>  is either a unique TCP port, or a port range for which the
                   proxy will accept connections for the IP address specified
-                  above. The port is mandatory. Note that in the case of an
-                  IPv6 address, the port is always the number after the last
-                  colon (':'). A range can either be :
+                  above. The port is mandatory for TCP listeners. Note that in
+                  the case of an IPv6 address, the port is always the number
+                  after the last colon (':'). A range can either be :
                    - a numerical port (ex: '80')
                    - a dash-delimited ports range explicitly stating the lower
                      and upper bounds (ex: '2000-2100') which are included in
@@ -1352,6 +1371,15 @@ bind [<address>]:<port_range> [, ...] accept-proxy
                   privileges to start the program, which are independant of
                   the 'uid' parameter.
 
+    <path>        is a UNIX socket path beginning with a slash ('/'). This is
+                  alternative to the TCP listening port. Haproxy will then
+                  receive UNIX connections on the socket located at this place.
+                  The path must begin with a slash and by default is absolute.
+                  It can be relative to the prefix defined by "unix-bind" in
+                  the global section. Note that the total length of the prefix
+                  followed by the socket path cannot exceed some system limits
+                  for UNIX sockets, which commonly are set to 107 characters.
+
     <interface>   is an optional physical interface name. This is currently
                   only supported on Linux. The interface must be a physical
                   interface, not an aliased interface. When specified, all
@@ -1360,7 +1388,8 @@ bind [<address>]:<port_range> [, ...] accept-proxy
                   interface. It is also possible to bind multiple frontends to
                   the same address if they are bound to different interfaces.
                   Note that binding to a physical interface requires root
-                  privileges.
+                  privileges. This parameter is only compatible with TCP
+                  sockets.
 
     <maxseg>      is an optional TCP Maximum Segment Size (MSS) value to be
                   advertised on incoming connections. This can be used to force
@@ -1370,6 +1399,7 @@ bind [<address>]:<port_range> [, ...] accept-proxy
                   was buggy in all versions prior to 2.6.28. It may or may not
                   work on other operating systems. The commonly advertised
                   value on Ethernet networks is 1460 = 1500(MTU) - 40(IP+TCP).
+                  This parameter is only compatible with TCP sockets.
 
     <id>          is a persistent value for socket ID. Must be positive and
                   unique in the proxy. An unused value will automatically be
@@ -1377,6 +1407,31 @@ bind [<address>]:<port_range> [, ...] accept-proxy
                   single socket.
 
     <name>        is an optional name provided for stats
+
+    <mode>        is the octal mode used to define access permissions on the
+                  UNIX socket. It can also be set by default in the global
+                  section's "unix-bind" statement. Note that some platforms
+                  simply ignore this.
+
+    <user>        is the name of user that will be marked owner of the UNIX
+                  socket.  It can also be set by default in the global
+                  section's "unix-bind" statement. Note that some platforms
+                  simply ignore this.
+
+    <group>       is the name of a group that will be used to create the UNIX
+                  socket. It can also be set by default in the global section's
+                  "unix-bind" statement. Note that some platforms simply ignore
+                  this.
+
+    <uid>         is the uid of user that will be marked owner of the UNIX
+                  socket. It can also be set by default in the global section's
+                  "unix-bind" statement. Note that some platforms simply ignore
+                  this.
+
+    <gid>         is the gid of a group that will be used to create the UNIX
+                  socket. It can also be set by default in the global section's
+                  "unix-bind" statement. Note that some platforms simply ignore
+                  this.
 
     transparent   is an optional keyword which is supported only on certain
                   Linux kernels. It indicates that the addresses will be bound
@@ -1386,7 +1441,8 @@ bind [<address>]:<port_range> [, ...] accept-proxy
                   that IP forwarding is enabled. Caution! do not use this with
                   the default address '*', as it would redirect any traffic for
                   the specified port. This keyword is available only when
-                  HAProxy is built with USE_LINUX_TPROXY=1.
+                  HAProxy is built with USE_LINUX_TPROXY=1. This parameter is
+                  only compatible with TCP sockets.
 
     defer-accept  is an optional keyword which is supported only on certain
                   Linux kernels. It states that a connection will only be
@@ -1425,8 +1481,9 @@ bind [<address>]:<port_range> [, ...] accept-proxy
         listen http_proxy
             bind :80,:443
             bind 10.0.0.1:10080,10.0.0.1:10443
+            bind /var/run/ssl-frontend.sock user root mode 600 accept-proxy
 
-  See also : "source", "option forwardfor", and the PROXY protocol
+  See also : "source", "option forwardfor", "unix-bind" and the PROXY protocol
              documentation.
 
 
@@ -7604,6 +7661,10 @@ Detailed fields description :
     and processed the connection.
   - "mode is the mode the frontend is operating (TCP or HTTP).
 
+In case of a UNIX socket, the source and destination addresses are marked as
+"unix:" and the ports reflect the internal ID of the socket which accepted the
+connection (the same ID as reported in the stats).
+
 It is advised not to use this deprecated format for newer installations as it
 will eventually disappear.
 
@@ -7652,9 +7713,16 @@ marked with a star ('*') after the field name below.
 
 Detailed fields description :
   - "client_ip" is the IP address of the client which initiated the TCP
-    connection to haproxy.
+    connection to haproxy. If the connection was accepted on a UNIX socket
+    instead, the IP address would be replaced with the word "unix". Note that
+    when the connection is accepted on a socket configured with "accept-proxy"
+    and the PROXY protocol is correctly used, then the logs will reflect the
+    forwarded connection's information.
 
   - "client_port" is the TCP port of the client which initiated the connection.
+    If the connection was accepted on a UNIX socket instead, the port would be
+    replaced with the ID of the accepting socket, which is also reported in the
+    stats interface.
 
   - "accept_date" is the exact date when the connection was received by haproxy
     (which might be very slightly different from the date observed on the
@@ -7825,9 +7893,16 @@ with a star ('*') after the field name below.
 
 Detailed fields description :
   - "client_ip" is the IP address of the client which initiated the TCP
-    connection to haproxy.
+    connection to haproxy. If the connection was accepted on a UNIX socket
+    instead, the IP address would be replaced with the word "unix". Note that
+    when the connection is accepted on a socket configured with "accept-proxy"
+    and the PROXY protocol is correctly used, then the logs will reflect the
+    forwarded connection's information.
 
   - "client_port" is the TCP port of the client which initiated the connection.
+    If the connection was accepted on a UNIX socket instead, the port would be
+    replaced with the ID of the accepting socket, which is also reported in the
+    stats interface.
 
   - "accept_date" is the exact date when the TCP connection was received by
     haproxy (which might be very slightly different from the date observed on
