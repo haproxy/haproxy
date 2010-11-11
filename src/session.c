@@ -1214,8 +1214,8 @@ struct task *process_session(struct task *t)
 	s->req->flags &= ~BF_READ_NOEXP;
 
 	/* Keep a copy of req/rep flags so that we can detect shutdowns */
-	rqf_last = s->req->flags;
-	rpf_last = s->rep->flags;
+	rqf_last = s->req->flags & ~BF_MASK_ANALYSER;
+	rpf_last = s->rep->flags & ~BF_MASK_ANALYSER;
 
 	/* we don't want the stream interface functions to recursively wake us up */
 	if (s->req->prod->owner == t)
@@ -1364,7 +1364,7 @@ struct task *process_session(struct task *t)
 
  resync_request:
 	/* Analyse request */
-	if ((s->req->flags & BF_MASK_ANALYSER) ||
+	if (((s->req->flags & ~rqf_last) & BF_MASK_ANALYSER) ||
 	    ((s->req->flags ^ rqf_last) & BF_MASK_STATIC) ||
 	    s->si[0].state != rq_prod_last ||
 	    s->si[1].state != rq_cons_last) {
@@ -1537,7 +1537,7 @@ struct task *process_session(struct task *t)
 			goto resync_response;
 		}
 	}
-	else if ((s->rep->flags & BF_MASK_ANALYSER) ||
+	else if (((s->rep->flags & ~rpf_last) & BF_MASK_ANALYSER) ||
 		 (s->rep->flags ^ rpf_last) & BF_MASK_STATIC ||
 		 s->si[0].state != rp_cons_last ||
 		 s->si[1].state != rp_prod_last) {
@@ -1627,7 +1627,7 @@ struct task *process_session(struct task *t)
 	 * we're just in a data phase here since it means we have not
 	 * seen any analyser who could set an error status.
 	 */
-	if (!(s->flags & SN_ERR_MASK)) {
+	if (unlikely(!(s->flags & SN_ERR_MASK))) {
 		if (s->req->flags & (BF_READ_ERROR|BF_READ_TIMEOUT|BF_WRITE_ERROR|BF_WRITE_TIMEOUT)) {
 			/* Report it if the client got an error or a read timeout expired */
 			s->req->analysers = 0;
