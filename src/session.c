@@ -57,10 +57,8 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	struct http_txn *txn;
 	struct task *t;
 
-	if (unlikely((s = pool_alloc2(pool2_session)) == NULL)) {
-		Alert("out of memory in event_accept().\n");
+	if (unlikely((s = pool_alloc2(pool2_session)) == NULL))
 		goto out_close;
-	}
 
 	/* minimum session initialization required for monitor mode below */
 	s->flags = 0;
@@ -89,10 +87,8 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	LIST_ADDQ(&sessions, &s->list);
 	LIST_INIT(&s->back_refs);
 
-	if (unlikely((t = task_new()) == NULL)) { /* disable this proxy for a while */
-		Alert("out of memory in event_accept().\n");
+	if (unlikely((t = task_new()) == NULL))
 		goto out_free_session;
-	}
 
 	s->term_trace = 0;
 	s->cli_addr = *addr;
@@ -211,10 +207,8 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->store_count = 0;
 
 	/* Adjust some socket options */
-	if (unlikely(fcntl(cfd, F_SETFL, O_NONBLOCK) == -1)) {
-		Alert("accept(): cannot set the socket in non blocking mode. Giving up\n");
+	if (unlikely(fcntl(cfd, F_SETFL, O_NONBLOCK) == -1))
 		goto out_free_task;
-	}
 
 	txn = &s->txn;
 	/* Those variables will be checked and freed if non-NULL in

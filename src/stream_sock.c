@@ -1188,7 +1188,9 @@ int stream_sock_accept(int fd)
 		}
 
 		if (unlikely(cfd >= global.maxsock)) {
-			Alert("accept(): not enough free sockets. Raise -n argument. Giving up.\n");
+			send_log(p, LOG_EMERG,
+				 "Proxy %s reached the configured maximum connection limit. Please check the global 'maxconn' value.\n",
+				 p->id);
 			goto out_close;
 		}
 

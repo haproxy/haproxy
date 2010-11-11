@@ -87,10 +87,9 @@ int frontend_accept(struct session *s)
 	s->srv_error = default_srv_error;
 
 	/* Adjust some socket options */
-	if ((s->listener->addr.ss_family != AF_UNIX) && unlikely(setsockopt(cfd, IPPROTO_TCP, TCP_NODELAY, (char *) &one, sizeof(one)) == -1)) {
-		Alert("accept(): cannot set the socket in non blocking mode. Giving up\n");
+	if ((s->listener->addr.ss_family != AF_UNIX) &&
+	    setsockopt(cfd, IPPROTO_TCP, TCP_NODELAY, (char *) &one, sizeof(one)) == -1)
 		goto out_delete_cfd;
-	}
 
 	if (s->fe->options & PR_O_TCP_CLI_KA)
 		setsockopt(cfd, SOL_SOCKET, SO_KEEPALIVE, (char *) &one, sizeof(one));
