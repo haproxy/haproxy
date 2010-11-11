@@ -1,5 +1,5 @@
 /*
- * Stick table syncro management.
+ * Stick table synchro management.
  *
  * Copyright 2010 EXCELIANCE, Emeric Brun <ebrun@exceliance.fr>
  *
@@ -505,7 +505,7 @@ switchstate:
 				                getpid(),
 				                ps->table->table->id,
 				                ps->table->table->type,
-				                ps->table->table->key_size);
+				                (int)ps->table->table->key_size);
 
 				if (repl >= sizeof(trash)) {
 					si->st0 = PEER_SESSION_END;
@@ -1066,7 +1066,8 @@ void peer_session_forceshutdown(struct session * session)
 /*
  * this function is called on a read event from a listen socket, corresponding
  * to an accept. It tries to accept as many connections as possible.
- * It returns 0.
+ * It returns a positive value upon success, 0 if the connection needs to be
+ * closed and ignored, or a negative value upon critical failure.
  */
 int peer_accept(struct session *s)
 {
@@ -1095,7 +1096,7 @@ int peer_accept(struct session *s)
 }
 
 /*
- * Create a new peer session in assingned state (connect will start automatically)
+ * Create a new peer session in assigned state (connect will start automatically)
  */
 struct session *peer_session_create(struct peer *peer, struct peer_session *ps)
 {
