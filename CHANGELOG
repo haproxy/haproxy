@@ -1,6 +1,113 @@
 ChangeLog :
 ===========
 
+2010/11/11 : 1.5-dev3
+    - [DOC] fix http-request documentation
+    - [MEDIUM] enable/disable servers from the stats web interface
+    - [MEDIUM] stats: add an admin level
+    - [DOC] stats: document the "stats admin" statement
+    - [MINOR] startup: print the proxy socket which caused an error
+    - [CLEANUP] Remove unneeded chars allocation
+    - [MINOR] config: detect options not supported due to compilation options
+    - [MINOR] Add pattern's fetchs payload and payload_lv
+    - [MINOR] frontend: improve accept-proxy header parsing
+    - [MINOR] frontend: add tcpv6 support on accept-proxy bind
+    - [MEDIUM] Enhance message errors management on binds
+    - [MINOR] Manage unix socket source field on logs
+    - [MINOR] Manage unix socket source field on session dump on sock stats
+    - [MINOR] Support of unix listener sockets for debug and log event messages on frontend.c
+    - [MINOR] Add some tests on sockets family for port remapping and mode transparent.
+    - [MINOR] Manage socket type unix for some logs
+    - [MINOR] Enhance controls of socket's family on acls and pattern fetch
+    - [MINOR] Support listener's sockets unix on http logs.
+    - [MEDIUM] Add supports of bind on unix sockets.
+    - [BUG] stick table purge failure if size less than 255
+    - [BUG] stick table entries expire on counters updates/read or show table, even if there is no "expire" parameter
+    - [MEDIUM] Implement tcp inspect response rules
+    - [DOC] tcp-response content and inspect
+    - [MINOR] new acls fetch req_ssl_hello_type and rep_ssl_hello_type
+    - [DOC] acls rep_ssl_hello and req_ssl_hello
+    - [MEDIUM] Create new protected pattern types CONSTSTRING and CONSTDATA to force memcpy if data from protected areas need to be manipulated.
+    - [DOC] new type binary in stick-table
+    - [DOC] stick store-response and new patterns payload and payload_lv
+    - [MINOR] Manage all types (ip, integer, string, binary) on cli "show table" command
+    - [MEDIUM] Create updates tree on stick table to manage sync.
+    - [MAJOR] Add new files src/peer.c, include/proto/peers.h and include/types/peers.h for sync stick table management
+    - [MEDIUM] Manage peers section parsing and stick table registration on peers.
+    - [MEDIUM] Manage soft stop on peers proxy
+    - [DOC] add documentation for peers section
+    - [MINOR] checks: add support for LDAPv3 health checks
+    - [MINOR] add better support to "mysql-check"
+    - [BUG] Restore info about available active/backup servers
+    - [CONTRIB] Update haproxy.pl
+    - [CONTRIB] Update Cacti Tempates
+    - [CONTRIB] add templates for Cacti.
+    - [BUG] http: don't consider commas as a header delimitor within quotes
+    - [MINOR] support a global jobs counter
+    - [DOC] add a summary about cookie incompatibilities between specs and browsers
+    - [DOC] fix description of cookie "insert" and "indirect" modes
+    - [MEDIUM] http: fix space handling in the request cookie parser
+    - [MEDIUM] http: fix space handling in the response cookie parser
+    - [DOC] fix typo in the queue() definition (backend, not frontend)
+    - [BUG] deinit: unbind listeners before freeing them
+    - [BUG] stream_interface: only call si->release when both dirs are closed
+    - [MEDIUM] buffers: rework the functions to exchange between SI and buffers
+    - [DOC] fix typo in the avg_queue() and be_conn() definition (backend, not frontend)
+    - [MINOR] halog: add '-tc' to sort by termination codes
+    - [MINOR] halog: skip non-traffic logs for -st and -tc
+    - [BUG] stream_sock: cleanly disable the listener in case of resource shortage
+    - [BUILD] stream_sock: previous fix lacked the #include, causing a warning.
+    - [DOC] bind option is "defer-accept", not "defer_accept"
+    - [DOC] missing index entry for http-check send-state
+    - [DOC] tcp-request inspect-delay is for backends too
+    - [BUG] ebtree: string_equal_bits() could return garbage on identical strings
+    - [BUG] stream_sock: try to flush any extra pending request data after a POST
+    - [BUILD] proto_http: eliminate some build warnings with gcc-2.95
+    - [MEDIUM] make it possible to combine http-pretend-keepalived with httpclose
+    - [MEDIUM] tcp-request : don't wait for inspect-delay to expire when the buffer is full
+    - [MEDIUM] checks: add support for HTTP contents lookup
+    - [TESTS] add test-check-expect to test various http-check methods
+    - [MINOR] global: add "tune.chksize" to change the default check buffer size
+    - [MINOR] cookie: add options "maxidle" and "maxlife"
+    - [MEDIUM] cookie: support client cookies with some contents appended to their value
+    - [MINOR] http: make some room in the transaction flags to extend cookies
+    - [MINOR] cookie: add the expired (E) and old (O) flags for request cookies
+    - [MEDIUM] cookie: reassign set-cookie status flags to store more states
+    - [MINOR] add encode/decode function for 30-bit integers from/to base64
+    - [MEDIUM] cookie: check for maxidle and maxlife for incoming dated cookies
+    - [MEDIUM] cookie: set the date in the cookie if needed
+    - [DOC] document the cookie maxidle and maxlife parameters
+    - [BUG] checks: don't log backend down for all zero-weight servers
+    - [MEDIUM] checks: set server state to one state from failure when leaving maintenance
+    - [BUG] config: report correct keywords for "observe"
+    - [MINOR] checks: ensure that we can inherit binary checks from the defaults section
+    - [MINOR] acl: add the http_req_first match
+    - [DOC] fix typos about bind-process syntax
+    - [BUG] cookie: correctly unset default cookie parameters
+    - [MINOR] cookie: add support for the "preserve" option
+    - [BUG] ebtree: fix duplicate strings insertion
+    - [CONTRIB] halog: report per-url counts, errors and times
+    - [CONTRIB] halog: minor speed improvement in timer parser
+    - [MINOR] buffers: add a new request analyser flag for PROXY mode
+    - [MINOR] listener: add the "accept-proxy" option to the "bind" keyword
+    - [MINOR] standard: add read_uint() to parse a delimited unsigned integer
+    - [MINOR] standard: change arg type from const char* to char*
+    - [MINOR] frontend: add a new analyser to parse a proxied connection
+    - [MEDIUM] session: call the frontend_decode_proxy analyser on proxied connections
+    - [DOC] add the proxy protocol's specifications
+    - [DOC] document the 'accept-proxy' bind option
+    - [MINOR] cfgparse: report support of <path> for the 'bind' statements
+    - [DOC] add references to unix socket handling
+    - [MINOR] move MAXPATHLEN definition to compat.h
+    - [MEDIUM] unix sockets: cleanup the error reporting path
+    - [BUG] session: don't stop forwarding of data upon last packet
+    - [CLEANUP] accept: replace some inappropriate Alert() calls with send_log()
+    - [BUILD] peers: shut a printf format warning (key_size is a size_t)
+    - [BUG] accept: don't close twice upon error
+    - [OPTIM] session: don't recheck analysers when buffer flags have not changed
+    - [OPTIM] stream_sock: don't clear FDs that are already cleared
+    - [BUG] proto_tcp: potential bug on pattern fetch dst and dport
+
 2010/08/28 : 1.5-dev2
     - [MINOR] startup: release unused structs after forking
     - [MINOR] startup: don't wait for nothing when no old pid remains
