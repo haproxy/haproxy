@@ -1191,7 +1191,8 @@ int stream_sock_accept(int fd)
 			send_log(p, LOG_EMERG,
 				 "Proxy %s reached the configured maximum connection limit. Please check the global 'maxconn' value.\n",
 				 p->id);
-			goto out_close;
+			close(cfd);
+			return 0;
 		}
 
 		jobs++;
@@ -1205,24 +1206,23 @@ int stream_sock_accept(int fd)
 		}
 
 		ret = l->accept(l, cfd, &addr);
-		if (unlikely(ret < 0)) {
-			/* critical error encountered, generally a resource shortage */
+		if (unlikely(ret <= 0)) {
+			/* The connection was closed by session_accept(). Either
+			 * we just have to ignore it (ret == 0) or it's a critical
+			 * error due to a resource shortage, and we must stop the
+			 * listener (ret < 0).
+			 */
+			jobs--;
+			actconn--;
+			l->nbconn--;
+			if (ret == 0) /* successful termination */
+				continue;
+
 			if (p) {
 				disable_listener(l);
 				p->state = PR_STIDLE;
 			}
-			jobs--;
-			actconn--;
-			l->nbconn--;
-			goto out_close;
-		}
-		else if (unlikely(ret == 0)) {
-			/* ignore this connection */
-			jobs--;
-			actconn--;
-			l->nbconn--;
-			close(cfd);
-			continue;
+			return 0;
 		}
 
 		if (l->nbconn >= l->maxconn) {
@@ -1231,12 +1231,8 @@ int stream_sock_accept(int fd)
 		}
 	} /* end of while (p->feconn < p->maxconn) */
 	return 0;
-
-	/* Error unrolling */
- out_close:
-	close(cfd);
-	return 0;
 }
+
 
 /* Prepare a stream interface to be used in socket mode. */
 void stream_sock_prepare_interface(struct stream_interface *si)

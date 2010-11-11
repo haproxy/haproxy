@@ -47,8 +47,8 @@ struct list sessions;
 
 /* This function is called from the protocol layer accept() in order to instanciate
  * a new session on behalf of a given listener and frontend. It returns a positive
- * value upon success, 0 if the connection needs to be closed and ignored, or a
- * negative value upon critical failure.
+ * value upon success, 0 if the connection can be ignored, or a negative value upon
+ * critical failure. The accepted file descriptor is closed if we return <= 0.
  */
 int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 {
@@ -56,6 +56,10 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	struct session *s;
 	struct http_txn *txn;
 	struct task *t;
+	int ret;
+
+
+	ret = -1; /* assume unrecoverable error by default */
 
 	if (unlikely((s = pool_alloc2(pool2_session)) == NULL))
 		goto out_close;
@@ -76,19 +80,19 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 		     addr->ss_family == AF_INET &&
 		     (((struct sockaddr_in *)addr)->sin_addr.s_addr & p->mon_mask.s_addr) == p->mon_net.s_addr)) {
 		if (p->mode == PR_MODE_TCP) {
-			pool_free2(pool2_session, s);
-			return 0;
+			ret = 0; /* successful termination */
+			goto out_free_session;
 		}
 		s->flags |= SN_MONITOR;
 		s->logs.logwait = 0;
 	}
 
+	if (unlikely((t = task_new()) == NULL))
+		goto out_free_session;
+
 	/* OK, we're keeping the session, so let's properly initialize the session */
 	LIST_ADDQ(&sessions, &s->list);
 	LIST_INIT(&s->back_refs);
-
-	if (unlikely((t = task_new()) == NULL))
-		goto out_free_session;
 
 	s->term_trace = 0;
 	s->cli_addr = *addr;
@@ -119,20 +123,16 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	 * even initializing the stream interfaces.
 	 */
 	if ((l->options & LI_O_TCP_RULES) && !tcp_exec_req_rules(s)) {
-		if (s->stkctr1_entry || s->stkctr2_entry)
-			session_store_counters(s);
-		task_free(t);
-		LIST_DEL(&s->list);
-		pool_free2(pool2_session, s);
 		/* let's do a no-linger now to close with a single RST. */
 		setsockopt(cfd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
-		p->feconn--;
-		return 0;
+		ret = 0; /* successful termination */
+		goto out_free_task;
 	}
 
 	/* This session was accepted, count it now */
 	if (p->feconn > p->counters.feconn_max)
 		p->counters.feconn_max = p->feconn;
+
 	proxy_inc_fe_sess_ctr(l, p);
 	if (s->stkctr1_entry) {
 		void *ptr;
@@ -274,23 +274,12 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	fdinfo[cfd].peerlen  = sizeof(s->cli_addr);
 	EV_FD_SET(cfd, DIR_RD);
 
-	if (p->accept) {
-		int ret = p->accept(s);
-		if (unlikely(ret < 0))
-			goto out_free_rep;
-
-		if (unlikely(ret == 0)) {
-			/* work is finished, we can release everything (eg: monitoring) */
-			pool_free2(pool2_buffer, s->rep);
-			pool_free2(pool2_buffer, s->req);
-			if (s->stkctr1_entry || s->stkctr2_entry)
-				session_store_counters(s);
-			task_free(t);
-			LIST_DEL(&s->list);
-			pool_free2(pool2_session, s);
-			p->feconn--;
-			return 0;
-		}
+	if (p->accept && (ret = p->accept(s)) <= 0) {
+		/* Either we had an unrecoverable error (<0) or work is
+		 * finished (=0, eg: monitoring), in both situations,
+		 * we can release everything and close.
+		 */
+		goto out_free_rep;
 	}
 
 	/* it is important not to call the wakeup function directly but to
@@ -310,11 +299,15 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	if (s->stkctr1_entry || s->stkctr2_entry)
 		session_store_counters(s);
 	task_free(t);
- out_free_session:
 	LIST_DEL(&s->list);
+ out_free_session:
 	pool_free2(pool2_session, s);
  out_close:
-	return -1;
+	if (fdtab[cfd].state != FD_STCLOSE)
+		fd_delete(cfd);
+	else
+		close(cfd);
+	return ret;
 }
 
 /*

@@ -56,8 +56,9 @@ void get_frt_addr(struct session *s)
 }
 
 /* Finish a session accept() for a proxy (TCP or HTTP). It returns a negative
- * value in case of failure, a positive value in case of success, or zero if
- * it is a success but the session must be closed ASAP.
+ * value in case of a critical failure which must cause the listener to be
+ * disabled, a positive value in case of success, or zero if it is a success
+ * but the session must be closed ASAP (eg: monitoring).
  */
 int frontend_accept(struct session *s)
 {
@@ -89,7 +90,7 @@ int frontend_accept(struct session *s)
 	/* Adjust some socket options */
 	if ((s->listener->addr.ss_family != AF_UNIX) &&
 	    setsockopt(cfd, IPPROTO_TCP, TCP_NODELAY, (char *) &one, sizeof(one)) == -1)
-		goto out_delete_cfd;
+		goto out_return;
 
 	if (s->fe->options & PR_O_TCP_CLI_KA)
 		setsockopt(cfd, SOL_SOCKET, SO_KEEPALIVE, (char *) &one, sizeof(one));
@@ -107,7 +108,7 @@ int frontend_accept(struct session *s)
 		/* the captures are only used in HTTP frontends */
 		if (unlikely(s->fe->nb_req_cap > 0 &&
 			     (s->txn.req.cap = pool_alloc2(s->fe->req_cap_pool)) == NULL))
-			goto out_delete_cfd;	/* no memory */
+			goto out_return;	/* no memory */
 
 		if (unlikely(s->fe->nb_rsp_cap > 0 &&
 			     (s->txn.rsp.cap = pool_alloc2(s->fe->rsp_cap_pool)) == NULL))
@@ -256,8 +257,7 @@ int frontend_accept(struct session *s)
 	pool_free2(s->fe->rsp_cap_pool, s->txn.rsp.cap);
  out_free_reqcap:
 	pool_free2(s->fe->req_cap_pool, s->txn.req.cap);
- out_delete_cfd:
-	fd_delete(cfd);
+ out_return:
 	return -1;
 }
 
