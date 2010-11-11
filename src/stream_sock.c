@@ -938,10 +938,12 @@ void stream_sock_data_finish(struct stream_interface *si)
 		/* Read not closed, update FD status and timeout for reads */
 		if (ib->flags & (BF_FULL|BF_HIJACK|BF_DONT_READ)) {
 			/* stop reading */
-			if ((ib->flags & (BF_FULL|BF_HIJACK|BF_DONT_READ)) == BF_FULL)
-				si->flags |= SI_FL_WAIT_ROOM;
-			EV_FD_COND_C(fd, DIR_RD);
-			ib->rex = TICK_ETERNITY;
+			if (!(si->flags & SI_FL_WAIT_ROOM)) {
+				if ((ib->flags & (BF_FULL|BF_HIJACK|BF_DONT_READ)) == BF_FULL)
+					si->flags |= SI_FL_WAIT_ROOM;
+				EV_FD_COND_C(fd, DIR_RD);
+				ib->rex = TICK_ETERNITY;
+			}
 		}
 		else {
 			/* (re)start reading and update timeout. Note: we don't recompute the timeout
@@ -961,10 +963,12 @@ void stream_sock_data_finish(struct stream_interface *si)
 		/* Write not closed, update FD status and timeout for writes */
 		if (ob->flags & BF_OUT_EMPTY) {
 			/* stop writing */
-			if ((ob->flags & (BF_FULL|BF_HIJACK|BF_SHUTW_NOW)) == 0)
-				si->flags |= SI_FL_WAIT_DATA;
-			EV_FD_COND_C(fd, DIR_WR);
-			ob->wex = TICK_ETERNITY;
+			if (!(si->flags & SI_FL_WAIT_DATA)) {
+				if ((ob->flags & (BF_FULL|BF_HIJACK|BF_SHUTW_NOW)) == 0)
+					si->flags |= SI_FL_WAIT_DATA;
+				EV_FD_COND_C(fd, DIR_WR);
+				ob->wex = TICK_ETERNITY;
+			}
 		}
 		else {
 			/* (re)start writing and update timeout. Note: we don't recompute the timeout
