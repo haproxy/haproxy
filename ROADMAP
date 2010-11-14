@@ -5,19 +5,22 @@ Legend: '+' = done, '-' = todo, '*' = done except doc
 1.5 (ETA 2010/12/31) :
   - server-side HTTP keepalive
 
+  - POST parameter extraction
+
   - return-html code xxx [ file "xxx" | text "xxx" ] if <acl>
+
+  - avg connect time, response time, connect errors, response errors in stats
 
   - return-raw  [ file "xxx" | text "xxx" ] if <acl>
 
   - add support for client-side and server-side unix sockets
 
+  - have multi-criteria analysers which subscribe to req flags, rsp flags, and
+    stream interface changes. This would result in a single analyser to wait
+    for the end of data transfer in HTTP.
+
   - try to remove srv==NULL internally and assign a dummy server to each backend
     for dispatch, http_proxy and transparent modes.
-
-  - rename L4 acls as L6 ACLs when some content is involved
-
-  - add new L4 ACL checks immediately after accept, before even allocating the
-    buffers ("connection {accept|reject|delay|freeze} {if|unless}").
 
   - implement support for "connection freeze" after accept. A list of frozen
     connections should be maintained so that it is possible to recycle them
@@ -28,6 +31,10 @@ Legend: '+' = done, '-' = todo, '*' = done except doc
     attached to whatever queue the session is waiting in.
 
   - assign a nice priority based on ACLs.
+
+  - dontlog if <acl> (front/back)
+
+  - fix "PR--" flags when accessing stats
 
   - pattern extraction is needed for ACLs and stickiness. It would work like
     this :
@@ -50,15 +57,70 @@ Legend: '+' = done, '-' = todo, '*' = done except doc
       + present/not present (eg: netmasks)
       - pattern conversion per prefixes. Eg: convert src IP to country.
 
-  - make new patterns available based on stickiness matching :
-      - number of entries in table for the matched pattern
-      - same after having increased the match counter
+  - add a last activity date for each server (req/resp) that will be
+    displayed in the stats. It will be useful with soft stop.
 
-  - add support for concurrency match in tables
-      - just like stickiness, but counted per session (or request), increased
+  - add the ability to only dump response errors to more easily detect
+    anomalies without being polluted with attacks in requests.
+
+  - add an error ID in captures to ease new error detection for scripts.
+
+  - automatically compute fullconn for backends : by default, set it to
+    10% of the sum of the maxconn of all unique frontends which reference
+    it via use_backend, default_backend or that are in the same listen.
+
+  - hash: rehash non-consistent hashes with chash() for more randomness.
+
+  - what to do with data after a POST and how to detect some data were
+    received when responding ? In theory we should read everything because
+    the TCP stack does not notify us that the FIN was acked. In practice,
+    reading just before closing should be enough. Right now we simply read
+    whatever comes after the POST.
+
+  - half-closed timeouts ?
+
+  - add a flag in logs to indicate keep-alive requests ?
+
+  - make it possible to condition a timeout on an ACL
+
+  - forwardfor/originalto except with IPv6
+
+  - have a callback function which would be called after a server is selected,
+    for header post-processing. That would be mainly used to remove then add
+    the server's name or cookie in a header so that the server knows it.
+
+  - remove lots of remaining Alert() calls or ensure that they forward to
+    send_log() after the fork.
+
+DONE:
+  * rename L4 acls as L6 ACLs when some content is involved
+
+  * add new L4 ACL checks immediately after accept, before even allocating the
+    buffers ("connection {accept|reject|delay|freeze} {if|unless}").
+
+  * make new patterns available based on stickiness matching :
+      * number of entries in table for the matched pattern
+      * same after having increased the match counter
+
+  * add support for concurrency match in tables
+      * just like stickiness, but counted per session (or request), increased
         on first match and decreased at end of request or connection. This
         requires that the session has a list of matched terms that must be
         released at the end.
+
+  * http_req_first ACL
+
+  * expirable cookies + "preserve"
+
+  * ECV, LDAPv3 & MySQL checks
+
+  * configurable check buffer size
+
+  * stats + ON/OFF
+
+  * halog: sort by URL
+
+  * "PROXY" protocol
 
 1.6 (will probably change anyway) :
   - wait on resource (mem, socket, server's conn, server's rate, ...)
