@@ -72,21 +72,68 @@ static struct protocol proto_unix = {
  ********************************/
 
 
-/* This function creates a named PF_UNIX stream socket at address <path>. Note
- * that the path cannot be NULL nor empty. <uid> and <gid> different of -1 will
- * be used to change the socket owner. If <mode> is not 0, it will be used to
- * restrict access to the socket. While it is known not to be portable on every
- * OS, it's still useful where it works.
- * It returns the assigned file descriptor, or -1 in the event of an error.
+/* Tries to destroy the UNIX stream socket <path>. The socket must not be used
+ * anymore. It practises best effort, and no error is returned.
  */
-static int create_uxst_socket(const char *path, uid_t uid, gid_t gid, mode_t mode, int backlog, char *errmsg, int errlen)
+static void destroy_uxst_socket(const char *path)
 {
+	struct sockaddr_un addr;
+	int sock, ret;
+
+	/* We might have been chrooted, so we may not be able to access the
+	 * socket. In order to avoid bothering the other end, we connect with a
+	 * wrong protocol, namely SOCK_DGRAM. The return code from connect()
+	 * is enough to know if the socket is still live or not. If it's live
+	 * in mode SOCK_STREAM, we get EPROTOTYPE or anything else but not
+	 * ECONNREFUSED. In this case, we do not touch it because it's used
+	 * by some other process.
+	 */
+	sock = socket(PF_UNIX, SOCK_DGRAM, 0);
+	if (sock < 0)
+		return;
+
+	addr.sun_family = AF_UNIX;
+	strncpy(addr.sun_path, path, sizeof(addr.sun_path));
+	addr.sun_path[sizeof(addr.sun_path) - 1] = 0;
+	ret = connect(sock, (struct sockaddr *)&addr, sizeof(addr));
+	if (ret < 0 && errno == ECONNREFUSED) {
+		/* Connect failed: the socket still exists but is not used
+		 * anymore. Let's remove this socket now.
+		 */
+		unlink(path);
+	}
+	close(sock);
+}
+
+
+/********************************
+ * 2) listener-oriented functions
+ ********************************/
+
+
+/* This function creates a UNIX socket associated to the listener. It changes
+ * the state from ASSIGNED to LISTEN. The socket is NOT enabled for polling.
+ * The return value is composed from ERR_NONE, ERR_RETRYABLE and ERR_FATAL.
+ */
+static int uxst_bind_listener(struct listener *listener, char *errmsg, int errlen)
+{
+	int fd;
 	char tempname[MAXPATHLEN];
 	char backname[MAXPATHLEN];
 	struct sockaddr_un addr;
 	const char *msg = NULL;
+	const char *path;
 
-	int ret, sock;
+	int ret;
+
+	/* ensure we never return garbage */
+	if (errmsg && errlen)
+		*errmsg = 0;
+
+	if (listener->state != LI_ASSIGNED)
+		return ERR_NONE; /* already bound */
+		
+	path = ((struct sockaddr_un *)&listener->addr)->sun_path;
 
 	/* 1. create socket names */
 	if (!path[0]) {
@@ -128,35 +175,41 @@ static int create_uxst_socket(const char *path, uid_t uid, gid_t gid, mode_t mod
 	strncpy(addr.sun_path, tempname, sizeof(addr.sun_path));
 	addr.sun_path[sizeof(addr.sun_path) - 1] = 0;
 
-	sock = socket(PF_UNIX, SOCK_STREAM, 0);
-	if (sock < 0) {
+	fd = socket(PF_UNIX, SOCK_STREAM, 0);
+	if (fd < 0) {
 		msg = "cannot create UNIX socket";
 		goto err_unlink_back;
 	}
 
-	if (sock >= global.maxsock) {
+	if (fd >= global.maxsock) {
 		msg = "socket(): not enough free sockets, raise -n argument";
 		goto err_unlink_temp;
 	}
-
-	if (fcntl(sock, F_SETFL, O_NONBLOCK) == -1) {
+	
+	if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1) {
 		msg = "cannot make UNIX socket non-blocking";
 		goto err_unlink_temp;
 	}
-
-	if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+	
+	if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
 		/* note that bind() creates the socket <tempname> on the file system */
 		msg = "cannot bind UNIX socket";
 		goto err_unlink_temp;
 	}
 
-	if (((uid != -1 || gid != -1) && (chown(tempname, uid, gid) == -1)) ||
-	    (mode != 0 && chmod(tempname, mode) == -1)) {
+	/* <uid> and <gid> different of -1 will be used to change the socket owner.
+	 * If <mode> is not 0, it will be used to restrict access to the socket.
+	 * While it is known not to be portable on every OS, it's still useful
+	 * where it works.
+	 */
+	if (((listener->perm.ux.uid != -1 || listener->perm.ux.gid != -1) &&
+	     (chown(tempname, listener->perm.ux.uid, listener->perm.ux.gid) == -1)) ||
+	    (listener->perm.ux.mode != 0 && chmod(tempname, listener->perm.ux.mode) == -1)) {
 		msg = "cannot change UNIX socket ownership";
 		goto err_unlink_temp;
 	}
 
-	if (listen(sock, backlog) < 0) {
+	if (listen(fd, listener->backlog ? listener->backlog : listener->maxconn) < 0) {
 		msg = "cannot listen to UNIX socket";
 		goto err_unlink_temp;
 	}
@@ -174,87 +227,6 @@ static int create_uxst_socket(const char *path, uid_t uid, gid_t gid, mode_t mod
 	/* 6. cleanup */
 	unlink(backname); /* no need to keep this one either */
 
-	return sock;
-
- err_rename:
-	ret = rename(backname, path);
-	if (ret < 0 && errno == ENOENT)
-		unlink(path);
- err_unlink_temp:
-	unlink(tempname);
-	close(sock);
- err_unlink_back:
-	unlink(backname);
- err_return:
-	if (msg && errlen)
-		snprintf(errmsg, errlen, "%s [%s]", msg, path);
-
-	return -1;
-}
-
-/* Tries to destroy the UNIX stream socket <path>. The socket must not be used
- * anymore. It practises best effort, and no error is returned.
- */
-static void destroy_uxst_socket(const char *path)
-{
-	struct sockaddr_un addr;
-	int sock, ret;
-
-	/* We might have been chrooted, so we may not be able to access the
-	 * socket. In order to avoid bothering the other end, we connect with a
-	 * wrong protocol, namely SOCK_DGRAM. The return code from connect()
-	 * is enough to know if the socket is still live or not. If it's live
-	 * in mode SOCK_STREAM, we get EPROTOTYPE or anything else but not
-	 * ECONNREFUSED. In this case, we do not touch it because it's used
-	 * by some other process.
-	 */
-	sock = socket(PF_UNIX, SOCK_DGRAM, 0);
-	if (sock < 0)
-		return;
-
-	addr.sun_family = AF_UNIX;
-	strncpy(addr.sun_path, path, sizeof(addr.sun_path));
-	addr.sun_path[sizeof(addr.sun_path) - 1] = 0;
-	ret = connect(sock, (struct sockaddr *)&addr, sizeof(addr));
-	if (ret < 0 && errno == ECONNREFUSED) {
-		/* Connect failed: the socket still exists but is not used
-		 * anymore. Let's remove this socket now.
-		 */
-		unlink(path);
-	}
-	close(sock);
-}
-
-
-/********************************
- * 2) listener-oriented functions
- ********************************/
-
-
-/* This function creates the UNIX socket associated to the listener. It changes
- * the state from ASSIGNED to LISTEN. The socket is NOT enabled for polling.
- * The return value is composed from ERR_NONE, ERR_RETRYABLE and ERR_FATAL.
- */
-static int uxst_bind_listener(struct listener *listener, char *errmsg, int errlen)
-{
-	int fd;
-
-        /* ensure we never return garbage */
-        if (errmsg && errlen)
-                *errmsg = 0;
-
-	if (listener->state != LI_ASSIGNED)
-		return ERR_NONE; /* already bound */
-
-	fd = create_uxst_socket(((struct sockaddr_un *)&listener->addr)->sun_path,
-				listener->perm.ux.uid,
-				listener->perm.ux.gid,
-				listener->perm.ux.mode,
-				listener->backlog ? listener->backlog : listener->maxconn,
-				errmsg, errlen);
-	if (fd == -1) {
-		return ERR_FATAL | ERR_ALERT;
-	}
 	/* the socket is now listening */
 	listener->fd = fd;
 	listener->state = LI_LISTEN;
@@ -269,6 +241,19 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 	fdinfo[fd].peeraddr = NULL;
 	fdinfo[fd].peerlen = 0;
 	return ERR_NONE;
+ err_rename:
+	ret = rename(backname, path);
+	if (ret < 0 && errno == ENOENT)
+		unlink(path);
+ err_unlink_temp:
+	unlink(tempname);
+	close(fd);
+ err_unlink_back:
+	unlink(backname);
+ err_return:
+	if (msg && errlen)
+		snprintf(errmsg, errlen, "%s [%s]", msg, path);
+	return ERR_FATAL | ERR_ALERT;
 }
 
 /* This function closes the UNIX sockets for the specified listener.
