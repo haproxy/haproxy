@@ -79,7 +79,7 @@ static struct protocol proto_unix = {
  * OS, it's still useful where it works.
  * It returns the assigned file descriptor, or -1 in the event of an error.
  */
-static int create_uxst_socket(const char *path, uid_t uid, gid_t gid, mode_t mode, char *errmsg, int errlen)
+static int create_uxst_socket(const char *path, uid_t uid, gid_t gid, mode_t mode, int backlog, char *errmsg, int errlen)
 {
 	char tempname[MAXPATHLEN];
 	char backname[MAXPATHLEN];
@@ -156,7 +156,7 @@ static int create_uxst_socket(const char *path, uid_t uid, gid_t gid, mode_t mod
 		goto err_unlink_temp;
 	}
 
-	if (listen(sock, 0) < 0) {
+	if (listen(sock, backlog) < 0) {
 		msg = "cannot listen to UNIX socket";
 		goto err_unlink_temp;
 	}
@@ -249,7 +249,9 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 	fd = create_uxst_socket(((struct sockaddr_un *)&listener->addr)->sun_path,
 				listener->perm.ux.uid,
 				listener->perm.ux.gid,
-				listener->perm.ux.mode, errmsg, errlen);
+				listener->perm.ux.mode,
+				listener->backlog ? listener->backlog : listener->maxconn,
+				errmsg, errlen);
 	if (fd == -1) {
 		return ERR_FATAL | ERR_ALERT;
 	}
