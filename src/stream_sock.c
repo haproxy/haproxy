@@ -77,8 +77,12 @@
 #define __NR_splice             313
 #endif /* $arch */
 
+#if defined(CONFIG_HAP_LINUX_VSYSCALL) && defined(__linux__) && defined(__i386__)
+/* the syscall is redefined somewhere else */
+extern int splice(int fdin, loff_t *off_in, int fdout, loff_t *off_out, size_t len, unsigned long flags);
+#else
 _syscall6(int, splice, int, fdin, loff_t *, off_in, int, fdout, loff_t *, off_out, size_t, len, unsigned long, flags)
-
+#endif
 #endif /* __NR_splice */
 
 /* A pipe contains 16 segments max, and it's common to see segments of 1448 bytes

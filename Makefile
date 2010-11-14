@@ -22,6 +22,7 @@
 #   USE_LINUX_SPLICE     : enable kernel 2.6 splicing (broken on old kernels)
 #   USE_LIBCRYPT         : enable crypted passwords using -lcrypt
 #   USE_CRYPT_H          : set it if your system requires including crypt.h
+#   USE_VSYSCALL         : enable vsyscall on Linux x86, bypassing libc
 #
 # Options can be forced by specifying "USE_xxx=1" or can be disabled by using
 # "USE_xxx=" (empty string).
@@ -372,6 +373,12 @@ ifneq ($(USE_KQUEUE),)
 OPTIONS_CFLAGS += -DENABLE_KQUEUE
 OPTIONS_OBJS   += src/ev_kqueue.o
 BUILD_OPTIONS  += $(call ignore_implicit,USE_KQUEUE)
+endif
+
+ifneq ($(USE_VSYSCALL),)
+OPTIONS_OBJS   += src/i386-linux-vsys.o
+OPTIONS_CFLAGS += -DCONFIG_HAP_LINUX_VSYSCALL
+BUILD_OPTIONS  += $(call ignore_implicit,USE_VSYSCALL)
 endif
 
 ifneq ($(USE_NETFILTER),)
