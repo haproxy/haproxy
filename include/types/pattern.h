@@ -54,7 +54,7 @@ enum {
 union pattern_arg_data {
 	struct in_addr ip;        /* used for ipv4 type */
 	uint32_t integer;         /* used for unsigned 32bits integer type */
-	int32_t sinteger;         /* used for signed 32bits integer type */
+	int sinteger;             /* used for signed 32bits integer type */
 	struct chunk str;
 };
 
