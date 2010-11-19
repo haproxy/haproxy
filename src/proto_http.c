@@ -6900,6 +6900,8 @@ void manage_server_side_cookies(struct session *t, struct buffer *res)
 				send_log(t->be, LOG_ALERT, "Not enough Memory process_srv():asession:calloc().\n");
 				return;
 			}
+			asession->serverid = NULL; /* to avoid a double free in case of allocation error */
+
 			if ((asession->sessid = pool_alloc2(apools.sessid)) == NULL) {
 				Alert("Not enough Memory process_srv():asession->sessid:malloc().\n");
 				send_log(t->be, LOG_ALERT, "Not enough Memory process_srv():asession->sessid:malloc().\n");
@@ -6911,7 +6913,7 @@ void manage_server_side_cookies(struct session *t, struct buffer *res)
 
 			server_id_len = strlen(t->srv->id) + 1;
 			if ((asession->serverid = pool_alloc2(apools.serverid)) == NULL) {
-				Alert("Not enough Memory process_srv():asession->sessid:malloc().\n");
+				Alert("Not enough Memory process_srv():asession->serverid:malloc().\n");
 				send_log(t->be, LOG_ALERT, "Not enough Memory process_srv():asession->sessid:malloc().\n");
 				t->be->htbl_proxy.destroy(asession);
 				return;
