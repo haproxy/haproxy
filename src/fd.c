@@ -119,11 +119,12 @@ int list_pollers(FILE *out)
 	last = next = -1;
 	while (1) {
 		for (p = 0; p < nbpollers; p++) {
-			if (!bp || (pollers[p].pref > bp->pref))
-				bp = &pollers[p];
 			if ((next < 0 || pollers[p].pref > next)
-			    && (last < 0 || pollers[p].pref < last))
+			    && (last < 0 || pollers[p].pref < last)) {
 				next = pollers[p].pref;
+				if (!bp || (pollers[p].pref > bp->pref))
+					bp = &pollers[p];
+			}
 		}
 
 		if (next == -1)
@@ -140,8 +141,11 @@ int list_pollers(FILE *out)
 					fprintf(out, " test result OK");
 					if (next > 0)
 						usable++;
-				} else
+				} else {
 					fprintf(out, " test result FAILED");
+					if (bp == &pollers[p])
+						bp = NULL;
+				}
 				fprintf(out, "\n");
 			}
 		}
