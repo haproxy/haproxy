@@ -6766,11 +6766,12 @@ void manage_server_side_cookies(struct session *t, struct buffer *res)
 				if ((txn->srv_cookie = pool_alloc2(pool2_capture)) == NULL) {
 					Alert("HTTP logging : out of memory.\n");
 				}
-
-				if (log_len > t->fe->capture_len)
-					log_len = t->fe->capture_len;
-				memcpy(txn->srv_cookie, att_beg, log_len);
-				txn->srv_cookie[log_len] = 0;
+				else {
+					if (log_len > t->fe->capture_len)
+						log_len = t->fe->capture_len;
+					memcpy(txn->srv_cookie, att_beg, log_len);
+					txn->srv_cookie[log_len] = 0;
+				}
 			}
 
 			/* now check if we need to process it for persistence */
