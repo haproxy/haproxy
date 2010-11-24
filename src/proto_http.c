@@ -6263,6 +6263,11 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 
 				if (del_from != NULL) {
 					int delta = del_hdr_value(req, &del_from, prev);
+					if (att_beg >= del_from)
+						att_beg += delta;
+					if (att_end >= del_from)
+						att_end += delta;
+					val_beg  += delta;
 					val_end  += delta;
 					next     += delta;
 					hdr_end  += delta;
