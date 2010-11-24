@@ -442,4 +442,28 @@ const char *quote_arg(const char *ptr);
 /* returns an operator among STD_OP_* for string <str> or < 0 if unknown */
 int get_std_op(const char *str);
 
+/* hash a 32-bit integer to another 32-bit integer */
+extern unsigned int full_hash(unsigned int a);
+static inline unsigned int __full_hash(unsigned int a)
+{
+	/* This function is one of Bob Jenkins' full avalanche hashing
+	 * functions, which when provides quite a good distribution for little
+	 * input variations. The result is quite suited to fit over a 32-bit
+	 * space with enough variations so that a randomly picked number falls
+	 * equally before any server position.
+	 * Check http://burtleburtle.net/bob/hash/integer.html for more info.
+	 */
+	a = (a+0x7ed55d16) + (a<<12);
+	a = (a^0xc761c23c) ^ (a>>19);
+	a = (a+0x165667b1) + (a<<5);
+	a = (a+0xd3a2646c) ^ (a<<9);
+	a = (a+0xfd7046c5) + (a<<3);
+	a = (a^0xb55a4f09) ^ (a>>16);
+
+	/* ensure values are better spread all around the tree by multiplying
+	 * by a large prime close to 3/4 of the tree.
+	 */
+	return a * 3221225473U;
+}
+
 #endif /* _COMMON_STANDARD_H */

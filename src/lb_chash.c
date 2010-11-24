@@ -7,7 +7,7 @@
  * robin because we'll use it to replace the previous map-based implementation
  * which offered both algorithms.
  *
- * Copyright 2000-2009 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2010 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -19,6 +19,7 @@
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/debug.h>
+#include <common/standard.h>
 #include <eb32tree.h>
 
 #include <types/global.h>
@@ -26,28 +27,6 @@
 
 #include <proto/backend.h>
 #include <proto/queue.h>
-
-static inline unsigned int chash_hash(unsigned int a)
-{
-	/* This function is one of Bob Jenkins' full avalanche hashing
-	 * functions, which when provides quite a good distribution for little
-	 * input variations. The result is quite suited to fit over a 32-bit
-	 * space with enough variations so that a randomly picked number falls
-	 * equally before any server position.
-	 * Check http://burtleburtle.net/bob/hash/integer.html for more info.
-	 */
-	a = (a+0x7ed55d16) + (a<<12);
-	a = (a^0xc761c23c) ^ (a>>19);
-	a = (a+0x165667b1) + (a<<5);
-	a = (a+0xd3a2646c) ^ (a<<9);
-	a = (a+0xfd7046c5) + (a<<3);
-	a = (a^0xb55a4f09) ^ (a>>16);
-
-	/* ensure values are better spread all around the tree by multiplying
-	 * by a large prime close to 3/4 of the tree.
-	 */
-	return a * 3221225473U;
-}
 
 /* Return next tree node after <node> which must still be in the tree, or be
  * NULL. Lookup wraps around the end to the beginning. If the next node is the
@@ -292,7 +271,7 @@ struct server *chash_get_server_hash(struct proxy *p, unsigned int hash)
 	else
 		return NULL;
 
-	hash = chash_hash(hash);
+	hash = full_hash(hash);
 
 	/* find the node after and the node before */
 	next = eb32_lookup_ge(root, hash);
@@ -418,7 +397,7 @@ void chash_init_server_tree(struct proxy *p)
 
 		for (node = 0; node < srv->lb_nodes_tot; node++) {
 			srv->lb_nodes[node].server = srv;
-			srv->lb_nodes[node].node.key = chash_hash(srv->puid * SRV_EWGHT_RANGE + node);
+			srv->lb_nodes[node].node.key = full_hash(srv->puid * SRV_EWGHT_RANGE + node);
 		}
 
 		if (srv_is_usable(srv->state, srv->eweight))

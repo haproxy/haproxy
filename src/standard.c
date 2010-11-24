@@ -1106,6 +1106,12 @@ int get_std_op(const char *str)
 	return ret;
 }
 
+/* hash a 32-bit integer to another 32-bit integer */
+unsigned int full_hash(unsigned int a)
+{
+	return __full_hash(a);
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8
