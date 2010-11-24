@@ -3948,7 +3948,8 @@ void http_end_txn_clean_session(struct session *s)
 	if (s->rep->lr >= s->rep->data + s->rep->size)
 		s->rep->lr -= s->req->size;
 
-	s->req->analysers |= s->listener->analysers;
+	s->req->analysers = s->listener->analysers;
+	s->req->analysers &= ~AN_REQ_DECODE_PROXY;
 	s->rep->analysers = 0;
 
 	http_silent_debug(__LINE__, s);
@@ -7356,7 +7357,6 @@ void http_reset_txn(struct session *s)
 	http_init_txn(s);
 
 	s->be = s->fe;
-	s->req->analysers = s->listener->analysers;
 	s->logs.logwait = s->fe->to_log;
 	s->srv = s->prev_srv = s->srv_conn = NULL;
 	/* re-init store persistence */
