@@ -2235,6 +2235,15 @@ hash-type <method>
                 to a farm, most connections will be redistributed to different
                 servers. This can be inconvenient with caches for instance.
 
+    avalanche   this mechanism uses the default map-based hashing described
+                above but applies a full avalanche hash before performing the
+                mapping. The result is a slightly less smooth hash for most
+                situations, but the hash becomes better than pure map-based
+                hashes when the number of servers is a multiple of the size of
+                the input set. When using URI hash with a number of servers
+                multiple of 64, it's desirable to change the hash type to
+                this value.
+
     consistent  the hash table is a tree filled with many occurrences of each
                 server. The hash key is looked up in the tree and the closest
                 server is chosen. This hash is dynamic, it supports changing

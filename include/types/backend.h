@@ -94,7 +94,8 @@
 /* hash types */
 #define BE_LB_HASH_MAP    0x000000 /* map-based hash (default) */
 #define BE_LB_HASH_CONS   0x100000 /* consistent hashbit to indicate a dynamic algorithm */
-#define BE_LB_HASH_TYPE   0x100000 /* get/clear hash types */
+#define BE_LB_HASH_AVAL   0x200000 /* run an avalanche hash before a map */
+#define BE_LB_HASH_TYPE   0x300000 /* get/clear hash types */
 
 /* various constants */
 

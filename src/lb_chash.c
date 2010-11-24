@@ -271,8 +271,6 @@ struct server *chash_get_server_hash(struct proxy *p, unsigned int hash)
 	else
 		return NULL;
 
-	hash = full_hash(hash);
-
 	/* find the node after and the node before */
 	next = eb32_lookup_ge(root, hash);
 	if (!next)

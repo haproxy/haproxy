@@ -3788,8 +3788,12 @@ stats_error_parsing:
 			curproxy->lbprm.algo &= ~BE_LB_HASH_TYPE;
 			curproxy->lbprm.algo |= BE_LB_HASH_MAP;
 		}
+		else if (strcmp(args[1], "avalanche") == 0) {	/* use full hash before map-based hashing */
+			curproxy->lbprm.algo &= ~BE_LB_HASH_TYPE;
+			curproxy->lbprm.algo |= BE_LB_HASH_AVAL;
+		}
 		else {
-			Alert("parsing [%s:%d] : '%s' only supports 'consistent' and 'map-based'.\n", file, linenum, args[0]);
+			Alert("parsing [%s:%d] : '%s' only supports 'avalanche', 'consistent' and 'map-based'.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}

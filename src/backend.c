@@ -118,6 +118,8 @@ struct server *get_server_sh(struct proxy *px, const char *addr, int len)
 		h ^= ntohl(*(unsigned int *)(&addr[l]));
 		l += sizeof (int);
 	}
+	if ((px->lbprm.algo & BE_LB_HASH_TYPE) != BE_LB_HASH_MAP)
+		h = full_hash(h);
  hash_done:
 	if (px->lbprm.algo & BE_LB_LKUP_CHTREE)
 		return chash_get_server_hash(px, h);
@@ -165,6 +167,8 @@ struct server *get_server_uh(struct proxy *px, char *uri, int uri_len)
 
 		hash = c + (hash << 6) + (hash << 16) - hash;
 	}
+	if ((px->lbprm.algo & BE_LB_HASH_TYPE) != BE_LB_HASH_MAP)
+		hash = full_hash(hash);
  hash_done:
 	if (px->lbprm.algo & BE_LB_LKUP_CHTREE)
 		return chash_get_server_hash(px, hash);
@@ -217,6 +221,8 @@ struct server *get_server_ph(struct proxy *px, const char *uri, int uri_len)
 					uri_len--;
 					p++;
 				}
+				if ((px->lbprm.algo & BE_LB_HASH_TYPE) != BE_LB_HASH_MAP)
+					hash = full_hash(hash);
 				if (px->lbprm.algo & BE_LB_LKUP_CHTREE)
 					return chash_get_server_hash(px, hash);
 				else
@@ -285,6 +291,8 @@ struct server *get_server_ph_post(struct session *s)
 					p++;
 					/* should we break if vlen exceeds limit? */
 				}
+				if ((px->lbprm.algo & BE_LB_HASH_TYPE) != BE_LB_HASH_MAP)
+					hash = full_hash(hash);
 				if (px->lbprm.algo & BE_LB_LKUP_CHTREE)
 					return chash_get_server_hash(px, hash);
 				else
@@ -374,6 +382,8 @@ struct server *get_server_hh(struct session *s)
 			p--;
 		}
 	}
+	if ((px->lbprm.algo & BE_LB_HASH_TYPE) != BE_LB_HASH_MAP)
+		hash = full_hash(hash);
  hash_done:
 	if (px->lbprm.algo & BE_LB_LKUP_CHTREE)
 		return chash_get_server_hash(px, hash);
@@ -419,6 +429,8 @@ struct server *get_server_rch(struct session *s)
 		len--;
 		p++;
 	}
+	if ((px->lbprm.algo & BE_LB_HASH_TYPE) != BE_LB_HASH_MAP)
+		hash = full_hash(hash);
  hash_done:
 	if (px->lbprm.algo & BE_LB_LKUP_CHTREE)
 		return chash_get_server_hash(px, hash);
