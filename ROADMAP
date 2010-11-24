@@ -5,15 +5,23 @@ Legend: '+' = done, '-' = todo, '*' = done except doc
 1.5 (ETA 2010/12/31) :
   - server-side HTTP keepalive
 
-  - POST parameter extraction
+  - POST parameter extraction and size/speed measurement to use in ACLs
 
   - return-html code xxx [ file "xxx" | text "xxx" ] if <acl>
 
-  - avg connect time, response time, connect errors, response errors in stats
-
   - return-raw  [ file "xxx" | text "xxx" ] if <acl>
 
-  - add support for client-side and server-side unix sockets
+  - avg connect time, response time, connect errors, response errors in stats
+
+  - add a last activity date for each server (req/resp) that will be
+    displayed in the stats. It will be useful with soft stop.
+
+  - add the ability to only dump response errors to more easily detect
+    anomalies without being polluted with attacks in requests.
+
+  - add an error ID in captures to ease new error detection for scripts.
+
+  - add support for server-side unix sockets
 
   - have multi-criteria analysers which subscribe to req flags, rsp flags, and
     stream interface changes. This would result in a single analyser to wait
@@ -57,19 +65,9 @@ Legend: '+' = done, '-' = todo, '*' = done except doc
       + present/not present (eg: netmasks)
       - pattern conversion per prefixes. Eg: convert src IP to country.
 
-  - add a last activity date for each server (req/resp) that will be
-    displayed in the stats. It will be useful with soft stop.
-
-  - add the ability to only dump response errors to more easily detect
-    anomalies without being polluted with attacks in requests.
-
-  - add an error ID in captures to ease new error detection for scripts.
-
   - automatically compute fullconn for backends : by default, set it to
     10% of the sum of the maxconn of all unique frontends which reference
     it via use_backend, default_backend or that are in the same listen.
-
-  - hash: rehash non-consistent hashes with chash() for more randomness.
 
   - what to do with data after a POST and how to detect some data were
     received when responding ? In theory we should read everything because
@@ -91,6 +89,8 @@ Legend: '+' = done, '-' = todo, '*' = done except doc
 
   - remove lots of remaining Alert() calls or ensure that they forward to
     send_log() after the fork.
+
+  - initcwnd parameter for bind sockets
 
 DONE:
   * rename L4 acls as L6 ACLs when some content is involved
@@ -122,6 +122,11 @@ DONE:
 
   * "PROXY" protocol
 
+  * add support for client-side unix sockets
+
+  * hash: rehash non-consistent hashes with chash() for more randomness.
+
+
 1.6 (will probably change anyway) :
   - wait on resource (mem, socket, server's conn, server's rate, ...)
 
@@ -141,6 +146,11 @@ DONE:
     weight threshold is not satisfied anymore. Useful for inter-site LB with
     local pref by default.
 
+  - add support for event-triggered epoll, and maybe change all events handling
+    to pass through an event cache to handle temporarily disabled events.
+
+  - evaluate the changes required for multi-process+shared mem or multi-thread
+    +thread-local+fast locking.
 
 Old, maybe obsolete points
  - clarify licence by adding a 'MODULE_LICENCE("GPL")' or something equivalent.
