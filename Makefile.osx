@@ -13,6 +13,7 @@ TARGET = generic
 
 # pass CPU=<cpu_name> to make to optimize for a particular CPU
 CPU = generic
+#CPU = native
 #CPU = i586
 #CPU = i686
 #CPU = ultrasparc
@@ -40,6 +41,7 @@ LIBS.darwin =
 
 # CPU dependant optimizations
 COPTS.generic = -O2
+COPTS.native = -O2 -march=native
 COPTS.i586 = -O2 -march=i586
 COPTS.i686 = -O2 -march=i686
 COPTS.ultrasparc = -O6 -mcpu=v9 -mtune=ultrasparc

@@ -39,6 +39,7 @@ one of the following choices to the CPU variable :
   - i686 for intel PentiumPro, Pentium 2 and above, AMD Athlon
   - i586 for intel Pentium, AMD K6, VIA C3.
   - ultrasparc : Sun UltraSparc I/II/III/IV processor
+  - native : use the build machine's specific processor optimizations
   - generic : any other processor or no specific optimization. (default)
 
 Alternatively, you may just set the CPU_CFLAGS value to the optimal GCC options
@@ -47,8 +48,8 @@ for your platform.
 You may want to build specific target binaries which do not match your native
 compiler's target. This is particularly true on 64-bit systems when you want
 to build a 32-bit binary. Use the ARCH variable for this purpose. Right now
-it only knows about a few x86 variants (i386,i486,i586,i686,x86_64) and sets
--m32/-m64 as well as -march=<arch> accordingly.
+it only knows about a few x86 variants (i386,i486,i586,i686,x86_64), two
+generic ones (32,64) and sets -m32/-m64 as well as -march=<arch> accordingly.
 
 If your system supports PCRE (Perl Compatible Regular Expressions), then you
 really should build with libpcre which is between 2 and 10 times faster than

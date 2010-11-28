@@ -78,14 +78,14 @@ TARGET =
 #### TARGET CPU
 # Use CPU=<cpu_name> to optimize for a particular CPU, among the following
 # list :
-#    generic, i586, i686, ultrasparc, custom
+#    generic, native, i586, i686, ultrasparc, custom
 CPU = generic
 
 #### Architecture, used when not building for native architecture
 # Use ARCH=<arch_name> to force build for a specific architecture. Known
 # architectures will lead to "-m32" or "-m64" being added to CFLAGS and
 # LDFLAGS. This can be required to build 32-bit binaries on 64-bit targets.
-# Currently, only x86_64, i386, i486, i586 and i686 are understood.
+# Currently, only 32, 64, x86_64, i386, i486, i586 and i686 are understood.
 ARCH =
 
 #### Toolchain options.
@@ -134,12 +134,15 @@ SILENT_DEFINE =
 # them. You should not have to change these options. Better use CPU_CFLAGS or
 # even CFLAGS instead.
 CPU_CFLAGS.generic    = -O2
+CPU_CFLAGS.native     = -O2 -march=native
 CPU_CFLAGS.i586       = -O2 -march=i586
 CPU_CFLAGS.i686       = -O2 -march=i686
 CPU_CFLAGS.ultrasparc = -O6 -mcpu=v9 -mtune=ultrasparc
 CPU_CFLAGS            = $(CPU_CFLAGS.$(CPU))
 
 #### ARCH dependant flags, may be overriden by CPU flags
+ARCH_FLAGS.32     = -m32
+ARCH_FLAGS.64     = -m64
 ARCH_FLAGS.i386   = -m32 -march=i386
 ARCH_FLAGS.i486   = -m32 -march=i486
 ARCH_FLAGS.i586   = -m32 -march=i586
