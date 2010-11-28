@@ -5553,6 +5553,7 @@ int apply_filter_to_req_headers(struct session *t, struct buffer *req, struct hd
 				txn->hdr_idx.used--;
 				cur_hdr->len = 0;
 				cur_end = NULL; /* null-term has been rewritten */
+				cur_idx = old_idx;
 				break;
 
 			}
@@ -6325,6 +6326,7 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 				txn->hdr_idx.v[old_idx].next = cur_hdr->next;
 				txn->hdr_idx.used--;
 				cur_hdr->len = 0;
+				cur_idx = old_idx;
 			}
 			hdr_next += delta;
 			http_msg_move_end(&txn->req, delta);
@@ -6417,6 +6419,7 @@ int apply_filter_to_resp_headers(struct session *t, struct buffer *rtr, struct h
 				txn->hdr_idx.used--;
 				cur_hdr->len = 0;
 				cur_end = NULL; /* null-term has been rewritten */
+				cur_idx = old_idx;
 				break;
 
 			}
@@ -6806,6 +6809,7 @@ void manage_server_side_cookies(struct session *t, struct buffer *res)
 						txn->hdr_idx.v[old_idx].next = cur_hdr->next;
 						txn->hdr_idx.used--;
 						cur_hdr->len = 0;
+						cur_idx = old_idx;
 						hdr_next += delta;
 						http_msg_move_end(&txn->rsp, delta);
 						/* note: while both invalid now, <next> and <hdr_end>
