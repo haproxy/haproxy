@@ -97,6 +97,11 @@ LD = $(CC)
 # Those flags only feed CFLAGS so it is not mandatory to use this form.
 DEBUG_CFLAGS = -g
 
+#### Compiler-specific flags that may be used to disable some negative over-
+# optimization or to silence some warnings. -fno-strict-aliasing is needed with
+# gcc >= 4.4.
+SPEC_CFLAGS = -fno-strict-aliasing
+
 #### Memory usage tuning
 # If small memory footprint is required, you can reduce the buffer size. There
 # are 2 buffers per concurrent session, so 16 kB buffers will eat 32 MB memory
@@ -154,7 +159,7 @@ ARCH_FLAGS        = $(ARCH_FLAGS.$(ARCH))
 # These CFLAGS contain general optimization options, CPU-specific optimizations
 # and debug flags. They may be overridden by some distributions which prefer to
 # set all of them at once instead of playing with the CPU and DEBUG variables.
-CFLAGS = $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS)
+CFLAGS = $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(SPEC_CFLAGS)
 
 #### Common LDFLAGS
 # These LDFLAGS are used as the first "ld" options, regardless of any library
