@@ -4364,6 +4364,9 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 				goto return_bad_req;
 			}
 			/* otherwise we're in HTTP_MSG_DATA or HTTP_MSG_TRAILERS state */
+			/* Don't set a PUSH at the end of that chunk if it's not the last one */
+			if (msg->msg_state == HTTP_MSG_DATA)
+				req->flags |= BF_EXPECT_MORE;
 		}
 		else if (msg->msg_state == HTTP_MSG_DATA_CRLF) {
 			/* we want the CRLF after the data */
@@ -5342,6 +5345,9 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 			else if (ret < 0)
 				goto return_bad_res;
 			/* otherwise we're in HTTP_MSG_DATA or HTTP_MSG_TRAILERS state */
+			/* Don't set a PUSH at the end of that chunk if it's not the last one */
+			if (msg->msg_state == HTTP_MSG_DATA)
+				res->flags |= BF_EXPECT_MORE;
 		}
 		else if (msg->msg_state == HTTP_MSG_DATA_CRLF) {
 			/* we want the CRLF after the data */
