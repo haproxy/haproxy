@@ -843,9 +843,9 @@ peer <peername> <ip>:<port>
 
 Example:
     peers mypeers
-        peers haproxy1 192.168.0.1:1024
-        peers haproxy2 192.168.0.2:1024
-        peers haproxy3 10.2.0.1:1024
+        peer haproxy1 192.168.0.1:1024
+        peer haproxy2 192.168.0.2:1024
+        peer haproxy3 10.2.0.1:1024
 
     backend mybackend
         mode tcp
@@ -853,8 +853,8 @@ Example:
         stick-table type ip size 20k peers mypeers
         stick on src
 
-        server srv1 192.168.30:80
-        server srv2 192.168.31:80
+        server srv1 192.168.0.30:80
+        server srv2 192.168.0.31:80
 
 
 4. Proxies
@@ -8587,7 +8587,7 @@ each of which has a special meaning :
 
   - on the second character, the TCP or HTTP session state when it was closed :
 
-        R : th proxy was waiting for a complete, valid REQUEST from the client
+        R : the proxy was waiting for a complete, valid REQUEST from the client
             (HTTP mode only). Nothing was sent to any server.
 
         Q : the proxy was waiting in the QUEUE for a connection slot. This can
