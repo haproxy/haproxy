@@ -417,7 +417,7 @@ for every keyword. Supported units are :
 
 Assuming haproxy is in $PATH, test these configurations in a shell with:
 
-    $ sudo haproxy -f configuration.conf -d
+    $ sudo haproxy -f configuration.conf -c
 
 
 3. Global parameters
