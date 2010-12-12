@@ -161,6 +161,7 @@ struct error_snapshot {
 	unsigned int len;		/* original length of the last invalid request/response */
 	unsigned int pos;		/* position of the first invalid character */
 	unsigned int sid;		/* ID of the faulty session */
+	unsigned int ev_id;		/* event number (counter incremented for each capture) */
 	unsigned int state;		/* message state before the error (when saved) */
 	unsigned int flags;		/* buffer flags */
 	struct server *srv;		/* server associated with the error (or NULL) */
@@ -363,6 +364,7 @@ struct redirect_rule {
 
 extern struct proxy *proxy;
 extern struct eb_root used_proxy_id;	/* list of proxy IDs in use */
+extern unsigned int error_snapshot_id;  /* global ID assigned to each error then incremented */
 
 #endif /* _TYPES_PROXY_H */
 

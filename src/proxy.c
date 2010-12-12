@@ -43,6 +43,7 @@
 int listeners;	/* # of proxy listeners, set by cfgparse, unset by maintain_proxies */
 struct proxy *proxy  = NULL;	/* list of all existing proxies */
 struct eb_root used_proxy_id = EB_ROOT;	/* list of proxy IDs in use */
+unsigned int error_snapshot_id = 0;     /* global ID assigned to each error then incremented */
 
 /*
  * This function returns a string containing a name describing capabilities to

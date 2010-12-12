@@ -7278,6 +7278,7 @@ void http_capture_bad_message(struct error_snapshot *es, struct session *s,
 	es->src  = s->cli_addr;
 	es->state = state;
 	es->flags = buf->flags;
+	es->ev_id = error_snapshot_id++;
 }
 
 /* return the IP address pointed to by occurrence <occ> of header <hname> in
