@@ -3477,23 +3477,27 @@ int stats_dump_errors_to_buffer(struct session *s, struct buffer *rep)
 				chunk_printf(&msg,
 					     " frontend %s (#%d): invalid request\n"
 					     "  src %s, session #%d, backend %s (#%d), server %s (#%d)\n"
+					     "  HTTP internal state %d, buffer flags 0x%08x\n"
 					     "  request length %d bytes, error at position %d:\n \n",
 					     s->data_ctx.errors.px->id, s->data_ctx.errors.px->uuid,
 					     pn, es->sid, (es->oe->cap & PR_CAP_BE) ? es->oe->id : "<NONE>",
 					     (es->oe->cap & PR_CAP_BE) ? es->oe->uuid : -1,
 					     es->srv ? es->srv->id : "<NONE>",
 					     es->srv ? es->srv->puid : -1,
+					     es->state, es->flags,
 					     es->len, es->pos);
 				break;
 			case 1:
 				chunk_printf(&msg,
 					     " backend %s (#%d) : invalid response\n"
 					     "  src %s, session #%d, frontend %s (#%d), server %s (#%d)\n"
+					     "  HTTP internal state %d, buffer flags 0x%08x\n"
 					     "  response length %d bytes, error at position %d:\n \n",
 					     s->data_ctx.errors.px->id, s->data_ctx.errors.px->uuid,
 					     pn, es->sid, es->oe->id, es->oe->uuid,
 					     es->srv ? es->srv->id : "<NONE>",
 					     es->srv ? es->srv->puid : -1,
+					     es->state, es->flags,
 					     es->len, es->pos);
 				break;
 			}

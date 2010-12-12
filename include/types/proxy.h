@@ -161,6 +161,8 @@ struct error_snapshot {
 	unsigned int len;		/* original length of the last invalid request/response */
 	unsigned int pos;		/* position of the first invalid character */
 	unsigned int sid;		/* ID of the faulty session */
+	unsigned int state;		/* message state before the error (when saved) */
+	unsigned int flags;		/* buffer flags */
 	struct server *srv;		/* server associated with the error (or NULL) */
 	struct proxy *oe;		/* other end = frontend or backend involved */
 	struct sockaddr_storage src;	/* client's address */

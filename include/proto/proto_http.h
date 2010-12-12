@@ -91,7 +91,7 @@ void perform_http_redirect(struct session *s, struct stream_interface *si);
 void http_return_srv_error(struct session *s, struct stream_interface *si);
 void http_capture_bad_message(struct error_snapshot *es, struct session *s,
                               struct buffer *buf, struct http_msg *msg,
-			      struct proxy *other_end);
+			      int state, struct proxy *other_end);
 unsigned int get_ip_from_hdr2(struct http_msg *msg, const char *hname, int hlen,
 			      struct hdr_idx *idx, int occ);
 
