@@ -73,6 +73,8 @@ void stream_int_retnclose(struct stream_interface *si, const struct chunk *msg)
 	buffer_abort(si->ib);
 	buffer_auto_close(si->ib);
 	buffer_erase(si->ib);
+
+	buffer_cut_tail(si->ob);
 	if (likely(msg && msg->len))
 		buffer_write(si->ob, msg->str, msg->len);
 
