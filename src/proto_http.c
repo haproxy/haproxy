@@ -4407,8 +4407,18 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 				/* some state changes occurred, maybe the analyser
 				 * was disabled too.
 				 */
-				if (unlikely(msg->msg_state == HTTP_MSG_ERROR))
+				if (unlikely(msg->msg_state == HTTP_MSG_ERROR)) {
+					if (req->flags & BF_SHUTW) {
+						/* request errors are most likely due to
+						 * the server aborting the transfer.
+						 */
+						if (!(s->flags & SN_ERR_MASK))
+							s->flags |= SN_ERR_SRVCL;
+						if (!(s->flags & SN_FINST_MASK))
+							s->flags |= SN_FINST_D;
+					}
 					goto return_bad_req;
+				}
 				return 1;
 			}
 
@@ -5385,8 +5395,18 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 				/* some state changes occurred, maybe the analyser
 				 * was disabled too.
 				 */
-				if (unlikely(msg->msg_state == HTTP_MSG_ERROR))
+				if (unlikely(msg->msg_state == HTTP_MSG_ERROR)) {
+					if (res->flags & BF_SHUTW) {
+						/* response errors are most likely due to
+						 * the client aborting the transfer.
+						 */
+						if (!(s->flags & SN_ERR_MASK))
+							s->flags |= SN_ERR_CLICL;
+						if (!(s->flags & SN_FINST_MASK))
+							s->flags |= SN_FINST_D;
+					}
 					goto return_bad_res;
+				}
 				return 1;
 			}
 			return 0;
