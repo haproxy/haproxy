@@ -6261,7 +6261,52 @@ out_uri_auth_compat:
 			listener = listener->next;
 		}
 
+		/* Check multi-process mode compatibility for the current proxy */
+		if (global.nbproc > 1) {
+			int nbproc = 0;
+			if (curproxy->bind_proc) {
+				int proc;
+				for (proc = 0; proc < global.nbproc; proc++) {
+					if (curproxy->bind_proc & (1 << proc)) {
+						nbproc++;
+					}
+				}
+			} else {
+				nbproc = global.nbproc;
+			}
+			if (curproxy->table.peers.name) {
+				Alert("Proxy '%s': peers can't be used in multi-process mode (nbproc > 1).\n",
+					curproxy->id);
+				cfgerr++;
+			}
+			if (nbproc > 1) {
+				if (curproxy->uri_auth) {
+					Warning("Proxy '%s': in multi-process mode, stats will be limited to process assigned to the current request.\n",
+						curproxy->id);
+					if (!LIST_ISEMPTY(&curproxy->uri_auth->admin_rules)) {
+						Warning("Proxy '%s': stats admin will not work correctly in multi-process mode.\n",
+							curproxy->id);
+					}
+				}
+				if (curproxy->appsession_name) {
+					Warning("Proxy '%s': appsession will not work correctly in multi-process mode.\n",
+						curproxy->id);
+				}
+				if (!LIST_ISEMPTY(&curproxy->sticking_rules)) {
+					Warning("Proxy '%s': sticking rules will not work correctly in multi-process mode.\n",
+						curproxy->id);
+				}
+			}
+		}
+		
 		curproxy = curproxy->next;
+	}
+
+	/* Check multi-process mode compatibility */
+	if (global.nbproc > 1) {
+		if (global.stats_fe) {
+			Warning("stats socket will not work correctly in multi-process mode (nbproc > 1).\n");
+		}
 	}
 
 	for (curuserlist = userlist; curuserlist; curuserlist = curuserlist->next) {

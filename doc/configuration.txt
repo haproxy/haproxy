@@ -1142,11 +1142,15 @@ appsession <cookie> len <length> timeout <holdtime>
 
   The definition of an application cookie is limited to one per backend.
 
+  Note : Consider not using this feature in multi-process mode (nbproc > 1)
+         unless you know what you do : memory is not shared between the
+         processes, which can result in random behaviours.
+
   Example :
         appsession JSESSIONID len 52 timeout 3h
 
-  See also : "cookie", "capture cookie", "balance", "stick", "stick-table"
-             and "ignore-persist"
+  See also : "cookie", "capture cookie", "balance", "stick", "stick-table",
+             "ignore-persist", "nbproc" and "bind-process".
 
 
 backlog <conns>
@@ -4813,6 +4817,10 @@ stats admin { if | unless } <cond>
   The admin level allows to enable/disable servers from the web interface. By
   default, statistics page is read-only for security reasons.
 
+  Note : Consider not using this feature in multi-process mode (nbproc > 1)
+         unless you know what you do : memory is not shared between the
+         processes, which can result in random behaviours.
+
   Currently, there are 2 known limitations :
 
     - The POST data are limited to one packet, which means that if the list of
@@ -4849,8 +4857,9 @@ stats admin { if | unless } <cond>
         stats http-request auth unless AUTH
         stats admin if AUTH_ADMIN
 
-  See also : "stats enable", "stats auth", "stats http-request", section 3.4
-             about userlists and section 7 about ACL usage.
+  See also : "stats enable", "stats auth", "stats http-request", "nbproc",
+             "bind-process", section 3.4 about userlists and section 7 about
+             ACL usage.
 
 
 stats auth <user>:<passwd>
@@ -5291,6 +5300,10 @@ stick match <pattern> [table <table>] [{if | unless} <cond>]
   way, it becomes very easy to insert cookies and match on IP addresses in
   order to maintain stickiness between HTTP and HTTPS.
 
+  Note : Consider not using this feature in multi-process mode (nbproc > 1)
+         unless you know what you do : memory is not shared between the
+         processes, which can result in random behaviours.
+
   Example :
     # forward SMTP users to the same server they just used for POP in the
     # last 30 minutes
@@ -5309,8 +5322,8 @@ stick match <pattern> [table <table>] [{if | unless} <cond>]
         server s1 192.168.1.1:25
         server s2 192.168.1.1:25
 
-  See also : "stick-table", "stick on", and section 7 about ACLs and pattern
-             extraction.
+  See also : "stick-table", "stick on", "nbproc", "bind-process" and section 7
+             about ACLs and pattern extraction.
 
 
 stick on <pattern> [table <table>] [{if | unless} <condition>]
@@ -5322,6 +5335,10 @@ stick on <pattern> [table <table>] [{if | unless} <condition>]
          "stick store-request", all with the same arguments. Please refer
          to both keywords for details. It is only provided as a convenience
          for writing more maintainable configurations.
+
+  Note : Consider not using this feature in multi-process mode (nbproc > 1)
+         unless you know what you do : memory is not shared between the
+         processes, which can result in random behaviours.
 
   Examples :
     # The following form ...
@@ -5350,7 +5367,7 @@ stick on <pattern> [table <table>] [{if | unless} <condition>]
         server s1 192.168.1.1:443
         server s2 192.168.1.1:443
 
-  See also : "stick match" and "stick store-request"
+  See also : "stick match", "stick store-request", "nbproc" and "bind-process".
 
 
 stick store-request <pattern> [table <table>] [{if | unless} <condition>]
@@ -5411,6 +5428,10 @@ stick store-request <pattern> [table <table>] [{if | unless} <condition>]
   established, so that the table will contain the real server that processed
   the request.
 
+  Note : Consider not using this feature in multi-process mode (nbproc > 1)
+         unless you know what you do : memory is not shared between the
+         processes, which can result in random behaviours.
+
   Example :
     # forward SMTP users to the same server they just used for POP in the
     # last 30 minutes
@@ -5429,8 +5450,8 @@ stick store-request <pattern> [table <table>] [{if | unless} <condition>]
         server s1 192.168.1.1:25
         server s2 192.168.1.1:25
 
-  See also : "stick-table", "stick on", and section 7 about ACLs and pattern
-             extraction.
+  See also : "stick-table", "stick on", "nbproc", "bind-process" and section 7
+             about ACLs and pattern extraction.
 
 
 stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
@@ -5493,6 +5514,8 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
                the remote peers declared in this section. All entries are also
                automatically learned from the local peer (old process) during a
                soft restart.
+
+               NOTE : peers can't be used in multi-process mode.
 
     <expire>   defines the maximum duration of an entry in the table since it
                was last created, refreshed or matched. The expiration delay is
