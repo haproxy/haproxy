@@ -3328,7 +3328,7 @@ no option http_proxy
   addresses are passed. Since this option's usage perimeter is rather limited,
   it will probably be used only by experts who know they need exactly it. Last,
   if the clients are susceptible of sending keep-alive requests, it will be
-  needed to add "option http_close" to ensure that all requests will correctly
+  needed to add "option httpclose" to ensure that all requests will correctly
   be analyzed.
 
   If this option has been enabled in a "defaults" section, it can be disabled
