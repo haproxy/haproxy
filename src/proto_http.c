@@ -2390,7 +2390,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 				req->flags |= BF_READ_DONTWAIT; /* try to get back here ASAP */
 				return 0;
 			}
-			if (req->l <= req->size - global.tune.maxrewrite)
+			if (req->r < req->lr || req->r > req->data + req->size - global.tune.maxrewrite)
 				http_buffer_heavy_realign(req, msg);
 		}
 
@@ -2411,6 +2411,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 				/* don't let a connection request be initiated */
 				buffer_dont_connect(req);
 				s->rep->flags &= ~BF_EXPECT_MORE; /* speed up sending a previous response */
+				s->rep->analysers |= an_bit; /* wake us up once it changes */
 				return 0;
 			}
 		}

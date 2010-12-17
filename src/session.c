@@ -1506,6 +1506,7 @@ struct task *process_session(struct task *t)
 
 		rq_prod_last = s->si[0].state;
 		rq_cons_last = s->si[1].state;
+		s->req->flags &= ~BF_WAKE_ONCE;
 		rqf_last = s->req->flags;
 
 		if ((s->req->flags ^ flags) & BF_MASK_STATIC)
@@ -1542,6 +1543,18 @@ struct task *process_session(struct task *t)
 		 s->si[0].state != rp_cons_last ||
 		 s->si[1].state != rp_prod_last) {
 		unsigned int flags = s->rep->flags;
+
+		if ((s->rep->flags & BF_MASK_ANALYSER) &&
+		    (s->rep->analysers & AN_REQ_WAIT_HTTP)) {
+			/* Due to HTTP pipelining, the HTTP request analyser might be waiting
+			 * for some free space in the response buffer, so we might need to call
+			 * it when something changes in the response buffer, but still we pass
+			 * it the request buffer. Note that the SI state might very well still
+			 * be zero due to us returning a flow of redirects!
+			 */
+			s->rep->analysers &= ~AN_REQ_WAIT_HTTP;
+			s->req->flags |= BF_WAKE_ONCE;
+		}
 
 		if (s->rep->prod->state >= SI_ST_EST) {
 			int max_loops = global.tune.maxpollevents;
@@ -1615,6 +1628,9 @@ struct task *process_session(struct task *t)
 
 	/* maybe someone has added some request analysers, so we must check and loop */
 	if (s->req->analysers & ~req_ana_back)
+		goto resync_request;
+
+	if ((s->req->flags & ~rqf_last) & BF_MASK_ANALYSER)
 		goto resync_request;
 
 	/* FIXME: here we should call protocol handlers which rely on

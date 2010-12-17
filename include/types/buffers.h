@@ -115,13 +115,15 @@
 #define BF_EXPECT_MORE   0x2000000  /* more data expected to be sent very soon (one-shoot) */
 #define BF_SEND_DONTWAIT 0x4000000  /* don't wait for sending data (one-shoot) */
 
+#define BF_WAKE_ONCE     0x8000000  /* pretend there is activity on this buffer (one-shoot) */
+
 /* Use these masks to clear the flags before going back to lower layers */
 #define BF_CLEAR_READ     (~(BF_READ_NULL|BF_READ_PARTIAL|BF_READ_ERROR|BF_READ_ATTACHED))
 #define BF_CLEAR_WRITE    (~(BF_WRITE_NULL|BF_WRITE_PARTIAL|BF_WRITE_ERROR))
 #define BF_CLEAR_TIMEOUT  (~(BF_READ_TIMEOUT|BF_WRITE_TIMEOUT|BF_ANA_TIMEOUT))
 
 /* Masks which define input events for stream analysers */
-#define BF_MASK_ANALYSER        (BF_READ_ATTACHED|BF_READ_ACTIVITY|BF_READ_TIMEOUT|BF_ANA_TIMEOUT|BF_WRITE_ACTIVITY)
+#define BF_MASK_ANALYSER        (BF_READ_ATTACHED|BF_READ_ACTIVITY|BF_READ_TIMEOUT|BF_ANA_TIMEOUT|BF_WRITE_ACTIVITY|BF_WAKE_ONCE)
 
 /* Mask for static flags which cause analysers to be woken up when they change */
 #define BF_MASK_STATIC          (BF_OUT_EMPTY|BF_FULL|BF_SHUTR|BF_SHUTW|BF_SHUTR_NOW|BF_SHUTW_NOW)
