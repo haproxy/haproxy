@@ -535,6 +535,12 @@ log-send-hostname [<string>]
   intermediate syslog server or for simply customizing the hostname printed in
   the logs.
 
+log-tag <string>
+  Sets the tag field in the syslog header to this string. It defaults to the
+  program name as launched from the command line, which usually is "haproxy".
+  Sometimes it can be useful to differentiate between multiple processes
+  running on the same host.
+
 nbproc <number>
   Creates <number> processes when going daemon. This requires the "daemon"
   mode. By default, only one process is created, which is the recommended mode

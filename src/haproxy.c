@@ -94,7 +94,6 @@
 
 /* list of config files */
 static struct list cfg_cfgfiles = LIST_HEAD_INIT(cfg_cfgfiles);
-char *progname = NULL;		/* program name */
 int  pid;			/* current process id */
 int  relative_pid = 1;		/* process id starting at 1 */
 
@@ -352,6 +351,7 @@ void init(int argc, char **argv)
 	char *cfg_pidfile = NULL;
 	int err_code = 0;
 	struct wordlist *wl;
+	char *progname;
 
 	/* NB: POSIX does not make it mandatory for gethostname() to NULL-terminate
 	 * the string in case of truncation, and at least FreeBSD appears not to do
@@ -404,6 +404,9 @@ void init(int argc, char **argv)
 	progname = *argv;
 	while ((tmp = strchr(progname, '/')) != NULL)
 		progname = tmp + 1;
+
+	/* the process name is used for the logs only */
+	global.log_tag = strdup(progname);
 
 	argc--; argv++;
 	while (argc > 0) {
@@ -868,6 +871,7 @@ void deinit(void)
 	protocol_unbind_all();
 
 	free(global.log_send_hostname); global.log_send_hostname = NULL;
+	free(global.log_tag); global.log_tag = NULL;
 	free(global.chroot);  global.chroot = NULL;
 	free(global.pidfile); global.pidfile = NULL;
 	free(global.node);    global.node = NULL;

@@ -178,7 +178,7 @@ void send_log(struct proxy *p, int level, const char *message, ...)
 	int nbloggers = 0;
 	char *log_ptr;
 
-	if (level < 0 || progname == NULL || message == NULL)
+	if (level < 0 || message == NULL)
 		return;
 
 	if (unlikely(date.tv_sec != tvsec || dataptr == NULL)) {
@@ -193,7 +193,7 @@ void send_log(struct proxy *p, int level, const char *message, ...)
 				   monthname[tm.tm_mon],
 				   tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec,
 				   global.log_send_hostname ? global.log_send_hostname : "",
-				   progname, pid);
+				   global.log_tag, pid);
 		/* WARNING: depending upon implementations, snprintf may return
 		 * either -1 or the number of bytes that would be needed to store
 		 * the total message. In both cases, we must adjust it.

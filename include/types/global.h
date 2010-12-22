@@ -76,6 +76,7 @@ struct global {
 	char *chroot;
 	char *pidfile;
 	char *node, *desc;		/* node name & description */
+	char *log_tag;                  /* name for syslog */
 	int logfac1, logfac2;
 	int loglev1, loglev2;
 	int minlvl1, minlvl2;
@@ -108,7 +109,6 @@ struct global {
 };
 
 extern struct global global;
-extern char *progname;          /* program name */
 extern int  pid;                /* current process id */
 extern int  relative_pid;       /* process id starting at 1 */
 extern int  actconn;            /* # of active sessions */
