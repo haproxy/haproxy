@@ -7804,6 +7804,13 @@ The list of currently supported pattern fetch functions is the following :
                <lengthoffset> + <lengthsize> else it is absolute.
                Ex: see SSL session id  example in "stick table" chapter.
                 
+  url_param(name)
+	       This extracts the first occurrence of the parameter <name> in
+	       the query string of the request and uses the correponding value
+               to match. A typical use is to get sticky session through url (e.g.
+	       http://example.com/foo?JESSIONID=some_id with
+	       url_param(JSESSIONID)), for cases where cookies cannot be used.
+
 The currently available list of transformations include :
 
   lower        Convert a string pattern to lower case. This can only be placed

@@ -8258,6 +8258,109 @@ pattern_fetch_hdr_ip(struct proxy *px, struct session *l4, void *l7, int dir,
 	return data->ip.s_addr != 0;
 }
 
+/*
+ * Given a path string and its length, find the position of beginning of the
+ * query string. Returns NULL if no query string is found in the path.
+ *
+ * Example: if path = "/foo/bar/fubar?yo=mama;ye=daddy", and n = 22:
+ *
+ * find_query_string(path, n) points to "yo=mama;ye=daddy" string.
+ */
+static inline char *find_query_string(char *path, size_t path_l)
+{
+	char *p;
+
+	p = memchr(path, '?', path_l);
+	return p ? p + 1 : NULL;
+}
+
+static inline int is_param_delimiter(char c)
+{
+	return c == '&' || c == ';';
+}
+
+/*
+ * Given a url parameter, find the starting position of the first occurence,
+ * or NULL if the parameter is not found.
+ *
+ * Example: if query_string is "yo=mama;ye=daddy" and url_param_name is "ye",
+ * the function will return query_string+8.
+ */
+static char*
+find_url_param_pos(char* query_string, size_t query_string_l,
+                   char* url_param_name, size_t url_param_name_l)
+{
+	char *pos, *last;
+
+	pos  = query_string;
+	last = query_string + query_string_l - url_param_name_l - 1;
+
+	while (pos <= last) {
+		if (pos[url_param_name_l] == '=') {
+			if (memcmp(pos, url_param_name, url_param_name_l) == 0)
+				return pos;
+			pos += url_param_name_l + 1;
+		}
+		while (pos <= last && !is_param_delimiter(*pos))
+			pos++;
+		pos++;
+	}
+	return NULL;
+}
+
+/*
+ * Given a url parameter name, returns its value and size into *value and
+ * *value_l respectively, and returns non-zero. If the parameter is not found,
+ * zero is returned and value/value_l are not touched.
+ */
+static int
+find_url_param_value(char* path, size_t path_l,
+                     char* url_param_name, size_t url_param_name_l,
+                     char** value, size_t* value_l)
+{
+	char *query_string, *qs_end;
+	char *arg_start;
+	char *value_start, *value_end;
+
+	query_string = find_query_string(path, path_l);
+	if (!query_string)
+		return 0;
+
+	qs_end = path + path_l;
+	arg_start = find_url_param_pos(query_string, qs_end - query_string,
+				       url_param_name, url_param_name_l);
+	if (!arg_start)
+		return 0;
+
+	value_start = arg_start + url_param_name_l + 1;
+	value_end = value_start;
+
+	while ((value_end < qs_end) && !is_param_delimiter(*value_end))
+		value_end++;
+
+	*value = value_start;
+	*value_l = value_end - value_start;
+	return 1;
+}
+
+static int
+pattern_fetch_url_param(struct proxy *px, struct session *l4, void *l7, int dir,
+                     const struct pattern_arg *arg_p, int arg_i, union pattern_data *data)
+{
+	struct http_txn *txn = l7;
+	struct http_msg *msg = &txn->req;
+	char  *url_param_value;
+	size_t url_param_value_l;
+
+	if (!find_url_param_value(msg->sol + msg->sl.rq.u, msg->sl.rq.u_l,
+				  arg_p->data.str.str, arg_p->data.str.len,
+				  &url_param_value, &url_param_value_l))
+		return 0;
+
+	data->str.str = url_param_value;
+	data->str.len = url_param_value_l;
+	return 1;
+}
 
 
 /************************************************************************/
@@ -8266,6 +8369,7 @@ pattern_fetch_hdr_ip(struct proxy *px, struct session *l4, void *l7, int dir,
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct pattern_fetch_kw_list pattern_fetch_keywords = {{ },{
 	{ "hdr", pattern_fetch_hdr_ip, pattern_arg_str, PATTERN_TYPE_IP, PATTERN_FETCH_REQ },
+	{ "url_param", pattern_fetch_url_param, pattern_arg_str, PATTERN_TYPE_STRING, PATTERN_FETCH_REQ },
 	{ NULL, NULL, NULL, 0, 0 },
 }};
 
