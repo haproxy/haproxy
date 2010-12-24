@@ -88,15 +88,19 @@ int frontend_accept(struct session *s)
 	s->srv_error = default_srv_error;
 
 	/* Adjust some socket options */
-	if ((s->listener->addr.ss_family != AF_UNIX) &&
-	    setsockopt(cfd, IPPROTO_TCP, TCP_NODELAY, (char *) &one, sizeof(one)) == -1)
-		goto out_return;
+	if (s->listener->addr.ss_family == AF_INET || s->listener->addr.ss_family == AF_INET6) {
+		if (setsockopt(cfd, IPPROTO_TCP, TCP_NODELAY,
+			       (char *) &one, sizeof(one)) == -1)
+			goto out_return;
 
-	if (s->fe->options & PR_O_TCP_CLI_KA)
-		setsockopt(cfd, SOL_SOCKET, SO_KEEPALIVE, (char *) &one, sizeof(one));
+		if (s->fe->options & PR_O_TCP_CLI_KA)
+			setsockopt(cfd, SOL_SOCKET, SO_KEEPALIVE,
+				   (char *) &one, sizeof(one));
 
-	if (s->fe->options & PR_O_TCP_NOLING)
-		setsockopt(cfd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
+		if (s->fe->options & PR_O_TCP_NOLING)
+			setsockopt(cfd, SOL_SOCKET, SO_LINGER,
+				   (struct linger *) &nolinger, sizeof(struct linger));
+	}
 
 	if (global.tune.client_sndbuf)
 		setsockopt(cfd, SOL_SOCKET, SO_SNDBUF, &global.tune.client_sndbuf, sizeof(global.tune.client_sndbuf));
