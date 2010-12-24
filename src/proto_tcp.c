@@ -509,7 +509,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	}
 #endif
 #if defined(TCP_MAXSEG)
-	if (listener->maxseg) {
+	if (listener->maxseg > 0) {
 		if (setsockopt(fd, IPPROTO_TCP, TCP_MAXSEG,
 			       &listener->maxseg, sizeof(listener->maxseg)) == -1) {
 			msg = "cannot set MSS";

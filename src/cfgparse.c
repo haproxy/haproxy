@@ -1683,9 +1683,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 					goto out;
 				}
 
-				mss = str2uic(args[cur_arg + 1]);
-				if (mss < 1 || mss > 65535) {
-					Alert("parsing [%s:%d]: %s expects an MSS value between 1 and 65535.\n",
+				mss = atoi(args[cur_arg + 1]);
+				if (!mss || abs(mss) > 65535) {
+					Alert("parsing [%s:%d]: %s expects an MSS with and absolute value between 1 and 65535.\n",
 					      file, linenum, args[0]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;

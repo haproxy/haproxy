@@ -20,6 +20,8 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <netinet/tcp.h>
+
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/debug.h>
@@ -100,6 +102,17 @@ int frontend_accept(struct session *s)
 		if (s->fe->options & PR_O_TCP_NOLING)
 			setsockopt(cfd, SOL_SOCKET, SO_LINGER,
 				   (struct linger *) &nolinger, sizeof(struct linger));
+#if defined(TCP_MAXSEG)
+		if (s->listener->maxseg < 0) {
+			/* we just want to reduce the current MSS by that value */
+			int mss;
+			int mss_len = sizeof(mss);
+			if (getsockopt(cfd, IPPROTO_TCP, TCP_MAXSEG, &mss, &mss_len) == 0) {
+				mss += s->listener->maxseg; /* remember, it's < 0 */
+				setsockopt(cfd, IPPROTO_TCP, TCP_MAXSEG, &mss, sizeof(mss));
+			}
+		}
+#endif
 	}
 
 	if (global.tune.client_sndbuf)

@@ -1463,9 +1463,14 @@ bind /<path> [, ...] [ group <user> | gid <gid> ]
                   connections passing through a VPN. Note that this relies on a
                   kernel feature which is theorically supported under Linux but
                   was buggy in all versions prior to 2.6.28. It may or may not
-                  work on other operating systems. The commonly advertised
-                  value on Ethernet networks is 1460 = 1500(MTU) - 40(IP+TCP).
-                  This parameter is only compatible with TCP sockets.
+                  work on other operating systems. It may also not change the
+                  advertised value but change the effective size of outgoing
+                  segments. The commonly advertised value on Ethernet networks
+                  is 1460 = 1500(MTU) - 40(IP+TCP). If this value is positive,
+                  it will be used as the advertised MSS. If it is negative, it
+                  will indicate by how much to reduce the incoming connection's
+                  advertised MSS for outgoing segments. This parameter is only
+                  compatible with TCP sockets.
 
     <id>          is a persistent value for socket ID. Must be positive and
                   unique in the proxy. An unused value will automatically be
