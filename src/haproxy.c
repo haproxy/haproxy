@@ -867,6 +867,7 @@ void deinit(void)
 
 	protocol_unbind_all();
 
+	free(global.log_send_hostname); global.log_send_hostname = NULL;
 	free(global.chroot);  global.chroot = NULL;
 	free(global.pidfile); global.pidfile = NULL;
 	free(global.node);    global.node = NULL;

@@ -966,6 +966,28 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 	}
+	else if (!strcmp(args[0], "log-send-hostname")) { /* set the hostname in syslog header */
+		char *name;
+		int len;
+
+		if (global.log_send_hostname != NULL) {
+			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT;
+			goto out;
+		}
+
+		if (*(args[1]))
+			name = args[1];
+		else
+			name = hostname;
+
+		len = strlen(name);
+
+		/* We'll add a space after the name to respect the log format */
+		free(global.log_send_hostname);
+		global.log_send_hostname = malloc(len + 2);
+		snprintf(global.log_send_hostname, len + 2, "%s ", name);
+	}
 	else if (!strcmp(args[0], "spread-checks")) {  /* random time between checks (0-50) */
 		if (global.spread_checks != 0) {
 			Alert("parsing [%s:%d]: spread-checks already specified. Continuing.\n", file, linenum);

@@ -435,6 +435,7 @@ The following keywords are supported in the "global" section :
    - gid
    - group
    - log
+   - log-send-hostname
    - nbproc
    - pidfile
    - uid
@@ -526,6 +527,13 @@ log <address> <facility> [max level [min level]]
   Eight levels are known :
 
 	  emerg  alert  crit   err    warning notice info  debug
+
+log-send-hostname [<string>]
+  Sets the hostname field in the syslog header. If optional "string" parameter
+  is set the header is set to the string contents, otherwise uses the hostname
+  of the system. Generally used if one is not relaying logs through an
+  intermediate syslog server or for simply customizing the hostname printed in
+  the logs.
 
 nbproc <number>
   Creates <number> processes when going daemon. This requires the "daemon"

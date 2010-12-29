@@ -80,6 +80,7 @@ struct global {
 	int loglev1, loglev2;
 	int minlvl1, minlvl2;
 	struct logsrv logsrv1, logsrv2;
+	char *log_send_hostname;   /* set hostname in syslog header */
 	struct {
 		int maxpollevents; /* max number of poll events at once */
 		int maxaccept;     /* max number of consecutive accept() */

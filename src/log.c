@@ -189,9 +189,10 @@ void send_log(struct proxy *p, int level, const char *message, ...)
 		get_localtime(tvsec, &tm);
 
 		hdr_len = snprintf(logmsg, sizeof(logmsg),
-				   "<<<<>%s %2d %02d:%02d:%02d %s[%d]: ",
+				   "<<<<>%s %2d %02d:%02d:%02d %s%s[%d]: ",
 				   monthname[tm.tm_mon],
 				   tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec,
+				   global.log_send_hostname ? global.log_send_hostname : "",
 				   progname, pid);
 		/* WARNING: depending upon implementations, snprintf may return
 		 * either -1 or the number of bytes that would be needed to store
