@@ -873,6 +873,8 @@ void stream_sock_shutw(struct stream_interface *si)
 		fd_delete(si->fd);
 		/* fall through */
 	case SI_ST_CER:
+	case SI_ST_QUE:
+	case SI_ST_TAR:
 		si->state = SI_ST_DIS;
 	default:
 		si->flags &= ~SI_FL_WAIT_ROOM;

@@ -226,6 +226,8 @@ void stream_int_shutw(struct stream_interface *si)
 		/* fall through */
 	case SI_ST_CON:
 	case SI_ST_CER:
+	case SI_ST_QUE:
+	case SI_ST_TAR:
 		si->state = SI_ST_DIS;
 		/* fall through */
 
