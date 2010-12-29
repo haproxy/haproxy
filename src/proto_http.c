@@ -3096,7 +3096,8 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 	     (s->be->options & (PR_O_KEEPALIVE|PR_O_SERVER_CLO|PR_O_HTTP_CLOSE|PR_O_FORCE_CLO)))) {
 		int tmp = TX_CON_WANT_TUN;
 
-		if ((s->fe->options|s->be->options) & PR_O_KEEPALIVE)
+		if ((s->fe->options|s->be->options) & PR_O_KEEPALIVE ||
+		    ((s->fe->options2|s->be->options2) & PR_O2_FAKE_KA))
 			tmp = TX_CON_WANT_KAL;
 		if ((s->fe->options|s->be->options) & PR_O_SERVER_CLO)
 			tmp = TX_CON_WANT_SCL;
@@ -3123,8 +3124,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 		     (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL) &&
 		    ((txn->flags & TX_HDR_CONN_CLO) ||                         /* "connection: close" */
 		     (txn->flags & (TX_REQ_VER_11|TX_HDR_CONN_KAL)) == 0 ||    /* no "connection: k-a" in 1.0 */
-		     (((s->fe->options|s->be->options) & PR_O_HTTP_CLOSE) &&   /* httpclose without pretend-ka... */
-		      1/*!((s->fe->options2|s->be->options2) & PR_O2_FAKE_KA)*/) || /* ... +any = forceclose */
+		     ((s->fe->options|s->be->options) & PR_O_HTTP_CLOSE) ||    /* httpclose+any = forceclose */
 		     !(txn->flags & TX_REQ_XFER_LEN) ||                        /* no length known => close */
 		     s->fe->state == PR_STSTOPPED))                            /* frontend is stopping */
 		    txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
@@ -3581,8 +3581,7 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 
 	/* 11: add "Connection: close" or "Connection: keep-alive" if needed and not yet set. */
 	if (((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN) ||
-	    ((s->fe->options|s->be->options) & PR_O_HTTP_CLOSE) ||
-	    ((s->fe->options2|s->be->options2) & PR_O2_FAKE_KA)) {
+	    ((s->fe->options|s->be->options) & PR_O_HTTP_CLOSE)) {
 		unsigned int want_flags = 0;
 
 		if (txn->flags & TX_REQ_VER_11) {
