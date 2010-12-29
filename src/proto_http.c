@@ -4428,10 +4428,7 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 						/* request errors are most likely due to
 						 * the server aborting the transfer.
 						 */
-						if (!(s->flags & SN_ERR_MASK))
-							s->flags |= SN_ERR_SRVCL;
-						if (!(s->flags & SN_FINST_MASK))
-							s->flags |= SN_FINST_D;
+						goto aborted_xfer;
 					}
 					if (msg->err_pos >= 0)
 						http_capture_bad_message(&s->fe->invalid_req, s, req, msg, old_state, s->be);
@@ -4468,19 +4465,25 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 	if (req->flags & BF_SHUTR) {
 		if (!(s->flags & SN_ERR_MASK))
 			s->flags |= SN_ERR_CLICL;
-		if (!(s->flags & SN_FINST_MASK))
-			s->flags |= SN_FINST_D;
-		goto return_bad_req;
+		if (!(s->flags & SN_FINST_MASK)) {
+			if (txn->rsp.msg_state < HTTP_MSG_ERROR)
+				s->flags |= SN_FINST_H;
+			else
+				s->flags |= SN_FINST_D;
+		}
+
+		s->fe->counters.cli_aborts++;
+		if (s->fe != s->be)
+			s->be->counters.cli_aborts++;
+		if (s->srv)
+			s->srv->counters.cli_aborts++;
+
+		goto return_bad_req_stats_ok;
 	}
 
 	/* waiting for the last bits to leave the buffer */
-	if (req->flags & BF_SHUTW) {
-		if (!(s->flags & SN_ERR_MASK))
-			s->flags |= SN_ERR_SRVCL;
-		if (!(s->flags & SN_FINST_MASK))
-			s->flags |= SN_FINST_D;
-		goto return_bad_req;
-	}
+	if (req->flags & BF_SHUTW)
+		goto aborted_xfer;
 
 	/* When TE: chunked is used, we need to get there again to parse remaining
 	 * chunks even if the client has closed, so we don't want to set BF_DONTCLOSE.
@@ -4492,20 +4495,57 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 	return 0;
 
  return_bad_req: /* let's centralize all bad requests */
-	txn->req.msg_state = HTTP_MSG_ERROR;
-	txn->status = 400;
-	/* Note: we don't send any error if some data were already sent */
-	stream_int_retnclose(req->prod, (txn->rsp.msg_state < HTTP_MSG_BODY) ? error_message(s, HTTP_ERR_400) : NULL);
-	req->analysers = 0;
 	s->fe->counters.failed_req++;
 	if (s->listener->counters)
 		s->listener->counters->failed_req++;
+ return_bad_req_stats_ok:
+	txn->req.msg_state = HTTP_MSG_ERROR;
+	if (txn->status) {
+		/* Note: we don't send any error if some data were already sent */
+		stream_int_retnclose(req->prod, NULL);
+	} else {
+		txn->status = 400;
+		stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_400));
+	}
+	req->analysers = 0;
+	s->rep->analysers = 0; /* we're in data phase, we want to abort both directions */
 
 	if (!(s->flags & SN_ERR_MASK))
 		s->flags |= SN_ERR_PRXCOND;
-	if (!(s->flags & SN_FINST_MASK))
-		s->flags |= SN_FINST_R;
-	http_silent_debug(__LINE__, s);
+	if (!(s->flags & SN_FINST_MASK)) {
+		if (txn->rsp.msg_state < HTTP_MSG_ERROR)
+			s->flags |= SN_FINST_H;
+		else
+			s->flags |= SN_FINST_D;
+	}
+	return 0;
+
+ aborted_xfer:
+	txn->req.msg_state = HTTP_MSG_ERROR;
+	if (txn->status) {
+		/* Note: we don't send any error if some data were already sent */
+		stream_int_retnclose(req->prod, NULL);
+	} else {
+		txn->status = 502;
+		stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_502));
+	}
+	req->analysers = 0;
+	s->rep->analysers = 0; /* we're in data phase, we want to abort both directions */
+
+	s->fe->counters.srv_aborts++;
+	if (s->fe != s->be)
+		s->be->counters.srv_aborts++;
+	if (s->srv)
+		s->srv->counters.srv_aborts++;
+
+	if (!(s->flags & SN_ERR_MASK))
+		s->flags |= SN_ERR_SRVCL;
+	if (!(s->flags & SN_FINST_MASK)) {
+		if (txn->rsp.msg_state < HTTP_MSG_ERROR)
+			s->flags |= SN_FINST_H;
+		else
+			s->flags |= SN_FINST_D;
+	}
 	return 0;
 }
 
@@ -5429,10 +5469,7 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 						/* response errors are most likely due to
 						 * the client aborting the transfer.
 						 */
-						if (!(s->flags & SN_ERR_MASK))
-							s->flags |= SN_ERR_CLICL;
-						if (!(s->flags & SN_FINST_MASK))
-							s->flags |= SN_FINST_D;
+						goto aborted_xfer;
 					}
 					if (msg->err_pos >= 0)
 						http_capture_bad_message(&s->be->invalid_rep, s, res, msg, old_state, s->fe);
@@ -5452,8 +5489,11 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 		s->be->counters.srv_aborts++;
 		if (s->srv)
 			s->srv->counters.srv_aborts++;
-		goto return_bad_res;
+		goto return_bad_res_stats_ok;
 	}
+
+	if (res->flags & BF_SHUTW)
+		goto aborted_xfer;
 
 	/* we need to obey the req analyser, so if it leaves, we must too */
 	if (!s->req->analysers)
@@ -5481,21 +5521,42 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 	return 0;
 
  return_bad_res: /* let's centralize all bad responses */
+	s->be->counters.failed_resp++;
+	if (s->srv)
+		s->srv->counters.failed_resp++;
+
+ return_bad_res_stats_ok:
 	txn->rsp.msg_state = HTTP_MSG_ERROR;
 	/* don't send any error message as we're in the body */
 	stream_int_retnclose(res->cons, NULL);
 	res->analysers = 0;
-	s->be->counters.failed_resp++;
-	if (s->srv) {
-		s->srv->counters.failed_resp++;
+	s->req->analysers = 0; /* we're in data phase, we want to abort both directions */
+	if (s->srv)
 		health_adjust(s->srv, HANA_STATUS_HTTP_HDRRSP);
-	}
 
 	if (!(s->flags & SN_ERR_MASK))
 		s->flags |= SN_ERR_PRXCOND;
 	if (!(s->flags & SN_FINST_MASK))
 		s->flags |= SN_FINST_D;
-	http_silent_debug(__LINE__, s);
+	return 0;
+
+ aborted_xfer:
+	txn->rsp.msg_state = HTTP_MSG_ERROR;
+	/* don't send any error message as we're in the body */
+	stream_int_retnclose(res->cons, NULL);
+	res->analysers = 0;
+	s->req->analysers = 0; /* we're in data phase, we want to abort both directions */
+
+	s->fe->counters.cli_aborts++;
+	if (s->fe != s->be)
+		s->be->counters.cli_aborts++;
+	if (s->srv)
+		s->srv->counters.cli_aborts++;
+
+	if (!(s->flags & SN_ERR_MASK))
+		s->flags |= SN_ERR_CLICL;
+	if (!(s->flags & SN_FINST_MASK))
+		s->flags |= SN_FINST_D;
 	return 0;
 }
 

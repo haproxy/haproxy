@@ -8792,11 +8792,20 @@ easier finding and understanding.
           so that it does not happen anymore. This status is very rare and
           might happen when the global "ulimit-n" parameter is forced by hand.
 
+     PD   The proxy blocked an incorrectly formatted chunked encoded message in
+          a request or a response, after the server has emitted its headers. In
+          most cases, this will indicate an invalid message from the server to
+          the client.
+
      PH   The proxy blocked the server's response, because it was invalid,
           incomplete, dangerous (cache control), or matched a security filter.
           In any case, an HTTP 502 error is sent to the client. One possible
           cause for this error is an invalid syntax in an HTTP header name
-          containing unauthorized characters.
+          containing unauthorized characters. It is also possible but quite
+          rare, that the proxy blocked a chunked-encoding request from the
+          client due to an invalid syntax, before the server responded. In this
+          case, an HTTP 400 error is sent to the client and reported in the
+          logs.
 
      PR   The proxy blocked the client's HTTP request, either because of an
           invalid HTTP syntax, in which case it returned an HTTP 400 error to
