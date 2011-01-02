@@ -560,7 +560,13 @@ struct stktable_key *stktable_fetch_key(struct stktable *t, struct proxy *px, st
 	if (!static_table_key.key)
 		return NULL;
 
-	if ((static_table_key.key_len < t->key_size) && (t->type != STKTABLE_TYPE_STRING)) {
+	if (t->type == STKTABLE_TYPE_STRING) {
+		/* The string MUST be terminated by a '\0' after the key_len bytes */
+		if (static_table_key.key_len > t->key_size - 1)
+			static_table_key.key_len = t->key_size - 1;
+		((char *)static_table_key.key)[static_table_key.key_len] = 0;
+	}
+	else if (static_table_key.key_len < t->key_size) {
 		/* need padding with null */
 
 		/* assume static_table_key.key_len is less than sizeof(static_table_key.data.buf)
