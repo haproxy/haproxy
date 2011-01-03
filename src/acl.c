@@ -1083,14 +1083,15 @@ static int acl_read_patterns_from_file(	struct acl_keyword *aclkw,
 		while (*c == ' ' || *c == '\t')
 			c++;
 
-		/* empty lines are ignored too */
-		if (!*c)
-			continue;
 
 		args[0] = c;
 		while (*c && *c != '\n' && *c != '\r')
 			c++;
 		*c = 0;
+
+		/* empty lines are ignored too */
+		if (c == args[0])
+			continue;
 
 		/* we keep the previous pattern along iterations as long as it's not used */
 		if (!pattern)
