@@ -747,6 +747,7 @@ static int event_srv_chk_w(int fd)
 		    (s->proxy->options & PR_O_SMTP_CHK) ||
 		    (s->proxy->options2 & PR_O2_SSL3_CHK) ||
 		    (s->proxy->options2 & PR_O2_MYSQL_CHK) ||
+		    (s->proxy->options2 & PR_O2_PGSQL_CHK) ||
 		    (s->proxy->options2 & PR_O2_LDAP_CHK)) {
 			int ret;
 			const char *check_req = s->proxy->check_req;
@@ -1000,6 +1001,22 @@ static int event_srv_chk_r(int fd)
 			set_server_check_status(s, HCHK_STATUS_L7OKD, desc);
 		else
 			set_server_check_status(s, HCHK_STATUS_L7STS, desc);
+	}
+	else if (s->proxy->options2 & PR_O2_PGSQL_CHK) {
+		if (!done && s->check_data_len < 9)
+			goto wait_more_data;
+
+		if (s->check_data[0] == 'R') {
+			set_server_check_status(s, HCHK_STATUS_L7OKD, "PostgreSQL server is ok");
+		}
+		else {
+			if ((s->check_data[0] == 'E') && (s->check_data[5]!=0) && (s->check_data[6]!=0))
+				desc = &s->check_data[6];
+			else
+				desc = "PostgreSQL unknown error";
+
+			set_server_check_status(s, HCHK_STATUS_L7STS, desc);
+		}
 	}
 	else if (s->proxy->options2 & PR_O2_MYSQL_CHK) {
 		if (!done && s->check_data_len < 5)

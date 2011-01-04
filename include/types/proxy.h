@@ -149,6 +149,8 @@
 #define PR_O2_EXP_TYPE  0x03800000      /* mask for http-check expect type */
 #define PR_O2_EXP_INV   0x04000000      /* http-check expect !<rule> */
 #define PR_O2_COOK_PSV  0x08000000      /* cookie ... preserve */
+
+#define PR_O2_PGSQL_CHK 0x10000000      /* use PGSQL check for server health */
 /* end of proxy->options2 */
 
 /* bits for sticking rules */

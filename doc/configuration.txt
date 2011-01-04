@@ -993,6 +993,7 @@ option log-health-checks             (*)  X          -         X         X
 option log-separate-errors           (*)  X          X         X         -
 option logasap                       (*)  X          X         X         -
 option mysql-check                        X          -         X         X
+option pgsql-check                        X          -         X         X
 option nolinger                      (*)  X          X         X         X
 option originalto                         X          X         X         X
 option persist                       (*)  X          -         X         X
@@ -3266,7 +3267,8 @@ option httpchk <method> <uri> <version>
           server apache1 192.168.1.1:443 check port 80
 
   See also : "option ssl-hello-chk", "option smtpchk", "option mysql-check",
-             "http-check" and the "check", "port" and "inter" server options.
+             "option pgsql-check", "http-check" and the "check", "port" and
+             "inter" server options.
 
 
 option httpclose
@@ -3540,6 +3542,20 @@ option mysql-check [ user <username> ]
 
   See also: "option httpchk"
 
+option pgsql-check [ user <username> ]
+  Use PostgreSQL health checks for server testing
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments :
+    user <username> This is the username which will be used when connecting
+    to PostgreSQL server.
+
+  The check sends a PostgreSQL StartupMessage and waits for either
+  Authentication request or ErrorResponse message. It is a basic but useful
+  test which does not produce error nor aborted connect on the server.
+  This check is identical with the "mysql-check".
+
+  See also: "option httpchk"
 
 option nolinger
 no option nolinger
@@ -6457,8 +6473,8 @@ check
   "port" parameter, the source address using the "source" address, and the
   interval and timers using the "inter", "rise" and "fall" parameters. The
   request method is define in the backend using the "httpchk", "smtpchk",
-  "mysql-check" and "ssl-hello-chk" options. Please refer to those options and
-  parameters for more information.
+  "mysql-check", "pgsql-check" and "ssl-hello-chk" options. Please refer to
+  those options and parameters for more information.
 
   Supported in default-server: No
 
