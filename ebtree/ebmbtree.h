@@ -1,7 +1,7 @@
 /*
  * Elastic Binary Trees - macros and structures for Multi-Byte data nodes.
- * Version 6.0.1
- * (C) 2002-2010 - Willy Tarreau <w@1wt.eu>
+ * Version 6.0.5
+ * (C) 2002-2011 - Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -111,8 +111,12 @@ static forceinline void __ebmb_delete(struct ebmb_node *ebmb)
 	__eb_delete(&ebmb->node);
 }
 
-/* Find the first occurence of a key of <len> bytes in the tree <root>.
- * If none can be found, return NULL.
+/* Find the first occurence of a key of a least <len> bytes matching <x> in the
+ * tree <root>. The caller is responsible for ensuring that <len> will not exceed
+ * the common parts between the tree's keys and <x>. In case of multiple matches,
+ * the leftmost node is returned. This means that this function can be used to
+ * lookup string keys by prefix if all keys in the tree are zero-terminated. If
+ * no match is found, NULL is returned. Returns first node if <len> is zero.
  */
 static forceinline struct ebmb_node *__ebmb_lookup(struct eb_root *root, const void *x, unsigned int len)
 {
@@ -125,12 +129,15 @@ static forceinline struct ebmb_node *__ebmb_lookup(struct eb_root *root, const v
 	if (unlikely(troot == NULL))
 		return NULL;
 
+	if (unlikely(len == 0))
+		goto walk_down;
+
 	pos = 0;
 	while (1) {
 		if (eb_gettag(troot) == EB_LEAF) {
 			node = container_of(eb_untag(troot, EB_LEAF),
 					    struct ebmb_node, node.branches);
-			if (memcmp(node->key + pos, x, len - pos) != 0)
+			if (memcmp(node->key + pos, x, len) != 0)
 				return NULL;
 			else
 				return node;
@@ -144,10 +151,11 @@ static forceinline struct ebmb_node *__ebmb_lookup(struct eb_root *root, const v
 			 * value, and we walk down left, or it's a different
 			 * one and we don't have our key.
 			 */
-			if (memcmp(node->key + pos, x, len - pos) != 0)
+			if (memcmp(node->key + pos, x, len) != 0)
 				return NULL;
-
+		walk_left:
 			troot = node->node.branches.b[EB_LEFT];
+		walk_down:
 			while (eb_gettag(troot) != EB_LEAF)
 				troot = (eb_untag(troot, EB_NODE))->b[EB_LEFT];
 			node = container_of(eb_untag(troot, EB_LEAF),
@@ -167,9 +175,10 @@ static forceinline struct ebmb_node *__ebmb_lookup(struct eb_root *root, const v
 			 * be fine with 2.95 to 4.2.
 			 */
 			while (1) {
-				x++; pos++;
-				if (node->key[pos-1] ^ *(unsigned char*)(x-1))
+				if (node->key[pos++] ^ *(unsigned char*)(x++))
 					return NULL; /* more than one full byte is different */
+				if (--len == 0)
+					goto walk_left; /* return first node if all bytes matched */
 				node_bit += 8;
 				if (node_bit >= 0)
 					break;
@@ -192,7 +201,9 @@ static forceinline struct ebmb_node *__ebmb_lookup(struct eb_root *root, const v
 /* Insert ebmb_node <new> into subtree starting at node root <root>.
  * Only new->key needs be set with the key. The ebmb_node is returned.
  * If root->b[EB_RGHT]==1, the tree may only contain unique keys. The
- * len is specified in bytes.
+ * len is specified in bytes. It is absolutely mandatory that this length
+ * is the same for all keys in the tree. This function cannot be used to
+ * insert strings.
  */
 static forceinline struct ebmb_node *
 __ebmb_insert(struct eb_root *root, struct ebmb_node *new, unsigned int len)
@@ -432,7 +443,8 @@ static forceinline struct ebmb_node *__ebmb_lookup_longest(struct eb_root *root,
 
 
 /* Find the first occurence of a prefix matching a key <x> of <pfx> BITS in the
- * tree <root>. If none can be found, return NULL.
+ * tree <root>. It's the caller's responsibility to ensure that key <x> is at
+ * least as long as the keys in the tree. If none can be found, return NULL.
  */
 static forceinline struct ebmb_node *__ebmb_lookup_prefix(struct eb_root *root, const void *x, unsigned int pfx)
 {
