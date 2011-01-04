@@ -1,7 +1,7 @@
 /*
  * Elastic Binary Trees - macros to manipulate String data nodes.
- * Version 6.0
- * (C) 2002-2010 - Willy Tarreau <w@1wt.eu>
+ * Version 6.0.5
+ * (C) 2002-2011 - Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,8 +30,23 @@
  * in ebsttree.c, which simply relies on their inline version.
  */
 REGPRM2 struct ebmb_node *ebst_lookup(struct eb_root *root, const char *x);
-REGPRM3 struct ebmb_node *ebst_lookup_len(struct eb_root *root, const char *x, unsigned int len);
 REGPRM2 struct ebmb_node *ebst_insert(struct eb_root *root, struct ebmb_node *new);
+
+/* Find the first occurence of a length <len> string <x> in the tree <root>.
+ * It's the caller's reponsibility to use this function only on trees which
+ * only contain zero-terminated strings, and that no null character is present
+ * in string <x> in the first <len> chars. If none can be found, return NULL.
+ */
+static forceinline struct ebmb_node *
+ebst_lookup_len(struct eb_root *root, const char *x, unsigned int len)
+{
+	struct ebmb_node *node;
+
+	node = ebmb_lookup(root, x, len);
+	if (!node || node->key[len] != 0)
+		return NULL;
+	return node;
+}
 
 /* Find the first occurence of a zero-terminated string <x> in the tree <root>.
  * It's the caller's reponsibility to use this function only on trees which
