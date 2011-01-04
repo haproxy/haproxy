@@ -8340,7 +8340,7 @@ find_url_param_value(char* path, size_t path_l,
 
 	*value = value_start;
 	*value_l = value_end - value_start;
-	return 1;
+	return value_end != value_start;
 }
 
 static int
