@@ -560,25 +560,7 @@ struct stktable_key *stktable_fetch_key(struct stktable *t, struct proxy *px, st
 	if (!static_table_key.key)
 		return NULL;
 
-	if (t->type == STKTABLE_TYPE_STRING) {
-		/* The string MUST be terminated by a '\0' after the key_len bytes. The problem
-		 * is that we cannot modify the input data if it comes from the original buffer,
-		 * so we copy it to a private buffer if required.
-		 */
-		if (static_table_key.key_len > t->key_size - 1)
-			static_table_key.key_len = t->key_size - 1;
-
-		if (((char *)static_table_key.key)[static_table_key.key_len] != 0) {
-			if ((char *)static_table_key.key < (char *)&static_table_key.data ||
-			    (char *)static_table_key.key >  (char *)&static_table_key.data + sizeof(static_table_key.data)) {
-				/* key definitly not part of the static_table_key private data buffer */
-				memcpy(static_table_key.data.buf, static_table_key.key, static_table_key.key_len);
-				static_table_key.key = static_table_key.data.buf;
-			}
-			((char *)static_table_key.key)[static_table_key.key_len] = 0;
-		}
-	}
-	else if (static_table_key.key_len < t->key_size) {
+	if ((static_table_key.key_len < t->key_size) && (t->type != STKTABLE_TYPE_STRING)) {
 		/* need padding with null */
 
 		/* assume static_table_key.key_len is less than sizeof(static_table_key.data.buf)
