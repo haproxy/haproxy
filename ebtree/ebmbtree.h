@@ -127,7 +127,7 @@ static forceinline struct ebmb_node *__ebmb_lookup(struct eb_root *root, const v
 
 	troot = root->b[EB_LEFT];
 	if (unlikely(troot == NULL))
-		return NULL;
+		goto ret_null;
 
 	if (unlikely(len == 0))
 		goto walk_down;
@@ -138,9 +138,9 @@ static forceinline struct ebmb_node *__ebmb_lookup(struct eb_root *root, const v
 			node = container_of(eb_untag(troot, EB_LEAF),
 					    struct ebmb_node, node.branches);
 			if (memcmp(node->key + pos, x, len) != 0)
-				return NULL;
+				goto ret_null;
 			else
-				return node;
+				goto ret_node;
 		}
 		node = container_of(eb_untag(troot, EB_NODE),
 				    struct ebmb_node, node.branches);
@@ -152,15 +152,9 @@ static forceinline struct ebmb_node *__ebmb_lookup(struct eb_root *root, const v
 			 * one and we don't have our key.
 			 */
 			if (memcmp(node->key + pos, x, len) != 0)
-				return NULL;
-		walk_left:
-			troot = node->node.branches.b[EB_LEFT];
-		walk_down:
-			while (eb_gettag(troot) != EB_LEAF)
-				troot = (eb_untag(troot, EB_NODE))->b[EB_LEFT];
-			node = container_of(eb_untag(troot, EB_LEAF),
-					    struct ebmb_node, node.branches);
-			return node;
+				goto ret_null;
+			else
+				goto walk_left;
 		}
 
 		/* OK, normal data node, let's walk down. We check if all full
@@ -176,7 +170,7 @@ static forceinline struct ebmb_node *__ebmb_lookup(struct eb_root *root, const v
 			 */
 			while (1) {
 				if (node->key[pos++] ^ *(unsigned char*)(x++))
-					return NULL; /* more than one full byte is different */
+					goto ret_null;  /* more than one full byte is different */
 				if (--len == 0)
 					goto walk_left; /* return first node if all bytes matched */
 				node_bit += 8;
@@ -192,10 +186,21 @@ static forceinline struct ebmb_node *__ebmb_lookup(struct eb_root *root, const v
 		 */
 		side = *(unsigned char *)x >> node_bit;
 		if (((node->key[pos] >> node_bit) ^ side) > 1)
-			return NULL;
+			goto ret_null;
 		side &= 1;
 		troot = node->node.branches.b[side];
 	}
+ walk_left:
+	troot = node->node.branches.b[EB_LEFT];
+ walk_down:
+	while (eb_gettag(troot) != EB_LEAF)
+		troot = (eb_untag(troot, EB_NODE))->b[EB_LEFT];
+	node = container_of(eb_untag(troot, EB_LEAF),
+			    struct ebmb_node, node.branches);
+ ret_node:
+	return node;
+ ret_null:
+	return NULL;
 }
 
 /* Insert ebmb_node <new> into subtree starting at node root <root>.
