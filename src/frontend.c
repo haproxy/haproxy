@@ -106,7 +106,7 @@ int frontend_accept(struct session *s)
 		if (s->listener->maxseg < 0) {
 			/* we just want to reduce the current MSS by that value */
 			int mss;
-			int mss_len = sizeof(mss);
+			socklen_t mss_len = sizeof(mss);
 			if (getsockopt(cfd, IPPROTO_TCP, TCP_MAXSEG, &mss, &mss_len) == 0) {
 				mss += s->listener->maxseg; /* remember, it's < 0 */
 				setsockopt(cfd, IPPROTO_TCP, TCP_MAXSEG, &mss, sizeof(mss));
