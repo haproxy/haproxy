@@ -3084,6 +3084,11 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 			s->logs.tv_request = now;
 			stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_403));
 			session_inc_http_err_ctr(s);
+			s->fe->fe_counters.denied_req++;
+			if (an_bit == AN_REQ_HTTP_PROCESS_BE)
+				s->be->be_counters.denied_req++;
+			if (s->listener->counters)
+				s->listener->counters->denied_req++;
 			goto return_prx_cond;
 	}
 
