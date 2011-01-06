@@ -2376,16 +2376,16 @@ http-check expect [!] <match> <pattern>
 
   Examples :
          # only accept status 200 as valid
-         http-request expect status 200
+         http-check expect status 200
 
          # consider SQL errors as errors
-         http-request expect ! string SQL\ Error
+         http-check expect ! string SQL\ Error
 
          # consider status 5xx only as errors
-         http-request expect ! rstatus ^5
+         http-check expect ! rstatus ^5
 
          # check that we have a correct hexadecimal tag before /html
-         http-request expect rstring <!--tag:[0-9a-f]*</html>
+         http-check expect rstring <!--tag:[0-9a-f]*</html>
 
   See also : "option httpchk", "http-check disable-on-404"
 
