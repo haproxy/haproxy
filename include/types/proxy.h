@@ -2,7 +2,7 @@
  * include/types/proxy.h
  * This file defines everything related to proxies.
  *
- * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2011 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -188,7 +188,7 @@ struct proxy {
 		char *name;			/* default backend name during config parse */
 	} defbe;
 	struct list acl;                        /* ACL declared on this proxy */
-	struct list req_acl;			/* request ACL: allow/deny/http-auth */
+	struct list http_req_rules;		/* HTTP request rules: allow/deny/http-auth */
 	struct list block_cond;                 /* early blocking conditions (chained) */
 	struct list redirect_rules;             /* content redirecting rules (chained) */
 	struct list switching_rules;            /* content switching rules (chained) */

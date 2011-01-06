@@ -31,7 +31,7 @@ struct uri_auth *stats_check_init_uri_auth(struct uri_auth **root)
 		if ((u = (struct uri_auth *)calloc(1, sizeof (*u))) == NULL)
 			goto out_u;
 
-		LIST_INIT(&u->req_acl);
+		LIST_INIT(&u->http_req_rules);
 		LIST_INIT(&u->admin_rules);
 	} else
 		u = *root;

@@ -1,7 +1,7 @@
 /*
  * Configuration parser
  *
- * Copyright 2000-2010 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2011 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -1058,7 +1058,7 @@ static void init_new_proxy(struct proxy *p)
 	memset(p, 0, sizeof(struct proxy));
 	LIST_INIT(&p->pendconns);
 	LIST_INIT(&p->acl);
-	LIST_INIT(&p->req_acl);
+	LIST_INIT(&p->http_req_rules);
 	LIST_INIT(&p->block_cond);
 	LIST_INIT(&p->redirect_rules);
 	LIST_INIT(&p->mon_fail_cond);
@@ -2462,7 +2462,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		curproxy->conn_retries = atol(args[1]);
 	}
 	else if (!strcmp(args[0], "http-request")) {	/* request access control: allow/deny/auth */
-		struct req_acl_rule *req_acl;
+		struct http_req_rule *rule;
 
 		if (curproxy == &defproxy) {
 			Alert("parsing [%s:%d]: '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
@@ -2470,22 +2470,21 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-
-		if (!LIST_ISEMPTY(&curproxy->req_acl) && !LIST_PREV(&curproxy->req_acl, struct req_acl_rule *, list)->cond) {
+		if (!LIST_ISEMPTY(&curproxy->http_req_rules) && !LIST_PREV(&curproxy->http_req_rules, struct http_req_rule *, list)->cond) {
 			Warning("parsing [%s:%d]: previous '%s' action has no condition attached, further entries are NOOP.\n",
 			        file, linenum, args[0]);
 			err_code |= ERR_WARN;
 		}
 
-		req_acl = parse_auth_cond((const char **)args + 1, file, linenum, curproxy);
+		rule = parse_http_req_cond((const char **)args + 1, file, linenum, curproxy);
 
-		if (!req_acl) {
+		if (!rule) {
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
 
-		err_code |= warnif_cond_requires_resp(req_acl->cond, file, linenum);
-		LIST_ADDQ(&curproxy->req_acl, &req_acl->list);
+		err_code |= warnif_cond_requires_resp(rule->cond, file, linenum);
+		LIST_ADDQ(&curproxy->http_req_rules, &rule->list);
 	}
 	else if (!strcmp(args[0], "block")) {  /* early blocking based on ACLs */
 		if (curproxy == &defproxy) {
@@ -3073,7 +3072,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				goto out;
 			}
 		} else if (!strcmp(args[1], "http-request")) {    /* request access control: allow/deny/auth */
-			struct req_acl_rule *req_acl;
+			struct http_req_rule *rule;
 
 			if (curproxy == &defproxy) {
 				Alert("parsing [%s:%d]: '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
@@ -3087,22 +3086,22 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				goto out;
 			}
 
-			if (!LIST_ISEMPTY(&curproxy->uri_auth->req_acl) &&
-			    !LIST_PREV(&curproxy->uri_auth->req_acl, struct req_acl_rule *, list)->cond) {
+			if (!LIST_ISEMPTY(&curproxy->uri_auth->http_req_rules) &&
+			    !LIST_PREV(&curproxy->uri_auth->http_req_rules, struct http_req_rule *, list)->cond) {
 				Warning("parsing [%s:%d]: previous '%s' action has no condition attached, further entries are NOOP.\n",
 					file, linenum, args[0]);
 				err_code |= ERR_WARN;
 			}
 
-			req_acl = parse_auth_cond((const char **)args + 2, file, linenum, curproxy);
+			rule = parse_http_req_cond((const char **)args + 2, file, linenum, curproxy);
 
-			if (!req_acl) {
+			if (!rule) {
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
 
-			err_code |= warnif_cond_requires_resp(req_acl->cond, file, linenum);
-			LIST_ADDQ(&curproxy->uri_auth->req_acl, &req_acl->list);
+			err_code |= warnif_cond_requires_resp(rule->cond, file, linenum);
+			LIST_ADDQ(&curproxy->uri_auth->http_req_rules, &rule->list);
 
 		} else if (!strcmp(args[1], "auth")) {
 			if (*(args[2]) == 0) {
@@ -5935,7 +5934,7 @@ int check_config_validity()
 		}
 
 		if (curproxy->uri_auth && !(curproxy->uri_auth->flags & ST_CONVDONE) &&
-		    !LIST_ISEMPTY(&curproxy->uri_auth->req_acl) &&
+		    !LIST_ISEMPTY(&curproxy->uri_auth->http_req_rules) &&
 		    (curproxy->uri_auth->userlist || curproxy->uri_auth->auth_realm )) {
 			Alert("%s '%s': stats 'auth'/'realm' and 'http-request' can't be used at the same time.\n",
 			      "proxy", curproxy->id);
@@ -5945,7 +5944,7 @@ int check_config_validity()
 
 		if (curproxy->uri_auth && curproxy->uri_auth->userlist && !(curproxy->uri_auth->flags & ST_CONVDONE)) {
 			const char *uri_auth_compat_req[10];
-			struct req_acl_rule *req_acl;
+			struct http_req_rule *rule;
 			int i = 0;
 
 			/* build the ACL condition from scratch. We're relying on anonymous ACLs for that */
@@ -5962,13 +5961,13 @@ int check_config_validity()
 			uri_auth_compat_req[i++] = "}";
 			uri_auth_compat_req[i++] = "";
 
-			req_acl = parse_auth_cond(uri_auth_compat_req, "internal-stats-auth-compat", 0, curproxy);
-			if (!req_acl) {
+			rule = parse_http_req_cond(uri_auth_compat_req, "internal-stats-auth-compat", 0, curproxy);
+			if (!rule) {
 				cfgerr++;
 				break;
 			}
 
-			LIST_ADDQ(&curproxy->uri_auth->req_acl, &req_acl->list);
+			LIST_ADDQ(&curproxy->uri_auth->http_req_rules, &rule->list);
 
 			if (curproxy->uri_auth->auth_realm) {
 				free(curproxy->uri_auth->auth_realm);

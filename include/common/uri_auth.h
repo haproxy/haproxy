@@ -1,7 +1,7 @@
 /*
  * URI-based user authentication using the HTTP basic method.
  *
- * Copyright 2006-2007 Willy Tarreau <w@1wt.eu>
+ * Copyright 2006-2011 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -42,7 +42,7 @@ struct uri_auth {
 	int flags;			/* some flags describing the statistics page */
 	struct stat_scope *scope;	/* linked list of authorized proxies */
 	struct userlist *userlist;	/* private userlist to emulate legacy "stats auth user:password" */
-	struct list req_acl; 		/* http stats ACL: allow/deny/auth */
+	struct list http_req_rules;	/* stats http-request rules : allow/deny/auth */
 	struct list admin_rules;	/* 'stats admin' rules (chained) */
 	struct uri_auth *next;		/* Used at deinit() to build a list of unique elements */
 };

@@ -2983,31 +2983,31 @@ int http_process_req_stat_post(struct stream_interface *si, struct http_txn *txn
 /* returns a pointer to the first rule which forbids access (deny or http_auth),
  * or NULL if everything's OK.
  */
-static inline struct req_acl_rule *
+static inline struct http_req_rule *
 http_check_access_rule(struct proxy *px, struct list *rules, struct session *s, struct http_txn *txn)
 {
-	struct req_acl_rule *req_acl;
+	struct http_req_rule *rule;
 
-	list_for_each_entry(req_acl, rules, list) {
+	list_for_each_entry(rule, rules, list) {
 		int ret = 1;
 
-		if (req_acl->action >= PR_REQ_ACL_ACT_MAX)
+		if (rule->action >= HTTP_REQ_ACT_MAX)
 			continue;
 
 		/* check condition, but only if attached */
-		if (req_acl->cond) {
-			ret = acl_exec_cond(req_acl->cond, px, s, txn, ACL_DIR_REQ);
+		if (rule->cond) {
+			ret = acl_exec_cond(rule->cond, px, s, txn, ACL_DIR_REQ);
 			ret = acl_pass(ret);
 
-			if (req_acl->cond->pol == ACL_COND_UNLESS)
+			if (rule->cond->pol == ACL_COND_UNLESS)
 				ret = !ret;
 		}
 
 		if (ret) {
-			if (req_acl->action == PR_REQ_ACL_ACT_ALLOW)
+			if (rule->action == HTTP_REQ_ACT_ALLOW)
 				return NULL; /* no problem */
 			else
-				return req_acl; /* most likely a deny or auth rule */
+				return rule; /* most likely a deny or auth rule */
 		}
 	}
 	return NULL;
@@ -3025,7 +3025,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->req;
 	struct acl_cond *cond;
-	struct req_acl_rule *req_acl_final = NULL;
+	struct http_req_rule *http_req_last_rule = NULL;
 	struct redirect_rule *rule;
 	struct cond_wordlist *wl;
 	int del_ka, del_cl, do_stats;
@@ -3067,19 +3067,19 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 	}
 
 	/* evaluate http-request rules */
-	req_acl_final = http_check_access_rule(px, &px->req_acl, s, txn);
+	http_req_last_rule = http_check_access_rule(px, &px->http_req_rules, s, txn);
 
 	/* evaluate stats http-request rules only if http-request is OK */
-	if (!req_acl_final) {
+	if (!http_req_last_rule) {
 		do_stats = stats_check_uri(s->rep->prod, txn, px);
 		if (do_stats)
-			req_acl_final = http_check_access_rule(px, &px->uri_auth->req_acl, s, txn);
+			http_req_last_rule = http_check_access_rule(px, &px->uri_auth->http_req_rules, s, txn);
 	}
 	else
 		do_stats = 0;
 
 	/* return a 403 if either rule has blocked */
-	if (req_acl_final && req_acl_final->action == PR_REQ_ACL_ACT_DENY) {
+	if (http_req_last_rule && http_req_last_rule->action == HTTP_REQ_ACT_DENY) {
 			txn->status = 403;
 			s->logs.tv_request = now;
 			stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_403));
@@ -3180,9 +3180,9 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 	/* we can be blocked here because the request needs to be authenticated,
 	 * either to pass or to access stats.
 	 */
-	if (req_acl_final && req_acl_final->action == PR_REQ_ACL_ACT_HTTP_AUTH) {
+	if (http_req_last_rule && http_req_last_rule->action == HTTP_REQ_ACT_HTTP_AUTH) {
 		struct chunk msg;
-		char *realm = req_acl_final->http_auth.realm;
+		char *realm = http_req_last_rule->http_auth.realm;
 
 		if (!realm)
 			realm = do_stats?STATS_DEFAULT_REALM:px->id;
@@ -7607,6 +7607,76 @@ void http_reset_txn(struct session *s)
 	s->rep->rex = TICK_ETERNITY;
 	s->rep->wex = TICK_ETERNITY;
 	s->rep->analyse_exp = TICK_ETERNITY;
+}
+
+void free_http_req_rules(struct list *r) {
+	struct http_req_rule *tr, *pr;
+
+	list_for_each_entry_safe(pr, tr, r, list) {
+		LIST_DEL(&pr->list);
+		if (pr->action == HTTP_REQ_ACT_HTTP_AUTH)
+			free(pr->http_auth.realm);
+
+		free(pr);
+	}
+}
+
+struct http_req_rule *parse_http_req_cond(const char **args, const char *file, int linenum, struct proxy *proxy)
+{
+	struct http_req_rule *rule;
+	int cur_arg;
+
+	rule = (struct http_req_rule*)calloc(1, sizeof(struct http_req_rule));
+	if (!rule) {
+		Alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+		return NULL;
+	}
+
+	if (!*args[0]) {
+		goto req_error_parsing;
+	} else if (!strcmp(args[0], "allow")) {
+		rule->action = HTTP_REQ_ACT_ALLOW;
+		cur_arg = 1;
+	} else if (!strcmp(args[0], "deny")) {
+		rule->action = HTTP_REQ_ACT_DENY;
+		cur_arg = 1;
+	} else if (!strcmp(args[0], "auth")) {
+		rule->action = HTTP_REQ_ACT_HTTP_AUTH;
+		cur_arg = 1;
+
+		while(*args[cur_arg]) {
+			if (!strcmp(args[cur_arg], "realm")) {
+				rule->http_auth.realm = strdup(args[cur_arg + 1]);
+				cur_arg+=2;
+				continue;
+			} else
+				break;
+		}
+	} else {
+req_error_parsing:
+		Alert("parsing [%s:%d]: %s '%s', expects 'allow', 'deny', 'auth'.\n",
+			file, linenum, *args[1]?"unknown parameter":"missing keyword in", args[*args[1]?1:0]);
+		return NULL;
+	}
+
+	if (strcmp(args[cur_arg], "if") == 0 || strcmp(args[cur_arg], "unless") == 0) {
+		struct acl_cond *cond;
+
+		if ((cond = build_acl_cond(file, linenum, proxy, args+cur_arg)) == NULL) {
+			Alert("parsing [%s:%d] : error detected while parsing an 'http-request %s' condition.\n",
+			      file, linenum, args[0]);
+			return NULL;
+		}
+		rule->cond = cond;
+	}
+	else if (*args[cur_arg]) {
+		Alert("parsing [%s:%d]: 'http-request %s' expects 'realm' for 'auth' or"
+		      " either 'if' or 'unless' followed by a condition but found '%s'.\n",
+		      file, linenum, args[0], args[cur_arg]);
+		return NULL;
+	}
+
+	return rule;
 }
 
 /************************************************************************/

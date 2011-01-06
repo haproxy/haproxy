@@ -2,7 +2,7 @@
  * include/types/proto_http.h
  * This file contains HTTP protocol definitions.
  *
- * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2011 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -228,6 +228,14 @@ enum {
 	HTTP_AUTH_DIGEST,
 };
 
+enum {
+	HTTP_REQ_ACT_UNKNOWN = 0,
+	HTTP_REQ_ACT_ALLOW,
+	HTTP_REQ_ACT_DENY,
+	HTTP_REQ_ACT_HTTP_AUTH,
+	HTTP_REQ_ACT_MAX
+};
+
 /* This is an HTTP message, as described in RFC2616. It can be either a request
  * message or a response message.
  *
@@ -283,6 +291,15 @@ struct http_auth_data {
 	int method;			/* one of HTTP_AUTH_* */
 	struct chunk method_data;	/* points to the creditial part from 'Authorization:' header */
 	char *user, *pass;		/* extracted username & password */
+};
+
+struct http_req_rule {
+	struct list list;
+	struct acl_cond *cond;			/* acl condition to meet */
+	unsigned int action;
+	struct {
+		char *realm;
+	} http_auth;
 };
 
 /* This is an HTTP transaction. It contains both a request message and a

@@ -2,7 +2,7 @@
  * include/proto/proto_http.h
  * This file contains HTTP protocol definitions.
  *
- * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2011 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -98,6 +98,9 @@ unsigned int get_ip_from_hdr2(struct http_msg *msg, const char *hname, int hlen,
 void http_init_txn(struct session *s);
 void http_end_txn(struct session *s);
 void http_reset_txn(struct session *s);
+
+struct http_req_rule *parse_http_req_cond(const char **args, const char *file, int linenum, struct proxy *proxy);
+void free_http_req_rules(struct list *r);
 
 /* to be used when contents change in an HTTP message */
 #define http_msg_move_end(msg, bytes) do { \

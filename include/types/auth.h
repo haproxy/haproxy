@@ -22,25 +22,6 @@
 
 #define AU_O_INSECURE	0x00000001		/* insecure, unencrypted password */
 
-enum {
-	PR_REQ_ACL_ACT_UNKNOWN = 0,
-	PR_REQ_ACL_ACT_ALLOW,
-	PR_REQ_ACL_ACT_DENY,
-	PR_REQ_ACL_ACT_HTTP_AUTH,
-
-	PR_REQ_ACL_ACT_MAX
-};
-
-
-struct req_acl_rule {
-	struct list list;
-	struct acl_cond *cond;			/* acl condition to meet */
-	unsigned int action;
-	struct {
-		char *realm;
-	} http_auth;
-};
-
 struct auth_users {
 	struct auth_users *next;
 	unsigned int flags;

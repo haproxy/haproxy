@@ -840,7 +840,7 @@ void deinit(void)
 		free(p->desc);
 		free(p->fwdfor_hdr_name);
 
-		req_acl_free(&p->req_acl);
+		free_http_req_rules(&p->http_req_rules);
 
 		pool_destroy2(p->req_cap_pool);
 		pool_destroy2(p->rsp_cap_pool);
@@ -861,7 +861,7 @@ void deinit(void)
 		free(uap->desc);
 
 		userlist_free(uap->userlist);
-		req_acl_free(&uap->req_acl);
+		free_http_req_rules(&uap->http_req_rules);
 
 		free(uap);
 	}

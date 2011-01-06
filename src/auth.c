@@ -85,65 +85,6 @@ auth_resolve_groups(struct userlist *l, char *groups)
 	return group_mask;
 }
 
-struct req_acl_rule *
-parse_auth_cond(const char **args, const char *file, int linenum, struct proxy *proxy)
-{
-	struct req_acl_rule *req_acl;
-	int cur_arg;
-
-	req_acl = (struct req_acl_rule*)calloc(1, sizeof(struct req_acl_rule));
-	if (!req_acl) {
-		Alert("parsing [%s:%d]: out of memory.\n", file, linenum);
-		return NULL;
-	}
-
-	if (!*args[0]) {
-		goto req_error_parsing;
-	} else if (!strcmp(args[0], "allow")) {
-		req_acl->action = PR_REQ_ACL_ACT_ALLOW;
-		cur_arg = 1;
-	} else if (!strcmp(args[0], "deny")) {
-		req_acl->action = PR_REQ_ACL_ACT_DENY;
-		cur_arg = 1;
-	} else if (!strcmp(args[0], "auth")) {
-		req_acl->action = PR_REQ_ACL_ACT_HTTP_AUTH;
-		cur_arg = 1;
-
-		while(*args[cur_arg]) {
-			if (!strcmp(args[cur_arg], "realm")) {
-				req_acl->http_auth.realm = strdup(args[cur_arg + 1]);
-				cur_arg+=2;
-				continue;
-			} else
-				break;
-		}
-	} else {
-req_error_parsing:
-		Alert("parsing [%s:%d]: %s '%s', expects 'allow', 'deny', 'auth'.\n",
-			file, linenum, *args[1]?"unknown parameter":"missing keyword in", args[*args[1]?1:0]);
-		return NULL;
-	}
-
-	if (strcmp(args[cur_arg], "if") == 0 || strcmp(args[cur_arg], "unless") == 0) {
-		struct acl_cond *cond;
-
-		if ((cond = build_acl_cond(file, linenum, proxy, args+cur_arg)) == NULL) {
-			Alert("parsing [%s:%d] : error detected while parsing an 'http-request %s' condition.\n",
-			      file, linenum, args[0]);
-			return NULL;
-		}
-		req_acl->cond = cond;
-	}
-	else if (*args[cur_arg]) {
-		Alert("parsing [%s:%d]: 'http-request %s' expects 'realm' for 'auth' or"
-		      " either 'if' or 'unless' followed by a condition but found '%s'.\n",
-		      file, linenum, args[0], args[cur_arg]);
-		return NULL;
-	}
-
-	return req_acl;
-}
-
 void
 userlist_free(struct userlist *ul)
 {
@@ -170,19 +111,6 @@ userlist_free(struct userlist *ul)
 		free(tul->name);
 		free(tul);
 	};
-}
-
-void
-req_acl_free(struct list *r) {
-	struct req_acl_rule *tr, *pr;
-
-	list_for_each_entry_safe(pr, tr, r, list) {
-		LIST_DEL(&pr->list);
-		if (pr->action == PR_REQ_ACL_ACT_HTTP_AUTH)
-			free(pr->http_auth.realm);
-
-		free(pr);
-	}
 }
 
 /*
