@@ -1,7 +1,7 @@
 /*
  * HTTP protocol analyzer
  *
- * Copyright 2000-2010 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2011 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -2980,6 +2980,39 @@ int http_process_req_stat_post(struct stream_interface *si, struct http_txn *txn
 	return 1;
 }
 
+/* returns a pointer to the first rule which forbids access (deny or http_auth),
+ * or NULL if everything's OK.
+ */
+static inline struct req_acl_rule *
+http_check_access_rule(struct proxy *px, struct list *rules, struct session *s, struct http_txn *txn)
+{
+	struct req_acl_rule *req_acl;
+
+	list_for_each_entry(req_acl, rules, list) {
+		int ret = 1;
+
+		if (req_acl->action >= PR_REQ_ACL_ACT_MAX)
+			continue;
+
+		/* check condition, but only if attached */
+		if (req_acl->cond) {
+			ret = acl_exec_cond(req_acl->cond, px, s, txn, ACL_DIR_REQ);
+			ret = acl_pass(ret);
+
+			if (req_acl->cond->pol == ACL_COND_UNLESS)
+				ret = !ret;
+		}
+
+		if (ret) {
+			if (req_acl->action == PR_REQ_ACL_ACT_ALLOW)
+				return NULL; /* no problem */
+			else
+				return req_acl; /* most likely a deny or auth rule */
+		}
+	}
+	return NULL;
+}
+
 /* This stream analyser runs all HTTP request processing which is common to
  * frontends and backends, which means blocking ACLs, filters, connection-close,
  * reqadd, stats and redirects. This is performed for the designated proxy.
@@ -2992,7 +3025,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->req;
 	struct acl_cond *cond;
-	struct req_acl_rule *req_acl, *req_acl_final = NULL;
+	struct req_acl_rule *req_acl_final = NULL;
 	struct redirect_rule *rule;
 	struct cond_wordlist *wl;
 	int del_ka, del_cl, do_stats;
@@ -3033,29 +3066,19 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 		}
 	}
 
-	do_stats = stats_check_uri(s->rep->prod, txn, px);
+	/* evaluate http-request rules */
+	req_acl_final = http_check_access_rule(px, &px->req_acl, s, txn);
 
-	list_for_each_entry(req_acl, (do_stats?&px->uri_auth->req_acl:&px->req_acl), list) {
-		int ret = 1;
-
-		if (req_acl->action >= PR_REQ_ACL_ACT_MAX)
-			continue;
-
-		/* check condition, but only if attached */
-		if (req_acl->cond) {
-			ret = acl_exec_cond(req_acl->cond, px, s, txn, ACL_DIR_REQ);
-			ret = acl_pass(ret);
-
-			if (req_acl->cond->pol == ACL_COND_UNLESS)
-				ret = !ret;
-		}
-
-		if (ret) {
-			req_acl_final = req_acl;
-			break;
-		}
+	/* evaluate stats http-request rules only if http-request is OK */
+	if (!req_acl_final) {
+		do_stats = stats_check_uri(s->rep->prod, txn, px);
+		if (do_stats)
+			req_acl_final = http_check_access_rule(px, &px->uri_auth->req_acl, s, txn);
 	}
+	else
+		do_stats = 0;
 
+	/* return a 403 if either rule has blocked */
 	if (req_acl_final && req_acl_final->action == PR_REQ_ACL_ACT_DENY) {
 			txn->status = 403;
 			s->logs.tv_request = now;
@@ -3154,21 +3177,9 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 		    txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
 	}
 
-	/* add request headers from the rule sets in the same order */
-	list_for_each_entry(wl, &px->req_add, list) {
-		if (wl->cond) {
-			int ret = acl_exec_cond(wl->cond, px, s, txn, ACL_DIR_REQ);
-			ret = acl_pass(ret);
-			if (((struct acl_cond *)wl->cond)->pol == ACL_COND_UNLESS)
-				ret = !ret;
-			if (!ret)
-				continue;
-		}
-
-		if (unlikely(http_header_add_tail(req, &txn->req, &txn->hdr_idx, wl->s) < 0))
-			goto return_bad_req;
-	}
-
+	/* we can be blocked here because the request needs to be authenticated,
+	 * either to pass or to access stats.
+	 */
 	if (req_acl_final && req_acl_final->action == PR_REQ_ACL_ACT_HTTP_AUTH) {
 		struct chunk msg;
 		char *realm = req_acl_final->http_auth.realm;
@@ -3186,6 +3197,21 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 		 */
 		session_inc_http_err_ctr(s);
 		goto return_prx_cond;
+	}
+
+	/* add request headers from the rule sets in the same order */
+	list_for_each_entry(wl, &px->req_add, list) {
+		if (wl->cond) {
+			int ret = acl_exec_cond(wl->cond, px, s, txn, ACL_DIR_REQ);
+			ret = acl_pass(ret);
+			if (((struct acl_cond *)wl->cond)->pol == ACL_COND_UNLESS)
+				ret = !ret;
+			if (!ret)
+				continue;
+		}
+
+		if (unlikely(http_header_add_tail(req, &txn->req, &txn->hdr_idx, wl->s) < 0))
+			goto return_bad_req;
 	}
 
 	if (do_stats) {
