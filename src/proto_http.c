@@ -3148,7 +3148,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 
 	if (req_acl_final && req_acl_final->action == PR_REQ_ACL_ACT_HTTP_AUTH) {
 		struct chunk msg;
-		char *realm = req_acl->http_auth.realm;
+		char *realm = req_acl_final->http_auth.realm;
 
 		if (!realm)
 			realm = do_stats?STATS_DEFAULT_REALM:px->id;
