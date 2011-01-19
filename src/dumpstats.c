@@ -151,7 +151,7 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 {
 	args++;
 	if (!strcmp(args[0], "socket")) {
-		struct sockaddr_un su;
+		struct sockaddr_un *su;
 		int cur_arg;
 
 		if (*args[1] == 0) {
@@ -164,10 +164,12 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 			return -1;
 		}
 
-		su.sun_family = AF_UNIX;
-		strncpy(su.sun_path, args[1], sizeof(su.sun_path));
-		su.sun_path[sizeof(su.sun_path) - 1] = 0;
-		memcpy(&global.stats_sock.addr, &su, sizeof(su)); // guaranteed to fit
+		su = str2sun(args[1]);
+		if (!su) {
+			snprintf(err, errlen, "'stats socket' path would require truncation");
+			return -1;
+		}
+		memcpy(&global.stats_sock.addr, su, sizeof(struct sockaddr_un)); // guaranteed to fit
 
 		if (!global.stats_fe) {
 			if ((global.stats_fe = alloc_stats_fe("GLOBAL")) == NULL) {
