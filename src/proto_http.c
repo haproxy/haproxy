@@ -2855,8 +2855,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 
 /* We reached the stats page through a POST request.
  * Parse the posted data and enable/disable servers if necessary.
- * Returns 0 if request was parsed.
- * Returns 1 if there was a problem parsing the posted data.
+ * Returns 1 if request was parsed or zero if it needs more data.
  */
 int http_process_req_stat_post(struct session *s, struct buffer *req)
 {
@@ -2874,15 +2873,15 @@ int http_process_req_stat_post(struct session *s, struct buffer *req)
 
 	cur_param = next_param = end_params;
 
-	if (end_params >= req->data + req->size) {
+	if (end_params >= req->data + req->size - global.tune.maxrewrite) {
 		/* Prevent buffer overflow */
 		s->data_ctx.stats.st_code = STAT_STATUS_EXCD;
 		return 1;
 	}
 	else if (end_params > req->data + req->l) {
-		/* This condition also rejects a request with Expect: 100-continue */
-		s->data_ctx.stats.st_code = STAT_STATUS_EXCD;
-		return 1;
+		/* we need more data */
+		s->data_ctx.stats.st_code = STAT_STATUS_NONE;
+		return 0;
 	}
 
 	*end_params = '\0';
@@ -2955,7 +2954,7 @@ int http_process_req_stat_post(struct session *s, struct buffer *req)
 			next_param = cur_param;
 		}
 	}
-	return 0;
+	return 1;
 }
 
 /* This stream analyser runs all HTTP request processing which is common to
@@ -3195,7 +3194,28 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 		/* Was the status page requested with a POST ? */
 		if (txn->meth == HTTP_METH_POST) {
 			if (s->data_ctx.stats.flags & STAT_ADMIN) {
-				http_process_req_stat_post(s, req);
+				if (msg->msg_state < HTTP_MSG_100_SENT) {
+					/* If we have HTTP/1.1 and Expect: 100-continue, then we must
+					 * send an HTTP/1.1 100 Continue intermediate response.
+					 */
+					if (txn->flags & TX_REQ_VER_11) {
+						struct hdr_ctx ctx;
+						ctx.idx = 0;
+						/* Expect is allowed in 1.1, look for it */
+						if (http_find_header2("Expect", 6, msg->sol, &txn->hdr_idx, &ctx) &&
+						    unlikely(ctx.vlen == 12 && strncasecmp(ctx.line+ctx.val, "100-continue", 12) == 0)) {
+							buffer_write(s->rep, http_100_chunk.str, http_100_chunk.len);
+						}
+					}
+					msg->msg_state = HTTP_MSG_100_SENT;
+					s->logs.tv_request = now;  /* update the request timer to reflect full request */
+				}
+				if (!http_process_req_stat_post(s, req)) {
+					/* we need more data */
+					req->analysers |= an_bit;
+					buffer_dont_connect(req);
+					return 0;
+				}
 			} else {
 				s->data_ctx.stats.st_code = STAT_STATUS_DENY;
 			}
