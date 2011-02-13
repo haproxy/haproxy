@@ -855,7 +855,7 @@ void http_sess_clflog(struct session *s)
 	struct http_txn *txn = &s->txn;
 	int tolog, level, err;
 	char *uri, *h;
-	char *svid;
+	const char *svid;
 	struct tm tm;
 	static char tmpline[MAX_SYSLOG_LEN];
 	int hdr;
@@ -943,9 +943,19 @@ void http_sess_clflog(struct session *s)
 	h += w;
 	*(h++) = '\"';
 
-	svid = (tolog & LW_SVID) ?
-		(s->data_source != DATA_SRC_STATS) ?
-		(s->srv != NULL) ? s->srv->id : "<NOSRV>" : "<STATS>" : "-";
+	if (!(tolog & LW_SVID))
+		svid = "-";
+	else switch (s->req->cons->target.type) {
+	case TARG_TYPE_SERVER:
+		svid = s->req->cons->target.ptr.s->id;
+		break;
+	case TARG_TYPE_APPLET:
+		svid = s->req->cons->target.ptr.a->name;
+		break;
+	default:
+		svid = "<NOSRV>";
+		break;
+	}
 
 	w = strlen(svid);
 	if (h >= tmpline + sizeof(tmpline) - 4 - w)
@@ -1081,7 +1091,7 @@ void http_sess_log(struct session *s)
 	struct http_txn *txn = &s->txn;
 	int tolog, level, err;
 	char *uri, *h;
-	char *svid;
+	const char *svid;
 	struct tm tm;
 	static char tmpline[MAX_SYSLOG_LEN];
 	int t_request;
@@ -1156,9 +1166,19 @@ void http_sess_log(struct session *s)
 	}
 	*h = '\0';
 
-	svid = (tolog & LW_SVID) ?
-		(s->data_source != DATA_SRC_STATS) ?
-		(s->srv != NULL) ? s->srv->id : "<NOSRV>" : "<STATS>" : "-";
+	if (!(tolog & LW_SVID))
+		svid = "-";
+	else switch (s->req->cons->target.type) {
+	case TARG_TYPE_SERVER:
+		svid = s->req->cons->target.ptr.s->id;
+		break;
+	case TARG_TYPE_APPLET:
+		svid = s->req->cons->target.ptr.a->name;
+		break;
+	default:
+		svid = "<NOSRV>";
+		break;
+	}
 
 	t_request = -1;
 	if (tv_isge(&s->logs.tv_request, &s->logs.tv_accept))

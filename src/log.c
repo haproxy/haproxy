@@ -348,7 +348,20 @@ void tcp_sess_log(struct session *s)
 
 	prx_log = fe;
 	tolog = fe->to_log;
-	svid = (tolog & LW_SVID) ? (s->srv != NULL) ? s->srv->id : "<NOSRV>" : "-";
+
+	if (!(tolog & LW_SVID))
+		svid = "-";
+	else switch (s->req->cons->target.type) {
+	case TARG_TYPE_SERVER:
+		svid = s->req->cons->target.ptr.s->id;
+		break;
+	case TARG_TYPE_APPLET:
+		svid = s->req->cons->target.ptr.a->name;
+		break;
+	default:
+		svid = "<NOSRV>";
+		break;
+	}
 
 	level = LOG_INFO;
 	if (err && (fe->options2 & PR_O2_LOGERRORS))
