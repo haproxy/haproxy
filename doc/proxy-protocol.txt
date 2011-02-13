@@ -146,7 +146,7 @@ connection is established. For the receiver, once the line is parsed, it's
 easy to skip it from the input buffers.
 
 We have a patch available for recent versions of Stunnel that brings it the
-ability to be an emitter. The feature is called "send-proxy" there. The code
+ability to be an emitter. The feature is called "sendproxy" there. The code
 for the receiving side has been merged into haproxy and is enabled using the
 "accept-proxy" keyword on a "bind" statement. Haproxy will use the transport
 information from the PROXY protocol for logging, ACLs, etc... everywhere an
