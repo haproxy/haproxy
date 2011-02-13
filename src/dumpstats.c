@@ -953,19 +953,19 @@ static void cli_io_handler(struct stream_interface *si)
 					si->applet.st0 = STAT_CLI_PROMPT;
 				break;
 			case STAT_CLI_O_INFO:
-				if (stats_dump_raw_to_buffer(s, res))
+				if (stats_dump_raw_to_buffer(si))
 					si->applet.st0 = STAT_CLI_PROMPT;
 				break;
 			case STAT_CLI_O_SESS:
-				if (stats_dump_sess_to_buffer(s, res))
+				if (stats_dump_sess_to_buffer(si))
 					si->applet.st0 = STAT_CLI_PROMPT;
 				break;
 			case STAT_CLI_O_ERR:	/* errors dump */
-				if (stats_dump_errors_to_buffer(s, res))
+				if (stats_dump_errors_to_buffer(si))
 					si->applet.st0 = STAT_CLI_PROMPT;
 				break;
 			case STAT_CLI_O_TAB:
-				if (stats_dump_table_to_buffer(s, res))
+				if (stats_dump_table_to_buffer(si))
 					si->applet.st0 = STAT_CLI_PROMPT;
 				break;
 			default: /* abnormal state */
@@ -1038,15 +1038,15 @@ static void cli_io_handler(struct stream_interface *si)
 	}
 }
 
-/* This function is called to send output to the response buffer.
- * It dumps statistics onto the output buffer <rep> owned by session <s>.
- * s->data_ctx must have been zeroed first, and the flags properly set.
+/* This function dumps statistics onto the stream interface's read buffer.
+ * The data_ctx must have been zeroed first, and the flags properly set.
  * It returns 0 as long as it does not complete, non-zero upon completion.
  * Some states are not used but it makes the code more similar to other
  * functions which handle stats too.
  */
-int stats_dump_raw_to_buffer(struct session *s, struct buffer *rep)
+int stats_dump_raw_to_buffer(struct stream_interface *si)
 {
+	struct session *s = si->applet.private;
 	struct proxy *px;
 	struct chunk msg;
 	unsigned int up;
@@ -1062,7 +1062,7 @@ int stats_dump_raw_to_buffer(struct session *s, struct buffer *rep)
 	case DATA_ST_HEAD:
 		if (s->data_ctx.stats.flags & STAT_SHOW_STAT) {
 			print_csv_header(&msg);
-			if (buffer_feed_chunk(rep, &msg) >= 0)
+			if (buffer_feed_chunk(si->ib, &msg) >= 0)
 				return 0;
 		}
 
@@ -1106,7 +1106,7 @@ int stats_dump_raw_to_buffer(struct session *s, struct buffer *rep)
 				     nb_tasks_cur, run_queue_cur,
 				     global.node, global.desc?global.desc:""
 				     );
-			if (buffer_feed_chunk(rep, &msg) >= 0)
+			if (buffer_feed_chunk(si->ib, &msg) >= 0)
 				return 0;
 		}
 
@@ -1127,7 +1127,7 @@ int stats_dump_raw_to_buffer(struct session *s, struct buffer *rep)
 				/* skip the disabled proxies and non-networked ones */
 				if (px->state != PR_STSTOPPED &&
 				    (px->cap & (PR_CAP_FE | PR_CAP_BE))) {
-					if (stats_dump_proxy(s, px, NULL) == 0)
+					if (stats_dump_proxy(si, px, NULL) == 0)
 						return 0;
 				}
 
@@ -1159,8 +1159,9 @@ int stats_dump_raw_to_buffer(struct session *s, struct buffer *rep)
  * repost the data.  We don't want this to happen on accident so we redirect
  * the browse to the stats page with a GET.
  */
-int stats_http_redir(struct session *s, struct buffer *rep, struct uri_auth *uri)
+int stats_http_redir(struct stream_interface *si, struct uri_auth *uri)
 {
+	struct session *s = si->applet.private;
 	struct chunk msg;
 
 	chunk_init(&msg, trash, sizeof(trash));
@@ -1176,7 +1177,7 @@ int stats_http_redir(struct session *s, struct buffer *rep, struct uri_auth *uri
 			uri->uri_prefix, s->data_ctx.stats.st_code);
 		chunk_printf(&msg, "\r\n\r\n");
 
-		if (buffer_feed_chunk(rep, &msg) >= 0)
+		if (buffer_feed_chunk(si->ib, &msg) >= 0)
 			return 0;
 
 		s->txn.status = 303;
@@ -1213,12 +1214,12 @@ static void http_stats_io_handler(struct stream_interface *si)
 
 	if (!si->applet.st0) {
 		if (s->txn.meth == HTTP_METH_POST) {
-			if (stats_http_redir(s, res, s->be->uri_auth)) {
+			if (stats_http_redir(si, s->be->uri_auth)) {
 				si->applet.st0 = 1;
 				si->shutw(si);
 			}
 		} else {
-			if (stats_dump_http(s, res, s->be->uri_auth)) {
+			if (stats_dump_http(si, s->be->uri_auth)) {
 				si->applet.st0 = 1;
 				si->shutw(si);
 			}
@@ -1248,18 +1249,16 @@ static void http_stats_io_handler(struct stream_interface *si)
 }
 
 
-/*
- * Produces statistics data for the session <s>. Expects to be called with
- * client socket shut down on input. It stops by itself by unsetting the
- * BF_HIJACK flag from the buffer, which it uses to keep on being called
- * when there is free space in the buffer, of simply by letting an empty buffer
- * upon return.s->data_ctx must have been zeroed before the first call, and the
- * flags set. It returns 0 if it had to stop writing data and an I/O is needed,
- * 1 if the dump is finished and the session must be closed, or -1 in case of
- * any error.
+/* This function dumps statistics in HTTP format onto the stream interface's
+ * read buffer. The data_ctx must have been zeroed first, and the flags
+ * properly set. It returns 0 if it had to stop writing data and an I/O is
+ * needed, 1 if the dump is finished and the session must be closed, or -1
+ * in case of any error.
  */
-int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
+int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 {
+	struct session *s = si->applet.private;
+	struct buffer *rep = si->ib;
 	struct proxy *px;
 	struct chunk msg;
 	unsigned int up;
@@ -1568,7 +1567,7 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
 			px = s->data_ctx.stats.px;
 			/* skip the disabled proxies and non-networked ones */
 			if (px->state != PR_STSTOPPED && (px->cap & (PR_CAP_FE | PR_CAP_BE)))
-				if (stats_dump_proxy(s, px, uri) == 0)
+				if (stats_dump_proxy(si, px, uri) == 0)
 					return 0;
 
 			s->data_ctx.stats.px = px->next;
@@ -1605,9 +1604,10 @@ int stats_dump_http(struct session *s, struct buffer *rep, struct uri_auth *uri)
  * Returns 0 if it had to stop dumping data because of lack of buffer space,
  * ot non-zero if everything completed.
  */
-int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
+int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_auth *uri)
 {
-	struct buffer *rep = s->rep;
+	struct session *s = si->applet.private;
+	struct buffer *rep = si->ib;
 	struct server *sv, *svs;	/* server and server-state, server-state=server or server->tracked */
 	struct listener *l;
 	struct chunk msg;
@@ -2647,16 +2647,15 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
 	}
 }
 
-/* This function is called to send output to the response buffer. It dumps a
- * complete session state onto the output buffer <rep>. The session has to be
- * set in data_ctx.sess.target. It returns 0 if the output buffer is full and
- * it needs to be called again, otherwise non-zero. It is designed to be called
- * from stats_dump_sess_to_buffer() below.
+/* This function dumps a complete session state onto the stream intreface's
+ * read buffer. The data_ctx must have been zeroed first, and the flags
+ * properly set. The session has to be set in data_ctx.sess.target. It returns
+ * 0 if the output buffer is full and it needs to be called again, otherwise
+ * non-zero. It is designed to be called from stats_dump_sess_to_buffer() below.
  */
-
-/* returns 1 if dump is not complete */
-int stats_dump_full_sess_to_buffer(struct session *s, struct buffer *rep)
+int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 {
+	struct session *s = si->applet.private;
 	struct tm tm;
 	struct chunk msg;
 	struct session *sess;
@@ -2669,7 +2668,7 @@ int stats_dump_full_sess_to_buffer(struct session *s, struct buffer *rep)
 	if (s->data_ctx.sess.section > 0 && s->data_ctx.sess.uid != sess->uniq_id) {
 		/* session changed, no need to go any further */
 		chunk_printf(&msg, "  *** session terminated while we were watching it ***\n");
-		if (buffer_feed_chunk(rep, &msg) >= 0)
+		if (buffer_feed_chunk(si->ib, &msg) >= 0)
 			return 0;
 		s->data_ctx.sess.target = NULL;
 		s->data_ctx.sess.uid = 0;
@@ -2844,7 +2843,7 @@ int stats_dump_full_sess_to_buffer(struct session *s, struct buffer *rep)
 			     (int)(sess->rep->lr - sess->rep->data),
 			     sess->rep->total);
 
-		if (buffer_feed_chunk(rep, &msg) >= 0)
+		if (buffer_feed_chunk(si->ib, &msg) >= 0)
 			return 0;
 
 		/* use other states to dump the contents */
@@ -2854,17 +2853,18 @@ int stats_dump_full_sess_to_buffer(struct session *s, struct buffer *rep)
 	return 1;
 }
 
-/* This function is called to send output to the response buffer.
- * It dumps the sessions states onto the output buffer <rep>.
- * Expects to be called with client socket shut down on input.
- * s->data_ctx must have been zeroed first, and the flags properly set.
- * It returns 0 as long as it does not complete, non-zero upon completion.
+/* This function dumps all sessions' states onto the stream intreface's
+ * read buffer. The data_ctx must have been zeroed first, and the flags
+ * properly set. It returns 0 if the output buffer is full and it needs
+ * to be called again, otherwise non-zero. It is designed to be called
+ * from stats_dump_sess_to_buffer() below.
  */
-int stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
+int stats_dump_sess_to_buffer(struct stream_interface *si)
 {
+	struct session *s = si->applet.private;
 	struct chunk msg;
 
-	if (unlikely(rep->flags & (BF_WRITE_ERROR|BF_SHUTW))) {
+	if (unlikely(si->ib->flags & (BF_WRITE_ERROR|BF_SHUTW))) {
 		/* If we're forced to shut down, we might have to remove our
 		 * reference to the last session being dumped.
 		 */
@@ -2913,7 +2913,7 @@ int stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 
 				LIST_ADDQ(&curr_sess->back_refs, &s->data_ctx.sess.bref.users);
 				/* call the proper dump() function and return if we're missing space */
-				if (!stats_dump_full_sess_to_buffer(s, rep))
+				if (!stats_dump_full_sess_to_buffer(si))
 					return 0;
 
 				/* session dump complete */
@@ -3045,7 +3045,7 @@ int stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 
 			chunk_printf(&msg, "\n");
 
-			if (buffer_feed_chunk(rep, &msg) >= 0) {
+			if (buffer_feed_chunk(si->ib, &msg) >= 0) {
 				/* let's try again later from this session. We add ourselves into
 				 * this session's users so that it can remove us upon termination.
 				 */
@@ -3064,7 +3064,7 @@ int stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 			else
 				chunk_printf(&msg, "Session not found.\n");
 
-			if (buffer_feed_chunk(rep, &msg) >= 0)
+			if (buffer_feed_chunk(si->ib, &msg) >= 0)
 				return 0;
 
 			s->data_ctx.sess.target = NULL;
@@ -3150,14 +3150,14 @@ static int dump_binary(struct chunk *out, const char *buf, int bsize)
 	return ptr;
 }
 
-/* This function is called to send output to the response buffer.
- * It dumps the tables states onto the output buffer <rep>.
- * Expects to be called with client socket shut down on input.
- * s->data_ctx must have been zeroed first, and the flags properly set.
- * It returns 0 as long as it does not complete, non-zero upon completion.
+/* This function dumps all tables' states onto the stream intreface's
+ * read buffer. The data_ctx must have been zeroed first, and the flags
+ * properly set. It returns 0 if the output buffer is full and it needs
+ * to be called again, otherwise non-zero.
  */
-int stats_dump_table_to_buffer(struct session *s, struct buffer *rep)
+int stats_dump_table_to_buffer(struct stream_interface *si)
 {
+	struct session *s = si->applet.private;
 	struct chunk msg;
 	struct ebmb_node *eb;
 	int dt;
@@ -3174,7 +3174,7 @@ int stats_dump_table_to_buffer(struct session *s, struct buffer *rep)
 	 *     data though.
 	 */
 
-	if (unlikely(rep->flags & (BF_WRITE_ERROR|BF_SHUTW))) {
+	if (unlikely(si->ib->flags & (BF_WRITE_ERROR|BF_SHUTW))) {
 		/* in case of abort, remove any refcount we might have set on an entry */
 		if (s->data_state == DATA_ST_LIST) {
 			s->data_ctx.table.entry->ref_cnt--;
@@ -3217,7 +3217,7 @@ int stats_dump_table_to_buffer(struct session *s, struct buffer *rep)
 				    s->listener->perm.ux.level < ACCESS_LVL_OPER)
 					chunk_printf(&msg, "# contents not dumped due to insufficient privileges\n");
 
-				if (buffer_feed_chunk(rep, &msg) >= 0)
+				if (buffer_feed_chunk(si->ib, &msg) >= 0)
 					return 0;
 
 				if (s->data_ctx.table.target &&
@@ -3338,7 +3338,7 @@ int stats_dump_table_to_buffer(struct session *s, struct buffer *rep)
 			}
 			chunk_printf(&msg, "\n");
 
-			if (buffer_feed_chunk(rep, &msg) >= 0)
+			if (buffer_feed_chunk(si->ib, &msg) >= 0)
 				return 0;
 
 		skip_entry:
@@ -3424,18 +3424,18 @@ static int dump_text_line(struct chunk *out, const char *buf, int bsize, int len
 	return ptr;
 }
 
-/* This function is called to send output to the response buffer.
- * It dumps the errors logged in proxies onto the output buffer <rep>.
- * Expects to be called with client socket shut down on input.
- * s->data_ctx must have been zeroed first, and the flags properly set.
- * It returns 0 as long as it does not complete, non-zero upon completion.
+/* This function dumps all captured errors onto the stream intreface's
+ * read buffer. The data_ctx must have been zeroed first, and the flags
+ * properly set. It returns 0 if the output buffer is full and it needs
+ * to be called again, otherwise non-zero.
  */
-int stats_dump_errors_to_buffer(struct session *s, struct buffer *rep)
+int stats_dump_errors_to_buffer(struct stream_interface *si)
 {
+	struct session *s = si->applet.private;
 	extern const char *monthname[12];
 	struct chunk msg;
 
-	if (unlikely(rep->flags & (BF_WRITE_ERROR|BF_SHUTW)))
+	if (unlikely(si->ib->flags & (BF_WRITE_ERROR|BF_SHUTW)))
 		return 1;
 
 	chunk_init(&msg, trash, sizeof(trash));
@@ -3452,7 +3452,7 @@ int stats_dump_errors_to_buffer(struct session *s, struct buffer *rep)
 			     tm.tm_hour, tm.tm_min, tm.tm_sec, (int)(date.tv_usec/1000),
 			     error_snapshot_id);
 
-		if (buffer_feed_chunk(rep, &msg) >= 0) {
+		if (buffer_feed_chunk(si->ib, &msg) >= 0) {
 			/* Socket buffer full. Let's try again later from the same point */
 			return 0;
 		}
@@ -3533,7 +3533,7 @@ int stats_dump_errors_to_buffer(struct session *s, struct buffer *rep)
 				break;
 			}
 
-			if (buffer_feed_chunk(rep, &msg) >= 0) {
+			if (buffer_feed_chunk(si->ib, &msg) >= 0) {
 				/* Socket buffer full. Let's try again later from the same point */
 				return 0;
 			}
@@ -3545,7 +3545,7 @@ int stats_dump_errors_to_buffer(struct session *s, struct buffer *rep)
 			/* the snapshot changed while we were dumping it */
 			chunk_printf(&msg,
 				     "  WARNING! update detected on this snapshot, dump interrupted. Please re-check!\n");
-			if (buffer_feed_chunk(rep, &msg) >= 0)
+			if (buffer_feed_chunk(si->ib, &msg) >= 0)
 				return 0;
 			goto next;
 		}
@@ -3560,7 +3560,7 @@ int stats_dump_errors_to_buffer(struct session *s, struct buffer *rep)
 			if (newptr == s->data_ctx.errors.ptr)
 				return 0;
 
-			if (buffer_feed_chunk(rep, &msg) >= 0) {
+			if (buffer_feed_chunk(si->ib, &msg) >= 0) {
 				/* Socket buffer full. Let's try again later from the same point */
 				return 0;
 			}
