@@ -84,7 +84,7 @@ const char stats_permission_denied_msg[] =
 int stats_accept(struct session *s)
 {
 	/* we have a dedicated I/O handler for the stats */
-	stream_int_register_handler(&s->si[1], stats_io_handler);
+	stream_int_register_handler(&s->si[1], &cli_applet);
 	s->si[1].private = s;
 	s->si[1].st1 = 0;
 	s->si[1].st0 = STAT_CLI_INIT;
@@ -848,7 +848,7 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
  * STAT_CLI_* constants. si->st1 is used to indicate whether prompt is enabled
  * or not.
  */
-void stats_io_handler(struct stream_interface *si)
+static void cli_io_handler(struct stream_interface *si)
 {
 	struct session *s = si->private;
 	struct buffer *req = si->ob;
@@ -1200,7 +1200,7 @@ int stats_http_redir(struct session *s, struct buffer *rep, struct uri_auth *uri
  * si->st0 becomes non-zero once the transfer is finished. The handler
  * automatically unregisters itself once transfer is complete.
  */
-void http_stats_io_handler(struct stream_interface *si)
+static void http_stats_io_handler(struct stream_interface *si)
 {
 	struct session *s = si->private;
 	struct buffer *req = si->ob;
@@ -3583,6 +3583,15 @@ int stats_dump_errors_to_buffer(struct session *s, struct buffer *rep)
 	return 1;
 }
 
+struct si_applet http_stats_applet = {
+	.name = "<STATS>", /* used for logging */
+	.fct = http_stats_io_handler,
+};
+
+struct si_applet cli_applet = {
+	.name = "<CLI>", /* used for logging */
+	.fct = cli_io_handler,
+};
 
 static struct cfg_kw_list cfg_kws = {{ },{
 	{ CFG_GLOBAL, "stats", stats_parse_global },

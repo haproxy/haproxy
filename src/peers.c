@@ -216,7 +216,7 @@ void peer_session_release(struct stream_interface *si)
 /*
  * IO Handler to handle message exchance with a peer
  */
-void peer_io_handler(struct stream_interface *si)
+static void peer_io_handler(struct stream_interface *si)
 {
 	struct task *t= (struct task *)si->owner;
 	struct session *s = (struct session *)t->context;
@@ -1041,6 +1041,10 @@ quit:
 	return;
 }
 
+static struct si_applet peer_applet = {
+	.name = "<PEER>", /* used for logging */
+	.fct = peer_io_handler,
+};
 
 /*
  * Use this function to force a close of a peer session
@@ -1049,7 +1053,7 @@ void peer_session_forceshutdown(struct session * session)
 {
 	struct stream_interface *oldsi;
 
-	if (session->si[0].iohandler == peer_io_handler) {
+	if (session->si[0].applet.handler == &peer_applet) {
 		oldsi = &session->si[0];
 	}
 	else {
@@ -1072,7 +1076,7 @@ void peer_session_forceshutdown(struct session * session)
 int peer_accept(struct session *s)
 {
 	 /* we have a dedicated I/O handler for the stats */
-	stream_int_register_handler(&s->si[1], peer_io_handler);
+	stream_int_register_handler(&s->si[1], &peer_applet);
 	s->si[1].release = peer_session_release;
 	s->si[1].private = s;
 	s->si[1].st0 = PEER_SESSION_ACCEPT;
@@ -1158,7 +1162,7 @@ struct session *peer_session_create(struct peer *peer, struct peer_session *ps)
 	s->si[0].private = (void *)ps;
 	s->si[0].st0 = PEER_SESSION_CONNECT;
 
-	stream_int_register_handler(&s->si[0], peer_io_handler);
+	stream_int_register_handler(&s->si[0], &peer_applet);
 	s->si[0].release = peer_session_release;
 
 	s->si[1].fd = -1; /* just to help with debugging */

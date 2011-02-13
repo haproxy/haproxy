@@ -2,7 +2,7 @@
  * include/types/stream_interface.h
  * This file describes the stream_interface struct and associated constants.
  *
- * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2011 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -78,13 +78,11 @@ enum {
 
 struct server;
 struct proxy;
+struct si_applet;
 
-/* Note that if an iohandler is set, the update function will not be called by
- * the session handler, so it may be used to resync flags at the end of the I/O
- * handler. See stream_int_update_embedded() for reference.
- * This struct could be optimized, because :
- *   - connect(), fd, conn_retries are only used in stream_sock mode
- *   - iohandler(), private, st0, st1 are only used in iohandler mode
+/* Note that if an applet is registered, the update function will not be called
+ * by the session handler, so it may be used to resync flags at the end of the
+ * applet handler. See stream_int_update_embedded() for reference.
  */
 struct stream_interface {
 	unsigned int state;     /* SI_ST* */
@@ -101,15 +99,22 @@ struct stream_interface {
 	int (*connect)(struct stream_interface *, struct proxy *, struct server *,
 		       struct sockaddr *, struct sockaddr *); /* connect function if any */
 	void (*release)(struct stream_interface *); /* handler to call after the last close() */
-	void (*iohandler)(struct stream_interface *);  /* internal I/O handler when embedded */
 	struct buffer *ib, *ob; /* input and output buffers */
 	int conn_retries;	/* number of connect retries left */
 	unsigned int err_type;  /* first error detected, one of SI_ET_* */
 	void *err_loc;          /* commonly the server, NULL when SI_ET_NONE */
+	struct {
+		struct si_applet *handler; /* applet to use instead of doing I/O */
+	} applet;
 	void *private;          /* may be used by any function above */
 	unsigned int st0, st1;  /* may be used by any function above */
 };
 
+/* An applet designed to run in a stream interface */
+struct si_applet {
+	char *name; /* applet's name to report in logs */
+	void (*fct)(struct stream_interface *);  /* internal I/O handler, may never be NULL */
+};
 
 #endif /* _TYPES_STREAM_INTERFACE_H */
 

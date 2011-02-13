@@ -3,7 +3,7 @@
  * This file contains definitions of some primitives to dedicated to
  * statistics output.
  *
- * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2011 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -61,6 +61,8 @@
 #define STAT_STATUS_EXCD "EXCD"	/* an error occured becayse the buffer couldn't store all data */
 #define STAT_STATUS_DENY "DENY"	/* action denied */
 
+extern struct si_applet http_stats_applet;
+extern struct si_applet cli_applet;
 
 int stats_accept(struct session *s);
 int stats_sock_parse_request(struct stream_interface *si, char *line);
@@ -71,7 +73,6 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri);
 int stats_dump_sess_to_buffer(struct session *s, struct buffer *rep);
 int stats_dump_table_to_buffer(struct session *s, struct buffer *rep);
 int stats_dump_errors_to_buffer(struct session *s, struct buffer *rep);
-void http_stats_io_handler(struct stream_interface *si);
 
 
 #endif /* _PROTO_DUMPSTATS_H */

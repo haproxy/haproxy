@@ -2,7 +2,7 @@
  * include/proto/stream_interface.h
  * This file contains stream_interface function prototypes
  *
- * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2011 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -42,7 +42,7 @@ void stream_int_chk_rcv(struct stream_interface *si);
 void stream_int_chk_snd(struct stream_interface *si);
 
 struct task *stream_int_register_handler(struct stream_interface *si,
-					 void (*fct)(struct stream_interface *));
+					 struct si_applet *app);
 struct task *stream_int_register_handler_task(struct stream_interface *si,
 					      struct task *(*fct)(struct task *));
 void stream_int_unregister_handler(struct stream_interface *si);

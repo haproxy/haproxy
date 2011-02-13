@@ -167,7 +167,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->si[0].err_type  = SI_ET_NONE;
 	s->si[0].err_loc   = NULL;
 	s->si[0].connect   = NULL;
-	s->si[0].iohandler = NULL;
+	s->si[0].applet.handler = NULL;
 	s->si[0].release   = NULL;
 	s->si[0].exp       = TICK_ETERNITY;
 	s->si[0].flags     = SI_FL_NONE;
@@ -190,7 +190,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->si[1].err_type  = SI_ET_NONE;
 	s->si[1].err_loc   = NULL;
 	s->si[1].connect   = NULL;
-	s->si[1].iohandler = NULL;
+	s->si[1].applet.handler = NULL;
 	s->si[1].release   = NULL;
 	s->si[1].shutr     = stream_int_shutr;
 	s->si[1].shutw     = stream_int_shutw;
@@ -1786,13 +1786,13 @@ struct task *process_session(struct task *t)
 	if (s->req->cons->state == SI_ST_INI) {
 		if (!(s->req->flags & BF_SHUTW)) {
 			if ((s->req->flags & (BF_AUTO_CONNECT|BF_OUT_EMPTY)) != BF_OUT_EMPTY) {
-				/* If we have an iohandler without a connect method, we immediately
+				/* If we have an applet without a connect method, we immediately
 				 * switch to the connected state, otherwise we perform a connection
 				 * request.
 				 */
 				s->req->cons->state = SI_ST_REQ; /* new connection requested */
 				s->req->cons->conn_retries = s->be->conn_retries;
-				if (unlikely(s->req->cons->iohandler && !s->req->cons->connect)) {
+				if (unlikely(s->req->cons->applet.handler && !s->req->cons->connect)) {
 					s->req->cons->state = SI_ST_EST; /* connection established */
 					s->rep->flags |= BF_READ_ATTACHED; /* producer is now attached */
 					s->req->wex = TICK_ETERNITY;
@@ -1949,10 +1949,10 @@ struct task *process_session(struct task *t)
 		if ((s->fe->options & PR_O_CONTSTATS) && (s->flags & SN_BE_ASSIGNED))
 			session_process_counters(s);
 
-		if (s->rep->cons->state == SI_ST_EST && !s->rep->cons->iohandler)
+		if (s->rep->cons->state == SI_ST_EST && !s->rep->cons->applet.handler)
 			s->rep->cons->update(s->rep->cons);
 
-		if (s->req->cons->state == SI_ST_EST && !s->req->cons->iohandler)
+		if (s->req->cons->state == SI_ST_EST && !s->req->cons->applet.handler)
 			s->req->cons->update(s->req->cons);
 
 		s->req->flags &= ~(BF_READ_NULL|BF_READ_PARTIAL|BF_WRITE_NULL|BF_WRITE_PARTIAL|BF_READ_ATTACHED);
@@ -1979,11 +1979,11 @@ struct task *process_session(struct task *t)
 		/* Call the stream interfaces' I/O handlers when embedded.
 		 * Note that this one may wake the task up again.
 		 */
-		if (s->req->cons->iohandler || s->rep->cons->iohandler) {
-			if (s->req->cons->iohandler)
-				s->req->cons->iohandler(s->req->cons);
-			if (s->rep->cons->iohandler)
-				s->rep->cons->iohandler(s->rep->cons);
+		if (s->req->cons->applet.handler || s->rep->cons->applet.handler) {
+			if (s->req->cons->applet.handler)
+				s->req->cons->applet.handler->fct(s->req->cons);
+			if (s->rep->cons->applet.handler)
+				s->rep->cons->applet.handler->fct(s->rep->cons);
 			if (task_in_rq(t)) {
 				/* If we woke up, we don't want to requeue the
 				 * task to the wait queue, but rather requeue

@@ -1,7 +1,7 @@
 /*
  * Functions managing stream_interface structures
  *
- * Copyright 2000-2009 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2011 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -297,14 +297,13 @@ void stream_int_chk_snd(struct stream_interface *si)
 		task_wakeup(si->owner, TASK_WOKEN_IO);
 }
 
-/* Register a function to handle a stream_interface as part of the stream
+/* Register an applet to handle a stream_interface as part of the stream
  * interface's owner task, which is returned. The SI will wake it up everytime
- * it is solicited. The task's processing function must call the specified
+ * it is solicited. The task's processing function must call the applet's
  * function before returning. It must be deleted by the task handler using
- * stream_int_unregister_handler(), possibly from withing the function itself.
+ * stream_int_unregister_handler(), possibly from within the function itself.
  */
-struct task *stream_int_register_handler(struct stream_interface *si,
-					 void (*fct)(struct stream_interface *))
+struct task *stream_int_register_handler(struct stream_interface *si, struct si_applet *app)
 {
 	DPRINTF(stderr, "registering handler %p for si %p (was %p)\n", fct, si, si->owner);
 
@@ -314,7 +313,7 @@ struct task *stream_int_register_handler(struct stream_interface *si,
 	si->chk_rcv = stream_int_chk_rcv;
 	si->chk_snd = stream_int_chk_snd;
 	si->connect = NULL;
-	si->iohandler = fct;
+	si->applet.handler = app;
 	si->release   = NULL;
 	si->flags |= SI_FL_WAIT_DATA;
 	return si->owner;
@@ -338,7 +337,7 @@ struct task *stream_int_register_handler_task(struct stream_interface *si,
 	si->chk_rcv = stream_int_chk_rcv;
 	si->chk_snd = stream_int_chk_snd;
 	si->connect = NULL;
-	si->iohandler = NULL; /* not used when running as an external task */
+	si->applet.handler = NULL; /* not used when running as an external task */
 	si->release   = NULL;
 	si->flags |= SI_FL_WAIT_DATA;
 
@@ -359,12 +358,12 @@ struct task *stream_int_register_handler_task(struct stream_interface *si,
  */
 void stream_int_unregister_handler(struct stream_interface *si)
 {
-	if (!si->iohandler && si->owner) {
+	if (!si->applet.handler && si->owner) {
 		/* external handler : kill the task */
 		task_delete(si->owner);
 		task_free(si->owner);
 	}
-	si->iohandler = NULL;
+	si->applet.handler = NULL;
 	si->release   = NULL;
 	si->owner = NULL;
 }
