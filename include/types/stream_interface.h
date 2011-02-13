@@ -105,9 +105,9 @@ struct stream_interface {
 	void *err_loc;          /* commonly the server, NULL when SI_ET_NONE */
 	struct {
 		struct si_applet *handler; /* applet to use instead of doing I/O */
+		void *private;             /* may be used by any function above */
+		unsigned int st0, st1;     /* may be used by any function above */
 	} applet;
-	void *private;          /* may be used by any function above */
-	unsigned int st0, st1;  /* may be used by any function above */
 };
 
 /* An applet designed to run in a stream interface */

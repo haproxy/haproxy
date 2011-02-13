@@ -3227,8 +3227,8 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 		s->data_state  = DATA_ST_INIT;
 		s->task->nice = -32; /* small boost for HTTP statistics */
 		stream_int_register_handler(s->rep->prod, &http_stats_applet);
-		s->rep->prod->private = s;
-		s->rep->prod->st0 = s->rep->prod->st1 = 0;
+		s->rep->prod->applet.private = s;
+		s->rep->prod->applet.st0 = s->rep->prod->applet.st1 = 0;
 		req->analysers = 0;
 
 		return 0;

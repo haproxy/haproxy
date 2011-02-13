@@ -186,10 +186,10 @@ void peer_session_release(struct stream_interface *si)
 {
 	struct task *t= (struct task *)si->owner;
 	struct session *s = (struct session *)t->context;
-	struct peer_session *ps = (struct peer_session *)si->private;
+	struct peer_session *ps = (struct peer_session *)si->applet.private;
 
-	/* si->private is not a peer session */
-	if (si->st0 < PEER_SESSION_SENDSUCCESS)
+	/* si->applet.private is not a peer session */
+	if (si->applet.st0 < PEER_SESSION_SENDSUCCESS)
 		return;
 
 	/* peer session identified */
@@ -226,21 +226,21 @@ static void peer_io_handler(struct stream_interface *si)
 
 	while (1) {
 switchstate:
-		switch(si->st0) {
+		switch(si->applet.st0) {
 			case PEER_SESSION_ACCEPT:
-				si->private = NULL;
-				si->st0 = PEER_SESSION_GETVERSION;
+				si->applet.private = NULL;
+				si->applet.st0 = PEER_SESSION_GETVERSION;
 				/* fall through */
 			case PEER_SESSION_GETVERSION:
 				reql = buffer_get_line(si->ob, trash, sizeof(trash));
 				if (reql <= 0) { /* closed or EOL not found */
 					if (reql == 0)
 						goto out;
-					si->st0 = PEER_SESSION_END;
+					si->applet.st0 = PEER_SESSION_END;
 					goto switchstate;
 				}
 				if (trash[reql-1] != '\n') {
-					si->st0 = PEER_SESSION_END;
+					si->applet.st0 = PEER_SESSION_END;
 					goto switchstate;
 				}
 				else if (reql > 1 && (trash[reql-2] == '\r'))
@@ -252,26 +252,26 @@ switchstate:
 
 				/* test version */
 				if (strcmp(PEER_SESSION_PROTO_NAME " 1.0", trash) != 0) {
-					si->st0 = PEER_SESSION_EXIT;
-					si->st1 = PEER_SESSION_ERRVERSION;
+					si->applet.st0 = PEER_SESSION_EXIT;
+					si->applet.st1 = PEER_SESSION_ERRVERSION;
 					/* test protocol */
 					if (strncmp(PEER_SESSION_PROTO_NAME " ", trash, strlen(PEER_SESSION_PROTO_NAME)+1) != 0)
-						si->st1 = PEER_SESSION_ERRPROTO;
+						si->applet.st1 = PEER_SESSION_ERRPROTO;
 					goto switchstate;
 				}
 
-				si->st0 = PEER_SESSION_GETHOST;
+				si->applet.st0 = PEER_SESSION_GETHOST;
 				/* fall through */
 			case PEER_SESSION_GETHOST:
 				reql = buffer_get_line(si->ob, trash, sizeof(trash));
 				if (reql <= 0) { /* closed or EOL not found */
 					if (reql == 0)
 						goto out;
-					si->st0 = PEER_SESSION_END;
+					si->applet.st0 = PEER_SESSION_END;
 					goto switchstate;
 				}
 				if (trash[reql-1] != '\n') {
-					si->st0 = PEER_SESSION_END;
+					si->applet.st0 = PEER_SESSION_END;
 					goto switchstate;
 				}
 				else if (reql > 1 && (trash[reql-2] == '\r'))
@@ -283,12 +283,12 @@ switchstate:
 
 				/* test hostname match */
 				if (strcmp(localpeer, trash) != 0) {
-					si->st0 = PEER_SESSION_EXIT;
-					si->st1 = PEER_SESSION_ERRHOST;
+					si->applet.st0 = PEER_SESSION_EXIT;
+					si->applet.st1 = PEER_SESSION_ERRHOST;
 					goto switchstate;
 				}
 
-				si->st0 = PEER_SESSION_GETPEER;
+				si->applet.st0 = PEER_SESSION_GETPEER;
 				/* fall through */
 			case PEER_SESSION_GETPEER: {
 				struct peer *curpeer;
@@ -297,12 +297,12 @@ switchstate:
 				if (reql <= 0) { /* closed or EOL not found */
 					if (reql == 0)
 						goto out;
-					si->st0 = PEER_SESSION_END;
+					si->applet.st0 = PEER_SESSION_END;
 					goto switchstate;
 				}
 				if (trash[reql-1] != '\n') {
 					/* Incomplete line, we quit */
-					si->st0 = PEER_SESSION_END;
+					si->applet.st0 = PEER_SESSION_END;
 					goto switchstate;
 				}
 				else if (reql > 1 && (trash[reql-2] == '\r'))
@@ -315,8 +315,8 @@ switchstate:
 				/* parse line "<peer name> <pid>" */
 				p = strchr(trash, ' ');
 				if (!p) {
-					si->st0 = PEER_SESSION_EXIT;
-					si->st1 = PEER_SESSION_ERRPROTO;
+					si->applet.st0 = PEER_SESSION_EXIT;
+					si->applet.st1 = PEER_SESSION_ERRPROTO;
 					goto switchstate;
 				}
 				*p = 0;
@@ -329,17 +329,17 @@ switchstate:
 
 				/* if unknown peer */
 				if (!curpeer) {
-					si->st0 = PEER_SESSION_EXIT;
-					si->st1 = PEER_SESSION_ERRPEER;
+					si->applet.st0 = PEER_SESSION_EXIT;
+					si->applet.st1 = PEER_SESSION_ERRPEER;
 					goto switchstate;
 				}
 
-				si->private = curpeer;
-				si->st0 = PEER_SESSION_GETTABLE;
+				si->applet.private = curpeer;
+				si->applet.st0 = PEER_SESSION_GETTABLE;
 				/* fall through */
 			}
 			case PEER_SESSION_GETTABLE: {
-				struct peer *curpeer = (struct peer *)si->private;
+				struct peer *curpeer = (struct peer *)si->applet.private;
 				struct shared_table *st;
 				struct peer_session *ps = NULL;
 				unsigned long key_type;
@@ -350,16 +350,16 @@ switchstate:
 				if (reql <= 0) { /* closed or EOL not found */
 					if (reql == 0)
 						goto out;
-					si->private = NULL;
-					si->st0 = PEER_SESSION_END;
+					si->applet.private = NULL;
+					si->applet.st0 = PEER_SESSION_END;
 					goto switchstate;
 				}
-				/* Re init si->private to null, to handle correctly a release case */
-				si->private = NULL;
+				/* Re init si->applet.private to null, to handle correctly a release case */
+				si->applet.private = NULL;
 
 				if (trash[reql-1] != '\n') {
 					/* Incomplete line, we quit */
-					si->st0 = PEER_SESSION_END;
+					si->applet.st0 = PEER_SESSION_END;
 					goto switchstate;
 				}
 				else if (reql > 1 && (trash[reql-2] == '\r'))
@@ -372,8 +372,8 @@ switchstate:
 				/* Parse line "<table name> <type> <size>" */
 				p = strchr(trash, ' ');
 				if (!p) {
-					si->st0 = PEER_SESSION_EXIT;
-					si->st1 = PEER_SESSION_ERRPROTO;
+					si->applet.st0 = PEER_SESSION_EXIT;
+					si->applet.st1 = PEER_SESSION_ERRPROTO;
 					goto switchstate;
 				}
 				*p = 0;
@@ -381,9 +381,9 @@ switchstate:
 
 				p = strchr(p+1, ' ');
 				if (!p) {
-					si->private = NULL;
-					si->st0 = PEER_SESSION_EXIT;
-					si->st1 = PEER_SESSION_ERRPROTO;
+					si->applet.private = NULL;
+					si->applet.st0 = PEER_SESSION_EXIT;
+					si->applet.st1 = PEER_SESSION_ERRPROTO;
 					goto switchstate;
 				}
 
@@ -393,15 +393,15 @@ switchstate:
 					if (strcmp(st->table->id, trash) == 0) {
 						/* If key size mismatches */
 						if (key_size != st->table->key_size) {
-							si->st0 = PEER_SESSION_EXIT;
-							si->st1 = PEER_SESSION_ERRSIZE;
+							si->applet.st0 = PEER_SESSION_EXIT;
+							si->applet.st1 = PEER_SESSION_ERRSIZE;
 							goto switchstate;
 						}
 
 						/* If key type mismatches */
 						if (key_type != st->table->type) {
-							si->st0 = PEER_SESSION_EXIT;
-							si->st1 = PEER_SESSION_ERRTYPE;
+							si->applet.st0 = PEER_SESSION_EXIT;
+							si->applet.st1 = PEER_SESSION_ERRTYPE;
 							goto switchstate;
 						}
 
@@ -412,8 +412,8 @@ switchstate:
 								if (ps->session && ps->session != s) {
 									if (ps->peer->local) {
 										/* Local connection, reply a retry */
-										si->st0 = PEER_SESSION_EXIT;
-										si->st1 = PEER_SESSION_TRYAGAIN;
+										si->applet.st0 = PEER_SESSION_EXIT;
+										si->applet.st1 = PEER_SESSION_TRYAGAIN;
 										goto switchstate;
 									}
 									peer_session_forceshutdown(ps->session);
@@ -428,31 +428,31 @@ switchstate:
 
 				/* If table not found */
 				if (!st){
-					si->st0 = PEER_SESSION_EXIT;
-					si->st1 = PEER_SESSION_ERRTABLE;
+					si->applet.st0 = PEER_SESSION_EXIT;
+					si->applet.st1 = PEER_SESSION_ERRTABLE;
 					goto switchstate;
 				}
 
 				/* If no peer session for current peer */
 				if (!ps) {
-					si->st0 = PEER_SESSION_EXIT;
-					si->st1 = PEER_SESSION_ERRPEER;
+					si->applet.st0 = PEER_SESSION_EXIT;
+					si->applet.st1 = PEER_SESSION_ERRPEER;
 					goto switchstate;
 				}
 
-				si->private = ps;
-				si->st0 = PEER_SESSION_SENDSUCCESS;
+				si->applet.private = ps;
+				si->applet.st0 = PEER_SESSION_SENDSUCCESS;
 				/* fall through */
 			}
 			case PEER_SESSION_SENDSUCCESS:{
-				struct peer_session *ps = (struct peer_session *)si->private;
+				struct peer_session *ps = (struct peer_session *)si->applet.private;
 
 				repl = snprintf(trash, sizeof(trash), "%d\n", PEER_SESSION_SUCCESSCODE);
 				repl = buffer_put_block(si->ib, trash, repl);
 				if (repl <= 0) {
 					if (repl == -1)
 						goto out;
-					si->st0 = PEER_SESSION_END;
+					si->applet.st0 = PEER_SESSION_END;
 					goto switchstate;
 				}
 
@@ -491,11 +491,11 @@ switchstate:
 					ps->table->flags |= SHTABLE_F_RESYNC_ASSIGN;
 				}
 				/* switch to waiting message state */
-				si->st0 = PEER_SESSION_WAITMSG;
+				si->applet.st0 = PEER_SESSION_WAITMSG;
 				goto switchstate;
 			}
 			case PEER_SESSION_CONNECT: {
-				struct peer_session *ps = (struct peer_session *)si->private;
+				struct peer_session *ps = (struct peer_session *)si->applet.private;
 
 				/* Send headers */
 				repl = snprintf(trash, sizeof(trash),
@@ -508,7 +508,7 @@ switchstate:
 				                (int)ps->table->table->key_size);
 
 				if (repl >= sizeof(trash)) {
-					si->st0 = PEER_SESSION_END;
+					si->applet.st0 = PEER_SESSION_END;
 					goto switchstate;
 				}
 
@@ -516,16 +516,16 @@ switchstate:
 				if (repl <= 0) {
 					if (repl == -1)
 						goto out;
-					si->st0 = PEER_SESSION_END;
+					si->applet.st0 = PEER_SESSION_END;
 					goto switchstate;
 				}
 
 				/* switch to the waiting statuscode state */
-				si->st0 = PEER_SESSION_GETSTATUS;
+				si->applet.st0 = PEER_SESSION_GETSTATUS;
 				/* fall through */
 			}
 			case PEER_SESSION_GETSTATUS: {
-				struct peer_session *ps = (struct peer_session *)si->private;
+				struct peer_session *ps = (struct peer_session *)si->applet.private;
 
 				if (si->ib->flags & BF_WRITE_PARTIAL)
 					ps->statuscode = PEER_SESSION_CONNECTEDCODE;
@@ -534,12 +534,12 @@ switchstate:
 				if (reql <= 0) { /* closed or EOL not found */
 					if (reql == 0)
 						goto out;
-					si->st0 = PEER_SESSION_END;
+					si->applet.st0 = PEER_SESSION_END;
 					goto switchstate;
 				}
 				if (trash[reql-1] != '\n') {
 					/* Incomplete line, we quit */
-					si->st0 = PEER_SESSION_END;
+					si->applet.st0 = PEER_SESSION_END;
 					goto switchstate;
 				}
 				else if (reql > 1 && (trash[reql-2] == '\r'))
@@ -589,14 +589,14 @@ switchstate:
 				}
 				else {
 					/* Status code is not success, abort */
-					si->st0 = PEER_SESSION_END;
+					si->applet.st0 = PEER_SESSION_END;
 					goto switchstate;
 				}
-				si->st0 = PEER_SESSION_WAITMSG;
+				si->applet.st0 = PEER_SESSION_WAITMSG;
 				/* fall through */
 			}
 			case PEER_SESSION_WAITMSG: {
-				struct peer_session *ps = (struct peer_session *)si->private;
+				struct peer_session *ps = (struct peer_session *)si->applet.private;
 				char c;
 				int totl = 0;
 
@@ -606,7 +606,7 @@ switchstate:
 						/* nothing to read */
 						goto incomplete;
 					}
-					si->st0 = PEER_SESSION_END;
+					si->applet.st0 = PEER_SESSION_END;
 					goto switchstate;
 				}
 				totl += reql;
@@ -630,7 +630,7 @@ switchstate:
 							if (reql == 0) {
 								goto incomplete;
 							}
-							si->st0 = PEER_SESSION_END;
+							si->applet.st0 = PEER_SESSION_END;
 							goto switchstate;
 						}
 						totl += reql;
@@ -647,7 +647,7 @@ switchstate:
 							if (reql == 0) {
 								goto incomplete;
 							}
-							si->st0 = PEER_SESSION_END;
+							si->applet.st0 = PEER_SESSION_END;
 							goto switchstate;
 						}
 						totl += reql;
@@ -658,7 +658,7 @@ switchstate:
 							if (reql == 0) {
 								goto incomplete;
 							}
-							si->st0 = PEER_SESSION_END;
+							si->applet.st0 = PEER_SESSION_END;
 							goto switchstate;
 						}
 						totl += reql;
@@ -673,7 +673,7 @@ switchstate:
 							if (reql == 0) {
 								goto incomplete;
 							}
-							si->st0 = PEER_SESSION_END;
+							si->applet.st0 = PEER_SESSION_END;
 							goto switchstate;
 						}
 						totl += reql;
@@ -689,7 +689,7 @@ switchstate:
 							if (reql == 0) {
 								goto incomplete;
 							}
-							si->st0 = PEER_SESSION_END;
+							si->applet.st0 = PEER_SESSION_END;
 							goto switchstate;
 						}
 						totl += reql;
@@ -702,7 +702,7 @@ switchstate:
 						if (reql == 0) {
 							goto incomplete;
 						}
-						si->st0 = PEER_SESSION_END;
+						si->applet.st0 = PEER_SESSION_END;
 						goto switchstate;
 					}
 					totl += reql;
@@ -775,7 +775,7 @@ switchstate:
 					if (stopping) {
 						/* Close session, push resync no more needed */
 						ps->flags |= PEER_F_TEACH_COMPLETE;
-						si->st0 = PEER_SESSION_END;
+						si->applet.st0 = PEER_SESSION_END;
 						goto switchstate;
 					}
 
@@ -811,7 +811,7 @@ switchstate:
 						if (reql == 0) {
 							goto incomplete;
 						}
-						si->st0 = PEER_SESSION_END;
+						si->applet.st0 = PEER_SESSION_END;
 						goto switchstate;
 					}
 					totl += reql;
@@ -821,7 +821,7 @@ switchstate:
 				}
 				else {
 					/* Unknown message */
-					si->st0 = PEER_SESSION_END;
+					si->applet.st0 = PEER_SESSION_END;
 					goto switchstate;
 				}
 
@@ -841,7 +841,7 @@ incomplete:
 						/* no more write possible */
 						if (repl == -1)
 							goto out;
-						si->st0 = PEER_SESSION_END;
+						si->applet.st0 = PEER_SESSION_END;
 						goto switchstate;
 					}
 					ps->confirm--;
@@ -858,7 +858,7 @@ incomplete:
 						/* no more write possible */
 						if (repl == -1)
 							goto out;
-						si->st0 = PEER_SESSION_END;
+						si->applet.st0 = PEER_SESSION_END;
 						goto switchstate;
 					}
 					ps->table->flags |= SHTABLE_F_RESYNC_PROCESS;
@@ -877,7 +877,7 @@ incomplete:
 						/* no more write possible */
 						if (repl == -1)
 							goto out;
-						si->st0 = PEER_SESSION_END;
+						si->applet.st0 = PEER_SESSION_END;
 						goto switchstate;
 					}
 					ps->lastack = ps->pushack;
@@ -913,7 +913,7 @@ incomplete:
 									/* no more write possible */
 									if (repl == -1)
 										goto out;
-									si->st0 = PEER_SESSION_END;
+									si->applet.st0 = PEER_SESSION_END;
 									goto switchstate;
 								}
 								ps->lastpush = ps->pushed = ts->upd.key;
@@ -947,7 +947,7 @@ incomplete:
 									/* no more write possible */
 									if (repl == -1)
 										goto out;
-									si->st0 = PEER_SESSION_END;
+									si->applet.st0 = PEER_SESSION_END;
 									goto switchstate;
 								}
 								ps->lastpush = ps->pushed = ts->upd.key;
@@ -963,7 +963,7 @@ incomplete:
 							/* no more write possible */
 							if (repl == -1)
 								goto out;
-							si->st0 = PEER_SESSION_END;
+							si->applet.st0 = PEER_SESSION_END;
 							goto switchstate;
 						}
 
@@ -1005,7 +1005,7 @@ incomplete:
 								/* no more write possible */
 								if (repl == -1)
 									goto out;
-								si->st0 = PEER_SESSION_END;
+								si->applet.st0 = PEER_SESSION_END;
 								goto switchstate;
 							}
 							ps->lastpush = ps->pushed = ts->upd.key;
@@ -1017,11 +1017,11 @@ incomplete:
 				goto out;
 			}
 			case PEER_SESSION_EXIT:
-				repl = snprintf(trash, sizeof(trash), "%d\n", si->st1);
+				repl = snprintf(trash, sizeof(trash), "%d\n", si->applet.st1);
 
 				if (buffer_put_block(si->ib, trash, repl) == -1)
 					goto out;
-				si->st0 = PEER_SESSION_END;
+				si->applet.st0 = PEER_SESSION_END;
 				/* fall through */
 			case PEER_SESSION_END: {
 				si->shutw(si);
@@ -1062,8 +1062,8 @@ void peer_session_forceshutdown(struct session * session)
 
 	/* call release to reinit resync states if needed */
 	peer_session_release(oldsi);
-	oldsi->st0 = PEER_SESSION_END;
-	oldsi->private = NULL;
+	oldsi->applet.st0 = PEER_SESSION_END;
+	oldsi->applet.private = NULL;
 	task_wakeup(session->task, TASK_WOKEN_MSG);
 }
 
@@ -1078,8 +1078,8 @@ int peer_accept(struct session *s)
 	 /* we have a dedicated I/O handler for the stats */
 	stream_int_register_handler(&s->si[1], &peer_applet);
 	s->si[1].release = peer_session_release;
-	s->si[1].private = s;
-	s->si[1].st0 = PEER_SESSION_ACCEPT;
+	s->si[1].applet.private = s;
+	s->si[1].applet.st0 = PEER_SESSION_ACCEPT;
 
 	tv_zero(&s->logs.tv_request);
 	s->logs.t_queue = 0;
@@ -1159,8 +1159,8 @@ struct session *peer_session_create(struct peer *peer, struct peer_session *ps)
 	s->si[0].flags = SI_FL_NONE;
 	if (s->fe->options2 & PR_O2_INDEPSTR)
 		s->si[0].flags |= SI_FL_INDEP_STR;
-	s->si[0].private = (void *)ps;
-	s->si[0].st0 = PEER_SESSION_CONNECT;
+	s->si[0].applet.private = (void *)ps;
+	s->si[0].applet.st0 = PEER_SESSION_CONNECT;
 
 	stream_int_register_handler(&s->si[0], &peer_applet);
 	s->si[0].release = peer_session_release;
