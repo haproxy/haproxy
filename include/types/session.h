@@ -203,7 +203,6 @@ struct session {
 	void (*do_log)(struct session *s);	/* the function to call in order to log (or NULL) */
 	void (*srv_error)(struct session *s,	/* the function to call upon unrecoverable server errors (or NULL) */
 			  struct stream_interface *si);
-	short int data_source;			/* where to get the data we generate ourselves */
 	short int data_state;			/* where to get the data we generate ourselves */
 	union {
 		struct {

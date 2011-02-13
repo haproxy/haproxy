@@ -99,7 +99,6 @@ int stats_accept(struct session *s)
 	s->logs.srv_queue_size = 0; /* we will get this number soon */
 
 	s->data_state = DATA_ST_INIT;
-	s->data_source = DATA_SRC_NONE;
 
 	s->req->flags |= BF_READ_DONTWAIT; /* we plan to read small requests */
 
@@ -863,7 +862,6 @@ static void cli_io_handler(struct stream_interface *si)
 		if (si->applet.st0 == STAT_CLI_INIT) {
 			/* Stats output not initialized yet */
 			memset(&s->data_ctx.stats, 0, sizeof(s->data_ctx.stats));
-			s->data_source = DATA_SRC_STATS;
 			si->applet.st0 = STAT_CLI_GETREQ;
 		}
 		else if (si->applet.st0 == STAT_CLI_END) {

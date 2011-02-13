@@ -1204,8 +1204,6 @@ struct session *peer_session_create(struct peer *peer, struct peer_session *ps)
 	/* default error reporting function, may be changed by analysers */
 	s->srv_error = default_srv_error;
 
-	s->data_source = DATA_SRC_NONE;
-
 	s->uniq_id = 0;
 
 	txn = &s->txn;

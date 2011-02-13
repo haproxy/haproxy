@@ -3243,7 +3243,6 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 		}
 
 		s->logs.tv_request = now;
-		s->data_source = DATA_SRC_STATS;
 		s->data_state  = DATA_ST_INIT;
 		s->task->nice = -32; /* small boost for HTTP statistics */
 		stream_int_register_handler(s->rep->prod, &http_stats_applet);

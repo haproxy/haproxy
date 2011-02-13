@@ -186,10 +186,6 @@
 #define HTTP_MSG_CLOSED       35 // shutdown_w done, all bytes sent
 #define HTTP_MSG_TUNNEL       36 // tunneled data after DONE
 
-/* various data sources for the responses */
-#define DATA_SRC_NONE	0
-#define DATA_SRC_STATS	1
-
 /* data transmission states for the stats responses */
 enum {
 	DATA_ST_INIT = 0,
