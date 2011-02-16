@@ -1431,8 +1431,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				new->conf.file = file;
 				new->conf.line = linenum;
 				new = new->next;
+				global.maxsock++;
 			}
-			global.maxsock++;
 		}
 
 		/* set default values */
@@ -1633,6 +1633,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			new_listen->conf.file = file;
 			new_listen->conf.line = linenum;
 			new_listen = new_listen->next;
+			global.maxsock++;
 		}
 
 		/* Set default global rights and owner for unix bind  */
@@ -1908,7 +1909,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		global.maxsock++;
 		goto out;
 	}
 	else if (!strcmp(args[0], "monitor-net")) {  /* set the range of IPs to ignore */
