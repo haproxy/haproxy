@@ -1517,7 +1517,7 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "queue",        acl_parse_int,     acl_fetch_queue_size,     acl_match_int,     ACL_USE_NOTHING },
 	{ "avg_queue",    acl_parse_int,     acl_fetch_avg_queue_size, acl_match_int,     ACL_USE_NOTHING },
 	{ "srv_is_up",    acl_parse_nothing, acl_fetch_srv_is_up,      acl_match_nothing, ACL_USE_NOTHING },
-	{ "srv_id",       acl_parse_int,     acl_fetch_srv_id,         acl_match_int,     ACL_USE_NOTHING },
+	{ "srv_id",       acl_parse_int,     acl_fetch_srv_id,         acl_match_int,     ACL_USE_RTR_INTERNAL },
 	{ NULL, NULL, NULL, NULL },
 }};
 
