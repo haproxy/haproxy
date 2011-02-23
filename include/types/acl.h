@@ -151,6 +151,9 @@ enum {
 	ACL_USE_HDR_VOLATILE    = 1 << 22,      /* volatile  request or response header (eg: cookie) */
 	ACL_USE_HDR_ANY = (ACL_USE_HDR_CACHEABLE | ACL_USE_HDR_VOLATILE),
 
+	/* This one indicates that we need an internal parameter known in the response only */
+	ACL_USE_RTR_INTERNAL    = 1 << 23,      /* volatile response information */
+
 	/* information which remains during response */
 	ACL_USE_REQ_PERMANENT   = (ACL_USE_TCP4_PERMANENT | ACL_USE_TCP6_PERMANENT | ACL_USE_TCP_PERMANENT |
 				   ACL_USE_L6REQ_PERMANENT | ACL_USE_L7REQ_PERMANENT),
@@ -168,7 +171,7 @@ enum {
 	ACL_USE_L7_ANY          = (ACL_USE_L7REQ_ANY | ACL_USE_L7RTR_ANY | ACL_USE_HDR_ANY),
 
 	/* any type of response information */
-	ACL_USE_RTR_ANY         = (ACL_USE_L6RTR_ANY | ACL_USE_L7RTR_ANY),
+	ACL_USE_RTR_ANY         = (ACL_USE_L6RTR_ANY | ACL_USE_L7RTR_ANY | ACL_USE_RTR_INTERNAL),
 
 	/* some flags indicating if a keyword supports exact pattern matching,
 	 * so that patterns may be arranged in lookup trees. Let's put those
