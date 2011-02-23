@@ -1403,6 +1403,9 @@ static int
 acl_fetch_srv_id(struct proxy *px, struct session *l4, void *l7, int dir,
                 struct acl_expr *expr, struct acl_test *test) {
 
+	if (!l4->srv)
+		return 0;
+
 	test->flags = ACL_TEST_F_READ_ONLY;
 
 	test->i = l4->srv->puid;
