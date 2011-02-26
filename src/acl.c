@@ -1059,6 +1059,7 @@ static int acl_read_patterns_from_file(	struct acl_keyword *aclkw,
 	const char *args[2];
 	struct acl_pattern *pattern;
 	int opaque;
+	int ret = 0;
 
 	file = fopen(filename, "r");
 	if (!file)
@@ -1119,15 +1120,14 @@ static int acl_read_patterns_from_file(	struct acl_keyword *aclkw,
 			pattern = NULL; /* get a new one */
 		}
 	}
-	if (pattern)
-		free_pattern(pattern);
-	return 1;
+
+	ret = 1; /* success */
 
  out_free_pattern:
 	free_pattern(pattern);
  out_close:
 	fclose(file);
-	return 0;
+	return ret;
 }
 
 /* Parse an ACL expression starting at <args>[0], and return it.
