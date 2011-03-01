@@ -4030,7 +4030,7 @@ no option transparent
   Note that contrary to a common belief, this option does NOT make HAProxy
   present the client's IP to the server when establishing the connection.
 
-  See also: the "usersrc" argument of the "source" keyword, and the
+  See also: the "usesrc" argument of the "source" keyword, and the
             "transparent" option of the "bind" keyword.
 
 
