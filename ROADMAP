@@ -1,4 +1,4 @@
-Medium-long term roadmap - 2010/04/10
+Medium-long term roadmap - 2011/03/01
 
 Legend: '+' = done, '-' = todo, '*' = done except doc
 
@@ -18,8 +18,6 @@ Legend: '+' = done, '-' = todo, '*' = done except doc
 
   - add the ability to only dump response errors to more easily detect
     anomalies without being polluted with attacks in requests.
-
-  - add an error ID in captures to ease new error detection for scripts.
 
   - add support for server-side unix sockets
 
@@ -126,6 +124,8 @@ DONE:
 
   * hash: rehash non-consistent hashes with chash() for more randomness.
 
+  * add an error ID in captures to ease new error detection for scripts.
+
 
 1.6 (will probably change anyway) :
   - wait on resource (mem, socket, server's conn, server's rate, ...)
@@ -151,6 +151,14 @@ DONE:
 
   - evaluate the changes required for multi-process+shared mem or multi-thread
     +thread-local+fast locking.
+
+  - ability to kill an arbitrary session from the command line. Put a "kill now"
+    flag in every session which preempts any other processing and wake the
+    session up.
+
+  - ability to decide whether to drain or kill sessions when putting a server
+    to maintenance mode => requires a per-server session list and the change
+    above.
 
 Old, maybe obsolete points
  - clarify licence by adding a 'MODULE_LICENCE("GPL")' or something equivalent.
