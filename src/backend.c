@@ -251,7 +251,7 @@ struct server *get_server_ph_post(struct session *s)
 	struct http_msg *msg  = &txn->req;
 	struct proxy    *px   = s->be;
 	unsigned int     plen = px->url_param_len;
-	unsigned long    len  = msg->hdr_content_len;
+	unsigned long    len  = msg->body_len;
 	const char      *params = req->data + msg->sov;
 	const char      *p    = params;
 

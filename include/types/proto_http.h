@@ -300,7 +300,8 @@ struct http_msg {
 			int r, r_l;            /* REASON, length */
 		} st;                          /* status line : field, length */
 	} sl;                                  /* start line */
-	unsigned long long hdr_content_len;    /* cache for parsed header value or for chunk-size if present */
+	unsigned long long chunk_len;          /* cache for last chunk size or content-length header value */
+	unsigned long long body_len;           /* total known length of the body, excluding encoding */
 	char **cap;                            /* array of captured headers (may be NULL) */
 };
 
