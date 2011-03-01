@@ -1279,8 +1279,8 @@ balance url_param <param> [check_post [<max_wait>]]
 
                   If the modifier "check_post" is used, then an HTTP POST
 		  request entity will be searched for the parameter argument,
-		  when the question mark indicating a query string ('?') is not
-		  present in the URL. Optionally, specify a number of octets to
+		  when it is not found in a query string after a question mark
+		  ('?') in the URL. Optionally, specify a number of octets to
 		  wait for before attempting to search the message body. If the
 		  entity can not be searched, then round robin is used for each
 		  request. For instance, if your clients always send the LB

@@ -3631,8 +3631,7 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 	if (!(s->flags & (SN_ASSIGNED|SN_DIRECT)) &&
 	    s->txn.meth == HTTP_METH_POST && s->be->url_param_name != NULL &&
 	    s->be->url_param_post_limit != 0 &&
-	    (txn->flags & (TX_REQ_CNT_LEN|TX_REQ_TE_CHNK)) &&
-	    memchr(msg->sol + msg->sl.rq.u, '?', msg->sl.rq.u_l) == NULL) {
+	    (txn->flags & (TX_REQ_CNT_LEN|TX_REQ_TE_CHNK))) {
 		buffer_dont_connect(req);
 		req->analysers |= AN_REQ_HTTP_BODY;
 	}

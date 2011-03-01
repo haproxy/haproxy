@@ -558,14 +558,13 @@ int assign_server(struct session *s)
 				/* URL Parameter hashing */
 				if (s->txn.req.msg_state < HTTP_MSG_BODY)
 					break;
-				if (s->txn.meth == HTTP_METH_POST &&
-				    memchr(s->txn.req.sol + s->txn.req.sl.rq.u, '&',
-					   s->txn.req.sl.rq.u_l ) == NULL)
+
+				s->srv = get_server_ph(s->be,
+						       s->txn.req.sol + s->txn.req.sl.rq.u,
+						       s->txn.req.sl.rq.u_l);
+
+				if (!s->srv && s->txn.meth == HTTP_METH_POST)
 					s->srv = get_server_ph_post(s);
-				else
-					s->srv = get_server_ph(s->be,
-							       s->txn.req.sol + s->txn.req.sl.rq.u,
-							       s->txn.req.sl.rq.u_l);
 				break;
 
 			case BE_LB_HASH_HDR:
