@@ -5578,7 +5578,7 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 		int bytes = msg->sov - msg->som;
 		if (bytes < 0) /* sov may have wrapped at the end */
 			bytes += res->size;
-		buffer_forward(res, msg->sov - msg->som + msg->chunk_len);
+		buffer_forward(res, bytes + msg->chunk_len);
 		msg->chunk_len = 0; /* don't forward that again */
 		msg->som = msg->sov;
 	}
