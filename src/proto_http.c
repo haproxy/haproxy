@@ -5522,6 +5522,9 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 
 	/* forward the chunk size as well as any pending data */
 	if (msg->hdr_content_len || msg->som != msg->sov) {
+		int bytes = msg->sov - msg->som;
+		if (bytes < 0) /* sov may have wrapped at the end */
+			bytes += res->size;
 		buffer_forward(res, msg->sov - msg->som + msg->hdr_content_len);
 		msg->hdr_content_len = 0; /* don't forward that again */
 		msg->som = msg->sov;
