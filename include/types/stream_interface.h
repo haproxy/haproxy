@@ -80,17 +80,29 @@ struct server;
 struct proxy;
 struct si_applet;
 
+/* A stream interface has 3 parts :
+ *  - the buffer side, which interfaces to the buffers.
+ *  - the remote side, which describes the state and address of the other side.
+ *  - the functions, which are used by the buffer side to communicate with the
+ *    remote side from the buffer side.
+ */
+
 /* Note that if an applet is registered, the update function will not be called
  * by the session handler, so it may be used to resync flags at the end of the
  * applet handler. See stream_int_update_embedded() for reference.
  */
 struct stream_interface {
+	/* struct members used by the "buffer" side */
 	unsigned int state;     /* SI_ST* */
 	unsigned int prev_state;/* SI_ST*, copy of previous state */
-	void *owner;            /* generally a (struct task*) */
-	int fd;                 /* file descriptor for a stream driver when known */
-	unsigned int flags;
+	unsigned int flags;     /* SI_FL_* */
+	struct buffer *ib, *ob; /* input and output buffers */
 	unsigned int exp;       /* wake up time for connect, queue, turn-around, ... */
+	void *owner;            /* generally a (struct task*) */
+	unsigned int err_type;  /* first error detected, one of SI_ET_* */
+	void *err_loc;          /* commonly the server, NULL when SI_ET_NONE */
+
+	/* these struct members are used by the buffer side to act on the remote side */
 	void (*update)(struct stream_interface *); /* I/O update function */
 	void (*shutr)(struct stream_interface *);  /* shutr function */
 	void (*shutw)(struct stream_interface *);  /* shutw function */
@@ -99,10 +111,10 @@ struct stream_interface {
 	int (*connect)(struct stream_interface *, struct proxy *, struct server *,
 		       struct sockaddr *, struct sockaddr *); /* connect function if any */
 	void (*release)(struct stream_interface *); /* handler to call after the last close() */
-	struct buffer *ib, *ob; /* input and output buffers */
+
+	/* struct members below are the "remote" part, as seen from the buffer side */
 	int conn_retries;	/* number of connect retries left */
-	unsigned int err_type;  /* first error detected, one of SI_ET_* */
-	void *err_loc;          /* commonly the server, NULL when SI_ET_NONE */
+	int fd;                 /* file descriptor for a stream driver when known */
 	struct {
 		struct si_applet *handler; /* applet to use instead of doing I/O */
 		void *private;             /* may be used by any function above */
