@@ -2934,7 +2934,7 @@ int http_process_req_stat_post(struct session *s, struct buffer *req)
 				if (backend && action && get_backend_server(backend, value, &px, &sv)) {
 					switch (action) {
 					case 1:
-						if (! (sv->state & SRV_MAINTAIN)) {
+						if ((px->state != PR_STSTOPPED) && !(sv->state & SRV_MAINTAIN)) {
 							/* Not already in maintenance, we can change the server state */
 							sv->state |= SRV_MAINTAIN;
 							set_server_down(sv);
@@ -2942,7 +2942,7 @@ int http_process_req_stat_post(struct session *s, struct buffer *req)
 						}
 						break;
 					case 2:
-						if ((sv->state & SRV_MAINTAIN)) {
+						if ((px->state != PR_STSTOPPED) && (sv->state & SRV_MAINTAIN)) {
 							/* Already in maintenance, we can change the server state */
 							set_server_up(sv);
 							sv->health = sv->rise;	/* up, but will fall down at first failure */
