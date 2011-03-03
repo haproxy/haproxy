@@ -639,6 +639,12 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 				return 1;
 			}
 
+			if (px->state == PR_STSTOPPED) {
+				s->data_ctx.cli.msg = "Proxy is disabled.\n";
+				si->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
 			/* if the weight is terminated with '%', it is set relative to
 			 * the initial weight, otherwise it is absolute.
 			 */
@@ -749,6 +755,12 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 				return 1;
 			}
 
+			if (px->state == PR_STSTOPPED) {
+				s->data_ctx.cli.msg = "Proxy is disabled.\n";
+				si->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
 			if (sv->state & SRV_MAINTAIN) {
 				/* The server is really in maintenance, we can change the server state */
 				if (sv->tracked) {
@@ -800,6 +812,12 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 
 			if (!get_backend_server(args[2], line, &px, &sv)) {
 				s->data_ctx.cli.msg = px ? "No such server.\n" : "No such backend.\n";
+				si->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			if (px->state == PR_STSTOPPED) {
+				s->data_ctx.cli.msg = "Proxy is disabled.\n";
 				si->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
