@@ -939,9 +939,7 @@ int connect_server(struct session *s)
 
 	assign_tproxy_address(s);
 
-	err = s->req->cons->connect(s->req->cons, s->be, s->srv,
-				    (struct sockaddr *)&s->req->cons->addr.s.to,
-				    (struct sockaddr *)&s->req->cons->addr.s.from);
+	err = s->req->cons->connect(s->req->cons, s->be, s->srv);
 
 	if (err != SN_ERR_NONE)
 		return err;

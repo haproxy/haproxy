@@ -31,8 +31,7 @@ int tcpv4_bind_socket(int fd, int flags, struct sockaddr_in *local, struct socka
 void tcpv4_add_listener(struct listener *listener);
 void tcpv6_add_listener(struct listener *listener);
 int tcpv4_connect_server(struct stream_interface *si,
-			 struct proxy *be, struct server *srv,
-			 struct sockaddr *srv_addr, struct sockaddr *from_addr);
+			 struct proxy *be, struct server *srv);
 int tcp_inspect_request(struct session *s, struct buffer *req, int an_bit);
 int tcp_inspect_response(struct session *s, struct buffer *rep, int an_bit);
 int tcp_persist_rdp_cookie(struct session *s, struct buffer *req, int an_bit);

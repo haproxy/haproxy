@@ -108,8 +108,7 @@ struct stream_interface {
 	void (*shutw)(struct stream_interface *);  /* shutw function */
 	void (*chk_rcv)(struct stream_interface *);/* chk_rcv function */
 	void (*chk_snd)(struct stream_interface *);/* chk_snd function */
-	int (*connect)(struct stream_interface *, struct proxy *, struct server *,
-		       struct sockaddr *, struct sockaddr *); /* connect function if any */
+	int (*connect)(struct stream_interface *, struct proxy *, struct server *); /* connect function if any */
 	void (*release)(struct stream_interface *); /* handler to call after the last close() */
 
 	/* struct members below are the "remote" part, as seen from the buffer side */

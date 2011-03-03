@@ -182,10 +182,9 @@ int tcpv4_bind_socket(int fd, int flags, struct sockaddr_in *local, struct socka
 
 /*
  * This function initiates a connection to the server assigned to this session
- * (s->srv, s->srv_addr). It will assign a server if none is assigned yet. A
- * source address may be pointed to by <from_addr>. Note that this is only used
- * in case of transparent proxying. Normal source bind addresses are still
- * determined locally (due to the possible need of a source port).
+ * (s->srv, si->addr.s.to). A source address may be pointed to by si->addr.s.from.
+ * Note that this is only used in case of transparent proxying. Normal source bind
+ * addresses are still determined locally (due to the possible need of a source port).
  *
  * It can return one of :
  *  - SN_ERR_NONE if everything's OK
@@ -196,9 +195,8 @@ int tcpv4_bind_socket(int fd, int flags, struct sockaddr_in *local, struct socka
  *  - SN_ERR_INTERNAL for any other purely internal errors
  * Additionnally, in the case of SN_ERR_RESOURCE, an emergency log will be emitted.
  */
-int tcpv4_connect_server(struct stream_interface *si,
-			 struct proxy *be, struct server *srv,
-			 struct sockaddr *srv_addr, struct sockaddr *from_addr)
+
+int tcpv4_connect_server(struct stream_interface *si, struct proxy *be, struct server *srv)
 {
 	int fd;
 
@@ -292,11 +290,11 @@ int tcpv4_connect_server(struct stream_interface *si,
 				fdinfo[fd].port_range = srv->sport_range;
 				src.sin_port = htons(fdinfo[fd].local_port);
 
-				ret = tcpv4_bind_socket(fd, flags, &src, (struct sockaddr_in *)from_addr);
+				ret = tcpv4_bind_socket(fd, flags, &src, (struct sockaddr_in *)&si->addr.s.from);
 			} while (ret != 0); /* binding NOK */
 		}
 		else {
-			ret = tcpv4_bind_socket(fd, flags, &srv->source_addr, (struct sockaddr_in *)from_addr);
+			ret = tcpv4_bind_socket(fd, flags, &srv->source_addr, (struct sockaddr_in *)&si->addr.s.from);
 		}
 
 		if (ret) {
@@ -339,7 +337,7 @@ int tcpv4_connect_server(struct stream_interface *si,
 		if (be->iface_name)
 			setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, be->iface_name, be->iface_len + 1);
 #endif
-		ret = tcpv4_bind_socket(fd, flags, &be->source_addr, (struct sockaddr_in *)from_addr);
+		ret = tcpv4_bind_socket(fd, flags, &be->source_addr, (struct sockaddr_in *)&si->addr.s.from);
 		if (ret) {
 			close(fd);
 			if (ret == 1) {
@@ -374,7 +372,7 @@ int tcpv4_connect_server(struct stream_interface *si,
 	if (global.tune.server_rcvbuf)
                 setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &global.tune.server_rcvbuf, sizeof(global.tune.server_rcvbuf));
 
-	if ((connect(fd, (struct sockaddr *)srv_addr, sizeof(struct sockaddr_in)) == -1) &&
+	if ((connect(fd, (struct sockaddr *)&si->addr.s.to, sizeof(struct sockaddr_in)) == -1) &&
 	    (errno != EINPROGRESS) && (errno != EALREADY) && (errno != EISCONN)) {
 
 		if (errno == EAGAIN || errno == EADDRINUSE) {
@@ -416,7 +414,7 @@ int tcpv4_connect_server(struct stream_interface *si,
 	fdtab[fd].cb[DIR_WR].f = &stream_sock_write;
 	fdtab[fd].cb[DIR_WR].b = si->ob;
 
-	fdinfo[fd].peeraddr = (struct sockaddr *)srv_addr;
+	fdinfo[fd].peeraddr = (struct sockaddr *)&si->addr.s.to;
 	fdinfo[fd].peerlen = sizeof(struct sockaddr_in);
 
 	fd_insert(fd);
