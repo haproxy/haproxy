@@ -2694,23 +2694,23 @@ int stats_dump_full_sess_to_buffer(struct session *s, struct buffer *rep)
 		switch (sess->listener->proto->sock_family) {
 		case AF_INET:
 			inet_ntop(AF_INET,
-				  (const void *)&((struct sockaddr_in *)&sess->cli_addr)->sin_addr,
+				  (const void *)&((struct sockaddr_in *)&sess->si[0].addr.c.from)->sin_addr,
 				  pn, sizeof(pn));
 
 			chunk_printf(&msg,
 				     " source=%s:%d\n",
 				     pn,
-				     ntohs(((struct sockaddr_in *)&sess->cli_addr)->sin_port));
+				     ntohs(((struct sockaddr_in *)&sess->si[0].addr.c.from)->sin_port));
 			break;
 		case AF_INET6:
 			inet_ntop(AF_INET6,
-				  (const void *)&((struct sockaddr_in6 *)(&sess->cli_addr))->sin6_addr,
+				  (const void *)&((struct sockaddr_in6 *)(&sess->si[0].addr.c.from))->sin6_addr,
 				  pn, sizeof(pn));
 
 			chunk_printf(&msg,
 				     " source=%s:%d\n",
 				     pn,
-				     ntohs(((struct sockaddr_in6 *)&sess->cli_addr)->sin6_port));
+				     ntohs(((struct sockaddr_in6 *)&sess->si[0].addr.c.from)->sin6_port));
 			break;
 		case AF_UNIX:
 			chunk_printf(&msg,
@@ -2933,13 +2933,13 @@ int stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 			switch (curr_sess->listener->proto->sock_family) {
 			case AF_INET:
 				inet_ntop(AF_INET,
-					  (const void *)&((struct sockaddr_in *)&curr_sess->cli_addr)->sin_addr,
+					  (const void *)&((struct sockaddr_in *)&curr_sess->si[0].addr.c.from)->sin_addr,
 					  pn, sizeof(pn));
 
 				chunk_printf(&msg,
 					     " src=%s:%d fe=%s be=%s srv=%s",
 					     pn,
-					     ntohs(((struct sockaddr_in *)&curr_sess->cli_addr)->sin_port),
+					     ntohs(((struct sockaddr_in *)&curr_sess->si[0].addr.c.from)->sin_port),
 					     curr_sess->fe->id,
 					     curr_sess->be->id,
 					     curr_sess->srv ? curr_sess->srv->id : "<none>"
@@ -2947,13 +2947,13 @@ int stats_dump_sess_to_buffer(struct session *s, struct buffer *rep)
 				break;
 			case AF_INET6:
 				inet_ntop(AF_INET6,
-					  (const void *)&((struct sockaddr_in6 *)(&curr_sess->cli_addr))->sin6_addr,
+					  (const void *)&((struct sockaddr_in6 *)(&curr_sess->si[0].addr.c.from))->sin6_addr,
 					  pn, sizeof(pn));
 
 				chunk_printf(&msg,
 					     " src=%s:%d fe=%s be=%s srv=%s",
 					     pn,
-					     ntohs(((struct sockaddr_in6 *)&curr_sess->cli_addr)->sin6_port),
+					     ntohs(((struct sockaddr_in6 *)&curr_sess->si[0].addr.c.from)->sin6_port),
 					     curr_sess->fe->id,
 					     curr_sess->be->id,
 					     curr_sess->srv ? curr_sess->srv->id : "<none>"

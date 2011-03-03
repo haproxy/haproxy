@@ -332,13 +332,13 @@ void tcp_sess_log(struct session *s)
 	if (!err && (fe->options2 & PR_O2_NOLOGNORM))
 		return;
 
-	if (s->cli_addr.ss_family == AF_INET)
+	if (s->si[0].addr.c.from.ss_family == AF_INET)
 		inet_ntop(AF_INET,
-			  (const void *)&((struct sockaddr_in *)&s->cli_addr)->sin_addr,
+			  (const void *)&((struct sockaddr_in *)&s->si[0].addr.c.from)->sin_addr,
 			  pn, sizeof(pn));
-	else if (s->cli_addr.ss_family == AF_INET6)
+	else if (s->si[0].addr.c.from.ss_family == AF_INET6)
 		inet_ntop(AF_INET6,
-			  (const void *)&((struct sockaddr_in6 *)(&s->cli_addr))->sin6_addr,
+			  (const void *)&((struct sockaddr_in6 *)(&s->si[0].addr.c.from))->sin6_addr,
 			  pn, sizeof(pn));
 
 	get_localtime(s->logs.tv_accept.tv_sec, &tm);
@@ -357,10 +357,10 @@ void tcp_sess_log(struct session *s)
 	send_log(prx_log, level, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d.%03d]"
 		 " %s %s/%s %ld/%ld/%s%ld %s%lld"
 		 " %c%c %d/%d/%d/%d/%s%u %ld/%ld\n",
-		 s->cli_addr.ss_family == AF_UNIX ? "unix" : pn,
-		 s->cli_addr.ss_family == AF_UNIX ? s->listener->luid : (ntohs((s->cli_addr.ss_family == AF_INET) ?
-		                                            ((struct sockaddr_in *)&s->cli_addr)->sin_port :
-		                                            ((struct sockaddr_in6 *)&s->cli_addr)->sin6_port)),
+		 s->si[0].addr.c.from.ss_family == AF_UNIX ? "unix" : pn,
+		 s->si[0].addr.c.from.ss_family == AF_UNIX ? s->listener->luid : (ntohs((s->si[0].addr.c.from.ss_family == AF_INET) ?
+		                                            ((struct sockaddr_in *)&s->si[0].addr.c.from)->sin_port :
+		                                            ((struct sockaddr_in6 *)&s->si[0].addr.c.from)->sin6_port)),
 		 tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
 		 tm.tm_hour, tm.tm_min, tm.tm_sec, (int)s->logs.tv_accept.tv_usec/1000,
 		 fe->id, be->id, svid,

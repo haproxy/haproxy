@@ -46,10 +46,10 @@ int tcp_exec_req_rules(struct session *s);
 static inline struct stktable_key *tcpv4_src_to_stktable_key(struct session *s)
 {
 	/* right now we only support IPv4 */
-	if (s->cli_addr.ss_family != AF_INET)
+	if (s->si[0].addr.c.from.ss_family != AF_INET)
 		return NULL;
 
-	static_table_key.key = (void *)&((struct sockaddr_in *)&s->cli_addr)->sin_addr;
+	static_table_key.key = (void *)&((struct sockaddr_in *)&s->si[0].addr.c.from)->sin_addr;
 	return &static_table_key;
 }
 

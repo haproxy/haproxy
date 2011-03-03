@@ -120,6 +120,16 @@ struct stream_interface {
 		void *private;             /* may be used by any function above */
 		unsigned int st0, st1;     /* may be used by any function above */
 	} applet;
+	union {
+		struct {
+			struct sockaddr_storage from;	/* the client address */
+			struct sockaddr_storage to;	/* the address reached by the client if SN_FRT_ADDR_SET is set */
+		} c; /* client side */
+		struct {
+			struct sockaddr_in from;	/* the address to spoof when connecting to the server (transparent mode) */
+			struct sockaddr_in to;		/* the address to connect to */
+		} s; /* server side */
+	} addr; /* addresses of the remote side */
 };
 
 /* An applet designed to run in a stream interface */
