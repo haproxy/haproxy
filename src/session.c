@@ -169,6 +169,8 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->si[0].connect   = NULL;
 	s->si[0].applet.handler = NULL;
 	s->si[0].release   = NULL;
+	s->si[0].target.type  = TARG_TYPE_NONE;
+	s->si[0].target.ptr.v = NULL;
 	s->si[0].exp       = TICK_ETERNITY;
 	s->si[0].flags     = SI_FL_NONE;
 
@@ -192,6 +194,8 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->si[1].connect   = NULL;
 	s->si[1].applet.handler = NULL;
 	s->si[1].release   = NULL;
+	s->si[1].target.type  = TARG_TYPE_NONE;
+	s->si[1].target.ptr.v = NULL;
 	s->si[1].shutr     = stream_int_shutr;
 	s->si[1].shutw     = stream_int_shutw;
 	s->si[1].exp       = TICK_ETERNITY;

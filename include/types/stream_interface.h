@@ -74,11 +74,29 @@ enum {
 	SI_FL_NOLINGER   = 0x0080,  /* may close without lingering. One-shot. */
 };
 
+/* target types */
+enum {
+	TARG_TYPE_NONE = 0,         /* no target set, pointer is NULL by definition */
+	TARG_TYPE_PROXY,            /* target is a proxy   ; use address with the proxy's settings */
+	TARG_TYPE_SERVER,           /* target is a server  ; use address with server's and its proxy's settings */
+	TARG_TYPE_APPLET,           /* target is an applet ; use only the applet */
+};
+
 #define SI_FL_CAP_SPLICE (SI_FL_CAP_SPLTCP)
 
 struct server;
 struct proxy;
 struct si_applet;
+
+struct target {
+	int type;
+	union {
+		void *v;              /* pointer value, for any type */
+		struct proxy *p;      /* when type is TARG_TYPE_PROXY  */
+		struct server *s;     /* when type is TARG_TYPE_SERVER */
+		struct si_applet *a;  /* when type is TARG_TYPE_APPLET */
+	} ptr;
+};
 
 /* A stream interface has 3 parts :
  *  - the buffer side, which interfaces to the buffers.
@@ -108,10 +126,11 @@ struct stream_interface {
 	void (*shutw)(struct stream_interface *);  /* shutw function */
 	void (*chk_rcv)(struct stream_interface *);/* chk_rcv function */
 	void (*chk_snd)(struct stream_interface *);/* chk_snd function */
-	int (*connect)(struct stream_interface *, struct proxy *, struct server *); /* connect function if any */
+	int  (*connect)(struct stream_interface *); /* connect function if any */
 	void (*release)(struct stream_interface *); /* handler to call after the last close() */
 
 	/* struct members below are the "remote" part, as seen from the buffer side */
+	struct target target;	/* the target to connect to (server, proxy, applet, ...) */
 	int conn_retries;	/* number of connect retries left */
 	int fd;                 /* file descriptor for a stream driver when known */
 	struct {

@@ -936,10 +936,17 @@ int connect_server(struct session *s)
 	 */
 	stream_sock_prepare_interface(s->req->cons);
 	s->req->cons->connect = tcpv4_connect_server;
+	if (s->srv) {
+		s->req->cons->target.type = TARG_TYPE_SERVER;
+		s->req->cons->target.ptr.s = s->srv;
+	} else {
+		s->req->cons->target.type = TARG_TYPE_PROXY;
+		s->req->cons->target.ptr.p = s->be;
+	}
 
 	assign_tproxy_address(s);
 
-	err = s->req->cons->connect(s->req->cons, s->be, s->srv);
+	err = s->req->cons->connect(s->req->cons);
 
 	if (err != SN_ERR_NONE)
 		return err;

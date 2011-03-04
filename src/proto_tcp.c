@@ -181,10 +181,12 @@ int tcpv4_bind_socket(int fd, int flags, struct sockaddr_in *local, struct socka
 
 
 /*
- * This function initiates a connection to the server assigned to this session
- * (s->srv, si->addr.s.to). A source address may be pointed to by si->addr.s.from.
- * Note that this is only used in case of transparent proxying. Normal source bind
- * addresses are still determined locally (due to the possible need of a source port).
+ * This function initiates a connection to the target assigned to this session
+ * (si->{target,addr.s.to}). A source address may be pointed to by si->addr.s.from
+ * in case of transparent proxying. Normal source bind addresses are still
+ * determined locally (due to the possible need of a source port).
+ * si->target may point either to a valid server or to a backend, depending
+ * on si->target.type. Only TARG_TYPE_PROXY and TARG_TYPE_SERVER are supported.
  *
  * It can return one of :
  *  - SN_ERR_NONE if everything's OK
@@ -196,9 +198,24 @@ int tcpv4_bind_socket(int fd, int flags, struct sockaddr_in *local, struct socka
  * Additionnally, in the case of SN_ERR_RESOURCE, an emergency log will be emitted.
  */
 
-int tcpv4_connect_server(struct stream_interface *si, struct proxy *be, struct server *srv)
+int tcpv4_connect_server(struct stream_interface *si)
 {
 	int fd;
+	struct server *srv;
+	struct proxy *be;
+
+	switch (si->target.type) {
+	case TARG_TYPE_PROXY:
+		be = si->target.ptr.p;
+		srv = NULL;
+		break;
+	case TARG_TYPE_SERVER:
+		srv = si->target.ptr.s;
+		be = srv->proxy;
+		break;
+	default:
+		return SN_ERR_INTERNAL;
+	}
 
 	if ((fd = si->fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {
 		qfprintf(stderr, "Cannot get a server socket.\n");
