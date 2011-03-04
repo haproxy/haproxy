@@ -183,10 +183,10 @@ static struct cfg_kw_list cfg_keywords = {
  * This can be repeated as many times as necessary, separated by a coma.
  * Function returns 1 for success or 0 if error.
  */
-static int str2listener(char *str, struct proxy *curproxy)
+static int str2listener(char *str, struct proxy *curproxy, const char *file, int line)
 {
 	struct listener *l;
-	char *c, *next, *range, *dupstr;
+	char *next, *dupstr;
 	int port, end;
 
 	next = dupstr = strdup(str);
@@ -207,7 +207,8 @@ static int str2listener(char *str, struct proxy *curproxy)
 			int max_path_len = (sizeof(((struct sockaddr_un *)&ss)->sun_path) - 1) - (prefix_path_len + 1 + 5 + 1 + 3);
 
 			if (strlen(str) > max_path_len) {
-                                Alert("Socket path '%s' too long (max %d)\n", str, max_path_len);
+                                Alert("parsing [%s:%d] : socket path '%s' too long (max %d)\n",
+				      file, line, str, max_path_len);
 				goto fail;
 			}
 
@@ -223,62 +224,33 @@ static int str2listener(char *str, struct proxy *curproxy)
 			port = end = 0;
 		}
 		else {
-			/* 2) look for the addr/port delimiter, it's the last colon. */
-			if ((range = strrchr(str, ':')) == NULL) {
-				Alert("Missing port number: '%s'\n", str);
+			struct sockaddr_storage *ss2;
+
+			ss2 = str2sa_range(str, &port, &end);
+			if (!ss2) {
+				Alert("parsing [%s:%d] : invalid listening address: '%s'\n",
+				      file, line, str);
 				goto fail;
 			}
 
-			*range++ = 0;
-
-			if (strrchr(str, ':') != NULL) {
-				/* IPv6 address contains ':' */
-				memset(&ss, 0, sizeof(ss));
-				ss.ss_family = AF_INET6;
-
-				if (!inet_pton(ss.ss_family, str, &((struct sockaddr_in6 *)&ss)->sin6_addr)) {
-					Alert("Invalid server address: '%s'\n", str);
-					goto fail;
-				}
-			}
-			else {
-				memset(&ss, 0, sizeof(ss));
-				ss.ss_family = AF_INET;
-
-				if (*str == '*' || *str == '\0') { /* INADDR_ANY */
-					((struct sockaddr_in *)&ss)->sin_addr.s_addr = INADDR_ANY;
-				}
-				else if (!inet_pton(ss.ss_family, str, &((struct sockaddr_in *)&ss)->sin_addr)) {
-					struct hostent *he;
-
-					if ((he = gethostbyname(str)) == NULL) {
-						Alert("Invalid server name: '%s'\n", str);
-						goto fail;
-					}
-					else
-						((struct sockaddr_in *)&ss)->sin_addr =
-							*(struct in_addr *) *(he->h_addr_list);
-				}
+			if (!port) {
+				Alert("parsing [%s:%d] : missing port number: '%s'\n",
+				      file, line, str);
+				goto fail;
 			}
 
-			/* 3) look for the port-end delimiter */
-			if ((c = strchr(range, '-')) != NULL) {
-				*c++ = 0;
-				end = atol(c);
-			}
-			else {
-				end = atol(range);
-			}
-
-			port = atol(range);
+			/* OK the address looks correct */
+			ss = *ss2;
 
 			if (port < 1 || port > 65535) {
-				Alert("Invalid port '%d' specified for address '%s'.\n", port, str);
+				Alert("parsing [%s:%d] : invalid port '%d' specified for address '%s'.\n",
+				      file, line, port, str);
 				goto fail;
 			}
 
 			if (end < 1 || end > 65535) {
-				Alert("Invalid port '%d' specified for address '%s'.\n", end, str);
+				Alert("parsing [%s:%d] : invalid port '%d' specified for address '%s'.\n",
+				      file, line, end, str);
 				goto fail;
 			}
 		}
@@ -292,7 +264,7 @@ static int str2listener(char *str, struct proxy *curproxy)
 			l->addr = ss;
 			l->state = LI_INIT;
 
-			if(ss.ss_family == AF_INET) {
+			if (ss.ss_family == AF_INET) {
 				((struct sockaddr_in *)(&l->addr))->sin_port = htons(port);
 				tcpv4_add_listener(l);
 			}
@@ -1328,7 +1300,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 				curpeers->peers_fe->timeout.connect = 5000;
 				curpeers->peers_fe->accept = peer_accept;
 				curpeers->peers_fe->options2 |= PR_O2_INDEPSTR | PR_O2_SMARTCON | PR_O2_SMARTACC;
-				if (!str2listener(args[2], curpeers->peers_fe)) {
+				if (!str2listener(args[2], curpeers->peers_fe, file, linenum)) {
 					err_code |= ERR_FATAL;
 					goto out;
 				}
@@ -1430,7 +1402,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		/* parse the listener address if any */
 		if ((curproxy->cap & PR_CAP_FE) && *args[2]) {
 			struct listener *new, *last = curproxy->listen;
-			if (!str2listener(args[2], curproxy)) {
+			if (!str2listener(args[2], curproxy, file, linenum)) {
 				err_code |= ERR_FATAL;
 				goto out;
 			}
@@ -1631,7 +1603,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		 * are comma-separated IPs or port ranges. So all further processing
 		 * will have to be applied to all listeners created after last_listen.
 		 */
-		if (!str2listener(args[1], curproxy)) {
+		if (!str2listener(args[1], curproxy, file, linenum)) {
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
