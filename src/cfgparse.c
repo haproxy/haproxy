@@ -5636,6 +5636,19 @@ int check_config_validity()
 			}
 		}
 
+		if (curproxy->options2 & PR_O2_DISPATCH) {
+			curproxy->options  &= ~PR_O_TRANSP;
+			curproxy->options  &= ~PR_O_HTTP_PROXY;
+		}
+		else if (curproxy->options & PR_O_HTTP_PROXY) {
+			curproxy->options2 &= ~PR_O2_DISPATCH;
+			curproxy->options  &= ~PR_O_TRANSP;
+		}
+		else if (curproxy->options & PR_O_TRANSP) {
+			curproxy->options2 &= ~PR_O2_DISPATCH;
+			curproxy->options  &= ~PR_O_HTTP_PROXY;
+		}
+
 		if ((curproxy->options & PR_O_DISABLE404) && !(curproxy->options & PR_O_HTTP_CHK)) {
 			curproxy->options &= ~PR_O_DISABLE404;
 			Warning("config : '%s' will be ignored for %s '%s' (requires 'option httpchk').\n",
