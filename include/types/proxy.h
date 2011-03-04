@@ -151,6 +151,7 @@
 #define PR_O2_COOK_PSV  0x08000000      /* cookie ... preserve */
 
 #define PR_O2_PGSQL_CHK 0x10000000      /* use PGSQL check for server health */
+#define PR_O2_DISPATCH  0x20000000      /* use dispatch mode */
 /* end of proxy->options2 */
 
 /* bits for sticking rules */

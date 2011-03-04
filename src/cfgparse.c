@@ -3864,6 +3864,7 @@ stats_error_parsing:
 			goto out;
 		}
 		curproxy->dispatch_addr = *sk;
+		curproxy->options2 |= PR_O2_DISPATCH;
 	}
 	else if (!strcmp(args[0], "balance")) {  /* set balancing with optional algorithm */
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
@@ -5618,14 +5619,14 @@ int check_config_validity()
 					cfgerr++;
 				}
 #endif
-				else if (*(int *)&curproxy->dispatch_addr.sin_addr != 0) {
+				else if (curproxy->options2 & PR_O2_DISPATCH) {
 					Warning("config : dispatch address of %s '%s' will be ignored in balance mode.\n",
 						proxy_type_str(curproxy), curproxy->id);
 					err_code |= ERR_WARN;
 				}
 			}
 			else if (!(curproxy->options & (PR_O_TRANSP | PR_O_HTTP_PROXY)) &&
-				 (*(int *)&curproxy->dispatch_addr.sin_addr == 0)) {
+				 !(curproxy->options2 & PR_O2_DISPATCH)) {
 				/* If no LB algo is set in a backend, and we're not in
 				 * transparent mode, dispatch mode nor proxy mode, we
 				 * want to use balance roundrobin by default.

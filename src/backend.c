@@ -619,8 +619,7 @@ int assign_server(struct session *s)
 			goto out;
 		}
 	}
-	else if (!*(int *)&s->be->dispatch_addr.sin_addr &&
-		 !(s->be->options & PR_O_TRANSP)) {
+	else if (!(s->be->options2 & PR_O2_DISPATCH) && !(s->be->options & PR_O_TRANSP)) {
 		err = SRV_STATUS_NOSRV;
 		goto out;
 	}
@@ -700,7 +699,7 @@ int assign_server_address(struct session *s)
 			}
 		}
 	}
-	else if (*(int *)&s->be->dispatch_addr.sin_addr) {
+	else if (s->be->options2 & PR_O2_DISPATCH) {
 		/* connect to the defined dispatch addr */
 		s->req->cons->addr.s.to = s->be->dispatch_addr;
 	}
