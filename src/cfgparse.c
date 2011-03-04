@@ -1268,7 +1268,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		newpeer->id = strdup(args[1]);
 
 		raddr = strdup(args[2]);
-		rport = strchr(raddr, ':');
+		rport = strrchr(raddr, ':');
 		if (rport) {
 			*rport++ = 0;
 			realport = atol(rport);
@@ -1279,7 +1279,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		sk = str2sa(raddr);
+		sk = str2ip(raddr);
 		free(raddr);
 		if (!sk) {
 			Alert("parsing [%s:%d] : Unknown host in '%s'\n", file, linenum, args[2]);
@@ -3965,7 +3965,7 @@ stats_error_parsing:
 			 *  - IP:-N => port=-N, relative
 			 */
 			raddr = strdup(args[2]);
-			rport = strchr(raddr, ':');
+			rport = strrchr(raddr, ':');
 			if (rport) {
 				*rport++ = 0;
 				realport = atol(rport);
@@ -3974,7 +3974,7 @@ stats_error_parsing:
 			} else
 				newsrv->state |= SRV_MAPPORTS;
 
-			sk = str2sa(raddr);
+			sk = str2ip(raddr);
 			free(raddr);
 			if (!sk) {
 				Alert("parsing [%s:%d] : Unknown host in '%s'\n", file, linenum, args[2]);

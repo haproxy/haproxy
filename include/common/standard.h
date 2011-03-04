@@ -154,22 +154,39 @@ extern const char *invalid_domainchar(const char *name);
 struct sockaddr_un *str2sun(const char *str);
 
 /*
- * converts <str> to a struct sockaddr_in* which is locally allocated.
- * The format is "addr:port", where "addr" can be a dotted IPv4 address,
- * a host name, or empty or "*" to indicate INADDR_ANY.
+ * converts <str> to a struct sockaddr_storage* which is locally allocated. The
+ * string is assumed to contain only an address, no port. The address can be a
+ * dotted IPv4 address, an IPv6 address, a host name, or empty or "*" to
+ * indicate INADDR_ANY. NULL is returned if the host part cannot be resolved.
+ * The return address will only have the address family and the address set,
+ * all other fields remain zero. The string is not supposed to be modified.
+ * The IPv6 '::' address is IN6ADDR_ANY.
  */
-struct sockaddr_storage *str2sa(char *str);
+struct sockaddr_storage *str2ip(const char *str);
 
 /*
- * converts <str> to a struct sockaddr_in* which is locally allocated, and a
+ * converts <str> to a locally allocated struct sockaddr_storage *.
+ * The format is "addr[:[port]]", where "addr" can be a dotted IPv4 address, an
+ * IPv6 address, a host name, or empty or "*" to indicate INADDR_ANY. If an IPv6
+ * address wants to ignore port, it must be terminated by a trailing colon (':').
+ * The IPv6 '::' address is IN6ADDR_ANY, so in order to bind to a given port on
+ * IPv6, use ":::port". NULL is returned if the host part cannot be resolved.
+ */
+struct sockaddr_storage *str2sa(const char *str);
+
+/*
+ * converts <str> to a locally allocated struct sockaddr_storage *, and a
  * port range consisting in two integers. The low and high end are always set
  * even if the port is unspecified, in which case (0,0) is returned. The low
- * port is set in the sockaddr_in. Thus, it is enough to check the size of the
+ * port is set in the sockaddr. Thus, it is enough to check the size of the
  * returned range to know if an array must be allocated or not. The format is
- * "addr[:port[-port]]", where "addr" can be a dotted IPv4 address, a host
- * name, or empty or "*" to indicate INADDR_ANY.
+ * "addr[:[port[-port]]]", where "addr" can be a dotted IPv4 address, an IPv6
+ * address, a host name, or empty or "*" to indicate INADDR_ANY. If an IPv6
+ * address wants to ignore port, it must be terminated by a trailing colon (':').
+ * The IPv6 '::' address is IN6ADDR_ANY, so in order to bind to a given port on
+ * IPv6, use ":::port". NULL is returned if the host part cannot be resolved.
  */
-struct sockaddr_storage *str2sa_range(char *str, int *low, int *high);
+struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high);
 
 /* converts <str> to a struct in_addr containing a network mask. It can be
  * passed in dotted form (255.255.255.0) or in CIDR form (24). It returns 1

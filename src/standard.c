@@ -214,70 +214,130 @@ const char *invalid_domainchar(const char *name) {
 }
 
 /*
- * converts <str> to a struct sockaddr_in* which is locally allocated.
- * The format is "addr:port", where "addr" can be a dotted IPv4 address,
- * a host name, or empty or "*" to indicate INADDR_ANY. NULL is returned
- * if the host part cannot be resolved.
+ * converts <str> to a struct sockaddr_storage* which is locally allocated. The
+ * string is assumed to contain only an address, no port. The address can be a
+ * dotted IPv4 address, an IPv6 address, a host name, or empty or "*" to
+ * indicate INADDR_ANY. NULL is returned if the host part cannot be resolved.
+ * The return address will only have the address family and the address set,
+ * all other fields remain zero. The string is not supposed to be modified.
+ * The IPv6 '::' address is IN6ADDR_ANY.
  */
-struct sockaddr_storage *str2sa(char *str)
+struct sockaddr_storage *str2ip(const char *str)
 {
 	static struct sockaddr_storage sa;
+	struct hostent *he;
+
+	memset(&sa, 0, sizeof(sa));
+
+	/* Any IPv6 address */
+	if (str[0] == ':' && str[1] == ':' && !str[2]) {
+		sa.ss_family = AF_INET6;
+		return &sa;
+	}
+
+	/* Any IPv4 address */
+	if (!str[0] || (str[0] == '*' && !str[1])) {
+		sa.ss_family = AF_INET;
+		return &sa;
+	}
+
+	/* check for IPv6 first */
+	if (inet_pton(AF_INET6, str, &((struct sockaddr_in6 *)&sa)->sin6_addr)) {
+		sa.ss_family = AF_INET6;
+		return &sa;
+	}
+
+	/* then check for IPv4 */
+	if (inet_pton(AF_INET, str, &((struct sockaddr_in *)&sa)->sin_addr)) {
+		sa.ss_family = AF_INET;
+		return &sa;
+	}
+
+	/* try to resolve an IPv4/IPv6 hostname */
+	he = gethostbyname(str);
+	if (he) {
+		sa.ss_family = he->h_addrtype;
+		switch (sa.ss_family) {
+		case AF_INET:
+			((struct sockaddr_in *)&sa)->sin_addr = *(struct in_addr *) *(he->h_addr_list);
+			return &sa;
+		case AF_INET6:
+			((struct sockaddr_in6 *)&sa)->sin6_addr = *(struct in6_addr *) *(he->h_addr_list);
+			return &sa;
+		}
+		/* unsupported address family */
+	}
+
+	return NULL;
+}
+
+/*
+ * converts <str> to a locally allocated struct sockaddr_storage *.
+ * The format is "addr[:[port]]", where "addr" can be a dotted IPv4 address, an
+ * IPv6 address, a host name, or empty or "*" to indicate INADDR_ANY. If an IPv6
+ * address wants to ignore port, it must be terminated by a trailing colon (':').
+ * The IPv6 '::' address is IN6ADDR_ANY, so in order to bind to a given port on
+ * IPv6, use ":::port". NULL is returned if the host part cannot be resolved.
+ */
+struct sockaddr_storage *str2sa(const char *str)
+{
 	struct sockaddr_storage *ret = NULL;
+	char *str2;
 	char *c;
 	int port;
 
-	memset(&sa, 0, sizeof(sa));
-	str = strdup(str);
-	if (str == NULL)
+	str2 = strdup(str);
+	if (str2 == NULL)
 		goto out;
 
-	if ((c = strrchr(str,':')) != NULL) {
+	if ((c = strrchr(str2, ':')) != NULL) { /* Port */
 		*c++ = '\0';
 		port = atol(c);
 	}
 	else
 		port = 0;
 
-	sa.ss_family = AF_INET;
-	((struct sockaddr_in *)&sa)->sin_port = htons(port);
-	if (*str == '*' || *str == '\0') { /* INADDR_ANY */
-		((struct sockaddr_in *)&sa)->sin_addr.s_addr = INADDR_ANY;
+	ret = str2ip(str2);
+	if (!ret)
+		goto out;
+
+	switch (ret->ss_family) {
+	case AF_INET:
+		((struct sockaddr_in *)ret)->sin_port = htons(port);
+		break;
+	case AF_INET6:
+		((struct sockaddr_in6 *)ret)->sin6_port = htons(port);
+		break;
 	}
-	else if (!inet_pton(sa.ss_family, str, &((struct sockaddr_in *)&sa)->sin_addr)) {
-		struct hostent *he = gethostbyname(str);
-		if (!he)
-			goto out;
-		((struct sockaddr_in *)&sa)->sin_addr = *(struct in_addr *) *(he->h_addr_list);
-	}
-	ret = &sa;
  out:
-	free(str);
+	free(str2);
 	return ret;
 }
 
 /*
- * converts <str> to a struct sockaddr_in* which is locally allocated, and a
+ * converts <str> to a locally allocated struct sockaddr_storage *, and a
  * port range consisting in two integers. The low and high end are always set
  * even if the port is unspecified, in which case (0,0) is returned. The low
- * port is set in the sockaddr_in. Thus, it is enough to check the size of the
+ * port is set in the sockaddr. Thus, it is enough to check the size of the
  * returned range to know if an array must be allocated or not. The format is
- * "addr[:port[-port]]", where "addr" can be a dotted IPv4 address, a host
- * name, or empty or "*" to indicate INADDR_ANY. NULL is returned if the host
- * part cannot be resolved.
+ * "addr[:[port[-port]]]", where "addr" can be a dotted IPv4 address, an IPv6
+ * address, a host name, or empty or "*" to indicate INADDR_ANY. If an IPv6
+ * address wants to ignore port, it must be terminated by a trailing colon (':').
+ * The IPv6 '::' address is IN6ADDR_ANY, so in order to bind to a given port on
+ * IPv6, use ":::port". NULL is returned if the host part cannot be resolved.
  */
-struct sockaddr_storage *str2sa_range(char *str, int *low, int *high)
+struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high)
 {
-	static struct sockaddr_storage sa;
 	struct sockaddr_storage *ret = NULL;
+	char *str2;
 	char *c;
 	int portl, porth;
 
-	memset(&sa, 0, sizeof(sa));
-	str = strdup(str);
-	if (str == NULL)
+	str2 = strdup(str);
+	if (str2 == NULL)
 		goto out;
 
-	if ((c = strrchr(str,':')) != NULL) {
+	if ((c = strrchr(str2,':')) != NULL) { /* Port */
 		char *sep;
 		*c++ = '\0';
 		sep = strchr(c, '-');
@@ -293,24 +353,23 @@ struct sockaddr_storage *str2sa_range(char *str, int *low, int *high)
 		porth = 0;
 	}
 
-	sa.ss_family = AF_INET;
-	((struct sockaddr_in *)&sa)->sin_port = htonl(portl);
-	if (*str == '*' || *str == '\0') { /* INADDR_ANY */
-		((struct sockaddr_in *)&sa)->sin_addr.s_addr = INADDR_ANY;
+	ret = str2ip(str2);
+	if (!ret)
+		goto out;
+
+	switch (ret->ss_family) {
+	case AF_INET:
+		((struct sockaddr_in *)ret)->sin_port = htons(portl);
+		break;
+	case AF_INET6:
+		((struct sockaddr_in6 *)ret)->sin6_port = htons(portl);
+		break;
 	}
-	else if (!inet_pton(sa.ss_family, str, &((struct sockaddr_in *)&sa)->sin_addr)) {
-		struct hostent *he = gethostbyname(str);
-		if (!he)
-			goto out;
-		((struct sockaddr_in *)&sa)->sin_addr = *(struct in_addr *) *(he->h_addr_list);
-	}
-	ret = &sa;
 
 	*low = portl;
 	*high = porth;
-
  out:
-	free(str);
+	free(str2);
 	return ret;
 }
 
