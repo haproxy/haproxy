@@ -1430,6 +1430,8 @@ struct task *process_chk(struct task *t)
 			fdinfo[fd].port_range = NULL;
 			close(fd); /* socket creation error */
 		}
+		else
+			set_server_check_status(s, HCHK_STATUS_SOCKERR, strerror(errno));
 
 		if (s->result == SRV_CHK_UNKNOWN) { /* nothing done */
 			//fprintf(stderr, "process_chk: 6\n");
