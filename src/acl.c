@@ -1008,8 +1008,11 @@ struct acl_keyword *find_acl_kw(const char *kw)
 	return NULL;
 }
 
+/* NB: does nothing if <pat> is NULL */
 static void free_pattern(struct acl_pattern *pat)
 {
+	if (!pat)
+		return;
 
 	if (pat->ptr.ptr) {
 		if (pat->freeptrbuf)
