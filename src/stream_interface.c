@@ -314,8 +314,7 @@ struct task *stream_int_register_handler(struct stream_interface *si, struct si_
 	si->chk_rcv = stream_int_chk_rcv;
 	si->chk_snd = stream_int_chk_snd;
 	si->connect = NULL;
-	si->target.type = TARG_TYPE_APPLET;
-	si->target.ptr.a = app;
+	set_target_applet(&si->target, app);
 	si->applet.state = 0;
 	si->release   = NULL;
 	si->flags |= SI_FL_WAIT_DATA;
@@ -342,8 +341,7 @@ struct task *stream_int_register_handler_task(struct stream_interface *si,
 	si->chk_rcv = stream_int_chk_rcv;
 	si->chk_snd = stream_int_chk_snd;
 	si->connect = NULL;
-	si->target.type = TARG_TYPE_NONE;
-	si->target.ptr.v   = NULL;
+	clear_target(&si->target);
 	si->release   = NULL;
 	si->flags |= SI_FL_WAIT_DATA;
 
@@ -352,8 +350,7 @@ struct task *stream_int_register_handler_task(struct stream_interface *si,
 	if (!t)
 		return t;
 
-	si->target.type = TARG_TYPE_TASK;
-	si->target.ptr.t = t;
+	set_target_task(&si->target, t);
 
 	t->process = fct;
 	t->context = si;
@@ -375,8 +372,7 @@ void stream_int_unregister_handler(struct stream_interface *si)
 	}
 	si->release   = NULL;
 	si->owner = NULL;
-	si->target.type = TARG_TYPE_NONE;
-	si->target.ptr.v = NULL;
+	clear_target(&si->target);
 }
 
 /*

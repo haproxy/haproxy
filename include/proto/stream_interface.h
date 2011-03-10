@@ -47,6 +47,47 @@ struct task *stream_int_register_handler_task(struct stream_interface *si,
 					      struct task *(*fct)(struct task *));
 void stream_int_unregister_handler(struct stream_interface *si);
 
+static inline void clear_target(struct target *dest)
+{
+	dest->type = TARG_TYPE_NONE;
+	dest->ptr.v = NULL;
+}
+
+static inline void set_target_server(struct target *dest, struct server *s)
+{
+	dest->type = TARG_TYPE_SERVER;
+	dest->ptr.s = s;
+}
+
+static inline void set_target_proxy(struct target *dest, struct proxy *p)
+{
+	dest->type = TARG_TYPE_PROXY;
+	dest->ptr.p = p;
+}
+
+static inline void set_target_applet(struct target *dest, struct si_applet *a)
+{
+	dest->type = TARG_TYPE_APPLET;
+	dest->ptr.a = a;
+}
+
+static inline void set_target_task(struct target *dest, struct task *t)
+{
+	dest->type = TARG_TYPE_TASK;
+	dest->ptr.t = t;
+}
+
+static inline struct target *copy_target(struct target *dest, struct target *src)
+{
+	*dest = *src;
+	return dest;
+}
+
+static inline int target_match(struct target *a, struct target *b)
+{
+	return a->type == b->type && a->ptr.v == b->ptr.v;
+}
+
 #endif /* _PROTO_STREAM_INTERFACE_H */
 
 /*

@@ -39,6 +39,7 @@
 #include <proto/queue.h>
 #include <proto/server.h>
 #include <proto/session.h>
+#include <proto/stream_interface.h>
 #include <proto/stream_sock.h>
 #include <proto/task.h>
 
@@ -493,8 +494,7 @@ int assign_server(struct session *s)
 	 */
 
 	s->srv = NULL;
-	s->target.type = TARG_TYPE_NONE;
-	s->target.ptr.v = NULL;
+	clear_target(&s->target);
 
 	if (s->be->lbprm.algo & BE_LB_KIND) {
 		int len;
@@ -617,17 +617,14 @@ int assign_server(struct session *s)
 			s->srv->counters.cum_lbconn++;
 		}
 
-		s->target.type = TARG_TYPE_SERVER;
-		s->target.ptr.s = s->srv;
+		set_target_server(&s->target, s->srv);
 	}
 	else if ((s->be->options2 & PR_O2_DISPATCH) || (s->be->options & PR_O_TRANSP)) {
-		s->target.type = TARG_TYPE_PROXY;
-		s->target.ptr.p = s->be;
+		set_target_proxy(&s->target, s->be);
 	}
 	else if ((s->be->options & PR_O_HTTP_PROXY) && s->req->cons->addr.s.to.sin_addr.s_addr) {
 		/* in proxy mode, we need a valid destination address */
-		s->target.type = TARG_TYPE_PROXY;
-		s->target.ptr.p = s->be;
+		set_target_proxy(&s->target, s->be);
 	}
 	else {
 		err = SRV_STATUS_NOSRV;
@@ -951,7 +948,7 @@ int connect_server(struct session *s)
 	 */
 	stream_sock_prepare_interface(s->req->cons);
 	s->req->cons->connect = tcpv4_connect_server;
-	s->req->cons->target = s->target;
+	copy_target(&s->req->cons->target, &s->target);
 
 	assign_tproxy_address(s);
 
@@ -1107,16 +1104,14 @@ int tcp_persist_rdp_cookie(struct session *s, struct buffer *req, int an_bit)
 	if (*p != '.')
 		goto no_cookie;
 
-	s->target.type = TARG_TYPE_NONE;
-	s->target.ptr.v = NULL;
+	clear_target(&s->target);
 	while (srv) {
 		if (memcmp(&addr, &(srv->addr), sizeof(addr)) == 0) {
 			if ((srv->state & SRV_RUNNING) || (px->options & PR_O_PERSIST)) {
 				/* we found the server and it is usable */
 				s->flags |= SN_DIRECT | SN_ASSIGNED;
 				s->srv = srv;
-				s->target.type = TARG_TYPE_SERVER;
-				s->target.ptr.s = s->srv;
+				set_target_server(&s->target, srv);
 				break;
 			}
 		}

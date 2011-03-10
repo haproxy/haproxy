@@ -45,6 +45,7 @@
 #include <proto/proto_tcp.h>
 #include <proto/proxy.h>
 #include <proto/server.h>
+#include <proto/stream_interface.h>
 #include <proto/task.h>
 
 static int httpchk_expect(struct server *s, int done);
@@ -349,8 +350,7 @@ static int check_for_pending(struct server *s)
 		if (!p)
 			break;
 		p->sess->srv = s;
-		p->sess->target.ptr.s = s;
-		p->sess->target.type = TARG_TYPE_SERVER;
+		set_target_server(&p->sess->target, s);
 		sess = p->sess;
 		pendconn_free(p);
 		task_wakeup(sess->task, TASK_WOKEN_RES);

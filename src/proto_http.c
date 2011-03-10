@@ -3949,8 +3949,7 @@ void http_end_txn_clean_session(struct session *s)
 	if (unlikely(s->srv_conn))
 		sess_change_server(s, NULL);
 	s->srv = NULL;
-	s->target.type = TARG_TYPE_NONE;
-	s->target.ptr.v = NULL;
+	clear_target(&s->target);
 
 	s->req->cons->state     = s->req->cons->prev_state = SI_ST_INI;
 	s->req->cons->fd        = -1; /* just to help with debugging */
@@ -5964,8 +5963,7 @@ void manage_client_side_appsession(struct session *t, const char *buf, int len) 
 						txn->flags |= (srv->state & SRV_RUNNING) ? TX_CK_VALID : TX_CK_DOWN;
 						t->flags |= SN_DIRECT | SN_ASSIGNED;
 						t->srv = srv;
-						t->target.type = TARG_TYPE_SERVER;
-						t->target.ptr.s = srv;
+						set_target_server(&t->target, srv);
 
 						break;
 					} else {
@@ -6376,8 +6374,7 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 							txn->flags |= (srv->state & SRV_RUNNING) ? TX_CK_VALID : TX_CK_DOWN;
 							t->flags |= SN_DIRECT | SN_ASSIGNED;
 							t->srv = srv;
-							t->target.type = TARG_TYPE_SERVER;
-							t->target.ptr.s = srv;
+							set_target_server(&t->target, srv);
 							break;
 						} else {
 							/* we found a server, but it's down,
@@ -7542,8 +7539,7 @@ void http_reset_txn(struct session *s)
 	s->be = s->fe;
 	s->logs.logwait = s->fe->to_log;
 	s->srv = s->srv_conn = NULL;
-	s->target.type = TARG_TYPE_NONE;
-	s->target.ptr.v = NULL;
+	clear_target(&s->target);
 	/* re-init store persistence */
 	s->store_count = 0;
 

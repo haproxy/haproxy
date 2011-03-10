@@ -16,6 +16,7 @@
 
 #include <proto/queue.h>
 #include <proto/server.h>
+#include <proto/stream_interface.h>
 #include <proto/task.h>
 
 
@@ -122,8 +123,7 @@ struct session *pendconn_get_next_sess(struct server *srv, struct proxy *px)
 
 	/* we want to note that the session has now been assigned a server */
 	sess->flags |= SN_ASSIGNED;
-	sess->target.type = TARG_TYPE_SERVER;
-	sess->target.ptr.s = srv;
+	set_target_server(&sess->target, srv);
 	sess->srv = srv;
 	sess->srv_conn = srv;
 	srv->served++;
