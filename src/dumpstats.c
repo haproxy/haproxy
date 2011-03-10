@@ -2111,10 +2111,20 @@ int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_a
 					chunk_printf(&msg, " title=\"IP: ");
 
 					/* IP */
-					if (inet_ntop(sv->addr.sin_family, &sv->addr.sin_addr, str, sizeof(str)))
-						chunk_printf(&msg, "%s:%d", str, htons(sv->addr.sin_port));
-					else
-						chunk_printf(&msg, "(%s)", strerror(errno));
+					switch (sv->addr.ss_family) {
+					case AF_INET:
+						if (inet_ntop(AF_INET, (const void *)&((struct sockaddr_in *)&sv->addr)->sin_addr, str, sizeof(str)))
+							chunk_printf(&msg, "%s:%d", str, htons(((struct sockaddr_in *)&sv->addr)->sin_port));
+						else
+							chunk_printf(&msg, "(%s)", strerror(errno));
+						break;
+					case AF_INET6:
+						if (inet_ntop(AF_INET6, (const void *)&((struct sockaddr_in6 *)&sv->addr)->sin6_addr, str, sizeof(str)))
+							chunk_printf(&msg, "%s:%d", str, htons(((struct sockaddr_in6 *)&sv->addr)->sin6_port));
+						else
+							chunk_printf(&msg, "(%s)", strerror(errno));
+						break;
+					}
 
 					/* id */
 					chunk_printf(&msg, ", id: %d", sv->puid);

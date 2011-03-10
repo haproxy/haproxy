@@ -158,7 +158,7 @@ struct sockaddr_un *str2sun(const char *str);
  * The format is "addr:port", where "addr" can be a dotted IPv4 address,
  * a host name, or empty or "*" to indicate INADDR_ANY.
  */
-struct sockaddr_in *str2sa(char *str);
+struct sockaddr_storage *str2sa(char *str);
 
 /*
  * converts <str> to a struct sockaddr_in* which is locally allocated, and a
@@ -169,7 +169,7 @@ struct sockaddr_in *str2sa(char *str);
  * "addr[:port[-port]]", where "addr" can be a dotted IPv4 address, a host
  * name, or empty or "*" to indicate INADDR_ANY.
  */
-struct sockaddr_in *str2sa_range(char *str, int *low, int *high);
+struct sockaddr_storage *str2sa_range(char *str, int *low, int *high);
 
 /* converts <str> to a struct in_addr containing a network mask. It can be
  * passed in dotted form (255.255.255.0) or in CIDR form (24). It returns 1
@@ -188,12 +188,12 @@ int str2net(const char *str, struct in_addr *addr, struct in_addr *mask);
 /*
  * Parse IP address found in url.
  */
-int url2ip(const char *addr, struct in_addr *dst);
+int url2ipv4(const char *addr, struct in_addr *dst);
 
 /*
- * Resolve destination server from URL. Convert <str> to a sockaddr_in*.
+ * Resolve destination server from URL. Convert <str> to a sockaddr_storage*.
  */
-int url2sa(const char *url, int ulen, struct sockaddr_in *addr);
+int url2sa(const char *url, int ulen, struct sockaddr_storage *addr);
 
 /* will try to encode the string <string> replacing all characters tagged in
  * <map> with the hexadecimal representation of their ASCII-code (2 digits)
@@ -464,6 +464,24 @@ static inline unsigned int __full_hash(unsigned int a)
 	 * by a large prime close to 3/4 of the tree.
 	 */
 	return a * 3221225473U;
+}
+
+/* returns non-zero if addr has a valid and non-null IPv4 or IPv6 address,
+ * otherwise zero.
+ */
+static inline int is_addr(struct sockaddr_storage *addr)
+{
+	int i;
+
+	switch (addr->ss_family) {
+	case AF_INET:
+		return *(int *)&((struct sockaddr_in *)&addr)->sin_addr;
+	case AF_INET6:
+		for (i = 0; i < sizeof(struct in6_addr) / sizeof(int); i++)
+			if (((int *)&((struct sockaddr_in6 *)addr)->sin6_addr)[i] != 0)
+				return ((int *)&((struct sockaddr_in6 *)addr)->sin6_addr)[i];
+	}
+	return 0;
 }
 
 #endif /* _COMMON_STANDARD_H */

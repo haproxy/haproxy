@@ -810,10 +810,21 @@ static int event_srv_chk_w(int fd)
 			 *  - connected (EISCONN, 0)
 			 */
 
-			struct sockaddr_in sa;
+			struct sockaddr_storage sa;
 
-			sa = (s->check_addr.sin_addr.s_addr) ? s->check_addr : s->addr;
-			sa.sin_port = htons(s->check_port);
+			if (is_addr(&s->check_addr))
+				sa = s->check_addr;
+			else
+				sa = s->addr;
+
+			switch (s->check_addr.ss_family) {
+			case AF_INET:
+				((struct sockaddr_in *)&sa)->sin_port = htons(s->check_port);
+				break;
+			case AF_INET6:
+				((struct sockaddr_in6 *)&sa)->sin6_port = htons(s->check_port);
+				break;
+			}
 
 			if (connect(fd, (struct sockaddr *)&sa, sizeof(sa)) == 0)
 				errno = 0;
@@ -1193,7 +1204,7 @@ struct task *process_chk(struct task *t)
 {
 	int attempts = 0;
 	struct server *s = t->context;
-	struct sockaddr_in sa;
+	struct sockaddr_storage sa;
 	int fd;
 	int rv;
 
@@ -1223,7 +1234,7 @@ struct task *process_chk(struct task *t)
 
 		/* we'll initiate a new check */
 		set_server_check_status(s, HCHK_STATUS_START, NULL);
-		if ((fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) != -1) {
+		if ((fd = socket(s->addr.ss_family, SOCK_STREAM, IPPROTO_TCP)) != -1) {
 			if ((fd < global.maxsock) &&
 			    (fcntl(fd, F_SETFL, O_NONBLOCK) != -1) &&
 			    (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *) &one, sizeof(one)) != -1)) {
@@ -1233,28 +1244,35 @@ struct task *process_chk(struct task *t)
 					/* We don't want to useless data */
 					setsockopt(fd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
 				}
-				
-				if (s->check_addr.sin_addr.s_addr)
+
+				if (is_addr(&s->check_addr))
 					/* we'll connect to the check addr specified on the server */
 					sa = s->check_addr;
 				else
 					/* we'll connect to the addr on the server */
 					sa = s->addr;
 
-				/* we'll connect to the check port on the server */
-				sa.sin_port = htons(s->check_port);
-
+				switch (s->check_addr.ss_family) {
+				case AF_INET:
+					/* we'll connect to the check port on the server */
+					((struct sockaddr_in *)&sa)->sin_port = htons(s->check_port);
+					break;
+				case AF_INET6:
+					/* we'll connect to the check port on the server */
+					((struct sockaddr_in6 *)&sa)->sin6_port = htons(s->check_port);
+					break;
+				}
 				/* allow specific binding :
 				 * - server-specific at first
 				 * - proxy-specific next
 				 */
 				if (s->state & SRV_BIND_SRC) {
-					struct sockaddr_in *remote = NULL;
+					struct sockaddr_storage *remote = NULL;
 					int ret, flags = 0;
 
 #if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
 					if ((s->state & SRV_TPROXY_MASK) == SRV_TPROXY_ADDR) {
-						remote = (struct sockaddr_in *)&s->tproxy_addr;
+						remote = &s->tproxy_addr;
 						flags  = 3;
 					}
 #endif
@@ -1266,7 +1284,7 @@ struct task *process_chk(struct task *t)
 #endif
 					if (s->sport_range) {
 						int bind_attempts = 10; /* should be more than enough to find a spare port */
-						struct sockaddr_in src;
+						struct sockaddr_storage src;
 
 						ret = 1;
 						src = s->source_addr;
@@ -1287,13 +1305,21 @@ struct task *process_chk(struct task *t)
 								break;
 
 							fdinfo[fd].port_range = s->sport_range;
-							src.sin_port = htons(fdinfo[fd].local_port);
 
-							ret = tcpv4_bind_socket(fd, flags, &src, remote);
+							switch (src.ss_family) {
+							case AF_INET:
+								((struct sockaddr_in *)&src)->sin_port = htons(fdinfo[fd].local_port);
+								break;
+							case AF_INET6:
+								((struct sockaddr_in6 *)&src)->sin6_port = htons(fdinfo[fd].local_port);
+								break;
+							}
+
+							ret = tcp_bind_socket(fd, flags, &src, remote);
 						} while (ret != 0); /* binding NOK */
 					}
 					else {
-						ret = tcpv4_bind_socket(fd, flags, &s->source_addr, remote);
+						ret = tcp_bind_socket(fd, flags, &s->source_addr, remote);
 					}
 
 					if (ret) {
@@ -1311,12 +1337,12 @@ struct task *process_chk(struct task *t)
 					}
 				}
 				else if (s->proxy->options & PR_O_BIND_SRC) {
-					struct sockaddr_in *remote = NULL;
+					struct sockaddr_storage *remote = NULL;
 					int ret, flags = 0;
 
 #if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
 					if ((s->proxy->options & PR_O_TPXY_MASK) == PR_O_TPXY_ADDR) {
-						remote = (struct sockaddr_in *)&s->proxy->tproxy_addr;
+						remote = &s->proxy->tproxy_addr;
 						flags  = 3;
 					}
 #endif
@@ -1326,7 +1352,7 @@ struct task *process_chk(struct task *t)
 						setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE,
 							   s->proxy->iface_name, s->proxy->iface_len + 1);
 #endif
-					ret = tcpv4_bind_socket(fd, flags, &s->proxy->source_addr, remote);
+					ret = tcp_bind_socket(fd, flags, &s->proxy->source_addr, remote);
 					if (ret) {
 						set_server_check_status(s, HCHK_STATUS_SOCKERR, NULL);
 						switch (ret) {

@@ -183,8 +183,8 @@ struct stream_interface {
 			struct sockaddr_storage to;	/* the address reached by the client if SN_FRT_ADDR_SET is set */
 		} c; /* client side */
 		struct {
-			struct sockaddr_in from;	/* the address to spoof when connecting to the server (transparent mode) */
-			struct sockaddr_in to;		/* the address to connect to */
+			struct sockaddr_storage from;	/* the address to spoof when connecting to the server (transparent mode) */
+			struct sockaddr_storage to;	/* the address to connect to */
 		} s; /* server side */
 	} addr; /* addresses of the remote side */
 };

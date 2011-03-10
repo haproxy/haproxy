@@ -937,13 +937,13 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			logsrv.u.un = *sk;
 			logsrv.u.addr.sa_family = AF_UNIX;
 		} else {
-			struct sockaddr_in *sk = str2sa(args[1]);
-			if (!sk) {
+			struct sockaddr_storage *sk = str2sa(args[1]);
+			if (!sk || sk->ss_family != AF_INET) {
 				Alert("parsing [%s:%d] : Unknown host in '%s'\n", file, linenum, args[1]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
-			logsrv.u.in = *sk;
+			logsrv.u.in = *(struct sockaddr_in *)sk;
 			logsrv.u.addr.sa_family = AF_INET;
 			if (!logsrv.u.in.sin_port)
 				logsrv.u.in.sin_port = htons(SYSLOG_PORT);
@@ -1233,7 +1233,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 	else if (strcmp(args[0], "peer") == 0) { /* peer definition */
 		char *rport, *raddr;
 		short realport = 0;
-		struct sockaddr_in *sk;
+		struct sockaddr_storage *sk;
 
 		if (!*args[2]) {
 			Alert("parsing [%s:%d] : '%s' expects <name> and <addr>[:<port>] as arguments.\n",
@@ -1287,7 +1287,15 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 		newpeer->addr = *sk;
-		newpeer->addr.sin_port = htons(realport);
+
+		switch (newpeer->addr.ss_family) {
+		case AF_INET:
+			((struct sockaddr_in *)&newpeer->addr)->sin_port = htons(realport);
+			break;
+		case AF_INET6:
+			((struct sockaddr_in6 *)&newpeer->addr)->sin6_port = htons(realport);
+			break;
+		}
 
 		if (strcmp(newpeer->id, localpeer) == 0) {
 			/* Current is local peer, it define a frontend */
@@ -3843,7 +3851,7 @@ stats_error_parsing:
 		curproxy->grace = val;
 	}
 	else if (!strcmp(args[0], "dispatch")) {  /* dispatch address */
-		struct sockaddr_in *sk;
+		struct sockaddr_storage *sk;
 		if (curproxy == &defproxy) {
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -3929,7 +3937,7 @@ stats_error_parsing:
 		}
 
 		if (!defsrv) {
-			struct sockaddr_in *sk;
+			struct sockaddr_storage *sk;
 
 			if ((newsrv = (struct server *)calloc(1, sizeof(struct server))) == NULL) {
 				Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
@@ -3975,7 +3983,15 @@ stats_error_parsing:
 				goto out;
 			}
 			newsrv->addr = *sk;
-			newsrv->addr.sin_port = htons(realport);
+
+			switch (newsrv->addr.ss_family) {
+			case AF_INET:
+				((struct sockaddr_in *)&newsrv->addr)->sin_port = htons(realport);
+				break;
+			case AF_INET6:
+				((struct sockaddr_in6 *)&newsrv->addr)->sin6_port = htons(realport);
+				break;
+			}
 
 			newsrv->check_port	= curproxy->defsrv.check_port;
 			newsrv->inter		= curproxy->defsrv.inter;
@@ -4135,7 +4151,7 @@ stats_error_parsing:
 				cur_arg += 2;
 			}
 			else if (!defsrv && !strcmp(args[cur_arg], "addr")) {
-				struct sockaddr_in *sk = str2sa(args[cur_arg + 1]);
+				struct sockaddr_storage *sk = str2sa(args[cur_arg + 1]);
 				if (!sk) {
 					Alert("parsing [%s:%d] : Unknown host in '%s'\n", file, linenum, args[cur_arg + 1]);
 					err_code |= ERR_ALERT | ERR_FATAL;
@@ -4280,7 +4296,7 @@ stats_error_parsing:
 			}
 			else if (!defsrv && !strcmp(args[cur_arg], "source")) {  /* address to which we bind when connecting */
 				int port_low, port_high;
-				struct sockaddr_in *sk;
+				struct sockaddr_storage *sk;
 
 				if (!*args[cur_arg + 1]) {
 #if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
@@ -4381,7 +4397,7 @@ stats_error_parsing:
 								goto out;
 							}
 						} else {
-							struct sockaddr_in *sk = str2sa(args[cur_arg + 1]);
+							struct sockaddr_storage *sk = str2sa(args[cur_arg + 1]);
 							if (!sk) {
 								Alert("parsing [%s:%d] : Unknown host in '%s'\n", file, linenum, args[cur_arg + 1]);
 								err_code |= ERR_ALERT | ERR_FATAL;
@@ -4458,8 +4474,16 @@ stats_error_parsing:
 				goto out;
 			}
 
-			if (!newsrv->check_port && newsrv->check_addr.sin_port)
-				newsrv->check_port = newsrv->check_addr.sin_port;
+			switch (newsrv->check_addr.ss_family) {
+				case AF_INET:
+					if (!newsrv->check_port && ((struct sockaddr_in *)&newsrv->check_addr)->sin_port)
+						newsrv->check_port = ntohs(((struct sockaddr_in *)&newsrv->check_addr)->sin_port);
+					break;
+				case AF_INET6:
+					if (!newsrv->check_port && ((struct sockaddr_in6 *)&newsrv->check_addr)->sin6_port)
+						newsrv->check_port = ntohs(((struct sockaddr_in6 *)&newsrv->check_addr)->sin6_port);
+					break;
+			}
 
 			if (!newsrv->check_port && !(newsrv->state & SRV_MAPPORTS))
 				newsrv->check_port = realport; /* by default */
@@ -4557,13 +4581,13 @@ stats_error_parsing:
 				logsrv.u.un = *sk;
 				logsrv.u.addr.sa_family = AF_UNIX;
 			} else {
-				struct sockaddr_in *sk = str2sa(args[1]);
-				if (!sk) {
+				struct sockaddr_storage *sk = str2sa(args[1]);
+				if (!sk || sk->ss_family != AF_INET) {
 					Alert("parsing [%s:%d] : Unknown host in '%s'\n", file, linenum, args[1]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
-				logsrv.u.in = *sk;
+				logsrv.u.in = *(struct sockaddr_in *)sk;
 				logsrv.u.addr.sa_family = AF_INET;
 				if (!logsrv.u.in.sin_port) {
 					logsrv.u.in.sin_port =
@@ -4598,7 +4622,7 @@ stats_error_parsing:
 	}
 	else if (!strcmp(args[0], "source")) {  /* address to which we bind when connecting */
 		int cur_arg;
-		struct sockaddr_in *sk;
+		struct sockaddr_storage *sk;
 
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
@@ -4690,7 +4714,7 @@ stats_error_parsing:
 						goto out;
 					}
 				} else {
-					struct sockaddr_in *sk = str2sa(args[cur_arg + 1]);
+					struct sockaddr_storage *sk = str2sa(args[cur_arg + 1]);
 					if (!sk) {
 						Alert("parsing [%s:%d] : Unknown host in '%s'\n", file, linenum, args[cur_arg + 1]);
 						err_code |= ERR_ALERT | ERR_FATAL;

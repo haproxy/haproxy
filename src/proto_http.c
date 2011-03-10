@@ -8037,9 +8037,9 @@ acl_fetch_hdr_ip(struct proxy *px, struct session *l4, void *l7, char *sol,
 		test->flags |= ACL_TEST_F_FETCH_MORE;
 		test->flags |= ACL_TEST_F_VOL_HDR;
 		/* Same optimization as url_ip */
-		memset(&l4->req->cons->addr.s.to.sin_addr, 0, sizeof(l4->req->cons->addr.s.to.sin_addr));
-		url2ip((char *)ctx->line + ctx->val, &l4->req->cons->addr.s.to.sin_addr);
-		test->ptr = (void *)&l4->req->cons->addr.s.to.sin_addr;
+		memset(&((struct sockaddr_in *)&l4->req->cons->addr.s.to)->sin_addr, 0, sizeof(((struct sockaddr_in *)&l4->req->cons->addr.s.to)->sin_addr));
+		url2ipv4((char *)ctx->line + ctx->val, &((struct sockaddr_in *)&l4->req->cons->addr.s.to)->sin_addr);
+		test->ptr = (void *)&((struct sockaddr_in *)&l4->req->cons->addr.s.to)->sin_addr;
 		test->i = AF_INET;
 		return 1;
 	}

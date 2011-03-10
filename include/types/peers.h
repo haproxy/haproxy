@@ -72,7 +72,7 @@ struct peer {
 		int line;	  /* line where the section appears */
 	} conf;		  	  /* config information */
 	time_t last_change;
-	struct sockaddr_in addr;  /* peer address */
+	struct sockaddr_storage addr;  /* peer address */
 	struct peer *next;	  /* next peer in the list */
 };
 

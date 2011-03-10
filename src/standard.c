@@ -219,10 +219,10 @@ const char *invalid_domainchar(const char *name) {
  * a host name, or empty or "*" to indicate INADDR_ANY. NULL is returned
  * if the host part cannot be resolved.
  */
-struct sockaddr_in *str2sa(char *str)
+struct sockaddr_storage *str2sa(char *str)
 {
-	static struct sockaddr_in sa;
-	struct sockaddr_in *ret = NULL;
+	static struct sockaddr_storage sa;
+	struct sockaddr_storage *ret = NULL;
 	char *c;
 	int port;
 
@@ -238,17 +238,17 @@ struct sockaddr_in *str2sa(char *str)
 	else
 		port = 0;
 
+	sa.ss_family = AF_INET;
+	((struct sockaddr_in *)&sa)->sin_port = htons(port);
 	if (*str == '*' || *str == '\0') { /* INADDR_ANY */
-		sa.sin_addr.s_addr = INADDR_ANY;
+		((struct sockaddr_in *)&sa)->sin_addr.s_addr = INADDR_ANY;
 	}
-	else if (!inet_pton(AF_INET, str, &sa.sin_addr)) {
+	else if (!inet_pton(sa.ss_family, str, &((struct sockaddr_in *)&sa)->sin_addr)) {
 		struct hostent *he = gethostbyname(str);
 		if (!he)
 			goto out;
-		sa.sin_addr = *(struct in_addr *) *(he->h_addr_list);
+		((struct sockaddr_in *)&sa)->sin_addr = *(struct in_addr *) *(he->h_addr_list);
 	}
-	sa.sin_port   = htons(port);
-	sa.sin_family = AF_INET;
 	ret = &sa;
  out:
 	free(str);
@@ -265,10 +265,10 @@ struct sockaddr_in *str2sa(char *str)
  * name, or empty or "*" to indicate INADDR_ANY. NULL is returned if the host
  * part cannot be resolved.
  */
-struct sockaddr_in *str2sa_range(char *str, int *low, int *high)
+struct sockaddr_storage *str2sa_range(char *str, int *low, int *high)
 {
-	static struct sockaddr_in sa;
-	struct sockaddr_in *ret = NULL;
+	static struct sockaddr_storage sa;
+	struct sockaddr_storage *ret = NULL;
 	char *c;
 	int portl, porth;
 
@@ -293,17 +293,17 @@ struct sockaddr_in *str2sa_range(char *str, int *low, int *high)
 		porth = 0;
 	}
 
+	sa.ss_family = AF_INET;
+	((struct sockaddr_in *)&sa)->sin_port = htonl(portl);
 	if (*str == '*' || *str == '\0') { /* INADDR_ANY */
-		sa.sin_addr.s_addr = INADDR_ANY;
+		((struct sockaddr_in *)&sa)->sin_addr.s_addr = INADDR_ANY;
 	}
-	else if (!inet_pton(AF_INET, str, &sa.sin_addr)) {
+	else if (!inet_pton(sa.ss_family, str, &((struct sockaddr_in *)&sa)->sin_addr)) {
 		struct hostent *he = gethostbyname(str);
 		if (!he)
 			goto out;
-		sa.sin_addr = *(struct in_addr *) *(he->h_addr_list);
+		((struct sockaddr_in *)&sa)->sin_addr = *(struct in_addr *) *(he->h_addr_list);
 	}
-	sa.sin_port   = htons(portl);
-	sa.sin_family = AF_INET;
 	ret = &sa;
 
 	*low = portl;
@@ -387,9 +387,9 @@ int str2net(const char *str, struct in_addr *addr, struct in_addr *mask)
 
 
 /*
- * Parse IP address found in url.
+ * Parse IPv4 address found in url.
  */
-int url2ip(const char *addr, struct in_addr *dst)
+int url2ipv4(const char *addr, struct in_addr *dst)
 {
 	int saw_digit, octets, ch;
 	u_char tmp[4], *tp;
@@ -430,18 +430,20 @@ int url2ip(const char *addr, struct in_addr *dst)
 }
 
 /*
- * Resolve destination server from URL. Convert <str> to a sockaddr_in*.
+ * Resolve destination server from URL. Convert <str> to a sockaddr_storage*.
  */
-int url2sa(const char *url, int ulen, struct sockaddr_in *addr)
+int url2sa(const char *url, int ulen, struct sockaddr_storage *addr)
 {
 	const char *curr = url, *cp = url;
 	int ret, url_code = 0;
 	unsigned int http_code = 0;
 
 	/* Cleanup the room */
-	addr->sin_family = AF_INET;
-	addr->sin_addr.s_addr = 0;
-	addr->sin_port = 0;
+
+	/* FIXME: assume IPv4 only for now */
+	((struct sockaddr_in *)addr)->sin_family = AF_INET;
+	((struct sockaddr_in *)addr)->sin_addr.s_addr = 0;
+	((struct sockaddr_in *)addr)->sin_port = 0;
 
 	/* Firstly, try to find :// pattern */
 	while (curr < url+ulen && url_code != 0x3a2f2f) {
@@ -467,12 +469,12 @@ int url2sa(const char *url, int ulen, struct sockaddr_in *addr)
 			 * be warned this can slow down global daemon performances
 			 * while handling lagging dns responses.
 			 */
-			ret = url2ip(curr, &addr->sin_addr);
+			ret = url2ipv4(curr, &((struct sockaddr_in *)&addr)->sin_addr);
 			if (!ret)
 				return -1;
 			curr += ret;
-			addr->sin_port = (*curr == ':') ? str2uic(++curr) : 80;
-			addr->sin_port = htons(addr->sin_port);
+			((struct sockaddr_in *)addr)->sin_port = (*curr == ':') ? str2uic(++curr) : 80;
+			((struct sockaddr_in *)addr)->sin_port = htons(((struct sockaddr_in *)&addr)->sin_port);
 		}
 		return 0;
 	}

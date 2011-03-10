@@ -182,7 +182,7 @@ struct proxy {
 	unsigned int fe_req_ana, be_req_ana;	/* bitmap of common request protocol analysers for the frontend and backend */
 	unsigned int fe_rsp_ana, be_rsp_ana;	/* bitmap of common response protocol analysers for the frontend and backend */
 	int mode;				/* mode = PR_MODE_TCP, PR_MODE_HTTP or PR_MODE_HEALTH */
-	struct sockaddr_in dispatch_addr;	/* the default address to connect to */
+	struct sockaddr_storage dispatch_addr;	/* the default address to connect to */
 	union {
 		struct proxy *be;		/* default backend, or NULL if none set */
 		char *name;			/* default backend name during config parse */
@@ -271,9 +271,9 @@ struct proxy {
 
 	int conn_retries;			/* maximum number of connect retries */
 	int cap;				/* supported capabilities (PR_CAP_*) */
-	struct sockaddr_in source_addr;		/* the address to which we want to bind for connect() */
+	struct sockaddr_storage source_addr;	/* the address to which we want to bind for connect() */
 #if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
-	struct sockaddr_in tproxy_addr;		/* non-local address we want to bind to for connect() */
+	struct sockaddr_storage tproxy_addr;	/* non-local address we want to bind to for connect() */
 	char *bind_hdr_name;			/* bind to this header name if defined */
 	int bind_hdr_len;			/* length of the name of the header above */
 	int bind_hdr_occ;			/* occurrence number of header above: >0 = from first, <0 = from end, 0=disabled */

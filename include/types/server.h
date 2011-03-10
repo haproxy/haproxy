@@ -102,10 +102,10 @@ struct server {
 	struct list pendconns;			/* pending connections */
 	struct task *check;                     /* the task associated to the health check processing */
 
-	struct sockaddr_in addr;		/* the address to connect to */
-	struct sockaddr_in source_addr;		/* the address to which we want to bind for connect() */
+	struct sockaddr_storage addr;		/* the address to connect to */
+	struct sockaddr_storage source_addr;	/* the address to which we want to bind for connect() */
 #if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
-	struct sockaddr_in tproxy_addr;		/* non-local address we want to bind to for connect() */
+	struct sockaddr_storage tproxy_addr;	/* non-local address we want to bind to for connect() */
 	char *bind_hdr_name;			/* bind to this header name if defined */
 	int bind_hdr_len;			/* length of the name of the header above */
 	int bind_hdr_occ;			/* occurrence number of header above: >0 = from first, <0 = from end, 0=disabled */
@@ -116,7 +116,7 @@ struct server {
 
 	struct server *tracknext, *tracked;	/* next server in a tracking list, tracked server */
 	char *trackit;				/* temporary variable to make assignment deferrable */
-	struct sockaddr_in check_addr;		/* the address to check, if different from <addr> */
+	struct sockaddr_storage check_addr;	/* the address to check, if different from <addr> */
 	short check_port;			/* the port to use for the health checks */
 	int health;				/* 0->rise-1 = bad; rise->rise+fall-1 = good */
 	int consecutive_errors;			/* current number of consecutive errors */

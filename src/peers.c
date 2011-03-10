@@ -1174,7 +1174,7 @@ struct session *peer_session_create(struct peer *peer, struct peer_session *ps)
 	s->si[1].conn_retries = p->conn_retries;
 	s->si[1].err_type = SI_ET_NONE;
 	s->si[1].err_loc = NULL;
-	s->si[1].connect = tcpv4_connect_server;
+	s->si[1].connect = tcp_connect_server;
 	set_target_proxy(&s->si[1].target, s->be);
 	s->si[1].exp = TICK_ETERNITY;
 	s->si[1].flags = SI_FL_NONE;

@@ -100,7 +100,7 @@ static struct protocol proto_tcpv6 = {
 };
 
 
-/* Binds ipv4 address <local> to socket <fd>, unless <flags> is set, in which
+/* Binds ipv4/ipv6 address <local> to socket <fd>, unless <flags> is set, in which
  * case we try to bind <remote>. <flags> is a 2-bit field consisting of :
  *  - 0 : ignore remote address (may even be a NULL pointer)
  *  - 1 : use provided address
@@ -114,9 +114,9 @@ static struct protocol proto_tcpv6 = {
  * This function returns 0 when everything's OK, 1 if it could not bind, to the
  * local address, 2 if it could not bind to the foreign address.
  */
-int tcpv4_bind_socket(int fd, int flags, struct sockaddr_in *local, struct sockaddr_in *remote)
+int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct sockaddr_storage *remote)
 {
-	struct sockaddr_in bind_addr;
+	struct sockaddr_storage bind_addr;
 	int foreign_ok = 0;
 	int ret;
 
@@ -132,10 +132,20 @@ int tcpv4_bind_socket(int fd, int flags, struct sockaddr_in *local, struct socka
 #endif
 	if (flags) {
 		memset(&bind_addr, 0, sizeof(bind_addr));
-		if (flags & 1)
-			bind_addr.sin_addr = remote->sin_addr;
-		if (flags & 2)
-			bind_addr.sin_port = remote->sin_port;
+		switch (remote->ss_family) {
+		case AF_INET:
+			if (flags & 1)
+				((struct sockaddr_in *)&bind_addr)->sin_addr = ((struct sockaddr_in *)remote)->sin_addr;
+			if (flags & 2)
+				((struct sockaddr_in *)&bind_addr)->sin_port = ((struct sockaddr_in *)remote)->sin_port;
+			break;
+		case AF_INET6:
+			if (flags & 1)
+				((struct sockaddr_in6 *)&bind_addr)->sin6_addr = ((struct sockaddr_in6 *)remote)->sin6_addr;
+			if (flags & 2)
+				((struct sockaddr_in6 *)&bind_addr)->sin6_port = ((struct sockaddr_in6 *)remote)->sin6_port;
+			break;
+		}
 	}
 
 	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(one));
@@ -198,7 +208,7 @@ int tcpv4_bind_socket(int fd, int flags, struct sockaddr_in *local, struct socka
  * Additionnally, in the case of SN_ERR_RESOURCE, an emergency log will be emitted.
  */
 
-int tcpv4_connect_server(struct stream_interface *si)
+int tcp_connect_server(struct stream_interface *si)
 {
 	int fd;
 	struct server *srv;
@@ -217,7 +227,7 @@ int tcpv4_connect_server(struct stream_interface *si)
 		return SN_ERR_INTERNAL;
 	}
 
-	if ((fd = si->fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {
+	if ((fd = si->fd = socket(si->addr.s.to.ss_family, SOCK_STREAM, IPPROTO_TCP)) == -1) {
 		qfprintf(stderr, "Cannot get a server socket.\n");
 
 		if (errno == ENFILE)
@@ -284,7 +294,7 @@ int tcpv4_connect_server(struct stream_interface *si)
 
 		if (srv->sport_range) {
 			int attempts = 10; /* should be more than enough to find a spare port */
-			struct sockaddr_in src;
+			struct sockaddr_storage src;
 
 			ret = 1;
 			src = srv->source_addr;
@@ -305,13 +315,20 @@ int tcpv4_connect_server(struct stream_interface *si)
 					break;
 
 				fdinfo[fd].port_range = srv->sport_range;
-				src.sin_port = htons(fdinfo[fd].local_port);
+				switch (src.ss_family) {
+				case AF_INET:
+					((struct sockaddr_in *)&src)->sin_port = htons(fdinfo[fd].local_port);
+					break;
+				case AF_INET6:
+					((struct sockaddr_in6 *)&src)->sin6_port = htons(fdinfo[fd].local_port);
+					break;
+				}
 
-				ret = tcpv4_bind_socket(fd, flags, &src, (struct sockaddr_in *)&si->addr.s.from);
+				ret = tcp_bind_socket(fd, flags, &src, &si->addr.s.from);
 			} while (ret != 0); /* binding NOK */
 		}
 		else {
-			ret = tcpv4_bind_socket(fd, flags, &srv->source_addr, (struct sockaddr_in *)&si->addr.s.from);
+			ret = tcp_bind_socket(fd, flags, &srv->source_addr, &si->addr.s.from);
 		}
 
 		if (ret) {
@@ -354,7 +371,7 @@ int tcpv4_connect_server(struct stream_interface *si)
 		if (be->iface_name)
 			setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, be->iface_name, be->iface_len + 1);
 #endif
-		ret = tcpv4_bind_socket(fd, flags, &be->source_addr, (struct sockaddr_in *)&si->addr.s.from);
+		ret = tcp_bind_socket(fd, flags, &be->source_addr, &si->addr.s.from);
 		if (ret) {
 			close(fd);
 			if (ret == 1) {
@@ -389,7 +406,7 @@ int tcpv4_connect_server(struct stream_interface *si)
 	if (global.tune.server_rcvbuf)
                 setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &global.tune.server_rcvbuf, sizeof(global.tune.server_rcvbuf));
 
-	if ((connect(fd, (struct sockaddr *)&si->addr.s.to, sizeof(struct sockaddr_in)) == -1) &&
+	if ((connect(fd, (struct sockaddr *)&si->addr.s.to, sizeof(struct sockaddr_storage)) == -1) &&
 	    (errno != EINPROGRESS) && (errno != EALREADY) && (errno != EISCONN)) {
 
 		if (errno == EAGAIN || errno == EADDRINUSE) {
@@ -432,7 +449,7 @@ int tcpv4_connect_server(struct stream_interface *si)
 	fdtab[fd].cb[DIR_WR].b = si->ob;
 
 	fdinfo[fd].peeraddr = (struct sockaddr *)&si->addr.s.to;
-	fdinfo[fd].peerlen = sizeof(struct sockaddr_in);
+	fdinfo[fd].peerlen = sizeof(struct sockaddr_storage);
 
 	fd_insert(fd);
 	EV_FD_SET(fd, DIR_WR);  /* for connect status */
