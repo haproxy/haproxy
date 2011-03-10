@@ -2878,9 +2878,8 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
  * Parse the posted data and enable/disable servers if necessary.
  * Returns 1 if request was parsed or zero if it needs more data.
  */
-int http_process_req_stat_post(struct session *s, struct buffer *req)
+int http_process_req_stat_post(struct stream_interface *si, struct http_txn *txn, struct buffer *req)
 {
-	struct http_txn *txn = &s->txn;
 	struct proxy *px;
 	struct server *sv;
 
@@ -2896,18 +2895,18 @@ int http_process_req_stat_post(struct session *s, struct buffer *req)
 
 	if (end_params >= req->data + req->size - global.tune.maxrewrite) {
 		/* Prevent buffer overflow */
-		s->data_ctx.stats.st_code = STAT_STATUS_EXCD;
+		si->applet.ctx.stats.st_code = STAT_STATUS_EXCD;
 		return 1;
 	}
 	else if (end_params > req->data + req->l) {
 		/* we need more data */
-		s->data_ctx.stats.st_code = STAT_STATUS_NONE;
+		si->applet.ctx.stats.st_code = STAT_STATUS_NONE;
 		return 0;
 	}
 
 	*end_params = '\0';
 
-	s->data_ctx.stats.st_code = STAT_STATUS_NONE;
+	si->applet.ctx.stats.st_code = STAT_STATUS_NONE;
 
 	/*
 	 * Parse the parameters in reverse order to only store the last value.
@@ -2958,7 +2957,7 @@ int http_process_req_stat_post(struct session *s, struct buffer *req)
 							/* Not already in maintenance, we can change the server state */
 							sv->state |= SRV_MAINTAIN;
 							set_server_down(sv);
-							s->data_ctx.stats.st_code = STAT_STATUS_DONE;
+							si->applet.ctx.stats.st_code = STAT_STATUS_DONE;
 						}
 						break;
 					case 2:
@@ -2966,7 +2965,7 @@ int http_process_req_stat_post(struct session *s, struct buffer *req)
 							/* Already in maintenance, we can change the server state */
 							set_server_up(sv);
 							sv->health = sv->rise;	/* up, but will fall down at first failure */
-							s->data_ctx.stats.st_code = STAT_STATUS_DONE;
+							si->applet.ctx.stats.st_code = STAT_STATUS_DONE;
 						}
 						break;
 					}
@@ -3031,7 +3030,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 		}
 	}
 
-	do_stats = stats_check_uri(s, px);
+	do_stats = stats_check_uri(s->rep->prod, txn, px);
 
 	list_for_each_entry(req_acl, (do_stats?&px->uri_auth->req_acl:&px->req_acl), list) {
 		int ret = 1;
@@ -3207,14 +3206,14 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 
 			if (ret) {
 				/* no rule, or the rule matches */
-				s->data_ctx.stats.flags |= STAT_ADMIN;
+				s->rep->prod->applet.ctx.stats.flags |= STAT_ADMIN;
 				break;
 			}
 		}
 
 		/* Was the status page requested with a POST ? */
 		if (txn->meth == HTTP_METH_POST) {
-			if (s->data_ctx.stats.flags & STAT_ADMIN) {
+			if (s->rep->prod->applet.ctx.stats.flags & STAT_ADMIN) {
 				if (msg->msg_state < HTTP_MSG_100_SENT) {
 					/* If we have HTTP/1.1 and Expect: 100-continue, then we must
 					 * send an HTTP/1.1 100 Continue intermediate response.
@@ -3231,19 +3230,18 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 					msg->msg_state = HTTP_MSG_100_SENT;
 					s->logs.tv_request = now;  /* update the request timer to reflect full request */
 				}
-				if (!http_process_req_stat_post(s, req)) {
+				if (!http_process_req_stat_post(s->rep->prod, txn, req)) {
 					/* we need more data */
 					req->analysers |= an_bit;
 					buffer_dont_connect(req);
 					return 0;
 				}
 			} else {
-				s->data_ctx.stats.st_code = STAT_STATUS_DENY;
+				s->rep->prod->applet.ctx.stats.st_code = STAT_STATUS_DENY;
 			}
 		}
 
 		s->logs.tv_request = now;
-		s->data_state  = DATA_ST_INIT;
 		s->task->nice = -32; /* small boost for HTTP statistics */
 		stream_int_register_handler(s->rep->prod, &http_stats_applet);
 		s->rep->prod->applet.private = s;
@@ -7266,13 +7264,12 @@ void get_srv_from_appsession(struct session *t, const char *begin, int len)
  * for the current backend.
  *
  * It is assumed that the request is either a HEAD, GET, or POST and that the
- * t->be->uri_auth field is valid.
+ * uri_auth field is valid.
  *
  * Returns 1 if stats should be provided, otherwise 0.
  */
-int stats_check_uri(struct session *t, struct proxy *backend)
+int stats_check_uri(struct stream_interface *si, struct http_txn *txn, struct proxy *backend)
 {
-	struct http_txn *txn = &t->txn;
 	struct uri_auth *uri_auth = backend->uri_auth;
 	char *h;
 
@@ -7282,7 +7279,7 @@ int stats_check_uri(struct session *t, struct proxy *backend)
 	if (txn->meth != HTTP_METH_GET && txn->meth != HTTP_METH_HEAD && txn->meth != HTTP_METH_POST)
 		return 0;
 
-	memset(&t->data_ctx.stats, 0, sizeof(t->data_ctx.stats));
+	memset(&si->applet.ctx.stats, 0, sizeof(si->applet.ctx.stats));
 
 	/* check URI size */
 	if (uri_auth->uri_len > txn->req.sl.rq.u_l)
@@ -7297,7 +7294,7 @@ int stats_check_uri(struct session *t, struct proxy *backend)
 	h += uri_auth->uri_len;
 	while (h <= txn->req.sol + txn->req.sl.rq.u + txn->req.sl.rq.u_l - 3) {
 		if (memcmp(h, ";up", 3) == 0) {
-			t->data_ctx.stats.flags |= STAT_HIDE_DOWN;
+			si->applet.ctx.stats.flags |= STAT_HIDE_DOWN;
 			break;
 		}
 		h++;
@@ -7307,7 +7304,7 @@ int stats_check_uri(struct session *t, struct proxy *backend)
 		h = txn->req.sol + txn->req.sl.rq.u + uri_auth->uri_len;
 		while (h <= txn->req.sol + txn->req.sl.rq.u + txn->req.sl.rq.u_l - 10) {
 			if (memcmp(h, ";norefresh", 10) == 0) {
-				t->data_ctx.stats.flags |= STAT_NO_REFRESH;
+				si->applet.ctx.stats.flags |= STAT_NO_REFRESH;
 				break;
 			}
 			h++;
@@ -7317,7 +7314,7 @@ int stats_check_uri(struct session *t, struct proxy *backend)
 	h = txn->req.sol + txn->req.sl.rq.u + uri_auth->uri_len;
 	while (h <= txn->req.sol + txn->req.sl.rq.u + txn->req.sl.rq.u_l - 4) {
 		if (memcmp(h, ";csv", 4) == 0) {
-			t->data_ctx.stats.flags |= STAT_FMT_CSV;
+			si->applet.ctx.stats.flags |= STAT_FMT_CSV;
 			break;
 		}
 		h++;
@@ -7329,21 +7326,21 @@ int stats_check_uri(struct session *t, struct proxy *backend)
 			h += 4;
 
 			if (memcmp(h, STAT_STATUS_DONE, 4) == 0)
-				t->data_ctx.stats.st_code = STAT_STATUS_DONE;
+				si->applet.ctx.stats.st_code = STAT_STATUS_DONE;
 			else if (memcmp(h, STAT_STATUS_NONE, 4) == 0)
-				t->data_ctx.stats.st_code = STAT_STATUS_NONE;
+				si->applet.ctx.stats.st_code = STAT_STATUS_NONE;
 			else if (memcmp(h, STAT_STATUS_EXCD, 4) == 0)
-				t->data_ctx.stats.st_code = STAT_STATUS_EXCD;
+				si->applet.ctx.stats.st_code = STAT_STATUS_EXCD;
 			else if (memcmp(h, STAT_STATUS_DENY, 4) == 0)
-				t->data_ctx.stats.st_code = STAT_STATUS_DENY;
+				si->applet.ctx.stats.st_code = STAT_STATUS_DENY;
 			else
-				t->data_ctx.stats.st_code = STAT_STATUS_UNKN;
+				si->applet.ctx.stats.st_code = STAT_STATUS_UNKN;
 			break;
 		}
 		h++;
 	}
 
-	t->data_ctx.stats.flags |= STAT_SHOW_STAT | STAT_SHOW_INFO;
+	si->applet.ctx.stats.flags |= STAT_SHOW_STAT | STAT_SHOW_INFO;
 
 	return 1;
 }

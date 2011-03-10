@@ -77,6 +77,28 @@ const char stats_permission_denied_msg[] =
 	"Permission denied\n"
 	"";
 
+/* data transmission states for the stats responses */
+enum {
+	STAT_ST_INIT = 0,
+	STAT_ST_HEAD,
+	STAT_ST_INFO,
+	STAT_ST_LIST,
+	STAT_ST_END,
+	STAT_ST_FIN,
+};
+
+/* data transmission states for the stats responses inside a proxy */
+enum {
+	STAT_PX_ST_INIT = 0,
+	STAT_PX_ST_TH,
+	STAT_PX_ST_FE,
+	STAT_PX_ST_LI,
+	STAT_PX_ST_SV,
+	STAT_PX_ST_BE,
+	STAT_PX_ST_END,
+	STAT_PX_ST_FIN,
+};
+
 /* This function is called from the session-level accept() in order to instanciate
  * a new stats socket. It returns a positive value upon success, 0 if the connection
  * needs to be closed and ignored, or a negative value upon critical failure.
@@ -97,8 +119,6 @@ int stats_accept(struct session *s)
 	s->logs.bytes_in = s->logs.bytes_out = 0;
 	s->logs.prx_queue_size = 0;  /* we get the number of pending conns before us */
 	s->logs.srv_queue_size = 0; /* we will get this number soon */
-
-	s->data_state = DATA_ST_INIT;
 
 	s->req->flags |= BF_READ_DONTWAIT; /* we plan to read small requests */
 
@@ -348,106 +368,106 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 	while (++arg <= MAX_STATS_ARGS)
 		args[arg] = line;
 
-	s->data_ctx.stats.flags = 0;
+	si->applet.ctx.stats.flags = 0;
 	if (strcmp(args[0], "show") == 0) {
 		if (strcmp(args[1], "stat") == 0) {
 			if (*args[2] && *args[3] && *args[4]) {
-				s->data_ctx.stats.flags |= STAT_BOUND;
-				s->data_ctx.stats.iid	= atoi(args[2]);
-				s->data_ctx.stats.type	= atoi(args[3]);
-				s->data_ctx.stats.sid	= atoi(args[4]);
+				si->applet.ctx.stats.flags |= STAT_BOUND;
+				si->applet.ctx.stats.iid = atoi(args[2]);
+				si->applet.ctx.stats.type = atoi(args[3]);
+				si->applet.ctx.stats.sid = atoi(args[4]);
 			}
 
-			s->data_ctx.stats.flags |= STAT_SHOW_STAT;
-			s->data_ctx.stats.flags |= STAT_FMT_CSV;
-			s->data_state = DATA_ST_INIT;
+			si->applet.ctx.stats.flags |= STAT_SHOW_STAT;
+			si->applet.ctx.stats.flags |= STAT_FMT_CSV;
+			si->applet.state = STAT_ST_INIT;
 			si->applet.st0 = STAT_CLI_O_INFO; // stats_dump_raw_to_buffer
 		}
 		else if (strcmp(args[1], "info") == 0) {
-			s->data_ctx.stats.flags |= STAT_SHOW_INFO;
-			s->data_ctx.stats.flags |= STAT_FMT_CSV;
-			s->data_state = DATA_ST_INIT;
+			si->applet.ctx.stats.flags |= STAT_SHOW_INFO;
+			si->applet.ctx.stats.flags |= STAT_FMT_CSV;
+			si->applet.state = STAT_ST_INIT;
 			si->applet.st0 = STAT_CLI_O_INFO; // stats_dump_raw_to_buffer
 		}
 		else if (strcmp(args[1], "sess") == 0) {
-			s->data_state = DATA_ST_INIT;
+			si->applet.state = STAT_ST_INIT;
 			if (s->listener->perm.ux.level < ACCESS_LVL_OPER) {
-				s->data_ctx.cli.msg = stats_permission_denied_msg;
+				si->applet.ctx.cli.msg = stats_permission_denied_msg;
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
 			}
 			if (*args[2])
-				s->data_ctx.sess.target = (void *)strtoul(args[2], NULL, 0);
+				si->applet.ctx.sess.target = (void *)strtoul(args[2], NULL, 0);
 			else
-				s->data_ctx.sess.target = NULL;
-			s->data_ctx.sess.section = 0; /* start with session status */
-			s->data_ctx.sess.pos = 0;
+				si->applet.ctx.sess.target = NULL;
+			si->applet.ctx.sess.section = 0; /* start with session status */
+			si->applet.ctx.sess.pos = 0;
 			si->applet.st0 = STAT_CLI_O_SESS; // stats_dump_sess_to_buffer
 		}
 		else if (strcmp(args[1], "errors") == 0) {
 			if (s->listener->perm.ux.level < ACCESS_LVL_OPER) {
-				s->data_ctx.cli.msg = stats_permission_denied_msg;
+				si->applet.ctx.cli.msg = stats_permission_denied_msg;
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
 			}
 			if (*args[2])
-				s->data_ctx.errors.iid	= atoi(args[2]);
+				si->applet.ctx.errors.iid	= atoi(args[2]);
 			else
-				s->data_ctx.errors.iid	= -1;
-			s->data_ctx.errors.px = NULL;
-			s->data_state = DATA_ST_INIT;
+				si->applet.ctx.errors.iid	= -1;
+			si->applet.ctx.errors.px = NULL;
+			si->applet.state = STAT_ST_INIT;
 			si->applet.st0 = STAT_CLI_O_ERR; // stats_dump_errors_to_buffer
 		}
 		else if (strcmp(args[1], "table") == 0) {
-			s->data_state = DATA_ST_INIT;
+			si->applet.state = STAT_ST_INIT;
 			if (*args[2]) {
-				s->data_ctx.table.target = find_stktable(args[2]);
-				if (!s->data_ctx.table.target) {
-					s->data_ctx.cli.msg = "No such table\n";
+				si->applet.ctx.table.target = find_stktable(args[2]);
+				if (!si->applet.ctx.table.target) {
+					si->applet.ctx.cli.msg = "No such table\n";
 					si->applet.st0 = STAT_CLI_PRINT;
 					return 1;
 				}
 			}
 			else
-				s->data_ctx.table.target = NULL;
+				si->applet.ctx.table.target = NULL;
 
-			s->data_ctx.table.data_type = -1;
-			if (s->data_ctx.table.target && strncmp(args[3], "data.", 5) == 0) {
+			si->applet.ctx.table.data_type = -1;
+			if (si->applet.ctx.table.target && strncmp(args[3], "data.", 5) == 0) {
 				/* condition on stored data value */
-				s->data_ctx.table.data_type = stktable_get_data_type(args[3] + 5);
-				if (s->data_ctx.table.data_type < 0) {
-					s->data_ctx.cli.msg = "Unknown data type\n";
+				si->applet.ctx.table.data_type = stktable_get_data_type(args[3] + 5);
+				if (si->applet.ctx.table.data_type < 0) {
+					si->applet.ctx.cli.msg = "Unknown data type\n";
 					si->applet.st0 = STAT_CLI_PRINT;
 					return 1;
 				}
 
-				if (!((struct proxy *)s->data_ctx.table.target)->table.data_ofs[s->data_ctx.table.data_type]) {
-					s->data_ctx.cli.msg = "Data type not stored in this table\n";
+				if (!((struct proxy *)si->applet.ctx.table.target)->table.data_ofs[si->applet.ctx.table.data_type]) {
+					si->applet.ctx.cli.msg = "Data type not stored in this table\n";
 					si->applet.st0 = STAT_CLI_PRINT;
 					return 1;
 				}
 
-				s->data_ctx.table.data_op = get_std_op(args[4]);
-				if (s->data_ctx.table.data_op < 0) {
-					s->data_ctx.cli.msg = "Require and operator among \"eq\", \"ne\", \"le\", \"ge\", \"lt\", \"gt\"\n";
+				si->applet.ctx.table.data_op = get_std_op(args[4]);
+				if (si->applet.ctx.table.data_op < 0) {
+					si->applet.ctx.cli.msg = "Require and operator among \"eq\", \"ne\", \"le\", \"ge\", \"lt\", \"gt\"\n";
 					si->applet.st0 = STAT_CLI_PRINT;
 					return 1;
 				}
 
-				if (!*args[5] || strl2llrc(args[5], strlen(args[5]), &s->data_ctx.table.value) != 0) {
-					s->data_ctx.cli.msg = "Require a valid integer value to compare against\n";
+				if (!*args[5] || strl2llrc(args[5], strlen(args[5]), &si->applet.ctx.table.value) != 0) {
+					si->applet.ctx.cli.msg = "Require a valid integer value to compare against\n";
 					si->applet.st0 = STAT_CLI_PRINT;
 					return 1;
 				}
 			}
 			else if (*args[3]) {
-				s->data_ctx.cli.msg = "Optional argument only supports \"data.<store_data_type>\" <operator> <value>\n";
+				si->applet.ctx.cli.msg = "Optional argument only supports \"data.<store_data_type>\" <operator> <value>\n";
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
 			}
 
-			s->data_ctx.table.proxy = NULL;
-			s->data_ctx.table.entry = NULL;
+			si->applet.ctx.table.proxy = NULL;
+			si->applet.ctx.table.entry = NULL;
 			si->applet.st0 = STAT_CLI_O_TAB; // stats_dump_table_to_buffer
 		}
 		else { /* neither "stat" nor "info" nor "sess" nor "errors" no "table" */
@@ -467,7 +487,7 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 			/* check permissions */
 			if (s->listener->perm.ux.level < ACCESS_LVL_OPER ||
 			    (clrall && s->listener->perm.ux.level < ACCESS_LVL_ADMIN)) {
-				s->data_ctx.cli.msg = stats_permission_denied_msg;
+				si->applet.ctx.cli.msg = stats_permission_denied_msg;
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -511,7 +531,7 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 			unsigned int ip_key;
 
 			if (!*args[2]) {
-				s->data_ctx.cli.msg = "\"table\" argument expected\n";
+				si->applet.ctx.cli.msg = "\"table\" argument expected\n";
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -519,19 +539,19 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 			px = find_stktable(args[2]);
 
 			if (!px) {
-				s->data_ctx.cli.msg = "No such table\n";
+				si->applet.ctx.cli.msg = "No such table\n";
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
 			}
 
 			if (strcmp(args[3], "key") != 0) {
-				s->data_ctx.cli.msg = "\"key\" argument expected\n";
+				si->applet.ctx.cli.msg = "\"key\" argument expected\n";
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
 			}
 
 			if (!*args[4]) {
-				s->data_ctx.cli.msg = "Key value expected\n";
+				si->applet.ctx.cli.msg = "Key value expected\n";
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -541,14 +561,14 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 				static_table_key.key = (void *)&ip_key;
 			}
 			else {
-				s->data_ctx.cli.msg = "Removing keys from non-ip tables is not supported\n";
+				si->applet.ctx.cli.msg = "Removing keys from non-ip tables is not supported\n";
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
 			}
 
 			/* check permissions */
 			if (s->listener->perm.ux.level < ACCESS_LVL_OPER) {
-				s->data_ctx.cli.msg = stats_permission_denied_msg;
+				si->applet.ctx.cli.msg = stats_permission_denied_msg;
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -560,7 +580,7 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 			}
 			else if (ts->ref_cnt) {
 				/* don't delete an entry which is currently referenced */
-				s->data_ctx.cli.msg = "Entry currently in use, cannot remove\n";
+				si->applet.ctx.cli.msg = "Entry currently in use, cannot remove\n";
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -587,13 +607,13 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 				}
 
 			if (!*line) {
-				s->data_ctx.cli.msg = "Require 'backend/server'.\n";
+				si->applet.ctx.cli.msg = "Require 'backend/server'.\n";
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
 			}
 
 			if (!get_backend_server(args[2], line, &px, &sv)) {
-				s->data_ctx.cli.msg = px ? "No such server.\n" : "No such backend.\n";
+				si->applet.ctx.cli.msg = px ? "No such server.\n" : "No such backend.\n";
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -614,7 +634,7 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 			int w;
 
 			if (s->listener->perm.ux.level < ACCESS_LVL_ADMIN) {
-				s->data_ctx.cli.msg = stats_permission_denied_msg;
+				si->applet.ctx.cli.msg = stats_permission_denied_msg;
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -627,19 +647,19 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 				}
 
 			if (!*line || !*args[3]) {
-				s->data_ctx.cli.msg = "Require 'backend/server' and 'weight' or 'weight%'.\n";
+				si->applet.ctx.cli.msg = "Require 'backend/server' and 'weight' or 'weight%'.\n";
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
 			}
 
 			if (!get_backend_server(args[2], line, &px, &sv)) {
-				s->data_ctx.cli.msg = px ? "No such server.\n" : "No such backend.\n";
+				si->applet.ctx.cli.msg = px ? "No such server.\n" : "No such backend.\n";
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
 			}
 
 			if (px->state == PR_STSTOPPED) {
-				s->data_ctx.cli.msg = "Proxy is disabled.\n";
+				si->applet.ctx.cli.msg = "Proxy is disabled.\n";
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -650,7 +670,7 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 			w = atoi(args[3]);
 			if (strchr(args[3], '%') != NULL) {
 				if (w < 0 || w > 100) {
-					s->data_ctx.cli.msg = "Relative weight can only be set between 0 and 100% inclusive.\n";
+					si->applet.ctx.cli.msg = "Relative weight can only be set between 0 and 100% inclusive.\n";
 					si->applet.st0 = STAT_CLI_PRINT;
 					return 1;
 				}
@@ -658,14 +678,14 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 			}
 			else {
 				if (w < 0 || w > 256) {
-					s->data_ctx.cli.msg = "Absolute weight can only be between 0 and 256 inclusive.\n";
+					si->applet.ctx.cli.msg = "Absolute weight can only be between 0 and 256 inclusive.\n";
 					si->applet.st0 = STAT_CLI_PRINT;
 					return 1;
 				}
 			}
 
 			if (w && w != sv->iweight && !(px->lbprm.algo & BE_LB_PROP_DYN)) {
-				s->data_ctx.cli.msg = "Backend is using a static LB algorithm and only accepts weights '0%' and '100%'.\n";
+				si->applet.ctx.cli.msg = "Backend is using a static LB algorithm and only accepts weights '0%' and '100%'.\n";
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -699,14 +719,14 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 				const char *res;
 
 				if (!*args[3]) {
-					s->data_ctx.cli.msg = "Expects an integer value.\n";
+					si->applet.ctx.cli.msg = "Expects an integer value.\n";
 					si->applet.st0 = STAT_CLI_PRINT;
 					return 1;
 				}
 
 				res = parse_time_err(args[3], &timeout, TIME_UNIT_S);
 				if (res || timeout < 1) {
-					s->data_ctx.cli.msg = "Invalid timeout value.\n";
+					si->applet.ctx.cli.msg = "Invalid timeout value.\n";
 					si->applet.st0 = STAT_CLI_PRINT;
 					return 1;
 				}
@@ -715,7 +735,7 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 				return 1;
 			}
 			else {
-				s->data_ctx.cli.msg = "'set timeout' only supports 'cli'.\n";
+				si->applet.ctx.cli.msg = "'set timeout' only supports 'cli'.\n";
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -730,7 +750,7 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 			struct server *sv;
 
 			if (s->listener->perm.ux.level < ACCESS_LVL_ADMIN) {
-				s->data_ctx.cli.msg = stats_permission_denied_msg;
+				si->applet.ctx.cli.msg = stats_permission_denied_msg;
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -743,19 +763,19 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 				}
 
 			if (!*line || !*args[2]) {
-				s->data_ctx.cli.msg = "Require 'backend/server'.\n";
+				si->applet.ctx.cli.msg = "Require 'backend/server'.\n";
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
 			}
 
 			if (!get_backend_server(args[2], line, &px, &sv)) {
-				s->data_ctx.cli.msg = px ? "No such server.\n" : "No such backend.\n";
+				si->applet.ctx.cli.msg = px ? "No such server.\n" : "No such backend.\n";
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
 			}
 
 			if (px->state == PR_STSTOPPED) {
-				s->data_ctx.cli.msg = "Proxy is disabled.\n";
+				si->applet.ctx.cli.msg = "Proxy is disabled.\n";
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -791,7 +811,7 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 			struct server *sv;
 
 			if (s->listener->perm.ux.level < ACCESS_LVL_ADMIN) {
-				s->data_ctx.cli.msg = stats_permission_denied_msg;
+				si->applet.ctx.cli.msg = stats_permission_denied_msg;
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -804,19 +824,19 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 				}
 
 			if (!*line || !*args[2]) {
-				s->data_ctx.cli.msg = "Require 'backend/server'.\n";
+				si->applet.ctx.cli.msg = "Require 'backend/server'.\n";
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
 			}
 
 			if (!get_backend_server(args[2], line, &px, &sv)) {
-				s->data_ctx.cli.msg = px ? "No such server.\n" : "No such backend.\n";
+				si->applet.ctx.cli.msg = px ? "No such server.\n" : "No such backend.\n";
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
 			}
 
 			if (px->state == PR_STSTOPPED) {
-				s->data_ctx.cli.msg = "Proxy is disabled.\n";
+				si->applet.ctx.cli.msg = "Proxy is disabled.\n";
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -849,7 +869,6 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
  */
 static void cli_io_handler(struct stream_interface *si)
 {
-	struct session *s = si->applet.private;
 	struct buffer *req = si->ob;
 	struct buffer *res = si->ib;
 	int reql;
@@ -861,7 +880,7 @@ static void cli_io_handler(struct stream_interface *si)
 	while (1) {
 		if (si->applet.st0 == STAT_CLI_INIT) {
 			/* Stats output not initialized yet */
-			memset(&s->data_ctx.stats, 0, sizeof(s->data_ctx.stats));
+			memset(&si->applet.ctx.stats, 0, sizeof(si->applet.ctx.stats));
 			si->applet.st0 = STAT_CLI_GETREQ;
 		}
 		else if (si->applet.st0 == STAT_CLI_END) {
@@ -921,7 +940,7 @@ static void cli_io_handler(struct stream_interface *si)
 					si->applet.st1 = !si->applet.st1;
 				else if (strcmp(trash, "help") == 0 ||
 					 !stats_sock_parse_request(si, trash)) {
-					s->data_ctx.cli.msg = stats_sock_usage_msg;
+					si->applet.ctx.cli.msg = stats_sock_usage_msg;
 					si->applet.st0 = STAT_CLI_PRINT;
 				}
 				/* NB: stats_sock_parse_request() may have put
@@ -933,7 +952,7 @@ static void cli_io_handler(struct stream_interface *si)
 				 * so that the user at least knows how to enable
 				 * prompt and find help.
 				 */
-				s->data_ctx.cli.msg = stats_sock_usage_msg;
+				si->applet.ctx.cli.msg = stats_sock_usage_msg;
 				si->applet.st0 = STAT_CLI_PRINT;
 			}
 
@@ -949,7 +968,7 @@ static void cli_io_handler(struct stream_interface *si)
 
 			switch (si->applet.st0) {
 			case STAT_CLI_PRINT:
-				if (buffer_feed(si->ib, s->data_ctx.cli.msg) < 0)
+				if (buffer_feed(si->ib, si->applet.ctx.cli.msg) < 0)
 					si->applet.st0 = STAT_CLI_PROMPT;
 				break;
 			case STAT_CLI_O_INFO:
@@ -1046,32 +1065,31 @@ static void cli_io_handler(struct stream_interface *si)
  */
 int stats_dump_raw_to_buffer(struct stream_interface *si)
 {
-	struct session *s = si->applet.private;
 	struct proxy *px;
 	struct chunk msg;
 	unsigned int up;
 
 	chunk_init(&msg, trash, sizeof(trash));
 
-	switch (s->data_state) {
-	case DATA_ST_INIT:
+	switch (si->applet.state) {
+	case STAT_ST_INIT:
 		/* the function had not been called yet */
-		s->data_state = DATA_ST_HEAD;
+		si->applet.state = STAT_ST_HEAD;
 		/* fall through */
 
-	case DATA_ST_HEAD:
-		if (s->data_ctx.stats.flags & STAT_SHOW_STAT) {
+	case STAT_ST_HEAD:
+		if (si->applet.ctx.stats.flags & STAT_SHOW_STAT) {
 			print_csv_header(&msg);
 			if (buffer_feed_chunk(si->ib, &msg) >= 0)
 				return 0;
 		}
 
-		s->data_state = DATA_ST_INFO;
+		si->applet.state = STAT_ST_INFO;
 		/* fall through */
 
-	case DATA_ST_INFO:
+	case STAT_ST_INFO:
 		up = (now.tv_sec - start_date.tv_sec);
-		if (s->data_ctx.stats.flags & STAT_SHOW_INFO) {
+		if (si->applet.ctx.stats.flags & STAT_SHOW_INFO) {
 			chunk_printf(&msg,
 				     "Name: " PRODUCT_NAME "\n"
 				     "Version: " HAPROXY_VERSION "\n"
@@ -1110,20 +1128,17 @@ int stats_dump_raw_to_buffer(struct stream_interface *si)
 				return 0;
 		}
 
-		s->data_ctx.stats.px = proxy;
-		s->data_ctx.stats.px_st = DATA_ST_PX_INIT;
-
-		s->data_ctx.stats.sv = NULL;
-		s->data_ctx.stats.sv_st = 0;
-
-		s->data_state = DATA_ST_LIST;
+		si->applet.ctx.stats.px = proxy;
+		si->applet.ctx.stats.px_st = STAT_PX_ST_INIT;
+		si->applet.ctx.stats.sv = NULL;
+		si->applet.state = STAT_ST_LIST;
 		/* fall through */
 
-	case DATA_ST_LIST:
+	case STAT_ST_LIST:
 		/* dump proxies */
-		if (s->data_ctx.stats.flags & STAT_SHOW_STAT) {
-			while (s->data_ctx.stats.px) {
-				px = s->data_ctx.stats.px;
+		if (si->applet.ctx.stats.flags & STAT_SHOW_STAT) {
+			while (si->applet.ctx.stats.px) {
+				px = si->applet.ctx.stats.px;
 				/* skip the disabled proxies and non-networked ones */
 				if (px->state != PR_STSTOPPED &&
 				    (px->cap & (PR_CAP_FE | PR_CAP_BE))) {
@@ -1131,25 +1146,25 @@ int stats_dump_raw_to_buffer(struct stream_interface *si)
 						return 0;
 				}
 
-				s->data_ctx.stats.px = px->next;
-				s->data_ctx.stats.px_st = DATA_ST_PX_INIT;
+				si->applet.ctx.stats.px = px->next;
+				si->applet.ctx.stats.px_st = STAT_PX_ST_INIT;
 			}
 			/* here, we just have reached the last proxy */
 		}
 
-		s->data_state = DATA_ST_END;
+		si->applet.state = STAT_ST_END;
 		/* fall through */
 
-	case DATA_ST_END:
-		s->data_state = DATA_ST_FIN;
+	case STAT_ST_END:
+		si->applet.state = STAT_ST_FIN;
 		/* fall through */
 
-	case DATA_ST_FIN:
+	case STAT_ST_FIN:
 		return 1;
 
 	default:
 		/* unknown state ! */
-		s->data_state = DATA_ST_FIN;
+		si->applet.state = STAT_ST_FIN;
 		return 1;
 	}
 }
@@ -1166,15 +1181,15 @@ int stats_http_redir(struct stream_interface *si, struct uri_auth *uri)
 
 	chunk_init(&msg, trash, sizeof(trash));
 
-	switch (s->data_state) {
-	case DATA_ST_INIT:
+	switch (si->applet.state) {
+	case STAT_ST_INIT:
 		chunk_printf(&msg,
 			"HTTP/1.0 303 See Other\r\n"
 			"Cache-Control: no-cache\r\n"
 			"Content-Type: text/plain\r\n"
 			"Connection: close\r\n"
 			"Location: %s;st=%s",
-			uri->uri_prefix, s->data_ctx.stats.st_code);
+			uri->uri_prefix, si->applet.ctx.stats.st_code);
 		chunk_printf(&msg, "\r\n\r\n");
 
 		if (buffer_feed_chunk(si->ib, &msg) >= 0)
@@ -1187,7 +1202,7 @@ int stats_http_redir(struct stream_interface *si, struct uri_auth *uri)
 		if (!(s->flags & SN_FINST_MASK))
 			s->flags |= SN_FINST_R;
 
-		s->data_state = DATA_ST_FIN;
+		si->applet.state = STAT_ST_FIN;
 		return 1;
 	}
 	return 1;
@@ -1265,16 +1280,16 @@ int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 
 	chunk_init(&msg, trash, sizeof(trash));
 
-	switch (s->data_state) {
-	case DATA_ST_INIT:
+	switch (si->applet.state) {
+	case STAT_ST_INIT:
 		chunk_printf(&msg,
 			     "HTTP/1.0 200 OK\r\n"
 			     "Cache-Control: no-cache\r\n"
 			     "Connection: close\r\n"
 			     "Content-Type: %s\r\n",
-			     (s->data_ctx.stats.flags & STAT_FMT_CSV) ? "text/plain" : "text/html");
+			     (si->applet.ctx.stats.flags & STAT_FMT_CSV) ? "text/plain" : "text/html");
 
-		if (uri->refresh > 0 && !(s->data_ctx.stats.flags & STAT_NO_REFRESH))
+		if (uri->refresh > 0 && !(si->applet.ctx.stats.flags & STAT_NO_REFRESH))
 			chunk_printf(&msg, "Refresh: %d\r\n",
 				     uri->refresh);
 
@@ -1291,15 +1306,15 @@ int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 
 		if (s->txn.meth == HTTP_METH_HEAD) {
 			/* that's all we return in case of HEAD request */
-			s->data_state = DATA_ST_FIN;
+			si->applet.state = STAT_ST_FIN;
 			return 1;
 		}
 
-		s->data_state = DATA_ST_HEAD; /* let's start producing data */
+		si->applet.state = STAT_ST_HEAD; /* let's start producing data */
 		/* fall through */
 
-	case DATA_ST_HEAD:
-		if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
+	case STAT_ST_HEAD:
+		if (!(si->applet.ctx.stats.flags & STAT_FMT_CSV)) {
 			/* WARNING! This must fit in the first buffer !!! */
 			chunk_printf(&msg,
 			     "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\"\n"
@@ -1399,17 +1414,17 @@ int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 		if (buffer_feed_chunk(rep, &msg) >= 0)
 			return 0;
 
-		s->data_state = DATA_ST_INFO;
+		si->applet.state = STAT_ST_INFO;
 		/* fall through */
 
-	case DATA_ST_INFO:
+	case STAT_ST_INFO:
 		up = (now.tv_sec - start_date.tv_sec);
 
 		/* WARNING! this has to fit the first packet too.
 			 * We are around 3.5 kB, add adding entries will
 			 * become tricky if we want to support 4kB buffers !
 			 */
-		if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
+		if (!(si->applet.ctx.stats.flags & STAT_FMT_CSV)) {
 			chunk_printf(&msg,
 			     "<body><h1><a href=\"" PRODUCT_URL "\" style=\"text-decoration: none;\">"
 			     PRODUCT_NAME "%s</a></h1>\n"
@@ -1458,39 +1473,39 @@ int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 			     run_queue_cur, nb_tasks_cur
 			     );
 
-			if (s->data_ctx.stats.flags & STAT_HIDE_DOWN)
+			if (si->applet.ctx.stats.flags & STAT_HIDE_DOWN)
 				chunk_printf(&msg,
 				     "<li><a href=\"%s%s%s\">Show all servers</a><br>\n",
 				     uri->uri_prefix,
 				     "",
-				     (s->data_ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "");
+				     (si->applet.ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "");
 			else
 				chunk_printf(&msg,
 				     "<li><a href=\"%s%s%s\">Hide 'DOWN' servers</a><br>\n",
 				     uri->uri_prefix,
 				     ";up",
-				     (s->data_ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "");
+				     (si->applet.ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "");
 
 			if (uri->refresh > 0) {
-				if (s->data_ctx.stats.flags & STAT_NO_REFRESH)
+				if (si->applet.ctx.stats.flags & STAT_NO_REFRESH)
 					chunk_printf(&msg,
 					     "<li><a href=\"%s%s%s\">Enable refresh</a><br>\n",
 					     uri->uri_prefix,
-					     (s->data_ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
+					     (si->applet.ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
 					     "");
 				else
 					chunk_printf(&msg,
 					     "<li><a href=\"%s%s%s\">Disable refresh</a><br>\n",
 					     uri->uri_prefix,
-					     (s->data_ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
+					     (si->applet.ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
 					     ";norefresh");
 			}
 
 			chunk_printf(&msg,
 			     "<li><a href=\"%s%s%s\">Refresh now</a><br>\n",
 			     uri->uri_prefix,
-			     (s->data_ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
-			     (s->data_ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "");
+			     (si->applet.ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
+			     (si->applet.ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "");
 
 			chunk_printf(&msg,
 			     "<li><a href=\"%s;csv%s\">CSV export</a><br>\n",
@@ -1510,22 +1525,22 @@ int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 			     ""
 			     );
 
-			if (s->data_ctx.stats.st_code) {
-				if (strcmp(s->data_ctx.stats.st_code, STAT_STATUS_DONE) == 0) {
+			if (si->applet.ctx.stats.st_code) {
+				if (strcmp(si->applet.ctx.stats.st_code, STAT_STATUS_DONE) == 0) {
 					chunk_printf(&msg,
 						     "<p><div class=active3>"
 						     "<a class=lfsb href=\"%s\" title=\"Remove this message\">[X]</a> "
 						     "Action processed successfully."
 						     "</div>\n", uri->uri_prefix);
 				}
-				else if (strcmp(s->data_ctx.stats.st_code, STAT_STATUS_NONE) == 0) {
+				else if (strcmp(si->applet.ctx.stats.st_code, STAT_STATUS_NONE) == 0) {
 					chunk_printf(&msg,
 						     "<p><div class=active2>"
 						     "<a class=lfsb href=\"%s\" title=\"Remove this message\">[X]</a> "
 						     "Nothing has changed."
 						     "</div>\n", uri->uri_prefix);
 				}
-				else if (strcmp(s->data_ctx.stats.st_code, STAT_STATUS_EXCD) == 0) {
+				else if (strcmp(si->applet.ctx.stats.st_code, STAT_STATUS_EXCD) == 0) {
 					chunk_printf(&msg,
 						     "<p><div class=active0>"
 						     "<a class=lfsb href=\"%s\" title=\"Remove this message\">[X]</a> "
@@ -1533,7 +1548,7 @@ int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 						     "You should retry with less servers at a time.</b>"
 						     "</div>\n", uri->uri_prefix);
 				}
-				else if (strcmp(s->data_ctx.stats.st_code, STAT_STATUS_DENY) == 0) {
+				else if (strcmp(si->applet.ctx.stats.st_code, STAT_STATUS_DENY) == 0) {
 					chunk_printf(&msg,
 						     "<p><div class=active0>"
 						     "<a class=lfsb href=\"%s\" title=\"Remove this message\">[X]</a> "
@@ -1554,46 +1569,46 @@ int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 				return 0;
 		}
 
-		s->data_ctx.stats.px = proxy;
-		s->data_ctx.stats.px_st = DATA_ST_PX_INIT;
-		s->data_state = DATA_ST_LIST;
+		si->applet.ctx.stats.px = proxy;
+		si->applet.ctx.stats.px_st = STAT_PX_ST_INIT;
+		si->applet.state = STAT_ST_LIST;
 		/* fall through */
 
-	case DATA_ST_LIST:
+	case STAT_ST_LIST:
 		/* dump proxies */
-		while (s->data_ctx.stats.px) {
+		while (si->applet.ctx.stats.px) {
 			if (buffer_almost_full(rep))
 				return 0;
-			px = s->data_ctx.stats.px;
+			px = si->applet.ctx.stats.px;
 			/* skip the disabled proxies and non-networked ones */
 			if (px->state != PR_STSTOPPED && (px->cap & (PR_CAP_FE | PR_CAP_BE)))
 				if (stats_dump_proxy(si, px, uri) == 0)
 					return 0;
 
-			s->data_ctx.stats.px = px->next;
-			s->data_ctx.stats.px_st = DATA_ST_PX_INIT;
+			si->applet.ctx.stats.px = px->next;
+			si->applet.ctx.stats.px_st = STAT_PX_ST_INIT;
 		}
 		/* here, we just have reached the last proxy */
 
-		s->data_state = DATA_ST_END;
+		si->applet.state = STAT_ST_END;
 		/* fall through */
 
-	case DATA_ST_END:
-		if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
+	case STAT_ST_END:
+		if (!(si->applet.ctx.stats.flags & STAT_FMT_CSV)) {
 			chunk_printf(&msg, "</body></html>\n");
 			if (buffer_feed_chunk(rep, &msg) >= 0)
 				return 0;
 		}
 
-		s->data_state = DATA_ST_FIN;
+		si->applet.state = STAT_ST_FIN;
 		/* fall through */
 
-	case DATA_ST_FIN:
+	case STAT_ST_FIN:
 		return 1;
 
 	default:
 		/* unknown state ! */
-		s->data_state = DATA_ST_FIN;
+		si->applet.state = STAT_ST_FIN;
 		return -1;
 	}
 }
@@ -1614,8 +1629,8 @@ int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_a
 
 	chunk_init(&msg, trash, sizeof(trash));
 
-	switch (s->data_ctx.stats.px_st) {
-	case DATA_ST_PX_INIT:
+	switch (si->applet.ctx.stats.px_st) {
+	case STAT_PX_ST_INIT:
 		/* we are on a new proxy */
 
 		if (uri && uri->scope) {
@@ -1642,16 +1657,16 @@ int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_a
 				return 1;
 		}
 
-		if ((s->data_ctx.stats.flags & STAT_BOUND) && (s->data_ctx.stats.iid != -1) &&
-			(px->uuid != s->data_ctx.stats.iid))
+		if ((si->applet.ctx.stats.flags & STAT_BOUND) && (si->applet.ctx.stats.iid != -1) &&
+			(px->uuid != si->applet.ctx.stats.iid))
 			return 1;
 
-		s->data_ctx.stats.px_st = DATA_ST_PX_TH;
+		si->applet.ctx.stats.px_st = STAT_PX_ST_TH;
 		/* fall through */
 
-	case DATA_ST_PX_TH:
-		if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
-			if (px->cap & PR_CAP_BE && px->srv && (s->data_ctx.stats.flags & STAT_ADMIN)) {
+	case STAT_PX_ST_TH:
+		if (!(si->applet.ctx.stats.flags & STAT_FMT_CSV)) {
+			if (px->cap & PR_CAP_BE && px->srv && (si->applet.ctx.stats.flags & STAT_ADMIN)) {
 				/* A form to enable/disable this proxy servers */
 				chunk_printf(&msg,
 					"<form action=\"%s\" method=\"post\">",
@@ -1686,7 +1701,7 @@ int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_a
 				     (uri->flags & ST_SHLGNDS)?"</u>":"",
 				     px->desc ? "desc" : "empty", px->desc ? px->desc : "");
 
-			if (px->cap & PR_CAP_BE && px->srv && (s->data_ctx.stats.flags & STAT_ADMIN)) {
+			if (px->cap & PR_CAP_BE && px->srv && (si->applet.ctx.stats.flags & STAT_ADMIN)) {
 				 /* Column heading for Enable or Disable server */
 				chunk_printf(&msg, "<th rowspan=2 width=1></th>");
 			}
@@ -1714,19 +1729,19 @@ int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_a
 				return 0;
 		}
 
-		s->data_ctx.stats.px_st = DATA_ST_PX_FE;
+		si->applet.ctx.stats.px_st = STAT_PX_ST_FE;
 		/* fall through */
 
-	case DATA_ST_PX_FE:
+	case STAT_PX_ST_FE:
 		/* print the frontend */
 		if ((px->cap & PR_CAP_FE) &&
-		    (!(s->data_ctx.stats.flags & STAT_BOUND) || (s->data_ctx.stats.type & (1 << STATS_TYPE_FE)))) {
-			if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
+		    (!(si->applet.ctx.stats.flags & STAT_BOUND) || (si->applet.ctx.stats.type & (1 << STATS_TYPE_FE)))) {
+			if (!(si->applet.ctx.stats.flags & STAT_FMT_CSV)) {
 				chunk_printf(&msg,
 				     /* name, queue */
 				     "<tr class=\"frontend\">");
 
-				if (px->cap & PR_CAP_BE && px->srv && (s->data_ctx.stats.flags & STAT_ADMIN)) {
+				if (px->cap & PR_CAP_BE && px->srv && (si->applet.ctx.stats.flags & STAT_ADMIN)) {
 					/* Column sub-heading for Enable or Disable server */
 					chunk_printf(&msg, "<td></td>");
 				}
@@ -1870,31 +1885,31 @@ int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_a
 				return 0;
 		}
 
-		s->data_ctx.stats.l = px->listen; /* may be NULL */
-		s->data_ctx.stats.px_st = DATA_ST_PX_LI;
+		si->applet.ctx.stats.l = px->listen; /* may be NULL */
+		si->applet.ctx.stats.px_st = STAT_PX_ST_LI;
 		/* fall through */
 
-	case DATA_ST_PX_LI:
+	case STAT_PX_ST_LI:
 		/* stats.l has been initialized above */
-		for (; s->data_ctx.stats.l != NULL; s->data_ctx.stats.l = l->next) {
+		for (; si->applet.ctx.stats.l != NULL; si->applet.ctx.stats.l = l->next) {
 			if (buffer_almost_full(rep))
 				return 0;
 
-			l = s->data_ctx.stats.l;
+			l = si->applet.ctx.stats.l;
 			if (!l->counters)
 				continue;
 
-			if (s->data_ctx.stats.flags & STAT_BOUND) {
-				if (!(s->data_ctx.stats.type & (1 << STATS_TYPE_SO)))
+			if (si->applet.ctx.stats.flags & STAT_BOUND) {
+				if (!(si->applet.ctx.stats.type & (1 << STATS_TYPE_SO)))
 					break;
 
-				if (s->data_ctx.stats.sid != -1 && l->luid != s->data_ctx.stats.sid)
+				if (si->applet.ctx.stats.sid != -1 && l->luid != si->applet.ctx.stats.sid)
 					continue;
 			}
 
-			if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
+			if (!(si->applet.ctx.stats.flags & STAT_FMT_CSV)) {
 				chunk_printf(&msg, "<tr class=socket>");
-				if (px->cap & PR_CAP_BE && px->srv && (s->data_ctx.stats.flags & STAT_ADMIN)) {
+				if (px->cap & PR_CAP_BE && px->srv && (si->applet.ctx.stats.flags & STAT_ADMIN)) {
 					 /* Column sub-heading for Enable or Disable server */
 					chunk_printf(&msg, "<td></td>");
 				}
@@ -2013,25 +2028,25 @@ int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_a
 				return 0;
 		}
 
-		s->data_ctx.stats.sv = px->srv; /* may be NULL */
-		s->data_ctx.stats.px_st = DATA_ST_PX_SV;
+		si->applet.ctx.stats.sv = px->srv; /* may be NULL */
+		si->applet.ctx.stats.px_st = STAT_PX_ST_SV;
 		/* fall through */
 
-	case DATA_ST_PX_SV:
+	case STAT_PX_ST_SV:
 		/* stats.sv has been initialized above */
-		for (; s->data_ctx.stats.sv != NULL; s->data_ctx.stats.sv = sv->next) {
+		for (; si->applet.ctx.stats.sv != NULL; si->applet.ctx.stats.sv = sv->next) {
 			int sv_state; /* 0=DOWN, 1=going up, 2=going down, 3=UP, 4,5=NOLB, 6=unchecked */
 
 			if (buffer_almost_full(rep))
 				return 0;
 
-			sv = s->data_ctx.stats.sv;
+			sv = si->applet.ctx.stats.sv;
 
-			if (s->data_ctx.stats.flags & STAT_BOUND) {
-				if (!(s->data_ctx.stats.type & (1 << STATS_TYPE_SV)))
+			if (si->applet.ctx.stats.flags & STAT_BOUND) {
+				if (!(si->applet.ctx.stats.type & (1 << STATS_TYPE_SV)))
 					break;
 
-				if (s->data_ctx.stats.sid != -1 && sv->puid != s->data_ctx.stats.sid)
+				if (si->applet.ctx.stats.sid != -1 && sv->puid != si->applet.ctx.stats.sid)
 					continue;
 			}
 
@@ -2058,13 +2073,13 @@ int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_a
 				else
 					sv_state = 0; /* DOWN */
 
-			if (((sv_state == 0) || (sv->state & SRV_MAINTAIN)) && (s->data_ctx.stats.flags & STAT_HIDE_DOWN)) {
+			if (((sv_state == 0) || (sv->state & SRV_MAINTAIN)) && (si->applet.ctx.stats.flags & STAT_HIDE_DOWN)) {
 				/* do not report servers which are DOWN */
-				s->data_ctx.stats.sv = sv->next;
+				si->applet.ctx.stats.sv = sv->next;
 				continue;
 			}
 
-			if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
+			if (!(si->applet.ctx.stats.flags & STAT_FMT_CSV)) {
 				static char *srv_hlt_st[7] = { "DOWN", "DN %d/%d &uarr;",
 							       "UP %d/%d &darr;", "UP",
 							       "NOLB %d/%d &darr;", "NOLB",
@@ -2082,7 +2097,7 @@ int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_a
 					    (sv->state & SRV_BACKUP) ? "backup" : "active", sv_state);
 				}
 
-				if (px->cap & PR_CAP_BE && px->srv && (s->data_ctx.stats.flags & STAT_ADMIN)) {
+				if (px->cap & PR_CAP_BE && px->srv && (si->applet.ctx.stats.flags & STAT_ADMIN)) {
 					chunk_printf(&msg,
 						"<td><input type=\"checkbox\" name=\"s\" value=\"%s\"></td>",
 						sv->id);
@@ -2412,16 +2427,16 @@ int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_a
 				return 0;
 		} /* for sv */
 
-		s->data_ctx.stats.px_st = DATA_ST_PX_BE;
+		si->applet.ctx.stats.px_st = STAT_PX_ST_BE;
 		/* fall through */
 
-	case DATA_ST_PX_BE:
+	case STAT_PX_ST_BE:
 		/* print the backend */
 		if ((px->cap & PR_CAP_BE) &&
-		    (!(s->data_ctx.stats.flags & STAT_BOUND) || (s->data_ctx.stats.type & (1 << STATS_TYPE_BE)))) {
-			if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
+		    (!(si->applet.ctx.stats.flags & STAT_BOUND) || (si->applet.ctx.stats.type & (1 << STATS_TYPE_BE)))) {
+			if (!(si->applet.ctx.stats.flags & STAT_FMT_CSV)) {
 				chunk_printf(&msg, "<tr class=\"backend\">");
-				if (px->cap & PR_CAP_BE && px->srv && (s->data_ctx.stats.flags & STAT_ADMIN)) {
+				if (px->cap & PR_CAP_BE && px->srv && (si->applet.ctx.stats.flags & STAT_ADMIN)) {
 					/* Column sub-heading for Enable or Disable server */
 					chunk_printf(&msg, "<td></td>");
 				}
@@ -2607,14 +2622,14 @@ int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_a
 				return 0;
 		}
 
-		s->data_ctx.stats.px_st = DATA_ST_PX_END;
+		si->applet.ctx.stats.px_st = STAT_PX_ST_END;
 		/* fall through */
 
-	case DATA_ST_PX_END:
-		if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
+	case STAT_PX_ST_END:
+		if (!(si->applet.ctx.stats.flags & STAT_FMT_CSV)) {
 			chunk_printf(&msg, "</table>");
 
-			if (px->cap & PR_CAP_BE && px->srv && (s->data_ctx.stats.flags & STAT_ADMIN)) {
+			if (px->cap & PR_CAP_BE && px->srv && (si->applet.ctx.stats.flags & STAT_ADMIN)) {
 				/* close the form used to enable/disable this proxy servers */
 				chunk_printf(&msg,
 					"Choose the action to perform on the checked servers : "
@@ -2635,10 +2650,10 @@ int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_a
 				return 0;
 		}
 
-		s->data_ctx.stats.px_st = DATA_ST_PX_FIN;
+		si->applet.ctx.stats.px_st = STAT_PX_ST_FIN;
 		/* fall through */
 
-	case DATA_ST_PX_FIN:
+	case STAT_PX_ST_FIN:
 		return 1;
 
 	default:
@@ -2655,7 +2670,6 @@ int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_a
  */
 int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 {
-	struct session *s = si->applet.private;
 	struct tm tm;
 	struct chunk msg;
 	struct session *sess;
@@ -2663,22 +2677,22 @@ int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 	char pn[INET6_ADDRSTRLEN];
 
 	chunk_init(&msg, trash, sizeof(trash));
-	sess = s->data_ctx.sess.target;
+	sess = si->applet.ctx.sess.target;
 
-	if (s->data_ctx.sess.section > 0 && s->data_ctx.sess.uid != sess->uniq_id) {
+	if (si->applet.ctx.sess.section > 0 && si->applet.ctx.sess.uid != sess->uniq_id) {
 		/* session changed, no need to go any further */
 		chunk_printf(&msg, "  *** session terminated while we were watching it ***\n");
 		if (buffer_feed_chunk(si->ib, &msg) >= 0)
 			return 0;
-		s->data_ctx.sess.target = NULL;
-		s->data_ctx.sess.uid = 0;
+		si->applet.ctx.sess.target = NULL;
+		si->applet.ctx.sess.uid = 0;
 		return 1;
 	}
 
-	switch (s->data_ctx.sess.section) {
+	switch (si->applet.ctx.sess.section) {
 	case 0: /* main status of the session */
-		s->data_ctx.sess.uid = sess->uniq_id;
-		s->data_ctx.sess.section = 1;
+		si->applet.ctx.sess.uid = sess->uniq_id;
+		si->applet.ctx.sess.section = 1;
 		/* fall through */
 
 	case 1:
@@ -2849,7 +2863,7 @@ int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 		/* use other states to dump the contents */
 	}
 	/* end of dump */
-	s->data_ctx.sess.uid = 0;
+	si->applet.ctx.sess.uid = 0;
 	return 1;
 }
 
@@ -2861,17 +2875,16 @@ int stats_dump_full_sess_to_buffer(struct stream_interface *si)
  */
 int stats_dump_sess_to_buffer(struct stream_interface *si)
 {
-	struct session *s = si->applet.private;
 	struct chunk msg;
 
 	if (unlikely(si->ib->flags & (BF_WRITE_ERROR|BF_SHUTW))) {
 		/* If we're forced to shut down, we might have to remove our
 		 * reference to the last session being dumped.
 		 */
-		if (s->data_state == DATA_ST_LIST) {
-			if (!LIST_ISEMPTY(&s->data_ctx.sess.bref.users)) {
-				LIST_DEL(&s->data_ctx.sess.bref.users);
-				LIST_INIT(&s->data_ctx.sess.bref.users);
+		if (si->applet.state == STAT_ST_LIST) {
+			if (!LIST_ISEMPTY(&si->applet.ctx.sess.bref.users)) {
+				LIST_DEL(&si->applet.ctx.sess.bref.users);
+				LIST_INIT(&si->applet.ctx.sess.bref.users);
 			}
 		}
 		return 1;
@@ -2879,8 +2892,8 @@ int stats_dump_sess_to_buffer(struct stream_interface *si)
 
 	chunk_init(&msg, trash, sizeof(trash));
 
-	switch (s->data_state) {
-	case DATA_ST_INIT:
+	switch (si->applet.state) {
+	case STAT_ST_INIT:
 		/* the function had not been called yet, let's prepare the
 		 * buffer for a response. We initialize the current session
 		 * pointer to the first in the global list. When a target
@@ -2888,38 +2901,38 @@ int stats_dump_sess_to_buffer(struct stream_interface *si)
 		 * this pointer. We know we have reached the end when this
 		 * pointer points back to the head of the sessions list.
 		 */
-		LIST_INIT(&s->data_ctx.sess.bref.users);
-		s->data_ctx.sess.bref.ref = sessions.n;
-		s->data_state = DATA_ST_LIST;
+		LIST_INIT(&si->applet.ctx.sess.bref.users);
+		si->applet.ctx.sess.bref.ref = sessions.n;
+		si->applet.state = STAT_ST_LIST;
 		/* fall through */
 
-	case DATA_ST_LIST:
+	case STAT_ST_LIST:
 		/* first, let's detach the back-ref from a possible previous session */
-		if (!LIST_ISEMPTY(&s->data_ctx.sess.bref.users)) {
-			LIST_DEL(&s->data_ctx.sess.bref.users);
-			LIST_INIT(&s->data_ctx.sess.bref.users);
+		if (!LIST_ISEMPTY(&si->applet.ctx.sess.bref.users)) {
+			LIST_DEL(&si->applet.ctx.sess.bref.users);
+			LIST_INIT(&si->applet.ctx.sess.bref.users);
 		}
 
 		/* and start from where we stopped */
-		while (s->data_ctx.sess.bref.ref != &sessions) {
+		while (si->applet.ctx.sess.bref.ref != &sessions) {
 			char pn[INET6_ADDRSTRLEN];
 			struct session *curr_sess;
 
-			curr_sess = LIST_ELEM(s->data_ctx.sess.bref.ref, struct session *, list);
+			curr_sess = LIST_ELEM(si->applet.ctx.sess.bref.ref, struct session *, list);
 
-			if (s->data_ctx.sess.target) {
-				if (s->data_ctx.sess.target != curr_sess)
+			if (si->applet.ctx.sess.target) {
+				if (si->applet.ctx.sess.target != curr_sess)
 					goto next_sess;
 
-				LIST_ADDQ(&curr_sess->back_refs, &s->data_ctx.sess.bref.users);
+				LIST_ADDQ(&curr_sess->back_refs, &si->applet.ctx.sess.bref.users);
 				/* call the proper dump() function and return if we're missing space */
 				if (!stats_dump_full_sess_to_buffer(si))
 					return 0;
 
 				/* session dump complete */
-				LIST_DEL(&s->data_ctx.sess.bref.users);
-				LIST_INIT(&s->data_ctx.sess.bref.users);
-				s->data_ctx.sess.target = NULL;
+				LIST_DEL(&si->applet.ctx.sess.bref.users);
+				LIST_INIT(&si->applet.ctx.sess.bref.users);
+				si->applet.ctx.sess.target = NULL;
 				break;
 			}
 
@@ -3049,17 +3062,17 @@ int stats_dump_sess_to_buffer(struct stream_interface *si)
 				/* let's try again later from this session. We add ourselves into
 				 * this session's users so that it can remove us upon termination.
 				 */
-				LIST_ADDQ(&curr_sess->back_refs, &s->data_ctx.sess.bref.users);
+				LIST_ADDQ(&curr_sess->back_refs, &si->applet.ctx.sess.bref.users);
 				return 0;
 			}
 
 		next_sess:
-			s->data_ctx.sess.bref.ref = curr_sess->list.n;
+			si->applet.ctx.sess.bref.ref = curr_sess->list.n;
 		}
 
-		if (s->data_ctx.sess.target) {
+		if (si->applet.ctx.sess.target) {
 			/* specified session not found */
-			if (s->data_ctx.sess.section > 0)
+			if (si->applet.ctx.sess.section > 0)
 				chunk_printf(&msg, "  *** session terminated while we were watching it ***\n");
 			else
 				chunk_printf(&msg, "Session not found.\n");
@@ -3067,16 +3080,16 @@ int stats_dump_sess_to_buffer(struct stream_interface *si)
 			if (buffer_feed_chunk(si->ib, &msg) >= 0)
 				return 0;
 
-			s->data_ctx.sess.target = NULL;
-			s->data_ctx.sess.uid = 0;
+			si->applet.ctx.sess.target = NULL;
+			si->applet.ctx.sess.uid = 0;
 			return 1;
 		}
 
-		s->data_state = DATA_ST_FIN;
+		si->applet.state = STAT_ST_FIN;
 		/* fall through */
 
 	default:
-		s->data_state = DATA_ST_FIN;
+		si->applet.state = STAT_ST_FIN;
 		return 1;
 	}
 }
@@ -3163,87 +3176,87 @@ int stats_dump_table_to_buffer(struct stream_interface *si)
 	int dt;
 
 	/*
-	 * We have 3 possible states in s->data_state :
-	 *   - DATA_ST_INIT : the first call
-	 *   - DATA_ST_INFO : the proxy pointer points to the next table to
+	 * We have 3 possible states in si->applet.state :
+	 *   - STAT_ST_INIT : the first call
+	 *   - STAT_ST_INFO : the proxy pointer points to the next table to
 	 *     dump, the entry pointer is NULL ;
-	 *   - DATA_ST_LIST : the proxy pointer points to the current table
+	 *   - STAT_ST_LIST : the proxy pointer points to the current table
 	 *     and the entry pointer points to the next entry to be dumped,
 	 *     and the refcount on the next entry is held ;
-	 *   - DATA_ST_END : nothing left to dump, the buffer may contain some
+	 *   - STAT_ST_END : nothing left to dump, the buffer may contain some
 	 *     data though.
 	 */
 
 	if (unlikely(si->ib->flags & (BF_WRITE_ERROR|BF_SHUTW))) {
 		/* in case of abort, remove any refcount we might have set on an entry */
-		if (s->data_state == DATA_ST_LIST) {
-			s->data_ctx.table.entry->ref_cnt--;
-			stksess_kill_if_expired(&s->data_ctx.table.proxy->table, s->data_ctx.table.entry);
+		if (si->applet.state == STAT_ST_LIST) {
+			si->applet.ctx.table.entry->ref_cnt--;
+			stksess_kill_if_expired(&si->applet.ctx.table.proxy->table, si->applet.ctx.table.entry);
 		}
 		return 1;
 	}
 
 	chunk_init(&msg, trash, sizeof(trash));
 
-	while (s->data_state != DATA_ST_FIN) {
-		switch (s->data_state) {
-		case DATA_ST_INIT:
-			s->data_ctx.table.proxy = s->data_ctx.table.target;
-			if (!s->data_ctx.table.proxy)
-				s->data_ctx.table.proxy = proxy;
+	while (si->applet.state != STAT_ST_FIN) {
+		switch (si->applet.state) {
+		case STAT_ST_INIT:
+			si->applet.ctx.table.proxy = si->applet.ctx.table.target;
+			if (!si->applet.ctx.table.proxy)
+				si->applet.ctx.table.proxy = proxy;
 
-			s->data_ctx.table.entry = NULL;
-			s->data_state = DATA_ST_INFO;
+			si->applet.ctx.table.entry = NULL;
+			si->applet.state = STAT_ST_INFO;
 			break;
 
-		case DATA_ST_INFO:
-			if (!s->data_ctx.table.proxy ||
-			    (s->data_ctx.table.target &&
-			     s->data_ctx.table.proxy != s->data_ctx.table.target)) {
-				s->data_state = DATA_ST_END;
+		case STAT_ST_INFO:
+			if (!si->applet.ctx.table.proxy ||
+			    (si->applet.ctx.table.target &&
+			     si->applet.ctx.table.proxy != si->applet.ctx.table.target)) {
+				si->applet.state = STAT_ST_END;
 				break;
 			}
 
-			if (s->data_ctx.table.proxy->table.size) {
+			if (si->applet.ctx.table.proxy->table.size) {
 				chunk_printf(&msg, "# table: %s, type: %s, size:%d, used:%d\n",
-					     s->data_ctx.table.proxy->id,
-					     stktable_types[s->data_ctx.table.proxy->table.type].kw,
-					     s->data_ctx.table.proxy->table.size,
-					     s->data_ctx.table.proxy->table.current);
+					     si->applet.ctx.table.proxy->id,
+					     stktable_types[si->applet.ctx.table.proxy->table.type].kw,
+					     si->applet.ctx.table.proxy->table.size,
+					     si->applet.ctx.table.proxy->table.current);
 
 				/* any other information should be dumped here */
 
-				if (s->data_ctx.table.target &&
+				if (si->applet.ctx.table.target &&
 				    s->listener->perm.ux.level < ACCESS_LVL_OPER)
 					chunk_printf(&msg, "# contents not dumped due to insufficient privileges\n");
 
 				if (buffer_feed_chunk(si->ib, &msg) >= 0)
 					return 0;
 
-				if (s->data_ctx.table.target &&
+				if (si->applet.ctx.table.target &&
 				    s->listener->perm.ux.level >= ACCESS_LVL_OPER) {
 					/* dump entries only if table explicitly requested */
-					eb = ebmb_first(&s->data_ctx.table.proxy->table.keys);
+					eb = ebmb_first(&si->applet.ctx.table.proxy->table.keys);
 					if (eb) {
-						s->data_ctx.table.entry = ebmb_entry(eb, struct stksess, key);
-						s->data_ctx.table.entry->ref_cnt++;
-						s->data_state = DATA_ST_LIST;
+						si->applet.ctx.table.entry = ebmb_entry(eb, struct stksess, key);
+						si->applet.ctx.table.entry->ref_cnt++;
+						si->applet.state = STAT_ST_LIST;
 						break;
 					}
 				}
 			}
-			s->data_ctx.table.proxy = s->data_ctx.table.proxy->next;
+			si->applet.ctx.table.proxy = si->applet.ctx.table.proxy->next;
 			break;
 
-		case DATA_ST_LIST:
-			if (s->data_ctx.table.data_type >= 0) {
+		case STAT_ST_LIST:
+			if (si->applet.ctx.table.data_type >= 0) {
 				/* we're filtering on some data contents */
 				void *ptr;
 				long long data;
 
-				dt = s->data_ctx.table.data_type;
-				ptr = stktable_data_ptr(&s->data_ctx.table.proxy->table,
-							s->data_ctx.table.entry,
+				dt = si->applet.ctx.table.data_type;
+				ptr = stktable_data_ptr(&si->applet.ctx.table.proxy->table,
+							si->applet.ctx.table.entry,
 							dt);
 
 				data = 0;
@@ -3259,65 +3272,65 @@ int stats_dump_table_to_buffer(struct stream_interface *si)
 					break;
 				case STD_T_FRQP:
 					data = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
-								    s->data_ctx.table.proxy->table.data_arg[dt].u);
+								    si->applet.ctx.table.proxy->table.data_arg[dt].u);
 					break;
 				}
 
 				/* skip the entry if the data does not match the test and the value */
-				if ((data < s->data_ctx.table.value &&
-				     (s->data_ctx.table.data_op == STD_OP_EQ ||
-				      s->data_ctx.table.data_op == STD_OP_GT ||
-				      s->data_ctx.table.data_op == STD_OP_GE)) ||
-				    (data == s->data_ctx.table.value &&
-				     (s->data_ctx.table.data_op == STD_OP_NE ||
-				      s->data_ctx.table.data_op == STD_OP_GT ||
-				      s->data_ctx.table.data_op == STD_OP_LT)) ||
-				    (data > s->data_ctx.table.value &&
-				     (s->data_ctx.table.data_op == STD_OP_EQ ||
-				      s->data_ctx.table.data_op == STD_OP_LT ||
-				      s->data_ctx.table.data_op == STD_OP_LE)))
+				if ((data < si->applet.ctx.table.value &&
+				     (si->applet.ctx.table.data_op == STD_OP_EQ ||
+				      si->applet.ctx.table.data_op == STD_OP_GT ||
+				      si->applet.ctx.table.data_op == STD_OP_GE)) ||
+				    (data == si->applet.ctx.table.value &&
+				     (si->applet.ctx.table.data_op == STD_OP_NE ||
+				      si->applet.ctx.table.data_op == STD_OP_GT ||
+				      si->applet.ctx.table.data_op == STD_OP_LT)) ||
+				    (data > si->applet.ctx.table.value &&
+				     (si->applet.ctx.table.data_op == STD_OP_EQ ||
+				      si->applet.ctx.table.data_op == STD_OP_LT ||
+				      si->applet.ctx.table.data_op == STD_OP_LE)))
 					goto skip_entry;
 			}
 
-			chunk_printf(&msg, "%p:", s->data_ctx.table.entry);
+			chunk_printf(&msg, "%p:", si->applet.ctx.table.entry);
 
-			if (s->data_ctx.table.proxy->table.type == STKTABLE_TYPE_IP) {
+			if (si->applet.ctx.table.proxy->table.type == STKTABLE_TYPE_IP) {
 				char addr[16];
 				inet_ntop(AF_INET,
-					  (const void *)&s->data_ctx.table.entry->key.key,
+					  (const void *)&si->applet.ctx.table.entry->key.key,
 					  addr, sizeof(addr));
 				chunk_printf(&msg, " key=%s", addr);
 			}
-			else if (s->data_ctx.table.proxy->table.type == STKTABLE_TYPE_INTEGER) {
-				chunk_printf(&msg, " key=%u", *(unsigned int *)s->data_ctx.table.entry->key.key);
+			else if (si->applet.ctx.table.proxy->table.type == STKTABLE_TYPE_INTEGER) {
+				chunk_printf(&msg, " key=%u", *(unsigned int *)si->applet.ctx.table.entry->key.key);
 			}
-			else if (s->data_ctx.table.proxy->table.type == STKTABLE_TYPE_STRING) {
+			else if (si->applet.ctx.table.proxy->table.type == STKTABLE_TYPE_STRING) {
 				chunk_printf(&msg, " key=");
-				dump_text(&msg, (const char *)s->data_ctx.table.entry->key.key, s->data_ctx.table.proxy->table.key_size);
+				dump_text(&msg, (const char *)si->applet.ctx.table.entry->key.key, si->applet.ctx.table.proxy->table.key_size);
 			}
 			else {
 				chunk_printf(&msg, " key=");
-				dump_binary(&msg, (const char *)s->data_ctx.table.entry->key.key, s->data_ctx.table.proxy->table.key_size);
+				dump_binary(&msg, (const char *)si->applet.ctx.table.entry->key.key, si->applet.ctx.table.proxy->table.key_size);
 			}
 
 			chunk_printf(&msg, " use=%d exp=%d",
-				     s->data_ctx.table.entry->ref_cnt - 1,
-				     tick_remain(now_ms, s->data_ctx.table.entry->expire));
+				     si->applet.ctx.table.entry->ref_cnt - 1,
+				     tick_remain(now_ms, si->applet.ctx.table.entry->expire));
 
 			for (dt = 0; dt < STKTABLE_DATA_TYPES; dt++) {
 				void *ptr;
 
-				if (s->data_ctx.table.proxy->table.data_ofs[dt] == 0)
+				if (si->applet.ctx.table.proxy->table.data_ofs[dt] == 0)
 					continue;
 				if (stktable_data_types[dt].arg_type == ARG_T_DELAY)
 					chunk_printf(&msg, " %s(%d)=",
 						     stktable_data_types[dt].name,
-						     s->data_ctx.table.proxy->table.data_arg[dt].u);
+						     si->applet.ctx.table.proxy->table.data_arg[dt].u);
 				else
 					chunk_printf(&msg, " %s=", stktable_data_types[dt].name);
 
-				ptr = stktable_data_ptr(&s->data_ctx.table.proxy->table,
-							s->data_ctx.table.entry,
+				ptr = stktable_data_ptr(&si->applet.ctx.table.proxy->table,
+							si->applet.ctx.table.entry,
 							dt);
 				switch (stktable_data_types[dt].std_type) {
 				case STD_T_SINT:
@@ -3332,7 +3345,7 @@ int stats_dump_table_to_buffer(struct stream_interface *si)
 				case STD_T_FRQP:
 					chunk_printf(&msg, "%d",
 						     read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
-									  s->data_ctx.table.proxy->table.data_arg[dt].u));
+									  si->applet.ctx.table.proxy->table.data_arg[dt].u));
 					break;
 				}
 			}
@@ -3342,24 +3355,24 @@ int stats_dump_table_to_buffer(struct stream_interface *si)
 				return 0;
 
 		skip_entry:
-			s->data_ctx.table.entry->ref_cnt--;
+			si->applet.ctx.table.entry->ref_cnt--;
 
-			eb = ebmb_next(&s->data_ctx.table.entry->key);
+			eb = ebmb_next(&si->applet.ctx.table.entry->key);
 			if (eb) {
-				struct stksess *old = s->data_ctx.table.entry;
-				s->data_ctx.table.entry = ebmb_entry(eb, struct stksess, key);
-				stksess_kill_if_expired(&s->data_ctx.table.proxy->table, old);
-				s->data_ctx.table.entry->ref_cnt++;
+				struct stksess *old = si->applet.ctx.table.entry;
+				si->applet.ctx.table.entry = ebmb_entry(eb, struct stksess, key);
+				stksess_kill_if_expired(&si->applet.ctx.table.proxy->table, old);
+				si->applet.ctx.table.entry->ref_cnt++;
 				break;
 			}
 
-			stksess_kill_if_expired(&s->data_ctx.table.proxy->table, s->data_ctx.table.entry);
-			s->data_ctx.table.proxy = s->data_ctx.table.proxy->next;
-			s->data_state = DATA_ST_INFO;
+			stksess_kill_if_expired(&si->applet.ctx.table.proxy->table, si->applet.ctx.table.entry);
+			si->applet.ctx.table.proxy = si->applet.ctx.table.proxy->next;
+			si->applet.state = STAT_ST_INFO;
 			break;
 
-		case DATA_ST_END:
-			s->data_state = DATA_ST_FIN;
+		case STAT_ST_END:
+			si->applet.state = STAT_ST_FIN;
 			break;
 		}
 	}
@@ -3431,7 +3444,6 @@ static int dump_text_line(struct chunk *out, const char *buf, int bsize, int len
  */
 int stats_dump_errors_to_buffer(struct stream_interface *si)
 {
-	struct session *s = si->applet.private;
 	extern const char *monthname[12];
 	struct chunk msg;
 
@@ -3440,7 +3452,7 @@ int stats_dump_errors_to_buffer(struct stream_interface *si)
 
 	chunk_init(&msg, trash, sizeof(trash));
 
-	if (!s->data_ctx.errors.px) {
+	if (!si->applet.ctx.errors.px) {
 		/* the function had not been called yet, let's prepare the
 		 * buffer for a response.
 		 */
@@ -3457,32 +3469,32 @@ int stats_dump_errors_to_buffer(struct stream_interface *si)
 			return 0;
 		}
 
-		s->data_ctx.errors.px = proxy;
-		s->data_ctx.errors.buf = 0;
-		s->data_ctx.errors.bol = 0;
-		s->data_ctx.errors.ptr = -1;
+		si->applet.ctx.errors.px = proxy;
+		si->applet.ctx.errors.buf = 0;
+		si->applet.ctx.errors.bol = 0;
+		si->applet.ctx.errors.ptr = -1;
 	}
 
 	/* we have two inner loops here, one for the proxy, the other one for
 	 * the buffer.
 	 */
-	while (s->data_ctx.errors.px) {
+	while (si->applet.ctx.errors.px) {
 		struct error_snapshot *es;
 
-		if (s->data_ctx.errors.buf == 0)
-			es = &s->data_ctx.errors.px->invalid_req;
+		if (si->applet.ctx.errors.buf == 0)
+			es = &si->applet.ctx.errors.px->invalid_req;
 		else
-			es = &s->data_ctx.errors.px->invalid_rep;
+			es = &si->applet.ctx.errors.px->invalid_rep;
 
 		if (!es->when.tv_sec)
 			goto next;
 
-		if (s->data_ctx.errors.iid >= 0 &&
-		    s->data_ctx.errors.px->uuid != s->data_ctx.errors.iid &&
-		    es->oe->uuid != s->data_ctx.errors.iid)
+		if (si->applet.ctx.errors.iid >= 0 &&
+		    si->applet.ctx.errors.px->uuid != si->applet.ctx.errors.iid &&
+		    es->oe->uuid != si->applet.ctx.errors.iid)
 			goto next;
 
-		if (s->data_ctx.errors.ptr < 0) {
+		if (si->applet.ctx.errors.ptr < 0) {
 			/* just print headers now */
 
 			char pn[INET6_ADDRSTRLEN];
@@ -3503,14 +3515,14 @@ int stats_dump_errors_to_buffer(struct stream_interface *si)
 					  (const void *)&((struct sockaddr_in6 *)(&es->src))->sin6_addr,
 					  pn, sizeof(pn));
 
-			switch (s->data_ctx.errors.buf) {
+			switch (si->applet.ctx.errors.buf) {
 			case 0:
 				chunk_printf(&msg,
 					     " frontend %s (#%d): invalid request\n"
 					     "  src %s, session #%d, backend %s (#%d), server %s (#%d)\n"
 					     "  HTTP internal state %d, buffer flags 0x%08x, event #%u\n"
 					     "  request length %d bytes, error at position %d:\n \n",
-					     s->data_ctx.errors.px->id, s->data_ctx.errors.px->uuid,
+					     si->applet.ctx.errors.px->id, si->applet.ctx.errors.px->uuid,
 					     pn, es->sid, (es->oe->cap & PR_CAP_BE) ? es->oe->id : "<NONE>",
 					     (es->oe->cap & PR_CAP_BE) ? es->oe->uuid : -1,
 					     es->srv ? es->srv->id : "<NONE>",
@@ -3524,7 +3536,7 @@ int stats_dump_errors_to_buffer(struct stream_interface *si)
 					     "  src %s, session #%d, frontend %s (#%d), server %s (#%d)\n"
 					     "  HTTP internal state %d, buffer flags 0x%08x, event #%u\n"
 					     "  response length %d bytes, error at position %d:\n \n",
-					     s->data_ctx.errors.px->id, s->data_ctx.errors.px->uuid,
+					     si->applet.ctx.errors.px->id, si->applet.ctx.errors.px->uuid,
 					     pn, es->sid, es->oe->id, es->oe->uuid,
 					     es->srv ? es->srv->id : "<NONE>",
 					     es->srv ? es->srv->puid : -1,
@@ -3537,11 +3549,11 @@ int stats_dump_errors_to_buffer(struct stream_interface *si)
 				/* Socket buffer full. Let's try again later from the same point */
 				return 0;
 			}
-			s->data_ctx.errors.ptr = 0;
-			s->data_ctx.errors.sid = es->sid;
+			si->applet.ctx.errors.ptr = 0;
+			si->applet.ctx.errors.sid = es->sid;
 		}
 
-		if (s->data_ctx.errors.sid != es->sid) {
+		if (si->applet.ctx.errors.sid != es->sid) {
 			/* the snapshot changed while we were dumping it */
 			chunk_printf(&msg,
 				     "  WARNING! update detected on this snapshot, dump interrupted. Please re-check!\n");
@@ -3551,29 +3563,29 @@ int stats_dump_errors_to_buffer(struct stream_interface *si)
 		}
 
 		/* OK, ptr >= 0, so we have to dump the current line */
-		while (s->data_ctx.errors.ptr < es->len && s->data_ctx.errors.ptr < sizeof(es->buf)) {
+		while (si->applet.ctx.errors.ptr < es->len && si->applet.ctx.errors.ptr < sizeof(es->buf)) {
 			int newptr;
 			int newline;
 
-			newline = s->data_ctx.errors.bol;
-			newptr = dump_text_line(&msg, es->buf, sizeof(es->buf), es->len, &newline, s->data_ctx.errors.ptr);
-			if (newptr == s->data_ctx.errors.ptr)
+			newline = si->applet.ctx.errors.bol;
+			newptr = dump_text_line(&msg, es->buf, sizeof(es->buf), es->len, &newline, si->applet.ctx.errors.ptr);
+			if (newptr == si->applet.ctx.errors.ptr)
 				return 0;
 
 			if (buffer_feed_chunk(si->ib, &msg) >= 0) {
 				/* Socket buffer full. Let's try again later from the same point */
 				return 0;
 			}
-			s->data_ctx.errors.ptr = newptr;
-			s->data_ctx.errors.bol = newline;
+			si->applet.ctx.errors.ptr = newptr;
+			si->applet.ctx.errors.bol = newline;
 		};
 	next:
-		s->data_ctx.errors.bol = 0;
-		s->data_ctx.errors.ptr = -1;
-		s->data_ctx.errors.buf++;
-		if (s->data_ctx.errors.buf > 1) {
-			s->data_ctx.errors.buf = 0;
-			s->data_ctx.errors.px = s->data_ctx.errors.px->next;
+		si->applet.ctx.errors.bol = 0;
+		si->applet.ctx.errors.ptr = -1;
+		si->applet.ctx.errors.buf++;
+		if (si->applet.ctx.errors.buf > 1) {
+			si->applet.ctx.errors.buf = 0;
+			si->applet.ctx.errors.px = si->applet.ctx.errors.px->next;
 		}
 	}
 

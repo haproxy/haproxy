@@ -203,44 +203,6 @@ struct session {
 	void (*do_log)(struct session *s);	/* the function to call in order to log (or NULL) */
 	void (*srv_error)(struct session *s,	/* the function to call upon unrecoverable server errors (or NULL) */
 			  struct stream_interface *si);
-	short int data_state;			/* where to get the data we generate ourselves */
-	union {
-		struct {
-			struct proxy *px;
-			struct server *sv;
-			struct listener *l;
-			short px_st, sv_st;	/* DATA_ST_INIT or DATA_ST_DATA */
-			unsigned int flags;	/* STAT_* */
-			int iid, type, sid;	/* proxy id, type and service id if bounding of stats is enabled */
-			const char *st_code;	/* pointer to the status code returned by an action */
-		} stats;
-		struct {
-			struct bref bref;	/* back-reference from the session being dumped */
-			void *target;		/* session we want to dump, or NULL for all */
-			unsigned int uid;	/* if non-null, the uniq_id of the session being dumped */
-			int section;		/* section of the session being dumped */
-			int pos;		/* last position of the current session's buffer */
-		} sess;
-		struct {
-			int iid;		/* if >= 0, ID of the proxy to filter on */
-			struct proxy *px;	/* current proxy being dumped, NULL = not started yet. */
-			unsigned int buf;	/* buffer being dumped, 0 = req, 1 = rep */
-			unsigned int sid;	/* session ID of error being dumped */
-			int ptr;		/* <0: headers, >=0 : text pointer to restart from */
-			int bol;		/* pointer to beginning of current line */
-		} errors;
-		struct {
-			void *target;		/* table we want to dump, or NULL for all */
-			struct proxy *proxy;	/* table being currently dumped (first if NULL) */
-			struct stksess *entry;	/* last entry we were trying to dump (or first if NULL) */
-			long long value;	/* value to compare against */
-			signed char data_type;	/* type of data to compare, or -1 if none */
-			signed char data_op;	/* operator (STD_OP_*) when data_type set */
-		} table;
-		struct {
-			const char *msg;	/* pointer to a persistent message to be returned in PRINT state */
-		} cli;
-	} data_ctx;				/* used by stats I/O handlers to dump the stats */
 	unsigned int uniq_id;			/* unique ID used for the traces */
 };
 

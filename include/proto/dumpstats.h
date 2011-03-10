@@ -27,7 +27,7 @@
 #include <types/buffers.h>
 #include <types/session.h>
 
-/* Flags for session->data_ctx.stats.flags */
+/* Flags for applet.ctx.stats.flags */
 #define STAT_FMT_CSV    0x00000001	/* dump the stats in CSV format instead of HTML */
 #define STAT_SHOW_STAT  0x00000002	/* dump the stats part */
 #define STAT_SHOW_INFO  0x00000004	/* dump the info part */

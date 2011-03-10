@@ -136,8 +136,46 @@ struct stream_interface {
 	int conn_retries;	/* number of connect retries left */
 	int fd;                 /* file descriptor for a stream driver when known */
 	struct {
+		int state;                 /* applet state, initialized to zero */
 		void *private;             /* may be used by any function above */
 		unsigned int st0, st1;     /* may be used by any function above */
+		union {
+			struct {
+				struct proxy *px;
+				struct server *sv;
+				struct listener *l;
+				int px_st;		/* STAT_PX_ST* */
+				unsigned int flags;	/* STAT_* */
+				int iid, type, sid;	/* proxy id, type and service id if bounding of stats is enabled */
+				const char *st_code;	/* pointer to the status code returned by an action */
+			} stats;
+			struct {
+				struct bref bref;	/* back-reference from the session being dumped */
+				void *target;		/* session we want to dump, or NULL for all */
+				unsigned int uid;	/* if non-null, the uniq_id of the session being dumped */
+				int section;		/* section of the session being dumped */
+				int pos;		/* last position of the current session's buffer */
+			} sess;
+			struct {
+				int iid;		/* if >= 0, ID of the proxy to filter on */
+				struct proxy *px;	/* current proxy being dumped, NULL = not started yet. */
+				unsigned int buf;	/* buffer being dumped, 0 = req, 1 = rep */
+				unsigned int sid;	/* session ID of error being dumped */
+				int ptr;		/* <0: headers, >=0 : text pointer to restart from */
+				int bol;		/* pointer to beginning of current line */
+			} errors;
+			struct {
+				void *target;		/* table we want to dump, or NULL for all */
+				struct proxy *proxy;	/* table being currently dumped (first if NULL) */
+				struct stksess *entry;	/* last entry we were trying to dump (or first if NULL) */
+				long long value;	/* value to compare against */
+				signed char data_type;	/* type of data to compare, or -1 if none */
+				signed char data_op;	/* operator (STD_OP_*) when data_type set */
+			} table;
+			struct {
+				const char *msg;	/* pointer to a persistent message to be returned in PRINT state */
+			} cli;
+		} ctx;					/* used by stats I/O handlers to dump the stats */
 	} applet;
 	union {
 		struct {

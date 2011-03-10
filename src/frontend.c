@@ -75,8 +75,6 @@ int frontend_accept(struct session *s)
 	s->logs.prx_queue_size = 0;  /* we get the number of pending conns before us */
 	s->logs.srv_queue_size = 0; /* we will get this number soon */
 
-	s->data_state  = DATA_ST_INIT;
-
 	/* FIXME: the logs are horribly complicated now, because they are
 	 * defined in <p>, <p>, and later <be> and <be>.
 	 */
