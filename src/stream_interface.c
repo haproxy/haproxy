@@ -315,7 +315,6 @@ struct task *stream_int_register_handler(struct stream_interface *si, struct si_
 	si->connect = NULL;
 	si->target.type = TARG_TYPE_APPLET;
 	si->target.ptr.a = app;
-	si->applet.handler = app;
 	si->release   = NULL;
 	si->flags |= SI_FL_WAIT_DATA;
 	return si->owner;
@@ -325,6 +324,8 @@ struct task *stream_int_register_handler(struct stream_interface *si, struct si_
  * new task itself is returned and is assigned as si->owner. The stream_interface
  * pointer will be pointed to by the task's context. The handler can be detached
  * by using stream_int_unregister_handler().
+ * FIXME: the code should be updated to ensure that we don't change si->owner
+ * anymore as this is not needed. However, process_session still relies on it.
  */
 struct task *stream_int_register_handler_task(struct stream_interface *si,
 					      struct task *(*fct)(struct task *))
@@ -341,7 +342,6 @@ struct task *stream_int_register_handler_task(struct stream_interface *si,
 	si->connect = NULL;
 	si->target.type = TARG_TYPE_NONE;
 	si->target.ptr.v   = NULL;
-	si->applet.handler = NULL; /* not used when running as an external task */
 	si->release   = NULL;
 	si->flags |= SI_FL_WAIT_DATA;
 
@@ -349,6 +349,10 @@ struct task *stream_int_register_handler_task(struct stream_interface *si,
 	si->owner = t;
 	if (!t)
 		return t;
+
+	si->target.type = TARG_TYPE_TASK;
+	si->target.ptr.t = t;
+
 	t->process = fct;
 	t->context = si;
 	task_wakeup(si->owner, TASK_WOKEN_INIT);
@@ -362,12 +366,11 @@ struct task *stream_int_register_handler_task(struct stream_interface *si,
  */
 void stream_int_unregister_handler(struct stream_interface *si)
 {
-	if (!si->applet.handler && si->owner) {
+	if (si->target.type == TARG_TYPE_TASK) {
 		/* external handler : kill the task */
-		task_delete(si->owner);
-		task_free(si->owner);
+		task_delete(si->target.ptr.t);
+		task_free(si->target.ptr.t);
 	}
-	si->applet.handler = NULL;
 	si->release   = NULL;
 	si->owner = NULL;
 	si->target.type = TARG_TYPE_NONE;

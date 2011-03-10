@@ -1053,7 +1053,8 @@ void peer_session_forceshutdown(struct session * session)
 {
 	struct stream_interface *oldsi;
 
-	if (session->si[0].applet.handler == &peer_applet) {
+	if (session->si[0].target.type == TARG_TYPE_APPLET &&
+	    session->si[0].target.ptr.a == &peer_applet) {
 		oldsi = &session->si[0];
 	}
 	else {
@@ -1156,7 +1157,6 @@ struct session *peer_session_create(struct peer *peer, struct peer_session *ps)
 	s->si[0].err_type = SI_ET_NONE;
 	s->si[0].err_loc = NULL;
 	s->si[0].connect   = NULL;
-	s->si[0].applet.handler = NULL;
 	s->si[0].target.ptr.v = NULL;
 	s->si[0].target.type = TARG_TYPE_NONE;
 	s->si[0].exp = TICK_ETERNITY;
@@ -1176,7 +1176,6 @@ struct session *peer_session_create(struct peer *peer, struct peer_session *ps)
 	s->si[1].err_type = SI_ET_NONE;
 	s->si[1].err_loc = NULL;
 	s->si[1].connect = tcpv4_connect_server;
-	s->si[1].applet.handler = NULL;
 	s->si[1].target.ptr.p = s->be;
 	s->si[1].target.type = TARG_TYPE_PROXY;
 	s->si[1].exp = TICK_ETERNITY;

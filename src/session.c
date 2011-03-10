@@ -167,7 +167,6 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->si[0].err_type  = SI_ET_NONE;
 	s->si[0].err_loc   = NULL;
 	s->si[0].connect   = NULL;
-	s->si[0].applet.handler = NULL;
 	s->si[0].release   = NULL;
 	s->si[0].target.type  = TARG_TYPE_NONE;
 	s->si[0].target.ptr.v = NULL;
@@ -192,7 +191,6 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->si[1].err_type  = SI_ET_NONE;
 	s->si[1].err_loc   = NULL;
 	s->si[1].connect   = NULL;
-	s->si[1].applet.handler = NULL;
 	s->si[1].release   = NULL;
 	s->si[1].target.type  = TARG_TYPE_NONE;
 	s->si[1].target.ptr.v = NULL;
@@ -1796,7 +1794,7 @@ struct task *process_session(struct task *t)
 				 */
 				s->req->cons->state = SI_ST_REQ; /* new connection requested */
 				s->req->cons->conn_retries = s->be->conn_retries;
-				if (unlikely(s->req->cons->applet.handler && !s->req->cons->connect)) {
+				if (unlikely(s->req->cons->target.type == TARG_TYPE_APPLET && !s->req->cons->connect)) {
 					s->req->cons->state = SI_ST_EST; /* connection established */
 					s->rep->flags |= BF_READ_ATTACHED; /* producer is now attached */
 					s->req->wex = TICK_ETERNITY;
@@ -1953,10 +1951,10 @@ struct task *process_session(struct task *t)
 		if ((s->fe->options & PR_O_CONTSTATS) && (s->flags & SN_BE_ASSIGNED))
 			session_process_counters(s);
 
-		if (s->rep->cons->state == SI_ST_EST && !s->rep->cons->applet.handler)
+		if (s->rep->cons->state == SI_ST_EST && s->rep->cons->target.type != TARG_TYPE_APPLET)
 			s->rep->cons->update(s->rep->cons);
 
-		if (s->req->cons->state == SI_ST_EST && !s->req->cons->applet.handler)
+		if (s->req->cons->state == SI_ST_EST && s->req->cons->target.type != TARG_TYPE_APPLET)
 			s->req->cons->update(s->req->cons);
 
 		s->req->flags &= ~(BF_READ_NULL|BF_READ_PARTIAL|BF_WRITE_NULL|BF_WRITE_PARTIAL|BF_READ_ATTACHED);
@@ -1983,11 +1981,12 @@ struct task *process_session(struct task *t)
 		/* Call the stream interfaces' I/O handlers when embedded.
 		 * Note that this one may wake the task up again.
 		 */
-		if (s->req->cons->applet.handler || s->rep->cons->applet.handler) {
-			if (s->req->cons->applet.handler)
-				s->req->cons->applet.handler->fct(s->req->cons);
-			if (s->rep->cons->applet.handler)
-				s->rep->cons->applet.handler->fct(s->rep->cons);
+		if (s->req->cons->target.type == TARG_TYPE_APPLET ||
+		    s->rep->cons->target.type == TARG_TYPE_APPLET) {
+			if (s->req->cons->target.type == TARG_TYPE_APPLET)
+				s->req->cons->target.ptr.a->fct(s->req->cons);
+			if (s->rep->cons->target.type == TARG_TYPE_APPLET)
+				s->rep->cons->target.ptr.a->fct(s->rep->cons);
 			if (task_in_rq(t)) {
 				/* If we woke up, we don't want to requeue the
 				 * task to the wait queue, but rather requeue

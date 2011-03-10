@@ -1252,7 +1252,6 @@ void stream_sock_prepare_interface(struct stream_interface *si)
 	si->shutw = stream_sock_shutw;
 	si->chk_rcv = stream_sock_chk_rcv;
 	si->chk_snd = stream_sock_chk_snd;
-	si->applet.handler = NULL;
 }
 
 

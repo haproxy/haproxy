@@ -80,6 +80,7 @@ enum {
 	TARG_TYPE_PROXY,            /* target is a proxy   ; use address with the proxy's settings */
 	TARG_TYPE_SERVER,           /* target is a server  ; use address with server's and its proxy's settings */
 	TARG_TYPE_APPLET,           /* target is an applet ; use only the applet */
+	TARG_TYPE_TASK,             /* target is a task running an external applet */
 };
 
 #define SI_FL_CAP_SPLICE (SI_FL_CAP_SPLTCP)
@@ -95,6 +96,7 @@ struct target {
 		struct proxy *p;      /* when type is TARG_TYPE_PROXY  */
 		struct server *s;     /* when type is TARG_TYPE_SERVER */
 		struct si_applet *a;  /* when type is TARG_TYPE_APPLET */
+		struct task *t;       /* when type is TARG_TYPE_TASK */
 	} ptr;
 };
 
@@ -134,7 +136,6 @@ struct stream_interface {
 	int conn_retries;	/* number of connect retries left */
 	int fd;                 /* file descriptor for a stream driver when known */
 	struct {
-		struct si_applet *handler; /* applet to use instead of doing I/O */
 		void *private;             /* may be used by any function above */
 		unsigned int st0, st1;     /* may be used by any function above */
 	} applet;
