@@ -445,7 +445,7 @@ struct server *get_server_rch(struct session *s)
  *
  * This function MAY NOT be called with SN_ASSIGNED already set. If the session
  * had a server previously assigned, it is rebalanced, trying to avoid the same
- * server.
+ * server, which should still be present in s->srv before the call.
  * The function tries to keep the original connection slot if it reconnects to
  * the same server, otherwise it releases it and tries to offer it.
  *
@@ -467,6 +467,7 @@ int assign_server(struct session *s)
 {
 
 	struct server *conn_slot;
+	struct server *prev_srv;
 	int err;
 
 #ifdef DEBUG_FULL
@@ -477,7 +478,7 @@ int assign_server(struct session *s)
 	if (unlikely(s->pend_pos || s->flags & SN_ASSIGNED))
 		goto out_err;
 
-	s->prev_srv = s->prev_srv;
+	prev_srv  = s->srv;
 	conn_slot = s->srv_conn;
 
 	/* We have to release any connection slot before applying any LB algo,
@@ -509,20 +510,20 @@ int assign_server(struct session *s)
 		 */
 		switch (s->be->lbprm.algo & BE_LB_LKUP) {
 		case BE_LB_LKUP_RRTREE:
-			s->srv = fwrr_get_next_server(s->be, s->prev_srv);
+			s->srv = fwrr_get_next_server(s->be, prev_srv);
 			break;
 
 		case BE_LB_LKUP_LCTREE:
-			s->srv = fwlc_get_next_server(s->be, s->prev_srv);
+			s->srv = fwlc_get_next_server(s->be, prev_srv);
 			break;
 
 		case BE_LB_LKUP_CHTREE:
 		case BE_LB_LKUP_MAP:
 			if ((s->be->lbprm.algo & BE_LB_KIND) == BE_LB_KIND_RR) {
 				if (s->be->lbprm.algo & BE_LB_LKUP_CHTREE)
-					s->srv = chash_get_next_server(s->be, s->prev_srv);
+					s->srv = chash_get_next_server(s->be, prev_srv);
 				else
-					s->srv = map_get_server_rr(s->be, s->prev_srv);
+					s->srv = map_get_server_rr(s->be, prev_srv);
 				break;
 			}
 			else if ((s->be->lbprm.algo & BE_LB_KIND) != BE_LB_KIND_HI) {
@@ -593,9 +594,9 @@ int assign_server(struct session *s)
 			 */
 			if (!s->srv) {
 				if (s->be->lbprm.algo & BE_LB_LKUP_CHTREE)
-					s->srv = chash_get_next_server(s->be, s->prev_srv);
+					s->srv = chash_get_next_server(s->be, prev_srv);
 				else
-					s->srv = map_get_server_rr(s->be, s->prev_srv);
+					s->srv = map_get_server_rr(s->be, prev_srv);
 			}
 
 			/* end of map-based LB */
@@ -611,7 +612,7 @@ int assign_server(struct session *s)
 			err = SRV_STATUS_FULL;
 			goto out;
 		}
-		else if (s->srv != s->prev_srv) {
+		else if (s->srv != prev_srv) {
 			s->be->counters.cum_lbconn++;
 			s->srv->counters.cum_lbconn++;
 		}
@@ -767,8 +768,10 @@ int assign_server_and_queue(struct session *s)
 
 	err = SRV_STATUS_OK;
 	if (!(s->flags & SN_ASSIGNED)) {
+		struct server *prev_srv = s->srv;
+
 		err = assign_server(s);
-		if (s->prev_srv) {
+		if (prev_srv) {
 			/* This session was previously assigned to a server. We have to
 			 * update the session's and the server's stats :
 			 *  - if the server changed :
@@ -778,16 +781,16 @@ int assign_server_and_queue(struct session *s)
 			 *  - if the server remained the same : update retries.
 			 */
 
-			if (s->prev_srv != s->srv) {
+			if (prev_srv != s->srv) {
 				if ((s->txn.flags & TX_CK_MASK) == TX_CK_VALID) {
 					s->txn.flags &= ~TX_CK_MASK;
 					s->txn.flags |= TX_CK_DOWN;
 				}
 				s->flags |= SN_REDISP;
-				s->prev_srv->counters.redispatches++;
+				prev_srv->counters.redispatches++;
 				s->be->counters.redispatches++;
 			} else {
-				s->prev_srv->counters.retries++;
+				prev_srv->counters.retries++;
 				s->be->counters.retries++;
 			}
 		}
@@ -1002,7 +1005,6 @@ int srv_redispatch_connect(struct session *t)
 		if (((t->flags & (SN_DIRECT|SN_FORCE_PRST)) == SN_DIRECT) &&
 		    (t->be->options & PR_O_REDISP)) {
 			t->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
-			t->prev_srv = t->srv;
 			goto redispatch;
 		}
 

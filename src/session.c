@@ -202,7 +202,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	if (likely(s->fe->options2 & PR_O2_INDEPSTR))
 		s->si[1].flags |= SI_FL_INDEP_STR;
 
-	s->srv = s->prev_srv = s->srv_conn = NULL;
+	s->srv = s->srv_conn = NULL;
 	s->target.type = TARG_TYPE_NONE;
 	s->target.ptr.v = NULL;
 	s->pend_pos = NULL;
@@ -638,7 +638,6 @@ int sess_update_st_cer(struct session *s, struct stream_interface *si)
 			process_srv_queue(s->srv);
 
 		s->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
-		s->prev_srv = s->srv;
 		si->state = SI_ST_REQ;
 	} else {
 		if (s->srv)

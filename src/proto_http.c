@@ -7541,7 +7541,7 @@ void http_reset_txn(struct session *s)
 
 	s->be = s->fe;
 	s->logs.logwait = s->fe->to_log;
-	s->srv = s->prev_srv = s->srv_conn = NULL;
+	s->srv = s->srv_conn = NULL;
 	s->target.type = TARG_TYPE_NONE;
 	s->target.ptr.v = NULL;
 	/* re-init store persistence */

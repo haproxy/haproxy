@@ -149,8 +149,8 @@ enum {
  *    immediately assigned when SN_DIRECT is determined. Both must be cleared
  *    when clearing SN_DIRECT (eg: redispatch).
  *  - ->srv has no meaning without SN_ASSIGNED and must not be checked without
- *    it. ->prev_srv should be used to check previous ->srv. If SN_ASSIGNED is
- *    set and sess->srv is NULL, then it is a dispatch or proxy mode.
+ *    it. ->target and ->target_type may be used to check previous ->srv after
+ *    a failed connection attempt.
  *  - a session being processed has srv_conn set.
  *  - srv_conn might remain after SN_DIRECT has been reset, but the assigned
  *    server should eventually be released.
@@ -170,7 +170,6 @@ struct session {
 	struct stream_interface si[2];          /* client and server stream interfaces */
 	struct server *srv;			/* the server the session will be running or has been running on */
 	struct server *srv_conn;		/* session already has a slot on a server and is not in queue */
-	struct server *prev_srv;		/* the server the was running on, after a redispatch, otherwise NULL */
 	struct target target;			/* target to use for this session */
 	struct pendconn *pend_pos;		/* if not NULL, points to the position in the pending queue */
 	struct http_txn txn;			/* current HTTP transaction being processed. Should become a list. */
