@@ -88,6 +88,13 @@ static inline int target_match(struct target *a, struct target *b)
 	return a->type == b->type && a->ptr.v == b->ptr.v;
 }
 
+static inline struct server *target_srv(struct target *t)
+{
+	if (!t || t->type != TARG_TYPE_SERVER)
+		return NULL;
+	return t->ptr.s;
+}
+
 #endif /* _PROTO_STREAM_INTERFACE_H */
 
 /*

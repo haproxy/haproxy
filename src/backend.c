@@ -446,7 +446,7 @@ struct server *get_server_rch(struct session *s)
  *
  * This function MAY NOT be called with SN_ASSIGNED already set. If the session
  * had a server previously assigned, it is rebalanced, trying to avoid the same
- * server, which should still be present in s->srv before the call.
+ * server, which should still be present in target_srv(&s->target) before the call.
  * The function tries to keep the original connection slot if it reconnects to
  * the same server, otherwise it releases it and tries to offer it.
  *
@@ -459,8 +459,8 @@ struct server *get_server_rch(struct session *s)
  *   SRV_STATUS_INTERNAL for other unrecoverable errors.
  *
  * Upon successful return, the session flag SN_ASSIGNED is set to indicate that
- * it does not need to be called anymore. This means that s->srv can be trusted
- * in balance and direct modes.
+ * it does not need to be called anymore. This means that target_srv(&s->target)
+ * can be trusted in balance and direct modes.
  *
  */
 
@@ -468,7 +468,7 @@ int assign_server(struct session *s)
 {
 
 	struct server *conn_slot;
-	struct server *prev_srv;
+	struct server *srv, *prev_srv;
 	int err;
 
 #ifdef DEBUG_FULL
@@ -479,7 +479,7 @@ int assign_server(struct session *s)
 	if (unlikely(s->pend_pos || s->flags & SN_ASSIGNED))
 		goto out_err;
 
-	prev_srv  = s->srv;
+	prev_srv  = target_srv(&s->target);
 	conn_slot = s->srv_conn;
 
 	/* We have to release any connection slot before applying any LB algo,
@@ -488,12 +488,12 @@ int assign_server(struct session *s)
 	if (conn_slot)
 		sess_change_server(s, NULL);
 
-	/* We will now try to find the good server and store it into <s->srv>.
-	 * Note that <s->srv> may be NULL in case of dispatch or proxy mode,
+	/* We will now try to find the good server and store it into <target_srv(&s->target)>.
+	 * Note that <target_srv(&s->target)> may be NULL in case of dispatch or proxy mode,
 	 * as well as if no server is available (check error code).
 	 */
 
-	s->srv = NULL;
+	srv = NULL;
 	clear_target(&s->target);
 
 	if (s->be->lbprm.algo & BE_LB_KIND) {
@@ -510,20 +510,20 @@ int assign_server(struct session *s)
 		 */
 		switch (s->be->lbprm.algo & BE_LB_LKUP) {
 		case BE_LB_LKUP_RRTREE:
-			s->srv = fwrr_get_next_server(s->be, prev_srv);
+			srv = fwrr_get_next_server(s->be, prev_srv);
 			break;
 
 		case BE_LB_LKUP_LCTREE:
-			s->srv = fwlc_get_next_server(s->be, prev_srv);
+			srv = fwlc_get_next_server(s->be, prev_srv);
 			break;
 
 		case BE_LB_LKUP_CHTREE:
 		case BE_LB_LKUP_MAP:
 			if ((s->be->lbprm.algo & BE_LB_KIND) == BE_LB_KIND_RR) {
 				if (s->be->lbprm.algo & BE_LB_LKUP_CHTREE)
-					s->srv = chash_get_next_server(s->be, prev_srv);
+					srv = chash_get_next_server(s->be, prev_srv);
 				else
-					s->srv = map_get_server_rr(s->be, prev_srv);
+					srv = map_get_server_rr(s->be, prev_srv);
 				break;
 			}
 			else if ((s->be->lbprm.algo & BE_LB_KIND) != BE_LB_KIND_HI) {
@@ -544,18 +544,18 @@ int assign_server(struct session *s)
 					goto out;
 				}
 		
-				s->srv = get_server_sh(s->be,
-						       (void *)&((struct sockaddr_in *)&s->req->prod->addr.c.from)->sin_addr,
-						       len);
+				srv = get_server_sh(s->be,
+						    (void *)&((struct sockaddr_in *)&s->req->prod->addr.c.from)->sin_addr,
+						    len);
 				break;
 
 			case BE_LB_HASH_URI:
 				/* URI hashing */
 				if (s->txn.req.msg_state < HTTP_MSG_BODY)
 					break;
-				s->srv = get_server_uh(s->be,
-						       s->txn.req.sol + s->txn.req.sl.rq.u,
-						       s->txn.req.sl.rq.u_l);
+				srv = get_server_uh(s->be,
+						    s->txn.req.sol + s->txn.req.sl.rq.u,
+						    s->txn.req.sl.rq.u_l);
 				break;
 
 			case BE_LB_HASH_PRM:
@@ -563,24 +563,24 @@ int assign_server(struct session *s)
 				if (s->txn.req.msg_state < HTTP_MSG_BODY)
 					break;
 
-				s->srv = get_server_ph(s->be,
-						       s->txn.req.sol + s->txn.req.sl.rq.u,
-						       s->txn.req.sl.rq.u_l);
+				srv = get_server_ph(s->be,
+						    s->txn.req.sol + s->txn.req.sl.rq.u,
+						    s->txn.req.sl.rq.u_l);
 
-				if (!s->srv && s->txn.meth == HTTP_METH_POST)
-					s->srv = get_server_ph_post(s);
+				if (!srv && s->txn.meth == HTTP_METH_POST)
+					srv = get_server_ph_post(s);
 				break;
 
 			case BE_LB_HASH_HDR:
 				/* Header Parameter hashing */
 				if (s->txn.req.msg_state < HTTP_MSG_BODY)
 					break;
-				s->srv = get_server_hh(s);
+				srv = get_server_hh(s);
 				break;
 
 			case BE_LB_HASH_RDP:
 				/* RDP Cookie hashing */
-				s->srv = get_server_rch(s);
+				srv = get_server_rch(s);
 				break;
 
 			default:
@@ -592,11 +592,11 @@ int assign_server(struct session *s)
 			/* If the hashing parameter was not found, let's fall
 			 * back to round robin on the map.
 			 */
-			if (!s->srv) {
+			if (!srv) {
 				if (s->be->lbprm.algo & BE_LB_LKUP_CHTREE)
-					s->srv = chash_get_next_server(s->be, prev_srv);
+					srv = chash_get_next_server(s->be, prev_srv);
 				else
-					s->srv = map_get_server_rr(s->be, prev_srv);
+					srv = map_get_server_rr(s->be, prev_srv);
 			}
 
 			/* end of map-based LB */
@@ -608,16 +608,15 @@ int assign_server(struct session *s)
 			goto out;
 		}
 
-		if (!s->srv) {
+		if (!srv) {
 			err = SRV_STATUS_FULL;
 			goto out;
 		}
-		else if (s->srv != prev_srv) {
+		else if (srv != prev_srv) {
 			s->be->counters.cum_lbconn++;
-			s->srv->counters.cum_lbconn++;
+			srv->counters.cum_lbconn++;
 		}
-
-		set_target_server(&s->target, s->srv);
+		set_target_server(&s->target, srv);
 	}
 	else if ((s->be->options2 & PR_O2_DISPATCH) || (s->be->options & PR_O_TRANSP)) {
 		set_target_proxy(&s->target, s->be);
@@ -639,8 +638,8 @@ int assign_server(struct session *s)
 	 * else if we don't need it anymore.
 	 */
 	if (conn_slot) {
-		if (conn_slot == s->srv) {
-			sess_change_server(s, s->srv);
+		if (conn_slot == srv) {
+			sess_change_server(s, srv);
 		} else {
 			if (may_dequeue_tasks(conn_slot, s->be))
 				process_srv_queue(conn_slot);
@@ -676,7 +675,7 @@ int assign_server_address(struct session *s)
 		if (!(s->flags & SN_ASSIGNED))
 			return SRV_STATUS_INTERNAL;
 
-		s->req->cons->addr.s.to = s->srv->addr;
+		s->req->cons->addr.s.to = target_srv(&s->target)->addr;
 
 		if (!s->req->cons->addr.s.to.sin_addr.s_addr) {
 			/* if the server has no address, we use the same address
@@ -693,7 +692,7 @@ int assign_server_address(struct session *s)
 
 		/* if this server remaps proxied ports, we'll use
 		 * the port the client connected to with an offset. */
-		if (s->srv->state & SRV_MAPPORTS) {
+		if (target_srv(&s->target)->state & SRV_MAPPORTS) {
 			if (!(s->be->options & PR_O_TRANSP) && !(s->flags & SN_FRT_ADDR_SET))
 				get_frt_addr(s);
 			if (s->req->prod->addr.c.to.ss_family == AF_INET) {
@@ -747,10 +746,10 @@ int assign_server_address(struct session *s)
  * Returns :
  *
  *   SRV_STATUS_OK       if everything is OK.
- *   SRV_STATUS_NOSRV    if no server is available. s->srv = NULL.
+ *   SRV_STATUS_NOSRV    if no server is available. target_srv(&s->target) = NULL.
  *   SRV_STATUS_QUEUED   if the connection has been queued.
  *   SRV_STATUS_FULL     if the server(s) is/are saturated and the
- *                       connection could not be queued in s->srv,
+ *                       connection could not be queued at the server's,
  *                       which may be NULL if we queue on the backend.
  *   SRV_STATUS_INTERNAL for other unrecoverable errors.
  *
@@ -758,6 +757,7 @@ int assign_server_address(struct session *s)
 int assign_server_and_queue(struct session *s)
 {
 	struct pendconn *p;
+	struct server *srv;
 	int err;
 
 	if (s->pend_pos)
@@ -765,7 +765,7 @@ int assign_server_and_queue(struct session *s)
 
 	err = SRV_STATUS_OK;
 	if (!(s->flags & SN_ASSIGNED)) {
-		struct server *prev_srv = s->srv;
+		struct server *prev_srv = target_srv(&s->target);
 
 		err = assign_server(s);
 		if (prev_srv) {
@@ -778,7 +778,7 @@ int assign_server_and_queue(struct session *s)
 			 *  - if the server remained the same : update retries.
 			 */
 
-			if (prev_srv != s->srv) {
+			if (prev_srv != target_srv(&s->target)) {
 				if ((s->txn.flags & TX_CK_MASK) == TX_CK_VALID) {
 					s->txn.flags &= ~TX_CK_MASK;
 					s->txn.flags |= TX_CK_DOWN;
@@ -796,22 +796,23 @@ int assign_server_and_queue(struct session *s)
 	switch (err) {
 	case SRV_STATUS_OK:
 		/* we have SN_ASSIGNED set */
-		if (!s->srv)
+		srv = target_srv(&s->target);
+		if (!srv)
 			return SRV_STATUS_OK;   /* dispatch or proxy mode */
 
 		/* If we already have a connection slot, no need to check any queue */
-		if (s->srv_conn == s->srv)
+		if (s->srv_conn == srv)
 			return SRV_STATUS_OK;
 
 		/* OK, this session already has an assigned server, but no
 		 * connection slot yet. Either it is a redispatch, or it was
 		 * assigned from persistence information (direct mode).
 		 */
-		if ((s->flags & SN_REDIRECTABLE) && s->srv->rdr_len) {
+		if ((s->flags & SN_REDIRECTABLE) && srv->rdr_len) {
 			/* server scheduled for redirection, and already assigned. We
 			 * don't want to go further nor check the queue.
 			 */
-			sess_change_server(s, s->srv); /* not really needed in fact */
+			sess_change_server(s, srv); /* not really needed in fact */
 			return SRV_STATUS_OK;
 		}
 
@@ -820,10 +821,10 @@ int assign_server_and_queue(struct session *s)
 		 * is set on the server, we must also check that the server's queue is
 		 * not full, in which case we have to return FULL.
 		 */
-		if (s->srv->maxconn &&
-		    (s->srv->nbpend || s->srv->served >= srv_dynamic_maxconn(s->srv))) {
+		if (srv->maxconn &&
+		    (srv->nbpend || srv->served >= srv_dynamic_maxconn(srv))) {
 
-			if (s->srv->maxqueue > 0 && s->srv->nbpend >= s->srv->maxqueue)
+			if (srv->maxqueue > 0 && srv->nbpend >= srv->maxqueue)
 				return SRV_STATUS_FULL;
 
 			p = pendconn_add(s);
@@ -834,7 +835,7 @@ int assign_server_and_queue(struct session *s)
 		}
 
 		/* OK, we can use this server. Let's reserve our place */
-		sess_change_server(s, s->srv);
+		sess_change_server(s, srv);
 		return SRV_STATUS_OK;
 
 	case SRV_STATUS_FULL:
@@ -863,10 +864,12 @@ int assign_server_and_queue(struct session *s)
 static void assign_tproxy_address(struct session *s)
 {
 #if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
-	if (s->srv != NULL && s->srv->state & SRV_BIND_SRC) {
-		switch (s->srv->state & SRV_TPROXY_MASK) {
+	struct server *srv = target_srv(&s->target);
+
+	if (srv && srv->state & SRV_BIND_SRC) {
+		switch (srv->state & SRV_TPROXY_MASK) {
 		case SRV_TPROXY_ADDR:
-			s->req->cons->addr.s.from = *(struct sockaddr_in *)&s->srv->tproxy_addr;
+			s->req->cons->addr.s.from = *(struct sockaddr_in *)&srv->tproxy_addr;
 			break;
 		case SRV_TPROXY_CLI:
 		case SRV_TPROXY_CIP:
@@ -874,14 +877,14 @@ static void assign_tproxy_address(struct session *s)
 			s->req->cons->addr.s.from = *(struct sockaddr_in *)&s->req->prod->addr.c.from;
 			break;
 		case SRV_TPROXY_DYN:
-			if (s->srv->bind_hdr_occ) {
+			if (srv->bind_hdr_occ) {
 				/* bind to the IP in a header */
 				s->req->cons->addr.s.from.sin_port = 0;
 				s->req->cons->addr.s.from.sin_addr.s_addr = htonl(get_ip_from_hdr2(&s->txn.req,
-										s->srv->bind_hdr_name,
-										s->srv->bind_hdr_len,
+										srv->bind_hdr_name,
+										srv->bind_hdr_len,
 										&s->txn.hdr_idx,
-										s->srv->bind_hdr_occ));
+										srv->bind_hdr_occ));
 			}
 			break;
 		default:
@@ -919,7 +922,7 @@ static void assign_tproxy_address(struct session *s)
 
 /*
  * This function initiates a connection to the server assigned to this session
- * (s->srv, s->target, s->req->cons->addr.s.to). It will assign a server if none
+ * (s->target, s->req->cons->addr.s.to). It will assign a server if none
  * is assigned yet.
  * It can return one of :
  *  - SN_ERR_NONE if everything's OK
@@ -932,6 +935,7 @@ static void assign_tproxy_address(struct session *s)
  */
 int connect_server(struct session *s)
 {
+	struct server *srv;
 	int err;
 
 	if (!(s->flags & SN_ADDR_SET)) {
@@ -957,13 +961,14 @@ int connect_server(struct session *s)
 	if (err != SN_ERR_NONE)
 		return err;
 
-	if (s->srv) {
+	srv = target_srv(&s->target);
+	if (srv) {
 		s->flags |= SN_CURR_SESS;
-		s->srv->cur_sess++;
-		if (s->srv->cur_sess > s->srv->counters.cur_sess_max)
-			s->srv->counters.cur_sess_max = s->srv->cur_sess;
+		srv->cur_sess++;
+		if (srv->cur_sess > srv->counters.cur_sess_max)
+			srv->counters.cur_sess_max = srv->cur_sess;
 		if (s->be->lbprm.server_take_conn)
-			s->be->lbprm.server_take_conn(s->srv);
+			s->be->lbprm.server_take_conn(srv);
 	}
 
 	return SN_ERR_NONE;  /* connection is OK */
@@ -980,6 +985,7 @@ int connect_server(struct session *s)
 
 int srv_redispatch_connect(struct session *t)
 {
+	struct server *srv;
 	int conn_err;
 
 	/* We know that we don't have any connection pending, so we will
@@ -987,6 +993,8 @@ int srv_redispatch_connect(struct session *t)
 	 */
  redispatch:
 	conn_err = assign_server_and_queue(t);
+	srv = target_srv(&t->target);
+
 	switch (conn_err) {
 	case SRV_STATUS_OK:
 		break;
@@ -996,8 +1004,8 @@ int srv_redispatch_connect(struct session *t)
 		 * and we can redispatch to another server, or it is not and we return
 		 * 503. This only makes sense in DIRECT mode however, because normal LB
 		 * algorithms would never select such a server, and hash algorithms
-		 * would bring us on the same server again. Note that t->srv is set in
-		 * this case.
+		 * would bring us on the same server again. Note that t->target is set
+		 * in this case.
 		 */
 		if (((t->flags & (SN_DIRECT|SN_FORCE_PRST)) == SN_DIRECT) &&
 		    (t->be->options & PR_O_REDISP)) {
@@ -1007,15 +1015,15 @@ int srv_redispatch_connect(struct session *t)
 
 		if (!t->req->cons->err_type) {
 			t->req->cons->err_type = SI_ET_QUEUE_ERR;
-			t->req->cons->err_loc = t->srv;
+			t->req->cons->err_loc = srv;
 		}
 
-		t->srv->counters.failed_conns++;
+		srv->counters.failed_conns++;
 		t->be->counters.failed_conns++;
 		return 1;
 
 	case SRV_STATUS_NOSRV:
-		/* note: it is guaranteed that t->srv == NULL here */
+		/* note: it is guaranteed that srv == NULL here */
 		if (!t->req->cons->err_type) {
 			t->req->cons->err_type = SI_ET_CONN_ERR;
 			t->req->cons->err_loc = NULL;
@@ -1034,18 +1042,18 @@ int srv_redispatch_connect(struct session *t)
 	default:
 		if (!t->req->cons->err_type) {
 			t->req->cons->err_type = SI_ET_CONN_OTHER;
-			t->req->cons->err_loc = t->srv;
+			t->req->cons->err_loc = srv;
 		}
 
-		if (t->srv)
-			srv_inc_sess_ctr(t->srv);
-		if (t->srv)
-			t->srv->counters.failed_conns++;
+		if (srv)
+			srv_inc_sess_ctr(srv);
+		if (srv)
+			srv->counters.failed_conns++;
 		t->be->counters.failed_conns++;
 
 		/* release other sessions waiting for this server */
-		if (may_dequeue_tasks(t->srv, t->be))
-			process_srv_queue(t->srv);
+		if (may_dequeue_tasks(srv, t->be))
+			process_srv_queue(srv);
 		return 1;
 	}
 	/* if we get here, it's because we got SRV_STATUS_OK, which also
@@ -1110,7 +1118,6 @@ int tcp_persist_rdp_cookie(struct session *s, struct buffer *req, int an_bit)
 			if ((srv->state & SRV_RUNNING) || (px->options & PR_O_PERSIST)) {
 				/* we found the server and it is usable */
 				s->flags |= SN_DIRECT | SN_ASSIGNED;
-				s->srv = srv;
 				set_target_server(&s->target, srv);
 				break;
 			}
@@ -1414,12 +1421,12 @@ static int
 acl_fetch_srv_id(struct proxy *px, struct session *l4, void *l7, int dir,
                 struct acl_expr *expr, struct acl_test *test) {
 
-	if (!l4->srv)
+	if (!target_srv(&l4->target))
 		return 0;
 
 	test->flags = ACL_TEST_F_READ_ONLY;
 
-	test->i = l4->srv->puid;
+	test->i = target_srv(&l4->target)->puid;
 
 	return 1;
 }

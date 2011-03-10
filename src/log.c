@@ -30,6 +30,7 @@
 #include <types/global.h>
 
 #include <proto/log.h>
+#include <proto/stream_interface.h>
 
 const char *log_facilities[NB_LOG_FACILITIES] = {
 	"kern", "user", "mail", "daemon",
@@ -383,7 +384,7 @@ void tcp_sess_log(struct session *s)
 		 (tolog & LW_BYTES) ? "" : "+", s->logs.bytes_out,
 		 sess_term_cond[(s->flags & SN_ERR_MASK) >> SN_ERR_SHIFT],
 		 sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT],
-		 actconn, fe->feconn, be->beconn, s->srv ? s->srv->cur_sess : 0,
+		 actconn, fe->feconn, be->beconn, target_srv(&s->target) ? target_srv(&s->target)->cur_sess : 0,
 		 (s->flags & SN_REDISP)?"+":"",
 		 (s->req->cons->conn_retries>0)?(be->conn_retries - s->req->cons->conn_retries):be->conn_retries,
 		 s->logs.srv_queue_size, s->logs.prx_queue_size);

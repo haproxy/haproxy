@@ -200,7 +200,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	if (likely(s->fe->options2 & PR_O2_INDEPSTR))
 		s->si[1].flags |= SI_FL_INDEP_STR;
 
-	s->srv = s->srv_conn = NULL;
+	s->srv_conn = NULL;
 	clear_target(&s->target);
 	s->pend_pos = NULL;
 
@@ -324,13 +324,13 @@ void session_free(struct session *s)
 	if (s->pend_pos)
 		pendconn_free(s->pend_pos);
 
-	if (s->srv) { /* there may be requests left pending in queue */
+	if (target_srv(&s->target)) { /* there may be requests left pending in queue */
 		if (s->flags & SN_CURR_SESS) {
 			s->flags &= ~SN_CURR_SESS;
-			s->srv->cur_sess--;
+			target_srv(&s->target)->cur_sess--;
 		}
-		if (may_dequeue_tasks(s->srv, s->be))
-			process_srv_queue(s->srv);
+		if (may_dequeue_tasks(target_srv(&s->target), s->be))
+			process_srv_queue(target_srv(&s->target));
 	}
 
 	if (unlikely(s->srv_conn)) {
@@ -415,8 +415,8 @@ void session_process_counters(struct session *s)
 			if (s->be != s->fe)
 				s->be->counters.bytes_in		+= bytes;
 
-			if (s->srv)
-				s->srv->counters.bytes_in		+= bytes;
+			if (target_srv(&s->target))
+				target_srv(&s->target)->counters.bytes_in		+= bytes;
 
 			if (s->listener->counters)
 				s->listener->counters->bytes_in		+= bytes;
@@ -466,8 +466,8 @@ void session_process_counters(struct session *s)
 			if (s->be != s->fe)
 				s->be->counters.bytes_out		+= bytes;
 
-			if (s->srv)
-				s->srv->counters.bytes_out		+= bytes;
+			if (target_srv(&s->target))
+				target_srv(&s->target)->counters.bytes_out		+= bytes;
 
 			if (s->listener->counters)
 				s->listener->counters->bytes_out	+= bytes;
@@ -537,7 +537,7 @@ int sess_update_st_con_tcp(struct session *s, struct stream_interface *si)
 		if (si->err_type)
 			return 0;
 
-		si->err_loc = s->srv;
+		si->err_loc = target_srv(&s->target);
 		if (si->flags & SI_FL_ERR)
 			si->err_type = SI_ET_CONN_ERR;
 		else
@@ -553,7 +553,7 @@ int sess_update_st_con_tcp(struct session *s, struct stream_interface *si)
 		/* give up */
 		si->shutw(si);
 		si->err_type |= SI_ET_CONN_ABRT;
-		si->err_loc  = s->srv;
+		si->err_loc  = target_srv(&s->target);
 		si->flags &= ~SI_FL_CAP_SPLICE;
 		if (s->srv_error)
 			s->srv_error(s, si);
@@ -587,12 +587,12 @@ int sess_update_st_con_tcp(struct session *s, struct stream_interface *si)
 int sess_update_st_cer(struct session *s, struct stream_interface *si)
 {
 	/* we probably have to release last session from the server */
-	if (s->srv) {
-		health_adjust(s->srv, HANA_STATUS_L4_ERR);
+	if (target_srv(&s->target)) {
+		health_adjust(target_srv(&s->target), HANA_STATUS_L4_ERR);
 
 		if (s->flags & SN_CURR_SESS) {
 			s->flags &= ~SN_CURR_SESS;
-			s->srv->cur_sess--;
+			target_srv(&s->target)->cur_sess--;
 		}
 	}
 
@@ -601,15 +601,15 @@ int sess_update_st_cer(struct session *s, struct stream_interface *si)
 	if (si->conn_retries < 0) {
 		if (!si->err_type) {
 			si->err_type = SI_ET_CONN_ERR;
-			si->err_loc = s->srv;
+			si->err_loc = target_srv(&s->target);
 		}
 
-		if (s->srv)
-			s->srv->counters.failed_conns++;
+		if (target_srv(&s->target))
+			target_srv(&s->target)->counters.failed_conns++;
 		s->be->counters.failed_conns++;
 		sess_change_server(s, NULL);
-		if (may_dequeue_tasks(s->srv, s->be))
-			process_srv_queue(s->srv);
+		if (may_dequeue_tasks(target_srv(&s->target), s->be))
+			process_srv_queue(target_srv(&s->target));
 
 		/* shutw is enough so stop a connecting socket */
 		si->shutw(si);
@@ -628,17 +628,17 @@ int sess_update_st_cer(struct session *s, struct stream_interface *si)
 	 * bit to ignore any persistence cookie. We won't count a retry nor a
 	 * redispatch yet, because this will depend on what server is selected.
 	 */
-	if (s->srv && si->conn_retries == 0 &&
+	if (target_srv(&s->target) && si->conn_retries == 0 &&
 	    s->be->options & PR_O_REDISP && !(s->flags & SN_FORCE_PRST)) {
 		sess_change_server(s, NULL);
-		if (may_dequeue_tasks(s->srv, s->be))
-			process_srv_queue(s->srv);
+		if (may_dequeue_tasks(target_srv(&s->target), s->be))
+			process_srv_queue(target_srv(&s->target));
 
 		s->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
 		si->state = SI_ST_REQ;
 	} else {
-		if (s->srv)
-			s->srv->counters.retries++;
+		if (target_srv(&s->target))
+			target_srv(&s->target)->counters.retries++;
 		s->be->counters.retries++;
 		si->state = SI_ST_ASS;
 	}
@@ -670,8 +670,8 @@ void sess_establish(struct session *s, struct stream_interface *si)
 	struct buffer *req = si->ob;
 	struct buffer *rep = si->ib;
 
-	if (s->srv)
-		health_adjust(s->srv, HANA_STATUS_L4_OK);
+	if (target_srv(&s->target))
+		health_adjust(target_srv(&s->target), HANA_STATUS_L4_OK);
 
 	if (s->be->mode == PR_MODE_TCP) { /* let's allow immediate data connection in this case */
 		/* if the user wants to log as soon as possible, without counting
@@ -706,6 +706,8 @@ void sess_establish(struct session *s, struct stream_interface *si)
  */
 void sess_update_stream_int(struct session *s, struct stream_interface *si)
 {
+	struct server *srv = target_srv(&s->target);
+
 	DPRINTF(stderr,"[%u] %s: sess=%p rq=%p, rp=%p, exp(r,w)=%u,%u rqf=%08x rpf=%08x rql=%d rpl=%d cs=%d ss=%d\n",
 		now_ms, __FUNCTION__,
 		s,
@@ -719,10 +721,12 @@ void sess_update_stream_int(struct session *s, struct stream_interface *si)
 		int conn_err;
 
 		conn_err = connect_server(s);
+		srv = target_srv(&s->target);
+
 		if (conn_err == SN_ERR_NONE) {
 			/* state = SI_ST_CON now */
-			if (s->srv)
-				srv_inc_sess_ctr(s->srv);
+			if (srv)
+				srv_inc_sess_ctr(srv);
 			return;
 		}
 
@@ -732,19 +736,19 @@ void sess_update_stream_int(struct session *s, struct stream_interface *si)
 		if (conn_err == SN_ERR_INTERNAL) {
 			if (!si->err_type) {
 				si->err_type = SI_ET_CONN_OTHER;
-				si->err_loc  = s->srv;
+				si->err_loc  = srv;
 			}
 
-			if (s->srv)
-				srv_inc_sess_ctr(s->srv);
-			if (s->srv)
-				s->srv->counters.failed_conns++;
+			if (srv)
+				srv_inc_sess_ctr(srv);
+			if (srv)
+				srv->counters.failed_conns++;
 			s->be->counters.failed_conns++;
 
 			/* release other sessions waiting for this server */
 			sess_change_server(s, NULL);
-			if (may_dequeue_tasks(s->srv, s->be))
-				process_srv_queue(s->srv);
+			if (may_dequeue_tasks(srv, s->be))
+				process_srv_queue(srv);
 
 			/* Failed and not retryable. */
 			si->shutr(si);
@@ -793,8 +797,8 @@ void sess_update_stream_int(struct session *s, struct stream_interface *si)
 			/* ... and timeout expired */
 			si->exp = TICK_ETERNITY;
 			s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
-			if (s->srv)
-				s->srv->counters.failed_conns++;
+			if (srv)
+				srv->counters.failed_conns++;
 			s->be->counters.failed_conns++;
 			si->shutr(si);
 			si->shutw(si);
@@ -1063,7 +1067,6 @@ int process_sticking_rules(struct session *s, struct buffer *req, int an_bit)
 							    (px->options & PR_O_PERSIST) ||
 							    (s->flags & SN_FORCE_PRST)) {
 								s->flags |= SN_DIRECT | SN_ASSIGNED;
-								s->srv = srv;
 								set_target_server(&s->target, srv);
 							}
 						}
@@ -1171,7 +1174,7 @@ int process_store_rules(struct session *s, struct buffer *rep, int an_bit)
 
 		s->store[i].ts = NULL;
 		ptr = stktable_data_ptr(s->store[i].table, ts, STKTABLE_DT_SERVER_ID);
-		stktable_data_cast(ptr, server_id) = s->srv->puid;
+		stktable_data_cast(ptr, server_id) = target_srv(&s->target)->puid;
 	}
 	s->store_count = 0; /* everything is stored */
 
@@ -1202,6 +1205,7 @@ int process_store_rules(struct session *s, struct buffer *rep, int an_bit)
  */
 struct task *process_session(struct task *t)
 {
+	struct server *srv;
 	struct session *s = t->context;
 	unsigned int rqf_last, rpf_last;
 	unsigned int rq_prod_last, rq_cons_last;
@@ -1268,6 +1272,7 @@ struct task *process_session(struct task *t)
 	 * the client cannot have connect (hence retryable) errors. Also, the
 	 * connection setup code must be able to deal with any type of abort.
 	 */
+	srv = target_srv(&s->target);
 	if (unlikely(s->si[0].flags & SI_FL_ERR)) {
 		if (s->si[0].state == SI_ST_EST || s->si[0].state == SI_ST_DIS) {
 			s->si[0].shutr(&s->si[0]);
@@ -1275,8 +1280,8 @@ struct task *process_session(struct task *t)
 			stream_int_report_error(&s->si[0]);
 			if (!(s->req->analysers) && !(s->rep->analysers)) {
 				s->be->counters.cli_aborts++;
-				if (s->srv)
-					s->srv->counters.cli_aborts++;
+				if (srv)
+					srv->counters.cli_aborts++;
 				if (!(s->flags & SN_ERR_MASK))
 					s->flags |= SN_ERR_CLICL;
 				if (!(s->flags & SN_FINST_MASK))
@@ -1291,12 +1296,12 @@ struct task *process_session(struct task *t)
 			s->si[1].shutw(&s->si[1]);
 			stream_int_report_error(&s->si[1]);
 			s->be->counters.failed_resp++;
-			if (s->srv)
-				s->srv->counters.failed_resp++;
+			if (srv)
+				srv->counters.failed_resp++;
 			if (!(s->req->analysers) && !(s->rep->analysers)) {
 				s->be->counters.srv_aborts++;
-				if (s->srv)
-					s->srv->counters.srv_aborts++;
+				if (srv)
+					srv->counters.srv_aborts++;
 				if (!(s->flags & SN_ERR_MASK))
 					s->flags |= SN_ERR_SRVCL;
 				if (!(s->flags & SN_FINST_MASK))
@@ -1350,14 +1355,15 @@ struct task *process_session(struct task *t)
 	 */
 	if (unlikely(s->req->cons->state == SI_ST_DIS)) {
 		s->req->cons->state = SI_ST_CLO;
-		if (s->srv) {
+		srv = target_srv(&s->target);
+		if (srv) {
 			if (s->flags & SN_CURR_SESS) {
 				s->flags &= ~SN_CURR_SESS;
-				s->srv->cur_sess--;
+				srv->cur_sess--;
 			}
 			sess_change_server(s, NULL);
-			if (may_dequeue_tasks(s->srv, s->be))
-				process_srv_queue(s->srv);
+			if (may_dequeue_tasks(srv, s->be))
+				process_srv_queue(srv);
 		}
 	}
 
@@ -1647,32 +1653,33 @@ struct task *process_session(struct task *t)
 	 * we're just in a data phase here since it means we have not
 	 * seen any analyser who could set an error status.
 	 */
+	srv = target_srv(&s->target);
 	if (unlikely(!(s->flags & SN_ERR_MASK))) {
 		if (s->req->flags & (BF_READ_ERROR|BF_READ_TIMEOUT|BF_WRITE_ERROR|BF_WRITE_TIMEOUT)) {
 			/* Report it if the client got an error or a read timeout expired */
 			s->req->analysers = 0;
 			if (s->req->flags & BF_READ_ERROR) {
 				s->be->counters.cli_aborts++;
-				if (s->srv)
-					s->srv->counters.cli_aborts++;
+				if (srv)
+					srv->counters.cli_aborts++;
 				s->flags |= SN_ERR_CLICL;
 			}
 			else if (s->req->flags & BF_READ_TIMEOUT) {
 				s->be->counters.cli_aborts++;
-				if (s->srv)
-					s->srv->counters.cli_aborts++;
+				if (srv)
+					srv->counters.cli_aborts++;
 				s->flags |= SN_ERR_CLITO;
 			}
 			else if (s->req->flags & BF_WRITE_ERROR) {
 				s->be->counters.srv_aborts++;
-				if (s->srv)
-					s->srv->counters.srv_aborts++;
+				if (srv)
+					srv->counters.srv_aborts++;
 				s->flags |= SN_ERR_SRVCL;
 			}
 			else {
 				s->be->counters.srv_aborts++;
-				if (s->srv)
-					s->srv->counters.srv_aborts++;
+				if (srv)
+					srv->counters.srv_aborts++;
 				s->flags |= SN_ERR_SRVTO;
 			}
 			sess_set_term_flags(s);
@@ -1682,26 +1689,26 @@ struct task *process_session(struct task *t)
 			s->rep->analysers = 0;
 			if (s->rep->flags & BF_READ_ERROR) {
 				s->be->counters.srv_aborts++;
-				if (s->srv)
-					s->srv->counters.srv_aborts++;
+				if (srv)
+					srv->counters.srv_aborts++;
 				s->flags |= SN_ERR_SRVCL;
 			}
 			else if (s->rep->flags & BF_READ_TIMEOUT) {
 				s->be->counters.srv_aborts++;
-				if (s->srv)
-					s->srv->counters.srv_aborts++;
+				if (srv)
+					srv->counters.srv_aborts++;
 				s->flags |= SN_ERR_SRVTO;
 			}
 			else if (s->rep->flags & BF_WRITE_ERROR) {
 				s->be->counters.cli_aborts++;
-				if (s->srv)
-					s->srv->counters.cli_aborts++;
+				if (srv)
+					srv->counters.cli_aborts++;
 				s->flags |= SN_ERR_CLICL;
 			}
 			else {
 				s->be->counters.cli_aborts++;
-				if (s->srv)
-					s->srv->counters.cli_aborts++;
+				if (srv)
+					srv->counters.cli_aborts++;
 				s->flags |= SN_ERR_CLITO;
 			}
 			sess_set_term_flags(s);
@@ -1821,8 +1828,8 @@ struct task *process_session(struct task *t)
 			if (s->si[1].state == SI_ST_REQ)
 				sess_prepare_conn_req(s, &s->si[1]);
 
-			if (s->si[1].state == SI_ST_ASS && s->srv &&
-			    s->srv->rdr_len && (s->flags & SN_REDIRECTABLE))
+			srv = target_srv(&s->target);
+			if (s->si[1].state == SI_ST_ASS && srv && srv->rdr_len && (s->flags & SN_REDIRECTABLE))
 				perform_http_redirect(s, &s->si[1]);
 		} while (s->si[1].state == SI_ST_ASS);
 	}

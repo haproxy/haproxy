@@ -168,7 +168,6 @@ struct session {
 	struct buffer *req;			/* request buffer */
 	struct buffer *rep;			/* response buffer */
 	struct stream_interface si[2];          /* client and server stream interfaces */
-	struct server *srv;			/* the server the session will be running or has been running on */
 	struct server *srv_conn;		/* session already has a slot on a server and is not in queue */
 	struct target target;			/* target to use for this session */
 	struct pendconn *pend_pos;		/* if not NULL, points to the position in the pending queue */

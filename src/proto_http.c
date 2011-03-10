@@ -745,6 +745,7 @@ void perform_http_redirect(struct session *s, struct stream_interface *si)
 {
 	struct http_txn *txn;
 	struct chunk rdr;
+	struct server *srv;
 	char *path;
 	int len;
 
@@ -754,14 +755,16 @@ void perform_http_redirect(struct session *s, struct stream_interface *si)
 	rdr.size = sizeof(trash);
 	memcpy(rdr.str, HTTP_302, rdr.len);
 
+	srv = target_srv(&s->target);
+
 	/* 2: add the server's prefix */
-	if (rdr.len + s->srv->rdr_len > rdr.size)
+	if (rdr.len + srv->rdr_len > rdr.size)
 		return;
 
 	/* special prefix "/" means don't change URL */
-	if (s->srv->rdr_len != 1 || *s->srv->rdr_pfx != '/') {
-		memcpy(rdr.str + rdr.len, s->srv->rdr_pfx, s->srv->rdr_len);
-		rdr.len += s->srv->rdr_len;
+	if (srv->rdr_len != 1 || *srv->rdr_pfx != '/') {
+		memcpy(rdr.str + rdr.len, srv->rdr_pfx, srv->rdr_len);
+		rdr.len += srv->rdr_len;
 	}
 
 	/* 3: add the request URI */
@@ -796,8 +799,8 @@ void perform_http_redirect(struct session *s, struct stream_interface *si)
 	http_server_error(s, si, SN_ERR_PRXCOND, SN_FINST_C, 302, &rdr);
 
 	/* FIXME: we should increase a counter of redirects per server and per backend. */
-	if (s->srv)
-		srv_inc_sess_ctr(s->srv);
+	if (srv)
+		srv_inc_sess_ctr(srv);
 }
 
 /* Return the error message corresponding to si->err_type. It is assumed
@@ -992,7 +995,7 @@ void http_sess_clflog(struct session *s)
 
 	w = snprintf(h, sizeof(tmpline) - (h - tmpline),
 	             " %d %d %d %d %d %ld %ld",
-	             actconn, fe->feconn, be->beconn, s->srv ? s->srv->cur_sess : 0,
+	             actconn, fe->feconn, be->beconn, target_srv(&s->target) ? target_srv(&s->target)->cur_sess : 0,
 	             (s->req->cons->conn_retries > 0) ? (be->conn_retries - s->req->cons->conn_retries) : be->conn_retries,
 	             s->logs.srv_queue_size, s->logs.prx_queue_size);
 
@@ -1213,7 +1216,7 @@ void http_sess_log(struct session *s)
 		 sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT],
 		 (be->options & PR_O_COOK_ANY) ? sess_cookie[(txn->flags & TX_CK_MASK) >> TX_CK_SHIFT] : '-',
 		 (be->options & PR_O_COOK_ANY) ? sess_set_cookie[(txn->flags & TX_SCK_MASK) >> TX_SCK_SHIFT] : '-',
-		 actconn, fe->feconn, be->beconn, s->srv ? s->srv->cur_sess : 0,
+		 actconn, fe->feconn, be->beconn, target_srv(&s->target) ? target_srv(&s->target)->cur_sess : 0,
 		 (s->flags & SN_REDISP)?"+":"",
 		 (s->req->cons->conn_retries>0)?(be->conn_retries - s->req->cons->conn_retries):be->conn_retries,
 		 s->logs.srv_queue_size, s->logs.prx_queue_size, tmpline);
@@ -3937,18 +3940,17 @@ void http_end_txn_clean_session(struct session *s)
 	if (s->pend_pos)
 		pendconn_free(s->pend_pos);
 
-	if (s->srv) {
+	if (target_srv(&s->target)) {
 		if (s->flags & SN_CURR_SESS) {
 			s->flags &= ~SN_CURR_SESS;
-			s->srv->cur_sess--;
+			target_srv(&s->target)->cur_sess--;
 		}
-		if (may_dequeue_tasks(s->srv, s->be))
-			process_srv_queue(s->srv);
+		if (may_dequeue_tasks(target_srv(&s->target), s->be))
+			process_srv_queue(target_srv(&s->target));
 	}
 
 	if (unlikely(s->srv_conn))
 		sess_change_server(s, NULL);
-	s->srv = NULL;
 	clear_target(&s->target);
 
 	s->req->cons->state     = s->req->cons->prev_state = SI_ST_INI;
@@ -4231,8 +4233,8 @@ int http_sync_res_state(struct session *s)
 		else if (buf->flags & BF_SHUTW) {
 			txn->rsp.msg_state = HTTP_MSG_ERROR;
 			s->be->counters.cli_aborts++;
-			if (s->srv)
-				s->srv->counters.cli_aborts++;
+			if (target_srv(&s->target))
+				target_srv(&s->target)->counters.cli_aborts++;
 			goto wait_other_side;
 		}
 	}
@@ -4514,8 +4516,8 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 		s->fe->counters.cli_aborts++;
 		if (s->fe != s->be)
 			s->be->counters.cli_aborts++;
-		if (s->srv)
-			s->srv->counters.cli_aborts++;
+		if (target_srv(&s->target))
+			target_srv(&s->target)->counters.cli_aborts++;
 
 		goto return_bad_req_stats_ok;
 	}
@@ -4574,8 +4576,8 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 	s->fe->counters.srv_aborts++;
 	if (s->fe != s->be)
 		s->be->counters.srv_aborts++;
-	if (s->srv)
-		s->srv->counters.srv_aborts++;
+	if (target_srv(&s->target))
+		target_srv(&s->target)->counters.srv_aborts++;
 
 	if (!(s->flags & SN_ERR_MASK))
 		s->flags |= SN_ERR_SRVCL;
@@ -4701,9 +4703,9 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 				http_capture_bad_message(&s->be->invalid_rep, s, rep, msg, msg->msg_state, s->fe);
 
 			s->be->counters.failed_resp++;
-			if (s->srv) {
-				s->srv->counters.failed_resp++;
-				health_adjust(s->srv, HANA_STATUS_HTTP_HDRRSP);
+			if (target_srv(&s->target)) {
+				target_srv(&s->target)->counters.failed_resp++;
+				health_adjust(target_srv(&s->target), HANA_STATUS_HTTP_HDRRSP);
 			}
 		abort_response:
 			buffer_auto_close(rep);
@@ -4732,9 +4734,9 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 				http_capture_bad_message(&s->be->invalid_rep, s, rep, msg, msg->msg_state, s->fe);
 
 			s->be->counters.failed_resp++;
-			if (s->srv) {
-				s->srv->counters.failed_resp++;
-				health_adjust(s->srv, HANA_STATUS_HTTP_READ_ERROR);
+			if (target_srv(&s->target)) {
+				target_srv(&s->target)->counters.failed_resp++;
+				health_adjust(target_srv(&s->target), HANA_STATUS_HTTP_READ_ERROR);
 			}
 
 			buffer_auto_close(rep);
@@ -4757,9 +4759,9 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 				http_capture_bad_message(&s->be->invalid_rep, s, rep, msg, msg->msg_state, s->fe);
 
 			s->be->counters.failed_resp++;
-			if (s->srv) {
-				s->srv->counters.failed_resp++;
-				health_adjust(s->srv, HANA_STATUS_HTTP_READ_TIMEOUT);
+			if (target_srv(&s->target)) {
+				target_srv(&s->target)->counters.failed_resp++;
+				health_adjust(target_srv(&s->target), HANA_STATUS_HTTP_READ_TIMEOUT);
 			}
 
 			buffer_auto_close(rep);
@@ -4782,9 +4784,9 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 				http_capture_bad_message(&s->be->invalid_rep, s, rep, msg, msg->msg_state, s->fe);
 
 			s->be->counters.failed_resp++;
-			if (s->srv) {
-				s->srv->counters.failed_resp++;
-				health_adjust(s->srv, HANA_STATUS_HTTP_BROKEN_PIPE);
+			if (target_srv(&s->target)) {
+				target_srv(&s->target)->counters.failed_resp++;
+				health_adjust(target_srv(&s->target), HANA_STATUS_HTTP_BROKEN_PIPE);
 			}
 
 			buffer_auto_close(rep);
@@ -4845,8 +4847,8 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 	if (n == 4)
 		session_inc_http_err_ctr(s);
 
-	if (s->srv)
-		s->srv->counters.p.http.rsp[n]++;
+	if (target_srv(&s->target))
+		target_srv(&s->target)->counters.p.http.rsp[n]++;
 
 	/* check if the response is HTTP/1.1 or above */
 	if ((msg->sl.st.v_l == 8) &&
@@ -4867,11 +4869,11 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 	 * and 505 are triggered on demand by client request, so we must not
 	 * count them as server failures.
 	 */
-	if (s->srv) {
+	if (target_srv(&s->target)) {
 		if (txn->status >= 100 && (txn->status < 500 || txn->status == 501 || txn->status == 505))
-			health_adjust(s->srv, HANA_STATUS_HTTP_OK);
+			health_adjust(target_srv(&s->target), HANA_STATUS_HTTP_OK);
 		else
-			health_adjust(s->srv, HANA_STATUS_HTTP_STS);
+			health_adjust(target_srv(&s->target), HANA_STATUS_HTTP_STS);
 	}
 
 	/*
@@ -5124,9 +5126,9 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 			if (rule_set->rsp_exp != NULL) {
 				if (apply_filters_to_response(t, rep, rule_set) < 0) {
 				return_bad_resp:
-					if (t->srv) {
-						t->srv->counters.failed_resp++;
-						health_adjust(t->srv, HANA_STATUS_HTTP_RSP);
+					if (target_srv(&t->target)) {
+						target_srv(&t->target)->counters.failed_resp++;
+						health_adjust(target_srv(&t->target), HANA_STATUS_HTTP_RSP);
 					}
 					cur_proxy->counters.failed_resp++;
 				return_srv_prx_502:
@@ -5145,8 +5147,8 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 
 			/* has the response been denied ? */
 			if (txn->flags & TX_SVDENY) {
-				if (t->srv)
-					t->srv->counters.failed_secu++;
+				if (target_srv(&t->target))
+					target_srv(&t->target)->counters.failed_secu++;
 
 				cur_proxy->counters.denied_resp++;
 				if (t->listener->counters)
@@ -5213,7 +5215,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 		/*
 		 * 6: add server cookie in the response if needed
 		 */
-		if ((t->srv) && (t->be->options & PR_O_COOK_INS) &&
+		if (target_srv(&t->target) && (t->be->options & PR_O_COOK_INS) &&
 		    !((txn->flags & TX_SCK_FOUND) && (t->be->options2 & PR_O2_COOK_PSV)) &&
 		    (!(t->flags & SN_DIRECT) ||
 		     ((t->be->cookie_maxidle || txn->cookie_last_date) &&
@@ -5229,13 +5231,13 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 			 * requests and this one isn't. Note that servers which don't have cookies
 			 * (eg: some backup servers) will return a full cookie removal request.
 			 */
-			if (!t->srv->cookie) {
+			if (!target_srv(&t->target)->cookie) {
 				len = sprintf(trash,
 					      "Set-Cookie: %s=; Expires=Thu, 01-Jan-1970 00:00:01 GMT; path=/",
 					      t->be->cookie_name);
 			}
 			else {
-				len = sprintf(trash, "Set-Cookie: %s=%s", t->be->cookie_name, t->srv->cookie);
+				len = sprintf(trash, "Set-Cookie: %s=%s", t->be->cookie_name, target_srv(&t->target)->cookie);
 
 				if (t->be->cookie_maxidle || t->be->cookie_maxlife) {
 					/* emit last_date, which is mandatory */
@@ -5263,7 +5265,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 				goto return_bad_resp;
 
 			txn->flags &= ~TX_SCK_MASK;
-			if (t->srv->cookie && (t->flags & SN_DIRECT))
+			if (target_srv(&t->target)->cookie && (t->flags & SN_DIRECT))
 				/* the server did not change, only the date was updated */
 				txn->flags |= TX_SCK_UPDATED;
 			else
@@ -5297,18 +5299,18 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 			 * a set-cookie header. We'll block it as requested by
 			 * the 'checkcache' option, and send an alert.
 			 */
-			if (t->srv)
-				t->srv->counters.failed_secu++;
+			if (target_srv(&t->target))
+				target_srv(&t->target)->counters.failed_secu++;
 
 			cur_proxy->counters.denied_resp++;
 			if (t->listener->counters)
 				t->listener->counters->denied_resp++;
 
 			Alert("Blocking cacheable cookie in response from instance %s, server %s.\n",
-			      t->be->id, t->srv?t->srv->id:"<dispatch>");
+			      t->be->id, target_srv(&t->target) ? target_srv(&t->target)->id : "<dispatch>");
 			send_log(t->be, LOG_ALERT,
 				 "Blocking cacheable cookie in response from instance %s, server %s.\n",
-				 t->be->id, t->srv?t->srv->id:"<dispatch>");
+				 t->be->id, target_srv(&t->target) ? target_srv(&t->target)->id : "<dispatch>");
 			goto return_srv_prx_502;
 		}
 
@@ -5526,8 +5528,8 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 		if (!(s->flags & SN_ERR_MASK))
 			s->flags |= SN_ERR_SRVCL;
 		s->be->counters.srv_aborts++;
-		if (s->srv)
-			s->srv->counters.srv_aborts++;
+		if (target_srv(&s->target))
+			target_srv(&s->target)->counters.srv_aborts++;
 		goto return_bad_res_stats_ok;
 	}
 
@@ -5564,8 +5566,8 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 
  return_bad_res: /* let's centralize all bad responses */
 	s->be->counters.failed_resp++;
-	if (s->srv)
-		s->srv->counters.failed_resp++;
+	if (target_srv(&s->target))
+		target_srv(&s->target)->counters.failed_resp++;
 
  return_bad_res_stats_ok:
 	txn->rsp.msg_state = HTTP_MSG_ERROR;
@@ -5573,8 +5575,8 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 	stream_int_retnclose(res->cons, NULL);
 	res->analysers = 0;
 	s->req->analysers = 0; /* we're in data phase, we want to abort both directions */
-	if (s->srv)
-		health_adjust(s->srv, HANA_STATUS_HTTP_HDRRSP);
+	if (target_srv(&s->target))
+		health_adjust(target_srv(&s->target), HANA_STATUS_HTTP_HDRRSP);
 
 	if (!(s->flags & SN_ERR_MASK))
 		s->flags |= SN_ERR_PRXCOND;
@@ -5592,8 +5594,8 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 	s->fe->counters.cli_aborts++;
 	if (s->fe != s->be)
 		s->be->counters.cli_aborts++;
-	if (s->srv)
-		s->srv->counters.cli_aborts++;
+	if (target_srv(&s->target))
+		target_srv(&s->target)->counters.cli_aborts++;
 
 	if (!(s->flags & SN_ERR_MASK))
 		s->flags |= SN_ERR_CLICL;
@@ -5962,7 +5964,6 @@ void manage_client_side_appsession(struct session *t, const char *buf, int len) 
 						txn->flags &= ~TX_CK_MASK;
 						txn->flags |= (srv->state & SRV_RUNNING) ? TX_CK_VALID : TX_CK_DOWN;
 						t->flags |= SN_DIRECT | SN_ASSIGNED;
-						t->srv = srv;
 						set_target_server(&t->target, srv);
 
 						break;
@@ -6373,7 +6374,6 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 							txn->flags &= ~TX_CK_MASK;
 							txn->flags |= (srv->state & SRV_RUNNING) ? TX_CK_VALID : TX_CK_DOWN;
 							t->flags |= SN_DIRECT | SN_ASSIGNED;
-							t->srv = srv;
 							set_target_server(&t->target, srv);
 							break;
 						} else {
@@ -6747,6 +6747,7 @@ int apply_filters_to_response(struct session *s, struct buffer *rtr, struct prox
 void manage_server_side_cookies(struct session *t, struct buffer *res)
 {
 	struct http_txn *txn = &t->txn;
+	struct server *srv;
 	int is_cookie2;
 	int cur_idx, old_idx, delta;
 	char *hdr_beg, *hdr_end, *hdr_next;
@@ -6946,6 +6947,7 @@ void manage_server_side_cookies(struct session *t, struct buffer *res)
 				}
 			}
 
+			srv = target_srv(&t->target);
 			/* now check if we need to process it for persistence */
 			if (!(t->flags & SN_IGNORE_PRST) &&
 			    (att_end - att_beg == t->be->cookie_len) && (t->be->cookie_name != NULL) &&
@@ -6964,7 +6966,7 @@ void manage_server_side_cookies(struct session *t, struct buffer *res)
 					 * server's cookie.
 					 */
 				}
-				else if (((t->srv) && (t->be->options & PR_O_COOK_INS)) ||
+				else if ((srv && (t->be->options & PR_O_COOK_INS)) ||
 				    ((t->flags & SN_DIRECT) && (t->be->options & PR_O_COOK_IND))) {
 					/* this cookie must be deleted */
 					if (*prev == ':' && next == hdr_end) {
@@ -6992,12 +6994,11 @@ void manage_server_side_cookies(struct session *t, struct buffer *res)
 					txn->flags |= TX_SCK_DELETED;
 					/* and go on with next cookie */
 				}
-				else if ((t->srv) && (t->srv->cookie) &&
-					 (t->be->options & PR_O_COOK_RW)) {
+				else if (srv && srv->cookie && (t->be->options & PR_O_COOK_RW)) {
 					/* replace bytes val_beg->val_end with the cookie name associated
 					 * with this server since we know it.
 					 */
-					delta = buffer_replace2(res, val_beg, val_end, t->srv->cookie, t->srv->cklen);
+					delta = buffer_replace2(res, val_beg, val_end, srv->cookie, srv->cklen);
 					next     += delta;
 					hdr_end  += delta;
 					hdr_next += delta;
@@ -7007,19 +7008,18 @@ void manage_server_side_cookies(struct session *t, struct buffer *res)
 					txn->flags &= ~TX_SCK_MASK;
 					txn->flags |= TX_SCK_REPLACED;
 				}
-				else if ((t->srv) && (t->srv->cookie) &&
-					 (t->be->options & PR_O_COOK_PFX)) {
+				else if (srv && srv && (t->be->options & PR_O_COOK_PFX)) {
 					/* insert the cookie name associated with this server
 					 * before existing cookie, and insert a delimiter between them..
 					 */
-					delta = buffer_replace2(res, val_beg, val_beg, t->srv->cookie, t->srv->cklen + 1);
+					delta = buffer_replace2(res, val_beg, val_beg, srv->cookie, srv->cklen + 1);
 					next     += delta;
 					hdr_end  += delta;
 					hdr_next += delta;
 					cur_hdr->len += delta;
 					http_msg_move_end(&txn->rsp, delta);
 
-					val_beg[t->srv->cklen] = COOKIE_DELIM;
+					val_beg[srv->cklen] = COOKIE_DELIM;
 					txn->flags &= ~TX_SCK_MASK;
 					txn->flags |= TX_SCK_REPLACED;
 				}
@@ -7084,7 +7084,7 @@ void manage_server_side_cookies(struct session *t, struct buffer *res)
 			memcpy(asession->sessid, txn->sessid, t->be->appsession_len);
 			asession->sessid[t->be->appsession_len] = 0;
 
-			server_id_len = strlen(t->srv->id) + 1;
+			server_id_len = strlen(target_srv(&t->target)->id) + 1;
 			if ((asession->serverid = pool_alloc2(apools.serverid)) == NULL) {
 				Alert("Not enough Memory process_srv():asession->serverid:malloc().\n");
 				send_log(t->be, LOG_ALERT, "Not enough Memory process_srv():asession->sessid:malloc().\n");
@@ -7092,7 +7092,7 @@ void manage_server_side_cookies(struct session *t, struct buffer *res)
 				return;
 			}
 			asession->serverid[0] = '\0';
-			memcpy(asession->serverid, t->srv->id, server_id_len);
+			memcpy(asession->serverid, target_srv(&t->target)->id, server_id_len);
 
 			asession->request_count = 0;
 			appsession_hash_insert(&(t->be->htbl_proxy), asession);
@@ -7379,7 +7379,7 @@ void http_capture_bad_message(struct error_snapshot *es, struct session *s,
 
 	es->when = date; // user-visible date
 	es->sid  = s->uniq_id;
-	es->srv  = s->srv;
+	es->srv  = target_srv(&s->target);
 	es->oe   = other_end;
 	es->src  = s->req->prod->addr.c.from;
 	es->state = state;
@@ -7538,7 +7538,7 @@ void http_reset_txn(struct session *s)
 
 	s->be = s->fe;
 	s->logs.logwait = s->fe->to_log;
-	s->srv = s->srv_conn = NULL;
+	s->srv_conn = NULL;
 	clear_target(&s->target);
 	/* re-init store persistence */
 	s->store_count = 0;

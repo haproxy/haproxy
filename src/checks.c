@@ -349,7 +349,6 @@ static int check_for_pending(struct server *s)
 		p = pendconn_from_px(s->proxy);
 		if (!p)
 			break;
-		p->sess->srv = s;
 		set_target_server(&p->sess->target, s);
 		sess = p->sess;
 		pendconn_free(p);

@@ -2746,8 +2746,8 @@ int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 		chunk_printf(&msg,
 			     "  backend=%s (id=%u mode=%s) server=%s (id=%u)\n",
 			     sess->be->id, sess->be->uuid, sess->be->mode ? "http" : "tcp",
-			     sess->srv ? sess->srv->id : "<none>",
-			     sess->srv ? sess->srv->puid : 0);
+			     target_srv(&sess->target) ? target_srv(&sess->target)->id : "<none>",
+			     target_srv(&sess->target) ? target_srv(&sess->target)->puid : 0);
 
 		chunk_printf(&msg,
 			     "  task=%p (state=0x%02x nice=%d calls=%d exp=%s%s)\n",
@@ -2953,7 +2953,7 @@ int stats_dump_sess_to_buffer(struct stream_interface *si)
 					     ntohs(((struct sockaddr_in *)&curr_sess->si[0].addr.c.from)->sin_port),
 					     curr_sess->fe->id,
 					     curr_sess->be->id,
-					     curr_sess->srv ? curr_sess->srv->id : "<none>"
+					     target_srv(&curr_sess->target) ? target_srv(&curr_sess->target)->id : "<none>"
 					     );
 				break;
 			case AF_INET6:
@@ -2967,7 +2967,7 @@ int stats_dump_sess_to_buffer(struct stream_interface *si)
 					     ntohs(((struct sockaddr_in6 *)&curr_sess->si[0].addr.c.from)->sin6_port),
 					     curr_sess->fe->id,
 					     curr_sess->be->id,
-					     curr_sess->srv ? curr_sess->srv->id : "<none>"
+					     target_srv(&curr_sess->target) ? target_srv(&curr_sess->target)->id : "<none>"
 					     );
 
 				break;
@@ -2977,7 +2977,7 @@ int stats_dump_sess_to_buffer(struct stream_interface *si)
 					     curr_sess->listener->luid,
 					     curr_sess->fe->id,
 					     curr_sess->be->id,
-					     curr_sess->srv ? curr_sess->srv->id : "<none>"
+					     target_srv(&curr_sess->target) ? target_srv(&curr_sess->target)->id : "<none>"
 					     );
 				break;
 			}

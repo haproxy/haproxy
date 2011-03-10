@@ -113,10 +113,8 @@ struct session *pendconn_get_next_sess(struct server *srv, struct proxy *px)
 			return NULL;
 	} else {
 		/* pendconn exists in the proxy queue */
-		if (!ps || tv_islt(&pp->sess->logs.tv_request, &ps->sess->logs.tv_request)) {
+		if (!ps || tv_islt(&pp->sess->logs.tv_request, &ps->sess->logs.tv_request))
 			ps = pp;
-			ps->sess->srv = srv;
-		}
 	}
 	sess = ps->sess;
 	pendconn_free(ps);
@@ -124,7 +122,6 @@ struct session *pendconn_get_next_sess(struct server *srv, struct proxy *px)
 	/* we want to note that the session has now been assigned a server */
 	sess->flags |= SN_ASSIGNED;
 	set_target_server(&sess->target, srv);
-	sess->srv = srv;
 	sess->srv_conn = srv;
 	srv->served++;
 	if (px->lbprm.server_take_conn)
@@ -142,6 +139,7 @@ struct session *pendconn_get_next_sess(struct server *srv, struct proxy *px)
 struct pendconn *pendconn_add(struct session *sess)
 {
 	struct pendconn *p;
+	struct server *srv;
 
 	p = pool_alloc2(pool2_pendconn);
 	if (!p)
@@ -149,14 +147,14 @@ struct pendconn *pendconn_add(struct session *sess)
 
 	sess->pend_pos = p;
 	p->sess = sess;
-	p->srv  = sess->srv;
+	p->srv = srv = target_srv(&sess->target);
 
-	if (sess->flags & SN_ASSIGNED && sess->srv) {
-		LIST_ADDQ(&sess->srv->pendconns, &p->list);
-		sess->srv->nbpend++;
-		sess->logs.srv_queue_size += sess->srv->nbpend;
-		if (sess->srv->nbpend > sess->srv->counters.nbpend_max)
-			sess->srv->counters.nbpend_max = sess->srv->nbpend;
+	if (sess->flags & SN_ASSIGNED && srv) {
+		LIST_ADDQ(&srv->pendconns, &p->list);
+		srv->nbpend++;
+		sess->logs.srv_queue_size += srv->nbpend;
+		if (srv->nbpend > srv->counters.nbpend_max)
+			srv->counters.nbpend_max = srv->nbpend;
 	} else {
 		LIST_ADDQ(&sess->be->pendconns, &p->list);
 		sess->be->nbpend++;
