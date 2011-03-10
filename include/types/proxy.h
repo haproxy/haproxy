@@ -297,7 +297,8 @@ struct proxy {
 	                 *rsp_cap_pool;
 	struct pool_head *hdr_idx_pool;         /* pools of pre-allocated int* used for headers indexing */
 	struct list req_add, rsp_add;           /* headers to be added */
-	struct pxcounters counters;		/* statistics counters */
+	struct pxcounters be_counters;		/* backend statistics counters */
+	struct pxcounters fe_counters;		/* frontend statistics counters */
 
 	struct stktable table;			/* table for storing sticking sessions */
 

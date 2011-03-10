@@ -159,8 +159,8 @@ struct pendconn *pendconn_add(struct session *sess)
 		LIST_ADDQ(&sess->be->pendconns, &p->list);
 		sess->be->nbpend++;
 		sess->logs.prx_queue_size += sess->be->nbpend;
-		if (sess->be->nbpend > sess->be->counters.nbpend_max)
-			sess->be->counters.nbpend_max = sess->be->nbpend;
+		if (sess->be->nbpend > sess->be->be_counters.nbpend_max)
+			sess->be->be_counters.nbpend_max = sess->be->nbpend;
 	}
 	sess->be->totpend++;
 	return p;

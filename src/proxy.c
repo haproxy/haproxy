@@ -536,9 +536,9 @@ void maintain_proxies(int *next)
 				t = tick_remain(now_ms, p->stop_time);
 				if (t == 0) {
 					Warning("Proxy %s stopped (FE: %lld conns, BE: %lld conns).\n",
-						p->id, p->counters.cum_feconn, p->counters.cum_beconn);
+						p->id, p->fe_counters.cum_conn, p->be_counters.cum_conn);
 					send_log(p, LOG_WARNING, "Proxy %s stopped (FE: %lld conns, BE: %lld conns).\n",
-						 p->id, p->counters.cum_feconn, p->counters.cum_beconn);
+						 p->id, p->fe_counters.cum_conn, p->be_counters.cum_conn);
 					stop_proxy(p);
 					/* try to free more memory */
 					pool_gc2();
@@ -766,8 +766,8 @@ int session_set_backend(struct session *s, struct proxy *be)
 		return 1;
 	s->be = be;
 	be->beconn++;
-	if (be->beconn > be->counters.beconn_max)
-		be->counters.beconn_max = be->beconn;
+	if (be->beconn > be->be_counters.conn_max)
+		be->be_counters.conn_max = be->beconn;
 	proxy_inc_be_ctr(be);
 
 	/* assign new parameters to the session from the new backend */

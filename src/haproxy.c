@@ -1,6 +1,6 @@
 /*
  * HA-Proxy : High Availability-enabled HTTP/TCP proxy
- * Copyright 2000-2010  Willy Tarreau <w@1wt.eu>.
+ * Copyright 2000-2011  Willy Tarreau <w@1wt.eu>.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -310,19 +310,19 @@ void sig_dump_state(struct sig_handler *sh)
 			snprintf(trash, sizeof(trash),
 				 "SIGHUP: Proxy %s has no servers. Conn: act(FE+BE): %d+%d, %d pend (%d unass), tot(FE+BE): %lld+%lld.",
 				 p->id,
-				 p->feconn, p->beconn, p->totpend, p->nbpend, p->counters.cum_feconn, p->counters.cum_beconn);
+				 p->feconn, p->beconn, p->totpend, p->nbpend, p->fe_counters.cum_conn, p->be_counters.cum_conn);
 		} else if (p->srv_act == 0) {
 			snprintf(trash, sizeof(trash),
 				 "SIGHUP: Proxy %s %s ! Conn: act(FE+BE): %d+%d, %d pend (%d unass), tot(FE+BE): %lld+%lld.",
 				 p->id,
 				 (p->srv_bck) ? "is running on backup servers" : "has no server available",
-				 p->feconn, p->beconn, p->totpend, p->nbpend, p->counters.cum_feconn, p->counters.cum_beconn);
+				 p->feconn, p->beconn, p->totpend, p->nbpend, p->fe_counters.cum_conn, p->be_counters.cum_conn);
 		} else {
 			snprintf(trash, sizeof(trash),
 				 "SIGHUP: Proxy %s has %d active servers and %d backup servers available."
 				 " Conn: act(FE+BE): %d+%d, %d pend (%d unass), tot(FE+BE): %lld+%lld.",
 				 p->id, p->srv_act, p->srv_bck,
-				 p->feconn, p->beconn, p->totpend, p->nbpend, p->counters.cum_feconn, p->counters.cum_beconn);
+				 p->feconn, p->beconn, p->totpend, p->nbpend, p->fe_counters.cum_conn, p->be_counters.cum_conn);
 		}
 		Warning("%s\n", trash);
 		send_log(p, LOG_NOTICE, "%s\n", trash);

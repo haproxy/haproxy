@@ -449,7 +449,7 @@ int frontend_decode_proxy_request(struct session *s, struct buffer *req, int an_
 	buffer_abort(s->rep);
 	req->analysers = 0;
 
-	s->fe->counters.failed_req++;
+	s->fe->fe_counters.failed_req++;
 	if (s->listener->counters)
 		s->listener->counters->failed_req++;
 

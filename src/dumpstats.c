@@ -493,16 +493,22 @@ int stats_sock_parse_request(struct stream_interface *si, char *line)
 			}
 
 			for (px = proxy; px; px = px->next) {
-				if (clrall)
-					memset(&px->counters, 0, sizeof(px->counters));
+				if (clrall) {
+					memset(&px->be_counters, 0, sizeof(px->be_counters));
+					memset(&px->fe_counters, 0, sizeof(px->fe_counters));
+				}
 				else {
-					px->counters.feconn_max = 0;
-					px->counters.beconn_max = 0;
-					px->counters.fe_rps_max = 0;
-					px->counters.fe_sps_max = 0;
-					px->counters.fe_cps_max = 0;
-					px->counters.be_sps_max = 0;
-					px->counters.nbpend_max = 0;
+					px->be_counters.conn_max = 0;
+					px->be_counters.p.http.rps_max = 0;
+					px->be_counters.sps_max = 0;
+					px->be_counters.cps_max = 0;
+					px->be_counters.nbpend_max = 0;
+
+					px->fe_counters.conn_max = 0;
+					px->fe_counters.p.http.rps_max = 0;
+					px->fe_counters.sps_max = 0;
+					px->fe_counters.cps_max = 0;
+					px->fe_counters.nbpend_max = 0;
 				}
 
 				for (sv = px->srv; sv; sv = sv->next)
@@ -1761,8 +1767,8 @@ int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_a
 						     "",
 						     read_freq_ctr(&px->fe_req_per_sec),
 						     U2H0(read_freq_ctr(&px->fe_sess_per_sec)),
-						     px->counters.fe_rps_max,
-						     U2H1(px->counters.fe_sps_max),
+						     px->fe_counters.p.http.rps_max,
+						     U2H1(px->fe_counters.sps_max),
 						     LIM2A2(px->fe_sps_lim, "-"));
 				} else {
 					chunk_printf(&msg,
@@ -1770,7 +1776,7 @@ int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_a
 						     "<td>%s</td><td>%s</td><td>%s</td>"
 						     "",
 						     U2H0(read_freq_ctr(&px->fe_sess_per_sec)),
-						     U2H1(px->counters.fe_sps_max), LIM2A2(px->fe_sps_lim, "-"));
+						     U2H1(px->fe_counters.sps_max), LIM2A2(px->fe_sps_lim, "-"));
 				}
 
 				chunk_printf(&msg,
@@ -1778,18 +1784,18 @@ int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_a
 				     "<td>%s</td><td>%s</td><td>%s</td>"
 				     "<td"
 				     "",
-				     U2H3(px->feconn), U2H4(px->counters.feconn_max), U2H5(px->maxconn));
+				     U2H3(px->feconn), U2H4(px->fe_counters.conn_max), U2H5(px->maxconn));
 
 				/* http response (via td title): 1xx, 2xx, 3xx, 4xx, 5xx, other */
 				if (px->mode == PR_MODE_HTTP) {
 					int i;
 
-					chunk_printf(&msg, " title=\"%lld requests:", px->counters.cum_fe_req);
+					chunk_printf(&msg, " title=\"%lld requests:", px->fe_counters.p.http.cum_req);
 
 					for (i = 1; i < 6; i++)
-						chunk_printf(&msg, " %dxx=%lld,", i, px->counters.fe.http.rsp[i]);
+						chunk_printf(&msg, " %dxx=%lld,", i, px->fe_counters.p.http.rsp[i]);
 
-					chunk_printf(&msg, " other=%lld\"", px->counters.fe.http.rsp[0]);
+					chunk_printf(&msg, " other=%lld\"", px->fe_counters.p.http.rsp[0]);
 				}
 
 				chunk_printf(&msg,
@@ -1799,9 +1805,9 @@ int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_a
 				     "<td>%s</td><td>%s</td>"
 				     "",
 				     (px->mode == PR_MODE_HTTP)?"<u>":"",
-				     U2H6(px->counters.cum_fesess),
+				     U2H6(px->fe_counters.cum_sess),
 				     (px->mode == PR_MODE_HTTP)?"</u>":"",
-				     U2H7(px->counters.bytes_in), U2H8(px->counters.bytes_out));
+				     U2H7(px->fe_counters.bytes_in), U2H8(px->fe_counters.bytes_out));
 
 				chunk_printf(&msg,
 				     /* denied: req, resp */
@@ -1815,8 +1821,8 @@ int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_a
 				     /* rest of server: nothing */
 				     "<td class=ac colspan=8></td></tr>"
 				     "",
-				     U2H0(px->counters.denied_req), U2H1(px->counters.denied_resp),
-				     U2H2(px->counters.failed_req),
+				     U2H0(px->fe_counters.denied_req), U2H1(px->fe_counters.denied_resp),
+				     U2H2(px->fe_counters.failed_req),
 				     px->state == PR_STRUN ? "OPEN" :
 				     px->state == PR_STIDLE ? "FULL" : "STOP");
 			} else {
@@ -1844,24 +1850,24 @@ int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_a
 				     /* check_status, check_code, check_duration */
 				     ",,,",
 				     px->id,
-				     px->feconn, px->counters.feconn_max, px->maxconn, px->counters.cum_fesess,
-				     px->counters.bytes_in, px->counters.bytes_out,
-				     px->counters.denied_req, px->counters.denied_resp,
-				     px->counters.failed_req,
+				     px->feconn, px->fe_counters.conn_max, px->maxconn, px->fe_counters.cum_sess,
+				     px->fe_counters.bytes_in, px->fe_counters.bytes_out,
+				     px->fe_counters.denied_req, px->fe_counters.denied_resp,
+				     px->fe_counters.failed_req,
 				     px->state == PR_STRUN ? "OPEN" :
 				     px->state == PR_STIDLE ? "FULL" : "STOP",
 				     relative_pid, px->uuid, STATS_TYPE_FE,
 				     read_freq_ctr(&px->fe_sess_per_sec),
-				     px->fe_sps_lim, px->counters.fe_sps_max);
+				     px->fe_sps_lim, px->fe_counters.sps_max);
 
 				/* http response: 1xx, 2xx, 3xx, 4xx, 5xx, other */
 				if (px->mode == PR_MODE_HTTP) {
 					int i;
 
 					for (i=1; i<6; i++)
-						chunk_printf(&msg, "%lld,", px->counters.fe.http.rsp[i]);
+						chunk_printf(&msg, "%lld,", px->fe_counters.p.http.rsp[i]);
 
-					chunk_printf(&msg, "%lld,", px->counters.fe.http.rsp[0]);
+					chunk_printf(&msg, "%lld,", px->fe_counters.p.http.rsp[0]);
 				} else {
 					chunk_printf(&msg, ",,,,,,");
 				}
@@ -1872,7 +1878,7 @@ int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_a
 				/* requests : req_rate, req_rate_max, req_tot, */
 				chunk_printf(&msg, "%u,%u,%lld,",
 					     read_freq_ctr(&px->fe_req_per_sec),
-					     px->counters.fe_rps_max, px->counters.cum_fe_req);
+					     px->fe_counters.p.http.rps_max, px->fe_counters.p.http.cum_req);
 
 				/* errors: cli_aborts, srv_aborts */
 				chunk_printf(&msg, ",,");
@@ -2485,15 +2491,15 @@ int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_a
 				     (uri->flags & ST_SHLGNDS)?"<u>":"",
 				     px->id, px->id,
 				     (uri->flags & ST_SHLGNDS)?"</u>":"",
-				     U2H0(px->nbpend) /* or px->totpend ? */, U2H1(px->counters.nbpend_max),
-				     U2H2(read_freq_ctr(&px->be_sess_per_sec)), U2H3(px->counters.be_sps_max));
+				     U2H0(px->nbpend) /* or px->totpend ? */, U2H1(px->be_counters.nbpend_max),
+				     U2H2(read_freq_ctr(&px->be_sess_per_sec)), U2H3(px->be_counters.sps_max));
 
 				chunk_printf(&msg,
 				     /* sessions: current, max, limit */
 				     "<td>%s</td><td>%s</td><td>%s</td>"
 				     "<td"
 				     "",
-				     U2H2(px->beconn), U2H3(px->counters.beconn_max), U2H4(px->fullconn));
+				     U2H2(px->beconn), U2H3(px->be_counters.conn_max), U2H4(px->fullconn));
 
 				/* http response (via td title): 1xx, 2xx, 3xx, 4xx, 5xx, other */
 				if (px->mode == PR_MODE_HTTP) {
@@ -2502,9 +2508,9 @@ int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_a
 					chunk_printf(&msg, " title=\"rsp codes:");
 
 					for (i = 1; i < 6; i++)
-						chunk_printf(&msg, " %dxx=%lld", i, px->counters.be.http.rsp[i]);
+						chunk_printf(&msg, " %dxx=%lld", i, px->be_counters.p.http.rsp[i]);
 
-					chunk_printf(&msg, " other=%lld\"", px->counters.be.http.rsp[0]);
+					chunk_printf(&msg, " other=%lld\"", px->be_counters.p.http.rsp[0]);
 				}
 
 				chunk_printf(&msg,
@@ -2514,10 +2520,10 @@ int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_a
 				     "<td>%s</td><td>%s</td>"
 				     "",
 				     (px->mode == PR_MODE_HTTP)?"<u>":"",
-				     U2H6(px->counters.cum_beconn),
+				     U2H6(px->be_counters.cum_conn),
 				     (px->mode == PR_MODE_HTTP)?"</u>":"",
-				     U2H7(px->counters.cum_lbconn),
-				     U2H8(px->counters.bytes_in), U2H9(px->counters.bytes_out));
+				     U2H7(px->be_counters.cum_lbconn),
+				     U2H8(px->be_counters.bytes_in), U2H9(px->be_counters.bytes_out));
 
 				chunk_printf(&msg,
 				     /* denied: req, resp */
@@ -2535,12 +2541,12 @@ int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_a
 				     "<td class=ac>%s %s</td><td class=ac>&nbsp;</td><td class=ac>%d</td>"
 				     "<td class=ac>%d</td><td class=ac>%d</td>"
 				     "",
-				     U2H0(px->counters.denied_req), U2H1(px->counters.denied_resp),
-				     U2H2(px->counters.failed_conns),
-				     px->counters.cli_aborts,
-				     px->counters.srv_aborts,
-				     U2H5(px->counters.failed_resp),
-				     px->counters.retries, px->counters.redispatches,
+				     U2H0(px->be_counters.denied_req), U2H1(px->be_counters.denied_resp),
+				     U2H2(px->be_counters.failed_conns),
+				     px->be_counters.cli_aborts,
+				     px->be_counters.srv_aborts,
+				     U2H5(px->be_counters.failed_resp),
+				     px->be_counters.retries, px->be_counters.redispatches,
 				     human_time(now.tv_sec - px->last_change, 1),
 				     (px->lbprm.tot_weight > 0 || !px->srv) ? "UP" :
 					     "<font color=\"red\"><b>DOWN</b></font>",
@@ -2586,30 +2592,30 @@ int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_a
 				     /* check_status, check_code, check_duration */
 				     ",,,",
 				     px->id,
-				     px->nbpend /* or px->totpend ? */, px->counters.nbpend_max,
-				     px->beconn, px->counters.beconn_max, px->fullconn, px->counters.cum_beconn,
-				     px->counters.bytes_in, px->counters.bytes_out,
-				     px->counters.denied_req, px->counters.denied_resp,
-				     px->counters.failed_conns, px->counters.failed_resp,
-				     px->counters.retries, px->counters.redispatches,
+				     px->nbpend /* or px->totpend ? */, px->be_counters.nbpend_max,
+				     px->beconn, px->be_counters.conn_max, px->fullconn, px->be_counters.cum_conn,
+				     px->be_counters.bytes_in, px->be_counters.bytes_out,
+				     px->be_counters.denied_req, px->be_counters.denied_resp,
+				     px->be_counters.failed_conns, px->be_counters.failed_resp,
+				     px->be_counters.retries, px->be_counters.redispatches,
 				     (px->lbprm.tot_weight > 0 || !px->srv) ? "UP" : "DOWN",
 				     (px->lbprm.tot_weight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv,
 				     px->srv_act, px->srv_bck,
 				     px->down_trans, (int)(now.tv_sec - px->last_change),
 				     px->srv?be_downtime(px):0,
 				     relative_pid, px->uuid,
-				     px->counters.cum_lbconn, STATS_TYPE_BE,
+				     px->be_counters.cum_lbconn, STATS_TYPE_BE,
 				     read_freq_ctr(&px->be_sess_per_sec),
-				     px->counters.be_sps_max);
+				     px->be_counters.sps_max);
 
 				/* http response: 1xx, 2xx, 3xx, 4xx, 5xx, other */
 				if (px->mode == PR_MODE_HTTP) {
 					int i;
 
 					for (i=1; i<6; i++)
-						chunk_printf(&msg, "%lld,", px->counters.be.http.rsp[i]);
+						chunk_printf(&msg, "%lld,", px->be_counters.p.http.rsp[i]);
 
-					chunk_printf(&msg, "%lld,", px->counters.be.http.rsp[0]);
+					chunk_printf(&msg, "%lld,", px->be_counters.p.http.rsp[0]);
 				} else {
 					chunk_printf(&msg, ",,,,,,");
 				}
@@ -2622,7 +2628,7 @@ int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_a
 
 				/* errors: cli_aborts, srv_aborts */
 				chunk_printf(&msg, "%lld,%lld,",
-					     px->counters.cli_aborts, px->counters.srv_aborts);
+					     px->be_counters.cli_aborts, px->be_counters.srv_aborts);
 
 				/* finish with EOL */
 				chunk_printf(&msg, "\n");

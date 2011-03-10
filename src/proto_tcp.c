@@ -726,7 +726,8 @@ int tcp_inspect_request(struct session *s, struct buffer *req, int an_bit)
 				buffer_abort(s->rep);
 				req->analysers = 0;
 
-				s->be->counters.denied_req++;
+				s->be->be_counters.denied_req++;
+				s->fe->fe_counters.denied_req++;
 				if (s->listener->counters)
 					s->listener->counters->denied_req++;
 
@@ -842,7 +843,8 @@ int tcp_inspect_response(struct session *s, struct buffer *rep, int an_bit)
 				buffer_abort(s->req);
 				rep->analysers = 0;
 
-				s->be->counters.denied_resp++;
+				s->be->be_counters.denied_resp++;
+				s->fe->fe_counters.denied_resp++;
 				if (s->listener->counters)
 					s->listener->counters->denied_resp++;
 
@@ -894,7 +896,7 @@ int tcp_exec_req_rules(struct session *s)
 		if (ret) {
 			/* we have a matching rule. */
 			if (rule->action == TCP_ACT_REJECT) {
-				s->fe->counters.denied_conn++;
+				s->fe->fe_counters.denied_conn++;
 				if (s->listener->counters)
 					s->listener->counters->denied_conn++;
 

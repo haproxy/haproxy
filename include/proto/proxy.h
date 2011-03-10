@@ -71,42 +71,42 @@ static inline void proxy_reset_timeouts(struct proxy *proxy)
 /* increase the number of cumulated connections received on the designated frontend */
 static void inline proxy_inc_fe_conn_ctr(struct listener *l, struct proxy *fe)
 {
-	fe->counters.cum_feconn++;
+	fe->fe_counters.cum_conn++;
 	if (l->counters)
 		l->counters->cum_conn++;
 
 	update_freq_ctr(&fe->fe_conn_per_sec, 1);
-	if (fe->fe_conn_per_sec.curr_ctr > fe->counters.fe_cps_max)
-		fe->counters.fe_cps_max = fe->fe_conn_per_sec.curr_ctr;
+	if (fe->fe_conn_per_sec.curr_ctr > fe->fe_counters.cps_max)
+		fe->fe_counters.cps_max = fe->fe_conn_per_sec.curr_ctr;
 }
 
 /* increase the number of cumulated connections accepted by the designated frontend */
 static void inline proxy_inc_fe_sess_ctr(struct listener *l, struct proxy *fe)
 {
-	fe->counters.cum_fesess++;
+	fe->fe_counters.cum_sess++;
 	if (l->counters)
 		l->counters->cum_sess++;
 	update_freq_ctr(&fe->fe_sess_per_sec, 1);
-	if (fe->fe_sess_per_sec.curr_ctr > fe->counters.fe_sps_max)
-		fe->counters.fe_sps_max = fe->fe_sess_per_sec.curr_ctr;
+	if (fe->fe_sess_per_sec.curr_ctr > fe->fe_counters.sps_max)
+		fe->fe_counters.sps_max = fe->fe_sess_per_sec.curr_ctr;
 }
 
 /* increase the number of cumulated connections on the designated backend */
 static void inline proxy_inc_be_ctr(struct proxy *be)
 {
-	be->counters.cum_beconn++;
+	be->be_counters.cum_conn++;
 	update_freq_ctr(&be->be_sess_per_sec, 1);
-	if (be->be_sess_per_sec.curr_ctr > be->counters.be_sps_max)
-		be->counters.be_sps_max = be->be_sess_per_sec.curr_ctr;
+	if (be->be_sess_per_sec.curr_ctr > be->be_counters.sps_max)
+		be->be_counters.sps_max = be->be_sess_per_sec.curr_ctr;
 }
 
 /* increase the number of cumulated requests on the designated frontend */
 static void inline proxy_inc_fe_req_ctr(struct proxy *fe)
 {
-	fe->counters.cum_fe_req++;
+	fe->fe_counters.p.http.cum_req++;
 	update_freq_ctr(&fe->fe_req_per_sec, 1);
-	if (fe->fe_req_per_sec.curr_ctr > fe->counters.fe_rps_max)
-		fe->counters.fe_rps_max = fe->fe_req_per_sec.curr_ctr;
+	if (fe->fe_req_per_sec.curr_ctr > fe->fe_counters.p.http.rps_max)
+		fe->fe_counters.p.http.rps_max = fe->fe_req_per_sec.curr_ctr;
 }
 
 #endif /* _PROTO_PROXY_H */

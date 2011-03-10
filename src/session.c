@@ -130,8 +130,8 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	}
 
 	/* This session was accepted, count it now */
-	if (p->feconn > p->counters.feconn_max)
-		p->counters.feconn_max = p->feconn;
+	if (p->feconn > p->fe_counters.conn_max)
+		p->fe_counters.conn_max = p->feconn;
 
 	proxy_inc_fe_sess_ctr(l, p);
 	if (s->stkctr1_entry) {
@@ -410,10 +410,9 @@ void session_process_counters(struct session *s)
 		bytes = s->req->total - s->logs.bytes_in;
 		s->logs.bytes_in = s->req->total;
 		if (bytes) {
-			s->fe->counters.bytes_in			+= bytes;
+			s->fe->fe_counters.bytes_in			+= bytes;
 
-			if (s->be != s->fe)
-				s->be->counters.bytes_in		+= bytes;
+			s->be->be_counters.bytes_in			+= bytes;
 
 			if (target_srv(&s->target))
 				target_srv(&s->target)->counters.bytes_in		+= bytes;
@@ -461,10 +460,9 @@ void session_process_counters(struct session *s)
 		bytes = s->rep->total - s->logs.bytes_out;
 		s->logs.bytes_out = s->rep->total;
 		if (bytes) {
-			s->fe->counters.bytes_out			+= bytes;
+			s->fe->fe_counters.bytes_out			+= bytes;
 
-			if (s->be != s->fe)
-				s->be->counters.bytes_out		+= bytes;
+			s->be->be_counters.bytes_out			+= bytes;
 
 			if (target_srv(&s->target))
 				target_srv(&s->target)->counters.bytes_out		+= bytes;
@@ -606,7 +604,7 @@ int sess_update_st_cer(struct session *s, struct stream_interface *si)
 
 		if (target_srv(&s->target))
 			target_srv(&s->target)->counters.failed_conns++;
-		s->be->counters.failed_conns++;
+		s->be->be_counters.failed_conns++;
 		sess_change_server(s, NULL);
 		if (may_dequeue_tasks(target_srv(&s->target), s->be))
 			process_srv_queue(target_srv(&s->target));
@@ -639,7 +637,7 @@ int sess_update_st_cer(struct session *s, struct stream_interface *si)
 	} else {
 		if (target_srv(&s->target))
 			target_srv(&s->target)->counters.retries++;
-		s->be->counters.retries++;
+		s->be->be_counters.retries++;
 		si->state = SI_ST_ASS;
 	}
 
@@ -743,7 +741,7 @@ void sess_update_stream_int(struct session *s, struct stream_interface *si)
 				srv_inc_sess_ctr(srv);
 			if (srv)
 				srv->counters.failed_conns++;
-			s->be->counters.failed_conns++;
+			s->be->be_counters.failed_conns++;
 
 			/* release other sessions waiting for this server */
 			sess_change_server(s, NULL);
@@ -799,7 +797,7 @@ void sess_update_stream_int(struct session *s, struct stream_interface *si)
 			s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
 			if (srv)
 				srv->counters.failed_conns++;
-			s->be->counters.failed_conns++;
+			s->be->be_counters.failed_conns++;
 			si->shutr(si);
 			si->shutw(si);
 			si->ob->flags |= BF_WRITE_TIMEOUT;
@@ -1279,7 +1277,8 @@ struct task *process_session(struct task *t)
 			s->si[0].shutw(&s->si[0]);
 			stream_int_report_error(&s->si[0]);
 			if (!(s->req->analysers) && !(s->rep->analysers)) {
-				s->be->counters.cli_aborts++;
+				s->be->be_counters.cli_aborts++;
+				s->fe->fe_counters.cli_aborts++;
 				if (srv)
 					srv->counters.cli_aborts++;
 				if (!(s->flags & SN_ERR_MASK))
@@ -1295,11 +1294,12 @@ struct task *process_session(struct task *t)
 			s->si[1].shutr(&s->si[1]);
 			s->si[1].shutw(&s->si[1]);
 			stream_int_report_error(&s->si[1]);
-			s->be->counters.failed_resp++;
+			s->be->be_counters.failed_resp++;
 			if (srv)
 				srv->counters.failed_resp++;
 			if (!(s->req->analysers) && !(s->rep->analysers)) {
-				s->be->counters.srv_aborts++;
+				s->be->be_counters.srv_aborts++;
+				s->fe->fe_counters.srv_aborts++;
 				if (srv)
 					srv->counters.srv_aborts++;
 				if (!(s->flags & SN_ERR_MASK))
@@ -1659,25 +1659,29 @@ struct task *process_session(struct task *t)
 			/* Report it if the client got an error or a read timeout expired */
 			s->req->analysers = 0;
 			if (s->req->flags & BF_READ_ERROR) {
-				s->be->counters.cli_aborts++;
+				s->be->be_counters.cli_aborts++;
+				s->fe->fe_counters.cli_aborts++;
 				if (srv)
 					srv->counters.cli_aborts++;
 				s->flags |= SN_ERR_CLICL;
 			}
 			else if (s->req->flags & BF_READ_TIMEOUT) {
-				s->be->counters.cli_aborts++;
+				s->be->be_counters.cli_aborts++;
+				s->fe->fe_counters.cli_aborts++;
 				if (srv)
 					srv->counters.cli_aborts++;
 				s->flags |= SN_ERR_CLITO;
 			}
 			else if (s->req->flags & BF_WRITE_ERROR) {
-				s->be->counters.srv_aborts++;
+				s->be->be_counters.srv_aborts++;
+				s->fe->fe_counters.srv_aborts++;
 				if (srv)
 					srv->counters.srv_aborts++;
 				s->flags |= SN_ERR_SRVCL;
 			}
 			else {
-				s->be->counters.srv_aborts++;
+				s->be->be_counters.srv_aborts++;
+				s->fe->fe_counters.srv_aborts++;
 				if (srv)
 					srv->counters.srv_aborts++;
 				s->flags |= SN_ERR_SRVTO;
@@ -1688,25 +1692,29 @@ struct task *process_session(struct task *t)
 			/* Report it if the server got an error or a read timeout expired */
 			s->rep->analysers = 0;
 			if (s->rep->flags & BF_READ_ERROR) {
-				s->be->counters.srv_aborts++;
+				s->be->be_counters.srv_aborts++;
+				s->fe->fe_counters.srv_aborts++;
 				if (srv)
 					srv->counters.srv_aborts++;
 				s->flags |= SN_ERR_SRVCL;
 			}
 			else if (s->rep->flags & BF_READ_TIMEOUT) {
-				s->be->counters.srv_aborts++;
+				s->be->be_counters.srv_aborts++;
+				s->fe->fe_counters.srv_aborts++;
 				if (srv)
 					srv->counters.srv_aborts++;
 				s->flags |= SN_ERR_SRVTO;
 			}
 			else if (s->rep->flags & BF_WRITE_ERROR) {
-				s->be->counters.cli_aborts++;
+				s->be->be_counters.cli_aborts++;
+				s->fe->fe_counters.cli_aborts++;
 				if (srv)
 					srv->counters.cli_aborts++;
 				s->flags |= SN_ERR_CLICL;
 			}
 			else {
-				s->be->counters.cli_aborts++;
+				s->be->be_counters.cli_aborts++;
+				s->fe->fe_counters.cli_aborts++;
 				if (srv)
 					srv->counters.cli_aborts++;
 				s->flags |= SN_ERR_CLITO;
@@ -2063,11 +2071,11 @@ struct task *process_session(struct task *t)
 			n = 0;
 
 		if (s->fe->mode == PR_MODE_HTTP)
-			s->fe->counters.fe.http.rsp[n]++;
+			s->fe->fe_counters.p.http.rsp[n]++;
 
 		if ((s->flags & SN_BE_ASSIGNED) &&
 		    (s->be->mode == PR_MODE_HTTP))
-			s->be->counters.be.http.rsp[n]++;
+			s->be->be_counters.p.http.rsp[n]++;
 	}
 
 	/* let's do a final log if we need it */
@@ -2120,7 +2128,7 @@ void sess_set_term_flags(struct session *s)
 	if (!(s->flags & SN_FINST_MASK)) {
 		if (s->si[1].state < SI_ST_REQ) {
 
-			s->fe->counters.failed_req++;
+			s->fe->fe_counters.failed_req++;
 			if (s->listener->counters)
 				s->listener->counters->failed_req++;
 

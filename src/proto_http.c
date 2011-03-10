@@ -2530,7 +2530,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 
 			session_inc_http_req_ctr(s);
 			proxy_inc_fe_req_ctr(s->fe);
-			s->fe->counters.failed_req++;
+			s->fe->fe_counters.failed_req++;
 			if (s->listener->counters)
 				s->listener->counters->failed_req++;
 
@@ -2559,7 +2559,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 
 			session_inc_http_req_ctr(s);
 			proxy_inc_fe_req_ctr(s->fe);
-			s->fe->counters.failed_req++;
+			s->fe->fe_counters.failed_req++;
 			if (s->listener->counters)
 				s->listener->counters->failed_req++;
 
@@ -2586,7 +2586,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 			session_inc_http_err_ctr(s);
 			session_inc_http_req_ctr(s);
 			proxy_inc_fe_req_ctr(s->fe);
-			s->fe->counters.failed_req++;
+			s->fe->fe_counters.failed_req++;
 			if (s->listener->counters)
 				s->listener->counters->failed_req++;
 
@@ -2862,7 +2862,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	txn->status = 400;
 	stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_400));
 
-	s->fe->counters.failed_req++;
+	s->fe->fe_counters.failed_req++;
 	if (s->listener->counters)
 		s->listener->counters->failed_req++;
 
@@ -3433,7 +3433,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 	txn->status = 400;
 	stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_400));
 
-	s->fe->counters.failed_req++;
+	s->fe->fe_counters.failed_req++;
 	if (s->listener->counters)
 		s->listener->counters->failed_req++;
 
@@ -3683,7 +3683,7 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 	req->analysers = 0;
 	stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_400));
 
-	s->fe->counters.failed_req++;
+	s->fe->fe_counters.failed_req++;
 	if (s->listener->counters)
 		s->listener->counters->failed_req++;
 
@@ -3727,7 +3727,7 @@ int http_process_tarpit(struct session *s, struct buffer *req, int an_bit)
 	req->analysers = 0;
 	req->analyse_exp = TICK_ETERNITY;
 
-	s->fe->counters.failed_req++;
+	s->fe->fe_counters.failed_req++;
 	if (s->listener->counters)
 		s->listener->counters->failed_req++;
 
@@ -3867,7 +3867,7 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 
  return_err_msg:
 	req->analysers = 0;
-	s->fe->counters.failed_req++;
+	s->fe->fe_counters.failed_req++;
 	if (s->listener->counters)
 		s->listener->counters->failed_req++;
 	return 0;
@@ -3906,11 +3906,11 @@ void http_end_txn_clean_session(struct session *s)
 			n = 0;
 
 		if (s->fe->mode == PR_MODE_HTTP)
-			s->fe->counters.fe.http.rsp[n]++;
+			s->fe->fe_counters.p.http.rsp[n]++;
 
 		if ((s->flags & SN_BE_ASSIGNED) &&
 		    (s->be->mode == PR_MODE_HTTP))
-			s->be->counters.be.http.rsp[n]++;
+			s->be->be_counters.p.http.rsp[n]++;
 	}
 
 	/* don't count other requests' data */
@@ -4232,7 +4232,7 @@ int http_sync_res_state(struct session *s)
 		}
 		else if (buf->flags & BF_SHUTW) {
 			txn->rsp.msg_state = HTTP_MSG_ERROR;
-			s->be->counters.cli_aborts++;
+			s->be->be_counters.cli_aborts++;
 			if (target_srv(&s->target))
 				target_srv(&s->target)->counters.cli_aborts++;
 			goto wait_other_side;
@@ -4513,9 +4513,8 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 				s->flags |= SN_FINST_D;
 		}
 
-		s->fe->counters.cli_aborts++;
-		if (s->fe != s->be)
-			s->be->counters.cli_aborts++;
+		s->fe->fe_counters.cli_aborts++;
+		s->be->be_counters.cli_aborts++;
 		if (target_srv(&s->target))
 			target_srv(&s->target)->counters.cli_aborts++;
 
@@ -4536,7 +4535,7 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 	return 0;
 
  return_bad_req: /* let's centralize all bad requests */
-	s->fe->counters.failed_req++;
+	s->fe->fe_counters.failed_req++;
 	if (s->listener->counters)
 		s->listener->counters->failed_req++;
  return_bad_req_stats_ok:
@@ -4573,9 +4572,8 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 	req->analysers = 0;
 	s->rep->analysers = 0; /* we're in data phase, we want to abort both directions */
 
-	s->fe->counters.srv_aborts++;
-	if (s->fe != s->be)
-		s->be->counters.srv_aborts++;
+	s->fe->fe_counters.srv_aborts++;
+	s->be->be_counters.srv_aborts++;
 	if (target_srv(&s->target))
 		target_srv(&s->target)->counters.srv_aborts++;
 
@@ -4702,7 +4700,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 			if (msg->msg_state == HTTP_MSG_ERROR || msg->err_pos >= 0)
 				http_capture_bad_message(&s->be->invalid_rep, s, rep, msg, msg->msg_state, s->fe);
 
-			s->be->counters.failed_resp++;
+			s->be->be_counters.failed_resp++;
 			if (target_srv(&s->target)) {
 				target_srv(&s->target)->counters.failed_resp++;
 				health_adjust(target_srv(&s->target), HANA_STATUS_HTTP_HDRRSP);
@@ -4733,7 +4731,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 			if (msg->err_pos >= 0)
 				http_capture_bad_message(&s->be->invalid_rep, s, rep, msg, msg->msg_state, s->fe);
 
-			s->be->counters.failed_resp++;
+			s->be->be_counters.failed_resp++;
 			if (target_srv(&s->target)) {
 				target_srv(&s->target)->counters.failed_resp++;
 				health_adjust(target_srv(&s->target), HANA_STATUS_HTTP_READ_ERROR);
@@ -4758,7 +4756,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 			if (msg->err_pos >= 0)
 				http_capture_bad_message(&s->be->invalid_rep, s, rep, msg, msg->msg_state, s->fe);
 
-			s->be->counters.failed_resp++;
+			s->be->be_counters.failed_resp++;
 			if (target_srv(&s->target)) {
 				target_srv(&s->target)->counters.failed_resp++;
 				health_adjust(target_srv(&s->target), HANA_STATUS_HTTP_READ_TIMEOUT);
@@ -4783,7 +4781,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 			if (msg->err_pos >= 0)
 				http_capture_bad_message(&s->be->invalid_rep, s, rep, msg, msg->msg_state, s->fe);
 
-			s->be->counters.failed_resp++;
+			s->be->be_counters.failed_resp++;
 			if (target_srv(&s->target)) {
 				target_srv(&s->target)->counters.failed_resp++;
 				health_adjust(target_srv(&s->target), HANA_STATUS_HTTP_BROKEN_PIPE);
@@ -4808,7 +4806,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 			if (msg->err_pos >= 0)
 				http_capture_bad_message(&s->be->invalid_rep, s, rep, msg, msg->msg_state, s->fe);
 
-			s->be->counters.failed_resp++;
+			s->be->be_counters.failed_resp++;
 			rep->analysers = 0;
 			buffer_auto_close(rep);
 
@@ -5130,7 +5128,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 						target_srv(&t->target)->counters.failed_resp++;
 						health_adjust(target_srv(&t->target), HANA_STATUS_HTTP_RSP);
 					}
-					cur_proxy->counters.failed_resp++;
+					t->be->be_counters.failed_resp++;
 				return_srv_prx_502:
 					rep->analysers = 0;
 					txn->status = 502;
@@ -5150,7 +5148,8 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 				if (target_srv(&t->target))
 					target_srv(&t->target)->counters.failed_secu++;
 
-				cur_proxy->counters.denied_resp++;
+				t->be->be_counters.denied_resp++;
+				t->fe->fe_counters.denied_resp++;
 				if (t->listener->counters)
 					t->listener->counters->denied_resp++;
 
@@ -5302,7 +5301,8 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 			if (target_srv(&t->target))
 				target_srv(&t->target)->counters.failed_secu++;
 
-			cur_proxy->counters.denied_resp++;
+			t->be->be_counters.denied_resp++;
+			t->fe->fe_counters.denied_resp++;
 			if (t->listener->counters)
 				t->listener->counters->denied_resp++;
 
@@ -5527,7 +5527,7 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 	if (res->flags & BF_SHUTR) {
 		if (!(s->flags & SN_ERR_MASK))
 			s->flags |= SN_ERR_SRVCL;
-		s->be->counters.srv_aborts++;
+		s->be->be_counters.srv_aborts++;
 		if (target_srv(&s->target))
 			target_srv(&s->target)->counters.srv_aborts++;
 		goto return_bad_res_stats_ok;
@@ -5565,7 +5565,7 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 	return 0;
 
  return_bad_res: /* let's centralize all bad responses */
-	s->be->counters.failed_resp++;
+	s->be->be_counters.failed_resp++;
 	if (target_srv(&s->target))
 		target_srv(&s->target)->counters.failed_resp++;
 
@@ -5591,9 +5591,8 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 	res->analysers = 0;
 	s->req->analysers = 0; /* we're in data phase, we want to abort both directions */
 
-	s->fe->counters.cli_aborts++;
-	if (s->fe != s->be)
-		s->be->counters.cli_aborts++;
+	s->fe->fe_counters.cli_aborts++;
+	s->be->be_counters.cli_aborts++;
 	if (target_srv(&s->target))
 		target_srv(&s->target)->counters.cli_aborts++;
 
@@ -5677,7 +5676,9 @@ int apply_filter_to_req_headers(struct session *t, struct buffer *req, struct hd
 				txn->flags |= TX_CLDENY;
 				last_hdr = 1;
 
-				t->be->counters.denied_req++;
+				t->fe->fe_counters.denied_req++;
+				if (t->fe != t->be)
+					t->be->be_counters.denied_req++;
 				if (t->listener->counters)
 					t->listener->counters->denied_req++;
 
@@ -5687,7 +5688,9 @@ int apply_filter_to_req_headers(struct session *t, struct buffer *req, struct hd
 				txn->flags |= TX_CLTARPIT;
 				last_hdr = 1;
 
-				t->be->counters.denied_req++;
+				t->fe->fe_counters.denied_req++;
+				if (t->fe != t->be)
+					t->be->be_counters.denied_req++;
 				if (t->listener->counters)
 					t->listener->counters->denied_req++;
 
@@ -5796,7 +5799,9 @@ int apply_filter_to_req_line(struct session *t, struct buffer *req, struct hdr_e
 		case ACT_DENY:
 			txn->flags |= TX_CLDENY;
 
-			t->be->counters.denied_req++;
+			t->fe->fe_counters.denied_req++;
+			if (t->fe != t->be)
+				t->be->be_counters.denied_req++;
 			if (t->listener->counters)
 				t->listener->counters->denied_req++;
 
@@ -5806,7 +5811,9 @@ int apply_filter_to_req_line(struct session *t, struct buffer *req, struct hdr_e
 		case ACT_TARPIT:
 			txn->flags |= TX_CLTARPIT;
 
-			t->be->counters.denied_req++;
+			t->fe->fe_counters.denied_req++;
+			if (t->fe != t->be)
+				t->be->be_counters.denied_req++;
 			if (t->listener->counters)
 				t->listener->counters->denied_req++;
 
