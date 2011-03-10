@@ -452,7 +452,7 @@ struct server *get_server_rch(struct session *s)
  * It is illegal to call this function with a session in a queue.
  *
  * It may return :
- *   SRV_STATUS_OK       if everything is OK. Session assigned to ->srv
+ *   SRV_STATUS_OK       if everything is OK. ->srv and ->target are assigned.
  *   SRV_STATUS_NOSRV    if no server is available. Session is not ASSIGNED
  *   SRV_STATUS_FULL     if all servers are saturated. Session is not ASSIGNED
  *   SRV_STATUS_INTERNAL for other unrecoverable errors.
@@ -492,6 +492,9 @@ int assign_server(struct session *s)
 	 */
 
 	s->srv = NULL;
+	s->target.type = TARG_TYPE_NONE;
+	s->target.ptr.v = NULL;
+
 	if (s->be->lbprm.algo & BE_LB_KIND) {
 		int len;
 		/* we must check if we have at least one server available */
@@ -612,14 +615,20 @@ int assign_server(struct session *s)
 			s->be->counters.cum_lbconn++;
 			s->srv->counters.cum_lbconn++;
 		}
+
+		s->target.type = TARG_TYPE_SERVER;
+		s->target.ptr.s = s->srv;
 	}
-	else if (s->be->options & PR_O_HTTP_PROXY) {
-		if (!s->req->cons->addr.s.to.sin_addr.s_addr) {
-			err = SRV_STATUS_NOSRV;
-			goto out;
-		}
+	else if ((s->be->options2 & PR_O2_DISPATCH) || (s->be->options & PR_O_TRANSP)) {
+		s->target.type = TARG_TYPE_PROXY;
+		s->target.ptr.p = s->be;
 	}
-	else if (!(s->be->options2 & PR_O2_DISPATCH) && !(s->be->options & PR_O_TRANSP)) {
+	else if ((s->be->options & PR_O_HTTP_PROXY) && s->req->cons->addr.s.to.sin_addr.s_addr) {
+		/* in proxy mode, we need a valid destination address */
+		s->target.type = TARG_TYPE_PROXY;
+		s->target.ptr.p = s->be;
+	}
+	else {
 		err = SRV_STATUS_NOSRV;
 		goto out;
 	}
@@ -910,7 +919,8 @@ static void assign_tproxy_address(struct session *s)
 
 /*
  * This function initiates a connection to the server assigned to this session
- * (s->srv, s->req->cons->addr.s.to). It will assign a server if none is assigned yet.
+ * (s->srv, s->target, s->req->cons->addr.s.to). It will assign a server if none
+ * is assigned yet.
  * It can return one of :
  *  - SN_ERR_NONE if everything's OK
  *  - SN_ERR_SRVTO if there are no more servers
@@ -932,16 +942,13 @@ int connect_server(struct session *s)
 
 	/* Prepare the stream interface for a TCP connection. Later
 	 * we may assign a protocol-specific connect() function.
+	 * NOTE: when we later support HTTP keep-alive, we'll have to
+	 * decide here if we can reuse the connection by comparing the
+	 * session's freshly assigned target with the stream interface's.
 	 */
 	stream_sock_prepare_interface(s->req->cons);
 	s->req->cons->connect = tcpv4_connect_server;
-	if (s->srv) {
-		s->req->cons->target.type = TARG_TYPE_SERVER;
-		s->req->cons->target.ptr.s = s->srv;
-	} else {
-		s->req->cons->target.type = TARG_TYPE_PROXY;
-		s->req->cons->target.ptr.p = s->be;
-	}
+	s->req->cons->target = s->target;
 
 	assign_tproxy_address(s);
 
@@ -1098,12 +1105,16 @@ int tcp_persist_rdp_cookie(struct session *s, struct buffer *req, int an_bit)
 	if (*p != '.')
 		goto no_cookie;
 
+	s->target.type = TARG_TYPE_NONE;
+	s->target.ptr.v = NULL;
 	while (srv) {
 		if (memcmp(&addr, &(srv->addr), sizeof(addr)) == 0) {
 			if ((srv->state & SRV_RUNNING) || (px->options & PR_O_PERSIST)) {
 				/* we found the server and it is usable */
 				s->flags |= SN_DIRECT | SN_ASSIGNED;
 				s->srv = srv;
+				s->target.type = TARG_TYPE_SERVER;
+				s->target.ptr.s = s->srv;
 				break;
 			}
 		}

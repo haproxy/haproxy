@@ -203,6 +203,8 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 		s->si[1].flags |= SI_FL_INDEP_STR;
 
 	s->srv = s->prev_srv = s->srv_conn = NULL;
+	s->target.type = TARG_TYPE_NONE;
+	s->target.ptr.v = NULL;
 	s->pend_pos = NULL;
 
 	/* init store persistence */
@@ -1066,6 +1068,8 @@ int process_sticking_rules(struct session *s, struct buffer *req, int an_bit)
 							    (s->flags & SN_FORCE_PRST)) {
 								s->flags |= SN_DIRECT | SN_ASSIGNED;
 								s->srv = srv;
+								s->target.type = TARG_TYPE_SERVER;
+								s->target.ptr.s = srv;
 							}
 						}
 					}

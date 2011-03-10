@@ -171,6 +171,7 @@ struct session {
 	struct server *srv;			/* the server the session will be running or has been running on */
 	struct server *srv_conn;		/* session already has a slot on a server and is not in queue */
 	struct server *prev_srv;		/* the server the was running on, after a redispatch, otherwise NULL */
+	struct target target;			/* target to use for this session */
 	struct pendconn *pend_pos;		/* if not NULL, points to the position in the pending queue */
 	struct http_txn txn;			/* current HTTP transaction being processed. Should become a list. */
 

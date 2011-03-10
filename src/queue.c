@@ -122,6 +122,8 @@ struct session *pendconn_get_next_sess(struct server *srv, struct proxy *px)
 
 	/* we want to note that the session has now been assigned a server */
 	sess->flags |= SN_ASSIGNED;
+	sess->target.type = TARG_TYPE_SERVER;
+	sess->target.ptr.s = srv;
 	sess->srv = srv;
 	sess->srv_conn = srv;
 	srv->served++;
