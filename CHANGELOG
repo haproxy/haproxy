@@ -1,6 +1,103 @@
 ChangeLog :
 ===========
 
+2011/03/13 : 1.5-dev4
+    - [MINOR] cfgparse: Check whether the path given for the stats socket actually fits into the sockaddr_un structure to avoid truncation.
+    - [MINOR] unix sockets : inherits the backlog size from the listener
+    - [CLEANUP] unix sockets : move create_uxst_socket() in uxst_bind_listener()
+    - [DOC] fix a minor typo
+    - [DOC] fix ignore-persist documentation
+    - [MINOR] add warnings on features not compatible with multi-process mode
+    - [BUG] http: fix http-pretend-keepalive and httpclose/tunnel mode
+    - [MINOR] stats: add support for several packets in stats admin
+    - [BUG] stats: admin commands must check the proxy state
+    - [BUG] stats: admin web interface must check the proxy state
+    - [MINOR] http: add pattern extraction method to stick on query string parameter
+    - [MEDIUM] add internal support for IPv6 server addresses
+    - [MINOR] acl: add be_id/srv_id to match backend's and server's id
+    - [MINOR] log: add support for passing the forwarded hostname
+    - [MINOR] log: ability to override the syslog tag
+    - [MINOR] checks: add PostgreSQL health check
+    - [DOC] update ROADMAP file
+    - [BUILD] pattern: use 'int' instead of 'int32_t'
+    - [OPTIM] linux: add support for bypassing libc to force using vsyscalls
+    - [BUG] debug: report the correct poller list in verbose mode
+    - [BUG] capture: do not capture a cookie if there is no memory left
+    - [BUG] appsession: fix possible double free in case of out of memory
+    - [CRITICAL] cookies: mixing cookies in indirect mode and appsession can crash the process
+    - [BUG] http: correctly update the header list when removing two consecutive headers
+    - [BUILD] add the CPU=native and ARCH=32/64 build options
+    - [BUILD] add -fno-strict-aliasing to fix warnings with gcc >= 4.4
+    - [CLEANUP] hash: move the avalanche hash code globally available
+    - [MEDIUM] hash: add support for an 'avalanche' hash-type
+    - [DOC] update roadmap file
+    - [BUG] http: do not re-enable the PROXY analyser on keep-alive
+    - [OPTIM] http: don't send each chunk in a separate packet
+    - [DOC] fix minor typos reported recently in the peers section
+    - [DOC] fix another typo in the doc
+    - [MINOR] stats: report HTTP message state and buffer flags in error dumps
+    - [BUG] http chunking: don't report a parsing error on connection errors
+    - [BUG] stream_interface: truncate buffers when sending error messages
+    - [MINOR] http: support wrapping messages in error captures
+    - [MINOR] http: capture incorrectly chunked message bodies
+    - [MINOR] stats: add global event ID and count
+    - [BUG] http: analyser optimizations broke pipelining
+    - [CLEANUP] frontend: only apply TCP-specific settings to TCP/TCP6 sockets
+    - [BUG] http: fix incorrect error reporting during data transfers
+    - [CRITICAL] session: correctly leave turn-around and queue states on abort
+    - [BUG] session: release slot before processing pending connections
+    - [MINOR] tcp: add support for dynamic MSS setting
+    - [BUG] stick-table: correctly terminate string keys during lookups
+    - [BUG] acl: fix handling of empty lines in pattern files
+    - [BUG] stick-table: use the private buffer when padding strings
+    - [BUG] ebtree: fix ebmb_lookup() with len smaller than the tree's keys
+    - [OPTIM] ebtree: ebmb_lookup: reduce stack usage by moving the return code out of the loop
+    - [OPTIM] ebtree: inline ebst_lookup_len and ebis_lookup_len
+    - [REVERT] undo the stick-table string key lookup fixes
+    - [MINOR] http: improve url_param pattern extraction to ignore empty values
+    - [BUILD] frontend: shut a warning with TCP_MAXSEG
+    - [BUG] http: update the header list's tail when removing the last header
+    - [DOC] fix minor typo in the proxy protocol doc
+    - [DOC] fix typos (http-request instead of http-check)
+    - [BUG] http: use correct ACL pointer when evaluating authentication
+    - [BUG] cfgparse: correctly count one socket per port in ranges
+    - [BUG] startup: set the rlimits before binding ports, not after.
+    - [BUG] acl: srv_id must return no match when the server is NULL
+    - [MINOR] acl: add ability to check for internal response-only parameters
+    - [MINOR] acl: srv_id is only valid in responses
+    - [MINOR] config: warn if response-only conditions are used in "redirect" rules
+    - [BUG] acl: fd leak when reading patterns from file
+    - [DOC] fix minor typo in "usesrc"
+    - [BUG] http: fix possible incorrect forwarded wrapping chunk size
+    - [BUG] http: fix computation of message body length after forwarding has started
+    - [BUG] http: balance url_param did not work with first parameters on POST
+    - [TESTS] update the url_param regression test to test check_post too
+    - [DOC] update ROADMAP
+    - [DOC] internal: reflect the fact that SI_ST_ASS is transient
+    - [BUG] config: don't crash on empty pattern files.
+    - [MINOR] stream_interface: make use of an applet descriptor for IO handlers
+    - [REORG] stream_interface: move the st0, st1 and private members to the applet
+    - [REORG] stream_interface: split the struct members in 3 parts
+    - [REORG] session: move client and server address to the stream interface
+    - [REORG] tcp: make tcpv4_connect_server() take the target address from the SI
+    - [MEDIUM] stream_interface: store the target pointer and type
+    - [CLEANUP] stream_interface: remove the applet.handler pointer
+    - [MEDIUM] log: take the logged server name from the stream interface
+    - [CLEANUP] session: remove data_source from struct session
+    - [CLEANUP] stats: make all dump functions only rely on the stream interface
+    - [REORG] session: move the data_ctx struct to the stream interface's applet
+    - [MINOR] proxy: add PR_O2_DISPATCH to detect dispatch mode
+    - [MINOR] cfgparse: only keep one of dispatch, transparent, http_proxy
+    - [MINOR] session: add a pointer to the new target into the session
+    - [MEDIUM] session: remove s->prev_srv which is not needed anymore
+    - [CLEANUP] stream_interface: use inline functions to manipulate targets
+    - [MAJOR] session: remove the ->srv pointer from struct session
+    - [MEDIUM] stats: split frontend and backend stats
+    - [MEDIUM] http: always evaluate http-request rules before stats http-request
+    - [REORG] http: move the http-request rules to proto_http
+    - [BUG] http: stats were not incremented on http-request deny
+    - [MINOR] checks: report it if checks fail due to socket creation error
+
 2010/11/11 : 1.5-dev3
     - [DOC] fix http-request documentation
     - [MEDIUM] enable/disable servers from the stats web interface
