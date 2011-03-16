@@ -2533,7 +2533,7 @@ acl_fetch_src_conn_cur(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!px)
 		return 0; /* table not found */
 
-	return acl_fetch_conn_cnt(&px->table, test, stktable_lookup_key(&px->table, key));
+	return acl_fetch_conn_cur(&px->table, test, stktable_lookup_key(&px->table, key));
 }
 
 /* set test->i to the cumulated number of sessions in the stksess entry <ts> */
