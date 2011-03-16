@@ -3,7 +3,11 @@ Medium-long term roadmap - 2011/03/01
 Legend: '+' = done, '-' = todo, '*' = done except doc
 
 1.5 (ETA 2010/12/31) :
+  - ACL to report number of used entries in a table
+
   - server-side HTTP keepalive
+    => maybe with limitation to only reuse connections that don't depend
+       on layer7 in a first time (just check the target).
 
   - POST parameter extraction and size/speed measurement to use in ACLs
 
@@ -24,9 +28,6 @@ Legend: '+' = done, '-' = todo, '*' = done except doc
   - have multi-criteria analysers which subscribe to req flags, rsp flags, and
     stream interface changes. This would result in a single analyser to wait
     for the end of data transfer in HTTP.
-
-  - try to remove srv==NULL internally and assign a dummy server to each backend
-    for dispatch, http_proxy and transparent modes.
 
   - implement support for "connection freeze" after accept. A list of frozen
     connections should be maintained so that it is possible to recycle them
@@ -72,6 +73,9 @@ Legend: '+' = done, '-' = todo, '*' = done except doc
     the TCP stack does not notify us that the FIN was acked. In practice,
     reading just before closing should be enough. Right now we simply read
     whatever comes after the POST.
+    => switch the connection to a "drain" state, where it monitors its
+       output queue on each I/O and where it can be stolen if fds are
+       missing.
 
   - half-closed timeouts ?
 
@@ -125,6 +129,11 @@ DONE:
   * hash: rehash non-consistent hashes with chash() for more randomness.
 
   * add an error ID in captures to ease new error detection for scripts.
+
+  * try to remove srv==NULL internally and assign a dummy server to each backend
+    for dispatch, http_proxy and transparent modes. => done differently with the
+    target descriptors. The dummy server code exists in the "dummysrv" branch
+    which will die since it does not make sense anymore.
 
 
 1.6 (will probably change anyway) :
