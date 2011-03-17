@@ -3958,7 +3958,7 @@ stats_error_parsing:
 			newsrv->id = strdup(args[1]);
 
 			/* several ways to check the port component :
-			 *  - IP    => port=+0, relative
+			 *  - IP    => port=+0, relative (IPv4 only)
 			 *  - IP:   => port=+0, relative
 			 *  - IP:N  => port=N, absolute
 			 *  - IP:+N => port=+N, relative
