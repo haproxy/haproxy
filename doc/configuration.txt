@@ -5694,7 +5694,7 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
         stick-table type ip size 1m expire 5m store gpc0,conn_rate(30s)
 
   See also : "stick match", "stick on", "stick store-request", section 2.2
-             about time format and section 7 avoud ACLs.
+             about time format and section 7 about ACLs.
 
 
 stick store-response <pattern> [table <table>] [{if | unless} <condition>]
