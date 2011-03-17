@@ -265,8 +265,34 @@ struct sockaddr_storage *str2ip(const char *str)
 			((struct sockaddr_in6 *)&sa)->sin6_addr = *(struct in6_addr *) *(he->h_addr_list);
 			return &sa;
 		}
-		/* unsupported address family */
 	}
+#ifdef USE_GETADDRINFO
+	else {
+		struct addrinfo hints, *result;
+
+		memset(&result, 0, sizeof(result));
+		memset(&hints, 0, sizeof(hints));
+		hints.ai_family = AF_UNSPEC;
+		hints.ai_socktype = SOCK_DGRAM;
+		hints.ai_flags = AI_PASSIVE;
+		hints.ai_protocol = 0;
+
+		if (getaddrinfo(str, NULL, &hints, &result) == 0) {
+			sa.ss_family = result->ai_family;
+			switch (result->ai_family) {
+			case AF_INET:
+				memcpy((struct sockaddr_in *)&sa, result->ai_addr, result->ai_addrlen);
+				return &sa;
+			case AF_INET6:
+				memcpy((struct sockaddr_in6 *)&sa, result->ai_addr, result->ai_addrlen);
+				return &sa;
+			}
+		}
+
+		freeaddrinfo(result);
+	}
+#endif
+	/* unsupported address family */
 
 	return NULL;
 }
