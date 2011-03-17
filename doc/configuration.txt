@@ -1422,7 +1422,7 @@ bind /<path> [, ...] [ group <user> | gid <gid> ]
                   address, or '*'. It designates the address the frontend will
                   listen on. If unset, all IPv4 addresses of the system will be
                   listened on. The same will apply for '*' or the system's
-                  special address "0.0.0.0".
+                  special address "0.0.0.0". The IPv6 equivalent is '::'.
 
     <port_range>  is either a unique TCP port, or a port range for which the
                   proxy will accept connections for the IP address specified
