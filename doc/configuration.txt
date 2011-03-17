@@ -507,6 +507,10 @@ log <address> <facility> [max level [min level]]
           no port is specified, 514 is used by default (the standard syslog
           port).
 
+        - An IPv6 address followed by a colon and optionally a UDP port. If
+          no port is specified, 514 is used by default (the standard syslog
+          port).
+
         - A filesystem path to a UNIX domain socket, keeping in mind
           considerations for chroot (be sure the path is accessible inside
           the chroot) and uid/gid (be sure the path is appropriately
@@ -2519,6 +2523,10 @@ log <address> <facility> [<level> [<minlevel>]]
                for the "global" section's logs, and can be one of :
 
                - An IPv4 address optionally followed by a colon (':') and a UDP
+                 port. If no port is specified, 514 is used by default (the
+                 standard syslog port).
+
+               - An IPv6 address followed by a colon (':') and optionally a UDP
                  port. If no port is specified, 514 is used by default (the
                  standard syslog port).
 
