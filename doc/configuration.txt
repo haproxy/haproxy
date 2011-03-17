@@ -4629,7 +4629,7 @@ rspirep <search> <string> [{if | unless} <cond>]  (ignore case)
             manipulation, and section 7 about ACLs.
 
 
-server <name> <address>[:port] [param*]
+server <name> <address>[:[port]] [param*]
   Declare a server in a backend
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    no    |   yes  |   yes
@@ -4637,10 +4637,10 @@ server <name> <address>[:port] [param*]
     <name>    is the internal name assigned to this server. This name will
               appear in logs and alerts.
 
-    <address> is the IPv4 address of the server. Alternatively, a resolvable
-              hostname is supported, but this name will be resolved during
-              start-up. Address "0.0.0.0" or "*" has a special meaning. It
-              indicates that the connection will be forwarded to the same IP
+    <address> is the IPv4 or IPv6 address of the server. Alternatively, a
+              resolvable hostname is supported, but this name will be resolved
+              during start-up. Address "0.0.0.0" or "*" has a special meaning.
+              It indicates that the connection will be forwarded to the same IP
               address as the one from the client connection. This is useful in
               transparent proxy architectures where the client's connection is
               intercepted and haproxy must forward to the original destination
