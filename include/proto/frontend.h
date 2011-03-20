@@ -2,7 +2,7 @@
  * include/proto/frontend.h
  * This file declares frontend-specific functions.
  *
- * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2011 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -28,6 +28,7 @@
 void get_frt_addr(struct session *s);
 int frontend_accept(struct session *s);
 int frontend_decode_proxy_request(struct session *s, struct buffer *req, int an_bit);
+int make_proxy_line(char *buf, int buf_len, struct sockaddr_storage *src, struct sockaddr_storage *dst);
 
 
 #endif /* _PROTO_FRONTEND_H */

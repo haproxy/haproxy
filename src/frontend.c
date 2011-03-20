@@ -1,7 +1,7 @@
 /*
  * Frontend variables and functions.
  *
- * Copyright 2000-2010 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2011 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -458,6 +458,85 @@ int frontend_decode_proxy_request(struct session *s, struct buffer *req, int an_
 	if (!(s->flags & SN_FINST_MASK))
 		s->flags |= SN_FINST_R;
 	return 0;
+}
+
+/* Makes a PROXY protocol line from the two addresses. The output is sent to
+ * buffer <buf> for a maximum size of <buf_len> (including the trailing zero).
+ * It returns the number of bytes composing this line (including the trailing
+ * LF), or zero in case of failure (eg: not enough space). It supports TCP4,
+ * TCP6 and "UNKNOWN" formats.
+ */
+int make_proxy_line(char *buf, int buf_len, struct sockaddr_storage *src, struct sockaddr_storage *dst)
+{
+	int ret = 0;
+
+	if (src->ss_family == dst->ss_family && src->ss_family == AF_INET) {
+		ret = snprintf(buf + ret, buf_len - ret, "PROXY TCP4 ");
+		if (ret >= buf_len)
+			return 0;
+
+		/* IPv4 src */
+		if (!inet_ntop(src->ss_family, &((struct sockaddr_in *)src)->sin_addr, buf + ret, buf_len - ret))
+			return 0;
+
+		ret += strlen(buf + ret);
+		if (ret >= buf_len)
+			return 0;
+
+		buf[ret++] = ' ';
+
+		/* IPv4 dst */
+		if (!inet_ntop(dst->ss_family, &((struct sockaddr_in *)dst)->sin_addr, buf + ret, buf_len - ret))
+			return 0;
+
+		ret += strlen(buf + ret);
+		if (ret >= buf_len)
+			return 0;
+
+		/* source and destination ports */
+		ret += snprintf(buf + ret, buf_len - ret, " %u %u\r\n",
+				ntohs(((struct sockaddr_in *)src)->sin_port),
+				ntohs(((struct sockaddr_in *)dst)->sin_port));
+		if (ret >= buf_len)
+			return 0;
+	}
+	else if (src->ss_family == dst->ss_family && src->ss_family == AF_INET6) {
+		ret = snprintf(buf + ret, buf_len - ret, "PROXY TCP6 ");
+		if (ret >= buf_len)
+			return 0;
+
+		/* IPv6 src */
+		if (!inet_ntop(src->ss_family, &((struct sockaddr_in6 *)src)->sin6_addr, buf + ret, buf_len - ret))
+			return 0;
+
+		ret += strlen(buf + ret);
+		if (ret >= buf_len)
+			return 0;
+
+		buf[ret++] = ' ';
+
+		/* IPv6 dst */
+		if (!inet_ntop(dst->ss_family, &((struct sockaddr_in6 *)dst)->sin6_addr, buf + ret, buf_len - ret))
+			return 0;
+
+		ret += strlen(buf + ret);
+		if (ret >= buf_len)
+			return 0;
+
+		/* source and destination ports */
+		ret += snprintf(buf + ret, buf_len - ret, " %u %u\r\n",
+				ntohs(((struct sockaddr_in6 *)src)->sin6_port),
+				ntohs(((struct sockaddr_in6 *)dst)->sin6_port));
+		if (ret >= buf_len)
+			return 0;
+	}
+	else {
+		/* unknown family combination */
+		ret = snprintf(buf, buf_len, "PROXY UNKNOWN\r\n");
+		if (ret >= buf_len)
+			return 0;
+	}
+	return ret;
 }
 
 /* set test->i to the id of the frontend */
