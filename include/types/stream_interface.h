@@ -134,6 +134,7 @@ struct stream_interface {
 	/* struct members below are the "remote" part, as seen from the buffer side */
 	struct target target;	/* the target to connect to (server, proxy, applet, ...) */
 	int conn_retries;	/* number of connect retries left */
+	int send_proxy_ofs;	/* <0 = offset to (re)send from the end, >0 = send all */
 	int fd;                 /* file descriptor for a stream driver when known */
 	struct {
 		int state;                 /* applet state, initialized to zero */

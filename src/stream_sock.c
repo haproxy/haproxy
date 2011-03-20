@@ -1,7 +1,7 @@
 /*
  * Functions operating on SOCK_STREAM and buffers.
  *
- * Copyright 2000-2010 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2011 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -32,6 +32,7 @@
 #include <proto/buffers.h>
 #include <proto/fd.h>
 #include <proto/freq_ctr.h>
+#include <proto/frontend.h>
 #include <proto/log.h>
 #include <proto/pipe.h>
 #include <proto/protocols.h>
@@ -544,6 +545,41 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 	int retval = 1;
 	int ret, max;
 
+	if (unlikely(si->send_proxy_ofs)) {
+		/* The target server expects a PROXY line to be sent first.
+		 * If the send_proxy_ofs is negative, it corresponds to the
+		 * offset to start sending from then end of the proxy string
+		 * (which is recomputed every time since it's constant). If
+		 * it is positive, it means we have to send from the start.
+		 */
+		ret = make_proxy_line(trash, sizeof(trash),
+				      &b->prod->addr.c.from, &b->prod->addr.c.to);
+		if (!ret)
+			return -1;
+
+		if (si->send_proxy_ofs > 0)
+			si->send_proxy_ofs = -ret; /* first call */
+
+		/* we have to send trash from (ret+sp for -sp bytes) */
+		ret = send(si->fd, trash + ret + si->send_proxy_ofs, -si->send_proxy_ofs,
+			   (b->flags & BF_OUT_EMPTY) ? 0 : MSG_MORE);
+		if (ret > 0) {
+			if (fdtab[si->fd].state == FD_STCONN)
+				fdtab[si->fd].state = FD_STREADY;
+
+			si->send_proxy_ofs += ret; /* becomes zero once complete */
+			b->flags |= BF_WRITE_NULL; /* connect() succeeded */
+		}
+		else if (ret == 0 || errno == EAGAIN) {
+			/* nothing written, we need to poll for write first */
+			return 0;
+		}
+		else {
+			/* bad, we got an error */
+			return -1;
+		}
+	}
+
 #if defined(CONFIG_HAP_LINUX_SPLICE)
 	while (b->pipe) {
 		ret = splice(b->pipe->cons, NULL, si->fd, NULL, b->pipe->data,
@@ -710,7 +746,7 @@ int stream_sock_write(int fd)
 	if (b->flags & BF_SHUTW)
 		goto out_wakeup;
 
-	if (likely(!(b->flags & BF_OUT_EMPTY))) {
+	if (likely(!(b->flags & BF_OUT_EMPTY) || si->send_proxy_ofs)) {
 		/* OK there are data waiting to be sent */
 		retval = stream_sock_write_loop(si, b);
 		if (retval < 0)
@@ -1057,7 +1093,7 @@ void stream_sock_chk_snd(struct stream_interface *si)
 
 	if (!(si->flags & SI_FL_WAIT_DATA) ||        /* not waiting for data */
 	    (fdtab[si->fd].ev & FD_POLL_OUT) ||      /* we'll be called anyway */
-	    (ob->flags & BF_OUT_EMPTY))              /* called with nothing to send ! */
+	    ((ob->flags & BF_OUT_EMPTY) && !(si->send_proxy_ofs)))  /* called with nothing to send ! */
 		return;
 
 	retval = stream_sock_write_loop(si, ob);
