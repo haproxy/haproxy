@@ -1,5 +1,23 @@
-The PROXY protocol - 2010/10/29 - Willy TARREAU
------------------------------------------------
+                               The PROXY protocol
+                                  Willy Tarreau
+                                    2011/03/20
+
+Abstract
+
+   The PROXY protocol provides a convenient way to safely transport connection
+   information such as a client's address across multiple layers of NAT or TCP
+   proxies. It is designed to require little changes to existing components and
+   to limit the performance impact caused by the processing of the transported
+   information.
+
+
+Revision history
+
+   2010/10/29 - first version
+   2011/03/20 - update: implementation and security considerations
+
+
+1. Background
 
 Relaying TCP connections through proxies generally involves a loss of the
 original TCP connection parameters such as source and destination addresses,
@@ -60,6 +78,9 @@ implement, does not require any protocol-specific knowledge on either side, and
 completely fits the purpose. That's finally what we did with a small patch to
 Stunnel and another one to haproxy. We have called this protocol the PROXY
 protocol.
+
+
+2. The PROXY protocol
 
 The PROXY protocol's goal is to fill the receiver's internal structures with
 the information it could have found itself if it performed the accept from the
@@ -129,7 +150,7 @@ to abort the connection as soon as possible to that the emitter notices the
 anomaly.
 
 If the announced transport protocol is "UNKNOWN", then the receiver knows that
-the emitter talks the correct protocol, any may or may not decide to accept the
+the emitter talks the correct protocol, and may or may not decide to accept the
 connection and use the real connection's parameters as if there was no such
 protocol on the wire.
 
@@ -145,15 +166,59 @@ For the emitter, the line is easy to put into the output buffers once the
 connection is established. For the receiver, once the line is parsed, it's
 easy to skip it from the input buffers.
 
+
+3. Implementations
+
+Haproxy 1.5 implements the PROXY protocol on both sides :
+  - the listening sockets accept the protocol when the "accept-proxy" setting
+    is passed to the "bind" keyword. Connections accepted on such listeners
+    will behave just as if the source really was the one advertised in the
+    protocol. This is true for logging, ACLs, content filtering, transparent
+    proxying, etc...
+
+  - the protocol may be used to connect to servers if the "send-proxy" setting
+    is present on the "server" line. It is enabled on a per-server basis, so it
+    is possible to have it enabled for remote servers only and still have local
+    ones behave differently. If the incoming connection was accepted with the
+    "accept-proxy", then the relayed information is the one advertised in this
+    connection's PROXY line.
+
 We have a patch available for recent versions of Stunnel that brings it the
-ability to be an emitter. The feature is called "sendproxy" there. The code
-for the receiving side has been merged into haproxy and is enabled using the
-"accept-proxy" keyword on a "bind" statement. Haproxy will use the transport
-information from the PROXY protocol for logging, ACLs, etc... everywhere an
-information about the original connection is required.
+ability to be an emitter. The feature is called "sendproxy" there.
+
+The protocol is so simple that it is expected that other implementations will
+appear, especially in environments such as SMTP, IMAP, FTP, RDP where the
+client's address is an important piece of information for the server and some
+intermediaries.
+
+Proxy developers are encouraged to implement this protocol, because it will
+make their products much more transparent in complex infrastructures, and will
+get rid of a number of issues related to logging and access control.
+
+
+4. Security considerations
+
+The protocol was designed so as to be distinguishable from HTTP. It will not
+parse as a valid HTTP request and an HTTP request will not parse as a valid
+proxy request. That makes it easier to enfore its use certain connections.
+Implementers should be very careful about not trying to automatically detect
+whether they have to decode the line or not, but rather to only rely on a
+configuration parameter. Indeed, if the opportunity is left to a normal client
+to use the protocol, he will be able to hide his activities or make them appear
+as coming from someone else. However, accepting the line only from a number of
+known sources should be safe.
+
+
+5. Future developments
 
 It is possible that the protocol may slightly evolve to present other
 information such as the incoming network interface, or the origin addresses in
 case of network address translation happening before the first proxy, but this
-is not identified as a requirement right now.
---
+is not identified as a requirement right now. Suggestions on improvements are
+welcome.
+
+
+6. Contacts
+
+Please use w@1wt.eu to send any comments to the author.
+
