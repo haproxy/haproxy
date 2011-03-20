@@ -971,6 +971,14 @@ int connect_server(struct session *s)
 	s->req->cons->connect = tcp_connect_server;
 	copy_target(&s->req->cons->target, &s->target);
 
+	/* process the case where the server requires the PROXY protocol to be sent */
+	s->req->cons->send_proxy_ofs = 0;
+	if (s->target.type == TARG_TYPE_SERVER && (s->target.ptr.s->state & SRV_SEND_PROXY)) {
+		s->req->cons->send_proxy_ofs = 1; /* must compute size */
+		if (!(s->flags & SN_FRT_ADDR_SET))
+			get_frt_addr(s);
+	}
+
 	assign_tproxy_address(s);
 
 	err = s->req->cons->connect(s->req->cons);

@@ -4167,6 +4167,10 @@ stats_error_parsing:
 				newsrv->state |= SRV_BACKUP;
 				cur_arg ++;
 			}
+			else if (!defsrv && !strcmp(args[cur_arg], "send-proxy")) {
+				newsrv->state |= SRV_SEND_PROXY;
+				cur_arg ++;
+			}
 			else if (!strcmp(args[cur_arg], "weight")) {
 				int w;
 				w = atol(args[cur_arg + 1]);
@@ -4454,7 +4458,7 @@ stats_error_parsing:
 			}
 			else {
 				if (!defsrv)
-					Alert("parsing [%s:%d] : server %s only supports options 'backup', 'cookie', 'redir', 'observer', 'on-error', 'error-limit', 'check', 'disabled', 'track', 'id', 'inter', 'fastinter', 'downinter', 'rise', 'fall', 'addr', 'port', 'source', 'minconn', 'maxconn', 'maxqueue', 'slowstart' and 'weight'.\n",
+					Alert("parsing [%s:%d] : server %s only supports options 'backup', 'cookie', 'redir', 'observer', 'on-error', 'error-limit', 'check', 'disabled', 'track', 'id', 'inter', 'fastinter', 'downinter', 'rise', 'fall', 'addr', 'port', 'source', 'send-proxy', 'minconn', 'maxconn', 'maxqueue', 'slowstart' and 'weight'.\n",
 					      file, linenum, newsrv->id);
 				else
 					Alert("parsing [%s:%d]: default-server only supports options 'on-error', 'error-limit', 'inter', 'fastinter', 'downinter', 'rise', 'fall', 'port', 'minconn', 'maxconn', 'maxqueue', 'slowstart' and 'weight'.\n",

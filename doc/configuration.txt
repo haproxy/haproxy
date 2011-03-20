@@ -6647,6 +6647,21 @@ rise <count>
 
   Supported in default-server: Yes
 
+send-proxy
+  The "send-proxy" parameter enforces use of the PROXY protocol over any
+  connection established to this server. The PROXY protocol informs the other
+  end about the layer 3/4 addresses of the incoming connection, so that it can
+  know the client's address or the public address it accessed to, whatever the
+  upper layer protocol. For connections accepted by an "accept-proxy" listener,
+  the advertised address will be used. Only TCPv4 and TCPv6 address families
+  are supported. Other families such as Unix sockets, will report an UNKNOWN
+  family. Servers using this option can fully be chained to another instance of
+  haproxy listening with an "accept-proxy" setting. This setting must not be
+  used if the server isn't aware of the protocol. See also the "accept-proxy"
+  option of the "bind" keyword.
+
+  Supported in default-server: No
+
 slowstart <start_time_in_ms>
   The "slowstart" parameter for a server accepts a value in milliseconds which
   indicates after how long a server which has just come back up will run at
