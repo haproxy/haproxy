@@ -164,13 +164,13 @@ int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct so
 		return 0;
 
 #ifdef CONFIG_HAP_CTTPROXY
-	if (!foreign_ok) {
+	if (!foreign_ok && remote->ss_family == AF_INET) {
 		struct in_tproxy itp1, itp2;
 		memset(&itp1, 0, sizeof(itp1));
 
 		itp1.op = TPROXY_ASSIGN;
-		itp1.v.addr.faddr = bind_addr.sin_addr;
-		itp1.v.addr.fport = bind_addr.sin_port;
+		itp1.v.addr.faddr = ((struct sockaddr_in *)&bind_addr)->sin_addr;
+		itp1.v.addr.fport = ((struct sockaddr_in *)&bind_addr)->sin_port;
 
 		/* set connect flag on socket */
 		itp2.op = TPROXY_FLAGS;
