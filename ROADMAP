@@ -3,6 +3,10 @@ Medium-long term roadmap - 2011/03/01
 Legend: '+' = done, '-' = todo, '*' = done except doc
 
 1.5 (ETA 2010/12/31) :
+  - count number of monitor requests on frontends, that's the only way
+    to explain the possible huge difference between frontend and backend
+    sessions.
+
   - ACL to report number of used entries in a table
 
   - server-side HTTP keepalive
