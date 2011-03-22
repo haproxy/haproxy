@@ -475,7 +475,7 @@ static inline int is_addr(struct sockaddr_storage *addr)
 
 	switch (addr->ss_family) {
 	case AF_INET:
-		return *(int *)&((struct sockaddr_in *)&addr)->sin_addr;
+		return *(int *)&((struct sockaddr_in *)addr)->sin_addr;
 	case AF_INET6:
 		for (i = 0; i < sizeof(struct in6_addr) / sizeof(int); i++)
 			if (((int *)&((struct sockaddr_in6 *)addr)->sin6_addr)[i] != 0)
