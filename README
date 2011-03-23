@@ -70,6 +70,17 @@ install it on target systems. Available build options for PCRE are :
     Warning! group references on Solaris seem broken. Use static-pcre whenever
     possible.
 
+Recent systems can resolve IPv6 host names using getaddrinfo(). This primitive
+is not present in all libcs and does not work in all of them either. Support in
+glibc was broken before 2.3. Some embedded libs may not properly work either,
+thus, support is disabled by default, meaning that some host names which only
+resolve as IPv6 addresses will not resolve and configs might emit an error
+during parsing. If you know that your OS libc has reliable support for
+getaddrinfo(), you can add USE_GETADDRINFO=1 on the make command line to enable
+it. This is the recommended option for most Linux distro packagers since it's
+working fine on all recent mainstream distros. It is automatically enabled on
+Solaris 8 and above, as it's known to work.
+
 By default, the DEBUG variable is set to '-g' to enable debug symbols. It is
 not wise to disable it on uncommon systems, because it's often the only way to
 get a complete core when you need one. Otherwise, you can set DEBUG to '-s' to

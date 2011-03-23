@@ -23,6 +23,7 @@
 #   USE_LIBCRYPT         : enable crypted passwords using -lcrypt
 #   USE_CRYPT_H          : set it if your system requires including crypt.h
 #   USE_VSYSCALL         : enable vsyscall on Linux x86, bypassing libc
+#   USE_GETADDRINFO      : use getaddrinfo() to resolve IPv6 host names.
 #
 # Options can be forced by specifying "USE_xxx=1" or can be disabled by using
 # "USE_xxx=" (empty string).
@@ -215,12 +216,14 @@ ifeq ($(TARGET),linux26)
 else
 ifeq ($(TARGET),solaris)
   # This is for Solaris 8
+  # We also enable getaddrinfo() which works since solaris 8.
   USE_POLL       = implicit
   TARGET_CFLAGS  = -fomit-frame-pointer -DFD_SETSIZE=65536 -D_REENTRANT
   TARGET_LDFLAGS = -lnsl -lsocket
   USE_TPROXY     = implicit
   USE_LIBCRYPT    = implicit
   USE_CRYPT_H     = implicit
+  USE_GETADDRINFO = implicit
 else
 ifeq ($(TARGET),freebsd)
   # This is for FreeBSD
@@ -352,6 +355,11 @@ endif
 ifneq ($(USE_CRYPT_H),)
 OPTIONS_CFLAGS  += -DNEED_CRYPT_H
 BUILD_OPTIONS   += $(call ignore_implicit,USE_CRYPT_H)
+endif
+
+ifneq ($(USE_GETADDRINFO),)
+OPTIONS_CFLAGS  += -DUSE_GETADDRINFO
+BUILD_OPTIONS   += $(call ignore_implicit,USE_GETADDRINFO)
 endif
 
 ifneq ($(USE_POLL),)
