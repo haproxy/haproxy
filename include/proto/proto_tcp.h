@@ -36,18 +36,19 @@ int tcp_inspect_response(struct session *s, struct buffer *rep, int an_bit);
 int tcp_persist_rdp_cookie(struct session *s, struct buffer *req, int an_bit);
 int tcp_exec_req_rules(struct session *s);
 
-/* Converts the TCPv4 source address to a stick_table key usable for table
+/* Converts the TCP source address to a stick_table key usable for table
  * lookups. Returns either NULL if the source cannot be converted (eg: not
  * IPv4) or a pointer to the converted result in static_table_key in the
  * appropriate format (IP).
  */
-static inline struct stktable_key *tcpv4_src_to_stktable_key(struct session *s)
+static inline struct stktable_key *tcp_src_to_stktable_key(struct session *s)
 {
-	/* right now we only support IPv4 */
-	if (s->si[0].addr.c.from.ss_family != AF_INET)
-		return NULL;
-
-	static_table_key.key = (void *)&((struct sockaddr_in *)&s->si[0].addr.c.from)->sin_addr;
+	switch (s->si[0].addr.c.from.ss_family) {
+	case AF_INET:
+		static_table_key.key = (void *)&((struct sockaddr_in *)&s->si[0].addr.c.from)->sin_addr;
+	case AF_INET6:
+		static_table_key.key = (void *)&((struct sockaddr_in6 *)&s->si[0].addr.c.from)->sin6_addr;
+	}
 	return &static_table_key;
 }
 

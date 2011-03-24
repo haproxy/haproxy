@@ -29,6 +29,7 @@
 /* pattern in and out types */
 enum {
 	PATTERN_TYPE_IP = 0,      /* ipv4 type */
+	PATTERN_TYPE_IPV6,        /* ipv6 type */
 	PATTERN_TYPE_INTEGER,     /* unsigned 32bits integer type */
 	PATTERN_TYPE_STRING,      /* char string type */
 	PATTERN_TYPE_DATA,        /* buffer type */
@@ -41,6 +42,7 @@ enum {
 /* pattern arg types */
 enum {
 	PATTERN_ARG_TYPE_IP = 0,      /* ipv4 type */
+	PATTERN_ARG_TYPE_IPV6,        /* ipv6 type */
 	PATTERN_ARG_TYPE_INTEGER,     /* unsigned 32bits integer type */
 	PATTERN_ARG_TYPE_SINTEGER,    /* signed 32bits integer type */
 	PATTERN_ARG_TYPE_STRING       /* string type */
@@ -53,6 +55,7 @@ enum {
 
 union pattern_arg_data {
 	struct in_addr ip;        /* used for ipv4 type */
+	struct in6_addr ipv6;     /* used for ipv6 type */
 	uint32_t integer;         /* used for unsigned 32bits integer type */
 	int sinteger;             /* used for signed 32bits integer type */
 	struct chunk str;
@@ -66,6 +69,7 @@ struct pattern_arg {
 /* pattern result data */
 union pattern_data {
 	struct in_addr ip;        /* used for ipv4 type */
+	struct in6_addr ipv6;     /* used for ipv6 type */
 	uint32_t integer;         /* used for unsigned 32bits integer type */
 	struct chunk str;         /* used for char string type or buffers*/
 };

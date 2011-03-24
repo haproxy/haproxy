@@ -549,4 +549,18 @@ static inline int set_host_port(struct sockaddr_storage *addr, int port)
 	return 0;
 }
 
+/* Return true if IPv4 address is part of the network */
+extern int in_net_ipv4(struct in_addr *addr, struct in_addr *mask, struct in_addr *net);
+
+/* Return true if IPv6 address is part of the network */
+extern int in_net_ipv6(struct in6_addr *addr, struct in6_addr *mask, struct in6_addr *net);
+
+/* Map IPv4 adress on IPv6 address, as specified in RFC 3513. */
+extern void v4tov6(struct in6_addr *sin6_addr, struct in_addr *sin_addr);
+
+/* Map IPv6 adress on IPv4 address, as specified in RFC 3513.
+ * Return true if conversion is possible and false otherwise.
+ */
+extern int v6tov4(struct in_addr *sin_addr, struct in6_addr *sin6_addr);
+
 #endif /* _COMMON_STANDARD_H */

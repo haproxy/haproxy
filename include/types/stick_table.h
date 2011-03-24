@@ -35,6 +35,7 @@
 /* stick table key types */
 enum {
 	STKTABLE_TYPE_IP = 0,     /* table key is ipv4 */
+	STKTABLE_TYPE_IPV6,       /* table key is ipv6 */
 	STKTABLE_TYPE_INTEGER,    /* table key is unsigned 32bit integer */
 	STKTABLE_TYPE_STRING,     /* table key is a null terminated string */
 	STKTABLE_TYPE_BINARY,     /* table key is a buffer of data  */
@@ -172,7 +173,8 @@ extern struct stktable_data_type stktable_data_types[STKTABLE_DATA_TYPES];
 
 /* stick table key data */
 union stktable_key_data {
-	struct in_addr ip;        /* used to store an ip key */
+	struct in_addr ip;        /* used to store an ipv4 key */
+	struct in6_addr ipv6;     /* used to store an ipv6 key */
 	uint32_t integer;         /* used to store an integer key */
 	char buf[BUFSIZE];        /* used to store a null terminated string key or a buffer of data */
 };

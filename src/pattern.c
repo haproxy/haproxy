@@ -146,6 +146,32 @@ static int c_ip2str(union pattern_data *data)
 	return 1;
 }
 
+static int c_ip2ipv6(union pattern_data *data)
+{
+	v4tov6(&data->ipv6, &data->ip);
+	return 1;
+}
+
+static int c_ipv62str(union pattern_data *data)
+{
+	struct chunk *trash = get_trash_chunk();
+
+	if (!inet_ntop(AF_INET6, (void *)&data->ipv6, trash->str, trash->size))
+		return 0;
+
+	trash->len = strlen(trash->str);
+	pattern_data_setstring(data, trash);
+
+	return 1;
+}
+
+/*
+static int c_ipv62ip(union pattern_data *data)
+{
+	return v6tov4(&data->ip, &data->ipv6);
+}
+*/
+
 static int c_int2ip(union pattern_data *data)
 {
 	data->ip.s_addr = htonl(data->integer);
@@ -157,6 +183,11 @@ static int c_str2ip(union pattern_data *data)
 	if (!buf2ip(data->str.str, data->str.len, &data->ip))
 		return 0;
 	return 1;
+}
+
+static int c_str2ipv6(union pattern_data *data)
+{
+	return inet_pton(AF_INET6, data->str.str, &data->ipv6);
 }
 
 static int c_int2str(union pattern_data *data)
@@ -222,13 +253,14 @@ static int c_str2int(union pattern_data *data)
 
 typedef int (*pattern_cast_fct)(union pattern_data *data);
 static pattern_cast_fct pattern_casts[PATTERN_TYPES][PATTERN_TYPES] = {
-/*            to:   IP           INTEGER      STRING       DATA         CONSTSTRING  CONSTDATA */
-/* from:    IP */ { c_donothing, c_ip2int,    c_ip2str,    NULL,        c_ip2str,    NULL        },
-/*     INTEGER */ { c_int2ip,    c_donothing, c_int2str,   NULL,        c_int2str,   NULL        },
-/*      STRING */ { c_str2ip,    c_str2int,   c_donothing, c_donothing, c_donothing, c_donothing },
-/*        DATA */ { NULL,        NULL,        NULL,        c_donothing, NULL,        c_donothing },
-/* CONSTSTRING */ { c_str2ip,    c_str2int,   c_datadup,   c_datadup,   c_donothing, c_donothing },
-/*   CONSTDATA */ { NULL,        NULL,        NULL,        c_datadup,   NULL,	     NULL        },
+/*            to:   IP           IPV6         INTEGER      STRING       DATA         CONSTSTRING  CONSTDATA */
+/* from:    IP */ { c_donothing, c_ip2ipv6,   c_ip2int,    c_ip2str,    NULL,        c_ip2str,    NULL        },
+/*        IPV6 */ { NULL,        c_donothing, NULL,        c_ipv62str,  NULL,        c_ipv62str,  NULL        },
+/*     INTEGER */ { c_int2ip,    NULL,        c_donothing, c_int2str,   NULL,        c_int2str,   NULL        },
+/*      STRING */ { c_str2ip,    c_str2ipv6,  c_str2int,   c_donothing, c_donothing, c_donothing, c_donothing },
+/*        DATA */ { NULL,        NULL,        NULL,        NULL,        c_donothing, NULL,        c_donothing },
+/* CONSTSTRING */ { c_str2ip,    c_str2ipv6,  c_str2int,   c_datadup,   c_datadup,   c_donothing, c_donothing },
+/*   CONSTDATA */ { NULL,        NULL,        NULL,        NULL,        c_datadup,   NULL,	      c_donothing },
 };
 
 

@@ -745,7 +745,7 @@ int tcp_inspect_request(struct session *s, struct buffer *req, int an_bit)
 					 * to consider rule->act_prm->trk_ctr.type.
 					 */
 					t = rule->act_prm.trk_ctr.table.t;
-					ts = stktable_get_entry(t, tcpv4_src_to_stktable_key(s));
+					ts = stktable_get_entry(t, tcp_src_to_stktable_key(s));
 					if (ts) {
 						session_track_stkctr1(s, t, ts);
 						if (s->fe != s->be)
@@ -761,7 +761,7 @@ int tcp_inspect_request(struct session *s, struct buffer *req, int an_bit)
 					 * to consider rule->act_prm->trk_ctr.type.
 					 */
 					t = rule->act_prm.trk_ctr.table.t;
-					ts = stktable_get_entry(t, tcpv4_src_to_stktable_key(s));
+					ts = stktable_get_entry(t, tcp_src_to_stktable_key(s));
 					if (ts) {
 						session_track_stkctr2(s, t, ts);
 						if (s->fe != s->be)
@@ -915,7 +915,7 @@ int tcp_exec_req_rules(struct session *s)
 					 * to consider rule->act_prm->trk_ctr.type.
 					 */
 					t = rule->act_prm.trk_ctr.table.t;
-					ts = stktable_get_entry(t, tcpv4_src_to_stktable_key(s));
+					ts = stktable_get_entry(t, tcp_src_to_stktable_key(s));
 					if (ts)
 						session_track_stkctr1(s, t, ts);
 				}
@@ -928,7 +928,7 @@ int tcp_exec_req_rules(struct session *s)
 					 * to consider rule->act_prm->trk_ctr.type.
 					 */
 					t = rule->act_prm.trk_ctr.table.t;
-					ts = stktable_get_entry(t, tcpv4_src_to_stktable_key(s));
+					ts = stktable_get_entry(t, tcp_src_to_stktable_key(s));
 					if (ts)
 						session_track_stkctr2(s, t, ts);
 				}
@@ -1275,7 +1275,7 @@ acl_fetch_src(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 1;
 }
 
-/* extract the connection's source address */
+/* extract the connection's source ipv4 address */
 static int
 pattern_fetch_src(struct proxy *px, struct session *l4, void *l7, int dir,
                   const struct pattern_arg *arg_p, int arg_i, union pattern_data *data)
@@ -1287,6 +1287,17 @@ pattern_fetch_src(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 1;
 }
 
+/* extract the connection's source ipv6 address */
+static int
+pattern_fetch_src6(struct proxy *px, struct session *l4, void *l7, int dir,
+                  const struct pattern_arg *arg_p, int arg_i, union pattern_data *data)
+{
+	if (l4->si[0].addr.c.from.ss_family != AF_INET6)
+		return 0;
+
+	memcpy(data->ipv6.s6_addr, ((struct sockaddr_in6 *)&l4->si[0].addr.c.from)->sin6_addr.s6_addr, sizeof(data->ipv6.s6_addr));
+	return 1;
+}
 
 /* set test->i to the connection's source port */
 static int
@@ -1326,7 +1337,7 @@ acl_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir,
 }
 
 
-/* extract the connection's destination address */
+/* extract the connection's destination ipv4 address */
 static int
 pattern_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir,
                   const struct pattern_arg *arg_p, int arg_i, union pattern_data *data)
@@ -1338,6 +1349,21 @@ pattern_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0;
 
 	data->ip.s_addr = ((struct sockaddr_in *)&l4->si[0].addr.c.to)->sin_addr.s_addr;
+	return 1;
+}
+
+/* extract the connection's destination ipv6 address */
+static int
+pattern_fetch_dst6(struct proxy *px, struct session *l4, void *l7, int dir,
+                  const struct pattern_arg *arg_p, int arg_i, union pattern_data *data)
+{
+	if (!(l4->flags & SN_FRT_ADDR_SET))
+		get_frt_addr(l4);
+
+	if (l4->si[0].addr.c.to.ss_family != AF_INET6)
+		return 0;
+
+	memcpy(data->ipv6.s6_addr, ((struct sockaddr_in6 *)&l4->si[0].addr.c.to)->sin6_addr.s6_addr, sizeof(data->ipv6.s6_addr));
 	return 1;
 }
 
@@ -1367,10 +1393,13 @@ pattern_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!(l4->flags & SN_FRT_ADDR_SET))
 		get_frt_addr(l4);
 
-	if (l4->si[0].addr.c.to.ss_family != AF_INET)
+	if (l4->si[0].addr.c.to.ss_family == AF_INET)
+		data->integer = ntohs(((struct sockaddr_in *)&l4->si[0].addr.c.to)->sin_port);
+	else if (l4->si[0].addr.c.to.ss_family == AF_INET6)
+		data->integer = ntohs(((struct sockaddr_in6 *)&l4->si[0].addr.c.to)->sin6_port);
+	else
 		return 0;
 
-	data->integer = ntohs(((struct sockaddr_in *)&l4->si[0].addr.c.to)->sin_port);
 	return 1;
 }
 
@@ -1566,7 +1595,9 @@ static struct acl_kw_list acl_kws = {{ },{
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct pattern_fetch_kw_list pattern_fetch_keywords = {{ },{
 	{ "src",         pattern_fetch_src,       NULL,                         PATTERN_TYPE_IP,        PATTERN_FETCH_REQ },
+	{ "src6",        pattern_fetch_src6,      NULL,                         PATTERN_TYPE_IPV6,      PATTERN_FETCH_REQ },
 	{ "dst",         pattern_fetch_dst,       NULL,                         PATTERN_TYPE_IP,        PATTERN_FETCH_REQ },
+	{ "dst6",        pattern_fetch_dst6,      NULL,                         PATTERN_TYPE_IPV6,      PATTERN_FETCH_REQ },
 	{ "dst_port",    pattern_fetch_dport,     NULL,                         PATTERN_TYPE_INTEGER,   PATTERN_FETCH_REQ },
 	{ "payload",     pattern_fetch_payload,   pattern_arg_fetch_payload,    PATTERN_TYPE_CONSTDATA, PATTERN_FETCH_REQ|PATTERN_FETCH_RTR },
 	{ "payload_lv",  pattern_fetch_payloadlv, pattern_arg_fetch_payloadlv,  PATTERN_TYPE_CONSTDATA, PATTERN_FETCH_REQ|PATTERN_FETCH_RTR },

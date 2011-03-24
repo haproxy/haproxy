@@ -406,9 +406,10 @@ int stktable_init(struct stktable *t)
  * Configuration keywords of known table types
  */
 struct stktable_type stktable_types[STKTABLE_TYPES] =  {{ "ip", 0, 4 },
+						        { "ipv6", 0, 16 },
 						        { "integer", 0, 4 },
 						        { "string", STK_F_CUSTOM_KEYSIZE, 32 },
-							{ "binary", STK_F_CUSTOM_KEYSIZE, 32 } };
+						        { "binary", STK_F_CUSTOM_KEYSIZE, 32 } };
 
 
 /*
@@ -457,6 +458,25 @@ static void *k_ip2ip(union pattern_data *pdata, union stktable_key_data *kdata, 
 	return (void *)&pdata->ip.s_addr;
 }
 
+static void *k_ip2ipv6(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
+{
+	v4tov6(&pdata->ipv6, &pdata->ip);
+	return (void *)&pdata->ipv6.s6_addr;
+}
+
+static void *k_ipv62ipv6(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
+{
+	return (void *)&pdata->ipv6.s6_addr;
+}
+
+/*
+static void *k_ipv62ip(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
+{
+	v6tov4(&pdata->ip, &pdata->ipv6);
+	return (void *)&pdata->ip.s_addr;
+}
+*/
+
 static void *k_ip2int(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
 {
 	kdata->integer = ntohl(pdata->ip.s_addr);
@@ -484,6 +504,15 @@ static void *k_ip2str(union pattern_data *pdata, union stktable_key_data *kdata,
 	return (void *)kdata->buf;
 }
 
+static void *k_ipv62str(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
+{
+	if (!inet_ntop(AF_INET6, &pdata->ipv6, kdata->buf, sizeof(kdata->buf)))
+		return NULL;
+
+	*len = strlen((const char *)kdata->buf);
+	return (void *)kdata->buf;
+}
+
 static void *k_int2str(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
 {
 	void *key;
@@ -504,6 +533,13 @@ static void *k_str2ip(union pattern_data *pdata, union stktable_key_data *kdata,
 	return (void *)&kdata->ip.s_addr;
 }
 
+static void *k_str2ipv6(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
+{
+	if (!inet_pton(AF_INET6, pdata->str.str, &kdata->ipv6))
+		return NULL;
+
+	return (void *)&kdata->ipv6.s6_addr;
+}
 
 static void *k_str2int(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
 {
@@ -527,15 +563,22 @@ static void *k_str2int(union pattern_data *pdata, union stktable_key_data *kdata
 /*         NULL pointer used for impossible pattern casts        */
 /*****************************************************************/
 
+/*
+ * Conversions from IPv6 to IPv4 are available, but we haven't
+ * added them to the table since they doesn't seem sufficely
+ * relevant and could cause confusion in configuration.
+ */
+
 typedef void *(*pattern_to_key_fct)(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len);
 static pattern_to_key_fct pattern_to_key[PATTERN_TYPES][STKTABLE_TYPES] = {
-/*         table type:   IP        INTEGER    STRING     BINARY    */
-/* pattern type: IP */ { k_ip2ip,  k_ip2int,  k_ip2str,  NULL      },
-/*          INTEGER */ { k_int2ip, k_int2int, k_int2str, NULL      },
-/*           STRING */ { k_str2ip, k_str2int, k_str2str, k_str2str },
-/*             DATA */ { NULL,     NULL,      NULL,      k_str2str },
-/*      CONSTSTRING */ { k_str2ip, k_str2int, k_str2str, k_str2str },
-/*        CONSTDATA */ { NULL,     NULL,      NULL,      k_str2str },
+/*       table type:   IP          IPV6         INTEGER    STRING      BINARY    */
+/* pattern type: IP */ { k_ip2ip,  k_ip2ipv6,   k_ip2int,  k_ip2str,   NULL      },
+/*             IPV6 */ { NULL,     k_ipv62ipv6, NULL,      k_ipv62str, NULL      },
+/*          INTEGER */ { k_int2ip, NULL,        k_int2int, k_int2str,  NULL      },
+/*           STRING */ { k_str2ip, k_str2ipv6,  k_str2int, k_str2str,  k_str2str },
+/*             DATA */ { NULL,     NULL,        NULL,      NULL,       k_str2str },
+/*      CONSTSTRING */ { k_str2ip, k_str2ipv6,  k_str2int, k_str2str,  k_str2str },
+
 };
 
 

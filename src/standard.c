@@ -1199,6 +1199,54 @@ unsigned int full_hash(unsigned int a)
 	return __full_hash(a);
 }
 
+/* Return non-zero if IPv4 address is part of the network,
+ * otherwise zero.
+ */
+int in_net_ipv4(struct in_addr *addr, struct in_addr *mask, struct in_addr *net)
+{
+	return((addr->s_addr & mask->s_addr) == (net->s_addr & mask->s_addr));
+}
+
+/* Return non-zero if IPv6 address is part of the network,
+ * otherwise zero.
+ */
+int in_net_ipv6(struct in6_addr *addr, struct in6_addr *mask, struct in6_addr *net)
+{
+	int i;
+
+	for (i = 0; i < sizeof(struct in6_addr) / sizeof(int); i++)
+		if (((((int *)addr)[i] & ((int *)mask)[i])) !=
+		    (((int *)net)[i] & ((int *)mask)[i]))
+			return 0;
+	return 1;
+}
+
+/* RFC 4291 prefix */
+const char rfc4291_pfx[] = { 0x00, 0x00, 0x00, 0x00,
+			     0x00, 0x00, 0x00, 0x00,
+			     0x00, 0x00, 0xFF, 0xFF };
+
+/* Map IPv4 adress on IPv6 address, as specified in RFC 3513. */
+void v4tov6(struct in6_addr *sin6_addr, struct in_addr *sin_addr)
+{
+	memcpy(sin6_addr->s6_addr, rfc4291_pfx, sizeof(rfc4291_pfx));
+	memcpy(sin6_addr->s6_addr+12, &sin_addr->s_addr, 4);
+}
+
+/* Map IPv6 adress on IPv4 address, as specified in RFC 3513.
+ * Return true if conversion is possible and false otherwise.
+ */
+int v6tov4(struct in_addr *sin_addr, struct in6_addr *sin6_addr)
+{
+	if (memcmp(sin6_addr->s6_addr, rfc4291_pfx, sizeof(rfc4291_pfx)) == 0) {
+		memcpy(&(sin_addr->s_addr), &(sin6_addr->s6_addr[12]),
+			sizeof(struct in_addr));
+		return 1;
+	}
+
+	return 0;
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8

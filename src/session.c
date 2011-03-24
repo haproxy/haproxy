@@ -2244,9 +2244,9 @@ acl_fetch_src_get_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	struct stktable_key *key;
 
-	key = tcpv4_src_to_stktable_key(l4);
+	key = tcp_src_to_stktable_key(l4);
 	if (!key)
-		return 0; /* only TCPv4 is supported right now */
+		return 0;
 
 	if (expr->arg_len)
 		px = find_stktable(expr->arg.str);
@@ -2307,9 +2307,9 @@ acl_fetch_src_inc_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	struct stktable_key *key;
 
-	key = tcpv4_src_to_stktable_key(l4);
+	key = tcp_src_to_stktable_key(l4);
 	if (!key)
-		return 0; /* only TCPv4 is supported right now */
+		return 0;
 
 	if (expr->arg_len)
 		px = find_stktable(expr->arg.str);
@@ -2366,9 +2366,9 @@ acl_fetch_src_conn_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	struct stktable_key *key;
 
-	key = tcpv4_src_to_stktable_key(l4);
+	key = tcp_src_to_stktable_key(l4);
 	if (!key)
-		return 0; /* only TCPv4 is supported right now */
+		return 0;
 
 	if (expr->arg_len)
 		px = find_stktable(expr->arg.str);
@@ -2430,9 +2430,9 @@ acl_fetch_src_conn_rate(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	struct stktable_key *key;
 
-	key = tcpv4_src_to_stktable_key(l4);
+	key = tcp_src_to_stktable_key(l4);
 	if (!key)
-		return 0; /* only TCPv4 is supported right now */
+		return 0;
 
 	if (expr->arg_len)
 		px = find_stktable(expr->arg.str);
@@ -2454,9 +2454,9 @@ acl_fetch_src_updt_conn_cnt(struct proxy *px, struct session *l4, void *l7, int 
 	struct stktable_key *key;
 	void *ptr;
 
-	key = tcpv4_src_to_stktable_key(l4);
+	key = tcp_src_to_stktable_key(l4);
 	if (!key)
-		return 0; /* only TCPv4 is supported right now */
+		return 0;
 
 	if (expr->arg_len)
 		px = find_stktable(expr->arg.str);
@@ -2524,9 +2524,9 @@ acl_fetch_src_conn_cur(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	struct stktable_key *key;
 
-	key = tcpv4_src_to_stktable_key(l4);
+	key = tcp_src_to_stktable_key(l4);
 	if (!key)
-		return 0; /* only TCPv4 is supported right now */
+		return 0;
 
 	if (expr->arg_len)
 		px = find_stktable(expr->arg.str);
@@ -2583,9 +2583,9 @@ acl_fetch_src_sess_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	struct stktable_key *key;
 
-	key = tcpv4_src_to_stktable_key(l4);
+	key = tcp_src_to_stktable_key(l4);
 	if (!key)
-		return 0; /* only TCPv4 is supported right now */
+		return 0;
 
 	if (expr->arg_len)
 		px = find_stktable(expr->arg.str);
@@ -2647,9 +2647,9 @@ acl_fetch_src_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	struct stktable_key *key;
 
-	key = tcpv4_src_to_stktable_key(l4);
+	key = tcp_src_to_stktable_key(l4);
 	if (!key)
-		return 0; /* only TCPv4 is supported right now */
+		return 0;
 
 	if (expr->arg_len)
 		px = find_stktable(expr->arg.str);
@@ -2706,9 +2706,9 @@ acl_fetch_src_http_req_cnt(struct proxy *px, struct session *l4, void *l7, int d
 {
 	struct stktable_key *key;
 
-	key = tcpv4_src_to_stktable_key(l4);
+	key = tcp_src_to_stktable_key(l4);
 	if (!key)
-		return 0; /* only TCPv4 is supported right now */
+		return 0;
 
 	if (expr->arg_len)
 		px = find_stktable(expr->arg.str);
@@ -2770,9 +2770,9 @@ acl_fetch_src_http_req_rate(struct proxy *px, struct session *l4, void *l7, int 
 {
 	struct stktable_key *key;
 
-	key = tcpv4_src_to_stktable_key(l4);
+	key = tcp_src_to_stktable_key(l4);
 	if (!key)
-		return 0; /* only TCPv4 is supported right now */
+		return 0;
 
 	if (expr->arg_len)
 		px = find_stktable(expr->arg.str);
@@ -2829,9 +2829,9 @@ acl_fetch_src_http_err_cnt(struct proxy *px, struct session *l4, void *l7, int d
 {
 	struct stktable_key *key;
 
-	key = tcpv4_src_to_stktable_key(l4);
+	key = tcp_src_to_stktable_key(l4);
 	if (!key)
-		return 0; /* only TCPv4 is supported right now */
+		return 0;
 
 	if (expr->arg_len)
 		px = find_stktable(expr->arg.str);
@@ -2893,9 +2893,9 @@ acl_fetch_src_http_err_rate(struct proxy *px, struct session *l4, void *l7, int 
 {
 	struct stktable_key *key;
 
-	key = tcpv4_src_to_stktable_key(l4);
+	key = tcp_src_to_stktable_key(l4);
 	if (!key)
-		return 0; /* only TCPv4 is supported right now */
+		return 0;
 
 	if (expr->arg_len)
 		px = find_stktable(expr->arg.str);
@@ -2957,9 +2957,9 @@ acl_fetch_src_kbytes_in(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	struct stktable_key *key;
 
-	key = tcpv4_src_to_stktable_key(l4);
+	key = tcp_src_to_stktable_key(l4);
 	if (!key)
-		return 0; /* only TCPv4 is supported right now */
+		return 0;
 
 	if (expr->arg_len)
 		px = find_stktable(expr->arg.str);
@@ -3023,9 +3023,9 @@ acl_fetch_src_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, int 
 {
 	struct stktable_key *key;
 
-	key = tcpv4_src_to_stktable_key(l4);
+	key = tcp_src_to_stktable_key(l4);
 	if (!key)
-		return 0; /* only TCPv4 is supported right now */
+		return 0;
 
 	if (expr->arg_len)
 		px = find_stktable(expr->arg.str);
@@ -3087,9 +3087,9 @@ acl_fetch_src_kbytes_out(struct proxy *px, struct session *l4, void *l7, int dir
 {
 	struct stktable_key *key;
 
-	key = tcpv4_src_to_stktable_key(l4);
+	key = tcp_src_to_stktable_key(l4);
 	if (!key)
-		return 0; /* only TCPv4 is supported right now */
+		return 0;
 
 	if (expr->arg_len)
 		px = find_stktable(expr->arg.str);
@@ -3153,9 +3153,9 @@ acl_fetch_src_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, int
 {
 	struct stktable_key *key;
 
-	key = tcpv4_src_to_stktable_key(l4);
+	key = tcp_src_to_stktable_key(l4);
 	if (!key)
-		return 0; /* only TCPv4 is supported right now */
+		return 0;
 
 	if (expr->arg_len)
 		px = find_stktable(expr->arg.str);

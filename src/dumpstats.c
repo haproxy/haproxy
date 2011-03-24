@@ -3312,8 +3312,15 @@ int stats_dump_table_to_buffer(struct stream_interface *si)
 			chunk_printf(&msg, "%p:", si->applet.ctx.table.entry);
 
 			if (si->applet.ctx.table.proxy->table.type == STKTABLE_TYPE_IP) {
-				char addr[16];
+				char addr[INET_ADDRSTRLEN];
 				inet_ntop(AF_INET,
+					  (const void *)&si->applet.ctx.table.entry->key.key,
+					  addr, sizeof(addr));
+				chunk_printf(&msg, " key=%s", addr);
+			}
+			else if (si->applet.ctx.table.proxy->table.type == STKTABLE_TYPE_IPV6) {
+				char addr[INET6_ADDRSTRLEN];
+				inet_ntop(AF_INET6,
 					  (const void *)&si->applet.ctx.table.entry->key.key,
 					  addr, sizeof(addr));
 				chunk_printf(&msg, " key=%s", addr);
