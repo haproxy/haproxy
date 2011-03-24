@@ -142,22 +142,6 @@ int get_log_facility(const char *fac)
 }
 
 /*
- * Return the length of the address endpoint, suitable for use with sendto().
- */
-static inline int logsrv_addrlen(const struct logsrv *logsrv)
-{
-	switch (logsrv->u.addr.sa_family) {
-	case AF_UNIX:
-		return sizeof(logsrv->u.un);
-	case AF_INET:
-		return sizeof(logsrv->u.in);
-	default:
-		break;
-	}
-	return -1;
-}
-
-/*
  * This function sends a syslog message to both log servers of a proxy,
  * or to global log servers if the proxy is NULL.
  * It also tries not to waste too much time computing the message header.
@@ -253,11 +237,10 @@ void send_log(struct proxy *p, int level, const char *message, ...)
 	for (nblogger = 0; nblogger < nbloggers; nblogger++) {
 		const struct logsrv *logsrv = logsrvs[nblogger];
 		int proto, *plogfd;
-		if (logsrv->u.addr.sa_family == AF_UNIX) {
+		if (logsrv->addr.ss_family == AF_UNIX) {
 			proto = 0;
 			plogfd = &logfdunix;
 		} else {
-			/* sa_family == AF_INET */
 			proto = IPPROTO_UDP;
 			plogfd = &logfdinet;
 		}
@@ -265,7 +248,7 @@ void send_log(struct proxy *p, int level, const char *message, ...)
 			/* socket already created. */
 			continue;
 		}
-		if ((*plogfd = socket(logsrv->u.addr.sa_family, SOCK_DGRAM,
+		if ((*plogfd = socket(logsrv->addr.ss_family, SOCK_DGRAM,
 				proto)) < 0) {
 			Alert("socket for logger #%d failed: %s (errno=%d)\n",
 				nblogger + 1, strerror(errno), errno);
@@ -280,7 +263,7 @@ void send_log(struct proxy *p, int level, const char *message, ...)
 	/* Send log messages to syslog server. */
 	for (nblogger = 0; nblogger < nbloggers; nblogger++) {
 		const struct logsrv *logsrv = logsrvs[nblogger];
-		int *plogfd = logsrv->u.addr.sa_family == AF_UNIX ?
+		int *plogfd = logsrv->addr.ss_family == AF_UNIX ?
 			&logfdunix : &logfdinet;
 		int sent;
 
@@ -306,7 +289,7 @@ void send_log(struct proxy *p, int level, const char *message, ...)
 	
 		/* the total syslog message now starts at logptr, for dataptr+data_len-logptr */
 		sent = sendto(*plogfd, log_ptr, dataptr + data_len - log_ptr,
-			MSG_DONTWAIT | MSG_NOSIGNAL, &logsrv->u.addr, logsrv_addrlen(logsrv));
+			MSG_DONTWAIT | MSG_NOSIGNAL, (struct sockaddr *)&logsrv->addr, sizeof(logsrv->addr));
 		if (sent < 0) {
 			Alert("sendto logger #%d failed: %s (errno=%d)\n",
 				nblogger, strerror(errno), errno);

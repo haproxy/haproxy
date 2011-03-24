@@ -48,11 +48,7 @@
 #define LW_RSPHDR	2048	/* response header(s) */
 
 struct logsrv {
-	union {
-		struct sockaddr addr;
-		struct sockaddr_un un;	/* AF_UNIX */
-		struct sockaddr_in in;	/* AF_INET */
-	} u;
+	struct sockaddr_storage addr;
 };
 
 #endif /* _TYPES_LOG_H */

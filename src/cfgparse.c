@@ -899,26 +899,24 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 
 		if (args[1][0] == '/') {
-			struct sockaddr_un *sk = str2sun(args[1]);
+			struct sockaddr_storage *sk = (struct sockaddr_storage *)str2sun(args[1]);
 			if (!sk) {
 				Alert("parsing [%s:%d] : Socket path '%s' too long (max %d)\n", file, linenum,
-				      args[1], (int)sizeof(sk->sun_path) - 1);
+				      args[1], (int)sizeof(((struct sockaddr_un *)&sk)->sun_path) - 1);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
-			logsrv.u.un = *sk;
-			logsrv.u.addr.sa_family = AF_UNIX;
+			logsrv.addr = *sk;
 		} else {
 			struct sockaddr_storage *sk = str2sa(args[1]);
-			if (!sk || sk->ss_family != AF_INET) {
+			if (!sk) {
 				Alert("parsing [%s:%d] : Unknown host in '%s'\n", file, linenum, args[1]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
-			logsrv.u.in = *(struct sockaddr_in *)sk;
-			logsrv.u.addr.sa_family = AF_INET;
-			if (!logsrv.u.in.sin_port)
-				logsrv.u.in.sin_port = htons(SYSLOG_PORT);
+			logsrv.addr = *sk;
+			if (!get_host_port(&logsrv.addr))
+				set_host_port(&logsrv.addr, SYSLOG_PORT);
 		}
 
 		if (global.logfac1 == -1) {
@@ -4546,28 +4544,24 @@ stats_error_parsing:
 			}
 
 			if (args[1][0] == '/') {
-				struct sockaddr_un *sk = str2sun(args[1]);
+				struct sockaddr_storage *sk = (struct sockaddr_storage *)str2sun(args[1]);
 				if (!sk) {
 					Alert("parsing [%s:%d] : Socket path '%s' too long (max %d)\n", file, linenum,
-					      args[1], (int)sizeof(sk->sun_path) - 1);
+					      args[1], (int)sizeof(((struct sockaddr_un *)sk)->sun_path) - 1);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
-				logsrv.u.un = *sk;
-				logsrv.u.addr.sa_family = AF_UNIX;
+				logsrv.addr = *sk;
 			} else {
 				struct sockaddr_storage *sk = str2sa(args[1]);
-				if (!sk || sk->ss_family != AF_INET) {
+				if (!sk) {
 					Alert("parsing [%s:%d] : Unknown host in '%s'\n", file, linenum, args[1]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
-				logsrv.u.in = *(struct sockaddr_in *)sk;
-				logsrv.u.addr.sa_family = AF_INET;
-				if (!logsrv.u.in.sin_port) {
-					logsrv.u.in.sin_port =
-						htons(SYSLOG_PORT);
-				}
+				logsrv.addr = *sk;
+				if (!get_host_port(&logsrv.addr))
+					set_host_port(&logsrv.addr, SYSLOG_PORT);
 			}
 	    
 			if (curproxy->logfac1 == -1) {

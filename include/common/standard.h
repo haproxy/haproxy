@@ -501,4 +501,52 @@ static inline int is_addr(struct sockaddr_storage *addr)
 	return 0;
 }
 
+/* returns port in network byte order */
+static inline int get_net_port(struct sockaddr_storage *addr)
+{
+	switch (addr->ss_family) {
+	case AF_INET:
+		return ((struct sockaddr_in *)addr)->sin_port;
+	case AF_INET6:
+		return ((struct sockaddr_in6 *)addr)->sin6_port;
+	}
+	return 0;
+}
+
+/* returns port in host byte order */
+static inline int get_host_port(struct sockaddr_storage *addr)
+{
+	switch (addr->ss_family) {
+	case AF_INET:
+		return ntohs(((struct sockaddr_in *)addr)->sin_port);
+	case AF_INET6:
+		return ntohs(((struct sockaddr_in6 *)addr)->sin6_port);
+	}
+	return 0;
+}
+
+/* set port in host byte order */
+static inline int set_net_port(struct sockaddr_storage *addr, int port)
+{
+	switch (addr->ss_family) {
+	case AF_INET:
+		((struct sockaddr_in *)addr)->sin_port = port;
+	case AF_INET6:
+		((struct sockaddr_in6 *)addr)->sin6_port = port;
+	}
+	return 0;
+}
+
+/* set port in network byte order */
+static inline int set_host_port(struct sockaddr_storage *addr, int port)
+{
+	switch (addr->ss_family) {
+	case AF_INET:
+		((struct sockaddr_in *)addr)->sin_port = htons(port);
+	case AF_INET6:
+		((struct sockaddr_in6 *)addr)->sin6_port = htons(port);
+	}
+	return 0;
+}
+
 #endif /* _COMMON_STANDARD_H */
