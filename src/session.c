@@ -188,6 +188,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->si[1].owner     = t;
 	s->si[1].state     = s->si[1].prev_state = SI_ST_INI;
 	s->si[1].err_type  = SI_ET_NONE;
+	s->si[1].conn_retries = 0;  /* used for logging too */
 	s->si[1].err_loc   = NULL;
 	s->si[1].connect   = NULL;
 	s->si[1].release   = NULL;
