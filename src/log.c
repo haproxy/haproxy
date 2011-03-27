@@ -352,12 +352,12 @@ void tcp_sess_log(struct session *s)
 
 	if (!(tolog & LW_SVID))
 		svid = "-";
-	else switch (s->req->cons->target.type) {
+	else switch (s->target.type) {
 	case TARG_TYPE_SERVER:
-		svid = s->req->cons->target.ptr.s->id;
+		svid = s->target.ptr.s->id;
 		break;
 	case TARG_TYPE_APPLET:
-		svid = s->req->cons->target.ptr.a->name;
+		svid = s->target.ptr.a->name;
 		break;
 	default:
 		svid = "<NOSRV>";

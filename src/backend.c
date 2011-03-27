@@ -969,6 +969,7 @@ int connect_server(struct session *s)
 	 */
 	stream_sock_prepare_interface(s->req->cons);
 	s->req->cons->connect = tcp_connect_server;
+	/* the target was only on the session, assign it to the SI now */
 	copy_target(&s->req->cons->target, &s->target);
 
 	/* process the case where the server requires the PROXY protocol to be sent */

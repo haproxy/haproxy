@@ -948,12 +948,12 @@ void http_sess_clflog(struct session *s)
 
 	if (!(tolog & LW_SVID))
 		svid = "-";
-	else switch (s->req->cons->target.type) {
+	else switch (s->target.type) {
 	case TARG_TYPE_SERVER:
-		svid = s->req->cons->target.ptr.s->id;
+		svid = s->target.ptr.s->id;
 		break;
 	case TARG_TYPE_APPLET:
-		svid = s->req->cons->target.ptr.a->name;
+		svid = s->target.ptr.a->name;
 		break;
 	default:
 		svid = "<NOSRV>";
@@ -1171,12 +1171,12 @@ void http_sess_log(struct session *s)
 
 	if (!(tolog & LW_SVID))
 		svid = "-";
-	else switch (s->req->cons->target.type) {
+	else switch (s->target.type) {
 	case TARG_TYPE_SERVER:
-		svid = s->req->cons->target.ptr.s->id;
+		svid = s->target.ptr.s->id;
 		break;
 	case TARG_TYPE_APPLET:
-		svid = s->req->cons->target.ptr.a->name;
+		svid = s->target.ptr.a->name;
 		break;
 	default:
 		svid = "<NOSRV>";
@@ -3278,6 +3278,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 		s->logs.tv_request = now;
 		s->task->nice = -32; /* small boost for HTTP statistics */
 		stream_int_register_handler(s->rep->prod, &http_stats_applet);
+		copy_target(&s->target, &s->rep->prod->target); // for logging only
 		s->rep->prod->applet.private = s;
 		s->rep->prod->applet.st0 = s->rep->prod->applet.st1 = 0;
 		req->analysers = 0;

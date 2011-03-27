@@ -107,6 +107,7 @@ int stats_accept(struct session *s)
 {
 	/* we have a dedicated I/O handler for the stats */
 	stream_int_register_handler(&s->si[1], &cli_applet);
+	copy_target(&s->target, &s->si[1].target); // for logging only
 	s->si[1].applet.private = s;
 	s->si[1].applet.st1 = 0;
 	s->si[1].applet.st0 = STAT_CLI_INIT;

@@ -1078,6 +1078,7 @@ int peer_accept(struct session *s)
 {
 	 /* we have a dedicated I/O handler for the stats */
 	stream_int_register_handler(&s->si[1], &peer_applet);
+	copy_target(&s->target, &s->si[1].target); // for logging only
 	s->si[1].release = peer_session_release;
 	s->si[1].applet.private = s;
 	s->si[1].applet.st0 = PEER_SESSION_ACCEPT;
