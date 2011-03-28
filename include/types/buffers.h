@@ -160,7 +160,7 @@
 
 
 /* Magic value to forward infinite size (TCP, ...), used with ->to_forward */
-#define BUF_INFINITE_FORWARD    (~0UL)
+#define BUF_INFINITE_FORWARD    MAX_RANGE(int)
 
 /* describes a chunk of string */
 struct chunk {
@@ -182,7 +182,7 @@ struct buffer {
 	char *r, *w, *lr;               /* read ptr, write ptr, last read */
 	unsigned int size;              /* buffer size in bytes */
 	unsigned int send_max;          /* number of bytes the sender can consume om this buffer, <= l */
-	unsigned long to_forward;       /* number of bytes to forward after send_max without a wake-up */
+	unsigned int to_forward;        /* number of bytes to forward after send_max without a wake-up */
 	unsigned int analysers;         /* bit field indicating what to do on the buffer */
 	int analyse_exp;                /* expiration date for current analysers (if set) */
 	void (*hijacker)(struct session *, struct buffer *); /* alternative content producer */

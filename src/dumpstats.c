@@ -2815,7 +2815,7 @@ int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 
 
 		chunk_printf(&msg,
-			     "  req=%p (f=0x%06x an=0x%x l=%d sndmx=%d pipe=%d fwd=%ld)\n"
+			     "  req=%p (f=0x%06x an=0x%x l=%d sndmx=%d pipe=%d fwd=%d)\n"
 			     "      an_exp=%s",
 			     sess->req,
 			     sess->req->flags, sess->req->analysers,
@@ -2845,7 +2845,7 @@ int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 			     sess->req->total);
 
 		chunk_printf(&msg,
-			     "  res=%p (f=0x%06x an=0x%x l=%d sndmx=%d pipe=%d fwd=%ld)\n"
+			     "  res=%p (f=0x%06x an=0x%x l=%d sndmx=%d pipe=%d fwd=%d)\n"
 			     "      an_exp=%s",
 			     sess->rep,
 			     sess->rep->flags, sess->rep->analysers,

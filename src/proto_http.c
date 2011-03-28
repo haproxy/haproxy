@@ -4410,15 +4410,17 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 	}
 
 	while (1) {
+		int bytes;
+
 		http_silent_debug(__LINE__, s);
 		/* we may have some data pending */
-		if (msg->chunk_len || msg->som != msg->sov) {
-			int bytes = msg->sov - msg->som;
-			if (bytes < 0) /* sov may have wrapped at the end */
-				bytes += req->size;
-			buffer_forward(req, bytes + msg->chunk_len);
-			msg->chunk_len = 0; /* don't forward that again */
+		bytes = msg->sov - msg->som;
+		if (msg->chunk_len || bytes) {
 			msg->som = msg->sov;
+			if (likely(bytes < 0)) /* sov may have wrapped at the end */
+				bytes += req->size;
+			msg->chunk_len += (unsigned int)bytes;
+			msg->chunk_len -= buffer_forward(req, msg->chunk_len);
 		}
 
 		if (msg->msg_state == HTTP_MSG_DATA) {
@@ -5421,6 +5423,7 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 {
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &s->txn.rsp;
+	int bytes;
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY))
 		return 0;
@@ -5454,16 +5457,19 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 	}
 
 	while (1) {
+		int bytes;
+
 		http_silent_debug(__LINE__, s);
 		/* we may have some data pending */
-		if (msg->chunk_len || msg->som != msg->sov) {
-			int bytes = msg->sov - msg->som;
-			if (bytes < 0) /* sov may have wrapped at the end */
-				bytes += res->size;
-			buffer_forward(res, bytes + msg->chunk_len);
-			msg->chunk_len = 0; /* don't forward that again */
+		bytes = msg->sov - msg->som;
+		if (msg->chunk_len || bytes) {
 			msg->som = msg->sov;
+			if (likely(bytes < 0)) /* sov may have wrapped at the end */
+				bytes += res->size;
+			msg->chunk_len += (unsigned int)bytes;
+			msg->chunk_len -= buffer_forward(res, msg->chunk_len);
 		}
+
 
 		if (msg->msg_state == HTTP_MSG_DATA) {
 			/* must still forward */
@@ -5573,14 +5579,14 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 	if (!s->req->analysers)
 		goto return_bad_res;
 
-	/* forward the chunk size as well as any pending data */
-	if (msg->chunk_len || msg->som != msg->sov) {
-		int bytes = msg->sov - msg->som;
-		if (bytes < 0) /* sov may have wrapped at the end */
-			bytes += res->size;
-		buffer_forward(res, bytes + msg->chunk_len);
-		msg->chunk_len = 0; /* don't forward that again */
+	/* forward any pending data */
+	bytes = msg->sov - msg->som;
+	if (msg->chunk_len || bytes) {
 		msg->som = msg->sov;
+		if (likely(bytes < 0)) /* sov may have wrapped at the end */
+			bytes += res->size;
+		msg->chunk_len += (unsigned int)bytes;
+		msg->chunk_len -= buffer_forward(res, msg->chunk_len);
 	}
 
 	/* When TE: chunked is used, we need to get there again to parse remaining
