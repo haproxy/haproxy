@@ -50,6 +50,7 @@ int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int
 int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len);
 void buffer_dump(FILE *o, struct buffer *b, int from, int to);
 void buffer_bounce_realign(struct buffer *buf);
+unsigned long long buffer_forward(struct buffer *buf, unsigned long long bytes);
 
 /* Initialize all fields in the buffer. The BF_OUT_EMPTY flags is set. */
 static inline void buffer_init(struct buffer *buf)
@@ -108,63 +109,6 @@ static inline void buffer_check_timeouts(struct buffer *b)
 	if (likely(!(b->flags & BF_ANA_TIMEOUT)) &&
 	    unlikely(tick_is_expired(b->analyse_exp, now_ms)))
 		b->flags |= BF_ANA_TIMEOUT;
-}
-
-/* Schedule up to <bytes> more bytes to be forwarded by the buffer without notifying
- * the task. Any pending data in the buffer is scheduled to be sent as well,
- * in the limit of the number of bytes to forward. This must be the only method
- * to use to schedule bytes to be sent. If the requested number is too large, it
- * is automatically adjusted. The number of bytes taken into account is returned.
- * Directly touching ->to_forward will cause lockups when send_max goes down to
- * zero if nobody is ready to push the remaining data.
- */
-static inline unsigned long long buffer_forward(struct buffer *buf, unsigned long long bytes)
-{
-	unsigned int data_left;
-	unsigned int new_forward;
-
-	if (!bytes)
-		return 0;
-	data_left = buf->l - buf->send_max;
-	if (bytes <= (unsigned long long)data_left) {
-		buf->send_max += bytes;
-		buf->flags &= ~BF_OUT_EMPTY;
-		return bytes;
-	}
-
-	buf->send_max += data_left;
-	if (buf->send_max)
-		buf->flags &= ~BF_OUT_EMPTY;
-
-	if (buf->l < buffer_max_len(buf))
-		buf->flags &= ~BF_FULL;
-	else
-		buf->flags |= BF_FULL;
-
-	if (likely(bytes == BUF_INFINITE_FORWARD)) {
-		buf->to_forward = bytes;
-		return bytes;
-	}
-
-	/* Note: the case below is the only case where we may return
-	 * a byte count that does not fit into a 32-bit number.
-	 */
-	if (likely(buf->to_forward == BUF_INFINITE_FORWARD))
-		return bytes;
-
-	new_forward = buf->to_forward + bytes - data_left;
-	bytes = data_left; /* at least those bytes were scheduled */
-
-	if (new_forward <= buf->to_forward) {
-		/* integer overflow detected, let's assume no more than 2G at once */
-		new_forward = MID_RANGE(new_forward);
-	}
-
-	if (new_forward > buf->to_forward) {
-		bytes += new_forward - buf->to_forward;
-		buf->to_forward = new_forward;
-	}
-	return bytes;
 }
 
 /* Schedule all remaining buffer data to be sent. send_max is not touched if it
