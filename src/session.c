@@ -3166,6 +3166,37 @@ acl_fetch_src_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, int
 	return acl_fetch_bytes_out_rate(&px->table, test, stktable_lookup_key(&px->table, key));
 }
 
+/* set test->i to the number of used entries in the table pointed to by expr. */
+static int
+acl_fetch_table_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+                       struct acl_expr *expr, struct acl_test *test)
+{
+	if (expr->arg_len)
+		px = find_stktable(expr->arg.str);
+
+	if (!px)
+		return 0; /* table not found */
+
+	test->flags = ACL_TEST_F_VOL_TEST;
+	test->i = px->table.current;
+	return 1;
+}
+
+/* set test->i to the number of free entries in the table pointed to by expr. */
+static int
+acl_fetch_table_avl(struct proxy *px, struct session *l4, void *l7, int dir,
+                            struct acl_expr *expr, struct acl_test *test)
+{
+	if (expr->arg_len)
+		px = find_stktable(expr->arg.str);
+
+	if (!px)
+		return 0; /* table not found */
+
+	test->flags = ACL_TEST_F_VOL_TEST;
+	test->i = px->table.size - px->table.current;
+	return 1;
+}
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct acl_kw_list acl_kws = {{ },{
@@ -3215,6 +3246,8 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "sc1_bytes_out_rate", acl_parse_int,   acl_fetch_sc1_bytes_out_rate, acl_match_int, ACL_USE_NOTHING },
 	{ "sc2_bytes_out_rate", acl_parse_int,   acl_fetch_sc2_bytes_out_rate, acl_match_int, ACL_USE_NOTHING },
 	{ "src_bytes_out_rate", acl_parse_int,   acl_fetch_src_bytes_out_rate, acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "table_avl",          acl_parse_int,   acl_fetch_table_avl,          acl_match_int, ACL_USE_NOTHING },
+	{ "table_cnt",          acl_parse_int,   acl_fetch_table_cnt,          acl_match_int, ACL_USE_NOTHING },
 	{ NULL, NULL, NULL, NULL },
 }};
 

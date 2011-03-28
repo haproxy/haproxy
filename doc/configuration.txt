@@ -7402,6 +7402,17 @@ srv_is_up(<backend>/<server>)
   as boolean variables that can be enabled or disabled from the CLI, so that
   rules depending on those ACLs can be tweaked in realtime.
 
+table_avl <integer>
+table_avl(table) <integer>
+  Returns the total number of available entries in the current proxy's
+  stick-table or in the designated stick-table. See also table_cnt.
+
+table_cnt <integer>
+table_cnt(table) <integer>
+  Returns the total number of entries currently in use in the current proxy's
+  stick-table or in the designated stick-table. See also src_conn_cnt and
+  table_avl for other entry counting methods.
+
 
 7.5.2. Matching contents at Layer 4 (also called Layer 6)
 ---------------------------------------------------------
