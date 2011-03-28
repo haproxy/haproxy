@@ -1,6 +1,39 @@
 ChangeLog :
 ===========
 
+2011/03/29 : 1.5-dev5
+    - [BUG] standard: is_addr return value for IPv4 was inverted
+    - [MINOR] update comment about IPv6 support for server
+    - [MEDIUM] use getaddrinfo to resolve names if gethostbyname fail
+    - [DOC] update IPv6 support for bind
+    - [DOC] document IPv6 support for server
+    - [DOC] fix a minor typo
+    - [MEDIUM] IPv6 support for syslog
+    - [DOC] document IPv6 support for syslog
+    - [MEDIUM] IPv6 support for stick-tables
+    - [DOC] document IPv6 support for stick-tables
+    - [DOC] update ROADMAP file
+    - [BUG] session: src_conn_cur was returning src_conn_cnt instead
+    - [MINOR] frontend: add a make_proxy_line function
+    - [MEDIUM] stream_sock: add support for sending the proxy protocol header line
+    - [MEDIUM] server: add support for the "send-proxy" option
+    - [DOC] update the spec on the proxy protocol
+    - [BUILD] proto_tcp: fix build issue with CTTPROXY
+    - [DOC] update ROADMAP file
+    - [MEDIUM] config: rework the IPv4/IPv6 address parser to support host-only addresses
+    - [MINOR] cfgparse: better report wrong listening addresses and make use of str2sa_range
+    - [BUILD] add the USE_GETADDRINFO build option
+    - [TESTS] provide a test case for various address formats
+    - [BUG] session: conn_retries was not always initialized
+    - [BUG] log: retrieve the target from the session, not the SI
+    - [BUG] http: fix possible incorrect forwarded wrapping chunk size (take 2)
+    - [MINOR] tools: add two macros MID_RANGE and MAX_RANGE
+    - [BUG] http: fix content-length handling on 32-bit platforms
+    - [OPTIM] buffers: uninline buffer_forward()
+    - [BUG] stream_sock: fix handling for server side PROXY protocol
+    - [MINOR] acl: add support for table_cnt and table_avl matches
+    - [DOC] update ROADMAP file
+
 2011/03/13 : 1.5-dev4
     - [MINOR] cfgparse: Check whether the path given for the stats socket actually fits into the sockaddr_un structure to avoid truncation.
     - [MINOR] unix sockets : inherits the backlog size from the listener
