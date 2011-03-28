@@ -751,6 +751,8 @@ int stream_sock_write(int fd)
 		retval = stream_sock_write_loop(si, b);
 		if (retval < 0)
 			goto out_error;
+		else if (retval == 0 && si->send_proxy_ofs)
+			goto out_may_wakeup; /* we failed to send the PROXY string */
 	}
 	else  {
 		/* may be we have received a connection acknowledgement in TCP mode without data */
@@ -1112,6 +1114,8 @@ void stream_sock_chk_snd(struct stream_interface *si)
 		si->flags |= SI_FL_ERR;
 		goto out_wakeup;
 	}
+	else if (retval == 0 && si->send_proxy_ofs)
+		goto out_may_wakeup; /* we failed to send the PROXY string */
 
 	/* OK, so now we know that retval >= 0 means that some data might have
 	 * been sent, and that we may have to poll first. We have to do that
@@ -1144,6 +1148,7 @@ void stream_sock_chk_snd(struct stream_interface *si)
 			ob->wex = tick_add_ifset(now_ms, ob->wto);
 	}
 
+ out_may_wakeup:
 	if (likely(ob->flags & BF_WRITE_ACTIVITY)) {
 		/* update timeout if we have written something */
 		if ((ob->flags & (BF_OUT_EMPTY|BF_SHUTW|BF_WRITE_PARTIAL)) == BF_WRITE_PARTIAL)
