@@ -7,8 +7,6 @@ Legend: '+' = done, '-' = todo, '*' = done except doc
     to explain the possible huge difference between frontend and backend
     sessions.
 
-  - ACL to report number of used entries in a table
-
   - server-side HTTP keepalive
     => maybe with limitation to only reuse connections that don't depend
        on layer7 in a first time (just check the target).
@@ -138,6 +136,8 @@ DONE:
     for dispatch, http_proxy and transparent modes. => done differently with the
     target descriptors. The dummy server code exists in the "dummysrv" branch
     which will die since it does not make sense anymore.
+
+  * ACL to report number of used entries in a table
 
 
 1.6 (will probably change anyway) :
