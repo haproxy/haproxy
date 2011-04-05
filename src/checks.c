@@ -817,16 +817,9 @@ static int event_srv_chk_w(int fd)
 			else
 				sa = s->addr;
 
-			switch (s->check_addr.ss_family) {
-			case AF_INET:
-				((struct sockaddr_in *)&sa)->sin_port = htons(s->check_port);
-				break;
-			case AF_INET6:
-				((struct sockaddr_in6 *)&sa)->sin6_port = htons(s->check_port);
-				break;
-			}
+			set_host_port(&sa, s->check_port);
 
-			if (connect(fd, (struct sockaddr *)&sa, sizeof(sa)) == 0)
+			if (connect(fd, (struct sockaddr *)&sa, get_addr_len(&sa)) == 0)
 				errno = 0;
 
 			if (errno == EALREADY || errno == EINPROGRESS)
@@ -1377,7 +1370,7 @@ struct task *process_chk(struct task *t)
 					if (s->proxy->options2 & PR_O2_SMARTCON)
 						setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, (char *) &zero, sizeof(zero));
 #endif
-					if ((connect(fd, (struct sockaddr *)&sa, sizeof(sa)) != -1) || (errno == EINPROGRESS)) {
+					if ((connect(fd, (struct sockaddr *)&sa, get_addr_len(&sa)) != -1) || (errno == EINPROGRESS)) {
 						/* OK, connection in progress or established */
 			
 						//fprintf(stderr, "process_chk: 4\n");
@@ -1390,7 +1383,7 @@ struct task *process_chk(struct task *t)
 						fdtab[fd].cb[DIR_WR].f = &event_srv_chk_w;
 						fdtab[fd].cb[DIR_WR].b = NULL;
 						fdinfo[fd].peeraddr = (struct sockaddr *)&sa;
-						fdinfo[fd].peerlen = sizeof(sa);
+						fdinfo[fd].peerlen = get_addr_len(&sa);
 						fdtab[fd].state = FD_STCONN; /* connection in progress */
 						fdtab[fd].flags = FD_FL_TCP | FD_FL_TCP_NODELAY;
 						EV_FD_SET(fd, DIR_WR);  /* for connect status */

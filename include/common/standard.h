@@ -525,6 +525,20 @@ static inline int get_host_port(struct sockaddr_storage *addr)
 	return 0;
 }
 
+/* returns address len for <addr>'s family, 0 for unknown families */
+static inline int get_addr_len(const struct sockaddr_storage *addr)
+{
+	switch (addr->ss_family) {
+	case AF_INET:
+		return sizeof(struct sockaddr_in);
+	case AF_INET6:
+		return sizeof(struct sockaddr_in6);
+	case AF_UNIX:
+		return sizeof(struct sockaddr_un);
+	}
+	return 0;
+}
+
 /* set port in host byte order */
 static inline int set_net_port(struct sockaddr_storage *addr, int port)
 {

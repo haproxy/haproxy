@@ -289,7 +289,8 @@ void send_log(struct proxy *p, int level, const char *message, ...)
 	
 		/* the total syslog message now starts at logptr, for dataptr+data_len-logptr */
 		sent = sendto(*plogfd, log_ptr, dataptr + data_len - log_ptr,
-			MSG_DONTWAIT | MSG_NOSIGNAL, (struct sockaddr *)&logsrv->addr, sizeof(logsrv->addr));
+			      MSG_DONTWAIT | MSG_NOSIGNAL,
+			      (struct sockaddr *)&logsrv->addr, get_addr_len(&logsrv->addr));
 		if (sent < 0) {
 			Alert("sendto logger #%d failed: %s (errno=%d)\n",
 				nblogger, strerror(errno), errno);

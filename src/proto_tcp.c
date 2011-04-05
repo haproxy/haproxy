@@ -150,12 +150,12 @@ int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct so
 
 	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(one));
 	if (foreign_ok) {
-		ret = bind(fd, (struct sockaddr *)&bind_addr, sizeof(bind_addr));
+		ret = bind(fd, (struct sockaddr *)&bind_addr, get_addr_len(&bind_addr));
 		if (ret < 0)
 			return 2;
 	}
 	else {
-		ret = bind(fd, (struct sockaddr *)local, sizeof(*local));
+		ret = bind(fd, (struct sockaddr *)local, get_addr_len(local));
 		if (ret < 0)
 			return 1;
 	}
@@ -406,7 +406,7 @@ int tcp_connect_server(struct stream_interface *si)
 	if (global.tune.server_rcvbuf)
                 setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &global.tune.server_rcvbuf, sizeof(global.tune.server_rcvbuf));
 
-	if ((connect(fd, (struct sockaddr *)&si->addr.s.to, sizeof(struct sockaddr_storage)) == -1) &&
+	if ((connect(fd, (struct sockaddr *)&si->addr.s.to, get_addr_len(&si->addr.s.to)) == -1) &&
 	    (errno != EINPROGRESS) && (errno != EALREADY) && (errno != EISCONN)) {
 
 		if (errno == EAGAIN || errno == EADDRINUSE) {
@@ -449,7 +449,7 @@ int tcp_connect_server(struct stream_interface *si)
 	fdtab[fd].cb[DIR_WR].b = si->ob;
 
 	fdinfo[fd].peeraddr = (struct sockaddr *)&si->addr.s.to;
-	fdinfo[fd].peerlen = sizeof(struct sockaddr_storage);
+	fdinfo[fd].peerlen = get_addr_len(&si->addr.s.to);
 
 	fd_insert(fd);
 	EV_FD_SET(fd, DIR_WR);  /* for connect status */
