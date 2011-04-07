@@ -460,8 +460,8 @@ static void *k_ip2ip(union pattern_data *pdata, union stktable_key_data *kdata, 
 
 static void *k_ip2ipv6(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
 {
-	v4tov6(&pdata->ipv6, &pdata->ip);
-	return (void *)&pdata->ipv6.s6_addr;
+	v4tov6(&kdata->ipv6, &pdata->ip);
+	return (void *)&kdata->ipv6.s6_addr;
 }
 
 static void *k_ipv62ipv6(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
@@ -472,8 +472,8 @@ static void *k_ipv62ipv6(union pattern_data *pdata, union stktable_key_data *kda
 /*
 static void *k_ipv62ip(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
 {
-	v6tov4(&pdata->ip, &pdata->ipv6);
-	return (void *)&pdata->ip.s_addr;
+	v6tov4(&kdata->ip, &pdata->ipv6);
+	return (void *)&kdata->ip.s_addr;
 }
 */
 
