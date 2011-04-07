@@ -1,6 +1,12 @@
 ChangeLog :
 ===========
 
+2011/04/08 : 1.5-dev6
+    - [BUG] stream_sock: use get_addr_len() instead of sizeof() on sockaddr_storage
+    - [BUG] TCP source tracking was broken with IPv6 changes
+    - [BUG] stick-tables did not work when converting IPv6 to IPv4
+    - [CRITICAL] fix risk of crash when dealing with space in response cookies
+
 2011/03/29 : 1.5-dev5
     - [BUG] standard: is_addr return value for IPv4 was inverted
     - [MINOR] update comment about IPv6 support for server
