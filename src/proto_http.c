@@ -6969,7 +6969,7 @@ void manage_server_side_cookies(struct session *t, struct buffer *res)
 				hdr_end      += stripped_before;
 				hdr_next     += stripped_before;
 				cur_hdr->len += stripped_before;
-				http_msg_move_end(&txn->req, stripped_before);
+				http_msg_move_end(&txn->rsp, stripped_before);
 			}
 
 			/* First, let's see if we want to capture this cookie. We check
