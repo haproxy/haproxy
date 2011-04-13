@@ -1681,6 +1681,9 @@ static int httpchk_expect(struct server *s, int done)
 
 		/* Check that response body is not empty... */
 		if (*contentptr == '\0') {
+			if (!done)
+				return 0;
+
 			set_server_check_status(s, HCHK_STATUS_L7RSP,
 						"HTTP content check found empty response body");
 			return 1;
