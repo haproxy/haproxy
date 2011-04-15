@@ -2048,7 +2048,7 @@ dispatch <address>:<port>
               to this port, and it is not permitted to use port offsets as is
               possible with normal servers.
 
-  The "disabled" keyword designates a default server for use when no other
+  The "dispatch" keyword designates a default server for use when no other
   server can take the connection. In the past it was used to forward non
   persistent connections to an auxiliary load balancer. Due to its simple
   syntax, it has also been used for simple TCP relays. It is recommended not to
