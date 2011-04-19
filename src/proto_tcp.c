@@ -132,6 +132,7 @@ int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct so
 #endif
 	if (flags) {
 		memset(&bind_addr, 0, sizeof(bind_addr));
+		bind_addr.ss_family = remote->ss_family;
 		switch (remote->ss_family) {
 		case AF_INET:
 			if (flags & 1)
