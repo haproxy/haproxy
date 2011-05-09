@@ -578,6 +578,7 @@ static pattern_to_key_fct pattern_to_key[PATTERN_TYPES][STKTABLE_TYPES] = {
 /*           STRING */ { k_str2ip, k_str2ipv6,  k_str2int, k_str2str,  k_str2str },
 /*             DATA */ { NULL,     NULL,        NULL,      NULL,       k_str2str },
 /*      CONSTSTRING */ { k_str2ip, k_str2ipv6,  k_str2int, k_str2str,  k_str2str },
+/*        CONSTDATA */ { NULL,     NULL,        NULL,      NULL     ,  k_str2str },
 
 };
 
