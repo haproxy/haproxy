@@ -4445,9 +4445,6 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 				goto return_bad_req;
 			}
 			/* otherwise we're in HTTP_MSG_DATA or HTTP_MSG_TRAILERS state */
-			/* Don't set a PUSH at the end of that chunk if it's not the last one */
-			if (msg->msg_state == HTTP_MSG_DATA)
-				req->flags |= BF_EXPECT_MORE;
 		}
 		else if (msg->msg_state == HTTP_MSG_DATA_CRLF) {
 			/* we want the CRLF after the data */
@@ -4560,6 +4557,17 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 	 */
 	if (txn->flags & TX_REQ_TE_CHNK)
 		buffer_dont_close(req);
+
+	/* We know that more data are expected, but we couldn't send more that
+	 * what we did. In theory we could always set the BF_EXPECT_MORE so that
+	 * the system knows it must not set a PUSH on this first part. However
+	 * there exists some applications which incorrectly rely on chunks being
+	 * interactively exchanged. So we set the flag only if the current chunk
+	 * is not finished, or we're not DONE and interactive mode is not set.
+	 */
+	if (txn->req.msg_state >= HTTP_MSG_DATA &&
+	    txn->req.msg_state <= HTTP_MSG_TRAILERS)
+		req->flags |= BF_EXPECT_MORE;
 
 	http_silent_debug(__LINE__, s);
 	return 0;
@@ -5491,9 +5499,6 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 				goto return_bad_res;
 			}
 			/* otherwise we're in HTTP_MSG_DATA or HTTP_MSG_TRAILERS state */
-			/* Don't set a PUSH at the end of that chunk if it's not the last one */
-			if (msg->msg_state == HTTP_MSG_DATA)
-				res->flags |= BF_EXPECT_MORE;
 		}
 		else if (msg->msg_state == HTTP_MSG_DATA_CRLF) {
 			/* we want the CRLF after the data */
@@ -5593,6 +5598,17 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 	    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL ||
 	    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL)
 		buffer_dont_close(res);
+
+	/* We know that more data are expected, but we couldn't send more that
+	 * what we did. In theory we could always set the BF_EXPECT_MORE so that
+	 * the system knows it must not set a PUSH on this first part. However
+	 * there exists some applications which incorrectly rely on chunks being
+	 * interactively exchanged. So we set the flag only if the current chunk
+	 * is not finished, or we're not DONE and interactive mode is not set.
+	 */
+	if (txn->rsp.msg_state >= HTTP_MSG_DATA &&
+	    txn->rsp.msg_state <= HTTP_MSG_TRAILERS)
+		res->flags |= BF_EXPECT_MORE;
 
 	/* the session handler will take care of timeouts and errors */
 	http_silent_debug(__LINE__, s);
