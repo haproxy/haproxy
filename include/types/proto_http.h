@@ -236,6 +236,20 @@ enum {
 	HTTP_REQ_ACT_MAX
 };
 
+/*
+ * All implemented return codes
+ */
+enum {
+	HTTP_ERR_400 = 0,
+	HTTP_ERR_403,
+	HTTP_ERR_408,
+	HTTP_ERR_500,
+	HTTP_ERR_502,
+	HTTP_ERR_503,
+	HTTP_ERR_504,
+	HTTP_ERR_SIZE
+};
+
 /* This is an HTTP message, as described in RFC2616. It can be either a request
  * message or a response message.
  *

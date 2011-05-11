@@ -44,7 +44,6 @@
 #include <proto/checks.h>
 #include <proto/dumpstats.h>
 #include <proto/frontend.h>
-#include <proto/httperr.h>
 #include <proto/lb_chash.h>
 #include <proto/lb_fwlc.h>
 #include <proto/lb_fwrr.h>

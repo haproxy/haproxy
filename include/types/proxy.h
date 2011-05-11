@@ -41,9 +41,9 @@
 #include <types/buffers.h>
 #include <types/counters.h>
 #include <types/freq_ctr.h>
-#include <types/httperr.h>
 #include <types/log.h>
 #include <types/protocols.h>
+#include <types/proto_http.h>
 #include <types/session.h>
 #include <types/server.h>
 #include <types/stick_table.h>

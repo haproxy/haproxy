@@ -49,6 +49,11 @@ extern const char http_is_crlf[256];
 extern const char http_is_token[256];
 extern const char http_is_ver_token[256];
 
+extern const int http_err_codes[HTTP_ERR_SIZE];
+extern struct chunk http_err_chunks[HTTP_ERR_SIZE];
+extern const char *HTTP_302;
+extern const char *HTTP_303;
+
 #define HTTP_IS_CTL(x)   (http_is_ctl[(unsigned char)(x)])
 #define HTTP_IS_SEP(x)   (http_is_sep[(unsigned char)(x)])
 #define HTTP_IS_LWS(x)   (http_is_lws[(unsigned char)(x)])
@@ -101,6 +106,7 @@ void http_reset_txn(struct session *s);
 
 struct http_req_rule *parse_http_req_cond(const char **args, const char *file, int linenum, struct proxy *proxy);
 void free_http_req_rules(struct list *r);
+struct chunk *error_message(struct session *s, int msgnum);
 
 /* to be used when contents change in an HTTP message */
 #define http_msg_move_end(msg, bytes) do { \
