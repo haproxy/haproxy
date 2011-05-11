@@ -240,7 +240,8 @@ enum {
  * All implemented return codes
  */
 enum {
-	HTTP_ERR_400 = 0,
+	HTTP_ERR_200 = 0,
+	HTTP_ERR_400,
 	HTTP_ERR_403,
 	HTTP_ERR_408,
 	HTTP_ERR_500,

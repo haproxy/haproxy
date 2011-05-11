@@ -68,20 +68,6 @@ const struct chunk http_100_chunk = {
 	.len = sizeof(HTTP_100)-1
 };
 
-/* This is used by remote monitoring */
-const char HTTP_200[] =
-	"HTTP/1.0 200 OK\r\n"
-	"Cache-Control: no-cache\r\n"
-	"Connection: close\r\n"
-	"Content-Type: text/html\r\n"
-	"\r\n"
-	"<html><body><h1>200 OK</h1>\nService ready.\n</body></html>\n";
-
-const struct chunk http_200_chunk = {
-	.str = (char *)&HTTP_200,
-	.len = sizeof(HTTP_200)-1
-};
-
 /* Warning: no "connection" header is provided with the 3xx messages below */
 const char *HTTP_301 =
 	"HTTP/1.1 301 Moved Permanently\r\n"
@@ -123,6 +109,7 @@ const char *HTTP_407_fmt =
 
 
 const int http_err_codes[HTTP_ERR_SIZE] = {
+	[HTTP_ERR_200] = 200,  /* used by "monitor-uri" */
 	[HTTP_ERR_400] = 400,
 	[HTTP_ERR_403] = 403,
 	[HTTP_ERR_408] = 408,
@@ -133,6 +120,14 @@ const int http_err_codes[HTTP_ERR_SIZE] = {
 };
 
 static const char *http_err_msgs[HTTP_ERR_SIZE] = {
+	[HTTP_ERR_200] =
+	"HTTP/1.0 200 OK\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
+	"\r\n"
+	"<html><body><h1>200 OK</h1>\nService ready.\n</body></html>\n",
+
 	[HTTP_ERR_400] =
 	"HTTP/1.0 400 Bad request\r\n"
 	"Cache-Control: no-cache\r\n"
@@ -2705,7 +2700,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 
 		/* nothing to fail, let's reply normaly */
 		txn->status = 200;
-		stream_int_retnclose(req->prod, &http_200_chunk);
+		stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_200));
 		goto return_prx_cond;
 	}
 

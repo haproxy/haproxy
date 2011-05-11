@@ -2075,7 +2075,7 @@ errorfile <code> <file>
                                  yes   |    yes   |   yes  |   yes
   Arguments :
     <code>    is the HTTP status code. Currently, HAProxy is capable of
-              generating codes 400, 403, 408, 500, 502, 503, and 504.
+              generating codes 200, 400, 403, 408, 500, 502, 503, and 504.
 
     <file>    designates a file containing the full HTTP response. It is
               recommended to follow the common practice of appending ".http" to
@@ -2086,6 +2086,8 @@ errorfile <code> <file>
   It is important to understand that this keyword is not meant to rewrite
   errors returned by the server, but errors detected and returned by HAProxy.
   This is why the list of supported errors is limited to a small set.
+
+  Code 200 is emitted in response to requests matching a "monitor-uri" rule.
 
   The files are returned verbatim on the TCP socket. This allows any trick such
   as redirections to another URL or site, as well as tricks to clean cookies,
@@ -2120,7 +2122,7 @@ errorloc302 <code> <url>
                                  yes   |    yes   |   yes  |   yes
   Arguments :
     <code>    is the HTTP status code. Currently, HAProxy is capable of
-              generating codes 400, 403, 408, 500, 502, 503, and 504.
+              generating codes 200, 400, 403, 408, 500, 502, 503, and 504.
 
     <url>     it is the exact contents of the "Location" header. It may contain
               either a relative URI to an error page hosted on the same site,
@@ -2131,6 +2133,8 @@ errorloc302 <code> <url>
   It is important to understand that this keyword is not meant to rewrite
   errors returned by the server, but errors detected and returned by HAProxy.
   This is why the list of supported errors is limited to a small set.
+
+  Code 200 is emitted in response to requests matching a "monitor-uri" rule.
 
   Note that both keyword return the HTTP 302 status code, which tells the
   client to fetch the designated URL using the same HTTP method. This can be
@@ -2160,6 +2164,8 @@ errorloc303 <code> <url>
   It is important to understand that this keyword is not meant to rewrite
   errors returned by the server, but errors detected and returned by HAProxy.
   This is why the list of supported errors is limited to a small set.
+
+  Code 200 is emitted in response to requests matching a "monitor-uri" rule.
 
   Note that both keyword return the HTTP 303 status code, which tells the
   client to fetch the designated URL using the same HTTP GET method. This
@@ -2658,7 +2664,8 @@ monitor fail { if | unless } <condition>
   very useful to report a site failure to an external component which may base
   routing advertisements between multiple sites on the availability reported by
   haproxy. In this case, one would rely on an ACL involving the "nbsrv"
-  criterion. Note that "monitor fail" only works in HTTP mode.
+  criterion. Note that "monitor fail" only works in HTTP mode. Both status
+  messages may be tweaked using "errorfile" or "errorloc" if needed.
 
   Example:
      frontend www
@@ -2668,7 +2675,7 @@ monitor fail { if | unless } <condition>
         monitor-uri   /site_alive
         monitor fail  if site_dead
 
-  See also : "monitor-net", "monitor-uri"
+  See also : "monitor-net", "monitor-uri", "errorfile", "errorloc"
 
 
 monitor-net <source>
