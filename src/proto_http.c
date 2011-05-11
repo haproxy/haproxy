@@ -75,7 +75,7 @@ const char HTTP_200[] =
 	"Connection: close\r\n"
 	"Content-Type: text/html\r\n"
 	"\r\n"
-	"<html><body><h1>200 OK</h1>\nHAProxy: service ready.\n</body></html>\n";
+	"<html><body><h1>200 OK</h1>\nService ready.\n</body></html>\n";
 
 const struct chunk http_200_chunk = {
 	.str = (char *)&HTTP_200,
