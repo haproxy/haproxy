@@ -473,8 +473,14 @@ int stream_sock_read(int fd) {
 	} /* while (1) */
 
  out_wakeup:
-	/* We might have some data the consumer is waiting for */
-	if (!(b->flags & BF_OUT_EMPTY) && (b->cons->flags & SI_FL_WAIT_DATA)) {
+	/* We might have some data the consumer is waiting for.
+	 * We can do fast-forwarding, but we avoid doing this for partial
+	 * buffers, because it is very likely that it will be done again
+	 * immediately afterwards once the following data is parsed (eg:
+	 * HTTP chunking).
+	 */
+	if ((b->pipe || b->send_max == b->l)
+	    && (b->cons->flags & SI_FL_WAIT_DATA)) {
 		int last_len = b->pipe ? b->pipe->data : 0;
 
 		b->cons->chk_snd(b->cons);
