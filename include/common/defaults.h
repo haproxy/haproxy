@@ -97,6 +97,12 @@
 #define MIN_RET_FOR_READ_LOOP 1460
 #endif
 
+// The minimum number of bytes to be forwarded that is worth trying to splice.
+// Below 4kB, it's not worth allocating pipes nor pretending to zero-copy.
+#ifndef MIN_SPLICE_FORWARD
+#define MIN_SPLICE_FORWARD 4096
+#endif
+
 // the max number of events returned in one call to poll/epoll. Too small a
 // value will cause lots of calls, and too high a value may cause high latency.
 #ifndef MAX_POLL_EVENTS

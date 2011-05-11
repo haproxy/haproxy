@@ -280,7 +280,7 @@ int stream_sock_read(int fd) {
 		goto out_wakeup;
 
 #if defined(CONFIG_HAP_LINUX_SPLICE)
-	if (b->to_forward && b->flags & BF_KERN_SPLICING) {
+	if (b->to_forward >= MIN_SPLICE_FORWARD && b->flags & BF_KERN_SPLICING) {
 
 		/* Under Linux, if FD_POLL_HUP is set, we have reached the end.
 		 * Since older splice() implementations were buggy and returned
