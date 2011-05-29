@@ -7879,7 +7879,7 @@ The list of currently supported pattern fetch functions is the following :
   dst6         This is the destination IPv6 address of the session on the
                client side, which is the address the client connected to.
                It can be useful when running in transparent mode. It is of
-               typie IPv6 and only works with such tables.
+               type IPv6 and only works with such tables.
 
   dst_port     This is the destination TCP port of the session on the client
                side, which is the port the client connected to. This might be
@@ -7910,7 +7910,7 @@ The list of currently supported pattern fetch functions is the following :
                 
   url_param(name)
 	       This extracts the first occurrence of the parameter <name> in
-	       the query string of the request and uses the correponding value
+	       the query string of the request and uses the corresponding value
                to match. A typical use is to get sticky session through url (e.g.
 	       http://example.com/foo?JESSIONID=some_id with
 	       url_param(JSESSIONID)), for cases where cookies cannot be used.
@@ -7964,22 +7964,22 @@ delay.
 8.1. Log levels
 ---------------
 
-TCP and HTTP connections can be logged with informations such as date, time,
+TCP and HTTP connections can be logged with information such as the date, time,
 source IP address, destination address, connection duration, response times,
-HTTP request, the HTTP return code, number of bytes transmitted, the conditions
-in which the session ended, and even exchanged cookies values, to track a
-particular user's problems for example. All messages are sent to up to two
-syslog servers. Check the "log" keyword in section 4.2 for more info about log
-facilities.
+HTTP request, HTTP return code, number of bytes transmitted, conditions
+in which the session ended, and even exchanged cookies values. For example
+track a particular user's problems. All messages may be sent to up to two
+syslog servers. Check the "log" keyword in section 4.2 for more information
+about log facilities.
 
 
 8.2. Log formats
 ----------------
 
 HAProxy supports 4 log formats. Several fields are common between these formats
-and will be detailed in the next sections. A few of them may slightly vary with
-the configuration, due to indicators specific to certain options. The supported
-formats are the following ones :
+and will be detailed in the following sections. A few of them may vary
+slightly with the configuration, due to indicators specific to certain
+options. The supported formats are as follows :
 
   - the default format, which is very basic and very rarely used. It only
     provides very basic information about the incoming connection at the moment
