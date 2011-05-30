@@ -257,6 +257,11 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->si[0].ob = s->si[1].ib = s->rep;
 	s->rep->analysers = 0;
 
+	if (s->fe->options2 & PR_O2_NODELAY) {
+		s->req->flags |= BF_NEVER_WAIT;
+		s->rep->flags |= BF_NEVER_WAIT;
+	}
+
 	s->rep->rto = TICK_ETERNITY;
 	s->rep->wto = TICK_ETERNITY;
 	s->rep->rex = TICK_ETERNITY;

@@ -114,8 +114,9 @@
 #define BF_DONT_READ     0x1000000  /* disable reading for now */
 #define BF_EXPECT_MORE   0x2000000  /* more data expected to be sent very soon (one-shoot) */
 #define BF_SEND_DONTWAIT 0x4000000  /* don't wait for sending data (one-shoot) */
+#define BF_NEVER_WAIT    0x8000000  /* never wait for sending data (permanent) */
 
-#define BF_WAKE_ONCE     0x8000000  /* pretend there is activity on this buffer (one-shoot) */
+#define BF_WAKE_ONCE    0x10000000  /* pretend there is activity on this buffer (one-shoot) */
 
 /* Use these masks to clear the flags before going back to lower layers */
 #define BF_CLEAR_READ     (~(BF_READ_NULL|BF_READ_PARTIAL|BF_READ_ERROR|BF_READ_ATTACHED))

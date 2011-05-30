@@ -984,6 +984,7 @@ option dontlognull                   (*)  X          X         X         -
 option forceclose                    (*)  X          X         X         X
 -- keyword -------------------------- defaults - frontend - listen -- backend -
 option forwardfor                         X          X         X         X
+option http-no-delay                 (*)  X          X         X         X
 option http-pretend-keepalive        (*)  X          X         X         X
 option http-server-close             (*)  X          X         X         X
 option http-use-proxy-header         (*)  X          X         X         -
@@ -3118,6 +3119,38 @@ option forwardfor [ except <network> ] [ header <name> ]
         option forwardfor header X-Client
 
   See also : "option httpclose"
+
+
+option http-no-delay
+no option http-no-delay
+  Instruct the system to favor low interactive delays over performance in HTTP
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+  Arguments : none
+
+  In HTTP, each payload is unidirectional and has no notion of interactivity.
+  Any agent is expected to queue data somewhat for a reasonably low delay.
+  There are some very rare server-to-server applications that abuse the HTTP
+  protocol and expect the payload phase to be highly interactive, with many
+  interleaved data chunks in both directions within a single request. This is
+  absolutely not supported by the HTTP specification and will not work across
+  most proxies or servers. When such applications attempt to do this through
+  haproxy, it works but they will experience high delays due to the network
+  optimizations which favor performance by instructing the system to wait for
+  enough data to be available in order to only send full packets. Typical
+  delays are around 200 ms per round trip. Note that this only happens with
+  abnormal uses. Normal uses such as CONNECT requests nor WebSockets are not
+  affected.
+
+  When "option http-no-delay" is present in either the frontend or the backend
+  used by a connection, all such optimizations will be disabled in order to
+  make the exchanges as fast as possible. Of course this offers no guarantee on
+  the functionality, as it may break at any other place. But if it works via
+  HAProxy, it will work as fast as possible. This option should never be used
+  by default, and should never be used at all unless such a buggy application
+  is discovered. The impact of using this option is an increase of bandwidth
+  usage and CPU usage, which may significantly lower performance in high
+  latency environments.
 
 
 option http-pretend-keepalive
