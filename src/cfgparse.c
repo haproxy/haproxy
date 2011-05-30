@@ -5584,11 +5584,6 @@ int check_config_validity()
 
 		case PR_MODE_HTTP:
 			curproxy->acl_requires |= ACL_USE_L7_ANY;
-			if ((curproxy->cookie_name != NULL) && (curproxy->srv == NULL)) {
-				Alert("config : HTTP proxy %s has a cookie but no server list !\n",
-				      curproxy->id);
-				cfgerr++;
-			}
 			break;
 		}
 
