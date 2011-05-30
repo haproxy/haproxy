@@ -643,13 +643,10 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 		if (MSG_NOSIGNAL && MSG_MORE) {
 			unsigned int send_flag = MSG_DONTWAIT | MSG_NOSIGNAL;
 
-			if (((b->to_forward && b->to_forward != BUF_INFINITE_FORWARD) ||
-			     ((b->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK)) == BF_SHUTW_NOW && (max == b->send_max)) ||
-			     (max != b->l && max != b->send_max))
-			    && (fdtab[si->fd].flags & FD_FL_TCP)) {
-				send_flag |= MSG_MORE;
-			}
-			else if (b->flags & BF_EXPECT_MORE) {
+			if ((b->to_forward && b->to_forward != BUF_INFINITE_FORWARD) ||
+			    (b->flags & BF_EXPECT_MORE) ||
+			    ((b->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK)) == BF_SHUTW_NOW && (max == b->send_max)) ||
+			    (max != b->l && max != b->send_max)) {
 				send_flag |= MSG_MORE;
 			}
 
