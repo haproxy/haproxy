@@ -2932,6 +2932,9 @@ int http_process_req_stat_post(struct stream_interface *si, struct http_txn *txn
 				*value++ = '\0';
 			}
 
+			if (!url_decode(key) || !url_decode(value))
+				break;
+
 			/* Now we can check the key to see what to do */
 			if (!backend && strcmp(key, "b") == 0) {
 				backend = value;

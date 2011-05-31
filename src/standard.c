@@ -601,6 +601,40 @@ char *encode_string(char *start, char *stop,
 	return start;
 }
 
+/* Decode an URL-encoded string in-place. The resulting string might
+ * be shorter. If some forbidden characters are found, the conversion is
+ * aborted, the string is truncated before the issue and non-zero is returned,
+ * otherwise the operation returns non-zero indicating success.
+ */
+int url_decode(char *string)
+{
+	char *in, *out;
+	int ret = 0;
+
+	in = string;
+	out = string;
+	while (*in) {
+		switch (*in) {
+		case '+' :
+			*out++ = ' ';
+			break;
+		case '%' :
+			if (!ishex(in[1]) || !ishex(in[2]))
+				goto end;
+			*out++ = (hex2i(in[1]) << 4) + hex2i(in[2]);
+			in += 2;
+			break;
+		default:
+			*out++ = *in;
+			break;
+		}
+		in++;
+	}
+	ret = 1; /* success */
+ end:
+	*out = 0;
+	return ret;
+}
 
 unsigned int str2ui(const char *s)
 {

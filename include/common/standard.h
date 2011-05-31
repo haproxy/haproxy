@@ -227,6 +227,13 @@ char *encode_string(char *start, char *stop,
 		    const char escape, const fd_set *map,
 		    const char *string);
 
+/* Decode an URL-encoded string in-place. The resulting string might
+ * be shorter. If some forbidden characters are found, the conversion is
+ * aborted, the string is truncated before the issue and non-zero is returned,
+ * otherwise the operation returns non-zero indicating success.
+ */
+int url_decode(char *string);
+
 /* This one is 6 times faster than strtoul() on athlon, but does
  * no check at all.
  */
