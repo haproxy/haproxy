@@ -6009,13 +6009,6 @@ out_uri_auth_compat:
 						     MAX_HTTP_HDR * sizeof(struct hdr_idx_elem),
 						     MEM_F_SHARED);
 
-		/* for backwards compatibility with "listen" instances, if
-		 * fullconn is not set but maxconn is set, then maxconn
-		 * is used.
-		 */
-		if (!curproxy->fullconn)
-			curproxy->fullconn = curproxy->maxconn;
-
 		/* first, we will invert the servers list order */
 		newsrv = NULL;
 		while (curproxy->srv) {
@@ -6190,10 +6183,6 @@ out_uri_auth_compat:
 			} else if (newsrv->maxconn && !newsrv->minconn) {
 				/* minconn was not specified, so we set it to maxconn */
 				newsrv->minconn = newsrv->maxconn;
-			} else if (newsrv->minconn != newsrv->maxconn && !curproxy->fullconn) {
-				Alert("config : %s '%s' : fullconn is mandatory when minconn is set on a server.\n",
-				      proxy_type_str(curproxy), curproxy->id);
-				cfgerr++;
 			}
 
 			if (newsrv->trackit) {
@@ -6481,6 +6470,74 @@ out_uri_auth_compat:
 		}
 #endif
 
+	}
+
+	/* automatically compute fullconn if not set. We must not do it in the
+	 * loop above because cross-references are not yet fully resolved.
+	 */
+	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
+		/* If <fullconn> is not set, let's set it to 10% of the sum of
+		 * the possible incoming frontend's maxconns.
+		 */
+		if (!curproxy->fullconn && (curproxy->cap & PR_CAP_BE)) {
+			struct proxy *fe;
+			int total = 0;
+
+			/* sum up the number of maxconns of frontends which
+			 * reference this backend at least once or which are
+			 * the same one ('listen').
+			 */
+			for (fe = proxy; fe; fe = fe->next) {
+				struct switching_rule *rule;
+				struct hdr_exp *exp;
+				int found = 0;
+
+				if (!(fe->cap & PR_CAP_FE))
+					continue;
+
+				if (fe == curproxy)  /* we're on a "listen" instance */
+					found = 1;
+
+				if (fe->defbe.be == curproxy) /* "default_backend" */
+					found = 1;
+
+				/* check if a "use_backend" rule matches */
+				if (!found) {
+					list_for_each_entry(rule, &fe->switching_rules, list) {
+						if (rule->be.backend == curproxy) {
+							found = 1;
+							break;
+						}
+					}
+				}
+
+				/* check if a "reqsetbe" rule matches */
+				for (exp = fe->req_exp; !found && exp; exp = exp->next) {
+					if (exp->action == ACT_SETBE &&
+					    (struct proxy *)exp->replace == curproxy) {
+						found = 1;
+						break;
+					}
+				}
+
+				/* now we've checked all possible ways to reference a backend
+				 * from a frontend.
+				 */
+				printf("%s checking %s : found=%d\n", curproxy->id, fe->id, found);
+				if (!found)
+					continue;
+				total += fe->maxconn;
+				printf("px %s adds %d to %s\n", fe->id, fe->maxconn, curproxy->id);
+			}
+			printf("%s: total=%d\n", curproxy->id, total);
+			/* we have the sum of the maxconns in <total>. We only
+			 * keep 10% of that sum to set the default fullconn, with
+			 * a hard minimum of 1 (to avoid a divide by zero).
+			 */
+			curproxy->fullconn = (total + 9) / 10;
+			if (!curproxy->fullconn)
+				curproxy->fullconn = 1;
+		}
 	}
 
 	/* initialize stick-tables on backend capable proxies. This must not

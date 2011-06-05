@@ -2224,6 +2224,10 @@ fullconn <conns>
   push it further for important loads without overloading the servers during
   exceptional loads.
 
+  Since it's hard to get this value right, haproxy automatically sets it to
+  10% of the sum of the maxconns of all frontends that may branch to this
+  backend. That way it's safe to leave it unset.
+
   Example :
      # The servers will accept between 100 and 1000 concurrent connections each
      # and the maximum of 1000 will be reached when the backend reaches 10000
