@@ -3026,7 +3026,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 	struct http_req_rule *http_req_last_rule = NULL;
 	struct redirect_rule *rule;
 	struct cond_wordlist *wl;
-	int del_ka, del_cl, do_stats;
+	int do_stats;
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
 		/* we need more data */
@@ -3137,8 +3137,6 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 	 * (implying that either one is non-null, or one of them is non-null and we
 	 * are there for the first time.
 	 */
-
-	del_cl = del_ka = 0;
 
 	if ((!(txn->flags & TX_HDR_CONN_PRS) &&
 	     (s->fe->options & (PR_O_KEEPALIVE|PR_O_SERVER_CLO|PR_O_HTTP_CLOSE|PR_O_FORCE_CLO))) ||
