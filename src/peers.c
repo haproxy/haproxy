@@ -125,14 +125,14 @@
 #define PEER_SESSION_PROTO_NAME         "HAProxyS"
 
 struct peers *peers = NULL;
-void peer_session_forceshutdown(struct session * session);
+static void peer_session_forceshutdown(struct session * session);
 
 
 /*
  * This prepare the data update message of the stick session <ts>, <ps> is the the peer session
  * where the data going to be pushed, <msg> is a buffer of <size> to recieve data message content
  */
-int peer_prepare_datamsg(struct stksess *ts, struct peer_session *ps, char *msg, size_t size)
+static int peer_prepare_datamsg(struct stksess *ts, struct peer_session *ps, char *msg, size_t size)
 {
 	uint32_t netinteger;
 	int len;
@@ -182,7 +182,7 @@ int peer_prepare_datamsg(struct stksess *ts, struct peer_session *ps, char *msg,
 /*
  * Callback to release a session with a peer
  */
-void peer_session_release(struct stream_interface *si)
+static void peer_session_release(struct stream_interface *si)
 {
 	struct task *t= (struct task *)si->owner;
 	struct session *s = (struct session *)t->context;
@@ -1049,7 +1049,7 @@ static struct si_applet peer_applet = {
 /*
  * Use this function to force a close of a peer session
  */
-void peer_session_forceshutdown(struct session * session)
+static void peer_session_forceshutdown(struct session * session)
 {
 	struct stream_interface *oldsi;
 
@@ -1104,7 +1104,7 @@ int peer_accept(struct session *s)
 /*
  * Create a new peer session in assigned state (connect will start automatically)
  */
-struct session *peer_session_create(struct peer *peer, struct peer_session *ps)
+static struct session *peer_session_create(struct peer *peer, struct peer_session *ps)
 {
 	struct listener *l = ((struct proxy *)peer->peers->peers_fe)->listen;
 	struct proxy *p = (struct proxy *)l->frontend; /* attached frontend */
@@ -1294,7 +1294,7 @@ struct session *peer_session_create(struct peer *peer, struct peer_session *ps)
  * Task processing function to manage re-connect and peer session
  * tasks wakeup on local update.
  */
-struct task *process_peer_sync(struct task * task)
+static struct task *process_peer_sync(struct task * task)
 {
 	struct shared_table *st = (struct shared_table *)task->context;
 	struct peer_session *ps;

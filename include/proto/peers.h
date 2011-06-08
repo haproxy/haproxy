@@ -28,8 +28,7 @@
 #include <types/session.h>
 #include <types/peers.h>
 
-struct session * peer_session_create(struct peer *);
-struct session * peers_register_table(struct peers *, struct stktable *table);
+void peers_register_table(struct peers *, struct stktable *table);
 
 int peer_accept(struct session *);
 
