@@ -320,7 +320,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 /*
  * frees  the context associated to a session. It must have been removed first.
  */
-void session_free(struct session *s)
+static void session_free(struct session *s)
 {
 	struct http_txn *txn = &s->txn;
 	struct proxy *fe = s->fe;
@@ -520,7 +520,7 @@ void session_process_counters(struct session *s)
  * SI_ST_CON (no change). The function returns 0 if it switches to SI_ST_CER,
  * otherwise 1.
  */
-int sess_update_st_con_tcp(struct session *s, struct stream_interface *si)
+static int sess_update_st_con_tcp(struct session *s, struct stream_interface *si)
 {
 	struct buffer *req = si->ob;
 	struct buffer *rep = si->ib;
@@ -588,7 +588,7 @@ int sess_update_st_con_tcp(struct session *s, struct stream_interface *si)
  * and SI_ST_REQ when an immediate redispatch is wanted. The buffers are
  * marked as in error state. It returns 0.
  */
-int sess_update_st_cer(struct session *s, struct stream_interface *si)
+static int sess_update_st_cer(struct session *s, struct stream_interface *si)
 {
 	/* we probably have to release last session from the server */
 	if (target_srv(&s->target)) {
@@ -669,7 +669,7 @@ int sess_update_st_cer(struct session *s, struct stream_interface *si)
  * SI_ST_EST state. It must only be called after switching from SI_ST_CON (or
  * SI_ST_INI) to SI_ST_EST, but only when a ->connect function is defined.
  */
-void sess_establish(struct session *s, struct stream_interface *si)
+static void sess_establish(struct session *s, struct stream_interface *si)
 {
 	struct buffer *req = si->ob;
 	struct buffer *rep = si->ib;
@@ -708,7 +708,7 @@ void sess_establish(struct session *s, struct stream_interface *si)
  * Possible output states are SI_ST_CLO, SI_ST_TAR, SI_ST_ASS, SI_ST_REQ, SI_ST_CON.
  * Flags must have previously been updated for timeouts and other conditions.
  */
-void sess_update_stream_int(struct session *s, struct stream_interface *si)
+static void sess_update_stream_int(struct session *s, struct stream_interface *si)
 {
 	struct server *srv = target_srv(&s->target);
 
@@ -867,6 +867,32 @@ void sess_update_stream_int(struct session *s, struct stream_interface *si)
 	}
 }
 
+/* Set correct session termination flags in case no analyser has done it. It
+ * also counts a failed request if the server state has not reached the request
+ * stage.
+ */
+static void sess_set_term_flags(struct session *s)
+{
+	if (!(s->flags & SN_FINST_MASK)) {
+		if (s->si[1].state < SI_ST_REQ) {
+
+			s->fe->fe_counters.failed_req++;
+			if (s->listener->counters)
+				s->listener->counters->failed_req++;
+
+			s->flags |= SN_FINST_R;
+		}
+		else if (s->si[1].state == SI_ST_QUE)
+			s->flags |= SN_FINST_Q;
+		else if (s->si[1].state < SI_ST_EST)
+			s->flags |= SN_FINST_C;
+		else if (s->si[1].state == SI_ST_EST || s->si[1].prev_state == SI_ST_EST)
+			s->flags |= SN_FINST_D;
+		else
+			s->flags |= SN_FINST_L;
+	}
+}
+
 /* This function initiates a server connection request on a stream interface
  * already in SI_ST_REQ state. Upon success, the state goes to SI_ST_ASS,
  * indicating that a server has been assigned. It may also return SI_ST_QUE,
@@ -915,7 +941,7 @@ static void sess_prepare_conn_req(struct session *s, struct stream_interface *si
  * It returns 1 if the processing can continue on next analysers, or zero if it
  * either needs more data or wants to immediately abort the request.
  */
-int process_switching_rules(struct session *s, struct buffer *req, int an_bit)
+static int process_switching_rules(struct session *s, struct buffer *req, int an_bit)
 {
 	struct persist_rule *prst_rule;
 
@@ -1012,7 +1038,7 @@ int process_switching_rules(struct session *s, struct buffer *req, int an_bit)
  * it then returns 1. The data must already be present in the buffer otherwise
  * they won't match. It always returns 1.
  */
-int process_sticking_rules(struct session *s, struct buffer *req, int an_bit)
+static int process_sticking_rules(struct session *s, struct buffer *req, int an_bit)
 {
 	struct proxy    *px   = s->be;
 	struct sticking_rule  *rule;
@@ -1101,7 +1127,7 @@ int process_sticking_rules(struct session *s, struct buffer *req, int an_bit)
  * then returns 1. The data must already be present in the buffer otherwise
  * they won't match. It always returns 1.
  */
-int process_store_rules(struct session *s, struct buffer *rep, int an_bit)
+static int process_store_rules(struct session *s, struct buffer *rep, int an_bit)
 {
 	struct proxy    *px   = s->be;
 	struct sticking_rule  *rule;
@@ -2122,32 +2148,6 @@ void sess_change_server(struct session *sess, struct server *newsrv)
 		if (newsrv->proxy->lbprm.server_take_conn)
 			newsrv->proxy->lbprm.server_take_conn(newsrv);
 		sess->srv_conn = newsrv;
-	}
-}
-
-/* Set correct session termination flags in case no analyser has done it. It
- * also counts a failed request if the server state has not reached the request
- * stage.
- */
-void sess_set_term_flags(struct session *s)
-{
-	if (!(s->flags & SN_FINST_MASK)) {
-		if (s->si[1].state < SI_ST_REQ) {
-
-			s->fe->fe_counters.failed_req++;
-			if (s->listener->counters)
-				s->listener->counters->failed_req++;
-
-			s->flags |= SN_FINST_R;
-		}
-		else if (s->si[1].state == SI_ST_QUE)
-			s->flags |= SN_FINST_Q;
-		else if (s->si[1].state < SI_ST_EST)
-			s->flags |= SN_FINST_C;
-		else if (s->si[1].state == SI_ST_EST || s->si[1].prev_state == SI_ST_EST)
-			s->flags |= SN_FINST_D;
-		else
-			s->flags |= SN_FINST_L;
 	}
 }
 
