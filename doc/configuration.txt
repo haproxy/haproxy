@@ -3583,7 +3583,7 @@ option mysql-check [ user <username> ]
   Remember that this does not check database presence nor database consistency.
   To do this, you can use an external check with xinetd for example.
 
-  The check requires MySQL >=4.0, for older version, please use TCP check.
+  The check requires MySQL >=3.22, for older version, please use TCP check.
 
   Most often, an incoming MySQL server needs to see the client's IP address for
   various purposes, including IP privilege matching and connection logging.

@@ -3476,6 +3476,7 @@ stats_error_parsing:
 							((unsigned char) (packetlen >> 16) & 0xff));
 
 						curproxy->check_req[3] = 1;
+						curproxy->check_req[5] = 128;
 						curproxy->check_req[8] = 1;
 						memcpy(&curproxy->check_req[9], mysqluser, userlen);
 						curproxy->check_req[9 + userlen + 1 + 1]     = 1;
