@@ -6523,13 +6523,10 @@ out_uri_auth_compat:
 				/* now we've checked all possible ways to reference a backend
 				 * from a frontend.
 				 */
-				printf("%s checking %s : found=%d\n", curproxy->id, fe->id, found);
 				if (!found)
 					continue;
 				total += fe->maxconn;
-				printf("px %s adds %d to %s\n", fe->id, fe->maxconn, curproxy->id);
 			}
-			printf("%s: total=%d\n", curproxy->id, total);
 			/* we have the sum of the maxconns in <total>. We only
 			 * keep 10% of that sum to set the default fullconn, with
 			 * a hard minimum of 1 (to avoid a divide by zero).
