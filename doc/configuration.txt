@@ -9519,21 +9519,29 @@ show table
     >>> # table: front_pub, type: 0, size:204800, used:171454
     >>> # table: back_rdp, type: 0, size:204800, used:0
 
-show table <name> [ data.<type> <operator> <value> ]
+show table <name> [ data.<type> <operator> <value> ] | [ key <key> ]
   Dump contents of stick-table <name>. In this mode, a first line of generic
   information about the table is reported as with "show table", then all
   entries are dumped. Since this can be quite heavy, it is possible to specify
-  a filter in order to specify what entries to display. The filter then applies
-  to the stored data (see "stick-table" in section 4.2). One stored data type
-  has to be specified in <type>, and this data type must be stored in the table
-  otherwise an error is reported. The data is compared according to <operator>
-  with the 64-bit integer <value>. Operators are the same as with the ACLs :
+  a filter in order to specify what entries to display.
+
+  When the "data." form is used the filter applies to the stored data (see
+  "stick-table" in section 4.2).  A stored data type must be specified
+  in <type>, and this data type must be stored in the table otherwise an
+  error is reported. The data is compared according to <operator> with the
+  64-bit integer <value>.  Operators are the same as with the ACLs :
+
     - eq : match entries whose data is equal to this value
     - ne : match entries whose data is not equal to this value
     - le : match entries whose data is less than or equal to this value
     - ge : match entries whose data is greater than or equal to this value
     - lt : match entries whose data is less than this value
     - gt : match entries whose data is greater than this value
+
+  When the key form is used the filter applies to the key of
+  the stick table entry (see "stick-table" in section 4.2).
+  The stick table must be of type ip otherwise an error will
+  be reported.
 
   Example :
         $ echo "show table http_proxy" | socat stdio /tmp/sock1
@@ -9549,6 +9557,12 @@ show table <name> [ data.<type> <operator> <value> ]
           bytes_out_rate(60000)=191
 
         $ echo "show table http_proxy data.conn_rate gt 5" | \
+            socat stdio /tmp/sock1
+    >>> # table: http_proxy, type: 0, size:204800, used:2
+    >>> 0x80e6a80: key=127.0.0.2 use=0 exp=3594740 gpc0=1 conn_rate(30000)=10 \
+          bytes_out_rate(60000)=191
+
+        $ echo "show table http_proxy key 127.0.0.2" | \
             socat stdio /tmp/sock1
     >>> # table: http_proxy, type: 0, size:204800, used:2
     >>> 0x80e6a80: key=127.0.0.2 use=0 exp=3594740 gpc0=1 conn_rate(30000)=10 \

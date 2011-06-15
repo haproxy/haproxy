@@ -14,6 +14,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -504,7 +505,7 @@ static int stats_dump_table_entry_to_buffer(struct chunk *msg, struct stream_int
 	return 1;
 }
 
-static void stats_sock_table_key_request(struct stream_interface *si, char **args)
+static void stats_sock_table_key_request(struct stream_interface *si, char **args, bool show)
 {
 	struct session *s = si->applet.private;
 	struct proxy *px;
@@ -542,7 +543,10 @@ static void stats_sock_table_key_request(struct stream_interface *si, char **arg
 		static_table_key.key = (void *)&ip_key;
 	}
 	else {
-		si->applet.ctx.cli.msg = "Removing keys from non-ip tables is not supported\n";
+		if (show)
+			si->applet.ctx.cli.msg = "Showing keys from non-ip tables is not supported\n";
+		else
+			si->applet.ctx.cli.msg = "Removing keys from non-ip tables is not supported\n";
 		si->applet.st0 = STAT_CLI_PRINT;
 		return;
 	}
@@ -555,11 +559,19 @@ static void stats_sock_table_key_request(struct stream_interface *si, char **arg
 	}
 
 	ts = stktable_lookup_key(&px->table, &static_table_key);
-	if (!ts) {
-		/* silent return, entry was already removed */
+	if (!ts)
+		return;
+
+	if (show) {
+		struct chunk msg;
+		chunk_init(&msg, trash, sizeof(trash));
+		if (!stats_dump_table_head_to_buffer(&msg, si, px, px))
+			return;
+		stats_dump_table_entry_to_buffer(&msg, si, px, ts);
 		return;
 	}
-	else if (ts->ref_cnt) {
+
+	if (ts->ref_cnt) {
 		/* don't delete an entry which is currently referenced */
 		si->applet.ctx.cli.msg = "Entry currently in use, cannot remove\n";
 		si->applet.st0 = STAT_CLI_PRINT;
@@ -655,6 +667,12 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			si->applet.st0 = STAT_CLI_O_ERR; // stats_dump_errors_to_buffer
 		}
 		else if (strcmp(args[1], "table") == 0) {
+			if (*args[2] && *args[3] && strcmp(args[3], "key") == 0) {
+				stats_sock_table_key_request(si, args, true);
+				/* end of processing */
+				return 1;
+			}
+
 			si->applet.state = STAT_ST_INIT;
 			if (*args[2]) {
 				si->applet.ctx.table.target = find_stktable(args[2]);
@@ -697,7 +715,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				}
 			}
 			else if (*args[3]) {
-				si->applet.ctx.cli.msg = "Optional argument only supports \"data.<store_data_type>\" <operator> <value>\n";
+				si->applet.ctx.cli.msg = "Optional argument only supports \"data.<store_data_type>\" <operator> <value> and key <key>\n";
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -768,7 +786,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			return 1;
 		}
 		else if (strcmp(args[1], "table") == 0) {
-			stats_sock_table_key_request(si, args);
+			stats_sock_table_key_request(si, args, false);
 			/* end of processing */
 			return 1;
 		}
