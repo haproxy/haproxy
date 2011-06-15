@@ -549,6 +549,10 @@ static void stats_sock_table_key_request(struct stream_interface *si, char **arg
 			break;
 		}
 		break;
+	case STKTABLE_TYPE_STRING:
+		static_table_key.key = args[4];
+		static_table_key.key_len = strlen(args[4]);
+		break;
 	default:
 		if (show)
 			si->applet.ctx.cli.msg = "Showing keys from tables of type other than ip, ipv6 and integer is not supported\n";
