@@ -508,29 +508,11 @@ static int stats_dump_table_entry_to_buffer(struct chunk *msg, struct stream_int
 static void stats_sock_table_key_request(struct stream_interface *si, char **args, bool show)
 {
 	struct session *s = si->applet.private;
-	struct proxy *px;
+	struct proxy *px = si->applet.ctx.table.target;
 	struct stksess *ts;
 	unsigned int ip_key;
 
-	if (!*args[2]) {
-		si->applet.ctx.cli.msg = "\"table\" argument expected\n";
-		si->applet.st0 = STAT_CLI_PRINT;
-		return;
-	}
-
-	px = find_stktable(args[2]);
-
-	if (!px) {
-		si->applet.ctx.cli.msg = "No such table\n";
-		si->applet.st0 = STAT_CLI_PRINT;
-		return;
-	}
-
-	if (strcmp(args[3], "key") != 0) {
-		si->applet.ctx.cli.msg = "\"key\" argument expected\n";
-		si->applet.st0 = STAT_CLI_PRINT;
-		return;
-	}
+	si->applet.st0 = STAT_CLI_OUTPUT;
 
 	if (!*args[4]) {
 		si->applet.ctx.cli.msg = "Key value expected\n";
@@ -579,6 +561,75 @@ static void stats_sock_table_key_request(struct stream_interface *si, char **arg
 	}
 
 	stksess_kill(&px->table, ts);
+}
+
+static void stats_sock_table_data_request(struct stream_interface *si, char **args)
+{
+	/* condition on stored data value */
+	si->applet.ctx.table.data_type = stktable_get_data_type(args[3] + 5);
+	if (si->applet.ctx.table.data_type < 0) {
+		si->applet.ctx.cli.msg = "Unknown data type\n";
+		si->applet.st0 = STAT_CLI_PRINT;
+		return;
+	}
+
+	if (!((struct proxy *)si->applet.ctx.table.target)->table.data_ofs[si->applet.ctx.table.data_type]) {
+		si->applet.ctx.cli.msg = "Data type not stored in this table\n";
+		si->applet.st0 = STAT_CLI_PRINT;
+		return;
+	}
+
+	si->applet.ctx.table.data_op = get_std_op(args[4]);
+	if (si->applet.ctx.table.data_op < 0) {
+		si->applet.ctx.cli.msg = "Require and operator among \"eq\", \"ne\", \"le\", \"ge\", \"lt\", \"gt\"\n";
+		si->applet.st0 = STAT_CLI_PRINT;
+		return;
+	}
+
+	if (!*args[5] || strl2llrc(args[5], strlen(args[5]), &si->applet.ctx.table.value) != 0) {
+		si->applet.ctx.cli.msg = "Require a valid integer value to compare against\n";
+		si->applet.st0 = STAT_CLI_PRINT;
+		return;
+	}
+}
+
+static void stats_sock_table_request(struct stream_interface *si, char **args, bool show)
+{
+	si->applet.ctx.table.data_type = -1;
+	si->applet.state = STAT_ST_INIT;
+	si->applet.ctx.table.proxy = NULL;
+	si->applet.ctx.table.entry = NULL;
+	si->applet.st0 = STAT_CLI_O_TAB; // stats_dump_table_to_buffer
+
+	if (*args[2]) {
+		si->applet.ctx.table.target = find_stktable(args[2]);
+		if (!si->applet.ctx.table.target) {
+			si->applet.ctx.cli.msg = "No such table\n";
+			si->applet.st0 = STAT_CLI_PRINT;
+			return;
+		}
+	}
+	else {
+		if (!show)
+			goto err_args;
+		return;
+	}
+
+	if (strcmp(args[3], "key") == 0)
+		stats_sock_table_key_request(si, args, show);
+	else if (show && strncmp(args[3], "data.", 5) == 0)
+		stats_sock_table_data_request(si, args);
+	else if (!show || *args[3])
+		goto err_args;
+
+	return;
+
+err_args:
+	if (show)
+		si->applet.ctx.cli.msg = "Optional argument only supports \"data.<store_data_type>\" <operator> <value> and key <key>\n";
+	else
+		si->applet.ctx.cli.msg = "Required arguments: <table> key <key>\n";
+	si->applet.st0 = STAT_CLI_PRINT;
 }
 
 /* Processes the stats interpreter on the statistics socket. This function is
@@ -667,62 +718,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			si->applet.st0 = STAT_CLI_O_ERR; // stats_dump_errors_to_buffer
 		}
 		else if (strcmp(args[1], "table") == 0) {
-			if (*args[2] && *args[3] && strcmp(args[3], "key") == 0) {
-				stats_sock_table_key_request(si, args, true);
-				/* end of processing */
-				return 1;
-			}
-
-			si->applet.state = STAT_ST_INIT;
-			if (*args[2]) {
-				si->applet.ctx.table.target = find_stktable(args[2]);
-				if (!si->applet.ctx.table.target) {
-					si->applet.ctx.cli.msg = "No such table\n";
-					si->applet.st0 = STAT_CLI_PRINT;
-					return 1;
-				}
-			}
-			else
-				si->applet.ctx.table.target = NULL;
-
-			si->applet.ctx.table.data_type = -1;
-			if (si->applet.ctx.table.target && strncmp(args[3], "data.", 5) == 0) {
-				/* condition on stored data value */
-				si->applet.ctx.table.data_type = stktable_get_data_type(args[3] + 5);
-				if (si->applet.ctx.table.data_type < 0) {
-					si->applet.ctx.cli.msg = "Unknown data type\n";
-					si->applet.st0 = STAT_CLI_PRINT;
-					return 1;
-				}
-
-				if (!((struct proxy *)si->applet.ctx.table.target)->table.data_ofs[si->applet.ctx.table.data_type]) {
-					si->applet.ctx.cli.msg = "Data type not stored in this table\n";
-					si->applet.st0 = STAT_CLI_PRINT;
-					return 1;
-				}
-
-				si->applet.ctx.table.data_op = get_std_op(args[4]);
-				if (si->applet.ctx.table.data_op < 0) {
-					si->applet.ctx.cli.msg = "Require and operator among \"eq\", \"ne\", \"le\", \"ge\", \"lt\", \"gt\"\n";
-					si->applet.st0 = STAT_CLI_PRINT;
-					return 1;
-				}
-
-				if (!*args[5] || strl2llrc(args[5], strlen(args[5]), &si->applet.ctx.table.value) != 0) {
-					si->applet.ctx.cli.msg = "Require a valid integer value to compare against\n";
-					si->applet.st0 = STAT_CLI_PRINT;
-					return 1;
-				}
-			}
-			else if (*args[3]) {
-				si->applet.ctx.cli.msg = "Optional argument only supports \"data.<store_data_type>\" <operator> <value> and key <key>\n";
-				si->applet.st0 = STAT_CLI_PRINT;
-				return 1;
-			}
-
-			si->applet.ctx.table.proxy = NULL;
-			si->applet.ctx.table.entry = NULL;
-			si->applet.st0 = STAT_CLI_O_TAB; // stats_dump_table_to_buffer
+			stats_sock_table_request(si, args, true);
 		}
 		else { /* neither "stat" nor "info" nor "sess" nor "errors" no "table" */
 			return 0;
@@ -786,7 +782,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			return 1;
 		}
 		else if (strcmp(args[1], "table") == 0) {
-			stats_sock_table_key_request(si, args, false);
+			stats_sock_table_request(si, args, false);
 			/* end of processing */
 			return 1;
 		}
