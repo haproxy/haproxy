@@ -9336,7 +9336,7 @@ clear table <table> [ data.<type> <operator> <value> ] | [ key <key> ]
     - gt : match entries whose data is greater than this value
 
   When the key form is used the entry <key> is removed.  The key must be of the
-  same type as the table, which currently is limited to IPv4 and IPv6.
+  same type as the table, which currently is limited to IPv4, IPv6 and integer.
 
   Example :
         $ echo "show table http_proxy" | socat stdio /tmp/sock1
@@ -9562,7 +9562,7 @@ show table <name> [ data.<type> <operator> <value> ] | [ key <key> ]
 
 
   When the key form is used the entry <key> is shown.  The key must be of the
-  same type as the table, which currently is limited to IPv4 and IPv6.
+  same type as the table, which currently is limited to IPv4, IPv6 and integer.
 
   Example :
         $ echo "show table http_proxy" | socat stdio /tmp/sock1
