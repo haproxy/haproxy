@@ -59,7 +59,7 @@ static int stats_dump_raw_to_buffer(struct stream_interface *si);
 static int stats_dump_full_sess_to_buffer(struct stream_interface *si);
 static int stats_dump_sess_to_buffer(struct stream_interface *si);
 static int stats_dump_errors_to_buffer(struct stream_interface *si);
-static int stats_dump_table_to_buffer(struct stream_interface *si);
+static int stats_table_request(struct stream_interface *si, bool show);
 static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_auth *uri);
 static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri);
 
@@ -599,7 +599,10 @@ static void stats_sock_table_request(struct stream_interface *si, char **args, b
 	si->applet.state = STAT_ST_INIT;
 	si->applet.ctx.table.proxy = NULL;
 	si->applet.ctx.table.entry = NULL;
-	si->applet.st0 = STAT_CLI_O_TAB; // stats_dump_table_to_buffer
+	if (show)
+		si->applet.st0 = STAT_CLI_O_TAB;
+	else
+		si->applet.st0 = STAT_CLI_O_CLR;
 
 	if (*args[2]) {
 		si->applet.ctx.table.target = find_stktable(args[2]);
@@ -617,9 +620,9 @@ static void stats_sock_table_request(struct stream_interface *si, char **args, b
 
 	if (strcmp(args[3], "key") == 0)
 		stats_sock_table_key_request(si, args, show);
-	else if (show && strncmp(args[3], "data.", 5) == 0)
+	else if (strncmp(args[3], "data.", 5) == 0)
 		stats_sock_table_data_request(si, args);
-	else if (!show || *args[3])
+	else if (*args[3])
 		goto err_args;
 
 	return;
@@ -628,7 +631,7 @@ err_args:
 	if (show)
 		si->applet.ctx.cli.msg = "Optional argument only supports \"data.<store_data_type>\" <operator> <value> and key <key>\n";
 	else
-		si->applet.ctx.cli.msg = "Required arguments: <table> key <key>\n";
+		si->applet.ctx.cli.msg = "Required arguments: <table> \"data.<store_data_type>\" <operator> <value> or <table> key <key>\n";
 	si->applet.st0 = STAT_CLI_PRINT;
 }
 
@@ -1181,7 +1184,11 @@ static void cli_io_handler(struct stream_interface *si)
 					si->applet.st0 = STAT_CLI_PROMPT;
 				break;
 			case STAT_CLI_O_TAB:
-				if (stats_dump_table_to_buffer(si))
+				if (stats_table_request(si, true))
+					si->applet.st0 = STAT_CLI_PROMPT;
+				break;
+			case STAT_CLI_O_CLR:
+				if (stats_table_request(si, false))
 					si->applet.st0 = STAT_CLI_PROMPT;
 				break;
 			default: /* abnormal state */
@@ -3306,12 +3313,13 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
  * properly set. It returns 0 if the output buffer is full and it needs
  * to be called again, otherwise non-zero.
  */
-static int stats_dump_table_to_buffer(struct stream_interface *si)
+static int stats_table_request(struct stream_interface *si, bool show)
 {
 	struct session *s = si->applet.private;
 	struct chunk msg;
 	struct ebmb_node *eb;
 	int dt;
+	bool skip_entry;
 
 	/*
 	 * We have 3 possible states in si->applet.state :
@@ -3356,8 +3364,8 @@ static int stats_dump_table_to_buffer(struct stream_interface *si)
 			}
 
 			if (si->applet.ctx.table.proxy->table.size) {
-				if (!stats_dump_table_head_to_buffer(&msg, si, si->applet.ctx.table.proxy,
-								     si->applet.ctx.table.target))
+				if (show && !stats_dump_table_head_to_buffer(&msg, si, si->applet.ctx.table.proxy,
+									     si->applet.ctx.table.target))
 					return 0;
 
 				if (si->applet.ctx.table.target &&
@@ -3376,6 +3384,8 @@ static int stats_dump_table_to_buffer(struct stream_interface *si)
 			break;
 
 		case STAT_ST_LIST:
+			skip_entry = false;
+
 			if (si->applet.ctx.table.data_type >= 0) {
 				/* we're filtering on some data contents */
 				void *ptr;
@@ -3416,14 +3426,14 @@ static int stats_dump_table_to_buffer(struct stream_interface *si)
 				     (si->applet.ctx.table.data_op == STD_OP_EQ ||
 				      si->applet.ctx.table.data_op == STD_OP_LT ||
 				      si->applet.ctx.table.data_op == STD_OP_LE)))
-					goto skip_entry;
+					skip_entry = true;
 			}
 
-			if (!stats_dump_table_entry_to_buffer(&msg, si, si->applet.ctx.table.proxy,
+			if (show && !skip_entry &&
+			    !stats_dump_table_entry_to_buffer(&msg, si, si->applet.ctx.table.proxy,
 							      si->applet.ctx.table.entry))
 			    return 0;
 
-		skip_entry:
 			si->applet.ctx.table.entry->ref_cnt--;
 
 			eb = ebmb_next(&si->applet.ctx.table.entry->key);
@@ -3435,7 +3445,12 @@ static int stats_dump_table_to_buffer(struct stream_interface *si)
 				break;
 			}
 
-			stksess_kill_if_expired(&si->applet.ctx.table.proxy->table, si->applet.ctx.table.entry);
+
+			if (show)
+				stksess_kill_if_expired(&si->applet.ctx.table.proxy->table, si->applet.ctx.table.entry);
+			else if (!skip_entry && !si->applet.ctx.table.entry->ref_cnt)
+				stksess_kill(&si->applet.ctx.table.proxy->table, si->applet.ctx.table.entry);
+
 			si->applet.ctx.table.proxy = si->applet.ctx.table.proxy->next;
 			si->applet.state = STAT_ST_INFO;
 			break;

@@ -53,6 +53,7 @@
 #define STAT_CLI_O_SESS 6   /* dump sessions */
 #define STAT_CLI_O_ERR  7   /* dump errors */
 #define STAT_CLI_O_TAB  8   /* dump tables */
+#define STAT_CLI_O_CLR  9   /* clear tables */
 
 /* status codes (strictly 4 chars) used in the URL to display a message */
 #define STAT_STATUS_UNKN "UNKN"	/* an unknown error occured, shouldn't happen */

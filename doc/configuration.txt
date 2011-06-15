@@ -9309,15 +9309,34 @@ clear counters all
   server. This has the same effect as restarting. This command is restricted
   and can only be issued on sockets configured for level "admin".
 
-clear table <table> key <key>
-  Remove entry <key> from the stick-table <table>. The key must be of the same
-  type as the table, which currently is limited to IPv4. This is typically used
-  un unblock some users complaining they have been abusively denied access to a
-  service, but this can also be used to clear some stickiness entries matching
-  a server that is going to be replaced (see "show table" below for details).
-  Note that sometimes, removal of a key will be refused because it is currently
-  tracked by a session. Retrying a few seconds later after the session ends is
-  usuall enough.
+clear table <table> [ data.<type> <operator> <value> ] | [ key <key> ]
+  Remove entries from the stick-table <table>.
+
+  This is typically used to unblock some users complaining they have been
+  abusively denied access to a service, but this can also be used to clear some
+  stickiness entries matching a server that is going to be replaced (see "show
+  table" below for details).  Note that sometimes, removal of an entry will be
+  refused because it is currently tracked by a session. Retrying a few seconds
+  later after the session ends is usual enough.
+
+  In the case where no options arguments are given all entries will be removed.
+
+  When the "data." form is used entries matching a filter applied using the
+  stored data (see "stick-table" in section 4.2) are removed.  A stored data
+  type must be specified in <type>, and this data type must be stored in the
+  table otherwise an error is reported. The data is compared according to
+  <operator> with the 64-bit integer <value>.  Operators are the same as with
+  the ACLs :
+
+    - eq : match entries whose data is equal to this value
+    - ne : match entries whose data is not equal to this value
+    - le : match entries whose data is less than or equal to this value
+    - ge : match entries whose data is greater than or equal to this value
+    - lt : match entries whose data is less than this value
+    - gt : match entries whose data is greater than this value
+
+  When the key form is used the entry <key> is removed.  The key must be of the
+  same type as the table, which currently is limited to IPv4.
 
   Example :
         $ echo "show table http_proxy" | socat stdio /tmp/sock1
@@ -9333,6 +9352,9 @@ clear table <table> key <key>
     >>> # table: http_proxy, type: ip, size:204800, used:1
     >>> 0x80e6a80: key=127.0.0.2 use=0 exp=3594740 gpc0=1 conn_rate(30000)=10 \
           bytes_out_rate(60000)=191
+        $ echo "clear table http_proxy data.gpc0 eq 1" | socat stdio /tmp/sock1
+        $ echo "show table http_proxy" | socat stdio /tmp/sock1
+    >>> # table: http_proxy, type: ip, size:204800, used:1
 
 disable server <backend>/<server>
   Mark the server DOWN for maintenance. In this mode, no more checks will be
@@ -9538,10 +9560,9 @@ show table <name> [ data.<type> <operator> <value> ] | [ key <key> ]
     - lt : match entries whose data is less than this value
     - gt : match entries whose data is greater than this value
 
-  When the key form is used the filter applies to the key of
-  the stick table entry (see "stick-table" in section 4.2).
-  The stick table must be of type ip otherwise an error will
-  be reported.
+
+  When the key form is used the entry <key> is shown.  The key must be of the
+  same type as the table, which currently is limited to IPv4.
 
   Example :
         $ echo "show table http_proxy" | socat stdio /tmp/sock1
