@@ -54,7 +54,17 @@
 #include <proto/stream_sock.h>
 #include <proto/task.h>
 
-const char stats_sock_usage_msg[] =
+static int stats_dump_raw_to_buffer(struct stream_interface *si);
+static int stats_dump_full_sess_to_buffer(struct stream_interface *si);
+static int stats_dump_sess_to_buffer(struct stream_interface *si);
+static int stats_dump_errors_to_buffer(struct stream_interface *si);
+static int stats_dump_table_to_buffer(struct stream_interface *si);
+static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_auth *uri);
+static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri);
+
+static struct si_applet cli_applet;
+
+static const char stats_sock_usage_msg[] =
 	"Unknown command. Please enter one of the following commands only :\n"
 	"  clear counters : clear max statistics counters (add 'all' for all counters)\n"
 	"  clear table    : remove an entry from a table\n"
@@ -73,7 +83,7 @@ const char stats_sock_usage_msg[] =
 	"  enable server  : re-enable a server that was previously in maintenance mode\n"
 	"";
 
-const char stats_permission_denied_msg[] =
+static const char stats_permission_denied_msg[] =
 	"Permission denied\n"
 	"";
 
@@ -103,7 +113,7 @@ enum {
  * a new stats socket. It returns a positive value upon success, 0 if the connection
  * needs to be closed and ignored, or a negative value upon critical failure.
  */
-int stats_accept(struct session *s)
+static int stats_accept(struct session *s)
 {
 	/* we have a dedicated I/O handler for the stats */
 	stream_int_register_handler(&s->si[1], &cli_applet);
@@ -313,7 +323,7 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 	return 0;
 }
 
-int print_csv_header(struct chunk *msg)
+static int print_csv_header(struct chunk *msg)
 {
 	return chunk_printf(msg,
 			    "# pxname,svname,"
@@ -340,7 +350,7 @@ int print_csv_header(struct chunk *msg)
  * designating the function which will have to process the request, which can
  * also be the print function to display the return message set into cli.msg.
  */
-int stats_sock_parse_request(struct stream_interface *si, char *line)
+static int stats_sock_parse_request(struct stream_interface *si, char *line)
 {
 	struct session *s = si->applet.private;
 	char *args[MAX_STATS_ARGS + 1];
@@ -1070,7 +1080,7 @@ static void cli_io_handler(struct stream_interface *si)
  * Some states are not used but it makes the code more similar to other
  * functions which handle stats too.
  */
-int stats_dump_raw_to_buffer(struct stream_interface *si)
+static int stats_dump_raw_to_buffer(struct stream_interface *si)
 {
 	struct proxy *px;
 	struct chunk msg;
@@ -1181,7 +1191,7 @@ int stats_dump_raw_to_buffer(struct stream_interface *si)
  * repost the data.  We don't want this to happen on accident so we redirect
  * the browse to the stats page with a GET.
  */
-int stats_http_redir(struct stream_interface *si, struct uri_auth *uri)
+static int stats_http_redir(struct stream_interface *si, struct uri_auth *uri)
 {
 	struct session *s = si->applet.private;
 	struct chunk msg;
@@ -1277,7 +1287,7 @@ static void http_stats_io_handler(struct stream_interface *si)
  * needed, 1 if the dump is finished and the session must be closed, or -1
  * in case of any error.
  */
-int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
+static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 {
 	struct session *s = si->applet.private;
 	struct buffer *rep = si->ib;
@@ -1626,7 +1636,7 @@ int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
  * Returns 0 if it had to stop dumping data because of lack of buffer space,
  * ot non-zero if everything completed.
  */
-int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_auth *uri)
+static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_auth *uri)
 {
 	struct session *s = si->applet.private;
 	struct buffer *rep = si->ib;
@@ -2685,7 +2695,7 @@ int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_a
  * 0 if the output buffer is full and it needs to be called again, otherwise
  * non-zero. It is designed to be called from stats_dump_sess_to_buffer() below.
  */
-int stats_dump_full_sess_to_buffer(struct stream_interface *si)
+static int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 {
 	struct tm tm;
 	struct chunk msg;
@@ -2890,7 +2900,7 @@ int stats_dump_full_sess_to_buffer(struct stream_interface *si)
  * to be called again, otherwise non-zero. It is designed to be called
  * from stats_dump_sess_to_buffer() below.
  */
-int stats_dump_sess_to_buffer(struct stream_interface *si)
+static int stats_dump_sess_to_buffer(struct stream_interface *si)
 {
 	struct chunk msg;
 
@@ -3185,7 +3195,7 @@ static int dump_binary(struct chunk *out, const char *buf, int bsize)
  * properly set. It returns 0 if the output buffer is full and it needs
  * to be called again, otherwise non-zero.
  */
-int stats_dump_table_to_buffer(struct stream_interface *si)
+static int stats_dump_table_to_buffer(struct stream_interface *si)
 {
 	struct session *s = si->applet.private;
 	struct chunk msg;
@@ -3466,7 +3476,7 @@ static int dump_text_line(struct chunk *out, const char *buf, int bsize, int len
  * properly set. It returns 0 if the output buffer is full and it needs
  * to be called again, otherwise non-zero.
  */
-int stats_dump_errors_to_buffer(struct stream_interface *si)
+static int stats_dump_errors_to_buffer(struct stream_interface *si)
 {
 	extern const char *monthname[12];
 	struct chunk msg;
@@ -3622,7 +3632,7 @@ struct si_applet http_stats_applet = {
 	.fct = http_stats_io_handler,
 };
 
-struct si_applet cli_applet = {
+static struct si_applet cli_applet = {
 	.name = "<CLI>", /* used for logging */
 	.fct = cli_io_handler,
 };

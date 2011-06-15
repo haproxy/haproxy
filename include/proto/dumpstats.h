@@ -62,17 +62,8 @@
 #define STAT_STATUS_DENY "DENY"	/* action denied */
 
 extern struct si_applet http_stats_applet;
-extern struct si_applet cli_applet;
 
-int stats_accept(struct session *s);
-int stats_sock_parse_request(struct stream_interface *si, char *line);
 void stats_io_handler(struct stream_interface *si);
-int stats_dump_raw_to_buffer(struct stream_interface *si);
-int stats_dump_http(struct stream_interface *si, struct uri_auth *uri);
-int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_auth *uri);
-int stats_dump_sess_to_buffer(struct stream_interface *si);
-int stats_dump_table_to_buffer(struct stream_interface *si);
-int stats_dump_errors_to_buffer(struct stream_interface *si);
 
 
 #endif /* _PROTO_DUMPSTATS_H */
