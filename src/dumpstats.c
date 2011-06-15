@@ -344,6 +344,166 @@ static int print_csv_header(struct chunk *msg)
 			    "\n");
 }
 
+/* print a string of text buffer to <out>. The format is :
+ * Non-printable chars \t, \n, \r and \e are * encoded in C format.
+ * Other non-printable chars are encoded "\xHH". Space and '\' are also escaped.
+ * Print stopped if null char or <bsize> is reached, or if no more place in the chunk.
+ */
+static int dump_text(struct chunk *out, const char *buf, int bsize)
+{
+	unsigned char c;
+	int ptr = 0;
+
+	while (buf[ptr] && ptr < bsize) {
+		c = buf[ptr];
+		if (isprint(c) && isascii(c) && c != '\\' && c != ' ') {
+			if (out->len > out->size - 1)
+				break;
+			out->str[out->len++] = c;
+		}
+		else if (c == '\t' || c == '\n' || c == '\r' || c == '\e' || c == '\\' || c == ' ') {
+			if (out->len > out->size - 2)
+				break;
+			out->str[out->len++] = '\\';
+			switch (c) {
+			case ' ': c = ' '; break;
+			case '\t': c = 't'; break;
+			case '\n': c = 'n'; break;
+			case '\r': c = 'r'; break;
+			case '\e': c = 'e'; break;
+			case '\\': c = '\\'; break;
+			}
+			out->str[out->len++] = c;
+		}
+		else {
+			if (out->len > out->size - 4)
+				break;
+			out->str[out->len++] = '\\';
+			out->str[out->len++] = 'x';
+			out->str[out->len++] = hextab[(c >> 4) & 0xF];
+			out->str[out->len++] = hextab[c & 0xF];
+		}
+		ptr++;
+	}
+
+	return ptr;
+}
+
+/* print a buffer in hexa.
+ * Print stopped if <bsize> is reached, or if no more place in the chunk.
+ */
+static int dump_binary(struct chunk *out, const char *buf, int bsize)
+{
+	unsigned char c;
+	int ptr = 0;
+
+	while (ptr < bsize) {
+		c = buf[ptr];
+
+		if (out->len > out->size - 2)
+			break;
+		out->str[out->len++] = hextab[(c >> 4) & 0xF];
+		out->str[out->len++] = hextab[c & 0xF];
+
+		ptr++;
+	}
+	return ptr;
+}
+
+/* Dump the status of a table to a stream interface's
+ * read buffer. It returns 0 if the output buffer is full
+ * and needs to be called again, otherwise non-zero.
+ */
+static int stats_dump_table_head_to_buffer(struct chunk *msg, struct stream_interface *si,
+					   struct proxy *proxy, struct proxy *target)
+{
+	struct session *s = si->applet.private;
+
+	chunk_printf(msg, "# table: %s, type: %s, size:%d, used:%d\n",
+		     proxy->id, stktable_types[proxy->table.type].kw, proxy->table.size, proxy->table.current);
+
+	/* any other information should be dumped here */
+
+	if (target && s->listener->perm.ux.level < ACCESS_LVL_OPER)
+		chunk_printf(msg, "# contents not dumped due to insufficient privileges\n");
+
+	if (buffer_feed_chunk(si->ib, msg) >= 0)
+		return 0;
+
+	return 1;
+}
+
+/* Dump the a table entry to a stream interface's
+ * read buffer. It returns 0 if the output buffer is full
+ * and needs to be called again, otherwise non-zero.
+ */
+static int stats_dump_table_entry_to_buffer(struct chunk *msg, struct stream_interface *si,
+					    struct proxy *proxy, struct stksess *entry)
+{
+	int dt;
+
+	chunk_printf(msg, "%p:", entry);
+
+	if (proxy->table.type == STKTABLE_TYPE_IP) {
+		char addr[INET_ADDRSTRLEN];
+		inet_ntop(AF_INET, (const void *)&entry->key.key, addr, sizeof(addr));
+		chunk_printf(msg, " key=%s", addr);
+	}
+	else if (proxy->table.type == STKTABLE_TYPE_IPV6) {
+		char addr[INET6_ADDRSTRLEN];
+		inet_ntop(AF_INET6, (const void *)&entry->key.key, addr, sizeof(addr));
+		chunk_printf(msg, " key=%s", addr);
+	}
+	else if (proxy->table.type == STKTABLE_TYPE_INTEGER) {
+		chunk_printf(msg, " key=%u", *(unsigned int *)entry->key.key);
+	}
+	else if (proxy->table.type == STKTABLE_TYPE_STRING) {
+		chunk_printf(msg, " key=");
+		dump_text(msg, (const char *)entry->key.key, proxy->table.key_size);
+	}
+	else {
+		chunk_printf(msg, " key=");
+		dump_binary(msg, (const char *)entry->key.key, proxy->table.key_size);
+	}
+
+	chunk_printf(msg, " use=%d exp=%d", entry->ref_cnt - 1, tick_remain(now_ms, entry->expire));
+
+	for (dt = 0; dt < STKTABLE_DATA_TYPES; dt++) {
+		void *ptr;
+
+		if (proxy->table.data_ofs[dt] == 0)
+			continue;
+		if (stktable_data_types[dt].arg_type == ARG_T_DELAY)
+			chunk_printf(msg, " %s(%d)=", stktable_data_types[dt].name, proxy->table.data_arg[dt].u);
+		else
+			chunk_printf(msg, " %s=", stktable_data_types[dt].name);
+
+		ptr = stktable_data_ptr(&proxy->table, entry, dt);
+		switch (stktable_data_types[dt].std_type) {
+		case STD_T_SINT:
+			chunk_printf(msg, "%d", stktable_data_cast(ptr, std_t_sint));
+			break;
+		case STD_T_UINT:
+			chunk_printf(msg, "%u", stktable_data_cast(ptr, std_t_uint));
+			break;
+		case STD_T_ULL:
+			chunk_printf(msg, "%lld", stktable_data_cast(ptr, std_t_ull));
+			break;
+		case STD_T_FRQP:
+			chunk_printf(msg, "%d",
+				     read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
+							  proxy->table.data_arg[dt].u));
+			break;
+		}
+	}
+	chunk_printf(msg, "\n");
+
+	if (buffer_feed_chunk(si->ib, msg) >= 0)
+		return 0;
+
+	return 1;
+}
+
 /* Processes the stats interpreter on the statistics socket. This function is
  * called from an applet running in a stream interface. The function returns 1
  * if the request was understood, otherwise zero. It sets si->applet.st0 to a value
@@ -3121,75 +3281,6 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 	}
 }
 
-
-/* print a string of text buffer to <out>. The format is :
- * Non-printable chars \t, \n, \r and \e are * encoded in C format.
- * Other non-printable chars are encoded "\xHH". Space and '\' are also escaped.
- * Print stopped if null char or <bsize> is reached, or if no more place in the chunk.
- */
-
-static int dump_text(struct chunk *out, const char *buf, int bsize)
-{
-	unsigned char c;
-	int ptr = 0;
-
-	while (buf[ptr] && ptr < bsize) {
-		c = buf[ptr];
-		if (isprint(c) && isascii(c) && c != '\\' && c != ' ') {
-			if (out->len > out->size - 1)
-				break;
-			out->str[out->len++] = c;
-		}
-		else if (c == '\t' || c == '\n' || c == '\r' || c == '\e' || c == '\\' || c == ' ') {
-			if (out->len > out->size - 2)
-				break;
-			out->str[out->len++] = '\\';
-			switch (c) {
-			case ' ': c = ' '; break;
-			case '\t': c = 't'; break;
-			case '\n': c = 'n'; break;
-			case '\r': c = 'r'; break;
-			case '\e': c = 'e'; break;
-			case '\\': c = '\\'; break;
-			}
-			out->str[out->len++] = c;
-		}
-		else {
-			if (out->len > out->size - 4)
-				break;
-			out->str[out->len++] = '\\';
-			out->str[out->len++] = 'x';
-			out->str[out->len++] = hextab[(c >> 4) & 0xF];
-			out->str[out->len++] = hextab[c & 0xF];
-		}
-		ptr++;
-	}
-
-	return ptr;
-}
-
-/* print a buffer in hexa.
- * Print stopped if <bsize> is reached, or if no more place in the chunk.
- */
-
-static int dump_binary(struct chunk *out, const char *buf, int bsize)
-{
-	unsigned char c;
-	int ptr = 0;
-
-	while (ptr < bsize) {
-		c = buf[ptr];
-
-		if (out->len > out->size - 2)
-			break;
-		out->str[out->len++] = hextab[(c >> 4) & 0xF];
-		out->str[out->len++] = hextab[c & 0xF];
-
-		ptr++;
-	}
-	return ptr;
-}
-
 /* This function dumps all tables' states onto the stream intreface's
  * read buffer. The data_ctx must have been zeroed first, and the flags
  * properly set. It returns 0 if the output buffer is full and it needs
@@ -3245,19 +3336,8 @@ static int stats_dump_table_to_buffer(struct stream_interface *si)
 			}
 
 			if (si->applet.ctx.table.proxy->table.size) {
-				chunk_printf(&msg, "# table: %s, type: %s, size:%d, used:%d\n",
-					     si->applet.ctx.table.proxy->id,
-					     stktable_types[si->applet.ctx.table.proxy->table.type].kw,
-					     si->applet.ctx.table.proxy->table.size,
-					     si->applet.ctx.table.proxy->table.current);
-
-				/* any other information should be dumped here */
-
-				if (si->applet.ctx.table.target &&
-				    s->listener->perm.ux.level < ACCESS_LVL_OPER)
-					chunk_printf(&msg, "# contents not dumped due to insufficient privileges\n");
-
-				if (buffer_feed_chunk(si->ib, &msg) >= 0)
+				if (!stats_dump_table_head_to_buffer(&msg, si, si->applet.ctx.table.proxy,
+								     si->applet.ctx.table.target))
 					return 0;
 
 				if (si->applet.ctx.table.target &&
@@ -3319,74 +3399,9 @@ static int stats_dump_table_to_buffer(struct stream_interface *si)
 					goto skip_entry;
 			}
 
-			chunk_printf(&msg, "%p:", si->applet.ctx.table.entry);
-
-			if (si->applet.ctx.table.proxy->table.type == STKTABLE_TYPE_IP) {
-				char addr[INET_ADDRSTRLEN];
-				inet_ntop(AF_INET,
-					  (const void *)&si->applet.ctx.table.entry->key.key,
-					  addr, sizeof(addr));
-				chunk_printf(&msg, " key=%s", addr);
-			}
-			else if (si->applet.ctx.table.proxy->table.type == STKTABLE_TYPE_IPV6) {
-				char addr[INET6_ADDRSTRLEN];
-				inet_ntop(AF_INET6,
-					  (const void *)&si->applet.ctx.table.entry->key.key,
-					  addr, sizeof(addr));
-				chunk_printf(&msg, " key=%s", addr);
-			}
-			else if (si->applet.ctx.table.proxy->table.type == STKTABLE_TYPE_INTEGER) {
-				chunk_printf(&msg, " key=%u", *(unsigned int *)si->applet.ctx.table.entry->key.key);
-			}
-			else if (si->applet.ctx.table.proxy->table.type == STKTABLE_TYPE_STRING) {
-				chunk_printf(&msg, " key=");
-				dump_text(&msg, (const char *)si->applet.ctx.table.entry->key.key, si->applet.ctx.table.proxy->table.key_size);
-			}
-			else {
-				chunk_printf(&msg, " key=");
-				dump_binary(&msg, (const char *)si->applet.ctx.table.entry->key.key, si->applet.ctx.table.proxy->table.key_size);
-			}
-
-			chunk_printf(&msg, " use=%d exp=%d",
-				     si->applet.ctx.table.entry->ref_cnt - 1,
-				     tick_remain(now_ms, si->applet.ctx.table.entry->expire));
-
-			for (dt = 0; dt < STKTABLE_DATA_TYPES; dt++) {
-				void *ptr;
-
-				if (si->applet.ctx.table.proxy->table.data_ofs[dt] == 0)
-					continue;
-				if (stktable_data_types[dt].arg_type == ARG_T_DELAY)
-					chunk_printf(&msg, " %s(%d)=",
-						     stktable_data_types[dt].name,
-						     si->applet.ctx.table.proxy->table.data_arg[dt].u);
-				else
-					chunk_printf(&msg, " %s=", stktable_data_types[dt].name);
-
-				ptr = stktable_data_ptr(&si->applet.ctx.table.proxy->table,
-							si->applet.ctx.table.entry,
-							dt);
-				switch (stktable_data_types[dt].std_type) {
-				case STD_T_SINT:
-					chunk_printf(&msg, "%d", stktable_data_cast(ptr, std_t_sint));
-					break;
-				case STD_T_UINT:
-					chunk_printf(&msg, "%u", stktable_data_cast(ptr, std_t_uint));
-					break;
-				case STD_T_ULL:
-					chunk_printf(&msg, "%lld", stktable_data_cast(ptr, std_t_ull));
-					break;
-				case STD_T_FRQP:
-					chunk_printf(&msg, "%d",
-						     read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
-									  si->applet.ctx.table.proxy->table.data_arg[dt].u));
-					break;
-				}
-			}
-			chunk_printf(&msg, "\n");
-
-			if (buffer_feed_chunk(si->ib, &msg) >= 0)
-				return 0;
+			if (!stats_dump_table_entry_to_buffer(&msg, si, si->applet.ctx.table.proxy,
+							      si->applet.ctx.table.entry))
+			    return 0;
 
 		skip_entry:
 			si->applet.ctx.table.entry->ref_cnt--;
