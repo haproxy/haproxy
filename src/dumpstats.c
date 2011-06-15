@@ -504,6 +504,71 @@ static int stats_dump_table_entry_to_buffer(struct chunk *msg, struct stream_int
 	return 1;
 }
 
+static void stats_sock_table_key_request(struct stream_interface *si, char **args)
+{
+	struct session *s = si->applet.private;
+	struct proxy *px;
+	struct stksess *ts;
+	unsigned int ip_key;
+
+	if (!*args[2]) {
+		si->applet.ctx.cli.msg = "\"table\" argument expected\n";
+		si->applet.st0 = STAT_CLI_PRINT;
+		return;
+	}
+
+	px = find_stktable(args[2]);
+
+	if (!px) {
+		si->applet.ctx.cli.msg = "No such table\n";
+		si->applet.st0 = STAT_CLI_PRINT;
+		return;
+	}
+
+	if (strcmp(args[3], "key") != 0) {
+		si->applet.ctx.cli.msg = "\"key\" argument expected\n";
+		si->applet.st0 = STAT_CLI_PRINT;
+		return;
+	}
+
+	if (!*args[4]) {
+		si->applet.ctx.cli.msg = "Key value expected\n";
+		si->applet.st0 = STAT_CLI_PRINT;
+		return;
+	}
+
+	if (px->table.type == STKTABLE_TYPE_IP) {
+		ip_key = htonl(inetaddr_host(args[4]));
+		static_table_key.key = (void *)&ip_key;
+	}
+	else {
+		si->applet.ctx.cli.msg = "Removing keys from non-ip tables is not supported\n";
+		si->applet.st0 = STAT_CLI_PRINT;
+		return;
+	}
+
+	/* check permissions */
+	if (s->listener->perm.ux.level < ACCESS_LVL_OPER) {
+		si->applet.ctx.cli.msg = stats_permission_denied_msg;
+		si->applet.st0 = STAT_CLI_PRINT;
+		return;
+	}
+
+	ts = stktable_lookup_key(&px->table, &static_table_key);
+	if (!ts) {
+		/* silent return, entry was already removed */
+		return;
+	}
+	else if (ts->ref_cnt) {
+		/* don't delete an entry which is currently referenced */
+		si->applet.ctx.cli.msg = "Entry currently in use, cannot remove\n";
+		si->applet.st0 = STAT_CLI_PRINT;
+		return;
+	}
+
+	stksess_kill(&px->table, ts);
+}
+
 /* Processes the stats interpreter on the statistics socket. This function is
  * called from an applet running in a stream interface. The function returns 1
  * if the request was understood, otherwise zero. It sets si->applet.st0 to a value
@@ -703,66 +768,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			return 1;
 		}
 		else if (strcmp(args[1], "table") == 0) {
-			struct proxy *px;
-			struct stksess *ts;
-			unsigned int ip_key;
-
-			if (!*args[2]) {
-				si->applet.ctx.cli.msg = "\"table\" argument expected\n";
-				si->applet.st0 = STAT_CLI_PRINT;
-				return 1;
-			}
-
-			px = find_stktable(args[2]);
-
-			if (!px) {
-				si->applet.ctx.cli.msg = "No such table\n";
-				si->applet.st0 = STAT_CLI_PRINT;
-				return 1;
-			}
-
-			if (strcmp(args[3], "key") != 0) {
-				si->applet.ctx.cli.msg = "\"key\" argument expected\n";
-				si->applet.st0 = STAT_CLI_PRINT;
-				return 1;
-			}
-
-			if (!*args[4]) {
-				si->applet.ctx.cli.msg = "Key value expected\n";
-				si->applet.st0 = STAT_CLI_PRINT;
-				return 1;
-			}
-
-			if (px->table.type == STKTABLE_TYPE_IP) {
-				ip_key = htonl(inetaddr_host(args[4]));
-				static_table_key.key = (void *)&ip_key;
-			}
-			else {
-				si->applet.ctx.cli.msg = "Removing keys from non-ip tables is not supported\n";
-				si->applet.st0 = STAT_CLI_PRINT;
-				return 1;
-			}
-
-			/* check permissions */
-			if (s->listener->perm.ux.level < ACCESS_LVL_OPER) {
-				si->applet.ctx.cli.msg = stats_permission_denied_msg;
-				si->applet.st0 = STAT_CLI_PRINT;
-				return 1;
-			}
-
-			ts = stktable_lookup_key(&px->table, &static_table_key);
-			if (!ts) {
-				/* silent return, entry was already removed */
-				return 1;
-			}
-			else if (ts->ref_cnt) {
-				/* don't delete an entry which is currently referenced */
-				si->applet.ctx.cli.msg = "Entry currently in use, cannot remove\n";
-				si->applet.st0 = STAT_CLI_PRINT;
-				return 1;
-			}
-
-			stksess_kill(&px->table, ts);
+			stats_sock_table_key_request(si, args);
 			/* end of processing */
 			return 1;
 		}
