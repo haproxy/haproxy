@@ -511,6 +511,7 @@ static void stats_sock_table_key_request(struct stream_interface *si, char **arg
 	struct proxy *px = si->applet.ctx.table.target;
 	struct stksess *ts;
 	unsigned int ip_key;
+	unsigned char ip6_key[sizeof(struct in6_addr)];
 
 	si->applet.st0 = STAT_CLI_OUTPUT;
 
@@ -520,15 +521,20 @@ static void stats_sock_table_key_request(struct stream_interface *si, char **arg
 		return;
 	}
 
-	if (px->table.type == STKTABLE_TYPE_IP) {
+	switch (px->table.type) {
+	case STKTABLE_TYPE_IP:
 		ip_key = htonl(inetaddr_host(args[4]));
 		static_table_key.key = (void *)&ip_key;
-	}
-	else {
+		break;
+	case STKTABLE_TYPE_IPV6:
+		inet_pton(AF_INET6, args[4], ip6_key);
+		static_table_key.key = &ip6_key;
+		break;
+	default:
 		if (show)
-			si->applet.ctx.cli.msg = "Showing keys from non-ip tables is not supported\n";
+			si->applet.ctx.cli.msg = "Showing keys from tables of type other than ip and ipv6 is not supported\n";
 		else
-			si->applet.ctx.cli.msg = "Removing keys from non-ip tables is not supported\n";
+			si->applet.ctx.cli.msg = "Removing keys from ip tables of type other than ip and ipv6 is not supported\n";
 		si->applet.st0 = STAT_CLI_PRINT;
 		return;
 	}
