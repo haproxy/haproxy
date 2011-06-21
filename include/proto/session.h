@@ -225,6 +225,21 @@ static void inline session_inc_http_err_ctr(struct session *s)
 	}
 }
 
+static void inline session_add_srv_conn(struct session *sess, struct server *srv)
+{
+	sess->srv_conn = srv;
+	LIST_ADD(&srv->actconns, &sess->by_srv);
+}
+
+static void inline session_del_srv_conn(struct session *sess)
+{
+	if (!sess->srv_conn)
+		return;
+
+	sess->srv_conn = NULL;
+	LIST_DEL(&sess->by_srv);
+}
+
 #endif /* _PROTO_SESSION_H */
 
 /*

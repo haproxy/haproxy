@@ -1185,7 +1185,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	stream_sock_prepare_interface(&s->si[1]);
 	s->si[1].release = NULL;
 
-	s->srv_conn = NULL;
+	session_del_srv_conn(s);
 	clear_target(&s->target);
 	s->pend_pos = NULL;
 

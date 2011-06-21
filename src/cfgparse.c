@@ -3922,6 +3922,7 @@ stats_error_parsing:
 			newsrv->conf.file = file;
 			newsrv->conf.line = linenum;
 
+			LIST_INIT(&newsrv->actconns);
 			LIST_INIT(&newsrv->pendconns);
 			do_check = 0;
 			newsrv->state = SRV_RUNNING; /* early server setup */

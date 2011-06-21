@@ -101,6 +101,7 @@ struct server {
 	struct srvcounters counters;		/* statistics counters */
 
 	struct list pendconns;			/* pending connections */
+	struct list actconns;			/* active connections */
 	struct task *check;                     /* the task associated to the health check processing */
 
 	struct sockaddr_storage addr;		/* the address to connect to */

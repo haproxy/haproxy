@@ -157,6 +157,7 @@ enum {
  */
 struct session {
 	struct list list;			/* position in global sessions list */
+	struct list by_srv;			/* position in server session list */
 	struct list back_refs;			/* list of users tracking this session */
 	struct task *task;			/* the task associated with this session */
 	/* application specific below */

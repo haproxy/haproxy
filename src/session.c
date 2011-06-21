@@ -201,7 +201,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	if (likely(s->fe->options2 & PR_O2_INDEPSTR))
 		s->si[1].flags |= SI_FL_INDEP_STR;
 
-	s->srv_conn = NULL;
+	session_del_srv_conn(s);
 	clear_target(&s->target);
 	s->pend_pos = NULL;
 
@@ -2140,14 +2140,14 @@ void sess_change_server(struct session *sess, struct server *newsrv)
 		sess->srv_conn->served--;
 		if (sess->srv_conn->proxy->lbprm.server_drop_conn)
 			sess->srv_conn->proxy->lbprm.server_drop_conn(sess->srv_conn);
-		sess->srv_conn = NULL;
+		session_del_srv_conn(sess);
 	}
 
 	if (newsrv) {
 		newsrv->served++;
 		if (newsrv->proxy->lbprm.server_take_conn)
 			newsrv->proxy->lbprm.server_take_conn(newsrv);
-		sess->srv_conn = newsrv;
+		session_add_srv_conn(sess, newsrv);
 	}
 }
 
