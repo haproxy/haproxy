@@ -125,6 +125,7 @@ struct server {
 	int rise, fall;				/* time in iterations */
 	int consecutive_errors_limit;		/* number of consecutive errors that triggers an event */
 	short observe, onerror;			/* observing mode: one of HANA_OBS_*; what to do on error: on of ANA_ONERR_* */
+	short onmarkeddown;			/* what to do when marked down: on of HANA_ONMARKEDDOWN_* */
 	int inter, fastinter, downinter;	/* checks: time in milliseconds */
 	int slowstart;				/* slowstart time in seconds (ms in the conf) */
 	int result;				/* health-check result : SRV_CHK_* */

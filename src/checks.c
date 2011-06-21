@@ -45,6 +45,7 @@
 #include <proto/proto_tcp.h>
 #include <proto/proxy.h>
 #include <proto/server.h>
+#include <proto/session.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
 
@@ -357,6 +358,24 @@ static int check_for_pending(struct server *s)
 	return xferred;
 }
 
+/* Shutdown connections when their server goes down.
+ */
+static void shutdown_sessions(struct server *srv)
+{
+	struct session *session, *session_bck;
+
+	list_for_each_entry_safe(session, session_bck,
+				 &srv->actconns, by_srv) {
+		if (session->srv_conn == srv &&
+		    !(session->req->flags & (BF_SHUTW|BF_SHUTW_NOW))) {
+				buffer_shutw_now(session->req);
+				buffer_shutr_now(session->rep);
+				session->task->nice = 1024;
+				task_wakeup(session->task, TASK_WOKEN_OTHER);
+		}
+	}
+}
+
 /* Sets server <s> down, notifies by all available means, recounts the
  * remaining servers on the proxy and transfers queued sessions whenever
  * possible to other servers. It automatically recomputes the number of
@@ -379,6 +398,9 @@ void set_server_down(struct server *s)
 		s->last_change = now.tv_sec;
 		s->state &= ~(SRV_RUNNING | SRV_GOINGDOWN);
 		s->proxy->lbprm.set_server_status_down(s);
+
+		if (s->onmarkeddown & HANA_ONMARKEDDOWN_SHUTDOWNSESSIONS)
+			shutdown_sessions(s);
 
 		/* we might have sessions queued on this server and waiting for
 		 * a connection. Those which are redispatchable will be queued

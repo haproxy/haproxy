@@ -4251,6 +4251,18 @@ stats_error_parsing:
 
 				cur_arg += 2;
 			}
+			else if (!strcmp(args[cur_arg], "on-marked-down")) {
+				if (!strcmp(args[cur_arg + 1], "shutdown-sessions"))
+					newsrv->onmarkeddown = HANA_ONMARKEDDOWN_SHUTDOWNSESSIONS;
+				else {
+					Alert("parsing [%s:%d]: '%s' expects 'shutdown-sessions' but got '%s'\n",
+						file, linenum, args[cur_arg], args[cur_arg + 1]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				cur_arg += 2;
+			}
 			else if (!strcmp(args[cur_arg], "error-limit")) {
 				if (!*args[cur_arg + 1]) {
 					Alert("parsing [%s:%d]: '%s' expects an integer argument.\n",
@@ -4430,7 +4442,7 @@ stats_error_parsing:
 			}
 			else {
 				if (!defsrv)
-					Alert("parsing [%s:%d] : server %s only supports options 'backup', 'cookie', 'redir', 'observer', 'on-error', 'error-limit', 'check', 'disabled', 'track', 'id', 'inter', 'fastinter', 'downinter', 'rise', 'fall', 'addr', 'port', 'source', 'send-proxy', 'minconn', 'maxconn', 'maxqueue', 'slowstart' and 'weight'.\n",
+					Alert("parsing [%s:%d] : server %s only supports options 'backup', 'cookie', 'redir', 'observer', 'on-error', 'on-marked-down', 'error-limit', 'check', 'disabled', 'track', 'id', 'inter', 'fastinter', 'downinter', 'rise', 'fall', 'addr', 'port', 'source', 'send-proxy', 'minconn', 'maxconn', 'maxqueue', 'slowstart' and 'weight'.\n",
 					      file, linenum, newsrv->id);
 				else
 					Alert("parsing [%s:%d]: default-server only supports options 'on-error', 'error-limit', 'inter', 'fastinter', 'downinter', 'rise', 'fall', 'port', 'minconn', 'maxconn', 'maxqueue', 'slowstart' and 'weight'.\n",

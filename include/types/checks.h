@@ -74,6 +74,12 @@ enum {
 };
 
 enum {
+	HANA_ONMARKEDDOWN_NONE	= 0,
+
+	HANA_ONMARKEDDOWN_SHUTDOWNSESSIONS,	/* Shutdown peer sessions */
+};
+
+enum {
 	HANA_OBS_NONE		= 0,
 
 	HANA_OBS_LAYER4,		/* Observe L4 - for example tcp */

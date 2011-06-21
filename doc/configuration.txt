@@ -6667,6 +6667,15 @@ on-error <mode>
 
   See also the "check", "observe" and "error-limit".
 
+on-marked-down <action>
+  Modify what occurs when a server is marked down.
+  Currently one action is available:
+  - shutdown-sessions: Shutdown peer sessions
+
+  Actions are disabled by default
+
+  Supported in default-server: Yes
+
 port <port>
   Using the "port" parameter, it becomes possible to use a different port to
   send health-checks. On some servers, it may be desirable to dedicate a port
