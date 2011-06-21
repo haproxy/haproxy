@@ -371,6 +371,8 @@ static void shutdown_sessions(struct server *srv)
 				buffer_shutw_now(session->req);
 				buffer_shutr_now(session->rep);
 				session->task->nice = 1024;
+				if (!(session->flags & SN_ERR_MASK))
+					session->flags |= SN_ERR_DOWN;
 				task_wakeup(session->task, TASK_WOKEN_OTHER);
 		}
 	}

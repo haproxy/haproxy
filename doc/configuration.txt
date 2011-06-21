@@ -8725,6 +8725,9 @@ each of which has a special meaning :
             would be wise to preventively restart the process after such an
             event too, in case it would be caused by memory corruption.
 
+        D : the session was killed by haproxy because the server was detected
+            as down and was configured to kill all connections when going down.
+
         c : the client-side timeout expired while waiting for the client to
             send or receive data.
 
