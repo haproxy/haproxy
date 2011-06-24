@@ -123,8 +123,8 @@ int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct so
 #ifdef CONFIG_HAP_LINUX_TPROXY
 	static int ip_transp_working = 1;
 	if (flags && ip_transp_working) {
-		if (setsockopt(fd, SOL_IP, IP_TRANSPARENT, (char *) &one, sizeof(one)) == 0
-		    || setsockopt(fd, SOL_IP, IP_FREEBIND, (char *) &one, sizeof(one)) == 0)
+		if (setsockopt(fd, SOL_IP, IP_TRANSPARENT, &one, sizeof(one)) == 0
+		    || setsockopt(fd, SOL_IP, IP_FREEBIND, &one, sizeof(one)) == 0)
 			foreign_ok = 1;
 		else
 			ip_transp_working = 0;
@@ -149,7 +149,7 @@ int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct so
 		}
 	}
 
-	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(one));
+	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
 	if (foreign_ok) {
 		ret = bind(fd, (struct sockaddr *)&bind_addr, get_addr_len(&bind_addr));
 		if (ret < 0)
@@ -257,17 +257,17 @@ int tcp_connect_server(struct stream_interface *si)
 	}
 
 	if ((fcntl(fd, F_SETFL, O_NONBLOCK)==-1) ||
-	    (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *) &one, sizeof(one)) == -1)) {
+	    (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one)) == -1)) {
 		qfprintf(stderr,"Cannot set client socket to non blocking mode.\n");
 		close(fd);
 		return SN_ERR_INTERNAL;
 	}
 
 	if (be->options & PR_O_TCP_SRV_KA)
-		setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, (char *) &one, sizeof(one));
+		setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &one, sizeof(one));
 
 	if (be->options & PR_O_TCP_NOLING)
-		setsockopt(fd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
+		setsockopt(fd, SOL_SOCKET, SO_LINGER, &nolinger, sizeof(struct linger));
 
 	/* allow specific binding :
 	 * - server-specific at first
@@ -398,7 +398,7 @@ int tcp_connect_server(struct stream_interface *si)
 	 * data in the buffer.
 	 */
 	if ((be->options2 & PR_O2_SMARTCON) && si->ob->send_max)
-                setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, (char *) &zero, sizeof(zero));
+                setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, &zero, sizeof(zero));
 #endif
 
 	if (global.tune.server_sndbuf)
@@ -508,25 +508,25 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		goto tcp_close_return;
 	}
 
-	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(one)) == -1) {
+	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) == -1) {
 		/* not fatal but should be reported */
 		msg = "cannot do so_reuseaddr";
 		err |= ERR_ALERT;
 	}
 
 	if (listener->options & LI_O_NOLINGER)
-		setsockopt(fd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
+		setsockopt(fd, SOL_SOCKET, SO_LINGER, &nolinger, sizeof(struct linger));
 
 #ifdef SO_REUSEPORT
 	/* OpenBSD supports this. As it's present in old libc versions of Linux,
 	 * it might return an error that we will silently ignore.
 	 */
-	setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, (char *) &one, sizeof(one));
+	setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one));
 #endif
 #ifdef CONFIG_HAP_LINUX_TPROXY
 	if ((listener->options & LI_O_FOREIGN)
-	    && (setsockopt(fd, SOL_IP, IP_TRANSPARENT, (char *) &one, sizeof(one)) == -1)
-	    && (setsockopt(fd, SOL_IP, IP_FREEBIND, (char *) &one, sizeof(one)) == -1)) {
+	    && (setsockopt(fd, SOL_IP, IP_TRANSPARENT, &one, sizeof(one)) == -1)
+	    && (setsockopt(fd, SOL_IP, IP_FREEBIND, &one, sizeof(one)) == -1)) {
 		msg = "cannot make listening socket transparent";
 		err |= ERR_ALERT;
 	}
@@ -574,7 +574,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 
 #if defined(TCP_QUICKACK)
 	if (listener->options & LI_O_NOQUICKACK)
-		setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, (char *) &zero, sizeof(zero));
+		setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, &zero, sizeof(zero));
 #endif
 
 	/* the socket is ready */
@@ -598,13 +598,13 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 
 		if (listener->addr.ss_family == AF_INET) {
 			inet_ntop(AF_INET,
-				  (const void *)&((struct sockaddr_in *)&listener->addr)->sin_addr,
+				  &((struct sockaddr_in *)&listener->addr)->sin_addr,
 				  pn, sizeof(pn));
 			snprintf(errmsg, errlen, "%s [%s:%d]", msg, pn, ntohs(((struct sockaddr_in *)&listener->addr)->sin_port));
 		}
 		else {
 			inet_ntop(AF_INET6,
-				  (const void *)&((struct sockaddr_in6 *)(&listener->addr))->sin6_addr,
+				  &((struct sockaddr_in6 *)(&listener->addr))->sin6_addr,
 				  pn, sizeof(pn));
 			snprintf(errmsg, errlen, "%s [%s:%d]", msg, pn, ntohs(((struct sockaddr_in6 *)&listener->addr)->sin6_port));
 		}
@@ -1101,7 +1101,7 @@ static int tcp_parse_tcp_rep(char **args, int section_type, struct proxy *curpx,
 		return 0;
 	}
 
-	rule = (struct tcp_rule *)calloc(1, sizeof(*rule));
+	rule = calloc(1, sizeof(*rule));
 	LIST_INIT(&rule->list);
 	arg = 1;
 
@@ -1184,7 +1184,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 		return 0;
 	}
 
-	rule = (struct tcp_rule *)calloc(1, sizeof(*rule));
+	rule = calloc(1, sizeof(*rule));
 	LIST_INIT(&rule->list);
 	arg = 1;
 
@@ -1266,9 +1266,9 @@ acl_fetch_src(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	test->i = l4->si[0].addr.c.from.ss_family;
 	if (test->i == AF_INET)
-		test->ptr = (void *)&((struct sockaddr_in *)&l4->si[0].addr.c.from)->sin_addr;
+		test->ptr = (char *)&((struct sockaddr_in *)&l4->si[0].addr.c.from)->sin_addr;
 	else if (test->i == AF_INET6)
-		test->ptr = (void *)&((struct sockaddr_in6 *)(&l4->si[0].addr.c.from))->sin6_addr;
+		test->ptr = (char *)&((struct sockaddr_in6 *)(&l4->si[0].addr.c.from))->sin6_addr;
 	else
 		return 0;
 
@@ -1327,9 +1327,9 @@ acl_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir,
 
 	test->i = l4->si[0].addr.c.to.ss_family;
 	if (test->i == AF_INET)
-		test->ptr = (void *)&((struct sockaddr_in *)&l4->si[0].addr.c.to)->sin_addr;
+		test->ptr = (char *)&((struct sockaddr_in *)&l4->si[0].addr.c.to)->sin_addr;
 	else if (test->i == AF_INET6)
-		test->ptr = (void *)&((struct sockaddr_in6 *)(&l4->si[0].addr.c.to))->sin6_addr;
+		test->ptr = (char *)&((struct sockaddr_in6 *)(&l4->si[0].addr.c.to))->sin6_addr;
 	else
 		return 0;
 
@@ -1510,7 +1510,7 @@ pattern_fetch_payloadlv(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0;
 
 	/* init chunk as read only */
-	chunk_initlen(&data->str, (char *)(b->w + buf_offset), 0, buf_size);
+	chunk_initlen(&data->str, b->w + buf_offset, 0, buf_size);
 
 	return 1;
 }
@@ -1573,7 +1573,7 @@ pattern_fetch_payload(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0;
 
 	/* init chunk as read only */
-	chunk_initlen(&data->str, (char *)(b->w + buf_offset), 0, buf_size);
+	chunk_initlen(&data->str, b->w + buf_offset, 0, buf_size);
 
 	return 1;
 }
