@@ -1352,6 +1352,8 @@ balance url_param <param> [check_post [<max_wait>]]
                   changing a server's weight on the fly will have no effect,
                   but this can be changed using "hash-type".
 
+		  See also the rdp_cookie pattern fetch function.
+
     <arguments> is an optional list of arguments which may be needed by some
                 algorithms. Right now, only "url_param" and "uri" support an
                 optional argument.
@@ -4127,7 +4129,8 @@ persist rdp-cookie(name)
             server srv1 1.1.1.1:3389
             server srv2 1.1.1.2:3389
 
-  See also : "balance rdp-cookie", "tcp-request" and the "req_rdp_cookie" ACL.
+  See also : "balance rdp-cookie", "tcp-request", the "req_rdp_cookie" ACL and
+  the rdp_cookie pattern fetch function.
 
 
 rate-limit sessions <rate>
@@ -7927,6 +7930,40 @@ The list of currently supported pattern fetch functions is the following :
                to match. A typical use is to get sticky session through url (e.g.
 	       http://example.com/foo?JESSIONID=some_id with
 	       url_param(JSESSIONID)), for cases where cookies cannot be used.
+
+  rdp_cookie(name)
+	       This extracts the value of the rdp cookie <name> as a string
+	       and uses this value to match. This enables implementation of
+	       persistence based on the mstshash cookie. This is typically
+	       done if there is no msts cookie present.
+
+	       This differs from "balance rdp-cookie" in that any balancing
+	       algorithm may be used and thus the distribution of clients
+	       to backend servers is not linked to a hash of the RDP
+	       cookie. It is envisaged that using a balancing algorithm
+	       such as "balance roundrobin" or "balance leastconnect" will
+	       lead to a more even distribution of clients to backend
+	       servers than the hash used by "balance rdp-cookie".
+
+	       Example :
+		listen tse-farm
+		    bind 0.0.0.0:3389
+		    # wait up to 5s for an RDP cookie in the request
+		    tcp-request inspect-delay 5s
+		    tcp-request content accept if RDP_COOKIE
+		    # apply RDP cookie persistence
+		    persist rdp-cookie
+		    # Persist based on the mstshash cookie
+		    # This is only useful makes sense if
+		    # balance rdp-cookie is not used
+		    stick-table type string size 204800
+		    stick on rdp_cookie(mstshash)
+		    server srv1 1.1.1.1:3389
+		    server srv1 1.1.1.2:3389
+
+	       See also : "balance rdp-cookie", "persist rdp-cookie",
+	       "tcp-request" and the "req_rdp_cookie" ACL.
+
 
 The currently available list of transformations include :
 

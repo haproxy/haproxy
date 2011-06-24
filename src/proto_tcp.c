@@ -1578,6 +1578,32 @@ pattern_fetch_payload(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 1;
 }
 
+static int
+pattern_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir,
+                         const struct pattern_arg *arg_p, int arg_i, union pattern_data *data)
+{
+	int ret;
+	struct acl_expr  expr;
+	struct acl_test  test;
+
+	if (!l4)
+		return 0;
+
+	memset(&expr, 0, sizeof(expr));
+	memset(&test, 0, sizeof(test));
+
+	expr.arg.str = arg_p[0].data.str.str;
+	expr.arg_len = arg_p[0].data.str.len;
+
+	ret = acl_fetch_rdp_cookie(px, l4, NULL, ACL_DIR_REQ, &expr, &test);
+	if (ret == 0 || (test.flags & ACL_TEST_F_MAY_CHANGE) || test.len == 0)
+		return 0;
+
+	/* init chunk as read only */
+	chunk_initlen(&data->str, test.ptr, 0, test.len);
+	return 1;
+}
+
 static struct cfg_kw_list cfg_kws = {{ },{
 	{ CFG_LISTEN, "tcp-request", tcp_parse_tcp_req },
 	{ CFG_LISTEN, "tcp-response", tcp_parse_tcp_rep },
@@ -1602,6 +1628,7 @@ static struct pattern_fetch_kw_list pattern_fetch_keywords = {{ },{
 	{ "dst_port",    pattern_fetch_dport,     NULL,                         PATTERN_TYPE_INTEGER,   PATTERN_FETCH_REQ },
 	{ "payload",     pattern_fetch_payload,   pattern_arg_fetch_payload,    PATTERN_TYPE_CONSTDATA, PATTERN_FETCH_REQ|PATTERN_FETCH_RTR },
 	{ "payload_lv",  pattern_fetch_payloadlv, pattern_arg_fetch_payloadlv,  PATTERN_TYPE_CONSTDATA, PATTERN_FETCH_REQ|PATTERN_FETCH_RTR },
+	{ "rdp_cookie",  pattern_fetch_rdp_cookie, pattern_arg_str,             PATTERN_TYPE_CONSTSTRING, PATTERN_FETCH_REQ },
 	{ NULL, NULL, NULL, 0, 0 },
 }};
 
