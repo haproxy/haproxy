@@ -83,23 +83,7 @@ int appsession_init(void)
 	return 0;
 }
 
-int appsession_task_init(void)
-{
-	static int initialized = 0;
-	if (!initialized) {
-		if ((appsess_refresh = task_new()) == NULL)
-			return -1;
-
-		appsess_refresh->context = NULL;
-		appsess_refresh->expire = tick_add(now_ms, MS_TO_TICKS(TBLCHKINT));
-		appsess_refresh->process = appsession_refresh;
-		task_queue(appsess_refresh);
-		initialized ++;
-	}
-	return 0;
-}
-
-struct task *appsession_refresh(struct task *t)
+static struct task *appsession_refresh(struct task *t)
 {
 	struct proxy           *p = proxy;
 	struct appsession_hash *htbl;
@@ -132,6 +116,22 @@ struct task *appsession_refresh(struct task *t)
 	t->expire = tick_add(now_ms, MS_TO_TICKS(TBLCHKINT)); /* check expiration every 5 seconds */
 	return t;
 } /* end appsession_refresh */
+
+int appsession_task_init(void)
+{
+	static int initialized = 0;
+	if (!initialized) {
+		if ((appsess_refresh = task_new()) == NULL)
+			return -1;
+
+		appsess_refresh->context = NULL;
+		appsess_refresh->expire = tick_add(now_ms, MS_TO_TICKS(TBLCHKINT));
+		appsess_refresh->process = appsession_refresh;
+		task_queue(appsess_refresh);
+		initialized ++;
+	}
+	return 0;
+}
 
 int match_str(const void *key1, const void *key2)
 {

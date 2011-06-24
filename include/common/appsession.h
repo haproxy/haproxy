@@ -38,7 +38,6 @@ int match_str(const void *key1, const void *key2);
 /* Callback for destroy */
 void destroy(appsess *data);
 
-struct task *appsession_refresh(struct task *t);
 int appsession_task_init(void);
 int appsession_init(void);
 void appsession_cleanup(void);
