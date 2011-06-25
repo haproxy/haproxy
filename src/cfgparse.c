@@ -4139,6 +4139,10 @@ stats_error_parsing:
 				newsrv->state |= SRV_BACKUP;
 				cur_arg ++;
 			}
+			else if (!defsrv && !strcmp(args[cur_arg], "non-stick")) {
+				newsrv->state |= SRV_NON_STICK;
+				cur_arg ++;
+			}
 			else if (!defsrv && !strcmp(args[cur_arg], "send-proxy")) {
 				newsrv->state |= SRV_SEND_PROXY;
 				cur_arg ++;

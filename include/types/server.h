@@ -54,6 +54,7 @@
 #define SRV_TPROXY_DYN	0x0400	/* bind to a dynamically computed non-local address */
 #define SRV_TPROXY_MASK	0x0700	/* bind to a non-local address to reach this server */
 #define SRV_SEND_PROXY	0x0800	/* this server talks the PROXY protocol */
+#define SRV_NON_STICK	0x1000	/* never add connections allocated to this server to a stick table */
 
 /* function which act on servers need to return various errors */
 #define SRV_STATUS_OK       0   /* everything is OK. */

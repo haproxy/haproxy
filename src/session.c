@@ -1193,6 +1193,12 @@ static int process_store_rules(struct session *s, struct buffer *rep, int an_bit
 		struct stksess *ts;
 		void *ptr;
 
+		if (target_srv(&s->target) && target_srv(&s->target)->state & SRV_NON_STICK) {
+			stksess_free(s->store[i].table, s->store[i].ts);
+			s->store[i].ts = NULL;
+			continue;
+		}
+
 		ts = stktable_lookup(s->store[i].table, s->store[i].ts);
 		if (ts) {
 			/* the entry already existed, we can free ours */

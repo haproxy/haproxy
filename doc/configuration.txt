@@ -6644,6 +6644,11 @@ minconn <minconn>
 
   Supported in default-server: Yes
 
+non-stick
+  Never add connections allocated to this sever to a stick-table.
+  This may be used in conjunction with backup to ensure that
+  stick-table persistence is disabled for backup servers.
+
 observe <mode>
   This option enables health adjusting based on observing communication with
   the server. By default this functionality is disabled and enabling it also
