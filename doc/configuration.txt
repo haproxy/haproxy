@@ -1064,6 +1064,7 @@ stats uri                                 X          -         X         X
 stick match                               -          -         X         X
 stick on                                  -          -         X         X
 stick store-request                       -          -         X         X
+stick store-response                      -          -         X         X
 stick-table                               -          -         X         X
 tcp-request connection                    -          X         X         -
 tcp-request content                       -          X         X         X
