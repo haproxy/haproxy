@@ -8535,6 +8535,185 @@ pattern_fetch_url_param(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 1;
 }
 
+/* Try to find the last occurrence of a cookie name in a cookie header value.
+ * The pointer and size of the last occurrence of the cookie value is returned
+ * into *value and *value_l, and the function returns non-zero if the value was
+ * found. Otherwise if the cookie was not found, zero is returned and neither
+ * value nor value_l are touched. The input hdr string should begin at the
+ * header's value, and its size should be in hdr_l. <list> must be non-zero if
+ * value may represent a list of values (cookie headers).
+ */
+static int
+extract_cookie_value(char *hdr, size_t hdr_l,
+		  char *cookie_name, size_t cookie_name_l, int list,
+		  char **value, size_t *value_l)
+{
+	int found = 0;
+	char *equal, *att_end, *att_beg, *hdr_end, *val_beg, *val_end;
+	char *next;
+
+	/* Note that multiple cookies may be delimited with semi-colons, so we
+	 * also have to loop on this.
+	 */
+
+	/* we search at least a cookie name followed by an equal, and more
+	 * generally something like this :
+	 * Cookie:    NAME1  =  VALUE 1  ; NAME2 = VALUE2 ; NAME3 = VALUE3\r\n
+	 */
+	if (hdr_l < cookie_name_l + 1)
+		return 0;
+
+	hdr_end = hdr + hdr_l;
+
+	for (att_beg = hdr; att_beg < hdr_end; att_beg = next + 1) {
+		/* Iterate through all cookies on this line */
+
+		while (att_beg < hdr_end && http_is_spht[(unsigned char)*att_beg])
+			att_beg++;
+
+		/* find att_end : this is the first character after the last non
+		 * space before the equal. It may be equal to hdr_end.
+		 */
+		equal = att_end = att_beg;
+
+		while (equal < hdr_end) {
+			if (*equal == '=' || *equal == ';' || (list && *equal == ','))
+				break;
+			if (http_is_spht[(unsigned char)*equal++])
+				continue;
+			att_end = equal;
+		}
+
+		/* here, <equal> points to '=', a delimitor or the end. <att_end>
+		 * is between <att_beg> and <equal>, both may be identical.
+		 */
+
+		/* look for end of cookie if there is an equal sign */
+		if (equal < hdr_end && *equal == '=') {
+			/* look for the beginning of the value */
+			val_beg = equal + 1;
+			while (val_beg < hdr_end && http_is_spht[(unsigned char)*val_beg])
+				val_beg++;
+
+			/* find the end of the value, respecting quotes */
+			next = find_cookie_value_end(val_beg, hdr_end);
+
+			/* make val_end point to the first white space or delimitor after the value */
+			val_end = next;
+			while (val_end > val_beg && http_is_spht[(unsigned char)*(val_end - 1)])
+				val_end--;
+		} else {
+			val_beg = val_end = next = equal;
+		}
+
+		/* We have nothing to do with attributes beginning with '$'. However,
+		 * they will automatically be removed if a header before them is removed,
+		 * since they're supposed to be linked together.
+		 */
+		if (*att_beg == '$')
+			continue;
+
+		/* Ignore cookies with no equal sign */
+		if (equal == next)
+			continue;
+
+		/* Now we have the cookie name between att_beg and att_end, and
+		 * its value between val_beg and val_end.
+		 */
+
+		if (att_end - att_beg == cookie_name_l &&
+		    memcmp(att_beg, cookie_name, cookie_name_l) == 0) {
+			found = 1;
+			*value = val_beg;
+			*value_l = val_end - val_beg;
+			/* right now we want to catch the last occurrence
+			 * of the cookie, so let's go on searching.
+			 */
+		}
+
+		/* Set-Cookie headers only have the name in the first attr=value part */
+		if (!list)
+			break;
+	}
+
+	return found;
+}
+
+/* Try to find in request or response message is in <msg> and whose transaction
+ * is in <txn> the last occurrence of a cookie name in all cookie header values
+ * whose header name is <hdr_name> with name of length <hdr_name_len>. The
+ * pointer and size of the last occurrence of the cookie value is returned into
+ * <value> and <value_l>, and the function returns non-zero if the value was
+ * found. Otherwise if the cookie was not found, zero is returned and neither
+ * value nor value_l are touched. The input hdr string should begin at the
+ * header's value, and its size should be in hdr_l. <list> must be non-zero if
+ * value may represent a list of values (cookie headers).
+ */
+
+static int
+find_cookie_value(struct http_msg *msg, struct http_txn *txn,
+		  const char *hdr_name, int hdr_name_len,
+		  char *cookie_name, size_t cookie_name_l, int list,
+		  char **value, size_t *value_l)
+{
+	struct hdr_ctx ctx;
+	int found = 0;
+
+	ctx.idx = 0;
+	while (http_find_header2(hdr_name, hdr_name_len, msg->sol, &txn->hdr_idx, &ctx)) {
+		if (ctx.vlen < cookie_name_l + 1)
+			continue;
+
+		found |= extract_cookie_value(ctx.line + ctx.val, ctx.vlen,
+					      cookie_name, cookie_name_l, 1,
+					      value, value_l);
+	}
+	return found;
+}
+
+static int
+pattern_fetch_cookie(struct proxy *px, struct session *l4, void *l7, int dir,
+                     const struct pattern_arg *arg_p, int arg_i, union pattern_data *data)
+{
+	struct http_txn *txn = l7;
+	struct http_msg *msg = &txn->req;
+	char  *cookie_value;
+	size_t cookie_value_l;
+	int found = 0;
+
+	found = find_cookie_value(msg, txn, "Cookie", 6,
+				  arg_p->data.str.str, arg_p->data.str.len, 1,
+				  &cookie_value, &cookie_value_l);
+	if (found) {
+		data->str.str = cookie_value;
+		data->str.len = cookie_value_l;
+	}
+
+	return found;
+}
+
+
+static int
+pattern_fetch_set_cookie(struct proxy *px, struct session *l4, void *l7, int dir,
+			 const struct pattern_arg *arg_p, int arg_i, union pattern_data *data)
+{
+	struct http_txn *txn = l7;
+	struct http_msg *msg = &txn->rsp;
+	char  *cookie_value;
+	size_t cookie_value_l;
+	int found = 0;
+
+	found = find_cookie_value(msg, txn, "Set-Cookie", 10,
+				  arg_p->data.str.str, arg_p->data.str.len, 1,
+				  &cookie_value, &cookie_value_l);
+	if (found) {
+		data->str.str = cookie_value;
+		data->str.len = cookie_value_l;
+	}
+
+	return found;
+}
+
 
 /************************************************************************/
 /*             All supported keywords must be declared here.            */
@@ -8543,6 +8722,8 @@ pattern_fetch_url_param(struct proxy *px, struct session *l4, void *l7, int dir,
 static struct pattern_fetch_kw_list pattern_fetch_keywords = {{ },{
 	{ "hdr", pattern_fetch_hdr_ip, pattern_arg_str, PATTERN_TYPE_IP, PATTERN_FETCH_REQ },
 	{ "url_param", pattern_fetch_url_param, pattern_arg_str, PATTERN_TYPE_STRING, PATTERN_FETCH_REQ },
+	{ "cookie", pattern_fetch_cookie, pattern_arg_str, PATTERN_TYPE_STRING, PATTERN_FETCH_REQ },
+	{ "set-cookie", pattern_fetch_set_cookie, pattern_arg_str, PATTERN_TYPE_STRING, PATTERN_FETCH_RTR },
 	{ NULL, NULL, NULL, 0, 0 },
 }};
 

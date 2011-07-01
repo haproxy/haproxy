@@ -7970,6 +7970,26 @@ The list of currently supported pattern fetch functions is the following :
 	       See also : "balance rdp-cookie", "persist rdp-cookie",
 	       "tcp-request" and the "req_rdp_cookie" ACL.
 
+  cookie(name)
+	       This extracts the last occurrence of the cookie name <name> on a
+	       "Cookie" header line from the request and uses the corresponding
+	       value to match. A typical use is to get multiple clients sharing
+	       a same profile use the same server. This can be similar to what
+	       "appsession" does with the "request-learn" statement, but with
+	       support for multi-peer synchronization and state keeping across
+	       restarts.
+
+	       See also : "appsession"
+
+  set-cookie(name)
+	       This extracts the last occurrence of the cookie name <name> on a
+	       "Set-Cookie" header line from the response and uses the
+	       corresponding value to match. This can be comparable to what
+	       "appsession" does with default options, but with support for
+	        multi-peer synchronization and state keeping across restarts.
+
+	       See also : "appsession"
+
 
 The currently available list of transformations include :
 
