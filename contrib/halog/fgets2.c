@@ -130,6 +130,7 @@ const char *fgets2(FILE *stream)
 				return NULL;
 
 			*end = '\0';
+			end = line; /* ensure we stop next time */
 			return line;
 		}
 
