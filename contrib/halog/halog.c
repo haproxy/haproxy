@@ -36,7 +36,13 @@
 #define MAXLINE 16384
 #define QBITS 4
 
-#define SKIP_CHAR(p,c) do { while (1) if (!*p) break; else if (*(p++) == c) break; } while (0)
+const char sep[256] = {
+        [0] = 1,
+	[' '] = 1, ['\t'] = 1,
+        ['\r'] = 1, ['\n'] = 1,
+};
+
+#define SKIP_CHAR(p,c) do { while (1) if (sep[(unsigned char)*p]) break; else if (*(p++) == c) break; } while (0)
 
 /* [0] = err/date, [1] = req, [2] = conn, [3] = resp, [4] = data */
 static struct eb_root timers[5] = {
@@ -507,7 +513,7 @@ int main(int argc, char **argv)
 			p = b;
 			err = 0;
 			f = 0;
-			while (*p) {
+			while (!sep[(unsigned char)*p]) {
 				tps = str2ic(p);
 				if (tps < 0) {
 					tps = -1;
@@ -580,7 +586,7 @@ int main(int argc, char **argv)
 			p = b;
 			err = 0;
 			f = 0;
-			while (*p) {
+			while (!sep[(unsigned char)*p]) {
 				array[f] = str2ic(p);
 				if (array[f] < 0) {
 					array[f] = -1;
@@ -745,7 +751,7 @@ int main(int argc, char **argv)
 			p = b;
 			err = 0;
 			f = 0;
-			while (*p) {
+			while (!sep[(unsigned char)*p]) {
 				array[f] = str2ic(p);
 				if (array[f] < 0) {
 					array[f] = -1;
@@ -813,7 +819,7 @@ int main(int argc, char **argv)
 			 * parse the 5 timers to detect errors, it takes avg 55 ns per line.
 			 */
 			e = b; err = 0; f = 0;
-			while (*e) {
+			while (!sep[(unsigned char)*e]) {
 				array[f] = str2ic(e);
 				if (array[f] < 0) {
 					array[f] = -1;
