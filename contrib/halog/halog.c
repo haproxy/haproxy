@@ -385,7 +385,7 @@ void truncated_line(int linenum, const char *line)
 
 int main(int argc, char **argv)
 {
-	const char *b, *e, *p;
+	const char *b, *e, *p, *time_field;
 	const char *output_file = NULL;
 	int f, tot, last, linenum, err, parse_err;
 	struct timer *t = NULL, *t2;
@@ -494,21 +494,22 @@ int main(int argc, char **argv)
 
 	while ((line = fgets2(stdin)) != NULL) {
 		linenum++;
+		time_field = NULL;
 
 		test = 1;
 		if (unlikely(filter & FILT_HTTP_ONLY)) {
 			/* only report lines with at least 4 timers */
-			b = field_start(line, TIME_FIELD + skip_fields);
-			if (!*b) {
+
+			if (!time_field)
+				time_field = field_start(line, TIME_FIELD + skip_fields);
+			if (!*time_field) {
 				truncated_line(linenum, line);
 				continue;
 			}
 
-			e = field_stop(b + 1);
-			/* we have field TIME_FIELD in [b]..[e-1] */
-
-			p = b;
-			err = 0;
+			e = field_stop(time_field + 1);
+			/* we have field TIME_FIELD in [time_field]..[e-1] */
+			p = time_field;
 			f = 0;
 			while (!SEP(*p)) {
 				if (++f == 4)
@@ -522,16 +523,17 @@ int main(int argc, char **argv)
 			int tps;
 
 			/* only report lines with response times larger than filter_time_resp */
-			b = field_start(line, TIME_FIELD + skip_fields);
-			if (!*b) {
+			if (!time_field)
+				time_field = field_start(line, TIME_FIELD + skip_fields);
+			if (!*time_field) {
 				truncated_line(linenum, line);
 				continue;
 			}
 
-			e = field_stop(b + 1);
-			/* we have field TIME_FIELD in [b]..[e-1], let's check only the response time */
+			e = field_stop(time_field + 1);
+			/* we have field TIME_FIELD in [time_field]..[e-1], let's check only the response time */
 
-			p = b;
+			p = time_field;
 			err = 0;
 			f = 0;
 			while (!SEP(*p)) {
@@ -555,7 +557,13 @@ int main(int argc, char **argv)
 
 		if (unlikely(filter & FILT_ERRORS_ONLY)) {
 			/* only report erroneous status codes */
-			b = field_start(line, STATUS_FIELD + skip_fields);
+			if (!time_field)
+				time_field = field_start(line, TIME_FIELD + skip_fields);
+			if (!*time_field) {
+				truncated_line(linenum, line);
+				continue;
+			}
+			b = field_start(time_field, STATUS_FIELD - TIME_FIELD + 1);
 			if (!*b) {
 				truncated_line(linenum, line);
 				continue;
@@ -595,16 +603,21 @@ int main(int argc, char **argv)
 		if (unlikely(filter & (FILT_GRAPH_TIMERS|FILT_PERCENTILE))) {
 			int f;
 
-			b = field_start(line, TIME_FIELD + skip_fields);
-			if (!*b) {
+			if (!time_field)
+				time_field = field_start(line, TIME_FIELD + skip_fields);
+			if (!*time_field) {
+				truncated_line(linenum, line);
+				continue;
+			}
+			if (!*time_field) {
 				truncated_line(linenum, line);
 				continue;
 			}
 
-			e = field_stop(b + 1);
-			/* we have field TIME_FIELD in [b]..[e-1] */
+			e = field_stop(time_field + 1);
+			/* we have field TIME_FIELD in [time_field]..[e-1] */
 
-			p = b;
+			p = time_field;
 			err = 0;
 			f = 0;
 			while (!SEP(*p)) {
@@ -685,7 +698,10 @@ int main(int argc, char **argv)
 				continue;
 			}
 
-			b = field_start(b, STATUS_FIELD - SOURCE_FIELD + 1);
+			if (time_field)
+				b = field_start(time_field, STATUS_FIELD - TIME_FIELD + 1);
+			else
+				b = field_start(b, STATUS_FIELD - SOURCE_FIELD + 1);
 			if (!*b) {
 				truncated_line(linenum, line);
 				continue;
@@ -707,7 +723,10 @@ int main(int argc, char **argv)
 				continue;
 			}
 
-			b = field_start(b, TERM_CODES_FIELD - SOURCE_FIELD + 1);
+			if (time_field)
+				b = field_start(time_field, TERM_CODES_FIELD - TIME_FIELD + 1);
+			else
+				b = field_start(b, TERM_CODES_FIELD - SOURCE_FIELD + 1);
 			if (!*b) {
 				truncated_line(linenum, line);
 				continue;
@@ -760,16 +779,17 @@ int main(int argc, char **argv)
 			}
 
 			/* let's collect the connect and response times */
-			b = field_start(e, TIME_FIELD - SERVER_FIELD);
-			if (!*b) {
+			if (!time_field)
+				time_field = field_start(e, TIME_FIELD - SERVER_FIELD);
+			if (!*time_field) {
 				truncated_line(linenum, line);
 				continue;
 			}
 
-			e = field_stop(b + 1);
-			/* we have field TIME_FIELD in [b]..[e-1] */
+			e = field_stop(time_field + 1);
+			/* we have field TIME_FIELD in [time_field]..[e-1] */
 
-			p = b;
+			p = time_field;
 			err = 0;
 			f = 0;
 			while (!SEP(*p)) {
@@ -821,25 +841,27 @@ int main(int argc, char **argv)
 
 		if (unlikely(filter & FILT_COUNT_URL_ANY)) {
 			/* first, let's ensure that the line is a traffic line (beginning
-			 * with an IP address)
+			 * with an IP address, or already having a time field)
 			 */
-			b = field_start(line, SOURCE_FIELD + skip_fields); // avg 95 ns per line
-			if (*b < '0' || *b > '9') {
-				parse_err++;
-				continue;
-			}
 
 			/* let's collect the response time */
-			b = field_start(field_stop(b + 1), TIME_FIELD - SOURCE_FIELD);  // avg 115 ns per line
-			if (!*b) {
+			if (!time_field) {
+				b = field_start(line, SOURCE_FIELD + skip_fields); // avg 95 ns per line
+				if (*b < '0' || *b > '9') {
+					parse_err++;
+					continue;
+				}
+				time_field = field_start(field_stop(b + 1), TIME_FIELD - SOURCE_FIELD);  // avg 115 ns per line
+			}
+			if (!*time_field) {
 				truncated_line(linenum, line);
 				continue;
 			}
 
-			/* we have the field TIME_FIELD starting at <b>. We'll
+			/* we have the field TIME_FIELD starting at <time_field>. We'll
 			 * parse the 5 timers to detect errors, it takes avg 55 ns per line.
 			 */
-			e = b; err = 0; f = 0;
+			e = time_field; err = 0; f = 0;
 			while (!SEP(*e)) {
 				array[f] = str2ic(e);
 				if (array[f] < 0) {
