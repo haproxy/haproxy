@@ -36,13 +36,8 @@
 #define MAXLINE 16384
 #define QBITS 4
 
-const char sep[256] = {
-        [0] = 1,
-	[' '] = 1, ['\t'] = 1,
-        ['\r'] = 1, ['\n'] = 1,
-};
-
-#define SKIP_CHAR(p,c) do { while (1) if (sep[(unsigned char)*p]) break; else if (*(p++) == c) break; } while (0)
+#define SEP(c) ((unsigned char)(c) <= ' ')
+#define SKIP_CHAR(p,c) do { while (1) { int __c = (unsigned char)*p++; if (__c == c) break; if (__c <= ' ') { p--; break; } } } while (0)
 
 /* [0] = err/date, [1] = req, [2] = conn, [3] = resp, [4] = data */
 static struct eb_root timers[5] = {
@@ -515,7 +510,7 @@ int main(int argc, char **argv)
 			p = b;
 			err = 0;
 			f = 0;
-			while (!sep[(unsigned char)*p]) {
+			while (!SEP(*p)) {
 				if (++f == 4)
 					break;
 				SKIP_CHAR(p, '/');
@@ -539,7 +534,7 @@ int main(int argc, char **argv)
 			p = b;
 			err = 0;
 			f = 0;
-			while (!sep[(unsigned char)*p]) {
+			while (!SEP(*p)) {
 				tps = str2ic(p);
 				if (tps < 0) {
 					tps = -1;
@@ -612,7 +607,7 @@ int main(int argc, char **argv)
 			p = b;
 			err = 0;
 			f = 0;
-			while (!sep[(unsigned char)*p]) {
+			while (!SEP(*p)) {
 				array[f] = str2ic(p);
 				if (array[f] < 0) {
 					array[f] = -1;
@@ -777,7 +772,7 @@ int main(int argc, char **argv)
 			p = b;
 			err = 0;
 			f = 0;
-			while (!sep[(unsigned char)*p]) {
+			while (!SEP(*p)) {
 				array[f] = str2ic(p);
 				if (array[f] < 0) {
 					array[f] = -1;
@@ -845,7 +840,7 @@ int main(int argc, char **argv)
 			 * parse the 5 timers to detect errors, it takes avg 55 ns per line.
 			 */
 			e = b; err = 0; f = 0;
-			while (!sep[(unsigned char)*e]) {
+			while (!SEP(*e)) {
 				array[f] = str2ic(e);
 				if (array[f] < 0) {
 					array[f] = -1;
