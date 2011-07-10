@@ -101,6 +101,8 @@ struct url_stat {
 #define FILT_COUNT_URL_ANY   (FILT_COUNT_URL_ONLY|FILT_COUNT_URL_COUNT|FILT_COUNT_URL_ERR| \
 			      FILT_COUNT_URL_TTOT|FILT_COUNT_URL_TAVG|FILT_COUNT_URL_TTOTO|FILT_COUNT_URL_TAVGO)
 
+#define FILT_HTTP_ONLY       0x200000
+
 unsigned int filter = 0;
 unsigned int filter_invert = 0;
 const char *line;
@@ -112,7 +114,7 @@ void die(const char *msg)
 	fprintf(stderr,
 		"%s"
 		"Usage: halog [-q] [-c] [-v] {-gt|-pct|-st|-tc|-srv|-u|-uc|-ue|-ua|-ut|-uao|-uto}\n"
-		"       [-s <skip>] [-e|-E] [-rt|-RT <time>] [-ad <delay>] [-ac <count>] < file.log\n"
+		"       [-s <skip>] [-e|-E] [-H] [-rt|-RT <time>] [-ad <delay>] [-ac <count>] < log\n"
 		"\n",
 		msg ? msg : ""
 		);
@@ -439,6 +441,8 @@ int main(int argc, char **argv)
 			filter |= FILT_ERRORS_ONLY;
 		else if (strcmp(argv[0], "-E") == 0)
 			filter |= FILT_ERRORS_ONLY | FILT_INVERT_ERRORS;
+		else if (strcmp(argv[0], "-H") == 0)
+			filter |= FILT_HTTP_ONLY;
 		else if (strcmp(argv[0], "-c") == 0)
 			filter |= FILT_COUNT_ONLY;
 		else if (strcmp(argv[0], "-q") == 0)
@@ -497,6 +501,28 @@ int main(int argc, char **argv)
 		linenum++;
 
 		test = 1;
+		if (unlikely(filter & FILT_HTTP_ONLY)) {
+			/* only report lines with at least 4 timers */
+			b = field_start(line, TIME_FIELD + skip_fields);
+			if (!*b) {
+				truncated_line(linenum, line);
+				continue;
+			}
+
+			e = field_stop(b + 1);
+			/* we have field TIME_FIELD in [b]..[e-1] */
+
+			p = b;
+			err = 0;
+			f = 0;
+			while (!sep[(unsigned char)*p]) {
+				if (++f == 4)
+					break;
+				SKIP_CHAR(p, '/');
+			}
+			test &= (f >= 4);
+		}
+
 		if (unlikely(filter & FILT_TIME_RESP)) {
 			int tps;
 
