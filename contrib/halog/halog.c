@@ -137,7 +137,7 @@ const char *field_stop(const char *p)
 		c = *(p++);
 		if (c > ' ')
 			continue;
-		if (c == ' ' || c == '\t' || c == 0)
+		if (c == ' ' || c == 0)
 			break;
 	}
 	return p - 1;
@@ -156,7 +156,7 @@ const char *field_start(const char *p, int field)
 			c = *p;
 			if (c > ' ')
 				break;
-			if (c == ' ' || c == '\t')
+			if (c == ' ')
 				goto next;
 			if (!c) /* end of line */
 				return p;
@@ -176,7 +176,7 @@ const char *field_start(const char *p, int field)
 			c = *(p++);
 			if (c > ' ')
 				continue;
-			if (c == ' ' || c == '\t')
+			if (c == ' ')
 				break;
 			if (c == '\0')
 				return p;
@@ -1088,7 +1088,7 @@ void filter_count_url(const char *accept_field, const char *time_field, struct t
 	/* stop at end of field or first ';' or '?', takes avg 64 ns per line */
 	e = b;
 	do {
-		if (*e == ' ' || *e == '?' || *e == ';' || *e == '\t') {
+		if (*e == ' ' || *e == '?' || *e == ';') {
 			*(char *)e = 0;
 			break;
 		}
