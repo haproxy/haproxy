@@ -101,8 +101,19 @@ struct url_stat {
 unsigned int filter = 0;
 unsigned int filter_invert = 0;
 const char *line;
+int linenum = 0;
+int parse_err = 0;
+int lines_out = 0;
 
 const char *fgets2(FILE *stream);
+
+void filter_count_url(const char *accept_field, const char *time_field, struct timer **tptr);
+void filter_count_srv_status(const char *accept_field, const char *time_field, struct timer **tptr);
+void filter_count_term_codes(const char *accept_field, const char *time_field, struct timer **tptr);
+void filter_count_status(const char *accept_field, const char *time_field, struct timer **tptr);
+void filter_graphs(const char *accept_field, const char *time_field, struct timer **tptr);
+void filter_output_line(const char *accept_field, const char *time_field, struct timer **tptr);
+void filter_accept_holes(const char *accept_field, const char *time_field, struct timer **tptr);
 
 void die(const char *msg)
 {
@@ -387,16 +398,16 @@ int main(int argc, char **argv)
 {
 	const char *b, *e, *p, *time_field, *accept_field;
 	const char *output_file = NULL;
-	int f, tot, last, linenum, err, parse_err;
-	struct timer *t = NULL, *t2;
+	int f, last, err;
+	struct timer *t = NULL;
 	struct eb32_node *n;
 	struct url_stat *ustat = NULL;
-	struct ebpt_node *ebpt_old;
 	int val, test;
-	int array[5];
 	int filter_acc_delay = 0, filter_acc_count = 0;
 	int filter_time_resp = 0;
 	int skip_fields = 1;
+
+	void (*line_filter)(const char *accept_field, const char *time_field, struct timer **tptr) = NULL;
 
 	argc--; argv++;
 	while (argc > 0) {
@@ -488,9 +499,23 @@ int main(int argc, char **argv)
 	if (filter & FILT_ACC_DELAY && !filter_acc_delay)
 		filter_acc_delay = 1;
 
-	linenum = 0;
-	tot = 0;
-	parse_err = 0;
+
+	/* by default, all lines are printed */
+	line_filter = filter_output_line;
+	if (filter & (FILT_ACC_COUNT|FILT_ACC_DELAY))
+		line_filter = filter_accept_holes;
+	else if (filter & (FILT_GRAPH_TIMERS|FILT_PERCENTILE))
+		line_filter = filter_graphs;
+	else if (filter & FILT_COUNT_STATUS)
+		line_filter = filter_count_status;
+	else if (filter & FILT_COUNT_TERM_CODES)
+		line_filter = filter_count_term_codes;
+	else if (filter & FILT_COUNT_SRV_STATUS)
+		line_filter = filter_count_srv_status;
+	else if (filter & FILT_COUNT_URL_ANY)
+		line_filter = filter_count_url;
+	else if (filter & FILT_COUNT_ONLY)
+		line_filter = NULL;
 
 	while ((line = fgets2(stdin)) != NULL) {
 		linenum++;
@@ -502,22 +527,22 @@ int main(int argc, char **argv)
 		 * looking like the accept date field (beginning with a '[').
 		 */
 		accept_field = field_start(line, ACCEPT_FIELD + skip_fields);
-		if (*accept_field != '[') {
+		if (unlikely(*accept_field != '[')) {
 			parse_err++;
 			continue;
 		}
 
 		/* the day of month field is begin 01 and 31 */
-		if (unlikely(accept_field[1] < '0' || accept_field[1] > '3')) {
+		if (accept_field[1] < '0' || accept_field[1] > '3') {
 			parse_err++;
 			continue;
 		}
 
-		if (unlikely(filter & FILT_HTTP_ONLY)) {
+		if (filter & FILT_HTTP_ONLY) {
 			/* only report lines with at least 4 timers */
-			if (unlikely(!time_field)) {
+			if (!time_field) {
 				time_field = field_start(accept_field, TIME_FIELD - ACCEPT_FIELD + 1);
-				if (!*time_field) {
+				if (unlikely(!*time_field)) {
 					truncated_line(linenum, line);
 					continue;
 				}
@@ -535,13 +560,13 @@ int main(int argc, char **argv)
 			test &= (f >= 4);
 		}
 
-		if (unlikely(filter & FILT_TIME_RESP)) {
+		if (filter & FILT_TIME_RESP) {
 			int tps;
 
 			/* only report lines with response times larger than filter_time_resp */
-			if (unlikely(!time_field)) {
+			if (!time_field) {
 				time_field = field_start(accept_field, TIME_FIELD - ACCEPT_FIELD + 1);
-				if (!*time_field) {
+				if (unlikely(!*time_field)) {
 					truncated_line(linenum, line);
 					continue;
 				}
@@ -564,7 +589,7 @@ int main(int argc, char **argv)
 				SKIP_CHAR(p, '/');
 			}
 
-			if (f < 4) {
+			if (unlikely(f < 4)) {
 				parse_err++;
 				continue;
 			}
@@ -572,17 +597,18 @@ int main(int argc, char **argv)
 			test &= (tps >= filter_time_resp) ^ !!(filter & FILT_INVERT_TIME_RESP);
 		}
 
-		if (unlikely(filter & FILT_ERRORS_ONLY)) {
+		if (filter & FILT_ERRORS_ONLY) {
 			/* only report erroneous status codes */
 			if (time_field)
 				b = field_start(time_field, STATUS_FIELD - TIME_FIELD + 1);
 			else
 				b = field_start(accept_field, STATUS_FIELD - ACCEPT_FIELD + 1);
 
-			if (!*b) {
+			if (unlikely(!*b)) {
 				truncated_line(linenum, line);
 				continue;
 			}
+
 			if (*b == '-') {
 				test &= !!(filter & FILT_INVERT_ERRORS);
 			} else {
@@ -595,338 +621,26 @@ int main(int argc, char **argv)
 		if (!test)
 			continue;
 
-		if (unlikely(filter & (FILT_ACC_COUNT|FILT_ACC_DELAY))) {
-			b = accept_field;
-			tot++;
-			val = convert_date(b);
-			//printf("date=%s => %d\n", b, val);
-			if (val < 0) {
-				parse_err++;
-				continue;
-			}
+		/************** here we process inputs *******************/
 
-			t2 = insert_value(&timers[0], &t, val);
-			t2->count++;
-			continue;
-		}
-
-		if (unlikely(filter & (FILT_GRAPH_TIMERS|FILT_PERCENTILE))) {
-			int f;
-
-			if (unlikely(!time_field)) {
-				time_field = field_start(accept_field, TIME_FIELD - ACCEPT_FIELD + 1);
-				if (!*time_field) {
-					truncated_line(linenum, line);
-					continue;
-				}
-			}
-
-			e = field_stop(time_field + 1);
-			/* we have field TIME_FIELD in [time_field]..[e-1] */
-
-			p = time_field;
-			err = 0;
-			f = 0;
-			while (!SEP(*p)) {
-				array[f] = str2ic(p);
-				if (array[f] < 0) {
-					array[f] = -1;
-					err = 1;
-				}
-				if (++f == 5)
-					break;
-				SKIP_CHAR(p, '/');
-			}
-
-			if (f < 5) {
-				parse_err++;
-				continue;
-			}
-
-			/* if we find at least one negative time, we count one error
-			 * with a time equal to the total session time. This will
-			 * emphasize quantum timing effects associated to known
-			 * timeouts. Note that on some buggy machines, it is possible
-			 * that the total time is negative, hence the reason to reset
-			 * it.
-			 */
-
-			if (filter & FILT_GRAPH_TIMERS) {
-				if (err) {
-					if (array[4] < 0)
-						array[4] = -1;
-					t2 = insert_timer(&timers[0], &t, array[4]);  // total time
-					t2->count++;
-				} else {
-					int v;
-
-					t2 = insert_timer(&timers[1], &t, array[0]); t2->count++;  // req
-					t2 = insert_timer(&timers[2], &t, array[2]); t2->count++;  // conn
-					t2 = insert_timer(&timers[3], &t, array[3]); t2->count++;  // resp
-
-					v = array[4] - array[0] - array[1] - array[2] - array[3]; // data time
-					if (v < 0 && !(filter & FILT_QUIET))
-						fprintf(stderr, "ERR: %s (%d %d %d %d %d => %d)\n",
-							line, array[0], array[1], array[2], array[3], array[4], v);
-					t2 = insert_timer(&timers[4], &t, v); t2->count++;
-					tot++;
-				}
-			} else { /* percentile */
-				if (err) {
-					if (array[4] < 0)
-						array[4] = -1;
-					t2 = insert_value(&timers[0], &t, array[4]);  // total time
-					t2->count++;
-				} else {
-					int v;
-
-					t2 = insert_value(&timers[1], &t, array[0]); t2->count++;  // req
-					t2 = insert_value(&timers[2], &t, array[2]); t2->count++;  // conn
-					t2 = insert_value(&timers[3], &t, array[3]); t2->count++;  // resp
-
-					v = array[4] - array[0] - array[1] - array[2] - array[3]; // data time
-					if (v < 0 && !(filter & FILT_QUIET))
-						fprintf(stderr, "ERR: %s (%d %d %d %d %d => %d)\n",
-							line, array[0], array[1], array[2], array[3], array[4], v);
-					t2 = insert_value(&timers[4], &t, v); t2->count++;
-					tot++;
-				}
-			}
-			continue;
-		}
-
-		if (unlikely(filter & FILT_COUNT_STATUS)) {
-			if (time_field)
-				b = field_start(time_field, STATUS_FIELD - TIME_FIELD + 1);
-			else
-				b = field_start(accept_field, STATUS_FIELD - ACCEPT_FIELD + 1);
-
-			if (!*b) {
-				truncated_line(linenum, line);
-				continue;
-			}
-			val = str2ic(b);
-
-			t2 = insert_value(&timers[0], &t, val);
-			t2->count++;
-			continue;
-		}
-
-		if (unlikely(filter & FILT_COUNT_TERM_CODES)) {
-			if (time_field)
-				b = field_start(time_field, TERM_CODES_FIELD - TIME_FIELD + 1);
-			else
-				b = field_start(accept_field, TERM_CODES_FIELD - ACCEPT_FIELD + 1);
-
-			if (!*b) {
-				truncated_line(linenum, line);
-				continue;
-			}
-			val = 256 * b[0] + b[1];
-
-			t2 = insert_value(&timers[0], &t, val);
-			t2->count++;
-			continue;
-		}
-
-		if (unlikely(filter & FILT_COUNT_SRV_STATUS)) {
-			char *srv_name;
-			struct ebmb_node *srv_node;
-			struct srv_st *srv;
-
-			/* the server field is before the status field, so let's
-			 * parse them in the proper order.
-			 */
-			b = field_start(accept_field, SERVER_FIELD - ACCEPT_FIELD + 1);
-			if (!*b) {
-				truncated_line(linenum, line);
-				continue;
-			}
-
-			e = field_stop(b + 1);  /* we have the server name in [b]..[e-1] */
-
-			/* the chance that a server name already exists is extremely high,
-			 * so let's perform a normal lookup first.
-			 */
-			srv_node = ebst_lookup_len(&timers[0], b, e - b);
-			srv = container_of(srv_node, struct srv_st, node);
-
-			if (!srv_node) {
-				/* server not yet in the tree, let's create it */
-				srv = (void *)calloc(1, sizeof(struct srv_st) + e - b + 1);
-				srv_node = &srv->node;
-				memcpy(&srv_node->key, b, e - b);
-				srv_node->key[e - b] = '\0';
-				ebst_insert(&timers[0], srv_node);
-			}
-
-			/* let's collect the connect and response times */
-			if (!time_field)
-				time_field = field_start(e, TIME_FIELD - SERVER_FIELD);
-			if (!*time_field) {
-				truncated_line(linenum, line);
-				continue;
-			}
-
-			e = field_stop(time_field + 1);
-			/* we have field TIME_FIELD in [time_field]..[e-1] */
-
-			p = time_field;
-			err = 0;
-			f = 0;
-			while (!SEP(*p)) {
-				array[f] = str2ic(p);
-				if (array[f] < 0) {
-					array[f] = -1;
-					err = 1;
-				}
-				if (++f == 5)
-					break;
-				SKIP_CHAR(p, '/');
-			}
-
-			if (f < 5) {
-				parse_err++;
-				continue;
-			}
-
-			/* OK we have our timers in array[2,3] */
-			if (!err)
-				srv->nb_ok++;
-
-			if (array[2] >= 0) {
-				srv->cum_ct += array[2];
-				srv->nb_ct++;
-			}
-
-			if (array[3] >= 0) {
-				srv->cum_rt += array[3];
-				srv->nb_rt++;
-			}
-
-			/* we're interested in the 5 HTTP status classes (1xx ... 5xx), and
-			 * the invalid ones which will be reported as 0.
-			 */
-			b = field_start(e, STATUS_FIELD - TIME_FIELD);
-			if (!*b) {
-				truncated_line(linenum, line);
-				continue;
-			}
-
-			val = 0;
-			if (*b >= '1' && *b <= '5')
-				val = *b - '0';
-
-			srv->st_cnt[val]++;
-			continue;
-		}
-
-		if (unlikely(filter & FILT_COUNT_URL_ANY)) {
-			/* let's collect the response time */
-			if (unlikely(!time_field)) {
-				time_field = field_start(accept_field, TIME_FIELD - ACCEPT_FIELD + 1);  // avg 115 ns per line
-				if (!*time_field) {
-					truncated_line(linenum, line);
-					continue;
-				}
-			}
-
-			/* we have the field TIME_FIELD starting at <time_field>. We'll
-			 * parse the 5 timers to detect errors, it takes avg 55 ns per line.
-			 */
-			e = time_field; err = 0; f = 0;
-			while (!SEP(*e)) {
-				array[f] = str2ic(e);
-				if (array[f] < 0) {
-					array[f] = -1;
-					err = 1;
-				}
-				if (++f == 5)
-					break;
-				SKIP_CHAR(e, '/');
-			}
-			if (f < 5) {
-				parse_err++;
-				continue;
-			}
-
-			/* OK we have our timers in array[3], and err is >0 if at
-			 * least one -1 was seen. <e> points to the first char of
-			 * the last timer. Let's prepare a new node with that.
-			 */
-			if (unlikely(!ustat))
-				ustat = calloc(1, sizeof(*ustat));
-
-			ustat->nb_err = err;
-			ustat->nb_req = 1;
-
-			/* use array[4] = total time in case of error */
-			ustat->total_time = (array[3] >= 0) ? array[3] : array[4];
-			ustat->total_time_ok = (array[3] >= 0) ? array[3] : 0;
-
-			/* the line may be truncated because of a bad request or anything like this,
-			 * without a method. Also, if it does not begin with an quote, let's skip to
-			 * the next field because it's a capture. Let's fall back to the "method" itself
-			 * if there's nothing else.
-			 */
-			e = field_start(e, METH_FIELD - TIME_FIELD + 1); // avg 100 ns per line
-			while (*e != '"' && *e)
-				e = field_start(e, 2);
-
-			if (!*e) {
-				truncated_line(linenum, line);
-				continue;
-			}
-
-			b = field_start(e, URL_FIELD - METH_FIELD + 1); // avg 40 ns per line
-			if (!*b)
-				b = e;
-
-			/* stop at end of field or first ';' or '?', takes avg 64 ns per line */
-			e = b;
-			do {
-				if (*e == ' ' || *e == '?' || *e == ';' || *e == '\t') {
-					*(char *)e = 0;
-					break;
-				}
-				e++;
-			} while (*e);
-
-			/* now instead of copying the URL for a simple lookup, we'll link
-			 * to it from the node we're trying to insert. If it returns a
-			 * different value, it was already there. Otherwise we just have
-			 * to dynamically realloc an entry using strdup().
-			 */
-			ustat->node.url.key = (char *)b;
-			ebpt_old = ebis_insert(&timers[0], &ustat->node.url);
-
-			if (ebpt_old != &ustat->node.url) {
-				struct url_stat *ustat_old;
-				/* node was already there, let's update previous one */
-				ustat_old = container_of(ebpt_old, struct url_stat, node.url);
-				ustat_old->nb_req ++;
-				ustat_old->nb_err += ustat->nb_err;
-				ustat_old->total_time += ustat->total_time;
-				ustat_old->total_time_ok += ustat->total_time_ok;
-			} else {
-				ustat->url = ustat->node.url.key = strdup(ustat->node.url.key);
-				ustat = NULL; /* node was used */
-			}
-
-			continue;
-		}
-
-		/* all other cases mean we just want to count lines */
-		tot++;
-		if (unlikely(!(filter & FILT_COUNT_ONLY)))
-			puts(line);
+		if (line_filter)
+			line_filter(accept_field, time_field, &t);
+		else
+			lines_out++; /* we're just counting lines */
 	}
+
+
+	/*****************************************************
+	 * Here we've finished reading all input. Depending on the
+	 * filters, we may still have some analysis to run on the
+	 * collected data and to output data in a new format.
+	 *************************************************** */
 
 	if (t)
 		free(t);
 
 	if (filter & FILT_COUNT_ONLY) {
-		printf("%d\n", tot);
+		printf("%d\n", lines_out);
 		exit(0);
 	}
 
@@ -950,7 +664,7 @@ int main(int argc, char **argv)
 				ms = h % 1000; h = h / 1000;
 				s = h % 60; h = h / 60;
 				m = h % 60; h = h / 60;
-				tot++;
+				lines_out++;
 				printf("%02d:%02d:%02d.%03d %d %d %d\n", h, m, s, ms, last, d, t->count);
 			}
 			n = eb32_next(n);
@@ -982,7 +696,7 @@ int main(int argc, char **argv)
 
 				if (d > 0.0) {
 					printf("%d %d %f\n", f, last, d+1.0);
-					tot++;
+					lines_out++;
 				}
 
 				n = eb32_next(n);
@@ -998,7 +712,7 @@ int main(int argc, char **argv)
 		unsigned long cum[5];
 		double step;
 
-		if (!tot)
+		if (!lines_out)
 			goto empty;
 
 		for (f = 1; f < 5; f++) {
@@ -1007,7 +721,7 @@ int main(int argc, char **argv)
 		}
 
 		for (step = 1; step <= 1000;) {
-			unsigned int thres = tot * (step / 1000.0);
+			unsigned int thres = lines_out * (step / 1000.0);
 
 			printf("%3.1f %d ", step/10.0, thres);
 			for (f = 1; f < 5; f++) {
@@ -1039,11 +753,11 @@ int main(int argc, char **argv)
 		while (n) {
 			t = container_of(n, struct timer, node);
 			printf("%d %d\n", n->key, t->count);
+			lines_out++;
 			n = eb32_next(n);
 		}
 	}
-	else if (unlikely(filter & FILT_COUNT_SRV_STATUS)) {
-		char *srv_name;
+	else if (filter & FILT_COUNT_SRV_STATUS) {
 		struct ebmb_node *srv_node;
 		struct srv_st *srv;
 
@@ -1066,7 +780,7 @@ int main(int argc, char **argv)
 			       srv->nb_ok, (double)srv->nb_ok * 100.0 / (tot_rq?tot_rq:1),
 			       (int)(srv->cum_ct / (srv->nb_ct?srv->nb_ct:1)), (int)(srv->cum_rt / (srv->nb_rt?srv->nb_rt:1)));
 			srv_node = ebmb_next(srv_node);
-			tot++;
+			lines_out++;
 		}
 	}
 	else if (filter & FILT_COUNT_TERM_CODES) {
@@ -1075,11 +789,11 @@ int main(int argc, char **argv)
 		while (n) {
 			t = container_of(n, struct timer, node);
 			printf("%c%c %d\n", (n->key >> 8), (n->key) & 255, t->count);
+			lines_out++;
 			n = eb32_next(n);
 		}
 	}
-	else if (unlikely(filter & FILT_COUNT_URL_ANY)) {
-		char *srv_name;
+	else if (filter & FILT_COUNT_URL_ANY) {
 		struct eb_node *node, *next;
 
 		if (!(filter & FILT_COUNT_URL_ONLY)) {
@@ -1131,16 +845,365 @@ int main(int argc, char **argv)
 			       ustat->url);
 
 			node = eb_prev(node);
-			tot++;
+			lines_out++;
 		}
 	}
 
  empty:
 	if (!(filter & FILT_QUIET))
 		fprintf(stderr, "%d lines in, %d lines out, %d parsing errors\n",
-			linenum, tot, parse_err);
+			linenum, lines_out, parse_err);
 	exit(0);
 }
+
+void filter_output_line(const char *accept_field, const char *time_field, struct timer **tptr)
+{
+	puts(line);
+	lines_out++;
+}
+
+void filter_accept_holes(const char *accept_field, const char *time_field, struct timer **tptr)
+{
+	struct timer *t2;
+	int val;
+
+	val = convert_date(accept_field);
+	if (unlikely(val < 0)) {
+		truncated_line(linenum, line);
+		return;
+	}
+
+	t2 = insert_value(&timers[0], tptr, val);
+	t2->count++;
+	lines_out++;
+	return;
+}
+
+void filter_count_status(const char *accept_field, const char *time_field, struct timer **tptr)
+{
+	struct timer *t2;
+	const char *b;
+	int val;
+
+	if (time_field)
+		b = field_start(time_field, STATUS_FIELD - TIME_FIELD + 1);
+	else
+		b = field_start(accept_field, STATUS_FIELD - ACCEPT_FIELD + 1);
+
+	if (unlikely(!*b)) {
+		truncated_line(linenum, line);
+		return;
+	}
+
+	val = str2ic(b);
+
+	t2 = insert_value(&timers[0], tptr, val);
+	t2->count++;
+}
+
+void filter_count_term_codes(const char *accept_field, const char *time_field, struct timer **tptr)
+{
+	struct timer *t2;
+	const char *b;
+	int val;
+
+	if (time_field)
+		b = field_start(time_field, TERM_CODES_FIELD - TIME_FIELD + 1);
+	else
+		b = field_start(accept_field, TERM_CODES_FIELD - ACCEPT_FIELD + 1);
+
+	if (unlikely(!*b)) {
+		truncated_line(linenum, line);
+		return;
+	}
+
+	val = 256 * b[0] + b[1];
+
+	t2 = insert_value(&timers[0], tptr, val);
+	t2->count++;
+}
+
+void filter_count_srv_status(const char *accept_field, const char *time_field, struct timer **tptr)
+{
+	const char *b, *e, *p;
+	int f, err, array[5];
+	struct ebmb_node *srv_node;
+	struct srv_st *srv;
+	int val;
+
+	/* the server field is before the status field, so let's
+	 * parse them in the proper order.
+	 */
+	b = field_start(accept_field, SERVER_FIELD - ACCEPT_FIELD + 1);
+	if (unlikely(!*b)) {
+		truncated_line(linenum, line);
+		return;
+	}
+
+	e = field_stop(b + 1);  /* we have the server name in [b]..[e-1] */
+
+	/* the chance that a server name already exists is extremely high,
+	 * so let's perform a normal lookup first.
+	 */
+	srv_node = ebst_lookup_len(&timers[0], b, e - b);
+	srv = container_of(srv_node, struct srv_st, node);
+
+	if (!srv_node) {
+		/* server not yet in the tree, let's create it */
+		srv = (void *)calloc(1, sizeof(struct srv_st) + e - b + 1);
+		srv_node = &srv->node;
+		memcpy(&srv_node->key, b, e - b);
+		srv_node->key[e - b] = '\0';
+		ebst_insert(&timers[0], srv_node);
+	}
+
+	/* let's collect the connect and response times */
+	if (!time_field) {
+		time_field = field_start(e, TIME_FIELD - SERVER_FIELD);
+		if (unlikely(!*time_field)) {
+			truncated_line(linenum, line);
+			return;
+		}
+	}
+
+	e = field_stop(time_field + 1);
+	/* we have field TIME_FIELD in [time_field]..[e-1] */
+
+	p = time_field;
+	err = 0;
+	f = 0;
+	while (!SEP(*p)) {
+		array[f] = str2ic(p);
+		if (array[f] < 0) {
+			array[f] = -1;
+			err = 1;
+		}
+		if (++f == 5)
+			break;
+		SKIP_CHAR(p, '/');
+	}
+
+	if (unlikely(f < 5)){
+		parse_err++;
+		return;
+	}
+
+	/* OK we have our timers in array[2,3] */
+	if (!err)
+		srv->nb_ok++;
+
+	if (array[2] >= 0) {
+		srv->cum_ct += array[2];
+		srv->nb_ct++;
+	}
+
+	if (array[3] >= 0) {
+		srv->cum_rt += array[3];
+		srv->nb_rt++;
+	}
+
+	/* we're interested in the 5 HTTP status classes (1xx ... 5xx), and
+	 * the invalid ones which will be reported as 0.
+	 */
+	b = field_start(e, STATUS_FIELD - TIME_FIELD);
+	if (unlikely(!*b)) {
+		truncated_line(linenum, line);
+		return;
+	}
+
+	val = 0;
+	if (*b >= '1' && *b <= '5')
+		val = *b - '0';
+
+	srv->st_cnt[val]++;
+}
+
+void filter_count_url(const char *accept_field, const char *time_field, struct timer **tptr)
+{
+	struct url_stat *ustat = NULL;
+	struct ebpt_node *ebpt_old;
+	const char *b, *e;
+	int f, err, array[5];
+
+	/* let's collect the response time */
+	if (!time_field) {
+		time_field = field_start(accept_field, TIME_FIELD - ACCEPT_FIELD + 1);  // avg 115 ns per line
+		if (unlikely(!*time_field)) {
+			truncated_line(linenum, line);
+			return;
+		}
+	}
+
+	/* we have the field TIME_FIELD starting at <time_field>. We'll
+	 * parse the 5 timers to detect errors, it takes avg 55 ns per line.
+	 */
+	e = time_field; err = 0; f = 0;
+	while (!SEP(*e)) {
+		array[f] = str2ic(e);
+		if (array[f] < 0) {
+			array[f] = -1;
+			err = 1;
+		}
+		if (++f == 5)
+			break;
+		SKIP_CHAR(e, '/');
+	}
+	if (f < 5) {
+		parse_err++;
+		return;
+	}
+
+	/* OK we have our timers in array[3], and err is >0 if at
+	 * least one -1 was seen. <e> points to the first char of
+	 * the last timer. Let's prepare a new node with that.
+	 */
+	if (unlikely(!ustat))
+		ustat = calloc(1, sizeof(*ustat));
+
+	ustat->nb_err = err;
+	ustat->nb_req = 1;
+
+	/* use array[4] = total time in case of error */
+	ustat->total_time = (array[3] >= 0) ? array[3] : array[4];
+	ustat->total_time_ok = (array[3] >= 0) ? array[3] : 0;
+
+	/* the line may be truncated because of a bad request or anything like this,
+	 * without a method. Also, if it does not begin with an quote, let's skip to
+	 * the next field because it's a capture. Let's fall back to the "method" itself
+	 * if there's nothing else.
+	 */
+	e = field_start(e, METH_FIELD - TIME_FIELD + 1); // avg 100 ns per line
+	while (*e != '"' && *e)
+		e = field_start(e, 2);
+
+	if (unlikely(!*e)) {
+		truncated_line(linenum, line);
+		return;
+	}
+
+	b = field_start(e, URL_FIELD - METH_FIELD + 1); // avg 40 ns per line
+	if (!*b)
+		b = e;
+
+	/* stop at end of field or first ';' or '?', takes avg 64 ns per line */
+	e = b;
+	do {
+		if (*e == ' ' || *e == '?' || *e == ';' || *e == '\t') {
+			*(char *)e = 0;
+			break;
+		}
+		e++;
+	} while (*e);
+
+	/* now instead of copying the URL for a simple lookup, we'll link
+	 * to it from the node we're trying to insert. If it returns a
+	 * different value, it was already there. Otherwise we just have
+	 * to dynamically realloc an entry using strdup().
+	 */
+	ustat->node.url.key = (char *)b;
+	ebpt_old = ebis_insert(&timers[0], &ustat->node.url);
+
+	if (ebpt_old != &ustat->node.url) {
+		struct url_stat *ustat_old;
+		/* node was already there, let's update previous one */
+		ustat_old = container_of(ebpt_old, struct url_stat, node.url);
+		ustat_old->nb_req ++;
+		ustat_old->nb_err += ustat->nb_err;
+		ustat_old->total_time += ustat->total_time;
+		ustat_old->total_time_ok += ustat->total_time_ok;
+	} else {
+		ustat->url = ustat->node.url.key = strdup(ustat->node.url.key);
+		ustat = NULL; /* node was used */
+	}
+}
+
+void filter_graphs(const char *accept_field, const char *time_field, struct timer **tptr)
+{
+	struct timer *t2;
+	const char *e, *p;
+	int f, err, array[5];
+
+	if (!time_field) {
+		time_field = field_start(accept_field, TIME_FIELD - ACCEPT_FIELD + 1);
+		if (unlikely(!*time_field)) {
+			truncated_line(linenum, line);
+			return;
+		}
+	}
+
+	e = field_stop(time_field + 1);
+	/* we have field TIME_FIELD in [time_field]..[e-1] */
+
+	p = time_field;
+	err = 0;
+	f = 0;
+	while (!SEP(*p)) {
+		array[f] = str2ic(p);
+		if (array[f] < 0) {
+			array[f] = -1;
+			err = 1;
+		}
+		if (++f == 5)
+			break;
+		SKIP_CHAR(p, '/');
+	}
+
+	if (unlikely(f < 5)) {
+		parse_err++;
+		return;
+	}
+
+	/* if we find at least one negative time, we count one error
+	 * with a time equal to the total session time. This will
+	 * emphasize quantum timing effects associated to known
+	 * timeouts. Note that on some buggy machines, it is possible
+	 * that the total time is negative, hence the reason to reset
+	 * it.
+	 */
+
+	if (filter & FILT_GRAPH_TIMERS) {
+		if (err) {
+			if (array[4] < 0)
+				array[4] = -1;
+			t2 = insert_timer(&timers[0], tptr, array[4]);  // total time
+			t2->count++;
+		} else {
+			int v;
+
+			t2 = insert_timer(&timers[1], tptr, array[0]); t2->count++;  // req
+			t2 = insert_timer(&timers[2], tptr, array[2]); t2->count++;  // conn
+			t2 = insert_timer(&timers[3], tptr, array[3]); t2->count++;  // resp
+
+			v = array[4] - array[0] - array[1] - array[2] - array[3]; // data time
+			if (v < 0 && !(filter & FILT_QUIET))
+				fprintf(stderr, "ERR: %s (%d %d %d %d %d => %d)\n",
+					line, array[0], array[1], array[2], array[3], array[4], v);
+			t2 = insert_timer(&timers[4], tptr, v); t2->count++;
+			lines_out++;
+		}
+	} else { /* percentile */
+		if (err) {
+			if (array[4] < 0)
+				array[4] = -1;
+			t2 = insert_value(&timers[0], tptr, array[4]);  // total time
+			t2->count++;
+		} else {
+			int v;
+
+			t2 = insert_value(&timers[1], tptr, array[0]); t2->count++;  // req
+			t2 = insert_value(&timers[2], tptr, array[2]); t2->count++;  // conn
+			t2 = insert_value(&timers[3], tptr, array[3]); t2->count++;  // resp
+
+			v = array[4] - array[0] - array[1] - array[2] - array[3]; // data time
+			if (v < 0 && !(filter & FILT_QUIET))
+				fprintf(stderr, "ERR: %s (%d %d %d %d %d => %d)\n",
+					line, array[0], array[1], array[2], array[3], array[4], v);
+			t2 = insert_value(&timers[4], tptr, v); t2->count++;
+			lines_out++;
+		}
+	}
+}
+
 
 /*
  * Local variables:
