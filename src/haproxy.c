@@ -874,6 +874,7 @@ void deinit(void)
 		pool_destroy2(p->req_cap_pool);
 		pool_destroy2(p->rsp_cap_pool);
 		pool_destroy2(p->hdr_idx_pool);
+		pool_destroy2(p->table.pool);
 
 		p0 = p;
 		p = p->next;
