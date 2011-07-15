@@ -66,6 +66,8 @@
 
 #include <types/capture.h>
 #include <types/global.h>
+#include <types/proto_tcp.h>
+#include <types/acl.h>
 
 #include <proto/auth.h>
 #include <proto/acl.h>
@@ -672,6 +674,29 @@ void init(int argc, char **argv)
 
 }
 
+static void deinit_tcp_rules(struct list *rules)
+{
+	struct tcp_rule *trule, *truleb;
+	struct acl_term_suite *suite, *suiteb;
+	struct acl_term *term, *termb;
+
+	list_for_each_entry_safe(trule, truleb, rules, list) {
+		if (trule->cond) {
+			list_for_each_entry_safe(suite, suiteb, &trule->cond->suites, list) {
+				list_for_each_entry_safe(term, termb, &suite->terms, list) {
+					LIST_DEL(&term->list);
+					free(term);
+				}
+				LIST_DEL(&suite->list);
+				free(suite);
+			}
+		}
+		LIST_DEL(&trule->list);
+		free(trule->cond);
+		free(trule);
+	}
+}
+
 void deinit(void)
 {
 	struct proxy *p = proxy, *p0;
@@ -790,6 +815,9 @@ void deinit(void)
 			free(rdr->rdr_str);
 			free(rdr);
 		}
+
+		deinit_tcp_rules(&p->tcp_req.inspect_rules);
+		deinit_tcp_rules(&p->tcp_req.l4_rules);
 
 		free(p->appsession_name);
 
