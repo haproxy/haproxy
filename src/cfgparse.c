@@ -2918,6 +2918,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				Alert("parsing [%s:%d] : '%s': fetch method '%s' can not be used on response.\n",
 				      file, linenum, args[0], expr->fetch->kw);
 		                err_code |= ERR_ALERT | ERR_FATAL;
+				free(expr);
 			        goto out;
 			}
 		} else {
@@ -2925,6 +2926,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				Alert("parsing [%s:%d] : '%s': fetch method '%s' can not be used on request.\n",
 				      file, linenum, args[0], expr->fetch->kw);
 				err_code |= ERR_ALERT | ERR_FATAL;
+				free(expr);
 				goto out;
 			}
 		}
@@ -2939,6 +2941,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				Alert("parsing [%s:%d] : '%s': error detected while parsing sticking condition.\n",
 				      file, linenum, args[0]);
 				err_code |= ERR_ALERT | ERR_FATAL;
+				free(expr);
 				goto out;
 			}
 		}
@@ -2946,6 +2949,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			Alert("parsing [%s:%d] : '%s': unknown keyword '%s'.\n",
 			      file, linenum, args[0], args[myidx]);
 			err_code |= ERR_ALERT | ERR_FATAL;
+			free(expr);
 			goto out;
 		}
 		if (flags & STK_ON_RSP)
