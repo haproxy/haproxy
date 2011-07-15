@@ -674,26 +674,64 @@ void init(int argc, char **argv)
 
 }
 
-static void deinit_tcp_rules(struct list *rules)
+static void deinit_acl_cond(struct acl_cond *cond)
 {
-	struct tcp_rule *trule, *truleb;
 	struct acl_term_suite *suite, *suiteb;
 	struct acl_term *term, *termb;
 
-	list_for_each_entry_safe(trule, truleb, rules, list) {
-		if (trule->cond) {
-			list_for_each_entry_safe(suite, suiteb, &trule->cond->suites, list) {
-				list_for_each_entry_safe(term, termb, &suite->terms, list) {
-					LIST_DEL(&term->list);
-					free(term);
-				}
-				LIST_DEL(&suite->list);
-				free(suite);
-			}
+	if (!cond)
+		return;
+
+	list_for_each_entry_safe(suite, suiteb, &cond->suites, list) {
+		list_for_each_entry_safe(term, termb, &suite->terms, list) {
+			LIST_DEL(&term->list);
+			free(term);
 		}
+		LIST_DEL(&suite->list);
+		free(suite);
+	}
+
+	free(cond);
+}
+
+static void deinit_tcp_rules(struct list *rules)
+{
+	struct tcp_rule *trule, *truleb;
+
+	list_for_each_entry_safe(trule, truleb, rules, list) {
 		LIST_DEL(&trule->list);
-		free(trule->cond);
+		deinit_acl_cond(trule->cond);
 		free(trule);
+	}
+}
+
+static void deinit_pattern_arg(struct pattern_arg *p, int i)
+{
+	if (!p)
+		return;
+
+	while (i--)
+		if (p[i].type == PATTERN_ARG_TYPE_STRING)
+			free(p[i].data.str.str);
+
+	free(p);
+}
+
+static void deinit_stick_rules(struct list *rules)
+{
+	struct sticking_rule *rule, *ruleb;
+
+	list_for_each_entry_safe(rule, ruleb, rules, list) {
+		LIST_DEL(&rule->list);
+		deinit_acl_cond(rule->cond);
+		if (rule->expr) {
+			struct pattern_conv_expr *conv_expr, *conv_exprb;
+			list_for_each_entry_safe(conv_expr, conv_exprb, &rule->expr->conv_exprs, list)
+				deinit_pattern_arg(conv_expr->arg_p, conv_expr->arg_i);
+			deinit_pattern_arg(rule->expr->arg_p, rule->expr->arg_i);
+			free(rule->expr);
+		}
+		free(rule);
 	}
 }
 
@@ -818,6 +856,9 @@ void deinit(void)
 
 		deinit_tcp_rules(&p->tcp_req.inspect_rules);
 		deinit_tcp_rules(&p->tcp_req.l4_rules);
+
+		deinit_stick_rules(&p->storersp_rules);
+		deinit_stick_rules(&p->sticking_rules);
 
 		free(p->appsession_name);
 
