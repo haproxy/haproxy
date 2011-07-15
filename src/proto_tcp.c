@@ -1213,7 +1213,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 		if (!(curpx->cap & PR_CAP_FE)) {
 			snprintf(err, errlen, "%s %s is not allowed because %s %s is not a frontend",
 				 args[0], args[1], proxy_type_str(curpx), curpx->id);
-			return -1;
+			goto error;
 		}
 
 		if (tcp_parse_request_rule(args, arg, section_type, curpx, defpx, rule, err, errlen) < 0)
