@@ -697,6 +697,7 @@ void deinit(void)
 		free(p->url_param_name);
 		free(p->capture_name);
 		free(p->monitor_uri);
+		free(p->rdp_cookie_name);
 
 		for (i = 0; i < HTTP_ERR_SIZE; i++)
 			chunk_destroy(&p->errmsg[i]);
