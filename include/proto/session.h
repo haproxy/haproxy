@@ -240,6 +240,12 @@ static void inline session_del_srv_conn(struct session *sess)
 	LIST_DEL(&sess->by_srv);
 }
 
+static void inline session_init_srv_conn(struct session *sess)
+{
+	sess->srv_conn = NULL;
+	LIST_INIT(&sess->by_srv);
+}
+
 #endif /* _PROTO_SESSION_H */
 
 /*

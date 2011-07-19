@@ -201,7 +201,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	if (likely(s->fe->options2 & PR_O2_INDEPSTR))
 		s->si[1].flags |= SI_FL_INDEP_STR;
 
-	session_del_srv_conn(s);
+	session_init_srv_conn(s);
 	clear_target(&s->target);
 	s->pend_pos = NULL;
 
