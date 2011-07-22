@@ -310,6 +310,12 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
  out_free_session:
 	pool_free2(pool2_session, s);
  out_close:
+	if (ret < 0 && s->fe->mode == PR_MODE_HTTP) {
+		/* critical error, no more memory, try to emit a 500 response */
+		struct chunk *err_msg = error_message(s, HTTP_ERR_500);
+		send(cfd, err_msg->str, err_msg->len, MSG_DONTWAIT|MSG_NOSIGNAL);
+	}
+
 	if (fdtab[cfd].state != FD_STCLOSE)
 		fd_delete(cfd);
 	else
