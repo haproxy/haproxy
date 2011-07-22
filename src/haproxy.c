@@ -593,10 +593,15 @@ void init(int argc, char **argv)
 		global.tune.maxpollevents = MAX_POLL_EVENTS;
 
 	if (global.tune.maxaccept == 0) {
+		/* Note: we should not try to accept too many connections at once,
+		 * because past one point we're significantly reducing the cache
+		 * efficiency and the highest session rate significantly drops.
+		 * Values between 15 and 35 seem fine on a Core i5 with 4M L3 cache.
+		 */
 		if (global.nbproc > 1)
 			global.tune.maxaccept = 8;  /* leave some conns to other processes */
 		else
-			global.tune.maxaccept = 100; /* accept many incoming conns at once */
+			global.tune.maxaccept = 32; /* accept more incoming conns at once */
 	}
 
 	if (global.tune.recv_enough == 0)
