@@ -1293,6 +1293,7 @@ int stream_sock_accept(int fd)
 		if (l->nbconn >= l->maxconn) {
 			EV_FD_CLR(l->fd, DIR_RD);
 			l->state = LI_FULL;
+			return 0;
 		}
 	} /* end of while (p->feconn < p->maxconn) */
 	return 0;
