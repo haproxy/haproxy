@@ -301,6 +301,7 @@ struct proxy {
 	struct pxcounters be_counters;		/* backend statistics counters */
 	struct pxcounters fe_counters;		/* frontend statistics counters */
 
+	struct list listener_queue;		/* list of the temporarily limited listeners because of lack of a proxy resource */
 	struct stktable table;			/* table for storing sticking sessions */
 
 	int grace;				/* grace time after stop request */

@@ -2096,6 +2096,9 @@ struct task *process_session(struct task *t)
 	if (!LIST_ISEMPTY(&global_listener_queue))
 		dequeue_all_listeners(&global_listener_queue);
 
+	if (!LIST_ISEMPTY(&s->fe->listener_queue))
+		dequeue_all_listeners(&s->fe->listener_queue);
+
 	if (unlikely((global.mode & MODE_DEBUG) &&
 		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
 		int len;

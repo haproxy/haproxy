@@ -1192,7 +1192,6 @@ int stream_sock_accept(int fd)
 	int max_accept = global.tune.maxaccept;
 	int cfd;
 	int ret;
-	int loops = 0;
 
 	if (unlikely(l->nbconn >= l->maxconn)) {
 		listener_full(l);
@@ -1201,15 +1200,31 @@ int stream_sock_accept(int fd)
 
 	if (p && p->fe_sps_lim) {
 		int max = freq_ctr_remain(&p->fe_sess_per_sec, p->fe_sps_lim, 0);
+
+		if (unlikely(!max)) {
+			/* frontend accept rate limit was reached */
+			limit_listener(l, &p->listener_queue);
+			return 0;
+		}
+
 		if (max_accept > max)
 			max_accept = max;
 	}
 
-	while ((!p || p->feconn < p->maxconn) && actconn < global.maxconn && max_accept--) {
+	while (max_accept--) {
 		struct sockaddr_storage addr;
 		socklen_t laddr = sizeof(addr);
 
-		loops++;
+		if (unlikely(actconn >= global.maxconn)) {
+			limit_listener(l, &global_listener_queue);
+			return 0;
+		}
+
+		if (unlikely(p && p->feconn >= p->maxconn)) {
+			limit_listener(l, &p->listener_queue);
+			return 0;
+		}
+
 		cfd = accept(fd, (struct sockaddr *)&addr, &laddr);
 		if (unlikely(cfd == -1)) {
 			switch (errno) {
@@ -1286,10 +1301,6 @@ int stream_sock_accept(int fd)
 		}
 
 	} /* end of while (p->feconn < p->maxconn) */
-
-	/* if we did not even enter the loop, we've reached resource limits */
-	if (!loops && max_accept)
-		limit_listener(l, &global_listener_queue);
 
 	return 0;
 }

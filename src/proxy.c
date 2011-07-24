@@ -499,6 +499,10 @@ void maintain_proxies(int *next)
 				goto do_block;
 			}
 
+			/* The proxy is not limited so we can re-enable any waiting listener */
+			if (!LIST_ISEMPTY(&p->listener_queue))
+				dequeue_all_listeners(&p->listener_queue);
+
 			/* OK we have no reason to block, so let's unblock if we were blocking */
 			if (p->state == PR_STIDLE) {
 				for (l = p->listen; l != NULL; l = l->next)
