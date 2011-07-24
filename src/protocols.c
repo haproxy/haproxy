@@ -53,6 +53,59 @@ void disable_listener(struct listener *listener)
 	listener->state = LI_LISTEN;
 }
 
+/* This function tries to temporarily disable a listener, depending on the OS
+ * capabilities. Linux unbinds the listen socket after a SHUT_RD, and ignores
+ * SHUT_WR. Solaris refuses either shutdown(). OpenBSD ignores SHUT_RD but
+ * closes upon SHUT_WR and refuses to rebind. So a common validation path
+ * involves SHUT_WR && listen && SHUT_RD. In case of success, the FD's polling
+ * is disabled. It normally returns non-zero, unless an error is reported.
+ */
+int pause_listener(struct listener *l)
+{
+	if (l->state <= LI_PAUSED)
+		return 1;
+
+	if (shutdown(l->fd, SHUT_WR) != 0)
+		return 0; /* Solaris dies here */
+
+	if (listen(l->fd, l->backlog ? l->backlog : l->maxconn) != 0)
+		return 0; /* OpenBSD dies here */
+
+	if (shutdown(l->fd, SHUT_RD) != 0)
+		return 0; /* should always be OK */
+
+	EV_FD_CLR(l->fd, DIR_RD);
+	l->state = LI_PAUSED;
+	return 1;
+}
+
+/* This function tries to resume a temporarily disabled listener. Paused, full
+ * and disabled listeners are handled, which means that this function may
+ * replace enable_listener(). The resulting state will either be LI_READY or
+ * LI_FULL. 0 is returned in case of failure to resume (eg: dead socket).
+ */
+int resume_listener(struct listener *l)
+{
+	if (l->state < LI_PAUSED)
+		return 0;
+
+	if (l->state == LI_PAUSED &&
+	    listen(l->fd, l->backlog ? l->backlog : l->maxconn) != 0)
+		return 0;
+
+	if (l->state == LI_READY)
+		return 1;
+
+	if (l->nbconn >= l->maxconn) {
+		l->state = LI_FULL;
+		return 1;
+	}
+
+	EV_FD_SET(l->fd, DIR_RD);
+	l->state = LI_READY;
+	return 1;
+}
+
 /* This function adds all of the protocol's listener's file descriptors to the
  * polling lists when they are in the LI_LISTEN state. It is intended to be
  * used as a protocol's generic enable_all() primitive, for use after the
@@ -92,7 +145,7 @@ int unbind_listener(struct listener *listener)
 	if (listener->state == LI_READY)
 		EV_FD_CLR(listener->fd, DIR_RD);
 
-	if (listener->state >= LI_LISTEN) {
+	if (listener->state >= LI_PAUSED) {
 		fd_delete(listener->fd);
 		listener->state = LI_ASSIGNED;
 	}

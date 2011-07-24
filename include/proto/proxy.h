@@ -34,7 +34,7 @@ void soft_stop(void);
 void pause_proxy(struct proxy *p);
 void stop_proxy(struct proxy *p);
 void pause_proxies(void);
-void listen_proxies(void);
+void resume_proxies(void);
 int  session_set_backend(struct session *s, struct proxy *be);
 
 const char *proxy_cap_str(int cap);

@@ -589,28 +589,20 @@ void soft_stop(void)
 }
 
 
-/*
- * Linux unbinds the listen socket after a SHUT_RD, and ignores SHUT_WR.
- * Solaris refuses either shutdown().
- * OpenBSD ignores SHUT_RD but closes upon SHUT_WR and refuses to rebind.
- * So a common validation path involves SHUT_WR && listen && SHUT_RD.
- * If disabling at least one listener returns an error, then the proxy
- * state is set to PR_STERROR because we don't know how to resume from this.
+/* Temporarily disables listening on all of the proxy's listeners. Upon
+ * success, the proxy enters the PR_PAUSED state. If disabling at least one
+ * listener returns an error, then the proxy state is set to PR_STERROR
+ * because we don't know how to resume from this.
  */
 void pause_proxy(struct proxy *p)
 {
 	struct listener *l;
 	for (l = p->listen; l != NULL; l = l->next) {
-		if (shutdown(l->fd, SHUT_WR) == 0 &&
-		    listen(l->fd, p->backlog ? p->backlog : p->maxconn) == 0 &&
-		    shutdown(l->fd, SHUT_RD) == 0) {
-			EV_FD_CLR(l->fd, DIR_RD);
-			if (p->state != PR_STERROR)
-				p->state = PR_STPAUSED;
-		}
-		else
+		if (!pause_listener(l))
 			p->state = PR_STERROR;
 	}
+	if (p->state != PR_STERROR)
+		p->state = PR_STPAUSED;
 }
 
 
@@ -700,10 +692,11 @@ void pause_proxies(void)
  * sig_pause(), for example when a new instance has failed starting up.
  * It is designed to be called upon reception of a SIGTTIN.
  */
-void listen_proxies(void)
+void resume_proxies(void)
 {
 	struct proxy *p;
 	struct listener *l;
+	int fail;
 
 	p = proxy;
 	tv_update_date(0,1); /* else, the old time before select will be used */
@@ -712,15 +705,9 @@ void listen_proxies(void)
 			Warning("Enabling %s %s.\n", proxy_cap_str(p->cap), p->id);
 			send_log(p, LOG_WARNING, "Enabling %s %s.\n", proxy_cap_str(p->cap), p->id);
 
+			fail = 0;
 			for (l = p->listen; l != NULL; l = l->next) {
-				if (listen(l->fd, p->backlog ? p->backlog : p->maxconn) == 0) {
-					if (actconn < global.maxconn && p->feconn < p->maxconn) {
-						EV_FD_SET(l->fd, DIR_RD);
-						p->state = PR_STRUN;
-					}
-					else
-						p->state = PR_STIDLE;
-				} else {
+				if (!resume_listener(l)) {
 					int port;
 
 					if (l->addr.ss_family == AF_INET6) {
@@ -745,10 +732,15 @@ void listen_proxies(void)
 					}
 
 					/* Another port might have been enabled. Let's stop everything. */
-					pause_proxy(p);
+					fail = 1;
 					break;
 				}
 			}
+
+			/* maintain_proxies() will check if the proxy may remain enabled or not */
+			p->state = PR_STRUN;
+			if (fail)
+				pause_proxy(p);
 		}
 		p = p->next;
 	}

@@ -261,12 +261,8 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
  */
 static int uxst_unbind_listener(struct listener *listener)
 {
-	if (listener->state == LI_READY)
-		EV_FD_CLR(listener->fd, DIR_RD);
-
-	if (listener->state >= LI_LISTEN) {
-		fd_delete(listener->fd);
-		listener->state = LI_ASSIGNED;
+	if (listener->state > LI_ASSIGNED) {
+		unbind_listener(listener);
 		destroy_uxst_socket(((struct sockaddr_un *)&listener->addr)->sun_path);
 	}
 	return ERR_NONE;

@@ -36,6 +36,21 @@ void enable_listener(struct listener *listener);
  */
 void disable_listener(struct listener *listener);
 
+/* This function tries to temporarily disable a listener, depending on the OS
+ * capabilities. Linux unbinds the listen socket after a SHUT_RD, and ignores
+ * SHUT_WR. Solaris refuses either shutdown(). OpenBSD ignores SHUT_RD but
+ * closes upon SHUT_WR and refuses to rebind. So a common validation path
+ * involves SHUT_WR && listen && SHUT_RD. In case of success, the FD's polling
+ * is disabled. It normally returns non-zero, unless an error is reported.
+ */
+int pause_listener(struct listener *l);
+
+/* This function tries to resume a temporarily disabled listener.
+ * The resulting state will either be LI_READY or LI_FULL. 0 is returned
+ * in case of failure to resume (eg: dead socket).
+ */
+int resume_listener(struct listener *l);
+
 /* This function adds all of the protocol's listener's file descriptors to the
  * polling lists when they are in the LI_LISTEN state. It is intended to be
  * used as a protocol's generic enable_all() primitive, for use after the

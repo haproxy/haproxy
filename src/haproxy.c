@@ -281,7 +281,7 @@ void sig_pause(struct sig_handler *sh)
  */
 void sig_listen(struct sig_handler *sh)
 {
-	listen_proxies();
+	resume_proxies();
 }
 
 /*
