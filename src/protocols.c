@@ -50,6 +50,8 @@ void disable_listener(struct listener *listener)
 		return;
 	if (listener->state == LI_READY)
 		EV_FD_CLR(listener->fd, DIR_RD);
+	if (listener->state == LI_LIMITED)
+		LIST_DEL(&listener->wait_queue);
 	listener->state = LI_LISTEN;
 }
 
@@ -74,15 +76,18 @@ int pause_listener(struct listener *l)
 	if (shutdown(l->fd, SHUT_RD) != 0)
 		return 0; /* should always be OK */
 
+	if (l->state == LI_LIMITED)
+		LIST_DEL(&l->wait_queue);
+
 	EV_FD_CLR(l->fd, DIR_RD);
 	l->state = LI_PAUSED;
 	return 1;
 }
 
-/* This function tries to resume a temporarily disabled listener. Paused, full
- * and disabled listeners are handled, which means that this function may
- * replace enable_listener(). The resulting state will either be LI_READY or
- * LI_FULL. 0 is returned in case of failure to resume (eg: dead socket).
+/* This function tries to resume a temporarily disabled listener. Paused, full,
+ * limited and disabled listeners are handled, which means that this function
+ * may replace enable_listener(). The resulting state will either be LI_READY
+ * or LI_FULL. 0 is returned in case of failure to resume (eg: dead socket).
  */
 int resume_listener(struct listener *l)
 {
@@ -95,6 +100,9 @@ int resume_listener(struct listener *l)
 
 	if (l->state == LI_READY)
 		return 1;
+
+	if (l->state == LI_LIMITED)
+		LIST_DEL(&l->wait_queue);
 
 	if (l->nbconn >= l->maxconn) {
 		l->state = LI_FULL;
@@ -112,8 +120,23 @@ int resume_listener(struct listener *l)
 void listener_full(struct listener *l)
 {
 	if (l->state >= LI_READY) {
+		if (l->state == LI_LIMITED)
+			LIST_DEL(&l->wait_queue);
+
 		EV_FD_CLR(l->fd, DIR_RD);
 		l->state = LI_FULL;
+	}
+}
+
+/* Marks a ready listener as limited so that we only try to re-enable it when
+ * resources are free again. It will be queued into the specified queue.
+ */
+void limit_listener(struct listener *l, struct list *list)
+{
+	if (l->state == LI_READY) {
+		LIST_ADDQ(list, &l->wait_queue);
+		EV_FD_CLR(l->fd, DIR_RD);
+		l->state = LI_LIMITED;
 	}
 }
 
@@ -146,6 +169,20 @@ int disable_all_listeners(struct protocol *proto)
 	return ERR_NONE;
 }
 
+/* Dequeues all of the listeners waiting for a resource in wait queue <queue>. */
+void dequeue_all_listeners(struct list *list)
+{
+	struct listener *listener, *l_back;
+
+	list_for_each_entry_safe(listener, l_back, list, wait_queue) {
+		/* This cannot fail because the listeners are by definition in
+		 * the LI_LIMITED state. The function also removes the entry
+		 * from the queue.
+		 */
+		resume_listener(listener);
+	}
+}
+
 /* This function closes the listening socket for the specified listener,
  * provided that it's already in a listening state. The listener enters the
  * LI_ASSIGNED state. It always returns ERR_NONE. This function is intended
@@ -155,6 +192,9 @@ int unbind_listener(struct listener *listener)
 {
 	if (listener->state == LI_READY)
 		EV_FD_CLR(listener->fd, DIR_RD);
+
+	if (listener->state == LI_LIMITED)
+		LIST_DEL(&listener->wait_queue);
 
 	if (listener->state >= LI_PAUSED) {
 		fd_delete(listener->fd);

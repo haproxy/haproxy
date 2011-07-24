@@ -46,6 +46,7 @@ enum {
 	LI_LISTEN,      /* started, listening but not enabled */
 	LI_READY,       /* started, listening and enabled */
 	LI_FULL,        /* reached its connection limit */
+	LI_LIMITED,     /* transient state: limits have been reached, listener is queued */
 };
 
 /* Listener transitions
@@ -67,6 +68,11 @@ enum {
  *   +-----------------
  *            disable()
  *
+ * The LIMITED state my be used when a limit has been detected just before
+ * using a listener. In this case, the listener MUST be queued into the
+ * appropriate wait queue (either the proxy's or the global one). It may be
+ * set back to the READY state at any instant and for any reason, so one must
+ * not rely on this state.
  */
 
 /* listener socket options */
@@ -101,6 +107,7 @@ struct listener {
 	struct task * (*handler)(struct task *t); /* protocol handler. It is a task */
 	int  *timeout;                  /* pointer to client-side timeout */
 	struct proxy *frontend;		/* the frontend this listener belongs to, or NULL */
+	struct list wait_queue;		/* link element to make the listener wait for something (LI_LIMITED)  */
 	unsigned int analysers;		/* bitmap of required protocol analysers */
 	int nice;			/* nice value to assign to the instanciated tasks */
 	union {				/* protocol-dependant access restrictions */

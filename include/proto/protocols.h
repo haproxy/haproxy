@@ -71,6 +71,14 @@ int enable_all_listeners(struct protocol *proto);
  */
 int disable_all_listeners(struct protocol *proto);
 
+/* Marks a ready listener as limited so that we only try to re-enable it when
+ * resources are free again. It will be queued into the specified queue.
+ */
+void limit_listener(struct listener *l, struct list *list);
+
+/* Dequeues all of the listeners waiting for a resource in wait queue <queue>. */
+void dequeue_all_listeners(struct list *list);
+
 /* This function closes the listening socket for the specified listener,
  * provided that it's already in a listening state. The listener enters the
  * LI_ASSIGNED state. It always returns ERR_NONE. This function is intended
