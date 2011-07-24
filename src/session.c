@@ -2092,6 +2092,10 @@ struct task *process_session(struct task *t)
 	if (s->listener->state == LI_FULL)
 		resume_listener(s->listener);
 
+	/* Dequeues all of the listeners waiting for a resource */
+	if (!LIST_ISEMPTY(&global_listener_queue))
+		dequeue_all_listeners(&global_listener_queue);
+
 	if (unlikely((global.mode & MODE_DEBUG) &&
 		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
 		int len;

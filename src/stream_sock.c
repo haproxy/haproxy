@@ -1192,6 +1192,7 @@ int stream_sock_accept(int fd)
 	int max_accept = global.tune.maxaccept;
 	int cfd;
 	int ret;
+	int loops = 0;
 
 	if (unlikely(l->nbconn >= l->maxconn)) {
 		listener_full(l);
@@ -1208,6 +1209,7 @@ int stream_sock_accept(int fd)
 		struct sockaddr_storage addr;
 		socklen_t laddr = sizeof(addr);
 
+		loops++;
 		cfd = accept(fd, (struct sockaddr *)&addr, &laddr);
 		if (unlikely(cfd == -1)) {
 			switch (errno) {
@@ -1220,16 +1222,14 @@ int stream_sock_accept(int fd)
 					send_log(p, LOG_EMERG,
 						 "Proxy %s reached system FD limit at %d. Please check system tunables.\n",
 						 p->id, maxfd);
-				if (l->nbconn)
-					listener_full(l);
+				limit_listener(l, &global_listener_queue);
 				return 0;
 			case EMFILE:
 				if (p)
 					send_log(p, LOG_EMERG,
 						 "Proxy %s reached process FD limit at %d. Please check 'ulimit-n' and restart.\n",
 						 p->id, maxfd);
-				if (l->nbconn)
-					listener_full(l);
+				limit_listener(l, &global_listener_queue);
 				return 0;
 			case ENOBUFS:
 			case ENOMEM:
@@ -1237,8 +1237,7 @@ int stream_sock_accept(int fd)
 					send_log(p, LOG_EMERG,
 						 "Proxy %s reached system memory limit at %d sockets. Please check system tunables.\n",
 						 p->id, maxfd);
-				if (l->nbconn)
-					listener_full(l);
+				limit_listener(l, &global_listener_queue);
 				return 0;
 			default:
 				return 0;
@@ -1250,6 +1249,7 @@ int stream_sock_accept(int fd)
 				 "Proxy %s reached the configured maximum connection limit. Please check the global 'maxconn' value.\n",
 				 p->id);
 			close(cfd);
+			limit_listener(l, &global_listener_queue);
 			return 0;
 		}
 
@@ -1276,10 +1276,7 @@ int stream_sock_accept(int fd)
 			if (ret == 0) /* successful termination */
 				continue;
 
-			if (p) {
-				disable_listener(l);
-				p->state = PR_STIDLE;
-			}
+			limit_listener(l, &global_listener_queue);
 			return 0;
 		}
 
@@ -1289,6 +1286,11 @@ int stream_sock_accept(int fd)
 		}
 
 	} /* end of while (p->feconn < p->maxconn) */
+
+	/* if we did not even enter the loop, we've reached resource limits */
+	if (!loops && max_accept)
+		limit_listener(l, &global_listener_queue);
+
 	return 0;
 }
 

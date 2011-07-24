@@ -159,6 +159,8 @@ const struct linger nolinger = { .l_onoff = 1, .l_linger = 0 };
 char hostname[MAX_HOSTNAME_LEN];
 char localpeer[MAX_HOSTNAME_LEN];
 
+/* list of the temporarily limited listeners because of lack of resource */
+struct list global_listener_queue = LIST_HEAD_INIT(global_listener_queue);
 
 /*********************************************************************/
 /*  general purpose functions  ***************************************/
