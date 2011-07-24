@@ -1194,8 +1194,7 @@ int stream_sock_accept(int fd)
 	int ret;
 
 	if (unlikely(l->nbconn >= l->maxconn)) {
-		EV_FD_CLR(l->fd, DIR_RD);
-		l->state = LI_FULL;
+		listener_full(l);
 		return 0;
 	}
 
@@ -1221,20 +1220,16 @@ int stream_sock_accept(int fd)
 					send_log(p, LOG_EMERG,
 						 "Proxy %s reached system FD limit at %d. Please check system tunables.\n",
 						 p->id, maxfd);
-				if (l->nbconn) {
-					EV_FD_CLR(l->fd, DIR_RD);
-					l->state = LI_FULL;
-				}
+				if (l->nbconn)
+					listener_full(l);
 				return 0;
 			case EMFILE:
 				if (p)
 					send_log(p, LOG_EMERG,
 						 "Proxy %s reached process FD limit at %d. Please check 'ulimit-n' and restart.\n",
 						 p->id, maxfd);
-				if (l->nbconn) {
-					EV_FD_CLR(l->fd, DIR_RD);
-					l->state = LI_FULL;
-				}
+				if (l->nbconn)
+					listener_full(l);
 				return 0;
 			case ENOBUFS:
 			case ENOMEM:
@@ -1242,10 +1237,8 @@ int stream_sock_accept(int fd)
 					send_log(p, LOG_EMERG,
 						 "Proxy %s reached system memory limit at %d sockets. Please check system tunables.\n",
 						 p->id, maxfd);
-				if (l->nbconn) {
-					EV_FD_CLR(l->fd, DIR_RD);
-					l->state = LI_FULL;
-				}
+				if (l->nbconn)
+					listener_full(l);
 				return 0;
 			default:
 				return 0;
@@ -1291,10 +1284,10 @@ int stream_sock_accept(int fd)
 		}
 
 		if (l->nbconn >= l->maxconn) {
-			EV_FD_CLR(l->fd, DIR_RD);
-			l->state = LI_FULL;
+			listener_full(l);
 			return 0;
 		}
+
 	} /* end of while (p->feconn < p->maxconn) */
 	return 0;
 }

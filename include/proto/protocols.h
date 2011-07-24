@@ -51,6 +51,11 @@ int pause_listener(struct listener *l);
  */
 int resume_listener(struct listener *l);
 
+/* Marks a ready listener as full so that the session code tries to re-enable
+ * it upon next close() using resume_listener().
+ */
+void listener_full(struct listener *l);
+
 /* This function adds all of the protocol's listener's file descriptors to the
  * polling lists when they are in the LI_LISTEN state. It is intended to be
  * used as a protocol's generic enable_all() primitive, for use after the

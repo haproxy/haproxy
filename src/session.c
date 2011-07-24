@@ -32,6 +32,7 @@
 #include <proto/log.h>
 #include <proto/session.h>
 #include <proto/pipe.h>
+#include <proto/protocols.h>
 #include <proto/proto_http.h>
 #include <proto/proto_tcp.h>
 #include <proto/proxy.h>
@@ -2088,12 +2089,8 @@ struct task *process_session(struct task *t)
 	actconn--;
 	jobs--;
 	s->listener->nbconn--;
-	if (s->listener->state == LI_FULL &&
-	    s->listener->nbconn < s->listener->maxconn) {
-		/* we should reactivate the listener */
-		EV_FD_SET(s->listener->fd, DIR_RD);
-		s->listener->state = LI_READY;
-	}
+	if (s->listener->state == LI_FULL)
+		resume_listener(s->listener);
 
 	if (unlikely((global.mode & MODE_DEBUG) &&
 		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
