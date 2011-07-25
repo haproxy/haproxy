@@ -1114,7 +1114,6 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 
 	if ((s = pool_alloc2(pool2_session)) == NULL) { /* disable this proxy for a while */
 		Alert("out of memory in event_accept().\n");
-		p->state = PR_STIDLE;
 		goto out_close;
 	}
 
@@ -1129,7 +1128,6 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	 */
 	if ((t = task_new()) == NULL) { /* disable this proxy for a while */
 		Alert("out of memory in event_accept().\n");
-		p->state = PR_STIDLE;
 		goto out_free_session;
 	}
 

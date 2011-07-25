@@ -49,12 +49,14 @@
 #include <types/stick_table.h>
 
 /* values for proxy->state */
-#define PR_STNEW        0
-#define PR_STIDLE       1
-#define PR_STRUN        2
-#define PR_STSTOPPED    3
-#define PR_STPAUSED     4
-#define PR_STERROR      5
+enum {
+	PR_STNEW = 0,           /* proxy has not been initialized yet */
+	PR_STREADY,             /* proxy has been initialized and is ready */
+	PR_STFULL,              /* frontend is full (maxconn reached) */
+	PR_STPAUSED,            /* frontend is paused (during hot restart) */
+	PR_STSTOPPED,           /* proxy is stopped (end of a restart) */
+	PR_STERROR,             /* proxy experienced an unrecoverable error */
+};
 
 /* values for proxy->mode */
 #define PR_MODE_TCP     0

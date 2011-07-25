@@ -2050,8 +2050,8 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 				     "",
 				     U2H0(px->fe_counters.denied_req), U2H1(px->fe_counters.denied_resp),
 				     U2H2(px->fe_counters.failed_req),
-				     px->state == PR_STRUN ? "OPEN" :
-				     px->state == PR_STIDLE ? "FULL" : "STOP");
+				     px->state == PR_STREADY ? "OPEN" :
+				     px->state == PR_STFULL ? "FULL" : "STOP");
 			} else {
 				chunk_printf(&msg,
 				     /* pxid, name, queue cur, queue max, */
@@ -2081,8 +2081,8 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 				     px->fe_counters.bytes_in, px->fe_counters.bytes_out,
 				     px->fe_counters.denied_req, px->fe_counters.denied_resp,
 				     px->fe_counters.failed_req,
-				     px->state == PR_STRUN ? "OPEN" :
-				     px->state == PR_STIDLE ? "FULL" : "STOP",
+				     px->state == PR_STREADY ? "OPEN" :
+				     px->state == PR_STFULL ? "FULL" : "STOP",
 				     relative_pid, px->uuid, STATS_TYPE_FE,
 				     read_freq_ctr(&px->fe_sess_per_sec),
 				     px->fe_sps_lim, px->fe_counters.sps_max);

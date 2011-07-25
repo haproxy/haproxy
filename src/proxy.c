@@ -407,7 +407,7 @@ int proxy_cfg_ensure_no_http(struct proxy *curproxy)
  * This function creates all proxy sockets. It should be done very early,
  * typically before privileges are dropped. The sockets will be registered
  * but not added to any fd_set, in order not to loose them across the fork().
- * The proxies also start in RUN state because they all have their listeners
+ * The proxies also start in READY state because they all have their listeners
  * bound.
  *
  * Its return value is composed from ERR_NONE, ERR_RETRYABLE and ERR_FATAL.
@@ -454,7 +454,7 @@ int start_proxies(int verbose)
 		}
 
 		if (!pxerr) {
-			curproxy->state = PR_STRUN;
+			curproxy->state = PR_STREADY;
 			send_log(curproxy, LOG_NOTICE, "Proxy %s started.\n", curproxy->id);
 		}
 
@@ -491,22 +491,21 @@ void maintain_proxies(int *next)
 
 			/* check the various reasons we may find to block the frontend */
 			if (unlikely(p->feconn >= p->maxconn)) {
-				if (p->state == PR_STRUN)
-					p->state = PR_STIDLE;
+				if (p->state == PR_STREADY)
+					p->state = PR_STFULL;
 				continue;
 			}
 
 			/* OK we have no reason to block, so let's unblock if we were blocking */
-			if (p->state == PR_STIDLE)
-				p->state = PR_STRUN;
+			if (p->state == PR_STFULL)
+				p->state = PR_STREADY;
 
 			if (p->fe_sps_lim &&
 			    (wait = next_event_delay(&p->fe_sess_per_sec, p->fe_sps_lim, 1))) {
 				/* we're blocking because a limit was reached on the number of
 				 * requests/s on the frontend. We want to re-check ASAP, which
 				 * means in 1 ms before estimated expiration date, because the
-				 * timer will have settled down. Note that we may already be in
-				 * IDLE state here.
+				 * timer will have settled down.
 				 */
 				*next = tick_first(*next, tick_add(now_ms, wait));
 				continue;
@@ -729,8 +728,7 @@ void resume_proxies(void)
 				}
 			}
 
-			/* maintain_proxies() will check if the proxy may remain enabled or not */
-			p->state = PR_STRUN;
+			p->state = PR_STREADY;
 			if (fail)
 				pause_proxy(p);
 		}
