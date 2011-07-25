@@ -224,6 +224,23 @@ static inline void task_queue(struct task *task)
 		__task_queue(task);
 }
 
+/* Ensure <task> will be woken up at most at <when>. If the task is already in
+ * the run queue (but not running), nothing is done. It may be used that way
+ * with a delay :  task_schedule(task, tick_add(now_ms, delay));
+ */
+static inline void task_schedule(struct task *task, int when)
+{
+	if (task_in_rq(task))
+		return;
+
+	if (task_in_wq(task))
+		when = tick_first(when, task->expire);
+
+	task->expire = when;
+	if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key))
+		__task_queue(task);
+}
+
 /*
  * This does 4 things :
  *   - wake up all expired tasks
