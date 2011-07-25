@@ -2213,7 +2213,7 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 				     "",
 				     U2H0(l->counters->denied_req), U2H1(l->counters->denied_resp),
 				     U2H2(l->counters->failed_req),
-				     (l->nbconn < l->maxconn) ? "OPEN" : "FULL");
+				     (l->nbconn < l->maxconn) ? (l->state == LI_LIMITED) ? "WAITING" : "OPEN" : "FULL");
 			} else {
 				chunk_printf(&msg,
 				     /* pxid, name, queue cur, queue max, */

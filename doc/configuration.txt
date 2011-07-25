@@ -4161,8 +4161,9 @@ rate-limit sessions <rate>
             rate-limit sessions 10
             server 127.0.0.1:1025
 
-  Note : when the maximum rate is reached, the frontend's status appears as
-         "FULL" in the statistics, exactly as when it is saturated.
+  Note : when the maximum rate is reached, the frontend's status is not changed
+         but its sockets appear as "WAITING" in the statistics if the
+         "socket-stats" option is enabled.
 
   See also : the "backlog" keyword and the "fe_sess_rate" ACL criterion.
 
