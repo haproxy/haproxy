@@ -501,7 +501,7 @@ void maintain_proxies(int *next)
 				p->state = PR_STREADY;
 
 			if (p->fe_sps_lim &&
-			    (wait = next_event_delay(&p->fe_sess_per_sec, p->fe_sps_lim, 1))) {
+			    (wait = next_event_delay(&p->fe_sess_per_sec, p->fe_sps_lim, 0))) {
 				/* we're blocking because a limit was reached on the number of
 				 * requests/s on the frontend. We want to re-check ASAP, which
 				 * means in 1 ms before estimated expiration date, because the
