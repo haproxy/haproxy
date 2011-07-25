@@ -1204,6 +1204,7 @@ int stream_sock_accept(int fd)
 		if (unlikely(!max)) {
 			/* frontend accept rate limit was reached */
 			limit_listener(l, &p->listener_queue);
+			task_schedule(p->task, tick_add(now_ms, next_event_delay(&p->fe_sess_per_sec, p->fe_sps_lim, 0)));
 			return 0;
 		}
 

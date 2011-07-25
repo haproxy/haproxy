@@ -918,6 +918,7 @@ void deinit(void)
 		free(p->fwdfor_hdr_name);
 
 		free_http_req_rules(&p->http_req_rules);
+		free(p->task);
 
 		pool_destroy2(p->req_cap_pool);
 		pool_destroy2(p->rsp_cap_pool);
@@ -992,13 +993,7 @@ static int tell_old_pids(int sig)
 	return ret;
 }
 
-/*
- * Runs the polling loop
- *
- * FIXME:
- * - we still use 'listeners' to check whether we want to stop or not.
- *
- */
+/* Runs the polling loop */
 void run_poll_loop()
 {
 	int next;
@@ -1013,11 +1008,6 @@ void run_poll_loop()
 
 		/* Process a few tasks */
 		process_runnable_tasks(&next);
-
-		/* maintain all proxies in a consistent state. This should quickly
-		 * become a task because it becomes expensive when there are huge
-		 * numbers of proxies. */
-		maintain_proxies(&next);
 
 		/* stop when there's nothing left to do */
 		if (jobs == 0)

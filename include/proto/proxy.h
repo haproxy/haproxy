@@ -2,7 +2,7 @@
  * include/proto/proxy.h
  * This file defines function prototypes for proxy management.
  *
- * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2011 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -29,7 +29,7 @@
 #include <proto/freq_ctr.h>
 
 int start_proxies(int verbose);
-void maintain_proxies(int *next);
+struct task *manage_proxy(struct task *t);
 void soft_stop(void);
 void pause_proxy(struct proxy *p);
 void stop_proxy(struct proxy *p);

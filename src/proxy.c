@@ -40,7 +40,7 @@
 #include <proto/task.h>
 
 
-int listeners;	/* # of proxy listeners, set by cfgparse, unset by maintain_proxies */
+int listeners;	/* # of proxy listeners, set by cfgparse */
 struct proxy *proxy  = NULL;	/* list of all existing proxies */
 struct eb_root used_proxy_id = EB_ROOT;	/* list of proxy IDs in use */
 unsigned int error_snapshot_id = 0;     /* global ID assigned to each error then incremented */
@@ -467,74 +467,72 @@ int start_proxies(int verbose)
 
 
 /*
- * this function enables proxies when there are enough free sessions,
- * or stops them when the table is full. It is designed to be called from the
- * select_loop(). It adjusts the date of next expiration event during stop
- * time if appropriate.
+ * This is the proxy management task. It enables proxies when there are enough
+ * free sessions, or stops them when the table is full. It is designed to be
+ * called as a task which is woken up upon stopping or when rate limiting must
+ * be enforced.
  */
-void maintain_proxies(int *next)
+struct task *manage_proxy(struct task *t)
 {
-	struct proxy *p;
+	struct proxy *p = t->context;
+	int next = TICK_ETERNITY;
 	unsigned int wait;
 
-	p = proxy;
+	/* We should periodically try to enable listeners waiting for a
+	 * global resource here.
+	 */
 
-	/* if there are enough free sessions, we'll activate proxies */
-	if (actconn < global.maxconn) {
-		/* We should periodically try to enable listeners waiting for a
-		 * global resource here.
-		 */
-
-		for (; p; p = p->next) {
-			/* first, let's check if we need to stop the proxy */
-			if (unlikely(stopping && p->state != PR_STSTOPPED)) {
-				int t;
-				t = tick_remain(now_ms, p->stop_time);
-				if (t == 0) {
-					Warning("Proxy %s stopped (FE: %lld conns, BE: %lld conns).\n",
-						p->id, p->fe_counters.cum_conn, p->be_counters.cum_conn);
-					send_log(p, LOG_WARNING, "Proxy %s stopped (FE: %lld conns, BE: %lld conns).\n",
-						 p->id, p->fe_counters.cum_conn, p->be_counters.cum_conn);
-					stop_proxy(p);
-					/* try to free more memory */
-					pool_gc2();
-				}
-				else {
-					*next = tick_first(*next, p->stop_time);
-				}
-			}
-
-			/* the rest below is just for frontends */
-			if (!(p->cap & PR_CAP_FE))
-				continue;
-
-			/* check the various reasons we may find to block the frontend */
-			if (unlikely(p->feconn >= p->maxconn)) {
-				if (p->state == PR_STREADY)
-					p->state = PR_STFULL;
-				continue;
-			}
-
-			/* OK we have no reason to block, so let's unblock if we were blocking */
-			if (p->state == PR_STFULL)
-				p->state = PR_STREADY;
-
-			if (p->fe_sps_lim &&
-			    (wait = next_event_delay(&p->fe_sess_per_sec, p->fe_sps_lim, 0))) {
-				/* we're blocking because a limit was reached on the number of
-				 * requests/s on the frontend. We want to re-check ASAP, which
-				 * means in 1 ms before estimated expiration date, because the
-				 * timer will have settled down.
-				 */
-				*next = tick_first(*next, tick_add(now_ms, wait));
-				continue;
-			}
-
-			/* The proxy is not limited so we can re-enable any waiting listener */
-			if (!LIST_ISEMPTY(&p->listener_queue))
-				dequeue_all_listeners(&p->listener_queue);
+	/* first, let's check if we need to stop the proxy */
+	if (unlikely(stopping && p->state != PR_STSTOPPED)) {
+		int t;
+		t = tick_remain(now_ms, p->stop_time);
+		if (t == 0) {
+			Warning("Proxy %s stopped (FE: %lld conns, BE: %lld conns).\n",
+				p->id, p->fe_counters.cum_conn, p->be_counters.cum_conn);
+			send_log(p, LOG_WARNING, "Proxy %s stopped (FE: %lld conns, BE: %lld conns).\n",
+				 p->id, p->fe_counters.cum_conn, p->be_counters.cum_conn);
+			stop_proxy(p);
+			/* try to free more memory */
+			pool_gc2();
+		}
+		else {
+			next = tick_first(next, p->stop_time);
 		}
 	}
+
+	/* the rest below is just for frontends */
+	if (!(p->cap & PR_CAP_FE))
+		goto out;
+
+	/* check the various reasons we may find to block the frontend */
+	if (unlikely(p->feconn >= p->maxconn)) {
+		if (p->state == PR_STREADY)
+			p->state = PR_STFULL;
+		goto out;
+	}
+
+	/* OK we have no reason to block, so let's unblock if we were blocking */
+	if (p->state == PR_STFULL)
+		p->state = PR_STREADY;
+
+	if (p->fe_sps_lim &&
+	    (wait = next_event_delay(&p->fe_sess_per_sec, p->fe_sps_lim, 0))) {
+		/* we're blocking because a limit was reached on the number of
+		 * requests/s on the frontend. We want to re-check ASAP, which
+		 * means in 1 ms before estimated expiration date, because the
+		 * timer will have settled down.
+		 */
+		next = tick_first(next, tick_add(now_ms, wait));
+		goto out;
+	}
+
+	/* The proxy is not limited so we can re-enable any waiting listener */
+	if (!LIST_ISEMPTY(&p->listener_queue))
+		dequeue_all_listeners(&p->listener_queue);
+ out:
+	t->expire = next;
+	task_queue(t);
+	return t;
 }
 
 
@@ -560,6 +558,8 @@ void soft_stop(void)
 		if (p->table.size && p->table.sync_task)
 			 task_wakeup(p->table.sync_task, TASK_WOKEN_MSG);
 
+		/* wake every proxy task up so that they can handle the stopping */
+		task_wakeup(p->task, TASK_WOKEN_MSG);
 		p = p->next;
 	}
 

@@ -242,10 +242,9 @@ static inline void task_schedule(struct task *task, int when)
 }
 
 /*
- * This does 4 things :
+ * This does 3 things :
  *   - wake up all expired tasks
  *   - call all runnable tasks
- *   - call maintain_proxies() to enable/disable the listeners
  *   - return the date of next event in <next> or eternity.
  */
 
