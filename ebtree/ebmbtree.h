@@ -527,7 +527,7 @@ static forceinline struct ebmb_node *__ebmb_lookup_prefix(struct eb_root *root, 
 			 * bits, let's compare prefixes and descend the cover
 			 * subtree if they match.
 			 */
-			if (node->node.bit >> 1 == pfx)
+			if ((unsigned short)node->node.bit >> 1 == pfx)
 				troot = node->node.branches.b[EB_LEFT];
 			else
 				troot = node->node.branches.b[EB_RGHT];

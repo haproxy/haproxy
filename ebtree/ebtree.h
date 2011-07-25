@@ -376,7 +376,7 @@ struct eb_node {
 	eb_troot_t    *node_p;  /* link node's parent */
 	eb_troot_t    *leaf_p;  /* leaf node's parent */
 	short int      bit;     /* link's bit position. */
-	short int      pfx;     /* data prefix length, always related to leaf */
+	short unsigned int pfx; /* data prefix length, always related to leaf */
 };
 
 /* Return the structure of type <type> whose member <member> points to <ptr> */
