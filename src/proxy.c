@@ -482,6 +482,10 @@ void maintain_proxies(int *next)
 
 	/* if there are enough free sessions, we'll activate proxies */
 	if (actconn < global.maxconn) {
+		/* We should periodically try to enable listeners waiting for a
+		 * global resource here.
+		 */
+
 		for (; p; p = p->next) {
 			/* check the various reasons we may find to block the frontend */
 			if (p->feconn >= p->maxconn)
@@ -517,16 +521,6 @@ void maintain_proxies(int *next)
 					disable_listener(l);
 				p->state = PR_STIDLE;
 			}
-		}
-	}
-	else {  /* block all proxies */
-		while (p) {
-			if (p->state == PR_STRUN) {
-				for (l = p->listen; l != NULL; l = l->next)
-					disable_listener(l);
-				p->state = PR_STIDLE;
-			}
-			p = p->next;
 		}
 	}
 
