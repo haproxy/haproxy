@@ -407,8 +407,8 @@ int proxy_cfg_ensure_no_http(struct proxy *curproxy)
  * This function creates all proxy sockets. It should be done very early,
  * typically before privileges are dropped. The sockets will be registered
  * but not added to any fd_set, in order not to loose them across the fork().
- * The proxies also start in IDLE state, meaning that it will be
- * maintain_proxies that will finally complete their loading.
+ * The proxies also start in RUN state because they all have their listeners
+ * bound.
  *
  * Its return value is composed from ERR_NONE, ERR_RETRYABLE and ERR_FATAL.
  * Retryable errors will only be printed if <verbose> is not zero.
@@ -454,7 +454,7 @@ int start_proxies(int verbose)
 		}
 
 		if (!pxerr) {
-			curproxy->state = PR_STIDLE;
+			curproxy->state = PR_STRUN;
 			send_log(curproxy, LOG_NOTICE, "Proxy %s started.\n", curproxy->id);
 		}
 
@@ -475,7 +475,6 @@ int start_proxies(int verbose)
 void maintain_proxies(int *next)
 {
 	struct proxy *p;
-	struct listener *l;
 	unsigned int wait;
 
 	p = proxy;
@@ -487,9 +486,19 @@ void maintain_proxies(int *next)
 		 */
 
 		for (; p; p = p->next) {
+			if (!(p->cap & PR_CAP_FE))
+				continue;
+
 			/* check the various reasons we may find to block the frontend */
-			if (p->feconn >= p->maxconn)
-				goto do_block;
+			if (unlikely(p->feconn >= p->maxconn)) {
+				if (p->state == PR_STRUN)
+					p->state = PR_STIDLE;
+				continue;
+			}
+
+			/* OK we have no reason to block, so let's unblock if we were blocking */
+			if (p->state == PR_STIDLE)
+				p->state = PR_STRUN;
 
 			if (p->fe_sps_lim &&
 			    (wait = next_event_delay(&p->fe_sess_per_sec, p->fe_sps_lim, 1))) {
@@ -500,27 +509,12 @@ void maintain_proxies(int *next)
 				 * IDLE state here.
 				 */
 				*next = tick_first(*next, tick_add(now_ms, wait));
-				goto do_block;
+				continue;
 			}
 
 			/* The proxy is not limited so we can re-enable any waiting listener */
 			if (!LIST_ISEMPTY(&p->listener_queue))
 				dequeue_all_listeners(&p->listener_queue);
-
-			/* OK we have no reason to block, so let's unblock if we were blocking */
-			if (p->state == PR_STIDLE) {
-				for (l = p->listen; l != NULL; l = l->next)
-					enable_listener(l);
-				p->state = PR_STRUN;
-			}
-			continue;
-
-		do_block:
-			if (p->state == PR_STRUN) {
-				for (l = p->listen; l != NULL; l = l->next)
-					disable_listener(l);
-				p->state = PR_STIDLE;
-			}
 		}
 	}
 
