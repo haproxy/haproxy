@@ -1,31 +1,21 @@
 /*
  * Elastic Binary Trees - generic macros and structures.
- * Version 6.0.1
- * (C) 2002-2010 - Willy Tarreau <w@1wt.eu>
+ * Version 6.0.6
+ * (C) 2002-2011 - Willy Tarreau <w@1wt.eu>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation, version 2.1
+ * exclusively.
  *
- * This program is distributed in the hope that it will be useful,
+ * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
- *
- *
- * Short history :
- *
- * 2007/09/28: full support for the duplicates tree => v3
- * 2007/07/08: merge back cleanups from kernel version.
- * 2007/07/01: merge into Linux Kernel (try 1).
- * 2007/05/27: version 2: compact everything into one single struct
- * 2007/05/18: adapted the structure to support embedded nodes
- * 2007/05/13: adapted to mempools v2.
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 
