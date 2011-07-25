@@ -518,8 +518,6 @@ void maintain_proxies(int *next)
 	}
 
 	if (stopping) {
-		struct peers *prs;
-
 		p = proxy;
 		while (p) {
 			if (p->state != PR_STSTOPPED) {
@@ -540,13 +538,6 @@ void maintain_proxies(int *next)
 			}
 			p = p->next;
 		}
-
-		prs = peers;
-		while (prs) {
-			stop_proxy((struct proxy *)prs->peers_fe);
-			prs = prs->next;
-		}
-
 	}
 	return;
 }
@@ -560,6 +551,7 @@ void maintain_proxies(int *next)
 void soft_stop(void)
 {
 	struct proxy *p;
+	struct peers *prs;
 
 	stopping = 1;
 	p = proxy;
@@ -574,6 +566,12 @@ void soft_stop(void)
 			 task_wakeup(p->table.sync_task, TASK_WOKEN_MSG);
 
 		p = p->next;
+	}
+
+	prs = peers;
+	while (prs) {
+		stop_proxy((struct proxy *)prs->peers_fe);
+		prs = prs->next;
 	}
 	/* signal zero is used to broadcast the "stopping" event */
 	signal_handler(0);
