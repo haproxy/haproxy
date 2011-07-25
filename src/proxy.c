@@ -486,6 +486,25 @@ void maintain_proxies(int *next)
 		 */
 
 		for (; p; p = p->next) {
+			/* first, let's check if we need to stop the proxy */
+			if (unlikely(stopping && p->state != PR_STSTOPPED)) {
+				int t;
+				t = tick_remain(now_ms, p->stop_time);
+				if (t == 0) {
+					Warning("Proxy %s stopped (FE: %lld conns, BE: %lld conns).\n",
+						p->id, p->fe_counters.cum_conn, p->be_counters.cum_conn);
+					send_log(p, LOG_WARNING, "Proxy %s stopped (FE: %lld conns, BE: %lld conns).\n",
+						 p->id, p->fe_counters.cum_conn, p->be_counters.cum_conn);
+					stop_proxy(p);
+					/* try to free more memory */
+					pool_gc2();
+				}
+				else {
+					*next = tick_first(*next, p->stop_time);
+				}
+			}
+
+			/* the rest below is just for frontends */
 			if (!(p->cap & PR_CAP_FE))
 				continue;
 
@@ -516,30 +535,6 @@ void maintain_proxies(int *next)
 				dequeue_all_listeners(&p->listener_queue);
 		}
 	}
-
-	if (stopping) {
-		p = proxy;
-		while (p) {
-			if (p->state != PR_STSTOPPED) {
-				int t;
-				t = tick_remain(now_ms, p->stop_time);
-				if (t == 0) {
-					Warning("Proxy %s stopped (FE: %lld conns, BE: %lld conns).\n",
-						p->id, p->fe_counters.cum_conn, p->be_counters.cum_conn);
-					send_log(p, LOG_WARNING, "Proxy %s stopped (FE: %lld conns, BE: %lld conns).\n",
-						 p->id, p->fe_counters.cum_conn, p->be_counters.cum_conn);
-					stop_proxy(p);
-					/* try to free more memory */
-					pool_gc2();
-				}
-				else {
-					*next = tick_first(*next, p->stop_time);
-				}
-			}
-			p = p->next;
-		}
-	}
-	return;
 }
 
 
