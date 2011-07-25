@@ -2096,7 +2096,8 @@ struct task *process_session(struct task *t)
 	if (!LIST_ISEMPTY(&global_listener_queue))
 		dequeue_all_listeners(&global_listener_queue);
 
-	if (!LIST_ISEMPTY(&s->fe->listener_queue))
+	if (!LIST_ISEMPTY(&s->fe->listener_queue) &&
+	    (!s->fe->fe_sps_lim || freq_ctr_remain(&s->fe->fe_sess_per_sec, s->fe->fe_sps_lim, 0) > 0))
 		dequeue_all_listeners(&s->fe->listener_queue);
 
 	if (unlikely((global.mode & MODE_DEBUG) &&
