@@ -43,6 +43,7 @@ struct proxy *findproxy_mode(const char *name, int mode, int cap);
 struct proxy *findproxy(const char *name, int cap);
 struct server *findserver(const struct proxy *px, const char *name);
 int proxy_cfg_ensure_no_http(struct proxy *curproxy);
+void init_new_proxy(struct proxy *p);
 int get_backend_server(const char *bk_name, const char *sv_name,
 		       struct proxy **bk, struct server **sv);
 

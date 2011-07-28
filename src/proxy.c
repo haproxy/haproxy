@@ -403,6 +403,35 @@ int proxy_cfg_ensure_no_http(struct proxy *curproxy)
 	return 0;
 }
 
+/* Perform the most basic initialization of a proxy :
+ * memset(), list_init(*), reset_timeouts(*).
+ * Any new proxy should be initialized via this function.
+ */
+void init_new_proxy(struct proxy *p)
+{
+	memset(p, 0, sizeof(struct proxy));
+	LIST_INIT(&p->pendconns);
+	LIST_INIT(&p->acl);
+	LIST_INIT(&p->http_req_rules);
+	LIST_INIT(&p->block_cond);
+	LIST_INIT(&p->redirect_rules);
+	LIST_INIT(&p->mon_fail_cond);
+	LIST_INIT(&p->switching_rules);
+	LIST_INIT(&p->persist_rules);
+	LIST_INIT(&p->sticking_rules);
+	LIST_INIT(&p->storersp_rules);
+	LIST_INIT(&p->tcp_req.inspect_rules);
+	LIST_INIT(&p->tcp_rep.inspect_rules);
+	LIST_INIT(&p->tcp_req.l4_rules);
+	LIST_INIT(&p->req_add);
+	LIST_INIT(&p->rsp_add);
+	LIST_INIT(&p->listener_queue);
+
+	/* Timeouts are defined as -1 */
+	proxy_reset_timeouts(p);
+	p->tcp_rep.inspect_delay = TICK_ETERNITY;
+}
+
 /*
  * This function creates all proxy sockets. It should be done very early,
  * typically before privileges are dropped. The sockets will be registered

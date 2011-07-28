@@ -153,18 +153,7 @@ static struct proxy *alloc_stats_fe(const char *name)
 	if (!fe)
 		return NULL;
 
-	LIST_INIT(&fe->pendconns);
-	LIST_INIT(&fe->acl);
-	LIST_INIT(&fe->block_cond);
-	LIST_INIT(&fe->redirect_rules);
-	LIST_INIT(&fe->mon_fail_cond);
-	LIST_INIT(&fe->switching_rules);
-	LIST_INIT(&fe->tcp_req.inspect_rules);
-
-	/* Timeouts are defined as -1, so we cannot use the zeroed area
-	 * as a default value.
-	 */
-	proxy_reset_timeouts(fe);
+	init_new_proxy(fe);
 
 	fe->last_change = now.tv_sec;
 	fe->id = strdup("GLOBAL");

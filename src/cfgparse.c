@@ -1020,34 +1020,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	return err_code;
 }
 
-/* Perform the most basic initialization of a proxy :
- * memset(), list_init(*), reset_timeouts(*).
- */
-static void init_new_proxy(struct proxy *p)
-{
-	memset(p, 0, sizeof(struct proxy));
-	LIST_INIT(&p->pendconns);
-	LIST_INIT(&p->acl);
-	LIST_INIT(&p->http_req_rules);
-	LIST_INIT(&p->block_cond);
-	LIST_INIT(&p->redirect_rules);
-	LIST_INIT(&p->mon_fail_cond);
-	LIST_INIT(&p->switching_rules);
-	LIST_INIT(&p->persist_rules);
-	LIST_INIT(&p->sticking_rules);
-	LIST_INIT(&p->storersp_rules);
-	LIST_INIT(&p->tcp_req.inspect_rules);
-	LIST_INIT(&p->tcp_rep.inspect_rules);
-	LIST_INIT(&p->tcp_req.l4_rules);
-	LIST_INIT(&p->req_add);
-	LIST_INIT(&p->rsp_add);
-	LIST_INIT(&p->listener_queue);
-
-	/* Timeouts are defined as -1 */
-	proxy_reset_timeouts(p);
-	p->tcp_rep.inspect_delay = TICK_ETERNITY;
-}
-
 void init_default_instance()
 {
 	init_new_proxy(&defproxy);
@@ -1278,18 +1250,9 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 					err_code |= ERR_ALERT | ERR_ABORT;
 					goto out;
 				}
+
+				init_new_proxy(curpeers->peers_fe);
 				curpeers->peers_fe->parent = curpeers;
-
-				LIST_INIT(&(curpeers->peers_fe)->pendconns);
-				LIST_INIT(&(curpeers->peers_fe)->acl);
-				LIST_INIT(&(curpeers->peers_fe)->block_cond);
-				LIST_INIT(&(curpeers->peers_fe)->redirect_rules);
-				LIST_INIT(&(curpeers->peers_fe)->mon_fail_cond);
-				LIST_INIT(&(curpeers->peers_fe)->switching_rules);
-				LIST_INIT(&(curpeers->peers_fe)->tcp_req.inspect_rules);
-				LIST_INIT(&(curpeers->peers_fe)->tcp_rep.inspect_rules);
-
-				proxy_reset_timeouts(curpeers->peers_fe);
 
 				curpeers->peers_fe->last_change = now.tv_sec;
 				curpeers->peers_fe->id = strdup(args[1]);
