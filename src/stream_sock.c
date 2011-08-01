@@ -1212,12 +1212,18 @@ int stream_sock_accept(int fd)
 			max_accept = max;
 	}
 
+	/* Note: if we fail to allocate a connection because of configured
+	 * limits, we'll schedule a new attempt worst 1 second later in the
+	 * worst case. If we fail due to system limits or temporary resource
+	 * shortage, we try again 100ms later in the worst case.
+	 */
 	while (max_accept--) {
 		struct sockaddr_storage addr;
 		socklen_t laddr = sizeof(addr);
 
 		if (unlikely(actconn >= global.maxconn)) {
 			limit_listener(l, &global_listener_queue);
+			task_schedule(global_listener_queue_task, tick_add(now_ms, 1000)); /* try again in 1 second */
 			return 0;
 		}
 
@@ -1239,6 +1245,7 @@ int stream_sock_accept(int fd)
 						 "Proxy %s reached system FD limit at %d. Please check system tunables.\n",
 						 p->id, maxfd);
 				limit_listener(l, &global_listener_queue);
+				task_schedule(global_listener_queue_task, tick_add(now_ms, 100)); /* try again in 100 ms */
 				return 0;
 			case EMFILE:
 				if (p)
@@ -1246,6 +1253,7 @@ int stream_sock_accept(int fd)
 						 "Proxy %s reached process FD limit at %d. Please check 'ulimit-n' and restart.\n",
 						 p->id, maxfd);
 				limit_listener(l, &global_listener_queue);
+				task_schedule(global_listener_queue_task, tick_add(now_ms, 100)); /* try again in 100 ms */
 				return 0;
 			case ENOBUFS:
 			case ENOMEM:
@@ -1254,6 +1262,7 @@ int stream_sock_accept(int fd)
 						 "Proxy %s reached system memory limit at %d sockets. Please check system tunables.\n",
 						 p->id, maxfd);
 				limit_listener(l, &global_listener_queue);
+				task_schedule(global_listener_queue_task, tick_add(now_ms, 100)); /* try again in 100 ms */
 				return 0;
 			default:
 				return 0;
@@ -1266,6 +1275,7 @@ int stream_sock_accept(int fd)
 				 p->id);
 			close(cfd);
 			limit_listener(l, &global_listener_queue);
+			task_schedule(global_listener_queue_task, tick_add(now_ms, 1000)); /* try again in 1 second */
 			return 0;
 		}
 
@@ -1293,6 +1303,7 @@ int stream_sock_accept(int fd)
 				continue;
 
 			limit_listener(l, &global_listener_queue);
+			task_schedule(global_listener_queue_task, tick_add(now_ms, 100)); /* try again in 100 ms */
 			return 0;
 		}
 

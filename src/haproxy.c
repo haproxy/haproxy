@@ -161,6 +161,8 @@ char localpeer[MAX_HOSTNAME_LEN];
 
 /* list of the temporarily limited listeners because of lack of resource */
 struct list global_listener_queue = LIST_HEAD_INIT(global_listener_queue);
+struct task *global_listener_queue_task;
+static struct task *manage_global_listener_queue(struct task *t);
 
 /*********************************************************************/
 /*  general purpose functions  ***************************************/
@@ -545,6 +547,16 @@ void init(int argc, char **argv)
 		qfprintf(stdout, "Configuration file is valid\n");
 		exit(0);
 	}
+
+	global_listener_queue_task = task_new();
+	if (!global_listener_queue_task) {
+		Alert("Out of memory when initializing global task\n");
+		exit(1);
+	}
+	/* very simple initialization, users will queue the task if needed */
+	global_listener_queue_task->context = NULL; /* not even a context! */
+	global_listener_queue_task->process = manage_global_listener_queue;
+	global_listener_queue_task->expire = TICK_ETERNITY;
 
 	/* now we know the buffer size, we can initialize the buffers */
 	init_buffer();
@@ -957,6 +969,7 @@ void deinit(void)
 	free(global.desc);    global.desc = NULL;
 	free(fdtab);          fdtab   = NULL;
 	free(oldpids);        oldpids = NULL;
+	free(global_listener_queue_task); global_listener_queue_task = NULL;
 
 	list_for_each_entry_safe(wl, wlb, &cfg_cfgfiles, list) {
 		LIST_DEL(&wl->list);
@@ -1018,6 +1031,39 @@ void run_poll_loop()
 	}
 }
 
+/* This is the global management task for listeners. It enables listeners waiting
+ * for global resources when there are enough free resource, or at least once in
+ * a while. It is designed to be called as a task.
+ */
+static struct task *manage_global_listener_queue(struct task *t)
+{
+	int next = TICK_ETERNITY;
+	fprintf(stderr, "coucou!\n");
+	/* queue is empty, nothing to do */
+	if (LIST_ISEMPTY(&global_listener_queue))
+		goto out;
+
+	/* If there are still too many concurrent connections, let's wait for
+	 * some of them to go away. We don't need to re-arm the timer because
+	 * each of them will scan the queue anyway.
+	 */
+	if (unlikely(actconn >= global.maxconn))
+		goto out;
+
+	/* We should periodically try to enable listeners waiting for a global
+	 * resource here, because it is possible, though very unlikely, that
+	 * they have been blocked by a temporary lack of global resource such
+	 * as a file descriptor or memory and that the temporary condition has
+	 * disappeared.
+	 */
+	if (!LIST_ISEMPTY(&global_listener_queue))
+		dequeue_all_listeners(&global_listener_queue);
+
+ out:
+	t->expire = next;
+	task_queue(t);
+	return t;
+}
 
 int main(int argc, char **argv)
 {

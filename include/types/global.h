@@ -124,6 +124,7 @@ extern int stopping;	/* non zero means stopping in progress */
 extern char hostname[MAX_HOSTNAME_LEN];
 extern char localpeer[MAX_HOSTNAME_LEN];
 extern struct list global_listener_queue; /* list of the temporarily limited listeners */
+extern struct task *global_listener_queue_task;
 
 #endif /* _TYPES_GLOBAL_H */
 
