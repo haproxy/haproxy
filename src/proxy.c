@@ -315,12 +315,22 @@ struct proxy *findproxy_mode(const char *name, int mode, int cap) {
 	return target;
 }
 
+/* Returns a pointer to the proxy matching either name <name>, or id <name> if
+ * <name> begins with a '#'. NULL is returned if no match is found, as well as
+ * if multiple matches are found (eg: too large capabilities mask).
+ */
 struct proxy *findproxy(const char *name, int cap) {
 
 	struct proxy *curproxy, *target = NULL;
+	int pid = 0;
+
+	if (*name == '#')
+		pid = atoi(name + 1);
 
 	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
-		if ((curproxy->cap & cap)!=cap || strcmp(curproxy->id, name))
+		if ((curproxy->cap & cap) != cap ||
+		    (pid && curproxy->uuid != pid) ||
+		    (!pid && strcmp(curproxy->id, name)))
 			continue;
 
 		if (!target) {
