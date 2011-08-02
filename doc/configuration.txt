@@ -9483,6 +9483,15 @@ prompt
 quit
   Close the connection when in interactive mode.
 
+set maxconn frontend <frontend> <value>
+  Dynamically change the specified frontend's maxconn setting. Any non-null
+  positive value is allowed, but setting values larger than the global maxconn
+  does not make much sense. If the limit is increased and connections were
+  pending, they will immediately be accepted. If it is lowered to a value below
+  the current number of connections, new connections acceptation will be
+  delayed until the threshold is reached. The frontend might be specified by
+  either its name or its numeric ID prefixed with a sharp ('#').
+
 set timeout cli <delay>
   Change the CLI interface timeout for current connection. This can be useful
   during long debugging sessions where the user needs to constantly inspect
