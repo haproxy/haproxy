@@ -9443,7 +9443,7 @@ disable server <backend>/<server>
   "MAINT" status, its tracking servers with the "MAINT(via)" one.
 
   Both the backend and the server may be specified either by their name or by
-  their numeric ID, prefixed with a dash ('#').
+  their numeric ID, prefixed with a sharp ('#').
 
   This command is restricted and can only be issued on sockets configured for
   level "admin".
@@ -9453,7 +9453,7 @@ enable server <backend>/<server>
   server UP and checks are re-enabled.
 
   Both the backend and the server may be specified either by their name or by
-  their numeric ID, prefixed with a dash ('#').
+  their numeric ID, prefixed with a sharp ('#').
 
   This command is restricted and can only be issued on sockets configured for
   level "admin".
@@ -9464,7 +9464,7 @@ get weight <backend>/<server>
   the one that appears in the configuration file. Both are normally equal
   unless the current weight has been changed. Both the backend and the server
   may be specified either by their name or by their numeric ID, prefixed with a
-  dash ('#').
+  sharp ('#').
 
 help
   Print the list of known keywords and their basic usage. The same help screen
@@ -9502,7 +9502,7 @@ set weight <backend>/<server> <weight>[%]
   again after the update by setting it back to 100%. This command is restricted
   and can only be issued on sockets configured for level "admin". Both the
   backend and the server may be specified either by their name or by their
-  numeric ID, prefixed with a dash ('#').
+  numeric ID, prefixed with a sharp ('#').
 
 show errors [<iid>]
   Dump last known request and response errors collected by frontends and
