@@ -308,7 +308,7 @@ struct acl_expr {
 	union {                     /* optional argument of the subject (eg: header or cookie name) */
 		char *str;
 		struct userlist *ul;
-		struct server *srv;
+		struct server *srv; /* must be initialised by acl_find_targets */
 	} arg;
 	int arg_len;                /* optional argument length */
 	struct list patterns;       /* list of acl_patterns */

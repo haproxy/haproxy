@@ -7456,6 +7456,12 @@ src_updt_conn_cnt(table) <integer>
             tcp-request content reject if { src_update_count gt 3 }
             server local 127.0.0.1:22
 
+srv_conn(backend/server) <integer>
+  Applies to the number of currently established connections on the server,
+  possibly including the connection being evaluated.
+  It can be used to use a specific farm when one server is full.
+  See also the "fe_conn", "be_conn" and "queue" criteria.
+
 srv_id <integer>
   Applies to the server's id. Can be used in frontends or backends.
 

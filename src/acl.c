@@ -1732,7 +1732,8 @@ acl_find_targets(struct proxy *p)
 
 	list_for_each_entry(acl, &p->acl, list) {
 		list_for_each_entry(expr, &acl->expr, list) {
-			if (strcmp(expr->kw->kw, "srv_is_up") == 0) {
+			if (strcmp(expr->kw->kw, "srv_is_up") == 0 ||
+			    strcmp(expr->kw->kw, "srv_conn") == 0) {
 				struct proxy *px;
 				struct server *srv;
 				char *pname, *sname;
