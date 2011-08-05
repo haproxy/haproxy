@@ -1003,6 +1003,7 @@ option nolinger                      (*)  X          X         X         X
 option originalto                         X          X         X         X
 option persist                       (*)  X          -         X         X
 option redispatch                    (*)  X          -         X         X
+option redis-check                        X          -         X         X
 option smtpchk                            X          -         X         X
 option socket-stats                  (*)  X          X         X         -
 option splice-auto                   (*)  X          X         X         X
@@ -3752,6 +3753,23 @@ no option redispatch
   in a specific instance by prepending the "no" keyword before it.
 
   See also : "redispatch", "retries", "force-persist"
+
+
+option redis-check
+  Use redis health checks for server testing
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments : none
+
+  It is possible to test that the server correctly talks REDIS protocol instead
+  of just testing that it accepts the TCP connection. When this option is set,
+  a PING redis command is sent to the server, and the response is analyzed to
+  find the "+PONG" response message.
+
+  Example :
+        option redis-check
+
+  See also : "option httpchk"
 
 
 option smtpchk

@@ -773,6 +773,7 @@ static int event_srv_chk_w(int fd)
 		    (s->proxy->options2 & PR_O2_SSL3_CHK) ||
 		    (s->proxy->options2 & PR_O2_MYSQL_CHK) ||
 		    (s->proxy->options2 & PR_O2_PGSQL_CHK) ||
+		    (s->proxy->options2 & PR_O2_REDIS_CHK) ||
 		    (s->proxy->options2 & PR_O2_LDAP_CHK)) {
 			int ret;
 			const char *check_req = s->proxy->check_req;
@@ -1045,6 +1046,17 @@ static int event_srv_chk_r(int fd)
 				desc = "PostgreSQL unknown error";
 
 			set_server_check_status(s, HCHK_STATUS_L7STS, desc);
+		}
+	}
+	else if (s->proxy->options2 & PR_O2_REDIS_CHK) {
+		if (!done && s->check_data_len < 7)
+			goto wait_more_data;
+
+		if (strcmp(s->check_data, "+PONG\r\n") == 0) {
+			set_server_check_status(s, HCHK_STATUS_L7OKD, "Redis server is ok");
+		}
+		else {
+			set_server_check_status(s, HCHK_STATUS_L7STS, s->check_data);
 		}
 	}
 	else if (s->proxy->options2 & PR_O2_MYSQL_CHK) {

@@ -155,6 +155,7 @@ enum {
 #define PR_O2_PGSQL_CHK 0x10000000      /* use PGSQL check for server health */
 #define PR_O2_DISPATCH  0x20000000      /* use dispatch mode */
 #define PR_O2_NODELAY   0x40000000      /* fully interactive mode, never delay outgoing data */
+#define PR_O2_REDIS_CHK 0x80000000      /* use LDAP check for server health */
 /* end of proxy->options2 */
 
 /* bits for sticking rules */

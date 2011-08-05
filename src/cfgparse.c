@@ -3260,6 +3260,7 @@ stats_error_parsing:
 			curproxy->options2 &= ~PR_O2_MYSQL_CHK;
 			curproxy->options2 &= ~PR_O2_PGSQL_CHK;
 			curproxy->options2 &= ~PR_O2_LDAP_CHK;
+			curproxy->options2 &= ~PR_O2_REDIS_CHK;
 			curproxy->options |= PR_O_HTTP_CHK;
 			if (!*args[2]) { /* no argument */
 				curproxy->check_req = strdup(DEF_CHECK_REQ); /* default request */
@@ -3293,6 +3294,7 @@ stats_error_parsing:
 			curproxy->options2 &= ~PR_O2_MYSQL_CHK;
 			curproxy->options2 &= ~PR_O2_PGSQL_CHK;
 			curproxy->options2 &= ~PR_O2_LDAP_CHK;
+			curproxy->options2 &= ~PR_O2_REDIS_CHK;
 			curproxy->options2 |= PR_O2_SSL3_CHK;
 		}
 		else if (!strcmp(args[1], "smtpchk")) {
@@ -3304,6 +3306,7 @@ stats_error_parsing:
 			curproxy->options2 &= ~PR_O2_MYSQL_CHK;
 			curproxy->options2 &= ~PR_O2_PGSQL_CHK;
 			curproxy->options2 &= ~PR_O2_LDAP_CHK;
+			curproxy->options2 &= ~PR_O2_REDIS_CHK;
 			curproxy->options |= PR_O_SMTP_CHK;
 
 			if (!*args[2] || !*args[3]) { /* no argument or incomplete EHLO host */
@@ -3334,6 +3337,7 @@ stats_error_parsing:
 			curproxy->options &= ~PR_O_SMTP_CHK;
 			curproxy->options2 &= ~PR_O2_SSL3_CHK;
 			curproxy->options2 &= ~PR_O2_LDAP_CHK;
+			curproxy->options2 &= ~PR_O2_REDIS_CHK;
 			curproxy->options2 &= ~PR_O2_MYSQL_CHK;
 			curproxy->options2 |= PR_O2_PGSQL_CHK;
 
@@ -3386,6 +3390,26 @@ stats_error_parsing:
 			}
 		}
 
+		else if (!strcmp(args[1], "redis-check")) {
+			/* use REDIS PING request to check servers' health */
+			if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[1], NULL))
+				err_code |= ERR_WARN;
+
+			free(curproxy->check_req);
+			curproxy->check_req = NULL;
+			curproxy->options &= ~PR_O_HTTP_CHK;
+			curproxy->options &= ~PR_O_SMTP_CHK;
+			curproxy->options2 &= ~PR_O2_SSL3_CHK;
+			curproxy->options2 &= ~PR_O2_MYSQL_CHK;
+			curproxy->options2 &= ~PR_O2_PGSQL_CHK;
+			curproxy->options2 &= ~PR_O2_LDAP_CHK;
+			curproxy->options2 |= PR_O2_REDIS_CHK;
+
+			curproxy->check_req = (char *) malloc(sizeof(DEF_REDIS_CHECK_REQ) - 1);
+			memcpy(curproxy->check_req, DEF_REDIS_CHECK_REQ, sizeof(DEF_REDIS_CHECK_REQ) - 1);
+			curproxy->check_len = sizeof(DEF_REDIS_CHECK_REQ) - 1;
+		}
+
 		else if (!strcmp(args[1], "mysql-check")) {
 			/* use MYSQL request to check servers' health */
 			if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[1], NULL))
@@ -3397,6 +3421,7 @@ stats_error_parsing:
 			curproxy->options &= ~PR_O_SMTP_CHK;
 			curproxy->options2 &= ~PR_O2_SSL3_CHK;
 			curproxy->options2 &= ~PR_O2_LDAP_CHK;
+			curproxy->options2 &= ~PR_O2_REDIS_CHK;
 			curproxy->options2 &= ~PR_O2_PGSQL_CHK;
 			curproxy->options2 |= PR_O2_MYSQL_CHK;
 
@@ -3469,6 +3494,7 @@ stats_error_parsing:
 			curproxy->options2 &= ~PR_O2_SSL3_CHK;
 			curproxy->options2 &= ~PR_O2_MYSQL_CHK;
 			curproxy->options2 &= ~PR_O2_PGSQL_CHK;
+			curproxy->options2 &= ~PR_O2_REDIS_CHK;
 			curproxy->options2 |= PR_O2_LDAP_CHK;
 
 			curproxy->check_req = (char *) malloc(sizeof(DEF_LDAP_CHECK_REQ) - 1);
