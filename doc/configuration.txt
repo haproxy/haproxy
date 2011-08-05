@@ -1319,7 +1319,7 @@ balance url_param <param> [check_post [<max_wait>]]
                   that changing a server's weight on the fly will have no
                   effect, but this can be changed using "hash-type".
 
-      hdr(name)   The HTTP header <name> will be looked up in each HTTP request.
+      hdr(<name>)   The HTTP header <name> will be looked up in each HTTP request.
                   Just as with the equivalent ACL 'hdr()' function, the header
                   name in parenthesis is not case sensitive. If the header is
                   absent or if it does not contain any value, the roundrobin
@@ -1335,7 +1335,7 @@ balance url_param <param> [check_post [<max_wait>]]
                   but this can be changed using "hash-type".
 
       rdp-cookie
-      rdp-cookie(name)
+      rdp-cookie(<name>)
                   The RDP cookie <name> (or "mstshash" if omitted) will be
                   looked up and hashed for each incoming TCP request. Just as
                   with the equivalent ACL 'req_rdp_cookie()' function, the name
@@ -4108,7 +4108,7 @@ no option transparent
 
 
 persist rdp-cookie
-persist rdp-cookie(name)
+persist rdp-cookie(<name>)
   Enable RDP cookie-based persistence
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
@@ -7086,7 +7086,7 @@ always_true
   a temporary replacement for another one when adjusting configurations.
 
 avg_queue <integer>
-avg_queue(backend) <integer>
+avg_queue(<backend>) <integer>
   Returns the total number of queued connections of the designated backend
   divided by the number of active servers. This is very similar to "queue"
   except that the size of the farm is considered, in order to give a more
@@ -7100,7 +7100,7 @@ avg_queue(backend) <integer>
   "be_conn", and "be_sess_rate" criteria.
 
 be_conn <integer>
-be_conn(backend) <integer>
+be_conn(<backend>) <integer>
   Applies to the number of currently established connections on the backend,
   possibly including the connection being evaluated. If no backend name is
   specified, the current one is used. But it is also possible to check another
@@ -7112,7 +7112,7 @@ be_id <integer>
   backend it was called.
 
 be_sess_rate <integer>
-be_sess_rate(backend) <integer>
+be_sess_rate(<backend>) <integer>
   Returns true when the sessions creation rate on the backend matches the
   specified values or ranges, in number of new sessions per second. This is
   used to switch to an alternate backend when an expensive or fragile one
@@ -7127,7 +7127,7 @@ be_sess_rate(backend) <integer>
             redirect location /denied.html if being_scanned
 
 connslots <integer>
-connslots(backend) <integer>
+connslots(<backend>) <integer>
   The basic idea here is to be able to measure the number of connection "slots"
   still available (connection + queue), so that anything beyond that (intended
   usage; see "use_backend" keyword) can be redirected to a different backend.
@@ -7165,7 +7165,7 @@ dst_port <integer>
   to a different backend for some alternative ports.
 
 fe_conn <integer>
-fe_conn(frontend) <integer>
+fe_conn(<frontend>) <integer>
   Applies to the number of currently established connections on the frontend,
   possibly including the connection being evaluated. If no frontend name is
   specified, the current one is used. But it is also possible to check another
@@ -7179,7 +7179,7 @@ fe_id <integer>
   frontend it was called.
 
 fe_sess_rate <integer>
-fe_sess_rate(frontend) <integer>
+fe_sess_rate(<frontend>) <integer>
   Returns true when the session creation rate on the current or the named
   frontend matches the specified values or ranges, expressed in new sessions
   per second. This is used to limit the connection rate to acceptable ranges in
@@ -7202,7 +7202,7 @@ fe_sess_rate(frontend) <integer>
             tcp-request content accept if WAIT_END
 
 nbsrv <integer>
-nbsrv(backend) <integer>
+nbsrv(<backend>) <integer>
   Returns true when the number of usable servers of either the current backend
   or the named backend matches the values or ranges specified. This is used to
   switch to an alternate backend when the number of servers is too low to
@@ -7210,7 +7210,7 @@ nbsrv(backend) <integer>
   "monitor fail".
 
 queue <integer>
-queue(backend) <integer>
+queue(<backend>) <integer>
   Returns the total number of queued connections of the designated backend,
   including all the connections in server queues. If no backend name is
   specified, the current one is used, but it is also possible to check another
@@ -7333,56 +7333,56 @@ src <ip_address>
   address which is used, and not the address of a client behind a proxy.
 
 src_bytes_in_rate <integer>
-src_bytes_in_rate(table) <integer>
+src_bytes_in_rate(<table>) <integer>
   Returns the average bytes rate from the connection's source IPv4 address in
   the current proxy's stick-table or in the designated stick-table, measured in
   amount of bytes over the period configured in the table. If the address is
   not found, zero is returned. See also sc1/sc2_bytes_in_rate.
 
 src_bytes_out_rate <integer>
-src_bytes_out_rate(table) <integer>
+src_bytes_out_rate(<table>) <integer>
   Returns the average bytes rate to the connection's source IPv4 address in the
   current proxy's stick-table or in the designated stick-table, measured in
   amount of bytes over the period configured in the table. If the address is
   not found, zero is returned. See also sc1/sc2_bytes_out_rate.
 
 src_conn_cnt <integer>
-src_conn_cnt(table) <integer>
+src_conn_cnt(<table>) <integer>
   Returns the cumulated number of connections initiated from the current
   connection's source IPv4 address in the current proxy's stick-table or in
   the designated stick-table. If the address is not found, zero is returned.
   See also sc1/sc2_conn_cnt.
 
 src_conn_cur <integer>
-src_conn_cur(table) <integer>
+src_conn_cur(<table>) <integer>
   Returns the current amount of concurrent connections initiated from the
   current connection's source IPv4 address in the current proxy's stick-table
   or in the designated stick-table. If the address is not found, zero is
   returned. See also sc1/sc2_conn_cur.
 
 src_conn_rate <integer>
-src_conn_rate(table) <integer>
+src_conn_rate(<table>) <integer>
   Returns the average connection rate from the connection's source IPv4 address
   in the current proxy's stick-table or in the designated stick-table, measured
   in amount of connections over the period configured in the table. If the
   address is not found, zero is returned. See also sc1/sc2_conn_rate.
 
 src_get_gpc0 <integer>
-src_get_gpc0(table) <integer>
+src_get_gpc0(<table>) <integer>
   Returns the value of the first General Purpose Counter associated to the
   connection's source IPv4 address in the current proxy's stick-table or in
   the designated stick-table. If the address is not found, zero is returned.
   See also sc1/sc2_get_gpc0 and src_inc_gpc0.
 
 src_http_err_cnt <integer>
-src_http_err_cnt(table) <integer>
+src_http_err_cnt(<table>) <integer>
   Returns the cumulated number of HTTP errors from the current connection's
   source IPv4 address in the current proxy's stick-table or in the designated
   stick-table. This includes the both request errors and 4xx error responses.
   If the address is not found, zero is returned. See also sc1/sc2_http_err_cnt.
 
 src_http_err_rate <integer>
-src_http_err_rate(table) <integer>
+src_http_err_rate(<table>) <integer>
   Returns the average rate of HTTP errors from the current connection's source
   IPv4 address in the current proxy's stick-table or in the designated stick-
   table, measured in amount of errors over the period configured in the table.
@@ -7390,14 +7390,14 @@ src_http_err_rate(table) <integer>
   is not found, zero is returned. See also sc1/sc2_http_err_rate.
 
 src_http_req_cnt <integer>
-src_http_req_cnt(table) <integer>
+src_http_req_cnt(<table>) <integer>
   Returns the cumulated number of HTTP requests from the current connection's
   source IPv4 address in the current proxy's stick-table or in the designated
   stick-table. This includes every started request, valid or not. If the
   address is not found, zero is returned. See also sc1/sc2_http_req_cnt.
 
 src_http_req_rate <integer>
-src_http_req_rate(table) <integer>
+src_http_req_rate(<table>) <integer>
   Returns the average rate of HTTP requests from the current connection's
   source IPv4 address in the current proxy's stick-table or in the designated
   stick-table, measured in amount of requests over the period configured in the
@@ -7405,7 +7405,7 @@ src_http_req_rate(table) <integer>
   not found, zero is returned. See also sc1/sc2_http_req_rate.
 
 src_inc_gpc0 <integer>
-src_inc_gpc0(table) <integer>
+src_inc_gpc0(<table>) <integer>
   Increments the first General Purpose Counter associated to the connection's
   source IPv4 address in the current proxy's stick-table or in the designated
   stick-table, and returns its value. If the address is not found, an entry is
@@ -7418,7 +7418,7 @@ src_inc_gpc0(table) <integer>
         tcp-request connection reject if abuse kill
 
 src_kbytes_in <integer>
-src_kbytes_in(table) <integer>
+src_kbytes_in(<table>) <integer>
   Returns the amount of data received from the connection's source IPv4 address
   in the current proxy's stick-table or in the designated stick-table, measured
   in kilobytes over the period configured in the table. If the address is not
@@ -7426,7 +7426,7 @@ src_kbytes_in(table) <integer>
   which limits values to 4 terabytes. See also sc1/sc2_kbytes_in.
 
 src_kbytes_out <integer>
-src_kbytes_out(table) <integer>
+src_kbytes_out(<table>) <integer>
   Returns the amount of data sent to the connection's source IPv4 address in
   the current proxy's stick-table or in the designated stick-table, measured
   in kilobytes over the period configured in the table. If the address is not
@@ -7437,7 +7437,7 @@ src_port <integer>
   Applies to the client's TCP source port. This has a very limited usage.
 
 src_sess_cnt <integer>
-src_sess_cnt(table) <integer>
+src_sess_cnt(<table>) <integer>
   Returns the cumulated number of connections initiated from the current
   connection's source IPv4 address in the current proxy's stick-table or in the
   designated stick-table, that were transformed into sessions, which means that
@@ -7445,7 +7445,7 @@ src_sess_cnt(table) <integer>
   is returned. See also sc1/sc2_sess_cnt.
 
 src_sess_rate <integer>
-src_sess_rate(table) <integer>
+src_sess_rate(<table>) <integer>
   Returns the average session rate from the connection's source IPv4 address in
   the current proxy's stick-table or in the designated stick-table, measured in
   amount of sessions over the period configured in the table. A session is a
@@ -7453,7 +7453,7 @@ src_sess_rate(table) <integer>
   found, zero is returned. See also sc1/sc2_sess_rate.
 
 src_updt_conn_cnt <integer>
-src_updt_conn_cnt(table) <integer>
+src_updt_conn_cnt(<table>) <integer>
   Creates or updates the entry associated to the source IPv4 address in the
   current proxy's stick-table or in the designated stick-table. This table
   must be configured to store the "conn_cnt" data type, otherwise the match
@@ -7474,7 +7474,7 @@ src_updt_conn_cnt(table) <integer>
             tcp-request content reject if { src_update_count gt 3 }
             server local 127.0.0.1:22
 
-srv_conn(backend/server) <integer>
+srv_conn(<backend>/<server>) <integer>
   Applies to the number of currently established connections on the server,
   possibly including the connection being evaluated.
   It can be used to use a specific farm when one server is full.
@@ -7495,12 +7495,12 @@ srv_is_up(<backend>/<server>)
   rules depending on those ACLs can be tweaked in realtime.
 
 table_avl <integer>
-table_avl(table) <integer>
+table_avl(<table>) <integer>
   Returns the total number of available entries in the current proxy's
   stick-table or in the designated stick-table. See also table_cnt.
 
 table_cnt <integer>
-table_cnt(table) <integer>
+table_cnt(<table>) <integer>
   Returns the total number of entries currently in use in the current proxy's
   stick-table or in the designated stick-table. See also src_conn_cnt and
   table_avl for other entry counting methods.
@@ -7531,7 +7531,7 @@ req_proto_http
   using TCP request content inspection rules.
 
 req_rdp_cookie       <string>
-req_rdp_cookie(name) <string>
+req_rdp_cookie(<name>) <string>
   Returns true when data in the request buffer look like the RDP protocol, and
   a cookie is present and equal to <string>. By default, any cookie name is
   checked, but a specific cookie name can be specified in parenthesis. The
@@ -7542,7 +7542,7 @@ req_rdp_cookie(name) <string>
   used to restrict access to certain servers to certain users.
 
 req_rdp_cookie_cnt       <integer>
-req_rdp_cookie_cnt(name) <integer>
+req_rdp_cookie_cnt(<name>) <integer>
   Returns true when the data in the request buffer look like the RDP protocol
   and the number of RDP cookies matches the specified range (typically zero or
   one). Optionally a specific cookie name can be checked. This is a simple way
@@ -7603,7 +7603,7 @@ read, and are only evaluated then. They may require slightly more CPU resources
 than the layer 4 ones, but not much since the request and response are indexed.
 
 hdr <string>
-hdr(header) <string>
+hdr(<header>) <string>
   Note: all the "hdr*" matching criteria either apply to all headers, or to a
   particular header whose name is passed between parenthesis and without any
   space. The header name is not case-sensitive. The header matching complies
@@ -7617,13 +7617,13 @@ hdr(header) <string>
      hdr(Connection) -i close
 
 hdr_beg <string>
-hdr_beg(header) <string>
+hdr_beg(<header>) <string>
   Returns true when one of the headers begins with one of the strings. See
   "hdr" for more information on header matching. Use the shdr_beg() variant for
   response headers sent by the server.
 
 hdr_cnt <integer>
-hdr_cnt(header) <integer>
+hdr_cnt(<header>) <integer>
   Returns true when the number of occurrence of the specified header matches
   the values or ranges specified. It is important to remember that one header
   line may count as several headers if it has several values. This is used to
@@ -7633,7 +7633,7 @@ hdr_cnt(header) <integer>
   the shdr_cnt() variant for response headers sent by the server.
 
 hdr_dir <string>
-hdr_dir(header) <string>
+hdr_dir(<header>) <string>
   Returns true when one of the headers contains one of the strings either
   isolated or delimited by slashes. This is used to perform filename or
   directory name matching, and may be used with Referer. See "hdr" for more
@@ -7641,7 +7641,7 @@ hdr_dir(header) <string>
   headers sent by the server.
 
 hdr_dom <string>
-hdr_dom(header) <string>
+hdr_dom(<header>) <string>
   Returns true when one of the headers contains one of the strings either
   isolated or delimited by dots. This is used to perform domain name matching,
   and may be used with the Host header. See "hdr" for more information on
@@ -7649,20 +7649,20 @@ hdr_dom(header) <string>
   server.
 
 hdr_end <string>
-hdr_end(header) <string>
+hdr_end(<header>) <string>
   Returns true when one of the headers ends with one of the strings. See "hdr"
   for more information on header matching. Use the shdr_end() variant for
   response headers sent by the server.
 
 hdr_ip <ip_address>
-hdr_ip(header) <ip_address>
+hdr_ip(<header>) <ip_address>
   Returns true when one of the headers' values contains an IP address matching
   <ip_address>. This is mainly used with headers such as X-Forwarded-For or
   X-Client-IP. See "hdr" for more information on header matching. Use the
   shdr_ip() variant for response headers sent by the server.
 
 hdr_reg <regex>
-hdr_reg(header) <regex>
+hdr_reg(<header>) <regex>
   Returns true when one of the headers matches of the regular expressions. It
   can be used at any time, but it is important to remember that regex matching
   is slower than other methods. See also other "hdr_" criteria, as well as
@@ -7670,20 +7670,20 @@ hdr_reg(header) <regex>
   response headers sent by the server.
 
 hdr_sub <string>
-hdr_sub(header) <string>
+hdr_sub(<header>) <string>
   Returns true when one of the headers contains one of the strings. See "hdr"
   for more information on header matching. Use the shdr_sub() variant for
   response headers sent by the server.
 
 hdr_val <integer>
-hdr_val(header) <integer>
+hdr_val(<header>) <integer>
   Returns true when one of the headers starts with a number which matches the
   values or ranges specified. This may be used to limit content-length to
   acceptable values for example. See "hdr" for more information on header
   matching. Use the shdr_val() variant for response headers sent by the server.
 
-http_auth(userlist)
-http_auth_group(userlist) <group> [<group>]*
+http_auth(<userlist>)
+http_auth_group(<userlist>) <group> [<group>]*
   Returns true when authentication data received from the client matches
   username & password stored on the userlist. It is also possible to
   use http_auth_group to check if the user is assigned to at least one
@@ -7934,18 +7934,18 @@ The list of currently supported pattern fetch functions is the following :
                ports to some clients for a whole application session. It is of
                type integer and only works with such tables.
 
-  hdr(name)    This extracts the last occurrence of header <name> in an HTTP
+  hdr(<name>)    This extracts the last occurrence of header <name> in an HTTP
                request and converts it to an IP address. This IP address is
                then used to match the table. A typical use is with the
                x-forwarded-for header.
 
-  payload(offset,length)
+  payload(<offset>,<length>)
                This extracts a binary block of <length> bytes, and starting
                at bytes <offset> in the buffer of request or response (request
                on "stick on" or "stick match" or response in on "stick store
                response").
 
-  payload_lv(offset1,length[,offset2])
+  payload_lv(<offset1>,<length>[,<offset2>])
                This extracts a binary block. In a first step the size of the
                block is read from response or request buffer at <offset>
                bytes and considered coded on <length> bytes. In a second step
@@ -7955,14 +7955,14 @@ The list of currently supported pattern fetch functions is the following :
                <lengthoffset> + <lengthsize> else it is absolute.
                Ex: see SSL session id  example in "stick table" chapter.
                 
-  url_param(name)
+  url_param(<name>)
 	       This extracts the first occurrence of the parameter <name> in
 	       the query string of the request and uses the corresponding value
                to match. A typical use is to get sticky session through url (e.g.
 	       http://example.com/foo?JESSIONID=some_id with
 	       url_param(JSESSIONID)), for cases where cookies cannot be used.
 
-  rdp_cookie(name)
+  rdp_cookie(<name>)
 	       This extracts the value of the rdp cookie <name> as a string
 	       and uses this value to match. This enables implementation of
 	       persistence based on the mstshash cookie. This is typically
@@ -7995,7 +7995,7 @@ The list of currently supported pattern fetch functions is the following :
 	       See also : "balance rdp-cookie", "persist rdp-cookie",
 	       "tcp-request" and the "req_rdp_cookie" ACL.
 
-  cookie(name)
+  cookie(<name>)
 	       This extracts the last occurrence of the cookie name <name> on a
 	       "Cookie" header line from the request and uses the corresponding
 	       value to match. A typical use is to get multiple clients sharing
@@ -8006,7 +8006,7 @@ The list of currently supported pattern fetch functions is the following :
 
 	       See also : "appsession"
 
-  set-cookie(name)
+  set-cookie(<name>)
 	       This extracts the last occurrence of the cookie name <name> on a
 	       "Set-Cookie" header line from the response and uses the
 	       corresponding value to match. This can be comparable to what
@@ -8026,7 +8026,7 @@ The currently available list of transformations include :
                after a string pattern fetch function or after a conversion
                function returning a string type. The result is of type string.
 
-  ipmask(mask) Apply a mask to an IPv4 address, and use the result for lookups
+  ipmask(<mask>) Apply a mask to an IPv4 address, and use the result for lookups
                and storage. This can be used to make all hosts within a
                certain mask to share the same table entries and as such use
                the same server. The mask can be passed in dotted form (eg:
