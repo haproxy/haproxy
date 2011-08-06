@@ -768,13 +768,7 @@ static int event_srv_chk_w(int fd)
 
 	if (!(s->result & SRV_CHK_ERROR)) {
 		/* we don't want to mark 'UP' a server on which we detected an error earlier */
-		if ((s->proxy->options & PR_O_HTTP_CHK) ||
-		    (s->proxy->options & PR_O_SMTP_CHK) ||
-		    (s->proxy->options2 & PR_O2_SSL3_CHK) ||
-		    (s->proxy->options2 & PR_O2_MYSQL_CHK) ||
-		    (s->proxy->options2 & PR_O2_PGSQL_CHK) ||
-		    (s->proxy->options2 & PR_O2_REDIS_CHK) ||
-		    (s->proxy->options2 & PR_O2_LDAP_CHK)) {
+		if (s->proxy->options2 & PR_O2_CHK_ANY) {
 			int ret;
 			const char *check_req = s->proxy->check_req;
 			int check_len = s->proxy->check_len;
@@ -783,12 +777,12 @@ static int event_srv_chk_w(int fd)
 			 * so we'll send the request, and won't wake the checker up now.
 			 */
 
-			if (s->proxy->options2 & PR_O2_SSL3_CHK) {
+			if ((s->proxy->options2 & PR_O2_CHK_ANY) == PR_O2_SSL3_CHK) {
 				/* SSL requires that we put Unix time in the request */
 				int gmt_time = htonl(date.tv_sec);
 				memcpy(s->proxy->check_req + 11, &gmt_time, 4);
 			}
-			else if (s->proxy->options & PR_O_HTTP_CHK) {
+			else if ((s->proxy->options2 & PR_O2_CHK_ANY) == PR_O2_HTTP_CHK) {
 				memcpy(trash, check_req, check_len);
 
 				if (s->proxy->options2 & PR_O2_CHK_SNDST)
@@ -956,7 +950,8 @@ static int event_srv_chk_r(int fd)
 	}
 
 	/* Run the checks... */
-	if (s->proxy->options & PR_O_HTTP_CHK) {
+	switch (s->proxy->options2 & PR_O2_CHK_ANY) {
+	case PR_O2_HTTP_CHK:
 		if (!done && s->check_data_len < strlen("HTTP/1.0 000\r"))
 			goto wait_more_data;
 
@@ -995,8 +990,9 @@ static int event_srv_chk_r(int fd)
 			cut_crlf(desc);
 			set_server_check_status(s, HCHK_STATUS_L7STS, desc);
 		}
-	}
-	else if (s->proxy->options2 & PR_O2_SSL3_CHK) {
+		break;
+
+	case PR_O2_SSL3_CHK:
 		if (!done && s->check_data_len < 5)
 			goto wait_more_data;
 
@@ -1005,8 +1001,9 @@ static int event_srv_chk_r(int fd)
 			set_server_check_status(s, HCHK_STATUS_L6OK, NULL);
 		else
 			set_server_check_status(s, HCHK_STATUS_L6RSP, NULL);
-	}
-	else if (s->proxy->options & PR_O_SMTP_CHK) {
+		break;
+
+	case PR_O2_SMTP_CHK:
 		if (!done && s->check_data_len < strlen("000\r"))
 			goto wait_more_data;
 
@@ -1031,8 +1028,9 @@ static int event_srv_chk_r(int fd)
 			set_server_check_status(s, HCHK_STATUS_L7OKD, desc);
 		else
 			set_server_check_status(s, HCHK_STATUS_L7STS, desc);
-	}
-	else if (s->proxy->options2 & PR_O2_PGSQL_CHK) {
+		break;
+
+	case PR_O2_PGSQL_CHK:
 		if (!done && s->check_data_len < 9)
 			goto wait_more_data;
 
@@ -1047,8 +1045,9 @@ static int event_srv_chk_r(int fd)
 
 			set_server_check_status(s, HCHK_STATUS_L7STS, desc);
 		}
-	}
-	else if (s->proxy->options2 & PR_O2_REDIS_CHK) {
+		break;
+
+	case PR_O2_REDIS_CHK:
 		if (!done && s->check_data_len < 7)
 			goto wait_more_data;
 
@@ -1058,8 +1057,9 @@ static int event_srv_chk_r(int fd)
 		else {
 			set_server_check_status(s, HCHK_STATUS_L7STS, s->check_data);
 		}
-	}
-	else if (s->proxy->options2 & PR_O2_MYSQL_CHK) {
+		break;
+
+	case PR_O2_MYSQL_CHK:
 		if (!done && s->check_data_len < 5)
 			goto wait_more_data;
 
@@ -1145,8 +1145,9 @@ static int event_srv_chk_r(int fd)
 				set_server_check_status(s, HCHK_STATUS_L7RSP, desc);
 			}
 		}
-	}
-	else if (s->proxy->options2 & PR_O2_LDAP_CHK) {
+		break;
+
+	case PR_O2_LDAP_CHK:
 		if (!done && s->check_data_len < 14)
 			goto wait_more_data;
 
@@ -1199,11 +1200,13 @@ static int event_srv_chk_r(int fd)
 				set_server_check_status(s, HCHK_STATUS_L7OKD, "Success");
 			}
 		}
-	}
-	else {
+		break;
+
+	default:
 		/* other checks are valid if the connection succeeded anyway */
 		set_server_check_status(s, HCHK_STATUS_L4OK, NULL);
-	}
+		break;
+	} /* switch */
 
  out_wakeup:
 	if (s->result & SRV_CHK_ERROR)
@@ -1552,7 +1555,7 @@ struct task *process_chk(struct task *t)
 				if (!EV_FD_ISSET(fd, DIR_RD)) {
 					set_server_check_status(s, HCHK_STATUS_L4TOUT, NULL);
 				} else {
-					if (s->proxy->options2 & PR_O2_SSL3_CHK)
+					if ((s->proxy->options2 & PR_O2_CHK_ANY) == PR_O2_SSL3_CHK)
 						set_server_check_status(s, HCHK_STATUS_L6TOUT, NULL);
 					else	/* HTTP, SMTP */
 						set_server_check_status(s, HCHK_STATUS_L7TOUT, NULL);

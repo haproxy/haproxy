@@ -618,7 +618,7 @@ int assign_server(struct session *s)
 		}
 		set_target_server(&s->target, srv);
 	}
-	else if ((s->be->options2 & PR_O2_DISPATCH) || (s->be->options & PR_O_TRANSP)) {
+	else if (s->be->options & (PR_O_DISPATCH | PR_O_TRANSP)) {
 		set_target_proxy(&s->target, s->be);
 	}
 	else if ((s->be->options & PR_O_HTTP_PROXY) &&
@@ -720,7 +720,7 @@ int assign_server_address(struct session *s)
 			}
 		}
 	}
-	else if (s->be->options2 & PR_O2_DISPATCH) {
+	else if (s->be->options & PR_O_DISPATCH) {
 		/* connect to the defined dispatch addr */
 		s->req->cons->addr.s.to = s->be->dispatch_addr;
 	}

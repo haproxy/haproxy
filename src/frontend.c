@@ -243,7 +243,7 @@ int frontend_accept(struct session *s)
 		fdtab[cfd].flags |= FD_FL_TCP_NOLING;
 
 	if (unlikely((s->fe->mode == PR_MODE_HTTP && (s->flags & SN_MONITOR)) ||
-		     (s->fe->mode == PR_MODE_HEALTH && (s->fe->options & PR_O_HTTP_CHK)))) {
+		     (s->fe->mode == PR_MODE_HEALTH && ((s->fe->options2 & PR_O2_CHK_ANY) == PR_O2_HTTP_CHK)))) {
 		/* Either we got a request from a monitoring system on an HTTP instance,
 		 * or we're in health check mode with the 'httpchk' option enabled. In
 		 * both cases, we return a fake "HTTP/1.0 200 OK" response and we exit.

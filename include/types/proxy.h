@@ -78,14 +78,14 @@ enum {
 #define PR_O_COOK_INS   0x00000010      /* insert cookies when not accessing a server directly */
 #define PR_O_COOK_PFX   0x00000020      /* rewrite all cookies by prefixing the right serverid */
 #define PR_O_COOK_ANY   (PR_O_COOK_RW | PR_O_COOK_IND | PR_O_COOK_INS | PR_O_COOK_PFX)
-#define PR_O_SMTP_CHK   0x00000040      /* use SMTP EHLO check for server health - pvandijk@vision6.com.au */
+#define PR_O_DISPATCH   0x00000040      /* use dispatch mode */
 #define PR_O_KEEPALIVE  0x00000080      /* follow keep-alive sessions */
 #define PR_O_FWDFOR     0x00000100      /* insert x-forwarded-for with client address */
 #define PR_O_BIND_SRC   0x00000200      /* bind to a specific source address when connect()ing */
 #define PR_O_NULLNOLOG  0x00000400      /* a connect without request will not be logged */
 #define PR_O_COOK_NOC   0x00000800      /* add a 'Cache-control' header with the cookie */
 #define PR_O_COOK_POST  0x00001000      /* don't insert cookies for requests other than a POST */
-#define PR_O_HTTP_CHK   0x00002000      /* use HTTP 'OPTIONS' method to check server health */
+/* unused: 0x00002000 */
 #define PR_O_PERSIST    0x00004000      /* server persistence stays effective even when server is down */
 #define PR_O_LOGASAP    0x00008000      /* log as soon as possible, without waiting for the session to complete */
 #define PR_O_HTTP_CLOSE 0x00010000      /* force 'connection: close' in both directions */
@@ -135,14 +135,12 @@ enum {
 #define PR_O2_AS_M_PP	0x00000000      /* path-parameters mode (the default mode) */
 #define PR_O2_AS_M_QS	0x00010000      /* query-string mode */
 #define PR_O2_AS_M_ANY	0x00010000      /* mask covering all PR_O2_AS_M_* values */
-
-#define PR_O2_MYSQL_CHK 0x00020000      /* use MYSQL check for server health */
+#define PR_O2_NODELAY   0x00020000      /* fully interactive mode, never delay outgoing data */
 #define PR_O2_USE_PXHDR 0x00040000      /* use Proxy-Connection for proxy requests */
 #define PR_O2_CHK_SNDST 0x00080000      /* send the state of each server along with HTTP health checks */
-#define PR_O2_SSL3_CHK  0x00100000      /* use SSLv3 CLIENT_HELLO packets for server health */
+/* unused: 0x00100000 */
 #define PR_O2_FAKE_KA   0x00200000      /* pretend we do keep-alive with server eventhough we close */
-#define PR_O2_LDAP_CHK  0x00400000      /* use LDAP check for server health */
-
+/* unused: 0x00400000 */
 #define PR_O2_EXP_NONE  0x00000000      /* http-check : no expect rule */
 #define PR_O2_EXP_STS   0x00800000      /* http-check expect status */
 #define PR_O2_EXP_RSTS  0x01000000      /* http-check expect rstatus */
@@ -152,10 +150,17 @@ enum {
 #define PR_O2_EXP_INV   0x04000000      /* http-check expect !<rule> */
 #define PR_O2_COOK_PSV  0x08000000      /* cookie ... preserve */
 
+/* server health checks */
+#define PR_O2_CHK_NONE  0x00000000      /* no L7 health checks configured (TCP by default) */
 #define PR_O2_PGSQL_CHK 0x10000000      /* use PGSQL check for server health */
-#define PR_O2_DISPATCH  0x20000000      /* use dispatch mode */
-#define PR_O2_NODELAY   0x40000000      /* fully interactive mode, never delay outgoing data */
-#define PR_O2_REDIS_CHK 0x80000000      /* use LDAP check for server health */
+#define PR_O2_REDIS_CHK 0x20000000      /* use LDAP check for server health */
+#define PR_O2_SMTP_CHK  0x30000000      /* use SMTP EHLO check for server health - pvandijk@vision6.com.au */
+#define PR_O2_HTTP_CHK  0x40000000      /* use HTTP 'OPTIONS' method to check server health */
+#define PR_O2_MYSQL_CHK 0x50000000      /* use MYSQL check for server health */
+#define PR_O2_LDAP_CHK  0x60000000      /* use LDAP check for server health */
+#define PR_O2_SSL3_CHK  0x70000000      /* use SSLv3 CLIENT_HELLO packets for server health */
+/* unused: 0x80000000 to 0xF000000, reserved for health checks */
+#define PR_O2_CHK_ANY   0xF0000000      /* Mask to cover any check */
 /* end of proxy->options2 */
 
 /* bits for sticking rules */
