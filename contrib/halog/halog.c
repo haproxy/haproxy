@@ -97,6 +97,8 @@ struct url_stat {
 			      FILT_COUNT_URL_TTOT|FILT_COUNT_URL_TAVG|FILT_COUNT_URL_TTOTO|FILT_COUNT_URL_TAVGO)
 
 #define FILT_HTTP_ONLY       0x200000
+#define FILT_TERM_CODE_NAME 0x400000
+#define FILT_INVERT_TERM_CODE_NAME 0x800000
 
 unsigned int filter = 0;
 unsigned int filter_invert = 0;
@@ -120,7 +122,8 @@ void die(const char *msg)
 	fprintf(stderr,
 		"%s"
 		"Usage: halog [-q] [-c] [-v] {-gt|-pct|-st|-tc|-srv|-u|-uc|-ue|-ua|-ut|-uao|-uto}\n"
-		"       [-s <skip>] [-e|-E] [-H] [-rt|-RT <time>] [-ad <delay>] [-ac <count>] < log\n"
+		"       [-s <skip>] [-e|-E] [-H] [-rt|-RT <time>] [-ad <delay>] [-ac <count>]\n"
+		"       [-tcn|-TCN <termcode>] < log\n"
 		"\n",
 		msg ? msg : ""
 		);
@@ -397,6 +400,7 @@ void truncated_line(int linenum, const char *line)
 int main(int argc, char **argv)
 {
 	const char *b, *e, *p, *time_field, *accept_field;
+	const char *filter_term_code_name = NULL;
 	const char *output_file = NULL;
 	int f, last, err;
 	struct timer *t = NULL;
@@ -465,6 +469,18 @@ int main(int argc, char **argv)
 			filter |= FILT_COUNT_SRV_STATUS;
 		else if (strcmp(argv[0], "-tc") == 0)
 			filter |= FILT_COUNT_TERM_CODES;
+		else if (strcmp(argv[0], "-tcn") == 0) {
+			if (argc < 2) die("missing option for -tcn");
+			argc--; argv++;
+			filter |= FILT_TERM_CODE_NAME;
+			filter_term_code_name = *argv;
+		}
+		else if (strcmp(argv[0], "-TCN") == 0) {
+			if (argc < 2) die("missing option for -TCN");
+			argc--; argv++;
+			filter |= FILT_TERM_CODE_NAME | FILT_INVERT_TERM_CODE_NAME;
+			filter_term_code_name = *argv;
+		}
 		else if (strcmp(argv[0], "-u") == 0)
 			filter |= FILT_COUNT_URL_ONLY;
 		else if (strcmp(argv[0], "-uc") == 0)
@@ -616,6 +632,22 @@ int main(int argc, char **argv)
 				test &= (val >= 500 && val <= 599) ^ !!(filter & FILT_INVERT_ERRORS);
 			}
 		}
+
+		if (filter & FILT_TERM_CODE_NAME) {
+			/* only report corresponding termination code name */
+			if (time_field)
+				b = field_start(time_field, TERM_CODES_FIELD - TIME_FIELD + 1);
+			else
+				b = field_start(accept_field, TERM_CODES_FIELD - ACCEPT_FIELD + 1);
+
+			if (unlikely(!*b)) {
+				truncated_line(linenum, line);
+				continue;
+			}
+
+			test &= (b[0] == filter_term_code_name[0] && b[1] == filter_term_code_name[1]) ^ !!(filter & FILT_INVERT_TERM_CODE_NAME);
+		}
+
 
 		test ^= filter_invert;
 		if (!test)
