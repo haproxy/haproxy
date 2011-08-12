@@ -9682,8 +9682,8 @@ show table
 
   Example :
         $ echo "show table" | socat stdio /tmp/sock1
-    >>> # table: front_pub, type: 0, size:204800, used:171454
-    >>> # table: back_rdp, type: 0, size:204800, used:0
+    >>> # table: front_pub, type: ip, size:204800, used:171454
+    >>> # table: back_rdp, type: ip, size:204800, used:0
 
 show table <name> [ data.<type> <operator> <value> ] | [ key <key> ]
   Dump contents of stick-table <name>. In this mode, a first line of generic
@@ -9711,26 +9711,26 @@ show table <name> [ data.<type> <operator> <value> ] | [ key <key> ]
 
   Example :
         $ echo "show table http_proxy" | socat stdio /tmp/sock1
-    >>> # table: http_proxy, type: 0, size:204800, used:2
+    >>> # table: http_proxy, type: ip, size:204800, used:2
     >>> 0x80e6a4c: key=127.0.0.1 use=0 exp=3594729 gpc0=0 conn_rate(30000)=1  \
           bytes_out_rate(60000)=187
     >>> 0x80e6a80: key=127.0.0.2 use=0 exp=3594740 gpc0=1 conn_rate(30000)=10 \
           bytes_out_rate(60000)=191
 
         $ echo "show table http_proxy data.gpc0 gt 0" | socat stdio /tmp/sock1
-    >>> # table: http_proxy, type: 0, size:204800, used:2
+    >>> # table: http_proxy, type: ip, size:204800, used:2
     >>> 0x80e6a80: key=127.0.0.2 use=0 exp=3594740 gpc0=1 conn_rate(30000)=10 \
           bytes_out_rate(60000)=191
 
         $ echo "show table http_proxy data.conn_rate gt 5" | \
             socat stdio /tmp/sock1
-    >>> # table: http_proxy, type: 0, size:204800, used:2
+    >>> # table: http_proxy, type: ip, size:204800, used:2
     >>> 0x80e6a80: key=127.0.0.2 use=0 exp=3594740 gpc0=1 conn_rate(30000)=10 \
           bytes_out_rate(60000)=191
 
         $ echo "show table http_proxy key 127.0.0.2" | \
             socat stdio /tmp/sock1
-    >>> # table: http_proxy, type: 0, size:204800, used:2
+    >>> # table: http_proxy, type: ip, size:204800, used:2
     >>> 0x80e6a80: key=127.0.0.2 use=0 exp=3594740 gpc0=1 conn_rate(30000)=10 \
           bytes_out_rate(60000)=191
 
