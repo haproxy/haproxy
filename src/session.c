@@ -2342,6 +2342,70 @@ acl_fetch_src_inc_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
 	return acl_fetch_inc_gpc0(&px->table, test, stktable_update_key(&px->table, key));
 }
 
+/* Clear the General Purpose Counter 0 value in the stksess entry <ts> and
+ * return its previous value into test->i.
+ */
+static int
+acl_fetch_clr_gpc0(struct stktable *table, struct acl_test *test, struct stksess *ts)
+{
+	test->flags = ACL_TEST_F_VOL_TEST;
+	test->i = 0;
+	if (ts != NULL) {
+		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_GPC0);
+		if (!ptr)
+			return 0; /* parameter not stored */
+		test->i = stktable_data_cast(ptr, gpc0);
+		stktable_data_cast(ptr, gpc0) = 0;
+	}
+	return 1;
+}
+
+/* Clear the General Purpose Counter 0 value from the session's tracked
+ * frontend counters and return its previous value into test->i.
+ */
+static int
+acl_fetch_sc1_clr_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
+                       struct acl_expr *expr, struct acl_test *test)
+{
+	if (!l4->stkctr1_entry)
+		return 0;
+	return acl_fetch_clr_gpc0(l4->stkctr1_table, test, l4->stkctr1_entry);
+}
+
+/* Clear the General Purpose Counter 0 value from the session's tracked
+ * backend counters and return its previous value into test->i.
+ */
+static int
+acl_fetch_sc2_clr_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
+                       struct acl_expr *expr, struct acl_test *test)
+{
+	if (!l4->stkctr2_entry)
+		return 0;
+	return acl_fetch_clr_gpc0(l4->stkctr2_table, test, l4->stkctr2_entry);
+}
+
+/* Clear the General Purpose Counter 0 value from the session's source address
+ * in the table pointed to by expr, and return its previous value into test->i.
+ */
+static int
+acl_fetch_src_clr_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
+		       struct acl_expr *expr, struct acl_test *test)
+{
+	struct stktable_key *key;
+
+	key = tcp_src_to_stktable_key(l4);
+	if (!key)
+		return 0;
+
+	if (expr->arg_len)
+		px = find_stktable(expr->arg.str);
+
+	if (!px)
+		return 0; /* table not found */
+
+	return acl_fetch_clr_gpc0(&px->table, test, stktable_update_key(&px->table, key));
+}
+
 /* set test->i to the cumulated number of connections in the stksess entry <ts> */
 static int
 acl_fetch_conn_cnt(struct stktable *table, struct acl_test *test, struct stksess *ts)
@@ -3228,6 +3292,9 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "sc1_inc_gpc0",       acl_parse_int,   acl_fetch_sc1_inc_gpc0,       acl_match_int, ACL_USE_NOTHING },
 	{ "sc2_inc_gpc0",       acl_parse_int,   acl_fetch_sc2_inc_gpc0,       acl_match_int, ACL_USE_NOTHING },
 	{ "src_inc_gpc0",       acl_parse_int,   acl_fetch_src_inc_gpc0,       acl_match_int, ACL_USE_TCP4_VOLATILE },
+	{ "sc1_clr_gpc0",       acl_parse_int,   acl_fetch_sc1_clr_gpc0,       acl_match_int, ACL_USE_NOTHING },
+	{ "sc2_clr_gpc0",       acl_parse_int,   acl_fetch_sc2_clr_gpc0,       acl_match_int, ACL_USE_NOTHING },
+	{ "src_clr_gpc0",       acl_parse_int,   acl_fetch_src_clr_gpc0,       acl_match_int, ACL_USE_TCP4_VOLATILE },
 	{ "sc1_conn_cnt",       acl_parse_int,   acl_fetch_sc1_conn_cnt,       acl_match_int, ACL_USE_NOTHING },
 	{ "sc2_conn_cnt",       acl_parse_int,   acl_fetch_sc2_conn_cnt,       acl_match_int, ACL_USE_NOTHING },
 	{ "src_conn_cnt",       acl_parse_int,   acl_fetch_src_conn_cnt,       acl_match_int, ACL_USE_TCP4_VOLATILE },

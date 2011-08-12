@@ -7231,6 +7231,23 @@ sc2_bytes_out_rate
   counters, measured in amount of bytes over the period configured in the
   table. See also src_bytes_out_rate.
 
+sc1_clr_gpc0
+sc2_clr_gpc0
+  Clears the first General Purpose Counter associated to the currently tracked
+  counters, and returns its previous value. Before the first invocation, the
+  stored value is zero, so first invocation will always return zero. The test
+  can also be used alone and always returns true. This is typically used as a
+  second ACL in an expression in order to mark a connection when a first ACL
+  was verified :
+
+        # block if 5 consecutive requests continue to come faster than 10 sess
+        # per second, and reset the counter as soon as the traffic slows down.
+        acl abuse sc1_http_req_rate gt 10
+        acl kill  sc1_inc_gpc0 gt 5
+        acl save  sc1_clr_gpc0
+        tcp-request connection accept if !abuse save
+        tcp-request connection reject if abuse kill
+
 sc1_conn_cnt
 sc2_conn_cnt
   Returns the cumulated number of incoming connections from currently tracked
@@ -7345,6 +7362,23 @@ src_bytes_out_rate(<table>) <integer>
   current proxy's stick-table or in the designated stick-table, measured in
   amount of bytes over the period configured in the table. If the address is
   not found, zero is returned. See also sc1/sc2_bytes_out_rate.
+
+src_clr_gpc0 <integer>
+src_clr_gpc0(<table>) <integer>
+  Clears the first General Purpose Counter associated to the connection's
+  source IPv4 address in the current proxy's stick-table or in the designated
+  stick-table, and returns its previous value. If the address is not found, an
+  entry is created and 0 is returned. The test can also be used alone and
+  always returns true. This is typically used as a second ACL in an expression
+  in order to mark a connection when a first ACL was verified :
+
+        # block if 5 consecutive requests continue to come faster than 10 sess
+        # per second, and reset the counter as soon as the traffic slows down.
+        acl abuse src_http_req_rate gt 10
+        acl kill  src_inc_gpc0 gt 5
+        acl save  src_clr_gpc0
+        tcp-request connection accept if !abuse save
+        tcp-request connection reject if abuse kill
 
 src_conn_cnt <integer>
 src_conn_cnt(<table>) <integer>
