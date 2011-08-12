@@ -471,9 +471,7 @@ int assign_server(struct session *s)
 	struct server *srv, *prev_srv;
 	int err;
 
-#ifdef DEBUG_FULL
-	fprintf(stderr,"assign_server : s=%p\n",s);
-#endif
+	DPRINTF(stderr,"assign_server : s=%p\n",s);
 
 	err = SRV_STATUS_INTERNAL;
 	if (unlikely(s->pend_pos || s->flags & SN_ASSIGNED))
