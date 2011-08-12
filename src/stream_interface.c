@@ -306,7 +306,7 @@ void stream_int_chk_snd(struct stream_interface *si)
  */
 struct task *stream_int_register_handler(struct stream_interface *si, struct si_applet *app)
 {
-	DPRINTF(stderr, "registering handler %p for si %p (was %p)\n", fct, si, si->owner);
+	DPRINTF(stderr, "registering handler %p for si %p (was %p)\n", app, si, si->owner);
 
 	si->update  = stream_int_update_embedded;
 	si->shutr   = stream_int_shutr;
