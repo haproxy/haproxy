@@ -556,7 +556,7 @@ static int pattern_conv_str2upper(const struct pattern_arg *arg_p, int arg_i, un
 /* takes the netmask in arg_i */
 static int pattern_conv_ipmask(const struct pattern_arg *arg_p, int arg_i, union pattern_data *data)
 {
-	data->ip.s_addr &= arg_i;
+	data->ip.s_addr &= arg_p->data.ip.s_addr;
 	return 1;
 }
 
