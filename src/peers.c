@@ -1184,7 +1184,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	s->si[1].release = NULL;
 
 	session_init_srv_conn(s);
-	clear_target(&s->target);
+	set_target_proxy(&s->target, s->be);
 	s->pend_pos = NULL;
 
 	/* init store persistence */
