@@ -1425,6 +1425,15 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			}
 			curproxy->check_len = defproxy.check_len;
 
+			if (defproxy.expect_str) {
+				curproxy->expect_str = strdup(defproxy.expect_str);
+				if (defproxy.expect_regex) {
+					/* note: this regex is known to be valid */
+					curproxy->expect_regex = calloc(1, sizeof(regex_t));
+					regcomp(curproxy->expect_regex, defproxy.expect_str, REG_EXTENDED);
+				}
+			}
+
 			if (defproxy.cookie_name)
 				curproxy->cookie_name = strdup(defproxy.cookie_name);
 			curproxy->cookie_len = defproxy.cookie_len;
@@ -1522,6 +1531,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		defproxy.fwdfor_hdr_len = 0;
 		free(defproxy.orgto_hdr_name);
 		defproxy.orgto_hdr_len = 0;
+		free(defproxy.expect_str);
+		if (defproxy.expect_regex) regfree(defproxy.expect_regex);
 
 		for (rc = 0; rc < HTTP_ERR_SIZE; rc++)
 			chunk_destroy(&defproxy.errmsg[rc]);
@@ -3635,6 +3646,7 @@ stats_error_parsing:
 					goto out;
 				}
 				curproxy->options2 |= PR_O2_EXP_STS;
+				free(curproxy->expect_str);
 				curproxy->expect_str = strdup(args[cur_arg + 1]);
 			}
 			else if (strcmp(ptr_arg, "string") == 0) {
@@ -3645,6 +3657,7 @@ stats_error_parsing:
 					goto out;
 				}
 				curproxy->options2 |= PR_O2_EXP_STR;
+				free(curproxy->expect_str);
 				curproxy->expect_str = strdup(args[cur_arg + 1]);
 			}
 			else if (strcmp(ptr_arg, "rstatus") == 0) {
@@ -3655,6 +3668,9 @@ stats_error_parsing:
 					goto out;
 				}
 				curproxy->options2 |= PR_O2_EXP_RSTS;
+				free(curproxy->expect_str);
+				if (curproxy->expect_regex) regfree(curproxy->expect_regex);
+				curproxy->expect_str = strdup(args[cur_arg + 1]);
 				curproxy->expect_regex = calloc(1, sizeof(regex_t));
 				if (regcomp(curproxy->expect_regex, args[cur_arg + 1], REG_EXTENDED) != 0) {
 					Alert("parsing [%s:%d] : '%s %s %s' : bad regular expression '%s'.\n",
@@ -3671,6 +3687,9 @@ stats_error_parsing:
 					goto out;
 				}
 				curproxy->options2 |= PR_O2_EXP_RSTR;
+				free(curproxy->expect_str);
+				if (curproxy->expect_regex) regfree(curproxy->expect_regex);
+				curproxy->expect_str = strdup(args[cur_arg + 1]);
 				curproxy->expect_regex = calloc(1, sizeof(regex_t));
 				if (regcomp(curproxy->expect_regex, args[cur_arg + 1], REG_EXTENDED) != 0) {
 					Alert("parsing [%s:%d] : '%s %s %s' : bad regular expression '%s'.\n",
@@ -3687,7 +3706,7 @@ stats_error_parsing:
 			}
 		}
 		else {
-			Alert("parsing [%s:%d] : '%s' only supports 'disable-on-404', 'expect' .\n", file, linenum, args[0]);
+			Alert("parsing [%s:%d] : '%s' only supports 'disable-on-404', 'send-state', 'expect'.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}

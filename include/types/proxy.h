@@ -316,7 +316,7 @@ struct proxy {
 	int grace;				/* grace time after stop request */
 	char *check_req;			/* HTTP or SSL request to use for PR_O_HTTP_CHK|PR_O_SSL3_CHK */
 	int check_len;				/* Length of the HTTP or SSL3 request */
-	char *expect_str;			/* http-check expected content */
+	char *expect_str;			/* http-check expected content : string or text version of the regex */
 	regex_t *expect_regex;			/* http-check expected content */
 	struct chunk errmsg[HTTP_ERR_SIZE];	/* default or customized error messages for known errors */
 	int uuid;				/* universally unique proxy ID, used for SNMP */

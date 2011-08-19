@@ -2330,7 +2330,7 @@ http-check disable-on-404
 http-check expect [!] <match> <pattern>
   Make HTTP health checks consider reponse contents or specific status codes
   May be used in sections :   defaults | frontend | listen | backend
-                                  no   |    no    |   yes  |   yes
+                                 yes   |    no    |   yes  |   yes
   Arguments :
     <match>   is a keyword indicating how to look for a specific pattern in the
               response. The keyword may be one of "status", "rstatus",
