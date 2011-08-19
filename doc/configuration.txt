@@ -3069,7 +3069,7 @@ no option forceclose
   See also : "option httpclose" and "option http-pretend-keepalive"
 
 
-option forwardfor [ except <network> ] [ header <name> ]
+option forwardfor [ except <network> ] [ header <name> ] [ if-none ]
   Enable insertion of the X-Forwarded-For header to requests sent to servers
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
@@ -3105,15 +3105,23 @@ option forwardfor [ except <network> ] [ header <name> ]
   network will not cause an addition of this header. Most common uses are with
   private networks or 127.0.0.1.
 
+  Alternatively, the keyword "if-none" states that the header will only be
+  added if it is not present. This should only be used in perfectly trusted
+  environment, as this might cause a security issue if headers reaching haproxy
+  are under the control of the end-user.
+
   This option may be specified either in the frontend or in the backend. If at
   least one of them uses it, the header will be added. Note that the backend's
   setting of the header subargument takes precedence over the frontend's if
-  both are defined.
+  both are defined. In the case of the "if-none" argument, if at least one of
+  the frontend or the backend does not specify it, it wants the addition to be
+  mandatory, so it wins.
 
-  It is important to note that as long as HAProxy does not support keep-alive
-  connections, only the first request of a connection will receive the header.
-  For this reason, it is important to ensure that "option httpclose" is set
-  when using this option.
+  It is important to note that by default, HAProxy works in tunnel mode and
+  only inspects the first request of a connection, meaning that only the first
+  request will have the header appended, which is certainly not what you want.
+  In order to fix this, ensure that any of the "httpclose", "forceclose" or
+  "http-server-close" options is set when using this option.
 
   Examples :
     # Public HTTP address also used by stunnel on the same machine
@@ -3126,7 +3134,8 @@ option forwardfor [ except <network> ] [ header <name> ]
         mode http
         option forwardfor header X-Client
 
-  See also : "option httpclose"
+  See also : "option httpclose", "option http-server-close",
+             "option forceclose"
 
 
 option http-no-delay
@@ -3685,10 +3694,11 @@ option originalto [ except <network> ] [ header <name> ]
   setting of the header subargument takes precedence over the frontend's if
   both are defined.
 
-  It is important to note that as long as HAProxy does not support keep-alive
-  connections, only the first request of a connection will receive the header.
-  For this reason, it is important to ensure that "option httpclose" is set
-  when using this option.
+  It is important to note that by default, HAProxy works in tunnel mode and
+  only inspects the first request of a connection, meaning that only the first
+  request will have the header appended, which is certainly not what you want.
+  In order to fix this, ensure that any of the "httpclose", "forceclose" or
+  "http-server-close" options is set when using this option.
 
   Examples :
     # Original Destination address
@@ -3701,7 +3711,8 @@ option originalto [ except <network> ] [ header <name> ]
         mode http
         option originalto header X-Client-Dst
 
-  See also : "option httpclose"
+  See also : "option httpclose", "option http-server-close",
+             "option forceclose"
 
 
 option persist

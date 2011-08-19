@@ -3541,7 +3541,15 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 	 * asks for it.
 	 */
 	if ((s->fe->options | s->be->options) & PR_O_FWDFOR) {
-		if (s->req->prod->addr.c.from.ss_family == AF_INET) {
+		struct hdr_ctx ctx = { .idx = 0 };
+
+		if (!((s->fe->options | s->be->options) & PR_O_FF_ALWAYS) &&
+		    http_find_header2("X-Forwarded-For", 15, txn->req.sol, &txn->hdr_idx, &ctx)) {
+			/* The header is set to be added only if none is present
+			 * and we found it, so don't do anything.
+			 */
+		}
+		else if (s->req->prod->addr.c.from.ss_family == AF_INET) {
 			/* Add an X-Forwarded-For header unless the source IP is
 			 * in the 'except' network range.
 			 */

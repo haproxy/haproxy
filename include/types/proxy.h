@@ -80,12 +80,12 @@ enum {
 #define PR_O_COOK_ANY   (PR_O_COOK_RW | PR_O_COOK_IND | PR_O_COOK_INS | PR_O_COOK_PFX)
 #define PR_O_DISPATCH   0x00000040      /* use dispatch mode */
 #define PR_O_KEEPALIVE  0x00000080      /* follow keep-alive sessions */
-#define PR_O_FWDFOR     0x00000100      /* insert x-forwarded-for with client address */
+#define PR_O_FWDFOR     0x00000100      /* conditionally insert x-forwarded-for with client address */
 #define PR_O_BIND_SRC   0x00000200      /* bind to a specific source address when connect()ing */
 #define PR_O_NULLNOLOG  0x00000400      /* a connect without request will not be logged */
 #define PR_O_COOK_NOC   0x00000800      /* add a 'Cache-control' header with the cookie */
 #define PR_O_COOK_POST  0x00001000      /* don't insert cookies for requests other than a POST */
-/* unused: 0x00002000 */
+#define PR_O_FF_ALWAYS  0x00002000      /* always set x-forwarded-for */
 #define PR_O_PERSIST    0x00004000      /* server persistence stays effective even when server is down */
 #define PR_O_LOGASAP    0x00008000      /* log as soon as possible, without waiting for the session to complete */
 #define PR_O_HTTP_CLOSE 0x00010000      /* force 'connection: close' in both directions */
