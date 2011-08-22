@@ -171,7 +171,7 @@ static struct task *manage_global_listener_queue(struct task *t);
 void display_version()
 {
 	printf("HA-Proxy version " HAPROXY_VERSION " " HAPROXY_DATE"\n");
-	printf("Copyright 2000-2010 Willy Tarreau <w@1wt.eu>\n\n");
+	printf("Copyright 2000-2011 Willy Tarreau <w@1wt.eu>\n\n");
 }
 
 void display_build_opts()
