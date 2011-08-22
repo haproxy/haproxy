@@ -41,50 +41,8 @@
 
 #include <types/global.h>
 
-/* On recent Linux kernels, the splice() syscall may be used for faster data copy.
- * But it's not always defined on some OS versions, and it even happens that some
- * definitions are wrong with some glibc due to an offset bug in syscall().
- */
-
 #if defined(CONFIG_HAP_LINUX_SPLICE)
-#include <unistd.h>
-#include <sys/syscall.h>
-
-#ifndef SPLICE_F_MOVE
-#define SPLICE_F_MOVE           0x1
-#endif
-
-#ifndef SPLICE_F_NONBLOCK
-#define SPLICE_F_NONBLOCK       0x2
-#endif
-
-#ifndef SPLICE_F_MORE
-#define SPLICE_F_MORE           0x4
-#endif
-
-#ifndef __NR_splice
-#if defined(__powerpc__) || defined(__powerpc64__)
-#define __NR_splice             283
-#elif defined(__sparc__) || defined(__sparc64__)
-#define __NR_splice             232
-#elif defined(__x86_64__)
-#define __NR_splice             275
-#elif defined(__alpha__)
-#define __NR_splice             468
-#elif defined (__i386__)
-#define __NR_splice             313
-#else
-#warning unsupported architecture, guessing __NR_splice=313 like x86...
-#define __NR_splice             313
-#endif /* $arch */
-
-#if defined(CONFIG_HAP_LINUX_VSYSCALL) && defined(__linux__) && defined(__i386__)
-/* the syscall is redefined somewhere else */
-extern int splice(int fdin, loff_t *off_in, int fdout, loff_t *off_out, size_t len, unsigned long flags);
-#else
-_syscall6(int, splice, int, fdin, loff_t *, off_in, int, fdout, loff_t *, off_out, size_t, len, unsigned long, flags)
-#endif
-#endif /* __NR_splice */
+#include <common/splice.h>
 
 /* A pipe contains 16 segments max, and it's common to see segments of 1448 bytes
  * because of timestamps. Use this as a hint for not looping on splice().

@@ -1,23 +1,23 @@
 /*
-  include/common/epoll.h
-  epoll definitions for older libc.
-
-  Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
-  
-  This library is free software; you can redistribute it and/or
-  modify it under the terms of the GNU Lesser General Public
-  License as published by the Free Software Foundation, version 2.1
-  exclusively.
-
-  This library is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  Lesser General Public License for more details.
-
-  You should have received a copy of the GNU Lesser General Public
-  License along with this library; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
+ * include/common/epoll.h
+ * epoll definitions for older libc.
+ *
+ * Copyright (C) 2000-2011 Willy Tarreau - w@1wt.eu
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation, version 2.1
+ * exclusively.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
 
 /*
  * Those constants were found both in glibc and in the Linux kernel.
@@ -29,10 +29,18 @@
 #ifndef _COMMON_EPOLL_H
 #define _COMMON_EPOLL_H
 
+#if defined (__linux__) && (defined(ENABLE_EPOLL) || defined(ENABLE_SEPOLL))
+
+#ifndef USE_MY_EPOLL
+#include <sys/epoll.h>
+#else
+
+#include <errno.h>
 #include <sys/types.h>
 #include <linux/unistd.h>
-
+#include <sys/syscall.h>
 #include <common/config.h>
+#include <common/syscall.h>
 
 /* epoll_ctl() commands */
 #ifndef EPOLL_CTL_ADD
@@ -62,41 +70,33 @@ struct epoll_event {
 	} data;
 };
 
-
-#if defined(__powerpc__) || defined(__powerpc64__)
-#define __NR_epoll_create 236
-#define __NR_epoll_ctl    237
-#define __NR_epoll_wait   238
-#elif defined(__sparc__) || defined(__sparc64__)
-#define __NR_epoll_create 193
-#define __NR_epoll_ctl    194
-#define __NR_epoll_wait   195
-#elif defined(__x86_64__)
-#define __NR_epoll_create 213
-#define __NR_epoll_ctl    214
-#define __NR_epoll_wait   215
-#elif defined(__alpha__)
-#define __NR_epoll_create 407
-#define __NR_epoll_ctl    408
-#define __NR_epoll_wait   409
-#elif defined (__i386__)
-#define __NR_epoll_create 254
-#define __NR_epoll_ctl    255
-#define __NR_epoll_wait   256
+#if defined(CONFIG_HAP_LINUX_VSYSCALL) && defined(__linux__) && defined(__i386__)
+/* Those are our self-defined functions */
+extern int epoll_create(int size);
+extern int epoll_ctl(int epfd, int op, int fd, struct epoll_event * event);
+extern int epoll_wait(int epfd, struct epoll_event * events, int maxevents, int timeout);
 #else
+
+/* We'll define a syscall, so for this we need __NR_splice. It should have
+ * been provided by syscall.h.
+ */
+#if !defined(__NR_epoll_ctl)
 #warning unsupported architecture, guessing __NR_epoll_create=254 like x86...
 #define __NR_epoll_create 254
 #define __NR_epoll_ctl    255
 #define __NR_epoll_wait   256
-#endif
+#endif /* __NR_epoll_ctl */
 
-/* Those are our self-defined functions */
-static int epoll_create(int size);
-static int epoll_ctl(int epfd, int op, int fd, struct epoll_event * event);
-static int epoll_wait(int epfd, struct epoll_event * events, int maxevents, int timeout);
+static inline _syscall1 (int, epoll_create, int, size);
+static inline _syscall4 (int, epoll_ctl, int, epfd, int, op, int, fd, struct epoll_event *, event);
+static inline _syscall4 (int, epoll_wait, int, epfd, struct epoll_event *, events, int, maxevents, int, timeout);
+#endif /* VSYSCALL */
+
+#endif /* USE_MY_EPOLL */
+
+#endif /* __linux__ && (ENABLE_EPOLL || ENABLE_SEPOLL) */
 
 #endif /* _COMMON_EPOLL_H */
-
 
 /*
  * Local variables:

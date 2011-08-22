@@ -11,6 +11,7 @@
 #   USE_GETSOCKNAME      : enable getsockname() on Linux 2.2. Automatic.
 #   USE_KQUEUE           : enable kqueue() on BSD. Automatic.
 #   USE_MY_EPOLL         : redefine epoll_* syscalls. Automatic.
+#   USE_MY_SPLICE        : redefine the splice syscall if build fails without.
 #   USE_NETFILTER        : enable netfilter on Linux. Automatic.
 #   USE_PCRE             : enable use of libpcre for regex. Recommended.
 #   USE_POLL             : enable poll(). Automatic.
@@ -395,6 +396,11 @@ ifneq ($(USE_VSYSCALL),)
 OPTIONS_OBJS   += src/i386-linux-vsys.o
 OPTIONS_CFLAGS += -DCONFIG_HAP_LINUX_VSYSCALL
 BUILD_OPTIONS  += $(call ignore_implicit,USE_VSYSCALL)
+endif
+
+ifneq ($(USE_MY_SPLICE),)
+OPTIONS_CFLAGS += -DUSE_MY_SPLICE
+BUILD_OPTIONS  += $(call ignore_implicit,USE_MY_SPLICE)
 endif
 
 ifneq ($(USE_NETFILTER),)

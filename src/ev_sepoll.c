@@ -1,7 +1,7 @@
 /*
  * FD polling functions for Speculative I/O combined with Linux epoll()
  *
- * Copyright 2000-2009 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2011 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -51,6 +51,7 @@
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/debug.h>
+#include <common/epoll.h>
 #include <common/standard.h>
 #include <common/ticks.h>
 #include <common/time.h>
@@ -61,17 +62,6 @@
 #include <proto/fd.h>
 #include <proto/signal.h>
 #include <proto/task.h>
-
-#if defined(USE_MY_EPOLL)
-#include <common/epoll.h>
-#include <errno.h>
-#include <sys/syscall.h>
-static _syscall1 (int, epoll_create, int, size);
-static _syscall4 (int, epoll_ctl, int, epfd, int, op, int, fd, struct epoll_event *, event);
-static _syscall4 (int, epoll_wait, int, epfd, struct epoll_event *, events, int, maxevents, int, timeout);
-#else
-#include <sys/epoll.h>
-#endif
 
 /*
  * We define 4 states for each direction of a file descriptor, which we store
