@@ -617,6 +617,7 @@ static void stats_sock_table_request(struct stream_interface *si, char **args, b
 {
 	si->applet.ctx.table.data_type = -1;
 	si->applet.state = STAT_ST_INIT;
+	si->applet.ctx.table.target = NULL;
 	si->applet.ctx.table.proxy = NULL;
 	si->applet.ctx.table.entry = NULL;
 	if (show)
