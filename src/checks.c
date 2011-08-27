@@ -1284,16 +1284,8 @@ struct task *process_chk(struct task *t)
 					/* we'll connect to the addr on the server */
 					sa = s->addr;
 
-				switch (s->check_addr.ss_family) {
-				case AF_INET:
-					/* we'll connect to the check port on the server */
-					((struct sockaddr_in *)&sa)->sin_port = htons(s->check_port);
-					break;
-				case AF_INET6:
-					/* we'll connect to the check port on the server */
-					((struct sockaddr_in6 *)&sa)->sin6_port = htons(s->check_port);
-					break;
-				}
+				set_host_port(&sa, s->check_port);
+
 				/* allow specific binding :
 				 * - server-specific at first
 				 * - proxy-specific next
