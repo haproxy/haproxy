@@ -356,9 +356,7 @@ void tcp_sess_log(struct session *s)
 		 " %s %s/%s %ld/%ld/%s%ld %s%lld"
 		 " %c%c %d/%d/%d/%d/%s%u %ld/%ld\n",
 		 s->si[0].addr.c.from.ss_family == AF_UNIX ? "unix" : pn,
-		 s->si[0].addr.c.from.ss_family == AF_UNIX ? s->listener->luid : (ntohs((s->si[0].addr.c.from.ss_family == AF_INET) ?
-		                                            ((struct sockaddr_in *)&s->si[0].addr.c.from)->sin_port :
-		                                            ((struct sockaddr_in6 *)&s->si[0].addr.c.from)->sin6_port)),
+		 s->si[0].addr.c.from.ss_family == AF_UNIX ? s->listener->luid : get_host_port(&s->si[0].addr.c.from),
 		 tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
 		 tm.tm_hour, tm.tm_min, tm.tm_sec, (int)s->logs.tv_accept.tv_usec/1000,
 		 fe->id, be->id, svid,

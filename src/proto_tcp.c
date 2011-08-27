@@ -316,14 +316,7 @@ int tcp_connect_server(struct stream_interface *si)
 					break;
 
 				fdinfo[fd].port_range = srv->sport_range;
-				switch (src.ss_family) {
-				case AF_INET:
-					((struct sockaddr_in *)&src)->sin_port = htons(fdinfo[fd].local_port);
-					break;
-				case AF_INET6:
-					((struct sockaddr_in6 *)&src)->sin6_port = htons(fdinfo[fd].local_port);
-					break;
-				}
+				set_host_port(&src, fdinfo[fd].local_port);
 
 				ret = tcp_bind_socket(fd, flags, &src, &si->addr.s.from);
 			} while (ret != 0); /* binding NOK */
@@ -1305,11 +1298,7 @@ static int
 acl_fetch_sport(struct proxy *px, struct session *l4, void *l7, int dir,
                 struct acl_expr *expr, struct acl_test *test)
 {
-	if (l4->si[0].addr.c.from.ss_family == AF_INET)
-		test->i = ntohs(((struct sockaddr_in *)&l4->si[0].addr.c.from)->sin_port);
-	else if (l4->si[0].addr.c.from.ss_family == AF_INET6)
-		test->i = ntohs(((struct sockaddr_in6 *)(&l4->si[0].addr.c.from))->sin6_port);
-	else
+	if (!(test->i = get_host_port(&l4->si[0].addr.c.from)))
 		return 0;
 
 	test->flags = 0;
@@ -1376,11 +1365,7 @@ acl_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!(l4->flags & SN_FRT_ADDR_SET))
 		get_frt_addr(l4);
 
-	if (l4->si[0].addr.c.to.ss_family == AF_INET)
-		test->i = ntohs(((struct sockaddr_in *)&l4->si[0].addr.c.to)->sin_port);
-	else if (l4->si[0].addr.c.to.ss_family == AF_INET6)
-		test->i = ntohs(((struct sockaddr_in6 *)(&l4->si[0].addr.c.to))->sin6_port);
-	else
+	if (!(test->i = get_host_port(&l4->si[0].addr.c.to)))
 		return 0;
 
 	test->flags = 0;
@@ -1394,11 +1379,7 @@ pattern_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!(l4->flags & SN_FRT_ADDR_SET))
 		get_frt_addr(l4);
 
-	if (l4->si[0].addr.c.to.ss_family == AF_INET)
-		data->integer = ntohs(((struct sockaddr_in *)&l4->si[0].addr.c.to)->sin_port);
-	else if (l4->si[0].addr.c.to.ss_family == AF_INET6)
-		data->integer = ntohs(((struct sockaddr_in6 *)&l4->si[0].addr.c.to)->sin6_port);
-	else
+	if (!(data->integer = get_host_port(&l4->si[0].addr.c.to)))
 		return 0;
 
 	return 1;

@@ -1230,15 +1230,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 		newpeer->addr = *sk;
-
-		switch (newpeer->addr.ss_family) {
-		case AF_INET:
-			((struct sockaddr_in *)&newpeer->addr)->sin_port = htons(realport);
-			break;
-		case AF_INET6:
-			((struct sockaddr_in6 *)&newpeer->addr)->sin6_port = htons(realport);
-			break;
-		}
+		set_host_port(&newpeer->addr, realport);
 
 		if (strcmp(newpeer->id, localpeer) == 0) {
 			/* Current is local peer, it define a frontend */
@@ -3935,15 +3927,7 @@ stats_error_parsing:
 				goto out;
 			}
 			newsrv->addr = *sk;
-
-			switch (newsrv->addr.ss_family) {
-			case AF_INET:
-				((struct sockaddr_in *)&newsrv->addr)->sin_port = htons(realport);
-				break;
-			case AF_INET6:
-				((struct sockaddr_in6 *)&newsrv->addr)->sin6_port = htons(realport);
-				break;
-			}
+			set_host_port(&newsrv->addr, realport);
 
 			newsrv->check_port	= curproxy->defsrv.check_port;
 			newsrv->inter		= curproxy->defsrv.inter;
@@ -4446,16 +4430,9 @@ stats_error_parsing:
 				goto out;
 			}
 
-			switch (newsrv->check_addr.ss_family) {
-				case AF_INET:
-					if (!newsrv->check_port && ((struct sockaddr_in *)&newsrv->check_addr)->sin_port)
-						newsrv->check_port = ntohs(((struct sockaddr_in *)&newsrv->check_addr)->sin_port);
-					break;
-				case AF_INET6:
-					if (!newsrv->check_port && ((struct sockaddr_in6 *)&newsrv->check_addr)->sin6_port)
-						newsrv->check_port = ntohs(((struct sockaddr_in6 *)&newsrv->check_addr)->sin6_port);
-					break;
-			}
+			/* try to get the port from check_addr if check_port not set */
+			if (!newsrv->check_port)
+				newsrv->check_port = get_host_port(&newsrv->check_addr);
 
 			if (!newsrv->check_port && !(newsrv->state & SRV_MAPPORTS))
 				newsrv->check_port = realport; /* by default */
@@ -4464,15 +4441,9 @@ stats_error_parsing:
 				 * the server either. We'll check if we have
 				 * a known port on the first listener.
 				 */
-				struct listener *l;
-				l = curproxy->listen;
-				if (l) {
-					int port;
-					port = (l->addr.ss_family == AF_INET6)
-					        ? ntohs(((struct sockaddr_in6 *)(&l->addr))->sin6_port)
-						: ntohs(((struct sockaddr_in *)(&l->addr))->sin_port);
-					newsrv->check_port = port;
-				}
+				struct listener *l = curproxy->listen;
+				while (l && !(newsrv->check_port = get_host_port(&l->addr)))
+					l = l->next;
 			}
 			if (!newsrv->check_port) {
 				Alert("parsing [%s:%d] : server %s has neither service port nor check port. Check has been disabled.\n",

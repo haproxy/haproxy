@@ -733,15 +733,8 @@ void resume_proxies(void)
 				if (!resume_listener(l)) {
 					int port;
 
-					if (l->addr.ss_family == AF_INET6) {
-						port = ntohs(((struct sockaddr_in6 *)(&l->addr))->sin6_port);
-						Warning("Port %d busy while trying to enable %s %s.\n",
-							port, proxy_cap_str(p->cap), p->id);
-						send_log(p, LOG_WARNING, "Port %d busy while trying to enable %s %s.\n",
-							 port, proxy_cap_str(p->cap), p->id);
-					}
-					else if (l->addr.ss_family == AF_INET) {
-						port = ntohs(((struct sockaddr_in *)(&l->addr))->sin_port);
+					port = get_host_port(&l->addr);
+					if (port) {
 						Warning("Port %d busy while trying to enable %s %s.\n",
 							port, proxy_cap_str(p->cap), p->id);
 						send_log(p, LOG_WARNING, "Port %d busy while trying to enable %s %s.\n",

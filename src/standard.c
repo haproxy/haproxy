@@ -327,14 +327,7 @@ struct sockaddr_storage *str2sa(const char *str)
 	if (!ret)
 		goto out;
 
-	switch (ret->ss_family) {
-	case AF_INET:
-		((struct sockaddr_in *)ret)->sin_port = htons(port);
-		break;
-	case AF_INET6:
-		((struct sockaddr_in6 *)ret)->sin6_port = htons(port);
-		break;
-	}
+	set_host_port(ret, port);
  out:
 	free(str2);
 	return ret;
@@ -383,14 +376,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high)
 	if (!ret)
 		goto out;
 
-	switch (ret->ss_family) {
-	case AF_INET:
-		((struct sockaddr_in *)ret)->sin_port = htons(portl);
-		break;
-	case AF_INET6:
-		((struct sockaddr_in6 *)ret)->sin6_port = htons(portl);
-		break;
-	}
+	set_host_port(ret, portl);
 
 	*low = portl;
 	*high = porth;

@@ -915,9 +915,7 @@ void http_sess_clflog(struct session *s)
 	w = snprintf(h, sizeof(tmpline) - (h - tmpline),
 	             " %d %03d",
 		     s->req->prod->addr.c.from.ss_family == AF_UNIX ? s->listener->luid :
-	                 ntohs((s->req->prod->addr.c.from.ss_family == AF_INET) ?
-	                       ((struct sockaddr_in *)&s->req->prod->addr.c.from)->sin_port :
-	                       ((struct sockaddr_in6 *)&s->req->prod->addr.c.from)->sin6_port),
+		         get_host_port(&s->req->prod->addr.c.from),
 	             (int)s->logs.accept_date.tv_usec/1000);
 	if (w < 0 || w >= sizeof(tmpline) - (h - tmpline))
 		goto trunc;
@@ -1192,9 +1190,7 @@ void http_sess_log(struct session *s)
 		 " %s %s %c%c%c%c %d/%d/%d/%d/%s%u %ld/%ld%s\n",
 		 (s->req->prod->addr.c.from.ss_family == AF_UNIX) ? "unix" : pn,
 		 (s->req->prod->addr.c.from.ss_family == AF_UNIX) ? s->listener->luid :
-		     ntohs((s->req->prod->addr.c.from.ss_family == AF_INET) ?
-		           ((struct sockaddr_in *)&s->req->prod->addr.c.from)->sin_port :
-		           ((struct sockaddr_in6 *)&s->req->prod->addr.c.from)->sin6_port),
+		     get_host_port(&s->req->prod->addr.c.from),
 		 tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
 		 tm.tm_hour, tm.tm_min, tm.tm_sec, (int)s->logs.accept_date.tv_usec/1000,
 		 fe->id, be->id, svid,

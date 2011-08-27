@@ -1329,15 +1329,7 @@ struct task *process_chk(struct task *t)
 								break;
 
 							fdinfo[fd].port_range = s->sport_range;
-
-							switch (src.ss_family) {
-							case AF_INET:
-								((struct sockaddr_in *)&src)->sin_port = htons(fdinfo[fd].local_port);
-								break;
-							case AF_INET6:
-								((struct sockaddr_in6 *)&src)->sin6_port = htons(fdinfo[fd].local_port);
-								break;
-							}
+							set_host_port(&src, fdinfo[fd].local_port);
 
 							ret = tcp_bind_socket(fd, flags, &src, remote);
 						} while (ret != 0); /* binding NOK */
