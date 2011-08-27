@@ -700,22 +700,11 @@ int assign_server_address(struct session *s)
 				get_frt_addr(s);
 
 			/* First, retrieve the port from the incoming connection */
-			if (s->req->prod->addr.c.to.ss_family == AF_INET)
-				base_port = ntohs(((struct sockaddr_in *)&s->req->prod->addr.c.to)->sin_port);
-			else if (s->req->prod->addr.c.to.ss_family == AF_INET6)
-				base_port = ntohs(((struct sockaddr_in6 *)&s->req->prod->addr.c.to)->sin6_port);
-			else
-				base_port = 0;
+			base_port = get_host_port(&s->req->prod->addr.c.to);
 
 			/* Second, assign the outgoing connection's port */
-			if (s->req->cons->addr.c.to.ss_family == AF_INET) {
-				((struct sockaddr_in *)&s->req->cons->addr.s.to)->sin_port =
-					htons(base_port + ntohs(((struct sockaddr_in *)&s->req->cons->addr.s.to)->sin_port));
-			}
-			else if (s->req->prod->addr.c.to.ss_family == AF_INET6) {
-				((struct sockaddr_in6 *)&s->req->cons->addr.s.to)->sin6_port =
-					htons(base_port + ntohs(((struct sockaddr_in6 *)&s->req->cons->addr.s.to)->sin6_port));
-			}
+			base_port += get_host_port(&s->req->prod->addr.s.to);
+			set_host_port(&s->req->cons->addr.s.to, base_port);
 		}
 	}
 	else if (s->be->options & PR_O_DISPATCH) {
