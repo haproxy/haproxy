@@ -572,7 +572,7 @@ stats socket <path> [{uid | user} <uid>] [{gid | group} <gid>] [mode <mode>]
       is not easy to restrict access to the socket.
 
     - "operator" is the default level and fits most common uses. All data can
-      be read, and only non-sensible changes are permitted (eg: clear max
+      be read, and only non-sensitive changes are permitted (eg: clear max
       counters).
 
     - "admin" should be used with care, as everything is permitted (eg: clear
@@ -1633,7 +1633,7 @@ block { if | unless } <condition>
   The HTTP request will be blocked very early in the layer 7 processing
   if/unless <condition> is matched. A 403 error will be returned if the request
   is blocked. The condition has to reference ACLs (see section 7). This is
-  typically used to deny access to certain sensible resources if some
+  typically used to deny access to certain sensitive resources if some
   conditions are met or not met. There is no fixed limit to the number of
   "block" statements per instance.
 
@@ -2903,7 +2903,7 @@ no option checkcache
   be cached. When a session cookie is returned on a cacheable object, there is a
   high risk of session crossing or stealing between users traversing the same
   caches. In some situations, it is better to block the response than to let
-  some sensible session information go in the wild.
+  some sensitive session information go in the wild.
 
   The option "checkcache" enables deep inspection of all server responses for
   strict compliance with HTTP specification in terms of cacheability. It
@@ -4621,7 +4621,7 @@ rspidel <search> [{if | unless} <cond>]  (ignore case)
 
   Any header line matching extended regular expression <search> in the response
   will be completely deleted. Most common use of this is to remove unwanted
-  and/or sensible headers or cookies from a response before passing it to the
+  and/or sensitive headers or cookies from a response before passing it to the
   client.
 
   Header transformations only apply to traffic which passes through HAProxy,
@@ -4999,7 +4999,7 @@ stats auth <user>:<passwd>
   Since the authentication method is HTTP Basic Authentication, the passwords
   circulate in cleartext on the network. Thus, it was decided that the
   configuration file would also use cleartext passwords to remind the users
-  that those ones should not be sensible and not shared with any other account.
+  that those ones should not be sensitive and not shared with any other account.
 
   It is also possible to reduce the scope of the proxies which appear in the
   report using "stats scope".
@@ -9301,7 +9301,7 @@ reading. Their sole purpose is to explain how to decipher them.
 
     => the proxy blocked a server response either because of an "rspdeny" or
        "rspideny" filter, or because the response was improperly formatted and
-       not HTTP-compliant, or because it blocked sensible information which
+       not HTTP-compliant, or because it blocked sensitive information which
        risked being cached. In this case, the response is replaced with a "502
        bad gateway". The flags ("PH--") tell us that it was haproxy who decided
        to return the 502 and not the server.
