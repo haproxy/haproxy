@@ -503,7 +503,7 @@ int http_find_header2(const char *name, int len,
 		 * another one on the same line.
 		 */
 		sol = ctx->line;
-		ctx->del = ctx->val + ctx->vlen;
+		ctx->del = ctx->val + ctx->vlen + ctx->tws;
 		sov = sol + ctx->del;
 		eol = sol + idx->v[cur_idx].len;
 
@@ -551,6 +551,11 @@ int http_find_header2(const char *name, int len,
 			ctx->val  = sov - sol;
 
 			eol = find_hdr_value_end(sov, eol);
+			ctx->tws = 0;
+			while (http_is_lws[(unsigned char)*(eol - 1)]) {
+				eol--;
+				ctx->tws++;
+			}
 			ctx->vlen = eol - sov;
 			return 1;
 		}
@@ -589,7 +594,7 @@ int http_remove_header2(struct http_msg *msg, struct buffer *buf,
 		return 0;
 
 	hdr = &idx->v[cur_idx];
-	if (sol[ctx->del] == ':' && ctx->val + ctx->vlen == hdr->len) {
+	if (sol[ctx->del] == ':' && ctx->val + ctx->vlen + ctx->tws == hdr->len) {
 		/* This was the only value of the header, we must now remove it entirely. */
 		delta = buffer_replace2(buf, sol, sol + hdr->len + hdr->cr + 1, NULL, 0);
 		http_msg_move_end(msg, delta);
@@ -601,23 +606,23 @@ int http_remove_header2(struct http_msg *msg, struct buffer *buf,
 		ctx->idx = ctx->prev;    /* walk back to the end of previous header */
 		ctx->line -= idx->v[ctx->idx].len + idx->v[cur_idx].cr + 1;
 		ctx->val = idx->v[ctx->idx].len; /* point to end of previous header */
-		ctx->vlen = 0;
+		ctx->tws = ctx->vlen = 0;
 		return ctx->idx;
 	}
 
 	/* This was not the only value of this header. We have to remove between
-	 * ctx->del+1 and ctx->val+ctx->vlen+1 included. If it is the last entry
-	 * of the list, we remove the last separator.
+	 * ctx->del+1 and ctx->val+ctx->vlen+ctx->tws+1 included. If it is the
+	 * last entry of the list, we remove the last separator.
 	 */
 
-	skip_comma = (ctx->val + ctx->vlen == hdr->len) ? 0 : 1;
+	skip_comma = (ctx->val + ctx->vlen + ctx->tws == hdr->len) ? 0 : 1;
 	delta = buffer_replace2(buf, sol + ctx->del + skip_comma,
-				sol + ctx->val + ctx->vlen + skip_comma,
+				sol + ctx->val + ctx->vlen + ctx->tws + skip_comma,
 				NULL, 0);
 	hdr->len += delta;
 	http_msg_move_end(msg, delta);
 	ctx->val = ctx->del;
-	ctx->vlen = 0;
+	ctx->tws = ctx->vlen = 0;
 	return ctx->idx;
 }
 

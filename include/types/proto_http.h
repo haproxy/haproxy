@@ -340,15 +340,18 @@ struct http_txn {
 };
 
 /* This structure is used by http_find_header() to return values of headers.
- * The header starts at <line>, the value at <line>+<val> for <vlen> bytes, and
- * sets <line>+<del> to point to the last delimitor (colon or comma) before
- * this value. <prev> points to the index of the header whose next is this one.
+ * The header starts at <line>, the value (excluding leading and trailing white
+ * spaces) at <line>+<val> for <vlen> bytes, followed by optional <tws> trailing
+ * white spaces, and sets <line>+<del> to point to the last delimitor (colon or
+ * comma) before this value. <prev> points to the index of the header whose next
+ * is this one.
  */
 struct hdr_ctx {
 	char *line;
 	int  idx;
-	int  val;  /* relative to line */
-	int  vlen; /* relative to line+val */
+	int  val;  /* relative to line, may skip some leading white spaces */
+	int  vlen; /* relative to line+val, stops before trailing white spaces */
+	int  tws;  /* added to vlen if some trailing white spaces are present */
 	int  del;  /* relative to line */
 	int  prev; /* index of previous header */
 };
