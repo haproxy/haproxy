@@ -3016,11 +3016,15 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 			     sess->listener ? sess->listener->name ? sess->listener->name : "?" : "?",
 			     sess->listener ? sess->listener->luid : 0);
 
-		chunk_printf(&msg,
-			     "  backend=%s (id=%u mode=%s) server=%s (id=%u)\n",
-			     sess->be->id, sess->be->uuid, sess->be->mode ? "http" : "tcp",
-			     target_srv(&sess->target) ? target_srv(&sess->target)->id : "<none>",
-			     target_srv(&sess->target) ? target_srv(&sess->target)->puid : 0);
+		if (sess->be->cap & PR_CAP_BE)
+			chunk_printf(&msg,
+				     "  backend=%s (id=%u mode=%s) server=%s (id=%u)\n",
+				     sess->be->id,
+				     sess->be->uuid, sess->be->mode ? "http" : "tcp",
+				     target_srv(&sess->target) ? target_srv(&sess->target)->id : "<none>",
+				     target_srv(&sess->target) ? target_srv(&sess->target)->puid : 0);
+		else
+			chunk_printf(&msg, "  backend=<NONE> (id=-1 mode=-) server=<NONE> (id=-1)\n");
 
 		chunk_printf(&msg,
 			     "  task=%p (state=0x%02x nice=%d calls=%d exp=%s%s)\n",
@@ -3223,7 +3227,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 					     pn,
 					     get_host_port(&curr_sess->si[0].addr.c.from),
 					     curr_sess->fe->id,
-					     curr_sess->be->id,
+					     (curr_sess->be->cap & PR_CAP_BE) ? curr_sess->be->id : "<NONE>",
 					     target_srv(&curr_sess->target) ? target_srv(&curr_sess->target)->id : "<none>"
 					     );
 				break;
@@ -3232,7 +3236,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 					     " src=unix:%d fe=%s be=%s srv=%s",
 					     curr_sess->listener->luid,
 					     curr_sess->fe->id,
-					     curr_sess->be->id,
+					     (curr_sess->be->cap & PR_CAP_BE) ? curr_sess->be->id : "<NONE>",
 					     target_srv(&curr_sess->target) ? target_srv(&curr_sess->target)->id : "<none>"
 					     );
 				break;
