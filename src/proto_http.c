@@ -2490,6 +2490,8 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 			session_inc_http_req_ctr(s);
 			session_inc_http_err_ctr(s);
 			proxy_inc_fe_req_ctr(s->fe);
+			if (msg->err_pos < 0)
+				msg->err_pos = req->l;
 			goto return_bad_req;
 		}
 
@@ -4758,6 +4760,8 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 
 		/* too large response does not fit in buffer. */
 		else if (rep->flags & BF_FULL) {
+			if (msg->err_pos < 0)
+				msg->err_pos = rep->l;
 			goto hdr_response_bad;
 		}
 
