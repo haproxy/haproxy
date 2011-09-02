@@ -2808,17 +2808,25 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	       http_find_header2("Content-Length", 14, msg->sol, &txn->hdr_idx, &ctx)) {
 		signed long long cl;
 
-		if (!ctx.vlen)
+		if (!ctx.vlen) {
+			msg->err_pos = ctx.line + ctx.val - req->data;
 			goto return_bad_req;
+		}
 
-		if (strl2llrc(ctx.line + ctx.val, ctx.vlen, &cl))
+		if (strl2llrc(ctx.line + ctx.val, ctx.vlen, &cl)) {
+			msg->err_pos = ctx.line + ctx.val - req->data;
 			goto return_bad_req; /* parse failure */
+		}
 
-		if (cl < 0)
+		if (cl < 0) {
+			msg->err_pos = ctx.line + ctx.val - req->data;
 			goto return_bad_req;
+		}
 
-		if ((txn->flags & TX_REQ_CNT_LEN) && (msg->chunk_len != cl))
+		if ((txn->flags & TX_REQ_CNT_LEN) && (msg->chunk_len != cl)) {
+			msg->err_pos = ctx.line + ctx.val - req->data;
 			goto return_bad_req; /* already specified, was different */
+		}
 
 		txn->flags |= TX_REQ_CNT_LEN | TX_REQ_XFER_LEN;
 		msg->body_len = msg->chunk_len = cl;
@@ -5023,17 +5031,25 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 	       http_find_header2("Content-Length", 14, msg->sol, &txn->hdr_idx, &ctx)) {
 		signed long long cl;
 
-		if (!ctx.vlen)
+		if (!ctx.vlen) {
+			msg->err_pos = ctx.line + ctx.val - rep->data;
 			goto hdr_response_bad;
+		}
 
-		if (strl2llrc(ctx.line + ctx.val, ctx.vlen, &cl))
+		if (strl2llrc(ctx.line + ctx.val, ctx.vlen, &cl)) {
+			msg->err_pos = ctx.line + ctx.val - rep->data;
 			goto hdr_response_bad; /* parse failure */
+		}
 
-		if (cl < 0)
+		if (cl < 0) {
+			msg->err_pos = ctx.line + ctx.val - rep->data;
 			goto hdr_response_bad;
+		}
 
-		if ((txn->flags & TX_RES_CNT_LEN) && (msg->chunk_len != cl))
+		if ((txn->flags & TX_RES_CNT_LEN) && (msg->chunk_len != cl)) {
+			msg->err_pos = ctx.line + ctx.val - rep->data;
 			goto hdr_response_bad; /* already specified, was different */
+		}
 
 		txn->flags |= TX_RES_CNT_LEN | TX_RES_XFER_LEN;
 		msg->body_len = msg->chunk_len = cl;
