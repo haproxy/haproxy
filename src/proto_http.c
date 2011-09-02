@@ -4815,9 +4815,9 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 			return 0;
 		}
 
-		/* close from server */
+		/* close from server, capture the response if the server has started to respond */
 		else if (rep->flags & BF_SHUTR) {
-			if (msg->err_pos >= 0)
+			if (msg->msg_state >= HTTP_MSG_RPVER || msg->err_pos >= 0)
 				http_capture_bad_message(&s->be->invalid_rep, s, rep, msg, msg->msg_state, s->fe);
 
 			s->be->be_counters.failed_resp++;
