@@ -1,0 +1,96 @@
+2011/02/25 - Description of the different entities in haproxy - w@1wt.eu
+
+
+1) Definitions
+--------------
+
+Listener
+--------
+
+A listener is the entity which is part of a frontend and which accepts
+connections. There are as many listeners as there are ip:port couples.
+There is at least one listener instanciated for each "bind" entry, and
+port ranges will lead to as many listeners as there are ports in the
+range. A listener just has a listening file descriptor ready to accept
+incoming connections and to dispatch them to upper layers.
+
+
+Initiator
+---------
+
+An initiator is instanciated for each incoming connection on a listener. It may
+also be instanciated by a task pretending to be a client. An initiator calls
+the next stage's accept() callback to present it with the parameters of the
+incoming connection.
+
+
+Session
+-------
+
+A session is the only entity located between an initiator and a connector.
+This is the last stage which offers an accept() callback, and all of its
+processing will continue with the next stage's connect() callback. It holds
+the buffers needed to forward the protocol data between each side. This entity
+sees the native protocol, and is able to call analysers on these buffers. As it
+is used in both directions, it always has two buffers.
+
+When transformations are required, some of them may be done on the initiator
+side and other ones on the connector side. If additional buffers are needed for
+such transforms, those buffers cannot replace the session's buffers, but they
+may complete them.
+
+A session only needs to be instanciated when forwarding of data is required
+between two sides. Accepting and filtering on layer 4 information only does not
+require a session.
+
+For instance, let's consider the case of a proxy which receives and decodes
+HTTPS traffic, processes it as HTTP and recodes it as HTTPS before forwarding
+it. We'd have 3 layers of buffers, where the middle ones are used for
+forwarding of the protocol data (HTTP here) :
+
+            <-- ssl dec --> <-forwarding-> <-- ssl enc -->
+
+              ,->[||||]--.   ,->[||||]--.   ,->[||||]--.
+   client  (|)            (|)            (|)            (|)  server
+              ^--[||||]<-'   ^--[||||]<-'   ^--[||||]<-'
+
+                  HTTPS          HTTP          HTTPS
+
+The session handling code is only responsible for monitoring the forwarding
+buffers here. It may declare the end of the session once those buffers are
+closed and no analyser wants to re-open them. The session is also the entity
+which applies the load balancing algorithm and decides the server to use.
+
+The other sides are responsible for propagating the state up to the session
+which takes decisions.
+
+
+Connector
+---------
+
+A connector is the entity which permits to instanciate a connection to a known
+destination. It presents a connect() callback, and as such appears on the right
+side of diagrams.
+
+
+Connection
+----------
+
+A connection is the entity instanciated by a connector. It may be composed of
+multiple stages linked together. Generally it is the part of the stream
+interface holding a file descriptor, but it can also be a processing block or a
+transformation block terminated by a connection. A connection presents a
+server-side interface.
+
+
+2) Sequencing
+-------------
+
+Upon startup, listeners are instanciated by the configuration. When an incoming
+connection reaches a listening file descriptor, its read() callback calls the
+corresponding listener's accept() function which instanciates an initiator and
+in turn recursively calls upper layers' accept() callbacks until
+accept_session() is called. accept_session() instanciates a new session which
+starts protocol analysis via process_session(). When all protocol analysis is
+done, process_session() calls the connect() callback of the connector in order
+to get a connection.

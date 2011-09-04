@@ -1,0 +1,90 @@
+2010/01/24 - Design of multi-criteria request rate shaping.
+
+We want to be able to rate-shape traffic on multiple cirteria. For instance, we
+may want to support shaping of per-host header requests, as well as per source.
+
+In order to achieve this, we will use checkpoints, one per criterion. Each of
+these checkpoints will consist in a test, a rate counter and a queue.
+
+A request reaches the checkpoint and checks the counter. If the counter is
+below the limit, it is updated and the request continues. If the limit is
+reached, the request attaches itself into the queue and sleeps. The sleep time
+is computed from the queue status, and updates the queue status.
+
+A task is dedicated to each queue. Its sole purpose is to be woken up when the
+next task may wake up, to check the frequency counter, wake as many requests as
+possible and update the counter. All the woken up requests are detached from
+the queue. Maybe the task dedicated to the queue can be avoided and replaced
+with all queued tasks's sleep counters, though this looks tricky. Or maybe it's
+just the first request in the queue that should be responsible for waking up
+other tasks, and not to forget to pass on this responsibility to next tasks if
+it leaves the queue.
+
+The woken up request then goes on evaluating other criteria and possibly sleeps
+again on another one. In the end, the task will have waited the amount of time
+required to pass all checkpoints, and all checkpoints will be able to maintain
+a permanent load of exactly their limit if enough streams flow through them.
+
+Since a request can only sleep in one queue at a time, it makes sense to use a
+linked list element in each session to attach it to any queue. It could very
+well be shared with the pendconn hooks which could then be part of the session.
+
+This mechanism could be used to rate-shape sessions and requests per backend
+and per server.
+
+When rate-shaping on dynamic criteria, such as the source IP address, we have
+to first extract the data pattern, then look it up in a table very similar to
+the stickiness tables, but with a frequency counter. At the checkpoint, the
+pattern is looked up, the entry created or refreshed, and the frequency counter
+updated and checked. Then the request either goes on or sleeps as described
+above, but if it sleeps, it's still in the checkpoint's queue, but with a date
+computed from the criterion's status.
+
+This means that we need 3 distinct features :
+
+   - optional pattern extraction
+   - per-pattern or per-queue frequency counter
+   - time-ordered queue with a task
+
+Based on past experiences with frequency counters, it does not appear very easy
+to exactly compute sleep delays in advance for multiple requests. So most
+likely we'll have to run per-criterion queues too, with only the head of the
+queue holding a wake-up timeout.
+
+This finally leads us to the following :
+
+   - optional pattern extraction
+   - per-pattern or per-queue frequency counter
+   - per-frequency counter queue
+   - head of the queue serves as a global queue timer.
+
+This brings us to a very flexible architecture :
+   - 1 list of rule-based checkpoints per frontend
+   - 1 list of rule-based checkpoints per backend
+   - 1 list of rule-based checkpoints per server
+
+Each of these lists have a lot of rules conditionned by ACLs, just like the
+use-backend rules, except that all rules are evaluated in turn.
+
+Since we might sometimes just want to enable that without setting any limit and
+just for enabling control in ACLs (or logging ?), we should probably try to
+find a flexible way of declaring just a counter without a queue.
+
+These checkpoints could be of two types :
+  - rate-limit (described here)
+  - concurrency-limit (very similar with the counter and no timer). This
+    feature would require to keep track of all accounted criteria in a
+    request so that they can be released upon request completion.
+
+It should be possible to define a max of requests in the queue, above which a
+503 is returned. The same applies for the max delay in the queue. We could have
+it per-task (currently it's the connection timeout) and abort tasks with a 503
+when the delay is exceeded.
+
+Per-server connection concurrency could be converted to use this mechanism
+which is very similar.
+
+The construct should be flexible enough so that the counters may be checked
+from ACLs. That would allow to reject connections or switch to an alternate
+backend when some limits are reached.
+

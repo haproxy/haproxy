@@ -1,0 +1,25 @@
+2011/04/13 : List of possible cookie settings with associated behaviours.
+
+PSV="preserve", PFX="prefix", INS="insert", REW="rewrite", IND="indirect"
+0 = option not set
+1 = option is set
+* = option doesn't matter
+
+PSV PFX INS REW IND   Behaviour
+ 0   0   0   0   0    passive mode
+ 0   0   0   0   1    passive + indirect : remove response if not needed
+ 0   0   0   1   0    always rewrite response
+ 0   0   1   0   0    always insert or replace response
+ 0   0   1   0   1    insert + indirect : remove req and also resp if not needed
+ *   *   1   1   *    [ forbidden ]
+ 0   1   0   0   0    prefix
+ 0   1   0   0   1    !! prefix on request, remove reponse cookie if not needed
+ *   1   *   1   *    [ forbidden ]
+ *   1   1   *   *    [ forbidden ]
+ *   *   *   1   1    [ forbidden ]
+ 1   *   0   *   0    [ forbidden ]
+ 1   0   0   0   1    passive mode (alternate form)
+ 1   0   1   0   0    insert only, and preserve server response cookie if any
+ 1   0   1   0   1    conditional insert only for new requests
+ 1   1   0   0   1    prefix on requests only (passive prefix)
+

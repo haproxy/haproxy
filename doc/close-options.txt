@@ -1,0 +1,46 @@
+2011/04/20 - List of keep-alive / close options with associated behaviours.
+
+PK="http-pretend-keepalive", HC="httpclose", SC="http-server-close",
+FC = "forceclose".
+
+0 = option not set
+1 = option is set
+* = option doesn't matter
+
+Options can be split between frontend and backend, so some of them might have
+a meaning only when combined by associating a frontend to a backend. Some forms
+are not the normal ones and provide a behaviour compatible with another normal
+form. Those are considered alternate forms and are markes "(alt)".
+
+FC SC HC PK    Behaviour
+ 0  0  0  X    tunnel mode
+ 0  0  1  0    passive close, only set headers then tunnel
+ 0  0  1  1    forced close with keep-alive announce (alt)
+ 0  1  0  0    server close
+ 0  1  0  1    server close with keep-alive announce
+ 0  1  1  0    forced close (alt)
+ 0  1  1  1    forced close with keep-alive announce (alt)
+ 1  *  *  0    forced close
+ 1  *  *  1    forced close with keep-alive announce
+
+At this point this results in 4 distinct effective modes for a request being
+processed :
+  - tunnel mode   : Connection header is left untouched and body is ignored
+  - passive close : Connection header is changed and body is ignored
+  - server close  : Connection header set, body scanned, client-side keep-alive
+                    is made possible regardless of server-side capabilities
+  - forced close  : Connection header set, body scanned, connection closed.
+
+The "close" modes may be combined with a fake keep-alive announce to the server
+in order to workaround buggy servers that disable chunked encoding and content
+length announces when the client does not ask for keep-alive.
+
+Note: "http-pretend-keepalive" alone has no effect. However, if it is set in a
+      backend while a frontend is in "http-close" mode, then the combination of
+      both will result in a forced close with keep-alive announces for requests
+      passing through both.
+
+It is also worth noting that "option httpclose" alone has become useless since
+1.4, because "option forceclose" does the right thing, while the former only
+pretends to do the right thing. Both options might get merged in the future.
+
