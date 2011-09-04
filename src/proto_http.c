@@ -865,15 +865,7 @@ void http_sess_clflog(struct session *s)
 		(s->req->cons->conn_retries != be->conn_retries) ||
 		txn->status >= 500;
 
-	if (s->req->prod->addr.c.from.ss_family == AF_INET)
-		inet_ntop(AF_INET,
-		          (const void *)&((struct sockaddr_in *)&s->req->prod->addr.c.from)->sin_addr,
-		          pn, sizeof(pn));
-	else if (s->req->prod->addr.c.from.ss_family == AF_INET6)
-		inet_ntop(AF_INET6,
-		          (const void *)&((struct sockaddr_in6 *)(&s->req->prod->addr.c.from))->sin6_addr,
-		          pn, sizeof(pn));
-	else
+	if (addr_to_str(&s->req->prod->addr.c.from, pn, sizeof(pn)) == AF_UNIX)
 		snprintf(pn, sizeof(pn), "unix:%d", s->listener->luid);
 
 	get_gmtime(s->logs.accept_date.tv_sec, &tm);
@@ -1107,14 +1099,8 @@ void http_sess_log(struct session *s)
 	if (prx_log->options2 & PR_O2_CLFLOG)
 		return http_sess_clflog(s);
 
-	if (s->req->prod->addr.c.from.ss_family == AF_INET)
-		inet_ntop(AF_INET,
-			  (const void *)&((struct sockaddr_in *)&s->req->prod->addr.c.from)->sin_addr,
-			  pn, sizeof(pn));
-	else if (s->req->prod->addr.c.from.ss_family == AF_INET6)
-		inet_ntop(AF_INET6,
-			  (const void *)&((struct sockaddr_in6 *)(&s->req->prod->addr.c.from))->sin6_addr,
-			  pn, sizeof(pn));
+	if (addr_to_str(&s->req->prod->addr.c.from, pn, sizeof(pn)) == AF_UNIX)
+		snprintf(pn, sizeof(pn), "unix:%d", s->listener->luid);
 
 	get_localtime(s->logs.accept_date.tv_sec, &tm);
 

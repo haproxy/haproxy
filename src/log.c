@@ -317,15 +317,7 @@ void tcp_sess_log(struct session *s)
 	if (!err && (fe->options2 & PR_O2_NOLOGNORM))
 		return;
 
-	if (s->si[0].addr.c.from.ss_family == AF_INET)
-		inet_ntop(AF_INET,
-			  (const void *)&((struct sockaddr_in *)&s->si[0].addr.c.from)->sin_addr,
-			  pn, sizeof(pn));
-	else if (s->si[0].addr.c.from.ss_family == AF_INET6)
-		inet_ntop(AF_INET6,
-			  (const void *)&((struct sockaddr_in6 *)(&s->si[0].addr.c.from))->sin6_addr,
-			  pn, sizeof(pn));
-
+	addr_to_str(&s->si[0].addr.c.from, pn, sizeof(pn));
 	get_localtime(s->logs.tv_accept.tv_sec, &tm);
 
 	if (fe->logfac1 < 0 && fe->logfac2 < 0)

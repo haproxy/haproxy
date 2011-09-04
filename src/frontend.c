@@ -151,76 +151,51 @@ int frontend_accept(struct session *s)
 				if (!(s->logs.logwait &= ~LW_CLIP))
 					s->do_log(s);
 		}
-		else if (s->si[0].addr.c.from.ss_family == AF_INET) {
-			char pn[INET_ADDRSTRLEN], sn[INET_ADDRSTRLEN];
-
-			if (!(s->flags & SN_FRT_ADDR_SET))
-				get_frt_addr(s);
-
-			if (inet_ntop(AF_INET, (const void *)&((struct sockaddr_in *)&s->si[0].addr.c.to)->sin_addr,
-				      sn, sizeof(sn)) &&
-			    inet_ntop(AF_INET, (const void *)&((struct sockaddr_in *)&s->si[0].addr.c.from)->sin_addr,
-				      pn, sizeof(pn))) {
-				send_log(s->fe, LOG_INFO, "Connect from %s:%d to %s:%d (%s/%s)\n",
-					 pn, ntohs(((struct sockaddr_in *)&s->si[0].addr.c.from)->sin_port),
-					 sn, ntohs(((struct sockaddr_in *)&s->si[0].addr.c.to)->sin_port),
-					 s->fe->id, (s->fe->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
-			}
-		}
-		else if (s->si[0].addr.c.from.ss_family == AF_INET6) {
+		else {
 			char pn[INET6_ADDRSTRLEN], sn[INET6_ADDRSTRLEN];
 
 			if (!(s->flags & SN_FRT_ADDR_SET))
 				get_frt_addr(s);
 
-			if (inet_ntop(AF_INET6, (const void *)&((struct sockaddr_in6 *)&s->si[0].addr.c.to)->sin6_addr,
-				      sn, sizeof(sn)) &&
-			    inet_ntop(AF_INET6, (const void *)&((struct sockaddr_in6 *)&s->si[0].addr.c.from)->sin6_addr,
-				      pn, sizeof(pn))) {
+			switch (addr_to_str(&s->req->prod->addr.c.from, pn, sizeof(pn))) {
+			case AF_INET:
+			case AF_INET6:
+				addr_to_str(&s->req->prod->addr.c.to, sn, sizeof(sn));
 				send_log(s->fe, LOG_INFO, "Connect from %s:%d to %s:%d (%s/%s)\n",
-					 pn, ntohs(((struct sockaddr_in6 *)&s->si[0].addr.c.from)->sin6_port),
-					 sn, ntohs(((struct sockaddr_in6 *)&s->si[0].addr.c.to)->sin6_port),
+					 pn, get_host_port(&s->req->prod->addr.c.from),
+					 sn, get_host_port(&s->req->prod->addr.c.to),
 					 s->fe->id, (s->fe->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
+				break;
+			case AF_UNIX:
+				/* UNIX socket, only the destination is known */
+				send_log(s->fe, LOG_INFO, "Connect to unix:%d (%s/%s)\n",
+					 s->listener->luid,
+					 s->fe->id, (s->fe->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
+				break;
 			}
-		}
-		else {
-			/* UNIX socket, only the destination is known */
-			send_log(s->fe, LOG_INFO, "Connect to unix:%d (%s/%s)\n",
-                                 s->listener->luid,
-				 s->fe->id, (s->fe->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
 		}
 	}
 
 	if (unlikely((global.mode & MODE_DEBUG) && (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
+		char pn[INET6_ADDRSTRLEN];
 		int len;
 
 		if (!(s->flags & SN_FRT_ADDR_SET))
 			get_frt_addr(s);
 
-		if (s->si[0].addr.c.from.ss_family == AF_INET) {
-			char pn[INET_ADDRSTRLEN];
-			inet_ntop(AF_INET,
-				  (const void *)&((struct sockaddr_in *)&s->si[0].addr.c.from)->sin_addr,
-				  pn, sizeof(pn));
-
+		switch (addr_to_str(&s->req->prod->addr.c.from, pn, sizeof(pn))) {
+		case AF_INET:
+		case AF_INET6:
 			len = sprintf(trash, "%08x:%s.accept(%04x)=%04x from [%s:%d]\n",
 				      s->uniq_id, s->fe->id, (unsigned short)s->listener->fd, (unsigned short)cfd,
-				      pn, ntohs(((struct sockaddr_in *)&s->si[0].addr.c.from)->sin_port));
-		}
-		else if (s->si[0].addr.c.from.ss_family == AF_INET6) {
-			char pn[INET6_ADDRSTRLEN];
-			inet_ntop(AF_INET6,
-				  (const void *)&((struct sockaddr_in6 *)(&s->si[0].addr.c.from))->sin6_addr,
-				  pn, sizeof(pn));
-
-			len = sprintf(trash, "%08x:%s.accept(%04x)=%04x from [%s:%d]\n",
-				      s->uniq_id, s->fe->id, (unsigned short)s->listener->fd, (unsigned short)cfd,
-				      pn, ntohs(((struct sockaddr_in6 *)(&s->si[0].addr.c.from))->sin6_port));
-		}
-		else {
+				      pn, get_host_port(&s->req->prod->addr.c.from));
+			break;
+		case AF_UNIX:
+			/* UNIX socket, only the destination is known */
 			len = sprintf(trash, "%08x:%s.accept(%04x)=%04x from [unix:%d]\n",
 				      s->uniq_id, s->fe->id, (unsigned short)s->listener->fd, (unsigned short)cfd,
 				      s->listener->luid);
+			break;
 		}
 
 		write(1, trash, len);

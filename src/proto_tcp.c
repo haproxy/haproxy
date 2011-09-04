@@ -589,18 +589,8 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	if (msg && errlen) {
 		char pn[INET6_ADDRSTRLEN];
 
-		if (listener->addr.ss_family == AF_INET) {
-			inet_ntop(AF_INET,
-				  &((struct sockaddr_in *)&listener->addr)->sin_addr,
-				  pn, sizeof(pn));
-			snprintf(errmsg, errlen, "%s [%s:%d]", msg, pn, ntohs(((struct sockaddr_in *)&listener->addr)->sin_port));
-		}
-		else {
-			inet_ntop(AF_INET6,
-				  &((struct sockaddr_in6 *)(&listener->addr))->sin6_addr,
-				  pn, sizeof(pn));
-			snprintf(errmsg, errlen, "%s [%s:%d]", msg, pn, ntohs(((struct sockaddr_in6 *)&listener->addr)->sin6_port));
-		}
+		addr_to_str(&listener->addr, pn, sizeof(pn));
+		snprintf(errmsg, errlen, "%s [%s:%d]", msg, pn, get_host_port(&listener->addr));
 	}
 	return err;
 

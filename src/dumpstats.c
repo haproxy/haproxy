@@ -2201,36 +2201,29 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 				chunk_printf(&msg, "<td class=ac");
 
 					if (uri->flags&ST_SHLGNDS) {
-						char str[INET6_ADDRSTRLEN], *fmt = NULL;
+						char str[INET6_ADDRSTRLEN];
 						int port;
 
-						chunk_printf(&msg, " title=\"IP: ");
+						chunk_printf(&msg, " title=\"");
 
-						port = (l->addr.ss_family == AF_INET6)
-							? ntohs(((struct sockaddr_in6 *)(&l->addr))->sin6_port)
-							: ntohs(((struct sockaddr_in *)(&l->addr))->sin_port);
-
-						if (l->addr.ss_family == AF_INET) {
-							if (inet_ntop(AF_INET,
-							    (const void *)&((struct sockaddr_in *)&l->addr)->sin_addr,
-							    str, sizeof(str)))
-								fmt = "%s:%d";
-						} else {
-							if (inet_ntop(AF_INET6,
-							    (const void *)&((struct sockaddr_in6 *)(&l->addr))->sin6_addr,
-							    str, sizeof(str)))
-								fmt = "[%s]:%d";
+						port = get_host_port(&l->addr);
+						switch (addr_to_str(&l->addr, str, sizeof(str))) {
+						case AF_INET:
+							chunk_printf(&msg, "IPv4: %s:%d, ", str, port);
+							break;
+						case AF_INET6:
+							chunk_printf(&msg, "IPv6: [%s]:%d, ", str, port);
+							break;
+						case AF_UNIX:
+							chunk_printf(&msg, "unix, ");
+							break;
+						case -1:
+							chunk_printf(&msg, "(%s), ", strerror(errno));
+							break;
 						}
 
-						if (fmt)
-							chunk_printf(&msg, fmt, str, port);
-						else
-							chunk_printf(&msg, "(%s)", strerror(errno));
-
 						/* id */
-						chunk_printf(&msg, ", id: %d", l->luid);
-
-						chunk_printf(&msg, "\"");
+						chunk_printf(&msg, "id: %d\"", l->luid);
 					}
 
 				chunk_printf(&msg,
@@ -2393,26 +2386,27 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 				if (uri->flags&ST_SHLGNDS) {
 					char str[INET6_ADDRSTRLEN];
 
-					chunk_printf(&msg, " title=\"IP: ");
+					chunk_printf(&msg, " title=\"");
 
-					/* IP */
-					switch (sv->addr.ss_family) {
+					switch (addr_to_str(&sv->addr, str, sizeof(str))) {
 					case AF_INET:
-						if (inet_ntop(AF_INET, (const void *)&((struct sockaddr_in *)&sv->addr)->sin_addr, str, sizeof(str)))
-							chunk_printf(&msg, "%s:%d", str, htons(((struct sockaddr_in *)&sv->addr)->sin_port));
-						else
-							chunk_printf(&msg, "(%s)", strerror(errno));
+						chunk_printf(&msg, "IPv4: %s:%d, ", str, get_host_port(&sv->addr));
 						break;
 					case AF_INET6:
-						if (inet_ntop(AF_INET6, (const void *)&((struct sockaddr_in6 *)&sv->addr)->sin6_addr, str, sizeof(str)))
-							chunk_printf(&msg, "%s:%d", str, htons(((struct sockaddr_in6 *)&sv->addr)->sin6_port));
-						else
-							chunk_printf(&msg, "(%s)", strerror(errno));
+						chunk_printf(&msg, "IPv6: [%s]:%d, ", str, get_host_port(&sv->addr));
+						break;
+					case AF_UNIX:
+						chunk_printf(&msg, "unix, ");
+						break;
+					case -1:
+						chunk_printf(&msg, "(%s), ", strerror(errno));
+						break;
+					default: /* address family not supported */
 						break;
 					}
 
 					/* id */
-					chunk_printf(&msg, ", id: %d", sv->puid);
+					chunk_printf(&msg, "id: %d", sv->puid);
 
 					/* cookie */
 					if (sv->cookie) {
@@ -2997,30 +2991,14 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 			     sess->uniq_id,
 			     sess->listener->proto->name);
 
-		switch (sess->listener->proto->sock_family) {
+		switch (addr_to_str(&sess->si[0].addr.c.from, pn, sizeof(pn))) {
 		case AF_INET:
-			inet_ntop(AF_INET,
-				  (const void *)&((struct sockaddr_in *)&sess->si[0].addr.c.from)->sin_addr,
-				  pn, sizeof(pn));
-
-			chunk_printf(&msg,
-				     " source=%s:%d\n",
-				     pn,
-				     ntohs(((struct sockaddr_in *)&sess->si[0].addr.c.from)->sin_port));
-			break;
 		case AF_INET6:
-			inet_ntop(AF_INET6,
-				  (const void *)&((struct sockaddr_in6 *)(&sess->si[0].addr.c.from))->sin6_addr,
-				  pn, sizeof(pn));
-
-			chunk_printf(&msg,
-				     " source=%s:%d\n",
-				     pn,
-				     ntohs(((struct sockaddr_in6 *)&sess->si[0].addr.c.from)->sin6_port));
+			chunk_printf(&msg, " source=%s:%d\n",
+				     pn, get_host_port(&sess->si[0].addr.c.from));
 			break;
 		case AF_UNIX:
-			chunk_printf(&msg,
-				     " source=unix:%d\n", sess->listener->luid);
+			chunk_printf(&msg, " source=unix:%d\n", sess->listener->luid);
 			break;
 		default:
 			/* no more information to print right now */
@@ -3236,35 +3214,18 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 				     curr_sess,
 				     curr_sess->listener->proto->name);
 
-			switch (curr_sess->listener->proto->sock_family) {
+
+			switch (addr_to_str(&curr_sess->si[0].addr.c.from, pn, sizeof(pn))) {
 			case AF_INET:
-				inet_ntop(AF_INET,
-					  (const void *)&((struct sockaddr_in *)&curr_sess->si[0].addr.c.from)->sin_addr,
-					  pn, sizeof(pn));
-
-				chunk_printf(&msg,
-					     " src=%s:%d fe=%s be=%s srv=%s",
-					     pn,
-					     ntohs(((struct sockaddr_in *)&curr_sess->si[0].addr.c.from)->sin_port),
-					     curr_sess->fe->id,
-					     curr_sess->be->id,
-					     target_srv(&curr_sess->target) ? target_srv(&curr_sess->target)->id : "<none>"
-					     );
-				break;
 			case AF_INET6:
-				inet_ntop(AF_INET6,
-					  (const void *)&((struct sockaddr_in6 *)(&curr_sess->si[0].addr.c.from))->sin6_addr,
-					  pn, sizeof(pn));
-
 				chunk_printf(&msg,
 					     " src=%s:%d fe=%s be=%s srv=%s",
 					     pn,
-					     ntohs(((struct sockaddr_in6 *)&curr_sess->si[0].addr.c.from)->sin6_port),
+					     get_host_port(&curr_sess->si[0].addr.c.from),
 					     curr_sess->fe->id,
 					     curr_sess->be->id,
 					     target_srv(&curr_sess->target) ? target_srv(&curr_sess->target)->id : "<none>"
 					     );
-
 				break;
 			case AF_UNIX:
 				chunk_printf(&msg,
@@ -3670,16 +3631,7 @@ static int stats_dump_errors_to_buffer(struct stream_interface *si)
 				     tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
 				     tm.tm_hour, tm.tm_min, tm.tm_sec, (int)(es->when.tv_usec/1000));
 
-
-			if (es->src.ss_family == AF_INET)
-				inet_ntop(AF_INET,
-					  (const void *)&((struct sockaddr_in *)&es->src)->sin_addr,
-					  pn, sizeof(pn));
-			else
-				inet_ntop(AF_INET6,
-					  (const void *)&((struct sockaddr_in6 *)(&es->src))->sin6_addr,
-					  pn, sizeof(pn));
-
+			addr_to_str(&es->src, pn, sizeof(pn));
 			switch (si->applet.ctx.errors.buf) {
 			case 0:
 				chunk_printf(&msg,

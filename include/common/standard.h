@@ -212,6 +212,14 @@ int url2ipv4(const char *addr, struct in_addr *dst);
  */
 int url2sa(const char *url, int ulen, struct sockaddr_storage *addr);
 
+/* Tries to convert a sockaddr_storage address to text form. Upon success, the
+ * address family is returned so that it's easy for the caller to adapt to the
+ * output format. Zero is returned if the address family is not supported. -1
+ * is returned upon error, with errno set. AF_INET, AF_INET6 and AF_UNIX are
+ * supported.
+ */
+int addr_to_str(struct sockaddr_storage *addr, char *str, int size);
+
 /* will try to encode the string <string> replacing all characters tagged in
  * <map> with the hexadecimal representation of their ASCII-code (2 digits)
  * prefixed by <escape>, and will store the result between <start> (included)
