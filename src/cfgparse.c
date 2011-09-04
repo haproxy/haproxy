@@ -855,7 +855,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 				continue;
 			}
 
-			Alert("parsing [%s:%d] : '%s' only supports the 'transparent', 'accept-proxy', 'defer-accept', 'name', 'id', 'mss' and 'interface' options.\n",
+			Alert("parsing [%s:%d] : '%s' only supports the 'prefix', 'mode', 'uid', 'gid', 'user' and 'group' options.\n",
 			      file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
@@ -1849,7 +1849,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				continue;
                         }
 
-			Alert("parsing [%s:%d] : '%s' only supports the 'transparent', 'accept-proxy', 'defer-accept', 'name', 'id', 'mss' and 'interface' options.\n",
+			Alert("parsing [%s:%d] : '%s' only supports the 'transparent', 'accept-proxy', 'defer-accept', 'name', 'id', 'mss', 'mode', 'uid', 'gid', 'user', 'group' and 'interface' options.\n",
 			      file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
