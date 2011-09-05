@@ -97,8 +97,11 @@ struct url_stat {
 			      FILT_COUNT_URL_TTOT|FILT_COUNT_URL_TAVG|FILT_COUNT_URL_TTOTO|FILT_COUNT_URL_TAVGO)
 
 #define FILT_HTTP_ONLY       0x200000
-#define FILT_TERM_CODE_NAME 0x400000
+#define FILT_TERM_CODE_NAME  0x400000
 #define FILT_INVERT_TERM_CODE_NAME 0x800000
+
+#define FILT_HTTP_STATUS           0x1000000
+#define FILT_INVERT_HTTP_STATUS    0x2000000
 
 unsigned int filter = 0;
 unsigned int filter_invert = 0;
@@ -123,7 +126,7 @@ void die(const char *msg)
 		"%s"
 		"Usage: halog [-q] [-c] [-v] {-gt|-pct|-st|-tc|-srv|-u|-uc|-ue|-ua|-ut|-uao|-uto}\n"
 		"       [-s <skip>] [-e|-E] [-H] [-rt|-RT <time>] [-ad <delay>] [-ac <count>]\n"
-		"       [-tcn|-TCN <termcode>] < log\n"
+		"       [-tcn|-TCN <termcode>] [ -hs|-HS [min][:[max]] ] < log\n"
 		"\n",
 		msg ? msg : ""
 		);
@@ -409,6 +412,7 @@ int main(int argc, char **argv)
 	int val, test;
 	int filter_acc_delay = 0, filter_acc_count = 0;
 	int filter_time_resp = 0;
+	int filt_http_status_low = 0, filt_http_status_high = 0;
 	int skip_fields = 1;
 
 	void (*line_filter)(const char *accept_field, const char *time_field, struct timer **tptr) = NULL;
@@ -480,6 +484,24 @@ int main(int argc, char **argv)
 			argc--; argv++;
 			filter |= FILT_TERM_CODE_NAME | FILT_INVERT_TERM_CODE_NAME;
 			filter_term_code_name = *argv;
+		}
+		else if (strcmp(argv[0], "-hs") == 0 || strcmp(argv[0], "-HS") == 0) {
+			char *sep, *str;
+
+			if (argc < 2) die("missing option for -hs/-HS ([min]:[max])");
+			filter |= FILT_HTTP_STATUS;
+			if (argv[0][1] == 'H')
+				filter |= FILT_INVERT_HTTP_STATUS;
+
+			argc--; argv++;
+			str = *argv;
+			sep = strchr(str, ':');  /* [min]:[max] */
+			if (!sep)
+				sep = str; /* make max point to min */
+			else
+				*sep++ = 0;
+			filt_http_status_low = *str ? atol(str) : 0;
+			filt_http_status_high = *sep ? atol(sep) : 65535;
 		}
 		else if (strcmp(argv[0], "-u") == 0)
 			filter |= FILT_COUNT_URL_ONLY;
@@ -613,8 +635,8 @@ int main(int argc, char **argv)
 			test &= (tps >= filter_time_resp) ^ !!(filter & FILT_INVERT_TIME_RESP);
 		}
 
-		if (filter & FILT_ERRORS_ONLY) {
-			/* only report erroneous status codes */
+		if (filter & (FILT_ERRORS_ONLY | FILT_HTTP_STATUS)) {
+			/* Check both error codes (-1, 5xx) and status code ranges */
 			if (time_field)
 				b = field_start(time_field, STATUS_FIELD - TIME_FIELD + 1);
 			else
@@ -625,12 +647,12 @@ int main(int argc, char **argv)
 				continue;
 			}
 
-			if (*b == '-') {
-				test &= !!(filter & FILT_INVERT_ERRORS);
-			} else {
-				val = strl2ui(b, 3);
-				test &= (val >= 500 && val <= 599) ^ !!(filter & FILT_INVERT_ERRORS);
-			}
+			val = str2ic(b);
+			if (filter & FILT_ERRORS_ONLY)
+				test &= (val < 0 || (val >= 500 && val <= 599)) ^ !!(filter & FILT_INVERT_ERRORS);
+
+			if (filter & FILT_HTTP_STATUS)
+				test &= (val >= filt_http_status_low && val <= filt_http_status_high) ^ !!(filter & FILT_INVERT_HTTP_STATUS);
 		}
 
 		if (filter & FILT_TERM_CODE_NAME) {
