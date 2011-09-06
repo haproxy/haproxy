@@ -1127,8 +1127,12 @@ void filter_count_url(const char *accept_field, const char *time_field, struct t
 	 * if there's nothing else.
 	 */
 	e = field_start(e, METH_FIELD - TIME_FIELD + 1); // avg 100 ns per line
-	while (*e != '"' && *e)
+	while (*e != '"' && *e) {
+		/* Note: some syslog servers escape quotes ! */
+		if (*e == '\\' && e[1] == '"')
+			break;
 		e = field_start(e, 2);
+	}
 
 	if (unlikely(!*e)) {
 		truncated_line(linenum, line);
