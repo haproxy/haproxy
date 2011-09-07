@@ -1038,7 +1038,6 @@ void run_poll_loop()
 static struct task *manage_global_listener_queue(struct task *t)
 {
 	int next = TICK_ETERNITY;
-	fprintf(stderr, "coucou!\n");
 	/* queue is empty, nothing to do */
 	if (LIST_ISEMPTY(&global_listener_queue))
 		goto out;
