@@ -1156,6 +1156,20 @@ int stream_sock_accept(int fd)
 		return 0;
 	}
 
+	if (global.cps_lim) {
+		int max = freq_ctr_remain(&global.conn_per_sec, global.cps_lim, 0);
+
+		if (unlikely(!max)) {
+			/* frontend accept rate limit was reached */
+			limit_listener(l, &global_listener_queue);
+			task_schedule(global_listener_queue_task, tick_add(now_ms, next_event_delay(&global.conn_per_sec, global.cps_lim, 0)));
+			return 0;
+		}
+
+		if (max_accept > max)
+			max_accept = max;
+	}
+
 	if (p && p->fe_sps_lim) {
 		int max = freq_ctr_remain(&p->fe_sess_per_sec, p->fe_sps_lim, 0);
 
@@ -1236,6 +1250,11 @@ int stream_sock_accept(int fd)
 			task_schedule(global_listener_queue_task, tick_add(now_ms, 1000)); /* try again in 1 second */
 			return 0;
 		}
+
+		/* increase the per-process number of cumulated connections */
+		update_freq_ctr(&global.conn_per_sec, 1);
+		if (global.conn_per_sec.curr_ctr > global.cps_max)
+			global.cps_max = global.conn_per_sec.curr_ctr;
 
 		jobs++;
 		actconn++;

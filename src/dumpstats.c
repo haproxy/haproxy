@@ -808,6 +808,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 					}
 			}
 
+			global.cps_max = 0;
 			return 1;
 		}
 		else if (strcmp(args[1], "table") == 0) {

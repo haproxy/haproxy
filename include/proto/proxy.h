@@ -25,6 +25,7 @@
 #include <common/config.h>
 #include <common/ticks.h>
 #include <common/time.h>
+#include <types/global.h>
 #include <types/proxy.h>
 #include <proto/freq_ctr.h>
 

@@ -448,6 +448,7 @@ The following keywords are supported in the "global" section :
 
  * Performance tuning
    - maxconn
+   - maxconnrate
    - maxpipes
    - noepoll
    - nokqueue
@@ -648,6 +649,16 @@ maxconn <number>
   is equivalent to the command-line argument "-n". Proxies will stop accepting
   connections when this limit is reached. The "ulimit-n" parameter is
   automatically adjusted according to this value. See also "ulimit-n".
+
+maxconnrate <number>
+  Sets the maximum per-process number of connections per second to <number>.
+  Proxies will stop accepting connections when this limit is reached. It can be
+  used to limit the global capacity regardless of each frontend capacity. It is
+  important to note that this can only be used as a service protection measure,
+  as there will not necessarily be a fair share between frontends when the
+  limit is reached, so it's a good idea to also limit each frontend to some
+  value close to its expected share. Also, lowering tune.maxaccept can improve
+  fairness.
 
 maxpipes <number>
   Sets the maximum per-process number of pipes to <number>. Currently, pipes
