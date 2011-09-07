@@ -9561,6 +9561,14 @@ set maxconn frontend <frontend> <value>
   delayed until the threshold is reached. The frontend might be specified by
   either its name or its numeric ID prefixed with a sharp ('#').
 
+set maxconn global <maxconn>
+  Dynamically change the global maxconn setting within the range defined by the
+  initial global maxconn setting. If it is increased and connections were
+  pending, they will immediately be accepted. If it is lowered to a value below
+  the current number of connections, new connections acceptation will be
+  delayed until the threshold is reached. A value of zero restores the initial
+  setting.
+
 set timeout cli <delay>
   Change the CLI interface timeout for current connection. This can be useful
   during long debugging sessions where the user needs to constantly inspect
