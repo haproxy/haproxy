@@ -9830,6 +9830,14 @@ shutdown frontend <frontend>
   This command is restricted and can only be issued on sockets configured for
   level "admin".
 
+shutdown session <id>
+  Immediately terminate the session matching the specified session identifier.
+  This identifier is the first field at the beginning of the lines in the dumps
+  of "show sess" (it corresponds to the session pointer). This can be used to
+  terminate a long-running session without waiting for a timeout or when an
+  endless transfer is ongoing. Such terminated sessions are reported with a 'K'
+  flag in the logs.
+
 /*
  * Local variables:
  *  fill-column: 79

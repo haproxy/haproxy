@@ -82,11 +82,11 @@ static const char stats_sock_usage_msg[] =
 	"  get weight     : report a server's current weight\n"
 	"  set weight     : change a server's weight\n"
 	"  set timeout    : change a timeout setting\n"
-	"  disable        : put a server or frontend in maintenance mode\n"
-	"  enable         : re-enable a server or frontend which is in maintenance mode\n"
-	"  shutdown       : irreversibly stop a frontend (eg: to release listening ports)\n"
 	"  set maxconn    : change a maxconn setting\n"
 	"  set rate-limit : change a rate limiting value\n"
+	"  disable        : put a server or frontend in maintenance mode\n"
+	"  enable         : re-enable a server or frontend which is in maintenance mode\n"
+	"  shutdown       : kill a session or a frontend (eg:to release listening ports)\n"
 	"";
 
 static const char stats_permission_denied_msg[] =
@@ -1311,8 +1311,41 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			stop_proxy(px);
 			return 1;
 		}
+		else if (strcmp(args[1], "session") == 0) {
+			struct session *sess, *ptr;
+
+			if (s->listener->perm.ux.level < ACCESS_LVL_ADMIN) {
+				si->applet.ctx.cli.msg = stats_permission_denied_msg;
+				si->applet.st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			if (!*args[2]) {
+				si->applet.ctx.cli.msg = "Session pointer expected (use 'show sess').\n";
+				si->applet.st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			ptr = (void *)strtoul(args[2], NULL, 0);
+
+			/* first, look for the requested session in the session table */
+			list_for_each_entry(sess, &sessions, list) {
+				if (sess == ptr)
+					break;
+			}
+
+			/* do we have the session ? */
+			if (sess != ptr) {
+				si->applet.ctx.cli.msg = "No such session (use 'show sess').\n";
+				si->applet.st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			session_shutdown(sess, SN_ERR_KILLED);
+			return 1;
+		}
 		else { /* unknown "disable" parameter */
-			si->applet.ctx.cli.msg = "'shutdown' only supports 'frontend'.\n";
+			si->applet.ctx.cli.msg = "'shutdown' only supports 'frontend' and 'session'.\n";
 			si->applet.st0 = STAT_CLI_PRINT;
 			return 1;
 		}
