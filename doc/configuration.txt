@@ -9513,6 +9513,22 @@ clear table <table> [ data.<type> <operator> <value> ] | [ key <key> ]
         $ echo "show table http_proxy" | socat stdio /tmp/sock1
     >>> # table: http_proxy, type: ip, size:204800, used:1
 
+disable frontend <frontend>
+  Mark the frontend as temporarily stopped. This corresponds to the mode which
+  is used during a soft restart : the frontend releases the port but can be
+  enabled again if needed. This should be used with care as some non-Linux OSes
+  are unable to enable it back. This is intended to be used in environments
+  where stopping a proxy is not even imaginable but a misconfigured proxy must
+  be fixed. That way it's possible to release the port and bind it into another
+  process to restore operations. The frontend will appear with status "STOP"
+  on the stats page.
+
+  The frontend may be specified either by its name or by its numeric ID,
+  prefixed with a sharp ('#').
+
+  This command is restricted and can only be issued on sockets configured for
+  level "admin".
+
 disable server <backend>/<server>
   Mark the server DOWN for maintenance. In this mode, no more checks will be
   performed on the server until it leaves maintenance.
@@ -9524,6 +9540,19 @@ disable server <backend>/<server>
 
   Both the backend and the server may be specified either by their name or by
   their numeric ID, prefixed with a sharp ('#').
+
+  This command is restricted and can only be issued on sockets configured for
+  level "admin".
+
+enable frontend <frontend>
+  Resume a frontend which was temporarily stopped. It is possible that some of
+  the listening ports won't be able to bind anymore (eg: if another process
+  took them since the 'disable frontend' operation). If this happens, an error
+  is displayed. Some operating systems might not be able to resume a frontend
+  which was disabled.
+
+  The frontend may be specified either by its name or by its numeric ID,
+  prefixed with a sharp ('#').
 
   This command is restricted and can only be issued on sockets configured for
   level "admin".
@@ -9783,6 +9812,21 @@ show table <name> [ data.<type> <operator> <value> ] | [ key <key> ]
           | socat stdio /tmp/sock1 \
           | fgrep 'key=' | cut -d' ' -f2 | cut -d= -f2 > abusers-ip.txt
           ( or | awk '/key/{ print a[split($2,a,"=")]; }' )
+
+shutdown frontend <frontend>
+  Completely delete the specified frontend. All the ports it was bound to will
+  be released. It will not be possible to enable the frontend anymore after
+  this operation. This is intended to be used in environments where stopping a
+  proxy is not even imaginable but a misconfigured proxy must be fixed. That
+  way it's possible to release the port and bind it into another process to
+  restore operations. The frontend will not appear at all on the stats page
+  once it is terminated.
+
+  The frontend may be specified either by its name or by its numeric ID,
+  prefixed with a sharp ('#').
+
+  This command is restricted and can only be issued on sockets configured for
+  level "admin".
 
 /*
  * Local variables:

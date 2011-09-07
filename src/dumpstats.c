@@ -82,8 +82,9 @@ static const char stats_sock_usage_msg[] =
 	"  get weight     : report a server's current weight\n"
 	"  set weight     : change a server's weight\n"
 	"  set timeout    : change a timeout setting\n"
-	"  disable server : set a server in maintenance mode\n"
-	"  enable server  : re-enable a server that was previously in maintenance mode\n"
+	"  disable        : put a server or frontend in maintenance mode\n"
+	"  enable         : re-enable a server or frontend which is in maintenance mode\n"
+	"  shutdown       : irreversibly stop a frontend (eg: to release listening ports)\n"
 	"  set maxconn    : change a maxconn setting\n"
 	"  set rate-limit : change a rate limiting value\n"
 	"";
@@ -662,6 +663,35 @@ err_args:
 	si->applet.st0 = STAT_CLI_PRINT;
 }
 
+/* Expects to find a frontend named <arg> and returns it, otherwise displays various
+ * adequate error messages and returns NULL. This function also expects the session
+ * level to be admin.
+ */
+static struct proxy *expect_frontend_admin(struct session *s, struct stream_interface *si, const char *arg)
+{
+	struct proxy *px;
+
+	if (s->listener->perm.ux.level < ACCESS_LVL_ADMIN) {
+		si->applet.ctx.cli.msg = stats_permission_denied_msg;
+		si->applet.st0 = STAT_CLI_PRINT;
+		return NULL;
+	}
+
+	if (!*arg) {
+		si->applet.ctx.cli.msg = "A frontend name is expected.\n";
+		si->applet.st0 = STAT_CLI_PRINT;
+		return NULL;
+	}
+
+	px = findproxy(arg, PR_CAP_FE);
+	if (!px) {
+		si->applet.ctx.cli.msg = "No such frontend.\n";
+		si->applet.st0 = STAT_CLI_PRINT;
+		return NULL;
+	}
+	return px;
+}
+
 /* Processes the stats interpreter on the statistics socket. This function is
  * called from an applet running in a stream interface. The function returns 1
  * if the request was understood, otherwise zero. It sets si->applet.st0 to a value
@@ -974,24 +1004,9 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				struct listener *l;
 				int v;
 
-				if (s->listener->perm.ux.level < ACCESS_LVL_ADMIN) {
-					si->applet.ctx.cli.msg = stats_permission_denied_msg;
-					si->applet.st0 = STAT_CLI_PRINT;
+				px = expect_frontend_admin(s, si, args[3]);
+				if (!px)
 					return 1;
-				}
-
-				if (!*args[3]) {
-					si->applet.ctx.cli.msg = "Frontend name expected.\n";
-					si->applet.st0 = STAT_CLI_PRINT;
-					return 1;
-				}
-
-				px = findproxy(args[3], PR_CAP_FE);
-				if (!px) {
-					si->applet.ctx.cli.msg = "No such frontend.\n";
-					si->applet.st0 = STAT_CLI_PRINT;
-					return 1;
-				}
 
 				if (!*args[4]) {
 					si->applet.ctx.cli.msg = "Integer value expected.\n";
@@ -1167,8 +1182,36 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 
 			return 1;
 		}
+		else if (strcmp(args[1], "frontend") == 0) {
+			struct proxy *px;
+
+			px = expect_frontend_admin(s, si, args[2]);
+			if (!px)
+				return 1;
+
+			if (px->state == PR_STSTOPPED) {
+				si->applet.ctx.cli.msg = "Frontend was previously shut down, cannot enable.\n";
+				si->applet.st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			if (px->state != PR_STPAUSED) {
+				si->applet.ctx.cli.msg = "Frontend is already enabled.\n";
+				si->applet.st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			if (!resume_proxy(px)) {
+				si->applet.ctx.cli.msg = "Failed to resume frontend, check logs for precise cause (port conflict?).\n";
+				si->applet.st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+			return 1;
+		}
 		else { /* unknown "enable" parameter */
-			return 0;
+			si->applet.ctx.cli.msg = "'enable' only supports 'frontend' and 'server'.\n";
+			si->applet.st0 = STAT_CLI_PRINT;
+			return 1;
 		}
 	}
 	else if (strcmp(args[0], "disable") == 0) {
@@ -1215,8 +1258,63 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 
 			return 1;
 		}
+		else if (strcmp(args[1], "frontend") == 0) {
+			struct proxy *px;
+
+			px = expect_frontend_admin(s, si, args[2]);
+			if (!px)
+				return 1;
+
+			if (px->state == PR_STSTOPPED) {
+				si->applet.ctx.cli.msg = "Frontend was previously shut down, cannot disable.\n";
+				si->applet.st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			if (px->state == PR_STPAUSED) {
+				si->applet.ctx.cli.msg = "Frontend is already disabled.\n";
+				si->applet.st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			if (!pause_proxy(px)) {
+				si->applet.ctx.cli.msg = "Failed to pause frontend, check logs for precise cause.\n";
+				si->applet.st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+			return 1;
+		}
 		else { /* unknown "disable" parameter */
-			return 0;
+			si->applet.ctx.cli.msg = "'disable' only supports 'frontend' and 'server'.\n";
+			si->applet.st0 = STAT_CLI_PRINT;
+			return 1;
+		}
+	}
+	else if (strcmp(args[0], "shutdown") == 0) {
+		if (strcmp(args[1], "frontend") == 0) {
+			struct proxy *px;
+
+			px = expect_frontend_admin(s, si, args[2]);
+			if (!px)
+				return 1;
+
+			if (px->state == PR_STSTOPPED) {
+				si->applet.ctx.cli.msg = "Frontend was already shut down.\n";
+				si->applet.st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			Warning("Proxy %s stopped (FE: %lld conns, BE: %lld conns).\n",
+				px->id, px->fe_counters.cum_conn, px->be_counters.cum_conn);
+			send_log(px, LOG_WARNING, "Proxy %s stopped (FE: %lld conns, BE: %lld conns).\n",
+				 px->id, px->fe_counters.cum_conn, px->be_counters.cum_conn);
+			stop_proxy(px);
+			return 1;
+		}
+		else { /* unknown "disable" parameter */
+			si->applet.ctx.cli.msg = "'shutdown' only supports 'frontend'.\n";
+			si->applet.st0 = STAT_CLI_PRINT;
+			return 1;
 		}
 	}
 	else { /* not "show" nor "clear" nor "get" nor "set" nor "enable" nor "disable" */
