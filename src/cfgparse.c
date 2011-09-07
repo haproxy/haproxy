@@ -5870,8 +5870,8 @@ int check_config_validity()
 				cfgerr++;
 			}
 			else if (!curpeers->peers_fe) {
-				Alert("Proxy '%s': unable to identify local peer in peers section '%s'.\n",
-				      curproxy->id, curpeers->id);
+				Alert("Proxy '%s': unable to find local peer '%s' in peers section '%s'.\n",
+				      curproxy->id, localpeer, curpeers->id);
 				cfgerr++;
 			}
 		}
@@ -6551,6 +6551,43 @@ out_uri_auth_compat:
 		for (optnum = 0; cfg_opts2[optnum].name; optnum++)
 			if (curproxy->options2 & cfg_opts2[optnum].val)
 				global.last_checks |= cfg_opts2[optnum].checks;
+	}
+
+	if (peers) {
+		struct peers *curpeers = peers, **last;
+		struct peer *p, *pb;
+
+		/* Remove all peers sections which don't have a valid listener.
+		 * This can happen when a peers section is never referenced and
+		 * does not contain a local peer.
+		 */
+		last = &peers;
+		while (*last) {
+			curpeers = *last;
+			if (curpeers->peers_fe) {
+				last = &curpeers->next;
+				continue;
+			}
+
+			Warning("Removing incomplete section 'peers %s' (no peer named '%s').\n",
+				curpeers->id, localpeer);
+
+			p = curpeers->remote;
+			while (p) {
+				pb = p->next;
+				free(p->id);
+				free(p);
+				p = pb;
+			}
+
+			/* Destroy and unlink this curpeers section.
+			 * Note: curpeers is backed up into *last.
+			 */
+			free(curpeers->id);
+			curpeers = curpeers->next;
+			free(*last);
+			*last = curpeers;
+		}
 	}
 
 	if (cfgerr > 0)
