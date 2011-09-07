@@ -8872,6 +8872,8 @@ each of which has a special meaning :
         D : the session was killed by haproxy because the server was detected
             as down and was configured to kill all connections when going down.
 
+        K : the session was actively killed by an admin operating on haproxy.
+
         c : the client-side timeout expired while waiting for the client to
             send or receive data.
 

@@ -56,7 +56,7 @@
 #define SN_REDIRECTABLE	0x00000400	/* set if this session is redirectable (GET or HEAD) */
 #define SN_TUNNEL	0x00000800	/* tunnel-mode session, nothing to catch after data */
 
-/* session termination conditions, bits values 0x1000 to 0x7000 (0-7 shift 12) */
+/* session termination conditions, bits values 0x1000 to 0x7000 (0-9 shift 12) */
 #define SN_ERR_NONE     0x00000000
 #define SN_ERR_CLITO	0x00001000	/* client time-out */
 #define SN_ERR_CLICL	0x00002000	/* client closed (read/write error) */
@@ -66,6 +66,7 @@
 #define SN_ERR_RESOURCE	0x00006000	/* the proxy encountered a lack of a local resources (fd, mem, ...) */
 #define SN_ERR_INTERNAL	0x00007000	/* the proxy encountered an internal error */
 #define SN_ERR_DOWN	0x00008000	/* the proxy killed a session because the backend became unavailable */
+#define SN_ERR_KILLED	0x00009000	/* the proxy killed a session because it was asked to do so */
 #define SN_ERR_MASK	0x0000f000	/* mask to get only session error flags */
 #define SN_ERR_SHIFT	12		/* bit shift */
 

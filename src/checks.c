@@ -364,18 +364,9 @@ static void shutdown_sessions(struct server *srv)
 {
 	struct session *session, *session_bck;
 
-	list_for_each_entry_safe(session, session_bck,
-				 &srv->actconns, by_srv) {
-		if (session->srv_conn == srv &&
-		    !(session->req->flags & (BF_SHUTW|BF_SHUTW_NOW))) {
-				buffer_shutw_now(session->req);
-				buffer_shutr_now(session->rep);
-				session->task->nice = 1024;
-				if (!(session->flags & SN_ERR_MASK))
-					session->flags |= SN_ERR_DOWN;
-				task_wakeup(session->task, TASK_WOKEN_OTHER);
-		}
-	}
+	list_for_each_entry_safe(session, session_bck, &srv->actconns, by_srv)
+		if (session->srv_conn == srv)
+			session_shutdown(session, SN_ERR_DOWN);
 }
 
 /* Sets server <s> down, notifies by all available means, recounts the

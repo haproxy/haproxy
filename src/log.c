@@ -52,7 +52,7 @@ const char *monthname[12] = {
 	"Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
 };
 
-const char sess_term_cond[9]  = "-cCsSPRID";	/* normal, CliTo, CliErr, SrvTo, SrvErr, PxErr, Resource, Internal, Down */
+const char sess_term_cond[10] = "-cCsSPRIDK";	/* normal, CliTo, CliErr, SrvTo, SrvErr, PxErr, Resource, Internal, Down, Killed */
 const char sess_fin_state[8]  = "-RCHDLQT";	/* cliRequest, srvConnect, srvHeader, Data, Last, Queue, Tarpit */
 
 /*

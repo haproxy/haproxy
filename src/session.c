@@ -2214,6 +2214,19 @@ void default_srv_error(struct session *s, struct stream_interface *si)
 		s->flags |= fin;
 }
 
+/* kill a session and set the termination flags to <why> (one of SN_ERR_*) */
+void session_shutdown(struct session *session, int why)
+{
+	if (session->req->flags & (BF_SHUTW|BF_SHUTW_NOW))
+		return;
+
+	buffer_shutw_now(session->req);
+	buffer_shutr_now(session->rep);
+	session->task->nice = 1024;
+	if (!(session->flags & SN_ERR_MASK))
+		session->flags |= why;
+	task_wakeup(session->task, TASK_WOKEN_OTHER);
+}
 
 /************************************************************************/
 /*           All supported ACL keywords must be declared here.          */

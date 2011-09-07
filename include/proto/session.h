@@ -36,6 +36,8 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr);
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_session();
 
+/* kill a session and set the termination flags to <why> (one of SN_ERR_*) */
+void session_shutdown(struct session *session, int why);
 
 void session_process_counters(struct session *s);
 void sess_change_server(struct session *sess, struct server *newsrv);
