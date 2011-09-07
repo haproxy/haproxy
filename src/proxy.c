@@ -616,17 +616,33 @@ void soft_stop(void)
 /* Temporarily disables listening on all of the proxy's listeners. Upon
  * success, the proxy enters the PR_PAUSED state. If disabling at least one
  * listener returns an error, then the proxy state is set to PR_STERROR
- * because we don't know how to resume from this.
+ * because we don't know how to resume from this. The function returns 0
+ * if it fails, or non-zero on success.
  */
-void pause_proxy(struct proxy *p)
+int pause_proxy(struct proxy *p)
 {
 	struct listener *l;
+
+	if (!(p->cap & PR_CAP_FE) || p->state == PR_STERROR ||
+	    p->state == PR_STSTOPPED || p->state == PR_STPAUSED)
+		return 1;
+
+	Warning("Pausing %s %s.\n", proxy_cap_str(p->cap), p->id);
+	send_log(p, LOG_WARNING, "Pausing %s %s.\n", proxy_cap_str(p->cap), p->id);
+
 	for (l = p->listen; l != NULL; l = l->next) {
 		if (!pause_listener(l))
 			p->state = PR_STERROR;
 	}
-	if (p->state != PR_STERROR)
-		p->state = PR_STPAUSED;
+
+	if (p->state == PR_STERROR) {
+		Warning("%s %s failed to enter pause mode.\n", proxy_cap_str(p->cap), p->id);
+		send_log(p, LOG_WARNING, "%s %s failed to enter pause mode.\n", proxy_cap_str(p->cap), p->id);
+		return 0;
+	}
+
+	p->state = PR_STPAUSED;
+	return 1;
 }
 
 
@@ -668,39 +684,15 @@ void pause_proxies(void)
 	p = proxy;
 	tv_update_date(0,1); /* else, the old time before select will be used */
 	while (p) {
-		if (p->cap & PR_CAP_FE &&
-		    p->state != PR_STERROR &&
-		    p->state != PR_STSTOPPED &&
-		    p->state != PR_STPAUSED) {
-			Warning("Pausing %s %s.\n", proxy_cap_str(p->cap), p->id);
-			send_log(p, LOG_WARNING, "Pausing %s %s.\n", proxy_cap_str(p->cap), p->id);
-			pause_proxy(p);
-			if (p->state != PR_STPAUSED) {
-				err |= 1;
-				Warning("%s %s failed to enter pause mode.\n", proxy_cap_str(p->cap), p->id);
-				send_log(p, LOG_WARNING, "%s %s failed to enter pause mode.\n", proxy_cap_str(p->cap), p->id);
-			}
-		}
+		err |= !pause_proxy(p);
 		p = p->next;
 	}
 
 	prs = peers;
 	while (prs) {
 		p = prs->peers_fe;
-		if (p && (p->cap & PR_CAP_FE &&
-                    p->state != PR_STERROR &&
-                    p->state != PR_STSTOPPED &&
-                    p->state != PR_STPAUSED)) {
-                        Warning("Pausing %s %s.\n", proxy_cap_str(p->cap), p->id);
-                        send_log(p, LOG_WARNING, "Pausing %s %s.\n", proxy_cap_str(p->cap), p->id);
-                        pause_proxy(p);
-                        if (p->state != PR_STPAUSED) {
-                                err |= 1;
-                                Warning("%s %s failed to enter pause mode.\n", proxy_cap_str(p->cap), p->id);
-                                send_log(p, LOG_WARNING, "%s %s failed to enter pause mode.\n", proxy_cap_str(p->cap), p->id);
-                        }
-                }
-                prs = prs->next;
+		err |= !pause_proxy(p);
+		prs = prs->next;
         }
 
 	if (err) {

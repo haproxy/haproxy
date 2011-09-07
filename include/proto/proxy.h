@@ -32,7 +32,7 @@
 int start_proxies(int verbose);
 struct task *manage_proxy(struct task *t);
 void soft_stop(void);
-void pause_proxy(struct proxy *p);
+int pause_proxy(struct proxy *p);
 void stop_proxy(struct proxy *p);
 void pause_proxies(void);
 void resume_proxies(void);
