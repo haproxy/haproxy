@@ -9580,6 +9580,12 @@ set maxconn global <maxconn>
   delayed until the threshold is reached. A value of zero restores the initial
   setting.
 
+set rate-limit connections global <value>
+  Change the process-wide connection rate limit, which is set by the global
+  'maxconnrate' setting. A value of zero disables the limitation. This limit
+  applies to all frontends and the change has an immediate effect. The value
+  is passed in number of connections per second.
+
 set timeout cli <delay>
   Change the CLI interface timeout for current connection. This can be useful
   during long debugging sessions where the user needs to constantly inspect

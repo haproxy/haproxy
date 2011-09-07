@@ -85,6 +85,7 @@ static const char stats_sock_usage_msg[] =
 	"  disable server : set a server in maintenance mode\n"
 	"  enable server  : re-enable a server that was previously in maintenance mode\n"
 	"  set maxconn    : change a maxconn setting\n"
+	"  set rate-limit : change a rate limiting value\n"
 	"";
 
 static const char stats_permission_denied_msg[] =
@@ -1057,6 +1058,50 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			}
 			else {
 				si->applet.ctx.cli.msg = "'set maxconn' only supports 'frontend' and 'global'.\n";
+				si->applet.st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+		}
+		else if (strcmp(args[1], "rate-limit") == 0) {
+			if (strcmp(args[2], "connections") == 0) {
+				if (strcmp(args[3], "global") == 0) {
+					int v;
+
+					if (s->listener->perm.ux.level < ACCESS_LVL_ADMIN) {
+						si->applet.ctx.cli.msg = stats_permission_denied_msg;
+						si->applet.st0 = STAT_CLI_PRINT;
+						return 1;
+					}
+
+					if (!*args[4]) {
+						si->applet.ctx.cli.msg = "Expects an integer value.\n";
+						si->applet.st0 = STAT_CLI_PRINT;
+						return 1;
+					}
+
+					v = atoi(args[4]);
+					if (v < 0) {
+						si->applet.ctx.cli.msg = "Value out of range.\n";
+						si->applet.st0 = STAT_CLI_PRINT;
+						return 1;
+					}
+
+					global.cps_lim = v;
+
+					/* Dequeues all of the listeners waiting for a resource */
+					if (!LIST_ISEMPTY(&global_listener_queue))
+						dequeue_all_listeners(&global_listener_queue);
+
+					return 1;
+				}
+				else {
+					si->applet.ctx.cli.msg = "'set rate-limit connections' only supports 'global'.\n";
+					si->applet.st0 = STAT_CLI_PRINT;
+					return 1;
+				}
+			}
+			else {
+				si->applet.ctx.cli.msg = "'set rate-limit' only supports 'connections'.\n";
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
 			}
