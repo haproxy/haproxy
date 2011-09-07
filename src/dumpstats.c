@@ -160,6 +160,9 @@ static struct proxy *alloc_stats_fe(const char *name)
 	fe->last_change = now.tv_sec;
 	fe->id = strdup("GLOBAL");
 	fe->cap = PR_CAP_FE;
+	fe->maxconn = 10;                 /* default to 10 concurrent connections */
+	fe->timeout.client = MS_TO_TICKS(10000); /* default timeout of 10 seconds */
+
 	return fe;
 }
 
@@ -199,7 +202,6 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 				snprintf(err, errlen, "out of memory");
 				return -1;
 			}
-			global.stats_fe->timeout.client = MS_TO_TICKS(10000); /* default timeout of 10 seconds */
 		}
 
 		global.stats_sock.state = LI_INIT;
@@ -211,7 +213,7 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 		global.stats_sock.nice = -64;  /* we want to boost priority for local stats */
 		global.stats_sock.frontend = global.stats_fe;
 		global.stats_sock.perm.ux.level = ACCESS_LVL_OPER; /* default access level */
-		global.stats_fe->maxconn = global.stats_sock.maxconn;
+		global.stats_sock.maxconn = global.stats_fe->maxconn;
 		global.stats_sock.timeout = &global.stats_fe->timeout.client;
 
 		global.stats_sock.next  = global.stats_fe->listen;
@@ -303,11 +305,14 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 			snprintf(err, errlen, "a positive value is expected for 'stats maxconn' in 'global section'");
 			return -1;
 		}
-		global.maxsock -= global.stats_sock.maxconn;
-		global.stats_sock.maxconn = maxconn;
-		global.maxsock += global.stats_sock.maxconn;
-		if (global.stats_fe)
-			global.stats_fe->maxconn = global.stats_sock.maxconn;
+
+		if (!global.stats_fe) {
+			if ((global.stats_fe = alloc_stats_fe("GLOBAL")) == NULL) {
+				snprintf(err, errlen, "out of memory");
+				return -1;
+			}
+		}
+		global.stats_fe->maxconn = maxconn;
 	}
 	else {
 		snprintf(err, errlen, "'stats' only supports 'socket', 'maxconn' and 'timeout' in 'global' section");

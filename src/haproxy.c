@@ -106,7 +106,6 @@ struct global global = {
 	loglev1 : 7, /* max syslog level : debug */
 	loglev2 : 7,
 	.stats_sock = {
-		.maxconn = 10, /* 10 concurrent stats connections */
 		.perm = {
 			 .ux = {
 				 .uid = -1,
