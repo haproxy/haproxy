@@ -1156,7 +1156,7 @@ int stream_sock_accept(int fd)
 		return 0;
 	}
 
-	if (global.cps_lim) {
+	if (global.cps_lim && !(l->options & LI_O_UNLIMITED)) {
 		int max = freq_ctr_remain(&global.conn_per_sec, global.cps_lim, 0);
 
 		if (unlikely(!max)) {
@@ -1193,7 +1193,7 @@ int stream_sock_accept(int fd)
 		struct sockaddr_storage addr;
 		socklen_t laddr = sizeof(addr);
 
-		if (unlikely(actconn >= global.maxconn)) {
+		if (unlikely(actconn >= global.maxconn) && !(l->options & LI_O_UNLIMITED)) {
 			limit_listener(l, &global_listener_queue);
 			task_schedule(global_listener_queue_task, tick_add(now_ms, 1000)); /* try again in 1 second */
 			return 0;
@@ -1252,12 +1252,14 @@ int stream_sock_accept(int fd)
 		}
 
 		/* increase the per-process number of cumulated connections */
-		update_freq_ctr(&global.conn_per_sec, 1);
-		if (global.conn_per_sec.curr_ctr > global.cps_max)
-			global.cps_max = global.conn_per_sec.curr_ctr;
+		if (!(l->options & LI_O_UNLIMITED)) {
+			update_freq_ctr(&global.conn_per_sec, 1);
+			if (global.conn_per_sec.curr_ctr > global.cps_max)
+				global.cps_max = global.conn_per_sec.curr_ctr;
+			actconn++;
+		}
 
 		jobs++;
-		actconn++;
 		totalconn++;
 		l->nbconn++;
 
@@ -1273,8 +1275,9 @@ int stream_sock_accept(int fd)
 			 * error due to a resource shortage, and we must stop the
 			 * listener (ret < 0).
 			 */
+			if (!(l->options & LI_O_UNLIMITED))
+				actconn--;
 			jobs--;
-			actconn--;
 			l->nbconn--;
 			if (ret == 0) /* successful termination */
 				continue;

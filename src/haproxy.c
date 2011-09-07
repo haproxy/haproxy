@@ -68,6 +68,7 @@
 #include <types/global.h>
 #include <types/proto_tcp.h>
 #include <types/acl.h>
+#include <types/peers.h>
 
 #include <proto/auth.h>
 #include <proto/acl.h>
@@ -602,6 +603,18 @@ void init(int argc, char **argv)
 	global.hardmaxconn = global.maxconn;  /* keep this max value */
 	global.maxsock += global.maxconn * 2; /* each connection needs two sockets */
 	global.maxsock += global.maxpipes * 2; /* each pipe needs two FDs */
+
+	if (global.stats_fe)
+		global.maxsock += global.stats_fe->maxconn;
+
+	if (peers) {
+		/* peers also need to bypass global maxconn */
+		struct peers *p = peers;
+
+		for (p = peers; p; p = p->next)
+			if (p->peers_fe)
+				global.maxsock += p->peers_fe->maxconn;
+	}
 
 	if (global.tune.maxpollevents <= 0)
 		global.tune.maxpollevents = MAX_POLL_EVENTS;

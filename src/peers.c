@@ -1271,7 +1271,8 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	l->nbconn++; /* warning! right now, it's up to the handler to decrease this */
 	p->feconn++;/* beconn will be increased later */
 	jobs++;
-	actconn++;
+	if (!(s->listener->options & LI_O_UNLIMITED))
+		actconn++;
 	totalconn++;
 
 	return s;

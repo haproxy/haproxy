@@ -84,6 +84,11 @@ enum {
 #define LI_O_TCP_RULES  0x0010  /* run TCP rules checks on the incoming connection */
 #define LI_O_CHK_MONNET 0x0020  /* check the source against a monitor-net rule */
 #define LI_O_ACC_PROXY  0x0040  /* find the proxied address in the first request line */
+#define LI_O_UNLIMITED  0x0080  /* listener not subject to global limits (peers & stats socket) */
+
+/* Note: if a listener uses LI_O_UNLIMITED, it is highly recommended that it adds its own
+ * maxconn setting to the global.maxsock value so that its resources are reserved.
+ */
 
 /* The listener will be directly referenced by the fdtab[] which holds its
  * socket. The listener provides the protocol-specific accept() function to

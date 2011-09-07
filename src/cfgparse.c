@@ -1278,6 +1278,8 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 				curpeers->peers_fe->listen->frontend =  ((struct proxy *)curpeers->peers_fe);
 				curpeers->peers_fe->listen->handler = process_session;
 				curpeers->peers_fe->listen->analysers |=  ((struct proxy *)curpeers->peers_fe)->fe_req_ana;
+				curpeers->peers_fe->listen->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */
+				global.maxsock += curpeers->peers_fe->listen->maxconn;
 			}
 		}
 	} /* neither "peer" nor "peers" */

@@ -206,7 +206,7 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 		}
 
 		global.stats_sock.state = LI_INIT;
-		global.stats_sock.options = LI_O_NONE;
+		global.stats_sock.options = LI_O_UNLIMITED;
 		global.stats_sock.accept = session_accept;
 		global.stats_fe->accept = stats_accept;
 		global.stats_sock.handler = process_session;

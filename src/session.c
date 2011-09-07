@@ -2086,7 +2086,8 @@ struct task *process_session(struct task *t)
 	s->fe->feconn--;
 	if (s->flags & SN_BE_ASSIGNED)
 		s->be->beconn--;
-	actconn--;
+	if (!(s->listener->options & LI_O_UNLIMITED))
+		actconn--;
 	jobs--;
 	s->listener->nbconn--;
 	if (s->listener->state == LI_FULL)
