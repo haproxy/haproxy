@@ -9838,6 +9838,12 @@ shutdown session <id>
   endless transfer is ongoing. Such terminated sessions are reported with a 'K'
   flag in the logs.
 
+shutdown sessions <backend>/<server>
+  Immediately terminate all the sessions attached to the specified server. This
+  can be used to terminate long-running sessions after a server is put into
+  maintenance mode, for instance. Such terminated sessions are reported with a
+  'K' flag in the logs.
+
 /*
  * Local variables:
  *  fill-column: 79

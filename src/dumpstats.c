@@ -1313,8 +1313,30 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			session_shutdown(sess, SN_ERR_KILLED);
 			return 1;
 		}
+		else if (strcmp(args[1], "sessions") == 0) {
+			if (strcmp(args[2], "server") == 0) {
+				struct server *sv;
+				struct session *sess, *sess_bck;
+
+				sv = expect_server_admin(s, si, args[3]);
+				if (!sv)
+					return 1;
+
+				/* kill all the session that are on this server */
+				list_for_each_entry_safe(sess, sess_bck, &sv->actconns, by_srv)
+					if (sess->srv_conn == sv)
+						session_shutdown(sess, SN_ERR_KILLED);
+
+				return 1;
+			}
+			else {
+				si->applet.ctx.cli.msg = "'shutdown sessions' only supports 'server'.\n";
+				si->applet.st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+		}
 		else { /* unknown "disable" parameter */
-			si->applet.ctx.cli.msg = "'shutdown' only supports 'frontend' and 'session'.\n";
+			si->applet.ctx.cli.msg = "'shutdown' only supports 'frontend', 'session' and 'sessions'.\n";
 			si->applet.st0 = STAT_CLI_PRINT;
 			return 1;
 		}
