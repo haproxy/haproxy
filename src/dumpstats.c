@@ -692,6 +692,51 @@ static struct proxy *expect_frontend_admin(struct session *s, struct stream_inte
 	return px;
 }
 
+/* Expects to find a backend and a server in <arg> under the form <backend>/<server>,
+ * and returns the pointer to the server. Otherwise, display adequate error messages
+ * and returns NULL. This function also expects the session level to be admin. Note:
+ * the <arg> is modified to remove the '/'.
+ */
+static struct server *expect_server_admin(struct session *s, struct stream_interface *si, char *arg)
+{
+	struct proxy *px;
+	struct server *sv;
+	char *line;
+
+	if (s->listener->perm.ux.level < ACCESS_LVL_ADMIN) {
+		si->applet.ctx.cli.msg = stats_permission_denied_msg;
+		si->applet.st0 = STAT_CLI_PRINT;
+		return NULL;
+	}
+
+	/* split "backend/server" and make <line> point to server */
+	for (line = arg; *line; line++)
+		if (*line == '/') {
+			*line++ = '\0';
+			break;
+		}
+
+	if (!*line || !*arg) {
+		si->applet.ctx.cli.msg = "Require 'backend/server'.\n";
+		si->applet.st0 = STAT_CLI_PRINT;
+		return NULL;
+	}
+
+	if (!get_backend_server(arg, line, &px, &sv)) {
+		si->applet.ctx.cli.msg = px ? "No such server.\n" : "No such backend.\n";
+		si->applet.st0 = STAT_CLI_PRINT;
+		return NULL;
+	}
+
+	if (px->state == PR_STSTOPPED) {
+		si->applet.ctx.cli.msg = "Proxy is disabled.\n";
+		si->applet.st0 = STAT_CLI_PRINT;
+		return NULL;
+	}
+
+	return sv;
+}
+
 /* Processes the stats interpreter on the statistics socket. This function is
  * called from an applet running in a stream interface. The function returns 1
  * if the request was understood, otherwise zero. It sets si->applet.st0 to a value
@@ -891,40 +936,20 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			struct server *sv;
 			int w;
 
-			if (s->listener->perm.ux.level < ACCESS_LVL_ADMIN) {
-				si->applet.ctx.cli.msg = stats_permission_denied_msg;
-				si->applet.st0 = STAT_CLI_PRINT;
+			sv = expect_server_admin(s, si, args[2]);
+			if (!sv)
 				return 1;
-			}
-
-			/* split "backend/server" and make <line> point to server */
-			for (line = args[2]; *line; line++)
-				if (*line == '/') {
-					*line++ = '\0';
-					break;
-				}
-
-			if (!*line || !*args[3]) {
-				si->applet.ctx.cli.msg = "Require 'backend/server' and 'weight' or 'weight%'.\n";
-				si->applet.st0 = STAT_CLI_PRINT;
-				return 1;
-			}
-
-			if (!get_backend_server(args[2], line, &px, &sv)) {
-				si->applet.ctx.cli.msg = px ? "No such server.\n" : "No such backend.\n";
-				si->applet.st0 = STAT_CLI_PRINT;
-				return 1;
-			}
-
-			if (px->state == PR_STSTOPPED) {
-				si->applet.ctx.cli.msg = "Proxy is disabled.\n";
-				si->applet.st0 = STAT_CLI_PRINT;
-				return 1;
-			}
+			px = sv->proxy;
 
 			/* if the weight is terminated with '%', it is set relative to
 			 * the initial weight, otherwise it is absolute.
 			 */
+			if (!*args[3]) {
+				si->applet.ctx.cli.msg = "Require <weight> or <weight%>.\n";
+				si->applet.st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
 			w = atoi(args[3]);
 			if (strchr(args[3], '%') != NULL) {
 				if (w < 0 || w > 100) {
@@ -1127,39 +1152,11 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 	}
 	else if (strcmp(args[0], "enable") == 0) {
 		if (strcmp(args[1], "server") == 0) {
-			struct proxy *px;
 			struct server *sv;
 
-			if (s->listener->perm.ux.level < ACCESS_LVL_ADMIN) {
-				si->applet.ctx.cli.msg = stats_permission_denied_msg;
-				si->applet.st0 = STAT_CLI_PRINT;
+			sv = expect_server_admin(s, si, args[2]);
+			if (!sv)
 				return 1;
-			}
-
-			/* split "backend/server" and make <line> point to server */
-			for (line = args[2]; *line; line++)
-				if (*line == '/') {
-					*line++ = '\0';
-					break;
-				}
-
-			if (!*line || !*args[2]) {
-				si->applet.ctx.cli.msg = "Require 'backend/server'.\n";
-				si->applet.st0 = STAT_CLI_PRINT;
-				return 1;
-			}
-
-			if (!get_backend_server(args[2], line, &px, &sv)) {
-				si->applet.ctx.cli.msg = px ? "No such server.\n" : "No such backend.\n";
-				si->applet.st0 = STAT_CLI_PRINT;
-				return 1;
-			}
-
-			if (px->state == PR_STSTOPPED) {
-				si->applet.ctx.cli.msg = "Proxy is disabled.\n";
-				si->applet.st0 = STAT_CLI_PRINT;
-				return 1;
-			}
 
 			if (sv->state & SRV_MAINTAIN) {
 				/* The server is really in maintenance, we can change the server state */
@@ -1216,39 +1213,11 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 	}
 	else if (strcmp(args[0], "disable") == 0) {
 		if (strcmp(args[1], "server") == 0) {
-			struct proxy *px;
 			struct server *sv;
 
-			if (s->listener->perm.ux.level < ACCESS_LVL_ADMIN) {
-				si->applet.ctx.cli.msg = stats_permission_denied_msg;
-				si->applet.st0 = STAT_CLI_PRINT;
+			sv = expect_server_admin(s, si, args[2]);
+			if (!sv)
 				return 1;
-			}
-
-			/* split "backend/server" and make <line> point to server */
-			for (line = args[2]; *line; line++)
-				if (*line == '/') {
-					*line++ = '\0';
-					break;
-				}
-
-			if (!*line || !*args[2]) {
-				si->applet.ctx.cli.msg = "Require 'backend/server'.\n";
-				si->applet.st0 = STAT_CLI_PRINT;
-				return 1;
-			}
-
-			if (!get_backend_server(args[2], line, &px, &sv)) {
-				si->applet.ctx.cli.msg = px ? "No such server.\n" : "No such backend.\n";
-				si->applet.st0 = STAT_CLI_PRINT;
-				return 1;
-			}
-
-			if (px->state == PR_STSTOPPED) {
-				si->applet.ctx.cli.msg = "Proxy is disabled.\n";
-				si->applet.st0 = STAT_CLI_PRINT;
-				return 1;
-			}
 
 			if (! (sv->state & SRV_MAINTAIN)) {
 				/* Not already in maintenance, we can change the server state */
