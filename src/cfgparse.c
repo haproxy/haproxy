@@ -1262,7 +1262,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 				curpeers->peers_fe->last_change = now.tv_sec;
 				curpeers->peers_fe->id = strdup(args[1]);
 				curpeers->peers_fe->cap = PR_CAP_FE;
-				curpeers->peers_fe->maxconn = 65000;
+				curpeers->peers_fe->maxconn = 0;
 				curpeers->peers_fe->conn_retries = CONN_RETRIES;
 				curpeers->peers_fe->timeout.connect = 5000;
 				curpeers->peers_fe->accept = peer_accept;
