@@ -599,6 +599,7 @@ void init(int argc, char **argv)
 	}
 
 
+	global.hardmaxconn = global.maxconn;  /* keep this max value */
 	global.maxsock += global.maxconn * 2; /* each connection needs two sockets */
 	global.maxsock += global.maxpipes * 2; /* each pipe needs two FDs */
 
@@ -1054,8 +1055,7 @@ static struct task *manage_global_listener_queue(struct task *t)
 	 * as a file descriptor or memory and that the temporary condition has
 	 * disappeared.
 	 */
-	if (!LIST_ISEMPTY(&global_listener_queue))
-		dequeue_all_listeners(&global_listener_queue);
+	dequeue_all_listeners(&global_listener_queue);
 
  out:
 	t->expire = next;
