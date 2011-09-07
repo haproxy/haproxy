@@ -415,7 +415,7 @@ int proxy_cfg_ensure_no_http(struct proxy *curproxy)
 
 /* Perform the most basic initialization of a proxy :
  * memset(), list_init(*), reset_timeouts(*).
- * Any new proxy should be initialized via this function.
+ * Any new proxy or peer should be initialized via this function.
  */
 void init_new_proxy(struct proxy *p)
 {
@@ -440,6 +440,7 @@ void init_new_proxy(struct proxy *p)
 	/* Timeouts are defined as -1 */
 	proxy_reset_timeouts(p);
 	p->tcp_rep.inspect_delay = TICK_ETERNITY;
+	p->logfac1 = p->logfac2 = -1; /* log disabled */
 }
 
 /*

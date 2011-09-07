@@ -1040,7 +1040,6 @@ void init_default_instance()
 	defproxy.state = PR_STNEW;
 	defproxy.maxconn = cfg_maxpconn;
 	defproxy.conn_retries = CONN_RETRIES;
-	defproxy.logfac1 = defproxy.logfac2 = -1; /* log disabled */
 
 	defproxy.defsrv.inter = DEF_CHKINTR;
 	defproxy.defsrv.fastinter = 0;
