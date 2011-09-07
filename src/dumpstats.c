@@ -1433,6 +1433,9 @@ static int stats_dump_raw_to_buffer(struct stream_interface *si)
 				     "CurrConns: %d\n"
 				     "PipesUsed: %d\n"
 				     "PipesFree: %d\n"
+				     "ConnRate: %d\n"
+				     "ConnRateLimit: %d\n"
+				     "MaxConnRate: %d\n"
 				     "Tasks: %d\n"
 				     "Run_queue: %d\n"
 				     "node: %s\n"
@@ -1447,6 +1450,7 @@ static int stats_dump_raw_to_buffer(struct stream_interface *si)
 				     global.rlimit_nofile,
 				     global.maxsock, global.maxconn, global.hardmaxconn, global.maxpipes,
 				     actconn, pipes_used, pipes_free,
+				     read_freq_ctr(&global.conn_per_sec), global.cps_lim, global.cps_max,
 				     nb_tasks_cur, run_queue_cur,
 				     global.node, global.desc?global.desc:""
 				     );
@@ -1762,7 +1766,7 @@ static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 			     "<b>uptime = </b> %dd %dh%02dm%02ds<br>\n"
 			     "<b>system limits:</b> memmax = %s%s; ulimit-n = %d<br>\n"
 			     "<b>maxsock = </b> %d; <b>maxconn = </b> %d; <b>maxpipes = </b> %d<br>\n"
-			     "current conns = %d; current pipes = %d/%d<br>\n"
+			     "current conns = %d; current pipes = %d/%d; conn rate = %d/sec<br>\n"
 			     "Running tasks: %d/%d<br>\n"
 			     "</td><td align=\"center\" nowrap>\n"
 			     "<table class=\"lgd\"><tr>\n"
@@ -1795,7 +1799,7 @@ static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 			     global.rlimit_memmax ? " MB" : "",
 			     global.rlimit_nofile,
 			     global.maxsock, global.maxconn, global.maxpipes,
-			     actconn, pipes_used, pipes_used+pipes_free,
+			     actconn, pipes_used, pipes_used+pipes_free, read_freq_ctr(&global.conn_per_sec),
 			     run_queue_cur, nb_tasks_cur
 			     );
 
