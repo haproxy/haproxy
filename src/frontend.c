@@ -178,7 +178,7 @@ int frontend_accept(struct session *s)
 
 	if (unlikely((global.mode & MODE_DEBUG) && (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
 		char pn[INET6_ADDRSTRLEN];
-		int len;
+		int len = 0;
 
 		if (!(s->flags & SN_FRT_ADDR_SET))
 			get_frt_addr(s);
