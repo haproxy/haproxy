@@ -546,12 +546,35 @@ int acl_match_sub(struct acl_test *test, struct acl_pattern *pattern)
 	return ACL_PAT_FAIL;
 }
 
+/* Background: Fast way to find a zero byte in a word
+ * http://graphics.stanford.edu/~seander/bithacks.html#ZeroInWord
+ * hasZeroByte = (v - 0x01010101UL) & ~v & 0x80808080UL;
+ *
+ * To look for 4 different byte values, xor the word with those bytes and
+ * then check for zero bytes:
+ *
+ * v = (((unsigned char)c * 0x1010101U) ^ delimiter)
+ * where <delimiter> is the 4 byte values to look for (as an uint)
+ * and <c> is the character that is being tested
+ */
+static inline unsigned int is_delimiter(unsigned char c, unsigned int mask)
+{
+	mask ^= (c * 0x01010101); /* propagate the char to all 4 bytes */
+	return (mask - 0x01010101) & ~mask & 0x80808080U;
+}
+
+static inline unsigned int make_4delim(unsigned char d1, unsigned char d2, unsigned char d3, unsigned char d4)
+{
+	return d1 << 24 | d2 << 16 | d3 << 8 | d4;
+}
+
 /* This one is used by other real functions. It checks that the pattern is
  * included inside the tested string, but enclosed between the specified
- * delimitor, or a '/' or a '?' or at the beginning or end of the string.
- * The delimitor is stripped at the beginning or end of the pattern.
+ * delimiters or at the beginning or end of the string. The delimiters are
+ * provided as an unsigned int made by make_4delim() and match up to 4 different
+ * delimiters. Delimiters are stripped at the beginning and end of the pattern.
  */
-static int match_word(struct acl_test *test, struct acl_pattern *pattern, char delim)
+static int match_word(struct acl_test *test, struct acl_pattern *pattern, unsigned int delimiters)
 {
 	int may_match, icase;
 	char *c, *end;
@@ -560,13 +583,13 @@ static int match_word(struct acl_test *test, struct acl_pattern *pattern, char d
 
 	pl = pattern->len;
 	ps = pattern->ptr.str;
-	while (pl > 0 && (*ps == delim || *ps == '/' || *ps == '?')) {
+
+	while (pl > 0 && is_delimiter(*ps, delimiters)) {
 		pl--;
 		ps++;
 	}
 
-	while (pl > 0 &&
-	       (ps[pl - 1] == delim || ps[pl - 1] == '/' || ps[pl - 1] == '?'))
+	while (pl > 0 && is_delimiter(ps[pl - 1], delimiters))
 		pl--;
 
 	if (pl > test->len)
@@ -576,7 +599,7 @@ static int match_word(struct acl_test *test, struct acl_pattern *pattern, char d
 	icase = pattern->flags & ACL_PAT_F_IGNORE_CASE;
 	end = test->ptr + test->len - pl;
 	for (c = test->ptr; c <= end; c++) {
-		if (*c == '/' || *c == delim || *c == '?') {
+		if (is_delimiter(*c, delimiters)) {
 			may_match = 1;
 			continue;
 		}
@@ -587,12 +610,12 @@ static int match_word(struct acl_test *test, struct acl_pattern *pattern, char d
 		if (icase) {
 			if ((tolower(*c) == tolower(*ps)) &&
 			    (strncasecmp(ps, c, pl) == 0) &&
-			    (c == end || c[pl] == '/' || c[pl] == delim || c[pl] == '?'))
+			    (c == end || is_delimiter(c[pl], delimiters)))
 				return ACL_PAT_PASS;
 		} else {
 			if ((*c == *ps) &&
 			    (strncmp(ps, c, pl) == 0) &&
-			    (c == end || c[pl] == '/' || c[pl] == delim || c[pl] == '?'))
+			    (c == end || is_delimiter(c[pl], delimiters)))
 				return ACL_PAT_PASS;
 		}
 		may_match = 0;
@@ -601,21 +624,21 @@ static int match_word(struct acl_test *test, struct acl_pattern *pattern, char d
 }
 
 /* Checks that the pattern is included inside the tested string, but enclosed
- * between slashes or at the beginning or end of the string. Slashes at the
- * beginning or end of the pattern are ignored.
+ * between the delimiters '?' or '/' or at the beginning or end of the string.
+ * Delimiters at the beginning or end of the pattern are ignored.
  */
 int acl_match_dir(struct acl_test *test, struct acl_pattern *pattern)
 {
-	return match_word(test, pattern, '/');
+	return match_word(test, pattern, make_4delim('/', '?', '?', '?'));
 }
 
 /* Checks that the pattern is included inside the tested string, but enclosed
- * between dots or at the beginning or end of the string. Dots at the beginning
- * or end of the pattern are ignored.
+ * between the delmiters '/', '?', '.' or ":" or at the beginning or end of
+ * the string. Delimiters at the beginning or end of the pattern are ignored.
  */
 int acl_match_dom(struct acl_test *test, struct acl_pattern *pattern)
 {
-	return match_word(test, pattern, '.');
+	return match_word(test, pattern, make_4delim('/', '?', '.', ':'));
 }
 
 /* Checks that the integer in <test> is included between min and max */
