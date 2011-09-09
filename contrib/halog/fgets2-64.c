@@ -21,7 +21,7 @@
 #include <stdio.h>
 #include <unistd.h>
 
-// return 1 if the integer contains at least one zero byte
+// return non-zero if the integer contains at least one zero byte
 static inline unsigned int has_zero(unsigned int x)
 {
 	unsigned int y;
@@ -38,25 +38,21 @@ static inline unsigned int has_zero(unsigned int x)
 	 * we check in the final result if one of them is present and was not.
 	 */
 	y = x;
-	x = ~x & 0x80808080; /* save and invert bits 7, 15, 23, 31 */
-	y &= 0x7F7F7F7F;     /* clear them */
-	y -= 0x01010101;     /* generate a carry */
-	y &= x;              /* clear the bits that were already set */
-	return !!y;
+        y -= 0x01010101;    /* generate a carry */
+        y &= ~x;             /* clear the bits that were already set */
+        return y & 0x80808080;
 }
 
 
-// return 1 if the argument contains at least one zero byte. See principle above.
-static inline unsigned int has_zero64(unsigned long long x)
+// return non-zero if the argument contains at least one zero byte. See principle above.
+static inline unsigned long long has_zero64(unsigned long long x)
 {
 	unsigned long long y;
 
 	y = x;
-	x = ~x & 0x8080808080808080ULL; /* save bits 7, 15, 23, 31, 39, 47, 55 and 63 */
-	y &= 0x7F7F7F7F7F7F7F7FULL;     /* clear them */
 	y -= 0x0101010101010101ULL;     /* generate a carry */
-	y &= x;                         /* clear the bits that were already set */
-	return !!y;
+	y &= ~x;                        /* clear the bits that were already set */
+	return y & 0x8080808080808080ULL;
 }
 
 #define FGETS2_BUFSIZE		(256*1024)
