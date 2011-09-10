@@ -125,6 +125,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	//	    
 	//	}
 
+	gettimeofday(&before_poll, NULL);
 	status = select(maxfd,
 			readnotnull ? tmp_evts[DIR_RD] : NULL,
 			writenotnull ? tmp_evts[DIR_WR] : NULL,
@@ -132,6 +133,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			&delta);
       
 	tv_update_date(delta_ms, status);
+	measure_idle();
 
 	if (status <= 0)
 		return;

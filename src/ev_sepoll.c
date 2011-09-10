@@ -475,8 +475,10 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	/* we want to detect if an accept() will create new speculative FDs here */
 	fd_created = 0;
 	spec_processed = 0;
+	gettimeofday(&before_poll, NULL);
 	status = epoll_wait(epoll_fd, epoll_events, fd, wait_time);
 	tv_update_date(wait_time, status);
+	measure_idle();
 
 	for (count = 0; count < status; count++) {
 		int e = epoll_events[count].events;

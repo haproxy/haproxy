@@ -137,8 +137,10 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			wait_time = MAX_DELAY_MS;
 	}
 
+	gettimeofday(&before_poll, NULL);
 	status = poll(poll_events, nbfd, wait_time);
 	tv_update_date(wait_time, status);
+	measure_idle();
 
 	for (count = 0; status > 0 && count < nbfd; count++) {
 		fd = poll_events[count].fd;

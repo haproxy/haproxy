@@ -1,7 +1,7 @@
 /*
  * Time calculation functions.
  *
- * Copyright 2000-2009 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2011 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -19,9 +19,14 @@
 unsigned int   curr_sec_ms;      /* millisecond of current second (0..999) */
 unsigned int   curr_sec_ms_scaled;  /* millisecond of current second (0..2^32-1) */
 unsigned int   now_ms;          /* internal date in milliseconds (may wrap) */
+unsigned int   samp_time;       /* total elapsed time over current sample */
+unsigned int   idle_time;       /* total idle time over current sample */
+unsigned int   idle_pct;        /* idle to total ratio over last sample (percent) */
 struct timeval now;             /* internal date is a monotonic function of real clock */
 struct timeval date;            /* the real current date */
 struct timeval start_date;      /* the process's start date */
+struct timeval before_poll;     /* system date before calling poll() */
+struct timeval after_poll;      /* system date after leaving poll() */
 
 /*
  * adds <ms> ms to <from>, set the result to <tv> and returns a pointer <tv>
@@ -165,6 +170,9 @@ REGPRM2 void tv_update_date(int max_wait, int interrupted)
 	if (unlikely(max_wait < 0)) {
 		tv_zero(&tv_offset);
 		adjusted = date;
+		after_poll = date;
+		samp_time = idle_time = 0;
+		idle_pct = 100;
 		goto to_ms;
 	}
 	__tv_add(&adjusted, &date, &tv_offset);

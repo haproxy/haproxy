@@ -1,23 +1,23 @@
 /*
-  include/common/time.h
-  Time calculation functions and macros.
-
-  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
-  
-  This library is free software; you can redistribute it and/or
-  modify it under the terms of the GNU Lesser General Public
-  License as published by the Free Software Foundation, version 2.1
-  exclusively.
-
-  This library is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  Lesser General Public License for more details.
-
-  You should have received a copy of the GNU Lesser General Public
-  License along with this library; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
+ * include/common/time.h
+ * Time calculation functions and macros.
+ *
+ * Copyright (C) 2000-2011 Willy Tarreau - w@1wt.eu
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation, version 2.1
+ * exclusively.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
 
 #ifndef _COMMON_TIME_H
 #define _COMMON_TIME_H
@@ -57,9 +57,14 @@
 extern unsigned int   curr_sec_ms;      /* millisecond of current second (0..999) */
 extern unsigned int   curr_sec_ms_scaled;  /* millisecond of current second (0..2^32-1) */
 extern unsigned int   now_ms;           /* internal date in milliseconds (may wrap) */
+extern unsigned int   samp_time;        /* total elapsed time over current sample */
+extern unsigned int   idle_time;        /* total idle time over current sample */
+extern unsigned int   idle_pct;         /* idle to total ratio over last sample (percent) */
 extern struct timeval now;              /* internal date is a monotonic function of real clock */
 extern struct timeval date;             /* the real current date */
 extern struct timeval start_date;       /* the process's start date */
+extern struct timeval before_poll;      /* system date before calling poll() */
+extern struct timeval after_poll;       /* system date after leaving poll() */
 
 
 /**** exported functions *************************************************/
@@ -515,6 +520,35 @@ REGPRM3 static inline struct timeval *__tv_ms_add(struct timeval *tv, const stru
 })
 
 char *human_time(int t, short hz_div);
+
+/* Update the idle time value twice a second, to be called after
+ * tv_update_date() when called after poll(). It relies on <before_poll> to be
+ * updated to the system time before calling poll().
+ */
+static inline void measure_idle()
+{
+	/* Let's compute the idle to work ratio. We worked between after_poll
+	 * and before_poll, and slept between before_poll and date. The idle_pct
+	 * is updated at most twice every second. Note that the current second
+	 * rarely changes so we avoid a multiply when not needed.
+	 */
+	int delta;
+
+	if ((delta = date.tv_sec - before_poll.tv_sec))
+		delta *= 1000000;
+	idle_time += delta + (date.tv_usec - before_poll.tv_usec);
+
+	if ((delta = date.tv_sec - after_poll.tv_sec))
+		delta *= 1000000;
+	samp_time += delta + (date.tv_usec - after_poll.tv_usec);
+
+	after_poll.tv_sec = date.tv_sec; after_poll.tv_usec = date.tv_usec;
+	if (samp_time < 500000)
+		return;
+
+	idle_pct = (100 * idle_time + samp_time / 2) / samp_time;
+	idle_time = samp_time = 0;
+}
 
 #endif /* _COMMON_TIME_H */
 

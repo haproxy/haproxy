@@ -126,6 +126,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	}
 
 	fd = MIN(maxfd, global.tune.maxpollevents);
+	gettimeofday(&before_poll, NULL);
 	status = kevent(kqueue_fd, // int kq
 			NULL,      // const struct kevent *changelist
 			0,         // int nchanges
@@ -133,6 +134,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			fd,        // int nevents
 			&timeout); // const struct timespec *timeout
 	tv_update_date(delta_ms, status);
+	measure_idle();
 
 	for (count = 0; count < status; count++) {
 		fd = kev[count].ident;
