@@ -48,6 +48,7 @@ struct pxcounters {
 	long long srv_aborts;                   /* aborted responses during DATA phase caused by the server */
 	long long retries;                      /* retried and redispatched connections (BE only) */
 	long long redispatches;                 /* retried and redispatched connections (BE only) */
+	long long intercepted_req;              /* number of monitoring or stats requests intercepted by the frontend */
 
 	union {
 		struct {

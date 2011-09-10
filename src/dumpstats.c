@@ -2286,7 +2286,8 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 					for (i = 1; i < 6; i++)
 						chunk_printf(&msg, " %dxx=%lld,", i, px->fe_counters.p.http.rsp[i]);
 
-					chunk_printf(&msg, " other=%lld\"", px->fe_counters.p.http.rsp[0]);
+					chunk_printf(&msg, " other=%lld,", px->fe_counters.p.http.rsp[0]);
+					chunk_printf(&msg, " intercepted=%lld\"", px->fe_counters.intercepted_req);
 				}
 
 				chunk_printf(&msg,

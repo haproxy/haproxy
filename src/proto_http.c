@@ -2670,6 +2670,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 		struct acl_cond *cond;
 
 		s->flags |= SN_MONITOR;
+		s->fe->fe_counters.intercepted_req++;
 
 		/* Check if we want to fail this monitor request or not */
 		list_for_each_entry(cond, &s->fe->mon_fail_cond, list) {
@@ -3275,6 +3276,8 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 		s->rep->prod->applet.private = s;
 		s->rep->prod->applet.st0 = s->rep->prod->applet.st1 = 0;
 		req->analysers = 0;
+		if (s->fe == s->be) /* report it if the request was intercepted by the frontend */
+			s->fe->fe_counters.intercepted_req++;
 
 		return 0;
 
