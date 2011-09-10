@@ -196,6 +196,10 @@ void process_runnable_tasks(int *next)
 	run_queue_cur = run_queue; /* keep a copy for reporting */
 	nb_tasks_cur = nb_tasks;
 	max_processed = run_queue;
+
+	if (!run_queue)
+		return;
+
 	if (max_processed > 200)
 		max_processed = 200;
 
