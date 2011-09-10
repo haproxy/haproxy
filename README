@@ -194,9 +194,23 @@ changes have not been discussed first.
 
 The proper place to discuss your changes is the HAProxy Mailing List. There are
 enough skilled readers to catch hazardous mistakes and to suggest improvements.
-You can subscribe to it by sending an empty e-mail at the following address :
+I trust a number of them enough to merge a patch if they say it's OK, so using
+the list is the fastest way to get your code reviewed and merged. You can
+subscribe to it by sending an empty e-mail at the following address :
 
                         haproxy+subscribe@formilux.org
+
+If you have an idea about something to implement, *please* discuss it on the
+list first. It has already happened several times that two persons did the same
+thing simultaneously. This is a waste of time for both of them. It's also very
+common to see some changes rejected because they're done in a way that will
+conflict with future evolutions, or that does not leave a good feeling. It's
+always unpleasant for the person who did the work, and it is unpleasant for me
+too because I value people's time and efforts. That would not happen if these
+were discussed first. There is no problem posting work in progress to the list,
+it happens quite often in fact. Also, don't waste your time with the doc when
+submitting patches for review, only add the doc with the patch you consider
+ready to merge.
 
 If your work is very confidential and you can't publicly discuss it, you can
 also mail me directly about it, but your mail may be waiting several days in
@@ -226,61 +240,180 @@ donations :
                         http://haproxy.1wt.eu/contrib.html
 
 Note to contributors: it's very handy when patches comes with a properly
-formated subject. Try to put one of the following words between brackets
-to indicate the importance of the patch followed if possible by a single
-word indicating what subsystem is affected, then by a short description :
+formated subject. There are 3 criteria of particular importance in any patch :
 
-  [BUG]      fix for a minor or medium-level bug. When a few of these ones are
-             available, a new maintenance release is emitted.
+  - its nature (is it a fix for a bug, a new feature, an optimization, ...)
+  - its importance, which generally reflects the risk of merging/not merging it
+  - what area it applies to (eg: http, stats, startup, config, doc, ...)
 
-  [CRITICAL] medium-term reliability or security is at risk, an upgrade is
-             absolutely required. A maintenance release may be emitted even if
-             only one of these bugs are fixed.
+It's important to make these 3 criteria easy to spot in the patch's subject,
+because it's the first (and sometimes the only) thing which is read when
+reviewing patches to find which ones need to be backported to older versions.
 
-  [CLEANUP]  code cleanup, silence of warnings, etc... theorically no impact.
+Specifically, bugs must be clearly easy to spot so that they're never missed.
+Any patch fixing a bug must have the "BUG" tag in its subject. Most common
+patch types include :
+
+  - BUG      fix for a bug. The severity of the bug should also be indicated
+             when known. Similarly, if a backport is needed to older versions,
+             it should be indicated on the last line of the commit message. If
+             the bug has been identified as a regression brought by a specific
+             patch or version, this indication will be appreciated too. New
+             maintenance releases are generally emitted when a few of these
+             patches are merged.
+
+  - CLEANUP  code cleanup, silence of warnings, etc... theorically no impact.
              These patches will rarely be seen in stable branches, though they
-             may appear when they remove some annoyance.
+             may appear when they remove some annoyance or when they make
+             backporting easier. By nature, a cleanup is always minor.
 
-  [MINOR]    minor change, very low risk of impact. It is often the case for
-             code additions that don't touch live code.
+  - REORG    code reorganization. Some blocks may be moved to other places,
+             some important checks might be swapped, etc... These changes
+             always present a risk of regression. For this reason, they should
+             never be mixed with any bug fix nor functional change. Code is
+             only moved as-is. Indicating the risk of breakage is highly
+             recommended.
 
-  [MEDIUM]   medium risk, may cause unexpected regressions of low importance or
-             which may quickly be discovered.
+  - BUILD    updates or fixes for build issues. Changes to makefiles also fall
+             into this category. The risk of breakage should be indicated if
+             known. It is also appreciated to indicate what platforms and/or
+             configurations were tested after the change.
 
-  [MAJOR]    major risk of hidden regression. This happens when I rearrange
+  - OPTIM    some code was optimised. Sometimes if the regression risk is very
+             low and the gains significant, such patches may be merged in the
+             stable branch. Depending on the amount of code changed or replaced
+             and the level of trust the author has in the change, the risk of
+             regression should be indicated.
+
+  - RELEASE  release of a new version (development or stable).
+
+  - LICENSE  licensing updates (may impact distro packagers).
+
+
+When the patch cannot be categorized, it's best not to put any tag. This is
+commonly the case for new features, which development versions are mostly made
+of.
+
+Additionally, the importance of the patch should be indicated when known. A
+single upper-case word is preferred, among :
+
+  - MINOR    minor change, very low risk of impact. It is often the case for
+             code additions that don't touch live code. For a bug, it generally
+             indicates an annoyance, nothing more.
+
+  - MEDIUM   medium risk, may cause unexpected regressions of low importance or
+             which may quickly be discovered. For a bug, it generally indicates
+             something odd which requires changing the configuration in an
+             undesired way to work around the issue.
+
+  - MAJOR    major risk of hidden regression. This happens when I rearrange
              large parts of code, when I play with timeouts, with variable
              initializations, etc... We should only exceptionally find such
-             patches in stable branches.
+             patches in stable branches. For a bug, it indicates severe
+             reliability issues for which workarounds are identified with or
+             without performance impacts.
 
-  [OPTIM]    some code was optimised. Sometimes if the regression risk is very
-             low and the gains significant, such patches may be merged in the
-             stable branch.
+  - CRITICAL medium-term reliability or security is at risk and workarounds,
+             if they exist, might not always be acceptable. An upgrade is
+             absolutely required. A maintenance release may be emitted even if
+             only one of these bugs are fixed. Note that this tag is only used
+             with bugs. Such patches must indicate what is the first version
+             affected, and if known, the commit ID which introduced the issue.
 
-  [DOC]      documentation updates or fixes only. No code is affected, no need
-             to upgrade. These patches can also be sent right after a new
-             feature, to document it.
+If this criterion doesn't apply, it's best not to put it. For instance, most
+doc updates and most examples or test files are just added or updated without
+any need to qualify a level of importance.
 
-  [TESTS]    added regression testing configuration files or scripts
+The area the patch applies to is quite important, because some areas are known
+to be similar in older versions, suggesting a backport might be desirable, and
+conversely, some areas are known to be specific to one version. When the tag is
+used alone, uppercase is preferred for readability, otherwise lowercase is fine
+too. The following tags are suggested but not limitative :
 
-  [BUILD]    fix build issues. If you could build, no upgrade required.
+ - doc       documentation updates or fixes. No code is affected, no need to
+             upgrade. These patches can also be sent right after a new feature,
+             to document it.
 
-  [LICENSE]  licensing updates (may impact distro packagers)
+ - examples  example files. Be careful, sometimes these files are packaged.
 
-  [RELEASE]  release a new version (development version or stable version)
+ - tests     regression test files. No code is affected, no need to upgrade.
 
-  [PATCH]    any other patch which could not be qualified with the tags above.
+ - init      initialization code, arguments parsing, etc...
 
+ - config    configuration parser, mostly used when adding new config keywords
 
-The tags are not rigid, and I reserve the right to change them when merging the
-patch. It may happen that a same patch has a different tag in two distinct
-branches. The reason is that a bug in one branch may just be a cleanup in the
-other one because the code cannot be triggered.
+ - http      the HTTP engine
+
+ - stats     the stats reporting engine as well as the stats socket CLI
+
+ - checks    the health checks engine (eg: when adding new checks)
+
+ - acl       the ACL processing core or some ACLs from other areas
+
+ - peers     the peer synchronization engine
+
+ - listeners everything related to incoming connection settings
+
+ - frontend  everything related to incoming connection processing
+
+ - backend   everything related to LB algorithms and server farm
+
+ - session   session processing and flags (very sensible, be careful)
+
+ - server    server connection management, queueing
+
+ - proxy     proxy maintenance (start/stop)
+
+ - log       log management
+
+ - poll      any of the pollers
+
+ - halog     the halog sub-component in the contrib directory
+
+ - contrib   any addition to the contrib directory
+
+Other names may be invented when more precise indications are meaningful, for
+instance : "cookie" which indicates cookie processing in the HTTP core. Last,
+indicating the name of the affected file is also a good way to quickly spot
+changes. Many commits were already tagged with "stream_sock" or "cfgparse" for
+instance.
+
+It is desired that AT LEAST one of the 3 criteria tags is reported in the patch
+subject. Ideally, we would have the 3 most often. The two first criteria should
+be present before a first colon (':'). If both are present, then they should be
+delimited with a slash ('/'). The 3rd criterion (area) should appear next, also
+followed by a colon. Thus, all of the following messages are valid :
 
 Examples of messages :
-       - [DOC] document options forwardfor to logasap
-       - [BUG] stats: connection reset counters must be plain ascii, not HTML
-       - [MEDIUM] checks: support multi-packet health check responses
-       - [RELEASE] Released version 1.4.2
+  - DOC: document options forwardfor to logasap
+  - DOC/MAJOR: reorganize the whole document and change indenting
+  - BUG: stats: connection reset counters must be plain ascii, not HTML
+  - BUG/MINOR: stats: connection reset counters must be plain ascii, not HTML
+  - MEDIUM: checks: support multi-packet health check responses
+  - RELEASE: Released version 1.4.2
+  - BUILD: stats: stdint is not present on solaris
+  - OPTIM/MINOR: halog: make fgets parse more bytes by blocks
+  - REORG/MEDIUM: move syscall redefinition to specific places
+
+Please do not use square brackets anymore around the tags, because they give me
+more work when merging patches. By default I'm asking Git to keep them but this
+causes trouble when patches are prefixed with the [PATCH] tag because in order
+not to store it, I have to hand-edit the patches. So as of now, I will ask Git
+to remove whatever is located between square brackets, which implies that any
+subject formatted the old way will have its tag stripped out.
+
+In fact, one of the only square bracket tags that still makes sense is '[RFC]'
+at the beginning of the subject, when you're asking for someone to review your
+change before getting it merged. If the patch is OK to be merged, then I can
+merge it as-is and the '[RFC]' tag will automatically be removed. If you don't
+want it to be merged at all, you can simply state it in the message, or use an
+alternate '[WIP]' tag ("work in progress").
+
+The tags are not rigid, follow your intuition first, anyway I reserve the right
+to change them when merging the patch. It may happen that a same patch has a
+different tag in two distinct branches. The reason is that a bug in one branch
+may just be a cleanup in the other one because the code cannot be triggered.
+
 
 For a more efficient interaction between the mainline code and your code, I can
 only strongly encourage you to try the Git version control system :
