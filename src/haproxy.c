@@ -220,11 +220,11 @@ void usage(char *name)
 	fprintf(stderr,
 		"Usage : %s [-f <cfgfile>]* [ -vdV"
 		"D ] [ -n <maxconn> ] [ -N <maxpconn> ]\n"
-		"        [ -p <pidfile> ] [ -m <max megs> ]\n"
+		"        [ -p <pidfile> ] [ -m <max megs> ] [ -C <dir> ]\n"
 		"        -v displays version ; -vv shows known build options.\n"
 		"        -d enters debug mode ; -db only disables background mode.\n"
 		"        -V enters verbose mode (disables quiet mode)\n"
-		"        -D goes daemon\n"
+		"        -D goes daemon ; -C changes to <dir> before loading files.\n"
 		"        -q quiet mode : don't display messages\n"
 		"        -c check mode : only check config files and exit\n"
 		"        -n sets the maximum total # of connections (%d)\n"
@@ -357,6 +357,7 @@ void init(int argc, char **argv)
 	int err_code = 0;
 	struct wordlist *wl;
 	char *progname;
+	char *change_dir = NULL;
 
 	/* NB: POSIX does not make it mandatory for gethostname() to NULL-terminate
 	 * the string in case of truncation, and at least FreeBSD appears not to do
@@ -485,6 +486,7 @@ void init(int argc, char **argv)
 					usage(progname);
 
 				switch (*flag) {
+				case 'C' : change_dir = *argv; break;
 				case 'n' : cfg_maxconn = atol(*argv); break;
 				case 'm' : global.rlimit_memmax = atol(*argv); break;
 				case 'N' : cfg_maxpconn = atol(*argv); break;
@@ -514,6 +516,11 @@ void init(int argc, char **argv)
 
 	if (LIST_ISEMPTY(&cfg_cfgfiles))
 		usage(progname);
+
+	if (change_dir && chdir(change_dir) < 0) {
+		Alert("Could not change to directory %s : %s\n", change_dir, strerror(errno));
+		exit(1);
+	}
 
 	have_appsession = 0;
 	global.maxsock = 10; /* reserve 10 fds ; will be incremented by socket eaters */
