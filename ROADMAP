@@ -3,10 +3,6 @@ Medium-long term roadmap - 2011/03/01
 Legend: '+' = done, '-' = todo, '*' = done except doc
 
 1.5 (ETA 2010/12/31) :
-  - count number of monitor requests on frontends, that's the only way
-    to explain the possible huge difference between frontend and backend
-    sessions.
-
   - server-side HTTP keepalive
     => maybe with limitation to only reuse connections that don't depend
        on layer7 in a first time (just check the target).
@@ -66,10 +62,6 @@ Legend: '+' = done, '-' = todo, '*' = done except doc
       + present/not present (eg: netmasks)
       - pattern conversion per prefixes. Eg: convert src IP to country.
 
-  - automatically compute fullconn for backends : by default, set it to
-    10% of the sum of the maxconn of all unique frontends which reference
-    it via use_backend, default_backend or that are in the same listen.
-
   - what to do with data after a POST and how to detect some data were
     received when responding ? In theory we should read everything because
     the TCP stack does not notify us that the FIN was acked. In practice,
@@ -93,8 +85,6 @@ Legend: '+' = done, '-' = todo, '*' = done except doc
 
   - remove lots of remaining Alert() calls or ensure that they forward to
     send_log() after the fork.
-
-  - initcwnd parameter for bind sockets
 
 DONE:
   * rename L4 acls as L6 ACLs when some content is involved
@@ -138,6 +128,14 @@ DONE:
     which will die since it does not make sense anymore.
 
   * ACL to report number of used entries in a table
+
+  * automatically compute fullconn for backends : by default, set it to
+    10% of the sum of the maxconn of all unique frontends which reference
+    it via use_backend, default_backend or that are in the same listen.
+
+  * count number of monitor requests on frontends, that's the only way
+    to explain the possible huge difference between frontend and backend
+    sessions.
 
 
 1.6 (will probably change anyway) :
@@ -190,3 +188,4 @@ Old, maybe obsolete points
 
  - new keyword 'check' : check http xxx, check smtp xxx, check ssl-hello
 
+ - initcwnd parameter for bind sockets : needed in kernel first
