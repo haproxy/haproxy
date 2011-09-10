@@ -1,6 +1,149 @@
 ChangeLog :
 ===========
 
+2011/09/10 : 1.5-dev7
+    - [BUG] fix binary stick-tables
+    - [MINOR] http: *_dom matching header functions now also split on ":"
+    - [BUG] checks: fix support of Mysqld >= 5.5 for mysql-check
+    - [MINOR] acl: add srv_conn acl to count connections on a     specific backend server
+    - [MINOR] check: add redis check support
+    - [DOC] small fixes to clearly distinguish between keyword     and variables
+    - [MINOR] halog: add support for termination code matching (-tcn/-TCN)
+    - [DOC] Minor spelling fixes and grammatical enhancements
+    - [CLEANUP] dumpstats: make symbols static where possible
+    - [MINOR] Break out dumping table
+    - [MINOR] Break out processing of clear table
+    - [MINOR] Allow listing of stick table by key
+    - [MINOR] Break out all stick table socat command parsing
+    - [MINOR] More flexible clearing of stick table
+    - [MINOR] Allow showing and clearing by key of ipv6 stick tables
+    - [MINOR] Allow showing and clearing by key of integer stick tables
+    - [MINOR] Allow showing and clearing by key of string stick tables
+    - [CLEANUP] Remove assigned but unused variables
+    - [CLEANUP] peers.h: fix declarations
+    - [CLEANUP] session.c: Make functions static where possible
+    - [MINOR] Add active connection list to server
+    - [MINOR] Allow shutdown of sessions when a server becomes unavailable
+    - [MINOR] Add down termination condition
+    - [MINOR] Make appsess{,ion}_refresh static
+    - [MINOR] Add rdp_cookie pattern fetch function
+    - [CLEANUP] Remove unnecessary casts
+    - [MINOR] Add non-stick server option
+    - [MINOR] Consistently use error in tcp_parse_tcp_req()
+    - [MINOR] Consistently free expr on error in cfg_parse_listen()
+    - [MINOR] Free rdp_cookie_name on denint()
+    - [MINOR] Free tcp rules on denint()
+    - [MINOR] Free stick table pool on denint()
+    - [MINOR] Free stick rules on denint()
+    - [MEDIUM] Fix stick-table replication on soft-restart
+    - [MEDIUM] Correct ipmask() logic
+    - [MINOR] Correct type in table dump examples
+    - [MINOR] Fix build error in stream_int_register_handler()
+    - [MINOR] Use DPRINTF in assign_server()
+    - [BUG] checks: http-check expect could fail a check on multi-packet responses
+    - [DOC] fix minor typo in the "dispatch" doc
+    - [BUG] proto_tcp: fix address binding on remote source
+    - [MINOR] http: don't report the "haproxy" word on the monitoring response
+    - [REORG] http: move HTTP error codes back to proto_http.h
+    - [MINOR] http: make the "HTTP 200" status code configurable.
+    - [MINOR] http: partially revert the chunking optimization for now
+    - [MINOR] stream_sock: always clear BF_EXPECT_MORE upon complete transfer
+    - [CLEANUP] stream_sock: remove unneeded FL_TCP and factor out test
+    - [MEDIUM] http: add support for "http-no-delay"
+    - [OPTIM] http: optimize chunking again in non-interactive mode
+    - [OPTIM] stream_sock: avoid fast-forwarding of partial data
+    - [OPTIM] stream_sock: don't use splice on too small payloads
+    - [MINOR] config: make it possible to specify a cookie even without a server
+    - [BUG] stats: support url-encoded forms
+    - [MINOR] config: automatically compute a default fullconn value
+    - [CLEANUP] config: remove some left-over printf debugging code from previous patch
+    - [DOC] add missing entry or stick store-response
+    - [MEDIUM] http: add support for 'cookie' and 'set-cookie' patterns
+    - [BUG] halog: correctly handle truncated last line
+    - [MINOR] halog: make SKIP_CHAR stop on field delimiters
+    - [MINOR] halog: add support for HTTP log matching (-H)
+    - [MINOR] halog: gain back performance before SKIP_CHAR fix
+    - [OPTIM] halog: cache some common fields positions
+    - [OPTIM] halog: check once for correct line format and reuse the pointer
+    - [OPTIM] halog: remove many 'if' by using a function pointer for the filters
+    - [OPTIM] halog: remove support for tab delimiters in input data
+    - [BUG] session: risk of crash on out of memory (1.5-dev regression)
+    - [MINOR] session: try to emit a 500 response on memory allocation errors
+    - [OPTIM] stream_sock: reduce the default number of accepted connections at once
+    - [BUG] stream_sock: disable listener when system resources are exhausted
+    - [MEDIUM] proxy: add a PAUSED state to listeners and move socket tricks out of proxy.c
+    - [BUG] stream_sock: ensure orphan listeners don't accept too many connections
+    - [MINOR] listeners: add listen_full() to mark a listener full
+    - [MINOR] listeners: add support for queueing resource limited listeners
+    - [MEDIUM] listeners: put listeners in queue upon resource shortage
+    - [MEDIUM] listeners: queue proxy-bound listeners at the proxy's
+    - [MEDIUM] listeners: don't stop proxies when global maxconn is reached
+    - [MEDIUM] listeners: don't change listeners states anymore in maintain_proxies
+    - [CLEANUP] proxy: rename a few proxy states (PR_STIDLE and PR_STRUN)
+    - [MINOR] stats: report a "WAITING" state for sockets waiting for resource
+    - [MINOR] proxy: make session rate-limit more accurate
+    - [MINOR] sessions: only wake waiting listeners up if rate limit is OK
+    - [BUG] proxy: peers must only be stopped once, not upon every call to maintain_proxies
+    - [CLEANUP] proxy: merge maintain_proxies() operation inside a single loop
+    - [MINOR] task: new function task_schedule() to schedule a wake up
+    - [MAJOR] proxy: finally get rid of maintain_proxies()
+    - [BUG] proxy: stats frontend and peers were missing many initializers
+    - [MEDIUM] listeners: add a global listener management task
+    - [MINOR] proxy: make findproxy() return proxies from numeric IDs too
+    - [DOC] fix typos, "#" is a sharp, not a dash
+    - [MEDIUM] stats: add support for changing frontend's maxconn at runtime
+    - [MEDIUM] checks: group health checks methods by values and save option bits
+    - [MINOR] session-counters: add the ability to clear the counters
+    - [BUG] check: http-check expect + regex would crash in defaults section
+    - [MEDIUM] http: make x-forwarded-for addition conditional
+    - [REORG] build: move syscall redefinition to specific places
+    - [CLEANUP] update the year in the copyright banner
+    - [BUG] possible crash in 'show table' on stats socket
+    - [BUG] checks: use the correct destination port for sending checks
+    - [BUG] backend: risk of picking a wrong port when mapping is used with crossed families
+    - [MINOR] make use of set_host_port() and get_host_port() to get rid of family mismatches
+    - [DOC] fixed a few "sensible" -> "sensitive" errors
+    - [MINOR] make use of addr_to_str() and get_host_port() to replace many inet_ntop()
+    - [BUG] http: trailing white spaces must also be trimmed after headers
+    - [MINOR] stats: display "<NONE>" instead of the frontend name when unknown
+    - [MINOR] http: take a capture of too large requests and responses
+    - [MINOR] http: take a capture of truncated responses
+    - [MINOR] http: take a capture of bad content-lengths.
+    - [DOC] add a few old and uncommitted docs
+    - [CLEANUP] cfgparse: fix reported options for the "bind" keyword
+    - [MINOR] halog: add -hs/-HS to filter by HTTP status code range
+    - [MINOR] halog: support backslash-escaped quotes
+    - [CLEANUP] remove dirty left-over of a debugging message
+    - [MEDIUM] stats: disable complex socket reservation for stats socket
+    - [CLEANUP] remove a useless test in manage_global_listener_queue()
+    - [MEDIUM] stats: add the "set maxconn" setting to the command line interface
+    - [MEDIUM] add support for global.maxconnrate to limit the per-process conn rate.
+    - [MINOR] stats: report the current and max global connection rates
+    - [MEDIUM] stats: add the ability to adjust the global maxconnrate
+    - [BUG] peers: don't pre-allocate 65000 connections to each peer
+    - [MEDIUM] don't limit peers nor stats socket to maxconn nor maxconnrate
+    - [BUG] peers: the peer frontend must not emit any log
+    - [CLEANUP] proxy: make pause_proxy() perform the required controls and emit the logs
+    - [BUG] peers: don't keep a peers section which has a NULL frontend
+    - [BUG] peers: ensure the peers are resumed if they were paused
+    - [MEDIUM] stats: add the ability to enable/disable/shutdown a frontend at runtime
+    - [MEDIUM] session: make session_shutdown() an independant function
+    - [MEDIUM] stats: offer the possibility to kill a session from the CLI
+    - [CLEANUP] stats: centralize tests for backend/server inputs on the CLI
+    - [MEDIUM] stats: offer the possibility to kill sessions by server
+    - [MINOR] halog: do not consider byte 0x8A as end of line
+    - [MINOR] frontend: ensure debug message length is always initialized
+    - [OPTIM] halog: make fgets parse more bytes by blocks
+    - [OPTIM] halog: add assembly version of the field lookup code
+    - [MEDIUM] poll: add a measurement of idle vs work time
+    - [CLEANUP] startup: report only the basename in the usage message
+    - [MINOR] startup: add an option to change to a new directory
+    - [OPTIM] task: don't scan the run queue if we know it's empty
+    - [BUILD] stats: stdint is not present on solaris
+    - [DOC] update the README file to reflect new naming rules for patches
+    - [MINOR] stats: report the number of requests intercepted by the frontend
+    - [DOC] update ROADMAP file
+
 2011/04/08 : 1.5-dev6
     - [BUG] stream_sock: use get_addr_len() instead of sizeof() on sockaddr_storage
     - [BUG] TCP source tracking was broken with IPv6 changes
