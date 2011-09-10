@@ -135,6 +135,32 @@ void die(const char *msg)
 
 
 /* return pointer to first char not part of current field starting at <p>. */
+
+#if defined(__i386__)
+/* this one is always faster on 32-bits */
+static inline const char *field_stop(const char *p)
+{
+	asm(
+	    /* Look for spaces */
+	    "4:                  \n\t"
+	    "inc   %0            \n\t"
+	    "cmpb  $0x20, -1(%0) \n\t"
+	    "ja    4b            \n\t"
+	    "jz    3f            \n\t"
+
+	    /* we only get there for control chars 0..31. Leave if we find '\0' */
+	    "cmpb  $0x0, -1(%0)  \n\t"
+	    "jnz   4b            \n\t"
+
+	    /* return %0-1 = position of the last char we checked */
+	    "3:                  \n\t"
+	    "dec   %0            \n\t"
+	    : "=r" (p)
+	    : "0" (p)
+	    );
+	return p;
+}
+#else
 const char *field_stop(const char *p)
 {
 	unsigned char c;
@@ -148,6 +174,7 @@ const char *field_stop(const char *p)
 	}
 	return p - 1;
 }
+#endif
 
 /* return field <field> (starting from 1) in string <p>. Only consider
  * contiguous spaces (or tabs) as one delimiter. May return pointer to
@@ -155,39 +182,81 @@ const char *field_stop(const char *p)
  */
 const char *field_start(const char *p, int field)
 {
+#ifndef PREFER_ASM
 	unsigned char c;
 	while (1) {
 		/* skip spaces */
 		while (1) {
-			c = *p;
+			c = *(p++);
 			if (c > ' ')
 				break;
 			if (c == ' ')
-				goto next;
+				continue;
 			if (!c) /* end of line */
-				return p;
+				return p-1;
 			/* other char => new field */
 			break;
-		next:
-			p++;
 		}
 
 		/* start of field */
 		field--;
 		if (!field)
-			return p;
+			return p-1;
 
 		/* skip this field */
 		while (1) {
 			c = *(p++);
-			if (c > ' ')
-				continue;
 			if (c == ' ')
 				break;
+			if (c > ' ')
+				continue;
 			if (c == '\0')
-				return p;
+				return p - 1;
 		}
 	}
+#else
+	/* This version works optimally on i386 and x86_64 but the code above
+	 * shows similar performance. However, depending on the version of GCC
+	 * used, inlining rules change and it may have difficulties to make
+	 * efficient use of this code at other locations and could result in
+	 * worse performance (eg: gcc 4.4). You may want to experience.
+	 */
+	asm(
+	    /* skip spaces */
+	    "1:                  \n\t"
+	    "inc   %0            \n\t"
+	    "cmpb  $0x20, -1(%0) \n\t"
+	    "ja    2f            \n\t"
+	    "jz    1b            \n\t"
+
+	    /* we only get there for control chars 0..31. Leave if we find '\0' */
+	    "cmpb  $0x0, -1(%0)  \n\t"
+	    "jz    3f            \n\t"
+
+	    /* start of field at [%0-1]. Check if we need to skip more fields */
+	    "2:                  \n\t"
+	    "dec   %1            \n\t"
+	    "jz    3f            \n\t"
+
+	    /* Look for spaces */
+	    "4:                  \n\t"
+	    "inc   %0            \n\t"
+	    "cmpb  $0x20, -1(%0) \n\t"
+	    "jz    1b            \n\t"
+	    "ja    4b            \n\t"
+
+	    /* we only get there for control chars 0..31. Leave if we find '\0' */
+	    "cmpb  $0x0, -1(%0)  \n\t"
+	    "jnz   4b            \n\t"
+
+	    /* return %0-1 = position of the last char we checked */
+	    "3:                  \n\t"
+	    "dec   %0            \n\t"
+	    : "=r" (p)
+	    : "r" (field), "0" (p)
+	    );
+	return p;
+#endif
 }
 
 /* keep only the <bits> higher bits of <i> */
