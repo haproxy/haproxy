@@ -552,7 +552,7 @@ int http_find_header2(const char *name, int len,
 
 			eol = find_hdr_value_end(sov, eol);
 			ctx->tws = 0;
-			while (http_is_lws[(unsigned char)*(eol - 1)]) {
+			while (eol > sov && http_is_lws[(unsigned char)*(eol - 1)]) {
 				eol--;
 				ctx->tws++;
 			}
