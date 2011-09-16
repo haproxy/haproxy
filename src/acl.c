@@ -1,7 +1,7 @@
 /*
  * ACL management functions.
  *
- * Copyright 2000-2010 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2011 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -646,6 +646,15 @@ int acl_match_int(struct acl_test *test, struct acl_pattern *pattern)
 {
 	if ((!pattern->val.range.min_set || pattern->val.range.min <= test->i) &&
 	    (!pattern->val.range.max_set || test->i <= pattern->val.range.max))
+		return ACL_PAT_PASS;
+	return ACL_PAT_FAIL;
+}
+
+/* Checks that the length of the pattern in <test> is included between min and max */
+int acl_match_len(struct acl_test *test, struct acl_pattern *pattern)
+{
+	if ((!pattern->val.range.min_set || pattern->val.range.min <= test->len) &&
+	    (!pattern->val.range.max_set || test->len <= pattern->val.range.max))
 		return ACL_PAT_PASS;
 	return ACL_PAT_FAIL;
 }

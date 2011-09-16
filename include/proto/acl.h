@@ -2,7 +2,7 @@
  * include/proto/acl.h
  * This file provides interface definitions for ACL manipulation.
  *
- * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2011 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -135,6 +135,9 @@ int acl_parse_nothing(const char **text, struct acl_pattern *pattern, int *opaqu
 
 /* NB: For two strings to be identical, it is required that their lengths match */
 int acl_match_str(struct acl_test *test, struct acl_pattern *pattern);
+
+/* Checks that the length of the pattern in <test> is included between min and max */
+int acl_match_len(struct acl_test *test, struct acl_pattern *pattern);
 
 /* Checks that the integer in <test> is included between min and max */
 int acl_match_int(struct acl_test *test, struct acl_pattern *pattern);
