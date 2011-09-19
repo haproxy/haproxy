@@ -216,7 +216,7 @@ __ebmb_insert(struct eb_root *root, struct ebmb_node *new, unsigned int len)
 	struct ebmb_node *old;
 	unsigned int side;
 	eb_troot_t *troot, **up_ptr;
-	eb_troot_t *root_right = root;
+	eb_troot_t *root_right;
 	int diff;
 	int bit;
 	eb_troot_t *new_left, *new_rght;
@@ -554,7 +554,7 @@ __ebmb_insert_prefix(struct eb_root *root, struct ebmb_node *new, unsigned int l
 	struct ebmb_node *old;
 	unsigned int side;
 	eb_troot_t *troot, **up_ptr;
-	eb_troot_t *root_right = root;
+	eb_troot_t *root_right;
 	int diff;
 	int bit;
 	eb_troot_t *new_left, *new_rght;

@@ -128,7 +128,7 @@ __ebst_insert(struct eb_root *root, struct ebmb_node *new)
 	struct ebmb_node *old;
 	unsigned int side;
 	eb_troot_t *troot;
-	eb_troot_t *root_right = root;
+	eb_troot_t *root_right;
 	int diff;
 	int bit;
 	int old_node_bit;

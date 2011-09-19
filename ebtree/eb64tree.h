@@ -225,7 +225,7 @@ __eb64_insert(struct eb_root *root, struct eb64_node *new) {
 	unsigned int side;
 	eb_troot_t *troot;
 	u64 newkey; /* caching the key saves approximately one cycle */
-	eb_troot_t *root_right = root;
+	eb_troot_t *root_right;
 	int old_node_bit;
 
 	side = EB_LEFT;
@@ -401,7 +401,7 @@ __eb64i_insert(struct eb_root *root, struct eb64_node *new) {
 	unsigned int side;
 	eb_troot_t *troot;
 	u64 newkey; /* caching the key saves approximately one cycle */
-	eb_troot_t *root_right = root;
+	eb_troot_t *root_right;
 	int old_node_bit;
 
 	side = EB_LEFT;

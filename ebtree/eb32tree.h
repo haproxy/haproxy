@@ -229,7 +229,7 @@ __eb32_insert(struct eb_root *root, struct eb32_node *new) {
 	unsigned int side;
 	eb_troot_t *troot, **up_ptr;
 	u32 newkey; /* caching the key saves approximately one cycle */
-	eb_troot_t *root_right = root;
+	eb_troot_t *root_right;
 	eb_troot_t *new_left, *new_rght;
 	eb_troot_t *new_leaf;
 	int old_node_bit;
@@ -361,7 +361,7 @@ __eb32i_insert(struct eb_root *root, struct eb32_node *new) {
 	unsigned int side;
 	eb_troot_t *troot, **up_ptr;
 	int newkey; /* caching the key saves approximately one cycle */
-	eb_troot_t *root_right = root;
+	eb_troot_t *root_right;
 	eb_troot_t *new_left, *new_rght;
 	eb_troot_t *new_leaf;
 	int old_node_bit;

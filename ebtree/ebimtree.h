@@ -136,7 +136,7 @@ __ebim_insert(struct eb_root *root, struct ebpt_node *new, unsigned int len)
 	struct ebpt_node *old;
 	unsigned int side;
 	eb_troot_t *troot;
-	eb_troot_t *root_right = root;
+	eb_troot_t *root_right;
 	int diff;
 	int bit;
 	int old_node_bit;
