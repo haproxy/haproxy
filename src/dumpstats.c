@@ -3204,11 +3204,11 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 			     sess->uniq_id,
 			     sess->listener->proto->name);
 
-		switch (addr_to_str(&sess->si[0].addr.c.from, pn, sizeof(pn))) {
+		switch (addr_to_str(&sess->si[0].addr.from, pn, sizeof(pn))) {
 		case AF_INET:
 		case AF_INET6:
 			chunk_printf(&msg, " source=%s:%d\n",
-				     pn, get_host_port(&sess->si[0].addr.c.from));
+				     pn, get_host_port(&sess->si[0].addr.from));
 			break;
 		case AF_UNIX:
 			chunk_printf(&msg, " source=unix:%d\n", sess->listener->luid);
@@ -3432,13 +3432,13 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 				     curr_sess->listener->proto->name);
 
 
-			switch (addr_to_str(&curr_sess->si[0].addr.c.from, pn, sizeof(pn))) {
+			switch (addr_to_str(&curr_sess->si[0].addr.from, pn, sizeof(pn))) {
 			case AF_INET:
 			case AF_INET6:
 				chunk_printf(&msg,
 					     " src=%s:%d fe=%s be=%s srv=%s",
 					     pn,
-					     get_host_port(&curr_sess->si[0].addr.c.from),
+					     get_host_port(&curr_sess->si[0].addr.from),
 					     curr_sess->fe->id,
 					     (curr_sess->be->cap & PR_CAP_BE) ? curr_sess->be->id : "<NONE>",
 					     target_srv(&curr_sess->target) ? target_srv(&curr_sess->target)->id : "<none>"

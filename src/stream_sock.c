@@ -517,7 +517,7 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 		 * it is positive, it means we have to send from the start.
 		 */
 		ret = make_proxy_line(trash, sizeof(trash),
-				      &b->prod->addr.c.from, &b->prod->addr.c.to);
+				      &b->prod->addr.from, &b->prod->addr.to);
 		if (!ret)
 			return -1;
 

@@ -50,10 +50,10 @@
  */
 void get_frt_addr(struct session *s)
 {
-	socklen_t namelen = sizeof(s->si[0].addr.c.to);
+	socklen_t namelen = sizeof(s->si[0].addr.to);
 
-	if (get_original_dst(s->si[0].fd, (struct sockaddr_in *)&s->si[0].addr.c.to, &namelen) == -1)
-		getsockname(s->si[0].fd, (struct sockaddr *)&s->si[0].addr.c.to, &namelen);
+	if (get_original_dst(s->si[0].fd, (struct sockaddr_in *)&s->si[0].addr.to, &namelen) == -1)
+		getsockname(s->si[0].fd, (struct sockaddr *)&s->si[0].addr.to, &namelen);
 	s->flags |= SN_FRT_ADDR_SET;
 }
 
@@ -157,13 +157,13 @@ int frontend_accept(struct session *s)
 			if (!(s->flags & SN_FRT_ADDR_SET))
 				get_frt_addr(s);
 
-			switch (addr_to_str(&s->req->prod->addr.c.from, pn, sizeof(pn))) {
+			switch (addr_to_str(&s->req->prod->addr.from, pn, sizeof(pn))) {
 			case AF_INET:
 			case AF_INET6:
-				addr_to_str(&s->req->prod->addr.c.to, sn, sizeof(sn));
+				addr_to_str(&s->req->prod->addr.to, sn, sizeof(sn));
 				send_log(s->fe, LOG_INFO, "Connect from %s:%d to %s:%d (%s/%s)\n",
-					 pn, get_host_port(&s->req->prod->addr.c.from),
-					 sn, get_host_port(&s->req->prod->addr.c.to),
+					 pn, get_host_port(&s->req->prod->addr.from),
+					 sn, get_host_port(&s->req->prod->addr.to),
 					 s->fe->id, (s->fe->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
 				break;
 			case AF_UNIX:
@@ -183,12 +183,12 @@ int frontend_accept(struct session *s)
 		if (!(s->flags & SN_FRT_ADDR_SET))
 			get_frt_addr(s);
 
-		switch (addr_to_str(&s->req->prod->addr.c.from, pn, sizeof(pn))) {
+		switch (addr_to_str(&s->req->prod->addr.from, pn, sizeof(pn))) {
 		case AF_INET:
 		case AF_INET6:
 			len = sprintf(trash, "%08x:%s.accept(%04x)=%04x from [%s:%d]\n",
 				      s->uniq_id, s->fe->id, (unsigned short)s->listener->fd, (unsigned short)cfd,
-				      pn, get_host_port(&s->req->prod->addr.c.from));
+				      pn, get_host_port(&s->req->prod->addr.from));
 			break;
 		case AF_UNIX:
 			/* UNIX socket, only the destination is known */
@@ -329,13 +329,13 @@ int frontend_decode_proxy_request(struct session *s, struct buffer *req, int an_
 			goto fail;
 
 		/* update the session's addresses and mark them set */
-		((struct sockaddr_in *)&s->si[0].addr.c.from)->sin_family      = AF_INET;
-		((struct sockaddr_in *)&s->si[0].addr.c.from)->sin_addr.s_addr = htonl(src3);
-		((struct sockaddr_in *)&s->si[0].addr.c.from)->sin_port        = htons(sport);
+		((struct sockaddr_in *)&s->si[0].addr.from)->sin_family      = AF_INET;
+		((struct sockaddr_in *)&s->si[0].addr.from)->sin_addr.s_addr = htonl(src3);
+		((struct sockaddr_in *)&s->si[0].addr.from)->sin_port        = htons(sport);
 
-		((struct sockaddr_in *)&s->si[0].addr.c.to)->sin_family      = AF_INET;
-		((struct sockaddr_in *)&s->si[0].addr.c.to)->sin_addr.s_addr = htonl(dst3);
-		((struct sockaddr_in *)&s->si[0].addr.c.to)->sin_port        = htons(dport);
+		((struct sockaddr_in *)&s->si[0].addr.to)->sin_family      = AF_INET;
+		((struct sockaddr_in *)&s->si[0].addr.to)->sin_addr.s_addr = htonl(dst3);
+		((struct sockaddr_in *)&s->si[0].addr.to)->sin_port        = htons(dport);
 		s->flags |= SN_FRT_ADDR_SET;
 
 	}
@@ -391,13 +391,13 @@ int frontend_decode_proxy_request(struct session *s, struct buffer *req, int an_
 			goto fail;
 
 		/* update the session's addresses and mark them set */
-		((struct sockaddr_in6 *)&s->si[0].addr.c.from)->sin6_family      = AF_INET6;
-		memcpy(&((struct sockaddr_in6 *)&s->si[0].addr.c.from)->sin6_addr, &src3, sizeof(struct in6_addr));
-		((struct sockaddr_in6 *)&s->si[0].addr.c.from)->sin6_port        = htons(sport);
+		((struct sockaddr_in6 *)&s->si[0].addr.from)->sin6_family      = AF_INET6;
+		memcpy(&((struct sockaddr_in6 *)&s->si[0].addr.from)->sin6_addr, &src3, sizeof(struct in6_addr));
+		((struct sockaddr_in6 *)&s->si[0].addr.from)->sin6_port        = htons(sport);
 
-		((struct sockaddr_in6 *)&s->si[0].addr.c.to)->sin6_family      = AF_INET6;
-		memcpy(&((struct sockaddr_in6 *)&s->si[0].addr.c.to)->sin6_addr, &dst3, sizeof(struct in6_addr));
-		((struct sockaddr_in6 *)&s->si[0].addr.c.to)->sin6_port        = htons(dport);
+		((struct sockaddr_in6 *)&s->si[0].addr.to)->sin6_family      = AF_INET6;
+		memcpy(&((struct sockaddr_in6 *)&s->si[0].addr.to)->sin6_addr, &dst3, sizeof(struct in6_addr));
+		((struct sockaddr_in6 *)&s->si[0].addr.to)->sin6_port        = htons(dport);
 		s->flags |= SN_FRT_ADDR_SET;
 	}
 	else {

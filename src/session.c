@@ -96,7 +96,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	LIST_INIT(&s->back_refs);
 
 	s->term_trace = 0;
-	s->si[0].addr.c.from = *addr;
+	s->si[0].addr.from = *addr;
 	s->logs.accept_date = date; /* user-visible date for logging */
 	s->logs.tv_accept = now;  /* corrected date for internal use */
 	s->uniq_id = totalconn;
@@ -278,8 +278,8 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	fdtab[cfd].cb[DIR_RD].b = s->req;
 	fdtab[cfd].cb[DIR_WR].f = l->proto->write;
 	fdtab[cfd].cb[DIR_WR].b = s->rep;
-	fdinfo[cfd].peeraddr = (struct sockaddr *)&s->si[0].addr.c.from;
-	fdinfo[cfd].peerlen  = sizeof(s->si[0].addr.c.from);
+	fdinfo[cfd].peeraddr = (struct sockaddr *)&s->si[0].addr.from;
+	fdinfo[cfd].peerlen  = sizeof(s->si[0].addr.from);
 	EV_FD_SET(cfd, DIR_RD);
 
 	if (p->accept && (ret = p->accept(s)) <= 0) {

@@ -1138,7 +1138,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	t->context = s;
 	t->nice = l->nice;
 
-	memcpy(&s->si[1].addr.s.to, &peer->addr, sizeof(s->si[1].addr.s.to));
+	memcpy(&s->si[1].addr.to, &peer->addr, sizeof(s->si[1].addr.to));
 	s->task = t;
 	s->listener = l;
 

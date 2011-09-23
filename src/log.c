@@ -317,7 +317,7 @@ void tcp_sess_log(struct session *s)
 	if (!err && (fe->options2 & PR_O2_NOLOGNORM))
 		return;
 
-	addr_to_str(&s->si[0].addr.c.from, pn, sizeof(pn));
+	addr_to_str(&s->si[0].addr.from, pn, sizeof(pn));
 	get_localtime(s->logs.tv_accept.tv_sec, &tm);
 
 	if (fe->logfac1 < 0 && fe->logfac2 < 0)
@@ -347,8 +347,8 @@ void tcp_sess_log(struct session *s)
 	send_log(prx_log, level, "%s:%d [%02d/%s/%04d:%02d:%02d:%02d.%03d]"
 		 " %s %s/%s %ld/%ld/%s%ld %s%lld"
 		 " %c%c %d/%d/%d/%d/%s%u %ld/%ld\n",
-		 s->si[0].addr.c.from.ss_family == AF_UNIX ? "unix" : pn,
-		 s->si[0].addr.c.from.ss_family == AF_UNIX ? s->listener->luid : get_host_port(&s->si[0].addr.c.from),
+		 s->si[0].addr.from.ss_family == AF_UNIX ? "unix" : pn,
+		 s->si[0].addr.from.ss_family == AF_UNIX ? s->listener->luid : get_host_port(&s->si[0].addr.from),
 		 tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
 		 tm.tm_hour, tm.tm_min, tm.tm_sec, (int)s->logs.tv_accept.tv_usec/1000,
 		 fe->id, be->id, svid,

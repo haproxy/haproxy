@@ -193,7 +193,7 @@ int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct so
 
 /*
  * This function initiates a connection to the target assigned to this session
- * (si->{target,addr.s.to}). A source address may be pointed to by si->addr.s.from
+ * (si->{target,addr.to}). A source address may be pointed to by si->addr.from
  * in case of transparent proxying. Normal source bind addresses are still
  * determined locally (due to the possible need of a source port).
  * si->target may point either to a valid server or to a backend, depending
@@ -228,7 +228,7 @@ int tcp_connect_server(struct stream_interface *si)
 		return SN_ERR_INTERNAL;
 	}
 
-	if ((fd = si->fd = socket(si->addr.s.to.ss_family, SOCK_STREAM, IPPROTO_TCP)) == -1) {
+	if ((fd = si->fd = socket(si->addr.to.ss_family, SOCK_STREAM, IPPROTO_TCP)) == -1) {
 		qfprintf(stderr, "Cannot get a server socket.\n");
 
 		if (errno == ENFILE)
@@ -318,11 +318,11 @@ int tcp_connect_server(struct stream_interface *si)
 				fdinfo[fd].port_range = srv->sport_range;
 				set_host_port(&src, fdinfo[fd].local_port);
 
-				ret = tcp_bind_socket(fd, flags, &src, &si->addr.s.from);
+				ret = tcp_bind_socket(fd, flags, &src, &si->addr.from);
 			} while (ret != 0); /* binding NOK */
 		}
 		else {
-			ret = tcp_bind_socket(fd, flags, &srv->source_addr, &si->addr.s.from);
+			ret = tcp_bind_socket(fd, flags, &srv->source_addr, &si->addr.from);
 		}
 
 		if (ret) {
@@ -365,7 +365,7 @@ int tcp_connect_server(struct stream_interface *si)
 		if (be->iface_name)
 			setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, be->iface_name, be->iface_len + 1);
 #endif
-		ret = tcp_bind_socket(fd, flags, &be->source_addr, &si->addr.s.from);
+		ret = tcp_bind_socket(fd, flags, &be->source_addr, &si->addr.from);
 		if (ret) {
 			close(fd);
 			if (ret == 1) {
@@ -400,7 +400,7 @@ int tcp_connect_server(struct stream_interface *si)
 	if (global.tune.server_rcvbuf)
                 setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &global.tune.server_rcvbuf, sizeof(global.tune.server_rcvbuf));
 
-	if ((connect(fd, (struct sockaddr *)&si->addr.s.to, get_addr_len(&si->addr.s.to)) == -1) &&
+	if ((connect(fd, (struct sockaddr *)&si->addr.to, get_addr_len(&si->addr.to)) == -1) &&
 	    (errno != EINPROGRESS) && (errno != EALREADY) && (errno != EISCONN)) {
 
 		if (errno == EAGAIN || errno == EADDRINUSE) {
@@ -442,8 +442,8 @@ int tcp_connect_server(struct stream_interface *si)
 	fdtab[fd].cb[DIR_WR].f = &stream_sock_write;
 	fdtab[fd].cb[DIR_WR].b = si->ob;
 
-	fdinfo[fd].peeraddr = (struct sockaddr *)&si->addr.s.to;
-	fdinfo[fd].peerlen = get_addr_len(&si->addr.s.to);
+	fdinfo[fd].peeraddr = (struct sockaddr *)&si->addr.to;
+	fdinfo[fd].peerlen = get_addr_len(&si->addr.to);
 
 	fd_insert(fd);
 	EV_FD_SET(fd, DIR_WR);  /* for connect status */
@@ -1247,11 +1247,11 @@ static int
 acl_fetch_src(struct proxy *px, struct session *l4, void *l7, int dir,
               struct acl_expr *expr, struct acl_test *test)
 {
-	test->i = l4->si[0].addr.c.from.ss_family;
+	test->i = l4->si[0].addr.from.ss_family;
 	if (test->i == AF_INET)
-		test->ptr = (char *)&((struct sockaddr_in *)&l4->si[0].addr.c.from)->sin_addr;
+		test->ptr = (char *)&((struct sockaddr_in *)&l4->si[0].addr.from)->sin_addr;
 	else if (test->i == AF_INET6)
-		test->ptr = (char *)&((struct sockaddr_in6 *)(&l4->si[0].addr.c.from))->sin6_addr;
+		test->ptr = (char *)&((struct sockaddr_in6 *)(&l4->si[0].addr.from))->sin6_addr;
 	else
 		return 0;
 
@@ -1264,10 +1264,10 @@ static int
 pattern_fetch_src(struct proxy *px, struct session *l4, void *l7, int dir,
                   const struct pattern_arg *arg_p, int arg_i, union pattern_data *data)
 {
-	if (l4->si[0].addr.c.from.ss_family != AF_INET )
+	if (l4->si[0].addr.from.ss_family != AF_INET )
 		return 0;
 
-	data->ip.s_addr = ((struct sockaddr_in *)&l4->si[0].addr.c.from)->sin_addr.s_addr;
+	data->ip.s_addr = ((struct sockaddr_in *)&l4->si[0].addr.from)->sin_addr.s_addr;
 	return 1;
 }
 
@@ -1276,10 +1276,10 @@ static int
 pattern_fetch_src6(struct proxy *px, struct session *l4, void *l7, int dir,
                   const struct pattern_arg *arg_p, int arg_i, union pattern_data *data)
 {
-	if (l4->si[0].addr.c.from.ss_family != AF_INET6)
+	if (l4->si[0].addr.from.ss_family != AF_INET6)
 		return 0;
 
-	memcpy(data->ipv6.s6_addr, ((struct sockaddr_in6 *)&l4->si[0].addr.c.from)->sin6_addr.s6_addr, sizeof(data->ipv6.s6_addr));
+	memcpy(data->ipv6.s6_addr, ((struct sockaddr_in6 *)&l4->si[0].addr.from)->sin6_addr.s6_addr, sizeof(data->ipv6.s6_addr));
 	return 1;
 }
 
@@ -1288,7 +1288,7 @@ static int
 acl_fetch_sport(struct proxy *px, struct session *l4, void *l7, int dir,
                 struct acl_expr *expr, struct acl_test *test)
 {
-	if (!(test->i = get_host_port(&l4->si[0].addr.c.from)))
+	if (!(test->i = get_host_port(&l4->si[0].addr.from)))
 		return 0;
 
 	test->flags = 0;
@@ -1304,11 +1304,11 @@ acl_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!(l4->flags & SN_FRT_ADDR_SET))
 		get_frt_addr(l4);
 
-	test->i = l4->si[0].addr.c.to.ss_family;
+	test->i = l4->si[0].addr.to.ss_family;
 	if (test->i == AF_INET)
-		test->ptr = (char *)&((struct sockaddr_in *)&l4->si[0].addr.c.to)->sin_addr;
+		test->ptr = (char *)&((struct sockaddr_in *)&l4->si[0].addr.to)->sin_addr;
 	else if (test->i == AF_INET6)
-		test->ptr = (char *)&((struct sockaddr_in6 *)(&l4->si[0].addr.c.to))->sin6_addr;
+		test->ptr = (char *)&((struct sockaddr_in6 *)(&l4->si[0].addr.to))->sin6_addr;
 	else
 		return 0;
 
@@ -1325,10 +1325,10 @@ pattern_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!(l4->flags & SN_FRT_ADDR_SET))
 		get_frt_addr(l4);
 
-	if (l4->si[0].addr.c.to.ss_family != AF_INET)
+	if (l4->si[0].addr.to.ss_family != AF_INET)
 		return 0;
 
-	data->ip.s_addr = ((struct sockaddr_in *)&l4->si[0].addr.c.to)->sin_addr.s_addr;
+	data->ip.s_addr = ((struct sockaddr_in *)&l4->si[0].addr.to)->sin_addr.s_addr;
 	return 1;
 }
 
@@ -1340,10 +1340,10 @@ pattern_fetch_dst6(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!(l4->flags & SN_FRT_ADDR_SET))
 		get_frt_addr(l4);
 
-	if (l4->si[0].addr.c.to.ss_family != AF_INET6)
+	if (l4->si[0].addr.to.ss_family != AF_INET6)
 		return 0;
 
-	memcpy(data->ipv6.s6_addr, ((struct sockaddr_in6 *)&l4->si[0].addr.c.to)->sin6_addr.s6_addr, sizeof(data->ipv6.s6_addr));
+	memcpy(data->ipv6.s6_addr, ((struct sockaddr_in6 *)&l4->si[0].addr.to)->sin6_addr.s6_addr, sizeof(data->ipv6.s6_addr));
 	return 1;
 }
 
@@ -1355,7 +1355,7 @@ acl_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!(l4->flags & SN_FRT_ADDR_SET))
 		get_frt_addr(l4);
 
-	if (!(test->i = get_host_port(&l4->si[0].addr.c.to)))
+	if (!(test->i = get_host_port(&l4->si[0].addr.to)))
 		return 0;
 
 	test->flags = 0;
@@ -1369,7 +1369,7 @@ pattern_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!(l4->flags & SN_FRT_ADDR_SET))
 		get_frt_addr(l4);
 
-	if (!(data->integer = get_host_port(&l4->si[0].addr.c.to)))
+	if (!(data->integer = get_host_port(&l4->si[0].addr.to)))
 		return 0;
 
 	return 1;
