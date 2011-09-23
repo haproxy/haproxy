@@ -703,7 +703,7 @@ int assign_server_address(struct session *s)
 			base_port = get_host_port(&s->req->prod->addr.c.to);
 
 			/* Second, assign the outgoing connection's port */
-			base_port += get_host_port(&s->req->prod->addr.s.to);
+			base_port += get_host_port(&s->req->cons->addr.s.to);
 			set_host_port(&s->req->cons->addr.s.to, base_port);
 		}
 	}
