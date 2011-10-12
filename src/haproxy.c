@@ -103,10 +103,7 @@ int  relative_pid = 1;		/* process id starting at 1 */
 
 /* global options */
 struct global global = {
-	logfac1 : -1,
-	logfac2 : -1,
-	loglev1 : 7, /* max syslog level : debug */
-	loglev2 : 7,
+	.logsrvs = LIST_HEAD_INIT(global.logsrvs),
 	.stats_sock = {
 		.perm = {
 			 .ux = {
@@ -788,6 +785,7 @@ void deinit(void)
 	struct wordlist *wl, *wlb;
 	struct cond_wordlist *cwl, *cwlb;
 	struct uri_auth *uap, *ua = NULL;
+	struct logsrv *log, *logb;
 	int i;
 
 	deinit_signals();
@@ -893,6 +891,11 @@ void deinit(void)
 			free(rdr);
 		}
 
+		list_for_each_entry_safe(log, logb, &p->logsrvs, list) {
+			LIST_DEL(&log->list);
+			free(log);
+		}
+
 		deinit_tcp_rules(&p->tcp_req.inspect_rules);
 		deinit_tcp_rules(&p->tcp_req.l4_rules);
 
@@ -995,6 +998,10 @@ void deinit(void)
 	free(oldpids);        oldpids = NULL;
 	free(global_listener_queue_task); global_listener_queue_task = NULL;
 
+	list_for_each_entry_safe(log, logb, &global.logsrvs, list) {
+			LIST_DEL(&log->list);
+			free(log);
+		}
 	list_for_each_entry_safe(wl, wlb, &cfg_cfgfiles, list) {
 		LIST_DEL(&wl->list);
 		free(wl);

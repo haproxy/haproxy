@@ -1097,7 +1097,7 @@ void http_sess_log(struct session *s)
 	if (!err && (fe->options2 & PR_O2_NOLOGNORM))
 		return;
 
-	if (fe->logfac1 < 0 && fe->logfac2 < 0)
+	if (LIST_ISEMPTY(&fe->logsrvs))
 		return;
 	prx_log = fe;
 

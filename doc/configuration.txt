@@ -998,7 +998,7 @@ http-check send-state                     X          -         X         X
 http-request                              -          X         X         X
 id                                        -          X         X         X
 ignore-persist                            -          X         X         X
-log                                       X          X         X         X
+log                                  (*)  X          X         X         X
 maxconn                                   X          X         X         -
 mode                                      X          X         X         X
 monitor fail                              -          X         X         -
@@ -2560,9 +2560,16 @@ ignore-persist { if | unless } <condition>
 
 log global
 log <address> <facility> [<level> [<minlevel>]]
+no log
   Enable per-instance logging of events and traffic.
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
+
+  Prefix :
+    no         should be used when the logger list must be flushed. For example,
+               if you don't want to inherit from the default logger list. This
+               prefix does not allow arguments.
+
   Arguments :
     global     should be used when the instance's logging parameters are the
                same as the global ones. This is the most common usage. "global"
@@ -2604,14 +2611,9 @@ log <address> <facility> [<level> [<minlevel>]]
 
                  emerg  alert  crit   err    warning notice info  debug
 
-  Note that up to two "log" entries may be specified per instance. However, if
-  "log global" is used and if the "global" section already contains 2 log
-  entries, then additional log entries will be ignored.
-
-  Also, it is important to keep in mind that it is the frontend which decides
-  what to log from a connection, and that in case of content switching, the log
-  entries from the backend will be ignored. Connections are logged at level
-  "info".
+  It is important to keep in mind that it is the frontend which decides what to
+  log from a connection, and that in case of content switching, the log entries
+  from the backend will be ignored. Connections are logged at level "info".
 
   However, backend log declaration define how and where servers status changes
   will be logged. Level "notice" will be used to indicate a server going up,

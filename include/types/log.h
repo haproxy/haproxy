@@ -48,7 +48,11 @@
 #define LW_RSPHDR	2048	/* response header(s) */
 
 struct logsrv {
+	struct list list;
 	struct sockaddr_storage addr;
+	int facility;
+	int level;
+	int minlvl;
 };
 
 #endif /* _TYPES_LOG_H */

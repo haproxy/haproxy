@@ -79,10 +79,7 @@ struct global {
 	char *pidfile;
 	char *node, *desc;		/* node name & description */
 	char *log_tag;                  /* name for syslog */
-	int logfac1, logfac2;
-	int loglev1, loglev2;
-	int minlvl1, minlvl2;
-	struct logsrv logsrv1, logsrv2;
+	struct list logsrvs;
 	char *log_send_hostname;   /* set hostname in syslog header */
 	struct {
 		int maxpollevents; /* max number of poll events at once */

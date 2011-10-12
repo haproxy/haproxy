@@ -144,7 +144,7 @@ int frontend_accept(struct session *s)
 	}
 
 	if ((s->fe->mode == PR_MODE_TCP || s->fe->mode == PR_MODE_HTTP)
-	    && (s->fe->logfac1 >= 0 || s->fe->logfac2 >= 0)) {
+	    && (!LIST_ISEMPTY(&s->fe->logsrvs))) {
 		if (likely(s->fe->to_log)) {
 			/* we have the client ip */
 			if (s->logs.logwait & LW_CLIP)

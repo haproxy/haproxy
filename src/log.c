@@ -157,10 +157,9 @@ void send_log(struct proxy *p, int level, const char *message, ...)
 	static char *dataptr = NULL;
 	int fac_level;
 	int hdr_len, data_len;
-	struct logsrv *logsrvs[2];
-	int facilities[2], loglevel[2], minlvl[2];
+	struct list *logsrvs = NULL;
+	struct logsrv *tmp = NULL;
 	int nblogger;
-	int nbloggers = 0;
 	char *log_ptr;
 
 	if (level < 0 || message == NULL)
@@ -201,42 +200,25 @@ void send_log(struct proxy *p, int level, const char *message, ...)
 	dataptr[data_len - 1] = '\n'; /* force a break on ultra-long lines */
 
 	if (p == NULL) {
-		if (global.logfac1 >= 0) {
-			logsrvs[nbloggers] = &global.logsrv1;
-			facilities[nbloggers] = global.logfac1;
-			loglevel[nbloggers] = global.loglev1;
-			minlvl[nbloggers] = global.minlvl1;
-			nbloggers++;
-		}
-		if (global.logfac2 >= 0) {
-			logsrvs[nbloggers] = &global.logsrv2;
-			facilities[nbloggers] = global.logfac2;
-			loglevel[nbloggers] = global.loglev2;
-			minlvl[nbloggers] = global.minlvl2;
-			nbloggers++;
+		if (!LIST_ISEMPTY(&global.logsrvs)) {
+			logsrvs = &global.logsrvs;
 		}
 	} else {
-		if (p->logfac1 >= 0) {
-			logsrvs[nbloggers] = &p->logsrv1;
-			facilities[nbloggers] = p->logfac1;
-			loglevel[nbloggers] = p->loglev1;
-			minlvl[nbloggers] = p->minlvl1;
-			nbloggers++;
-		}
-		if (p->logfac2 >= 0) {
-			logsrvs[nbloggers] = &p->logsrv2;
-			facilities[nbloggers] = p->logfac2;
-			loglevel[nbloggers] = p->loglev2;
-			minlvl[nbloggers] = p->minlvl2;
-			nbloggers++;
+		if (!LIST_ISEMPTY(&p->logsrvs)) {
+			logsrvs = &p->logsrvs;
 		}
 	}
 
+	if (!logsrvs)
+		return;
+
 	/* Lazily set up syslog sockets for protocol families of configured
 	 * syslog servers. */
-	for (nblogger = 0; nblogger < nbloggers; nblogger++) {
-		const struct logsrv *logsrv = logsrvs[nblogger];
+	nblogger = 0;
+	list_for_each_entry(tmp, logsrvs, list) {
+		const struct logsrv *logsrv = tmp;
 		int proto, *plogfd;
+
 		if (logsrv->addr.ss_family == AF_UNIX) {
 			proto = 0;
 			plogfd = &logfdunix;
@@ -258,17 +240,19 @@ void send_log(struct proxy *p, int level, const char *message, ...)
 		setsockopt(*plogfd, SOL_SOCKET, SO_RCVBUF, &zero, sizeof(zero));
 		/* does nothing under Linux, maybe needed for others */
 		shutdown(*plogfd, SHUT_RD);
+		nblogger++;
 	}
 
 	/* Send log messages to syslog server. */
-	for (nblogger = 0; nblogger < nbloggers; nblogger++) {
-		const struct logsrv *logsrv = logsrvs[nblogger];
+	nblogger = 0;
+	list_for_each_entry(tmp, logsrvs, list) {
+		const struct logsrv *logsrv = tmp;
 		int *plogfd = logsrv->addr.ss_family == AF_UNIX ?
 			&logfdunix : &logfdinet;
 		int sent;
 
 		/* we can filter the level of the messages that are sent to each logger */
-		if (level > loglevel[nblogger])
+		if (level > logsrv->level)
 			continue;
 	
 		/* For each target, we may have a different facility.
@@ -278,7 +262,7 @@ void send_log(struct proxy *p, int level, const char *message, ...)
 		 * time, we only change the facility in the pre-computed header,
 		 * and we change the pointer to the header accordingly.
 		 */
-		fac_level = (facilities[nblogger] << 3) + MAX(level, minlvl[nblogger]);
+		fac_level = (logsrv->facility << 3) + MAX(level, logsrv->minlvl);
 		log_ptr = logmsg + 3; /* last digit of the log level */
 		do {
 			*log_ptr = '0' + fac_level % 10;
@@ -295,6 +279,7 @@ void send_log(struct proxy *p, int level, const char *message, ...)
 			Alert("sendto logger #%d failed: %s (errno=%d)\n",
 				nblogger, strerror(errno), errno);
 		}
+		nblogger++;
 	}
 }
 
@@ -320,7 +305,7 @@ void tcp_sess_log(struct session *s)
 	addr_to_str(&s->si[0].addr.from, pn, sizeof(pn));
 	get_localtime(s->logs.tv_accept.tv_sec, &tm);
 
-	if (fe->logfac1 < 0 && fe->logfac2 < 0)
+	if(LIST_ISEMPTY(&fe->logsrvs))
 		return;
 
 	prx_log = fe;
