@@ -31,6 +31,7 @@
 #define STATUS_FIELD 10
 #define TERM_CODES_FIELD 14
 #define CONN_FIELD 15
+#define QUEUE_LEN_FIELD 16
 #define METH_FIELD 17
 #define URL_FIELD 18
 #define MAXLINE 16384
@@ -102,6 +103,8 @@ struct url_stat {
 
 #define FILT_HTTP_STATUS           0x1000000
 #define FILT_INVERT_HTTP_STATUS    0x2000000
+#define FILT_QUEUE_ONLY            0x4000000
+#define FILT_QUEUE_SRV_ONLY        0x8000000
 
 unsigned int filter = 0;
 unsigned int filter_invert = 0;
@@ -126,7 +129,7 @@ void die(const char *msg)
 		"%s"
 		"Usage: halog [-q] [-c] [-v] {-gt|-pct|-st|-tc|-srv|-u|-uc|-ue|-ua|-ut|-uao|-uto}\n"
 		"       [-s <skip>] [-e|-E] [-H] [-rt|-RT <time>] [-ad <delay>] [-ac <count>]\n"
-		"       [-tcn|-TCN <termcode>] [ -hs|-HS [min][:[max]] ] < log\n"
+		"       [-Q|-QS] [-tcn|-TCN <termcode>] [ -hs|-HS [min][:[max]] ] < log\n"
 		"\n",
 		msg ? msg : ""
 		);
@@ -526,6 +529,10 @@ int main(int argc, char **argv)
 			filter |= FILT_ERRORS_ONLY | FILT_INVERT_ERRORS;
 		else if (strcmp(argv[0], "-H") == 0)
 			filter |= FILT_HTTP_ONLY;
+		else if (strcmp(argv[0], "-Q") == 0)
+			filter |= FILT_QUEUE_ONLY;
+		else if (strcmp(argv[0], "-QS") == 0)
+			filter |= FILT_QUEUE_SRV_ONLY;
 		else if (strcmp(argv[0], "-c") == 0)
 			filter |= FILT_COUNT_ONLY;
 		else if (strcmp(argv[0], "-q") == 0)
@@ -722,6 +729,35 @@ int main(int argc, char **argv)
 
 			if (filter & FILT_HTTP_STATUS)
 				test &= (val >= filt_http_status_low && val <= filt_http_status_high) ^ !!(filter & FILT_INVERT_HTTP_STATUS);
+		}
+
+		if (filter & (FILT_QUEUE_ONLY|FILT_QUEUE_SRV_ONLY)) {
+			/* Check if the server's queue is non-nul */
+			if (time_field)
+				b = field_start(time_field, QUEUE_LEN_FIELD - TIME_FIELD + 1);
+			else
+				b = field_start(accept_field, QUEUE_LEN_FIELD - ACCEPT_FIELD + 1);
+
+			if (unlikely(!*b)) {
+				truncated_line(linenum, line);
+				continue;
+			}
+
+			if (*b == '0') {
+				if (filter & FILT_QUEUE_SRV_ONLY) {
+					test = 0;
+				}
+				else {
+					do {
+						b++;
+						if (*b == '/') {
+							b++;
+							break;
+						}
+					} while (*b);
+					test &= ((unsigned char)(*b - '1') < 9);
+				}
+			}
 		}
 
 		if (filter & FILT_TERM_CODE_NAME) {
