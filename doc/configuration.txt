@@ -1898,7 +1898,9 @@ cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
               requests so that the server still finds the cookie it emitted.
               Since all requests and responses are subject to being modified,
               this mode requires the HTTP close mode. The "prefix" keyword is
-              not compatible with "rewrite" and "insert".
+              not compatible with "rewrite" and "insert". Note: it is highly
+              recommended not to use "indirect" with "prefix", otherwise server
+              cookie updates would not be sent to clients.
 
     indirect  When this option is specified, no cookie will be emitted to a
               client which already has a valid one for the server which has
@@ -1907,6 +1909,9 @@ cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
               "insert" mode, this will additionally remove cookies from the
               requests transmitted to the server, making the persistence
               mechanism totally transparent from an application point of view.
+              Note: it is highly recommended not to use "indirect" with
+              "prefix", otherwise server cookie updates would not be sent to
+              clients.
 
     nocache   This option is recommended in conjunction with the insert mode
               when there is a cache between the client and HAProxy, as it
