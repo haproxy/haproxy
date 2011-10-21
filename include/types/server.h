@@ -99,20 +99,13 @@ struct server {
 	unsigned maxconn, minconn;		/* max # of active sessions (0 = unlimited), min# for dynamic limit. */
 	int nbpend;				/* number of pending connections */
 	int maxqueue;				/* maximum number of pending connections allowed */
+	struct freq_ctr sess_per_sec;		/* sessions per second on this server */
 	struct srvcounters counters;		/* statistics counters */
 
 	struct list pendconns;			/* pending connections */
 	struct list actconns;			/* active connections */
 	struct task *check;                     /* the task associated to the health check processing */
 
-	struct sockaddr_storage addr;		/* the address to connect to */
-	struct sockaddr_storage source_addr;	/* the address to which we want to bind for connect() */
-#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
-	struct sockaddr_storage tproxy_addr;	/* non-local address we want to bind to for connect() */
-	char *bind_hdr_name;			/* bind to this header name if defined */
-	int bind_hdr_len;			/* length of the name of the header above */
-	int bind_hdr_occ;			/* occurrence number of header above: >0 = from first, <0 = from end, 0=disabled */
-#endif
 	int iface_len;				/* bind interface name length */
 	char *iface_name;			/* bind interface name or NULL */
 	struct port_range *sport_range;		/* optional per-server TCP source ports */
@@ -145,6 +138,15 @@ struct server {
 	unsigned lb_nodes_now;                  /* number of lb_nodes placed in the tree (C-HASH) */
 	struct tree_occ *lb_nodes;              /* lb_nodes_tot * struct tree_occ */
 
+	/* warning, these structs are huge, keep them at the bottom */
+	struct sockaddr_storage addr;		/* the address to connect to */
+	struct sockaddr_storage source_addr;	/* the address to which we want to bind for connect() */
+#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
+	struct sockaddr_storage tproxy_addr;	/* non-local address we want to bind to for connect() */
+	char *bind_hdr_name;			/* bind to this header name if defined */
+	int bind_hdr_len;			/* length of the name of the header above */
+	int bind_hdr_occ;			/* occurrence number of header above: >0 = from first, <0 = from end, 0=disabled */
+#endif
 	unsigned down_time;			/* total time the server was down */
 	time_t last_change;			/* last time, when the state was changed */
 	struct timeval check_start;		/* last health check start time */
@@ -152,7 +154,6 @@ struct server {
 	short check_status, check_code;		/* check result, check code */
 	char check_desc[HCHK_DESC_LEN];		/* health check descritpion */
 
-	struct freq_ctr sess_per_sec;		/* sessions per second on this server */
 	int puid;				/* proxy-unique server ID, used for SNMP */
 
 	char *check_data;			/* storage of partial check results */

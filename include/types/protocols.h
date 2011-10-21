@@ -101,7 +101,6 @@ struct listener {
 	int state;			/* state: NEW, INIT, ASSIGNED, LISTEN, READY, FULL */
 	int options;			/* socket options : LI_O_* */
 	struct licounters *counters;	/* statistics counters */
-	struct sockaddr_storage addr;	/* the address we listen to */
 	struct protocol *proto;		/* protocol this listener belongs to */
 	int nbconn;			/* current number of connections on this listener */
 	int maxconn;			/* maximum connections allowed on this listener */
@@ -126,6 +125,8 @@ struct listener {
 	char *interface;		/* interface name or NULL */
 	int maxseg;			/* for TCP, advertised MSS */
 
+	/* warning: this struct is huge, keep it at the bottom */
+	struct sockaddr_storage addr;	/* the address we listen to */
 	struct {
 		const char *file;	/* file where the section appears */
 		int line;		/* line where the section appears */
