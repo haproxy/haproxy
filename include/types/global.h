@@ -96,6 +96,7 @@ struct global {
 		int server_sndbuf; /* set server sndbuf to this value if not null */
 		int server_rcvbuf; /* set server rcvbuf to this value if not null */
 		int chksize;       /* check buffer size in bytes, defaults to BUFSIZE */
+		int pipesize;      /* pipe size in bytes, system defaults if zero */
 	} tune;
 	struct {
 		char *prefix;           /* path prefix of unix bind socket */

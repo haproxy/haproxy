@@ -461,6 +461,7 @@ The following keywords are supported in the "global" section :
    - tune.maxaccept
    - tune.maxpollevents
    - tune.maxrewrite
+   - tune.pipesize
    - tune.rcvbuf.client
    - tune.rcvbuf.server
    - tune.sndbuf.client
@@ -752,6 +753,14 @@ tune.maxrewrite <number>
   to about 1024. It is automatically readjusted to half of bufsize if it is
   larger than that. This means you don't have to worry about it when changing
   bufsize.
+
+tune.pipesize <number>
+  Sets the kernel pipe buffer size to this size (in bytes). By default, pipes
+  are the default size for the system. But sometimes when using TCP splicing,
+  it can improve performance to increase pipe sizes, especially if it is
+  suspected that pipes are not filled and that many calls to splice() are
+  performed. This has an impact on the kernel's memory footprint, so this must
+  not be changed if impacts are not understood.
 
 tune.rcvbuf.client <number>
 tune.rcvbuf.server <number>

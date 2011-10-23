@@ -58,6 +58,10 @@ struct pipe *get_pipe()
 		pool_free2(pool2_pipe, ret);
 		return NULL;
 	}
+#ifdef F_SETPIPE_SZ
+	if (global.tune.pipesize)
+		fcntl(pipefd[0], F_SETPIPE_SZ, global.tune.pipesize);
+#endif
 	ret->data = 0;
 	ret->prod = pipefd[1];
 	ret->cons = pipefd[0];

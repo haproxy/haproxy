@@ -69,6 +69,11 @@
 #define MAXPATHLEN 128
 #endif
 
+/* On Linux, allows pipes to be resized */
+#ifndef F_SETPIPE_SZ
+#define F_SETPIPE_SZ (1024 + 7)
+#endif
+
 #if defined(TPROXY) && defined(NETFILTER)
 #include <linux/types.h>
 #include <linux/netfilter_ipv6.h>
