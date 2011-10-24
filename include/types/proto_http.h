@@ -322,7 +322,7 @@ struct http_req_rule {
  */
 struct http_txn {
 	struct http_msg req;            /* HTTP request message */
-	struct hdr_idx hdr_idx;         /* array of header indexes (max: MAX_HTTP_HDR) */
+	struct hdr_idx hdr_idx;         /* array of header indexes (max: global.tune.max_http_hdr) */
 	unsigned int flags;             /* transaction flags */
 	http_meth_t meth;               /* HTTP method */
 

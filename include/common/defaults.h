@@ -58,9 +58,9 @@
 #define	MAX_MATCH       10
 
 // max # of headers in one HTTP request or response
-// By default, about 100 headers per 8 kB.
+// By default, about 100 headers (+1 for the first line)
 #ifndef MAX_HTTP_HDR
-#define MAX_HTTP_HDR    ((BUFSIZE+79)/80)
+#define MAX_HTTP_HDR    101
 #endif
 
 // max # of headers in history when looking for header #-X

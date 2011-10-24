@@ -819,7 +819,7 @@ int session_set_backend(struct session *s, struct proxy *be)
 		/* and now initialize the HTTP transaction state */
 		http_init_txn(s);
 
-		s->txn.hdr_idx.size = MAX_HTTP_HDR;
+		s->txn.hdr_idx.size = global.tune.max_http_hdr;
 		hdr_idx_init(&s->txn.hdr_idx);
 	}
 

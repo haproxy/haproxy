@@ -596,6 +596,14 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.tune.pipesize = atol(args[1]);
 	}
+	else if (!strcmp(args[0], "tune.http.maxhdr")) {
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		global.tune.max_http_hdr = atol(args[1]);
+	}
 	else if (!strcmp(args[0], "uid")) {
 		if (global.uid != 0) {
 			Alert("parsing [%s:%d] : user/uid already specified. Continuing.\n", file, linenum);
@@ -6595,8 +6603,11 @@ out_uri_auth_compat:
 		}
 	}
 
+	if (!global.tune.max_http_hdr)
+		global.tune.max_http_hdr = MAX_HTTP_HDR;
+
 	pool2_hdr_idx = create_pool("hdr_idx",
-				    MAX_HTTP_HDR * sizeof(struct hdr_idx_elem),
+				    global.tune.max_http_hdr * sizeof(struct hdr_idx_elem),
 				    MEM_F_SHARED);
 
 	if (cfgerr > 0)

@@ -458,6 +458,7 @@ The following keywords are supported in the "global" section :
    - spread-checks
    - tune.bufsize
    - tune.chksize
+   - tune.http.maxhdr
    - tune.maxaccept
    - tune.maxpollevents
    - tune.maxrewrite
@@ -724,6 +725,17 @@ tune.chksize <number>
   more memory and CPU usage. The default value is 16384 and can be changed at
   build time. It is not recommended to change this value, but to use better
   checks whenever possible.
+
+tune.http.maxhdr <number>
+  Sets the maximum number of headers in a request. When a request comes with a
+  number of headers greater than this value (including the first line), it is
+  rejected with a "400 Bad Request" status code. Similarly, too large responses
+  are blocked with "502 Bad Gateway". The default value is 101, which is enough
+  for all usages, considering that the widely deployed Apache server uses the
+  same limit. It can be useful to push this limit further to temporarily allow
+  a buggy application to work by the time it gets fixed. Keep in mind that each
+  new header consumes 32bits of memory for each session, so don't push this
+  limit too high.
 
 tune.maxaccept <number>
   Sets the maximum number of consecutive accepts that a process may perform on

@@ -97,6 +97,7 @@ struct global {
 		int server_rcvbuf; /* set server rcvbuf to this value if not null */
 		int chksize;       /* check buffer size in bytes, defaults to BUFSIZE */
 		int pipesize;      /* pipe size in bytes, system defaults if zero */
+		int max_http_hdr;  /* max number of HTTP headers, use MAX_HTTP_HDR if zero */
 	} tune;
 	struct {
 		char *prefix;           /* path prefix of unix bind socket */
