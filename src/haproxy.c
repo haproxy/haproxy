@@ -76,6 +76,7 @@
 #include <proto/buffers.h>
 #include <proto/checks.h>
 #include <proto/fd.h>
+#include <proto/hdr_idx.h>
 #include <proto/log.h>
 #include <proto/protocols.h>
 #include <proto/proto_http.h>
@@ -953,7 +954,6 @@ void deinit(void)
 
 		pool_destroy2(p->req_cap_pool);
 		pool_destroy2(p->rsp_cap_pool);
-		pool_destroy2(p->hdr_idx_pool);
 		pool_destroy2(p->table.pool);
 
 		p0 = p;
@@ -1003,6 +1003,7 @@ void deinit(void)
 	pool_destroy2(pool2_appsess);
 	pool_destroy2(pool2_pendconn);
 	pool_destroy2(pool2_sig_handlers);
+	pool_destroy2(pool2_hdr_idx);
     
 	if (have_appsession) {
 		pool_destroy2(apools.serverid);

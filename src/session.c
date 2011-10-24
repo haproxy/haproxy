@@ -372,8 +372,8 @@ static void session_free(struct session *s)
 		s->store[i].ts = NULL;
 	}
 
+	pool_free2(pool2_hdr_idx, txn->hdr_idx.v);
 	if (fe) {
-		pool_free2(fe->hdr_idx_pool, txn->hdr_idx.v);
 		pool_free2(fe->rsp_cap_pool, txn->rsp.cap);
 		pool_free2(fe->req_cap_pool, txn->req.cap);
 	}
@@ -397,7 +397,7 @@ static void session_free(struct session *s)
 	/* We may want to free the maximum amount of pools if the proxy is stopping */
 	if (fe && unlikely(fe->state == PR_STSTOPPED)) {
 		pool_flush2(pool2_buffer);
-		pool_flush2(fe->hdr_idx_pool);
+		pool_flush2(pool2_hdr_idx);
 		pool_flush2(pool2_requri);
 		pool_flush2(pool2_capture);
 		pool_flush2(pool2_session);

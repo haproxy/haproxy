@@ -44,6 +44,7 @@
 #include <proto/checks.h>
 #include <proto/dumpstats.h>
 #include <proto/frontend.h>
+#include <proto/hdr_idx.h>
 #include <proto/lb_chash.h>
 #include <proto/lb_fwlc.h>
 #include <proto/lb_fwrr.h>
@@ -5991,10 +5992,6 @@ out_uri_auth_compat:
 							     curproxy->nb_rsp_cap * sizeof(char *),
 							     MEM_F_SHARED);
 
-		curproxy->hdr_idx_pool = create_pool("hdr_idx",
-						     MAX_HTTP_HDR * sizeof(struct hdr_idx_elem),
-						     MEM_F_SHARED);
-
 		/* first, we will invert the servers list order */
 		newsrv = NULL;
 		while (curproxy->srv) {
@@ -6597,6 +6594,10 @@ out_uri_auth_compat:
 			*last = curpeers;
 		}
 	}
+
+	pool2_hdr_idx = create_pool("hdr_idx",
+				    MAX_HTTP_HDR * sizeof(struct hdr_idx_elem),
+				    MEM_F_SHARED);
 
 	if (cfgerr > 0)
 		err_code |= ERR_ALERT | ERR_FATAL;

@@ -296,7 +296,6 @@ struct proxy {
 	struct cap_hdr *rsp_cap;		/* chained list of response headers to be captured */
 	struct pool_head *req_cap_pool,		/* pools of pre-allocated char ** used to build the sessions */
 	                 *rsp_cap_pool;
-	struct pool_head *hdr_idx_pool;         /* pools of pre-allocated int* used for headers indexing */
 	struct list req_add, rsp_add;           /* headers to be added */
 	struct pxcounters be_counters;		/* backend statistics counters */
 	struct pxcounters fe_counters;		/* frontend statistics counters */

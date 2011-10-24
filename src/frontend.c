@@ -136,7 +136,7 @@ int frontend_accept(struct session *s)
 		 */
 		s->txn.hdr_idx.size = MAX_HTTP_HDR;
 
-		if (unlikely((s->txn.hdr_idx.v = pool_alloc2(s->fe->hdr_idx_pool)) == NULL))
+		if (unlikely((s->txn.hdr_idx.v = pool_alloc2(pool2_hdr_idx)) == NULL))
 			goto out_free_rspcap; /* no memory */
 
 		/* and now initialize the HTTP transaction state */
