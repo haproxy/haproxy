@@ -11,6 +11,7 @@
  */
 
 #include <unistd.h>
+#include <fcntl.h>
 
 #include <common/config.h>
 #include <common/memory.h>
