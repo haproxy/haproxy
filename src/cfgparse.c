@@ -5884,11 +5884,15 @@ int check_config_validity()
 			if (!curpeers) {
 				Alert("Proxy '%s': unable to find sync peers '%s'.\n",
 				      curproxy->id, curproxy->table.peers.name);
+				free((void *)curproxy->table.peers.name);
+				curproxy->table.peers.p = NULL;
 				cfgerr++;
 			}
 			else if (!curpeers->peers_fe) {
 				Alert("Proxy '%s': unable to find local peer '%s' in peers section '%s'.\n",
 				      curproxy->id, localpeer, curpeers->id);
+				free((void *)curproxy->table.peers.name);
+				curproxy->table.peers.p = NULL;
 				cfgerr++;
 			}
 		}
