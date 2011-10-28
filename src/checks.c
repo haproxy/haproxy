@@ -149,9 +149,9 @@ const char *get_analyze_status(short analyze_status) {
 
 static void server_status_printf(struct chunk *msg, struct server *s, unsigned options, int xferred) {
 
-	if (s->tracked)
+	if (s->track)
 		chunk_printf(msg, " via %s/%s",
-			s->tracked->proxy->id, s->tracked->id);
+			s->track->proxy->id, s->track->id);
 
 	if (options & SSP_O_HCHK) {
 		chunk_printf(msg, ", reason: %s", get_check_status_description(s->check_status));
@@ -384,7 +384,7 @@ void set_server_down(struct server *s)
 		s->health = s->rise;
 	}
 
-	if (s->health == s->rise || s->tracked) {
+	if (s->health == s->rise || s->track) {
 		int srv_was_paused = s->state & SRV_GOINGDOWN;
 		int prev_srv_count = s->proxy->srv_bck + s->proxy->srv_act;
 
@@ -413,7 +413,7 @@ void set_server_down(struct server *s)
 				s->proxy->id, s->id);
 
 			server_status_printf(&msg, s,
-						((!s->tracked && !(s->proxy->options2 & PR_O2_LOGHCHKS))?SSP_O_HCHK:0),
+						((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS))?SSP_O_HCHK:0),
 						xferred);
 		}
 		Warning("%s.\n", trash);
@@ -449,7 +449,7 @@ void set_server_up(struct server *s) {
 		s->health = s->rise;
 	}
 
-	if (s->health == s->rise || s->tracked) {
+	if (s->health == s->rise || s->track) {
 		if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
 			if (s->proxy->last_change < now.tv_sec)		// ignore negative times
 				s->proxy->down_time += now.tv_sec - s->proxy->last_change;
@@ -492,7 +492,7 @@ void set_server_up(struct server *s) {
 				s->proxy->id, s->id);
 
 			server_status_printf(&msg, s,
-						((!s->tracked && !(s->proxy->options2 & PR_O2_LOGHCHKS))?SSP_O_HCHK:0),
+						((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS))?SSP_O_HCHK:0),
 						xferred);
 		}
 
@@ -536,7 +536,7 @@ static void set_server_disabled(struct server *s) {
 		s->proxy->id, s->id);
 
 	server_status_printf(&msg, s,
-				((!s->tracked && !(s->proxy->options2 & PR_O2_LOGHCHKS))?SSP_O_HCHK:0),
+				((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS))?SSP_O_HCHK:0),
 				xferred);
 
 	Warning("%s.\n", trash);
@@ -572,7 +572,7 @@ static void set_server_enabled(struct server *s) {
 		s->proxy->id, s->id);
 
 	server_status_printf(&msg, s,
-				((!s->tracked && !(s->proxy->options2 & PR_O2_LOGHCHKS))?SSP_O_HCHK:0),
+				((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS))?SSP_O_HCHK:0),
 				xferred);
 
 	Warning("%s.\n", trash);

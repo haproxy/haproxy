@@ -6235,7 +6235,7 @@ out_uri_auth_compat:
 					goto next_srv;
 				}
 
-				newsrv->tracked = srv;
+				newsrv->track = srv;
 				newsrv->tracknext = srv->tracknext;
 				srv->tracknext = newsrv;
 

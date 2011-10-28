@@ -102,7 +102,7 @@ struct session *pendconn_get_next_sess(struct server *srv, struct proxy *px)
 	struct session *sess;
 	struct server *rsrv;
 
-	rsrv = srv->tracked;
+	rsrv = srv->track;
 	if (!rsrv)
 		rsrv = srv;
 

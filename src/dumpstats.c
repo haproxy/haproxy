@@ -1159,11 +1159,11 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 
 			if (sv->state & SRV_MAINTAIN) {
 				/* The server is really in maintenance, we can change the server state */
-				if (sv->tracked) {
+				if (sv->track) {
 					/* If this server tracks the status of another one,
 					* we must restore the good status.
 					*/
-					if (sv->tracked->state & SRV_RUNNING) {
+					if (sv->track->state & SRV_RUNNING) {
 						set_server_up(sv);
 						sv->health = sv->rise;	/* up, but will fall down at first failure */
 					} else {
@@ -2120,7 +2120,7 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 {
 	struct session *s = si->applet.private;
 	struct buffer *rep = si->ib;
-	struct server *sv, *svs;	/* server and server-state, server-state=server or server->tracked */
+	struct server *sv, *svs;	/* server and server-state, server-state=server or server->track */
 	struct listener *l;
 	struct chunk msg;
 
@@ -2541,8 +2541,8 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 					continue;
 			}
 
-			if (sv->tracked)
-				svs = sv->tracked;
+			if (sv->track)
+				svs = sv->track;
 			else
 				svs = sv;
 
@@ -2866,9 +2866,9 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 				chunk_printf(&msg, ",%lld,", sv->counters.cum_lbconn);
 
 				/* tracked */
-				if (sv->tracked)
+				if (sv->track)
 					chunk_printf(&msg, "%s/%s,",
-						sv->tracked->proxy->id, sv->tracked->id);
+						sv->track->proxy->id, sv->track->id);
 				else
 					chunk_printf(&msg, ",");
 

@@ -110,7 +110,7 @@ struct server {
 	char *iface_name;			/* bind interface name or NULL */
 	struct port_range *sport_range;		/* optional per-server TCP source ports */
 
-	struct server *tracknext, *tracked;	/* next server in a tracking list, tracked server */
+	struct server *tracknext, *track;	/* next server in a tracking list, tracked server */
 	char *trackit;				/* temporary variable to make assignment deferrable */
 	struct sockaddr_storage check_addr;	/* the address to check, if different from <addr> */
 	short check_port;			/* the port to use for the health checks */
