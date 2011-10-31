@@ -6145,10 +6145,16 @@ out_uri_auth_compat:
 		 */
 		newsrv = curproxy->srv;
 		while (newsrv != NULL) {
-			if ((curproxy->mode != PR_MODE_HTTP) && (newsrv->rdr_len || newsrv->cklen)) {
+			if ((curproxy->mode != PR_MODE_HTTP) && newsrv->rdr_len) {
 				Alert("config : %s '%s' : server cannot have cookie or redirect prefix in non-HTTP mode.\n",
 				      proxy_type_str(curproxy), curproxy->id);
 				cfgerr++;
+			}
+
+			if ((curproxy->mode != PR_MODE_HTTP) && newsrv->cklen) {
+				Warning("config : %s '%s' : ignoring cookie for server '%s' as HTTP mode is disabled.\n",
+				        proxy_type_str(curproxy), curproxy->id, newsrv->id);
+				err_code |= ERR_WARN;
 			}
 
 #if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
