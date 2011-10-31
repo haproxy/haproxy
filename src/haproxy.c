@@ -928,6 +928,11 @@ void deinit(void)
 				task_free(s->check);
 			}
 
+			if (s->warmup) {
+				task_delete(s->warmup);
+				task_free(s->warmup);
+			}
+
 			free(s->id);
 			free(s->cookie);
 			free(s->check_data);

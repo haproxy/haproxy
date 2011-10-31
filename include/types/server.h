@@ -105,6 +105,7 @@ struct server {
 	struct list pendconns;			/* pending connections */
 	struct list actconns;			/* active connections */
 	struct task *check;                     /* the task associated to the health check processing */
+	struct task *warmup;                    /* the task dedicated to the warmup when slowstart is set */
 
 	int iface_len;				/* bind interface name length */
 	char *iface_name;			/* bind interface name or NULL */

@@ -472,6 +472,7 @@ void set_server_up(struct server *s) {
 				if (s->proxy->lbprm.update_server_eweight)
 					s->proxy->lbprm.update_server_eweight(s);
 			}
+			task_schedule(s->warmup, tick_add(now_ms, MS_TO_TICKS(MAX(1000, s->slowstart / 20))));
 		}
 		s->proxy->lbprm.set_server_status_up(s);
 
@@ -1220,6 +1221,49 @@ static int event_srv_chk_r(int fd)
 }
 
 /*
+ * updates the server's weight during a warmup stage. Once the final weight is
+ * reached, the task automatically stops. Note that any server status change
+ * must have updated s->last_change accordingly.
+ */
+static struct task *server_warmup(struct task *t)
+{
+	struct server *s = t->context;
+
+	/* by default, plan on stopping the task */
+	t->expire = TICK_ETERNITY;
+	if ((s->state & (SRV_RUNNING|SRV_WARMINGUP|SRV_MAINTAIN)) != (SRV_RUNNING|SRV_WARMINGUP))
+		return t;
+
+	if (now.tv_sec < s->last_change || now.tv_sec >= s->last_change + s->slowstart) {
+		/* go to full throttle if the slowstart interval is reached */
+		s->state &= ~SRV_WARMINGUP;
+		if (s->proxy->lbprm.algo & BE_LB_PROP_DYN)
+			s->eweight = s->uweight * BE_WEIGHT_SCALE;
+		if (s->proxy->lbprm.update_server_eweight)
+			s->proxy->lbprm.update_server_eweight(s);
+	}
+	else if (s->proxy->lbprm.algo & BE_LB_PROP_DYN) {
+		/* for dynamic algorithms, let's slowly update the weight */
+		s->eweight = (BE_WEIGHT_SCALE * (now.tv_sec - s->last_change) +
+			      s->slowstart - 1) / s->slowstart;
+		s->eweight *= s->uweight;
+		if (s->proxy->lbprm.update_server_eweight)
+			s->proxy->lbprm.update_server_eweight(s);
+	}
+	/* Note that static algorithms are already running at full throttle */
+
+	/* probably that we can refill this server with a bit more connections */
+	check_for_pending(s);
+
+	/* get back there in 1 second or 1/20th of the slowstart interval,
+	 * whichever is greater, resulting in small 5% steps.
+	 */
+	if (s->state & SRV_WARMINGUP)
+		t->expire = tick_add(now_ms, MS_TO_TICKS(MAX(1000, s->slowstart / 20)));
+	return t;
+}
+
+/*
  * manages a server health-check. Returns
  * the time the task accepts to wait, or TIME_ETERNITY for infinity.
  */
@@ -1231,8 +1275,6 @@ struct task *process_chk(struct task *t)
 	int fd;
 	int rv;
 
-	//fprintf(stderr, "process_chk: task=%p\n", t);
-
  new_chk:
 	if (attempts++ > 0) {
 		/* we always fail to create a server, let's stop insisting... */
@@ -1242,7 +1284,6 @@ struct task *process_chk(struct task *t)
 	}
 	fd = s->curfd;
 	if (fd < 0) {   /* no check currently running */
-		//fprintf(stderr, "process_chk: 2\n");
 		if (!tick_is_expired(t->expire, now_ms)) /* woke up too early */
 			return t;
 
@@ -1472,31 +1513,8 @@ struct task *process_chk(struct task *t)
 		goto new_chk;
 	}
 	else {
-		//fprintf(stderr, "process_chk: 8\n");
 		/* there was a test running */
 		if ((s->result & (SRV_CHK_ERROR|SRV_CHK_RUNNING)) == SRV_CHK_RUNNING) { /* good server detected */
-			//fprintf(stderr, "process_chk: 9\n");
-
-			if (s->state & SRV_WARMINGUP) {
-				if (now.tv_sec < s->last_change || now.tv_sec >= s->last_change + s->slowstart) {
-					s->state &= ~SRV_WARMINGUP;
-					if (s->proxy->lbprm.algo & BE_LB_PROP_DYN)
-						s->eweight = s->uweight * BE_WEIGHT_SCALE;
-					if (s->proxy->lbprm.update_server_eweight)
-						s->proxy->lbprm.update_server_eweight(s);
-				}
-				else if (s->proxy->lbprm.algo & BE_LB_PROP_DYN) {
-					/* for dynamic algorithms, let's update the weight */
-					s->eweight = (BE_WEIGHT_SCALE * (now.tv_sec - s->last_change) +
-						      s->slowstart - 1) / s->slowstart;
-					s->eweight *= s->uweight;
-					if (s->proxy->lbprm.update_server_eweight)
-						s->proxy->lbprm.update_server_eweight(s);
-				}
-				/* probably that we can refill this server with a bit more connections */
-				check_for_pending(s);
-			}
-
 			/* we may have to add/remove this server from the LB group */
 			if ((s->state & SRV_RUNNING) && (s->proxy->options & PR_O_DISABLE404)) {
 				if ((s->state & SRV_GOINGDOWN) &&
@@ -1520,7 +1538,6 @@ struct task *process_chk(struct task *t)
 			if (global.spread_checks > 0) {
 				rv = srv_getinter(s) * global.spread_checks / 100;
 				rv -= (int) (2 * rv * (rand() / (RAND_MAX + 1.0)));
-				//fprintf(stderr, "process_chk(%p): (%d+/-%d%%) random=%d\n", s, srv_getinter(s), global.spread_checks, rv);
 			}
 			t->expire = tick_add(now_ms, MS_TO_TICKS(srv_getinter(s) + rv));
 			goto new_chk;
@@ -1537,7 +1554,6 @@ struct task *process_chk(struct task *t)
 				}
 			}
 
-			//fprintf(stderr, "process_chk: 10\n");
 			/* failure or timeout detected */
 			if (s->health > s->rise) {
 				s->health--; /* still good */
@@ -1552,14 +1568,12 @@ struct task *process_chk(struct task *t)
 			if (global.spread_checks > 0) {
 				rv = srv_getinter(s) * global.spread_checks / 100;
 				rv -= (int) (2 * rv * (rand() / (RAND_MAX + 1.0)));
-				//fprintf(stderr, "process_chk(%p): (%d+/-%d%%) random=%d\n", s, srv_getinter(s), global.spread_checks, rv);
 			}
 			t->expire = tick_add(now_ms, MS_TO_TICKS(srv_getinter(s) + rv));
 			goto new_chk;
 		}
 		/* if result is unknown and there's no timeout, we have to wait again */
 	}
-	//fprintf(stderr, "process_chk: 11\n");
 	s->result = SRV_CHK_UNKNOWN;
 	return t;
 }
@@ -1607,9 +1621,24 @@ int start_checks() {
 	 */
 	for (px = proxy; px; px = px->next) {
 		for (s = px->srv; s; s = s->next) {
+			if (s->slowstart) {
+				if ((t = task_new()) == NULL) {
+					Alert("Starting [%s:%s] check: out of memory.\n", px->id, s->id);
+					return -1;
+				}
+				/* We need a warmup task that will be called when the server
+				 * state switches from down to up.
+				 */
+				s->warmup = t;
+				t->process = server_warmup;
+				t->context = s;
+				t->expire = TICK_ETERNITY;
+			}
+
 			if (!(s->state & SRV_CHECKED))
 				continue;
 
+			/* one task for the checks */
 			if ((t = task_new()) == NULL) {
 				Alert("Starting [%s:%s] check: out of memory.\n", px->id, s->id);
 				return -1;
