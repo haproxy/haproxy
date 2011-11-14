@@ -113,6 +113,14 @@ static forceinline struct ebpt_node *__ebis_lookup(struct eb_root *root, const v
 				if (eb_gettag(root->b[EB_RGHT]))
 					return node;
 			}
+			/* if the bit is larger than the node's, we must bound it
+			 * because we might have compared too many bytes with an
+			 * inappropriate leaf. For a test, build a tree from "0",
+			 * "WW", "W", "S" inserted in this exact sequence and lookup
+			 * "W" => "S" is returned without this assignment.
+			 */
+			else
+				bit = node_bit;
 		}
 
 		troot = node->node.branches.b[(((unsigned char*)x)[node_bit >> 3] >>
