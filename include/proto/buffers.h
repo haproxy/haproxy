@@ -65,17 +65,199 @@ static inline void buffer_init(struct buffer *buf)
 	buf->r = buf->lr = buf->w = buf->data;
 }
 
+/*****************************************************************/
+/* These functions are used to compute various buffer area sizes */
+/*****************************************************************/
+
+/* Return the number of reserved bytes in the buffer, which ensures that once
+ * all pending data are forwarded, the buffer still has global.tune.maxrewrite
+ * bytes free. The result is between 0 and global.maxrewrite, which is itself
+ * smaller than any buf->size.
+ */
+static inline int buffer_reserved(const struct buffer *buf)
+{
+	int ret = global.tune.maxrewrite - buf->to_forward - buf->send_max;
+
+	if (buf->to_forward == BUF_INFINITE_FORWARD)
+		return 0;
+	if (ret <= 0)
+		return 0;
+	return ret;
+}
+
 /* Return the max number of bytes the buffer can contain so that once all the
  * pending bytes are forwarded, the buffer still has global.tune.maxrewrite
  * bytes free. The result sits between buf->size - maxrewrite and buf->size.
  */
-static inline int buffer_max_len(struct buffer *buf)
+static inline int buffer_max_len(const struct buffer *buf)
 {
-	if (buf->to_forward == BUF_INFINITE_FORWARD ||
-	    buf->to_forward + buf->send_max >= global.tune.maxrewrite)
-		return buf->size;
+	return buf->size - buffer_reserved(buf);
+}
+
+/* Return the maximum amount of bytes that can be written into the buffer,
+ * including reserved space which may be overwritten.
+ */
+static inline int buffer_total_space(const struct buffer *buf)
+{
+	return buf->size - buf->l;
+}
+
+/* Return the maximum amount of bytes that can be written into the buffer,
+ * excluding the reserved space, which is preserved.
+ */
+static inline int buffer_total_space_res(const struct buffer *buf)
+{
+	return buffer_max_len(buf) - buf->l;
+}
+
+/* Returns the number of contiguous bytes between <start> and <start>+<count>,
+ * and enforces a limit on buf->data + buf->size. <start> must be within the
+ * buffer.
+ */
+static inline int buffer_contig_area(const struct buffer *buf, const char *start, int count)
+{
+	if (count > buf->data - start + buf->size)
+		count = buf->data - start + buf->size;
+	return count;
+}
+
+/* Return the amount of bytes that can be written into the buffer at once,
+ * including reserved space which may be overwritten. This version is optimized
+ * to reduce the amount of operations but it's not easy to understand as it is.
+ * Drawing a buffer with wrapping data on a paper helps a lot.
+ */
+static inline int buffer_contig_space(struct buffer *buf)
+{
+	int space_from_end = buf->l - (buf->r - buf->data);
+	if (space_from_end < 0) /* data does not wrap */
+		space_from_end = buf->r - buf->data;
+	return buf->size - space_from_end;
+}
+
+/* Return the amount of bytes that can be written into the buffer at once,
+ * excluding reserved space, which is preserved. Same comment as above for
+ * the optimization leading to hardly understandable code.
+ */
+static inline int buffer_contig_space_res(struct buffer *buf)
+{
+	/* Proceed differently if the buffer is full, partially used or empty.
+	 * The hard situation is when it's partially used and either data or
+	 * reserved space wraps at the end.
+	 */
+	int res = buffer_reserved(buf);
+	int spare = buf->size - res;
+
+	if (buf->l >= spare)
+		spare = 0;
+	else if (buf->l) {
+		spare = buf->w - res - buf->r;
+		if (spare <= 0)
+			spare += buf->size;
+		spare = buffer_contig_area(buf, buf->r, spare);
+	}
+	return spare;
+}
+
+/* Same as above, but lets the caller pass the pre-computed value of
+ * buffer_reserved() in <res> if it already knows it, to save some
+ * computations.
+ */
+static inline int buffer_contig_space_with_res(struct buffer *buf, int res)
+{
+	/* Proceed differently if the buffer is full, partially used or empty.
+	 * The hard situation is when it's partially used and either data or
+	 * reserved space wraps at the end.
+	 */
+	int spare = buf->size - res;
+
+	if (buf->l >= spare)
+		spare = 0;
+	else if (buf->l) {
+		spare = buf->w - res - buf->r;
+		if (spare <= 0)
+			spare += buf->size;
+		spare = buffer_contig_area(buf, buf->r, spare);
+	}
+	return spare;
+}
+
+/* Normalizes a pointer which is supposed to be relative to the beginning of a
+ * buffer, so that wrapping is correctly handled. The intent is to use this
+ * when increasing a pointer. Note that the wrapping test is only performed
+ * once, so the original pointer must be between ->data and ->data+2*size - 1,
+ * otherwise an invalid pointer might be returned.
+ */
+static inline char *buffer_pointer(const struct buffer *buf, char *ptr)
+{
+	if (ptr - buf->size >= buf->data)
+		ptr -= buf->size;
+	return ptr;
+}
+
+/* Returns the distance between two pointers, taking into account the ability
+ * to wrap around the buffer's end.
+ */
+static inline int buffer_count(const struct buffer *buf, char *from, char *to)
+{
+	int count = to - from;
+	if (count < 0)
+		count += buf->size;
+	return count;
+}
+
+/* returns the amount of pending bytes in the buffer. It is the amount of bytes
+ * that is not scheduled to be sent.
+ */
+static inline int buffer_pending(const struct buffer *buf)
+{
+	return buf->l - buf->send_max;
+}
+
+/* Returns the size of the working area which the caller knows ends at <end>.
+ * If <end> equals buf->r (modulo size), then it means that the free area which
+ * follows is part of the working area. Otherwise, the working area stops at
+ * <end>. It always starts at buf->w+send_max. The work area includes the
+ * reserved area.
+ */
+static inline int buffer_work_area(const struct buffer *buf, char *end)
+{
+	end = buffer_pointer(buf, end);
+	if (end == buf->r) /* pointer exactly at end, lets push forwards */
+		end = buf->w;
+	return buffer_count(buf, buffer_pointer(buf, buf->w + buf->send_max), end);
+}
+
+/* Return 1 if the buffer has less than 1/4 of its capacity free, otherwise 0 */
+static inline int buffer_almost_full(const struct buffer *buf)
+{
+	if (buffer_total_space(buf) < buf->size / 4)
+		return 1;
+	return 0;
+}
+
+/*
+ * Return the max amount of bytes that can be read from the buffer at once.
+ * Note that this may be lower than the actual buffer length when the data
+ * wrap after the end, so it's preferable to call this function again after
+ * reading. Also note that this function respects the send_max limit.
+ */
+static inline int buffer_contig_data(struct buffer *buf)
+{
+	int ret;
+
+	if (!buf->send_max || !buf->l)
+		return 0;
+
+	if (buf->r > buf->w)
+		ret = buf->r - buf->w;
 	else
-		return buf->size - global.tune.maxrewrite + buf->to_forward + buf->send_max;
+		ret = buf->data + buf->size - buf->w;
+
+	/* limit the amount of outgoing data if required */
+	if (ret > buf->send_max)
+		ret = buf->send_max;
+
+	return ret;
 }
 
 /* Returns true if the buffer's input is already closed */
@@ -254,17 +436,6 @@ static inline void buffer_dont_read(struct buffer *buf)
 	buf->flags |= BF_DONT_READ;
 }
 
-/* returns the maximum number of bytes writable at once in this buffer */
-static inline int buffer_max(const struct buffer *buf)
-{
-	if (buf->l == buf->size)
-		return 0;
-	else if (buf->r >= buf->w)
-		return buf->data + buf->size - buf->r;
-	else
-		return buf->w - buf->r;
-}
-
 /*
  * Tries to realign the given buffer, and returns how many bytes can be written
  * there at once without overwriting anything.
@@ -275,97 +446,7 @@ static inline int buffer_realign(struct buffer *buf)
 		/* let's realign the buffer to optimize I/O */
 		buf->r = buf->w = buf->lr = buf->data;
 	}
-	return buffer_max(buf);
-}
-
-/*
- * Return the maximum amount of bytes that can be written into the buffer in
- * one call to buffer_put_*().
- */
-static inline int buffer_free_space(struct buffer *buf)
-{
-	return buffer_max_len(buf) - buf->l;
-}
-
-/*
- * Return the max amount of bytes that can be stuffed into the buffer at once.
- * Note that this may be lower than the actual buffer size when the free space
- * wraps after the end, so it's preferable to call this function again after
- * writing. Also note that this function respects max_len.
- */
-static inline int buffer_contig_space(struct buffer *buf)
-{
-	int ret;
-
-	if (buf->l == 0) {
-		buf->r = buf->w = buf->lr = buf->data;
-		ret = buffer_max_len(buf);
-	}
-	else if (buf->r > buf->w) {
-		ret = buf->data + buffer_max_len(buf) - buf->r;
-	}
-	else {
-		ret = buf->w - buf->r;
-		if (ret > buffer_max_len(buf))
-			ret = buffer_max_len(buf);
-	}
-	return ret;
-}
-
-/*
- * Same as above but the caller may pass the value of buffer_max_len(buf) if it
- * knows it, thus avoiding some calculations.
- */
-static inline int buffer_contig_space_with_len(struct buffer *buf, int maxlen)
-{
-	int ret;
-
-	if (buf->l == 0) {
-		buf->r = buf->w = buf->lr = buf->data;
-		ret = maxlen;
-	}
-	else if (buf->r > buf->w) {
-		ret = buf->data + maxlen - buf->r;
-	}
-	else {
-		ret = buf->w - buf->r;
-		if (ret > maxlen)
-			ret = maxlen;
-	}
-	return ret;
-}
-
-/* Return 1 if the buffer has less than 1/4 of its capacity free, otherwise 0 */
-static inline int buffer_almost_full(struct buffer *buf)
-{
-	if (buffer_free_space(buf) < buf->size / 4)
-		return 1;
-	return 0;
-}
-
-/*
- * Return the max amount of bytes that can be read from the buffer at once.
- * Note that this may be lower than the actual buffer length when the data
- * wrap after the end, so it's preferable to call this function again after
- * reading. Also note that this function respects the send_max limit.
- */
-static inline int buffer_contig_data(struct buffer *buf)
-{
-	int ret;
-
-	if (!buf->send_max || !buf->l)
-		return 0;
-
-	if (buf->r > buf->w)
-		ret = buf->r - buf->w;
-	else
-		ret = buf->data + buf->size - buf->w;
-
-	/* limit the amount of outgoing data if required */
-	if (ret > buf->send_max)
-		ret = buf->send_max;
-
-	return ret;
+	return buffer_contig_space(buf);
 }
 
 /*

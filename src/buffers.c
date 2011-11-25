@@ -196,7 +196,7 @@ int buffer_put_block(struct buffer *buf, const char *blk, int len)
 		return 0;
 
 	/* OK so the data fits in the buffer in one or two blocks */
-	max = buffer_contig_space_with_len(buf, max);
+	max = buffer_contig_space_with_res(buf, buf->size - max);
 	memcpy(buf->r, blk, MIN(len, max));
 	if (len > max)
 		memcpy(buf->data, blk + max, len - max);

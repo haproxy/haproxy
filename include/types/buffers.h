@@ -209,7 +209,7 @@ struct buffer {
 
    In order not to mix data streams, the producer may only feed the invisible
    data with data to forward, and only when the visible buffer is empty. The
-   consumer may not always be able to feed the invisible buffer due to platform
+   producer may not always be able to feed the invisible buffer due to platform
    limitations (lack of kernel support).
 
    Conversely, the consumer must always take data from the invisible data first
@@ -226,9 +226,13 @@ struct buffer {
    ->send_max. The ->to_forward parameter indicates how many bytes may be fed
    into either data buffer without waking the parent up. The special value
    BUF_INFINITE_FORWARD is never decreased nor increased. The ->send_max
-   parameter says how many bytes may be read from the visible buffer. Thus it
-   may never exceed ->l. This parameter is updated by any buffer_write() as
-   well as any data forwarded through the visible buffer.
+   parameter says how many bytes may be consumed from the visible buffer. Thus
+   it may never exceed ->l. This parameter is updated by any buffer_write() as
+   well as any data forwarded through the visible buffer. Since the ->to_forward
+   attribute applies to data after ->w+send_max, an analyser will not see a
+   buffer which has a non-null to_forward with send_max < l. A producer is
+   responsible for raising ->send_max by min(to_forward, l-send_max) when it
+   injects data into the buffer.
 
    The consumer is responsible for decreasing ->send_max when it sends data
    from the visible buffer, and ->pipe->data when it sends data from the
@@ -264,6 +268,22 @@ struct buffer {
    Note that this also means that anyone touching ->to_forward must also take
    care of updating the BF_FULL flag. For this reason, it's really advised to
    use buffer_forward() only.
+
+   A buffer may contain up to 5 areas :
+     - the data waiting to be sent. These data are located between ->w and
+       ->w+send_max ;
+     - the data to process and possibly transform. These data start at
+       ->w+send_max and may be up to r-w bytes long. Generally ->lr remains in
+       this area ;
+     - the data to preserve. They start at the end of the previous one and stop
+       at ->r. The limit between the two solely depends on the protocol being
+       analysed ; ->lr may be used as a marker.
+     - the spare area : it is the remainder of the buffer, which can be used to
+       store new incoming data. It starts at ->r and is up to ->size-l long. It
+       may be limited by global.maxrewrite.
+     - the reserved are : this is the area which must not be filled and is
+       reserved for possible rewrites ; it is up to global.maxrewrite bytes
+       long.
  */
 
 #endif /* _TYPES_BUFFERS_H */
