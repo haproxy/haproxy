@@ -45,7 +45,6 @@ int buffer_put_block(struct buffer *buf, const char *str, int len);
 int buffer_put_char(struct buffer *buf, char c);
 int buffer_get_line(struct buffer *buf, char *str, int len);
 int buffer_get_block(struct buffer *buf, char *blk, int len, int offset);
-int buffer_replace(struct buffer *b, char *pos, char *end, const char *str);
 int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int len);
 int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len);
 void buffer_dump(FILE *o, struct buffer *b, int from, int to);
@@ -573,6 +572,19 @@ static inline int buffer_feed(struct buffer *buf, const char *str)
 		return 1;
 	/* failure */
 	return -2;
+}
+
+
+/* This function writes the string <str> at position <pos> which must be in
+ * buffer <b>, and moves <end> just after the end of <str>. <b>'s parameters
+ * (l, r, lr) are updated to be valid after the shift. the shift value
+ * (positive or negative) is returned. If there's no space left, the move is
+ * not done. The function does not adjust ->send_max nor BF_OUT_EMPTY because
+ * it does not make sense to use it on data scheduled to be sent.
+ */
+static inline int buffer_replace(struct buffer *b, char *pos, char *end, const char *str)
+{
+	return buffer_replace2(b, pos, end, str, strlen(str));
 }
 
 /*

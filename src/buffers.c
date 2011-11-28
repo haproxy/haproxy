@@ -316,53 +316,14 @@ int buffer_get_block(struct buffer *buf, char *blk, int len, int offset)
 	return len;
 }
 
-/*
- * this function writes the string <str> at position <pos> which must be in buffer <b>,
- * and moves <end> just after the end of <str>.
- * <b>'s parameters (l, r, lr) are recomputed to be valid after the shift.
- * the shift value (positive or negative) is returned.
- * If there's no space left, the move is not done.
- * The function does not adjust ->send_max nor BF_OUT_EMPTY because it does not
- * make sense to use it on data scheduled to be sent.
- *
- */
-int buffer_replace(struct buffer *b, char *pos, char *end, const char *str)
-{
-	int delta;
-	int len;
-
-	len = strlen(str);
-	delta = len - (end - pos);
-
-	if (delta + b->r >= b->data + b->size)
-		return 0;  /* no space left */
-
-	if (delta + b->r > b->w && b->w >= b->r && b->l)
-		return 0;  /* no space left before wrapping data */
-
-	/* first, protect the end of the buffer */
-	memmove(end + delta, end, b->r - end);
-
-	/* now, copy str over pos */
-	memcpy(pos, str,len);
-
-	/* we only move data after the displaced zone */
-	if (b->r  > pos) b->r  += delta;
-	if (b->lr > pos) b->lr += delta;
-	b->l += delta;
-
-	b->flags &= ~BF_FULL;
-	if (b->l == 0)
-		b->r = b->w = b->lr = b->data;
-	if (b->l >= buffer_max_len(b))
-		b->flags |= BF_FULL;
-
-	return delta;
-}
-
-/*
- * same except that the string length is given, which allows str to be NULL if
- * len is 0. The send limit is *not* adjusted.
+/* This function writes the string <str> at position <pos> which must be in
+ * buffer <b>, and moves <end> just after the end of <str>. <b>'s parameters
+ * (l, r, lr) are updated to be valid after the shift. the shift value
+ * (positive or negative) is returned. If there's no space left, the move is
+ * not done. The function does not adjust ->send_max nor BF_OUT_EMPTY because
+ * it does not make sense to use it on data scheduled to be sent. The string
+ * length is taken from parameter <len>. If <len> is null, the <str> pointer
+ * is allowed to be null.
  */
 int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int len)
 {
@@ -396,7 +357,6 @@ int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int
 
 	return delta;
 }
-
 
 /*
  * Inserts <str> followed by "\r\n" at position <pos> in buffer <b>. The <len>
