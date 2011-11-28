@@ -103,11 +103,13 @@ static inline int buffer_total_space(const struct buffer *buf)
 }
 
 /* Return the maximum amount of bytes that can be written into the buffer,
- * excluding the reserved space, which is preserved.
+ * excluding the reserved space, which is preserved. 0 may be returned if
+ * the reserved space was already reached or used.
  */
 static inline int buffer_total_space_res(const struct buffer *buf)
 {
-	return buffer_max_len(buf) - buf->l;
+	int len = buffer_max_len(buf) - buf->l;
+	return len < 0 ? 0 : len;
 }
 
 /* Returns the number of contiguous bytes between <start> and <start>+<count>,
