@@ -186,12 +186,14 @@ static inline int buffer_contig_space_with_res(struct buffer *buf, int res)
 /* Normalizes a pointer which is supposed to be relative to the beginning of a
  * buffer, so that wrapping is correctly handled. The intent is to use this
  * when increasing a pointer. Note that the wrapping test is only performed
- * once, so the original pointer must be between ->data and ->data+2*size - 1,
+ * once, so the original pointer must be between ->data-size and ->data+2*size-1,
  * otherwise an invalid pointer might be returned.
  */
 static inline char *buffer_pointer(const struct buffer *buf, char *ptr)
 {
-	if (ptr - buf->size >= buf->data)
+	if (ptr < buf->data)
+		ptr += buf->size;
+	else if (ptr - buf->size >= buf->data)
 		ptr -= buf->size;
 	return ptr;
 }
