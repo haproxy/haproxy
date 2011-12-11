@@ -437,8 +437,8 @@ int stream_sock_read(int fd) {
 	 * immediately afterwards once the following data is parsed (eg:
 	 * HTTP chunking).
 	 */
-	if ((b->pipe || b->send_max == b->l)
-	    && (b->cons->flags & SI_FL_WAIT_DATA)) {
+	if (b->pipe || /* always try to send spliced data */
+	    (b->send_max == b->l && (b->cons->flags & SI_FL_WAIT_DATA))) {
 		int last_len = b->pipe ? b->pipe->data : 0;
 
 		b->cons->chk_snd(b->cons);
@@ -569,6 +569,11 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 
 		if (--write_poll <= 0)
 			return retval;
+
+		/* The only reason we did not empty the pipe is that the output
+		 * buffer is full.
+		 */
+		return 0;
 	}
 
 	/* At this point, the pipe is empty, but we may still have data pending
@@ -1053,9 +1058,12 @@ void stream_sock_chk_snd(struct stream_interface *si)
 	if (unlikely(si->state != SI_ST_EST || (ob->flags & BF_SHUTW)))
 		return;
 
-	if (!(si->flags & SI_FL_WAIT_DATA) ||        /* not waiting for data */
-	    (fdtab[si->fd].ev & FD_POLL_OUT) ||      /* we'll be called anyway */
-	    ((ob->flags & BF_OUT_EMPTY) && !(si->send_proxy_ofs)))  /* called with nothing to send ! */
+	if (unlikely((ob->flags & BF_OUT_EMPTY) && !(si->send_proxy_ofs)))  /* called with nothing to send ! */
+		return;
+
+	if (!ob->pipe &&                          /* spliced data wants to be forwarded ASAP */
+	    (!(si->flags & SI_FL_WAIT_DATA) ||    /* not waiting for data */
+	     (fdtab[si->fd].ev & FD_POLL_OUT)))   /* we'll be called anyway */
 		return;
 
 	retval = stream_sock_write_loop(si, ob);
