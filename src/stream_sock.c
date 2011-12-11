@@ -73,6 +73,7 @@
  */
 static int stream_sock_splice_in(struct buffer *b, struct stream_interface *si)
 {
+	static int splice_detects_close;
 	int fd = si->fd;
 	int ret;
 	unsigned long max;
@@ -128,8 +129,10 @@ static int stream_sock_splice_in(struct buffer *b, struct stream_interface *si)
 		if (ret <= 0) {
 			if (ret == 0) {
 				/* connection closed. This is only detected by
-				 * recent kernels (>= 2.6.27.13).
+				 * recent kernels (>= 2.6.27.13). If we notice
+				 * it works, we store the info for later use.
 				 */
+				splice_detects_close = 1;
 				b->flags |= BF_READ_NULL;
 				retval = 1; /* no need for further polling */
 				break;
@@ -151,13 +154,18 @@ static int stream_sock_splice_in(struct buffer *b, struct stream_interface *si)
 					break;
 				}
 
-				/* We don't know if the connection was closed.
+				/* We don't know if the connection was closed,
+				 * but if we know splice detects close, then we
+				 * know it for sure.
 				 * But if we're called upon POLLIN with an empty
-				 * pipe and get EAGAIN, it is suspect enought to
+				 * pipe and get EAGAIN, it is suspect enough to
 				 * try to fall back to the normal recv scheme
 				 * which will be able to deal with the situation.
 				 */
-				retval = -1;
+				if (splice_detects_close)
+					retval = 0; /* we know for sure that it's EAGAIN */
+				else
+					retval = -1;
 				break;
 			}
 
