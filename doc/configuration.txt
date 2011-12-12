@@ -7598,6 +7598,12 @@ during analysis. This requires that some data has been buffered, for instance
 through TCP request content inspection. Please see the "tcp-request content"
 keyword for more detailed information on the subject.
 
+rep_ssl_hello_type <integer>
+  Returns true when data in the response buffer looks like a complete SSL (v3
+  or superior) hello message and handshake type is equal to <integer>.
+  This test was designed to be used with TCP response content inspection: a
+  SSL session ID may be fetched.
+
 req_len <integer>
   Returns true when the length of the data in the request buffer matches the
   specified range. It is important to understand that this test does not
@@ -7633,6 +7639,29 @@ req_rdp_cookie_cnt(<name>) <integer>
   of detecting the RDP protocol, as clients generally send the MSTS or MSTSHASH
   cookies.
 
+req_ssl_hello_type <integer>
+  Returns true when data in the request buffer looks like a complete SSL (v3
+  or superior) hello message and handshake type is equal to <integer>.
+  This test was designed to be used with TCP request content inspection: an
+  SSL session ID may be fetched.
+
+req_ssl_sni <string>
+  Returns true when data in the request buffer looks like a complete SSL (v3
+  or superior) client hello message with a Server Name Indication TLS extension
+  (SNI) matching <string>. SNI normally contains the name of the host the
+  client tries to connect to (for recent browsers). SNI is useful for allowing
+  or denying access to certain hosts when SSL/TLS is used by the client. This
+  test was designed to be used with TCP request content inspection. If content
+  switching is needed, it is recommended to first wait for a complete client
+  hello (type 1), like in the example below.
+
+  Examples :
+     # Wait for a client hello for at most 5 seconds
+     tcp-request inspect-delay 5s
+     tcp-request content accept if { req_ssl_hello_type 1 }
+     use_backend bk_allow if { req_ssl_sni -f allowed_sites }
+     default_backend bk_sorry_page
+
 req_ssl_ver <decimal>
   Returns true when data in the request buffer look like SSL, with a protocol
   version matching the specified range. Both SSLv2 hello messages and SSLv3
@@ -7641,18 +7670,6 @@ req_ssl_ver <decimal>
   message header if this header looks valid (bound to the buffer size). Note
   that TLSv1 is announced as SSL version 3.1. This test was designed to be used
   with TCP request content inspection.
-
-req_ssl_hello_type <integer>
-  Returns true when data in the request buffer looks like a complete SSL (v3
-  or superior) hello message and handshake type is equal to <integer>.
-  This test was designed to be used with TCP request content inspection: an
-  SSL session ID may be fetched.
-
-rep_ssl_hello_type <integer>
-  Returns true when data in the response buffer looks like a complete SSL (v3
-  or superior) hello message and handshake type is equal to <integer>.
-  This test was designed to be used with TCP response content inspection: a
-  SSL session ID may be fetched.
 
 wait_end
   Waits for the end of the analysis period to return true. This may be used in

@@ -278,6 +278,175 @@ acl_fetch_req_ssl_ver(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 0;
 }
 
+/* Try to extract the Server Name Indication that may be presented in a TLS
+ * client hello handshake message. The format of the message is the following
+ * (cf RFC5246 + RFC6066) :
+ * TLS frame :
+ *   - uint8  type                            = 0x16   (Handshake)
+ *   - uint16 version                        >= 0x0301 (TLSv1)
+ *   - uint16 length                                   (frame length)
+ *   - TLS handshake :
+ *     - uint8  msg_type                      = 0x01   (ClientHello)
+ *     - uint24 length                                 (handshake message length)
+ *     - ClientHello :
+ *       - uint16 client_version             >= 0x0301 (TLSv1)
+ *       - uint8 Random[32]
+ *       - SessionID :
+ *         - uint8 session_id_len (0..32)              (SessionID len in bytes)
+ *         - uint8 session_id[session_id_len]
+ *       - CipherSuite :
+ *         - uint16 cipher_len               >= 2      (Cipher length in bytes)
+ *         - uint16 ciphers[cipher_len/2]
+ *       - CompressionMethod :
+ *         - uint8 compression_len           >= 1      (# of supported methods)
+ *         - uint8 compression_methods[compression_len]
+ *       - optional client_extension_len               (in bytes)
+ *       - optional sequence of ClientHelloExtensions  (as many bytes as above):
+ *         - uint16 extension_type            = 0 for server_name
+ *         - uint16 extension_len
+ *         - opaque extension_data[extension_len]
+ *           - uint16 server_name_list_len             (# of bytes here)
+ *           - opaque server_names[server_name_list_len bytes]
+ *             - uint8 name_type              = 0 for host_name
+ *             - uint16 name_len
+ *             - opaque hostname[name_len bytes]
+ */
+static int
+acl_fetch_ssl_hello_sni(struct proxy *px, struct session *l4, void *l7, int dir,
+			struct acl_expr *expr, struct acl_test *test)
+{
+	int hs_len, ext_len, bleft;
+	struct buffer *b;
+	unsigned char *data;
+
+	if (!l4)
+		goto not_ssl_hello;
+
+	b = ((dir & ACL_DIR_MASK) == ACL_DIR_RTR) ? l4->rep : l4->req;
+
+	bleft = b->l;
+	data = (unsigned char *)b->w;
+
+	/* Check for SSL/TLS Handshake */
+	if (!bleft)
+		goto too_short;
+	if (*data != 0x16)
+		goto not_ssl_hello;
+
+	/* Check for TLSv1 or later (SSL version >= 3.1) */
+	if (bleft < 3)
+		goto too_short;
+	if (data[1] < 0x03 || data[2] < 0x01)
+		goto not_ssl_hello;
+
+	if (bleft < 5)
+		goto too_short;
+	hs_len = (data[3] << 8) + data[4];
+	if (hs_len < 1 + 3 + 2 + 32 + 1 + 2 + 2 + 1 + 1 + 2 + 2)
+		goto not_ssl_hello; /* too short to have an extension */
+
+	data += 5; /* enter TLS handshake */
+	bleft -= 5;
+
+	/* Check for a complete client hello starting at <data> */
+	if (bleft < 1)
+		goto too_short;
+	if (data[0] != 0x01) /* msg_type = Client Hello */
+		goto not_ssl_hello;
+
+	/* Check the Hello's length */
+	if (bleft < 4)
+		goto too_short;
+	hs_len = (data[1] << 16) + (data[2] << 8) + data[3];
+	if (hs_len < 2 + 32 + 1 + 2 + 2 + 1 + 1 + 2 + 2)
+		goto not_ssl_hello; /* too short to have an extension */
+
+	/* We want the full handshake here */
+	if (bleft < hs_len)
+		goto too_short;
+
+	data += 4;
+	/* Start of the ClientHello message */
+	if (data[0] < 0x03 || data[1] < 0x01) /* TLSv1 minimum */
+		goto not_ssl_hello;
+
+	ext_len = data[35];
+	if (ext_len > 32 || ext_len > (hs_len - 35)) /* check for correct session_id len */
+		goto not_ssl_hello;
+
+	/* Jump to cipher suite */
+	hs_len -= 35 + ext_len;
+	data   += 35 + ext_len;
+
+	if (hs_len < 4 ||                               /* minimum one cipher */
+	    (ext_len = (data[0] << 8) + data[1]) < 2 || /* minimum 2 bytes for a cipher */
+	    ext_len > hs_len)
+		goto not_ssl_hello;
+
+	/* Jump to the compression methods */
+	hs_len -= 2 + ext_len;
+	data   += 2 + ext_len;
+
+	if (hs_len < 2 ||                       /* minimum one compression method */
+	    data[0] < 1 || data[0] > hs_len)    /* minimum 1 bytes for a method */
+		goto not_ssl_hello;
+
+	/* Jump to the extensions */
+	hs_len -= 1 + data[0];
+	data   += 1 + data[0];
+
+	if (hs_len < 2 ||                       /* minimum one extension list length */
+	    (ext_len = (data[0] << 8) + data[1]) > hs_len - 2) /* list too long */
+		goto not_ssl_hello;
+
+	hs_len = ext_len; /* limit ourselves to the extension length */
+	data += 2;
+
+	while (hs_len >= 4) {
+		int ext_type, name_type, srv_len, name_len;
+
+		ext_type = (data[0] << 8) + data[1];
+		ext_len  = (data[2] << 8) + data[3];
+
+		if (ext_len > hs_len - 4) /* Extension too long */
+			goto not_ssl_hello;
+
+		if (ext_type == 0) { /* Server name */
+			if (ext_len < 2) /* need one list length */
+				goto not_ssl_hello;
+
+			srv_len = (data[4] << 8) + data[5];
+			if (srv_len < 4 || srv_len > hs_len - 6)
+				goto not_ssl_hello; /* at least 4 bytes per server name */
+
+			name_type = data[6];
+			name_len = (data[7] << 8) + data[8];
+
+			if (name_type == 0) { /* hostname */
+				test->ptr = data + 9;
+				test->len = name_len;
+				test->flags = ACL_TEST_F_VOLATILE;
+				//fprintf(stderr, "found SNI : <");
+				//write(2, test->ptr, test->len);
+				//fprintf(stderr, ">\n");
+				return 1;
+			}
+		}
+
+		hs_len -= 4 + ext_len;
+		data   += 4 + ext_len;
+	}
+	/* server name not found */
+	goto not_ssl_hello;
+
+ too_short:
+	test->flags = ACL_TEST_F_MAY_CHANGE;
+
+ not_ssl_hello:
+
+	return 0;
+}
+
 /* Fetch the RDP cookie identified in the expression.
  * Note: this decoder only works with non-wrapping data.
  */
@@ -1884,6 +2053,7 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "req_ssl_ver",         acl_parse_dotted_ver, acl_fetch_req_ssl_ver,    acl_match_int,     ACL_USE_L6REQ_VOLATILE },
 	{ "req_rdp_cookie",      acl_parse_str,        acl_fetch_rdp_cookie,     acl_match_str,     ACL_USE_L6REQ_VOLATILE|ACL_MAY_LOOKUP },
 	{ "req_rdp_cookie_cnt",  acl_parse_int,        acl_fetch_rdp_cookie_cnt, acl_match_int,     ACL_USE_L6REQ_VOLATILE },
+	{ "req_ssl_sni",         acl_parse_str,        acl_fetch_ssl_hello_sni,  acl_match_str,     ACL_USE_L6REQ_VOLATILE|ACL_MAY_LOOKUP },
 #if 0
 	{ "time",       acl_parse_time,  acl_fetch_time,   acl_match_time  },
 #endif
