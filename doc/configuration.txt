@@ -8050,10 +8050,9 @@ The list of currently supported pattern fetch functions is the following :
                ports to some clients for a whole application session. It is of
                type integer and only works with such tables.
 
-  hdr(<name>)    This extracts the last occurrence of header <name> in an HTTP
-               request and converts it to an IP address. This IP address is
-               then used to match the table. A typical use is with the
-               x-forwarded-for header.
+  hdr(<name>)  This extracts the last occurrence of header <name> in an HTTP
+               request. A typical use is with the X-Forwarded-For header once
+               converted to IP, associated with an IP stick-table.
 
   payload(<offset>,<length>)
                This extracts a binary block of <length> bytes, and starting

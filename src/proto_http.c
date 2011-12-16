@@ -8489,24 +8489,15 @@ static struct acl_kw_list acl_kws = {{ },{
 /*     The code below is dedicated to pattern fetching and matching     */
 /************************************************************************/
 
-/* extract the IP address from the last occurrence of specified header. Note
- * that we should normally first extract the string then convert it to IP,
- * but right now we have all the functions to do this seemlessly, and we will
- * be able to change that later without touching the configuration.
- */
+/* Returns the last occurrence of specified header. */
 static int
-pattern_fetch_hdr_ip(struct proxy *px, struct session *l4, void *l7, int dir,
-                     const struct pattern_arg *arg_p, int arg_i, union pattern_data *data)
+pattern_fetch_hdr(struct proxy *px, struct session *l4, void *l7, int dir,
+		  const struct pattern_arg *arg_p, int arg_i, union pattern_data *data)
 {
 	struct http_txn *txn = l7;
-	const char *vptr;
-	int vlen;
 
-	if (!http_get_hdr(&txn->req, arg_p->data.str.str, arg_p->data.str.len, &txn->hdr_idx, -1, NULL, &vptr, &vlen))
-		return 0;
-
-	data->ip.s_addr = htonl(inetaddr_host_lim(vptr, vptr + vlen));
-	return data->ip.s_addr != 0;
+	return http_get_hdr(&txn->req, arg_p->data.str.str, arg_p->data.str.len, &txn->hdr_idx,
+			    -1, NULL, &data->str.str, &data->str.len);
 }
 
 /*
@@ -8798,7 +8789,7 @@ pattern_fetch_set_cookie(struct proxy *px, struct session *l4, void *l7, int dir
 /************************************************************************/
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct pattern_fetch_kw_list pattern_fetch_keywords = {{ },{
-	{ "hdr", pattern_fetch_hdr_ip, pattern_arg_str, PATTERN_TYPE_IP, PATTERN_FETCH_REQ },
+	{ "hdr", pattern_fetch_hdr, pattern_arg_str, PATTERN_TYPE_STRING, PATTERN_FETCH_REQ },
 	{ "url_param", pattern_fetch_url_param, pattern_arg_str, PATTERN_TYPE_STRING, PATTERN_FETCH_REQ },
 	{ "cookie", pattern_fetch_cookie, pattern_arg_str, PATTERN_TYPE_STRING, PATTERN_FETCH_REQ },
 	{ "set-cookie", pattern_fetch_set_cookie, pattern_arg_str, PATTERN_TYPE_STRING, PATTERN_FETCH_RTR },
