@@ -18,7 +18,7 @@
 #include <common/standard.h>
 
 /* static structure used on pattern_process if <p> is NULL*/
-static struct pattern spattern;
+struct pattern temp_pattern = { };
 
 /* trash chunk used for pattern conversions */
 static struct chunk trash_chunk;
@@ -469,7 +469,7 @@ struct pattern *pattern_process(struct proxy *px, struct session *l4, void *l7, 
 	struct pattern_conv_expr *conv_expr;
 
 	if (p == NULL)
-		p = &spattern;
+		p = &temp_pattern;
 
 	if (!expr->fetch->process(px, l4, l7, dir, expr->arg_p, expr->arg_i, &p->data))
 		return NULL;

@@ -25,6 +25,8 @@
 #include <types/pattern.h>
 #include <types/stick_table.h>
 
+extern struct pattern temp_pattern;
+
 struct pattern_expr *pattern_parse_expr(char **str, int *idx, char *err, int err_size);
 struct pattern *pattern_process(struct proxy *px, struct session *l4,
                                 void *l7, int dir, struct pattern_expr *expr,
