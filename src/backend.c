@@ -881,6 +881,7 @@ static void assign_tproxy_address(struct session *s)
 		case SRV_TPROXY_DYN:
 			if (srv->bind_hdr_occ) {
 				/* bind to the IP in a header */
+				((struct sockaddr_in *)&s->req->cons->addr.from)->sin_family = AF_INET;
 				((struct sockaddr_in *)&s->req->cons->addr.from)->sin_port = 0;
 				((struct sockaddr_in *)&s->req->cons->addr.from)->sin_addr.s_addr =
 					htonl(get_ip_from_hdr2(&s->txn.req,
@@ -907,6 +908,7 @@ static void assign_tproxy_address(struct session *s)
 		case PR_O_TPXY_DYN:
 			if (s->be->bind_hdr_occ) {
 				/* bind to the IP in a header */
+				((struct sockaddr_in *)&s->req->cons->addr.from)->sin_family = AF_INET;
 				((struct sockaddr_in *)&s->req->cons->addr.from)->sin_port = 0;
 				((struct sockaddr_in *)&s->req->cons->addr.from)->sin_addr.s_addr =
 					htonl(get_ip_from_hdr2(&s->txn.req,

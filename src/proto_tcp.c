@@ -146,6 +146,9 @@ int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct so
 			if (flags & 2)
 				((struct sockaddr_in6 *)&bind_addr)->sin6_port = ((struct sockaddr_in6 *)remote)->sin6_port;
 			break;
+		default:
+			/* we don't want to try to bind to an unknown address family */
+			foreign_ok = 0;
 		}
 	}
 
