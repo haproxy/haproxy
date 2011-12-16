@@ -240,7 +240,6 @@ struct acl_pattern {
  * retrieving a value, and an acl_match_* function responsible for testing it.
  */
 struct acl_test {
-	int i;                  /* integer value */
 	char *ptr;              /* pointer to beginning of value */
 	int len;                /* length of value at ptr, otherwise ignored */
 	int flags;              /* ACL_TEST_F_* set to 0 on first call */
